@@ -60,7 +60,7 @@ type MapPageClientProps = {
 
 
 export default function MapPageClient({
-  shops,
+  shops: initialShops,
   landmarks,
   mapRoute,
   shopBannerVariant = "default",
@@ -91,6 +91,20 @@ export default function MapPageClient({
     lat: number;
     lng: number;
   } | null>(null);
+  const [congestionMap, setCongestionMap] = useState<Map<number, { level: string; wait: number }>>(new Map());
+
+  const shops = useMemo(() => {
+    return initialShops.map((shop) => {
+      const c = congestionMap.get(shop.id);
+      if (!c) return shop;
+      return {
+        ...shop,
+        congestionLevel: c.level as any,
+        estimatedWaitMinutes: c.wait,
+      };
+    });
+  }, [initialShops, congestionMap]);
+
   const [isInMarket, setIsInMarket] = useState<boolean | null>(null);
   useEffect(() => {
     if (isInMarket === true) recordMarketEnter();
@@ -134,6 +148,27 @@ export default function MapPageClient({
   }, []);
 
   // 初回クーポン発行（マップを開いた日に1回だけ。失敗しても無視する）
+  const refreshCongestionData = useCallback(async () => {
+    try {
+      const res = await fetch("/api/shops/congestion");
+      if (!res.ok) return;
+      const data = await res.json();
+      const nextMap = new Map<number, { level: string; wait: number }>();
+      data.congestion.forEach((item: any) => {
+        nextMap.set(item.shopId, { level: item.congestionLevel, wait: item.estimatedWaitMinutes });
+      });
+      setCongestionMap(nextMap);
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  useEffect(() => {
+    refreshCongestionData();
+    const timer = setInterval(refreshCongestionData, 60000); // Refresh every minute
+    return () => clearInterval(timer);
+  }, [refreshCongestionData]);
+
   useEffect(() => {
     const visitorKey = getOrCreateConsultVisitorKey();
     if (!visitorKey) return;
