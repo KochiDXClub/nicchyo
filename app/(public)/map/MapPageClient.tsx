@@ -27,6 +27,7 @@ import { buildSearchIndex } from "../search/lib/searchIndex";
 import { useShopSearch } from "../search/hooks/useShopSearch";
 import { getOrCreateConsultVisitorKey } from "../../../lib/consultVisitorKey";
 import MapCharacterConsult from "./components/MapCharacterConsult";
+import type { ShopCongestion, CongestionLevel } from "../../../lib/analytics/congestion";
 import {
   buildCouponVendorIdsByType,
   COUPON_LOTTERY_PENDING_KEY,
@@ -99,7 +100,7 @@ export default function MapPageClient({
       if (!c) return shop;
       return {
         ...shop,
-        congestionLevel: c.level as any,
+        congestionLevel: c.level as CongestionLevel,
         estimatedWaitMinutes: c.wait,
       };
     });
@@ -154,7 +155,7 @@ export default function MapPageClient({
       if (!res.ok) return;
       const data = await res.json();
       const nextMap = new Map<number, { level: string; wait: number }>();
-      data.congestion.forEach((item: any) => {
+      (data.congestion as ShopCongestion[]).forEach((item) => {
         nextMap.set(item.shopId, { level: item.congestionLevel, wait: item.estimatedWaitMinutes });
       });
       setCongestionMap(nextMap);
