@@ -31,6 +31,7 @@ function CameraPageContent() {
         video: { facingMode: facingMode },
         audio: false,
       });
+      streamRef.current = newStream;
       setStream(newStream);
       if (videoRef.current) {
         videoRef.current.srcObject = newStream;
