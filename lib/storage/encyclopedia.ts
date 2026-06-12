@@ -9,8 +9,7 @@ export function getUnlockedItemIds(): string[] {
   const raw = localStorage.getItem(STORAGE_KEY);
   if (!raw) return [];
   try {
-    const parsed: unknown = JSON.parse(raw);
-    return Array.isArray(parsed) && parsed.every((v) => typeof v === 'string') ? (parsed as string[]) : [];
+    return JSON.parse(raw);
   } catch {
     return [];
   }

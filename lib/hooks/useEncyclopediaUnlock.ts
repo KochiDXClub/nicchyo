@@ -29,7 +29,8 @@ export function useEncyclopediaUnlock(userLocation: { lat: number; lng: number }
       // すでに解放済み、またはGPSトリガーでない場合はスキップ
       if (unlockedIds.includes(item.id)) return;
       if (item.trigger.type !== 'gps' && item.trigger.type !== 'both') return;
-      if (item.trigger.lat == null || item.trigger.lng == null) return;
+      if (!item.trigger.lat || !item.trigger.lng) return;
+
       const distance = calculateDistance(
         userLocation.lat,
         userLocation.lng,

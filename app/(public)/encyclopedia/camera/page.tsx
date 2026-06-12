@@ -3,9 +3,8 @@
 import { useEffect, useRef, useState, useCallback, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { ENCYCLOPEDIA_ITEMS } from "@/data/encyclopediaItems";
-import { Camera, RefreshCw, Download, X, Sparkles, Smile } from "lucide-react";
-import Link from "next/link";
-import { motion, AnimatePresence } from "framer-motion";
+import { RefreshCw, Download, X } from "lucide-react";
+import { motion } from "framer-motion";
 
 function CameraPageContent() {
   const router = useRouter();
@@ -15,8 +14,7 @@ function CameraPageContent() {
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [_stream, setStream] = useState<MediaStream | null>(null);
-  const streamRef = useRef<MediaStream | null>(null);
+  const [stream, setStream] = useState<MediaStream | null>(null);
   const [isPhotoTaken, setIsPhotoTaken] = useState(false);
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -32,7 +30,6 @@ function CameraPageContent() {
         video: { facingMode: facingMode },
         audio: false,
       });
-      streamRef.current = newStream;
       setStream(newStream);
       if (videoRef.current) {
         videoRef.current.srcObject = newStream;
@@ -42,15 +39,18 @@ function CameraPageContent() {
       console.error("Camera error:", err);
       setError("カメラにアクセスできませんでした。ブラウザの設定を確認してください。");
     }
-  }, [facingMode]);
+  }, [facingMode, stream]);
 
   useEffect(() => {
     startCamera();
     return () => {
-      streamRef.current?.getTracks().forEach((track) => track.stop());
-      streamRef.current = null;
+      if (stream) {
+        stream.getTracks().forEach((track) => track.stop());
+      }
     };
-  }, [startCamera]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [facingMode]);
+
   const toggleCamera = () => {
     setFacingMode((prev) => (prev === "user" ? "environment" : "user"));
   };
