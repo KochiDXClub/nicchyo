@@ -41,7 +41,7 @@ function CameraPageContent() {
       console.error("Camera error:", err);
       setError("カメラにアクセスできませんでした。ブラウザの設定を確認してください。");
     }
-  }, [facingMode, stream]);
+  }, [facingMode]);
 
   useEffect(() => {
     startCamera();
