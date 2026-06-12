@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { ENCYCLOPEDIA_ITEMS, type EncyclopediaItem } from "@/data/encyclopediaItems";
-import { useEncyclopedia, unlockItem } from "@/lib/storage/encyclopedia";
+import { useEncyclopedia } from "@/lib/storage/encyclopedia";
 import NavigationBar from "@/app/components/NavigationBar";
-import { Camera, QrCode, MapPin, Trophy, Star, Clock, Share2, Download, Image as ImageIcon } from "lucide-react";
+import { Camera, QrCode, MapPin, Trophy, Star, Share2 } from "lucide-react";
 import Link from "next/link";
+import { motion, AnimatePresence } from "framer-motion";
 import { motion, AnimatePresence } from "framer-motion";
 
 export default function EncyclopediaPage() {
