@@ -142,7 +142,7 @@ export default function EncyclopediaPage() {
                         <Camera size={18} />
                         記念撮影をする
                       </Link>
-                      <button className="flex h-13 w-13 items-center justify-center rounded-2xl bg-slate-100 text-slate-500 active:scale-[0.98] transition-transform">
+                      <button className="flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100 text-slate-500 active:scale-[0.98] transition-transform">
                         <Share2 size={20} />
                       </button>
                     </div>
