@@ -184,8 +184,9 @@ export default function KotoduteClient() {
             <div className="mt-3 space-y-2">
               {filteredNotes.map((note) => {
                 const isAll = note.shopId === "all";
-                const label = isAll ? "日曜市全体" : findShopName(shops, note.shopId as number);
-                const targetHref = isAll ? "/map" : `/map?shop=${note.shopId}`;
+                const shopIdNum = typeof note.shopId === "number" && note.shopId > 0 ? note.shopId : null;
+                const label = shopIdNum ? findShopName(shops, shopIdNum) : "日曜市全体";
+                const targetHref = shopIdNum ? `/map?shop=${shopIdNum}` : "/map";
 
                 return (
                   <Link
