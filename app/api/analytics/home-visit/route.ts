@@ -67,7 +67,7 @@ export async function POST(request: Request) {
         skipped: true,
         reason: "supabase_env_missing",
       },
-      { status: 200 }
+      { status: 503 }
     );
     if (shouldSetVisitorCookie) {
       skippedResponse.cookies.set(VISITOR_COOKIE_NAME, visitorKey, {

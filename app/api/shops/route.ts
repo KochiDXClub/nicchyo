@@ -10,7 +10,7 @@ export async function GET() {
   const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY;
 
   if (!supabaseUrl || !supabaseKey) {
-    return NextResponse.json({ shops: [] }, { status: 200 });
+    return NextResponse.json({ shops: [] }, { status: 503 });
   }
 
   const supabase = createClient(supabaseUrl, supabaseKey, {
