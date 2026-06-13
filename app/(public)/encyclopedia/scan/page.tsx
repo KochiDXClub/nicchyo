@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useCallback, Suspense, useRef } from "react";
+import { useState, useCallback, Suspense } from "react";
 import { useRouter } from "next/navigation";
-import QrScanner from "@/app/(public)/my-shop/coupon/QrScanner";
+import QrScanner from "./QrScanner";
 import { unlockItem } from "@/lib/storage/encyclopedia";
 import { ENCYCLOPEDIA_ITEMS } from "@/data/encyclopediaItems";
 import { motion, AnimatePresence } from "framer-motion";

@@ -72,8 +72,8 @@ const nextConfig = {
         ],
       },
       {
-        // 出店者クーポン確定ページ: カメラを許可
-        source: '/my-shop/coupon',
+        // 図鑑QRスキャンページ: カメラを許可
+        source: '/encyclopedia/scan',
         headers: [
           {
             key: 'Permissions-Policy',
