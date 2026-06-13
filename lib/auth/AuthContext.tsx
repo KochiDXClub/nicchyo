@@ -29,20 +29,10 @@ function normalizeRole(value?: string | null): UserRole {
   return "general_user";
 }
 
-function getVendorId(value: unknown): number | undefined {
-  if (typeof value === "number" && Number.isFinite(value)) return value;
-  if (typeof value === "string") {
-    const parsed = Number(value);
-    return Number.isFinite(parsed) ? parsed : undefined;
-  }
-  return undefined;
-}
-
-function mapSupabaseUser(user: SupabaseUser): User {
+async function mapSupabaseUserWithVendorId(user: SupabaseUser, supabase: ReturnType<typeof createClient>): Promise<User> {
   const appMeta = user.app_metadata as { role?: string; provider?: string } | undefined;
   const userMeta = user.user_metadata as {
     role?: string;
-    vendorId?: unknown;
     name?: string;
     full_name?: string;
     avatarUrl?: string;
@@ -51,11 +41,23 @@ function mapSupabaseUser(user: SupabaseUser): User {
   } | undefined;
 
   const role = normalizeRole(appMeta?.role);
-  const vendorId = getVendorId(userMeta?.vendorId);
   const name = userMeta?.name ?? userMeta?.full_name ?? (user.email ? user.email.split("@")[0] : "user");
   const avatarUrl = userMeta?.avatarUrl ?? userMeta?.avatar_url;
   const provider = appMeta?.provider ?? "email";
   const phone = userMeta?.phone;
+
+  // vendorsテーブルからvendorIdを取得（user_metadataは改ざん可能なため使用しない）
+  let vendorId: string | undefined = undefined;
+  if (role === "vendor" && user.id) {
+    const { data } = await supabase
+      .from("vendors")
+      .select("id")
+      .eq("id", user.id)
+      .maybeSingle();
+    if (data?.id) {
+      vendorId = data.id;
+    }
+  }
 
   return {
     id: user.id,
@@ -94,7 +96,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const { data } = await supabase.auth.getSession();
       if (!active) return;
       if (data.session?.user) {
-        setUser(mapSupabaseUser(data.session.user));
+        const mapped = await mapSupabaseUserWithVendorId(data.session.user, supabase);
+        setUser(mapped);
         setIsLoggedIn(true);
       } else {
         setUser(null);
@@ -105,8 +108,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const { data: subscription } = supabase.auth.onAuthStateChange((_event, session) => {
         if (!active) return;
         if (session?.user) {
-          setUser(mapSupabaseUser(session.user));
-          setIsLoggedIn(true);
+          mapSupabaseUserWithVendorId(session.user, supabase).then((mapped) => {
+            setUser(mapped);
+            setIsLoggedIn(true);
+          });
         } else {
           setUser(null);
           setIsLoggedIn(false);
@@ -133,9 +138,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     isVendor: user?.role === "vendor",
     isGeneralUser: user?.role === "general_user",
 
-    canEditShop: (shopId: number) => {
+    canEditShop: (shopVendorId: string) => {
       if (user?.role === "super_admin") return true;
-      if (user?.role === "vendor" && user.vendorId === shopId) return true;
+      if (user?.role === "vendor" && user.vendorId === shopVendorId) return true;
       return false;
     },
 
@@ -156,7 +161,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       options: captchaToken ? { captchaToken } : undefined,
     });
     if (error || !data.user) return null;
-    const mapped = mapSupabaseUser(data.user);
+    const mapped = await mapSupabaseUserWithVendorId(data.user, supabase);
     setUser(mapped);
     setIsLoggedIn(true);
     return mapped;
@@ -177,7 +182,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const supabase = supabaseRef.current ?? createClient();
     const { data, error } = await supabase.auth.updateUser(payload);
     if (error || !data.user) return;
-    setUser(mapSupabaseUser(data.user));
+    setUser(await mapSupabaseUserWithVendorId(data.user, supabase));
   };
 
   const logout = async () => {
