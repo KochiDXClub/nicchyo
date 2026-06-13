@@ -158,6 +158,7 @@ export default function AdminContentPage() {
               const activeColors = { all: "bg-gray-700", active: "bg-green-700", expired: "bg-slate-500" };
               return (
                 <button
+                  type="button"
                   key={f}
                   onClick={() => setFilter(f)}
                   className={`rounded-lg px-4 py-2 text-sm font-medium ${
@@ -239,6 +240,7 @@ export default function AdminContentPage() {
 
                 {/* 削除ボタン */}
                 <button
+                  type="button"
                   onClick={() => handleDelete(c.id, c.shop_name)}
                   disabled={deletingId === c.id}
                   className="flex shrink-0 items-center gap-1.5 rounded-lg bg-red-600 px-3 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"

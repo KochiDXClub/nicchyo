@@ -3,6 +3,7 @@ import { createRequire } from "module";
 const require = createRequire(import.meta.url);
 const coreWebVitals = require("eslint-config-next/core-web-vitals");
 const typescript = require("eslint-config-next/typescript");
+const reactPlugin = require("eslint-plugin-react");
 
 // React Compiler のルールを無効化（このプロジェクトは React Compiler を使用しない）
 const reactCompilerRulesOff = {
@@ -28,8 +29,10 @@ const config = [
   ...coreWebVitals,
   ...typescript,
   {
+    plugins: { react: reactPlugin },
     rules: {
       ...reactCompilerRulesOff,
+      "react/button-has-type": "error",
       "@typescript-eslint/no-unused-vars": [
         "warn",
         {

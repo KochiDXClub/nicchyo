@@ -216,6 +216,7 @@ function NavigationBarInner({
                   </div>
                 ) : (
                   <button
+                    type="button"
                     onClick={() => handleMenuItemClick("/login")}
                     className="mb-4 flex w-full items-center gap-4 rounded-2xl border-2 border-dashed border-amber-200 bg-amber-50/50 px-4 py-4 text-left transition active:scale-[0.98] active:bg-amber-50"
                   >
@@ -240,6 +241,7 @@ function NavigationBarInner({
                   <div className="mb-3 h-[76px] animate-pulse rounded-2xl bg-gray-100" />
                 ) : couponLoadError ? (
                   <button
+                    type="button"
                     onClick={() => handleMenuItemClick("/coupons")}
                     className="mb-3 flex w-full items-center gap-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-4 text-left transition active:scale-[0.98]"
                   >
@@ -259,6 +261,7 @@ function NavigationBarInner({
                 ) : activeCoupon && isMarketDay ? (
                   /* 今すぐ使えるクーポン */
                   <button
+                    type="button"
                     onClick={() => handleMenuItemClick("/coupons")}
                     className="mb-3 flex w-full items-center gap-4 rounded-2xl bg-green-500 px-4 py-4 text-left shadow-sm transition hover:bg-green-600 active:scale-[0.98]"
                   >
@@ -285,6 +288,7 @@ function NavigationBarInner({
                 ) : isMarketDay ? (
                   /* 開催日・クーポン未保有 */
                   <button
+                    type="button"
                     onClick={() => handleMenuItemClick("/coupons")}
                     className="mb-3 flex w-full items-center gap-4 rounded-2xl border-2 border-dashed border-green-200 bg-green-50/50 px-4 py-4 text-left transition active:scale-[0.98]"
                   >
@@ -304,6 +308,7 @@ function NavigationBarInner({
                 ) : (
                   /* 非開催日・または取得失敗：通常メニュー項目 */
                   <button
+                    type="button"
                     onClick={() => handleMenuItemClick("/coupons")}
                     className="mb-3 flex w-full items-center gap-3 rounded-2xl border border-green-100 bg-green-50 px-4 py-3.5 text-left transition active:scale-[0.98]"
                   >
@@ -317,6 +322,7 @@ function NavigationBarInner({
 
                 {/* ─ プライマリ：バッグ ─ */}
                 <button
+                  type="button"
                   onClick={() => handleMenuItemClick("/bag")}
                   className={`mb-4 flex w-full items-center gap-3 rounded-2xl px-4 py-3.5 text-left transition active:scale-[0.98] ${
                     bagItems.length > 0
@@ -367,6 +373,7 @@ function NavigationBarInner({
                 {/* ─ 補足：テキストリンク ─ */}
                 <div className="mb-4 flex flex-wrap gap-x-5 gap-y-2 px-1">
                   <button
+                    type="button"
                     onClick={() => handleMenuItemClick("/recipes")}
                     className="text-[13px] text-slate-400 transition hover:text-slate-600"
                   >
@@ -383,6 +390,7 @@ function NavigationBarInner({
                     <div className="overflow-hidden rounded-2xl border border-amber-100 bg-white shadow-sm">
                       {vendorMenuItems.map((item, i) => (
                         <button
+                          type="button"
                           key={item.href}
                           onClick={() => handleMenuItemClick(item.href)}
                           className={`flex w-full items-center gap-4 px-4 py-[14px] text-left transition active:bg-amber-50 ${i !== 0 ? "border-t border-gray-100" : ""}`}
@@ -405,6 +413,7 @@ function NavigationBarInner({
                     <div className="overflow-hidden rounded-2xl border border-red-100 bg-white shadow-sm">
                       {adminMenuItems.map((item, i) => (
                         <button
+                          type="button"
                           key={item.href}
                           onClick={() => handleMenuItemClick(item.href)}
                           className={`flex w-full items-center gap-4 px-4 py-[14px] text-left transition active:bg-red-50 ${i !== 0 ? "border-t border-gray-100" : ""}`}
@@ -423,6 +432,7 @@ function NavigationBarInner({
                 {/* ─ ログアウト ─ */}
                 {isLoggedIn && (
                   <button
+                    type="button"
                     onClick={handleLogout}
                     className="flex w-full items-center justify-center gap-2.5 rounded-2xl border border-gray-200 bg-white py-[14px] text-[14px] font-semibold text-gray-500 shadow-sm transition active:bg-gray-50 active:scale-[0.98]"
                   >
@@ -476,6 +486,7 @@ function NavigationBarInner({
             {/* 中央：メニューボタン */}
             <div className="flex flex-1 items-center justify-center">
               <button
+                type="button"
                 onClick={() => setMenuOpen((v) => !v)}
                 className="flex flex-col items-center gap-1 transition-all duration-200 active:scale-95"
               >
@@ -519,6 +530,7 @@ function NavigationBarInner({
           /* ── サブページ：もどるバー ── */
           <div className="mx-auto flex h-14 max-w-lg items-center px-4">
             <button
+              type="button"
               onClick={() => router.push("/map")}
               className="flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold text-gray-600 transition active:scale-95 hover:bg-gray-100"
             >

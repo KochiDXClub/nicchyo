@@ -78,12 +78,12 @@ function PostCard({ post, onRepost, onEditRepost }: { post: Post; onRepost: (pos
         </div>
       </div>
       <div className="mt-3 flex gap-2 border-t border-slate-100 pt-3">
-        <button onClick={() => onRepost(post)}
+        <button type="button" onClick={() => onRepost(post)}
           className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-amber-200 bg-amber-50 py-2 text-xs font-semibold text-amber-700 transition hover:bg-amber-100"
         >
           <RotateCcw size={13} />そのまま再投稿
         </button>
-        <button onClick={() => onEditRepost(post)}
+        <button type="button" onClick={() => onEditRepost(post)}
           className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 py-2 text-xs font-semibold text-slate-600 transition hover:bg-slate-100"
         >
           <Pencil size={13} />編集して再投稿
@@ -256,6 +256,7 @@ export default function VendorPostNewPage() {
               出店者メニューへ
             </Link>
             <button
+              type="button"
               onClick={() => { setIsSubmitted(false); setText(""); setImageFile(null); setImagePreview(null); setExpirationPreset("today"); setCustomDateTime(""); }}
               className="text-sm font-medium text-slate-500 hover:text-slate-700 hover:underline"
             >
@@ -285,12 +286,14 @@ export default function VendorPostNewPage() {
         {/* タブバー */}
         <div className="mx-auto mt-3 flex max-w-2xl gap-1 rounded-2xl border border-slate-200 bg-slate-100 p-1.5">
           <button
+            type="button"
             onClick={() => setActiveTab("new")}
             className={`flex flex-1 items-center justify-center gap-1.5 rounded-xl py-3 text-sm font-semibold transition ${activeTab === "new" ? "bg-white text-amber-600 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
           >
             <PlusCircle size={13} />新規投稿
           </button>
           <button
+            type="button"
             onClick={() => setActiveTab("history")}
             className={`flex flex-1 items-center justify-center gap-1.5 rounded-xl py-3 text-sm font-semibold transition ${activeTab === "history" ? "bg-white text-amber-600 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
           >
@@ -455,7 +458,7 @@ export default function VendorPostNewPage() {
 
           <div className="mb-4 flex gap-1.5 rounded-3xl border border-slate-200 bg-white p-1.5 shadow-sm">
             {FILTER_TABS.map((tab) => (
-              <button key={tab.key} onClick={() => setFilterTab(tab.key)}
+              <button type="button" key={tab.key} onClick={() => setFilterTab(tab.key)}
                 className={`flex flex-1 items-center justify-center gap-1.5 rounded-2xl py-3 text-sm font-semibold transition ${filterTab === tab.key ? "bg-amber-500 text-white shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
               >
                 {tab.label}
@@ -490,7 +493,7 @@ export default function VendorPostNewPage() {
           <div className="flex items-center gap-2 rounded-2xl bg-emerald-600 px-5 py-3 shadow-lg">
             <CheckCircle2 size={16} className="text-white" />
             <span className="text-sm font-semibold text-white">再投稿しました！</span>
-            <button onClick={() => setShowRepostToast(false)} className="ml-2 text-emerald-200 hover:text-white">
+            <button type="button" onClick={() => setShowRepostToast(false)} className="ml-2 text-emerald-200 hover:text-white">
               <XCircle size={14} />
             </button>
           </div>

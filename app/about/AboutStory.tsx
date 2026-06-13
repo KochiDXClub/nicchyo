@@ -154,6 +154,7 @@ export default function AboutStory() {
       <div className="fixed bottom-0 left-0 right-0 border-t border-amber-100 bg-white/90 px-6 py-6 backdrop-blur-sm safe-bottom">
         <div className="mx-auto flex max-w-md items-center justify-between gap-4">
           <button
+            type="button"
             onClick={prevSlide}
             disabled={currentIndex === 0}
             className={`flex h-12 w-12 items-center justify-center rounded-full transition ${
@@ -171,6 +172,7 @@ export default function AboutStory() {
           </span>
 
           <button
+            type="button"
             onClick={nextSlide}
             disabled={currentIndex === aboutSlides.length - 1}
             className={`flex h-14 flex-1 items-center justify-center gap-2 rounded-full font-bold shadow-md transition active:scale-95 ${

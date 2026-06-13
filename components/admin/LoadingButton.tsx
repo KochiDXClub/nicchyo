@@ -16,6 +16,7 @@ export const LoadingButton = React.memo(function LoadingButton({
 }: LoadingButtonProps) {
   return (
     <button
+      type="button"
       {...props}
       disabled={isLoading || disabled}
       className={`${className} ${isLoading || disabled ? "opacity-50 cursor-not-allowed" : ""}`}
