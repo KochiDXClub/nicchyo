@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**nicchyo（ニッチョ）** は、高知・日曜市（毎週日曜開催の大規模路上市場）を初来訪者に案内するデジタルマッププラットフォームです。インタラクティブ地図・AI案内・店舗検索・クーポンが中心機能です。
+**nicchyo（ニッチョ）** は、高知・日曜市（毎週日曜開催の大規模路上市場）を初来訪者に案内するデジタルマッププラットフォームです。インタラクティブ地図・AI案内・店舗検索が中心機能です。
 
 ## Commands
 
@@ -68,16 +68,14 @@ app/
 │   ├── map/           # メイン地図ページ（主機能）
 │   ├── search/        # 店舗検索
 │   ├── bag/           # 買い物リスト
-│   ├── coupons/       # クーポン一覧
 │   ├── consult/       # AI「にちよさん」チャット
 │   ├── shops/[code]/  # 店舗詳細（コードは3桁ゼロ埋め: 001〜300）
-│   ├── my-shop/       # 出店者向けページ（QRクーポン確認など）
+│   ├── my-shop/       # 出店者向けページ
 │   └── ...
 ├── private/           # 要認証ページ
 ├── admin/             # 管理者ページ
 └── api/               # API Routes
     ├── shops/         # 店舗データ取得・編集
-    ├── coupons/       # クーポン発行・確認・換金
     ├── grandma/       # AI「にちよさん」バックエンド
     ├── map-agent/     # マップAIアシスタント
     ├── analytics/     # アクセス解析
@@ -116,12 +114,6 @@ Layer 0: Leafletベースマップ
 
 `next.config.js` に `/shops001` → `/shops/001` のリライトルールあり。
 
-### クーポン機能 (feature/Coupon ブランチで開発中)
-
-- 市場開催日（日曜日）にのみクーポンフィルターが表示される
-- 開発中は `isMarketDay` を強制 `true` にする DEV フラグあり（コミット `c052209` 参照）
-- API: `app/api/coupons/`、出店者確認: `my-shop/coupon`（カメラ権限必要）
-
 ### テスト
 
 Vitest + jsdom + React Testing Library。テストファイルは対象ファイルと同階層か `__tests__/` に置く（例: `lib/favoriteShops.test.ts`）。カバレッジ対象は `lib/**` と `components/**`。
@@ -149,4 +141,4 @@ nicchyo-soft-green: #A0D7A7  （淡い緑）
 
 - `reactStrictMode: false` は意図的（Leaflet互換性のため変更しない）
 - Supabase Storageの画像URLは `*.supabase.co` ドメイン（`next.config.js` の `remotePatterns` に設定済み）
-- `/my-shop/coupon` ページのみカメラ権限を許可（Permissions-Policy設定あり）
+- `/encyclopedia/scan` ページのみカメラ権限を許可（Permissions-Policy設定あり）

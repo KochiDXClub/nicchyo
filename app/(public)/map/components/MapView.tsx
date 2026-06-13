@@ -524,9 +524,6 @@ type MapViewProps = {
   onShopSelect?: (shop: Shop) => void;
   spotlightShopId?: number;
   onClearSearch?: () => void;
-  couponEligibleVendorIds?: string[];
-  activeCouponTypeId?: string;
-  stampedVendorIds?: string[];
   /** マップ座標系内にレンダリングするオーバーレイ（キャラクターなど） */
   overlaySlot?: React.ReactNode;
   /** trueのとき拡大縮小スライダーと検索バーを非表示にする */
@@ -655,9 +652,6 @@ const MapView = memo(function MapView({
   onShopSelect,
   spotlightShopId,
   onClearSearch,
-  couponEligibleVendorIds,
-  activeCouponTypeId,
-  stampedVendorIds,
   overlaySlot,
   hideMapUI = false,
 }: MapViewProps = {}) {
@@ -1315,7 +1309,6 @@ const MapView = memo(function MapView({
             recipeIngredientIconsByShop={recipeIngredientIconsByShop}
             attendanceLabelsByShop={attendanceLabelsByShop}
             bagShopIds={bagShopIds}
-            couponEligibleVendorIds={couponEligibleVendorIds}
             shouldRenderRecipeOverlay={shouldRenderRecipeOverlay}
             shopsWithIngredients={shopsWithIngredients}
             recipeIngredients={recipeIngredients}
@@ -1398,8 +1391,6 @@ const MapView = memo(function MapView({
             onAddToBag={handleAddToBag}
             variant={shopBannerVariant}
             originRect={shopBannerOrigin ?? undefined}
-            activeCouponTypeId={activeCouponTypeId}
-            stampedVendorIds={stampedVendorIds}
             reserveBottomNavSpace={false}
           />
         </>

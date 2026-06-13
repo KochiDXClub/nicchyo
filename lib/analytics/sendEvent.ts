@@ -6,7 +6,6 @@ import type {
   AnalyticsParams,
   SendEventOptions,
   ShopImpressionParams,
-  CouponImpressionParams,
 } from "@/types/analytics";
 
 function getVisitorKey(): string | null {
@@ -89,18 +88,6 @@ export function sendEvent(name: AnalyticsEventName, params: AnalyticsParams = {}
         shop_id: p.shop_id,
         event_type: "view",
         meta: { source: p.source ?? null, interaction_method: p.interaction_method ?? null },
-      });
-    }
-
-    if (name === "coupon_impression") {
-      const p = params as CouponImpressionParams;
-      postJson("/api/analytics/coupon-impression", {
-        coupon_id: p.coupon_id,
-        visitor_key: getVisitorKey(),
-        shop_id: p.shop_id ?? null,
-        source: p.source,
-        placement: p.placement ?? null,
-        visible_duration: typeof p.visible_duration === "number" ? Math.max(0, Math.round(p.visible_duration)) : null,
       });
     }
   }
