@@ -25,7 +25,7 @@ export async function middleware(request: NextRequest) {
     }
   }
 
-  if (pathname.startsWith("/my-shop")) {
+  if (pathname.startsWith("/my-shop") || pathname.startsWith("/vendor")) {
     if (!user || appRole !== "vendor") {
       const redirectRes = NextResponse.redirect(new URL("/", request.url));
       supabaseResponse.cookies.getAll().forEach(({ name, value }) => {
