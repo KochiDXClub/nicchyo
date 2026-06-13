@@ -298,7 +298,7 @@ export async function POST(request: Request) {
     const originCheck = requireSameOrigin(request);
     if (!originCheck.ok) return originCheck.response;
 
-    const rateLimited = enforceRateLimit(request, {
+    const rateLimited = await enforceRateLimit(request, {
       bucket: "map-agent",
       limit: 15,
       windowMs: 10 * 60 * 1000,

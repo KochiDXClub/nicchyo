@@ -21,7 +21,7 @@ export async function PATCH(
     const originCheck = requireSameOrigin(request);
     if (!originCheck.ok) return originCheck.response;
 
-    const rateLimited = enforceRateLimit(request, {
+    const rateLimited = await enforceRateLimit(request, {
       bucket: "admin-users-id",
       limit: 30,
       windowMs: 10 * 60 * 1000,

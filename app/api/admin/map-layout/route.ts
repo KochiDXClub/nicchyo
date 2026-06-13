@@ -213,7 +213,7 @@ export async function PUT(request: NextRequest) {
     const originCheck = requireSameOrigin(request);
     if (!originCheck.ok) return originCheck.response;
 
-    const rateLimited = enforceRateLimit(request, {
+    const rateLimited = await enforceRateLimit(request, {
       bucket: "admin-map-layout-put",
       limit: 20,
       windowMs: 10 * 60 * 1000,

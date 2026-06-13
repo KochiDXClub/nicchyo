@@ -47,7 +47,7 @@ export async function PATCH(req: Request) {
   const originCheck = requireSameOrigin(req);
   if (!originCheck.ok) return originCheck.response;
 
-  const rateLimited = enforceRateLimit(req, {
+  const rateLimited = await enforceRateLimit(req, {
     bucket: "admin-notifications-patch",
     limit: 30,
     windowMs: 10 * 60 * 1000,

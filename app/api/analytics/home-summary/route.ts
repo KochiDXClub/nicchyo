@@ -43,7 +43,7 @@ export async function GET(request: NextRequest) {
   const originCheck = requireSameOrigin(request);
   if (!originCheck.ok) return originCheck.response;
 
-  const rateLimited = enforceRateLimit(request, {
+  const rateLimited = await enforceRateLimit(request, {
     bucket: "analytics-home-summary",
     limit: 60,
     windowMs: 60 * 1000,
