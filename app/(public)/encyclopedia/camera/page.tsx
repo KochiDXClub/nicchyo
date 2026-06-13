@@ -3,9 +3,8 @@
 import { useEffect, useRef, useState, useCallback, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { ENCYCLOPEDIA_ITEMS } from "@/data/encyclopediaItems";
-import { Camera, RefreshCw, Download, X, Sparkles, Smile } from "lucide-react";
-import Link from "next/link";
-import { motion, AnimatePresence } from "framer-motion";
+import { RefreshCw, Download, X } from "lucide-react";
+import { motion } from "framer-motion";
 
 function CameraPageContent() {
   const router = useRouter();
@@ -23,8 +22,8 @@ function CameraPageContent() {
   const [facingMode, setFacingMode] = useState<"user" | "environment">("environment");
 
   const startCamera = useCallback(async () => {
-    if (stream) {
-      stream.getTracks().forEach((track) => track.stop());
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => track.stop());
     }
 
     try {

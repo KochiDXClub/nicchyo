@@ -7,7 +7,6 @@ import NavigationBar from "@/app/components/NavigationBar";
 import { Camera, QrCode, MapPin, Trophy, Star, Share2 } from "lucide-react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
-import { motion, AnimatePresence } from "framer-motion";
 
 export default function EncyclopediaPage() {
   const { unlockedIds } = useEncyclopedia();
