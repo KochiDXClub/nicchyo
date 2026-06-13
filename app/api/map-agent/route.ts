@@ -5,6 +5,7 @@ import type { Database } from "@/types/database.types";
 import { fetchVendorShopsFromDb } from "@/app/(public)/map/services/shopDb";
 import { requireSameOrigin } from "@/lib/security/requestGuards";
 import { enforceRateLimit } from "@/lib/security/rateLimit";
+import { MARKET_CENTER } from "@/lib/constants";
 
 type Answers = {
   purpose?: string;
@@ -50,7 +51,6 @@ const MapAgentBodySchema = z.object({
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SUPABASE_KEY = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY;
-const MARKET_CENTER: [number, number] = [33.55915, 133.531];
 
 async function loadShops(): Promise<BaseShop[]> {
   if (!SUPABASE_URL || !SUPABASE_KEY) return [];
