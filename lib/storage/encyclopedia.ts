@@ -4,15 +4,22 @@ import { useEffect, useState, useCallback } from 'react';
 
 const STORAGE_KEY = 'nicchyo-encyclopedia-unlocked';
 
+// デモ用: 動作確認のため、常に1コレクションを解放済みとして扱う。
+// 本番運用時はこの配列を空にする。
+const DEMO_UNLOCKED_IDS = ['imoten'];
+
 export function getUnlockedItemIds(): string[] {
   if (typeof window === 'undefined') return [];
   const raw = localStorage.getItem(STORAGE_KEY);
-  if (!raw) return [];
-  try {
-    return JSON.parse(raw);
-  } catch {
-    return [];
+  let stored: string[] = [];
+  if (raw) {
+    try {
+      stored = JSON.parse(raw);
+    } catch {
+      stored = [];
+    }
   }
+  return Array.from(new Set([...DEMO_UNLOCKED_IDS, ...stored]));
 }
 
 export function unlockItem(id: string): boolean {
