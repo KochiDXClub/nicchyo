@@ -28,15 +28,6 @@ import { useShopSearch } from "../search/hooks/useShopSearch";
 import { useEncyclopediaUnlock } from "../../../lib/hooks/useEncyclopediaUnlock";
 import { getOrCreateConsultVisitorKey } from "../../../lib/consultVisitorKey";
 import MapCharacterConsult from "./components/MapCharacterConsult";
-import {
-  buildCouponVendorIdsByType,
-  COUPON_LOTTERY_PENDING_KEY,
-  fetchCouponTypes,
-  fetchMyCoupons,
-  getEligibleCouponVendorIds,
-  todayJstString,
-} from "../../../lib/coupons/client";
-import type { CouponTypeWithParticipants, MyCouponsResponse } from "../../../lib/coupons/types";
 
 const MapView = dynamic(() => import("./components/MapView"), {
   ssr: false,
@@ -112,75 +103,7 @@ export default function MapPageClient({
     }, 2000);
   }, []);
   const [isShopBannerOpen, setIsShopBannerOpen] = useState(false);
-  const [couponData, setCouponData] = useState<MyCouponsResponse | null>(null);
-  const [couponTypes, setCouponTypes] = useState<CouponTypeWithParticipants[]>([]);
-  const [mapSearchCouponTypeId, setMapSearchCouponTypeId] = useState<string | null>(null);
 
-  const refreshCouponData = useCallback(async (visitorKey?: string) => {
-    const resolvedVisitorKey = visitorKey ?? getOrCreateConsultVisitorKey();
-    if (!resolvedVisitorKey) return;
-    try {
-      const next = await fetchMyCoupons(resolvedVisitorKey, todayJstString());
-      setCouponData(next);
-    } catch {
-      // ignore
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchCouponTypes()
-      .then((nextCouponTypes) => {
-        setCouponTypes(nextCouponTypes.filter((couponType) => couponType.participant_count > 0));
-      })
-      .catch(() => {
-        setCouponTypes([]);
-      });
-  }, []);
-
-  // 初回クーポン発行（マップを開いた日に1回だけ。失敗しても無視する）
-  useEffect(() => {
-    const visitorKey = getOrCreateConsultVisitorKey();
-    if (!visitorKey) return;
-    const marketDate = todayJstString();
-    fetch("/api/coupons/issue-initial", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ visitor_key: visitorKey, market_date: marketDate }),
-    })
-      .then(async (response) => {
-        if (!response.ok) return null;
-        return (await response.json()) as { issued?: boolean };
-      })
-      .then((payload) => {
-        if (payload?.issued && typeof window !== "undefined") {
-          window.localStorage.setItem(COUPON_LOTTERY_PENDING_KEY, "1");
-        }
-      })
-      .catch(() => {
-        // 通信エラーは無視（クーポンは副次機能）
-      })
-      .finally(() => {
-        refreshCouponData(visitorKey);
-      });
-  }, [refreshCouponData]);
-
-  useEffect(() => {
-    if (typeof window === "undefined" || typeof document === "undefined") return;
-    const handleFocus = () => {
-      refreshCouponData();
-    };
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === "visible") {
-        refreshCouponData();
-      }
-    };
-    window.addEventListener("focus", handleFocus);
-    document.addEventListener("visibilitychange", handleVisibilityChange);
-    return () => {
-      window.removeEventListener("focus", handleFocus);
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
-    };
-  }, [refreshCouponData]);
   useEffect(() => {
     if (typeof document === "undefined") return;
     const updateBannerState = () => {
@@ -205,21 +128,6 @@ export default function MapPageClient({
   } | null>(null);
   const [mapSearchQuery, setMapSearchQuery] = useState('');
   const [mapSearchCategory, setMapSearchCategory] = useState<string | null>(null);
-  const couponEligibleVendorIds = useMemo(
-    () => getEligibleCouponVendorIds(couponData),
-    [couponData]
-  );
-  const couponVendorIdsByType = useMemo(
-    () => buildCouponVendorIdsByType(couponTypes),
-    [couponTypes]
-  );
-  const mapSearchCouponVendorIds = useMemo(
-    () =>
-      mapSearchCouponTypeId
-        ? couponVendorIdsByType.get(mapSearchCouponTypeId)
-        : undefined,
-    [couponVendorIdsByType, mapSearchCouponTypeId]
-  );
   const mapSearchIndex = useMemo(() => buildSearchIndex(shops), [shops]);
   const mapSearchResults = useShopSearch({
     shops,
@@ -227,19 +135,13 @@ export default function MapPageClient({
     textQuery: mapSearchQuery,
     category: mapSearchCategory,
     chome: null,
-    couponVendorIds: mapSearchCouponVendorIds,
   });
-  const activeCouponTypeId = couponData?.active_coupon?.coupon_type_id ?? undefined;
-  const stampedVendorIds = useMemo(
-    () => couponData?.stamps?.map((s) => s.vendor_id) ?? [],
-    [couponData]
-  );
   const mapSearchShopIds = useMemo(
     () =>
-      mapSearchQuery.trim() || mapSearchCategory || mapSearchCouponTypeId
+      mapSearchQuery.trim() || mapSearchCategory
         ? mapSearchResults.map((s) => s.id)
         : undefined,
-    [mapSearchCategory, mapSearchCouponTypeId, mapSearchQuery, mapSearchResults],
+    [mapSearchCategory, mapSearchQuery, mapSearchResults],
   );
   const [aiMarkerPayload, setAiMarkerPayload] = useState<{
     ids: number[];
@@ -250,7 +152,6 @@ export default function MapPageClient({
     setSearchMarkerPayload(null);
     setMapSearchQuery('');
     setMapSearchCategory(null);
-    setMapSearchCouponTypeId(null);
   }, []);
   const closeMapCharacterConsult = useCallback(() => {
     setMapCharacterConsultActive(false);
@@ -777,7 +678,6 @@ export default function MapPageClient({
                       onClick={() => {
                         setMapSearchQuery('');
                         setMapSearchCategory(null);
-                        setMapSearchCouponTypeId(null);
                       }}
                       className="shrink-0 rounded-full bg-slate-100 p-1.5 text-slate-500 hover:bg-slate-200 transition-colors"
                       aria-label="検索をクリア"
@@ -822,9 +722,6 @@ export default function MapPageClient({
               onAgentToggle={setAgentOpen}
               searchShopIds={searchMarkerPayload?.ids ?? mapSearchShopIds}
               aiShopIds={aiMarkerPayload?.ids}
-              couponEligibleVendorIds={Array.from(couponEligibleVendorIds)}
-              activeCouponTypeId={activeCouponTypeId}
-              stampedVendorIds={stampedVendorIds}
               onMapReady={markMapReady}
               onMapInstance={handleMapInstance}
               onUserLocationUpdate={(coords) => {
@@ -837,7 +734,6 @@ export default function MapPageClient({
                 setSearchMarkerPayload(null);
                 setMapSearchQuery('');
                 setMapSearchCategory(null);
-                setMapSearchCouponTypeId(null);
                 setAiMarkerPayload(null);
               }}
               kotoduteShopIds={kotoduteShopIds}
@@ -911,11 +807,9 @@ export default function MapPageClient({
                     embedded
                     initialQuery={mapSearchQuery}
                     initialCategory={mapSearchCategory}
-                    initialCouponTypeId={mapSearchCouponTypeId}
-                    onQueryChange={(q, cat, couponTypeId) => {
+                    onQueryChange={(q, cat) => {
                       setMapSearchQuery(q);
                       setMapSearchCategory(cat);
-                      setMapSearchCouponTypeId(couponTypeId);
                       if (searchMarkerPayload) {
                         clearSearchMapPayload();
                         setSearchMarkerPayload(null);

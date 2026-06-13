@@ -7,12 +7,10 @@ import type { MouseEvent } from "react";
 import type { Shop } from "../../map/data/shops";
 import { saveSearchMapPayload } from "../../../../lib/searchMapStorage";
 import { getShopBannerImage } from "../../../../lib/shopImages";
-import { Badge } from "@/components/ui/badge";
 
 interface ShopResultCardProps {
   shop: Shop;
   isFavorite: boolean;
-  hasCoupon?: boolean;
   onToggleFavorite?: (shopId: number) => void;
   onSelectShop?: (shop: Shop) => void;
   compact?: boolean;
@@ -27,7 +25,6 @@ interface ShopResultCardProps {
 function ShopResultCard({
   shop,
   isFavorite,
-  hasCoupon = false,
   onToggleFavorite,
   onSelectShop,
   compact = false,
@@ -78,11 +75,6 @@ function ShopResultCard({
           </div>
         </div>
         <div className="flex items-center gap-2">
-          {hasCoupon && (
-            <Badge variant="coupon" className={compact ? "text-[10px]" : "text-[11px]"}>
-              🎟️ クーポン対応
-            </Badge>
-          )}
           <button
             type="button"
             onClick={() => onToggleFavorite?.(shop.id)}

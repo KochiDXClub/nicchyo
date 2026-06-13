@@ -30,7 +30,6 @@ export interface OptimizedShopLayerWithClusteringProps {
   recipeIngredientIconsByShop?: Record<number, string[]>;
   attendanceLabelsByShop?: Record<number, string>;
   bagShopIds?: number[];
-  couponEligibleVendorIds?: string[];
 }
 
 const COMPACT_ICON_SIZE: [number, number] = [24, 36];
@@ -90,7 +89,6 @@ function OptimizedShopLayerWithClustering({
   recipeIngredientIconsByShop,
   attendanceLabelsByShop,
   bagShopIds,
-  couponEligibleVendorIds,
 }: OptimizedShopLayerWithClusteringProps) {
   const map = useMap();
   const clusterGroupRef = useRef<L.MarkerClusterGroup | null>(null);
@@ -110,7 +108,6 @@ function OptimizedShopLayerWithClustering({
   const prevKotoduteSetRef = useRef<Set<number>>(new Set());
   const bagShopSetRef = useRef<Set<number>>(new Set());
   const prevBagShopSetRef = useRef<Set<number>>(new Set());
-  const couponVendorSetRef = useRef<Set<string>>(new Set());
   const recipeIconsRef = useRef<Record<number, string[]>>({});
   const attendanceLabelsRef = useRef<Record<number, string>>(attendanceLabelsByShop ?? {});
   const lastIconModeRef = useRef<'compact' | 'mid' | 'full' | null>(null);
@@ -189,16 +186,6 @@ function OptimizedShopLayerWithClustering({
     }
   };
 
-  const setMarkerCoupon = (marker: L.Marker, isHighlighted: boolean) => {
-    const icon = marker.getElement();
-    if (!icon) return;
-    if (isHighlighted) {
-      icon.classList.add('shop-marker-coupon');
-    } else {
-      icon.classList.remove('shop-marker-coupon');
-    }
-  };
-
   const setMarkerRecipeIcons = (marker: L.Marker, icons?: string[]) => {
     const icon = marker.getElement();
     if (!icon) return;
@@ -274,14 +261,6 @@ function OptimizedShopLayerWithClustering({
   }, [attendanceLabelsByShop]);
 
   useEffect(() => {
-    couponVendorSetRef.current = new Set(couponEligibleVendorIds ?? []);
-    markersRef.current.forEach((marker, shopId) => {
-      const shop = shops.find((entry) => entry.id === shopId);
-      setMarkerCoupon(marker, !!shop?.vendorId && couponVendorSetRef.current.has(shop.vendorId));
-    });
-  }, [couponEligibleVendorIds, shops]);
-
-  useEffect(() => {
     const markers = L.markerClusterGroup({
       disableClusteringAtZoom: 1,
       spiderfyOnMaxZoom: false,
@@ -312,7 +291,6 @@ function OptimizedShopLayerWithClustering({
             <div class="shop-recipe-icons" aria-hidden="true"></div>
             <div class="shop-kotodute-badge" aria-hidden="true">i</div>
             <div class="shop-favorite-badge" aria-hidden="true">&#10084;</div>
-            <div class="shop-coupon-badge" aria-hidden="true">🎟️</div>
             <div class="shop-marker-compact"></div>
           </div>
         `,
@@ -411,7 +389,6 @@ function OptimizedShopLayerWithClustering({
         setMarkerCommentHighlight(marker, commentHighlightSetRef.current.has(shop.id));
         setMarkerKotodute(marker, kotoduteSetRef.current.has(shop.id));
         setMarkerBag(marker, bagShopSetRef.current.has(shop.id));
-        setMarkerCoupon(marker, !!shop.vendorId && couponVendorSetRef.current.has(shop.vendorId));
         setMarkerRecipeIcons(marker, recipeIconsRef.current[shop.id]);
         const maxZoom = map.getMaxZoom() ?? map.getZoom();
         const showSimpleBanner = map.getZoom() >= FULL_ICON_MIN_ZOOM;
@@ -509,7 +486,6 @@ function OptimizedShopLayerWithClustering({
           marker,
           attendanceLabelsRef.current[shopId] ?? 'わからない'
         );
-        const shop = shopsMap.get(shopId);
         const markerElement = marker.getElement();
         if (markerElement) {
           if (shopId === selectedShopIdRef.current) {
@@ -546,11 +522,6 @@ function OptimizedShopLayerWithClustering({
             markerElement.classList.add('shop-marker-bag');
           } else {
             markerElement.classList.remove('shop-marker-bag');
-          }
-          if (shop?.vendorId && couponVendorSetRef.current.has(shop.vendorId)) {
-            markerElement.classList.add('shop-marker-coupon');
-          } else {
-            markerElement.classList.remove('shop-marker-coupon');
           }
         }
       });

@@ -100,7 +100,6 @@ export function generateShopMarkerHtml(
       <div class="shop-recipe-icons" aria-hidden="true"></div>
       <div class="shop-kotodute-badge" aria-hidden="true">i</div>
       <div class="shop-favorite-badge" aria-hidden="true">&#10084;</div>
-      <div class="shop-coupon-badge" aria-hidden="true">🎟️</div>
       <div class="shop-bag-badge" aria-hidden="true">🛍️</div>
       ${illustrationHtml}
     </div>
