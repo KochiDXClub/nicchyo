@@ -498,33 +498,9 @@ body.grandma-chat-open .leaflet-container {
   pointer-events: none;
 }
 
-.shop-coupon-badge {
-  position: absolute;
-  top: -14px;
-  left: -12px;
-  display: none;
-  align-items: center;
-  justify-content: center;
-  border-radius: 9999px;
-  border: 2px solid #15803d;
-  background: #ecfdf5;
-  color: #166534;
-  font-size: 11px;
-  font-weight: 700;
-  line-height: 1;
-  padding: 2px 5px;
-  box-shadow: 0 2px 6px rgba(22, 101, 52, 0.2);
-  pointer-events: none;
-}
-
 .shop-side-north .shop-favorite-badge {
   left: -12px;
   right: auto;
-}
-
-.shop-side-north .shop-coupon-badge {
-  right: -12px;
-  left: auto;
 }
 
 .shop-kotodute-badge {
@@ -740,10 +716,6 @@ body.grandma-chat-open .leaflet-container {
   display: inline-flex;
 }
 
-.shop-marker-coupon .shop-coupon-badge {
-  display: inline-flex;
-}
-
 .custom-shop-marker.is-favorite .shop-favorite-badge {
   display: inline-flex;
 }
@@ -793,13 +765,6 @@ body.grandma-chat-open .leaflet-container {
 .shop-marker-bag .shop-marker-compact {
   background: linear-gradient(180deg, #10b981 0%, #059669 100%) !important;
   border: 2px solid #ffffff;
-}
-
-.shop-marker-coupon .stall-counter {
-  box-shadow:
-    inset -3px -2px 0 rgba(0, 0, 0, 0.15),
-    0 0 0 2px rgba(34, 197, 94, 0.55),
-    0 4px 10px rgba(22, 163, 74, 0.16) !important;
 }
 
 .shop-simple-banner-visible .shop-bag-badge {
@@ -1215,9 +1180,6 @@ body.home-poster-zoom-open .hamburger-button {
     --slate-800: #1e293b;
     --slate-900: #0f172a;
 
-    --coupon-bg:   #ecfdf5;
-    --coupon-fg:   #047857;
-    --coupon-line: #bbf7d0;
     --favorite-bg:   #fff1f2;
     --favorite-fg:   #be123c;
     --favorite-line: #fecdd3;

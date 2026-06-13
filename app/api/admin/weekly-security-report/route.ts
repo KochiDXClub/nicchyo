@@ -24,28 +24,6 @@ interface ShopInteractionRow {
   created_at: string | null;
 }
 
-interface CouponImpressionRow {
-  visitor_key: string | null;
-  coupon_id: string | null;
-  source: string | null;
-  ip_address: string | null;
-  created_at: string | null;
-}
-
-interface CouponIssuanceRow {
-  visitor_key: string | null;
-  market_date: string | null;
-  issue_reason: string | null;
-  created_at: string | null;
-}
-
-interface CouponRedemptionRow {
-  visitor_key: string | null;
-  vendor_id: string | null;
-  amount_discounted: number | null;
-  created_at: string | null;
-}
-
 interface AnomalyItem {
   type: string;
   severity: "low" | "medium" | "high";
@@ -57,13 +35,10 @@ interface WeeklyStats {
   totalVisitors: number;
   totalPageVisits: number;
   totalShopInteractions: number;
-  totalCouponIssuances: number;
-  totalCouponRedemptions: number;
   topPaths: Array<{ path: string; count: number }>;
   topVisitorsByPageVisit: Array<{ visitor_key: string; count: number }>;
   topVisitorsByShopInteraction: Array<{ visitor_key: string; count: number }>;
   topIpsByShopInteraction: Array<{ ip: string; count: number }>;
-  couponFarmingCandidates: Array<{ visitor_key: string; issuances: number }>;
   anomalies: AnomalyItem[];
 }
 
@@ -116,67 +91,39 @@ function topN<K>(map: Map<K, number>, n: number): Array<[K, number]> {
 async function fetchWeekData(weekStart: string, weekEnd: string) {
   const supabase = getServiceClient();
 
-  const [pageVisits, shopInteractions, couponImpressions, couponIssuances, couponRedemptions] =
-    await Promise.all([
-      supabase
-        .from("web_page_analytics")
-        .select("visitor_key, path, duration_seconds, visit_date")
-        .gte("visit_date", weekStart)
-        .lte("visit_date", weekEnd)
-        .limit(5000),
-      supabase
-        .from("shop_interactions")
-        .select("visitor_key, shop_id, event_type, ip_address, created_at")
-        .gte("created_at", `${weekStart}T00:00:00+09:00`)
-        .lte("created_at", `${weekEnd}T23:59:59+09:00`)
-        .limit(5000),
-      supabase
-        .from("coupon_impressions")
-        .select("visitor_key, coupon_id, source, ip_address, created_at")
-        .gte("created_at", `${weekStart}T00:00:00+09:00`)
-        .lte("created_at", `${weekEnd}T23:59:59+09:00`)
-        .limit(5000),
-      supabase
-        .from("coupon_issuances")
-        .select("visitor_key, market_date, issue_reason, created_at")
-        .gte("created_at", `${weekStart}T00:00:00+09:00`)
-        .lte("created_at", `${weekEnd}T23:59:59+09:00`)
-        .limit(2000),
-      supabase
-        .from("coupon_redemption_logs")
-        .select("visitor_key, vendor_id, amount_discounted, created_at")
-        .gte("created_at", `${weekStart}T00:00:00+09:00`)
-        .lte("created_at", `${weekEnd}T23:59:59+09:00`)
-        .limit(2000),
-    ]);
+  const [pageVisits, shopInteractions] = await Promise.all([
+    supabase
+      .from("web_page_analytics")
+      .select("visitor_key, path, duration_seconds, visit_date")
+      .gte("visit_date", weekStart)
+      .lte("visit_date", weekEnd)
+      .limit(5000),
+    supabase
+      .from("shop_interactions")
+      .select("visitor_key, shop_id, event_type, ip_address, created_at")
+      .gte("created_at", `${weekStart}T00:00:00+09:00`)
+      .lte("created_at", `${weekEnd}T23:59:59+09:00`)
+      .limit(5000),
+  ]);
 
   return {
     pageVisits: (pageVisits.data ?? []) as PageVisitRow[],
     shopInteractions: (shopInteractions.data ?? []) as ShopInteractionRow[],
-    couponImpressions: (couponImpressions.data ?? []) as CouponImpressionRow[],
-    couponIssuances: (couponIssuances.data ?? []) as CouponIssuanceRow[],
-    couponRedemptions: (couponRedemptions.data ?? []) as CouponRedemptionRow[],
   };
 }
 
 // ─── 統計解析 ─────────────────────────────────────────────────────────────────
 
 function analyzeData(data: Awaited<ReturnType<typeof fetchWeekData>>): WeeklyStats {
-  const { pageVisits, shopInteractions, couponImpressions, couponIssuances, couponRedemptions } = data;
+  const { pageVisits, shopInteractions } = data;
 
   // ページ別カウント
   const pathCount = countBy(pageVisits, (r) => r.path);
   const visitorPageCount = countBy(pageVisits, (r) => r.visitor_key);
   const visitorShopCount = countBy(shopInteractions, (r) => r.visitor_key);
   const ipShopCount = countBy(shopInteractions, (r) => r.ip_address);
-  const visitorCouponIssuanceCount = countBy(couponIssuances, (r) => r.visitor_key);
 
   const totalVisitors = new Set(pageVisits.map((r) => r.visitor_key).filter(Boolean)).size;
-
-  // クーポン集計（同一visitor_keyが3枚以上は要注目）
-  const couponFarmingCandidates = topN(visitorCouponIssuanceCount, 10)
-    .filter(([, count]) => count >= 3)
-    .map(([visitor_key, issuances]) => ({ visitor_key: `${visitor_key}`, issuances }));
 
   const anomalies: AnomalyItem[] = [];
 
@@ -204,19 +151,7 @@ function analyzeData(data: Awaited<ReturnType<typeof fetchWeekData>>): WeeklySta
     }
   }
 
-  // 異常3: クーポン大量取得
-  if (couponFarmingCandidates.length > 0) {
-    for (const { visitor_key, issuances } of couponFarmingCandidates.slice(0, 3)) {
-      anomalies.push({
-        type: "coupon_farming",
-        severity: issuances >= 5 ? "high" : "medium",
-        description: "クーポン大量取得の疑い",
-        detail: `visitor_key ${visitor_key.slice(0, 12)}... が ${issuances} 枚のクーポンを取得`,
-      });
-    }
-  }
-
-  // 異常4: /admin や /api へのアクセス試行（クライアントから）
+  // 異常3: /admin や /api へのアクセス試行（クライアントから）
   const suspiciousPaths = pageVisits.filter(
     (r) => r.path && (r.path.startsWith("/admin") || r.path.includes("../") || r.path.includes("..\\"))
   );
@@ -229,25 +164,10 @@ function analyzeData(data: Awaited<ReturnType<typeof fetchWeekData>>): WeeklySta
     });
   }
 
-  // 異常5: クーポン印象数に比べて換金率が異常に高い
-  const impressionVisitors = new Set(couponImpressions.map((r) => r.visitor_key).filter(Boolean));
-  const redemptionVisitors = new Set(couponRedemptions.map((r) => r.visitor_key).filter(Boolean));
-  const suspiciousRedemptions = [...redemptionVisitors].filter((v) => !impressionVisitors.has(v));
-  if (suspiciousRedemptions.length > 5) {
-    anomalies.push({
-      type: "redemption_without_impression",
-      severity: "medium",
-      description: "クーポン表示ログなしでの換金",
-      detail: `${suspiciousRedemptions.length} 件のインプレッションなし換金`,
-    });
-  }
-
   return {
     totalVisitors,
     totalPageVisits: pageVisits.length,
     totalShopInteractions: shopInteractions.length,
-    totalCouponIssuances: couponIssuances.length,
-    totalCouponRedemptions: couponRedemptions.length,
     topPaths: topN(pathCount, 10).map(([path, count]) => ({ path: `${path}`, count })),
     topVisitorsByPageVisit: topN(visitorPageCount, 5).map(([v, count]) => ({
       visitor_key: `${v}`.slice(0, 16) + "...",
@@ -261,7 +181,6 @@ function analyzeData(data: Awaited<ReturnType<typeof fetchWeekData>>): WeeklySta
       ip: `${ip}`,
       count,
     })),
-    couponFarmingCandidates,
     anomalies,
   };
 }
@@ -283,8 +202,6 @@ ${weekStart} ～ ${weekEnd} の集計結果を分析し、200字以内の日本�
 - 週間ユニーク訪問者: ${stats.totalVisitors}人
 - ページ閲覧数: ${stats.totalPageVisits}件
 - ショップ操作: ${stats.totalShopInteractions}件
-- クーポン発行: ${stats.totalCouponIssuances}件
-- クーポン換金: ${stats.totalCouponRedemptions}件
 
 ## 検出された異常（${stats.anomalies.length}件）
 ${stats.anomalies.map((a) => `- [${a.severity.toUpperCase()}] ${a.description}: ${a.detail}`).join("\n") || "なし"}
@@ -385,8 +302,6 @@ function generateHtml(
         ["訪問者数", stats.totalVisitors, "#3b82f6"],
         ["ページ閲覧", stats.totalPageVisits, "#8b5cf6"],
         ["ショップ操作", stats.totalShopInteractions, "#ec4899"],
-        ["クーポン発行", stats.totalCouponIssuances, "#f59e0b"],
-        ["クーポン換金", stats.totalCouponRedemptions, "#10b981"],
         ["異常検知", stats.anomalies.length, stats.anomalies.length > 0 ? "#ef4444" : "#22c55e"],
       ]
         .map(
@@ -479,7 +394,6 @@ async function sendDiscordNotification(
     { name: "異常検知", value: `${stats.anomalies.length}件`, inline: true },
     { name: "訪問者数", value: `${stats.totalVisitors.toLocaleString()}人`, inline: true },
     { name: "ページ閲覧", value: `${stats.totalPageVisits.toLocaleString()}件`, inline: true },
-    { name: "クーポン発行/換金", value: `${stats.totalCouponIssuances}/${stats.totalCouponRedemptions}`, inline: true },
   ];
 
   const description = summary.length > 300 ? summary.slice(0, 297) + "..." : summary;
@@ -557,7 +471,6 @@ async function runWeeklyReport(): Promise<{
       anomaly_count: stats.anomalies.length,
       total_page_visits: stats.totalPageVisits,
       total_visitors: stats.totalVisitors,
-      total_coupon_actions: stats.totalCouponIssuances + stats.totalCouponRedemptions,
     },
     { onConflict: "report_date" }
   );

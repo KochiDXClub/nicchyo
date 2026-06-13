@@ -36,11 +36,6 @@ module.exports = {
         },
 
         // ===== セマンティック =====
-        coupon: {
-          bg:   '#ecfdf5',
-          fg:   '#047857',
-          line: '#bbf7d0',
-        },
         favorite: {
           bg:   '#fff1f2',
           fg:   '#be123c',
