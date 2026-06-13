@@ -77,6 +77,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let active = true;
+    let unsubscribe: (() => void) | null = null;
 
     const init = async () => {
       if (!supabaseRef.current) {
@@ -91,10 +92,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const supabase = supabaseRef.current;
       if (!supabase) return;
 
-      const { data } = await supabase.auth.getSession();
+      // getSession() はサーバー検証なし。getUser() でサーバーサイド検証を行う
+      const { data } = await supabase.auth.getUser();
       if (!active) return;
-      if (data.session?.user) {
-        setUser(mapSupabaseUser(data.session.user));
+      if (data.user) {
+        setUser(mapSupabaseUser(data.user));
         setIsLoggedIn(true);
       } else {
         setUser(null);
@@ -102,7 +104,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       setIsLoading(false);
 
-      const { data: subscription } = supabase.auth.onAuthStateChange((_event, session) => {
+      const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
         if (!active) return;
         if (session?.user) {
           setUser(mapSupabaseUser(session.user));
@@ -113,17 +115,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       });
 
-      return () => {
-        subscription.subscription.unsubscribe();
-      };
+      unsubscribe = () => sub.subscription.unsubscribe();
+      // cleanup が先に走っていた場合は即座に解除する
+      if (!active) unsubscribe();
     };
 
-    const cleanupPromise = init();
+    init();
     return () => {
       active = false;
-      if (cleanupPromise && typeof cleanupPromise.then === "function") {
-        cleanupPromise.then((cleanup) => cleanup?.());
-      }
+      unsubscribe?.();
     };
   }, []);
 
