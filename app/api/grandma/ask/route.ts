@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/database.types";
+import type { DatabaseWithExtensions } from "@/types/database.extensions";
 import { buildGrandmaAiSystemPrompt } from "@/app/(public)/map/data/grandmaAiContext";
 import { requireSameOrigin } from "@/lib/security/requestGuards";
 import { enforceRateLimit } from "@/lib/security/rateLimit";
@@ -547,7 +548,7 @@ export async function POST(request: Request) {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
     if (supabaseUrl && serviceRoleKey) {
-      const secClient = createClient<Database>(supabaseUrl, serviceRoleKey);
+      const secClient = createClient<DatabaseWithExtensions>(supabaseUrl, serviceRoleKey);
       // x-real-ip はVercelが設定する信頼できるヘッダー（スプーフィング不可）
       const forwardedIp =
         request.headers.get("x-real-ip") ??

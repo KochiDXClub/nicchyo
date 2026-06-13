@@ -1,9 +1,9 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "@/types/database.types";
+import type { DatabaseWithExtensions } from "@/types/database.extensions";
 import { detectAbuse } from "@/lib/security/abuseDetector";
 
 export async function handleAbuseDetection(
-  supabase: SupabaseClient<Database>,
+  supabase: SupabaseClient<DatabaseWithExtensions>,
   ip: string | null,
   text: string,
   visitorKey?: string
@@ -43,8 +43,7 @@ export async function handleAbuseDetection(
         visitor_key: visitorKey ?? null,
         reason: abuse.reason,
       });
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (supabase as any).from("admin_notifications").insert({
+      await supabase.from("admin_notifications").insert({
         type: "ai_abuse",
         title: `AI不正アクセスをブロック（${abuse.type}）`,
         body: `IP: ${ip ?? "不明"} | visitor: ${visitorKey ?? "不明"} | ${abuse.reason} | 内容: ${text.slice(0, 80)}`,
