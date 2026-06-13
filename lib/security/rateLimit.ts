@@ -99,6 +99,7 @@ if (
 
 // ── 公開 API ───────────────────────────────────────────────────────────────
 
+
 export function getClientIp(request: Request): string {
   const realIp = request.headers.get("x-real-ip");
   if (realIp) return realIp;

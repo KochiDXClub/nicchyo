@@ -109,6 +109,11 @@ describe('rateLimit', () => {
         await enforceRateLimit(req, defaultOptions);
       }
 
+      // 20001 triggers cleanup, deleting 3000 oldest
+      // Expected size: 20001 - 3000 = 17001
+
+      // Unfortunately we can't easily assert on RATE_LIMIT_STORE size directly
+      // since it's not exported. But we can verify it doesn't throw.
       await expect(async () => {
         const lastReq = new Request('http://localhost', { headers: { 'x-real-ip': 'ip-final' } });
         await enforceRateLimit(lastReq, defaultOptions);

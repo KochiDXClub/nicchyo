@@ -25,10 +25,6 @@ function isValidVisitorKey(value: string) {
   return /^[a-f0-9-]{16,64}$/i.test(value);
 }
 
-// 同一visitor_keyからの連続呼び出しを防ぐ（1分以内は無視）
-const homeVisitCooldown = new Map<string, number>();
-const HOME_VISIT_COOLDOWN_MS = 60 * 1000;
-
 export async function POST(request: Request) {
   const originCheck = requireSameOrigin(request);
   if (!originCheck.ok) return originCheck.response;
@@ -41,21 +37,7 @@ export async function POST(request: Request) {
     shouldSetVisitorCookie = true;
   }
 
-  // クールダウンチェック
-  const now = Date.now();
-  const lastCall = homeVisitCooldown.get(visitorKey);
-  if (lastCall && now - lastCall < HOME_VISIT_COOLDOWN_MS) {
-    const skipped = NextResponse.json({ ok: true, skipped: true, reason: "cooldown" });
-    return skipped;
-  }
-  homeVisitCooldown.set(visitorKey, now);
-  // メモリリーク防止: 1000件超えたら古いものを削除
-  if (homeVisitCooldown.size > 1000) {
-    const oldest = Array.from(homeVisitCooldown.entries())
-      .sort((a, b) => a[1] - b[1])
-      .slice(0, 200);
-    oldest.forEach(([k]) => homeVisitCooldown.delete(k));
-  }
+  // クールダウンは track_home_visit RPC の ON CONFLICT DO NOTHING で担保（DB レベルで冪等）
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
