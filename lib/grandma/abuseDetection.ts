@@ -8,8 +8,6 @@ export async function handleAbuseDetection(
   text: string,
   visitorKey?: string
 ): Promise<"blocked" | "ok"> {
-  const blockIpValue = ip ?? "__visitor_key__";
-
   // Check blocklist in parallel for IP and visitor_key
   if (ip || visitorKey) {
     const [ipResult, visitorResult] = await Promise.all([
@@ -39,7 +37,7 @@ export async function handleAbuseDetection(
     });
     if (shouldBlock && (ip || visitorKey)) {
       await supabase.from("ai_abuse_blocks").insert({
-        ip_address: blockIpValue,
+        ip_address: ip ?? null,
         visitor_key: visitorKey ?? null,
         reason: abuse.reason,
       });
