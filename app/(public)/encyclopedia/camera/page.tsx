@@ -14,15 +14,17 @@ function CameraPageContent() {
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [stream, setStream] = useState<MediaStream | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
   const [isPhotoTaken, setIsPhotoTaken] = useState(false);
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [facingMode, setFacingMode] = useState<"user" | "environment">("environment");
 
   const startCamera = useCallback(async () => {
-    if (stream) {
-      stream.getTracks().forEach((track) => track.stop());
+    // 既存ストリームを停止してから取得し直す（カメラ切り替え時）
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
     }
 
     try {
@@ -30,7 +32,7 @@ function CameraPageContent() {
         video: { facingMode: facingMode },
         audio: false,
       });
-      setStream(newStream);
+      streamRef.current = newStream;
       if (videoRef.current) {
         videoRef.current.srcObject = newStream;
       }
@@ -39,17 +41,24 @@ function CameraPageContent() {
       console.error("Camera error:", err);
       setError("カメラにアクセスできませんでした。ブラウザの設定を確認してください。");
     }
-  }, [facingMode, stream]);
+  }, [facingMode]);
 
   useEffect(() => {
     startCamera();
     return () => {
-      if (stream) {
-        stream.getTracks().forEach((track) => track.stop());
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((track) => track.stop());
+        streamRef.current = null;
       }
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [facingMode]);
+  }, [startCamera]);
+
+  // 「撮り直す」で <video> が再マウントされた際に、保持中のストリームを再アタッチする
+  useEffect(() => {
+    if (!isPhotoTaken && videoRef.current && streamRef.current) {
+      videoRef.current.srcObject = streamRef.current;
+    }
+  }, [isPhotoTaken]);
 
   const toggleCamera = () => {
     setFacingMode((prev) => (prev === "user" ? "environment" : "user"));
