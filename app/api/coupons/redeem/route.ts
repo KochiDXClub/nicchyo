@@ -8,6 +8,8 @@ import { normalizeCouponIssuance } from "@/lib/coupons/types";
 import type { SupabaseCouponIssuanceRow } from "@/lib/coupons/types";
 import { isCouponQrTokenValid, parseCouponQrToken } from "@/lib/coupons/qrToken";
 import { todayJstString } from "@/lib/time/jstDate";
+import { requireSameOrigin } from "@/lib/security/requestGuards";
+import { enforceRateLimit } from "@/lib/security/rateLimit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -33,6 +35,17 @@ function getServiceClient() {
  * 1トランザクション内に閉じており、ロールバック不整合と race condition を防止する。
  */
 export async function POST(request: Request) {
+  const originCheck = requireSameOrigin(request);
+  if (!originCheck.ok) return originCheck.response;
+
+  const rateLimited = enforceRateLimit(request, {
+    bucket: "coupons-redeem",
+    limit: 20,
+    windowMs: 60 * 1000,
+    message: "クーポン換金のリクエストが多すぎます。しばらくしてからお試しください。",
+  });
+  if (rateLimited) return rateLimited;
+
   try {
     const isDevCouponOverride = process.env.NODE_ENV !== "production";
 
