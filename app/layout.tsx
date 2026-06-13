@@ -1,6 +1,6 @@
 import { Suspense } from "react";
+import { headers } from "next/headers";
 import type { Metadata, Viewport } from "next";
-import Script from "next/script";
 import "./globals.css";
 import { AuthProvider } from "@/lib/auth/AuthContext";
 import { MenuProvider } from "@/lib/ui/MenuContext";
@@ -53,8 +53,6 @@ export const viewport: Viewport = {
   viewportFit: "cover",
 };
 
-const GA_ID = process.env.NEXT_PUBLIC_GOOGLE_ANALYTICS_ID;
-
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://nicchyo.jp";
 
 const organizationJsonLd = {
@@ -71,12 +69,14 @@ const organizationJsonLd = {
   },
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const nonce = (await headers()).get("x-nonce") ?? undefined;
   return (
     <html lang="ja">
       <head>
         <script
           type="application/ld+json"
+          nonce={nonce}
           dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationJsonLd) }}
         />
       </head>
