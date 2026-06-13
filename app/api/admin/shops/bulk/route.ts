@@ -3,14 +3,13 @@ import { createClient as createServiceClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 import { createClient as createServerClient } from "@/utils/supabase/server";
 import { requireSameOrigin } from "@/lib/security/requestGuards";
-import { enforceRateLimit } from "@/lib/security/rateLimit";
+import { enforceRateLimit, getClientIp } from "@/lib/security/rateLimit";
 import { getRole, isAdmin } from "@/lib/auth/permissions";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 type BulkAction = "suspend" | "restore" | "delete";
-
 
 export async function POST(request: Request) {
   try {
@@ -37,17 +36,29 @@ export async function POST(request: Request) {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
     if (!supabaseUrl || !serviceRoleKey) {
-      return NextResponse.json({ error: "Supabase env missing" }, { status: 500 });
+      return NextResponse.json({ error: "Internal server error" }, { status: 500 });
     }
 
-    const body = (await request.json()) as { action: BulkAction; ids: string[] };
-    const { action, ids } = body;
+    const body = (await request.json()) as {
+      action: BulkAction;
+      ids: string[];
+      confirmText?: string;
+    };
+    const { action, ids, confirmText } = body;
 
     if (!action || !Array.isArray(ids) || ids.length === 0) {
       return NextResponse.json({ error: "Invalid request" }, { status: 400 });
     }
     if (ids.length > 200) {
       return NextResponse.json({ error: "一度に操作できるのは200件までです" }, { status: 400 });
+    }
+
+    // 削除は取り消し不可のため、明示的な確認テキストを必須とする
+    if (action === "delete" && confirmText !== "DELETE") {
+      return NextResponse.json(
+        { error: '削除を実行するには confirmText に "DELETE" を指定してください' },
+        { status: 400 }
+      );
     }
 
     const serviceClient = createServiceClient(supabaseUrl, serviceRoleKey, {
@@ -63,7 +74,7 @@ export async function POST(request: Request) {
     // vendors テーブルに存在するIDのみに絞る（admin等を誤って操作しないため）
     const { data: validVendors, error: vendorFetchError } = await serviceClient
       .from("vendors")
-      .select("id")
+      .select("id, shop_name")
       .in("id", withoutSelf);
     if (vendorFetchError) {
       return NextResponse.json({ error: "Failed to validate vendor IDs" }, { status: 500 });
@@ -73,6 +84,23 @@ export async function POST(request: Request) {
     if (safeIds.length === 0) {
       return NextResponse.json({ error: "対象の出店者が見つかりません" }, { status: 400 });
     }
+
+    const shopNames = validVendors?.map((v: { id: string; shop_name: string | null }) => v.shop_name ?? v.id).join(", ") ?? "";
+    const actionLabel = action === "delete" ? "削除" : action === "suspend" ? "停止" : "復活";
+    const ip = getClientIp(request);
+
+    // 監査ログを操作前に記録（削除後に失敗しても痕跡が残るよう）
+    await serviceClient.from("admin_audit_logs").insert({
+      actor_id: user.id,
+      actor_email: user.email ?? null,
+      actor_role: getRole(user),
+      action: `bulk_${action}`,
+      target_type: "vendor",
+      target_id: safeIds.join(","),
+      target_name: shopNames.slice(0, 500),
+      details: `${safeIds.length}件を一括${actionLabel}`,
+      ip_address: ip !== "unknown" ? ip : null,
+    });
 
     const errors: string[] = [];
 
@@ -98,16 +126,6 @@ export async function POST(request: Request) {
     } else {
       return NextResponse.json({ error: "Unknown action" }, { status: 400 });
     }
-
-    // 監査ログに記録
-    const actionLabel = action === "delete" ? "削除" : action === "suspend" ? "停止" : "復活";
-    await serviceClient.from("admin_audit_logs").insert({
-      actor_id: user.id,
-      action: `bulk_${action}`,
-      target_type: "vendor",
-      target_id: safeIds.join(","),
-      details: `${safeIds.length}件を一括${actionLabel}`,
-    });
 
     if (errors.length > 0) {
       return NextResponse.json(
