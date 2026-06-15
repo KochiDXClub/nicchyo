@@ -106,8 +106,6 @@ function formatMinutes(value: number) {
   return `${value.toFixed(1)}分`;
 }
 
-
-
 function buildVisitorDailyDurationMap(rows: PageAnalyticsRow[]) {
   const byDate = new Map<string, Map<string, number>>();
 
