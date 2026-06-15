@@ -93,7 +93,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!supabase) return;
 
       // getSession() はサーバー検証なし。getUser() でサーバーサイド検証を行う
-      const { data } = await supabase.auth.getUser();
+      const { data, error } = await supabase.auth.getUser();
+      if (error) {
+        console.error("[AuthContext] getUser failed:", error.message);
+      }
       if (!active) return;
       if (data.user) {
         setUser(mapSupabaseUser(data.user));
@@ -104,8 +107,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       setIsLoading(false);
 
-      const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+      const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
         if (!active) return;
+        // INITIAL_SESSION は getUser() で処理済みのためスキップ（未検証ローカルトークンによる上書きを防ぐ）
+        if (event === "INITIAL_SESSION") return;
         if (session?.user) {
           setUser(mapSupabaseUser(session.user));
           setIsLoggedIn(true);
