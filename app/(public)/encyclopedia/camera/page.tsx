@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useCallback, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { ENCYCLOPEDIA_ITEMS } from "@/data/encyclopediaItems";
-import { RefreshCw, Download, X } from "lucide-react";
+import { RefreshCw, Download, X, Camera } from "lucide-react";
 import { motion } from "framer-motion";
 
 function CameraPageContent() {
@@ -18,6 +18,9 @@ function CameraPageContent() {
   const [isPhotoTaken, setIsPhotoTaken] = useState(false);
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // 権限拒否などで再要求ボタンを出すかどうか
+  const [isPermissionBlocked, setIsPermissionBlocked] = useState(false);
+  const [isInitializing, setIsInitializing] = useState(true);
   const [facingMode, setFacingMode] = useState<"user" | "environment">("environment");
 
   const startCamera = useCallback(async () => {
@@ -27,7 +30,20 @@ function CameraPageContent() {
       streamRef.current = null;
     }
 
+    // ブラウザがカメラAPIに非対応、または非セキュアコンテキスト（http）の場合
+    if (typeof navigator === "undefined" || !navigator.mediaDevices?.getUserMedia) {
+      setError("このブラウザではカメラを利用できません。HTTPS環境で最新のブラウザをお使いください。");
+      setIsPermissionBlocked(false);
+      setIsInitializing(false);
+      return;
+    }
+
+    setIsInitializing(true);
+    setError(null);
+    setIsPermissionBlocked(false);
+
     try {
+      // getUserMedia の呼び出しがブラウザ標準のカメラ許可ダイアログを表示する
       const newStream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: facingMode },
         audio: false,
@@ -37,9 +53,25 @@ function CameraPageContent() {
         videoRef.current.srcObject = newStream;
       }
       setError(null);
+      setIsPermissionBlocked(false);
     } catch (err) {
       console.error("Camera error:", err);
-      setError("カメラにアクセスできませんでした。ブラウザの設定を確認してください。");
+      const name = err instanceof DOMException ? err.name : "";
+      if (name === "NotAllowedError" || name === "PermissionDeniedError" || name === "SecurityError") {
+        setError("カメラへのアクセスが許可されていません。撮影するにはカメラの使用を許可してください。");
+        setIsPermissionBlocked(true);
+      } else if (name === "NotFoundError" || name === "DevicesNotFoundError") {
+        setError("カメラが見つかりませんでした。カメラ付きの端末でお試しください。");
+        setIsPermissionBlocked(false);
+      } else if (name === "NotReadableError" || name === "TrackStartError") {
+        setError("カメラを起動できませんでした。他のアプリがカメラを使用していないか確認してください。");
+        setIsPermissionBlocked(true);
+      } else {
+        setError("カメラにアクセスできませんでした。ブラウザの設定を確認してください。");
+        setIsPermissionBlocked(true);
+      }
+    } finally {
+      setIsInitializing(false);
     }
   }, [facingMode]);
 
@@ -187,23 +219,52 @@ function CameraPageContent() {
           </div>
         )}
 
+        {/* 起動中（カメラ許可ダイアログの応答待ちを含む） */}
+        {!isPhotoTaken && isInitializing && !error && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 p-8 text-center bg-slate-900/95">
+            <div className="h-12 w-12 animate-spin rounded-full border-4 border-white/20 border-t-amber-400" />
+            <div>
+              <p className="text-sm font-bold text-white">カメラを起動しています…</p>
+              <p className="mt-1 text-xs text-slate-400">許可を求められたら「許可」を選んでください</p>
+            </div>
+          </div>
+        )}
+
+        {/* エラー・許可拒否時の案内 */}
         {error && (
           <div className="absolute inset-0 flex flex-col items-center justify-center p-8 text-center bg-slate-900">
-            <div className="w-16 h-16 bg-red-500/20 rounded-full flex items-center justify-center mb-4">
-              <X className="text-red-500" size={32} />
+            <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-amber-500/15">
+              <Camera className="text-amber-400" size={32} />
             </div>
-            <p className="text-sm text-slate-300 mb-6">{error}</p>
+            <p className="mb-2 text-base font-bold text-white">カメラを使えるようにしましょう</p>
+            <p className="mb-6 max-w-xs text-sm leading-relaxed text-slate-300">{error}</p>
+
             <button
-              onClick={() => window.location.reload()}
-              className="px-6 py-3 bg-white text-slate-900 rounded-2xl font-bold text-sm"
+              onClick={startCamera}
+              disabled={isInitializing}
+              className="mb-3 w-full max-w-xs rounded-2xl bg-amber-500 px-6 py-3.5 text-sm font-bold text-white shadow-lg shadow-amber-500/30 transition active:scale-95 disabled:opacity-60"
             >
-              再読み込み
+              {isInitializing ? "起動中…" : "カメラを許可する"}
+            </button>
+
+            {isPermissionBlocked && (
+              <p className="mb-4 max-w-xs text-[11px] leading-relaxed text-slate-500">
+                ボタンを押しても表示されない場合は、ブラウザのアドレスバーの🔒（鍵マーク）からカメラを「許可」に変更し、再度お試しください。
+              </p>
+            )}
+
+            <button
+              onClick={() => router.back()}
+              className="text-xs font-semibold text-slate-400 underline-offset-2 hover:underline"
+            >
+              撮影をやめて戻る
             </button>
           </div>
         )}
       </div>
 
-      {/* Footer Controls */}
+      {/* Footer Controls（エラー・起動中はシャッターを隠す） */}
+      {!(error || (isInitializing && !isPhotoTaken)) && (
       <div className="absolute bottom-0 left-0 right-0 z-20 p-8 bg-gradient-to-t from-black/80 to-transparent">
         <div className="flex items-center justify-center gap-8">
           {!isPhotoTaken ? (
@@ -245,6 +306,7 @@ function CameraPageContent() {
           )}
         </div>
       </div>
+      )}
 
       {/* Hidden Canvas for Processing */}
       <canvas ref={canvasRef} className="hidden" />
