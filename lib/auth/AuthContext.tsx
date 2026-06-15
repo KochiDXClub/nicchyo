@@ -49,11 +49,14 @@ async function mapSupabaseUserWithVendorId(user: SupabaseUser, supabase: ReturnT
   // vendorsテーブルからvendorIdを取得（user_metadataは改ざん可能なため使用しない）
   let vendorId: string | undefined = undefined;
   if (role === "vendor" && user.id) {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("vendors")
       .select("id")
       .eq("id", user.id)
       .maybeSingle();
+    if (error) {
+      console.error("[AuthContext] vendors lookup failed:", error.message);
+    }
     if (data?.id) {
       vendorId = data.id;
     }
@@ -109,8 +112,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (!active) return;
         if (session?.user) {
           mapSupabaseUserWithVendorId(session.user, supabase).then((mapped) => {
+            if (!active) return;
             setUser(mapped);
             setIsLoggedIn(true);
+          }).catch((err) => {
+            console.error("[AuthContext] mapSupabaseUserWithVendorId failed:", err);
           });
         } else {
           setUser(null);
