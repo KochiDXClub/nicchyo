@@ -71,6 +71,16 @@ const nextConfig = {
           },
         ],
       },
+      {
+        // 図鑑のQRスキャン・記念撮影ページ: カメラを許可
+        source: '/encyclopedia/:path*',
+        headers: [
+          {
+            key: 'Permissions-Policy',
+            value: 'camera=(self)',
+          },
+        ],
+      },
     ];
   },
 };
