@@ -3,7 +3,7 @@
 import { useEffect, useState, type ElementType } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Megaphone, Store, BarChart2, Sparkles, Settings, ChevronRight, CheckCircle2, BookOpen, MapPin, LogOut } from "lucide-react";
+import { Megaphone, Store, BarChart2, Sparkles, Settings, ChevronRight, BookOpen, MapPin, LogOut } from "lucide-react";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { fetchVendorStore } from "@/app/vendor/_services/storeService";
 import { fetchVendorPosts } from "@/app/vendor/_services/postsService";
@@ -37,21 +37,6 @@ const MENU_ITEMS: {
     href: "/vendor/store",
     accent: "from-emerald-400/60 to-emerald-100/80",
     icon: Store,
-  },
-  {
-    title: "クーポン参加設定",
-    description: "参加クーポン種類・利用条件",
-    href: "/vendor/coupon-settings",
-    accent: "from-green-400/60 to-green-100/80",
-    icon: Sparkles,
-    badge: "NEW",
-  },
-  {
-    title: "クーポンを確定",
-    description: "お客様のクーポン利用を確定",
-    href: "/my-shop/coupon",
-    accent: "from-teal-400/60 to-teal-100/80",
-    icon: Sparkles,
   },
   {
     title: "AIに教える",

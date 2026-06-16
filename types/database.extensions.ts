@@ -13,16 +13,6 @@ export type AdminNotificationRow = {
   link: string | null;
 };
 
-export type CouponImpressionInsert = {
-  coupon_id: string;
-  visitor_key?: string | null;
-  shop_id?: string | null;
-  source: string;
-  placement?: string | null;
-  visible_duration?: number | null;
-  ip_address?: string | null;
-};
-
 export type ShopInteractionInsert = {
   visitor_key?: string | null;
   shop_id: string;
@@ -37,12 +27,6 @@ type ExtendedPublicSchema = Omit<Database["public"], "Tables"> & {
       Row: AdminNotificationRow;
       Insert: Omit<AdminNotificationRow, "id" | "created_at" | "is_read"> & { is_read?: boolean };
       Update: Partial<Omit<AdminNotificationRow, "id" | "created_at">>;
-      Relationships: never[];
-    };
-    coupon_impressions: {
-      Row: CouponImpressionInsert & { id: string; created_at: string };
-      Insert: CouponImpressionInsert;
-      Update: Partial<CouponImpressionInsert>;
       Relationships: never[];
     };
     shop_interactions: {

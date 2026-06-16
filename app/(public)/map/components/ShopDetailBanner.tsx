@@ -31,7 +31,6 @@ import {
   type ActivePostItem,
 } from "./ShopBannerHero";
 import { PostCarousel } from "./PostCarousel";
-import { CouponInfoCard } from "./CouponInfoCard";
 import { AiConsultPanel } from "./AiConsultPanel";
 import { KotodutePanel, KOTODUTE_TAG_REGEX } from "./KotodutePanel";
 
@@ -70,8 +69,6 @@ type ShopDetailBannerProps = {
   totalShopCount?: number;
   onSelectPreviousShop?: () => void;
   onSelectNextShop?: () => void;
-  activeCouponTypeId?: string;
-  stampedVendorIds?: string[];
   reserveBottomNavSpace?: boolean;
 };
 
@@ -152,10 +149,6 @@ function areShopDetailBannerPropsEqual(
 ): boolean {
   // shop は DB 再フェッチで参照が変わることがあるため id で比較する
   if (prev.shop.id !== next.shop.id) return false;
-  // stampedVendorIds は配列なので内容で比較する
-  const ps = prev.stampedVendorIds ?? [];
-  const ns = next.stampedVendorIds ?? [];
-  if (ps.length !== ns.length || ps.some((id, i) => id !== ns[i])) return false;
   // originRect はオブジェクトなので各フィールドで比較する
   if (
     prev.originRect?.x !== next.originRect?.x ||
@@ -178,7 +171,6 @@ function areShopDetailBannerPropsEqual(
     prev.totalShopCount === next.totalShopCount &&
     prev.onSelectPreviousShop === next.onSelectPreviousShop &&
     prev.onSelectNextShop === next.onSelectNextShop &&
-    prev.activeCouponTypeId === next.activeCouponTypeId &&
     prev.reserveBottomNavSpace === next.reserveBottomNavSpace
   );
 }
@@ -198,8 +190,6 @@ const ShopDetailBanner = memo(function ShopDetailBanner({
   totalShopCount = 0,
   onSelectPreviousShop,
   onSelectNextShop,
-  activeCouponTypeId,
-  stampedVendorIds,
   reserveBottomNavSpace = true,
 }: ShopDetailBannerProps) {
   const router = useRouter();
@@ -207,30 +197,8 @@ const ShopDetailBanner = memo(function ShopDetailBanner({
   const { addItem, removeItem, items: bagContextItems } = useBag();
   const [bagProductKeys, setBagProductKeys] = useState<Set<string>>(new Set());
   const [kotoduteNotes, setKotoduteNotes] = useState<KotoduteNote[]>([]);
-  const [couponInfo, setCouponInfo] = useState<{
-    is_participating: boolean;
-    settings: Array<{
-      coupon_type_id: string;
-      coupon_type_name: string;
-      coupon_type_emoji: string;
-      coupon_type_amount: number;
-      min_purchase_amount: number;
-    }>;
-  } | null>(null);
   const [currentPostIndex, setCurrentPostIndex] = useState(0);
   const [heroImageError, setHeroImageError] = useState(false);
-
-  // ─── クーポン派生状態 ─────────────────────────────────────────────────────────
-  const isStamped = !!shop.vendorId && (stampedVendorIds ?? []).includes(shop.vendorId);
-  const primaryCouponSetting = couponInfo?.settings?.find(
-    (s) => s.coupon_type_id === activeCouponTypeId
-  ) ?? couponInfo?.settings?.[0] ?? null;
-  const couponStatus: "active" | "stamped" | "participating" | null = (() => {
-    if (!couponInfo?.is_participating || !couponInfo.settings.length) return null;
-    if (isStamped) return "stamped";
-    if (activeCouponTypeId && couponInfo.settings.some((s) => s.coupon_type_id === activeCouponTypeId)) return "active";
-    return "participating";
-  })();
   const [toast, setToast] = useState<{ product: string } | null>(null);
   const [surface, setSurface] = useState<BannerSurface>(initialMobileSurface);
   const [contentInteractive, setContentInteractive] = useState(false);
@@ -308,21 +276,6 @@ const ShopDetailBanner = memo(function ShopDetailBanner({
   useEffect(() => {
     incrementBannerOpens();
   }, [shop.id, openNonce]);
-
-  // クーポン参加情報を取得（vendorIdがある出店者のみ、セッション中キャッシュ付き）
-  useEffect(() => {
-    const vendorId = shop.vendorId;
-    if (!vendorId) {
-      setCouponInfo(null);
-      return;
-    }
-    fetch(`/api/coupons/shop-info?vendor_id=${encodeURIComponent(vendorId)}`)
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => setCouponInfo(data ?? null))
-      .catch(() => {
-        // クーポン情報取得失敗は無視
-      });
-  }, [shop.vendorId]);
 
   // kotodute sync
   useEffect(() => {
@@ -818,8 +771,6 @@ const ShopDetailBanner = memo(function ShopDetailBanner({
                 mode="compact"
                 isKotodute={isKotodute}
                 showProductPreview
-                couponStatus={couponStatus}
-                primaryCouponSetting={primaryCouponSetting}
               />
             </div>
           )}
@@ -943,16 +894,6 @@ const ShopDetailBanner = memo(function ShopDetailBanner({
                     isActivePostCentered={isActivePostCentered}
                     activePostRef={activePostRef}
                     activePostCarouselRef={activePostCarouselRef}
-                  />
-                )}
-
-                {/* ── クーポンカード（モバイル detail） ─────────────── */}
-                {!isKotodute && primaryCouponSetting && couponStatus && (
-                  <CouponInfoCard
-                    setting={primaryCouponSetting}
-                    allSettings={couponInfo!.settings}
-                    couponStatus={couponStatus}
-                    activeCouponTypeId={activeCouponTypeId}
                   />
                 )}
 
@@ -1203,18 +1144,6 @@ const ShopDetailBanner = memo(function ShopDetailBanner({
         {!isMobileOverlay && <div className="mx-5 my-3 border-t border-slate-100" />}
 
         <div className={`px-5 ${isMobileOverlay ? "pb-8 pt-6 space-y-7" : "pb-6 space-y-6"}`}>
-
-          {/* ════════════════════════════════════════════════════════════════
-              COUPON — 参加・使えるクーポン情報
-          ════════════════════════════════════════════════════════════════ */}
-          {!isKotodute && !isMobileOverlay && primaryCouponSetting && couponStatus && (
-            <CouponInfoCard
-              setting={primaryCouponSetting}
-              allSettings={couponInfo!.settings}
-              couponStatus={couponStatus}
-              activeCouponTypeId={activeCouponTypeId}
-            />
-          )}
 
           {/* ════════════════════════════════════════════════════════════════
               TODAY'S ANNOUNCEMENT — Rich card

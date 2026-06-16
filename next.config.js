@@ -71,16 +71,6 @@ const nextConfig = {
           },
         ],
       },
-      {
-        // 出店者クーポン確定ページ: カメラを許可
-        source: '/my-shop/coupon',
-        headers: [
-          {
-            key: 'Permissions-Policy',
-            value: 'camera=(self)',
-          },
-        ],
-      },
     ];
   },
 };

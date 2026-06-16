@@ -14,14 +14,6 @@ export type BannerTheme = {
   light: string;
 };
 
-export type CouponSetting = {
-  coupon_type_id: string;
-  coupon_type_name: string;
-  coupon_type_emoji: string;
-  coupon_type_amount: number;
-  min_purchase_amount: number;
-};
-
 export type ActivePostItem = {
   text: string;
   imageUrl?: string;
@@ -112,9 +104,6 @@ export function ShopBannerHero({
   isKotodute,
   showProductPreview = false,
   onEdit,
-  couponBadge,
-  couponStatus,
-  primaryCouponSetting,
 }: {
   shop: Shop;
   bannerImage: string;
@@ -125,46 +114,8 @@ export function ShopBannerHero({
   isKotodute: boolean;
   showProductPreview?: boolean;
   onEdit?: () => void;
-  couponBadge?: React.ReactNode;
-  couponStatus?: "active" | "stamped" | "participating" | null;
-  primaryCouponSetting?: CouponSetting | null;
 }) {
   if (mode === "compact") {
-    const couponCard =
-      couponStatus === "active" && primaryCouponSetting ? (
-        <div className="mr-10 flex h-[86px] w-[84px] shrink-0 flex-col items-center justify-center rounded-[18px] bg-green-500 text-white shadow-md">
-          <span className="text-[15px] leading-none">{primaryCouponSetting.coupon_type_emoji}</span>
-          <span className="mt-1 text-[22px] font-extrabold leading-none">
-            ¥{primaryCouponSetting.coupon_type_amount.toLocaleString()}
-          </span>
-          <span className="mt-0.5 text-[10px] font-bold opacity-90">引き</span>
-          <span className="mt-0.5 rounded-full bg-white/20 px-2 py-0.5 text-[9px] font-bold">
-            今すぐ使える
-          </span>
-        </div>
-      ) : couponStatus === "stamped" ? (
-        <div className="mr-10 flex h-[86px] w-[84px] shrink-0 flex-col items-center justify-center gap-0.5 rounded-[18px] border border-emerald-200 bg-emerald-50">
-          <span className="text-[22px]">✅</span>
-          <span className="text-center text-[10px] font-bold leading-tight text-emerald-700">
-            スタンプ
-            <br />
-            済み
-          </span>
-        </div>
-      ) : couponStatus === "participating" && primaryCouponSetting ? (
-        <div className="mr-10 flex h-[86px] w-[84px] shrink-0 flex-col items-center justify-center gap-0.5 rounded-[18px] border-[1.5px] border-dashed border-green-200 bg-green-50">
-          <span className="text-[18px]">🎟️</span>
-          <span className="text-center text-[10px] font-bold leading-tight text-green-700">
-            クーポン
-            <br />
-            使えます
-          </span>
-          <span className="mt-0.5 text-[9px] font-semibold text-green-500">
-            ¥{primaryCouponSetting.coupon_type_amount.toLocaleString()}引き
-          </span>
-        </div>
-      ) : null;
-
     return (
       <div className="flex items-center gap-3">
         <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-2xl border border-slate-200 bg-slate-100">
@@ -183,7 +134,7 @@ export function ShopBannerHero({
           )}
         </div>
 
-        <div className={`min-w-0 flex-1 ${!couponCard ? "pr-12" : ""}`}>
+        <div className="min-w-0 flex-1 pr-12">
           <div className="flex flex-wrap items-center gap-1">
             <span
               className="rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.12em]"
@@ -194,7 +145,6 @@ export function ShopBannerHero({
             <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700">
               今日出店中
             </span>
-            {!couponCard && couponBadge}
           </div>
           <h2 className="mt-1 line-clamp-2 text-[17px] font-extrabold leading-tight text-slate-900">
             {shop.name}
@@ -202,7 +152,7 @@ export function ShopBannerHero({
           {!isKotodute && shop.catchphrase && (
             <p className="mt-0.5 line-clamp-1 text-xs text-slate-500">{shop.catchphrase}</p>
           )}
-          {!couponCard && showProductPreview && !isKotodute && shop.products.length > 0 && (
+          {showProductPreview && !isKotodute && shop.products.length > 0 && (
             <div className="mt-1.5 flex gap-1.5 overflow-x-auto" style={{ scrollbarWidth: "none" }}>
               {shop.products.slice(0, 4).map((product) => (
                 <span
@@ -220,8 +170,6 @@ export function ShopBannerHero({
             </div>
           )}
         </div>
-
-        {couponCard}
       </div>
     );
   }

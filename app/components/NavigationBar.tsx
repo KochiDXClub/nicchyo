@@ -7,20 +7,16 @@ import { useState, useEffect, useCallback, Suspense } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { useBag } from "@/lib/storage/BagContext";
-import { getOrCreateConsultVisitorKey } from "@/lib/consultVisitorKey";
-import { todayJstString } from "@/lib/coupons/client";
-import type { MyCouponsResponse } from "@/lib/coupons/types";
 
 // ─── ナビゲーション項目 ────────────────────────────────────────────────────────
 type NavItem = {
   name: string;
   href: string;
-  icon: "search" | "chat" | "admin" | "coupon";
+  icon: "search" | "chat" | "admin";
 };
 
 const baseNavItems: NavItem[] = [
   { name: "相談", href: "/map", icon: "chat" },
-  { name: "クーポン", href: "/coupons", icon: "coupon" },
 ];
 
 // ─── セカンダリメニュー項目（2列グリッド） ────────────────────────────────────
@@ -62,50 +58,12 @@ function NavigationBarInner({
   onCloseMode,
   onConsultClick,
 }: NavigationBarProps) {
-  const isDevCouponOverride = process.env.NODE_ENV !== "production";
   const pathname = usePathname();
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user, isLoggedIn, permissions, logout } = useAuth();
   const { items: bagItems } = useBag();
   const [menuOpen, setMenuOpen] = useState(false);
-  // undefined = 未取得, null = 取得失敗/非対応, MyCouponsResponse = 取得済み
-  const [couponData, setCouponData] = useState<MyCouponsResponse | null | undefined>(undefined);
-  const [couponLoadError, setCouponLoadError] = useState(false);
-
-  // メニューを開いたときにクーポン情報を取得
-  useEffect(() => {
-    if (!menuOpen) {
-      setCouponData(undefined);
-      setCouponLoadError(false);
-      return;
-    }
-    const vk = getOrCreateConsultVisitorKey();
-    if (!vk) {
-      setCouponData(null);
-      setCouponLoadError(false);
-      return;
-    }
-
-    (async () => {
-      try {
-        const res = await fetch(
-          `/api/coupons/my?visitor_key=${encodeURIComponent(vk)}&market_date=${todayJstString()}`
-        );
-        if (!res.ok) {
-          setCouponData(null);
-          setCouponLoadError(true);
-          return;
-        }
-        const data = (await res.json()) as MyCouponsResponse;
-        setCouponData(data);
-        setCouponLoadError(false);
-      } catch {
-        setCouponData(null);
-        setCouponLoadError(true);
-      }
-    })();
-  }, [menuOpen]);
 
   useEffect(() => {
     onMenuOpenChange?.(menuOpen);
@@ -147,9 +105,6 @@ function NavigationBarInner({
     : permissions.isVendor
     ? { text: "出店者", color: "bg-amber-100 text-amber-700" }
     : null;
-
-  const activeCoupon = couponData?.active_coupon ?? null;
-  const isMarketDay = isDevCouponOverride || (couponData?.is_market_day ?? false);
 
   if (isRoleConsoleArea) return null;
 
@@ -230,91 +185,6 @@ function NavigationBarInner({
                       <p className="mt-0.5 text-[12px] text-gray-400">アカウントでもっと便利に</p>
                     </div>
                     <svg className="ml-auto h-5 w-5 text-gray-300" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-                    </svg>
-                  </button>
-                )}
-
-                {/* ─ プライマリ：クーポン ─ */}
-                {couponData === undefined ? (
-                  /* ローディングスケルトン */
-                  <div className="mb-3 h-[76px] animate-pulse rounded-2xl bg-gray-100" />
-                ) : couponLoadError ? (
-                  <button
-                    type="button"
-                    onClick={() => handleMenuItemClick("/coupons")}
-                    className="mb-3 flex w-full items-center gap-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-4 text-left transition active:scale-[0.98]"
-                  >
-                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-amber-100 text-2xl">
-                      🎟️
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-[13px] font-bold text-amber-800">クーポン</p>
-                      <p className="mt-0.5 text-[12px] text-amber-700">
-                        情報を取得できませんでした
-                      </p>
-                    </div>
-                    <svg className="h-5 w-5 shrink-0 text-amber-300" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-                    </svg>
-                  </button>
-                ) : activeCoupon && isMarketDay ? (
-                  /* 今すぐ使えるクーポン */
-                  <button
-                    type="button"
-                    onClick={() => handleMenuItemClick("/coupons")}
-                    className="mb-3 flex w-full items-center gap-4 rounded-2xl bg-green-500 px-4 py-4 text-left shadow-sm transition hover:bg-green-600 active:scale-[0.98]"
-                  >
-                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-white/20 text-2xl">
-                      🎟️
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <p className="text-[13px] font-bold text-white/90">
-                          {activeCoupon.coupon_type?.name ?? "クーポン"}
-                        </p>
-                        <span className="rounded-full bg-white/25 px-2 py-0.5 text-[10px] font-bold text-white">
-                          今すぐ使える
-                        </span>
-                      </div>
-                      <p className="mt-0.5 text-[22px] font-extrabold leading-tight text-white">
-                        {activeCoupon.amount.toLocaleString()}円引き
-                      </p>
-                    </div>
-                    <svg className="h-5 w-5 shrink-0 text-white/60" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-                    </svg>
-                  </button>
-                ) : isMarketDay ? (
-                  /* 開催日・クーポン未保有 */
-                  <button
-                    type="button"
-                    onClick={() => handleMenuItemClick("/coupons")}
-                    className="mb-3 flex w-full items-center gap-4 rounded-2xl border-2 border-dashed border-green-200 bg-green-50/50 px-4 py-4 text-left transition active:scale-[0.98]"
-                  >
-                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-green-100 text-2xl">
-                      🎟️
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-[13px] font-bold text-green-800">クーポン</p>
-                      <p className="mt-0.5 text-[12px] text-green-600">
-                        まだクーポンを持っていません
-                      </p>
-                    </div>
-                    <svg className="h-5 w-5 shrink-0 text-green-300" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-                    </svg>
-                  </button>
-                ) : (
-                  /* 非開催日・または取得失敗：通常メニュー項目 */
-                  <button
-                    type="button"
-                    onClick={() => handleMenuItemClick("/coupons")}
-                    className="mb-3 flex w-full items-center gap-3 rounded-2xl border border-green-100 bg-green-50 px-4 py-3.5 text-left transition active:scale-[0.98]"
-                  >
-                    <span className="text-xl">🎟️</span>
-                    <span className="flex-1 text-[14px] font-bold text-green-800">クーポン</span>
-                    <svg className="h-4 w-4 text-green-300" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
                     </svg>
                   </button>
@@ -630,16 +500,6 @@ function NavIcon({ name, className }: NavIconProps) {
             d="M10.343 3.94c.09-.542.56-.94 1.11-.94h1.093c.55 0 1.02.398 1.11.94l.149.894c.07.424.384.764.78.93.398.164.855.142 1.205-.108l.737-.527a1.125 1.125 0 0 1 1.45.12l.773.774c.39.389.44 1.002.12 1.45l-.527.737c-.25.35-.272.806-.107 1.204.165.397.505.71.93.78l.893.15c.543.09.94.56.94 1.109v1.094c0 .55-.397 1.02-.94 1.11l-.893.149c-.425.07-.765.383-.93.78-.165.398-.143.854.107 1.204l.527.738c.32.447.269 1.06-.12 1.45l-.774.773a1.125 1.125 0 0 1-1.449.12l-.738-.527c-.35-.25-.806-.272-1.203-.107-.397.165-.71.505-.781.929l-.149.894c-.09.542-.56.94-1.11.94h-1.094c-.55 0-1.019-.398-1.11-.94l-.148-.894c-.071-.424-.384-.764-.781-.93-.398-.164-.854-.142-1.204.108l-.738.527c-.447.32-1.06.269-1.45-.12l-.773-.774a1.125 1.125 0 0 1-.12-1.45l.527-.737c.25-.35.273-.806.108-1.204-.165-.397-.505-.71-.93-.78l-.894-.15c-.542-.09-.94-.56-.94-1.109v-1.094c0-.55.398-1.02.94-1.11l.894-.149c.424-.07.765-.383.93-.78.165-.398.143-.854-.107-1.204l-.527-.738a1.125 1.125 0 0 1 .12-1.45l.773-.773a1.125 1.125 0 0 1 1.45-.12l.737.527c.35.25.807.272 1.204.107.397-.165.71-.505.78-.929l.15-.894Z"
           />
           <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
-        </svg>
-      );
-    case "coupon":
-      return (
-        <svg {...props}>
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            d="M16.5 6v.75m0 3v.75m0 3v.75m0 3V18m-9-5.25h5.25M7.5 15h3M3.375 6.75c-.621 0-1.125.504-1.125 1.125v3.026a2.999 2.999 0 0 1 0 5.198v3.031c0 .621.504 1.125 1.125 1.125h17.25c.621 0 1.125-.504 1.125-1.125v-3.026a3 3 0 0 1 0-5.198V7.875c0-.621-.504-1.125-1.125-1.125H3.375Z"
-          />
         </svg>
       );
     default:

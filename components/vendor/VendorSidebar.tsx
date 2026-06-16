@@ -17,14 +17,12 @@ const navItems: NavItem[] = [
   { label: "出店情報更新", href: "/vendor/store", icon: "🛠️", description: "商品・営業時間・SNSを更新" },
   { label: "お店の分析", href: "/vendor/analytics", icon: "📈", description: "閲覧と反応を確認" },
   { label: "AIばあちゃん", href: "/vendor/ai-knowledge", icon: "✨", description: "紹介に使う情報を教える" },
-  { label: "クーポン設定", href: "/vendor/coupon-settings", icon: "🎟️", description: "参加クーポンを調整する" },
   { label: "アカウント", href: "/vendor/account", icon: "👤", description: "ログイン情報を確認する" },
   { label: "使い方ガイド", href: "/vendor/help", icon: "❓", description: "各機能の使い方を見る" },
 ];
 
 export default function VendorSidebar({
   isOpen,
-  onToggle,
   onClose,
 }: {
   isOpen: boolean;
