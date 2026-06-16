@@ -462,6 +462,7 @@ function AdminUsersContent() {
               JSON出力
             </LoadingButton>
             <button
+              type="button"
               onClick={handleCreateUser}
               className="rounded-lg bg-blue-600 px-4 py-2 text-white hover:bg-blue-700"
               aria-label="新規ユーザーを追加"
@@ -503,6 +504,7 @@ function AdminUsersContent() {
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div className="flex gap-2">
               <button
+                type="button"
                 onClick={() => setFilter("all")}
                 className={`rounded-lg px-4 py-2 text-sm font-medium ${
                   filter === "all"
@@ -514,6 +516,7 @@ function AdminUsersContent() {
                 すべて ({stats.total})
               </button>
               <button
+                type="button"
                 onClick={() => setFilter("super_admin")}
                 className={`rounded-lg px-4 py-2 text-sm font-medium ${
                   filter === "super_admin"
@@ -525,6 +528,7 @@ function AdminUsersContent() {
                 管理者 ({stats.admins})
               </button>
               <button
+                type="button"
                 onClick={() => setFilter("vendor")}
                 className={`rounded-lg px-4 py-2 text-sm font-medium ${
                   filter === "vendor"
@@ -536,6 +540,7 @@ function AdminUsersContent() {
                 出店者 ({stats.vendors})
               </button>
               <button
+                type="button"
                 onClick={() => setFilter("general_user")}
                 className={`rounded-lg px-4 py-2 text-sm font-medium ${
                   filter === "general_user"
@@ -547,6 +552,7 @@ function AdminUsersContent() {
                 一般 ({stats.users})
               </button>
               <button
+                type="button"
                 onClick={() => setFilter("suspended")}
                 className={`rounded-lg px-4 py-2 text-sm font-medium ${
                   filter === "suspended"
@@ -582,6 +588,7 @@ function AdminUsersContent() {
                   {selectedUserIds.length}人選択中
                 </span>
                 <button
+                  type="button"
                   onClick={() => setSelectedUserIds([])}
                   className="text-sm text-blue-600 hover:text-blue-800"
                   aria-label="選択を解除"
@@ -819,6 +826,7 @@ function AdminUsersContent() {
                           >
                             <Tooltip content="ロール・権限を変更" position="top">
                               <button
+                                type="button"
                                 onClick={() => handleOpenRoleChange(user)}
                                 className="text-purple-600 hover:text-purple-900 mr-3"
                                 aria-label={`${user.name}の権限を変更`}
@@ -829,6 +837,7 @@ function AdminUsersContent() {
                             {user.status === "active" ? (
                               <Tooltip content="ユーザーを停止" position="top">
                                 <button
+                                  type="button"
                                   onClick={() => handleSuspendUser(user)}
                                   className="text-orange-600 hover:text-orange-900"
                                   aria-label={`${user.name}を停止`}
@@ -839,6 +848,7 @@ function AdminUsersContent() {
                             ) : (
                               <Tooltip content="ユーザーを復帰" position="top">
                                 <button
+                                  type="button"
                                   onClick={() => handleRestoreUser(user)}
                                   className="text-green-600 hover:text-green-900"
                                   aria-label={`${user.name}を復帰`}
@@ -913,6 +923,7 @@ function AdminUsersContent() {
             </div>
             <div className="mt-6 flex gap-2">
               <button
+                type="button"
                 onClick={handleRoleChange}
                 className="flex-1 rounded-lg bg-purple-600 px-4 py-2 text-sm font-medium text-white hover:bg-purple-700"
                 aria-label="ロールを変更"
@@ -920,6 +931,7 @@ function AdminUsersContent() {
                 変更する
               </button>
               <button
+                type="button"
                 onClick={() => setRoleChangeUser(null)}
                 className="flex-1 rounded-lg bg-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-300"
                 aria-label="キャンセル"
@@ -934,6 +946,7 @@ function AdminUsersContent() {
       {/* キーボードショートカットヘルプボタン */}
       <Tooltip content="キーボードショートカット (?)">
         <button
+          type="button"
           onClick={() => setShowShortcutHelp(true)}
           className="fixed bottom-8 right-8 w-12 h-12 bg-gray-800 hover:bg-gray-700 text-white rounded-full shadow-lg flex items-center justify-center z-40 transition"
           aria-label="キーボードショートカット一覧を表示"
@@ -951,6 +964,7 @@ function AdminUsersContent() {
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-lg font-bold text-gray-900">キーボードショートカット</h3>
               <button
+                type="button"
                 onClick={() => setShowShortcutHelp(false)}
                 className="text-gray-400 hover:text-gray-600"
                 aria-label="閉じる"

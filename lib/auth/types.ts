@@ -11,7 +11,7 @@ export interface User {
   phone?: string;
   avatarUrl?: string;
   role: UserRole;
-  vendorId?: number;
+  vendorId?: string;
   /** 認証プロバイダー。"email" = メール/パスワード、"google" = Googleログイン */
   provider: "email" | "google" | string;
 }
@@ -21,7 +21,7 @@ export interface PermissionCheck {
   isModerator: boolean;
   isVendor: boolean;
   isGeneralUser: boolean;
-  canEditShop: (shopId: number) => boolean;
+  canEditShop: (shopVendorId: string) => boolean;
   canManageAllShops: boolean;
   canModerateContent: boolean;
 }

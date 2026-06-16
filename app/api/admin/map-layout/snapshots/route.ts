@@ -200,7 +200,7 @@ export async function POST(request: NextRequest) {
     const originCheck = requireSameOrigin(request);
     if (!originCheck.ok) return originCheck.response;
 
-    const rateLimited = enforceRateLimit(request, {
+    const rateLimited = await enforceRateLimit(request, {
       bucket: "admin-map-layout-snapshots-post",
       limit: 12,
       windowMs: 10 * 60 * 1000,

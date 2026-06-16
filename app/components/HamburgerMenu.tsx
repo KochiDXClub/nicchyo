@@ -8,6 +8,7 @@
 
 'use client';
 
+import Image from 'next/image';
 import Link from 'next/link';
 import { useEffect } from 'react';
 import { usePathname } from 'next/navigation';
@@ -53,6 +54,7 @@ export default function HamburgerMenu() {
     <>
       {/* ハンバーガーボタン（固定位置・オーバーレイ） */}
       <button
+        type="button"
         onClick={toggleMenu}
         className={`hamburger-button fixed top-4 right-4 z-[10002] flex h-12 w-12 items-center justify-center rounded-lg bg-white/90 text-gray-700 shadow-md transition hover:bg-white hover:shadow-lg ${
           isMenuOpen ? "is-open" : "is-closed"
@@ -101,7 +103,7 @@ export default function HamburgerMenu() {
               <Link href={permissions.isVendor ? "/vendor/account" : "/my-profile"} onClick={closeMenu} className="flex items-center gap-3">
                 <div className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-full bg-amber-500 text-white text-xl font-bold">
                   {user.avatarUrl ? (
-                    <img src={user.avatarUrl} alt="" className="h-full w-full object-cover" />
+                    <Image src={user.avatarUrl} alt={user.name} width={48} height={48} className="h-full w-full object-cover" />
                   ) : (
                     user.name.charAt(0)
                   )}
@@ -495,6 +497,7 @@ export default function HamburgerMenu() {
 
                   <li>
                     <button
+                      type="button"
                       onClick={handleLogout}
                       className="flex w-full items-center gap-3 rounded-lg px-4 py-3 text-gray-700 transition hover:bg-red-50 hover:text-red-600"
                     >

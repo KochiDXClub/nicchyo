@@ -70,6 +70,7 @@ export default function NotificationsPage() {
               未読通知が {unreadCount} 件あります
             </span>
             <button
+              type="button"
               onClick={handleMarkAllRead}
               className="rounded-lg bg-orange-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-orange-700"
             >

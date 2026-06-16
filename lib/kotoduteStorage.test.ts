@@ -60,6 +60,75 @@ describe('kotoduteStorage', () => {
       expect(result).toHaveLength(1);
       expect(result[0]).toEqual(validData[0]);
     });
+
+    it('coerces invalid shopId (string) to "all"', () => {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify([
+        { id: 'n1', shopId: '123', text: 'hello', createdAt: 1000 },
+      ]));
+      const result = loadKotodute();
+      expect(result).toHaveLength(1);
+      expect(result[0].shopId).toBe('all');
+    });
+
+    it('coerces negative shopId to "all"', () => {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify([
+        { id: 'n1', shopId: -5, text: 'hello', createdAt: 1000 },
+      ]));
+      const result = loadKotodute();
+      expect(result[0].shopId).toBe('all');
+    });
+
+    it('coerces fractional shopId to "all"', () => {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify([
+        { id: 'n1', shopId: 1.5, text: 'hello', createdAt: 1000 },
+      ]));
+      const result = loadKotodute();
+      expect(result[0].shopId).toBe('all');
+    });
+
+    it('drops notes missing id', () => {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify([
+        { shopId: 1, text: 'no id', createdAt: 1000 },
+        { id: 'valid', shopId: 1, text: 'ok', createdAt: 1000 },
+      ]));
+      const result = loadKotodute();
+      expect(result).toHaveLength(1);
+      expect(result[0].id).toBe('valid');
+    });
+
+    it('drops notes missing text', () => {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify([
+        { id: 'n1', shopId: 1, createdAt: 1000 },
+        { id: 'n2', shopId: 1, text: 'ok', createdAt: 1000 },
+      ]));
+      const result = loadKotodute();
+      expect(result).toHaveLength(1);
+      expect(result[0].id).toBe('n2');
+    });
+
+    it('keeps valid notes and drops invalid ones from mixed array', () => {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify([
+        { id: 'good-1', shopId: 10, text: 'ok', createdAt: 1000 },
+        { shopId: 10, text: 'missing id', createdAt: 1000 },
+        { id: 'good-2', shopId: 'all', text: 'also ok', createdAt: 2000 },
+        null,
+        42,
+      ]));
+      const result = loadKotodute();
+      expect(result).toHaveLength(2);
+      expect(result[0].id).toBe('good-1');
+      expect(result[1].id).toBe('good-2');
+    });
+
+    it('falls back to seed when all notes are invalid', () => {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify([
+        { shopId: 1, text: 'no id', createdAt: 1000 },
+        { id: 'n2', text: 'no createdAt' },
+      ]));
+      const result = loadKotodute();
+      expect(result).toHaveLength(3);
+      expect(result[0].id).toBe('seed-1');
+    });
   });
 
   describe('saveKotodute', () => {

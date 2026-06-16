@@ -43,7 +43,7 @@ export async function proxy(request: NextRequest) {
     "default-src 'self'",
     // 'strict-dynamic': nonce 付きスクリプトが動的にロードするスクリプトにも信頼を伝播
     // 'unsafe-inline': strict-dynamic 非対応の古いブラウザ向けフォールバック
-    `script-src 'nonce-${nonce}' 'strict-dynamic' 'unsafe-inline'`,
+    `script-src 'nonce-${nonce}' 'strict-dynamic' 'unsafe-inline'${process.env.NODE_ENV === "development" ? " 'unsafe-eval'" : ""}`,
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "img-src 'self' data: blob: https:",
     "font-src 'self' data: https://fonts.gstatic.com",

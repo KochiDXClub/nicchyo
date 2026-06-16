@@ -6,9 +6,6 @@ import { requireSameOrigin } from "@/lib/security/requestGuards";
 
 const VISITOR_COOKIE_NAME = "nicchyo_visitor_id";
 
-// 同一visitor_keyからの連続呼び出しを防ぐ（30秒以内は無視）
-const pageVisitCooldown = new Map<string, number>();
-const PAGE_VISIT_COOLDOWN_MS = 30 * 1000;
 
 function getTokyoTodayIso(baseDate = new Date()) {
   const formatter = new Intl.DateTimeFormat("en-CA", {
@@ -62,31 +59,6 @@ export async function POST(request: NextRequest) {
     0,
     Math.min(86400, Math.round(typeof body?.durationSeconds === "number" ? body.durationSeconds : 0))
   );
-
-  // クールダウンチェック（同一visitor_keyから30秒以内の連続呼び出しを無視）
-  const now = Date.now();
-  const cooldownKey = `${visitorKey}:${path}`;
-  const lastCall = pageVisitCooldown.get(cooldownKey);
-  if (lastCall && now - lastCall < PAGE_VISIT_COOLDOWN_MS) {
-    const skipped = NextResponse.json({ ok: true, skipped: true });
-    if (shouldSetVisitorCookie) {
-      skipped.cookies.set(VISITOR_COOKIE_NAME, visitorKey, {
-        httpOnly: false,
-        sameSite: "lax",
-        secure: process.env.NODE_ENV === "production",
-        path: "/",
-        maxAge: 60 * 60 * 24 * 365,
-      });
-    }
-    return skipped;
-  }
-  pageVisitCooldown.set(cooldownKey, now);
-  if (pageVisitCooldown.size > 5000) {
-    const oldest = Array.from(pageVisitCooldown.entries())
-      .sort((a, b) => a[1] - b[1])
-      .slice(0, 1000);
-    oldest.forEach(([k]) => pageVisitCooldown.delete(k));
-  }
 
   if (!path.startsWith("/") || path.startsWith("/api") || durationSeconds <= 0) {
     const skippedResponse = NextResponse.json({ ok: true, skipped: true });

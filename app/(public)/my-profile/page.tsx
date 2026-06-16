@@ -1,6 +1,7 @@
 ﻿"use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import NavigationBar from "../../components/NavigationBar";
 import { useAuth } from "../../../lib/auth/AuthContext";
@@ -118,7 +119,7 @@ export default function MyProfilePage() {
           <div className="flex flex-col items-start gap-6 md:flex-row md:items-center md:gap-8">
             <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-2xl bg-amber-500 text-2xl font-bold text-white shadow-sm">
               {avatarUrl ? (
-                <img src={avatarUrl} alt="プロフィール画像" className="h-full w-full object-cover" />
+                <Image src={avatarUrl} alt="プロフィール画像" width={80} height={80} className="h-full w-full object-cover" />
               ) : (
                 user.name.charAt(0)
               )}

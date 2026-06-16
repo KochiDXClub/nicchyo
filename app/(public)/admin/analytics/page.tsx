@@ -7,11 +7,6 @@ import { getRole, isAdmin } from "@/lib/auth/permissions";
 
 export const dynamic = "force-dynamic";
 
-// ---- auth helpers ----
-function isAdminAnalyticsRole(role: string | null | undefined) {
-  return role === "admin" || role === "super_admin";
-}
-
 function createAdminReadClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -113,7 +108,7 @@ export default async function AdminAnalyticsPage() {
   const vendorCats = (vendorCatsResult.data ?? []) as unknown as VendorCatRow[];
 
   // 管理者アクセスを除外
-  const userRows = pageRows.filter((r) => !isAdminAnalyticsRole(r.user_role));
+  const userRows = pageRows.filter((r) => !isAdmin(r.user_role));
 
   // ---- アクセス統計 ----
   function uniqueVisitors(rows: typeof userRows, fromDate: string) {

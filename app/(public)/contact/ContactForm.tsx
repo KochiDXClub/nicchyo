@@ -85,6 +85,7 @@ export default function ContactForm() {
           内容を確認の上、担当者よりご連絡させていただきます。
         </p>
         <button
+          type="button"
           onClick={() => setIsSubmitted(false)}
           className="mt-4 text-sm font-medium text-amber-600 hover:text-amber-700 underline underline-offset-4"
         >

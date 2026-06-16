@@ -80,7 +80,7 @@ export type Database = {
         Row: {
           created_at: string
           id: string
-          ip_address: string
+          ip_address: string | null
           is_active: boolean
           reason: string
           visitor_key: string | null
@@ -88,7 +88,7 @@ export type Database = {
         Insert: {
           created_at?: string
           id?: string
-          ip_address: string
+          ip_address?: string | null
           is_active?: boolean
           reason: string
           visitor_key?: string | null
@@ -96,7 +96,7 @@ export type Database = {
         Update: {
           created_at?: string
           id?: string
-          ip_address?: string
+          ip_address?: string | null
           is_active?: boolean
           reason?: string
           visitor_key?: string | null

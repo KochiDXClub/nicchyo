@@ -64,12 +64,12 @@ function PostCard({ post, onRepost, onEditRepost }: { post: Post; onRepost: (pos
         </div>
       </div>
       <div className="mt-3 flex flex-col gap-2 border-t border-slate-100 pt-3 sm:flex-row">
-        <button onClick={() => onRepost(post)}
+        <button type="button" onClick={() => onRepost(post)}
           className="flex flex-1 items-center justify-center gap-1.5 rounded-2xl border border-amber-200 bg-amber-50 py-3 text-sm font-semibold text-amber-700 transition hover:bg-amber-100"
         >
           <RotateCcw size={13} />そのまま再投稿
         </button>
-        <button onClick={() => onEditRepost(post)}
+        <button type="button" onClick={() => onEditRepost(post)}
           className="flex flex-1 items-center justify-center gap-1.5 rounded-2xl border border-slate-200 bg-slate-50 py-3 text-sm font-semibold text-slate-600 transition hover:bg-slate-100"
         >
           <Pencil size={13} />編集して再投稿
@@ -85,7 +85,7 @@ function RepostSuccessToast({ onClose }: { onClose: () => void }) {
       <div className="flex items-center gap-2 rounded-2xl bg-emerald-600 px-5 py-3 shadow-lg">
         <CheckCircle2 size={16} className="text-white" />
         <span className="text-sm font-semibold text-white">再投稿しました！</span>
-        <button onClick={onClose} className="ml-2 text-emerald-200 hover:text-white"><XCircle size={14} /></button>
+        <button type="button" onClick={onClose} className="ml-2 text-emerald-200 hover:text-white"><XCircle size={14} /></button>
       </div>
     </div>
   );
@@ -171,7 +171,7 @@ export default function VendorPostsPage() {
 
         <div className="mb-4 flex gap-1.5 rounded-3xl border border-slate-200 bg-white p-1.5 shadow-sm">
           {TABS.map((tab) => (
-            <button key={tab.key} onClick={() => setActiveTab(tab.key)}
+            <button type="button" key={tab.key} onClick={() => setActiveTab(tab.key)}
               className={`flex flex-1 items-center justify-center gap-1.5 rounded-2xl py-3 text-sm font-semibold transition ${activeTab === tab.key ? "bg-amber-500 text-white shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
             >
               {tab.label}

@@ -8,6 +8,7 @@ import { normalizeCouponIssuance } from "@/lib/coupons/types";
 import type { SupabaseCouponIssuanceRow } from "@/lib/coupons/types";
 import { isCouponQrTokenValid, parseCouponQrToken } from "@/lib/coupons/qrToken";
 import { todayJstString } from "@/lib/time/jstDate";
+import { MAX_COUPON_ISSUANCE } from "@/lib/constants";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -150,7 +151,7 @@ export async function POST(request: Request) {
 
     // ⑥⑦⑧⑨ クーポン消費・スタンプ付与・次回クーポン発行をアトミックに実行
     // redeem_coupon SQL 関数が1トランザクション内でこれらを完結させる
-    const maxIssuance = couponSettings?.maxDailyIssuance ?? 300;
+    const maxIssuance = couponSettings?.maxDailyIssuance ?? MAX_COUPON_ISSUANCE;
     const nextCouponAmount = couponSettings?.amount ?? 50;
 
     const { data: rpcResult, error: rpcError } = await serviceClient.rpc("redeem_coupon", {

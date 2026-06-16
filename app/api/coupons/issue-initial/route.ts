@@ -6,6 +6,7 @@ import { normalizeCouponIssuance } from "@/lib/coupons/types";
 import type { SupabaseCouponIssuanceRow } from "@/lib/coupons/types";
 import { requireSameOrigin } from "@/lib/security/requestGuards";
 import { enforceRateLimit } from "@/lib/security/rateLimit";
+import { MAX_COUPON_ISSUANCE, JST_MIDNIGHT_UTC_SUFFIX } from "@/lib/constants";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -32,7 +33,7 @@ export async function POST(request: Request) {
     const originCheck = requireSameOrigin(request);
     if (!originCheck.ok) return originCheck.response;
 
-    const rateLimited = enforceRateLimit(request, {
+    const rateLimited = await enforceRateLimit(request, {
       bucket: "coupons-issue-initial",
       limit: 10,
       windowMs: 10 * 60 * 1000,
@@ -109,7 +110,7 @@ export async function POST(request: Request) {
     }
 
     // ④ 当日発行上限チェック
-    const maxIssuance = couponSettings?.maxDailyIssuance ?? 300;
+    const maxIssuance = couponSettings?.maxDailyIssuance ?? MAX_COUPON_ISSUANCE;
     const { count: todayCount } = await supabase
       .from("coupon_issuances")
       .select("id", { count: "exact", head: true })
@@ -137,7 +138,7 @@ export async function POST(request: Request) {
     }
 
     // ⑥ 発行（expires_at = market_date の翌日 00:00 JST）
-    const expiresAt = new Date(`${market_date}T15:00:00.000Z`); // JST 翌日0時 = UTC 前日15時
+    const expiresAt = new Date(`${market_date}${JST_MIDNIGHT_UTC_SUFFIX}`);
     expiresAt.setDate(expiresAt.getDate() + 1);
 
     const { data: newCoupon, error: insertError } = await supabase

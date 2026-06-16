@@ -106,16 +106,12 @@ function formatMinutes(value: number) {
   return `${value.toFixed(1)}分`;
 }
 
-function isAdminAnalyticsRole(role: string | null | undefined) {
-  return role === "admin" || role === "super_admin";
-}
-
 function buildVisitorDailyDurationMap(rows: PageAnalyticsRow[]) {
   const byDate = new Map<string, Map<string, number>>();
 
   for (const row of rows) {
     if (!row.visit_date || !row.visitor_key) continue;
-    if (isAdminAnalyticsRole(row.user_role)) continue;
+    if (isAdmin(row.user_role)) continue;
     const duration = typeof row.duration_seconds === "number" ? row.duration_seconds : 0;
     const visitorMap = byDate.get(row.visit_date) ?? new Map<string, number>();
     visitorMap.set(row.visitor_key, (visitorMap.get(row.visitor_key) ?? 0) + duration);
@@ -358,7 +354,7 @@ export default async function AdminDashboardPage() {
   const allTrafficRows: DailyUniqueRow[] = Array.from(
     new Map(
       periodPageAnalytics
-        .filter((row) => !isAdminAnalyticsRole(row.user_role))
+        .filter((row) => !isAdmin(row.user_role))
         .map((row) => [`${row.visit_date}:${row.visitor_key}`, { visit_date: row.visit_date, visitor_key: row.visitor_key }])
     ).values()
   );
@@ -424,7 +420,7 @@ export default async function AdminDashboardPage() {
   const webAverageStayMinutes =
     allVisitorTotals.length > 0 ? weeklyDurationTotal / allVisitorTotals.length / 60 : 0;
 
-  const nonAdminPageAnalytics = latestDayPageAnalytics.filter((row) => !isAdminAnalyticsRole(row.user_role));
+  const nonAdminPageAnalytics = latestDayPageAnalytics.filter((row) => !isAdmin(row.user_role));
   const todayUrlMap = new Map<string, Map<string, number>>();
   for (const row of nonAdminPageAnalytics) {
     const path = row.path || "/";

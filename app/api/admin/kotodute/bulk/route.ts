@@ -20,7 +20,7 @@ export async function POST(req: Request) {
   const originCheck = requireSameOrigin(req);
   if (!originCheck.ok) return originCheck.response;
 
-  const rateLimited = enforceRateLimit(req, {
+  const rateLimited = await enforceRateLimit(req, {
     bucket: "admin-kotodute-bulk-post",
     limit: 10,
     windowMs: 10 * 60 * 1000,
