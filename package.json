@@ -13,7 +13,8 @@
     "lint": "eslint app/ lib/ components/ types/ utils/ middleware.ts",
     "test": "vitest run --passWithNoTests",
     "prisma:generate": "prisma generate",
-    "prisma:migrate": "prisma migrate dev"
+    "prisma:migrate": "prisma migrate dev",
+    "db:seed": "node scripts/seed-local.mjs"
   },
   "lint-staged": {
     "*.{ts,tsx}": [
