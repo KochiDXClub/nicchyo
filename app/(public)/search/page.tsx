@@ -35,15 +35,23 @@ async function loadLandmarks(): Promise<Landmark[]> {
 }
 
 // データ取得を分離することで Suspense のストリーミングが有効になる
-async function SearchContent() {
+async function SearchContent({ initialQuery }: { initialQuery?: string }) {
   const [shops, landmarks] = await Promise.all([loadShops(), loadLandmarks()]);
-  return <SearchClient shops={shops} landmarks={landmarks} />;
+  return <SearchClient shops={shops} landmarks={landmarks} initialQuery={initialQuery} />;
 }
 
-export default function SearchPage() {
+export default async function SearchPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ q?: string | string[] }>;
+}) {
+  const params = (await searchParams) ?? {};
+  const rawQuery = Array.isArray(params.q) ? params.q[0] : params.q;
+  const initialQuery = rawQuery?.trim() ?? '';
+
   return (
     <Suspense fallback={<SearchLoading />}>
-      <SearchContent />
+      <SearchContent initialQuery={initialQuery} />
     </Suspense>
   );
 }

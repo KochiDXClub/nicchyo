@@ -68,11 +68,13 @@ export default function EncyclopediaPage() {
                 <div className={`mb-3 flex h-16 w-16 items-center justify-center rounded-2xl text-4xl ${
                   isUnlocked ? "bg-amber-50" : "bg-slate-200"
                 }`}>
-                  {isUnlocked ? item.emoji : "❓"}
+                  <span className={isUnlocked ? "" : "opacity-30 [filter:grayscale(1)_brightness(0)]"}>
+                    {item.emoji}
+                  </span>
                 </div>
                 <div className="space-y-1">
-                  <p className="text-sm font-bold text-slate-900">
-                    {isUnlocked ? item.name : "？？？"}
+                  <p className={`text-sm font-bold ${isUnlocked ? "text-slate-900" : "text-slate-400"}`}>
+                    {item.name}
                   </p>
                   <div className="flex justify-center gap-0.5">
                     {Array.from({ length: item.rarity === 'super_rare' ? 3 : item.rarity === 'rare' ? 2 : 1 }).map((_, i) => (
@@ -113,58 +115,67 @@ export default function EncyclopediaPage() {
               exit={{ y: "100%" }}
               className="relative w-full max-w-lg overflow-hidden rounded-[2.5rem] bg-white shadow-2xl"
             >
-              {unlockedIds.includes(selectedItem.id) ? (
-                <div className="p-8">
-                  <div className="flex justify-between items-start mb-6">
-                    <div className={`flex h-20 w-20 items-center justify-center rounded-3xl bg-amber-50 text-5xl shadow-inner`}>
-                      {selectedItem.emoji}
+              {(() => {
+                const isUnlocked = unlockedIds.includes(selectedItem.id);
+                return (
+                  <div className="p-8">
+                    <div className="flex justify-between items-start mb-6">
+                      <div className={`flex h-20 w-20 items-center justify-center rounded-3xl text-5xl shadow-inner ${
+                        isUnlocked ? "bg-amber-50" : "bg-slate-100"
+                      }`}>
+                        <span className={isUnlocked ? "" : "opacity-30 [filter:grayscale(1)_brightness(0)]"}>
+                          {selectedItem.emoji}
+                        </span>
+                      </div>
+                      <div className="text-right">
+                        <span className="inline-block rounded-full bg-slate-100 px-3 py-1 text-[10px] font-bold uppercase tracking-widest text-slate-500">
+                          {selectedItem.category === 'food' ? 'グルメ' : selectedItem.category === 'craft' ? '工芸品' : '季節限定'}
+                        </span>
+                        <h2 className="mt-2 text-2xl font-black text-slate-900">{selectedItem.name}</h2>
+                      </div>
                     </div>
-                    <div className="text-right">
-                      <span className="inline-block rounded-full bg-slate-100 px-3 py-1 text-[10px] font-bold uppercase tracking-widest text-slate-500">
-                        {selectedItem.category === 'food' ? 'グルメ' : selectedItem.category === 'craft' ? '工芸品' : '季節限定'}
-                      </span>
-                      <h2 className="mt-2 text-2xl font-black text-slate-900">{selectedItem.name}</h2>
-                    </div>
-                  </div>
 
-                  <div className="space-y-6">
-                    <div>
-                      <h3 className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-2">解説</h3>
-                      <p className="text-slate-600 leading-relaxed">{selectedItem.description}</p>
-                    </div>
+                    <div className="space-y-6">
+                      <div>
+                        <h3 className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-2">解説</h3>
+                        <p className="text-slate-600 leading-relaxed">{selectedItem.description}</p>
+                      </div>
 
-                    <div className="flex gap-2">
+                      {!isUnlocked && (
+                        <div>
+                          <h3 className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-2">解放のヒント</h3>
+                          <div className="rounded-2xl bg-amber-50 p-5 text-sm font-medium text-amber-800 ring-1 ring-amber-100">
+                            「{selectedItem.hint}」
+                          </div>
+                        </div>
+                      )}
+
                       <Link
-                        href={`/encyclopedia/camera?item=${selectedItem.id}`}
-                        className="flex-1 flex items-center justify-center gap-2 rounded-2xl bg-slate-900 py-4 text-sm font-bold text-white shadow-lg active:scale-[0.98] transition-transform"
+                        href={`/search?q=${encodeURIComponent(selectedItem.name)}`}
+                        className="flex w-full items-center justify-center gap-2 rounded-2xl bg-nicchyo-primary py-4 text-sm font-bold text-white shadow-lg active:scale-[0.98] transition-transform"
                       >
-                        <Camera size={18} />
-                        記念撮影をする
+                        <MapPin size={18} />
+                        販売しているお店をチェック
                       </Link>
-                      <button className="flex h-13 w-13 items-center justify-center rounded-2xl bg-slate-100 text-slate-500 active:scale-[0.98] transition-transform">
-                        <Share2 size={20} />
-                      </button>
+
+                      {isUnlocked && (
+                        <div className="flex gap-2">
+                          <Link
+                            href={`/encyclopedia/camera?item=${selectedItem.id}`}
+                            className="flex-1 flex items-center justify-center gap-2 rounded-2xl bg-slate-900 py-4 text-sm font-bold text-white shadow-lg active:scale-[0.98] transition-transform"
+                          >
+                            <Camera size={18} />
+                            記念撮影をする
+                          </Link>
+                          <button className="flex h-13 w-13 items-center justify-center rounded-2xl bg-slate-100 text-slate-500 active:scale-[0.98] transition-transform">
+                            <Share2 size={20} />
+                          </button>
+                        </div>
+                      )}
                     </div>
                   </div>
-                </div>
-              ) : (
-                <div className="p-8 text-center">
-                  <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-3xl bg-slate-100 text-4xl text-slate-300">
-                    ❓
-                  </div>
-                  <h2 className="text-xl font-bold text-slate-900">まだ見つかっていません</h2>
-                  <p className="mt-3 text-slate-500">このアイテムを解放するためのヒント：</p>
-                  <div className="mt-4 rounded-2xl bg-amber-50 p-5 text-sm font-medium text-amber-800 ring-1 ring-amber-100">
-                    「{selectedItem.hint}」
-                  </div>
-                  <button
-                    onClick={() => setSelectedItem(null)}
-                    className="mt-8 w-full rounded-2xl bg-slate-100 py-4 text-sm font-bold text-slate-600"
-                  >
-                    閉じる
-                  </button>
-                </div>
-              )}
+                );
+              })()}
             </motion.div>
           </div>
         )}
