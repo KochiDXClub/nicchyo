@@ -126,7 +126,9 @@ export default function MapPageClient({
     ids: number[];
     label: string;
   } | null>(null);
-  const [mapSearchQuery, setMapSearchQuery] = useState('');
+  const [mapSearchQuery, setMapSearchQuery] = useState(
+    () => searchParams?.get("q") ?? '',
+  );
   const [mapSearchCategory, setMapSearchCategory] = useState<string | null>(null);
   const mapSearchIndex = useMemo(() => buildSearchIndex(shops), [shops]);
   const mapSearchResults = useShopSearch({

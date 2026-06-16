@@ -151,7 +151,7 @@ export default function EncyclopediaPage() {
                       )}
 
                       <Link
-                        href={`/search?q=${encodeURIComponent(selectedItem.name)}`}
+                        href={`/map?q=${encodeURIComponent(selectedItem.name)}`}
                         className="flex w-full items-center justify-center gap-2 rounded-2xl bg-nicchyo-primary py-4 text-sm font-bold text-white shadow-lg active:scale-[0.98] transition-transform"
                       >
                         <MapPin size={18} />
