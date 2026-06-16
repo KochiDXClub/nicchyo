@@ -96,17 +96,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const supabase = supabaseRef.current;
       if (!supabase) return;
 
-      const { data } = await supabase.auth.getSession();
-      if (!active) return;
-      if (data.session?.user) {
-        const mapped = await mapSupabaseUserWithVendorId(data.session.user, supabase);
-        setUser(mapped);
-        setIsLoggedIn(true);
-      } else {
-        setUser(null);
-        setIsLoggedIn(false);
+      try {
+        const { data } = await supabase.auth.getSession();
+        if (!active) return;
+        if (data.session?.user) {
+          const mapped = await mapSupabaseUserWithVendorId(data.session.user, supabase);
+          if (!active) return;
+          setUser(mapped);
+          setIsLoggedIn(true);
+        } else {
+          setUser(null);
+          setIsLoggedIn(false);
+        }
+        setIsLoading(false);
+      } catch (err) {
+        console.error("[AuthContext] init failed:", err);
+        if (active) setIsLoading(false);
+        return;
       }
-      setIsLoading(false);
 
       const { data: subscription } = supabase.auth.onAuthStateChange((_event, session) => {
         if (!active) return;
