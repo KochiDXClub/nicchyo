@@ -28,7 +28,7 @@ export async function POST(req: Request) {
   const originCheck = requireSameOrigin(req);
   if (!originCheck.ok) return originCheck.response;
 
-  const rateLimited = enforceRateLimit(req, {
+  const rateLimited = await enforceRateLimit(req, {
     bucket: "admin-audit-logs-post",
     limit: 60,
     windowMs: 10 * 60 * 1000,

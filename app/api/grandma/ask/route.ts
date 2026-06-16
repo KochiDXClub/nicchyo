@@ -508,7 +508,7 @@ export async function POST(request: Request) {
     const originCheck = requireSameOrigin(request);
     if (!originCheck.ok) return originCheck.response;
 
-    const rateLimited = enforceRateLimit(request, {
+    const rateLimited = await enforceRateLimit(request, {
       bucket: "grandma-ask",
       limit: 30,
       windowMs: 10 * 60 * 1000,

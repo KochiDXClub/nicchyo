@@ -37,7 +37,7 @@ export async function POST(req: NextRequest) {
   const originCheck = requireSameOrigin(req);
   if (!originCheck.ok) return originCheck.response;
 
-  const rateLimited = enforceRateLimit(req, {
+  const rateLimited = await enforceRateLimit(req, {
     bucket: "grandma-shop-chat",
     limit: 20,
     windowMs: 10 * 60 * 1000,

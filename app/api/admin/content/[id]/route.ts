@@ -23,7 +23,7 @@ export async function DELETE(
   const originCheck = requireSameOrigin(req);
   if (!originCheck.ok) return originCheck.response;
 
-  const rateLimited = enforceRateLimit(req, {
+  const rateLimited = await enforceRateLimit(req, {
     bucket: "admin-content-id-delete",
     limit: 20,
     windowMs: 10 * 60 * 1000,
