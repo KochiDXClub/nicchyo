@@ -241,7 +241,7 @@ export function ModeratorKotoduteContent() {
               { f: "hidden" as const, label: `非公開 (${stats.hidden})`, active: "bg-orange-600" },
               { f: "deleted" as const, label: `削除済み (${stats.deleted})`, active: "bg-gray-600" },
             ]).map(({ f, label, active }) => (
-              <button key={f} onClick={() => setFilter(f)}
+              <button type="button" key={f} onClick={() => setFilter(f)}
                 className={`rounded-lg px-4 py-2 text-sm font-medium ${filter === f ? `${active} text-white` : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}>
                 {label}
               </button>
@@ -257,12 +257,12 @@ export function ModeratorKotoduteContent() {
           {uniqueShops.length > 0 && (
             <div className="flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3">
               <span className="text-xs font-medium text-slate-500 uppercase">店舗:</span>
-              <button onClick={() => setShopFilter("all")}
+              <button type="button" onClick={() => setShopFilter("all")}
                 className={`rounded-lg px-3 py-1.5 text-sm font-medium ${shopFilter === "all" ? "bg-gray-700 text-white" : "bg-gray-100 text-gray-700 hover:bg-gray-200"}`}>
                 すべて
               </button>
               {uniqueShops.map((s) => (
-                <button key={s} onClick={() => setShopFilter(s)}
+                <button type="button" key={s} onClick={() => setShopFilter(s)}
                   className={`rounded-lg px-3 py-1.5 text-sm font-medium ${shopFilter === s ? "bg-gray-700 text-white" : "bg-gray-100 text-gray-700 hover:bg-gray-200"}`}>
                   {s}
                 </button>
@@ -276,7 +276,7 @@ export function ModeratorKotoduteContent() {
           <div className="mb-4 flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 p-4 shadow-sm">
             <div className="flex items-center gap-4">
               <span className="text-sm font-medium text-slate-800">{selectedIds.length}件選択中</span>
-              <button onClick={() => setSelectedIds([])} className="text-sm text-slate-500 hover:text-slate-700">選択解除</button>
+              <button type="button" onClick={() => setSelectedIds([])} className="text-sm text-slate-500 hover:text-slate-700">選択解除</button>
             </div>
             <div className="flex gap-2">
               <LoadingButton onClick={() => handleBulkUpdate("published", "公開")} isLoading={actionLoading} loadingText="処理中..."
@@ -337,11 +337,11 @@ export function ModeratorKotoduteContent() {
                 <div className="mt-4 flex flex-wrap gap-2 border-t border-slate-100 pt-4">
                   {k.status === "published" && (
                     <>
-                      <button onClick={() => updateStatus([k.id], "hidden", "非公開")} disabled={actionLoading}
+                      <button type="button" onClick={() => updateStatus([k.id], "hidden", "非公開")} disabled={actionLoading}
                         className="rounded-lg bg-orange-600 px-4 py-2 text-sm font-medium text-white hover:bg-orange-700 disabled:opacity-50">
                         🔒 非公開
                       </button>
-                      <button onClick={() => updateStatus([k.id], "deleted", "削除")} disabled={actionLoading}
+                      <button type="button" onClick={() => updateStatus([k.id], "deleted", "削除")} disabled={actionLoading}
                         className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50">
                         🗑️ 削除
                       </button>
@@ -349,18 +349,18 @@ export function ModeratorKotoduteContent() {
                   )}
                   {k.status === "hidden" && (
                     <>
-                      <button onClick={() => updateStatus([k.id], "published", "公開")} disabled={actionLoading}
+                      <button type="button" onClick={() => updateStatus([k.id], "published", "公開")} disabled={actionLoading}
                         className="rounded-lg bg-green-700 px-4 py-2 text-sm font-medium text-white hover:bg-green-800 disabled:opacity-50">
                         ✓ 公開
                       </button>
-                      <button onClick={() => updateStatus([k.id], "deleted", "削除")} disabled={actionLoading}
+                      <button type="button" onClick={() => updateStatus([k.id], "deleted", "削除")} disabled={actionLoading}
                         className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50">
                         🗑️ 削除
                       </button>
                     </>
                   )}
                   {k.status === "deleted" && (
-                    <button onClick={() => updateStatus([k.id], "published", "公開（復元）")} disabled={actionLoading}
+                    <button type="button" onClick={() => updateStatus([k.id], "published", "公開（復元）")} disabled={actionLoading}
                       className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50">
                       ↺ 復元
                     </button>

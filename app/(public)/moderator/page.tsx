@@ -180,6 +180,7 @@ function ModeratorDashboardContent() {
           <div className="mb-6 rounded-lg bg-red-50 border border-red-200 p-4 flex items-center justify-between">
             <p className="text-sm text-red-700">{dataError}</p>
             <button
+              type="button"
               onClick={loadStats}
               className="ml-4 rounded-lg bg-red-600 px-3 py-1.5 text-sm text-white hover:bg-red-700"
             >

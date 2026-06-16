@@ -85,6 +85,7 @@ export default function SearchDiscovery({
         <div className="flex flex-wrap gap-2">
           {visibleCategories.map((cat) => (
             <button
+              type="button"
               key={cat}
               onClick={() => onCategorySelect(cat)}
               className="rounded-full border border-amber-100 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 shadow-sm transition hover:border-amber-300 hover:bg-amber-50 active:scale-95"

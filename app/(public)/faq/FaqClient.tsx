@@ -3,7 +3,7 @@
 import { useState, useMemo } from "react";
 import { Search, ChevronDown, ChevronUp, MessageCircle } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { FAQ_DATA, FAQ_CATEGORIES, type FaqCategory } from "./data";
+import { FAQ_DATA, FAQ_CATEGORIES } from "./data";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import EmptyState from "@/components/EmptyState";
@@ -58,6 +58,7 @@ export default function FaqClient() {
             const isSelected = selectedCategory === cat.id;
             return (
               <button
+                type="button"
                 key={cat.id}
                 onClick={() => setSelectedCategory(cat.id)}
                 className={cn(
@@ -89,6 +90,7 @@ export default function FaqClient() {
                 className="overflow-hidden rounded-2xl border border-orange-100 bg-white/90 shadow-sm transition-shadow hover:shadow-md"
               >
                 <button
+                  type="button"
                   onClick={() => toggleItem(item.id)}
                   className="flex w-full items-start justify-between gap-4 p-5 text-left"
                 >
@@ -131,6 +133,7 @@ export default function FaqClient() {
                 description="キーワードを変更するか、AIチャットボットにお気軽にご相談ください。"
                 action={
                   <button
+                    type="button"
                     onClick={() => {
                       setSearchQuery("");
                       setSelectedCategory("all");

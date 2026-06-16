@@ -27,6 +27,7 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
     return (
       <button
         ref={ref}
+        // eslint-disable-next-line react/button-has-type
         type={type}
         className={cn(
           "inline-flex items-center justify-center rounded-xl border text-sm font-medium shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 disabled:pointer-events-none disabled:opacity-50",

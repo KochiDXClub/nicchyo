@@ -54,6 +54,7 @@ export default function HamburgerMenu() {
     <>
       {/* ハンバーガーボタン（固定位置・オーバーレイ） */}
       <button
+        type="button"
         onClick={toggleMenu}
         className={`hamburger-button fixed top-4 right-4 z-[10002] flex h-12 w-12 items-center justify-center rounded-lg bg-white/90 text-gray-700 shadow-md transition hover:bg-white hover:shadow-lg ${
           isMenuOpen ? "is-open" : "is-closed"
@@ -496,6 +497,7 @@ export default function HamburgerMenu() {
 
                   <li>
                     <button
+                      type="button"
                       onClick={handleLogout}
                       className="flex w-full items-center gap-3 rounded-lg px-4 py-3 text-gray-700 transition hover:bg-red-50 hover:text-red-600"
                     >

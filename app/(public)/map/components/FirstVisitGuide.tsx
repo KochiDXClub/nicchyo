@@ -93,6 +93,7 @@ export default function FirstVisitGuide() {
           <div className="mt-8 flex justify-center gap-3">
              {step < 2 ? (
                <button
+                 type="button"
                  onClick={handleNext}
                  className="w-full rounded-xl bg-amber-500 py-3 text-base font-bold text-white shadow-md transition hover:bg-amber-600 active:scale-95"
                >
@@ -100,6 +101,7 @@ export default function FirstVisitGuide() {
                </button>
              ) : (
                <button
+                 type="button"
                  onClick={handleComplete}
                  className="w-full rounded-xl bg-amber-500 py-3 text-base font-bold text-white shadow-md transition hover:bg-amber-600 active:scale-95"
                >
