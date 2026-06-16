@@ -100,7 +100,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       try {
         // getSession() はサーバー検証なし。getUser() でサーバーサイド検証を行う
         const { data, error } = await supabase.auth.getUser();
-        if (error) {
+        if (error && error.message !== "Auth session missing!") {
           console.error("[AuthContext] getUser failed:", error.message);
         }
         if (!active) return;
