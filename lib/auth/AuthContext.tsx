@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import React, { createContext, useContext, useEffect, useRef, useState, ReactNode } from "react";
 import type { User, UserRole, PermissionCheck } from "./types";
@@ -82,6 +82,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let active = true;
+    let unsubscribe: (() => void) | null = null;
 
     const init = async () => {
       if (!supabaseRef.current) {
@@ -97,10 +98,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!supabase) return;
 
       try {
-        const { data } = await supabase.auth.getSession();
+        // getSession() はサーバー検証なし。getUser() でサーバーサイド検証を行う
+        const { data, error } = await supabase.auth.getUser();
+        if (error) {
+          console.error("[AuthContext] getUser failed:", error.message);
+        }
         if (!active) return;
-        if (data.session?.user) {
-          const mapped = await mapSupabaseUserWithVendorId(data.session.user, supabase);
+        if (data.user) {
+          const mapped = await mapSupabaseUserWithVendorId(data.user, supabase);
           if (!active) return;
           setUser(mapped);
           setIsLoggedIn(true);
@@ -115,8 +120,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      const { data: subscription } = supabase.auth.onAuthStateChange((_event, session) => {
+      const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
         if (!active) return;
+        // INITIAL_SESSION は getUser() で処理済みのためスキップ（未検証ローカルトークンによる上書きを防ぐ）
+        if (event === "INITIAL_SESSION") return;
         if (session?.user) {
           mapSupabaseUserWithVendorId(session.user, supabase).then((mapped) => {
             if (!active) return;
@@ -131,17 +138,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       });
 
-      return () => {
-        subscription.subscription.unsubscribe();
-      };
+      unsubscribe = () => sub.subscription.unsubscribe();
+      // cleanup が先に走っていた場合は即座に解除する
+      if (!active) unsubscribe();
     };
 
-    const cleanupPromise = init();
+    init();
     return () => {
       active = false;
-      if (cleanupPromise && typeof cleanupPromise.then === "function") {
-        cleanupPromise.then((cleanup) => cleanup?.());
-      }
+      unsubscribe?.();
     };
   }, []);
 
