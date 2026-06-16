@@ -15,6 +15,8 @@ function CameraPageContent() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  // 起動要求の世代番号。多重起動時に古い取得結果を破棄するために使う
+  const startGenerationRef = useRef(0);
   const [isPhotoTaken, setIsPhotoTaken] = useState(false);
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -38,16 +40,40 @@ function CameraPageContent() {
       return;
     }
 
+    // この呼び出しの世代番号。完了時に最新でなければ結果を破棄する（多重起動防止）
+    const generation = ++startGenerationRef.current;
+
     setIsInitializing(true);
     setError(null);
     setIsPermissionBlocked(false);
 
+    // 指定 facingMode で取得し、カメラ使用中などで開けない場合は制約を緩めて再試行する
+    const requestStream = async () => {
+      try {
+        // getUserMedia の呼び出しがブラウザ標準のカメラ許可ダイアログを表示する
+        return await navigator.mediaDevices.getUserMedia({
+          video: { facingMode },
+          audio: false,
+        });
+      } catch (err) {
+        const name = err instanceof DOMException ? err.name : "";
+        // 指定カメラが使用中/未対応の場合は、制約なしでもう一度試す
+        if (name === "NotReadableError" || name === "OverconstrainedError" || name === "TrackStartError") {
+          return await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+        }
+        throw err;
+      }
+    };
+
     try {
-      // getUserMedia の呼び出しがブラウザ標準のカメラ許可ダイアログを表示する
-      const newStream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: facingMode },
-        audio: false,
-      });
+      const newStream = await requestStream();
+
+      // 取得中に新しい起動要求が始まっていたら、このストリームは破棄する
+      if (generation !== startGenerationRef.current) {
+        newStream.getTracks().forEach((track) => track.stop());
+        return;
+      }
+
       streamRef.current = newStream;
       if (videoRef.current) {
         videoRef.current.srcObject = newStream;
@@ -55,6 +81,8 @@ function CameraPageContent() {
       setError(null);
       setIsPermissionBlocked(false);
     } catch (err) {
+      // 古い起動要求のエラーは無視する
+      if (generation !== startGenerationRef.current) return;
       console.error("Camera error:", err);
       const name = err instanceof DOMException ? err.name : "";
       if (name === "NotAllowedError" || name === "PermissionDeniedError" || name === "SecurityError") {
@@ -64,20 +92,26 @@ function CameraPageContent() {
         setError("カメラが見つかりませんでした。カメラ付きの端末でお試しください。");
         setIsPermissionBlocked(false);
       } else if (name === "NotReadableError" || name === "TrackStartError") {
-        setError("カメラを起動できませんでした。他のアプリがカメラを使用していないか確認してください。");
+        setError("カメラを起動できませんでした。他のアプリやタブがカメラを使用していないか確認して、もう一度お試しください。");
         setIsPermissionBlocked(true);
       } else {
         setError("カメラにアクセスできませんでした。ブラウザの設定を確認してください。");
         setIsPermissionBlocked(true);
       }
     } finally {
-      setIsInitializing(false);
+      // 最新の起動要求のときだけ初期化中フラグを下ろす
+      if (generation === startGenerationRef.current) {
+        setIsInitializing(false);
+      }
     }
   }, [facingMode]);
 
   useEffect(() => {
     startCamera();
     return () => {
+      // 進行中の取得結果を無効化し、ストリームを完全に解放する
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+      startGenerationRef.current++;
       if (streamRef.current) {
         streamRef.current.getTracks().forEach((track) => track.stop());
         streamRef.current = null;
