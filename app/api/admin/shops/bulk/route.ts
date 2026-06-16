@@ -90,7 +90,7 @@ export async function POST(request: Request) {
     const ip = getClientIp(request);
 
     // 監査ログを操作前に記録（削除後に失敗しても痕跡が残るよう）
-    await serviceClient.from("admin_audit_logs").insert({
+    const { error: auditError } = await serviceClient.from("admin_audit_logs").insert({
       actor_id: user.id,
       actor_email: user.email ?? null,
       actor_role: getRole(user),
@@ -98,9 +98,10 @@ export async function POST(request: Request) {
       target_type: "vendor",
       target_id: safeIds.join(","),
       target_name: shopNames.slice(0, 500),
-      details: `${safeIds.length}件を一括${actionLabel}`,
+      details: `${safeIds.length}件の一括${actionLabel}を試みた`,
       ip_address: ip !== "unknown" ? ip : null,
     });
+    if (auditError) console.error("[audit] failed to write audit log", auditError);
 
     const errors: string[] = [];
 
