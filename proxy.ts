@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/utils/supabase/middleware";
+import { getRole, isModerator } from "@/lib/auth/permissions";
 
 export async function proxy(request: NextRequest) {
   const { supabase, getResponse } = createClient(request);
@@ -12,10 +13,10 @@ export async function proxy(request: NextRequest) {
 
   // パスベースのアクセス制御
   const pathname = request.nextUrl.pathname;
-  const appRole = (user?.app_metadata as { role?: string } | undefined)?.role ?? null;
+  const appRole = getRole(user);
 
   if (pathname.startsWith("/admin") || pathname.startsWith("/moderator")) {
-    const allowed = appRole === "super_admin" || appRole === "admin" || appRole === "moderator";
+    const allowed = isModerator(appRole);
     if (!user || !allowed) {
       const redirectRes = NextResponse.redirect(new URL("/", request.url));
       supabaseResponse.cookies.getAll().forEach(({ name, value }) => {
@@ -25,7 +26,7 @@ export async function proxy(request: NextRequest) {
     }
   }
 
-  if (pathname.startsWith("/my-shop")) {
+  if (pathname.startsWith("/my-shop") || pathname.startsWith("/vendor")) {
     if (!user || appRole !== "vendor") {
       const redirectRes = NextResponse.redirect(new URL("/", request.url));
       supabaseResponse.cookies.getAll().forEach(({ name, value }) => {
@@ -40,7 +41,9 @@ export async function proxy(request: NextRequest) {
 
   const csp = [
     "default-src 'self'",
-    `script-src 'self' 'nonce-${nonce}'`,
+    // 'strict-dynamic': nonce 付きスクリプトが動的にロードするスクリプトにも信頼を伝播
+    // 'unsafe-inline': strict-dynamic 非対応の古いブラウザ向けフォールバック
+    `script-src 'nonce-${nonce}' 'strict-dynamic' 'unsafe-inline'`,
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "img-src 'self' data: blob: https:",
     "font-src 'self' data: https://fonts.gstatic.com",
