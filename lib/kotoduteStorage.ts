@@ -51,7 +51,7 @@ function sanitizeNote(raw: unknown): KotoduteNote | null {
         : "all";
 
   const authorEmoji =
-    typeof r.authorEmoji === "string" && /^\p{Emoji}/u.test(r.authorEmoji)
+    typeof r.authorEmoji === "string" && /^\p{Extended_Pictographic}/u.test(r.authorEmoji)
       ? r.authorEmoji
       : undefined;
 

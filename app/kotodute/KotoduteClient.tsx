@@ -183,8 +183,8 @@ export default function KotoduteClient() {
           ) : (
             <div className="mt-3 space-y-2">
               {filteredNotes.map((note) => {
-                const isAll = note.shopId === "all";
                 const shopIdNum = typeof note.shopId === "number" && note.shopId > 0 ? note.shopId : null;
+                const isAll = shopIdNum === null;
                 const label = shopIdNum ? findShopName(shops, shopIdNum) : "日曜市全体";
                 const targetHref = shopIdNum ? `/map?shop=${shopIdNum}` : "/map";
 
@@ -205,7 +205,7 @@ export default function KotoduteClient() {
                             isAll ? "bg-slate-900 text-white" : "bg-amber-600 text-white"
                           }`}
                         >
-                          {isAll ? "#all" : `#${note.shopId}`}
+                          {isAll ? "#all" : `#${shopIdNum}`}
                         </span>
                         <span className="text-sm text-gray-700">{label}</span>
                       </div>
