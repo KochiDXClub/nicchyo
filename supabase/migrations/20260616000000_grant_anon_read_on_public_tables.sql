@@ -6,3 +6,4 @@ GRANT SELECT ON public.market_locations TO anon;
 GRANT SELECT ON public.location_assignments TO anon;
 GRANT SELECT ON public.categories TO anon;
 GRANT SELECT ON public.products TO anon;
+GRANT SELECT ON public.vendor_contents TO anon;
