@@ -326,7 +326,7 @@ export default function MapPageClient({
 
   const vendorShop = useMemo(() => {
     if (!vendorShopId) return null;
-    return shops.find((shop) => shop.id === vendorShopId) ?? null;
+    return shops.find((shop) => shop.vendorId === vendorShopId) ?? null;
   }, [shops, vendorShopId]);
 
   useEffect(() => {
@@ -410,8 +410,8 @@ export default function MapPageClient({
   };
 
   const handleOpenVendorBanner = () => {
-    if (!vendorShopId) return;
-    router.push(`/map?shop=${vendorShopId}`);
+    if (!vendorShop) return;
+    router.push(`/map?shop=${vendorShop.id}`);
     setShowVendorPrompt(false);
   };
 

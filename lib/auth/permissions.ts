@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import type { User } from "@supabase/supabase-js";
+import type { UserRole } from "./types";
 
 /** app_metadata.role から文字列ロールを取り出す（unknown 型の user 対応） */
 export function getRole(user: unknown): string | null {
@@ -21,6 +22,14 @@ export function isModerator(role: string | null): boolean {
 /** vendor ロールかどうかを判定する */
 export function isVendor(role: string | null): boolean {
   return role === "vendor";
+}
+
+/** app_metadata の生ロール文字列を UserRole 型に正規化する */
+export function normalizeRole(value?: string | null): UserRole {
+  if (value === "admin" || value === "super_admin") return "super_admin";
+  if (value === "moderator") return "moderator";
+  if (value === "vendor") return "vendor";
+  return "general_user";
 }
 
 /** vendor ロール以外を 403 で弾く（API Route 用ガード） */

@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import React, { createContext, useContext, useEffect, useRef, useState, ReactNode } from "react";
 import type { User, UserRole, PermissionCheck } from "./types";
@@ -29,20 +29,10 @@ function normalizeRole(value?: string | null): UserRole {
   return "general_user";
 }
 
-function getVendorId(value: unknown): number | undefined {
-  if (typeof value === "number" && Number.isFinite(value)) return value;
-  if (typeof value === "string") {
-    const parsed = Number(value);
-    return Number.isFinite(parsed) ? parsed : undefined;
-  }
-  return undefined;
-}
-
-function mapSupabaseUser(user: SupabaseUser): User {
+async function mapSupabaseUserWithVendorId(user: SupabaseUser, supabase: ReturnType<typeof createClient>): Promise<User> {
   const appMeta = user.app_metadata as { role?: string; provider?: string } | undefined;
   const userMeta = user.user_metadata as {
     role?: string;
-    vendorId?: unknown;
     name?: string;
     full_name?: string;
     avatarUrl?: string;
@@ -51,11 +41,26 @@ function mapSupabaseUser(user: SupabaseUser): User {
   } | undefined;
 
   const role = normalizeRole(appMeta?.role);
-  const vendorId = getVendorId(userMeta?.vendorId);
   const name = userMeta?.name ?? userMeta?.full_name ?? (user.email ? user.email.split("@")[0] : "user");
   const avatarUrl = userMeta?.avatarUrl ?? userMeta?.avatar_url;
   const provider = appMeta?.provider ?? "email";
   const phone = userMeta?.phone;
+
+  // vendorsテーブルからvendorIdを取得（user_metadataは改ざん可能なため使用しない）
+  let vendorId: string | undefined = undefined;
+  if (role === "vendor" && user.id) {
+    const { data, error } = await supabase
+      .from("vendors")
+      .select("id")
+      .eq("id", user.id)
+      .maybeSingle();
+    if (error) {
+      console.error("[AuthContext] vendors lookup failed:", error.message);
+    }
+    if (data?.id) {
+      vendorId = data.id;
+    }
+  }
 
   return {
     id: user.id,
@@ -92,28 +97,41 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const supabase = supabaseRef.current;
       if (!supabase) return;
 
-      // getSession() はサーバー検証なし。getUser() でサーバーサイド検証を行う
-      const { data, error } = await supabase.auth.getUser();
-      if (error) {
-        console.error("[AuthContext] getUser failed:", error.message);
+      try {
+        // getSession() はサーバー検証なし。getUser() でサーバーサイド検証を行う
+        const { data, error } = await supabase.auth.getUser();
+        if (error) {
+          console.error("[AuthContext] getUser failed:", error.message);
+        }
+        if (!active) return;
+        if (data.user) {
+          const mapped = await mapSupabaseUserWithVendorId(data.user, supabase);
+          if (!active) return;
+          setUser(mapped);
+          setIsLoggedIn(true);
+        } else {
+          setUser(null);
+          setIsLoggedIn(false);
+        }
+        setIsLoading(false);
+      } catch (err) {
+        console.error("[AuthContext] init failed:", err);
+        if (active) setIsLoading(false);
+        return;
       }
-      if (!active) return;
-      if (data.user) {
-        setUser(mapSupabaseUser(data.user));
-        setIsLoggedIn(true);
-      } else {
-        setUser(null);
-        setIsLoggedIn(false);
-      }
-      setIsLoading(false);
 
       const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
         if (!active) return;
         // INITIAL_SESSION は getUser() で処理済みのためスキップ（未検証ローカルトークンによる上書きを防ぐ）
         if (event === "INITIAL_SESSION") return;
         if (session?.user) {
-          setUser(mapSupabaseUser(session.user));
-          setIsLoggedIn(true);
+          mapSupabaseUserWithVendorId(session.user, supabase).then((mapped) => {
+            if (!active) return;
+            setUser(mapped);
+            setIsLoggedIn(true);
+          }).catch((err) => {
+            console.error("[AuthContext] mapSupabaseUserWithVendorId failed:", err);
+          });
         } else {
           setUser(null);
           setIsLoggedIn(false);
@@ -138,9 +156,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     isVendor: user?.role === "vendor",
     isGeneralUser: user?.role === "general_user",
 
-    canEditShop: (shopId: number) => {
+    canEditShop: (shopVendorId: string) => {
       if (user?.role === "super_admin") return true;
-      if (user?.role === "vendor" && user.vendorId === shopId) return true;
+      if (user?.role === "vendor" && user.vendorId === shopVendorId) return true;
       return false;
     },
 
@@ -161,7 +179,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       options: captchaToken ? { captchaToken } : undefined,
     });
     if (error || !data.user) return null;
-    const mapped = mapSupabaseUser(data.user);
+    const mapped = await mapSupabaseUserWithVendorId(data.user, supabase);
     setUser(mapped);
     setIsLoggedIn(true);
     return mapped;
@@ -182,7 +200,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const supabase = supabaseRef.current ?? createClient();
     const { data, error } = await supabase.auth.updateUser(payload);
     if (error || !data.user) return;
-    setUser(mapSupabaseUser(data.user));
+    setUser(await mapSupabaseUserWithVendorId(data.user, supabase));
   };
 
   const logout = async () => {
