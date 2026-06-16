@@ -5,6 +5,7 @@ import { createClient as createServerClient } from "@/utils/supabase/server";
 import { requireSameOrigin } from "@/lib/security/requestGuards";
 import { enforceRateLimit } from "@/lib/security/rateLimit";
 import { getRole, isAdmin } from "@/lib/auth/permissions";
+import { MAX_BULK_OPERATION } from "@/lib/constants";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -39,15 +40,14 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Supabase env missing" }, { status: 500 });
     }
 
-    const MAX_BULK = 200;
     const body = (await request.json()) as { action: BulkAction; ids: string[] };
     const { action, ids } = body;
 
     if (!action || !Array.isArray(ids) || ids.length === 0) {
       return NextResponse.json({ error: "Invalid request" }, { status: 400 });
     }
-    if (ids.length > MAX_BULK) {
-      return NextResponse.json({ error: `一度に操作できるのは${MAX_BULK}件までです` }, { status: 400 });
+    if (ids.length > MAX_BULK_OPERATION) {
+      return NextResponse.json({ error: `一度に操作できるのは${MAX_BULK_OPERATION}件までです` }, { status: 400 });
     }
     // 自分自身への操作を除外
     const safeIds = ids.filter((id) => id !== user.id);
