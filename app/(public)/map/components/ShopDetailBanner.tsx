@@ -392,7 +392,7 @@ const ShopDetailBanner = memo(function ShopDetailBanner({
     return recipes.filter((r) => r.ingredientIds.some((id) => ids.has(id))).slice(0, 2);
   }, [matchedIngredientIds]);
 
-  const canEditShop = permissions.canEditShop(shop.id);
+  const canEditShop = permissions.canEditShop(shop.vendorId ?? "");
   const bannerSeed = shop.position ?? shop.id;
   const bannerImage = shop.images?.main ?? getShopBannerImage(shop.category, bannerSeed);
 
