@@ -54,7 +54,7 @@ function escapeValue(value) {
   if (Array.isArray(value)) {
     if (value.length === 0) return "'{}'";
     const escaped = value.map((v) =>
-      typeof v === "string" ? `"${v.replace(/"/g, '\\"')}"` : String(v)
+      typeof v === "string" ? `"${v.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"` : String(v)
     );
     return `'{${escaped.join(",")}}'`;
   }
