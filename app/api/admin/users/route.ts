@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient as createServiceClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 import { createClient as createServerClient } from "@/utils/supabase/server";
-import { getRole, isAdmin } from "@/lib/auth/permissions";
+import { getRole, isAdmin, normalizeRole } from "@/lib/auth/permissions";
 import type { UserRole } from "@/lib/auth/types";
 
 export const runtime = "nodejs";
@@ -26,13 +26,6 @@ type AdminUserRecord = {
   lastLogin: string;
   status: "active" | "suspended";
 };
-
-function normalizeRole(value?: string | null): UserRole {
-  if (value === "admin" || value === "super_admin") return "super_admin";
-  if (value === "moderator") return "moderator";
-  if (value === "vendor") return "vendor";
-  return "general_user";
-}
 
 function formatDate(value?: string | null) {
   if (!value) return "-";
