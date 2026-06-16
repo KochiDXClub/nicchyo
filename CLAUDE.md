@@ -141,3 +141,4 @@ nicchyo-soft-green: #A0D7A7  （淡い緑）
 
 - `reactStrictMode: false` は意図的（Leaflet互換性のため変更しない）
 - Supabase Storageの画像URLは `*.supabase.co` ドメイン（`next.config.js` の `remotePatterns` に設定済み）
+- `/encyclopedia/scan` ページのみカメラ権限を許可（Permissions-Policy設定あり）
