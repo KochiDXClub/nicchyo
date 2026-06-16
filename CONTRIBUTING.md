@@ -9,7 +9,7 @@ nicchyo-platform への参加ありがとうございます。このガイドに
 ### 1. リポジトリのクローン
 
 ```bash
-git clone https://github.com/Yutodesuy/nicchyo-platform.git
+git clone https://github.com/KochiDXClub/nicchyo.git
 cd nicchyo-platform
 ```
 
