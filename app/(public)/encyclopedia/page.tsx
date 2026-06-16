@@ -8,6 +8,18 @@ import { Camera, QrCode, MapPin, Trophy, Star, Share2 } from "lucide-react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 
+const CATEGORY_LABELS: Record<EncyclopediaItem["category"], string> = {
+  food: "グルメ",
+  craft: "工芸品",
+  seasonal: "季節限定",
+};
+
+const RARITY_STARS: Record<EncyclopediaItem["rarity"], number> = {
+  normal: 1,
+  rare: 2,
+  super_rare: 3,
+};
+
 export default function EncyclopediaPage() {
   const { unlockedIds } = useEncyclopedia();
   const [selectedItem, setSelectedItem] = useState<EncyclopediaItem | null>(null);
@@ -59,39 +71,55 @@ export default function EncyclopediaPage() {
                 key={item.id}
                 whileTap={{ scale: 0.96 }}
                 onClick={() => setSelectedItem(item)}
-                className={`relative flex flex-col items-center rounded-3xl p-5 text-center transition-all ${
+                className={`relative flex flex-col items-center gap-3 rounded-3xl p-5 text-center transition-all ${
                   isUnlocked
-                    ? "bg-white shadow-sm ring-1 ring-slate-200"
-                    : "bg-slate-100 ring-1 ring-slate-200 grayscale opacity-70"
+                    ? "bg-white shadow-sm ring-1 ring-slate-200 hover:shadow-md"
+                    : "bg-slate-50 ring-1 ring-dashed ring-slate-300"
                 }`}
               >
-                <div className={`mb-3 flex h-16 w-16 items-center justify-center rounded-2xl text-4xl ${
-                  isUnlocked ? "bg-amber-50" : "bg-slate-200"
-                }`}>
-                  <span className={isUnlocked ? "" : "opacity-30 [filter:grayscale(1)_brightness(0)]"}>
+                {/* カテゴリーバッジ */}
+                <span className="absolute left-3 top-3 rounded-full bg-slate-100 px-2 py-0.5 text-[9px] font-bold tracking-wide text-slate-500">
+                  {CATEGORY_LABELS[item.category]}
+                </span>
+
+                {/* 未開放時の取得方法アイコン */}
+                {!isUnlocked && (
+                  <span className="absolute right-3 top-3 text-slate-400">
+                    {item.trigger.type === "qr" ? (
+                      <QrCode className="h-4 w-4" />
+                    ) : (
+                      <MapPin className="h-4 w-4" />
+                    )}
+                  </span>
+                )}
+
+                {/* エンブレム */}
+                <div
+                  className={`mt-3 flex h-16 w-16 items-center justify-center rounded-2xl text-4xl ${
+                    isUnlocked ? "bg-amber-50 ring-1 ring-amber-100" : "bg-slate-100"
+                  }`}
+                >
+                  <span className={isUnlocked ? "" : "opacity-25 [filter:grayscale(1)_brightness(0)]"}>
                     {item.emoji}
                   </span>
                 </div>
-                <div className="space-y-1">
-                  <p className={`text-sm font-bold ${isUnlocked ? "text-slate-900" : "text-slate-400"}`}>
-                    {item.name}
-                  </p>
-                  <div className="flex justify-center gap-0.5">
-                    {Array.from({ length: item.rarity === 'super_rare' ? 3 : item.rarity === 'rare' ? 2 : 1 }).map((_, i) => (
-                      <Star key={i} className={`h-3 w-3 ${isUnlocked ? "fill-amber-400 text-amber-400" : "text-slate-300"}`} />
-                    ))}
-                  </div>
-                </div>
 
-                {!isUnlocked && (
-                  <div className="absolute top-2 right-2">
-                    {item.trigger.type === 'qr' ? (
-                      <QrCode className="h-4 w-4 text-slate-400" />
-                    ) : (
-                      <MapPin className="h-4 w-4 text-slate-400" />
-                    )}
-                  </div>
-                )}
+                {/* 名前 */}
+                <p className={`text-sm font-bold ${isUnlocked ? "text-slate-900" : "text-slate-400"}`}>
+                  {item.name}
+                </p>
+
+                {/* レアリティ */}
+                <div className="flex justify-center gap-0.5">
+                  {Array.from({ length: RARITY_STARS[item.rarity] }).map((_, i) => (
+                    <Star
+                      key={i}
+                      className={`h-3 w-3 ${
+                        isUnlocked ? "fill-amber-400 text-amber-400" : "fill-slate-200 text-slate-200"
+                      }`}
+                    />
+                  ))}
+                </div>
               </motion.button>
             );
           })}
@@ -129,7 +157,7 @@ export default function EncyclopediaPage() {
                       </div>
                       <div className="text-right">
                         <span className="inline-block rounded-full bg-slate-100 px-3 py-1 text-[10px] font-bold uppercase tracking-widest text-slate-500">
-                          {selectedItem.category === 'food' ? 'グルメ' : selectedItem.category === 'craft' ? '工芸品' : '季節限定'}
+                          {CATEGORY_LABELS[selectedItem.category]}
                         </span>
                         <h2 className="mt-2 text-2xl font-black text-slate-900">{selectedItem.name}</h2>
                       </div>
@@ -140,15 +168,6 @@ export default function EncyclopediaPage() {
                         <h3 className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-2">解説</h3>
                         <p className="text-slate-600 leading-relaxed">{selectedItem.description}</p>
                       </div>
-
-                      {!isUnlocked && (
-                        <div>
-                          <h3 className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-2">解放のヒント</h3>
-                          <div className="rounded-2xl bg-amber-50 p-5 text-sm font-medium text-amber-800 ring-1 ring-amber-100">
-                            「{selectedItem.hint}」
-                          </div>
-                        </div>
-                      )}
 
                       <Link
                         href={`/map?q=${encodeURIComponent(selectedItem.name)}`}
@@ -167,11 +186,18 @@ export default function EncyclopediaPage() {
                             <Camera size={18} />
                             記念撮影をする
                           </Link>
-                          <button className="flex h-13 w-13 items-center justify-center rounded-2xl bg-slate-100 text-slate-500 active:scale-[0.98] transition-transform">
+                          <button className="flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 text-slate-500 active:scale-[0.98] transition-transform">
                             <Share2 size={20} />
                           </button>
                         </div>
                       )}
+
+                      <button
+                        onClick={() => setSelectedItem(null)}
+                        className="w-full rounded-2xl bg-slate-100 py-4 text-sm font-bold text-slate-600 active:scale-[0.98] transition-transform"
+                      >
+                        閉じる
+                      </button>
                     </div>
                   </div>
                 );
