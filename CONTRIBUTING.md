@@ -45,7 +45,19 @@ npx supabase start
 
 起動後に表示される `API URL` と `anon key` を `.env.local` に設定してください。
 
-### 6. 開発サーバーの起動
+### 6. 本番データをローカルに流し込む
+
+マップにお店データを表示するため、本番 Supabase のデータをローカルにコピーします。
+
+**事前準備**: `.env.local.production`（本番接続情報）をチームメンバーから入手してプロジェクトルートに置いてください。
+
+```bash
+npm run db:seed
+```
+
+詳細は [docs/LOCAL_SETUP.md](docs/LOCAL_SETUP.md) を参照してください。
+
+### 7. 開発サーバーの起動
 
 ```bash
 npm run dev
@@ -155,6 +167,7 @@ npm run lint         # ESLint
 npm test             # Vitest テスト実行
 npx tsc --noEmit     # 型チェックのみ
 npx supabase start   # Supabase ローカル起動
+npm run db:seed      # 本番データをローカルDBに流し込む
 ```
 
 ---
