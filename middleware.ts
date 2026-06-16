@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/utils/supabase/middleware";
+import { getRole, isModerator } from "@/lib/auth/permissions";
 
 export async function middleware(request: NextRequest) {
   const { supabase, getResponse } = createClient(request);
@@ -12,10 +13,10 @@ export async function middleware(request: NextRequest) {
 
   // パスベースのアクセス制御
   const pathname = request.nextUrl.pathname;
-  const appRole = (user?.app_metadata as { role?: string } | undefined)?.role ?? null;
+  const appRole = getRole(user);
 
   if (pathname.startsWith("/admin") || pathname.startsWith("/moderator")) {
-    const allowed = appRole === "super_admin" || appRole === "admin" || appRole === "moderator";
+    const allowed = isModerator(appRole);
     if (!user || !allowed) {
       const redirectRes = NextResponse.redirect(new URL("/", request.url));
       supabaseResponse.cookies.getAll().forEach(({ name, value }) => {
