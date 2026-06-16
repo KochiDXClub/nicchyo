@@ -8,6 +8,7 @@
 
 'use client';
 
+import Image from 'next/image';
 import Link from 'next/link';
 import { useEffect } from 'react';
 import { usePathname } from 'next/navigation';
@@ -101,7 +102,7 @@ export default function HamburgerMenu() {
               <Link href={permissions.isVendor ? "/vendor/account" : "/my-profile"} onClick={closeMenu} className="flex items-center gap-3">
                 <div className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-full bg-amber-500 text-white text-xl font-bold">
                   {user.avatarUrl ? (
-                    <img src={user.avatarUrl} alt="" className="h-full w-full object-cover" />
+                    <Image src={user.avatarUrl} alt={user.name} width={48} height={48} className="h-full w-full object-cover" />
                   ) : (
                     user.name.charAt(0)
                   )}
