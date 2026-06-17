@@ -11,7 +11,6 @@ interface UseShopSearchParams {
   textQuery: string;
   category: string | null;
   chome: string | null;
-  couponVendorIds?: Set<string>;
 }
 
 type RankedShop = {
@@ -90,7 +89,6 @@ export function useShopSearch({
   textQuery,
   category,
   chome,
-  couponVendorIds,
 }: UseShopSearchParams): Shop[] {
   return useMemo(() => {
     const normalizedQuery = textQuery.trim().toLowerCase();
@@ -162,13 +160,8 @@ export function useShopSearch({
         if (b.score !== a.score) return b.score - a.score;
         return a.originalIndex - b.originalIndex;
       })
-      .map((item) => item.shop)
-      .filter((shop) => {
-        if (!couponVendorIds) return true;
-        if (!shop.vendorId) return false;
-        return couponVendorIds.has(shop.vendorId);
-      });
+      .map((item) => item.shop);
 
     return result;
-  }, [shops, searchIndex, textQuery, category, chome, couponVendorIds]);
+  }, [shops, searchIndex, textQuery, category, chome]);
 }
