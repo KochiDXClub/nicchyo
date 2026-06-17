@@ -23,11 +23,11 @@ export function useEncyclopediaUnlock(userLocation: { lat: number; lng: number }
     }
 
     lastProcessedLocation.current = userLocation;
-    const unlockedIds = getUnlockedItemIds();
+    const unlockedIdSet = new Set(getUnlockedItemIds());
 
     ENCYCLOPEDIA_ITEMS.forEach((item) => {
       // すでに解放済み、またはGPSトリガーでない場合はスキップ
-      if (unlockedIds.includes(item.id)) return;
+      if (unlockedIdSet.has(item.id)) return;
       if (item.trigger.type !== 'gps' && item.trigger.type !== 'both') return;
       if (!item.trigger.lat || !item.trigger.lng) return;
 

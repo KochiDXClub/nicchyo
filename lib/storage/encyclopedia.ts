@@ -5,7 +5,7 @@ import { useEffect, useState, useCallback } from 'react';
 const STORAGE_KEY = 'nicchyo-encyclopedia-unlocked';
 
 // デモ用: 動作確認のため、常に1コレクションを解放済みとして扱う。
-// 本番運用時はこの配列を空にする。
+// 本番運用時はこの配列を空にする（#335）。
 const DEMO_UNLOCKED_IDS = ['imoten'];
 
 export function getUnlockedItemIds(): string[] {
@@ -34,7 +34,7 @@ export function unlockItem(id: string): boolean {
 }
 
 export function useEncyclopedia() {
-  const [unlockedIds, setUnlockedIds] = useState<string[]>([]);
+  const [unlockedIds, setUnlockedIds] = useState<string[]>(() => getUnlockedItemIds());
 
   const refresh = useCallback(() => {
     setUnlockedIds(getUnlockedItemIds());

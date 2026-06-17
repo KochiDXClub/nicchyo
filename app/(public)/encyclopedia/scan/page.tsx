@@ -4,6 +4,7 @@ import { useState, useCallback, Suspense } from "react";
 import { useRouter } from "next/navigation";
 import QrScanner from "./QrScanner";
 import { unlockItem } from "@/lib/storage/encyclopedia";
+import toast from "react-hot-toast";
 import { ENCYCLOPEDIA_ITEMS } from "@/data/encyclopediaItems";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Trophy, Sparkles } from "lucide-react";
@@ -28,8 +29,7 @@ function ScanPageContent() {
           window.navigator.vibrate(200);
         }
       } else {
-        // すでに解放済みの場合も、とりあえずそのアイテムを表示するか、トーストを出す
-        // ここではシンプルに図鑑に戻るか、メッセージを出す
+        toast(`「${item.name}」はすでに発見済みです`, { icon: item.emoji });
         router.push('/encyclopedia');
       }
     }
@@ -117,6 +117,7 @@ function ScanPageContent() {
                     図鑑を見る
                   </Link>
                   <button
+                    type="button"
                     onClick={() => {
                       setUnlockedItem(null);
                       setIsScanning(true);

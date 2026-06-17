@@ -197,14 +197,16 @@ function CameraPageContent() {
     const link = document.createElement("a");
     link.href = capturedImage;
     link.download = `nicchyo-discovery-${itemId || "photo"}.webp`;
+    document.body.appendChild(link);
     link.click();
+    link.remove();
   };
 
   return (
     <main className="fixed inset-0 z-[10000] bg-black text-white flex flex-col overflow-hidden">
       {/* Header */}
       <div className="absolute top-0 left-0 right-0 z-20 flex items-center justify-between p-6 bg-gradient-to-b from-black/60 to-transparent">
-        <button onClick={() => router.back()} className="rounded-full bg-white/10 p-2 backdrop-blur-md">
+        <button type="button" onClick={() => router.back()} className="rounded-full bg-white/10 p-2 backdrop-blur-md">
           <X size={24} />
         </button>
         <div className="text-center">
@@ -274,6 +276,7 @@ function CameraPageContent() {
             <p className="mb-6 max-w-xs text-sm leading-relaxed text-slate-300">{error}</p>
 
             <button
+              type="button"
               onClick={startCamera}
               disabled={isInitializing}
               className="mb-3 w-full max-w-xs rounded-2xl bg-amber-500 px-6 py-3.5 text-sm font-bold text-white shadow-lg shadow-amber-500/30 transition active:scale-95 disabled:opacity-60"
@@ -288,6 +291,7 @@ function CameraPageContent() {
             )}
 
             <button
+              type="button"
               onClick={() => router.back()}
               className="text-xs font-semibold text-slate-400 underline-offset-2 hover:underline"
             >
@@ -304,6 +308,7 @@ function CameraPageContent() {
           {!isPhotoTaken ? (
             <>
               <button
+                type="button"
                 onClick={toggleCamera}
                 className="h-14 w-14 rounded-full bg-white/10 flex items-center justify-center backdrop-blur-md active:scale-90 transition-transform"
               >
@@ -311,6 +316,7 @@ function CameraPageContent() {
               </button>
 
               <button
+                type="button"
                 onClick={takePhoto}
                 className="h-20 w-20 rounded-full bg-white p-1 flex items-center justify-center shadow-lg shadow-white/20 active:scale-95 transition-transform"
               >
@@ -324,12 +330,14 @@ function CameraPageContent() {
           ) : (
             <>
               <button
+                type="button"
                 onClick={() => setIsPhotoTaken(false)}
                 className="flex-1 rounded-2xl bg-white/10 py-4 text-sm font-bold backdrop-blur-md active:scale-95 transition-transform"
               >
                 撮り直す
               </button>
               <button
+                type="button"
                 onClick={downloadPhoto}
                 className="flex-1 flex items-center justify-center gap-2 rounded-2xl bg-amber-500 py-4 text-sm font-bold text-white shadow-lg shadow-amber-500/30 active:scale-95 transition-transform"
               >
