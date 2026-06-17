@@ -240,15 +240,18 @@ export function useMapGestures({
     const distanceDelta = distance - gesture.startDistance;
 
     if (gesture.mode === "pending") {
-      if (
-        Math.abs(deltaDeg) < TOUCH_ROTATION_ANGLE_THRESHOLD_DEG &&
-        Math.abs(distanceDelta) < TOUCH_ROTATION_DISTANCE_THRESHOLD_PX
-      ) {
+      const angleExceeded = Math.abs(deltaDeg) >= TOUCH_ROTATION_ANGLE_THRESHOLD_DEG;
+      const distanceExceeded = Math.abs(distanceDelta) >= TOUCH_ROTATION_DISTANCE_THRESHOLD_PX;
+      if (!angleExceeded && !distanceExceeded) {
         return;
       }
 
-      // ピンチズームは無効 — 2本指操作は常に回転として扱う
-      gesture.mode = "rotate";
+      // 回転（角度変化）とズーム（距離変化）のどちらの意図が強いかを、
+      // 各閾値に対する進捗度の大小で判定し、一方のモードにロックする。
+      // 同時に発生したときの誤判定（例: ピンチ中にわずかに回ってしまう）を防ぐ。
+      const angleProgress = Math.abs(deltaDeg) / TOUCH_ROTATION_ANGLE_THRESHOLD_DEG;
+      const distanceProgress = Math.abs(distanceDelta) / TOUCH_ROTATION_DISTANCE_THRESHOLD_PX;
+      gesture.mode = distanceProgress > angleProgress ? "zoom" : "rotate";
 
       debugLog("touch:mode", {
         mode: gesture.mode,
