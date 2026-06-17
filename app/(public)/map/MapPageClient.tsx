@@ -64,47 +64,62 @@ function GenreFilter({
   const isSelectedHidden = selected !== null && categories.indexOf(selected) >= GENRE_PREVIEW_COUNT;
   const [expanded, setExpanded] = useState(isSelectedHidden);
 
-  // 選択中カテゴリが折りたたまれた領域にある場合は強制展開
   useEffect(() => {
     if (isSelectedHidden) setExpanded(true);
   }, [isSelectedHidden]);
 
-  const visibleCategories = expanded ? categories : categories.slice(0, GENRE_PREVIEW_COUNT);
-  const hiddenCount = categories.length - GENRE_PREVIEW_COUNT;
+  const previewCategories = categories.slice(0, GENRE_PREVIEW_COUNT);
+  const hiddenCategories = categories.slice(GENRE_PREVIEW_COUNT);
 
   function chipClass(cat: string) {
     return `shrink-0 whitespace-nowrap rounded-chip border px-[13px] py-[7px] text-[13px] font-bold shadow-chip transition-all duration-[120ms] ${
       selected === cat
         ? 'border-amber-600 bg-amber-500 text-white'
-        : 'border-amber-200 bg-white text-amber-900 hover:bg-amber-50'
+        : 'border-amber-200 bg-white text-amber-900 active:bg-amber-50'
     }`;
   }
 
   return (
-    <div className="flex flex-wrap gap-1.5">
-      {visibleCategories.map((cat) => (
-        <button key={cat} type="button" onClick={() => onSelect(cat)} className={chipClass(cat)}>
-          {cat}
-        </button>
-      ))}
-      {!expanded && (
-        <button
-          type="button"
-          onClick={() => setExpanded(true)}
-          className="shrink-0 whitespace-nowrap rounded-chip border border-slate-200 bg-white/80 px-[13px] py-[7px] text-[13px] font-bold text-slate-500 shadow-chip transition-all duration-[120ms] hover:bg-slate-50"
-        >
-          +{hiddenCount} もっと見る
-        </button>
-      )}
-      {expanded && (
-        <button
-          type="button"
-          onClick={() => setExpanded(false)}
-          className="shrink-0 whitespace-nowrap rounded-chip border border-slate-200 bg-white/80 px-[13px] py-[7px] text-[13px] font-bold text-slate-500 shadow-chip transition-all duration-[120ms] hover:bg-slate-50"
-        >
-          閉じる
-        </button>
-      )}
+    <div className="relative">
+      {/* 常時表示チップ列 + 展開ボタン */}
+      <div className="flex flex-wrap gap-1.5 pr-8">
+        {previewCategories.map((cat) => (
+          <button key={cat} type="button" onClick={() => onSelect(cat)} className={chipClass(cat)}>
+            {cat}
+          </button>
+        ))}
+        {/* 展開中の追加チップ（アニメ付き） */}
+        <AnimatePresence initial={false}>
+          {expanded && hiddenCategories.map((cat, i) => (
+            <motion.button
+              key={cat}
+              type="button"
+              onClick={() => onSelect(cat)}
+              className={chipClass(cat)}
+              initial={{ opacity: 0, scale: 0.82, y: -4 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.82, y: -4 }}
+              transition={{ duration: 0.18, delay: i * 0.04, ease: [0.22, 1, 0.36, 1] }}
+            >
+              {cat}
+            </motion.button>
+          ))}
+        </AnimatePresence>
+      </div>
+
+      {/* ＋ / × トグルボタン（右上固定） */}
+      <motion.button
+        type="button"
+        onClick={() => setExpanded((v) => !v)}
+        aria-label={expanded ? 'ジャンルを閉じる' : 'ジャンルをもっと見る'}
+        className="absolute -top-1 right-0 flex h-6 w-6 items-center justify-center rounded-full border border-slate-200 bg-white/90 text-slate-500 shadow-sm backdrop-blur-sm transition-colors hover:bg-white active:scale-90"
+        animate={{ rotate: expanded ? 45 : 0 }}
+        transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
+      >
+        <svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden>
+          <path d="M5 1v8M1 5h8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+        </svg>
+      </motion.button>
     </div>
   );
 }
