@@ -65,7 +65,7 @@ function ClickCapture({ onClick }: { onClick: (lat: number, lng: number) => void
 }
 
 const TOUCH_ROTATION_ANGLE_THRESHOLD_DEG = 4;
-const TOUCH_ROTATION_DISTANCE_THRESHOLD_PX = 8;
+const TOUCH_PINCH_DISTANCE_THRESHOLD_PX = 8;
 const PAN_START_THRESHOLD_PX = 3;
 
 function getTouchDistance(
@@ -345,7 +345,7 @@ export default function MapLayoutEditor({
       if (!touchRotateRef.current.isRotating) {
         if (
           Math.abs(deltaDeg) < TOUCH_ROTATION_ANGLE_THRESHOLD_DEG &&
-          Math.abs(distanceDelta) < TOUCH_ROTATION_DISTANCE_THRESHOLD_PX
+          Math.abs(distanceDelta) < TOUCH_PINCH_DISTANCE_THRESHOLD_PX
         ) {
           return;
         }
