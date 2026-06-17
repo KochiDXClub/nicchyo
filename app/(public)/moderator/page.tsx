@@ -66,7 +66,6 @@ const ActivityItem = React.memo(function ActivityItem({
 });
 
 const menuItems = [
-  { title: "ことづて管理", description: "投稿の承認・削除・編集", icon: "💌", href: "/moderator/kotodute", bgColor: "bg-purple-500" },
   { title: "報告された投稿", description: "ユーザー報告の確認", icon: "🚨", href: "/moderator/reports", bgColor: "bg-red-500" },
   { title: "スパムフィルター", description: "自動フィルター設定", icon: "🛡️", href: "/moderator/spam-filter", bgColor: "bg-orange-500" },
   { title: "統計・分析", description: "投稿の傾向分析", icon: "📊", href: "/moderator/analytics", bgColor: "bg-blue-500" },

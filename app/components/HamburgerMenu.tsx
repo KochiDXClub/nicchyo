@@ -237,22 +237,6 @@ export default function HamburgerMenu() {
                       </li>
                       <li>
                         <Link
-                          href="/admin/kotodute"
-                          onClick={closeMenu}
-                          className={menuItemClass('/admin/kotodute', 'hover:bg-red-50')}
-                        >
-                          <MenuIcon name="shield" className={`h-5 w-5 ${isActive('/admin/kotodute') ? 'text-white' : 'text-red-600'}`} />
-                          <div className="flex-1">
-                            <p className="text-sm font-medium">ことづて管理</p>
-                            <p className={`text-xs ${isActive('/admin/kotodute') ? 'text-white/80' : 'text-gray-500'}`}>ことづて投稿を確認</p>
-                          </div>
-                          <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${isActive('/admin/kotodute') ? 'bg-white/20 text-white' : 'bg-red-100 text-red-700'}`}>
-                            管理
-                          </span>
-                        </Link>
-                      </li>
-                      <li>
-                        <Link
                           href="/admin/audit-logs"
                           onClick={closeMenu}
                           className={menuItemClass('/admin/audit-logs', 'hover:bg-red-50')}
@@ -327,22 +311,6 @@ export default function HamburgerMenu() {
                             <p className={`text-xs ${isActive('/moderator') ? 'text-white/80' : 'text-gray-500'}`}>投稿管理</p>
                           </div>
                           <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${isActive('/moderator') ? 'bg-white/20 text-white' : 'bg-purple-100 text-purple-700'}`}>
-                            モデレーター
-                          </span>
-                        </Link>
-                      </li>
-                      <li>
-                        <Link
-                          href="/moderator/kotodute"
-                          onClick={closeMenu}
-                          className={menuItemClass('/moderator/kotodute', 'hover:bg-purple-50')}
-                        >
-                          <MenuIcon name="chat" className={`h-5 w-5 ${isActive('/moderator/kotodute') ? 'text-white' : 'text-purple-600'}`} />
-                          <div className="flex-1">
-                            <p className="text-sm font-medium">ことづて管理</p>
-                            <p className={`text-xs ${isActive('/moderator/kotodute') ? 'text-white/80' : 'text-gray-500'}`}>投稿の管理</p>
-                          </div>
-                          <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${isActive('/moderator/kotodute') ? 'bg-white/20 text-white' : 'bg-purple-100 text-purple-700'}`}>
                             モデレーター
                           </span>
                         </Link>

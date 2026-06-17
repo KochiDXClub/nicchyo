@@ -12,7 +12,6 @@ import { Bell } from "lucide-react";
 
 const TYPE_ICONS: Record<string, string> = {
   new_application: "📝",
-  kotodute_reported: "⚠️",
   system: "⚙️",
 };
 
