@@ -80,44 +80,43 @@ function GenreFilter({
   }
 
   return (
-    <div className="relative">
-      {/* 常時表示チップ列 + 展開ボタン */}
-      <div className="flex flex-wrap gap-1.5 pr-8">
-        {previewCategories.map((cat) => (
-          <button key={cat} type="button" onClick={() => onSelect(cat)} className={chipClass(cat)}>
-            {cat}
-          </button>
-        ))}
-        {/* 展開中の追加チップ（アニメ付き） */}
-        <AnimatePresence initial={false}>
-          {expanded && hiddenCategories.map((cat, i) => (
-            <motion.button
-              key={cat}
-              type="button"
-              onClick={() => onSelect(cat)}
-              className={chipClass(cat)}
-              initial={{ opacity: 0, scale: 0.82, y: -4 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.82, y: -4 }}
-              transition={{ duration: 0.18, delay: i * 0.04, ease: [0.22, 1, 0.36, 1] }}
-            >
-              {cat}
-            </motion.button>
-          ))}
-        </AnimatePresence>
-      </div>
+    <div className="flex flex-wrap items-center gap-1.5">
+      {previewCategories.map((cat) => (
+        <button key={cat} type="button" onClick={() => onSelect(cat)} className={chipClass(cat)}>
+          {cat}
+        </button>
+      ))}
 
-      {/* ＋ / × トグルボタン（右上固定） */}
+      {/* 展開中の追加チップ（アニメ付き） */}
+      <AnimatePresence initial={false}>
+        {expanded && hiddenCategories.map((cat, i) => (
+          <motion.button
+            key={cat}
+            type="button"
+            onClick={() => onSelect(cat)}
+            className={chipClass(cat)}
+            initial={{ opacity: 0, scale: 0.82, y: -4 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.82, y: -4 }}
+            transition={{ duration: 0.18, delay: i * 0.04, ease: [0.22, 1, 0.36, 1] }}
+          >
+            {cat}
+          </motion.button>
+        ))}
+      </AnimatePresence>
+
+      {/* ＋ / × トグルボタン（チップと同列・オレンジ） */}
       <motion.button
         type="button"
         onClick={() => setExpanded((v) => !v)}
         aria-label={expanded ? 'ジャンルを閉じる' : 'ジャンルをもっと見る'}
-        className="absolute -top-1 right-0 flex h-6 w-6 items-center justify-center rounded-full border border-slate-200 bg-white/90 text-slate-500 shadow-sm backdrop-blur-sm transition-colors hover:bg-white active:scale-90"
+        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-amber-500 text-white shadow-md active:scale-90"
         animate={{ rotate: expanded ? 45 : 0 }}
-        transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
+        transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+        whileTap={{ scale: 0.88 }}
       >
-        <svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden>
-          <path d="M5 1v8M1 5h8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+        <svg width="13" height="13" viewBox="0 0 10 10" fill="none" aria-hidden>
+          <path d="M5 1v8M1 5h8" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
         </svg>
       </motion.button>
     </div>
