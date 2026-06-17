@@ -50,6 +50,65 @@ type MapPageClientProps = {
 };
 
 
+const GENRE_PREVIEW_COUNT = 3;
+
+function GenreFilter({
+  categories,
+  selected,
+  onSelect,
+}: {
+  categories: readonly string[];
+  selected: string | null;
+  onSelect: (cat: string) => void;
+}) {
+  const isSelectedHidden = selected !== null && categories.indexOf(selected) >= GENRE_PREVIEW_COUNT;
+  const [expanded, setExpanded] = useState(isSelectedHidden);
+
+  // 選択中カテゴリが折りたたまれた領域にある場合は強制展開
+  useEffect(() => {
+    if (isSelectedHidden) setExpanded(true);
+  }, [isSelectedHidden]);
+
+  const visibleCategories = expanded ? categories : categories.slice(0, GENRE_PREVIEW_COUNT);
+  const hiddenCount = categories.length - GENRE_PREVIEW_COUNT;
+
+  function chipClass(cat: string) {
+    return `shrink-0 whitespace-nowrap rounded-chip border px-[13px] py-[7px] text-[13px] font-bold shadow-chip transition-all duration-[120ms] ${
+      selected === cat
+        ? 'border-amber-600 bg-amber-500 text-white'
+        : 'border-amber-200 bg-white text-amber-900 hover:bg-amber-50'
+    }`;
+  }
+
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {visibleCategories.map((cat) => (
+        <button key={cat} type="button" onClick={() => onSelect(cat)} className={chipClass(cat)}>
+          {cat}
+        </button>
+      ))}
+      {!expanded && (
+        <button
+          type="button"
+          onClick={() => setExpanded(true)}
+          className="shrink-0 whitespace-nowrap rounded-chip border border-slate-200 bg-white/80 px-[13px] py-[7px] text-[13px] font-bold text-slate-500 shadow-chip transition-all duration-[120ms] hover:bg-slate-50"
+        >
+          +{hiddenCount} もっと見る
+        </button>
+      )}
+      {expanded && (
+        <button
+          type="button"
+          onClick={() => setExpanded(false)}
+          className="shrink-0 whitespace-nowrap rounded-chip border border-slate-200 bg-white/80 px-[13px] py-[7px] text-[13px] font-bold text-slate-500 shadow-chip transition-all duration-[120ms] hover:bg-slate-50"
+        >
+          閉じる
+        </button>
+      )}
+    </div>
+  );
+}
+
 export default function MapPageClient({
   shops,
   landmarks,
@@ -687,22 +746,11 @@ export default function MapPageClient({
                 </div>
 
                 {/* ジャンルフィルター */}
-                <div className="flex gap-1.5 overflow-x-auto pb-0.5 scrollbar-none">
-                  {SHOP_CATEGORY_NAMES.map((cat) => (
-                    <button
-                      key={cat}
-                      type="button"
-                      onClick={() => setMapSearchCategory(mapSearchCategory === cat ? null : cat)}
-                      className={`shrink-0 whitespace-nowrap rounded-chip border px-[13px] py-[7px] text-[13px] font-bold shadow-chip transition-all duration-[120ms] ${
-                        mapSearchCategory === cat
-                          ? 'border-amber-600 bg-amber-500 text-white'
-                          : 'border-amber-200 bg-white text-amber-900 hover:bg-amber-50'
-                      }`}
-                    >
-                      {cat}
-                    </button>
-                  ))}
-                </div>
+                <GenreFilter
+                  categories={SHOP_CATEGORY_NAMES}
+                  selected={mapSearchCategory}
+                  onSelect={(cat) => setMapSearchCategory(mapSearchCategory === cat ? null : cat)}
+                />
               </div>
             )}
 
