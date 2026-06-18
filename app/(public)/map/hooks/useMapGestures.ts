@@ -5,7 +5,7 @@ import type { MouseEvent as ReactMouseEvent, MutableRefObject } from "react";
 import L from "leaflet";
 
 const TOUCH_ROTATION_ANGLE_THRESHOLD_DEG = 4;
-const TOUCH_ROTATION_DISTANCE_THRESHOLD_PX = 8;
+const TOUCH_PINCH_DISTANCE_THRESHOLD_PX = 8;
 const POINTER_PAN_START_THRESHOLD_PX = 3;
 const DEBUG_STORAGE_KEY = "nicchyo-map-gesture-debug";
 
@@ -241,7 +241,7 @@ export function useMapGestures({
 
     if (gesture.mode === "pending") {
       const angleExceeded = Math.abs(deltaDeg) >= TOUCH_ROTATION_ANGLE_THRESHOLD_DEG;
-      const distanceExceeded = Math.abs(distanceDelta) >= TOUCH_ROTATION_DISTANCE_THRESHOLD_PX;
+      const distanceExceeded = Math.abs(distanceDelta) >= TOUCH_PINCH_DISTANCE_THRESHOLD_PX;
       if (!angleExceeded && !distanceExceeded) {
         return;
       }
@@ -250,7 +250,7 @@ export function useMapGestures({
       // 各閾値に対する進捗度の大小で判定し、一方のモードにロックする。
       // 同時に発生したときの誤判定（例: ピンチ中にわずかに回ってしまう）を防ぐ。
       const angleProgress = Math.abs(deltaDeg) / TOUCH_ROTATION_ANGLE_THRESHOLD_DEG;
-      const distanceProgress = Math.abs(distanceDelta) / TOUCH_ROTATION_DISTANCE_THRESHOLD_PX;
+      const distanceProgress = Math.abs(distanceDelta) / TOUCH_PINCH_DISTANCE_THRESHOLD_PX;
       gesture.mode = distanceProgress > angleProgress ? "zoom" : "rotate";
 
       debugLog("touch:mode", {
