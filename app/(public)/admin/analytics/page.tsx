@@ -30,7 +30,6 @@ const PATH_LABELS: Record<string, string> = {
   "/my-shop": "マイショップ（出店者）",
   "/vendor/account": "出店者アカウント",
   "/vendor/menu": "出店者メニュー",
-  "/vendor/kotodute": "ことづて（出店者）",
   "/login": "ログイン",
 };
 

@@ -4,24 +4,14 @@ import { useEffect, useState } from "react";
 import NavigationBar from "../../components/NavigationBar";
 import { listTimeBadgeProgress, type TimeBadgeProgress } from "../map/services/timeBadgeService";
 import { getShoppingProgress, SHOPPING_SEGMENTS } from "./services/shoppingBadgeService";
-import { getKotoduteProgress } from "./services/kotoduteBadgeService";
 
 export default function BadgesPage() {
   const [badges, setBadges] = useState<TimeBadgeProgress[]>([]);
   const [shoppingUnlocked, setShoppingUnlocked] = useState<Set<string>>(new Set());
-  const [kotoduteCounts, setKotoduteCounts] = useState<{ notes: number; likes: number }>(
-    {
-      notes: 0,
-      likes: 0,
-    }
-  );
-
   useEffect(() => {
     setBadges(listTimeBadgeProgress());
     const shopping = getShoppingProgress();
     setShoppingUnlocked(shopping.unlocked);
-    const kotodute = getKotoduteProgress();
-    setKotoduteCounts({ notes: kotodute.noteCount, likes: kotodute.likeCount });
   }, []);
 
   const collected = badges.filter((b) => b.count > 0).length;
@@ -198,79 +188,6 @@ export default function BadgesPage() {
           </div>
         </section>
 
-        <section className="space-y-4 rounded-2xl border border-sky-100 bg-white/95 p-5 shadow-sm">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <p className="text-sm font-semibold uppercase tracking-[0.14em] text-sky-700">ことづてバッジ</p>
-              <h2 className="text-xl font-bold text-gray-900">ことづてバッジ</h2>
-              <p className="text-sm text-gray-700">
-                投稿数やいいね数に応じて、ことづてバッジが増えていきます。
-              </p>
-            </div>
-            <a
-              href="/badges/kotodute"
-              className="inline-flex items-center gap-2 rounded-full border border-sky-200 bg-sky-50 px-3 py-2 text-xs font-semibold text-sky-800 shadow-sm transition hover:bg-sky-100"
-            >
-              ことづてバッジを見る
-            </a>
-          </div>
-
-          <div className="flex flex-col gap-3 rounded-2xl border border-gray-200 bg-gray-50 p-4">
-            <p className="text-xs font-semibold text-gray-600">投稿といいねの進捗</p>
-            <div className="relative mx-auto flex h-48 w-full max-w-md items-end justify-center">
-              {Array.from({ length: 8 }).map((_, idx) => {
-                const filled = idx < Math.min(kotoduteCounts.notes, 8);
-                const y = 10 * idx;
-                const rotate = (idx % 3) * 2 - 2;
-                return (
-                  <svg
-                    key={idx}
-                    viewBox="0 0 120 60"
-                    className="absolute"
-                    style={{
-                      bottom: `${y}px`,
-                      transform: `translateY(${y}px) rotate(${rotate}deg)`,
-                    }}
-                  >
-                    <rect
-                      x="10"
-                      y="10"
-                      width="100"
-                      height="40"
-                      rx="6"
-                      fill={filled ? "#fef3c7" : "#ffffff"}
-                      stroke="#0f172a"
-                      strokeWidth={2}
-                    />
-                    <path d="M10 10 L60 40 L110 10" fill="none" stroke="#0f172a" strokeWidth="2" />
-                    {filled && (
-                      <path d="M55 33 L60 38 L65 33" fill="none" stroke="#f97316" strokeWidth="2" />
-                    )}
-                  </svg>
-                );
-              })}
-              <div className="pointer-events-none absolute inset-0 rounded-2xl border border-dashed border-gray-400" aria-hidden />
-            </div>
-            <div className="grid grid-cols-2 gap-2 text-xs text-gray-700">
-              <div className="flex items-center gap-2">
-                <span
-                  className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-amber-400 bg-amber-300"
-                  aria-hidden
-                />
-                <span>投稿数</span>
-                <span className="text-[10px] text-gray-500">{kotoduteCounts.notes} 件</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span
-                  className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-sky-400 bg-sky-300"
-                  aria-hidden
-                />
-                <span>いいね数</span>
-                <span className="text-[10px] text-gray-500">{kotoduteCounts.likes} 件</span>
-              </div>
-            </div>
-          </div>
-        </section>
       </div>
 
       <NavigationBar />

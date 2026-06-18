@@ -35,9 +35,6 @@ const ACTION_LABELS: Record<string, string> = {
   shop_deleted: "店舗削除",
   shop_approved: "店舗承認",
   shop_suspended: "店舗停止",
-  kotodute_approved: "ことづて承認",
-  kotodute_hidden: "ことづて非表示",
-  kotodute_deleted: "ことづて削除",
   bulk_operation: "一括操作",
   data_export: "データエクスポート",
   login: "ログイン",
@@ -49,7 +46,7 @@ function getActionLabel(action: string) {
 }
 
 function getActionColor(action: string) {
-  if (action.includes("deleted") || action === "shop_suspended" || action === "kotodute_hidden") {
+  if (action.includes("deleted") || action === "shop_suspended") {
     return "bg-red-600 text-white";
   }
   if (action.includes("approved") || action.includes("created")) {
