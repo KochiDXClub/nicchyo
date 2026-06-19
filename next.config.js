@@ -71,6 +71,16 @@ const nextConfig = {
           },
         ],
       },
+      {
+        // 図鑑のQRスキャンページ: カメラを許可
+        source: '/encyclopedia/scan',
+        headers: [{ key: 'Permissions-Policy', value: 'camera=(self)' }],
+      },
+      {
+        // 図鑑の記念撮影ページ: カメラを許可
+        source: '/encyclopedia/camera',
+        headers: [{ key: 'Permissions-Policy', value: 'camera=(self)' }],
+      },
     ];
   },
 };

@@ -25,6 +25,7 @@ import { grandmaEvents } from "./data/grandmaEvents";
 import { recordMarketEnter, recordMarketExit } from "../../../lib/storage/marketStats";
 import { buildSearchIndex } from "../search/lib/searchIndex";
 import { useShopSearch } from "../search/hooks/useShopSearch";
+import { useEncyclopediaUnlock } from "../../../lib/hooks/useEncyclopediaUnlock";
 import { getOrCreateConsultVisitorKey } from "../../../lib/consultVisitorKey";
 import MapCharacterConsult from "./components/MapCharacterConsult";
 
@@ -83,6 +84,8 @@ export default function MapPageClient({
     lng: number;
   } | null>(null);
 
+  useEncyclopediaUnlock(userLocation);
+
   const [isInMarket, setIsInMarket] = useState<boolean | null>(null);
   useEffect(() => {
     if (isInMarket === true) recordMarketEnter();
@@ -123,7 +126,9 @@ export default function MapPageClient({
     ids: number[];
     label: string;
   } | null>(null);
-  const [mapSearchQuery, setMapSearchQuery] = useState('');
+  const [mapSearchQuery, setMapSearchQuery] = useState(
+    () => searchParams?.get("q") ?? '',
+  );
   const [mapSearchCategory, setMapSearchCategory] = useState<string | null>(null);
   const mapSearchIndex = useMemo(() => buildSearchIndex(shops), [shops]);
   const mapSearchResults = useShopSearch({
