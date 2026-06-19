@@ -196,7 +196,7 @@ function CameraPageContent() {
     if (!capturedImage) return;
     const link = document.createElement("a");
     link.href = capturedImage;
-    link.download = `nicchyo-discovery-${itemId || "photo"}.webp`;
+    link.download = `nicchyo-discovery-${itemId || "photo"}.jpg`;
     document.body.appendChild(link);
     link.click();
     link.remove();
