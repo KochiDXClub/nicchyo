@@ -124,6 +124,9 @@ function TimeAmbientOverlay() {
   );
 }
 
+// ズームスライダーを2本指操作の終了後に表示し続ける時間（ミリ秒）
+const ZOOM_SLIDER_HIDE_DELAY_MS = 3000;
+
 // ===== テーパー型縦ズームスライダー =====
 // 上端（拡大側）が太く、下端（縮小側）が細いくさび形のトラックで操作方向を直感的に伝える
 const VZ_PAD = 14;        // 上下パディング（サムがはみ出ないように）
@@ -416,6 +419,8 @@ function MapControls({
   currentZoom,
   minZoom,
   maxZoom,
+  zoomSliderVisible,
+  onZoomSliderInteract,
 }: {
   map: L.Map | null;
   isTracking: boolean;
@@ -423,22 +428,29 @@ function MapControls({
   currentZoom: number;
   minZoom: number;
   maxZoom: number;
+  /** 2本指操作時のみ true。false のときズームスライダーをフェードアウトさせる */
+  zoomSliderVisible: boolean;
+  /** スライダー操作時に表示を延命させるためのコールバック */
+  onZoomSliderInteract: () => void;
 }) {
   return (
     <>
-      {/* 縦ズームスライダー（ナビバー直上） */}
+      {/* 縦ズームスライダー（ナビバー直上）— 2本指操作時のみ表示し、操作終了から数秒後にフェードアウト */}
       <div
-        className="absolute bottom-[calc(4.5rem+env(safe-area-inset-bottom,0px)-2rem)] right-4 z-[1000] flex flex-col items-center gap-1 rounded-2xl border border-amber-100/60 bg-white/95 px-2.5 py-3 shadow-card backdrop-blur"
+        className={`absolute bottom-[calc(4.5rem+env(safe-area-inset-bottom,0px)-2rem)] right-4 z-[1000] flex flex-col items-center gap-1 rounded-2xl border border-amber-100/60 bg-white/95 px-2.5 py-3 shadow-card backdrop-blur transition-opacity duration-300 ${
+          zoomSliderVisible ? "opacity-100" : "pointer-events-none opacity-0"
+        }`}
+        aria-hidden={!zoomSliderVisible}
         onMouseDown={(e) => e.stopPropagation()}
         onClick={(e) => e.stopPropagation()}
-        onTouchStart={(e) => { e.stopPropagation(); }}
+        onTouchStart={(e) => { e.stopPropagation(); onZoomSliderInteract(); }}
       >
         <span className="select-none text-[12px] font-black leading-none text-amber-700 drop-shadow-[0_1px_0_rgba(255,255,255,0.9)]">+</span>
         <VerticalZoomSlider
           value={currentZoom}
           min={minZoom}
           max={maxZoom}
-          onValueChange={(v) => map?.setZoom(v, { animate: false })}
+          onValueChange={(v) => { onZoomSliderInteract(); map?.setZoom(v, { animate: false }); }}
         />
         <span className="select-none text-[12px] font-black leading-none text-amber-700 drop-shadow-[0_1px_0_rgba(255,255,255,0.9)]">−</span>
       </div>
@@ -1212,6 +1224,46 @@ const MapView = memo(function MapView({
     }
   }, [isTouchGestureActive, snapRotationToVisibleRoad]);
 
+  // ズームスライダーは2本指操作時のみ表示し、操作終了から数秒後にフェードアウトさせる
+  const [zoomSliderVisible, setZoomSliderVisible] = useState(false);
+  const zoomSliderHideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const hadGestureRef = useRef(false);
+
+  // 表示したうえで、呼ばれるたびに非表示タイマーを延長する（スライダー操作中に消えないように）
+  const keepZoomSliderAlive = useCallback(() => {
+    if (zoomSliderHideTimerRef.current) {
+      clearTimeout(zoomSliderHideTimerRef.current);
+    }
+    setZoomSliderVisible(true);
+    zoomSliderHideTimerRef.current = setTimeout(() => {
+      setZoomSliderVisible(false);
+    }, ZOOM_SLIDER_HIDE_DELAY_MS);
+  }, []);
+
+  useEffect(() => {
+    if (isTouchGestureActive) {
+      // 2本指操作中は消さずに表示し続ける
+      if (zoomSliderHideTimerRef.current) {
+        clearTimeout(zoomSliderHideTimerRef.current);
+        zoomSliderHideTimerRef.current = null;
+      }
+      setZoomSliderVisible(true);
+      hadGestureRef.current = true;
+    } else if (hadGestureRef.current) {
+      // 2本指操作が終わったらタイマーを開始（初回マウント時は出さない）
+      hadGestureRef.current = false;
+      keepZoomSliderAlive();
+    }
+  }, [isTouchGestureActive, keepZoomSliderAlive]);
+
+  useEffect(() => {
+    return () => {
+      if (zoomSliderHideTimerRef.current) {
+        clearTimeout(zoomSliderHideTimerRef.current);
+      }
+    };
+  }, []);
+
   return (
     <div
       className={`relative h-full w-full overflow-hidden${spotlightShopId ? " map-spotlight-mode" : ""}${activeHighlightShopIds && activeHighlightShopIds.length > 0 ? " map-search-spotlight-mode" : ""}`}
@@ -1352,6 +1404,8 @@ const MapView = memo(function MapView({
             currentZoom={mapUiZoom}
             minZoom={MIN_ZOOM}
             maxZoom={MAX_ZOOM}
+            zoomSliderVisible={zoomSliderVisible}
+            onZoomSliderInteract={keepZoomSliderAlive}
           />
         </>
       )}
