@@ -487,8 +487,8 @@ function MapControls({
 function MapZoomGuideToast({ message }: { message: string | null }) {
   return (
     <div
-      className={`pointer-events-none absolute left-1/2 top-20 z-[1400] w-[min(calc(100vw-2rem),24rem)] -translate-x-1/2 transition-all duration-200 ${
-        message ? "translate-y-0 opacity-100" : "-translate-y-2 opacity-0"
+      className={`pointer-events-none absolute bottom-3 left-1/2 z-[1400] w-[min(calc(100vw-2rem),24rem)] -translate-x-1/2 transition-all duration-200 ${
+        message ? "translate-y-0 opacity-100" : "translate-y-2 opacity-0"
       }`}
       aria-live="polite"
       aria-atomic="true"
@@ -744,6 +744,15 @@ const MapView = memo(function MapView({
   const [autoRotation, setAutoRotation] = useState(initialMapRotation);
   const [mapUiZoom, setMapUiZoom] = useState(INITIAL_ZOOM);
   const [zoomGuideMessage, setZoomGuideMessage] = useState<string | null>(null);
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const showMapToast = useCallback((message: string, durationMs = 1500) => {
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    setZoomGuideMessage(message);
+    toastTimerRef.current = setTimeout(() => {
+      setZoomGuideMessage(null);
+      toastTimerRef.current = null;
+    }, durationMs);
+  }, []);
   const [mapShellSize, setMapShellSize] = useState(() => {
     if (typeof window === "undefined") return 1600;
     // visualViewport はブラウザUIを除いた実際の表示領域サイズ（iOS Safari 対応）
@@ -758,7 +767,6 @@ const MapView = memo(function MapView({
   const [mapInstance, setMapInstance] = useState<L.Map | null>(null);
   const mapRef = useRef<L.Map | null>(null);
   const isTouchGestureActiveRef = useRef(false);
-  const zoomGuideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   // 【削除】visibleShops の計算を削除
@@ -798,8 +806,8 @@ const MapView = memo(function MapView({
 
   useEffect(() => {
     return () => {
-      if (zoomGuideTimerRef.current) {
-        clearTimeout(zoomGuideTimerRef.current);
+      if (toastTimerRef.current) {
+        clearTimeout(toastTimerRef.current);
       }
     };
   }, []);
@@ -1014,25 +1022,18 @@ const MapView = memo(function MapView({
       if (viewMode.mode === ViewMode.OVERVIEW) {
         // OVERVIEW → INTERMEDIATE（エリア探索）へ
         targetZoom = 18.0;
-        setZoomGuideMessage("このエリアを拡大しました");
+        showMapToast("このエリアを拡大しました", 1800);
       } else {
         // INTERMEDIATE → DETAIL（詳細閲覧）へ
         targetZoom = 18.5;
-        setZoomGuideMessage("もう一度タップするとお店の詳細を見られます");
+        showMapToast("もう一度タップするとお店の詳細を見られます", 1800);
       }
-
-      if (zoomGuideTimerRef.current) {
-        clearTimeout(zoomGuideTimerRef.current);
-      }
-      zoomGuideTimerRef.current = setTimeout(() => {
-        setZoomGuideMessage(null);
-      }, 1800);
 
       mapRef.current.flyTo([centerLat, centerLng], targetZoom, {
         duration: 0.75,
       });
     }
-  }, [onShopSelect, selectedShop, shopBannerMainSurface, shops]);
+  }, [onShopSelect, selectedShop, shopBannerMainSurface, shops, showMapToast]);
 
   const handleOpenShop = useCallback((shopId: number) => {
     const target = shops.find((s) => s.id === shopId);
@@ -1213,6 +1214,15 @@ const MapView = memo(function MapView({
       setAutoRotation(rotation);
     },
     onGestureEnd: () => {},
+    onGestureMode: (mode) => {
+      showMapToast(mode === "zoom" ? "ズーム中" : "回転中", 3000);
+    },
+    onFirstPan: () => {
+      showMapToast("地図を移動中", 1200);
+    },
+    onPinchZoomEnd: (direction) => {
+      showMapToast(direction === "in" ? "拡大しました" : "縮小しました", 1500);
+    },
   });
 
   useEffect(() => {

@@ -70,6 +70,12 @@ type UseMapGesturesArgs = {
   onPanStart: () => void;
   onRotationChange: (rotation: number) => void;
   onGestureEnd: () => void;
+  /** ピンチのモード（ズーム/回転）が確定したタイミングで呼ばれる */
+  onGestureMode?: (mode: "zoom" | "rotate") => void;
+  /** 1本指/マウスで地図を初めて動かし始めたタイミングで呼ばれる */
+  onFirstPan?: () => void;
+  /** ピンチズームが終了したタイミングで方向を通知する */
+  onPinchZoomEnd?: (direction: "in" | "out") => void;
 };
 
 export function useMapGestures({
@@ -80,6 +86,9 @@ export function useMapGestures({
   onPanStart,
   onRotationChange,
   onGestureEnd,
+  onGestureMode,
+  onFirstPan,
+  onPinchZoomEnd,
 }: UseMapGesturesArgs) {
   const [isTouchGestureActive, setIsTouchGestureActive] = useState(false);
   const [gestureTarget, setGestureTarget] = useState<HTMLDivElement | null>(null);
@@ -93,6 +102,9 @@ export function useMapGestures({
   const onPanStartRef = useRef(onPanStart);
   const onRotationChangeRef = useRef(onRotationChange);
   const onGestureEndRef = useRef(onGestureEnd);
+  const onGestureModeRef = useRef(onGestureMode);
+  const onFirstPanRef = useRef(onFirstPan);
+  const onPinchZoomEndRef = useRef(onPinchZoomEnd);
   const touchPanRef = useRef<PointerPanState | null>(null);
   const mousePanRef = useRef<PointerPanState | null>(null);
   const touchGestureRef = useRef<TouchGestureState | null>(null);
@@ -127,6 +139,10 @@ export function useMapGestures({
   useEffect(() => {
     onGestureEndRef.current = onGestureEnd;
   }, [onGestureEnd]);
+
+  useEffect(() => { onGestureModeRef.current = onGestureMode; }, [onGestureMode]);
+  useEffect(() => { onFirstPanRef.current = onFirstPan; }, [onFirstPan]);
+  useEffect(() => { onPinchZoomEndRef.current = onPinchZoomEnd; }, [onPinchZoomEnd]);
 
   const debugLog = useCallback((event: string, data?: Record<string, unknown>) => {
     if (!debugEnabledRef.current) return;
@@ -214,9 +230,11 @@ export function useMapGestures({
       if (!touchPanRef.current.hasMoved && Math.hypot(dx, dy) < POINTER_PAN_START_THRESHOLD_PX) {
         return;
       }
+      const isFirstTouchPan = !touchPanRef.current.hasMoved;
       touchPanRef.current.hasMoved = true;
       touchPanRef.current.lastX = touch.clientX;
       touchPanRef.current.lastY = touch.clientY;
+      if (isFirstTouchPan) onFirstPanRef.current?.();
       onPanStartRef.current();
       if (e.cancelable) {
         e.preventDefault();
@@ -252,6 +270,7 @@ export function useMapGestures({
       const angleProgress = Math.abs(deltaDeg) / TOUCH_ROTATION_ANGLE_THRESHOLD_DEG;
       const distanceProgress = Math.abs(distanceDelta) / TOUCH_PINCH_DISTANCE_THRESHOLD_PX;
       gesture.mode = distanceProgress > angleProgress ? "zoom" : "rotate";
+      onGestureModeRef.current?.(gesture.mode);
 
       debugLog("touch:mode", {
         mode: gesture.mode,
@@ -323,6 +342,12 @@ export function useMapGestures({
     }
     if (isTouchGestureActiveRef.current) {
       debugLog("touch:end", { mode: activeGesture?.mode ?? "unknown" });
+      if (activeGesture?.mode === "zoom" && mapRef.current) {
+        const delta = mapRef.current.getZoom() - activeGesture.startZoom;
+        if (Math.abs(delta) > 0.15) {
+          onPinchZoomEndRef.current?.(delta > 0 ? "in" : "out");
+        }
+      }
       onGestureEndRef.current();
     }
     setIsTouchGestureActive(false);
@@ -375,9 +400,11 @@ export function useMapGestures({
         return;
       }
 
+      const isFirstMousePan = !mousePanRef.current.hasMoved;
       mousePanRef.current.hasMoved = true;
       mousePanRef.current.lastX = e.clientX;
       mousePanRef.current.lastY = e.clientY;
+      if (isFirstMousePan) onFirstPanRef.current?.();
       onPanStartRef.current();
       panMapByScreenDelta(dx, dy);
     };
