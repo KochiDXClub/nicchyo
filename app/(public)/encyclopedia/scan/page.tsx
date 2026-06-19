@@ -5,14 +5,14 @@ import { useRouter } from "next/navigation";
 import QrScanner from "./QrScanner";
 import { unlockItem } from "@/lib/storage/encyclopedia";
 import toast from "react-hot-toast";
-import { ENCYCLOPEDIA_ITEMS } from "@/data/encyclopediaItems";
+import { ENCYCLOPEDIA_ITEMS, EncyclopediaItem } from "@/data/encyclopediaItems";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Trophy, Sparkles } from "lucide-react";
 import Link from "next/link";
 
 function ScanPageContent() {
   const router = useRouter();
-  const [unlockedItem, setUnlockedItem] = useState<typeof ENCYCLOPEDIA_ITEMS[0] | null>(null);
+  const [unlockedItem, setUnlockedItem] = useState<EncyclopediaItem | null>(null);
   const [isScanning, setIsScanning] = useState(true);
 
   const handleScan = useCallback((value: string) => {

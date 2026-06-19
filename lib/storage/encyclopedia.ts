@@ -4,9 +4,8 @@ import { useEffect, useState, useCallback } from 'react';
 
 const STORAGE_KEY = 'nicchyo-encyclopedia-unlocked';
 
-// デモ用: 動作確認のため、常に1コレクションを解放済みとして扱う。
-// 本番運用時はこの配列を空にする（#335）。
-const DEMO_UNLOCKED_IDS = ['imoten'];
+// デモ用: 動作確認のため、常に1コレクションを解放済みとして扱う（#335）。
+const DEMO_UNLOCKED_IDS = process.env.NODE_ENV === 'development' ? ['imoten'] : [];
 
 export function getUnlockedItemIds(): string[] {
   if (typeof window === 'undefined') return [];

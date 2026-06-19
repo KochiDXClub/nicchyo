@@ -148,7 +148,7 @@ function CameraPageContent() {
     // フレームと装飾を合成
     drawFrame(context, canvas.width, canvas.height);
 
-    const dataUrl = canvas.toDataURL("image/webp");
+    const dataUrl = canvas.toDataURL("image/jpeg");
     setCapturedImage(dataUrl);
     setIsPhotoTaken(true);
   };
