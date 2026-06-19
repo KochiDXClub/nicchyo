@@ -76,7 +76,7 @@ function GenreFilter({
     return `shrink-0 whitespace-nowrap rounded-chip border px-[13px] py-[7px] text-[13px] font-bold shadow-chip transition-all duration-[120ms] ${
       selected === cat
         ? 'border-amber-600 bg-amber-500 text-white'
-        : 'border-amber-200 bg-white text-amber-900 active:bg-amber-50'
+        : 'border-amber-200 bg-white text-amber-900 hover:bg-amber-50 active:bg-amber-50'
     }`;
   }
 
