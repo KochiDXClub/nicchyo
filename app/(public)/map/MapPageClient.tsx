@@ -177,6 +177,8 @@ export default function MapPageClient({
     }, 2000);
   }, []);
   const [isShopBannerOpen, setIsShopBannerOpen] = useState(false);
+  const searchAreaRef = useRef<HTMLDivElement | null>(null);
+  const [trackingButtonTop, setTrackingButtonTop] = useState(112);
 
   useEffect(() => {
     if (typeof document === "undefined") return;
@@ -191,6 +193,17 @@ export default function MapPageClient({
     });
     return () => observer.disconnect();
   }, []);
+  useEffect(() => {
+    const el = searchAreaRef.current;
+    if (!el) return;
+    const observer = new ResizeObserver(() => {
+      const rect = el.getBoundingClientRect();
+      setTrackingButtonTop(rect.bottom + 8);
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
   const dragControls = useDragControls();
   const [mapCharacterConsultActive, setMapCharacterConsultActive] = useState(false);
   const [mapInstance, setMapInstance] = useState<LeafletMap | null>(null);
@@ -721,6 +734,7 @@ export default function MapPageClient({
             {/* 全幅検索バー + ジャンルフィルター（AI相談モード時は非表示） */}
             {!mapCharacterConsultActive && (
               <div
+                ref={searchAreaRef}
                 className="absolute left-3 right-3 top-3 z-[1001] flex flex-col gap-2"
                 onMouseDown={(e) => e.stopPropagation()}
                 onClick={(e) => e.stopPropagation()}
@@ -806,6 +820,7 @@ export default function MapPageClient({
               attendanceEstimates={attendanceEstimates}
               suppressInitialLocationFocus={isAiFocusMode}
               hideMapUI={mapCharacterConsultActive}
+              trackingButtonTop={trackingButtonTop}
               overlaySlot={
                 mapCharacterConsultActive ? (
                   <MapCharacterConsult
