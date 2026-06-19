@@ -24,6 +24,7 @@ function CameraPageContent() {
   const [isPermissionBlocked, setIsPermissionBlocked] = useState(false);
   const [isInitializing, setIsInitializing] = useState(true);
   const [facingMode, setFacingMode] = useState<"user" | "environment">("environment");
+  const [imageFormat, setImageFormat] = useState<'image/jpeg' | 'image/webp' | 'image/png'>('image/jpeg');
 
   const startCamera = useCallback(async () => {
     // 既存ストリームを停止してから取得し直す（カメラ切り替え時）
@@ -193,10 +194,12 @@ function CameraPageContent() {
   };
 
   const downloadPhoto = () => {
-    if (!capturedImage) return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ext = imageFormat === 'image/jpeg' ? 'jpg' : imageFormat === 'image/webp' ? 'webp' : 'png';
     const link = document.createElement("a");
-    link.href = capturedImage;
-    link.download = `nicchyo-discovery-${itemId || "photo"}.jpg`;
+    link.href = canvas.toDataURL(imageFormat);
+    link.download = `nicchyo-discovery-${itemId || "photo"}.${ext}`;
     document.body.appendChild(link);
     link.click();
     link.remove();
@@ -328,23 +331,43 @@ function CameraPageContent() {
               <div className="h-14 w-14" /> {/* Placeholder for balance */}
             </>
           ) : (
-            <>
-              <button
-                type="button"
-                onClick={() => setIsPhotoTaken(false)}
-                className="flex-1 rounded-2xl bg-white/10 py-4 text-sm font-bold backdrop-blur-md active:scale-95 transition-transform"
-              >
-                撮り直す
-              </button>
-              <button
-                type="button"
-                onClick={downloadPhoto}
-                className="flex-1 flex items-center justify-center gap-2 rounded-2xl bg-amber-500 py-4 text-sm font-bold text-white shadow-lg shadow-amber-500/30 active:scale-95 transition-transform"
-              >
-                <Download size={18} />
-                保存する
-              </button>
-            </>
+            <div className="flex flex-col gap-3 w-full">
+              <div className="flex items-center justify-center gap-2">
+                <span className="text-xs text-white/40">形式</span>
+                {(['image/jpeg', 'image/webp', 'image/png'] as const).map((fmt) => {
+                  const label = fmt === 'image/jpeg' ? 'JPG' : fmt === 'image/webp' ? 'WebP' : 'PNG';
+                  return (
+                    <button
+                      key={fmt}
+                      type="button"
+                      onClick={() => setImageFormat(fmt)}
+                      className={`rounded-full px-3 py-1 text-xs font-bold transition-all ${
+                        imageFormat === fmt ? 'bg-amber-500 text-white' : 'bg-white/10 text-white/50'
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setIsPhotoTaken(false)}
+                  className="flex-1 rounded-2xl bg-white/10 py-4 text-sm font-bold backdrop-blur-md active:scale-95 transition-transform"
+                >
+                  撮り直す
+                </button>
+                <button
+                  type="button"
+                  onClick={downloadPhoto}
+                  className="flex-1 flex items-center justify-center gap-2 rounded-2xl bg-amber-500 py-4 text-sm font-bold text-white shadow-lg shadow-amber-500/30 active:scale-95 transition-transform"
+                >
+                  <Download size={18} />
+                  保存する
+                </button>
+              </div>
+            </div>
           )}
         </div>
       </div>
