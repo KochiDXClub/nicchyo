@@ -51,6 +51,80 @@ type MapPageClientProps = {
 };
 
 
+// モバイル（375px基準）でチップ3件が収まり、残りは折りたたむUX判断
+const GENRE_PREVIEW_COUNT = 3;
+
+function GenreFilter({
+  categories,
+  selected,
+  onSelect,
+}: {
+  categories: readonly string[];
+  selected: string | null;
+  onSelect: (cat: string) => void;
+}) {
+  const isSelectedHidden = selected !== null && categories.indexOf(selected) >= GENRE_PREVIEW_COUNT;
+  const [expanded, setExpanded] = useState(isSelectedHidden);
+
+  useEffect(() => {
+    if (isSelectedHidden) setExpanded(true);
+  }, [isSelectedHidden]);
+
+  const previewCategories = categories.slice(0, GENRE_PREVIEW_COUNT);
+  const hiddenCategories = categories.slice(GENRE_PREVIEW_COUNT);
+
+  function chipClass(cat: string) {
+    return `shrink-0 whitespace-nowrap rounded-chip border px-[13px] py-[7px] text-[13px] font-bold shadow-chip transition-all duration-[120ms] ${
+      selected === cat
+        ? 'border-amber-600 bg-amber-500 text-white'
+        : 'border-amber-200 bg-white text-amber-900 hover:bg-amber-50 active:bg-amber-50'
+    }`;
+  }
+
+  return (
+    <div className="flex flex-wrap items-center gap-1.5">
+      {previewCategories.map((cat) => (
+        <motion.button key={cat} type="button" onClick={() => onSelect(cat)} className={chipClass(cat)} whileTap={{ scale: 0.88 }}>
+          {cat}
+        </motion.button>
+      ))}
+
+      {/* 展開中の追加チップ（アニメ付き） */}
+      <AnimatePresence initial={false}>
+        {expanded && hiddenCategories.map((cat, i) => (
+          <motion.button
+            key={cat}
+            type="button"
+            onClick={() => onSelect(cat)}
+            className={chipClass(cat)}
+            initial={{ opacity: 0, scale: 0.82, y: -4 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.82, y: -4 }}
+            transition={{ duration: 0.18, delay: i * 0.04, ease: [0.22, 1, 0.36, 1] }}
+          >
+            {cat}
+          </motion.button>
+        ))}
+      </AnimatePresence>
+
+      {/* ＋ / × トグルボタン（チップと同列・オレンジ） */}
+      <motion.button
+        type="button"
+        onClick={() => setExpanded((v) => !v)}
+        aria-label={expanded ? 'ジャンルを閉じる' : 'ジャンルをもっと見る'}
+        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-amber-500 text-white shadow-md active:scale-90"
+        animate={{ rotate: expanded ? 45 : 0 }}
+        transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+        whileTap={{ scale: 0.88 }}
+      >
+        <svg width="13" height="13" viewBox="0 0 10 10" fill="none" aria-hidden>
+          <path d="M5 1v8M1 5h8" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
+        </svg>
+      </motion.button>
+    </div>
+  );
+}
+
 export default function MapPageClient({
   shops,
   landmarks,
@@ -692,22 +766,11 @@ export default function MapPageClient({
                 </div>
 
                 {/* ジャンルフィルター */}
-                <div className="flex gap-1.5 overflow-x-auto pb-0.5 scrollbar-none">
-                  {SHOP_CATEGORY_NAMES.map((cat) => (
-                    <button
-                      key={cat}
-                      type="button"
-                      onClick={() => setMapSearchCategory(mapSearchCategory === cat ? null : cat)}
-                      className={`shrink-0 whitespace-nowrap rounded-chip border px-[13px] py-[7px] text-[13px] font-bold shadow-chip transition-all duration-[120ms] ${
-                        mapSearchCategory === cat
-                          ? 'border-amber-600 bg-amber-500 text-white'
-                          : 'border-amber-200 bg-white text-amber-900 hover:bg-amber-50'
-                      }`}
-                    >
-                      {cat}
-                    </button>
-                  ))}
-                </div>
+                <GenreFilter
+                  categories={SHOP_CATEGORY_NAMES}
+                  selected={mapSearchCategory}
+                  onSelect={(cat) => setMapSearchCategory(mapSearchCategory === cat ? null : cat)}
+                />
               </div>
             )}
 
