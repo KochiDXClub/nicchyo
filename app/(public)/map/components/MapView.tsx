@@ -487,13 +487,13 @@ function MapControls({
 function MapZoomGuideToast({ message }: { message: string | null }) {
   return (
     <div
-      className={`pointer-events-none absolute bottom-3 left-1/2 z-[1400] w-[min(calc(100vw-2rem),24rem)] -translate-x-1/2 transition-all duration-200 ${
+      className={`pointer-events-none absolute bottom-3 left-1/2 z-[1400] w-auto max-w-[min(calc(100vw-4rem),15rem)] -translate-x-1/2 transition-all duration-200 ${
         message ? "translate-y-0 opacity-100" : "translate-y-2 opacity-0"
       }`}
       aria-live="polite"
       aria-atomic="true"
     >
-      <div className="rounded-full bg-slate-900/88 px-4 py-2 text-center text-sm font-medium text-white shadow-lg backdrop-blur">
+      <div className="rounded-full bg-sky-100/95 px-3 py-1.5 text-center text-sm font-semibold text-sky-900 shadow-md backdrop-blur whitespace-nowrap">
         {message ?? ""}
       </div>
     </div>
@@ -1375,6 +1375,7 @@ const MapView = memo(function MapView({
             shopsWithIngredients={shopsWithIngredients}
             recipeIngredients={recipeIngredients}
             onRecipeShopClick={setSelectedShop}
+            onChomeClick={(chome) => showMapToast(`${chome}を拡大しました`, 2500)}
             OptimizedShopLayerWithClustering={OptimizedShopLayerWithClustering}
           />
 
