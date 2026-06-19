@@ -50,6 +50,7 @@ type MapPageClientProps = {
 };
 
 
+// モバイル（375px基準）でチップ3件が収まり、残りは折りたたむUX判断
 const GENRE_PREVIEW_COUNT = 3;
 
 function GenreFilter({
@@ -82,9 +83,9 @@ function GenreFilter({
   return (
     <div className="flex flex-wrap items-center gap-1.5">
       {previewCategories.map((cat) => (
-        <button key={cat} type="button" onClick={() => onSelect(cat)} className={chipClass(cat)}>
+        <motion.button key={cat} type="button" onClick={() => onSelect(cat)} className={chipClass(cat)} whileTap={{ scale: 0.88 }}>
           {cat}
-        </button>
+        </motion.button>
       ))}
 
       {/* 展開中の追加チップ（アニメ付き） */}
