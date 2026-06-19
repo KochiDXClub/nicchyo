@@ -101,9 +101,10 @@ function createChomeBadgeIcon(chome: string, count: number): L.DivIcon {
 // ── コンポーネント ─────────────────────────────────────
 type Props = {
   shops: Shop[];
+  pane?: string;
 };
 
-export default function ChomeAreaMarkers({ shops }: Props) {
+export default function ChomeAreaMarkers({ shops, pane }: Props) {
   const map = useMap();
   const layerRef = useRef<L.LayerGroup | null>(null);
   const [toastLabel, setToastLabel] = useState<string | null>(null);
@@ -117,7 +118,7 @@ export default function ChomeAreaMarkers({ shops }: Props) {
 
     centroids.forEach(({ chome, lat, lng, count }) => {
       const icon = createChomeBadgeIcon(chome, count);
-      const marker = L.marker([lat, lng], { icon, interactive: true });
+      const marker = L.marker([lat, lng], { icon, interactive: true, pane });
 
       marker.on('click', () => {
         map.flyTo([lat, lng], map.getMaxZoom(), {

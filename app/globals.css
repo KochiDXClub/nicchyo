@@ -166,6 +166,12 @@ body.grandma-chat-open .leaflet-container {
   border: none !important;
 }
 
+@keyframes chome-badge-enter {
+  0%   { opacity: 0; transform: scale(0.7) translateY(8px); }
+  65%  { transform: scale(1.06) translateY(-2px); }
+  100% { opacity: 1; transform: scale(1) translateY(0); }
+}
+
 .chome-area-badge {
   display: flex;
   flex-direction: column;
@@ -183,6 +189,7 @@ body.grandma-chat-open .leaflet-container {
   transition: transform 0.15s ease, box-shadow 0.15s ease;
   rotate: var(--map-rotation-inverse, 0deg);
   user-select: none;
+  animation: chome-badge-enter 0.28s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
 .chome-area-badge:hover {
@@ -270,10 +277,16 @@ body.grandma-chat-open .leaflet-container {
 
 /* ===== 店�Eマ�Eカー ===== */
 
+@keyframes shop-marker-enter {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
 /* 店�Eマ�EカーのコンチE�� */
 .custom-shop-marker {
   background: transparent !important;
   border: none !important;
+  animation: shop-marker-enter 0.18s ease-out;
 }
 
 /* 選択された店�Eマ�Eカー */

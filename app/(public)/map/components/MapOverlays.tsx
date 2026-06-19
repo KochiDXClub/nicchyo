@@ -1,6 +1,6 @@
 'use client';
 
-import { Fragment, memo, useCallback, useEffect, useState } from "react";
+import { Fragment, memo, useCallback, useEffect, useRef, useState } from "react";
 import type { ComponentType } from "react";
 import type { OptimizedShopLayerWithClusteringProps } from "./OptimizedShopLayerWithClustering";
 import { CircleMarker, Marker, Pane, Popup, Rectangle, Tooltip, useMap } from "react-leaflet";
@@ -81,6 +81,70 @@ export const MapOverlays = memo(function MapOverlays({
   const handleRoadTap = useCallback((latlng: import("leaflet").LatLng) => {
     map.setView(latlng, 17);
   }, [map]);
+
+  // ── ズームモード遷移アニメーション ──────────────────────────────
+  const FADE_MS = 220;
+  const panesCreatedRef = useRef(false);
+
+  // 初回レンダー時に名前付きパネを同期的に作成（マーカー追加より前に確実に存在させるため）
+  if (!panesCreatedRef.current && map) {
+    if (!map.getPane('chome-overview-pane')) {
+      const p = map.createPane('chome-overview-pane');
+      // Leaflet の markerPane は z-index:600。同じレベルに合わせてタイル(200)の上に描画する
+      p.style.zIndex = '601';
+      p.style.transition = `opacity ${FADE_MS}ms ease`;
+    }
+    if (!map.getPane('shop-detail-pane')) {
+      const p = map.createPane('shop-detail-pane');
+      p.style.zIndex = '600';
+      p.style.transition = `opacity ${FADE_MS}ms ease`;
+    }
+    panesCreatedRef.current = true;
+  }
+
+  const shouldShowChome = !isMinimumZoomMode && isOverviewZoneMode;
+  const shouldShowShops = !isMinimumZoomMode && !isOverviewZoneMode && !isLowZoomTintMode;
+
+  const [chomeRendered, setChomeRendered] = useState(shouldShowChome);
+  const [chomeVisible, setChomeVisible] = useState(shouldShowChome);
+  const [shopsRendered, setShopsRendered] = useState(shouldShowShops);
+  const [shopsVisible, setShopsVisible] = useState(shouldShowShops);
+
+  useEffect(() => {
+    if (shouldShowChome) {
+      setChomeRendered(true);
+      const id = requestAnimationFrame(() => setChomeVisible(true));
+      return () => cancelAnimationFrame(id);
+    }
+    setChomeVisible(false);
+    const t = setTimeout(() => setChomeRendered(false), FADE_MS);
+    return () => clearTimeout(t);
+  }, [shouldShowChome]);
+
+  useEffect(() => {
+    if (shouldShowShops) {
+      setShopsRendered(true);
+      const id = requestAnimationFrame(() => setShopsVisible(true));
+      return () => cancelAnimationFrame(id);
+    }
+    setShopsVisible(false);
+    const t = setTimeout(() => setShopsRendered(false), FADE_MS);
+    return () => clearTimeout(t);
+  }, [shouldShowShops]);
+
+  useEffect(() => {
+    const pane = map.getPane('chome-overview-pane') as HTMLElement | undefined;
+    if (!pane) return;
+    pane.style.opacity = chomeVisible ? '1' : '0';
+    pane.style.pointerEvents = chomeVisible ? 'auto' : 'none';
+  }, [chomeVisible, map]);
+
+  useEffect(() => {
+    const pane = map.getPane('shop-detail-pane') as HTMLElement | undefined;
+    if (!pane) return;
+    pane.style.opacity = shopsVisible ? '1' : '0';
+    pane.style.pointerEvents = shopsVisible ? 'auto' : 'none';
+  }, [shopsVisible, map]);
 
   return (
     <>
@@ -170,13 +234,13 @@ export const MapOverlays = memo(function MapOverlays({
       </Pane>
       <Pane name="landmark-popup" style={{ zIndex: 10000 }} />
 
-      {/* 縮小時（zoom < 17）: 丁目エリアバッジ */}
-      {!isMinimumZoomMode && isOverviewZoneMode && (
-        <ChomeAreaMarkers shops={shops} />
+      {/* 縮小時（zoom 17-19）: 丁目エリアバッジ（フェード遷移） */}
+      {chomeRendered && (
+        <ChomeAreaMarkers shops={shops} pane="chome-overview-pane" />
       )}
 
-      {/* 通常時（zoom ≥ 19）: 個別店舗マーカー */}
-      {!isMinimumZoomMode && !isOverviewZoneMode && !isLowZoomTintMode && (
+      {/* 通常時（zoom ≥ 19）: 個別店舗マーカー（フェード遷移） */}
+      {shopsRendered && (
         <OptimizedShopLayerWithClustering
           shops={shops}
           onShopClick={onShopClick}
@@ -190,6 +254,7 @@ export const MapOverlays = memo(function MapOverlays({
           recipeIngredientIconsByShop={recipeIngredientIconsByShop}
           attendanceLabelsByShop={attendanceLabelsByShop}
           bagShopIds={bagShopIds}
+          pane="shop-detail-pane"
         />
       )}
 

@@ -30,6 +30,7 @@ export interface OptimizedShopLayerWithClusteringProps {
   recipeIngredientIconsByShop?: Record<number, string[]>;
   attendanceLabelsByShop?: Record<number, string>;
   bagShopIds?: number[];
+  pane?: string;
 }
 
 const COMPACT_ICON_SIZE: [number, number] = [24, 36];
@@ -89,6 +90,7 @@ function OptimizedShopLayerWithClustering({
   recipeIngredientIconsByShop,
   attendanceLabelsByShop,
   bagShopIds,
+  pane,
 }: OptimizedShopLayerWithClusteringProps) {
   const map = useMap();
   const clusterGroupRef = useRef<L.MarkerClusterGroup | null>(null);
@@ -269,6 +271,7 @@ function OptimizedShopLayerWithClustering({
       chunkedLoading: true,
       chunkInterval: 200,
       chunkDelay: 50,
+      clusterPane: pane,
       iconCreateFunction: (_cluster) => {
         return L.divIcon({
           html: `<div class="cluster-icon cluster-small"></div>`,
@@ -376,6 +379,7 @@ function OptimizedShopLayerWithClustering({
 
       const marker = L.marker([shop.lat, shop.lng], {
         icon: initialIcon,
+        pane,
       });
 
       marker.on('click', () => {
