@@ -22,6 +22,8 @@ type UseMapCameraControllerArgs = {
   isTracking: boolean;
   setIsTracking: (value: boolean) => void;
   setAutoRotation: (value: number) => void;
+  /** true の間は自動回転調整（道に合わせたスナップ）を行わない */
+  autoRotationDisabled?: boolean;
 };
 
 export function useMapCameraController({
@@ -33,6 +35,7 @@ export function useMapCameraController({
   isTracking,
   setIsTracking,
   setAutoRotation,
+  autoRotationDisabled = false,
 }: UseMapCameraControllerArgs) {
   const autoRotationCooldownUntilRef = useRef(0);
 
@@ -42,7 +45,7 @@ export function useMapCameraController({
 
   const snapRotationToVisibleRoad = useCallback(
     (center?: L.LatLng, forceNorthUp = false) => {
-      if (interactionDisabled || gestureActiveRef.current) return;
+      if (autoRotationDisabled || interactionDisabled || gestureActiveRef.current) return;
       if (Date.now() < autoRotationCooldownUntilRef.current) return;
       const map = mapRef.current;
       if (!map) return;
@@ -72,7 +75,7 @@ export function useMapCameraController({
 
       setAutoRotation(snappedRotation);
     },
-    [autoRotation, gestureActiveRef, interactionDisabled, mapRef, routePoints, setAutoRotation]
+    [autoRotation, autoRotationDisabled, gestureActiveRef, interactionDisabled, mapRef, routePoints, setAutoRotation]
   );
 
   useEffect(() => {
