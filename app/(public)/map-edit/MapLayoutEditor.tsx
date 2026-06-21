@@ -486,7 +486,7 @@ export default function MapLayoutEditor({
         />
         {mode === "preview" ? (
           <>
-            <BackgroundOverlay />
+            <BackgroundOverlay isMinimumZoomMode={false} />
             <RoadOverlay routePoints={routePoints} routeConfig={routeConfig} />
             {landmarks.map((landmark) => (
               <Marker
@@ -502,7 +502,7 @@ export default function MapLayoutEditor({
           </>
         ) : (
           <>
-            <BackgroundOverlay />
+            <BackgroundOverlay isMinimumZoomMode={false} />
             <RoadOverlay routePoints={routePoints} routeConfig={routeConfig} />
             {selectedKind === "route" &&
               routeSegments.map((segment) => (
