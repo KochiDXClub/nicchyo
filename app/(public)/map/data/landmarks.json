@@ -47,7 +47,7 @@
     "key": "jr-train",
     "name": "JR列車",
     "description": "高知駅に発着するJRの列車。県外からのアクセスの目印になります。",
-    "url": "/images/maps/elements/buildings/vapor-train.png",
+    "url": "/images/maps/elements/buildings/vapor-train.webp",
     "lat": 33.5671869,
     "lng": 133.54738743209438,
     "widthPx": 120,
