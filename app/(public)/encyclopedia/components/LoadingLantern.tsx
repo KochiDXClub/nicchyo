@@ -2,7 +2,7 @@
 
 import { motion } from "framer-motion";
 
-export const LOADING_LANTERN_DURATION_MS = 1000;
+export const LOADING_LANTERN_DURATION_MS = 1500;
 
 export default function LoadingLantern() {
   return (
