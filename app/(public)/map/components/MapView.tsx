@@ -487,13 +487,13 @@ function MapControls({
 function MapZoomGuideToast({ message }: { message: string | null }) {
   return (
     <div
-      className={`pointer-events-none absolute bottom-3 left-1/2 z-[1400] w-auto max-w-[min(calc(100vw-4rem),15rem)] -translate-x-1/2 transition-all duration-200 ${
+      className={`pointer-events-none absolute bottom-3 left-1/2 z-[1400] w-auto max-w-[min(calc(100vw-4rem),20rem)] -translate-x-1/2 transition-all duration-200 ${
         message ? "translate-y-0 opacity-100" : "translate-y-2 opacity-0"
       }`}
       aria-live="polite"
       aria-atomic="true"
     >
-      <div className="rounded-full bg-sky-100/95 px-3 py-1.5 text-center text-sm font-semibold text-sky-900 shadow-md backdrop-blur whitespace-nowrap">
+      <div className="rounded-2xl bg-sky-100/95 px-3 py-1.5 text-center text-sm font-semibold leading-snug text-sky-900 shadow-md backdrop-blur">
         {message ?? ""}
       </div>
     </div>
@@ -745,6 +745,7 @@ const MapView = memo(function MapView({
   const [mapUiZoom, setMapUiZoom] = useState(INITIAL_ZOOM);
   const [zoomGuideMessage, setZoomGuideMessage] = useState<string | null>(null);
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const activeGestureModeRef = useRef<"zoom" | "rotate" | null>(null);
   const showMapToast = useCallback((message: string, durationMs = 1500) => {
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
     setZoomGuideMessage(message);
@@ -753,6 +754,17 @@ const MapView = memo(function MapView({
       toastTimerRef.current = null;
     }, durationMs);
   }, []);
+  const hideMapToast = useCallback(() => {
+    if (toastTimerRef.current) {
+      clearTimeout(toastTimerRef.current);
+      toastTimerRef.current = null;
+    }
+    setZoomGuideMessage(null);
+  }, []);
+  const handleChomeClick = useCallback(
+    (chome: string) => showMapToast(`${chome}を拡大しました`, 2500),
+    [showMapToast]
+  );
   const [mapShellSize, setMapShellSize] = useState(() => {
     if (typeof window === "undefined") return 1600;
     // visualViewport はブラウザUIを除いた実際の表示領域サイズ（iOS Safari 対応）
@@ -1213,8 +1225,16 @@ const MapView = memo(function MapView({
       markManualRotation();
       setAutoRotation(rotation);
     },
-    onGestureEnd: () => {},
+    onGestureEnd: () => {
+      // ズームはonPinchZoomEndが直後に「拡大/縮小しました」で上書きするため、
+      // 回転ジェスチャー終了時だけ明示的にトーストを消す
+      if (activeGestureModeRef.current === "rotate") {
+        hideMapToast();
+      }
+      activeGestureModeRef.current = null;
+    },
     onGestureMode: (mode) => {
+      activeGestureModeRef.current = mode;
       showMapToast(mode === "zoom" ? "ズーム中" : "回転中", 3000);
     },
     onFirstPan: () => {
@@ -1375,7 +1395,7 @@ const MapView = memo(function MapView({
             shopsWithIngredients={shopsWithIngredients}
             recipeIngredients={recipeIngredients}
             onRecipeShopClick={setSelectedShop}
-            onChomeClick={(chome) => showMapToast(`${chome}を拡大しました`, 2500)}
+            onChomeClick={handleChomeClick}
             OptimizedShopLayerWithClustering={OptimizedShopLayerWithClustering}
           />
 
