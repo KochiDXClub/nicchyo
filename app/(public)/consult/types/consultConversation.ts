@@ -32,6 +32,7 @@ export type ConsultAskResponse = {
   helperQuestions?: string[];
   errorMessage?: string;
   retryable?: boolean;
+  consultId?: string;
 };
 
 export type ConsultAskStreamEvent =
