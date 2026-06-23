@@ -2,7 +2,7 @@ import { type NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/utils/supabase/middleware";
 import { getRole, isModerator } from "@/lib/auth/permissions";
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const { supabase, getResponse } = createClient(request);
 
   // セッション更新（Supabase Auth）
