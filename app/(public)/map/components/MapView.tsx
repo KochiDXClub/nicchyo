@@ -746,6 +746,7 @@ const MapView = memo(function MapView({
   const [zoomGuideMessage, setZoomGuideMessage] = useState<string | null>(null);
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const activeGestureModeRef = useRef<"zoom" | "rotate" | null>(null);
+  const pinchZoomEndFiredRef = useRef(false);
   const showMapToast = useCallback((message: string, durationMs = 1500) => {
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
     setZoomGuideMessage(message);
@@ -1226,21 +1227,25 @@ const MapView = memo(function MapView({
       setAutoRotation(rotation);
     },
     onGestureEnd: () => {
-      // ズームはonPinchZoomEndが直後に「拡大/縮小しました」で上書きするため、
-      // 回転ジェスチャー終了時だけ明示的にトーストを消す
-      if (activeGestureModeRef.current === "rotate") {
+      // ズームはonPinchZoomEndが直後に「拡大/縮小しました」で上書きするため基本は消さないが、
+      // しきい値未満でonPinchZoomEndが呼ばれなかった場合は「ズーム中」が残るので明示的に消す
+      const mode = activeGestureModeRef.current;
+      if (mode === "rotate" || (mode === "zoom" && !pinchZoomEndFiredRef.current)) {
         hideMapToast();
       }
       activeGestureModeRef.current = null;
+      pinchZoomEndFiredRef.current = false;
     },
     onGestureMode: (mode) => {
       activeGestureModeRef.current = mode;
+      pinchZoomEndFiredRef.current = false;
       showMapToast(mode === "zoom" ? "ズーム中" : "回転中", 3000);
     },
     onFirstPan: () => {
       showMapToast("地図を移動中", 1200);
     },
     onPinchZoomEnd: (direction) => {
+      pinchZoomEndFiredRef.current = true;
       showMapToast(direction === "in" ? "拡大しました" : "縮小しました", 1500);
     },
   });

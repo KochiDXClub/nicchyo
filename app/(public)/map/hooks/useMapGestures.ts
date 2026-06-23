@@ -351,7 +351,7 @@ export function useMapGestures({
       onGestureEndRef.current();
     }
     setIsTouchGestureActive(false);
-  }, [debugLog, flushPendingZoom]);
+  }, [debugLog, flushPendingZoom, mapRef]);
 
   const handleMouseDownCapture = useCallback((e: ReactMouseEvent<HTMLDivElement>) => {
     if (interactionDisabledRef.current || isTouchGestureActiveRef.current || e.button !== 0) return;
