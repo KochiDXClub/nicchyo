@@ -75,7 +75,8 @@ export default async function MapPage() {
       landmarks = fetchedLandmarks;
       mapRoute = fetchedMapRoute;
       attendanceEstimates = mapData.attendanceEstimates;
-    } catch {
+    } catch (error) {
+      console.error("[MapPage] マップデータの取得に失敗しました:", error);
       shops = [];
       landmarks = [];
       mapRoute = getFallbackMapRoute();
