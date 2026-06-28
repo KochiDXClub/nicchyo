@@ -3,10 +3,11 @@
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useState, useEffect, useCallback, Suspense } from "react";
+import { useEffect, useCallback, Suspense } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { useBag } from "@/lib/storage/BagContext";
+import { useMenu } from "@/lib/ui/MenuContext";
 
 // ─── ナビゲーション項目 ────────────────────────────────────────────────────────
 type NavItem = {
@@ -65,7 +66,7 @@ function NavigationBarInner({
   const searchParams = useSearchParams();
   const { user, isLoggedIn, permissions, logout } = useAuth();
   const { items: bagItems } = useBag();
-  const [menuOpen, setMenuOpen] = useState(false);
+  const { isMenuOpen: menuOpen, toggleMenu, closeMenu } = useMenu();
 
   useEffect(() => {
     onMenuOpenChange?.(menuOpen);
@@ -85,7 +86,7 @@ function NavigationBarInner({
     : baseNavItems;
 
   const handleMenuItemClick = (href: string) => {
-    setMenuOpen(false);
+    closeMenu();
     router.push(href);
   };
 
@@ -95,7 +96,7 @@ function NavigationBarInner({
   }, [isPanelOpen, onCloseMode, router]);
 
   const handleLogout = async () => {
-    setMenuOpen(false);
+    closeMenu();
     await logout();
     router.push("/map");
   };
@@ -124,7 +125,7 @@ function NavigationBarInner({
               exit={{ opacity: 0 }}
               transition={{ duration: 0.2 }}
               className="fixed inset-0 z-[9995] bg-black/40 backdrop-blur-sm"
-              onClick={() => setMenuOpen(false)}
+              onClick={closeMenu}
             />
 
             {/* シート本体 */}
@@ -359,7 +360,7 @@ function NavigationBarInner({
             <div className="flex flex-1 items-center justify-center">
               <button
                 type="button"
-                onClick={() => setMenuOpen((v) => !v)}
+                onClick={toggleMenu}
                 className="flex flex-col items-center gap-1 transition-all duration-200 active:scale-95"
               >
                 <motion.div
