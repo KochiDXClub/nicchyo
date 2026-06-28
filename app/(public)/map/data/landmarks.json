@@ -37,21 +37,21 @@
     "name": "チンチン電車",
     "description": "高知市内を走る路面電車。街歩きの目印としても分かりやすい移動インフラです。",
     "url": "/images/maps/elements/buildings/Train.png",
-    "lat": 33.5613531,
-    "lng": 133.543104,
-    "widthPx": 143.36,
-    "heightPx": 71.68,
+    "lat": 33.55811917977004,
+    "lng": 133.54795508523796,
+    "widthPx": 172.032,
+    "heightPx": 86.016,
     "showAtMinZoom": true
   },
   {
-    "key": "station",
-    "name": "高知駅",
-    "description": "JR高知駅。県外から日曜市へ向かうときの主要な玄関口です。",
-    "url": "/images/maps/elements/buildings/kochistation.png",
+    "key": "jr-train",
+    "name": "JR列車",
+    "description": "高知駅に発着するJRの列車。県外からのアクセスの目印になります。",
+    "url": "/images/maps/elements/buildings/vapor-train.webp",
     "lat": 33.5671869,
-    "lng": 133.5436682,
-    "widthPx": 120.96,
-    "heightPx": 80.64,
+    "lng": 133.54738743209438,
+    "widthPx": 120,
+    "heightPx": 80,
     "showAtMinZoom": true
   },
   {
@@ -75,5 +75,82 @@
     "widthPx": 127.67999999999999,
     "heightPx": 85.11999999999999,
     "showAtMinZoom": false
+  },
+  {
+    "key": "tram-hasuikemachidori",
+    "name": "蓮池町通停留場",
+    "description": "とさでん交通の路面電車停留場（駅前線）。",
+    "url": "/images/maps/elements/transit/tram-stop.svg",
+    "lat": 33.5618694,
+    "lng": 133.5432083,
+    "widthPx": 40,
+    "heightPx": 40,
+    "showAtMinZoom": true
+  },
+  {
+    "key": "tram-ohashidori",
+    "name": "大橋通停留場",
+    "description": "とさでん交通の路面電車停留場（伊野線）。",
+    "url": "/images/maps/elements/transit/tram-stop.svg",
+    "lat": 33.5589806,
+    "lng": 133.5366611,
+    "widthPx": 40,
+    "heightPx": 40,
+    "showAtMinZoom": true
+  },
+  {
+    "key": "tram-harimayabashi",
+    "name": "はりまや橋停留場",
+    "description": "とさでん交通の路面電車停留場。後免線・伊野線・桟橋線・駅前線が乗り入れる主要停留場です。",
+    "url": "/images/maps/elements/transit/tram-stop.svg",
+    "lat": 33.5596333,
+    "lng": 133.5423972,
+    "widthPx": 40,
+    "heightPx": 40,
+    "showAtMinZoom": true
+  },
+  {
+    "key": "tram-horizume",
+    "name": "堀詰停留場",
+    "description": "とさでん交通の路面電車停留場（伊野線）。",
+    "url": "/images/maps/elements/transit/tram-stop.svg",
+    "lat": 33.5594944,
+    "lng": 133.5392306,
+    "widthPx": 40,
+    "heightPx": 40,
+    "showAtMinZoom": true
+  },
+  {
+    "key": "tram-kochijomae",
+    "name": "高知城前停留場",
+    "description": "とさでん交通の路面電車停留場（伊野線）。高知城・日曜市の最寄り停留場です。",
+    "url": "/images/maps/elements/transit/tram-stop.svg",
+    "lat": 33.5585056,
+    "lng": 133.5339250,
+    "widthPx": 40,
+    "heightPx": 40,
+    "showAtMinZoom": true
+  },
+  {
+    "key": "tram-kochiekimae",
+    "name": "高知駅前停留場",
+    "description": "とさでん交通の路面電車停留場（駅前線）。JR高知駅のすぐ南にあります。",
+    "url": "/images/maps/elements/transit/tram-stop.svg",
+    "lat": 33.5668361,
+    "lng": 133.5436528,
+    "widthPx": 40,
+    "heightPx": 40,
+    "showAtMinZoom": true
+  },
+  {
+    "key": "jr-kochi-station",
+    "name": "高知駅",
+    "description": "JR高知駅。土讃線・特急が発着する、県外から日曜市へ向かう主要な玄関口です。",
+    "url": "/images/maps/elements/transit/train-stop.svg",
+    "lat": 33.567691786705,
+    "lng": 133.5436611,
+    "widthPx": 40,
+    "heightPx": 40,
+    "showAtMinZoom": true
   }
 ]

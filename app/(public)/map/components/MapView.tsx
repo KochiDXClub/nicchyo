@@ -550,6 +550,15 @@ const OVERVIEW_ZONE_MAX_ZOOM = 19;
 const SKIPPED_ZOOM_LEVELS = [18];
 const SKIPPED_ZOOM_TOLERANCE = 0.026; // step(0.05) の半分より少し大きく設定
 
+/** 最大縮小時の背景イラストに描き込まれているため、アイコン表示を抑制するランドマーク */
+const MIN_ZOOM_HIDDEN_LANDMARK_KEYS = new Set(["castle"]);
+
+/** 背景イラストと向きを合わせるため、個別に追加回転させるランドマーク（度数、反時計回りは負の値） */
+const LANDMARK_EXTRA_ROTATION_DEG: Record<string, number> = {
+  "jr-train": -90,
+  densha: -60,
+};
+
 function MapZoomListener({ onZoomChange }: { onZoomChange?: (zoom: number) => void }) {
   const map = useMap();
   useEffect(() => {
@@ -720,12 +729,24 @@ const MapView = memo(function MapView({
     [routeBounds, routeConfig.visibleDistanceMeters]
   );
   const landmarkSpecs = useMemo(() => landmarks ?? [], [landmarks]);
-  const majorPlaceLabels = useMemo(
-    () => landmarkSpecs.map((spec) => ({ name: spec.name, lat: spec.lat, lng: spec.lng })),
-    [landmarkSpecs]
-  );
+  const majorPlaceLabels = useMemo(() => {
+    // 同名のランドマーク（例: 高知駅の建物アイコンと丸型バッジ）が重複してラベル化されるのを防ぐ
+    const seenNames = new Set<string>();
+    return landmarkSpecs
+      .filter((spec) => {
+        if (seenNames.has(spec.name)) return false;
+        seenNames.add(spec.name);
+        return true;
+      })
+      .map((spec) => ({ name: spec.name, lat: spec.lat, lng: spec.lng }));
+  }, [landmarkSpecs]);
   const minZoomLandmarkKeys = useMemo(
-    () => new Set(landmarkSpecs.filter((spec) => spec.showAtMinZoom).map((spec) => spec.key)),
+    () =>
+      new Set(
+        landmarkSpecs
+          .filter((spec) => spec.showAtMinZoom && !MIN_ZOOM_HIDDEN_LANDMARK_KEYS.has(spec.key))
+          .map((spec) => spec.key)
+      ),
     [landmarkSpecs]
   );
   const [displayShops, setDisplayShops] = useState<Shop[]>(() => sourceShops);
@@ -1087,7 +1108,7 @@ const MapView = memo(function MapView({
   const shouldRenderEventGlow = highlightEventTargets && mapUiZoom >= MIN_ZOOM + 1.5;
   const shouldRenderRecipeOverlay = (showRecipeOverlay ?? false) && mapUiZoom >= 19.0;
   const shouldRenderMajorLabels = mapUiZoom <= MIN_ZOOM + 2.5;
-  const shouldRenderLandmarks = mapUiZoom >= MIN_ZOOM + 0.8 || highlightEventTargets;
+  const shouldRenderLandmarks = mapUiZoom >= MIN_ZOOM + 0.8 || isMinimumZoomMode || highlightEventTargets;
   const interactionDisabled = agentOpen ?? false;
   const mapRotation = normalizeRotationDeg(autoRotation);
 
@@ -1146,11 +1167,13 @@ const MapView = memo(function MapView({
       const width = Math.max(1, Math.round(spec.widthPx * landmarkScale));
       const height = Math.max(1, Math.round(spec.heightPx * landmarkScale));
       const highlightClass = highlightEventTargets ? " is-highlight" : "";
+      const extraRotationDeg = LANDMARK_EXTRA_ROTATION_DEG[spec.key];
+      const extraRotationStyle = extraRotationDeg ? `transform:rotate(${extraRotationDeg}deg);` : "";
       icons.set(
         spec.key,
         L.divIcon({
           className: "map-landmark-icon",
-          html: `<img class="map-landmark-visual${highlightClass}" src="${spec.url}" alt="" draggable="false" style="width:${width}px;height:${height}px;opacity:1;" />`,
+          html: `<img class="map-landmark-visual${highlightClass}" src="${spec.url}" alt="" draggable="false" style="width:${width}px;height:${height}px;opacity:1;${extraRotationStyle}" />`,
           iconSize: [width, height],
           iconAnchor: [width / 2, height / 2],
         })
@@ -1200,6 +1223,7 @@ const MapView = memo(function MapView({
     isTracking,
     setIsTracking,
     setAutoRotation,
+    autoRotationDisabled: isMinimumZoomMode,
   });
 
   const { isTouchGestureActive, gestureTargetRef, gestureHandlers } = useMapGestures({
@@ -1335,7 +1359,7 @@ const MapView = memo(function MapView({
             keepBuffer={16}
           />
           {/* 背景 */}
-          <BackgroundOverlay />
+          <BackgroundOverlay isMinimumZoomMode={isMinimumZoomMode} />
           <MapOverlays
             isLowZoomTintMode={isLowZoomTintMode}
             routePoints={routePoints}

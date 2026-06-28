@@ -12,9 +12,10 @@ import type { ShopBannerOrigin } from "./MapView";
 import type { MapRouteConfig, MapRoutePoint } from "../types/mapRoute";
 import RoadOverlay from "./RoadOverlay";
 import ChomeAreaMarkers from "./ChomeAreaMarkers";
+import MinZoomGrandmaMarker from "./MinZoomGrandmaMarker";
 
-const MIN_ZOOM_LABEL_NAMES = new Set(["高知城", "高知駅", "チンチン電車"]);
-const MIN_ZOOM_ONLY_LABEL = { name: "日曜市", lat: 33.56145, lng: 133.5383 };
+const MIN_ZOOM_LABEL_NAMES = new Set(["高知城"]);
+const MIN_ZOOM_ONLY_LABEL = { name: "日曜市", lat: 33.562258480057494, lng: 133.5383 };
 
 export const MapOverlays = memo(function MapOverlays({
   isLowZoomTintMode,
@@ -84,31 +85,43 @@ export const MapOverlays = memo(function MapOverlays({
 
   return (
     <>
-      <RoadOverlay
-        overviewTint={isLowZoomTintMode}
-        routePoints={routePoints}
-        routeConfig={routeConfig}
-        onTap={isLowZoomTintMode && !isOverviewZoneMode ? handleRoadTap : undefined}
-      />
+      {!isMinimumZoomMode && (
+        <RoadOverlay
+          overviewTint={isLowZoomTintMode}
+          routePoints={routePoints}
+          routeConfig={routeConfig}
+          onTap={isLowZoomTintMode && !isOverviewZoneMode ? handleRoadTap : undefined}
+        />
+      )}
       <DynamicMaxBounds baseBounds={mapBounds} paddingPx={100} />
 
       <Pane name="major-place-label" style={{ zIndex: 950 }}>
-        {visibleMajorPlaceLabels.map((place) => (
-          <Marker
-            key={`major-place-${place.name}`}
-            position={[place.lat, place.lng]}
-            icon={L.divIcon({
-              className: "major-place-label-icon",
-              html: `<span class="major-place-label-pill${
-                place.name === "日曜市" ? " is-sunday-market" : ""
-              }" style="display:inline-block;padding:2px 8px;border-radius:9999px;background:rgba(255,255,255,0.88);border:1px solid rgba(15,23,42,0.15);font-size:11px;font-weight:700;color:#0f172a;white-space:nowrap;">${place.name}</span>`,
-              iconSize: [0, 0],
-            })}
-            interactive={false}
-            keyboard={false}
-            zIndexOffset={1200}
-          />
-        ))}
+        {visibleMajorPlaceLabels.map((place) => {
+          const isSundayMarketLabel = place.name === "日曜市";
+          return (
+            <Marker
+              key={`major-place-${place.name}`}
+              position={[place.lat, place.lng]}
+              icon={L.divIcon({
+                className: "major-place-label-icon",
+                html: `<span class="major-place-label-pill${
+                  isSundayMarketLabel ? " is-sunday-market" : ""
+                }" style="display:inline-block;padding:2px 8px;border-radius:9999px;background:rgba(255,255,255,0.88);border:1px solid rgba(15,23,42,0.15);font-size:11px;font-weight:700;color:#0f172a;white-space:nowrap;${
+                  isSundayMarketLabel ? "cursor:pointer;" : ""
+                }">${place.name}</span>`,
+                iconSize: [0, 0],
+              })}
+              interactive={isSundayMarketLabel}
+              keyboard={false}
+              zIndexOffset={1200}
+              eventHandlers={
+                isSundayMarketLabel
+                  ? { click: () => handleRoadTap(L.latLng(place.lat, place.lng)) }
+                  : undefined
+              }
+            />
+          );
+        })}
       </Pane>
 
       <EventDimOverlay active={highlightEventTargets} />
@@ -148,7 +161,7 @@ export const MapOverlays = memo(function MapOverlays({
         </Pane>
       )}
 
-      <Pane name="landmarks" style={{ zIndex: highlightEventTargets ? 3000 : 70 }}>
+      <Pane name="landmarks" style={{ zIndex: highlightEventTargets ? 3000 : 480 }}>
         {visibleLandmarkSpecs.map((spec) => (
           <Marker
             key={`landmark-${spec.key}`}
@@ -159,7 +172,7 @@ export const MapOverlays = memo(function MapOverlays({
             opacity={1}
             zIndexOffset={highlightEventTargets ? 1800 : 0}
           >
-            <Popup pane="landmark-popup" offset={[0, -18]} className="map-landmark-popup">
+            <Popup pane="landmark-popup" offset={[0, -18]} className="map-landmark-popup" closeButton={false}>
               <div className="min-w-[180px] max-w-[220px]">
                 <p className="text-sm font-bold text-slate-900">{spec.name}</p>
                 <p className="mt-1 text-xs leading-relaxed text-slate-600">{spec.description}</p>
@@ -169,6 +182,8 @@ export const MapOverlays = memo(function MapOverlays({
         ))}
       </Pane>
       <Pane name="landmark-popup" style={{ zIndex: 10000 }} />
+
+      {isMinimumZoomMode && <MinZoomGrandmaMarker />}
 
       {/* 縮小時（zoom < 17）: 丁目エリアバッジ */}
       {!isMinimumZoomMode && isOverviewZoneMode && (
