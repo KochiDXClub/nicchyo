@@ -1,12 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ENCYCLOPEDIA_ITEMS, type EncyclopediaItem } from "@/data/encyclopediaItems";
 import { useEncyclopedia } from "@/lib/storage/encyclopedia";
 import NavigationBar from "@/app/components/NavigationBar";
 import { Camera, QrCode, MapPin, Trophy, Star, Share2 } from "lucide-react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
+import LoadingLantern, { LOADING_LANTERN_DURATION_MS } from "./components/LoadingLantern";
 
 const CATEGORY_LABELS: Record<EncyclopediaItem["category"], string> = {
   food: "グルメ",
@@ -23,6 +24,16 @@ const RARITY_STARS: Record<EncyclopediaItem["rarity"], number> = {
 export default function EncyclopediaPage() {
   const { unlockedIds } = useEncyclopedia();
   const [selectedItem, setSelectedItem] = useState<EncyclopediaItem | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setIsLoading(false), LOADING_LANTERN_DURATION_MS);
+    return () => clearTimeout(timer);
+  }, []);
+
+  if (isLoading) {
+    return <LoadingLantern />;
+  }
 
   const stats = {
     total: ENCYCLOPEDIA_ITEMS.length,
