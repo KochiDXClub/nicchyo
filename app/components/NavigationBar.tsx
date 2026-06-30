@@ -12,11 +12,12 @@ import { useBag } from "@/lib/storage/BagContext";
 type NavItem = {
   name: string;
   href: string;
-  icon: "search" | "chat" | "admin";
+  icon: "search" | "chat" | "admin" | "story";
 };
 
 const baseNavItems: NavItem[] = [
   { name: "相談", href: "/map", icon: "chat" },
+  { name: "近況", href: "/story", icon: "story" },
 ];
 
 // ─── セカンダリメニュー項目（2列グリッド） ────────────────────────────────────
@@ -489,6 +490,15 @@ function NavIcon({ name, className }: NavIconProps) {
             strokeLinejoin="round"
             d="M4.5 6.75A2.25 2.25 0 0 1 6.75 4.5h10.5A2.25 2.25 0 0 1 19.5 6.75v6A2.25 2.25 0 0 1 17.25 15H9l-3.75 3v-3H6.75A2.25 2.25 0 0 1 4.5 12.75v-6Z"
           />
+        </svg>
+      );
+    case "story":
+      return (
+        <svg {...props}>
+          <rect x="3" y="3" width="7" height="7" rx="1" strokeLinecap="round" strokeLinejoin="round" />
+          <rect x="14" y="3" width="7" height="7" rx="1" strokeLinecap="round" strokeLinejoin="round" />
+          <rect x="3" y="14" width="7" height="7" rx="1" strokeLinecap="round" strokeLinejoin="round" />
+          <rect x="14" y="14" width="7" height="7" rx="1" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
       );
     case "admin":

@@ -1,0 +1,160 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
+import Image from "next/image";
+import NavigationBar from "@/app/components/NavigationBar";
+import StoryViewer from "./StoryViewer";
+import type { StoryItem } from "./types";
+
+export default function StoryGridClient() {
+  const [stories, setStories] = useState<StoryItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [viewerIndex, setViewerIndex] = useState<number | null>(null);
+
+  useEffect(() => {
+    fetch("/api/stories")
+      .then((r) => r.json())
+      .then((data) => {
+        if (Array.isArray(data)) setStories(data);
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  // 次の日曜日の日付を取得（リセット表示用）
+  const nextSunday = getNextSunday();
+
+  return (
+    <main className="min-h-screen bg-nicchyo-base pb-28">
+      {/* ヘッダー */}
+      <div className="bg-white px-4 pt-10 pb-4 border-b border-gray-100">
+        <div className="mx-auto max-w-lg flex items-end justify-between">
+          <div>
+            <h1 className="text-xl font-bold text-nicchyo-ink tracking-tight">近況</h1>
+            <p className="mt-0.5 text-xs text-gray-400">出店者の今週の写真</p>
+          </div>
+          <div className="flex items-center gap-1.5 text-[11px] text-gray-400 bg-gray-50 rounded-full px-3 py-1.5 border border-gray-100">
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">
+              <circle cx="12" cy="12" r="10" />
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6l4 2" />
+            </svg>
+            <span>日曜にリセット</span>
+          </div>
+        </div>
+      </div>
+
+      <div className="mx-auto max-w-lg px-4 pt-5">
+        {loading ? (
+          /* スケルトンローダー */
+          <div className="grid grid-cols-3 gap-0.5">
+            {Array.from({ length: 9 }).map((_, i) => (
+              <div key={i} className="aspect-square bg-gray-100 rounded-sm animate-pulse" />
+            ))}
+          </div>
+        ) : stories.length === 0 ? (
+          /* 空状態 */
+          <EmptyState nextSunday={nextSunday} />
+        ) : (
+          <>
+            {/* グリッド */}
+            <div className="grid grid-cols-3 gap-0.5 rounded-xl overflow-hidden">
+              {stories.map((story, i) => (
+                <motion.button
+                  key={story.id}
+                  initial={{ opacity: 0, scale: 0.96 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ delay: i * 0.03, duration: 0.2 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => setViewerIndex(i)}
+                  className="relative aspect-square bg-gray-100 overflow-hidden focus:outline-none"
+                >
+                  <Image
+                    src={story.image_url}
+                    alt={story.vendor?.shop_name ?? "投稿"}
+                    fill
+                    className="object-cover"
+                    sizes="(max-width: 512px) 33vw, 170px"
+                  />
+                  {/* 下部オーバーレイ：ショップ名 */}
+                  <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent px-1.5 pt-4 pb-1.5">
+                    <p className="text-white text-[10px] font-semibold truncate leading-tight">
+                      {story.vendor?.shop_name ?? "出店者"}
+                    </p>
+                  </div>
+                </motion.button>
+              ))}
+            </div>
+
+            {/* フッター情報 */}
+            <p className="mt-4 text-center text-xs text-gray-400">
+              {stories.length}件の投稿 · {nextSunday}にリセット
+            </p>
+          </>
+        )}
+      </div>
+
+      {/* 全画面ビューアー */}
+      <AnimatePresence>
+        {viewerIndex !== null && (
+          <StoryViewer
+            stories={stories}
+            initialIndex={viewerIndex}
+            onClose={() => setViewerIndex(null)}
+          />
+        )}
+      </AnimatePresence>
+
+      <NavigationBar />
+    </main>
+  );
+}
+
+function EmptyState({ nextSunday }: { nextSunday: string }) {
+  return (
+    <div className="flex flex-col items-center justify-center py-20 text-center">
+      {/* イラスト的なアイコン */}
+      <div className="relative mb-6">
+        <div className="w-20 h-20 rounded-3xl bg-nicchyo-soft-green/30 flex items-center justify-center">
+          <svg
+            className="w-9 h-9 text-nicchyo-primary"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={1.5}
+            viewBox="0 0 24 24"
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" d="M6.827 6.175A2.31 2.31 0 0 1 5.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 0 0-1.134-.175 2.31 2.31 0 0 1-1.64-1.055l-.822-1.316a2.192 2.192 0 0 0-1.736-1.039 48.774 48.774 0 0 0-5.232 0 2.192 2.192 0 0 0-1.736 1.039l-.821 1.316Z" />
+            <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 12.75a4.5 4.5 0 1 1-9 0 4.5 4.5 0 0 1 9 0ZM18.75 10.5h.008v.008h-.008V10.5Z" />
+          </svg>
+        </div>
+        {/* デコ */}
+        <div className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-nicchyo-accent flex items-center justify-center">
+          <svg className="w-3 h-3 text-nicchyo-ink" fill="currentColor" viewBox="0 0 20 20">
+            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11a1 1 0 10-2 0v2H7a1 1 0 100 2h2v2a1 1 0 102 0v-2h2a1 1 0 100-2h-2V7z" clipRule="evenodd" />
+          </svg>
+        </div>
+      </div>
+
+      <h2 className="text-base font-bold text-nicchyo-ink mb-2">今週の投稿はまだありません</h2>
+      <p className="text-sm text-gray-400 leading-relaxed max-w-[220px]">
+        出店者の投稿が届いたら<br />ここに表示されます
+      </p>
+      <div className="mt-6 flex items-center gap-1.5 text-xs text-gray-400 bg-gray-50 rounded-full px-4 py-2 border border-gray-100">
+        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">
+          <circle cx="12" cy="12" r="10" />
+          <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6l4 2" />
+        </svg>
+        {nextSunday} にリセット
+      </div>
+    </div>
+  );
+}
+
+function getNextSunday(): string {
+  const now = new Date();
+  const day = now.getDay();
+  const daysUntilSunday = day === 0 ? 7 : 7 - day;
+  const next = new Date(now);
+  next.setDate(now.getDate() + daysUntilSunday);
+  return `${next.getMonth() + 1}/${next.getDate()}（日）`;
+}
