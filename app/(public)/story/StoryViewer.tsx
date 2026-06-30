@@ -50,7 +50,7 @@ export default function StoryViewer({ stories, initialIndex, onClose }: Props) {
     else if (y > 60 || vy > 300) goPrev();
   };
 
-  const postedDate = new Date(story.posted_at);
+  const postedDate = new Date(story.created_at);
   const timeLabel = formatRelativeTime(postedDate);
 
   return (
@@ -128,7 +128,7 @@ export default function StoryViewer({ stories, initialIndex, onClose }: Props) {
         >
           <Image
             src={story.image_url}
-            alt={story.caption ?? shopName}
+            alt={story.body ?? shopName}
             fill
             className="object-contain select-none"
             draggable={false}
@@ -138,9 +138,9 @@ export default function StoryViewer({ stories, initialIndex, onClose }: Props) {
       </AnimatePresence>
 
       {/* 下部：キャプション */}
-      {story.caption && (
+      {story.body && (
         <div className="absolute bottom-0 left-0 right-0 z-10 px-4 pt-16 pb-12 bg-gradient-to-t from-black/70 to-transparent">
-          <p className="text-white text-sm leading-relaxed">{story.caption}</p>
+          <p className="text-white text-sm leading-relaxed">{story.body}</p>
         </div>
       )}
 

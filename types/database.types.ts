@@ -1148,44 +1148,6 @@ export type Database = {
         }
         Relationships: []
       }
-      shop_stories: {
-        Row: {
-          id: string
-          vendor_id: string
-          image_url: string
-          caption: string | null
-          posted_at: string
-          expires_at: string
-          created_at: string
-        }
-        Insert: {
-          id?: string
-          vendor_id: string
-          image_url: string
-          caption?: string | null
-          posted_at?: string
-          expires_at: string
-          created_at?: string
-        }
-        Update: {
-          id?: string
-          vendor_id?: string
-          image_url?: string
-          caption?: string | null
-          posted_at?: string
-          expires_at?: string
-          created_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "shop_stories_vendor_id_fkey"
-            columns: ["vendor_id"]
-            isOneToOne: false
-            referencedRelation: "vendors"
-            referencedColumns: ["id"]
-          }
-        ]
-      }
     }
     Views: {
       [_ in never]: never

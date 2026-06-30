@@ -9,21 +9,22 @@ export async function GET() {
   const supabase = createClient(cookieStore);
 
   const { data, error } = await supabase
-    .from("shop_stories")
+    .from("vendor_contents")
     .select(`
       id,
+      body,
       image_url,
-      caption,
-      posted_at,
       expires_at,
+      created_at,
       vendor:vendor_id (
         id,
         shop_name,
         shop_image_url
       )
     `)
+    .not("image_url", "is", null)
     .gt("expires_at", new Date().toISOString())
-    .order("posted_at", { ascending: false });
+    .order("created_at", { ascending: false });
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });

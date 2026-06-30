@@ -87,12 +87,20 @@ export async function createPost(
   return contentToPost(data as DbContent);
 }
 
+function getNextSundayExpiry(): Date {
+  const now = new Date();
+  const daysUntilSunday = (7 - now.getDay()) % 7 || 7;
+  const sunday = new Date(now);
+  sunday.setDate(now.getDate() + daysUntilSunday);
+  sunday.setHours(23, 59, 59, 999);
+  return sunday;
+}
+
 export async function repostContent(
   vendorId: string,
   originalPost: Post
 ): Promise<Post> {
-  const eod = new Date();
-  eod.setHours(23, 59, 59, 999);
+  const eod = getNextSundayExpiry();
 
   const supabase = createClient();
   const { data, error } = await supabase
