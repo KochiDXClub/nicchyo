@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { cookies } from "next/headers";
+import { createClient as createServerClient } from "@/utils/supabase/server";
+import { getRole, isAdmin } from "@/lib/auth/permissions";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -243,9 +246,9 @@ async function syncVendorEmbeddings(): Promise<{ processed: number }> {
 
 // ---- ルートハンドラー ----
 
-function checkAuth(req: NextRequest): boolean {
+function checkCronAuth(req: NextRequest): boolean {
   const cronSecret = process.env.CRON_SECRET;
-  if (!cronSecret) return process.env.NODE_ENV !== "production";
+  if (!cronSecret) return false; // CRON_SECRET 未設定時は常に拒否
   const authHeader = req.headers.get("authorization");
   const token = authHeader?.replace("Bearer ", "");
   return token === cronSecret;
@@ -253,7 +256,7 @@ function checkAuth(req: NextRequest): boolean {
 
 // Vercel Cron は GET を送る
 export async function GET(req: NextRequest) {
-  if (!checkAuth(req)) {
+  if (!checkCronAuth(req)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -268,9 +271,15 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// 手動実行用（管理画面等から POST で叩く場合）
-export async function POST(req: NextRequest) {
-  if (!checkAuth(req)) {
+// 手動実行用（管理画面から POST で叩く場合）
+export async function POST(_req: NextRequest) {
+  const cookieStore = await cookies();
+  const supabase = createServerClient(cookieStore);
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user || !isAdmin(getRole(user))) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
