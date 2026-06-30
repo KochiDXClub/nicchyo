@@ -171,6 +171,15 @@ export async function GET() {
 // moderator / admin / super_admin への昇格は super_admin のみ可。
 const INVITABLE_ROLES = ROLE_HIERARCHY.filter((r) => r !== "super_admin" && r !== "admin");
 
+function isValidEmail(email: string): boolean {
+  if (!email || email.length > 254) return false;
+  const at = email.indexOf("@");
+  if (at <= 0 || at !== email.lastIndexOf("@")) return false;
+  const local = email.slice(0, at);
+  const domain = email.slice(at + 1);
+  return local.length <= 64 && domain.length > 0 && domain.includes(".") && !domain.endsWith(".");
+}
+
 export async function POST(req: Request) {
   const originCheck = requireSameOrigin(req);
   if (!originCheck.ok) return originCheck.response;
@@ -196,7 +205,7 @@ export async function POST(req: Request) {
   const email = (body.email ?? "").trim().toLowerCase();
   const role = body.role ?? "general_user";
 
-  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+  if (!isValidEmail(email)) {
     return NextResponse.json({ error: "有効なメールアドレスを入力してください" }, { status: 400 });
   }
   if (!INVITABLE_ROLES.includes(role as typeof INVITABLE_ROLES[number])) {
