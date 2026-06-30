@@ -1,9 +1,11 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Image from "next/image";
 import type { StoryItem } from "./types";
+
+const STORY_DURATION = 15000;
 
 type Props = {
   stories: StoryItem[];
@@ -14,6 +16,7 @@ type Props = {
 export default function StoryViewer({ stories, initialIndex, onClose }: Props) {
   const [index, setIndex] = useState(initialIndex);
   const [direction, setDirection] = useState<1 | -1>(1);
+  const [paused, setPaused] = useState(false);
   const dragStartX = useRef(0);
 
   const story = stories[index];
@@ -27,14 +30,14 @@ export default function StoryViewer({ stories, initialIndex, onClose }: Props) {
     return () => { document.body.style.overflow = prev; };
   }, []);
 
-  const goNext = () => {
+  const goNext = useCallback(() => {
     if (index < stories.length - 1) {
       setDirection(1);
       setIndex((i) => i + 1);
     } else {
       onClose();
     }
-  };
+  }, [index, stories.length, onClose]);
 
   const goPrev = () => {
     if (index > 0) {
@@ -42,6 +45,13 @@ export default function StoryViewer({ stories, initialIndex, onClose }: Props) {
       setIndex((i) => i - 1);
     }
   };
+
+  // 15秒自動送り（ホールド中は停止）
+  useEffect(() => {
+    if (paused) return;
+    const timer = setTimeout(goNext, STORY_DURATION);
+    return () => clearTimeout(timer);
+  }, [index, paused, goNext]);
 
   const handleDragEnd = (_: unknown, info: { offset: { x: number }; velocity: { x: number } }) => {
     const { x } = info.offset;
@@ -60,49 +70,59 @@ export default function StoryViewer({ stories, initialIndex, onClose }: Props) {
       exit={{ opacity: 0 }}
       transition={{ duration: 0.18 }}
       className="fixed inset-0 z-[10000] bg-black flex flex-col touch-none"
+      onPointerDown={() => setPaused(true)}
+      onPointerUp={() => setPaused(false)}
+      onPointerLeave={() => setPaused(false)}
     >
       {/* 上部：ショップ情報 + 閉じる */}
-      <div className="absolute top-0 left-0 right-0 z-10 flex items-center gap-3 px-4 pt-12 pb-4 bg-gradient-to-b from-black/60 to-transparent">
+      <div className="absolute top-0 left-0 right-0 z-10 px-4 pt-10 pb-4 bg-gradient-to-b from-black/60 to-transparent">
         {/* プログレスバー */}
-        <div className="absolute top-6 left-4 right-4 flex gap-1">
+        <div className="flex gap-1 mb-3">
           {stories.map((_, i) => (
             <div key={i} className="flex-1 h-[3px] rounded-full overflow-hidden bg-white/30">
-              <div
-                className={`h-full rounded-full transition-all ${
-                  i < index ? "bg-white w-full" : i === index ? "bg-white w-full" : "w-0"
-                }`}
-                style={i === index ? { width: "100%" } : undefined}
-              />
+              {i < index ? (
+                <div className="h-full w-full bg-white rounded-full" />
+              ) : i === index ? (
+                <div
+                  key={`bar-${index}`}
+                  className="h-full bg-white rounded-full"
+                  style={{
+                    animation: `story-progress ${STORY_DURATION}ms linear forwards`,
+                    animationPlayState: paused ? "paused" : "running",
+                  }}
+                />
+              ) : (
+                <div className="h-full w-0" />
+              )}
             </div>
           ))}
         </div>
 
-        {/* アバター */}
-        <div className="w-9 h-9 rounded-full overflow-hidden bg-nicchyo-soft-green ring-2 ring-nicchyo-primary flex-shrink-0 flex items-center justify-center">
-          {avatarUrl ? (
-            <Image src={avatarUrl} alt={shopName} width={36} height={36} className="object-cover w-full h-full" />
-          ) : (
-            <span className="text-sm font-bold text-nicchyo-ink">{shopName.charAt(0)}</span>
-          )}
+        {/* ショップ情報行 */}
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-full overflow-hidden bg-nicchyo-soft-green ring-2 ring-nicchyo-primary flex-shrink-0 flex items-center justify-center">
+            {avatarUrl ? (
+              <Image src={avatarUrl} alt={shopName} width={32} height={32} className="object-cover w-full h-full" />
+            ) : (
+              <span className="text-xs font-bold text-nicchyo-ink">{shopName.charAt(0)}</span>
+            )}
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-white font-semibold text-sm leading-tight truncate">{shopName}</p>
+            <p className="text-white/60 text-[11px] leading-tight">{timeLabel}</p>
+          </div>
+          <button
+            type="button"
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={onClose}
+            className="w-8 h-8 flex items-center justify-center rounded-full bg-white/10 active:bg-white/20"
+            aria-label="閉じる"
+          >
+            <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
         </div>
-
-        {/* 名前 + 時刻 */}
-        <div className="flex-1 min-w-0">
-          <p className="text-white font-semibold text-sm leading-tight truncate">{shopName}</p>
-          <p className="text-white/60 text-xs leading-tight">{timeLabel}</p>
-        </div>
-
-        {/* 閉じるボタン */}
-        <button
-          type="button"
-          onClick={onClose}
-          className="w-9 h-9 flex items-center justify-center rounded-full bg-white/10 active:bg-white/20"
-          aria-label="閉じる"
-        >
-          <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-          </svg>
-        </button>
       </div>
 
       {/* 画像（スワイプ領域） */}
@@ -139,14 +159,26 @@ export default function StoryViewer({ stories, initialIndex, onClose }: Props) {
 
       {/* 下部：キャプション */}
       {story.body && (
-        <div className="absolute bottom-0 left-0 right-0 z-10 px-4 pt-16 pb-12 bg-gradient-to-t from-black/70 to-transparent">
+        <div className="absolute bottom-0 left-0 right-0 z-10 px-4 pt-16 pb-10 bg-gradient-to-t from-black/70 to-transparent">
           <p className="text-white text-sm leading-relaxed">{story.body}</p>
         </div>
       )}
 
-      {/* スワイプガイド（初回のみ表示のため、index===0のみ） */}
+      {/* ホールド中インジケーター */}
+      {paused && (
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-20 pointer-events-none">
+          <div className="w-12 h-12 rounded-full bg-black/40 flex items-center justify-center">
+            <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24">
+              <rect x="6" y="4" width="4" height="16" rx="1" />
+              <rect x="14" y="4" width="4" height="16" rx="1" />
+            </svg>
+          </div>
+        </div>
+      )}
+
+      {/* スワイプガイド（最初の投稿のみ） */}
       {index === 0 && stories.length > 1 && (
-        <div className="absolute bottom-8 right-4 z-10">
+        <div className="absolute bottom-8 right-4 z-10 pointer-events-none">
           <motion.div
             animate={{ x: [0, -8, 0] }}
             transition={{ repeat: 2, duration: 0.8, ease: "easeInOut" }}

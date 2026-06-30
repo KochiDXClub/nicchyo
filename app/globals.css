@@ -11,6 +11,11 @@
 }
 
 /* ===== キャラクター相談アニメーション ===== */
+@keyframes story-progress {
+  from { width: 0%; }
+  to   { width: 100%; }
+}
+
 @keyframes discussion-bubble {
   0%, 100% { opacity: 0; transform: translateY(6px) scale(0.88); }
   12%, 68% { opacity: 1; transform: translateY(0) scale(1); }
