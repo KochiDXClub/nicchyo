@@ -25,7 +25,6 @@ import { grandmaEvents } from "./data/grandmaEvents";
 import { recordMarketEnter, recordMarketExit } from "../../../lib/storage/marketStats";
 import { buildSearchIndex } from "../search/lib/searchIndex";
 import { useShopSearch } from "../search/hooks/useShopSearch";
-import { useEncyclopediaUnlock } from "../../../lib/hooks/useEncyclopediaUnlock";
 import { getOrCreateConsultVisitorKey } from "../../../lib/consultVisitorKey";
 import MapCharacterConsult from "./components/MapCharacterConsult";
 
@@ -157,8 +156,6 @@ export default function MapPageClient({
     lat: number;
     lng: number;
   } | null>(null);
-
-  useEncyclopediaUnlock(userLocation);
 
   const [isInMarket, setIsInMarket] = useState<boolean | null>(null);
   useEffect(() => {
