@@ -535,64 +535,19 @@ export default function MapCharacterConsult({
         onTouchStart={(e) => e.stopPropagation()}
       >
         <div
-          className={`mx-auto max-w-xl overflow-hidden border shadow-[0_28px_60px_rgba(15,23,42,0.22)] transition-all duration-300 ${
-            showIntroChrome ? 'rounded-[28px]' : 'rounded-[24px]'
-          } ${
-            status === 'error'
-              ? 'border-red-300 bg-[#fff6f6]'
-              : isBusy
-                ? 'border-amber-300 bg-white'
-                : 'border-amber-200 bg-white'
+          className={`relative mx-auto max-w-xl transition-all duration-300 ${
+            showIntroChrome
+              ? ''
+              : `overflow-hidden rounded-[24px] border shadow-[0_28px_60px_rgba(15,23,42,0.22)] ${
+                  status === 'error'
+                    ? 'border-red-300 bg-[#fff6f6]'
+                    : isBusy
+                      ? 'border-amber-300 bg-white'
+                      : 'border-amber-200 bg-white'
+                }`
           }`}
         >
-          {showIntroChrome ? (
-            <>
-              <div className="bg-[linear-gradient(135deg,#fff8e8_0%,#fff3d8_48%,#fde6ba_100%)] px-4 py-3.5">
-                <div className="flex items-start">
-                  <div className="min-w-0 flex-1">
-                    <label
-                      htmlFor="map-consult-input"
-                      className="block text-[15px] font-bold leading-tight text-slate-900"
-                    >
-                      AIに相談する
-                    </label>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={onClose}
-                    className="shrink-0 rounded-full border border-white/80 bg-white/90 px-3 py-2 text-[11px] font-bold text-slate-600 shadow-sm transition hover:bg-white active:scale-95"
-                    aria-label="相談を終わる"
-                  >
-                    閉じる
-                  </button>
-                </div>
-              </div>
-
-              {!isBusy && starterPrompts.length > 0 && (
-                <div className="border-b border-slate-200/70 px-3 pb-3 pt-3">
-                  <div className="mb-2 flex items-center gap-2 px-1">
-                    <span className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500">
-                      すぐ聞けること
-                    </span>
-                    <span className="text-[11px] text-slate-400">最初の一言を選べます</span>
-                  </div>
-                  <div className="flex gap-2 overflow-x-auto px-1 pb-1">
-                    {starterPrompts.slice(0, 3).map((prompt) => (
-                      <button
-                        key={prompt}
-                        type="button"
-                        onClick={() => handleSend(prompt)}
-                        className="shrink-0 rounded-chip border border-amber-200 bg-white px-[13px] py-[7px] text-left text-[13px] font-bold text-amber-900 shadow-chip transition-all duration-[120ms] hover:bg-amber-50 active:scale-[0.98]"
-                      >
-                        {prompt}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </>
-          ) : (
+          {showIntroChrome ? null : (
             <div className="sr-only" id={helperTextId}>
               市場のことを相談できます。
             </div>
@@ -605,6 +560,15 @@ export default function MapCharacterConsult({
           )}
 
           {!isBusy && <div className={showIntroChrome ? 'px-3 pb-3 pt-3' : 'px-2.5 py-2.5'}>
+            {showIntroChrome && starterPrompts[0] && (
+              <button
+                type="button"
+                onClick={() => handleSend(starterPrompts[0])}
+                className="mb-2 w-fit rounded-2xl border border-amber-300 bg-amber-100 px-4 py-2.5 text-left text-[13px] font-medium text-amber-900 shadow-sm transition hover:bg-amber-200 active:scale-[0.99]"
+              >
+                {starterPrompts[0]}
+              </button>
+            )}
             <div
               className={`rounded-[24px] border p-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] transition-colors ${
                 status === 'error'
