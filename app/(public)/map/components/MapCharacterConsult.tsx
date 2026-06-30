@@ -184,7 +184,17 @@ export default function MapCharacterConsult({
   const [thumbsDownComment, setThumbsDownComment] = useState('');
   const [recommendedShops, setRecommendedShops] = useState<Shop[]>([]);
   const [favoriteIds, setFavoriteIds] = useState<Set<number>>(() => new Set(loadFavoriteShopIds()));
-  const [routeIds, setRouteIds] = useState<Set<number>>(new Set());
+  const [routeIds, setRouteIds] = useState<Set<number>>(() => {
+    if (typeof window === 'undefined') return new Set();
+    try {
+      const raw = localStorage.getItem(PLAN_KEY);
+      if (!raw) return new Set();
+      const stored = JSON.parse(raw) as Partial<StoredPlan>;
+      return new Set((stored.plan?.shops ?? []).map((s) => s.id));
+    } catch {
+      return new Set();
+    }
+  });
 
   const shopMap = useRef(new Map(shops.map((shop) => [shop.id, shop])));
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
@@ -535,19 +545,24 @@ export default function MapCharacterConsult({
         onTouchStart={(e) => e.stopPropagation()}
       >
         <div
-          className={`relative mx-auto max-w-xl transition-all duration-300 ${
-            showIntroChrome
-              ? ''
-              : `overflow-hidden rounded-[24px] border shadow-[0_28px_60px_rgba(15,23,42,0.22)] ${
-                  status === 'error'
-                    ? 'border-red-300 bg-[#fff6f6]'
-                    : isBusy
-                      ? 'border-amber-300 bg-white'
-                      : 'border-amber-200 bg-white'
-                }`
+          className={`relative mx-auto max-w-xl overflow-hidden rounded-[24px] border shadow-[0_28px_60px_rgba(15,23,42,0.22)] transition-all duration-300 ${
+            status === 'error'
+              ? 'border-red-300 bg-[#fff6f6]'
+              : isBusy
+                ? 'border-amber-300 bg-white'
+                : 'border-amber-200 bg-white'
           }`}
         >
-          {showIntroChrome ? null : (
+          {showIntroChrome ? (
+            <button
+              type="button"
+              onClick={onClose}
+              className="absolute right-3 top-3 z-10 flex h-7 w-7 items-center justify-center rounded-full text-[13px] text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 active:scale-95"
+              aria-label="閉じる"
+            >
+              ✕
+            </button>
+          ) : (
             <div className="sr-only" id={helperTextId}>
               市場のことを相談できます。
             </div>
@@ -560,14 +575,19 @@ export default function MapCharacterConsult({
           )}
 
           {!isBusy && <div className={showIntroChrome ? 'px-3 pb-3 pt-3' : 'px-2.5 py-2.5'}>
-            {showIntroChrome && starterPrompts[0] && (
-              <button
-                type="button"
-                onClick={() => handleSend(starterPrompts[0])}
-                className="mb-2 w-fit rounded-2xl border border-amber-300 bg-amber-100 px-4 py-2.5 text-left text-[13px] font-medium text-amber-900 shadow-sm transition hover:bg-amber-200 active:scale-[0.99]"
-              >
-                {starterPrompts[0]}
-              </button>
+            {showIntroChrome && (
+              <div className="mb-2 flex flex-col gap-1.5">
+                {starterPrompts.slice(0, 3).map((prompt) => (
+                  <button
+                    key={prompt}
+                    type="button"
+                    onClick={() => handleSend(prompt)}
+                    className="w-fit rounded-2xl border border-amber-300 bg-amber-100 px-4 py-2.5 text-left text-[13px] font-medium text-amber-900 shadow-sm transition hover:bg-amber-200 active:scale-[0.99]"
+                  >
+                    {prompt}
+                  </button>
+                ))}
+              </div>
             )}
             <div
               className={`rounded-[24px] border p-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] transition-colors ${
