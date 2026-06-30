@@ -14,7 +14,7 @@ type Props = {
 export default function StoryViewer({ stories, initialIndex, onClose }: Props) {
   const [index, setIndex] = useState(initialIndex);
   const [direction, setDirection] = useState<1 | -1>(1);
-  const dragStartY = useRef(0);
+  const dragStartX = useRef(0);
 
   const story = stories[index];
   const shopName = story.vendor?.shop_name ?? "出店者";
@@ -43,11 +43,11 @@ export default function StoryViewer({ stories, initialIndex, onClose }: Props) {
     }
   };
 
-  const handleDragEnd = (_: unknown, info: { offset: { y: number }; velocity: { y: number } }) => {
-    const { y } = info.offset;
-    const { y: vy } = info.velocity;
-    if (y < -60 || vy < -300) goNext();
-    else if (y > 60 || vy > 300) goPrev();
+  const handleDragEnd = (_: unknown, info: { offset: { x: number }; velocity: { x: number } }) => {
+    const { x } = info.offset;
+    const { x: vx } = info.velocity;
+    if (x < -60 || vx < -300) goNext();
+    else if (x > 60 || vx > 300) goPrev();
   };
 
   const postedDate = new Date(story.created_at);
@@ -111,18 +111,18 @@ export default function StoryViewer({ stories, initialIndex, onClose }: Props) {
           key={story.id}
           custom={direction}
           variants={{
-            enter: (d: number) => ({ y: d > 0 ? "100%" : "-100%", opacity: 0 }),
-            center: { y: 0, opacity: 1 },
-            exit: (d: number) => ({ y: d > 0 ? "-30%" : "30%", opacity: 0 }),
+            enter: (d: number) => ({ x: d > 0 ? "100%" : "-100%", opacity: 0 }),
+            center: { x: 0, opacity: 1 },
+            exit: (d: number) => ({ x: d > 0 ? "-30%" : "30%", opacity: 0 }),
           }}
           initial="enter"
           animate="center"
           exit="exit"
           transition={{ type: "spring", stiffness: 320, damping: 36 }}
-          drag="y"
+          drag="x"
           dragElastic={0.15}
-          dragConstraints={{ top: 0, bottom: 0 }}
-          onDragStart={(_, info) => { dragStartY.current = info.point.y; }}
+          dragConstraints={{ left: 0, right: 0 }}
+          onDragStart={(_, info) => { dragStartX.current = info.point.x; }}
           onDragEnd={handleDragEnd}
           className="absolute inset-0 cursor-grab active:cursor-grabbing"
         >
@@ -146,16 +146,16 @@ export default function StoryViewer({ stories, initialIndex, onClose }: Props) {
 
       {/* スワイプガイド（初回のみ表示のため、index===0のみ） */}
       {index === 0 && stories.length > 1 && (
-        <div className="absolute bottom-4 left-0 right-0 z-10 flex justify-center">
+        <div className="absolute bottom-8 right-4 z-10">
           <motion.div
-            animate={{ y: [0, -8, 0] }}
+            animate={{ x: [0, -8, 0] }}
             transition={{ repeat: 2, duration: 0.8, ease: "easeInOut" }}
-            className="flex flex-col items-center gap-1 text-white/50"
+            className="flex items-center gap-1 text-white/50"
           >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 15.75l7.5-7.5 7.5 7.5" />
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
             </svg>
-            <span className="text-[10px]">上にスワイプで次へ</span>
+            <span className="text-[10px]">左にスワイプで次へ</span>
           </motion.div>
         </div>
       )}
