@@ -4,6 +4,7 @@ import { createClient as createServiceClient } from "@supabase/supabase-js";
 import { createClient } from "@/utils/supabase/server";
 import { AdminLayout, AdminPageHeader } from "@/components/admin";
 import { getRole, isAdmin } from "@/lib/auth/permissions";
+import AnalyticsExportButton from "./AnalyticsExportButton";
 
 export const dynamic = "force-dynamic";
 
@@ -205,7 +206,11 @@ export default async function AdminAnalyticsPage() {
 
   return (
     <AdminLayout>
-      <AdminPageHeader eyebrow="Analytics" title="統計・分析" />
+      <AdminPageHeader
+        eyebrow="Analytics"
+        title="統計・分析"
+        actions={<AnalyticsExportButton />}
+      />
 
       <div className="mx-auto max-w-7xl px-4 py-8 pb-20">
 
