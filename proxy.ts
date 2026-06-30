@@ -2,7 +2,61 @@ import { type NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/utils/supabase/middleware";
 import { getRole, isModerator } from "@/lib/auth/permissions";
 
+// メンテナンスモード: 60秒キャッシュ（warm インスタンス間で共有）
+let maintenanceCache: { enabled: boolean; message: string; expiresAt: number } | null = null;
+const MAINTENANCE_CACHE_TTL = 60_000;
+
+async function getMaintenanceStatus(): Promise<{ enabled: boolean; message: string }> {
+  if (maintenanceCache && Date.now() < maintenanceCache.expiresAt) {
+    return maintenanceCache;
+  }
+
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!supabaseUrl || !anonKey) return { enabled: false, message: "" };
+
+  try {
+    const res = await fetch(
+      `${supabaseUrl}/rest/v1/system_settings?key=eq.public&select=value`,
+      {
+        headers: { apikey: anonKey, Authorization: `Bearer ${anonKey}` },
+        cache: "no-store",
+      }
+    );
+    if (!res.ok) return { enabled: false, message: "" };
+    const data = await res.json() as Array<{ value: Record<string, unknown> }>;
+    const value = data[0]?.value;
+    const result = {
+      enabled: value?.maintenanceMode === true,
+      message: typeof value?.maintenanceMessage === "string" ? value.maintenanceMessage : "",
+      expiresAt: Date.now() + MAINTENANCE_CACHE_TTL,
+    };
+    maintenanceCache = result;
+    return result;
+  } catch {
+    return { enabled: false, message: "" };
+  }
+}
+
+const MAINTENANCE_SKIP_PREFIXES = ["/admin", "/api", "/_next", "/maintenance", "/private"];
+
 export async function proxy(request: NextRequest) {
+  const pathname = request.nextUrl.pathname;
+
+  // メンテナンスモードチェック（管理者・API・静的ファイルはスキップ）
+  if (
+    !MAINTENANCE_SKIP_PREFIXES.some((p) => pathname.startsWith(p)) &&
+    !pathname.includes(".")
+  ) {
+    const { enabled, message } = await getMaintenanceStatus();
+    if (enabled) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/maintenance";
+      url.search = message ? `?msg=${encodeURIComponent(message)}` : "";
+      return NextResponse.rewrite(url);
+    }
+  }
+
   const { supabase, getResponse } = createClient(request);
 
   // セッション更新（Supabase Auth）
@@ -12,7 +66,6 @@ export async function proxy(request: NextRequest) {
   const supabaseResponse = getResponse();
 
   // パスベースのアクセス制御
-  const pathname = request.nextUrl.pathname;
   const appRole = getRole(user);
 
   if (pathname.startsWith("/admin") || pathname.startsWith("/moderator")) {
