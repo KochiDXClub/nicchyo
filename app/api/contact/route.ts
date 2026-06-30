@@ -9,6 +9,15 @@ export const dynamic = "force-dynamic";
 
 const VALID_CATEGORIES = ["question", "feedback", "bug", "other"] as const;
 
+function isValidEmail(email: string): boolean {
+  if (!email || email.length > 254) return false;
+  const at = email.indexOf("@");
+  if (at <= 0 || at !== email.lastIndexOf("@")) return false;
+  const local = email.slice(0, at);
+  const domain = email.slice(at + 1);
+  return local.length <= 64 && domain.length > 0 && domain.includes(".") && !domain.endsWith(".");
+}
+
 function createAdminClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -40,7 +49,7 @@ export async function POST(req: Request) {
   const category = (body.category ?? "").trim();
   const message = (body.message ?? "").trim();
 
-  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+  if (!isValidEmail(email)) {
     return NextResponse.json({ error: "メールアドレスが無効です" }, { status: 400 });
   }
   if (!VALID_CATEGORIES.includes(category as typeof VALID_CATEGORIES[number])) {
