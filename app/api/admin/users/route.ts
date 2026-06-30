@@ -2,7 +2,9 @@ import { NextResponse } from "next/server";
 import { createClient as createServiceClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 import { createClient as createServerClient } from "@/utils/supabase/server";
-import { getRole, isAdmin, normalizeRole } from "@/lib/auth/permissions";
+import { getRole, isAdmin, normalizeRole, ROLE_HIERARCHY } from "@/lib/auth/permissions";
+import { requireSameOrigin } from "@/lib/security/requestGuards";
+import { enforceRateLimit } from "@/lib/security/rateLimit";
 import type { UserRole } from "@/lib/auth/types";
 
 export const runtime = "nodejs";
@@ -163,4 +165,85 @@ export async function GET() {
   } catch {
     return NextResponse.json({ error: "Failed to load users" }, { status: 500 });
   }
+}
+
+// vendor / general_user への招待は admin 以上が操作可。
+// moderator / admin / super_admin への昇格は super_admin のみ可。
+const INVITABLE_ROLES = ROLE_HIERARCHY.filter((r) => r !== "super_admin" && r !== "admin");
+
+export async function POST(req: Request) {
+  const originCheck = requireSameOrigin(req);
+  if (!originCheck.ok) return originCheck.response;
+
+  const rateLimited = await enforceRateLimit(req, {
+    bucket: "admin-users-invite",
+    limit: 10,
+    windowMs: 10 * 60 * 1000,
+  });
+  if (rateLimited) return rateLimited;
+
+  const cookieStore = await cookies();
+  const supabase = createServerClient(cookieStore);
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user || !isAdmin(getRole(user))) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const body = await req.json() as { email?: string; role?: string };
+  const email = (body.email ?? "").trim().toLowerCase();
+  const role = body.role ?? "general_user";
+
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return NextResponse.json({ error: "有効なメールアドレスを入力してください" }, { status: 400 });
+  }
+  if (!INVITABLE_ROLES.includes(role as typeof INVITABLE_ROLES[number])) {
+    return NextResponse.json({ error: "無効なロールです" }, { status: 400 });
+  }
+
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!supabaseUrl || !serviceRoleKey) {
+    return NextResponse.json({ error: "Supabase env missing" }, { status: 500 });
+  }
+
+  const serviceClient = createServiceClient(supabaseUrl, serviceRoleKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+
+  // 招待メール送信
+  const { data: invited, error: inviteError } = await serviceClient.auth.admin.inviteUserByEmail(email);
+  if (inviteError) {
+    console.error("[admin/users] invite failed:", inviteError.message);
+    const alreadyExists = inviteError.message.toLowerCase().includes("already");
+    return NextResponse.json(
+      { error: alreadyExists ? "このメールアドレスはすでに登録されています" : "招待メールの送信に失敗しました" },
+      { status: alreadyExists ? 409 : 500 }
+    );
+  }
+
+  // ロールを app_metadata に設定
+  const { error: roleError } = await serviceClient.auth.admin.updateUserById(invited.user.id, {
+    app_metadata: { role },
+  });
+  if (roleError) {
+    console.error("[admin/users] role set failed:", roleError.message);
+    return NextResponse.json({ error: "招待は完了しましたがロールの設定に失敗しました" }, { status: 500 });
+  }
+
+  // 監査ログ
+  await serviceClient.from("admin_audit_logs").insert({
+    actor_id: user.id,
+    actor_email: user.email,
+    actor_role: getRole(user),
+    action: "invite_user",
+    target_type: "user",
+    target_id: invited.user.id,
+    target_name: email,
+    details: `ロール: ${role} で招待`,
+  });
+
+  return NextResponse.json({ ok: true, userId: invited.user.id });
 }

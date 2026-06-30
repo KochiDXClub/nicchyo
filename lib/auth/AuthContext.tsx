@@ -153,7 +153,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const permissions: PermissionCheck = {
     isSuperAdmin: user?.role === "super_admin",
-    isModerator: user?.role === "moderator",
+    isAdmin: user?.role === "super_admin",
+    isModerator: user?.role === "super_admin" || user?.role === "moderator",
     isVendor: user?.role === "vendor",
     isGeneralUser: user?.role === "general_user",
 

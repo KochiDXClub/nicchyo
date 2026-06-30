@@ -28,7 +28,7 @@ interface AdminUser {
 }
 
 function AdminUsersContent() {
-  const { permissions } = useAuth();
+  const { permissions, isLoading } = useAuth();
   const router = useRouter();
   const [filter, setFilter] = useState<"all" | UserRole | "suspended">("all");
   const [searchQuery, setSearchQuery] = useState("");
@@ -43,15 +43,20 @@ function AdminUsersContent() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [showShortcutHelp, setShowShortcutHelp] = useState(false);
   const [lastSelectedIndex, setLastSelectedIndex] = useState<number | null>(null);
+  const [showInviteModal, setShowInviteModal] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteRole, setInviteRole] = useState<UserRole>("general_user");
+  const [inviteLoading, setInviteLoading] = useState(false);
 
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   // 管理者権限チェック
   useEffect(() => {
+    if (isLoading) return;
     if (!permissions.isSuperAdmin) {
       router.push("/");
     }
-  }, [permissions.isSuperAdmin, router]);
+  }, [isLoading, permissions.isSuperAdmin, router]);
 
   useEffect(() => {
     if (!permissions.isSuperAdmin) {
@@ -354,8 +359,31 @@ function AdminUsersContent() {
   }, [reloadUsers]);
 
   const handleCreateUser = useCallback(() => {
-    showToast.success("新規ユーザー追加 (未実装)");
+    setInviteEmail("");
+    setInviteRole("general_user");
+    setShowInviteModal(true);
   }, []);
+
+  const handleInviteSubmit = useCallback(async () => {
+    if (!inviteEmail) return;
+    setInviteLoading(true);
+    try {
+      const res = await fetch("/api/admin/users", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: inviteEmail, role: inviteRole }),
+      });
+      const data = await res.json() as { error?: string };
+      if (!res.ok) throw new Error(data.error ?? "failed");
+      showToast.success(`${inviteEmail} に招待メールを送信しました`);
+      setShowInviteModal(false);
+      reloadUsers();
+    } catch (err) {
+      showToast.error(err instanceof Error ? err.message : "招待に失敗しました");
+    } finally {
+      setInviteLoading(false);
+    }
+  }, [inviteEmail, inviteRole, reloadUsers]);
 
   // 権限変更
   const handleOpenRoleChange = useCallback((user: AdminUser) => {
@@ -933,6 +961,80 @@ function AdminUsersContent() {
               <button
                 type="button"
                 onClick={() => setRoleChangeUser(null)}
+                className="flex-1 rounded-lg bg-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-300"
+                aria-label="キャンセル"
+              >
+                キャンセル
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ユーザー招待モーダル */}
+      {showInviteModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4"
+          onClick={() => setShowInviteModal(false)}
+          role="dialog"
+          aria-labelledby="invite-modal-title"
+          aria-modal="true"
+        >
+          <div
+            className="max-w-md w-full rounded-lg bg-white p-6 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 id="invite-modal-title" className="text-xl font-bold text-gray-900 mb-4">
+              ユーザーを招待
+            </h3>
+            <div className="space-y-4">
+              <div>
+                <label htmlFor="invite-email" className="block text-sm font-medium text-gray-700 mb-1">
+                  メールアドレス
+                </label>
+                <input
+                  id="invite-email"
+                  type="email"
+                  value={inviteEmail}
+                  onChange={(e) => setInviteEmail(e.target.value)}
+                  placeholder="example@email.com"
+                  className="w-full rounded-lg border border-gray-300 px-4 py-2 text-sm focus:border-blue-500 focus:outline-none"
+                  autoFocus
+                />
+              </div>
+              <div>
+                <label htmlFor="invite-role" className="block text-sm font-medium text-gray-700 mb-1">
+                  ロール
+                </label>
+                <select
+                  id="invite-role"
+                  value={inviteRole}
+                  onChange={(e) => setInviteRole(e.target.value as UserRole)}
+                  className="w-full rounded-lg border border-gray-300 px-4 py-2 text-sm focus:border-blue-500 focus:outline-none"
+                >
+                  <option value="general_user">一般ユーザー</option>
+                  <option value="vendor">出店者</option>
+                  <option value="moderator">モデレーター</option>
+                </select>
+              </div>
+              <p className="text-xs text-gray-500">
+                招待メールが送信されます。受信者はメール内のリンクからパスワードを設定してログインできます。
+              </p>
+            </div>
+            <div className="mt-6 flex gap-2">
+              <LoadingButton
+                onClick={handleInviteSubmit}
+                isLoading={inviteLoading}
+                loadingText="送信中..."
+                disabled={!inviteEmail}
+                className="flex-1 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+                aria-label="招待メールを送信"
+              >
+                招待メールを送信
+              </LoadingButton>
+              <button
+                type="button"
+                onClick={() => setShowInviteModal(false)}
                 className="flex-1 rounded-lg bg-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-300"
                 aria-label="キャンセル"
               >

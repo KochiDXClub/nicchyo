@@ -17,7 +17,11 @@ export interface User {
 }
 
 export interface PermissionCheck {
+  /** super_admin ロール（admin + super_admin を統合した最上位権限） */
   isSuperAdmin: boolean;
+  /** admin 以上（isSuperAdmin と同義。API 側の isAdmin() と対応） */
+  isAdmin: boolean;
+  /** moderator 以上（moderator / admin / super_admin）。API 側の isModerator() と対応 */
   isModerator: boolean;
   isVendor: boolean;
   isGeneralUser: boolean;
