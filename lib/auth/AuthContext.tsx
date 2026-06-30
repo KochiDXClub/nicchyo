@@ -100,7 +100,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       try {
         // getSession() はサーバー検証なし。getUser() でサーバーサイド検証を行う
         const { data, error } = await supabase.auth.getUser();
-        if (error) {
+        // 未ログイン状態では "Auth session missing!" が返るが、これは異常系ではない
+        if (error && error.name !== "AuthSessionMissingError") {
           console.error("[AuthContext] getUser failed:", error.message);
         }
         if (!active) return;
