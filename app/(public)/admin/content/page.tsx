@@ -5,7 +5,6 @@ export const dynamic = "force-dynamic";
 import { useEffect, useState, useMemo, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth/AuthContext";
-import { createClient } from "@/utils/supabase/client";
 import { AdminLayout, AdminPageHeader, EmptyState } from "@/components/admin";
 import { showToast } from "@/lib/admin/toast";
 import NextImage from "next/image";
@@ -59,33 +58,29 @@ export default function AdminContentPage() {
 
   const load = useCallback(async () => {
     setIsLoading(true);
-    const supabase = createClient();
-    const { data, error } = await supabase
-      .from("vendor_contents")
-      .select("id, vendor_id, title, body, image_url, expires_at, created_at, vendors(shop_name)")
-      .order("created_at", { ascending: false });
-
-    if (error || !data) {
+    try {
+      const res = await fetch("/api/admin/content");
+      if (!res.ok) throw new Error("failed");
+      const json = await res.json() as { contents: DbRow[] };
+      const now = new Date();
+      setContents(
+        (json.contents ?? []).map((r) => ({
+          id: r.id,
+          vendor_id: r.vendor_id,
+          shop_name: r.vendors?.shop_name ?? "名称未設定",
+          title: r.title,
+          body: r.body,
+          image_url: r.image_url,
+          expires_at: r.expires_at,
+          created_at: r.created_at,
+          status: new Date(r.expires_at) > now ? "active" : "expired",
+        }))
+      );
+    } catch {
       showToast.error("データの取得に失敗しました");
+    } finally {
       setIsLoading(false);
-      return;
     }
-
-    const now = new Date();
-    setContents(
-      (data as DbRow[]).map((r) => ({
-        id: r.id,
-        vendor_id: r.vendor_id,
-        shop_name: r.vendors?.shop_name ?? "名称未設定",
-        title: r.title,
-        body: r.body,
-        image_url: r.image_url,
-        expires_at: r.expires_at,
-        created_at: r.created_at,
-        status: new Date(r.expires_at) > now ? "active" : "expired",
-      }))
-    );
-    setIsLoading(false);
   }, []);
 
   useEffect(() => { if (!authLoading && permissions.isSuperAdmin) load(); }, [authLoading, permissions.isSuperAdmin, load]);
