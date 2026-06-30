@@ -24,6 +24,12 @@ import {
 import type { ConsultAskResponse, ConsultTurn } from '../../consult/types/consultConversation';
 import type { Shop } from '../data/shops';
 import { getOrCreateConsultVisitorKey } from '../../../../lib/consultVisitorKey';
+import { toggleFavoriteShopId, loadFavoriteShopIds } from '../../../../lib/favoriteShops';
+
+const PLAN_KEY = 'nicchyo-map-agent-plan';
+
+type PlanShop = { id: number; name: string; reason: string; icon: string };
+type StoredPlan = { plan: { title: string; summary: string; shops: PlanShop[]; routeHint: string; shoppingList: string[] }; order: number[] };
 
 const RESPONSE_STEP_MS = 4000;
 const CHAR_W = 60;
@@ -176,6 +182,9 @@ export default function MapCharacterConsult({
   const [feedbackGiven, setFeedbackGiven] = useState(false);
   const [thumbsDownOpen, setThumbsDownOpen] = useState(false);
   const [thumbsDownComment, setThumbsDownComment] = useState('');
+  const [recommendedShops, setRecommendedShops] = useState<Shop[]>([]);
+  const [favoriteIds, setFavoriteIds] = useState<Set<number>>(() => new Set(loadFavoriteShopIds()));
+  const [routeIds, setRouteIds] = useState<Set<number>>(new Set());
 
   const shopMap = useRef(new Map(shops.map((shop) => [shop.id, shop])));
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
@@ -361,6 +370,8 @@ export default function MapCharacterConsult({
       setFeedbackGiven(false);
       setThumbsDownOpen(false);
       setThumbsDownComment('');
+      setRecommendedShops([]);
+      setRouteIds(new Set());
 
       const controller = new AbortController();
       abortRef.current = controller;
@@ -430,6 +441,8 @@ export default function MapCharacterConsult({
 
         if (finalShopIds.length > 0) {
           onShopsRecommended(finalShopIds);
+          const resolved = finalShopIds.map((id) => shopMap.current.get(id)).filter(Boolean) as Shop[];
+          setRecommendedShops(resolved);
         }
 
         if (payload?.consultId) {
@@ -475,6 +488,27 @@ export default function MapCharacterConsult({
     clearPlayback();
     setTimeout(() => handleSend(lastUserMsg), 100);
   }, [clearPlayback, handleSend, lastUserMsg]);
+
+  const handleFavorite = (shopId: number) => {
+    const next = toggleFavoriteShopId(shopId);
+    setFavoriteIds(new Set(next));
+  };
+
+  const handleAddToRoute = (shop: Shop) => {
+    if (typeof window === 'undefined') return;
+    let stored: Partial<StoredPlan> = {};
+    try {
+      const raw = localStorage.getItem(PLAN_KEY);
+      if (raw) stored = JSON.parse(raw) as StoredPlan;
+    } catch { /* ignore */ }
+    const plan = stored.plan ?? { title: 'AIおすすめ', summary: '', shops: [], routeHint: '', shoppingList: [] };
+    if (!plan.shops.some((s) => s.id === shop.id)) {
+      plan.shops.push({ id: shop.id, name: shop.name, reason: '', icon: '🏪' });
+    }
+    const order = plan.shops.map((s) => s.id);
+    localStorage.setItem(PLAN_KEY, JSON.stringify({ plan, order }));
+    setRouteIds((prev) => new Set([...prev, shop.id]));
+  };
 
   const statusLabel = getStatusLabel(status, elapsedSeconds);
   const helperTextId = 'map-consult-helper';
@@ -693,6 +727,46 @@ export default function MapCharacterConsult({
 
             {status === 'idle' && feedbackGiven && (
               <p className="mt-2 text-right text-[11px] text-slate-400">評価済み ✓</p>
+            )}
+
+            {recommendedShops.length > 0 && (
+              <div className="mt-2 flex flex-col gap-1.5">
+                {recommendedShops.map((shop) => (
+                  <div
+                    key={shop.id}
+                    className="flex items-center justify-between gap-2 rounded-2xl border border-slate-100 bg-slate-50 px-3 py-2"
+                  >
+                    <span className="min-w-0 truncate text-[13px] font-medium text-slate-800">{shop.name}</span>
+                    <div className="flex shrink-0 gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => handleFavorite(shop.id)}
+                        className={`rounded-full border px-2 py-1 text-[13px] shadow-sm transition hover:scale-105 active:scale-95 ${
+                          favoriteIds.has(shop.id)
+                            ? 'border-pink-200 bg-pink-50 text-pink-500'
+                            : 'border-slate-200 bg-white text-slate-400'
+                        }`}
+                        aria-label="お気に入りに追加"
+                      >
+                        {favoriteIds.has(shop.id) ? '❤️' : '🤍'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleAddToRoute(shop)}
+                        disabled={routeIds.has(shop.id)}
+                        className={`rounded-full border px-2 py-1 text-[13px] shadow-sm transition hover:scale-105 active:scale-95 disabled:cursor-default ${
+                          routeIds.has(shop.id)
+                            ? 'border-green-200 bg-green-50 text-green-600'
+                            : 'border-slate-200 bg-white text-slate-600'
+                        }`}
+                        aria-label="ルートに追加"
+                      >
+                        {routeIds.has(shop.id) ? '✓' : '🗺️'}
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
             )}
           </div>}
         </div>
