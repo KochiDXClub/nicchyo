@@ -31,6 +31,7 @@ const CATEGORIES = [
 
 export default function ContactForm() {
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   const {
     register,
@@ -63,10 +64,23 @@ export default function ContactForm() {
     setValue("email", fixed, { shouldValidate: true });
   };
 
-  const onSubmit = async (_data: ContactFormData) => {
-    // TODO: バックエンドAPIルート実装後に差し替える
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-    setIsSubmitted(true);
+  const onSubmit = async (data: ContactFormData) => {
+    setSubmitError(null);
+    try {
+      const res = await fetch("/api/contact", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      if (!res.ok) {
+        const json = await res.json() as { error?: string };
+        setSubmitError(json.error ?? "送信に失敗しました。もう一度お試しください。");
+        return;
+      }
+      setIsSubmitted(true);
+    } catch {
+      setSubmitError("通信エラーが発生しました。しばらくしてから再度お試しください。");
+    }
   };
 
   if (isSubmitted) {
@@ -206,6 +220,14 @@ export default function ContactForm() {
           )}
         </div>
       </div>
+
+      {/* Submit Error */}
+      {submitError && (
+        <p className="flex items-center gap-1 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-600">
+          <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+          {submitError}
+        </p>
+      )}
 
       {/* Submit Button */}
       <button
