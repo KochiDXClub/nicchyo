@@ -177,8 +177,21 @@ export default function MapPageClient({
     }, 2000);
   }, []);
   const [isShopBannerOpen, setIsShopBannerOpen] = useState(false);
-  const searchAreaRef = useRef<HTMLDivElement | null>(null);
   const [trackingButtonTop, setTrackingButtonTop] = useState(112);
+  const resizeObserverRef = useRef<ResizeObserver | null>(null);
+  const searchAreaRef = useCallback((el: HTMLDivElement | null) => {
+    if (resizeObserverRef.current) {
+      resizeObserverRef.current.disconnect();
+      resizeObserverRef.current = null;
+    }
+    if (!el) return;
+    const observer = new ResizeObserver(() => {
+      const rect = el.getBoundingClientRect();
+      setTrackingButtonTop(rect.bottom + 8);
+    });
+    observer.observe(el);
+    resizeObserverRef.current = observer;
+  }, []);
 
   useEffect(() => {
     if (typeof document === "undefined") return;
@@ -191,16 +204,6 @@ export default function MapPageClient({
       attributes: true,
       attributeFilter: ["class"],
     });
-    return () => observer.disconnect();
-  }, []);
-  useEffect(() => {
-    const el = searchAreaRef.current;
-    if (!el) return;
-    const observer = new ResizeObserver(() => {
-      const rect = el.getBoundingClientRect();
-      setTrackingButtonTop(rect.bottom + 8);
-    });
-    observer.observe(el);
     return () => observer.disconnect();
   }, []);
 
