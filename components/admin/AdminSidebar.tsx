@@ -73,6 +73,12 @@ export const AdminSidebar = React.memo(function AdminSidebar({
       show: permissions.canModerateContent,
     },
     {
+      label: "カテゴリ管理",
+      href: "/admin/categories",
+      icon: "🏷️",
+      show: permissions.isSuperAdmin,
+    },
+    {
       label: "監査ログ",
       href: "/admin/audit-logs",
       icon: "🔍",
