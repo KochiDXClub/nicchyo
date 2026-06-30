@@ -9,6 +9,7 @@ import NavigationBar from "@/app/components/NavigationBar";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { createPost, fetchVendorPosts, fetchPostById, repostContent } from "../../_services/postsService";
 import type { ExpirationPreset, Post, PostStatus } from "../../_types";
+import { getNextSundayExpiry } from "@/lib/utils/date";
 import {
   ArrowLeft,
   Image as ImageIcon,
@@ -102,15 +103,6 @@ const EXPIRATION_OPTIONS: ExpirationOption[] = [
   { preset: "sunday", label: "今週の日曜まで", desc: "近況として日曜にリセット", icon: Calendar },
   { preset: "custom", label: "カスタム",     desc: "時間を自分で設定",         icon: Clock },
 ];
-
-function getNextSundayExpiry(): Date {
-  const now = new Date();
-  const daysUntilSunday = (7 - now.getDay()) % 7 || 7;
-  const sunday = new Date(now);
-  sunday.setDate(now.getDate() + daysUntilSunday);
-  sunday.setHours(23, 59, 59, 999);
-  return sunday;
-}
 
 function calcExpirationTime(preset: ExpirationPreset, customDateTime: string): Date {
   const now = new Date();

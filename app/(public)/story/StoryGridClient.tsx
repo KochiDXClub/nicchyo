@@ -5,25 +5,35 @@ import { AnimatePresence, motion } from "framer-motion";
 import Image from "next/image";
 import NavigationBar from "@/app/components/NavigationBar";
 import StoryViewer from "./StoryViewer";
+import LoadingLantern, { LOADING_LANTERN_DURATION_MS } from "./components/LoadingLantern";
 import type { StoryItem } from "./types";
+
+const nextSunday = getNextSunday();
 
 export default function StoryGridClient() {
   const [stories, setStories] = useState<StoryItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState(false);
   const [viewerIndex, setViewerIndex] = useState<number | null>(null);
+  const [pageLoading, setPageLoading] = useState(true);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setPageLoading(false), LOADING_LANTERN_DURATION_MS);
+    return () => clearTimeout(timer);
+  }, []);
 
   useEffect(() => {
     fetch("/api/stories")
       .then((r) => r.json())
       .then((data) => {
         if (Array.isArray(data)) setStories(data);
+        else setFetchError(true);
       })
-      .catch(() => {})
+      .catch(() => setFetchError(true))
       .finally(() => setLoading(false));
   }, []);
 
-  // 次の日曜日の日付を取得（リセット表示用）
-  const nextSunday = getNextSunday();
+  if (pageLoading) return <LoadingLantern />;
 
   return (
     <main className="min-h-screen bg-nicchyo-base pb-28">
@@ -46,14 +56,23 @@ export default function StoryGridClient() {
 
       <div className="mx-auto max-w-lg px-4 pt-5">
         {loading ? (
-          /* スケルトンローダー */
           <div className="grid grid-cols-3 gap-0.5">
             {Array.from({ length: 9 }).map((_, i) => (
               <div key={i} className="aspect-square bg-gray-100 rounded-sm animate-pulse" />
             ))}
           </div>
+        ) : fetchError ? (
+          <div className="flex flex-col items-center justify-center py-20 text-center">
+            <p className="text-sm text-gray-400">投稿の読み込みに失敗しました</p>
+            <button
+              type="button"
+              onClick={() => window.location.reload()}
+              className="mt-4 text-xs text-nicchyo-primary underline underline-offset-2"
+            >
+              再読み込み
+            </button>
+          </div>
         ) : stories.length === 0 ? (
-          /* 空状態 */
           <EmptyState nextSunday={nextSunday} />
         ) : (
           <>

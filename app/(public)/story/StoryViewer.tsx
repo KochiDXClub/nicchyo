@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Image from "next/image";
 import type { StoryItem } from "./types";
@@ -17,7 +17,6 @@ export default function StoryViewer({ stories, initialIndex, onClose }: Props) {
   const [index, setIndex] = useState(initialIndex);
   const [direction, setDirection] = useState<1 | -1>(1);
   const [paused, setPaused] = useState(false);
-  const dragStartX = useRef(0);
 
   const story = stories[index];
   const shopName = story.vendor?.shop_name ?? "出店者";
@@ -84,7 +83,6 @@ export default function StoryViewer({ stories, initialIndex, onClose }: Props) {
                 <div className="h-full w-full bg-white rounded-full" />
               ) : i === index ? (
                 <div
-                  key={`bar-${index}`}
                   className="h-full bg-white rounded-full"
                   style={{
                     animation: `story-progress ${STORY_DURATION}ms linear forwards`,
@@ -142,7 +140,6 @@ export default function StoryViewer({ stories, initialIndex, onClose }: Props) {
           drag="x"
           dragElastic={0.15}
           dragConstraints={{ left: 0, right: 0 }}
-          onDragStart={(_, info) => { dragStartX.current = info.point.x; }}
           onDragEnd={handleDragEnd}
           className="absolute inset-0 cursor-grab active:cursor-grabbing"
         >

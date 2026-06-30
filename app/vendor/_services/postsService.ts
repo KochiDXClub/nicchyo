@@ -1,5 +1,6 @@
 import { createClient } from "@/utils/supabase/client";
 import type { Post } from "../_types";
+import { getNextSundayExpiry } from "@/lib/utils/date";
 
 type DbContent = {
   id: string;
@@ -85,15 +86,6 @@ export async function createPost(
 
   if (error || !data) throw error ?? new Error("投稿の保存に失敗しました");
   return contentToPost(data as DbContent);
-}
-
-function getNextSundayExpiry(): Date {
-  const now = new Date();
-  const daysUntilSunday = (7 - now.getDay()) % 7 || 7;
-  const sunday = new Date(now);
-  sunday.setDate(now.getDate() + daysUntilSunday);
-  sunday.setHours(23, 59, 59, 999);
-  return sunday;
 }
 
 export async function repostContent(
