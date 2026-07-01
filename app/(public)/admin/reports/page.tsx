@@ -94,9 +94,9 @@ export default function AdminReportsPage() {
     }
   };
 
-  const targetLink = (report: Report): string => {
+  const targetLink = (report: Report): string | null => {
     if (report.target_type === "vendor") return `/shops/${report.target_id}`;
-    return "#";
+    return null;
   };
 
   return (
@@ -156,14 +156,20 @@ export default function AdminReportsPage() {
                   </div>
 
                   <div className="mt-2 flex items-center gap-2">
-                    <a
-                      href={targetLink(report)}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-sm font-medium text-amber-700 hover:underline"
-                    >
-                      {report.target_name ?? report.target_id}
-                    </a>
+                    {targetLink(report) ? (
+                      <a
+                        href={targetLink(report)!}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-sm font-medium text-amber-700 hover:underline"
+                      >
+                        {report.target_name ?? report.target_id}
+                      </a>
+                    ) : (
+                      <span className="text-sm font-medium text-slate-700">
+                        {report.target_name ?? report.target_id}
+                      </span>
+                    )}
                   </div>
 
                   {report.details && (

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { showToast } from "@/lib/admin/toast";
 
 const REASONS = [
   "誤った情報",
@@ -45,7 +46,7 @@ export default function ReportButton({ shopCode, shopName }: Props) {
       }
       setDone(true);
     } catch (e) {
-      alert(e instanceof Error ? e.message : "通報の送信に失敗しました");
+      showToast.error(e instanceof Error ? e.message : "通報の送信に失敗しました");
     } finally {
       setLoading(false);
     }

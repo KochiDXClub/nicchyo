@@ -3,6 +3,7 @@ import { createClient as createServiceClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 import { createClient as createServerClient } from "@/utils/supabase/server";
 import { getRole, isModerator } from "@/lib/auth/permissions";
+import { requireSameOrigin } from "@/lib/security/requestGuards";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -72,6 +73,9 @@ export async function GET(req: Request) {
 }
 
 export async function PATCH(req: Request) {
+  const originCheck = requireSameOrigin(req);
+  if (!originCheck.ok) return originCheck.response;
+
   const { user, error } = await authorizeRequest();
   if (error || !user) return NextResponse.json({ error }, { status: 403 });
 
@@ -107,11 +111,13 @@ export async function PATCH(req: Request) {
 
   // 監査ログ
   await dc.from("admin_audit_logs").insert({
-    admin_id: user.id,
+    actor_id: user.id,
+    actor_email: user.email,
+    actor_role: getRole(user),
     action: "report_status_changed",
     target_type: "report",
     target_id: id,
-    details: { status, resolution_notes: resolution_notes ?? null },
+    details: JSON.stringify({ status, resolution_notes: resolution_notes ?? null }),
   });
 
   return NextResponse.json({ ok: true });
