@@ -44,10 +44,10 @@ export default function AdminInquiriesPage() {
 
   useEffect(() => {
     if (isLoading) return;
-    if (!permissions.isModerator) {
+    if (!permissions.canModerateContent) {
       router.push("/");
     }
-  }, [isLoading, permissions.isModerator, router]);
+  }, [isLoading, permissions.canModerateContent, router]);
 
   const fetchInquiries = useCallback(async () => {
     setLoading(true);
@@ -67,9 +67,9 @@ export default function AdminInquiriesPage() {
   }, [statusFilter, categoryFilter]);
 
   useEffect(() => {
-    if (!permissions.isModerator) return;
+    if (!permissions.canModerateContent) return;
     void fetchInquiries();
-  }, [fetchInquiries, permissions.isModerator]);
+  }, [fetchInquiries, permissions.canModerateContent]);
 
   const handleStatusChange = async (inquiry: Inquiry, newStatus: InquiryStatus) => {
     setUpdating(true);
