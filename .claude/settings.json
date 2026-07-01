@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"C:/Users/miyuk/nicchyo-platform/.claude/hooks/env-guard.js\""
+            "command": "node \"$(git rev-parse --show-toplevel)/.claude/hooks/env-guard.js\""
           }
         ]
       }
@@ -17,19 +17,19 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"C:/Users/miyuk/nicchyo-platform/.claude/hooks/tsc-check.js\""
+            "command": "node \"$(git rev-parse --show-toplevel)/.claude/hooks/tsc-check.js\""
           },
           {
             "type": "command",
-            "command": "node \"C:/Users/miyuk/nicchyo-platform/.claude/hooks/eslint-check.js\""
+            "command": "node \"$(git rev-parse --show-toplevel)/.claude/hooks/eslint-check.js\""
           },
           {
             "type": "command",
-            "command": "node \"C:/Users/miyuk/nicchyo-platform/.claude/hooks/sql-rls-warn.js\""
+            "command": "node \"$(git rev-parse --show-toplevel)/.claude/hooks/sql-rls-warn.js\""
           },
           {
             "type": "command",
-            "command": "node \"C:/Users/miyuk/nicchyo-platform/.claude/hooks/img-tag-warn.js\""
+            "command": "node \"$(git rev-parse --show-toplevel)/.claude/hooks/img-tag-warn.js\""
           }
         ]
       }

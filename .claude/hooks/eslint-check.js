@@ -20,5 +20,5 @@ try {
   const result = spawnSync('npx', ['eslint', '--max-warnings', '0', filePath], {
     encoding: 'utf8', shell: true, cwd: root, stdio: 'inherit'
   });
-  process.exit(result.status === null ? 0 : 0);
+  process.exit(result.status ?? 0);
 } catch (_) {}
