@@ -61,6 +61,8 @@ type ChatMessage = {
   speakerId?: ConsultCharacterId;
   speakerName?: string;
   followUpQuestion?: string;
+  consultId?: string;
+  turnIndex?: number;
 };
 
 type GrandmaChatterProps = {
@@ -265,6 +267,9 @@ const GrandmaChatter = memo(function GrandmaChatter({
   const chatStorageKeyRef = useRef<string | null>(null);
   const [isSpeechSupported, setIsSpeechSupported] = useState(false);
   const [isListening, setIsListening] = useState(false);
+  const [ratedMessageIds, setRatedMessageIds] = useState<Set<string>>(new Set());
+  const [thumbsDownOpenId, setThumbsDownOpenId] = useState<string | null>(null);
+  const [thumbsDownComments, setThumbsDownComments] = useState<Record<string, string>>({});
   const speechStartTextRef = useRef("");
   const speechRecognitionRef = useRef<{
     start: () => void;
@@ -699,6 +704,33 @@ const GrandmaChatter = memo(function GrandmaChatter({
     void handleAskSubmit(SHOP_CONSULT_PROMPT, nextContext, true);
   };
 
+  const submitFeedback = async (messageId: string, rating: 1 | -1, comment?: string) => {
+    const message = chatMessages.find((m) => m.id === messageId);
+    if (!message?.consultId || message.turnIndex === undefined) return;
+    setRatedMessageIds((prev) => new Set(prev).add(messageId));
+    setThumbsDownOpenId((prev) => (prev === messageId ? null : prev));
+    const questionText = chatMessages
+      .slice(0, chatMessages.findIndex((m) => m.id === messageId))
+      .reverse()
+      .find((m) => m.role === "user")?.text ?? "";
+    try {
+      await fetch("/api/grandma/feedback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          consultId: message.consultId,
+          turnIndex: message.turnIndex,
+          rating,
+          comment: comment ?? null,
+          questionText,
+          turnText: message.text,
+        }),
+      });
+    } catch {
+      // fire and forget
+    }
+  };
+
   const handleAskSubmit = async (
     text?: string,
     context?: AskContext,
@@ -859,6 +891,8 @@ const GrandmaChatter = memo(function GrandmaChatter({
             speakerId: turn.speakerId,
             speakerName: turn.speakerName,
             followUpQuestion: includeResponseMeta ? response.followUpQuestion : undefined,
+            consultId: response.consultId,
+            turnIndex: index,
           },
         ]);
       };
@@ -878,6 +912,8 @@ const GrandmaChatter = memo(function GrandmaChatter({
                   speakerName: firstTurn.speakerName,
                   followUpQuestion:
                     remainingTurns.length === 0 ? response.followUpQuestion : undefined,
+                  consultId: response.consultId,
+                  turnIndex: 0,
                 }
               : message
           )
@@ -1267,7 +1303,61 @@ const GrandmaChatter = memo(function GrandmaChatter({
                       <div className="min-w-0 flex-1">
                         <div className="mb-1 flex items-center gap-2 pl-1">
                           <span className={`text-base font-semibold ${embedded ? "text-green-700 text-stroke-dark" : "text-slate-700"}`}>{speakerName}</span>
+                          {message.consultId !== undefined && message.turnIndex !== undefined && message.id !== activeStreamingMessageId && (
+                            <div className="ml-auto flex items-center gap-0.5">
+                              {ratedMessageIds.has(message.id) ? (
+                                <span className="text-[10px] text-slate-300 select-none">評価済み</span>
+                              ) : (
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={() => void submitFeedback(message.id, 1)}
+                                    className="rounded p-0.5 text-slate-300 transition hover:text-nicchyo-primary"
+                                    aria-label="役に立った"
+                                  >
+                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-3.5 w-3.5">
+                                      <path d="M1 8.25a1.25 1.25 0 1 1 2.5 0v7.5a1.25 1.25 0 0 1-2.5 0v-7.5ZM11 3V1.7c0-.268.14-.526.395-.607A2 2 0 0 1 14 3c0 .995-.182 1.948-.514 2.826-.204.54.166 1.174.744 1.174h2.52c1.243 0 2.261 1.01 2.146 2.247a23.9 23.9 0 0 1-1.341 5.974C17.153 16.323 16.072 17 14.9 17h-3.192a3 3 0 0 1-1.341-.317l-2.734-1.366A3 3 0 0 0 6.292 15H5V8h.963c.685 0 1.258-.483 1.612-1.068a4.011 4.011 0 0 0 .166-.281l.531-1.06a2 2 0 0 1 .911-.93l1.55-.775A1 1 0 0 1 11 5v.818L10.036 8H11c.552 0 1 .448 1 1v-5.182L11 3Z" />
+                                    </svg>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setThumbsDownOpenId((prev) => prev === message.id ? null : message.id)}
+                                    className={`rounded p-0.5 transition ${thumbsDownOpenId === message.id ? "text-rose-400" : "text-slate-300 hover:text-rose-400"}`}
+                                    aria-label="改善が必要"
+                                  >
+                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-3.5 w-3.5">
+                                      <path d="M18.905 12.75a1.25 1.25 0 0 1-2.5 0v-7.5a1.25 1.25 0 0 1 2.5 0v7.5ZM8.905 17v1.3c0 .268-.14.526-.395.607A2 2 0 0 1 5.905 17c0-.995.182-1.948.514-2.826.204-.54-.166-1.174-.744-1.174h-2.52c-1.243 0-2.261-1.01-2.146-2.247a23.9 23.9 0 0 1 1.341-5.974C2.752 3.677 3.833 3 5.005 3h3.192a3 3 0 0 1 1.341.317l2.734 1.366A3 3 0 0 0 13.613 5h1.292v7h-.963c-.685 0-1.258.483-1.612 1.068a4.01 4.01 0 0 0-.166.281l-.531 1.06a2 2 0 0 1-.911.93l-1.55.775A1 1 0 0 1 8.905 15v-.818l.964-2.182H8.905a1 1 0 0 1-1-1V17Z" />
+                                    </svg>
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          )}
                         </div>
+                        {thumbsDownOpenId === message.id && !ratedMessageIds.has(message.id) && (
+                          <div className="mb-2 flex items-center gap-1.5 pl-1">
+                            <input
+                              type="text"
+                              value={thumbsDownComments[message.id] ?? ""}
+                              onChange={(e) => setThumbsDownComments((prev) => ({ ...prev, [message.id]: e.target.value }))}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") {
+                                  void submitFeedback(message.id, -1, thumbsDownComments[message.id]);
+                                }
+                              }}
+                              placeholder="改善点を教えてください（任意）"
+                              maxLength={200}
+                              className="h-7 flex-1 rounded-lg border border-rose-200 bg-white px-2 text-[11px] text-slate-600 placeholder:text-slate-300 focus:border-rose-300 focus:outline-none"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => void submitFeedback(message.id, -1, thumbsDownComments[message.id])}
+                              className="rounded-lg border border-rose-200 bg-rose-50 px-2 py-0.5 text-[11px] font-medium text-rose-600 hover:bg-rose-100"
+                            >
+                              送信
+                            </button>
+                          </div>
+                        )}
                         <MessageBubble
                           role={message.role}
                           variant="consult"

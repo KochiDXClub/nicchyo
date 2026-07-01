@@ -3,10 +3,11 @@
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useState, useEffect, useCallback, Suspense } from "react";
+import { useEffect, useCallback, Suspense } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { useBag } from "@/lib/storage/BagContext";
+import { useMenu } from "@/lib/ui/MenuContext";
 
 // ─── ナビゲーション項目 ────────────────────────────────────────────────────────
 type NavItem = {
@@ -24,7 +25,8 @@ const baseNavItems: NavItem[] = [
 const secondaryMenuItems = [
   { label: "バッジ",      href: "/badges",     emoji: "🏆", color: "bg-yellow-50",  textColor: "text-yellow-800", border: "border-yellow-100" },
   { label: "マイページ",  href: "/my-profile", emoji: "👤", color: "bg-violet-50",  textColor: "text-violet-800", border: "border-violet-100" },
-  { label: "nicchyoとは", href: "/about",      emoji: "ℹ️", color: "bg-sky-50",     textColor: "text-sky-800",    border: "border-sky-100"    },
+  { label: "ニュース",    href: "/news",       emoji: "📰", color: "bg-sky-50",     textColor: "text-sky-800",    border: "border-sky-100"    },
+  { label: "nicchyoとは", href: "/about",      emoji: "ℹ️", color: "bg-slate-50",   textColor: "text-slate-700",  border: "border-slate-100"  },
 ];
 
 // ─── 出店者・管理者メニュー ────────────────────────────────────────────────────
@@ -64,7 +66,7 @@ function NavigationBarInner({
   const searchParams = useSearchParams();
   const { user, isLoggedIn, permissions, logout } = useAuth();
   const { items: bagItems } = useBag();
-  const [menuOpen, setMenuOpen] = useState(false);
+  const { isMenuOpen: menuOpen, toggleMenu, closeMenu } = useMenu();
 
   useEffect(() => {
     onMenuOpenChange?.(menuOpen);
@@ -84,7 +86,7 @@ function NavigationBarInner({
     : baseNavItems;
 
   const handleMenuItemClick = (href: string) => {
-    setMenuOpen(false);
+    closeMenu();
     router.push(href);
   };
 
@@ -94,7 +96,7 @@ function NavigationBarInner({
   }, [isPanelOpen, onCloseMode, router]);
 
   const handleLogout = async () => {
-    setMenuOpen(false);
+    closeMenu();
     await logout();
     router.push("/map");
   };
@@ -123,7 +125,7 @@ function NavigationBarInner({
               exit={{ opacity: 0 }}
               transition={{ duration: 0.2 }}
               className="fixed inset-0 z-[9995] bg-black/40 backdrop-blur-sm"
-              onClick={() => setMenuOpen(false)}
+              onClick={closeMenu}
             />
 
             {/* シート本体 */}
@@ -358,7 +360,7 @@ function NavigationBarInner({
             <div className="flex flex-1 items-center justify-center">
               <button
                 type="button"
-                onClick={() => setMenuOpen((v) => !v)}
+                onClick={toggleMenu}
                 className="flex flex-col items-center gap-1 transition-all duration-200 active:scale-95"
               >
                 <motion.div

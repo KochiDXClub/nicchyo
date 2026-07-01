@@ -45,6 +45,7 @@ export const MapOverlays = memo(function MapOverlays({
   shopsWithIngredients,
   recipeIngredients,
   onRecipeShopClick,
+  onChomeClick,
   OptimizedShopLayerWithClustering,
 }: {
   isLowZoomTintMode: boolean;
@@ -75,6 +76,7 @@ export const MapOverlays = memo(function MapOverlays({
   shopsWithIngredients: Shop[];
   recipeIngredients: Array<{ name: string; icon: string }>;
   onRecipeShopClick: (shop: Shop) => void;
+  onChomeClick?: (chome: string) => void;
   OptimizedShopLayerWithClustering: ComponentType<OptimizedShopLayerWithClusteringProps>;
 }) {
   const map = useMap();
@@ -172,7 +174,7 @@ export const MapOverlays = memo(function MapOverlays({
 
       {/* 縮小時（zoom < 17）: 丁目エリアバッジ */}
       {!isMinimumZoomMode && isOverviewZoneMode && (
-        <ChomeAreaMarkers shops={shops} />
+        <ChomeAreaMarkers shops={shops} onChomeClick={onChomeClick} />
       )}
 
       {/* 通常時（zoom ≥ 19）: 個別店舗マーカー */}

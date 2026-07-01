@@ -172,7 +172,7 @@ function EmptyState({ nextSunday }: { nextSunday: string }) {
 function getNextSunday(): string {
   const now = new Date();
   const day = now.getDay();
-  const daysUntilSunday = day === 0 ? 7 : 7 - day;
+  const daysUntilSunday = day === 0 ? 0 : 7 - day;
   const next = new Date(now);
   next.setDate(now.getDate() + daysUntilSunday);
   return `${next.getMonth() + 1}/${next.getDate()}（日）`;

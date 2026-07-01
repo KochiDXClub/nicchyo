@@ -44,6 +44,7 @@ type AskPayload = {
   errorMessage?: string;
   turns?: ConsultAskResponse['turns'];
   shopIds?: number[];
+  consultId?: string;
 };
 
 function CharacterSprite({
@@ -169,6 +170,12 @@ export default function MapCharacterConsult({
   const [status, setStatus] = useState<Status>('idle');
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [history, setHistory] = useState<Array<{ role: 'user' | 'assistant'; text: string }>>([]);
+  const [lastConsultId, setLastConsultId] = useState<string | null>(null);
+  const [lastQuestionText, setLastQuestionText] = useState<string | null>(null);
+  const [lastTurnText, setLastTurnText] = useState<string | null>(null);
+  const [feedbackGiven, setFeedbackGiven] = useState(false);
+  const [thumbsDownOpen, setThumbsDownOpen] = useState(false);
+  const [thumbsDownComment, setThumbsDownComment] = useState('');
 
   const shopMap = useRef(new Map(shops.map((shop) => [shop.id, shop])));
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
@@ -317,6 +324,31 @@ export default function MapCharacterConsult({
     clearPlayback();
   }, [clearPlayback]);
 
+  const submitFeedback = useCallback(
+    async (rating: 1 | -1, comment?: string) => {
+      if (!lastConsultId) return;
+      setFeedbackGiven(true);
+      setThumbsDownOpen(false);
+      try {
+        await fetch('/api/grandma/feedback', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            consultId: lastConsultId,
+            turnIndex: 0,
+            rating,
+            comment: comment ?? null,
+            questionText: lastQuestionText ?? undefined,
+            turnText: lastTurnText ?? undefined,
+          }),
+        });
+      } catch {
+        // fire and forget
+      }
+    },
+    [lastConsultId, lastQuestionText, lastTurnText]
+  );
+
   const handleSend = useCallback(
     async (overrideText?: string) => {
       const text = (overrideText ?? inputText).trim();
@@ -325,6 +357,10 @@ export default function MapCharacterConsult({
       abortRef.current?.abort();
       if (tickerRef.current) clearInterval(tickerRef.current);
       clearPlayback();
+      setLastConsultId(null);
+      setFeedbackGiven(false);
+      setThumbsDownOpen(false);
+      setThumbsDownComment('');
 
       const controller = new AbortController();
       abortRef.current = controller;
@@ -394,6 +430,12 @@ export default function MapCharacterConsult({
 
         if (finalShopIds.length > 0) {
           onShopsRecommended(finalShopIds);
+        }
+
+        if (payload?.consultId) {
+          setLastConsultId(payload.consultId);
+          setLastQuestionText(text);
+          setLastTurnText(turns[0]?.text ?? null);
         }
 
         playbackStarted = playResponseSequence(turns, finalShopIds, false);
@@ -603,6 +645,54 @@ export default function MapCharacterConsult({
                   直前の相談を再試行
                 </button>
               </div>
+            )}
+
+            {status === 'idle' && lastConsultId && !feedbackGiven && !thumbsDownOpen && (
+              <div className="mt-2 flex items-center justify-end gap-1.5">
+                <span className="text-[11px] text-slate-400">参考になりましたか？</span>
+                <button
+                  type="button"
+                  onClick={() => submitFeedback(1)}
+                  className="rounded-full border border-slate-200 bg-white px-2 py-1 text-[13px] shadow-sm transition hover:bg-slate-50 active:scale-95"
+                  aria-label="役に立った"
+                >
+                  👍
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setThumbsDownOpen(true)}
+                  className="rounded-full border border-slate-200 bg-white px-2 py-1 text-[13px] shadow-sm transition hover:bg-slate-50 active:scale-95"
+                  aria-label="役に立たなかった"
+                >
+                  👎
+                </button>
+              </div>
+            )}
+
+            {thumbsDownOpen && (
+              <div className="mt-2 flex items-center gap-2">
+                <input
+                  type="text"
+                  value={thumbsDownComment}
+                  onChange={(e) => setThumbsDownComment(e.target.value)}
+                  placeholder="改善点を教えてください（任意）"
+                  className="flex-1 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[12px] text-slate-800 placeholder:text-slate-400 outline-none focus:border-amber-300"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') submitFeedback(-1, thumbsDownComment);
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={() => submitFeedback(-1, thumbsDownComment)}
+                  className="shrink-0 rounded-full bg-amber-500 px-3 py-1.5 text-[12px] font-bold text-white shadow-sm transition hover:bg-amber-600 active:scale-95"
+                >
+                  送信
+                </button>
+              </div>
+            )}
+
+            {status === 'idle' && feedbackGiven && (
+              <p className="mt-2 text-right text-[11px] text-slate-400">評価済み ✓</p>
             )}
           </div>}
         </div>

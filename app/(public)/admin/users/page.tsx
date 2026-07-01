@@ -28,7 +28,7 @@ interface AdminUser {
 }
 
 function AdminUsersContent() {
-  const { permissions } = useAuth();
+  const { permissions, isLoading } = useAuth();
   const router = useRouter();
   const [filter, setFilter] = useState<"all" | UserRole | "suspended">("all");
   const [searchQuery, setSearchQuery] = useState("");
@@ -48,10 +48,11 @@ function AdminUsersContent() {
 
   // 管理者権限チェック
   useEffect(() => {
+    if (isLoading) return;
     if (!permissions.isSuperAdmin) {
       router.push("/");
     }
-  }, [permissions.isSuperAdmin, router]);
+  }, [isLoading, permissions.isSuperAdmin, router]);
 
   useEffect(() => {
     if (!permissions.isSuperAdmin) {
