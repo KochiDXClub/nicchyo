@@ -177,7 +177,7 @@ export default function MapPageClient({
     }, 2000);
   }, []);
   const [isShopBannerOpen, setIsShopBannerOpen] = useState(false);
-  const [trackingButtonTop, setTrackingButtonTop] = useState(112);
+  const [trackingButtonTop, setTrackingButtonTop] = useState(112); // 112px = top-28 (7rem) — Tailwind デフォルト基準値
   const resizeObserverRef = useRef<ResizeObserver | null>(null);
   const searchAreaRef = useCallback((el: HTMLDivElement | null) => {
     if (resizeObserverRef.current) {
