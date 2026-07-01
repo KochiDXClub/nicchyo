@@ -212,6 +212,11 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "無効なロールです" }, { status: 400 });
   }
 
+  const callerRole = getRole(user);
+  if (role === "moderator" && callerRole !== "super_admin") {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!supabaseUrl || !serviceRoleKey) {

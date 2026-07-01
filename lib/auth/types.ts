@@ -2,7 +2,7 @@
  * 認証・ユーザー関連の型定義
  */
 
-export type UserRole = "super_admin" | "moderator" | "vendor" | "general_user";
+export type UserRole = "super_admin" | "admin" | "moderator" | "vendor" | "general_user";
 
 export interface User {
   id: string;
