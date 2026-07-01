@@ -84,7 +84,7 @@ export default function AuditLogsPage() {
     setIsLoading(true);
     try {
       const res = await fetch("/api/admin/audit-logs");
-      if (!res.ok) throw new Error("failed");
+      if (!res.ok) throw new Error(res.statusText);
       const json = await res.json() as { logs: AuditLog[]; total: number };
       setLogs(json.logs ?? []);
       setTotalCount(json.total ?? 0);

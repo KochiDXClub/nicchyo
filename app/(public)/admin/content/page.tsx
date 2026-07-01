@@ -60,7 +60,7 @@ export default function AdminContentPage() {
     setIsLoading(true);
     try {
       const res = await fetch("/api/admin/content");
-      if (!res.ok) throw new Error("failed");
+      if (!res.ok) throw new Error(res.statusText);
       const json = await res.json() as { contents: DbRow[] };
       const now = new Date();
       setContents(
