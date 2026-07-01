@@ -421,6 +421,7 @@ function MapControls({
   maxZoom,
   zoomSliderVisible,
   onZoomSliderInteract,
+  trackingButtonTop = 112,
 }: {
   map: L.Map | null;
   isTracking: boolean;
@@ -432,6 +433,8 @@ function MapControls({
   zoomSliderVisible: boolean;
   /** スライダー操作時に表示を延命させるためのコールバック */
   onZoomSliderInteract: () => void;
+  /** 現在地ボタンの top 位置（px）。検索エリアの高さに追従させるために外から渡す */
+  trackingButtonTop?: number;
 }) {
   return (
     <>
@@ -455,9 +458,10 @@ function MapControls({
         <span className="select-none text-[12px] font-black leading-none text-amber-700 drop-shadow-[0_1px_0_rgba(255,255,255,0.9)]">−</span>
       </div>
 
-      {/* 現在地追跡ボタン（画面上部右） */}
+      {/* 現在地追跡ボタン（検索エリアの高さに追従） */}
       <div
-        className="absolute right-4 top-28 z-[1000]"
+        className="absolute right-4 z-[1000] transition-[top] duration-200"
+        style={{ top: trackingButtonTop }}
         onMouseDown={(e) => e.stopPropagation()}
         onClick={(e) => e.stopPropagation()}
         onTouchStart={(e) => { e.stopPropagation(); }}
@@ -540,6 +544,8 @@ type MapViewProps = {
   overlaySlot?: React.ReactNode;
   /** trueのとき拡大縮小スライダーと検索バーを非表示にする */
   hideMapUI?: boolean;
+  /** 現在地ボタンの top 位置（px）。検索エリアの実際の高さに合わせて親から渡す */
+  trackingButtonTop?: number;
 };
 
 export type ShopBannerOrigin = { x: number; y: number; width: number; height: number };
@@ -666,6 +672,7 @@ const MapView = memo(function MapView({
   onClearSearch,
   overlaySlot,
   hideMapUI = false,
+  trackingButtonTop,
 }: MapViewProps = {}) {
   const [isMobile, setIsMobile] = useState(false);
   const [_isInMarket, setIsInMarket] = useState<boolean | null>(null);
@@ -1442,6 +1449,7 @@ const MapView = memo(function MapView({
             maxZoom={MAX_ZOOM}
             zoomSliderVisible={zoomSliderVisible}
             onZoomSliderInteract={keepZoomSliderAlive}
+            trackingButtonTop={trackingButtonTop}
           />
         </>
       )}
