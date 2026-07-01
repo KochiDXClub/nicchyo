@@ -62,11 +62,13 @@ export async function PATCH(req: Request, { params }: Params) {
   }
 
   await dc.from("admin_audit_logs").insert({
-    admin_id: user.id,
+    actor_id: user.id,
+    actor_email: user.email,
+    actor_role: getRole(user),
     action: "category_updated",
     target_type: "category",
     target_id: id,
-    details: { name },
+    details: JSON.stringify({ name }),
   });
 
   return NextResponse.json({ category: data });
@@ -86,11 +88,13 @@ export async function DELETE(_req: Request, { params }: Params) {
   }
 
   await dc.from("admin_audit_logs").insert({
-    admin_id: user.id,
+    actor_id: user.id,
+    actor_email: user.email,
+    actor_role: getRole(user),
     action: "category_deleted",
     target_type: "category",
     target_id: id,
-    details: {},
+    details: JSON.stringify({}),
   });
 
   return NextResponse.json({ ok: true });

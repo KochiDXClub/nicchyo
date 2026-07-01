@@ -21,6 +21,7 @@ export default function AdminCategoriesPage() {
   const [editName, setEditName] = useState("");
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [confirmingId, setConfirmingId] = useState<string | null>(null);
 
   useEffect(() => {
     if (isLoading) return;
@@ -102,7 +103,7 @@ export default function AdminCategoriesPage() {
   };
 
   const handleDelete = async (cat: Category) => {
-    if (!confirm(`「${cat.name}」を削除しますか？\nこのカテゴリを使用している商品に影響が出る可能性があります。`)) return;
+    setConfirmingId(null);
     setDeletingId(cat.id);
     try {
       const res = await fetch(`/api/admin/categories/${cat.id}`, { method: "DELETE" });
@@ -196,14 +197,35 @@ export default function AdminCategoriesPage() {
                   >
                     編集
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => void handleDelete(cat)}
-                    disabled={deletingId === cat.id}
-                    className="rounded-lg bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-100 disabled:opacity-40"
-                  >
-                    {deletingId === cat.id ? "削除中..." : "削除"}
-                  </button>
+                  {confirmingId === cat.id ? (
+                    <>
+                      <span className="text-xs text-red-700">本当に削除しますか？</span>
+                      <button
+                        type="button"
+                        onClick={() => void handleDelete(cat)}
+                        disabled={deletingId === cat.id}
+                        className="rounded-lg bg-red-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-700 disabled:opacity-40"
+                      >
+                        {deletingId === cat.id ? "削除中..." : "削除する"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setConfirmingId(null)}
+                        className="rounded-lg bg-slate-100 px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-200"
+                      >
+                        キャンセル
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setConfirmingId(cat.id)}
+                      disabled={deletingId === cat.id}
+                      className="rounded-lg bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-100 disabled:opacity-40"
+                    >
+                      削除
+                    </button>
+                  )}
                 </>
               )}
             </div>

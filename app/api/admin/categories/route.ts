@@ -83,11 +83,13 @@ export async function POST(req: Request) {
   }
 
   await dc.from("admin_audit_logs").insert({
-    admin_id: user.id,
+    actor_id: user.id,
+    actor_email: user.email,
+    actor_role: getRole(user),
     action: "category_created",
     target_type: "category",
     target_id: (data as Category).id,
-    details: { name },
+    details: JSON.stringify({ name }),
   });
 
   return NextResponse.json({ category: data as Category }, { status: 201 });

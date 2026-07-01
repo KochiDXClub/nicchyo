@@ -44,15 +44,13 @@ export async function proxy(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
 
   // メンテナンスモードチェック（管理者・API・静的ファイルはスキップ）
-  if (
-    !MAINTENANCE_SKIP_PREFIXES.some((p) => pathname.startsWith(p)) &&
-    !pathname.includes(".")
-  ) {
-    const { enabled, message } = await getMaintenanceStatus();
+  // /_next 配下に全静的アセットが含まれるため、ドット有無による判定は不要
+  if (!MAINTENANCE_SKIP_PREFIXES.some((p) => pathname.startsWith(p))) {
+    const { enabled } = await getMaintenanceStatus();
     if (enabled) {
       const url = request.nextUrl.clone();
       url.pathname = "/maintenance";
-      url.search = message ? `?msg=${encodeURIComponent(message)}` : "";
+      url.search = "";
       return NextResponse.rewrite(url);
     }
   }
