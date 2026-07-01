@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { createClient as createServiceClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 import { createClient as createServerClient } from "@/utils/supabase/server";
+import { requireSameOrigin } from "@/lib/security/requestGuards";
+import { enforceRateLimit } from "@/lib/security/rateLimit";
 import { getRole, isAdmin } from "@/lib/auth/permissions";
 
 export const runtime = "nodejs";
@@ -14,7 +16,16 @@ function createAdminClient() {
   return createServiceClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
 }
 
-export async function GET() {
+export async function GET(req: Request) {
+  const originCheck = requireSameOrigin(req);
+  if (!originCheck.ok) return originCheck.response;
+
+  const rateLimited = await enforceRateLimit(req, {
+    bucket: "admin-content-get",
+    limit: 60,
+    windowMs: 10 * 60 * 1000,
+  });
+  if (rateLimited) return rateLimited;
   const cookieStore = await cookies();
   const supabase = createServerClient(cookieStore);
   const {
