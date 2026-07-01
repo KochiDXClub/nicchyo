@@ -48,7 +48,7 @@ export async function GET(req: NextRequest) {
 
   const { searchParams } = req.nextUrl;
   const type = (searchParams.get("type") ?? "page_analytics") as ExportType;
-  const days = Math.min(Number(searchParams.get("days") ?? "30"), 365);
+  const days = Math.max(1, Math.min(Number(searchParams.get("days") ?? "30"), 365));
   const since = new Date(Date.now() - days * 86400000).toISOString().slice(0, 10);
 
   let rows: Record<string, unknown>[] = [];

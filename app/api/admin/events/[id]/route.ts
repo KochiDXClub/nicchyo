@@ -58,6 +58,10 @@ export async function PATCH(req: Request, { params }: Params) {
     updates.is_published = body.is_published;
   }
 
+  if (Object.keys(updates).length === 0) {
+    return NextResponse.json({ error: "更新するフィールドがありません" }, { status: 400 });
+  }
+
   const { data, error: dbError } = await dc
     .from("market_events")
     .update(updates)
@@ -70,11 +74,13 @@ export async function PATCH(req: Request, { params }: Params) {
   }
 
   await dc.from("admin_audit_logs").insert({
-    admin_id: user.id,
+    actor_id: user.id,
+    actor_email: user.email,
+    actor_role: getRole(user),
     action: "event_updated",
     target_type: "market_event",
     target_id: id,
-    details: updates,
+    details: JSON.stringify(updates),
   });
 
   return NextResponse.json({ event: data });
@@ -94,11 +100,13 @@ export async function DELETE(_req: Request, { params }: Params) {
   }
 
   await dc.from("admin_audit_logs").insert({
-    admin_id: user.id,
+    actor_id: user.id,
+    actor_email: user.email,
+    actor_role: getRole(user),
     action: "event_deleted",
     target_type: "market_event",
     target_id: id,
-    details: {},
+    details: JSON.stringify({}),
   });
 
   return NextResponse.json({ ok: true });

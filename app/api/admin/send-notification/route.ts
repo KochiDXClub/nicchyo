@@ -30,8 +30,8 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const body = await req.json() as { to?: string };
-  const to = (body.to ?? process.env.ADMIN_NOTIFICATION_EMAIL ?? "").trim();
+  await req.json().catch(() => ({}));
+  const to = (process.env.ADMIN_NOTIFICATION_EMAIL ?? "").trim();
 
   if (!to) {
     return NextResponse.json({ error: "送信先メールアドレスを指定してください（.env の ADMIN_NOTIFICATION_EMAIL が未設定）" }, { status: 400 });
