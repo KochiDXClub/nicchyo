@@ -1,14 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import Image from "next/image";
 import NavigationBar from "@/app/components/NavigationBar";
 import StoryViewer from "./StoryViewer";
 import LoadingLantern, { LOADING_LANTERN_DURATION_MS } from "./components/LoadingLantern";
+import { getNextSundayLabel } from "@/lib/utils/date";
 import type { StoryItem } from "./types";
-
-const nextSunday = getNextSunday();
 
 export default function StoryGridClient() {
   const [stories, setStories] = useState<StoryItem[]>([]);
@@ -16,6 +15,7 @@ export default function StoryGridClient() {
   const [fetchError, setFetchError] = useState(false);
   const [viewerIndex, setViewerIndex] = useState<number | null>(null);
   const [pageLoading, setPageLoading] = useState(true);
+  const nextSunday = useMemo(() => getNextSundayLabel(), []);
 
   useEffect(() => {
     const timer = setTimeout(() => setPageLoading(false), LOADING_LANTERN_DURATION_MS);
@@ -169,11 +169,3 @@ function EmptyState({ nextSunday }: { nextSunday: string }) {
   );
 }
 
-function getNextSunday(): string {
-  const now = new Date();
-  const day = now.getDay();
-  const daysUntilSunday = day === 0 ? 0 : 7 - day;
-  const next = new Date(now);
-  next.setDate(now.getDate() + daysUntilSunday);
-  return `${next.getMonth() + 1}/${next.getDate()}（日）`;
-}
