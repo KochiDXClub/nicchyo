@@ -12,10 +12,12 @@
  * - 紹介店舗があれば、同じ4秒周期で1店舗ずつフォーカスする
  */
 
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import Image from 'next/image';
+import { useRouter } from 'next/navigation';
 import type { Map as LeafletMap } from 'leaflet';
 import { Textarea } from '@/components/ui/textarea';
+import { PromptSuggestion } from '@/components/ui/prompt-suggestion';
 import {
   CONSULT_CHARACTER_BY_ID,
   pickConsultCharacters,
@@ -27,6 +29,9 @@ import { getOrCreateConsultVisitorKey } from '../../../../lib/consultVisitorKey'
 import { toggleFavoriteShopId, loadFavoriteShopIds } from '../../../../lib/favoriteShops';
 
 const PLAN_KEY = 'nicchyo-map-agent-plan';
+// /consult ページ（GrandmaChatter, layout="page"）が会話履歴を保存する localStorage キー。
+// フルチャットへ引き継ぐ際は、ここへマップ上の会話を書き込んでから遷移する。
+const CONSULT_CHAT_STORAGE_KEY = 'nicchyo-consult-chat';
 
 type PlanShop = { id: number; name: string; reason: string; icon: string };
 type StoredPlan = { plan: { title: string; summary: string; shops: PlanShop[]; routeHint: string; shoppingList: string[] }; order: number[] };
@@ -136,35 +141,19 @@ function getStatusLabel(status: Status, elapsed: number): string | null {
 }
 
 
-function getStarterPrompts(historyLength: number): string[] {
-  if (historyLength > 0) {
-    return ['近い順で教えて', '休める場所も知りたい', 'ほかの候補もある？'];
-  }
-
-  const hour = new Date().getHours();
-  if (hour >= 5 && hour < 11) {
-    return ['朝ごはんのおすすめは？', '今の混み具合は？', 'サクッと回るコツある？'];
-  }
-  if (hour >= 11 && hour < 15) {
-    return ['ランチならどこ？', '食べ歩き向けは？', '子ども連れでも回りやすい？'];
-  }
-  if (hour >= 15 && hour < 18) {
-    return ['休憩できる場所ある？', 'おやつに向くお店は？', '写真映えする場所は？'];
-  }
-  return ['晩ご飯のおかず探したい', 'お土産向きは？', '今からでも寄れるお店は？'];
-}
+// フルチャットへの導線を主にするため、初期サジェストは1件に絞る。
+const STARTER_PROMPTS = ['おすすめのスイーツのお店は？'];
 
 export default function MapCharacterConsult({
   map,
   shops,
   onShopsRecommended,
-  onClose,
 }: {
   map: LeafletMap | null;
   shops: Shop[];
   onShopsRecommended: (shopIds: number[]) => void;
-  onClose: () => void;
 }) {
+  const router = useRouter();
   const [characters] = useState(() => pickConsultCharacters());
   const [activeCharacter, setActiveCharacter] = useState<ConsultCharacter | null>(null);
   const [bubble, setBubble] = useState<CharacterBubbleState>({
@@ -204,7 +193,7 @@ export default function MapCharacterConsult({
   const playbackSequenceRef = useRef(0);
 
   const isBusy = status === 'loading' || status === 'playing';
-  const starterPrompts = useMemo(() => getStarterPrompts(history.length), [history.length]);
+  const starterPrompts = STARTER_PROMPTS;
   const showIntroChrome = history.length === 0 && status === 'idle';
 
   const clearPlayback = useCallback(() => {
@@ -520,6 +509,29 @@ export default function MapCharacterConsult({
     setRouteIds((prev) => new Set([...prev, shop.id]));
   };
 
+  // 現在のマップ上の会話を /consult のフルチャットへ引き継いでから遷移する。
+  const handleExpandToFullChat = useCallback(() => {
+    if (typeof window !== 'undefined' && history.length > 0) {
+      const messages = history.map((message) => ({
+        id:
+          typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+            ? crypto.randomUUID()
+            : `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+        role: message.role,
+        text: message.text,
+      }));
+      try {
+        localStorage.setItem(
+          CONSULT_CHAT_STORAGE_KEY,
+          JSON.stringify({ messages, hasUserAsked: true })
+        );
+      } catch {
+        // localStorage への書き込みに失敗した場合は履歴なしで遷移する
+      }
+    }
+    router.push('/consult');
+  }, [history, router]);
+
   const statusLabel = getStatusLabel(status, elapsedSeconds);
   const helperTextId = 'map-consult-helper';
   const statusTextId = 'map-consult-status';
@@ -538,6 +550,28 @@ export default function MapCharacterConsult({
         )}
       </div>
 
+      {/* サジェストはチャット枠から独立した「浮くピル」として上に表示する */}
+      {showIntroChrome && (
+        <div
+          className="pointer-events-auto mb-2 flex flex-wrap justify-start gap-1.5"
+          onMouseDown={(e) => e.stopPropagation()}
+          onClick={(e) => e.stopPropagation()}
+          onTouchStart={(e) => e.stopPropagation()}
+        >
+          {starterPrompts.map((prompt) => (
+            <PromptSuggestion
+              key={prompt}
+              onClick={() => handleSend(prompt)}
+              variant="outline"
+              size="sm"
+              className="border-amber-300 bg-amber-100 text-amber-900 hover:bg-amber-200 active:scale-[0.99]"
+            >
+              {prompt}
+            </PromptSuggestion>
+          ))}
+        </div>
+      )}
+
       <div
         className="pointer-events-auto"
         onMouseDown={(e) => e.stopPropagation()}
@@ -553,49 +587,42 @@ export default function MapCharacterConsult({
                 : 'border-amber-200 bg-white'
           }`}
         >
-          {showIntroChrome ? (
-            <button
-              type="button"
-              onClick={onClose}
-              className="absolute right-3 top-3 z-10 flex h-7 w-7 items-center justify-center rounded-full text-[13px] text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 active:scale-95"
-              aria-label="閉じる"
+          <button
+            type="button"
+            onClick={handleExpandToFullChat}
+            className="absolute right-3 top-3 z-10 flex h-7 w-7 items-center justify-center rounded-full bg-white/80 text-slate-400 shadow-sm backdrop-blur transition hover:bg-slate-100 hover:text-slate-600 active:scale-95"
+            aria-label="全画面のチャットで続ける"
+          >
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
             >
-              ✕
-            </button>
-          ) : (
-            <div className="sr-only" id={helperTextId}>
-              市場のことを相談できます。
-            </div>
-          )}
+              <path d="M15 3h6v6" />
+              <path d="M9 21H3v-6" />
+              <path d="M21 3l-7 7" />
+              <path d="M3 21l7-7" />
+            </svg>
+          </button>
 
-          {!showIntroChrome && statusLabel && (
+          <div className="sr-only" id={helperTextId}>
+            市場のことを相談できます。
+          </div>
+
+          {statusLabel && (
             <div className="sr-only" id={statusTextId} aria-live="polite">
               {statusLabel}
             </div>
           )}
 
           {!isBusy && <div className={showIntroChrome ? 'px-3 pb-3 pt-3' : 'px-2.5 py-2.5'}>
-            {showIntroChrome && (
-              <div className="mb-2 flex flex-col gap-1.5">
-                {starterPrompts.slice(0, 3).map((prompt) => (
-                  <button
-                    key={prompt}
-                    type="button"
-                    onClick={() => handleSend(prompt)}
-                    className="w-fit rounded-2xl border border-amber-300 bg-amber-100 px-4 py-2.5 text-left text-[13px] font-medium text-amber-900 shadow-sm transition hover:bg-amber-200 active:scale-[0.99]"
-                  >
-                    {prompt}
-                  </button>
-                ))}
-              </div>
-            )}
-            <div
-              className={`rounded-[24px] border p-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] transition-colors ${
-                status === 'error'
-                  ? 'border-red-200 bg-white'
-                  : 'border-slate-200 bg-white'
-              }`}
-            >
+            <div>
               <div className="flex items-end gap-2">
                 {!showIntroChrome ? (
                   <div className="mb-0.5 shrink-0">
