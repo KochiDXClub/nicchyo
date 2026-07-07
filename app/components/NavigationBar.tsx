@@ -13,12 +13,11 @@ import { useMenu } from "@/lib/ui/MenuContext";
 type NavItem = {
   name: string;
   href: string;
-  icon: "search" | "chat" | "admin" | "book";
+  icon: "search" | "chat" | "admin";
 };
 
 const baseNavItems: NavItem[] = [
   { name: "相談", href: "/map", icon: "chat" },
-  { name: "図鑑", href: "/encyclopedia", icon: "book" },
 ];
 
 // ─── セカンダリメニュー項目（2列グリッド） ────────────────────────────────────
@@ -491,16 +490,6 @@ function NavIcon({ name, className }: NavIconProps) {
             strokeLinecap="round"
             strokeLinejoin="round"
             d="M4.5 6.75A2.25 2.25 0 0 1 6.75 4.5h10.5A2.25 2.25 0 0 1 19.5 6.75v6A2.25 2.25 0 0 1 17.25 15H9l-3.75 3v-3H6.75A2.25 2.25 0 0 1 4.5 12.75v-6Z"
-          />
-        </svg>
-      );
-    case "book":
-      return (
-        <svg {...props}>
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            d="M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18c-2.305 0-4.408.867-6 2.292m0-14.25v14.25"
           />
         </svg>
       );
