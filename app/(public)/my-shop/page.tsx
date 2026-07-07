@@ -16,6 +16,7 @@ type MenuItem = {
   accent: string;
   icon: ElementType;
   badge?: string;
+  primary?: boolean;
 };
 
 const PRIMARY_ACTIONS: MenuItem[] = [
@@ -26,6 +27,7 @@ const PRIMARY_ACTIONS: MenuItem[] = [
     accent: "from-emerald-400/75 to-emerald-100/90",
     icon: Store,
     badge: "まずここ",
+    primary: true,
   },
   {
     title: "最新情報を発信",
@@ -33,6 +35,7 @@ const PRIMARY_ACTIONS: MenuItem[] = [
     href: "/vendor/post/new",
     accent: "from-amber-400/75 to-amber-100/90",
     icon: Megaphone,
+    primary: true,
   },
   {
     title: "AIに教える",
@@ -75,7 +78,7 @@ function ActionCard({
   compact?: boolean;
 }) {
   const Icon = item.icon;
-  const isPrimary = item.href === "/vendor/store" || item.href === "/vendor/post/new";
+  const isPrimary = item.primary ?? false;
 
   return (
     <Link
@@ -86,7 +89,7 @@ function ActionCard({
           : "border-white/70 bg-white shadow-sm hover:-translate-y-0.5 hover:shadow-lg"
       }`}
     >
-      <div className={`absolute inset-0 bg-gradient-to-br ${item.accent} ${compact ? "opacity-35" : "opacity-100"}`} />
+      <div className={`absolute inset-0 bg-gradient-to-br ${item.accent} ${compact ? "opacity-40" : "opacity-100"}`} />
       <div className={`relative flex min-h-[124px] flex-col justify-between p-4 ${compact ? "gap-3" : "gap-4"}`}>
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
@@ -232,6 +235,7 @@ export default function MyShopPage() {
                     {[
                       { label: "お店名", value: summary.shopName },
                       { label: "商品", value: `${summary.productCount}件` },
+                      { label: "決済", value: `${summary.paymentCount}種類` },
                       { label: "出店日", value: `${summary.scheduleCount}日` },
                       { label: "投稿", value: `${summary.postCount}件` },
                     ].map((item) => (
@@ -286,24 +290,25 @@ export default function MyShopPage() {
                   />
                 </div>
 
-                <div className="space-y-2">
+                <ul className="space-y-2">
                   {incompletedSteps.map((step, index) => (
-                    <Link
-                      key={step.label}
-                      href={step.href}
-                      className="flex items-center gap-4 rounded-2xl bg-emerald-50 px-4 py-4 text-slate-800 transition hover:bg-emerald-100"
-                    >
-                      <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-white text-base font-bold text-emerald-600">
-                        {index + 1}
-                      </span>
-                      <span className="min-w-0 flex-1">
-                        <span className="block text-base font-bold leading-tight">{step.label}</span>
-                        <span className="mt-1 block text-sm text-emerald-700">タップで設定画面へ</span>
-                      </span>
-                      <ChevronRight size={18} className="flex-shrink-0 text-emerald-400" />
-                    </Link>
+                    <li key={step.label}>
+                      <Link
+                        href={step.href}
+                        className="flex items-center gap-4 rounded-2xl bg-emerald-50 px-4 py-4 text-slate-800 transition hover:bg-emerald-100"
+                      >
+                        <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-white text-base font-bold text-emerald-600">
+                          {index + 1}
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          <span className="block text-base font-bold leading-tight">{step.label}</span>
+                          <span className="mt-1 block text-sm text-emerald-700">タップで設定画面へ</span>
+                        </span>
+                        <ChevronRight size={18} className="flex-shrink-0 text-emerald-400" />
+                      </Link>
+                    </li>
                   ))}
-                </div>
+                </ul>
               </section>
             )}
 

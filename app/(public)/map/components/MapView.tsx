@@ -55,6 +55,13 @@ import {
 import { useMapGestures } from "../hooks/useMapGestures";
 import { useMapCameraController } from "../hooks/useMapCameraController";
 import { getShopBannerImage } from "../../../../lib/shopImages";
+import {
+  ROAD_SNAP_DELAY_MS,
+  ROAD_SNAP_MIN_DISTANCE_METERS,
+  SKIPPED_ZOOM_LEVELS,
+  SKIPPED_ZOOM_NUDGE,
+  SKIPPED_ZOOM_TOLERANCE,
+} from "../../../../lib/constants";
 
 function findIngredientMatch(name: string) {
   const lower = name.trim().toLowerCase();
@@ -577,39 +584,63 @@ export type ShopBannerOrigin = { x: number; y: number; width: number; height: nu
 /** 18 <= zoom < 19 のとき丁目エリアマーカーを表示 */
 const OVERVIEW_ZONE_MIN_ZOOM = 17;
 const OVERVIEW_ZONE_MAX_ZOOM = 19;
-const ROAD_SNAP_DELAY_MS = 160;
-const ROAD_SNAP_MIN_DISTANCE_METERS = 12;
 
 function MapZoomListener({ onZoomChange }: { onZoomChange?: (zoom: number) => void }) {
   const map = useMap();
   useEffect(() => {
     if (!onZoomChange) return;
-    let frameId: number | null = null;
-
-    const handleZoom = () => {
-      if (frameId !== null) return;
-      frameId = window.requestAnimationFrame(() => {
-        frameId = null;
-        onZoomChange(map.getZoom());
-      });
+    const handleZoomEnd = () => {
+      onZoomChange(map.getZoom());
     };
 
-    // 初期値も通知
-    handleZoom();
-    map.on("zoom", handleZoom);
-    map.on("zoomend", handleZoom);
+    handleZoomEnd();
+    map.on("zoomend", handleZoomEnd);
     return () => {
-      if (frameId !== null) {
-        window.cancelAnimationFrame(frameId);
-      }
-      map.off("zoom", handleZoom);
-      map.off("zoomend", handleZoom);
+      map.off("zoomend", handleZoomEnd);
     };
   }, [map, onZoomChange]);
   return null;
 }
 
 function MapZoomConstraint() {
+  const map = useMap();
+
+  useEffect(() => {
+    let zoomBeforeChange = map.getZoom();
+
+    const handleZoomStart = () => {
+      zoomBeforeChange = map.getZoom();
+    };
+
+    const handleZoomEnd = () => {
+      const currentZoom = map.getZoom();
+      const skippedZoom = SKIPPED_ZOOM_LEVELS.find(
+        (zoomLevel) => Math.abs(currentZoom - zoomLevel) <= SKIPPED_ZOOM_TOLERANCE
+      );
+
+      if (skippedZoom === undefined) {
+        zoomBeforeChange = currentZoom;
+        return;
+      }
+
+      const zoomingIn = currentZoom >= zoomBeforeChange;
+      const targetZoom = zoomingIn ? skippedZoom + SKIPPED_ZOOM_NUDGE : skippedZoom - SKIPPED_ZOOM_NUDGE;
+
+      if (Math.abs(targetZoom - currentZoom) > 0.001) {
+        map.setZoom(targetZoom, { animate: false });
+      }
+
+      zoomBeforeChange = targetZoom;
+    };
+
+    map.on("zoomstart", handleZoomStart);
+    map.on("zoomend", handleZoomEnd);
+    return () => {
+      map.off("zoomstart", handleZoomStart);
+      map.off("zoomend", handleZoomEnd);
+    };
+  }, [map]);
+
   return null;
 }
 
