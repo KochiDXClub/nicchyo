@@ -38,14 +38,19 @@ async function getMaintenanceStatus(): Promise<{ enabled: boolean; message: stri
   }
 }
 
-const MAINTENANCE_SKIP_PREFIXES = ["/admin", "/api", "/_next", "/maintenance", "/private"];
+const MAINTENANCE_SKIP_PREFIXES = ["/admin", "/api", "/_next", "/maintenance"];
+const MAINTENANCE_SKIP_EXACT = ["/robots.txt", "/sitemap.xml", "/favicon.ico"];
 
 export async function proxy(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
 
   // メンテナンスモードチェック（管理者・API・静的ファイルはスキップ）
   // /_next 配下に全静的アセットが含まれるため、ドット有無による判定は不要
-  if (!MAINTENANCE_SKIP_PREFIXES.some((p) => pathname.startsWith(p))) {
+  // /private は一般ログインユーザー向けのため、メンテナンス中は他ページと同様にブロックする
+  if (
+    !MAINTENANCE_SKIP_PREFIXES.some((p) => pathname.startsWith(p)) &&
+    !MAINTENANCE_SKIP_EXACT.includes(pathname)
+  ) {
     const { enabled } = await getMaintenanceStatus();
     if (enabled) {
       const url = request.nextUrl.clone();
