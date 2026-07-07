@@ -5,7 +5,7 @@ CREATE TABLE IF NOT EXISTS inquiries (
   id           uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
   name         text,                   -- 氏名（任意）
   email        text        NOT NULL,
-  category     text        NOT NULL DEFAULT 'general',  -- 'question' | 'feedback' | 'bug' | 'other'
+  category     text        NOT NULL DEFAULT 'other',  -- 'question' | 'feedback' | 'bug' | 'other'
   message      text        NOT NULL,
   user_id      uuid        REFERENCES auth.users(id) ON DELETE SET NULL,
   status       text        NOT NULL DEFAULT 'open',  -- 'open' | 'in_progress' | 'resolved' | 'closed'

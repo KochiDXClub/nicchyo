@@ -42,6 +42,9 @@ export interface Inquiry {
 }
 
 export async function GET(req: Request) {
+  const originCheck = requireSameOrigin(req);
+  if (!originCheck.ok) return originCheck.response;
+
   const { error } = await authorizeRequest();
   if (error) return NextResponse.json({ error }, { status: 403 });
 
