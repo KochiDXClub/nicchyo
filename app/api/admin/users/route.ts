@@ -231,7 +231,7 @@ export async function POST(req: Request) {
   const { data: invited, error: inviteError } = await serviceClient.auth.admin.inviteUserByEmail(email);
   if (inviteError) {
     console.error("[admin/users] invite failed:", inviteError.message);
-    const alreadyExists = inviteError.message.toLowerCase().includes("already");
+    const alreadyExists = inviteError.code === "email_exists";
     return NextResponse.json(
       { error: alreadyExists ? "このメールアドレスはすでに登録されています" : "招待メールの送信に失敗しました" },
       { status: alreadyExists ? 409 : 500 }
@@ -244,6 +244,16 @@ export async function POST(req: Request) {
   });
   if (roleError) {
     console.error("[admin/users] role set failed:", roleError.message);
+    await serviceClient.from("admin_audit_logs").insert({
+      actor_id: user.id,
+      actor_email: user.email,
+      actor_role: getRole(user),
+      action: "invite_user_role_set_failed",
+      target_type: "user",
+      target_id: invited.user.id,
+      target_name: email,
+      details: `ロール: ${role} の設定に失敗: ${roleError.message}`,
+    });
     return NextResponse.json({ error: "招待は完了しましたがロールの設定に失敗しました" }, { status: 500 });
   }
 

@@ -997,6 +997,11 @@ function AdminUsersContent() {
                   type="email"
                   value={inviteEmail}
                   onChange={(e) => setInviteEmail(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && inviteEmail) {
+                      handleInviteSubmit();
+                    }
+                  }}
                   placeholder="example@email.com"
                   className="w-full rounded-lg border border-gray-300 px-4 py-2 text-sm focus:border-blue-500 focus:outline-none"
                   autoFocus

@@ -22,7 +22,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 function normalizeRole(value?: string | null): UserRole {
-  if (value === "admin") return "super_admin";
+  if (value === "admin") return "admin";
   if (value === "super_admin") return "super_admin";
   if (value === "moderator") return "moderator";
   if (value === "vendor") return "vendor";
@@ -154,7 +154,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const permissions: PermissionCheck = {
     isSuperAdmin: user?.role === "super_admin",
     isAdmin: user?.role === "admin" || user?.role === "super_admin",
-    isModerator: user?.role === "super_admin" || user?.role === "moderator",
+    isModerator: user?.role === "super_admin" || user?.role === "admin" || user?.role === "moderator",
     isVendor: user?.role === "vendor",
     isGeneralUser: user?.role === "general_user",
 

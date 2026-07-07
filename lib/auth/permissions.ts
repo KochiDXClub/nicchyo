@@ -32,7 +32,8 @@ export function isVendor(role: string | null): boolean {
 
 /** app_metadata の生ロール文字列を UserRole 型に正規化する */
 export function normalizeRole(value?: string | null): UserRole {
-  if (value === "admin" || value === "super_admin") return "super_admin";
+  if (value === "admin") return "admin";
+  if (value === "super_admin") return "super_admin";
   if (value === "moderator") return "moderator";
   if (value === "vendor") return "vendor";
   return "general_user";
