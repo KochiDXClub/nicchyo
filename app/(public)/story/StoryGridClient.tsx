@@ -33,7 +33,8 @@ export default function StoryGridClient() {
       .finally(() => setLoading(false));
   }, []);
 
-  if (pageLoading) return <LoadingLantern />;
+  // API が提灯ローディング中に失敗した場合は、待たずにエラー表示へ進む
+  if (pageLoading && !fetchError) return <LoadingLantern />;
 
   return (
     <main className="min-h-screen bg-nicchyo-base pb-28">

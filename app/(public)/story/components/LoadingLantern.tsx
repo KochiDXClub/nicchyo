@@ -8,7 +8,7 @@ export default function LoadingLantern() {
   return (
     <div className="fixed inset-0 z-[10000] flex flex-col items-center justify-center overflow-hidden bg-gradient-to-b from-amber-50 via-orange-50 to-white">
       <motion.img
-        src="/images/encyclopedia/loading-lantern.webp"
+        src="/images/story/loading-lantern.webp"
         alt=""
         aria-hidden="true"
         className="h-56 w-auto drop-shadow-xl"

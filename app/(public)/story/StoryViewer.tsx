@@ -1,11 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Image from "next/image";
 import type { StoryItem } from "./types";
 
 const STORY_DURATION = 15000;
+// スワイプ判定のしきい値（移動量で方向を決め、曖昧な場合のみ速度で補助判定）
+const SWIPE_DISTANCE = 60; // px
+const SWIPE_VELOCITY = 300; // px/s
 
 type Props = {
   stories: StoryItem[];
@@ -38,25 +41,43 @@ export default function StoryViewer({ stories, initialIndex, onClose }: Props) {
     }
   }, [index, stories.length, onClose]);
 
-  const goPrev = () => {
+  const goPrev = useCallback(() => {
     if (index > 0) {
       setDirection(-1);
       setIndex((i) => i - 1);
     }
-  };
+  }, [index]);
 
-  // 15秒自動送り（ホールド中は停止）
+  // 現在の投稿での経過時間を保持し、ホールド解除後は残り時間でタイマーを再設定する
+  // （CSSプログレスバーは一時停止位置から再開するため、両者を同期させる）
+  const elapsedRef = useRef(0);
+  const segmentStartRef = useRef(0);
+
+  // 投稿が切り替わったら経過時間をリセット
+  useEffect(() => {
+    elapsedRef.current = 0;
+  }, [index]);
+
+  // 15秒自動送り（ホールド中は停止し、解除時は残り時間で再開）
   useEffect(() => {
     if (paused) return;
-    const timer = setTimeout(goNext, STORY_DURATION);
-    return () => clearTimeout(timer);
+    segmentStartRef.current = Date.now();
+    const remaining = Math.max(0, STORY_DURATION - elapsedRef.current);
+    const timer = setTimeout(goNext, remaining);
+    return () => {
+      clearTimeout(timer);
+      elapsedRef.current += Date.now() - segmentStartRef.current;
+    };
   }, [index, paused, goNext]);
 
   const handleDragEnd = (_: unknown, info: { offset: { x: number }; velocity: { x: number } }) => {
     const { x } = info.offset;
     const { x: vx } = info.velocity;
-    if (x < -60 || vx < -300) goNext();
-    else if (x > 60 || vx > 300) goPrev();
+    // まず移動量で方向を決定し、移動量が小さい（曖昧な）場合のみ速度で判定する
+    if (x < -SWIPE_DISTANCE) goNext();
+    else if (x > SWIPE_DISTANCE) goPrev();
+    else if (vx < -SWIPE_VELOCITY) goNext();
+    else if (vx > SWIPE_VELOCITY) goPrev();
   };
 
   const postedDate = new Date(story.created_at);
