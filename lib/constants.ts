@@ -20,4 +20,6 @@ export const ROAD_SNAP_MIN_DISTANCE_METERS = 12;
 // ズーム18付近（丁目表示切替境界）で停止しないようにするための設定
 export const SKIPPED_ZOOM_LEVELS = [18] as const;
 export const SKIPPED_ZOOM_TOLERANCE = 0.026;
+// SKIPPED_ZOOM_NUDGE は SKIPPED_ZOOM_TOLERANCE より大きく保つこと
+// （ナッジ後のズームが再びスキップゾーンに入らないようにするため）
 export const SKIPPED_ZOOM_NUDGE = 0.03;

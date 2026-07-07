@@ -468,7 +468,7 @@ function MapControls({
         window.cancelAnimationFrame(zoomFrameRef.current);
       }
     };
-  }, []);
+  }, [flushZoom]);
 
   return (
     <>
@@ -1356,7 +1356,7 @@ const MapView = memo(function MapView({
           transform: `translate(-50%, -50%) rotate(${mapRotation}deg)`,
           transformOrigin: "center center",
           transition: isTouchGestureActive ? "none" : "transform 420ms cubic-bezier(0.22, 1, 0.36, 1)",
-          willChange: "transform",
+          willChange: isTouchGestureActive ? "transform" : "auto",
         }}
       >
         <MapContainer

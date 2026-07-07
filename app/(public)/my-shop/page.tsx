@@ -231,7 +231,7 @@ export default function MyShopPage() {
                 </div>
 
                 {summary && (
-                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                  <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
                     {[
                       { label: "お店名", value: summary.shopName },
                       { label: "商品", value: `${summary.productCount}件` },
