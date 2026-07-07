@@ -54,6 +54,7 @@
     "recharts": "^3.8.0",
     "rehype-raw": "^7.0.0",
     "remark-gfm": "^4.0.1",
+    "resend": "^6.16.0",
     "tailwind-merge": "^2.6.1",
     "tailwindcss-animate": "^1.0.7",
     "use-debounce": "^10.1.0",
