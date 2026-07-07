@@ -33,8 +33,19 @@ export async function PATCH(req: Request, { params }: Params) {
     }
     updates.event_date = body.event_date;
   }
-  if ("start_time" in body) updates.start_time = body.start_time || null;
-  if ("end_time" in body) updates.end_time = body.end_time || null;
+  const timePattern = /^\d{2}:\d{2}$/;
+  if ("start_time" in body) {
+    if (typeof body.start_time === "string" && body.start_time && !timePattern.test(body.start_time)) {
+      return NextResponse.json({ error: "開始時刻の形式が無効です（HH:MM）" }, { status: 400 });
+    }
+    updates.start_time = body.start_time || null;
+  }
+  if ("end_time" in body) {
+    if (typeof body.end_time === "string" && body.end_time && !timePattern.test(body.end_time)) {
+      return NextResponse.json({ error: "終了時刻の形式が無効です（HH:MM）" }, { status: 400 });
+    }
+    updates.end_time = body.end_time || null;
+  }
   if ("location" in body) {
     updates.location = typeof body.location === "string" ? body.location.trim().slice(0, 200) || null : null;
   }

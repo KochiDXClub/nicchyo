@@ -60,6 +60,14 @@ function validateEventBody(body: unknown): { data: Partial<MarketEvent>; error: 
     return { data: {}, error: "開催日の形式が無効です（YYYY-MM-DD）" };
   }
 
+  const timePattern = /^\d{2}:\d{2}$/;
+  if (typeof b.start_time === "string" && b.start_time && !timePattern.test(b.start_time)) {
+    return { data: {}, error: "開始時刻の形式が無効です（HH:MM）" };
+  }
+  if (typeof b.end_time === "string" && b.end_time && !timePattern.test(b.end_time)) {
+    return { data: {}, error: "終了時刻の形式が無効です（HH:MM）" };
+  }
+
   return {
     data: {
       title,

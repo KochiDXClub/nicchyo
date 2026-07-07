@@ -11,7 +11,7 @@ type ExportType = "page_analytics" | "shop_views" | "search_logs" | "consult_log
 
 const COLUMNS: Record<ExportType, string[]> = {
   page_analytics: ["visit_date", "visitor_key", "path", "duration_seconds", "user_role"],
-  shop_views: ["created_at", "vendor_id", "source", "event_type", "visitor_key"],
+  shop_views: ["viewed_at", "vendor_id", "source"],
   search_logs: ["searched_at", "keyword"],
   consult_logs: ["consulted_at", "intent_category"],
 };
@@ -55,7 +55,7 @@ export async function GET(req: NextRequest) {
 
   if (type === "page_analytics") {
     const res = await dc
-      .from("page_analytics")
+      .from("web_page_analytics")
       .select("visit_date, visitor_key, path, duration_seconds, user_role")
       .gte("visit_date", since)
       .order("visit_date", { ascending: false })
@@ -65,17 +65,17 @@ export async function GET(req: NextRequest) {
     filename = `page_analytics_${since}_to_${today}.csv`;
   } else if (type === "shop_views") {
     const res = await dc
-      .from("shop_interactions")
-      .select("created_at, vendor_id, source, event_type, visitor_key")
-      .gte("created_at", `${since}T00:00:00Z`)
-      .order("created_at", { ascending: false })
+      .from("shop_page_views")
+      .select("viewed_at, vendor_id, source")
+      .gte("viewed_at", `${since}T00:00:00Z`)
+      .order("viewed_at", { ascending: false })
       .limit(50000);
     rows = (res.data ?? []) as Record<string, unknown>[];
     dbError = res.error;
     filename = `shop_views_${since}_to_${today}.csv`;
   } else if (type === "search_logs") {
     const res = await dc
-      .from("search_logs")
+      .from("product_search_logs")
       .select("searched_at, keyword")
       .gte("searched_at", `${since}T00:00:00Z`)
       .order("searched_at", { ascending: false })
@@ -85,7 +85,7 @@ export async function GET(req: NextRequest) {
     filename = `search_logs_${since}_to_${today}.csv`;
   } else if (type === "consult_logs") {
     const res = await dc
-      .from("consult_logs")
+      .from("ai_consult_logs")
       .select("consulted_at, intent_category")
       .gte("consulted_at", `${since}T00:00:00Z`)
       .order("consulted_at", { ascending: false })
