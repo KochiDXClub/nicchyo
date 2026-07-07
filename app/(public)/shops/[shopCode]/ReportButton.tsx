@@ -119,7 +119,7 @@ export default function ReportButton({ shopCode, shopName }: Props) {
                 <div className="mt-4 flex gap-2">
                   <button
                     type="button"
-                    onClick={handleSubmit}
+                    onClick={() => void handleSubmit()}
                     disabled={!reason || loading}
                     className="flex-1 rounded-xl bg-red-600 py-2 text-sm font-semibold text-white disabled:opacity-40"
                   >

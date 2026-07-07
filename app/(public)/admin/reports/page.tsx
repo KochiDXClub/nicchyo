@@ -156,20 +156,23 @@ export default function AdminReportsPage() {
                   </div>
 
                   <div className="mt-2 flex items-center gap-2">
-                    {targetLink(report) ? (
-                      <a
-                        href={targetLink(report)!}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-sm font-medium text-amber-700 hover:underline"
-                      >
-                        {report.target_name ?? report.target_id}
-                      </a>
-                    ) : (
-                      <span className="text-sm font-medium text-slate-700">
-                        {report.target_name ?? report.target_id}
-                      </span>
-                    )}
+                    {(() => {
+                      const link = targetLink(report);
+                      return link ? (
+                        <a
+                          href={link}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-sm font-medium text-amber-700 hover:underline"
+                        >
+                          {report.target_name ?? report.target_id}
+                        </a>
+                      ) : (
+                        <span className="text-sm font-medium text-slate-700">
+                          {report.target_name ?? report.target_id}
+                        </span>
+                      );
+                    })()}
                   </div>
 
                   {report.details && (

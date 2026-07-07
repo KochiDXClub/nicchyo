@@ -4,14 +4,16 @@
 
 CREATE TABLE IF NOT EXISTS reports (
   id               uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
-  target_type      text        NOT NULL,   -- 'vendor' | 'content' | 'kotodute'
+  target_type      text        NOT NULL    -- 'vendor' | 'content' | 'kotodute'
+    CHECK (target_type IN ('vendor', 'content', 'kotodute')),
   target_id        text        NOT NULL,
   target_name      text,                   -- 表示用の対象名（検索用）
   reason           text        NOT NULL,   -- 通報理由カテゴリ
   details          text,                   -- 詳細説明（任意）
   reporter_id      uuid        REFERENCES auth.users(id) ON DELETE SET NULL,
   reporter_email   text,                   -- 非ログイン通報時も記録
-  status           text        NOT NULL DEFAULT 'open',  -- 'open' | 'in_review' | 'resolved' | 'dismissed'
+  status           text        NOT NULL DEFAULT 'open'  -- 'open' | 'in_review' | 'resolved' | 'dismissed'
+    CHECK (status IN ('open', 'in_review', 'resolved', 'dismissed')),
   resolved_by      uuid        REFERENCES auth.users(id) ON DELETE SET NULL,
   resolved_at      timestamptz,
   resolution_notes text,
