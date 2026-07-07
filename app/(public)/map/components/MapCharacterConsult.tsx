@@ -550,27 +550,52 @@ export default function MapCharacterConsult({
         )}
       </div>
 
-      {/* サジェストはチャット枠から独立した「浮くピル」として上に表示する */}
-      {showIntroChrome && (
-        <div
-          className="pointer-events-auto mb-2 flex flex-wrap justify-start gap-1.5"
-          onMouseDown={(e) => e.stopPropagation()}
-          onClick={(e) => e.stopPropagation()}
-          onTouchStart={(e) => e.stopPropagation()}
-        >
-          {starterPrompts.map((prompt) => (
-            <PromptSuggestion
-              key={prompt}
-              onClick={() => handleSend(prompt)}
-              variant="outline"
-              size="sm"
-              className="border-amber-300 bg-amber-100 text-amber-900 hover:bg-amber-200 active:scale-[0.99]"
-            >
-              {prompt}
-            </PromptSuggestion>
-          ))}
+      {/* サジェストはチャット枠から独立した「浮くピル」として上に表示する。全画面導線ボタンも同じ列に揃える。 */}
+      <div
+        className="pointer-events-auto mb-2 flex items-center justify-between gap-1.5"
+        onMouseDown={(e) => e.stopPropagation()}
+        onClick={(e) => e.stopPropagation()}
+        onTouchStart={(e) => e.stopPropagation()}
+      >
+        <div className="flex flex-wrap justify-start gap-1.5">
+          {showIntroChrome &&
+            starterPrompts.map((prompt) => (
+              <PromptSuggestion
+                key={prompt}
+                onClick={() => handleSend(prompt)}
+                variant="outline"
+                size="sm"
+                className="border-amber-300 bg-amber-100 text-amber-900 hover:bg-amber-200 active:scale-[0.99]"
+              >
+                {prompt}
+              </PromptSuggestion>
+            ))}
         </div>
-      )}
+
+        <button
+          type="button"
+          onClick={handleExpandToFullChat}
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-amber-200 bg-white/90 text-slate-400 shadow-[0_10px_24px_rgba(15,23,42,0.14)] backdrop-blur transition hover:bg-white hover:text-slate-600 active:scale-95"
+          aria-label="全画面のチャットで続ける"
+        >
+          <svg
+            width="15"
+            height="15"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M15 3h6v6" />
+            <path d="M9 21H3v-6" />
+            <path d="M21 3l-7 7" />
+            <path d="M3 21l7-7" />
+          </svg>
+        </button>
+      </div>
 
       <div
         className="pointer-events-auto"
@@ -579,7 +604,7 @@ export default function MapCharacterConsult({
         onTouchStart={(e) => e.stopPropagation()}
       >
         <div
-          className={`relative mx-auto max-w-xl overflow-hidden rounded-[24px] border shadow-[0_28px_60px_rgba(15,23,42,0.22)] transition-all duration-300 ${
+          className={`mx-auto max-w-xl overflow-hidden rounded-[24px] border shadow-[0_28px_60px_rgba(15,23,42,0.22)] transition-all duration-300 ${
             status === 'error'
               ? 'border-red-300 bg-[#fff6f6]'
               : isBusy
@@ -587,30 +612,6 @@ export default function MapCharacterConsult({
                 : 'border-amber-200 bg-white'
           }`}
         >
-          <button
-            type="button"
-            onClick={handleExpandToFullChat}
-            className="absolute right-3 top-3 z-10 flex h-7 w-7 items-center justify-center rounded-full bg-white/80 text-slate-400 shadow-sm backdrop-blur transition hover:bg-slate-100 hover:text-slate-600 active:scale-95"
-            aria-label="全画面のチャットで続ける"
-          >
-            <svg
-              width="14"
-              height="14"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2.2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden="true"
-            >
-              <path d="M15 3h6v6" />
-              <path d="M9 21H3v-6" />
-              <path d="M21 3l-7 7" />
-              <path d="M3 21l7-7" />
-            </svg>
-          </button>
-
           <div className="sr-only" id={helperTextId}>
             市場のことを相談できます。
           </div>
