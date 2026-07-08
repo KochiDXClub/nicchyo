@@ -504,7 +504,9 @@ async function createStreamingConsultResponse(options: {
     headers: {
       "Content-Type": "application/x-ndjson; charset=utf-8",
       "Cache-Control": "no-cache",
-      "Transfer-Encoding": "chunked",
+      // Transfer-Encoding はランタイムが自動付与する。手動指定すると二重に
+      // なり、ブラウザ側でチャンク境界の解釈が壊れて final イベントを取り
+      // こぼす（curl は許容するがブラウザの fetch/ReadableStream は失敗する）。
       "X-Accel-Buffering": "no",
     },
   });
