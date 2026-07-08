@@ -829,7 +829,6 @@ export default function MapPageClient({
                     onShopsRecommended={(shopIds) => {
                       setAiMarkerPayload({ ids: shopIds, label: 'AIおすすめ' });
                     }}
-                    onClose={closeMapCharacterConsult}
                   />
                 ) : undefined
               }
