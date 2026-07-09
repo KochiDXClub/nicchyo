@@ -234,7 +234,7 @@ export default function StoryViewer({ stories, initialIndex, onClose }: Props) {
 
       {/* ハートリアクション（匿名・1投稿1ハート）。切替時のちらつきを防ぐため
           常時表示し、状態取得前はタップ不可にする。 */}
-      <div className="absolute bottom-24 right-4 z-20 flex flex-col items-center gap-1">
+      <div className="absolute bottom-[136px] right-4 z-20 flex flex-col items-center gap-1">
         <button
           type="button"
           onPointerDown={(e) => e.stopPropagation()}
@@ -254,8 +254,10 @@ export default function StoryViewer({ stories, initialIndex, onClose }: Props) {
             <path strokeLinecap="round" strokeLinejoin="round" d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12z" />
           </svg>
         </button>
-        {reaction && reaction.count > 0 && (
-          <span className="text-white text-xs font-semibold drop-shadow">{reaction.count}</span>
+        {reaction && (
+          <span className="text-white text-xs font-semibold drop-shadow tabular-nums">
+            {reaction.count}
+          </span>
         )}
       </div>
 
