@@ -7,6 +7,12 @@ import NavigationBar from "@/app/components/NavigationBar";
 import StoryViewer from "./StoryViewer";
 import LoadingLantern, { LOADING_LANTERN_DURATION_MS } from "./components/LoadingLantern";
 import { getNextSundayLabel } from "@/lib/utils/date";
+import {
+  getStoryAgeBucket,
+  STORY_AGE_IMAGE_CLASS,
+  STORY_AGE_LABEL,
+  STORY_AGE_ORDER,
+} from "./age";
 import type { StoryItem } from "./types";
 
 export default function StoryGridClient() {
@@ -33,6 +39,19 @@ export default function StoryGridClient() {
       .finally(() => setLoading(false));
   }, []);
 
+  // 鮮度バケット（今週/1週間前/1か月前）ごとにまとめる。index は元の
+  // stories 配列（新しい順）の位置なので、ビューアの initialIndex と整合する。
+  const sections = useMemo(
+    () =>
+      STORY_AGE_ORDER.map((bucket) => ({
+        bucket,
+        items: stories
+          .map((story, index) => ({ story, index }))
+          .filter(({ story }) => getStoryAgeBucket(story.created_at) === bucket),
+      })).filter((section) => section.items.length > 0),
+    [stories]
+  );
+
   // API が提灯ローディング中に失敗した場合は、待たずにエラー表示へ進む
   if (pageLoading && !fetchError) return <LoadingLantern />;
 
@@ -43,14 +62,14 @@ export default function StoryGridClient() {
         <div className="mx-auto max-w-lg flex items-end justify-between">
           <div>
             <h1 className="text-xl font-bold text-nicchyo-ink tracking-tight">近況</h1>
-            <p className="mt-0.5 text-xs text-gray-400">出店者の今週の写真</p>
+            <p className="mt-0.5 text-xs text-gray-400">出店者の近況・新しいほど鮮やか</p>
           </div>
           <div className="flex items-center gap-1.5 text-[11px] text-gray-400 bg-gray-50 rounded-full px-3 py-1.5 border border-gray-100">
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">
               <circle cx="12" cy="12" r="10" />
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6l4 2" />
             </svg>
-            <span>日曜にリセット</span>
+            <span>古いほど色あせる</span>
           </div>
         </div>
       </div>
@@ -77,38 +96,48 @@ export default function StoryGridClient() {
           <EmptyState nextSunday={nextSunday} />
         ) : (
           <>
-            {/* グリッド */}
-            <div className="grid grid-cols-3 gap-0.5 rounded-xl overflow-hidden">
-              {stories.map((story, i) => (
-                <motion.button
-                  key={story.id}
-                  initial={{ opacity: 0, scale: 0.96 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  transition={{ delay: i * 0.03, duration: 0.2 }}
-                  whileTap={{ scale: 0.95 }}
-                  onClick={() => setViewerIndex(i)}
-                  className="relative aspect-square bg-gray-100 overflow-hidden focus:outline-none"
-                >
-                  <Image
-                    src={story.image_url}
-                    alt={story.vendor?.shop_name ?? "投稿"}
-                    fill
-                    className="object-cover"
-                    sizes="(max-width: 512px) 33vw, 170px"
-                  />
-                  {/* 下部オーバーレイ：ショップ名 */}
-                  <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent px-1.5 pt-4 pb-1.5">
-                    <p className="text-white text-[10px] font-semibold truncate leading-tight">
-                      {story.vendor?.shop_name ?? "出店者"}
-                    </p>
-                  </div>
-                </motion.button>
-              ))}
-            </div>
+            {/* 鮮度別セクション（新しいほど鮮やか、古いほど退色） */}
+            {sections.map((section) => (
+              <section key={section.bucket} className="mb-5">
+                <div className="mb-2 flex items-center gap-2">
+                  <h2 className="text-sm font-bold text-nicchyo-ink">
+                    {STORY_AGE_LABEL[section.bucket]}
+                  </h2>
+                  <span className="text-[11px] text-gray-400">{section.items.length}件</span>
+                </div>
+                <div className="grid grid-cols-3 gap-0.5 rounded-xl overflow-hidden">
+                  {section.items.map(({ story, index }) => (
+                    <motion.button
+                      key={story.id}
+                      initial={{ opacity: 0, scale: 0.96 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      transition={{ duration: 0.2 }}
+                      whileTap={{ scale: 0.95 }}
+                      onClick={() => setViewerIndex(index)}
+                      className="relative aspect-square bg-gray-100 overflow-hidden focus:outline-none"
+                    >
+                      <Image
+                        src={story.image_url}
+                        alt={story.vendor?.shop_name ?? "投稿"}
+                        fill
+                        className={`object-cover ${STORY_AGE_IMAGE_CLASS[section.bucket]}`}
+                        sizes="(max-width: 512px) 33vw, 170px"
+                      />
+                      {/* 下部オーバーレイ：ショップ名 */}
+                      <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent px-1.5 pt-4 pb-1.5">
+                        <p className="text-white text-[10px] font-semibold truncate leading-tight">
+                          {story.vendor?.shop_name ?? "出店者"}
+                        </p>
+                      </div>
+                    </motion.button>
+                  ))}
+                </div>
+              </section>
+            ))}
 
             {/* フッター情報 */}
             <p className="mt-4 text-center text-xs text-gray-400">
-              {stories.length}件の投稿 · {nextSunday}にリセット
+              {stories.length}件 · 新しいものほど鮮やかに表示
             </p>
           </>
         )}
@@ -155,7 +184,7 @@ function EmptyState({ nextSunday }: { nextSunday: string }) {
         </div>
       </div>
 
-      <h2 className="text-base font-bold text-nicchyo-ink mb-2">今週の投稿はまだありません</h2>
+      <h2 className="text-base font-bold text-nicchyo-ink mb-2">まだ投稿がありません</h2>
       <p className="text-sm text-gray-400 leading-relaxed max-w-[220px]">
         出店者の投稿が届いたら<br />ここに表示されます
       </p>
@@ -164,7 +193,7 @@ function EmptyState({ nextSunday }: { nextSunday: string }) {
           <circle cx="12" cy="12" r="10" />
           <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6l4 2" />
         </svg>
-        {nextSunday} にリセット
+        次の日曜市は {nextSunday}
       </div>
     </div>
   );

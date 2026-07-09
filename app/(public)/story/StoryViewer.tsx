@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Image from "next/image";
 import Link from "next/link";
+import { getStoryAgeBucket, STORY_AGE_IMAGE_CLASS } from "./age";
 import type { StoryItem } from "./types";
 
 const STORY_DURATION = 15000;
@@ -83,6 +84,7 @@ export default function StoryViewer({ stories, initialIndex, onClose }: Props) {
 
   const postedDate = new Date(story.created_at);
   const timeLabel = formatRelativeTime(postedDate);
+  const ageBucket = getStoryAgeBucket(story.created_at);
 
   // マップ上のショップバナー（/map?shop=<店舗番号>）へのリンク用。
   // 割当が無い出店者はリンク無効。
@@ -190,7 +192,7 @@ export default function StoryViewer({ stories, initialIndex, onClose }: Props) {
             src={story.image_url}
             alt={story.body ?? shopName}
             fill
-            className="object-contain select-none"
+            className={`object-contain select-none ${STORY_AGE_IMAGE_CLASS[ageBucket]}`}
             draggable={false}
             priority
           />
