@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Image from "next/image";
+import Link from "next/link";
 import type { StoryItem } from "./types";
 
 const STORY_DURATION = 15000;
@@ -83,6 +84,26 @@ export default function StoryViewer({ stories, initialIndex, onClose }: Props) {
   const postedDate = new Date(story.created_at);
   const timeLabel = formatRelativeTime(postedDate);
 
+  // マップ上のショップバナー（/map?shop=<店舗番号>）へのリンク用。
+  // 割当が無い出店者はリンク無効。
+  const storeNumber = story.vendor?.store_number ?? null;
+
+  const shopInfo = (
+    <>
+      <div className="w-8 h-8 rounded-full overflow-hidden bg-nicchyo-soft-green ring-2 ring-nicchyo-primary flex-shrink-0 flex items-center justify-center">
+        {avatarUrl ? (
+          <Image src={avatarUrl} alt={shopName} width={32} height={32} className="object-cover w-full h-full" />
+        ) : (
+          <span className="text-xs font-bold text-nicchyo-ink">{shopName.charAt(0)}</span>
+        )}
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-white font-semibold text-sm leading-tight truncate">{shopName}</p>
+        <p className="text-white/60 text-[11px] leading-tight">{timeLabel}</p>
+      </div>
+    </>
+  );
+
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -119,17 +140,18 @@ export default function StoryViewer({ stories, initialIndex, onClose }: Props) {
 
         {/* ショップ情報行 */}
         <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-full overflow-hidden bg-nicchyo-soft-green ring-2 ring-nicchyo-primary flex-shrink-0 flex items-center justify-center">
-            {avatarUrl ? (
-              <Image src={avatarUrl} alt={shopName} width={32} height={32} className="object-cover w-full h-full" />
-            ) : (
-              <span className="text-xs font-bold text-nicchyo-ink">{shopName.charAt(0)}</span>
-            )}
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-white font-semibold text-sm leading-tight truncate">{shopName}</p>
-            <p className="text-white/60 text-[11px] leading-tight">{timeLabel}</p>
-          </div>
+          {storeNumber != null ? (
+            <Link
+              href={`/map?shop=${storeNumber}`}
+              onPointerDown={(e) => e.stopPropagation()}
+              className="flex items-center gap-2.5 flex-1 min-w-0 rounded-full transition active:opacity-80"
+              aria-label={`${shopName}をマップで見る`}
+            >
+              {shopInfo}
+            </Link>
+          ) : (
+            <div className="flex items-center gap-2.5 flex-1 min-w-0">{shopInfo}</div>
+          )}
           <button
             type="button"
             onPointerDown={(e) => e.stopPropagation()}
