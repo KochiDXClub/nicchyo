@@ -174,8 +174,17 @@ export function buildNearbyNote(summary: NearbyViewportSummary): string {
     return 'このへんはお店が見当たらんねぇ。道沿いに動かしてみてや。';
   }
   const [top, second] = summary.genres;
+  // 毎回同じ言い回しにならないよう、店舗数から決定論的にバリエーションを選ぶ
   if (!second) {
-    return `このへんは${top.category}のお店が並ぶあたりやき、ゆっくり見ていってや。`;
+    const singleGenreNotes = [
+      `このへんは${top.category}のお店が並ぶあたりやき、ゆっくり見ていってや。`,
+      `${top.category}が好きなら当たりのあたりよ。端から順に覗いてみてや。`,
+    ];
+    return singleGenreNotes[summary.totalCount % singleGenreNotes.length];
   }
-  return `このへんは${top.category}のお店が多うて、${second.category}も見つかるき、気になる写真から覗いてみてや。`;
+  const multiGenreNotes = [
+    `このへんは${top.category}のお店が多うて、${second.category}も見つかるき、気になるお店から覗いてみてや。`,
+    `${top.category}を探しゆうなら、ええあたりに来ちゅうよ。${second.category}のお店もあるき、見比べてみてや。`,
+  ];
+  return multiGenreNotes[summary.totalCount % multiGenreNotes.length];
 }

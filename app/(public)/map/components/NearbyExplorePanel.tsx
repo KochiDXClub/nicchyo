@@ -3,17 +3,17 @@
 /**
  * NearbyExplorePanel
  *
- * 「このへん、なにがある？」ボタンをタップした直後に表示する浮遊シート。
- * 決定論的な内容（字幕・ジャンル内訳バー・写真列）を即座に見せ、
+ * 「このへん、なにがある？」ボタンをタップした直後に表示するボトムシート。
+ * 決定論的な内容（字幕・ジャンル内訳バー・おすすめ店リスト）を即座に見せ、
  * "AIの一言" だけが少し遅れてフェードインする（Google の AI Overview 方式）。
  *
- * UI はドラッグ可能なボトムシート（2段スナップ）:
- * - ピーク: コンパクト表示（写真は横スクロール1行）
- * - 展開:   画面の約65%（写真はグリッドに広がる）
+ * おすすめは行動シグナル（お気に入り・買い物リスト等）から選んだ4〜5店の
+ * 縦リストで、なぜ選ばれたかの理由を添える（透明性のガードレール）。
+ *
+ * UI は検索パネルと同系の、画面下端に張り付くドラッグ可能シート（2段スナップ）:
+ * - ピーク: 画面の下半分 ／ 展開: 画面の約72%（全画面にはしない）
  * - ハンドルを下にスワイプ → ピークに戻る／ピークから更に下で閉じる
  * - 地図が動いたときは親側の move リスナーで自動的に閉じる
- *
- * 「地図が主役」の原則を守るため全画面には広がらない。
  */
 
 import { useEffect, useState } from 'react';
@@ -21,6 +21,7 @@ import Image from 'next/image';
 import { motion, useDragControls } from 'framer-motion';
 import { CONSULT_CHARACTER_BY_ID } from '../../consult/data/consultCharacters';
 import type { NearbyViewportSummary } from '../utils/viewportSummary';
+import type { NearbyRecommendationReason } from '../utils/nearbyRecommendations';
 
 /** "AIの一言" がフェードインするまでの時間（考えている感の演出） */
 const NOTE_REVEAL_DELAY_MS = 1400;
@@ -37,74 +38,47 @@ const GENRE_COLORS: Record<string, string> = {
 };
 const FALLBACK_GENRE_COLOR = '#94A3B8';
 
-export type NearbyPhotoEntry = {
-  shopId: number;
-  name: string;
-  imageUrl: string;
+/** 選定理由の表示ラベル（なぜこの店が出ているかを説明する） */
+const REASON_LABELS: Record<NearbyRecommendationReason, string> = {
+  favorite: '❤️ お気に入り',
+  interest: '好みに合いそう',
+  discovery: 'あたらしい出会い',
 };
 
-/** ピーク＝コンパクト表示が収まる高さ、展開＝画面の約65%（全画面にはしない） */
-function getSnapHeights() {
+export type NearbyRecommendedShop = {
+  shopId: number;
+  name: string;
+  category?: string;
+  imageUrl?: string;
+  reason: NearbyRecommendationReason;
+};
+
+/**
+ * ピーク＝画面の下半分（店舗なしのときはコンパクトに）、
+ * 展開＝画面の約72%（全画面にはしない）
+ */
+function getSnapHeights(hasShops: boolean) {
   if (typeof window === 'undefined') {
-    return { peek: 320, expanded: 480 };
+    return { peek: 360, expanded: 520 };
   }
   const viewportHeight = window.visualViewport?.height ?? window.innerHeight;
   return {
-    peek: Math.min(320, Math.round(viewportHeight * 0.45)),
-    expanded: Math.round(viewportHeight * 0.65),
+    peek: Math.round(viewportHeight * (hasShops ? 0.5 : 0.32)),
+    expanded: Math.round(viewportHeight * 0.72),
   };
-}
-
-function PhotoThumb({
-  photo,
-  onSelect,
-  fill,
-}: {
-  photo: NearbyPhotoEntry;
-  onSelect: (shopId: number) => void;
-  /** true なら親グリッドいっぱいに広がる（展開時） */
-  fill?: boolean;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={() => onSelect(photo.shopId)}
-      className={`shrink-0 text-left transition-transform active:scale-95 ${
-        fill ? 'w-full' : 'w-[76px]'
-      }`}
-    >
-      <div
-        className={`overflow-hidden rounded-xl bg-slate-100 ${
-          fill ? 'aspect-[4/3] w-full' : 'h-[56px] w-[76px]'
-        }`}
-      >
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={photo.imageUrl}
-          alt={photo.name}
-          className="h-full w-full object-cover"
-          loading="lazy"
-          draggable={false}
-        />
-      </div>
-      <p className="mt-0.5 truncate text-[10px] font-medium text-slate-600">
-        {photo.name}
-      </p>
-    </button>
-  );
 }
 
 export default function NearbyExplorePanel({
   summary,
-  photos,
+  recommendations,
   note,
   onSelectShop,
   onAsk,
   onClose,
 }: {
   summary: NearbyViewportSummary;
-  /** 範囲内の風景・店舗写真（定点風景写真が揃うまでは店舗写真で代用） */
-  photos: NearbyPhotoEntry[];
+  /** 行動シグナルから選んだ、範囲内のおすすめ店（4〜5店） */
+  recommendations: NearbyRecommendedShop[];
   /** 遅れてフェードインする"AIの一言" */
   note: string;
   onSelectShop: (shopId: number) => void;
@@ -115,9 +89,9 @@ export default function NearbyExplorePanel({
   const [question, setQuestion] = useState('');
   const [noteVisible, setNoteVisible] = useState(false);
   const [expanded, setExpanded] = useState(false);
-  const [snapHeights] = useState(getSnapHeights);
-  const dragControls = useDragControls();
   const hasShops = summary.totalCount > 0;
+  const [snapHeights] = useState(() => getSnapHeights(hasShops));
+  const dragControls = useDragControls();
   const areaLabel =
     summary.chomeLabels.length > 0
       ? `${summary.chomeLabels.join('・')}のあたり`
@@ -136,10 +110,10 @@ export default function NearbyExplorePanel({
   };
 
   return (
-    <div className="pointer-events-none absolute bottom-[calc(4.5rem+env(safe-area-inset-bottom,0px)+0.75rem)] left-4 right-4 z-[1300]">
+    <div className="pointer-events-none absolute inset-x-0 bottom-0 z-[1300]">
       <motion.div
-        className="pointer-events-auto mx-auto flex max-w-xl flex-col overflow-hidden rounded-[24px] border border-amber-200 bg-white/[0.97] shadow-[0_28px_60px_rgba(15,23,42,0.22)]"
-        initial={{ opacity: 0, y: 16, height: snapHeights.peek }}
+        className="pointer-events-auto mx-auto flex w-full max-w-xl flex-col overflow-hidden rounded-t-[28px] border border-b-0 border-amber-200 bg-white shadow-[0_-24px_60px_rgba(15,23,42,0.2)]"
+        initial={{ opacity: 0, y: 48, height: snapHeights.peek }}
         animate={{
           opacity: 1,
           y: 0,
@@ -170,7 +144,7 @@ export default function NearbyExplorePanel({
       >
         {/* ドラッグハンドル */}
         <div
-          className="flex shrink-0 cursor-grab justify-center py-2 active:cursor-grabbing"
+          className="flex shrink-0 cursor-grab justify-center pb-2 pt-3 active:cursor-grabbing"
           onPointerDown={(e) => dragControls.start(e)}
           style={{ touchAction: 'none' }}
           aria-label={expanded ? '下にスワイプで縮小' : '上にスワイプで展開'}
@@ -179,10 +153,10 @@ export default function NearbyExplorePanel({
         </div>
 
         {/* 縦スクロール領域 */}
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+        <div className="min-h-0 flex-1 space-y-5 overflow-y-auto overscroll-contain px-5 pb-5 pt-1">
           {/* 字幕1行 + ジャンル内訳バー */}
-          <div className="px-4 pb-2">
-            <p className="text-[14px] font-bold leading-tight text-slate-900">
+          <div>
+            <p className="text-[15px] font-bold leading-tight text-slate-900">
               {hasShops ? (
                 <>
                   {areaLabel}に{' '}
@@ -194,7 +168,7 @@ export default function NearbyExplorePanel({
             </p>
             {hasShops && (
               <>
-                <div className="mt-2 flex h-2 overflow-hidden rounded-full bg-slate-100">
+                <div className="mt-3 flex h-2 overflow-hidden rounded-full bg-slate-100">
                   {summary.genres.map((genre) => (
                     <div
                       key={genre.category}
@@ -206,15 +180,15 @@ export default function NearbyExplorePanel({
                     />
                   ))}
                 </div>
-                <div className="mt-1.5 flex flex-wrap gap-x-2.5 gap-y-0.5">
+                <div className="mt-2.5 flex flex-wrap gap-x-3 gap-y-1">
                   {summary.genres.slice(0, 4).map((genre) => (
                     <span
                       key={genre.category}
-                      className="inline-flex items-center gap-1 text-[10px] font-medium text-slate-500"
+                      className="inline-flex items-center gap-1.5 text-[11px] font-medium text-slate-500"
                     >
                       <span
                         aria-hidden
-                        className="h-1.5 w-1.5 rounded-full"
+                        className="h-2 w-2 rounded-full"
                         style={{
                           backgroundColor:
                             GENRE_COLORS[genre.category] ?? FALLBACK_GENRE_COLOR,
@@ -224,7 +198,7 @@ export default function NearbyExplorePanel({
                     </span>
                   ))}
                   {summary.genres.length > 4 && (
-                    <span className="text-[10px] font-medium text-slate-400">
+                    <span className="text-[11px] font-medium text-slate-400">
                       ほか{summary.genres.length - 4}ジャンル
                     </span>
                   )}
@@ -233,40 +207,15 @@ export default function NearbyExplorePanel({
             )}
           </div>
 
-          {/* 写真: ピーク時は横スクロール1行、展開時はグリッド */}
-          {photos.length > 0 &&
-            (expanded ? (
-              <div className="grid grid-cols-4 gap-2 px-4 pb-2">
-                {photos.map((photo) => (
-                  <PhotoThumb
-                    key={photo.shopId}
-                    photo={photo}
-                    onSelect={onSelectShop}
-                    fill
-                  />
-                ))}
-              </div>
-            ) : (
-              <div className="flex gap-2 overflow-x-auto px-4 pb-2 pt-0.5">
-                {photos.map((photo) => (
-                  <PhotoThumb
-                    key={photo.shopId}
-                    photo={photo}
-                    onSelect={onSelectShop}
-                  />
-                ))}
-              </div>
-            ))}
-
           {/* AIの一言（遅れてフェードイン） */}
-          <div className="flex min-h-[38px] items-center gap-2 px-4 pb-2.5">
+          <div className="flex min-h-[44px] items-start gap-2.5">
             {character && (
-              <div className="h-7 w-7 shrink-0 overflow-hidden rounded-full border border-amber-200 bg-[#fff6e5]">
+              <div className="h-8 w-8 shrink-0 overflow-hidden rounded-full border border-amber-200 bg-[#fff6e5]">
                 <Image
                   src={character.image}
                   alt={character.name}
-                  width={28}
-                  height={28}
+                  width={32}
+                  height={32}
                   className={`h-full w-full object-cover ${character.imageScale}`}
                   style={{ objectPosition: character.imagePosition }}
                   draggable={false}
@@ -274,11 +223,11 @@ export default function NearbyExplorePanel({
               </div>
             )}
             {noteVisible ? (
-              <p className="animate-in fade-in slide-in-from-bottom-1 text-[12px] font-medium leading-snug text-slate-700 duration-500">
+              <p className="animate-in fade-in slide-in-from-bottom-1 pt-1 text-[13px] font-medium leading-relaxed text-slate-700 duration-500">
                 {note}
               </p>
             ) : (
-              <div className="flex items-center gap-1.5 py-1" aria-label="考え中">
+              <div className="flex items-center gap-1.5 pt-2.5" aria-label="考え中">
                 {[0, 1, 2].map((i) => (
                   <span
                     key={i}
@@ -291,10 +240,49 @@ export default function NearbyExplorePanel({
               </div>
             )}
           </div>
+
+          {/* おすすめ店グリッド（3列×最大3行・理由付き） */}
+          {recommendations.length > 0 && (
+            <div>
+              <p className="mb-2.5 text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500">
+                このへんのおすすめ
+              </p>
+              <div className="grid grid-cols-3 gap-3">
+                {recommendations.map((entry) => (
+                  <button
+                    key={entry.shopId}
+                    type="button"
+                    onClick={() => onSelectShop(entry.shopId)}
+                    className="w-full text-left transition-transform active:scale-95"
+                  >
+                    <div className="aspect-[4/3] w-full overflow-hidden rounded-xl bg-slate-100">
+                      {entry.imageUrl && (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={entry.imageUrl}
+                          alt={entry.name}
+                          className="h-full w-full object-cover"
+                          loading="lazy"
+                          draggable={false}
+                        />
+                      )}
+                    </div>
+                    <p className="mt-1 truncate text-[11px] font-bold leading-tight text-slate-800">
+                      {entry.name}
+                    </p>
+                    <p className="truncate text-[10px] text-slate-400">
+                      {REASON_LABELS[entry.reason]}
+                    </p>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
         </div>
 
         {/* 追い質問バー（下部固定） */}
-        <div className="shrink-0 border-t border-slate-100 px-3 py-2">
+        <div className="shrink-0 border-t border-slate-100 px-4 py-3">
           <div className="flex items-center gap-2">
             <input
               type="text"
@@ -307,14 +295,14 @@ export default function NearbyExplorePanel({
                 }
               }}
               placeholder="このへんのことをAIに聞く…"
-              className="min-w-0 flex-1 bg-transparent px-2 py-1.5 text-[14px] text-slate-900 outline-none placeholder:text-slate-400"
+              className="min-w-0 flex-1 bg-transparent px-2 py-2 text-[14px] text-slate-900 outline-none placeholder:text-slate-400"
             />
             <button
               type="button"
               onClick={handleSubmit}
               disabled={!question.trim()}
               aria-label="AIに聞く"
-              className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-amber-500 text-[13px] font-bold text-white shadow-pop transition-all hover:bg-amber-600 active:scale-[0.98] disabled:bg-slate-200 disabled:shadow-none"
+              className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-amber-500 text-[13px] font-bold text-white shadow-pop transition-all hover:bg-amber-600 active:scale-[0.98] disabled:bg-slate-200 disabled:shadow-none"
             >
               ↑
             </button>

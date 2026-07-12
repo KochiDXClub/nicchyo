@@ -30,7 +30,7 @@ import { getOrCreateConsultVisitorKey } from "../../../lib/consultVisitorKey";
 import MapCharacterConsult from "./components/MapCharacterConsult";
 import NearbyExploreButton from "./components/NearbyExploreButton";
 import NearbyExplorePanel, {
-  type NearbyPhotoEntry,
+  type NearbyRecommendedShop,
 } from "./components/NearbyExplorePanel";
 import { useNearbyPromptVisibility } from "./hooks/useNearbyPromptVisibility";
 import {
@@ -40,6 +40,12 @@ import {
   summarizeNearbyShops,
   type NearbyViewportSummary,
 } from "./utils/viewportSummary";
+import {
+  deriveInterestCategories,
+  selectNearbyRecommendations,
+} from "./utils/nearbyRecommendations";
+import { loadFavoriteShopIds } from "../../../lib/favoriteShops";
+import { useBag } from "../../../lib/storage/BagContext";
 import {
   OVERVIEW_ZONE_MIN_ZOOM,
   OVERVIEW_ZONE_MAX_ZOOM,
@@ -157,6 +163,7 @@ export default function MapPageClient({
   const activePanel = searchParams?.get("panel") === "search" ? "search" : null;
   const { user, permissions } = useAuth();
   const { markMapReady } = useMapLoading();
+  const { items: bagItems } = useBag();
   const initialShopIdParam = searchParams?.get("shop");
   const isAiFocusMode = searchParams?.get("ai") === "1";
   const searchParamsKey = searchParams?.toString() ?? "";
@@ -246,7 +253,7 @@ export default function MapPageClient({
   const [nearbyState, setNearbyState] = useState<{
     summary: NearbyViewportSummary;
     center: { lat: number; lng: number };
-    photos: NearbyPhotoEntry[];
+    recommendations: NearbyRecommendedShop[];
     note: string;
   } | null>(null);
   const [nearbyConsultSeed, setNearbyConsultSeed] = useState<{
@@ -553,7 +560,7 @@ export default function MapPageClient({
     [activateSpotlight, prefetchShopImage, shopById]
   );
 
-  const _handleCommentShopOpen = useCallback(
+  const handleCommentShopOpen = useCallback(
     (shopId: number) => {
       handleCommentShopFocus(shopId);
       if (introFocusTimerRef.current !== null) {
@@ -605,6 +612,17 @@ export default function MapPageClient({
     mapCharacterConsultActive ||
     !!aiMarkerPayload;
 
+  const kotoduteShopIds = useMemo(() => {
+    const notes = loadKotodute();
+    const ids = new Set<number>();
+    notes.forEach((note) => {
+      if (typeof note.shopId === "number") {
+        ids.add(note.shopId);
+      }
+    });
+    return Array.from(ids);
+  }, []);
+
   // ── 「このへん、なにがある？」──────────────────────
   // 他のモード（検索・AI相談・店舗バナー・パネル表示中）ではボタンを出さない
   const nearbySuppressed =
@@ -642,31 +660,38 @@ export default function MapPageClient({
           rect
         )
     );
-    // 写真列: 定点風景写真が揃うまでは範囲内の店舗写真で代用する。
-    // 実写真を持つ店を優先し、残りはカテゴリ別のストック画像で埋める
+    // おすすめ: 行動シグナル（お気に入り・買い物リスト・ことづて）から
+    // 興味ジャンルを導き、範囲内の店舗（近い順）から9店を選ぶ
     const inAreaShops = summary.shopIds
       .map((id) => shopById.get(id))
       .filter((shop): shop is Shop => !!shop);
-    const photos: NearbyPhotoEntry[] = [
-      ...inAreaShops.filter((shop) => !!shop.images?.main),
-      ...inAreaShops.filter((shop) => !shop.images?.main),
-    ]
-      .slice(0, 8)
-      .flatMap((shop) => {
-        const imageUrl =
-          shop.images?.main ??
-          getShopBannerImage(shop.category, shop.position ?? shop.id);
-        return imageUrl
-          ? [{ shopId: shop.id, name: shop.name, imageUrl }]
-          : [];
-      });
+    const favoriteIds = new Set(loadFavoriteShopIds());
+    const bagShopIds = bagItems
+      .map((item) => item.fromShopId)
+      .filter((id): id is number => typeof id === "number");
+    const interestCategories = deriveInterestCategories(
+      [...favoriteIds, ...bagShopIds, ...kotoduteShopIds],
+      (id) => shopById.get(id)?.category
+    );
+    const recommendations: NearbyRecommendedShop[] = selectNearbyRecommendations(
+      inAreaShops,
+      { favoriteShopIds: favoriteIds, interestCategories, limit: 9 }
+    ).map(({ shop, reason }) => ({
+      shopId: shop.id,
+      name: shop.name,
+      category: shop.category,
+      imageUrl:
+        shop.images?.main ??
+        getShopBannerImage(shop.category, shop.position ?? shop.id),
+      reason,
+    }));
     setNearbyState({
       summary,
       center: { lat: center.lat, lng: center.lng },
-      photos,
+      recommendations,
       note: buildNearbyNote(summary),
     });
-  }, [shopById, shops]);
+  }, [bagItems, kotoduteShopIds, shopById, shops]);
 
   const closeNearbyPanel = useCallback(() => {
     setNearbyState(null);
@@ -694,17 +719,6 @@ export default function MapPageClient({
       mapInstance.off('zoom', close);
     };
   }, [nearbyState, mapInstance]);
-
-  const kotoduteShopIds = useMemo(() => {
-    const notes = loadKotodute();
-    const ids = new Set<number>();
-    notes.forEach((note) => {
-      if (typeof note.shopId === "number") {
-        ids.add(note.shopId);
-      }
-    });
-    return Array.from(ids);
-  }, []);
 
   const shouldShowNavigationBar = !isShopBannerOpen;
 
@@ -944,9 +958,9 @@ export default function MapPageClient({
                 ) : nearbyState ? (
                   <NearbyExplorePanel
                     summary={nearbyState.summary}
-                    photos={nearbyState.photos}
+                    recommendations={nearbyState.recommendations}
                     note={nearbyState.note}
-                    onSelectShop={handleCommentShopFocus}
+                    onSelectShop={handleCommentShopOpen}
                     onAsk={handleNearbyAsk}
                     onClose={closeNearbyPanel}
                   />
