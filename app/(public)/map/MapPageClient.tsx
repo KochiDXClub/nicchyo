@@ -28,6 +28,22 @@ import { useShopSearch } from "../search/hooks/useShopSearch";
 import { useEncyclopediaUnlock } from "../../../lib/hooks/useEncyclopediaUnlock";
 import { getOrCreateConsultVisitorKey } from "../../../lib/consultVisitorKey";
 import MapCharacterConsult from "./components/MapCharacterConsult";
+import NearbyExploreButton from "./components/NearbyExploreButton";
+import NearbyExplorePanel, {
+  type NearbyPhotoEntry,
+} from "./components/NearbyExplorePanel";
+import { useNearbyPromptVisibility } from "./hooks/useNearbyPromptVisibility";
+import {
+  buildNearbyNote,
+  isPointInRotatedRect,
+  parseCssRotationRad,
+  summarizeNearbyShops,
+  type NearbyViewportSummary,
+} from "./utils/viewportSummary";
+import {
+  OVERVIEW_ZONE_MIN_ZOOM,
+  OVERVIEW_ZONE_MAX_ZOOM,
+} from "./config/displayConfig";
 
 const MapView = dynamic(() => import("./components/MapView"), {
   ssr: false,
@@ -53,6 +69,9 @@ type MapPageClientProps = {
 
 // モバイル（375px基準）でチップ3件が収まり、残りは折りたたむUX判断
 const GENRE_PREVIEW_COUNT = 3;
+
+// 「このへん、なにがある？」の対象範囲＝画面に見えているマップの80%の長方形
+const NEARBY_AREA_RATIO = 0.8;
 
 function GenreFilter({
   categories,
@@ -223,6 +242,17 @@ export default function MapPageClient({
     ids: number[];
     label: string;
   } | null>(null);
+  // 「このへん、なにがある？」：開いているパネルの内容と、AI相談への引き継ぎ質問
+  const [nearbyState, setNearbyState] = useState<{
+    summary: NearbyViewportSummary;
+    center: { lat: number; lng: number };
+    photos: NearbyPhotoEntry[];
+    note: string;
+  } | null>(null);
+  const [nearbyConsultSeed, setNearbyConsultSeed] = useState<{
+    question: string;
+    location: { lat: number; lng: number };
+  } | null>(null);
   const clearMapSearchState = useCallback(() => {
     clearSearchMapPayload();
     setSearchMarkerPayload(null);
@@ -232,15 +262,18 @@ export default function MapPageClient({
   const closeMapCharacterConsult = useCallback(() => {
     setMapCharacterConsultActive(false);
     setAiMarkerPayload(null);
+    setNearbyConsultSeed(null);
   }, []);
   const startMapCharacterConsult = useCallback(() => {
     clearMapSearchState();
+    setNearbyState(null);
     setMapCharacterConsultActive(true);
     router.replace('/map');
   }, [clearMapSearchState, router]);
   const closeMapInteractionMode = useCallback(() => {
     clearMapSearchState();
     closeMapCharacterConsult();
+    setNearbyState(null);
     router.push('/map');
   }, [clearMapSearchState, closeMapCharacterConsult, router]);
 
@@ -572,6 +605,96 @@ export default function MapPageClient({
     mapCharacterConsultActive ||
     !!aiMarkerPayload;
 
+  // ── 「このへん、なにがある？」──────────────────────
+  // 他のモード（検索・AI相談・店舗バナー・パネル表示中）ではボタンを出さない
+  const nearbySuppressed =
+    !!nearbyState || hasSearchMode || hasAiMode || isShopBannerOpen;
+  const nearbyButtonVisible = useNearbyPromptVisibility({
+    map: mapInstance,
+    suppressed: nearbySuppressed,
+    minZoom: OVERVIEW_ZONE_MIN_ZOOM,
+    maxZoom: OVERVIEW_ZONE_MAX_ZOOM,
+  });
+
+  const openNearbyPanel = useCallback(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    // マップコンテナは画面より大きい回転シェルいっぱいに広がっているため、
+    // 「画面に見えているマップ領域」はシェルの親要素からサイズを取り、
+    // シェルの CSS 回転角を打ち消して画面中央80%の長方形で店舗を判定する
+    const container = map.getContainer();
+    const shell = container.parentElement;
+    const viewportEl = shell?.parentElement;
+    if (!shell || !viewportEl) return;
+    const rect = {
+      center: { x: container.clientWidth / 2, y: container.clientHeight / 2 },
+      halfWidth: (viewportEl.clientWidth * NEARBY_AREA_RATIO) / 2,
+      halfHeight: (viewportEl.clientHeight * NEARBY_AREA_RATIO) / 2,
+      rotationRad: parseCssRotationRad(getComputedStyle(shell).transform),
+    };
+    const center = map.getCenter();
+    const summary = summarizeNearbyShops(
+      shops,
+      { lat: center.lat, lng: center.lng },
+      (point) =>
+        isPointInRotatedRect(
+          map.latLngToContainerPoint([point.lat, point.lng]),
+          rect
+        )
+    );
+    // 写真列: 定点風景写真が揃うまでは範囲内の店舗写真で代用する。
+    // 実写真を持つ店を優先し、残りはカテゴリ別のストック画像で埋める
+    const inAreaShops = summary.shopIds
+      .map((id) => shopById.get(id))
+      .filter((shop): shop is Shop => !!shop);
+    const photos: NearbyPhotoEntry[] = [
+      ...inAreaShops.filter((shop) => !!shop.images?.main),
+      ...inAreaShops.filter((shop) => !shop.images?.main),
+    ]
+      .slice(0, 8)
+      .flatMap((shop) => {
+        const imageUrl =
+          shop.images?.main ??
+          getShopBannerImage(shop.category, shop.position ?? shop.id);
+        return imageUrl
+          ? [{ shopId: shop.id, name: shop.name, imageUrl }]
+          : [];
+      });
+    setNearbyState({
+      summary,
+      center: { lat: center.lat, lng: center.lng },
+      photos,
+      note: buildNearbyNote(summary),
+    });
+  }, [shopById, shops]);
+
+  const closeNearbyPanel = useCallback(() => {
+    setNearbyState(null);
+  }, []);
+
+  const handleNearbyAsk = useCallback(
+    (question: string) => {
+      const center = nearbyState?.center;
+      if (!center) return;
+      setNearbyConsultSeed({ question, location: center });
+      startMapCharacterConsult();
+    },
+    [nearbyState, startMapCharacterConsult]
+  );
+
+  // パネル表示中にマップが動いたら閉じる（オレンジ枠は画面固定のため、
+  // 移動すると要約と実際の範囲がズレてしまう）
+  useEffect(() => {
+    if (!nearbyState || !mapInstance) return;
+    const close = () => setNearbyState(null);
+    mapInstance.on('move', close);
+    mapInstance.on('zoom', close);
+    return () => {
+      mapInstance.off('move', close);
+      mapInstance.off('zoom', close);
+    };
+  }, [nearbyState, mapInstance]);
+
   const kotoduteShopIds = useMemo(() => {
     const notes = loadKotodute();
     const ids = new Set<number>();
@@ -718,8 +841,8 @@ export default function MapPageClient({
               </div>
             )}
 
-            {/* 全幅検索バー + ジャンルフィルター（AI相談モード時は非表示） */}
-            {!mapCharacterConsultActive && (
+            {/* 全幅検索バー + ジャンルフィルター（AI相談・このへんモード時は非表示） */}
+            {!mapCharacterConsultActive && !nearbyState && (
               <div
                 className="absolute left-3 right-3 top-3 z-[1001] flex flex-col gap-2"
                 onMouseDown={(e) => e.stopPropagation()}
@@ -805,7 +928,7 @@ export default function MapPageClient({
               shopBannerVariant={shopBannerVariant}
               attendanceEstimates={attendanceEstimates}
               suppressInitialLocationFocus={isAiFocusMode}
-              hideMapUI={mapCharacterConsultActive}
+              hideMapUI={mapCharacterConsultActive || !!nearbyState}
               overlaySlot={
                 mapCharacterConsultActive ? (
                   <MapCharacterConsult
@@ -815,10 +938,42 @@ export default function MapPageClient({
                       setAiMarkerPayload({ ids: shopIds, label: 'AIおすすめ' });
                     }}
                     onClose={closeMapCharacterConsult}
+                    initialQuestion={nearbyConsultSeed?.question}
+                    initialLocation={nearbyConsultSeed?.location ?? null}
+                  />
+                ) : nearbyState ? (
+                  <NearbyExplorePanel
+                    summary={nearbyState.summary}
+                    photos={nearbyState.photos}
+                    note={nearbyState.note}
+                    onSelectShop={handleCommentShopFocus}
+                    onAsk={handleNearbyAsk}
+                    onClose={closeNearbyPanel}
                   />
                 ) : undefined
               }
             />
+
+            {/* 「このへん」の対象範囲（画面中央80%）を示すオレンジ枠。
+                ボタンと同時にフェードで浮き出て、パネル表示中も残る */}
+            <div
+              className={`pointer-events-none absolute left-1/2 top-1/2 z-[1140] -translate-x-1/2 -translate-y-1/2 rounded-[28px] border-4 border-orange-400/80 bg-orange-300/10 transition-opacity duration-500 ease-out ${
+                nearbyButtonVisible || nearbyState ? 'opacity-100' : 'opacity-0'
+              }`}
+              style={{
+                width: `${NEARBY_AREA_RATIO * 100}%`,
+                height: `${NEARBY_AREA_RATIO * 100}%`,
+              }}
+              aria-hidden
+            />
+
+            {/* 「このへん、なにがある？」ボタン（対象ズーム帯で静止時にフェード表示） */}
+            {!mapCharacterConsultActive && (
+              <NearbyExploreButton
+                visible={nearbyButtonVisible}
+                onClick={openNearbyPanel}
+              />
+            )}
           </div>
       </main>
 
@@ -896,10 +1051,11 @@ export default function MapPageClient({
           onMenuOpenChange={(open) => {
             if (open) {
               closeMapCharacterConsult();
+              closeNearbyPanel();
             }
           }}
           onConsultClick={startMapCharacterConsult}
-          closeModeActive={hasSearchMode || hasAiMode}
+          closeModeActive={hasSearchMode || hasAiMode || !!nearbyState}
           onCloseMode={closeMapInteractionMode}
         />
       )}

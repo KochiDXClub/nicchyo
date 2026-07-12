@@ -152,11 +152,17 @@ export default function MapCharacterConsult({
   shops,
   onShopsRecommended,
   onClose,
+  initialQuestion,
+  initialLocation = null,
 }: {
   map: LeafletMap | null;
   shops: Shop[];
   onShopsRecommended: (shopIds: number[]) => void;
   onClose: () => void;
+  /** 起動時に自動送信する質問（「このへん、なにがある？」からの引き継ぎ用） */
+  initialQuestion?: string;
+  /** 質問に添える位置コンテキスト（viewport中心など） */
+  initialLocation?: { lat: number; lng: number } | null;
 }) {
   const [characters] = useState(() => pickConsultCharacters());
   const [activeCharacter, setActiveCharacter] = useState<ConsultCharacter | null>(null);
@@ -176,6 +182,7 @@ export default function MapCharacterConsult({
   const tickerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const playbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const playbackSequenceRef = useRef(0);
+  const pendingInitialQuestionRef = useRef(initialQuestion?.trim() || null);
 
   const isBusy = status === 'loading' || status === 'playing';
   const starterPrompts = useMemo(() => getStarterPrompts(history.length), [history.length]);
@@ -289,6 +296,8 @@ export default function MapCharacterConsult({
     const firstCharacter = resolveCharacter(null);
     if (!firstCharacter) return;
     setActiveCharacter(firstCharacter);
+    // 初期質問がある場合は挨拶を出さずにそのまま回答フローへ入る
+    if (pendingInitialQuestionRef.current) return;
     const timer = setTimeout(() => {
       setBubble({
         text: 'こんにちは！何でも聞いてね〜！',
@@ -355,7 +364,7 @@ export default function MapCharacterConsult({
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             text,
-            location: null,
+            location: initialLocation ?? null,
             history: nextHistory.slice(-6),
             visitorKey,
             stream: false,
@@ -422,8 +431,16 @@ export default function MapCharacterConsult({
         }
       }
     },
-    [clearPlayback, history, inputText, isBusy, onShopsRecommended, playResponseSequence, resolveCharacter]
+    [clearPlayback, history, initialLocation, inputText, isBusy, onShopsRecommended, playResponseSequence, resolveCharacter]
   );
+
+  // 初期質問（「このへん、なにがある？」からの引き継ぎ）を起動時に1回だけ自動送信する
+  useEffect(() => {
+    const question = pendingInitialQuestionRef.current;
+    if (!question) return;
+    pendingInitialQuestionRef.current = null;
+    handleSend(question);
+  }, [handleSend]);
 
   const lastUserMsg = history.findLast?.((message) => message.role === 'user')?.text ?? null;
   const handleRetry = useCallback(() => {
