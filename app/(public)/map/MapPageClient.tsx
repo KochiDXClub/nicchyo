@@ -249,16 +249,12 @@ export default function MapPageClient({
     ids: number[];
     label: string;
   } | null>(null);
-  // 「このへん、なにがある？」：開いているパネルの内容と、AI相談への引き継ぎ質問
+  // 「このへん、なにがある？」：開いているパネルの内容（追い質問はパネル内で完結）
   const [nearbyState, setNearbyState] = useState<{
     summary: NearbyViewportSummary;
     center: { lat: number; lng: number };
     recommendations: NearbyRecommendedShop[];
     note: string;
-  } | null>(null);
-  const [nearbyConsultSeed, setNearbyConsultSeed] = useState<{
-    question: string;
-    location: { lat: number; lng: number };
   } | null>(null);
   const clearMapSearchState = useCallback(() => {
     clearSearchMapPayload();
@@ -269,7 +265,6 @@ export default function MapPageClient({
   const closeMapCharacterConsult = useCallback(() => {
     setMapCharacterConsultActive(false);
     setAiMarkerPayload(null);
-    setNearbyConsultSeed(null);
   }, []);
   const startMapCharacterConsult = useCallback(() => {
     clearMapSearchState();
@@ -697,16 +692,6 @@ export default function MapPageClient({
     setNearbyState(null);
   }, []);
 
-  const handleNearbyAsk = useCallback(
-    (question: string) => {
-      const center = nearbyState?.center;
-      if (!center) return;
-      setNearbyConsultSeed({ question, location: center });
-      startMapCharacterConsult();
-    },
-    [nearbyState, startMapCharacterConsult]
-  );
-
   // パネル表示中にマップが動いたら閉じる（オレンジ枠は画面固定のため、
   // 移動すると要約と実際の範囲がズレてしまう）
   useEffect(() => {
@@ -952,16 +937,17 @@ export default function MapPageClient({
                       setAiMarkerPayload({ ids: shopIds, label: 'AIおすすめ' });
                     }}
                     onClose={closeMapCharacterConsult}
-                    initialQuestion={nearbyConsultSeed?.question}
-                    initialLocation={nearbyConsultSeed?.location ?? null}
                   />
                 ) : nearbyState ? (
                   <NearbyExplorePanel
                     summary={nearbyState.summary}
                     recommendations={nearbyState.recommendations}
                     note={nearbyState.note}
+                    center={nearbyState.center}
                     onSelectShop={handleCommentShopOpen}
-                    onAsk={handleNearbyAsk}
+                    onShopsRecommended={(shopIds) => {
+                      setAiMarkerPayload({ ids: shopIds, label: 'AIおすすめ' });
+                    }}
                     onClose={closeNearbyPanel}
                   />
                 ) : undefined
