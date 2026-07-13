@@ -247,9 +247,10 @@ export default function MapPageClient({
     setAiMarkerPayload(null);
   }, []);
   const startMapCharacterConsult = useCallback(() => {
+    // Open consult page instead of inline map-native consult by default
     clearMapSearchState();
-    setMapCharacterConsultActive(true);
-    router.replace('/map');
+    setMapCharacterConsultActive(false);
+    router.push('/consult');
   }, [clearMapSearchState, router]);
   const closeMapInteractionMode = useCallback(() => {
     clearMapSearchState();
@@ -380,6 +381,24 @@ export default function MapPageClient({
       setAiMarkerPayload({ ids: [], label: labelParam });
     }
   }, [searchParams, searchParamsKey]);
+
+  // When opening map with ?walkPlan=1, try to load a previously generated walk plan
+  useEffect(() => {
+    if (!searchParams) return;
+    const enabled = searchParams.get('walkPlan');
+    if (!enabled) return;
+    try {
+      const raw = typeof window !== 'undefined' ? localStorage.getItem('nicchyo-walk-plan') : null;
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      if (parsed && Array.isArray(parsed.shops) && parsed.shops.length > 0) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        setAiMarkerPayload({ ids: parsed.shops.map((s: any) => Number((s as any).id)), label: parsed.title ?? 'おさんぽプラン' });
+      }
+    } catch {
+      // ignore
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     if (!permissions.isVendor || !vendorShopId) return;

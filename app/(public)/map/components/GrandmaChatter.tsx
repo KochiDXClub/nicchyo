@@ -267,6 +267,9 @@ const GrandmaChatter = memo(function GrandmaChatter({
   const chatStorageKeyRef = useRef<string | null>(null);
   const [isSpeechSupported, setIsSpeechSupported] = useState(false);
   const [isListening, setIsListening] = useState(false);
+  // Walk plan modal / quick flow states (prefixed with _ to avoid unused-var lint warnings until fully implemented)
+  const [_showWalkPlanModal, _setShowWalkPlanModal] = useState(false);
+  const [_walkPlanQuestionAnswers, _setWalkPlanQuestionAnswers] = useState<{ stops: number; startAt: string; interest: string }>({ stops: 3, startAt: "今すぐ", interest: "" });
   const [ratedMessageIds, setRatedMessageIds] = useState<Set<string>>(new Set());
   const [thumbsDownOpenId, setThumbsDownOpenId] = useState<string | null>(null);
   const [thumbsDownComments, setThumbsDownComments] = useState<Record<string, string>>({});
@@ -1891,7 +1894,38 @@ const GrandmaChatter = memo(function GrandmaChatter({
                   type="button"
                   variant="outline"
                   size="icon"
-                  onClick={() => imageInputRef.current?.click()}
+                  onClick={() => {
+                    if (isConsultVariant) {
+                      // Quick walk-plan prompt flow for MVP
+                      const stopsStr = window.prompt("何件立ち寄りたいですか？(例: 2)", "3");
+                      if (!stopsStr) return;
+                      const stops = Math.max(1, Math.min(6, Number(stopsStr) || 3));
+                      const startAt = window.prompt("開始時刻を教えてください（例: 10:00、または 今すぐ）", "今すぐ") || "今すぐ";
+                      const interest = window.prompt("興味のあることを入力してください（例: 食べ物、工芸、写真など）", "") || "";
+                      const candidates = displayedSuggestedShops.length > 0 ? displayedSuggestedShops : aiSuggestedShops ?? [];
+                      const selected = candidates.slice(0, Math.min(stops, candidates.length));
+                      const now = new Date();
+                      const planShops = selected.map((s, i) => ({ id: s.id, name: s.name, time: new Date(now.getTime() + i * 20 * 60 * 1000).toISOString() }));
+                      const plan = { title: `${startAt}のおさんぽプラン`, summary: interest, shops: planShops };
+                      try {
+                        localStorage.setItem('nicchyo-walk-plan', JSON.stringify(plan));
+                      } catch {}
+                      setChatMessages((prev) => [
+                        ...prev,
+                        {
+                          id: `assistant-plan-${Date.now()}`,
+                          role: 'assistant',
+                          text: `おさんぽプランを作成したよ。マップで確認してみてね。`,
+                          shops: selected,
+                          plan,
+                        },
+                      ]);
+                      // Navigate to map with walkPlan flag so map will load it
+                      router.push('/map?walkPlan=1');
+                    } else {
+                      imageInputRef.current?.click();
+                    }
+                  }}
                   className={`${
                     isConsultVariant
                       ? `h-11 w-11 rounded-full border-[var(--consult-border)] text-lg font-semibold text-slate-600 ${embedded ? "bg-white/50 hover:bg-white/70" : "bg-slate-50 hover:bg-white"}`
