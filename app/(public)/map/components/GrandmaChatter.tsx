@@ -114,6 +114,130 @@ type GrandmaChatterProps = {
   embedded?: boolean;
 };
 
+// ─── おさんぽプランのルーズリーフ風カード ─────────────────────────────────────
+// 罫線に本文の行送りを合わせるため、行の高さと背景の縞をこの定数で共有する
+const LOOSELEAF_LINE_PX = 26;
+
+function ItineraryLooseleafCard({
+  plan,
+  planText,
+  resolveShopName,
+  onShowRoute,
+}: {
+  plan: ItineraryPlan;
+  planText?: string;
+  resolveShopName: (shopId: number) => string | undefined;
+  onShowRoute: () => void;
+}) {
+  const hasRealShops = plan.shops.some((s) => s.id > 0);
+  return (
+    <div className="relative mt-4 -rotate-[0.6deg]">
+      {/* マスキングテープ */}
+      <div
+        aria-hidden
+        className="absolute -top-2.5 left-1/2 z-10 h-5 w-20 -translate-x-1/2 rotate-[-3deg] rounded-[2px] bg-amber-300/70 shadow-sm"
+        style={{ backdropFilter: "blur(1px)" }}
+      />
+      <div
+        className="relative overflow-hidden rounded-[6px] border border-slate-200/80 pb-4 pl-12 pr-4 shadow-[0_14px_28px_rgba(15,23,42,0.16),0_2px_6px_rgba(15,23,42,0.08)]"
+        style={{
+          backgroundColor: "#fdfcf7",
+          backgroundImage: [
+            // 左端の赤いマージン線
+            "linear-gradient(to right, transparent 38px, rgba(244,114,140,0.45) 38px, rgba(244,114,140,0.45) 39px, transparent 39px)",
+            // 大学ノート風の水色罫線（行送りと同じピッチ）
+            `repeating-linear-gradient(to bottom, transparent 0px, transparent ${LOOSELEAF_LINE_PX - 1}px, rgba(125,170,205,0.35) ${LOOSELEAF_LINE_PX - 1}px, rgba(125,170,205,0.35) ${LOOSELEAF_LINE_PX}px)`,
+          ].join(","),
+          backgroundPositionY: "8px",
+        }}
+      >
+        {/* パンチ穴 */}
+        <div
+          aria-hidden
+          className="pointer-events-none absolute bottom-3 left-3 top-3 flex flex-col justify-between"
+        >
+          {[0, 1, 2].map((i) => (
+            <span
+              key={i}
+              className="block h-3.5 w-3.5 rounded-full bg-white ring-1 ring-slate-300/90 shadow-[inset_0_1.5px_2.5px_rgba(15,23,42,0.2)]"
+            />
+          ))}
+        </div>
+
+        <div className="pt-[8px]">
+          {/* タイトル行（1行目の罫線に乗せる） */}
+          <p
+            className="truncate text-[17px] font-black tracking-wide text-slate-900"
+            style={{ lineHeight: `${LOOSELEAF_LINE_PX * 2}px` }}
+          >
+            <span aria-hidden className="mr-1.5">🚶</span>
+            {plan.title}
+          </p>
+          {plan.summary && (
+            <p
+              className="truncate text-[12px] font-medium text-slate-500"
+              style={{ lineHeight: `${LOOSELEAF_LINE_PX}px` }}
+            >
+              テーマ: {plan.summary}
+            </p>
+          )}
+
+          {/* タイムライン（1立ち寄り=罫線1行） */}
+          <ol className="mt-0">
+            {plan.shops.map((s, planIndex) => (
+              <li
+                key={`${s.id}-${planIndex}`}
+                className="flex items-baseline justify-between gap-2"
+                style={{ lineHeight: `${LOOSELEAF_LINE_PX}px` }}
+              >
+                <span className="min-w-0 truncate text-[14px] text-slate-800">
+                  <span className="mr-2 inline-block w-4 text-right text-[12px] font-bold text-rose-400">
+                    {planIndex + 1}.
+                  </span>
+                  {s.name ?? resolveShopName(s.id) ?? `立ち寄り${planIndex + 1}`}
+                </span>
+                <span className="shrink-0 text-[12px] font-semibold tabular-nums text-slate-500">
+                  {s.time}
+                </span>
+              </li>
+            ))}
+          </ol>
+
+          {/* AIのメモ全文（折りたたみ） */}
+          {planText && (
+            <details className="mt-0" style={{ lineHeight: `${LOOSELEAF_LINE_PX}px` }}>
+              <summary className="cursor-pointer select-none text-[11px] font-semibold text-slate-400 transition hover:text-slate-600">
+                ✎ AIのメモをひらく
+              </summary>
+              <pre
+                className="whitespace-pre-wrap font-sans text-[11px] text-slate-500"
+                style={{ lineHeight: `${LOOSELEAF_LINE_PX}px` }}
+              >
+                {planText}
+              </pre>
+            </details>
+          )}
+
+          {/* アクション */}
+          <div className="mt-2 flex items-center justify-end gap-2">
+            {!hasRealShops && (
+              <span className="text-[10px] text-slate-400">お店の特定ができんかったき、地図には出せんがよ</span>
+            )}
+            <button
+              type="button"
+              onClick={onShowRoute}
+              disabled={!hasRealShops}
+              className="rounded-full bg-amber-500 px-4 py-2 text-[13px] font-bold text-white shadow-pop transition hover:bg-amber-600 active:scale-95 disabled:bg-slate-200 disabled:text-slate-400 disabled:shadow-none"
+            >
+              🗺️ ルートを見る
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── キャラクター相談中アニメーション ────────────────────────────────────────
 const EMOTION_SYMBOLS = ["!", "?", "!!", "！？", "?!", "？"];
 
@@ -1517,44 +1641,15 @@ const GrandmaChatter = memo(function GrandmaChatter({
                           )}
 
                           {message.plan && (
-                            <div className="mt-3 rounded-[1rem] border border-amber-100 bg-white p-3 shadow-loose">
-                              <div className="flex items-center justify-between">
-                                <div>
-                                  <div className="text-sm font-bold text-slate-900">{message.plan.title}</div>
-                                  {message.plan.summary && (
-                                    <div className="text-xs text-slate-500">{message.plan.summary}</div>
-                                  )}
-                                </div>
-                              </div>
-                              {message.planText && (
-                                <pre className="mt-2 whitespace-pre-wrap rounded-xl border border-amber-100 bg-amber-50/40 p-2 text-[11px] leading-relaxed text-slate-600">
-                                  {message.planText}
-                                </pre>
-                              )}
-                              <ol className="mt-3 space-y-2 text-sm text-slate-700">
-                                {message.plan.shops.map((s: { id: number; name?: string; time: string }, planIndex: number) => (
-                                  <li key={`${s.id}-${planIndex}`} className="flex items-center justify-between gap-2">
-                                    <span className="min-w-0 truncate">
-                                      <span className="mr-1.5 font-bold text-amber-700">{planIndex + 1}.</span>
-                                      {s.name ?? shopLookup.get(s.id)?.name ?? `立ち寄り${planIndex + 1}`}
-                                    </span>
-                                    <span className="shrink-0 text-xs tabular-nums text-slate-400">{s.time}</span>
-                                  </li>
-                                ))}
-                              </ol>
-                              <div className="mt-3 flex gap-2">
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    try { localStorage.setItem('nicchyo-walk-plan', JSON.stringify(message.plan)); } catch {}
-                                    router.push('/map?walkPlan=1');
-                                  }}
-                                  className="rounded-full bg-amber-600 px-3 py-1 text-sm font-semibold text-white"
-                                >
-                                  ルートを見る
-                                </button>
-                              </div>
-                            </div>
+                            <ItineraryLooseleafCard
+                              plan={message.plan}
+                              planText={message.planText}
+                              resolveShopName={(shopId) => shopLookup.get(shopId)?.name}
+                              onShowRoute={() => {
+                                try { localStorage.setItem('nicchyo-walk-plan', JSON.stringify(message.plan)); } catch {}
+                                router.push('/map?walkPlan=1');
+                              }}
+                            />
                           )}
                         </MessageBubble>
                         {message.followUpQuestion && (
