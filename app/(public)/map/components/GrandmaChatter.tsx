@@ -25,7 +25,7 @@ import type {
 } from "../../consult/types/consultConversation";
 import { grandmaAiInstructorLines } from "../data/grandmaComments";
 import { grandmaCommentPool, pickNextComment } from "../services/grandmaCommentService";
-import type { Shop } from "../data/shops";
+import { shops as defaultShops, type Shop } from "../data/shops";
 import { getSmartSuggestions } from "../utils/suggestionGenerator";
 import { getShopBannerImage } from "@/lib/shopImages";
 import { saveAiMapPayload } from "@/lib/searchMapStorage";
@@ -65,6 +65,7 @@ type ChatMessage = {
   consultId?: string;
   turnIndex?: number;
   plan?: ItineraryPlan;
+  planText?: string;
 };
 
 type GrandmaChatterProps = {
@@ -555,6 +556,8 @@ const GrandmaChatter = memo(function GrandmaChatter({
       imageUrl: message.imageUrl,
       shopIds: message.shopIds,
       shops: message.shops,
+      plan: message.plan,
+      planText: message.planText,
       speakerId: message.speakerId,
       speakerName: message.speakerName,
       followUpQuestion: message.followUpQuestion,
@@ -998,24 +1001,70 @@ const GrandmaChatter = memo(function GrandmaChatter({
   };
 
   // Walk plan creation handler (modal form)
-  const handleCreateWalkPlan = () => {
+  const handleCreateWalkPlan = async () => {
     const stops = Math.max(1, Math.min(6, walkPlanQuestionAnswers.stops ?? 3));
     const startAt = walkPlanQuestionAnswers.useTime ? walkPlanQuestionAnswers.time ?? "今すぐ" : "今すぐ";
     const interest = walkPlanQuestionAnswers.interest ?? "";
-    const candidates = displayedSuggestedShops.length > 0 ? displayedSuggestedShops : aiSuggestedShops ?? [];
-    const shopCandidates = candidates.map((s) => ({ id: s.id, name: s.name }));
-    const plan = generateItinerary({ shopCandidates, stops, startAt, interest });
+    const history = chatMessages
+      .slice(-8)
+      .map((m) => ({ role: m.role, text: m.text }));
+    let planText = "";
+    let plan: ItineraryPlan | null = null;
+    setAiStatus("thinking");
     try {
-      localStorage.setItem('nicchyo-walk-plan', JSON.stringify(plan));
+      const response = await fetch("/api/grandma/itinerary", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          stops,
+          startAt,
+          interest,
+          history,
+          memorySummary: conversationSummary,
+        }),
+      });
+      if (response.ok) {
+        const payload = (await response.json()) as {
+          plan?: ItineraryPlan;
+          outputText?: string;
+          vectorMatches?: Array<{ id: number; name: string }>;
+        };
+        if (payload.plan) {
+          plan = payload.plan;
+        }
+        planText = payload.outputText ?? "";
+      }
+    } catch {
+      // fallback below
+    } finally {
+      setAiStatus("idle");
+    }
+
+    const candidates =
+      displayedSuggestedShops.length > 0
+        ? displayedSuggestedShops
+        : (aiSuggestedShops && aiSuggestedShops.length > 0)
+          ? aiSuggestedShops
+          : (allShops && allShops.length > 0)
+            ? allShops
+            : defaultShops;
+
+    if (!plan) {
+      const shopCandidates = candidates.map((s) => ({ id: s.id, name: s.name }));
+      plan = generateItinerary({ shopCandidates, stops, startAt, interest });
+    }
+    try {
+      localStorage.setItem("nicchyo-walk-plan", JSON.stringify(plan));
     } catch {}
     setChatMessages((prev) => [
       ...prev,
       {
         id: `assistant-plan-${Date.now()}`,
-        role: 'assistant',
-        text: `おさんぽプランを作成したよ。下に旅程を表示するね。`,
+        role: "assistant",
+        text: "おさんぽプランを作成したよ。下に旅程を表示するね。",
         shops: candidates.slice(0, Math.min(stops, candidates.length)),
         plan,
+        planText,
       },
     ]);
     setShowWalkPlanModal(false);
@@ -1446,6 +1495,11 @@ const GrandmaChatter = memo(function GrandmaChatter({
                                   )}
                                 </div>
                               </div>
+                              {message.planText && (
+                                <pre className="mt-2 whitespace-pre-wrap rounded-xl border border-amber-100 bg-amber-50/40 p-2 text-[11px] leading-relaxed text-slate-600">
+                                  {message.planText}
+                                </pre>
+                              )}
                               <ol className="mt-3 list-decimal list-inside space-y-2 text-sm text-slate-700">
                                 {message.plan.shops.map((s: { id: number; name?: string; time: string }) => (
                                   <li key={s.id} className="flex items-center justify-between">
