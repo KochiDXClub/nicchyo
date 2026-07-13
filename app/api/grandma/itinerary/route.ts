@@ -8,6 +8,7 @@ import { fetchShopsByVendorIds, summarizeShops } from "@/lib/grandma/vendorSearc
 import {
   buildItineraryTemplate,
   parseItineraryTemplateOutput,
+  resolvePlanShopIds,
   type ItineraryPlan,
 } from "@/lib/itinerary";
 
@@ -54,16 +55,34 @@ export async function POST(request: Request) {
     const submittedAt = submittedAtRaw && !Number.isNaN(Date.parse(submittedAtRaw))
       ? new Date(submittedAtRaw)
       : new Date();
-    const submittedAtJst = submittedAt.toLocaleString("ja-JP", {
-      timeZone: clientTimezone,
+    // clientTimezone が不正な値でも 500 にせず Asia/Tokyo にフォールバックする
+    const formatSubmittedAt = (timeZone: string) =>
+      submittedAt.toLocaleString("ja-JP", {
+        timeZone,
+        hour12: false,
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+        weekday: "short",
+      });
+    let submittedAtJst: string;
+    let safeTimezone = clientTimezone;
+    try {
+      submittedAtJst = formatSubmittedAt(clientTimezone);
+    } catch {
+      safeTimezone = "Asia/Tokyo";
+      submittedAtJst = formatSubmittedAt(safeTimezone);
+    }
+    // 「今すぐ」の基準時刻（ユーザーのタイムゾーンでの HH:MM）。
+    // サーバーTZ（UTC等）で解釈すると時刻が9時間ズレるため必ずこちらを使う
+    const nowHHMM = submittedAt.toLocaleTimeString("ja-JP", {
+      timeZone: safeTimezone,
       hour12: false,
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
       hour: "2-digit",
       minute: "2-digit",
-      second: "2-digit",
-      weekday: "short",
     });
     const memorySummary = parsed.data.memorySummary?.trim() || "";
     const history = parsed.data.history ?? [];
@@ -79,7 +98,9 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "server config missing" }, { status: 500 });
     }
 
-    const queryText = `日曜市おさんぽプラン。興味:${interest || "未指定"} 開始:${startAt} 立ち寄り:${stops}`;
+    // 興味が未指定だとクエリがほぼ定数になるため、会話の文脈も混ぜて検索の意味を持たせる
+    const contextHint = [memorySummary, historyText].filter(Boolean).join(" ").slice(0, 300);
+    const queryText = `日曜市おさんぽプラン。興味:${interest || "未指定"} ${contextHint}`.trim();
     const embeddingResponse = await fetch("https://api.openai.com/v1/embeddings", {
       method: "POST",
       headers: {
@@ -177,24 +198,30 @@ export async function POST(request: Request) {
     const chatPayload = (await chatResponse.json()) as {
       choices?: { message?: { content?: string } }[];
     };
-    const outputText = chatPayload.choices?.[0]?.message?.content?.trim() || template;
-    const plan: ItineraryPlan = parseItineraryTemplateOutput(outputText, {
+    const outputText = chatPayload.choices?.[0]?.message?.content?.trim() || "";
+    const parsedPlan: ItineraryPlan = parseItineraryTemplateOutput(outputText || template, {
       startAt,
       interest,
       stops,
+      nowHHMM,
     });
+    // LLMが出した店名を実在の候補店舗IDに解決する（マップ連携に必須）
+    const plan = resolvePlanShopIds(
+      parsedPlan,
+      shops.map((shop) => ({ id: shop.id, name: shop.name }))
+    );
 
     return NextResponse.json({
       plan,
-      outputText,
+      // LLM出力が空（＝テンプレのプレースホルダのまま）のときは本文を返さない
+      outputText: outputText || undefined,
       vectorMatches: shops.slice(0, 6).map((shop) => ({
         id: shop.id,
         name: shop.name,
         category: shop.category,
       })),
     });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "failed to build itinerary";
-    return NextResponse.json({ error: message }, { status: 500 });
+  } catch {
+    return NextResponse.json({ error: "旅程の作成に失敗しました" }, { status: 500 });
   }
 }

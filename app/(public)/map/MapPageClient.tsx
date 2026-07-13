@@ -390,10 +390,17 @@ export default function MapPageClient({
     try {
       const raw = typeof window !== 'undefined' ? localStorage.getItem('nicchyo-walk-plan') : null;
       if (!raw) return;
-      const parsed = JSON.parse(raw);
-      if (parsed && Array.isArray(parsed.shops) && parsed.shops.length > 0) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        setAiMarkerPayload({ ids: parsed.shops.map((s: any) => Number((s as any).id)), label: parsed.title ?? 'おさんぽプラン' });
+      const parsed = JSON.parse(raw) as {
+        title?: string;
+        shops?: Array<{ id?: number }>;
+      } | null;
+      if (!parsed || !Array.isArray(parsed.shops)) return;
+      // id: 0 は実店舗に突合できなかった立ち寄り（マップでは表示できない）
+      const ids = parsed.shops
+        .map((shop) => Number(shop?.id))
+        .filter((id) => Number.isInteger(id) && id > 0);
+      if (ids.length > 0) {
+        setAiMarkerPayload({ ids, label: parsed.title ?? 'おさんぽプラン' });
       }
     } catch {
       // ignore

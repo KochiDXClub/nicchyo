@@ -25,7 +25,7 @@ import type {
 } from "../../consult/types/consultConversation";
 import { grandmaAiInstructorLines } from "../data/grandmaComments";
 import { grandmaCommentPool, pickNextComment } from "../services/grandmaCommentService";
-import { shops as defaultShops, type Shop } from "../data/shops";
+import type { Shop } from "../data/shops";
 import { getSmartSuggestions } from "../utils/suggestionGenerator";
 import { getShopBannerImage } from "@/lib/shopImages";
 import { saveAiMapPayload } from "@/lib/searchMapStorage";
@@ -272,6 +272,9 @@ const GrandmaChatter = memo(function GrandmaChatter({
   const [isListening, setIsListening] = useState(false);
   // Walk plan modal / quick flow states
   const [showWalkPlanModal, setShowWalkPlanModal] = useState(false);
+  const [showPlusMenu, setShowPlusMenu] = useState(false);
+  // AIが店を薦めた後に出す「おさんぽプランを立てる」ナッジ（会話ごとに1回だけ）
+  const [walkPlanNudgeUsed, setWalkPlanNudgeUsed] = useState(false);
   const [walkPlanQuestionAnswers, setWalkPlanQuestionAnswers] = useState<{ stops: number; useTime: boolean; time: string; interest: string }>({ stops: 3, useTime: false, time: "10:00", interest: "" });
   const [ratedMessageIds, setRatedMessageIds] = useState<Set<string>>(new Set());
   const [thumbsDownOpenId, setThumbsDownOpenId] = useState<string | null>(null);
@@ -1046,29 +1049,36 @@ const GrandmaChatter = memo(function GrandmaChatter({
       setAiStatus("idle");
     }
 
+    // API失敗時のフォールバック候補（会話で出た店 → 全店舗の順）
     const candidates =
       displayedSuggestedShops.length > 0
         ? displayedSuggestedShops
         : (aiSuggestedShops && aiSuggestedShops.length > 0)
           ? aiSuggestedShops
-          : (allShops && allShops.length > 0)
-            ? allShops
-            : defaultShops;
+          : allShops ?? [];
 
     if (!plan) {
+      if (candidates.length === 0) {
+        // 候補ゼロで空プランを出しても行き先がないため、エラーとして案内する
+        setChatMessages((prev) => [
+          ...prev,
+          {
+            id: `assistant-plan-error-${Date.now()}`,
+            role: "assistant",
+            text: "ごめんね、今はプランを作れんかった。少し相談してお店の候補を出してから、もう一度試してみてや。",
+          },
+        ]);
+        return;
+      }
       const shopCandidates = candidates.map((s) => ({ id: s.id, name: s.name }));
       plan = generateItinerary({ shopCandidates, stops, startAt, interest });
     }
-    try {
-      localStorage.setItem("nicchyo-walk-plan", JSON.stringify(plan));
-    } catch {}
     setChatMessages((prev) => [
       ...prev,
       {
         id: `assistant-plan-${Date.now()}`,
         role: "assistant",
         text: "おさんぽプランを作成したよ。下に旅程を表示するね。",
-        shops: candidates.slice(0, Math.min(stops, candidates.length)),
         plan,
         planText,
       },
@@ -1130,6 +1140,22 @@ const GrandmaChatter = memo(function GrandmaChatter({
   }, [chatMessages, shopLookup]);
   const displayedSuggestedShops =
     persistedSuggestedShops.length > 0 ? persistedSuggestedShops : aiSuggestedShops ?? [];
+  // AIが店を薦めた直後のメッセージにだけ出す「おさんぽプランを立てる」ナッジ。
+  // プラン作成済み（plan付きメッセージあり）or 一度使ったら出さない
+  // （上方に早期returnがありフックを増やせないため、素の導出にしている）
+  const walkPlanNudgeMessageId = (() => {
+    if (!isConsultVariant || walkPlanNudgeUsed) return null;
+    if (chatMessages.some((message) => message.plan)) return null;
+    for (let index = chatMessages.length - 1; index >= 0; index -= 1) {
+      const message = chatMessages[index];
+      if (message.role !== "assistant") continue;
+      const hasShops =
+        (message.shops && message.shops.length > 0) ||
+        (message.shopIds && message.shopIds.length > 0);
+      return hasShops ? message.id : null;
+    }
+    return null;
+  })();
   const hasSuggestedBox =
     displayedSuggestedShops.length > 0 && !isKeyboardOpen;
   const hasSupplement = hasSuggestedBox || hasImageReply;
@@ -1505,11 +1531,14 @@ const GrandmaChatter = memo(function GrandmaChatter({
                                   {message.planText}
                                 </pre>
                               )}
-                              <ol className="mt-3 list-decimal list-inside space-y-2 text-sm text-slate-700">
-                                {message.plan.shops.map((s: { id: number; name?: string; time: string }) => (
-                                  <li key={s.id} className="flex items-center justify-between">
-                                    <span>{s.name ?? shopLookup.get(s.id)?.name ?? s.id}</span>
-                                    <span className="text-xs text-slate-400">{new Date(s.time).toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'})}</span>
+                              <ol className="mt-3 space-y-2 text-sm text-slate-700">
+                                {message.plan.shops.map((s: { id: number; name?: string; time: string }, planIndex: number) => (
+                                  <li key={`${s.id}-${planIndex}`} className="flex items-center justify-between gap-2">
+                                    <span className="min-w-0 truncate">
+                                      <span className="mr-1.5 font-bold text-amber-700">{planIndex + 1}.</span>
+                                      {s.name ?? shopLookup.get(s.id)?.name ?? `立ち寄り${planIndex + 1}`}
+                                    </span>
+                                    <span className="shrink-0 text-xs tabular-nums text-slate-400">{s.time}</span>
                                   </li>
                                 ))}
                               </ol>
@@ -1542,6 +1571,21 @@ const GrandmaChatter = memo(function GrandmaChatter({
                               className="rounded-full border border-amber-200 bg-white/90 px-3 py-2 text-[12px] font-semibold text-amber-800 shadow-sm transition hover:bg-amber-50"
                             >
                               {message.followUpQuestion}
+                            </button>
+                          </div>
+                        )}
+                        {walkPlanNudgeMessageId === message.id && (
+                          <div className="mt-2 pl-1">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setWalkPlanNudgeUsed(true);
+                                setShowWalkPlanModal(true);
+                              }}
+                              className="inline-flex items-center gap-1.5 rounded-full bg-amber-600 px-3.5 py-2 text-[12px] font-semibold text-white shadow-sm transition hover:bg-amber-500 active:scale-95"
+                            >
+                              <span aria-hidden>🚶</span>
+                              おさんぽプランを立てる
                             </button>
                           </div>
                         )}
@@ -2008,27 +2052,56 @@ const GrandmaChatter = memo(function GrandmaChatter({
                   onChange={handleImagePick}
                   className="hidden"
                 />
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="icon"
-                  onClick={() => {
-                                      if (isConsultVariant) {
-                                        // Open the walk-plan modal (form-based)
-                                        setShowWalkPlanModal(true);
-                                      } else {
-                                        imageInputRef.current?.click();
-                                      }
-                                    }}
-                  className={`${
-                    isConsultVariant
-                      ? `h-11 w-11 rounded-full border-[var(--consult-border)] text-lg font-semibold text-slate-600 ${embedded ? "bg-white/50 hover:bg-white/70" : "bg-slate-50 hover:bg-white"}`
-                      : "border-amber-200 bg-white text-lg font-semibold text-amber-700 hover:bg-amber-50"
-                  }`}
-                  aria-label="写真を選ぶ"
-                >
-                  {isConsultVariant ? "＋" : "+"}
-                </Button>
+                <div className="relative">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    onClick={() => {
+                      if (isConsultVariant) {
+                        // 画像添付とおさんぽプランの2択メニューを開く
+                        setShowPlusMenu((v) => !v);
+                      } else {
+                        imageInputRef.current?.click();
+                      }
+                    }}
+                    className={`${
+                      isConsultVariant
+                        ? `h-11 w-11 rounded-full border-[var(--consult-border)] text-lg font-semibold text-slate-600 ${embedded ? "bg-white/50 hover:bg-white/70" : "bg-slate-50 hover:bg-white"}`
+                        : "border-amber-200 bg-white text-lg font-semibold text-amber-700 hover:bg-amber-50"
+                    }`}
+                    aria-label={isConsultVariant ? "メニューを開く" : "写真を選ぶ"}
+                    aria-expanded={isConsultVariant ? showPlusMenu : undefined}
+                  >
+                    {isConsultVariant ? "＋" : "+"}
+                  </Button>
+                  {isConsultVariant && showPlusMenu && (
+                    <div className="absolute bottom-full left-0 z-[1710] mb-2 w-56 overflow-hidden rounded-2xl border border-amber-100 bg-white shadow-xl">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowPlusMenu(false);
+                          imageInputRef.current?.click();
+                        }}
+                        className="flex w-full items-center gap-2.5 px-4 py-3 text-left text-sm font-semibold text-slate-700 transition hover:bg-amber-50"
+                      >
+                        <span aria-hidden>📷</span>
+                        画像を添付する
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowPlusMenu(false);
+                          setShowWalkPlanModal(true);
+                        }}
+                        className="flex w-full items-center gap-2.5 border-t border-slate-100 px-4 py-3 text-left text-sm font-semibold text-slate-700 transition hover:bg-amber-50"
+                      >
+                        <span aria-hidden>🚶</span>
+                        おさんぽプランを立てる
+                      </button>
+                    </div>
+                  )}
+                </div>
                 <Textarea
                   ref={inputRef}
                   value={askText}
@@ -2197,7 +2270,12 @@ const GrandmaChatter = memo(function GrandmaChatter({
         </div>
       </div>
       {layout === "page" && showWalkPlanModal && (
-        <div className="fixed inset-0 z-[1720] flex items-center justify-center bg-black/50 px-4">
+        <div
+          className="fixed inset-0 z-[1720] flex items-center justify-center bg-black/50 px-4"
+          role="dialog"
+          aria-modal="true"
+          aria-label="おさんぽプランを作る"
+        >
           <div className="w-full max-w-md rounded-2xl border border-amber-100 bg-white p-5 shadow-2xl">
             <div className="flex items-center justify-between">
               <div>
@@ -2213,15 +2291,17 @@ const GrandmaChatter = memo(function GrandmaChatter({
               </button>
             </div>
             <div className="mt-4 space-y-3">
-              <label className="block text-sm font-medium text-slate-700">立ち寄り件数</label>
-              <input
-                type="number"
-                min={1}
-                max={6}
+              <label htmlFor="walk-plan-stops" className="block text-sm font-medium text-slate-700">立ち寄り件数</label>
+              <select
+                id="walk-plan-stops"
                 value={walkPlanQuestionAnswers.stops}
-                onChange={(e) => setWalkPlanQuestionAnswers((prev) => ({ ...prev, stops: Math.max(1, Math.min(6, Number(e.target.value) || 3)) }))}
-                className="w-full rounded-md border px-3 py-2"
-              />
+                onChange={(e) => setWalkPlanQuestionAnswers((prev) => ({ ...prev, stops: Number(e.target.value) }))}
+                className="w-full rounded-md border px-3 py-2 text-sm"
+              >
+                {[1, 2, 3, 4, 5, 6].map((n) => (
+                  <option key={n} value={n}>{n}件</option>
+                ))}
+              </select>
 
               <div>
                 <div className="text-sm font-medium text-slate-700">開始時刻</div>

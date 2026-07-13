@@ -1,4 +1,10 @@
-export type ItineraryShop = { id: number; name?: string; time: string };
+export type ItineraryShop = {
+  /** 実在の店舗ID。候補と突合できなかった立ち寄りは 0（マップ連携から除外される） */
+  id: number;
+  name?: string;
+  /** 表示用の "HH:MM"。タイムゾーン依存を避けるため ISO ではなく文字列で持つ */
+  time: string;
+};
 export type ItineraryPlan = { title: string; summary?: string; shops: ItineraryShop[] };
 export type ItineraryTemplateInput = {
   stops: number;
@@ -11,6 +17,8 @@ const SECTION_OVERVIEW = "■ 概要";
 const SECTION_TIMELINE = "■ タイムライン";
 const SECTION_NOTES = "■ メモ";
 const SECTION_ROUTE = "■ ルート案内";
+
+const DEFAULT_INTERVAL_MINUTES = 20;
 
 export function buildItineraryTemplate(input: ItineraryTemplateInput) {
   return [
@@ -32,26 +40,36 @@ export function buildItineraryTemplate(input: ItineraryTemplateInput) {
   ].join("\n");
 }
 
-function toIsoTime(baseDate: Date, hhmm: string) {
-  const m = hhmm.match(/^(\d{1,2}):(\d{2})$/);
-  if (!m) return baseDate.toISOString();
-  const d = new Date(baseDate);
-  d.setHours(Number(m[1]), Number(m[2]), 0, 0);
-  return d.toISOString();
+function parseHHMM(value: string): number | null {
+  const m = value.match(/^(\d{1,2}):(\d{2})$/);
+  if (!m) return null;
+  const hh = Number(m[1]);
+  const mm = Number(m[2]);
+  if (hh > 23 || mm > 59) return null;
+  return hh * 60 + mm;
+}
+
+function formatHHMM(totalMinutes: number): string {
+  const normalized = ((totalMinutes % 1440) + 1440) % 1440;
+  const hh = Math.floor(normalized / 60);
+  const mm = normalized % 60;
+  return `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
+}
+
+/**
+ * 開始時刻（"今すぐ" or "HH:MM"）を分に解決する。
+ * "今すぐ" の基準時刻はタイムゾーン依存を避けるため呼び出し側が渡す
+ * （サーバーは clientTimezone で、クライアントはローカル時刻で計算する）。
+ */
+function resolveStartMinutes(startAt: string, nowHHMM: string): number {
+  return parseHHMM(startAt) ?? parseHHMM(nowHHMM) ?? 10 * 60;
 }
 
 export function parseItineraryTemplateOutput(
   outputText: string,
-  fallback: { startAt: string; interest: string; stops: number }
+  fallback: { startAt: string; interest: string; stops: number; nowHHMM: string }
 ): ItineraryPlan {
-  const now = new Date();
-  const base = new Date(now);
-  if (fallback.startAt !== "今すぐ") {
-    const m = fallback.startAt.match(/^(\d{1,2}):(\d{2})$/);
-    if (m) {
-      base.setHours(Number(m[1]), Number(m[2]), 0, 0);
-    }
-  }
+  const baseMinutes = resolveStartMinutes(fallback.startAt, fallback.nowHHMM);
 
   const lines = outputText.split(/\r?\n/).map((line) => line.trim());
   const timeline = lines.filter((line) => /^\d+\.\s*/.test(line));
@@ -59,21 +77,24 @@ export function parseItineraryTemplateOutput(
     .map((line, index) => {
       const body = line.replace(/^\d+\.\s*/, "");
       const parts = body.split("|").map((p) => p.trim());
-      const timeText = parts[0] || "";
+      const timeMinutes = parseHHMM(parts[0] || "");
       const name = parts[1] || `立ち寄り${index + 1}`;
-      const iso = /^\d{1,2}:\d{2}$/.test(timeText)
-        ? toIsoTime(base, timeText)
-        : new Date(base.getTime() + index * 20 * 60 * 1000).toISOString();
-      return { id: 900000 + index, name, time: iso };
+      return {
+        id: 0,
+        name,
+        time: formatHHMM(
+          timeMinutes ?? baseMinutes + index * DEFAULT_INTERVAL_MINUTES
+        ),
+      };
     })
     .slice(0, Math.max(1, fallback.stops));
 
   if (shops.length === 0) {
     for (let i = 0; i < Math.max(1, fallback.stops); i += 1) {
       shops.push({
-        id: 910000 + i,
+        id: 0,
         name: `立ち寄り${i + 1}`,
-        time: new Date(base.getTime() + i * 20 * 60 * 1000).toISOString(),
+        time: formatHHMM(baseMinutes + i * DEFAULT_INTERVAL_MINUTES),
       });
     }
   }
@@ -84,36 +105,64 @@ export function parseItineraryTemplateOutput(
   return { title, summary, shops };
 }
 
+/**
+ * LLM出力から作ったプランの店名を、実在の候補店舗と突合して実IDに解決する。
+ * 完全一致 → 部分一致（双方向）の順で照合し、見つからない立ち寄りは id: 0 のまま。
+ * 同じ店が複数の立ち寄りに割り当たらないよう、一度使った候補は除外する。
+ */
+export function resolvePlanShopIds(
+  plan: ItineraryPlan,
+  candidates: { id: number; name: string }[]
+): ItineraryPlan {
+  const used = new Set<number>();
+
+  const findMatch = (rawName: string): { id: number; name: string } | null => {
+    const name = rawName.trim();
+    if (!name) return null;
+    const exact = candidates.find((c) => !used.has(c.id) && c.name === name);
+    if (exact) return exact;
+    const partial = candidates.find(
+      (c) =>
+        !used.has(c.id) &&
+        c.name.length > 0 &&
+        (c.name.includes(name) || name.includes(c.name))
+    );
+    return partial ?? null;
+  };
+
+  const shops = plan.shops.map((shop) => {
+    if (shop.id > 0) return shop;
+    const match = findMatch(shop.name ?? "");
+    if (!match) return shop;
+    used.add(match.id);
+    return { ...shop, id: match.id, name: match.name };
+  });
+
+  return { ...plan, shops };
+}
+
 export function generateItinerary(options: {
   shopCandidates: { id: number; name?: string }[];
   stops?: number;
   startAt?: string; // "今すぐ" or "HH:MM"
   interest?: string;
+  /** "今すぐ" の基準となる現在時刻（"HH:MM"）。省略時はローカル時刻 */
+  nowHHMM?: string;
 }): ItineraryPlan {
   const stops = Math.max(1, Math.min(6, options.stops ?? 3));
   const candidates = options.shopCandidates ?? [];
   const selected = candidates.slice(0, Math.min(stops, candidates.length));
   const now = new Date();
-  const startDate = new Date(now);
-  if (options.startAt && options.startAt !== "今すぐ") {
-    const m = options.startAt.match(/^(\d{1,2}):(\d{2})$/);
-    if (m) {
-      const hh = Number(m[1]);
-      const mm = Number(m[2]);
-      startDate.setHours(hh, mm, 0, 0);
-      // if start time is earlier than now, assume next day
-      if (startDate.getTime() < now.getTime()) {
-        startDate.setDate(startDate.getDate() + 1);
-      }
-    }
-  }
+  const localNowHHMM =
+    options.nowHHMM ?? formatHHMM(now.getHours() * 60 + now.getMinutes());
+  const startMinutes = resolveStartMinutes(options.startAt ?? "今すぐ", localNowHHMM);
 
-  const intervalMinutes = 20;
-  const shops = selected.map((s, i) => {
-    const time = new Date(startDate.getTime() + i * intervalMinutes * 60 * 1000);
-    return { id: s.id, name: s.name, time: time.toISOString() };
-  });
+  const shops = selected.map((s, i) => ({
+    id: s.id,
+    name: s.name,
+    time: formatHHMM(startMinutes + i * DEFAULT_INTERVAL_MINUTES),
+  }));
 
-  const title = `${options.startAt ?? '今すぐ'}のおさんぽプラン`;
-  return { title, summary: options.interest ?? '', shops };
+  const title = `${options.startAt ?? "今すぐ"}のおさんぽプラン`;
+  return { title, summary: options.interest ?? "", shops };
 }
