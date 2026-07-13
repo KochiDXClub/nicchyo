@@ -29,6 +29,7 @@ import type { Shop } from "../data/shops";
 import { getSmartSuggestions } from "../utils/suggestionGenerator";
 import { getShopBannerImage } from "@/lib/shopImages";
 import { saveAiMapPayload } from "@/lib/searchMapStorage";
+import { generateItinerary } from "@/lib/itinerary";
 import { useAvatarDrag } from "../../../../lib/hooks/useAvatarDrag";
 const ROTATE_MS = 6500;
 const EXAMPLE_ROTATE_MS = 4500;
@@ -267,9 +268,9 @@ const GrandmaChatter = memo(function GrandmaChatter({
   const chatStorageKeyRef = useRef<string | null>(null);
   const [isSpeechSupported, setIsSpeechSupported] = useState(false);
   const [isListening, setIsListening] = useState(false);
-  // Walk plan modal / quick flow states (prefixed with _ to avoid unused-var lint warnings until fully implemented)
-  const [_showWalkPlanModal, _setShowWalkPlanModal] = useState(false);
-  const [_walkPlanQuestionAnswers, _setWalkPlanQuestionAnswers] = useState<{ stops: number; startAt: string; interest: string }>({ stops: 3, startAt: "今すぐ", interest: "" });
+  // Walk plan modal / quick flow states
+  const [showWalkPlanModal, setShowWalkPlanModal] = useState(false);
+  const [walkPlanQuestionAnswers, setWalkPlanQuestionAnswers] = useState<{ stops: number; useTime: boolean; time: string; interest: string }>({ stops: 3, useTime: false, time: "10:00", interest: "" });
   const [ratedMessageIds, setRatedMessageIds] = useState<Set<string>>(new Set());
   const [thumbsDownOpenId, setThumbsDownOpenId] = useState<string | null>(null);
   const [thumbsDownComments, setThumbsDownComments] = useState<Record<string, string>>({});
@@ -995,6 +996,30 @@ const GrandmaChatter = memo(function GrandmaChatter({
     setShouldShowValidation(false);
   };
 
+  // Walk plan creation handler (modal form)
+  const handleCreateWalkPlan = () => {
+    const stops = Math.max(1, Math.min(6, walkPlanQuestionAnswers.stops ?? 3));
+    const startAt = walkPlanQuestionAnswers.useTime ? walkPlanQuestionAnswers.time ?? "今すぐ" : "今すぐ";
+    const interest = walkPlanQuestionAnswers.interest ?? "";
+    const candidates = displayedSuggestedShops.length > 0 ? displayedSuggestedShops : aiSuggestedShops ?? [];
+    const shopCandidates = candidates.map((s) => ({ id: s.id, name: s.name }));
+    const plan = generateItinerary({ shopCandidates, stops, startAt, interest });
+    try {
+      localStorage.setItem('nicchyo-walk-plan', JSON.stringify(plan));
+    } catch {}
+    setChatMessages((prev) => [
+      ...prev,
+      {
+        id: `assistant-plan-${Date.now()}`,
+        role: 'assistant',
+        text: `おさんぽプランを作成したよ。下に旅程を表示するね。`,
+        shops: candidates.slice(0, Math.min(stops, candidates.length)),
+        plan,
+      },
+    ]);
+    setShowWalkPlanModal(false);
+  };
+
   const shellClassName = layout === "page"
     ? "relative w-full pointer-events-auto"
     : fullWidth
@@ -1408,6 +1433,39 @@ const GrandmaChatter = memo(function GrandmaChatter({
                                 className="h-32 w-full object-cover"
                               />
                             </button>
+                          )}
+
+                          {message.plan && (
+                            <div className="mt-3 rounded-[1rem] border border-amber-100 bg-white p-3 shadow-loose">
+                              <div className="flex items-center justify-between">
+                                <div>
+                                  <div className="text-sm font-bold text-slate-900">{message.plan.title}</div>
+                                  {message.plan.summary && (
+                                    <div className="text-xs text-slate-500">{message.plan.summary}</div>
+                                  )}
+                                </div>
+                              </div>
+                              <ol className="mt-3 list-decimal list-inside space-y-2 text-sm text-slate-700">
+                                {message.plan.shops.map((s: { id: number; name?: string; time: string }) => (
+                                  <li key={s.id} className="flex items-center justify-between">
+                                    <span>{s.name ?? shopLookup.get(s.id)?.name ?? s.id}</span>
+                                    <span className="text-xs text-slate-400">{new Date(s.time).toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'})}</span>
+                                  </li>
+                                ))}
+                              </ol>
+                              <div className="mt-3 flex gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    try { localStorage.setItem('nicchyo-walk-plan', JSON.stringify(message.plan)); } catch {}
+                                    router.push('/map?walkPlan=1');
+                                  }}
+                                  className="rounded-full bg-amber-600 px-3 py-1 text-sm font-semibold text-white"
+                                >
+                                  ルートを見る
+                                </button>
+                              </div>
+                            </div>
                           )}
                         </MessageBubble>
                         {message.followUpQuestion && (
@@ -1895,37 +1953,13 @@ const GrandmaChatter = memo(function GrandmaChatter({
                   variant="outline"
                   size="icon"
                   onClick={() => {
-                    if (isConsultVariant) {
-                      // Quick walk-plan prompt flow for MVP
-                      const stopsStr = window.prompt("何件立ち寄りたいですか？(例: 2)", "3");
-                      if (!stopsStr) return;
-                      const stops = Math.max(1, Math.min(6, Number(stopsStr) || 3));
-                      const startAt = window.prompt("開始時刻を教えてください（例: 10:00、または 今すぐ）", "今すぐ") || "今すぐ";
-                      const interest = window.prompt("興味のあることを入力してください（例: 食べ物、工芸、写真など）", "") || "";
-                      const candidates = displayedSuggestedShops.length > 0 ? displayedSuggestedShops : aiSuggestedShops ?? [];
-                      const selected = candidates.slice(0, Math.min(stops, candidates.length));
-                      const now = new Date();
-                      const planShops = selected.map((s, i) => ({ id: s.id, name: s.name, time: new Date(now.getTime() + i * 20 * 60 * 1000).toISOString() }));
-                      const plan = { title: `${startAt}のおさんぽプラン`, summary: interest, shops: planShops };
-                      try {
-                        localStorage.setItem('nicchyo-walk-plan', JSON.stringify(plan));
-                      } catch {}
-                      setChatMessages((prev) => [
-                        ...prev,
-                        {
-                          id: `assistant-plan-${Date.now()}`,
-                          role: 'assistant',
-                          text: `おさんぽプランを作成したよ。マップで確認してみてね。`,
-                          shops: selected,
-                          plan,
-                        },
-                      ]);
-                      // Navigate to map with walkPlan flag so map will load it
-                      router.push('/map?walkPlan=1');
-                    } else {
-                      imageInputRef.current?.click();
-                    }
-                  }}
+                                      if (isConsultVariant) {
+                                        // Open the walk-plan modal (form-based)
+                                        setShowWalkPlanModal(true);
+                                      } else {
+                                        imageInputRef.current?.click();
+                                      }
+                                    }}
                   className={`${
                     isConsultVariant
                       ? `h-11 w-11 rounded-full border-[var(--consult-border)] text-lg font-semibold text-slate-600 ${embedded ? "bg-white/50 hover:bg-white/70" : "bg-slate-50 hover:bg-white"}`
@@ -2102,6 +2136,61 @@ const GrandmaChatter = memo(function GrandmaChatter({
           </Card>
         </div>
       </div>
+      {layout === "page" && showWalkPlanModal && (
+        <div className="fixed inset-0 z-[1720] flex items-center justify-center bg-black/50 px-4">
+          <div className="w-full max-w-md rounded-2xl border border-amber-100 bg-white p-5 shadow-2xl">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-lg font-bold text-slate-900">おさんぽプランを作る</div>
+                <div className="text-sm text-slate-500">簡単な質問に答えて、旅程を作ろう</div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowWalkPlanModal(false)}
+                className="rounded-full border border-slate-200 px-3 py-1.5 text-sm font-semibold text-slate-500 transition hover:bg-slate-50"
+              >
+                閉じる
+              </button>
+            </div>
+            <div className="mt-4 space-y-3">
+              <label className="block text-sm font-medium text-slate-700">立ち寄り件数</label>
+              <input
+                type="number"
+                min={1}
+                max={6}
+                value={walkPlanQuestionAnswers.stops}
+                onChange={(e) => setWalkPlanQuestionAnswers((prev) => ({ ...prev, stops: Math.max(1, Math.min(6, Number(e.target.value) || 3)) }))}
+                className="w-full rounded-md border px-3 py-2"
+              />
+
+              <div>
+                <div className="text-sm font-medium text-slate-700">開始時刻</div>
+                <div className="mt-2 flex items-center gap-3">
+                  <label className="inline-flex items-center gap-2">
+                    <input type="radio" name="walk-start" checked={!walkPlanQuestionAnswers.useTime} onChange={() => setWalkPlanQuestionAnswers((p) => ({ ...p, useTime: false }))} />
+                    <span className="text-sm">今すぐ</span>
+                  </label>
+                  <label className="inline-flex items-center gap-2">
+                    <input type="radio" name="walk-start" checked={walkPlanQuestionAnswers.useTime} onChange={() => setWalkPlanQuestionAnswers((p) => ({ ...p, useTime: true }))} />
+                    <input type="time" value={walkPlanQuestionAnswers.time} onChange={(e) => setWalkPlanQuestionAnswers((p) => ({ ...p, time: e.target.value }))} className="ml-2 rounded-md border px-2 py-1 text-sm" />
+                  </label>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700">興味</label>
+                <input type="text" value={walkPlanQuestionAnswers.interest} onChange={(e) => setWalkPlanQuestionAnswers((p) => ({ ...p, interest: e.target.value }))} placeholder="例: 食べ物、写真、工芸" className="w-full rounded-md border px-3 py-2" />
+              </div>
+
+              <div className="mt-4 flex justify-end gap-2">
+                <button type="button" onClick={() => setShowWalkPlanModal(false)} className="rounded-full border px-4 py-2 text-sm font-semibold">キャンセル</button>
+                <button type="button" onClick={handleCreateWalkPlan} className="rounded-full bg-amber-600 px-4 py-2 text-sm font-semibold text-white">作成する</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {layout === "page" && isPreferredCharacterPickerOpen && (
         <div className="fixed inset-0 z-[1700] flex items-center justify-center bg-slate-900/35 px-4">
           <div className="w-full max-w-xl rounded-[2rem] border border-amber-100 bg-white p-5 shadow-2xl lg:max-w-[1180px]">
