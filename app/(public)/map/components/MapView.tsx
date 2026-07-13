@@ -55,6 +55,13 @@ import {
 import { useMapGestures } from "../hooks/useMapGestures";
 import { useMapCameraController } from "../hooks/useMapCameraController";
 import { getShopBannerImage } from "../../../../lib/shopImages";
+import {
+  ROAD_SNAP_DELAY_MS,
+  ROAD_SNAP_MIN_DISTANCE_METERS,
+  SKIPPED_ZOOM_LEVELS,
+  SKIPPED_ZOOM_NUDGE,
+  SKIPPED_ZOOM_TOLERANCE,
+} from "../../../../lib/constants";
 
 function findIngredientMatch(name: string) {
   const lower = name.trim().toLowerCase();
@@ -436,6 +443,36 @@ function MapControls({
   /** 現在地ボタンの top 位置（px）。検索エリアの高さに追従させるために外から渡す */
   trackingButtonTop?: number;
 }) {
+  const zoomFrameRef = useRef<number | null>(null);
+  const pendingZoomRef = useRef<number | null>(null);
+
+  const flushZoom = useCallback(() => {
+    zoomFrameRef.current = null;
+    const pendingZoom = pendingZoomRef.current;
+    pendingZoomRef.current = null;
+    if (pendingZoom === null || !map) return;
+    const nextZoom = Math.max(minZoom, Math.min(maxZoom, pendingZoom));
+    if (Math.abs(nextZoom - map.getZoom()) <= 0.001) return;
+    map.setZoom(nextZoom, { animate: false });
+  }, [map, maxZoom, minZoom]);
+
+  const handleZoomValueChange = useCallback((value: number) => {
+    onZoomSliderInteract();
+    pendingZoomRef.current = value;
+    if (zoomFrameRef.current !== null) {
+      return;
+    }
+    zoomFrameRef.current = window.requestAnimationFrame(flushZoom);
+  }, [flushZoom, onZoomSliderInteract]);
+
+  useEffect(() => {
+    return () => {
+      if (zoomFrameRef.current !== null) {
+        window.cancelAnimationFrame(zoomFrameRef.current);
+      }
+    };
+  }, [flushZoom]);
+
   return (
     <>
       {/* 縦ズームスライダー（ナビバー直上）— 2本指操作時のみ表示し、操作終了から数秒後にフェードアウト */}
@@ -453,7 +490,7 @@ function MapControls({
           value={currentZoom}
           min={minZoom}
           max={maxZoom}
-          onValueChange={(v) => { onZoomSliderInteract(); map?.setZoom(v, { animate: false }); }}
+          onValueChange={handleZoomValueChange}
         />
         <span className="select-none text-[12px] font-black leading-none text-amber-700 drop-shadow-[0_1px_0_rgba(255,255,255,0.9)]">−</span>
       </div>
@@ -553,21 +590,19 @@ export type ShopBannerOrigin = { x: number; y: number; width: number; height: nu
 /** 18 <= zoom < 19 のとき丁目エリアマーカーを表示 */
 const OVERVIEW_ZONE_MIN_ZOOM = 17;
 const OVERVIEW_ZONE_MAX_ZOOM = 19;
-const SKIPPED_ZOOM_LEVELS = [18];
-const SKIPPED_ZOOM_TOLERANCE = 0.026; // step(0.05) の半分より少し大きく設定
 
 function MapZoomListener({ onZoomChange }: { onZoomChange?: (zoom: number) => void }) {
   const map = useMap();
   useEffect(() => {
     if (!onZoomChange) return;
-    const handleZoom = () => {
+    const handleZoomEnd = () => {
       onZoomChange(map.getZoom());
     };
-    // 初期値も通知
-    handleZoom();
-    map.on("zoomend", handleZoom);
+
+    handleZoomEnd();
+    map.on("zoomend", handleZoomEnd);
     return () => {
-      map.off("zoomend", handleZoom);
+      map.off("zoomend", handleZoomEnd);
     };
   }, [map, onZoomChange]);
   return null;
@@ -577,26 +612,37 @@ function MapZoomConstraint() {
   const map = useMap();
 
   useEffect(() => {
-    let lastAcceptedZoom = map.getZoom();
+    let zoomBeforeChange = map.getZoom();
 
-    const handleZoomEnd = () => {
-      const zoom = map.getZoom();
-      const skippedZoom = SKIPPED_ZOOM_LEVELS.find(
-        (level) => Math.abs(zoom - level) <= SKIPPED_ZOOM_TOLERANCE
-      );
-      if (skippedZoom !== undefined) {
-        // スムーズスライダー対応: ±1 の大ジャンプをやめ、スキップゾーンを抜ける最小幅(0.1)だけ移動
-        const targetZoom =
-          lastAcceptedZoom > zoom ? skippedZoom - 0.1 : skippedZoom + 0.1;
-        map.setZoom(targetZoom, { animate: false });
-        lastAcceptedZoom = targetZoom;
-        return;
-      }
-      lastAcceptedZoom = zoom;
+    const handleZoomStart = () => {
+      zoomBeforeChange = map.getZoom();
     };
 
+    const handleZoomEnd = () => {
+      const currentZoom = map.getZoom();
+      const skippedZoom = SKIPPED_ZOOM_LEVELS.find(
+        (zoomLevel) => Math.abs(currentZoom - zoomLevel) <= SKIPPED_ZOOM_TOLERANCE
+      );
+
+      if (skippedZoom === undefined) {
+        zoomBeforeChange = currentZoom;
+        return;
+      }
+
+      const zoomingIn = currentZoom >= zoomBeforeChange;
+      const targetZoom = zoomingIn ? skippedZoom + SKIPPED_ZOOM_NUDGE : skippedZoom - SKIPPED_ZOOM_NUDGE;
+
+      if (Math.abs(targetZoom - currentZoom) > 0.001) {
+        map.setZoom(targetZoom, { animate: false });
+      }
+
+      zoomBeforeChange = targetZoom;
+    };
+
+    map.on("zoomstart", handleZoomStart);
     map.on("zoomend", handleZoomEnd);
     return () => {
+      map.off("zoomstart", handleZoomStart);
       map.off("zoomend", handleZoomEnd);
     };
   }, [map]);
@@ -613,6 +659,32 @@ function MapZoomRoadSnapController({
 
   useEffect(() => {
     let lastZoom = map.getZoom();
+    let snapTimerId: number | null = null;
+
+    const clearSnapTimer = () => {
+      if (snapTimerId === null) return;
+      window.clearTimeout(snapTimerId);
+      snapTimerId = null;
+    };
+
+    const scheduleSnap = (center: L.LatLng) => {
+      clearSnapTimer();
+      snapTimerId = window.setTimeout(() => {
+        snapTimerId = null;
+        const snappedPoint = onSnapCenter(center);
+        if (!snappedPoint) return;
+
+        const snappedLatLng = L.latLng(snappedPoint[0], snappedPoint[1]);
+        const distanceMeters = map.distance(center, snappedLatLng);
+        if (distanceMeters < ROAD_SNAP_MIN_DISTANCE_METERS) return;
+
+        map.panTo(snappedPoint, {
+          animate: true,
+          duration: 0.35,
+          easeLinearity: 0.25,
+        });
+      }, ROAD_SNAP_DELAY_MS);
+    };
 
     const handleZoomEnd = () => {
       const nextZoom = map.getZoom();
@@ -623,20 +695,22 @@ function MapZoomRoadSnapController({
         return;
       }
 
-      const center = map.getCenter();
-      const snappedPoint = onSnapCenter(center);
-      if (!snappedPoint) {
-        return;
-      }
-      map.panTo(snappedPoint, {
-        animate: true,
-        duration: 0.7,
-        easeLinearity: 0.25,
-      });
+      scheduleSnap(map.getCenter());
     };
 
+    const handleZoomStart = () => {
+      clearSnapTimer();
+    };
+
+    map.on("zoomstart", handleZoomStart);
+    map.on("movestart", handleZoomStart);
+    map.on("dragstart", handleZoomStart);
     map.on("zoomend", handleZoomEnd);
     return () => {
+      clearSnapTimer();
+      map.off("zoomstart", handleZoomStart);
+      map.off("movestart", handleZoomStart);
+      map.off("dragstart", handleZoomStart);
       map.off("zoomend", handleZoomEnd);
     };
   }, [map, onSnapCenter]);
@@ -1323,7 +1397,8 @@ const MapView = memo(function MapView({
           touchAction: "none",
           transform: `translate(-50%, -50%) rotate(${mapRotation}deg)`,
           transformOrigin: "center center",
-          transition: "transform 1500ms ease-out",
+          transition: isTouchGestureActive ? "none" : "transform 420ms cubic-bezier(0.22, 1, 0.36, 1)",
+          willChange: isTouchGestureActive ? "transform" : "auto",
         }}
       >
         <MapContainer
