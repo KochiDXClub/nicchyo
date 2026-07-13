@@ -1226,7 +1226,7 @@ const GrandmaChatter = memo(function GrandmaChatter({
     : "relative h-[33px] w-[33px] shrink-0 sm:h-[39px] sm:w-[39px]";
   const bubbleBaseClassName = fullWidth
     ? isChatOpen
-      ? "relative z-[1000] w-full max-w-none border-0 bg-transparent px-4 py-0 text-left shadow-none pointer-events-auto"
+      ? "relative z-[1000] w-full max-w-none border-0 bg-transparent px-1 py-0 text-left shadow-none pointer-events-auto md:px-4"
       : "group relative z-[1000] w-full max-w-3xl rounded-2xl border-2 bg-white/95 px-4 py-4 text-left shadow-xl backdrop-blur transition hover:-translate-y-0.5 hover:shadow-2xl pointer-events-auto"
     : "group relative z-[1000] max-w-[280px] rounded-2xl border-2 bg-white/95 px-4 py-4 text-left shadow-xl backdrop-blur transition hover:-translate-y-0.5 hover:shadow-2xl sm:max-w-sm pointer-events-auto";
   const bubbleBorderClass = isConsultVariant
@@ -1593,7 +1593,7 @@ const GrandmaChatter = memo(function GrandmaChatter({
                         <MessageBubble
                           role={message.role}
                           variant="consult"
-                          className="max-w-none shadow-sm"
+                          className="max-w-none"
                         >
                           {message.text}
                           {(() => {
