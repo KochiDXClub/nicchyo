@@ -114,6 +114,24 @@ type GrandmaChatterProps = {
   embedded?: boolean;
 };
 
+// ─── おさんぽプランの質問カード ──────────────────────────────────────────────
+// 全問選択式（#392「選択式の質問・3問まで」）。自由入力は使わない
+const WALK_PLAN_INTERESTS = [
+  { emoji: "🍡", label: "食べ歩き" },
+  { emoji: "🥬", label: "旬の野菜・果物" },
+  { emoji: "🎨", label: "工芸・手しごと" },
+  { emoji: "🌿", label: "花・植物" },
+  { emoji: "🎁", label: "お土産さがし" },
+] as const;
+
+const WALK_PLAN_PACE_OPTIONS = [
+  { id: "quick", label: "さくっと", desc: "2軒・30分ほど", stops: 2 },
+  { id: "normal", label: "ほどよく", desc: "4軒・1時間ほど", stops: 4 },
+  { id: "deep", label: "じっくり", desc: "6軒・2時間ほど", stops: 6 },
+] as const;
+
+type WalkPlanPaceId = (typeof WALK_PLAN_PACE_OPTIONS)[number]["id"];
+
 // ─── おさんぽプランのルーズリーフ風カード ─────────────────────────────────────
 // 罫線に本文の行送りを合わせるため、行の高さと背景の縞をこの定数で共有する
 const LOOSELEAF_LINE_PX = 26;
@@ -399,7 +417,12 @@ const GrandmaChatter = memo(function GrandmaChatter({
   const [showPlusMenu, setShowPlusMenu] = useState(false);
   // AIが店を薦めた後に出す「おさんぽプランを立てる」ナッジ（会話ごとに1回だけ）
   const [walkPlanNudgeUsed, setWalkPlanNudgeUsed] = useState(false);
-  const [walkPlanQuestionAnswers, setWalkPlanQuestionAnswers] = useState<{ stops: number; useTime: boolean; time: string; interest: string }>({ stops: 3, useTime: false, time: "10:00", interest: "" });
+  const [walkPlanQuestionAnswers, setWalkPlanQuestionAnswers] = useState<{
+    pace: WalkPlanPaceId;
+    useTime: boolean;
+    time: string;
+    interests: string[];
+  }>({ pace: "normal", useTime: false, time: "10:00", interests: [] });
   const [ratedMessageIds, setRatedMessageIds] = useState<Set<string>>(new Set());
   const [thumbsDownOpenId, setThumbsDownOpenId] = useState<string | null>(null);
   const [thumbsDownComments, setThumbsDownComments] = useState<Record<string, string>>({});
@@ -1129,9 +1152,13 @@ const GrandmaChatter = memo(function GrandmaChatter({
 
   // Walk plan creation handler (modal form)
   const handleCreateWalkPlan = async () => {
-    const stops = Math.max(1, Math.min(6, walkPlanQuestionAnswers.stops ?? 3));
+    const paceOption =
+      WALK_PLAN_PACE_OPTIONS.find((option) => option.id === walkPlanQuestionAnswers.pace) ??
+      WALK_PLAN_PACE_OPTIONS[1];
+    const stops = paceOption.stops;
     const startAt = walkPlanQuestionAnswers.useTime ? walkPlanQuestionAnswers.time ?? "今すぐ" : "今すぐ";
-    const interest = walkPlanQuestionAnswers.interest ?? "";
+    // 未選択＝おまかせ（API側は空文字で「未指定」扱い）
+    const interest = walkPlanQuestionAnswers.interests.join("、");
     const submittedAt = new Date().toISOString();
     const clientTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "Asia/Tokyo";
     const history = chatMessages
@@ -1464,13 +1491,13 @@ const GrandmaChatter = memo(function GrandmaChatter({
             </div>
               <ScrollArea
                 ref={chatScrollRef}
-                className={`mt-2 flex flex-col gap-4 pr-1 ${
+                className={`mt-2 flex flex-col pr-1 ${
                   layout === "page"
-                    ? "overflow-visible pb-52"
-                    : "max-h-[calc(100vh-240px)]"
+                    ? "gap-6 overflow-visible pb-52"
+                    : "gap-4 max-h-[calc(100vh-240px)]"
                 }`}
               >
-                <div className={`flex flex-col items-center justify-center gap-2 opacity-90 ${embedded ? "py-4" : "py-8"}`}>
+                <div className={`flex flex-col items-center justify-center gap-2 opacity-90 ${embedded ? "py-4" : "py-6"}`}>
                   <div
                     className={`overflow-hidden rounded-[2rem] border-4 shadow-sm transition-all duration-500 ${
                       embedded ? "h-20 w-20" : "h-32 w-32"
@@ -1522,7 +1549,7 @@ const GrandmaChatter = memo(function GrandmaChatter({
                         {/* アイコンはキャラ名の左（ヘッダー行）に置き、本文バブルを全幅にする */}
                         <div className="mb-1.5 flex items-center gap-2">
                           <div
-                            className={`h-9 w-9 shrink-0 overflow-hidden rounded-full border bg-amber-50 shadow-sm ring-2 ring-white ${
+                            className={`h-8 w-8 shrink-0 overflow-hidden rounded-full border bg-amber-50 shadow-sm ring-2 ring-white ${
                               preferredCharacterId && speakerCharacter.id === preferredCharacterId
                                 ? "border-orange-400"
                                 : "border-amber-200"
@@ -1536,7 +1563,7 @@ const GrandmaChatter = memo(function GrandmaChatter({
                               draggable={false}
                             />
                           </div>
-                          <span className={`text-base font-semibold ${embedded ? "text-green-700 text-stroke-dark" : "text-slate-700"}`}>{speakerName}</span>
+                          <span className={`text-[13px] font-bold tracking-wide ${embedded ? "text-green-700 text-stroke-dark" : "text-slate-500"}`}>{speakerName}</span>
                           {message.consultId !== undefined && message.turnIndex !== undefined && message.id !== activeStreamingMessageId && (
                             <div className="ml-auto flex items-center gap-0.5">
                               {ratedMessageIds.has(message.id) ? (
@@ -2376,7 +2403,7 @@ const GrandmaChatter = memo(function GrandmaChatter({
             <div className="flex items-center justify-between">
               <div>
                 <div className="text-lg font-bold text-slate-900">おさんぽプランを作る</div>
-                <div className="text-sm text-slate-500">簡単な質問に答えて、旅程を作ろう</div>
+                <div className="text-sm text-slate-500">3つ選ぶだけ。あとはAIにおまかせ</div>
               </div>
               <button
                 type="button"
@@ -2386,42 +2413,121 @@ const GrandmaChatter = memo(function GrandmaChatter({
                 閉じる
               </button>
             </div>
-            <div className="mt-4 space-y-3">
-              <label htmlFor="walk-plan-stops" className="block text-sm font-medium text-slate-700">立ち寄り件数</label>
-              <select
-                id="walk-plan-stops"
-                value={walkPlanQuestionAnswers.stops}
-                onChange={(e) => setWalkPlanQuestionAnswers((prev) => ({ ...prev, stops: Number(e.target.value) }))}
-                className="w-full rounded-md border px-3 py-2 text-sm"
-              >
-                {[1, 2, 3, 4, 5, 6].map((n) => (
-                  <option key={n} value={n}>{n}件</option>
-                ))}
-              </select>
-
+            <div className="mt-5 space-y-5">
+              {/* Q1: 気分（複数選択チップ・未選択＝おまかせ） */}
               <div>
-                <div className="text-sm font-medium text-slate-700">開始時刻</div>
-                <div className="mt-2 flex items-center gap-3">
-                  <label className="inline-flex items-center gap-2">
-                    <input type="radio" name="walk-start" checked={!walkPlanQuestionAnswers.useTime} onChange={() => setWalkPlanQuestionAnswers((p) => ({ ...p, useTime: false }))} />
-                    <span className="text-sm">今すぐ</span>
-                  </label>
-                  <label className="inline-flex items-center gap-2">
-                    <input type="radio" name="walk-start" checked={walkPlanQuestionAnswers.useTime} onChange={() => setWalkPlanQuestionAnswers((p) => ({ ...p, useTime: true }))} />
-                    <input type="time" value={walkPlanQuestionAnswers.time} onChange={(e) => setWalkPlanQuestionAnswers((p) => ({ ...p, time: e.target.value }))} className="ml-2 rounded-md border px-2 py-1 text-sm" />
-                  </label>
+                <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-amber-600">Q1</p>
+                <p className="mt-0.5 text-[15px] font-bold text-slate-900">きょうはどんな気分？</p>
+                <p className="text-[11px] text-slate-400">いくつでも選べます。選ばなければおまかせ</p>
+                <div className="mt-2.5 flex flex-wrap gap-1.5">
+                  {WALK_PLAN_INTERESTS.map(({ emoji, label }) => {
+                    const selected = walkPlanQuestionAnswers.interests.includes(label);
+                    return (
+                      <button
+                        key={label}
+                        type="button"
+                        aria-pressed={selected}
+                        onClick={() =>
+                          setWalkPlanQuestionAnswers((prev) => ({
+                            ...prev,
+                            interests: selected
+                              ? prev.interests.filter((item) => item !== label)
+                              : [...prev.interests, label],
+                          }))
+                        }
+                        className={`rounded-chip border px-[13px] py-[7px] text-[13px] font-bold shadow-chip transition-all duration-[120ms] active:scale-95 ${
+                          selected
+                            ? "border-amber-600 bg-amber-500 text-white"
+                            : "border-amber-200 bg-white text-amber-900 hover:bg-amber-50"
+                        }`}
+                      >
+                        <span aria-hidden className="mr-1">{emoji}</span>
+                        {label}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 
+              {/* Q2: ペース（単一選択セグメント） */}
               <div>
-                <label className="block text-sm font-medium text-slate-700">興味</label>
-                <input type="text" value={walkPlanQuestionAnswers.interest} onChange={(e) => setWalkPlanQuestionAnswers((p) => ({ ...p, interest: e.target.value }))} placeholder="例: 食べ物、写真、工芸" className="w-full rounded-md border px-3 py-2" />
+                <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-amber-600">Q2</p>
+                <p className="mt-0.5 text-[15px] font-bold text-slate-900">どれくらい回る？</p>
+                <div className="mt-2.5 grid grid-cols-3 gap-1.5">
+                  {WALK_PLAN_PACE_OPTIONS.map((option) => {
+                    const selected = walkPlanQuestionAnswers.pace === option.id;
+                    return (
+                      <button
+                        key={option.id}
+                        type="button"
+                        aria-pressed={selected}
+                        onClick={() =>
+                          setWalkPlanQuestionAnswers((prev) => ({ ...prev, pace: option.id }))
+                        }
+                        className={`rounded-2xl border px-2 py-2.5 text-center transition-all duration-[120ms] active:scale-95 ${
+                          selected
+                            ? "border-amber-600 bg-amber-500 text-white shadow-sm"
+                            : "border-amber-200 bg-white text-slate-700 hover:bg-amber-50"
+                        }`}
+                      >
+                        <span className="block text-[13px] font-bold">{option.label}</span>
+                        <span className={`block text-[10px] ${selected ? "text-amber-100" : "text-slate-400"}`}>
+                          {option.desc}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
 
-              <div className="mt-4 flex justify-end gap-2">
-                <button type="button" onClick={() => setShowWalkPlanModal(false)} className="rounded-full border px-4 py-2 text-sm font-semibold">キャンセル</button>
-                <button type="button" onClick={handleCreateWalkPlan} className="rounded-full bg-amber-600 px-4 py-2 text-sm font-semibold text-white">作成する</button>
+              {/* Q3: 開始時刻（今すぐ / 時刻指定） */}
+              <div>
+                <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-amber-600">Q3</p>
+                <p className="mt-0.5 text-[15px] font-bold text-slate-900">いつから歩く？</p>
+                <div className="mt-2.5 grid grid-cols-2 gap-1.5">
+                  <button
+                    type="button"
+                    aria-pressed={!walkPlanQuestionAnswers.useTime}
+                    onClick={() => setWalkPlanQuestionAnswers((p) => ({ ...p, useTime: false }))}
+                    className={`rounded-2xl border px-2 py-2.5 text-[13px] font-bold transition-all duration-[120ms] active:scale-95 ${
+                      !walkPlanQuestionAnswers.useTime
+                        ? "border-amber-600 bg-amber-500 text-white shadow-sm"
+                        : "border-amber-200 bg-white text-slate-700 hover:bg-amber-50"
+                    }`}
+                  >
+                    ⏱ 今すぐ
+                  </button>
+                  <button
+                    type="button"
+                    aria-pressed={walkPlanQuestionAnswers.useTime}
+                    onClick={() => setWalkPlanQuestionAnswers((p) => ({ ...p, useTime: true }))}
+                    className={`rounded-2xl border px-2 py-2.5 text-[13px] font-bold transition-all duration-[120ms] active:scale-95 ${
+                      walkPlanQuestionAnswers.useTime
+                        ? "border-amber-600 bg-amber-500 text-white shadow-sm"
+                        : "border-amber-200 bg-white text-slate-700 hover:bg-amber-50"
+                    }`}
+                  >
+                    🕐 時間をえらぶ
+                  </button>
+                </div>
+                {walkPlanQuestionAnswers.useTime && (
+                  <input
+                    type="time"
+                    value={walkPlanQuestionAnswers.time}
+                    onChange={(e) => setWalkPlanQuestionAnswers((p) => ({ ...p, time: e.target.value }))}
+                    aria-label="開始時刻"
+                    className="mt-2 w-full rounded-2xl border border-amber-200 bg-white px-3 py-2.5 text-center text-base font-bold text-slate-800 outline-none focus:border-amber-400"
+                  />
+                )}
               </div>
+
+              <button
+                type="button"
+                onClick={handleCreateWalkPlan}
+                className="w-full rounded-2xl bg-amber-500 px-4 py-3.5 text-[15px] font-bold text-white shadow-pop transition hover:bg-amber-600 active:scale-[0.98]"
+              >
+                🚶 この内容でプランを作る
+              </button>
             </div>
           </div>
         </div>
