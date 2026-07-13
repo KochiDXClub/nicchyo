@@ -2396,24 +2396,24 @@ const GrandmaChatter = memo(function GrandmaChatter({
       </div>
       {layout === "page" && showWalkPlanModal && (
         <div
-          // NavigationBar が z-[9997] のため、それより上に重ねる
-          className="fixed inset-0 z-[9998]"
+          className="fixed inset-0 z-[1720]"
           role="dialog"
           aria-modal="true"
           aria-label="おさんぽプランを作る"
         >
-          {/* 背景（タップで閉じる） */}
+          {/* 背景（タップで閉じる）。ナビバーには重ねない */}
           <motion.div
-            className="absolute inset-0 bg-black/50"
+            className="absolute inset-x-0 top-0 bg-black/50"
+            style={{ bottom: "calc(3.5rem + var(--safe-bottom, 0px))" }}
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ duration: 0.2 }}
             onClick={() => setShowWalkPlanModal(false)}
           />
-          {/* ボトムシート本体: 内容が伸びても CTA が必ず見える構造
-              （ヘッダー・CTA固定、質問部分だけ内部スクロール） */}
+          {/* ボトムシート本体: ナビバー（h-14 + セーフエリア）の上端に載せて
+              重ならないようにする。ヘッダー・CTA固定、質問部分だけ内部スクロール */}
           <motion.div
-            initial={{ y: "100%" }}
+            initial={{ y: "110%" }}
             animate={{ y: 0 }}
             transition={{ type: "spring", damping: 30, stiffness: 320 }}
             drag="y"
@@ -2426,7 +2426,11 @@ const GrandmaChatter = memo(function GrandmaChatter({
                 setShowWalkPlanModal(false);
               }
             }}
-            className="absolute inset-x-0 bottom-0 mx-auto flex max-h-[85dvh] w-full max-w-md flex-col rounded-t-[28px] border border-b-0 border-amber-100 bg-white shadow-[0_-24px_60px_rgba(15,23,42,0.25)]"
+            className="absolute inset-x-0 mx-auto flex w-full max-w-md flex-col rounded-t-[28px] border border-b-0 border-amber-100 bg-white shadow-[0_-24px_60px_rgba(15,23,42,0.25)]"
+            style={{
+              bottom: "calc(3.5rem + var(--safe-bottom, 0px))",
+              maxHeight: "calc(100dvh - 3.5rem - var(--safe-bottom, 0px) - 1.5rem)",
+            }}
           >
             {/* ドラッグハンドル（下スワイプで閉じる） */}
             <div
@@ -2563,11 +2567,8 @@ const GrandmaChatter = memo(function GrandmaChatter({
 
             </div>
 
-            {/* CTA（固定フッター・セーフエリア対応） */}
-            <div
-              className="shrink-0 border-t border-slate-100 px-5 pt-3"
-              style={{ paddingBottom: "calc(0.75rem + env(safe-area-inset-bottom, 0px))" }}
-            >
+            {/* CTA（固定フッター）。シート自体がナビバーの上に載るためセーフエリア加算は不要 */}
+            <div className="shrink-0 border-t border-slate-100 px-5 pb-3 pt-3">
               <button
                 type="button"
                 onClick={handleCreateWalkPlan}
