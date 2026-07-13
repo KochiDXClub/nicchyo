@@ -1515,26 +1515,25 @@ const GrandmaChatter = memo(function GrandmaChatter({
                   }`}
                 >
                   {message.role === "assistant" && isConsultVariant ? (
-                    <div className="flex max-w-[min(48rem,calc(100%-1rem))] items-start gap-3">
-                      <div className="mt-1 flex-shrink-0">
-                        <div
-                          className={`h-11 w-11 overflow-hidden rounded-full border bg-amber-50 shadow-sm ring-2 ring-white ${
-                            preferredCharacterId && speakerCharacter.id === preferredCharacterId
-                              ? "border-orange-400"
-                              : "border-amber-200"
-                          }`}
-                        >
-                          <img
-                            src={speakerCharacter.image}
-                            alt={speakerName}
-                            className={`h-full w-full object-cover ${speakerCharacter.imageScale}`}
-                            style={{ objectPosition: speakerCharacter.imagePosition }}
-                            draggable={false}
-                          />
-                        </div>
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="mb-1 flex items-center gap-2 pl-1">
+                    <div className="w-full min-w-0 max-w-3xl">
+                      <div className="min-w-0">
+                        {/* アイコンはキャラ名の左（ヘッダー行）に置き、本文バブルを全幅にする */}
+                        <div className="mb-1.5 flex items-center gap-2">
+                          <div
+                            className={`h-9 w-9 shrink-0 overflow-hidden rounded-full border bg-amber-50 shadow-sm ring-2 ring-white ${
+                              preferredCharacterId && speakerCharacter.id === preferredCharacterId
+                                ? "border-orange-400"
+                                : "border-amber-200"
+                            }`}
+                          >
+                            <img
+                              src={speakerCharacter.image}
+                              alt={speakerName}
+                              className={`h-full w-full object-cover ${speakerCharacter.imageScale}`}
+                              style={{ objectPosition: speakerCharacter.imagePosition }}
+                              draggable={false}
+                            />
+                          </div>
                           <span className={`text-base font-semibold ${embedded ? "text-green-700 text-stroke-dark" : "text-slate-700"}`}>{speakerName}</span>
                           {message.consultId !== undefined && message.turnIndex !== undefined && message.id !== activeStreamingMessageId && (
                             <div className="ml-auto flex items-center gap-0.5">
