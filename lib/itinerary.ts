@@ -1,3 +1,5 @@
+import { safeJsonParse } from "@/lib/utils/safeJsonParse";
+
 export type ItineraryShop = {
   /** 実在の店舗ID。候補と突合できなかった立ち寄りは 0（マップ連携から除外される） */
   id: number;
@@ -13,32 +15,51 @@ export type ItineraryTemplateInput = {
 };
 
 const TEMPLATE_HEADER = "【おさんぽプラン】";
-const SECTION_OVERVIEW = "■ 概要";
-const SECTION_TIMELINE = "■ タイムライン";
-const SECTION_NOTES = "■ メモ";
-const SECTION_ROUTE = "■ ルート案内";
 
 const DEFAULT_INTERVAL_MINUTES = 20;
 
 export function buildItineraryTemplate(input: ItineraryTemplateInput) {
   return [
     TEMPLATE_HEADER,
-    SECTION_OVERVIEW,
-    `テーマ: ${input.interest || "日曜市さんぽ"}`,
+    "出力形式: JSONのみ。説明文、Markdown、コードフェンスは禁止。",
+    "形式:",
+    "{",
+    '  "title": "10:30のおさんぽプラン",',
+    '  "summary": "食べ歩き",',
+    '  "shops": [',
+    '    { "id": 12, "name": "田中青果", "time": "10:30", "note": "..." }',
+    "  ]",
+    "}",
+    "",
+    "ルール:",
+    `- title は「${input.startAt}のおさんぽプラン」の形式にする`,
+    `- summary はテーマを短くまとめる`,
+    `- shops は ${Math.max(1, Math.min(6, input.stops))} 件`,
+    "- shops[].id は候補店舗の id をそのまま使う",
+    "- shops[].name は id に対応する候補店舗名と完全一致させる",
+    "- id と name が一致しない組み合わせは禁止",
+    "- time は HH:MM 形式",
+    "- note は任意。短い一言でよい",
+    "",
     `開始時刻: ${input.startAt}`,
-    `立ち寄り件数: ${input.stops}件`,
-    SECTION_TIMELINE,
-    "1. HH:MM | 店名 | ここですること",
-    "2. HH:MM | 店名 | ここですること",
-    "3. HH:MM | 店名 | ここですること",
-    SECTION_NOTES,
-    "- 持ち物: 例) エコバッグ、保冷バッグ",
-    "- 混雑対策: 例) 早めの時間帯に人気店へ",
-    SECTION_ROUTE,
-    "- スタート: ○○",
-    "- ゴール: ○○",
+    `テーマ: ${input.interest || "日曜市さんぽ"}`,
   ].join("\n");
 }
+
+type ItineraryOutputShop = {
+  id?: number | string;
+  name?: string;
+  time?: string;
+  note?: string;
+};
+
+type ItineraryOutputShape = {
+  title?: string;
+  summary?: string;
+  shops?: ItineraryOutputShop[];
+};
+
+type ItineraryCandidate = { id: number; name: string };
 
 function parseHHMM(value: string): number | null {
   const m = value.match(/^(\d{1,2}):(\d{2})$/);
@@ -65,10 +86,114 @@ function resolveStartMinutes(startAt: string, nowHHMM: string): number {
   return parseHHMM(startAt) ?? parseHHMM(nowHHMM) ?? 10 * 60;
 }
 
+function stripJsonCodeFence(raw: string) {
+  const trimmed = raw.trim();
+  const fenced = trimmed.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
+  return fenced?.[1]?.trim() ?? trimmed;
+}
+
+function parseShopId(value: number | string | undefined): number | null {
+  if (typeof value === "number" && Number.isInteger(value) && value > 0) {
+    return value;
+  }
+  if (typeof value === "string") {
+    const parsed = Number(value.trim());
+    if (Number.isInteger(parsed) && parsed > 0) return parsed;
+  }
+  return null;
+}
+
+function findCandidateByName(
+  name: string,
+  candidates: ItineraryCandidate[],
+  used: Set<number>
+): ItineraryCandidate | null {
+  const normalized = name.trim();
+  if (!normalized) return null;
+  const exact = candidates.find((c) => !used.has(c.id) && c.name === normalized);
+  if (exact) return exact;
+  const partial = candidates.find(
+    (c) =>
+      !used.has(c.id) &&
+      c.name.length > 0 &&
+      (c.name.includes(normalized) || normalized.includes(c.name))
+  );
+  return partial ?? null;
+}
+
+function resolveCandidateForOutputShop(
+  shop: ItineraryOutputShop,
+  candidates: ItineraryCandidate[],
+  used: Set<number>
+): ItineraryCandidate | null {
+  const id = parseShopId(shop.id);
+  const name = typeof shop.name === "string" ? shop.name.trim() : "";
+  const candidateById = id ? candidates.find((c) => !used.has(c.id) && c.id === id) ?? null : null;
+  const candidateByName = name ? findCandidateByName(name, candidates, used) : null;
+
+  if (candidateById && candidateByName) {
+    if (candidateById.id === candidateByName.id) return candidateById;
+    console.warn(
+      `[itinerary] shopId/name mismatch detected: id=${candidateById.id} name=${candidateById.name} vs output=${id}:${name}`
+    );
+    return candidateByName;
+  }
+
+  if (candidateById) return candidateById;
+  if (candidateByName) return candidateByName;
+  return null;
+}
+
+function parseStructuredItineraryOutput(
+  raw: string,
+  fallback: { startAt: string; interest: string; stops: number; nowHHMM: string },
+  candidates: ItineraryCandidate[]
+): ItineraryPlan | null {
+  const parsed = safeJsonParse<ItineraryOutputShape | null>(stripJsonCodeFence(raw), null);
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null;
+
+  const shopsInput = Array.isArray(parsed.shops) ? parsed.shops : [];
+  const used = new Set<number>();
+  const shops = shopsInput
+    .map((shop, index) => {
+      const timeMinutes = parseHHMM(typeof shop.time === "string" ? shop.time : "");
+      const resolved = resolveCandidateForOutputShop(shop, candidates, used);
+      if (resolved) {
+        used.add(resolved.id);
+        return {
+          id: resolved.id,
+          name: resolved.name,
+          time: formatHHMM(timeMinutes ?? resolveStartMinutes(fallback.startAt, fallback.nowHHMM) + index * DEFAULT_INTERVAL_MINUTES),
+        };
+      }
+
+      const name = typeof shop.name === "string" && shop.name.trim() ? shop.name.trim() : `立ち寄り${index + 1}`;
+      return {
+        id: 0,
+        name,
+        time: formatHHMM(timeMinutes ?? resolveStartMinutes(fallback.startAt, fallback.nowHHMM) + index * DEFAULT_INTERVAL_MINUTES),
+      };
+    })
+    .slice(0, Math.max(1, fallback.stops));
+
+  if (shops.length === 0) return null;
+
+  const title = typeof parsed.title === "string" && parsed.title.trim()
+    ? parsed.title.trim()
+    : `${fallback.startAt}のおさんぽプラン`;
+  const summary = typeof parsed.summary === "string" ? parsed.summary.trim() : "";
+
+  return { title, summary, shops };
+}
+
 export function parseItineraryTemplateOutput(
   outputText: string,
-  fallback: { startAt: string; interest: string; stops: number; nowHHMM: string }
+  fallback: { startAt: string; interest: string; stops: number; nowHHMM: string },
+  candidates: ItineraryCandidate[] = []
 ): ItineraryPlan {
+  const structured = parseStructuredItineraryOutput(outputText, fallback, candidates);
+  if (structured) return structured;
+
   const baseMinutes = resolveStartMinutes(fallback.startAt, fallback.nowHHMM);
 
   const lines = outputText.split(/\r?\n/).map((line) => line.trim());

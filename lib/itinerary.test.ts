@@ -8,6 +8,11 @@ import {
 
 describe("parseItineraryTemplateOutput", () => {
   const fallback = { startAt: "10:00", interest: "食べ物", stops: 3, nowHHMM: "09:30" };
+  const candidates = [
+    { id: 12, name: "田中青果" },
+    { id: 34, name: "山本刃物店" },
+    { id: 56, name: "浜田の芋屋" },
+  ];
 
   it("タイムライン行から店名と時刻を取り出す（時刻は文字列のまま）", () => {
     const output = [
@@ -30,6 +35,29 @@ describe("parseItineraryTemplateOutput", () => {
     const plan = parseItineraryTemplateOutput(output, fallback);
     expect(plan.shops[0].time).toBe("10:00");
     expect(plan.shops[1].time).toBe("10:20");
+  });
+
+  it("JSON出力から shopId と shopName を照合して解決する", () => {
+    const output = JSON.stringify({
+      title: "10:00のおさんぽプラン",
+      summary: "食べ歩き",
+      shops: [
+        { id: 12, name: "田中青果", time: "10:00" },
+        { id: 34, name: "山本刃物店", time: "10:20" },
+      ],
+    });
+    const plan = parseItineraryTemplateOutput(output, fallback, candidates);
+    expect(plan.shops[0]).toMatchObject({ id: 12, name: "田中青果", time: "10:00" });
+    expect(plan.shops[1]).toMatchObject({ id: 34, name: "山本刃物店", time: "10:20" });
+  });
+
+  it("JSONの id と name が不一致なら name 側の候補で補正する", () => {
+    const output = JSON.stringify({
+      title: "10:00のおさんぽプラン",
+      shops: [{ id: 12, name: "山本刃物", time: "10:00" }],
+    });
+    const plan = parseItineraryTemplateOutput(output, fallback, candidates);
+    expect(plan.shops[0]).toMatchObject({ id: 34, name: "山本刃物店" });
   });
 
   it("「今すぐ」のときは nowHHMM を起点にする（タイムゾーン非依存）", () => {
@@ -155,8 +183,10 @@ describe("generateItinerary", () => {
 describe("buildItineraryTemplate", () => {
   it("要件がテンプレートに埋め込まれる", () => {
     const template = buildItineraryTemplate({ stops: 4, startAt: "10:30", interest: "花" });
-    expect(template).toContain("テーマ: 花");
+    expect(template).toContain("出力形式: JSONのみ");
+    expect(template).toContain('"shops"');
+    expect(template).toContain("shops[].id は候補店舗の id をそのまま使う");
     expect(template).toContain("開始時刻: 10:30");
-    expect(template).toContain("立ち寄り件数: 4件");
+    expect(template).toContain("テーマ: 花");
   });
 });

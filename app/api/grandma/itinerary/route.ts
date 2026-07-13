@@ -8,7 +8,6 @@ import { fetchShopsByVendorIds, summarizeShops } from "@/lib/grandma/vendorSearc
 import {
   buildItineraryTemplate,
   parseItineraryTemplateOutput,
-  resolvePlanShopIds,
   type ItineraryPlan,
 } from "@/lib/itinerary";
 
@@ -140,13 +139,18 @@ export async function POST(request: Request) {
         return `id:${shop.id} | name:${shop.name} | category:${shop.category} | similarity:${sim?.toFixed(4) ?? "n/a"} | products:${shop.products.slice(0, 4).join(" / ")}`;
       })
       .join("\n");
+    const shopCandidates = shops.map((shop) => ({ id: shop.id, name: shop.name }));
 
     const template = buildItineraryTemplate({ stops, startAt, interest });
     const prompt = [
       "あなたは高知・日曜市の旅程プランナーです。",
-      "必ず下記テンプレート構造のテキストのみを出力してください。JSONは禁止。",
+      "必ずJSONのみを出力してください。JSON以外、説明文、Markdown、コードフェンスは禁止。",
       "タイムラインは必ず立ち寄り件数ぶん作ること。",
-      "店名は候補店舗から優先して選び、時間は HH:MM 形式で記載すること。",
+      "各 shops 要素は id と name を両方含めること。",
+      "shop.id は候補店舗の id をそのまま使うこと。",
+      "shop.name はその id に対応する候補店舗名と完全一致させること。",
+      "id と name が一致しない組み合わせは禁止。",
+      "time は HH:MM 形式で記載すること。",
       "時間生成ルール: 開始時刻が「今すぐ」の場合は必ず『送信時刻』を起点にすること。",
       "開始時刻が HH:MM 指定ならその時刻を起点にすること。",
       "要件:",
@@ -168,7 +172,7 @@ export async function POST(request: Request) {
       "ベクトル近傍情報:",
       vectorContext || "該当なし",
       "",
-      "テンプレート:",
+      "出力スキーマ例:",
       template,
     ].join("\n");
 
@@ -186,7 +190,7 @@ export async function POST(request: Request) {
           {
             role: "system",
             content:
-              "あなたは日曜市の旅程作成AI。出力はテンプレート準拠テキストのみ。説明文や前置き、Markdownの追加装飾は禁止。",
+              "あなたは日曜市の旅程作成AI。出力はJSONのみ。shops の各要素に id と name を含め、id と name が一致していることを必ず確認する。",
           },
           { role: "user", content: prompt },
         ],
@@ -204,17 +208,11 @@ export async function POST(request: Request) {
       interest,
       stops,
       nowHHMM,
-    });
-    // LLMが出した店名を実在の候補店舗IDに解決する（マップ連携に必須）
-    const plan = resolvePlanShopIds(
-      parsedPlan,
-      shops.map((shop) => ({ id: shop.id, name: shop.name }))
-    );
+    }, shopCandidates);
 
     return NextResponse.json({
-      plan,
-      // LLM出力が空（＝テンプレのプレースホルダのまま）のときは本文を返さない
-      outputText: outputText || undefined,
+      plan: parsedPlan,
+      outputText: undefined,
       vectorMatches: shops.slice(0, 6).map((shop) => ({
         id: shop.id,
         name: shop.name,
