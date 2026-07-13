@@ -138,14 +138,26 @@ type WalkPlanPaceId = (typeof WALK_PLAN_PACE_OPTIONS)[number]["id"];
 const LOOSELEAF_LINE_PX = 26;
 
 function ItineraryLooseleafCard({
+  messageId,
   plan,
   planText,
   resolveShopName,
+  resolveShop,
+  onSelectShop,
+  onStartConsult,
+  isExpanded,
+  onToggle,
   onShowRoute,
 }: {
+  messageId: string;
   plan: ItineraryPlan;
   planText?: string;
   resolveShopName: (shopId: number) => string | undefined;
+  resolveShop?: (shopId: number) => Shop | undefined;
+  onSelectShop?: (shopId: number, shop?: Shop) => void;
+  onStartConsult?: (shop: Shop) => void;
+  isExpanded: (planIndex: number) => boolean;
+  onToggle: (planIndex: number) => void;
   onShowRoute: () => void;
 }) {
   const hasRealShops = plan.shops.some((s) => s.id > 0);
@@ -203,23 +215,62 @@ function ItineraryLooseleafCard({
 
           {/* タイムライン（1立ち寄り=罫線1行） */}
           <ol className="mt-0">
-            {plan.shops.map((s, planIndex) => (
-              <li
-                key={`${s.id}-${planIndex}`}
-                className="flex items-baseline justify-between gap-2"
-                style={{ lineHeight: `${LOOSELEAF_LINE_PX}px` }}
-              >
-                <span className="min-w-0 truncate text-[14px] text-slate-800">
-                  <span className="mr-2 inline-block w-4 text-right text-[12px] font-bold text-rose-400">
-                    {planIndex + 1}.
-                  </span>
-                  {s.name ?? resolveShopName(s.id) ?? `立ち寄り${planIndex + 1}`}
-                </span>
-                <span className="shrink-0 text-[12px] font-semibold tabular-nums text-slate-500">
-                  {s.time}
-                </span>
-              </li>
-            ))}
+            {plan.shops.map((s, planIndex) => {
+              const expanded = isExpanded(planIndex);
+              const resolvedName = s.name ?? resolveShopName(s.id) ?? `立ち寄り${planIndex + 1}`;
+              const resolvedShop = resolveShop?.(s.id);
+
+              return (
+                <li
+                  key={`${messageId}-${s.id}-${planIndex}`}
+                  className="rounded-[1rem] bg-white/35 px-2 py-1.5"
+                  style={{ lineHeight: `${LOOSELEAF_LINE_PX}px` }}
+                >
+                  <div className="shrink-0 text-[12px] font-semibold tabular-nums text-slate-500">
+                    {s.time}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => onToggle(planIndex)}
+                    className="group mt-0.5 flex w-full items-center gap-1.5 text-left"
+                    aria-expanded={expanded}
+                    aria-label={`${resolvedName} の詳細を${expanded ? "閉じる" : "開く"}`}
+                  >
+                    <span className="inline-block w-4 shrink-0 text-right text-[12px] font-bold text-rose-400">
+                      {planIndex + 1}.
+                    </span>
+                    <span className="min-w-0 truncate text-[14px] font-semibold text-slate-800 group-hover:text-slate-950">
+                      {resolvedName}
+                    </span>
+                    <span className="ml-auto shrink-0 text-[11px] font-semibold text-amber-700">
+                      {expanded ? "閉じる" : "詳しく"}
+                    </span>
+                  </button>
+
+                  {expanded && (
+                    <motion.div
+                      key={`${messageId}-${s.id}-${planIndex}-card`}
+                      initial={{ opacity: 0, y: -4 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
+                      className="mt-2 pl-6"
+                    >
+                      {resolvedShop ? (
+                        <ConsultShopSuggestionCard
+                          shop={resolvedShop}
+                          onSelectShop={onSelectShop}
+                          onStartConsult={onStartConsult}
+                        />
+                      ) : (
+                        <div className="rounded-[1rem] border border-dashed border-amber-200 bg-amber-50/70 px-3 py-2 text-[12px] text-slate-500">
+                          このお店の詳細カードはまだ読み込めていません。
+                        </div>
+                      )}
+                    </motion.div>
+                  )}
+                </li>
+              );
+            })}
           </ol>
 
           {/* AIのメモ全文（折りたたみ） */}
@@ -419,6 +470,7 @@ const GrandmaChatter = memo(function GrandmaChatter({
   const [showPlusMenu, setShowPlusMenu] = useState(false);
   // AIが店を薦めた後に出す「おさんぽプランを立てる」ナッジ（会話ごとに1回だけ）
   const [walkPlanNudgeUsed, setWalkPlanNudgeUsed] = useState(false);
+  const [expandedItineraryItemKeys, setExpandedItineraryItemKeys] = useState<Set<string>>(new Set());
   const [walkPlanQuestionAnswers, setWalkPlanQuestionAnswers] = useState<{
     pace: WalkPlanPaceId;
     useTime: boolean;
@@ -1309,6 +1361,18 @@ const GrandmaChatter = memo(function GrandmaChatter({
     }
     return null;
   })();
+  const toggleItineraryItem = (messageId: string, planIndex: number) => {
+    const key = `${messageId}:${planIndex}`;
+    setExpandedItineraryItemKeys((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) {
+        next.delete(key);
+      } else {
+        next.add(key);
+      }
+      return next;
+    });
+  };
   const hasSuggestedBox =
     displayedSuggestedShops.length > 0 && !isKeyboardOpen;
   const hasSupplement = hasSuggestedBox || hasImageReply;
@@ -1672,13 +1736,23 @@ const GrandmaChatter = memo(function GrandmaChatter({
 
                           {message.plan && (
                             <ItineraryLooseleafCard
+                              messageId={message.id}
                               plan={message.plan}
                               planText={message.planText}
                               resolveShopName={(shopId) => shopLookup.get(shopId)?.name}
-                              onShowRoute={() => {
-                                try { localStorage.setItem('nicchyo-walk-plan', JSON.stringify(message.plan)); } catch {}
-                                router.push('/map?walkPlan=1');
-                              }}
+                              isExpanded={(planIndex) =>
+                                expandedItineraryItemKeys.has(`${message.id}:${planIndex}`)
+                              }
+                              onToggle={(planIndex) => toggleItineraryItem(message.id, planIndex)}
+                                resolveShop={(shopId) => shopLookup.get(shopId)}
+                                onSelectShop={onSelectShop}
+                                onStartConsult={
+                                  layout === "page" && isConsultVariant ? beginShopConsult : undefined
+                                }
+                                onShowRoute={() => {
+                                  try { localStorage.setItem('nicchyo-walk-plan', JSON.stringify(message.plan)); } catch {}
+                                  router.push('/map?walkPlan=1');
+                                }}
                             />
                           )}
                         </MessageBubble>
@@ -2707,6 +2781,94 @@ function ConsultShopSuggestionCard({
         if (event.key === "Enter" || event.key === " ") {
           event.preventDefault();
           onSelectShop?.(shop.id, shop);
+        }
+
+        function _ItineraryLooseleafCard({
+          messageId,
+          plan,
+          planText,
+          resolveShop,
+          onSelectShop,
+          onStartConsult,
+          isExpanded,
+          onToggle,
+          onShowRoute,
+        }: {
+          messageId: string;
+          plan: ItineraryPlan;
+          planText?: string;
+          resolveShop: (shopId: number) => Shop | undefined;
+          onSelectShop?: (shopId: number, shop?: Shop) => void;
+          onStartConsult?: (shop: Shop) => void;
+          isExpanded: (planIndex: number) => boolean;
+          onToggle: (planIndex: number) => void;
+          onShowRoute: () => void;
+        }) {
+          return (
+            <div className="mt-3 rounded-[1.25rem] border border-amber-200 bg-[#fffaf3] p-3 shadow-sm">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <div className="text-sm font-bold text-slate-900">{plan.title}</div>
+                  {plan.summary && <div className="text-xs text-slate-500">{plan.summary}</div>}
+                </div>
+                <button
+                  type="button"
+                  onClick={onShowRoute}
+                  className="shrink-0 rounded-full border border-amber-200 bg-white px-3 py-1.5 text-[11px] font-semibold text-amber-800 transition hover:bg-amber-50"
+                >
+                  ルートを見る
+                </button>
+              </div>
+
+              {planText && (
+                <pre className="mt-2 whitespace-pre-wrap rounded-xl border border-amber-100 bg-white/80 p-2 text-[11px] leading-relaxed text-slate-600">
+                  {planText}
+                </pre>
+              )}
+
+              <ol className="mt-3 space-y-2">
+                {plan.shops.map((shop, planIndex) => {
+                  const expanded = isExpanded(planIndex);
+                  const resolvedShop = resolveShop(shop.id);
+                  const resolvedName = resolvedShop?.name ?? shop.name ?? `お店 ${planIndex + 1}`;
+                  return (
+                    <li key={`${messageId}-${shop.id}-${planIndex}`} className="rounded-[1rem] border border-amber-100 bg-white/90 p-2.5">
+                      <button
+                        type="button"
+                        onClick={() => onToggle(planIndex)}
+                        className="flex w-full items-center justify-between gap-3 text-left"
+                        aria-expanded={expanded}
+                      >
+                        <span className="min-w-0">
+                          <span className="mr-2 text-[11px] font-semibold text-amber-700">
+                            {new Date(shop.time).toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" })}
+                          </span>
+                          <span className="font-semibold text-slate-900">{resolvedName}</span>
+                        </span>
+                        <span className="text-[11px] font-semibold text-amber-700">{expanded ? "閉じる" : "詳しく"}</span>
+                      </button>
+
+                      {expanded && (
+                        <div className="mt-2 space-y-2">
+                          {resolvedShop ? (
+                            <ConsultShopSuggestionCard
+                              shop={resolvedShop}
+                              onSelectShop={onSelectShop}
+                              onStartConsult={onStartConsult}
+                            />
+                          ) : (
+                            <div className="rounded-[1rem] border border-dashed border-amber-200 bg-amber-50/70 px-3 py-2 text-[12px] text-slate-500">
+                              このお店の詳細カードはまだ読み込めていません。
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </li>
+                  );
+                })}
+              </ol>
+            </div>
+          );
         }
       }}
       className="relative w-full cursor-pointer overflow-hidden rounded-[1.35rem] border border-amber-200 bg-white text-left shadow-sm transition hover:bg-amber-50/40"
