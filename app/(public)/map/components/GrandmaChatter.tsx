@@ -1005,11 +1005,15 @@ const GrandmaChatter = memo(function GrandmaChatter({
     const stops = Math.max(1, Math.min(6, walkPlanQuestionAnswers.stops ?? 3));
     const startAt = walkPlanQuestionAnswers.useTime ? walkPlanQuestionAnswers.time ?? "今すぐ" : "今すぐ";
     const interest = walkPlanQuestionAnswers.interest ?? "";
+    const submittedAt = new Date().toISOString();
+    const clientTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "Asia/Tokyo";
     const history = chatMessages
       .slice(-8)
       .map((m) => ({ role: m.role, text: m.text }));
     let planText = "";
     let plan: ItineraryPlan | null = null;
+    // Submit immediately closes modal, then waits for AI in chat area.
+    setShowWalkPlanModal(false);
     setAiStatus("thinking");
     try {
       const response = await fetch("/api/grandma/itinerary", {
@@ -1019,6 +1023,8 @@ const GrandmaChatter = memo(function GrandmaChatter({
           stops,
           startAt,
           interest,
+          submittedAt,
+          clientTimezone,
           history,
           memorySummary: conversationSummary,
         }),
@@ -1067,7 +1073,6 @@ const GrandmaChatter = memo(function GrandmaChatter({
         planText,
       },
     ]);
-    setShowWalkPlanModal(false);
   };
 
   const shellClassName = layout === "page"

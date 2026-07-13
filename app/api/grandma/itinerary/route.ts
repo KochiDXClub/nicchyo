@@ -18,6 +18,8 @@ const BodySchema = z.object({
   stops: z.number().int().min(1).max(6).optional(),
   startAt: z.string().min(1).max(20).optional(),
   interest: z.string().max(200).optional(),
+  submittedAt: z.string().max(64).optional(),
+  clientTimezone: z.string().max(64).optional(),
   history: z.array(z.object({ role: z.enum(["user", "assistant"]), text: z.string() })).optional(),
   memorySummary: z.string().max(800).optional(),
 });
@@ -47,6 +49,22 @@ export async function POST(request: Request) {
     const stops = parsed.data.stops ?? 3;
     const startAt = parsed.data.startAt?.trim() || "今すぐ";
     const interest = parsed.data.interest?.trim() || "";
+    const submittedAtRaw = parsed.data.submittedAt?.trim();
+    const clientTimezone = parsed.data.clientTimezone?.trim() || "Asia/Tokyo";
+    const submittedAt = submittedAtRaw && !Number.isNaN(Date.parse(submittedAtRaw))
+      ? new Date(submittedAtRaw)
+      : new Date();
+    const submittedAtJst = submittedAt.toLocaleString("ja-JP", {
+      timeZone: clientTimezone,
+      hour12: false,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      weekday: "short",
+    });
     const memorySummary = parsed.data.memorySummary?.trim() || "";
     const history = parsed.data.history ?? [];
     const historyText = history
@@ -108,10 +126,14 @@ export async function POST(request: Request) {
       "必ず下記テンプレート構造のテキストのみを出力してください。JSONは禁止。",
       "タイムラインは必ず立ち寄り件数ぶん作ること。",
       "店名は候補店舗から優先して選び、時間は HH:MM 形式で記載すること。",
+      "時間生成ルール: 開始時刻が「今すぐ」の場合は必ず『送信時刻』を起点にすること。",
+      "開始時刻が HH:MM 指定ならその時刻を起点にすること。",
       "要件:",
       `- 立ち寄り件数: ${stops}`,
       `- 開始時刻: ${startAt}`,
       `- 興味: ${interest || "未指定"}`,
+      `- 送信時刻: ${submittedAtJst}`,
+      `- ユーザータイムゾーン: ${clientTimezone}`,
       "",
       "会話メモ:",
       memorySummary || "なし",
@@ -176,4 +198,3 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
-
