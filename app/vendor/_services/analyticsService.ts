@@ -1,5 +1,6 @@
 import { createClient } from "@/utils/supabase/client";
-import type { ProductSale, VendorAnalytics, HourlyData, MarketTrend, SearchSourceRatio, SearchKeywordTrend, AiConsultAnalytics } from "../_types";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import type { ProductSale, VendorAnalytics, HourlyData, MarketTrend, SearchSourceRatio, SearchKeywordTrend, AiConsultAnalytics, HeartSummary } from "../_types";
 
 // ─── ページビュー ───────────────────────────────────────────
 
@@ -61,6 +62,37 @@ export async function fetchVendorAnalytics(vendorId: string): Promise<VendorAnal
     rank: rankIdx >= 0 ? rankIdx + 1 : sorted.length + 1,
     totalVendors: Math.max(viewsByVendor.size, 1),
   };
+}
+
+/**
+ * 自分の投稿がもらったハート数の集計（累計・過去7日）。
+ *
+ * content_reactions の「自分の投稿への SELECT」ポリシー
+ * （20260713 マイグレーション）により、認証済み出店者には
+ * 自分の投稿分の行しか返らないので vendor_id フィルタは不要。
+ * テーブルが生成済み Database 型に未登録のためクライアントはキャストする。
+ */
+export async function fetchVendorHeartSummary(): Promise<HeartSummary> {
+  const supabase = createClient() as unknown as SupabaseClient;
+  const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+
+  try {
+    const [totalRes, weekRes] = await Promise.all([
+      supabase
+        .from("content_reactions")
+        .select("id", { count: "exact", head: true }),
+      supabase
+        .from("content_reactions")
+        .select("id", { count: "exact", head: true })
+        .gte("created_at", weekAgo),
+    ]);
+    return {
+      total: totalRes.count ?? 0,
+      thisWeek: weekRes.count ?? 0,
+    };
+  } catch {
+    return { total: 0, thisWeek: 0 };
+  }
 }
 
 export async function fetchHourlyData(vendorId: string): Promise<HourlyData[]> {

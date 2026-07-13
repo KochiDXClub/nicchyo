@@ -13,6 +13,7 @@ import {
   STORY_AGE_LABEL,
   STORY_AGE_ORDER,
 } from "./age";
+import { fetchReactionCounts } from "@/lib/story/reactions";
 import type { StoryItem } from "./types";
 
 export default function StoryGridClient() {
@@ -21,6 +22,7 @@ export default function StoryGridClient() {
   const [fetchError, setFetchError] = useState(false);
   const [viewerIndex, setViewerIndex] = useState<number | null>(null);
   const [pageLoading, setPageLoading] = useState(true);
+  const [heartCounts, setHeartCounts] = useState<Record<string, number>>({});
   const nextSunday = useMemo(() => getNextSundayLabel(), []);
 
   useEffect(() => {
@@ -38,6 +40,20 @@ export default function StoryGridClient() {
       .catch(() => setFetchError(true))
       .finally(() => setLoading(false));
   }, []);
+
+  // サムネイル用のハート数をバッチ取得（失敗してもグリッド表示には影響させない）
+  useEffect(() => {
+    if (stories.length === 0) return;
+    let cancelled = false;
+    fetchReactionCounts(stories.map((story) => story.id))
+      .then(({ counts }) => {
+        if (!cancelled) setHeartCounts(counts);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [stories]);
 
   // 鮮度バケット（今週/1週間前/1か月前）ごとにまとめる。index は元の
   // stories 配列（新しい順）の位置なので、ビューアの initialIndex と整合する。
@@ -129,6 +145,24 @@ export default function StoryGridClient() {
                           {story.vendor?.shop_name ?? "出店者"}
                         </p>
                       </div>
+                      {/* ハート数バッジ（0件のときは出さない） */}
+                      {(heartCounts[story.id] ?? 0) > 0 && (
+                        <div className="absolute right-1 top-1 flex items-center gap-0.5 rounded-full bg-black/45 px-1.5 py-0.5 backdrop-blur-sm">
+                          <svg
+                            width="9"
+                            height="9"
+                            viewBox="0 0 24 24"
+                            fill="currentColor"
+                            className="text-rose-400"
+                            aria-hidden
+                          >
+                            <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+                          </svg>
+                          <span className="text-[9px] font-bold text-white tabular-nums">
+                            {heartCounts[story.id]}
+                          </span>
+                        </div>
+                      )}
                     </motion.button>
                   ))}
                 </div>

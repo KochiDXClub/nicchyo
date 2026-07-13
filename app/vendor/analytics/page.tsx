@@ -6,12 +6,12 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import NavigationBar from "@/app/components/NavigationBar";
 import { useAuth } from "@/lib/auth/AuthContext";
-import { fetchVendorAnalytics, fetchSearchSourceRatio } from "../_services/analyticsService";
-import type { VendorAnalytics, SearchSourceRatio } from "../_types";
+import { fetchVendorAnalytics, fetchSearchSourceRatio, fetchVendorHeartSummary } from "../_services/analyticsService";
+import type { VendorAnalytics, SearchSourceRatio, HeartSummary } from "../_types";
 import {
   ArrowLeft, Eye, MousePointerClick, Search,
   BarChart2, Clock, ShoppingBag, TrendingUp,
-  ChevronRight, ArrowUp, ArrowDown, Loader2, MapPin, Navigation, MessageCircle,
+  ChevronRight, ArrowUp, ArrowDown, Loader2, MapPin, Navigation, MessageCircle, Heart,
 } from "lucide-react";
 
 function DeltaBadge({ current, prev }: { current: number; prev: number }) {
@@ -43,12 +43,17 @@ export default function VendorAnalyticsPage() {
   const { user } = useAuth();
   const [analytics, setAnalytics] = useState<VendorAnalytics>(EMPTY_ANALYTICS);
   const [sourceRatio, setSourceRatio] = useState<SearchSourceRatio>({ preVisit: 0, onSite: 0, other: 0 });
+  const [hearts, setHearts] = useState<HeartSummary>({ total: 0, thisWeek: 0 });
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     if (!user) return;
-    Promise.all([fetchVendorAnalytics(user.id), fetchSearchSourceRatio(user.id)])
-      .then(([a, s]) => { setAnalytics(a); setSourceRatio(s); })
+    Promise.all([
+      fetchVendorAnalytics(user.id),
+      fetchSearchSourceRatio(user.id),
+      fetchVendorHeartSummary(),
+    ])
+      .then(([a, s, h]) => { setAnalytics(a); setSourceRatio(s); setHearts(h); })
       .finally(() => setIsLoading(false));
   }, [user]);
 
@@ -117,6 +122,28 @@ export default function VendorAnalyticsPage() {
               {thisWeek.views === 0 && (
                 <p className="mt-2 text-center text-xs text-slate-300">マップで店舗が閲覧されると反映されます</p>
               )}
+            </div>
+
+            {/* もらったハート（投稿へのリアクション） */}
+            <div className="rounded-3xl border border-rose-100 bg-gradient-to-br from-rose-50 to-white p-4 shadow-sm md:p-5">
+              <div className="mb-1 flex items-center gap-1.5">
+                <Heart size={14} className="fill-current text-rose-400" />
+                <p className="text-sm font-semibold text-slate-700">もらったハート</p>
+              </div>
+              <div className="flex items-end gap-2">
+                <span className="text-5xl font-black tracking-tight text-rose-400">
+                  {hearts.total.toLocaleString()}
+                </span>
+                <span className="mb-1 text-base text-slate-500">個</span>
+                {hearts.thisWeek > 0 && (
+                  <span className="mb-1 ml-1 rounded-full bg-rose-100 px-2 py-0.5 text-xs font-bold text-rose-600">
+                    今週 +{hearts.thisWeek.toLocaleString()}
+                  </span>
+                )}
+              </div>
+              <p className="mt-2 text-xs text-slate-400">
+                近況（投稿）にお客さんが付けたハートの合計です
+              </p>
             </div>
 
             {/* 注目度ランキング */}

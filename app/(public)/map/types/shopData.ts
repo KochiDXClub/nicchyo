@@ -95,6 +95,8 @@ export interface ShopEditableData {
 
   /** 出店者の投稿1件 */
   activePosts?: {
+    /** vendor_contents の id（ハートリアクション連携用） */
+    id?: string;
     text: string;
     imageUrl?: string;
     expiresAt: string;
@@ -103,6 +105,8 @@ export interface ShopEditableData {
 
   /** 出店者の最新投稿（有効期限内のもの） */
   activePost?: {
+    /** vendor_contents の id（ハートリアクション連携用） */
+    id?: string;
     text: string;
     imageUrl?: string;
     expiresAt: string;
