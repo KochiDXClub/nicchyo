@@ -4,6 +4,7 @@
 import React, { memo, useEffect, useMemo, useState, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { motion, useDragControls } from "framer-motion";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -414,6 +415,7 @@ const GrandmaChatter = memo(function GrandmaChatter({
   const [isListening, setIsListening] = useState(false);
   // Walk plan modal / quick flow states
   const [showWalkPlanModal, setShowWalkPlanModal] = useState(false);
+  const walkPlanDragControls = useDragControls();
   const [showPlusMenu, setShowPlusMenu] = useState(false);
   // AIが店を薦めた後に出す「おさんぽプランを立てる」ナッジ（会話ごとに1回だけ）
   const [walkPlanNudgeUsed, setWalkPlanNudgeUsed] = useState(false);
@@ -2394,13 +2396,48 @@ const GrandmaChatter = memo(function GrandmaChatter({
       </div>
       {layout === "page" && showWalkPlanModal && (
         <div
-          className="fixed inset-0 z-[1720] flex items-center justify-center bg-black/50 px-4"
+          className="fixed inset-0 z-[1720]"
           role="dialog"
           aria-modal="true"
           aria-label="おさんぽプランを作る"
         >
-          <div className="w-full max-w-md rounded-2xl border border-amber-100 bg-white p-5 shadow-2xl">
-            <div className="flex items-center justify-between">
+          {/* 背景（タップで閉じる） */}
+          <motion.div
+            className="absolute inset-0 bg-black/50"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.2 }}
+            onClick={() => setShowWalkPlanModal(false)}
+          />
+          {/* ボトムシート本体: 内容が伸びても CTA が必ず見える構造
+              （ヘッダー・CTA固定、質問部分だけ内部スクロール） */}
+          <motion.div
+            initial={{ y: "100%" }}
+            animate={{ y: 0 }}
+            transition={{ type: "spring", damping: 30, stiffness: 320 }}
+            drag="y"
+            dragControls={walkPlanDragControls}
+            dragListener={false}
+            dragConstraints={{ top: 0, bottom: 0 }}
+            dragElastic={{ top: 0, bottom: 0.4 }}
+            onDragEnd={(_, info) => {
+              if (info.offset.y > 80 || info.velocity.y > 500) {
+                setShowWalkPlanModal(false);
+              }
+            }}
+            className="absolute inset-x-0 bottom-0 mx-auto flex max-h-[85dvh] w-full max-w-md flex-col rounded-t-[28px] border border-b-0 border-amber-100 bg-white shadow-[0_-24px_60px_rgba(15,23,42,0.25)]"
+          >
+            {/* ドラッグハンドル（下スワイプで閉じる） */}
+            <div
+              className="flex shrink-0 cursor-grab justify-center pb-1 pt-3 active:cursor-grabbing"
+              onPointerDown={(e) => walkPlanDragControls.start(e)}
+              style={{ touchAction: "none" }}
+            >
+              <div className="h-1 w-10 rounded-full bg-slate-300" />
+            </div>
+
+            {/* ヘッダー（固定） */}
+            <div className="flex shrink-0 items-center justify-between px-5 pb-2">
               <div>
                 <div className="text-lg font-bold text-slate-900">おさんぽプランを作る</div>
                 <div className="text-sm text-slate-500">3つ選ぶだけ。あとはAIにおまかせ</div>
@@ -2413,7 +2450,9 @@ const GrandmaChatter = memo(function GrandmaChatter({
                 閉じる
               </button>
             </div>
-            <div className="mt-5 space-y-5">
+
+            {/* 質問（ここだけスクロール） */}
+            <div className="min-h-0 flex-1 space-y-5 overflow-y-auto overscroll-contain px-5 pb-4 pt-1">
               {/* Q1: 気分（複数選択チップ・未選択＝おまかせ） */}
               <div>
                 <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-amber-600">Q1</p>
@@ -2521,6 +2560,13 @@ const GrandmaChatter = memo(function GrandmaChatter({
                 )}
               </div>
 
+            </div>
+
+            {/* CTA（固定フッター・セーフエリア対応） */}
+            <div
+              className="shrink-0 border-t border-slate-100 px-5 pt-3"
+              style={{ paddingBottom: "calc(0.75rem + env(safe-area-inset-bottom, 0px))" }}
+            >
               <button
                 type="button"
                 onClick={handleCreateWalkPlan}
@@ -2529,7 +2575,7 @@ const GrandmaChatter = memo(function GrandmaChatter({
                 🚶 この内容でプランを作る
               </button>
             </div>
-          </div>
+          </motion.div>
         </div>
       )}
 
