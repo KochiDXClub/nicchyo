@@ -29,7 +29,7 @@ import type { Shop } from "../data/shops";
 import { getSmartSuggestions } from "../utils/suggestionGenerator";
 import { getShopBannerImage } from "@/lib/shopImages";
 import { saveAiMapPayload } from "@/lib/searchMapStorage";
-import { generateItinerary } from "@/lib/itinerary";
+import { generateItinerary, type ItineraryPlan } from "@/lib/itinerary";
 import { useAvatarDrag } from "../../../../lib/hooks/useAvatarDrag";
 const ROTATE_MS = 6500;
 const EXAMPLE_ROTATE_MS = 4500;
@@ -64,6 +64,7 @@ type ChatMessage = {
   followUpQuestion?: string;
   consultId?: string;
   turnIndex?: number;
+  plan?: ItineraryPlan;
 };
 
 type GrandmaChatterProps = {
