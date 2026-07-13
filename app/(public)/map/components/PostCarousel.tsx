@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { RefObject } from "react";
+import { useRouter } from "next/navigation";
 import type { BannerTheme, ActivePostItem } from "./ShopBannerHero";
 import { fetchReactionCounts, toggleReaction, type ReactionState } from "@/lib/story/reactions";
 import { getOrCreateConsultVisitorKey } from "@/lib/consultVisitorKey";
@@ -67,9 +68,16 @@ export function PostCarousel({
   activePostRef: RefObject<HTMLDivElement>;
   activePostCarouselRef: RefObject<HTMLDivElement>;
 }) {
+  const router = useRouter();
   // vendor_contents の id ごとのハート状態（id を持つ投稿のみ対象）
   const [reactions, setReactions] = useState<Record<string, ReactionState>>({});
   const visitorKeyRef = useRef<string | null>(null);
+
+  // ストーリー一覧は画像つき投稿のみ載るため、画像がある投稿だけ遷移できる
+  const openStory = (post: ActivePostItem) => {
+    if (!post.id || !post.imageUrl) return;
+    router.push(`/story?content=${encodeURIComponent(post.id)}`);
+  };
 
   const postIdsKey = activePosts
     .map((post) => post.id)
@@ -144,15 +152,34 @@ export function PostCarousel({
       </div>
 
       <div ref={activePostCarouselRef} className="flex snap-x snap-mandatory overflow-x-hidden scroll-smooth">
-        {activePosts.map((post, index) => (
-          <article key={index} className="w-full shrink-0 snap-center">
-            {post.imageUrl && (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={post.imageUrl} alt="お知らせ画像" className="h-48 w-full object-cover" />
-            )}
-            <div className="px-4 py-3">
-              <p className="whitespace-pre-wrap text-base leading-relaxed text-slate-800">{post.text}</p>
-              <div className="mt-2 flex items-center justify-between text-xs text-slate-400">
+        {activePosts.map((post, index) => {
+          const canOpenStory = !!post.id && !!post.imageUrl;
+          const postBody = (
+            <>
+              {post.imageUrl && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={post.imageUrl} alt="お知らせ画像" className="h-48 w-full object-cover" />
+              )}
+              <p className="whitespace-pre-wrap px-4 pt-3 text-base leading-relaxed text-slate-800">
+                {post.text}
+              </p>
+            </>
+          );
+          return (
+            <article key={index} className="w-full shrink-0 snap-center">
+              {canOpenStory ? (
+                <button
+                  type="button"
+                  onClick={() => openStory(post)}
+                  className="block w-full text-left"
+                  aria-label="このお知らせをストーリーで見る"
+                >
+                  {postBody}
+                </button>
+              ) : (
+                postBody
+              )}
+              <div className="mt-2 flex items-center justify-between px-4 pb-3 text-xs text-slate-400">
                 {post.id ? (
                   <PostHeartButton
                     state={reactions[post.id]}
@@ -184,9 +211,9 @@ export function PostCarousel({
                   )}
                 </div>
               </div>
-            </div>
-          </article>
-        ))}
+            </article>
+          );
+        })}
       </div>
     </div>
   );

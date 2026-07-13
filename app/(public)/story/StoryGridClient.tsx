@@ -41,6 +41,16 @@ export default function StoryGridClient() {
       .finally(() => setLoading(false));
   }, []);
 
+  // ?content=<vendor_contents.id> が付いていたら該当ストーリーを直接開く
+  // （マップのショップバナー「今日のお知らせ」からの遷移用）
+  useEffect(() => {
+    if (stories.length === 0) return;
+    const contentId = new URLSearchParams(window.location.search).get("content");
+    if (!contentId) return;
+    const index = stories.findIndex((story) => story.id === contentId);
+    if (index >= 0) setViewerIndex(index);
+  }, [stories]);
+
   // サムネイル用のハート数をバッチ取得（失敗してもグリッド表示には影響させない）
   useEffect(() => {
     if (stories.length === 0) return;
