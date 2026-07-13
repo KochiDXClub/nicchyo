@@ -2396,7 +2396,8 @@ const GrandmaChatter = memo(function GrandmaChatter({
       </div>
       {layout === "page" && showWalkPlanModal && (
         <div
-          className="fixed inset-0 z-[1720]"
+          // NavigationBar が z-[9997] のため、それより上に重ねる
+          className="fixed inset-0 z-[9998]"
           role="dialog"
           aria-modal="true"
           aria-label="おさんぽプランを作る"
