@@ -2510,12 +2510,12 @@ const GrandmaChatter = memo(function GrandmaChatter({
                         }
                         className={`rounded-2xl border px-2 py-2.5 text-center transition-all duration-[120ms] active:scale-95 ${
                           selected
-                            ? "border-amber-600 bg-amber-500 text-white shadow-sm"
+                            ? "border-amber-500 bg-amber-100 text-amber-900"
                             : "border-amber-200 bg-white text-slate-700 hover:bg-amber-50"
                         }`}
                       >
                         <span className="block text-[13px] font-bold">{option.label}</span>
-                        <span className={`block text-[10px] ${selected ? "text-amber-100" : "text-slate-400"}`}>
+                        <span className={`block text-[10px] ${selected ? "text-amber-700" : "text-slate-400"}`}>
                           {option.desc}
                         </span>
                       </button>
@@ -2535,7 +2535,7 @@ const GrandmaChatter = memo(function GrandmaChatter({
                     onClick={() => setWalkPlanQuestionAnswers((p) => ({ ...p, useTime: false }))}
                     className={`rounded-2xl border px-2 py-2.5 text-[13px] font-bold transition-all duration-[120ms] active:scale-95 ${
                       !walkPlanQuestionAnswers.useTime
-                        ? "border-amber-600 bg-amber-500 text-white shadow-sm"
+                        ? "border-amber-500 bg-amber-100 text-amber-900"
                         : "border-amber-200 bg-white text-slate-700 hover:bg-amber-50"
                     }`}
                   >
@@ -2547,7 +2547,7 @@ const GrandmaChatter = memo(function GrandmaChatter({
                     onClick={() => setWalkPlanQuestionAnswers((p) => ({ ...p, useTime: true }))}
                     className={`rounded-2xl border px-2 py-2.5 text-[13px] font-bold transition-all duration-[120ms] active:scale-95 ${
                       walkPlanQuestionAnswers.useTime
-                        ? "border-amber-600 bg-amber-500 text-white shadow-sm"
+                        ? "border-amber-500 bg-amber-100 text-amber-900"
                         : "border-amber-200 bg-white text-slate-700 hover:bg-amber-50"
                     }`}
                   >
