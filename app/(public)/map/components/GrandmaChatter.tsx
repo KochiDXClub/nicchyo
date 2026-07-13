@@ -1375,7 +1375,9 @@ const GrandmaChatter = memo(function GrandmaChatter({
     return () => window.clearInterval(timer);
   }, [isConsultVariant]);
 
-  const inputVisible = aiStatus === "idle" || aiStatus === "error";
+  // 応答中（thinking）だけ入力UIを隠す。回答後の "answered" は idle に戻る
+  // 経路がない（チャット再オープン時のみ）ため、含めると入力欄が永久に消える
+  const inputVisible = aiStatus !== "thinking";
 
   return (
     <div className={shellClassName}>
