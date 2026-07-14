@@ -1,6 +1,7 @@
 import { createClient } from "@/utils/supabase/client";
 import type { Post } from "../_types";
 import { getNextSundayExpiry } from "@/lib/utils/date";
+import { fetchReactionCounts } from "@/lib/story/reactions";
 
 type DbContent = {
   id: string;
@@ -44,7 +45,19 @@ export async function fetchVendorPosts(vendorId: string): Promise<Post[]> {
     .order("created_at", { ascending: false });
 
   if (error || !data) return [];
-  return data.map(contentToPost);
+  const posts = data.map(contentToPost);
+
+  // ハート数をバッチ取得してマージ（content_reactions は直クエリ不可のためAPI経由）。
+  // 取得に失敗しても投稿一覧自体は表示する
+  try {
+    const { counts } = await fetchReactionCounts(posts.map((post) => post.id));
+    return posts.map((post) => ({
+      ...post,
+      heartCount: counts[post.id] ?? 0,
+    }));
+  } catch {
+    return posts;
+  }
 }
 
 export async function createPost(

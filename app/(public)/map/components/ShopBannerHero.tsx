@@ -15,6 +15,8 @@ export type BannerTheme = {
 };
 
 export type ActivePostItem = {
+  /** vendor_contents の id（ハートリアクション連携用） */
+  id?: string;
   text: string;
   imageUrl?: string;
   expiresAt: string;
