@@ -46,6 +46,7 @@ import {
 } from "./utils/nearbyRecommendations";
 import { loadFavoriteShopIds } from "../../../lib/favoriteShops";
 import { useBag } from "../../../lib/storage/BagContext";
+import { stripShopIdsDirective } from "@/lib/grandma/consultUtils";
 import {
   OVERVIEW_ZONE_MIN_ZOOM,
   OVERVIEW_ZONE_MAX_ZOOM,
@@ -522,7 +523,7 @@ export default function MapPageClient({
         payload.reply ?? "ごめんね、今は答えを出せんかった。時間をおいて試してね。";
       if (payload.shopIds && payload.shopIds.length > 0) {
         setAiMarkerPayload({ ids: payload.shopIds, label: "AIおすすめ" });
-        const cleaned = rawReply.replace(/SHOP_IDS:\s*([0-9,\s]+)/i, "").trim();
+        const cleaned = stripShopIdsDirective(rawReply);
         return {
           reply: cleaned || "おすすめのお店を表示したよ。",
           imageUrl: payload.imageUrl,
@@ -690,13 +691,19 @@ export default function MapPageClient({
 
   const closeNearbyPanel = useCallback(() => {
     setNearbyState(null);
+    // 追い質問で aiMarkerPayload がセットされている場合、これをクリアしないと
+    // hasAiMode が true のままになり、「このへん」ボタンが二度と出現しなくなる
+    setAiMarkerPayload(null);
   }, []);
 
   // パネル表示中にマップが動いたら閉じる（オレンジ枠は画面固定のため、
   // 移動すると要約と実際の範囲がズレてしまう）
   useEffect(() => {
     if (!nearbyState || !mapInstance) return;
-    const close = () => setNearbyState(null);
+    const close = () => {
+      setNearbyState(null);
+      setAiMarkerPayload(null);
+    };
     mapInstance.on('move', close);
     mapInstance.on('zoom', close);
     return () => {

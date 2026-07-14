@@ -26,6 +26,7 @@ import {
 } from '../../consult/data/consultCharacters';
 import type { ConsultTurn } from '../../consult/types/consultConversation';
 import { getOrCreateConsultVisitorKey } from '../../../../lib/consultVisitorKey';
+import { stripShopIdsDirective } from '@/lib/grandma/consultUtils';
 import type { NearbyViewportSummary } from '../utils/viewportSummary';
 import type { NearbyRecommendationReason } from '../utils/nearbyRecommendations';
 
@@ -92,10 +93,6 @@ function getSnapHeights(hasShops: boolean) {
     peek: Math.round(viewportHeight * (hasShops ? 0.5 : 0.32)),
     expanded: Math.round(viewportHeight * 0.72),
   };
-}
-
-function stripShopIdsDirective(text: string): string {
-  return text.replace(/SHOP_IDS:\s*([0-9,\s]+)/i, '').trim();
 }
 
 function CharacterAvatar({ character }: { character: ConsultCharacter }) {
@@ -206,7 +203,16 @@ export default function NearbyExplorePanel({
           text,
           location: center,
           history: nextThread
-            .map((message) => ({ role: message.role, text: message.text }))
+            .map((message) =>
+              message.role === 'assistant'
+                ? {
+                    role: message.role,
+                    text: message.text,
+                    speakerId: message.speakerId,
+                    speakerName: message.speakerName,
+                  }
+                : { role: message.role, text: message.text }
+            )
             .slice(-6),
           visitorKey: getOrCreateConsultVisitorKey(),
           stream: false,
