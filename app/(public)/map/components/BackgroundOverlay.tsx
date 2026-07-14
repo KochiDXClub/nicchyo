@@ -118,11 +118,22 @@ export default function BackgroundOverlay({ zoomBucket }: BackgroundOverlayProps
   // ズーム帯に関わらず、マップ表示時点で背景イラストを先読みしておく。
   // 実際に表示が切り替わるズームに達したときには既にブラウザキャッシュに
   // 入っている状態にし、画像取得待ちで一瞬何も見えない状態を防ぐ。
+  // タイルの初期読み込み等と競合しないよう、アイドルタイムまで遅延させる
+  // （requestIdleCallback非対応環境ではsetTimeoutにフォールバック）。
   useEffect(() => {
-    PRELOAD_IMAGE_PATHS.forEach((src) => {
-      const img = new Image();
-      img.src = src;
-    });
+    const runPreload = () => {
+      PRELOAD_IMAGE_PATHS.forEach((src) => {
+        const img = new Image();
+        img.src = src;
+      });
+    };
+
+    if (typeof requestIdleCallback === 'function') {
+      const handle = requestIdleCallback(runPreload, { timeout: 3000 });
+      return () => cancelIdleCallback(handle);
+    }
+    const timer = setTimeout(runPreload, 2000);
+    return () => clearTimeout(timer);
   }, []);
 
   return (
