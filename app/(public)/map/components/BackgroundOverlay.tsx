@@ -16,6 +16,7 @@
 
 'use client';
 
+import { useEffect } from 'react';
 import { ImageOverlay } from 'react-leaflet';
 import { LatLngBoundsExpression } from 'leaflet';
 
@@ -97,6 +98,15 @@ interface BackgroundOverlayProps {
   zoomBucket: BackgroundZoomBucket;
 }
 
+// マウント時に一度だけ先読みする対象。表示前に取得しておくことで、
+// 実際にそのズーム帯へ入った瞬間の読み込み待ちを解消する。
+const PRELOAD_IMAGE_PATHS = [
+  MIN_ZOOM_ILLUSTRATION_CONFIG,
+  NEXT_ZOOM_ILLUSTRATION_CONFIG,
+]
+  .filter((config) => config.enabled && config.imagePath)
+  .map((config) => config.imagePath as string);
+
 export default function BackgroundOverlay({ zoomBucket }: BackgroundOverlayProps) {
   const activeConfig =
     zoomBucket === 'min'
@@ -104,6 +114,27 @@ export default function BackgroundOverlay({ zoomBucket }: BackgroundOverlayProps
       : zoomBucket === 'next'
       ? NEXT_ZOOM_ILLUSTRATION_CONFIG
       : null;
+
+  // ズーム帯に関わらず、マップ表示時点で背景イラストを先読みしておく。
+  // 実際に表示が切り替わるズームに達したときには既にブラウザキャッシュに
+  // 入っている状態にし、画像取得待ちで一瞬何も見えない状態を防ぐ。
+  // タイルの初期読み込み等と競合しないよう、アイドルタイムまで遅延させる
+  // （requestIdleCallback非対応環境ではsetTimeoutにフォールバック）。
+  useEffect(() => {
+    const runPreload = () => {
+      PRELOAD_IMAGE_PATHS.forEach((src) => {
+        const img = new Image();
+        img.src = src;
+      });
+    };
+
+    if (typeof requestIdleCallback === 'function') {
+      const handle = requestIdleCallback(runPreload, { timeout: 3000 });
+      return () => cancelIdleCallback(handle);
+    }
+    const timer = setTimeout(runPreload, 2000);
+    return () => clearTimeout(timer);
+  }, []);
 
   return (
     <>
