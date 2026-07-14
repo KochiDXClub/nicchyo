@@ -59,11 +59,16 @@ const MIN_ZOOM_ILLUSTRATION_CONFIG: BackgroundConfig = {
 };
 
 interface BackgroundOverlayProps {
-  /** 最大縮小付近（OVERVIEWの最小寄り）のときのみ true */
-  isMinimumZoomMode: boolean;
+  /**
+   * 最小倍率イラスト（sunday-market-min-zoom.webp）を表示するかどうか。
+   * `isMinimumZoomMode`（ランドマーク・ラベル・道路オーバーレイ等、他の挙動を
+   * まとめて切り替える共有フラグ）とは意図的に独立させている。この背景イラスト
+   * だけの表示ズーム範囲を、他の挙動に影響を与えずに調整できるようにするため。
+   */
+  showMinZoomIllustration: boolean;
 }
 
-export default function BackgroundOverlay({ isMinimumZoomMode }: BackgroundOverlayProps) {
+export default function BackgroundOverlay({ showMinZoomIllustration }: BackgroundOverlayProps) {
   return (
     <>
       {TINT_CONFIG.enabled && TINT_CONFIG.imagePath && (
@@ -74,7 +79,7 @@ export default function BackgroundOverlay({ isMinimumZoomMode }: BackgroundOverl
           zIndex={TINT_CONFIG.zIndex}
         />
       )}
-      {isMinimumZoomMode && MIN_ZOOM_ILLUSTRATION_CONFIG.enabled && MIN_ZOOM_ILLUSTRATION_CONFIG.imagePath && (
+      {showMinZoomIllustration && MIN_ZOOM_ILLUSTRATION_CONFIG.enabled && MIN_ZOOM_ILLUSTRATION_CONFIG.imagePath && (
         <ImageOverlay
           url={MIN_ZOOM_ILLUSTRATION_CONFIG.imagePath}
           bounds={MIN_ZOOM_ILLUSTRATION_CONFIG.bounds as LatLngBoundsExpression}
