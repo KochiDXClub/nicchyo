@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import Image from "next/image";
 import NavigationBar from "@/app/components/NavigationBar";
@@ -42,11 +42,15 @@ export default function StoryGridClient() {
   }, []);
 
   // ?content=<vendor_contents.id> が付いていたら該当ストーリーを直接開く
-  // （マップのショップバナー「今日のお知らせ」からの遷移用）
+  // （マップのショップバナー「今日のお知らせ」からの遷移用）。
+  // stories が再フェッチされてもビューアが勝手に再オープンしないよう、
+  // 一度処理したら二度と実行しない
+  const contentNavHandledRef = useRef(false);
   useEffect(() => {
-    if (stories.length === 0) return;
+    if (stories.length === 0 || contentNavHandledRef.current) return;
     const contentId = new URLSearchParams(window.location.search).get("content");
     if (!contentId) return;
+    contentNavHandledRef.current = true;
     const index = stories.findIndex((story) => story.id === contentId);
     if (index >= 0) setViewerIndex(index);
   }, [stories]);

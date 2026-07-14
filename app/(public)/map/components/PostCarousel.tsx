@@ -166,7 +166,7 @@ export function PostCarousel({
             </>
           );
           return (
-            <article key={index} className="w-full shrink-0 snap-center">
+            <article key={post.id ?? index} className="w-full shrink-0 snap-center">
               {canOpenStory ? (
                 <button
                   type="button"

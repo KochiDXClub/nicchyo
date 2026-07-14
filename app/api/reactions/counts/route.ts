@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/adminClient";
+import { requireSameOrigin } from "@/lib/security/requestGuards";
 import { enforceRateLimit } from "@/lib/security/rateLimit";
 import {
   aggregateReactionRows,
@@ -24,11 +25,15 @@ function normalizeVisitorKey(raw: unknown): string | null {
  * visitorKey を渡すと、その訪問者がハート済みの id 一覧も返す。
  * マップのショップバナー・出店者の投稿履歴・ストーリー一覧で共用する。
  *
- * ハート数は公開情報（ストーリービューアで誰でも見られる）のため
- * 読み取り専用のこのルートに same-origin 必須は課さない（既存の per-id GET と同様）。
+ * ハート数自体は公開情報だが、visitorKey が URL に含まれるため
+ * per-id GET（stories/[id]/reactions）と同様に same-origin を課す
+ * （visitorKey が漏れた場合の「どの投稿にハートしたか」照会封じ）。
  * 書き込みは引き続き stories/[id]/reactions の POST のみ。
  */
 export async function GET(req: Request) {
+  const originCheck = requireSameOrigin(req);
+  if (!originCheck.ok) return originCheck.response;
+
   const rateLimited = await enforceRateLimit(req, {
     bucket: "reaction-counts",
     limit: 120,

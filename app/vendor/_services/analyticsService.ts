@@ -86,11 +86,21 @@ export async function fetchVendorHeartSummary(): Promise<HeartSummary> {
         .select("id", { count: "exact", head: true })
         .gte("created_at", weekAgo),
     ]);
+    // Supabase はクエリ失敗時も基本的に throw せず { error } を返すため、
+    // catch だけでは拾えない（例: RLSポリシー未適用で 0 が静かに返り続ける）。
+    // デプロイ後の問題発見を容易にするため明示的にログする
+    if (totalRes.error || weekRes.error) {
+      console.error(
+        "[fetchVendorHeartSummary] content_reactions query failed",
+        totalRes.error ?? weekRes.error
+      );
+    }
     return {
       total: totalRes.count ?? 0,
       thisWeek: weekRes.count ?? 0,
     };
-  } catch {
+  } catch (error) {
+    console.error("[fetchVendorHeartSummary] unexpected error", error);
     return { total: 0, thisWeek: 0 };
   }
 }
