@@ -1297,9 +1297,10 @@ const MapView = memo(function MapView({
       getVisibleMajorPlaceLabels({
         shouldRenderMajorLabels,
         isMinimumZoomMode,
+        hideForBackgroundIllustration: backgroundZoomBucket !== null,
         majorPlaceLabels,
       }),
-    [isMinimumZoomMode, majorPlaceLabels, shouldRenderMajorLabels]
+    [backgroundZoomBucket, isMinimumZoomMode, majorPlaceLabels, shouldRenderMajorLabels]
   );
   const activeHighlightShopIds = useMemo(() => {
     if (searchShopIds && searchShopIds.length > 0) {
@@ -1320,13 +1321,18 @@ const MapView = memo(function MapView({
     }
     if (isMinimumZoomMode) {
       // 最小倍率帯: 背景イラストと一緒に表示する前提で精選されたランドマーク
-      // （JR列車・とさでん停留場等）のみ表示する。
+      // （JR列車・とさでん停留場等）のみ表示する。これは背景イラストの
+      // 有無に関わらず維持する、元々の意図的な組み合わせ。
       return landmarkSpecs.filter((spec) => minZoomLandmarkKeys.has(spec.key));
     }
-    // isMinimumZoomMode の範囲外（背景イラストの拡張分・次の倍率帯を含む）は
-    // 全ランドマーク（オーテピア等）を背景イラストと一緒に表示する。
+    if (backgroundZoomBucket !== null) {
+      // isMinimumZoomMode の範囲外でも背景イラストが表示中（最小倍率帯の
+      // 拡張分・次の倍率帯）は、全ランドマーク（オーテピア等）が背景イラスト
+      // なしで単独浮遊して見えるのを避けるため非表示にする。
+      return [];
+    }
     return landmarkSpecs;
-  }, [isMinimumZoomMode, landmarkSpecs, minZoomLandmarkKeys, shouldRenderLandmarks]);
+  }, [backgroundZoomBucket, isMinimumZoomMode, landmarkSpecs, minZoomLandmarkKeys, shouldRenderLandmarks]);
 
   const { markManualRotation, snapRotationToVisibleRoad } = useMapCameraController({
     mapRef,
