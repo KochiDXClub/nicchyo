@@ -1,4 +1,4 @@
-export type ExpirationPreset = "1h" | "today" | "custom";
+export type ExpirationPreset = "1h" | "sunday" | "custom";
 
 export type PostStatus = "active" | "expired" | "scheduled";
 

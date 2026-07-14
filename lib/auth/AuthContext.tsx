@@ -22,7 +22,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 function normalizeRole(value?: string | null): UserRole {
-  if (value === "admin") return "super_admin";
+  if (value === "admin") return "admin";
   if (value === "super_admin") return "super_admin";
   if (value === "moderator") return "moderator";
   if (value === "vendor") return "vendor";
@@ -100,7 +100,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       try {
         // getSession() はサーバー検証なし。getUser() でサーバーサイド検証を行う
         const { data, error } = await supabase.auth.getUser();
-        if (error) {
+        // 未ログイン状態では "Auth session missing!" が返るが、これは異常系ではない
+        if (error && error.name !== "AuthSessionMissingError") {
           console.error("[AuthContext] getUser failed:", error.message);
         }
         if (!active) return;
@@ -152,7 +153,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const permissions: PermissionCheck = {
     isSuperAdmin: user?.role === "super_admin",
-    isModerator: user?.role === "moderator",
+    isAdmin: user?.role === "admin" || user?.role === "super_admin",
+    isModerator: user?.role === "super_admin" || user?.role === "admin" || user?.role === "moderator",
     isVendor: user?.role === "vendor",
     isGeneralUser: user?.role === "general_user",
 

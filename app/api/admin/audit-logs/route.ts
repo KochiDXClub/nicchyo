@@ -90,9 +90,9 @@ export async function GET(req: Request) {
   const limit = Math.min(Number.isNaN(parsedLimit) ? 500 : parsedLimit, 1000);
 
   const dc = createAdminClient() ?? supabase;
-  const { data, error } = await dc
+  const { data, count, error } = await dc
     .from("admin_audit_logs")
-    .select("*")
+    .select("*", { count: "exact" })
     .order("created_at", { ascending: false })
     .limit(limit);
 
@@ -100,5 +100,5 @@ export async function GET(req: Request) {
     console.error("[admin/audit-logs] select failed:", error.message);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
-  return NextResponse.json({ logs: data });
+  return NextResponse.json({ logs: data, total: count ?? 0 });
 }

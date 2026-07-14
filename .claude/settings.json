@@ -1,12 +1,35 @@
 {
   "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$(git rev-parse --show-toplevel)/.claude/hooks/env-guard.js\""
+          }
+        ]
+      }
+    ],
     "PostToolUse": [
       {
         "matcher": "Edit|Write",
         "hooks": [
           {
             "type": "command",
-            "command": "cd /c/Users/miyuk/nicchyo-platform && npx tsc --noEmit --skipLibCheck 2>&1 | grep -E 'error TS|Found [0-9]+ error' | head -10 || true"
+            "command": "node \"$(git rev-parse --show-toplevel)/.claude/hooks/tsc-check.js\""
+          },
+          {
+            "type": "command",
+            "command": "node \"$(git rev-parse --show-toplevel)/.claude/hooks/eslint-check.js\""
+          },
+          {
+            "type": "command",
+            "command": "node \"$(git rev-parse --show-toplevel)/.claude/hooks/sql-rls-warn.js\""
+          },
+          {
+            "type": "command",
+            "command": "node \"$(git rev-parse --show-toplevel)/.claude/hooks/img-tag-warn.js\""
           }
         ]
       }
@@ -16,13 +39,15 @@
         "hooks": [
           {
             "type": "command",
-            "command": "cd /c/Users/miyuk/nicchyo-platform && git diff --stat HEAD 2>/dev/null | tail -3 || true"
+            "command": "git diff --stat HEAD 2>/dev/null | tail -3 || true"
           }
         ]
       }
     ]
   },
   "enabledPlugins": {
-    "everything-claude-code@everything-claude-code": true
+    "everything-claude-code@everything-claude-code": true,
+    "frontend-design@frontend-design": true,
+    "claude-code-setup@claude-plugins-official": true
   }
 }

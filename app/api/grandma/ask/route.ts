@@ -179,6 +179,7 @@ async function parseRequest(request: Request): Promise<ParsedRequest> {
 async function finalizeConsultResponse(options: {
   request: Request;
   supabase: SupabaseClient<Database>;
+  consultId: string;
   text: string;
   keywords: string[];
   location: { lat: number; lng: number } | null;
@@ -197,6 +198,7 @@ async function finalizeConsultResponse(options: {
   const {
     request,
     supabase,
+    consultId,
     text,
     keywords,
     location,
@@ -295,6 +297,7 @@ async function finalizeConsultResponse(options: {
     followUpQuestion: safeFollowUpQuestion,
     memorySummary: summary.trim() || memorySummary,
     retryable: false,
+    consultId,
   };
 }
 
@@ -307,6 +310,7 @@ async function createStreamingConsultResponse(options: {
     | Array<{ type: "text"; text: string } | { type: "image_url"; image_url: { url: string } }>;
   request: Request;
   supabase: SupabaseClient<Database>;
+  consultId: string;
   text: string;
   keywords: string[];
   location: { lat: number; lng: number } | null;
@@ -324,6 +328,7 @@ async function createStreamingConsultResponse(options: {
     userContent,
     request,
     supabase,
+    consultId,
     text,
     keywords,
     location,
@@ -455,6 +460,7 @@ async function createStreamingConsultResponse(options: {
         const response = await finalizeConsultResponse({
           request,
           supabase,
+          consultId,
           text,
           keywords,
           location,
@@ -498,7 +504,9 @@ async function createStreamingConsultResponse(options: {
     headers: {
       "Content-Type": "application/x-ndjson; charset=utf-8",
       "Cache-Control": "no-cache",
-      "Transfer-Encoding": "chunked",
+      // Transfer-Encoding はランタイムが自動付与する。手動指定すると二重に
+      // なり、ブラウザ側でチャンク境界の解釈が壊れて final イベントを取り
+      // こぼす（curl は許容するがブラウザの fetch/ReadableStream は失敗する）。
       "X-Accel-Buffering": "no",
     },
   });
@@ -591,6 +599,8 @@ export async function POST(request: Request) {
         )
       );
     }
+
+    const consultId = crypto.randomUUID();
 
     const openaiKey = process.env.OPENAI_API_KEY;
     if (!supabaseUrl || !serviceRoleKey || !openaiKey) {
@@ -816,6 +826,7 @@ export async function POST(request: Request) {
         userContent,
         request,
         supabase,
+        consultId,
         text,
         keywords,
         location,
@@ -892,6 +903,7 @@ export async function POST(request: Request) {
     const response = await finalizeConsultResponse({
       request,
       supabase,
+      consultId,
       text,
       keywords,
       location,

@@ -12,10 +12,12 @@
  * - 紹介店舗があれば、同じ4秒周期で1店舗ずつフォーカスする
  */
 
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import Image from 'next/image';
+import { useRouter } from 'next/navigation';
 import type { Map as LeafletMap } from 'leaflet';
 import { Textarea } from '@/components/ui/textarea';
+import { PromptSuggestion } from '@/components/ui/prompt-suggestion';
 import {
   CONSULT_CHARACTER_BY_ID,
   pickConsultCharacters,
@@ -24,6 +26,15 @@ import {
 import type { ConsultAskResponse, ConsultTurn } from '../../consult/types/consultConversation';
 import type { Shop } from '../data/shops';
 import { getOrCreateConsultVisitorKey } from '../../../../lib/consultVisitorKey';
+import { toggleFavoriteShopId, loadFavoriteShopIds } from '../../../../lib/favoriteShops';
+
+const PLAN_KEY = 'nicchyo-map-agent-plan';
+// /consult ページ（GrandmaChatter, layout="page"）が会話履歴を保存する localStorage キー。
+// フルチャットへ引き継ぐ際は、ここへマップ上の会話を書き込んでから遷移する。
+const CONSULT_CHAT_STORAGE_KEY = 'nicchyo-consult-chat';
+
+type PlanShop = { id: number; name: string; reason: string; icon: string };
+type StoredPlan = { plan: { title: string; summary: string; shops: PlanShop[]; routeHint: string; shoppingList: string[] }; order: number[] };
 
 const RESPONSE_STEP_MS = 4000;
 const CHAR_W = 60;
@@ -44,6 +55,7 @@ type AskPayload = {
   errorMessage?: string;
   turns?: ConsultAskResponse['turns'];
   shopIds?: number[];
+  consultId?: string;
 };
 
 function CharacterSprite({
@@ -129,35 +141,19 @@ function getStatusLabel(status: Status, elapsed: number): string | null {
 }
 
 
-function getStarterPrompts(historyLength: number): string[] {
-  if (historyLength > 0) {
-    return ['近い順で教えて', '休める場所も知りたい', 'ほかの候補もある？'];
-  }
-
-  const hour = new Date().getHours();
-  if (hour >= 5 && hour < 11) {
-    return ['朝ごはんのおすすめは？', '今の混み具合は？', 'サクッと回るコツある？'];
-  }
-  if (hour >= 11 && hour < 15) {
-    return ['ランチならどこ？', '食べ歩き向けは？', '子ども連れでも回りやすい？'];
-  }
-  if (hour >= 15 && hour < 18) {
-    return ['休憩できる場所ある？', 'おやつに向くお店は？', '写真映えする場所は？'];
-  }
-  return ['晩ご飯のおかず探したい', 'お土産向きは？', '今からでも寄れるお店は？'];
-}
+// フルチャットへの導線を主にするため、初期サジェストは1件に絞る。
+const STARTER_PROMPTS = ['おすすめのスイーツのお店は？'];
 
 export default function MapCharacterConsult({
   map,
   shops,
   onShopsRecommended,
-  onClose,
 }: {
   map: LeafletMap | null;
   shops: Shop[];
   onShopsRecommended: (shopIds: number[]) => void;
-  onClose: () => void;
 }) {
+  const router = useRouter();
   const [characters] = useState(() => pickConsultCharacters());
   const [activeCharacter, setActiveCharacter] = useState<ConsultCharacter | null>(null);
   const [bubble, setBubble] = useState<CharacterBubbleState>({
@@ -169,6 +165,25 @@ export default function MapCharacterConsult({
   const [status, setStatus] = useState<Status>('idle');
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [history, setHistory] = useState<Array<{ role: 'user' | 'assistant'; text: string }>>([]);
+  const [lastConsultId, setLastConsultId] = useState<string | null>(null);
+  const [lastQuestionText, setLastQuestionText] = useState<string | null>(null);
+  const [lastTurnText, setLastTurnText] = useState<string | null>(null);
+  const [feedbackGiven, setFeedbackGiven] = useState(false);
+  const [thumbsDownOpen, setThumbsDownOpen] = useState(false);
+  const [thumbsDownComment, setThumbsDownComment] = useState('');
+  const [recommendedShops, setRecommendedShops] = useState<Shop[]>([]);
+  const [favoriteIds, setFavoriteIds] = useState<Set<number>>(() => new Set(loadFavoriteShopIds()));
+  const [routeIds, setRouteIds] = useState<Set<number>>(() => {
+    if (typeof window === 'undefined') return new Set();
+    try {
+      const raw = localStorage.getItem(PLAN_KEY);
+      if (!raw) return new Set();
+      const stored = JSON.parse(raw) as Partial<StoredPlan>;
+      return new Set((stored.plan?.shops ?? []).map((s) => s.id));
+    } catch {
+      return new Set();
+    }
+  });
 
   const shopMap = useRef(new Map(shops.map((shop) => [shop.id, shop])));
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
@@ -178,7 +193,7 @@ export default function MapCharacterConsult({
   const playbackSequenceRef = useRef(0);
 
   const isBusy = status === 'loading' || status === 'playing';
-  const starterPrompts = useMemo(() => getStarterPrompts(history.length), [history.length]);
+  const starterPrompts = STARTER_PROMPTS;
   const showIntroChrome = history.length === 0 && status === 'idle';
 
   const clearPlayback = useCallback(() => {
@@ -317,6 +332,31 @@ export default function MapCharacterConsult({
     clearPlayback();
   }, [clearPlayback]);
 
+  const submitFeedback = useCallback(
+    async (rating: 1 | -1, comment?: string) => {
+      if (!lastConsultId) return;
+      setFeedbackGiven(true);
+      setThumbsDownOpen(false);
+      try {
+        await fetch('/api/grandma/feedback', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            consultId: lastConsultId,
+            turnIndex: 0,
+            rating,
+            comment: comment ?? null,
+            questionText: lastQuestionText ?? undefined,
+            turnText: lastTurnText ?? undefined,
+          }),
+        });
+      } catch {
+        // fire and forget
+      }
+    },
+    [lastConsultId, lastQuestionText, lastTurnText]
+  );
+
   const handleSend = useCallback(
     async (overrideText?: string) => {
       const text = (overrideText ?? inputText).trim();
@@ -325,6 +365,12 @@ export default function MapCharacterConsult({
       abortRef.current?.abort();
       if (tickerRef.current) clearInterval(tickerRef.current);
       clearPlayback();
+      setLastConsultId(null);
+      setFeedbackGiven(false);
+      setThumbsDownOpen(false);
+      setThumbsDownComment('');
+      setRecommendedShops([]);
+      setRouteIds(new Set());
 
       const controller = new AbortController();
       abortRef.current = controller;
@@ -394,6 +440,14 @@ export default function MapCharacterConsult({
 
         if (finalShopIds.length > 0) {
           onShopsRecommended(finalShopIds);
+          const resolved = finalShopIds.map((id) => shopMap.current.get(id)).filter(Boolean) as Shop[];
+          setRecommendedShops(resolved);
+        }
+
+        if (payload?.consultId) {
+          setLastConsultId(payload.consultId);
+          setLastQuestionText(text);
+          setLastTurnText(turns[0]?.text ?? null);
         }
 
         playbackStarted = playResponseSequence(turns, finalShopIds, false);
@@ -434,6 +488,50 @@ export default function MapCharacterConsult({
     setTimeout(() => handleSend(lastUserMsg), 100);
   }, [clearPlayback, handleSend, lastUserMsg]);
 
+  const handleFavorite = (shopId: number) => {
+    const next = toggleFavoriteShopId(shopId);
+    setFavoriteIds(new Set(next));
+  };
+
+  const handleAddToRoute = (shop: Shop) => {
+    if (typeof window === 'undefined') return;
+    let stored: Partial<StoredPlan> = {};
+    try {
+      const raw = localStorage.getItem(PLAN_KEY);
+      if (raw) stored = JSON.parse(raw) as StoredPlan;
+    } catch { /* ignore */ }
+    const plan = stored.plan ?? { title: 'AIおすすめ', summary: '', shops: [], routeHint: '', shoppingList: [] };
+    if (!plan.shops.some((s) => s.id === shop.id)) {
+      plan.shops.push({ id: shop.id, name: shop.name, reason: '', icon: '🏪' });
+    }
+    const order = plan.shops.map((s) => s.id);
+    localStorage.setItem(PLAN_KEY, JSON.stringify({ plan, order }));
+    setRouteIds((prev) => new Set([...prev, shop.id]));
+  };
+
+  // 現在のマップ上の会話を /consult のフルチャットへ引き継いでから遷移する。
+  const handleExpandToFullChat = useCallback(() => {
+    if (typeof window !== 'undefined' && history.length > 0) {
+      const messages = history.map((message) => ({
+        id:
+          typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+            ? crypto.randomUUID()
+            : `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+        role: message.role,
+        text: message.text,
+      }));
+      try {
+        localStorage.setItem(
+          CONSULT_CHAT_STORAGE_KEY,
+          JSON.stringify({ messages, hasUserAsked: true })
+        );
+      } catch {
+        // localStorage への書き込みに失敗した場合は履歴なしで遷移する
+      }
+    }
+    router.push('/consult');
+  }, [history, router]);
+
   const statusLabel = getStatusLabel(status, elapsedSeconds);
   const helperTextId = 'map-consult-helper';
   const statusTextId = 'map-consult-status';
@@ -452,6 +550,53 @@ export default function MapCharacterConsult({
         )}
       </div>
 
+      {/* サジェストはチャット枠から独立した「浮くピル」として上に表示する。全画面導線ボタンも同じ列に揃える。 */}
+      <div
+        className="pointer-events-auto mb-2 flex items-center justify-between gap-1.5"
+        onMouseDown={(e) => e.stopPropagation()}
+        onClick={(e) => e.stopPropagation()}
+        onTouchStart={(e) => e.stopPropagation()}
+      >
+        <div className="flex flex-wrap justify-start gap-1.5">
+          {showIntroChrome &&
+            starterPrompts.map((prompt) => (
+              <PromptSuggestion
+                key={prompt}
+                onClick={() => handleSend(prompt)}
+                variant="outline"
+                size="sm"
+                className="border-amber-300 bg-amber-100 text-amber-900 hover:bg-amber-200 active:scale-[0.99]"
+              >
+                {prompt}
+              </PromptSuggestion>
+            ))}
+        </div>
+
+        <button
+          type="button"
+          onClick={handleExpandToFullChat}
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-amber-200 bg-white/90 text-slate-400 shadow-[0_10px_24px_rgba(15,23,42,0.14)] backdrop-blur transition hover:bg-white hover:text-slate-600 active:scale-95"
+          aria-label="全画面のチャットで続ける"
+        >
+          <svg
+            width="15"
+            height="15"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M15 3h6v6" />
+            <path d="M9 21H3v-6" />
+            <path d="M21 3l-7 7" />
+            <path d="M3 21l7-7" />
+          </svg>
+        </button>
+      </div>
+
       <div
         className="pointer-events-auto"
         onMouseDown={(e) => e.stopPropagation()}
@@ -459,9 +604,7 @@ export default function MapCharacterConsult({
         onTouchStart={(e) => e.stopPropagation()}
       >
         <div
-          className={`mx-auto max-w-xl overflow-hidden border shadow-[0_28px_60px_rgba(15,23,42,0.22)] transition-all duration-300 ${
-            showIntroChrome ? 'rounded-[28px]' : 'rounded-[24px]'
-          } ${
+          className={`mx-auto max-w-xl overflow-hidden rounded-[24px] border shadow-[0_28px_60px_rgba(15,23,42,0.22)] transition-all duration-300 ${
             status === 'error'
               ? 'border-red-300 bg-[#fff6f6]'
               : isBusy
@@ -469,73 +612,18 @@ export default function MapCharacterConsult({
                 : 'border-amber-200 bg-white'
           }`}
         >
-          {showIntroChrome ? (
-            <>
-              <div className="bg-[linear-gradient(135deg,#fff8e8_0%,#fff3d8_48%,#fde6ba_100%)] px-4 py-3.5">
-                <div className="flex items-start">
-                  <div className="min-w-0 flex-1">
-                    <label
-                      htmlFor="map-consult-input"
-                      className="block text-[15px] font-bold leading-tight text-slate-900"
-                    >
-                      AIに相談する
-                    </label>
-                  </div>
+          <div className="sr-only" id={helperTextId}>
+            市場のことを相談できます。
+          </div>
 
-                  <button
-                    type="button"
-                    onClick={onClose}
-                    className="shrink-0 rounded-full border border-white/80 bg-white/90 px-3 py-2 text-[11px] font-bold text-slate-600 shadow-sm transition hover:bg-white active:scale-95"
-                    aria-label="相談を終わる"
-                  >
-                    閉じる
-                  </button>
-                </div>
-              </div>
-
-              {!isBusy && starterPrompts.length > 0 && (
-                <div className="border-b border-slate-200/70 px-3 pb-3 pt-3">
-                  <div className="mb-2 flex items-center gap-2 px-1">
-                    <span className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500">
-                      すぐ聞けること
-                    </span>
-                    <span className="text-[11px] text-slate-400">最初の一言を選べます</span>
-                  </div>
-                  <div className="flex gap-2 overflow-x-auto px-1 pb-1">
-                    {starterPrompts.slice(0, 3).map((prompt) => (
-                      <button
-                        key={prompt}
-                        type="button"
-                        onClick={() => handleSend(prompt)}
-                        className="shrink-0 rounded-chip border border-amber-200 bg-white px-[13px] py-[7px] text-left text-[13px] font-bold text-amber-900 shadow-chip transition-all duration-[120ms] hover:bg-amber-50 active:scale-[0.98]"
-                      >
-                        {prompt}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </>
-          ) : (
-            <div className="sr-only" id={helperTextId}>
-              市場のことを相談できます。
-            </div>
-          )}
-
-          {!showIntroChrome && statusLabel && (
+          {statusLabel && (
             <div className="sr-only" id={statusTextId} aria-live="polite">
               {statusLabel}
             </div>
           )}
 
           {!isBusy && <div className={showIntroChrome ? 'px-3 pb-3 pt-3' : 'px-2.5 py-2.5'}>
-            <div
-              className={`rounded-[24px] border p-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] transition-colors ${
-                status === 'error'
-                  ? 'border-red-200 bg-white'
-                  : 'border-slate-200 bg-white'
-              }`}
-            >
+            <div>
               <div className="flex items-end gap-2">
                 {!showIntroChrome ? (
                   <div className="mb-0.5 shrink-0">
@@ -602,6 +690,94 @@ export default function MapCharacterConsult({
                 >
                   直前の相談を再試行
                 </button>
+              </div>
+            )}
+
+            {status === 'idle' && lastConsultId && !feedbackGiven && !thumbsDownOpen && (
+              <div className="mt-2 flex items-center justify-end gap-1.5">
+                <span className="text-[11px] text-slate-400">参考になりましたか？</span>
+                <button
+                  type="button"
+                  onClick={() => submitFeedback(1)}
+                  className="rounded-full border border-slate-200 bg-white px-2 py-1 text-[13px] shadow-sm transition hover:bg-slate-50 active:scale-95"
+                  aria-label="役に立った"
+                >
+                  👍
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setThumbsDownOpen(true)}
+                  className="rounded-full border border-slate-200 bg-white px-2 py-1 text-[13px] shadow-sm transition hover:bg-slate-50 active:scale-95"
+                  aria-label="役に立たなかった"
+                >
+                  👎
+                </button>
+              </div>
+            )}
+
+            {thumbsDownOpen && (
+              <div className="mt-2 flex items-center gap-2">
+                <input
+                  type="text"
+                  value={thumbsDownComment}
+                  onChange={(e) => setThumbsDownComment(e.target.value)}
+                  placeholder="改善点を教えてください（任意）"
+                  className="flex-1 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[12px] text-slate-800 placeholder:text-slate-400 outline-none focus:border-amber-300"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') submitFeedback(-1, thumbsDownComment);
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={() => submitFeedback(-1, thumbsDownComment)}
+                  className="shrink-0 rounded-full bg-amber-500 px-3 py-1.5 text-[12px] font-bold text-white shadow-sm transition hover:bg-amber-600 active:scale-95"
+                >
+                  送信
+                </button>
+              </div>
+            )}
+
+            {status === 'idle' && feedbackGiven && (
+              <p className="mt-2 text-right text-[11px] text-slate-400">評価済み ✓</p>
+            )}
+
+            {recommendedShops.length > 0 && (
+              <div className="mt-2 flex flex-col gap-1.5">
+                {recommendedShops.map((shop) => (
+                  <div
+                    key={shop.id}
+                    className="flex items-center justify-between gap-2 rounded-2xl border border-slate-100 bg-slate-50 px-3 py-2"
+                  >
+                    <span className="min-w-0 truncate text-[13px] font-medium text-slate-800">{shop.name}</span>
+                    <div className="flex shrink-0 gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => handleFavorite(shop.id)}
+                        className={`rounded-full border px-2 py-1 text-[13px] shadow-sm transition hover:scale-105 active:scale-95 ${
+                          favoriteIds.has(shop.id)
+                            ? 'border-pink-200 bg-pink-50 text-pink-500'
+                            : 'border-slate-200 bg-white text-slate-400'
+                        }`}
+                        aria-label="お気に入りに追加"
+                      >
+                        {favoriteIds.has(shop.id) ? '❤️' : '🤍'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleAddToRoute(shop)}
+                        disabled={routeIds.has(shop.id)}
+                        className={`rounded-full border px-2 py-1 text-[13px] shadow-sm transition hover:scale-105 active:scale-95 disabled:cursor-default ${
+                          routeIds.has(shop.id)
+                            ? 'border-green-200 bg-green-50 text-green-600'
+                            : 'border-slate-200 bg-white text-slate-600'
+                        }`}
+                        aria-label="ルートに追加"
+                      >
+                        {routeIds.has(shop.id) ? '✓' : '🗺️'}
+                      </button>
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
           </div>}

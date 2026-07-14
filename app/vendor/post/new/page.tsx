@@ -9,6 +9,7 @@ import NavigationBar from "@/app/components/NavigationBar";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { createPost, fetchVendorPosts, fetchPostById, repostContent } from "../../_services/postsService";
 import type { ExpirationPreset, Post, PostStatus } from "../../_types";
+import { getNextSundayExpiry } from "@/lib/utils/date";
 import {
   ArrowLeft,
   Image as ImageIcon,
@@ -98,25 +99,29 @@ function PostCard({ post, onRepost, onEditRepost }: { post: Post; onRepost: (pos
 type ExpirationOption = { preset: ExpirationPreset; label: string; desc: string; icon: typeof Clock };
 
 const EXPIRATION_OPTIONS: ExpirationOption[] = [
-  { preset: "1h",     label: "1時間",   desc: "今すぐ来てほしい情報に", icon: Clock },
-  { preset: "today",  label: "本日",    desc: "当日限りの情報に",       icon: Calendar },
-  { preset: "custom", label: "カスタム", desc: "時間を自分で設定",       icon: Clock },
+  { preset: "1h",     label: "1時間",       desc: "今すぐ来てほしい情報に",   icon: Clock },
+  { preset: "sunday", label: "今週の日曜まで", desc: "近況として日曜にリセット", icon: Calendar },
+  { preset: "custom", label: "カスタム",     desc: "時間を自分で設定",         icon: Clock },
 ];
 
 function calcExpirationTime(preset: ExpirationPreset, customDateTime: string): Date {
   const now = new Date();
   if (preset === "1h") return new Date(now.getTime() + 60 * 60 * 1000);
-  if (preset === "today") { const eod = new Date(now); eod.setHours(23, 59, 59, 999); return eod; }
+  if (preset === "sunday") return getNextSundayExpiry();
   return customDateTime ? new Date(customDateTime) : new Date(now.getTime() + 2 * 60 * 60 * 1000);
 }
 
 function formatExpirationLabel(preset: ExpirationPreset, customDateTime: string): string {
   const exp = calcExpirationTime(preset, customDateTime);
   if (preset === "1h") return "あと1時間";
-  if (preset === "today") return "本日限定";
+  if (preset === "sunday") {
+    const m = exp.getMonth() + 1;
+    const d = exp.getDate();
+    return `${m}/${d}（日）まで`;
+  }
   const h = exp.getHours().toString().padStart(2, "0");
-  const m = exp.getMinutes().toString().padStart(2, "0");
-  return `${h}:${m}まで`;
+  const mn = exp.getMinutes().toString().padStart(2, "0");
+  return `${h}:${mn}まで`;
 }
 
 // ── メインコンポーネント ──────────────────────────────────
@@ -134,7 +139,7 @@ export default function VendorPostNewPage() {
   const [imageFile, setImageFile]               = useState<File | null>(null);
   const [imagePreview, setImagePreview]         = useState<string | null>(null);
   const [existingImageUrl, setExistingImageUrl] = useState<string | null>(null);
-  const [expirationPreset, setExpirationPreset] = useState<ExpirationPreset>("today");
+  const [expirationPreset, setExpirationPreset] = useState<ExpirationPreset>("sunday");
   const [customDateTime, setCustomDateTime]     = useState("");
   const [isSubmitting, setIsSubmitting]         = useState(false);
   const [isSubmitted, setIsSubmitted]           = useState(false);
@@ -257,7 +262,7 @@ export default function VendorPostNewPage() {
             </Link>
             <button
               type="button"
-              onClick={() => { setIsSubmitted(false); setText(""); setImageFile(null); setImagePreview(null); setExpirationPreset("today"); setCustomDateTime(""); }}
+              onClick={() => { setIsSubmitted(false); setText(""); setImageFile(null); setImagePreview(null); setExpirationPreset("sunday"); setCustomDateTime(""); }}
               className="text-sm font-medium text-slate-500 hover:text-slate-700 hover:underline"
             >
               続けて投稿する

@@ -2,7 +2,64 @@ import { type NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/utils/supabase/middleware";
 import { getRole, isModerator } from "@/lib/auth/permissions";
 
-export async function middleware(request: NextRequest) {
+// メンテナンスモード: 60秒キャッシュ（warm インスタンス間で共有）
+let maintenanceCache: { enabled: boolean; message: string; expiresAt: number } | null = null;
+const MAINTENANCE_CACHE_TTL = 60_000;
+
+async function getMaintenanceStatus(): Promise<{ enabled: boolean; message: string }> {
+  if (maintenanceCache && Date.now() < maintenanceCache.expiresAt) {
+    return maintenanceCache;
+  }
+
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!supabaseUrl || !anonKey) return { enabled: false, message: "" };
+
+  try {
+    const res = await fetch(
+      `${supabaseUrl}/rest/v1/system_settings?key=eq.public&select=value`,
+      {
+        headers: { apikey: anonKey, Authorization: `Bearer ${anonKey}` },
+        cache: "no-store",
+      }
+    );
+    if (!res.ok) return { enabled: false, message: "" };
+    const data = await res.json() as Array<{ value: Record<string, unknown> }>;
+    const value = data[0]?.value;
+    const result = {
+      enabled: value?.maintenanceMode === true,
+      message: typeof value?.maintenanceMessage === "string" ? value.maintenanceMessage : "",
+      expiresAt: Date.now() + MAINTENANCE_CACHE_TTL,
+    };
+    maintenanceCache = result;
+    return result;
+  } catch {
+    return { enabled: false, message: "" };
+  }
+}
+
+const MAINTENANCE_SKIP_PREFIXES = ["/admin", "/api", "/_next", "/maintenance"];
+const MAINTENANCE_SKIP_EXACT = ["/robots.txt", "/sitemap.xml", "/favicon.ico"];
+
+export async function proxy(request: NextRequest) {
+  const pathname = request.nextUrl.pathname;
+
+  // メンテナンスモードチェック（管理者・API・静的ファイルはスキップ）
+  // /_next 配下に全静的アセットが含まれるため、ドット有無による判定は不要
+  // /private は一般ログインユーザー向けのため、メンテナンス中は他ページと同様にブロックする
+  if (
+    !MAINTENANCE_SKIP_PREFIXES.some((p) => pathname.startsWith(p)) &&
+    !MAINTENANCE_SKIP_EXACT.includes(pathname)
+  ) {
+    const { enabled } = await getMaintenanceStatus();
+    if (enabled) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/maintenance";
+      url.search = "";
+      return NextResponse.rewrite(url);
+    }
+  }
+
   const { supabase, getResponse } = createClient(request);
 
   // セッション更新（Supabase Auth）
@@ -12,7 +69,6 @@ export async function middleware(request: NextRequest) {
   const supabaseResponse = getResponse();
 
   // パスベースのアクセス制御
-  const pathname = request.nextUrl.pathname;
   const appRole = getRole(user);
 
   if (pathname.startsWith("/admin") || pathname.startsWith("/moderator")) {
@@ -47,7 +103,7 @@ export async function middleware(request: NextRequest) {
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "img-src 'self' data: blob: https:",
     "font-src 'self' data: https://fonts.gstatic.com",
-    "connect-src 'self' https:",
+    `connect-src 'self' https:${process.env.NODE_ENV === "development" ? " http://127.0.0.1:* ws://127.0.0.1:*" : ""}`,
     "frame-ancestors 'none'",
     "base-uri 'self'",
     "form-action 'self'",

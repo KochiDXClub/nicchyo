@@ -113,6 +113,7 @@ export default function ConsultClient({ embedded = false }: { embedded?: boolean
       helperQuestions?: string[];
       errorMessage?: string;
       retryable?: boolean;
+      consultId?: string;
     },
     ok: boolean
   ): ConsultAskResponse => {
@@ -143,6 +144,7 @@ export default function ConsultClient({ embedded = false }: { embedded?: boolean
       retryable: ok
         ? payload.retryable ?? false
         : payload.retryable ?? payload.errorCode === "system_error",
+      consultId: payload.consultId,
     };
   }, [mergeKnownShops]);
 
