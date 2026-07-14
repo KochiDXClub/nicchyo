@@ -15,6 +15,15 @@ function normalizeVisitorKey(raw: unknown): string | null {
   return vk.length > 0 && vk.length <= 128 ? vk : null;
 }
 
+// vendor_contents.id（UUID）の形式チェック。不正な値を弾いておかないと
+// Postgres の型エラーがそのまま500として露出してしまう（レビュー指摘対応）
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function isValidContentId(id: string): boolean {
+  return UUID_PATTERN.test(id);
+}
+
 async function readReactionState(
   supabase: SupabaseClient,
   contentId: string,
@@ -40,7 +49,22 @@ async function readReactionState(
 }
 
 export async function GET(req: Request, { params }: Params) {
+  // レビュー指摘対応: GET は POST 同様 same-origin ＋ レート制限を課す
+  // （visitorKey がクエリパラメータで漏れた場合の照会封じ・無制限アクセス防止）
+  const originCheck = requireSameOrigin(req);
+  if (!originCheck.ok) return originCheck.response;
+
+  const rateLimited = await enforceRateLimit(req, {
+    bucket: "story-reactions-read",
+    limit: 120,
+    windowMs: 10 * 60 * 1000,
+  });
+  if (rateLimited) return rateLimited;
+
   const { id } = await params;
+  if (!isValidContentId(id)) {
+    return NextResponse.json({ error: "不正な id です" }, { status: 400 });
+  }
   const visitorKey = normalizeVisitorKey(new URL(req.url).searchParams.get("visitorKey"));
   if (!visitorKey) {
     return NextResponse.json({ error: "visitorKey が必要です" }, { status: 400 });
@@ -69,6 +93,9 @@ export async function POST(req: Request, { params }: Params) {
   if (rateLimited) return rateLimited;
 
   const { id } = await params;
+  if (!isValidContentId(id)) {
+    return NextResponse.json({ error: "不正な id です" }, { status: 400 });
+  }
   const body = (await req.json().catch(() => ({}))) as { visitorKey?: unknown };
   const visitorKey = normalizeVisitorKey(body.visitorKey);
   if (!visitorKey) {
