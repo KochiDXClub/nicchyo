@@ -335,20 +335,26 @@ function EventDimOverlay({ active }: { active: boolean }) {
 export function getVisibleMajorPlaceLabels({
   shouldRenderMajorLabels,
   isMinimumZoomMode,
+  hideForBackgroundIllustration,
   majorPlaceLabels,
 }: {
   shouldRenderMajorLabels: boolean;
   isMinimumZoomMode: boolean;
+  /** 背景イラスト表示中（isMinimumZoomModeの範囲外）は全ラベルを隠す */
+  hideForBackgroundIllustration: boolean;
   majorPlaceLabels: Array<{ name: string; lat: number; lng: number }>;
 }) {
   if (!shouldRenderMajorLabels) {
     return [];
   }
-  if (!isMinimumZoomMode) {
-    return majorPlaceLabels;
+  if (isMinimumZoomMode) {
+    return [
+      ...majorPlaceLabels.filter((place) => MIN_ZOOM_LABEL_NAMES.has(place.name)),
+      MIN_ZOOM_ONLY_LABEL,
+    ];
   }
-  return [
-    ...majorPlaceLabels.filter((place) => MIN_ZOOM_LABEL_NAMES.has(place.name)),
-    MIN_ZOOM_ONLY_LABEL,
-  ];
+  if (hideForBackgroundIllustration) {
+    return [];
+  }
+  return majorPlaceLabels;
 }
