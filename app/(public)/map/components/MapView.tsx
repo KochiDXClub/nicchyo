@@ -1491,7 +1491,7 @@ const MapView = memo(function MapView({
           <BackgroundOverlay zoomBucket={backgroundZoomBucket} />
           <MapOverlays
             isLowZoomTintMode={isLowZoomTintMode}
-            hideRoadOverlayForBackgroundIllustration={showMinZoomBackgroundIllustration}
+            hideRoadOverlayForBackgroundIllustration={backgroundZoomBucket !== null}
             routePoints={routePoints}
             routeConfig={routeConfig}
             mapBounds={mapBounds}
