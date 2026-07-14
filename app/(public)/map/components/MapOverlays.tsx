@@ -19,6 +19,7 @@ const MIN_ZOOM_ONLY_LABEL = { name: "日曜市", lat: 33.562258480057494, lng: 1
 
 export const MapOverlays = memo(function MapOverlays({
   isLowZoomTintMode,
+  hideRoadTintForBackgroundIllustration,
   routePoints,
   routeConfig,
   mapBounds,
@@ -50,6 +51,8 @@ export const MapOverlays = memo(function MapOverlays({
   OptimizedShopLayerWithClustering,
 }: {
   isLowZoomTintMode: boolean;
+  /** 背景イラスト表示中は、道路の緑タイント（屋台の存在を示す簡易表現）を隠す */
+  hideRoadTintForBackgroundIllustration: boolean;
   routePoints: MapRoutePoint[];
   routeConfig: MapRouteConfig;
   mapBounds: [[number, number], [number, number]];
@@ -89,7 +92,7 @@ export const MapOverlays = memo(function MapOverlays({
     <>
       {!isMinimumZoomMode && (
         <RoadOverlay
-          overviewTint={isLowZoomTintMode}
+          overviewTint={isLowZoomTintMode && !hideRoadTintForBackgroundIllustration}
           routePoints={routePoints}
           routeConfig={routeConfig}
           onTap={isLowZoomTintMode && !isOverviewZoneMode ? handleRoadTap : undefined}
