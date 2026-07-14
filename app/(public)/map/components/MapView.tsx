@@ -1217,8 +1217,11 @@ const MapView = memo(function MapView({
   const isThirdZoomFromMinimum = Math.abs(mapUiZoom - (MIN_ZOOM + 2.5)) <= 0.15;
   const shouldRenderEventGlow = highlightEventTargets && mapUiZoom >= MIN_ZOOM + 1.5;
   const shouldRenderRecipeOverlay = (showRecipeOverlay ?? false) && mapUiZoom >= 19.0;
-  const shouldRenderMajorLabels = mapUiZoom <= MIN_ZOOM + 2.5;
   const shouldRenderLandmarks = mapUiZoom >= MIN_ZOOM + 0.8 || isMinimumZoomMode || highlightEventTargets;
+  // ランドマークのアイコン（shouldRenderLandmarks）とネームプレートは常に
+  // 連動させる。以前は独自の上限（zoom<=MIN_ZOOM+2.5）を持っており、それを
+  // 超えるとアイコンは表示されたままネームプレートだけ消える不整合があった。
+  const shouldRenderMajorLabels = shouldRenderLandmarks;
   const interactionDisabled = agentOpen ?? false;
   const mapRotation = normalizeRotationDeg(autoRotation);
 
