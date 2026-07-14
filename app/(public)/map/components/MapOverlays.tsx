@@ -335,13 +335,10 @@ function EventDimOverlay({ active }: { active: boolean }) {
 export function getVisibleMajorPlaceLabels({
   shouldRenderMajorLabels,
   isMinimumZoomMode,
-  hideForBackgroundIllustration,
   majorPlaceLabels,
 }: {
   shouldRenderMajorLabels: boolean;
   isMinimumZoomMode: boolean;
-  /** 背景イラスト表示中（isMinimumZoomModeの範囲外）は全ラベルを隠す */
-  hideForBackgroundIllustration: boolean;
   majorPlaceLabels: Array<{ name: string; lat: number; lng: number }>;
 }) {
   if (!shouldRenderMajorLabels) {
@@ -353,8 +350,7 @@ export function getVisibleMajorPlaceLabels({
       MIN_ZOOM_ONLY_LABEL,
     ];
   }
-  if (hideForBackgroundIllustration) {
-    return [];
-  }
+  // isMinimumZoomMode の範囲外（背景イラストの拡張分・次の倍率帯を含む）は
+  // 全地名ラベルを背景イラストと一緒に表示する。
   return majorPlaceLabels;
 }
