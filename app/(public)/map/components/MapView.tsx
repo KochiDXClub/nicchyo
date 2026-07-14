@@ -1217,8 +1217,11 @@ const MapView = memo(function MapView({
   const isThirdZoomFromMinimum = Math.abs(mapUiZoom - (MIN_ZOOM + 2.5)) <= 0.15;
   const shouldRenderEventGlow = highlightEventTargets && mapUiZoom >= MIN_ZOOM + 1.5;
   const shouldRenderRecipeOverlay = (showRecipeOverlay ?? false) && mapUiZoom >= 19.0;
-  const shouldRenderMajorLabels = mapUiZoom <= MIN_ZOOM + 2.5;
   const shouldRenderLandmarks = mapUiZoom >= MIN_ZOOM + 0.8 || isMinimumZoomMode || highlightEventTargets;
+  // ランドマークのアイコン（shouldRenderLandmarks）とネームプレートは常に
+  // 連動させる。以前は独自の上限（zoom<=MIN_ZOOM+2.5）を持っており、それを
+  // 超えるとアイコンは表示されたままネームプレートだけ消える不整合があった。
+  const shouldRenderMajorLabels = shouldRenderLandmarks;
   const interactionDisabled = agentOpen ?? false;
   const mapRotation = normalizeRotationDeg(autoRotation);
 
@@ -1316,22 +1319,15 @@ const MapView = memo(function MapView({
     : 'calc(4.5rem + env(safe-area-inset-bottom,0px) + 0.5rem + 25px)';
 
   const visibleLandmarkSpecs = useMemo(() => {
-    if (!shouldRenderLandmarks) {
-      return [];
-    }
-    if (isMinimumZoomMode) {
-      // 最小倍率帯: 背景イラストと一緒に表示する前提で精選されたランドマーク
-      // （JR列車・とさでん停留場等）のみ表示する。これは背景イラストの
-      // 有無に関わらず維持する、元々の意図的な組み合わせ。
-      return landmarkSpecs.filter((spec) => minZoomLandmarkKeys.has(spec.key));
-    }
-    if (backgroundZoomBucket !== null) {
-      // isMinimumZoomMode の範囲外でも背景イラストが表示中（最小倍率帯の
-      // 拡張分・次の倍率帯）は、全ランドマーク（オーテピア等）が背景イラスト
-      // なしで単独浮遊して見えるのを避けるため非表示にする。
-      return [];
-    }
-    return landmarkSpecs;
+    // 駅・電停（JR列車・とさでん停留場等、minZoomLandmarkKeys）は、
+    // どのズーム帯でも常に表示する。それ以外のランドマーク（オーテピア等）は、
+    // 丁目バッジが表示されるズーム（isMinimumZoomModeの範囲外かつ背景イラスト
+    // 非表示、すなわち zoom>=17）になって初めて表示する。背景イラスト表示中
+    // （最小倍率帯の拡張分・次の倍率帯）はそれ以外のランドマークを単独浮遊
+    // させないよう隠す。
+    const alwaysVisible = landmarkSpecs.filter((spec) => minZoomLandmarkKeys.has(spec.key));
+    const showFullSet = shouldRenderLandmarks && !isMinimumZoomMode && backgroundZoomBucket === null;
+    return showFullSet ? landmarkSpecs : alwaysVisible;
   }, [backgroundZoomBucket, isMinimumZoomMode, landmarkSpecs, minZoomLandmarkKeys, shouldRenderLandmarks]);
 
   const { markManualRotation, snapRotationToVisibleRoad } = useMapCameraController({
