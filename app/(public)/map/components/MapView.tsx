@@ -88,7 +88,10 @@ const MAX_ZOOM = ZOOM_BOUNDS.max;
 // 道路オーバーレイ等の共有フラグ）とは独立した専用のしきい値。
 // 元は+0.5幅（15〜15.5）だったが、狭すぎて見える間がほぼ無かったため+1.0幅に拡張。
 const BACKGROUND_MIN_ZOOM_RANGE = 1.0;
-// 次の倍率帯（最小倍率帯の直後）。最小倍率帯と同じ幅で連続させている。
+// 次の倍率帯（最小倍率帯の直後）。現状は BACKGROUND_MIN_ZOOM_RANGE と
+// 同じ幅（連続させるため偶然一致）だが、丁目バッジの表示開始ズーム
+// （OVERVIEW_ZONE_MIN_ZOOM）に合わせて今後どちらか一方だけ調整する
+// 可能性があるため、あえて別定数にしている。
 const BACKGROUND_NEXT_ZOOM_RANGE = 1.0;
 const INITIAL_ZOOM = MAX_ZOOM;
 const AGENT_STORAGE_KEY = "nicchyo-map-agent-plan";
