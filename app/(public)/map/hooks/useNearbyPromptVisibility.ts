@@ -11,6 +11,9 @@
  * - 再びズーム/パンが始まったら即座に消す
  * - プログラム発の移動（flyTo / setView / スキップズーム補正 /
  *   道スナップ panTo など）は無視する。自動移動のたびにチラつかせない
+ * - 回転のみのジェスチャー（パン・ズームを伴わない2本指回転）は
+ *   Leaflet の move/zoom イベントを発火させないため、
+ *   isGestureActive（MapView からの通知）で別途ハンドリングする
  *
  * 【ユーザー操作の判定】
  * このマップはパン・ピンチを独自ジェスチャ層が panBy / setZoomAround で
@@ -36,6 +39,12 @@ type UseNearbyPromptVisibilityArgs = {
   /** 出現対象のズーム帯 [minZoom, maxZoom) */
   minZoom: number;
   maxZoom: number;
+  /**
+   * 2本指ジェスチャー（回転・ピンチ）が進行中かどうか。
+   * 回転のみの操作は move/zoom を発火させないため、この入力で
+   * ジェスチャー中の非表示・終了後の再表示スケジュールを行う。
+   */
+  isGestureActive?: boolean;
 };
 
 export function useNearbyPromptVisibility({
@@ -43,6 +52,7 @@ export function useNearbyPromptVisibility({
   suppressed,
   minZoom,
   maxZoom,
+  isGestureActive = false,
 }: UseNearbyPromptVisibilityArgs): boolean {
   const [visible, setVisible] = useState(false);
   const stateRef = useRef({
@@ -185,6 +195,44 @@ export function useNearbyPromptVisibility({
       clearTimer();
     };
   }, [map, minZoom, maxZoom]);
+
+  // 回転のみのジェスチャーは上の effect の move/zoom リスナーが拾えないため、
+  // ジェスチャー中フラグの立ち上がり/立ち下がりだけを見て同じ burst 挙動
+  // （開始で即非表示、終了でパンと同じ遅延スケジュール）を適用する
+  const prevGestureActiveRef = useRef(false);
+  useEffect(() => {
+    if (!map) return;
+    if (isGestureActive === prevGestureActiveRef.current) return;
+    prevGestureActiveRef.current = isGestureActive;
+    const state = stateRef.current;
+
+    if (isGestureActive) {
+      state.lastUserInputAt = Date.now();
+      state.burstActive = true;
+      if (timerRef.current) {
+        clearTimeout(timerRef.current);
+        timerRef.current = null;
+      }
+      setVisible(false);
+      return;
+    }
+
+    // ジェスチャー終了。パンと同じ遅延でスケジュールする
+    if (!state.burstActive || state.suppressed) return;
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+    }
+    timerRef.current = setTimeout(() => {
+      timerRef.current = null;
+      if (state.suppressed || state.activePointers > 0) return;
+      state.burstActive = false;
+      state.burstHadZoom = false;
+      const zoom = map.getZoom();
+      if (zoom >= minZoom && zoom < maxZoom) {
+        setVisible(true);
+      }
+    }, SHOW_DELAY_AFTER_PAN_MS);
+  }, [isGestureActive, map, minZoom, maxZoom]);
 
   return visible;
 }

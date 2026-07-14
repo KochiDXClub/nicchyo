@@ -4,6 +4,7 @@ import { createClient as createServiceClient } from "@supabase/supabase-js";
 import { createClient } from "@/utils/supabase/server";
 import { AdminLayout, AdminPageHeader } from "@/components/admin";
 import { getRole, isAdmin } from "@/lib/auth/permissions";
+import AnalyticsExportButton from "./AnalyticsExportButton";
 
 export const dynamic = "force-dynamic";
 
@@ -54,6 +55,7 @@ type ShopViewRow = { vendor_id: string; source: string | null; vendors: { shop_n
 type SearchLogRow = { keyword: string; searched_at: string };
 type ConsultLogRow = { intent_category: string | null; consulted_at: string };
 type VendorCatRow = { categories: { name: string } | null };
+type ConsultFeedbackRow = { question_text: string | null; comment: string | null; created_at: string; turn_text: string | null };
 
 export default async function AdminAnalyticsPage() {
   const cookieStore = await cookies();
@@ -77,6 +79,7 @@ export default async function AdminAnalyticsPage() {
     searchLogsResult,
     consultLogsResult,
     vendorCatsResult,
+    lowRatingResult,
   ] = await Promise.all([
     // web_page_analytics: 過去30日分
     dc.from("web_page_analytics")
@@ -98,6 +101,13 @@ export default async function AdminAnalyticsPage() {
     // vendors + categories
     dc.from("vendors")
       .select("categories(name)"),
+    // ai_consult_feedback: 最近の低評価（型未生成のためキャスト）
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (dc as any).from("ai_consult_feedback")
+      .select("question_text, comment, created_at, turn_text")
+      .eq("rating", -1)
+      .order("created_at", { ascending: false })
+      .limit(20),
   ]);
 
   const pageRows = (pageAnalyticsResult.data ?? []) as PageAnalyticsRow[];
@@ -105,6 +115,7 @@ export default async function AdminAnalyticsPage() {
   const searchLogs = (searchLogsResult.data ?? []) as SearchLogRow[];
   const consultLogs = (consultLogsResult.data ?? []) as ConsultLogRow[];
   const vendorCats = (vendorCatsResult.data ?? []) as unknown as VendorCatRow[];
+  const lowRatingFeedback = (lowRatingResult.data ?? []) as ConsultFeedbackRow[];
 
   // 管理者アクセスを除外
   const userRows = pageRows.filter((r) => !isAdmin(r.user_role));
@@ -195,7 +206,11 @@ export default async function AdminAnalyticsPage() {
 
   return (
     <AdminLayout>
-      <AdminPageHeader eyebrow="Analytics" title="統計・分析" />
+      <AdminPageHeader
+        eyebrow="Analytics"
+        title="統計・分析"
+        actions={<AnalyticsExportButton />}
+      />
 
       <div className="mx-auto max-w-7xl px-4 py-8 pb-20">
 
@@ -375,6 +390,32 @@ export default async function AdminAnalyticsPage() {
                   </div>
                 );
               })}
+            </div>
+          )}
+        </section>
+
+        {/* 最近の低評価フィードバック */}
+        <section className="mt-6 rounded-xl border border-rose-100 bg-white p-6 shadow-sm">
+          <h2 className="mb-1 text-lg font-bold text-slate-800">最近の低評価（👎）</h2>
+          <p className="mb-4 text-xs text-slate-400">AIばあちゃんへの低評価フィードバック（直近20件）</p>
+          {lowRatingFeedback.length === 0 ? (
+            <p className="py-8 text-center text-sm text-slate-400">低評価はありません</p>
+          ) : (
+            <div className="space-y-3">
+              {lowRatingFeedback.map((row, i) => (
+                <div key={i} className="rounded-lg border border-slate-100 bg-slate-50 p-3 text-sm">
+                  <p className="mb-1 text-xs text-slate-400">{new Date(row.created_at).toLocaleString("ja-JP", { timeZone: "Asia/Tokyo" })}</p>
+                  {row.question_text && (
+                    <p className="mb-1 text-slate-700"><span className="font-semibold text-slate-500">質問: </span>{row.question_text}</p>
+                  )}
+                  {row.comment && (
+                    <p className="text-rose-700"><span className="font-semibold">コメント: </span>{row.comment}</p>
+                  )}
+                  {!row.comment && (
+                    <p className="text-slate-400 italic">コメントなし</p>
+                  )}
+                </div>
+              ))}
             </div>
           )}
         </section>
