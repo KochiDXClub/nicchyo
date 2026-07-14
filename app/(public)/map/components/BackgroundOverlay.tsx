@@ -58,17 +58,41 @@ const MIN_ZOOM_ILLUSTRATION_CONFIG: BackgroundConfig = {
   zIndex: 16,
 };
 
+// 最小倍率の次の倍率帯専用の引き絵。
+// 位置・サイズは最小倍率イラストと同じ bounds を暫定流用している（実地図との
+// 目視確認がまだのため、表示を見ながら調整が必要な場合はこの bounds を変更する）。
+const NEXT_ZOOM_ILLUSTRATION_CONFIG: BackgroundConfig = {
+  enabled: true,
+  imagePath: '/images/maps/background/sunday-market-zoom-2.webp',
+  bounds: [
+    [33.571213383579554, 133.55748451999997],
+    [33.55191066960047, 133.52301938000002],
+  ],
+  opacity: 0.7,
+  zIndex: 16,
+};
+
+/** 背景イラストの表示ズーム帯。null は「どちらも表示しない」。 */
+export type BackgroundZoomBucket = 'min' | 'next' | null;
+
 interface BackgroundOverlayProps {
   /**
-   * 最小倍率イラスト（sunday-market-min-zoom.webp）を表示するかどうか。
+   * 表示する背景イラストのズーム帯。
    * `isMinimumZoomMode`（ランドマーク・ラベル・道路オーバーレイ等、他の挙動を
    * まとめて切り替える共有フラグ）とは意図的に独立させている。この背景イラスト
    * だけの表示ズーム範囲を、他の挙動に影響を与えずに調整できるようにするため。
    */
-  showMinZoomIllustration: boolean;
+  zoomBucket: BackgroundZoomBucket;
 }
 
-export default function BackgroundOverlay({ showMinZoomIllustration }: BackgroundOverlayProps) {
+export default function BackgroundOverlay({ zoomBucket }: BackgroundOverlayProps) {
+  const activeConfig =
+    zoomBucket === 'min'
+      ? MIN_ZOOM_ILLUSTRATION_CONFIG
+      : zoomBucket === 'next'
+      ? NEXT_ZOOM_ILLUSTRATION_CONFIG
+      : null;
+
   return (
     <>
       {TINT_CONFIG.enabled && TINT_CONFIG.imagePath && (
@@ -79,12 +103,13 @@ export default function BackgroundOverlay({ showMinZoomIllustration }: Backgroun
           zIndex={TINT_CONFIG.zIndex}
         />
       )}
-      {showMinZoomIllustration && MIN_ZOOM_ILLUSTRATION_CONFIG.enabled && MIN_ZOOM_ILLUSTRATION_CONFIG.imagePath && (
+      {activeConfig?.enabled && activeConfig.imagePath && (
         <ImageOverlay
-          url={MIN_ZOOM_ILLUSTRATION_CONFIG.imagePath}
-          bounds={MIN_ZOOM_ILLUSTRATION_CONFIG.bounds as LatLngBoundsExpression}
-          opacity={MIN_ZOOM_ILLUSTRATION_CONFIG.opacity}
-          zIndex={MIN_ZOOM_ILLUSTRATION_CONFIG.zIndex}
+          key={zoomBucket}
+          url={activeConfig.imagePath}
+          bounds={activeConfig.bounds as LatLngBoundsExpression}
+          opacity={activeConfig.opacity}
+          zIndex={activeConfig.zIndex}
         />
       )}
     </>
