@@ -84,15 +84,10 @@ const ZOOM_BOUNDS = getRecommendedZoomBounds();
 
 const MIN_ZOOM = ZOOM_BOUNDS.min;
 const MAX_ZOOM = ZOOM_BOUNDS.max;
-// 背景イラストの表示ズーム範囲。isMinimumZoomMode（ランドマーク・ラベル・
-// 道路オーバーレイ等の共有フラグ）とは独立した専用のしきい値。
-// 元は+0.5幅（15〜15.5）だったが、狭すぎて見える間がほぼ無かったため+1.0幅に拡張。
+// 背景イラストの表示ズーム範囲。zoom=MIN_ZOOM で最大 opacity、
+// zoom=MIN_ZOOM+BACKGROUND_MIN_ZOOM_RANGE で opacity=0 まで線形 fade out する。
 const BACKGROUND_MIN_ZOOM_RANGE = 1.0;
-// 次の倍率帯（最小倍率帯の直後）。現状は BACKGROUND_MIN_ZOOM_RANGE と
-// 同じ幅（連続させるため偶然一致）だが、丁目バッジの表示開始ズーム
-// （OVERVIEW_ZONE_MIN_ZOOM）に合わせて今後どちらか一方だけ調整する
-// 可能性があるため、あえて別定数にしている。
-const BACKGROUND_NEXT_ZOOM_RANGE = 1.0;
+const BACKGROUND_ILLUSTRATION_MAX_OPACITY = 0.7;
 const INITIAL_ZOOM = MAX_ZOOM;
 const AGENT_STORAGE_KEY = "nicchyo-map-agent-plan";
 const BASEMAP_TILE_URL = "https://{s}.basemaps.cartocdn.com/rastertiles/voyager_nolabels/{z}/{x}/{y}{r}.png";
@@ -1207,11 +1202,12 @@ const MapView = memo(function MapView({
   const canNavigate = selectedShopIndex >= 0 && shops.length > 1;
   const isMinimumZoomMode = mapUiZoom < MIN_ZOOM + 0.5;
   const backgroundZoomBucket: BackgroundZoomBucket =
-    mapUiZoom < MIN_ZOOM + BACKGROUND_MIN_ZOOM_RANGE
-      ? "min"
-      : mapUiZoom < MIN_ZOOM + BACKGROUND_MIN_ZOOM_RANGE + BACKGROUND_NEXT_ZOOM_RANGE
-      ? "next"
-      : null;
+    mapUiZoom < MIN_ZOOM + BACKGROUND_MIN_ZOOM_RANGE ? "min" : null;
+  const backgroundIllustrationOpacity =
+    backgroundZoomBucket === "min"
+      ? BACKGROUND_ILLUSTRATION_MAX_OPACITY *
+        (1 - (mapUiZoom - MIN_ZOOM) / BACKGROUND_MIN_ZOOM_RANGE)
+      : 0;
   const isOverviewZoneMode = mapUiZoom >= OVERVIEW_ZONE_MIN_ZOOM && mapUiZoom < OVERVIEW_ZONE_MAX_ZOOM;
   const isLowZoomTintMode = mapUiZoom < OVERVIEW_ZONE_MAX_ZOOM;
   const isThirdZoomFromMinimum = Math.abs(mapUiZoom - (MIN_ZOOM + 2.5)) <= 0.15;
@@ -1497,7 +1493,7 @@ const MapView = memo(function MapView({
             keepBuffer={16}
           />
           {/* 背景 */}
-          <BackgroundOverlay zoomBucket={backgroundZoomBucket} />
+          <BackgroundOverlay zoomBucket={backgroundZoomBucket} illustrationOpacity={backgroundIllustrationOpacity} />
           <MapOverlays
             isLowZoomTintMode={isLowZoomTintMode}
             hideRoadOverlayForBackgroundIllustration={backgroundZoomBucket !== null}
