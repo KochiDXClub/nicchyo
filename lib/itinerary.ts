@@ -203,9 +203,14 @@ export function parseItineraryTemplateOutput(
       const body = line.replace(/^\d+\.\s*/, "");
       const parts = body.split("|").map((p) => p.trim());
       const timeMinutes = parseHHMM(parts[0] || "");
-      const name = parts[1] || `立ち寄り${index + 1}`;
+      const rawName = parts[1] || `立ち寄り${index + 1}`;
+      // 「id:12 店名」形式ならAIが転記した実IDを取り出す
+      // （実在チェックは resolvePlanShopIds が行う）
+      const idMatch = rawName.match(/^id[:：]\s*(\d+)\s*(.*)$/i);
+      const id = idMatch ? Number(idMatch[1]) : 0;
+      const name = (idMatch ? idMatch[2] : rawName).trim() || `立ち寄り${index + 1}`;
       return {
-        id: 0,
+        id: Number.isInteger(id) && id > 0 ? id : 0,
         name,
         time: formatHHMM(
           timeMinutes ?? baseMinutes + index * DEFAULT_INTERVAL_MINUTES

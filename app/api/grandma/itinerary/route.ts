@@ -132,14 +132,23 @@ export async function POST(request: Request) {
     const vendorIds = safeMatches.map((m) => m.vendor_id).filter(Boolean);
     const shops = await fetchShopsByVendorIds(supabase, vendorIds);
     const matchByVendor = new Map(safeMatches.map((m) => [m.vendor_id, m.similarity]));
-    const vectorContext = shops
+    // fetchShopsByVendorIds は店番順で返す（vendorSearch.ts 末尾で
+    // .sort((a, b) => a.id - b.id) している）ため、そのまま先頭N件を候補にすると
+    // 「類似度上位」ではなく「店番の小さい店」がAIに渡ってしまう。類似度順に並べ直す
+    const similarityOf = (shop: (typeof shops)[number]) =>
+      (shop.vendorId ? matchByVendor.get(shop.vendorId) : undefined) ?? 0;
+    const rankedShops = [...shops].sort((a, b) => similarityOf(b) - similarityOf(a));
+    const vectorContext = rankedShops
       .slice(0, 10)
       .map((shop) => {
         const sim = shop.vendorId ? matchByVendor.get(shop.vendorId) : undefined;
         return `id:${shop.id} | name:${shop.name} | category:${shop.category} | similarity:${sim?.toFixed(4) ?? "n/a"} | products:${shop.products.slice(0, 4).join(" / ")}`;
       })
       .join("\n");
-    const shopCandidates = shops.map((shop) => ({ id: shop.id, name: shop.name }));
+    // summarizeShops のデフォルト上限(6)だと10件のベクトル候補を渡しきれず、
+    // 類似度で選ばれた店の後半が候補一覧（プロンプトの「候補店舗:」欄）に
+    // 現れずAIがidを付けられない → 上限を渡す件数と揃える
+    const shopCandidates = rankedShops.map((shop) => ({ id: shop.id, name: shop.name }));
 
     const template = buildItineraryTemplate({ stops, startAt, interest });
     const prompt = [
@@ -167,7 +176,7 @@ export async function POST(request: Request) {
       historyText || "なし",
       "",
       "候補店舗:",
-      summarizeShops(shops),
+      summarizeShops(rankedShops, 10),
       "",
       "ベクトル近傍情報:",
       vectorContext || "該当なし",
@@ -213,7 +222,13 @@ export async function POST(request: Request) {
     return NextResponse.json({
       plan: parsedPlan,
       outputText: undefined,
-      vectorMatches: shops.slice(0, 6).map((shop) => ({
+      // プランに使った候補の完全な Shop 情報を返す。旅程カードの
+      // 「詳しく」展開（ConsultShopSuggestionCard）は完全な Shop を要求するが、
+      // 従来はここを id/name/category のみに絞っていたため、
+      // クライアント側の shopLookup（チャットで既出の店のみ蓄積）に
+      // ヒットせず「詳細カードはまだ読み込めていません」に必ず落ちていた
+      shops: rankedShops.slice(0, 10),
+      vectorMatches: rankedShops.slice(0, 6).map((shop) => ({
         id: shop.id,
         name: shop.name,
         category: shop.category,

@@ -471,6 +471,9 @@ const GrandmaChatter = memo(function GrandmaChatter({
   // AIが店を薦めた後に出す「おさんぽプランを立てる」ナッジ（会話ごとに1回だけ）
   const [walkPlanNudgeUsed, setWalkPlanNudgeUsed] = useState(false);
   const [expandedItineraryItemKeys, setExpandedItineraryItemKeys] = useState<Set<string>>(new Set());
+  // おさんぽプランAPIが返した候補店舗（完全な Shop）。shopLookup にマージして
+  // 旅程カードの「詳しく」展開で ConsultShopSuggestionCard が解決できるようにする
+  const [walkPlanShops, setWalkPlanShops] = useState<Shop[]>([]);
   const [walkPlanQuestionAnswers, setWalkPlanQuestionAnswers] = useState<{
     pace: WalkPlanPaceId;
     useTime: boolean;
@@ -667,8 +670,15 @@ const GrandmaChatter = memo(function GrandmaChatter({
     const source = allShops && allShops.length > 0 ? allShops : aiSuggestedShops ?? [];
     const map = new Map<number, Shop>();
     source.forEach((shop) => map.set(shop.id, shop));
+    // おさんぽプランAPIが返す候補店舗（ベクトル検索由来）は allShops/aiSuggestedShops
+    // に含まれるとは限らない（チャットで一度も言及されていない店の可能性がある）ため、
+    // 上書きしない形でマージする。これが無いと旅程カードの「詳しく」展開が
+    // 常に「詳細カードはまだ読み込めていません」に落ちる
+    walkPlanShops.forEach((shop) => {
+      if (!map.has(shop.id)) map.set(shop.id, shop);
+    });
     return map;
-  }, [allShops, aiSuggestedShops]);
+  }, [allShops, aiSuggestedShops, walkPlanShops]);
 
   useEffect(() => {
     onActiveShopChange?.(activeShopId);
@@ -1241,8 +1251,16 @@ const GrandmaChatter = memo(function GrandmaChatter({
         const payload = (await response.json()) as {
           plan?: ItineraryPlan;
           outputText?: string;
+          shops?: Shop[];
           vectorMatches?: Array<{ id: number; name: string }>;
         };
+        if (payload.shops && payload.shops.length > 0) {
+          setWalkPlanShops((prev) => {
+            const map = new Map(prev.map((shop) => [shop.id, shop]));
+            payload.shops!.forEach((shop) => map.set(shop.id, shop));
+            return Array.from(map.values());
+          });
+        }
         if (payload.plan) {
           plan = payload.plan;
         }
