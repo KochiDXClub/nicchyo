@@ -84,6 +84,10 @@ const ZOOM_BOUNDS = getRecommendedZoomBounds();
 
 const MIN_ZOOM = ZOOM_BOUNDS.min;
 const MAX_ZOOM = ZOOM_BOUNDS.max;
+// 背景イラスト（最小倍率帯）の表示ズーム範囲。isMinimumZoomMode（ランドマーク・
+// ラベル・道路オーバーレイ等の共有フラグ）とは独立した専用のしきい値。
+// 元は+0.5幅（15〜15.5）だったが、狭すぎて見える間がほぼ無かったため+1.0幅に拡張。
+const BACKGROUND_MIN_ZOOM_RANGE = 1.0;
 const INITIAL_ZOOM = MAX_ZOOM;
 const AGENT_STORAGE_KEY = "nicchyo-map-agent-plan";
 const BASEMAP_TILE_URL = "https://{s}.basemaps.cartocdn.com/rastertiles/voyager_nolabels/{z}/{x}/{y}{r}.png";
@@ -1197,6 +1201,7 @@ const MapView = memo(function MapView({
 
   const canNavigate = selectedShopIndex >= 0 && shops.length > 1;
   const isMinimumZoomMode = mapUiZoom < MIN_ZOOM + 0.5;
+  const showMinZoomBackgroundIllustration = mapUiZoom < MIN_ZOOM + BACKGROUND_MIN_ZOOM_RANGE;
   const isOverviewZoneMode = mapUiZoom >= OVERVIEW_ZONE_MIN_ZOOM && mapUiZoom < OVERVIEW_ZONE_MAX_ZOOM;
   const isLowZoomTintMode = mapUiZoom < OVERVIEW_ZONE_MAX_ZOOM;
   const isThirdZoomFromMinimum = Math.abs(mapUiZoom - (MIN_ZOOM + 2.5)) <= 0.15;
@@ -1476,7 +1481,7 @@ const MapView = memo(function MapView({
             keepBuffer={16}
           />
           {/* 背景 */}
-          <BackgroundOverlay isMinimumZoomMode={isMinimumZoomMode} />
+          <BackgroundOverlay showMinZoomIllustration={showMinZoomBackgroundIllustration} />
           <MapOverlays
             isLowZoomTintMode={isLowZoomTintMode}
             routePoints={routePoints}
