@@ -16,6 +16,7 @@
 
 'use client';
 
+import { useEffect } from 'react';
 import { ImageOverlay } from 'react-leaflet';
 import { LatLngBoundsExpression } from 'leaflet';
 
@@ -58,17 +59,83 @@ const MIN_ZOOM_ILLUSTRATION_CONFIG: BackgroundConfig = {
   zIndex: 16,
 };
 
+// 最小倍率の次の倍率帯専用の引き絵。
+// 最小倍率イラストと同じ中心点から、表示サイズを55%に縮小し、
+// zoom=16（1px≈2.4m換算）基準で西に100px・北に30px移動している
+// （北50px移動後、さらに南に20px移動＝差し引き北30px）。
+// 反時計回りに102.5度（12.5度 + 追加90度）回転させているが、Leaflet の
+// ImageOverlay は zoom/pan のたびに img 要素の style.transform（translate3d）
+// を丸ごと上書きするため、CSS の transform: rotate() では反映されない。
+// そのため画像ファイル自体をあらかじめ102.5度回転済み（余白を透過で拡張）
+// にしてあり、bounds もその拡張分（拡大率 ×1.1929、正方形の90度対称性により
+// 12.5度回転時と同じ値）だけ広げて同じ実寸で表示されるようにしている。
+// bounds は元画像が正方形（4096×4096）であることに合わせ、実距離（メートル
+// 換算）で正方形になるよう経度方向の幅を緯度方向の1/cos(緯度)倍にしている
+// （経度は同じ度数でも物理的な距離が緯度分だけ短いため）。これをしないと
+// 縦横で伸縮率が変わり、回転した正方形が平行四辺形に歪んで見える。
+// （実地図との目視確認はまだのため、表示を見ながら追加調整が必要な場合がある）。
+const NEXT_ZOOM_ILLUSTRATION_CONFIG: BackgroundConfig = {
+  enabled: true,
+  imagePath: '/images/maps/background/sunday-market-zoom-2.webp',
+  bounds: [
+    [33.56854086425856, 133.54526352489341],
+    [33.55587675701344, 133.53006584798584],
+  ],
+  opacity: 0.7,
+  zIndex: 16,
+};
+
+/** 背景イラストの表示ズーム帯。null は「どちらも表示しない」。 */
+export type BackgroundZoomBucket = 'min' | 'next' | null;
+
 interface BackgroundOverlayProps {
   /**
-   * 最小倍率イラスト（sunday-market-min-zoom.webp）を表示するかどうか。
+   * 表示する背景イラストのズーム帯。
    * `isMinimumZoomMode`（ランドマーク・ラベル・道路オーバーレイ等、他の挙動を
    * まとめて切り替える共有フラグ）とは意図的に独立させている。この背景イラスト
    * だけの表示ズーム範囲を、他の挙動に影響を与えずに調整できるようにするため。
    */
-  showMinZoomIllustration: boolean;
+  zoomBucket: BackgroundZoomBucket;
 }
 
-export default function BackgroundOverlay({ showMinZoomIllustration }: BackgroundOverlayProps) {
+// マウント時に一度だけ先読みする対象。表示前に取得しておくことで、
+// 実際にそのズーム帯へ入った瞬間の読み込み待ちを解消する。
+const PRELOAD_IMAGE_PATHS = [
+  MIN_ZOOM_ILLUSTRATION_CONFIG,
+  NEXT_ZOOM_ILLUSTRATION_CONFIG,
+]
+  .filter((config) => config.enabled && config.imagePath)
+  .map((config) => config.imagePath as string);
+
+export default function BackgroundOverlay({ zoomBucket }: BackgroundOverlayProps) {
+  const activeConfig =
+    zoomBucket === 'min'
+      ? MIN_ZOOM_ILLUSTRATION_CONFIG
+      : zoomBucket === 'next'
+      ? NEXT_ZOOM_ILLUSTRATION_CONFIG
+      : null;
+
+  // ズーム帯に関わらず、マップ表示時点で背景イラストを先読みしておく。
+  // 実際に表示が切り替わるズームに達したときには既にブラウザキャッシュに
+  // 入っている状態にし、画像取得待ちで一瞬何も見えない状態を防ぐ。
+  // タイルの初期読み込み等と競合しないよう、アイドルタイムまで遅延させる
+  // （requestIdleCallback非対応環境ではsetTimeoutにフォールバック）。
+  useEffect(() => {
+    const runPreload = () => {
+      PRELOAD_IMAGE_PATHS.forEach((src) => {
+        const img = new Image();
+        img.src = src;
+      });
+    };
+
+    if (typeof requestIdleCallback === 'function') {
+      const handle = requestIdleCallback(runPreload, { timeout: 3000 });
+      return () => cancelIdleCallback(handle);
+    }
+    const timer = setTimeout(runPreload, 2000);
+    return () => clearTimeout(timer);
+  }, []);
+
   return (
     <>
       {TINT_CONFIG.enabled && TINT_CONFIG.imagePath && (
@@ -79,12 +146,13 @@ export default function BackgroundOverlay({ showMinZoomIllustration }: Backgroun
           zIndex={TINT_CONFIG.zIndex}
         />
       )}
-      {showMinZoomIllustration && MIN_ZOOM_ILLUSTRATION_CONFIG.enabled && MIN_ZOOM_ILLUSTRATION_CONFIG.imagePath && (
+      {activeConfig?.enabled && activeConfig.imagePath && (
         <ImageOverlay
-          url={MIN_ZOOM_ILLUSTRATION_CONFIG.imagePath}
-          bounds={MIN_ZOOM_ILLUSTRATION_CONFIG.bounds as LatLngBoundsExpression}
-          opacity={MIN_ZOOM_ILLUSTRATION_CONFIG.opacity}
-          zIndex={MIN_ZOOM_ILLUSTRATION_CONFIG.zIndex}
+          key={zoomBucket}
+          url={activeConfig.imagePath}
+          bounds={activeConfig.bounds as LatLngBoundsExpression}
+          opacity={activeConfig.opacity}
+          zIndex={activeConfig.zIndex}
         />
       )}
     </>
