@@ -388,7 +388,7 @@ export default function MapPageClient({
     const enabled = searchParams.get('walkPlan');
     if (!enabled) return;
     try {
-      const raw = typeof window !== 'undefined' ? localStorage.getItem('nicchyo-walk-plan') : null;
+      const raw = localStorage.getItem('nicchyo-walk-plan');
       if (!raw) return;
       const parsed = JSON.parse(raw) as {
         title?: string;
