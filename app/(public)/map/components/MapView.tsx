@@ -57,6 +57,13 @@ import {
 import { useMapGestures } from "../hooks/useMapGestures";
 import { useMapCameraController } from "../hooks/useMapCameraController";
 import { getShopBannerImage } from "../../../../lib/shopImages";
+import {
+  ROAD_SNAP_DELAY_MS,
+  ROAD_SNAP_MIN_DISTANCE_METERS,
+  SKIPPED_ZOOM_LEVELS,
+  SKIPPED_ZOOM_NUDGE,
+  SKIPPED_ZOOM_TOLERANCE,
+} from "../../../../lib/constants";
 
 function findIngredientMatch(name: string) {
   const lower = name.trim().toLowerCase();
@@ -423,6 +430,7 @@ function MapControls({
   maxZoom,
   zoomSliderVisible,
   onZoomSliderInteract,
+  trackingButtonTop = 112,
 }: {
   map: L.Map | null;
   isTracking: boolean;
@@ -434,7 +442,39 @@ function MapControls({
   zoomSliderVisible: boolean;
   /** スライダー操作時に表示を延命させるためのコールバック */
   onZoomSliderInteract: () => void;
+  /** 現在地ボタンの top 位置（px）。検索エリアの高さに追従させるために外から渡す */
+  trackingButtonTop?: number;
 }) {
+  const zoomFrameRef = useRef<number | null>(null);
+  const pendingZoomRef = useRef<number | null>(null);
+
+  const flushZoom = useCallback(() => {
+    zoomFrameRef.current = null;
+    const pendingZoom = pendingZoomRef.current;
+    pendingZoomRef.current = null;
+    if (pendingZoom === null || !map) return;
+    const nextZoom = Math.max(minZoom, Math.min(maxZoom, pendingZoom));
+    if (Math.abs(nextZoom - map.getZoom()) <= 0.001) return;
+    map.setZoom(nextZoom, { animate: false });
+  }, [map, maxZoom, minZoom]);
+
+  const handleZoomValueChange = useCallback((value: number) => {
+    onZoomSliderInteract();
+    pendingZoomRef.current = value;
+    if (zoomFrameRef.current !== null) {
+      return;
+    }
+    zoomFrameRef.current = window.requestAnimationFrame(flushZoom);
+  }, [flushZoom, onZoomSliderInteract]);
+
+  useEffect(() => {
+    return () => {
+      if (zoomFrameRef.current !== null) {
+        window.cancelAnimationFrame(zoomFrameRef.current);
+      }
+    };
+  }, [flushZoom]);
+
   return (
     <>
       {/* 縦ズームスライダー（ナビバー直上）— 2本指操作時のみ表示し、操作終了から数秒後にフェードアウト */}
@@ -452,14 +492,15 @@ function MapControls({
           value={currentZoom}
           min={minZoom}
           max={maxZoom}
-          onValueChange={(v) => { onZoomSliderInteract(); map?.setZoom(v, { animate: false }); }}
+          onValueChange={handleZoomValueChange}
         />
         <span className="select-none text-[12px] font-black leading-none text-amber-700 drop-shadow-[0_1px_0_rgba(255,255,255,0.9)]">−</span>
       </div>
 
-      {/* 現在地追跡ボタン（画面上部右） */}
+      {/* 現在地追跡ボタン（検索エリアの高さに追従） */}
       <div
-        className="absolute right-4 top-28 z-[1000]"
+        className="absolute right-4 z-[1000] transition-[top] duration-200"
+        style={{ top: trackingButtonTop }}
         onMouseDown={(e) => e.stopPropagation()}
         onClick={(e) => e.stopPropagation()}
         onTouchStart={(e) => { e.stopPropagation(); }}
@@ -489,13 +530,13 @@ function MapControls({
 function MapZoomGuideToast({ message }: { message: string | null }) {
   return (
     <div
-      className={`pointer-events-none absolute left-1/2 top-20 z-[1400] w-[min(calc(100vw-2rem),24rem)] -translate-x-1/2 transition-all duration-200 ${
-        message ? "translate-y-0 opacity-100" : "-translate-y-2 opacity-0"
+      className={`pointer-events-none absolute bottom-3 left-1/2 z-[1400] w-auto max-w-[min(calc(100vw-4rem),20rem)] -translate-x-1/2 transition-all duration-200 ${
+        message ? "translate-y-0 opacity-100" : "translate-y-2 opacity-0"
       }`}
       aria-live="polite"
       aria-atomic="true"
     >
-      <div className="rounded-full bg-slate-900/88 px-4 py-2 text-center text-sm font-medium text-white shadow-lg backdrop-blur">
+      <div className="rounded-2xl bg-sky-100/95 px-3 py-1.5 text-center text-sm font-semibold leading-snug text-sky-900 shadow-md backdrop-blur">
         {message ?? ""}
       </div>
     </div>
@@ -542,25 +583,32 @@ type MapViewProps = {
   overlaySlot?: React.ReactNode;
   /** trueのとき拡大縮小スライダーと検索バーを非表示にする */
   hideMapUI?: boolean;
+  /** 現在地ボタンの top 位置（px）。検索エリアの実際の高さに合わせて親から渡す */
+  trackingButtonTop?: number;
+  /**
+   * 2本指の回転/ピンチジェスチャー中かどうかが変化したときに呼ばれる。
+   * 回転のみのジェスチャーは Leaflet の pan/zoom を伴わないため
+   * move/zoom イベントが発火せず、「このへん」ボタンの静止判定
+   * （useNearbyPromptVisibility）だけではジェスチャー中を検知できない。
+   * この通知を使って親側で表示状態を更新する。
+   */
+  onGestureActiveChange?: (active: boolean) => void;
 };
 
 export type ShopBannerOrigin = { x: number; y: number; width: number; height: number };
-
-const SKIPPED_ZOOM_LEVELS = [18];
-const SKIPPED_ZOOM_TOLERANCE = 0.026; // step(0.05) の半分より少し大きく設定
 
 function MapZoomListener({ onZoomChange }: { onZoomChange?: (zoom: number) => void }) {
   const map = useMap();
   useEffect(() => {
     if (!onZoomChange) return;
-    const handleZoom = () => {
+    const handleZoomEnd = () => {
       onZoomChange(map.getZoom());
     };
-    // 初期値も通知
-    handleZoom();
-    map.on("zoomend", handleZoom);
+
+    handleZoomEnd();
+    map.on("zoomend", handleZoomEnd);
     return () => {
-      map.off("zoomend", handleZoom);
+      map.off("zoomend", handleZoomEnd);
     };
   }, [map, onZoomChange]);
   return null;
@@ -570,26 +618,37 @@ function MapZoomConstraint() {
   const map = useMap();
 
   useEffect(() => {
-    let lastAcceptedZoom = map.getZoom();
+    let zoomBeforeChange = map.getZoom();
 
-    const handleZoomEnd = () => {
-      const zoom = map.getZoom();
-      const skippedZoom = SKIPPED_ZOOM_LEVELS.find(
-        (level) => Math.abs(zoom - level) <= SKIPPED_ZOOM_TOLERANCE
-      );
-      if (skippedZoom !== undefined) {
-        // スムーズスライダー対応: ±1 の大ジャンプをやめ、スキップゾーンを抜ける最小幅(0.1)だけ移動
-        const targetZoom =
-          lastAcceptedZoom > zoom ? skippedZoom - 0.1 : skippedZoom + 0.1;
-        map.setZoom(targetZoom, { animate: false });
-        lastAcceptedZoom = targetZoom;
-        return;
-      }
-      lastAcceptedZoom = zoom;
+    const handleZoomStart = () => {
+      zoomBeforeChange = map.getZoom();
     };
 
+    const handleZoomEnd = () => {
+      const currentZoom = map.getZoom();
+      const skippedZoom = SKIPPED_ZOOM_LEVELS.find(
+        (zoomLevel) => Math.abs(currentZoom - zoomLevel) <= SKIPPED_ZOOM_TOLERANCE
+      );
+
+      if (skippedZoom === undefined) {
+        zoomBeforeChange = currentZoom;
+        return;
+      }
+
+      const zoomingIn = currentZoom >= zoomBeforeChange;
+      const targetZoom = zoomingIn ? skippedZoom + SKIPPED_ZOOM_NUDGE : skippedZoom - SKIPPED_ZOOM_NUDGE;
+
+      if (Math.abs(targetZoom - currentZoom) > 0.001) {
+        map.setZoom(targetZoom, { animate: false });
+      }
+
+      zoomBeforeChange = targetZoom;
+    };
+
+    map.on("zoomstart", handleZoomStart);
     map.on("zoomend", handleZoomEnd);
     return () => {
+      map.off("zoomstart", handleZoomStart);
       map.off("zoomend", handleZoomEnd);
     };
   }, [map]);
@@ -606,6 +665,32 @@ function MapZoomRoadSnapController({
 
   useEffect(() => {
     let lastZoom = map.getZoom();
+    let snapTimerId: number | null = null;
+
+    const clearSnapTimer = () => {
+      if (snapTimerId === null) return;
+      window.clearTimeout(snapTimerId);
+      snapTimerId = null;
+    };
+
+    const scheduleSnap = (center: L.LatLng) => {
+      clearSnapTimer();
+      snapTimerId = window.setTimeout(() => {
+        snapTimerId = null;
+        const snappedPoint = onSnapCenter(center);
+        if (!snappedPoint) return;
+
+        const snappedLatLng = L.latLng(snappedPoint[0], snappedPoint[1]);
+        const distanceMeters = map.distance(center, snappedLatLng);
+        if (distanceMeters < ROAD_SNAP_MIN_DISTANCE_METERS) return;
+
+        map.panTo(snappedPoint, {
+          animate: true,
+          duration: 0.35,
+          easeLinearity: 0.25,
+        });
+      }, ROAD_SNAP_DELAY_MS);
+    };
 
     const handleZoomEnd = () => {
       const nextZoom = map.getZoom();
@@ -616,20 +701,22 @@ function MapZoomRoadSnapController({
         return;
       }
 
-      const center = map.getCenter();
-      const snappedPoint = onSnapCenter(center);
-      if (!snappedPoint) {
-        return;
-      }
-      map.panTo(snappedPoint, {
-        animate: true,
-        duration: 0.7,
-        easeLinearity: 0.25,
-      });
+      scheduleSnap(map.getCenter());
     };
 
+    const handleZoomStart = () => {
+      clearSnapTimer();
+    };
+
+    map.on("zoomstart", handleZoomStart);
+    map.on("movestart", handleZoomStart);
+    map.on("dragstart", handleZoomStart);
     map.on("zoomend", handleZoomEnd);
     return () => {
+      clearSnapTimer();
+      map.off("zoomstart", handleZoomStart);
+      map.off("movestart", handleZoomStart);
+      map.off("dragstart", handleZoomStart);
       map.off("zoomend", handleZoomEnd);
     };
   }, [map, onSnapCenter]);
@@ -665,6 +752,8 @@ const MapView = memo(function MapView({
   onClearSearch,
   overlaySlot,
   hideMapUI = false,
+  trackingButtonTop,
+  onGestureActiveChange,
 }: MapViewProps = {}) {
   const [isMobile, setIsMobile] = useState(false);
   const [_isInMarket, setIsInMarket] = useState<boolean | null>(null);
@@ -743,6 +832,28 @@ const MapView = memo(function MapView({
   const [autoRotation, setAutoRotation] = useState(initialMapRotation);
   const [mapUiZoom, setMapUiZoom] = useState(INITIAL_ZOOM);
   const [zoomGuideMessage, setZoomGuideMessage] = useState<string | null>(null);
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const activeGestureModeRef = useRef<"zoom" | "rotate" | null>(null);
+  const pinchZoomEndFiredRef = useRef(false);
+  const showMapToast = useCallback((message: string, durationMs = 1500) => {
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    setZoomGuideMessage(message);
+    toastTimerRef.current = setTimeout(() => {
+      setZoomGuideMessage(null);
+      toastTimerRef.current = null;
+    }, durationMs);
+  }, []);
+  const hideMapToast = useCallback(() => {
+    if (toastTimerRef.current) {
+      clearTimeout(toastTimerRef.current);
+      toastTimerRef.current = null;
+    }
+    setZoomGuideMessage(null);
+  }, []);
+  const handleChomeClick = useCallback(
+    (chome: string) => showMapToast(`${chome}を拡大しました`, 2500),
+    [showMapToast]
+  );
   const [mapShellSize, setMapShellSize] = useState(() => {
     if (typeof window === "undefined") return 1600;
     // visualViewport はブラウザUIを除いた実際の表示領域サイズ（iOS Safari 対応）
@@ -757,7 +868,6 @@ const MapView = memo(function MapView({
   const [mapInstance, setMapInstance] = useState<L.Map | null>(null);
   const mapRef = useRef<L.Map | null>(null);
   const isTouchGestureActiveRef = useRef(false);
-  const zoomGuideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   // 【削除】visibleShops の計算を削除
@@ -797,8 +907,8 @@ const MapView = memo(function MapView({
 
   useEffect(() => {
     return () => {
-      if (zoomGuideTimerRef.current) {
-        clearTimeout(zoomGuideTimerRef.current);
+      if (toastTimerRef.current) {
+        clearTimeout(toastTimerRef.current);
       }
     };
   }, []);
@@ -1013,25 +1123,18 @@ const MapView = memo(function MapView({
       if (viewMode.mode === ViewMode.OVERVIEW) {
         // OVERVIEW → INTERMEDIATE（エリア探索）へ
         targetZoom = 18.0;
-        setZoomGuideMessage("このエリアを拡大しました");
+        showMapToast("このエリアを拡大しました", 1800);
       } else {
         // INTERMEDIATE → DETAIL（詳細閲覧）へ
         targetZoom = 18.5;
-        setZoomGuideMessage("もう一度タップするとお店の詳細を見られます");
+        showMapToast("もう一度タップするとお店の詳細を見られます", 1800);
       }
-
-      if (zoomGuideTimerRef.current) {
-        clearTimeout(zoomGuideTimerRef.current);
-      }
-      zoomGuideTimerRef.current = setTimeout(() => {
-        setZoomGuideMessage(null);
-      }, 1800);
 
       mapRef.current.flyTo([centerLat, centerLng], targetZoom, {
         duration: 0.75,
       });
     }
-  }, [onShopSelect, selectedShop, shopBannerMainSurface, shops]);
+  }, [onShopSelect, selectedShop, shopBannerMainSurface, shops, showMapToast]);
 
   const handleOpenShop = useCallback((shopId: number) => {
     const target = shops.find((s) => s.id === shopId);
@@ -1211,8 +1314,36 @@ const MapView = memo(function MapView({
       markManualRotation();
       setAutoRotation(rotation);
     },
-    onGestureEnd: () => {},
+    onGestureEnd: () => {
+      // ズームはonPinchZoomEndが直後に「拡大/縮小しました」で上書きするため基本は消さないが、
+      // しきい値未満でonPinchZoomEndが呼ばれなかった場合は「ズーム中」が残るので明示的に消す
+      const mode = activeGestureModeRef.current;
+      if (mode === "rotate" || (mode === "zoom" && !pinchZoomEndFiredRef.current)) {
+        hideMapToast();
+      }
+      activeGestureModeRef.current = null;
+      pinchZoomEndFiredRef.current = false;
+    },
+    onGestureMode: (mode) => {
+      activeGestureModeRef.current = mode;
+      pinchZoomEndFiredRef.current = false;
+      showMapToast(mode === "zoom" ? "ズーム中" : "回転中", 3000);
+    },
+    onFirstPan: () => {
+      showMapToast("地図を移動中", 1200);
+    },
+    onPinchZoomEnd: (direction) => {
+      pinchZoomEndFiredRef.current = true;
+      showMapToast(direction === "in" ? "拡大しました" : "縮小しました", 1500);
+    },
   });
+
+  // 回転のみのジェスチャーは Leaflet の move/zoom を発火させないため、
+  // 親側で静止判定（useNearbyPromptVisibility 等）を行いたい場合に備えて
+  // ジェスチャーの開始/終了を素通しで通知する
+  useEffect(() => {
+    onGestureActiveChange?.(isTouchGestureActive);
+  }, [isTouchGestureActive, onGestureActiveChange]);
 
   useEffect(() => {
     if (!isTouchGestureActive) {
@@ -1280,7 +1411,8 @@ const MapView = memo(function MapView({
           touchAction: "none",
           transform: `translate(-50%, -50%) rotate(${mapRotation}deg)`,
           transformOrigin: "center center",
-          transition: "transform 1500ms ease-out",
+          transition: isTouchGestureActive ? "none" : "transform 420ms cubic-bezier(0.22, 1, 0.36, 1)",
+          willChange: isTouchGestureActive ? "transform" : "auto",
         }}
       >
         <MapContainer
@@ -1364,6 +1496,7 @@ const MapView = memo(function MapView({
             shopsWithIngredients={shopsWithIngredients}
             recipeIngredients={recipeIngredients}
             onRecipeShopClick={setSelectedShop}
+            onChomeClick={handleChomeClick}
             OptimizedShopLayerWithClustering={OptimizedShopLayerWithClustering}
           />
 
@@ -1405,6 +1538,7 @@ const MapView = memo(function MapView({
             maxZoom={MAX_ZOOM}
             zoomSliderVisible={zoomSliderVisible}
             onZoomSliderInteract={keepZoomSliderAlive}
+            trackingButtonTop={trackingButtonTop}
           />
         </>
       )}

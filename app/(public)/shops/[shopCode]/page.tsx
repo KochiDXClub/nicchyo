@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/database.types";
 import { formatShopIdToCode, normalizeShopCodeToId } from "@/lib/shops/route";
+import ReportButton from "./ReportButton";
 
 type ShopPageProps = {
   params: Promise<{
@@ -165,6 +166,10 @@ export default async function ShopPage({ params }: ShopPageProps) {
         >
           🗺 マップで場所を確認する
         </a>
+
+        <div className="flex justify-end">
+          <ReportButton shopCode={normalizedCode} shopName={shopName} />
+        </div>
       </main>
     </>
   );

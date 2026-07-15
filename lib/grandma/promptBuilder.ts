@@ -135,7 +135,11 @@ export function parseStreamingConsultOutput(
   let followUpQuestion = "";
   let summary = "";
 
-  const lines = rawOutput
+  // モデルが TURN| ブロック間の改行を省略し、1行に連結して返すことがあるため、
+  // 改行の直後でない TURN| の手前に強制的に改行を入れてから分割する。
+  const normalizedOutput = rawOutput.replace(/([^\n])TURN\|/g, "$1\nTURN|");
+
+  const lines = normalizedOutput
     .split(/\r?\n/)
     .map((line) => line.trim())
     .filter(Boolean);
@@ -144,18 +148,21 @@ export function parseStreamingConsultOutput(
     if (line === "END") continue;
     if (line.startsWith("TURN|")) {
       const parts = line.split("|");
-      if (parts.length < 4) continue;
+      // 本来は TURN|id|name|text の4分割だが、モデルが name を省略して
+      // TURN|id|text の3分割で返すことがあるため両方に対応する。
+      if (parts.length < 3) continue;
       const requestedSpeakerId = parts[1].trim() as ConsultCharacterId;
       const matchedCharacter =
         CONSULT_CHARACTER_BY_ID.get(requestedSpeakerId) ??
         selectedCharacters.find((character) => character.id === requestedSpeakerId) ??
         selectedCharacters[turns.length % Math.max(selectedCharacters.length, 1)];
       if (!matchedCharacter) continue;
-      const text = parts.slice(3).join("|").trim();
+      const hasName = parts.length >= 4;
+      const text = (hasName ? parts.slice(3) : parts.slice(2)).join("|").trim();
       if (!text) continue;
       turns.push({
         speakerId: matchedCharacter.id,
-        speakerName: parts[2].trim() || matchedCharacter.name,
+        speakerName: (hasName ? parts[2].trim() : "") || matchedCharacter.name,
         text,
       });
       continue;

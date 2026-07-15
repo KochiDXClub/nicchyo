@@ -4,7 +4,7 @@ export const dynamic = "force-dynamic";
 
 import { useAuth } from "@/lib/auth/AuthContext";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import { AdminLayout, AdminPageHeader } from "@/components/admin";
 
 type PublicSettings = {
@@ -36,6 +36,111 @@ const DEFAULT_MAP_SETTINGS: MapSettings = {
   maxMapSnapshots: 50,
   maxEditZoom: 20,
 };
+
+function EmailNotificationSection() {
+  const [status, setStatus] = useState<{ configured: boolean; fromAddress: string; notificationTo: string } | null>(null);
+  const [testTo, setTestTo] = useState("");
+  const [sending, setSending] = useState(false);
+  const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
+
+  const fetchStatus = useCallback(async () => {
+    try {
+      const res = await fetch("/api/admin/send-notification");
+      if (!res.ok) return;
+      const data = await res.json() as typeof status;
+      setStatus(data);
+      setTestTo(data?.notificationTo !== "未設定" ? (data?.notificationTo ?? "") : "");
+    } catch { /* ignore */ }
+  }, []);
+
+  useEffect(() => { void fetchStatus(); }, [fetchStatus]);
+
+  const handleTest = async () => {
+    setSending(true);
+    setTestResult(null);
+    try {
+      const res = await fetch("/api/admin/send-notification", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ to: testTo }),
+      });
+      const data = await res.json() as { ok?: boolean; error?: string; skipped?: boolean };
+      if (!res.ok) {
+        setTestResult({ ok: false, message: data.error ?? "送信失敗" });
+      } else if (data.skipped) {
+        setTestResult({ ok: true, message: "RESEND_API_KEY が未設定のため送信をスキップしました（コンソールにログ出力済み）" });
+      } else {
+        setTestResult({ ok: true, message: "テストメールを送信しました" });
+      }
+    } catch {
+      setTestResult({ ok: false, message: "通信エラーが発生しました" });
+    } finally {
+      setSending(false);
+    }
+  };
+
+  return (
+    <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+      <p className="text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">Notifications</p>
+      <h3 className="mt-2 text-xl font-bold text-slate-900">メール通知設定</h3>
+
+      {status === null ? (
+        <p className="mt-3 text-sm text-slate-400">読み込み中...</p>
+      ) : (
+        <div className="mt-4 space-y-4">
+          <div className="grid grid-cols-1 gap-3 rounded-xl bg-slate-50 p-4 text-sm sm:grid-cols-2">
+            <div>
+              <p className="text-xs font-medium text-slate-500">設定状態</p>
+              <p className={`mt-1 font-semibold ${status.configured ? "text-green-700" : "text-amber-700"}`}>
+                {status.configured ? "✅ 設定済み（Resend）" : "⚠️ 未設定（スキップモード）"}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs font-medium text-slate-500">送信元</p>
+              <p className="mt-1 text-slate-700">{status.fromAddress}</p>
+            </div>
+          </div>
+
+          {!status.configured && (
+            <p className="rounded-xl bg-amber-50 p-3 text-xs text-amber-800">
+              メール送信を有効にするには <code className="rounded bg-amber-100 px-1">RESEND_API_KEY</code> を .env に設定してください。
+              未設定の場合、通報・問い合わせ受信時の通知はコンソールログのみ出力されます。
+            </p>
+          )}
+
+          <div>
+            <label className="text-sm font-medium text-slate-700">テスト送信先</label>
+            <div className="mt-1 flex gap-2">
+              <input
+                type="email"
+                value={testTo}
+                onChange={(e) => setTestTo(e.target.value)}
+                placeholder="admin@example.com"
+                className="flex-1 rounded-xl border border-slate-200 px-3 py-2 text-sm focus:border-amber-400 focus:outline-none"
+              />
+              <button
+                type="button"
+                onClick={() => void handleTest()}
+                disabled={!testTo || sending}
+                className="rounded-xl bg-slate-700 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-40"
+              >
+                {sending ? "送信中..." : "テスト送信"}
+              </button>
+            </div>
+            {testResult && (
+              <p className={`mt-2 text-xs ${testResult.ok ? "text-green-700" : "text-red-600"}`}>
+                {testResult.message}
+              </p>
+            )}
+            <p className="mt-1 text-xs text-slate-400">
+              ADMIN_NOTIFICATION_EMAIL 環境変数を設定すると通報・問い合わせ受信時に自動でメールを送ります。
+            </p>
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
 
 export default function AdminSettingsPage() {
   const { permissions, isLoading } = useAuth();
@@ -345,6 +450,9 @@ export default function AdminSettingsPage() {
             </div>
           </section>
         </div>
+
+        {/* メール通知設定 */}
+        <EmailNotificationSection />
 
         <section className="mt-6 rounded-2xl border border-rose-200 bg-rose-50 p-6 shadow-sm">
           <p className="text-xs font-semibold uppercase tracking-[0.25em] text-rose-600">Danger Zone</p>

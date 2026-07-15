@@ -3,28 +3,30 @@
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useState, useEffect, useCallback, Suspense } from "react";
+import { useEffect, useCallback, Suspense } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { useBag } from "@/lib/storage/BagContext";
+import { useMenu } from "@/lib/ui/MenuContext";
 
 // ─── ナビゲーション項目 ────────────────────────────────────────────────────────
 type NavItem = {
   name: string;
   href: string;
-  icon: "search" | "chat" | "admin" | "book";
+  icon: "search" | "chat" | "admin" | "story";
 };
 
 const baseNavItems: NavItem[] = [
   { name: "相談", href: "/map", icon: "chat" },
-  { name: "図鑑", href: "/encyclopedia", icon: "book" },
+  { name: "近況", href: "/story", icon: "story" },
 ];
 
 // ─── セカンダリメニュー項目（2列グリッド） ────────────────────────────────────
 const secondaryMenuItems = [
   { label: "バッジ",      href: "/badges",     emoji: "🏆", color: "bg-yellow-50",  textColor: "text-yellow-800", border: "border-yellow-100" },
   { label: "マイページ",  href: "/my-profile", emoji: "👤", color: "bg-violet-50",  textColor: "text-violet-800", border: "border-violet-100" },
-  { label: "nicchyoとは", href: "/about",      emoji: "ℹ️", color: "bg-sky-50",     textColor: "text-sky-800",    border: "border-sky-100"    },
+  { label: "ニュース",    href: "/news",       emoji: "📰", color: "bg-sky-50",     textColor: "text-sky-800",    border: "border-sky-100"    },
+  { label: "nicchyoとは", href: "/about",      emoji: "ℹ️", color: "bg-slate-50",   textColor: "text-slate-700",  border: "border-slate-100"  },
 ];
 
 // ─── 出店者・管理者メニュー ────────────────────────────────────────────────────
@@ -64,7 +66,7 @@ function NavigationBarInner({
   const searchParams = useSearchParams();
   const { user, isLoggedIn, permissions, logout } = useAuth();
   const { items: bagItems } = useBag();
-  const [menuOpen, setMenuOpen] = useState(false);
+  const { isMenuOpen: menuOpen, toggleMenu, closeMenu } = useMenu();
 
   useEffect(() => {
     onMenuOpenChange?.(menuOpen);
@@ -84,7 +86,7 @@ function NavigationBarInner({
     : baseNavItems;
 
   const handleMenuItemClick = (href: string) => {
-    setMenuOpen(false);
+    closeMenu();
     router.push(href);
   };
 
@@ -94,7 +96,7 @@ function NavigationBarInner({
   }, [isPanelOpen, onCloseMode, router]);
 
   const handleLogout = async () => {
-    setMenuOpen(false);
+    closeMenu();
     await logout();
     router.push("/map");
   };
@@ -123,7 +125,7 @@ function NavigationBarInner({
               exit={{ opacity: 0 }}
               transition={{ duration: 0.2 }}
               className="fixed inset-0 z-[9995] bg-black/40 backdrop-blur-sm"
-              onClick={() => setMenuOpen(false)}
+              onClick={closeMenu}
             />
 
             {/* シート本体 */}
@@ -358,7 +360,7 @@ function NavigationBarInner({
             <div className="flex flex-1 items-center justify-center">
               <button
                 type="button"
-                onClick={() => setMenuOpen((v) => !v)}
+                onClick={toggleMenu}
                 className="flex flex-col items-center gap-1 transition-all duration-200 active:scale-95"
               >
                 <motion.div
@@ -492,14 +494,13 @@ function NavIcon({ name, className }: NavIconProps) {
           />
         </svg>
       );
-    case "book":
+    case "story":
       return (
         <svg {...props}>
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            d="M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18c-2.305 0-4.408.867-6 2.292m0-14.25v14.25"
-          />
+          <rect x="3" y="3" width="7" height="7" rx="1" strokeLinecap="round" strokeLinejoin="round" />
+          <rect x="14" y="3" width="7" height="7" rx="1" strokeLinecap="round" strokeLinejoin="round" />
+          <rect x="3" y="14" width="7" height="7" rx="1" strokeLinecap="round" strokeLinejoin="round" />
+          <rect x="14" y="14" width="7" height="7" rx="1" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
       );
     case "admin":

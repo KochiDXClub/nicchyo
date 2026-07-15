@@ -67,6 +67,17 @@ export const ROLE_THEMES: Record<UserRole, RoleTheme> = {
     description: '管理者テーマ（赤系・公的管理者）',
   },
 
+  admin: {
+    headerBg: 'bg-gradient-to-r from-red-600 via-rose-500 to-red-600',
+    headerText: 'text-white',
+    accent: {
+      bg: 'bg-red-500',
+      text: 'text-white',
+      hoverBg: 'hover:bg-red-600',
+    },
+    description: '管理者テーマ（赤系・admin）',
+  },
+
   /**
    * 出店者テーマ
    * - 青系のグラデーション（派手すぎない、親しみやすいトーン）

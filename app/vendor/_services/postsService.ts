@@ -1,5 +1,6 @@
 import { createClient } from "@/utils/supabase/client";
 import type { Post } from "../_types";
+import { getNextSundayExpiry } from "@/lib/utils/date";
 
 type DbContent = {
   id: string;
@@ -91,8 +92,7 @@ export async function repostContent(
   vendorId: string,
   originalPost: Post
 ): Promise<Post> {
-  const eod = new Date();
-  eod.setHours(23, 59, 59, 999);
+  const eod = getNextSundayExpiry();
 
   const supabase = createClient();
   const { data, error } = await supabase

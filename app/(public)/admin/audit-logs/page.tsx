@@ -5,7 +5,6 @@ export const dynamic = "force-dynamic";
 import { useEffect, useState, useMemo, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth/AuthContext";
-import { createClient } from "@/utils/supabase/client";
 import { AdminLayout, AdminPageHeader, EmptyState } from "@/components/admin";
 import { showToast } from "@/lib/admin/toast";
 import { exportToCSV, exportToJSON, formatDateForFilename } from "@/lib/admin/exportUtils";
@@ -70,6 +69,7 @@ export default function AuditLogsPage() {
   const router = useRouter();
 
   const [logs, setLogs] = useState<AuditLog[]>([]);
+  const [totalCount, setTotalCount] = useState<number>(0);
   const [isLoading, setIsLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [dateFilter, setDateFilter] = useState<"today" | "week" | "month" | "all">("all");
@@ -82,20 +82,17 @@ export default function AuditLogsPage() {
 
   const load = useCallback(async () => {
     setIsLoading(true);
-    const supabase = createClient();
-    const { data, error } = await supabase
-      .from("admin_audit_logs")
-      .select("*")
-      .order("created_at", { ascending: false })
-      .limit(500);
-
-    if (error) {
+    try {
+      const res = await fetch("/api/admin/audit-logs");
+      if (!res.ok) throw new Error(res.statusText);
+      const json = await res.json() as { logs: AuditLog[]; total: number };
+      setLogs(json.logs ?? []);
+      setTotalCount(json.total ?? 0);
+    } catch {
       showToast.error("ログの取得に失敗しました");
+    } finally {
       setIsLoading(false);
-      return;
     }
-    setLogs((data as AuditLog[]) ?? []);
-    setIsLoading(false);
   }, []);
 
   useEffect(() => {
@@ -141,7 +138,6 @@ export default function AuditLogsPage() {
   const stats = useMemo(() => {
     const today = new Date().toDateString();
     return {
-      total: logs.length,
       todayCount: logs.filter((l) => new Date(l.created_at).toDateString() === today).length,
       adminCount: logs.filter((l) => ["admin", "super_admin"].includes(l.actor_role ?? "")).length,
       modCount: logs.filter((l) => l.actor_role === "moderator").length,
@@ -179,7 +175,7 @@ export default function AuditLogsPage() {
         <div className="mb-6 grid grid-cols-2 gap-4 md:grid-cols-4">
           <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
             <p className="text-sm text-slate-500">総ログ数</p>
-            <p className="mt-1 text-2xl font-bold text-slate-800">{stats.total}</p>
+            <p className="mt-1 text-2xl font-bold text-slate-800">{totalCount}</p>
           </div>
           <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
             <p className="text-sm text-slate-500">本日のアクション</p>
@@ -330,7 +326,7 @@ export default function AuditLogsPage() {
               </table>
             </div>
             <div className="border-t border-slate-100 px-4 py-3 text-xs text-slate-400">
-              {filtered.length} 件表示 / 全 {logs.length} 件
+              {filtered.length} 件表示 / 全 {totalCount} 件（直近 {logs.length} 件ロード済み）
             </div>
           </div>
         )}

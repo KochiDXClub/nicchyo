@@ -25,7 +25,6 @@ import { grandmaEvents } from "./data/grandmaEvents";
 import { recordMarketEnter, recordMarketExit } from "../../../lib/storage/marketStats";
 import { buildSearchIndex } from "../search/lib/searchIndex";
 import { useShopSearch } from "../search/hooks/useShopSearch";
-import { useEncyclopediaUnlock } from "../../../lib/hooks/useEncyclopediaUnlock";
 import { getOrCreateConsultVisitorKey } from "../../../lib/consultVisitorKey";
 import MapCharacterConsult from "./components/MapCharacterConsult";
 import NearbyExploreButton from "./components/NearbyExploreButton";
@@ -185,8 +184,6 @@ export default function MapPageClient({
     lng: number;
   } | null>(null);
 
-  useEncyclopediaUnlock(userLocation);
-
   const [isInMarket, setIsInMarket] = useState<boolean | null>(null);
   useEffect(() => {
     if (isInMarket === true) recordMarketEnter();
@@ -204,6 +201,21 @@ export default function MapPageClient({
     }, 2000);
   }, []);
   const [isShopBannerOpen, setIsShopBannerOpen] = useState(false);
+  const [trackingButtonTop, setTrackingButtonTop] = useState(112); // 112px = top-28 (7rem) — Tailwind デフォルト基準値
+  const resizeObserverRef = useRef<ResizeObserver | null>(null);
+  const searchAreaRef = useCallback((el: HTMLDivElement | null) => {
+    if (resizeObserverRef.current) {
+      resizeObserverRef.current.disconnect();
+      resizeObserverRef.current = null;
+    }
+    if (!el) return;
+    const observer = new ResizeObserver(() => {
+      const rect = el.getBoundingClientRect();
+      setTrackingButtonTop(rect.bottom + 8);
+    });
+    observer.observe(el);
+    resizeObserverRef.current = observer;
+  }, []);
 
   useEffect(() => {
     if (typeof document === "undefined") return;
@@ -218,6 +230,7 @@ export default function MapPageClient({
     });
     return () => observer.disconnect();
   }, []);
+
   const dragControls = useDragControls();
   const [mapCharacterConsultActive, setMapCharacterConsultActive] = useState(false);
   const [mapInstance, setMapInstance] = useState<LeafletMap | null>(null);
@@ -623,11 +636,15 @@ export default function MapPageClient({
   // 他のモード（検索・AI相談・店舗バナー・パネル表示中）ではボタンを出さない
   const nearbySuppressed =
     !!nearbyState || hasSearchMode || hasAiMode || isShopBannerOpen;
+  // 回転のみのジェスチャーは Leaflet の move/zoom を発火させないため、
+  // MapView から素通しで受け取ってボタンの静止判定に反映する
+  const [isMapGestureActive, setIsMapGestureActive] = useState(false);
   const nearbyButtonVisible = useNearbyPromptVisibility({
     map: mapInstance,
     suppressed: nearbySuppressed,
     minZoom: OVERVIEW_ZONE_MIN_ZOOM,
     maxZoom: OVERVIEW_ZONE_MAX_ZOOM,
+    isGestureActive: isMapGestureActive,
   });
 
   const openNearbyPanel = useCallback(() => {
@@ -850,6 +867,7 @@ export default function MapPageClient({
             {/* 全幅検索バー + ジャンルフィルター（AI相談・このへんモード時は非表示） */}
             {!mapCharacterConsultActive && !nearbyState && (
               <div
+                ref={searchAreaRef}
                 className="absolute left-3 right-3 top-3 z-[1001] flex flex-col gap-2"
                 onMouseDown={(e) => e.stopPropagation()}
                 onClick={(e) => e.stopPropagation()}
@@ -935,6 +953,8 @@ export default function MapPageClient({
               attendanceEstimates={attendanceEstimates}
               suppressInitialLocationFocus={isAiFocusMode}
               hideMapUI={mapCharacterConsultActive || !!nearbyState}
+              trackingButtonTop={trackingButtonTop}
+              onGestureActiveChange={setIsMapGestureActive}
               overlaySlot={
                 mapCharacterConsultActive ? (
                   <MapCharacterConsult
@@ -943,7 +963,6 @@ export default function MapPageClient({
                     onShopsRecommended={(shopIds) => {
                       setAiMarkerPayload({ ids: shopIds, label: 'AIおすすめ' });
                     }}
-                    onClose={closeMapCharacterConsult}
                   />
                 ) : nearbyState ? (
                   <NearbyExplorePanel
