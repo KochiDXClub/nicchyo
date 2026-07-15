@@ -354,14 +354,30 @@ export function summarizeShops(shops: Shop[], limit = 6) {
   return shops
     .slice(0, limit)
     .map((shop) => {
+      const priceEntries = Object.entries(shop.productPrices ?? {}).filter(
+        ([, price]) => price != null
+      );
       const parts = [
         `id:${shop.id}`,
         shop.name ? `name:${shop.name}` : null,
         shop.ownerName ? `owner:${shop.ownerName}` : null,
         shop.category ? `category:${shop.category}` : null,
         shop.products.length > 0 ? `products:${shop.products.join(" / ")}` : null,
+        priceEntries.length > 0
+          ? `prices:${priceEntries.map(([name, price]) => `${name}=${price}円`).join(", ")}`
+          : null,
         shop.shopStrength ? `strength:${shop.shopStrength}` : null,
+        shop.stallStyle ? `style:${shop.stallStyle}` : null,
+        (shop.stallStyleTags?.length ?? 0) > 0
+          ? `style_tags:${shop.stallStyleTags!.join(" / ")}`
+          : null,
         shop.schedule ? `schedule:${shop.schedule}` : null,
+        (shop.paymentMethods?.length ?? 0) > 0
+          ? `payment:${shop.paymentMethods!.join(" / ")}`
+          : null,
+        shop.rainPolicy ? `rain_policy:${shop.rainPolicy}` : null,
+        // 出店者本人の最新投稿（有効期限内）。今この場での一番具体的な情報になりやすい。
+        shop.activePost?.text ? `latest_post:${shop.activePost.text}` : null,
       ].filter(Boolean);
       return parts.join(" | ");
     })
