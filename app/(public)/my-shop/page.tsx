@@ -4,10 +4,11 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { Store, Megaphone, ChevronRight } from "lucide-react";
+import { Store, Megaphone, ChevronRight, Sparkles } from "lucide-react";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { fetchVendorStore } from "@/app/vendor/_services/storeService";
 import { fetchVendorPosts } from "@/app/vendor/_services/postsService";
+import type { Post } from "@/app/vendor/_types";
 
 type SetupStep = {
   label: string;
@@ -34,6 +35,7 @@ export default function MyShopPage() {
 
   const [setupSteps, setSetupSteps] = useState<SetupStep[] | null>(null);
   const [summary, setSummary] = useState<Summary | null>(null);
+  const [posts, setPosts] = useState<Post[] | null>(null);
   const [scrolled, setScrolled] = useState(false);
 
   useEffect(() => {
@@ -41,6 +43,7 @@ export default function MyShopPage() {
 
     Promise.all([fetchVendorStore(user.id), fetchVendorPosts(user.id)])
       .then(([store, posts]) => {
+        setPosts(posts);
         setSummary({
           shopName: store?.name?.trim() || "お店の名前は未設定",
           productCount: store?.main_products.length ?? 0,
@@ -82,6 +85,10 @@ export default function MyShopPage() {
 
   const shopName = summary?.shopName ?? "";
 
+  // 背景の線画に直接載る文字を守るクリームのグロー（袋文字を使わず柔らかく）
+  const textGlow =
+    "[text-shadow:0_1px_14px_rgba(255,250,240,0.95),0_0_3px_rgba(255,250,240,0.9)]";
+
   return (
     <div
       className="relative min-h-screen"
@@ -95,9 +102,9 @@ export default function MyShopPage() {
           fill
           priority
           sizes="100vw"
-          className="scale-105 object-cover object-center blur-[3px]"
+          className="scale-105 object-cover object-center blur-[1px]"
         />
-        <div className="absolute inset-0 bg-gradient-to-b from-white/15 via-white/30 to-nicchyo-base/75" />
+        <div className="absolute inset-0 bg-gradient-to-b from-white/10 via-white/20 to-nicchyo-base/60" />
       </div>
 
       {/* スクロールで現れる細いスティッキーバー */}
@@ -123,11 +130,11 @@ export default function MyShopPage() {
       <div className="relative z-10 mx-auto w-full max-w-3xl px-4">
         {/* 挨拶ヒーロー */}
         <header className="pb-8 pt-14 sm:pt-20">
-          <p className="eyebrow">My Shop</p>
-          <h1 className="mt-2 font-display text-[2rem] leading-tight text-nicchyo-ink sm:text-4xl">
+          <p className={`eyebrow ${textGlow}`}>My Shop</p>
+          <h1 className={`mt-2 font-display text-[2rem] leading-tight text-nicchyo-ink sm:text-4xl ${textGlow}`}>
             おかえりなさい{user?.name ? `、${user.name}さん` : ""}
           </h1>
-          <p className="mt-3 text-[15px] font-medium text-slate-600">
+          <p className={`mt-3 text-[15px] font-medium text-slate-600 ${textGlow}`}>
             {shopName && <span className="font-bold text-nicchyo-ink">{shopName}</span>}
             {shopName && <span className="mx-2 text-amber-300" aria-hidden="true">·</span>}
             <span className="text-amber-700">{sundayLabel}</span>
@@ -212,8 +219,85 @@ export default function MyShopPage() {
           </Reveal>
         )}
 
+        {/* 最近の投稿 */}
+        {posts !== null && (
+          <Reveal reduceMotion={reduceMotion} className="mb-6">
+            <section>
+              <div className="mb-3 flex items-end justify-between gap-3">
+                <h2 className={`font-display text-xl text-nicchyo-ink ${textGlow}`}>最近の投稿</h2>
+                {posts.length > 0 && (
+                  <Link
+                    href="/vendor/posts"
+                    className="rounded-full border border-amber-200 bg-white/80 px-3 py-1.5 text-xs font-bold text-amber-700 shadow-sm backdrop-blur-sm transition active:scale-95"
+                  >
+                    すべて見る
+                  </Link>
+                )}
+              </div>
+
+              {posts.length === 0 ? (
+                <Link
+                  href="/vendor/post/new"
+                  className="flex items-center gap-4 rounded-panel border border-dashed border-amber-300 bg-white/80 p-5 shadow-card backdrop-blur-sm transition active:scale-[0.99]"
+                >
+                  <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-amber-100 text-amber-600">
+                    <Sparkles size={22} />
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block text-[15px] font-bold text-nicchyo-ink">
+                      はじめての発信をしてみましょう
+                    </span>
+                    <span className="mt-0.5 block text-[13px] text-slate-500">
+                      今日のおすすめや、お休みのお知らせを届けられます
+                    </span>
+                  </span>
+                </Link>
+              ) : (
+                <ul className="space-y-3">
+                  {posts.slice(0, 3).map((post) => (
+                    <li key={post.id}>
+                      <div className="flex gap-3.5 rounded-panel border border-amber-100 bg-white/85 p-3.5 shadow-card backdrop-blur-sm">
+                        {post.image_url && (
+                          <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-2xl bg-amber-50">
+                            <Image
+                              src={post.image_url}
+                              alt=""
+                              fill
+                              sizes="64px"
+                              className="object-cover"
+                            />
+                          </div>
+                        )}
+                        <div className="min-w-0 flex-1">
+                          <p className="line-clamp-2 text-[14px] leading-relaxed text-nicchyo-ink">
+                            {post.text || "（本文なし）"}
+                          </p>
+                          <div className="mt-2 flex items-center gap-2">
+                            <span className="text-[12px] text-slate-400">
+                              {formatPostDate(post.created_at)}
+                            </span>
+                            <span
+                              className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${
+                                post.status === "active"
+                                  ? "bg-emerald-50 text-emerald-600"
+                                  : "bg-slate-100 text-slate-400"
+                              }`}
+                            >
+                              {post.status === "active" ? "掲載中" : "掲載終了"}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+          </Reveal>
+        )}
+
         {/* ほかの機能はメニューへ誘導（下部バー中央） */}
-        <p className="pb-2 text-center text-[13px] text-slate-500">
+        <p className={`pb-2 text-center text-[13px] text-slate-500 ${textGlow}`}>
           ほかの機能は下の
           <span className="mx-1 font-bold text-amber-700">メニュー</span>
           から
@@ -221,6 +305,13 @@ export default function MyShopPage() {
       </div>
     </div>
   );
+}
+
+// 投稿日を「M月D日」で表示
+function formatPostDate(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  return `${d.getMonth() + 1}月${d.getDate()}日`;
 }
 
 // スクロールで視界に入ったとき控えめにフェードアップ（reduced-motion尊重）
