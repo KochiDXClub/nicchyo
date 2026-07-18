@@ -60,7 +60,7 @@ export default function ClosedDaysCalendar({
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState(false);
   const noticeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [picker, setPicker] = useState<null | "year" | "month">(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
   const [view, setView] = useState(() => {
     const d = new Date();
     return { year: d.getFullYear(), month: d.getMonth() };
@@ -130,26 +130,14 @@ export default function ClosedDaysCalendar({
     setView({ year: Math.floor(next / 12), month: next % 12 });
   };
 
-  // 指定年で選べる月（範囲内）
-  const monthsForYear = (year: number) => {
-    const startM = year === range.min.year ? range.min.month : 0;
-    const endM = year === range.max.year ? range.max.month : 11;
-    return Array.from({ length: endM - startM + 1 }, (_, i) => startM + i);
-  };
-  const yearOptions = Array.from(
-    { length: range.max.year - range.min.year + 1 },
-    (_, i) => range.min.year + i
-  );
-
-  const pickYear = (year: number) => {
-    const months = monthsForYear(year);
-    const month = months.includes(view.month) ? view.month : months[0];
-    setView({ year, month });
-    setPicker(null);
-  };
-  const pickMonth = (month: number) => {
-    setView({ year: view.year, month });
-    setPicker(null);
+  // 今月〜12か月後までを「年月」のひとつながりの選択肢にする
+  const monthOptions = Array.from({ length: maxIdx - minIdx + 1 }, (_, i) => {
+    const idx = minIdx + i;
+    return { value: idx, label: `${Math.floor(idx / 12)}年${(idx % 12) + 1}月` };
+  });
+  const pickYearMonth = (idx: number) => {
+    setView({ year: Math.floor(idx / 12), month: idx % 12 });
+    setPickerOpen(false);
   };
 
   return (
@@ -213,7 +201,7 @@ export default function ClosedDaysCalendar({
 
       {variant === "full" && (
         <div>
-          {/* 月ナビ（年・月をタップして縦ダイヤルで調整） */}
+          {/* 月ナビ（年月をタップして縦ダイヤルで調整・12か月後まで） */}
           <div className="relative mb-2 flex items-center justify-between">
             <button
               type="button"
@@ -225,26 +213,15 @@ export default function ClosedDaysCalendar({
               <ChevronLeft size={20} />
             </button>
 
-            <div className="flex items-center gap-3">
-              <button
-                type="button"
-                onClick={() => setPicker((p) => (p === "year" ? null : "year"))}
-                className={`rounded-xl px-2.5 py-1 font-display text-lg text-nicchyo-ink transition active:scale-95 ${
-                  picker === "year" ? "bg-amber-100" : "hover:bg-amber-50"
-                }`}
-              >
-                {view.year}年
-              </button>
-              <button
-                type="button"
-                onClick={() => setPicker((p) => (p === "month" ? null : "month"))}
-                className={`rounded-xl px-2.5 py-1 font-display text-lg text-nicchyo-ink transition active:scale-95 ${
-                  picker === "month" ? "bg-amber-100" : "hover:bg-amber-50"
-                }`}
-              >
-                {view.month + 1}月
-              </button>
-            </div>
+            <button
+              type="button"
+              onClick={() => setPickerOpen((v) => !v)}
+              className={`rounded-xl px-3 py-1 font-display text-lg text-nicchyo-ink transition active:scale-95 ${
+                pickerOpen ? "bg-amber-100" : "hover:bg-amber-50"
+              }`}
+            >
+              {view.year}年{view.month + 1}月
+            </button>
 
             <button
               type="button"
@@ -257,34 +234,22 @@ export default function ClosedDaysCalendar({
             </button>
 
             <AnimatePresence>
-              {picker && (
+              {pickerOpen && (
                 <>
                   <button
                     type="button"
                     className="fixed inset-0 z-10 cursor-default"
                     aria-label="閉じる"
-                    onClick={() => setPicker(null)}
+                    onClick={() => setPickerOpen(false)}
                   />
                   <motion.div
                     initial={{ opacity: 0, y: -6, scale: 0.96 }}
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: -6, scale: 0.96 }}
                     transition={{ duration: 0.16 }}
-                    className="absolute left-1/2 top-full z-20 mt-1 w-36 -translate-x-1/2 rounded-2xl border border-amber-100 bg-white p-1.5 shadow-xl"
+                    className="absolute left-1/2 top-full z-20 mt-1 w-40 -translate-x-1/2 rounded-2xl border border-amber-100 bg-white p-1.5 shadow-xl"
                   >
-                    {picker === "year" ? (
-                      <Dial
-                        options={yearOptions.map((y) => ({ value: y, label: `${y}年` }))}
-                        value={view.year}
-                        onSelect={pickYear}
-                      />
-                    ) : (
-                      <Dial
-                        options={monthsForYear(view.year).map((m) => ({ value: m, label: `${m + 1}月` }))}
-                        value={view.month}
-                        onSelect={pickMonth}
-                      />
-                    )}
+                    <Dial options={monthOptions} value={viewIdx} onSelect={pickYearMonth} />
                   </motion.div>
                 </>
               )}
