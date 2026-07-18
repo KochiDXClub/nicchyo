@@ -5,7 +5,6 @@ export const dynamic = "force-dynamic";
 import { useState, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import NavigationBar from "@/app/components/NavigationBar";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { fetchAiConsultAnalytics } from "../../_services/analyticsService";
 import type { AiConsultAnalytics } from "../../_types";
@@ -204,7 +203,6 @@ export default function AiAnalyticsPage() {
           </>
         )}
       </div>
-      <NavigationBar />
     </div>
   );
 }

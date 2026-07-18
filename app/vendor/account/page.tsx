@@ -5,7 +5,6 @@ export const dynamic = "force-dynamic";
 import { useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import NavigationBar from "@/app/components/NavigationBar";
 import { useAuth } from "@/lib/auth/AuthContext";
 import {
   ArrowLeft,
@@ -405,7 +404,6 @@ export default function VendorAccountPage() {
         </div>
 
       </div>
-      <NavigationBar />
     </div>
   );
 }

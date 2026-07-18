@@ -5,7 +5,6 @@ export const dynamic = "force-dynamic";
 import { useState, useRef, useEffect, type ChangeEvent, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import NavigationBar from "@/app/components/NavigationBar";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { createPost, fetchVendorPosts, fetchPostById, repostContent } from "../../_services/postsService";
 import type { ExpirationPreset, Post, PostStatus } from "../../_types";
@@ -269,7 +268,6 @@ export default function VendorPostNewPage() {
             </button>
           </div>
         </div>
-        <NavigationBar />
       </div>
     );
   }
@@ -505,7 +503,6 @@ export default function VendorPostNewPage() {
         </div>
       )}
 
-      <NavigationBar />
     </div>
   );
 }
