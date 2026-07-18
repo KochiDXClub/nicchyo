@@ -438,3 +438,12 @@ export function getMinZoomForDetailMode(): number {
   );
   return detailMode?.minZoom ?? 17.0;
 }
+
+/**
+ * 丁目エリアマーカーを表示するズーム帯（OVERVIEW ゾーン）
+ *
+ * 「このへん、なにがある？」ボタンの出現帯としても使用する
+ * （丁目が見える倍率＝周辺を俯瞰している状態、という判断）
+ */
+export const OVERVIEW_ZONE_MIN_ZOOM = 17;
+export const OVERVIEW_ZONE_MAX_ZOOM = 19;

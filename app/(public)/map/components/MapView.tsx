@@ -35,6 +35,8 @@ import { FAVORITE_SHOPS_KEY, FAVORITE_SHOPS_UPDATED_EVENT, loadFavoriteShopIds }
 import {
   getViewModeForZoom,
   ViewMode,
+  OVERVIEW_ZONE_MIN_ZOOM,
+  OVERVIEW_ZONE_MAX_ZOOM,
 } from '../config/displayConfig';
 import { useBag } from "../../../../lib/storage/BagContext";
 import type { Landmark } from "../types/landmark";
@@ -583,13 +585,17 @@ type MapViewProps = {
   hideMapUI?: boolean;
   /** 現在地ボタンの top 位置（px）。検索エリアの実際の高さに合わせて親から渡す */
   trackingButtonTop?: number;
+  /**
+   * 2本指の回転/ピンチジェスチャー中かどうかが変化したときに呼ばれる。
+   * 回転のみのジェスチャーは Leaflet の pan/zoom を伴わないため
+   * move/zoom イベントが発火せず、「このへん」ボタンの静止判定
+   * （useNearbyPromptVisibility）だけではジェスチャー中を検知できない。
+   * この通知を使って親側で表示状態を更新する。
+   */
+  onGestureActiveChange?: (active: boolean) => void;
 };
 
 export type ShopBannerOrigin = { x: number; y: number; width: number; height: number };
-
-/** 18 <= zoom < 19 のとき丁目エリアマーカーを表示 */
-const OVERVIEW_ZONE_MIN_ZOOM = 17;
-const OVERVIEW_ZONE_MAX_ZOOM = 19;
 
 function MapZoomListener({ onZoomChange }: { onZoomChange?: (zoom: number) => void }) {
   const map = useMap();
@@ -747,6 +753,7 @@ const MapView = memo(function MapView({
   overlaySlot,
   hideMapUI = false,
   trackingButtonTop,
+  onGestureActiveChange,
 }: MapViewProps = {}) {
   const [isMobile, setIsMobile] = useState(false);
   const [_isInMarket, setIsInMarket] = useState<boolean | null>(null);
@@ -1330,6 +1337,13 @@ const MapView = memo(function MapView({
       showMapToast(direction === "in" ? "拡大しました" : "縮小しました", 1500);
     },
   });
+
+  // 回転のみのジェスチャーは Leaflet の move/zoom を発火させないため、
+  // 親側で静止判定（useNearbyPromptVisibility 等）を行いたい場合に備えて
+  // ジェスチャーの開始/終了を素通しで通知する
+  useEffect(() => {
+    onGestureActiveChange?.(isTouchGestureActive);
+  }, [isTouchGestureActive, onGestureActiveChange]);
 
   useEffect(() => {
     if (!isTouchGestureActive) {
