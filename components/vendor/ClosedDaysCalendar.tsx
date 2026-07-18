@@ -60,6 +60,7 @@ export default function ClosedDaysCalendar({
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState(false);
   const noticeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [picker, setPicker] = useState<null | "year" | "month">(null);
   const [view, setView] = useState(() => {
     const d = new Date();
     return { year: d.getFullYear(), month: d.getMonth() };
@@ -107,6 +108,49 @@ export default function ClosedDaysCalendar({
 
   const sundays = useMemo(() => upcomingSundays(variant === "strip" ? 6 : 8), [variant]);
   const weeks = useMemo(() => buildMonthGrid(view.year, view.month), [view]);
+
+  // 設定できる範囲：今月〜12か月後まで
+  const range = useMemo(() => {
+    const now = new Date();
+    const min = { year: now.getFullYear(), month: now.getMonth() };
+    const maxDate = new Date(now.getFullYear(), now.getMonth() + 12, 1);
+    const max = { year: maxDate.getFullYear(), month: maxDate.getMonth() };
+    return { min, max };
+  }, []);
+
+  const ymIndex = (y: number, m: number) => y * 12 + m;
+  const minIdx = ymIndex(range.min.year, range.min.month);
+  const maxIdx = ymIndex(range.max.year, range.max.month);
+  const viewIdx = ymIndex(view.year, view.month);
+  const atMin = viewIdx <= minIdx;
+  const atMax = viewIdx >= maxIdx;
+
+  const stepMonth = (delta: number) => {
+    const next = Math.min(maxIdx, Math.max(minIdx, viewIdx + delta));
+    setView({ year: Math.floor(next / 12), month: next % 12 });
+  };
+
+  // 指定年で選べる月（範囲内）
+  const monthsForYear = (year: number) => {
+    const startM = year === range.min.year ? range.min.month : 0;
+    const endM = year === range.max.year ? range.max.month : 11;
+    return Array.from({ length: endM - startM + 1 }, (_, i) => startM + i);
+  };
+  const yearOptions = Array.from(
+    { length: range.max.year - range.min.year + 1 },
+    (_, i) => range.min.year + i
+  );
+
+  const pickYear = (year: number) => {
+    const months = monthsForYear(year);
+    const month = months.includes(view.month) ? view.month : months[0];
+    setView({ year, month });
+    setPicker(null);
+  };
+  const pickMonth = (month: number) => {
+    setView({ year: view.year, month });
+    setPicker(null);
+  };
 
   return (
     <div className="relative rounded-panel border border-amber-100 bg-white/85 p-5 shadow-card backdrop-blur-sm">
@@ -169,35 +213,82 @@ export default function ClosedDaysCalendar({
 
       {variant === "full" && (
         <div>
-          {/* 月ナビ */}
-          <div className="mb-2 flex items-center justify-between">
+          {/* 月ナビ（年・月をタップして縦ダイヤルで調整） */}
+          <div className="relative mb-2 flex items-center justify-between">
             <button
               type="button"
-              onClick={() =>
-                setView((v) =>
-                  v.month === 0 ? { year: v.year - 1, month: 11 } : { year: v.year, month: v.month - 1 }
-                )
-              }
-              className="flex h-9 w-9 items-center justify-center rounded-full text-slate-500 transition active:scale-90 hover:bg-amber-50"
+              onClick={() => stepMonth(-1)}
+              disabled={atMin}
+              className="flex h-9 w-9 items-center justify-center rounded-full text-slate-500 transition active:scale-90 hover:bg-amber-50 disabled:opacity-25"
               aria-label="前の月"
             >
               <ChevronLeft size={20} />
             </button>
-            <p className="font-display text-lg text-nicchyo-ink">
-              {view.year}年{view.month + 1}月
-            </p>
+
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => setPicker((p) => (p === "year" ? null : "year"))}
+                className={`rounded-xl px-2.5 py-1 font-display text-lg text-nicchyo-ink transition active:scale-95 ${
+                  picker === "year" ? "bg-amber-100" : "hover:bg-amber-50"
+                }`}
+              >
+                {view.year}年
+              </button>
+              <button
+                type="button"
+                onClick={() => setPicker((p) => (p === "month" ? null : "month"))}
+                className={`rounded-xl px-2.5 py-1 font-display text-lg text-nicchyo-ink transition active:scale-95 ${
+                  picker === "month" ? "bg-amber-100" : "hover:bg-amber-50"
+                }`}
+              >
+                {view.month + 1}月
+              </button>
+            </div>
+
             <button
               type="button"
-              onClick={() =>
-                setView((v) =>
-                  v.month === 11 ? { year: v.year + 1, month: 0 } : { year: v.year, month: v.month + 1 }
-                )
-              }
-              className="flex h-9 w-9 items-center justify-center rounded-full text-slate-500 transition active:scale-90 hover:bg-amber-50"
+              onClick={() => stepMonth(1)}
+              disabled={atMax}
+              className="flex h-9 w-9 items-center justify-center rounded-full text-slate-500 transition active:scale-90 hover:bg-amber-50 disabled:opacity-25"
               aria-label="次の月"
             >
               <ChevronRight size={20} />
             </button>
+
+            <AnimatePresence>
+              {picker && (
+                <>
+                  <button
+                    type="button"
+                    className="fixed inset-0 z-10 cursor-default"
+                    aria-label="閉じる"
+                    onClick={() => setPicker(null)}
+                  />
+                  <motion.div
+                    initial={{ opacity: 0, y: -6, scale: 0.96 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: -6, scale: 0.96 }}
+                    transition={{ duration: 0.16 }}
+                    className="absolute left-1/2 top-full z-20 mt-1 w-36 -translate-x-1/2 rounded-2xl border border-amber-100 bg-white p-1.5 shadow-xl"
+                  >
+                    {picker === "year" ? (
+                      <Dial
+                        options={yearOptions.map((y) => ({ value: y, label: `${y}年` }))}
+                        value={view.year}
+                        onSelect={pickYear}
+                      />
+                    ) : (
+                      <Dial
+                        options={monthsForYear(view.year).map((m) => ({ value: m, label: `${m + 1}月` }))}
+                        value={view.month}
+                        onSelect={pickMonth}
+                      />
+                    )}
+                  </motion.div>
+                </>
+              )}
+            </AnimatePresence>
           </div>
 
           {/* 曜日ヘッダー */}
@@ -252,6 +343,56 @@ export default function ClosedDaysCalendar({
           </p>
         </div>
       )}
+    </div>
+  );
+}
+
+// 縦ダイヤル（スクロール＋タップで選択、選択中は中央にハイライト）
+function Dial({
+  options,
+  value,
+  onSelect,
+}: {
+  options: { value: number; label: string }[];
+  value: number;
+  onSelect: (v: number) => void;
+}) {
+  const listRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const container = listRef.current;
+    const el = container?.querySelector<HTMLElement>(`[data-val="${value}"]`);
+    if (container && el) {
+      // コンテナ内だけをスクロール（ページを動かさない）
+      container.scrollTop = el.offsetTop - container.clientHeight / 2 + el.clientHeight / 2;
+    }
+  }, [value]);
+
+  return (
+    <div className="relative">
+      {/* 中央のハイライト帯 */}
+      <div className="pointer-events-none absolute inset-x-1 top-1/2 h-11 -translate-y-1/2 rounded-xl bg-amber-50 ring-1 ring-amber-200" />
+      <div
+        ref={listRef}
+        className="relative max-h-[176px] snap-y snap-mandatory overflow-y-auto scrollbar-none py-[66px]"
+      >
+        {options.map((o) => {
+          const active = o.value === value;
+          return (
+            <button
+              key={o.value}
+              type="button"
+              data-val={o.value}
+              onClick={() => onSelect(o.value)}
+              className={`flex h-11 w-full snap-center items-center justify-center rounded-lg text-lg transition ${
+                active ? "font-display font-bold text-amber-800" : "text-slate-400 hover:text-slate-600"
+              }`}
+            >
+              {o.label}
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }
