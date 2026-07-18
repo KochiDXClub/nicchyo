@@ -78,6 +78,12 @@ export default function ClosedDaysCalendar({
     if (noticeTimer.current) clearTimeout(noticeTimer.current);
   }, []);
 
+  // 最新の closed を参照するための ref（連続タップで古い値を掴まないように）
+  const closedRef = useRef(closed);
+  useEffect(() => {
+    closedRef.current = closed;
+  }, [closed]);
+
   useEffect(() => {
     let active = true;
     fetchClosedDates(vendorId)
@@ -95,14 +101,19 @@ export default function ClosedDaysCalendar({
   }, [vendorId]);
 
   const toggle = (iso: string) => {
-    const prev = closed;
+    const prev = closedRef.current;
     const next = new Set(prev);
     if (next.has(iso)) next.delete(iso);
     else next.add(iso);
+    closedRef.current = next;
     setClosed(next);
     setSaving(true);
     saveClosedDates(vendorId, [...next].sort())
-      .catch(() => setClosed(prev)) // 失敗したら元に戻す
+      .catch(() => {
+        // 失敗したら元に戻す
+        closedRef.current = prev;
+        setClosed(prev);
+      })
       .finally(() => setSaving(false));
   };
 
@@ -284,15 +295,15 @@ export default function ClosedDaysCalendar({
                   key={iso}
                   type="button"
                   onClick={() => (isSunday ? toggle(iso) : showWeekdayNotice())}
-                  disabled={!loaded}
+                  disabled={!loaded || isPast}
                   aria-pressed={isSunday ? isClosed : undefined}
                   className={`relative flex aspect-square items-center justify-center rounded-xl text-sm transition active:scale-90 ${
                     isClosed
                       ? "bg-slate-200 font-bold text-slate-400 line-through"
                       : isSunday
                         ? "bg-amber-50 font-bold text-amber-800 hover:bg-amber-100"
-                        : `text-slate-300 ${isPast ? "opacity-40" : ""}`
-                  } ${isToday ? "ring-2 ring-amber-400" : ""}`}
+                        : "text-slate-300"
+                  } ${isToday ? "ring-2 ring-amber-400" : ""} ${isPast ? "opacity-40" : ""}`}
                 >
                   <span className="flex items-baseline justify-center">
                     {d.getDate()}

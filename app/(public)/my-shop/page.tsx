@@ -22,7 +22,6 @@ type Summary = {
   productCount: number;
   scheduleCount: number;
   postCount: number;
-  hasPhoto: boolean;
 };
 
 // 今日から次の日曜市（毎週日曜開催）までの日数。0なら当日。
@@ -50,7 +49,6 @@ export default function MyShopPage() {
           productCount: store?.main_products.length ?? 0,
           scheduleCount: store?.schedule.length ?? 0,
           postCount: posts.length,
-          hasPhoto: !!store?.shop_image_url,
         });
 
         if (!store) return;
