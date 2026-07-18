@@ -1,0 +1,227 @@
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
+import { fetchClosedDates, saveClosedDates } from "@/app/vendor/_services/closedDatesService";
+
+// ─── 日付ユーティリティ（ローカル基準・UTCずれを避ける） ───────────────
+function toISO(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+function startOfToday(): Date {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+// 今日以降の日曜を count 個返す
+function upcomingSundays(count: number): Date[] {
+  const base = startOfToday();
+  const offset = (7 - base.getDay()) % 7; // 次の日曜まで（当日日曜なら0）
+  const first = new Date(base);
+  first.setDate(base.getDate() + offset);
+  return Array.from({ length: count }, (_, i) => {
+    const d = new Date(first);
+    d.setDate(first.getDate() + i * 7);
+    return d;
+  });
+}
+
+// 指定年月の週配列（日曜始まり、前後の空白は null）
+function buildMonthGrid(year: number, month: number): (Date | null)[][] {
+  const first = new Date(year, month, 1);
+  const startPad = first.getDay();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const cells: (Date | null)[] = [];
+  for (let i = 0; i < startPad; i++) cells.push(null);
+  for (let d = 1; d <= daysInMonth; d++) cells.push(new Date(year, month, d));
+  while (cells.length % 7 !== 0) cells.push(null);
+  const weeks: (Date | null)[][] = [];
+  for (let i = 0; i < cells.length; i += 7) weeks.push(cells.slice(i, i + 7));
+  return weeks;
+}
+
+const WEEKDAY_LABELS = ["日", "月", "火", "水", "木", "金", "土"];
+
+export default function ClosedDaysCalendar({
+  vendorId,
+  variant = "full",
+}: {
+  vendorId: string;
+  variant?: "full" | "strip";
+}) {
+  const [closed, setClosed] = useState<Set<string>>(new Set());
+  const [loaded, setLoaded] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [view, setView] = useState(() => {
+    const d = new Date();
+    return { year: d.getFullYear(), month: d.getMonth() };
+  });
+
+  const todayISO = useMemo(() => toISO(startOfToday()), []);
+
+  useEffect(() => {
+    let active = true;
+    fetchClosedDates(vendorId)
+      .then((dates) => {
+        if (!active) return;
+        setClosed(new Set(dates));
+        setLoaded(true);
+      })
+      .catch(() => {
+        if (active) setLoaded(true);
+      });
+    return () => {
+      active = false;
+    };
+  }, [vendorId]);
+
+  const toggle = (iso: string) => {
+    const prev = closed;
+    const next = new Set(prev);
+    if (next.has(iso)) next.delete(iso);
+    else next.add(iso);
+    setClosed(next);
+    setSaving(true);
+    saveClosedDates(vendorId, [...next].sort())
+      .catch(() => setClosed(prev)) // 失敗したら元に戻す
+      .finally(() => setSaving(false));
+  };
+
+  const sundays = useMemo(() => upcomingSundays(variant === "strip" ? 6 : 8), [variant]);
+  const weeks = useMemo(() => buildMonthGrid(view.year, view.month), [view]);
+
+  return (
+    <div className="rounded-panel border border-amber-100 bg-white/85 p-5 shadow-card backdrop-blur-sm">
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <div>
+          <h2 className="font-display text-xl text-nicchyo-ink">出店しない日</h2>
+          <p className="mt-0.5 text-[12px] text-slate-500">お休みの日をタップで登録できます</p>
+        </div>
+        {saving && <span className="text-[11px] font-semibold text-amber-500">保存中…</span>}
+      </div>
+
+      {/* 日曜だけの横帯 */}
+      <div className="mb-4">
+        <p className="mb-2 text-[12px] font-bold text-amber-700">次の日曜市</p>
+        <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 scrollbar-none">
+          {sundays.map((d) => {
+            const iso = toISO(d);
+            const isClosed = closed.has(iso);
+            return (
+              <button
+                key={iso}
+                type="button"
+                onClick={() => toggle(iso)}
+                disabled={!loaded}
+                aria-pressed={isClosed}
+                className={`flex min-w-[64px] shrink-0 flex-col items-center gap-0.5 rounded-2xl border px-3 py-2.5 transition active:scale-95 ${
+                  isClosed
+                    ? "border-slate-200 bg-slate-100 text-slate-400"
+                    : "border-amber-200 bg-amber-50 text-amber-800"
+                }`}
+              >
+                <span className="text-[11px] font-semibold">{d.getMonth() + 1}月</span>
+                <span className="font-display text-xl leading-none">
+                  {d.getDate()}
+                  <span className="ml-0.5 text-[10px] font-sans font-semibold">日</span>
+                </span>
+                <span className="text-[11px] font-bold">{isClosed ? "休み" : "出店"}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {variant === "full" && (
+        <div>
+          {/* 月ナビ */}
+          <div className="mb-2 flex items-center justify-between">
+            <button
+              type="button"
+              onClick={() =>
+                setView((v) =>
+                  v.month === 0 ? { year: v.year - 1, month: 11 } : { year: v.year, month: v.month - 1 }
+                )
+              }
+              className="flex h-9 w-9 items-center justify-center rounded-full text-slate-500 transition active:scale-90 hover:bg-amber-50"
+              aria-label="前の月"
+            >
+              <ChevronLeft size={20} />
+            </button>
+            <p className="font-display text-lg text-nicchyo-ink">
+              {view.year}年{view.month + 1}月
+            </p>
+            <button
+              type="button"
+              onClick={() =>
+                setView((v) =>
+                  v.month === 11 ? { year: v.year + 1, month: 0 } : { year: v.year, month: v.month + 1 }
+                )
+              }
+              className="flex h-9 w-9 items-center justify-center rounded-full text-slate-500 transition active:scale-90 hover:bg-amber-50"
+              aria-label="次の月"
+            >
+              <ChevronRight size={20} />
+            </button>
+          </div>
+
+          {/* 曜日ヘッダー */}
+          <div className="grid grid-cols-7 text-center">
+            {WEEKDAY_LABELS.map((w, i) => (
+              <span
+                key={w}
+                className={`py-1 text-[12px] font-bold ${
+                  i === 0 ? "text-amber-700" : i === 6 ? "text-sky-500" : "text-slate-400"
+                }`}
+              >
+                {w}
+              </span>
+            ))}
+          </div>
+
+          {/* 日付グリッド */}
+          <div className="grid grid-cols-7 gap-1">
+            {weeks.flat().map((d, i) => {
+              if (!d) return <span key={`empty-${i}`} />;
+              const iso = toISO(d);
+              const isClosed = closed.has(iso);
+              const isSunday = d.getDay() === 0;
+              const isToday = iso === todayISO;
+              const isPast = iso < todayISO;
+              return (
+                <button
+                  key={iso}
+                  type="button"
+                  onClick={() => toggle(iso)}
+                  disabled={!loaded}
+                  aria-pressed={isClosed}
+                  className={`relative flex aspect-square items-center justify-center rounded-xl text-sm transition active:scale-90 ${
+                    isClosed
+                      ? "bg-slate-200 font-bold text-slate-400 line-through"
+                      : isSunday
+                        ? "bg-amber-50 font-bold text-amber-800 hover:bg-amber-100"
+                        : `text-slate-600 hover:bg-amber-50 ${isPast ? "opacity-40" : ""}`
+                  } ${isToday ? "ring-2 ring-amber-400" : ""}`}
+                >
+                  <span className="flex items-baseline justify-center">
+                    {d.getDate()}
+                    <span className="ml-px text-[9px] font-normal">日</span>
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
+          <p className="mt-3 text-center text-[12px] text-slate-400">
+            日付をタップすると「休み」に、もう一度タップで戻せます
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
