@@ -5,7 +5,6 @@ export const dynamic = "force-dynamic";
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import NavigationBar from "@/app/components/NavigationBar";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { fetchVendorPosts, repostContent } from "../_services/postsService";
 import type { Post, PostStatus } from "../_types";
@@ -200,7 +199,6 @@ export default function VendorPostsPage() {
       </div>
 
       {showToast && <RepostSuccessToast onClose={() => setShowToast(false)} />}
-      <NavigationBar />
     </div>
   );
 }
