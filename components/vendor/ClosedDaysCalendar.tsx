@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { fetchClosedDates, saveClosedDates } from "@/app/vendor/_services/closedDatesService";
 
@@ -57,12 +58,24 @@ export default function ClosedDaysCalendar({
   const [closed, setClosed] = useState<Set<string>>(new Set());
   const [loaded, setLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [notice, setNotice] = useState(false);
+  const noticeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [view, setView] = useState(() => {
     const d = new Date();
     return { year: d.getFullYear(), month: d.getMonth() };
   });
 
   const todayISO = useMemo(() => toISO(startOfToday()), []);
+
+  // 平日をタップしたときの案内ポップ（約1秒で消える）
+  const showWeekdayNotice = () => {
+    setNotice(true);
+    if (noticeTimer.current) clearTimeout(noticeTimer.current);
+    noticeTimer.current = setTimeout(() => setNotice(false), 1200);
+  };
+  useEffect(() => () => {
+    if (noticeTimer.current) clearTimeout(noticeTimer.current);
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -96,11 +109,28 @@ export default function ClosedDaysCalendar({
   const weeks = useMemo(() => buildMonthGrid(view.year, view.month), [view]);
 
   return (
-    <div className="rounded-panel border border-amber-100 bg-white/85 p-5 shadow-card backdrop-blur-sm">
+    <div className="relative rounded-panel border border-amber-100 bg-white/85 p-5 shadow-card backdrop-blur-sm">
+      {/* 平日タップ時の案内ポップ */}
+      <AnimatePresence>
+        {notice && (
+          <motion.div
+            initial={{ opacity: 0, y: 8, scale: 0.96 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 8, scale: 0.96 }}
+            transition={{ duration: 0.18 }}
+            className="pointer-events-none absolute inset-x-0 top-1/2 z-10 flex -translate-y-1/2 justify-center px-6"
+          >
+            <span className="rounded-full bg-nicchyo-ink/90 px-4 py-2.5 text-center text-[13px] font-bold text-white shadow-lg">
+              お休みを設定できるのは日曜日だけです
+            </span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <div className="mb-3 flex items-center justify-between gap-3">
         <div>
           <h2 className="font-display text-xl text-nicchyo-ink">出店しない日</h2>
-          <p className="mt-0.5 text-[12px] text-slate-500">お休みの日をタップで登録できます</p>
+          <p className="mt-0.5 text-[12px] text-slate-500">お休みの日曜をタップで登録できます</p>
         </div>
         {saving && <span className="text-[11px] font-semibold text-amber-500">保存中…</span>}
       </div>
@@ -189,23 +219,23 @@ export default function ClosedDaysCalendar({
             {weeks.flat().map((d, i) => {
               if (!d) return <span key={`empty-${i}`} />;
               const iso = toISO(d);
-              const isClosed = closed.has(iso);
               const isSunday = d.getDay() === 0;
+              const isClosed = isSunday && closed.has(iso);
               const isToday = iso === todayISO;
               const isPast = iso < todayISO;
               return (
                 <button
                   key={iso}
                   type="button"
-                  onClick={() => toggle(iso)}
+                  onClick={() => (isSunday ? toggle(iso) : showWeekdayNotice())}
                   disabled={!loaded}
-                  aria-pressed={isClosed}
+                  aria-pressed={isSunday ? isClosed : undefined}
                   className={`relative flex aspect-square items-center justify-center rounded-xl text-sm transition active:scale-90 ${
                     isClosed
                       ? "bg-slate-200 font-bold text-slate-400 line-through"
                       : isSunday
                         ? "bg-amber-50 font-bold text-amber-800 hover:bg-amber-100"
-                        : `text-slate-600 hover:bg-amber-50 ${isPast ? "opacity-40" : ""}`
+                        : `text-slate-300 ${isPast ? "opacity-40" : ""}`
                   } ${isToday ? "ring-2 ring-amber-400" : ""}`}
                 >
                   <span className="flex items-baseline justify-center">
@@ -218,7 +248,7 @@ export default function ClosedDaysCalendar({
           </div>
 
           <p className="mt-3 text-center text-[12px] text-slate-400">
-            日付をタップすると「休み」に、もう一度タップで戻せます
+            日曜をタップすると「休み」に、もう一度タップで戻せます
           </p>
         </div>
       )}
