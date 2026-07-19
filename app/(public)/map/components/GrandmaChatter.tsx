@@ -464,6 +464,28 @@ const GrandmaChatter = memo(function GrandmaChatter({
   const chatStorageKeyRef = useRef<string | null>(null);
   const [isSpeechSupported, setIsSpeechSupported] = useState(false);
   const [isListening, setIsListening] = useState(false);
+  // 生成した画像プレビューの ObjectURL を追跡し、メモリリークを防ぐ。
+  // 送信済みのURLはチャットメッセージ/再送信で使い続けるため即revokeせず、
+  // アンマウント時にまとめて解放する。未送信のまま差し替え/取消したURLは即revokeする。
+  const objectUrlsRef = useRef<Set<string>>(new Set());
+  const createPreviewUrl = (file: File) => {
+    const url = URL.createObjectURL(file);
+    objectUrlsRef.current.add(url);
+    return url;
+  };
+  const revokePreviewUrl = (url: string | null | undefined) => {
+    if (url && objectUrlsRef.current.has(url)) {
+      URL.revokeObjectURL(url);
+      objectUrlsRef.current.delete(url);
+    }
+  };
+  useEffect(() => {
+    const urls = objectUrlsRef.current;
+    return () => {
+      urls.forEach((u) => URL.revokeObjectURL(u));
+      urls.clear();
+    };
+  }, []);
   // Walk plan modal / quick flow states
   const [showWalkPlanModal, setShowWalkPlanModal] = useState(false);
   const walkPlanDragControls = useDragControls();
@@ -1208,6 +1230,8 @@ const GrandmaChatter = memo(function GrandmaChatter({
   const handleImagePick = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) {
+      // 未送信のまま取り消したプレビューは即解放する
+      revokePreviewUrl(selectedImagePreview);
       setSelectedImageName(null);
       setSelectedImageFile(null);
       setSelectedImagePreview(null);
@@ -1220,9 +1244,11 @@ const GrandmaChatter = memo(function GrandmaChatter({
     setErrorCode(null);
     setErrorHelperQuestions([]);
     setLastFailedSubmission(null);
+    // 未送信のまま差し替えられる前のプレビューは即解放する
+    revokePreviewUrl(selectedImagePreview);
     setSelectedImageName(file.name);
     setSelectedImageFile(file);
-    setSelectedImagePreview(URL.createObjectURL(file));
+    setSelectedImagePreview(createPreviewUrl(file));
     setShouldShowValidation(false);
   };
 
