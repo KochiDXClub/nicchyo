@@ -4,7 +4,6 @@ import { createAdminClient } from "@/lib/supabase/adminClient";
 import { requireSameOrigin } from "@/lib/security/requestGuards";
 import { enforceRateLimit } from "@/lib/security/rateLimit";
 import {
-  aggregateReactionRows,
   parseContentIdsParam,
   REACTION_COUNTS_MAX_IDS,
 } from "@/lib/story/reactionCounts";
@@ -61,22 +60,47 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "Service unavailable" }, { status: 503 });
   }
 
-  const { data, error } = await supabase
-    .from("content_reactions")
-    .select("vendor_content_id, visitor_key")
-    .in("vendor_content_id", ids);
+  // 件数は DB 側で GROUP BY 集計（id ごとの件数のみ返す）。
+  const { data: countRows, error: countError } = await supabase.rpc(
+    "get_reaction_counts",
+    { content_ids: ids }
+  );
 
-  if (error) {
+  if (countError) {
     return NextResponse.json(
       { error: "リアクションの取得に失敗しました" },
       { status: 500 }
     );
   }
 
-  return NextResponse.json(
-    aggregateReactionRows(
-      (data ?? []) as Array<{ vendor_content_id: string; visitor_key: string }>,
-      visitorKey
-    )
-  );
+  const counts: Record<string, number> = {};
+  for (const row of (countRows ?? []) as Array<{
+    vendor_content_id: string;
+    cnt: number | string;
+  }>) {
+    counts[row.vendor_content_id] = Number(row.cnt);
+  }
+
+  // visitorKey が指定された場合のみ、その訪問者がハート済みの id を取得する。
+  // UNIQUE(vendor_content_id, visitor_key) により最大でも ids 件数（≤30）に収まる。
+  let reactedIds: string[] = [];
+  if (visitorKey) {
+    const { data: reactedRows, error: reactedError } = await supabase
+      .from("content_reactions")
+      .select("vendor_content_id")
+      .eq("visitor_key", visitorKey)
+      .in("vendor_content_id", ids);
+
+    if (reactedError) {
+      return NextResponse.json(
+        { error: "リアクションの取得に失敗しました" },
+        { status: 500 }
+      );
+    }
+    reactedIds = (reactedRows ?? []).map(
+      (r: { vendor_content_id: string }) => r.vendor_content_id
+    );
+  }
+
+  return NextResponse.json({ counts, reactedIds });
 }
