@@ -262,6 +262,10 @@ export default function MapPageClient({
   const [aiMarkerPayload, setAiMarkerPayload] = useState<{
     ids: number[];
     label: string;
+    // どの導線がセットしたか（クリア判定に使う）。
+    // 'nearby' は「このへん」追い質問由来で、パネルを閉じたら消してよい。
+    // 'other'（AI相談・URL・エージェント由来）は nearby の開閉では消さない。
+    source: 'nearby' | 'other';
   } | null>(null);
   // 「このへん、なにがある？」：開いているパネルの内容（追い質問はパネル内で完結）
   const [nearbyState, setNearbyState] = useState<{
@@ -411,9 +415,9 @@ export default function MapPageClient({
     const labelParam = searchParams.get("label") ?? "AIおすすめ";
     const payload = loadAiMapPayload();
     if (payload) {
-      setAiMarkerPayload(payload);
+      setAiMarkerPayload({ ids: payload.ids, label: payload.label, source: 'other' });
     } else {
-      setAiMarkerPayload({ ids: [], label: labelParam });
+      setAiMarkerPayload({ ids: [], label: labelParam, source: 'other' });
     }
   }, [searchParams, searchParamsKey]);
 
@@ -535,7 +539,7 @@ export default function MapPageClient({
       const rawReply =
         payload.reply ?? "ごめんね、今は答えを出せんかった。時間をおいて試してね。";
       if (payload.shopIds && payload.shopIds.length > 0) {
-        setAiMarkerPayload({ ids: payload.shopIds, label: "AIおすすめ" });
+        setAiMarkerPayload({ ids: payload.shopIds, label: "AIおすすめ", source: 'other' });
         const cleaned = stripShopIdsDirective(rawReply);
         return {
           reply: cleaned || "おすすめのお店を表示したよ。",
@@ -708,9 +712,10 @@ export default function MapPageClient({
 
   const closeNearbyPanel = useCallback(() => {
     setNearbyState(null);
-    // 追い質問で aiMarkerPayload がセットされている場合、これをクリアしないと
-    // hasAiMode が true のままになり、「このへん」ボタンが二度と出現しなくなる
-    setAiMarkerPayload(null);
+    // 追い質問（nearby）由来の aiMarkerPayload だけをクリアする。
+    // これを消さないと hasAiMode が true のままになり「このへん」ボタンが
+    // 再表示されない。一方、AI相談（consult）由来のマーカーは無関係なので残す。
+    setAiMarkerPayload((prev) => (prev?.source === 'nearby' ? null : prev));
   }, []);
 
   // パネル表示中にマップが動いたら閉じる（オレンジ枠は画面固定のため、
@@ -719,7 +724,7 @@ export default function MapPageClient({
     if (!nearbyState || !mapInstance) return;
     const close = () => {
       setNearbyState(null);
-      setAiMarkerPayload(null);
+      setAiMarkerPayload((prev) => (prev?.source === 'nearby' ? null : prev));
     };
     mapInstance.on('move', close);
     mapInstance.on('zoom', close);
@@ -961,7 +966,7 @@ export default function MapPageClient({
                     map={mapInstance}
                     shops={shops}
                     onShopsRecommended={(shopIds) => {
-                      setAiMarkerPayload({ ids: shopIds, label: 'AIおすすめ' });
+                      setAiMarkerPayload({ ids: shopIds, label: 'AIおすすめ', source: 'other' });
                     }}
                   />
                 ) : nearbyState ? (
@@ -972,7 +977,7 @@ export default function MapPageClient({
                     center={nearbyState.center}
                     onSelectShop={handleCommentShopOpen}
                     onShopsRecommended={(shopIds) => {
-                      setAiMarkerPayload({ ids: shopIds, label: 'AIおすすめ' });
+                      setAiMarkerPayload({ ids: shopIds, label: 'AIおすすめ', source: 'nearby' });
                     }}
                     onClose={closeNearbyPanel}
                   />
