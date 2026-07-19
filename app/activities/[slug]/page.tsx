@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ChevronLeft } from "lucide-react";
@@ -68,9 +69,12 @@ export default async function ActivityDetailPage({ params }: ActivityDetailPageP
 
           {activity.image ? (
             <div className="mt-5 overflow-hidden rounded-[1.75rem] border border-[#ead8c0] bg-[#fffaf4]">
-              <img
+              <Image
                 src={activity.image}
                 alt={activity.title}
+                width={1200}
+                height={800}
+                sizes="(max-width: 768px) 100vw, 768px"
                 className="h-auto w-full object-cover"
               />
             </div>
@@ -100,9 +104,12 @@ export default async function ActivityDetailPage({ params }: ActivityDetailPageP
                 className="inline-flex items-center gap-3 text-sm font-semibold text-[#8a5129] transition hover:text-[#6f3a16]"
               >
                 {activity.externalLink.image ? (
-                  <img
+                  <Image
                     src={activity.externalLink.image}
                     alt=""
+                    width={120}
+                    height={32}
+                    unoptimized
                     className="h-8 w-auto object-contain"
                   />
                 ) : null}
