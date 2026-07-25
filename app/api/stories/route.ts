@@ -47,7 +47,9 @@ export async function GET() {
     // OR 結合されるため、本人の hidden/deleted 投稿が混ざらないよう status を明示する
     .eq("status", "active")
     .not("image_url", "is", null)
-    .gt("expires_at", new Date().toISOString())
+    // 「今週だけ」ではなく「褪せていくタイムライン」として、期限切れも含めて
+    // 過去約1か月分を表示する（鮮度は created_at で退色表現する）。
+    .gte("created_at", new Date(Date.now() - 31 * 24 * 60 * 60 * 1000).toISOString())
     .order("created_at", { ascending: false })
     .limit(STORIES_LIMIT);
 

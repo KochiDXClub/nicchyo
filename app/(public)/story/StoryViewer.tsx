@@ -4,6 +4,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Image from "next/image";
 import Link from "next/link";
+import { getStoryAgeBucket, STORY_AGE_IMAGE_CLASS } from "./age";
+import { getOrCreateConsultVisitorKey } from "@/lib/consultVisitorKey";
+import { fetchReactionState, toggleReaction, type ReactionState } from "@/lib/story/reactions";
 import type { StoryItem } from "./types";
 
 const STORY_DURATION = 15000;
@@ -21,6 +24,11 @@ export default function StoryViewer({ stories, initialIndex, onClose }: Props) {
   const [index, setIndex] = useState(initialIndex);
   const [direction, setDirection] = useState<1 | -1>(1);
   const [paused, setPaused] = useState(false);
+  // 匿名ハート用の visitorKey（相談機能と共通の識別子を流用）
+  const [visitorKey] = useState(() =>
+    typeof window !== "undefined" ? getOrCreateConsultVisitorKey() : ""
+  );
+  const [reaction, setReaction] = useState<ReactionState | null>(null);
 
   const story = stories[index];
   const shopName = story.vendor?.shop_name ?? "出店者";
@@ -71,6 +79,32 @@ export default function StoryViewer({ stories, initialIndex, onClose }: Props) {
     };
   }, [index, paused, goNext]);
 
+  // 表示中ストーリーのハート状態（総数・自分が押したか）を取得する
+  useEffect(() => {
+    if (!visitorKey) return;
+    let cancelled = false;
+    setReaction(null);
+    fetchReactionState(story.id, visitorKey)
+      .then((state) => { if (!cancelled) setReaction(state); })
+      .catch(() => { if (!cancelled) setReaction({ count: 0, reacted: false }); });
+    return () => { cancelled = true; };
+  }, [story.id, visitorKey]);
+
+  // ハートのトグル（楽観更新→失敗時は元に戻す）
+  const handleToggleReaction = useCallback(async () => {
+    if (!visitorKey || !reaction) return;
+    const previous = reaction;
+    setReaction({
+      reacted: !previous.reacted,
+      count: previous.count + (previous.reacted ? -1 : 1),
+    });
+    try {
+      setReaction(await toggleReaction(story.id, visitorKey));
+    } catch {
+      setReaction(previous);
+    }
+  }, [reaction, story.id, visitorKey]);
+
   const handleDragEnd = (_: unknown, info: { offset: { x: number }; velocity: { x: number } }) => {
     const { x } = info.offset;
     const { x: vx } = info.velocity;
@@ -83,6 +117,7 @@ export default function StoryViewer({ stories, initialIndex, onClose }: Props) {
 
   const postedDate = new Date(story.created_at);
   const timeLabel = formatRelativeTime(postedDate);
+  const ageBucket = getStoryAgeBucket(story.created_at);
 
   // マップ上のショップバナー（/map?shop=<店舗番号>）へのリンク用。
   // 割当が無い出店者はリンク無効。
@@ -190,12 +225,41 @@ export default function StoryViewer({ stories, initialIndex, onClose }: Props) {
             src={story.image_url}
             alt={story.body ?? shopName}
             fill
-            className="object-contain select-none"
+            className={`object-contain select-none ${STORY_AGE_IMAGE_CLASS[ageBucket]}`}
             draggable={false}
             priority
           />
         </motion.div>
       </AnimatePresence>
+
+      {/* ハートリアクション（匿名・1投稿1ハート）。切替時のちらつきを防ぐため
+          常時表示し、状態取得前はタップ不可にする。 */}
+      <div className="absolute bottom-[136px] right-4 z-20 flex flex-col items-center gap-1">
+        <button
+          type="button"
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={handleToggleReaction}
+          disabled={!reaction}
+          className="flex h-12 w-12 items-center justify-center rounded-full bg-black/30 backdrop-blur transition active:scale-90 disabled:opacity-60"
+          aria-label={reaction?.reacted ? "ハートを取り消す" : "ハートを送る"}
+          aria-pressed={reaction?.reacted ?? false}
+        >
+          <svg
+            className={`w-7 h-7 transition ${reaction?.reacted ? "text-rose-500" : "text-white"}`}
+            fill={reaction?.reacted ? "currentColor" : "none"}
+            stroke="currentColor"
+            strokeWidth={2}
+            viewBox="0 0 24 24"
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12z" />
+          </svg>
+        </button>
+        {reaction && (
+          <span className="text-white text-xs font-semibold drop-shadow tabular-nums">
+            {reaction.count}
+          </span>
+        )}
+      </div>
 
       {/* 下部：キャプション */}
       {story.body && (

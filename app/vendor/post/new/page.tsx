@@ -24,6 +24,7 @@ import {
   Pencil,
   XCircle,
   PlusCircle,
+  Heart,
 } from "lucide-react";
 
 type ActiveTab = "new" | "history";
@@ -75,6 +76,12 @@ function PostCard({ post, onRepost, onEditRepost }: { post: Post; onRepost: (pos
             <span className="flex items-center gap-1 text-[11px] text-slate-400">
               <Clock size={10} />{timeAgo(post.created_at)}
             </span>
+            {typeof post.heartCount === "number" && (
+              <span className="flex items-center gap-1 rounded-full bg-rose-50 px-2 py-0.5 text-[10px] font-medium text-rose-600">
+                <Heart size={10} className="fill-current" />
+                {post.heartCount}
+              </span>
+            )}
           </div>
         </div>
       </div>

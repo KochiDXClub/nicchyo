@@ -25,6 +25,7 @@ type VendorRow = {
 };
 
 type ActiveContentRow = {
+  id: string;
   vendor_id: string | null;
   body: string | null;
   image_url: string | null;
@@ -99,7 +100,7 @@ export async function fetchVendorShopsFromDb(
     supabase.from("location_assignments").select("vendor_id, location_id, market_date"),
     supabase
       .from("vendor_contents")
-      .select("vendor_id, body, image_url, expires_at, created_at")
+      .select("id, vendor_id, body, image_url, expires_at, created_at")
       .gt("expires_at", new Date().toISOString())
       .order("created_at", { ascending: false }),
   ]);
@@ -203,6 +204,7 @@ export async function fetchVendorShopsFromDb(
       const activePosts =
         contents.length > 0
           ? contents.map((content) => ({
+              id: content.id,
               text: content.body ?? "",
               imageUrl: content.image_url ?? undefined,
               expiresAt: content.expires_at,
