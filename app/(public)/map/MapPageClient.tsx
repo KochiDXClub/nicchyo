@@ -440,7 +440,7 @@ export default function MapPageClient({
         .map((shop) => Number(shop?.id))
         .filter((id) => Number.isInteger(id) && id > 0);
       if (ids.length > 0) {
-        setAiMarkerPayload({ ids, label: parsed.title ?? 'おさんぽプラン' });
+        setAiMarkerPayload({ ids, label: parsed.title ?? 'おさんぽプラン', source: 'other' });
       }
     } catch {
       // ignore
