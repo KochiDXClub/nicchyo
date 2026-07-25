@@ -200,6 +200,11 @@ export function isValidFollowUpQuestion(value: string) {
   return true;
 }
 
+/** AI応答に含まれる `SHOP_IDS: 1,2,3` ディレクティブを表示用テキストから取り除く */
+export function stripShopIdsDirective(text: string): string {
+  return text.replace(/SHOP_IDS:\s*([0-9,\s]+)/i, "").trim();
+}
+
 export function buildFallbackFollowUpQuestion(
   question: string,
   targetShopName: string | null,
