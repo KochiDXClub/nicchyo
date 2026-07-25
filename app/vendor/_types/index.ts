@@ -10,6 +10,14 @@ export type Post = {
   created_at: string;
   expiration_time: string;
   status: PostStatus;
+  /** ハートリアクション数（content_reactions 集計。取得失敗時は undefined） */
+  heartCount?: number;
+};
+
+/** 出店者アナリティクス用のハート集計 */
+export type HeartSummary = {
+  total: number;
+  thisWeek: number;
 };
 
 export type PaymentMethod = "cash" | "card" | "paypay" | "ic";

@@ -11,7 +11,7 @@ import { fetchVendorPosts, repostContent } from "../_services/postsService";
 import type { Post, PostStatus } from "../_types";
 import {
   ArrowLeft, RotateCcw, Pencil, Clock, CheckCircle2,
-  XCircle, PlusCircle, Image as ImageIcon, Loader2,
+  XCircle, PlusCircle, Image as ImageIcon, Loader2, Heart,
 } from "lucide-react";
 
 type FilterTab = "all" | "active" | "expired";
@@ -60,6 +60,12 @@ function PostCard({ post, onRepost, onEditRepost }: { post: Post; onRepost: (pos
             <span className="flex items-center gap-1 text-[11px] text-slate-400">
               <Clock size={10} />{timeAgo(post.created_at)}
             </span>
+            {typeof post.heartCount === "number" && (
+              <span className="flex items-center gap-1 rounded-full bg-rose-50 px-2 py-0.5 text-[10px] font-medium text-rose-600">
+                <Heart size={10} className="fill-current" />
+                {post.heartCount}
+              </span>
+            )}
           </div>
         </div>
       </div>
