@@ -588,13 +588,13 @@ body.grandma-chat-open .leaflet-container {
 
 /* north は木札が道の外＝右側に出るので、写真は左へ寄せる */
 .shop-side-north .shop-product-icon {
-  left: 8px;
+  left: -12px;
   transform: translateY(-50%);
 }
 
 .shop-side-south .shop-product-icon {
   left: auto;
-  right: 8px;
+  right: -12px;
   transform: translateY(-50%);
 }
 
