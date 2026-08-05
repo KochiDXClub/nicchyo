@@ -546,8 +546,8 @@ body.grandma-chat-open .leaflet-container {
   top: 52%;
   left: 50%;
   transform: translate(-50%, -50%);
-  width: 44px;
-  height: 44px;
+  width: 50px;
+  height: 50px;
   box-sizing: border-box;
   border-radius: 9999px;
   border: 3px solid var(--stall-color-dark, #8b5e34);
@@ -588,13 +588,13 @@ body.grandma-chat-open .leaflet-container {
 
 /* north は木札が道の外＝右側に出るので、写真は左へ寄せる */
 .shop-side-north .shop-product-icon {
-  left: -12px;
+  left: -8px;
   transform: translateY(-50%);
 }
 
 .shop-side-south .shop-product-icon {
   left: auto;
-  right: -12px;
+  right: -8px;
   transform: translateY(-50%);
 }
 
