@@ -423,8 +423,8 @@ body.grandma-chat-open .leaflet-container {
 
 .shop-recipe-icons {
   position: absolute;
-  /* 屋根上の写真アイコン（28px, top:-10px）とぶつからないようさらに上に置く */
-  top: -42px;
+  /* 写真アイコンは屋台の内側に移したので、屋根の上に戻せる */
+  top: -18px;
   left: 50%;
   transform: translateX(-50%);
   display: none;
@@ -531,26 +531,71 @@ body.grandma-chat-open .leaflet-container {
   pointer-events: none;
 }
 
-/* 屋根の上に載る商品写真。屋台の中央に被せると屋台の形が読めなくなるため上に逃がす */
+/*
+ * 商品写真。屋台イラストの内側に、木札とは反対の側へ寄せて大きめに置く。
+ * 木札は道の外側に出るので、写真は道の内側に来る。
+ * 屋台の中央に被せると屋台の形が読めなくなるため、必ず片側に寄せること。
+ *
+ * 見立ては「屋台に開いた丸窓から中を覗いている」。
+ * そのため枠は白い額縁ではなく屋台と同じ色（--stall-color-dark）にし、
+ * 内側に影を落として奥行きを出す。休業時は --stall-color-dark ごと
+ * グレーになるので、窓枠も自動で連動する。
+ */
 .shop-product-icon {
   position: absolute;
-  top: -10px;
+  top: 52%;
   left: 50%;
-  transform: translateX(-50%);
-  width: 28px;
-  height: 28px;
+  transform: translate(-50%, -50%);
+  width: 40px;
+  height: 40px;
   box-sizing: border-box;
   border-radius: 9999px;
-  border: 2px solid rgba(255, 255, 255, 0.92);
+  border: 3px solid var(--stall-color-dark, #8b5e34);
   background: #f1f5f9;
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
-  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.22);
+  /*
+   * 影は窓の内側ではなく外側に落とす。
+   * 内側に落とすと写真が暗く汚れて見えるだけで、奥行きにならない。
+   * 窓枠が手前にあって屋台の壁に影を落としている、という見立てにする。
+   */
+  box-shadow:
+    /* 枠のすぐ外を締めて、壁をくり抜いた縁に見せる */
+    0 0 0 1px rgba(58, 40, 22, 0.4),
+    /* 壁に落ちる影 */
+    0 3px 7px rgba(34, 22, 10, 0.45);
   pointer-events: none;
   overflow: hidden;
   display: none;
   z-index: 25;
+}
+
+/* 丸窓のガラスの光沢。左上から差す想定（屋根の陰影と光源を揃えている） */
+.shop-product-icon::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(
+    155deg,
+    rgba(255, 255, 255, 0.26) 0%,
+    rgba(255, 255, 255, 0.07) 30%,
+    rgba(255, 255, 255, 0) 46%
+  );
+  pointer-events: none;
+}
+
+/* north は木札が道の外＝右側に出るので、写真は左へ寄せる */
+.shop-side-north .shop-product-icon {
+  left: 2px;
+  transform: translateY(-50%);
+}
+
+.shop-side-south .shop-product-icon {
+  left: auto;
+  right: 2px;
+  transform: translateY(-50%);
 }
 
 /*
