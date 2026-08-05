@@ -306,8 +306,11 @@ function OptimizedShopLayerWithClustering({
       });
     };
 
-    // 現在のズームに必要なアイコンだけを先に作る
+    // 現在のズームに必要なアイコンだけを先に作る。
+    // 作った LOD を記録しておかないと、直後の updateMarkerDensity() が
+    // 「まだ何も描いていない」と判断して全マーカーに setIcon をやり直してしまう。
     const initialLod = getShopMarkerLod(map.getZoom(), map.getMaxZoom() ?? map.getZoom());
+    lastLodRef.current = initialLod;
 
     // Create a map for fast shop lookup during density updates
     const shopsMap = new Map<number, Shop>(shops.map(s => [s.id, s]));
