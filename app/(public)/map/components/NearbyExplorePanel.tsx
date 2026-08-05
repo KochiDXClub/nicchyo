@@ -12,7 +12,7 @@
  * AIが店舗を薦めた場合は onShopsRecommended でマップのピンを光らせる。
  *
  * UI は検索パネルと同系の、画面下端に張り付くドラッグ可能シート（1段）:
- * - 開いた時点で常に展開状態（画面の約72%。全画面にはしない）
+ * - 開いた時点で常に展開状態（画面の約80%。全画面にはしない）
  * - ハンドルを下にスワイプ → 閉じる
  * - 地図が動いたときは親側の move リスナーで自動的に閉じる
  */
@@ -80,13 +80,13 @@ type AskPayload = {
   shopIds?: number[];
 };
 
-/** シートの高さ＝画面の約72%（全画面にはしない） */
+/** シートの高さ＝画面の約80%（全画面にはしない） */
 function getSheetHeight() {
   if (typeof window === 'undefined') {
-    return 520;
+    return 580;
   }
   const viewportHeight = window.visualViewport?.height ?? window.innerHeight;
-  return Math.round(viewportHeight * 0.72);
+  return Math.round(viewportHeight * 0.8);
 }
 
 function CharacterAvatar({ character }: { character: ConsultCharacter }) {
