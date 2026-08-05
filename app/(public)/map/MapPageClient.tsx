@@ -869,6 +869,14 @@ export default function MapPageClient({
               </div>
             )}
 
+            {/* 検索バー・ジャンルフィルター周辺の地図をうっすらぼかし、UIの視認性を高める */}
+            {!mapCharacterConsultActive && !nearbyState && (
+              <div
+                aria-hidden
+                className="pointer-events-none absolute inset-x-0 top-0 z-[1000] h-40 backdrop-blur-[2px] [mask-image:linear-gradient(to_bottom,black,black_60%,transparent)] [-webkit-mask-image:linear-gradient(to_bottom,black,black_60%,transparent)]"
+              />
+            )}
+
             {/* 全幅検索バー + ジャンルフィルター（AI相談・このへんモード時は非表示） */}
             {!mapCharacterConsultActive && !nearbyState && (
               <div
