@@ -7,13 +7,13 @@
  * 決定論的な内容（字幕・ジャンル内訳バー・おすすめ店グリッド）を即座に見せ、
  * "AIの一言" だけが少し遅れてフェードインする（Google の AI Overview 方式）。
  *
- * 追い質問はシート内で完結する: 送信するとシートが展開し、回答が
- * 会話としてシート下部に流れ込む（AI相談モードへは遷移しない）。
+ * 追い質問はシート内で完結する: 回答は会話としてシート下部に流れ込む
+ * （AI相談モードへは遷移しない）。
  * AIが店舗を薦めた場合は onShopsRecommended でマップのピンを光らせる。
  *
- * UI は検索パネルと同系の、画面下端に張り付くドラッグ可能シート（2段スナップ）:
- * - ピーク: 画面の下半分 ／ 展開: 画面の約72%（全画面にはしない）
- * - ハンドルを下にスワイプ → ピークに戻る／ピークから更に下で閉じる
+ * UI は検索パネルと同系の、画面下端に張り付くドラッグ可能シート（1段）:
+ * - 開いた時点で常に展開状態（画面の約72%。全画面にはしない）
+ * - ハンドルを下にスワイプ → 閉じる
  * - 地図が動いたときは親側の move リスナーで自動的に閉じる
  */
 
@@ -80,19 +80,13 @@ type AskPayload = {
   shopIds?: number[];
 };
 
-/**
- * ピーク＝画面の下半分（店舗なしのときはコンパクトに）、
- * 展開＝画面の約72%（全画面にはしない）
- */
-function getSnapHeights(hasShops: boolean) {
+/** シートの高さ＝画面の約72%（全画面にはしない） */
+function getSheetHeight() {
   if (typeof window === 'undefined') {
-    return { peek: 360, expanded: 520 };
+    return 520;
   }
   const viewportHeight = window.visualViewport?.height ?? window.innerHeight;
-  return {
-    peek: Math.round(viewportHeight * (hasShops ? 0.5 : 0.32)),
-    expanded: Math.round(viewportHeight * 0.72),
-  };
+  return Math.round(viewportHeight * 0.72);
 }
 
 function CharacterAvatar({ character }: { character: ConsultCharacter }) {
@@ -151,11 +145,10 @@ export default function NearbyExplorePanel({
 }) {
   const [question, setQuestion] = useState('');
   const [noteVisible, setNoteVisible] = useState(false);
-  const [expanded, setExpanded] = useState(false);
   const [thread, setThread] = useState<NearbyChatMessage[]>([]);
   const [asking, setAsking] = useState(false);
   const hasShops = summary.totalCount > 0;
-  const [snapHeights] = useState(() => getSnapHeights(hasShops));
+  const [sheetHeight] = useState(getSheetHeight);
   const dragControls = useDragControls();
   const abortRef = useRef<AbortController | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
@@ -186,7 +179,6 @@ export default function NearbyExplorePanel({
     if (!text || asking) return;
 
     setQuestion('');
-    setExpanded(true);
     setAsking(true);
     const nextThread: NearbyChatMessage[] = [...thread, { role: 'user', text }];
     setThread(nextThread);
@@ -282,29 +274,18 @@ export default function NearbyExplorePanel({
     <div className="pointer-events-none absolute inset-x-0 bottom-0 z-[1300]">
       <motion.div
         className="pointer-events-auto mx-auto flex w-full max-w-xl flex-col overflow-hidden rounded-t-[28px] border border-b-0 border-amber-200 bg-white shadow-[0_-24px_60px_rgba(15,23,42,0.2)]"
-        initial={{ opacity: 0, y: 48, height: snapHeights.peek }}
-        animate={{
-          opacity: 1,
-          y: 0,
-          height: expanded ? snapHeights.expanded : snapHeights.peek,
-        }}
+        style={{ height: sheetHeight }}
+        initial={{ opacity: 0, y: 48 }}
+        animate={{ opacity: 1, y: 0 }}
         transition={{ type: 'spring', damping: 30, stiffness: 320 }}
         drag="y"
         dragControls={dragControls}
         dragListener={false}
         dragConstraints={{ top: 0, bottom: 0 }}
-        dragElastic={{ top: 0.25, bottom: 0.25 }}
+        dragElastic={{ top: 0, bottom: 0.25 }}
         onDragEnd={(_, info) => {
-          if (info.offset.y < -48 || info.velocity.y < -500) {
-            setExpanded(true);
-            return;
-          }
           if (info.offset.y > 56 || info.velocity.y > 500) {
-            if (expanded) {
-              setExpanded(false);
-            } else {
-              onClose();
-            }
+            onClose();
           }
         }}
         onMouseDown={(e) => e.stopPropagation()}
@@ -316,7 +297,7 @@ export default function NearbyExplorePanel({
           className="flex shrink-0 cursor-grab justify-center pb-2 pt-3 active:cursor-grabbing"
           onPointerDown={(e) => dragControls.start(e)}
           style={{ touchAction: 'none' }}
-          aria-label={expanded ? '下にスワイプで縮小' : '上にスワイプで展開'}
+          aria-label="下にスワイプで閉じる"
         >
           <div className="h-1 w-10 rounded-full bg-slate-300" />
         </div>
