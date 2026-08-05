@@ -98,18 +98,41 @@ export default function StoryGridClient() {
     <main className="min-h-screen bg-nicchyo-base pb-28">
       {/* 見出し：ページ最上部のヒーロー的なタイトル（ナビゲーションではない） */}
       <div className="relative overflow-hidden px-4 pt-12 pb-7">
-        {/* 背景の柔らかい光彩でタイトルに奥行きを出す。霧のようにゆっくり揺らめかせる */}
+        {/* 背景の柔らかい光彩でタイトルに奥行きを出す。霧のようにゆっくり揺らめかせ、
+            濃淡（不透明度）も個々にずらしながら周期的に変化させることで、
+            常にどれかが濃く／薄く見える自然な呼吸感を出す。 */}
         <motion.div
           aria-hidden
-          animate={{ x: [0, 24, -14, 0], y: [0, 18, -10, 0], scale: [1, 1.15, 0.94, 1] }}
+          animate={{
+            x: [0, 24, -14, 0],
+            y: [0, 18, -10, 0],
+            scale: [1, 1.15, 0.94, 1],
+            opacity: [0.85, 0.3, 0.85],
+          }}
           transition={{ duration: 16, repeat: Infinity, ease: "easeInOut" }}
           className="pointer-events-none absolute -left-12 -top-16 h-56 w-56 rounded-full bg-nicchyo-primary/25 blur-3xl"
         />
         <motion.div
           aria-hidden
-          animate={{ x: [0, -20, 12, 0], y: [0, 20, -12, 0], scale: [1, 0.9, 1.12, 1] }}
+          animate={{
+            x: [0, -20, 12, 0],
+            y: [0, 20, -12, 0],
+            scale: [1, 0.9, 1.12, 1],
+            opacity: [0.3, 0.85, 0.3],
+          }}
           transition={{ duration: 19, repeat: Infinity, ease: "easeInOut", delay: 1.2 }}
           className="pointer-events-none absolute -top-10 right-0 h-44 w-44 rounded-full bg-nicchyo-accent/30 blur-3xl"
+        />
+        <motion.div
+          aria-hidden
+          animate={{
+            x: [0, -16, 22, 0],
+            y: [0, -14, 12, 0],
+            scale: [1, 1.1, 0.92, 1],
+            opacity: [0.2, 0.75, 0.2],
+          }}
+          transition={{ duration: 22, repeat: Infinity, ease: "easeInOut", delay: 2.4 }}
+          className="pointer-events-none absolute -bottom-12 left-1/3 h-52 w-52 rounded-full bg-orange-300/35 blur-3xl"
         />
         <div className="relative mx-auto max-w-lg">
           <p className="text-[11px] font-bold uppercase tracking-[0.32em] text-nicchyo-primary">
