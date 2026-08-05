@@ -1,13 +1,8 @@
 import { Shop } from '../data/shops';
+import { ILLUSTRATION_SIZES } from '../config/displayConfig';
 import { sanitizeInlineSvg } from './svgSanitizer';
 
 type ShopIllustrationSize = 'small' | 'medium' | 'large';
-
-const ILLUSTRATION_SIZE_MAP = {
-  small: { width: 40, height: 40 },
-  medium: { width: 60, height: 60 },
-  large: { width: 80, height: 80 },
-};
 
 function escapeHtml(str: string): string {
   if (!str) return '';
@@ -42,7 +37,9 @@ function generateShopIllustrationHtml(
     return '';
   }
 
-  const { width, height } = ILLUSTRATION_SIZE_MAP[size];
+  // DivIcon の iconSize と同じ値を使う（ILLUSTRATION_SIZES が唯一の正）。
+  // かつて独自の 40/60/80 を持っており、当たり判定と実描画がズレていた。
+  const { width, height } = ILLUSTRATION_SIZES[size];
   const baseColor = color || '#22c55e';
   const darkColor = adjustColor(baseColor, -25);
   const lightColor = adjustColor(baseColor, 25);
@@ -92,10 +89,7 @@ export function generateShopMarkerHtml(
   );
 
   return `
-    <div
-      class="shop-marker-container"
-      style="position: relative; cursor: pointer; transition: transform 0.2s ease;"
-    >
+    <div class="shop-marker-container">
       ${bannerHtml}
       <div class="shop-recipe-icons" aria-hidden="true"></div>
       <div class="shop-kotodute-badge" aria-hidden="true">i</div>

@@ -282,8 +282,12 @@ body.grandma-chat-open .leaflet-container {
 }
 
 /* 選択された店�Eマ�Eカー */
+/*
+ * 拡大は内側の .shop-marker-container / .shop-marker-compact-wrapper に当てる。
+ * この要素（Leaflet の _icon）には Leaflet が transform: translate3d(...) を
+ * インラインで書き込んで位置決めしているため、ここに transform を書いても必ず負ける。
+ */
 .shop-marker-selected {
-  transform: scale(1.15);
   filter:
     drop-shadow(0 4px 8px rgba(15, 23, 42, 0.28))
     drop-shadow(0 0 12px rgba(245, 158, 11, 0.38));
@@ -327,21 +331,18 @@ body.grandma-chat-open .leaflet-container {
 }
 
 .shop-marker-ai {
-  transform: scale(1.08);
   filter:
     drop-shadow(0 0 6px rgba(255, 169, 0, 0.7))
     drop-shadow(0 0 14px rgba(255, 169, 0, 0.55));
 }
 
 .shop-marker-search {
-  transform: scale(1.08);
   filter:
     drop-shadow(0 0 6px rgba(255, 169, 0, 0.7))
     drop-shadow(0 0 14px rgba(255, 169, 0, 0.55));
 }
 
 .shop-marker-comment {
-  transform: scale(1.15);
   filter:
     drop-shadow(0 0 8px rgba(245, 158, 11, 0.9))
     drop-shadow(0 0 20px rgba(245, 158, 11, 0.65));
@@ -473,7 +474,6 @@ body.grandma-chat-open .leaflet-container {
 .shop-marker-selected.shop-marker-ai,
 .shop-marker-selected.shop-marker-search,
 .shop-marker-selected.shop-marker-comment {
-  transform: scale(1.15);
   filter:
     drop-shadow(0 4px 8px rgba(15, 23, 42, 0.28))
     drop-shadow(0 0 12px rgba(245, 158, 11, 0.38));
@@ -621,12 +621,10 @@ body.grandma-chat-open .leaflet-container {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  margin-bottom: 30px;
 }
 
 .shop-simple-banner-name-hidden .shop-simple-banner-name {
   display: none;
-  margin-bottom: 0;
 }
 
 .shop-simple-banner-name-hidden .shop-simple-banner-body {
@@ -800,14 +798,38 @@ body.home-poster-zoom-open .hamburger-button {
   position: relative;
   width: 100%;
   height: 100%;
+  transform: scale(var(--shop-marker-state-scale, 1));
   rotate: var(--map-rotation-inverse, 0deg);
   transform-origin: center center;
 }
 
 .shop-marker-container {
-  transform: scale(var(--shop-marker-zoom-scale, 1));
+  position: relative;
+  cursor: pointer;
+  transform: scale(calc(var(--shop-marker-zoom-scale, 1) * var(--shop-marker-state-scale, 1)));
   transform-origin: center bottom;
   rotate: var(--map-rotation-inverse, 0deg);
+  transition: transform 0.2s ease;
+}
+
+/*
+ * ハイライト時の拡大。
+ * Leaflet は _icon（.custom-shop-marker）に transform: translate3d(...) を
+ * インラインで書き込んで位置決めするため、そちらに transform: scale() を
+ * 書いても必ず負ける。拡大は必ず内側のラッパーに当てること。
+ */
+.shop-marker-ai .shop-marker-container,
+.shop-marker-ai .shop-marker-compact-wrapper,
+.shop-marker-search .shop-marker-container,
+.shop-marker-search .shop-marker-compact-wrapper {
+  --shop-marker-state-scale: 1.08;
+}
+
+.shop-marker-selected .shop-marker-container,
+.shop-marker-selected .shop-marker-compact-wrapper,
+.shop-marker-comment .shop-marker-container,
+.shop-marker-comment .shop-marker-compact-wrapper {
+  --shop-marker-state-scale: 1.15;
 }
 
 .map-landmark-icon {
