@@ -562,6 +562,7 @@ body.grandma-chat-open .leaflet-container {
  */
 .shop-nameplate {
   position: absolute;
+  /* 既定は屋台の下。side クラスが付けば道の外側へ振り分ける（下の規則で上書き） */
   left: 50%;
   top: 100%;
   transform: translate(-50%, 2px);
@@ -592,13 +593,32 @@ body.grandma-chat-open .leaflet-container {
   text-overflow: ellipsis;
 }
 
-/* 隣接店の木札が横に並んで衝突しないよう、道の南北で縦にずらす */
+/*
+ * 木札は屋台の真下ではなく「道の外側」へ出す。
+ *
+ * 店は道沿いに並ぶため、道に沿った方向（屋台の縦間隔）は約67px しかなく、
+ * 屋台の高さ54px を引くと隙間は13px。高さ26px の木札を真下に置くと
+ * 必ず隣の店の屋台に被る。一方、道の幅方向には余白があるので
+ * そちらへ逃がす。北側の店は北へ、南側の店は南へ。
+ *
+ * 地図の回転は .shop-marker-container が打ち消すので、
+ * 回転しても木札は常に道の外側に留まる。
+ */
+.shop-side-north .shop-nameplate,
+.shop-side-south .shop-nameplate {
+  top: 50%;
+  left: auto;
+  right: auto;
+}
+
 .shop-side-north .shop-nameplate {
-  transform: translate(-50%, 2px);
+  left: calc(100% + 4px);
+  transform: translateY(-50%);
 }
 
 .shop-side-south .shop-nameplate {
-  transform: translate(-50%, 16px);
+  right: calc(100% + 4px);
+  transform: translateY(-50%);
 }
 
 .shop-side-south .shop-kotodute-badge {
