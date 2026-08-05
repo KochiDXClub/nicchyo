@@ -98,13 +98,17 @@ export default function StoryGridClient() {
     <main className="min-h-screen bg-nicchyo-base pb-28">
       {/* 見出し：ページ最上部のヒーロー的なタイトル（ナビゲーションではない） */}
       <div className="relative overflow-hidden px-4 pt-12 pb-7">
-        {/* 背景の柔らかい光彩でタイトルに奥行きを出す */}
-        <div
+        {/* 背景の柔らかい光彩でタイトルに奥行きを出す。霧のようにゆっくり揺らめかせる */}
+        <motion.div
           aria-hidden
+          animate={{ x: [0, 24, -14, 0], y: [0, 18, -10, 0], scale: [1, 1.15, 0.94, 1] }}
+          transition={{ duration: 16, repeat: Infinity, ease: "easeInOut" }}
           className="pointer-events-none absolute -left-12 -top-16 h-56 w-56 rounded-full bg-nicchyo-primary/25 blur-3xl"
         />
-        <div
+        <motion.div
           aria-hidden
+          animate={{ x: [0, -20, 12, 0], y: [0, 20, -12, 0], scale: [1, 0.9, 1.12, 1] }}
+          transition={{ duration: 19, repeat: Infinity, ease: "easeInOut", delay: 1.2 }}
           className="pointer-events-none absolute -top-10 right-0 h-44 w-44 rounded-full bg-nicchyo-accent/30 blur-3xl"
         />
         <div className="relative mx-auto max-w-lg">
