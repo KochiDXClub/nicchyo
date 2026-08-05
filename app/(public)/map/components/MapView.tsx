@@ -871,7 +871,7 @@ const MapView = memo(function MapView({
 
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   // 【削除】visibleShops の計算を削除
-  // - OptimizedShopLayer が Leaflet API で管理するため不要
+  // - OptimizedShopLayerWithClustering が Leaflet API で管理するため不要
   // - filterShopsByZoom は使用しない
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
