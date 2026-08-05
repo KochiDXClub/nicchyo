@@ -16,9 +16,8 @@ import {
 import { fetchReactionCounts } from "@/lib/story/reactions";
 import type { StoryItem } from "./types";
 
-// グリッド上部の目立つプレビュー枠で自動送りする件数と、1件あたりの表示時間。
+// グリッド上部の目立つプレビュー枠で1件あたり表示する時間。
 // 全画面ビューア（15秒）よりテンポよく見せるための「ちら見せ」なので短めにする。
-const FEATURED_PREVIEW_COUNT = 5;
 const FEATURED_PREVIEW_DURATION = 4000;
 
 export default function StoryGridClient() {
@@ -74,9 +73,14 @@ export default function StoryGridClient() {
     };
   }, [stories]);
 
-  // 上部の目立つプレビュー枠（FeaturedStoryPreview）が先頭何件を担当するか。
+  // 上部の目立つプレビュー枠（FeaturedStoryPreview）は「今週」の投稿だけを対象にする
+  // （日曜市は週次開催のため、鮮度の単位も週で区切るのが自然）。
+  // stories は新しい順に並んでいるため、今週の投稿は必ず先頭からの連続区間になる。
   // その分は通常グリッドから除外し、重複表示を避ける。
-  const previewCount = Math.min(FEATURED_PREVIEW_COUNT, stories.length);
+  const previewCount = useMemo(
+    () => stories.filter((story) => getStoryAgeBucket(story.created_at) === "this_week").length,
+    [stories]
+  );
 
   // 鮮度バケット（今週/1週間前/1か月前）ごとにまとめる。index は元の
   // stories 配列（新しい順）の位置なので、ビューアの initialIndex と整合する。
@@ -173,11 +177,19 @@ export default function StoryGridClient() {
           <EmptyState nextSunday={nextSunday} />
         ) : (
           <>
-            {/* 先頭の数件は大きなカードで自動送り表示し、全画面ストーリーへの導線を強める */}
-            <FeaturedStoryPreview
-              stories={stories.slice(0, previewCount)}
-              onOpen={(index) => setViewerIndex(index)}
-            />
+            {/* 今週の投稿は大きなカードで自動送り表示し、全画面ストーリーへの導線を強める */}
+            {previewCount > 0 && (
+              <div className="mb-5">
+                <div className="mb-2 flex items-center gap-2">
+                  <h2 className="text-sm font-bold text-nicchyo-ink">今週の投稿</h2>
+                  <span className="text-[11px] text-gray-400">{previewCount}件</span>
+                </div>
+                <FeaturedStoryPreview
+                  stories={stories.slice(0, previewCount)}
+                  onOpen={(index) => setViewerIndex(index)}
+                />
+              </div>
+            )}
 
             {/* 鮮度別セクション（新しいほど鮮やか、古いほど退色） */}
             {sections.map((section) => (
@@ -260,14 +272,14 @@ export default function StoryGridClient() {
   );
 }
 
-// 先頭数件を大きなカードで自動送りし、タップでその場面から全画面ストーリーを
+// 今週の投稿を大きなカードで自動送りし、タップでその場面から全画面ストーリーを
 // 開かせるための導線。全画面ビューアと同じ「経過時間バー」を持たせることで、
 // 一覧に来ただけで自然と次の投稿へ意識が向くようにする。
 function FeaturedStoryPreview({
   stories,
   onOpen,
 }: {
-  stories: StoryItem[]; // 先頭 FEATURED_PREVIEW_COUNT 件（新しい順）。index はそのまま全体の index と一致する
+  stories: StoryItem[]; // 今週の投稿（新しい順）。index はそのまま全体の index と一致する
   onOpen: (index: number) => void;
 }) {
   const [previewIndex, setPreviewIndex] = useState(0);
@@ -293,7 +305,7 @@ function FeaturedStoryPreview({
     <button
       type="button"
       onClick={() => onOpen(previewIndex)}
-      className="relative mb-5 block w-full overflow-hidden rounded-2xl text-left focus:outline-none"
+      className="relative block w-full overflow-hidden rounded-2xl text-left focus:outline-none"
       aria-label={`${shopName}の近況を全画面で見る`}
     >
       {/* 明るい画像でもバーが埋もれないよう、上端だけ薄暗くしてから重ねる */}
