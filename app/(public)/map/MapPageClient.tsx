@@ -873,7 +873,7 @@ export default function MapPageClient({
             {!mapCharacterConsultActive && !nearbyState && (
               <div
                 aria-hidden
-                className="pointer-events-none absolute inset-x-0 top-0 z-[1000] h-40 bg-gradient-to-b from-white/80 via-white/40 to-transparent backdrop-blur-[3px] [mask-image:linear-gradient(to_bottom,black,black_55%,transparent)] [-webkit-mask-image:linear-gradient(to_bottom,black,black_55%,transparent)]"
+                className="pointer-events-none absolute inset-x-0 top-0 z-[1000] h-40 bg-gradient-to-b from-white/60 via-white/25 to-transparent backdrop-blur-[2px] [mask-image:linear-gradient(to_bottom,black,black_55%,transparent)] [-webkit-mask-image:linear-gradient(to_bottom,black,black_55%,transparent)]"
               />
             )}
 
