@@ -423,6 +423,7 @@ body.grandma-chat-open .leaflet-container {
 
 .shop-recipe-icons {
   position: absolute;
+  /* 写真アイコンは屋台の内側に移したので、屋根の上に戻せる */
   top: -18px;
   left: 50%;
   transform: translateX(-50%);
@@ -442,7 +443,9 @@ body.grandma-chat-open .leaflet-container {
   line-height: 1;
 }
 
-.shop-marker-recipe .shop-recipe-icons {
+/* レシピの食材アイコンは情報量が多いので最上段（nameplate）だけ */
+.shop-lod-nameplate.shop-marker-recipe .shop-recipe-icons,
+.compact-shop-marker.shop-marker-recipe .shop-recipe-icons {
   display: inline-flex;
 }
 
@@ -528,107 +531,139 @@ body.grandma-chat-open .leaflet-container {
   pointer-events: none;
 }
 
+/*
+ * 商品写真。屋台イラストの内側に、木札とは反対の側へ寄せて大きめに置く。
+ * 木札は道の外側に出るので、写真は道の内側に来る。
+ * 屋台の中央に被せると屋台の形が読めなくなるため、必ず片側に寄せること。
+ *
+ * 見立ては「屋台に開いた丸窓から中を覗いている」。
+ * そのため枠は白い額縁ではなく屋台と同じ色（--stall-color-dark）にし、
+ * 内側に影を落として奥行きを出す。休業時は --stall-color-dark ごと
+ * グレーになるので、窓枠も自動で連動する。
+ */
 .shop-product-icon {
   position: absolute;
-  top: 50%;
+  top: 52%;
   left: 50%;
   transform: translate(-50%, -50%);
-  width: 43px;
-  height: 26px;
-  padding: 0;
+  width: 50px;
+  height: 50px;
   box-sizing: border-box;
   border-radius: 9999px;
-  border: 1px solid rgba(148, 163, 184, 0.6);
-  background: rgba(255, 255, 255, 0.95);
+  border: 3px solid var(--stall-color-dark, #8b5e34);
+  background: #f1f5f9;
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
-  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.18);
+  /*
+   * 影は窓の内側ではなく外側に落とす。
+   * 内側に落とすと写真が暗く汚れて見えるだけで、奥行きにならない。
+   * 窓枠が手前にあって屋台の壁に影を落としている、という見立てにする。
+   */
+  box-shadow:
+    /* 枠のすぐ外を締めて、壁をくり抜いた縁に見せる */
+    0 0 0 1px rgba(58, 40, 22, 0.4),
+    /* 壁に落ちる影 */
+    0 3px 7px rgba(34, 22, 10, 0.45);
   pointer-events: none;
   overflow: hidden;
   display: none;
-  z-index: 30;
+  z-index: 25;
 }
 
+/* 丸窓のガラスの光沢。左上から差す想定（屋根の陰影と光源を揃えている） */
+.shop-product-icon::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(
+    155deg,
+    rgba(255, 255, 255, 0.26) 0%,
+    rgba(255, 255, 255, 0.07) 30%,
+    rgba(255, 255, 255, 0) 46%
+  );
+  pointer-events: none;
+}
+
+/* north は木札が道の外＝右側に出るので、写真は左へ寄せる */
 .shop-side-north .shop-product-icon {
-  left: 50%;
-  transform: translate(-50%, -50%);
+  left: -24px;
+  transform: translateY(-50%);
 }
 
 .shop-side-south .shop-product-icon {
-  left: 50%;
-  transform: translate(-50%, -50%);
+  left: auto;
+  right: -24px;
+  transform: translateY(-50%);
 }
 
-.shop-product-icon-visible .shop-product-icon {
-  display: block;
-}
-
-.shop-simple-banner {
+/*
+ * 木札ラベル（店名）
+ *
+ * かつては 220px 幅の横カード（写真＋店名）だったが、店舗間隔の目安が
+ * 80px（SPACING_CONFIG.minPixelsPerShop）なので常に3倍近く重なっていた。
+ * 幅可変・高さ26pxの札にして、写真は屋根の上へ逃がしている。
+ */
+.shop-nameplate {
   position: absolute;
+  /* 既定は屋台の下。side クラスが付けば道の外側へ振り分ける（下の規則で上書き） */
   left: 50%;
-  bottom: 24px;
-  transform: translateX(-50%);
+  top: 100%;
+  transform: translate(-50%, 2px);
   display: none;
-  width: 220px;
-  padding: 8px 10px;
-  gap: 10px;
   align-items: center;
-  border-radius: 14px;
-  border: 1px solid rgba(148, 163, 184, 0.6);
-  background: rgba(255, 255, 255, 0.96);
-  box-shadow: 0 10px 26px rgba(15, 23, 42, 0.18);
+  justify-content: center;
+  box-sizing: border-box;
+  min-width: 44px;
+  max-width: 120px;
+  height: 26px;
+  padding: 0 8px;
+  border-radius: 5px;
+  background: linear-gradient(180deg, #f6e9d2 0%, #e7d3ae 100%);
+  border: 1px solid rgba(140, 106, 62, 0.45);
+  box-shadow: 0 2px 4px rgba(76, 53, 22, 0.2);
   pointer-events: auto;
+  z-index: 20;
 }
 
-.shop-side-north .shop-simple-banner {
-  transform: translateX(calc(-50% + 10px));
-}
-
-.shop-side-south .shop-simple-banner {
-  transform: translateX(calc(-50% - 10px));
-  flex-direction: row-reverse;
-}
-
-.shop-simple-banner-image {
-  width: 56px;
-  height: 56px;
-  border-radius: 12px;
-  overflow: hidden;
-  border: 1px solid rgba(148, 163, 184, 0.45);
-  background: #f1f5f9;
-  flex-shrink: 0;
-}
-
-.shop-simple-banner-image img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
-}
-
-.shop-simple-banner-body {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  min-width: 0;
-}
-
-.shop-simple-banner-name {
-  font-size: 13px;
+.shop-nameplate-text {
+  max-width: 104px;
+  font-size: 11px;
+  line-height: 1;
   font-weight: 700;
-  color: #1f2937;
+  color: #4a3826;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.shop-simple-banner-name-hidden .shop-simple-banner-name {
-  display: none;
+/*
+ * 木札は屋台の真下ではなく「道の外側」へ出す。
+ *
+ * 店は道沿いに並ぶため、道に沿った方向（屋台の縦間隔）は約67px しかなく、
+ * 屋台の高さ54px を引くと隙間は13px。高さ26px の木札を真下に置くと
+ * 必ず隣の店の屋台に被る。一方、道の幅方向には余白があるので
+ * そちらへ逃がす。北側の店は北へ、南側の店は南へ。
+ *
+ * 地図の回転は .shop-marker-container が打ち消すので、
+ * 回転しても木札は常に道の外側に留まる。
+ */
+.shop-side-north .shop-nameplate,
+.shop-side-south .shop-nameplate {
+  top: 50%;
+  left: auto;
+  right: auto;
 }
 
-.shop-simple-banner-name-hidden .shop-simple-banner-body {
-  display: none;
+.shop-side-north .shop-nameplate {
+  left: calc(100% + 4px);
+  transform: translateY(-50%);
+}
+
+.shop-side-south .shop-nameplate {
+  right: calc(100% + 4px);
+  transform: translateY(-50%);
 }
 
 .shop-simple-banner-name-hidden .shop-simple-banner {
@@ -702,11 +737,31 @@ body.grandma-chat-open .leaflet-container {
   }
 }
 
+/*
+ * バッジは LOD の加算方式で出す（ズームインするほど増える）。
+ * かつては木札（当時はバナー）が出ると全バッジを display:none していたため、
+ * 近づくほど目印が消えるという逆転が起きていた。
+ *
+ * ことづては最も伝えたい情報なので LOD 条件なし。
+ */
 .shop-marker-kotodute .shop-kotodute-badge {
   display: inline-flex;
 }
 
-.custom-shop-marker.is-favorite .shop-favorite-badge {
+.shop-lod-photo.is-favorite .shop-favorite-badge,
+.shop-lod-nameplate.is-favorite .shop-favorite-badge,
+.compact-shop-marker.is-favorite .shop-favorite-badge {
+  display: inline-flex;
+}
+
+/* 屋根上の写真は photo 以上で出す */
+.shop-lod-photo .shop-product-icon,
+.shop-lod-nameplate .shop-product-icon {
+  display: block;
+}
+
+/* 木札は nameplate のみ */
+.shop-lod-nameplate .shop-nameplate {
   display: inline-flex;
 }
 
@@ -735,7 +790,9 @@ body.grandma-chat-open .leaflet-container {
   right: auto;
 }
 
-.shop-marker-bag .shop-bag-badge {
+.shop-lod-photo.shop-marker-bag .shop-bag-badge,
+.shop-lod-nameplate.shop-marker-bag .shop-bag-badge,
+.compact-shop-marker.shop-marker-bag .shop-bag-badge {
   display: inline-flex;
 }
 
@@ -755,10 +812,6 @@ body.grandma-chat-open .leaflet-container {
 .shop-marker-bag .shop-marker-compact {
   background: linear-gradient(180deg, #10b981 0%, #059669 100%) !important;
   border: 2px solid #ffffff;
-}
-
-.shop-simple-banner-visible .shop-bag-badge {
-  display: none !important;
 }
 
 body.shop-banner-open .hamburger-button {
@@ -1062,6 +1115,47 @@ body.home-poster-zoom-open .hamburger-button {
   height: 12%;
   background:
     linear-gradient(90deg, #8b5e34 0 12%, transparent 12% 44%, #8b5e34 44% 56%, transparent 56% 88%, #8b5e34 88% 100%);
+}
+
+/*
+ * 出店しない予定の店。
+ *
+ * 色の優先順位は「状態色（選択/AI/検索/買い物袋）> 休業グレー > カテゴリ色」。
+ * カテゴリ色は .shop-marker-container に style="--stall-color:…" で入るので、
+ * ここでイラスト要素**自身**に変数を再定義すると継承を遮断して上書きできる
+ * （!important は不要）。状態色は var() を経由せず background を直接
+ * !important で塗るので、常にこの上に来る。
+ *
+ * opacity は下げない。消えかけて見えると不安を誘うため、彩度だけ落として静かに引く。
+ */
+.shop-marker-closed .shop-illustration-3d {
+  --stall-color: #b9b4ac;
+  --stall-color-dark: #9a948b;
+  --stall-color-light: #d4cfc7;
+  filter: saturate(0.25);
+}
+
+/* カウンターと脚はカテゴリ色ではなく固定色なので個別に沈める */
+.shop-marker-closed .stall-counter {
+  background: linear-gradient(135deg, #c8c2b8, #ada69b);
+}
+
+.shop-marker-closed .stall-legs {
+  background:
+    linear-gradient(90deg, #9c948a 0 12%, transparent 12% 44%, #9c948a 44% 56%, transparent 56% 88%, #9c948a 88% 100%);
+}
+
+.shop-marker-closed .shop-marker-compact {
+  background: linear-gradient(180deg, #c8c2b8 0%, #9a948b 100%);
+}
+
+.shop-marker-closed .shop-nameplate {
+  background: linear-gradient(180deg, #efece7 0%, #dfdbd4 100%);
+  border-color: rgba(120, 115, 108, 0.4);
+}
+
+.shop-marker-closed .shop-nameplate-text {
+  color: #7c766e;
 }
 
 .grandma-scroll-retracting {

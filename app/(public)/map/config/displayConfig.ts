@@ -65,6 +65,75 @@ export const DEFAULT_ILLUSTRATION_SIZE: 'small' | 'medium' | 'large' =
   'medium';
 
 /**
+ * DivIcon のアンカー（店舗座標に対してイラストのどこを合わせるか）。
+ *
+ * 屋台の足元中央を店舗座標に合わせる。これにより
+ * transform-origin: center bottom の原点と店舗座標が一致し、
+ * ズームでスケールが変わっても屋台の足が地面から動かない。
+ */
+export function getIllustrationAnchor(
+  size: 'small' | 'medium' | 'large'
+): [number, number] {
+  const s = ILLUSTRATION_SIZES[size];
+  return [s.width / 2, s.height];
+}
+
+/**
+ * 店舗マーカーの表示段階（LOD）
+ *
+ * - dot:       棒状の簡易アイコン。密集帯で「店がある」ことだけ伝える
+ * - stall:     屋台イラストのみ。カテゴリ色で「どんな店が並ぶか」の雰囲気
+ * - photo:     ＋ 屋根上の写真アイコン
+ * - nameplate: ＋ 木札（店名）。どの店かを特定する
+ */
+export type ShopMarkerLod = 'dot' | 'stall' | 'photo' | 'nameplate';
+
+/**
+ * LOD の境界を map.getMaxZoom() からのオフセットで定義する。
+ *
+ * 絶対ズーム値で書かないのは、メインマップ（maxZoom=21）と
+ * map-edit のプレビュー（maxZoom=20）で同じ段階構成を成立させるため。
+ * 絶対値にすると片方で段階が丸ごと到達不能になる。
+ */
+export const SHOP_MARKER_LOD_OFFSETS = {
+  stall: -2.0,
+  photo: -1.4,
+  nameplate: -0.8,
+} as const;
+
+/**
+ * 境界判定の許容誤差。
+ * zoom - maxZoom は浮動小数点演算なので、境界ちょうど（例 20.2 と 21）でも
+ * -0.8000000000000007 のようにわずかに下振れする。zoomSnap 0.05 の刻みでは
+ * 境界に乗ることが実際にあるため、誤差を吸収しないと段階が揺れる。
+ */
+const LOD_EPSILON = 1e-6;
+
+export function getShopMarkerLod(zoom: number, maxZoom: number): ShopMarkerLod {
+  const d = zoom - maxZoom;
+  if (d >= SHOP_MARKER_LOD_OFFSETS.nameplate - LOD_EPSILON) return 'nameplate';
+  if (d >= SHOP_MARKER_LOD_OFFSETS.photo - LOD_EPSILON) return 'photo';
+  if (d >= SHOP_MARKER_LOD_OFFSETS.stall - LOD_EPSILON) return 'stall';
+  return 'dot';
+}
+
+/**
+ * ズームに応じたマーカーの倍率。
+ *
+ * maxZoom で 1.0、maxZoom-2.0 で 0.6 の線形補間。
+ * 旧実装は 0.6 / 0.8 / 1.0 の3段の階段で、さらに 19.7〜19.8 だけ ×1.1 という
+ * 根拠のない突起があり、ズームするとマーカーが飛んで見えていた。
+ *
+ * 0.05 刻みに量子化することで、zoomSnap 0.05 の細かいステップでも
+ * DOM への書き込みが最大9回（0.60〜1.00）に収まる。
+ */
+export function getShopMarkerScale(zoom: number, maxZoom: number): number {
+  const raw = 1 - (maxZoom - zoom) * 0.2;
+  const clamped = Math.min(1, Math.max(0.6, raw));
+  return Math.round(clamped * 20) / 20;
+}
+
+/**
  * ズームレベルごとの表示ルール
  */
 export interface ZoomDisplayRule {
