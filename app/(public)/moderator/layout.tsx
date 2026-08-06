@@ -9,7 +9,7 @@ export default async function ModeratorLayout({ children }: { children: ReactNod
   const { data: { user } } = await supabase.auth.getUser();
 
   const role = (user?.app_metadata as { role?: string } | undefined)?.role;
-  const isAllowed = role === "super_admin" || role === "admin" || role === "moderator";
+  const isAllowed = role === "admin" || role === "moderator";
 
   if (!user || !isAllowed) {
     redirect("/");

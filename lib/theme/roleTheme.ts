@@ -7,7 +7,7 @@
  * - 将来 role が増えても、ここに追加するだけで対応可能
  *
  * 【色の選定基準】
- * - super_admin: 赤系 → 公的管理者、落ち着いた赤（警告色にならないようトーン調整）
+ * - admin: 赤系 → 公的管理者、落ち着いた赤（警告色にならないようトーン調整）
  * - vendor: 青系 → 信頼感と親しみやすさの両立、派手すぎない青
  * - general_user: アンバー系 → デフォルトテーマ（未ログイン時と同じ）
  * - default（未ログイン）: アンバー系 → プロジェクトのデフォルトカラー
@@ -51,22 +51,11 @@ export interface RoleTheme {
  */
 export const ROLE_THEMES: Record<UserRole, RoleTheme> = {
   /**
-   * スーパー管理者テーマ（高知市・高専）
+   * 管理者テーマ（高知市・高専）
    * - 赤系のグラデーション（落ち着いたトーン）
    * - 公的管理者であることが直感的に分かる
    * - 警告色にならないよう rose を混ぜて柔らかく調整
    */
-  super_admin: {
-    headerBg: 'bg-gradient-to-r from-red-700 via-rose-600 to-red-700',
-    headerText: 'text-white',
-    accent: {
-      bg: 'bg-red-600',
-      text: 'text-white',
-      hoverBg: 'hover:bg-red-700',
-    },
-    description: '管理者テーマ（赤系・公的管理者）',
-  },
-
   admin: {
     headerBg: 'bg-gradient-to-r from-red-600 via-rose-500 to-red-600',
     headerText: 'text-white',
@@ -155,7 +144,7 @@ export const DEFAULT_THEME: RoleTheme = {
  *
  * @example
  * ```typescript
- * const theme = getRoleTheme('super_admin');
+ * const theme = getRoleTheme('admin');
  * // => { headerBg: 'bg-gradient-to-r from-blue-700...', ... }
  * ```
  */

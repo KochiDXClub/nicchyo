@@ -115,7 +115,7 @@ export default function HamburgerMenu() {
                       <MenuIcon name="user" className="h-3.5 w-3.5 text-amber-700" />
                       一般ユーザー
                     </span>
-                    {permissions.isSuperAdmin && (
+                    {permissions.isAdmin && (
                       <span className="rounded-full bg-red-500 px-2 py-0.5 text-[10px] font-semibold text-white">
                         管理者
                       </span>
@@ -145,7 +145,7 @@ export default function HamburgerMenu() {
             <ul className="space-y-2">
               {isLoggedIn ? (
                 <>
-                  {permissions.isSuperAdmin && (
+                  {permissions.isAdmin && (
                     <>
                       <li>
                         <div className="rounded-lg bg-red-50 px-3 py-2 mb-2">
@@ -289,7 +289,7 @@ export default function HamburgerMenu() {
                     </>
                   )}
 
-                  {permissions.isModerator && !permissions.isSuperAdmin && (
+                  {permissions.isModerator && !permissions.isAdmin && (
                     <>
                       <li>
                         <div className="rounded-lg bg-purple-50 px-3 py-2 mb-2">

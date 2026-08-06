@@ -25,7 +25,7 @@ function formatDate(iso: string) {
 export default function NotificationsPage() {
   const { permissions, isLoading: authLoading } = useAuth();
   const router = useRouter();
-  const canAccess = permissions.isSuperAdmin || permissions.canModerateContent;
+  const canAccess = permissions.isAdmin || permissions.canModerateContent;
 
   const { notifications, unreadCount, markAllRead } = useAdminNotifications(canAccess);
 

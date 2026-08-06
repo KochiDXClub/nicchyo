@@ -36,10 +36,10 @@ export default function AdminEventsPage() {
 
   useEffect(() => {
     if (isLoading) return;
-    if (!permissions.isSuperAdmin) {
+    if (!permissions.isAdmin) {
       router.push("/");
     }
-  }, [isLoading, permissions.isSuperAdmin, router]);
+  }, [isLoading, permissions.isAdmin, router]);
 
   const fetchEvents = useCallback(async () => {
     setLoading(true);
@@ -56,9 +56,9 @@ export default function AdminEventsPage() {
   }, [showAll]);
 
   useEffect(() => {
-    if (!permissions.isSuperAdmin) return;
+    if (!permissions.isAdmin) return;
     void fetchEvents();
-  }, [fetchEvents, permissions.isSuperAdmin]);
+  }, [fetchEvents, permissions.isAdmin]);
 
   const openCreate = () => {
     setEditingEvent(null);
