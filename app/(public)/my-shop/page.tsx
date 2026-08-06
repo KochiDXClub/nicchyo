@@ -9,6 +9,7 @@ import { useAuth } from "@/lib/auth/AuthContext";
 import { fetchVendorStore } from "@/app/vendor/_services/storeService";
 import { fetchVendorPosts } from "@/app/vendor/_services/postsService";
 import type { Post } from "@/app/vendor/_types";
+import ClosedDaysCalendar from "@/components/vendor/ClosedDaysCalendar";
 
 type SetupStep = {
   label: string;
@@ -21,7 +22,6 @@ type Summary = {
   productCount: number;
   scheduleCount: number;
   postCount: number;
-  hasPhoto: boolean;
 };
 
 // 今日から次の日曜市（毎週日曜開催）までの日数。0なら当日。
@@ -49,7 +49,6 @@ export default function MyShopPage() {
           productCount: store?.main_products.length ?? 0,
           scheduleCount: store?.schedule.length ?? 0,
           postCount: posts.length,
-          hasPhoto: !!store?.shop_image_url,
         });
 
         if (!store) return;
@@ -215,6 +214,24 @@ export default function MyShopPage() {
                   <span className="text-xs font-semibold text-slate-500">{s.label}</span>
                 </div>
               ))}
+            </div>
+          </Reveal>
+        )}
+
+        {/* 出店しない日（日曜帯・ホームでは簡易版） */}
+        {user?.id && (
+          <Reveal reduceMotion={reduceMotion} className="mb-6">
+            <div>
+              <ClosedDaysCalendar vendorId={user.id} variant="strip" />
+              <div className="mt-2 text-right">
+                <Link
+                  href="/my-shop/schedule"
+                  className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-white/80 px-3 py-1.5 text-xs font-bold text-amber-700 shadow-sm backdrop-blur-sm transition active:scale-95"
+                >
+                  カレンダーで編集
+                  <ChevronRight size={14} />
+                </Link>
+              </div>
             </div>
           </Reveal>
         )}
