@@ -25,10 +25,10 @@ export default function AdminCategoriesPage() {
 
   useEffect(() => {
     if (isLoading) return;
-    if (!permissions.isSuperAdmin) {
+    if (!permissions.isAdmin) {
       router.push("/");
     }
-  }, [isLoading, permissions.isSuperAdmin, router]);
+  }, [isLoading, permissions.isAdmin, router]);
 
   const fetchCategories = useCallback(async () => {
     setLoading(true);
@@ -45,9 +45,9 @@ export default function AdminCategoriesPage() {
   }, []);
 
   useEffect(() => {
-    if (!permissions.isSuperAdmin) return;
+    if (!permissions.isAdmin) return;
     void fetchCategories();
-  }, [fetchCategories, permissions.isSuperAdmin]);
+  }, [fetchCategories, permissions.isAdmin]);
 
   const handleAdd = async () => {
     const name = newName.trim();

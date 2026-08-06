@@ -9,33 +9,37 @@ vi.mock('../../../lib/auth/AuthContext', () => ({
   useAuth: vi.fn(),
 }));
 
+function mockUser(user: Partial<NonNullable<ReturnType<typeof useAuth>['user']>> | null | undefined) {
+  vi.mocked(useAuth).mockReturnValue({ user } as unknown as ReturnType<typeof useAuth>);
+}
+
 describe('useRoleTheme hook', () => {
-  it('returns super_admin theme when user role is super_admin', () => {
-    (useAuth as any).mockReturnValue({ user: { role: 'super_admin' } });
+  it('returns admin theme when user role is admin', () => {
+    mockUser({ role: 'admin' });
     const { result } = renderHook(() => useRoleTheme());
-    expect(result.current).toEqual(ROLE_THEMES.super_admin);
+    expect(result.current).toEqual(ROLE_THEMES.admin);
   });
 
   it('returns vendor theme when user role is vendor', () => {
-    (useAuth as any).mockReturnValue({ user: { role: 'vendor' } });
+    mockUser({ role: 'vendor' });
     const { result } = renderHook(() => useRoleTheme());
     expect(result.current).toEqual(ROLE_THEMES.vendor);
   });
 
   it('returns general_user theme when user role is general_user', () => {
-    (useAuth as any).mockReturnValue({ user: { role: 'general_user' } });
+    mockUser({ role: 'general_user' });
     const { result } = renderHook(() => useRoleTheme());
     expect(result.current).toEqual(ROLE_THEMES.general_user);
   });
 
   it('returns DEFAULT_THEME when user is null', () => {
-    (useAuth as any).mockReturnValue({ user: null });
+    mockUser(null);
     const { result } = renderHook(() => useRoleTheme());
     expect(result.current).toEqual(DEFAULT_THEME);
   });
 
   it('returns DEFAULT_THEME when user is undefined', () => {
-    (useAuth as any).mockReturnValue({ user: undefined });
+    mockUser(undefined);
     const { result } = renderHook(() => useRoleTheme());
     expect(result.current).toEqual(DEFAULT_THEME);
   });

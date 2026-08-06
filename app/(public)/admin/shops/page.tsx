@@ -40,10 +40,10 @@ function AdminShopsContent() {
 
   useEffect(() => {
     if (isLoading) return;
-    if (!permissions.isSuperAdmin) {
+    if (!permissions.isAdmin) {
       router.push("/");
     }
-  }, [isLoading, permissions.isSuperAdmin, router]);
+  }, [isLoading, permissions.isAdmin, router]);
 
   const loadShops = useCallback(async () => {
     setFetchLoading(true);
@@ -61,10 +61,10 @@ function AdminShopsContent() {
   }, []);
 
   useEffect(() => {
-    if (!isLoading && permissions.isSuperAdmin) {
+    if (!isLoading && permissions.isAdmin) {
       loadShops();
     }
-  }, [isLoading, permissions.isSuperAdmin, loadShops]);
+  }, [isLoading, permissions.isAdmin, loadShops]);
 
   // ユニークカテゴリー
   const uniqueCategories = useMemo(() => {
@@ -242,7 +242,7 @@ function AdminShopsContent() {
     { key: "?", description: "ショートカット一覧を表示", action: () => setShowShortcutHelp(true) },
   ]);
 
-  if (isLoading || !permissions.isSuperAdmin) {
+  if (isLoading || !permissions.isAdmin) {
     return null;
   }
 

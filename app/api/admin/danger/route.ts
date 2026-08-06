@@ -29,7 +29,7 @@ export async function POST(request: Request) {
       data: { user },
     } = await supabase.auth.getUser();
 
-    if (!user || getRole(user) !== "super_admin") {
+    if (!user || getRole(user) !== "admin") {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 

@@ -53,8 +53,8 @@ export default function AdminContentPage() {
 
   useEffect(() => {
     if (authLoading) return;
-    if (!permissions.isSuperAdmin) router.push("/");
-  }, [authLoading, permissions.isSuperAdmin, router]);
+    if (!permissions.isAdmin) router.push("/");
+  }, [authLoading, permissions.isAdmin, router]);
 
   const load = useCallback(async () => {
     setIsLoading(true);
@@ -83,7 +83,7 @@ export default function AdminContentPage() {
     }
   }, []);
 
-  useEffect(() => { if (!authLoading && permissions.isSuperAdmin) load(); }, [authLoading, permissions.isSuperAdmin, load]);
+  useEffect(() => { if (!authLoading && permissions.isAdmin) load(); }, [authLoading, permissions.isAdmin, load]);
 
   const handleDelete = useCallback(async (id: string, shopName: string) => {
     if (!confirm(`「${shopName}」の投稿を削除しますか？`)) return;
@@ -121,7 +121,7 @@ export default function AdminContentPage() {
     expired: contents.filter((c) => c.status === "expired").length,
   }), [contents]);
 
-  if (authLoading || !permissions.isSuperAdmin) return null;
+  if (authLoading || !permissions.isAdmin) return null;
 
   return (
     <AdminLayout>

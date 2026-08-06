@@ -77,8 +77,8 @@ export default function AuditLogsPage() {
 
   useEffect(() => {
     if (authLoading) return;
-    if (!permissions.isSuperAdmin) router.push("/");
-  }, [authLoading, permissions.isSuperAdmin, router]);
+    if (!permissions.isAdmin) router.push("/");
+  }, [authLoading, permissions.isAdmin, router]);
 
   const load = useCallback(async () => {
     setIsLoading(true);
@@ -96,8 +96,8 @@ export default function AuditLogsPage() {
   }, []);
 
   useEffect(() => {
-    if (!authLoading && permissions.isSuperAdmin) load();
-  }, [authLoading, permissions.isSuperAdmin, load]);
+    if (!authLoading && permissions.isAdmin) load();
+  }, [authLoading, permissions.isAdmin, load]);
 
   const filtered = useMemo(() => {
     const now = new Date();
@@ -163,7 +163,7 @@ export default function AuditLogsPage() {
     exportToJSON(filtered, `audit_logs_${formatDateForFilename()}.json`);
   };
 
-  if (authLoading || !permissions.isSuperAdmin) return null;
+  if (authLoading || !permissions.isAdmin) return null;
 
   return (
     <AdminLayout>
