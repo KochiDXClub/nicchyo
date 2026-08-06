@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useMemo, useState, useEffect, useRef } from "react";
+import React, { createContext, useContext, useMemo, useState, useEffect, useRef, useCallback } from "react";
 import { usePathname } from "next/navigation";
 import NavigationBar from "./NavigationBar";
 
@@ -30,7 +30,7 @@ export default function MapLoadingProvider({ children }: { children: React.React
   const startedAtRef = useRef<number | null>(null);
   const stopTimerRef = useRef<number | null>(null);
 
-  const scheduleStop = () => {
+  const scheduleStop = useCallback(() => {
     if (stopTimerRef.current !== null) {
       window.clearTimeout(stopTimerRef.current);
       stopTimerRef.current = null;
@@ -45,21 +45,21 @@ export default function MapLoadingProvider({ children }: { children: React.React
       startedAtRef.current = null;
       stopTimerRef.current = null;
     }, remaining);
-  };
+  }, [isMapLoading]);
 
   useEffect(() => {
     if (!isMapLoading) return;
     if (isMapReady) {
       scheduleStop();
     }
-  }, [isMapLoading, isMapReady]);
+  }, [isMapLoading, isMapReady, scheduleStop]);
 
   useEffect(() => {
     if (!isMapLoading) return;
     if (pathname && !pathname.startsWith("/map")) {
       scheduleStop();
     }
-  }, [pathname, isMapLoading]);
+  }, [pathname, isMapLoading, scheduleStop]);
 
   const value = useMemo(
     () => ({
@@ -83,7 +83,7 @@ export default function MapLoadingProvider({ children }: { children: React.React
         scheduleStop();
       },
     }),
-    [isMapLoading, pathname]
+    [isMapLoading, pathname, scheduleStop]
   );
 
   return (

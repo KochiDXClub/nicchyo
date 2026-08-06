@@ -4,7 +4,6 @@ export const dynamic = "force-dynamic";
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import NavigationBar from "@/app/components/NavigationBar";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { fetchAllProductSales, fetchProductSearchTrends } from "../../_services/analyticsService";
 import type { ProductSale, SearchKeywordTrend } from "../../_types";
@@ -179,7 +178,6 @@ export default function ProductAnalyticsPage() {
           </>
         )}
       </div>
-      <NavigationBar />
     </div>
   );
 }

@@ -666,6 +666,30 @@ body.grandma-chat-open .leaflet-container {
   transform: translateY(-50%);
 }
 
+.shop-simple-banner-name-hidden .shop-simple-banner {
+  width: 108px;
+  padding: 4px;
+  border-radius: 10px;
+  gap: 0;
+}
+
+.shop-simple-banner-name-hidden .shop-simple-banner-image {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+}
+
+.shop-simple-banner-visible .shop-simple-banner {
+  display: flex;
+}
+
+.shop-simple-banner-visible .shop-recipe-icons,
+.shop-simple-banner-visible .shop-kotodute-badge,
+.shop-simple-banner-visible .shop-favorite-badge,
+.shop-simple-banner-visible .shop-product-icon {
+  display: none !important;
+}
+
 .shop-side-south .shop-kotodute-badge {
   left: auto;
   right: -36px;

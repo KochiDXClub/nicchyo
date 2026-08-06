@@ -4,6 +4,7 @@
 import React, { memo, useEffect, useMemo, useState, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { motion, useDragControls } from "framer-motion";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -29,6 +30,7 @@ import type { Shop } from "../data/shops";
 import { getSmartSuggestions } from "../utils/suggestionGenerator";
 import { getShopBannerImage } from "@/lib/shopImages";
 import { saveAiMapPayload } from "@/lib/searchMapStorage";
+import { generateItinerary, type ItineraryPlan } from "@/lib/itinerary";
 import { useAvatarDrag } from "../../../../lib/hooks/useAvatarDrag";
 const ROTATE_MS = 6500;
 const EXAMPLE_ROTATE_MS = 4500;
@@ -63,6 +65,8 @@ type ChatMessage = {
   followUpQuestion?: string;
   consultId?: string;
   turnIndex?: number;
+  plan?: ItineraryPlan;
+  planText?: string;
 };
 
 type GrandmaChatterProps = {
@@ -110,6 +114,199 @@ type GrandmaChatterProps = {
   onCommentSeen?: (id: string, genre: string) => void;
   embedded?: boolean;
 };
+
+// ─── おさんぽプランの質問カード ──────────────────────────────────────────────
+// 全問選択式（#392「選択式の質問・3問まで」）。自由入力は使わない
+const WALK_PLAN_INTERESTS = [
+  { emoji: "🍡", label: "食べ歩き" },
+  { emoji: "🥬", label: "旬の野菜・果物" },
+  { emoji: "🎨", label: "工芸・手しごと" },
+  { emoji: "🌿", label: "花・植物" },
+  { emoji: "🎁", label: "お土産さがし" },
+] as const;
+
+const WALK_PLAN_PACE_OPTIONS = [
+  { id: "quick", label: "さくっと", desc: "2軒・30分ほど", stops: 2 },
+  { id: "normal", label: "ほどよく", desc: "4軒・1時間ほど", stops: 4 },
+  { id: "deep", label: "じっくり", desc: "6軒・2時間ほど", stops: 6 },
+] as const;
+
+type WalkPlanPaceId = (typeof WALK_PLAN_PACE_OPTIONS)[number]["id"];
+
+// ─── おさんぽプランのルーズリーフ風カード ─────────────────────────────────────
+// 罫線に本文の行送りを合わせるため、行の高さと背景の縞をこの定数で共有する
+const LOOSELEAF_LINE_PX = 26;
+
+function ItineraryLooseleafCard({
+  messageId,
+  plan,
+  planText,
+  resolveShopName,
+  resolveShop,
+  onSelectShop,
+  onStartConsult,
+  isExpanded,
+  onToggle,
+  onShowRoute,
+}: {
+  messageId: string;
+  plan: ItineraryPlan;
+  planText?: string;
+  resolveShopName: (shopId: number) => string | undefined;
+  resolveShop?: (shopId: number) => Shop | undefined;
+  onSelectShop?: (shopId: number, shop?: Shop) => void;
+  onStartConsult?: (shop: Shop) => void;
+  isExpanded: (planIndex: number) => boolean;
+  onToggle: (planIndex: number) => void;
+  onShowRoute: () => void;
+}) {
+  const hasRealShops = plan.shops.some((s) => s.id > 0);
+  return (
+    <div className="relative mt-4 -rotate-[0.6deg]">
+      {/* マスキングテープ */}
+      <div
+        aria-hidden
+        className="absolute -top-2.5 left-1/2 z-10 h-5 w-20 -translate-x-1/2 rotate-[-3deg] rounded-[2px] bg-amber-300/70 shadow-sm"
+        style={{ backdropFilter: "blur(1px)" }}
+      />
+      <div
+        className="relative overflow-hidden rounded-[6px] border border-slate-200/80 pb-4 pl-12 pr-4 shadow-[0_14px_28px_rgba(15,23,42,0.16),0_2px_6px_rgba(15,23,42,0.08)]"
+        style={{
+          backgroundColor: "#fdfcf7",
+          backgroundImage: [
+            // 左端の赤いマージン線
+            "linear-gradient(to right, transparent 38px, rgba(244,114,140,0.45) 38px, rgba(244,114,140,0.45) 39px, transparent 39px)",
+            // 大学ノート風の水色罫線（行送りと同じピッチ）
+            `repeating-linear-gradient(to bottom, transparent 0px, transparent ${LOOSELEAF_LINE_PX - 1}px, rgba(125,170,205,0.35) ${LOOSELEAF_LINE_PX - 1}px, rgba(125,170,205,0.35) ${LOOSELEAF_LINE_PX}px)`,
+          ].join(","),
+          backgroundPositionY: "8px",
+        }}
+      >
+        {/* パンチ穴 */}
+        <div
+          aria-hidden
+          className="pointer-events-none absolute bottom-3 left-3 top-3 flex flex-col justify-between"
+        >
+          {[0, 1, 2].map((i) => (
+            <span
+              key={i}
+              className="block h-3.5 w-3.5 rounded-full bg-white ring-1 ring-slate-300/90 shadow-[inset_0_1.5px_2.5px_rgba(15,23,42,0.2)]"
+            />
+          ))}
+        </div>
+
+        <div className="pt-[8px]">
+          {/* タイトル行（1行目の罫線に乗せる） */}
+          <p
+            className="truncate text-[17px] font-black tracking-wide text-slate-900"
+            style={{ lineHeight: `${LOOSELEAF_LINE_PX * 2}px` }}
+          >
+            <span aria-hidden className="mr-1.5">🚶</span>
+            {plan.title}
+          </p>
+          {plan.summary && (
+            <p
+              className="truncate text-[12px] font-medium text-slate-500"
+              style={{ lineHeight: `${LOOSELEAF_LINE_PX}px` }}
+            >
+              テーマ: {plan.summary}
+            </p>
+          )}
+
+          {/* タイムライン（1立ち寄り=罫線1行） */}
+          <ol className="mt-0">
+            {plan.shops.map((s, planIndex) => {
+              const expanded = isExpanded(planIndex);
+              const resolvedName = s.name ?? resolveShopName(s.id) ?? `立ち寄り${planIndex + 1}`;
+              const resolvedShop = resolveShop?.(s.id);
+
+              return (
+                <li
+                  key={`${messageId}-${s.id}-${planIndex}`}
+                  className="rounded-[1rem] bg-white/35 px-2 py-1.5"
+                  style={{ lineHeight: `${LOOSELEAF_LINE_PX}px` }}
+                >
+                  <div className="shrink-0 text-[12px] font-semibold tabular-nums text-slate-500">
+                    {s.time}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => onToggle(planIndex)}
+                    className="group mt-0.5 flex w-full items-center gap-1.5 text-left"
+                    aria-expanded={expanded}
+                    aria-label={`${resolvedName} の詳細を${expanded ? "閉じる" : "開く"}`}
+                  >
+                    <span className="inline-block w-4 shrink-0 text-right text-[12px] font-bold text-rose-400">
+                      {planIndex + 1}.
+                    </span>
+                    <span className="min-w-0 truncate text-[14px] font-semibold text-slate-800 group-hover:text-slate-950">
+                      {resolvedName}
+                    </span>
+                    <span className="ml-auto shrink-0 text-[11px] font-semibold text-amber-700">
+                      {expanded ? "閉じる" : "詳しく"}
+                    </span>
+                  </button>
+
+                  {expanded && (
+                    <motion.div
+                      key={`${messageId}-${s.id}-${planIndex}-card`}
+                      initial={{ opacity: 0, y: -4 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
+                      className="mt-2 pl-6"
+                    >
+                      {resolvedShop ? (
+                        <ConsultShopSuggestionCard
+                          shop={resolvedShop}
+                          onSelectShop={onSelectShop}
+                          onStartConsult={onStartConsult}
+                        />
+                      ) : (
+                        <div className="rounded-[1rem] border border-dashed border-amber-200 bg-amber-50/70 px-3 py-2 text-[12px] text-slate-500">
+                          このお店の詳細カードはまだ読み込めていません。
+                        </div>
+                      )}
+                    </motion.div>
+                  )}
+                </li>
+              );
+            })}
+          </ol>
+
+          {/* AIのメモ全文（折りたたみ） */}
+          {planText && (
+            <details className="mt-0" style={{ lineHeight: `${LOOSELEAF_LINE_PX}px` }}>
+              <summary className="cursor-pointer select-none text-[11px] font-semibold text-slate-400 transition hover:text-slate-600">
+                ✎ AIのメモをひらく
+              </summary>
+              <pre
+                className="whitespace-pre-wrap font-sans text-[11px] text-slate-500"
+                style={{ lineHeight: `${LOOSELEAF_LINE_PX}px` }}
+              >
+                {planText}
+              </pre>
+            </details>
+          )}
+
+          {/* アクション */}
+          <div className="mt-2 flex items-center justify-end gap-2">
+            {!hasRealShops && (
+              <span className="text-[10px] text-slate-400">お店の特定ができんかったき、地図には出せんがよ</span>
+            )}
+            <button
+              type="button"
+              onClick={onShowRoute}
+              disabled={!hasRealShops}
+              className="rounded-full bg-amber-500 px-4 py-2 text-[13px] font-bold text-white shadow-pop transition hover:bg-amber-600 active:scale-95 disabled:bg-slate-200 disabled:text-slate-400 disabled:shadow-none"
+            >
+              🗺️ ルートを見る
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 // ─── キャラクター相談中アニメーション ────────────────────────────────────────
 const EMOTION_SYMBOLS = ["!", "?", "!!", "！？", "?!", "？"];
@@ -267,6 +464,45 @@ const GrandmaChatter = memo(function GrandmaChatter({
   const chatStorageKeyRef = useRef<string | null>(null);
   const [isSpeechSupported, setIsSpeechSupported] = useState(false);
   const [isListening, setIsListening] = useState(false);
+  // 生成した画像プレビューの ObjectURL を追跡し、メモリリークを防ぐ。
+  // 送信済みのURLはチャットメッセージ/再送信で使い続けるため即revokeせず、
+  // アンマウント時にまとめて解放する。未送信のまま差し替え/取消したURLは即revokeする。
+  const objectUrlsRef = useRef<Set<string>>(new Set());
+  const createPreviewUrl = (file: File) => {
+    const url = URL.createObjectURL(file);
+    objectUrlsRef.current.add(url);
+    return url;
+  };
+  const revokePreviewUrl = (url: string | null | undefined) => {
+    if (url && objectUrlsRef.current.has(url)) {
+      URL.revokeObjectURL(url);
+      objectUrlsRef.current.delete(url);
+    }
+  };
+  useEffect(() => {
+    const urls = objectUrlsRef.current;
+    return () => {
+      urls.forEach((u) => URL.revokeObjectURL(u));
+      urls.clear();
+    };
+  }, []);
+  // Walk plan modal / quick flow states
+  const [showWalkPlanModal, setShowWalkPlanModal] = useState(false);
+  const walkPlanDragControls = useDragControls();
+  const [showPlusMenu, setShowPlusMenu] = useState(false);
+  const plusMenuRef = useRef<HTMLDivElement | null>(null);
+  // AIが店を薦めた後に出す「おさんぽプランを立てる」ナッジ（会話ごとに1回だけ）
+  const [walkPlanNudgeUsed, setWalkPlanNudgeUsed] = useState(false);
+  const [expandedItineraryItemKeys, setExpandedItineraryItemKeys] = useState<Set<string>>(new Set());
+  // おさんぽプランAPIが返した候補店舗（完全な Shop）。shopLookup にマージして
+  // 旅程カードの「詳しく」展開で ConsultShopSuggestionCard が解決できるようにする
+  const [walkPlanShops, setWalkPlanShops] = useState<Shop[]>([]);
+  const [walkPlanQuestionAnswers, setWalkPlanQuestionAnswers] = useState<{
+    pace: WalkPlanPaceId;
+    useTime: boolean;
+    time: string;
+    interests: string[];
+  }>({ pace: "normal", useTime: false, time: "10:00", interests: [] });
   const [ratedMessageIds, setRatedMessageIds] = useState<Set<string>>(new Set());
   const [thumbsDownOpenId, setThumbsDownOpenId] = useState<string | null>(null);
   const [thumbsDownComments, setThumbsDownComments] = useState<Record<string, string>>({});
@@ -344,6 +580,17 @@ const GrandmaChatter = memo(function GrandmaChatter({
     }
     setSmartContext({ placeholder, chip });
   }, []);
+
+  useEffect(() => {
+    if (!showPlusMenu) return;
+    const handleClickOutside = (event: MouseEvent) => {
+      if (plusMenuRef.current && !plusMenuRef.current.contains(event.target as Node)) {
+        setShowPlusMenu(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [showPlusMenu]);
 
   useEffect(() => {
     if (!enableSpeechInput) return;
@@ -457,8 +704,15 @@ const GrandmaChatter = memo(function GrandmaChatter({
     const source = allShops && allShops.length > 0 ? allShops : aiSuggestedShops ?? [];
     const map = new Map<number, Shop>();
     source.forEach((shop) => map.set(shop.id, shop));
+    // おさんぽプランAPIが返す候補店舗（ベクトル検索由来）は allShops/aiSuggestedShops
+    // に含まれるとは限らない（チャットで一度も言及されていない店の可能性がある）ため、
+    // 上書きしない形でマージする。これが無いと旅程カードの「詳しく」展開が
+    // 常に「詳細カードはまだ読み込めていません」に落ちる
+    walkPlanShops.forEach((shop) => {
+      if (!map.has(shop.id)) map.set(shop.id, shop);
+    });
     return map;
-  }, [allShops, aiSuggestedShops]);
+  }, [allShops, aiSuggestedShops, walkPlanShops]);
 
   useEffect(() => {
     onActiveShopChange?.(activeShopId);
@@ -550,6 +804,8 @@ const GrandmaChatter = memo(function GrandmaChatter({
       imageUrl: message.imageUrl,
       shopIds: message.shopIds,
       shops: message.shops,
+      plan: message.plan,
+      planText: message.planText,
       speakerId: message.speakerId,
       speakerName: message.speakerName,
       followUpQuestion: message.followUpQuestion,
@@ -974,6 +1230,8 @@ const GrandmaChatter = memo(function GrandmaChatter({
   const handleImagePick = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) {
+      // 未送信のまま取り消したプレビューは即解放する
+      revokePreviewUrl(selectedImagePreview);
       setSelectedImageName(null);
       setSelectedImageFile(null);
       setSelectedImagePreview(null);
@@ -986,10 +1244,106 @@ const GrandmaChatter = memo(function GrandmaChatter({
     setErrorCode(null);
     setErrorHelperQuestions([]);
     setLastFailedSubmission(null);
+    // 未送信のまま差し替えられる前のプレビューは即解放する
+    revokePreviewUrl(selectedImagePreview);
     setSelectedImageName(file.name);
     setSelectedImageFile(file);
-    setSelectedImagePreview(URL.createObjectURL(file));
+    setSelectedImagePreview(createPreviewUrl(file));
     setShouldShowValidation(false);
+  };
+
+  // Walk plan creation handler (modal form)
+  const handleCreateWalkPlan = async () => {
+    const paceOption =
+      WALK_PLAN_PACE_OPTIONS.find((option) => option.id === walkPlanQuestionAnswers.pace) ??
+      WALK_PLAN_PACE_OPTIONS[1];
+    const stops = paceOption.stops;
+    const startAt = walkPlanQuestionAnswers.useTime ? walkPlanQuestionAnswers.time ?? "今すぐ" : "今すぐ";
+    // 未選択＝おまかせ（API側は空文字で「未指定」扱い）
+    const interest = walkPlanQuestionAnswers.interests.join("、");
+    const submittedAt = new Date().toISOString();
+    const clientTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "Asia/Tokyo";
+    const history = chatMessages
+      .slice(-8)
+      .map((m) => ({ role: m.role, text: m.text }));
+    let planText = "";
+    let plan: ItineraryPlan | null = null;
+    // Submit immediately closes modal, then waits for AI in chat area.
+    setShowWalkPlanModal(false);
+    setAiStatus("thinking");
+    try {
+      const response = await fetch("/api/grandma/itinerary", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          stops,
+          startAt,
+          interest,
+          submittedAt,
+          clientTimezone,
+          history,
+          memorySummary: conversationSummary,
+        }),
+      });
+      if (response.ok) {
+        const payload = (await response.json()) as {
+          plan?: ItineraryPlan;
+          outputText?: string;
+          shops?: Shop[];
+          vectorMatches?: Array<{ id: number; name: string }>;
+        };
+        if (payload.shops && payload.shops.length > 0) {
+          setWalkPlanShops((prev) => {
+            const map = new Map(prev.map((shop) => [shop.id, shop]));
+            payload.shops!.forEach((shop) => map.set(shop.id, shop));
+            return Array.from(map.values());
+          });
+        }
+        if (payload.plan) {
+          plan = payload.plan;
+        }
+        planText = payload.outputText ?? "";
+      }
+    } catch {
+      // fallback below
+    } finally {
+      setAiStatus("idle");
+    }
+
+    // API失敗時のフォールバック候補（会話で出た店 → 全店舗の順）
+    const candidates =
+      displayedSuggestedShops.length > 0
+        ? displayedSuggestedShops
+        : (aiSuggestedShops && aiSuggestedShops.length > 0)
+          ? aiSuggestedShops
+          : allShops ?? [];
+
+    if (!plan) {
+      if (candidates.length === 0) {
+        // 候補ゼロで空プランを出しても行き先がないため、エラーとして案内する
+        setChatMessages((prev) => [
+          ...prev,
+          {
+            id: `assistant-plan-error-${Date.now()}`,
+            role: "assistant",
+            text: "ごめんね、今はプランを作れんかった。少し相談してお店の候補を出してから、もう一度試してみてや。",
+          },
+        ]);
+        return;
+      }
+      const shopCandidates = candidates.map((s) => ({ id: s.id, name: s.name }));
+      plan = generateItinerary({ shopCandidates, stops, startAt, interest });
+    }
+    setChatMessages((prev) => [
+      ...prev,
+      {
+        id: `assistant-plan-${Date.now()}`,
+        role: "assistant",
+        text: "おさんぽプランを作成したよ。下に旅程を表示するね。",
+        plan,
+        planText,
+      },
+    ]);
   };
 
   const shellClassName = layout === "page"
@@ -1009,7 +1363,7 @@ const GrandmaChatter = memo(function GrandmaChatter({
     : "relative h-[33px] w-[33px] shrink-0 sm:h-[39px] sm:w-[39px]";
   const bubbleBaseClassName = fullWidth
     ? isChatOpen
-      ? "relative z-[1000] w-full max-w-none border-0 bg-transparent px-4 py-0 text-left shadow-none pointer-events-auto"
+      ? "relative z-[1000] w-full max-w-none border-0 bg-transparent px-1 py-0 text-left shadow-none pointer-events-auto md:px-4"
       : "group relative z-[1000] w-full max-w-3xl rounded-2xl border-2 bg-white/95 px-4 py-4 text-left shadow-xl backdrop-blur transition hover:-translate-y-0.5 hover:shadow-2xl pointer-events-auto"
     : "group relative z-[1000] max-w-[280px] rounded-2xl border-2 bg-white/95 px-4 py-4 text-left shadow-xl backdrop-blur transition hover:-translate-y-0.5 hover:shadow-2xl sm:max-w-sm pointer-events-auto";
   const bubbleBorderClass = isConsultVariant
@@ -1047,6 +1401,34 @@ const GrandmaChatter = memo(function GrandmaChatter({
   }, [chatMessages, shopLookup]);
   const displayedSuggestedShops =
     persistedSuggestedShops.length > 0 ? persistedSuggestedShops : aiSuggestedShops ?? [];
+  // AIが店を薦めた直後のメッセージにだけ出す「おさんぽプランを立てる」ナッジ。
+  // プラン作成済み（plan付きメッセージあり）or 一度使ったら出さない
+  // （上方に早期returnがありフックを増やせないため、素の導出にしている）
+  const walkPlanNudgeMessageId = (() => {
+    if (!isConsultVariant || walkPlanNudgeUsed) return null;
+    if (chatMessages.some((message) => message.plan)) return null;
+    for (let index = chatMessages.length - 1; index >= 0; index -= 1) {
+      const message = chatMessages[index];
+      if (message.role !== "assistant") continue;
+      const hasShops =
+        (message.shops && message.shops.length > 0) ||
+        (message.shopIds && message.shopIds.length > 0);
+      return hasShops ? message.id : null;
+    }
+    return null;
+  })();
+  const toggleItineraryItem = (messageId: string, planIndex: number) => {
+    const key = `${messageId}:${planIndex}`;
+    setExpandedItineraryItemKeys((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) {
+        next.delete(key);
+      } else {
+        next.add(key);
+      }
+      return next;
+    });
+  };
   const hasSuggestedBox =
     displayedSuggestedShops.length > 0 && !isKeyboardOpen;
   const hasSupplement = hasSuggestedBox || hasImageReply;
@@ -1142,7 +1524,9 @@ const GrandmaChatter = memo(function GrandmaChatter({
     return () => window.clearInterval(timer);
   }, [isConsultVariant]);
 
-  const inputVisible = aiStatus === "idle" || aiStatus === "error";
+  // 応答中（thinking）だけ入力UIを隠す。回答後の "answered" は idle に戻る
+  // 経路がない（チャット再オープン時のみ）ため、含めると入力欄が永久に消える
+  const inputVisible = aiStatus !== "thinking";
 
   return (
     <div className={shellClassName}>
@@ -1229,13 +1613,13 @@ const GrandmaChatter = memo(function GrandmaChatter({
             </div>
               <ScrollArea
                 ref={chatScrollRef}
-                className={`mt-2 flex flex-col gap-4 pr-1 ${
+                className={`mt-2 flex flex-col pr-1 ${
                   layout === "page"
-                    ? "overflow-visible pb-52"
-                    : "max-h-[calc(100vh-240px)]"
+                    ? "gap-6 overflow-visible pb-52"
+                    : "gap-4 max-h-[calc(100vh-240px)]"
                 }`}
               >
-                <div className={`flex flex-col items-center justify-center gap-2 opacity-90 ${embedded ? "py-4" : "py-8"}`}>
+                <div className={`flex flex-col items-center justify-center gap-2 opacity-90 ${embedded ? "py-4" : "py-6"}`}>
                   <div
                     className={`overflow-hidden rounded-[2rem] border-4 shadow-sm transition-all duration-500 ${
                       embedded ? "h-20 w-20" : "h-32 w-32"
@@ -1282,27 +1666,26 @@ const GrandmaChatter = memo(function GrandmaChatter({
                   }`}
                 >
                   {message.role === "assistant" && isConsultVariant ? (
-                    <div className="flex max-w-[min(48rem,calc(100%-1rem))] items-start gap-3">
-                      <div className="mt-1 flex-shrink-0">
-                        <div
-                          className={`h-11 w-11 overflow-hidden rounded-full border bg-amber-50 shadow-sm ring-2 ring-white ${
-                            preferredCharacterId && speakerCharacter.id === preferredCharacterId
-                              ? "border-orange-400"
-                              : "border-amber-200"
-                          }`}
-                        >
-                          <img
-                            src={speakerCharacter.image}
-                            alt={speakerName}
-                            className={`h-full w-full object-cover ${speakerCharacter.imageScale}`}
-                            style={{ objectPosition: speakerCharacter.imagePosition }}
-                            draggable={false}
-                          />
-                        </div>
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="mb-1 flex items-center gap-2 pl-1">
-                          <span className={`text-base font-semibold ${embedded ? "text-green-700 text-stroke-dark" : "text-slate-700"}`}>{speakerName}</span>
+                    <div className="w-full min-w-0 max-w-3xl">
+                      <div className="min-w-0">
+                        {/* アイコンはキャラ名の左（ヘッダー行）に置き、本文バブルを全幅にする */}
+                        <div className="mb-1.5 flex items-center gap-2">
+                          <div
+                            className={`h-8 w-8 shrink-0 overflow-hidden rounded-full border bg-amber-50 shadow-sm ring-2 ring-white ${
+                              preferredCharacterId && speakerCharacter.id === preferredCharacterId
+                                ? "border-orange-400"
+                                : "border-amber-200"
+                            }`}
+                          >
+                            <img
+                              src={speakerCharacter.image}
+                              alt={speakerName}
+                              className={`h-full w-full object-cover ${speakerCharacter.imageScale}`}
+                              style={{ objectPosition: speakerCharacter.imagePosition }}
+                              draggable={false}
+                            />
+                          </div>
+                          <span className={`text-[13px] font-bold tracking-wide ${embedded ? "text-green-700 text-stroke-dark" : "text-slate-500"}`}>{speakerName}</span>
                           {message.consultId !== undefined && message.turnIndex !== undefined && message.id !== activeStreamingMessageId && (
                             <div className="ml-auto flex items-center gap-0.5">
                               {ratedMessageIds.has(message.id) ? (
@@ -1361,7 +1744,7 @@ const GrandmaChatter = memo(function GrandmaChatter({
                         <MessageBubble
                           role={message.role}
                           variant="consult"
-                          className="max-w-none shadow-sm"
+                          className="max-w-none"
                         >
                           {message.text}
                           {(() => {
@@ -1406,6 +1789,28 @@ const GrandmaChatter = memo(function GrandmaChatter({
                               />
                             </button>
                           )}
+
+                          {message.plan && (
+                            <ItineraryLooseleafCard
+                              messageId={message.id}
+                              plan={message.plan}
+                              planText={message.planText}
+                              resolveShopName={(shopId) => shopLookup.get(shopId)?.name}
+                              isExpanded={(planIndex) =>
+                                expandedItineraryItemKeys.has(`${message.id}:${planIndex}`)
+                              }
+                              onToggle={(planIndex) => toggleItineraryItem(message.id, planIndex)}
+                                resolveShop={(shopId) => shopLookup.get(shopId)}
+                                onSelectShop={onSelectShop}
+                                onStartConsult={
+                                  layout === "page" && isConsultVariant ? beginShopConsult : undefined
+                                }
+                                onShowRoute={() => {
+                                  try { localStorage.setItem('nicchyo-walk-plan', JSON.stringify(message.plan)); } catch {}
+                                  router.push('/map?walkPlan=1');
+                                }}
+                            />
+                          )}
                         </MessageBubble>
                         {message.followUpQuestion && (
                           <div className="mt-2 flex flex-wrap gap-2 pl-1">
@@ -1421,6 +1826,21 @@ const GrandmaChatter = memo(function GrandmaChatter({
                               className="rounded-full border border-amber-200 bg-white/90 px-3 py-2 text-[12px] font-semibold text-amber-800 shadow-sm transition hover:bg-amber-50"
                             >
                               {message.followUpQuestion}
+                            </button>
+                          </div>
+                        )}
+                        {walkPlanNudgeMessageId === message.id && (
+                          <div className="mt-2 pl-1">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setWalkPlanNudgeUsed(true);
+                                setShowWalkPlanModal(true);
+                              }}
+                              className="inline-flex items-center gap-1.5 rounded-full bg-amber-600 px-3.5 py-2 text-[12px] font-semibold text-white shadow-sm transition hover:bg-amber-500 active:scale-95"
+                            >
+                              <span aria-hidden>🚶</span>
+                              おさんぽプランを立てる
                             </button>
                           </div>
                         )}
@@ -1887,20 +2307,56 @@ const GrandmaChatter = memo(function GrandmaChatter({
                   onChange={handleImagePick}
                   className="hidden"
                 />
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="icon"
-                  onClick={() => imageInputRef.current?.click()}
-                  className={`${
-                    isConsultVariant
-                      ? `h-11 w-11 rounded-full border-[var(--consult-border)] text-lg font-semibold text-slate-600 ${embedded ? "bg-white/50 hover:bg-white/70" : "bg-slate-50 hover:bg-white"}`
-                      : "border-amber-200 bg-white text-lg font-semibold text-amber-700 hover:bg-amber-50"
-                  }`}
-                  aria-label="写真を選ぶ"
-                >
-                  {isConsultVariant ? "＋" : "+"}
-                </Button>
+                <div className="relative" ref={plusMenuRef}>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    onClick={() => {
+                      if (isConsultVariant) {
+                        // 画像添付とおさんぽプランの2択メニューを開く
+                        setShowPlusMenu((v) => !v);
+                      } else {
+                        imageInputRef.current?.click();
+                      }
+                    }}
+                    className={`${
+                      isConsultVariant
+                        ? `h-11 w-11 rounded-full border-[var(--consult-border)] text-lg font-semibold text-slate-600 ${embedded ? "bg-white/50 hover:bg-white/70" : "bg-slate-50 hover:bg-white"}`
+                        : "border-amber-200 bg-white text-lg font-semibold text-amber-700 hover:bg-amber-50"
+                    }`}
+                    aria-label={isConsultVariant ? "メニューを開く" : "写真を選ぶ"}
+                    aria-expanded={isConsultVariant ? showPlusMenu : undefined}
+                  >
+                    {isConsultVariant ? "＋" : "+"}
+                  </Button>
+                  {isConsultVariant && showPlusMenu && (
+                    <div className="absolute bottom-full left-0 z-[1710] mb-2 w-56 overflow-hidden rounded-2xl border border-amber-100 bg-white shadow-xl">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowPlusMenu(false);
+                          imageInputRef.current?.click();
+                        }}
+                        className="flex w-full items-center gap-2.5 px-4 py-3 text-left text-sm font-semibold text-slate-700 transition hover:bg-amber-50"
+                      >
+                        <span aria-hidden>📷</span>
+                        画像を添付する
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowPlusMenu(false);
+                          setShowWalkPlanModal(true);
+                        }}
+                        className="flex w-full items-center gap-2.5 border-t border-slate-100 px-4 py-3 text-left text-sm font-semibold text-slate-700 transition hover:bg-amber-50"
+                      >
+                        <span aria-hidden>🚶</span>
+                        おさんぽプランを立てる
+                      </button>
+                    </div>
+                  )}
+                </div>
                 <Textarea
                   ref={inputRef}
                   value={askText}
@@ -2068,6 +2524,193 @@ const GrandmaChatter = memo(function GrandmaChatter({
           </Card>
         </div>
       </div>
+      {layout === "page" && showWalkPlanModal && (
+        <div
+          className="fixed inset-0 z-[1720]"
+          role="dialog"
+          aria-modal="true"
+          aria-label="おさんぽプランを作る"
+        >
+          {/* 背景（タップで閉じる）。ナビバーには重ねない */}
+          <motion.div
+            className="absolute inset-x-0 top-0 bg-black/50"
+            style={{ bottom: "calc(3.5rem + var(--safe-bottom, 0px))" }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.2 }}
+            onClick={() => setShowWalkPlanModal(false)}
+          />
+          {/* ボトムシート本体: ナビバー（h-14 + セーフエリア）の上端に載せて
+              重ならないようにする。ヘッダー・CTA固定、質問部分だけ内部スクロール */}
+          <motion.div
+            initial={{ y: "110%" }}
+            animate={{ y: 0 }}
+            transition={{ type: "spring", damping: 30, stiffness: 320 }}
+            drag="y"
+            dragControls={walkPlanDragControls}
+            dragListener={false}
+            dragConstraints={{ top: 0, bottom: 0 }}
+            dragElastic={{ top: 0, bottom: 0.4 }}
+            onDragEnd={(_, info) => {
+              if (info.offset.y > 80 || info.velocity.y > 500) {
+                setShowWalkPlanModal(false);
+              }
+            }}
+            className="absolute inset-x-0 mx-auto flex w-full max-w-md flex-col rounded-t-[28px] border border-b-0 border-amber-100 bg-white shadow-[0_-24px_60px_rgba(15,23,42,0.25)]"
+            style={{
+              bottom: "calc(3.5rem + var(--safe-bottom, 0px))",
+              maxHeight: "calc(100dvh - 3.5rem - var(--safe-bottom, 0px) - 1.5rem)",
+            }}
+          >
+            {/* ドラッグハンドル（下スワイプで閉じる） */}
+            <div
+              className="flex shrink-0 cursor-grab justify-center pb-1 pt-3 active:cursor-grabbing"
+              onPointerDown={(e) => walkPlanDragControls.start(e)}
+              style={{ touchAction: "none" }}
+            >
+              <div className="h-1 w-10 rounded-full bg-slate-300" />
+            </div>
+
+            {/* ヘッダー（固定） */}
+            <div className="flex shrink-0 items-center justify-between px-5 pb-2">
+              <div>
+                <div className="text-lg font-bold text-slate-900">おさんぽプランを作る</div>
+                <div className="text-sm text-slate-500">3つ選ぶだけ。あとはAIにおまかせ</div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowWalkPlanModal(false)}
+                className="rounded-full border border-slate-200 px-3 py-1.5 text-sm font-semibold text-slate-500 transition hover:bg-slate-50"
+              >
+                閉じる
+              </button>
+            </div>
+
+            {/* 質問（ここだけスクロール） */}
+            <div className="min-h-0 flex-1 space-y-5 overflow-y-auto overscroll-contain px-5 pb-4 pt-1">
+              {/* Q1: 気分（複数選択チップ・未選択＝おまかせ） */}
+              <div>
+                <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-amber-600">Q1</p>
+                <p className="mt-0.5 text-[15px] font-bold text-slate-900">きょうはどんな気分？</p>
+                <p className="text-[11px] text-slate-400">いくつでも選べます。選ばなければおまかせ</p>
+                <div className="mt-2.5 flex flex-wrap gap-1.5">
+                  {WALK_PLAN_INTERESTS.map(({ emoji, label }) => {
+                    const selected = walkPlanQuestionAnswers.interests.includes(label);
+                    return (
+                      <button
+                        key={label}
+                        type="button"
+                        aria-pressed={selected}
+                        onClick={() =>
+                          setWalkPlanQuestionAnswers((prev) => ({
+                            ...prev,
+                            interests: selected
+                              ? prev.interests.filter((item) => item !== label)
+                              : [...prev.interests, label],
+                          }))
+                        }
+                        className={`rounded-chip border px-[13px] py-[7px] text-[13px] font-bold shadow-chip transition-all duration-[120ms] active:scale-95 ${
+                          selected
+                            ? "border-amber-600 bg-amber-500 text-white"
+                            : "border-amber-200 bg-white text-amber-900 hover:bg-amber-50"
+                        }`}
+                      >
+                        <span aria-hidden className="mr-1">{emoji}</span>
+                        {label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Q2: ペース（単一選択セグメント） */}
+              <div>
+                <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-amber-600">Q2</p>
+                <p className="mt-0.5 text-[15px] font-bold text-slate-900">どれくらい回る？</p>
+                <div className="mt-2.5 grid grid-cols-3 gap-1.5">
+                  {WALK_PLAN_PACE_OPTIONS.map((option) => {
+                    const selected = walkPlanQuestionAnswers.pace === option.id;
+                    return (
+                      <button
+                        key={option.id}
+                        type="button"
+                        aria-pressed={selected}
+                        onClick={() =>
+                          setWalkPlanQuestionAnswers((prev) => ({ ...prev, pace: option.id }))
+                        }
+                        className={`rounded-2xl border px-2 py-2.5 text-center transition-all duration-[120ms] active:scale-95 ${
+                          selected
+                            ? "border-amber-500 bg-amber-100 text-amber-900"
+                            : "border-amber-200 bg-white text-slate-700 hover:bg-amber-50"
+                        }`}
+                      >
+                        <span className="block text-[13px] font-bold">{option.label}</span>
+                        <span className={`block text-[10px] ${selected ? "text-amber-700" : "text-slate-400"}`}>
+                          {option.desc}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Q3: 開始時刻（今すぐ / 時刻指定） */}
+              <div>
+                <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-amber-600">Q3</p>
+                <p className="mt-0.5 text-[15px] font-bold text-slate-900">いつから歩く？</p>
+                <div className="mt-2.5 grid grid-cols-2 gap-1.5">
+                  <button
+                    type="button"
+                    aria-pressed={!walkPlanQuestionAnswers.useTime}
+                    onClick={() => setWalkPlanQuestionAnswers((p) => ({ ...p, useTime: false }))}
+                    className={`rounded-2xl border px-2 py-2.5 text-[13px] font-bold transition-all duration-[120ms] active:scale-95 ${
+                      !walkPlanQuestionAnswers.useTime
+                        ? "border-amber-500 bg-amber-100 text-amber-900"
+                        : "border-amber-200 bg-white text-slate-700 hover:bg-amber-50"
+                    }`}
+                  >
+                    ⏱ 今すぐ
+                  </button>
+                  <button
+                    type="button"
+                    aria-pressed={walkPlanQuestionAnswers.useTime}
+                    onClick={() => setWalkPlanQuestionAnswers((p) => ({ ...p, useTime: true }))}
+                    className={`rounded-2xl border px-2 py-2.5 text-[13px] font-bold transition-all duration-[120ms] active:scale-95 ${
+                      walkPlanQuestionAnswers.useTime
+                        ? "border-amber-500 bg-amber-100 text-amber-900"
+                        : "border-amber-200 bg-white text-slate-700 hover:bg-amber-50"
+                    }`}
+                  >
+                    🕐 時間をえらぶ
+                  </button>
+                </div>
+                {walkPlanQuestionAnswers.useTime && (
+                  <input
+                    type="time"
+                    value={walkPlanQuestionAnswers.time}
+                    onChange={(e) => setWalkPlanQuestionAnswers((p) => ({ ...p, time: e.target.value }))}
+                    aria-label="開始時刻"
+                    className="mt-2 w-full rounded-2xl border border-amber-200 bg-white px-3 py-2.5 text-center text-base font-bold text-slate-800 outline-none focus:border-amber-400"
+                  />
+                )}
+              </div>
+
+            </div>
+
+            {/* CTA（固定フッター）。シート自体がナビバーの上に載るためセーフエリア加算は不要 */}
+            <div className="shrink-0 border-t border-slate-100 px-5 pb-3 pt-3">
+              <button
+                type="button"
+                onClick={handleCreateWalkPlan}
+                className="w-full rounded-2xl bg-amber-500 px-4 py-3.5 text-[15px] font-bold text-white shadow-pop transition hover:bg-amber-600 active:scale-[0.98]"
+              >
+                🚶 この内容でプランを作る
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
       {layout === "page" && isPreferredCharacterPickerOpen && (
         <div className="fixed inset-0 z-[1700] flex items-center justify-center bg-slate-900/35 px-4">
           <div className="w-full max-w-xl rounded-[2rem] border border-amber-100 bg-white p-5 shadow-2xl lg:max-w-[1180px]">

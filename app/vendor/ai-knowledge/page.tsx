@@ -5,7 +5,6 @@ export const dynamic = "force-dynamic";
 import { useState, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import NavigationBar from "@/app/components/NavigationBar";
 import { ArrowLeft, Save, CheckCircle2, Loader2, Sparkles, Info } from "lucide-react";
 
 const PLACEHOLDER = `例：
@@ -186,7 +185,6 @@ export default function AiKnowledgePage() {
         </div>
 
       </div>
-      <NavigationBar />
     </div>
   );
 }

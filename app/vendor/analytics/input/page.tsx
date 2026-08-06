@@ -4,7 +4,6 @@ export const dynamic = "force-dynamic";
 
 import { useState, useEffect, type FormEvent } from "react";
 import Link from "next/link";
-import NavigationBar from "@/app/components/NavigationBar";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { fetchTodayProductSales, saveTodayProductSales } from "../../_services/analyticsService";
 import type { ProductSale } from "../../_types";
@@ -185,7 +184,6 @@ export default function SalesInputPage() {
         </button>
 
       </form>
-      <NavigationBar />
     </div>
   );
 }

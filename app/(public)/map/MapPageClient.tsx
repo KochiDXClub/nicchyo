@@ -285,10 +285,11 @@ export default function MapPageClient({
     setAiMarkerPayload(null);
   }, []);
   const startMapCharacterConsult = useCallback(() => {
+    // Open consult page instead of inline map-native consult by default
     clearMapSearchState();
     setNearbyState(null);
-    setMapCharacterConsultActive(true);
-    router.replace('/map');
+    setMapCharacterConsultActive(false);
+    router.push('/consult');
   }, [clearMapSearchState, router]);
   const closeMapInteractionMode = useCallback(() => {
     clearMapSearchState();
@@ -420,6 +421,31 @@ export default function MapPageClient({
       setAiMarkerPayload({ ids: [], label: labelParam, source: 'other' });
     }
   }, [searchParams, searchParamsKey]);
+
+  // When opening map with ?walkPlan=1, try to load a previously generated walk plan
+  useEffect(() => {
+    if (!searchParams) return;
+    const enabled = searchParams.get('walkPlan');
+    if (!enabled) return;
+    try {
+      const raw = localStorage.getItem('nicchyo-walk-plan');
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as {
+        title?: string;
+        shops?: Array<{ id?: number }>;
+      } | null;
+      if (!parsed || !Array.isArray(parsed.shops)) return;
+      // id: 0 は実店舗に突合できなかった立ち寄り（マップでは表示できない）
+      const ids = parsed.shops
+        .map((shop) => Number(shop?.id))
+        .filter((id) => Number.isInteger(id) && id > 0);
+      if (ids.length > 0) {
+        setAiMarkerPayload({ ids, label: parsed.title ?? 'おさんぽプラン', source: 'other' });
+      }
+    } catch {
+      // ignore
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     if (!permissions.isVendor || !vendorShopId) return;
@@ -867,6 +893,14 @@ export default function MapPageClient({
                   </div>
                 </div>
               </div>
+            )}
+
+            {/* 検索バー・ジャンルフィルター周辺の地図を白くぼかし、UIの視認性を高める */}
+            {!mapCharacterConsultActive && !nearbyState && (
+              <div
+                aria-hidden
+                className="pointer-events-none absolute inset-x-0 top-0 z-[1000] h-40 bg-gradient-to-b from-white/60 via-white/25 to-transparent backdrop-blur-[2px] [mask-image:linear-gradient(to_bottom,black,black_55%,transparent)] [-webkit-mask-image:linear-gradient(to_bottom,black,black_55%,transparent)]"
+              />
             )}
 
             {/* 全幅検索バー + ジャンルフィルター（AI相談・このへんモード時は非表示） */}

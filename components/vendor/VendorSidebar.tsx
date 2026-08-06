@@ -3,23 +3,10 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/lib/auth/AuthContext";
+import { VENDOR_NAV_ITEMS } from "./vendorNavItems";
 
-type NavItem = {
-  label: string;
-  href: string;
-  icon: string;
-  description: string;
-};
-
-const navItems: NavItem[] = [
-  { label: "マイ店舗", href: "/my-shop", icon: "🏪", description: "店舗の基本情報を見る" },
-  { label: "最新情報投稿", href: "/vendor/post/new", icon: "📝", description: "今日のお知らせを出す" },
-  { label: "出店情報更新", href: "/vendor/store", icon: "🛠️", description: "商品・営業時間・SNSを更新" },
-  { label: "お店の分析", href: "/vendor/analytics", icon: "📈", description: "閲覧と反応を確認" },
-  { label: "AIばあちゃん", href: "/vendor/ai-knowledge", icon: "✨", description: "紹介に使う情報を教える" },
-  { label: "アカウント", href: "/vendor/account", icon: "👤", description: "ログイン情報を確認する" },
-  { label: "使い方ガイド", href: "/vendor/help", icon: "❓", description: "各機能の使い方を見る" },
-];
+// 下部バーのメニューシートと同一の権威ある導線リストを使う（食い違い防止）
+const navItems = VENDOR_NAV_ITEMS;
 
 export default function VendorSidebar({
   isOpen,
@@ -99,7 +86,7 @@ export default function VendorSidebar({
                   }`}
                   aria-current={isActive ? "page" : undefined}
                 >
-                  <span className="mt-0.5 text-xl" aria-hidden="true">{item.icon}</span>
+                  <span className="mt-0.5 text-xl" aria-hidden="true">{item.emoji}</span>
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-semibold">{item.label}</p>
                     <p className="mt-0.5 text-[11px] leading-relaxed text-slate-500">{item.description}</p>

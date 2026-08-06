@@ -1,7 +1,6 @@
 import React from "react";
 import Link from "next/link";
 import { ArrowLeft, Shield, Lock, Eye, FileText, Mail } from "lucide-react";
-import { cn } from "@/lib/utils/cn";
 
 export const metadata = {
   title: "プライバシーポリシー",

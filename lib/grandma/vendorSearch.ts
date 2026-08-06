@@ -349,10 +349,10 @@ export async function fetchShopByName(
   return shops[0] ?? null;
 }
 
-export function summarizeShops(shops: Shop[]) {
+export function summarizeShops(shops: Shop[], limit = 6) {
   if (shops.length === 0) return "該当なし";
   return shops
-    .slice(0, 6)
+    .slice(0, limit)
     .map((shop) => {
       const priceEntries = Object.entries(shop.productPrices ?? {}).filter(
         ([, price]) => price != null
