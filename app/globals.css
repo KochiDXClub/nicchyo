@@ -27,15 +27,16 @@
 }
 
 /* ===== 相談ページ「考え中」の風の粒 ===== */
-/* 緑・紫の粒が左から右へ吹き抜けるように流れ、上下にわずかにゆらぐ。
-   width%基準のleftアニメーションなので、吹き出しの幅に関わらず
-   同じ「横切る」印象になる。 */
+/* 緑・紫のふわっとぼかした光彩が左から右へ吹き抜けるように流れ、
+   上下にわずかにゆらぐ。PR420の霧アニメーションと同じく、くっきりした
+   点ではなく柔らかい滲みで「風」を表現する。width%基準のleftアニメー
+   ションなので、吹き出しの幅に関わらず同じ「横切る」印象になる。 */
 @keyframes consult-wind-particle {
-  0%   { left: -6%; opacity: 0; transform: translateY(0) scale(0.8); }
-  12%  { opacity: 0.85; }
-  50%  { transform: translateY(-10px) scale(1.15); }
-  88%  { opacity: 0.3; }
-  100% { left: 106%; opacity: 0; transform: translateY(6px) scale(0.9); }
+  0%   { left: -10%; opacity: 0; transform: translateY(0) scale(0.85); }
+  15%  { opacity: 0.55; }
+  50%  { transform: translateY(-8px) scale(1.1); opacity: 0.4; }
+  85%  { opacity: 0.2; }
+  100% { left: 110%; opacity: 0; transform: translateY(6px) scale(0.9); }
 }
 
 /* ===== viewport高さシスチE���E�モバイル対応！E===== */

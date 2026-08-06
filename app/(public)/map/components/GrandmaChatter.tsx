@@ -322,14 +322,15 @@ function pickThinkingData(preferredId?: ConsultCharacterId | null): ThinkingEntr
 }
 
 // 考え中の背景を横切る「風」の粒。緑と紫を交互に配置し、左から右へ
-// ゆっくり流しながら上下にわずかにゆらす。位置・速度・遅延をずらして
-// 束にならないようにする。
-const WIND_PARTICLES = Array.from({ length: 14 }, (_, i) => ({
-  top: 6 + ((i * 37) % 88),
-  size: 2 + (i % 3),
-  color: i % 2 === 0 ? "bg-nicchyo-primary" : "bg-violet-400",
-  duration: 3.2 + (i % 5) * 0.6,
-  delay: (i % 7) * 0.5,
+// ゆっくり流しながら上下にわずかにゆらす。PR420の霧アニメーションと
+// 同じく、粒はふわっとぼかした柔らかい光彩にして、くっきりした点に
+// ならないようにする。
+const WIND_PARTICLES = Array.from({ length: 7 }, (_, i) => ({
+  top: 8 + ((i * 53) % 80),
+  size: 14 + (i % 3) * 6,
+  color: i % 2 === 0 ? "bg-nicchyo-primary/50" : "bg-violet-400/50",
+  duration: 4.5 + (i % 4) * 0.8,
+  delay: (i % 5) * 0.7,
 }));
 
 function ThinkingWindParticles() {
@@ -338,7 +339,7 @@ function ThinkingWindParticles() {
       {WIND_PARTICLES.map((p, i) => (
         <span
           key={i}
-          className={`absolute rounded-full ${p.color} blur-[1px]`}
+          className={`absolute rounded-full ${p.color} blur-md`}
           style={{
             top: `${p.top}%`,
             width: `${p.size}px`,
