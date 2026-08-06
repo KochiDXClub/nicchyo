@@ -4,7 +4,6 @@ export const dynamic = "force-dynamic";
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import NavigationBar from "@/app/components/NavigationBar";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { fetchHourlyData } from "../../_services/analyticsService";
 import type { HourlyData } from "../../_types";
@@ -137,7 +136,6 @@ export default function TimeAnalyticsPage() {
           </>
         )}
       </div>
-      <NavigationBar />
     </div>
   );
 }

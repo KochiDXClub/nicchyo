@@ -4,6 +4,7 @@ import { useEffect, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/lib/auth/AuthContext";
+import VendorNavBar from "@/components/vendor/VendorNavBar";
 
 const GuardMessage = ({
   title,
@@ -84,5 +85,10 @@ export default function MyShopLayout({ children }: { children: ReactNode }) {
     );
   }
 
-  return <>{children}</>;
+  return (
+    <>
+      {children}
+      <VendorNavBar />
+    </>
+  );
 }

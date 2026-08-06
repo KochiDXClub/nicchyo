@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { ArrowLeft, Megaphone, Store, BarChart2, Sparkles, User, ChevronRight } from "lucide-react";
-import NavigationBar from "@/app/components/NavigationBar";
 
 export const dynamic = "force-dynamic";
 
@@ -157,7 +156,6 @@ export default function VendorHelpPage() {
         </div>
       </div>
 
-      <NavigationBar />
     </div>
   );
 }

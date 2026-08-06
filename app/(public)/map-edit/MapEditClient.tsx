@@ -268,10 +268,6 @@ export default function MapEditClient() {
     [normalizedRouteQuery, routePoints, selectedId, selectedKind]
   );
   const routeLengthKm = useMemo(() => getRouteLengthKm(routePoints), [routePoints]);
-  const selectedRouteStatus = useMemo(() => {
-    if (!selectedRoutePoint) return null;
-    return getRoutePointStatus(routePoints, selectedRoutePoint.id);
-  }, [routePoints, selectedRoutePoint]);
   const hasUnsavedChanges = useMemo(() => {
     const initialShopMap = new Map(initialShops.map((shop) => [shop.locationId, shop]));
     const currentShopMap = new Map(shops.map((shop) => [shop.locationId, shop]));

@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import NavigationBar from "@/app/components/NavigationBar";
 
 export default function MyShopContentsPage() {
   return (
@@ -20,7 +19,6 @@ export default function MyShopContentsPage() {
           </Link>
         </div>
       </div>
-      <NavigationBar />
     </div>
   );
 }
