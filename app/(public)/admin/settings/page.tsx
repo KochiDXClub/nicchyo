@@ -158,13 +158,13 @@ export default function AdminSettingsPage() {
 
   useEffect(() => {
     if (isLoading) return;
-    if (!permissions.isSuperAdmin) {
+    if (!permissions.isAdmin) {
       router.push("/");
     }
-  }, [isLoading, permissions.isSuperAdmin, router]);
+  }, [isLoading, permissions.isAdmin, router]);
 
   useEffect(() => {
-    if (isLoading || !permissions.isSuperAdmin) return;
+    if (isLoading || !permissions.isAdmin) return;
     let active = true;
     void fetch("/api/admin/settings")
       .then(async (response) => {
@@ -191,7 +191,7 @@ export default function AdminSettingsPage() {
     return () => {
       active = false;
     };
-  }, [isLoading, permissions.isSuperAdmin]);
+  }, [isLoading, permissions.isAdmin]);
 
   const hasChanges = useMemo(
     () =>
@@ -200,7 +200,7 @@ export default function AdminSettingsPage() {
     [initialMapSettings, initialPublicSettings, mapSettings, publicSettings]
   );
 
-  if (isLoading || !permissions.isSuperAdmin) {
+  if (isLoading || !permissions.isAdmin) {
     return null;
   }
 

@@ -81,7 +81,7 @@ function NavigationBarInner({
   const isCloseUxActive = isPanelOpen || closeModeActive;
   const isHome = (activeHref ?? pathname) === "/map" && !panel && !isCloseUxActive;
 
-  const navItems = permissions.isSuperAdmin
+  const navItems = permissions.isAdmin
     ? [...baseNavItems, { name: "管理", href: "/admin/dashboard", icon: "admin" as const }]
     : baseNavItems;
 
@@ -101,7 +101,7 @@ function NavigationBarInner({
     router.push("/map");
   };
 
-  const roleLabel = permissions.isSuperAdmin
+  const roleLabel = permissions.isAdmin
     ? { text: "管理者", color: "bg-red-100 text-red-700" }
     : permissions.isModerator
     ? { text: "モデレーター", color: "bg-purple-100 text-purple-700" }
@@ -257,7 +257,7 @@ function NavigationBarInner({
                 <hr className="mb-4 border-slate-100" />
 
                 {/* ─ 出店者メニュー ─ */}
-                {(permissions.isVendor || permissions.isSuperAdmin) && (
+                {(permissions.isVendor || permissions.isAdmin) && (
                   <div className="mb-4">
                     <p className="mb-2.5 text-[11px] font-bold uppercase tracking-[0.14em] text-amber-500">出店者</p>
                     <div className="overflow-hidden rounded-2xl border border-amber-100 bg-white shadow-sm">
@@ -280,7 +280,7 @@ function NavigationBarInner({
                 )}
 
                 {/* ─ 管理メニュー ─ */}
-                {permissions.isSuperAdmin && (
+                {permissions.isAdmin && (
                   <div className="mb-4">
                     <p className="mb-2.5 text-[11px] font-bold uppercase tracking-[0.14em] text-red-400">管理者</p>
                     <div className="overflow-hidden rounded-2xl border border-red-100 bg-white shadow-sm">

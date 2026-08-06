@@ -33,7 +33,7 @@ export default function LoginPage() {
     const destination =
       loggedInUser.role === "vendor"
         ? "/my-shop"
-        : loggedInUser.role === "super_admin"
+        : loggedInUser.role === "admin"
           ? "/admin/dashboard"
           : "/map";
     router.push(destination);

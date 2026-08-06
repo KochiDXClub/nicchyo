@@ -24,7 +24,7 @@ export default function MyProfilePage() {
 
   const roleLabel = useMemo(() => {
     if (!user) return "未ログイン";
-    if (user.role === "super_admin") return "管理者";
+    if (user.role === "admin") return "管理者";
     if (user.role === "vendor") return "出店者";
     return "一般ユーザー";
   }, [user]);

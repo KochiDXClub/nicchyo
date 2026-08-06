@@ -23,7 +23,6 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 function normalizeRole(value?: string | null): UserRole {
   if (value === "admin") return "admin";
-  if (value === "super_admin") return "super_admin";
   if (value === "moderator") return "moderator";
   if (value === "vendor") return "vendor";
   return "general_user";
@@ -152,20 +151,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const permissions: PermissionCheck = {
-    isSuperAdmin: user?.role === "super_admin",
-    isAdmin: user?.role === "admin" || user?.role === "super_admin",
-    isModerator: user?.role === "super_admin" || user?.role === "admin" || user?.role === "moderator",
+    isAdmin: user?.role === "admin",
+    isModerator: user?.role === "admin" || user?.role === "moderator",
     isVendor: user?.role === "vendor",
     isGeneralUser: user?.role === "general_user",
 
     canEditShop: (shopVendorId: string) => {
-      if (user?.role === "super_admin") return true;
+      if (user?.role === "admin") return true;
       if (user?.role === "vendor" && user.vendorId === shopVendorId) return true;
       return false;
     },
 
-    canManageAllShops: user?.role === "super_admin",
-    canModerateContent: user?.role === "super_admin" || user?.role === "moderator",
+    canManageAllShops: user?.role === "admin",
+    canModerateContent: user?.role === "admin" || user?.role === "moderator",
   };
 
   const loginWithCredentials = async (

@@ -167,9 +167,9 @@ export async function GET() {
   }
 }
 
-// vendor / general_user への招待は admin 以上が操作可。
-// moderator / admin / super_admin への昇格は super_admin のみ可。
-const INVITABLE_ROLES = ROLE_HIERARCHY.filter((r) => r !== "super_admin" && r !== "admin");
+// vendor / general_user への招待は admin が操作可。
+// moderator / admin への昇格は admin のみ可。
+const INVITABLE_ROLES = ROLE_HIERARCHY.filter((r) => r !== "admin");
 
 function isValidEmail(email: string): boolean {
   if (!email || email.length > 254) return false;
@@ -213,7 +213,7 @@ export async function POST(req: Request) {
   }
 
   const callerRole = getRole(user);
-  if (role === "moderator" && callerRole !== "super_admin") {
+  if (role === "moderator" && callerRole !== "admin") {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
