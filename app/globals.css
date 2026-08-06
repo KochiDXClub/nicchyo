@@ -39,6 +39,26 @@
   100% { left: 110%; opacity: 0; transform: translateY(6px) scale(0.9); }
 }
 
+/* ===== 近況ページ見出しの霧アニメーション（粒感テクスチャ） ===== */
+/* feTurbulenceで生成したノイズを背景画像として敷き、position/scaleをゆっくり
+   ずらすことで「揺らめきながら漂う霧の粒」を表現する。色の付いた光彩ブロブ
+   （blur-3xl）の上に mix-blend-mode で重ねて質感だけを足す用途。 */
+.story-fog-grain {
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='140' height='140'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='2' stitchTiles='stitch' result='noise'/><feColorMatrix in='noise' type='saturate' values='0' result='gray'/><feComponentTransfer in='gray'><feFuncR type='linear' slope='2.6' intercept='-0.8'/><feFuncG type='linear' slope='2.6' intercept='-0.8'/><feFuncB type='linear' slope='2.6' intercept='-0.8'/></feComponentTransfer></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+  background-size: 140px 140px;
+  animation: story-fog-grain-drift 6s steps(5) infinite;
+}
+
+@keyframes story-fog-grain-drift {
+  0%   { background-position: 0% 0%; }
+  16%  { background-position: 12% -8%; }
+  33%  { background-position: -6% 10%; }
+  50%  { background-position: 9% 6%; }
+  66%  { background-position: -10% -4%; }
+  83%  { background-position: 4% -10%; }
+  100% { background-position: 0% 0%; }
+}
+
 /* ===== viewport高さシステム（モバイル対応） ===== */
 
 /**
