@@ -16,7 +16,7 @@ interface ShopBubbleProps {
   offset?: number; // 店舗イラストからのオフセット（px）
 }
 
-export default function ShopBubble({ icon, products, side, offset = 35 }: ShopBubbleProps) {
+export default function ShopBubble({ icon, side, offset = 35 }: ShopBubbleProps) {
   // 吹き出しの向き（北側は左、南側は右）
   const isNorth = side === 'north';
 

@@ -14,16 +14,10 @@ import {
   densifyPath,
   getEffectiveMapRouteConfig,
   getRouteChains,
-  latToMeters,
-  lngToMeters,
-  metersToLat,
-  metersToLng,
   normalizeMapRoutePoints,
   smoothRoutePath,
   smoothPath,
 } from '../utils/mapRouteGeometry';
-
-const PALM_IMAGE = '/images/maps/elements/decoration/yasinoki.png';
 
 function RoadOverlay({
   overviewTint = false,
@@ -137,9 +131,6 @@ function RoadOverlay({
 
 function PlaceholderRoad({
   config,
-  roadThickness,
-  roadOffset,
-  isEastWest,
   overviewTint = false,
 }: {
   config: RoadConfig;
@@ -360,137 +351,6 @@ function DynamicRoad({
       })}
     </>
   );
-}
-
-function tangentVectorMeters(
-  prev: [number, number],
-  next: [number, number],
-  latRef: number
-): { x: number; y: number } {
-  const dLng = next[1] - prev[1];
-  const dLat = next[0] - prev[0];
-  return {
-    x: lngToMeters(dLng, latRef),
-    y: latToMeters(dLat),
-  };
-}
-
-function renderSeparatorBricks(
-  separatorBounds: [[number, number], [number, number]]
-) {
-  const svgContent = `
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 1000" preserveAspectRatio="none">
-      <rect x="0" y="0" width="100" height="1000" fill="#b45a3c"/>
-    </svg>
-  `;
-
-  const svgDataUrl = `data:image/svg+xml,${encodeURIComponent(svgContent)}`;
-
-  return (
-    <ImageOverlay
-      url={svgDataUrl}
-      bounds={separatorBounds as LatLngBoundsExpression}
-      opacity={0.95}
-      zIndex={65}
-    />
-  );
-}
-
-function renderSeparatorPalms(
-  separatorBounds: [[number, number], [number, number]],
-  isEastWest: boolean,
-  keyPrefix: string = "separator-palm-"
-) {
-  const palmAspect = 1;
-  const northLat = Math.max(separatorBounds[0][0], separatorBounds[1][0]);
-  const southLat = Math.min(separatorBounds[0][0], separatorBounds[1][0]);
-  const westLng = Math.min(separatorBounds[0][1], separatorBounds[1][1]);
-  const eastLng = Math.max(separatorBounds[0][1], separatorBounds[1][1]);
-  const totalLat = northLat - southLat;
-  const totalLng = eastLng - westLng;
-
-  const palmCount = 8;
-
-  return Array.from({ length: palmCount }).map((_, index) => {
-    let bounds: [[number, number], [number, number]];
-    if (isEastWest) {
-      const segmentLng = totalLng / palmCount;
-      const palmWidthLng = totalLng * 0.03;
-      const palmHeightLat = palmWidthLng / palmAspect;
-      const palmLeft = westLng + segmentLng * index + segmentLng * 0.1;
-      const palmRight = palmLeft + palmWidthLng;
-      const palmTop = northLat - (totalLat - palmHeightLat) / 2;
-      const palmBottom = palmTop - palmHeightLat;
-      bounds = [
-        [palmTop, palmLeft],
-        [palmBottom, palmRight],
-      ];
-    } else {
-      const segmentLat = totalLat / palmCount;
-      const palmHeightLat = totalLat * 0.06;
-      const palmWidthLng = palmHeightLat * palmAspect;
-      const palmWestLng = westLng + (totalLng - palmWidthLng) / 2;
-      const palmTop = northLat - segmentLat * index - segmentLat * 0.1 - palmHeightLat;
-      const palmBottom = palmTop + palmHeightLat;
-      bounds = [
-        [palmTop, palmWestLng],
-        [palmBottom, palmWestLng + palmWidthLng],
-      ];
-    }
-
-    return (
-      <ImageOverlay
-        key={`${keyPrefix}${index}`}
-        url={PALM_IMAGE}
-        bounds={bounds as LatLngBoundsExpression}
-        opacity={1}
-        zIndex={66}
-      />
-    );
-  });
-}
-
-function offsetBounds(
-  bounds: [[number, number], [number, number]],
-  offset: number,
-  isEastWest: boolean
-): [[number, number], [number, number]] {
-  if (isEastWest) {
-    return [
-      [bounds[0][0] - offset, bounds[0][1]],
-      [bounds[1][0] - offset, bounds[1][1]],
-    ];
-  }
-
-  return [
-    [bounds[0][0], bounds[0][1] + offset],
-    [bounds[1][0], bounds[1][1] + offset],
-  ];
-}
-
-function getRoadSeparatorBounds(
-  bounds: [[number, number], [number, number]],
-  roadThickness: number,
-  roadOffset: number,
-  isEastWest: boolean
-): [[number, number], [number, number]] {
-  if (isEastWest) {
-    const seamLat = Math.min(bounds[0][0], bounds[1][0]);
-    const separatorHeightLat = roadOffset - roadThickness;
-    const westLng = Math.min(bounds[0][1], bounds[1][1]);
-    const eastLng = Math.max(bounds[0][1], bounds[1][1]);
-    return [
-      [seamLat, eastLng],
-      [seamLat - separatorHeightLat, westLng],
-    ];
-  }
-
-  const seamLng = Math.max(bounds[0][1], bounds[1][1]);
-  const separatorWidthLng = roadOffset - roadThickness;
-  return [
-    [bounds[0][0], seamLng + separatorWidthLng],
-    [bounds[1][0], seamLng],
-  ];
 }
 
 // ===== のぼり旗 =====
