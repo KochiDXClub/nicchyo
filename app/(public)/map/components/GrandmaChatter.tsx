@@ -321,12 +321,44 @@ function pickThinkingData(preferredId?: ConsultCharacterId | null): ThinkingEntr
   }));
 }
 
+// 考え中の背景を横切る「風」の粒。緑と紫を交互に配置し、左から右へ
+// ゆっくり流しながら上下にわずかにゆらす。位置・速度・遅延をずらして
+// 束にならないようにする。
+const WIND_PARTICLES = Array.from({ length: 14 }, (_, i) => ({
+  top: 6 + ((i * 37) % 88),
+  size: 2 + (i % 3),
+  color: i % 2 === 0 ? "bg-nicchyo-primary" : "bg-violet-400",
+  duration: 3.2 + (i % 5) * 0.6,
+  delay: (i % 7) * 0.5,
+}));
+
+function ThinkingWindParticles() {
+  return (
+    <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
+      {WIND_PARTICLES.map((p, i) => (
+        <span
+          key={i}
+          className={`absolute rounded-full ${p.color} blur-[1px]`}
+          style={{
+            top: `${p.top}%`,
+            width: `${p.size}px`,
+            height: `${p.size}px`,
+            opacity: 0,
+            animation: `consult-wind-particle ${p.duration}s ease-in-out ${p.delay}s infinite`,
+          }}
+        />
+      ))}
+    </div>
+  );
+}
+
 function ThinkingDiscussion({ data }: { data: ThinkingEntry[] }) {
   const cycleDuration = data.length * 0.9;
 
   return (
-    <div className="flex flex-col items-center gap-4 py-6">
-      <div className="flex items-end justify-center gap-6">
+    <div className="relative flex flex-col items-center gap-4 py-6">
+      <ThinkingWindParticles />
+      <div className="relative flex items-end justify-center gap-6">
         {data.map(({ character: char, symbol }, i) => (
           <div key={char.id} className="relative flex flex-col items-center gap-1">
 
