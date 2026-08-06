@@ -24,8 +24,6 @@ export interface IllustrationSize {
   height: number;
   /** Leafletマーカーのアンカーポイント [x, y] （イラストの基準点） */
   anchor: [number, number];
-  /** 吹き出しの横オフセット（px） */
-  bubbleOffset: number;
 }
 
 /**
@@ -44,95 +42,95 @@ export const ILLUSTRATION_SIZES: Record<
     width: 45,    // 【スマホUX】35→45px（視認性・タップ性向上）
     height: 45,
     anchor: [22, 38], // 下部中央（サイズに合わせて調整）
-    bubbleOffset: 28,
   },
   medium: {
     width: 60,    // 【スマホUX】50→60px（詳細が見やすい）
     height: 60,
     anchor: [30, 50], // 下部中央（サイズに合わせて調整）
-    bubbleOffset: 36,
   },
   large: {
     width: 80,
     height: 80,
     anchor: [40, 70], // 下部中央
-    bubbleOffset: 45,
   },
 };
 
 /**
  * デフォルトで使用するイラストサイズ
  * 【将来の変更】ここを変えるだけで全体のサイズが変わる
- * 【Phase 3.5】動的サイズ調整を優先的に使用（getIllustrationSizeForZoom）
+ * 実運用では shop.illustration.size が DB から供給されないため、
+ * 全店舗がこの値（medium = 60px）で描画される。
  */
 export const DEFAULT_ILLUSTRATION_SIZE: 'small' | 'medium' | 'large' =
   'medium';
 
 /**
- * ズームレベルに応じたイラストサイズを動的に取得
+ * DivIcon のアンカー（店舗座標に対してイラストのどこを合わせるか）。
  *
- * 【スマホUX最適化】VIEW_MODE と完全に同期、大きいイラストで視認性向上
- *
- * 【目的】
- * - スマホでの視認性・タップ性を最優先
- * - 段階的な情報開示（ズームインするほど詳細が見える）
- * - filterIntervalとの組み合わせで適切な間隔を確保
- *
- * 【設計根拠】
- * - ズーム19.5以上: medium (60px) - DETAIL モード（詳細閲覧、大きく見やすい）
- * - ズーム17.5-19.5未満: small (45px) - 中間帯
- * - ズーム17.5未満: small (45px) - OVERVIEW モード
- *
- * @param currentZoom 現在のズームレベル
- * @returns イラストサイズ ('small' | 'medium' | 'large')
+ * 屋台の足元中央を店舗座標に合わせる。これにより
+ * transform-origin: center bottom の原点と店舗座標が一致し、
+ * ズームでスケールが変わっても屋台の足が地面から動かない。
  */
-export function getIllustrationSizeForZoom(
-  currentZoom: number
-): 'small' | 'medium' | 'large' {
-  if (currentZoom >= 19.5) {
-    return 'medium'; // 【スマホUX】詳細閲覧: 60px（大きく見やすい）
-  }
-  if (currentZoom >= 17.5) {
-    return 'small'; // 【スマホUX】エリア探索: 45px（タップしやすい）
-  }
-  return 'small'; // 全体俯瞰: 45px（視認性確保）
+export function getIllustrationAnchor(
+  size: 'small' | 'medium' | 'large'
+): [number, number] {
+  const s = ILLUSTRATION_SIZES[size];
+  return [s.width / 2, s.height];
 }
 
 /**
- * ズームレベルに応じたイラストのスケール係数を取得
+ * 店舗マーカーの表示段階（LOD）
  *
- * 【連続的スケーリング】背景の拡大・縮小に合わせてイラストも自然にスケール
- *
- * 【目的】
- * - 「背景だけ拡大され、イラストが置いていかれる」違和感をなくす
- * - ズームレベルに連動した滑らかなサイズ変化
- * - スマホでの直感的な操作感を実現
- *
- * 【設計根拠】
- * - 基準: ズーム18.0でスケール1.0（ベースサイズそのまま）
- * - ズーム1段階（±1.0）でスケール±0.18程度の変化
- * - 範囲: 0.64（ズーム16.0）〜 1.36（ズーム20.0）
- * - 急激な変化を避け、自然な拡大・縮小を実現
- *
- * @param currentZoom 現在のズームレベル
- * @returns スケール係数（0.64 〜 1.36程度）
+ * - dot:       棒状の簡易アイコン。密集帯で「店がある」ことだけ伝える
+ * - stall:     屋台イラストのみ。カテゴリ色で「どんな店が並ぶか」の雰囲気
+ * - photo:     ＋ 屋根上の写真アイコン
+ * - nameplate: ＋ 木札（店名）。どの店かを特定する
  */
-export function getIllustrationScaleForZoom(currentZoom: number): number {
-  // 基準ズーム: 18.0でスケール1.0
-  const baseZoom = 18.0;
-  const baseScale = 1.0;
+export type ShopMarkerLod = 'dot' | 'stall' | 'photo' | 'nameplate';
 
-  // ズーム1段階あたりのスケール変化率
-  // 【修正】0.18 → 0.35（ズーム1.0で約35%の変化、より積極的な拡大）
-  // - ズーム20.0: スケール 1.70（70%拡大）
-  // - ズーム16.0: スケール 0.30（70%縮小）
-  const scalePerZoom = 0.35;
+/**
+ * LOD の境界を map.getMaxZoom() からのオフセットで定義する。
+ *
+ * 絶対ズーム値で書かないのは、メインマップ（maxZoom=21）と
+ * map-edit のプレビュー（maxZoom=20）で同じ段階構成を成立させるため。
+ * 絶対値にすると片方で段階が丸ごと到達不能になる。
+ */
+export const SHOP_MARKER_LOD_OFFSETS = {
+  stall: -2.0,
+  photo: -1.4,
+  nameplate: -0.8,
+} as const;
 
-  // 線形補間でスケール計算
-  const scale = baseScale + (currentZoom - baseZoom) * scalePerZoom;
+/**
+ * 境界判定の許容誤差。
+ * zoom - maxZoom は浮動小数点演算なので、境界ちょうど（例 20.2 と 21）でも
+ * -0.8000000000000007 のようにわずかに下振れする。zoomSnap 0.05 の刻みでは
+ * 境界に乗ることが実際にあるため、誤差を吸収しないと段階が揺れる。
+ */
+const LOD_EPSILON = 1e-6;
 
-  // 安全範囲: 0.3 〜 2.0（より広範囲のスケーリング）
-  return Math.max(0.3, Math.min(2.0, scale));
+export function getShopMarkerLod(zoom: number, maxZoom: number): ShopMarkerLod {
+  const d = zoom - maxZoom;
+  if (d >= SHOP_MARKER_LOD_OFFSETS.nameplate - LOD_EPSILON) return 'nameplate';
+  if (d >= SHOP_MARKER_LOD_OFFSETS.photo - LOD_EPSILON) return 'photo';
+  if (d >= SHOP_MARKER_LOD_OFFSETS.stall - LOD_EPSILON) return 'stall';
+  return 'dot';
+}
+
+/**
+ * ズームに応じたマーカーの倍率。
+ *
+ * maxZoom で 1.0、maxZoom-2.0 で 0.6 の線形補間。
+ * 旧実装は 0.6 / 0.8 / 1.0 の3段の階段で、さらに 19.7〜19.8 だけ ×1.1 という
+ * 根拠のない突起があり、ズームするとマーカーが飛んで見えていた。
+ *
+ * 0.05 刻みに量子化することで、zoomSnap 0.05 の細かいステップでも
+ * DOM への書き込みが最大9回（0.60〜1.00）に収まる。
+ */
+export function getShopMarkerScale(zoom: number, maxZoom: number): number {
+  const raw = 1 - (maxZoom - zoom) * 0.2;
+  const clamped = Math.min(1, Math.max(0.6, raw));
+  return Math.round(clamped * 20) / 20;
 }
 
 /**

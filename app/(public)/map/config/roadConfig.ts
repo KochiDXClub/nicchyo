@@ -299,6 +299,23 @@ export function getNearestPointOnRoad(lat: number, lng: number): RoadPoint {
   return bestPoint;
 }
 
+/** 道の中心線から見た店舗の側。追手筋は東西に伸びるため北側／南側になる */
+export type RoadSide = 'north' | 'south';
+
+/**
+ * 店舗が道の中心線から見て北側か南側かを判定する。
+ *
+ * 店舗データに side フィールドは無いため、緯度と道の中心線の比較で導出する。
+ * マーカーの木札やバッジを左右・上下に振り分けて、隣接する店どうしの
+ * 重なりを減らすために使う。
+ *
+ * 中心線上ちょうど（境界）の場合は north 側に倒す。
+ */
+export function getRoadSide(lat: number, lng: number): RoadSide {
+  const nearest = getNearestPointOnRoad(lat, lng);
+  return lat >= nearest.lat ? 'north' : 'south';
+}
+
 function projectPointOntoSegment(point: RoadPoint, a: RoadPoint, b: RoadPoint): RoadPoint {
   const abLat = b.lat - a.lat;
   const abLng = b.lng - a.lng;

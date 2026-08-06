@@ -10,7 +10,7 @@
  * Layer 0: Leafletベースマップ
  * → Layer 1: BackgroundOverlay ← このコンポーネント
  * Layer 2: RoadOverlay（道）
- * Layer 3: ShopMarker（店舗）
+ * Layer 3: 店舗層（OptimizedShopLayerWithClustering）
  * Layer 4: UI層
  *
  * 【現在の状態】

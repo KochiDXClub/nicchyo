@@ -2,6 +2,7 @@
 
 import type React from 'react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { SHOP_CATEGORY_NAMES } from '../config/shopCategories';
 
 type Answers = {
   tourist?: string;
@@ -50,7 +51,7 @@ type MapAgentAssistantProps = {
 };
 
 const STORAGE_KEY = 'nicchyo-map-agent-plan';
-const CATEGORY_OPTIONS = ['食材', '食べ物', '道具・工具', '生活雑貨', '植物・苗', 'アクセサリー', '手作り・工芸'];
+const CATEGORY_OPTIONS: string[] = [...SHOP_CATEGORY_NAMES];
 
 function getQuestions(answers: Answers): AgentQuestion[] {
   const questions: AgentQuestion[] = [
