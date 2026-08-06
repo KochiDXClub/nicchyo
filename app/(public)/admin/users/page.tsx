@@ -53,13 +53,13 @@ function AdminUsersContent() {
   // 管理者権限チェック
   useEffect(() => {
     if (isLoading) return;
-    if (!permissions.isSuperAdmin) {
+    if (!permissions.isAdmin) {
       router.push("/");
     }
-  }, [isLoading, permissions.isSuperAdmin, router]);
+  }, [isLoading, permissions.isAdmin, router]);
 
   useEffect(() => {
-    if (!permissions.isSuperAdmin) {
+    if (!permissions.isAdmin) {
       setIsLoadingUsers(false);
       return;
     }
@@ -90,7 +90,7 @@ function AdminUsersContent() {
     return () => {
       active = false;
     };
-  }, [permissions.isSuperAdmin]);
+  }, [permissions.isAdmin]);
 
   // フィルタリング（メモ化）
   const filteredUsers = useMemo(() => {
@@ -114,7 +114,7 @@ function AdminUsersContent() {
   const stats = useMemo(
     () => ({
       total: users.length,
-      admins: users.filter((u) => u.role === "super_admin").length,
+      admins: users.filter((u) => u.role === "admin").length,
       vendors: users.filter((u) => u.role === "vendor").length,
       users: users.filter((u) => u.role === "general_user").length,
       suspended: users.filter((u) => u.status === "suspended").length,
@@ -133,7 +133,7 @@ function AdminUsersContent() {
 
   const getRoleBadge = useCallback((role: UserRole) => {
     switch (role) {
-      case "super_admin":
+      case "admin":
         return "bg-red-100 text-red-800";
       case "vendor":
         return "bg-blue-100 text-blue-800";
@@ -146,7 +146,7 @@ function AdminUsersContent() {
 
   const getRoleLabel = useCallback((role: UserRole) => {
     switch (role) {
-      case "super_admin":
+      case "admin":
         return "管理者";
       case "vendor":
         return "出店者";
@@ -460,7 +460,7 @@ function AdminUsersContent() {
     },
   ]);
 
-  if (!permissions.isSuperAdmin) {
+  if (!permissions.isAdmin) {
     return null;
   }
 
@@ -545,9 +545,9 @@ function AdminUsersContent() {
               </button>
               <button
                 type="button"
-                onClick={() => setFilter("super_admin")}
+                onClick={() => setFilter("admin")}
                 className={`rounded-lg px-4 py-2 text-sm font-medium ${
-                  filter === "super_admin"
+                  filter === "admin"
                     ? "bg-red-600 text-white"
                     : "bg-gray-100 text-gray-700 hover:bg-gray-200"
                 }`}
@@ -945,7 +945,7 @@ function AdminUsersContent() {
                   <option value="general_user">一般ユーザー</option>
                   <option value="vendor">出店者</option>
                   <option value="moderator">モデレーター</option>
-                  <option value="super_admin">管理者</option>
+                  <option value="admin">管理者</option>
                 </select>
               </div>
             </div>

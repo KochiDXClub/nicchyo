@@ -2,7 +2,6 @@
 
 import { useEffect, useState, type ChangeEvent, type FormEvent } from "react";
 import { useAuth } from "@/lib/auth/AuthContext";
-import NavigationBar from "@/app/components/NavigationBar";
 import Link from "next/link";
 import { createClient } from "@/utils/supabase/client";
 import Image from "next/image";
@@ -78,19 +77,6 @@ const EMPTY_FORM: FormState = {
   twitter: "",
   website: "",
 };
-
-function splitCsv(value: string): string[] {
-  return value
-    .split(",")
-    .map((item) => item.trim())
-    .filter(Boolean);
-}
-
-function mergeProductSeasons(products: ProductItem[], key: SeasonKey): string[] {
-  return products
-    .filter((product) => product.seasons.includes(key))
-    .map((product) => product.name);
-}
 
 export default function MyShopDetailPage() {
   const { user, permissions } = useAuth();
@@ -904,7 +890,6 @@ export default function MyShopDetailPage() {
         </form>
 
       </div>
-      <NavigationBar />
     </div>
   );
 }

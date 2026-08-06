@@ -5,7 +5,6 @@ export const dynamic = "force-dynamic";
 import { useState, useEffect, useRef, type FormEvent } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import NavigationBar from "@/app/components/NavigationBar";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { fetchVendorStore, saveVendorStore, uploadStoreImage, fetchCategories } from "../_services/storeService";
 import type { Category } from "../_services/storeService";
@@ -689,7 +688,6 @@ export default function VendorStorePage() {
         </button>
 
       </form>
-      <NavigationBar />
     </div>
   );
 }

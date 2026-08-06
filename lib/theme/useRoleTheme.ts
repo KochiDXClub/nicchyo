@@ -35,7 +35,7 @@ import { useMemo } from 'react';
  * @example
  * ```typescript
  * const theme = useRoleTheme();
- * // super_admin でログイン中
+ * // admin でログイン中
  * // => { headerBg: 'bg-gradient-to-r from-blue-700...', ... }
  * ```
  */

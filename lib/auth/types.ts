@@ -2,7 +2,7 @@
  * 認証・ユーザー関連の型定義
  */
 
-export type UserRole = "super_admin" | "admin" | "moderator" | "vendor" | "general_user";
+export type UserRole = "admin" | "moderator" | "vendor" | "general_user";
 
 export interface User {
   id: string;
@@ -17,11 +17,9 @@ export interface User {
 }
 
 export interface PermissionCheck {
-  /** super_admin ロールのみ（最上位権限） */
-  isSuperAdmin: boolean;
-  /** admin 以上（admin / super_admin）。isSuperAdmin のスーパーセット。API 側の isAdmin() と対応 */
+  /** admin ロール（最上位権限）。API 側の isAdmin() と対応 */
   isAdmin: boolean;
-  /** moderator 以上（moderator / admin / super_admin）。API 側の isModerator() と対応 */
+  /** moderator 以上（moderator / admin）。API 側の isModerator() と対応 */
   isModerator: boolean;
   isVendor: boolean;
   isGeneralUser: boolean;

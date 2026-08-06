@@ -33,44 +33,38 @@ export const AdminSidebar = React.memo(function AdminSidebar({
   const pathname = usePathname();
   const router = useRouter();
   const theme = getRoleTheme(user?.role);
-  const { unreadCount } = useAdminNotifications(permissions.isSuperAdmin || permissions.canModerateContent);
+  const { unreadCount } = useAdminNotifications(permissions.isAdmin || permissions.canModerateContent);
 
   const navItems: NavItem[] = [
     {
       label: "ダッシュボード",
       href: "/admin/dashboard",
       icon: "📊",
-      show: permissions.isSuperAdmin,
+      show: permissions.isAdmin,
     },
     {
       label: "アナリティクス",
       href: "/admin/analytics",
       icon: "📈",
-      show: permissions.isSuperAdmin,
+      show: permissions.isAdmin,
     },
     {
       label: "マップ編集",
       href: "/admin/map-edit",
       icon: "🗺️",
-      show: permissions.isSuperAdmin,
+      show: permissions.isAdmin,
     },
     {
       label: "ユーザー管理",
       href: "/admin/users",
       icon: "👥",
-      show: permissions.isSuperAdmin,
+      show: permissions.isAdmin,
     },
     {
       label: "コンテンツ管理",
       href: "/admin/content",
       icon: "📝",
-      show: permissions.isSuperAdmin,
-    },
-    {
-      label: "ことづて管理",
-      href: "/admin/kotodute",
-      icon: "💬",
-      show: permissions.canModerateContent,
+      show: permissions.isAdmin,
     },
     {
       label: "通報管理",
@@ -88,26 +82,26 @@ export const AdminSidebar = React.memo(function AdminSidebar({
       label: "カテゴリ管理",
       href: "/admin/categories",
       icon: "🏷️",
-      show: permissions.isSuperAdmin,
+      show: permissions.isAdmin,
     },
     {
       label: "監査ログ",
       href: "/admin/audit-logs",
       icon: "🔍",
-      show: permissions.isSuperAdmin,
+      show: permissions.isAdmin,
     },
     {
       label: "通知",
       href: "/admin/notifications",
       icon: "🔔",
       badge: unreadCount > 0 ? unreadCount : undefined,
-      show: permissions.isSuperAdmin || permissions.canModerateContent,
+      show: permissions.isAdmin || permissions.canModerateContent,
     },
     {
       label: "設定",
       href: "/admin/settings",
       icon: "⚙️",
-      show: permissions.isSuperAdmin,
+      show: permissions.isAdmin,
     },
   ].filter((item) => item.show !== false);
 
@@ -172,7 +166,7 @@ export const AdminSidebar = React.memo(function AdminSidebar({
                 {user?.name || "管理者"}
               </p>
               <p className="text-xs text-gray-500">
-                {permissions.isSuperAdmin ? "管理者" : "モデレーター"}
+                {permissions.isAdmin ? "管理者" : "モデレーター"}
               </p>
             </div>
           </div>

@@ -50,7 +50,7 @@ export default function AdminMapEditLayout({ children }: { children: ReactNode }
     );
   }
 
-  if (!permissions.isSuperAdmin) {
+  if (!permissions.isAdmin) {
     return (
       <GuardMessage
         title="管理者専用です"

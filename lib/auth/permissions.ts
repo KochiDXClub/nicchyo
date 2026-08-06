@@ -11,16 +11,16 @@ export function getRole(user: unknown): string | null {
 
 /**
  * ロール階層（高い順）。新しいロールを追加する場合はここに追記する。
- *   super_admin > admin > moderator > vendor > general_user
+ *   admin > moderator > vendor > general_user
  */
-export const ROLE_HIERARCHY = ["super_admin", "admin", "moderator", "vendor", "general_user"] as const;
+export const ROLE_HIERARCHY = ["admin", "moderator", "vendor", "general_user"] as const;
 
-/** admin 以上のロール（admin / super_admin）かどうかを判定する */
+/** admin ロールかどうかを判定する */
 export function isAdmin(role: string | null): boolean {
-  return role === "admin" || role === "super_admin";
+  return role === "admin";
 }
 
-/** moderator 以上のロール（moderator / admin / super_admin）かどうかを判定する */
+/** moderator 以上のロール（moderator / admin）かどうかを判定する */
 export function isModerator(role: string | null): boolean {
   return role === "moderator" || isAdmin(role);
 }
@@ -33,7 +33,6 @@ export function isVendor(role: string | null): boolean {
 /** app_metadata の生ロール文字列を UserRole 型に正規化する */
 export function normalizeRole(value?: string | null): UserRole {
   if (value === "admin") return "admin";
-  if (value === "super_admin") return "super_admin";
   if (value === "moderator") return "moderator";
   if (value === "vendor") return "vendor";
   return "general_user";
