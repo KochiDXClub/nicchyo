@@ -24,8 +24,6 @@ export interface IllustrationSize {
   height: number;
   /** Leafletマーカーのアンカーポイント [x, y] （イラストの基準点） */
   anchor: [number, number];
-  /** 吹き出しの横オフセット（px） */
-  bubbleOffset: number;
 }
 
 /**
@@ -44,96 +42,27 @@ export const ILLUSTRATION_SIZES: Record<
     width: 45,    // 【スマホUX】35→45px（視認性・タップ性向上）
     height: 45,
     anchor: [22, 38], // 下部中央（サイズに合わせて調整）
-    bubbleOffset: 28,
   },
   medium: {
     width: 60,    // 【スマホUX】50→60px（詳細が見やすい）
     height: 60,
     anchor: [30, 50], // 下部中央（サイズに合わせて調整）
-    bubbleOffset: 36,
   },
   large: {
     width: 80,
     height: 80,
     anchor: [40, 70], // 下部中央
-    bubbleOffset: 45,
   },
 };
 
 /**
  * デフォルトで使用するイラストサイズ
  * 【将来の変更】ここを変えるだけで全体のサイズが変わる
- * 【Phase 3.5】動的サイズ調整を優先的に使用（getIllustrationSizeForZoom）
+ * 実運用では shop.illustration.size が DB から供給されないため、
+ * 全店舗がこの値（medium = 60px）で描画される。
  */
 export const DEFAULT_ILLUSTRATION_SIZE: 'small' | 'medium' | 'large' =
   'medium';
-
-/**
- * ズームレベルに応じたイラストサイズを動的に取得
- *
- * 【スマホUX最適化】VIEW_MODE と完全に同期、大きいイラストで視認性向上
- *
- * 【目的】
- * - スマホでの視認性・タップ性を最優先
- * - 段階的な情報開示（ズームインするほど詳細が見える）
- * - filterIntervalとの組み合わせで適切な間隔を確保
- *
- * 【設計根拠】
- * - ズーム19.5以上: medium (60px) - DETAIL モード（詳細閲覧、大きく見やすい）
- * - ズーム17.5-19.5未満: small (45px) - 中間帯
- * - ズーム17.5未満: small (45px) - OVERVIEW モード
- *
- * @param currentZoom 現在のズームレベル
- * @returns イラストサイズ ('small' | 'medium' | 'large')
- */
-export function getIllustrationSizeForZoom(
-  currentZoom: number
-): 'small' | 'medium' | 'large' {
-  if (currentZoom >= 19.5) {
-    return 'medium'; // 【スマホUX】詳細閲覧: 60px（大きく見やすい）
-  }
-  if (currentZoom >= 17.5) {
-    return 'small'; // 【スマホUX】エリア探索: 45px（タップしやすい）
-  }
-  return 'small'; // 全体俯瞰: 45px（視認性確保）
-}
-
-/**
- * ズームレベルに応じたイラストのスケール係数を取得
- *
- * 【連続的スケーリング】背景の拡大・縮小に合わせてイラストも自然にスケール
- *
- * 【目的】
- * - 「背景だけ拡大され、イラストが置いていかれる」違和感をなくす
- * - ズームレベルに連動した滑らかなサイズ変化
- * - スマホでの直感的な操作感を実現
- *
- * 【設計根拠】
- * - 基準: ズーム18.0でスケール1.0（ベースサイズそのまま）
- * - ズーム1段階（±1.0）でスケール±0.18程度の変化
- * - 範囲: 0.64（ズーム16.0）〜 1.36（ズーム20.0）
- * - 急激な変化を避け、自然な拡大・縮小を実現
- *
- * @param currentZoom 現在のズームレベル
- * @returns スケール係数（0.64 〜 1.36程度）
- */
-export function getIllustrationScaleForZoom(currentZoom: number): number {
-  // 基準ズーム: 18.0でスケール1.0
-  const baseZoom = 18.0;
-  const baseScale = 1.0;
-
-  // ズーム1段階あたりのスケール変化率
-  // 【修正】0.18 → 0.35（ズーム1.0で約35%の変化、より積極的な拡大）
-  // - ズーム20.0: スケール 1.70（70%拡大）
-  // - ズーム16.0: スケール 0.30（70%縮小）
-  const scalePerZoom = 0.35;
-
-  // 線形補間でスケール計算
-  const scale = baseScale + (currentZoom - baseZoom) * scalePerZoom;
-
-  // 安全範囲: 0.3 〜 2.0（より広範囲のスケーリング）
-  return Math.max(0.3, Math.min(2.0, scale));
-}
 
 /**
  * ズームレベルごとの表示ルール

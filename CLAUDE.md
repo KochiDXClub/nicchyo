@@ -97,7 +97,7 @@ app/
 
 ```
 Layer 4: UI（ボタン・バナー・ズームコントロール）
-Layer 3: 店舗層（ShopMarker, ShopBubble）
+Layer 3: 店舗層（OptimizedShopLayerWithClustering + markerHtmlGenerator）
 Layer 2: 道層（RoadOverlay, zIndex: 50）
 Layer 1: 背景層（BackgroundOverlay, 現在無効）
 Layer 0: Leafletベースマップ
