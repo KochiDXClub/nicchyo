@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 import Link from "next/link";
 import { ArrowUpRight, ChevronLeft } from "lucide-react";
 import { getActivitiesSortedDesc } from "../data/activities";
@@ -50,11 +51,13 @@ export default function ActivitiesPage() {
               className="group mt-4 block overflow-hidden rounded-[2rem] border border-[#ead8c0] bg-white shadow-[0_18px_48px_rgba(102,58,20,0.08)] transition duration-300 hover:-translate-y-1 hover:shadow-[0_24px_60px_rgba(102,58,20,0.12)]"
             >
               {latestActivity.image ? (
-                <div className="aspect-[16/8] overflow-hidden bg-[#eadcc9]">
-                  <img
+                <div className="relative aspect-[16/8] overflow-hidden bg-[#eadcc9]">
+                  <Image
                     src={latestActivity.image}
                     alt={latestActivity.title}
-                    className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.03]"
+                    fill
+                    sizes="(max-width: 768px) 100vw, 768px"
+                    className="object-cover transition duration-500 group-hover:scale-[1.03]"
                   />
                 </div>
               ) : null}
@@ -110,11 +113,13 @@ export default function ActivitiesPage() {
                   className="group flex flex-col gap-4 rounded-[1.75rem] border border-[#ead8c0] bg-white p-5 shadow-[0_18px_48px_rgba(102,58,20,0.08)] transition duration-300 hover:-translate-y-0.5 hover:shadow-[0_22px_52px_rgba(102,58,20,0.1)] sm:flex-row sm:items-center sm:p-6"
                 >
                   {activity.image ? (
-                    <div className="h-32 w-full overflow-hidden rounded-[1.5rem] bg-[#eadcc9] sm:h-28 sm:w-40 sm:shrink-0">
-                      <img
+                    <div className="relative h-32 w-full overflow-hidden rounded-[1.5rem] bg-[#eadcc9] sm:h-28 sm:w-40 sm:shrink-0">
+                      <Image
                         src={activity.image}
                         alt={activity.title}
-                        className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
+                        fill
+                        sizes="(max-width: 640px) 100vw, 160px"
+                        className="object-cover transition duration-500 group-hover:scale-105"
                       />
                     </div>
                   ) : (
