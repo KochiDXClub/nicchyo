@@ -16,6 +16,10 @@ import {
 import { fetchReactionCounts } from "@/lib/story/reactions";
 import type { StoryItem } from "./types";
 
+// グリッド上部の目立つプレビュー枠で1件あたり表示する時間。
+// 全画面ビューア（15秒）よりテンポよく見せるための「ちら見せ」なので短めにする。
+const FEATURED_PREVIEW_DURATION = 4000;
+
 export default function StoryGridClient() {
   const [stories, setStories] = useState<StoryItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -69,6 +73,15 @@ export default function StoryGridClient() {
     };
   }, [stories]);
 
+  // 上部の目立つプレビュー枠（FeaturedStoryPreview）は「今週」の投稿だけを対象にする
+  // （日曜市は週次開催のため、鮮度の単位も週で区切るのが自然）。
+  // stories は新しい順に並んでいるため、今週の投稿は必ず先頭からの連続区間になる。
+  // その分は通常グリッドから除外し、重複表示を避ける。
+  const previewCount = useMemo(
+    () => stories.filter((story) => getStoryAgeBucket(story.created_at) === "this_week").length,
+    [stories]
+  );
+
   // 鮮度バケット（今週/1週間前/1か月前）ごとにまとめる。index は元の
   // stories 配列（新しい順）の位置なので、ビューアの initialIndex と整合する。
   const sections = useMemo(
@@ -77,28 +90,106 @@ export default function StoryGridClient() {
         bucket,
         items: stories
           .map((story, index) => ({ story, index }))
-          .filter(({ story }) => getStoryAgeBucket(story.created_at) === bucket),
+          .filter(({ story, index }) => index >= previewCount && getStoryAgeBucket(story.created_at) === bucket),
       })).filter((section) => section.items.length > 0),
-    [stories]
+    [stories, previewCount]
   );
 
   // API が提灯ローディング中に失敗した場合は、待たずにエラー表示へ進む
   if (pageLoading && !fetchError) return <LoadingLantern />;
 
   return (
-    <main className="min-h-screen bg-nicchyo-base pb-28">
-      {/* ヘッダー */}
-      <div className="bg-white px-4 pt-10 pb-4 border-b border-gray-100">
-        <div className="mx-auto max-w-lg flex items-end justify-between">
-          <div>
-            <h1 className="text-xl font-bold text-nicchyo-ink tracking-tight">近況</h1>
-            <p className="mt-0.5 text-xs text-gray-400">出店者の近況・新しいほど鮮やか</p>
-          </div>
-          <div className="flex items-center gap-1.5 text-[11px] text-gray-400 bg-gray-50 rounded-full px-3 py-1.5 border border-gray-100">
-            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">
-              <circle cx="12" cy="12" r="10" />
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6l4 2" />
-            </svg>
+    <main className="relative min-h-screen bg-nicchyo-base pb-28">
+      {/* ページ全体にうっすら繋がる粒感。ヘッダーの霧より弱く・無色のまま敷き、
+          グリッド部分の隙間（背景色が見える箇所）にだけ質感として滲ませる。 */}
+      <div
+        aria-hidden
+        className="story-fog-grain pointer-events-none absolute inset-0 opacity-[0.12] mix-blend-overlay"
+      />
+      {/* 見出し：ページ最上部のヒーロー的なタイトル（ナビゲーションではない） */}
+      <div className="relative overflow-hidden px-4 pt-12 pb-7">
+        {/* 背景の柔らかい光彩でタイトルに奥行きを出す。霧のようにゆっくり揺らめかせ、
+            濃淡（不透明度）も個々にずらしながら周期的に変化させることで、
+            常にどれかが濃く／薄く見える自然な呼吸感を出す。
+            緑エリアには青、オレンジエリアには赤みのピンクの霧を重ねて漂わせ、
+            重なった部分だけ色が混ざり合って見えるようにしている。 */}
+        <motion.div
+          aria-hidden
+          animate={{
+            x: [0, 110, -70, 0],
+            y: [0, 30, -18, 0],
+            scale: [1, 1.15, 0.94, 1],
+            opacity: [0.85, 0.35, 0.85],
+          }}
+          transition={{ duration: 16, repeat: Infinity, ease: "easeInOut" }}
+          className="pointer-events-none absolute -left-12 -top-16 h-56 w-56 rounded-full bg-nicchyo-primary/30 blur-3xl"
+        />
+        {/* 緑の霧に混ざり合う青の霧。green の動きとは位相・周期をずらし、
+            重なりが常に一定にならず滲むように交差させる。 */}
+        <motion.div
+          aria-hidden
+          animate={{
+            x: [0, -80, 90, 0],
+            y: [0, 24, -28, 0],
+            scale: [1, 0.92, 1.2, 1],
+            opacity: [0.3, 0.65, 0.3],
+          }}
+          transition={{ duration: 13, repeat: Infinity, ease: "easeInOut", delay: 0.6 }}
+          className="pointer-events-none absolute -left-6 -top-8 h-52 w-52 rounded-full bg-sky-400/40 blur-3xl"
+        />
+        <motion.div
+          aria-hidden
+          animate={{
+            x: [0, -95, 60, 0],
+            y: [0, 26, -16, 0],
+            scale: [1, 0.9, 1.12, 1],
+            opacity: [0.3, 0.85, 0.3],
+          }}
+          transition={{ duration: 19, repeat: Infinity, ease: "easeInOut", delay: 1.2 }}
+          className="pointer-events-none absolute -top-10 right-0 h-44 w-44 rounded-full bg-nicchyo-accent/30 blur-3xl"
+        />
+        <motion.div
+          aria-hidden
+          animate={{
+            x: [0, -85, 100, 0],
+            y: [0, -20, 16, 0],
+            scale: [1, 1.1, 0.92, 1],
+            opacity: [0.2, 0.75, 0.2],
+          }}
+          transition={{ duration: 22, repeat: Infinity, ease: "easeInOut", delay: 2.4 }}
+          className="pointer-events-none absolute -bottom-12 left-1/3 h-52 w-52 rounded-full bg-orange-300/35 blur-3xl"
+        />
+        {/* オレンジの霧に混ざり合う、赤みのピンクの霧。orange の動きと位相・周期を
+            ずらして交差させ、混ざる濃さが揺れながら変化するようにする。 */}
+        <motion.div
+          aria-hidden
+          animate={{
+            x: [0, 90, -105, 0],
+            y: [0, -22, 20, 0],
+            scale: [1, 1.14, 0.9, 1],
+            opacity: [0.25, 0.65, 0.25],
+          }}
+          transition={{ duration: 15, repeat: Infinity, ease: "easeInOut", delay: 3.4 }}
+          className="pointer-events-none absolute -bottom-10 left-1/4 h-48 w-48 rounded-full bg-rose-400/40 blur-3xl"
+        />
+        {/* 粒感テクスチャ：フラクタルノイズ（グレースケール・overlay合成）をゆっくり
+            ドリフトさせ、なめらかなブロブだけでは出せない「霧の粒立ち」を足す。 */}
+        <div
+          aria-hidden
+          className="story-fog-grain pointer-events-none absolute inset-0 opacity-[0.5] mix-blend-overlay"
+        />
+        <div className="relative mx-auto max-w-lg">
+          <p className="text-[11px] font-bold uppercase tracking-[0.32em] text-nicchyo-primary">
+            Nicchyo Now
+          </p>
+          <h1 className="mt-1 text-[2.5rem] font-black leading-none tracking-tight text-nicchyo-ink">
+            近況
+          </h1>
+          <p className="mt-2.5 text-sm text-gray-500">出店者のいまが届く、鮮度順のスナップ集</p>
+          <div className="mt-4 flex items-center gap-2 text-[11px] text-gray-400">
+            <span className="inline-flex h-1.5 w-1.5 rounded-full bg-nicchyo-primary" />
+            <span>新しい投稿ほど鮮やか</span>
+            <span className="inline-flex h-1 w-1 rounded-full bg-gray-300" />
             <span>古いほど色あせる</span>
           </div>
         </div>
@@ -126,6 +217,20 @@ export default function StoryGridClient() {
           <EmptyState nextSunday={nextSunday} />
         ) : (
           <>
+            {/* 今週の投稿は大きなカードで自動送り表示し、全画面ストーリーへの導線を強める */}
+            {previewCount > 0 && (
+              <div className="mb-5">
+                <div className="mb-2 flex items-center gap-2">
+                  <h2 className="text-sm font-bold text-nicchyo-ink">今週の投稿</h2>
+                  <span className="text-[11px] text-gray-400">{previewCount}件</span>
+                </div>
+                <FeaturedStoryPreview
+                  stories={stories.slice(0, previewCount)}
+                  onOpen={(index) => setViewerIndex(index)}
+                />
+              </div>
+            )}
+
             {/* 鮮度別セクション（新しいほど鮮やか、古いほど退色） */}
             {sections.map((section) => (
               <section key={section.bucket} className="mb-5">
@@ -204,6 +309,103 @@ export default function StoryGridClient() {
 
       <NavigationBar />
     </main>
+  );
+}
+
+// 今週の投稿を大きなカードで自動送りし、タップでその場面から全画面ストーリーを
+// 開かせるための導線。全画面ビューアと同じ「経過時間バー」を持たせることで、
+// 一覧に来ただけで自然と次の投稿へ意識が向くようにする。
+function FeaturedStoryPreview({
+  stories,
+  onOpen,
+}: {
+  stories: StoryItem[]; // 今週の投稿（新しい順）。index はそのまま全体の index と一致する
+  onOpen: (index: number) => void;
+}) {
+  const [previewIndex, setPreviewIndex] = useState(0);
+
+  // 対象の投稿が入れ替わったら先頭からやり直す
+  useEffect(() => {
+    setPreviewIndex(0);
+  }, [stories]);
+
+  // 一定時間ごとに次の投稿へ（最後まで行ったら先頭へループ）
+  useEffect(() => {
+    if (stories.length <= 1) return;
+    const timer = setTimeout(() => {
+      setPreviewIndex((i) => (i + 1) % stories.length);
+    }, FEATURED_PREVIEW_DURATION);
+    return () => clearTimeout(timer);
+  }, [previewIndex, stories.length]);
+
+  const story = stories[previewIndex];
+  const shopName = story.vendor?.shop_name ?? "出店者";
+
+  return (
+    <button
+      type="button"
+      onClick={() => onOpen(previewIndex)}
+      className="relative block w-full overflow-hidden rounded-2xl text-left focus:outline-none"
+      aria-label={`${shopName}の近況を全画面で見る`}
+    >
+      {/* 明るい画像でもバーが埋もれないよう、上端だけ薄暗くしてから重ねる */}
+      <div className="pointer-events-none absolute inset-x-0 top-0 z-10 h-16 bg-gradient-to-b from-black/45 to-transparent" />
+      {/* 経過時間バー（全画面ビューアと同じ挙動でこのカードの中だけ自動送りする） */}
+      <div className="absolute inset-x-0 top-0 z-20 flex gap-1 p-3">
+        {stories.map((_, i) => (
+          <div key={i} className="h-[3px] flex-1 overflow-hidden rounded-full bg-white/40">
+            {i < previewIndex ? (
+              <div className="h-full w-full rounded-full bg-white" />
+            ) : i === previewIndex ? (
+              <div
+                className="h-full rounded-full bg-white"
+                style={{ animation: `story-progress ${FEATURED_PREVIEW_DURATION}ms linear forwards` }}
+              />
+            ) : (
+              <div className="h-full w-0" />
+            )}
+          </div>
+        ))}
+      </div>
+
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={story.id}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.25 }}
+          className="relative aspect-[4/3] w-full bg-gray-100"
+        >
+          <Image
+            src={story.image_url}
+            alt={shopName}
+            fill
+            className="object-cover"
+            sizes="(max-width: 512px) 100vw, 512px"
+            priority
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/5 to-transparent" />
+        </motion.div>
+      </AnimatePresence>
+
+      <div className="absolute inset-x-0 bottom-0 z-10 flex items-end justify-between gap-3 p-4">
+        <div className="min-w-0">
+          <span className="inline-flex items-center rounded-full bg-nicchyo-accent px-2 py-0.5 text-[10px] font-bold text-nicchyo-ink">
+            最新
+          </span>
+          <p className="mt-1.5 truncate text-base font-bold text-white">{shopName}</p>
+          {story.body && (
+            <p className="truncate text-xs text-white/80">{story.body}</p>
+          )}
+        </div>
+        <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-white/90 text-nicchyo-ink shadow">
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2.2} viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+          </svg>
+        </span>
+      </div>
+    </button>
   );
 }
 
