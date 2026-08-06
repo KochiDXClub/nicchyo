@@ -31,11 +31,19 @@ describe("summarizeShops", () => {
     expect(result).toContain("products:トマト / きゅうり");
   });
 
-  it("6件を超える場合は最初の6件のみ返す", () => {
+  it("6件を超える場合は最初の6件のみ返す（デフォルト上限）", () => {
     const shops = Array.from({ length: 10 }, (_, i) => makeShop({ id: i + 1 }));
     const result = summarizeShops(shops);
     const lines = result.split("\n");
     expect(lines.length).toBe(6);
+  });
+
+  it("limit を渡すとその件数まで返す（おさんぽプランのベクトル候補10件など）", () => {
+    const shops = Array.from({ length: 12 }, (_, i) => makeShop({ id: i + 1 }));
+    const result = summarizeShops(shops, 10);
+    const lines = result.split("\n");
+    expect(lines.length).toBe(10);
+    expect(lines[9]).toContain("id:10");
   });
 
   it("shopStrengthがあれば含む", () => {
