@@ -38,7 +38,10 @@ export default function TrafficChartCard({
   seriesByGranularity,
 }: Props) {
   const [granularity, setGranularity] = useState<TrafficGranularity>("day");
-  const points = seriesByGranularity[granularity] ?? [];
+  const points = useMemo(
+    () => seriesByGranularity[granularity] ?? [],
+    [seriesByGranularity, granularity]
+  );
   const max = useMemo(() => Math.max(...points.map((p) => p.value), 1), [points]);
 
   const yTicks = useMemo(() => {

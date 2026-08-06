@@ -28,6 +28,9 @@ export default function OptimizedShopLayer({
   useEffect(() => {
     const layerGroup = L.layerGroup();
     layerGroupRef.current = layerGroup;
+    // cleanup 時に ref が変化している可能性に備え、この effect 実行時点の
+    // markers Map をローカルに退避して cleanup でもそれを使う
+    const markers = markersRef.current;
 
     const canvasRenderer = L.canvas({ padding: 0.5 });
 
@@ -52,7 +55,7 @@ export default function OptimizedShopLayer({
       });
 
       layerGroup.addLayer(marker);
-      markersRef.current.set(shop.id, marker);
+      markers.set(shop.id, marker);
     });
 
     map.addLayer(layerGroup);
@@ -60,7 +63,7 @@ export default function OptimizedShopLayer({
     return () => {
       map.removeLayer(layerGroup);
       layerGroupRef.current = null;
-      markersRef.current.clear();
+      markers.clear();
     };
   }, [shops, map, onShopClick]);
 
