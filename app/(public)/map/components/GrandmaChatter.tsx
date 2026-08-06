@@ -321,16 +321,24 @@ function pickThinkingData(preferredId?: ConsultCharacterId | null): ThinkingEntr
   }));
 }
 
-// 考え中の背景を横切る「風」の粒。緑と紫を交互に配置し、左から右へ
-// ゆっくり流しながら上下にわずかにゆらす。PR420の霧アニメーションと
-// 同じく、粒はふわっとぼかした柔らかい光彩にして、くっきりした点に
-// ならないようにする。
-const WIND_PARTICLES = Array.from({ length: 7 }, (_, i) => ({
-  top: 8 + ((i * 53) % 80),
-  size: 14 + (i % 3) * 6,
-  color: i % 2 === 0 ? "bg-nicchyo-primary/50" : "bg-violet-400/50",
-  duration: 4.5 + (i % 4) * 0.8,
-  delay: (i % 5) * 0.7,
+// 考え中の背景を横切る「風」のもや。緑・紫・ピンク・黄色・水色を
+// 順に配置し、左から右へゆっくり流しながら上下にわずかにゆらす。
+// PR420の霧アニメーションと同じく、大きめにぼかした柔らかい光彩にして
+// くっきりした点にならないようにする。
+const WIND_PARTICLE_COLORS = [
+  "bg-nicchyo-primary/45",
+  "bg-violet-400/45",
+  "bg-rose-400/45",
+  "bg-amber-300/45",
+  "bg-sky-400/45",
+];
+
+const WIND_PARTICLES = Array.from({ length: 9 }, (_, i) => ({
+  top: 4 + ((i * 41) % 92),
+  size: 44 + (i % 4) * 14,
+  color: WIND_PARTICLE_COLORS[i % WIND_PARTICLE_COLORS.length],
+  duration: 5 + (i % 4) * 0.9,
+  delay: (i % 6) * 0.6,
 }));
 
 function ThinkingWindParticles() {
@@ -339,7 +347,7 @@ function ThinkingWindParticles() {
       {WIND_PARTICLES.map((p, i) => (
         <span
           key={i}
-          className={`absolute rounded-full ${p.color} blur-md`}
+          className={`absolute rounded-full ${p.color} blur-xl`}
           style={{
             top: `${p.top}%`,
             width: `${p.size}px`,
