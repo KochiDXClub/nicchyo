@@ -341,9 +341,21 @@ const WIND_PARTICLES = Array.from({ length: 9 }, (_, i) => ({
   delay: (i % 6) * 0.6,
 }));
 
+// マスクグラデーションで上下左右の縁をなだらかにフェードアウトさせ、
+// overflow-hidden の矩形クリップがそのまま輪郭として見えないようにする。
+const WIND_LAYER_MASK =
+  "radial-gradient(ellipse 70% 80% at center, black 45%, transparent 85%)";
+
 function ThinkingWindParticles() {
   return (
-    <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
+    <div
+      aria-hidden
+      className="pointer-events-none absolute inset-0 overflow-hidden"
+      style={{
+        maskImage: WIND_LAYER_MASK,
+        WebkitMaskImage: WIND_LAYER_MASK,
+      }}
+    >
       {WIND_PARTICLES.map((p, i) => (
         <span
           key={i}
