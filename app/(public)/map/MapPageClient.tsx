@@ -32,6 +32,10 @@ import NearbyExplorePanel, {
   type NearbyRecommendedShop,
 } from "./components/NearbyExplorePanel";
 import { useNearbyPromptVisibility } from "./hooks/useNearbyPromptVisibility";
+import FacilityLayer from "./components/FacilityLayer";
+import FacilityGuidePanel from "./components/FacilityGuidePanel";
+import { useFacilityGuide } from "./hooks/useFacilityGuide";
+import { parseFacilityCategoryId } from "@/lib/facilities/facilities";
 import {
   buildNearbyNote,
   isPointInRotatedRect,
@@ -168,6 +172,15 @@ export default function MapPageClient({
   const isAiFocusMode = searchParams?.get("ai") === "1";
   const searchParamsKey = searchParams?.toString() ?? "";
   const initialShopId = initialShopIdParam ? Number(initialShopIdParam) : undefined;
+  // おでかけサポート（/facilities）から ?facility=<カテゴリ> で入ってくる
+  const facilityCategoryId = parseFacilityCategoryId(searchParams?.get("facility"));
+  const facilityGuide = useFacilityGuide(facilityCategoryId);
+  const closeFacilityGuide = useCallback(() => {
+    const params = new URLSearchParams(searchParamsKey);
+    params.delete("facility");
+    const query = params.toString();
+    router.replace(query ? `/map?${query}` : "/map", { scroll: false });
+  }, [router, searchParamsKey]);
   const [recommendedRecipe, setRecommendedRecipe] = useState<Recipe | null>(null);
   const [showBanner, setShowBanner] = useState(false);
   const [showRecipeOverlay, setShowRecipeOverlay] = useState(false);
@@ -990,7 +1003,9 @@ export default function MapPageClient({
               kotoduteShopIds={kotoduteShopIds}
               shopBannerVariant={shopBannerVariant}
               attendanceEstimates={attendanceEstimates}
-              suppressInitialLocationFocus={isAiFocusMode}
+              // おでかけサポート表示中は施設に合わせた画角を優先し、
+              // 現在地取得時の自動ズームで上書きされないようにする
+              suppressInitialLocationFocus={isAiFocusMode || Boolean(facilityGuide.category)}
               hideMapUI={mapCharacterConsultActive || !!nearbyState}
               trackingButtonTop={trackingButtonTop}
               onGestureActiveChange={setIsMapGestureActive}
@@ -1038,6 +1053,29 @@ export default function MapPageClient({
                 visible={nearbyButtonVisible}
                 onClick={openNearbyPanel}
               />
+            )}
+
+            {/* おでかけサポート：選んだカテゴリの施設を強調表示し、最寄りを案内する */}
+            {facilityGuide.category && (
+              <>
+                <FacilityLayer
+                  map={mapInstance}
+                  category={facilityGuide.category}
+                  facilities={facilityGuide.facilities}
+                  nearestFacilityId={facilityGuide.nearest?.facility.id ?? null}
+                  routePoints={facilityGuide.nearest?.route.points}
+                  userLocation={facilityGuide.userLocation}
+                />
+                {!mapCharacterConsultActive && !nearbyState && (
+                  <FacilityGuidePanel
+                    category={facilityGuide.category}
+                    facilities={facilityGuide.facilities}
+                    ranked={facilityGuide.ranked}
+                    map={mapInstance}
+                    onClose={closeFacilityGuide}
+                  />
+                )}
+              </>
             )}
           </div>
       </main>
