@@ -25,7 +25,7 @@ const baseNavItems: NavItem[] = [
 const secondaryMenuItems = [
   { label: "バッジ",      href: "/badges",     emoji: "🏆", color: "bg-yellow-50",  textColor: "text-yellow-800", border: "border-yellow-100" },
   { label: "マイページ",  href: "/my-profile", emoji: "👤", color: "bg-violet-50",  textColor: "text-violet-800", border: "border-violet-100" },
-  { label: "ニュース",    href: "/news",       emoji: "📰", color: "bg-sky-50",     textColor: "text-sky-800",    border: "border-sky-100"    },
+  { label: "日曜市カレンダー", href: "/calendar", emoji: "📅", color: "bg-sky-50",  textColor: "text-sky-800",    border: "border-sky-100"    },
   { label: "nicchyoとは", href: "/about",      emoji: "ℹ️", color: "bg-slate-50",   textColor: "text-slate-700",  border: "border-slate-100"  },
 ];
 

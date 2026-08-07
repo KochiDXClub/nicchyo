@@ -26,6 +26,8 @@ import { recordMarketEnter, recordMarketExit } from "../../../lib/storage/market
 import { buildSearchIndex } from "../search/lib/searchIndex";
 import { useShopSearch } from "../search/hooks/useShopSearch";
 import { getOrCreateConsultVisitorKey } from "../../../lib/consultVisitorKey";
+import MarketStatusBar from "../../components/market/MarketStatusBar";
+import { useMarketCalendar } from "../../../lib/market/useMarketCalendar";
 import MapCharacterConsult from "./components/MapCharacterConsult";
 import NearbyExploreButton from "./components/NearbyExploreButton";
 import NearbyExplorePanel, {
@@ -201,6 +203,8 @@ export default function MapPageClient({
     }, 2000);
   }, []);
   const [isShopBannerOpen, setIsShopBannerOpen] = useState(false);
+  // 開催ステータス。マップでは平常時（開催）は出さず、中止・臨時休市・特別開催のときだけバーを出す
+  const { calendar: marketCalendar } = useMarketCalendar();
   const [trackingButtonTop, setTrackingButtonTop] = useState(112); // 112px = top-28 (7rem) — Tailwind デフォルト基準値
   const resizeObserverRef = useRef<ResizeObserver | null>(null);
   const searchAreaRef = useCallback((el: HTMLDivElement | null) => {
@@ -912,6 +916,9 @@ export default function MapPageClient({
                 onClick={(e) => e.stopPropagation()}
                 onTouchStart={(e) => e.stopPropagation()}
               >
+                {/* 開催ステータス（例外時のみ表示。平常時は null を返すので検索バーは動かない） */}
+                <MarketStatusBar day={marketCalendar.day} placement="map" />
+
                 {/* 検索バー */}
                 <div className={`flex items-center gap-2 rounded-full px-4 py-2.5 shadow-lg ring-1 backdrop-blur-sm transition-all duration-200 ${
                   mapSearchQuery.trim() || mapSearchCategory
