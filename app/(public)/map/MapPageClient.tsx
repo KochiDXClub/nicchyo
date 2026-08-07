@@ -678,7 +678,7 @@ export default function MapPageClient({
   // ── 「このへん、なにがある？」──────────────────────
   // 他のモード（検索・AI相談・店舗バナー・パネル表示中）ではボタンを出さない
   const nearbySuppressed =
-    !!nearbyState || hasSearchMode || hasAiMode || isShopBannerOpen;
+    !!nearbyState || hasSearchMode || hasAiMode || isShopBannerOpen || !!facilityGuide.category;
   // 回転のみのジェスチャーは Leaflet の move/zoom を発火させないため、
   // MapView から素通しで受け取ってボタンの静止判定に反映する
   const [isMapGestureActive, setIsMapGestureActive] = useState(false);
@@ -916,8 +916,20 @@ export default function MapPageClient({
               />
             )}
 
-            {/* 全幅検索バー + ジャンルフィルター（AI相談・このへんモード時は非表示） */}
-            {!mapCharacterConsultActive && !nearbyState && (
+            {/* おでかけサポート案内中ヘッダー：検索バーの代わりに表示 */}
+            {facilityGuide.category && !mapCharacterConsultActive && !nearbyState && (
+              <div className="absolute left-3 right-3 top-3 z-[1001] flex items-center gap-2.5 rounded-full bg-white/95 px-4 py-2.5 shadow-lg ring-1 ring-slate-900/8 backdrop-blur-sm">
+                <span className="text-lg leading-none" aria-hidden="true">
+                  {facilityGuide.category.emoji}
+                </span>
+                <p className="flex-1 text-sm font-bold text-slate-800">
+                  {facilityGuide.category.label}を案内中
+                </p>
+              </div>
+            )}
+
+            {/* 全幅検索バー + ジャンルフィルター（AI相談・このへん・おでかけサポートモード時は非表示） */}
+            {!mapCharacterConsultActive && !nearbyState && !facilityGuide.category && (
               <div
                 ref={searchAreaRef}
                 className="absolute left-3 right-3 top-3 z-[1001] flex flex-col gap-2"
@@ -1158,7 +1170,7 @@ export default function MapPageClient({
             }
           }}
           onConsultClick={startMapCharacterConsult}
-          closeModeActive={hasSearchMode || hasAiMode || !!nearbyState}
+          closeModeActive={hasSearchMode || hasAiMode || !!nearbyState || !!facilityGuide.category}
           onCloseMode={closeMapInteractionMode}
         />
       )}
