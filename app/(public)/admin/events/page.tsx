@@ -15,7 +15,10 @@ import {
   getRelativeSundayLabel,
   getUpcomingSundayIso,
   isEventOnSunday,
+  isHighlightSunday,
+  listSundaysInRange,
   normalizeCategory,
+  normalizeHighlightDates,
   type MarketEvent as PublicMarketEvent,
   type MarketEventCategory,
 } from "@/lib/market/calendar";
@@ -42,7 +45,8 @@ type EventForm = {
   is_published: boolean;
   category: MarketEventCategory;
   image_url: string;
-  is_highlight: boolean;
+  /** 見どころにする週（日曜の日付）の一覧。連続開催の一部の週だけを選べる */
+  highlight_dates: string[];
 };
 
 function emptyForm(eventDate: string): EventForm {
@@ -58,7 +62,7 @@ function emptyForm(eventDate: string): EventForm {
     is_published: true,
     category: "event",
     image_url: "",
-    is_highlight: false,
+    highlight_dates: [],
   };
 }
 
@@ -81,7 +85,7 @@ function toPublicEvent(event: MarketEvent): PublicMarketEvent {
     location: event.location,
     category: normalizeCategory(event.category),
     image_url: event.image_url ?? null,
-    is_highlight: event.is_highlight ?? false,
+    highlight_dates: normalizeHighlightDates(event.highlight_dates),
   };
 }
 
@@ -168,7 +172,7 @@ export default function AdminEventsPage() {
       is_published: event.is_published,
       category: normalizeCategory(event.category),
       image_url: event.image_url ?? "",
-      is_highlight: event.is_highlight ?? false,
+      highlight_dates: normalizeHighlightDates(event.highlight_dates),
     });
     // 何か入っている項目があれば任意欄を開いた状態で見せる
     setShowOptional(
@@ -529,20 +533,12 @@ export default function AdminEventsPage() {
                 )}
               </div>
 
-              <label className="flex cursor-pointer items-start gap-2">
-                <input
-                  type="checkbox"
-                  checked={form.is_highlight}
-                  onChange={(e) => setForm({ ...form, is_highlight: e.target.checked })}
-                  className="mt-0.5 accent-amber-500"
-                />
-                <span className="text-sm text-slate-700">
-                  その日の見どころにする
-                  <span className="mt-0.5 block text-[11px] text-slate-400">
-                    カードの主役として大きく表示されます。同じ日に1件だけ設定できます
-                  </span>
-                </span>
-              </label>
+              <HighlightWeekPicker
+                eventDate={form.event_date}
+                endDate={form.end_date || null}
+                selected={form.highlight_dates}
+                onChange={(highlight_dates) => setForm({ ...form, highlight_dates })}
+              />
 
               <label className="flex cursor-pointer items-center gap-2">
                 <input
@@ -580,6 +576,84 @@ export default function AdminEventsPage() {
   );
 }
 
+/**
+ * 見どころにする週を選ぶUI。
+ *
+ * 単発イベントなら選択肢は1つだけ（その日）。連続開催イベントなら
+ * 期間内の日曜が並び、個別に選べる（「8月はずっと出店するが、
+ * 見どころにしたいのは最初の週だけ」に対応するため）。
+ * 「すべて選択」で従来どおり期間全体を見どころにすることもできる。
+ */
+function HighlightWeekPicker({
+  eventDate,
+  endDate,
+  selected,
+  onChange,
+}: {
+  eventDate: string;
+  endDate: string | null;
+  selected: string[];
+  onChange: (dates: string[]) => void;
+}) {
+  const sundays = useMemo(() => listSundaysInRange(eventDate, endDate), [eventDate, endDate]);
+
+  const toggle = (dateIso: string) => {
+    onChange(
+      selected.includes(dateIso)
+        ? selected.filter((d) => d !== dateIso)
+        : [...selected, dateIso]
+    );
+  };
+
+  return (
+    <div>
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-semibold text-slate-600">見どころにする週</span>
+        {sundays.length > 1 && (
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => onChange(sundays)}
+              className="text-[11px] font-semibold text-amber-600 hover:underline"
+            >
+              すべて選択
+            </button>
+            <button
+              type="button"
+              onClick={() => onChange([])}
+              className="text-[11px] font-semibold text-slate-400 hover:underline"
+            >
+              すべて解除
+            </button>
+          </div>
+        )}
+      </div>
+      <p className="mt-0.5 text-[11px] text-slate-400">
+        選んだ週だけカードの主役として大きく表示されます。1週につき1件までです
+      </p>
+      <div className="mt-2 flex flex-wrap gap-1.5">
+        {sundays.map((dateIso) => {
+          const checked = selected.includes(dateIso);
+          return (
+            <button
+              key={dateIso}
+              type="button"
+              onClick={() => toggle(dateIso)}
+              className={`rounded-full border-2 px-2.5 py-1 text-xs font-semibold transition ${
+                checked
+                  ? "border-amber-400 bg-amber-50 text-amber-800"
+                  : "border-slate-200 bg-white text-slate-500 hover:border-slate-300"
+              }`}
+            >
+              {formatEventDate(dateIso)}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function EventRow({
   event,
   sundayIso,
@@ -602,6 +676,12 @@ function EventRow({
   const isContinuous = Boolean(event.end_date && event.end_date > event.event_date);
   // 連続開催の予定は同じ内容が複数の日曜に並ぶので、どの回を見ているか分かるようにする
   const showsRepeat = isContinuous && sundayIso !== null;
+  // 見どころは週単位なので、この行がどの日曜の枠かで判定する。
+  // 表示範囲外（sundayIso===null）のときは「どこかの週で見どころか」で代用する
+  const isHighlightHere =
+    sundayIso !== null
+      ? isHighlightSunday(publicEvent, sundayIso)
+      : publicEvent.highlight_dates.length > 0;
 
   return (
     <div className="flex items-start justify-between gap-3 px-4 py-3">
@@ -617,7 +697,7 @@ function EventRow({
           <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600">
             {emoji} {label}
           </span>
-          {event.is_highlight && (
+          {isHighlightHere && (
             <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-800">
               ★ 見どころ
             </span>

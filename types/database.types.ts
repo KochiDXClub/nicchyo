@@ -470,9 +470,9 @@ export type Database = {
           end_date: string | null
           end_time: string | null
           event_date: string
+          highlight_dates: string[]
           id: string
           image_url: string | null
-          is_highlight: boolean
           is_published: boolean
           location: string | null
           start_time: string | null
@@ -487,9 +487,9 @@ export type Database = {
           end_date?: string | null
           end_time?: string | null
           event_date: string
+          highlight_dates?: string[]
           id?: string
           image_url?: string | null
-          is_highlight?: boolean
           is_published?: boolean
           location?: string | null
           start_time?: string | null
@@ -504,9 +504,9 @@ export type Database = {
           end_date?: string | null
           end_time?: string | null
           event_date?: string
+          highlight_dates?: string[]
           id?: string
           image_url?: string | null
-          is_highlight?: boolean
           is_published?: boolean
           location?: string | null
           start_time?: string | null

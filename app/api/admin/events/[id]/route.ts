@@ -3,7 +3,7 @@ import { getRole } from "@/lib/auth/permissions";
 import { createAdminClient } from "@/lib/supabase/adminClient";
 import { requireSameOrigin } from "@/lib/security/requestGuards";
 import { enforceRateLimit } from "@/lib/security/rateLimit";
-import { authorizeAdmin, validateImageUrl } from "../_helpers";
+import { authorizeAdmin, findHighlightConflict, validateHighlightDates, validateImageUrl } from "../_helpers";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -110,12 +110,56 @@ export async function PATCH(req: Request, { params }: Params) {
     if (imageError) return NextResponse.json({ error: imageError }, { status: 400 });
     updates.image_url = url;
   }
-  if (typeof body.is_highlight === "boolean") {
-    updates.is_highlight = body.is_highlight;
+  let pendingHighlightDates: string[] | undefined;
+  if ("highlight_dates" in body) {
+    // 見どころの範囲チェックには最終的な event_date/end_date が要る。
+    // このリクエストで更新される値があればそれを、無ければ現在の値を読みに行く。
+    const needsEventDate = typeof updates.event_date !== "string";
+    const needsEndDate = !("end_date" in updates);
+
+    let eventDateForRange: string;
+    let endDateForRange: string | null;
+
+    if (needsEventDate || needsEndDate) {
+      const { data: current } = await dc
+        .from("market_events")
+        .select("event_date, end_date")
+        .eq("id", id)
+        .maybeSingle();
+      if (!current) {
+        return NextResponse.json({ error: "イベントが見つかりません" }, { status: 404 });
+      }
+      eventDateForRange = needsEventDate ? current.event_date : (updates.event_date as string);
+      endDateForRange = needsEndDate ? current.end_date : (updates.end_date as string | null);
+    } else {
+      eventDateForRange = updates.event_date as string;
+      endDateForRange = updates.end_date as string | null;
+    }
+
+    const { dates, error: highlightError } = validateHighlightDates(
+      body.highlight_dates,
+      eventDateForRange,
+      endDateForRange
+    );
+    if (highlightError) return NextResponse.json({ error: highlightError }, { status: 400 });
+    pendingHighlightDates = dates;
+    updates.highlight_dates = dates;
   }
 
   if (Object.keys(updates).length === 0) {
     return NextResponse.json({ error: "更新するフィールドがありません" }, { status: 400 });
+  }
+
+  if (pendingHighlightDates && pendingHighlightDates.length > 0) {
+    const conflict = await findHighlightConflict(dc, pendingHighlightDates, id);
+    if (conflict) {
+      return NextResponse.json(
+        {
+          error: `「${conflict.title}」とその週の見どころが重なっています（1週につき見どころは1件までです）`,
+        },
+        { status: 409 }
+      );
+    }
   }
 
   const { data, error: dbError } = await dc
@@ -125,12 +169,6 @@ export async function PATCH(req: Request, { params }: Params) {
     .select("*")
     .maybeSingle();
 
-  if (dbError?.code === "23505") {
-    return NextResponse.json(
-      { error: "この日にはすでに見どころが設定されています" },
-      { status: 409 }
-    );
-  }
   if (dbError) {
     return NextResponse.json({ error: "更新に失敗しました" }, { status: 500 });
   }

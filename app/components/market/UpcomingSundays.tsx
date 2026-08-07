@@ -159,18 +159,25 @@ function HighlightItem({ event }: { event: MarketEvent }) {
   );
 }
 
+/** 見どころ以外の予定。写真があれば小さくサムネイルを添える（出店者インタビューの「写真が一番」に応える） */
 function EventItem({ event }: { event: MarketEvent }) {
   const { label, emoji } = getCategoryPresentation(event.category);
 
   return (
     <li className="flex gap-2.5">
-      <span className="mt-0.5 shrink-0 text-base leading-none" aria-hidden>
-        {emoji}
-      </span>
+      {event.image_url ? (
+        <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-lg bg-gray-100">
+          <Image src={event.image_url} alt="" fill className="object-cover" sizes="48px" />
+        </div>
+      ) : (
+        <span className="mt-0.5 shrink-0 text-base leading-none" aria-hidden>
+          {emoji}
+        </span>
+      )}
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1.5">
           <span className="rounded-full bg-black/5 px-1.5 py-0.5 text-[10px] font-bold text-gray-500">
-            {label}
+            {event.image_url ? `${emoji} ${label}` : label}
           </span>
         </div>
         <p className="mt-1 text-sm font-bold leading-snug text-nicchyo-ink">{event.title}</p>

@@ -4,6 +4,7 @@ import {
   getUpcomingSundayIso,
   normalizeStatus,
   normalizeCategory,
+  normalizeHighlightDates,
   getStatusPresentation,
   getCategoryPresentation,
   shouldSurfaceOnMap,
@@ -11,6 +12,8 @@ import {
   formatEventTime,
   getRelativeSundayLabel,
   groupEventsBySunday,
+  isHighlightSunday,
+  listSundaysInRange,
   formatEventPeriod,
   type MarketEvent,
 } from "./calendar";
@@ -25,7 +28,7 @@ function makeEvent(overrides: Partial<MarketEvent> & { id: string; event_date: s
     location: null,
     category: "event",
     image_url: null,
-    is_highlight: false,
+    highlight_dates: [],
     ...overrides,
   };
 }
@@ -216,7 +219,7 @@ describe("groupEventsBySunday", () => {
   it("見どころを1件だけ切り出し、残りと重複させない", () => {
     const events = [
       makeEvent({ id: "normal", event_date: "2026-08-16" }),
-      makeEvent({ id: "star", event_date: "2026-08-16", is_highlight: true }),
+      makeEvent({ id: "star", event_date: "2026-08-16", highlight_dates: ["2026-08-16"] }),
     ];
     const sundays = groupEventsBySunday(events, [], 1, now);
     expect(sundays[0].highlight?.id).toBe("star");
@@ -275,13 +278,13 @@ describe("groupEventsBySunday", () => {
     expect(sundays.map((s) => s.events.length)).toEqual([1, 0, 0]);
   });
 
-  it("連続開催の見どころは各日曜で見どころのまま扱う", () => {
+  it("連続開催で全週を見どころに指定すれば、各日曜で見どころのまま扱う", () => {
     const events = [
       makeEvent({
         id: "star",
         event_date: "2026-08-16",
         end_date: "2026-08-23",
-        is_highlight: true,
+        highlight_dates: ["2026-08-16", "2026-08-23"],
       }),
     ];
     const sundays = groupEventsBySunday(events, [], 2, now);
@@ -290,10 +293,85 @@ describe("groupEventsBySunday", () => {
     expect(sundays[0].events).toEqual([]);
   });
 
+  it("連続開催でも見どころに指定した週だけが見どころになる", () => {
+    // 8月ずっと出店するが、見どころにしたいのは最初の週だけ、というケース
+    const events = [
+      makeEvent({
+        id: "fair",
+        event_date: "2026-08-16",
+        end_date: "2026-09-06",
+        highlight_dates: ["2026-08-16"],
+      }),
+    ];
+    const sundays = groupEventsBySunday(events, [], 4, now);
+    expect(sundays[0].highlight?.id).toBe("fair");
+    expect(sundays[1].highlight).toBeNull();
+    expect(sundays[1].events.map((e) => e.id)).toEqual(["fair"]);
+    expect(sundays[2].highlight).toBeNull();
+    expect(sundays[3].highlight).toBeNull();
+  });
+
   it("先頭だけが今週になり、相対ラベルが付く", () => {
     const sundays = groupEventsBySunday([], [], 3, now);
     expect(sundays.map((s) => s.isThisWeek)).toEqual([true, false, false]);
     expect(sundays.map((s) => s.relativeLabel)).toEqual(["今週", "来週", "あと2週"]);
+  });
+});
+
+describe("normalizeHighlightDates", () => {
+  it("正しい形式の日付だけを残す", () => {
+    expect(normalizeHighlightDates(["2026-08-16", "2026-08-23"])).toEqual([
+      "2026-08-16",
+      "2026-08-23",
+    ]);
+  });
+
+  it("不正な要素は除外する", () => {
+    expect(normalizeHighlightDates(["2026-08-16", "not-a-date", 123, null])).toEqual([
+      "2026-08-16",
+    ]);
+  });
+
+  it("配列でなければ空配列にする", () => {
+    expect(normalizeHighlightDates(null)).toEqual([]);
+    expect(normalizeHighlightDates(undefined)).toEqual([]);
+    expect(normalizeHighlightDates("2026-08-16")).toEqual([]);
+  });
+});
+
+describe("isHighlightSunday", () => {
+  it("highlight_dates に含まれる日曜なら true", () => {
+    const event = makeEvent({
+      id: "a",
+      event_date: "2026-08-16",
+      end_date: "2026-09-06",
+      highlight_dates: ["2026-08-23"],
+    });
+    expect(isHighlightSunday(event, "2026-08-23")).toBe(true);
+    expect(isHighlightSunday(event, "2026-08-16")).toBe(false);
+  });
+});
+
+describe("listSundaysInRange", () => {
+  it("単発イベントは1件だけ返す", () => {
+    expect(listSundaysInRange("2026-08-16", null)).toEqual(["2026-08-16"]);
+  });
+
+  it("連続開催は期間内の日曜をすべて返す", () => {
+    expect(listSundaysInRange("2026-08-16", "2026-09-06")).toEqual([
+      "2026-08-16",
+      "2026-08-23",
+      "2026-08-30",
+      "2026-09-06",
+    ]);
+  });
+
+  it("end_date が開始日と同じなら1件だけ", () => {
+    expect(listSundaysInRange("2026-08-16", "2026-08-16")).toEqual(["2026-08-16"]);
+  });
+
+  it("end_date が開始日より前の壊れたデータは1件だけにする", () => {
+    expect(listSundaysInRange("2026-08-16", "2026-08-01")).toEqual(["2026-08-16"]);
   });
 });
 
