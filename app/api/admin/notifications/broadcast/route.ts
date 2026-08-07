@@ -4,7 +4,7 @@ import { cookies } from "next/headers";
 import { createClient as createServerClient } from "@/utils/supabase/server";
 import { requireSameOrigin } from "@/lib/security/requestGuards";
 import { enforceRateLimit } from "@/lib/security/rateLimit";
-import { getRole, isAdmin } from "@/lib/auth/permissions";
+import { getRole, isAdmin, normalizeRole } from "@/lib/auth/permissions";
 import { listAllAuthUsers } from "@/lib/auth/listAllUsers";
 import { MAX_BULK_OPERATION } from "@/lib/constants";
 import { sendBulkEmails } from "@/lib/email/mailer";
@@ -59,14 +59,14 @@ async function resolveRecipients(
   }
 
   const usersResult = await listAllAuthUsers(serviceClient);
-  if (!("users" in usersResult)) {
+  if (usersResult.error) {
     return { error: "ユーザー一覧の取得に失敗しました" };
   }
 
   const filtered = usersResult.users.filter((u) => {
     if (!u.email) return false;
     if (recipientMode === "all") return true;
-    const role = (u.app_metadata?.role as string | undefined) ?? "general_user";
+    const role = normalizeRole(u.app_metadata?.role ?? u.user_metadata?.role);
     return role === recipientMode;
   });
 

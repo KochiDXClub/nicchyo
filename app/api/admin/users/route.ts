@@ -81,7 +81,7 @@ export async function GET() {
     });
 
     const usersResult = await listAllAuthUsers(serviceClient);
-    if (!("users" in usersResult)) {
+    if (usersResult.error) {
       return NextResponse.json({ error: "Failed to fetch auth users" }, { status: 500 });
     }
     const allUsers = usersResult.users;

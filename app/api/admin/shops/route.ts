@@ -63,8 +63,13 @@ export async function GET() {
     const vendors = Array.isArray(vendorsData) ? vendorsData : [];
 
     // 全 auth ユーザーを取得（banned_until でsuspended判定）
+    // ページ途中で取得に失敗しても、それまでに取れた分は使う（一部の店舗情報が
+    // 欠けるだけで、店舗一覧全体が空になるよりはましなため）
     const usersResult = await listAllAuthUsers(serviceClient);
-    const allAuthUsers = "users" in usersResult ? usersResult.users : [];
+    if (usersResult.error) {
+      console.error("[admin/shops] listAllAuthUsers partial failure:", usersResult.error);
+    }
+    const allAuthUsers = usersResult.users;
 
     const authById = new Map(allAuthUsers.map((u) => [u.id, u]));
 

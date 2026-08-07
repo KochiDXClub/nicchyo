@@ -86,6 +86,8 @@ export async function sendBulkEmails(params: SendBulkEmailsParams): Promise<Send
 
   for (const batch of chunk(params.recipients, BATCH_CHUNK_SIZE)) {
     try {
+      // permissive指定で、バッチ内の一部だけ失敗した場合でも
+      // どの宛先が失敗したか（errors[].index）を受け取れるようにする
       const { data, error } = await resend.batch.send(
         batch.map((to) => ({
           from: FROM_ADDRESS,
@@ -93,7 +95,8 @@ export async function sendBulkEmails(params: SendBulkEmailsParams): Promise<Send
           subject: params.subject,
           html: params.html,
           text: params.text,
-        }))
+        })),
+        { batchValidation: "permissive" }
       );
 
       if (error) {
@@ -102,7 +105,14 @@ export async function sendBulkEmails(params: SendBulkEmailsParams): Promise<Send
         continue;
       }
 
-      sentCount += data?.data?.length ?? batch.length;
+      const failedIndices = new Set((data && "errors" in data ? data.errors : []).map((e) => e.index));
+      batch.forEach((recipient, index) => {
+        if (failedIndices.has(index)) {
+          failedRecipients.push(recipient);
+        } else {
+          sentCount += 1;
+        }
+      });
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Unknown error";
       console.error("[mailer] bulk send unexpected error:", msg);
