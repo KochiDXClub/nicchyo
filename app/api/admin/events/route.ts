@@ -1,10 +1,13 @@
 import { NextResponse } from "next/server";
 import { getRole } from "@/lib/auth/permissions";
 import { createAdminClient } from "@/lib/supabase/adminClient";
-import { authorizeAdmin } from "./_helpers";
+import { normalizeCategory, type MarketEventCategory } from "@/lib/market/calendar";
+import { authorizeAdmin, validateImageUrl } from "./_helpers";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+const VALID_EVENT_CATEGORIES: readonly string[] = ["vendor", "event", "season", "notice"];
 
 export interface MarketEvent {
   id: string;
@@ -15,6 +18,9 @@ export interface MarketEvent {
   end_time: string | null;
   location: string | null;
   is_published: boolean;
+  category: MarketEventCategory;
+  image_url: string | null;
+  is_highlight: boolean;
   created_by: string | null;
   created_at: string;
   updated_at: string;
@@ -68,6 +74,14 @@ function validateEventBody(body: unknown): { data: Partial<MarketEvent>; error: 
     return { data: {}, error: "終了時刻の形式が無効です（HH:MM）" };
   }
 
+  // 種別（出店予定 / イベント / 旬 / お知らせ）。未指定はイベント扱い。
+  if (b.category !== undefined && !VALID_EVENT_CATEGORIES.includes(b.category as string)) {
+    return { data: {}, error: "種別が無効です" };
+  }
+
+  const { url: imageUrl, error: imageError } = validateImageUrl(b.image_url);
+  if (imageError) return { data: {}, error: imageError };
+
   return {
     data: {
       title,
@@ -77,6 +91,9 @@ function validateEventBody(body: unknown): { data: Partial<MarketEvent>; error: 
       end_time: typeof b.end_time === "string" && b.end_time ? b.end_time : null,
       location: typeof b.location === "string" ? b.location.trim().slice(0, 200) || null : null,
       is_published: b.is_published === true,
+      category: normalizeCategory(b.category),
+      image_url: imageUrl,
+      is_highlight: b.is_highlight === true,
     },
     error: null,
   };

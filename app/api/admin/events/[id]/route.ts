@@ -1,12 +1,14 @@
 import { NextResponse } from "next/server";
 import { getRole } from "@/lib/auth/permissions";
 import { createAdminClient } from "@/lib/supabase/adminClient";
-import { authorizeAdmin } from "../_helpers";
+import { authorizeAdmin, validateImageUrl } from "../_helpers";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 type Params = { params: Promise<{ id: string }> };
+
+const VALID_EVENT_CATEGORIES: readonly string[] = ["vendor", "event", "season", "notice"];
 
 export async function PATCH(req: Request, { params }: Params) {
   const { user, error } = await authorizeAdmin();
@@ -51,6 +53,20 @@ export async function PATCH(req: Request, { params }: Params) {
   }
   if (typeof body.is_published === "boolean") {
     updates.is_published = body.is_published;
+  }
+  if ("category" in body) {
+    if (!VALID_EVENT_CATEGORIES.includes(body.category as string)) {
+      return NextResponse.json({ error: "種別が無効です" }, { status: 400 });
+    }
+    updates.category = body.category;
+  }
+  if ("image_url" in body) {
+    const { url, error: imageError } = validateImageUrl(body.image_url);
+    if (imageError) return NextResponse.json({ error: imageError }, { status: 400 });
+    updates.image_url = url;
+  }
+  if (typeof body.is_highlight === "boolean") {
+    updates.is_highlight = body.is_highlight;
   }
 
   if (Object.keys(updates).length === 0) {

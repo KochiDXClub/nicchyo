@@ -15,9 +15,9 @@ import {
 } from "./age";
 import { fetchReactionCounts } from "@/lib/story/reactions";
 import MarketStatusBar from "@/app/components/market/MarketStatusBar";
-import UpcomingEvents from "@/app/components/market/UpcomingEvents";
+import UpcomingSundays from "@/app/components/market/UpcomingSundays";
 import { useMarketCalendar } from "@/lib/market/useMarketCalendar";
-import { UPCOMING_EVENTS_PREVIEW_COUNT } from "@/lib/market/calendar";
+import { groupEventsBySunday, UPCOMING_SUNDAYS_PREVIEW_COUNT } from "@/lib/market/calendar";
 import type { StoryItem } from "./types";
 
 // グリッド上部の目立つプレビュー枠で1件あたり表示する時間。
@@ -103,7 +103,11 @@ export default function StoryGridClient() {
   // 「これからの日曜市」は通常は出店者の投稿より下に置く（近況フィードを運営が占拠しないため）。
   // ただし今週の出店者投稿が0件のときだけ、スカスカの画面を運営の予定で埋める。
   const hoistCalendar = !loading && !fetchError && previewCount === 0;
-  const upcomingEvents = calendar.events.slice(0, UPCOMING_EVENTS_PREVIEW_COUNT);
+  const upcomingSundays = groupEventsBySunday(
+    calendar.events,
+    calendar.days,
+    UPCOMING_SUNDAYS_PREVIEW_COUNT
+  );
 
   // API が提灯ローディング中に失敗した場合は、待たずにエラー表示へ進む
   if (pageLoading && !fetchError) return <LoadingLantern />;
@@ -213,7 +217,7 @@ export default function StoryGridClient() {
       <div className="mx-auto max-w-lg px-4 pt-5">
         {hoistCalendar && (
           <div className="mb-6">
-            <UpcomingEvents events={upcomingEvents} showMoreLink />
+            <UpcomingSundays sundays={upcomingSundays} showMoreLink />
           </div>
         )}
 
@@ -319,7 +323,7 @@ export default function StoryGridClient() {
         {/* これからの日曜市：出店者の投稿の下に独立したセクションとして置く */}
         {!hoistCalendar && (
           <div className="mt-8 border-t border-black/5 pt-6">
-            <UpcomingEvents events={upcomingEvents} showMoreLink />
+            <UpcomingSundays sundays={upcomingSundays} showMoreLink />
           </div>
         )}
       </div>

@@ -17,6 +17,9 @@ export type MarketDay = {
   note: string | null;
 };
 
+/** カードに載せる情報の種別 */
+export type MarketEventCategory = "vendor" | "event" | "season" | "notice";
+
 export type MarketEvent = {
   id: string;
   title: string;
@@ -25,22 +28,31 @@ export type MarketEvent = {
   start_time: string | null; // HH:MM:SS
   end_time: string | null;
   location: string | null;
+  category: MarketEventCategory;
+  image_url: string | null;
+  is_highlight: boolean;
 };
 
 export type MarketCalendar = {
-  /** 直近の日曜日の開催ステータス。未登録なら null（＝通常どおり開催の想定） */
+  /** 今週の日曜の開催ステータス。未登録なら null（＝通常どおり開催の想定） */
   day: MarketDay | null;
+  /** 今日以降に登録されている開催ステータス（日曜ごとのカードで使う） */
+  days: MarketDay[];
   /** 今日以降のイベント（開催日の近い順） */
   events: MarketEvent[];
 };
 
-/** 「これからの日曜市」セクションに出す既定件数 */
-export const UPCOMING_EVENTS_PREVIEW_COUNT = 3;
+/** 近況ページ下部に出す日曜の数 */
+export const UPCOMING_SUNDAYS_PREVIEW_COUNT = 2;
+
+/** カレンダーページに出す日曜の数 */
+export const UPCOMING_SUNDAYS_FULL_COUNT = 5;
 
 /** カレンダーページで一度に読む上限 */
 const EVENTS_LIMIT = 50;
 
 const VALID_STATUSES: readonly string[] = ["open", "cancelled", "special", "closed"];
+const VALID_CATEGORIES: readonly string[] = ["vendor", "event", "season", "notice"];
 
 // ── 純粋関数（テスト対象） ───────────────────────────────────────────────
 
@@ -85,6 +97,29 @@ export function normalizeStatus(value: unknown): MarketDayStatus {
   return typeof value === "string" && VALID_STATUSES.includes(value)
     ? (value as MarketDayStatus)
     : "open";
+}
+
+/** DB から来た category 文字列を型に落とす。想定外の値はイベント扱いにする */
+export function normalizeCategory(value: unknown): MarketEventCategory {
+  return typeof value === "string" && VALID_CATEGORIES.includes(value)
+    ? (value as MarketEventCategory)
+    : "event";
+}
+
+export type CategoryPresentation = {
+  label: string;
+  emoji: string;
+};
+
+const CATEGORY_PRESENTATION: Record<MarketEventCategory, CategoryPresentation> = {
+  season: { label: "旬", emoji: "🍊" },
+  vendor: { label: "出店予定", emoji: "🏪" },
+  event: { label: "イベント", emoji: "🎪" },
+  notice: { label: "お知らせ", emoji: "📢" },
+};
+
+export function getCategoryPresentation(category: MarketEventCategory): CategoryPresentation {
+  return CATEGORY_PRESENTATION[category];
 }
 
 export type StatusPresentation = {
@@ -135,6 +170,88 @@ export function formatEventTime(
   return null;
 }
 
+/** 日曜1回分のカード。予定が無い日曜も枠として残す（＝開催はする、という情報になる） */
+export type MarketSunday = {
+  dateIso: string;
+  /** 8/16（日） */
+  dateLabel: string;
+  /** 今週 / 来週 / あと2週 */
+  relativeLabel: string;
+  isThisWeek: boolean;
+  day: MarketDay | null;
+  /** その日の見どころ（1件だけ）。カードの主役として大きく出す */
+  highlight: MarketEvent | null;
+  /** 見どころを除いた残りの予定 */
+  events: MarketEvent[];
+};
+
+/** 何週先かを日本語にする */
+export function getRelativeSundayLabel(weeksAhead: number): string {
+  if (weeksAhead === 0) return "今週";
+  if (weeksAhead === 1) return "来週";
+  return `あと${weeksAhead}週`;
+}
+
+function isoToDate(iso: string): Date {
+  return new Date(`${iso}T00:00:00Z`);
+}
+
+function addDaysToIso(iso: string, days: number): string {
+  const d = isoToDate(iso);
+  d.setUTCDate(d.getUTCDate() + days);
+  return formatUtcFields(d);
+}
+
+/** 開始時刻の早い順。時刻未設定は最後に回す */
+function byStartTime(a: MarketEvent, b: MarketEvent): number {
+  if (a.start_time && b.start_time) return a.start_time.localeCompare(b.start_time);
+  if (a.start_time) return -1;
+  if (b.start_time) return 1;
+  return 0;
+}
+
+/**
+ * 予定を「次のN回分の日曜」にまとめる。
+ *
+ * 日曜市は毎週日曜しか開かないため、月間グリッドにすると6/7が空白になり
+ * 情報密度が下がる。日曜だけを縦に並べ、その日に何があるかを1枚のカードに畳む。
+ * 日曜以外の日付で登録された予定は、その週の日曜のカードに寄せる。
+ */
+export function groupEventsBySunday(
+  events: MarketEvent[],
+  days: MarketDay[],
+  count: number,
+  now: Date = new Date()
+): MarketSunday[] {
+  const firstSunday = getUpcomingSundayIso(now);
+  const dayByDate = new Map(days.map((d) => [d.market_date, d]));
+
+  const eventsBySunday = new Map<string, MarketEvent[]>();
+  for (const event of events) {
+    const key = getUpcomingSundayIso(isoToDate(event.event_date));
+    const bucket = eventsBySunday.get(key);
+    if (bucket) bucket.push(event);
+    else eventsBySunday.set(key, [event]);
+  }
+
+  return Array.from({ length: count }, (_, weeksAhead) => {
+    const dateIso = addDaysToIso(firstSunday, weeksAhead * 7);
+    const bucket = (eventsBySunday.get(dateIso) ?? []).slice().sort(byStartTime);
+    const highlightIndex = bucket.findIndex((e) => e.is_highlight);
+    const highlight = highlightIndex >= 0 ? bucket[highlightIndex] : null;
+
+    return {
+      dateIso,
+      dateLabel: formatEventDate(dateIso),
+      relativeLabel: getRelativeSundayLabel(weeksAhead),
+      isThisWeek: weeksAhead === 0,
+      day: dayByDate.get(dateIso) ?? null,
+      highlight,
+      events: highlight ? bucket.filter((_, i) => i !== highlightIndex) : bucket,
+    };
+  });
+}
+
 // ── DB アクセス ─────────────────────────────────────────────────────────
 
 type Client = SupabaseClient<Database>;
@@ -151,15 +268,19 @@ export async function fetchMarketCalendar(
   const todayIso = toIsoDate(now);
   const sundayIso = getUpcomingSundayIso(now);
 
-  const [dayResult, eventsResult] = await Promise.all([
+  const [daysResult, eventsResult] = await Promise.all([
     supabase
       .from("market_days")
       .select("market_date, status, note")
-      .eq("market_date", sundayIso)
-      .maybeSingle(),
+      // 今週の日曜から先。日曜ごとのカードそれぞれにステータスを出せるようにまとめて読む
+      .gte("market_date", sundayIso)
+      .order("market_date", { ascending: true })
+      .limit(12),
     supabase
       .from("market_events")
-      .select("id, title, description, event_date, start_time, end_time, location")
+      .select(
+        "id, title, description, event_date, start_time, end_time, location, category, image_url, is_highlight"
+      )
       .eq("is_published", true)
       // 当日のイベントはまだ有効なので「今日以降」で切る
       .gte("event_date", todayIso)
@@ -167,17 +288,28 @@ export async function fetchMarketCalendar(
       .limit(options.limit ?? EVENTS_LIMIT),
   ]);
 
-  const dayRow = dayResult.data;
-  const day: MarketDay | null = dayRow
-    ? {
-        market_date: dayRow.market_date,
-        status: normalizeStatus(dayRow.status),
-        note: dayRow.note,
-      }
-    : null;
+  const days: MarketDay[] = (daysResult.data ?? []).map((row) => ({
+    market_date: row.market_date,
+    status: normalizeStatus(row.status),
+    note: row.note,
+  }));
+
+  const events: MarketEvent[] = (eventsResult.data ?? []).map((row) => ({
+    id: row.id,
+    title: row.title,
+    description: row.description,
+    event_date: row.event_date,
+    start_time: row.start_time,
+    end_time: row.end_time,
+    location: row.location,
+    category: normalizeCategory(row.category),
+    image_url: row.image_url,
+    is_highlight: row.is_highlight,
+  }));
 
   return {
-    day,
-    events: (eventsResult.data ?? []) as MarketEvent[],
+    day: days.find((d) => d.market_date === sundayIso) ?? null,
+    days,
+    events,
   };
 }
