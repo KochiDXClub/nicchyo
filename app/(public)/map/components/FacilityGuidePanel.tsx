@@ -10,6 +10,11 @@
  *   - タップでボトムシートが開き、施設が近い順に並ぶ
  *   - 最寄りの1件は行を強調表示する
  *   - 行をタップするとその施設へマップが寄る
+ *
+ * バッジピルは「状態ラベル（小・色つき）→本文（大・太字）」の2段構成にして、
+ * 一番伝えたい情報（施設名や件数）が視線に一番強く残るようにしてある。
+ * 色はカテゴリごとの markerColor を使い、お手洗い／休けい／のりもので
+ * ひと目で見分けがつくようにする。
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -66,10 +71,12 @@ export default function FacilityGuidePanel({
     ? ranked.map((entry) => ({ facility: entry.facility, walk: entry }))
     : facilities.map((facility) => ({ facility, walk: null }));
   const nearestId = hasLocation ? ranked[0].facility.id : null;
+  const nearest = hasLocation ? ranked[0] : null;
 
   return (
     <>
-      {/* バッジピル：たたんでいるときの表示 */}
+      {/* バッジピル：たたんでいるときの表示。
+          上段＝状態を示す小さな色つきラベル、下段＝一番伝えたい本文（太字・大きめ） */}
       {!isOpen && (
         <div
           className="pointer-events-auto absolute left-1/2 z-[1100] -translate-x-1/2"
@@ -82,17 +89,29 @@ export default function FacilityGuidePanel({
               setIsOpen(true);
             }}
             onTouchStart={(e) => e.stopPropagation()}
-            className="flex items-center gap-2 rounded-full bg-white px-4 py-2.5 shadow-lg ring-1 ring-black/5 transition-transform active:scale-95"
+            className="flex max-w-[min(88vw,26rem)] items-center gap-2.5 rounded-2xl bg-white py-2 pl-2.5 pr-3.5 shadow-lg ring-1 ring-black/5 transition-transform active:scale-[0.97]"
           >
-            <span aria-hidden className="text-base leading-none">
+            <div
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-base"
+              style={{ backgroundColor: `${category.markerColor}1a` }}
+              aria-hidden
+            >
               {category.emoji}
-            </span>
-            <span className="text-[13px] font-bold text-slate-900">
-              {nearestId && ranked[0]
-                ? `徒歩${ranked[0].walkMinutes}分・${ranked[0].facility.name}`
-                : `${category.label} ${facilities.length}か所`}
-            </span>
-            <svg width="10" height="6" viewBox="0 0 10 6" fill="none" className="shrink-0 text-slate-400">
+            </div>
+
+            <div className="min-w-0 flex-1 text-left">
+              <p
+                className="text-[10px] font-bold uppercase leading-none tracking-wide"
+                style={{ color: category.markerColor }}
+              >
+                {nearest ? `最寄り・徒歩${nearest.walkMinutes}分` : category.label}
+              </p>
+              <p className="mt-1 truncate text-[14px] font-bold leading-tight text-slate-900">
+                {nearest ? nearest.facility.name : `${facilities.length}か所を表示中`}
+              </p>
+            </div>
+
+            <svg width="10" height="6" viewBox="0 0 10 6" fill="none" className="shrink-0 text-slate-300">
               <path d="M1 5L5 1L9 5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
           </button>
@@ -139,14 +158,27 @@ export default function FacilityGuidePanel({
           <div className="flex justify-center pb-1 pt-3">
             <div className="h-1 w-10 rounded-full bg-slate-300" />
           </div>
-          <div className="flex items-center justify-between border-b border-slate-100 px-5 py-2.5">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-teal-600">
-                Odekake Support
-              </p>
-              <h3 className="text-base font-bold text-slate-900">
-                {category.label} {rows.length}か所
-              </h3>
+          <div className="flex items-center justify-between border-b border-slate-100 px-5 py-3">
+            <div className="flex items-center gap-2.5">
+              <div
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-base"
+                style={{ backgroundColor: `${category.markerColor}1a` }}
+                aria-hidden
+              >
+                {category.emoji}
+              </div>
+              <div>
+                <p
+                  className="text-[10px] font-bold uppercase leading-none tracking-wide"
+                  style={{ color: category.markerColor }}
+                >
+                  おでかけサポート
+                </p>
+                <h3 className="mt-1 text-[15px] font-bold leading-tight text-slate-900">
+                  {category.label}
+                  <span className="ml-1.5 text-[12px] font-medium text-slate-400">{rows.length}か所</span>
+                </h3>
+              </div>
             </div>
             <button
               type="button"
@@ -154,7 +186,7 @@ export default function FacilityGuidePanel({
                 e.stopPropagation();
                 onClose();
               }}
-              className="rounded-full bg-slate-100 px-3 py-1.5 text-[12px] font-medium text-slate-600 transition-colors active:bg-slate-200"
+              className="shrink-0 rounded-full bg-slate-100 px-3 py-1.5 text-[12px] font-medium text-slate-600 transition-colors active:bg-slate-200"
             >
               表示をやめる
             </button>
@@ -173,9 +205,14 @@ export default function FacilityGuidePanel({
                   e.stopPropagation();
                   handleRowTap(facility);
                 }}
-                className={`flex w-full items-center gap-3 border-b border-slate-100/80 px-5 py-2.5 text-left transition-colors active:bg-teal-50 ${
-                  isNearest ? 'bg-teal-50' : i % 2 === 0 ? 'bg-white' : 'bg-slate-50/60'
+                className={`flex w-full items-center gap-3 border-b border-slate-100/80 px-5 py-3 text-left transition-colors active:bg-slate-50 ${
+                  i % 2 === 0 ? 'bg-white' : 'bg-slate-50/60'
                 }`}
+                style={
+                  isNearest
+                    ? { backgroundColor: `${category.markerColor}0f`, boxShadow: `inset 3px 0 0 ${category.markerColor}` }
+                    : undefined
+                }
               >
                 <div
                   className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-lg"
@@ -185,23 +222,26 @@ export default function FacilityGuidePanel({
                   {category.emoji}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-[13px] font-bold leading-tight text-slate-900">
-                    {facility.name}
-                  </p>
-                  <div className="mt-0.5 flex items-center gap-1.5">
+                  <div className="flex items-baseline gap-1.5">
                     {isNearest && (
-                      <span className="rounded-full bg-teal-600 px-2 py-0.5 text-[10px] font-bold text-white">
+                      <span
+                        className="shrink-0 rounded-full px-1.5 py-[1px] text-[10px] font-bold leading-tight text-white"
+                        style={{ backgroundColor: category.markerColor }}
+                      >
                         最寄り
                       </span>
                     )}
-                    {walk ? (
-                      <span className="text-[11px] text-slate-500">
-                        徒歩{walk.walkMinutes}分・{formatDistance(walk.walkDistanceMeters)}
-                      </span>
-                    ) : (
-                      <span className="truncate text-[11px] text-slate-400">{facility.area}</span>
-                    )}
+                    <p
+                      className={`truncate leading-tight text-slate-900 ${
+                        isNearest ? 'text-[14px] font-bold' : 'text-[13px] font-semibold'
+                      }`}
+                    >
+                      {facility.name}
+                    </p>
                   </div>
+                  <p className="mt-0.5 truncate text-[11px] text-slate-500">
+                    {walk ? `徒歩${walk.walkMinutes}分・${formatDistance(walk.walkDistanceMeters)}` : facility.area}
+                  </p>
                 </div>
                 <svg width="7" height="12" viewBox="0 0 7 12" fill="none" className="shrink-0 text-slate-300">
                   <path d="M1 1l5 5-5 5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
