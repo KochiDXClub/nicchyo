@@ -13,7 +13,6 @@ export const dynamic = "force-dynamic";
 type VendorRow = {
   id: string;
   shop_name: string | null;
-  owner_name: string | null;
   updated_at?: string | null;
 };
 
@@ -125,7 +124,7 @@ export async function GET() {
 
     const { data: vendorsData, error: vendorsError } = await serviceClient
       .from("vendors")
-      .select("id, shop_name, owner_name, updated_at");
+      .select("id, shop_name, updated_at");
 
     if (vendorsError) {
       return NextResponse.json({ error: "Failed to fetch vendors" }, { status: 500 });
@@ -134,6 +133,16 @@ export async function GET() {
     const vendors = Array.isArray(vendorsData) ? (vendorsData as VendorRow[]) : [];
     const vendorById = new Map(vendors.map((vendor) => [vendor.id, vendor]));
 
+    // 店主名は vendors から分離済み（service_role なので公開設定に関係なく取得できる）
+    const { data: ownerProfilesData } = await serviceClient
+      .from("vendor_owner_profiles")
+      .select("vendor_id, owner_name");
+    const ownerNameByVendorId = new Map<string, string>(
+      (ownerProfilesData ?? [])
+        .filter((row): row is { vendor_id: string; owner_name: string } => !!row.owner_name)
+        .map((row) => [row.vendor_id, row.owner_name])
+    );
+
     const users: AdminUserRecord[] = allUsers.map((authUser) => {
       const vendor = vendorById.get(authUser.id);
       const role = normalizeRole(authUser.app_metadata?.role ?? authUser.user_metadata?.role);
@@ -141,7 +150,7 @@ export async function GET() {
         vendor?.shop_name ??
         authUser.user_metadata?.name ??
         authUser.user_metadata?.full_name ??
-        vendor?.owner_name ??
+        ownerNameByVendorId.get(authUser.id) ??
         authUser.email?.split("@")[0] ??
         "名称未設定";
       const bannedUntil = authUser.banned_until ? new Date(authUser.banned_until) : null;

@@ -53,11 +53,22 @@ export async function GET() {
     // vendors + categories を取得
     const { data: vendorsData, error: vendorsError } = await serviceClient
       .from("vendors")
-      .select("id, shop_name, owner_name, created_at, categories(name)");
+      .select("id, shop_name, created_at, categories(name)");
 
     if (vendorsError) {
       return NextResponse.json({ error: "Failed to fetch vendors" }, { status: 500 });
     }
+
+    // 店主名は vendors から分離済み。管理画面は service_role のため
+    // 公開設定にかかわらず全件取得できる。
+    const { data: ownerProfilesData } = await serviceClient
+      .from("vendor_owner_profiles")
+      .select("vendor_id, owner_name");
+    const ownerNameByVendorId = new Map<string, string>(
+      (ownerProfilesData ?? [])
+        .filter((row): row is { vendor_id: string; owner_name: string } => !!row.owner_name)
+        .map((row) => [row.vendor_id, row.owner_name])
+    );
 
     const vendors = Array.isArray(vendorsData) ? vendorsData : [];
 
@@ -99,7 +110,8 @@ export async function GET() {
         id: vendor.id,
         name: vendor.shop_name ?? "名称未設定",
         category: categoryName,
-        owner: vendor.owner_name ?? authUser?.email?.split("@")[0] ?? "-",
+        owner:
+          ownerNameByVendorId.get(vendor.id) ?? authUser?.email?.split("@")[0] ?? "-",
         email: authUser?.email ?? "-",
         status: isSuspended ? "suspended" : "active",
         registeredDate: formatDate(authUser?.created_at ?? vendor.created_at),

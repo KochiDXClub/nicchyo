@@ -4,7 +4,6 @@ import type { ConsultHistoryEntry, ConsultTurn } from "@/app/(public)/consult/ty
 export type VendorRow = {
   id: string;
   shop_name: string | null;
-  owner_name: string | null;
   strength: string | null;
   style: string | null;
   style_tags: string[] | null;

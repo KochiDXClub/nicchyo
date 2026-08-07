@@ -13,7 +13,6 @@ export const maxDuration = 300; // 5分（大量店舗の処理に対応）
 interface VendorRow {
   id: string;
   shop_name: string | null;
-  owner_name: string | null;
   strength: string | null;
   style: string | null;
   style_tags: string[] | null;
@@ -55,9 +54,10 @@ interface EmbeddingRow {
 
 // ---- ヘルパー ----
 
+// 出店者本人の氏名（vendor_owner_profiles.owner_name）は個人情報のため
+// 埋め込みの入力に含めない。OpenAI へ送るのは店舗としての公開情報だけに限る。
 function buildContent(row: {
   shop_name: string;
-  owner_name: string;
   category: string;
   store_number: string | null;
   district: string;
@@ -73,7 +73,6 @@ function buildContent(row: {
 }): string {
   return [
     row.shop_name ? `shop: ${row.shop_name}` : "",
-    row.owner_name ? `owner: ${row.owner_name}` : "",
     row.category ? `category: ${row.category}` : "",
     row.store_number ? `store_number: ${row.store_number}` : "",
     row.district ? `district: ${row.district}` : "",
@@ -135,7 +134,7 @@ async function syncVendorEmbeddings(): Promise<{ processed: number }> {
   ] = await Promise.all([
     supabase
       .from("vendors")
-      .select("id, shop_name, owner_name, strength, style, style_tags, schedule, main_products, categories(name)")
+      .select("id, shop_name, strength, style, style_tags, schedule, main_products, categories(name)")
       .order("id", { ascending: true }),
     supabase.from("products").select("vendor_id, name"),
     supabase.from("market_locations").select("id, store_number, latitude, longitude, district"),
@@ -191,7 +190,6 @@ async function syncVendorEmbeddings(): Promise<{ processed: number }> {
     return {
       vendor_id: vendor.id,
       shop_name: vendor.shop_name ?? "",
-      owner_name: vendor.owner_name ?? "",
       category,
       strength: vendor.strength ?? "",
       style: vendor.style ?? "",
