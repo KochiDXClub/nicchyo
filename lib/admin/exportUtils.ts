@@ -4,6 +4,23 @@
  */
 
 /**
+ * Excel等が日付・数値として自動変換してしまう値をテキストとして固定するためのマーカー。
+ * 日時のようなセルをそのままCSVに出すと Excel が独自の日付書式へ変換し、
+ * 列幅が足りずに "#####" と表示されることがあるため、Excel関数形式（="..."）で包んで防ぐ。
+ */
+class ExcelTextCell {
+  constructor(readonly csvField: string) {}
+}
+
+/**
+ * 日付・数値のように見える値をCSVエクスポート時にテキストとして固定する
+ */
+export function excelText(value: string): ExcelTextCell {
+  const escaped = value.replace(/"/g, '""');
+  return new ExcelTextCell(`"=""${escaped}"""`);
+}
+
+/**
  * CSVエクスポート
  */
 export function exportToCSV<T extends Record<string, unknown>>(
@@ -27,6 +44,7 @@ export function exportToCSV<T extends Record<string, unknown>>(
     keys
       .map((key) => {
         const value = row[key];
+        if (value instanceof ExcelTextCell) return value.csvField;
         if (value === null || value === undefined) return "";
         if (typeof value === "object") return escapeCSV(JSON.stringify(value));
         return escapeCSV(String(value));

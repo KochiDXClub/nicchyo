@@ -7,7 +7,7 @@ import { useAuth } from "@/lib/auth/AuthContext";
 import { useRouter } from "next/navigation";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useDebounce } from "use-debounce";
-import { exportToCSV, exportToJSON, formatDateForFilename } from "@/lib/admin/exportUtils";
+import { exportToCSV, exportToJSON, formatDateForFilename, excelText } from "@/lib/admin/exportUtils";
 import { showToast } from "@/lib/admin/toast";
 import { StatusBadge, LoadingButton, EmptyState, ErrorBoundary, AdminLayout } from "@/components/admin";
 import { useKeyboardShortcuts, ShortcutHelp } from "@/lib/hooks/useKeyboardShortcuts";
@@ -208,7 +208,7 @@ function AdminShopsContent() {
         店主: shop.owner,
         メール: shop.email,
         ステータス: shop.status === "active" ? "稼働中" : "停止中",
-        登録日: shop.registeredDate,
+        登録日: excelText(shop.registeredDate),
       }));
       const result = exportToCSV(dataToExport, `shops_${formatDateForFilename()}.csv`);
       if (result.success) showToast.success("CSVをエクスポートしました");
