@@ -24,7 +24,9 @@ export type MarketEvent = {
   id: string;
   title: string;
   description: string | null;
-  event_date: string; // YYYY-MM-DD
+  event_date: string; // YYYY-MM-DD（連続開催なら開始日）
+  /** 連続開催の最終日。null ならその日限り */
+  end_date: string | null;
   start_time: string | null; // HH:MM:SS
   end_time: string | null;
   location: string | null;
@@ -211,6 +213,28 @@ function byStartTime(a: MarketEvent, b: MarketEvent): number {
 }
 
 /**
+ * その予定が指定の日曜のカードに載るか。
+ *
+ * 日曜以外の日付で登録された予定はその週の日曜に寄せる。
+ * end_date があれば、開始の週の日曜から end_date までの各日曜に繰り返し載る
+ * （「文旦フェア 8/16〜9/6」を1件の登録で4回分の日曜に出せるようにするため）。
+ */
+export function isEventOnSunday(event: MarketEvent, sundayIso: string): boolean {
+  const startSunday = getUpcomingSundayIso(isoToDate(event.event_date));
+  if (sundayIso < startSunday) return false;
+  if (!event.end_date || event.end_date < event.event_date) return sundayIso === startSunday;
+  return sundayIso <= event.end_date;
+}
+
+/** 連続開催なら「8/16〜9/6」、単発なら「8/16（日）」を返す */
+export function formatEventPeriod(event: MarketEvent): string {
+  if (!event.end_date || event.end_date <= event.event_date) {
+    return formatEventDate(event.event_date);
+  }
+  return `${formatEventDate(event.event_date)}〜${formatEventDate(event.end_date)}`;
+}
+
+/**
  * 予定を「次のN回分の日曜」にまとめる。
  *
  * 日曜市は毎週日曜しか開かないため、月間グリッドにすると6/7が空白になり
@@ -226,17 +250,10 @@ export function groupEventsBySunday(
   const firstSunday = getUpcomingSundayIso(now);
   const dayByDate = new Map(days.map((d) => [d.market_date, d]));
 
-  const eventsBySunday = new Map<string, MarketEvent[]>();
-  for (const event of events) {
-    const key = getUpcomingSundayIso(isoToDate(event.event_date));
-    const bucket = eventsBySunday.get(key);
-    if (bucket) bucket.push(event);
-    else eventsBySunday.set(key, [event]);
-  }
-
   return Array.from({ length: count }, (_, weeksAhead) => {
     const dateIso = addDaysToIso(firstSunday, weeksAhead * 7);
-    const bucket = (eventsBySunday.get(dateIso) ?? []).slice().sort(byStartTime);
+    // 連続開催の予定は複数の日曜に載るため、日曜ごとに全件を判定する
+    const bucket = events.filter((event) => isEventOnSunday(event, dateIso)).sort(byStartTime);
     const highlightIndex = bucket.findIndex((e) => e.is_highlight);
     const highlight = highlightIndex >= 0 ? bucket[highlightIndex] : null;
 
@@ -279,11 +296,13 @@ export async function fetchMarketCalendar(
     supabase
       .from("market_events")
       .select(
-        "id, title, description, event_date, start_time, end_time, location, category, image_url, is_highlight"
+        "id, title, description, event_date, end_date, start_time, end_time, location, category, image_url, is_highlight"
       )
       .eq("is_published", true)
-      // 当日のイベントはまだ有効なので「今日以降」で切る
-      .gte("event_date", todayIso)
+      // 「今日以降に掛かっている予定」を引く。連続開催は開始日が過去でも
+      // 終了日が未来なら残す（期間の途中で一覧から消えないようにする）。
+      // 当日のイベントはまだ有効なので今日を含める。
+      .or(`end_date.gte.${todayIso},and(end_date.is.null,event_date.gte.${todayIso})`)
       .order("event_date", { ascending: true })
       .limit(options.limit ?? EVENTS_LIMIT),
   ]);
@@ -299,6 +318,7 @@ export async function fetchMarketCalendar(
     title: row.title,
     description: row.description,
     event_date: row.event_date,
+    end_date: row.end_date,
     start_time: row.start_time,
     end_time: row.end_time,
     location: row.location,

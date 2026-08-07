@@ -11,6 +11,7 @@ import {
   formatEventTime,
   getRelativeSundayLabel,
   groupEventsBySunday,
+  formatEventPeriod,
   type MarketEvent,
 } from "./calendar";
 
@@ -18,6 +19,7 @@ function makeEvent(overrides: Partial<MarketEvent> & { id: string; event_date: s
   return {
     title: `イベント${overrides.id}`,
     description: null,
+    end_date: null,
     start_time: null,
     end_time: null,
     location: null,
@@ -240,10 +242,80 @@ describe("groupEventsBySunday", () => {
     expect(sundays[1].day?.status).toBe("cancelled");
   });
 
+  it("連続開催の予定は期間内のすべての日曜に載る", () => {
+    const events = [
+      makeEvent({ id: "fair", event_date: "2026-08-16", end_date: "2026-09-06" }),
+    ];
+    const sundays = groupEventsBySunday(events, [], 5, now);
+    expect(sundays.map((s) => s.events.length)).toEqual([1, 1, 1, 1, 0]);
+  });
+
+  it("連続開催の終了後の日曜には載らない", () => {
+    const events = [
+      makeEvent({ id: "fair", event_date: "2026-08-16", end_date: "2026-08-23" }),
+    ];
+    const sundays = groupEventsBySunday(events, [], 3, now);
+    expect(sundays.map((s) => s.events.length)).toEqual([1, 1, 0]);
+  });
+
+  it("開始日が過去でも終了日が未来なら今週に載る", () => {
+    // 08-09（前の日曜）に始まり 08-23 まで続く予定
+    const events = [
+      makeEvent({ id: "ongoing", event_date: "2026-08-09", end_date: "2026-08-23" }),
+    ];
+    const sundays = groupEventsBySunday(events, [], 3, now);
+    expect(sundays.map((s) => s.events.length)).toEqual([1, 1, 0]);
+  });
+
+  it("end_date が開始日より前の壊れたデータは単発として扱う", () => {
+    const events = [
+      makeEvent({ id: "broken", event_date: "2026-08-16", end_date: "2026-08-01" }),
+    ];
+    const sundays = groupEventsBySunday(events, [], 3, now);
+    expect(sundays.map((s) => s.events.length)).toEqual([1, 0, 0]);
+  });
+
+  it("連続開催の見どころは各日曜で見どころのまま扱う", () => {
+    const events = [
+      makeEvent({
+        id: "star",
+        event_date: "2026-08-16",
+        end_date: "2026-08-23",
+        is_highlight: true,
+      }),
+    ];
+    const sundays = groupEventsBySunday(events, [], 2, now);
+    expect(sundays[0].highlight?.id).toBe("star");
+    expect(sundays[1].highlight?.id).toBe("star");
+    expect(sundays[0].events).toEqual([]);
+  });
+
   it("先頭だけが今週になり、相対ラベルが付く", () => {
     const sundays = groupEventsBySunday([], [], 3, now);
     expect(sundays.map((s) => s.isThisWeek)).toEqual([true, false, false]);
     expect(sundays.map((s) => s.relativeLabel)).toEqual(["今週", "来週", "あと2週"]);
+  });
+});
+
+describe("formatEventPeriod", () => {
+  it("単発ならその日だけを返す", () => {
+    expect(formatEventPeriod(makeEvent({ id: "a", event_date: "2026-08-16" }))).toBe("8/16（日）");
+  });
+
+  it("連続開催なら期間を返す", () => {
+    expect(
+      formatEventPeriod(
+        makeEvent({ id: "a", event_date: "2026-08-16", end_date: "2026-09-06" })
+      )
+    ).toBe("8/16（日）〜9/6（日）");
+  });
+
+  it("終了日が開始日と同じなら単発扱いにする", () => {
+    expect(
+      formatEventPeriod(
+        makeEvent({ id: "a", event_date: "2026-08-16", end_date: "2026-08-16" })
+      )
+    ).toBe("8/16（日）");
   });
 });
 

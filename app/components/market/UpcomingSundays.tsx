@@ -1,6 +1,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import {
+  formatEventPeriod,
   formatEventTime,
   getCategoryPresentation,
   getStatusPresentation,
@@ -184,15 +185,21 @@ function EventItem({ event }: { event: MarketEvent }) {
   );
 }
 
-/** 時刻と場所。どちらも任意なので、無いときは行ごと出さない */
+/** 時刻・場所・連続開催の期間。すべて任意なので、無いときは行ごと出さない */
 function EventMeta({ event }: { event: MarketEvent }) {
   const time = formatEventTime(event.start_time, event.end_time);
-  if (!time && !event.location) return null;
+  const isContinuous = Boolean(event.end_date && event.end_date > event.event_date);
+  if (!time && !event.location && !isContinuous) return null;
 
   return (
     <p className="mt-1 flex flex-wrap items-center gap-x-2 text-[11px] text-gray-400">
       {time && <span>{time}</span>}
       {event.location && <span>{event.location}</span>}
+      {isContinuous && (
+        <span className="rounded-full bg-black/5 px-1.5 py-0.5 font-semibold text-gray-500">
+          {formatEventPeriod(event)}まで
+        </span>
+      )}
     </p>
   );
 }
