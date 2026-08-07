@@ -5,6 +5,7 @@ import { createClient as createServerClient } from "@/utils/supabase/server";
 import { requireSameOrigin } from "@/lib/security/requestGuards";
 import { enforceRateLimit } from "@/lib/security/rateLimit";
 import { getRole, isAdmin } from "@/lib/auth/permissions";
+import { listAllAuthUsers } from "@/lib/auth/listAllUsers";
 import { MAX_BULK_OPERATION } from "@/lib/constants";
 import { sendBulkEmails } from "@/lib/email/mailer";
 
@@ -44,34 +45,29 @@ async function resolveRecipients(
   customEmails?: string[]
 ): Promise<string[] | { error: string }> {
   if (recipientMode === "custom") {
-    const emails = (customEmails ?? []).map((e) => e.trim()).filter(Boolean);
+    if (!Array.isArray(customEmails)) {
+      return { error: "送信先メールアドレスの形式が不正です" };
+    }
+    const emails = customEmails
+      .filter((e): e is string => typeof e === "string")
+      .map((e) => e.trim())
+      .filter(Boolean);
     if (emails.length === 0) return { error: "送信先メールアドレスを入力してください" };
     const invalid = emails.find((e) => !isValidEmail(e));
     if (invalid) return { error: `メールアドレスの形式が正しくありません: ${invalid}` };
     return Array.from(new Set(emails));
   }
 
-  const allUsers: Array<{ email?: string; role: string }> = [];
-  let page = 1;
-  const perPage = 200;
-  while (true) {
-    const { data, error } = await serviceClient.auth.admin.listUsers({ page, perPage });
-    if (error) return { error: "ユーザー一覧の取得に失敗しました" };
-    const pageUsers = data.users ?? [];
-    allUsers.push(
-      ...pageUsers.map((u) => ({
-        email: u.email,
-        role: (u.app_metadata?.role as string | undefined) ?? "general_user",
-      }))
-    );
-    if (pageUsers.length < perPage) break;
-    page += 1;
+  const usersResult = await listAllAuthUsers(serviceClient);
+  if (!("users" in usersResult)) {
+    return { error: "ユーザー一覧の取得に失敗しました" };
   }
 
-  const filtered = allUsers.filter((u) => {
+  const filtered = usersResult.users.filter((u) => {
     if (!u.email) return false;
     if (recipientMode === "all") return true;
-    return u.role === recipientMode;
+    const role = (u.app_metadata?.role as string | undefined) ?? "general_user";
+    return role === recipientMode;
   });
 
   return Array.from(new Set(filtered.map((u) => u.email as string)));
@@ -150,14 +146,22 @@ export async function POST(req: Request) {
     text: message,
   });
 
-  await serviceClient.from("admin_audit_logs").insert({
+  const resultSummary = skipped
+    ? "送信スキップ（メール送信サービス未設定）"
+    : failedRecipients.length > 0
+      ? `成功${sentCount}件・失敗${failedRecipients.length}件`
+      : `成功${sentCount}件`;
+  const { error: auditLogError } = await serviceClient.from("admin_audit_logs").insert({
     actor_id: user.id,
     actor_email: user.email,
     actor_role: getRole(user),
     action: "broadcast_email",
     target_type: "email",
-    details: `「${subject}」を${recipientsResult.length}件へ送信`,
+    details: `「${subject}」を${recipientsResult.length}件へ送信（${resultSummary}）`,
   });
+  if (auditLogError) {
+    console.error("[admin/notifications/broadcast] audit log insert failed:", auditLogError.message);
+  }
 
   return NextResponse.json({
     ok: true,
