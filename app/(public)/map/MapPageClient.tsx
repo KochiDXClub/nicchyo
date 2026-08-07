@@ -12,8 +12,6 @@ import { clearSearchMapPayload, loadAiMapPayload, loadSearchMapPayload } from ".
 import NextImage from "next/image";
 import { getShopBannerImage } from "../../../lib/shopImages";
 const _GrandmaChatter = dynamic(() => import("./components/GrandmaChatter"), { ssr: false });
-import { useTimeBadge } from "./hooks/useTimeBadge";
-import { BadgeModal as _BadgeModal } from "./components/BadgeModal";
 import { useAuth } from "../../../lib/auth/AuthContext";
 import { SHOP_CATEGORY_NAMES } from "./data/shops";
 import type { Shop } from "./data/shops";
@@ -185,8 +183,6 @@ export default function MapPageClient({
   const [showBanner, setShowBanner] = useState(false);
   const [showRecipeOverlay, setShowRecipeOverlay] = useState(false);
   const [agentOpen, setAgentOpen] = useState(false);
-  const { priority: _priority, clearPriority: _clearPriority } = useTimeBadge();
-  const [_showBadgeModal, _setShowBadgeModal] = useState(false);
   const [showVendorPrompt, setShowVendorPrompt] = useState(false);
   const [vendorShopName, setVendorShopName] = useState<string | null>(null);
   const [_isHoldActive, _setIsHoldActive] = useState(false);

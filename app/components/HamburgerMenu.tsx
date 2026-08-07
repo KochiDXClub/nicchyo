@@ -135,7 +135,7 @@ export default function HamburgerMenu() {
               </Link>
             ) : (
               <div className="text-sm text-gray-700">
-                ログインすると保存やお買い物リスト・バッジが利用できます。
+                ログインすると保存やお買い物リストが利用できます。
               </div>
             )}
           </div>
@@ -443,19 +443,6 @@ export default function HamburgerMenu() {
                           </div>
                         </Link>
                       </li>
-                      <li>
-                        <Link
-                          href="/badges"
-                          onClick={closeMenu}
-                          className={menuItemClass('/badges', 'hover:bg-amber-50')}
-                        >
-                          <MenuIcon name="badge" className={`h-5 w-5 ${isActive('/badges') ? 'text-white' : 'text-gray-600'}`} />
-                          <div className="flex-1">
-                            <p className="text-sm font-medium">バッジ</p>
-                            <p className={`text-xs ${isActive('/badges') ? 'text-white/80' : 'text-gray-500'}`}>獲得した来訪バッジを見る</p>
-                          </div>
-                        </Link>
-                      </li>
                     </>
                   )}
 
@@ -584,7 +571,6 @@ type MenuIconName =
   | 'users'
   | 'shield'
   | 'bag'
-  | 'badge'
   | 'logout'
   | 'info'
   | 'help'
@@ -694,16 +680,6 @@ function MenuIcon({ name, className }: MenuIconProps) {
             strokeLinecap="round"
             strokeLinejoin="round"
             d="M4.5 7.5h15l-1.2 12.6a2.25 2.25 0 0 1-2.24 2.05H7.94a2.25 2.25 0 0 1-2.24-2.05L4.5 7.5Z"
-          />
-        </svg>
-      );
-    case 'badge':
-      return (
-        <svg {...props}>
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            d="M12 3.75 14.09 8.26 19.06 9l-3.58 3.49.85 4.96L12 15.77 7.67 17.45l.85-4.96L4.94 9l4.97-.74L12 3.75Z"
           />
         </svg>
       );
