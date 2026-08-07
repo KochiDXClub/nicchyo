@@ -321,12 +321,65 @@ function pickThinkingData(preferredId?: ConsultCharacterId | null): ThinkingEntr
   }));
 }
 
+// 考え中の背景を横切る「風」のもや。緑・紫・ピンク・黄色・水色を
+// 順に配置し、左から右へゆっくり流しながら上下にわずかにゆらす。
+// PR420の霧アニメーションと同じく、大きめにぼかした柔らかい光彩にして
+// くっきりした点にならないようにする。
+const WIND_PARTICLE_COLORS = [
+  "bg-nicchyo-primary/45",
+  "bg-violet-400/45",
+  "bg-rose-400/45",
+  "bg-amber-300/45",
+  "bg-sky-400/45",
+];
+
+const WIND_PARTICLES = Array.from({ length: 9 }, (_, i) => ({
+  top: 4 + ((i * 41) % 92),
+  size: 44 + (i % 4) * 14,
+  color: WIND_PARTICLE_COLORS[i % WIND_PARTICLE_COLORS.length],
+  duration: 5 + (i % 4) * 0.9,
+  delay: (i % 6) * 0.6,
+}));
+
+// マスクグラデーションで上下左右の縁をなだらかにフェードアウトさせ、
+// overflow-hidden の矩形クリップがそのまま輪郭として見えないようにする。
+const WIND_LAYER_MASK =
+  "radial-gradient(ellipse 70% 80% at center, black 45%, transparent 85%)";
+
+function ThinkingWindParticles() {
+  return (
+    <div
+      aria-hidden
+      className="pointer-events-none absolute inset-0 overflow-hidden"
+      style={{
+        maskImage: WIND_LAYER_MASK,
+        WebkitMaskImage: WIND_LAYER_MASK,
+      }}
+    >
+      {WIND_PARTICLES.map((p, i) => (
+        <span
+          key={i}
+          className={`absolute rounded-full ${p.color} blur-xl`}
+          style={{
+            top: `${p.top}%`,
+            width: `${p.size}px`,
+            height: `${p.size}px`,
+            opacity: 0,
+            animation: `consult-wind-particle ${p.duration}s ease-in-out ${p.delay}s infinite`,
+          }}
+        />
+      ))}
+    </div>
+  );
+}
+
 function ThinkingDiscussion({ data }: { data: ThinkingEntry[] }) {
   const cycleDuration = data.length * 0.9;
 
   return (
-    <div className="flex flex-col items-center gap-4 py-6">
-      <div className="flex items-end justify-center gap-6">
+    <div className="relative flex flex-col items-center gap-4 py-6">
+      <ThinkingWindParticles />
+      <div className="relative flex items-end justify-center gap-6">
         {data.map(({ character: char, symbol }, i) => (
           <div key={char.id} className="relative flex flex-col items-center gap-1">
 
