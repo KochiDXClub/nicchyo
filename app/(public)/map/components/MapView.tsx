@@ -88,6 +88,18 @@ const MIN_ZOOM = ZOOM_BOUNDS.min;
 const MAX_ZOOM = ZOOM_BOUNDS.max;
 const INITIAL_ZOOM = MAX_ZOOM;
 const AGENT_STORAGE_KEY = "nicchyo-map-agent-plan";
+/**
+ * ズーム倍率に関わらず常に表示する、公共交通機関のランドマークか判定する。
+ * 「城」「オーテピア」等の一般ランドマークは、丁目バッジが出る通常ズーム
+ * （shouldRenderLandmarks && !isMinimumZoomMode）でのみ表示するが、
+ * 電停・駅は道案内の目印として日常的に必要なため、それより広いズーム帯
+ * （このズーム帯だけ何も出ない「隙間」だった）でも見えるようにする。
+ * 電停は key が "tram-" で始まる規約になっているため、個別に列挙せず
+ * プレフィックスで判定する（新しい電停の追加時にコード変更が不要）。
+ */
+function isAlwaysVisibleTransitLandmarkKey(key: string): boolean {
+  return key === "densha" || key === "jr-kochi-station" || key.startsWith("tram-");
+}
 const BASEMAP_TILE_URL = "https://{s}.basemaps.cartocdn.com/rastertiles/voyager_nolabels/{z}/{x}/{y}{r}.png";
 const BASEMAP_ATTRIBUTION =
   '&copy; OpenStreetMap contributors &copy; <a href="https://carto.com/attributions">CARTO</a>';
@@ -1284,8 +1296,13 @@ const MapView = memo(function MapView({
     : 'calc(4.5rem + env(safe-area-inset-bottom,0px) + 0.5rem + 25px)';
 
   const visibleLandmarkSpecs = useMemo(() => {
+    // 電停・駅は道案内の目印として、通常ランドマークが出ない
+    // ズーム帯でも常時表示する（「普段から公共交通機関を表示する」）
+    const alwaysVisibleTransit = landmarkSpecs.filter((spec) =>
+      isAlwaysVisibleTransitLandmarkKey(spec.key)
+    );
     if (!shouldRenderLandmarks) {
-      return [];
+      return alwaysVisibleTransit;
     }
     if (!isMinimumZoomMode) {
       return landmarkSpecs;

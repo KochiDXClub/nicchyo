@@ -4,9 +4,13 @@
  * 日曜市（追手筋）周辺の お手洗い / 休けい場所 / のりもの を静的に持つ。
  * /facilities のカテゴリボックスと、マップ上の強調表示・最寄り案内の両方がこれを参照する。
  *
- * ⚠️ 座標は追手筋の実座標（app/(public)/map/config/roadConfig.ts）を基準にした
- *    暫定値です。最寄り案内の精度に直結するため、公開前に必ず現地または
- *    地図サービスで実測値へ差し替えてください。
+ * ⚠️ お手洗い・休けいベンチの座標は、追手筋の実座標
+ *    （app/(public)/map/config/roadConfig.ts）を基準にした暫定値です。
+ *    最寄り案内の精度に直結するため、公開前に必ず現地または地図サービスで
+ *    実測値へ差し替えてください。
+ *    のりもの（電停・JR駅）はWikipediaのinfobox基準の座標で、
+ *    app/(public)/map のランドマーク表示（map_landmarks の tram-*・
+ *    jr-kochi-station）と同じ実測値を使っているため、この注記の対象外です。
  */
 
 export type FacilityCategoryId = 'restroom' | 'rest' | 'transport';
@@ -24,6 +28,13 @@ export type Facility = {
   /** ⚠️ 暫定座標。実測値に要差し替え */
   lat: number;
   lng: number;
+  /**
+   * マップ上のアイコン画像（未指定ならカテゴリ絵文字を使う）。
+   * のりものは種別ごとに専用アイコン（路面電車＝オレンジ、JR＝青）を使う。
+   */
+  iconUrl?: string;
+  /** マーカーの色（未指定ならカテゴリの markerColor を使う） */
+  markerColor?: string;
 };
 
 export type FacilityCategory = {
@@ -65,6 +76,19 @@ export const FACILITY_CATEGORIES: FacilityCategory[] = [
     markerColor: '#d97706',
   },
 ];
+
+/**
+ * のりもの用の専用アイコン（電停＝オレンジ、JR駅＝青のSVGバッジ）。
+ * マップ上のランドマーク表示（map_landmarks の transit/*.svg）と同じ画像を使う。
+ */
+const TRAM_STOP_ICON = {
+  iconUrl: '/images/maps/elements/transit/tram-stop.svg',
+  markerColor: '#f97316',
+} as const;
+const JR_STATION_ICON = {
+  iconUrl: '/images/maps/elements/transit/train-stop.svg',
+  markerColor: '#1d4ed8',
+} as const;
 
 export const FACILITIES: Facility[] = [
   // ── お手洗い ────────────────────────────────────────────────
@@ -152,35 +176,85 @@ export const FACILITIES: Facility[] = [
   },
 
   // ── のりもの ────────────────────────────────────────────────
+  // 電停・駅の座標とアイコンは、マップ上のランドマーク表示
+  // （lib/facilities/facilities.ts と同じPRで追加した map_landmarks の
+  // tram-*・jr-kochi-station エントリ）と揃えてある。
   {
-    id: 'transport-tram-kochijomae',
+    id: 'transport-tram-hasuikemachidori',
     category: 'transport',
-    name: '路面電車「高知城前」電停',
-    area: '会場の西のはし',
-    note: 'とさでん交通。日曜市の西の入口まで歩いてすぐです。',
+    name: '路面電車「蓮池町通」電停',
+    area: '会場の東がわ',
+    note: 'とさでん交通・駅前線の電停です。',
     tags: ['路面電車'],
-    lat: 33.5606,
-    lng: 133.5344,
+    lat: 33.5618694,
+    lng: 133.5432083,
+    ...TRAM_STOP_ICON,
+  },
+  {
+    id: 'transport-tram-ohashidori',
+    category: 'transport',
+    name: '路面電車「大橋通」電停',
+    area: '会場の南がわ',
+    note: 'とさでん交通・伊野線の電停です。',
+    tags: ['路面電車'],
+    lat: 33.5589806,
+    lng: 133.5366611,
+    ...TRAM_STOP_ICON,
   },
   {
     id: 'transport-tram-harimayabashi',
     category: 'transport',
     name: '路面電車「はりまや橋」電停',
     area: '会場の東がわ',
-    note: 'とさでん交通の乗りかえ拠点。東の入口から向かうときに便利です。',
+    note: 'とさでん交通の主要な乗りかえ拠点。後免線・伊野線・桟橋線・駅前線が乗り入れます。',
     tags: ['路面電車', '乗りかえ'],
-    lat: 33.5597,
-    lng: 133.5428,
+    lat: 33.5596333,
+    lng: 133.5423972,
+    ...TRAM_STOP_ICON,
   },
   {
-    id: 'transport-kochi-station',
+    id: 'transport-tram-horizume',
+    category: 'transport',
+    name: '路面電車「堀詰」電停',
+    area: '会場の中ほど',
+    note: 'とさでん交通・伊野線の電停です。',
+    tags: ['路面電車'],
+    lat: 33.5594944,
+    lng: 133.5392306,
+    ...TRAM_STOP_ICON,
+  },
+  {
+    id: 'transport-tram-kochijomae',
+    category: 'transport',
+    name: '路面電車「高知城前」電停',
+    area: '会場の西のはし',
+    note: 'とさでん交通・伊野線。高知城・日曜市の最寄り電停です。',
+    tags: ['路面電車'],
+    lat: 33.5585056,
+    lng: 133.5339250,
+    ...TRAM_STOP_ICON,
+  },
+  {
+    id: 'transport-tram-kochiekimae',
+    category: 'transport',
+    name: '路面電車「高知駅前」電停',
+    area: '会場から北へ徒歩15分ほど',
+    note: 'とさでん交通・駅前線。JR高知駅のすぐ南にあります。',
+    tags: ['路面電車'],
+    lat: 33.5668361,
+    lng: 133.5436528,
+    ...TRAM_STOP_ICON,
+  },
+  {
+    id: 'transport-jr-kochi-station',
     category: 'transport',
     name: 'JR高知駅',
     area: '会場から北へ徒歩15分ほど',
-    note: '路面電車なら「はりまや橋」で乗りかえます。駅前にバスのりばがあります。',
+    note: '土讃線・特急が発着する、県外から日曜市へ向かう主要な玄関口です。路面電車なら「はりまや橋」で乗りかえます。',
     tags: ['JR', 'バスのりば'],
-    lat: 33.5666,
-    lng: 133.5432,
+    lat: 33.567691786705,
+    lng: 133.5436611,
+    ...JR_STATION_ICON,
   },
   {
     id: 'transport-parking-central-park',

@@ -44,12 +44,26 @@ function buildMarkerHtml(
   const size = isNearest ? 52 : 40;
   const fontSize = isNearest ? 26 : 20;
 
+  // のりもの等、施設ごとの専用アイコン（電停＝オレンジ、JR＝青のSVGバッジ）が
+  // あればそれを使う。アイコンは既に丸型バッジとして完結しているため、
+  // カテゴリ色の背景円は重ねず、影だけ付けて視認性を確保する。
+  if (facility.iconUrl) {
+    return `
+      <div class="facility-marker ${isNearest ? 'facility-marker--nearest' : ''}">
+        <div class="facility-marker__pin facility-marker__pin--icon" style="width: ${size}px; height: ${size}px;">
+          <img src="${facility.iconUrl}" alt="" width="${size}" height="${size}" draggable="false" />
+        </div>
+        <div class="facility-marker__label">${escapeHtml(facility.name)}</div>
+      </div>
+    `;
+  }
+
   return `
     <div class="facility-marker ${isNearest ? 'facility-marker--nearest' : ''}">
       <div class="facility-marker__pin" style="
         width: ${size}px;
         height: ${size}px;
-        background-color: ${category.markerColor};
+        background-color: ${facility.markerColor ?? category.markerColor};
         font-size: ${fontSize}px;
       ">${category.emoji}</div>
       <div class="facility-marker__label">${escapeHtml(facility.name)}</div>
@@ -97,6 +111,8 @@ export default function FacilityLayer({
     // 現在地 → 最寄り施設の道すじ。通り沿いに折れ線で描く
     if (routePoints && routePoints.length >= 2) {
       const latLngs = routePoints.map((point) => [point.lat, point.lng] as [number, number]);
+      const nearest = facilities.find((facility) => facility.id === nearestFacilityId);
+      const routeColor = nearest?.markerColor ?? category.markerColor;
 
       // 下に太い白線を敷いて、地図の上でも道すじが追いやすいようにする
       L.polyline(latLngs, {
@@ -107,7 +123,7 @@ export default function FacilityLayer({
       }).addTo(layerGroup);
 
       L.polyline(latLngs, {
-        color: category.markerColor,
+        color: routeColor,
         weight: 5,
         opacity: 0.95,
         dashArray: '12 9',

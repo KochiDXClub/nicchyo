@@ -34,6 +34,40 @@ type FacilityGuidePanelProps = {
 
 const FOCUS_ZOOM = 18;
 
+/**
+ * カテゴリ絵文字 or 施設専用アイコン（電停・JR駅のSVGバッジ等）を表示するタイル。
+ * iconUrl があればそちらを優先する。
+ */
+function FacilityIconTile({
+  iconUrl,
+  emoji,
+  color,
+  sizeClass,
+}: {
+  iconUrl?: string;
+  emoji: string;
+  color: string;
+  sizeClass: string;
+}) {
+  if (iconUrl) {
+    return (
+      <div className={`flex shrink-0 items-center justify-center ${sizeClass}`} aria-hidden>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={iconUrl} alt="" className="h-full w-full object-contain drop-shadow-sm" draggable={false} />
+      </div>
+    );
+  }
+  return (
+    <div
+      className={`flex shrink-0 items-center justify-center rounded-xl ${sizeClass}`}
+      style={{ backgroundColor: `${color}1a` }}
+      aria-hidden
+    >
+      {emoji}
+    </div>
+  );
+}
+
 export default function FacilityGuidePanel({
   category,
   facilities,
@@ -91,18 +125,17 @@ export default function FacilityGuidePanel({
             onTouchStart={(e) => e.stopPropagation()}
             className="flex max-w-[min(88vw,26rem)] items-center gap-2.5 rounded-2xl bg-white py-2 pl-2.5 pr-3.5 shadow-lg ring-1 ring-black/5 transition-transform active:scale-[0.97]"
           >
-            <div
-              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-base"
-              style={{ backgroundColor: `${category.markerColor}1a` }}
-              aria-hidden
-            >
-              {category.emoji}
-            </div>
+            <FacilityIconTile
+              iconUrl={nearest?.facility.iconUrl}
+              emoji={category.emoji}
+              color={nearest?.facility.markerColor ?? category.markerColor}
+              sizeClass="h-9 w-9 text-base"
+            />
 
             <div className="min-w-0 flex-1 text-left">
               <p
                 className="text-[10px] font-bold uppercase leading-none tracking-wide"
-                style={{ color: category.markerColor }}
+                style={{ color: nearest?.facility.markerColor ?? category.markerColor }}
               >
                 {nearest ? `最寄り・徒歩${nearest.walkMinutes}分` : category.label}
               </p>
@@ -197,6 +230,7 @@ export default function FacilityGuidePanel({
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pb-[env(safe-area-inset-bottom,0px)]">
           {rows.map(({ facility, walk }, i) => {
             const isNearest = facility.id === nearestId;
+            const accentColor = facility.markerColor ?? category.markerColor;
             return (
               <button
                 key={facility.id}
@@ -210,23 +244,22 @@ export default function FacilityGuidePanel({
                 }`}
                 style={
                   isNearest
-                    ? { backgroundColor: `${category.markerColor}0f`, boxShadow: `inset 3px 0 0 ${category.markerColor}` }
+                    ? { backgroundColor: `${accentColor}0f`, boxShadow: `inset 3px 0 0 ${accentColor}` }
                     : undefined
                 }
               >
-                <div
-                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-lg"
-                  style={{ backgroundColor: `${category.markerColor}1a` }}
-                  aria-hidden
-                >
-                  {category.emoji}
-                </div>
+                <FacilityIconTile
+                  iconUrl={facility.iconUrl}
+                  emoji={category.emoji}
+                  color={accentColor}
+                  sizeClass="h-10 w-10 text-lg"
+                />
                 <div className="min-w-0 flex-1">
                   <div className="flex items-baseline gap-1.5">
                     {isNearest && (
                       <span
                         className="shrink-0 rounded-full px-1.5 py-[1px] text-[10px] font-bold leading-tight text-white"
-                        style={{ backgroundColor: category.markerColor }}
+                        style={{ backgroundColor: accentColor }}
                       >
                         最寄り
                       </span>
