@@ -174,7 +174,7 @@ export default function MapPageClient({
   const initialShopId = initialShopIdParam ? Number(initialShopIdParam) : undefined;
   // おでかけサポート（/facilities）から ?facility=<カテゴリ> で入ってくる
   const facilityCategoryId = parseFacilityCategoryId(searchParams?.get("facility"));
-  const facilityGuide = useFacilityGuide(facilityCategoryId);
+  const facilityGuide = useFacilityGuide(facilityCategoryId, landmarks);
   const closeFacilityGuide = useCallback(() => {
     const params = new URLSearchParams(searchParamsKey);
     params.delete("facility");
@@ -1019,6 +1019,8 @@ export default function MapPageClient({
               // 現在地取得時の自動ズームで上書きされないようにする
               suppressInitialLocationFocus={isAiFocusMode || Boolean(facilityGuide.category)}
               hideMapUI={mapCharacterConsultActive || !!nearbyState}
+              // おでかけサポート案内中は FacilityLayer 側のマーカーだけを見せる
+              suppressLandmarks={Boolean(facilityGuide.category)}
               trackingButtonTop={trackingButtonTop}
               onGestureActiveChange={setIsMapGestureActive}
               overlaySlot={

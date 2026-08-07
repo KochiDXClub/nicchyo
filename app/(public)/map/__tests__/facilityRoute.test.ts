@@ -56,7 +56,10 @@ describe('追手筋に沿った道すじ', () => {
   });
 
   it('カテゴリごとに最寄りが見つかる', () => {
-    for (const category of ['restroom', 'rest', 'transport'] as const) {
+    // "transport"（のりもの）はここでは対象外。静的データを持たず、
+    // マップのランドマーク（map_landmarks）から動的に補うため
+    // （lib/facilities/transitLandmarks.ts 参照）。
+    for (const category of ['restroom', 'rest'] as const) {
       const nearest = findNearestFacility(originEast, category, FACILITIES, centerline);
       expect(nearest, category).not.toBeNull();
     }

@@ -4,13 +4,14 @@
  * 日曜市（追手筋）周辺の お手洗い / 休けい場所 / のりもの を静的に持つ。
  * /facilities のカテゴリボックスと、マップ上の強調表示・最寄り案内の両方がこれを参照する。
  *
- * ⚠️ お手洗い・休けいベンチの座標は、追手筋の実座標
- *    （app/(public)/map/config/roadConfig.ts）を基準にした暫定値です。
- *    最寄り案内の精度に直結するため、公開前に必ず現地または地図サービスで
- *    実測値へ差し替えてください。
- *    のりもの（電停・JR駅）はWikipediaのinfobox基準の座標で、
- *    app/(public)/map のランドマーク表示（map_landmarks の tram-*・
- *    jr-kochi-station）と同じ実測値を使っているため、この注記の対象外です。
+ * ⚠️ 座標は追手筋の実座標（app/(public)/map/config/roadConfig.ts）を基準にした
+ *    暫定値です。最寄り案内の精度に直結するため、公開前に必ず現地または
+ *    地図サービスで実測値へ差し替えてください。
+ *
+ * のりもの（電停・JR駅）はここには含めない。マップ上のランドマーク表示
+ * （map_landmarks の tram-*・jr-kochi-station）が常時表示で既に案内して
+ * いるため、二重に扱わない。ここに置くのは駐車場などランドマーク側で
+ * 扱っていない情報のみ。
  */
 
 export type FacilityCategoryId = 'restroom' | 'rest' | 'transport';
@@ -42,6 +43,11 @@ export type FacilityCategory = {
   /** 画面に出す名前 */
   label: string;
   emoji: string;
+  /**
+   * カテゴリ代表アイコン画像（未指定なら emoji を使う）。
+   * のりものは、マップ上の停留場バッジと同じ tram-stop.svg を使う。
+   */
+  iconUrl?: string;
   /** ボックスに添える一文 */
   description: string;
   /** マーカーとボックスの配色（Tailwindクラス） */
@@ -71,24 +77,12 @@ export const FACILITY_CATEGORIES: FacilityCategory[] = [
     id: 'transport',
     label: 'のりもの',
     emoji: '🚋',
-    description: '電車・バス・駐車場をさがします',
+    iconUrl: '/images/maps/elements/transit/tram-stop.svg',
+    description: '路面電車の停留場やJR高知駅をさがします',
     boxClass: 'border-amber-200 bg-amber-50 text-amber-900',
     markerColor: '#d97706',
   },
 ];
-
-/**
- * のりもの用の専用アイコン（電停＝オレンジ、JR駅＝青のSVGバッジ）。
- * マップ上のランドマーク表示（map_landmarks の transit/*.svg）と同じ画像を使う。
- */
-const TRAM_STOP_ICON = {
-  iconUrl: '/images/maps/elements/transit/tram-stop.svg',
-  markerColor: '#f97316',
-} as const;
-const JR_STATION_ICON = {
-  iconUrl: '/images/maps/elements/transit/train-stop.svg',
-  markerColor: '#1d4ed8',
-} as const;
 
 export const FACILITIES: Facility[] = [
   // ── お手洗い ────────────────────────────────────────────────
@@ -176,96 +170,11 @@ export const FACILITIES: Facility[] = [
   },
 
   // ── のりもの ────────────────────────────────────────────────
-  // 電停・駅の座標とアイコンは、マップ上のランドマーク表示
-  // （lib/facilities/facilities.ts と同じPRで追加した map_landmarks の
-  // tram-*・jr-kochi-station エントリ）と揃えてある。
-  {
-    id: 'transport-tram-hasuikemachidori',
-    category: 'transport',
-    name: '路面電車「蓮池町通」電停',
-    area: '会場の東がわ',
-    note: 'とさでん交通・駅前線の電停です。',
-    tags: ['路面電車'],
-    lat: 33.5618694,
-    lng: 133.5432083,
-    ...TRAM_STOP_ICON,
-  },
-  {
-    id: 'transport-tram-ohashidori',
-    category: 'transport',
-    name: '路面電車「大橋通」電停',
-    area: '会場の南がわ',
-    note: 'とさでん交通・伊野線の電停です。',
-    tags: ['路面電車'],
-    lat: 33.5589806,
-    lng: 133.5366611,
-    ...TRAM_STOP_ICON,
-  },
-  {
-    id: 'transport-tram-harimayabashi',
-    category: 'transport',
-    name: '路面電車「はりまや橋」電停',
-    area: '会場の東がわ',
-    note: 'とさでん交通の主要な乗りかえ拠点。後免線・伊野線・桟橋線・駅前線が乗り入れます。',
-    tags: ['路面電車', '乗りかえ'],
-    lat: 33.5596333,
-    lng: 133.5423972,
-    ...TRAM_STOP_ICON,
-  },
-  {
-    id: 'transport-tram-horizume',
-    category: 'transport',
-    name: '路面電車「堀詰」電停',
-    area: '会場の中ほど',
-    note: 'とさでん交通・伊野線の電停です。',
-    tags: ['路面電車'],
-    lat: 33.5594944,
-    lng: 133.5392306,
-    ...TRAM_STOP_ICON,
-  },
-  {
-    id: 'transport-tram-kochijomae',
-    category: 'transport',
-    name: '路面電車「高知城前」電停',
-    area: '会場の西のはし',
-    note: 'とさでん交通・伊野線。高知城・日曜市の最寄り電停です。',
-    tags: ['路面電車'],
-    lat: 33.5585056,
-    lng: 133.5339250,
-    ...TRAM_STOP_ICON,
-  },
-  {
-    id: 'transport-tram-kochiekimae',
-    category: 'transport',
-    name: '路面電車「高知駅前」電停',
-    area: '会場から北へ徒歩15分ほど',
-    note: 'とさでん交通・駅前線。JR高知駅のすぐ南にあります。',
-    tags: ['路面電車'],
-    lat: 33.5668361,
-    lng: 133.5436528,
-    ...TRAM_STOP_ICON,
-  },
-  {
-    id: 'transport-jr-kochi-station',
-    category: 'transport',
-    name: 'JR高知駅',
-    area: '会場から北へ徒歩15分ほど',
-    note: '土讃線・特急が発着する、県外から日曜市へ向かう主要な玄関口です。路面電車なら「はりまや橋」で乗りかえます。',
-    tags: ['JR', 'バスのりば'],
-    lat: 33.567691786705,
-    lng: 133.5436611,
-    ...JR_STATION_ICON,
-  },
-  {
-    id: 'transport-parking-central-park',
-    category: 'transport',
-    name: '中央公園地下駐車場',
-    area: '会場の中ほど・中央公園の地下',
-    note: '日曜市の日は追手筋が通行止めになります。少し離れた駐車場に停めて歩くのがおすすめです。',
-    tags: ['駐車場'],
-    lat: 33.5608,
-    lng: 133.5378,
-  },
+  // ここには何も置かない。電停・JR駅は map_landmarks 側（マップ上に
+  // 常時表示）が唯一の情報源で、lib/facilities/transitLandmarks.ts が
+  // そこから Facility 形式に変換して補う（getFacilitiesByCategory では
+  // 取得できないので注意。呼び出し側で transitLandmarks の結果と
+  // マージすること）。
 ];
 
 export function getFacilityCategory(id: FacilityCategoryId): FacilityCategory | undefined {

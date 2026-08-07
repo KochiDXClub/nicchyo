@@ -595,6 +595,14 @@ type MapViewProps = {
   overlaySlot?: React.ReactNode;
   /** trueのとき拡大縮小スライダーと検索バーを非表示にする */
   hideMapUI?: boolean;
+  /**
+   * trueのとき、通常のランドマーク（駅・電停の常時表示分を含む）を
+   * 一切表示しない。おでかけサポートの案内中は FacilityLayer が
+   * 同じ電停・駅をカテゴリの目的に合わせて表示するため、両方出すと
+   * 二重に見えてしまう／無関係なカテゴリでも常に駅アイコンが写り込む
+   * ことになるのを避ける。
+   */
+  suppressLandmarks?: boolean;
   /** 現在地ボタンの top 位置（px）。検索エリアの実際の高さに合わせて親から渡す */
   trackingButtonTop?: number;
   /**
@@ -764,6 +772,7 @@ const MapView = memo(function MapView({
   onClearSearch,
   overlaySlot,
   hideMapUI = false,
+  suppressLandmarks = false,
   trackingButtonTop,
   onGestureActiveChange,
 }: MapViewProps = {}) {
@@ -820,10 +829,13 @@ const MapView = memo(function MapView({
     [routeBounds, routeConfig.visibleDistanceMeters]
   );
   const landmarkSpecs = useMemo(() => landmarks ?? [], [landmarks]);
-  const majorPlaceLabels = useMemo(
-    () => landmarkSpecs.map((spec) => ({ name: spec.name, lat: spec.lat, lng: spec.lng })),
-    [landmarkSpecs]
-  );
+  const majorPlaceLabels = useMemo(() => {
+    // アイコン本体（visibleLandmarkSpecs）と同じく、おでかけサポート案内中は
+    // 地名ラベルも一切出さない。アイコンだけ消してラベルが残ると、
+    // 名前だけが宙に浮いた状態になってしまう
+    if (suppressLandmarks) return [];
+    return landmarkSpecs.map((spec) => ({ name: spec.name, lat: spec.lat, lng: spec.lng }));
+  }, [landmarkSpecs, suppressLandmarks]);
   const minZoomLandmarkKeys = useMemo(
     () => new Set(landmarkSpecs.filter((spec) => spec.showAtMinZoom).map((spec) => spec.key)),
     [landmarkSpecs]
@@ -1296,6 +1308,11 @@ const MapView = memo(function MapView({
     : 'calc(4.5rem + env(safe-area-inset-bottom,0px) + 0.5rem + 25px)';
 
   const visibleLandmarkSpecs = useMemo(() => {
+    // おでかけサポート案内中は FacilityLayer が案内先を表示するため、
+    // 通常のランドマーク（駅・電停の常時表示分を含む）は一切出さない
+    if (suppressLandmarks) {
+      return [];
+    }
     // 電停・駅は道案内の目印として、通常ランドマークが出ない
     // ズーム帯でも常時表示する（「普段から公共交通機関を表示する」）
     const alwaysVisibleTransit = landmarkSpecs.filter((spec) =>
@@ -1308,7 +1325,7 @@ const MapView = memo(function MapView({
       return landmarkSpecs;
     }
     return landmarkSpecs.filter((spec) => minZoomLandmarkKeys.has(spec.key));
-  }, [isMinimumZoomMode, landmarkSpecs, minZoomLandmarkKeys, shouldRenderLandmarks]);
+  }, [isMinimumZoomMode, landmarkSpecs, minZoomLandmarkKeys, shouldRenderLandmarks, suppressLandmarks]);
 
   const { markManualRotation, snapRotationToVisibleRoad } = useMapCameraController({
     mapRef,
