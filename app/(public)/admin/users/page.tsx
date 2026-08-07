@@ -6,7 +6,7 @@ import React, { useEffect, useState, useMemo, useCallback, useRef } from "react"
 import { useAuth } from "@/lib/auth/AuthContext";
 import { useRouter } from "next/navigation";
 import type { UserRole } from "@/lib/auth/types";
-import { exportToCSV, exportToJSON, formatDateForFilename } from "@/lib/admin/exportUtils";
+import { exportToCSV, exportToJSON, formatDateForFilename, excelText } from "@/lib/admin/exportUtils";
 import { showToast } from "@/lib/admin/toast";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useDebounce } from "use-debounce";
@@ -291,8 +291,8 @@ function AdminUsersContent() {
         メールアドレス: user.email,
         ロール: getRoleLabel(user.role),
         店舗ID: user.vendorId?.toString() || "",
-        登録日: user.registeredDate,
-        最終ログイン: user.lastLogin,
+        登録日: excelText(user.registeredDate),
+        最終ログイン: excelText(user.lastLogin),
         ステータス: user.status === "active" ? "アクティブ" : "停止中",
       }));
       const filename = `users_${formatDateForFilename()}.csv`;

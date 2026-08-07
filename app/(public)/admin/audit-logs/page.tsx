@@ -7,7 +7,7 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { AdminLayout, AdminPageHeader, EmptyState } from "@/components/admin";
 import { showToast } from "@/lib/admin/toast";
-import { exportToCSV, exportToJSON, formatDateForFilename } from "@/lib/admin/exportUtils";
+import { exportToCSV, exportToJSON, formatDateForFilename, excelText } from "@/lib/admin/exportUtils";
 import { Loader2, Search, Download } from "lucide-react";
 
 type AuditLog = {
@@ -146,7 +146,7 @@ export default function AuditLogsPage() {
 
   const handleExportCSV = () => {
     const rows = filtered.map((l) => ({
-      日時: formatDate(l.created_at),
+      日時: excelText(formatDate(l.created_at)),
       実行者: l.actor_email ?? "",
       ロール: l.actor_role ?? "",
       アクション: getActionLabel(l.action),

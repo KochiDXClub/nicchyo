@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
-import { exportToCSV, exportToJSON, formatDateForFilename } from './exportUtils';
+import { exportToCSV, exportToJSON, formatDateForFilename, excelText } from './exportUtils';
 
 describe('exportUtils', () => {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -167,6 +167,28 @@ describe('exportUtils', () => {
 
         // JSON stringified and escaped
         expect(lines[1]).toBe('1,"{""key"":""value""}"');
+    });
+
+    it('should wrap excelText values so Excel treats them as literal text, not auto-converted dates', async () => {
+        const data = [{ id: 1, 日時: excelText('8/7 09:05:20') }];
+        exportToCSV(data, 'dates.csv');
+
+        const blob = createObjectURLMock.mock.calls[0][0] as Blob;
+        const text = await readBlob(blob);
+        const lines = text.split('\n');
+
+        expect(lines[1]).toBe('1,"=""8/7 09:05:20"""');
+    });
+
+    it('should escape embedded quotes inside excelText values', async () => {
+        const data = [{ id: 1, note: excelText('Say "Hi"') }];
+        exportToCSV(data, 'dates2.csv');
+
+        const blob = createObjectURLMock.mock.calls[0][0] as Blob;
+        const text = await readBlob(blob);
+        const lines = text.split('\n');
+
+        expect(lines[1]).toBe('1,"=""Say ""Hi"""""');
     });
 
     it('should return error if blob creation fails (simulation)', () => {
