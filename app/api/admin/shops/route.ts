@@ -3,6 +3,7 @@ import { createClient as createServiceClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 import { createClient as createServerClient } from "@/utils/supabase/server";
 import { getRole, isAdmin } from "@/lib/auth/permissions";
+import { listAllAuthUsers } from "@/lib/auth/listAllUsers";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -62,23 +63,13 @@ export async function GET() {
     const vendors = Array.isArray(vendorsData) ? vendorsData : [];
 
     // 全 auth ユーザーを取得（banned_until でsuspended判定）
-    const allAuthUsers: Array<{
-      id: string;
-      email?: string;
-      created_at?: string;
-      banned_until?: string | null;
-    }> = [];
-
-    let page = 1;
-    const perPage = 200;
-    while (true) {
-      const { data, error } = await serviceClient.auth.admin.listUsers({ page, perPage });
-      if (error) break;
-      const pageUsers = (data.users ?? []) as typeof allAuthUsers;
-      allAuthUsers.push(...pageUsers);
-      if (pageUsers.length < perPage) break;
-      page += 1;
+    // ページ途中で取得に失敗しても、それまでに取れた分は使う（一部の店舗情報が
+    // 欠けるだけで、店舗一覧全体が空になるよりはましなため）
+    const usersResult = await listAllAuthUsers(serviceClient);
+    if (usersResult.error) {
+      console.error("[admin/shops] listAllAuthUsers partial failure:", usersResult.error);
     }
+    const allAuthUsers = usersResult.users;
 
     const authById = new Map(allAuthUsers.map((u) => [u.id, u]));
 

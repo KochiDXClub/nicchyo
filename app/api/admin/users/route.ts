@@ -3,6 +3,7 @@ import { createClient as createServiceClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 import { createClient as createServerClient } from "@/utils/supabase/server";
 import { getRole, isAdmin, normalizeRole, ROLE_HIERARCHY } from "@/lib/auth/permissions";
+import { listAllAuthUsers } from "@/lib/auth/listAllUsers";
 import { requireSameOrigin } from "@/lib/security/requestGuards";
 import { enforceRateLimit } from "@/lib/security/rateLimit";
 import type { UserRole } from "@/lib/auth/types";
@@ -79,49 +80,11 @@ export async function GET() {
       },
     });
 
-    const allUsers: Array<{
-      id: string;
-      email?: string;
-      created_at?: string;
-      last_sign_in_at?: string;
-      banned_until?: string | null;
-      app_metadata?: { role?: string };
-      user_metadata?: {
-        role?: string;
-        name?: string;
-        full_name?: string;
-        avatar_url?: string;
-        avatarUrl?: string;
-      };
-    }> = [];
-
-    let page = 1;
-    const perPage = 200;
-
-    while (true) {
-      const { data, error } = await serviceClient.auth.admin.listUsers({ page, perPage });
-      if (error) {
-        return NextResponse.json({ error: "Failed to fetch auth users" }, { status: 500 });
-      }
-      const pageUsers = (data.users ?? []) as Array<{
-        id: string;
-        email?: string;
-        created_at?: string;
-        last_sign_in_at?: string;
-        banned_until?: string | null;
-        app_metadata?: { role?: string };
-        user_metadata?: {
-          role?: string;
-          name?: string;
-          full_name?: string;
-          avatar_url?: string;
-          avatarUrl?: string;
-        };
-      }>;
-      allUsers.push(...pageUsers);
-      if (pageUsers.length < perPage) break;
-      page += 1;
+    const usersResult = await listAllAuthUsers(serviceClient);
+    if (usersResult.error) {
+      return NextResponse.json({ error: "Failed to fetch auth users" }, { status: 500 });
     }
+    const allUsers = usersResult.users;
 
     const { data: vendorsData, error: vendorsError } = await serviceClient
       .from("vendors")
