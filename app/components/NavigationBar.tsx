@@ -23,6 +23,7 @@ const baseNavItems: NavItem[] = [
 
 // ─── セカンダリメニュー項目（2列グリッド） ────────────────────────────────────
 const secondaryMenuItems = [
+  { label: "おでかけサポート", href: "/facilities", emoji: "🧭", color: "bg-teal-50", textColor: "text-teal-800", border: "border-teal-100", wide: true },
   { label: "マイページ",  href: "/my-profile", emoji: "👤", color: "bg-violet-50",  textColor: "text-violet-800", border: "border-violet-100" },
   { label: "ニュース",    href: "/news",       emoji: "📰", color: "bg-sky-50",     textColor: "text-sky-800",    border: "border-sky-100"    },
   { label: "nicchyoとは", href: "/about",      emoji: "ℹ️", color: "bg-slate-50",   textColor: "text-slate-700",  border: "border-slate-100"  },
@@ -234,7 +235,7 @@ function NavigationBarInner({
                       animate={{ opacity: 1, scale: 1 }}
                       transition={{ delay: i * 0.05, type: "spring", damping: 18, stiffness: 280 }}
                       onClick={() => handleMenuItemClick(item.href)}
-                      className={`flex items-center gap-3 rounded-2xl border ${item.border} ${item.color} px-4 py-3.5 transition active:scale-[0.97]`}
+                      className={`flex items-center gap-3 rounded-2xl border ${item.border} ${item.color} px-4 py-3.5 transition active:scale-[0.97] ${"wide" in item && item.wide ? "col-span-2" : ""}`}
                     >
                       <span className="text-xl">{item.emoji}</span>
                       <span className={`text-[13px] font-bold ${item.textColor}`}>{item.label}</span>
