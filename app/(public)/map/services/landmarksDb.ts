@@ -26,7 +26,8 @@ export async function fetchLandmarksFromDb(
 
   if (error) {
     // 建物データが取れなくても、店舗など他のマップデータ表示は妨げない
-    console.error("[fetchLandmarksFromDb] failed:", error.message);
+    // （console.error だと Next.js の開発オーバーレイが全画面を覆ってしまうため warn にする）
+    console.warn("[fetchLandmarksFromDb] failed:", error.message);
     return [];
   }
 
