@@ -82,12 +82,12 @@ export async function fetchVendorShopsFromDb(
   supabase: SupabaseClient<Database>
 ): Promise<Shop[]> {
   const [
-    { data: vendorsData },
-    { data: categoriesData },
-    { data: productsData },
-    { data: locationsData },
-    { data: assignmentsData },
-    { data: activeContentsData },
+    { data: vendorsData, error: vendorsError },
+    { data: categoriesData, error: categoriesError },
+    { data: productsData, error: productsError },
+    { data: locationsData, error: locationsError },
+    { data: assignmentsData, error: assignmentsError },
+    { data: activeContentsData, error: contentsError },
   ] = await Promise.all([
     supabase
       .from("vendors")
@@ -104,6 +104,21 @@ export async function fetchVendorShopsFromDb(
       .gt("expires_at", new Date().toISOString())
       .order("created_at", { ascending: false }),
   ]);
+
+  // どれか1つでも失敗すると該当データが黙って空扱いになり店舗が減る/消えるため、
+  // 原因追跡できるよう警告として残す（握りつぶし自体は既存の設計を踏襲）
+  for (const [label, error] of [
+    ["vendors", vendorsError],
+    ["categories", categoriesError],
+    ["products", productsError],
+    ["market_locations", locationsError],
+    ["location_assignments", assignmentsError],
+    ["vendor_contents", contentsError],
+  ] as const) {
+    if (error) {
+      console.warn(`[fetchVendorShopsFromDb] ${label} の取得に失敗しました:`, error.message);
+    }
+  }
 
   const vendors = Array.isArray(vendorsData)
     ? (vendorsData as VendorRow[])
