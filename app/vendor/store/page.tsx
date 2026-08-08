@@ -64,7 +64,8 @@ const TIME_OPTIONS = Array.from({ length: 19 }, (_, i) => {
 
 const EMPTY_STORE: Store = {
   id: "", vendor_id: "",
-  name: "", owner_name: "", category_id: "", style: "", style_tags: [], main_products: [],
+  name: "", owner_name: "", owner_name_public: false,
+  category_id: "", style: "", style_tags: [], main_products: [],
   main_product_prices: {},
   payment_methods: [], rain_policy: "undecided", schedule: [],
 };
@@ -160,6 +161,7 @@ export default function VendorStorePage() {
       await saveVendorStore(user.id, {
         name: form.name,
         owner_name: form.owner_name,
+        owner_name_public: form.owner_name_public,
         category_id: form.category_id,
         style: form.style,
         style_tags: form.style_tags,
@@ -391,7 +393,22 @@ export default function VendorStorePage() {
             placeholder="例：山田 太郎"
             className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-800 outline-none focus:ring-2 focus:ring-amber-300"
           />
-          <p className="mt-1.5 text-[10px] text-slate-400">AIばあちゃんが店主名を案内するときに使用します</p>
+          <label className="mt-2 flex items-start gap-2 rounded-xl bg-slate-50 px-3 py-2">
+            <input
+              type="checkbox"
+              checked={form.owner_name_public ?? false}
+              onChange={(e) =>
+                setForm((prev) => ({ ...prev, owner_name_public: e.target.checked }))
+              }
+              className="mt-0.5 h-4 w-4 shrink-0 accent-nicchyo-primary"
+            />
+            <span className="text-[11px] leading-relaxed text-slate-600">
+              店主名を地図・検索の公開ページに表示する
+            </span>
+          </label>
+          <p className="mt-1.5 text-[10px] text-slate-400">
+            オフのあいだは来訪者に表示されません。店主名がAIの回答に使われることはありません。
+          </p>
         </div>
 
         {/* 商品ジャンル */}
