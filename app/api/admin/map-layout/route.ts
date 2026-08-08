@@ -190,7 +190,7 @@ export async function GET() {
       loadEditableShops(supabase),
       fetchLandmarksFromDb(supabase),
       fetchMapRouteFromDb(supabase),
-      supabase.from("vendors").select("id, shop_name, owner_name").order("shop_name", { ascending: true }),
+      supabase.from("vendors").select("id, shop_name").order("shop_name", { ascending: true }),
     ]);
 
     if (vendorsResult.error) {
@@ -199,7 +199,7 @@ export async function GET() {
 
     const vendors: VendorOption[] = (vendorsResult.data ?? []).map((row) => ({
       id: row.id as string,
-      name: ((row.shop_name as string | null) || (row.owner_name as string | null) || "名称未設定").trim(),
+      name: ((row.shop_name as string | null) || "名称未設定").trim(),
     }));
 
     return NextResponse.json({ shops: editableShops, landmarks, route: mapRoute, vendors });

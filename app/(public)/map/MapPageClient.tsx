@@ -30,6 +30,10 @@ import NearbyExplorePanel, {
   type NearbyRecommendedShop,
 } from "./components/NearbyExplorePanel";
 import { useNearbyPromptVisibility } from "./hooks/useNearbyPromptVisibility";
+import FacilityLayer from "./components/FacilityLayer";
+import FacilityGuidePanel from "./components/FacilityGuidePanel";
+import { useFacilityGuide } from "./hooks/useFacilityGuide";
+import { parseFacilityCategoryId } from "@/lib/facilities/facilities";
 import {
   buildNearbyNote,
   isPointInRotatedRect,
@@ -166,6 +170,15 @@ export default function MapPageClient({
   const isAiFocusMode = searchParams?.get("ai") === "1";
   const searchParamsKey = searchParams?.toString() ?? "";
   const initialShopId = initialShopIdParam ? Number(initialShopIdParam) : undefined;
+  // おでかけサポート（/facilities）から ?facility=<カテゴリ> で入ってくる
+  const facilityCategoryId = parseFacilityCategoryId(searchParams?.get("facility"));
+  const facilityGuide = useFacilityGuide(facilityCategoryId, landmarks);
+  const closeFacilityGuide = useCallback(() => {
+    const params = new URLSearchParams(searchParamsKey);
+    params.delete("facility");
+    const query = params.toString();
+    router.replace(query ? `/map?${query}` : "/map", { scroll: false });
+  }, [router, searchParamsKey]);
   const [recommendedRecipe, setRecommendedRecipe] = useState<Recipe | null>(null);
   const [showBanner, setShowBanner] = useState(false);
   const [showRecipeOverlay, setShowRecipeOverlay] = useState(false);
@@ -661,7 +674,7 @@ export default function MapPageClient({
   // ── 「このへん、なにがある？」──────────────────────
   // 他のモード（検索・AI相談・店舗バナー・パネル表示中）ではボタンを出さない
   const nearbySuppressed =
-    !!nearbyState || hasSearchMode || hasAiMode || isShopBannerOpen;
+    !!nearbyState || hasSearchMode || hasAiMode || isShopBannerOpen || !!facilityGuide.category;
   // 回転のみのジェスチャーは Leaflet の move/zoom を発火させないため、
   // MapView から素通しで受け取ってボタンの静止判定に反映する
   const [isMapGestureActive, setIsMapGestureActive] = useState(false);
@@ -899,8 +912,20 @@ export default function MapPageClient({
               />
             )}
 
-            {/* 全幅検索バー + ジャンルフィルター（AI相談・このへんモード時は非表示） */}
-            {!mapCharacterConsultActive && !nearbyState && (
+            {/* おでかけサポート案内中ヘッダー：検索バーの代わりに表示 */}
+            {facilityGuide.category && !mapCharacterConsultActive && !nearbyState && (
+              <div className="absolute left-3 right-3 top-3 z-[1001] flex items-center gap-2.5 rounded-full bg-white/95 px-4 py-2.5 shadow-lg ring-1 ring-slate-900/8 backdrop-blur-sm">
+                <span className="text-lg leading-none" aria-hidden="true">
+                  {facilityGuide.category.emoji}
+                </span>
+                <p className="flex-1 text-sm font-bold text-slate-800">
+                  {facilityGuide.category.label}を案内中
+                </p>
+              </div>
+            )}
+
+            {/* 全幅検索バー + ジャンルフィルター（AI相談・このへん・おでかけサポートモード時は非表示） */}
+            {!mapCharacterConsultActive && !nearbyState && !facilityGuide.category && (
               <div
                 ref={searchAreaRef}
                 className="absolute left-3 right-3 top-3 z-[1001] flex flex-col gap-2"
@@ -986,8 +1011,12 @@ export default function MapPageClient({
               kotoduteShopIds={kotoduteShopIds}
               shopBannerVariant={shopBannerVariant}
               attendanceEstimates={attendanceEstimates}
-              suppressInitialLocationFocus={isAiFocusMode}
+              // おでかけサポート表示中は施設に合わせた画角を優先し、
+              // 現在地取得時の自動ズームで上書きされないようにする
+              suppressInitialLocationFocus={isAiFocusMode || Boolean(facilityGuide.category)}
               hideMapUI={mapCharacterConsultActive || !!nearbyState}
+              // おでかけサポート案内中は FacilityLayer 側のマーカーだけを見せる
+              suppressLandmarks={Boolean(facilityGuide.category)}
               trackingButtonTop={trackingButtonTop}
               onGestureActiveChange={setIsMapGestureActive}
               overlaySlot={
@@ -1034,6 +1063,29 @@ export default function MapPageClient({
                 visible={nearbyButtonVisible}
                 onClick={openNearbyPanel}
               />
+            )}
+
+            {/* おでかけサポート：選んだカテゴリの施設を強調表示し、最寄りを案内する */}
+            {facilityGuide.category && (
+              <>
+                <FacilityLayer
+                  map={mapInstance}
+                  category={facilityGuide.category}
+                  facilities={facilityGuide.facilities}
+                  nearestFacilityId={facilityGuide.nearest?.facility.id ?? null}
+                  routePoints={facilityGuide.nearest?.route.points}
+                  userLocation={facilityGuide.userLocation}
+                />
+                {!mapCharacterConsultActive && !nearbyState && (
+                  <FacilityGuidePanel
+                    category={facilityGuide.category}
+                    facilities={facilityGuide.facilities}
+                    ranked={facilityGuide.ranked}
+                    map={mapInstance}
+                    onClose={closeFacilityGuide}
+                  />
+                )}
+              </>
             )}
           </div>
       </main>
@@ -1116,7 +1168,7 @@ export default function MapPageClient({
             }
           }}
           onConsultClick={startMapCharacterConsult}
-          closeModeActive={hasSearchMode || hasAiMode || !!nearbyState}
+          closeModeActive={hasSearchMode || hasAiMode || !!nearbyState || !!facilityGuide.category}
           onCloseMode={closeMapInteractionMode}
         />
       )}

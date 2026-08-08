@@ -993,6 +993,38 @@ export type Database = {
           },
         ]
       }
+      vendor_owner_profiles: {
+        Row: {
+          created_at: string
+          is_public: boolean
+          owner_name: string | null
+          updated_at: string
+          vendor_id: string
+        }
+        Insert: {
+          created_at?: string
+          is_public?: boolean
+          owner_name?: string | null
+          updated_at?: string
+          vendor_id: string
+        }
+        Update: {
+          created_at?: string
+          is_public?: boolean
+          owner_name?: string | null
+          updated_at?: string
+          vendor_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vendor_owner_profiles_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: true
+            referencedRelation: "vendors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       vendors: {
         Row: {
           business_hours_end: string | null

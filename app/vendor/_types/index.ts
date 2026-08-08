@@ -29,6 +29,8 @@ export type Store = {
   vendor_id: string;
   name: string;
   owner_name?: string;
+  /** 店主名を公開ページに表示するか。既定は非公開。 */
+  owner_name_public?: boolean;
   category_id: string;
   style: string;
   style_tags: string[];
