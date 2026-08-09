@@ -18,6 +18,8 @@ type ProductItem = {
 type FormState = {
   name: string;
   ownerName: string;
+  /** 店主名を地図・検索の公開画面に表示するか。既定は非公開。 */
+  ownerNamePublic: boolean;
   category: string;
   stallStyle: string;
   highlight: string;
@@ -44,7 +46,12 @@ const SEASON_OPTIONS: { key: SeasonKey; label: string }[] = [
   { key: "winter_spring", label: "冬ー春" },
 ];
 
-const REQUIRED_FIELDS: (keyof FormState)[] = [
+/** FormState のうちテキスト入力の項目だけを指すキー */
+type TextFieldKey = {
+  [K in keyof FormState]: FormState[K] extends string ? K : never;
+}[keyof FormState];
+
+const REQUIRED_FIELDS: TextFieldKey[] = [
   "name",
   "ownerName",
   "category",
@@ -69,6 +76,7 @@ const SEASON_ID_MAP: Record<SeasonKey, number> = {
 const EMPTY_FORM: FormState = {
   name: "",
   ownerName: "",
+  ownerNamePublic: false,
   category: "",
   stallStyle: "",
   highlight: "",
@@ -117,7 +125,7 @@ export default function MyShopDetailPage() {
 
       const { data: vendor, error: vendorError } = await supabase
         .from("vendors")
-        .select("id, shop_name, owner_name, strength, style, category_id, shop_image_url, sns_instagram, sns_x, sns_hp")
+        .select("id, shop_name, strength, style, category_id, shop_image_url, sns_instagram, sns_x, sns_hp")
         .eq("id", vendorId)
         .single();
 
@@ -126,6 +134,13 @@ export default function MyShopDetailPage() {
         setInitialized(true);
         return;
       }
+
+      // 出店者名は vendors から分離され、公開可否を本人が管理する
+      const { data: ownerProfile } = await supabase
+        .from("vendor_owner_profiles")
+        .select("owner_name, is_public")
+        .eq("vendor_id", vendorId)
+        .maybeSingle();
 
       let categoryName = "";
       if (vendor.category_id) {
@@ -170,7 +185,8 @@ export default function MyShopDetailPage() {
 
       setForm({
         name: vendor.shop_name ?? "",
-        ownerName: vendor.owner_name ?? "",
+        ownerName: ownerProfile?.owner_name ?? "",
+        ownerNamePublic: ownerProfile?.is_public ?? false,
         category: categoryName,
         stallStyle: vendor.style ?? "",
         highlight: vendor.strength ?? "",
@@ -301,7 +317,6 @@ export default function MyShopDetailPage() {
 
       const vendorPayload = {
         shop_name: form.name.trim(),
-        owner_name: form.ownerName.trim() || null,
         strength: form.highlight.trim() || null,
         style: form.stallStyle.trim() || null,
         category_id: categoryId,
@@ -317,6 +332,21 @@ export default function MyShopDetailPage() {
         .eq("id", vendorId);
       if (vendorError) {
         throw vendorError;
+      }
+
+      // 店主名は専用テーブルへ。公開可否も本人の設定として保存する。
+      const { error: ownerProfileError } = await supabase
+        .from("vendor_owner_profiles")
+        .upsert(
+          {
+            vendor_id: vendorId,
+            owner_name: form.ownerName.trim() || null,
+            is_public: form.ownerNamePublic,
+          },
+          { onConflict: "vendor_id" }
+        );
+      if (ownerProfileError) {
+        throw ownerProfileError;
       }
 
       const { error: deleteProductsError } = await supabase
@@ -503,6 +533,26 @@ export default function MyShopDetailPage() {
                         {errors.ownerName}
                       </span>
                     )}
+                    <span className="mt-2 flex items-start gap-2 rounded-lg bg-amber-50/70 px-3 py-2">
+                      <input
+                        type="checkbox"
+                        checked={form.ownerNamePublic}
+                        onChange={(event) =>
+                          setForm((prev) => ({
+                            ...prev,
+                            ownerNamePublic: event.target.checked,
+                          }))
+                        }
+                        className="mt-0.5 h-4 w-4 shrink-0 accent-nicchyo-primary"
+                      />
+                      <span className="text-[11px] leading-relaxed text-slate-600">
+                        店主名を地図・検索の公開ページに表示する
+                        <br />
+                        <span className="text-slate-500">
+                          オフのあいだは店主名を保存していても来訪者には表示されません。
+                        </span>
+                      </span>
+                    </span>
                   </label>
                   <label className="block text-sm text-slate-700">
                     商品ジャンル{requiredMark}

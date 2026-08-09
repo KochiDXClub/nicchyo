@@ -216,6 +216,20 @@ describe("groupEventsBySunday", () => {
     expect(sundays[0].events.map((e) => e.id)).toEqual(["sat"]);
   });
 
+  it("月〜木曜の予定も、最大6日先までその週の日曜に前方で寄せる", () => {
+    // 08-10（月）〜08-13（木）は、いずれも同じ週の日曜 08-16 に載る
+    const events = [
+      makeEvent({ id: "mon", event_date: "2026-08-10" }),
+      makeEvent({ id: "tue", event_date: "2026-08-11" }),
+      makeEvent({ id: "wed", event_date: "2026-08-12" }),
+      makeEvent({ id: "thu", event_date: "2026-08-13" }),
+    ];
+    const sundays = groupEventsBySunday(events, [], 1, now);
+    expect(sundays[0].events.map((e) => e.id).sort()).toEqual(
+      ["mon", "tue", "wed", "thu"].sort()
+    );
+  });
+
   it("見どころを1件だけ切り出し、残りと重複させない", () => {
     const events = [
       makeEvent({ id: "normal", event_date: "2026-08-16" }),
@@ -276,6 +290,15 @@ describe("groupEventsBySunday", () => {
     ];
     const sundays = groupEventsBySunday(events, [], 3, now);
     expect(sundays.map((s) => s.events.length)).toEqual([1, 0, 0]);
+  });
+
+  it("期間内に日曜を1つも含まない連続開催（月〜木）も消えずに載る", () => {
+    // 08-10（月）〜08-13（木）は日曜をまたがないが、その週の日曜 08-16 に載る
+    const events = [
+      makeEvent({ id: "weekday-only", event_date: "2026-08-10", end_date: "2026-08-13" }),
+    ];
+    const sundays = groupEventsBySunday(events, [], 2, now);
+    expect(sundays.map((s) => s.events.length)).toEqual([1, 0]);
   });
 
   it("連続開催で全週を見どころに指定すれば、各日曜で見どころのまま扱う", () => {

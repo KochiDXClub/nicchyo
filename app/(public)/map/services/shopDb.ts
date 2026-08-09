@@ -5,7 +5,6 @@ import type { Shop } from "../types/shopData";
 type VendorRow = {
   id: string;
   shop_name: string | null;
-  owner_name: string | null;
   strength: string | null;
   style: string | null;
   style_tags: string[] | null;
@@ -22,6 +21,13 @@ type VendorRow = {
   sns_hp: string | null;
   business_hours_start: string | null;
   business_hours_end: string | null;
+};
+
+// 出店者本人の氏名は vendors から分離済み。
+// 公開設定 (is_public = true) の行だけが RLS を通って返る。
+type OwnerProfileRow = {
+  vendor_id: string;
+  owner_name: string | null;
 };
 
 type ActiveContentRow = {
@@ -83,6 +89,7 @@ export async function fetchVendorShopsFromDb(
 ): Promise<Shop[]> {
   const [
     { data: vendorsData },
+    { data: ownerProfilesData },
     { data: categoriesData },
     { data: productsData },
     { data: locationsData },
@@ -91,7 +98,8 @@ export async function fetchVendorShopsFromDb(
   ] = await Promise.all([
     supabase
       .from("vendors")
-      .select("id, shop_name, owner_name, strength, style, style_tags, category_id, categories(name), main_products, main_product_prices, payment_methods, rain_policy, schedule, shop_image_url, sns_instagram, sns_x, sns_hp, business_hours_start, business_hours_end"),
+      .select("id, shop_name, strength, style, style_tags, category_id, categories(name), main_products, main_product_prices, payment_methods, rain_policy, schedule, shop_image_url, sns_instagram, sns_x, sns_hp, business_hours_start, business_hours_end"),
+    supabase.from("vendor_owner_profiles").select("vendor_id, owner_name"),
     supabase.from("categories").select("id, name"),
     supabase.from("products").select("vendor_id, name"),
     supabase
@@ -108,6 +116,14 @@ export async function fetchVendorShopsFromDb(
   const vendors = Array.isArray(vendorsData)
     ? (vendorsData as VendorRow[])
     : [];
+  const ownerNameByVendorId = new Map<string, string>();
+  (Array.isArray(ownerProfilesData) ? (ownerProfilesData as OwnerProfileRow[]) : []).forEach(
+    (row) => {
+      if (row.vendor_id && row.owner_name) {
+        ownerNameByVendorId.set(row.vendor_id, row.owner_name);
+      }
+    }
+  );
   const categories = Array.isArray(categoriesData)
     ? (categoriesData as CategoryRow[])
     : [];
@@ -217,7 +233,7 @@ export async function fetchVendorShopsFromDb(
         id: storeNumber,
         vendorId: vendor.id,
         name: vendor.shop_name ?? "",
-        ownerName: vendor.owner_name ?? "",
+        ownerName: ownerNameByVendorId.get(vendor.id) ?? "",
         category: categoryName,
         products: displayProducts,
         productPrices: (vendor.main_product_prices ?? undefined) as Record<string, number | null> | undefined,

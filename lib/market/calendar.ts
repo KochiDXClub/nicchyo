@@ -229,14 +229,16 @@ function byStartTime(a: MarketEvent, b: MarketEvent): number {
  * その予定が指定の日曜のカードに載るか。
  *
  * 日曜以外の日付で登録された予定はその週の日曜に寄せる。
- * end_date があれば、開始の週の日曜から end_date までの各日曜に繰り返し載る
+ * end_date があれば、開始の週の日曜から終了の週の日曜までの各日曜に繰り返し載る
  * （「文旦フェア 8/16〜9/6」を1件の登録で4回分の日曜に出せるようにするため）。
+ * 終了日も日曜に前方で寄せる。そうしないと「月曜〜木曜」のように期間内に
+ * 日曜が1つも含まれない連続開催が、どの日曜カードにも載らず消えてしまう。
  */
 export function isEventOnSunday(event: MarketEvent, sundayIso: string): boolean {
   const startSunday = getUpcomingSundayIso(isoToDate(event.event_date));
-  if (sundayIso < startSunday) return false;
   if (!event.end_date || event.end_date < event.event_date) return sundayIso === startSunday;
-  return sundayIso <= event.end_date;
+  const endSunday = getUpcomingSundayIso(isoToDate(event.end_date));
+  return sundayIso >= startSunday && sundayIso <= endSunday;
 }
 
 /** 指定の日曜が、その予定の見どころ週として選ばれているか */
