@@ -68,21 +68,40 @@ export default async function MapPage() {
   if (hasSupabaseEnv) {
     try {
       const supabase = createClient(cookieStore);
-      const [fetchedShops, fetchedLandmarks, fetchedMapRoute, mapData] = await Promise.all([
+      // 1つの取得が失敗しても他の取得結果を巻き込まないよう、allSettled で独立に扱う
+      const [shopsResult, landmarksResult, mapRouteResult, mapDataResult] = await Promise.allSettled([
         fetchVendorShopsFromDb(supabase),
         fetchLandmarksFromDb(supabase),
         fetchMapRouteFromDb(supabase),
         fetchMapData(supabase),
       ]);
-      shops = fetchedShops;
-      landmarks = fetchedLandmarks;
-      mapRoute = fetchedMapRoute;
-      attendanceEstimates = mapData.attendanceEstimates;
+
+      if (shopsResult.status === "fulfilled") {
+        shops = shopsResult.value;
+      } else {
+        console.warn("[MapPage] 店舗データの取得に失敗しました:", shopsResult.reason);
+      }
+
+      if (landmarksResult.status === "fulfilled") {
+        landmarks = landmarksResult.value;
+      } else {
+        console.warn("[MapPage] 建物データの取得に失敗しました:", landmarksResult.reason);
+      }
+
+      if (mapRouteResult.status === "fulfilled") {
+        mapRoute = mapRouteResult.value;
+      } else {
+        console.warn("[MapPage] 道データの取得に失敗しました:", mapRouteResult.reason);
+      }
+
+      if (mapDataResult.status === "fulfilled") {
+        attendanceEstimates = mapDataResult.value.attendanceEstimates;
+      } else {
+        console.warn("[MapPage] 混雑予測データの取得に失敗しました:", mapDataResult.reason);
+      }
     } catch (error) {
-      console.error("[MapPage] マップデータの取得に失敗しました:", error);
-      shops = [];
-      landmarks = [];
-      mapRoute = getFallbackMapRoute();
+      // createClient 自体が同期的に例外を投げるケースも含め、ここで拾ってデフォルト値のまま続行する
+      console.warn("[MapPage] マップデータの取得に失敗しました:", error);
     }
   }
 

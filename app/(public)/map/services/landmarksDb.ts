@@ -25,7 +25,10 @@ export async function fetchLandmarksFromDb(
     .order("created_at", { ascending: true });
 
   if (error) {
-    throw error;
+    // 建物データが取れなくても、店舗など他のマップデータ表示は妨げない
+    // （console.error だと Next.js の開発オーバーレイが全画面を覆ってしまうため warn にする）
+    console.warn("[fetchLandmarksFromDb] failed:", error.message);
+    return [];
   }
 
   const rows = Array.isArray(data) ? (data as LandmarkRow[]) : [];
