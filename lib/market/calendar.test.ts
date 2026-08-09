@@ -211,6 +211,20 @@ describe("groupEventsBySunday", () => {
     expect(sundays[0].events.map((e) => e.id)).toEqual(["sat"]);
   });
 
+  it("月〜木曜の予定も、最大6日先までその週の日曜に前方で寄せる", () => {
+    // 08-10（月）〜08-13（木）は、いずれも同じ週の日曜 08-16 に載る
+    const events = [
+      makeEvent({ id: "mon", event_date: "2026-08-10" }),
+      makeEvent({ id: "tue", event_date: "2026-08-11" }),
+      makeEvent({ id: "wed", event_date: "2026-08-12" }),
+      makeEvent({ id: "thu", event_date: "2026-08-13" }),
+    ];
+    const sundays = groupEventsBySunday(events, [], 1, now);
+    expect(sundays[0].events.map((e) => e.id).sort()).toEqual(
+      ["mon", "tue", "wed", "thu"].sort()
+    );
+  });
+
   it("見どころを1件だけ切り出し、残りと重複させない", () => {
     const events = [
       makeEvent({ id: "normal", event_date: "2026-08-16" }),

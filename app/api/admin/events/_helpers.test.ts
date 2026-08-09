@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { validateImageUrl } from "./_helpers";
+import { describeMarketEventDbError, validateImageUrl } from "./_helpers";
 
 describe("validateImageUrl", () => {
   const valid =
@@ -48,5 +48,28 @@ describe("validateImageUrl", () => {
   it("長すぎるURLは弾く", () => {
     const long = `https://abc.supabase.co/storage/v1/object/public/${"a".repeat(500)}.jpg`;
     expect(validateImageUrl(long).error).toBeTruthy();
+  });
+});
+
+describe("describeMarketEventDbError", () => {
+  it("見どころの部分ユニーク索引違反は原因が伝わるメッセージにする", () => {
+    const message = describeMarketEventDbError(
+      {
+        code: "23505",
+        message:
+          'duplicate key value violates unique constraint "market_events_highlight_per_day_idx"',
+      },
+      "作成に失敗しました"
+    );
+    expect(message).toBe(
+      "その日はすでに見どころが設定されています。先に既存の見どころを解除してください"
+    );
+  });
+
+  it("それ以外のDBエラーはフォールバックのメッセージを返す", () => {
+    expect(describeMarketEventDbError({ code: "23502", message: "not null" }, "作成に失敗しました")).toBe(
+      "作成に失敗しました"
+    );
+    expect(describeMarketEventDbError(null, "作成に失敗しました")).toBe("作成に失敗しました");
   });
 });

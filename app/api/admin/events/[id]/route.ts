@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getRole } from "@/lib/auth/permissions";
 import { createAdminClient } from "@/lib/supabase/adminClient";
-import { authorizeAdmin, validateImageUrl } from "../_helpers";
+import { authorizeAdmin, describeMarketEventDbError, validateImageUrl } from "../_helpers";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -81,7 +81,8 @@ export async function PATCH(req: Request, { params }: Params) {
     .maybeSingle();
 
   if (dbError || !data) {
-    return NextResponse.json({ error: "更新に失敗しました" }, { status: 500 });
+    const message = describeMarketEventDbError(dbError, "更新に失敗しました");
+    return NextResponse.json({ error: message }, { status: dbError?.code === "23505" ? 409 : 500 });
   }
 
   await dc.from("admin_audit_logs").insert({

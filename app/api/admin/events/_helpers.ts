@@ -38,6 +38,27 @@ export function validateImageUrl(
   return { url: trimmed, error: null };
 }
 
+/**
+ * Postgrestのエラーから、DBの人向けエラーメッセージを組み立てる。
+ *
+ * 見どころ（is_highlight）の1日1件制約は部分ユニーク索引
+ * market_events_highlight_per_day_idx で担保している。ここでの違反（23505）は
+ * 「その日はすでに見どころが設定済み」という意味なので、汎用エラーではなく
+ * 原因が伝わるメッセージを返す。
+ */
+export function describeMarketEventDbError(
+  dbError: { code?: string; message?: string } | null,
+  fallback: string
+): string {
+  if (
+    dbError?.code === "23505" &&
+    dbError.message?.includes("market_events_highlight_per_day_idx")
+  ) {
+    return "その日はすでに見どころが設定されています。先に既存の見どころを解除してください";
+  }
+  return fallback;
+}
+
 export async function authorizeAdmin() {
   const cookieStore = await cookies();
   const supabase = createServerClient(cookieStore);

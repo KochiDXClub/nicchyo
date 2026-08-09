@@ -105,7 +105,9 @@ function SundayCard({ sunday }: { sunday: MarketSunday }) {
           <p className="text-xs text-gray-400">まだ予定はありません</p>
         ) : (
           <>
-            {highlight && <HighlightItem event={highlight} />}
+            {highlight && (
+              <HighlightItem event={highlight} relativeLabel={sunday.relativeLabel} />
+            )}
             {events.length > 0 && (
               <ul className={`flex flex-col gap-2.5 ${highlight ? "mt-3" : ""}`}>
                 {events.map((event) => (
@@ -121,7 +123,13 @@ function SundayCard({ sunday }: { sunday: MarketSunday }) {
 }
 
 /** その日の見どころ。写真があれば大きく出して来店理由にする */
-function HighlightItem({ event }: { event: MarketEvent }) {
+function HighlightItem({
+  event,
+  relativeLabel,
+}: {
+  event: MarketEvent;
+  relativeLabel: string;
+}) {
   const { label, emoji } = getCategoryPresentation(event.category);
 
   return (
@@ -140,7 +148,7 @@ function HighlightItem({ event }: { event: MarketEvent }) {
       <div className="px-3 py-2.5">
         <div className="flex items-center gap-1.5">
           <span className="rounded-full bg-nicchyo-accent px-2 py-0.5 text-[10px] font-bold text-nicchyo-ink">
-            {emoji} 今週の見どころ
+            {emoji} {relativeLabel}の見どころ
           </span>
           <span className="text-[10px] text-gray-400">{label}</span>
         </div>
