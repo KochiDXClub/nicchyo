@@ -14,6 +14,10 @@ import {
   STORY_AGE_ORDER,
 } from "./age";
 import { fetchReactionCounts } from "@/lib/story/reactions";
+import MarketStatusBar from "@/app/components/market/MarketStatusBar";
+import UpcomingEvents from "@/app/components/market/UpcomingEvents";
+import { useMarketCalendar } from "@/lib/market/useMarketCalendar";
+import { UPCOMING_EVENTS_PREVIEW_COUNT } from "@/lib/market/calendar";
 import type { StoryItem } from "./types";
 
 // グリッド上部の目立つプレビュー枠で1件あたり表示する時間。
@@ -28,6 +32,7 @@ export default function StoryGridClient() {
   const [pageLoading, setPageLoading] = useState(true);
   const [heartCounts, setHeartCounts] = useState<Record<string, number>>({});
   const nextSunday = useMemo(() => getNextSundayLabel(), []);
+  const { calendar } = useMarketCalendar();
 
   useEffect(() => {
     const timer = setTimeout(() => setPageLoading(false), LOADING_LANTERN_DURATION_MS);
@@ -95,6 +100,11 @@ export default function StoryGridClient() {
     [stories, previewCount]
   );
 
+  // 「これからの日曜市」は通常は出店者の投稿より下に置く（近況フィードを運営が占拠しないため）。
+  // ただし今週の出店者投稿が0件のときだけ、スカスカの画面を運営の予定で埋める。
+  const hoistCalendar = !loading && !fetchError && previewCount === 0;
+  const upcomingEvents = calendar.events.slice(0, UPCOMING_EVENTS_PREVIEW_COUNT);
+
   // API が提灯ローディング中に失敗した場合は、待たずにエラー表示へ進む
   if (pageLoading && !fetchError) return <LoadingLantern />;
 
@@ -106,8 +116,13 @@ export default function StoryGridClient() {
         aria-hidden
         className="story-fog-grain pointer-events-none absolute inset-0 opacity-[0.12] mix-blend-overlay"
       />
+      {/* 開催ステータス：中止の連絡が下にあっては意味がないので最上部に固定する */}
+      <div className="relative z-10 mx-auto max-w-lg px-4 pt-4">
+        <MarketStatusBar day={calendar.day} placement="page" />
+      </div>
+
       {/* 見出し：ページ最上部のヒーロー的なタイトル（ナビゲーションではない） */}
-      <div className="relative overflow-hidden px-4 pt-12 pb-7">
+      <div className="relative overflow-hidden px-4 pt-6 pb-7">
         {/* 背景の柔らかい光彩でタイトルに奥行きを出す。霧のようにゆっくり揺らめかせ、
             濃淡（不透明度）も個々にずらしながら周期的に変化させることで、
             常にどれかが濃く／薄く見える自然な呼吸感を出す。
@@ -196,6 +211,12 @@ export default function StoryGridClient() {
       </div>
 
       <div className="mx-auto max-w-lg px-4 pt-5">
+        {hoistCalendar && (
+          <div className="mb-6">
+            <UpcomingEvents events={upcomingEvents} showMoreLink />
+          </div>
+        )}
+
         {loading ? (
           <div className="grid grid-cols-3 gap-0.5">
             {Array.from({ length: 9 }).map((_, i) => (
@@ -293,6 +314,13 @@ export default function StoryGridClient() {
               {stories.length}件 · 新しいものほど鮮やかに表示
             </p>
           </>
+        )}
+
+        {/* これからの日曜市：出店者の投稿の下に独立したセクションとして置く */}
+        {!hoistCalendar && (
+          <div className="mt-8 border-t border-black/5 pt-6">
+            <UpcomingEvents events={upcomingEvents} showMoreLink />
+          </div>
         )}
       </div>
 

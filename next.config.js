@@ -34,6 +34,17 @@ const nextConfig = {
     ];
   },
 
+  // /news は「日曜市カレンダー」(/calendar) に作り替えたため、旧URLを転送する
+  async redirects() {
+    return [
+      {
+        source: '/news',
+        destination: '/calendar',
+        permanent: true,
+      },
+    ];
+  },
+
   // セキュリティヘッダー（CSPはmiddleware.tsでnonce付きで動的に設定）
   async headers() {
     return [
