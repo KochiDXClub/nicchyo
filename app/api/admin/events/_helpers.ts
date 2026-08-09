@@ -2,12 +2,21 @@ import { cookies } from "next/headers";
 import { createClient as createServerClient } from "@/utils/supabase/server";
 import { getRole, isAdmin } from "@/lib/auth/permissions";
 
+/** アップロードAPIが書き込む場所。ここ以外のパスは受け付けない */
+export const MARKET_EVENT_IMAGE_PREFIX =
+  "/storage/v1/object/public/vendor-images/market-events/";
+
 /**
  * カード画像のURLを検証する。
  *
- * next/image で描画するため、next.config.js の remotePatterns（Supabase Storage の
- * 公開バケットのみ）に載らないURLを保存すると、閲覧時にページごと落ちる。
- * 保存前に弾いて、外部URLの読み込み自体も防ぐ。
+ * 許可するのは「自プロジェクトのStorageの、アップロードAPIが書き込む場所」だけ。
+ * `*.supabase.co` は誰でも取得できるサブドメインなので、ホスト名の後方一致で
+ * 判定すると攻撃者のプロジェクトのURLが通り、公開カレンダーに任意の画像を
+ * 配信されてしまう（保存後に差し替えも可能）。オリジン完全一致で塞ぐ。
+ *
+ * 完全一致にすることで next.config.js の remotePatterns（`*.supabase.co` は
+ * 1ラベルのみマッチ）とのズレも消え、「検証は通るのに next/image が落ちる」
+ * URLが保存されなくなる。ローカルの Supabase（127.0.0.1）でも同じ判定で通る。
  */
 export function validateImageUrl(
   value: unknown
@@ -19,6 +28,16 @@ export function validateImageUrl(
   if (!trimmed) return { url: null, error: null };
   if (trimmed.length > 500) return { url: null, error: "画像URLが長すぎます" };
 
+  const base = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  if (!base) return { url: null, error: "画像の保存先が設定されていません" };
+
+  let allowedOrigin: string;
+  try {
+    allowedOrigin = new URL(base).origin;
+  } catch {
+    return { url: null, error: "画像の保存先の設定が不正です" };
+  }
+
   let parsed: URL;
   try {
     parsed = new URL(trimmed);
@@ -26,37 +45,20 @@ export function validateImageUrl(
     return { url: null, error: "画像URLが無効です" };
   }
 
-  const isSupabaseStorage =
-    parsed.protocol === "https:" &&
-    parsed.hostname.endsWith(".supabase.co") &&
-    parsed.pathname.startsWith("/storage/v1/object/public/");
+  const isOwnUpload =
+    parsed.origin === allowedOrigin &&
+    parsed.pathname.startsWith(MARKET_EVENT_IMAGE_PREFIX) &&
+    // エンコードされた ../ でプレフィックスの外に出るのを防ぐ
+    !/%2e/i.test(parsed.pathname) &&
+    !parsed.pathname.includes("..") &&
+    !parsed.search &&
+    !parsed.hash;
 
-  if (!isSupabaseStorage) {
-    return { url: null, error: "画像はSupabase Storageの公開URLのみ指定できます" };
+  if (!isOwnUpload) {
+    return { url: null, error: "画像はこのサイトからアップロードしたものだけ指定できます" };
   }
 
   return { url: trimmed, error: null };
-}
-
-/**
- * Postgrestのエラーから、DBの人向けエラーメッセージを組み立てる。
- *
- * 見どころ（is_highlight）の1日1件制約は部分ユニーク索引
- * market_events_highlight_per_day_idx で担保している。ここでの違反（23505）は
- * 「その日はすでに見どころが設定済み」という意味なので、汎用エラーではなく
- * 原因が伝わるメッセージを返す。
- */
-export function describeMarketEventDbError(
-  dbError: { code?: string; message?: string } | null,
-  fallback: string
-): string {
-  if (
-    dbError?.code === "23505" &&
-    dbError.message?.includes("market_events_highlight_per_day_idx")
-  ) {
-    return "その日はすでに見どころが設定されています。先に既存の見どころを解除してください";
-  }
-  return fallback;
 }
 
 export async function authorizeAdmin() {

@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 import { getRole } from "@/lib/auth/permissions";
 import { createAdminClient } from "@/lib/supabase/adminClient";
-import { authorizeAdmin, describeMarketEventDbError, validateImageUrl } from "../_helpers";
+import { requireSameOrigin } from "@/lib/security/requestGuards";
+import { enforceRateLimit } from "@/lib/security/rateLimit";
+import { authorizeAdmin, validateImageUrl } from "../_helpers";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -9,16 +11,37 @@ export const dynamic = "force-dynamic";
 type Params = { params: Promise<{ id: string }> };
 
 const VALID_EVENT_CATEGORIES: readonly string[] = ["vendor", "event", "season", "notice"];
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
 export async function PATCH(req: Request, { params }: Params) {
+  const originCheck = requireSameOrigin(req);
+  if (!originCheck.ok) return originCheck.response;
+
+  const rateLimited = await enforceRateLimit(req, {
+    bucket: "admin-events-patch",
+    limit: 60,
+    windowMs: 10 * 60 * 1000,
+  });
+  if (rateLimited) return rateLimited;
+
   const { user, error } = await authorizeAdmin();
   if (error || !user) return NextResponse.json({ error }, { status: 403 });
 
   const { id } = await params;
+  if (!UUID_PATTERN.test(id)) {
+    return NextResponse.json({ error: "IDが無効です" }, { status: 400 });
+  }
+
   const dc = createAdminClient();
   if (!dc) return NextResponse.json({ error: "Service unavailable" }, { status: 503 });
 
-  const body = await req.json() as Record<string, unknown>;
+  let body: Record<string, unknown>;
+  try {
+    body = (await req.json()) as Record<string, unknown>;
+  } catch {
+    return NextResponse.json({ error: "無効なリクエストです" }, { status: 400 });
+  }
   const updates: Record<string, unknown> = {};
 
   if (typeof body.title === "string") {
@@ -30,23 +53,45 @@ export async function PATCH(req: Request, { params }: Params) {
     updates.description = typeof body.description === "string" ? body.description.trim().slice(0, 1000) || null : null;
   }
   if (typeof body.event_date === "string") {
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(body.event_date)) {
+    if (!DATE_PATTERN.test(body.event_date)) {
       return NextResponse.json({ error: "開催日の形式が無効です" }, { status: 400 });
     }
     updates.event_date = body.event_date;
   }
-  const timePattern = /^\d{2}:\d{2}$/;
-  if ("start_time" in body) {
-    if (typeof body.start_time === "string" && body.start_time && !timePattern.test(body.start_time)) {
-      return NextResponse.json({ error: "開始時刻の形式が無効です（HH:MM）" }, { status: 400 });
+  if ("end_date" in body) {
+    const v = body.end_date;
+    if (v === null || v === "") {
+      updates.end_date = null;
+    } else if (typeof v !== "string" || !DATE_PATTERN.test(v)) {
+      return NextResponse.json({ error: "終了日の形式が無効です（YYYY-MM-DD）" }, { status: 400 });
+    } else {
+      updates.end_date = v;
     }
-    updates.start_time = body.start_time || null;
   }
-  if ("end_time" in body) {
-    if (typeof body.end_time === "string" && body.end_time && !timePattern.test(body.end_time)) {
-      return NextResponse.json({ error: "終了時刻の形式が無効です（HH:MM）" }, { status: 400 });
+  // 開始日・終了日が両方来た場合の前後関係だけはここで見る
+  // （片方だけの更新は DB の CHECK 制約が最終防衛線になる）
+  if (
+    typeof updates.event_date === "string" &&
+    typeof updates.end_date === "string" &&
+    updates.end_date < updates.event_date
+  ) {
+    return NextResponse.json({ error: "終了日は開催日以降にしてください" }, { status: 400 });
+  }
+
+  const timePattern = /^\d{2}:\d{2}$/;
+  // 非文字列を素通りさせると PostgREST まで届いて 500 になるため、ここで 400 にする
+  for (const key of ["start_time", "end_time"] as const) {
+    if (!(key in body)) continue;
+    const v = body[key];
+    if (v === null || v === "") {
+      updates[key] = null;
+      continue;
     }
-    updates.end_time = body.end_time || null;
+    if (typeof v !== "string" || !timePattern.test(v)) {
+      const label = key === "start_time" ? "開始時刻" : "終了時刻";
+      return NextResponse.json({ error: `${label}の形式が無効です（HH:MM）` }, { status: 400 });
+    }
+    updates[key] = v;
   }
   if ("location" in body) {
     updates.location = typeof body.location === "string" ? body.location.trim().slice(0, 200) || null : null;
@@ -80,9 +125,17 @@ export async function PATCH(req: Request, { params }: Params) {
     .select("*")
     .maybeSingle();
 
-  if (dbError || !data) {
-    const message = describeMarketEventDbError(dbError, "更新に失敗しました");
-    return NextResponse.json({ error: message }, { status: dbError?.code === "23505" ? 409 : 500 });
+  if (dbError?.code === "23505") {
+    return NextResponse.json(
+      { error: "この日にはすでに見どころが設定されています" },
+      { status: 409 }
+    );
+  }
+  if (dbError) {
+    return NextResponse.json({ error: "更新に失敗しました" }, { status: 500 });
+  }
+  if (!data) {
+    return NextResponse.json({ error: "イベントが見つかりません" }, { status: 404 });
   }
 
   await dc.from("admin_audit_logs").insert({
@@ -98,17 +151,41 @@ export async function PATCH(req: Request, { params }: Params) {
   return NextResponse.json({ event: data });
 }
 
-export async function DELETE(_req: Request, { params }: Params) {
+export async function DELETE(req: Request, { params }: Params) {
+  const originCheck = requireSameOrigin(req);
+  if (!originCheck.ok) return originCheck.response;
+
+  const rateLimited = await enforceRateLimit(req, {
+    bucket: "admin-events-delete",
+    limit: 30,
+    windowMs: 10 * 60 * 1000,
+  });
+  if (rateLimited) return rateLimited;
+
   const { user, error } = await authorizeAdmin();
   if (error || !user) return NextResponse.json({ error }, { status: 403 });
 
   const { id } = await params;
+  if (!UUID_PATTERN.test(id)) {
+    return NextResponse.json({ error: "IDが無効です" }, { status: 400 });
+  }
+
   const dc = createAdminClient();
   if (!dc) return NextResponse.json({ error: "Service unavailable" }, { status: 503 });
 
-  const { error: dbError } = await dc.from("market_events").delete().eq("id", id);
+  // 存在しない ID でも成功扱いにすると監査ログだけが積まれるため、削除結果を見る
+  const { data: deleted, error: dbError } = await dc
+    .from("market_events")
+    .delete()
+    .eq("id", id)
+    .select("id")
+    .maybeSingle();
+
   if (dbError) {
     return NextResponse.json({ error: "削除に失敗しました" }, { status: 500 });
+  }
+  if (!deleted) {
+    return NextResponse.json({ error: "イベントが見つかりません" }, { status: 404 });
   }
 
   await dc.from("admin_audit_logs").insert({

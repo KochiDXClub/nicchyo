@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server";
 import { getRole } from "@/lib/auth/permissions";
 import { createAdminClient } from "@/lib/supabase/adminClient";
+import { requireSameOrigin } from "@/lib/security/requestGuards";
+import { enforceRateLimit } from "@/lib/security/rateLimit";
 import { normalizeCategory, type MarketEventCategory } from "@/lib/market/calendar";
-import { authorizeAdmin, describeMarketEventDbError, validateImageUrl } from "./_helpers";
+import { authorizeAdmin, validateImageUrl } from "./_helpers";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -14,6 +16,7 @@ export interface MarketEvent {
   title: string;
   description: string | null;
   event_date: string;
+  end_date: string | null;
   start_time: string | null;
   end_time: string | null;
   location: string | null;
@@ -66,6 +69,19 @@ function validateEventBody(body: unknown): { data: Partial<MarketEvent>; error: 
     return { data: {}, error: "開催日の形式が無効です（YYYY-MM-DD）" };
   }
 
+  // 連続開催の最終日（任意）。開始日より前は DB の CHECK でも弾かれるが、
+  // 500 ではなく 400 で返すためここでも見る。
+  let endDate: string | null = null;
+  if (b.end_date !== undefined && b.end_date !== null && b.end_date !== "") {
+    if (typeof b.end_date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(b.end_date.trim())) {
+      return { data: {}, error: "終了日の形式が無効です（YYYY-MM-DD）" };
+    }
+    endDate = b.end_date.trim();
+    if (endDate < eventDate) {
+      return { data: {}, error: "終了日は開催日以降にしてください" };
+    }
+  }
+
   const timePattern = /^\d{2}:\d{2}$/;
   if (typeof b.start_time === "string" && b.start_time && !timePattern.test(b.start_time)) {
     return { data: {}, error: "開始時刻の形式が無効です（HH:MM）" };
@@ -87,6 +103,7 @@ function validateEventBody(body: unknown): { data: Partial<MarketEvent>; error: 
       title,
       description: typeof b.description === "string" ? b.description.trim().slice(0, 1000) || null : null,
       event_date: eventDate,
+      end_date: endDate,
       start_time: typeof b.start_time === "string" && b.start_time ? b.start_time : null,
       end_time: typeof b.end_time === "string" && b.end_time ? b.end_time : null,
       location: typeof b.location === "string" ? b.location.trim().slice(0, 200) || null : null,
@@ -100,13 +117,29 @@ function validateEventBody(body: unknown): { data: Partial<MarketEvent>; error: 
 }
 
 export async function POST(req: Request) {
+  const originCheck = requireSameOrigin(req);
+  if (!originCheck.ok) return originCheck.response;
+
+  const rateLimited = await enforceRateLimit(req, {
+    bucket: "admin-events-post",
+    limit: 30,
+    windowMs: 10 * 60 * 1000,
+  });
+  if (rateLimited) return rateLimited;
+
   const { user, error } = await authorizeAdmin();
   if (error || !user) return NextResponse.json({ error }, { status: 403 });
 
   const dc = createAdminClient();
   if (!dc) return NextResponse.json({ error: "Service unavailable" }, { status: 503 });
 
-  const body = await req.json() as unknown;
+  let body: unknown;
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: "無効なリクエストです" }, { status: 400 });
+  }
+
   const { data, error: validError } = validateEventBody(body);
   if (validError) return NextResponse.json({ error: validError }, { status: 400 });
 
@@ -117,8 +150,14 @@ export async function POST(req: Request) {
     .single();
 
   if (dbError) {
-    const message = describeMarketEventDbError(dbError, "作成に失敗しました");
-    return NextResponse.json({ error: message }, { status: dbError.code === "23505" ? 409 : 500 });
+    // 見どころは1日1件（部分ユニーク索引）。利用者起因の競合なので 409 で返す
+    if (dbError.code === "23505") {
+      return NextResponse.json(
+        { error: "この日にはすでに見どころが設定されています" },
+        { status: 409 }
+      );
+    }
+    return NextResponse.json({ error: "作成に失敗しました" }, { status: 500 });
   }
 
   await dc.from("admin_audit_logs").insert({

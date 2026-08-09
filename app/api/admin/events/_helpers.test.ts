@@ -1,11 +1,21 @@
-import { describe, it, expect } from "vitest";
-import { describeMarketEventDbError, validateImageUrl } from "./_helpers";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { validateImageUrl, MARKET_EVENT_IMAGE_PREFIX } from "./_helpers";
+
+const PROJECT = "https://ourproject.supabase.co";
+const valid = `${PROJECT}${MARKET_EVENT_IMAGE_PREFIX}1234-abcd.jpg`;
 
 describe("validateImageUrl", () => {
-  const valid =
-    "https://abcdefg.supabase.co/storage/v1/object/public/market-events/buntan.jpg";
+  const original = process.env.NEXT_PUBLIC_SUPABASE_URL;
 
-  it("Supabase Storage の公開URLは通す", () => {
+  beforeEach(() => {
+    process.env.NEXT_PUBLIC_SUPABASE_URL = PROJECT;
+  });
+
+  afterEach(() => {
+    process.env.NEXT_PUBLIC_SUPABASE_URL = original;
+  });
+
+  it("自プロジェクトのアップロード先URLは通す", () => {
     expect(validateImageUrl(valid)).toEqual({ url: valid, error: null });
   });
 
@@ -16,28 +26,50 @@ describe("validateImageUrl", () => {
     expect(validateImageUrl("   ")).toEqual({ url: null, error: null });
   });
 
-  it("next/image の remotePatterns に載らない外部ホストは弾く", () => {
-    // 許可しないと閲覧時に next/image がページごと落ちる
-    expect(validateImageUrl("https://example.com/a.jpg").error).toBeTruthy();
+  it("別の Supabase プロジェクトは弾く", () => {
+    // *.supabase.co は誰でも取得できるので、後方一致だと攻撃者のプロジェクトが通ってしまう
+    const attacker = `https://attackerproj.supabase.co${MARKET_EVENT_IMAGE_PREFIX}a.jpg`;
+    expect(validateImageUrl(attacker).error).toBeTruthy();
   });
 
-  it("supabase.co でも公開バケット以外は弾く", () => {
+  it("多段サブドメインは弾く", () => {
+    // next.config.js の `*.supabase.co` は1ラベルしかマッチしないので、
+    // 通してしまうと next/image が落ちる
+    const multi = `https://a.b.supabase.co${MARKET_EVENT_IMAGE_PREFIX}a.jpg`;
+    expect(validateImageUrl(multi).error).toBeTruthy();
+  });
+
+  it("自プロジェクトでもアップロード先以外のパスは弾く", () => {
     expect(
-      validateImageUrl("https://abc.supabase.co/storage/v1/object/sign/x/a.jpg").error
+      validateImageUrl(`${PROJECT}/storage/v1/object/public/vendor-images/someone/a.jpg`).error
     ).toBeTruthy();
-  });
-
-  it("http は弾く", () => {
     expect(
-      validateImageUrl("http://abc.supabase.co/storage/v1/object/public/x/a.jpg").error
-    ).toBeTruthy();
-  });
-
-  it("ホスト名の後方一致をすり抜けさせない", () => {
-    expect(
-      validateImageUrl("https://evil-supabase.co.attacker.test/storage/v1/object/public/x/a.jpg")
+      validateImageUrl(`${PROJECT}/storage/v1/object/sign/vendor-images/market-events/a.jpg`)
         .error
     ).toBeTruthy();
+  });
+
+  it("プレフィックス外に出るパスを弾く", () => {
+    expect(
+      validateImageUrl(`${PROJECT}${MARKET_EVENT_IMAGE_PREFIX}%2e%2e/secret.jpg`).error
+    ).toBeTruthy();
+  });
+
+  it("クエリやフラグメントが付いたURLは弾く", () => {
+    expect(validateImageUrl(`${valid}?x=1`).error).toBeTruthy();
+    expect(validateImageUrl(`${valid}#a`).error).toBeTruthy();
+  });
+
+  it("http は弾く（オリジンが一致しない）", () => {
+    expect(
+      validateImageUrl(`http://ourproject.supabase.co${MARKET_EVENT_IMAGE_PREFIX}a.jpg`).error
+    ).toBeTruthy();
+  });
+
+  it("ローカルの Supabase でも同じ判定で通る", () => {
+    process.env.NEXT_PUBLIC_SUPABASE_URL = "http://127.0.0.1:54321";
+    const local = `http://127.0.0.1:54321${MARKET_EVENT_IMAGE_PREFIX}a.jpg`;
+    expect(validateImageUrl(local)).toEqual({ url: local, error: null });
   });
 
   it("URLとして壊れているものは弾く", () => {
@@ -46,30 +78,13 @@ describe("validateImageUrl", () => {
   });
 
   it("長すぎるURLは弾く", () => {
-    const long = `https://abc.supabase.co/storage/v1/object/public/${"a".repeat(500)}.jpg`;
-    expect(validateImageUrl(long).error).toBeTruthy();
-  });
-});
-
-describe("describeMarketEventDbError", () => {
-  it("見どころの部分ユニーク索引違反は原因が伝わるメッセージにする", () => {
-    const message = describeMarketEventDbError(
-      {
-        code: "23505",
-        message:
-          'duplicate key value violates unique constraint "market_events_highlight_per_day_idx"',
-      },
-      "作成に失敗しました"
-    );
-    expect(message).toBe(
-      "その日はすでに見どころが設定されています。先に既存の見どころを解除してください"
-    );
+    expect(
+      validateImageUrl(`${PROJECT}${MARKET_EVENT_IMAGE_PREFIX}${"a".repeat(500)}.jpg`).error
+    ).toBeTruthy();
   });
 
-  it("それ以外のDBエラーはフォールバックのメッセージを返す", () => {
-    expect(describeMarketEventDbError({ code: "23502", message: "not null" }, "作成に失敗しました")).toBe(
-      "作成に失敗しました"
-    );
-    expect(describeMarketEventDbError(null, "作成に失敗しました")).toBe("作成に失敗しました");
+  it("保存先が未設定なら弾く", () => {
+    delete process.env.NEXT_PUBLIC_SUPABASE_URL;
+    expect(validateImageUrl(valid).error).toBeTruthy();
   });
 });
