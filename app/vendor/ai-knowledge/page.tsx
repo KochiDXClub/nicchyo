@@ -6,6 +6,7 @@ import { useState, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { ArrowLeft, Save, CheckCircle2, Loader2, Sparkles, Info } from "lucide-react";
+import { CenteredLoading } from "@/components/ui/loading-spinner";
 
 const PLACEHOLDER = `例：
 この店の人気商品は芋天です。
@@ -130,9 +131,7 @@ export default function AiKnowledgePage() {
           </div>
 
           {isLoading ? (
-            <div className="flex justify-center py-8">
-              <Loader2 size={24} className="animate-spin text-amber-500" />
-            </div>
+            <CenteredLoading size={24} padding="py-8" />
           ) : (
             <textarea
               value={content}

@@ -9,6 +9,7 @@ import { AdminLayout, AdminPageHeader, EmptyState } from "@/components/admin";
 import { showToast } from "@/lib/admin/toast";
 import NextImage from "next/image";
 import { Loader2, Trash2, Image as ImageIcon, Clock, Search } from "lucide-react";
+import { CenteredLoading } from "@/components/ui/loading-spinner";
 
 type ContentStatus = "active" | "expired";
 
@@ -181,9 +182,7 @@ export default function AdminContentPage() {
 
         {/* コンテンツ一覧 */}
         {isLoading ? (
-          <div className="flex justify-center py-16">
-            <Loader2 size={28} className="animate-spin text-slate-400" />
-          </div>
+          <CenteredLoading padding="py-16" className="text-slate-400" />
         ) : filtered.length === 0 ? (
           <EmptyState icon="📝" title="投稿が見つかりません" description="条件に一致する投稿はありません。" />
         ) : (

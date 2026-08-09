@@ -8,6 +8,8 @@ import { useAuth } from "@/lib/auth/AuthContext";
 import { fetchTodayProductSales, saveTodayProductSales } from "../../_services/analyticsService";
 import type { ProductSale } from "../../_types";
 import { ArrowLeft, Plus, Trash2, Save, CheckCircle2, ShoppingBag, Loader2, AlertCircle } from "lucide-react";
+import { CenteredLoading } from "@/components/ui/loading-spinner";
+import { EmptyMessage } from "@/components/ui/empty-message";
 
 export default function SalesInputPage() {
   const { user } = useAuth();
@@ -136,11 +138,9 @@ export default function SalesInputPage() {
           </div>
 
           {isLoading ? (
-            <div className="flex justify-center py-6">
-              <Loader2 size={22} className="animate-spin text-amber-500" />
-            </div>
+            <CenteredLoading size={22} padding="py-6" />
           ) : entries.length === 0 ? (
-            <p className="py-6 text-center text-sm text-slate-400">商品を追加してください</p>
+            <EmptyMessage message="商品を追加してください" padding="py-6" />
           ) : (
             <div className="space-y-2">
               {[...entries].sort((a, b) => b.quantity - a.quantity).map((entry) => {

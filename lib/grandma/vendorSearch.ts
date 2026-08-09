@@ -30,18 +30,26 @@ export async function fetchCandidateVendorIds(
   // Run all keyword searches in parallel to avoid N+1 sequential queries
   await Promise.all(
     searchWords.map(async (word) => {
-      const [vendorResult, productResult, categoryResult] = await Promise.all([
+      const [vendorResult, ownerResult, productResult, categoryResult] = await Promise.all([
         supabase
           .from("vendors")
           .select("id")
           .or(
             [
               `shop_name.ilike.%${word}%`,
-              `owner_name.ilike.%${word}%`,
               `strength.ilike.%${word}%`,
               `style.ilike.%${word}%`,
             ].join(",")
           )
+          .limit(8),
+        // 「〇〇さんのお店」のような聞き方に応えるため氏名でも候補を引くが、
+        // 公開設定された氏名だけを対象にする。
+        // このクライアントは service_role で RLS をバイパスするため is_public を明示する。
+        supabase
+          .from("vendor_owner_profiles")
+          .select("vendor_id")
+          .eq("is_public", true)
+          .ilike("owner_name", `%${word}%`)
           .limit(8),
         supabase
           .from("products")
@@ -57,6 +65,9 @@ export async function fetchCandidateVendorIds(
 
       (vendorResult.data ?? []).forEach((row) => {
         if (row.id) vendorIds.add(row.id);
+      });
+      (ownerResult.data ?? []).forEach((row) => {
+        if (row.vendor_id) vendorIds.add(row.vendor_id);
       });
       (productResult.data ?? []).forEach((row) => {
         if (row.vendor_id) vendorIds.add(row.vendor_id);
@@ -165,7 +176,7 @@ export async function fetchShopsByVendorIds(
     supabase
       .from("vendors")
       .select(
-        "id, shop_name, owner_name, strength, style, style_tags, category_id, categories(name), main_products, main_product_prices, payment_methods, rain_policy, schedule"
+        "id, shop_name, strength, style, style_tags, category_id, categories(name), main_products, main_product_prices, payment_methods, rain_policy, schedule"
       )
       .in("id", vendorIds),
     supabase.from("products").select("vendor_id, name").in("vendor_id", vendorIds),
@@ -278,7 +289,8 @@ export async function fetchShopsByVendorIds(
         id: storeNumber,
         vendorId: vendor.id,
         name: vendor.shop_name ?? "",
-        ownerName: vendor.owner_name ?? "",
+        // AI の文脈に個人名は載せない（プロンプトにも埋め込みにも出さない）
+        ownerName: "",
         category: joinedCategoryName ?? "",
         products: displayProducts,
         productPrices: (vendor.main_product_prices ?? undefined) as
@@ -341,9 +353,20 @@ export async function fetchShopByName(
   const { data } = await supabase
     .from("vendors")
     .select("id")
-    .or(`shop_name.ilike.%${keyword}%,owner_name.ilike.%${keyword}%`)
+    .ilike("shop_name", `%${keyword}%`)
     .limit(1);
-  const vendorId = data?.[0]?.id;
+  let vendorId = data?.[0]?.id;
+
+  // 屋号で見つからなければ、公開設定された出店者名でも探す
+  if (!vendorId) {
+    const { data: ownerData } = await supabase
+      .from("vendor_owner_profiles")
+      .select("vendor_id")
+      .eq("is_public", true)
+      .ilike("owner_name", `%${keyword}%`)
+      .limit(1);
+    vendorId = ownerData?.[0]?.vendor_id;
+  }
   if (!vendorId) return null;
   const shops = await fetchShopsByVendorIds(supabase, [vendorId]);
   return shops[0] ?? null;
@@ -360,7 +383,6 @@ export function summarizeShops(shops: Shop[], limit = 6) {
       const parts = [
         `id:${shop.id}`,
         shop.name ? `name:${shop.name}` : null,
-        shop.ownerName ? `owner:${shop.ownerName}` : null,
         shop.category ? `category:${shop.category}` : null,
         shop.products.length > 0 ? `products:${shop.products.join(" / ")}` : null,
         priceEntries.length > 0

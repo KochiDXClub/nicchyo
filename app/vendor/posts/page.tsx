@@ -10,8 +10,10 @@ import { fetchVendorPosts, repostContent } from "../_services/postsService";
 import type { Post, PostStatus } from "../_types";
 import {
   ArrowLeft, RotateCcw, Pencil, Clock, CheckCircle2,
-  XCircle, PlusCircle, Image as ImageIcon, Loader2, Heart,
+  XCircle, PlusCircle, Image as ImageIcon, Heart,
 } from "lucide-react";
+import { CenteredLoading } from "@/components/ui/loading-spinner";
+import { EmptyMessage } from "@/components/ui/empty-message";
 
 type FilterTab = "all" | "active" | "expired";
 
@@ -188,13 +190,9 @@ export default function VendorPostsPage() {
         </div>
 
         {isLoading ? (
-          <div className="flex justify-center py-12">
-            <Loader2 size={28} className="animate-spin text-amber-500" />
-          </div>
+          <CenteredLoading />
         ) : filtered.length === 0 ? (
-          <div className="py-12 text-center">
-            <p className="text-sm text-slate-400">投稿がありません</p>
-          </div>
+          <EmptyMessage message="投稿がありません" padding="py-12" />
         ) : (
           <div className="space-y-3">
             {filtered.map((post) => (

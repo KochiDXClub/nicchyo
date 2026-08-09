@@ -7,8 +7,9 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { AdminLayout, AdminPageHeader, EmptyState } from "@/components/admin";
 import { showToast } from "@/lib/admin/toast";
-import { exportToCSV, exportToJSON, formatDateForFilename } from "@/lib/admin/exportUtils";
-import { Loader2, Search, Download } from "lucide-react";
+import { exportToCSV, exportToJSON, formatDateForFilename, excelText } from "@/lib/admin/exportUtils";
+import { Search, Download } from "lucide-react";
+import { CenteredLoading } from "@/components/ui/loading-spinner";
 
 type AuditLog = {
   id: number;
@@ -146,7 +147,7 @@ export default function AuditLogsPage() {
 
   const handleExportCSV = () => {
     const rows = filtered.map((l) => ({
-      日時: formatDate(l.created_at),
+      日時: excelText(formatDate(l.created_at)),
       実行者: l.actor_email ?? "",
       ロール: l.actor_role ?? "",
       アクション: getActionLabel(l.action),
@@ -267,9 +268,7 @@ export default function AuditLogsPage() {
 
         {/* ログ一覧 */}
         {isLoading ? (
-          <div className="flex justify-center py-16">
-            <Loader2 size={28} className="animate-spin text-slate-400" />
-          </div>
+          <CenteredLoading padding="py-16" className="text-slate-400" />
         ) : filtered.length === 0 ? (
           <EmptyState icon="📋" title="ログが見つかりません" description="条件に一致する操作ログはありません。" />
         ) : (

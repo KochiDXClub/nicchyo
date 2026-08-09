@@ -7,10 +7,11 @@ import Link from "next/link";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { fetchHourlyData } from "../../_services/analyticsService";
 import type { HourlyData } from "../../_types";
-import { ArrowLeft, Clock, TrendingUp, Loader2 } from "lucide-react";
+import { ArrowLeft, Clock, TrendingUp } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell,
 } from "recharts";
+import { CenteredLoading } from "@/components/ui/loading-spinner";
 
 const PEAK_COLOR = "#f59e0b";
 const BASE_COLOR = "#fde68a";
@@ -57,9 +58,7 @@ export default function TimeAnalyticsPage() {
 
       <div className="mx-auto max-w-2xl space-y-4 px-4 pt-5">
         {isLoading ? (
-          <div className="flex justify-center py-12">
-            <Loader2 size={28} className="animate-spin text-amber-500" />
-          </div>
+          <CenteredLoading />
         ) : (
           <>
             <div className="rounded-3xl border border-amber-100 bg-white p-4 shadow-sm">

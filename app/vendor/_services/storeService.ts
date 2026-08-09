@@ -13,11 +13,18 @@ export async function fetchVendorStore(vendorId: string): Promise<Store | null> 
   const supabase = createClient();
   const { data, error } = await supabase
     .from("vendors")
-    .select("id, shop_name, owner_name, category_id, style, style_tags, main_products, main_product_prices, payment_methods, rain_policy, schedule, shop_image_url, sns_instagram, sns_x, sns_hp, business_hours_start, business_hours_end")
+    .select("id, shop_name, category_id, style, style_tags, main_products, main_product_prices, payment_methods, rain_policy, schedule, shop_image_url, sns_instagram, sns_x, sns_hp, business_hours_start, business_hours_end")
     .eq("id", vendorId)
     .single();
 
   if (error || !data) return null;
+
+  // 店主名は vendors から分離済み（公開可否は本人が管理する）
+  const { data: ownerProfile } = await supabase
+    .from("vendor_owner_profiles")
+    .select("owner_name, is_public")
+    .eq("vendor_id", vendorId)
+    .maybeSingle();
 
   let mainProducts = (data.main_products as string[]) ?? [];
 
@@ -36,7 +43,8 @@ export async function fetchVendorStore(vendorId: string): Promise<Store | null> 
     id: data.id,
     vendor_id: data.id,
     name: data.shop_name ?? "",
-    owner_name: (data.owner_name as string) ?? "",
+    owner_name: ownerProfile?.owner_name ?? "",
+    owner_name_public: ownerProfile?.is_public ?? false,
     category_id: (data.category_id as string) ?? "",
     style: (data.style as string) ?? "",
     style_tags: (data.style_tags as string[]) ?? [],
@@ -75,7 +83,6 @@ export async function saveVendorStore(
     .from("vendors")
     .update({
       shop_name: store.name,
-      owner_name: store.owner_name ?? null,
       category_id: store.category_id || null,
       style: store.style,
       style_tags: store.style_tags,
@@ -95,4 +102,17 @@ export async function saveVendorStore(
     .eq("id", vendorId);
 
   if (error) throw error;
+
+  const { error: ownerProfileError } = await supabase
+    .from("vendor_owner_profiles")
+    .upsert(
+      {
+        vendor_id: vendorId,
+        owner_name: store.owner_name ?? null,
+        is_public: store.owner_name_public ?? false,
+      },
+      { onConflict: "vendor_id" }
+    );
+
+  if (ownerProfileError) throw ownerProfileError;
 }

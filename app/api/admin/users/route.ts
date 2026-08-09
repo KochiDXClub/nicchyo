@@ -3,6 +3,7 @@ import { createClient as createServiceClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 import { createClient as createServerClient } from "@/utils/supabase/server";
 import { getRole, isAdmin, normalizeRole, ROLE_HIERARCHY } from "@/lib/auth/permissions";
+import { listAllAuthUsers } from "@/lib/auth/listAllUsers";
 import { requireSameOrigin } from "@/lib/security/requestGuards";
 import { enforceRateLimit } from "@/lib/security/rateLimit";
 import type { UserRole } from "@/lib/auth/types";
@@ -13,7 +14,6 @@ export const dynamic = "force-dynamic";
 type VendorRow = {
   id: string;
   shop_name: string | null;
-  owner_name: string | null;
   updated_at?: string | null;
 };
 
@@ -79,53 +79,15 @@ export async function GET() {
       },
     });
 
-    const allUsers: Array<{
-      id: string;
-      email?: string;
-      created_at?: string;
-      last_sign_in_at?: string;
-      banned_until?: string | null;
-      app_metadata?: { role?: string };
-      user_metadata?: {
-        role?: string;
-        name?: string;
-        full_name?: string;
-        avatar_url?: string;
-        avatarUrl?: string;
-      };
-    }> = [];
-
-    let page = 1;
-    const perPage = 200;
-
-    while (true) {
-      const { data, error } = await serviceClient.auth.admin.listUsers({ page, perPage });
-      if (error) {
-        return NextResponse.json({ error: "Failed to fetch auth users" }, { status: 500 });
-      }
-      const pageUsers = (data.users ?? []) as Array<{
-        id: string;
-        email?: string;
-        created_at?: string;
-        last_sign_in_at?: string;
-        banned_until?: string | null;
-        app_metadata?: { role?: string };
-        user_metadata?: {
-          role?: string;
-          name?: string;
-          full_name?: string;
-          avatar_url?: string;
-          avatarUrl?: string;
-        };
-      }>;
-      allUsers.push(...pageUsers);
-      if (pageUsers.length < perPage) break;
-      page += 1;
+    const usersResult = await listAllAuthUsers(serviceClient);
+    if (usersResult.error) {
+      return NextResponse.json({ error: "Failed to fetch auth users" }, { status: 500 });
     }
+    const allUsers = usersResult.users;
 
     const { data: vendorsData, error: vendorsError } = await serviceClient
       .from("vendors")
-      .select("id, shop_name, owner_name, updated_at");
+      .select("id, shop_name, updated_at");
 
     if (vendorsError) {
       return NextResponse.json({ error: "Failed to fetch vendors" }, { status: 500 });
@@ -134,6 +96,16 @@ export async function GET() {
     const vendors = Array.isArray(vendorsData) ? (vendorsData as VendorRow[]) : [];
     const vendorById = new Map(vendors.map((vendor) => [vendor.id, vendor]));
 
+    // 店主名は vendors から分離済み（service_role なので公開設定に関係なく取得できる）
+    const { data: ownerProfilesData } = await serviceClient
+      .from("vendor_owner_profiles")
+      .select("vendor_id, owner_name");
+    const ownerNameByVendorId = new Map<string, string>(
+      (ownerProfilesData ?? [])
+        .filter((row): row is { vendor_id: string; owner_name: string } => !!row.owner_name)
+        .map((row) => [row.vendor_id, row.owner_name])
+    );
+
     const users: AdminUserRecord[] = allUsers.map((authUser) => {
       const vendor = vendorById.get(authUser.id);
       const role = normalizeRole(authUser.app_metadata?.role ?? authUser.user_metadata?.role);
@@ -141,7 +113,7 @@ export async function GET() {
         vendor?.shop_name ??
         authUser.user_metadata?.name ??
         authUser.user_metadata?.full_name ??
-        vendor?.owner_name ??
+        ownerNameByVendorId.get(authUser.id) ??
         authUser.email?.split("@")[0] ??
         "名称未設定";
       const bannedUntil = authUser.banned_until ? new Date(authUser.banned_until) : null;

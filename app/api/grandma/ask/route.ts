@@ -790,7 +790,7 @@ export async function POST(request: Request) {
       `位置情報: ${location ? `${location.lat}, ${location.lng}` : "不明"}`,
       `現在の季節: ${currentSeason.seasonName}`,
       targetShop
-        ? `注目中の店舗: id:${targetShop.id} | name:${targetShop.name} | owner:${targetShop.ownerName}`
+        ? `注目中の店舗: id:${targetShop.id} | name:${targetShop.name}`
         : "注目中の店舗: なし",
       `店舗候補:\n${summarizeShops(targetShop ? [targetShop, ...candidateShops.filter((shop) => shop.id !== targetShop.id)] : candidateShops)}`,
       `季節の候補:\n${
