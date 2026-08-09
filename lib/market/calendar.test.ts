@@ -289,6 +289,15 @@ describe("groupEventsBySunday", () => {
     expect(sundays.map((s) => s.events.length)).toEqual([1, 0, 0]);
   });
 
+  it("期間内に日曜を1つも含まない連続開催（月〜木）も消えずに載る", () => {
+    // 08-10（月）〜08-13（木）は日曜をまたがないが、その週の日曜 08-16 に載る
+    const events = [
+      makeEvent({ id: "weekday-only", event_date: "2026-08-10", end_date: "2026-08-13" }),
+    ];
+    const sundays = groupEventsBySunday(events, [], 2, now);
+    expect(sundays.map((s) => s.events.length)).toEqual([1, 0]);
+  });
+
   it("連続開催の見どころは各日曜で見どころのまま扱う", () => {
     const events = [
       makeEvent({
