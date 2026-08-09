@@ -3,11 +3,30 @@ import {
   toIsoDate,
   getUpcomingSundayIso,
   normalizeStatus,
+  normalizeCategory,
   getStatusPresentation,
+  getCategoryPresentation,
   shouldSurfaceOnMap,
   formatEventDate,
   formatEventTime,
+  getRelativeSundayLabel,
+  groupEventsBySunday,
+  type MarketEvent,
 } from "./calendar";
+
+function makeEvent(overrides: Partial<MarketEvent> & { id: string; event_date: string }): MarketEvent {
+  return {
+    title: `イベント${overrides.id}`,
+    description: null,
+    start_time: null,
+    end_time: null,
+    location: null,
+    category: "event",
+    image_url: null,
+    is_highlight: false,
+    ...overrides,
+  };
+}
 
 // 実行環境のタイムゾーンに左右されないよう、基準日は UTC の瞬時刻で書く。
 // コメントの JST 表記が、その瞬間に高知で何日の何時かを示す。
@@ -114,6 +133,131 @@ describe("formatEventDate", () => {
 
   it("壊れた入力はそのまま返す", () => {
     expect(formatEventDate("not-a-date")).toBe("not-a-date");
+  });
+});
+
+describe("normalizeCategory", () => {
+  it("既知の種別はそのまま通す", () => {
+    expect(normalizeCategory("vendor")).toBe("vendor");
+    expect(normalizeCategory("season")).toBe("season");
+    expect(normalizeCategory("notice")).toBe("notice");
+  });
+
+  it("想定外の値はイベント扱いにする", () => {
+    expect(normalizeCategory("unknown")).toBe("event");
+    expect(normalizeCategory(null)).toBe("event");
+  });
+});
+
+describe("getCategoryPresentation", () => {
+  it("4種別すべてにラベルと絵文字がある", () => {
+    for (const category of ["vendor", "event", "season", "notice"] as const) {
+      const presentation = getCategoryPresentation(category);
+      expect(presentation.label).toBeTruthy();
+      expect(presentation.emoji).toBeTruthy();
+    }
+  });
+});
+
+describe("getRelativeSundayLabel", () => {
+  it("0週先は今週", () => {
+    expect(getRelativeSundayLabel(0)).toBe("今週");
+  });
+
+  it("1週先は来週", () => {
+    expect(getRelativeSundayLabel(1)).toBe("来週");
+  });
+
+  it("2週以降はあとN週", () => {
+    expect(getRelativeSundayLabel(2)).toBe("あと2週");
+    expect(getRelativeSundayLabel(4)).toBe("あと4週");
+  });
+});
+
+describe("groupEventsBySunday", () => {
+  // JST 2026-08-12（水）12:00 を基準にする。今週の日曜は 08-16。
+  const now = new Date("2026-08-12T03:00:00Z");
+
+  it("指定した数だけ日曜を返す", () => {
+    const sundays = groupEventsBySunday([], [], 4, now);
+    expect(sundays.map((s) => s.dateIso)).toEqual([
+      "2026-08-16",
+      "2026-08-23",
+      "2026-08-30",
+      "2026-09-06",
+    ]);
+  });
+
+  it("予定が無い日曜も枠として残す", () => {
+    const sundays = groupEventsBySunday([], [], 2, now);
+    expect(sundays[0].events).toEqual([]);
+    expect(sundays[0].highlight).toBeNull();
+  });
+
+  it("イベントを開催日の日曜に振り分ける", () => {
+    const events = [
+      makeEvent({ id: "a", event_date: "2026-08-16" }),
+      makeEvent({ id: "b", event_date: "2026-08-23" }),
+    ];
+    const sundays = groupEventsBySunday(events, [], 2, now);
+    expect(sundays[0].events.map((e) => e.id)).toEqual(["a"]);
+    expect(sundays[1].events.map((e) => e.id)).toEqual(["b"]);
+  });
+
+  it("日曜以外の日付の予定はその週の日曜に寄せる", () => {
+    // 08-15 は土曜なので、08-16（日）のカードに載る
+    const events = [makeEvent({ id: "sat", event_date: "2026-08-15" })];
+    const sundays = groupEventsBySunday(events, [], 2, now);
+    expect(sundays[0].events.map((e) => e.id)).toEqual(["sat"]);
+  });
+
+  it("月〜木曜の予定も、最大6日先までその週の日曜に前方で寄せる", () => {
+    // 08-10（月）〜08-13（木）は、いずれも同じ週の日曜 08-16 に載る
+    const events = [
+      makeEvent({ id: "mon", event_date: "2026-08-10" }),
+      makeEvent({ id: "tue", event_date: "2026-08-11" }),
+      makeEvent({ id: "wed", event_date: "2026-08-12" }),
+      makeEvent({ id: "thu", event_date: "2026-08-13" }),
+    ];
+    const sundays = groupEventsBySunday(events, [], 1, now);
+    expect(sundays[0].events.map((e) => e.id).sort()).toEqual(
+      ["mon", "tue", "wed", "thu"].sort()
+    );
+  });
+
+  it("見どころを1件だけ切り出し、残りと重複させない", () => {
+    const events = [
+      makeEvent({ id: "normal", event_date: "2026-08-16" }),
+      makeEvent({ id: "star", event_date: "2026-08-16", is_highlight: true }),
+    ];
+    const sundays = groupEventsBySunday(events, [], 1, now);
+    expect(sundays[0].highlight?.id).toBe("star");
+    expect(sundays[0].events.map((e) => e.id)).toEqual(["normal"]);
+  });
+
+  it("開始時刻の早い順に並べ、未設定は最後に回す", () => {
+    const events = [
+      makeEvent({ id: "none", event_date: "2026-08-16" }),
+      makeEvent({ id: "late", event_date: "2026-08-16", start_time: "14:00:00" }),
+      makeEvent({ id: "early", event_date: "2026-08-16", start_time: "09:00:00" }),
+    ];
+    const sundays = groupEventsBySunday(events, [], 1, now);
+    expect(sundays[0].events.map((e) => e.id)).toEqual(["early", "late", "none"]);
+  });
+
+  it("開催ステータスを該当する日曜に結びつける", () => {
+    const days = [
+      { market_date: "2026-08-23", status: "cancelled" as const, note: "台風のため" },
+    ];
+    const sundays = groupEventsBySunday([], days, 2, now);
+    expect(sundays[0].day).toBeNull();
+    expect(sundays[1].day?.status).toBe("cancelled");
+  });
+
+  it("先頭だけが今週になり、相対ラベルが付く", () => {
+    const sundays = groupEventsBySunday([], [], 3, now);
+    expect(sundays.map((s) => s.isThisWeek)).toEqual([true, false, false]);
+    expect(sundays.map((s) => s.relativeLabel)).toEqual(["今週", "来週", "あと2週"]);
   });
 });
 

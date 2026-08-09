@@ -2,9 +2,13 @@ import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import NavigationBar from "../../components/NavigationBar";
 import MarketStatusBar from "../../components/market/MarketStatusBar";
-import UpcomingEvents from "../../components/market/UpcomingEvents";
+import UpcomingSundays from "../../components/market/UpcomingSundays";
 import { createClient } from "@/utils/supabase/server";
-import { fetchMarketCalendar } from "@/lib/market/calendar";
+import {
+  fetchMarketCalendar,
+  groupEventsBySunday,
+  UPCOMING_SUNDAYS_FULL_COUNT,
+} from "@/lib/market/calendar";
 
 export const dynamic = "force-dynamic";
 
@@ -17,7 +21,8 @@ export const metadata: Metadata = {
 export default async function MarketCalendarPage() {
   const cookieStore = await cookies();
   const supabase = createClient(cookieStore);
-  const { day, events } = await fetchMarketCalendar(supabase);
+  const { day, days, events } = await fetchMarketCalendar(supabase);
+  const sundays = groupEventsBySunday(events, days, UPCOMING_SUNDAYS_FULL_COUNT);
 
   return (
     <main className="min-h-screen bg-nicchyo-base pb-24 text-nicchyo-ink">
@@ -38,7 +43,7 @@ export default async function MarketCalendarPage() {
       </div>
 
       <div className="mx-auto max-w-lg px-4">
-        <UpcomingEvents events={events} />
+        <UpcomingSundays sundays={sundays} showHeading={false} />
 
         <p className="mt-6 text-center text-[11px] leading-relaxed text-gray-400">
           出店者ごとの当日の様子は

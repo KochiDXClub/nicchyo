@@ -2,6 +2,63 @@ import { cookies } from "next/headers";
 import { createClient as createServerClient } from "@/utils/supabase/server";
 import { getRole, isAdmin } from "@/lib/auth/permissions";
 
+/**
+ * カード画像のURLを検証する。
+ *
+ * next/image で描画するため、next.config.js の remotePatterns（Supabase Storage の
+ * 公開バケットのみ）に載らないURLを保存すると、閲覧時にページごと落ちる。
+ * 保存前に弾いて、外部URLの読み込み自体も防ぐ。
+ */
+export function validateImageUrl(
+  value: unknown
+): { url: string | null; error: string | null } {
+  if (value === null || value === undefined || value === "") return { url: null, error: null };
+  if (typeof value !== "string") return { url: null, error: "画像URLが無効です" };
+
+  const trimmed = value.trim();
+  if (!trimmed) return { url: null, error: null };
+  if (trimmed.length > 500) return { url: null, error: "画像URLが長すぎます" };
+
+  let parsed: URL;
+  try {
+    parsed = new URL(trimmed);
+  } catch {
+    return { url: null, error: "画像URLが無効です" };
+  }
+
+  const isSupabaseStorage =
+    parsed.protocol === "https:" &&
+    parsed.hostname.endsWith(".supabase.co") &&
+    parsed.pathname.startsWith("/storage/v1/object/public/");
+
+  if (!isSupabaseStorage) {
+    return { url: null, error: "画像はSupabase Storageの公開URLのみ指定できます" };
+  }
+
+  return { url: trimmed, error: null };
+}
+
+/**
+ * Postgrestのエラーから、DBの人向けエラーメッセージを組み立てる。
+ *
+ * 見どころ（is_highlight）の1日1件制約は部分ユニーク索引
+ * market_events_highlight_per_day_idx で担保している。ここでの違反（23505）は
+ * 「その日はすでに見どころが設定済み」という意味なので、汎用エラーではなく
+ * 原因が伝わるメッセージを返す。
+ */
+export function describeMarketEventDbError(
+  dbError: { code?: string; message?: string } | null,
+  fallback: string
+): string {
+  if (
+    dbError?.code === "23505" &&
+    dbError.message?.includes("market_events_highlight_per_day_idx")
+  ) {
+    return "その日はすでに見どころが設定されています。先に既存の見どころを解除してください";
+  }
+  return fallback;
+}
+
 export async function authorizeAdmin() {
   const cookieStore = await cookies();
   const supabase = createServerClient(cookieStore);

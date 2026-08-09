@@ -463,12 +463,15 @@ export type Database = {
       }
       market_events: {
         Row: {
+          category: string
           created_at: string
           created_by: string | null
           description: string | null
           end_time: string | null
           event_date: string
           id: string
+          image_url: string | null
+          is_highlight: boolean
           is_published: boolean
           location: string | null
           start_time: string | null
@@ -476,12 +479,15 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          category?: string
           created_at?: string
           created_by?: string | null
           description?: string | null
           end_time?: string | null
           event_date: string
           id?: string
+          image_url?: string | null
+          is_highlight?: boolean
           is_published?: boolean
           location?: string | null
           start_time?: string | null
@@ -489,12 +495,15 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          category?: string
           created_at?: string
           created_by?: string | null
           description?: string | null
           end_time?: string | null
           event_date?: string
           id?: string
+          image_url?: string | null
+          is_highlight?: boolean
           is_published?: boolean
           location?: string | null
           start_time?: string | null
