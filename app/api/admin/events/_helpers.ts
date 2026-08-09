@@ -41,6 +41,11 @@ export function validateHighlightDates(
  * DB制約（部分ユニーク索引）ではなくアプリ側チェックにしているのは、
  * 見どころが date[] 列になり「特定の日付が重複しているか」を宣言的な
  * 制約で表現しづらいため。低頻度更新の管理画面なので競合の実害は小さい。
+ *
+ * 既知の限界：このチェックとinsert/updateの間はトランザクションで
+ * 保護されていないため、理論上は同時更新で重複した見どころが登録され得る
+ * （TOCTOU）。管理画面の更新頻度・利用者数を踏まえて許容している。
+ * 将来、複数運営者が同時に編集するようになった場合は再検討する。
  */
 export async function findHighlightConflict(
   dc: SupabaseClient<Database>,
