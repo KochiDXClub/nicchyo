@@ -10,8 +10,9 @@ import type { VendorAnalytics, SearchSourceRatio, HeartSummary } from "../_types
 import {
   ArrowLeft, Eye, MousePointerClick, Search,
   BarChart2, Clock, ShoppingBag, TrendingUp,
-  ChevronRight, ArrowUp, ArrowDown, Loader2, MapPin, Navigation, MessageCircle, Heart,
+  ChevronRight, ArrowUp, ArrowDown, MapPin, Navigation, MessageCircle, Heart,
 } from "lucide-react";
+import { CenteredLoading } from "@/components/ui/loading-spinner";
 
 function DeltaBadge({ current, prev }: { current: number; prev: number }) {
   const diff = current - prev;
@@ -84,9 +85,7 @@ export default function VendorAnalyticsPage() {
       <div className="mx-auto max-w-2xl space-y-4 px-4 pt-5">
 
         {isLoading ? (
-          <div className="flex justify-center py-12">
-            <Loader2 size={28} className="animate-spin text-amber-500" />
-          </div>
+          <CenteredLoading />
         ) : (
           <>
             <div className="rounded-3xl border border-amber-100 bg-white p-4 shadow-sm md:p-5">

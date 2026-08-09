@@ -7,10 +7,12 @@ import Link from "next/link";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { fetchAllProductSales, fetchProductSearchTrends } from "../../_services/analyticsService";
 import type { ProductSale, SearchKeywordTrend } from "../../_types";
-import { ArrowLeft, Medal, Loader2, TrendingUp, Flame } from "lucide-react";
+import { ArrowLeft, Medal, TrendingUp, Flame } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell,
 } from "recharts";
+import { CenteredLoading } from "@/components/ui/loading-spinner";
+import { EmptyMessage } from "@/components/ui/empty-message";
 
 const RANK_COLORS = ["#f59e0b", "#94a3b8", "#d97706", "#60a5fa", "#a78bfa"];
 const MEDAL_COLORS = ["text-amber-400", "text-slate-400", "text-amber-700"];
@@ -61,9 +63,7 @@ export default function ProductAnalyticsPage() {
       <div className="mx-auto max-w-2xl space-y-4 px-4 pt-5">
 
         {isLoading ? (
-          <div className="flex justify-center py-12">
-            <Loader2 size={28} className="animate-spin text-amber-500" />
-          </div>
+          <CenteredLoading />
         ) : (
           <>
             <div className="rounded-3xl border border-amber-100 bg-white p-4 shadow-sm">
@@ -87,12 +87,14 @@ export default function ProductAnalyticsPage() {
               </div>
 
               {sorted.length === 0 ? (
-                <div className="py-8 text-center">
-                  <p className="text-sm text-slate-400">販売データがありません</p>
-                  <Link href="/vendor/analytics/input" className="mt-3 inline-flex items-center gap-1 rounded-2xl bg-amber-500 px-4 py-3 text-sm font-semibold text-white hover:bg-amber-400">
-                    今日の販売を入力する →
-                  </Link>
-                </div>
+                <EmptyMessage
+                  message="販売データがありません"
+                  action={
+                    <Link href="/vendor/analytics/input" className="mt-3 inline-flex items-center gap-1 rounded-2xl bg-amber-500 px-4 py-3 text-sm font-semibold text-white hover:bg-amber-400">
+                      今日の販売を入力する →
+                    </Link>
+                  }
+                />
               ) : (
                 <>
                   <div className="mb-4 space-y-3">
@@ -140,7 +142,7 @@ export default function ProductAnalyticsPage() {
               </div>
               <p className="mb-3 text-sm text-slate-400">過去7日間にユーザーが検索したキーワード上位</p>
               {searchTrends.length === 0 ? (
-                <p className="py-6 text-center text-sm text-slate-400">検索データがまだ蓄積されていません</p>
+                <EmptyMessage message="検索データがまだ蓄積されていません" padding="py-6" />
               ) : (
                 <div className="space-y-2.5">
                   {searchTrends.map((item, i) => {

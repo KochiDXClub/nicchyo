@@ -8,7 +8,9 @@ import Link from "next/link";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { fetchAiConsultAnalytics } from "../../_services/analyticsService";
 import type { AiConsultAnalytics } from "../../_types";
-import { ArrowLeft, Loader2, MessageCircle, Hash, Star, MapPin, Navigation } from "lucide-react";
+import { ArrowLeft, MessageCircle, Hash, Star, MapPin, Navigation } from "lucide-react";
+import { CenteredLoading } from "@/components/ui/loading-spinner";
+import { EmptyMessage } from "@/components/ui/empty-message";
 
 const TOPIC_COLORS: Record<string, string> = {
   人気商品: "bg-amber-400",
@@ -58,9 +60,7 @@ export default function AiAnalyticsPage() {
 
       <div className="mx-auto max-w-2xl space-y-4 px-4 pt-5">
         {isLoading ? (
-          <div className="flex justify-center py-12">
-            <Loader2 size={28} className="animate-spin text-amber-500" />
-          </div>
+          <CenteredLoading />
         ) : (
           <>
             {/* サマリー */}
@@ -87,7 +87,7 @@ export default function AiAnalyticsPage() {
                 <h2 className="text-base font-semibold text-slate-700">相談トピックランキング</h2>
               </div>
               {data.topics.length === 0 ? (
-                <p className="py-6 text-center text-sm text-slate-400">相談データがまだありません</p>
+                <EmptyMessage message="相談データがまだありません" padding="py-6" />
               ) : (
                 <div className="space-y-3">
                   {data.topics.map((item, i) => (
@@ -120,7 +120,7 @@ export default function AiAnalyticsPage() {
                 <h2 className="text-base font-semibold text-slate-700">関連キーワード</h2>
               </div>
               {data.keywords.length === 0 ? (
-                <p className="py-6 text-center text-sm text-slate-400">キーワードデータがまだありません</p>
+                <EmptyMessage message="キーワードデータがまだありません" padding="py-6" />
               ) : (
                 <>
                   <div className="mb-3 flex flex-wrap gap-2">

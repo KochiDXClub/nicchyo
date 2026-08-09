@@ -8,7 +8,8 @@ import { useAuth } from "@/lib/auth/AuthContext";
 import { AdminLayout, AdminPageHeader, EmptyState } from "@/components/admin";
 import { showToast } from "@/lib/admin/toast";
 import { exportToCSV, exportToJSON, formatDateForFilename, excelText } from "@/lib/admin/exportUtils";
-import { Loader2, Search, Download } from "lucide-react";
+import { Search, Download } from "lucide-react";
+import { CenteredLoading } from "@/components/ui/loading-spinner";
 
 type AuditLog = {
   id: number;
@@ -267,9 +268,7 @@ export default function AuditLogsPage() {
 
         {/* ログ一覧 */}
         {isLoading ? (
-          <div className="flex justify-center py-16">
-            <Loader2 size={28} className="animate-spin text-slate-400" />
-          </div>
+          <CenteredLoading padding="py-16" className="text-slate-400" />
         ) : filtered.length === 0 ? (
           <EmptyState icon="📋" title="ログが見つかりません" description="条件に一致する操作ログはありません。" />
         ) : (
