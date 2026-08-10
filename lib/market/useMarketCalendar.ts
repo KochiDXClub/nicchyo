@@ -1,7 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { normalizeCategory, normalizeStatus, type MarketCalendar, type MarketDay } from "./calendar";
+import {
+  normalizeCategory,
+  normalizeHighlightDates,
+  normalizeStatus,
+  type MarketCalendar,
+  type MarketDay,
+} from "./calendar";
 
 /**
  * 公開カレンダー（開催ステータス＋今日以降のイベント）をクライアントから取得する。
@@ -30,9 +36,10 @@ export function useMarketCalendar(): { calendar: MarketCalendar; loading: boolea
             : null,
           days,
           events: Array.isArray(data.events)
-            ? data.events.map((e: { category: unknown }) => ({
+            ? data.events.map((e: { category: unknown; highlight_dates: unknown }) => ({
                 ...e,
                 category: normalizeCategory(e.category),
+                highlight_dates: normalizeHighlightDates(e.highlight_dates),
               }))
             : [],
         });

@@ -32,7 +32,12 @@ export type MarketEvent = {
   location: string | null;
   category: MarketEventCategory;
   image_url: string | null;
-  is_highlight: boolean;
+  /**
+   * 見どころにする日曜の日付一覧。連続開催（event_date〜end_date）のうち
+   * 特定の週だけを見どころにできるよう、boolean ではなく日付の配列で持つ。
+   * 単発イベントなら [event_date] の1件だけを持つのが基本形。
+   */
+  highlight_dates: string[];
 };
 
 export type MarketCalendar = {
@@ -106,6 +111,14 @@ export function normalizeCategory(value: unknown): MarketEventCategory {
   return typeof value === "string" && VALID_CATEGORIES.includes(value)
     ? (value as MarketEventCategory)
     : "event";
+}
+
+/** DB/APIから来た値を YYYY-MM-DD の配列に落とす。想定外の値は空配列にする */
+export function normalizeHighlightDates(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter(
+    (v): v is string => typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v)
+  );
 }
 
 export type CategoryPresentation = {
@@ -228,6 +241,25 @@ export function isEventOnSunday(event: MarketEvent, sundayIso: string): boolean 
   return sundayIso >= startSunday && sundayIso <= endSunday;
 }
 
+/** 指定の日曜が、その予定の見どころ週として選ばれているか */
+export function isHighlightSunday(event: MarketEvent, sundayIso: string): boolean {
+  return event.highlight_dates.includes(sundayIso);
+}
+
+/**
+ * event_date〜end_date（無ければ event_date のみ）に含まれる日曜日を列挙する。
+ * 管理画面で「見どころにする週」を選ばせる際、選択肢の一覧として使う。
+ */
+export function listSundaysInRange(eventDate: string, endDate: string | null): string[] {
+  const start = getUpcomingSundayIso(isoToDate(eventDate));
+  const last = endDate && endDate > eventDate ? endDate : start;
+  const result: string[] = [];
+  for (let cursor = start; cursor <= last; cursor = addDaysToIso(cursor, 7)) {
+    result.push(cursor);
+  }
+  return result;
+}
+
 /** 連続開催なら「8/16〜9/6」、単発なら「8/16（日）」を返す */
 export function formatEventPeriod(event: MarketEvent): string {
   if (!event.end_date || event.end_date <= event.event_date) {
@@ -256,7 +288,7 @@ export function groupEventsBySunday(
     const dateIso = addDaysToIso(firstSunday, weeksAhead * 7);
     // 連続開催の予定は複数の日曜に載るため、日曜ごとに全件を判定する
     const bucket = events.filter((event) => isEventOnSunday(event, dateIso)).sort(byStartTime);
-    const highlightIndex = bucket.findIndex((e) => e.is_highlight);
+    const highlightIndex = bucket.findIndex((e) => isHighlightSunday(e, dateIso));
     const highlight = highlightIndex >= 0 ? bucket[highlightIndex] : null;
 
     return {
@@ -298,7 +330,7 @@ export async function fetchMarketCalendar(
     supabase
       .from("market_events")
       .select(
-        "id, title, description, event_date, end_date, start_time, end_time, location, category, image_url, is_highlight"
+        "id, title, description, event_date, end_date, start_time, end_time, location, category, image_url, highlight_dates"
       )
       .eq("is_published", true)
       // 「今日以降に掛かっている予定」を引く。連続開催は開始日が過去でも
@@ -326,7 +358,7 @@ export async function fetchMarketCalendar(
     location: row.location,
     category: normalizeCategory(row.category),
     image_url: row.image_url,
-    is_highlight: row.is_highlight,
+    highlight_dates: normalizeHighlightDates(row.highlight_dates),
   }));
 
   return {

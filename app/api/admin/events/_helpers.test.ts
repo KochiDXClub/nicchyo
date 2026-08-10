@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { validateImageUrl, MARKET_EVENT_IMAGE_PREFIX } from "./_helpers";
+import { validateImageUrl, validateHighlightDates, MARKET_EVENT_IMAGE_PREFIX } from "./_helpers";
 
 const PROJECT = "https://ourproject.supabase.co";
 const valid = `${PROJECT}${MARKET_EVENT_IMAGE_PREFIX}1234-abcd.jpg`;
@@ -86,5 +86,55 @@ describe("validateImageUrl", () => {
   it("保存先が未設定なら弾く", () => {
     delete process.env.NEXT_PUBLIC_SUPABASE_URL;
     expect(validateImageUrl(valid).error).toBeTruthy();
+  });
+});
+
+describe("validateHighlightDates", () => {
+  it("未指定・null は空配列にする（更新なし・見どころなしの両方で使う）", () => {
+    expect(validateHighlightDates(undefined, "2026-08-16", null)).toEqual({
+      dates: [],
+      error: null,
+    });
+    expect(validateHighlightDates(null, "2026-08-16", null)).toEqual({ dates: [], error: null });
+  });
+
+  it("配列でなければ弾く", () => {
+    expect(validateHighlightDates("2026-08-16", "2026-08-16", null).error).toBeTruthy();
+  });
+
+  it("開催期間内の日付は通す", () => {
+    const result = validateHighlightDates(
+      ["2026-08-23", "2026-08-16"],
+      "2026-08-16",
+      "2026-09-06"
+    );
+    expect(result.error).toBeNull();
+    // 重複除去 + 日付順に並べ替える
+    expect(result.dates).toEqual(["2026-08-16", "2026-08-23"]);
+  });
+
+  it("開催期間外の日付は弾く", () => {
+    expect(
+      validateHighlightDates(["2026-09-13"], "2026-08-16", "2026-09-06").error
+    ).toBeTruthy();
+    expect(validateHighlightDates(["2026-08-09"], "2026-08-16", null).error).toBeTruthy();
+  });
+
+  it("end_date が無い単発イベントは event_date のみ許可する", () => {
+    expect(validateHighlightDates(["2026-08-16"], "2026-08-16", null).error).toBeNull();
+    expect(validateHighlightDates(["2026-08-23"], "2026-08-16", null).error).toBeTruthy();
+  });
+
+  it("形式が不正な要素があれば弾く", () => {
+    expect(validateHighlightDates(["not-a-date"], "2026-08-16", null).error).toBeTruthy();
+  });
+
+  it("重複する日付は1件にまとめる", () => {
+    const result = validateHighlightDates(
+      ["2026-08-16", "2026-08-16"],
+      "2026-08-16",
+      "2026-09-06"
+    );
+    expect(result.dates).toEqual(["2026-08-16"]);
   });
 });

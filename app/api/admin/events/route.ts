@@ -4,7 +4,7 @@ import { createAdminClient } from "@/lib/supabase/adminClient";
 import { requireSameOrigin } from "@/lib/security/requestGuards";
 import { enforceRateLimit } from "@/lib/security/rateLimit";
 import { normalizeCategory, type MarketEventCategory } from "@/lib/market/calendar";
-import { authorizeAdmin, validateImageUrl } from "./_helpers";
+import { authorizeAdmin, findHighlightConflict, validateHighlightDates, validateImageUrl } from "./_helpers";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -23,7 +23,7 @@ export interface MarketEvent {
   is_published: boolean;
   category: MarketEventCategory;
   image_url: string | null;
-  is_highlight: boolean;
+  highlight_dates: string[];
   created_by: string | null;
   created_at: string;
   updated_at: string;
@@ -98,6 +98,13 @@ function validateEventBody(body: unknown): { data: Partial<MarketEvent>; error: 
   const { url: imageUrl, error: imageError } = validateImageUrl(b.image_url);
   if (imageError) return { data: {}, error: imageError };
 
+  const { dates: highlightDates, error: highlightError } = validateHighlightDates(
+    b.highlight_dates,
+    eventDate,
+    endDate
+  );
+  if (highlightError) return { data: {}, error: highlightError };
+
   return {
     data: {
       title,
@@ -110,7 +117,7 @@ function validateEventBody(body: unknown): { data: Partial<MarketEvent>; error: 
       is_published: b.is_published === true,
       category: normalizeCategory(b.category),
       image_url: imageUrl,
-      is_highlight: b.is_highlight === true,
+      highlight_dates: highlightDates,
     },
     error: null,
   };
@@ -143,6 +150,18 @@ export async function POST(req: Request) {
   const { data, error: validError } = validateEventBody(body);
   if (validError) return NextResponse.json({ error: validError }, { status: 400 });
 
+  if (data.highlight_dates && data.highlight_dates.length > 0) {
+    const conflict = await findHighlightConflict(dc, data.highlight_dates);
+    if (conflict) {
+      return NextResponse.json(
+        {
+          error: `「${conflict.title}」とその週の見どころが重なっています（1週につき見どころは1件までです）`,
+        },
+        { status: 409 }
+      );
+    }
+  }
+
   const { data: event, error: dbError } = await dc
     .from("market_events")
     .insert({ ...data, created_by: user.id })
@@ -150,13 +169,6 @@ export async function POST(req: Request) {
     .single();
 
   if (dbError) {
-    // 見どころは1日1件（部分ユニーク索引）。利用者起因の競合なので 409 で返す
-    if (dbError.code === "23505") {
-      return NextResponse.json(
-        { error: "この日にはすでに見どころが設定されています" },
-        { status: 409 }
-      );
-    }
     return NextResponse.json({ error: "作成に失敗しました" }, { status: 500 });
   }
 
