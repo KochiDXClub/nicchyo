@@ -16,7 +16,7 @@ type Section = {
   columns: number;
 };
 
-function sideOfShop(shop: EditableShop, road: EditableRoad, projection: Projection): { side: Side; order: number } {
+export function sideOfShop(shop: EditableShop, road: EditableRoad, projection: Projection): { side: Side; order: number } {
   const projection2 = projectPointOntoRoute({ lat: shop.lat, lng: shop.lng }, road.points);
   if (!projection2) return { side: "north", order: 0 };
 
@@ -152,16 +152,18 @@ export default function RoadLaneView({
     <div
       style={{
         flexShrink: 0,
-        height: 168,
+        maxHeight: 168,
         borderTop: "1px solid #EDE3CD",
         background: "#FDFBF5",
-        overflowX: "auto",
-        overflowY: "hidden",
+        overflowY: "auto",
         padding: "10px 16px",
+        display: "flex",
+        flexDirection: "column",
+        gap: 12,
       }}
     >
       {roadGroups.map(({ road, sections }) => (
-        <div key={road.id} style={{ display: "flex", alignItems: "flex-start", gap: 22, height: "100%" }}>
+        <div key={road.id} style={{ display: "flex", alignItems: "flex-start", gap: 22, flexShrink: 0, overflowX: "auto" }}>
           {sections.map((section) => (
             <div key={section.chome} style={{ display: "flex", flexDirection: "column", gap: 4, flexShrink: 0 }}>
               <span style={{ fontSize: 11, fontWeight: 800, color: "#9A8A6A" }}>
