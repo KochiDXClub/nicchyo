@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
-import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient as createServerClient } from "@/utils/supabase/server";
 import { fetchLandmarksFromDb } from "@/app/(public)/map/services/landmarksDb";
 import { fetchMapRouteFromDb } from "@/app/(public)/map/services/mapRouteDb";
@@ -11,8 +10,8 @@ import type { Landmark as EditableLandmark } from "@/app/(public)/map/types/land
 import type { MapRoad, MapRouteConfig, MapRoutePoint } from "@/app/(public)/map/types/mapRoute";
 import {
   createAdminWriteClient,
+  createMapLayoutSnapshot,
   findRoadIdsWithShops,
-  loadAllRoutePoints,
   loadEditableRoads,
   loadEditableShops,
   type EditableRoad,
@@ -22,18 +21,6 @@ import {
 type VendorOption = {
   id: string;
   name: string;
-};
-
-type SnapshotSummary = {
-  updatedShopCount: number;
-  deletedShopCount: number;
-  upsertLandmarkCount: number;
-  deletedLandmarkCount: number;
-  updatedRoutePointCount: number;
-  routeConfigChanged: boolean;
-  updatedRoadCount?: number;
-  deletedRoadCount?: number;
-  restoreSourceSnapshotId?: string;
 };
 
 function validateShopAssignments(shops: EditableShop[]) {
@@ -58,38 +45,6 @@ function validateShopAssignments(shops: EditableShop[]) {
   }
 
   return null;
-}
-
-async function createMapLayoutSnapshot(
-  supabase: ReturnType<typeof createServerClient>,
-  adminWriteClient: SupabaseClient,
-  createdBy: string,
-  summary: SnapshotSummary
-) {
-  const [shops, landmarks, roads, routePoints] = await Promise.all([
-    loadEditableShops(supabase),
-    fetchLandmarksFromDb(supabase),
-    loadEditableRoads(supabase),
-    // route_json は road_id を保持するため、fetchMapRouteFromDb（本番用・road_id非対応）
-    // ではなく road_id が未設定の点も含めて全件取得する loadAllRoutePoints を使う
-    // （loadEditableRoads 由来の点群だと road_id が null の点が欠落してしまう）
-    loadAllRoutePoints(supabase),
-  ]);
-  const mapRoute = await fetchMapRouteFromDb(supabase);
-
-  const { error } = await adminWriteClient.from("map_layout_snapshots").insert({
-    shops_json: shops,
-    landmarks_json: landmarks,
-    route_json: routePoints,
-    route_config_json: mapRoute.config,
-    roads_json: roads.map(({ points: _points, ...road }) => road),
-    created_by: createdBy,
-    summary,
-  });
-
-  if (error) {
-    throw new Error("Failed to create map layout snapshot");
-  }
 }
 
 export async function GET() {
@@ -188,20 +143,46 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: assignmentValidationError }, { status: 400 });
     }
 
+    const hasChanges =
+      body.shops.updated.length > 0 ||
+      body.shops.deletedLocationIds.length > 0 ||
+      body.landmarks.upsert.length > 0 ||
+      body.landmarks.deletedKeys.length > 0 ||
+      body.route.points.length > 0 ||
+      Boolean(body.roads);
+
+    // 道削除バリデーションとスナップショット作成はどちらも「保存前の状態」を必要とするため
+    // 1回だけ読み込んで使い回す（別々に読むとDB往復が倍になる）
+    let currentShops: EditableShop[] | null = null;
+    let currentRoads: EditableRoad[] | null = null;
+    if (body.roads || hasChanges) {
+      [currentShops, currentRoads] = await Promise.all([loadEditableShops(supabase), loadEditableRoads(supabase)]);
+    }
+
     // 区画が乗っている道は削除できない（クライアント側の制約とサーバー側でも二重に検証）
     let removedRoadIds: string[] = [];
-    let existingRoadsForValidation: EditableRoad[] = [];
-    if (body.roads) {
-      existingRoadsForValidation = await loadEditableRoads(supabase);
+    if (body.roads && currentRoads) {
       const nextRoadIds = new Set(body.roads.map((road) => road.id));
-      const roadsToRemove = existingRoadsForValidation.filter((road) => !nextRoadIds.has(road.id));
+      const roadsToRemove = currentRoads.filter((road) => !nextRoadIds.has(road.id));
 
-      if (roadsToRemove.length > 0) {
-        const currentShops = await loadEditableShops(supabase);
+      if (roadsToRemove.length > 0 && currentShops) {
         const deletedLocationIdSet = new Set(body.shops.deletedLocationIds);
-        const remainingShops = currentShops.filter((shop) => !deletedLocationIdSet.has(shop.locationId));
+        const updatedByLocationId = new Map(
+          body.shops.updated
+            .filter((shop) => !shop.locationId.startsWith("new-"))
+            .map((shop) => [shop.locationId, shop])
+        );
+        const newShops = body.shops.updated.filter((shop) => shop.locationId.startsWith("new-"));
+        // DBから読み直しただけの状態ではなく、同一リクエスト内の位置更新・新規登録・削除を
+        // 反映した「この保存が完了した後に存在するはずの区画一覧」で検証する
+        // （そうしないと、直前に道へ移動した区画を見落としてその道の削除を誤って許可してしまう）
+        const shopsAfterThisRequest = currentShops
+          .filter((shop) => !deletedLocationIdSet.has(shop.locationId))
+          .map((shop) => updatedByLocationId.get(shop.locationId) ?? shop)
+          .concat(newShops);
+
         const snapDistanceMeters = body.route.config.snapDistanceMeters ?? 18;
-        const roadIdsWithShops = findRoadIdsWithShops(remainingShops, existingRoadsForValidation, snapDistanceMeters);
+        const roadIdsWithShops = findRoadIdsWithShops(shopsAfterThisRequest, currentRoads, snapDistanceMeters);
 
         for (const road of roadsToRemove) {
           if (roadIdsWithShops.has(road.id)) {
@@ -216,25 +197,23 @@ export async function PUT(request: NextRequest) {
       removedRoadIds = roadsToRemove.map((road) => road.id);
     }
 
-    const hasChanges =
-      body.shops.updated.length > 0 ||
-      body.shops.deletedLocationIds.length > 0 ||
-      body.landmarks.upsert.length > 0 ||
-      body.landmarks.deletedKeys.length > 0 ||
-      body.route.points.length > 0 ||
-      Boolean(body.roads);
-
-    if (hasChanges) {
-      await createMapLayoutSnapshot(supabase, adminWriteClient, user.id, {
-        updatedShopCount: body.shops.updated.length,
-        deletedShopCount: body.shops.deletedLocationIds.length,
-        upsertLandmarkCount: body.landmarks.upsert.length,
-        deletedLandmarkCount: body.landmarks.deletedKeys.length,
-        updatedRoutePointCount: body.route.points.length,
-        routeConfigChanged: Boolean(body.route.config),
-        updatedRoadCount: body.roads?.length,
-        deletedRoadCount: removedRoadIds.length || undefined,
-      });
+    if (hasChanges && currentShops && currentRoads) {
+      await createMapLayoutSnapshot(
+        supabase,
+        adminWriteClient,
+        user.id,
+        {
+          updatedShopCount: body.shops.updated.length,
+          deletedShopCount: body.shops.deletedLocationIds.length,
+          upsertLandmarkCount: body.landmarks.upsert.length,
+          deletedLandmarkCount: body.landmarks.deletedKeys.length,
+          updatedRoutePointCount: body.route.points.length,
+          routeConfigChanged: Boolean(body.route.config),
+          updatedRoadCount: body.roads?.length,
+          deletedRoadCount: removedRoadIds.length || undefined,
+        },
+        { shops: currentShops, roads: currentRoads }
+      );
     }
 
     if (body.shops.updated.length > 0) {

@@ -1525,26 +1525,16 @@ export type Database = {
         }[]
       }
       replace_map_route_points: { Args: { p_points: Json }; Returns: undefined }
-      restore_map_layout_snapshot:
-        | {
-            Args: {
-              p_landmarks: Json
-              p_route_config: Json
-              p_route_points: Json
-              p_shops: Json
-            }
-            Returns: undefined
-          }
-        | {
-            Args: {
-              p_landmarks: Json
-              p_roads?: Json
-              p_route_config: Json
-              p_route_points: Json
-              p_shops: Json
-            }
-            Returns: undefined
-          }
+      restore_map_layout_snapshot: {
+        Args: {
+          p_landmarks: Json
+          p_roads?: Json
+          p_route_config: Json
+          p_route_points: Json
+          p_shops: Json
+        }
+        Returns: undefined
+      }
       track_home_visit: {
         Args: { p_visit_date: string; p_visitor_key: string }
         Returns: boolean

@@ -1,5 +1,7 @@
 import { createClient as createServiceClient, type SupabaseClient } from "@supabase/supabase-js";
 import { createClient as createServerClient } from "@/utils/supabase/server";
+import { fetchLandmarksFromDb } from "@/app/(public)/map/services/landmarksDb";
+import { fetchMapRouteFromDb } from "@/app/(public)/map/services/mapRouteDb";
 import type { MapRoad, MapRoutePoint, RoadKind } from "@/app/(public)/map/types/mapRoute";
 import { projectPointOntoRoute } from "@/app/(public)/map/utils/mapRouteGeometry";
 
@@ -209,4 +211,54 @@ export function findRoadIdsWithShops(
     if (roadId) roadIds.add(roadId);
   }
   return roadIds;
+}
+
+export type SnapshotSummary = {
+  updatedShopCount?: number;
+  deletedShopCount?: number;
+  upsertLandmarkCount?: number;
+  deletedLandmarkCount?: number;
+  updatedRoutePointCount?: number;
+  routeConfigChanged?: boolean;
+  updatedRoadCount?: number;
+  deletedRoadCount?: number;
+  restoreSourceSnapshotId?: string;
+};
+
+/**
+ * 現在のマップ状態をスナップショットとして保存する。
+ * preloaded が渡された場合は shops/roads を再取得せず、呼び出し側がすでに
+ * 読み込んだデータをそのまま使う（PUT ハンドラの道削除バリデーションで読んだ
+ * 状態と二重にDBへ問い合わせるのを避けるため）。
+ */
+export async function createMapLayoutSnapshot(
+  supabase: ReturnType<typeof createServerClient>,
+  adminWriteClient: SupabaseClient,
+  createdBy: string,
+  summary: SnapshotSummary,
+  preloaded?: { shops: EditableShop[]; roads: EditableRoad[] }
+): Promise<void> {
+  const [shops, landmarks, roads, routePoints] = await Promise.all([
+    preloaded ? Promise.resolve(preloaded.shops) : loadEditableShops(supabase),
+    fetchLandmarksFromDb(supabase),
+    preloaded ? Promise.resolve(preloaded.roads) : loadEditableRoads(supabase),
+    // route_json は road_id を保持するため、fetchMapRouteFromDb（本番用・road_id非対応）
+    // ではなく road_id が未設定の点も含めて全件取得する loadAllRoutePoints を使う
+    loadAllRoutePoints(supabase),
+  ]);
+  const mapRoute = await fetchMapRouteFromDb(supabase);
+
+  const { error } = await adminWriteClient.from("map_layout_snapshots").insert({
+    shops_json: shops,
+    landmarks_json: landmarks,
+    route_json: routePoints,
+    route_config_json: mapRoute.config,
+    roads_json: roads.map(({ points: _points, ...road }) => road),
+    created_by: createdBy,
+    summary,
+  });
+
+  if (error) {
+    throw new Error("Failed to create map layout snapshot");
+  }
 }

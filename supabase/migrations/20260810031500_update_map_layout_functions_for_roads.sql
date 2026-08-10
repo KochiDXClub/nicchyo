@@ -34,7 +34,13 @@ END;
 $$;
 
 -- ─── restore_map_layout_snapshot ─────────────────────────────────────────
--- p_roads を追加し、map_roads の復元にも対応する
+-- p_roads を追加し、map_roads の復元にも対応する。
+-- Postgresは引数の数が異なる関数を別オーバーロードとして扱うため、
+-- CREATE OR REPLACE だけでは 20260515000001 で作成した4引数版が残ってしまう
+-- （p_roads省略で呼び出すと道路非対応の古いロジックが実行されてしまう）。
+-- 5引数版に一本化するため、明示的に旧シグネチャを削除する。
+DROP FUNCTION IF EXISTS restore_map_layout_snapshot(jsonb, jsonb, jsonb, jsonb);
+
 CREATE OR REPLACE FUNCTION restore_map_layout_snapshot(
   p_shops        jsonb,
   p_landmarks    jsonb,

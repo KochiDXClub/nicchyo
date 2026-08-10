@@ -2,61 +2,12 @@ import { cookies } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient as createServerClient } from "@/utils/supabase/server";
-import { fetchLandmarksFromDb } from "@/app/(public)/map/services/landmarksDb";
-import { fetchMapRouteFromDb } from "@/app/(public)/map/services/mapRouteDb";
 import { requireSameOrigin } from "@/lib/security/requestGuards";
 import { enforceRateLimit } from "@/lib/security/rateLimit";
 import { getRole, isAdmin } from "@/lib/auth/permissions";
 import type { Landmark as EditableLandmark } from "@/app/(public)/map/types/landmark";
 import type { MapRoad, MapRouteConfig, MapRoutePoint } from "@/app/(public)/map/types/mapRoute";
-import {
-  createAdminWriteClient,
-  loadAllRoutePoints,
-  loadEditableRoads,
-  loadEditableShops,
-  type EditableShop,
-} from "../_shared";
-
-type SnapshotSummary = {
-  updatedShopCount?: number;
-  deletedShopCount?: number;
-  upsertLandmarkCount?: number;
-  deletedLandmarkCount?: number;
-  updatedRoutePointCount?: number;
-  routeConfigChanged?: boolean;
-  restoreSourceSnapshotId?: string;
-};
-
-async function createMapLayoutSnapshot(
-  supabase: ReturnType<typeof createServerClient>,
-  adminWriteClient: SupabaseClient,
-  createdBy: string,
-  summary: SnapshotSummary
-) {
-  const [shops, landmarks, roads, routePoints] = await Promise.all([
-    loadEditableShops(supabase),
-    fetchLandmarksFromDb(supabase),
-    loadEditableRoads(supabase),
-    // route_json は road_id を保持するため、fetchMapRouteFromDb（本番用・road_id非対応）
-    // ではなく road_id が未設定の点も含めて全件取得する loadAllRoutePoints を使う
-    loadAllRoutePoints(supabase),
-  ]);
-  const mapRoute = await fetchMapRouteFromDb(supabase);
-
-  const { error } = await adminWriteClient.from("map_layout_snapshots").insert({
-    shops_json: shops,
-    landmarks_json: landmarks,
-    route_json: routePoints,
-    route_config_json: mapRoute.config,
-    roads_json: roads.map(({ points: _points, ...road }) => road),
-    created_by: createdBy,
-    summary,
-  });
-
-  if (error) {
-    throw new Error("Failed to create map layout snapshot");
-  }
-}
+import { createAdminWriteClient, createMapLayoutSnapshot, type EditableShop } from "../_shared";
 
 async function applySnapshot(
   adminWriteClient: SupabaseClient,
