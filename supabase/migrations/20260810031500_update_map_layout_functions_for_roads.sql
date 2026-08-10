@@ -168,14 +168,16 @@ BEGIN
   END IF;
 
   -- ⑨ スナップショットにない map_roads を削除（route_points の差し替え後なので安全）
+  -- p_roads が空/未指定の場合は roads を一切変更しない。
+  -- このPR以前に作成されたスナップショットは roads_json が NOT NULL DEFAULT '[]'::jsonb で
+  -- バックフィルされているため、「roads_json が空＝roadsを全削除したい」とは解釈できない
+  -- （market_locations・map_landmarks と異なり、空配列を「意図的に全削除」とは扱わない）。
   IF p_roads IS NOT NULL AND jsonb_array_length(p_roads) > 0 THEN
     DELETE FROM map_roads
     WHERE id NOT IN (
       SELECT elem->>'id'
       FROM jsonb_array_elements(p_roads) AS elem
     );
-  ELSE
-    DELETE FROM map_roads;
   END IF;
 
   -- ⑩ map_route_configs を upsert
