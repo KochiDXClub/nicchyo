@@ -27,6 +27,7 @@ import {
 import MapEditCanvas, { type CanvasHandlers } from "./MapEditCanvas";
 import { SlotDetailPanel, RoadDetailPanel, LandmarkDetailPanel } from "./DetailPanels";
 import PendingChangeLog from "./PendingChangeLog";
+import RoadLaneView from "./RoadLaneView";
 
 const ZOOMS = [1.2, 3.5, 12];
 const MAX_ZOOM_IDX = ZOOMS.length - 1;
@@ -991,34 +992,48 @@ function MapEditClientV3Body(props: BodyProps) {
       )}
 
       <div style={{ flex: 1, minHeight: 0, display: "flex", overflow: "hidden" }}>
-        <MapEditCanvas
-          tab={tab}
-          shops={shops}
-          roads={roads}
-          landmarks={landmarks}
-          selectedLocationId={selectedLocationId}
-          selectedRoadId={selectedRoadId}
-          selectedLandmarkKey={selectedLandmarkKey}
-          slotAction={slotAction}
-          roadAction={roadAction}
-          landmarkAction={landmarkAction}
-          draft={draft}
-          search={search}
-          zoom={z}
-          zoomIdx={zoomIdx}
-          focus={focus}
-          setFocus={setFocus}
-          dragging={dragging}
-          setDragging={setDragging}
-          projection={projection}
-          handlers={canvasHandlers}
-          viewportRef={viewportRef}
-          panRef={panRef}
-          vertexDragRef={vertexDragRef}
-          isLoading={isLoading}
-          onZoomIn={() => setZoomIdx((prev) => Math.min(MAX_ZOOM_IDX, prev + 1))}
-          onZoomOut={() => setZoomIdx((prev) => Math.max(0, prev - 1))}
-        />
+        <div style={{ flex: 1, minWidth: 0, minHeight: 0, display: "flex", flexDirection: "column" }}>
+          <MapEditCanvas
+            tab={tab}
+            shops={shops}
+            roads={roads}
+            landmarks={landmarks}
+            selectedLocationId={selectedLocationId}
+            selectedRoadId={selectedRoadId}
+            selectedLandmarkKey={selectedLandmarkKey}
+            slotAction={slotAction}
+            roadAction={roadAction}
+            landmarkAction={landmarkAction}
+            draft={draft}
+            search={search}
+            zoom={z}
+            zoomIdx={zoomIdx}
+            focus={focus}
+            setFocus={setFocus}
+            dragging={dragging}
+            setDragging={setDragging}
+            projection={projection}
+            handlers={canvasHandlers}
+            viewportRef={viewportRef}
+            panRef={panRef}
+            vertexDragRef={vertexDragRef}
+            isLoading={isLoading}
+            onZoomIn={() => setZoomIdx((prev) => Math.min(MAX_ZOOM_IDX, prev + 1))}
+            onZoomOut={() => setZoomIdx((prev) => Math.max(0, prev - 1))}
+          />
+          {tab === "slot" && (
+            <RoadLaneView
+              shops={shops}
+              roads={roads}
+              projection={projection}
+              selectedLocationId={selectedLocationId}
+              slotAction={slotAction}
+              search={search}
+              onSelectShop={selectShop}
+              findNearestRoadId={findNearestRoadId}
+            />
+          )}
+        </div>
 
         <aside
           style={{
