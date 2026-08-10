@@ -98,7 +98,10 @@ export default function RoadLaneView({
   useEffect(() => {
     if (!selectedLocationId) return;
     const el = cellRefs.current.get(selectedLocationId);
-    el?.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
+    // smoothだと連続でキー移動した際にアニメーションが追いつかず、選択中のセルが
+    // 見切れたまま次の移動が来てしまう（止まったタイミングでようやく追いつく）ため、
+    // 即座に追従するinstantに変更する
+    el?.scrollIntoView({ behavior: "instant", inline: "center", block: "nearest" });
   }, [selectedLocationId]);
 
   if (groups.length === 0) return null;
