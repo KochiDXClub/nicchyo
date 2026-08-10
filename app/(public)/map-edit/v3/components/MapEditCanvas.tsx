@@ -1,5 +1,6 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useMemo, useRef } from "react";
 import type { Projection } from "../geo";
 import type {
@@ -54,6 +55,8 @@ type Props = {
   onZoomIn: () => void;
   onZoomOut: () => void;
 };
+
+const LeafletBackground = dynamic(() => import("./LeafletBackground"), { ssr: false });
 
 const ROAD_COLORS: Record<string, { color: string; casing: string }> = {
   market: { color: "#F6E1B4", casing: "#ffffff" },
@@ -178,6 +181,11 @@ export default function MapEditCanvas({
         userSelect: "none",
       }}
     >
+      {/* 実際の地図をうっすら背景表示し、区画・道の位置合わせをしやすくする（操作は不可） */}
+      <div style={{ position: "absolute", inset: 0, pointerEvents: "none" }}>
+        <LeafletBackground center={projection.toLatLng(focus)} pixelsPerMeter={zoom} />
+      </div>
+
       {isLoading && (
         <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", color: "#9A8A6A", fontSize: 13 }}>
           読み込み中...

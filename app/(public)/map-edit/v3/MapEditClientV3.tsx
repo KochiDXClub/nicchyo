@@ -27,7 +27,7 @@ import {
 import MapEditCanvas, { type CanvasHandlers } from "./components/MapEditCanvas";
 import { SlotDetailPanel, RoadDetailPanel, LandmarkDetailPanel } from "./components/DetailPanels";
 import PendingChangeLog from "./components/PendingChangeLog";
-import RoadLaneView from "./components/RoadLaneView";
+import RoadLaneView, { buildLaneRoadGroups, type LaneRoadGroup } from "./components/RoadLaneView";
 
 const ZOOMS = [1.2, 3.5, 12];
 const MAX_ZOOM_IDX = ZOOMS.length - 1;
@@ -487,6 +487,13 @@ function MapEditClientV3Body(props: BodyProps) {
     [roads, routeConfig.snapDistanceMeters]
   );
 
+  // 区画レーン（下部の一覧）の並び順。レーン表示とキーボード/WASDナビゲーションの
+  // 両方がこの同じ並び順を参照する（表示と操作の向きが食い違わないようにするため）
+  const laneGroups: LaneRoadGroup[] = useMemo(
+    () => buildLaneRoadGroups(shops, roads, findNearestRoadId, projection),
+    [shops, roads, findNearestRoadId, projection]
+  );
+
   // ── 区画選択・移動・登録 ──────────────────────────────
   const selectShop = useCallback(
     (locationId: string) => {
@@ -718,7 +725,7 @@ function MapEditClientV3Body(props: BodyProps) {
     [shops, roads, landmarks, setLandmarks, setSelectedLandmarkKey, setLandmarkAction, log, mapSettingsLimits.maxLandmarks]
   );
 
-  // ── キーボード ──────────────────────────────
+  // ── キーボード（矢印キー / WASD で区画レーンと同じ並び順に沿って移動） ──────
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
@@ -726,22 +733,58 @@ function MapEditClientV3Body(props: BodyProps) {
         return;
       }
       if (tab !== "slot" || !selectedShop) return;
-      const n = selectedShop.position;
-      let nextPos: number | null = null;
-      if (e.key === "ArrowRight") nextPos = n + 2;
-      else if (e.key === "ArrowLeft") nextPos = n - 2;
-      else if (e.key === "ArrowUp" || e.key === "ArrowDown") nextPos = n % 2 === 1 ? n + 1 : n - 1;
-      if (nextPos != null) {
-        const target = shops.find((s) => s.position === nextPos);
-        if (target) {
-          e.preventDefault();
-          setSelectedLocationId(target.locationId);
+
+      const lower = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+      const isLeft = e.key === "ArrowLeft" || lower === "a";
+      const isRight = e.key === "ArrowRight" || lower === "d";
+      const isUp = e.key === "ArrowUp" || lower === "w";
+      const isDown = e.key === "ArrowDown" || lower === "s";
+      if (!isLeft && !isRight && !isUp && !isDown) return;
+
+      // レーン表示（road → 丁目 → 北側/南側の対カラム）を左から右へ1列に平らにし、
+      // 表示と全く同じ並び順で移動先を探す（店番の大小に依存すると、実際の並びと
+      // 逆方向に動くことがあるため位置番号の算術には頼らない）
+      const columns: { north?: EditableShop; south?: EditableShop }[] = [];
+      for (const { sections } of laneGroups) {
+        for (const section of sections) {
+          for (let i = 0; i < section.columns; i += 1) {
+            columns.push({ north: section.north[i]?.shop, south: section.south[i]?.shop });
+          }
         }
+      }
+
+      const currentIndex = columns.findIndex(
+        (col) => col.north?.locationId === selectedShop.locationId || col.south?.locationId === selectedShop.locationId
+      );
+      if (currentIndex === -1) return;
+      const currentSide: "north" | "south" = columns[currentIndex].north?.locationId === selectedShop.locationId ? "north" : "south";
+
+      let targetIndex = currentIndex;
+      let targetSide = currentSide;
+      if (isRight) {
+        let i = currentIndex + 1;
+        while (i < columns.length && !columns[i][currentSide]) i += 1;
+        if (i < columns.length) targetIndex = i;
+      } else if (isLeft) {
+        let i = currentIndex - 1;
+        while (i >= 0 && !columns[i][currentSide]) i -= 1;
+        if (i >= 0) targetIndex = i;
+      } else if (isUp) {
+        targetSide = "north";
+      } else if (isDown) {
+        targetSide = "south";
+      }
+
+      const target = columns[targetIndex]?.[targetSide];
+      if (target) {
+        e.preventDefault();
+        setSelectedLocationId(target.locationId);
+        setFocus(projection.toLocal(target.lat, target.lng));
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [tab, selectedShop, shops, cancelMode, setSelectedLocationId]);
+  }, [tab, selectedShop, laneGroups, projection, cancelMode, setSelectedLocationId, setFocus]);
 
   const undo = useCallback(() => {
     setPending((prev) => {
@@ -1039,14 +1082,11 @@ function MapEditClientV3Body(props: BodyProps) {
           />
           {tab === "slot" && (
             <RoadLaneView
-              shops={shops}
-              roads={roads}
-              projection={projection}
+              groups={laneGroups}
               selectedLocationId={selectedLocationId}
               slotAction={slotAction}
               search={search}
               onSelectShop={selectShop}
-              findNearestRoadId={findNearestRoadId}
             />
           )}
         </div>
