@@ -9,7 +9,10 @@ export type EditableShop = {
   lat: number;
   lng: number;
   position: number;
+  chome?: string;
 };
+
+export const CHOME_ORDER = ["一丁目", "二丁目", "三丁目", "四丁目", "五丁目", "六丁目", "七丁目"];
 
 export type VendorOption = {
   id: string;

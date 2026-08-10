@@ -11,11 +11,18 @@ export type EditableShop = {
   lat: number;
   lng: number;
   position: number;
+  chome?: string;
 };
 
 export type EditableRoad = MapRoad & {
   points: MapRoutePoint[];
 };
+
+const CHOME_VALUES = new Set(["一丁目", "二丁目", "三丁目", "四丁目", "五丁目", "六丁目", "七丁目"]);
+
+function normalizeChome(value: string | null): string | undefined {
+  return value && CHOME_VALUES.has(value) ? value : undefined;
+}
 
 export function createAdminWriteClient(): SupabaseClient {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -36,7 +43,7 @@ export function createAdminWriteClient(): SupabaseClient {
 export async function loadEditableShops(supabase: ReturnType<typeof createServerClient>): Promise<EditableShop[]> {
   const [assignmentsResult, locationsResult, vendorsResult] = await Promise.all([
     supabase.from("location_assignments").select("vendor_id, location_id, market_date"),
-    supabase.from("market_locations").select("id, store_number, latitude, longitude"),
+    supabase.from("market_locations").select("id, store_number, latitude, longitude, district"),
     supabase.from("vendors").select("id, shop_name"),
   ]);
 
@@ -101,6 +108,7 @@ export async function loadEditableShops(supabase: ReturnType<typeof createServer
           lat,
           lng,
           position: storeNumber,
+          chome: normalizeChome((row.district as string | null) ?? null),
         },
       ];
     })
