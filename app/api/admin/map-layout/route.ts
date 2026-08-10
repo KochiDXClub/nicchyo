@@ -8,7 +8,8 @@ import { requireSameOrigin } from "@/lib/security/requestGuards";
 import { enforceRateLimit } from "@/lib/security/rateLimit";
 import { getRole, isAdmin } from "@/lib/auth/permissions";
 import type { Landmark as EditableLandmark } from "@/app/(public)/map/types/landmark";
-import type { MapRouteConfig, MapRoutePoint } from "@/app/(public)/map/types/mapRoute";
+import type { MapRoad, MapRouteConfig, MapRoutePoint, RoadKind } from "@/app/(public)/map/types/mapRoute";
+import { projectPointOntoRoute } from "@/app/(public)/map/utils/mapRouteGeometry";
 
 type EditableShop = {
   locationId: string;
@@ -18,6 +19,10 @@ type EditableShop = {
   lat: number;
   lng: number;
   position: number;
+};
+
+type EditableRoad = MapRoad & {
+  points: MapRoutePoint[];
 };
 
 type VendorOption = {
@@ -32,7 +37,35 @@ type SnapshotSummary = {
   deletedLandmarkCount: number;
   updatedRoutePointCount: number;
   routeConfigChanged: boolean;
+  updatedRoadCount?: number;
+  deletedRoadCount?: number;
+  restoreSourceSnapshotId?: string;
 };
+
+/**
+ * 緯度経度から最も近い道の id を求める（区画は road_id を持たず、
+ * 道の形状への投影で都度導出するため）。どの道からも
+ * snapDistanceMeters 以上離れている場合は null を返す。
+ */
+function findNearestRoadId(
+  point: { lat: number; lng: number },
+  roads: EditableRoad[],
+  snapDistanceMeters: number
+): string | null {
+  let bestRoadId: string | null = null;
+  let bestDistance = Infinity;
+
+  for (const road of roads) {
+    if (road.points.length === 0) continue;
+    const projection = projectPointOntoRoute(point, road.points);
+    if (projection && projection.distanceMeters < bestDistance) {
+      bestDistance = projection.distanceMeters;
+      bestRoadId = road.id;
+    }
+  }
+
+  return bestDistance <= snapDistanceMeters ? bestRoadId : null;
+}
 
 function validateShopAssignments(shops: EditableShop[]) {
   const vendorByPosition = new Map<number, string>();
@@ -132,6 +165,44 @@ async function loadEditableShops(supabase: ReturnType<typeof createServerClient>
     .sort((a, b) => a.position - b.position);
 }
 
+async function loadEditableRoads(supabase: ReturnType<typeof createServerClient>): Promise<EditableRoad[]> {
+  const [roadsResult, pointsResult] = await Promise.all([
+    supabase.from("map_roads").select("id, name, kind, width_meters"),
+    supabase
+      .from("map_route_points")
+      .select("id, latitude, longitude, sort_order, branch_from_id, road_id")
+      .order("sort_order", { ascending: true }),
+  ]);
+
+  if (roadsResult.error || pointsResult.error) {
+    throw new Error("Failed to load roads");
+  }
+
+  const pointsByRoadId = new Map<string, MapRoutePoint[]>();
+  for (const row of pointsResult.data ?? []) {
+    const roadId = row.road_id as string | null;
+    if (!roadId || row.id == null || row.latitude == null || row.longitude == null) continue;
+    const list = pointsByRoadId.get(roadId) ?? [];
+    list.push({
+      id: row.id as string,
+      lat: Number(row.latitude),
+      lng: Number(row.longitude),
+      order: Number(row.sort_order ?? 0),
+      branchFromId: (row.branch_from_id as string | null) ?? null,
+      roadId,
+    });
+    pointsByRoadId.set(roadId, list);
+  }
+
+  return (roadsResult.data ?? []).map((row) => ({
+    id: row.id as string,
+    name: (row.name as string | null) ?? "",
+    kind: (row.kind as RoadKind | null) ?? "street",
+    widthMeters: Number(row.width_meters ?? 26),
+    points: pointsByRoadId.get(row.id as string) ?? [],
+  }));
+}
+
 function createAdminWriteClient(): SupabaseClient {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -154,17 +225,22 @@ async function createMapLayoutSnapshot(
   createdBy: string,
   summary: SnapshotSummary
 ) {
-  const [shops, landmarks] = await Promise.all([
+  const [shops, landmarks, roads] = await Promise.all([
     loadEditableShops(supabase),
     fetchLandmarksFromDb(supabase),
+    loadEditableRoads(supabase),
   ]);
   const mapRoute = await fetchMapRouteFromDb(supabase);
+  // route_json は road_id を保持するため、fetchMapRouteFromDb（本番用・road_id非対応）
+  // ではなく loadEditableRoads から組み立てた点群を使う
+  const routePoints = roads.flatMap((road) => road.points);
 
   const { error } = await adminWriteClient.from("map_layout_snapshots").insert({
     shops_json: shops,
     landmarks_json: landmarks,
-    route_json: mapRoute.points,
+    route_json: routePoints,
     route_config_json: mapRoute.config,
+    roads_json: roads.map(({ points: _points, ...road }) => road),
     created_by: createdBy,
     summary,
   });
@@ -186,10 +262,11 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const [editableShops, landmarks, mapRoute, vendorsResult] = await Promise.all([
+    const [editableShops, landmarks, mapRoute, roads, vendorsResult] = await Promise.all([
       loadEditableShops(supabase),
       fetchLandmarksFromDb(supabase),
       fetchMapRouteFromDb(supabase),
+      loadEditableRoads(supabase),
       supabase.from("vendors").select("id, shop_name").order("shop_name", { ascending: true }),
     ]);
 
@@ -202,7 +279,7 @@ export async function GET() {
       name: ((row.shop_name as string | null) || "名称未設定").trim(),
     }));
 
-    return NextResponse.json({ shops: editableShops, landmarks, route: mapRoute, vendors });
+    return NextResponse.json({ shops: editableShops, landmarks, route: mapRoute, roads, vendors });
   } catch {
     return NextResponse.json({ error: "Failed to load map layout" }, { status: 500 });
   }
@@ -244,6 +321,9 @@ export async function PUT(request: NextRequest) {
         points?: MapRoutePoint[];
         config?: MapRouteConfig;
       };
+      // 道の一覧全体（フル置換）。未指定の場合は道を一切変更しない
+      // （新エディタが導入されるまでの後方互換）
+      roads?: MapRoad[];
     };
 
     if (
@@ -255,7 +335,8 @@ export async function PUT(request: NextRequest) {
       !Array.isArray(body.landmarks.upsert) ||
       !Array.isArray(body.landmarks.deletedKeys) ||
       !Array.isArray(body.route.points) ||
-      !body.route.config
+      !body.route.config ||
+      (body.roads !== undefined && !Array.isArray(body.roads))
     ) {
       return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
     }
@@ -265,12 +346,45 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: assignmentValidationError }, { status: 400 });
     }
 
+    // 区画が乗っている道は削除できない（クライアント側の制約とサーバー側でも二重に検証）
+    let removedRoadIds: string[] = [];
+    let existingRoadsForValidation: EditableRoad[] = [];
+    if (body.roads) {
+      existingRoadsForValidation = await loadEditableRoads(supabase);
+      const nextRoadIds = new Set(body.roads.map((road) => road.id));
+      const roadsToRemove = existingRoadsForValidation.filter((road) => !nextRoadIds.has(road.id));
+
+      if (roadsToRemove.length > 0) {
+        const currentShops = await loadEditableShops(supabase);
+        const deletedLocationIdSet = new Set(body.shops.deletedLocationIds);
+        const remainingShops = currentShops.filter((shop) => !deletedLocationIdSet.has(shop.locationId));
+        const snapDistanceMeters = body.route.config.snapDistanceMeters || 18;
+
+        for (const road of roadsToRemove) {
+          const hasShop = remainingShops.some(
+            (shop) =>
+              findNearestRoadId({ lat: shop.lat, lng: shop.lng }, existingRoadsForValidation, snapDistanceMeters) ===
+              road.id
+          );
+          if (hasShop) {
+            return NextResponse.json(
+              { error: `${road.name || "選択した道"} には区画があるため削除できません` },
+              { status: 400 }
+            );
+          }
+        }
+      }
+
+      removedRoadIds = roadsToRemove.map((road) => road.id);
+    }
+
     const hasChanges =
       body.shops.updated.length > 0 ||
       body.shops.deletedLocationIds.length > 0 ||
       body.landmarks.upsert.length > 0 ||
       body.landmarks.deletedKeys.length > 0 ||
-      body.route.points.length > 0;
+      body.route.points.length > 0 ||
+      Boolean(body.roads);
 
     if (hasChanges) {
       await createMapLayoutSnapshot(supabase, adminWriteClient, user.id, {
@@ -280,6 +394,8 @@ export async function PUT(request: NextRequest) {
         deletedLandmarkCount: body.landmarks.deletedKeys.length,
         updatedRoutePointCount: body.route.points.length,
         routeConfigChanged: Boolean(body.route.config),
+        updatedRoadCount: body.roads?.length,
+        deletedRoadCount: removedRoadIds.length || undefined,
       });
     }
 
@@ -425,6 +541,24 @@ export async function PUT(request: NextRequest) {
       }
     }
 
+    // 道（map_roads）は route_points が road_id で参照するため、
+    // ポイントの全置換（replace_map_route_points）より先に upsert しておく
+    if (body.roads && body.roads.length > 0) {
+      const { error: roadsUpsertError } = await adminWriteClient.from("map_roads").upsert(
+        body.roads.map((road) => ({
+          id: road.id,
+          name: road.name,
+          kind: road.kind,
+          width_meters: road.widthMeters,
+        })),
+        { onConflict: "id" }
+      );
+
+      if (roadsUpsertError) {
+        return NextResponse.json({ error: "Failed to save roads" }, { status: 500 });
+      }
+    }
+
     // replace_map_route_points SQL 関数で全件削除→再挿入をアトミックに実行
     // （別々の操作にすると削除後に insert が失敗した場合に route_points が消える）
     const routePointsPayload = body.route.points.map((point, index) => ({
@@ -433,6 +567,7 @@ export async function PUT(request: NextRequest) {
       longitude: point.lng,
       sort_order: index,
       branch_from_id: point.branchFromId ?? null,
+      road_id: point.roadId ?? null,
     }));
 
     const { error: routePointsError } = await adminWriteClient.rpc(
@@ -442,6 +577,18 @@ export async function PUT(request: NextRequest) {
 
     if (routePointsError) {
       return NextResponse.json({ error: "Failed to save route points" }, { status: 500 });
+    }
+
+    // 参照する route_points がなくなった後で、除外された道を削除する
+    if (removedRoadIds.length > 0) {
+      const { error: roadsDeleteError } = await adminWriteClient
+        .from("map_roads")
+        .delete()
+        .in("id", removedRoadIds);
+
+      if (roadsDeleteError) {
+        return NextResponse.json({ error: "Failed to delete roads" }, { status: 500 });
+      }
     }
 
     const { error: routeConfigError } = await adminWriteClient.from("map_route_configs").upsert(

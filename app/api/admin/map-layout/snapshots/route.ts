@@ -8,7 +8,7 @@ import { requireSameOrigin } from "@/lib/security/requestGuards";
 import { enforceRateLimit } from "@/lib/security/rateLimit";
 import { getRole, isAdmin } from "@/lib/auth/permissions";
 import type { Landmark as EditableLandmark } from "@/app/(public)/map/types/landmark";
-import type { MapRouteConfig, MapRoutePoint } from "@/app/(public)/map/types/mapRoute";
+import type { MapRoad, MapRouteConfig, MapRoutePoint, RoadKind } from "@/app/(public)/map/types/mapRoute";
 
 type EditableShop = {
   locationId: string;
@@ -120,23 +120,68 @@ async function loadEditableShops(supabase: ReturnType<typeof createServerClient>
     .sort((a, b) => a.position - b.position);
 }
 
+type EditableRoad = MapRoad & {
+  points: MapRoutePoint[];
+};
+
+async function loadEditableRoads(supabase: ReturnType<typeof createServerClient>): Promise<EditableRoad[]> {
+  const [roadsResult, pointsResult] = await Promise.all([
+    supabase.from("map_roads").select("id, name, kind, width_meters"),
+    supabase
+      .from("map_route_points")
+      .select("id, latitude, longitude, sort_order, branch_from_id, road_id")
+      .order("sort_order", { ascending: true }),
+  ]);
+
+  if (roadsResult.error || pointsResult.error) {
+    throw new Error("Failed to load roads");
+  }
+
+  const pointsByRoadId = new Map<string, MapRoutePoint[]>();
+  for (const row of pointsResult.data ?? []) {
+    const roadId = row.road_id as string | null;
+    if (!roadId || row.id == null || row.latitude == null || row.longitude == null) continue;
+    const list = pointsByRoadId.get(roadId) ?? [];
+    list.push({
+      id: row.id as string,
+      lat: Number(row.latitude),
+      lng: Number(row.longitude),
+      order: Number(row.sort_order ?? 0),
+      branchFromId: (row.branch_from_id as string | null) ?? null,
+      roadId,
+    });
+    pointsByRoadId.set(roadId, list);
+  }
+
+  return (roadsResult.data ?? []).map((row) => ({
+    id: row.id as string,
+    name: (row.name as string | null) ?? "",
+    kind: (row.kind as RoadKind | null) ?? "street",
+    widthMeters: Number(row.width_meters ?? 26),
+    points: pointsByRoadId.get(row.id as string) ?? [],
+  }));
+}
+
 async function createMapLayoutSnapshot(
   supabase: ReturnType<typeof createServerClient>,
   adminWriteClient: SupabaseClient,
   createdBy: string,
   summary: SnapshotSummary
 ) {
-  const [shops, landmarks] = await Promise.all([
+  const [shops, landmarks, roads] = await Promise.all([
     loadEditableShops(supabase),
     fetchLandmarksFromDb(supabase),
+    loadEditableRoads(supabase),
   ]);
   const mapRoute = await fetchMapRouteFromDb(supabase);
+  const routePoints = roads.flatMap((road) => road.points);
 
   const { error } = await adminWriteClient.from("map_layout_snapshots").insert({
     shops_json: shops,
     landmarks_json: landmarks,
-    route_json: mapRoute.points,
+    route_json: routePoints,
     route_config_json: mapRoute.config,
+    roads_json: roads.map(({ points: _points, ...road }) => road),
     created_by: createdBy,
     summary,
   });
@@ -151,7 +196,8 @@ async function applySnapshot(
   snapshotShops: EditableShop[],
   snapshotLandmarks: EditableLandmark[],
   snapshotRoutePoints: MapRoutePoint[],
-  snapshotRouteConfig: MapRouteConfig | null
+  snapshotRouteConfig: MapRouteConfig | null,
+  snapshotRoads: MapRoad[]
 ) {
   // restore_map_layout_snapshot SQL 関数で全テーブルの復元を1トランザクションに閉じる
   const { error } = await adminWriteClient.rpc("restore_map_layout_snapshot", {
@@ -159,6 +205,7 @@ async function applySnapshot(
     p_landmarks: snapshotLandmarks,
     p_route_points: snapshotRoutePoints,
     p_route_config: snapshotRouteConfig ?? null,
+    p_roads: snapshotRoads,
   });
 
   if (error) {
@@ -225,7 +272,7 @@ export async function POST(request: NextRequest) {
 
     const { data, error } = await adminWriteClient
       .from("map_layout_snapshots")
-      .select("id, shops_json, landmarks_json, route_json, route_config_json")
+      .select("id, shops_json, landmarks_json, route_json, route_config_json, roads_json")
       .eq("id", body.snapshotId)
       .single();
 
@@ -244,6 +291,7 @@ export async function POST(request: NextRequest) {
       data.route_config_json && typeof data.route_config_json === "object"
         ? (data.route_config_json as MapRouteConfig)
         : null;
+    const snapshotRoads = Array.isArray(data.roads_json) ? (data.roads_json as MapRoad[]) : [];
 
     await createMapLayoutSnapshot(supabase, adminWriteClient, user.id, {
       restoreSourceSnapshotId: body.snapshotId,
@@ -253,7 +301,8 @@ export async function POST(request: NextRequest) {
       snapshotShops,
       snapshotLandmarks,
       snapshotRoutePoints,
-      snapshotRouteConfig
+      snapshotRouteConfig,
+      snapshotRoads
     );
 
     return NextResponse.json({ ok: true });
