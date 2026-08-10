@@ -47,9 +47,24 @@ export default function LeafletBackground({
       touchZoom={false}
       boxZoom={false}
       keyboard={false}
+      // タイルのフェードイン・ズーム時のアニメーションを止め、SVG側のpan/zoomと
+      // 常に即座に一致させる（アニメーションが残っていると、SVG側の建物・区画は
+      // 即座に動くのに背景タイルだけ遅れて追いつくように見え、位置がズレて見える）
+      fadeAnimation={false}
+      zoomAnimation={false}
+      markerZoomAnimation={false}
+      inertia={false}
       style={{ position: "absolute", inset: 0 }}
     >
-      <TileLayer url={BASEMAP_TILE_URL} attribution={BASEMAP_ATTRIBUTION} opacity={0.35} />
+      <TileLayer
+        url={BASEMAP_TILE_URL}
+        attribution={BASEMAP_ATTRIBUTION}
+        opacity={0.35}
+        // 編集対象のエリアは日曜市の一区画のみとごく狭いため、周囲のタイルを
+        // 多めに先読み・保持しておき、panしても読み込み待ちで背景が遅れないようにする
+        keepBuffer={24}
+        updateWhenZooming={false}
+      />
       <ViewSync center={center} pixelsPerMeter={pixelsPerMeter} />
     </MapContainer>
   );
