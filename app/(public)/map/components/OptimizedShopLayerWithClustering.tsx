@@ -35,7 +35,6 @@ export interface OptimizedShopLayerWithClusteringProps {
   searchShopIds?: number[];
   aiHighlightShopIds?: number[];
   commentHighlightShopIds?: number[];
-  kotoduteShopIds?: number[];
   recipeIngredientIconsByShop?: Record<number, string[]>;
   attendanceLabelsByShop?: Record<number, string>;
   bagShopIds?: number[];
@@ -76,7 +75,6 @@ function OptimizedShopLayerWithClustering({
   searchShopIds,
   aiHighlightShopIds,
   commentHighlightShopIds,
-  kotoduteShopIds,
   recipeIngredientIconsByShop,
   attendanceLabelsByShop,
   bagShopIds,
@@ -97,8 +95,6 @@ function OptimizedShopLayerWithClustering({
   const prevAiHighlightSetRef = useRef<Set<number>>(new Set());
   const commentHighlightSetRef = useRef<Set<number>>(new Set());
   const prevCommentHighlightSetRef = useRef<Set<number>>(new Set());
-  const kotoduteSetRef = useRef<Set<number>>(new Set());
-  const prevKotoduteSetRef = useRef<Set<number>>(new Set());
   const bagShopSetRef = useRef<Set<number>>(new Set());
   const prevBagShopSetRef = useRef<Set<number>>(new Set());
   const recipeIconsRef = useRef<Record<number, string[]>>({});
@@ -153,16 +149,6 @@ function OptimizedShopLayerWithClustering({
       icon.classList.add('shop-marker-comment');
     } else {
       icon.classList.remove('shop-marker-comment');
-    }
-  };
-
-  const setMarkerKotodute = (marker: L.Marker, isHighlighted: boolean) => {
-    const icon = marker.getElement();
-    if (!icon) return;
-    if (isHighlighted) {
-      icon.classList.add('shop-marker-kotodute');
-    } else {
-      icon.classList.remove('shop-marker-kotodute');
     }
   };
 
@@ -268,7 +254,6 @@ function OptimizedShopLayerWithClustering({
         html: `
           <div class="shop-marker-compact-wrapper">
             <div class="shop-recipe-icons" aria-hidden="true"></div>
-            <div class="shop-kotodute-badge" aria-hidden="true">i</div>
             <div class="shop-favorite-badge" aria-hidden="true">&#10084;</div>
             <div class="shop-marker-compact"></div>
           </div>
@@ -339,7 +324,6 @@ function OptimizedShopLayerWithClustering({
         setMarkerHighlight(marker, shop.id, aiHighlightSetRef.current.has(shop.id));
         setMarkerSearchHighlight(marker, searchHighlightSetRef.current.has(shop.id));
         setMarkerCommentHighlight(marker, commentHighlightSetRef.current.has(shop.id));
-        setMarkerKotodute(marker, kotoduteSetRef.current.has(shop.id));
         setMarkerBag(marker, bagShopSetRef.current.has(shop.id));
         setMarkerRecipeIcons(marker, recipeIconsRef.current[shop.id]);
         const currentZoom = map.getZoom();
@@ -425,11 +409,6 @@ function OptimizedShopLayerWithClustering({
             markerElement.classList.add('shop-marker-comment');
           } else {
             markerElement.classList.remove('shop-marker-comment');
-          }
-          if (kotoduteSetRef.current.has(shopId)) {
-            markerElement.classList.add('shop-marker-kotodute');
-          } else {
-            markerElement.classList.remove('shop-marker-kotodute');
           }
           if (bagShopSetRef.current.has(shopId)) {
             markerElement.classList.add('shop-marker-bag');
@@ -551,29 +530,6 @@ function OptimizedShopLayerWithClustering({
 
     prevCommentHighlightSetRef.current = nextHighlights;
   }, [commentHighlightShopIds]);
-
-  useEffect(() => {
-    kotoduteSetRef.current = new Set(kotoduteShopIds ?? []);
-    const nextHighlights = kotoduteSetRef.current;
-    const prevHighlights = prevKotoduteSetRef.current;
-    const changed = new Set<number>();
-
-    prevHighlights.forEach((id) => {
-      if (!nextHighlights.has(id)) changed.add(id);
-    });
-    nextHighlights.forEach((id) => {
-      if (!prevHighlights.has(id)) changed.add(id);
-    });
-
-    changed.forEach((id) => {
-      const marker = markersRef.current.get(id);
-      if (marker) {
-        setMarkerKotodute(marker, nextHighlights.has(id));
-      }
-    });
-
-    prevKotoduteSetRef.current = nextHighlights;
-  }, [kotoduteShopIds]);
 
   useEffect(() => {
     bagShopSetRef.current = new Set(bagShopIds ?? []);
