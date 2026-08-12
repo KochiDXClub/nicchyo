@@ -485,7 +485,7 @@ function RotationControl({
   const displayDeg = Math.round(normalizeRotationDeg(rotation));
 
   return (
-    <div style={{ position: "relative", width, height: 60 }}>
+    <div style={{ position: "relative", width, height: 78 }}>
       {[...ROTATION_STEPS.filter((d) => d < 0), 0, ...ROTATION_STEPS.filter((d) => d > 0)].map((deg) => {
         const rad = (deg * Math.PI) / 180;
         const x = width / 2 + radius * Math.sin(rad);
@@ -526,7 +526,7 @@ function RotationControl({
           </button>
         );
       })}
-      <div style={{ position: "absolute", left: "50%", bottom: -2, transform: "translateX(-50%)", fontSize: 10.5, fontWeight: 700, color: "#9A8A6A" }}>
+      <div style={{ position: "absolute", left: "50%", top: 66, transform: "translateX(-50%)", fontSize: 10.5, fontWeight: 700, color: "#9A8A6A", whiteSpace: "nowrap" }}>
         {displayDeg}°
       </div>
     </div>
