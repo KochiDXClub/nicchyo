@@ -682,25 +682,29 @@ function MapEditClientV3Body(props: BodyProps) {
     log("道", `${name} を削除`, before);
   }, [selectedRoad, shops, roads, landmarks, findNearestRoadId, setRoads, setSelectedRoadId, setRoadAction, log]);
 
-  const finishDraw = useCallback(() => {
-    if (draft.length < 2) return;
-    const id = `r${Date.now()}`;
-    const name = `新しい道 ${roads.length + 1}`;
-    const points: MapRoutePoint[] = draft.map((p, index) => ({
-      id: `${id}-p${index}`,
-      lat: p.lat,
-      lng: p.lng,
-      order: index,
-      roadId: id,
-    }));
-    const newRoad: EditableRoad = { id, name, kind: "street", widthMeters: ROAD_KIND_DEFAULT_WIDTH.street, points };
-    const before: PendingChangeSnapshot = { shops: cloneShops(shops), roads: cloneRoads(roads), landmarks: cloneLandmarks(landmarks) };
-    setRoads((prev) => [...prev, newRoad]);
-    setDraft([]);
-    setRoadAction("idle");
-    setSelectedRoadId(id);
-    log("道", `${name} を追加（頂点${points.length}）`, before);
-  }, [draft, roads, shops, landmarks, setRoads, setDraft, setRoadAction, setSelectedRoadId, log]);
+  const finishDraw = useCallback(
+    (pointsOverride?: { lat: number; lng: number }[]) => {
+      const draftPoints = pointsOverride ?? draft;
+      if (draftPoints.length < 2) return;
+      const id = `r${Date.now()}`;
+      const name = `新しい道 ${roads.length + 1}`;
+      const points: MapRoutePoint[] = draftPoints.map((p, index) => ({
+        id: `${id}-p${index}`,
+        lat: p.lat,
+        lng: p.lng,
+        order: index,
+        roadId: id,
+      }));
+      const newRoad: EditableRoad = { id, name, kind: "street", widthMeters: ROAD_KIND_DEFAULT_WIDTH.street, points };
+      const before: PendingChangeSnapshot = { shops: cloneShops(shops), roads: cloneRoads(roads), landmarks: cloneLandmarks(landmarks) };
+      setRoads((prev) => [...prev, newRoad]);
+      setDraft([]);
+      setRoadAction("idle");
+      setSelectedRoadId(id);
+      log("道", `${name} を追加（頂点${points.length}）`, before);
+    },
+    [draft, roads, shops, landmarks, setRoads, setDraft, setRoadAction, setSelectedRoadId, log]
+  );
 
   const cancelMode = useCallback(() => {
     setSlotAction("idle");
@@ -846,13 +850,24 @@ function MapEditClientV3Body(props: BodyProps) {
         // 既存の道の点の近くをクリックした場合は、座標をその点にぴったり合わせて
         // つなげる（軸ロックより優先し、明示的な接続の意図をそのまま反映する）
         const snapped = findNearestRoutePoint({ lat, lng });
+        const nextLat = snapped ? snapped.lat : lat;
+        const nextLng = snapped ? snapped.lng : lng;
+
+        // すでに新しい点を打ってある状態で既存の点をクリックしたら、
+        // 「新たな点を打って、つなげたい点をクリックでつながる」という操作イメージの通り、
+        // その場でつなげて道を確定する（「この形で確定」を別途押す必要がない）
+        if (snapped && draft.length >= 1) {
+          finishDraw([...draft, { lat: nextLat, lng: nextLng }]);
+          return;
+        }
+
         setDraft((prev) => {
           const first = prev[0];
-          let nextLat = snapped ? snapped.lat : lat;
-          let nextLng = snapped ? snapped.lng : lng;
-          if (!snapped && first && drawAxis === "h") nextLat = first.lat;
-          if (!snapped && first && drawAxis === "v") nextLng = first.lng;
-          return [...prev, { lat: nextLat, lng: nextLng }];
+          let pointLat = nextLat;
+          let pointLng = nextLng;
+          if (!snapped && first && drawAxis === "h") pointLat = first.lat;
+          if (!snapped && first && drawAxis === "v") pointLng = first.lng;
+          return [...prev, { lat: pointLat, lng: pointLng }];
         });
         return;
       }
@@ -1046,9 +1061,7 @@ function MapEditClientV3Body(props: BodyProps) {
               ? "移動先の空き区画をクリックしてください"
               : slotAction === "place"
                 ? "新規出店者を置く空き区画をクリックしてください"
-                : roadAction === "shape"
-                  ? "頂点をドラッグで移動・線分クリックで頂点追加・ダブルクリックで削除"
-                  : `地図をクリックして道を伸ばしてください（${drawAxis === "h" ? "横向き" : drawAxis === "v" ? "縦向き" : "自由"}・既存の点の近くをクリックするとそこに接続します）`}
+                : `地図をクリックして道を伸ばしてください（${drawAxis === "h" ? "横向き" : drawAxis === "v" ? "縦向き" : "自由"}・既存の点をクリックするとそこにつながって道が確定します）`}
           </span>
           {roadAction === "draw" && (
             <div style={{ display: "flex", gap: 5 }}>
@@ -1073,7 +1086,7 @@ function MapEditClientV3Body(props: BodyProps) {
           )}
           {roadAction === "draw" && draft.length >= 2 && (
             <span
-              onClick={finishDraw}
+              onClick={() => finishDraw()}
               style={{ fontSize: 12.5, fontWeight: 700, background: "#fff", color: "#92400E", borderRadius: 9, padding: "5px 12px", cursor: "pointer" }}
             >
               この形で確定
@@ -1197,7 +1210,6 @@ function MapEditClientV3Body(props: BodyProps) {
                   road={selectedRoad}
                   roads={roads}
                   search={search}
-                  roadAction={roadAction}
                   onSelectRoad={selectRoad}
                   onNameChange={(value) => selectedRoad && patchRoad(selectedRoad.id, { name: value })}
                   onKindChange={(kind: RoadKind) =>
@@ -1205,7 +1217,6 @@ function MapEditClientV3Body(props: BodyProps) {
                   }
                   onWiderClick={() => selectedRoad && patchRoad(selectedRoad.id, { widthMeters: Math.min(90, selectedRoad.widthMeters + 4) }, "の道幅を変更")}
                   onNarrowerClick={() => selectedRoad && patchRoad(selectedRoad.id, { widthMeters: Math.max(8, selectedRoad.widthMeters - 4) }, "の道幅を変更")}
-                  onToggleShape={() => setRoadAction((prev) => (prev === "shape" ? "idle" : "shape"))}
                   onDelete={deleteRoad}
                   onAddSlots={(count) => selectedRoad && addSlotsToRoad(selectedRoad, count)}
                   shopCountOnRoad={(roadId) => shops.filter((s) => findNearestRoadId({ lat: s.lat, lng: s.lng }) === roadId).length}
@@ -1229,7 +1240,12 @@ function MapEditClientV3Body(props: BodyProps) {
       {tab === "road" && !isHistoryOpen && (
         <div style={{ flexShrink: 0, padding: "10px 20px", background: "#fff", borderTop: "1px solid #EDE3CD" }}>
           <span
-            onClick={() => setRoadAction((prev) => (prev === "draw" ? "idle" : "draw"))}
+            onClick={() => {
+              setRoadAction((prev) => (prev === "draw" ? "idle" : "draw"));
+              // 描いている道の頂点ハンドルと接続先の点が重なって紛らわしくならないよう、
+              // 道を描き始めるときは選択中の道をいったん外す
+              setSelectedRoadId(null);
+            }}
             style={{
               padding: "8px 13px",
               borderRadius: 10,

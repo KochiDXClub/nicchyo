@@ -259,29 +259,31 @@ export default function MapEditCanvas({
             />
           )}
 
-          {/* 道を描いている間、既存の点を接続先の目安として薄く表示する */}
+          {/* 道を描いている間、既存の点を接続先としてクリックできるように表示する */}
           {tab === "road" &&
             roadAction === "draw" &&
             roads.flatMap((road) =>
-              road.points.map((point) => {
-                const local = projection.toLocal(point.lat, point.lng);
-                return (
-                  <circle
-                    key={`${road.id}-${point.id}`}
-                    cx={local.x}
-                    cy={local.y}
-                    r={7 / zoom}
-                    fill="#ffffffaa"
-                    stroke="#92400E"
-                    strokeWidth={2 / zoom}
-                  />
-                );
-              })
+              road.points.map((point) => (
+                <circle
+                  key={`${road.id}-${point.id}`}
+                  cx={projection.toLocal(point.lat, point.lng).x}
+                  cy={projection.toLocal(point.lat, point.lng).y}
+                  r={9 / zoom}
+                  fill="#ffffffcc"
+                  stroke="#92400E"
+                  strokeWidth={2.5 / zoom}
+                  style={{ pointerEvents: "all", cursor: "pointer" }}
+                  onMouseDown={(e) => {
+                    e.stopPropagation();
+                    handlers.onMapClick(point.lat, point.lng);
+                  }}
+                />
+              ))
             )}
         </svg>
 
-        {/* 道の頂点・中点ハンドル（形の編集モード） */}
-        {tab === "road" && roadAction === "shape" && selectedRoadId && (
+        {/* 道の頂点・中点ハンドル。道を選択すればすぐにドラッグ・削除・追加ができる */}
+        {tab === "road" && selectedRoadId && (
           <RoadShapeHandles
             road={roads.find((r) => r.id === selectedRoadId) ?? null}
             projection={projection}
