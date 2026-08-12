@@ -58,7 +58,8 @@ type Props = {
   onZoomOut: () => void;
 };
 
-const ROTATION_PRESETS = [-30, -10, 0, 10, 30];
+// 左右それぞれ10度・30度分「加算」するボタン（タップした分だけ回転が積み重なる）
+const ROTATION_STEPS = [-30, -10, 10, 30];
 
 /** 画面上のベクトルを、地図の回転角ぶん逆回転させ「回転前のワールド座標系」でのベクトルに直す */
 export function unrotateScreenDelta(dx: number, dy: number, rotationDeg: number) {
@@ -66,6 +67,14 @@ export function unrotateScreenDelta(dx: number, dy: number, rotationDeg: number)
   const cos = Math.cos(theta);
   const sin = Math.sin(theta);
   return { x: dx * cos + dy * sin, y: -dx * sin + dy * cos };
+}
+
+/** 回転角を (-180, 180] の範囲に正規化する（何度も回転を加算しても値が際限なく増えないように） */
+export function normalizeRotationDeg(deg: number): number {
+  let normalized = deg % 360;
+  if (normalized > 180) normalized -= 360;
+  if (normalized <= -180) normalized += 360;
+  return normalized;
 }
 
 const LeafletBackground = dynamic(() => import("./LeafletBackground"), { ssr: false });
@@ -449,48 +458,62 @@ export default function MapEditCanvas({
           background: "#fff",
           borderRadius: 14,
           boxShadow: "0 2px 8px rgba(15,23,42,.18)",
-          padding: "8px 8px 4px",
+          padding: "8px 8px 10px",
         }}
       >
-        <RotationControl rotation={rotation} onChange={setRotation} />
+        <RotationControl rotation={rotation} setRotation={setRotation} />
       </div>
     </div>
   );
 }
 
 /**
- * マップの回転コントロール。コンパスの下半円のように、中央下（0度＝回転なし）を
- * 起点に左右へ10度・30度分カーブして並んだボタンで、タップした角度に地図を回転させる。
+ * マップの回転コントロール。コンパスの下半円のように、中央下（リセットボタン）を
+ * 起点に左右へ10度・30度分カーブして並んだボタンを配置する。左右のボタンは
+ * タップするたびにその分だけ現在の回転角に「加算」していく（例: 右10を2回で右へ20度）。
+ * 中央のボタンは初期角度（0度）に戻すリセット用。
  */
-function RotationControl({ rotation, onChange }: { rotation: number; onChange: (deg: number) => void }) {
+function RotationControl({
+  rotation,
+  setRotation,
+}: {
+  rotation: number;
+  setRotation: React.Dispatch<React.SetStateAction<number>>;
+}) {
   const radius = 44;
   const width = 140;
+  const displayDeg = Math.round(normalizeRotationDeg(rotation));
 
   return (
     <div style={{ position: "relative", width, height: 60 }}>
-      {ROTATION_PRESETS.map((deg) => {
+      {[...ROTATION_STEPS.filter((d) => d < 0), 0, ...ROTATION_STEPS.filter((d) => d > 0)].map((deg) => {
         const rad = (deg * Math.PI) / 180;
         const x = width / 2 + radius * Math.sin(rad);
         const y = radius * Math.cos(rad);
-        const isActive = rotation === deg;
+        const isReset = deg === 0;
+        const isAtInitial = isReset && displayDeg === 0;
         return (
           <button
             key={deg}
             type="button"
-            onClick={() => onChange(deg)}
-            title={deg === 0 ? "回転なし（現在の向き）" : `${deg > 0 ? "右" : "左"}へ${Math.abs(deg)}度回転`}
+            onClick={() =>
+              isReset
+                ? setRotation(0)
+                : setRotation((prev) => normalizeRotationDeg(prev + deg))
+            }
+            title={isReset ? "初期角度に戻す" : `${deg > 0 ? "右" : "左"}へ${Math.abs(deg)}度回転（タップするたびに加算）`}
             style={{
               position: "absolute",
               left: x,
               top: y,
               transform: "translate(-50%,-50%)",
-              width: deg === 0 ? 32 : 28,
-              height: deg === 0 ? 32 : 28,
+              width: isReset ? 32 : 28,
+              height: isReset ? 32 : 28,
               borderRadius: "50%",
-              border: isActive ? "2px solid #92400E" : "1px solid #E4D9BF",
-              background: isActive ? "#92400E" : "#FDFBF5",
-              color: isActive ? "#fff" : "#57503F",
-              fontSize: deg === 0 ? 13 : 10,
+              border: isAtInitial ? "2px solid #92400E" : "1px solid #E4D9BF",
+              background: isAtInitial ? "#92400E" : "#FDFBF5",
+              color: isAtInitial ? "#fff" : "#57503F",
+              fontSize: isReset ? 13 : 10,
               fontWeight: 800,
               cursor: "pointer",
               padding: 0,
@@ -499,10 +522,13 @@ function RotationControl({ rotation, onChange }: { rotation: number; onChange: (
               justifyContent: "center",
             }}
           >
-            {deg === 0 ? "◎" : `${deg > 0 ? "+" : ""}${deg}`}
+            {isReset ? "◎" : `${deg > 0 ? "+" : ""}${deg}`}
           </button>
         );
       })}
+      <div style={{ position: "absolute", left: "50%", bottom: -2, transform: "translateX(-50%)", fontSize: 10.5, fontWeight: 700, color: "#9A8A6A" }}>
+        {displayDeg}°
+      </div>
     </div>
   );
 }
