@@ -1,4 +1,5 @@
 import { AboutIconName } from "./AboutIcon";
+import { currentVersion, type VersionEntry } from "./versions";
 
 export type CharacterItem = {
   img: string;
@@ -13,6 +14,8 @@ export type AchievementItem = {
   label: string;
   value: string;
   sub: string;
+  /** AboutStory 側で実データに差し替える対象を識別するキー（任意） */
+  dynamicKey?: "weeklyVisitors";
 };
 
 export type PainPointItem = {
@@ -23,7 +26,8 @@ export type PainPointItem = {
 export type SlideRichContent =
   | { type: "characters"; items: CharacterItem[] }
   | { type: "achievements"; items: AchievementItem[] }
-  | { type: "painPoints"; items: PainPointItem[] };
+  | { type: "painPoints"; items: PainPointItem[] }
+  | { type: "version"; entry: VersionEntry };
 
 export type AboutSlide = {
   id: string;
@@ -42,7 +46,7 @@ export const aboutSlides: AboutSlide[] = [
   {
     id: "intro",
     title: "nicchyo",
-    description: "日曜市をもっと歩きやすく、もっと知りやすくするための小さなデジタル実験です。",
+    description: "高知・日曜市をもっと歩きやすく、もっと知りやすくするデジタルマップです。",
   },
   {
     id: "painPoints",
@@ -61,24 +65,7 @@ export const aboutSlides: AboutSlide[] = [
     id: "concept",
     title: "迷ってこそが日曜市！",
     description: "だけど、ちょっとだけデジタルの力で「歩きやすく」「探しやすく」しました。",
-  },
-  {
-    id: "characters",
-    title: "4人のキャラクターが案内",
-    description: "親しみやすいAIキャラが、あなたの「困った」に寄り添います。",
-    richContent: {
-      type: "characters",
-      items: [
-        { img: "/images/obaasan_transparent.png", name: "にちよさん", role: "やさしく案内", desc: "おだやかな言葉でゆっくり教えてくれます", bg: "bg-orange-50" },
-        { img: "/images/characters/ojichan.png", name: "よういちさん", role: "落ち着いて解説", desc: "歴史や豆知識もくわしく教えてくれます", bg: "bg-sky-50" },
-        { img: "/images/characters/onisan.png", name: "みらいくん", role: "テキパキ提案", desc: "テンポよく効率的な回り方を教えてくれます", bg: "bg-green-50" },
-        { img: "/images/characters/onesan.png", name: "よさこちゃん", role: "気軽に話しかけやすい", desc: "フレンドリーに楽しく一緒に探してくれます", bg: "bg-pink-50" },
-      ],
-    },
-    action: {
-      label: "AIキャラに相談する",
-      href: "/consult",
-    },
+    iconName: "route",
   },
   {
     id: "map",
@@ -103,19 +90,51 @@ export const aboutSlides: AboutSlide[] = [
   },
   {
     id: "consult",
-    title: "相談する",
-    description: "検索では拾いきれない曖昧な関心を、AIキャラとの対話を通じて整理します。",
-    iconName: "chat",
+    title: "4人のAIキャラに相談する",
+    description: "検索では拾いきれない曖昧な関心を、対話を通じて整理します。",
+    richContent: {
+      type: "characters",
+      items: [
+        { img: "/images/obaasan_transparent.png", name: "にちよさん", role: "やさしく案内", desc: "おだやかな言葉でゆっくり教えてくれます", bg: "bg-orange-50" },
+        { img: "/images/characters/ojichan.png", name: "よういちさん", role: "落ち着いて解説", desc: "歴史や豆知識もくわしく教えてくれます", bg: "bg-sky-50" },
+        { img: "/images/characters/onisan.png", name: "みらいくん", role: "テキパキ提案", desc: "テンポよく効率的な回り方を教えてくれます", bg: "bg-green-50" },
+        { img: "/images/characters/onesan.png", name: "よさこちゃん", role: "気軽に話しかけやすい", desc: "フレンドリーに楽しく一緒に探してくれます", bg: "bg-pink-50" },
+      ],
+    },
     action: {
       label: "にちよさんに聞く",
       href: "/consult",
     },
   },
   {
-    id: "everyone",
-    title: "みんなのために",
-    description: "初めての方も、常連さんも、出店者さんも。それぞれの楽しみ方をサポート。",
-    iconName: "route",
+    id: "story",
+    title: "近況",
+    description: "出店者が投稿する今週の写真やお知らせをチェックできます。",
+    iconName: "recipe",
+    action: {
+      label: "近況を見る",
+      href: "/story",
+    },
+  },
+  {
+    id: "calendar",
+    title: "日曜市カレンダー",
+    description: "開催予定や荒天中止・特別開催のお知らせもすぐに確認できます。",
+    iconName: "event",
+    action: {
+      label: "カレンダーを見る",
+      href: "/calendar",
+    },
+  },
+  {
+    id: "facilities",
+    title: "おでかけサポート",
+    description: "お手洗い・休けいできるベンチ・電車やバスののりばもマップから探せます。",
+    iconName: "compass",
+    action: {
+      label: "おでかけサポートを見る",
+      href: "/facilities",
+    },
   },
   {
     id: "achievements",
@@ -126,20 +145,52 @@ export const aboutSlides: AboutSlide[] = [
       items: [
         { emoji: "🏆", label: "こうちNPOアワード2025", value: "ワカモノ未来賞", sub: "受賞" },
         { emoji: "🤝", label: "高知市商業振興課", value: "公式連携", sub: "実施中" },
-        { emoji: "👥", label: "累計訪問者", value: "多数", sub: "が利用" },
+        { emoji: "👥", label: "今週の訪問者", value: "集計中", sub: "が利用", dynamicKey: "weeklyVisitors" },
       ],
+    },
+    action: {
+      label: "活動の記録を見る",
+      href: "/activities",
     },
   },
   {
     id: "team",
     title: "チームと活動",
-    description: "高知高専の学生と教員によるプロジェクト。現地での聞き取りを大切にしています。",
+    description:
+      "高知高専の学生と顧問の先生によるプロジェクト。現地での聞き取りを大切にしています。",
     iconName: "discover",
+  },
+  {
+    id: "roadmap",
+    title: "これからのnicchyo",
+    description: "完成形を固定せず、運用と改善を繰り返しながら育てていきます。",
+    richContent: {
+      type: "painPoints",
+      items: [
+        { emoji: "🗺️", text: "1年目：デジタルマップの本格運用と検証" },
+        { emoji: "📈", text: "2〜3年目：利用データをもとに定着・高度化" },
+        { emoji: "🌱", text: "将来：得られた知見を他の地域マーケットへ" },
+      ],
+    },
+  },
+  {
+    id: "version",
+    title: `nicchyo ${currentVersion.version}`,
+    description: currentVersion.title,
+    richContent: {
+      type: "version",
+      entry: currentVersion,
+    },
+    action: {
+      label: "過去のバージョンを見る",
+      href: "/about/versions",
+    },
   },
   {
     id: "cta",
     title: "さあ、日曜市へ",
     description: "デジタル片手に、新しい発見を探しに行きませんか？",
+    iconName: "map",
     action: {
       label: "マップを見る",
       href: "/map",

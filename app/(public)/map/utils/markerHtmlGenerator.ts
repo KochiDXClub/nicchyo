@@ -59,10 +59,8 @@ export function generateShopMarkerHtml(
   shop: Shop,
   { bannerImage, illustrationSize, includeNameplate }: ShopMarkerHtmlOptions
 ): string {
-  // 屋台の色はカテゴリで決まる。状態色（選択/AI/検索/買い物袋）と
-  // 休業グレーは CSS 側が上書きするので、ここではカテゴリ色だけを渡す。
-  // 変数をイラスト div ではなくコンテナに置くのが重要で、こうすることで
-  // .shop-marker-closed が継承を遮断して上書きできる（!important 不要）。
+  // 屋台の色はカテゴリで決まる。状態色（選択/AI/検索/買い物袋）は
+  // CSS 側が上書きするので、ここではカテゴリ色だけを渡す。
   const stall = resolveStallColors(shop.category, shop.illustration?.color);
   const colorStyle =
     `--stall-color:${stall.base};` +

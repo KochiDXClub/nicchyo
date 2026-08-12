@@ -4,7 +4,6 @@ import { cookies } from 'next/headers';
 import { createClient } from '@/utils/supabase/server';
 import MapPageClient from './MapPageClient';
 import type { Shop } from './data/shops';
-import { fetchMapData, type AttendanceEstimate } from './fetch-map-data';
 import { fetchVendorShopsFromDb } from './services/shopDb';
 import { fetchLandmarksFromDb } from './services/landmarksDb';
 import type { Landmark } from './types/landmark';
@@ -56,7 +55,6 @@ export default async function MapPage() {
   let shops: Shop[] = [];
   let landmarks: Landmark[] = [];
   let mapRoute: MapRoute = getFallbackMapRoute();
-  let attendanceEstimates: Record<number, AttendanceEstimate> = {};
 
   const hasSupabaseEnv =
     !!process.env.NEXT_PUBLIC_SUPABASE_URL &&
@@ -69,11 +67,10 @@ export default async function MapPage() {
     try {
       const supabase = createClient(cookieStore);
       // 1つの取得が失敗しても他の取得結果を巻き込まないよう、allSettled で独立に扱う
-      const [shopsResult, landmarksResult, mapRouteResult, mapDataResult] = await Promise.allSettled([
+      const [shopsResult, landmarksResult, mapRouteResult] = await Promise.allSettled([
         fetchVendorShopsFromDb(supabase),
         fetchLandmarksFromDb(supabase),
         fetchMapRouteFromDb(supabase),
-        fetchMapData(supabase),
       ]);
 
       if (shopsResult.status === "fulfilled") {
@@ -92,12 +89,6 @@ export default async function MapPage() {
         mapRoute = mapRouteResult.value;
       } else {
         console.warn("[MapPage] 道データの取得に失敗しました:", mapRouteResult.reason);
-      }
-
-      if (mapDataResult.status === "fulfilled") {
-        attendanceEstimates = mapDataResult.value.attendanceEstimates;
-      } else {
-        console.warn("[MapPage] 混雑予測データの取得に失敗しました:", mapDataResult.reason);
       }
     } catch (error) {
       // createClient 自体が同期的に例外を投げるケースも含め、ここで拾ってデフォルト値のまま続行する
@@ -120,7 +111,6 @@ export default async function MapPage() {
         shops={shops}
         landmarks={landmarks}
         mapRoute={mapRoute}
-          attendanceEstimates={attendanceEstimates}
         />
       </Suspense>
     </>

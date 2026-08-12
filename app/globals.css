@@ -1210,47 +1210,6 @@ body.home-poster-zoom-open .hamburger-button {
     linear-gradient(90deg, #8b5e34 0 12%, transparent 12% 44%, #8b5e34 44% 56%, transparent 56% 88%, #8b5e34 88% 100%);
 }
 
-/*
- * 出店しない予定の店。
- *
- * 色の優先順位は「状態色（選択/AI/検索/買い物袋）> 休業グレー > カテゴリ色」。
- * カテゴリ色は .shop-marker-container に style="--stall-color:…" で入るので、
- * ここでイラスト要素**自身**に変数を再定義すると継承を遮断して上書きできる
- * （!important は不要）。状態色は var() を経由せず background を直接
- * !important で塗るので、常にこの上に来る。
- *
- * opacity は下げない。消えかけて見えると不安を誘うため、彩度だけ落として静かに引く。
- */
-.shop-marker-closed .shop-illustration-3d {
-  --stall-color: #b9b4ac;
-  --stall-color-dark: #9a948b;
-  --stall-color-light: #d4cfc7;
-  filter: saturate(0.25);
-}
-
-/* カウンターと脚はカテゴリ色ではなく固定色なので個別に沈める */
-.shop-marker-closed .stall-counter {
-  background: linear-gradient(135deg, #c8c2b8, #ada69b);
-}
-
-.shop-marker-closed .stall-legs {
-  background:
-    linear-gradient(90deg, #9c948a 0 12%, transparent 12% 44%, #9c948a 44% 56%, transparent 56% 88%, #9c948a 88% 100%);
-}
-
-.shop-marker-closed .shop-marker-compact {
-  background: linear-gradient(180deg, #c8c2b8 0%, #9a948b 100%);
-}
-
-.shop-marker-closed .shop-nameplate {
-  background: linear-gradient(180deg, #efece7 0%, #dfdbd4 100%);
-  border-color: rgba(120, 115, 108, 0.4);
-}
-
-.shop-marker-closed .shop-nameplate-text {
-  color: #7c766e;
-}
-
 .grandma-scroll-retracting {
   position: relative;
   overflow: hidden;
