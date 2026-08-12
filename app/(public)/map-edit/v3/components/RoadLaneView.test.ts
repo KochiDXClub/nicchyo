@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { sideOfShop } from "./RoadLaneView";
-import { createProjection } from "./geo";
-import type { EditableRoad, EditableShop } from "./types";
+import { createProjection } from "../geo";
+import type { EditableRoad, EditableShop } from "../types";
 
 function makeShop(overrides: Partial<EditableShop>): EditableShop {
   return {

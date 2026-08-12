@@ -1,16 +1,6 @@
+import type { EditableShop } from "../../map/types/editableShop";
 import type { Landmark as EditableLandmark } from "../../map/types/landmark";
 import type { MapRoad, MapRoutePoint, RoadKind } from "../../map/types/mapRoute";
-
-export type EditableShop = {
-  locationId: string;
-  id: number;
-  vendorId?: string;
-  name: string;
-  lat: number;
-  lng: number;
-  position: number;
-  chome?: string;
-};
 
 export const CHOME_ORDER = ["一丁目", "二丁目", "三丁目", "四丁目", "五丁目", "六丁目", "七丁目"];
 
@@ -74,4 +64,4 @@ export const ROAD_KIND_DEFAULT_WIDTH: Record<RoadKind, number> = {
   path: 14,
 };
 
-export type { EditableLandmark, MapRoad, MapRoutePoint, RoadKind };
+export type { EditableLandmark, EditableShop, MapRoad, MapRoutePoint, RoadKind };

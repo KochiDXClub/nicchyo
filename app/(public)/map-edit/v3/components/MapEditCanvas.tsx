@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useRef } from "react";
-import type { Projection } from "./geo";
+import type { Projection } from "../geo";
 import type {
   EditableLandmark,
   EditableRoad,
@@ -10,8 +10,8 @@ import type {
   RoadAction,
   SlotAction,
   Tab,
-} from "./types";
-import type { MapRoutePoint } from "../../map/types/mapRoute";
+} from "../types";
+import type { MapRoutePoint } from "../../../map/types/mapRoute";
 
 export type CanvasHandlers = {
   onSelectShop: (locationId: string) => void;

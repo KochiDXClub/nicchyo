@@ -2,9 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  findNearestRoadId as findNearestRoadIdShared,
   getDefaultMapRouteConfig,
   getRouteCenter,
-  projectPointOntoRoute,
 } from "../../map/utils/mapRouteGeometry";
 import type { MapRouteConfig, MapRoutePoint, RoadKind } from "../../map/types/mapRoute";
 import { createProjection } from "./geo";
@@ -24,10 +24,10 @@ import {
   type Tab,
   type VendorOption,
 } from "./types";
-import MapEditCanvas, { type CanvasHandlers } from "./MapEditCanvas";
-import { SlotDetailPanel, RoadDetailPanel, LandmarkDetailPanel } from "./DetailPanels";
-import PendingChangeLog from "./PendingChangeLog";
-import RoadLaneView from "./RoadLaneView";
+import MapEditCanvas, { type CanvasHandlers } from "./components/MapEditCanvas";
+import { SlotDetailPanel, RoadDetailPanel, LandmarkDetailPanel } from "./components/DetailPanels";
+import PendingChangeLog from "./components/PendingChangeLog";
+import RoadLaneView from "./components/RoadLaneView";
 
 const ZOOMS = [1.2, 3.5, 12];
 const MAX_ZOOM_IDX = ZOOMS.length - 1;
@@ -42,6 +42,16 @@ function cloneRoads(roads: EditableRoad[]) {
   return roads.map((road) => ({ ...road, points: road.points.map((p) => ({ ...p })) }));
 }
 
+type MapSettingsLimits = {
+  maxLandmarks: number;
+  maxUnassignedShopMarkers: number;
+};
+
+const DEFAULT_MAP_SETTINGS_LIMITS: MapSettingsLimits = {
+  maxLandmarks: 80,
+  maxUnassignedShopMarkers: 40,
+};
+
 async function fetchMapLayout() {
   const response = await fetch("/api/admin/map-layout");
   if (!response.ok) throw new Error("failed");
@@ -51,6 +61,7 @@ async function fetchMapLayout() {
     route?: { points: MapRoutePoint[]; config: MapRouteConfig };
     roads?: EditableRoad[];
     vendors?: VendorOption[];
+    mapSettingsLimits?: MapSettingsLimits;
   }>;
 }
 
@@ -67,6 +78,7 @@ export default function MapEditClientV3() {
   const [roads, setRoads] = useState<EditableRoad[]>([]);
   const [routeConfig, setRouteConfig] = useState<MapRouteConfig>(getDefaultMapRouteConfig());
   const [vendorOptions, setVendorOptions] = useState<VendorOption[]>([]);
+  const [mapSettingsLimits, setMapSettingsLimits] = useState<MapSettingsLimits>(DEFAULT_MAP_SETTINGS_LIMITS);
 
   const [initialShops, setInitialShops] = useState<EditableShop[]>([]);
   const [initialLandmarks, setInitialLandmarks] = useState<EditableLandmark[]>([]);
@@ -121,6 +133,7 @@ export default function MapEditClientV3() {
         setRoads(nextRoads);
         setRouteConfig(nextConfig);
         setVendorOptions(nextVendors);
+        if (data.mapSettingsLimits) setMapSettingsLimits(data.mapSettingsLimits);
         setInitialShops(cloneShops(nextShops));
         setInitialLandmarks(cloneLandmarks(nextLandmarks));
         setInitialRoads(cloneRoads(nextRoads));
@@ -324,6 +337,7 @@ export default function MapEditClientV3() {
       setRoads={setRoads}
       routeConfig={routeConfig}
       vendorOptions={vendorOptions}
+      mapSettingsLimits={mapSettingsLimits}
       selectedLocationId={selectedLocationId}
       setSelectedLocationId={setSelectedLocationId}
       selectedRoadId={selectedRoadId}
@@ -385,6 +399,7 @@ type BodyProps = {
   setRoads: React.Dispatch<React.SetStateAction<EditableRoad[]>>;
   routeConfig: MapRouteConfig;
   vendorOptions: VendorOption[];
+  mapSettingsLimits: MapSettingsLimits;
   selectedLocationId: string | null;
   setSelectedLocationId: (id: string | null) => void;
   selectedRoadId: string | null;
@@ -429,7 +444,7 @@ type BodyProps = {
 function MapEditClientV3Body(props: BodyProps) {
   const {
     tab, setTab, isLoading, isSaving, message,
-    shops, setShops, landmarks, setLandmarks, roads, setRoads, routeConfig, vendorOptions,
+    shops, setShops, landmarks, setLandmarks, roads, setRoads, routeConfig, vendorOptions, mapSettingsLimits,
     selectedLocationId, setSelectedLocationId, selectedRoadId, setSelectedRoadId,
     selectedLandmarkKey, setSelectedLandmarkKey,
     slotAction, setSlotAction, roadAction, setRoadAction, landmarkAction, setLandmarkAction,
@@ -463,20 +478,12 @@ function MapEditClientV3Body(props: BodyProps) {
   }, [shops]);
 
   // ── 区画: 道への投影で最寄りの道を求める ──────────────────────────────
+  // サーバー側（app/api/admin/map-layout/_shared.ts）と同じ判定ロジックを使うため、
+  // 共通実装（mapRouteGeometry.ts）をそのまま呼ぶ（別々に実装すると、保存時に
+  // サーバーが検証する道の割り当てとエディタの表示がズレる恐れがあるため）
   const findNearestRoadId = useCallback(
-    (point: { lat: number; lng: number }): string | null => {
-      let bestId: string | null = null;
-      let bestDistance = Infinity;
-      for (const road of roads) {
-        if (road.points.length === 0) continue;
-        const projected = projectPointOntoRoute(point, road.points);
-        if (projected && projected.distanceMeters < bestDistance) {
-          bestDistance = projected.distanceMeters;
-          bestId = road.id;
-        }
-      }
-      return bestDistance <= routeConfig.snapDistanceMeters ? bestId : null;
-    },
+    (point: { lat: number; lng: number }): string | null =>
+      findNearestRoadIdShared(point, roads, routeConfig.snapDistanceMeters),
     [roads, routeConfig.snapDistanceMeters]
   );
 
@@ -565,6 +572,11 @@ function MapEditClientV3Body(props: BodyProps) {
 
   const addSlotsToRoad = useCallback(
     (road: EditableRoad, count: number) => {
+      const currentUnassignedCount = shops.filter((s) => !s.vendorId).length;
+      if (currentUnassignedCount + count > mapSettingsLimits.maxUnassignedShopMarkers) {
+        log("道", `未割当マーカは最大 ${mapSettingsLimits.maxUnassignedShopMarkers} 件までです`);
+        return;
+      }
       const existingOnRoad = shops.filter((s) => findNearestRoadId({ lat: s.lat, lng: s.lng }) === road.id);
       const nextPosition = shops.reduce((max, s) => Math.max(max, s.position), 0) + 1;
       const pairs = Math.max(1, Math.ceil((existingOnRoad.length + count) / 2));
@@ -589,7 +601,7 @@ function MapEditClientV3Body(props: BodyProps) {
       setShops((prev) => [...prev, ...newShops]);
       log("道", `${road.name} に ${count} 区画を追加`, before);
     },
-    [shops, roads, landmarks, findNearestRoadId, setShops, log]
+    [shops, roads, landmarks, findNearestRoadId, setShops, log, mapSettingsLimits.maxUnassignedShopMarkers]
   );
 
   // ── 道: 選択・編集 ──────────────────────────────
@@ -681,6 +693,10 @@ function MapEditClientV3Body(props: BodyProps) {
 
   const addLandmark = useCallback(
     (lat: number, lng: number) => {
+      if (landmarks.length >= mapSettingsLimits.maxLandmarks) {
+        log("建物", `建物オブジェクトは最大 ${mapSettingsLimits.maxLandmarks} 件までです`);
+        return;
+      }
       const key = `landmark-${Date.now()}`;
       const newLandmark: EditableLandmark = {
         key,
@@ -699,7 +715,7 @@ function MapEditClientV3Body(props: BodyProps) {
       setLandmarkAction("idle");
       log("建物", "新しい建物を追加", before);
     },
-    [shops, roads, landmarks, setLandmarks, setSelectedLandmarkKey, setLandmarkAction, log]
+    [shops, roads, landmarks, setLandmarks, setSelectedLandmarkKey, setLandmarkAction, log, mapSettingsLimits.maxLandmarks]
   );
 
   // ── キーボード ──────────────────────────────

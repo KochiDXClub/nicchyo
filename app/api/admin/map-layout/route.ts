@@ -59,12 +59,13 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const [editableShops, landmarks, mapRoute, roads, vendorsResult] = await Promise.all([
+    const [editableShops, landmarks, mapRoute, roads, vendorsResult, mapSettingsLimits] = await Promise.all([
       loadEditableShops(supabase),
       fetchLandmarksFromDb(supabase),
       fetchMapRouteFromDb(supabase),
       loadEditableRoads(supabase),
       supabase.from("vendors").select("id, shop_name").order("shop_name", { ascending: true }),
+      loadMapSettingsLimits(supabase),
     ]);
 
     if (vendorsResult.error) {
@@ -76,7 +77,7 @@ export async function GET() {
       name: ((row.shop_name as string | null) || "名称未設定").trim(),
     }));
 
-    return NextResponse.json({ shops: editableShops, landmarks, route: mapRoute, roads, vendors });
+    return NextResponse.json({ shops: editableShops, landmarks, route: mapRoute, roads, vendors, mapSettingsLimits });
   } catch {
     return NextResponse.json({ error: "Failed to load map layout" }, { status: 500 });
   }

@@ -1,6 +1,6 @@
 "use client";
 
-import type { PendingChange } from "./types";
+import type { PendingChange } from "../types";
 
 export default function PendingChangeLog({
   pending,

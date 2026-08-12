@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useRef } from "react";
-import { projectPointOntoRoute } from "../../map/utils/mapRouteGeometry";
-import type { Projection } from "./geo";
-import { CHOME_ORDER, type EditableRoad, type EditableShop, type SlotAction } from "./types";
+import { projectPointOntoRoute } from "../../../map/utils/mapRouteGeometry";
+import type { Projection } from "../geo";
+import { CHOME_ORDER, type EditableRoad, type EditableShop, type SlotAction } from "../types";
 
 type Side = "north" | "south";
 

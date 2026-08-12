@@ -7,8 +7,8 @@ import type {
   RoadAction,
   RoadKind,
   VendorOption,
-} from "./types";
-import { ROAD_KIND_LABELS } from "./types";
+} from "../types";
+import { ROAD_KIND_LABELS } from "../types";
 
 const panelWrap: React.CSSProperties = { padding: 16, borderBottom: "1px solid #F3EBD8" };
 const label: React.CSSProperties = { display: "block", fontSize: 11.5, fontWeight: 700, color: "#9A8A6A", marginBottom: 5 };
