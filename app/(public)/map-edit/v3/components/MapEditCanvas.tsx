@@ -258,6 +258,26 @@ export default function MapEditCanvas({
               strokeLinecap="round"
             />
           )}
+
+          {/* 道を描いている間、既存の点を接続先の目安として薄く表示する */}
+          {tab === "road" &&
+            roadAction === "draw" &&
+            roads.flatMap((road) =>
+              road.points.map((point) => {
+                const local = projection.toLocal(point.lat, point.lng);
+                return (
+                  <circle
+                    key={`${road.id}-${point.id}`}
+                    cx={local.x}
+                    cy={local.y}
+                    r={7 / zoom}
+                    fill="#ffffffaa"
+                    stroke="#92400E"
+                    strokeWidth={2 / zoom}
+                  />
+                );
+              })
+            )}
         </svg>
 
         {/* 道の頂点・中点ハンドル（形の編集モード） */}

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  distanceMeters,
   findNearestRoadId as findNearestRoadIdShared,
   getDefaultMapRouteConfig,
   getRouteCenter,
@@ -31,6 +32,9 @@ import RoadLaneView, { buildLaneRoadGroups, type LaneRoadGroup } from "./compone
 
 const ZOOMS = [1.2, 3.5, 12];
 const MAX_ZOOM_IDX = ZOOMS.length - 1;
+// 道を描いている途中、既存の点からこの距離（メートル）以内をクリックしたら
+// その点にスナップして接続する
+const POINT_SNAP_DISTANCE_METERS = 6;
 
 function cloneShops(shops: EditableShop[]) {
   return shops.map((shop) => ({ ...shop }));
@@ -487,6 +491,26 @@ function MapEditClientV3Body(props: BodyProps) {
     [roads, routeConfig.snapDistanceMeters]
   );
 
+  // 道を新規作成中、既存の道の点の近くをクリックしたらその点にぴったり
+  // つなげられるようにする（道同士が交差・合流する見た目を作れるようにするため）
+  const findNearestRoutePoint = useCallback(
+    (point: { lat: number; lng: number }): MapRoutePoint | null => {
+      let nearest: MapRoutePoint | null = null;
+      let bestDistance = Infinity;
+      for (const road of roads) {
+        for (const p of road.points) {
+          const d = distanceMeters(point, p);
+          if (d < bestDistance) {
+            bestDistance = d;
+            nearest = p;
+          }
+        }
+      }
+      return bestDistance <= POINT_SNAP_DISTANCE_METERS ? nearest : null;
+    },
+    [roads]
+  );
+
   // 区画レーン（下部の一覧）の並び順。レーン表示とキーボード/WASDナビゲーションの
   // 両方がこの同じ並び順を参照する（表示と操作の向きが食い違わないようにするため）
   const laneGroups: LaneRoadGroup[] = useMemo(
@@ -819,12 +843,15 @@ function MapEditClientV3Body(props: BodyProps) {
     // （道編集モードなら道の頂点を追加、建物配置モードなら建物を新規配置）
     onMapClick: (lat, lng) => {
       if (tab === "road" && roadAction === "draw") {
+        // 既存の道の点の近くをクリックした場合は、座標をその点にぴったり合わせて
+        // つなげる（軸ロックより優先し、明示的な接続の意図をそのまま反映する）
+        const snapped = findNearestRoutePoint({ lat, lng });
         setDraft((prev) => {
           const first = prev[0];
-          let nextLat = lat;
-          let nextLng = lng;
-          if (first && drawAxis === "h") nextLat = first.lat;
-          if (first && drawAxis === "v") nextLng = first.lng;
+          let nextLat = snapped ? snapped.lat : lat;
+          let nextLng = snapped ? snapped.lng : lng;
+          if (!snapped && first && drawAxis === "h") nextLat = first.lat;
+          if (!snapped && first && drawAxis === "v") nextLng = first.lng;
           return [...prev, { lat: nextLat, lng: nextLng }];
         });
         return;
@@ -1021,7 +1048,7 @@ function MapEditClientV3Body(props: BodyProps) {
                 ? "新規出店者を置く空き区画をクリックしてください"
                 : roadAction === "shape"
                   ? "頂点をドラッグで移動・線分クリックで頂点追加・ダブルクリックで削除"
-                  : `地図をクリックして道を伸ばしてください（${drawAxis === "h" ? "横向き" : drawAxis === "v" ? "縦向き" : "自由"}）`}
+                  : `地図をクリックして道を伸ばしてください（${drawAxis === "h" ? "横向き" : drawAxis === "v" ? "縦向き" : "自由"}・既存の点の近くをクリックするとそこに接続します）`}
           </span>
           {roadAction === "draw" && (
             <div style={{ display: "flex", gap: 5 }}>
