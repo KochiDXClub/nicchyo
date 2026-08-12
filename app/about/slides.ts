@@ -1,4 +1,5 @@
 import { AboutIconName } from "./AboutIcon";
+import { currentVersion, type VersionEntry } from "./versions";
 
 export type CharacterItem = {
   img: string;
@@ -13,6 +14,8 @@ export type AchievementItem = {
   label: string;
   value: string;
   sub: string;
+  /** AboutStory 側で実データに差し替える対象を識別するキー（任意） */
+  dynamicKey?: "weeklyVisitors";
 };
 
 export type PainPointItem = {
@@ -23,7 +26,8 @@ export type PainPointItem = {
 export type SlideRichContent =
   | { type: "characters"; items: CharacterItem[] }
   | { type: "achievements"; items: AchievementItem[] }
-  | { type: "painPoints"; items: PainPointItem[] };
+  | { type: "painPoints"; items: PainPointItem[] }
+  | { type: "version"; entry: VersionEntry };
 
 export type AboutSlide = {
   id: string;
@@ -112,9 +116,40 @@ export const aboutSlides: AboutSlide[] = [
     },
   },
   {
+    id: "story",
+    title: "近況",
+    description: "出店者が投稿する今週の写真やお知らせをチェックできます。",
+    iconName: "recipe",
+    action: {
+      label: "近況を見る",
+      href: "/story",
+    },
+  },
+  {
+    id: "calendar",
+    title: "日曜市カレンダー",
+    description: "開催予定や荒天中止・特別開催のお知らせもすぐに確認できます。",
+    iconName: "event",
+    action: {
+      label: "カレンダーを見る",
+      href: "/calendar",
+    },
+  },
+  {
+    id: "facilities",
+    title: "おでかけサポート",
+    description: "お手洗い・休けいできるベンチ・電車やバスののりばもマップから探せます。",
+    iconName: "compass",
+    action: {
+      label: "おでかけサポートを見る",
+      href: "/facilities",
+    },
+  },
+  {
     id: "everyone",
     title: "みんなのために",
-    description: "初めての方も、常連さんも、出店者さんも。それぞれの楽しみ方をサポート。",
+    description:
+      "買い物リストやレシピ提案も。初めての方も、常連さんも、出店者さんも、それぞれの楽しみ方をサポート。",
     iconName: "route",
   },
   {
@@ -126,15 +161,46 @@ export const aboutSlides: AboutSlide[] = [
       items: [
         { emoji: "🏆", label: "こうちNPOアワード2025", value: "ワカモノ未来賞", sub: "受賞" },
         { emoji: "🤝", label: "高知市商業振興課", value: "公式連携", sub: "実施中" },
-        { emoji: "👥", label: "累計訪問者", value: "多数", sub: "が利用" },
+        { emoji: "👥", label: "今週の訪問者", value: "集計中", sub: "が利用", dynamicKey: "weeklyVisitors" },
       ],
+    },
+    action: {
+      label: "活動の記録を見る",
+      href: "/activities",
     },
   },
   {
     id: "team",
     title: "チームと活動",
-    description: "高知高専の学生と教員によるプロジェクト。現地での聞き取りを大切にしています。",
+    description:
+      "高知高専の学生と顧問の先生によるプロジェクト。現地での聞き取りを大切にしています。",
     iconName: "discover",
+  },
+  {
+    id: "roadmap",
+    title: "これからのnicchyo",
+    description: "完成形を固定せず、運用と改善を繰り返しながら育てていきます。",
+    richContent: {
+      type: "painPoints",
+      items: [
+        { emoji: "🗺️", text: "1年目：デジタルマップの本格運用と検証" },
+        { emoji: "📈", text: "2〜3年目：利用データをもとに定着・高度化" },
+        { emoji: "🌱", text: "将来：得られた知見を他の地域マーケットへ" },
+      ],
+    },
+  },
+  {
+    id: "version",
+    title: `nicchyo ${currentVersion.version}`,
+    description: currentVersion.title,
+    richContent: {
+      type: "version",
+      entry: currentVersion,
+    },
+    action: {
+      label: "過去のバージョンを見る",
+      href: "/about/versions",
+    },
   },
   {
     id: "cta",

@@ -8,7 +8,13 @@ import { ArrowLeft, ArrowRight, X } from "lucide-react";
 import { AboutIcon } from "./AboutIcon";
 import { aboutSlides, type SlideRichContent } from "./slides";
 
-function RichContent({ content }: { content: SlideRichContent }) {
+function RichContent({
+  content,
+  weeklyVisitors,
+}: {
+  content: SlideRichContent;
+  weeklyVisitors?: number | null;
+}) {
   if (content.type === "painPoints") {
     return (
       <div className="mb-8 flex w-full max-w-sm flex-col gap-3 text-left">
@@ -41,14 +47,40 @@ function RichContent({ content }: { content: SlideRichContent }) {
   if (content.type === "achievements") {
     return (
       <div className="mb-8 flex w-full max-w-sm flex-col gap-3">
-        {content.items.map((a, i) => (
-          <div key={i} className="flex items-center gap-4 rounded-2xl border border-amber-100 bg-white p-4 shadow-sm">
-            <span className="text-3xl">{a.emoji}</span>
-            <div>
-              <p className="text-[11px] font-semibold text-gray-400">{a.label}</p>
-              <p className="text-lg font-extrabold text-gray-900 leading-tight">{a.value}</p>
-              <p className="text-[11px] text-gray-400">{a.sub}</p>
+        {content.items.map((a, i) => {
+          const value =
+            a.dynamicKey === "weeklyVisitors" && typeof weeklyVisitors === "number"
+              ? `${weeklyVisitors.toLocaleString()}人`
+              : a.value;
+          return (
+            <div key={i} className="flex items-center gap-4 rounded-2xl border border-amber-100 bg-white p-4 shadow-sm">
+              <span className="text-3xl">{a.emoji}</span>
+              <div>
+                <p className="text-[11px] font-semibold text-gray-400">{a.label}</p>
+                <p className="text-lg font-extrabold text-gray-900 leading-tight">{value}</p>
+                <p className="text-[11px] text-gray-400">{a.sub}</p>
+              </div>
             </div>
+          );
+        })}
+      </div>
+    );
+  }
+
+  if (content.type === "version") {
+    const { entry } = content;
+    return (
+      <div className="mb-8 flex w-full max-w-sm flex-col gap-3 text-left">
+        <div className="flex items-baseline gap-2 px-1">
+          <span className="rounded-full bg-amber-500 px-2.5 py-0.5 text-xs font-bold text-white">
+            {entry.version}
+          </span>
+          <time className="text-xs font-medium text-gray-400">{entry.date}</time>
+        </div>
+        {entry.highlights.map((highlight, i) => (
+          <div key={i} className="flex items-start gap-2 rounded-2xl border border-amber-100 bg-white p-3 shadow-sm">
+            <span className="mt-0.5 text-base">✨</span>
+            <p className="text-sm font-semibold leading-snug text-gray-700">{highlight}</p>
           </div>
         ))}
       </div>
@@ -58,7 +90,7 @@ function RichContent({ content }: { content: SlideRichContent }) {
   return null;
 }
 
-export default function AboutStory() {
+export default function AboutStory({ weeklyVisitors }: { weeklyVisitors?: number | null }) {
   const [currentIndex, setCurrentIndex] = useState(0);
 
   const nextSlide = () => {
@@ -130,7 +162,7 @@ export default function AboutStory() {
 
             {/* Rich Content */}
             {currentSlide.richContent && (
-              <RichContent content={currentSlide.richContent} />
+              <RichContent content={currentSlide.richContent} weeklyVisitors={weeklyVisitors} />
             )}
 
             {/* Slide Action Button */}
