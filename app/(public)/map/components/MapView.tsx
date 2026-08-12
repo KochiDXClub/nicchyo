@@ -576,16 +576,6 @@ type MapViewProps = {
   commentShopId?: number;
   kotoduteShopIds?: number[];
   shopBannerVariant?: "default" | "kotodute";
-  attendanceEstimates?: Record<
-    number,
-    {
-      label: string;
-      p: number | null;
-      n_eff: number;
-      vendor_override: boolean;
-      evidence_summary: string;
-    }
-  >;
   onZoomChange?: (zoom: number) => void;
   suppressInitialLocationFocus?: boolean;
   onShopSelect?: (shop: Shop) => void;
@@ -764,7 +754,6 @@ const MapView = memo(function MapView({
   commentShopId,
   kotoduteShopIds,
   shopBannerVariant,
-  attendanceEstimates,
   onZoomChange,
   suppressInitialLocationFocus = false,
   onShopSelect,
@@ -1071,18 +1060,6 @@ const MapView = memo(function MapView({
     });
     return byShop;
   }, [recipeIngredients, selectedRecipe, showRecipeOverlay, shopsWithIngredients]);
-
-  const attendanceLabelsByShop = useMemo(() => {
-    const labels: Record<number, string> = {};
-    if (attendanceEstimates) {
-      Object.entries(attendanceEstimates).forEach(([id, estimate]) => {
-        if (estimate?.label) {
-          labels[Number(id)] = estimate.label;
-        }
-      });
-    }
-    return labels;
-  }, [attendanceEstimates]);
 
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   // 【ポイント7】店舗クリック時のコールバック（段階的ズームアップ対応）
@@ -1524,7 +1501,6 @@ const MapView = memo(function MapView({
             commentHighlightShopIds={commentShopId ? [commentShopId] : []}
             kotoduteShopIds={kotoduteShopIds}
             recipeIngredientIconsByShop={recipeIngredientIconsByShop}
-            attendanceLabelsByShop={attendanceLabelsByShop}
             bagShopIds={bagShopIds}
             shouldRenderRecipeOverlay={shouldRenderRecipeOverlay}
             shopsWithIngredients={shopsWithIngredients}

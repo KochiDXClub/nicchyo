@@ -19,7 +19,6 @@ import {
   getShopMarkerScale,
   type ShopMarkerLod,
 } from '../config/displayConfig';
-import { isClosedAttendanceLabel } from '../config/attendanceLabels';
 import { getRoadSide } from '../config/roadConfig';
 import { getShopBannerImage } from '../../../../lib/shopImages';
 import { generateShopMarkerHtml } from '../utils/markerHtmlGenerator';
@@ -37,7 +36,6 @@ export interface OptimizedShopLayerWithClusteringProps {
   commentHighlightShopIds?: number[];
   kotoduteShopIds?: number[];
   recipeIngredientIconsByShop?: Record<number, string[]>;
-  attendanceLabelsByShop?: Record<number, string>;
   bagShopIds?: number[];
 }
 
@@ -78,7 +76,6 @@ function OptimizedShopLayerWithClustering({
   commentHighlightShopIds,
   kotoduteShopIds,
   recipeIngredientIconsByShop,
-  attendanceLabelsByShop,
   bagShopIds,
 }: OptimizedShopLayerWithClusteringProps) {
   const map = useMap();
@@ -102,7 +99,6 @@ function OptimizedShopLayerWithClustering({
   const bagShopSetRef = useRef<Set<number>>(new Set());
   const prevBagShopSetRef = useRef<Set<number>>(new Set());
   const recipeIconsRef = useRef<Record<number, string[]>>({});
-  const attendanceLabelsRef = useRef<Record<number, string>>(attendanceLabelsByShop ?? {});
   const lastLodRef = useRef<ShopMarkerLod | null>(null);
   const lastMarkerZoomScaleRef = useRef<number | null>(null);
   const selectedShopIdRef = useRef<number | undefined>(undefined);
@@ -215,26 +211,9 @@ function OptimizedShopLayerWithClustering({
     icon.style.setProperty("--shop-marker-zoom-scale", String(scale));
   };
 
-  /**
-   * 出店しない予定の店だけ屋台をグレーにする。
-   * マップ上に出店状況のテキストは出さない方針なので、色でだけ静かに引く。
-   */
-  const setMarkerAttendanceState = (marker: L.Marker, label?: string) => {
-    const icon = marker.getElement();
-    if (!icon) return;
-    icon.classList.toggle('shop-marker-closed', isClosedAttendanceLabel(label));
-  };
-
   useEffect(() => {
     selectedShopIdRef.current = selectedShopId;
   }, [selectedShopId]);
-
-  useEffect(() => {
-    attendanceLabelsRef.current = attendanceLabelsByShop ?? {};
-    markersRef.current.forEach((marker, shopId) => {
-      setMarkerAttendanceState(marker, attendanceLabelsRef.current[shopId]);
-    });
-  }, [attendanceLabelsByShop]);
 
   useEffect(() => {
     const markers = L.markerClusterGroup({
@@ -346,7 +325,6 @@ function OptimizedShopLayerWithClustering({
         const maxZoom = map.getMaxZoom() ?? currentZoom;
         setMarkerLod(marker, getShopMarkerLod(currentZoom, maxZoom));
         setMarkerZoomScale(marker, getShopMarkerScale(currentZoom, maxZoom));
-        setMarkerAttendanceState(marker, attendanceLabelsRef.current[shop.id]);
       });
 
       markers.addLayer(marker);
@@ -398,7 +376,6 @@ function OptimizedShopLayerWithClustering({
         setMarkerRecipeIcons(marker, recipeIconsRef.current[shopId]);
         setMarkerLod(marker, nextLod);
         setMarkerZoomScale(marker, markerZoomScale);
-        setMarkerAttendanceState(marker, attendanceLabelsRef.current[shopId]);
         const markerElement = marker.getElement();
         if (markerElement) {
           if (shopId === selectedShopIdRef.current) {

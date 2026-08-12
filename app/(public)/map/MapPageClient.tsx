@@ -64,16 +64,6 @@ type MapPageClientProps = {
   landmarks: Landmark[];
   mapRoute: MapRoute;
   shopBannerVariant?: "default" | "kotodute";
-  attendanceEstimates?: Record<
-    number,
-    {
-      label: string;
-      p: number | null;
-      n_eff: number;
-      vendor_override: boolean;
-      evidence_summary: string;
-    }
-  >;
 };
 
 
@@ -159,7 +149,6 @@ export default function MapPageClient({
   landmarks,
   mapRoute,
   shopBannerVariant = "default",
-  attendanceEstimates,
 }: MapPageClientProps) {
   const showGrandma = false;
   const searchParams = useSearchParams();
@@ -1017,7 +1006,6 @@ export default function MapPageClient({
               }}
               kotoduteShopIds={kotoduteShopIds}
               shopBannerVariant={shopBannerVariant}
-              attendanceEstimates={attendanceEstimates}
               // おでかけサポート表示中は施設に合わせた画角を優先し、
               // 現在地取得時の自動ズームで上書きされないようにする
               suppressInitialLocationFocus={isAiFocusMode || Boolean(facilityGuide.category)}
