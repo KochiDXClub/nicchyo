@@ -537,6 +537,17 @@ function MapEditClientV3Body(props: BodyProps) {
     [shops, roads, landmarks, slotAction, selectedLocationId, setShops, setSlotAction, setSelectedLocationId, log]
   );
 
+  // 下部の区画レーンで店舗名をタップした時は、選択に加えて地図側もその区画の
+  // 位置へ移動する（キーボード/WASDでの移動時と同じ挙動に揃える）
+  const selectShopFromLane = useCallback(
+    (locationId: string) => {
+      selectShop(locationId);
+      const shop = shops.find((s) => s.locationId === locationId);
+      if (shop) setFocus(projection.toLocal(shop.lat, shop.lng));
+    },
+    [selectShop, shops, projection, setFocus]
+  );
+
   const setVendorName = useCallback(
     (value: string) => {
       if (!selectedShop) return;
@@ -1086,7 +1097,7 @@ function MapEditClientV3Body(props: BodyProps) {
               selectedLocationId={selectedLocationId}
               slotAction={slotAction}
               search={search}
-              onSelectShop={selectShop}
+              onSelectShop={selectShopFromLane}
             />
           )}
         </div>
