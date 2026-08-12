@@ -36,7 +36,6 @@
 - Next.js の App Router/Layouts を利用するため、クライアントコンポーネントが必要なファイルは冒頭に "use client" を置く。
 - UI は Tailwind CSS。カスタムパレットは tailwind.config.js にある。
 - public/ に画像を置き、コード中は静的パス参照を優先する（大きなバイナリは避ける）。
-- Recipes の季節ロジックは app/(public)/recipes/RecipesClient.tsx に埋め込まれている（seasonalSelect 等）。変更箇所はそこを探す。
 - PR 前: npm run build を実行して型/ルート問題を捕まえる（.next/ をコミットしない）。
 - テストは現状ほぼ未実装だが、vite/ vitest が用意されている。テスト追加時は vitest 慣例に従う（*.test.ts[x]）。
 - Prisma 関連コマンドは package.json に定義済み（generate / migrate）。
