@@ -1535,6 +1535,10 @@ export type Database = {
         }
         Returns: undefined
       }
+      save_roads_and_points: {
+        Args: { p_points: Json; p_removed_road_ids?: Json; p_roads: Json }
+        Returns: undefined
+      }
       track_home_visit: {
         Args: { p_visit_date: string; p_visitor_key: string }
         Returns: boolean

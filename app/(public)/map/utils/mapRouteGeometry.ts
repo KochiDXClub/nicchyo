@@ -555,6 +555,33 @@ export function projectPointOntoRoute(
   return projectPointOntoSegments(point, routePoints, segments);
 }
 
+/**
+ * 緯度経度から最も近い道の id を求める（区画は road_id を持たず、道の形状への
+ * 投影で都度導出するため）。どの道からも snapDistanceMeters 以上離れている
+ * 場合は null を返す。マップ編集のサーバー側・クライアント側の両方で同じ
+ * 判定ロジックを使うための共通実装（別々に実装すると、保存時にサーバーが
+ * 検証する道の割り当てと、エディタが画面に表示する割り当てがズレる恐れがある）。
+ */
+export function findNearestRoadId(
+  point: { lat: number; lng: number },
+  roads: { id: string; points: MapRoutePoint[] }[],
+  snapDistanceMeters: number
+): string | null {
+  let bestRoadId: string | null = null;
+  let bestDistance = Infinity;
+
+  for (const road of roads) {
+    if (road.points.length === 0) continue;
+    const projection = projectPointOntoRoute(point, road.points);
+    if (projection && projection.distanceMeters < bestDistance) {
+      bestDistance = projection.distanceMeters;
+      bestRoadId = road.id;
+    }
+  }
+
+  return bestDistance <= snapDistanceMeters ? bestRoadId : null;
+}
+
 export function projectPointOntoSegments(
   point: { lat: number; lng: number },
   routePoints: Array<{ lat: number; lng: number }>,

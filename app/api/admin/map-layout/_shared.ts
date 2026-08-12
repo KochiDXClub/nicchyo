@@ -1,20 +1,13 @@
-import { createClient as createServiceClient, type SupabaseClient } from "@supabase/supabase-js";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient as createServerClient } from "@/utils/supabase/server";
+import { createAdminClient } from "@/lib/supabase/adminClient";
 import { fetchLandmarksFromDb } from "@/app/(public)/map/services/landmarksDb";
 import { fetchMapRouteFromDb } from "@/app/(public)/map/services/mapRouteDb";
+import type { EditableShop } from "@/app/(public)/map/types/editableShop";
 import type { MapRoad, MapRoutePoint, RoadKind } from "@/app/(public)/map/types/mapRoute";
-import { projectPointOntoRoute } from "@/app/(public)/map/utils/mapRouteGeometry";
+import { findNearestRoadId } from "@/app/(public)/map/utils/mapRouteGeometry";
 
-export type EditableShop = {
-  locationId: string;
-  id: number;
-  vendorId?: string;
-  name: string;
-  lat: number;
-  lng: number;
-  position: number;
-  chome?: string;
-};
+export type { EditableShop };
 
 export type EditableRoad = MapRoad & {
   points: MapRoutePoint[];
@@ -26,20 +19,13 @@ function normalizeChome(value: string | null): string | undefined {
   return value && CHOME_VALUES.has(value) ? value : undefined;
 }
 
+/** サービスロールキーで RLS を回避する管理用クライアント（lib/supabase/adminClient.ts を再利用） */
 export function createAdminWriteClient(): SupabaseClient {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-  if (!supabaseUrl || !serviceRoleKey) {
+  const client = createAdminClient();
+  if (!client) {
     throw new Error("Supabase service role env vars are missing.");
   }
-
-  return createServiceClient(supabaseUrl, serviceRoleKey, {
-    auth: {
-      persistSession: false,
-      autoRefreshToken: false,
-    },
-  });
+  return client;
 }
 
 export async function loadEditableShops(supabase: ReturnType<typeof createServerClient>): Promise<EditableShop[]> {
@@ -154,12 +140,19 @@ export async function loadEditableRoads(supabase: ReturnType<typeof createServer
     throw new Error("Failed to load roads");
   }
 
+  // road_id が未設定の点（古いスナップショットの復元直後など）を黙って読み捨てると、
+  // 次回保存時に replace_map_route_points が全置換されて完全に失われてしまう。
+  // データを守るため、先頭の道に仮で割り当てて表示・保存対象に含める
+  // （次回保存時にその道のroad_idとして永続化され、以降は正しく自己修復される）。
+  const fallbackRoadId = (roadsResult.data ?? [])[0]?.id as string | undefined;
+
   const pointsByRoadId = new Map<string, MapRoutePoint[]>();
   for (const point of allPoints) {
-    if (!point.roadId) continue;
-    const list = pointsByRoadId.get(point.roadId) ?? [];
-    list.push(point);
-    pointsByRoadId.set(point.roadId, list);
+    const roadId = point.roadId ?? fallbackRoadId;
+    if (!roadId) continue;
+    const list = pointsByRoadId.get(roadId) ?? [];
+    list.push(roadId === point.roadId ? point : { ...point, roadId });
+    pointsByRoadId.set(roadId, list);
   }
 
   return (roadsResult.data ?? []).map((row) => ({
@@ -171,29 +164,44 @@ export async function loadEditableRoads(supabase: ReturnType<typeof createServer
   }));
 }
 
-/**
- * 緯度経度から最も近い道の id を求める（区画は road_id を持たず、
- * 道の形状への投影で都度導出するため）。どの道からも
- * snapDistanceMeters 以上離れている場合は null を返す。
- */
-export function findNearestRoadId(
-  point: { lat: number; lng: number },
-  roads: EditableRoad[],
-  snapDistanceMeters: number
-): string | null {
-  let bestRoadId: string | null = null;
-  let bestDistance = Infinity;
+export type MapSettingsLimits = {
+  maxLandmarks: number;
+  maxUnassignedShopMarkers: number;
+};
 
-  for (const road of roads) {
-    if (road.points.length === 0) continue;
-    const projection = projectPointOntoRoute(point, road.points);
-    if (projection && projection.distanceMeters < bestDistance) {
-      bestDistance = projection.distanceMeters;
-      bestRoadId = road.id;
-    }
+const DEFAULT_MAP_SETTINGS_LIMITS: MapSettingsLimits = {
+  maxLandmarks: 80,
+  maxUnassignedShopMarkers: 40,
+};
+
+/**
+ * /admin/settings で管理者が設定する建物・未割当区画マーカーの上限を読み込む
+ * （旧エディタが強制していた上限で、新エディタでも同様にサーバー側で検証する）。
+ */
+export async function loadMapSettingsLimits(
+  supabase: ReturnType<typeof createServerClient>
+): Promise<MapSettingsLimits> {
+  const { data, error } = await supabase
+    .from("system_settings")
+    .select("value")
+    .eq("key", "map")
+    .maybeSingle();
+
+  if (error || !data?.value || typeof data.value !== "object") {
+    return DEFAULT_MAP_SETTINGS_LIMITS;
   }
 
-  return bestDistance <= snapDistanceMeters ? bestRoadId : null;
+  const record = data.value as Partial<MapSettingsLimits>;
+  const readInt = (input: unknown, fallback: number) =>
+    typeof input === "number" && Number.isFinite(input) ? Math.round(input) : fallback;
+
+  return {
+    maxLandmarks: readInt(record.maxLandmarks, DEFAULT_MAP_SETTINGS_LIMITS.maxLandmarks),
+    maxUnassignedShopMarkers: readInt(
+      record.maxUnassignedShopMarkers,
+      DEFAULT_MAP_SETTINGS_LIMITS.maxUnassignedShopMarkers
+    ),
+  };
 }
 
 /**

@@ -14,7 +14,7 @@ import {
   findRoadIdsWithShops,
   loadEditableRoads,
   loadEditableShops,
-  type EditableRoad,
+  loadMapSettingsLimits,
   type EditableShop,
 } from "./_shared";
 
@@ -143,29 +143,21 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: assignmentValidationError }, { status: 400 });
     }
 
-    const hasChanges =
-      body.shops.updated.length > 0 ||
-      body.shops.deletedLocationIds.length > 0 ||
-      body.landmarks.upsert.length > 0 ||
-      body.landmarks.deletedKeys.length > 0 ||
-      body.route.points.length > 0 ||
-      Boolean(body.roads);
-
-    // 道削除バリデーションとスナップショット作成はどちらも「保存前の状態」を必要とするため
-    // 1回だけ読み込んで使い回す（別々に読むとDB往復が倍になる）
-    let currentShops: EditableShop[] | null = null;
-    let currentRoads: EditableRoad[] | null = null;
-    if (body.roads || hasChanges) {
-      [currentShops, currentRoads] = await Promise.all([loadEditableShops(supabase), loadEditableRoads(supabase)]);
-    }
+    // 道削除バリデーション・hasChanges判定・スナップショット作成のすべてが
+    // 「保存前の状態」を必要とするため、1回だけ読み込んで使い回す
+    const [currentShops, currentRoads, mapSettingsLimits] = await Promise.all([
+      loadEditableShops(supabase),
+      loadEditableRoads(supabase),
+      loadMapSettingsLimits(supabase),
+    ]);
 
     // 区画が乗っている道は削除できない（クライアント側の制約とサーバー側でも二重に検証）
     let removedRoadIds: string[] = [];
-    if (body.roads && currentRoads) {
+    if (body.roads) {
       const nextRoadIds = new Set(body.roads.map((road) => road.id));
       const roadsToRemove = currentRoads.filter((road) => !nextRoadIds.has(road.id));
 
-      if (roadsToRemove.length > 0 && currentShops) {
+      if (roadsToRemove.length > 0) {
         const deletedLocationIdSet = new Set(body.shops.deletedLocationIds);
         const updatedByLocationId = new Map(
           body.shops.updated
@@ -197,7 +189,67 @@ export async function PUT(request: NextRequest) {
       removedRoadIds = roadsToRemove.map((road) => road.id);
     }
 
-    if (hasChanges && currentShops && currentRoads) {
+    // 建物・未割当区画マーカーの上限（/admin/settings で設定）をサーバー側でも検証する
+    // （旧エディタはクライアント側のみのチェックだったため、新エディタでは併せて強制する）
+    const currentLandmarks = await fetchLandmarksFromDb(supabase);
+    const currentLandmarkKeys = new Set(currentLandmarks.map((l) => l.key));
+    const deletedLandmarkKeySet = new Set(body.landmarks.deletedKeys);
+    const remainingLandmarkCount = currentLandmarks.filter((l) => !deletedLandmarkKeySet.has(l.key)).length;
+    // upsert のうちDBにまだ存在しないkeyだけを「新規追加」として数える
+    // （既存の建物の名称編集などを新規追加と誤って二重カウントしないため）
+    const newlyAddedLandmarkCount = body.landmarks.upsert.filter((l) => !currentLandmarkKeys.has(l.key)).length;
+    const nextLandmarkCount = remainingLandmarkCount + newlyAddedLandmarkCount;
+    if (nextLandmarkCount > mapSettingsLimits.maxLandmarks) {
+      return NextResponse.json(
+        { error: `建物オブジェクトは最大 ${mapSettingsLimits.maxLandmarks} 件までです。` },
+        { status: 400 }
+      );
+    }
+
+    const deletedLocationIdSetForCap = new Set(body.shops.deletedLocationIds);
+    const updatedByLocationIdForCap = new Map(body.shops.updated.map((s) => [s.locationId, s]));
+    const shopsAfterSaveForCap = currentShops
+      .filter((s) => !deletedLocationIdSetForCap.has(s.locationId))
+      .map((s) => updatedByLocationIdForCap.get(s.locationId) ?? s)
+      .concat(body.shops.updated.filter((s) => s.locationId.startsWith("new-")));
+    const nextUnassignedCount = shopsAfterSaveForCap.filter((s) => !s.vendorId).length;
+    if (nextUnassignedCount > mapSettingsLimits.maxUnassignedShopMarkers) {
+      return NextResponse.json(
+        { error: `未割当マーカは最大 ${mapSettingsLimits.maxUnassignedShopMarkers} 件までです。` },
+        { status: 400 }
+      );
+    }
+
+    // hasChanges はクライアントが送ってきた配列の有無ではなく、実際にDBの現在値と
+    // 異なるかどうかで判定する（route.points/roadsは常に全件送られてくるため、
+    // 単に「配列が空でない」を条件にすると保存の度に必ずtrueになってしまう）
+    const normalizeRoadForCompare = (r: { id: string; name: string; kind: string; widthMeters: number }) =>
+      `${r.id}|${r.name}|${r.kind}|${r.widthMeters}`;
+    const roadsChanged = body.roads
+      ? JSON.stringify(currentRoads.map(({ points: _points, ...r }) => normalizeRoadForCompare(r)).sort()) !==
+        JSON.stringify(body.roads.map(normalizeRoadForCompare).sort())
+      : false;
+
+    const normalizePointForCompare = (p: {
+      id: string;
+      lat: number;
+      lng: number;
+      roadId?: string | null;
+      branchFromId?: string | null;
+    }) => `${p.id}|${p.lat}|${p.lng}|${p.roadId ?? ""}|${p.branchFromId ?? ""}`;
+    const routePointsChanged =
+      JSON.stringify(currentRoads.flatMap((r) => r.points).map(normalizePointForCompare).sort()) !==
+      JSON.stringify(body.route.points.map(normalizePointForCompare).sort());
+
+    const hasChanges =
+      body.shops.updated.length > 0 ||
+      body.shops.deletedLocationIds.length > 0 ||
+      body.landmarks.upsert.length > 0 ||
+      body.landmarks.deletedKeys.length > 0 ||
+      routePointsChanged ||
+      roadsChanged;
+
+    if (hasChanges) {
       await createMapLayoutSnapshot(
         supabase,
         adminWriteClient,
@@ -358,26 +410,10 @@ export async function PUT(request: NextRequest) {
       }
     }
 
-    // 道（map_roads）は route_points が road_id で参照するため、
-    // ポイントの全置換（replace_map_route_points）より先に upsert しておく
-    if (body.roads && body.roads.length > 0) {
-      const { error: roadsUpsertError } = await adminWriteClient.from("map_roads").upsert(
-        body.roads.map((road) => ({
-          id: road.id,
-          name: road.name,
-          kind: road.kind,
-          width_meters: road.widthMeters,
-        })),
-        { onConflict: "id" }
-      );
-
-      if (roadsUpsertError) {
-        return NextResponse.json({ error: "Failed to save roads" }, { status: 500 });
-      }
-    }
-
-    // replace_map_route_points SQL 関数で全件削除→再挿入をアトミックに実行
-    // （別々の操作にすると削除後に insert が失敗した場合に route_points が消える）
+    // 道（map_roads）のupsert・route_pointsの全置換・除外された道の削除を
+    // save_roads_and_points RPCで1トランザクションにまとめて実行する
+    // （別々のクエリだと、途中で失敗した場合にmap_roadsとmap_route_pointsが
+    // 不整合な状態のままDBに残ってしまうため）
     const routePointsPayload = body.route.points.map((point, index) => ({
       id: point.id,
       latitude: point.lat,
@@ -387,25 +423,19 @@ export async function PUT(request: NextRequest) {
       road_id: point.roadId ?? null,
     }));
 
-    const { error: routePointsError } = await adminWriteClient.rpc(
-      "replace_map_route_points",
-      { p_points: routePointsPayload }
-    );
+    const { error: saveRoadsError } = await adminWriteClient.rpc("save_roads_and_points", {
+      p_roads: (body.roads ?? []).map((road) => ({
+        id: road.id,
+        name: road.name,
+        kind: road.kind,
+        widthMeters: road.widthMeters,
+      })),
+      p_points: routePointsPayload,
+      p_removed_road_ids: removedRoadIds,
+    });
 
-    if (routePointsError) {
-      return NextResponse.json({ error: "Failed to save route points" }, { status: 500 });
-    }
-
-    // 参照する route_points がなくなった後で、除外された道を削除する
-    if (removedRoadIds.length > 0) {
-      const { error: roadsDeleteError } = await adminWriteClient
-        .from("map_roads")
-        .delete()
-        .in("id", removedRoadIds);
-
-      if (roadsDeleteError) {
-        return NextResponse.json({ error: "Failed to delete roads" }, { status: 500 });
-      }
+    if (saveRoadsError) {
+      return NextResponse.json({ error: "Failed to save roads" }, { status: 500 });
     }
 
     const { error: routeConfigError } = await adminWriteClient.from("map_route_configs").upsert(
