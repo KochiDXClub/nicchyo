@@ -16,7 +16,6 @@ import {
   Globe,
   X as XIcon,
   Sparkles,
-  MessageSquarePlus,
 } from "lucide-react";
 import { Shop } from "../data/shops";
 import { useAuth } from "../../../../lib/auth/AuthContext";
@@ -24,7 +23,6 @@ import { getShopBannerImage } from "../../../../lib/shopImages";
 import { useBag } from "../../../../lib/storage/BagContext";
 import { incrementBannerOpens } from "../../../../lib/storage/marketStats";
 import { ingredientCatalog, recipes } from "../../../../lib/recipes";
-import { loadKotodute, KOTODUTE_UPDATED_EVENT, type KotoduteNote } from "../../../../lib/kotoduteStorage";
 import {
   ShopBannerHero,
   ShopBusinessInfoCard,
@@ -32,7 +30,6 @@ import {
 } from "./ShopBannerHero";
 import { PostCarousel } from "./PostCarousel";
 import { AiConsultPanel } from "./AiConsultPanel";
-import { KotodutePanel, KOTODUTE_TAG_REGEX } from "./KotodutePanel";
 
 // ─── Theme presets ────────────────────────────────────────────────────────────
 const THEME_PRESETS = {
@@ -46,7 +43,7 @@ const THEME_PRESETS = {
 
 type ThemeKey = keyof typeof THEME_PRESETS;
 type MainSurface = "summary" | "detail";
-type BannerSurface = MainSurface | "kotodute" | "ai";
+type BannerSurface = MainSurface | "ai";
 
 function isMainSurface(surface: BannerSurface): surface is MainSurface {
   return surface === "summary" || surface === "detail";
@@ -58,7 +55,6 @@ type ShopDetailBannerProps = {
   bagCount?: number;
   onClose?: () => void;
   onAddToBag?: (name: string, fromShopId?: number) => void;
-  variant?: "default" | "kotodute";
   originRect?: { x: number; y: number; width: number; height: number };
   layout?: "overlay" | "inline";
   openNonce?: number;
@@ -80,7 +76,6 @@ type BagItem = {
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const STORAGE_KEY = "nicchyo-fridge-items";
-const KOTODUTE_PREVIEW_LIMIT = 3;
 const OSEKKAI_FALLBACK =
   "あら、ここのお店、最近行ってないねぇ。今日は何が出ちゅうか、ちょっと見てきてくれん？";
 const BOTTOM_NAV_HEIGHT = 56;
@@ -161,7 +156,6 @@ function areShopDetailBannerPropsEqual(
     prev.bagCount === next.bagCount &&
     prev.onClose === next.onClose &&
     prev.onAddToBag === next.onAddToBag &&
-    prev.variant === next.variant &&
     prev.layout === next.layout &&
     prev.openNonce === next.openNonce &&
     prev.initialMobileSurface === next.initialMobileSurface &&
@@ -179,7 +173,6 @@ const ShopDetailBanner = memo(function ShopDetailBanner({
   shop,
   onClose,
   onAddToBag,
-  variant = "default",
   originRect,
   layout = "overlay",
   openNonce = 0,
@@ -196,7 +189,6 @@ const ShopDetailBanner = memo(function ShopDetailBanner({
   const { permissions } = useAuth();
   const { addItem, removeItem, items: bagContextItems } = useBag();
   const [bagProductKeys, setBagProductKeys] = useState<Set<string>>(new Set());
-  const [kotoduteNotes, setKotoduteNotes] = useState<KotoduteNote[]>([]);
   const [currentPostIndex, setCurrentPostIndex] = useState(0);
   const [heroImageError, setHeroImageError] = useState(false);
   const [toast, setToast] = useState<{ product: string } | null>(null);
@@ -277,28 +269,6 @@ const ShopDetailBanner = memo(function ShopDetailBanner({
     incrementBannerOpens();
   }, [shop.id, openNonce]);
 
-  // kotodute sync
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const updateKotodute = () => {
-      const notes = loadKotodute().filter(
-        (note) => typeof note.shopId === "number" && note.shopId === shop.id
-      );
-      setKotoduteNotes(notes.slice().sort((a, b) => b.createdAt - a.createdAt));
-    };
-    updateKotodute();
-    const handleStorage = (event: StorageEvent) => {
-      if (event.key === "nicchyo-kotodute-notes") updateKotodute();
-    };
-    const handleUpdate = () => updateKotodute();
-    window.addEventListener("storage", handleStorage);
-    window.addEventListener(KOTODUTE_UPDATED_EVENT, handleUpdate);
-    return () => {
-      window.removeEventListener("storage", handleStorage);
-      window.removeEventListener(KOTODUTE_UPDATED_EVENT, handleUpdate);
-    };
-  }, [shop.id, openNonce]);
-
   const handleProductTap = useCallback((product: string) => {
     // 即追加 (Undo パターン)
     if (onAddToBag) {
@@ -331,8 +301,6 @@ const ShopDetailBanner = memo(function ShopDetailBanner({
   }, [bagContextItems, removeItem, shop.id]);
 
   const handleBagClick = useCallback(() => { router.push("/bag"); }, [router]);
-
-  const isKotodute = variant === "kotodute";
 
   const matchedIngredientIds = useMemo(() => {
     if (shop.category !== "食材") return [];
@@ -590,18 +558,6 @@ const ShopDetailBanner = memo(function ShopDetailBanner({
     armInteractionLock(420);
   }, [armInteractionLock, isMobileOverlay, syncDrawerSurface]);
 
-  const handleOpenKotodutePanel = useCallback(() => {
-    if (!contentInteractive) return;
-    mainScrollTopRef.current = scrollContainerRef.current?.scrollTop ?? 0;
-    if (isMainSurface(surface)) {
-      lastMainSurfaceRef.current = surface;
-    }
-    setSurface("kotodute");
-    if (isMobileOverlay) {
-      syncDrawerSurface("detail");
-    }
-  }, [contentInteractive, isMobileOverlay, surface, syncDrawerSurface]);
-
   const handleOpenAiPanel = useCallback(() => {
     if (!contentInteractive) return;
     mainScrollTopRef.current = scrollContainerRef.current?.scrollTop ?? 0;
@@ -769,7 +725,6 @@ const ShopDetailBanner = memo(function ShopDetailBanner({
                 heroImageError={heroImageError}
                 onImageError={() => setHeroImageError(true)}
                 mode="compact"
-                isKotodute={isKotodute}
                 showProductPreview
               />
             </div>
@@ -801,20 +756,15 @@ const ShopDetailBanner = memo(function ShopDetailBanner({
           )}
 
           <div className="relative flex-1 overflow-hidden">
-            {/* ── Slide rail (2 panels: main + kotodute) ─────────────────────── */}
             <div
-              className={`flex h-full transition-transform duration-300 ease-in-out ${
+              className={`flex h-full ${
                 contentInteractive ? "pointer-events-auto" : "pointer-events-none"
               }`}
-              style={{
-                width: "200%",
-                transform: surface === "kotodute" ? "translateX(-50%)" : "translateX(0)",
-              }}
             >
               {/* ── Main panel ─────────────────────────────────────────────── */}
               <div
                 ref={scrollContainerRef}
-                className={`h-full w-1/2 overflow-y-auto ${isInline ? "px-0 pb-16 pt-0" : isMobileOverlay ? "pb-10" : "pb-10 md:pb-16"}`}
+                className={`h-full w-full overflow-y-auto ${isInline ? "px-0 pb-16 pt-0" : isMobileOverlay ? "pb-10" : "pb-10 md:pb-16"}`}
               >
         {/* ══════════════════════════════════════════════════════════════════
             HERO — Full-bleed cover with gradient overlay
@@ -827,7 +777,6 @@ const ShopDetailBanner = memo(function ShopDetailBanner({
             heroImageError={heroImageError}
             onImageError={() => setHeroImageError(true)}
             mode="expanded"
-            isKotodute={isKotodute}
             onEdit={canEditShop ? handleEditShop : undefined}
           />
         )}
@@ -841,7 +790,6 @@ const ShopDetailBanner = memo(function ShopDetailBanner({
               heroImageError={heroImageError}
               onImageError={() => setHeroImageError(true)}
               mode="expanded"
-              isKotodute={isKotodute}
             />
           </div>
         )}
@@ -849,7 +797,7 @@ const ShopDetailBanner = memo(function ShopDetailBanner({
         {/* ── Accent color bar ─────────────────────────────────────────────── */}
         <div className="h-1 w-full" style={{ backgroundColor: theme.accent }} />
 
-        {!isKotodute && isMobileOverlay && (
+        {isMobileOverlay && (
           <div className="space-y-4 px-5 pt-6">
             {canNavigateBetweenShops && totalShopCount > 1 && (
               <div className="rounded-2xl border border-slate-200 bg-white/95 p-2 shadow-sm">
@@ -991,25 +939,6 @@ const ShopDetailBanner = memo(function ShopDetailBanner({
                       <p className="mt-0.5 text-[11px] text-slate-500">他のお店と迷った時も相談できます</p>
                     </div>
                   </button>
-                  <button
-                    type="button"
-                    onClick={handleOpenKotodutePanel}
-                    className="flex items-center gap-3 rounded-2xl border bg-white px-4 py-3.5 text-left transition hover:opacity-90 active:scale-[0.98]"
-                    style={{ borderColor: theme.border }}
-                  >
-                    <div
-                      className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full"
-                      style={{ backgroundColor: theme.bg }}
-                    >
-                      <MessageSquarePlus className="h-[18px] w-[18px]" style={{ color: theme.accent }} />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-sm font-bold" style={{ color: theme.text }}>ことづて</p>
-                      <p className="mt-0.5 text-[11px] text-slate-500">
-                        {kotoduteNotes.length > 0 ? `${kotoduteNotes.length}件のコメント` : "他の人の感想を見る"}
-                      </p>
-                    </div>
-                  </button>
                 </div>
               </div>
             </div>
@@ -1019,7 +948,7 @@ const ShopDetailBanner = memo(function ShopDetailBanner({
         {/* ══════════════════════════════════════════════════════════════════
             PRODUCTS — 商品と値段（ヒーロー直下に移動）
         ══════════════════════════════════════════════════════════════════ */}
-        {!isKotodute && !isMobileOverlay && shop.products.length > 0 && (
+        {!isMobileOverlay && shop.products.length > 0 && (
           <div className="px-5 pt-4 pb-2">
             <div className="mb-3 flex items-center justify-between">
               <p className="text-xs font-bold uppercase tracking-widest" style={{ color: theme.text }}>
@@ -1091,7 +1020,7 @@ const ShopDetailBanner = memo(function ShopDetailBanner({
         {/* ══════════════════════════════════════════════════════════════════
             IDENTITY — Owner, location, quick info
         ══════════════════════════════════════════════════════════════════ */}
-        {!isKotodute && !isMobileOverlay && (
+        {!isMobileOverlay && (
           <div className="px-5 pt-4 pb-2">
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-slate-500">
               <span className="flex items-center gap-1">
@@ -1148,7 +1077,7 @@ const ShopDetailBanner = memo(function ShopDetailBanner({
           {/* ════════════════════════════════════════════════════════════════
               TODAY'S ANNOUNCEMENT — Rich card
           ════════════════════════════════════════════════════════════════ */}
-          {!isKotodute && activePosts.length > 0 && !isMobileOverlay && (
+          {activePosts.length > 0 && !isMobileOverlay && (
             <PostCarousel
               activePosts={activePosts}
               theme={theme}
@@ -1162,8 +1091,7 @@ const ShopDetailBanner = memo(function ShopDetailBanner({
           {/* ════════════════════════════════════════════════════════════════
               SHOP STORY — こだわり with grandma character
           ════════════════════════════════════════════════════════════════ */}
-          {!isKotodute && (
-            <div>
+          <div>
               <p className="mb-2 text-xs font-bold uppercase tracking-widest" style={{ color: theme.text }}>
                 お店のこだわり
               </p>
@@ -1186,13 +1114,11 @@ const ShopDetailBanner = memo(function ShopDetailBanner({
                 </div>
               </div>
             </div>
-          )}
 
           {/* ════════════════════════════════════════════════════════════════
               STALL INFO — Style, payment, rain policy
           ════════════════════════════════════════════════════════════════ */}
-          {!isKotodute && (
-            <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4 space-y-4">
+          <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4 space-y-4">
               {/* Style tags */}
               {((shop.stallStyleTags ?? []).length > 0 || shop.stallStyle || (shop.rainPolicy && shop.rainPolicy !== "undecided")) && (
                 <div>
@@ -1228,12 +1154,11 @@ const ShopDetailBanner = memo(function ShopDetailBanner({
                 </div>
               )}
             </div>
-          )}
 
           {/* ════════════════════════════════════════════════════════════════
               AI CONSULT — Dedicated card
           ════════════════════════════════════════════════════════════════ */}
-          {!isKotodute && !isMobileOverlay && (
+          {!isMobileOverlay && (
             <button
               type="button"
               onClick={handleOpenAiPanel}
@@ -1254,78 +1179,11 @@ const ShopDetailBanner = memo(function ShopDetailBanner({
             </button>
           )}
 
-          {/* ════════════════════════════════════════════════════════════════
-              KOTODUTE — User comments
-          ════════════════════════════════════════════════════════════════ */}
-          <div>
-            <div className="mb-3 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <p className="text-xs font-bold uppercase tracking-widest" style={{ color: theme.text }}>ことづて</p>
-                {kotoduteNotes.length > 0 && (
-                  <span className="rounded-full px-1.5 py-0.5 text-[10px] font-bold" style={{ backgroundColor: theme.light, color: theme.text }}>
-                    {kotoduteNotes.length}
-                  </span>
-                )}
-              </div>
-              {kotoduteNotes.length > 0 && (
-                <button type="button" onClick={handleOpenKotodutePanel} className="flex items-center gap-1 text-xs font-semibold text-slate-500 transition hover:text-slate-700">
-                  もっと見る
-                  <ChevronRight className="h-3.5 w-3.5" />
-                </button>
-              )}
-            </div>
-
-            {kotoduteNotes.length === 0 ? (
-              <button
-                type="button"
-                onClick={handleOpenKotodutePanel}
-                className="flex w-full items-center gap-3 rounded-2xl border-2 border-dashed px-4 py-4 transition hover:opacity-80 active:scale-[0.98]"
-                style={{ borderColor: theme.border, backgroundColor: theme.bg }}
-              >
-                <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full" style={{ backgroundColor: theme.light }}>
-                  <MessageSquarePlus className="h-4 w-4" style={{ color: theme.accent }} />
-                </div>
-                <div className="min-w-0 flex-1 text-left">
-                  <p className="text-sm font-bold" style={{ color: theme.text }}>一番乗りでコメントしよう！</p>
-                  <p className="mt-0.5 text-xs text-slate-500">お店の感想やおすすめを教えてください</p>
-                </div>
-                <ChevronRight className="h-4 w-4 flex-shrink-0 text-slate-400" />
-              </button>
-            ) : (
-              <div className="space-y-2">
-                {kotoduteNotes.slice(0, KOTODUTE_PREVIEW_LIMIT).map((note) => (
-                  <div key={note.id} className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2.5 text-sm text-slate-700">
-                    {note.text.replace(KOTODUTE_TAG_REGEX, "").trim()}
-                  </div>
-                ))}
-                <button
-                  type="button"
-                  onClick={handleOpenKotodutePanel}
-                  className="mt-1 flex w-full items-center justify-center gap-1.5 rounded-xl border py-2.5 text-xs font-bold transition hover:opacity-80"
-                  style={{ borderColor: theme.border, color: theme.text, backgroundColor: theme.bg }}
-                >
-                  <MessageSquarePlus className="h-3.5 w-3.5" />
-                  コメントを投稿する
-                </button>
-              </div>
-            )}
-          </div>
           </div>{/* space-y-6 */}
           </div>{/* main panel */}
-          {/* ── Kotodute panel ─────────────────────────────────────────── */}
-          <div className="h-full w-1/2 overflow-y-auto">
-            <KotodutePanel
-              shop={shop}
-              bannerImage={bannerImage}
-              heroImageError={heroImageError}
-              theme={theme}
-              onBack={handleBackToMain}
-              onClose={isMobileOverlay ? onClose : undefined}
-            />
-          </div>
         </div>
 
-        {/* ── AI panel (absolute overlay, independent of slide rail) ─────── */}
+        {/* ── AI panel (absolute overlay) ─────── */}
         <div
           className="absolute inset-0 z-20 bg-white transition-transform duration-300 ease-in-out"
           style={{ transform: surface === "ai" ? "translateX(0)" : "translateX(100%)" }}

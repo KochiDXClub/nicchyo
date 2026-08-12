@@ -544,26 +544,6 @@ body.grandma-chat-open .leaflet-container {
   right: auto;
 }
 
-.shop-kotodute-badge {
-  position: absolute;
-  top: 0;
-  left: -36px;
-  display: none;
-  align-items: center;
-  justify-content: center;
-  border-radius: 9999px;
-  border: 2px solid #1d4ed8;
-  background: #3b82f6;
-  color: #ffffff;
-  font-size: 16px;
-  font-weight: 700;
-  line-height: 1;
-  width: 36px;
-  height: 36px;
-  box-shadow: 0 2px 6px rgba(29, 78, 216, 0.35);
-  pointer-events: none;
-}
-
 /*
  * 商品写真。屋台イラストの内側に、木札とは反対の側へ寄せて大きめに置く。
  * 木札は道の外側に出るので、写真は道の内側に来る。
@@ -717,15 +697,9 @@ body.grandma-chat-open .leaflet-container {
 }
 
 .shop-simple-banner-visible .shop-recipe-icons,
-.shop-simple-banner-visible .shop-kotodute-badge,
 .shop-simple-banner-visible .shop-favorite-badge,
 .shop-simple-banner-visible .shop-product-icon {
   display: none !important;
-}
-
-.shop-side-south .shop-kotodute-badge {
-  left: auto;
-  right: -36px;
 }
 
 .grandma-title-label {
@@ -774,13 +748,7 @@ body.grandma-chat-open .leaflet-container {
  * バッジは LOD の加算方式で出す（ズームインするほど増える）。
  * かつては木札（当時はバナー）が出ると全バッジを display:none していたため、
  * 近づくほど目印が消えるという逆転が起きていた。
- *
- * ことづては最も伝えたい情報なので LOD 条件なし。
  */
-.shop-marker-kotodute .shop-kotodute-badge {
-  display: inline-flex;
-}
-
 .shop-lod-photo.is-favorite .shop-favorite-badge,
 .shop-lod-nameplate.is-favorite .shop-favorite-badge,
 .compact-shop-marker.is-favorite .shop-favorite-badge {

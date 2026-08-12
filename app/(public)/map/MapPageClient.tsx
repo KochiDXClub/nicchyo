@@ -17,7 +17,6 @@ import { SHOP_CATEGORY_NAMES } from "./data/shops";
 import type { Shop } from "./data/shops";
 import type { Landmark } from "./types/landmark";
 import type { MapRoute } from "./types/mapRoute";
-import { loadKotodute } from "../../../lib/kotoduteStorage";
 import { useMapLoading } from "../../components/MapLoadingProvider";
 import { grandmaEvents } from "./data/grandmaEvents";
 import { recordMarketEnter, recordMarketExit } from "../../../lib/storage/marketStats";
@@ -63,7 +62,6 @@ type MapPageClientProps = {
   shops: Shop[];
   landmarks: Landmark[];
   mapRoute: MapRoute;
-  shopBannerVariant?: "default" | "kotodute";
 };
 
 
@@ -148,7 +146,6 @@ export default function MapPageClient({
   shops,
   landmarks,
   mapRoute,
-  shopBannerVariant = "default",
 }: MapPageClientProps) {
   const showGrandma = false;
   const searchParams = useSearchParams();
@@ -653,17 +650,6 @@ export default function MapPageClient({
     mapCharacterConsultActive ||
     !!aiMarkerPayload;
 
-  const kotoduteShopIds = useMemo(() => {
-    const notes = loadKotodute();
-    const ids = new Set<number>();
-    notes.forEach((note) => {
-      if (typeof note.shopId === "number") {
-        ids.add(note.shopId);
-      }
-    });
-    return Array.from(ids);
-  }, []);
-
   // ── 「このへん、なにがある？」──────────────────────
   // 他のモード（検索・AI相談・店舗バナー・パネル表示中）ではボタンを出さない
   const nearbySuppressed =
@@ -705,7 +691,7 @@ export default function MapPageClient({
           rect
         )
     );
-    // おすすめ: 行動シグナル（お気に入り・買い物リスト・ことづて）から
+    // おすすめ: 行動シグナル（お気に入り・買い物リスト）から
     // 興味ジャンルを導き、範囲内の店舗（近い順）から9店を選ぶ
     const inAreaShops = summary.shopIds
       .map((id) => shopById.get(id))
@@ -715,7 +701,7 @@ export default function MapPageClient({
       .map((item) => item.fromShopId)
       .filter((id): id is number => typeof id === "number");
     const interestCategories = deriveInterestCategories(
-      [...favoriteIds, ...bagShopIds, ...kotoduteShopIds],
+      [...favoriteIds, ...bagShopIds],
       (id) => shopById.get(id)?.category
     );
     const recommendations: NearbyRecommendedShop[] = selectNearbyRecommendations(
@@ -736,7 +722,7 @@ export default function MapPageClient({
       recommendations,
       note: buildNearbyNote(summary),
     });
-  }, [bagItems, kotoduteShopIds, shopById, shops]);
+  }, [bagItems, shopById, shops]);
 
   const closeNearbyPanel = useCallback(() => {
     setNearbyState(null);
@@ -1004,8 +990,6 @@ export default function MapPageClient({
                 setMapSearchCategory(null);
                 setAiMarkerPayload(null);
               }}
-              kotoduteShopIds={kotoduteShopIds}
-              shopBannerVariant={shopBannerVariant}
               // おでかけサポート表示中は施設に合わせた画角を優先し、
               // 現在地取得時の自動ズームで上書きされないようにする
               suppressInitialLocationFocus={isAiFocusMode || Boolean(facilityGuide.category)}

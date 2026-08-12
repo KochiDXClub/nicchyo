@@ -574,8 +574,6 @@ type MapViewProps = {
   onUserLocationUpdate?: (coords: { lat: number; lng: number; inMarket: boolean }) => void;
   aiShopIds?: number[];
   commentShopId?: number;
-  kotoduteShopIds?: number[];
-  shopBannerVariant?: "default" | "kotodute";
   onZoomChange?: (zoom: number) => void;
   suppressInitialLocationFocus?: boolean;
   onShopSelect?: (shop: Shop) => void;
@@ -752,8 +750,6 @@ const MapView = memo(function MapView({
   onUserLocationUpdate,
   aiShopIds,
   commentShopId,
-  kotoduteShopIds,
-  shopBannerVariant,
   onZoomChange,
   suppressInitialLocationFocus = false,
   onShopSelect,
@@ -1499,7 +1495,6 @@ const MapView = memo(function MapView({
             searchShopIds={searchShopIds}
             aiHighlightShopIds={aiShopIds}
             commentHighlightShopIds={commentShopId ? [commentShopId] : []}
-            kotoduteShopIds={kotoduteShopIds}
             recipeIngredientIconsByShop={recipeIngredientIconsByShop}
             bagShopIds={bagShopIds}
             shouldRenderRecipeOverlay={shouldRenderRecipeOverlay}
@@ -1586,7 +1581,6 @@ const MapView = memo(function MapView({
             onSelectNextShop={handleSelectNextShop}
             onClose={handleCloseBanner}
             onAddToBag={handleAddToBag}
-            variant={shopBannerVariant}
             originRect={shopBannerOrigin ?? undefined}
             reserveBottomNavSpace={false}
           />
