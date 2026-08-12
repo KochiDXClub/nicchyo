@@ -468,10 +468,10 @@ export default function MapEditCanvas({
 }
 
 /**
- * マップの回転コントロール。コンパスの下半円のように、中央下（リセットボタン）を
- * 起点に左右へ10度・30度分カーブして並んだボタンを配置する。左右のボタンは
- * タップするたびにその分だけ現在の回転角に「加算」していく（例: 右10を2回で右へ20度）。
- * 中央のボタンは初期角度（0度）に戻すリセット用。
+ * マップの回転コントロール。左右のボタンはタップするたびにその角度分だけ
+ * 現在の回転角に「加算」していく（例: 右10を2回で右へ20度）。中央のボタンは
+ * 初期角度（0度）に戻すリセット専用。ボタン同士が重ならないよう、円弧状には
+ * 並べず横一列に並べ、それぞれに文字ラベルを付けて何のボタンか分かるようにする。
  */
 function RotationControl({
   rotation,
@@ -480,55 +480,62 @@ function RotationControl({
   rotation: number;
   setRotation: React.Dispatch<React.SetStateAction<number>>;
 }) {
-  const radius = 44;
-  const width = 140;
   const displayDeg = Math.round(normalizeRotationDeg(rotation));
+  const isAtInitial = displayDeg === 0;
+
+  const stepButtonStyle: React.CSSProperties = {
+    padding: "6px 9px",
+    borderRadius: 8,
+    fontSize: 11.5,
+    fontWeight: 800,
+    cursor: "pointer",
+    border: "1px solid #E4D9BF",
+    background: "#FDFBF5",
+    color: "#57503F",
+    whiteSpace: "nowrap",
+  };
 
   return (
-    <div style={{ position: "relative", width, height: 78 }}>
-      {[...ROTATION_STEPS.filter((d) => d < 0), 0, ...ROTATION_STEPS.filter((d) => d > 0)].map((deg) => {
-        const rad = (deg * Math.PI) / 180;
-        const x = width / 2 + radius * Math.sin(rad);
-        const y = radius * Math.cos(rad);
-        const isReset = deg === 0;
-        const isAtInitial = isReset && displayDeg === 0;
-        return (
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+        {ROTATION_STEPS.filter((deg) => deg < 0).map((deg) => (
           <button
             key={deg}
             type="button"
-            onClick={() =>
-              isReset
-                ? setRotation(0)
-                : setRotation((prev) => normalizeRotationDeg(prev + deg))
-            }
-            title={isReset ? "初期角度に戻す" : `${deg > 0 ? "右" : "左"}へ${Math.abs(deg)}度回転（タップするたびに加算）`}
-            style={{
-              position: "absolute",
-              left: x,
-              top: y,
-              transform: "translate(-50%,-50%)",
-              width: isReset ? 32 : 28,
-              height: isReset ? 32 : 28,
-              borderRadius: "50%",
-              border: isAtInitial ? "2px solid #92400E" : "1px solid #E4D9BF",
-              background: isAtInitial ? "#92400E" : "#FDFBF5",
-              color: isAtInitial ? "#fff" : "#57503F",
-              fontSize: isReset ? 13 : 10,
-              fontWeight: 800,
-              cursor: "pointer",
-              padding: 0,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-            }}
+            onClick={() => setRotation((prev) => normalizeRotationDeg(prev + deg))}
+            title={`左へ${Math.abs(deg)}度回転（タップするたびに加算）`}
+            style={stepButtonStyle}
           >
-            {isReset ? "◎" : `${deg > 0 ? "+" : ""}${deg}`}
+            {deg}°
           </button>
-        );
-      })}
-      <div style={{ position: "absolute", left: "50%", top: 66, transform: "translateX(-50%)", fontSize: 10.5, fontWeight: 700, color: "#9A8A6A", whiteSpace: "nowrap" }}>
-        {displayDeg}°
+        ))}
+        <button
+          type="button"
+          onClick={() => setRotation(0)}
+          title="初期角度（0度）に戻す"
+          style={{
+            ...stepButtonStyle,
+            padding: "6px 11px",
+            border: isAtInitial ? "2px solid #92400E" : "1px solid #E4D9BF",
+            background: isAtInitial ? "#92400E" : "#fff",
+            color: isAtInitial ? "#fff" : "#57503F",
+          }}
+        >
+          ⟲ リセット
+        </button>
+        {ROTATION_STEPS.filter((deg) => deg > 0).map((deg) => (
+          <button
+            key={deg}
+            type="button"
+            onClick={() => setRotation((prev) => normalizeRotationDeg(prev + deg))}
+            title={`右へ${deg}度回転（タップするたびに加算）`}
+            style={stepButtonStyle}
+          >
+            +{deg}°
+          </button>
+        ))}
       </div>
+      <div style={{ fontSize: 10.5, fontWeight: 700, color: "#9A8A6A" }}>現在の向き: {displayDeg}°</div>
     </div>
   );
 }
