@@ -1,25 +1,58 @@
 "use client";
 
 import React, { useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, type PanInfo } from "framer-motion";
 import Link from "next/link";
 import Image from "next/image";
 import { ArrowLeft, ArrowRight, X } from "lucide-react";
 import { AboutIcon } from "./AboutIcon";
 import { aboutSlides, type SlideRichContent } from "./slides";
 
+// ─── スライドごとの配色 ─────────────────────────────────────────────────────
+// アイコン円・プログレスバー・ドット・アクションボタンに使う。
+// スライドが増えたときはここにも id を追加する（未登録なら intro の配色を使う）。
+type SlideTheme = { accent: string; light: string; text: string; border: string };
+
+const SLIDE_THEMES: Record<string, SlideTheme> = {
+  intro: { accent: "#F59E0B", light: "#FFFBEB", text: "#92400E", border: "#FDE68A" },
+  painPoints: { accent: "#F43F5E", light: "#FFF1F2", text: "#9F1239", border: "#FECDD3" },
+  concept: { accent: "#F59E0B", light: "#FFFBEB", text: "#92400E", border: "#FDE68A" },
+  map: { accent: "#10B981", light: "#ECFDF5", text: "#065F46", border: "#A7F3D0" },
+  search: { accent: "#0EA5E9", light: "#F0F9FF", text: "#075985", border: "#BAE6FD" },
+  consult: { accent: "#F97316", light: "#FFF7ED", text: "#9A3412", border: "#FED7AA" },
+  story: { accent: "#EC4899", light: "#FDF2F8", text: "#9D174D", border: "#FBCFE8" },
+  calendar: { accent: "#0EA5E9", light: "#F0F9FF", text: "#075985", border: "#BAE6FD" },
+  facilities: { accent: "#14B8A6", light: "#F0FDFA", text: "#115E59", border: "#99F6E4" },
+  achievements: { accent: "#F59E0B", light: "#FFFBEB", text: "#92400E", border: "#FDE68A" },
+  team: { accent: "#64748B", light: "#F8FAFC", text: "#334155", border: "#E2E8F0" },
+  roadmap: { accent: "#10B981", light: "#ECFDF5", text: "#065F46", border: "#A7F3D0" },
+  version: { accent: "#6366F1", light: "#EEF2FF", text: "#3730A3", border: "#C7D2FE" },
+  cta: { accent: "#F59E0B", light: "#FFFBEB", text: "#92400E", border: "#FDE68A" },
+};
+const DEFAULT_THEME = SLIDE_THEMES.intro;
+
+function getSlideTheme(id: string): SlideTheme {
+  return SLIDE_THEMES[id] ?? DEFAULT_THEME;
+}
+
 function RichContent({
   content,
+  theme,
   weeklyVisitors,
 }: {
   content: SlideRichContent;
+  theme: SlideTheme;
   weeklyVisitors?: number | null;
 }) {
   if (content.type === "painPoints") {
     return (
       <div className="mb-8 flex w-full max-w-sm flex-col gap-3 text-left">
         {content.items.map((p, i) => (
-          <div key={i} className="flex items-center gap-3 rounded-2xl border border-amber-100 bg-white p-4 shadow-sm">
+          <div
+            key={i}
+            className="flex items-center gap-3 rounded-2xl border bg-white p-4 shadow-sm"
+            style={{ borderColor: theme.border }}
+          >
             <span className="text-2xl">{p.emoji}</span>
             <p className="text-sm font-semibold text-gray-700 leading-snug">{p.text}</p>
           </div>
@@ -30,14 +63,14 @@ function RichContent({
 
   if (content.type === "characters") {
     return (
-      <div className="mb-8 grid w-full max-w-sm grid-cols-2 gap-3">
+      <div className="mb-6 grid w-full max-w-sm grid-cols-2 gap-2.5">
         {content.items.map((c, i) => (
-          <div key={i} className={`flex flex-col items-center gap-2 rounded-2xl ${c.bg} p-3 text-center`}>
-            <div className="h-14 w-14 overflow-hidden rounded-full bg-white shadow ring-2 ring-white">
-              <Image src={c.img} alt={c.name} width={56} height={56} className="h-full w-full object-cover" />
+          <div key={i} className={`flex flex-col items-center gap-1.5 rounded-2xl ${c.bg} p-2.5 text-center`}>
+            <div className="h-12 w-12 overflow-hidden rounded-full bg-white shadow ring-2 ring-white">
+              <Image src={c.img} alt={c.name} width={48} height={48} className="h-full w-full object-cover" />
             </div>
             <p className="text-xs font-extrabold text-gray-800">{c.name}</p>
-            <p className="text-[10px] font-semibold text-amber-600">{c.role}</p>
+            <p className="text-[10px] font-semibold" style={{ color: theme.text }}>{c.role}</p>
           </div>
         ))}
       </div>
@@ -53,7 +86,11 @@ function RichContent({
               ? `${weeklyVisitors.toLocaleString()}人`
               : a.value;
           return (
-            <div key={i} className="flex items-center gap-4 rounded-2xl border border-amber-100 bg-white p-4 shadow-sm">
+            <div
+              key={i}
+              className="flex items-center gap-4 rounded-2xl border bg-white p-4 shadow-sm"
+              style={{ borderColor: theme.border }}
+            >
               <span className="text-3xl">{a.emoji}</span>
               <div>
                 <p className="text-[11px] font-semibold text-gray-400">{a.label}</p>
@@ -72,13 +109,20 @@ function RichContent({
     return (
       <div className="mb-8 flex w-full max-w-sm flex-col gap-3 text-left">
         <div className="flex items-baseline gap-2 px-1">
-          <span className="rounded-full bg-amber-500 px-2.5 py-0.5 text-xs font-bold text-white">
+          <span
+            className="rounded-full px-2.5 py-0.5 text-xs font-bold text-white"
+            style={{ backgroundColor: theme.accent }}
+          >
             {entry.version}
           </span>
           <time className="text-xs font-medium text-gray-400">{entry.date}</time>
         </div>
         {entry.highlights.map((highlight, i) => (
-          <div key={i} className="flex items-start gap-2 rounded-2xl border border-amber-100 bg-white p-3 shadow-sm">
+          <div
+            key={i}
+            className="flex items-start gap-2 rounded-2xl border bg-white p-3 shadow-sm"
+            style={{ borderColor: theme.border }}
+          >
             <span className="mt-0.5 text-base">✨</span>
             <p className="text-sm font-semibold leading-snug text-gray-700">{highlight}</p>
           </div>
@@ -90,32 +134,43 @@ function RichContent({
   return null;
 }
 
+const SWIPE_DISTANCE_THRESHOLD = 60;
+const SWIPE_VELOCITY_THRESHOLD = 300;
+
 export default function AboutStory({ weeklyVisitors }: { weeklyVisitors?: number | null }) {
   const [currentIndex, setCurrentIndex] = useState(0);
 
-  const nextSlide = () => {
-    if (currentIndex < aboutSlides.length - 1) {
-      setCurrentIndex((prev) => prev + 1);
-    }
+  const goToSlide = (index: number) => {
+    setCurrentIndex(Math.max(0, Math.min(aboutSlides.length - 1, index)));
   };
 
-  const prevSlide = () => {
-    if (currentIndex > 0) {
-      setCurrentIndex((prev) => prev - 1);
+  const nextSlide = () => goToSlide(currentIndex + 1);
+  const prevSlide = () => goToSlide(currentIndex - 1);
+
+  const handleDragEnd = (_: unknown, info: PanInfo) => {
+    const { offset, velocity } = info;
+    if (offset.x < -SWIPE_DISTANCE_THRESHOLD || velocity.x < -SWIPE_VELOCITY_THRESHOLD) {
+      nextSlide();
+    } else if (offset.x > SWIPE_DISTANCE_THRESHOLD || velocity.x > SWIPE_VELOCITY_THRESHOLD) {
+      prevSlide();
     }
   };
 
   const currentSlide = aboutSlides[currentIndex];
+  const theme = getSlideTheme(currentSlide.id);
   const progress = ((currentIndex + 1) / aboutSlides.length) * 100;
 
   return (
-    <div className="flex min-h-screen flex-col bg-amber-50 text-gray-900">
+    <motion.div
+      className="flex min-h-screen flex-col text-gray-900"
+      animate={{ backgroundColor: theme.light }}
+      transition={{ duration: 0.4 }}
+    >
       {/* Progress Bar */}
-      <div className="fixed top-0 left-0 z-10 h-1.5 w-full bg-amber-100">
+      <div className="fixed top-0 left-0 z-10 h-1.5 w-full bg-white/60">
         <motion.div
-          className="h-full bg-amber-500"
-          initial={{ width: 0 }}
-          animate={{ width: `${progress}%` }}
+          className="h-full"
+          animate={{ width: `${progress}%`, backgroundColor: theme.accent }}
           transition={{ duration: 0.3 }}
         />
       </div>
@@ -130,24 +185,38 @@ export default function AboutStory({ weeklyVisitors }: { weeklyVisitors?: number
       </Link>
 
       {/* Main Content Area */}
-      <div className="relative flex flex-1 flex-col items-center justify-center overflow-hidden px-6 pb-24 pt-10">
+      <div className="relative flex flex-1 flex-col items-center justify-center overflow-hidden px-6 pb-28 pt-10">
         <AnimatePresence mode="wait">
           <motion.div
             key={currentSlide.id}
-            initial={{ opacity: 0, x: 20 }}
+            initial={{ opacity: 0, x: 24 }}
             animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -20 }}
-            transition={{ duration: 0.4, ease: "easeOut" }}
-            className="flex max-w-md flex-col items-center text-center"
+            exit={{ opacity: 0, x: -24 }}
+            transition={{ duration: 0.35, ease: "easeOut" }}
+            drag="x"
+            dragConstraints={{ left: 0, right: 0 }}
+            dragElastic={0.6}
+            onDragEnd={handleDragEnd}
+            className="flex max-w-md flex-col items-center text-center touch-pan-y"
           >
             {/* Icon Circle */}
             {currentSlide.iconName && (
-              <div className="mb-8 flex h-24 w-24 items-center justify-center rounded-full bg-white text-amber-600 shadow-md">
+              <div
+                className="mb-8 flex h-24 w-24 items-center justify-center rounded-full"
+                style={{
+                  background: `linear-gradient(160deg, white, ${theme.light})`,
+                  color: theme.accent,
+                  boxShadow: `0 10px 24px -8px ${theme.accent}55, 0 0 0 6px ${theme.light}`,
+                }}
+              >
                 <AboutIcon name={currentSlide.iconName} className="h-12 w-12" />
               </div>
             )}
             {!currentSlide.iconName && currentSlide.id === "intro" && (
-              <div className="mb-8 flex h-24 w-24 items-center justify-center rounded-full bg-amber-500 text-white shadow-md font-bold text-xl">
+              <div
+                className="mb-8 flex h-24 w-24 items-center justify-center rounded-full text-white shadow-md font-bold text-xl"
+                style={{ backgroundColor: theme.accent }}
+              >
                 nicchyo
               </div>
             )}
@@ -162,18 +231,19 @@ export default function AboutStory({ weeklyVisitors }: { weeklyVisitors?: number
 
             {/* Rich Content */}
             {currentSlide.richContent && (
-              <RichContent content={currentSlide.richContent} weeklyVisitors={weeklyVisitors} />
+              <RichContent content={currentSlide.richContent} theme={theme} weeklyVisitors={weeklyVisitors} />
             )}
 
             {/* Slide Action Button */}
             {currentSlide.action && (
               <Link
                 href={currentSlide.action.href}
-                className={`mb-4 inline-flex items-center justify-center rounded-full px-8 py-4 text-lg font-bold shadow-lg transition active:scale-95 ${
+                className="mb-4 inline-flex items-center justify-center rounded-full px-8 py-4 text-lg font-bold shadow-lg transition active:scale-95"
+                style={
                   currentSlide.action.primary
-                    ? "bg-amber-600 text-white hover:bg-amber-500"
-                    : "bg-white text-gray-800 border border-gray-200 hover:bg-gray-50"
-                }`}
+                    ? { backgroundColor: theme.accent, color: "white" }
+                    : { backgroundColor: "white", color: theme.text, border: `1px solid ${theme.border}` }
+                }
               >
                 {currentSlide.action.label}
               </Link>
@@ -183,7 +253,26 @@ export default function AboutStory({ weeklyVisitors }: { weeklyVisitors?: number
       </div>
 
       {/* Bottom Navigation */}
-      <div className="fixed bottom-0 left-0 right-0 border-t border-amber-100 bg-white/90 px-6 py-6 backdrop-blur-sm safe-bottom">
+      <div className="fixed bottom-0 left-0 right-0 border-t border-white/60 bg-white/90 px-6 pt-4 pb-3 backdrop-blur-sm safe-bottom">
+        {/* Dot navigation: タップで任意のスライドへジャンプできる */}
+        <div className="mx-auto mb-3 flex max-w-md items-center justify-center gap-1.5 overflow-x-auto px-1">
+          {aboutSlides.map((slide, i) => (
+            <button
+              key={slide.id}
+              type="button"
+              onClick={() => goToSlide(i)}
+              aria-label={`${slide.title} へ移動`}
+              aria-current={i === currentIndex}
+              className="shrink-0 rounded-full transition-all"
+              style={{
+                width: i === currentIndex ? 18 : 6,
+                height: 6,
+                backgroundColor: i === currentIndex ? theme.accent : "#E5E7EB",
+              }}
+            />
+          ))}
+        </div>
+
         <div className="mx-auto flex max-w-md items-center justify-between gap-4">
           <button
             type="button"
@@ -207,11 +296,12 @@ export default function AboutStory({ weeklyVisitors }: { weeklyVisitors?: number
             type="button"
             onClick={nextSlide}
             disabled={currentIndex === aboutSlides.length - 1}
-            className={`flex h-14 flex-1 items-center justify-center gap-2 rounded-full font-bold shadow-md transition active:scale-95 ${
+            className="flex h-14 flex-1 items-center justify-center gap-2 rounded-full font-bold shadow-md transition active:scale-95"
+            style={
               currentIndex === aboutSlides.length - 1
-                ? "bg-gray-100 text-gray-400 shadow-none"
-                : "bg-gray-900 text-white hover:bg-gray-800"
-            }`}
+                ? { backgroundColor: "#F3F4F6", color: "#9CA3AF", boxShadow: "none" }
+                : { backgroundColor: "#111827", color: "white" }
+            }
             aria-label="Next slide"
           >
             {currentIndex === aboutSlides.length - 1 ? (
@@ -225,6 +315,6 @@ export default function AboutStory({ weeklyVisitors }: { weeklyVisitors?: number
           </button>
         </div>
       </div>
-    </div>
+    </motion.div>
   );
 }

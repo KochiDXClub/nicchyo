@@ -46,7 +46,7 @@ export const aboutSlides: AboutSlide[] = [
   {
     id: "intro",
     title: "nicchyo",
-    description: "日曜市をもっと歩きやすく、もっと知りやすくするための小さなデジタル実験です。",
+    description: "高知・日曜市をもっと歩きやすく、もっと知りやすくするデジタルマップです。",
   },
   {
     id: "painPoints",
@@ -65,24 +65,7 @@ export const aboutSlides: AboutSlide[] = [
     id: "concept",
     title: "迷ってこそが日曜市！",
     description: "だけど、ちょっとだけデジタルの力で「歩きやすく」「探しやすく」しました。",
-  },
-  {
-    id: "characters",
-    title: "4人のキャラクターが案内",
-    description: "親しみやすいAIキャラが、あなたの「困った」に寄り添います。",
-    richContent: {
-      type: "characters",
-      items: [
-        { img: "/images/obaasan_transparent.png", name: "にちよさん", role: "やさしく案内", desc: "おだやかな言葉でゆっくり教えてくれます", bg: "bg-orange-50" },
-        { img: "/images/characters/ojichan.png", name: "よういちさん", role: "落ち着いて解説", desc: "歴史や豆知識もくわしく教えてくれます", bg: "bg-sky-50" },
-        { img: "/images/characters/onisan.png", name: "みらいくん", role: "テキパキ提案", desc: "テンポよく効率的な回り方を教えてくれます", bg: "bg-green-50" },
-        { img: "/images/characters/onesan.png", name: "よさこちゃん", role: "気軽に話しかけやすい", desc: "フレンドリーに楽しく一緒に探してくれます", bg: "bg-pink-50" },
-      ],
-    },
-    action: {
-      label: "AIキャラに相談する",
-      href: "/consult",
-    },
+    iconName: "route",
   },
   {
     id: "map",
@@ -107,9 +90,17 @@ export const aboutSlides: AboutSlide[] = [
   },
   {
     id: "consult",
-    title: "相談する",
-    description: "検索では拾いきれない曖昧な関心を、AIキャラとの対話を通じて整理します。",
-    iconName: "chat",
+    title: "4人のAIキャラに相談する",
+    description: "検索では拾いきれない曖昧な関心を、対話を通じて整理します。",
+    richContent: {
+      type: "characters",
+      items: [
+        { img: "/images/obaasan_transparent.png", name: "にちよさん", role: "やさしく案内", desc: "おだやかな言葉でゆっくり教えてくれます", bg: "bg-orange-50" },
+        { img: "/images/characters/ojichan.png", name: "よういちさん", role: "落ち着いて解説", desc: "歴史や豆知識もくわしく教えてくれます", bg: "bg-sky-50" },
+        { img: "/images/characters/onisan.png", name: "みらいくん", role: "テキパキ提案", desc: "テンポよく効率的な回り方を教えてくれます", bg: "bg-green-50" },
+        { img: "/images/characters/onesan.png", name: "よさこちゃん", role: "気軽に話しかけやすい", desc: "フレンドリーに楽しく一緒に探してくれます", bg: "bg-pink-50" },
+      ],
+    },
     action: {
       label: "にちよさんに聞く",
       href: "/consult",
@@ -144,13 +135,6 @@ export const aboutSlides: AboutSlide[] = [
       label: "おでかけサポートを見る",
       href: "/facilities",
     },
-  },
-  {
-    id: "everyone",
-    title: "みんなのために",
-    description:
-      "買い物リストやレシピ提案も。初めての方も、常連さんも、出店者さんも、それぞれの楽しみ方をサポート。",
-    iconName: "route",
   },
   {
     id: "achievements",
@@ -206,6 +190,7 @@ export const aboutSlides: AboutSlide[] = [
     id: "cta",
     title: "さあ、日曜市へ",
     description: "デジタル片手に、新しい発見を探しに行きませんか？",
+    iconName: "map",
     action: {
       label: "マップを見る",
       href: "/map",
