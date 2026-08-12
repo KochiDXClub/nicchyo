@@ -44,6 +44,8 @@ type Props = {
   zoomIdx: number;
   focus: { x: number; y: number };
   setFocus: React.Dispatch<React.SetStateAction<{ x: number; y: number }>>;
+  rotation: number;
+  setRotation: React.Dispatch<React.SetStateAction<number>>;
   dragging: boolean;
   setDragging: (value: boolean) => void;
   projection: Projection;
@@ -55,6 +57,16 @@ type Props = {
   onZoomIn: () => void;
   onZoomOut: () => void;
 };
+
+const ROTATION_PRESETS = [-30, -10, 0, 10, 30];
+
+/** 画面上のベクトルを、地図の回転角ぶん逆回転させ「回転前のワールド座標系」でのベクトルに直す */
+export function unrotateScreenDelta(dx: number, dy: number, rotationDeg: number) {
+  const theta = (rotationDeg * Math.PI) / 180;
+  const cos = Math.cos(theta);
+  const sin = Math.sin(theta);
+  return { x: dx * cos + dy * sin, y: -dx * sin + dy * cos };
+}
 
 const LeafletBackground = dynamic(() => import("./LeafletBackground"), { ssr: false });
 
@@ -80,6 +92,8 @@ export default function MapEditCanvas({
   zoomIdx,
   focus,
   setFocus,
+  rotation,
+  setRotation,
   dragging,
   setDragging,
   projection,
@@ -98,9 +112,12 @@ export default function MapEditCanvas({
     const host = viewportRef.current;
     if (!host) return { x: focus.x, y: focus.y };
     const rect = host.getBoundingClientRect();
+    const dxScreen = e.clientX - (rect.left + rect.width / 2);
+    const dyScreen = e.clientY - (rect.top + rect.height / 2);
+    const world = unrotateScreenDelta(dxScreen, dyScreen, rotation);
     return {
-      x: focus.x + (e.clientX - (rect.left + rect.width / 2)) / zoom,
-      y: focus.y + (e.clientY - (rect.top + rect.height / 2)) / zoom,
+      x: focus.x + world.x / zoom,
+      y: focus.y + world.y / zoom,
     };
   };
 
@@ -119,12 +136,13 @@ export default function MapEditCanvas({
       return;
     }
     if (!panRef.current) return;
-    const dx = e.clientX - panRef.current.sx;
-    const dy = e.clientY - panRef.current.sy;
-    if (Math.abs(dx) + Math.abs(dy) > 3) moveStateRef.current.moved = true;
+    const dxScreen = e.clientX - panRef.current.sx;
+    const dyScreen = e.clientY - panRef.current.sy;
+    if (Math.abs(dxScreen) + Math.abs(dyScreen) > 3) moveStateRef.current.moved = true;
+    const world = unrotateScreenDelta(dxScreen, dyScreen, rotation);
     setFocus({
-      x: panRef.current.fx - dx / zoom,
-      y: panRef.current.fy - dy / zoom,
+      x: panRef.current.fx - world.x / zoom,
+      y: panRef.current.fy - world.y / zoom,
     });
   };
 
@@ -152,7 +170,8 @@ export default function MapEditCanvas({
   const showNumbers = zoomIdx >= 2;
   const showDots = zoomIdx >= 1;
 
-  const worldTransform = `translate(-50%,-50%) scale(${zoom}) translate(${-focus.x}px, ${-focus.y}px)`;
+  // 画面中心を軸に回転させたのち、その回転済みの向きでpan/zoomする
+  const worldTransform = `translate(-50%,-50%) rotate(${rotation}deg) scale(${zoom}) translate(${-focus.x}px, ${-focus.y}px)`;
 
   const roadPolylines = useMemo(
     () =>
@@ -181,8 +200,9 @@ export default function MapEditCanvas({
         userSelect: "none",
       }}
     >
-      {/* 実際の地図をうっすら背景表示し、区画・道の位置合わせをしやすくする（操作は不可） */}
-      <div style={{ position: "absolute", inset: 0, pointerEvents: "none" }}>
+      {/* 実際の地図をうっすら背景表示し、区画・道の位置合わせをしやすくする（操作は不可）
+          SVG側のワールドと同じ角度で回転させ、常に位置がズレないようにする */}
+      <div style={{ position: "absolute", inset: 0, pointerEvents: "none", transform: `rotate(${rotation}deg)`, transformOrigin: "center center" }}>
         <LeafletBackground center={projection.toLatLng(focus)} pixelsPerMeter={zoom} />
       </div>
 
@@ -313,7 +333,8 @@ export default function MapEditCanvas({
                   position: "absolute",
                   left: local.x,
                   top: local.y,
-                  transform: `translate(-50%,-50%) scale(${1 / zoom})`,
+                  // 地図の回転を打ち消し、番号が常に正立して読めるようにする
+                  transform: `translate(-50%,-50%) rotate(${-rotation}deg) scale(${1 / zoom})`,
                   zIndex: isSelected ? 60 : targetable ? 40 : 20,
                   opacity: match ? 1 : 0.15,
                   cursor: "pointer",
@@ -363,10 +384,9 @@ export default function MapEditCanvas({
                   const startLat = landmark.lat;
                   const startLng = landmark.lng;
                   const move = (ev: MouseEvent) => {
-                    const dx = (ev.clientX - startX) / zoom;
-                    const dy = (ev.clientY - startY) / zoom;
+                    const world = unrotateScreenDelta(ev.clientX - startX, ev.clientY - startY, rotation);
                     const base = projection.toLocal(startLat, startLng);
-                    const next = projection.toLatLng({ x: base.x + dx, y: base.y + dy });
+                    const next = projection.toLatLng({ x: base.x + world.x / zoom, y: base.y + world.y / zoom });
                     handlers.onMoveLandmark(landmark.key, next.lat, next.lng);
                   };
                   const up = () => {
@@ -384,7 +404,8 @@ export default function MapEditCanvas({
                   position: "absolute",
                   left: local.x,
                   top: local.y,
-                  transform: `translate(-50%,-50%) scale(${1 / zoom})`,
+                  // 地図の回転を打ち消し、名称ラベルが常に正立して読めるようにする
+                  transform: `translate(-50%,-50%) rotate(${-rotation}deg) scale(${1 / zoom})`,
                   zIndex: isSelected ? 55 : 15,
                   opacity: tab === "landmark" ? (dim ? 0.25 : 1) : 0.55,
                   cursor: tab === "landmark" ? "grab" : "default",
@@ -418,6 +439,70 @@ export default function MapEditCanvas({
           －
         </span>
       </div>
+
+      <div
+        style={{
+          position: "absolute",
+          bottom: 12,
+          left: "50%",
+          transform: "translateX(-50%)",
+          background: "#fff",
+          borderRadius: 14,
+          boxShadow: "0 2px 8px rgba(15,23,42,.18)",
+          padding: "8px 8px 4px",
+        }}
+      >
+        <RotationControl rotation={rotation} onChange={setRotation} />
+      </div>
+    </div>
+  );
+}
+
+/**
+ * マップの回転コントロール。コンパスの下半円のように、中央下（0度＝回転なし）を
+ * 起点に左右へ10度・30度分カーブして並んだボタンで、タップした角度に地図を回転させる。
+ */
+function RotationControl({ rotation, onChange }: { rotation: number; onChange: (deg: number) => void }) {
+  const radius = 44;
+  const width = 140;
+
+  return (
+    <div style={{ position: "relative", width, height: 60 }}>
+      {ROTATION_PRESETS.map((deg) => {
+        const rad = (deg * Math.PI) / 180;
+        const x = width / 2 + radius * Math.sin(rad);
+        const y = radius * Math.cos(rad);
+        const isActive = rotation === deg;
+        return (
+          <button
+            key={deg}
+            type="button"
+            onClick={() => onChange(deg)}
+            title={deg === 0 ? "回転なし（現在の向き）" : `${deg > 0 ? "右" : "左"}へ${Math.abs(deg)}度回転`}
+            style={{
+              position: "absolute",
+              left: x,
+              top: y,
+              transform: "translate(-50%,-50%)",
+              width: deg === 0 ? 32 : 28,
+              height: deg === 0 ? 32 : 28,
+              borderRadius: "50%",
+              border: isActive ? "2px solid #92400E" : "1px solid #E4D9BF",
+              background: isActive ? "#92400E" : "#FDFBF5",
+              color: isActive ? "#fff" : "#57503F",
+              fontSize: deg === 0 ? 13 : 10,
+              fontWeight: 800,
+              cursor: "pointer",
+              padding: 0,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            {deg === 0 ? "◎" : `${deg > 0 ? "+" : ""}${deg}`}
+          </button>
+        );
+      })}
     </div>
   );
 }

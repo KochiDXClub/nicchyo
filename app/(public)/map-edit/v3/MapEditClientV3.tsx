@@ -103,6 +103,7 @@ export default function MapEditClientV3() {
 
   const [zoomIdx, setZoomIdx] = useState(1);
   const [focus, setFocus] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+  const [rotation, setRotation] = useState(0);
   const [dragging, setDragging] = useState(false);
 
   const [snapshots, setSnapshots] = useState<SnapshotItem[]>([]);
@@ -367,6 +368,8 @@ export default function MapEditClientV3() {
       setZoomIdx={setZoomIdx}
       focus={focus}
       setFocus={setFocus}
+      rotation={rotation}
+      setRotation={setRotation}
       dragging={dragging}
       setDragging={setDragging}
       hasUnsavedChanges={hasUnsavedChanges}
@@ -429,6 +432,8 @@ type BodyProps = {
   setZoomIdx: React.Dispatch<React.SetStateAction<number>>;
   focus: { x: number; y: number };
   setFocus: React.Dispatch<React.SetStateAction<{ x: number; y: number }>>;
+  rotation: number;
+  setRotation: React.Dispatch<React.SetStateAction<number>>;
   dragging: boolean;
   setDragging: (value: boolean) => void;
   hasUnsavedChanges: boolean;
@@ -454,7 +459,7 @@ function MapEditClientV3Body(props: BodyProps) {
     slotAction, setSlotAction, roadAction, setRoadAction, landmarkAction, setLandmarkAction,
     draft, setDraft, drawAxis, setDrawAxis,
     search, setSearch, pending, log, setPending,
-    zoomIdx, setZoomIdx, focus, setFocus, dragging, setDragging,
+    zoomIdx, setZoomIdx, focus, setFocus, rotation, setRotation, dragging, setDragging,
     hasUnsavedChanges, handleSave, projection, vertexDragRef, panRef, viewportRef,
     snapshots, isLoadingSnapshots, isRestoring, isHistoryOpen, setIsHistoryOpen, handleRestoreSnapshot,
   } = props;
@@ -1167,6 +1172,8 @@ function MapEditClientV3Body(props: BodyProps) {
             zoomIdx={zoomIdx}
             focus={focus}
             setFocus={setFocus}
+            rotation={rotation}
+            setRotation={setRotation}
             dragging={dragging}
             setDragging={setDragging}
             projection={projection}
