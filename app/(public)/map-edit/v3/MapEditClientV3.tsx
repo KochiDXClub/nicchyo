@@ -655,6 +655,20 @@ function MapEditClientV3Body(props: BodyProps) {
     [setSelectedRoadId, setRoadAction]
   );
 
+  // 道の一覧で名前をタップした時は、区画レーンでの店舗タップと同じく
+  // 選択に加えて地図側もその道の位置へ移動する
+  const selectRoadFromList = useCallback(
+    (roadId: string) => {
+      selectRoad(roadId);
+      const road = roads.find((r) => r.id === roadId);
+      if (road && road.points.length > 0) {
+        const center = getRouteCenter(road.points);
+        setFocus(projection.toLocal(center[0], center[1]));
+      }
+    },
+    [selectRoad, roads, projection, setFocus]
+  );
+
   const patchRoad = useCallback(
     (roadId: string, patch: Partial<EditableRoad>, logText?: string) => {
       const before: PendingChangeSnapshot = { shops: cloneShops(shops), roads: cloneRoads(roads), landmarks: cloneLandmarks(landmarks) };
@@ -1210,7 +1224,7 @@ function MapEditClientV3Body(props: BodyProps) {
                   road={selectedRoad}
                   roads={roads}
                   search={search}
-                  onSelectRoad={selectRoad}
+                  onSelectRoad={selectRoadFromList}
                   onNameChange={(value) => selectedRoad && patchRoad(selectedRoad.id, { name: value })}
                   onKindChange={(kind: RoadKind) =>
                     selectedRoad && patchRoad(selectedRoad.id, { kind, widthMeters: ROAD_KIND_DEFAULT_WIDTH[kind] }, `を${ROAD_KIND_LABELS[kind]}に変更`)
