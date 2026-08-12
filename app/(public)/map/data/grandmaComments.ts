@@ -83,7 +83,6 @@ export const mapTutorialComments: import('../types/grandmaComment').GrandmaComme
   { id: 'tut-03', genre: 'tutorial', text: '気になる商品は「バッグに入れる」で買い物リストに追加できるよ。', link: { href: '/bag', label: 'bagを見る' } },
   { id: 'tut-04', genre: 'tutorial', text: 'にちよさんに「おすすめのランチは？」って気軽に聞いてみてね。' },
   { id: 'tut-05', genre: 'tutorial', text: 'お店の詳細ページで⭐をタップするとお気に入りに追加できるよ。' },
-  { id: 'tut-06', genre: 'tutorial', text: '「ことづて」でお店への感想やおすすめをひとこと投稿できるよ。' },
   { id: 'tut-07', genre: 'tutorial', text: '日曜市は毎週日曜日の早朝から夕方まで、約300軒が並ぶきね。' },
   { id: 'tut-08', genre: 'tutorial', text: 'AIに「野菜が安いお店は？」など聞くと、おすすめのお店を教えてくれるよ。' },
   { id: 'tut-09', genre: 'tutorial', text: 'バッグに入れた商品は右上のアイコンからまとめて確認できるよ。', link: { href: '/bag', label: 'bagを開く' } },
