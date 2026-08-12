@@ -132,7 +132,7 @@ export async function loadAllRoutePoints(supabase: ReturnType<typeof createServe
 
 export async function loadEditableRoads(supabase: ReturnType<typeof createServerClient>): Promise<EditableRoad[]> {
   const [roadsResult, allPoints] = await Promise.all([
-    supabase.from("map_roads").select("id, name, kind, width_meters"),
+    supabase.from("map_roads").select("id, name, kind, width_meters").order("created_at", { ascending: true }),
     loadAllRoutePoints(supabase),
   ]);
 
@@ -144,6 +144,8 @@ export async function loadEditableRoads(supabase: ReturnType<typeof createServer
   // 次回保存時に replace_map_route_points が全置換されて完全に失われてしまう。
   // データを守るため、先頭の道に仮で割り当てて表示・保存対象に含める
   // （次回保存時にその道のroad_idとして永続化され、以降は正しく自己修復される）。
+  // 「先頭の道」は created_at 昇順（最初に作られた道）で決定的に選ぶ
+  // （クエリに .order() がないとPostgREST側の返却順に依存し非決定的になるため）。
   const fallbackRoadId = (roadsResult.data ?? [])[0]?.id as string | undefined;
 
   const pointsByRoadId = new Map<string, MapRoutePoint[]>();

@@ -144,6 +144,13 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: assignmentValidationError }, { status: 400 });
     }
 
+    // save_roads_and_points RPCはpointsを常に全削除→再挿入するため、道が残るはずの保存で
+    // route.pointsが空配列だと道の形状が丸ごと消える。全道削除時（body.roads===[]）のみ許容し、
+    // それ以外で空配列が来た場合は不完全なリクエストとみなして拒否する
+    if (body.route.points.length === 0 && (body.roads === undefined || body.roads.length > 0)) {
+      return NextResponse.json({ error: "道の経路データが空です。保存を中止しました。" }, { status: 400 });
+    }
+
     // 道削除バリデーション・hasChanges判定・スナップショット作成のすべてが
     // 「保存前の状態」を必要とするため、1回だけ読み込んで使い回す
     const [currentShops, currentRoads, mapSettingsLimits] = await Promise.all([
