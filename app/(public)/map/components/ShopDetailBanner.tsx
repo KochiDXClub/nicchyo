@@ -4,7 +4,6 @@ import { memo, useState, useCallback, useEffect, useLayoutEffect, useMemo, useRe
 import { safeJsonParse } from "@/lib/utils/safeJsonParse";
 import type { CSSProperties, RefObject } from "react";
 import Image from "next/image";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   MapPin,
@@ -22,7 +21,6 @@ import { useAuth } from "../../../../lib/auth/AuthContext";
 import { getShopBannerImage } from "../../../../lib/shopImages";
 import { useBag } from "../../../../lib/storage/BagContext";
 import { incrementBannerOpens } from "../../../../lib/storage/marketStats";
-import { ingredientCatalog, recipes } from "../../../../lib/recipes";
 import {
   ShopBannerHero,
   ShopBusinessInfoCard,
@@ -87,21 +85,6 @@ const buildBagKey = (name: string, shopId?: number) =>
   `${name.trim().toLowerCase()}-${shopId ?? "any"}`;
 
 
-function findIngredientMatch(name: string) {
-  const lower = name.trim().toLowerCase();
-  return ingredientCatalog.find(
-    (ing) =>
-      ing.name.toLowerCase().includes(lower) ||
-      lower.includes(ing.name.toLowerCase()) ||
-      ing.id.toLowerCase() === lower ||
-      ing.id.toLowerCase().includes(lower) ||
-      ing.aliases?.some(
-        (alias) =>
-          alias.toLowerCase().includes(lower) ||
-          lower.includes(alias.toLowerCase())
-      )
-  );
-}
 
 function loadBagItems(): BagItem[] {
   if (typeof window === "undefined") return [];
@@ -301,17 +284,6 @@ const ShopDetailBanner = memo(function ShopDetailBanner({
   }, [bagContextItems, removeItem, shop.id]);
 
   const handleBagClick = useCallback(() => { router.push("/bag"); }, [router]);
-
-  const matchedIngredientIds = useMemo(() => {
-    if (shop.category !== "食材") return [];
-    return shop.products.map((p) => findIngredientMatch(p)?.id).filter(Boolean) as string[];
-  }, [shop.category, shop.products]);
-
-  const suggestedRecipes = useMemo(() => {
-    if (matchedIngredientIds.length === 0) return [];
-    const ids = new Set(matchedIngredientIds);
-    return recipes.filter((r) => r.ingredientIds.some((id) => ids.has(id))).slice(0, 2);
-  }, [matchedIngredientIds]);
 
   const canEditShop = permissions.canEditShop(shop.vendorId ?? "");
   const bannerSeed = shop.position ?? shop.id;
@@ -991,29 +963,6 @@ const ShopDetailBanner = memo(function ShopDetailBanner({
                 );
               })}
             </div>
-            {shop.category === "食材" && suggestedRecipes.length > 0 && (
-              <div className="mt-4 space-y-2">
-                <p className="text-xs font-semibold text-slate-400">この食材で作れるレシピ</p>
-                {suggestedRecipes.map((recipe) => (
-                  <Link
-                    key={recipe.id}
-                    href={`/recipes/${recipe.id}`}
-                    className="flex items-center gap-3 rounded-xl border border-slate-100 bg-white px-3 py-2.5 shadow-sm transition hover:bg-slate-50"
-                  >
-                    {recipe.heroImage && (
-                      <div className="h-12 w-14 shrink-0 overflow-hidden rounded-lg">
-                        <Image src={recipe.heroImage} alt={recipe.title} width={112} height={96} className="h-full w-full object-cover" />
-                      </div>
-                    )}
-                    <div className="min-w-0 flex-1">
-                      <p className="line-clamp-1 text-sm font-semibold text-slate-900">{recipe.title}</p>
-                      <p className="mt-0.5 line-clamp-1 text-xs text-slate-500">{recipe.description}</p>
-                    </div>
-                    <ChevronRight className="h-4 w-4 shrink-0 text-slate-300" />
-                  </Link>
-                ))}
-              </div>
-            )}
           </div>
         )}
 

@@ -4,7 +4,7 @@ export type AboutIconName =
   | "map"
   | "spark"
   | "chat"
-  | "recipe"
+  | "notebook"
   | "event"
   | "route"
   | "discover"
@@ -60,7 +60,7 @@ export function AboutIcon({ name, className }: AboutIconProps) {
           />
         </svg>
       );
-    case "recipe":
+    case "notebook":
       return (
         <svg {...props}>
           <path

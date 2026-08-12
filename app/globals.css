@@ -454,43 +454,6 @@ body.grandma-chat-open .leaflet-container {
   background: linear-gradient(180deg, #60a5fa 0%, #1d4ed8 100%) !important;
 }
 
-.shop-recipe-icons {
-  position: absolute;
-  /* 写真アイコンは屋台の内側に移したので、屋根の上に戻せる */
-  top: -18px;
-  left: 50%;
-  transform: translateX(-50%);
-  display: none;
-  align-items: center;
-  gap: 2px;
-  padding: 2px 6px;
-  border-radius: 9999px;
-  border: 1px solid rgba(245, 158, 11, 0.6);
-  background: rgba(255, 255, 255, 0.95);
-  box-shadow: 0 2px 6px rgba(245, 158, 11, 0.25);
-  pointer-events: none;
-}
-
-.shop-recipe-icon {
-  font-size: 12px;
-  line-height: 1;
-}
-
-/* レシピの食材アイコンは情報量が多いので最上段（nameplate）だけ */
-.shop-lod-nameplate.shop-marker-recipe .shop-recipe-icons,
-.compact-shop-marker.shop-marker-recipe .shop-recipe-icons {
-  display: inline-flex;
-}
-
-.compact-shop-marker .shop-recipe-icons {
-  top: -14px;
-  padding: 1px 4px;
-}
-
-.compact-shop-marker .shop-recipe-icon {
-  font-size: 10px;
-}
-
 .shop-marker-ai .stall-roof {
   background: linear-gradient(135deg, #fca5a5, #ef4444) !important;
 }
@@ -696,7 +659,6 @@ body.grandma-chat-open .leaflet-container {
   display: flex;
 }
 
-.shop-simple-banner-visible .shop-recipe-icons,
 .shop-simple-banner-visible .shop-favorite-badge,
 .shop-simple-banner-visible .shop-product-icon {
   display: none !important;

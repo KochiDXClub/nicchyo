@@ -13,7 +13,7 @@ export interface GrandmaComment {
    */
   icon?: string;
   /**
-   * Optional link for deep navigation (e.g., map/recipes/events)
+   * Optional link for deep navigation (e.g., map/events)
    */
   link?: {
     href: string;

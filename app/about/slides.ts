@@ -110,7 +110,7 @@ export const aboutSlides: AboutSlide[] = [
     id: "story",
     title: "近況",
     description: "出店者が投稿する今週の写真やお知らせをチェックできます。",
-    iconName: "recipe",
+    iconName: "notebook",
     action: {
       label: "近況を見る",
       href: "/story",
