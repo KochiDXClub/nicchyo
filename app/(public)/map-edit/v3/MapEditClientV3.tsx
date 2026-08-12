@@ -785,6 +785,19 @@ function MapEditClientV3Body(props: BodyProps) {
         cancelMode();
         return;
       }
+
+      // 検索ボックスなど入力欄にフォーカスがある間は、WASD/矢印キーをナビゲーションとして
+      // 横取りしない（例: 「わらび餅」のようにw/a/s/dを含む名前を検索しようとした際に
+      // 文字入力が握りつぶされて区画移動してしまうのを防ぐ）
+      const eventTarget = e.target;
+      const isFormField =
+        eventTarget instanceof HTMLElement &&
+        (eventTarget.tagName === "INPUT" ||
+          eventTarget.tagName === "TEXTAREA" ||
+          eventTarget.tagName === "SELECT" ||
+          eventTarget.isContentEditable);
+      if (isFormField) return;
+
       if (tab !== "slot" || !selectedShop) return;
 
       const lower = e.key.length === 1 ? e.key.toLowerCase() : e.key;
@@ -809,7 +822,27 @@ function MapEditClientV3Body(props: BodyProps) {
       const currentIndex = columns.findIndex(
         (col) => col.north?.locationId === selectedShop.locationId || col.south?.locationId === selectedShop.locationId
       );
-      if (currentIndex === -1) return;
+
+      if (currentIndex === -1) {
+        // market種別の道に紐づくレーンに含まれない区画（他種別の道が最寄りだったり、
+        // どの道からも離れすぎている場合）は、旧実装と同じ店番の前後関係で移動する
+        // フォールバックを使う（レーンに存在しないせいで一切動かせなくなるのを防ぐ）
+        const n = selectedShop.position;
+        let nextPos: number | null = null;
+        if (isRight) nextPos = n + 2;
+        else if (isLeft) nextPos = n - 2;
+        else if (isUp || isDown) nextPos = n % 2 === 1 ? n + 1 : n - 1;
+        if (nextPos != null) {
+          const fallbackTarget = shops.find((s) => s.position === nextPos);
+          if (fallbackTarget) {
+            e.preventDefault();
+            setSelectedLocationId(fallbackTarget.locationId);
+            setFocus(projection.toLocal(fallbackTarget.lat, fallbackTarget.lng));
+          }
+        }
+        return;
+      }
+
       const currentSide: "north" | "south" = columns[currentIndex].north?.locationId === selectedShop.locationId ? "north" : "south";
 
       let targetIndex = currentIndex;
@@ -837,7 +870,7 @@ function MapEditClientV3Body(props: BodyProps) {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [tab, selectedShop, laneGroups, projection, cancelMode, setSelectedLocationId, setFocus]);
+  }, [tab, selectedShop, shops, laneGroups, projection, cancelMode, setSelectedLocationId, setFocus]);
 
   const undo = useCallback(() => {
     setPending((prev) => {
