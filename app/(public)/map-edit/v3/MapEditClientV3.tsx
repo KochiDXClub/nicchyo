@@ -983,7 +983,7 @@ function MapEditClientV3Body(props: BodyProps) {
                 whiteSpace: "nowrap",
               }}
             >
-              {t === "slot" ? "区画を編集" : t === "road" ? "道を編集" : "建物を編集"}
+              {t === "slot" ? "店舗位置を編集" : t === "road" ? "道を編集" : "建物を編集"}
             </span>
           ))}
         </div>
