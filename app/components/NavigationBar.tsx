@@ -243,17 +243,6 @@ function NavigationBarInner({
                   ))}
                 </div>
 
-                {/* ─ 補足：テキストリンク ─ */}
-                <div className="mb-4 flex flex-wrap gap-x-5 gap-y-2 px-1">
-                  <button
-                    type="button"
-                    onClick={() => handleMenuItemClick("/recipes")}
-                    className="text-[13px] text-slate-400 transition hover:text-slate-600"
-                  >
-                    🍳 レシピ
-                  </button>
-                </div>
-
                 <hr className="mb-4 border-slate-100" />
 
                 {/* ─ 出店者メニュー ─ */}

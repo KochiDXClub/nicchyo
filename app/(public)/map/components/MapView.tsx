@@ -27,7 +27,6 @@ import UserLocationMarker from "./UserLocationMarker";
 import MapAgentAssistant from "./MapAgentAssistant";
 import OptimizedShopLayerWithClustering from "./OptimizedShopLayerWithClustering";
 import { MapOverlays, getVisibleMajorPlaceLabels } from "./MapOverlays";
-import { ingredientCatalog, ingredientIcons, type Recipe } from "../../../../lib/recipes";
 import {
   getRecommendedZoomBounds,
 } from '../config/roadConfig';
@@ -65,22 +64,6 @@ import {
   SKIPPED_ZOOM_TOLERANCE,
 } from "../../../../lib/constants";
 
-function findIngredientMatch(name: string) {
-  const lower = name.trim().toLowerCase();
-  return ingredientCatalog.find(
-    (ing) =>
-      ing.name.toLowerCase().includes(lower) ||
-      lower.includes(ing.name.toLowerCase()) ||
-      ing.id.toLowerCase() === lower ||
-      ing.id.toLowerCase().includes(lower) ||
-      ing.aliases?.some(
-        (alias) =>
-          alias.toLowerCase().includes(lower) ||
-          lower.includes(alias.toLowerCase())
-      )
-  );
-}
-
 // Recommended zoom bounds (optimal range for Sunday Market)
 const ZOOM_BOUNDS = getRecommendedZoomBounds();
 
@@ -103,21 +86,6 @@ function isAlwaysVisibleTransitLandmarkKey(key: string): boolean {
 const BASEMAP_TILE_URL = "https://{s}.basemaps.cartocdn.com/rastertiles/voyager_nolabels/{z}/{x}/{y}{r}.png";
 const BASEMAP_ATTRIBUTION =
   '&copy; OpenStreetMap contributors &copy; <a href="https://carto.com/attributions">CARTO</a>';
-
-function isIngredientName(name: string) {
-  const lower = name.trim().toLowerCase();
-  return ingredientCatalog.some(
-    (ing) =>
-      ing.name.toLowerCase().includes(lower) ||
-      lower.includes(ing.name.toLowerCase()) ||
-      ing.id.toLowerCase() === lower ||
-      ing.id.toLowerCase().includes(lower) ||
-      ing.aliases?.some(
-        (alias) =>
-          alias.toLowerCase().includes(lower) || lower.includes(alias.toLowerCase())
-      )
-  );
-}
 
 // ===== 時間帯に応じたアンビエントオーバーレイ =====
 function TimeAmbientOverlay() {
@@ -561,9 +529,6 @@ type MapViewProps = {
   mapRoute?: MapRoute;
   initialShopId?: number;
   openInitialShopBanner?: boolean;
-  selectedRecipe?: Recipe;
-  showRecipeOverlay?: boolean;
-  onCloseRecipeOverlay?: () => void;
   agentOpen?: boolean;
   onAgentToggle?: (open: boolean) => void;
   searchShopIds?: number[];
@@ -738,8 +703,6 @@ const MapView = memo(function MapView({
   mapRoute,
   initialShopId,
   openInitialShopBanner = true,
-  selectedRecipe,
-  showRecipeOverlay,
   agentOpen,
   onAgentToggle,
   searchShopIds,
@@ -1004,59 +967,6 @@ const MapView = memo(function MapView({
     };
   }, []);
 
-  const bagIngredientIds = useMemo(() => {
-    const ids = new Set<string>();
-    bagItems.forEach((item) => {
-      const match = findIngredientMatch(item.name);
-      if (match) ids.add(match.id);
-    });
-    return ids;
-  }, [bagItems]);
-
-  const recipeIngredients = useMemo(() => {
-    if (!selectedRecipe) return [];
-    return selectedRecipe.ingredients
-      .filter((ing) => !bagIngredientIds.has(ing.id))
-      .map((ing) => ({
-        name: ing.name,
-        icon: ingredientIcons[ing.id] ?? "???",
-      }));
-  }, [bagIngredientIds, selectedRecipe]);
-
-  // レシピ食材を持つ店舗（絞り込み済み）
-  const shopsWithIngredients = useMemo(() => {
-    if (!selectedRecipe || recipeIngredients.length === 0) return [];
-    return shops.filter((shop) =>
-      shop.products.some((product) =>
-        recipeIngredients.some((ing) =>
-          product.toLowerCase().includes(ing.name.toLowerCase()) ||
-          ing.name.toLowerCase().includes(product.toLowerCase())
-        )
-      )
-    );
-  }, [selectedRecipe, recipeIngredients, shops]);
-
-  // shopsWithIngredients を再利用して全 shops ループを回避
-  const recipeIngredientIconsByShop = useMemo(() => {
-    if (!showRecipeOverlay || !selectedRecipe || recipeIngredients.length === 0) return {};
-    const byShop: Record<number, string[]> = {};
-    shopsWithIngredients.forEach((shop) => {
-      const icons = recipeIngredients
-        .filter((ing) =>
-          shop.products.some((product) =>
-            product.toLowerCase().includes(ing.name.toLowerCase()) ||
-            ing.name.toLowerCase().includes(product.toLowerCase())
-          )
-        )
-        .map((ing) => ing.icon);
-      if (icons.length > 0) {
-        const unique = Array.from(new Set(icons)).slice(0, 3);
-        byShop[shop.id] = unique;
-      }
-    });
-    return byShop;
-  }, [recipeIngredients, selectedRecipe, showRecipeOverlay, shopsWithIngredients]);
-
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   // 【ポイント7】店舗クリック時のコールバック（段階的ズームアップ対応）
   // - useCallback でメモ化（不要な再生成を防ぐ）
@@ -1156,8 +1066,7 @@ const MapView = memo(function MapView({
   const handleAddToBag = useCallback((name: string, fromShopId?: number) => {
     const value = name.trim();
     if (!value) return;
-    const category = isIngredientName(value) ? "食材" : undefined;
-    addItem({ name: value, fromShopId, category });
+    addItem({ name: value, fromShopId });
   }, [addItem]);
 
   const handleShopChunkProgress = useCallback((processed: number, total: number, done: boolean) => {
@@ -1184,7 +1093,6 @@ const MapView = memo(function MapView({
   const isLowZoomTintMode = mapUiZoom < OVERVIEW_ZONE_MAX_ZOOM;
   const isThirdZoomFromMinimum = Math.abs(mapUiZoom - (MIN_ZOOM + 2.5)) <= 0.15;
   const shouldRenderEventGlow = highlightEventTargets && mapUiZoom >= MIN_ZOOM + 1.5;
-  const shouldRenderRecipeOverlay = (showRecipeOverlay ?? false) && mapUiZoom >= 19.0;
   const shouldRenderMajorLabels = mapUiZoom <= MIN_ZOOM + 2.5;
   const shouldRenderLandmarks = mapUiZoom >= MIN_ZOOM + 0.8 || highlightEventTargets;
   const interactionDisabled = agentOpen ?? false;
@@ -1495,12 +1403,7 @@ const MapView = memo(function MapView({
             searchShopIds={searchShopIds}
             aiHighlightShopIds={aiShopIds}
             commentHighlightShopIds={commentShopId ? [commentShopId] : []}
-            recipeIngredientIconsByShop={recipeIngredientIconsByShop}
             bagShopIds={bagShopIds}
-            shouldRenderRecipeOverlay={shouldRenderRecipeOverlay}
-            shopsWithIngredients={shopsWithIngredients}
-            recipeIngredients={recipeIngredients}
-            onRecipeShopClick={setSelectedShop}
             onChomeClick={handleChomeClick}
             OptimizedShopLayerWithClustering={OptimizedShopLayerWithClustering}
           />

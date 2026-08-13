@@ -42,7 +42,7 @@ HTML 文字列生成による構成に置き換わっている。
       │     ILLUSTRATION_SIZES が唯一の正
       │
       └─ classList の付け外しで状態を反映
-            （選択 / AI提案 / 検索ヒット / ことづて / お気に入り / 買い物袋 / レシピ）
+            （選択 / AI提案 / 検索ヒット / ことづて / お気に入り / 買い物袋）
       ↓
   app/globals.css
       屋台イラスト（CSS 3D）、バッジ、バナーの実体
@@ -143,7 +143,6 @@ light / dark はベース色から `adjustColor(±25)` で生成される。
 | `.shop-marker-comment` | コメントハイライト（パルス） |
 | `.shop-marker-kotodute` | ことづてあり |
 | `.shop-marker-bag` | 買い物リストに入っている |
-| `.shop-marker-recipe` | レシピの食材を扱う |
 | `.is-favorite` | お気に入り |
 
 スポットライト（周囲を暗くする演出）は地図ルートの

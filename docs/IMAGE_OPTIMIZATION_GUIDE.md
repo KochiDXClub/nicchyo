@@ -9,9 +9,6 @@
 - **public/images/shops/右移動後.png**: 80KB
 
 ### JPG画像（最適化推奨）
-- **public/images/recipes/katsuo-don.jpg**: 9.9KB
-- **public/images/recipes/buntan-salad.jpg**: 8.0KB
-- **public/images/recipes/eggplant-ginger.jpg**: 7.0KB
 - **public/images/bag_illustration.jpg**: 6.4KB
 
 **期待される効果**: 画像転送量 **50-70%削減**
@@ -42,9 +39,6 @@ npm install -D sharp-cli
 ```bash
 # shops/ の PNG → WebP
 npx sharp -i public/images/shops/*.png -o public/images/shops/ -f webp --quality 85
-
-# recipes/ の JPG → WebP
-npx sharp -i public/images/recipes/*.jpg -o public/images/recipes/ -f webp --quality 85
 
 # bag_illustration.jpg → WebP
 npx sharp -i public/images/bag_illustration.jpg -o public/images/ -f webp --quality 85
@@ -104,9 +98,6 @@ mkdir -p public/images/.backup
 # PNG をバックアップ
 cp public/images/shops/*.png public/images/.backup/
 cp public/images/bag_illustration.jpg public/images/.backup/
-
-# レシピ画像をバックアップ
-cp public/images/recipes/*.jpg public/images/.backup/
 ```
 
 ---
@@ -118,11 +109,9 @@ cp public/images/recipes/*.jpg public/images/.backup/
 ```bash
 # 変換前
 du -sh public/images/shops/*.png
-du -sh public/images/recipes/*.jpg
 
 # 変換後
 du -sh public/images/shops/*.webp
-du -sh public/images/recipes/*.webp
 ```
 
 ### ブラウザで確認
@@ -145,9 +134,8 @@ du -sh public/images/recipes/*.webp
 ```json
 {
   "scripts": {
-    "optimize:images": "npm run optimize:shops && npm run optimize:recipes && npm run optimize:bag",
+    "optimize:images": "npm run optimize:shops && npm run optimize:bag",
     "optimize:shops": "npx sharp -i public/images/shops/*.png -o public/images/shops/ -f webp --quality 85",
-    "optimize:recipes": "npx sharp -i public/images/recipes/*.jpg -o public/images/recipes/ -f webp --quality 85",
     "optimize:bag": "npx sharp -i public/images/bag_illustration.jpg -o public/images/ -f webp --quality 85"
   }
 }

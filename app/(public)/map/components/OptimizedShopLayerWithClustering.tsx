@@ -34,7 +34,6 @@ export interface OptimizedShopLayerWithClusteringProps {
   searchShopIds?: number[];
   aiHighlightShopIds?: number[];
   commentHighlightShopIds?: number[];
-  recipeIngredientIconsByShop?: Record<number, string[]>;
   bagShopIds?: number[];
 }
 
@@ -73,7 +72,6 @@ function OptimizedShopLayerWithClustering({
   searchShopIds,
   aiHighlightShopIds,
   commentHighlightShopIds,
-  recipeIngredientIconsByShop,
   bagShopIds,
 }: OptimizedShopLayerWithClusteringProps) {
   const map = useMap();
@@ -94,7 +92,6 @@ function OptimizedShopLayerWithClustering({
   const prevCommentHighlightSetRef = useRef<Set<number>>(new Set());
   const bagShopSetRef = useRef<Set<number>>(new Set());
   const prevBagShopSetRef = useRef<Set<number>>(new Set());
-  const recipeIconsRef = useRef<Record<number, string[]>>({});
   const lastLodRef = useRef<ShopMarkerLod | null>(null);
   const lastMarkerZoomScaleRef = useRef<number | null>(null);
   const selectedShopIdRef = useRef<number | undefined>(undefined);
@@ -158,23 +155,6 @@ function OptimizedShopLayerWithClustering({
     }
   };
 
-  const setMarkerRecipeIcons = (marker: L.Marker, icons?: string[]) => {
-    const icon = marker.getElement();
-    if (!icon) return;
-    const container = icon.querySelector('.shop-recipe-icons');
-    if (!container) return;
-    const hasIcons = !!icons && icons.length > 0;
-    if (hasIcons) {
-      container.innerHTML = icons
-        ?.map((recipeIcon) => `<span class="shop-recipe-icon">${recipeIcon}</span>`)
-        .join('') ?? '';
-      icon.classList.add('shop-marker-recipe');
-    } else {
-      container.innerHTML = '';
-      icon.classList.remove('shop-marker-recipe');
-    }
-  };
-
   /**
    * 表示段階をルート要素のクラスで表す。
    * 何を出すかは CSS 側が加算方式で決める（LOD が上がるほど要素が増える）。
@@ -232,7 +212,6 @@ function OptimizedShopLayerWithClustering({
       return L.divIcon({
         html: `
           <div class="shop-marker-compact-wrapper">
-            <div class="shop-recipe-icons" aria-hidden="true"></div>
             <div class="shop-favorite-badge" aria-hidden="true">&#10084;</div>
             <div class="shop-marker-compact"></div>
           </div>
@@ -304,7 +283,6 @@ function OptimizedShopLayerWithClustering({
         setMarkerSearchHighlight(marker, searchHighlightSetRef.current.has(shop.id));
         setMarkerCommentHighlight(marker, commentHighlightSetRef.current.has(shop.id));
         setMarkerBag(marker, bagShopSetRef.current.has(shop.id));
-        setMarkerRecipeIcons(marker, recipeIconsRef.current[shop.id]);
         const currentZoom = map.getZoom();
         const maxZoom = map.getMaxZoom() ?? currentZoom;
         setMarkerLod(marker, getShopMarkerLod(currentZoom, maxZoom));
@@ -357,7 +335,6 @@ function OptimizedShopLayerWithClustering({
         }
 
         setMarkerFavorite(marker, favoriteSetRef.current.has(shopId));
-        setMarkerRecipeIcons(marker, recipeIconsRef.current[shopId]);
         setMarkerLod(marker, nextLod);
         setMarkerZoomScale(marker, markerZoomScale);
         const markerElement = marker.getElement();
@@ -530,13 +507,6 @@ function OptimizedShopLayerWithClustering({
 
     prevBagShopSetRef.current = nextHighlights;
   }, [bagShopIds]);
-
-  useEffect(() => {
-    recipeIconsRef.current = recipeIngredientIconsByShop ?? {};
-    markersRef.current.forEach((marker, shopId) => {
-      setMarkerRecipeIcons(marker, recipeIconsRef.current[shopId]);
-    });
-  }, [recipeIngredientIconsByShop]);
 
   useEffect(() => {
     markersRef.current.forEach((marker, shopId) => {
