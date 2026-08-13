@@ -15,6 +15,7 @@ import {
   loadEditableRoads,
   loadEditableShops,
   loadMapSettingsLimits,
+  type EditableRoad,
   type EditableShop,
 } from "./_shared";
 
@@ -22,6 +23,30 @@ type VendorOption = {
   id: string;
   name: string;
 };
+
+/**
+ * 「このPUTリクエストの保存が完了した後に存在するはずの区画一覧」を作る。
+ * DBから読み直しただけの状態ではなく、同一リクエスト内の位置更新・新規登録・削除を
+ * 反映する必要がある箇所（道削除バリデーション／未割当マーカー数の上限チェック）で
+ * 共通して使う（別々に組み立てると、片方だけ修正漏れが起きて2つのチェックが
+ * 異なる「保存後の状態」を見てしまう恐れがあるため）。
+ */
+function computeShopsAfterRequest(
+  currentShops: EditableShop[],
+  shopsUpdate: { updated?: EditableShop[]; deletedLocationIds?: string[] }
+): EditableShop[] {
+  const updated = shopsUpdate.updated ?? [];
+  const deletedLocationIdSet = new Set(shopsUpdate.deletedLocationIds ?? []);
+  const updatedByLocationId = new Map(
+    updated.filter((shop) => !shop.locationId.startsWith("new-")).map((shop) => [shop.locationId, shop])
+  );
+  const newShops = updated.filter((shop) => shop.locationId.startsWith("new-"));
+
+  return currentShops
+    .filter((shop) => !deletedLocationIdSet.has(shop.locationId))
+    .map((shop) => updatedByLocationId.get(shop.locationId) ?? shop)
+    .concat(newShops);
+}
 
 function validateShopAssignments(shops: EditableShop[]) {
   const vendorByPosition = new Map<number, string>();
@@ -166,23 +191,33 @@ export async function PUT(request: NextRequest) {
       const roadsToRemove = currentRoads.filter((road) => !nextRoadIds.has(road.id));
 
       if (roadsToRemove.length > 0) {
-        const deletedLocationIdSet = new Set(body.shops.deletedLocationIds);
-        const updatedByLocationId = new Map(
-          body.shops.updated
-            .filter((shop) => !shop.locationId.startsWith("new-"))
-            .map((shop) => [shop.locationId, shop])
-        );
-        const newShops = body.shops.updated.filter((shop) => shop.locationId.startsWith("new-"));
         // DBから読み直しただけの状態ではなく、同一リクエスト内の位置更新・新規登録・削除を
         // 反映した「この保存が完了した後に存在するはずの区画一覧」で検証する
         // （そうしないと、直前に道へ移動した区画を見落としてその道の削除を誤って許可してしまう）
-        const shopsAfterThisRequest = currentShops
-          .filter((shop) => !deletedLocationIdSet.has(shop.locationId))
-          .map((shop) => updatedByLocationId.get(shop.locationId) ?? shop)
-          .concat(newShops);
+        const shopsAfterThisRequest = computeShopsAfterRequest(currentShops, body.shops);
+
+        // 道の形状も「保存前（DB）」ではなく「このリクエストで保存される形状」で判定する。
+        // 削除される道自体は body.roads に含まれないため保存前の形状のままでよいが、
+        // 残る道は body.route.points 側の新しい座標を使わないと、道の点をドラッグしつつ
+        // 同じ保存操作で別の道を削除しようとした際に、古い（移動前の）座標のまま
+        // 「区画が乗っている」と誤判定してしまう恐れがある
+        const bodyPointsByRoadId = new Map<string, MapRoutePoint[]>();
+        for (const point of body.route.points) {
+          if (!point.roadId) continue;
+          const list = bodyPointsByRoadId.get(point.roadId) ?? [];
+          list.push(point);
+          bodyPointsByRoadId.set(point.roadId, list);
+        }
+        const roadsForDistanceCheck: EditableRoad[] = [
+          ...roadsToRemove,
+          ...body.roads.map((road) => ({
+            ...road,
+            points: bodyPointsByRoadId.get(road.id) ?? [],
+          })),
+        ];
 
         const snapDistanceMeters = body.route.config.snapDistanceMeters ?? 18;
-        const roadIdsWithShops = findRoadIdsWithShops(shopsAfterThisRequest, currentRoads, snapDistanceMeters);
+        const roadIdsWithShops = findRoadIdsWithShops(shopsAfterThisRequest, roadsForDistanceCheck, snapDistanceMeters);
 
         for (const road of roadsToRemove) {
           if (roadIdsWithShops.has(road.id)) {
@@ -214,12 +249,7 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    const deletedLocationIdSetForCap = new Set(body.shops.deletedLocationIds);
-    const updatedByLocationIdForCap = new Map(body.shops.updated.map((s) => [s.locationId, s]));
-    const shopsAfterSaveForCap = currentShops
-      .filter((s) => !deletedLocationIdSetForCap.has(s.locationId))
-      .map((s) => updatedByLocationIdForCap.get(s.locationId) ?? s)
-      .concat(body.shops.updated.filter((s) => s.locationId.startsWith("new-")));
+    const shopsAfterSaveForCap = computeShopsAfterRequest(currentShops, body.shops);
     const nextUnassignedCount = shopsAfterSaveForCap.filter((s) => !s.vendorId).length;
     if (nextUnassignedCount > mapSettingsLimits.maxUnassignedShopMarkers) {
       return NextResponse.json(
