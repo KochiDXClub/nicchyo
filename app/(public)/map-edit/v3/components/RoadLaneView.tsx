@@ -1,19 +1,24 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useRef } from "react";
 import { projectPointOntoRoute } from "../../../map/utils/mapRouteGeometry";
 import type { Projection } from "../geo";
 import { CHOME_ORDER, type EditableRoad, type EditableShop, type SlotAction } from "../types";
 
-type Side = "north" | "south";
+export type Side = "north" | "south";
 
-type LaneShop = { shop: EditableShop; side: Side; order: number };
+export type LaneShop = { shop: EditableShop; side: Side; order: number };
 
-type Section = {
+export type LaneSection = {
   chome: string;
   north: LaneShop[];
   south: LaneShop[];
   columns: number;
+};
+
+export type LaneRoadGroup = {
+  road: EditableRoad;
+  sections: LaneSection[];
 };
 
 export function sideOfShop(shop: EditableShop, road: EditableRoad, projection: Projection): { side: Side; order: number } {
@@ -37,62 +42,69 @@ export function sideOfShop(shop: EditableShop, road: EditableRoad, projection: P
   };
 }
 
+/**
+ * 区画レーンの表示順（道→丁目→北側/南側を対にしたカラム）を組み立てる。
+ * レーン表示（RoadLaneView）と、キーボード/WASDでの区画間ナビゲーション
+ * （MapEditClientV3）の両方が同じ並び順を参照できるよう、ここに1本化する。
+ */
+export function buildLaneRoadGroups(
+  shops: EditableShop[],
+  roads: EditableRoad[],
+  findNearestRoadId: (point: { lat: number; lng: number }) => string | null,
+  projection: Projection
+): LaneRoadGroup[] {
+  const marketRoads = roads.filter((r) => r.kind === "market" && r.points.length >= 2);
+
+  return marketRoads
+    .map((road) => {
+      const shopsOnRoad = shops.filter((s) => findNearestRoadId({ lat: s.lat, lng: s.lng }) === road.id);
+      const byChome = new Map<string, EditableShop[]>();
+      for (const shop of shopsOnRoad) {
+        const key = shop.chome ?? "その他";
+        const list = byChome.get(key) ?? [];
+        list.push(shop);
+        byChome.set(key, list);
+      }
+
+      const orderedChomeKeys = [...CHOME_ORDER, "その他"].filter((key) => byChome.has(key));
+      const sections: LaneSection[] = orderedChomeKeys.map((chome) => {
+        const withSide = byChome.get(chome)!.map((shop) => ({ shop, ...sideOfShop(shop, road, projection) }));
+        const north = withSide.filter((m) => m.side === "north").sort((a, b) => a.order - b.order);
+        const south = withSide.filter((m) => m.side === "south").sort((a, b) => a.order - b.order);
+        return { chome, north, south, columns: Math.max(north.length, south.length) };
+      });
+
+      return { road, sections };
+    })
+    .filter((group) => group.sections.length > 0);
+}
+
 export default function RoadLaneView({
-  shops,
-  roads,
-  projection,
+  groups,
   selectedLocationId,
   slotAction,
   search,
   onSelectShop,
-  findNearestRoadId,
 }: {
-  shops: EditableShop[];
-  roads: EditableRoad[];
-  projection: Projection;
+  groups: LaneRoadGroup[];
   selectedLocationId: string | null;
   slotAction: SlotAction;
   search: string;
   onSelectShop: (locationId: string) => void;
-  findNearestRoadId: (point: { lat: number; lng: number }) => string | null;
 }) {
   const cellRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const q = search.trim().toLowerCase();
 
-  const roadGroups = useMemo(() => {
-    const marketRoads = roads.filter((r) => r.kind === "market" && r.points.length >= 2);
-
-    return marketRoads
-      .map((road) => {
-        const shopsOnRoad = shops.filter((s) => findNearestRoadId({ lat: s.lat, lng: s.lng }) === road.id);
-        const byChome = new Map<string, EditableShop[]>();
-        for (const shop of shopsOnRoad) {
-          const key = shop.chome ?? "その他";
-          const list = byChome.get(key) ?? [];
-          list.push(shop);
-          byChome.set(key, list);
-        }
-
-        const orderedChomeKeys = [...CHOME_ORDER, "その他"].filter((key) => byChome.has(key));
-        const sections: Section[] = orderedChomeKeys.map((chome) => {
-          const withSide = byChome.get(chome)!.map((shop) => ({ shop, ...sideOfShop(shop, road, projection) }));
-          const north = withSide.filter((m) => m.side === "north").sort((a, b) => a.order - b.order);
-          const south = withSide.filter((m) => m.side === "south").sort((a, b) => a.order - b.order);
-          return { chome, north, south, columns: Math.max(north.length, south.length) };
-        });
-
-        return { road, sections };
-      })
-      .filter((group) => group.sections.length > 0);
-  }, [roads, shops, findNearestRoadId, projection]);
-
   useEffect(() => {
     if (!selectedLocationId) return;
     const el = cellRefs.current.get(selectedLocationId);
-    el?.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
+    // smoothだと連続でキー移動した際にアニメーションが追いつかず、選択中のセルが
+    // 見切れたまま次の移動が来てしまう（止まったタイミングでようやく追いつく）ため、
+    // 即座に追従するinstantに変更する
+    el?.scrollIntoView({ behavior: "instant", inline: "center", block: "nearest" });
   }, [selectedLocationId]);
 
-  if (roadGroups.length === 0) return null;
+  if (groups.length === 0) return null;
 
   const renderCell = (item: LaneShop | undefined) => {
     if (!item) {
@@ -162,7 +174,7 @@ export default function RoadLaneView({
         gap: 12,
       }}
     >
-      {roadGroups.map(({ road, sections }) => (
+      {groups.map(({ road, sections }) => (
         <div key={road.id} style={{ display: "flex", alignItems: "flex-start", gap: 22, flexShrink: 0, overflowX: "auto" }}>
           {sections.map((section) => (
             <div key={section.chome} style={{ display: "flex", flexDirection: "column", gap: 4, flexShrink: 0 }}>

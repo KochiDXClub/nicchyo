@@ -4,7 +4,6 @@ import type {
   EditableLandmark,
   EditableRoad,
   EditableShop,
-  RoadAction,
   RoadKind,
   VendorOption,
 } from "../types";
@@ -105,13 +104,11 @@ export function RoadDetailPanel({
   road,
   roads,
   search,
-  roadAction,
   onSelectRoad,
   onNameChange,
   onKindChange,
   onWiderClick,
   onNarrowerClick,
-  onToggleShape,
   onDelete,
   onAddSlots,
   shopCountOnRoad,
@@ -119,13 +116,11 @@ export function RoadDetailPanel({
   road: EditableRoad | null;
   roads: EditableRoad[];
   search: string;
-  roadAction: RoadAction;
   onSelectRoad: (roadId: string) => void;
   onNameChange: (value: string) => void;
   onKindChange: (kind: RoadKind) => void;
   onWiderClick: () => void;
   onNarrowerClick: () => void;
-  onToggleShape: () => void;
   onDelete: () => void;
   onAddSlots: (count: number) => void;
   shopCountOnRoad: (roadId: string) => number;
@@ -192,17 +187,11 @@ export function RoadDetailPanel({
             </span>
           </div>
 
+          <p style={{ fontSize: 11.5, color: "#9A8A6A", margin: "0 0 12px" }}>
+            地図上の点はドラッグで移動、ダブルクリックで削除、線の中点クリックで追加できます。
+          </p>
+
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
-            <span
-              onClick={onToggleShape}
-              style={{
-                ...buttonStyle,
-                background: roadAction === "shape" ? "#92400E" : "#fff",
-                color: roadAction === "shape" ? "#fff" : "#57503F",
-              }}
-            >
-              {roadAction === "shape" ? "形の編集を終了" : "形を編集"}
-            </span>
             <span onClick={onDelete} style={dangerButtonStyle}>
               道を削除
             </span>

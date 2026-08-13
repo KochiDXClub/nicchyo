@@ -31,7 +31,10 @@ export type SnapshotItem = {
 export type Tab = "slot" | "road" | "landmark";
 
 export type SlotAction = "idle" | "move" | "place";
-export type RoadAction = "idle" | "draw" | "shape";
+// 道の頂点編集（ドラッグ移動・ダブルクリック削除・中点クリックで追加）は
+// 道を選択しさえすれば常に有効（旧エディタのように、選択したらすぐ触れる）。
+// "draw" は新しい道を新規作成しているときだけの状態。
+export type RoadAction = "idle" | "draw";
 export type LandmarkAction = "idle" | "place";
 
 export type PendingChangeSnapshot = {

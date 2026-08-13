@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  distanceMeters,
   findNearestRoadId as findNearestRoadIdShared,
   getDefaultMapRouteConfig,
   getRouteCenter,
@@ -27,10 +28,13 @@ import {
 import MapEditCanvas, { type CanvasHandlers } from "./components/MapEditCanvas";
 import { SlotDetailPanel, RoadDetailPanel, LandmarkDetailPanel } from "./components/DetailPanels";
 import PendingChangeLog from "./components/PendingChangeLog";
-import RoadLaneView from "./components/RoadLaneView";
+import RoadLaneView, { buildLaneRoadGroups, type LaneRoadGroup } from "./components/RoadLaneView";
 
 const ZOOMS = [1.2, 3.5, 12];
 const MAX_ZOOM_IDX = ZOOMS.length - 1;
+// 道を描いている途中、既存の点からこの距離（メートル）以内をクリックしたら
+// その点にスナップして接続する
+const POINT_SNAP_DISTANCE_METERS = 6;
 
 function cloneShops(shops: EditableShop[]) {
   return shops.map((shop) => ({ ...shop }));
@@ -487,6 +491,33 @@ function MapEditClientV3Body(props: BodyProps) {
     [roads, routeConfig.snapDistanceMeters]
   );
 
+  // 道を新規作成中、既存の道の点の近くをクリックしたらその点にぴったり
+  // つなげられるようにする（道同士が交差・合流する見た目を作れるようにするため）
+  const findNearestRoutePoint = useCallback(
+    (point: { lat: number; lng: number }): MapRoutePoint | null => {
+      let nearest: MapRoutePoint | null = null;
+      let bestDistance = Infinity;
+      for (const road of roads) {
+        for (const p of road.points) {
+          const d = distanceMeters(point, p);
+          if (d < bestDistance) {
+            bestDistance = d;
+            nearest = p;
+          }
+        }
+      }
+      return bestDistance <= POINT_SNAP_DISTANCE_METERS ? nearest : null;
+    },
+    [roads]
+  );
+
+  // 区画レーン（下部の一覧）の並び順。レーン表示とキーボード/WASDナビゲーションの
+  // 両方がこの同じ並び順を参照する（表示と操作の向きが食い違わないようにするため）
+  const laneGroups: LaneRoadGroup[] = useMemo(
+    () => buildLaneRoadGroups(shops, roads, findNearestRoadId, projection),
+    [shops, roads, findNearestRoadId, projection]
+  );
+
   // ── 区画選択・移動・登録 ──────────────────────────────
   const selectShop = useCallback(
     (locationId: string) => {
@@ -528,6 +559,17 @@ function MapEditClientV3Body(props: BodyProps) {
       setSelectedLocationId(locationId);
     },
     [shops, roads, landmarks, slotAction, selectedLocationId, setShops, setSlotAction, setSelectedLocationId, log]
+  );
+
+  // 下部の区画レーンで店舗名をタップした時は、選択に加えて地図側もその区画の
+  // 位置へ移動する（キーボード/WASDでの移動時と同じ挙動に揃える）
+  const selectShopFromLane = useCallback(
+    (locationId: string) => {
+      selectShop(locationId);
+      const shop = shops.find((s) => s.locationId === locationId);
+      if (shop) setFocus(projection.toLocal(shop.lat, shop.lng));
+    },
+    [selectShop, shops, projection, setFocus]
   );
 
   const setVendorName = useCallback(
@@ -613,6 +655,20 @@ function MapEditClientV3Body(props: BodyProps) {
     [setSelectedRoadId, setRoadAction]
   );
 
+  // 道の一覧で名前をタップした時は、区画レーンでの店舗タップと同じく
+  // 選択に加えて地図側もその道の位置へ移動する
+  const selectRoadFromList = useCallback(
+    (roadId: string) => {
+      selectRoad(roadId);
+      const road = roads.find((r) => r.id === roadId);
+      if (road && road.points.length > 0) {
+        const center = getRouteCenter(road.points);
+        setFocus(projection.toLocal(center[0], center[1]));
+      }
+    },
+    [selectRoad, roads, projection, setFocus]
+  );
+
   const patchRoad = useCallback(
     (roadId: string, patch: Partial<EditableRoad>, logText?: string) => {
       const before: PendingChangeSnapshot = { shops: cloneShops(shops), roads: cloneRoads(roads), landmarks: cloneLandmarks(landmarks) };
@@ -640,25 +696,29 @@ function MapEditClientV3Body(props: BodyProps) {
     log("道", `${name} を削除`, before);
   }, [selectedRoad, shops, roads, landmarks, findNearestRoadId, setRoads, setSelectedRoadId, setRoadAction, log]);
 
-  const finishDraw = useCallback(() => {
-    if (draft.length < 2) return;
-    const id = `r${Date.now()}`;
-    const name = `新しい道 ${roads.length + 1}`;
-    const points: MapRoutePoint[] = draft.map((p, index) => ({
-      id: `${id}-p${index}`,
-      lat: p.lat,
-      lng: p.lng,
-      order: index,
-      roadId: id,
-    }));
-    const newRoad: EditableRoad = { id, name, kind: "street", widthMeters: ROAD_KIND_DEFAULT_WIDTH.street, points };
-    const before: PendingChangeSnapshot = { shops: cloneShops(shops), roads: cloneRoads(roads), landmarks: cloneLandmarks(landmarks) };
-    setRoads((prev) => [...prev, newRoad]);
-    setDraft([]);
-    setRoadAction("idle");
-    setSelectedRoadId(id);
-    log("道", `${name} を追加（頂点${points.length}）`, before);
-  }, [draft, roads, shops, landmarks, setRoads, setDraft, setRoadAction, setSelectedRoadId, log]);
+  const finishDraw = useCallback(
+    (pointsOverride?: { lat: number; lng: number }[]) => {
+      const draftPoints = pointsOverride ?? draft;
+      if (draftPoints.length < 2) return;
+      const id = `r${Date.now()}`;
+      const name = `新しい道 ${roads.length + 1}`;
+      const points: MapRoutePoint[] = draftPoints.map((p, index) => ({
+        id: `${id}-p${index}`,
+        lat: p.lat,
+        lng: p.lng,
+        order: index,
+        roadId: id,
+      }));
+      const newRoad: EditableRoad = { id, name, kind: "street", widthMeters: ROAD_KIND_DEFAULT_WIDTH.street, points };
+      const before: PendingChangeSnapshot = { shops: cloneShops(shops), roads: cloneRoads(roads), landmarks: cloneLandmarks(landmarks) };
+      setRoads((prev) => [...prev, newRoad]);
+      setDraft([]);
+      setRoadAction("idle");
+      setSelectedRoadId(id);
+      log("道", `${name} を追加（頂点${points.length}）`, before);
+    },
+    [draft, roads, shops, landmarks, setRoads, setDraft, setRoadAction, setSelectedRoadId, log]
+  );
 
   const cancelMode = useCallback(() => {
     setSlotAction("idle");
@@ -718,30 +778,99 @@ function MapEditClientV3Body(props: BodyProps) {
     [shops, roads, landmarks, setLandmarks, setSelectedLandmarkKey, setLandmarkAction, log, mapSettingsLimits.maxLandmarks]
   );
 
-  // ── キーボード ──────────────────────────────
+  // ── キーボード（矢印キー / WASD で区画レーンと同じ並び順に沿って移動） ──────
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         cancelMode();
         return;
       }
+
+      // 検索ボックスなど入力欄にフォーカスがある間は、WASD/矢印キーをナビゲーションとして
+      // 横取りしない（例: 「わらび餅」のようにw/a/s/dを含む名前を検索しようとした際に
+      // 文字入力が握りつぶされて区画移動してしまうのを防ぐ）
+      const eventTarget = e.target;
+      const isFormField =
+        eventTarget instanceof HTMLElement &&
+        (eventTarget.tagName === "INPUT" ||
+          eventTarget.tagName === "TEXTAREA" ||
+          eventTarget.tagName === "SELECT" ||
+          eventTarget.isContentEditable);
+      if (isFormField) return;
+
       if (tab !== "slot" || !selectedShop) return;
-      const n = selectedShop.position;
-      let nextPos: number | null = null;
-      if (e.key === "ArrowRight") nextPos = n + 2;
-      else if (e.key === "ArrowLeft") nextPos = n - 2;
-      else if (e.key === "ArrowUp" || e.key === "ArrowDown") nextPos = n % 2 === 1 ? n + 1 : n - 1;
-      if (nextPos != null) {
-        const target = shops.find((s) => s.position === nextPos);
-        if (target) {
-          e.preventDefault();
-          setSelectedLocationId(target.locationId);
+
+      const lower = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+      const isLeft = e.key === "ArrowLeft" || lower === "a";
+      const isRight = e.key === "ArrowRight" || lower === "d";
+      const isUp = e.key === "ArrowUp" || lower === "w";
+      const isDown = e.key === "ArrowDown" || lower === "s";
+      if (!isLeft && !isRight && !isUp && !isDown) return;
+
+      // レーン表示（road → 丁目 → 北側/南側の対カラム）を左から右へ1列に平らにし、
+      // 表示と全く同じ並び順で移動先を探す（店番の大小に依存すると、実際の並びと
+      // 逆方向に動くことがあるため位置番号の算術には頼らない）
+      const columns: { north?: EditableShop; south?: EditableShop }[] = [];
+      for (const { sections } of laneGroups) {
+        for (const section of sections) {
+          for (let i = 0; i < section.columns; i += 1) {
+            columns.push({ north: section.north[i]?.shop, south: section.south[i]?.shop });
+          }
         }
+      }
+
+      const currentIndex = columns.findIndex(
+        (col) => col.north?.locationId === selectedShop.locationId || col.south?.locationId === selectedShop.locationId
+      );
+
+      if (currentIndex === -1) {
+        // market種別の道に紐づくレーンに含まれない区画（他種別の道が最寄りだったり、
+        // どの道からも離れすぎている場合）は、旧実装と同じ店番の前後関係で移動する
+        // フォールバックを使う（レーンに存在しないせいで一切動かせなくなるのを防ぐ）
+        const n = selectedShop.position;
+        let nextPos: number | null = null;
+        if (isRight) nextPos = n + 2;
+        else if (isLeft) nextPos = n - 2;
+        else if (isUp || isDown) nextPos = n % 2 === 1 ? n + 1 : n - 1;
+        if (nextPos != null) {
+          const fallbackTarget = shops.find((s) => s.position === nextPos);
+          if (fallbackTarget) {
+            e.preventDefault();
+            setSelectedLocationId(fallbackTarget.locationId);
+            setFocus(projection.toLocal(fallbackTarget.lat, fallbackTarget.lng));
+          }
+        }
+        return;
+      }
+
+      const currentSide: "north" | "south" = columns[currentIndex].north?.locationId === selectedShop.locationId ? "north" : "south";
+
+      let targetIndex = currentIndex;
+      let targetSide = currentSide;
+      if (isRight) {
+        let i = currentIndex + 1;
+        while (i < columns.length && !columns[i][currentSide]) i += 1;
+        if (i < columns.length) targetIndex = i;
+      } else if (isLeft) {
+        let i = currentIndex - 1;
+        while (i >= 0 && !columns[i][currentSide]) i -= 1;
+        if (i >= 0) targetIndex = i;
+      } else if (isUp) {
+        targetSide = "north";
+      } else if (isDown) {
+        targetSide = "south";
+      }
+
+      const target = columns[targetIndex]?.[targetSide];
+      if (target) {
+        e.preventDefault();
+        setSelectedLocationId(target.locationId);
+        setFocus(projection.toLocal(target.lat, target.lng));
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [tab, selectedShop, shops, cancelMode, setSelectedLocationId]);
+  }, [tab, selectedShop, shops, laneGroups, projection, cancelMode, setSelectedLocationId, setFocus]);
 
   const undo = useCallback(() => {
     setPending((prev) => {
@@ -765,13 +894,27 @@ function MapEditClientV3Body(props: BodyProps) {
     // （道編集モードなら道の頂点を追加、建物配置モードなら建物を新規配置）
     onMapClick: (lat, lng) => {
       if (tab === "road" && roadAction === "draw") {
+        // 既存の道の点の近くをクリックした場合は、座標をその点にぴったり合わせて
+        // つなげる（軸ロックより優先し、明示的な接続の意図をそのまま反映する）
+        const snapped = findNearestRoutePoint({ lat, lng });
+        const nextLat = snapped ? snapped.lat : lat;
+        const nextLng = snapped ? snapped.lng : lng;
+
+        // すでに新しい点を打ってある状態で既存の点をクリックしたら、
+        // 「新たな点を打って、つなげたい点をクリックでつながる」という操作イメージの通り、
+        // その場でつなげて道を確定する（「この形で確定」を別途押す必要がない）
+        if (snapped && draft.length >= 1) {
+          finishDraw([...draft, { lat: nextLat, lng: nextLng }]);
+          return;
+        }
+
         setDraft((prev) => {
           const first = prev[0];
-          let nextLat = lat;
-          let nextLng = lng;
-          if (first && drawAxis === "h") nextLat = first.lat;
-          if (first && drawAxis === "v") nextLng = first.lng;
-          return [...prev, { lat: nextLat, lng: nextLng }];
+          let pointLat = nextLat;
+          let pointLng = nextLng;
+          if (!snapped && first && drawAxis === "h") pointLat = first.lat;
+          if (!snapped && first && drawAxis === "v") pointLng = first.lng;
+          return [...prev, { lat: pointLat, lng: pointLng }];
         });
         return;
       }
@@ -873,7 +1016,7 @@ function MapEditClientV3Body(props: BodyProps) {
                 whiteSpace: "nowrap",
               }}
             >
-              {t === "slot" ? "区画を編集" : t === "road" ? "道を編集" : "建物を編集"}
+              {t === "slot" ? "店舗位置を編集" : t === "road" ? "道を編集" : "建物を編集"}
             </span>
           ))}
         </div>
@@ -965,9 +1108,7 @@ function MapEditClientV3Body(props: BodyProps) {
               ? "移動先の空き区画をクリックしてください"
               : slotAction === "place"
                 ? "新規出店者を置く空き区画をクリックしてください"
-                : roadAction === "shape"
-                  ? "頂点をドラッグで移動・線分クリックで頂点追加・ダブルクリックで削除"
-                  : `地図をクリックして道を伸ばしてください（${drawAxis === "h" ? "横向き" : drawAxis === "v" ? "縦向き" : "自由"}）`}
+                : `地図をクリックして道を伸ばしてください（${drawAxis === "h" ? "横向き" : drawAxis === "v" ? "縦向き" : "自由"}・既存の点をクリックするとそこにつながって道が確定します）`}
           </span>
           {roadAction === "draw" && (
             <div style={{ display: "flex", gap: 5 }}>
@@ -992,7 +1133,7 @@ function MapEditClientV3Body(props: BodyProps) {
           )}
           {roadAction === "draw" && draft.length >= 2 && (
             <span
-              onClick={finishDraw}
+              onClick={() => finishDraw()}
               style={{ fontSize: 12.5, fontWeight: 700, background: "#fff", color: "#92400E", borderRadius: 9, padding: "5px 12px", cursor: "pointer" }}
             >
               この形で確定
@@ -1039,14 +1180,11 @@ function MapEditClientV3Body(props: BodyProps) {
           />
           {tab === "slot" && (
             <RoadLaneView
-              shops={shops}
-              roads={roads}
-              projection={projection}
+              groups={laneGroups}
               selectedLocationId={selectedLocationId}
               slotAction={slotAction}
               search={search}
-              onSelectShop={selectShop}
-              findNearestRoadId={findNearestRoadId}
+              onSelectShop={selectShopFromLane}
             />
           )}
         </div>
@@ -1119,15 +1257,13 @@ function MapEditClientV3Body(props: BodyProps) {
                   road={selectedRoad}
                   roads={roads}
                   search={search}
-                  roadAction={roadAction}
-                  onSelectRoad={selectRoad}
+                  onSelectRoad={selectRoadFromList}
                   onNameChange={(value) => selectedRoad && patchRoad(selectedRoad.id, { name: value })}
                   onKindChange={(kind: RoadKind) =>
                     selectedRoad && patchRoad(selectedRoad.id, { kind, widthMeters: ROAD_KIND_DEFAULT_WIDTH[kind] }, `を${ROAD_KIND_LABELS[kind]}に変更`)
                   }
                   onWiderClick={() => selectedRoad && patchRoad(selectedRoad.id, { widthMeters: Math.min(90, selectedRoad.widthMeters + 4) }, "の道幅を変更")}
                   onNarrowerClick={() => selectedRoad && patchRoad(selectedRoad.id, { widthMeters: Math.max(8, selectedRoad.widthMeters - 4) }, "の道幅を変更")}
-                  onToggleShape={() => setRoadAction((prev) => (prev === "shape" ? "idle" : "shape"))}
                   onDelete={deleteRoad}
                   onAddSlots={(count) => selectedRoad && addSlotsToRoad(selectedRoad, count)}
                   shopCountOnRoad={(roadId) => shops.filter((s) => findNearestRoadId({ lat: s.lat, lng: s.lng }) === roadId).length}
@@ -1151,7 +1287,12 @@ function MapEditClientV3Body(props: BodyProps) {
       {tab === "road" && !isHistoryOpen && (
         <div style={{ flexShrink: 0, padding: "10px 20px", background: "#fff", borderTop: "1px solid #EDE3CD" }}>
           <span
-            onClick={() => setRoadAction((prev) => (prev === "draw" ? "idle" : "draw"))}
+            onClick={() => {
+              setRoadAction((prev) => (prev === "draw" ? "idle" : "draw"));
+              // 描いている道の頂点ハンドルと接続先の点が重なって紛らわしくならないよう、
+              // 道を描き始めるときは選択中の道をいったん外す
+              setSelectedRoadId(null);
+            }}
             style={{
               padding: "8px 13px",
               borderRadius: 10,
