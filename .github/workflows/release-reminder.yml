@@ -1,0 +1,114 @@
+name: Release Reminder
+
+# docs/RELEASE.md §3 のリリーストリガーを毎週チェックし、
+# 条件を満たしていればリリース確認の Issue を立てる。
+#
+# v1.* タグが存在しないうちは何もしない（初回リリース後に自動で有効になる）。
+
+on:
+  schedule:
+    # 毎週金曜 09:00 JST（= 00:00 UTC）
+    - cron: '0 0 * * 5'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  check:
+    name: リリース時期の判定
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: develop
+
+      - name: 判定
+        id: check
+        run: |
+          set -euo pipefail
+
+          # v1.* タグが無い＝まだ初回リリース前。何もしない
+          LAST_TAG="$(git tag -l 'v1.*' --sort=-v:refname | head -1)"
+          if [ -z "$LAST_TAG" ]; then
+            echo "v1.* タグが存在しないため何もしません（初回リリース前）"
+            echo "should_notify=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          LAST_RELEASE_DATE="$(git log -1 --format=%cI "$LAST_TAG")"
+          DAYS_SINCE=$(( ( $(date +%s) - $(date -d "$LAST_RELEASE_DATE" +%s) ) / 86400 ))
+          COMMITS="$(git rev-list --count origin/main..origin/develop)"
+          # 「## 一覧」以降の箇条書きだけを数える（上部の書き方サンプルを拾わないため）
+          ENTRIES="$(awk '/^## 一覧/{f=1;next} f && /^- /{c++} END{print c+0}' docs/CHANGELOG-unreleased.md)"
+
+          echo "last_tag=$LAST_TAG" >> "$GITHUB_OUTPUT"
+          echo "days_since=$DAYS_SINCE" >> "$GITHUB_OUTPUT"
+          echo "commits=$COMMITS" >> "$GITHUB_OUTPUT"
+          echo "entries=$ENTRIES" >> "$GITHUB_OUTPUT"
+
+          # 未リリースの変更が無ければ通知不要
+          if [ "$COMMITS" -eq 0 ]; then
+            echo "未リリースの変更がありません"
+            echo "should_notify=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # 安全弁: 前回リリースから28日経過（docs/RELEASE.md §3 (b)）
+          if [ "$DAYS_SINCE" -ge 28 ]; then
+            echo "should_notify=true" >> "$GITHUB_OUTPUT"
+            echo "reason=前回リリース（$LAST_TAG）から ${DAYS_SINCE} 日経過しています。docs/RELEASE.md §3 (b) の安全弁に該当するため、今日リリースしてください。" >> "$GITHUB_OUTPUT"
+          else
+            echo "前回リリースから ${DAYS_SINCE} 日。安全弁の閾値（28日）未満のため通知しません"
+            echo "should_notify=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Issue を作成
+        if: steps.check.outputs.should_notify == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          LAST_TAG: ${{ steps.check.outputs.last_tag }}
+          DAYS_SINCE: ${{ steps.check.outputs.days_since }}
+          COMMITS: ${{ steps.check.outputs.commits }}
+          ENTRIES: ${{ steps.check.outputs.entries }}
+          REASON: ${{ steps.check.outputs.reason }}
+        run: |
+          set -euo pipefail
+
+          TITLE="[release] リリース時期の確認"
+
+          # 既に open な同名 Issue があれば作らない
+          EXISTING="$(gh issue list --state open --search "\"$TITLE\" in:title" --json number --jq '.[0].number // empty')"
+          if [ -n "$EXISTING" ]; then
+            echo "既に open な Issue #$EXISTING があるため作成しません"
+            exit 0
+          fi
+
+          gh issue create --title "$TITLE" --body "$(cat <<EOF
+$REASON
+
+## 現状
+
+| 項目 | 値 |
+|---|---|
+| 前回リリース | \`$LAST_TAG\` |
+| 経過日数 | ${DAYS_SINCE} 日 |
+| 未リリースのコミット数 | ${COMMITS} |
+| CHANGELOG-unreleased.md の記載件数 | ${ENTRIES} |
+
+## やること
+
+[docs/RELEASE.md](../blob/develop/docs/RELEASE.md) の §4「リリース手順」に従ってリリースしてください。
+リリースが完了したらこの Issue を閉じてください。
+
+今回はリリースしない判断をした場合も、理由をコメントに残してこの Issue を閉じてください
+（放置すると次の金曜に同じ Issue が立ちます）。
+
+---
+*このIssueは \`.github/workflows/release-reminder.yml\` により自動作成されました。*
+EOF
+)"
