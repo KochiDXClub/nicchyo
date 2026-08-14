@@ -109,6 +109,10 @@ export async function fetchVendorShopsFromDb(
     supabase
       .from("vendor_contents")
       .select("id, vendor_id, body, image_url, expires_at, created_at")
+      // RLS の「vendors can read own contents」ポリシー（状態条件なし）が
+      // OR 結合されるため、認証済みベンダーのセッションで本人の hidden/deleted
+      // 投稿がマップバナーに紛れ込まないよう明示する（/api/stories と同じ対策）
+      .eq("status", "active")
       .gt("expires_at", new Date().toISOString())
       .order("created_at", { ascending: false }),
   ]);
