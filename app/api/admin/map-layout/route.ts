@@ -5,7 +5,7 @@ import { fetchLandmarksFromDb } from "@/app/(public)/map/services/landmarksDb";
 import { fetchMapRouteFromDb } from "@/app/(public)/map/services/mapRouteDb";
 import { requireSameOrigin } from "@/lib/security/requestGuards";
 import { enforceRateLimit } from "@/lib/security/rateLimit";
-import { getRole, isAdmin } from "@/lib/auth/permissions";
+import { authorizeAdmin } from "@/app/api/admin/categories/_helpers";
 import type { Landmark as EditableLandmark } from "@/app/(public)/map/types/landmark";
 import type { MapRoad, MapRouteConfig, MapRoutePoint } from "@/app/(public)/map/types/mapRoute";
 import {
@@ -74,15 +74,11 @@ function validateShopAssignments(shops: EditableShop[]) {
 
 export async function GET() {
   try {
+    const { error: authError } = await authorizeAdmin();
+    if (authError) return NextResponse.json({ error: authError }, { status: 401 });
+
     const cookieStore = await cookies();
     const supabase = createServerClient(cookieStore);
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user || !isAdmin(getRole(user))) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
 
     const [editableShops, landmarks, mapRoute, roads, vendorsResult, mapSettingsLimits] = await Promise.all([
       loadEditableShops(supabase),
@@ -120,16 +116,12 @@ export async function PUT(request: NextRequest) {
     });
     if (rateLimited) return rateLimited;
 
+    const { user, error: authError } = await authorizeAdmin();
+    if (authError || !user) return NextResponse.json({ error: authError }, { status: 401 });
+
     const cookieStore = await cookies();
     const supabase = createServerClient(cookieStore);
     const adminWriteClient = createAdminWriteClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user || !isAdmin(getRole(user))) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
 
     const body = (await request.json()) as {
       shops?: {

@@ -36,6 +36,14 @@ const MAX_ZOOM_IDX = ZOOMS.length - 1;
 // その点にスナップして接続する
 const POINT_SNAP_DISTANCE_METERS = 6;
 
+// 公開マップ側（RoadOverlay.tsx / mapRouteDb.ts）が road_id・複数道の概念にまだ
+// 未対応で、単一のグローバルroadHalfWidthMetersで全道路を描画している。
+// この状態で新しい道（kind: "street" など）を追加保存すると、公開マップ上で
+// 無関係な道同士が1本の道として繋がって描画されてしまう恐れがあるため、
+// 公開マップ側の複数道対応が入るまで、新規の道の作成は一時的に無効化する
+// （既存の道の編集・削除は対象外）
+const isRoadCreationDisabled = true;
+
 function cloneShops(shops: EditableShop[]) {
   return shops.map((shop) => ({ ...shop }));
 }
@@ -1293,25 +1301,29 @@ function MapEditClientV3Body(props: BodyProps) {
 
       {tab === "road" && !isHistoryOpen && (
         <div style={{ flexShrink: 0, padding: "10px 20px", background: "#fff", borderTop: "1px solid #EDE3CD" }}>
+          {/* isRoadCreationDisabled の理由はファイル冒頭の定義部コメント参照 */}
           <span
             onClick={() => {
+              if (isRoadCreationDisabled) return;
               setRoadAction((prev) => (prev === "draw" ? "idle" : "draw"));
               // 描いている道の頂点ハンドルと接続先の点が重なって紛らわしくならないよう、
               // 道を描き始めるときは選択中の道をいったん外す
               setSelectedRoadId(null);
             }}
+            title={isRoadCreationDisabled ? "公開マップ側の複数道対応が完了するまで、新しい道の追加は一時的に無効化しています" : undefined}
             style={{
               padding: "8px 13px",
               borderRadius: 10,
               fontSize: 12.5,
               fontWeight: 700,
-              cursor: "pointer",
-              background: roadAction === "draw" ? "#92400E" : "#FFF7E6",
-              color: roadAction === "draw" ? "#fff" : "#92400E",
+              cursor: isRoadCreationDisabled ? "not-allowed" : "pointer",
+              background: isRoadCreationDisabled ? "#F5F1E6" : roadAction === "draw" ? "#92400E" : "#FFF7E6",
+              color: isRoadCreationDisabled ? "#B5AA92" : roadAction === "draw" ? "#fff" : "#92400E",
               border: "1px solid #E0B877",
+              opacity: isRoadCreationDisabled ? 0.6 : 1,
             }}
           >
-            {roadAction === "draw" ? "通り道を指定中…" : "＋ 道を追加"}
+            {roadAction === "draw" ? "通り道を指定中…" : "＋ 道を追加（準備中）"}
           </span>
         </div>
       )}

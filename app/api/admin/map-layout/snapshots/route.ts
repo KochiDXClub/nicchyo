@@ -4,7 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient as createServerClient } from "@/utils/supabase/server";
 import { requireSameOrigin } from "@/lib/security/requestGuards";
 import { enforceRateLimit } from "@/lib/security/rateLimit";
-import { getRole, isAdmin } from "@/lib/auth/permissions";
+import { authorizeAdmin } from "@/app/api/admin/categories/_helpers";
 import type { Landmark as EditableLandmark } from "@/app/(public)/map/types/landmark";
 import type { MapRoad, MapRouteConfig, MapRoutePoint } from "@/app/(public)/map/types/mapRoute";
 import { createAdminWriteClient, createMapLayoutSnapshot, type EditableShop } from "../_shared";
@@ -15,7 +15,10 @@ async function applySnapshot(
   snapshotLandmarks: EditableLandmark[],
   snapshotRoutePoints: MapRoutePoint[],
   snapshotRouteConfig: MapRouteConfig | null,
-  snapshotRoads: MapRoad[]
+  // null = 「roads未対応の古いスナップショット」（roadsを変更しない）、
+  // 配列（空配列を含む）= 「保存時点のroads状態」を意味する。
+  // restore_map_layout_snapshot SQL関数側の扱いは該当マイグレーションのコメント参照
+  snapshotRoads: MapRoad[] | null
 ) {
   // restore_map_layout_snapshot SQL 関数で全テーブルの復元を1トランザクションに閉じる
   const { error } = await adminWriteClient.rpc("restore_map_layout_snapshot", {
@@ -33,15 +36,8 @@ async function applySnapshot(
 
 export async function GET() {
   try {
-    const cookieStore = await cookies();
-    const supabase = createServerClient(cookieStore);
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user || !isAdmin(getRole(user))) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const { error: authError } = await authorizeAdmin();
+    if (authError) return NextResponse.json({ error: authError }, { status: 401 });
 
     const adminWriteClient = createAdminWriteClient();
     const { data, error } = await adminWriteClient
@@ -72,16 +68,12 @@ export async function POST(request: NextRequest) {
     });
     if (rateLimited) return rateLimited;
 
+    const { user, error: authError } = await authorizeAdmin();
+    if (authError || !user) return NextResponse.json({ error: authError }, { status: 401 });
+
     const cookieStore = await cookies();
     const supabase = createServerClient(cookieStore);
     const adminWriteClient = createAdminWriteClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user || !isAdmin(getRole(user))) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
 
     const body = (await request.json()) as { snapshotId?: string };
     if (!body.snapshotId) {
@@ -109,7 +101,10 @@ export async function POST(request: NextRequest) {
       data.route_config_json && typeof data.route_config_json === "object"
         ? (data.route_config_json as MapRouteConfig)
         : null;
-    const snapshotRoads = Array.isArray(data.roads_json) ? (data.roads_json as MapRoad[]) : [];
+    // roads_json は NULL 許容（「roads未対応の古いスナップショット」を表す）。
+    // ここでは配列以外（NULLを含む）をそのまま null として扱い、[] に丸め込まない
+    // （[]に丸め込むと「意図的な全削除」との区別がつかなくなる）
+    const snapshotRoads = Array.isArray(data.roads_json) ? (data.roads_json as MapRoad[]) : null;
 
     await createMapLayoutSnapshot(supabase, adminWriteClient, user.id, {
       restoreSourceSnapshotId: body.snapshotId,

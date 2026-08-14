@@ -88,6 +88,9 @@ update map_route_points
 set road_id = 'main'
 where road_id is null;
 
--- スナップショット（変更履歴）にも道の情報を含められるようにする
+-- スナップショット（変更履歴）にも道の情報を含められるようにする。
+-- NOT NULLにせず、既存行はNULLのまま残す（「roads未対応の古いスナップショット」を
+-- 「保存時点で道が0件だった」という明示的な空配列と区別するため。
+-- restore_map_layout_snapshot 側の扱いは同マイグレーション内のコメントを参照）
 alter table map_layout_snapshots
-add column if not exists roads_json jsonb not null default '[]'::jsonb;
+add column if not exists roads_json jsonb;

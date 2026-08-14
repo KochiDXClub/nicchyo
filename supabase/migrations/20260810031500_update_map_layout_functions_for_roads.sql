@@ -46,7 +46,7 @@ CREATE OR REPLACE FUNCTION restore_map_layout_snapshot(
   p_landmarks    jsonb,
   p_route_points jsonb,
   p_route_config jsonb,
-  p_roads        jsonb DEFAULT '[]'::jsonb
+  p_roads        jsonb DEFAULT NULL
 )
 RETURNS void
 LANGUAGE plpgsql
@@ -56,19 +56,22 @@ AS $$
 DECLARE
   v_today text := to_char(now() AT TIME ZONE 'Asia/Tokyo', 'YYYY-MM-DD');
 BEGIN
-  -- ① market_locations を upsert（スナップショット内容で更新）
+  -- ① market_locations を upsert（スナップショット内容で更新。district（丁目）も
+  -- 含めないと、緯度経度・店番だけ戻って丁目だけ現在値のままという不完全な復元になる）
   IF p_shops IS NOT NULL AND jsonb_array_length(p_shops) > 0 THEN
-    INSERT INTO market_locations (id, store_number, latitude, longitude)
+    INSERT INTO market_locations (id, store_number, latitude, longitude, district)
     SELECT
       elem->>'locationId',
       (elem->>'position')::integer,
       (elem->>'lat')::double precision,
-      (elem->>'lng')::double precision
+      (elem->>'lng')::double precision,
+      elem->>'chome'
     FROM jsonb_array_elements(p_shops) AS elem
     ON CONFLICT (id) DO UPDATE SET
       store_number = EXCLUDED.store_number,
       latitude     = EXCLUDED.latitude,
-      longitude    = EXCLUDED.longitude;
+      longitude    = EXCLUDED.longitude,
+      district     = EXCLUDED.district;
   END IF;
 
   -- ② location_assignments を全クリア（現在の全 location に紐づくもの）
@@ -150,6 +153,8 @@ BEGIN
       width_meters = EXCLUDED.width_meters,
       updated_at   = now();
   END IF;
+  -- p_roads が「空配列」（要素0件）の場合はここでは何もしない。道の削除は⑨で行う
+  -- （NULLとの違いは⑨のコメントを参照）。
 
   -- ⑧ map_route_points を全削除し、スナップショットから再挿入
   -- branch_from_id 自己参照 FK のため、先に id のみ挿入してから UPDATE する
@@ -174,11 +179,16 @@ BEGIN
   END IF;
 
   -- ⑨ スナップショットにない map_roads を削除（route_points の差し替え後なので安全）
-  -- p_roads が空/未指定の場合は roads を一切変更しない。
-  -- このPR以前に作成されたスナップショットは roads_json が NOT NULL DEFAULT '[]'::jsonb で
-  -- バックフィルされているため、「roads_json が空＝roadsを全削除したい」とは解釈できない
-  -- （market_locations・map_landmarks と異なり、空配列を「意図的に全削除」とは扱わない）。
-  IF p_roads IS NOT NULL AND jsonb_array_length(p_roads) > 0 THEN
+  --
+  -- p_roads の NULL と空配列（[]）を区別して扱う:
+  --   - NULL: 「roads未対応の古いスナップショット」を意味し、roadsを一切変更しない
+  --     （map_layout_snapshots.roads_json はこのPRでNULL許容に変更しており、
+  --     このPR以前に作成されたスナップショット行はNULLのまま残る）
+  --   - 空配列: 「保存時点で道が0件だった」という明示的な状態を意味し、
+  --     market_locations・map_landmarks と同様に「意図的な全削除」として扱う
+  --     （createMapLayoutSnapshot は roads を必ず実配列として書き込むため、
+  --     このPR以降に作られたスナップショットの roads_json がNULLになることはない）
+  IF p_roads IS NOT NULL THEN
     DELETE FROM map_roads
     WHERE id NOT IN (
       SELECT elem->>'id'
