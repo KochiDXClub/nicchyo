@@ -3,26 +3,11 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/adminClient";
 import { requireSameOrigin } from "@/lib/security/requestGuards";
 import { enforceRateLimit } from "@/lib/security/rateLimit";
+import { normalizeVisitorKey, isValidContentId } from "./_helpers";
 
 export const dynamic = "force-dynamic";
 
 type Params = { params: Promise<{ id: string }> };
-
-// visitorKey の受理条件は ask/route.ts に倣う（空でない・128文字以内）
-function normalizeVisitorKey(raw: unknown): string | null {
-  if (typeof raw !== "string") return null;
-  const vk = raw.trim();
-  return vk.length > 0 && vk.length <= 128 ? vk : null;
-}
-
-// vendor_contents.id（UUID）の形式チェック。不正な値を弾いておかないと
-// Postgres の型エラーがそのまま500として露出してしまう（レビュー指摘対応）
-const UUID_PATTERN =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-function isValidContentId(id: string): boolean {
-  return UUID_PATTERN.test(id);
-}
 
 async function readReactionState(
   supabase: SupabaseClient,
