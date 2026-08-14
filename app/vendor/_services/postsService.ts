@@ -67,6 +67,12 @@ export async function createPost(
   imageFile?: File,
   existingImageUrl?: string
 ): Promise<Post> {
+  // 近況フィード（/api/stories）は画像なし投稿を表示対象から除外するため、
+  // 画像付き投稿のみを正式な近況投稿として認める（UI側のガードに加えた二重防御）
+  if (!imageFile && !existingImageUrl) {
+    throw new Error("画像を選択してください");
+  }
+
   const supabase = createClient();
   let imageUrl: string | null = existingImageUrl ?? null;
 
@@ -105,6 +111,11 @@ export async function repostContent(
   vendorId: string,
   originalPost: Post
 ): Promise<Post> {
+  // 画像必須化前の過去投稿（画像なし）をそのまま再投稿できてしまわないようガード
+  if (!originalPost.image_url) {
+    throw new Error("画像のない投稿は再投稿できません。画像を追加して新規投稿してください");
+  }
+
   const eod = getNextSundayExpiry();
 
   const supabase = createClient();
