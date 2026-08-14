@@ -39,7 +39,7 @@ export async function GET(req: Request) {
   const dc = createAdminClient() ?? supabase;
   const { data, error } = await dc
     .from("vendor_contents")
-    .select("id, vendor_id, title, body, image_url, expires_at, created_at, vendors(shop_name)")
+    .select("id, vendor_id, title, body, image_url, expires_at, created_at, status, vendors(shop_name)")
     .order("created_at", { ascending: false });
 
   if (error) {
