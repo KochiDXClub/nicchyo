@@ -223,44 +223,6 @@ export type Database = {
         }
         Relationships: []
       }
-      kotodutes: {
-        Row: {
-          body: string
-          created_at: string
-          id: string
-          report_count: number
-          status: string
-          vendor_id: string | null
-          visitor_key: string
-        }
-        Insert: {
-          body: string
-          created_at?: string
-          id?: string
-          report_count?: number
-          status?: string
-          vendor_id?: string | null
-          visitor_key: string
-        }
-        Update: {
-          body?: string
-          created_at?: string
-          id?: string
-          report_count?: number
-          status?: string
-          vendor_id?: string | null
-          visitor_key?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "kotodutes_vendor_id_fkey"
-            columns: ["vendor_id"]
-            isOneToOne: false
-            referencedRelation: "vendors"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       location_assignments: {
         Row: {
           created_at: string | null
@@ -677,6 +639,57 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      reports: {
+        Row: {
+          created_at: string
+          details: string | null
+          id: string
+          reason: string
+          reporter_email: string | null
+          reporter_id: string | null
+          resolution_notes: string | null
+          resolved_at: string | null
+          resolved_by: string | null
+          status: string
+          target_id: string
+          target_name: string | null
+          target_type: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          details?: string | null
+          id?: string
+          reason: string
+          reporter_email?: string | null
+          reporter_id?: string | null
+          resolution_notes?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          status?: string
+          target_id: string
+          target_name?: string | null
+          target_type: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          details?: string | null
+          id?: string
+          reason?: string
+          reporter_email?: string | null
+          reporter_id?: string | null
+          resolution_notes?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          status?: string
+          target_id?: string
+          target_name?: string | null
+          target_type?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       report_readers: {
         Row: {
