@@ -1116,7 +1116,6 @@ export type Database = {
           main_product_prices: Json | null
           main_products: string[] | null
           must_change_password: boolean | null
-          owner_name: string | null
           payment_methods: string[] | null
           rain_policy: string | null
           role: string | null
@@ -1140,7 +1139,6 @@ export type Database = {
           main_product_prices?: Json | null
           main_products?: string[] | null
           must_change_password?: boolean | null
-          owner_name?: string | null
           payment_methods?: string[] | null
           rain_policy?: string | null
           role?: string | null
@@ -1164,7 +1162,6 @@ export type Database = {
           main_product_prices?: Json | null
           main_products?: string[] | null
           must_change_password?: boolean | null
-          owner_name?: string | null
           payment_methods?: string[] | null
           rain_policy?: string | null
           role?: string | null
