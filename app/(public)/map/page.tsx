@@ -9,6 +9,7 @@ import { fetchLandmarksFromDb } from './services/landmarksDb';
 import type { Landmark } from './types/landmark';
 import type { MapRoute } from './types/mapRoute';
 import { fetchMapRouteFromDb, getFallbackMapRoute } from './services/mapRouteDb';
+import { safeJsonLd } from '@/lib/utils/jsonLd';
 
 export const metadata: Metadata = {
   title: "日曜市マップ",
@@ -100,7 +101,7 @@ export default async function MapPage() {
     <>
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(sundayMarketJsonLd) }}
+        dangerouslySetInnerHTML={{ __html: safeJsonLd(sundayMarketJsonLd) }}
       />
       <Suspense
         fallback={
