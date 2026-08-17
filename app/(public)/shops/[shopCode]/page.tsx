@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/database.types";
 import { formatShopIdToCode, normalizeShopCodeToId } from "@/lib/shops/route";
+import { safeJsonLd } from "@/lib/utils/jsonLd";
 import ReportButton from "./ReportButton";
 
 type ShopPageProps = {
@@ -120,7 +121,7 @@ export default async function ShopPage({ params }: ShopPageProps) {
     <>
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(localBusinessJsonLd) }}
+        dangerouslySetInnerHTML={{ __html: safeJsonLd(localBusinessJsonLd) }}
       />
       <main className="mx-auto flex min-h-[calc(100vh-4rem)] w-full max-w-2xl flex-col gap-4 px-4 py-10">
         {/* 店舗ヘッダーカード */}
