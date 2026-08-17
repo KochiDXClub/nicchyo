@@ -4,6 +4,7 @@ import type { Database } from "@/types/database.types";
 import type { DatabaseWithExtensions } from "@/types/database.extensions";
 import { buildGrandmaAiSystemPrompt } from "@/app/(public)/map/data/grandmaAiContext";
 import { requireSameOrigin } from "@/lib/security/requestGuards";
+import { maskPii } from "@/lib/privacy/maskPii";
 import { enforceRateLimit } from "@/lib/security/rateLimit";
 import {
   CONSULT_CHARACTER_BY_ID,
@@ -258,7 +259,7 @@ async function finalizeConsultResponse(options: {
   if (logVendorIds.length > 0) {
     const logs = logVendorIds.map((vendorId) => ({
       store_id: vendorId,
-      question_text: text || "(画像のみ)",
+      question_text: text ? maskPii(text) : "(画像のみ)",
       intent_category: intentCategory,
       keywords,
       location_type: locationType,
@@ -272,7 +273,7 @@ async function finalizeConsultResponse(options: {
   } else {
     supabase.from("ai_consult_logs").insert({
       store_id: null,
-      question_text: text || "(画像のみ)",
+      question_text: text ? maskPii(text) : "(画像のみ)",
       intent_category: intentCategory,
       keywords,
       location_type: locationType,
