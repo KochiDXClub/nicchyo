@@ -29,9 +29,16 @@ type PageAnalyticsRow = {
   user_role: string | null;
 };
 
-type DailyUniqueRow = {
+// 長期の推移は visitor_key を含まない日次サマリーで扱う
+type DailySummaryRow = {
   visit_date: string;
-  visitor_key: string;
+  unique_visitors: number;
+  vendor_unique_visitors: number;
+};
+
+type DailyCountPoint = {
+  visit_date: string;
+  count: number;
 };
 
 type UrlSummary = {
@@ -152,21 +159,24 @@ function formatWeekLabel(startIso: string) {
   }).format(end)}`;
 }
 
+// 日次ユニーク数の系列から粒度別の推移を組み立てる。
+// 週・月・年は「日次ユニークの合計（延べ）」であり、期間内の重複排除はしない
+// （行レベルの visitor_key を長期保存しないためのトレードオフ）。
 function buildTrafficSeries(
-  rows: DailyUniqueRow[],
+  points: DailyCountPoint[],
   now: Date
 ) {
-  const normalizedRows = rows.filter((row) => row.visit_date && row.visitor_key);
+  const normalizedPoints = points.filter((point) => point.visit_date);
   const periodVisitors = {
-    day: new Map<string, Set<string>>(),
-    week: new Map<string, Set<string>>(),
-    month: new Map<string, Set<string>>(),
-    year: new Map<string, Set<string>>(),
-  } satisfies Record<TrafficGranularity, Map<string, Set<string>>>;
+    day: new Map<string, number>(),
+    week: new Map<string, number>(),
+    month: new Map<string, number>(),
+    year: new Map<string, number>(),
+  } satisfies Record<TrafficGranularity, Map<string, number>>;
 
-  for (const row of normalizedRows) {
-    const date = new Date(`${row.visit_date}T00:00:00Z`);
-    const dayKey = row.visit_date;
+  for (const point of normalizedPoints) {
+    const date = new Date(`${point.visit_date}T00:00:00Z`);
+    const dayKey = point.visit_date;
     const weekKey = toIsoDate(getStartOfWeek(date));
     const monthKey = toMonthKey(date);
     const yearKey = String(date.getUTCFullYear());
@@ -178,9 +188,8 @@ function buildTrafficSeries(
     };
 
     (Object.keys(keys) as TrafficGranularity[]).forEach((granularity) => {
-      const totalSet = periodVisitors[granularity].get(keys[granularity]) ?? new Set<string>();
-      totalSet.add(row.visitor_key);
-      periodVisitors[granularity].set(keys[granularity], totalSet);
+      const map = periodVisitors[granularity];
+      map.set(keys[granularity], (map.get(keys[granularity]) ?? 0) + point.count);
     });
   }
 
@@ -191,7 +200,7 @@ function buildTrafficSeries(
     return {
       key,
       label: formatShortDate(key),
-      value: periodVisitors.day.get(key)?.size ?? 0,
+      value: periodVisitors.day.get(key) ?? 0,
     };
   });
 
@@ -202,7 +211,7 @@ function buildTrafficSeries(
     return {
       key,
       label: formatWeekLabel(key),
-      value: periodVisitors.week.get(key)?.size ?? 0,
+      value: periodVisitors.week.get(key) ?? 0,
     };
   });
 
@@ -212,7 +221,7 @@ function buildTrafficSeries(
     return {
       key,
       label: formatMonthLabel(key),
-      value: periodVisitors.month.get(key)?.size ?? 0,
+      value: periodVisitors.month.get(key) ?? 0,
     };
   });
 
@@ -222,7 +231,7 @@ function buildTrafficSeries(
     return {
       key,
       label: formatYearLabel(year),
-      value: periodVisitors.year.get(key)?.size ?? 0,
+      value: periodVisitors.year.get(key) ?? 0,
     };
   });
 
@@ -276,6 +285,9 @@ export default async function AdminDashboardPage() {
   const weeklyStart = new Date(now);
   weeklyStart.setDate(now.getDate() - 6);
   const weeklyStartIso = weeklyStart.toISOString().slice(0, 10);
+  // 生ログ（web_page_analytics）は35日で削除されるため、
+  // 訪問者単位の計算（月間ユニーク・滞在時間）はこの窓の中だけで行う
+  const rawWindowStart = weeklyStartIso < monthStart ? weeklyStartIso : monthStart;
   const yearlyAnalyticsStart = new Date(Date.UTC(now.getFullYear() - 4, 0, 1))
     .toISOString()
     .slice(0, 10);
@@ -283,7 +295,8 @@ export default async function AdminDashboardPage() {
   const [
     vendorsCountResult,
     activeContentsCountResult,
-    periodPageAnalyticsResult,
+    dailySummariesResult,
+    recentRawResult,
     pageAnalyticsResult,
     latestPageVisitDateResult,
     latestVendorsResult,
@@ -296,9 +309,14 @@ export default async function AdminDashboardPage() {
       .select("*", { count: "exact", head: true })
       .gt("expires_at", now.toISOString()),
     dataClient
+      .from("web_page_daily_summaries")
+      .select("visit_date, unique_visitors, vendor_unique_visitors")
+      .gte("visit_date", yearlyAnalyticsStart)
+      .lte("visit_date", todayIso),
+    dataClient
       .from("web_page_analytics")
       .select("visit_date, visitor_key, path, duration_seconds, user_role")
-      .gte("visit_date", yearlyAnalyticsStart)
+      .gte("visit_date", rawWindowStart)
       .lte("visit_date", todayIso),
     dataClient
       .from("web_page_analytics")
@@ -330,8 +348,11 @@ export default async function AdminDashboardPage() {
   const pageAnalytics = Array.isArray(pageAnalyticsResult.data)
     ? (pageAnalyticsResult.data as PageAnalyticsRow[])
     : [];
-  const periodPageAnalytics = Array.isArray(periodPageAnalyticsResult.data)
-    ? (periodPageAnalyticsResult.data as PageAnalyticsRow[])
+  const dailySummaries = Array.isArray(dailySummariesResult.data)
+    ? (dailySummariesResult.data as DailySummaryRow[])
+    : [];
+  const recentRawRows = Array.isArray(recentRawResult.data)
+    ? (recentRawResult.data as PageAnalyticsRow[])
     : [];
   const latestAnalyticsDate =
     Array.isArray(latestPageVisitDateResult.data) &&
@@ -351,38 +372,55 @@ export default async function AdminDashboardPage() {
       : [];
   }
 
-  const allTrafficRows: DailyUniqueRow[] = Array.from(
-    new Map(
-      periodPageAnalytics
-        .filter((row) => !isAdmin(row.user_role))
-        .map((row) => [`${row.visit_date}:${row.visitor_key}`, { visit_date: row.visit_date, visitor_key: row.visitor_key }])
-    ).values()
-  );
-  const vendorTrafficRows: DailyUniqueRow[] = Array.from(
-    new Map(
-      periodPageAnalytics
-        .filter((row) => row.user_role === "vendor")
-        .map((row) => [`${row.visit_date}:${row.visitor_key}`, { visit_date: row.visit_date, visitor_key: row.visitor_key }])
-    ).values()
-  );
+  // 日次カウント: サマリーを基礎に、未集計の直近日（当日など）は生ログで上書きする
+  const allDailyCounts = new Map<string, number>();
+  const vendorDailyCounts = new Map<string, number>();
+  for (const row of dailySummaries) {
+    allDailyCounts.set(row.visit_date, row.unique_visitors);
+    vendorDailyCounts.set(row.visit_date, row.vendor_unique_visitors);
+  }
+  const rawAllVisitors = new Map<string, Set<string>>();
+  const rawVendorVisitors = new Map<string, Set<string>>();
+  for (const row of recentRawRows) {
+    if (!row.visit_date || !row.visitor_key) continue;
+    if (!isAdmin(row.user_role)) {
+      const visitors = rawAllVisitors.get(row.visit_date) ?? new Set<string>();
+      visitors.add(row.visitor_key);
+      rawAllVisitors.set(row.visit_date, visitors);
+    }
+    if (row.user_role === "vendor") {
+      const visitors = rawVendorVisitors.get(row.visit_date) ?? new Set<string>();
+      visitors.add(row.visitor_key);
+      rawVendorVisitors.set(row.visit_date, visitors);
+    }
+  }
+  for (const [date, visitors] of rawAllVisitors) {
+    allDailyCounts.set(date, visitors.size);
+    vendorDailyCounts.set(date, rawVendorVisitors.get(date)?.size ?? 0);
+  }
+  const toDailyCountPoints = (counts: Map<string, number>): DailyCountPoint[] =>
+    Array.from(counts.entries()).map(([visit_date, count]) => ({ visit_date, count }));
   const trafficSeriesByGranularity = buildTrafficSeries(
-    allTrafficRows,
+    toDailyCountPoints(allDailyCounts),
     new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()))
   );
   const vendorTrafficSeriesByGranularity = buildTrafficSeries(
-    vendorTrafficRows,
+    toDailyCountPoints(vendorDailyCounts),
     new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()))
   );
   const monthVisitors = new Set(
-    allTrafficRows
-      .filter((row) => row.visit_date >= monthStart && row.visit_date < monthEnd)
+    recentRawRows
+      .filter(
+        (row) =>
+          !isAdmin(row.user_role) &&
+          row.visit_date >= monthStart &&
+          row.visit_date < monthEnd
+      )
       .map((row) => row.visitor_key)
   ).size;
-  const vendorVisitorsToday = new Set(
-    vendorTrafficRows.filter((row) => row.visit_date === todayIso).map((row) => row.visitor_key)
-  ).size;
+  const vendorVisitorsToday = rawVendorVisitors.get(todayIso)?.size ?? 0;
 
-  const weeklyDurationRows = periodPageAnalytics.filter(
+  const weeklyDurationRows = recentRawRows.filter(
     (row) => row.visit_date >= weeklyStartIso && row.visit_date <= todayIso
   );
   const visitorDailyDurationMap = buildVisitorDailyDurationMap(

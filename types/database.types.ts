@@ -1186,13 +1186,33 @@ export type Database = {
           },
         ]
       }
+      web_page_daily_summaries: {
+        Row: {
+          unique_visitors: number
+          updated_at: string
+          vendor_unique_visitors: number
+          visit_date: string
+        }
+        Insert: {
+          unique_visitors?: number
+          updated_at?: string
+          vendor_unique_visitors?: number
+          visit_date: string
+        }
+        Update: {
+          unique_visitors?: number
+          updated_at?: string
+          vendor_unique_visitors?: number
+          visit_date?: string
+        }
+        Relationships: []
+      }
       web_page_analytics: {
         Row: {
           created_at: string
           duration_seconds: number
           id: number
           path: string
-          user_id: string | null
           user_role: string | null
           visit_date: string
           visitor_key: string
@@ -1202,7 +1222,6 @@ export type Database = {
           duration_seconds: number
           id?: number
           path: string
-          user_id?: string | null
           user_role?: string | null
           visit_date: string
           visitor_key: string
@@ -1212,7 +1231,6 @@ export type Database = {
           duration_seconds?: number
           id?: number
           path?: string
-          user_id?: string | null
           user_role?: string | null
           visit_date?: string
           visitor_key?: string
