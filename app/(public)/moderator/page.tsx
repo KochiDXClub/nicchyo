@@ -5,25 +5,37 @@ export const dynamic = "force-dynamic";
 import React, { useEffect, useState, useCallback } from "react";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { useRouter } from "next/navigation";
-import { StatCard, MenuCard, ErrorBoundary, AdminLayout } from "@/components/admin";
+import { StatCard, ErrorBoundary, AdminLayout } from "@/components/admin";
 import { createClient } from "@/utils/supabase/client";
 
-type KotoduteStat = {
+type ReportStat = {
   total: number;
-  published: number;
-  hidden: number;
-  deleted: number;
-  reported: number;
+  open: number;
+  inReview: number;
+  resolved: number;
   todayCount: number;
 };
 
-type RecentKotodute = {
+type RecentReport = {
   id: string;
-  body: string;
+  target_type: string;
+  target_name: string | null;
+  reason: string;
   status: string;
-  report_count: number;
   created_at: string;
-  vendor_name: string | null;
+};
+
+const TARGET_TYPE_LABELS: Record<string, string> = {
+  vendor: "出店者",
+  content: "近況投稿",
+  kotodute: "ことづて",
+};
+
+const STATUS_LABELS: Record<string, { label: string; color: string; icon: string }> = {
+  open: { label: "未対応", color: "text-red-600", icon: "🚨" },
+  in_review: { label: "確認中", color: "text-orange-600", icon: "👀" },
+  resolved: { label: "対応済み", color: "text-green-600", icon: "✅" },
+  dismissed: { label: "対応不要", color: "text-gray-500", icon: "🗂️" },
 };
 
 function timeAgo(dateStr: string): string {
@@ -40,24 +52,22 @@ function timeAgo(dateStr: string): string {
 const ActivityItem = React.memo(function ActivityItem({
   item,
 }: {
-  item: RecentKotodute;
+  item: RecentReport;
 }) {
-  const isReported = item.report_count > 0;
-  const isHidden = item.status === "hidden";
-  const isDeleted = item.status === "deleted";
-
-  const icon = isDeleted ? "🗑️" : isReported ? "🚨" : isHidden ? "👁️" : "💌";
-  const color = isDeleted ? "text-gray-500" : isReported ? "text-red-600" : isHidden ? "text-orange-600" : "text-green-600";
-  const label = isDeleted ? "削除済み" : isReported ? `${item.report_count}件報告` : isHidden ? "非表示" : "公開中";
-  const shopLabel = item.vendor_name ? `（${item.vendor_name}へ）` : "（市場全体へ）";
+  const statusInfo = STATUS_LABELS[item.status] ?? STATUS_LABELS.open;
+  const targetLabel = TARGET_TYPE_LABELS[item.target_type] ?? item.target_type;
+  const targetName = item.target_name ? `（${item.target_name}）` : "";
 
   return (
     <div className="flex items-start space-x-3 border-b border-gray-100 pb-3 last:border-0">
-      <span className="text-2xl" aria-hidden="true">{icon}</span>
+      <span className="text-2xl" aria-hidden="true">{statusInfo.icon}</span>
       <div className="flex-1 min-w-0">
-        <p className={`text-sm font-medium ${color}`}>
-          <span className="font-normal text-gray-700">{item.body.slice(0, 60)}{item.body.length > 60 ? "…" : ""}</span>
-          {` — ${label}${shopLabel}`}
+        <p className={`text-sm font-medium ${statusInfo.color}`}>
+          <span className="font-normal text-gray-700">
+            {targetLabel}
+            {targetName}への通報: {item.reason}
+          </span>
+          {` — ${statusInfo.label}`}
         </p>
         <p className="mt-0.5 text-xs text-gray-500">{timeAgo(item.created_at)}</p>
       </div>
@@ -65,19 +75,11 @@ const ActivityItem = React.memo(function ActivityItem({
   );
 });
 
-const menuItems = [
-  { title: "報告された投稿", description: "ユーザー報告の確認", icon: "🚨", href: "/moderator/reports", bgColor: "bg-red-500" },
-  { title: "スパムフィルター", description: "自動フィルター設定", icon: "🛡️", href: "/moderator/spam-filter", bgColor: "bg-orange-500" },
-  { title: "統計・分析", description: "投稿の傾向分析", icon: "📊", href: "/moderator/analytics", bgColor: "bg-blue-500" },
-  { title: "NGワード管理", description: "禁止ワード設定", icon: "🚫", href: "/moderator/ng-words", bgColor: "bg-gray-500" },
-  { title: "設定", description: "モデレーション設定", icon: "⚙️", href: "/moderator/settings", bgColor: "bg-green-500" },
-];
-
 function ModeratorDashboardContent() {
   const { user, permissions, isLoading } = useAuth();
   const router = useRouter();
-  const [stats, setStats] = useState<KotoduteStat | null>(null);
-  const [recent, setRecent] = useState<RecentKotodute[]>([]);
+  const [stats, setStats] = useState<ReportStat | null>(null);
+  const [recent, setRecent] = useState<RecentReport[]>([]);
   const [dataLoading, setDataLoading] = useState(true);
   const [dataError, setDataError] = useState<string | null>(null);
 
@@ -96,27 +98,25 @@ function ModeratorDashboardContent() {
       const todayStart = new Date();
       todayStart.setHours(0, 0, 0, 0);
 
-      const [totalRes, publishedRes, hiddenRes, deletedRes, reportedRes, todayRes, recentRes] =
+      const [totalRes, openRes, inReviewRes, resolvedRes, todayRes, recentRes] =
         await Promise.all([
-          supabase.from("kotodutes").select("id", { count: "exact", head: true }),
-          supabase.from("kotodutes").select("id", { count: "exact", head: true }).eq("status", "published"),
-          supabase.from("kotodutes").select("id", { count: "exact", head: true }).eq("status", "hidden"),
-          supabase.from("kotodutes").select("id", { count: "exact", head: true }).eq("status", "deleted"),
-          supabase.from("kotodutes").select("id", { count: "exact", head: true }).gt("report_count", 0),
-          supabase.from("kotodutes").select("id", { count: "exact", head: true }).gte("created_at", todayStart.toISOString()),
+          supabase.from("reports").select("id", { count: "exact", head: true }),
+          supabase.from("reports").select("id", { count: "exact", head: true }).eq("status", "open"),
+          supabase.from("reports").select("id", { count: "exact", head: true }).eq("status", "in_review"),
+          supabase.from("reports").select("id", { count: "exact", head: true }).eq("status", "resolved"),
+          supabase.from("reports").select("id", { count: "exact", head: true }).gte("created_at", todayStart.toISOString()),
           supabase
-            .from("kotodutes")
-            .select("id, body, status, report_count, created_at, vendors(shop_name)")
+            .from("reports")
+            .select("id, target_type, target_name, reason, status, created_at")
             .order("created_at", { ascending: false })
             .limit(10),
         ]);
 
       setStats({
         total: totalRes.count ?? 0,
-        published: publishedRes.count ?? 0,
-        hidden: hiddenRes.count ?? 0,
-        deleted: deletedRes.count ?? 0,
-        reported: reportedRes.count ?? 0,
+        open: openRes.count ?? 0,
+        inReview: inReviewRes.count ?? 0,
+        resolved: resolvedRes.count ?? 0,
         todayCount: todayRes.count ?? 0,
       });
 
@@ -124,16 +124,11 @@ function ModeratorDashboardContent() {
       setRecent(
         rows.map((row) => ({
           id: row.id,
-          body: row.body ?? "",
-          status: row.status ?? "published",
-          report_count: row.report_count ?? 0,
+          target_type: row.target_type ?? "",
+          target_name: row.target_name ?? null,
+          reason: row.reason ?? "",
+          status: row.status ?? "open",
           created_at: row.created_at,
-          vendor_name:
-            row.vendors && typeof row.vendors === "object" && !Array.isArray(row.vendors)
-              ? (row.vendors as { shop_name: string | null }).shop_name
-              : Array.isArray(row.vendors) && row.vendors.length > 0
-              ? (row.vendors[0] as { shop_name: string | null }).shop_name
-              : null,
         }))
       );
     } catch {
@@ -155,10 +150,10 @@ function ModeratorDashboardContent() {
 
   const statCards = stats
     ? [
-        { title: "総ことづて数", value: String(stats.total), icon: "💌", bgColor: "bg-purple-50", textColor: "text-purple-600" },
-        { title: "公開中", value: String(stats.published), icon: "✅", bgColor: "bg-green-50", textColor: "text-green-600" },
-        { title: "今日の投稿", value: String(stats.todayCount), icon: "📝", bgColor: "bg-blue-50", textColor: "text-blue-600" },
-        { title: "報告あり", value: String(stats.reported), icon: "🚨", bgColor: "bg-red-50", textColor: "text-red-600" },
+        { title: "総通報数", value: String(stats.total), icon: "📋", bgColor: "bg-purple-50", textColor: "text-purple-600" },
+        { title: "未対応", value: String(stats.open), icon: "🚨", bgColor: "bg-red-50", textColor: "text-red-600" },
+        { title: "確認中", value: String(stats.inReview), icon: "👀", bgColor: "bg-orange-50", textColor: "text-orange-600" },
+        { title: "今日の通報", value: String(stats.todayCount), icon: "📝", bgColor: "bg-blue-50", textColor: "text-blue-600" },
       ]
     : null;
 
@@ -209,38 +204,20 @@ function ModeratorDashboardContent() {
               ))}
         </div>
 
-        {/* サブ統計（非表示・削除数） */}
+        {/* サブ統計（対応済み数） */}
         {stats && (
           <div className="mb-6 sm:mb-8 grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <div className="rounded-lg bg-orange-50 p-3 shadow text-center">
-              <p className="text-xs text-orange-600">非表示</p>
-              <p className="text-xl font-bold text-orange-600">{stats.hidden}</p>
-            </div>
-            <div className="rounded-lg bg-gray-50 p-3 shadow text-center">
-              <p className="text-xs text-gray-500">削除済み</p>
-              <p className="text-xl font-bold text-gray-500">{stats.deleted}</p>
+            <div className="rounded-lg bg-green-50 p-3 shadow text-center">
+              <p className="text-xs text-green-600">対応済み</p>
+              <p className="text-xl font-bold text-green-600">{stats.resolved}</p>
             </div>
           </div>
         )}
 
-        {/* メニュー */}
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-2 lg:grid-cols-3 mb-6 sm:mb-8">
-          {menuItems.map((item) => (
-            <MenuCard
-              key={item.title}
-              title={item.title}
-              description={item.description}
-              icon={item.icon}
-              href={item.href}
-              bgColor={item.bgColor}
-            />
-          ))}
-        </div>
-
-        {/* 最近のことづて */}
-        <div className="rounded-lg bg-white p-4 sm:p-6 shadow" role="region" aria-labelledby="recent-kotodute">
-          <h2 id="recent-kotodute" className="text-lg font-bold text-gray-900 mb-4 sm:text-xl">
-            最近のことづて
+        {/* 最近の通報 */}
+        <div className="rounded-lg bg-white p-4 sm:p-6 shadow" role="region" aria-labelledby="recent-reports">
+          <h2 id="recent-reports" className="text-lg font-bold text-gray-900 mb-4 sm:text-xl">
+            最近の通報
           </h2>
           {dataLoading ? (
             <div className="space-y-3">
@@ -255,7 +232,7 @@ function ModeratorDashboardContent() {
               ))}
             </div>
           ) : recent.length === 0 ? (
-            <p className="text-sm text-gray-500">ことづてはまだありません</p>
+            <p className="text-sm text-gray-500">通報はまだありません</p>
           ) : (
             <div className="space-y-3">
               {recent.map((item) => (
