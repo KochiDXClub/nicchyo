@@ -75,7 +75,7 @@ function validateShopAssignments(shops: EditableShop[]) {
 export async function GET() {
   try {
     const { error: authError } = await authorizeAdmin();
-    if (authError) return NextResponse.json({ error: authError }, { status: 401 });
+    if (authError) return NextResponse.json({ error: authError }, { status: 403 });
 
     const cookieStore = await cookies();
     const supabase = createServerClient(cookieStore);
@@ -117,7 +117,7 @@ export async function PUT(request: NextRequest) {
     if (rateLimited) return rateLimited;
 
     const { user, error: authError } = await authorizeAdmin();
-    if (authError || !user) return NextResponse.json({ error: authError }, { status: 401 });
+    if (authError || !user) return NextResponse.json({ error: authError }, { status: 403 });
 
     const cookieStore = await cookies();
     const supabase = createServerClient(cookieStore);

@@ -37,7 +37,7 @@ async function applySnapshot(
 export async function GET() {
   try {
     const { error: authError } = await authorizeAdmin();
-    if (authError) return NextResponse.json({ error: authError }, { status: 401 });
+    if (authError) return NextResponse.json({ error: authError }, { status: 403 });
 
     const adminWriteClient = createAdminWriteClient();
     const { data, error } = await adminWriteClient
@@ -69,7 +69,7 @@ export async function POST(request: NextRequest) {
     if (rateLimited) return rateLimited;
 
     const { user, error: authError } = await authorizeAdmin();
-    if (authError || !user) return NextResponse.json({ error: authError }, { status: 401 });
+    if (authError || !user) return NextResponse.json({ error: authError }, { status: 403 });
 
     const cookieStore = await cookies();
     const supabase = createServerClient(cookieStore);

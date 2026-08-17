@@ -57,7 +57,11 @@ DECLARE
   v_today text := to_char(now() AT TIME ZONE 'Asia/Tokyo', 'YYYY-MM-DD');
 BEGIN
   -- ① market_locations を upsert（スナップショット内容で更新。district（丁目）も
-  -- 含めないと、緯度経度・店番だけ戻って丁目だけ現在値のままという不完全な復元になる）
+  -- 含めないと、緯度経度・店番だけ戻って丁目だけ現在値のままという不完全な復元になる）。
+  -- ただし develop 現行の shops_json には chome が含まれない古いスナップショットが
+  -- 存在するため、district は EXCLUDED（新しい値）が NULL の場合は現在値を維持する
+  -- （COALESCE しないと、古いスナップショットを復元するだけで全区画のdistrictが
+  -- NULLで上書きされてしまう）
   IF p_shops IS NOT NULL AND jsonb_array_length(p_shops) > 0 THEN
     INSERT INTO market_locations (id, store_number, latitude, longitude, district)
     SELECT
@@ -71,7 +75,7 @@ BEGIN
       store_number = EXCLUDED.store_number,
       latitude     = EXCLUDED.latitude,
       longitude    = EXCLUDED.longitude,
-      district     = EXCLUDED.district;
+      district     = COALESCE(EXCLUDED.district, market_locations.district);
   END IF;
 
   -- ② location_assignments を全クリア（現在の全 location に紐づくもの）
