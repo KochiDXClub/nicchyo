@@ -24,8 +24,8 @@ const baseNavItems: NavItem[] = [
 // ─── セカンダリメニュー項目（2列グリッド） ────────────────────────────────────
 const secondaryMenuItems = [
   { label: "おでかけサポート", href: "/facilities", emoji: "🧭", color: "bg-teal-50", textColor: "text-teal-800", border: "border-teal-100", wide: true },
+  { label: "日曜市カレンダー", href: "/calendar", emoji: "📅", color: "bg-sky-50",  textColor: "text-sky-800",    border: "border-sky-100",   wide: true },
   { label: "マイページ",  href: "/my-profile", emoji: "👤", color: "bg-violet-50",  textColor: "text-violet-800", border: "border-violet-100" },
-  { label: "日曜市カレンダー", href: "/calendar", emoji: "📅", color: "bg-sky-50",  textColor: "text-sky-800",    border: "border-sky-100"    },
   { label: "nicchyoとは", href: "/about",      emoji: "ℹ️", color: "bg-slate-50",   textColor: "text-slate-700",  border: "border-slate-100"  },
 ];
 
@@ -241,17 +241,6 @@ function NavigationBarInner({
                       <span className={`text-[13px] font-bold ${item.textColor}`}>{item.label}</span>
                     </motion.button>
                   ))}
-                </div>
-
-                {/* ─ 補足：テキストリンク ─ */}
-                <div className="mb-4 flex flex-wrap gap-x-5 gap-y-2 px-1">
-                  <button
-                    type="button"
-                    onClick={() => handleMenuItemClick("/recipes")}
-                    className="text-[13px] text-slate-400 transition hover:text-slate-600"
-                  >
-                    🍳 レシピ
-                  </button>
                 </div>
 
                 <hr className="mb-4 border-slate-100" />

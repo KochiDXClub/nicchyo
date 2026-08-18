@@ -7,7 +7,6 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { AnimatePresence, motion, useDragControls } from "framer-motion";
 import SearchClient from "../search/SearchClient";
 import type { Map as LeafletMap } from "leaflet";
-import { pickDailyRecipe, recipes, type Recipe } from "../../../lib/recipes";
 import { clearSearchMapPayload, loadAiMapPayload, loadSearchMapPayload } from "../../../lib/searchMapStorage";
 import NextImage from "next/image";
 import { getShopBannerImage } from "../../../lib/shopImages";
@@ -17,7 +16,6 @@ import { SHOP_CATEGORY_NAMES } from "./data/shops";
 import type { Shop } from "./data/shops";
 import type { Landmark } from "./types/landmark";
 import type { MapRoute } from "./types/mapRoute";
-import { loadKotodute } from "../../../lib/kotoduteStorage";
 import { useMapLoading } from "../../components/MapLoadingProvider";
 import { grandmaEvents } from "./data/grandmaEvents";
 import { recordMarketEnter, recordMarketExit } from "../../../lib/storage/marketStats";
@@ -63,17 +61,6 @@ type MapPageClientProps = {
   shops: Shop[];
   landmarks: Landmark[];
   mapRoute: MapRoute;
-  shopBannerVariant?: "default" | "kotodute";
-  attendanceEstimates?: Record<
-    number,
-    {
-      label: string;
-      p: number | null;
-      n_eff: number;
-      vendor_override: boolean;
-      evidence_summary: string;
-    }
-  >;
 };
 
 
@@ -158,8 +145,6 @@ export default function MapPageClient({
   shops,
   landmarks,
   mapRoute,
-  shopBannerVariant = "default",
-  attendanceEstimates,
 }: MapPageClientProps) {
   const showGrandma = false;
   const searchParams = useSearchParams();
@@ -181,9 +166,6 @@ export default function MapPageClient({
     const query = params.toString();
     router.replace(query ? `/map?${query}` : "/map", { scroll: false });
   }, [router, searchParamsKey]);
-  const [recommendedRecipe, setRecommendedRecipe] = useState<Recipe | null>(null);
-  const [showBanner, setShowBanner] = useState(false);
-  const [showRecipeOverlay, setShowRecipeOverlay] = useState(false);
   const [agentOpen, setAgentOpen] = useState(false);
   const [showVendorPrompt, setShowVendorPrompt] = useState(false);
   const [vendorShopName, setVendorShopName] = useState<string | null>(null);
@@ -378,32 +360,6 @@ export default function MapPageClient({
   }, [shops, vendorShopId]);
 
   useEffect(() => {
-    const dismissed = typeof window !== "undefined" && localStorage.getItem("nicchyo-daily-recipe-dismissed");
-    const todayId = typeof window !== "undefined" && localStorage.getItem("nicchyo-daily-recipe-id");
-    const daily = pickDailyRecipe();
-    if (!todayId) {
-      localStorage.setItem("nicchyo-daily-recipe-id", daily.id);
-    }
-    if (!dismissed) {
-      setRecommendedRecipe(daily);
-      // setShowBanner(true);
-    } else if (todayId) {
-      const match = pickDailyRecipe();
-      setRecommendedRecipe(match);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (!searchParams) return;
-    const recipeId = searchParams.get("recipe");
-    if (!recipeId) return;
-    const match = recipes.find((recipe) => recipe.id === recipeId);
-    if (!match) return;
-    setRecommendedRecipe(match);
-    setShowRecipeOverlay(true);
-  }, [searchParams, searchParamsKey]);
-
-  useEffect(() => {
     if (!searchParams) return;
     const enabled = searchParams.get("search");
     if (!enabled) {
@@ -470,17 +426,6 @@ export default function MapPageClient({
     setShowVendorPrompt(true);
     localStorage.setItem(key, "dismissed");
   }, [permissions.isVendor, vendorShopId, vendorShop]);
-
-  const handleAcceptRecipe = () => {
-    setShowRecipeOverlay(true);
-    setShowBanner(false);
-    localStorage.setItem("nicchyo-daily-recipe-dismissed", "false");
-  };
-
-  const handleDismissBanner = () => {
-    setShowBanner(false);
-    localStorage.setItem("nicchyo-daily-recipe-dismissed", "true");
-  };
 
   const handleOpenVendorBanner = () => {
     if (!vendorShop) return;
@@ -664,17 +609,6 @@ export default function MapPageClient({
     mapCharacterConsultActive ||
     !!aiMarkerPayload;
 
-  const kotoduteShopIds = useMemo(() => {
-    const notes = loadKotodute();
-    const ids = new Set<number>();
-    notes.forEach((note) => {
-      if (typeof note.shopId === "number") {
-        ids.add(note.shopId);
-      }
-    });
-    return Array.from(ids);
-  }, []);
-
   // ── 「このへん、なにがある？」──────────────────────
   // 他のモード（検索・AI相談・店舗バナー・パネル表示中）ではボタンを出さない
   const nearbySuppressed =
@@ -716,7 +650,7 @@ export default function MapPageClient({
           rect
         )
     );
-    // おすすめ: 行動シグナル（お気に入り・買い物リスト・ことづて）から
+    // おすすめ: 行動シグナル（お気に入り・買い物リスト）から
     // 興味ジャンルを導き、範囲内の店舗（近い順）から9店を選ぶ
     const inAreaShops = summary.shopIds
       .map((id) => shopById.get(id))
@@ -726,7 +660,7 @@ export default function MapPageClient({
       .map((item) => item.fromShopId)
       .filter((id): id is number => typeof id === "number");
     const interestCategories = deriveInterestCategories(
-      [...favoriteIds, ...bagShopIds, ...kotoduteShopIds],
+      [...favoriteIds, ...bagShopIds],
       (id) => shopById.get(id)?.category
     );
     const recommendations: NearbyRecommendedShop[] = selectNearbyRecommendations(
@@ -747,7 +681,7 @@ export default function MapPageClient({
       recommendations,
       note: buildNearbyNote(summary),
     });
-  }, [bagItems, kotoduteShopIds, shopById, shops]);
+  }, [bagItems, shopById, shops]);
 
   const closeNearbyPanel = useCallback(() => {
     setNearbyState(null);
@@ -793,58 +727,6 @@ export default function MapPageClient({
         }}
       >
         <div className="relative h-full overflow-hidden">
-            {showBanner && recommendedRecipe && (
-              <div className="absolute left-4 right-4 top-4 z-[1200]">
-                <div className="rounded-2xl border border-amber-200 bg-white/95 shadow-xl p-4 flex flex-col gap-3">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-amber-700">
-                        本日のおすすめレシピ
-                      </p>
-                      <h2 className="text-lg font-bold text-gray-900">{recommendedRecipe.title}</h2>
-                      <p className="text-xs text-gray-700">{recommendedRecipe.description}</p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={handleDismissBanner}
-                      className="h-8 w-8 rounded-full border border-amber-200 bg-white text-xs font-bold text-amber-700 shadow-sm hover:bg-amber-50"
-                      aria-label="閉じる"
-                    >
-                      ×
-                    </button>
-                  </div>
-                  <div className="flex flex-wrap gap-2 text-[11px]">
-                    {recommendedRecipe.ingredients.map((ing) => (
-                      <span
-                        key={ing.id}
-                        className="inline-flex items-center gap-1 rounded-full border border-amber-100 bg-amber-50 px-2 py-1 font-semibold text-amber-800"
-                      >
-                        <span aria-hidden>🥕</span>
-                        {ing.name}
-                        {ing.seasonal ? " (旬)" : ""}
-                      </span>
-                    ))}
-                  </div>
-                  <div className="flex flex-col gap-2 md:flex-row md:items-center md:gap-3">
-                    <button
-                      type="button"
-                      onClick={handleAcceptRecipe}
-                      className="w-full rounded-xl bg-amber-600 px-4 py-2 text-sm font-semibold text-white shadow-sm shadow-amber-200/70 transition hover:bg-amber-500"
-                    >
-                      このレシピを見る
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => router.push("/recipes")}
-                      className="w-full rounded-xl border border-amber-200 bg-white px-4 py-2 text-sm font-semibold text-amber-800 shadow-sm transition hover:bg-amber-50"
-                    >
-                      ほかのレシピを探す
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
-
             {showVendorPrompt && vendorShopName && (
               <div className="absolute left-4 right-4 top-1/2 z-[1300] -translate-y-1/2">
                 <div className="rounded-2xl border border-amber-200 bg-white/95 p-4 shadow-xl">
@@ -994,9 +876,6 @@ export default function MapPageClient({
               mapRoute={mapRoute}
               initialShopId={initialShopId}
               openInitialShopBanner={!isAiFocusMode}
-              selectedRecipe={recommendedRecipe ?? undefined}
-              showRecipeOverlay={showRecipeOverlay}
-              onCloseRecipeOverlay={() => setShowRecipeOverlay(false)}
               agentOpen={agentOpen}
               onAgentToggle={setAgentOpen}
               searchShopIds={searchMarkerPayload?.ids ?? mapSearchShopIds}
@@ -1015,9 +894,6 @@ export default function MapPageClient({
                 setMapSearchCategory(null);
                 setAiMarkerPayload(null);
               }}
-              kotoduteShopIds={kotoduteShopIds}
-              shopBannerVariant={shopBannerVariant}
-              attendanceEstimates={attendanceEstimates}
               // おでかけサポート表示中は施設に合わせた画角を優先し、
               // 現在地取得時の自動ズームで上書きされないようにする
               suppressInitialLocationFocus={isAiFocusMode || Boolean(facilityGuide.category)}

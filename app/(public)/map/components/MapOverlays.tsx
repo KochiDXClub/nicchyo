@@ -3,7 +3,7 @@
 import { Fragment, memo, useCallback, useEffect, useState } from "react";
 import type { ComponentType } from "react";
 import type { OptimizedShopLayerWithClusteringProps } from "./OptimizedShopLayerWithClustering";
-import { CircleMarker, Marker, Pane, Popup, Rectangle, Tooltip, useMap } from "react-leaflet";
+import { CircleMarker, Marker, Pane, Popup, Rectangle, useMap } from "react-leaflet";
 import L from "leaflet";
 import type { LatLngBoundsExpression } from "leaflet";
 import type { Landmark } from "../types/landmark";
@@ -37,14 +37,7 @@ export const MapOverlays = memo(function MapOverlays({
   searchShopIds,
   aiHighlightShopIds,
   commentHighlightShopIds,
-  kotoduteShopIds,
-  recipeIngredientIconsByShop,
-  attendanceLabelsByShop,
   bagShopIds,
-  shouldRenderRecipeOverlay,
-  shopsWithIngredients,
-  recipeIngredients,
-  onRecipeShopClick,
   onChomeClick,
   OptimizedShopLayerWithClustering,
 }: {
@@ -68,14 +61,7 @@ export const MapOverlays = memo(function MapOverlays({
   searchShopIds?: number[];
   aiHighlightShopIds?: number[];
   commentHighlightShopIds?: number[];
-  kotoduteShopIds?: number[];
-  recipeIngredientIconsByShop: Record<number, string[]>;
-  attendanceLabelsByShop: Record<number, string>;
   bagShopIds: number[];
-  shouldRenderRecipeOverlay: boolean;
-  shopsWithIngredients: Shop[];
-  recipeIngredients: Array<{ name: string; icon: string }>;
-  onRecipeShopClick: (shop: Shop) => void;
   onChomeClick?: (chome: string) => void;
   OptimizedShopLayerWithClustering: ComponentType<OptimizedShopLayerWithClusteringProps>;
 }) {
@@ -188,52 +174,9 @@ export const MapOverlays = memo(function MapOverlays({
           searchShopIds={searchShopIds}
           aiHighlightShopIds={aiHighlightShopIds}
           commentHighlightShopIds={commentHighlightShopIds}
-          kotoduteShopIds={kotoduteShopIds}
-          recipeIngredientIconsByShop={recipeIngredientIconsByShop}
-          attendanceLabelsByShop={attendanceLabelsByShop}
           bagShopIds={bagShopIds}
         />
       )}
-
-      {!isMinimumZoomMode && shouldRenderRecipeOverlay && shopsWithIngredients.map((shop) => {
-        const matchingIngredients = recipeIngredients.filter((ing) =>
-          shop.products.some((product) =>
-            product.toLowerCase().includes(ing.name.toLowerCase()) ||
-            ing.name.toLowerCase().includes(product.toLowerCase())
-          )
-        );
-
-        return (
-          <CircleMarker
-            key={`recipe-${shop.id}`}
-            center={[shop.lat, shop.lng]}
-            radius={40}
-            pathOptions={{
-              fillColor: "#f59e0b",
-              fillOpacity: 0.2,
-              color: "#f59e0b",
-              weight: 3,
-              opacity: 0.8,
-            }}
-            eventHandlers={{
-              click: () => onRecipeShopClick(shop),
-            }}
-          >
-            <Tooltip direction="top" offset={[0, -10]} opacity={0.95}>
-              <div className="text-xs">
-                <div className="mb-1 font-bold">{shop.name}</div>
-                <div className="space-y-0.5 text-[10px]">
-                  {matchingIngredients.slice(0, 3).map((ing, i) => (
-                    <div key={i}>
-                      {ing.icon} {ing.name}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </Tooltip>
-          </CircleMarker>
-        );
-      })}
     </>
   );
 });

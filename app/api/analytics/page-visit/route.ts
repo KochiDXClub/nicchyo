@@ -84,7 +84,6 @@ export async function POST(request: NextRequest) {
     visitor_key: visitorKey,
     path,
     duration_seconds: durationSeconds,
-    user_id: user?.id ?? null,
     user_role: normalizeRole(user),
   });
 

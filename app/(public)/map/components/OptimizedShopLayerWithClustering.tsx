@@ -19,7 +19,6 @@ import {
   getShopMarkerScale,
   type ShopMarkerLod,
 } from '../config/displayConfig';
-import { isClosedAttendanceLabel } from '../config/attendanceLabels';
 import { getRoadSide } from '../config/roadConfig';
 import { getShopBannerImage } from '../../../../lib/shopImages';
 import { generateShopMarkerHtml } from '../utils/markerHtmlGenerator';
@@ -35,9 +34,6 @@ export interface OptimizedShopLayerWithClusteringProps {
   searchShopIds?: number[];
   aiHighlightShopIds?: number[];
   commentHighlightShopIds?: number[];
-  kotoduteShopIds?: number[];
-  recipeIngredientIconsByShop?: Record<number, string[]>;
-  attendanceLabelsByShop?: Record<number, string>;
   bagShopIds?: number[];
 }
 
@@ -76,9 +72,6 @@ function OptimizedShopLayerWithClustering({
   searchShopIds,
   aiHighlightShopIds,
   commentHighlightShopIds,
-  kotoduteShopIds,
-  recipeIngredientIconsByShop,
-  attendanceLabelsByShop,
   bagShopIds,
 }: OptimizedShopLayerWithClusteringProps) {
   const map = useMap();
@@ -97,12 +90,8 @@ function OptimizedShopLayerWithClustering({
   const prevAiHighlightSetRef = useRef<Set<number>>(new Set());
   const commentHighlightSetRef = useRef<Set<number>>(new Set());
   const prevCommentHighlightSetRef = useRef<Set<number>>(new Set());
-  const kotoduteSetRef = useRef<Set<number>>(new Set());
-  const prevKotoduteSetRef = useRef<Set<number>>(new Set());
   const bagShopSetRef = useRef<Set<number>>(new Set());
   const prevBagShopSetRef = useRef<Set<number>>(new Set());
-  const recipeIconsRef = useRef<Record<number, string[]>>({});
-  const attendanceLabelsRef = useRef<Record<number, string>>(attendanceLabelsByShop ?? {});
   const lastLodRef = useRef<ShopMarkerLod | null>(null);
   const lastMarkerZoomScaleRef = useRef<number | null>(null);
   const selectedShopIdRef = useRef<number | undefined>(undefined);
@@ -156,16 +145,6 @@ function OptimizedShopLayerWithClustering({
     }
   };
 
-  const setMarkerKotodute = (marker: L.Marker, isHighlighted: boolean) => {
-    const icon = marker.getElement();
-    if (!icon) return;
-    if (isHighlighted) {
-      icon.classList.add('shop-marker-kotodute');
-    } else {
-      icon.classList.remove('shop-marker-kotodute');
-    }
-  };
-
   const setMarkerBag = (marker: L.Marker, isHighlighted: boolean) => {
     const icon = marker.getElement();
     if (!icon) return;
@@ -173,23 +152,6 @@ function OptimizedShopLayerWithClustering({
       icon.classList.add('shop-marker-bag');
     } else {
       icon.classList.remove('shop-marker-bag');
-    }
-  };
-
-  const setMarkerRecipeIcons = (marker: L.Marker, icons?: string[]) => {
-    const icon = marker.getElement();
-    if (!icon) return;
-    const container = icon.querySelector('.shop-recipe-icons');
-    if (!container) return;
-    const hasIcons = !!icons && icons.length > 0;
-    if (hasIcons) {
-      container.innerHTML = icons
-        ?.map((recipeIcon) => `<span class="shop-recipe-icon">${recipeIcon}</span>`)
-        .join('') ?? '';
-      icon.classList.add('shop-marker-recipe');
-    } else {
-      container.innerHTML = '';
-      icon.classList.remove('shop-marker-recipe');
     }
   };
 
@@ -215,26 +177,9 @@ function OptimizedShopLayerWithClustering({
     icon.style.setProperty("--shop-marker-zoom-scale", String(scale));
   };
 
-  /**
-   * 出店しない予定の店だけ屋台をグレーにする。
-   * マップ上に出店状況のテキストは出さない方針なので、色でだけ静かに引く。
-   */
-  const setMarkerAttendanceState = (marker: L.Marker, label?: string) => {
-    const icon = marker.getElement();
-    if (!icon) return;
-    icon.classList.toggle('shop-marker-closed', isClosedAttendanceLabel(label));
-  };
-
   useEffect(() => {
     selectedShopIdRef.current = selectedShopId;
   }, [selectedShopId]);
-
-  useEffect(() => {
-    attendanceLabelsRef.current = attendanceLabelsByShop ?? {};
-    markersRef.current.forEach((marker, shopId) => {
-      setMarkerAttendanceState(marker, attendanceLabelsRef.current[shopId]);
-    });
-  }, [attendanceLabelsByShop]);
 
   useEffect(() => {
     const markers = L.markerClusterGroup({
@@ -267,8 +212,6 @@ function OptimizedShopLayerWithClustering({
       return L.divIcon({
         html: `
           <div class="shop-marker-compact-wrapper">
-            <div class="shop-recipe-icons" aria-hidden="true"></div>
-            <div class="shop-kotodute-badge" aria-hidden="true">i</div>
             <div class="shop-favorite-badge" aria-hidden="true">&#10084;</div>
             <div class="shop-marker-compact"></div>
           </div>
@@ -339,14 +282,11 @@ function OptimizedShopLayerWithClustering({
         setMarkerHighlight(marker, shop.id, aiHighlightSetRef.current.has(shop.id));
         setMarkerSearchHighlight(marker, searchHighlightSetRef.current.has(shop.id));
         setMarkerCommentHighlight(marker, commentHighlightSetRef.current.has(shop.id));
-        setMarkerKotodute(marker, kotoduteSetRef.current.has(shop.id));
         setMarkerBag(marker, bagShopSetRef.current.has(shop.id));
-        setMarkerRecipeIcons(marker, recipeIconsRef.current[shop.id]);
         const currentZoom = map.getZoom();
         const maxZoom = map.getMaxZoom() ?? currentZoom;
         setMarkerLod(marker, getShopMarkerLod(currentZoom, maxZoom));
         setMarkerZoomScale(marker, getShopMarkerScale(currentZoom, maxZoom));
-        setMarkerAttendanceState(marker, attendanceLabelsRef.current[shop.id]);
       });
 
       markers.addLayer(marker);
@@ -395,10 +335,8 @@ function OptimizedShopLayerWithClustering({
         }
 
         setMarkerFavorite(marker, favoriteSetRef.current.has(shopId));
-        setMarkerRecipeIcons(marker, recipeIconsRef.current[shopId]);
         setMarkerLod(marker, nextLod);
         setMarkerZoomScale(marker, markerZoomScale);
-        setMarkerAttendanceState(marker, attendanceLabelsRef.current[shopId]);
         const markerElement = marker.getElement();
         if (markerElement) {
           if (shopId === selectedShopIdRef.current) {
@@ -425,11 +363,6 @@ function OptimizedShopLayerWithClustering({
             markerElement.classList.add('shop-marker-comment');
           } else {
             markerElement.classList.remove('shop-marker-comment');
-          }
-          if (kotoduteSetRef.current.has(shopId)) {
-            markerElement.classList.add('shop-marker-kotodute');
-          } else {
-            markerElement.classList.remove('shop-marker-kotodute');
           }
           if (bagShopSetRef.current.has(shopId)) {
             markerElement.classList.add('shop-marker-bag');
@@ -553,29 +486,6 @@ function OptimizedShopLayerWithClustering({
   }, [commentHighlightShopIds]);
 
   useEffect(() => {
-    kotoduteSetRef.current = new Set(kotoduteShopIds ?? []);
-    const nextHighlights = kotoduteSetRef.current;
-    const prevHighlights = prevKotoduteSetRef.current;
-    const changed = new Set<number>();
-
-    prevHighlights.forEach((id) => {
-      if (!nextHighlights.has(id)) changed.add(id);
-    });
-    nextHighlights.forEach((id) => {
-      if (!prevHighlights.has(id)) changed.add(id);
-    });
-
-    changed.forEach((id) => {
-      const marker = markersRef.current.get(id);
-      if (marker) {
-        setMarkerKotodute(marker, nextHighlights.has(id));
-      }
-    });
-
-    prevKotoduteSetRef.current = nextHighlights;
-  }, [kotoduteShopIds]);
-
-  useEffect(() => {
     bagShopSetRef.current = new Set(bagShopIds ?? []);
     const nextHighlights = bagShopSetRef.current;
     const prevHighlights = prevBagShopSetRef.current;
@@ -597,13 +507,6 @@ function OptimizedShopLayerWithClustering({
 
     prevBagShopSetRef.current = nextHighlights;
   }, [bagShopIds]);
-
-  useEffect(() => {
-    recipeIconsRef.current = recipeIngredientIconsByShop ?? {};
-    markersRef.current.forEach((marker, shopId) => {
-      setMarkerRecipeIcons(marker, recipeIconsRef.current[shopId]);
-    });
-  }, [recipeIngredientIconsByShop]);
 
   useEffect(() => {
     markersRef.current.forEach((marker, shopId) => {

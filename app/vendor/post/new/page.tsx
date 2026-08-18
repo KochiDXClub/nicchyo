@@ -204,8 +204,8 @@ export default function VendorPostNewPage() {
       setPosts((prev) => [newPost, ...prev]);
       setShowRepostToast(true);
       setTimeout(() => setShowRepostToast(false), 3000);
-    } catch {
-      setHistoryError("再投稿に失敗しました");
+    } catch (err) {
+      setHistoryError(err instanceof Error ? err.message : "再投稿に失敗しました");
     }
   }
 
@@ -232,7 +232,7 @@ export default function VendorPostNewPage() {
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    if (!text.trim() || isSubmitting || !user) return;
+    if (!text.trim() || !hasImage || isSubmitting || !user) return;
     setIsSubmitting(true);
     setFormError(null);
     try {
@@ -248,7 +248,10 @@ export default function VendorPostNewPage() {
   }
 
   const MAX_CHARS = 300;
-  const isValid = text.trim().length > 0;
+  // 近況フィード（/story）は画像なし投稿を表示対象から除外するため、
+  // 投稿時点で画像を必須にして「投稿したのに近況に出ない」体験を防ぐ
+  const hasImage = !!(imageFile || existingImageUrl);
+  const isValid = text.trim().length > 0 && hasImage;
 
   // 投稿完了画面
   if (isSubmitted) {
@@ -321,7 +324,7 @@ export default function VendorPostNewPage() {
             <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-amber-600">投稿のポイント</p>
             <ul className="mt-2 space-y-1.5 text-sm text-slate-600">
               <li>・今日伝えたいことを1つに絞る</li>
-              <li>・画像があると見つけてもらいやすい</li>
+              <li>・画像は必須です（テキストのみでは投稿できません）</li>
               <li>・表示期間は短めにすると新鮮さが伝わる</li>
             </ul>
           </div>
@@ -362,7 +365,14 @@ export default function VendorPostNewPage() {
 
           {/* 画像アップロード */}
           <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
-            <label className="mb-3 block text-sm font-semibold uppercase tracking-wider text-slate-400">画像（任意）</label>
+            <div className="mb-3 flex items-center justify-between">
+              <label className="block text-sm font-semibold uppercase tracking-wider text-slate-400">画像（必須）</label>
+              {!hasImage && (
+                <span className="flex items-center gap-1 text-sm text-slate-400">
+                  <AlertCircle size={11} />画像を追加してください
+                </span>
+              )}
+            </div>
             {imagePreview ? (
               <div className="relative">
                 {/* eslint-disable-next-line @next/next/no-img-element */}

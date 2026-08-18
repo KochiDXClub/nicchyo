@@ -31,6 +31,11 @@ export default function StoryGridClient() {
   const [viewerIndex, setViewerIndex] = useState<number | null>(null);
   const [pageLoading, setPageLoading] = useState(true);
   const [heartCounts, setHeartCounts] = useState<Record<string, number>>({});
+  // 「1か月前」セクションは既定で1行分（3件）だけ見せ、古い投稿でページが
+  // 間延びするのを防ぐ。他のセクションより明らかに鮮度が落ちるため、
+  // 見たい人だけ展開できれば十分（他バケットは常に全件表示のまま）。
+  const [showAllOldPosts, setShowAllOldPosts] = useState(false);
+  const OLD_POSTS_PREVIEW_COUNT = 3;
   const nextSunday = useMemo(() => getNextSundayLabel(), []);
   const { calendar } = useMarketCalendar();
 
@@ -257,7 +262,15 @@ export default function StoryGridClient() {
             )}
 
             {/* 鮮度別セクション（新しいほど鮮やか、古いほど退色） */}
-            {sections.map((section) => (
+            {sections.map((section) => {
+              const isOldBucket = section.bucket === "last_month";
+              const hasMore = isOldBucket && section.items.length > OLD_POSTS_PREVIEW_COUNT;
+              const visibleItems =
+                isOldBucket && !showAllOldPosts
+                  ? section.items.slice(0, OLD_POSTS_PREVIEW_COUNT)
+                  : section.items;
+
+              return (
               <section key={section.bucket} className="mb-5">
                 <div className="mb-2 flex items-center gap-2">
                   <h2 className="text-sm font-bold text-nicchyo-ink">
@@ -266,7 +279,7 @@ export default function StoryGridClient() {
                   <span className="text-[11px] text-gray-400">{section.items.length}件</span>
                 </div>
                 <div className="grid grid-cols-3 gap-0.5 rounded-xl overflow-hidden">
-                  {section.items.map(({ story, index }) => (
+                  {visibleItems.map(({ story, index }) => (
                     <motion.button
                       key={story.id}
                       initial={{ opacity: 0, scale: 0.96 }}
@@ -310,8 +323,28 @@ export default function StoryGridClient() {
                     </motion.button>
                   ))}
                 </div>
+                {hasMore && (
+                  <button
+                    type="button"
+                    onClick={() => setShowAllOldPosts((prev) => !prev)}
+                    className="mt-2 flex w-full items-center justify-center gap-1 py-1 text-xs font-semibold text-nicchyo-primary"
+                  >
+                    {showAllOldPosts ? "閉じる" : `すべて見る（${section.items.length}件）`}
+                    <svg
+                      className={`h-3 w-3 transition-transform ${showAllOldPosts ? "-rotate-90" : "rotate-90"}`}
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth={2.2}
+                      viewBox="0 0 24 24"
+                      aria-hidden
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                    </svg>
+                  </button>
+                )}
               </section>
-            ))}
+              );
+            })}
 
             {/* フッター情報 */}
             <p className="mt-4 text-center text-xs text-gray-400">

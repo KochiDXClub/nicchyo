@@ -333,44 +333,6 @@ export type Database = {
         }
         Relationships: []
       }
-      kotodutes: {
-        Row: {
-          body: string
-          created_at: string
-          id: string
-          report_count: number
-          status: string
-          vendor_id: string | null
-          visitor_key: string
-        }
-        Insert: {
-          body: string
-          created_at?: string
-          id?: string
-          report_count?: number
-          status?: string
-          vendor_id?: string | null
-          visitor_key: string
-        }
-        Update: {
-          body?: string
-          created_at?: string
-          id?: string
-          report_count?: number
-          status?: string
-          vendor_id?: string | null
-          visitor_key?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "kotodutes_vendor_id_fkey"
-            columns: ["vendor_id"]
-            isOneToOne: false
-            referencedRelation: "vendors"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       location_assignments: {
         Row: {
           created_at: string | null
@@ -1318,7 +1280,6 @@ export type Database = {
           main_product_prices: Json | null
           main_products: string[] | null
           must_change_password: boolean | null
-          owner_name: string | null
           payment_methods: string[] | null
           rain_policy: string | null
           role: string | null
@@ -1343,7 +1304,6 @@ export type Database = {
           main_product_prices?: Json | null
           main_products?: string[] | null
           must_change_password?: boolean | null
-          owner_name?: string | null
           payment_methods?: string[] | null
           rain_policy?: string | null
           role?: string | null
@@ -1368,7 +1328,6 @@ export type Database = {
           main_product_prices?: Json | null
           main_products?: string[] | null
           must_change_password?: boolean | null
-          owner_name?: string | null
           payment_methods?: string[] | null
           rain_policy?: string | null
           role?: string | null
@@ -1393,13 +1352,33 @@ export type Database = {
           },
         ]
       }
+      web_page_daily_summaries: {
+        Row: {
+          unique_visitors: number
+          updated_at: string
+          vendor_unique_visitors: number
+          visit_date: string
+        }
+        Insert: {
+          unique_visitors?: number
+          updated_at?: string
+          vendor_unique_visitors?: number
+          visit_date: string
+        }
+        Update: {
+          unique_visitors?: number
+          updated_at?: string
+          vendor_unique_visitors?: number
+          visit_date?: string
+        }
+        Relationships: []
+      }
       web_page_analytics: {
         Row: {
           created_at: string
           duration_seconds: number
           id: number
           path: string
-          user_id: string | null
           user_role: string | null
           visit_date: string
           visitor_key: string
@@ -1409,7 +1388,6 @@ export type Database = {
           duration_seconds: number
           id?: number
           path: string
-          user_id?: string | null
           user_role?: string | null
           visit_date: string
           visitor_key: string
@@ -1419,7 +1397,6 @@ export type Database = {
           duration_seconds?: number
           id?: number
           path?: string
-          user_id?: string | null
           user_role?: string | null
           visit_date?: string
           visitor_key?: string

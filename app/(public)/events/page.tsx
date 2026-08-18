@@ -1,5 +1,4 @@
 ﻿import { Metadata } from "next";
-import Link from "next/link";
 import NavigationBar from "../../components/NavigationBar";
 import MapLink from "../../components/MapLink";
 
@@ -30,13 +29,6 @@ export default function EventsPage() {
                 <span>🗺️</span>
                 マップを見る
               </MapLink>
-              <Link
-                href="/recipes"
-                className="inline-flex items-center gap-2 rounded-xl border-2 border-amber-600 bg-white px-6 py-3 text-sm font-semibold text-amber-600 transition hover:bg-amber-50"
-              >
-                <span>🍳</span>
-                レシピを見る
-              </Link>
             </div>
           </div>
 

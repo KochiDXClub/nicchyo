@@ -7,7 +7,7 @@ import { createAdminClient } from "@/lib/supabase/adminClient";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const VALID_TARGET_TYPES = ["vendor", "content", "kotodute"] as const;
+const VALID_TARGET_TYPES = ["vendor", "content"] as const;
 type TargetType = typeof VALID_TARGET_TYPES[number];
 
 const VALID_REASONS = [
@@ -79,7 +79,6 @@ export async function POST(req: Request) {
   const typeLabels: Record<TargetType, string> = {
     vendor: "出店者",
     content: "投稿コンテンツ",
-    kotodute: "ことづて",
   };
   const { error: notifError } = await dc.from("admin_notifications").insert({
     type: "report_received",

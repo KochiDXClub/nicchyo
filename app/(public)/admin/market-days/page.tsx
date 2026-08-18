@@ -79,6 +79,21 @@ export default function AdminMarketDaysPage() {
     void fetchDays();
   }, [fetchDays, permissions.isAdmin]);
 
+  // 過去に使った一言（重複除去・新しい順）。雨天中止のように同じ文言を
+  // 繰り返し使うことが多いため、毎回タイプし直さなくて済むようにする。
+  // 選んでもすぐには保存されず、入力欄に入るだけ（保存はステータスボタン任せ）。
+  const recentNotes = useMemo(() => {
+    const seen = new Set<string>();
+    const notes: string[] = [];
+    for (const d of days) {
+      if (!d.note || seen.has(d.note)) continue;
+      seen.add(d.note);
+      notes.push(d.note);
+      if (notes.length >= 6) break;
+    }
+    return notes;
+  }, [days]);
+
   // 今週の日曜から先の日曜を並べる。未登録の日曜も枠として出し、
   // 「まだ何も決まっていない」状態が一覧で分かるようにする。
   const sundays = useMemo(() => {
@@ -205,6 +220,21 @@ export default function AdminMarketDaysPage() {
                       {isSaving ? "保存中..." : "一言を保存"}
                     </button>
                   </div>
+                  {recentNotes.length > 0 && (
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {recentNotes.map((note) => (
+                        <button
+                          key={note}
+                          type="button"
+                          onClick={() => setNoteDrafts({ ...noteDrafts, [dateIso]: note })}
+                          className="max-w-full truncate rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] text-slate-500 hover:border-amber-300 hover:bg-amber-50"
+                          title={note}
+                        >
+                          {note}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
             );

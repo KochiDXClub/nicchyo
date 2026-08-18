@@ -257,7 +257,7 @@ export function EmptyState() {
       </div>
       <h2 className="mt-5 text-2xl font-black text-slate-900">まだ何も入っていません</h2>
       <p className="mx-auto mt-3 max-w-sm text-sm leading-relaxed text-slate-600">
-        マップやレシピから気になるものを追加すると、ここでまとめて確認できます。
+        マップから気になるものを追加すると、ここでまとめて確認できます。
       </p>
       <div className="mt-6 flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
         <Link
@@ -266,12 +266,6 @@ export function EmptyState() {
         >
           <MapIcon size={16} />
           マップを見る
-        </Link>
-        <Link
-          href="/recipes"
-          className="inline-flex min-h-11 items-center gap-2 rounded-2xl border border-stone-200 bg-white px-5 py-3 text-sm font-bold text-slate-700 transition hover:bg-stone-50 active:scale-[0.98]"
-        >
-          レシピを見る
         </Link>
       </div>
     </section>

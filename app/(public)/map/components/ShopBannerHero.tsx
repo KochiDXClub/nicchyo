@@ -103,7 +103,6 @@ export function ShopBannerHero({
   heroImageError,
   onImageError,
   mode,
-  isKotodute,
   showProductPreview = false,
   onEdit,
 }: {
@@ -113,7 +112,6 @@ export function ShopBannerHero({
   heroImageError: boolean;
   onImageError: () => void;
   mode: "compact" | "expanded";
-  isKotodute: boolean;
   showProductPreview?: boolean;
   onEdit?: () => void;
 }) {
@@ -151,10 +149,10 @@ export function ShopBannerHero({
           <h2 className="mt-1 line-clamp-2 text-[17px] font-extrabold leading-tight text-slate-900">
             {shop.name}
           </h2>
-          {!isKotodute && shop.catchphrase && (
+          {shop.catchphrase && (
             <p className="mt-0.5 line-clamp-1 text-xs text-slate-500">{shop.catchphrase}</p>
           )}
-          {showProductPreview && !isKotodute && shop.products.length > 0 && (
+          {showProductPreview && shop.products.length > 0 && (
             <div className="mt-1.5 flex gap-1.5 overflow-x-auto" style={{ scrollbarWidth: "none" }}>
               {shop.products.slice(0, 4).map((product) => (
                 <span
@@ -211,13 +209,13 @@ export function ShopBannerHero({
             <h2 className="text-3xl font-extrabold leading-tight text-white drop-shadow-md md:text-4xl">
               {shop.name}
             </h2>
-            {!isKotodute && shop.catchphrase && (
+            {shop.catchphrase && (
               <p className="mt-1 text-sm font-medium text-white/80 drop-shadow">
                 {shop.catchphrase}
               </p>
             )}
           </div>
-          {onEdit && !isKotodute && (
+          {onEdit && (
             <button
               type="button"
               onClick={onEdit}

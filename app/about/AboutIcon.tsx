@@ -4,11 +4,12 @@ export type AboutIconName =
   | "map"
   | "spark"
   | "chat"
-  | "recipe"
+  | "notebook"
   | "event"
   | "route"
   | "discover"
-  | "store";
+  | "store"
+  | "compass";
 
 type AboutIconProps = {
   name: AboutIconName | string; // Allow string to be flexible, but typed for known ones
@@ -59,7 +60,7 @@ export function AboutIcon({ name, className }: AboutIconProps) {
           />
         </svg>
       );
-    case "recipe":
+    case "notebook":
       return (
         <svg {...props}>
           <path
@@ -123,6 +124,17 @@ export function AboutIcon({ name, className }: AboutIconProps) {
           />
           <path strokeLinecap="round" strokeLinejoin="round" d="M6 9.75v7.5h12v-7.5" />
           <path strokeLinecap="round" strokeLinejoin="round" d="M9 17.25V12h6v5.25" />
+        </svg>
+      );
+    case "compass":
+      return (
+        <svg {...props}>
+          <circle cx="12" cy="12" r="8.25" />
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="m14.5 9.5-1.25 3.75-3.75 1.25 1.25-3.75 3.75-1.25Z"
+          />
         </svg>
       );
     default:

@@ -10,6 +10,7 @@ import PageVisitTracker from "./components/PageVisitTracker";
 import CookieConsent from "./components/CookieConsent";
 import ViewportHeightUpdater from "./components/ViewportHeightUpdater";
 import { Toaster } from "@/components/admin";
+import { safeJsonLd } from "@/lib/utils/jsonLd";
 
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "https://nicchyo.jp"),
@@ -74,7 +75,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       <head>
         <script
           type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationJsonLd) }}
+          dangerouslySetInnerHTML={{ __html: safeJsonLd(organizationJsonLd) }}
         />
       </head>
       <body className="bg-nicchyo-base text-nicchyo-ink">

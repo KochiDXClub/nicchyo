@@ -454,43 +454,6 @@ body.grandma-chat-open .leaflet-container {
   background: linear-gradient(180deg, #60a5fa 0%, #1d4ed8 100%) !important;
 }
 
-.shop-recipe-icons {
-  position: absolute;
-  /* 写真アイコンは屋台の内側に移したので、屋根の上に戻せる */
-  top: -18px;
-  left: 50%;
-  transform: translateX(-50%);
-  display: none;
-  align-items: center;
-  gap: 2px;
-  padding: 2px 6px;
-  border-radius: 9999px;
-  border: 1px solid rgba(245, 158, 11, 0.6);
-  background: rgba(255, 255, 255, 0.95);
-  box-shadow: 0 2px 6px rgba(245, 158, 11, 0.25);
-  pointer-events: none;
-}
-
-.shop-recipe-icon {
-  font-size: 12px;
-  line-height: 1;
-}
-
-/* レシピの食材アイコンは情報量が多いので最上段（nameplate）だけ */
-.shop-lod-nameplate.shop-marker-recipe .shop-recipe-icons,
-.compact-shop-marker.shop-marker-recipe .shop-recipe-icons {
-  display: inline-flex;
-}
-
-.compact-shop-marker .shop-recipe-icons {
-  top: -14px;
-  padding: 1px 4px;
-}
-
-.compact-shop-marker .shop-recipe-icon {
-  font-size: 10px;
-}
-
 .shop-marker-ai .stall-roof {
   background: linear-gradient(135deg, #fca5a5, #ef4444) !important;
 }
@@ -542,26 +505,6 @@ body.grandma-chat-open .leaflet-container {
 .shop-side-north .shop-favorite-badge {
   left: -12px;
   right: auto;
-}
-
-.shop-kotodute-badge {
-  position: absolute;
-  top: 0;
-  left: -36px;
-  display: none;
-  align-items: center;
-  justify-content: center;
-  border-radius: 9999px;
-  border: 2px solid #1d4ed8;
-  background: #3b82f6;
-  color: #ffffff;
-  font-size: 16px;
-  font-weight: 700;
-  line-height: 1;
-  width: 36px;
-  height: 36px;
-  box-shadow: 0 2px 6px rgba(29, 78, 216, 0.35);
-  pointer-events: none;
 }
 
 /*
@@ -716,16 +659,9 @@ body.grandma-chat-open .leaflet-container {
   display: flex;
 }
 
-.shop-simple-banner-visible .shop-recipe-icons,
-.shop-simple-banner-visible .shop-kotodute-badge,
 .shop-simple-banner-visible .shop-favorite-badge,
 .shop-simple-banner-visible .shop-product-icon {
   display: none !important;
-}
-
-.shop-side-south .shop-kotodute-badge {
-  left: auto;
-  right: -36px;
 }
 
 .grandma-title-label {
@@ -774,13 +710,7 @@ body.grandma-chat-open .leaflet-container {
  * バッジは LOD の加算方式で出す（ズームインするほど増える）。
  * かつては木札（当時はバナー）が出ると全バッジを display:none していたため、
  * 近づくほど目印が消えるという逆転が起きていた。
- *
- * ことづては最も伝えたい情報なので LOD 条件なし。
  */
-.shop-marker-kotodute .shop-kotodute-badge {
-  display: inline-flex;
-}
-
 .shop-lod-photo.is-favorite .shop-favorite-badge,
 .shop-lod-nameplate.is-favorite .shop-favorite-badge,
 .compact-shop-marker.is-favorite .shop-favorite-badge {
@@ -1240,47 +1170,6 @@ body.home-poster-zoom-open .hamburger-button {
   height: 12%;
   background:
     linear-gradient(90deg, #8b5e34 0 12%, transparent 12% 44%, #8b5e34 44% 56%, transparent 56% 88%, #8b5e34 88% 100%);
-}
-
-/*
- * 出店しない予定の店。
- *
- * 色の優先順位は「状態色（選択/AI/検索/買い物袋）> 休業グレー > カテゴリ色」。
- * カテゴリ色は .shop-marker-container に style="--stall-color:…" で入るので、
- * ここでイラスト要素**自身**に変数を再定義すると継承を遮断して上書きできる
- * （!important は不要）。状態色は var() を経由せず background を直接
- * !important で塗るので、常にこの上に来る。
- *
- * opacity は下げない。消えかけて見えると不安を誘うため、彩度だけ落として静かに引く。
- */
-.shop-marker-closed .shop-illustration-3d {
-  --stall-color: #b9b4ac;
-  --stall-color-dark: #9a948b;
-  --stall-color-light: #d4cfc7;
-  filter: saturate(0.25);
-}
-
-/* カウンターと脚はカテゴリ色ではなく固定色なので個別に沈める */
-.shop-marker-closed .stall-counter {
-  background: linear-gradient(135deg, #c8c2b8, #ada69b);
-}
-
-.shop-marker-closed .stall-legs {
-  background:
-    linear-gradient(90deg, #9c948a 0 12%, transparent 12% 44%, #9c948a 44% 56%, transparent 56% 88%, #9c948a 88% 100%);
-}
-
-.shop-marker-closed .shop-marker-compact {
-  background: linear-gradient(180deg, #c8c2b8 0%, #9a948b 100%);
-}
-
-.shop-marker-closed .shop-nameplate {
-  background: linear-gradient(180deg, #efece7 0%, #dfdbd4 100%);
-  border-color: rgba(120, 115, 108, 0.4);
-}
-
-.shop-marker-closed .shop-nameplate-text {
-  color: #7c766e;
 }
 
 .grandma-scroll-retracting {
