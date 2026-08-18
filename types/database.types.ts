@@ -136,6 +136,39 @@ export type Database = {
         }
         Relationships: []
       }
+      ai_consult_feedback: {
+        Row: {
+          comment: string | null
+          consult_id: string
+          created_at: string
+          id: string
+          question_text: string | null
+          rating: number
+          turn_index: number
+          turn_text: string | null
+        }
+        Insert: {
+          comment?: string | null
+          consult_id: string
+          created_at?: string
+          id?: string
+          question_text?: string | null
+          rating: number
+          turn_index: number
+          turn_text?: string | null
+        }
+        Update: {
+          comment?: string | null
+          consult_id?: string
+          created_at?: string
+          id?: string
+          question_text?: string | null
+          rating?: number
+          turn_index?: number
+          turn_text?: string | null
+        }
+        Relationships: []
+      }
       ai_consult_logs: {
         Row: {
           consulted_at: string
@@ -193,6 +226,83 @@ export type Database = {
           created_at?: string | null
           id?: string
           name?: string
+        }
+        Relationships: []
+      }
+      content_reactions: {
+        Row: {
+          created_at: string
+          id: number
+          vendor_content_id: string
+          visitor_key: string
+        }
+        Insert: {
+          created_at?: string
+          id?: number
+          vendor_content_id: string
+          visitor_key: string
+        }
+        Update: {
+          created_at?: string
+          id?: number
+          vendor_content_id?: string
+          visitor_key?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "content_reactions_vendor_content_id_fkey"
+            columns: ["vendor_content_id"]
+            isOneToOne: false
+            referencedRelation: "vendor_contents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      inquiries: {
+        Row: {
+          assigned_to: string | null
+          category: string
+          created_at: string
+          email: string
+          id: string
+          message: string
+          name: string | null
+          replied_at: string | null
+          replied_by: string | null
+          reply_notes: string | null
+          status: string
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          assigned_to?: string | null
+          category?: string
+          created_at?: string
+          email: string
+          id?: string
+          message: string
+          name?: string | null
+          replied_at?: string | null
+          replied_by?: string | null
+          reply_notes?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          assigned_to?: string | null
+          category?: string
+          created_at?: string
+          email?: string
+          id?: string
+          message?: string
+          name?: string | null
+          replied_at?: string | null
+          replied_by?: string | null
+          reply_notes?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string | null
         }
         Relationships: []
       }
@@ -307,6 +417,7 @@ export type Database = {
           created_by: string | null
           id: string
           landmarks_json: Json
+          roads_json: Json
           route_config_json: Json
           route_json: Json
           shops_json: Json
@@ -317,6 +428,7 @@ export type Database = {
           created_by?: string | null
           id?: string
           landmarks_json: Json
+          roads_json?: Json
           route_config_json?: Json
           route_json?: Json
           shops_json: Json
@@ -327,10 +439,38 @@ export type Database = {
           created_by?: string | null
           id?: string
           landmarks_json?: Json
+          roads_json?: Json
           route_config_json?: Json
           route_json?: Json
           shops_json?: Json
           summary?: Json | null
+        }
+        Relationships: []
+      }
+      map_roads: {
+        Row: {
+          created_at: string
+          id: string
+          kind: string
+          name: string
+          updated_at: string
+          width_meters: number
+        }
+        Insert: {
+          created_at?: string
+          id: string
+          kind?: string
+          name: string
+          updated_at?: string
+          width_meters?: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          kind?: string
+          name?: string
+          updated_at?: string
+          width_meters?: number
         }
         Relationships: []
       }
@@ -368,6 +508,7 @@ export type Database = {
           id: string
           latitude: number
           longitude: number
+          road_id: string | null
           sort_order: number
         }
         Insert: {
@@ -376,6 +517,7 @@ export type Database = {
           id: string
           latitude: number
           longitude: number
+          road_id?: string | null
           sort_order: number
         }
         Update: {
@@ -384,6 +526,7 @@ export type Database = {
           id?: string
           latitude?: number
           longitude?: number
+          road_id?: string | null
           sort_order?: number
         }
         Relationships: [
@@ -392,6 +535,13 @@ export type Database = {
             columns: ["branch_from_id"]
             isOneToOne: false
             referencedRelation: "map_route_points"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "map_route_points_road_id_fkey"
+            columns: ["road_id"]
+            isOneToOne: false
+            referencedRelation: "map_roads"
             referencedColumns: ["id"]
           },
         ]
@@ -640,6 +790,27 @@ export type Database = {
           },
         ]
       }
+      report_readers: {
+        Row: {
+          added_at: string
+          email: string
+          id: string
+          note: string | null
+        }
+        Insert: {
+          added_at?: string
+          email: string
+          id?: string
+          note?: string | null
+        }
+        Update: {
+          added_at?: string
+          email?: string
+          id?: string
+          note?: string | null
+        }
+        Relationships: []
+      }
       reports: {
         Row: {
           created_at: string
@@ -688,27 +859,6 @@ export type Database = {
           target_name?: string | null
           target_type?: string
           updated_at?: string
-        }
-        Relationships: []
-      }
-      report_readers: {
-        Row: {
-          added_at: string
-          email: string
-          id: string
-          note: string | null
-        }
-        Insert: {
-          added_at?: string
-          email: string
-          id?: string
-          note?: string | null
-        }
-        Update: {
-          added_at?: string
-          email?: string
-          id?: string
-          note?: string | null
         }
         Relationships: []
       }
@@ -1124,6 +1274,7 @@ export type Database = {
           business_hours_end: string | null
           business_hours_start: string | null
           category_id: string | null
+          closed_dates: string[]
           created_at: string | null
           id: string
           main_product_prices: Json | null
@@ -1147,6 +1298,7 @@ export type Database = {
           business_hours_end?: string | null
           business_hours_start?: string | null
           category_id?: string | null
+          closed_dates?: string[]
           created_at?: string | null
           id: string
           main_product_prices?: Json | null
@@ -1170,6 +1322,7 @@ export type Database = {
           business_hours_end?: string | null
           business_hours_start?: string | null
           category_id?: string | null
+          closed_dates?: string[]
           created_at?: string | null
           id?: string
           main_product_prices?: Json | null
@@ -1294,6 +1447,13 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      get_reaction_counts: {
+        Args: { content_ids: string[] }
+        Returns: {
+          cnt: number
+          vendor_content_id: string
+        }[]
+      }
       get_shop_attendance_estimates: {
         Args: { target_date: string }
         Returns: {
@@ -1340,6 +1500,21 @@ export type Database = {
           similarity: number
           vendor_id: string
         }[]
+      }
+      replace_map_route_points: { Args: { p_points: Json }; Returns: undefined }
+      restore_map_layout_snapshot: {
+        Args: {
+          p_landmarks: Json
+          p_roads?: Json
+          p_route_config: Json
+          p_route_points: Json
+          p_shops: Json
+        }
+        Returns: undefined
+      }
+      save_roads_and_points: {
+        Args: { p_points: Json; p_removed_road_ids?: Json; p_roads: Json }
+        Returns: undefined
       }
       track_home_visit: {
         Args: { p_visit_date: string; p_visitor_key: string }
