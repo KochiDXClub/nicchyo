@@ -3,7 +3,7 @@ import { createClient as createServerClient } from "@/utils/supabase/server";
 import { createAdminClient } from "@/lib/supabase/adminClient";
 import { fetchLandmarksFromDb } from "@/app/(public)/map/services/landmarksDb";
 import { fetchMapRouteFromDb } from "@/app/(public)/map/services/mapRouteDb";
-import type { EditableShop } from "@/app/(public)/map/types/editableShop";
+import { CHOME_ORDER, type EditableShop } from "@/app/(public)/map/types/editableShop";
 import type { MapRoad, MapRoutePoint, RoadKind } from "@/app/(public)/map/types/mapRoute";
 import { findNearestRoadId } from "@/app/(public)/map/utils/mapRouteGeometry";
 
@@ -13,7 +13,7 @@ export type EditableRoad = MapRoad & {
   points: MapRoutePoint[];
 };
 
-const CHOME_VALUES = new Set(["一丁目", "二丁目", "三丁目", "四丁目", "五丁目", "六丁目", "七丁目"]);
+const CHOME_VALUES = new Set<string>(CHOME_ORDER);
 
 function normalizeChome(value: string | null): string | undefined {
   return value && CHOME_VALUES.has(value) ? value : undefined;

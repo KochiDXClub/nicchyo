@@ -443,29 +443,34 @@ export async function PUT(request: NextRequest) {
     // 道（map_roads）のupsert・route_pointsの全置換・除外された道の削除を
     // save_roads_and_points RPCで1トランザクションにまとめて実行する
     // （別々のクエリだと、途中で失敗した場合にmap_roadsとmap_route_pointsが
-    // 不整合な状態のままDBに残ってしまうため）
-    const routePointsPayload = body.route.points.map((point, index) => ({
-      id: point.id,
-      latitude: point.lat,
-      longitude: point.lng,
-      sort_order: index,
-      branch_from_id: point.branchFromId ?? null,
-      road_id: point.roadId ?? null,
-    }));
+    // 不整合な状態のままDBに残ってしまうため）。
+    // routePointsChanged/roadsChangedのどちらも false のとき（例: 店舗の担当者変更のみの保存）は
+    // 呼ばない。このRPCは呼ぶたびmap_route_pointsを全削除→全再挿入するため、道・道の点に
+    // 変更がない保存でも毎回無条件に実行すると無駄なDB書き込みコストが発生してしまう
+    if (routePointsChanged || roadsChanged) {
+      const routePointsPayload = body.route.points.map((point, index) => ({
+        id: point.id,
+        latitude: point.lat,
+        longitude: point.lng,
+        sort_order: index,
+        branch_from_id: point.branchFromId ?? null,
+        road_id: point.roadId ?? null,
+      }));
 
-    const { error: saveRoadsError } = await adminWriteClient.rpc("save_roads_and_points", {
-      p_roads: (body.roads ?? []).map((road) => ({
-        id: road.id,
-        name: road.name,
-        kind: road.kind,
-        widthMeters: road.widthMeters,
-      })),
-      p_points: routePointsPayload,
-      p_removed_road_ids: removedRoadIds,
-    });
+      const { error: saveRoadsError } = await adminWriteClient.rpc("save_roads_and_points", {
+        p_roads: (body.roads ?? []).map((road) => ({
+          id: road.id,
+          name: road.name,
+          kind: road.kind,
+          widthMeters: road.widthMeters,
+        })),
+        p_points: routePointsPayload,
+        p_removed_road_ids: removedRoadIds,
+      });
 
-    if (saveRoadsError) {
-      return NextResponse.json({ error: "Failed to save roads" }, { status: 500 });
+      if (saveRoadsError) {
+        return NextResponse.json({ error: "Failed to save roads" }, { status: 500 });
+      }
     }
 
     const { error: routeConfigError } = await adminWriteClient.from("map_route_configs").upsert(

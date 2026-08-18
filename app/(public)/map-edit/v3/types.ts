@@ -1,8 +1,9 @@
+import { CHOME_ORDER } from "../../map/types/editableShop";
 import type { EditableShop } from "../../map/types/editableShop";
 import type { Landmark as EditableLandmark } from "../../map/types/landmark";
 import type { MapRoad, MapRoutePoint, RoadKind } from "../../map/types/mapRoute";
 
-export const CHOME_ORDER = ["一丁目", "二丁目", "三丁目", "四丁目", "五丁目", "六丁目", "七丁目"];
+export { CHOME_ORDER };
 
 export type VendorOption = {
   id: string;
