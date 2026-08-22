@@ -1,0 +1,72 @@
+name: Migrations Check
+
+# supabase/migrations/ に変更があるPRで、全マイグレーションを
+# まっさらなローカルPostgresに頭から適用できるかを検証する。
+# 本番Supabaseには一切触れない（Secrets不要）。
+#
+# ここで落ちる典型例:
+#   - SQL構文エラー
+#   - 2回目以降の適用で落ちる書き方（IF NOT EXISTS 漏れ）
+#   - ファイル順（タイムスタンプ順）の依存関係の破綻
+#
+# 本番への適用は .github/workflows/migrations-deploy.yml を参照。
+
+on:
+  pull_request:
+    branches: [develop, main]
+    paths:
+      - 'supabase/migrations/**'
+      - '.github/workflows/migrations-check.yml'
+  push:
+    branches: [develop]
+    paths:
+      - 'supabase/migrations/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: ローカルDBへ全適用
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      # リポジトリには config.toml を置いていないので、CI 内で生成する。
+      # 既に置かれていればそれを使う。
+      - name: Ensure supabase/config.toml
+        run: |
+          if [ ! -f supabase/config.toml ]; then
+            supabase init --force --yes >/dev/null
+            echo "generated supabase/config.toml"
+          fi
+
+      - name: Migration file naming check
+        run: |
+          bad=0
+          for f in supabase/migrations/*.sql; do
+            name=$(basename "$f")
+            if ! echo "$name" | grep -Eq '^[0-9]{14}_[a-z0-9_]+\.sql$'; then
+              echo "::error file=$f::マイグレーション名は YYYYMMDDHHMMSS_snake_case.sql の形式にしてください"
+              bad=1
+            fi
+          done
+          exit $bad
+
+      - name: Start local Postgres
+        run: supabase db start
+
+      - name: Apply all migrations from scratch
+        run: supabase db reset --local --no-seed
+
+      - name: Show applied migrations
+        run: supabase migration list --local

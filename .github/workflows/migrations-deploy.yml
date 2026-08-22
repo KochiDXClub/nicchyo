@@ -1,0 +1,82 @@
+name: Migrations Deploy (Production)
+
+# main にマージされたマイグレーションを本番 Supabase に適用する。
+# docs/RELEASE.md §4 手順7（main マージ）と同時に走る。
+#
+# - GitHub Environment `production` の保護ルール（必須レビュアー）で
+#   適用前に人の承認を挟む。慣れたら保護ルールを外せば全自動になる。
+# - 未適用のマイグレーションだけが順に適用される
+#   （supabase_migrations.schema_migrations で管理）。
+# - ロールバックは自動化しない。失敗したら Actions のログを見て手で対処する。
+#
+# 必要な Secrets（Environment `production` に登録）:
+#   SUPABASE_ACCESS_TOKEN  … https://supabase.com/dashboard/account/tokens
+#   SUPABASE_PROJECT_ID    … 本番プロジェクトの Reference ID
+#   SUPABASE_DB_PASSWORD   … 本番DBパスワード
+#
+# 前提: 本番の適用履歴とリポジトリが一致していること（docs/RELEASE.md §9）。
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'supabase/migrations/**'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: '適用せずに差分だけ表示する'
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+# 同時に2本走らせない。後から来たものはキャンセルせず順番待ちにする。
+concurrency:
+  group: supabase-migrations-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: 本番 Supabase へ適用
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment:
+      name: production
+      url: https://supabase.com/dashboard/project/${{ secrets.SUPABASE_PROJECT_ID }}
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Ensure supabase/config.toml
+        run: |
+          if [ ! -f supabase/config.toml ]; then
+            supabase init --force --yes >/dev/null
+          fi
+
+      - name: Link production project
+        run: supabase link --project-ref "${{ secrets.SUPABASE_PROJECT_ID }}"
+
+      # 本番の履歴とリポジトリの差分を常にログに残す
+      - name: Migration status (before)
+        run: supabase migration list --linked
+
+      - name: Dry run
+        run: supabase db push --linked --include-all --dry-run
+
+      - name: Apply migrations
+        if: ${{ github.event_name == 'push' || inputs.dry_run == false }}
+        run: supabase db push --linked --include-all
+
+      - name: Migration status (after)
+        if: ${{ github.event_name == 'push' || inputs.dry_run == false }}
+        run: supabase migration list --linked

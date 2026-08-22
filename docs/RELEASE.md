@@ -102,7 +102,11 @@ Projects「nicchyo タスク管理」で、完了しうる上流タスクが1つ
    - 管理画面（`/admin`）: 主要画面が開くか
 6. **`app/about/versions.ts` を更新** — `versionHistory` の先頭に新エントリを追加。来訪者から見て何が変わったかを3〜5件で書く（開発の詳細はコミットに残るので書かない）。
 7. **マージ** — `main` へ。Vercel が Production へ自動デプロイする。
-8. **本番確認** — `nicchyo.vercel.app` で §5 の項目を再確認。
+   リリースに `supabase/migrations/` の変更が含まれていれば、同時に GitHub Actions
+   `Migrations Deploy (Production)` が起動し、Environment `production` の承認を待つ（§9）。
+   **Actions タブで内容（dry run の差分）を確認して承認する**。承認後、本番 Supabase に未適用分が適用される。
+8. **本番確認** — `nicchyo.vercel.app` で §5 の項目を再確認。マイグレーションがあった場合は Actions の
+   `Migration status (after)` でリポジトリと本番の履歴が揃っていることも確認する。
 9. **タグを打つ** — `git tag v1.x && git push origin v1.x`。
 10. **`main` を `develop` に取り込む** — マージ方式の差でズレが残らないよう `main` → `develop` を戻しマージする。
 
@@ -173,6 +177,7 @@ Projects「nicchyo タスク管理」で、完了しうる上流タスクが1つ
    これは手動作業。設定だけでは再デプロイは走らないので、この時点で本番は変わらない。
 2. **本番 Supabase のマイグレーション適用状況を確認する。** 上記マイグレーションが本番DBに
    適用済みかを確認する（関連: #425）。コードだけ進んでテーブルが無い状態を作らない。
+   手順は §9「初回セットアップ」。ここで履歴を揃えておけば、以降のリリースでは自動適用に任せられる。
 3. **v1.4 をリリースする** — `main` へ `61ecc1f` をマージするPRを作成。
    - **`main` には squash マージ由来のコミット `33c2b56`（v1.3）が1つあり `develop` に存在しない。**
      内容は develop 由来なのでコンフリクトが起きうる。起きた場合は develop 側（新しい方）を採用する。
@@ -188,6 +193,69 @@ Projects「nicchyo タスク管理」で、完了しうる上流タスクが1つ
 ## 8. 参考
 
 - CI: `.github/workflows/ci.yml`（`develop` / `main` への push とPRで lint・tsc・test・build）
+- マイグレーション検証: `.github/workflows/migrations-check.yml`（§9）
+- マイグレーション本番適用: `.github/workflows/migrations-deploy.yml`（§9）
 - バージョン履歴の実体: `app/about/versions.ts` → `/about/versions` で公開
 - Vercel プロジェクト: `nicchyo`（本番）。旧 `nicchyo-platform` は使用していない
 - デプロイ状況の確認: `/deploy-check`
+
+---
+
+## 9. DBマイグレーションの自動適用
+
+`supabase/migrations/` の SQL は GitHub Actions で検証・適用する。手で `supabase db push` を叩かない。
+
+### 流れ
+
+```
+PR（→ develop）        Migrations Check   : まっさらなローカルPostgresに全マイグレーションを頭から適用。
+                                            本番には触らない。落ちたらマージしない。
+main にマージ（=リリース） Migrations Deploy  : 本番 Supabase に未適用分だけを順に適用。
+                                            Environment `production` の承認を挟む。
+```
+
+- 適用済みかどうかは Supabase 側の `supabase_migrations.schema_migrations` で管理される。
+  同じファイルが二度適用されることはない。
+- `develop` へのマージでは本番に適用しない。本番DBは1つしかないため、未リリースのコードが前提の
+  スキーマ変更を先に本番へ入れないようにしている。
+- ロールバックは自動化しない。失敗時は Actions のログを見て、修正マイグレーションを追加して対処する。
+
+### マイグレーションを書くときのルール
+
+アプリのデプロイ（Vercel）とDBの適用（Actions）は `main` への push で**並走**し、順序は保証されない。
+そのため、マイグレーションは**後方互換**（旧コードでも動く）にする。
+
+- 追加系（`CREATE TABLE IF NOT EXISTS` / `ADD COLUMN IF NOT EXISTS` / `CREATE INDEX IF NOT EXISTS`）を基本にする
+- カラム削除・リネーム・NOT NULL 追加は、先にコード側の参照を外してリリースし、次のリリースで消す（expand → contract）
+- 破壊的変更を1リリースで済ませたい場合は、リリースPRに明記し、Actions の承認を**先に**してから Vercel の
+  デプロイを確認する運用で凌ぐ
+
+### 初回セットアップ（1回だけ・要 Supabase 管理者権限）
+
+1. **GitHub Environment `production` を作る** — Settings → Environments → New environment。
+   Deployment protection rules で **Required reviewers** を設定する（承認者はリリース担当者）。
+2. **Environment secrets を登録する**（Repository secrets ではなく Environment 側に入れる）
+   - `SUPABASE_ACCESS_TOKEN` — https://supabase.com/dashboard/account/tokens で発行
+   - `SUPABASE_PROJECT_ID` — 本番プロジェクトの Reference ID（Settings → General）
+   - `SUPABASE_DB_PASSWORD` — 本番DBパスワード（Settings → Database）
+3. **本番の適用履歴とリポジトリを揃える**（#425 の調査とセットで行う）
+   ```bash
+   npx supabase link --project-ref <本番 project ref>
+   npx supabase migration list        # Local と Remote の差分を見る
+   ```
+   - 本番に手で適用済みなのに Remote 側に記録が無いものは、履歴だけ埋める:
+     `npx supabase migration repair --status applied <version>`
+   - 本番に存在しない変更（本当に未適用）はそのまま残す → 次のリリースで自動適用される
+   - `20260414081611_remote_schema.sql` のように本番を直接いじった痕跡があるものは、
+     内容を読んで「本番には反映済み」と判断できれば `applied` にする
+4. **dry run で確認する** — Actions → `Migrations Deploy (Production)` → Run workflow（`dry_run` = true）。
+   `Migration status (before)` と `Dry run` の出力が期待どおりか見る。
+5. 問題なければ以降は `main` マージごとに自動で起動する。数回運用して不安がなくなったら
+   Required reviewers を外して全自動にしてよい。
+
+### 補足
+
+- `migrations-check.yml` は `supabase/migrations/**` を触ったPRでしか走らない。ブランチ保護の
+  必須チェックには入れない（走らないPRで pending のままになるため）。
+- リポジトリに `supabase/config.toml` は置いていない。CI 内で `supabase init` して生成している。
+  ローカルで `npx supabase start` するときは各自の手元の config.toml が使われる。
