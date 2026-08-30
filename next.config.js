@@ -45,7 +45,7 @@ const nextConfig = {
     ];
   },
 
-  // セキュリティヘッダー（CSPはmiddleware.tsでnonce付きで動的に設定）
+  // セキュリティヘッダー（CSPはproxy.tsでnonce付きで動的に設定）
   async headers() {
     return [
       {
