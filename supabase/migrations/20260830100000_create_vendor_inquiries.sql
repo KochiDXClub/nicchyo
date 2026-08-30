@@ -1,4 +1,4 @@
--- 出店者⇔運営/市役所 連絡機能: スレッド本体（vendor_inquiries）と返信（inquiry_replies）
+-- 出店者⇔運営/市役所 連絡機能: スレッド本体（vendor_inquiries）と返信（vendor_inquiry_replies）
 --
 -- 背景: #470/#471 参照。出店者が市役所・運営に個別連絡できる窓口がなかったため新設する。
 -- 常時チャットではなく、案件ごとにライフサイクルを持つ「スレッド（チケット）」形式。
@@ -50,7 +50,7 @@ create table if not exists public.vendor_inquiries (
 comment on table public.vendor_inquiries is
   '出店者⇔運営/市役所の連絡スレッド本体。topicごとに status の意味・遷移が異なる（vendor_inquiries_status_matches_topic 制約参照）。';
 comment on column public.vendor_inquiries.vendor_id is
-  'null許容: 運営発信の一般スレッド、および出店者削除後も記録を残すため（ON DELETE SET NULL）。';
+  'null許容: 運営発信の一般スレッド、および出店者削除後も記録を残すため（ON DELETE SET NULL）。null行の作成はservice_role経由のみ（RLSポリシー参照）。';
 comment on column public.vendor_inquiries.category is
   '宛先マッピング用。city向けの実際の閲覧制限は市役所ロール追加後（#478）に別途導入する。';
 
@@ -107,12 +107,12 @@ create index if not exists vendor_inquiries_status_idx
 create index if not exists vendor_inquiries_created_at_idx
   on public.vendor_inquiries (created_at desc);
 
--- ── inquiry_replies（返信） ──────────────────────────────────────────
+-- ── vendor_inquiry_replies（返信） ──────────────────────────────────────────
 -- sender_id は #471 記載のスコープにはないが、複数の運営担当者が対応する場面での
 -- 監査証跡として必要なため追加する（market_events.created_by 等、既存の
 -- auth.users 参照カラムの慣例に合わせる）。
 
-create table if not exists public.inquiry_replies (
+create table if not exists public.vendor_inquiry_replies (
   id          uuid        primary key default gen_random_uuid(),
   inquiry_id  uuid        not null references public.vendor_inquiries(id) on delete cascade,
   sender_role text        not null
@@ -122,13 +122,13 @@ create table if not exists public.inquiry_replies (
   created_at  timestamptz not null default now()
 );
 
-comment on table public.inquiry_replies is
+comment on table public.vendor_inquiry_replies is
   'vendor_inquiries への返信。sender_role で発言者の立場を区別する。';
 
-create index if not exists inquiry_replies_inquiry_id_idx
-  on public.inquiry_replies (inquiry_id);
-create index if not exists inquiry_replies_created_at_idx
-  on public.inquiry_replies (created_at);
+create index if not exists vendor_inquiry_replies_inquiry_id_idx
+  on public.vendor_inquiry_replies (inquiry_id);
+create index if not exists vendor_inquiry_replies_created_at_idx
+  on public.vendor_inquiry_replies (created_at);
 
 -- ── RLS: vendor_inquiries ────────────────────────────────────────────
 alter table public.vendor_inquiries enable row level security;
@@ -142,6 +142,10 @@ create policy "vendors select own inquiries"
   using (auth.uid() = vendor_id);
 
 -- 出店者は自分名義でのみスレッドを作成可
+-- 運営発信の一般スレッド（vendor_id = null）は、authenticatedクライアント向けの
+-- INSERTポリシーを設けていない。auth.uid() = null は false 扱いになり誰も通らないため、
+-- #472のAPI実装では service_role（RLSをバイパスするサーバーAPI経由）で作成すること。
+-- クライアントから直接作らせる要件が出た場合は、別途 operator 向けINSERTポリシーを追加する。
 drop policy if exists "vendors insert own inquiries" on public.vendor_inquiries;
 create policy "vendors insert own inquiries"
   on public.vendor_inquiries
@@ -190,27 +194,27 @@ create policy "operators update all inquiries"
 grant select, insert on public.vendor_inquiries to authenticated;
 grant update on public.vendor_inquiries to authenticated;
 
--- ── RLS: inquiry_replies ─────────────────────────────────────────────
-alter table public.inquiry_replies enable row level security;
+-- ── RLS: vendor_inquiry_replies ─────────────────────────────────────────────
+alter table public.vendor_inquiry_replies enable row level security;
 
 -- 出店者は自分のスレッドに紐づく返信のみ参照可
-drop policy if exists "vendors select own inquiry replies" on public.inquiry_replies;
+drop policy if exists "vendors select own inquiry replies" on public.vendor_inquiry_replies;
 create policy "vendors select own inquiry replies"
-  on public.inquiry_replies
+  on public.vendor_inquiry_replies
   for select
   to authenticated
   using (
     exists (
       select 1 from public.vendor_inquiries vi
-      where vi.id = inquiry_replies.inquiry_id
+      where vi.id = vendor_inquiry_replies.inquiry_id
         and vi.vendor_id = auth.uid()
     )
   );
 
 -- 運営は全件参照可
-drop policy if exists "operators select all inquiry replies" on public.inquiry_replies;
+drop policy if exists "operators select all inquiry replies" on public.vendor_inquiry_replies;
 create policy "operators select all inquiry replies"
-  on public.inquiry_replies
+  on public.vendor_inquiry_replies
   for select
   to authenticated
   using (
@@ -222,9 +226,9 @@ create policy "operators select all inquiry replies"
   );
 
 -- 出店者は自分のスレッドにのみ、自分の立場（vendor）として返信可
-drop policy if exists "vendors insert own inquiry replies" on public.inquiry_replies;
+drop policy if exists "vendors insert own inquiry replies" on public.vendor_inquiry_replies;
 create policy "vendors insert own inquiry replies"
-  on public.inquiry_replies
+  on public.vendor_inquiry_replies
   for insert
   to authenticated
   with check (
@@ -232,7 +236,7 @@ create policy "vendors insert own inquiry replies"
     and sender_id = auth.uid()
     and exists (
       select 1 from public.vendor_inquiries vi
-      where vi.id = inquiry_replies.inquiry_id
+      where vi.id = vendor_inquiry_replies.inquiry_id
         and vi.vendor_id = auth.uid()
     )
   );
@@ -240,9 +244,9 @@ create policy "vendors insert own inquiry replies"
 -- 運営は任意のスレッドに operator/city として返信可
 -- （city ロールが未整備の間は、運営が市役所の代理として city 名義でも返信できるようにする。
 --   #470「過渡期の仲介・モデレーション責任」を参照）
-drop policy if exists "operators insert inquiry replies" on public.inquiry_replies;
+drop policy if exists "operators insert inquiry replies" on public.vendor_inquiry_replies;
 create policy "operators insert inquiry replies"
-  on public.inquiry_replies
+  on public.vendor_inquiry_replies
   for insert
   to authenticated
   with check (
@@ -255,7 +259,7 @@ create policy "operators insert inquiry replies"
     )
   );
 
-grant select, insert on public.inquiry_replies to authenticated;
+grant select, insert on public.vendor_inquiry_replies to authenticated;
 
 -- DELETE ポリシーは意図的に定義しない（両テーブルとも記録として残す方針のため）。
 -- service_role はRLSをバイパスするので、削除が必要な場合は将来的に
