@@ -43,7 +43,7 @@ export function toCssUrl(value: string | undefined | null): string | undefined {
   const isSitePath = trimmed.startsWith('/') && !trimmed.startsWith('//');
   const isHttps = /^https:\/\//i.test(trimmed);
   if (!isSitePath && !isHttps) return undefined;
-  const cleaned = trimmed.replace(/["'\()\s]/g, '');
+  const cleaned = trimmed.replace(/["'\\()\s]/g, '');
   if (!cleaned) return undefined;
   return `url("${cleaned}")`;
 }

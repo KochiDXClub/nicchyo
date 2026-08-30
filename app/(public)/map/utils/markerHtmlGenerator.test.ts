@@ -26,7 +26,7 @@ describe('toCssUrl', () => {
     );
   });
   it('url() を脱出する文字を除去する', () => {
-    expect(toCssUrl('/a.png");background:url(evil')).toBe('url("/a.png;background:urlevil")');
+    expect(toCssUrl('/a.png\\");background:url(evil')).toBe('url("/a.png;background:urlevil")');
   });
   it.each(['javascript:alert(1)', 'http://example.com/a.png', '//evil.example/a.png', 'data:image/png;base64,AAA', ''])(
     '許可外 %s は undefined',
