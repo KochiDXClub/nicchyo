@@ -1,3 +1,9 @@
+// サイトの絶対URL。metadataBase・JSON-LD・sitemapで共通利用する。
+// `??` ではなく `||` + `.trim()` を使う理由: NEXT_PUBLIC_SITE_URL="" や " "
+// （空文字・空白のみ）は null/undefined ではないため `??` はフォールバックせず、
+// new URL("") が例外を投げたり、相対パスのままJSON-LD/sitemapに出力されたりする。
+export const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL?.trim() || "https://nicchyo.jp";
+
 // クーポン1日の最大発行数（coupon_settings.maxDailyIssuance のデフォルト値）
 export const MAX_COUPON_ISSUANCE = 300;
 
