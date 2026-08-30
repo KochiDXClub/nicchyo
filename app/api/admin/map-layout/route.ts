@@ -12,9 +12,11 @@ import {
   createAdminWriteClient,
   createMapLayoutSnapshot,
   findRoadIdsWithShops,
+  isRouteConfigChanged,
   loadEditableRoads,
   loadEditableShops,
   loadMapSettingsLimits,
+  loadRouteConfig,
   type EditableRoad,
   type EditableShop,
 } from "./_shared";
@@ -170,10 +172,11 @@ export async function PUT(request: NextRequest) {
 
     // 道削除バリデーション・hasChanges判定・スナップショット作成のすべてが
     // 「保存前の状態」を必要とするため、1回だけ読み込んで使い回す
-    const [currentShops, currentRoads, mapSettingsLimits] = await Promise.all([
+    const [currentShops, currentRoads, mapSettingsLimits, currentRouteConfig] = await Promise.all([
       loadEditableShops(supabase),
       loadEditableRoads(supabase),
       loadMapSettingsLimits(supabase),
+      loadRouteConfig(supabase),
     ]);
 
     // 区画が乗っている道は削除できない（クライアント側の制約とサーバー側でも二重に検証）
@@ -271,13 +274,17 @@ export async function PUT(request: NextRequest) {
       JSON.stringify(currentRoads.flatMap((r) => r.points).map(normalizePointForCompare).sort()) !==
       JSON.stringify(body.route.points.map(normalizePointForCompare).sort());
 
+    // ルート config（幅・スナップ距離・可視距離）だけを変えた保存でもスナップショットを残す
+    const routeConfigChanged = isRouteConfigChanged(currentRouteConfig, body.route.config);
+
     const hasChanges =
       body.shops.updated.length > 0 ||
       body.shops.deletedLocationIds.length > 0 ||
       body.landmarks.upsert.length > 0 ||
       body.landmarks.deletedKeys.length > 0 ||
       routePointsChanged ||
-      roadsChanged;
+      roadsChanged ||
+      routeConfigChanged;
 
     if (hasChanges) {
       await createMapLayoutSnapshot(
@@ -290,7 +297,7 @@ export async function PUT(request: NextRequest) {
           upsertLandmarkCount: body.landmarks.upsert.length,
           deletedLandmarkCount: body.landmarks.deletedKeys.length,
           updatedRoutePointCount: body.route.points.length,
-          routeConfigChanged: Boolean(body.route.config),
+          routeConfigChanged,
           updatedRoadCount: body.roads?.length,
           deletedRoadCount: removedRoadIds.length || undefined,
         },

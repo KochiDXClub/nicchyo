@@ -4,7 +4,13 @@ import { createAdminClient } from "@/lib/supabase/adminClient";
 import { fetchLandmarksFromDb } from "@/app/(public)/map/services/landmarksDb";
 import { fetchMapRouteFromDb } from "@/app/(public)/map/services/mapRouteDb";
 import { CHOME_ORDER, type EditableShop } from "@/app/(public)/map/types/editableShop";
-import type { MapRoad, MapRoutePoint, RoadKind } from "@/app/(public)/map/types/mapRoute";
+import {
+  DEFAULT_MAP_ROUTE_CONFIG,
+  type MapRoad,
+  type MapRouteConfig,
+  type MapRoutePoint,
+  type RoadKind,
+} from "@/app/(public)/map/types/mapRoute";
 import { findNearestRoadId } from "@/app/(public)/map/utils/mapRouteGeometry";
 
 export type { EditableShop };
@@ -175,6 +181,53 @@ const DEFAULT_MAP_SETTINGS_LIMITS: MapSettingsLimits = {
   maxLandmarks: 80,
   maxUnassignedShopMarkers: 40,
 };
+
+/**
+ * map_route_configs の現在値（key="default"）を読む。行が無い・読めない場合は既定値を返す。
+ * PUT でルート config だけ変更された保存でもスナップショットを残せるよう、
+ * 保存前の値との比較（isRouteConfigChanged）に使う。
+ */
+export async function loadRouteConfig(
+  supabase: ReturnType<typeof createServerClient>
+): Promise<MapRouteConfig> {
+  const { data, error } = await supabase
+    .from("map_route_configs")
+    .select("key, road_half_width_meters, snap_distance_meters, visible_distance_meters")
+    .eq("key", DEFAULT_MAP_ROUTE_CONFIG.key)
+    .maybeSingle();
+
+  if (error || !data) {
+    return DEFAULT_MAP_ROUTE_CONFIG;
+  }
+
+  const readNumber = (input: unknown, fallback: number) => {
+    const n = Number(input);
+    return input != null && Number.isFinite(n) ? n : fallback;
+  };
+
+  return {
+    key: data.key ?? DEFAULT_MAP_ROUTE_CONFIG.key,
+    roadHalfWidthMeters: readNumber(
+      data.road_half_width_meters,
+      DEFAULT_MAP_ROUTE_CONFIG.roadHalfWidthMeters
+    ),
+    snapDistanceMeters: readNumber(data.snap_distance_meters, DEFAULT_MAP_ROUTE_CONFIG.snapDistanceMeters),
+    visibleDistanceMeters: readNumber(
+      data.visible_distance_meters,
+      DEFAULT_MAP_ROUTE_CONFIG.visibleDistanceMeters
+    ),
+  };
+}
+
+/** ルート config（幅・スナップ距離・可視距離）が保存前の値から変わっているか */
+export function isRouteConfigChanged(current: MapRouteConfig, next: MapRouteConfig): boolean {
+  return (
+    current.key !== next.key ||
+    current.roadHalfWidthMeters !== next.roadHalfWidthMeters ||
+    current.snapDistanceMeters !== next.snapDistanceMeters ||
+    current.visibleDistanceMeters !== next.visibleDistanceMeters
+  );
+}
 
 /**
  * /admin/settings で管理者が設定する建物・未割当区画マーカーの上限を読み込む
