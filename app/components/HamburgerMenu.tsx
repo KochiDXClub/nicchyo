@@ -10,11 +10,12 @@
 
 import Image from 'next/image';
 import Link from 'next/link';
-import { useEffect } from 'react';
+import { useEffect, type ReactNode } from 'react';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/lib/auth/AuthContext';
 import { useMenu } from '@/lib/ui/MenuContext';
 import { getRoleTheme } from '@/lib/theme/roleTheme';
+import { usePageVisibility } from '@/lib/pageVisibility/PageVisibilityContext';
 
 export default function HamburgerMenu() {
   const { isMenuOpen, toggleMenu, closeMenu } = useMenu();
@@ -155,7 +156,7 @@ export default function HamburgerMenu() {
                           </p>
                         </div>
                       </li>
-                      <li>
+                      <MenuLi href="/admin/dashboard">
                         <Link
                           href="/admin/dashboard"
                           onClick={closeMenu}
@@ -170,8 +171,8 @@ export default function HamburgerMenu() {
                             管理
                           </span>
                         </Link>
-                      </li>
-                      <li>
+                      </MenuLi>
+                      <MenuLi href="/admin/analytics">
                         <Link
                           href="/admin/analytics"
                           onClick={closeMenu}
@@ -186,8 +187,8 @@ export default function HamburgerMenu() {
                             管理
                           </span>
                         </Link>
-                      </li>
-                      <li>
+                      </MenuLi>
+                      <MenuLi href="/admin/map-edit">
                         <Link
                           href="/admin/map-edit"
                           onClick={closeMenu}
@@ -202,8 +203,8 @@ export default function HamburgerMenu() {
                             管理
                           </span>
                         </Link>
-                      </li>
-                      <li>
+                      </MenuLi>
+                      <MenuLi href="/admin/users">
                         <Link
                           href="/admin/users"
                           onClick={closeMenu}
@@ -218,8 +219,8 @@ export default function HamburgerMenu() {
                             管理
                           </span>
                         </Link>
-                      </li>
-                      <li>
+                      </MenuLi>
+                      <MenuLi href="/admin/content">
                         <Link
                           href="/admin/content"
                           onClick={closeMenu}
@@ -234,8 +235,8 @@ export default function HamburgerMenu() {
                             管理
                           </span>
                         </Link>
-                      </li>
-                      <li>
+                      </MenuLi>
+                      <MenuLi href="/admin/audit-logs">
                         <Link
                           href="/admin/audit-logs"
                           onClick={closeMenu}
@@ -250,8 +251,8 @@ export default function HamburgerMenu() {
                             管理
                           </span>
                         </Link>
-                      </li>
-                      <li>
+                      </MenuLi>
+                      <MenuLi href="/admin/notifications">
                         <Link
                           href="/admin/notifications"
                           onClick={closeMenu}
@@ -266,8 +267,8 @@ export default function HamburgerMenu() {
                             管理
                           </span>
                         </Link>
-                      </li>
-                      <li>
+                      </MenuLi>
+                      <MenuLi href="/admin/settings">
                         <Link
                           href="/admin/settings"
                           onClick={closeMenu}
@@ -282,7 +283,23 @@ export default function HamburgerMenu() {
                             管理
                           </span>
                         </Link>
-                      </li>
+                      </MenuLi>
+                      <MenuLi href="/admin/page-visibility">
+                        <Link
+                          href="/admin/page-visibility"
+                          onClick={closeMenu}
+                          className={menuItemClass('/admin/page-visibility', 'hover:bg-red-50')}
+                        >
+                          <MenuIcon name="list" className={`h-5 w-5 ${isActive('/admin/page-visibility') ? 'text-white' : 'text-red-600'}`} />
+                          <div className="flex-1">
+                            <p className="text-sm font-medium">ページ公開設定</p>
+                            <p className={`text-xs ${isActive('/admin/page-visibility') ? 'text-white/80' : 'text-gray-500'}`}>ロール別に公開・非公開を切替</p>
+                          </div>
+                          <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${isActive('/admin/page-visibility') ? 'bg-white/20 text-white' : 'bg-red-100 text-red-700'}`}>
+                            管理
+                          </span>
+                        </Link>
+                      </MenuLi>
                       <li>
                         <div className="my-3 border-t border-gray-200" />
                       </li>
@@ -299,7 +316,7 @@ export default function HamburgerMenu() {
                           </p>
                         </div>
                       </li>
-                      <li>
+                      <MenuLi href="/moderator">
                         <Link
                           href="/moderator"
                           onClick={closeMenu}
@@ -314,7 +331,7 @@ export default function HamburgerMenu() {
                             モデレーター
                           </span>
                         </Link>
-                      </li>
+                      </MenuLi>
                       <li>
                         <div className="my-3 border-t border-gray-200" />
                       </li>
@@ -331,7 +348,7 @@ export default function HamburgerMenu() {
                           </p>
                         </div>
                       </li>
-                      <li>
+                      <MenuLi href="/my-shop">
                         <Link
                           href="/my-shop"
                           onClick={closeMenu}
@@ -343,8 +360,8 @@ export default function HamburgerMenu() {
                             <p className={`text-xs ${isActive('/my-shop') ? 'text-white/80' : 'text-gray-500'}`}>店舗ページを見る</p>
                           </div>
                         </Link>
-                      </li>
-                      <li>
+                      </MenuLi>
+                      <MenuLi href="/vendor/post/new">
                         <Link
                           href="/vendor/post/new"
                           onClick={closeMenu}
@@ -356,8 +373,8 @@ export default function HamburgerMenu() {
                             <p className={`text-xs ${isActive('/vendor/post/new') ? 'text-white/80' : 'text-gray-500'}`}>お知らせや出店情報を発信</p>
                           </div>
                         </Link>
-                      </li>
-                      <li>
+                      </MenuLi>
+                      <MenuLi href="/vendor/store">
                         <Link
                           href="/vendor/store"
                           onClick={closeMenu}
@@ -369,8 +386,8 @@ export default function HamburgerMenu() {
                             <p className={`text-xs ${isActive('/vendor/store') ? 'text-white/80' : 'text-gray-500'}`}>営業時間・商品・SNSなど</p>
                           </div>
                         </Link>
-                      </li>
-                      <li>
+                      </MenuLi>
+                      <MenuLi href="/vendor/analytics">
                         <Link
                           href="/vendor/analytics"
                           onClick={closeMenu}
@@ -382,8 +399,8 @@ export default function HamburgerMenu() {
                             <p className={`text-xs ${isActive('/vendor/analytics') ? 'text-white/80' : 'text-gray-500'}`}>閲覧数・商品・AI分析</p>
                           </div>
                         </Link>
-                      </li>
-                      <li>
+                      </MenuLi>
+                      <MenuLi href="/vendor/ai-knowledge">
                         <Link
                           href="/vendor/ai-knowledge"
                           onClick={closeMenu}
@@ -395,8 +412,8 @@ export default function HamburgerMenu() {
                             <p className={`text-xs ${isActive('/vendor/ai-knowledge') ? 'text-white/80' : 'text-gray-500'}`}>お店の情報を学習させる</p>
                           </div>
                         </Link>
-                      </li>
-                      <li>
+                      </MenuLi>
+                      <MenuLi href="/vendor/account">
                         <Link
                           href="/vendor/account"
                           onClick={closeMenu}
@@ -408,8 +425,8 @@ export default function HamburgerMenu() {
                             <p className={`text-xs ${isActive('/vendor/account') ? 'text-white/80' : 'text-gray-500'}`}>名前・メール・パスワード変更</p>
                           </div>
                         </Link>
-                      </li>
-                      <li>
+                      </MenuLi>
+                      <MenuLi href="/vendor/help">
                         <Link
                           href="/vendor/help"
                           onClick={closeMenu}
@@ -421,7 +438,7 @@ export default function HamburgerMenu() {
                             <p className={`text-xs ${isActive('/vendor/help') ? 'text-white/80' : 'text-gray-500'}`}>各機能の説明</p>
                           </div>
                         </Link>
-                      </li>
+                      </MenuLi>
                       <li>
                         <div className="my-3 border-t border-gray-200" />
                       </li>
@@ -430,7 +447,7 @@ export default function HamburgerMenu() {
 
                   {permissions.isGeneralUser && (
                     <>
-                      <li>
+                      <MenuLi href="/bag">
                         <Link
                           href="/bag"
                           onClick={closeMenu}
@@ -442,7 +459,7 @@ export default function HamburgerMenu() {
                             <p className={`text-xs ${isActive('/bag') ? 'text-white/80' : 'text-gray-500'}`}>買うものをメモ</p>
                           </div>
                         </Link>
-                      </li>
+                      </MenuLi>
                     </>
                   )}
 
@@ -463,7 +480,7 @@ export default function HamburgerMenu() {
                 </>
               ) : (
                 <>
-                  <li>
+                  <MenuLi href="/bag">
                     <Link
                       href="/bag"
                       onClick={closeMenu}
@@ -475,7 +492,7 @@ export default function HamburgerMenu() {
                         <p className="text-xs text-amber-700/80">買うものをメモ</p>
                       </div>
                     </Link>
-                  </li>
+                  </MenuLi>
                 </>
               )}
 
@@ -483,7 +500,7 @@ export default function HamburgerMenu() {
                 <div className="my-3 border-t border-gray-200" />
               </li>
 
-              <li>
+              <MenuLi href="/about">
                 <Link
                   href="/about"
                   onClick={closeMenu}
@@ -492,8 +509,8 @@ export default function HamburgerMenu() {
                   <MenuIcon name="info" className={`h-5 w-5 ${isActive('/about') ? 'text-white' : 'text-gray-600'}`} />
                   <p className="text-sm font-medium">このサービスについて</p>
                 </Link>
-              </li>
-              <li>
+              </MenuLi>
+              <MenuLi href="/analysis">
                 <Link
                   href="/analysis"
                   onClick={closeMenu}
@@ -502,10 +519,10 @@ export default function HamburgerMenu() {
                   <MenuIcon name="chart" className={`h-5 w-5 ${isActive('/analysis') ? 'text-white' : 'text-gray-600'}`} />
                   <p className="text-sm font-medium">日曜市をデータで見る</p>
                 </Link>
-              </li>
+              </MenuLi>
               {!isLoggedIn && (
                 <>
-                  <li>
+                  <MenuLi href="/login">
                     <Link
                       href="/login"
                       onClick={closeMenu}
@@ -514,8 +531,8 @@ export default function HamburgerMenu() {
                       <MenuIcon name="user" className={`h-5 w-5 ${isActive('/login') ? 'text-white' : 'text-gray-600'}`} />
                       <p className="text-sm font-medium">ログイン</p>
                     </Link>
-                  </li>
-                  <li>
+                  </MenuLi>
+                  <MenuLi href="/signup">
                     <Link
                       href="/signup"
                       onClick={closeMenu}
@@ -524,10 +541,10 @@ export default function HamburgerMenu() {
                       <MenuIcon name="user" className={`h-5 w-5 ${isActive('/signup') ? 'text-white' : 'text-gray-600'}`} />
                       <p className="text-sm font-medium">アカウントを作成</p>
                     </Link>
-                  </li>
+                  </MenuLi>
                 </>
               )}
-              <li>
+              <MenuLi href="/faq">
                 <Link
                   href="/faq"
                   onClick={closeMenu}
@@ -536,8 +553,8 @@ export default function HamburgerMenu() {
                   <MenuIcon name="help" className={`h-5 w-5 ${isActive('/faq') ? 'text-white' : 'text-gray-600'}`} />
                   <p className="text-sm font-medium">よくある質問</p>
                 </Link>
-              </li>
-              <li>
+              </MenuLi>
+              <MenuLi href="/contact">
                 <Link
                   href="/contact"
                   onClick={closeMenu}
@@ -546,7 +563,7 @@ export default function HamburgerMenu() {
                   <MenuIcon name="mail" className={`h-5 w-5 ${isActive('/contact') ? 'text-white' : 'text-gray-600'}`} />
                   <p className="text-sm font-medium">お問い合わせ</p>
                 </Link>
-              </li>
+              </MenuLi>
             </ul>
           </nav>
 
@@ -583,6 +600,13 @@ type MenuIconProps = {
   name: MenuIconName;
   className?: string;
 };
+
+/** ページ公開設定で public でないリンクはメニューに出さない */
+function MenuLi({ href, children }: { href: string; children: ReactNode }) {
+  const { isLinkVisible } = usePageVisibility();
+  if (!isLinkVisible(href)) return null;
+  return <li>{children}</li>;
+}
 
 function MenuIcon({ name, className }: MenuIconProps) {
   const props = {

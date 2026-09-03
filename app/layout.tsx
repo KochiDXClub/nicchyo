@@ -5,6 +5,7 @@ import "./globals.css";
 import { AuthProvider } from "@/lib/auth/AuthContext";
 import { MenuProvider } from "@/lib/ui/MenuContext";
 import { BagProvider } from "@/lib/storage/BagContext";
+import { PageVisibilityProvider } from "@/lib/pageVisibility/PageVisibilityContext";
 import AppHeader from "./components/AppHeader";
 import MapLoadingProvider from "./components/MapLoadingProvider";
 import PageVisitTracker from "./components/PageVisitTracker";
@@ -92,18 +93,20 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <CookieConsent />
         <ViewportHeightUpdater />
         <AuthProvider>
-          <BagProvider>
-            <MenuProvider>
-              <MapLoadingProvider>
-                <AppHeader />
-                <Suspense fallback={null}>
-                  <PageVisitTracker />
-                </Suspense>
-                {children}
-                <Toaster />
-              </MapLoadingProvider>
-            </MenuProvider>
-          </BagProvider>
+          <PageVisibilityProvider>
+            <BagProvider>
+              <MenuProvider>
+                <MapLoadingProvider>
+                  <AppHeader />
+                  <Suspense fallback={null}>
+                    <PageVisitTracker />
+                  </Suspense>
+                  {children}
+                  <Toaster />
+                </MapLoadingProvider>
+              </MenuProvider>
+            </BagProvider>
+          </PageVisibilityProvider>
         </AuthProvider>
       </body>
     </html>
