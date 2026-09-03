@@ -7,7 +7,7 @@ import { getRole, isModerator } from "@/lib/auth/permissions";
 import { requireSameOrigin } from "@/lib/security/requestGuards";
 import { enforceRateLimit } from "@/lib/security/rateLimit";
 import type { DatabaseWithExtensions } from "@/types/database.extensions";
-import { VENDOR_INQUIRY_REPLY_BODY_MAX_LENGTH } from "@/lib/vendorInquiries/constants";
+import { VENDOR_INQUIRY_REPLY_BODY_MAX_LENGTH, isUuid } from "@/lib/vendorInquiries/constants";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -49,17 +49,29 @@ export async function POST(req: Request, { params }: RouteParams) {
   const originCheck = requireSameOrigin(req);
   if (!originCheck.ok) return originCheck.response;
 
-  const rateLimited = await enforceRateLimit(req, {
-    bucket: "admin-vendor-inquiry-replies-post",
-    limit: 60,
+  // IP単位は認証前の連打を止める粗い上限。実際の投稿数制限は認証後に担当者単位でかける
+  const floodLimited = await enforceRateLimit(req, {
+    bucket: "admin-vendor-inquiry-replies-post-ip",
+    limit: 300,
     windowMs: 10 * 60 * 1000,
   });
-  if (rateLimited) return rateLimited;
+  if (floodLimited) return floodLimited;
 
   const { user, error } = await authorizeRequest();
   if (error || !user) return NextResponse.json({ error }, { status: 403 });
 
+  const rateLimited = await enforceRateLimit(req, {
+    bucket: "admin-vendor-inquiry-replies-post",
+    limit: 60,
+    windowMs: 10 * 60 * 1000,
+    keySuffix: user.id,
+  });
+  if (rateLimited) return rateLimited;
+
   const { id } = await params;
+  // uuid型の列に非UUIDを渡すとPostgreSQLが22P02を返し500になるため、先に弾く
+  if (!isUuid(id)) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
   const dc = createAdminClient();
   if (!dc) return NextResponse.json({ error: "Service unavailable" }, { status: 503 });
 

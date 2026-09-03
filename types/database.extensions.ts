@@ -1,4 +1,10 @@
 import type { Database } from "./database.types";
+import type {
+  VendorInquiryCategory,
+  VendorInquiryReplySenderRole,
+  VendorInquiryTopic,
+  VendorInquiryUrgency,
+} from "@/lib/vendorInquiries/constants";
 
 // ── Tables not included in Supabase auto-generated types ──────────────────────
 // These must be maintained manually until the next `supabase gen types` run.
@@ -24,9 +30,14 @@ export type ShopInteractionInsert = {
 // vendor_inquiries / vendor_inquiry_replies
 // supabase/migrations/20260830100000_create_vendor_inquiries.sql 参照。
 // マイグレーションがdevelopにマージされ次第、`supabase gen types` で生成される型に置き換える。
-export type VendorInquiryTopic = "question" | "report" | "consultation";
-export type VendorInquiryCategory = "city" | "operator" | "both";
-export type VendorInquiryUrgency = "low" | "normal" | "high";
+// union型の定義はバリデーション側（lib/vendorInquiries/constants.ts）を単一の情報源とし、
+// 片方だけ直して気づかない事故を防ぐためここでは再エクスポートのみ行う。
+export type {
+  VendorInquiryTopic,
+  VendorInquiryCategory,
+  VendorInquiryUrgency,
+  VendorInquiryReplySenderRole,
+} from "@/lib/vendorInquiries/constants";
 
 export type VendorInquiryRow = {
   id: string;
@@ -45,8 +56,6 @@ export type VendorInquiryInsert = Pick<VendorInquiryRow, "topic" | "category" | 
   Partial<Pick<VendorInquiryRow, "id" | "vendor_id" | "urgency" | "image_url" | "status" | "created_at" | "updated_at">>;
 
 export type VendorInquiryUpdate = Partial<Omit<VendorInquiryRow, "id" | "created_at">>;
-
-export type VendorInquiryReplySenderRole = "vendor" | "operator" | "city";
 
 export type VendorInquiryReplyRow = {
   id: string;

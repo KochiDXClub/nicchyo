@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { createClientWithExtensions } from "@/utils/supabase/server";
 import { requireVendorRole } from "@/lib/auth/permissions";
+import { isUuid } from "@/lib/vendorInquiries/constants";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -11,6 +12,8 @@ type RouteParams = { params: Promise<{ id: string }> };
 // ─── GET: スレッド詳細+返信一覧（自分のスレッドのみ） ─────────────
 export async function GET(_request: Request, { params }: RouteParams) {
   const { id } = await params;
+  // uuid型の列に非UUIDを渡すとPostgreSQLが22P02を返し500になるため、先に弾く
+  if (!isUuid(id)) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   const cookieStore = await cookies();
   const supabase = createClientWithExtensions(cookieStore);

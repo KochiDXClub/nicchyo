@@ -62,12 +62,15 @@ export async function POST(request: Request) {
   const originCheck = requireSameOrigin(request);
   if (!originCheck.ok) return originCheck.response;
 
-  const rateLimited = await enforceRateLimit(request, {
-    bucket: "vendor-inquiries-post",
-    limit: 10,
+  // IP単位は「認証前の連打」を止めるための粗い上限にとどめる。
+  // 日曜市の会場Wi-FiやキャリアグレードNATで複数の出店者が同一IPになりうるため、
+  // 実際の投稿数の制限は認証後に出店者単位（keySuffix: user.id）でかける。
+  const floodLimited = await enforceRateLimit(request, {
+    bucket: "vendor-inquiries-post-ip",
+    limit: 300,
     windowMs: 10 * 60 * 1000,
   });
-  if (rateLimited) return rateLimited;
+  if (floodLimited) return floodLimited;
 
   const cookieStore = await cookies();
   const supabase = createClientWithExtensions(cookieStore);
@@ -77,6 +80,14 @@ export async function POST(request: Request) {
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const forbidden = requireVendorRole(user);
   if (forbidden) return forbidden;
+
+  const rateLimited = await enforceRateLimit(request, {
+    bucket: "vendor-inquiries-post",
+    limit: 10,
+    windowMs: 10 * 60 * 1000,
+    keySuffix: user.id,
+  });
+  if (rateLimited) return rateLimited;
 
   const parsed = CreateInquirySchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {

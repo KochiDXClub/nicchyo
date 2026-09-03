@@ -5,7 +5,7 @@ import { createClientWithExtensions } from "@/utils/supabase/server";
 import { requireSameOrigin } from "@/lib/security/requestGuards";
 import { enforceRateLimit } from "@/lib/security/rateLimit";
 import { requireVendorRole } from "@/lib/auth/permissions";
-import { VENDOR_INQUIRY_REPLY_BODY_MAX_LENGTH } from "@/lib/vendorInquiries/constants";
+import { VENDOR_INQUIRY_REPLY_BODY_MAX_LENGTH, isUuid } from "@/lib/vendorInquiries/constants";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -25,14 +25,19 @@ export async function POST(request: Request, { params }: RouteParams) {
   const originCheck = requireSameOrigin(request);
   if (!originCheck.ok) return originCheck.response;
 
-  const rateLimited = await enforceRateLimit(request, {
-    bucket: "vendor-inquiry-replies-post",
-    limit: 20,
+  // IP単位は認証前の連打を止める粗い上限。実際の投稿数制限は認証後に出店者単位でかける
+  // （日曜市の会場Wi-Fi等で複数の出店者が同一IPになりうるため）
+  const floodLimited = await enforceRateLimit(request, {
+    bucket: "vendor-inquiry-replies-post-ip",
+    limit: 300,
     windowMs: 10 * 60 * 1000,
   });
-  if (rateLimited) return rateLimited;
+  if (floodLimited) return floodLimited;
 
   const { id } = await params;
+  // uuid型の列に非UUIDを渡すとPostgreSQLが22P02を返し500になるため、先に弾く。
+  // 存在しないIDと同じ404にして、IDの存在有無が漏れないようにする
+  if (!isUuid(id)) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   const cookieStore = await cookies();
   const supabase = createClientWithExtensions(cookieStore);
@@ -42,6 +47,14 @@ export async function POST(request: Request, { params }: RouteParams) {
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const forbidden = requireVendorRole(user);
   if (forbidden) return forbidden;
+
+  const rateLimited = await enforceRateLimit(request, {
+    bucket: "vendor-inquiry-replies-post",
+    limit: 20,
+    windowMs: 10 * 60 * 1000,
+    keySuffix: user.id,
+  });
+  if (rateLimited) return rateLimited;
 
   const parsed = ReplyBodySchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {

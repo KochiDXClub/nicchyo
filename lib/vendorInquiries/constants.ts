@@ -14,6 +14,11 @@ export type VendorInquiryUrgency = (typeof VENDOR_INQUIRY_URGENCIES)[number];
 export const VENDOR_INQUIRY_REPLY_SENDER_ROLES = ["vendor", "operator", "city"] as const;
 export type VendorInquiryReplySenderRole = (typeof VENDOR_INQUIRY_REPLY_SENDER_ROLES)[number];
 
+// topic="report"（報告・連絡）は #470 の設計上「返信を前提としない一方向の共有」だが、
+// 返信API自体はtopicで制限していない。運営が「確認しました」と一言返せる方が親切なため、
+// APIとDBでは許容し、返信フォームを出すかどうかはUI側（#473/#474）の判断に委ねる。
+// 出店者側UIではreportに返信欄を出さない想定。
+
 // vendor_inquiries_status_matches_topic 制約と同じ対応表
 export const VENDOR_INQUIRY_STATUS_BY_TOPIC: Record<VendorInquiryTopic, readonly string[]> = {
   report: ["unconfirmed", "confirmed"],

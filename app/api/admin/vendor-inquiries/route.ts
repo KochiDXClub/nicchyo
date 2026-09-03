@@ -55,7 +55,11 @@ export async function GET(req: Request) {
   const urgency = searchParams.get("urgency");
   const status = searchParams.get("status");
   const vendorId = searchParams.get("vendor_id");
-  const limit = Math.min(Number(searchParams.get("limit") ?? String(DEFAULT_LIMIT)) || DEFAULT_LIMIT, MAX_LIMIT);
+  // ?limit=-5 のような負値・非数値でPostgRESTがエラーにならないよう 1〜MAX_LIMIT に丸める
+  const limit = Math.min(
+    Math.max(1, Math.floor(Number(searchParams.get("limit") ?? String(DEFAULT_LIMIT)) || DEFAULT_LIMIT)),
+    MAX_LIMIT
+  );
 
   let query = dc.from("vendor_inquiries").select("*").order("created_at", { ascending: false }).limit(limit);
 

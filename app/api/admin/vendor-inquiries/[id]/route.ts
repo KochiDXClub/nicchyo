@@ -7,7 +7,11 @@ import { getRole, isModerator } from "@/lib/auth/permissions";
 import { requireSameOrigin } from "@/lib/security/requestGuards";
 import { enforceRateLimit } from "@/lib/security/rateLimit";
 import type { DatabaseWithExtensions } from "@/types/database.extensions";
-import { VENDOR_INQUIRY_STATUS_BY_TOPIC, isValidStatusForTopic } from "@/lib/vendorInquiries/constants";
+import {
+  VENDOR_INQUIRY_STATUS_BY_TOPIC,
+  isUuid,
+  isValidStatusForTopic,
+} from "@/lib/vendorInquiries/constants";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -34,11 +38,17 @@ async function authorizeRequest() {
 }
 
 // ─── GET: スレッド詳細+返信一覧（運営は全件参照可） ────────────────
-export async function GET(_req: Request, { params }: RouteParams) {
+export async function GET(req: Request, { params }: RouteParams) {
+  const originCheck = requireSameOrigin(req);
+  if (!originCheck.ok) return originCheck.response;
+
   const { error } = await authorizeRequest();
   if (error) return NextResponse.json({ error }, { status: 403 });
 
   const { id } = await params;
+  // uuid型の列に非UUIDを渡すとPostgreSQLが22P02を返し500になるため、先に弾く
+  if (!isUuid(id)) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
   const dc = createAdminClient();
   if (!dc) return NextResponse.json({ error: "Service unavailable" }, { status: 503 });
 
@@ -75,17 +85,29 @@ export async function PATCH(req: Request, { params }: RouteParams) {
   const originCheck = requireSameOrigin(req);
   if (!originCheck.ok) return originCheck.response;
 
-  const rateLimited = await enforceRateLimit(req, {
-    bucket: "admin-vendor-inquiries-patch",
-    limit: 60,
+  // IP単位は認証前の連打を止める粗い上限。実際の操作数制限は認証後に担当者単位でかける
+  const floodLimited = await enforceRateLimit(req, {
+    bucket: "admin-vendor-inquiries-patch-ip",
+    limit: 300,
     windowMs: 10 * 60 * 1000,
   });
-  if (rateLimited) return rateLimited;
+  if (floodLimited) return floodLimited;
 
   const { user, error } = await authorizeRequest();
   if (error || !user) return NextResponse.json({ error }, { status: 403 });
 
+  const rateLimited = await enforceRateLimit(req, {
+    bucket: "admin-vendor-inquiries-patch",
+    limit: 60,
+    windowMs: 10 * 60 * 1000,
+    keySuffix: user.id,
+  });
+  if (rateLimited) return rateLimited;
+
   const { id } = await params;
+  // uuid型の列に非UUIDを渡すとPostgreSQLが22P02を返し500になるため、先に弾く
+  if (!isUuid(id)) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
   const dc = createAdminClient();
   if (!dc) return NextResponse.json({ error: "Service unavailable" }, { status: 503 });
 

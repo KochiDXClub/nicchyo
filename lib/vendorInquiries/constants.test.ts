@@ -1,5 +1,18 @@
 import { describe, expect, it } from "vitest";
-import { isAllowedVendorInquiryImageUrl, isValidStatusForTopic } from "./constants";
+import { isAllowedVendorInquiryImageUrl, isUuid, isValidStatusForTopic } from "./constants";
+
+describe("isUuid", () => {
+  it("UUIDを通す", () => {
+    expect(isUuid("3f2504e0-4f89-11d3-9a0c-0305e82c3301")).toBe(true);
+  });
+
+  it.each(["foo", "", "3f2504e0-4f89-11d3-9a0c", "3f2504e04f8911d39a0c0305e82c3301", "../../etc/passwd"])(
+    "UUIDでない %s は拒否する",
+    (input) => {
+      expect(isUuid(input)).toBe(false);
+    }
+  );
+});
 
 describe("isAllowedVendorInquiryImageUrl", () => {
   it("サイト内の絶対パスを許可する", () => {
