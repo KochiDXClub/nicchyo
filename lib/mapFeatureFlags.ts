@@ -53,6 +53,11 @@ export interface MapFeatureFlags {
   backgroundOverlay: BackgroundOverlayMode;
   /** 背景タイルの不透明度をズームに応じて変える（off なら常に 0.22） */
   tileOpacityByZoom: boolean;
+  /**
+   * 店舗レイヤーをズーム 19 未満で付け外しせず、ペインごと非表示（visibility: hidden）で残す。
+   * off だと従来どおり境界をまたぐたびに 300 マーカーを作り直す。
+   */
+  shopLayerHiding: boolean;
 }
 
 /**
@@ -68,6 +73,7 @@ export const DEFAULT_MAP_FEATURE_FLAGS: MapFeatureFlags = {
   stallRenderer: "svg",
   backgroundOverlay: "webp",
   tileOpacityByZoom: true,
+  shopLayerHiding: true,
 };
 
 export const BACKGROUND_OVERLAY_MODES: readonly BackgroundOverlayMode[] = ["webp", "svg", "off"];
@@ -128,6 +134,12 @@ export const MAP_FEATURE_FLAG_DEFS: readonly MapFeatureFlagDef[] = [
     key: "tileOpacityByZoom",
     label: "タイルの不透明度をズームで変える",
     description: "最小ズームで濃く、通常は薄く。off なら常に一定",
+    options: "boolean",
+  },
+  {
+    key: "shopLayerHiding",
+    label: "店舗レイヤーを隠して残す",
+    description: "ズーム 19 未満で店舗レイヤーを付け外しせず、非表示で残す。off だと境界をまたぐたびに 300 マーカーを作り直す（従来）",
     options: "boolean",
   },
 ];

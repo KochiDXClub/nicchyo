@@ -1668,6 +1668,7 @@ const MapView = memo(function MapView({
             bagShopIds={bagShopIds}
             onChomeClick={handleChomeClick}
             stallRenderer={featureFlags.stallRenderer}
+            shopLayerHiding={featureFlags.shopLayerHiding}
             OptimizedShopLayerWithClustering={OptimizedShopLayerWithClustering}
           />
 

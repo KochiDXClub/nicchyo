@@ -12,6 +12,7 @@ import type { ShopBannerOrigin } from "./MapView";
 import type { MapRouteConfig, MapRoutePoint } from "../types/mapRoute";
 import RoadOverlay from "./RoadOverlay";
 import ChomeAreaMarkers from "./ChomeAreaMarkers";
+import { OVERVIEW_ZONE_MAX_ZOOM } from "../config/displayConfig";
 
 const MIN_ZOOM_LABEL_NAMES = new Set(["高知城", "高知駅", "チンチン電車"]);
 const MIN_ZOOM_ONLY_LABEL = { name: "日曜市", lat: 33.56145, lng: 133.5383 };
@@ -40,6 +41,7 @@ export const MapOverlays = memo(function MapOverlays({
   bagShopIds,
   onChomeClick,
   stallRenderer,
+  shopLayerHiding = false,
   OptimizedShopLayerWithClustering,
 }: {
   isLowZoomTintMode: boolean;
@@ -66,9 +68,13 @@ export const MapOverlays = memo(function MapOverlays({
   onChomeClick?: (chome: string) => void;
   /** 屋台の描画方式（lib/mapFeatureFlags.ts の stallRenderer） */
   stallRenderer?: 'svg' | 'div';
+  /** 店舗レイヤーを付け外しせず非表示で残す（lib/mapFeatureFlags.ts の shopLayerHiding） */
+  shopLayerHiding?: boolean;
   OptimizedShopLayerWithClustering: ComponentType<OptimizedShopLayerWithClusteringProps>;
 }) {
   const map = useMap();
+  // 個別店舗マーカーが見える倍率（zoom ≥ 19）
+  const shopsVisible = !isMinimumZoomMode && !isOverviewZoneMode && !isLowZoomTintMode;
   const handleRoadTap = useCallback((latlng: import("leaflet").LatLng) => {
     map.setView(latlng, 17);
   }, [map]);
@@ -166,8 +172,12 @@ export const MapOverlays = memo(function MapOverlays({
         <ChomeAreaMarkers shops={shops} onChomeClick={onChomeClick} />
       )}
 
-      {/* 通常時（zoom ≥ 19）: 個別店舗マーカー */}
-      {!isMinimumZoomMode && !isOverviewZoneMode && !isLowZoomTintMode && (
+      {/*
+       * 通常時（zoom ≥ 19）: 個別店舗マーカー。
+       * shopLayerHiding が on のときはレイヤーを常に置いたまま、ズーム 19 未満では
+       * ペインごと非表示にする（付け外しの 300 マーカー再生成を避ける）。
+       */}
+      {(shopLayerHiding || shopsVisible) && (
         <OptimizedShopLayerWithClustering
           shops={shops}
           onShopClick={onShopClick}
@@ -179,6 +189,8 @@ export const MapOverlays = memo(function MapOverlays({
           commentHighlightShopIds={commentHighlightShopIds}
           bagShopIds={bagShopIds}
           stallRenderer={stallRenderer}
+          hidden={shopLayerHiding && !shopsVisible}
+          visibleMinZoom={shopLayerHiding ? OVERVIEW_ZONE_MAX_ZOOM : undefined}
         />
       )}
     </>
