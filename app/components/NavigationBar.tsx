@@ -14,11 +14,14 @@ import { usePageVisibility } from "@/lib/pageVisibility/PageVisibilityContext";
 type NavItem = {
   name: string;
   href: string;
+  /** 実際に遷移するページ（href と異なる場合）。ページ公開設定の判定に使う */
+  target?: string;
   icon: "search" | "chat" | "admin" | "story";
 };
 
 const baseNavItems: NavItem[] = [
-  { name: "相談", href: "/map", icon: "chat" },
+  // 相談ボタンはマップ上では onConsultClick 経由で /consult へ遷移する
+  { name: "相談", href: "/map", target: "/consult", icon: "chat" },
   { name: "近況", href: "/story", icon: "story" },
 ];
 
@@ -84,11 +87,13 @@ function NavigationBarInner({
   const isHome = (activeHref ?? pathname) === "/map" && !panel && !isCloseUxActive;
 
   // ページ公開設定で public でないリンクはナビに出さない
-  const navItems = (
+  const consultItem = baseNavItems[0];
+  const isConsultVisible = isLinkVisible(consultItem.target ?? consultItem.href);
+  const rightNavItems = (
     permissions.isAdmin
-      ? [...baseNavItems, { name: "管理", href: "/admin/dashboard", icon: "admin" as const }]
-      : baseNavItems
-  ).filter((item) => isLinkVisible(item.href));
+      ? [...baseNavItems.slice(1), { name: "管理", href: "/admin/dashboard", icon: "admin" as const }]
+      : baseNavItems.slice(1)
+  ).filter((item) => isLinkVisible(item.target ?? item.href));
   const visibleSecondaryItems = secondaryMenuItems.filter((item) => isLinkVisible(item.href));
   const visibleVendorItems = vendorMenuItems.filter((item) => isLinkVisible(item.href));
   const isBagVisible = isLinkVisible("/bag");
@@ -333,25 +338,27 @@ function NavigationBarInner({
         {isHome ? (
           /* ── マップ：フルナビ ── */
           <div className="mx-auto flex h-14 max-w-lg items-center">
-            {/* 左：相談 */}
-            {onConsultClick ? (
+            {/* 左：相談（ページ公開設定で非表示のときはレイアウト維持のため空枠にする） */}
+            {!isConsultVisible ? (
+              <div className="flex-1" aria-hidden />
+            ) : onConsultClick ? (
               <button
                 type="button"
                 onClick={onConsultClick}
                 className="group flex h-full flex-1 flex-col items-center justify-center gap-1 text-gray-400 transition-all duration-200 hover:bg-gray-50/50 hover:text-gray-600"
               >
                 <NavIcon
-                  name={navItems[0].icon}
+                  name={consultItem.icon}
                   className="h-6 w-6 transition-transform duration-200 group-hover:scale-105"
                 />
                 <span className="text-[10px] font-medium leading-none tracking-tight">
-                  {navItems[0].name}
+                  {consultItem.name}
                 </span>
               </button>
             ) : (
               <NavLinkItem
-                item={navItems[0]}
-                isActive={(activeHref ?? pathname) === navItems[0].href}
+                item={consultItem}
+                isActive={(activeHref ?? pathname) === consultItem.href}
               />
             )}
 
@@ -376,7 +383,7 @@ function NavigationBarInner({
             </div>
 
             {/* 右：お店を探す（+ 管理タブがあれば追加） */}
-            {navItems.slice(1).map((item) => (
+            {rightNavItems.map((item) => (
               <NavLinkItem
                 key={item.href}
                 item={item}
