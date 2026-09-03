@@ -1,40 +1,61 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/utils/supabase/middleware";
 import { getRole, isModerator } from "@/lib/auth/permissions";
+import {
+  EMPTY_PAGE_VISIBILITY_SETTINGS,
+  parsePageVisibilitySettings,
+  resolvePageVisibility,
+  toVisibilityRole,
+  type PageVisibilitySettings,
+} from "@/lib/pageVisibility";
 
-// メンテナンスモード: 60秒キャッシュ（warm インスタンス間で共有）
-let maintenanceCache: { enabled: boolean; message: string; expiresAt: number } | null = null;
-const MAINTENANCE_CACHE_TTL = 60_000;
+// サイト設定（メンテナンスモード・ページ公開設定）: 60秒キャッシュ（warm インスタンス間で共有）
+type SiteSettings = {
+  maintenance: { enabled: boolean; message: string };
+  pageVisibility: PageVisibilitySettings;
+};
+const DEFAULT_SITE_SETTINGS: SiteSettings = {
+  maintenance: { enabled: false, message: "" },
+  pageVisibility: EMPTY_PAGE_VISIBILITY_SETTINGS,
+};
+let siteSettingsCache: { value: SiteSettings; expiresAt: number } | null = null;
+const SITE_SETTINGS_CACHE_TTL = 60_000;
 
-async function getMaintenanceStatus(): Promise<{ enabled: boolean; message: string }> {
-  if (maintenanceCache && Date.now() < maintenanceCache.expiresAt) {
-    return maintenanceCache;
+async function getSiteSettings(): Promise<SiteSettings> {
+  if (siteSettingsCache && Date.now() < siteSettingsCache.expiresAt) {
+    return siteSettingsCache.value;
   }
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  if (!supabaseUrl || !anonKey) return { enabled: false, message: "" };
+  const anonKey =
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY ??
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!supabaseUrl || !anonKey) return DEFAULT_SITE_SETTINGS;
 
   try {
     const res = await fetch(
-      `${supabaseUrl}/rest/v1/system_settings?key=eq.public&select=value`,
+      `${supabaseUrl}/rest/v1/system_settings?key=in.(public,page_visibility)&select=key,value`,
       {
         headers: { apikey: anonKey, Authorization: `Bearer ${anonKey}` },
         cache: "no-store",
       }
     );
-    if (!res.ok) return { enabled: false, message: "" };
-    const data = await res.json() as Array<{ value: Record<string, unknown> }>;
-    const value = data[0]?.value;
-    const result = {
-      enabled: value?.maintenanceMode === true,
-      message: typeof value?.maintenanceMessage === "string" ? value.maintenanceMessage : "",
-      expiresAt: Date.now() + MAINTENANCE_CACHE_TTL,
+    if (!res.ok) return DEFAULT_SITE_SETTINGS;
+    const rows = (await res.json()) as Array<{ key: string; value: Record<string, unknown> }>;
+    const publicValue = rows.find((row) => row.key === "public")?.value;
+    const visibilityValue = rows.find((row) => row.key === "page_visibility")?.value;
+    const value: SiteSettings = {
+      maintenance: {
+        enabled: publicValue?.maintenanceMode === true,
+        message:
+          typeof publicValue?.maintenanceMessage === "string" ? publicValue.maintenanceMessage : "",
+      },
+      pageVisibility: parsePageVisibilitySettings(visibilityValue),
     };
-    maintenanceCache = result;
-    return result;
+    siteSettingsCache = { value, expiresAt: Date.now() + SITE_SETTINGS_CACHE_TTL };
+    return value;
   } catch {
-    return { enabled: false, message: "" };
+    return DEFAULT_SITE_SETTINGS;
   }
 }
 
@@ -43,21 +64,20 @@ const MAINTENANCE_SKIP_EXACT = ["/robots.txt", "/sitemap.xml", "/favicon.ico"];
 
 export async function proxy(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
-
-  // メンテナンスモードチェック（管理者・API・静的ファイルはスキップ）
+  // 管理者・API・静的ファイルはメンテナンス判定・公開設定判定の対象外
   // /_next 配下に全静的アセットが含まれるため、ドット有無による判定は不要
   // /private は一般ログインユーザー向けのため、メンテナンス中は他ページと同様にブロックする
-  if (
+  const isPageRequest =
     !MAINTENANCE_SKIP_PREFIXES.some((p) => pathname.startsWith(p)) &&
-    !MAINTENANCE_SKIP_EXACT.includes(pathname)
-  ) {
-    const { enabled } = await getMaintenanceStatus();
-    if (enabled) {
-      const url = request.nextUrl.clone();
-      url.pathname = "/maintenance";
-      url.search = "";
-      return NextResponse.rewrite(url);
-    }
+    !MAINTENANCE_SKIP_EXACT.includes(pathname);
+  const siteSettings = isPageRequest ? await getSiteSettings() : DEFAULT_SITE_SETTINGS;
+
+  // メンテナンスモードチェック
+  if (isPageRequest && siteSettings.maintenance.enabled) {
+    const url = request.nextUrl.clone();
+    url.pathname = "/maintenance";
+    url.search = "";
+    return NextResponse.rewrite(url);
   }
 
   const { supabase, getResponse } = createClient(request);
@@ -85,6 +105,26 @@ export async function proxy(request: NextRequest) {
   if (pathname.startsWith("/my-shop") || pathname.startsWith("/vendor")) {
     if (!user || appRole !== "vendor") {
       const redirectRes = NextResponse.redirect(new URL("/", request.url));
+      supabaseResponse.cookies.getAll().forEach(({ name, value }) => {
+        redirectRes.cookies.set(name, value);
+      });
+      return redirectRes;
+    }
+  }
+
+  // ページ公開設定（管理画面で設定した「非公開」ページをロール別に遮断）
+  if (isPageRequest) {
+    const visibilityRole = toVisibilityRole(appRole, !!user);
+    // next.config の rewrite（/shops001 → /shops/001）は proxy より後に効くため、ここで正規化する
+    const visibilityPath = pathname.replace(/^\/shops(\d{3})$/, "/shops/$1");
+    const visibility = resolvePageVisibility(visibilityPath, visibilityRole, siteSettings.pageVisibility);
+    if (visibility.state === "private") {
+      // リダイレクト先自身が非公開ならループになるためホームへ逃がす
+      const target = visibility.redirectTo;
+      const targetVisible =
+        resolvePageVisibility(target, visibilityRole, siteSettings.pageVisibility).state !== "private";
+      const destination = targetVisible && target !== visibilityPath ? target : "/map";
+      const redirectRes = NextResponse.redirect(new URL(destination, request.url));
       supabaseResponse.cookies.getAll().forEach(({ name, value }) => {
         redirectRes.cookies.set(name, value);
       });

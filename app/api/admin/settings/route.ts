@@ -5,6 +5,7 @@ import { createClient as createServerClient } from "@/utils/supabase/server";
 import { requireSameOrigin } from "@/lib/security/requestGuards";
 import { enforceRateLimit } from "@/lib/security/rateLimit";
 import { getRole, isAdmin } from "@/lib/auth/permissions";
+import { parsePageVisibilitySettings } from "@/lib/pageVisibility";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -121,7 +122,7 @@ export async function GET() {
     const { data, error } = await auth.adminClient
       .from("system_settings")
       .select("key, value")
-      .in("key", ["public", "map"]);
+      .in("key", ["public", "map", "page_visibility"]);
 
     if (error) {
       return NextResponse.json({ error: "Failed to load settings" }, { status: 500 });
@@ -129,10 +130,12 @@ export async function GET() {
 
     const publicRow = (data ?? []).find((row) => row.key === "public");
     const mapRow = (data ?? []).find((row) => row.key === "map");
+    const visibilityRow = (data ?? []).find((row) => row.key === "page_visibility");
 
     return NextResponse.json({
       public: parsePublicSettings(publicRow?.value),
       map: parseMapSettings(mapRow?.value),
+      pageVisibility: parsePageVisibilitySettings(visibilityRow?.value),
     });
   } catch {
     return NextResponse.json({ error: "Failed to load settings" }, { status: 500 });
@@ -157,7 +160,21 @@ export async function PUT(request: NextRequest) {
     const body = (await request.json().catch(() => null)) as {
       public?: unknown;
       map?: unknown;
+      pageVisibility?: unknown;
     } | null;
+
+    // pageVisibility だけを送ってきた場合（ページ公開設定画面）は他のキーを触らない
+    if (body && body.pageVisibility !== undefined && body.public === undefined && body.map === undefined) {
+      const pageVisibility = parsePageVisibilitySettings(body.pageVisibility);
+      const { error } = await auth.adminClient.from("system_settings").upsert(
+        [{ key: "page_visibility", value: pageVisibility, updated_by: auth.user.id }],
+        { onConflict: "key" }
+      );
+      if (error) {
+        return NextResponse.json({ error: "Failed to save settings" }, { status: 500 });
+      }
+      return NextResponse.json({ ok: true, pageVisibility });
+    }
 
     const publicSettings = parsePublicSettings(body?.public);
     const mapSettings = parseMapSettings(body?.map);
