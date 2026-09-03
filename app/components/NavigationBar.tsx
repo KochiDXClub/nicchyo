@@ -382,14 +382,18 @@ function NavigationBarInner({
               </button>
             </div>
 
-            {/* 右：お店を探す（+ 管理タブがあれば追加） */}
-            {rightNavItems.map((item) => (
-              <NavLinkItem
-                key={item.href}
-                item={item}
-                isActive={(activeHref ?? pathname) === item.href}
-              />
-            ))}
+            {/* 右：近況（+ 管理タブがあれば追加）。全部非表示なら空枠で中央のメニュー位置を維持 */}
+            {rightNavItems.length === 0 ? (
+              <div className="flex-1" aria-hidden />
+            ) : (
+              rightNavItems.map((item) => (
+                <NavLinkItem
+                  key={item.href}
+                  item={item}
+                  isActive={(activeHref ?? pathname) === item.href}
+                />
+              ))
+            )}
           </div>
         ) : isCloseUxActive ? (
           /* ── パネル表示中：緑バー × ── */
