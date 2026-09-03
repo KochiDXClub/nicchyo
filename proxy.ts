@@ -95,6 +95,11 @@ export async function proxy(request: NextRequest) {
   // ノンスを生成してCSPヘッダーに設定
   const nonce = Buffer.from(crypto.randomUUID()).toString("base64");
 
+  // 管理画面の計測ページ（/admin/map-perf）が同一オリジンの iframe で /map?perf=1 を読み込む。
+  // このときだけ frame-ancestors を 'self' に緩める（他オリジンからの埋め込みは引き続き禁止）。
+  const isPerfFramedMap =
+    pathname === "/map" && request.nextUrl.searchParams.get("perf") === "1";
+
   const csp = [
     "default-src 'self'",
     // 'strict-dynamic': nonce 付きスクリプトが動的にロードするスクリプトにも信頼を伝播
@@ -104,7 +109,7 @@ export async function proxy(request: NextRequest) {
     "img-src 'self' data: blob: https:",
     "font-src 'self' data: https://fonts.gstatic.com",
     `connect-src 'self' https:${process.env.NODE_ENV === "development" ? " http://127.0.0.1:* ws://127.0.0.1:*" : ""}`,
-    "frame-ancestors 'none'",
+    isPerfFramedMap ? "frame-ancestors 'self'" : "frame-ancestors 'none'",
     "base-uri 'self'",
     "form-action 'self'",
     "report-uri /api/security/csp-report",
