@@ -6,11 +6,10 @@ import { useAuth } from "@/lib/auth/AuthContext";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { AdminLayout, AdminPageHeader } from "@/components/admin";
+import { PillSelect } from "@/components/admin/PillSelect";
 import {
   DEFAULT_MAP_FEATURE_FLAGS,
-  MAP_FEATURE_FLAG_LABELS,
-  ROAD_SNAP_MODES,
-  ZOOM_SKIP_MODES,
+  MAP_FEATURE_FLAG_DEFS,
   type MapFeatureFlags,
 } from "@/lib/mapFeatureFlags";
 
@@ -402,53 +401,36 @@ export default function AdminSettingsPage() {
             <p className="text-xs font-semibold uppercase tracking-[0.25em] text-emerald-600">Map Behavior</p>
             <h3 className="mt-2 text-xl font-bold text-slate-900">マップ動作フラグ</h3>
             <p className="mt-1 text-sm text-slate-500">
-              パフォーマンス改善で入れた仕組みの切替。本番のマップに即時反映されます。実験だけなら「マップ計測」ページの実験スイッチ（URL の <code className="rounded bg-slate-100 px-1">?mapFlags=</code>）を使ってください。
+              描画方式やパフォーマンス改善の仕組みの切替。本番のマップに即時反映されます。実験だけなら「マップ計測」ページの実験スイッチ（URL の <code className="rounded bg-slate-100 px-1">?mapFlags=</code>）を使ってください。
             </p>
             <div className="mt-6 grid grid-cols-1 gap-5 md:grid-cols-2">
-              <label className="block">
-                <span className="mb-1 block text-sm font-medium text-slate-700">{MAP_FEATURE_FLAG_LABELS.roadSnap.label}</span>
-                <span className="mb-2 block text-xs text-slate-500">{MAP_FEATURE_FLAG_LABELS.roadSnap.description}</span>
-                <select
-                  value={mapFlags.roadSnap}
-                  onChange={(event) =>
-                    setMapFlags((prev) => ({ ...prev, roadSnap: event.target.value as MapFeatureFlags["roadSnap"] }))
-                  }
-                  className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none transition focus:border-emerald-400"
-                >
-                  {ROAD_SNAP_MODES.map((mode) => (
-                    <option key={mode} value={mode}>{mode}</option>
-                  ))}
-                </select>
-              </label>
-              <label className="block">
-                <span className="mb-1 block text-sm font-medium text-slate-700">{MAP_FEATURE_FLAG_LABELS.zoomSkip.label}</span>
-                <span className="mb-2 block text-xs text-slate-500">{MAP_FEATURE_FLAG_LABELS.zoomSkip.description}</span>
-                <select
-                  value={mapFlags.zoomSkip}
-                  onChange={(event) =>
-                    setMapFlags((prev) => ({ ...prev, zoomSkip: event.target.value as MapFeatureFlags["zoomSkip"] }))
-                  }
-                  className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none transition focus:border-emerald-400"
-                >
-                  {ZOOM_SKIP_MODES.map((mode) => (
-                    <option key={mode} value={mode}>{mode}</option>
-                  ))}
-                </select>
-              </label>
-              {(["zoomRenderIsolation", "landmarkCssScale"] as const).map((key) => (
-                <label key={key} className="flex items-start gap-3 rounded-xl border border-slate-200 px-4 py-3">
-                  <input
-                    type="checkbox"
-                    checked={mapFlags[key]}
-                    onChange={(event) => setMapFlags((prev) => ({ ...prev, [key]: event.target.checked }))}
-                    className="mt-1"
-                  />
-                  <span>
-                    <span className="block text-sm font-medium text-slate-700">{MAP_FEATURE_FLAG_LABELS[key].label}</span>
-                    <span className="block text-xs text-slate-500">{MAP_FEATURE_FLAG_LABELS[key].description}</span>
-                  </span>
-                </label>
-              ))}
+              {MAP_FEATURE_FLAG_DEFS.map((def) =>
+                def.options === "boolean" ? (
+                  <label key={def.key} className="flex items-start gap-3 rounded-xl border border-slate-200 px-4 py-3">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(mapFlags[def.key])}
+                      onChange={(event) => setMapFlags((prev) => ({ ...prev, [def.key]: event.target.checked }))}
+                      className="mt-1"
+                    />
+                    <span>
+                      <span className="block text-sm font-medium text-slate-700">{def.label}</span>
+                      <span className="block text-xs text-slate-500">{def.description}</span>
+                    </span>
+                  </label>
+                ) : (
+                  <label key={def.key} className="block">
+                    <span className="mb-1 block text-sm font-medium text-slate-700">{def.label}</span>
+                    <span className="mb-2 block text-xs text-slate-500">{def.description}</span>
+                    <PillSelect
+                      size="md"
+                      value={String(mapFlags[def.key])}
+                      onChange={(next) => setMapFlags((prev) => ({ ...prev, [def.key]: next }))}
+                      options={def.options.map((option) => ({ value: option, label: option }))}
+                    />
+                  </label>
+                )
+              )}
             </div>
           </section>
 

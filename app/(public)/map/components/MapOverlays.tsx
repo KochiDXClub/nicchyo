@@ -39,6 +39,7 @@ export const MapOverlays = memo(function MapOverlays({
   commentHighlightShopIds,
   bagShopIds,
   onChomeClick,
+  stallRenderer,
   OptimizedShopLayerWithClustering,
 }: {
   isLowZoomTintMode: boolean;
@@ -63,6 +64,8 @@ export const MapOverlays = memo(function MapOverlays({
   commentHighlightShopIds?: number[];
   bagShopIds: number[];
   onChomeClick?: (chome: string) => void;
+  /** 屋台の描画方式（lib/mapFeatureFlags.ts の stallRenderer） */
+  stallRenderer?: 'svg' | 'div';
   OptimizedShopLayerWithClustering: ComponentType<OptimizedShopLayerWithClusteringProps>;
 }) {
   const map = useMap();
@@ -175,6 +178,7 @@ export const MapOverlays = memo(function MapOverlays({
           aiHighlightShopIds={aiHighlightShopIds}
           commentHighlightShopIds={commentHighlightShopIds}
           bagShopIds={bagShopIds}
+          stallRenderer={stallRenderer}
         />
       )}
     </>

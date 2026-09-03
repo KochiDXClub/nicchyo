@@ -9,10 +9,13 @@
  *   3. ここの既定値
  *
  * サーバー側では (2) を読んで MapPageClient に渡し、クライアント側で (1) を上書きする。
+ * フラグを増やすときは MapFeatureFlags と MAP_FEATURE_FLAG_DEFS の両方に足す。
+ * 設定画面と計測ページのスイッチは MAP_FEATURE_FLAG_DEFS から自動生成される。
  */
 
 export type RoadSnapMode = "off" | "after" | "integrated";
 export type ZoomSkipMode = "off" | "after" | "before";
+export type StallRenderer = "svg" | "div";
 
 export interface MapFeatureFlags {
   /**
@@ -20,7 +23,7 @@ export interface MapFeatureFlags {
    * - off: 寄せない
    * - after: ズーム終了後に 350ms のパンで寄せる（従来）
    * - integrated: ズームの目標中心をあらかじめ道の上にし、1 回のアニメーションで済ませる
-   *   （ピンチ操作中はアニメーション無しの連続ズームなので after と同じ扱いになる）
+   *   （ずらし量が画面外のときとピンチ操作中は after と同じ扱いになる）
    */
   roadSnap: RoadSnapMode;
   /**
@@ -30,15 +33,20 @@ export interface MapFeatureFlags {
    * - before: Leaflet がズーム先を確定する時点で逃がす（1 回で済む）
    */
   zoomSkip: ZoomSkipMode;
-  /**
-   * ズーム値そのものではなく「表示モードの真偽値」だけを React の state に持ち、
-   * モードが変わらないズームでは MapView を再描画しない。
-   */
+  /** ズーム値ではなく「表示モードの真偽値」だけを state に持ち、モードが変わらないズームでは MapView を再描画しない */
   zoomRenderIsolation: boolean;
-  /**
-   * ランドマーク画像の倍率をズームごとの DivIcon 再生成ではなく CSS 変数で追従させる。
-   */
+  /** ランドマーク画像の倍率をズームごとの DivIcon 再生成ではなく CSS 変数で追従させる */
   landmarkCssScale: boolean;
+  /**
+   * 屋台イラストの描画方式。
+   * - svg: config/stallParts.ts のパスカタログから 1 つの inline SVG で描く
+   * - div: div を 6 個積んで CSS で形を作る（従来）
+   */
+  stallRenderer: StallRenderer;
+  /** 市場エリア全体に色をかぶせる背景オーバーレイ（SVG 画像）を出す */
+  backgroundOverlay: boolean;
+  /** 背景タイルの不透明度をズームに応じて変える（off なら常に 0.22） */
+  tileOpacityByZoom: boolean;
 }
 
 /**
@@ -51,30 +59,77 @@ export const DEFAULT_MAP_FEATURE_FLAGS: MapFeatureFlags = {
   zoomSkip: "before",
   zoomRenderIsolation: true,
   landmarkCssScale: true,
+  stallRenderer: "svg",
+  backgroundOverlay: true,
+  tileOpacityByZoom: true,
 };
 
 export const ROAD_SNAP_MODES: readonly RoadSnapMode[] = ["off", "after", "integrated"];
 export const ZOOM_SKIP_MODES: readonly ZoomSkipMode[] = ["off", "after", "before"];
+export const STALL_RENDERERS: readonly StallRenderer[] = ["svg", "div"];
 
-/** 管理画面やユーザー向けの説明。設定ページと計測ページで共用する */
-export const MAP_FEATURE_FLAG_LABELS: Record<keyof MapFeatureFlags, { label: string; description: string }> = {
-  roadSnap: {
+export type MapFeatureFlagKey = keyof MapFeatureFlags;
+
+export interface MapFeatureFlagDef {
+  key: MapFeatureFlagKey;
+  label: string;
+  description: string;
+  /** 選択肢。boolean なら on/off のチェックボックス */
+  options: readonly string[] | "boolean";
+}
+
+/** 設定画面と計測ページのスイッチはこの配列から自動生成する */
+export const MAP_FEATURE_FLAG_DEFS: readonly MapFeatureFlagDef[] = [
+  {
+    key: "stallRenderer",
+    label: "屋台イラストの描画方式",
+    description: "svg: パスカタログから 1 つの SVG で描く / div: div を 6 個積んで CSS で形を作る（従来）",
+    options: STALL_RENDERERS,
+  },
+  {
+    key: "roadSnap",
     label: "ズーム後の道への吸着",
     description: "off: 寄せない / after: ズーム後にパンで寄せる（従来） / integrated: ズームと同時に寄せる",
+    options: ROAD_SNAP_MODES,
   },
-  zoomSkip: {
+  {
+    key: "zoomSkip",
     label: "ズーム 18 の回避",
     description: "off: 回避しない / after: ズーム後にもう一度ズームして逃がす（従来） / before: ズーム先の確定時に逃がす",
+    options: ZOOM_SKIP_MODES,
   },
-  zoomRenderIsolation: {
+  {
+    key: "zoomRenderIsolation",
     label: "ズーム時の再描画を抑える",
     description: "表示モードが変わらないズームではマップ全体を再描画しない",
+    options: "boolean",
   },
-  landmarkCssScale: {
+  {
+    key: "landmarkCssScale",
     label: "ランドマークを CSS で拡縮",
     description: "ズームごとにアイコンを作り直さず、CSS の倍率で追従させる",
+    options: "boolean",
   },
-};
+  {
+    key: "backgroundOverlay",
+    label: "背景オーバーレイを出す",
+    description: "市場エリア全体に色をかぶせる SVG 画像。ズームのたびに再描画される疑いがある",
+    options: "boolean",
+  },
+  {
+    key: "tileOpacityByZoom",
+    label: "タイルの不透明度をズームで変える",
+    description: "最小ズームで濃く、通常は薄く。off なら常に一定",
+    options: "boolean",
+  },
+];
+
+/** 後方互換: 以前の個別ラベル参照用 */
+export const MAP_FEATURE_FLAG_LABELS: Record<MapFeatureFlagKey, { label: string; description: string }> =
+  Object.fromEntries(MAP_FEATURE_FLAG_DEFS.map((d) => [d.key, { label: d.label, description: d.description }])) as Record<
+    MapFeatureFlagKey,
+    { label: string; description: string }
+  >;
 
 function readBool(value: unknown, fallback: boolean): boolean {
   if (typeof value === "boolean") return value;
@@ -90,33 +145,31 @@ export function normalizeMapFeatureFlags(
 ): MapFeatureFlags {
   if (!value || typeof value !== "object") return base;
   const record = value as Record<string, unknown>;
-  const roadSnap = ROAD_SNAP_MODES.includes(record.roadSnap as RoadSnapMode)
-    ? (record.roadSnap as RoadSnapMode)
-    : base.roadSnap;
-  const zoomSkip = ZOOM_SKIP_MODES.includes(record.zoomSkip as ZoomSkipMode)
-    ? (record.zoomSkip as ZoomSkipMode)
-    : base.zoomSkip;
-  return {
-    roadSnap,
-    zoomSkip,
-    zoomRenderIsolation: readBool(record.zoomRenderIsolation, base.zoomRenderIsolation),
-    landmarkCssScale: readBool(record.landmarkCssScale, base.landmarkCssScale),
-  };
+  const out: Record<string, unknown> = { ...base };
+  for (const def of MAP_FEATURE_FLAG_DEFS) {
+    const raw = record[def.key];
+    if (def.options === "boolean") {
+      out[def.key] = readBool(raw, base[def.key] as boolean);
+    } else if (typeof raw === "string" && def.options.includes(raw)) {
+      out[def.key] = raw;
+    }
+  }
+  return out as unknown as MapFeatureFlags;
 }
 
 /**
  * URL の ?mapFlags=roadSnap:after,zoomSkip:off,zoomRenderIsolation:off を読む。
  * フラグが無ければ null（上書きなし）。
  */
-export function parseMapFlagsFromSearch(search: string): Partial<Record<keyof MapFeatureFlags, string>> | null {
+export function parseMapFlagsFromSearch(search: string): Partial<Record<MapFeatureFlagKey, string>> | null {
   const raw = new URLSearchParams(search).get("mapFlags");
   if (!raw) return null;
-  const out: Partial<Record<keyof MapFeatureFlags, string>> = {};
+  const out: Partial<Record<MapFeatureFlagKey, string>> = {};
   for (const pair of raw.split(",")) {
     const [key, val] = pair.split(":").map((s) => s.trim());
     if (!key || !val) continue;
-    if (key in MAP_FEATURE_FLAG_LABELS) {
-      out[key as keyof MapFeatureFlags] = val;
+    if (MAP_FEATURE_FLAG_DEFS.some((d) => d.key === key)) {
+      out[key as MapFeatureFlagKey] = val;
     }
   }
   return Object.keys(out).length > 0 ? out : null;
