@@ -6,7 +6,7 @@ import { useEffect, useMemo, useState, useRef, useCallback, Suspense } from "rea
 import { useSearchParams, useRouter } from "next/navigation";
 import { AnimatePresence, motion, useDragControls } from "framer-motion";
 import SearchClient from "../search/SearchClient";
-import type { Map as LeafletMap } from "leaflet";
+import type { MapCamera as LeafletMap } from "./types/mapCamera";
 import { clearSearchMapPayload, loadAiMapPayload, loadSearchMapPayload } from "../../../lib/searchMapStorage";
 import NextImage from "next/image";
 import { getShopBannerImage } from "../../../lib/shopImages";

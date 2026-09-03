@@ -18,7 +18,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { Map as LeafletMap } from 'leaflet';
+import type { MapCamera as LeafletMap } from '../types/mapCamera';
 import type { Facility, FacilityCategory } from '@/lib/facilities/facilities';
 import { formatDistance, type FacilityWithRoute } from '@/lib/facilities/nearest';
 

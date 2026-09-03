@@ -66,6 +66,8 @@ import {
   type StallState,
 } from "./stallSprites";
 import { getShopBannerImage } from "../../../../../lib/shopImages";
+import { MAPLIBRE_MAP_KEY, type MapCamera, type MapCameraEvent } from "../../types/mapCamera";
+import { LiveZoomMapControls } from "../MapControls";
 import { getRoadSide } from "../../config/roadConfig";
 import { resolveStallColors } from "../../config/shopCategories";
 import { sanitizeCssColor } from "../../utils/markerHtmlGenerator";
@@ -228,10 +230,24 @@ export default function MapViewMapLibre({
   aiShopIds,
   commentShopId,
   onMapReady,
+  onMapInstance,
   initialShopId,
+  trackingButtonTop,
+  hideMapUI = false,
+  suppressLandmarks = false,
 }: MapViewProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
+  // ページ側（「このへん」の出現判定、施設案内の flyTo、ズームスライダー）に渡すカメラ操作
+  const [camera, setCamera] = useState<MapCamera | null>(null);
+  // ズームスライダーは操作中とその直後だけ出す（Leaflet 版と同じ 3 秒）
+  const [zoomSliderVisible, setZoomSliderVisible] = useState(false);
+  const zoomSliderHideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const keepZoomSliderAlive = useCallback(() => {
+    if (zoomSliderHideTimerRef.current) clearTimeout(zoomSliderHideTimerRef.current);
+    setZoomSliderVisible(true);
+    zoomSliderHideTimerRef.current = setTimeout(() => setZoomSliderVisible(false), 3000);
+  }, []);
   const chomeMarkersRef = useRef<maplibregl.Marker[]>([]);
   const [selectedShop, setSelectedShop] = useState<Shop | null>(null);
   const [mapLoaded, setMapLoaded] = useState(false);
@@ -368,6 +384,58 @@ export default function MapViewMapLibre({
       }
       if (disposed) return;
       setMapLoaded(true);
+      // ページ側の部品に渡すカメラ操作（ズーム値は Leaflet 換算に揃える）
+      const cameraAdapter: MapCamera & { [MAPLIBRE_MAP_KEY]: maplibregl.Map } = {
+        getContainer: () => map.getContainer(),
+        getCenter: () => {
+          const c = map.getCenter();
+          return { lat: c.lat, lng: c.lng };
+        },
+        getZoom: () => map.getZoom() - ZOOM_OFFSET,
+        getMaxZoom: () => map.getMaxZoom() - ZOOM_OFFSET,
+        setZoom: (zoom, options) => {
+          if (options?.animate === false) map.setZoom(zoom + ZOOM_OFFSET);
+          else map.zoomTo(zoom + ZOOM_OFFSET, { duration: 250 });
+        },
+        flyTo: (latlng, zoom, options) => {
+          map.flyTo({
+            center: [latlng[1], latlng[0]],
+            zoom: zoom === undefined ? undefined : zoom + ZOOM_OFFSET,
+            duration: options?.animate === false ? 0 : (options?.duration ?? 0.8) * 1000,
+          });
+        },
+        setView: (center, zoom, options) => {
+          const target = {
+            center: [center[1], center[0]] as [number, number],
+            zoom: zoom === undefined ? undefined : zoom + ZOOM_OFFSET,
+          };
+          if (options?.animate === false) map.jumpTo(target);
+          else map.easeTo({ ...target, duration: (options?.duration ?? 0.6) * 1000 });
+        },
+        // MapLibre 専用レイヤー（施設案内など）を載せる部品が生の map を取り出せるようにする
+        [MAPLIBRE_MAP_KEY]: map,
+        latLngToContainerPoint: (latlng) => {
+          const p = map.project([latlng[1], latlng[0]]);
+          return { x: p.x, y: p.y };
+        },
+        containerPointToLatLng: (point) => {
+          const xy: [number, number] = Array.isArray(point) ? point : [point.x, point.y];
+          const ll = map.unproject(xy);
+          return { lat: ll.lat, lng: ll.lng };
+        },
+        distance: (a, b) => {
+          const toLngLat = (v: { lat: number; lng: number } | [number, number]) =>
+            Array.isArray(v) ? new maplibregl.LngLat(v[1], v[0]) : new maplibregl.LngLat(v.lng, v.lat);
+          return toLngLat(a).distanceTo(toLngLat(b));
+        },
+        on: (event: MapCameraEvent, handler) => map.on(event, handler),
+        off: (event: MapCameraEvent, handler) => map.off(event, handler),
+      };
+      setCamera(cameraAdapter);
+      onMapInstance?.(cameraAdapter);
+      // ズーム操作中はスライダーを出す
+      map.on("zoomstart", keepZoomSliderAlive);
+      map.on("zoom", keepZoomSliderAlive);
       onMapReady?.();
     });
 
@@ -737,6 +805,16 @@ export default function MapViewMapLibre({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // おでかけサポート案内中は FacilityLayer が案内先を表示するため、通常のランドマークは隠す
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapLoaded) return;
+    const visibility = suppressLandmarks ? "none" : "visible";
+    for (const id of ["nicchyo-landmarks-min", "nicchyo-landmarks", LAYER_LANDMARK_LABELS]) {
+      if (map.getLayer(id)) map.setLayoutProperty(id, "visibility", visibility);
+    }
+  }, [mapLoaded, suppressLandmarks]);
+
   // ---- 計測の橋渡し（?perf=1 のときだけ） ----
   useEffect(() => {
     if (!mapLoaded) return;
@@ -809,6 +887,19 @@ export default function MapViewMapLibre({
       <div className="pointer-events-none absolute left-3 top-3 z-[500] rounded-full bg-white/85 px-3 py-1 text-xs font-semibold text-slate-600 shadow">
         MapLibre 版（検証中） / 背景: {featureFlags.basemap === "vector-openfreemap" ? "ベクター" : "ラスター"}
       </div>
+      {!hideMapUI && camera && (
+        <LiveZoomMapControls
+          map={camera}
+          isTracking={false}
+          // 現在地の追従は MapLibre 版では未移植（ボタンは押せるが何もしない）
+          onToggleTracking={() => {}}
+          minZoom={MIN_ZOOM - ZOOM_OFFSET}
+          maxZoom={MAX_ZOOM - ZOOM_OFFSET}
+          zoomSliderVisible={zoomSliderVisible}
+          onZoomSliderInteract={keepZoomSliderAlive}
+          trackingButtonTop={trackingButtonTop}
+        />
+      )}
       {selectedShop && (
         <ShopDetailBanner
           key={selectedShop.id}
