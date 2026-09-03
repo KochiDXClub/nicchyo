@@ -49,6 +49,12 @@ export const AdminSidebar = React.memo(function AdminSidebar({
       show: permissions.isAdmin,
     },
     {
+      label: "マップ計測",
+      href: "/admin/map-perf",
+      icon: "⏱️",
+      show: permissions.isAdmin,
+    },
+    {
       label: "マップ編集",
       href: "/admin/map-edit",
       icon: "🗺️",
