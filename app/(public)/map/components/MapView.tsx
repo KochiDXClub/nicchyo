@@ -1640,8 +1640,10 @@ const MapView = memo(function MapView({
             zIndex={1}
             keepBuffer={16}
           />
-          {/* 背景（フラグで切替。ズームごとの再描画コストを切り分けるため） */}
-          {featureFlags.backgroundOverlay && <BackgroundOverlay />}
+          {/* 背景（フラグで webp / svg / off を切替。ズームごとの再描画コストを切り分けるため） */}
+          {featureFlags.backgroundOverlay !== "off" && (
+            <BackgroundOverlay format={featureFlags.backgroundOverlay} />
+          )}
           <MapOverlays
             isLowZoomTintMode={isLowZoomTintMode}
             routePoints={routePoints}

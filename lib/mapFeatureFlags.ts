@@ -16,6 +16,7 @@
 export type RoadSnapMode = "off" | "after" | "integrated";
 export type ZoomSkipMode = "off" | "after" | "before";
 export type StallRenderer = "svg" | "div";
+export type BackgroundOverlayMode = "webp" | "svg" | "off";
 
 export interface MapFeatureFlags {
   /**
@@ -43,8 +44,13 @@ export interface MapFeatureFlags {
    * - div: div を 6 個積んで CSS で形を作る（従来）
    */
   stallRenderer: StallRenderer;
-  /** 市場エリア全体に色をかぶせる背景オーバーレイ（SVG 画像）を出す */
-  backgroundOverlay: boolean;
+  /**
+   * 市場エリア全体に色をかぶせる背景オーバーレイ。
+   * - webp: ピクセル画像（既定。ズームは GPU の拡縮だけで済む）
+   * - svg: 以前の SVG データ URL（ズームのたびに CPU で描き起こされる。比較実験用）
+   * - off: 出さない
+   */
+  backgroundOverlay: BackgroundOverlayMode;
   /** 背景タイルの不透明度をズームに応じて変える（off なら常に 0.22） */
   tileOpacityByZoom: boolean;
 }
@@ -60,9 +66,11 @@ export const DEFAULT_MAP_FEATURE_FLAGS: MapFeatureFlags = {
   zoomRenderIsolation: true,
   landmarkCssScale: true,
   stallRenderer: "svg",
-  backgroundOverlay: true,
+  backgroundOverlay: "webp",
   tileOpacityByZoom: true,
 };
+
+export const BACKGROUND_OVERLAY_MODES: readonly BackgroundOverlayMode[] = ["webp", "svg", "off"];
 
 export const ROAD_SNAP_MODES: readonly RoadSnapMode[] = ["off", "after", "integrated"];
 export const ZOOM_SKIP_MODES: readonly ZoomSkipMode[] = ["off", "after", "before"];
@@ -112,9 +120,9 @@ export const MAP_FEATURE_FLAG_DEFS: readonly MapFeatureFlagDef[] = [
   },
   {
     key: "backgroundOverlay",
-    label: "背景オーバーレイを出す",
-    description: "市場エリア全体に色をかぶせる SVG 画像。ズームのたびに再描画される疑いがある",
-    options: "boolean",
+    label: "背景の色かぶせ画像",
+    description: "webp: ピクセル画像（既定） / svg: 以前の SVG（ズームのたびに再描画される） / off: 出さない",
+    options: BACKGROUND_OVERLAY_MODES,
   },
   {
     key: "tileOpacityByZoom",
