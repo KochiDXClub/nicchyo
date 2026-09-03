@@ -10,14 +10,15 @@
  * - 背景地図（CARTO ラスター / OpenFreeMap ベクター）、市場の色かぶせ、道（ポリゴン・中心線）
  * - 店舗マーカー: シンボルレイヤーで GPU 描画。屋台パーツを Canvas で描き起こしたスプライトを使い、
  *   検索 / AI / 買い物袋 / 選択の状態は画像を差し替えて表現
- * - ランドマーク画像、丁目バッジ（HTML マーカー）、店舗タップで詳細バナー
+ * - 木札（店名、text-field ＋ 伸縮する下地画像）、屋根の上の写真窓（styleimagemissing で遅延生成）、
+ *   お気に入り・買い物袋バッジ。表示倍率は Leaflet 版の LOD（stall / photo / nameplate）と同じ境界
+ * - ランドマーク画像と地名ラベル、丁目バッジ（HTML マーカー）、店舗タップで詳細バナー
  * - 回転・ピンチ・ドラッグは MapLibre 標準（自作ジェスチャー不要）
  * - 計測の橋渡し（?perf=1 で window.__nicchyoMapBench）
  *
  * 【まだ無いもの（Leaflet 版にある）】
- * 木札（店名）と写真窓、お気に入り・買い物袋バッジ、地名ラベル、道への吸着、
- * 現在地マーカー、AI アシスタント、検索結果シート、ズームスライダー。
- * これらは並走検証で数字が出てから順に移す。
+ * 道への吸着、現在地マーカー、AI アシスタント、検索結果シート、ズームスライダー、
+ * 出店者のカスタム SVG 屋台。順に移す。
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -55,12 +56,31 @@ import {
   OVERVIEW_ZONE_MIN_ZOOM,
   SHOP_MARKER_LOD_OFFSETS,
 } from "../../config/displayConfig";
-import { buildStallSprites, rasterizeImageUrl, stallSpriteKey, type StallState } from "./stallSprites";
+import {
+  buildBadgeSprite,
+  buildNameplateSprite,
+  buildStallSprites,
+  rasterizeImageUrl,
+  rasterizePhotoCircle,
+  stallSpriteKey,
+  type StallState,
+} from "./stallSprites";
+import { getShopBannerImage } from "../../../../../lib/shopImages";
+import { getRoadSide } from "../../config/roadConfig";
+import { resolveStallColors } from "../../config/shopCategories";
+import { sanitizeCssColor } from "../../utils/markerHtmlGenerator";
 
 const ZOOM_BOUNDS = getRecommendedZoomBounds();
-const MIN_ZOOM = ZOOM_BOUNDS.min;
-const MAX_ZOOM = ZOOM_BOUNDS.max;
+/**
+ * MapLibre は 512px タイル基準なので、同じ縮尺でもズーム値が Leaflet（256px 基準）より 1 小さい。
+ * 表示境界（LOD・丁目バッジ・タイル不透明度など）は Leaflet 版の定数を 1 ずらして使う。
+ */
+const ZOOM_OFFSET = -1;
+const MIN_ZOOM = ZOOM_BOUNDS.min + ZOOM_OFFSET;
+const MAX_ZOOM = ZOOM_BOUNDS.max + ZOOM_OFFSET;
 const INITIAL_ZOOM = MAX_ZOOM;
+const OVERVIEW_MIN = OVERVIEW_ZONE_MIN_ZOOM + ZOOM_OFFSET;
+const OVERVIEW_MAX = OVERVIEW_ZONE_MAX_ZOOM + ZOOM_OFFSET;
 
 const CARTO_TILES = ["a", "b", "c", "d"].map(
   (s) => `https://${s}.basemaps.cartocdn.com/rastertiles/voyager_nolabels/{z}/{x}/{y}.png`
@@ -95,6 +115,24 @@ const CHOME_KANJI: Record<string, string> = {
 };
 
 type ShopStateMap = Map<number, StallState>;
+
+/** GeoJSON に載せる店舗ごとの表示状態（状態色・お気に入り・買い物袋） */
+interface ShopDisplayState {
+  states: ShopStateMap;
+  favorites: Set<number>;
+  bags: Set<number>;
+}
+
+const LAYER_SHOP_PHOTOS = "nicchyo-shop-photos";
+const LAYER_SHOP_NAMEPLATES = "nicchyo-shop-nameplates";
+const LAYER_SHOP_BADGES_FAVORITE = "nicchyo-shop-badge-favorite";
+const LAYER_SHOP_BADGES_BAG = "nicchyo-shop-badge-bag";
+const LAYER_LANDMARK_LABELS = "nicchyo-landmark-labels";
+const IMG_NAMEPLATE = "nameplate-bg";
+const IMG_BADGE_FAVORITE = "badge:favorite";
+const IMG_BADGE_BAG = "badge:bag";
+const PHOTO_SIZE_PX = 50;
+const TEXT_FONT = ["Noto Sans Bold"];
 
 function buildRasterStyle(tileOpacityByZoom: boolean): StyleSpecification {
   return {
@@ -152,22 +190,32 @@ function computeRoadBearing(routePoints: MapRoutePoint[], center: [number, numbe
   return ((compass + 180) % 360 + 360) % 360;
 }
 
-function shopsToGeoJSON(shops: Shop[], states: ShopStateMap): GeoJSON.FeatureCollection {
+function shopsToGeoJSON(shops: Shop[], display: ShopDisplayState): GeoJSON.FeatureCollection {
   return {
     type: "FeatureCollection",
     features: shops
       .filter((s) => !s.illustration?.customSvg)
-      .map((s) => ({
-        type: "Feature",
-        id: s.id,
-        geometry: { type: "Point", coordinates: [s.lng, s.lat] },
-        properties: {
+      .map((s) => {
+        const stall = resolveStallColors(s.category, sanitizeCssColor(s.illustration?.color));
+        return {
+          type: "Feature",
           id: s.id,
-          name: s.name,
-          spriteKey: stallSpriteKey(s),
-          state: states.get(s.id) ?? "normal",
-        },
-      })),
+          geometry: { type: "Point", coordinates: [s.lng, s.lat] },
+          properties: {
+            id: s.id,
+            name: s.name,
+            spriteKey: stallSpriteKey(s),
+            state: display.states.get(s.id) ?? "normal",
+            // 道の北側は木札を右（道の外側）、南側は左に出す（Leaflet 版 .shop-side-*）
+            side: getRoadSide(s.lat, s.lng),
+            favorite: display.favorites.has(s.id),
+            bag: display.bags.has(s.id),
+            // 屋根の上の丸窓。写真が無ければカテゴリの既定画像
+            photo: s.images?.main ?? getShopBannerImage(s.category, s.position ?? s.id),
+            photoBorder: stall.dark,
+          },
+        };
+      }),
   };
 }
 
@@ -238,20 +286,24 @@ export default function MapViewMapLibre({
     if (selectedShop) m.set(selectedShop.id, "selected");
     return m;
   }, [bagShopIds, aiShopIds, searchShopIds, commentShopId, selectedShop]);
-  // お気に入りバッジは第 1 段階では未実装。参照だけ残す
-  void favoriteShopIds;
+  const display = useMemo<ShopDisplayState>(
+    () => ({ states: shopStates, favorites: new Set(favoriteShopIds), bags: new Set(bagShopIds) }),
+    [shopStates, favoriteShopIds, bagShopIds]
+  );
+  const displayRef = useRef(display);
+  displayRef.current = display;
 
-  const applyShopData = useCallback((states: ShopStateMap) => {
+  const applyShopData = useCallback((next: ShopDisplayState) => {
     const map = mapRef.current;
     const src = map?.getSource(SRC_SHOPS) as maplibregl.GeoJSONSource | undefined;
     if (!src) return;
-    src.setData(shopsToGeoJSON(shopsRef.current, states));
+    src.setData(shopsToGeoJSON(shopsRef.current, next));
   }, []);
 
   useEffect(() => {
     if (!mapLoaded) return;
-    applyShopData(shopStates);
-  }, [mapLoaded, shopStates, applyShopData]);
+    applyShopData(display);
+  }, [mapLoaded, display, applyShopData]);
 
   // ---- 地図の初期化 ----
   useEffect(() => {
@@ -269,9 +321,9 @@ export default function MapViewMapLibre({
       },
       { d: Number.POSITIVE_INFINITY, p: routePoints[0] }
     ).p;
-    const initialCenter: [number, number] = projected?.point
-      ? [projected.point.lng, projected.point.lat]
-      : [nearestRoutePoint.lng, nearestRoutePoint.lat];
+    // 射影点は道からずれることがあったので、確実に道の上にある頂点を使う
+    void projected;
+    const initialCenter: [number, number] = [nearestRoutePoint.lng, nearestRoutePoint.lat];
     // 可動範囲。MapLibre の maxBounds は「範囲が画面に収まる倍率まで」しか縮小できなくなるので、
     // 最小ズーム（市場全体が見える倍率）まで引けるよう Leaflet 版より広めに取る
     const maxBounds = expandBoundsByMeters(bounds, Math.max(routeConfig.visibleDistanceMeters + 48, 120) + 600);
@@ -364,7 +416,7 @@ export default function MapViewMapLibre({
         id: "nicchyo-road-overview-tint",
         type: "fill",
         source: SRC_ROAD,
-        maxzoom: OVERVIEW_ZONE_MAX_ZOOM,
+        maxzoom: OVERVIEW_MAX,
         paint: { "fill-color": "#22c55e", "fill-opacity": 0.36 },
       });
       map.addLayer({
@@ -390,6 +442,7 @@ export default function MapViewMapLibre({
         specs.map(async (spec) => {
           try {
             const data = await rasterizeImageUrl(spec.url, spec.widthPx, landmarkRatio);
+
             if (!map.hasImage(`landmark:${spec.key}`)) {
               map.addImage(`landmark:${spec.key}`, data, { pixelRatio: landmarkRatio });
             }
@@ -409,6 +462,7 @@ export default function MapViewMapLibre({
               type: "Feature",
               properties: {
                 image: `landmark:${spec.key}`,
+                name: spec.name,
                 showAtMinZoom: spec.showAtMinZoom ? 1 : 0,
               },
               geometry: { type: "Point", coordinates: [spec.lng, spec.lat] },
@@ -420,11 +474,11 @@ export default function MapViewMapLibre({
         "interpolate",
         ["exponential", 1.22],
         ["zoom"],
-        14.5,
+        13.5,
         0.5,
-        18,
+        17,
         1,
-        21,
+        20,
         1.816,
       ];
       const landmarkLayout = {
@@ -450,6 +504,27 @@ export default function MapViewMapLibre({
         minzoom: MIN_ZOOM + 0.8,
         layout: landmarkLayout,
       });
+      // 地名ラベル（俯瞰時 zoom ≤ MIN+2.5 だけ。Leaflet 版の主要地名ラベルに相当）
+      map.addLayer({
+        id: LAYER_LANDMARK_LABELS,
+        type: "symbol",
+        source: SRC_LANDMARKS,
+        maxzoom: MIN_ZOOM + 2.5,
+        layout: {
+          "text-field": ["get", "name"],
+          "text-font": TEXT_FONT,
+          "text-size": 12,
+          "text-anchor": "top",
+          "text-offset": [0, 1.6],
+          "text-rotation-alignment": "viewport",
+          "text-pitch-alignment": "viewport",
+        },
+        paint: {
+          "text-color": "#3a3a3a",
+          "text-halo-color": "rgba(255,255,255,0.92)",
+          "text-halo-width": 1.6,
+        },
+      });
 
       // 店舗スプライト
       const sprites = await buildStallSprites(shopsRef.current, Math.min(3, window.devicePixelRatio || 2));
@@ -457,9 +532,55 @@ export default function MapViewMapLibre({
       for (const sprite of sprites) {
         if (!map.hasImage(sprite.id)) map.addImage(sprite.id, sprite.image, { pixelRatio: sprite.pixelRatio });
       }
+      // バッジと木札の下地
+      const uiRatio = Math.min(3, window.devicePixelRatio || 2);
+      if (!map.hasImage(IMG_BADGE_FAVORITE)) {
+        map.addImage(IMG_BADGE_FAVORITE, buildBadgeSprite("favorite", uiRatio), { pixelRatio: uiRatio });
+      }
+      if (!map.hasImage(IMG_BADGE_BAG)) {
+        map.addImage(IMG_BADGE_BAG, buildBadgeSprite("bag", uiRatio), { pixelRatio: uiRatio });
+      }
+      if (!map.hasImage(IMG_NAMEPLATE)) {
+        const plate = buildNameplateSprite(uiRatio);
+        map.addImage(IMG_NAMEPLATE, plate.image, {
+          pixelRatio: uiRatio,
+          stretchX: plate.stretchX,
+          stretchY: plate.stretchY,
+          content: plate.content,
+        });
+      }
+
+      // 屋根の上の丸窓（写真）は店舗ごとに違うので、必要になった時点で遅延生成する
+      const photoJobs = new Map<string, Promise<void>>();
+      map.on("styleimagemissing", (e) => {
+        const id = e.id;
+        if (!id.startsWith("photo:") || photoJobs.has(id)) return;
+        const shopId = Number(id.slice("photo:".length));
+        const shop = shopsRef.current.find((s) => s.id === shopId);
+        if (!shop) return;
+        const url = shop.images?.main ?? getShopBannerImage(shop.category, shop.position ?? shop.id);
+        const border = resolveStallColors(shop.category, sanitizeCssColor(shop.illustration?.color)).dark;
+        // 同じ大きさの透明な仮画像を同期で登録しておく（無いままだと MapLibre が警告を出す）。
+        // 読み込めたら updateImage で中身だけ差し替える
+        const placeholderSize = Math.round((PHOTO_SIZE_PX + 8) * uiRatio);
+        if (!map.hasImage(id)) {
+          map.addImage(id, new ImageData(placeholderSize, placeholderSize), { pixelRatio: uiRatio });
+        }
+        photoJobs.set(
+          id,
+          rasterizePhotoCircle(url, PHOTO_SIZE_PX, border, uiRatio)
+            .then((data) => {
+              if (!disposed && map.hasImage(id)) map.updateImage(id, data);
+            })
+            .catch(() => {
+              /* 読めない写真は窓を出さない（透明のまま） */
+            })
+        );
+      });
+
       map.addSource(SRC_SHOPS, {
         type: "geojson",
-        data: shopsToGeoJSON(shopsRef.current, new Map()),
+        data: shopsToGeoJSON(shopsRef.current, displayRef.current),
         promoteId: "id",
       });
       const stallScale: ExpressionSpecification = [
@@ -475,7 +596,7 @@ export default function MapViewMapLibre({
         id: LAYER_SHOPS,
         type: "symbol",
         source: SRC_SHOPS,
-        minzoom: OVERVIEW_ZONE_MAX_ZOOM,
+        minzoom: OVERVIEW_MAX,
         layout: {
           "icon-image": ["concat", "stall:", ["get", "spriteKey"], ":", ["get", "state"]],
           "icon-size": stallScale,
@@ -486,6 +607,70 @@ export default function MapViewMapLibre({
           "symbol-sort-key": ["case", ["==", ["get", "state"], "selected"], 0, 1],
         },
       });
+
+      // 写真窓: photo LOD（maxZoom-1.4）以上。屋台の内側、木札と反対の側に寄せる
+      map.addLayer({
+        id: LAYER_SHOP_PHOTOS,
+        type: "symbol",
+        source: SRC_SHOPS,
+        minzoom: MAX_ZOOM + SHOP_MARKER_LOD_OFFSETS.photo,
+        layout: {
+          "icon-image": ["concat", "photo:", ["get", "id"]],
+          "icon-size": stallScale,
+          "icon-anchor": "center",
+          "icon-offset": ["case", ["==", ["get", "side"], "north"], ["literal", [-24, -30]], ["literal", [24, -30]]],
+          "icon-allow-overlap": true,
+          "icon-ignore-placement": true,
+          "icon-rotation-alignment": "viewport",
+        },
+      });
+
+      // 木札（店名）: nameplate LOD（maxZoom-0.8）以上。道の外側へ出し、重なるものは自動で間引く
+      map.addLayer({
+        id: LAYER_SHOP_NAMEPLATES,
+        type: "symbol",
+        source: SRC_SHOPS,
+        minzoom: MAX_ZOOM + SHOP_MARKER_LOD_OFFSETS.nameplate,
+        layout: {
+          "text-field": ["get", "name"],
+          "text-font": TEXT_FONT,
+          "text-size": 11,
+          "text-max-width": 9,
+          "text-anchor": ["case", ["==", ["get", "side"], "north"], "left", "right"],
+          "text-offset": ["case", ["==", ["get", "side"], "north"], ["literal", [3.2, -2.4]], ["literal", [-3.2, -2.4]]],
+          "text-rotation-alignment": "viewport",
+          "text-pitch-alignment": "viewport",
+          "icon-image": IMG_NAMEPLATE,
+          "icon-text-fit": "both",
+          "icon-text-fit-padding": [3, 8, 3, 8],
+          "icon-rotation-alignment": "viewport",
+          "symbol-sort-key": ["case", ["==", ["get", "state"], "selected"], 0, 1],
+        },
+        paint: { "text-color": "#4a3826" },
+      });
+
+      // お気に入り・買い物袋バッジ（Leaflet 版と同じく photo LOD 以上で右上に）
+      for (const [layerId, imageId, prop] of [
+        [LAYER_SHOP_BADGES_FAVORITE, IMG_BADGE_FAVORITE, "favorite"],
+        [LAYER_SHOP_BADGES_BAG, IMG_BADGE_BAG, "bag"],
+      ] as const) {
+        map.addLayer({
+          id: layerId,
+          type: "symbol",
+          source: SRC_SHOPS,
+          minzoom: MAX_ZOOM + SHOP_MARKER_LOD_OFFSETS.photo,
+          filter: ["==", ["get", prop], true],
+          layout: {
+            "icon-image": imageId,
+            "icon-size": stallScale,
+            "icon-anchor": "center",
+            "icon-offset": ["case", ["==", ["get", "side"], "north"], ["literal", [-30, -66]], ["literal", [30, -66]]],
+            "icon-allow-overlap": true,
+            "icon-ignore-placement": true,
+            "icon-rotation-alignment": "viewport",
+          },
+        });
+      }
 
       map.on("click", LAYER_SHOPS, (e) => {
         const f = e.features?.[0];
@@ -520,13 +705,13 @@ export default function MapViewMapLibre({
           `<div class="chome-area-sublabel">丁目</div>` +
           `<div class="chome-area-count">${g.lats.length}店</div>`;
         el.addEventListener("click", () => {
-          map.flyTo({ center: [lng, lat], zoom: OVERVIEW_ZONE_MAX_ZOOM + 0.2, duration: 600 });
+          map.flyTo({ center: [lng, lat], zoom: OVERVIEW_MAX + 0.2, duration: 600 });
         });
         return new maplibregl.Marker({ element: el, anchor: "center" }).setLngLat([lng, lat]).addTo(map);
       });
       const updateChomeVisibility = () => {
         const z = map.getZoom();
-        const visible = z >= OVERVIEW_ZONE_MIN_ZOOM && z < OVERVIEW_ZONE_MAX_ZOOM;
+        const visible = z >= OVERVIEW_MIN && z < OVERVIEW_MAX;
         for (const m of chomeMarkersRef.current) {
           m.getElement().style.display = visible ? "" : "none";
         }
@@ -577,7 +762,7 @@ export default function MapViewMapLibre({
       setHighlightAll: (on) => {
         const states: ShopStateMap = new Map();
         if (on) for (const s of shopsRef.current) states.set(s.id, "search");
-        applyShopData(states);
+        applyShopData({ ...displayRef.current, states });
         return shopsRef.current.length;
       },
     };
