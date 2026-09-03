@@ -26,6 +26,8 @@ import BackgroundOverlay from "./BackgroundOverlay";
 import UserLocationMarker from "./UserLocationMarker";
 import MapAgentAssistant from "./MapAgentAssistant";
 import OptimizedShopLayerWithClustering from "./OptimizedShopLayerWithClustering";
+import MapPerfBridge from "./MapPerfBridge";
+import { readPerfShopCount, synthesizeShops } from "@/lib/perf/syntheticShops";
 import { MapOverlays, getVisibleMajorPlaceLabels } from "./MapOverlays";
 import {
   getRecommendedZoomBounds,
@@ -734,10 +736,6 @@ const MapView = memo(function MapView({
       .filter((id, index, self) => self.indexOf(id) === index);
   }, [bagItems]);
 
-  const sourceShops = useMemo(
-    () => (initialShops && initialShops.length > 0 ? initialShops : baseShops),
-    [initialShops]
-  );
   const routePoints = useMemo(
     () => {
       const normalized = normalizeMapRoutePoints(mapRoute?.points ?? []);
@@ -745,6 +743,13 @@ const MapView = memo(function MapView({
     },
     [mapRoute]
   );
+  const sourceShops = useMemo(() => {
+    const real = initialShops && initialShops.length > 0 ? initialShops : baseShops;
+    // 計測モード（?perf=1&perfShops=N）のときだけ、本番規模の負荷を再現するために複製する
+    const perfCount =
+      typeof window !== "undefined" ? readPerfShopCount(window.location.search) : null;
+    return perfCount ? synthesizeShops(real, routePoints, perfCount) : real;
+  }, [initialShops, routePoints]);
   const routeConfig = useMemo(
     () => ({
       ...getDefaultMapRouteConfig(),
@@ -1373,6 +1378,7 @@ const MapView = memo(function MapView({
           <MapZoomConstraint />
           <MapZoomRoadSnapController onSnapCenter={getSnappedCenter} />
           <MapZoomListener onZoomChange={handleMapZoomChange} />
+          <MapPerfBridge />
           <TileLayer
             url={BASEMAP_TILE_URL}
             attribution={BASEMAP_ATTRIBUTION}
