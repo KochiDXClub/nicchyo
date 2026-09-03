@@ -1,4 +1,5 @@
 import { AdminLayout, AdminPageHeader } from "@/components/admin";
+import { getBuildInfo } from "@/lib/perf/buildInfo";
 import MapPerfClient from "./MapPerfClient";
 
 export const dynamic = "force-dynamic";
@@ -8,13 +9,15 @@ export const dynamic = "force-dynamic";
  *
  * 認可は app/(public)/admin/layout.tsx が行う（管理者以外はトップへ）。
  * 実際のマップページを iframe で読み込み、その中で計測を走らせる。
+ * 結果は map_perf_runs に保存し、ブランチ・コミットごとの推移や前後比較を見られる。
  */
 export default function MapPerfPage() {
+  const buildInfo = getBuildInfo();
   return (
     <AdminLayout>
       <AdminPageHeader eyebrow="Performance" title="マップ描画の計測" />
       <div className="mx-auto max-w-7xl px-4 py-8 pb-20">
-        <MapPerfClient />
+        <MapPerfClient buildInfo={buildInfo} />
       </div>
     </AdminLayout>
   );
