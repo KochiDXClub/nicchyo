@@ -57,10 +57,6 @@ const nextConfig = {
             value: 'on'
           },
           {
-            key: 'X-Frame-Options',
-            value: 'DENY'
-          },
-          {
             key: 'X-Content-Type-Options',
             value: 'nosniff'
           },
@@ -79,6 +75,29 @@ const nextConfig = {
           {
             key: 'Cross-Origin-Opener-Policy',
             value: 'same-origin'
+          },
+        ],
+      },
+      {
+        // iframe 埋め込みは原則禁止（/map 以外は無条件）。
+        source: '/:path((?!map$).*)',
+        headers: [
+          {
+            key: 'X-Frame-Options',
+            value: 'DENY'
+          },
+        ],
+      },
+      {
+        // /map も原則禁止。
+        // 例外は管理画面の計測ページ（/admin/map-perf）が同一オリジンで読み込む /map?perf=1 だけで、
+        // そのときは proxy.ts の CSP frame-ancestors 'self' に委ねる（CSP があれば X-Frame-Options は無視される）。
+        source: '/map',
+        missing: [{ type: 'query', key: 'perf', value: '1' }],
+        headers: [
+          {
+            key: 'X-Frame-Options',
+            value: 'DENY'
           },
         ],
       },
