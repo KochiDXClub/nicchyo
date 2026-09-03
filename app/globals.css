@@ -335,32 +335,12 @@ body.grandma-chat-open .leaflet-container {
     0 8px 16px rgba(15, 23, 42, 0.22) !important;
 }
 
-.shop-marker-selected .stall-roof {
-  box-shadow:
-    0 0 0 2px rgba(251, 191, 36, 0.9),
-    0 6px 14px rgba(245, 158, 11, 0.28),
-    inset -6px 0 0 rgba(255, 255, 255, 0.25) !important;
-}
-
-.shop-marker-selected .stall-awning {
-  box-shadow:
-    0 0 0 2px rgba(251, 191, 36, 0.82),
-    0 4px 10px rgba(245, 158, 11, 0.22) !important;
-}
-
+.shop-marker-selected .stall-roof,
+.shop-marker-selected .stall-awning-base,
 .shop-marker-selected .stall-body {
-  border-color: rgba(245, 158, 11, 0.9) !important;
-  box-shadow:
-    inset 4px 0 0 rgba(255, 255, 255, 0.35),
-    0 0 0 2px rgba(251, 191, 36, 0.7),
-    0 8px 14px rgba(245, 158, 11, 0.18) !important;
-}
-
-.shop-marker-selected .stall-counter {
-  box-shadow:
-    inset -3px -2px 0 rgba(0, 0, 0, 0.15),
-    0 0 0 2px rgba(251, 191, 36, 0.85),
-    0 4px 10px rgba(245, 158, 11, 0.22) !important;
+  stroke: #fbbf24;
+  stroke-width: 3;
+  stroke-linejoin: round;
 }
 
 .shop-marker-ai {
@@ -439,15 +419,15 @@ body.grandma-chat-open .leaflet-container {
 }
 
 .shop-marker-search .stall-roof {
-  background: linear-gradient(135deg, #93c5fd, #2563eb) !important;
+  fill: #2563eb;
 }
 
-.shop-marker-search .stall-awning {
-  background: repeating-linear-gradient(
-    90deg,
-    #2563eb 0 10%,
-    #93c5fd 10% 20%
-  ) !important;
+.shop-marker-search .stall-awning-base {
+  fill: #93c5fd;
+}
+
+.shop-marker-search .stall-awning-stripe {
+  fill: #2563eb;
 }
 
 .shop-marker-search .shop-marker-compact {
@@ -455,15 +435,15 @@ body.grandma-chat-open .leaflet-container {
 }
 
 .shop-marker-ai .stall-roof {
-  background: linear-gradient(135deg, #fca5a5, #ef4444) !important;
+  fill: #ef4444;
 }
 
-.shop-marker-ai .stall-awning {
-  background: repeating-linear-gradient(
-    90deg,
-    #ef4444 0 10%,
-    #fca5a5 10% 20%
-  ) !important;
+.shop-marker-ai .stall-awning-base {
+  fill: #fca5a5;
+}
+
+.shop-marker-ai .stall-awning-stripe {
+  fill: #ef4444;
 }
 
 .shop-marker-ai .shop-marker-compact {
@@ -760,16 +740,15 @@ body.grandma-chat-open .leaflet-container {
 }
 
 .shop-marker-bag .stall-roof {
-  background: linear-gradient(135deg, #ffffff, #f1f5f9) !important;
-  box-shadow: 0 4px 8px rgba(16, 185, 129, 0.25), inset -6px 0 0 rgba(209, 213, 219, 0.25) !important;
+  fill: #f8fafc;
 }
 
-.shop-marker-bag .stall-awning {
-  background: repeating-linear-gradient(
-    90deg,
-    #10b981 0 10%,
-    #34d399 10% 20%
-  ) !important;
+.shop-marker-bag .stall-awning-base {
+  fill: #34d399;
+}
+
+.shop-marker-bag .stall-awning-stripe {
+  fill: #10b981;
 }
 
 .shop-marker-bag .shop-marker-compact {
@@ -1093,83 +1072,54 @@ body.home-poster-zoom-open .hamburger-button {
   animation: shop-banner-expand 420ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
-.shop-illustration-3d {
-  position: relative;
-  transform-style: preserve-3d;
+/*
+ * 屋台イラスト（inline SVG）
+ *
+ * 形は app/(public)/map/config/stallParts.ts のパス定義、色はここで当てる。
+ * 以前は div を 6 個積んで CSS で形を作っていたが、1 マーカー 12 要素になり
+ * ズーム後の再レイアウトが重かったため、1 つの svg と数個の path に置き換えた。
+ * グラデーションは使わず「単色 + 半透明の白」で立体感を出す
+ * （将来 MapLibre の SDF スプライトへ移すときも同じ考え方で再現できる）。
+ */
+.shop-illustration-svg {
+  display: block;
+  overflow: visible;
   pointer-events: none;
 }
 
-.shop-illustration-3d .stall-shadow {
-  position: absolute;
-  left: 8%;
-  bottom: 2%;
-  width: 84%;
-  height: 16%;
-  background: radial-gradient(ellipse at center, rgba(0, 0, 0, 0.25), rgba(0, 0, 0, 0));
-  filter: blur(2px);
+.stall-shadow {
+  fill: rgba(0, 0, 0, 0.16);
 }
 
-.shop-illustration-3d .stall-roof {
-  position: absolute;
-  top: 4%;
-  left: 5%;
-  width: 90%;
-  height: 30%;
-  background: linear-gradient(135deg, var(--stall-color-light), var(--stall-color));
-  border-radius: 8px 8px 4px 4px;
-  box-shadow:
-    0 4px 8px rgba(0, 0, 0, 0.25),
-    inset -6px 0 0 rgba(255, 255, 255, 0.25);
-  transform: skewX(-12deg);
+.stall-roof {
+  fill: var(--stall-color);
 }
 
-.shop-illustration-3d .stall-awning {
-  position: absolute;
-  top: 28%;
-  left: 8%;
-  width: 84%;
-  height: 16%;
-  background: repeating-linear-gradient(
-    90deg,
-    var(--stall-color) 0 10%,
-    var(--stall-color-light) 10% 20%
-  );
-  border-radius: 4px;
-  box-shadow: 0 3px 6px rgba(0, 0, 0, 0.2);
-  transform: skewX(-10deg);
+.stall-roof-light {
+  fill: #ffffff;
+  opacity: 0.22;
 }
 
-.shop-illustration-3d .stall-body {
-  position: absolute;
-  left: 10%;
-  top: 40%;
-  width: 80%;
-  height: 42%;
-  background: linear-gradient(145deg, #f7f6f2, #e3ded7);
-  border: 2px solid rgba(90, 80, 70, 0.4);
-  border-radius: 6px;
-  box-shadow: inset 4px 0 0 rgba(255, 255, 255, 0.35);
+.stall-awning-base {
+  fill: var(--stall-color-light);
 }
 
-.shop-illustration-3d .stall-counter {
-  position: absolute;
-  left: 12%;
-  top: 54%;
-  width: 76%;
-  height: 18%;
-  background: linear-gradient(135deg, #f59e0b, #d97706);
-  border-radius: 4px;
-  box-shadow: inset -3px -2px 0 rgba(0, 0, 0, 0.15);
+.stall-awning-stripe {
+  fill: var(--stall-color);
 }
 
-.shop-illustration-3d .stall-legs {
-  position: absolute;
-  left: 18%;
-  bottom: 6%;
-  width: 64%;
-  height: 12%;
-  background:
-    linear-gradient(90deg, #8b5e34 0 12%, transparent 12% 44%, #8b5e34 44% 56%, transparent 56% 88%, #8b5e34 88% 100%);
+.stall-body {
+  fill: #f1ede6;
+  stroke: rgba(90, 80, 70, 0.4);
+  stroke-width: 2;
+}
+
+.stall-counter {
+  fill: #ec9a0c;
+}
+
+.stall-legs {
+  fill: #8b5e34;
 }
 
 .grandma-scroll-retracting {
