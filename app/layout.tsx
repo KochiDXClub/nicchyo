@@ -13,7 +13,7 @@ import { Toaster } from "@/components/admin";
 import { safeJsonLd } from "@/lib/utils/jsonLd";
 
 export const metadata: Metadata = {
-  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "https://nicchyo.jp"),
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || "https://nicchyo.jp"),
   title: {
     default: "nicchyo | 高知の日曜市を、未来へつなぐ",
     template: "%s | nicchyo",
