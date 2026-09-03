@@ -121,6 +121,12 @@ export const AdminSidebar = React.memo(function AdminSidebar({
       icon: "⚙️",
       show: permissions.isAdmin,
     },
+    {
+      label: "ページ公開設定",
+      href: "/admin/page-visibility",
+      icon: "🗺️",
+      show: permissions.isAdmin,
+    },
   ].filter((item) => item.show !== false);
 
   const handleLogout = async () => {
