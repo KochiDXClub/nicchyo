@@ -36,9 +36,8 @@ describe("parseMapFlagsFromSearch / resolveMapFeatureFlags", () => {
     const server = { ...DEFAULT_MAP_FEATURE_FLAGS, roadSnap: "after" as const, zoomRenderIsolation: false };
     const resolved = resolveMapFeatureFlags(server, "?perf=1&mapFlags=roadSnap:off,landmarkCssScale:off");
     expect(resolved).toEqual({
+      ...server,
       roadSnap: "off",
-      zoomSkip: server.zoomSkip,
-      zoomRenderIsolation: false,
       landmarkCssScale: false,
     });
   });

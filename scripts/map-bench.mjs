@@ -17,6 +17,7 @@
  *   --save      結果を map_perf_runs に保存する（.env.local の SUPABASE_SERVICE_ROLE_KEY が必要）
  *   --allow-remote  --url が localhost 以外でも --save を許可する（プレビュー環境の計測を保存したいとき）
  *   --flags     マップ動作フラグの上書き（例: roadSnap:after,zoomSkip:off）。lib/mapFeatureFlags.ts を参照
+ *   --compare   1 つのフラグの全選択肢を順に計測して並べる（例: --compare stallRenderer）
  *   --json      生のレポートを標準出力に JSON で出す
  *
  * 前提:
@@ -119,18 +120,40 @@ const cdp = await context.newCDPSession(page);
 if (cpu > 1) await cdp.send("Emulation.setCPUThrottlingRate", { rate: cpu });
 
 const flags = opt("flags", "");
-const target = `${url}/map?perf=1${shops > 0 ? `&perfShops=${shops}` : ""}${
-  typeof flags === "string" && flags ? `&mapFlags=${encodeURIComponent(flags)}` : ""
-}`;
-const reports = [];
-for (let i = 0; i < runs; i++) {
-  await page.goto(target, { waitUntil: "networkidle" });
-  await page.waitForFunction(() => !!window.__nicchyoMapBench, null, { timeout: 60000 });
-  await page.waitForFunction(() => document.querySelectorAll(".custom-shop-marker").length >= 5, null, { timeout: 60000 });
-  await page.waitForTimeout(4000);
-  const report = await page.evaluate(() => window.__nicchyoMapBench.run());
-  reports.push(report);
-  console.error(`run ${i + 1}/${runs}: zoomEndAvg=${Math.round(zoomAgg(report).endAvg)}ms dropped=${zoomAgg(report).dropped}`);
+// --compare <flagKey>: そのフラグの全選択肢を順に計測して並べる（例: --compare stallRenderer）
+const compareKey = String(opt("compare", ""));
+const COMPARE_OPTIONS = {
+  roadSnap: ["off", "after", "integrated"],
+  zoomSkip: ["off", "after", "before"],
+  zoomRenderIsolation: ["on", "off"],
+  landmarkCssScale: ["on", "off"],
+};
+if (compareKey && !COMPARE_OPTIONS[compareKey]) {
+  console.error(`--compare に使えるのは: ${Object.keys(COMPARE_OPTIONS).join(", ")}`);
+  process.exit(1);
+}
+const baseFlags = typeof flags === "string" && flags ? flags : "";
+const variants = compareKey
+  ? COMPARE_OPTIONS[compareKey].map((v) => ({ name: `${compareKey}=${v}`, flags: [baseFlags, `${compareKey}:${v}`].filter(Boolean).join(",") }))
+  : [{ name: "", flags: baseFlags }];
+const targetFor = (f) =>
+  `${url}/map?perf=1${shops > 0 ? `&perfShops=${shops}` : ""}${f ? `&mapFlags=${encodeURIComponent(f)}` : ""}`;
+const target = targetFor(baseFlags);
+// ---- 計測（--compare のときは選択肢ごとに順に回す） ----
+const results = []; // { name, flags, reports }
+for (const variant of variants) {
+  const variantTarget = targetFor(variant.flags);
+  const reports = [];
+  for (let i = 0; i < runs; i++) {
+    await page.goto(variantTarget, { waitUntil: "networkidle" });
+    await page.waitForFunction(() => !!window.__nicchyoMapBench, null, { timeout: 60000 });
+    await page.waitForFunction(() => document.querySelectorAll(".custom-shop-marker").length >= 5, null, { timeout: 60000 });
+    await page.waitForTimeout(4000);
+    const report = await page.evaluate(() => window.__nicchyoMapBench.run());
+    reports.push(report);
+    console.error(`${variant.name ? `[${variant.name}] ` : ""}run ${i + 1}/${runs}: zoomEndAvg=${Math.round(zoomAgg(report).endAvg)}ms dropped=${zoomAgg(report).dropped}`);
+  }
+  results.push({ ...variant, reports });
 }
 await browser.close();
 
@@ -140,13 +163,24 @@ const sha = git("rev-parse HEAD");
 console.log(`\n## マップ計測  ${label || "(ラベルなし)"}`);
 console.log(`- 対象: ${target}`);
 console.log(`- コード: ${branch} @ ${sha.slice(0, 7)}`);
-console.log(`- 条件: ${viewport.width}×${viewport.height} / ${shops || "実データ"} 店舗 / CPU×${cpu} / ${runs} 回の中央値\n`);
-console.log("| 指標（小さいほど良い） | 中央値 |");
-console.log("|---|---|");
+console.log(`- 条件: ${viewport.width}×${viewport.height} / ${shops || "実データ"} 店舗 / CPU×${cpu} / ${runs} 回の中央値${compareKey ? ` / 比較: ${compareKey}` : ""}\n`);
+const header = results.map((r) => r.name || "中央値");
+console.log(`| 指標（小さいほど良い） | ${header.join(" | ")} |${results.length === 2 ? " 変化 |" : ""}`);
+console.log(`|---|${header.map(() => "---").join("|")}|${results.length === 2 ? "---|" : ""}`);
 for (const [name, pick, d] of METRICS) {
-  console.log(`| ${name} | ${median(reports.map(pick)).toFixed(d)} |`);
+  const vals = results.map((r) => median(r.reports.map(pick)));
+  let delta = "";
+  if (results.length === 2) {
+    if (vals[0] > 0) {
+      const ratio = ((vals[1] - vals[0]) / vals[0]) * 100;
+      delta = ` ${ratio > 0 ? "+" : ""}${ratio.toFixed(0)}% |`;
+    } else {
+      delta = " - |";
+    }
+  }
+  console.log(`| ${name} | ${vals.map((v) => v.toFixed(d)).join(" | ")} |${delta}`);
 }
-if (asJson) console.log("\n" + JSON.stringify(reports));
+if (asJson) console.log("\n" + JSON.stringify(results.length === 1 ? results[0].reports : results));
 
 // ---- 保存 ----
 if (save) {
@@ -163,20 +197,26 @@ if (save) {
   }
   const supabase = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } });
   const base = label || `CLI 計測 ${new Date().toLocaleString("ja-JP")}`;
-  const rows = reports.map((report, i) => ({
-    label: reports.length > 1 ? `${base} (${i + 1}/${reports.length})` : base,
-    branch,
-    commit_sha: sha,
-    environment: "cli",
-    deployment_url: url,
-    viewport_width: report.viewport.width,
-    viewport_height: report.viewport.height,
-    device_pixel_ratio: report.viewport.dpr,
-    shop_count: shops,
-    cpu_throttle: cpu,
-    user_agent: report.userAgent,
-    report,
-  }));
+  const rows = [];
+  for (const r of results) {
+    r.reports.forEach((report, i) => {
+      const variantLabel = r.name ? ` [${r.name}]` : "";
+      rows.push({
+        label: `${base}${variantLabel}${r.reports.length > 1 ? ` (${i + 1}/${r.reports.length})` : ""}`,
+        branch,
+        commit_sha: sha,
+        environment: "cli",
+        deployment_url: url,
+        viewport_width: report.viewport.width,
+        viewport_height: report.viewport.height,
+        device_pixel_ratio: report.viewport.dpr,
+        shop_count: shops,
+        cpu_throttle: cpu,
+        user_agent: report.userAgent,
+        report,
+      });
+    });
+  }
   const { error } = await supabase.from("map_perf_runs").insert(rows);
   if (error) {
     console.error("\n保存に失敗しました:", error.message);
