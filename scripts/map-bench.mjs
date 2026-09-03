@@ -130,6 +130,7 @@ const COMPARE_OPTIONS = {
   landmarkCssScale: ["on", "off"],
   backgroundOverlay: ["webp", "svg", "off"],
   tileOpacityByZoom: ["on", "off"],
+  shopLayerHiding: ["on", "off"],
 };
 if (compareKey && !COMPARE_OPTIONS[compareKey]) {
   console.error(`--compare に使えるのは: ${Object.keys(COMPARE_OPTIONS).join(", ")}`);

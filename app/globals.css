@@ -1416,3 +1416,12 @@ body.home-poster-zoom-open .hamburger-button {
   ) !important;
 }
 
+/*
+ * 店舗マーカー専用ペイン（OptimizedShopLayerWithClustering の SHOP_PANE）。
+ * ズーム 19 未満ではレイヤーを付け外しせず、ペインごと非表示にする（shopLayerHiding）。
+ * display:none ではなく visibility:hidden にするのは、戻すときのレイアウト再計算を避けるため。
+ */
+.leaflet-shop-pane.shop-layer-hidden {
+  visibility: hidden;
+  pointer-events: none;
+}

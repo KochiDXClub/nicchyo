@@ -193,9 +193,12 @@ function waitForEvent(map: BenchMapLike, event: string, timeoutMs: number): Prom
 
 export function collectDomStats(map: BenchMapLike): DomStats {
   const container = map.getContainer();
-  const pane = container.querySelector(".leaflet-marker-pane");
-  const markerPaneElements = pane ? pane.querySelectorAll("*").length : 0;
-  const markerCount = pane ? pane.querySelectorAll(".leaflet-marker-icon").length : 0;
+  // 店舗は専用ペイン（leaflet-shop-pane）に置かれるので、標準の markerPane と合わせて数える
+  const panes = Array.from(
+    container.querySelectorAll(".leaflet-marker-pane, .leaflet-shop-pane")
+  );
+  const markerPaneElements = panes.reduce((n, p) => n + p.querySelectorAll("*").length, 0);
+  const markerCount = panes.reduce((n, p) => n + p.querySelectorAll(".leaflet-marker-icon").length, 0);
   const memory = (performance as unknown as { memory?: { usedJSHeapSize: number } }).memory;
   return {
     markerPaneElements,
