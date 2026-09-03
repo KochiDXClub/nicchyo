@@ -28,6 +28,12 @@ import MapAgentAssistant from "./MapAgentAssistant";
 import OptimizedShopLayerWithClustering from "./OptimizedShopLayerWithClustering";
 import MapPerfBridge from "./MapPerfBridge";
 import { readPerfShopCount, synthesizeShops } from "@/lib/perf/syntheticShops";
+import {
+  resolveMapFeatureFlags,
+  type MapFeatureFlags,
+  type RoadSnapMode,
+  type ZoomSkipMode,
+} from "@/lib/mapFeatureFlags";
 import { MapOverlays, getVisibleMajorPlaceLabels } from "./MapOverlays";
 import {
   getRecommendedZoomBounds,
@@ -543,6 +549,8 @@ type MapViewProps = {
   commentShopId?: number;
   onZoomChange?: (zoom: number) => void;
   suppressInitialLocationFocus?: boolean;
+  /** 管理画面で保存したマップ動作フラグ。URL の ?mapFlags= がクライアント側で上書きする */
+  featureFlags?: MapFeatureFlags;
   onShopSelect?: (shop: Shop) => void;
   spotlightShopId?: number;
   onClearSearch?: () => void;
@@ -600,19 +608,23 @@ function MapZoomListener({ onZoomChange }: { onZoomChange?: (zoom: number) => vo
  * 割り込み、着地前に目標値そのものをずらす。ホイール・ピンチ・スライダー・flyTo の
  * どの入口でも 1 回のズームで済む。_limitZoom は Leaflet 1.x で長く安定している内部 API。
  */
-function MapZoomConstraint() {
+function findSkippedZoom(zoom: number): number | undefined {
+  return SKIPPED_ZOOM_LEVELS.find((level) => Math.abs(zoom - level) <= SKIPPED_ZOOM_TOLERANCE);
+}
+
+function MapZoomConstraint({ mode }: { mode: ZoomSkipMode }) {
   const map = useMap();
 
+  // before: ズーム先の確定時に逃がす（1 回のズームで済む）
   useEffect(() => {
+    if (mode !== "before") return;
     type LimitZoom = (zoom: number) => number;
     const target = map as unknown as { _limitZoom: LimitZoom };
     const original = target._limitZoom;
 
     target._limitZoom = function limitZoomAvoidingSkipped(this: L.Map, zoom: number) {
       const limited = original.call(this, zoom);
-      const skipped = SKIPPED_ZOOM_LEVELS.find(
-        (level) => Math.abs(limited - level) <= SKIPPED_ZOOM_TOLERANCE
-      );
+      const skipped = findSkippedZoom(limited);
       if (skipped === undefined) return limited;
       const zoomingIn = limited >= this.getZoom();
       const nudged = zoomingIn ? skipped + SKIPPED_ZOOM_NUDGE : skipped - SKIPPED_ZOOM_NUDGE;
@@ -622,7 +634,36 @@ function MapZoomConstraint() {
     return () => {
       target._limitZoom = original;
     };
-  }, [map]);
+  }, [map, mode]);
+
+  // after: 従来方式。ズーム終了後にもう一度 setZoom で逃がす（比較実験用に残す）
+  useEffect(() => {
+    if (mode !== "after") return;
+    let zoomBeforeChange = map.getZoom();
+    const handleZoomStart = () => {
+      zoomBeforeChange = map.getZoom();
+    };
+    const handleZoomEnd = () => {
+      const currentZoom = map.getZoom();
+      const skipped = findSkippedZoom(currentZoom);
+      if (skipped === undefined) {
+        zoomBeforeChange = currentZoom;
+        return;
+      }
+      const zoomingIn = currentZoom >= zoomBeforeChange;
+      const targetZoom = zoomingIn ? skipped + SKIPPED_ZOOM_NUDGE : skipped - SKIPPED_ZOOM_NUDGE;
+      if (Math.abs(targetZoom - currentZoom) > 0.001) {
+        map.setZoom(targetZoom, { animate: false });
+      }
+      zoomBeforeChange = targetZoom;
+    };
+    map.on("zoomstart", handleZoomStart);
+    map.on("zoomend", handleZoomEnd);
+    return () => {
+      map.off("zoomstart", handleZoomStart);
+      map.off("zoomend", handleZoomEnd);
+    };
+  }, [map, mode]);
 
   return null;
 }
@@ -643,6 +684,12 @@ interface ZoomModes {
   canRenderEventGlow: boolean;
   shouldRenderMajorLabels: boolean;
   canRenderLandmarks: boolean;
+  /**
+   * 再描画隔離（zoomRenderIsolation）を切ったときだけ入る生のズーム値。
+   * 入っていると全ズームで state が変わり、従来どおり MapView 全体が再描画される。
+   * ランドマークを DivIcon 再生成で拡縮するとき（landmarkCssScale: off）にも使う。
+   */
+  rawZoom?: number;
 }
 
 function computeZoomModes(zoom: number): ZoomModes {
@@ -665,7 +712,8 @@ function zoomModesEqual(a: ZoomModes, b: ZoomModes): boolean {
     a.isThirdZoomFromMinimum === b.isThirdZoomFromMinimum &&
     a.canRenderEventGlow === b.canRenderEventGlow &&
     a.shouldRenderMajorLabels === b.shouldRenderMajorLabels &&
-    a.canRenderLandmarks === b.canRenderLandmarks
+    a.canRenderLandmarks === b.canRenderLandmarks &&
+    a.rawZoom === b.rawZoom
   );
 }
 
@@ -679,8 +727,10 @@ function getLandmarkScale(zoom: number): number {
   return Math.min(2.8, Math.max(0.5, factor));
 }
 
-function applyLandmarkScale(map: L.Map) {
-  map.getContainer().style.setProperty("--landmark-scale", getLandmarkScale(map.getZoom()).toFixed(3));
+function applyLandmarkScale(map: L.Map, enabled: boolean) {
+  map
+    .getContainer()
+    .style.setProperty("--landmark-scale", enabled ? getLandmarkScale(map.getZoom()).toFixed(3) : "1");
 }
 
 /** ズームスライダー用に、連続ズーム値を自前で購読する薄いラッパー */
@@ -706,15 +756,94 @@ function LiveZoomMapControls({
 const MemoizedMapAgentAssistant = memo(MapAgentAssistant);
 const MemoizedUserLocationMarker = memo(UserLocationMarker);
 
+/**
+ * ズームイン後に地図の中心を道の上へ寄せる。
+ *
+ * - after: ズーム終了後（160ms 待って）350ms のパンで寄せる。従来方式
+ * - integrated: setView に割り込み、ズームの目標中心をあらかじめ道の上にする。
+ *   ホイール・スライダー・プログラムからのアニメーション付きズームは 1 回の動きで済む。
+ *   ピンチはアニメーション無しの連続ズームなので割り込まず、指を離した後に after と同じ処理で寄せる
+ * - off: 寄せない
+ */
 function MapZoomRoadSnapController({
   onSnapCenter,
+  mode,
 }: {
   onSnapCenter: (center: L.LatLng) => [number, number] | null;
+  mode: RoadSnapMode;
 }) {
   const map = useMap();
+  // integrated で「ずらし量が大きすぎて Leaflet がアニメーションできない」ときは
+  // 差し替えを見送り、ズーム後のパン（after 相当）に任せる。そのための印
+  const afterSnapNeededRef = useRef(false);
 
+  // integrated: アニメーション付きズームインの目標中心を道の上に差し替える
   useEffect(() => {
+    if (mode !== "integrated") return;
+    type SetView = L.Map["setView"];
+    const target = map as unknown as { setView: SetView };
+    const original = target.setView;
+
+    target.setView = function setViewSnappedToRoad(
+      this: L.Map,
+      center: L.LatLngExpression,
+      zoom?: number,
+      options?: L.ZoomPanOptions
+    ) {
+      // setZoom / setZoomAround は { zoom: { animate } } の形で渡してくる
+      const zoomOptions = (options as { zoom?: { animate?: boolean } } | undefined)?.zoom;
+      const animated = options?.animate !== false && zoomOptions?.animate !== false;
+      const zoomingIn = zoom !== undefined && zoom > this.getZoom() + 0.01;
+      if (animated && zoomingIn) {
+        const requested = L.latLng(center);
+        const snapped = onSnapCenter(requested);
+        if (snapped) {
+          const snappedLatLng = L.latLng(snapped[0], snapped[1]);
+          if (this.distance(requested, snappedLatLng) >= ROAD_SNAP_MIN_DISTANCE_METERS) {
+            // Leaflet は目標中心のずれ（目標ズームでのピクセル量）が画面内に収まるときだけ
+            // ズームをアニメーションできる。超えると瞬間移動＋全面再描画になり逆に重いので、
+            // その場合は差し替えず、ズーム後のパンに任せる
+            const offset = this.project(snappedLatLng, zoom!).subtract(this.project(requested, zoom!));
+            if (this.getSize().contains(offset)) {
+              return original.call(this, snappedLatLng, zoom, options);
+            }
+            afterSnapNeededRef.current = true;
+          }
+        }
+      }
+      return original.call(this, center, zoom, options);
+    } as SetView;
+
+    return () => {
+      target.setView = original;
+    };
+  }, [map, mode, onSnapCenter]);
+
+  // after（および integrated のピンチ後）: ズーム終了後にパンで寄せる
+  useEffect(() => {
+    if (mode === "off") return;
     let lastZoom = map.getZoom();
+    let lastZoomWasAnimated = false;
+    const handleZoomAnim = () => {
+      lastZoomWasAnimated = true;
+    };
+    const handleZoomStartMark = () => {
+      lastZoomWasAnimated = false;
+    };
+    const consumeAfterSnapNeeded = () => {
+      const needed = afterSnapNeededRef.current;
+      afterSnapNeededRef.current = false;
+      return needed;
+    };
+    if (mode === "integrated") {
+      // アニメーション付きズームは setView 側で寄せ済みなので、ここでは非アニメーション（ピンチ）だけ扱う
+      map.on("zoomanim", handleZoomAnim);
+      map.on("zoomstart", handleZoomStartMark);
+    }
+    const shouldSnapAfter = () => {
+      const needed = consumeAfterSnapNeeded();
+      return mode === "after" || !lastZoomWasAnimated || needed;
+    };
     let snapTimerId: number | null = null;
 
     const clearSnapTimer = () => {
@@ -747,7 +876,7 @@ function MapZoomRoadSnapController({
       const isZoomingIn = nextZoom > lastZoom + 0.01;
       lastZoom = nextZoom;
 
-      if (!isZoomingIn) {
+      if (!isZoomingIn || !shouldSnapAfter()) {
         return;
       }
 
@@ -764,12 +893,14 @@ function MapZoomRoadSnapController({
     map.on("zoomend", handleZoomEnd);
     return () => {
       clearSnapTimer();
+      map.off("zoomanim", handleZoomAnim);
+      map.off("zoomstart", handleZoomStartMark);
       map.off("zoomstart", handleZoomStart);
       map.off("movestart", handleZoomStart);
       map.off("dragstart", handleZoomStart);
       map.off("zoomend", handleZoomEnd);
     };
-  }, [map, onSnapCenter]);
+  }, [map, mode, onSnapCenter]);
 
   return null;
 }
@@ -792,6 +923,7 @@ const MapView = memo(function MapView({
   commentShopId,
   onZoomChange,
   suppressInitialLocationFocus = false,
+  featureFlags: featureFlagsProp,
   onShopSelect,
   spotlightShopId,
   onClearSearch,
@@ -883,6 +1015,15 @@ const MapView = memo(function MapView({
   const [_shopLoadProgress, setShopLoadProgress] = useState({ processed: 0, total: 0, done: false });
   const [autoRotation, setAutoRotation] = useState(initialMapRotation);
   const [zoomModes, setZoomModes] = useState<ZoomModes>(() => computeZoomModes(INITIAL_ZOOM));
+  // マップ動作フラグ: サーバー由来（管理画面の設定）に URL の ?mapFlags= を重ねる
+  const featureFlags = useMemo(
+    () =>
+      resolveMapFeatureFlags(
+        featureFlagsProp,
+        typeof window === "undefined" ? "" : window.location.search
+      ),
+    [featureFlagsProp]
+  );
   const [zoomGuideMessage, setZoomGuideMessage] = useState<string | null>(null);
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const activeGestureModeRef = useRef<"zoom" | "rotate" | null>(null);
@@ -1208,12 +1349,16 @@ const MapView = memo(function MapView({
   const handleMapZoomChange = useCallback(
     (zoom: number) => {
       const next = computeZoomModes(zoom);
-      // 表示モードが変わらないズームでは state を更新せず、MapView の再描画を避ける
+      // 再描画隔離が有効なら表示モードだけを比べ、変わらないズームでは state を更新しない。
+      // 無効（または DivIcon 再生成でランドマークを拡縮）のときは生のズーム値も持ち、従来どおり毎回再描画する
+      if (!featureFlags.zoomRenderIsolation || !featureFlags.landmarkCssScale) {
+        next.rawZoom = zoom;
+      }
       setZoomModes((prev) => (zoomModesEqual(prev, next) ? prev : next));
-      if (mapRef.current) applyLandmarkScale(mapRef.current);
+      if (mapRef.current) applyLandmarkScale(mapRef.current, featureFlags.landmarkCssScale);
       onZoomChange?.(zoom);
     },
-    [onZoomChange]
+    [featureFlags.landmarkCssScale, featureFlags.zoomRenderIsolation, onZoomChange]
   );
 
   const toggleTracking = useCallback(() => setIsTracking((prev) => !prev), []);
@@ -1229,12 +1374,17 @@ const MapView = memo(function MapView({
   const handleSelectPreviousShop = useCallback(() => handleSelectByOffset(-1), [handleSelectByOffset]);
   const handleSelectNextShop = useCallback(() => handleSelectByOffset(1), [handleSelectByOffset]);
 
-  // ランドマークの DivIcon はズームに依存させない。倍率は CSS 変数 --landmark-scale で追従する
+  // ランドマークの DivIcon は既定ではズームに依存させず、倍率は CSS 変数 --landmark-scale で追従する。
+  // landmarkCssScale が off のときだけ従来どおりズームごとに px サイズを焼き込んで作り直す
+  const landmarkIconScale =
+    featureFlags.landmarkCssScale || zoomModes.rawZoom === undefined
+      ? 1
+      : getLandmarkScale(zoomModes.rawZoom);
   const landmarkIcons = useMemo(() => {
     const icons = new Map<string, L.DivIcon>();
     landmarkSpecs.forEach((spec) => {
-      const width = Math.max(1, Math.round(spec.widthPx));
-      const height = Math.max(1, Math.round(spec.heightPx));
+      const width = Math.max(1, Math.round(spec.widthPx * landmarkIconScale));
+      const height = Math.max(1, Math.round(spec.heightPx * landmarkIconScale));
       const highlightClass = highlightEventTargets ? " is-highlight" : "";
       icons.set(
         spec.key,
@@ -1247,7 +1397,7 @@ const MapView = memo(function MapView({
       );
     });
     return icons;
-  }, [highlightEventTargets, landmarkSpecs]);
+  }, [highlightEventTargets, landmarkIconScale, landmarkSpecs]);
 
   const commentHighlightShopIds = useMemo(
     () => (commentShopId ? [commentShopId] : []),
@@ -1471,10 +1621,10 @@ const MapView = memo(function MapView({
             }
           }}
         >
-          <MapZoomConstraint />
-          <MapZoomRoadSnapController onSnapCenter={getSnappedCenter} />
+          <MapZoomConstraint mode={featureFlags.zoomSkip} />
+          <MapZoomRoadSnapController onSnapCenter={getSnappedCenter} mode={featureFlags.roadSnap} />
           <MapZoomListener onZoomChange={handleMapZoomChange} />
-          <MapPerfBridge />
+          <MapPerfBridge flags={featureFlags} />
           <TileLayer
             url={BASEMAP_TILE_URL}
             attribution={BASEMAP_ATTRIBUTION}
