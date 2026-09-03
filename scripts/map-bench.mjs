@@ -128,7 +128,7 @@ const COMPARE_OPTIONS = {
   zoomSkip: ["off", "after", "before"],
   zoomRenderIsolation: ["on", "off"],
   landmarkCssScale: ["on", "off"],
-  backgroundOverlay: ["on", "off"],
+  backgroundOverlay: ["webp", "svg", "off"],
   tileOpacityByZoom: ["on", "off"],
 };
 if (compareKey && !COMPARE_OPTIONS[compareKey]) {
