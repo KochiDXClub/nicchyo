@@ -842,6 +842,9 @@ body.home-poster-zoom-open .hamburger-button {
 
 .map-landmark-visual {
   display: block;
+  /* 倍率はズームのたびに MapView が地図コンテナへ書く CSS 変数で追従する（DivIcon は作り直さない） */
+  transform: scale(var(--landmark-scale, 1));
+  transform-origin: center center;
   pointer-events: none;
   user-select: none;
   -webkit-user-drag: none;

@@ -589,47 +589,122 @@ function MapZoomListener({ onZoomChange }: { onZoomChange?: (zoom: number) => vo
   return null;
 }
 
+/**
+ * 特定のズーム値（丁目表示の切替境界）に止まらないようにする。
+ *
+ * 以前は zoomend の後に setZoom(animate: false) で ±0.03 逃がしていたが、
+ * それだと 1 回のズームでズーム終了処理（タイル再取得・マーカー再配置・React 再描画）が
+ * 2 回走り、後者は同期実行なのでフレームが止まっていた。
+ *
+ * 今は Leaflet がズーム先を確定する _limitZoom（zoomSnap 丸めと min/max 制限）に
+ * 割り込み、着地前に目標値そのものをずらす。ホイール・ピンチ・スライダー・flyTo の
+ * どの入口でも 1 回のズームで済む。_limitZoom は Leaflet 1.x で長く安定している内部 API。
+ */
 function MapZoomConstraint() {
   const map = useMap();
 
   useEffect(() => {
-    let zoomBeforeChange = map.getZoom();
+    type LimitZoom = (zoom: number) => number;
+    const target = map as unknown as { _limitZoom: LimitZoom };
+    const original = target._limitZoom;
 
-    const handleZoomStart = () => {
-      zoomBeforeChange = map.getZoom();
-    };
-
-    const handleZoomEnd = () => {
-      const currentZoom = map.getZoom();
-      const skippedZoom = SKIPPED_ZOOM_LEVELS.find(
-        (zoomLevel) => Math.abs(currentZoom - zoomLevel) <= SKIPPED_ZOOM_TOLERANCE
+    target._limitZoom = function limitZoomAvoidingSkipped(this: L.Map, zoom: number) {
+      const limited = original.call(this, zoom);
+      const skipped = SKIPPED_ZOOM_LEVELS.find(
+        (level) => Math.abs(limited - level) <= SKIPPED_ZOOM_TOLERANCE
       );
-
-      if (skippedZoom === undefined) {
-        zoomBeforeChange = currentZoom;
-        return;
-      }
-
-      const zoomingIn = currentZoom >= zoomBeforeChange;
-      const targetZoom = zoomingIn ? skippedZoom + SKIPPED_ZOOM_NUDGE : skippedZoom - SKIPPED_ZOOM_NUDGE;
-
-      if (Math.abs(targetZoom - currentZoom) > 0.001) {
-        map.setZoom(targetZoom, { animate: false });
-      }
-
-      zoomBeforeChange = targetZoom;
+      if (skipped === undefined) return limited;
+      const zoomingIn = limited >= this.getZoom();
+      const nudged = zoomingIn ? skipped + SKIPPED_ZOOM_NUDGE : skipped - SKIPPED_ZOOM_NUDGE;
+      return original.call(this, nudged);
     };
 
-    map.on("zoomstart", handleZoomStart);
-    map.on("zoomend", handleZoomEnd);
     return () => {
-      map.off("zoomstart", handleZoomStart);
-      map.off("zoomend", handleZoomEnd);
+      target._limitZoom = original;
     };
   }, [map]);
 
   return null;
 }
+
+/**
+ * ズームに応じて切り替わる表示モード。
+ *
+ * ズーム値そのものを state に持つと、0.05 刻みの全ズームで MapView（1,500 行）が
+ * 再描画される。ここでは「表示が変わる境界」だけを真偽値にし、値が変わったときだけ
+ * state を更新する。スライダーの現在値など連続値が要るものは LiveZoomMapControls が
+ * 自前で購読する。
+ */
+interface ZoomModes {
+  isMinimumZoomMode: boolean;
+  isOverviewZoneMode: boolean;
+  isLowZoomTintMode: boolean;
+  isThirdZoomFromMinimum: boolean;
+  canRenderEventGlow: boolean;
+  shouldRenderMajorLabels: boolean;
+  canRenderLandmarks: boolean;
+}
+
+function computeZoomModes(zoom: number): ZoomModes {
+  return {
+    isMinimumZoomMode: zoom < MIN_ZOOM + 0.5,
+    isOverviewZoneMode: zoom >= OVERVIEW_ZONE_MIN_ZOOM && zoom < OVERVIEW_ZONE_MAX_ZOOM,
+    isLowZoomTintMode: zoom < OVERVIEW_ZONE_MAX_ZOOM,
+    isThirdZoomFromMinimum: Math.abs(zoom - (MIN_ZOOM + 2.5)) <= 0.15,
+    canRenderEventGlow: zoom >= MIN_ZOOM + 1.5,
+    shouldRenderMajorLabels: zoom <= MIN_ZOOM + 2.5,
+    canRenderLandmarks: zoom >= MIN_ZOOM + 0.8,
+  };
+}
+
+function zoomModesEqual(a: ZoomModes, b: ZoomModes): boolean {
+  return (
+    a.isMinimumZoomMode === b.isMinimumZoomMode &&
+    a.isOverviewZoneMode === b.isOverviewZoneMode &&
+    a.isLowZoomTintMode === b.isLowZoomTintMode &&
+    a.isThirdZoomFromMinimum === b.isThirdZoomFromMinimum &&
+    a.canRenderEventGlow === b.canRenderEventGlow &&
+    a.shouldRenderMajorLabels === b.shouldRenderMajorLabels &&
+    a.canRenderLandmarks === b.canRenderLandmarks
+  );
+}
+
+/**
+ * ランドマーク画像の倍率をズームから求め、CSS 変数として地図コンテナに書く。
+ * 以前はズームのたびに全ランドマークの DivIcon を作り直して setIcon していたが、
+ * 画像の大きさは CSS の transform: scale(var(--landmark-scale)) で追従させる。
+ */
+function getLandmarkScale(zoom: number): number {
+  const factor = Math.pow(1.22, zoom - 18);
+  return Math.min(2.8, Math.max(0.5, factor));
+}
+
+function applyLandmarkScale(map: L.Map) {
+  map.getContainer().style.setProperty("--landmark-scale", getLandmarkScale(map.getZoom()).toFixed(3));
+}
+
+/** ズームスライダー用に、連続ズーム値を自前で購読する薄いラッパー */
+function LiveZoomMapControls({
+  map,
+  ...rest
+}: Omit<React.ComponentProps<typeof MapControls>, "currentZoom">) {
+  const [zoom, setZoom] = useState(() => map?.getZoom() ?? INITIAL_ZOOM);
+  useEffect(() => {
+    if (!map) return;
+    const update = () => setZoom(map.getZoom());
+    update();
+    map.on("zoom", update);
+    map.on("zoomend", update);
+    return () => {
+      map.off("zoom", update);
+      map.off("zoomend", update);
+    };
+  }, [map]);
+  return <MapControls map={map} currentZoom={zoom} {...rest} />;
+}
+
+const MemoizedMapAgentAssistant = memo(MapAgentAssistant);
+const MemoizedUserLocationMarker = memo(UserLocationMarker);
 
 function MapZoomRoadSnapController({
   onSnapCenter,
@@ -807,7 +882,7 @@ const MapView = memo(function MapView({
   const [isTracking, setIsTracking] = useState(true);
   const [_shopLoadProgress, setShopLoadProgress] = useState({ processed: 0, total: 0, done: false });
   const [autoRotation, setAutoRotation] = useState(initialMapRotation);
-  const [mapUiZoom, setMapUiZoom] = useState(INITIAL_ZOOM);
+  const [zoomModes, setZoomModes] = useState<ZoomModes>(() => computeZoomModes(INITIAL_ZOOM));
   const [zoomGuideMessage, setZoomGuideMessage] = useState<string | null>(null);
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const activeGestureModeRef = useRef<"zoom" | "rotate" | null>(null);
@@ -1093,13 +1168,15 @@ const MapView = memo(function MapView({
   }, [selectedShop, shops]);
 
   const canNavigate = selectedShopIndex >= 0 && shops.length > 1;
-  const isMinimumZoomMode = mapUiZoom < MIN_ZOOM + 0.5;
-  const isOverviewZoneMode = mapUiZoom >= OVERVIEW_ZONE_MIN_ZOOM && mapUiZoom < OVERVIEW_ZONE_MAX_ZOOM;
-  const isLowZoomTintMode = mapUiZoom < OVERVIEW_ZONE_MAX_ZOOM;
-  const isThirdZoomFromMinimum = Math.abs(mapUiZoom - (MIN_ZOOM + 2.5)) <= 0.15;
-  const shouldRenderEventGlow = highlightEventTargets && mapUiZoom >= MIN_ZOOM + 1.5;
-  const shouldRenderMajorLabels = mapUiZoom <= MIN_ZOOM + 2.5;
-  const shouldRenderLandmarks = mapUiZoom >= MIN_ZOOM + 0.8 || highlightEventTargets;
+  const {
+    isMinimumZoomMode,
+    isOverviewZoneMode,
+    isLowZoomTintMode,
+    isThirdZoomFromMinimum,
+    shouldRenderMajorLabels,
+  } = zoomModes;
+  const shouldRenderEventGlow = highlightEventTargets && zoomModes.canRenderEventGlow;
+  const shouldRenderLandmarks = zoomModes.canRenderLandmarks || highlightEventTargets;
   const interactionDisabled = agentOpen ?? false;
   const mapRotation = normalizeRotationDeg(autoRotation);
 
@@ -1130,11 +1207,16 @@ const MapView = memo(function MapView({
 
   const handleMapZoomChange = useCallback(
     (zoom: number) => {
-      setMapUiZoom(zoom);
+      const next = computeZoomModes(zoom);
+      // 表示モードが変わらないズームでは state を更新せず、MapView の再描画を避ける
+      setZoomModes((prev) => (zoomModesEqual(prev, next) ? prev : next));
+      if (mapRef.current) applyLandmarkScale(mapRef.current);
       onZoomChange?.(zoom);
     },
     [onZoomChange]
   );
+
+  const toggleTracking = useCallback(() => setIsTracking((prev) => !prev), []);
 
   // deps が [] なのは setState 関数のみ参照しているため（React が安定を保証）
   const handleCloseBanner = useCallback(() => {
@@ -1147,16 +1229,12 @@ const MapView = memo(function MapView({
   const handleSelectPreviousShop = useCallback(() => handleSelectByOffset(-1), [handleSelectByOffset]);
   const handleSelectNextShop = useCallback(() => handleSelectByOffset(1), [handleSelectByOffset]);
 
-  const landmarkScale = useMemo(() => {
-    const factor = Math.pow(1.22, mapUiZoom - 18);
-    return Math.min(2.8, Math.max(0.5, factor));
-  }, [mapUiZoom]);
-
+  // ランドマークの DivIcon はズームに依存させない。倍率は CSS 変数 --landmark-scale で追従する
   const landmarkIcons = useMemo(() => {
     const icons = new Map<string, L.DivIcon>();
     landmarkSpecs.forEach((spec) => {
-      const width = Math.max(1, Math.round(spec.widthPx * landmarkScale));
-      const height = Math.max(1, Math.round(spec.heightPx * landmarkScale));
+      const width = Math.max(1, Math.round(spec.widthPx));
+      const height = Math.max(1, Math.round(spec.heightPx));
       const highlightClass = highlightEventTargets ? " is-highlight" : "";
       icons.set(
         spec.key,
@@ -1169,7 +1247,25 @@ const MapView = memo(function MapView({
       );
     });
     return icons;
-  }, [highlightEventTargets, landmarkScale, landmarkSpecs]);
+  }, [highlightEventTargets, landmarkSpecs]);
+
+  const commentHighlightShopIds = useMemo(
+    () => (commentShopId ? [commentShopId] : []),
+    [commentShopId]
+  );
+
+  const handleUserLocationUpdate = useCallback(
+    (inMarket: boolean, position: [number, number]) => {
+      setUserLocation(position);
+      setIsInMarket(inMarket);
+      onUserLocationUpdate?.({
+        lat: position[0],
+        lng: position[1],
+        inMarket,
+      });
+    },
+    [onUserLocationUpdate]
+  );
 
   const visibleMajorPlaceLabels = useMemo(
     () =>
@@ -1408,23 +1504,15 @@ const MapView = memo(function MapView({
             favoriteShopIds={favoriteShopIds}
             searchShopIds={searchShopIds}
             aiHighlightShopIds={aiShopIds}
-            commentHighlightShopIds={commentShopId ? [commentShopId] : []}
+            commentHighlightShopIds={commentHighlightShopIds}
             bagShopIds={bagShopIds}
             onChomeClick={handleChomeClick}
             OptimizedShopLayerWithClustering={OptimizedShopLayerWithClustering}
           />
 
         {/* ユーザー位置 */}
-        <UserLocationMarker
-          onLocationUpdate={(inMarket, position) => {
-            setUserLocation(position);
-            setIsInMarket(inMarket);
-            onUserLocationUpdate?.({
-              lat: position[0],
-              lng: position[1],
-              inMarket,
-            });
-          }}
+        <MemoizedUserLocationMarker
+          onLocationUpdate={handleUserLocationUpdate}
           isTracking={isTracking}
           suppressInitialFocus={suppressInitialLocationFocus}
           routePoints={routePoints}
@@ -1443,11 +1531,10 @@ const MapView = memo(function MapView({
       <MapZoomGuideToast message={zoomGuideMessage} />
       {!hideMapUI && (
         <>
-          <MapControls
+          <LiveZoomMapControls
             map={mapInstance}
             isTracking={isTracking}
-            onToggleTracking={() => setIsTracking((prev) => !prev)}
-            currentZoom={mapUiZoom}
+            onToggleTracking={toggleTracking}
             minZoom={MIN_ZOOM}
             maxZoom={MAX_ZOOM}
             zoomSliderVisible={zoomSliderVisible}
@@ -1496,7 +1583,7 @@ const MapView = memo(function MapView({
         </>
       )}
 
-      <MapAgentAssistant
+      <MemoizedMapAgentAssistant
         onOpenShop={handleOpenShop}
         onPlanUpdate={handlePlanUpdate}
         userLocation={userLocation}
