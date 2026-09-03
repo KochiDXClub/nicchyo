@@ -8,6 +8,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { useBag } from "@/lib/storage/BagContext";
 import { useMenu } from "@/lib/ui/MenuContext";
+import { usePageVisibility } from "@/lib/pageVisibility/PageVisibilityContext";
 
 // ─── ナビゲーション項目 ────────────────────────────────────────────────────────
 type NavItem = {
@@ -67,6 +68,7 @@ function NavigationBarInner({
   const { user, isLoggedIn, permissions, logout } = useAuth();
   const { items: bagItems } = useBag();
   const { isMenuOpen: menuOpen, toggleMenu, closeMenu } = useMenu();
+  const { isLinkVisible } = usePageVisibility();
 
   useEffect(() => {
     onMenuOpenChange?.(menuOpen);
@@ -81,9 +83,15 @@ function NavigationBarInner({
   const isCloseUxActive = isPanelOpen || closeModeActive;
   const isHome = (activeHref ?? pathname) === "/map" && !panel && !isCloseUxActive;
 
-  const navItems = permissions.isAdmin
-    ? [...baseNavItems, { name: "管理", href: "/admin/dashboard", icon: "admin" as const }]
-    : baseNavItems;
+  // ページ公開設定で public でないリンクはナビに出さない
+  const navItems = (
+    permissions.isAdmin
+      ? [...baseNavItems, { name: "管理", href: "/admin/dashboard", icon: "admin" as const }]
+      : baseNavItems
+  ).filter((item) => isLinkVisible(item.href));
+  const visibleSecondaryItems = secondaryMenuItems.filter((item) => isLinkVisible(item.href));
+  const visibleVendorItems = vendorMenuItems.filter((item) => isLinkVisible(item.href));
+  const isBagVisible = isLinkVisible("/bag");
 
   const handleMenuItemClick = (href: string) => {
     closeMenu();
@@ -194,6 +202,7 @@ function NavigationBarInner({
                 )}
 
                 {/* ─ プライマリ：バッグ ─ */}
+                {isBagVisible && (
                 <button
                   type="button"
                   onClick={() => handleMenuItemClick("/bag")}
@@ -223,12 +232,13 @@ function NavigationBarInner({
                     <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
                   </svg>
                 </button>
+                )}
 
                 <hr className="mb-4 border-slate-100" />
 
                 {/* ─ セカンダリ：2列グリッド ─ */}
                 <div className="mb-4 grid grid-cols-2 gap-3">
-                  {secondaryMenuItems.map((item, i) => (
+                  {visibleSecondaryItems.map((item, i) => (
                     <motion.button
                       key={item.href}
                       initial={{ opacity: 0, scale: 0.92 }}
@@ -246,11 +256,11 @@ function NavigationBarInner({
                 <hr className="mb-4 border-slate-100" />
 
                 {/* ─ 出店者メニュー ─ */}
-                {(permissions.isVendor || permissions.isAdmin) && (
+                {(permissions.isVendor || permissions.isAdmin) && visibleVendorItems.length > 0 && (
                   <div className="mb-4">
                     <p className="mb-2.5 text-[11px] font-bold uppercase tracking-[0.14em] text-amber-500">出店者</p>
                     <div className="overflow-hidden rounded-2xl border border-amber-100 bg-white shadow-sm">
-                      {vendorMenuItems.map((item, i) => (
+                      {visibleVendorItems.map((item, i) => (
                         <button
                           type="button"
                           key={item.href}
