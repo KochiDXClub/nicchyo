@@ -531,7 +531,7 @@ function MapZoomGuideToast({ message }: { message: string | null }) {
   );
 }
 
-type MapViewProps = {
+export type MapViewProps = {
   shops?: Shop[];
   landmarks?: Landmark[];
   mapRoute?: MapRoute;

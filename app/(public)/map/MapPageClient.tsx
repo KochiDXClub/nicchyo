@@ -16,7 +16,7 @@ import { SHOP_CATEGORY_NAMES } from "./data/shops";
 import type { Shop } from "./data/shops";
 import type { Landmark } from "./types/landmark";
 import type { MapRoute } from "./types/mapRoute";
-import type { MapFeatureFlags } from "@/lib/mapFeatureFlags";
+import { resolveMapFeatureFlags, type MapFeatureFlags } from "@/lib/mapFeatureFlags";
 import { useMapLoading } from "../../components/MapLoadingProvider";
 import { grandmaEvents } from "./data/grandmaEvents";
 import { recordMarketEnter, recordMarketExit } from "../../../lib/storage/marketStats";
@@ -54,7 +54,11 @@ import {
   OVERVIEW_ZONE_MAX_ZOOM,
 } from "./config/displayConfig";
 
-const MapView = dynamic(() => import("./components/MapView"), {
+const MapViewLeaflet = dynamic(() => import("./components/MapView"), {
+  ssr: false,
+});
+// MapLibre 版（移行中の並走検証用）。選ばれたときだけ読み込む
+const MapViewMapLibre = dynamic(() => import("./components/maplibre/MapViewMapLibre"), {
   ssr: false,
 });
 
@@ -150,6 +154,14 @@ export default function MapPageClient({
   mapRoute,
   featureFlags,
 }: MapPageClientProps) {
+  // 描画ライブラリの選択（管理画面の設定に URL の ?mapFlags=renderer:maplibre を重ねる）
+  const MapView = useMemo(() => {
+    const resolved = resolveMapFeatureFlags(
+      featureFlags,
+      typeof window === "undefined" ? "" : window.location.search
+    );
+    return resolved.renderer === "maplibre" ? MapViewMapLibre : MapViewLeaflet;
+  }, [featureFlags]);
   const showGrandma = false;
   const searchParams = useSearchParams();
   const router = useRouter();

@@ -24,6 +24,12 @@ export interface BenchMapLike {
   once(event: string, handler: () => void): unknown;
   off(event: string, handler: () => void): unknown;
   getContainer(): HTMLElement;
+  /**
+   * 一斉ハイライトの切替。DOM マーカーを持たない描画方式（MapLibre のシンボルレイヤー）は
+   * これを実装し、feature-state などで全店舗の検索ハイライトを付け外しする。
+   * 無ければ .custom-shop-marker の DOM クラス付け替えで測る（Leaflet）。
+   */
+  setHighlightAll?(on: boolean): number;
 }
 
 export interface FrameStats {
@@ -247,15 +253,21 @@ export async function benchPan(map: BenchMapLike): Promise<FrameStats> {
 export async function benchHighlightToggle(map: BenchMapLike): Promise<HighlightToggleResult> {
   const container = map.getContainer();
   const markers = Array.from(container.querySelectorAll<HTMLElement>(".custom-shop-marker"));
+  let markerCount = markers.length;
 
   const toggle = async (add: boolean) => {
     const t0 = performance.now();
-    for (const el of markers) {
-      if (add) el.classList.add("shop-marker-search");
-      else el.classList.remove("shop-marker-search");
+    if (map.setHighlightAll) {
+      // GPU 描画方式: 描画側の一斉切替（対象数を返してもらう）
+      markerCount = map.setHighlightAll(add);
+    } else {
+      for (const el of markers) {
+        if (add) el.classList.add("shop-marker-search");
+        else el.classList.remove("shop-marker-search");
+      }
+      // 強制レイアウト（スタイル再計算＋レイアウトを同期で走らせる）
+      void container.offsetWidth;
     }
-    // 強制レイアウト（スタイル再計算＋レイアウトを同期で走らせる）
-    void container.offsetWidth;
     const syncMs = performance.now() - t0;
     await nextFrame();
     await nextFrame();
@@ -269,7 +281,7 @@ export async function benchHighlightToggle(map: BenchMapLike): Promise<Highlight
   await wait(100);
 
   return {
-    markers: markers.length,
+    markers: markerCount,
     applySyncMs: applied.syncMs,
     applyPaintMs: applied.paintMs,
     clearSyncMs: cleared.syncMs,

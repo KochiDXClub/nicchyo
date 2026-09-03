@@ -17,6 +17,8 @@ export type RoadSnapMode = "off" | "after" | "integrated";
 export type ZoomSkipMode = "off" | "after" | "before";
 export type StallRenderer = "svg" | "div";
 export type BackgroundOverlayMode = "webp" | "svg" | "off";
+export type MapRenderer = "leaflet" | "maplibre";
+export type BasemapMode = "raster-carto" | "vector-openfreemap";
 
 export interface MapFeatureFlags {
   /**
@@ -58,6 +60,18 @@ export interface MapFeatureFlags {
    * off だと従来どおり境界をまたぐたびに 300 マーカーを作り直す。
    */
   shopLayerHiding: boolean;
+  /**
+   * 地図の描画ライブラリ。
+   * - leaflet: 従来の Leaflet + DOM マーカー（既定）
+   * - maplibre: MapLibre GL JS（WebGL）。移行中の並走検証用。店舗はシンボルレイヤーで GPU 描画
+   */
+  renderer: MapRenderer;
+  /**
+   * 背景地図（maplibre のときだけ有効）。
+   * - raster-carto: 今と同じ CARTO のラスタータイル
+   * - vector-openfreemap: OpenFreeMap のベクタータイル（回転してもラベルが正立する）
+   */
+  basemap: BasemapMode;
 }
 
 /**
@@ -74,7 +88,12 @@ export const DEFAULT_MAP_FEATURE_FLAGS: MapFeatureFlags = {
   backgroundOverlay: "webp",
   tileOpacityByZoom: true,
   shopLayerHiding: true,
+  renderer: "leaflet",
+  basemap: "raster-carto",
 };
+
+export const MAP_RENDERERS: readonly MapRenderer[] = ["leaflet", "maplibre"];
+export const BASEMAP_MODES: readonly BasemapMode[] = ["raster-carto", "vector-openfreemap"];
 
 export const BACKGROUND_OVERLAY_MODES: readonly BackgroundOverlayMode[] = ["webp", "svg", "off"];
 
@@ -94,6 +113,18 @@ export interface MapFeatureFlagDef {
 
 /** 設定画面と計測ページのスイッチはこの配列から自動生成する */
 export const MAP_FEATURE_FLAG_DEFS: readonly MapFeatureFlagDef[] = [
+  {
+    key: "renderer",
+    label: "地図の描画ライブラリ",
+    description: "leaflet: 従来（DOM マーカー） / maplibre: MapLibre GL JS（WebGL、移行中の並走検証用）",
+    options: MAP_RENDERERS,
+  },
+  {
+    key: "basemap",
+    label: "背景地図（maplibre のみ）",
+    description: "raster-carto: 今と同じ CARTO の画像タイル / vector-openfreemap: OpenFreeMap のベクタータイル",
+    options: BASEMAP_MODES,
+  },
   {
     key: "stallRenderer",
     label: "屋台イラストの描画方式",

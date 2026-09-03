@@ -149,6 +149,8 @@ export async function proxy(request: NextRequest) {
     "img-src 'self' data: blob: https:",
     "font-src 'self' data: https://fonts.gstatic.com",
     `connect-src 'self' https:${process.env.NODE_ENV === "development" ? " http://127.0.0.1:* ws://127.0.0.1:*" : ""}`,
+    // MapLibre GL JS はタイルのデコードを blob: URL の Web Worker で行う
+    "worker-src 'self' blob:",
     isPerfFramedMap ? "frame-ancestors 'self'" : "frame-ancestors 'none'",
     "base-uri 'self'",
     "form-action 'self'",
