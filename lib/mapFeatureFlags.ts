@@ -15,6 +15,7 @@
 
 export type RoadSnapMode = "off" | "after" | "integrated";
 export type ZoomSkipMode = "off" | "after" | "before";
+export type StallRenderer = "svg" | "div";
 
 export interface MapFeatureFlags {
   /**
@@ -36,6 +37,16 @@ export interface MapFeatureFlags {
   zoomRenderIsolation: boolean;
   /** ランドマーク画像の倍率をズームごとの DivIcon 再生成ではなく CSS 変数で追従させる */
   landmarkCssScale: boolean;
+  /**
+   * 屋台イラストの描画方式。
+   * - svg: config/stallParts.ts のパスカタログから 1 つの inline SVG で描く
+   * - div: div を 6 個積んで CSS で形を作る（従来）
+   */
+  stallRenderer: StallRenderer;
+  /** 市場エリア全体に色をかぶせる背景オーバーレイ（SVG 画像）を出す */
+  backgroundOverlay: boolean;
+  /** 背景タイルの不透明度をズームに応じて変える（off なら常に 0.22） */
+  tileOpacityByZoom: boolean;
 }
 
 /**
@@ -48,10 +59,14 @@ export const DEFAULT_MAP_FEATURE_FLAGS: MapFeatureFlags = {
   zoomSkip: "before",
   zoomRenderIsolation: true,
   landmarkCssScale: true,
+  stallRenderer: "svg",
+  backgroundOverlay: true,
+  tileOpacityByZoom: true,
 };
 
 export const ROAD_SNAP_MODES: readonly RoadSnapMode[] = ["off", "after", "integrated"];
 export const ZOOM_SKIP_MODES: readonly ZoomSkipMode[] = ["off", "after", "before"];
+export const STALL_RENDERERS: readonly StallRenderer[] = ["svg", "div"];
 
 export type MapFeatureFlagKey = keyof MapFeatureFlags;
 
@@ -65,6 +80,12 @@ export interface MapFeatureFlagDef {
 
 /** 設定画面と計測ページのスイッチはこの配列から自動生成する */
 export const MAP_FEATURE_FLAG_DEFS: readonly MapFeatureFlagDef[] = [
+  {
+    key: "stallRenderer",
+    label: "屋台イラストの描画方式",
+    description: "svg: パスカタログから 1 つの SVG で描く / div: div を 6 個積んで CSS で形を作る（従来）",
+    options: STALL_RENDERERS,
+  },
   {
     key: "roadSnap",
     label: "ズーム後の道への吸着",
@@ -87,6 +108,18 @@ export const MAP_FEATURE_FLAG_DEFS: readonly MapFeatureFlagDef[] = [
     key: "landmarkCssScale",
     label: "ランドマークを CSS で拡縮",
     description: "ズームごとにアイコンを作り直さず、CSS の倍率で追従させる",
+    options: "boolean",
+  },
+  {
+    key: "backgroundOverlay",
+    label: "背景オーバーレイを出す",
+    description: "市場エリア全体に色をかぶせる SVG 画像。ズームのたびに再描画される疑いがある",
+    options: "boolean",
+  },
+  {
+    key: "tileOpacityByZoom",
+    label: "タイルの不透明度をズームで変える",
+    description: "最小ズームで濃く、通常は薄く。off なら常に一定",
     options: "boolean",
   },
 ];
