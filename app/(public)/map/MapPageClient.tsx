@@ -16,6 +16,7 @@ import { SHOP_CATEGORY_NAMES } from "./data/shops";
 import type { Shop } from "./data/shops";
 import type { Landmark } from "./types/landmark";
 import type { MapRoute } from "./types/mapRoute";
+import type { MapFeatureFlags } from "@/lib/mapFeatureFlags";
 import { useMapLoading } from "../../components/MapLoadingProvider";
 import { grandmaEvents } from "./data/grandmaEvents";
 import { recordMarketEnter, recordMarketExit } from "../../../lib/storage/marketStats";
@@ -61,6 +62,8 @@ type MapPageClientProps = {
   shops: Shop[];
   landmarks: Landmark[];
   mapRoute: MapRoute;
+  /** 管理画面で保存したマップ動作フラグ（未指定なら既定値） */
+  featureFlags?: MapFeatureFlags;
 };
 
 
@@ -145,6 +148,7 @@ export default function MapPageClient({
   shops,
   landmarks,
   mapRoute,
+  featureFlags,
 }: MapPageClientProps) {
   const showGrandma = false;
   const searchParams = useSearchParams();
@@ -874,6 +878,7 @@ export default function MapPageClient({
               shops={shops}
               landmarks={landmarks}
               mapRoute={mapRoute}
+              featureFlags={featureFlags}
               initialShopId={initialShopId}
               openInitialShopBanner={!isAiFocusMode}
               agentOpen={agentOpen}

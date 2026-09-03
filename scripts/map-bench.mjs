@@ -16,6 +16,7 @@
  *   --viewport  phone | tablet | desktop（既定: phone）
  *   --save      結果を map_perf_runs に保存する（.env.local の SUPABASE_SERVICE_ROLE_KEY が必要）
  *   --allow-remote  --url が localhost 以外でも --save を許可する（プレビュー環境の計測を保存したいとき）
+ *   --flags     マップ動作フラグの上書き（例: roadSnap:after,zoomSkip:off）。lib/mapFeatureFlags.ts を参照
  *   --json      生のレポートを標準出力に JSON で出す
  *
  * 前提:
@@ -117,7 +118,10 @@ const page = await context.newPage();
 const cdp = await context.newCDPSession(page);
 if (cpu > 1) await cdp.send("Emulation.setCPUThrottlingRate", { rate: cpu });
 
-const target = `${url}/map?perf=1${shops > 0 ? `&perfShops=${shops}` : ""}`;
+const flags = opt("flags", "");
+const target = `${url}/map?perf=1${shops > 0 ? `&perfShops=${shops}` : ""}${
+  typeof flags === "string" && flags ? `&mapFlags=${encodeURIComponent(flags)}` : ""
+}`;
 const reports = [];
 for (let i = 0; i < runs; i++) {
   await page.goto(target, { waitUntil: "networkidle" });

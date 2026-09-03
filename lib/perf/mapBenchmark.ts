@@ -80,6 +80,8 @@ export interface DomStats {
 export interface BenchmarkReport {
   ranAt: string;
   userAgent: string;
+  /** 計測時に有効だったマップ動作フラグ（lib/mapFeatureFlags.ts）。橋渡しが付与する */
+  flags?: Record<string, string | boolean>;
   viewport: { width: number; height: number; dpr: number };
   dom: DomStats;
   zoomSteps: ZoomStepResult[];

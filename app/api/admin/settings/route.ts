@@ -5,6 +5,8 @@ import { createClient as createServerClient } from "@/utils/supabase/server";
 import { requireSameOrigin } from "@/lib/security/requestGuards";
 import { enforceRateLimit } from "@/lib/security/rateLimit";
 import { getRole, isAdmin } from "@/lib/auth/permissions";
+import { normalizeMapFeatureFlags } from "@/lib/mapFeatureFlags";
+import { MAP_FLAGS_SETTINGS_KEY } from "@/lib/mapFeatureFlags.server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -121,7 +123,7 @@ export async function GET() {
     const { data, error } = await auth.adminClient
       .from("system_settings")
       .select("key, value")
-      .in("key", ["public", "map"]);
+      .in("key", ["public", "map", MAP_FLAGS_SETTINGS_KEY]);
 
     if (error) {
       return NextResponse.json({ error: "Failed to load settings" }, { status: 500 });
@@ -130,9 +132,12 @@ export async function GET() {
     const publicRow = (data ?? []).find((row) => row.key === "public");
     const mapRow = (data ?? []).find((row) => row.key === "map");
 
+    const mapFlagsRow = (data ?? []).find((row) => row.key === MAP_FLAGS_SETTINGS_KEY);
+
     return NextResponse.json({
       public: parsePublicSettings(publicRow?.value),
       map: parseMapSettings(mapRow?.value),
+      mapFlags: normalizeMapFeatureFlags(mapFlagsRow?.value),
     });
   } catch {
     return NextResponse.json({ error: "Failed to load settings" }, { status: 500 });
@@ -157,15 +162,18 @@ export async function PUT(request: NextRequest) {
     const body = (await request.json().catch(() => null)) as {
       public?: unknown;
       map?: unknown;
+      mapFlags?: unknown;
     } | null;
 
     const publicSettings = parsePublicSettings(body?.public);
     const mapSettings = parseMapSettings(body?.map);
+    const mapFlags = normalizeMapFeatureFlags(body?.mapFlags);
 
     const { error } = await auth.adminClient.from("system_settings").upsert(
       [
         { key: "public", value: publicSettings, updated_by: auth.user.id },
         { key: "map", value: mapSettings, updated_by: auth.user.id },
+        { key: MAP_FLAGS_SETTINGS_KEY, value: mapFlags, updated_by: auth.user.id },
       ],
       { onConflict: "key" }
     );
@@ -174,7 +182,7 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: "Failed to save settings" }, { status: 500 });
     }
 
-    return NextResponse.json({ ok: true, public: publicSettings, map: mapSettings });
+    return NextResponse.json({ ok: true, public: publicSettings, map: mapSettings, mapFlags });
   } catch {
     return NextResponse.json({ error: "Failed to save settings" }, { status: 500 });
   }

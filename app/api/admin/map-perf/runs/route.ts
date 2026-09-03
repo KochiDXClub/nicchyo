@@ -124,6 +124,7 @@ export async function GET(request: NextRequest) {
     return {
       ...rest,
       metrics: isReport(report) ? computeMetrics(report) : null,
+      flags: isReport(report) ? (report.flags ?? null) : null,
     };
   });
   return NextResponse.json({ runs });

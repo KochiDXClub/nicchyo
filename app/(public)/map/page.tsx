@@ -10,6 +10,7 @@ import type { Landmark } from './types/landmark';
 import type { MapRoute } from './types/mapRoute';
 import { fetchMapRouteFromDb, getFallbackMapRoute } from './services/mapRouteDb';
 import { safeJsonLd } from '@/lib/utils/jsonLd';
+import { fetchMapFeatureFlags } from '@/lib/mapFeatureFlags.server';
 
 export const metadata: Metadata = {
   title: "日曜市マップ",
@@ -97,6 +98,9 @@ export default async function MapPage() {
     }
   }
 
+  // マップ動作フラグ（管理画面で切替可能。URL の ?mapFlags= はクライアント側で上書きする）
+  const featureFlags = await fetchMapFeatureFlags();
+
   return (
     <>
       <script
@@ -112,6 +116,7 @@ export default async function MapPage() {
         shops={shops}
         landmarks={landmarks}
         mapRoute={mapRoute}
+        featureFlags={featureFlags}
         />
       </Suspense>
     </>
