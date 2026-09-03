@@ -48,6 +48,34 @@ describe('generateShopMarkerHtml', () => {
     expect(html).toContain(`--stall-color:${getShopCategoryColor('野菜')};`);
   });
 
+  it('標準の屋台は 1 つの inline SVG で描く（div の積み重ねにしない）', () => {
+    const html = generateShopMarkerHtml(baseShop, {
+      illustrationSize: 'medium',
+      includeNameplate: false,
+    });
+    expect(html).toContain('<svg class="shop-illustration shop-illustration-svg"');
+    expect(html).toContain('class="stall-roof"');
+    expect(html).toContain('class="stall-awning stall-awning-base"');
+    expect(html).not.toContain('shop-illustration-3d');
+    expect(html).not.toContain('<div class="stall-roof"');
+  });
+
+  it('屋根とひさしはカタログから選べ、未知の値は既定に戻る', () => {
+    const flat = generateShopMarkerHtml(
+      { ...baseShop, illustration: { roof: 'flat', awning: 'plain' } } as Shop,
+      { illustrationSize: 'medium', includeNameplate: false }
+    );
+    expect(flat).not.toContain('skewX(-12)');
+    expect(flat).not.toContain('stall-awning-stripe');
+
+    const bogus = generateShopMarkerHtml(
+      { ...baseShop, illustration: { roof: 'dome', awning: 'zigzag' } } as unknown as Shop,
+      { illustrationSize: 'medium', includeNameplate: false }
+    );
+    expect(bogus).toContain('skewX(-12)');
+    expect(bogus).toContain('stall-awning-stripe');
+  });
+
   it('不正な bannerImage はアイコンごと出さない', () => {
     const html = generateShopMarkerHtml(baseShop, {
       bannerImage: 'javascript:alert(1)',
