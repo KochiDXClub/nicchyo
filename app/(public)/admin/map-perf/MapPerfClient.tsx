@@ -24,13 +24,13 @@ import {
 import type { BuildInfo } from "@/lib/perf/buildInfo";
 import {
   DEFAULT_MAP_FEATURE_FLAGS,
-  MAP_FEATURE_FLAG_LABELS,
-  ROAD_SNAP_MODES,
-  ZOOM_SKIP_MODES,
+  MAP_FEATURE_FLAG_DEFS,
   serializeMapFlags,
+  type MapFeatureFlagKey,
   type MapFeatureFlags,
 } from "@/lib/mapFeatureFlags";
 import type { NicchyoMapBench } from "@/app/(public)/map/components/MapPerfBridge";
+import { PillSelect } from "@/components/admin/PillSelect";
 
 /** API が返す 1 件（生レポートは含まない） */
 interface RunRow {
@@ -137,6 +137,12 @@ export default function MapPerfClient({ buildInfo }: { buildInfo: BuildInfo }) {
   const [repeat, setRepeat] = useState<(typeof REPEATS)[number]>(1);
   // 実験スイッチ。null は「本番設定のまま」、値があれば URL で上書きする
   const [flagOverride, setFlagOverride] = useState<MapFeatureFlags | null>(null);
+  // iframe を読み直したことを確実に検知するための通し番号（URL に載せる）
+  const [frameNonce, setFrameNonce] = useState(1);
+  // A/B 比較: 選んだフラグの全選択肢を順に計測する
+  const [compareKey, setCompareKey] = useState<MapFeatureFlagKey | "">("");
+  const [abResults, setAbResults] = useState<AbVariantResult[]>([]);
+  const [abRunning, setAbRunning] = useState(false);
   const [frameKey, setFrameKey] = useState(0);
   const [ready, setReady] = useState(false);
 
@@ -162,7 +168,7 @@ export default function MapPerfClient({ buildInfo }: { buildInfo: BuildInfo }) {
   const sc = useMemo(() => SHOP_COUNTS.find((s) => s.key === shopCount) ?? SHOP_COUNTS[0], [shopCount]);
   const iframeSrc = `/map?perf=1${sc.param}${
     flagOverride ? `&mapFlags=${encodeURIComponent(serializeMapFlags(flagOverride))}` : ""
-  }`;
+  }&n=${frameNonce}`;
 
   const getBench = useCallback((): NicchyoMapBench | null => {
     const win = iframeRef.current?.contentWindow as (Window & { __nicchyoMapBench?: NicchyoMapBench }) | null;
@@ -210,6 +216,117 @@ export default function MapPerfClient({ buildInfo }: { buildInfo: BuildInfo }) {
     setSavedNote(null);
     setError(null);
     setFrameKey((k) => k + 1);
+    setFrameNonce((n) => n + 1);
+  };
+
+  /** iframe が指定の nonce で読み込まれ、計測フックが使えるようになるまで待つ */
+  const waitForFrame = useCallback(
+    (nonce: number, timeoutMs = 60000) =>
+      new Promise<NicchyoMapBench>((resolve, reject) => {
+        const started = Date.now();
+        const tick = () => {
+          const win = iframeRef.current?.contentWindow as (Window & { __nicchyoMapBench?: NicchyoMapBench }) | null;
+          let search = "";
+          try {
+            search = win?.location?.search ?? "";
+          } catch {
+            search = "";
+          }
+          if (win?.__nicchyoMapBench && search.includes(`n=${nonce}`)) {
+            resolve(win.__nicchyoMapBench);
+            return;
+          }
+          if (Date.now() - started > timeoutMs) {
+            reject(new Error("マップの読み込みがタイムアウトしました"));
+            return;
+          }
+          setTimeout(tick, 300);
+        };
+        tick();
+      }),
+    []
+  );
+
+  /** A/B 比較: compareKey の全選択肢について、順に iframe を読み直して repeat 回ずつ計測する */
+  const runCompare = async () => {
+    const def = MAP_FEATURE_FLAG_DEFS.find((d) => d.key === compareKey);
+    if (!def) return;
+    const options = def.options === "boolean" ? [true, false] : [...def.options];
+    setAbRunning(true);
+    setRunning(true);
+    setError(null);
+    setSavedNote(null);
+    setAbResults([]);
+    const base = flagOverride ?? { ...DEFAULT_MAP_FEATURE_FLAGS };
+    const results: AbVariantResult[] = [];
+    try {
+      for (const option of options) {
+        const flags = { ...base, [def.key]: option } as MapFeatureFlags;
+        const variant = typeof option === "boolean" ? (option ? "on" : "off") : option;
+        setProgress(`${def.label} = ${variant}: マップを読み込み中`);
+        const nonce = Date.now();
+        setFlagOverride(flags);
+        setFrameNonce(nonce);
+        setFrameKey((k) => k + 1);
+        const bench = await waitForFrame(nonce);
+        await new Promise((r) => setTimeout(r, 1500));
+        const reports: BenchmarkReport[] = [];
+        for (let i = 0; i < repeat; i++) {
+          const report = await bench.run((p) => setProgress(`${def.label} = ${variant} (${i + 1}/${repeat}): ${p}`));
+          reports.push(report);
+        }
+        results.push({ key: def.key, variant, flags, reports });
+        setAbResults([...results]);
+      }
+      setProgress("完了");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setAbRunning(false);
+      setRunning(false);
+    }
+  };
+
+  const saveCompare = async () => {
+    if (abResults.length === 0) return;
+    setSaving(true);
+    setError(null);
+    try {
+      const base = label.trim() || `A/B ${new Date().toLocaleString("ja-JP")}`;
+      let count = 0;
+      for (const v of abResults) {
+        for (let i = 0; i < v.reports.length; i++) {
+          const report = v.reports[i];
+          const res = await fetch("/api/admin/map-perf/runs", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              label: `${base} [${v.key}=${v.variant}]${v.reports.length > 1 ? ` (${i + 1}/${v.reports.length})` : ""}`,
+              branch: buildInfo.branch,
+              commitSha: buildInfo.commitSha,
+              environment: buildInfo.environment,
+              deploymentUrl: buildInfo.deploymentUrl || window.location.origin,
+              viewportWidth: report.viewport.width,
+              viewportHeight: report.viewport.height,
+              devicePixelRatio: report.viewport.dpr,
+              shopCount: sc.count,
+              cpuThrottle: 1,
+              userAgent: report.userAgent,
+              report,
+            }),
+          });
+          if (!res.ok) throw new Error(`保存に失敗しました (${res.status})`);
+          count++;
+        }
+      }
+      setSavedNote(`${count} 件を保存しました`);
+      setLabel("");
+      await loadRuns();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSaving(false);
+    }
   };
 
   const run = async () => {
@@ -377,6 +494,7 @@ export default function MapPerfClient({ buildInfo }: { buildInfo: BuildInfo }) {
             <label className="flex items-center gap-2 text-sm font-medium text-slate-700">
               <input
                 type="checkbox"
+                className="h-4 w-4 rounded accent-nicchyo-primary"
                 checked={flagOverride !== null}
                 disabled={running}
                 onChange={(e) => {
@@ -392,32 +510,64 @@ export default function MapPerfClient({ buildInfo }: { buildInfo: BuildInfo }) {
           </div>
           {flagOverride && (
             <div className="mt-3 flex flex-wrap items-center gap-3 text-sm">
-              <Select label={MAP_FEATURE_FLAG_LABELS.roadSnap.label} value={flagOverride.roadSnap} disabled={running} onChange={(v) => { setFlagOverride({ ...flagOverride, roadSnap: v as MapFeatureFlags["roadSnap"] }); reload(); }}>
-                {ROAD_SNAP_MODES.map((m) => (
-                  <option key={m} value={m}>{m}</option>
-                ))}
-              </Select>
-              <Select label={MAP_FEATURE_FLAG_LABELS.zoomSkip.label} value={flagOverride.zoomSkip} disabled={running} onChange={(v) => { setFlagOverride({ ...flagOverride, zoomSkip: v as MapFeatureFlags["zoomSkip"] }); reload(); }}>
-                {ZOOM_SKIP_MODES.map((m) => (
-                  <option key={m} value={m}>{m}</option>
-                ))}
-              </Select>
-              {(["zoomRenderIsolation", "landmarkCssScale"] as const).map((key) => (
-                <label key={key} className="flex items-center gap-1.5 text-slate-700">
-                  <input
-                    type="checkbox"
-                    checked={flagOverride[key]}
+              {MAP_FEATURE_FLAG_DEFS.map((def) =>
+                def.options === "boolean" ? (
+                  <label key={def.key} className="flex items-center gap-1.5 text-slate-700">
+                    <input
+                      type="checkbox"
+                      className="h-4 w-4 rounded accent-nicchyo-primary"
+                      checked={Boolean(flagOverride[def.key])}
+                      disabled={running}
+                      onChange={(e) => {
+                        setFlagOverride({ ...flagOverride, [def.key]: e.target.checked });
+                        reload();
+                      }}
+                    />
+                    {def.label}
+                  </label>
+                ) : (
+                  <Select
+                    key={def.key}
+                    label={def.label}
+                    value={String(flagOverride[def.key])}
                     disabled={running}
-                    onChange={(e) => {
-                      setFlagOverride({ ...flagOverride, [key]: e.target.checked });
+                    onChange={(v) => {
+                      setFlagOverride({ ...flagOverride, [def.key]: v });
                       reload();
                     }}
-                  />
-                  {MAP_FEATURE_FLAG_LABELS[key].label}
-                </label>
-              ))}
+                  >
+                    {def.options.map((m) => (
+                      <option key={m} value={m}>{m}</option>
+                    ))}
+                  </Select>
+                )
+              )}
             </div>
           )}
+        </div>
+
+        {/* A/B 比較 */}
+        <div className="mt-4 rounded-xl border border-dashed border-amber-300 bg-amber-50/40 p-4">
+          <div className="flex flex-wrap items-center gap-3 text-sm">
+            <span className="font-medium text-slate-700">A/B 比較</span>
+            <Select label="比較する要素" value={compareKey} disabled={running} onChange={(v) => setCompareKey(v as MapFeatureFlagKey | "")}>
+              <option value="">選択</option>
+              {MAP_FEATURE_FLAG_DEFS.map((def) => (
+                <option key={def.key} value={def.key}>{def.label}</option>
+              ))}
+            </Select>
+            <button
+              type="button"
+              onClick={runCompare}
+              disabled={!compareKey || running}
+              className="rounded-full bg-amber-500 px-5 py-1.5 text-sm font-semibold text-white shadow hover:brightness-95 disabled:opacity-50"
+            >
+              {abRunning ? "比較計測中…" : "全選択肢をまとめて計測"}
+            </button>
+            <span className="text-xs text-slate-500">
+              選んだ要素の各選択肢について、マップを読み直して {repeat} 回ずつ計測します。他のフラグは実験スイッチの値（未使用なら既定値）で固定します。
+            </span>
+          </div>
         </div>
         {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
         <p className="mt-3 text-xs text-slate-500">
@@ -441,6 +591,25 @@ export default function MapPerfClient({ buildInfo }: { buildInfo: BuildInfo }) {
           />
         </div>
       </section>
+
+      {/* A/B 比較の結果 */}
+      {abResults.length > 0 && (
+        <section className="rounded-2xl border border-amber-200 bg-white p-5 shadow-sm">
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+            <h2 className="text-lg font-bold text-slate-800">
+              A/B 比較の結果{repeat > 1 ? `（各 ${repeat} 回の中央値）` : ""}
+            </h2>
+            <div className="flex items-center gap-2">
+              <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="ラベル（例: SVG vs div）" className="rounded-full border border-slate-300 px-3 py-1.5 text-sm" />
+              <button type="button" onClick={saveCompare} disabled={saving || abRunning} className="rounded-full bg-slate-800 px-4 py-1.5 text-sm font-semibold text-white hover:bg-slate-700 disabled:opacity-50">
+                {saving ? "保存中…" : "全部ログに保存"}
+              </button>
+              {savedNote && <span className="text-sm text-emerald-600">{savedNote}</span>}
+            </div>
+          </div>
+          <AbComparisonTable results={abResults} />
+        </section>
+      )}
 
       {/* 今回の結果 */}
       {latest.length > 0 && latestMedian && (
@@ -723,27 +892,90 @@ function Select({
   children: React.ReactNode;
 }) {
   return (
-    <label className="flex items-center gap-2 text-sm">
-      <span className="font-medium text-slate-700">{label}</span>
-      <select value={value} onChange={(e) => onChange(e.target.value)} disabled={disabled} className="rounded-full border border-slate-300 bg-white px-3 py-1.5 text-sm disabled:opacity-50">
-        {children}
-      </select>
-    </label>
+    <PillSelect label={label} value={value} onChange={onChange} disabled={disabled}>
+      {children}
+    </PillSelect>
   );
 }
 
 function RunSelect({ label, value, onChange, runs }: { label: string; value: string; onChange: (v: string) => void; runs: RunRow[] }) {
   return (
-    <label className="flex items-center gap-2">
-      <span className="text-slate-600">{label}</span>
-      <select value={value} onChange={(e) => onChange(e.target.value)} className="max-w-xs rounded-full border border-slate-300 bg-white px-3 py-1.5">
-        <option value="">選択</option>
-        {runs.map((r) => (
-          <option key={r.id} value={r.id}>
-            {fmtDate(r.created_at)} {r.label} [{r.branch} @ {shortSha(r.commit_sha)}]
-          </option>
-        ))}
-      </select>
-    </label>
+    <PillSelect
+      label={label}
+      value={value}
+      onChange={onChange}
+      placeholder="選択"
+      menuClassName="min-w-[320px]"
+      options={runs.map((r) => ({
+        value: r.id,
+        label: `${fmtDate(r.created_at)} ${r.label}`.trim(),
+        description: `${r.branch} @ ${shortSha(r.commit_sha)} / ${envLabel(r.environment)} / ${flagsSummary(r.flags)}`,
+      }))}
+    />
   );
 }
+
+/** A/B 比較の 1 選択肢ぶんの結果 */
+interface AbVariantResult {
+  key: MapFeatureFlagKey;
+  variant: string;
+  flags: MapFeatureFlags;
+  reports: BenchmarkReport[];
+}
+
+function AbComparisonTable({ results }: { results: AbVariantResult[] }) {
+  const medians = results.map((v) => {
+    const metrics = v.reports.map((r) => computeMetrics(r));
+    const out = {} as MetricValues;
+    for (const d of METRIC_DEFS) {
+      out[d.key] = median(metrics.map((m) => m[d.key]).filter((x): x is number => x !== null));
+    }
+    return out;
+  });
+  const first = medians[0];
+  return (
+    <div className="overflow-x-auto">
+      <table className="min-w-full text-sm">
+        <thead>
+          <tr className="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-500">
+            <th className="px-3 py-2">指標（小さいほど良い）</th>
+            {results.map((v) => (
+              <th key={v.variant} className="px-3 py-2 text-right">
+                {v.key} = <span className="font-mono">{v.variant}</span>
+              </th>
+            ))}
+            {results.length === 2 && <th className="px-3 py-2 text-right">改善率（A→B）</th>}
+          </tr>
+        </thead>
+        <tbody>
+          {METRIC_DEFS.map((d) => {
+            const ratio = results.length === 2 ? improvementRatio(first[d.key], medians[1][d.key]) : null;
+            const tone =
+              ratio === null || Math.abs(ratio) < 0.05
+                ? "text-slate-500"
+                : ratio > 0
+                  ? "font-semibold text-emerald-600"
+                  : "font-semibold text-red-600";
+            return (
+              <tr key={d.key} className="border-b border-slate-100">
+                <td className="px-3 py-2">{d.label}</td>
+                {medians.map((m, i) => (
+                  <td key={i} className="px-3 py-2 text-right tabular-nums">{formatMetric(m[d.key], d)}</td>
+                ))}
+                {results.length === 2 && (
+                  <td className={`px-3 py-2 text-right tabular-nums ${tone}`}>
+                    {ratio === null ? "-" : `${ratio > 0 ? "-" : "+"}${fmt(Math.abs(ratio) * 100, 0)}%`}
+                  </td>
+                )}
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+      <p className="mt-2 text-xs text-slate-500">
+        A = 最初の選択肢、B = 2 番目。3 つ以上のときは各列を見比べてください。数字は端末状態で揺れるので、回数を 3 以上にして中央値で見るのがおすすめです。
+      </p>
+    </div>
+  );
+}
+
