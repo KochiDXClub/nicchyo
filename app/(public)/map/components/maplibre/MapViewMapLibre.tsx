@@ -14,11 +14,13 @@
  *   お気に入り・買い物袋バッジ。表示倍率は Leaflet 版の LOD（stall / photo / nameplate）と同じ境界
  * - ランドマーク画像と地名ラベル、丁目バッジ（HTML マーカー）、店舗タップで詳細バナー
  * - 回転・ピンチ・ドラッグは MapLibre 標準（自作ジェスチャー不要）
+ * - ページ側の部品（「このへん」の出現判定、ズームスライダー、おでかけサポート、検索結果シート）は
+ *   MapCamera アダプタ経由で Leaflet 版と共用
+ * - 現在地マーカーと追従（MapLibreUserLocation）、道への吸着（after / integrated）
  * - 計測の橋渡し（?perf=1 で window.__nicchyoMapBench）
  *
  * 【まだ無いもの（Leaflet 版にある）】
- * 道への吸着、現在地マーカー、AI アシスタント、検索結果シート、ズームスライダー、
- * 出店者のカスタム SVG 屋台。順に移す。
+ * AI アシスタント（MapAgentAssistant）、出店者のカスタム SVG 屋台。順に移す。
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -66,6 +68,11 @@ import {
   type StallState,
 } from "./stallSprites";
 import { getShopBannerImage } from "../../../../../lib/shopImages";
+import { MAPLIBRE_MAP_KEY, type MapCamera, type MapCameraEvent } from "../../types/mapCamera";
+import { LiveZoomMapControls } from "../MapControls";
+import SearchResultsSheet, { SpotlightCountdownBar } from "../SearchResultsSheet";
+import MapLibreUserLocation from "./MapLibreUserLocation";
+import { ROAD_SNAP_DELAY_MS, ROAD_SNAP_MIN_DISTANCE_METERS } from "@/lib/constants";
 import { getRoadSide } from "../../config/roadConfig";
 import { resolveStallColors } from "../../config/shopCategories";
 import { sanitizeCssColor } from "../../utils/markerHtmlGenerator";
@@ -228,10 +235,29 @@ export default function MapViewMapLibre({
   aiShopIds,
   commentShopId,
   onMapReady,
+  onMapInstance,
   initialShopId,
+  trackingButtonTop,
+  hideMapUI = false,
+  suppressLandmarks = false,
+  onUserLocationUpdate,
+  suppressInitialLocationFocus = false,
+  onClearSearch,
+  overlaySlot,
+  spotlightShopId,
 }: MapViewProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
+  // ページ側（「このへん」の出現判定、施設案内の flyTo、ズームスライダー）に渡すカメラ操作
+  const [camera, setCamera] = useState<MapCamera | null>(null);
+  // ズームスライダーは操作中とその直後だけ出す（Leaflet 版と同じ 3 秒）
+  const [zoomSliderVisible, setZoomSliderVisible] = useState(false);
+  const zoomSliderHideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const keepZoomSliderAlive = useCallback(() => {
+    if (zoomSliderHideTimerRef.current) clearTimeout(zoomSliderHideTimerRef.current);
+    setZoomSliderVisible(true);
+    zoomSliderHideTimerRef.current = setTimeout(() => setZoomSliderVisible(false), 3000);
+  }, []);
   const chomeMarkersRef = useRef<maplibregl.Marker[]>([]);
   const [selectedShop, setSelectedShop] = useState<Shop | null>(null);
   const [mapLoaded, setMapLoaded] = useState(false);
@@ -252,6 +278,33 @@ export default function MapViewMapLibre({
     return normalized.length >= 2 ? normalized : getDefaultMapRoutePoints();
   }, [mapRoute]);
   const routeConfig = useMemo(() => getEffectiveMapRouteConfig(mapRoute?.config), [mapRoute]);
+
+  // 現在地の追従（Leaflet 版と同じく初期値はオン。ユーザーがドラッグしたらオフ）
+  const [isTracking, setIsTracking] = useState(true);
+  const toggleTracking = useCallback(() => setIsTracking((prev) => !prev), []);
+  const handleUserLocationUpdate = useCallback(
+    (inMarket: boolean, position: [number, number]) => {
+      onUserLocationUpdate?.({ lat: position[0], lng: position[1], inMarket });
+    },
+    [onUserLocationUpdate]
+  );
+
+  // 道への吸着: 中心を道の上へ投影した点を返す。もともと道の上（ずれが小さい）なら null
+  const roadSnapModeRef = useRef(featureFlags.roadSnap);
+  roadSnapModeRef.current = featureFlags.roadSnap;
+  const snapToRoad = useCallback(
+    (lat: number, lng: number): [number, number] | null => {
+      const projection = projectPointOntoRoute({ lat, lng }, routePoints);
+      if (!projection) return null;
+      const from = new maplibregl.LngLat(lng, lat);
+      const to = new maplibregl.LngLat(projection.point.lng, projection.point.lat);
+      if (from.distanceTo(to) < ROAD_SNAP_MIN_DISTANCE_METERS) return null;
+      return [projection.point.lat, projection.point.lng];
+    },
+    [routePoints]
+  );
+  const snapToRoadRef = useRef(snapToRoad);
+  snapToRoadRef.current = snapToRoad;
 
   const shops = useMemo(() => {
     const real = initialShops ?? [];
@@ -354,7 +407,7 @@ export default function MapViewMapLibre({
     });
     map.touchZoomRotate.enableRotation();
     map.dragRotate.enable();
-    map.addControl(new maplibregl.NavigationControl({ showCompass: true, visualizePitch: false }), "top-right");
+    // MapLibre 標準のズーム・コンパスボタンは出さない（ズームはスライダー、回転は 2 本指操作で行う）
     mapRef.current = map;
 
     let disposed = false;
@@ -368,6 +421,74 @@ export default function MapViewMapLibre({
       }
       if (disposed) return;
       setMapLoaded(true);
+      // ページ側の部品に渡すカメラ操作（ズーム値は Leaflet 換算に揃える）
+      const cameraAdapter: MapCamera & { [MAPLIBRE_MAP_KEY]: maplibregl.Map } = {
+        getContainer: () => map.getContainer(),
+        getCenter: () => {
+          const c = map.getCenter();
+          return { lat: c.lat, lng: c.lng };
+        },
+        getZoom: () => map.getZoom() - ZOOM_OFFSET,
+        getMaxZoom: () => map.getMaxZoom() - ZOOM_OFFSET,
+        setZoom: (zoom, options) => {
+          const target = zoom + ZOOM_OFFSET;
+          if (options?.animate === false) {
+            map.setZoom(target);
+            return;
+          }
+          // integrated: アニメーション付きの拡大は、目標中心をあらかじめ道の上に差し替えて 1 回の動きで済ませる
+          // （MapLibre は中心とズームを同時に動かせるので Leaflet 版のような画面内チェックは不要）
+          if (roadSnapModeRef.current === "integrated" && target > map.getZoom() + 0.01) {
+            const c = map.getCenter();
+            const snapped = snapToRoadRef.current(c.lat, c.lng);
+            if (snapped) {
+              map.easeTo({ zoom: target, center: [snapped[1], snapped[0]], duration: 250 });
+              return;
+            }
+          }
+          map.zoomTo(target, { duration: 250 });
+        },
+        flyTo: (latlng, zoom, options) => {
+          map.flyTo({
+            center: [latlng[1], latlng[0]],
+            zoom: zoom === undefined ? undefined : zoom + ZOOM_OFFSET,
+            duration: options?.animate === false ? 0 : (options?.duration ?? 0.8) * 1000,
+          });
+        },
+        setView: (center, zoom, options) => {
+          const target = {
+            center: [center[1], center[0]] as [number, number],
+            zoom: zoom === undefined ? undefined : zoom + ZOOM_OFFSET,
+          };
+          if (options?.animate === false) map.jumpTo(target);
+          else map.easeTo({ ...target, duration: (options?.duration ?? 0.6) * 1000 });
+        },
+        // MapLibre 専用レイヤー（施設案内など）を載せる部品が生の map を取り出せるようにする
+        [MAPLIBRE_MAP_KEY]: map,
+        latLngToContainerPoint: (latlng) => {
+          const p = map.project([latlng[1], latlng[0]]);
+          return { x: p.x, y: p.y };
+        },
+        containerPointToLatLng: (point) => {
+          const xy: [number, number] = Array.isArray(point) ? point : [point.x, point.y];
+          const ll = map.unproject(xy);
+          return { lat: ll.lat, lng: ll.lng };
+        },
+        distance: (a, b) => {
+          const toLngLat = (v: { lat: number; lng: number } | [number, number]) =>
+            Array.isArray(v) ? new maplibregl.LngLat(v[1], v[0]) : new maplibregl.LngLat(v.lng, v.lat);
+          return toLngLat(a).distanceTo(toLngLat(b));
+        },
+        on: (event: MapCameraEvent, handler) => map.on(event, handler),
+        off: (event: MapCameraEvent, handler) => map.off(event, handler),
+      };
+      setCamera(cameraAdapter);
+      onMapInstance?.(cameraAdapter);
+      // ズーム操作中はスライダーを出す
+      map.on("zoomstart", keepZoomSliderAlive);
+      map.on("zoom", keepZoomSliderAlive);
+      // ユーザーが地図を動かしたら追従をやめる
+      map.on("dragstart", () => setIsTracking(false));
       onMapReady?.();
     });
 
@@ -737,6 +858,55 @@ export default function MapViewMapLibre({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // 道への吸着（after、および integrated のホイール・ピンチ分）:
+  // 拡大が終わったら少し待って、中心を道の上へパンで寄せる。
+  // MapLibre ではホイール・ピンチのズームに割り込めないので、integrated でもここで寄せる
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapLoaded) return;
+    if (featureFlags.roadSnap === "off") return;
+    let lastZoom = map.getZoom();
+    let timer: number | null = null;
+    const clearSnapTimer = () => {
+      if (timer === null) return;
+      window.clearTimeout(timer);
+      timer = null;
+    };
+    const handleZoomEnd = () => {
+      const nextZoom = map.getZoom();
+      const zoomingIn = nextZoom > lastZoom + 0.01;
+      lastZoom = nextZoom;
+      if (!zoomingIn) return;
+      clearSnapTimer();
+      timer = window.setTimeout(() => {
+        timer = null;
+        const c = map.getCenter();
+        const snapped = snapToRoad(c.lat, c.lng);
+        if (!snapped) return;
+        map.easeTo({ center: [snapped[1], snapped[0]], duration: 350 });
+      }, ROAD_SNAP_DELAY_MS);
+    };
+    map.on("zoomstart", clearSnapTimer);
+    map.on("dragstart", clearSnapTimer);
+    map.on("zoomend", handleZoomEnd);
+    return () => {
+      clearSnapTimer();
+      map.off("zoomstart", clearSnapTimer);
+      map.off("dragstart", clearSnapTimer);
+      map.off("zoomend", handleZoomEnd);
+    };
+  }, [mapLoaded, featureFlags.roadSnap, snapToRoad]);
+
+  // おでかけサポート案内中は FacilityLayer が案内先を表示するため、通常のランドマークは隠す
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapLoaded) return;
+    const visibility = suppressLandmarks ? "none" : "visible";
+    for (const id of ["nicchyo-landmarks-min", "nicchyo-landmarks", LAYER_LANDMARK_LABELS]) {
+      if (map.getLayer(id)) map.setLayoutProperty(id, "visibility", visibility);
+    }
+  }, [mapLoaded, suppressLandmarks]);
+
   // ---- 計測の橋渡し（?perf=1 のときだけ） ----
   useEffect(() => {
     if (!mapLoaded) return;
@@ -790,6 +960,16 @@ export default function MapViewMapLibre({
     };
   }, [mapLoaded, featureFlags, applyShopData]);
 
+  // 検索結果シート: 検索結果を優先し、無ければ AI おすすめ
+  const activeHighlightShopIds = useMemo(() => {
+    if (searchShopIds && searchShopIds.length > 0) return searchShopIds;
+    if (aiShopIds && aiShopIds.length > 0) return aiShopIds;
+    return undefined;
+  }, [aiShopIds, searchShopIds]);
+  const resultsBadgeBottom = overlaySlot
+    ? "calc(4.5rem + env(safe-area-inset-bottom,0px) + 5.5rem + 25px)"
+    : "calc(4.5rem + env(safe-area-inset-bottom,0px) + 0.5rem + 25px)";
+
   const handleAddToBag = useCallback(
     (name: string, fromShopId?: number) => {
       const value = name.trim();
@@ -809,6 +989,44 @@ export default function MapViewMapLibre({
       <div className="pointer-events-none absolute left-3 top-3 z-[500] rounded-full bg-white/85 px-3 py-1 text-xs font-semibold text-slate-600 shadow">
         MapLibre 版（検証中） / 背景: {featureFlags.basemap === "vector-openfreemap" ? "ベクター" : "ラスター"}
       </div>
+      {!hideMapUI && camera && (
+        <LiveZoomMapControls
+          map={camera}
+          isTracking={isTracking}
+          onToggleTracking={toggleTracking}
+          minZoom={MIN_ZOOM - ZOOM_OFFSET}
+          maxZoom={MAX_ZOOM - ZOOM_OFFSET}
+          zoomSliderVisible={zoomSliderVisible}
+          onZoomSliderInteract={keepZoomSliderAlive}
+          trackingButtonTop={trackingButtonTop}
+        />
+      )}
+      {/* 現在地（道の上にいるときだけ表示。追従中は位置更新で中心を合わせる） */}
+      <MapLibreUserLocation
+        map={mapLoaded ? mapRef.current : null}
+        zoomOffset={ZOOM_OFFSET}
+        onLocationUpdate={handleUserLocationUpdate}
+        isTracking={isTracking}
+        suppressInitialFocus={suppressInitialLocationFocus}
+        routePoints={routePoints}
+        routeConfig={routeConfig}
+      />
+
+      {spotlightShopId && <SpotlightCountdownBar shopId={spotlightShopId} />}
+
+      {activeHighlightShopIds && activeHighlightShopIds.length > 0 && (
+        <SearchResultsSheet
+          shops={shops}
+          searchShopIds={activeHighlightShopIds}
+          map={camera}
+          onClearSearch={onClearSearch}
+          badgeBottom={resultsBadgeBottom}
+        />
+      )}
+
+      {/* ページ側から差し込む UI（「このへん、なにがある？」のパネル、AI 相談など） */}
+      {overlaySlot}
+
       {selectedShop && (
         <ShopDetailBanner
           key={selectedShop.id}

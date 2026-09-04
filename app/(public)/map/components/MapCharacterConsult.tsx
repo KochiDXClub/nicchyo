@@ -15,7 +15,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import type { Map as LeafletMap } from 'leaflet';
+import type { MapCamera as LeafletMap } from '../types/mapCamera';
 import { Textarea } from '@/components/ui/textarea';
 import { PromptSuggestion } from '@/components/ui/prompt-suggestion';
 import {
