@@ -1,11 +1,34 @@
+const DEFAULT_SITE_URL = "https://nicchyo.jp";
+
+/**
+ * NEXT_PUBLIC_SITE_URL を正規化する。
+ *
+ * この値は app/layout.tsx の `metadataBase: new URL(SITE_URL)` でモジュール評価時に
+ * 使われるため、不正な値を返すと全ページが500になる。設定ミスがあっても必ず
+ * `new URL()` を通せる値を返すこと。
+ *
+ * - `??` ではなく `||` を使う: "" や "  "（空文字・空白のみ）は null/undefined ではないため
+ *   `??` ではフォールバックされず、new URL("") が例外を投げる
+ * - 末尾の `/` はフォールバック"前"に剥がす: 後に剥がすと "/" や "///" のような値が
+ *   空文字になってフォールバックをすり抜ける（`${SITE_URL}/shops/...` の二重スラッシュ対策も兼ねる）
+ * - スキーム無し（"nicchyo.jp"）や http/https 以外は new URL() が投げるか
+ *   おかしなURLになるため、実際に new URL() を通して検証してから採用する
+ */
+export function normalizeSiteUrl(value: string | undefined): string {
+  const trimmed = value?.trim().replace(/\/+$/, "");
+  if (!trimmed) return DEFAULT_SITE_URL;
+
+  try {
+    const url = new URL(trimmed);
+    if (url.protocol !== "http:" && url.protocol !== "https:") return DEFAULT_SITE_URL;
+    return trimmed;
+  } catch {
+    return DEFAULT_SITE_URL;
+  }
+}
+
 // サイトの絶対URL。metadataBase・JSON-LD・sitemapで共通利用する。
-// `??` ではなく `||` + `.trim()` を使う理由: NEXT_PUBLIC_SITE_URL="" や " "
-// （空文字・空白のみ）は null/undefined ではないため `??` はフォールバックせず、
-// new URL("") が例外を投げたり、相対パスのままJSON-LD/sitemapに出力されたりする。
-// 末尾の `/` は取り除く（`${SITE_URL}/shops/...` のように連結する箇所で
-// `NEXT_PUBLIC_SITE_URL=https://nicchyo.jp/` のような設定ミスがあっても
-// `//shops/...` の二重スラッシュにならないようにするため）。
-export const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL?.trim() || "https://nicchyo.jp").replace(/\/+$/, "");
+export const SITE_URL = normalizeSiteUrl(process.env.NEXT_PUBLIC_SITE_URL);
 
 // クーポン1日の最大発行数（coupon_settings.maxDailyIssuance のデフォルト値）
 export const MAX_COUPON_ISSUANCE = 300;
