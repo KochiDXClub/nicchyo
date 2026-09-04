@@ -12,6 +12,7 @@
 
 import { useEffect } from "react";
 import { useMap } from "react-leaflet";
+import type { MapFeatureFlags } from "@/lib/mapFeatureFlags";
 import {
   runFullBenchmark,
   collectDomStats,
@@ -34,7 +35,7 @@ declare global {
   }
 }
 
-export default function MapPerfBridge() {
+export default function MapPerfBridge({ flags }: { flags?: MapFeatureFlags }) {
   const map = useMap();
 
   useEffect(() => {
@@ -42,7 +43,11 @@ export default function MapPerfBridge() {
     if (new URLSearchParams(window.location.search).get("perf") !== "1") return;
 
     window.__nicchyoMapBench = {
-      run: (onProgress) => runFullBenchmark(map, onProgress),
+      run: async (onProgress) => {
+        const report = await runFullBenchmark(map, onProgress);
+        // どのフラグで測ったかをレポートに残す（ログ一覧と比較で使う）
+        return { ...report, flags: flags ? { ...flags } : undefined };
+      },
       domStats: () => collectDomStats(map),
       zoomTo: (zoom) => {
         map.setZoom(zoom, { animate: true });
@@ -54,7 +59,7 @@ export default function MapPerfBridge() {
     return () => {
       delete window.__nicchyoMapBench;
     };
-  }, [map]);
+  }, [map, flags]);
 
   return null;
 }

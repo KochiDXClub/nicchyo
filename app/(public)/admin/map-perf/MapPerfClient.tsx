@@ -22,6 +22,14 @@ import {
   type MetricValues,
 } from "@/lib/perf/metrics";
 import type { BuildInfo } from "@/lib/perf/buildInfo";
+import {
+  DEFAULT_MAP_FEATURE_FLAGS,
+  MAP_FEATURE_FLAG_LABELS,
+  ROAD_SNAP_MODES,
+  ZOOM_SKIP_MODES,
+  serializeMapFlags,
+  type MapFeatureFlags,
+} from "@/lib/mapFeatureFlags";
 import type { NicchyoMapBench } from "@/app/(public)/map/components/MapPerfBridge";
 
 /** API が返す 1 件（生レポートは含まない） */
@@ -40,6 +48,22 @@ interface RunRow {
   cpu_throttle: number;
   user_agent: string;
   metrics: MetricValues | null;
+  /** 計測時に有効だったマップ動作フラグ（古いログには無い） */
+  flags?: Record<string, string | boolean> | null;
+}
+
+/** フラグを短い文字列にする（例: snap=integrated skip=before iso=on lm=on） */
+function flagsSummary(flags: RunRow["flags"]): string {
+  if (!flags) return "-";
+  const short: Record<string, string> = {
+    roadSnap: "snap",
+    zoomSkip: "skip",
+    zoomRenderIsolation: "iso",
+    landmarkCssScale: "lm",
+  };
+  return Object.entries(flags)
+    .map(([k, v]) => `${short[k] ?? k}=${typeof v === "boolean" ? (v ? "on" : "off") : v}`)
+    .join(" ");
 }
 
 const VIEWPORTS = [
@@ -111,6 +135,8 @@ export default function MapPerfClient({ buildInfo }: { buildInfo: BuildInfo }) {
   const [viewport, setViewport] = useState<ViewportKey>("phone");
   const [shopCount, setShopCount] = useState<ShopCountKey>("300");
   const [repeat, setRepeat] = useState<(typeof REPEATS)[number]>(1);
+  // 実験スイッチ。null は「本番設定のまま」、値があれば URL で上書きする
+  const [flagOverride, setFlagOverride] = useState<MapFeatureFlags | null>(null);
   const [frameKey, setFrameKey] = useState(0);
   const [ready, setReady] = useState(false);
 
@@ -134,7 +160,9 @@ export default function MapPerfClient({ buildInfo }: { buildInfo: BuildInfo }) {
 
   const vp = useMemo(() => VIEWPORTS.find((v) => v.key === viewport) ?? VIEWPORTS[0], [viewport]);
   const sc = useMemo(() => SHOP_COUNTS.find((s) => s.key === shopCount) ?? SHOP_COUNTS[0], [shopCount]);
-  const iframeSrc = `/map?perf=1${sc.param}`;
+  const iframeSrc = `/map?perf=1${sc.param}${
+    flagOverride ? `&mapFlags=${encodeURIComponent(serializeMapFlags(flagOverride))}` : ""
+  }`;
 
   const getBench = useCallback((): NicchyoMapBench | null => {
     const win = iframeRef.current?.contentWindow as (Window & { __nicchyoMapBench?: NicchyoMapBench }) | null;
@@ -342,6 +370,54 @@ export default function MapPerfClient({ buildInfo }: { buildInfo: BuildInfo }) {
             {running ? "計測中…" : "計測を実行"}
           </button>
           <span className="text-sm text-slate-500">{ready ? (running ? progress : "準備完了") : "マップを読み込み中…"}</span>
+        </div>
+        {/* 実験スイッチ */}
+        <div className="mt-4 rounded-xl border border-dashed border-slate-300 p-4">
+          <div className="flex flex-wrap items-center gap-3">
+            <label className="flex items-center gap-2 text-sm font-medium text-slate-700">
+              <input
+                type="checkbox"
+                checked={flagOverride !== null}
+                disabled={running}
+                onChange={(e) => {
+                  setFlagOverride(e.target.checked ? { ...DEFAULT_MAP_FEATURE_FLAGS } : null);
+                  reload();
+                }}
+              />
+              実験スイッチを使う（マップ動作フラグを URL で上書き）
+            </label>
+            {flagOverride === null && (
+              <span className="text-xs text-slate-500">オフのときは本番設定（管理画面「設定」）のまま計測します</span>
+            )}
+          </div>
+          {flagOverride && (
+            <div className="mt-3 flex flex-wrap items-center gap-3 text-sm">
+              <Select label={MAP_FEATURE_FLAG_LABELS.roadSnap.label} value={flagOverride.roadSnap} disabled={running} onChange={(v) => { setFlagOverride({ ...flagOverride, roadSnap: v as MapFeatureFlags["roadSnap"] }); reload(); }}>
+                {ROAD_SNAP_MODES.map((m) => (
+                  <option key={m} value={m}>{m}</option>
+                ))}
+              </Select>
+              <Select label={MAP_FEATURE_FLAG_LABELS.zoomSkip.label} value={flagOverride.zoomSkip} disabled={running} onChange={(v) => { setFlagOverride({ ...flagOverride, zoomSkip: v as MapFeatureFlags["zoomSkip"] }); reload(); }}>
+                {ZOOM_SKIP_MODES.map((m) => (
+                  <option key={m} value={m}>{m}</option>
+                ))}
+              </Select>
+              {(["zoomRenderIsolation", "landmarkCssScale"] as const).map((key) => (
+                <label key={key} className="flex items-center gap-1.5 text-slate-700">
+                  <input
+                    type="checkbox"
+                    checked={flagOverride[key]}
+                    disabled={running}
+                    onChange={(e) => {
+                      setFlagOverride({ ...flagOverride, [key]: e.target.checked });
+                      reload();
+                    }}
+                  />
+                  {MAP_FEATURE_FLAG_LABELS[key].label}
+                </label>
+              ))}
+            </div>
+          )}
         </div>
         {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
         <p className="mt-3 text-xs text-slate-500">
@@ -572,6 +648,7 @@ export default function MapPerfClient({ buildInfo }: { buildInfo: BuildInfo }) {
                   <th className="px-3 py-2">コミット</th>
                   <th className="px-3 py-2">環境</th>
                   <th className="px-3 py-2">条件</th>
+                  <th className="px-3 py-2">フラグ</th>
                   {METRIC_DEFS.filter((d) => d.primary).map((d) => (
                     <th key={d.key} className="px-3 py-2 text-right">{d.label}</th>
                   ))}
@@ -594,6 +671,7 @@ export default function MapPerfClient({ buildInfo }: { buildInfo: BuildInfo }) {
                     <td className="whitespace-nowrap px-3 py-2 text-xs text-slate-500">
                       {r.viewport_width}×{r.viewport_height} / {r.shop_count || "実"}店 / CPU×{r.cpu_throttle}
                     </td>
+                    <td className="whitespace-nowrap px-3 py-2 font-mono text-[11px] text-slate-500">{flagsSummary(r.flags)}</td>
                     {METRIC_DEFS.filter((d) => d.primary).map((d) => (
                       <td key={d.key} className="px-3 py-2 text-right tabular-nums">{formatMetric(r.metrics?.[d.key] ?? null, d)}</td>
                     ))}
