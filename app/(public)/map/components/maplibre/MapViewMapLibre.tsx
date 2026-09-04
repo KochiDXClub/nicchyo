@@ -353,9 +353,23 @@ export default function MapViewMapLibre({
     src.setData(shopsToGeoJSON(shopsRef.current, next));
   }, []);
 
+  // onMapReady は毎描画で同一性が変わるので、effect の依存に入れず ref で持つ
+  const onMapReadyRef = useRef(onMapReady);
+  onMapReadyRef.current = onMapReady;
+  const readyNotifiedRef = useRef(false);
+
   useEffect(() => {
     if (!mapLoaded) return;
     applyShopData(display);
+
+    // 「描画が終わった」の合図。load はベース地図の初回描画までしか保証しないため、
+    // そこで知らせると店舗マーカーが出る前にローディングが外れてしまう。
+    // 店舗を載せたあと、描画が落ち着いた（idle）最初のタイミングを完了とする。
+    if (readyNotifiedRef.current) return;
+    const map = mapRef.current;
+    if (!map) return;
+    readyNotifiedRef.current = true;
+    map.once("idle", () => onMapReadyRef.current?.());
   }, [mapLoaded, display, applyShopData]);
 
   // ---- 地図の初期化 ----
@@ -489,7 +503,7 @@ export default function MapViewMapLibre({
       map.on("zoom", keepZoomSliderAlive);
       // ユーザーが地図を動かしたら追従をやめる
       map.on("dragstart", () => setIsTracking(false));
-      onMapReady?.();
+      // onMapReady はここでは呼ばない。店舗を載せたあとの idle まで待つ（上の effect を参照）
     });
 
     const setupOverlays = async () => {

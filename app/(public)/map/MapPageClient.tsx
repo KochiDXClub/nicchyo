@@ -18,6 +18,7 @@ import type { Landmark } from "./types/landmark";
 import type { MapRoute } from "./types/mapRoute";
 import { resolveMapFeatureFlags, type MapFeatureFlags } from "@/lib/mapFeatureFlags";
 import { useMapLoading } from "../../components/MapLoadingProvider";
+import MapLoadingScreen from "../../components/MapLoadingScreen";
 import { grandmaEvents } from "./data/grandmaEvents";
 import { recordMarketEnter, recordMarketExit } from "../../../lib/storage/marketStats";
 import { buildSearchIndex } from "../search/lib/searchIndex";
@@ -73,6 +74,9 @@ type MapPageClientProps = {
 
 // モバイル（375px基準）でチップ3件が収まり、残りは折りたたむUX判断
 const GENRE_PREVIEW_COUNT = 3;
+
+/** 地図の描画完了が来なくてもローディングを畳む上限 */
+const MAP_DRAW_TIMEOUT_MS = 8000;
 
 // 「このへん、なにがある？」の対象範囲＝画面に見えているマップの80%の長方形
 const NEARBY_AREA_RATIO = 0.8;
@@ -168,6 +172,20 @@ export default function MapPageClient({
   const activePanel = searchParams?.get("panel") === "search" ? "search" : null;
   const { user, permissions } = useAuth();
   const { markMapReady } = useMapLoading();
+  // 地図が描き終わるまでローディングを出し続ける。
+  // 初期値 false のままサーバーでも描かれるので、ストリームされた HTML の時点で
+  // すでにローディングが乗っており、ハイドレーションを待つ間の空白が出ない。
+  const [isMapDrawn, setIsMapDrawn] = useState(false);
+  const handleMapReady = useCallback(() => {
+    setIsMapDrawn(true);
+    markMapReady();
+  }, [markMapReady]);
+  // 保険。地図の idle が来ない環境（WebGL の初期化失敗、裏に回ったタブなど）でも畳む
+  useEffect(() => {
+    if (isMapDrawn) return;
+    const timer = window.setTimeout(() => setIsMapDrawn(true), MAP_DRAW_TIMEOUT_MS);
+    return () => window.clearTimeout(timer);
+  }, [isMapDrawn]);
   const { items: bagItems } = useBag();
   const initialShopIdParam = searchParams?.get("shop");
   const isAiFocusMode = searchParams?.get("ai") === "1";
@@ -897,7 +915,7 @@ export default function MapPageClient({
               onAgentToggle={setAgentOpen}
               searchShopIds={searchMarkerPayload?.ids ?? mapSearchShopIds}
               aiShopIds={aiMarkerPayload?.ids}
-              onMapReady={markMapReady}
+              onMapReady={handleMapReady}
               onMapInstance={handleMapInstance}
               onUserLocationUpdate={(coords) => {
                 setUserLocation({ lat: coords.lat, lng: coords.lng });
@@ -1071,6 +1089,21 @@ export default function MapPageClient({
           closeModeActive={hasSearchMode || hasAiMode || !!nearbyState || !!facilityGuide.category}
           onCloseMode={closeMapInteractionMode}
         />
+      )}
+
+      {/*
+        地図が描き終わるまでのローディング。
+        MapLink 経由のオーバーレイ（MapLoadingProvider）と見た目を揃えてあるので、
+        遷移中のオーバーレイが外れてもそのまま繋がって見える。
+        直アクセス・リロード・メニュー遷移でもここが受け持つ。
+      */}
+      {!isMapDrawn && (
+        <div className="fixed inset-0 z-[9999] flex flex-col bg-gradient-to-b from-amber-50 via-orange-50 to-white text-gray-800">
+          <div className="flex flex-1 items-center justify-center">
+            <MapLoadingScreen />
+          </div>
+          <NavigationBar activeHref="/map" />
+        </div>
       )}
     </div>
   );
