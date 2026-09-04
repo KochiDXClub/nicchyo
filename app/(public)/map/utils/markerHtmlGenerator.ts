@@ -2,6 +2,7 @@ import { Shop } from '../data/shops';
 import { ILLUSTRATION_SIZES } from '../config/displayConfig';
 import { resolveStallColors } from '../config/shopCategories';
 import { sanitizeInlineSvg } from './svgSanitizer';
+import { generateStallSvg, resolveStallParts } from '../config/stallParts';
 
 type ShopIllustrationSize = 'small' | 'medium' | 'large';
 
@@ -48,36 +49,29 @@ export function toCssUrl(value: string | undefined | null): string | undefined {
   return `url("${cleaned}")`;
 }
 
+/**
+ * 屋台イラスト。
+ * 標準の屋台は config/stallParts.ts のカタログから 1 つの inline SVG として描く
+ * （以前は div を 6 個積んで CSS で形を作っていた）。
+ * 出店者のカスタム SVG がある場合はそれを優先する。
+ */
 function generateShopIllustrationHtml(
-  type: 'tent' | 'stall' | 'custom' = 'tent',
-  size: ShopIllustrationSize = 'medium',
-  customSvg?: string
+  illustration: Shop['illustration'],
+  size: ShopIllustrationSize = 'medium'
 ): string {
-  const safeSvg = sanitizeInlineSvg(customSvg);
+  const safeSvg = sanitizeInlineSvg(illustration?.customSvg);
   if (safeSvg) {
     return `<div class="shop-illustration">${safeSvg}</div>`;
   }
 
-  if (type === 'custom') {
+  if (illustration?.type === 'custom') {
     return '';
   }
 
   // DivIcon の iconSize と同じ値を使う（ILLUSTRATION_SIZES が唯一の正）。
   const { width, height } = ILLUSTRATION_SIZES[size];
-
-  return `
-    <div
-      class="shop-illustration shop-illustration-3d"
-      style="width:${width}px;height:${height}px;"
-    >
-      <div class="stall-shadow" aria-hidden="true"></div>
-      <div class="stall-roof" aria-hidden="true"></div>
-      <div class="stall-awning" aria-hidden="true"></div>
-      <div class="stall-body" aria-hidden="true"></div>
-      <div class="stall-counter" aria-hidden="true"></div>
-      <div class="stall-legs" aria-hidden="true"></div>
-    </div>
-  `;
+  const parts = resolveStallParts({ roof: illustration?.roof, awning: illustration?.awning });
+  return generateStallSvg(parts, { width, height });
 }
 
 export interface ShopMarkerHtmlOptions {
@@ -109,11 +103,7 @@ export function generateShopMarkerHtml(
     ? `<div class="shop-nameplate"><span class="shop-nameplate-text">${escapeHtml(shop.name)}</span></div>`
     : '';
 
-  const illustrationHtml = generateShopIllustrationHtml(
-    shop.illustration?.type,
-    illustrationSize,
-    shop.illustration?.customSvg
-  );
+  const illustrationHtml = generateShopIllustrationHtml(shop.illustration, illustrationSize);
 
   return `
     <div class="shop-marker-container" style="${colorStyle}">
