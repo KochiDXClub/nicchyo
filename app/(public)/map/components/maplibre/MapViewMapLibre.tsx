@@ -53,6 +53,7 @@ import {
   smoothRoutePath,
 } from "../../utils/mapRouteGeometry";
 import { getRecommendedZoomBounds } from "../../config/roadConfig";
+import { OPENFREEMAP_STYLE_URL } from "../../config/basemap";
 import {
   OVERVIEW_ZONE_MAX_ZOOM,
   OVERVIEW_ZONE_MIN_ZOOM,
@@ -94,7 +95,7 @@ const CARTO_TILES = ["a", "b", "c", "d"].map(
 );
 const CARTO_ATTRIBUTION =
   '&copy; OpenStreetMap contributors &copy; <a href="https://carto.com/attributions">CARTO</a>';
-const OPENFREEMAP_STYLE = "https://tiles.openfreemap.org/styles/positron";
+
 
 /** 市場エリアの色かぶせ画像（BackgroundOverlay と同じ範囲・画像） */
 const MARKET_TINT_URL = "/images/maps/market-tint.webp";
@@ -391,7 +392,7 @@ export default function MapViewMapLibre({
     const useVector = featureFlags.basemap === "vector-openfreemap";
     const map = new maplibregl.Map({
       container,
-      style: useVector ? OPENFREEMAP_STYLE : buildRasterStyle(featureFlags.tileOpacityByZoom),
+      style: useVector ? OPENFREEMAP_STYLE_URL : buildRasterStyle(featureFlags.tileOpacityByZoom),
       center: initialCenter,
       zoom: INITIAL_ZOOM,
       minZoom: MIN_ZOOM,

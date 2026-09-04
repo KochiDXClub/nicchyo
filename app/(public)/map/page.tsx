@@ -11,6 +11,11 @@ import type { MapRoute } from './types/mapRoute';
 import { fetchMapRouteFromDb, getFallbackMapRoute } from './services/mapRouteDb';
 import { safeJsonLd } from '@/lib/utils/jsonLd';
 import { fetchMapFeatureFlags } from '@/lib/mapFeatureFlags.server';
+import {
+  OPENFREEMAP_ORIGIN,
+  OPENFREEMAP_STYLE_URL,
+  OPENFREEMAP_TILEJSON_URL,
+} from './config/basemap';
 
 export const metadata: Metadata = {
   title: "日曜市マップ",
@@ -101,8 +106,23 @@ export default async function MapPage() {
   // マップ動作フラグ（管理画面で切替可能。URL の ?mapFlags= はクライアント側で上書きする）
   const featureFlags = await fetchMapFeatureFlags();
 
+  // ベクター背景のときだけ、地図が要求する前に接続とメタデータを HTML の時点で先読みする。
+  // OpenFreeMap は別オリジンで、これが無いと「JS 実行 → style.json → TileJSON」が
+  // すべて直列に並んで地図の初回表示が遅れる。
+  const usesVectorBasemap =
+    featureFlags.renderer === 'maplibre' && featureFlags.basemap === 'vector-openfreemap';
+
   return (
     <>
+      {usesVectorBasemap && (
+        <>
+          {/* DNS + TLS を先に済ませる */}
+          <link rel="preconnect" href={OPENFREEMAP_ORIGIN} crossOrigin="anonymous" />
+          {/* style.json と TileJSON の 2 往復を critical path から外す */}
+          <link rel="preload" as="fetch" href={OPENFREEMAP_STYLE_URL} crossOrigin="anonymous" />
+          <link rel="preload" as="fetch" href={OPENFREEMAP_TILEJSON_URL} crossOrigin="anonymous" />
+        </>
+      )}
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: safeJsonLd(sundayMarketJsonLd) }}
