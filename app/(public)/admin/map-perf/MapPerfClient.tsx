@@ -63,6 +63,7 @@ function flagsSummary(flags: RunRow["flags"]): string {
     stallRenderer: "stall",
     backgroundOverlay: "bg",
     tileOpacityByZoom: "tile",
+    shopLayerHiding: "hide",
   };
   return Object.entries(flags)
     .map(([k, v]) => `${short[k] ?? k}=${typeof v === "boolean" ? (v ? "on" : "off") : v}`)
