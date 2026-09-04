@@ -5,6 +5,7 @@ import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/database.types";
 import { formatShopIdToCode, normalizeShopCodeToId } from "@/lib/shops/route";
 import { safeJsonLd } from "@/lib/utils/jsonLd";
+import { SITE_URL } from "@/lib/constants";
 import ReportButton from "./ReportButton";
 
 type ShopPageProps = {
@@ -114,7 +115,7 @@ export default async function ShopPage({ params }: ShopPageProps) {
       addressRegion: "高知県",
       addressCountry: "JP",
     },
-    url: `${process.env.NEXT_PUBLIC_SITE_URL ?? "https://nicchyo.jp"}/shops/${normalizedCode}`,
+    url: `${SITE_URL}/shops/${normalizedCode}`,
   };
 
   return (

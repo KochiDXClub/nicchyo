@@ -12,9 +12,10 @@ import CookieConsent from "./components/CookieConsent";
 import ViewportHeightUpdater from "./components/ViewportHeightUpdater";
 import { Toaster } from "@/components/admin";
 import { safeJsonLd } from "@/lib/utils/jsonLd";
+import { SITE_URL } from "@/lib/constants";
 
 export const metadata: Metadata = {
-  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || "https://nicchyo.jp"),
+  metadataBase: new URL(SITE_URL),
   title: {
     default: "nicchyo | 高知の日曜市を、未来へつなぐ",
     template: "%s | nicchyo",
@@ -53,8 +54,6 @@ export const viewport: Viewport = {
   userScalable: true,
   viewportFit: "cover",
 };
-
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://nicchyo.jp";
 
 const organizationJsonLd = {
   "@context": "https://schema.org",

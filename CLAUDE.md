@@ -61,6 +61,10 @@ NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY=
 # 互換用: NEXT_PUBLIC_SUPABASE_ANON_KEY=
 OPENAI_API_KEY=
+# 任意。metadataBase・JSON-LD・sitemapで使うサイトの絶対URL。
+# 未設定・空文字・不正な値の場合は https://nicchyo.jp にフォールバックする
+# （正規化は lib/constants.ts の normalizeSiteUrl）
+NEXT_PUBLIC_SITE_URL=
 ```
 
 ## Architecture
