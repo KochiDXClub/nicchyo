@@ -60,6 +60,9 @@ function flagsSummary(flags: RunRow["flags"]): string {
     zoomSkip: "skip",
     zoomRenderIsolation: "iso",
     landmarkCssScale: "lm",
+    stallRenderer: "stall",
+    backgroundOverlay: "bg",
+    tileOpacityByZoom: "tile",
   };
   return Object.entries(flags)
     .map(([k, v]) => `${short[k] ?? k}=${typeof v === "boolean" ? (v ? "on" : "off") : v}`)

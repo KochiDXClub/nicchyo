@@ -123,10 +123,13 @@ const flags = opt("flags", "");
 // --compare <flagKey>: そのフラグの全選択肢を順に計測して並べる（例: --compare stallRenderer）
 const compareKey = String(opt("compare", ""));
 const COMPARE_OPTIONS = {
+  stallRenderer: ["svg", "div"],
   roadSnap: ["off", "after", "integrated"],
   zoomSkip: ["off", "after", "before"],
   zoomRenderIsolation: ["on", "off"],
   landmarkCssScale: ["on", "off"],
+  backgroundOverlay: ["on", "off"],
+  tileOpacityByZoom: ["on", "off"],
 };
 if (compareKey && !COMPARE_OPTIONS[compareKey]) {
   console.error(`--compare に使えるのは: ${Object.keys(COMPARE_OPTIONS).join(", ")}`);

@@ -1628,12 +1628,20 @@ const MapView = memo(function MapView({
           <TileLayer
             url={BASEMAP_TILE_URL}
             attribution={BASEMAP_ATTRIBUTION}
-            opacity={isMinimumZoomMode ? 0.44 : isThirdZoomFromMinimum ? 0.11 : 0.22}
+            opacity={
+              featureFlags.tileOpacityByZoom
+                ? isMinimumZoomMode
+                  ? 0.44
+                  : isThirdZoomFromMinimum
+                    ? 0.11
+                    : 0.22
+                : 0.22
+            }
             zIndex={1}
             keepBuffer={16}
           />
-          {/* 背景 */}
-          <BackgroundOverlay />
+          {/* 背景（フラグで切替。ズームごとの再描画コストを切り分けるため） */}
+          {featureFlags.backgroundOverlay && <BackgroundOverlay />}
           <MapOverlays
             isLowZoomTintMode={isLowZoomTintMode}
             routePoints={routePoints}
@@ -1657,6 +1665,7 @@ const MapView = memo(function MapView({
             commentHighlightShopIds={commentHighlightShopIds}
             bagShopIds={bagShopIds}
             onChomeClick={handleChomeClick}
+            stallRenderer={featureFlags.stallRenderer}
             OptimizedShopLayerWithClustering={OptimizedShopLayerWithClustering}
           />
 

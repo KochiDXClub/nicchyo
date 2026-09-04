@@ -60,6 +60,17 @@ describe('generateShopMarkerHtml', () => {
     expect(html).not.toContain('<div class="stall-roof"');
   });
 
+  it('stallRenderer=div なら従来の div 積み重ねで描く', () => {
+    const html = generateShopMarkerHtml(baseShop, {
+      illustrationSize: 'medium',
+      includeNameplate: false,
+      stallRenderer: 'div',
+    });
+    expect(html).toContain('shop-illustration-3d');
+    expect(html).toContain('<div class="stall-roof"');
+    expect(html).not.toContain('shop-illustration-svg');
+  });
+
   it('屋根とひさしはカタログから選べ、未知の値は既定に戻る', () => {
     const flat = generateShopMarkerHtml(
       { ...baseShop, illustration: { roof: 'flat', awning: 'plain' } } as Shop,

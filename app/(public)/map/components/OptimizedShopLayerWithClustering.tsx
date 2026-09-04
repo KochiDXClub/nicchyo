@@ -35,6 +35,8 @@ export interface OptimizedShopLayerWithClusteringProps {
   aiHighlightShopIds?: number[];
   commentHighlightShopIds?: number[];
   bagShopIds?: number[];
+  /** 屋台の描画方式（lib/mapFeatureFlags.ts の stallRenderer）。既定は svg */
+  stallRenderer?: 'svg' | 'div';
 }
 
 const COMPACT_ICON_SIZE: [number, number] = [24, 36];
@@ -73,6 +75,7 @@ function OptimizedShopLayerWithClustering({
   aiHighlightShopIds,
   commentHighlightShopIds,
   bagShopIds,
+  stallRenderer = 'svg',
 }: OptimizedShopLayerWithClusteringProps) {
   const map = useMap();
   const clusterGroupRef = useRef<L.MarkerClusterGroup | null>(null);
@@ -242,6 +245,7 @@ function OptimizedShopLayerWithClustering({
           bannerImage,
           illustrationSize: sizeKey,
           includeNameplate: true,
+          stallRenderer,
         }),
         className: `custom-shop-marker ${sideClass(shop)}`,
         iconSize: [sizeConfig.width, sizeConfig.height],
@@ -391,7 +395,7 @@ function OptimizedShopLayerWithClustering({
       lastLodRef.current = null;
       lastMarkerZoomScaleRef.current = null;
     };
-  }, [map, onChunkProgress, onShopClick, shops]);
+  }, [map, onChunkProgress, onShopClick, shops, stallRenderer]);
 
   useEffect(() => {
     favoriteSetRef.current = new Set(favoriteShopIds ?? []);

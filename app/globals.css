@@ -1260,3 +1260,159 @@ body.home-poster-zoom-open .hamburger-button {
     -webkit-text-stroke: 0.8px white;
   }
 }
+
+/*
+ * ===== 屋台イラスト（div 版、stallRenderer=div のときだけ使う） =====
+
+ * SVG 版（.shop-illustration-svg）と比較するために旧実装を残している。
+
+ * 通常は stallRenderer=svg（lib/mapFeatureFlags.ts）で、この CSS は使われない。
+
+ */
+
+.shop-illustration-3d {
+  position: relative;
+  transform-style: preserve-3d;
+  pointer-events: none;
+}
+
+.shop-illustration-3d .stall-shadow {
+  position: absolute;
+  left: 8%;
+  bottom: 2%;
+  width: 84%;
+  height: 16%;
+  background: radial-gradient(ellipse at center, rgba(0, 0, 0, 0.25), rgba(0, 0, 0, 0));
+  filter: blur(2px);
+}
+
+.shop-illustration-3d .stall-roof {
+  position: absolute;
+  top: 4%;
+  left: 5%;
+  width: 90%;
+  height: 30%;
+  background: linear-gradient(135deg, var(--stall-color-light), var(--stall-color));
+  border-radius: 8px 8px 4px 4px;
+  box-shadow:
+    0 4px 8px rgba(0, 0, 0, 0.25),
+    inset -6px 0 0 rgba(255, 255, 255, 0.25);
+  transform: skewX(-12deg);
+}
+
+.shop-illustration-3d .stall-awning {
+  position: absolute;
+  top: 28%;
+  left: 8%;
+  width: 84%;
+  height: 16%;
+  background: repeating-linear-gradient(
+    90deg,
+    var(--stall-color) 0 10%,
+    var(--stall-color-light) 10% 20%
+  );
+  border-radius: 4px;
+  box-shadow: 0 3px 6px rgba(0, 0, 0, 0.2);
+  transform: skewX(-10deg);
+}
+
+.shop-illustration-3d .stall-body {
+  position: absolute;
+  left: 10%;
+  top: 40%;
+  width: 80%;
+  height: 42%;
+  background: linear-gradient(145deg, #f7f6f2, #e3ded7);
+  border: 2px solid rgba(90, 80, 70, 0.4);
+  border-radius: 6px;
+  box-shadow: inset 4px 0 0 rgba(255, 255, 255, 0.35);
+}
+
+.shop-illustration-3d .stall-counter {
+  position: absolute;
+  left: 12%;
+  top: 54%;
+  width: 76%;
+  height: 18%;
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+  border-radius: 4px;
+  box-shadow: inset -3px -2px 0 rgba(0, 0, 0, 0.15);
+}
+
+.shop-illustration-3d .stall-legs {
+  position: absolute;
+  left: 18%;
+  bottom: 6%;
+  width: 64%;
+  height: 12%;
+  background:
+    linear-gradient(90deg, #8b5e34 0 12%, transparent 12% 44%, #8b5e34 44% 56%, transparent 56% 88%, #8b5e34 88% 100%);
+}
+
+
+
+.shop-marker-selected .shop-illustration-3d .stall-roof {
+  box-shadow:
+    0 0 0 2px rgba(251, 191, 36, 0.9),
+    0 6px 14px rgba(245, 158, 11, 0.28),
+    inset -6px 0 0 rgba(255, 255, 255, 0.25) !important;
+}
+
+.shop-marker-selected .shop-illustration-3d .stall-awning {
+  box-shadow:
+    0 0 0 2px rgba(251, 191, 36, 0.82),
+    0 4px 10px rgba(245, 158, 11, 0.22) !important;
+}
+
+.shop-marker-selected .shop-illustration-3d .stall-body {
+  border-color: rgba(245, 158, 11, 0.9) !important;
+  box-shadow:
+    inset 4px 0 0 rgba(255, 255, 255, 0.35),
+    0 0 0 2px rgba(251, 191, 36, 0.7),
+    0 8px 14px rgba(245, 158, 11, 0.18) !important;
+}
+
+.shop-marker-selected .shop-illustration-3d .stall-counter {
+  box-shadow:
+    inset -3px -2px 0 rgba(0, 0, 0, 0.15),
+    0 0 0 2px rgba(251, 191, 36, 0.85),
+    0 4px 10px rgba(245, 158, 11, 0.22) !important;
+}
+
+.shop-marker-search .shop-illustration-3d .stall-roof {
+  background: linear-gradient(135deg, #93c5fd, #2563eb) !important;
+}
+
+.shop-marker-search .shop-illustration-3d .stall-awning {
+  background: repeating-linear-gradient(
+    90deg,
+    #2563eb 0 10%,
+    #93c5fd 10% 20%
+  ) !important;
+}
+
+.shop-marker-ai .shop-illustration-3d .stall-roof {
+  background: linear-gradient(135deg, #fca5a5, #ef4444) !important;
+}
+
+.shop-marker-ai .shop-illustration-3d .stall-awning {
+  background: repeating-linear-gradient(
+    90deg,
+    #ef4444 0 10%,
+    #fca5a5 10% 20%
+  ) !important;
+}
+
+.shop-marker-bag .shop-illustration-3d .stall-roof {
+  background: linear-gradient(135deg, #ffffff, #f1f5f9) !important;
+  box-shadow: 0 4px 8px rgba(16, 185, 129, 0.25), inset -6px 0 0 rgba(209, 213, 219, 0.25) !important;
+}
+
+.shop-marker-bag .shop-illustration-3d .stall-awning {
+  background: repeating-linear-gradient(
+    90deg,
+    #10b981 0 10%,
+    #34d399 10% 20%
+  ) !important;
+}
+
