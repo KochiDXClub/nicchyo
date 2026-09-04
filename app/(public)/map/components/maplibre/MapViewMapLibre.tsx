@@ -407,7 +407,7 @@ export default function MapViewMapLibre({
     });
     map.touchZoomRotate.enableRotation();
     map.dragRotate.enable();
-    map.addControl(new maplibregl.NavigationControl({ showCompass: true, visualizePitch: false }), "top-right");
+    // MapLibre 標準のズーム・コンパスボタンは出さない（ズームはスライダー、回転は 2 本指操作で行う）
     mapRef.current = map;
 
     let disposed = false;
