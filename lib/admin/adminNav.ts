@@ -15,7 +15,6 @@ import {
   BarChart3,
   CalendarDays,
   ClipboardList,
-  Eye,
   FileText,
   Gauge,
   Inbox,
@@ -24,6 +23,7 @@ import {
   MessageSquare,
   ScrollText,
   Settings,
+  ShieldCheck,
   Store,
   Sun,
   Tags,
@@ -180,6 +180,12 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
         icon: Gauge,
         description: "マップの描画性能を計測して比較する",
       },
+      {
+        label: "週次レポート",
+        href: "/admin/security-reports",
+        icon: ShieldCheck,
+        description: "週次のセキュリティレポートを閲覧する",
+      },
     ],
   },
   {
@@ -192,12 +198,6 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
         href: "/admin/settings",
         icon: Settings,
         description: "公開範囲・機能フラグ・通知メールをまとめて設定する",
-      },
-      {
-        label: "ページ公開設定",
-        href: "/admin/page-visibility",
-        icon: Eye,
-        description: "ロール別にページの公開状態を切り替える",
       },
       {
         label: "監査ログ",

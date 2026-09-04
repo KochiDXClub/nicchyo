@@ -5,6 +5,7 @@ import { createClient } from "@/utils/supabase/server";
 import { AdminLayout, AdminPageHeader } from "@/components/admin";
 import { getRole, isAdmin } from "@/lib/auth/permissions";
 import AnalyticsExportButton from "./AnalyticsExportButton";
+import { TrafficOverview } from "@/components/admin/TrafficOverview";
 
 export const dynamic = "force-dynamic";
 
@@ -208,11 +209,15 @@ export default async function AdminAnalyticsPage() {
     <AdminLayout>
       <AdminPageHeader
         eyebrow="Analytics"
-        title="統計・分析"
+        title="アクセス分析"
+        description="訪問者の推移・滞在時間・人気ページをまとめて確認できます。"
         actions={<AnalyticsExportButton />}
       />
 
       <div className="mx-auto max-w-7xl px-4 py-8 pb-20">
+
+        {/* 訪問者の推移・滞在時間・URL別集計（旧ダッシュボードから集約） */}
+        <TrafficOverview />
 
         {/* アクセス概要 */}
         <section className="mb-8">
