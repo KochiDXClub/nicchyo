@@ -31,12 +31,21 @@ export const VENDOR_INQUIRY_REPLY_BODY_MAX_LENGTH = 4000;
 
 /**
  * image_url に許可する形式か判定する。
- * サイト内の絶対パス（`/...`、`//`は除く）と、Supabase Storageのhttps URLのみ許可する
+ * サイト内の絶対パスと、Supabase Storageのhttps URLのみ許可する
  * （next.config.js の remotePatterns が *.supabase.co に限定しているのと同じ方針）。
+ *
+ * サイト内絶対パスの判定は「先頭が `/` で、かつ2文字目が `/` でも `\` でもない」こと。
+ * `//evil.example/a.png` はプロトコル相対URLで外部ホストを指す。
+ * `/\evil.example/a.png` もブラウザが `//` に正規化するため同じく外部ホストを指すので、
+ * バックスラッシュも併せて弾く必要がある。
+ *
+ * この検証はスレッド作成時（POST /api/vendor/inquiries）の一度きりで、
+ * 保存後の表示時には再検証されない。表示側（#473/#474）はDBに入っている
+ * image_url がここを通過した値であることを前提にしてよい。
  */
 export function isAllowedVendorInquiryImageUrl(value: string): boolean {
   const trimmed = value.trim();
-  if (trimmed.startsWith("/") && !trimmed.startsWith("//")) return true;
+  if (/^\/(?![/\\])/.test(trimmed)) return true;
   return /^https:\/\/[a-z0-9-]+\.supabase\.co\//i.test(trimmed);
 }
 

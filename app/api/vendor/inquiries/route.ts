@@ -33,7 +33,11 @@ const CreateInquirySchema = z.object({
 });
 
 // ─── GET: 自分のスレッド一覧 ───────────────────────────────────
-export async function GET() {
+export async function GET(request: Request) {
+  // GETは状態を変えないが、管理側の一覧GETと防御レベルを揃えておく
+  const originCheck = requireSameOrigin(request);
+  if (!originCheck.ok) return originCheck.response;
+
   const cookieStore = await cookies();
   const supabase = createClientWithExtensions(cookieStore);
   const {

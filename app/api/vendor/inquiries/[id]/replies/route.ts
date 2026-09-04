@@ -73,9 +73,11 @@ export async function POST(request: Request, { params }: RouteParams) {
     .single();
 
   if (error) {
-    // RLS違反（他人のスレッドへの返信を試みた等）は 42501 (insufficient_privilege)
-    if (error.code === "42501") {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    // 42501: RLS違反（他人のスレッドへの返信） / 23503: FK違反（存在しないスレッド）
+    // どちらも404に潰し、スレッドの存在有無が漏れないようにする。
+    // 同ディレクトリの [id]/route.ts の GET も両方404に揃えている
+    if (error.code === "42501" || error.code === "23503") {
+      return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
     console.error("[vendor/inquiries/:id/replies] insert error:", error.message);
     return NextResponse.json({ error: "送信に失敗しました" }, { status: 500 });

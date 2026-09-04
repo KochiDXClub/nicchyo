@@ -1,10 +1,6 @@
 import { NextResponse } from "next/server";
-import { createClient as createServiceClient } from "@supabase/supabase-js";
-import { cookies } from "next/headers";
-import { createClient as createServerClient } from "@/utils/supabase/server";
-import { getRole, isModerator } from "@/lib/auth/permissions";
 import { requireSameOrigin } from "@/lib/security/requestGuards";
-import type { DatabaseWithExtensions } from "@/types/database.extensions";
+import { authorizeRequest, createAdminClient } from "./_shared";
 import {
   isUuid,
   isVendorInquiryCategory,
@@ -18,25 +14,6 @@ export const dynamic = "force-dynamic";
 
 const MAX_LIMIT = 200;
 const DEFAULT_LIMIT = 100;
-
-function createAdminClient() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) return null;
-  return createServiceClient<DatabaseWithExtensions>(url, key, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
-}
-
-async function authorizeRequest() {
-  const cookieStore = await cookies();
-  const supabase = createServerClient(cookieStore);
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user || !isModerator(getRole(user))) return { user: null, error: "Forbidden" };
-  return { user, error: null };
-}
 
 // ─── GET: 一覧取得（宛先・緊急度・topic・status・出店者でフィルタ可） ─────
 export async function GET(req: Request) {
@@ -63,19 +40,30 @@ export async function GET(req: Request) {
 
   let query = dc.from("vendor_inquiries").select("*").order("created_at", { ascending: false }).limit(limit);
 
-  if (category && isVendorInquiryCategory(category)) {
+  // フィルタは fail-closed にする。不正な値を黙って無視すると、絞り込んだつもりで
+  // 全出店者のスレッドが返る（運営の受信箱としては危険）。UI側のtypoや、将来
+  // status の値を変えたときにも静かに全件表示へ化けず、400で気づけるようにする
+  const invalidFilter = (name: string) =>
+    NextResponse.json({ error: `無効な ${name} です` }, { status: 400 });
+
+  if (category !== null) {
+    if (!isVendorInquiryCategory(category)) return invalidFilter("category");
     query = query.eq("category", category);
   }
-  if (topic && isVendorInquiryTopic(topic)) {
+  if (topic !== null) {
+    if (!isVendorInquiryTopic(topic)) return invalidFilter("topic");
     query = query.eq("topic", topic);
   }
-  if (urgency && isVendorInquiryUrgency(urgency)) {
+  if (urgency !== null) {
+    if (!isVendorInquiryUrgency(urgency)) return invalidFilter("urgency");
     query = query.eq("urgency", urgency);
   }
-  if (status && isVendorInquiryStatus(status)) {
+  if (status !== null) {
+    if (!isVendorInquiryStatus(status)) return invalidFilter("status");
     query = query.eq("status", status);
   }
-  if (vendorId && isUuid(vendorId)) {
+  if (vendorId !== null) {
+    if (!isUuid(vendorId)) return invalidFilter("vendor_id");
     query = query.eq("vendor_id", vendorId);
   }
 

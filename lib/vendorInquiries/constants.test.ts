@@ -23,12 +23,16 @@ describe("isAllowedVendorInquiryImageUrl", () => {
     expect(isAllowedVendorInquiryImageUrl("https://xyz.supabase.co/storage/v1/object/public/a.png")).toBe(true);
   });
 
-  it.each(["//evil.example/a.png", "http://example.com/a.png", "javascript:alert(1)", "https://evil.com/a.png"])(
-    "許可外の %s は拒否する",
-    (input) => {
-      expect(isAllowedVendorInquiryImageUrl(input)).toBe(false);
-    }
-  );
+  it.each([
+    "//evil.example/a.png",
+    // ブラウザが `/\` を `//` に正規化するため、プロトコル相対URLと同じく外部ホストを指す
+    "/\\evil.example/a.png",
+    "http://example.com/a.png",
+    "javascript:alert(1)",
+    "https://evil.com/a.png",
+  ])("許可外の %s は拒否する", (input) => {
+    expect(isAllowedVendorInquiryImageUrl(input)).toBe(false);
+  });
 });
 
 describe("isValidStatusForTopic", () => {

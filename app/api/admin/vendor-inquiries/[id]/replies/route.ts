@@ -1,37 +1,14 @@
 import { NextResponse } from "next/server";
-import { createClient as createServiceClient } from "@supabase/supabase-js";
-import { cookies } from "next/headers";
 import { z } from "zod";
-import { createClient as createServerClient } from "@/utils/supabase/server";
-import { getRole, isModerator } from "@/lib/auth/permissions";
 import { requireSameOrigin } from "@/lib/security/requestGuards";
 import { enforceRateLimit } from "@/lib/security/rateLimit";
-import type { DatabaseWithExtensions } from "@/types/database.extensions";
+import { authorizeRequest, createAdminClient } from "../../_shared";
 import { VENDOR_INQUIRY_REPLY_BODY_MAX_LENGTH, isUuid } from "@/lib/vendorInquiries/constants";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 type RouteParams = { params: Promise<{ id: string }> };
-
-function createAdminClient() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) return null;
-  return createServiceClient<DatabaseWithExtensions>(url, key, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
-}
-
-async function authorizeRequest() {
-  const cookieStore = await cookies();
-  const supabase = createServerClient(cookieStore);
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user || !isModerator(getRole(user))) return { user: null, error: "Forbidden" };
-  return { user, error: null };
-}
 
 const ReplyBodySchema = z.object({
   body: z

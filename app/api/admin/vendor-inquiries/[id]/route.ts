@@ -1,12 +1,9 @@
 import { NextResponse } from "next/server";
-import { createClient as createServiceClient } from "@supabase/supabase-js";
-import { cookies } from "next/headers";
 import { z } from "zod";
-import { createClient as createServerClient } from "@/utils/supabase/server";
-import { getRole, isModerator } from "@/lib/auth/permissions";
+import { getRole } from "@/lib/auth/permissions";
 import { requireSameOrigin } from "@/lib/security/requestGuards";
 import { enforceRateLimit } from "@/lib/security/rateLimit";
-import type { DatabaseWithExtensions } from "@/types/database.extensions";
+import { authorizeRequest, createAdminClient } from "../_shared";
 import {
   VENDOR_INQUIRY_STATUS_BY_TOPIC,
   isUuid,
@@ -17,25 +14,6 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 type RouteParams = { params: Promise<{ id: string }> };
-
-function createAdminClient() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) return null;
-  return createServiceClient<DatabaseWithExtensions>(url, key, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
-}
-
-async function authorizeRequest() {
-  const cookieStore = await cookies();
-  const supabase = createServerClient(cookieStore);
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user || !isModerator(getRole(user))) return { user: null, error: "Forbidden" };
-  return { user, error: null };
-}
 
 // ─── GET: スレッド詳細+返信一覧（運営は全件参照可） ────────────────
 export async function GET(req: Request, { params }: RouteParams) {
@@ -128,9 +106,12 @@ export async function PATCH(req: Request, { params }: RouteParams) {
   if (!current) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   if (!isValidStatusForTopic(current.topic, parsed.data.status)) {
+    // DBのCHECK制約がある限り未知のtopicは入らないが、isValidStatusForTopic 側が
+    // `?? false` で防御しているのに合わせ、メッセージ生成側も未知のtopicで落ちないようにする
+    const allowed = VENDOR_INQUIRY_STATUS_BY_TOPIC[current.topic] ?? [];
     return NextResponse.json(
       {
-        error: `topic="${current.topic}" では status は ${VENDOR_INQUIRY_STATUS_BY_TOPIC[current.topic].join(" / ")} のいずれかである必要があります`,
+        error: `topic="${current.topic}" では status は ${allowed.join(" / ")} のいずれかである必要があります`,
       },
       { status: 400 }
     );
@@ -142,7 +123,9 @@ export async function PATCH(req: Request, { params }: RouteParams) {
     return NextResponse.json({ error: "更新に失敗しました" }, { status: 500 });
   }
 
-  await dc.from("admin_audit_logs").insert({
+  // 監査ログの失敗はステータス更新自体を巻き戻さない（更新はすでに成功しているため）が、
+  // 黙って落ちると追跡できなくなるのでログには残す
+  const { error: auditErr } = await dc.from("admin_audit_logs").insert({
     actor_id: user.id,
     actor_email: user.email,
     actor_role: getRole(user),
@@ -151,6 +134,9 @@ export async function PATCH(req: Request, { params }: RouteParams) {
     target_id: id,
     details: JSON.stringify({ from: current.status, to: parsed.data.status }),
   });
+  if (auditErr) {
+    console.error("[admin/vendor-inquiries/:id] audit log insert failed:", auditErr.message);
+  }
 
   return NextResponse.json({ ok: true });
 }
