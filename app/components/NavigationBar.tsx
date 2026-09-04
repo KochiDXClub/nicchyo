@@ -8,16 +8,20 @@ import { AnimatePresence, motion } from "framer-motion";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { useBag } from "@/lib/storage/BagContext";
 import { useMenu } from "@/lib/ui/MenuContext";
+import { usePageVisibility } from "@/lib/pageVisibility/PageVisibilityContext";
 
 // ─── ナビゲーション項目 ────────────────────────────────────────────────────────
 type NavItem = {
   name: string;
   href: string;
+  /** 実際に遷移するページ（href と異なる場合）。ページ公開設定の判定に使う */
+  target?: string;
   icon: "search" | "chat" | "admin" | "story";
 };
 
 const baseNavItems: NavItem[] = [
-  { name: "相談", href: "/map", icon: "chat" },
+  // 相談ボタンはマップ上では onConsultClick 経由で /consult へ遷移する
+  { name: "相談", href: "/map", target: "/consult", icon: "chat" },
   { name: "近況", href: "/story", icon: "story" },
 ];
 
@@ -67,6 +71,7 @@ function NavigationBarInner({
   const { user, isLoggedIn, permissions, logout } = useAuth();
   const { items: bagItems } = useBag();
   const { isMenuOpen: menuOpen, toggleMenu, closeMenu } = useMenu();
+  const { isLinkVisible } = usePageVisibility();
 
   useEffect(() => {
     onMenuOpenChange?.(menuOpen);
@@ -81,9 +86,17 @@ function NavigationBarInner({
   const isCloseUxActive = isPanelOpen || closeModeActive;
   const isHome = (activeHref ?? pathname) === "/map" && !panel && !isCloseUxActive;
 
-  const navItems = permissions.isAdmin
-    ? [...baseNavItems, { name: "管理", href: "/admin/dashboard", icon: "admin" as const }]
-    : baseNavItems;
+  // ページ公開設定で public でないリンクはナビに出さない
+  const consultItem = baseNavItems[0];
+  const isConsultVisible = isLinkVisible(consultItem.target ?? consultItem.href);
+  const rightNavItems = (
+    permissions.isAdmin
+      ? [...baseNavItems.slice(1), { name: "管理", href: "/admin/dashboard", icon: "admin" as const }]
+      : baseNavItems.slice(1)
+  ).filter((item) => isLinkVisible(item.target ?? item.href));
+  const visibleSecondaryItems = secondaryMenuItems.filter((item) => isLinkVisible(item.href));
+  const visibleVendorItems = vendorMenuItems.filter((item) => isLinkVisible(item.href));
+  const isBagVisible = isLinkVisible("/bag");
 
   const handleMenuItemClick = (href: string) => {
     closeMenu();
@@ -194,6 +207,7 @@ function NavigationBarInner({
                 )}
 
                 {/* ─ プライマリ：バッグ ─ */}
+                {isBagVisible && (
                 <button
                   type="button"
                   onClick={() => handleMenuItemClick("/bag")}
@@ -223,12 +237,13 @@ function NavigationBarInner({
                     <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
                   </svg>
                 </button>
+                )}
 
                 <hr className="mb-4 border-slate-100" />
 
                 {/* ─ セカンダリ：2列グリッド ─ */}
                 <div className="mb-4 grid grid-cols-2 gap-3">
-                  {secondaryMenuItems.map((item, i) => (
+                  {visibleSecondaryItems.map((item, i) => (
                     <motion.button
                       key={item.href}
                       initial={{ opacity: 0, scale: 0.92 }}
@@ -246,11 +261,11 @@ function NavigationBarInner({
                 <hr className="mb-4 border-slate-100" />
 
                 {/* ─ 出店者メニュー ─ */}
-                {(permissions.isVendor || permissions.isAdmin) && (
+                {(permissions.isVendor || permissions.isAdmin) && visibleVendorItems.length > 0 && (
                   <div className="mb-4">
                     <p className="mb-2.5 text-[11px] font-bold uppercase tracking-[0.14em] text-amber-500">出店者</p>
                     <div className="overflow-hidden rounded-2xl border border-amber-100 bg-white shadow-sm">
-                      {vendorMenuItems.map((item, i) => (
+                      {visibleVendorItems.map((item, i) => (
                         <button
                           type="button"
                           key={item.href}
@@ -323,25 +338,27 @@ function NavigationBarInner({
         {isHome ? (
           /* ── マップ：フルナビ ── */
           <div className="mx-auto flex h-14 max-w-lg items-center">
-            {/* 左：相談 */}
-            {onConsultClick ? (
+            {/* 左：相談（ページ公開設定で非表示のときはレイアウト維持のため空枠にする） */}
+            {!isConsultVisible ? (
+              <div className="flex-1" aria-hidden />
+            ) : onConsultClick ? (
               <button
                 type="button"
                 onClick={onConsultClick}
                 className="group flex h-full flex-1 flex-col items-center justify-center gap-1 text-gray-400 transition-all duration-200 hover:bg-gray-50/50 hover:text-gray-600"
               >
                 <NavIcon
-                  name={navItems[0].icon}
+                  name={consultItem.icon}
                   className="h-6 w-6 transition-transform duration-200 group-hover:scale-105"
                 />
                 <span className="text-[10px] font-medium leading-none tracking-tight">
-                  {navItems[0].name}
+                  {consultItem.name}
                 </span>
               </button>
             ) : (
               <NavLinkItem
-                item={navItems[0]}
-                isActive={(activeHref ?? pathname) === navItems[0].href}
+                item={consultItem}
+                isActive={(activeHref ?? pathname) === consultItem.href}
               />
             )}
 
@@ -365,14 +382,18 @@ function NavigationBarInner({
               </button>
             </div>
 
-            {/* 右：お店を探す（+ 管理タブがあれば追加） */}
-            {navItems.slice(1).map((item) => (
-              <NavLinkItem
-                key={item.href}
-                item={item}
-                isActive={(activeHref ?? pathname) === item.href}
-              />
-            ))}
+            {/* 右：近況（+ 管理タブがあれば追加）。全部非表示なら空枠で中央のメニュー位置を維持 */}
+            {rightNavItems.length === 0 ? (
+              <div className="flex-1" aria-hidden />
+            ) : (
+              rightNavItems.map((item) => (
+                <NavLinkItem
+                  key={item.href}
+                  item={item}
+                  isActive={(activeHref ?? pathname) === item.href}
+                />
+              ))
+            )}
           </div>
         ) : isCloseUxActive ? (
           /* ── パネル表示中：緑バー × ── */
