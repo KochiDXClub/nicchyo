@@ -57,7 +57,8 @@ describe("fetchLandmarksFromDb", () => {
         openFrom: undefined,
         openUntil: undefined,
         showOnMap: true,
-        verified: false,
+        // verified 列が無い行は「未確認」と断定しない
+        verified: undefined,
       },
     ]);
   });
