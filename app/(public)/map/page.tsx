@@ -3,6 +3,7 @@ import { Suspense } from 'react';
 import { cookies } from 'next/headers';
 import { createClient } from '@/utils/supabase/server';
 import MapPageClient from './MapPageClient';
+import MapLoadingOverlay from '../../components/MapLoadingOverlay';
 import type { Shop } from './data/shops';
 import { fetchVendorShopsFromDb } from './services/shopDb';
 import { fetchLandmarksFromDb } from './services/landmarksDb';
@@ -107,11 +108,8 @@ export default async function MapPage() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: safeJsonLd(sundayMarketJsonLd) }}
       />
-      <Suspense
-        fallback={
-          <div className="flex h-screen items-center justify-center">Loading...</div>
-        }
-      >
+      {/* 地図チャンクの遅延読み込み中もローディング画面を切らさない */}
+      <Suspense fallback={<MapLoadingOverlay minStage="page" />}>
         <MapPageClient
         shops={shops}
         landmarks={landmarks}

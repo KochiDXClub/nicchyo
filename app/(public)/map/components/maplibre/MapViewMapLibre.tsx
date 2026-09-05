@@ -236,6 +236,7 @@ export default function MapViewMapLibre({
   aiShopIds,
   commentShopId,
   onMapReady,
+  onMapStage,
   onMapInstance,
   initialShopId,
   trackingButtonTop,
@@ -412,6 +413,12 @@ export default function MapViewMapLibre({
     mapRef.current = map;
 
     let disposed = false;
+    let readyTimer: number | null = null;
+
+    // ローディングのゲージ用。スタイルを読み終えた時点を最初の節目として報告する
+    map.once("styledata", () => {
+      if (!disposed) onMapStage?.("style");
+    });
 
     map.on("load", async () => {
       if (disposed) return;
@@ -422,6 +429,7 @@ export default function MapViewMapLibre({
       }
       if (disposed) return;
       setMapLoaded(true);
+      onMapStage?.("loaded");
       // ページ側の部品に渡すカメラ操作（ズーム値は Leaflet 換算に揃える）
       const cameraAdapter: MapCamera & { [MAPLIBRE_MAP_KEY]: maplibregl.Map } = {
         getContainer: () => map.getContainer(),
@@ -490,7 +498,20 @@ export default function MapViewMapLibre({
       map.on("zoom", keepZoomSliderAlive);
       // ユーザーが地図を動かしたら追従をやめる
       map.on("dragstart", () => setIsTracking(false));
-      onMapReady?.();
+      // ローディングを畳むのはタイルやグリフまで描き終えた（idle）とき。
+      // タブが裏にあると idle が来ないことがあるので、load から少し待ったら畳む
+      let readyReported = false;
+      const reportReady = () => {
+        if (disposed || readyReported) return;
+        readyReported = true;
+        if (readyTimer !== null) {
+          window.clearTimeout(readyTimer);
+          readyTimer = null;
+        }
+        onMapReady?.();
+      };
+      map.once("idle", reportReady);
+      readyTimer = window.setTimeout(reportReady, 2500);
     });
 
     const setupOverlays = async () => {
@@ -849,6 +870,7 @@ export default function MapViewMapLibre({
 
     return () => {
       disposed = true;
+      if (readyTimer !== null) window.clearTimeout(readyTimer);
       chomeMarkersRef.current.forEach((m) => m.remove());
       chomeMarkersRef.current = [];
       setMapLoaded(false);

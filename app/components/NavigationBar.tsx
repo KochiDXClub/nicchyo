@@ -9,6 +9,7 @@ import { useAuth } from "@/lib/auth/AuthContext";
 import { useBag } from "@/lib/storage/BagContext";
 import { useMenu } from "@/lib/ui/MenuContext";
 import { usePageVisibility } from "@/lib/pageVisibility/PageVisibilityContext";
+import { useMapLoading } from "./MapLoadingProvider";
 
 // ─── ナビゲーション項目 ────────────────────────────────────────────────────────
 type NavItem = {
@@ -72,6 +73,7 @@ function NavigationBarInner({
   const { items: bagItems } = useBag();
   const { isMenuOpen: menuOpen, toggleMenu, closeMenu } = useMenu();
   const { isLinkVisible } = usePageVisibility();
+  const { startMapLoading } = useMapLoading();
 
   useEffect(() => {
     onMenuOpenChange?.(menuOpen);
@@ -98,20 +100,27 @@ function NavigationBarInner({
   const visibleVendorItems = vendorMenuItems.filter((item) => isLinkVisible(item.href));
   const isBagVisible = isLinkVisible("/bag");
 
+  // router.push はリンクと違って Provider のクリック監視に掛からないので、/map へ向かう前に自分で始める
+  const goToMap = useCallback(() => {
+    startMapLoading();
+    router.push("/map");
+  }, [router, startMapLoading]);
+
   const handleMenuItemClick = (href: string) => {
     closeMenu();
+    if (href === "/map") { goToMap(); return; }
     router.push(href);
   };
 
   const handleCloseMode = useCallback(() => {
     if (onCloseMode) { onCloseMode(); return; }
-    if (isPanelOpen) { router.push("/map"); }
-  }, [isPanelOpen, onCloseMode, router]);
+    if (isPanelOpen) { goToMap(); }
+  }, [isPanelOpen, onCloseMode, goToMap]);
 
   const handleLogout = async () => {
     closeMenu();
     await logout();
-    router.push("/map");
+    goToMap();
   };
 
   const roleLabel = permissions.isAdmin
@@ -414,7 +423,7 @@ function NavigationBarInner({
           <div className="mx-auto flex h-14 max-w-lg items-center px-4">
             <button
               type="button"
-              onClick={() => router.push("/map")}
+              onClick={goToMap}
               className="flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold text-gray-600 transition active:scale-95 hover:bg-gray-100"
             >
               <svg className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden>

@@ -150,7 +150,10 @@ export type MapViewProps = {
   agentOpen?: boolean;
   onAgentToggle?: (open: boolean) => void;
   searchShopIds?: number[];
+  /** 地図が描き終えた（ローディングを畳んでよい） */
   onMapReady?: () => void;
+  /** 読み込みの途中経過。ローディングのゲージに使う（MapLibre 版のみ報告する） */
+  onMapStage?: (stage: "style" | "loaded") => void;
   eventTargets?: Array<{ id: string; lat: number; lng: number }>;
   highlightEventTargets?: boolean;
   /** 地図のカメラ操作（Leaflet 版は L.Map をそのまま渡す。MapLibre 版はアダプタ） */
