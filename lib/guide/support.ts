@@ -11,8 +11,9 @@ import type { MapRoute } from '@/app/(public)/map/types/mapRoute';
 import { landmarkToSpot, type SpotKind } from '@/lib/spots';
 import type { LatLng } from '@/lib/facilities/geo';
 import { formatDistance } from '@/lib/facilities/nearest';
-import { buildGuideNetwork } from './network';
-import { buildGuidePaths } from './paths';
+import walkData from './data/kochi-walk-network.json';
+import { buildGuideNetworkForMap } from './paths';
+import type { WalkNetworkData } from './walkNetwork';
 import { geolocationOrigin, venueOrigin } from './origin';
 import { rankSpots } from './ranking';
 import { guideHrefForKind } from './query';
@@ -38,7 +39,7 @@ const SUPPORT_KINDS: Array<{ kind: SpotKind; label: string }> = [
 ];
 
 export function buildSupportNetwork(mapRoute: MapRoute | null): GuideNetwork | null {
-  return mapRoute ? buildGuideNetwork(buildGuidePaths(mapRoute)) : null;
+  return buildGuideNetworkForMap(walkData as WalkNetworkData, mapRoute);
 }
 
 /**
