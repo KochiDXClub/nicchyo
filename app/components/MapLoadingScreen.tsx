@@ -1,12 +1,15 @@
 "use client";
 
 import { ROAD_CONFIG } from "@/app/(public)/map/config/roadConfig";
+import { DEFAULT_STALL_PARTS, generateStallSpriteSvg } from "@/app/(public)/map/config/stallParts";
+import { resolveStallColors } from "@/app/(public)/map/config/shopCategories";
 
 /**
  * マップの読み込み中に見せる絵。
  *
  * 追手筋の一本道（roadConfig の実座標から起こした形）に店の点を並べ、
- * 読み込みの進み具合に合わせて高知城側から順に点が灯り、歩く人が東へ進む。
+ * 読み込みの進み具合に合わせて高知城側から順に点が屋台（マップのマーカーと同じ形、屋根は緑）に変わり、
+ * 歩く人が東へ進む。
  * 待っている間に「城から東へ一本道」という市場の形が頭に入るようにする。読ませる文章は置かない。
  */
 
@@ -16,6 +19,18 @@ const PAD_X = 28;
 const ROAD_TOP = 26;
 const DOT_COUNT = 18;
 const DOT_OFFSET = 9;
+/** 灯った点に出す屋台の大きさ（viewBox 単位） */
+const STALL_SIZE = 15;
+
+/** 屋台の絵。マップの屋台マーカーと同じ描き方で、屋根は緑固定 */
+const STALL_COLORS = resolveStallColors(undefined, "#7ED957");
+const STALL_HREF = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(
+  generateStallSpriteSvg(
+    DEFAULT_STALL_PARTS,
+    { roof: STALL_COLORS.base, awningBase: STALL_COLORS.light, awningStripe: STALL_COLORS.base },
+    { width: 100, height: 100 }
+  )
+)}`;
 
 type Point = { x: number; y: number };
 
@@ -149,13 +164,20 @@ export default function MapLoadingScreen({ progress }: MapLoadingScreenProps) {
           strokeLinejoin="round"
         />
 
-        {/* 店の点。進み具合に合わせて西から灯る。灯った点には淡い輪をつける */}
+        {/* 店の点。進み具合に合わせて西から順に屋台に変わる */}
         {DOTS.map((dot, i) => {
           const lit = i < litCount;
           return (
             <g key={i} className={`map-loading-dot${lit ? " is-lit" : ""}`}>
-              <circle cx={dot.x} cy={dot.y} r={6} className="map-loading-dot__halo" />
               <circle cx={dot.x} cy={dot.y} r={2.6} className="map-loading-dot__core" />
+              <image
+                href={STALL_HREF}
+                x={dot.x - STALL_SIZE / 2}
+                y={dot.y - STALL_SIZE * 0.78}
+                width={STALL_SIZE}
+                height={STALL_SIZE}
+                className="map-loading-dot__stall"
+              />
             </g>
           );
         })}
