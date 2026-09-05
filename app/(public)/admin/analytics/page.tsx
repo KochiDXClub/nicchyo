@@ -56,7 +56,7 @@ type SearchLogRow = { keyword: string; searched_at: string };
 type ConsultLogRow = { intent_category: string | null; consulted_at: string };
 type VendorCatRow = { categories: { name: string } | null };
 type ConsultFeedbackRow = { question_text: string | null; comment: string | null; created_at: string; turn_text: string | null };
-type GuideEventRow = { event_type: string; preset_id: string | null; kinds: string[] | null; spot_key: string | null; origin_type: string | null };
+type GuideEventRow = { event_type: string; kinds: string[] | null; spot_key: string | null; origin_type: string | null };
 type SpotNameRow = { key: string; name: string | null };
 
 export default async function AdminAnalyticsPage() {
@@ -114,7 +114,7 @@ export default async function AdminAnalyticsPage() {
       .limit(20),
     // guide_events: おでかけサポートの利用（今月）
     dc.from("guide_events")
-      .select("event_type, preset_id, kinds, spot_key, origin_type")
+      .select("event_type, kinds, spot_key, origin_type")
       .gte("created_at", monthStartTs),
     // スポット名（案内先の表示用）
     dc.from("map_landmarks").select("key, name"),
@@ -138,7 +138,7 @@ export default async function AdminAnalyticsPage() {
     guideCounts[e.event_type] = (guideCounts[e.event_type] ?? 0) + 1;
     if (e.event_type === "navigation_start" && e.spot_key) guideSpotMap.set(e.spot_key, (guideSpotMap.get(e.spot_key) ?? 0) + 1);
     if (e.event_type === "open") {
-      const label = e.preset_id ?? (e.kinds && e.kinds.length > 0 ? e.kinds.join("+") : "menu");
+      const label = e.kinds && e.kinds.length > 0 ? e.kinds.join("+") : "menu";
       guidePresetMap.set(label, (guidePresetMap.get(label) ?? 0) + 1);
       if (e.origin_type) guideOriginMap.set(e.origin_type, (guideOriginMap.get(e.origin_type) ?? 0) + 1);
     }
@@ -326,7 +326,7 @@ export default async function AdminAnalyticsPage() {
                 )}
               </div>
               <div>
-                <p className="mb-2 text-xs font-semibold text-slate-500">入口（目的・種類）</p>
+                <p className="mb-2 text-xs font-semibold text-slate-500">入口（種類）</p>
                 <ul className="space-y-2">
                   {guideTopPresets.map((p) => (
                     <li key={p.label} className="flex items-center justify-between text-sm">

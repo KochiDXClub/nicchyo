@@ -105,7 +105,6 @@ export function sendEvent(name: AnalyticsEventName, params: AnalyticsParams = {}
       postJson("/api/analytics/guide-event", {
         visitor_key,
         event_type: guideEventType,
-        preset_id: p.preset_id ?? null,
         kinds: p.kinds ?? [],
         spot_key: p.spot_key ?? null,
         origin_type: p.origin_type ?? null,

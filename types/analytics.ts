@@ -39,7 +39,6 @@ export interface ShopScrollParams {
 
 /** おでかけサポートの利用ログ（guide_events） */
 export interface GuideEventParams {
-  preset_id?: string | null;
   kinds?: string[];
   spot_key?: string | null;
   origin_type?: string | null;
