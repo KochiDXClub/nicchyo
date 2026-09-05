@@ -6,7 +6,6 @@
  */
 
 import type { Facility, FacilityCategoryId } from './facilities';
-import { FACILITIES } from './facilities';
 import { distanceInMeters, type LatLng } from './geo';
 import { buildRouteAlongRoad, type FacilityRoute } from './route';
 
@@ -42,7 +41,7 @@ export function estimateWalkMinutes(walkDistanceMeters: number): number {
 export function rankFacilitiesByWalk(
   origin: LatLng,
   category: FacilityCategoryId,
-  facilities: Facility[] = FACILITIES,
+  facilities: Facility[],
   centerline: LatLng[] = []
 ): FacilityWithRoute[] {
   return facilities
@@ -79,7 +78,7 @@ export function rankFacilitiesByWalk(
 export function findNearestFacility(
   origin: LatLng,
   category: FacilityCategoryId,
-  facilities: Facility[] = FACILITIES,
+  facilities: Facility[],
   centerline: LatLng[] = []
 ): FacilityWithRoute | null {
   return rankFacilitiesByWalk(origin, category, facilities, centerline)[0] ?? null;

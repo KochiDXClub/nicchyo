@@ -6,4 +6,5 @@ export {
   landmarkSpotId,
   facilitySpotId,
   getTransitModeFromLandmarkKey,
+  resolveLandmarkKind,
 } from './adapters';

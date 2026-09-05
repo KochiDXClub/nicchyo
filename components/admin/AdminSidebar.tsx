@@ -73,6 +73,12 @@ export const AdminSidebar = React.memo(function AdminSidebar({
       show: permissions.isAdmin,
     },
     {
+      label: "スポット管理",
+      href: "/admin/spots",
+      icon: "📍",
+      show: permissions.isAdmin,
+    },
+    {
       label: "開催ステータス",
       href: "/admin/market-days",
       icon: "🌤️",

@@ -2,7 +2,8 @@ import type { Metadata } from 'next';
 import { cookies } from 'next/headers';
 import { createClient } from '@/utils/supabase/server';
 import { fetchLandmarksFromDb } from '../map/services/landmarksDb';
-import { getTransitFacilities } from '@/lib/facilities/transitLandmarks';
+import { countFacilitiesByCategory } from '@/lib/facilities/landmarkFacilities';
+import type { FacilityCategoryId } from '@/lib/facilities/facilities';
 import FacilitiesPageClient from './FacilitiesPageClient';
 
 export const metadata: Metadata = {
@@ -12,9 +13,9 @@ export const metadata: Metadata = {
 };
 
 export default async function FacilitiesPage() {
-  // 「のりもの」の件数表示のため、マップと同じランドマークデータを取得する。
+  // カテゴリごとの件数表示のため、マップと同じスポットデータ（map_landmarks）を取得する。
   // 取得できなくても致命的ではないので、失敗時は0件のまま表示する。
-  let transportCount = 0;
+  let counts: Record<FacilityCategoryId, number> = { restroom: 0, rest: 0, transport: 0 };
 
   const hasSupabaseEnv =
     !!process.env.NEXT_PUBLIC_SUPABASE_URL &&
@@ -28,11 +29,11 @@ export default async function FacilitiesPage() {
       const cookieStore = await cookies();
       const supabase = createClient(cookieStore);
       const landmarks = await fetchLandmarksFromDb(supabase);
-      transportCount = getTransitFacilities(landmarks).length;
+      counts = countFacilitiesByCategory(landmarks);
     } catch (error) {
-      console.error('[FacilitiesPage] ランドマークの取得に失敗しました:', error);
+      console.error('[FacilitiesPage] スポットの取得に失敗しました:', error);
     }
   }
 
-  return <FacilitiesPageClient transportCount={transportCount} />;
+  return <FacilitiesPageClient counts={counts} />;
 }

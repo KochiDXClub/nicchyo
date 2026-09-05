@@ -21,7 +21,7 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { ExternalLink, List, LocateFixed, X as XIcon } from 'lucide-react';
+import { ExternalLink, List, LocateFixed, MapPin, X as XIcon } from 'lucide-react';
 import type { MapSpot } from '@/lib/spots';
 import { getSpotKindMeta } from '@/lib/spots';
 import {
@@ -32,6 +32,7 @@ import {
   type LatLng,
 } from '@/lib/facilities/nearest';
 import type { MapCamera } from '../types/mapCamera';
+import { getNearestPointOnRoad } from '../config/roadConfig';
 
 type SpotCardProps = {
   spot: MapSpot;
@@ -42,6 +43,8 @@ type SpotCardProps = {
 };
 
 const FOCUS_ZOOM = 18;
+/** 通りからこの距離以内なら「日曜市の通り沿い」と表現する */
+const ON_ROAD_METERS = 40;
 /** スポットがこの割合より下にあるとき、シートに隠れるので地図をずらす */
 const VISIBLE_RATIO = 0.5;
 /** ずらした後にスポットを置く高さ（コンテナ上端からの割合） */
@@ -83,6 +86,15 @@ export default function SpotCard({ spot, map, origin, onClose }: SpotCardProps) 
     const meters = distanceInMeters(origin, spot) * DETOUR_RATIO;
     return { meters, minutes: estimateWalkMinutes(meters) };
   }, [origin, spot]);
+
+  // 会場（追手筋）を基準にした一言。現在地が無くても「会場からどれくらいか」は伝えられる
+  const venueNote = useMemo(() => {
+    const onRoad = getNearestPointOnRoad(spot.lat, spot.lng);
+    const meters = distanceInMeters(spot, onRoad);
+    if (meters <= ON_ROAD_METERS) return '日曜市の通り沿い';
+    const walkMeters = meters * DETOUR_RATIO;
+    return `日曜市の通りまで徒歩約${estimateWalkMinutes(walkMeters)}分（${formatDistance(walkMeters)}）`;
+  }, [spot]);
 
   // シートに隠れる位置にあるスポットだけ、見える高さまで地図を寄せる
   useEffect(() => {
@@ -171,6 +183,11 @@ export default function SpotCard({ spot, map, origin, onClose }: SpotCardProps) 
         {spot.description && (
           <p className="text-[13px] leading-relaxed text-slate-700">{spot.description}</p>
         )}
+
+        <p className="mt-2 flex items-center gap-1 text-[12px] font-medium text-slate-500">
+          <MapPin size={13} className="shrink-0" aria-hidden />
+          {venueNote}
+        </p>
 
         {spot.lines && spot.lines.length > 0 && (
           <div className="mt-2.5 flex flex-wrap gap-1.5">

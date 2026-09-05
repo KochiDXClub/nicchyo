@@ -1,8 +1,8 @@
 /**
  * 既存の型（Landmark / Facility）→ MapSpot への変換。
  *
- * ランドマークの key は "tram-*" が電停、"jr-kochi-station" がJR駅という規約
- * （lib/facilities/transitLandmarks.ts と同じ）。それ以外は建物などの目印。
+ * 種別は map_landmarks.category を優先し、無い場合（古いデータ）は
+ * key の規約（"tram-*" が電停、"jr-kochi-station" がJR駅）から判定する。
  */
 
 import type { Landmark } from '@/app/(public)/map/types/landmark';
@@ -27,14 +27,34 @@ export function facilitySpotId(facilityId: string): string {
   return `facility:${facilityId}`;
 }
 
-export function landmarkToSpot(landmark: Landmark): MapSpot {
+/** Landmark の種別（category 優先、無ければ key の規約） */
+export function resolveLandmarkKind(landmark: Pick<Landmark, 'key' | 'category' | 'transitMode'>): {
+  kind: SpotKind;
+  transitMode?: TransitMode;
+} {
+  if (landmark.category === 'transit') {
+    return {
+      kind: 'transit',
+      transitMode: landmark.transitMode ?? getTransitModeFromLandmarkKey(landmark.key) ?? 'tram',
+    };
+  }
+  if (landmark.category === 'restroom' || landmark.category === 'rest') {
+    return { kind: landmark.category };
+  }
+  if (landmark.category === 'landmark') return { kind: 'landmark' };
   const transitMode = getTransitModeFromLandmarkKey(landmark.key);
-  const kind: SpotKind = transitMode ? 'transit' : 'landmark';
-  const meta = getSpotKindMeta(kind, transitMode ?? undefined);
+  return transitMode ? { kind: 'transit', transitMode } : { kind: 'landmark' };
+}
+
+const emptyToUndefined = (values?: string[]) => (values && values.length > 0 ? values : undefined);
+
+export function landmarkToSpot(landmark: Landmark): MapSpot {
+  const { kind, transitMode } = resolveLandmarkKind(landmark);
+  const meta = getSpotKindMeta(kind, transitMode);
   return {
     id: landmarkSpotId(landmark.key),
     kind,
-    transitMode: transitMode ?? undefined,
+    transitMode,
     name: landmark.name,
     description: landmark.description,
     lat: landmark.lat,
@@ -42,45 +62,37 @@ export function landmarkToSpot(landmark: Landmark): MapSpot {
     iconUrl: landmark.url,
     emoji: meta.emoji,
     accentColor: meta.accentColor,
+    tags: emptyToUndefined(landmark.tags),
+    lines: emptyToUndefined(landmark.lines),
+    notes: landmark.notes,
+    openFrom: landmark.openFrom,
+    openUntil: landmark.openUntil,
+    verified: landmark.verified,
+    externalUrl: landmark.externalUrl,
+    photoUrl: landmark.photoUrl,
+    photoCredit: landmark.photoCredit,
     landmarkKey: landmark.key,
   };
 }
 
 /**
  * おでかけサポートの施設 → スポット。
- * のりものは transitLandmarks.ts で `landmark-<key>` というIDに変換されているので、
- * 同じ電停をランドマークとしてタップしたときと同じスポットIDに揃える。
+ * 施設は map_landmarks 由来で `landmark-<key>` というIDを持つので、
+ * 同じ地点をランドマークとしてタップしたときと同じスポットIDに揃える。
  */
 export function facilityToSpot(facility: Facility): MapSpot {
   const landmarkKey = facility.id.startsWith('landmark-')
     ? facility.id.slice('landmark-'.length)
     : null;
-  if (landmarkKey) {
-    const transitMode = getTransitModeFromLandmarkKey(landmarkKey);
-    const meta = getSpotKindMeta('transit', transitMode ?? undefined);
-    return {
-      id: landmarkSpotId(landmarkKey),
-      kind: 'transit',
-      transitMode: transitMode ?? undefined,
-      name: facility.name,
-      description: facility.area,
-      lat: facility.lat,
-      lng: facility.lng,
-      iconUrl: facility.iconUrl,
-      emoji: meta.emoji,
-      accentColor: facility.markerColor ?? meta.accentColor,
-      notes: facility.note,
-      tags: facility.tags,
-      landmarkKey,
-    };
-  }
-
   const kind: SpotKind =
     facility.category === 'restroom' ? 'restroom' : facility.category === 'rest' ? 'rest' : 'transit';
-  const meta = getSpotKindMeta(kind);
+  const transitMode =
+    kind === 'transit' && landmarkKey ? (getTransitModeFromLandmarkKey(landmarkKey) ?? 'tram') : undefined;
+  const meta = getSpotKindMeta(kind, transitMode);
   return {
-    id: facilitySpotId(facility.id),
+    id: landmarkKey ? landmarkSpotId(landmarkKey) : facilitySpotId(facility.id),
     kind,
+    transitMode,
     name: facility.name,
     description: facility.area,
     lat: facility.lat,
@@ -89,6 +101,8 @@ export function facilityToSpot(facility: Facility): MapSpot {
     emoji: meta.emoji,
     accentColor: facility.markerColor ?? meta.accentColor,
     notes: facility.note,
-    tags: facility.tags,
+    verified: facility.verified,
+    tags: emptyToUndefined(facility.tags),
+    landmarkKey: landmarkKey ?? undefined,
   };
 }

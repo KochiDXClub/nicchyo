@@ -88,3 +88,43 @@ describe('facilityToSpot', () => {
     expect(fromFacility.transitMode).toBe('tram');
   });
 });
+
+describe('landmarkToSpot（DBの属性つき）', () => {
+  it('category・写真・路線・タグ・外部リンクをそのまま引き継ぐ', () => {
+    const spot = landmarkToSpot({
+      ...baseLandmark,
+      key: 'tram-kochijomae',
+      name: '高知城前停留場',
+      category: 'transit',
+      transitMode: 'tram',
+      lines: ['伊野線'],
+      tags: [],
+      notes: '高知城の最寄り',
+      externalUrl: 'https://www.tosaden.co.jp/train/timetable/',
+      photoUrl: 'https://example.com/photo.jpg',
+      photoCredit: '写真: someone / CC BY 2.0',
+    });
+    expect(spot.kind).toBe('transit');
+    expect(spot.transitMode).toBe('tram');
+    expect(spot.lines).toEqual(['伊野線']);
+    // 空配列は undefined に落とす（カードで空のチップ領域を出さない）
+    expect(spot.tags).toBeUndefined();
+    expect(spot.notes).toBe('高知城の最寄り');
+    expect(spot.externalUrl).toContain('tosaden');
+    expect(spot.photoUrl).toBe('https://example.com/photo.jpg');
+    expect(spot.photoCredit).toContain('CC BY');
+  });
+
+  it('category が restroom / rest なら key に関係なくその種別になる', () => {
+    const restroom = landmarkToSpot({ ...baseLandmark, key: 'restroom-central-park', category: 'restroom' });
+    expect(restroom.kind).toBe('restroom');
+    expect(restroom.id).toBe('landmark:restroom-central-park');
+    const rest = landmarkToSpot({ ...baseLandmark, key: 'rest-central-park', category: 'rest' });
+    expect(rest.kind).toBe('rest');
+  });
+
+  it('category が無い古いデータは key の規約で判定する', () => {
+    expect(landmarkToSpot({ ...baseLandmark, key: 'tram-horizume' }).kind).toBe('transit');
+    expect(landmarkToSpot({ ...baseLandmark, key: 'otepia' }).kind).toBe('landmark');
+  });
+});

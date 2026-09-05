@@ -13,12 +13,8 @@
  */
 
 import { useEffect, useMemo, useState } from 'react';
-import {
-  getFacilitiesByCategory,
-  getFacilityCategory,
-  type FacilityCategoryId,
-} from '@/lib/facilities/facilities';
-import { getTransitFacilities } from '@/lib/facilities/transitLandmarks';
+import { getFacilityCategory, type FacilityCategoryId } from '@/lib/facilities/facilities';
+import { getFacilitiesFromLandmarks } from '@/lib/facilities/landmarkFacilities';
 import { rankFacilitiesByWalk, type LatLng } from '@/lib/facilities/nearest';
 import { getRoadCenterlinePoints } from '../config/roadConfig';
 import type { Landmark } from '../types/landmark';
@@ -26,9 +22,8 @@ import type { Landmark } from '../types/landmark';
 export type FacilityGuide = ReturnType<typeof useFacilityGuide>;
 
 /**
- * @param landmarks マップ上のランドマーク（map_landmarks）。「のりもの」カテゴリの
- *   施設は静的データを持たず、ここから電停・JR駅を変換して補う
- *   （lib/facilities/transitLandmarks.ts 参照）。
+ * @param landmarks map_landmarks の全スポット（お手洗い・休けい・電停・駅を含む）。
+ *   施設はすべてここから category ごとに取り出す（lib/facilities/landmarkFacilities.ts 参照）。
  */
 export function useFacilityGuide(categoryId: FacilityCategoryId | null, landmarks: Landmark[] = []) {
   const [userLocation, setUserLocation] = useState<LatLng | null>(null);
@@ -66,11 +61,10 @@ export function useFacilityGuide(categoryId: FacilityCategoryId | null, landmark
     [categoryId]
   );
 
-  const facilities = useMemo(() => {
-    if (!categoryId) return [];
-    if (categoryId === 'transport') return getTransitFacilities(landmarks);
-    return getFacilitiesByCategory(categoryId);
-  }, [categoryId, landmarks]);
+  const facilities = useMemo(
+    () => (categoryId ? getFacilitiesFromLandmarks(landmarks, categoryId) : []),
+    [categoryId, landmarks]
+  );
 
   // 追手筋のセンターライン。これに沿わせて道なりの道すじを作る
   const centerline = useMemo(() => getRoadCenterlinePoints(), []);
