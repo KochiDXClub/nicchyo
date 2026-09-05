@@ -26,7 +26,7 @@ export const MARKET_PATH_NAME = '追手筋';
 export const GUIDE_CONNECTOR_PATHS: GuidePath[] = [
   {
     id: 'connector-central-park',
-    name: '中央公園への道',
+    name: '中央公園への小道',
     kind: 'path',
     verified: false,
     points: [
@@ -36,7 +36,7 @@ export const GUIDE_CONNECTOR_PATHS: GuidePath[] = [
   },
   {
     id: 'connector-central-park-arcade',
-    name: '中央公園からアーケードへの道',
+    name: '公園横の小道',
     kind: 'path',
     verified: false,
     points: [
@@ -57,7 +57,7 @@ export const GUIDE_CONNECTOR_PATHS: GuidePath[] = [
   },
   {
     id: 'connector-hirome',
-    name: 'ひろめ市場への道',
+    name: 'ひろめ市場への小道',
     kind: 'path',
     verified: false,
     points: [
@@ -67,7 +67,7 @@ export const GUIDE_CONNECTOR_PATHS: GuidePath[] = [
   },
   {
     id: 'connector-hirome-arcade',
-    name: 'ひろめ市場からアーケードへの道',
+    name: 'ひろめ市場横の小道',
     kind: 'path',
     verified: false,
     points: [
@@ -99,7 +99,7 @@ export const GUIDE_CONNECTOR_PATHS: GuidePath[] = [
   },
   {
     id: 'connector-arcade-east',
-    name: 'アーケード東口からはりまや橋方面の通りへの道',
+    name: 'アーケード東口の小道',
     kind: 'path',
     verified: false,
     points: [
@@ -109,7 +109,7 @@ export const GUIDE_CONNECTOR_PATHS: GuidePath[] = [
   },
   {
     id: 'connector-ekimae-street',
-    name: '駅前の通り（追手筋〜高知駅）',
+    name: '駅前の通り',
     kind: 'street',
     verified: false,
     points: [

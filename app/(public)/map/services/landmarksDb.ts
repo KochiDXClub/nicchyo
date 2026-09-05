@@ -115,7 +115,8 @@ export async function fetchLandmarksFromDb(
         openFrom: row.open_from ?? undefined,
         openUntil: row.open_until ?? undefined,
         showOnMap: row.show_on_map ?? true,
-        verified: Boolean(row.verified),
+        // 列が無い環境では「未確認」と断定せず undefined（案内で「おおよそ」と出さない）
+        verified: row.verified === undefined ? undefined : Boolean(row.verified),
       };
     })
     .filter((row): row is Landmark => row !== null);

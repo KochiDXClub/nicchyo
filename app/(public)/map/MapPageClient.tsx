@@ -5,6 +5,7 @@ import dynamic from "next/dynamic";
 import { useEffect, useMemo, useState, useRef, useCallback, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { AnimatePresence, motion, useDragControls } from "framer-motion";
+import { Navigation } from "lucide-react";
 import SearchClient from "../search/SearchClient";
 import type { MapCamera as LeafletMap } from "./types/mapCamera";
 import { clearSearchMapPayload, loadAiMapPayload, loadSearchMapPayload } from "../../../lib/searchMapStorage";
@@ -32,14 +33,15 @@ import NearbyExplorePanel, {
   type NearbyRecommendedShop,
 } from "./components/NearbyExplorePanel";
 import { useNearbyPromptVisibility } from "./hooks/useNearbyPromptVisibility";
-import FacilityLayer from "./components/FacilityLayer";
-import FacilityGuidePanel from "./components/FacilityGuidePanel";
-import { useFacilityGuide } from "./hooks/useFacilityGuide";
-import { parseFacilityCategoryId } from "@/lib/facilities/facilities";
+import GuideLayer from "./components/GuideLayer";
+import OdekakeGuidePanel from "./components/OdekakeGuidePanel";
+import GuideNavigationBar from "./components/GuideNavigationBar";
+import OdekakeLaunchButton from "./components/OdekakeLaunchButton";
+import { useOdekakeGuide } from "./hooks/useOdekakeGuide";
+import { GUIDE_MENU_VALUE, parseGuideQuery } from "@/lib/guide/query";
 import SpotCard from "./components/SpotCard";
-import { facilityToSpot, landmarkToSpot, type MapSpot } from "@/lib/spots";
+import type { MapSpot } from "@/lib/spots";
 import { filterMapVisibleLandmarks } from "./types/landmark";
-import type { Facility } from "@/lib/facilities/facilities";
 import {
   buildNearbyNote,
   isPointInRotatedRect,
@@ -190,34 +192,35 @@ export default function MapPageClient({
   const isAiFocusMode = searchParams?.get("ai") === "1";
   const searchParamsKey = searchParams?.toString() ?? "";
   const initialShopId = initialShopIdParam ? Number(initialShopIdParam) : undefined;
-  // おでかけサポート（/facilities）から ?facility=<カテゴリ> で入ってくる
-  const facilityCategoryId = parseFacilityCategoryId(searchParams?.get("facility"));
-  const facilityGuide = useFacilityGuide(facilityCategoryId, landmarks);
-  const closeFacilityGuide = useCallback(() => {
-    const params = new URLSearchParams(searchParamsKey);
-    params.delete("facility");
-    const query = params.toString();
-    router.replace(query ? `/map?${query}` : "/map", { scroll: false });
-  }, [router, searchParamsKey]);
+  // おでかけサポート: ?guide=<プリセット|menu> または旧 ?facility=<カテゴリ> で開く
+  const guideQuery = useMemo(
+    () => parseGuideQuery(searchParams ?? null),
+    // searchParams オブジェクトは毎レンダー同一とは限らないので文字列で比較する
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [searchParamsKey]
+  );
+  const replaceGuideParam = useCallback(
+    (value: string | null) => {
+      const params = new URLSearchParams(searchParamsKey);
+      params.delete("facility");
+      if (value) params.set("guide", value);
+      else params.delete("guide");
+      const query = params.toString();
+      router.replace(query ? `/map?${query}` : "/map", { scroll: false });
+    },
+    [router, searchParamsKey]
+  );
+  const closeGuide = useCallback(() => replaceGuideParam(null), [replaceGuideParam]);
+  const openGuideMenu = useCallback(() => replaceGuideParam(GUIDE_MENU_VALUE), [replaceGuideParam]);
   // マップに常時描画するランドマーク（お手洗い・休けいなど show_on_map=false は除く）
   const mapLandmarks = useMemo(() => filterMapVisibleLandmarks(landmarks), [landmarks]);
   // タップしたスポット（電停・駅・建物・施設）。店舗以外は SpotCard で表示する
   const [selectedSpot, setSelectedSpot] = useState<MapSpot | null>(null);
-  // おでかけサポートの施設は map_landmarks 由来なので、写真や路線を持つ元のランドマークから
-  // スポットを作る（見つからなければ Facility の情報だけで作る）
-  const openFacilitySpot = useCallback(
-    (facility: Facility) => {
-      const key = facility.id.startsWith("landmark-") ? facility.id.slice("landmark-".length) : null;
-      const landmark = key ? landmarks.find((l) => l.key === key) : undefined;
-      setSelectedSpot(landmark ? landmarkToSpot(landmark) : facilityToSpot(facility));
-    },
-    [landmarks]
-  );
   const closeSpotCard = useCallback(() => setSelectedSpot(null), []);
-  // おでかけサポートの一覧やカテゴリを切り替えたらカードは閉じる
+  // おでかけサポートの一覧やプリセットを切り替えたらカードは閉じる
   useEffect(() => {
     setSelectedSpot(null);
-  }, [facilityCategoryId]);
+  }, [guideQuery]);
   const [agentOpen, setAgentOpen] = useState(false);
   const [showVendorPrompt, setShowVendorPrompt] = useState(false);
   const [vendorShopName, setVendorShopName] = useState<string | null>(null);
@@ -405,6 +408,18 @@ export default function MapPageClient({
     mapRef.current = map;
     setMapInstance(map);
   }, []);
+
+  const guide = useOdekakeGuide({ query: guideQuery, landmarks, mapRoute, map: mapInstance });
+  const guideActive = guide.active;
+  // スポットカードの「ここへ案内」: 案内を開いて（URL に guide=menu）、そのスポットへ案内を始める
+  const navigateToSpot = useCallback(
+    (spot: MapSpot) => {
+      setSelectedSpot(null);
+      if (!guideActive) openGuideMenu();
+      guide.startNavigation(spot);
+    },
+    [guide, guideActive, openGuideMenu]
+  );
 
   const vendorShop = useMemo(() => {
     if (!vendorShopId) return null;
@@ -664,7 +679,7 @@ export default function MapPageClient({
   // ── 「このへん、なにがある？」──────────────────────
   // 他のモード（検索・AI相談・店舗バナー・パネル表示中）ではボタンを出さない
   const nearbySuppressed =
-    !!nearbyState || hasSearchMode || hasAiMode || isShopBannerOpen || !!facilityGuide.category;
+    !!nearbyState || hasSearchMode || hasAiMode || isShopBannerOpen || guideActive;
   // 回転のみのジェスチャーは Leaflet の move/zoom を発火させないため、
   // MapView から素通しで受け取ってボタンの静止判定に反映する
   const [isMapGestureActive, setIsMapGestureActive] = useState(false);
@@ -851,19 +866,35 @@ export default function MapPageClient({
             )}
 
             {/* おでかけサポート案内中ヘッダー：検索バーの代わりに表示 */}
-            {facilityGuide.category && !mapCharacterConsultActive && !nearbyState && (
-              <div className="absolute left-3 right-3 top-3 z-[1001] flex items-center gap-2.5 rounded-full bg-white/95 px-4 py-2.5 shadow-lg ring-1 ring-slate-900/8 backdrop-blur-sm">
-                <span className="text-lg leading-none" aria-hidden="true">
-                  {facilityGuide.category.emoji}
-                </span>
-                <p className="flex-1 text-sm font-bold text-slate-800">
-                  {facilityGuide.category.label}を案内中
-                </p>
-              </div>
+            {guideActive && !mapCharacterConsultActive && !nearbyState && (
+              guide.navigating && guide.selected ? (
+                <GuideNavigationBar
+                  target={guide.selected}
+                  originLabel={guide.origin?.label ?? "現在地"}
+                  arrived={guide.arrived}
+                  progress={guide.progress}
+                  onStop={guide.stopNavigation}
+                  onOpenDetail={() => setSelectedSpot(guide.selected!.spot)}
+                />
+              ) : (
+                <div className="absolute left-3 right-3 top-3 z-[1001] flex items-center gap-3 rounded-full bg-white py-2 pl-2 pr-2 shadow-[0_8px_24px_rgba(58,58,58,0.18)] ring-1 ring-black/5">
+                  <span className="flex h-8 w-8 items-center justify-center rounded-full bg-nicchyo-accent text-nicchyo-ink" aria-hidden="true">
+                    <Navigation size={15} />
+                  </span>
+                  <p className="flex-1 text-[14px] font-bold text-nicchyo-ink">おでかけサポート</p>
+                  <button
+                    type="button"
+                    onClick={closeGuide}
+                    className="rounded-full bg-slate-100 px-3 py-1.5 text-[12px] font-semibold text-slate-600 active:bg-slate-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400"
+                  >
+                    とじる
+                  </button>
+                </div>
+              )
             )}
 
             {/* 全幅検索バー + ジャンルフィルター（AI相談・このへん・おでかけサポートモード時は非表示） */}
-            {!mapCharacterConsultActive && !nearbyState && !facilityGuide.category && (
+            {!mapCharacterConsultActive && !nearbyState && !guideActive && (
               <div
                 ref={searchAreaRef}
                 className="absolute left-3 right-3 top-3 z-[1001] flex flex-col gap-2"
@@ -952,10 +983,10 @@ export default function MapPageClient({
               }}
               // おでかけサポート表示中は施設に合わせた画角を優先し、
               // 現在地取得時の自動ズームで上書きされないようにする
-              suppressInitialLocationFocus={isAiFocusMode || Boolean(facilityGuide.category)}
+              suppressInitialLocationFocus={isAiFocusMode || guideActive}
               hideMapUI={mapCharacterConsultActive || !!nearbyState}
-              // おでかけサポート案内中は FacilityLayer 側のマーカーだけを見せる
-              suppressLandmarks={Boolean(facilityGuide.category)}
+              // おでかけサポート案内中は GuideLayer 側のマーカーだけを見せる
+              suppressLandmarks={guideActive}
               trackingButtonTop={trackingButtonTop}
               onGestureActiveChange={setIsMapGestureActive}
               overlaySlot={
@@ -1004,26 +1035,23 @@ export default function MapPageClient({
               />
             )}
 
-            {/* おでかけサポート：選んだカテゴリの施設を強調表示し、最寄りを案内する */}
-            {facilityGuide.category && (
+            {/* おでかけサポートを開くボタン（現在地ボタンと同じ高さの左側） */}
+            {!guideActive && !mapCharacterConsultActive && !nearbyState && !isShopBannerOpen && (
+              <OdekakeLaunchButton top={trackingButtonTop} onClick={openGuideMenu} />
+            )}
+
+            {/* おでかけサポート：表示中の種別のスポットと経路を描き、一覧・案内を出す */}
+            {guideActive && (
               <>
-                <FacilityLayer
+                <GuideLayer
                   map={mapInstance}
-                  category={facilityGuide.category}
-                  facilities={facilityGuide.facilities}
-                  nearestFacilityId={facilityGuide.nearest?.facility.id ?? null}
-                  routePoints={facilityGuide.nearest?.route.points}
-                  userLocation={facilityGuide.userLocation}
-                  onSelectFacility={openFacilitySpot}
+                  spots={guide.ranked.map((entry) => entry.spot)}
+                  selectedSpotId={guide.selectedId}
+                  routes={guide.routes}
+                  onSelectSpot={setSelectedSpot}
                 />
                 {!mapCharacterConsultActive && !nearbyState && !selectedSpot && (
-                  <FacilityGuidePanel
-                    category={facilityGuide.category}
-                    facilities={facilityGuide.facilities}
-                    ranked={facilityGuide.ranked}
-                    map={mapInstance}
-                    onClose={closeFacilityGuide}
-                  />
+                  <OdekakeGuidePanel guide={guide} map={mapInstance} onClose={closeGuide} onOpenSpot={setSelectedSpot} />
                 )}
               </>
             )}
@@ -1037,6 +1065,7 @@ export default function MapPageClient({
                   map={mapInstance}
                   origin={isInMarket && userLocation ? userLocation : null}
                   onClose={closeSpotCard}
+                  onNavigate={navigateToSpot}
                 />
               )}
             </AnimatePresence>
@@ -1121,7 +1150,7 @@ export default function MapPageClient({
             }
           }}
           onConsultClick={startMapCharacterConsult}
-          closeModeActive={hasSearchMode || hasAiMode || !!nearbyState || !!facilityGuide.category}
+          closeModeActive={hasSearchMode || hasAiMode || !!nearbyState || guideActive}
           onCloseMode={closeMapInteractionMode}
         />
       )}

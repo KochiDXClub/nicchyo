@@ -28,9 +28,9 @@ describe('buildGuidePathsFromMapRoute', () => {
       ],
     };
     const paths = buildGuidePathsFromMapRoute(route, [
-      { id: 'road-a', name: '中央公園への道', kind: 'path', widthMeters: 4 },
+      { id: 'road-a', name: '中央公園への小道', kind: 'path', widthMeters: 4 },
     ]);
-    const branch = paths.find((p) => p.name === '中央公園への道');
+    const branch = paths.find((p) => p.name === '中央公園への小道');
     expect(branch).toBeDefined();
     expect(branch!.kind).toBe('path');
     expect(branch!.points).toHaveLength(2);
@@ -48,9 +48,9 @@ describe('buildGuidePaths（接続路つき）', () => {
         { id: 'branch-1', lat: anchor.lat - 0.0005, lng: anchor.lng, order: main.length, branchFromId: anchor.id, roadId: 'road-a' },
       ],
     };
-    const paths = buildGuidePaths(route, [{ id: 'road-a', name: '中央公園への道', kind: 'path', widthMeters: 4 }]);
-    expect(paths.filter((p) => p.name === '中央公園への道')).toHaveLength(1);
-    expect(paths.find((p) => p.name === '中央公園への道')!.verified).toBe(true);
+    const paths = buildGuidePaths(route, [{ id: 'road-a', name: '中央公園への小道', kind: 'path', widthMeters: 4 }]);
+    expect(paths.filter((p) => p.name === '中央公園への小道')).toHaveLength(1);
+    expect(paths.find((p) => p.name === '中央公園への小道')!.verified).toBe(true);
     // 枝の分岐点で本線が2本に分かれる（追手筋 ×2 + 枝1）+ 名前が重ならない接続路
     const fromMap = paths.filter((p) => p.verified);
     expect(fromMap.filter((p) => p.name === MARKET_PATH_NAME).length).toBeGreaterThanOrEqual(1);
