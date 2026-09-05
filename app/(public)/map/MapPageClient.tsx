@@ -57,9 +57,12 @@ import {
 const MapViewLeaflet = dynamic(() => import("./components/MapView"), {
   ssr: false,
 });
-// MapLibre 版（移行中の並走検証用）。選ばれたときだけ読み込む
+// MapLibre 版（移行中の並走検証用）。選ばれたときだけ読み込む。
+// ssr: false にすると Next がこのチャンクの preload を HTML に出さなくなり、
+// 268KB の maplibre チャンクがハイドレーション完了後にようやくダウンロードされる。
+// 地図の生成自体は useEffect の中なので、サーバーでは器の div だけが描かれる。
 const MapViewMapLibre = dynamic(() => import("./components/maplibre/MapViewMapLibre"), {
-  ssr: false,
+  ssr: true,
 });
 
 type MapPageClientProps = {
