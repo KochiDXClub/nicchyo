@@ -197,27 +197,67 @@ body.grandma-chat-open .leaflet-container {
   animation-delay: 0.8s;
 }
 
-/* 読み込み中の一言。切り替わるたびに key が変わるので、その都度この入りが走る */
-.map-loading-tip {
-  animation: map-loading-tip-in 0.4s ease-out;
+/* 読み込み中の絵：道の点・歩く人・下のゲージ・到着演出 */
+.map-loading-dot {
+  fill: #ecdcc0;
+  stroke: #d8c39a;
+  stroke-width: 1;
+  transition:
+    fill 0.35s ease-out,
+    stroke 0.35s ease-out,
+    r 0.35s ease-out;
 }
 
-@keyframes map-loading-tip-in {
-  from {
-    opacity: 0;
-    transform: translateY(4px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+.map-loading-dot.is-lit {
+  fill: #7ed957;
+  stroke: #4caf50;
+  r: 3.8;
+}
+
+.map-loading-walker {
+  transition: transform 0.55s cubic-bezier(0.22, 0.8, 0.3, 1);
+}
+
+.map-loading-gauge {
+  transition: width 0.45s ease-out;
+}
+
+/* 到着演出。オーバーレイが薄れながら、絵がひと回り広がって地図に溶ける */
+.map-loading-overlay {
+  transition: opacity 0.52s ease-in;
+}
+
+.map-loading-silhouette {
+  transform-origin: 50% 50%;
+  transition:
+    transform 0.52s cubic-bezier(0.22, 0.8, 0.3, 1),
+    opacity 0.42s ease-in;
+}
+
+.map-loading-overlay.is-leaving {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.map-loading-overlay.is-leaving .map-loading-silhouette {
+  transform: scale(1.14) translateY(-6px);
+  opacity: 0;
 }
 
 @media (prefers-reduced-motion: reduce) {
   .map-walker,
-  .map-walker-frame,
-  .map-loading-tip {
+  .map-walker-frame {
     animation: none;
+  }
+
+  .map-loading-walker,
+  .map-loading-overlay,
+  .map-loading-silhouette {
+    transition: none;
+  }
+
+  .map-loading-overlay.is-leaving .map-loading-silhouette {
+    transform: none;
   }
 
   /* アニメーションを止めると 3 コマが重なるので、1 コマだけ見せる */

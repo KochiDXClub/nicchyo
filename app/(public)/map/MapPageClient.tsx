@@ -18,6 +18,7 @@ import type { Landmark } from "./types/landmark";
 import type { MapRoute } from "./types/mapRoute";
 import { resolveMapFeatureFlags, type MapFeatureFlags } from "@/lib/mapFeatureFlags";
 import { useMapLoading } from "../../components/MapLoadingProvider";
+import MapLoadingOverlay from "../../components/MapLoadingOverlay";
 import { grandmaEvents } from "./data/grandmaEvents";
 import { recordMarketEnter, recordMarketExit } from "../../../lib/storage/marketStats";
 import { buildSearchIndex } from "../search/lib/searchIndex";
@@ -167,7 +168,16 @@ export default function MapPageClient({
   const router = useRouter();
   const activePanel = searchParams?.get("panel") === "search" ? "search" : null;
   const { user, permissions } = useAuth();
-  const { markMapReady } = useMapLoading();
+  const { status: mapLoadingStatus, takeOverMapLoading, reportMapStage, markMapReady } = useMapLoading();
+  // 直アクセスやリロードでは、ハイドレーションが済むまで Provider のオーバーレイが出せない。
+  // その間はこのページ自身が同じ画面をサーバー描画に含めておき、Provider 側が立ち上がったら引き渡す
+  const [mapLoadingHandedOff, setMapLoadingHandedOff] = useState(false);
+  useEffect(() => {
+    takeOverMapLoading();
+  }, [takeOverMapLoading]);
+  useEffect(() => {
+    if (mapLoadingStatus !== "idle") setMapLoadingHandedOff(true);
+  }, [mapLoadingStatus]);
   const { items: bagItems } = useBag();
   const initialShopIdParam = searchParams?.get("shop");
   const isAiFocusMode = searchParams?.get("ai") === "1";
@@ -898,6 +908,7 @@ export default function MapPageClient({
               searchShopIds={searchMarkerPayload?.ids ?? mapSearchShopIds}
               aiShopIds={aiMarkerPayload?.ids}
               onMapReady={markMapReady}
+              onMapStage={reportMapStage}
               onMapInstance={handleMapInstance}
               onUserLocationUpdate={(coords) => {
                 setUserLocation({ lat: coords.lat, lng: coords.lng });
@@ -1072,6 +1083,8 @@ export default function MapPageClient({
           onCloseMode={closeMapInteractionMode}
         />
       )}
+
+      {!mapLoadingHandedOff && <MapLoadingOverlay minStage="page" />}
     </div>
   );
 }

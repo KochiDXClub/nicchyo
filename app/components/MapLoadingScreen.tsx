@@ -1,148 +1,215 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { ROAD_CONFIG } from "@/app/(public)/map/config/roadConfig";
 
 /**
- * マップの読み込み中に出す画面。
+ * マップの読み込み中に見せる絵。
  *
- * loading.tsx（サーバー取得中）と MapLoadingProvider のオーバーレイ（遷移〜地図描画まで）で
- * 同じものを使う。初回訪問なら日曜市の歩き方を、2 回目以降は一言メッセージを出して
- * 待ち時間を案内に充てる。
+ * 追手筋の一本道（roadConfig の実座標から起こした形）に店の点を並べ、
+ * 読み込みの進み具合に合わせて高知城側から順に点が灯り、歩く人が東へ進む。
+ * 待っている間に「城から東へ一本道」という市場の形が頭に入るようにする。読ませる文章は置かない。
  */
 
-// FirstVisitGuide と同じキーを「読むだけ」で使う。書き込みはあちらに任せる
-const GUIDE_STORAGE_KEY = "nicchyo-first-visit-guide-completed";
+const VIEW_W = 320;
+const VIEW_H = 96;
+const PAD_X = 28;
+const ROAD_TOP = 26;
+const DOT_COUNT = 18;
+const DOT_OFFSET = 9;
 
-/** 2 回目以降に出す一言。1 つ目はサーバー描画と一致させるため固定で出す */
-const TIPS = [
-  "日曜市は毎週日曜、追手筋に約300店が並びます。",
-  "気になったお店は「買い物リスト」に入れておけます。",
-  "迷ったら「にちよさん」に話しかけてみてください。",
-  "地図は2本指でくるっと回せます。歩く向きに合わせてどうぞ。",
-  "旬のものはお店の人に聞くのがいちばんです。",
-];
+type Point = { x: number; y: number };
 
-/** 初回訪問のときに出す歩き方 */
-const FIRST_VISIT_STEPS = [
-  { icon: "🗺️", text: "地図を広げると、出ているお店がそのまま並びます" },
-  { icon: "🔍", text: "上の検索から、食べ物や道具でお店を絞れます" },
-  { icon: "🧺", text: "気になったお店は買い物リストに残せます" },
-];
+/** roadConfig の区間中心線を西（高知城側）→東の順に並べた折れ線 */
+function buildRoadPath(): Point[] {
+  const segments = [...(ROAD_CONFIG.segments ?? [])].sort((a, b) => b.bounds[0][1] - a.bounds[0][1]);
+  if (segments.length === 0) {
+    return [
+      { x: PAD_X, y: VIEW_H / 2 },
+      { x: VIEW_W - PAD_X, y: VIEW_H / 2 },
+    ];
+  }
+  const eastToWest: { lat: number; lng: number }[] = [];
+  const first = segments[0];
+  eastToWest.push({ lat: first.centerLine, lng: first.bounds[0][1] });
+  for (const seg of segments) {
+    eastToWest.push({ lat: seg.centerLine, lng: (seg.bounds[0][1] + seg.bounds[1][1]) / 2 });
+  }
+  const last = segments[segments.length - 1];
+  eastToWest.push({ lat: last.centerLine, lng: last.bounds[1][1] });
 
-const TIP_INTERVAL_MS = 2600;
+  const lats = eastToWest.map((p) => p.lat);
+  const lngs = eastToWest.map((p) => p.lng);
+  const minLng = Math.min(...lngs);
+  const maxLat = Math.max(...lats);
+  const refLat = (Math.max(...lats) + Math.min(...lats)) / 2;
+  const metersPerLng = 111_320 * Math.cos((refLat * Math.PI) / 180);
+  const metersPerLat = 110_574;
+  const meters = eastToWest.map((p) => ({
+    x: (p.lng - minLng) * metersPerLng,
+    y: (maxLat - p.lat) * metersPerLat,
+  }));
+  const spanX = Math.max(...meters.map((m) => m.x)) || 1;
+  const scale = (VIEW_W - PAD_X * 2) / spanX;
+  return meters
+    .map((m) => ({ x: PAD_X + m.x * scale, y: ROAD_TOP + m.y * scale }))
+    .reverse();
+}
 
-export default function MapLoadingScreen() {
-  // サーバーとクライアントの初回描画を一致させるため、判定前は「2 回目以降・1 つ目の一言」を出す
-  const [isFirstVisit, setIsFirstVisit] = useState(false);
-  const [tipIndex, setTipIndex] = useState(0);
+const ROAD_PATH = buildRoadPath();
+const ROAD_D = ROAD_PATH.map((p, i) => `${i === 0 ? "M" : "L"}${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(" ");
 
-  useEffect(() => {
-    try {
-      setIsFirstVisit(localStorage.getItem(GUIDE_STORAGE_KEY) !== "true");
-    } catch {
-      // プライベートモードなどで読めないときは通常表示のまま
+const SEGMENT_LENGTHS = ROAD_PATH.slice(1).map((p, i) => Math.hypot(p.x - ROAD_PATH[i].x, p.y - ROAD_PATH[i].y));
+const TOTAL_LENGTH = SEGMENT_LENGTHS.reduce((sum, l) => sum + l, 0);
+
+/** 折れ線上の位置（0=西端, 1=東端）と、そこでの進行方向に直交する単位ベクトル */
+function pointAt(t: number): { point: Point; normal: Point } {
+  let remaining = Math.min(Math.max(t, 0), 1) * TOTAL_LENGTH;
+  for (let i = 0; i < SEGMENT_LENGTHS.length; i += 1) {
+    const len = SEGMENT_LENGTHS[i];
+    if (remaining <= len || i === SEGMENT_LENGTHS.length - 1) {
+      const a = ROAD_PATH[i];
+      const b = ROAD_PATH[i + 1];
+      const ratio = len === 0 ? 0 : Math.min(remaining / len, 1);
+      const dx = (b.x - a.x) / (len || 1);
+      const dy = (b.y - a.y) / (len || 1);
+      return {
+        point: { x: a.x + (b.x - a.x) * ratio, y: a.y + (b.y - a.y) * ratio },
+        normal: { x: -dy, y: dx },
+      };
     }
-  }, []);
+    remaining -= len;
+  }
+  const end = ROAD_PATH[ROAD_PATH.length - 1];
+  return { point: end, normal: { x: 0, y: 1 } };
+}
 
-  useEffect(() => {
-    if (isFirstVisit) return;
-    const timer = window.setInterval(
-      () => setTipIndex((prev) => (prev + 1) % TIPS.length),
-      TIP_INTERVAL_MS
-    );
-    return () => window.clearInterval(timer);
-  }, [isFirstVisit]);
+const DOTS = Array.from({ length: DOT_COUNT }, (_, i) => {
+  const { point, normal } = pointAt((i + 0.5) / DOT_COUNT);
+  const side = i % 2 === 0 ? -1 : 1;
+  return { x: point.x + normal.x * DOT_OFFSET * side, y: point.y + normal.y * DOT_OFFSET * side };
+});
+
+const WEST_END = ROAD_PATH[0];
+const EAST_END = ROAD_PATH[ROAD_PATH.length - 1];
+
+/** 歩く人（3 コマ）。見た目は従来のローディングと同じ */
+const WALKER_FRAMES: Array<Array<[number, number, number, number]>> = [
+  [
+    [40, 30, 28, 36],
+    [40, 30, 52, 34],
+    [40, 46, 30, 64],
+    [40, 46, 52, 62],
+  ],
+  [
+    [40, 30, 30, 34],
+    [40, 30, 54, 38],
+    [40, 46, 28, 62],
+    [40, 46, 54, 64],
+  ],
+  [
+    [40, 30, 26, 38],
+    [40, 30, 54, 36],
+    [40, 46, 34, 64],
+    [40, 46, 56, 58],
+  ],
+];
+const WALKER_SCALE = 0.42;
+/** 歩く人の足元（viewBox の y=64）を道の上に置く */
+const WALKER_FOOT_Y = 64;
+
+type MapLoadingScreenProps = {
+  /** 0〜1 の進み具合。点の灯りと歩く人の位置に使う */
+  progress: number;
+};
+
+export default function MapLoadingScreen({ progress }: MapLoadingScreenProps) {
+  const clamped = Math.min(Math.max(progress, 0), 1);
+  const litCount = Math.round(clamped * DOT_COUNT);
+  const walker = pointAt(clamped).point;
+  const walkerTransform = `translate(${(walker.x - 40 * WALKER_SCALE).toFixed(1)}px, ${(
+    walker.y - WALKER_FOOT_Y * WALKER_SCALE - 2
+  ).toFixed(1)}px) scale(${WALKER_SCALE})`;
 
   return (
-    <div className="flex flex-col items-center gap-5 px-8">
-      <div className="map-walker relative h-20 w-20 text-amber-700">
-        <svg
-          className="map-walker-frame is-1"
-          viewBox="0 0 80 80"
-          aria-hidden="true"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="3"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        >
-          <circle cx="40" cy="16" r="6" />
-          <line x1="40" y1="22" x2="40" y2="46" />
-          <line x1="40" y1="30" x2="28" y2="36" />
-          <line x1="40" y1="30" x2="52" y2="34" />
-          <line x1="40" y1="46" x2="30" y2="64" />
-          <line x1="40" y1="46" x2="52" y2="62" />
-        </svg>
-
-        <svg
-          className="map-walker-frame is-2"
-          viewBox="0 0 80 80"
-          aria-hidden="true"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="3"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        >
-          <circle cx="40" cy="16" r="6" />
-          <line x1="40" y1="22" x2="40" y2="46" />
-          <line x1="40" y1="30" x2="30" y2="34" />
-          <line x1="40" y1="30" x2="54" y2="38" />
-          <line x1="40" y1="46" x2="28" y2="62" />
-          <line x1="40" y1="46" x2="54" y2="64" />
-        </svg>
-
-        <svg
-          className="map-walker-frame is-3"
-          viewBox="0 0 80 80"
-          aria-hidden="true"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="3"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        >
-          <circle cx="40" cy="16" r="6" />
-          <line x1="40" y1="22" x2="40" y2="46" />
-          <line x1="40" y1="30" x2="26" y2="38" />
-          <line x1="40" y1="30" x2="54" y2="36" />
-          <line x1="40" y1="46" x2="34" y2="64" />
-          <line x1="40" y1="46" x2="56" y2="58" />
-        </svg>
-      </div>
-
-      <div className="text-xs font-semibold tracking-[0.35em] text-amber-700">LOADING</div>
-
-      {/* 待っている間に読めるもの。高さを固定して、切り替わっても画面が揺れないようにする */}
-      <div
-        className="flex min-h-[104px] w-full max-w-sm items-start justify-center"
-        aria-live="polite"
+    <div className="map-loading-silhouette w-full max-w-sm px-6">
+      <svg
+        viewBox={`0 0 ${VIEW_W} ${VIEW_H}`}
+        className="h-auto w-full overflow-visible"
+        aria-hidden="true"
+        fill="none"
       >
-        {isFirstVisit ? (
-          <div className="w-full rounded-2xl bg-white/70 px-5 py-4 text-left shadow-sm">
-            <p className="mb-3 text-xs font-bold tracking-wide text-amber-700">
-              はじめまして。日曜市の歩き方です
-            </p>
-            <ul className="space-y-2">
-              {FIRST_VISIT_STEPS.map((step) => (
-                <li key={step.text} className="flex items-start gap-2.5 text-[13px] leading-snug text-gray-700">
-                  <span aria-hidden="true" className="shrink-0 text-base leading-none">
-                    {step.icon}
-                  </span>
-                  <span>{step.text}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        ) : (
-          <p
-            key={tipIndex}
-            className="map-loading-tip text-center text-[13px] leading-relaxed text-gray-600"
+        {/* 道 */}
+        <path d={ROAD_D} stroke="#f3dfae" strokeWidth="14" strokeLinecap="round" strokeLinejoin="round" />
+        <path
+          d={ROAD_D}
+          stroke="#c2820a"
+          strokeOpacity="0.45"
+          strokeWidth="1.2"
+          strokeDasharray="5 4"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+
+        {/* 店の点。進み具合に合わせて西から灯る */}
+        {DOTS.map((dot, i) => (
+          <circle
+            key={i}
+            cx={dot.x}
+            cy={dot.y}
+            r={3.2}
+            className={`map-loading-dot${i < litCount ? " is-lit" : ""}`}
+          />
+        ))}
+
+        {/* 高知城（西端） */}
+        <g transform={`translate(${WEST_END.x - 7} ${WEST_END.y - 24})`} stroke="#a16207" strokeWidth="1.6" strokeLinejoin="round">
+          <path d="M2 14 L2 6 L7 2 L12 6 L12 14 Z" fill="#fff7e6" />
+          <path d="M0 8 L14 8" />
+        </g>
+        <text
+          x={WEST_END.x}
+          y={WEST_END.y + 26}
+          textAnchor="middle"
+          fontSize="9"
+          fill="#92400e"
+          fontWeight="600"
+          style={{ letterSpacing: "0.08em" }}
+        >
+          高知城
+        </text>
+        <text
+          x={EAST_END.x}
+          y={EAST_END.y + 26}
+          textAnchor="middle"
+          fontSize="9"
+          fill="#a16207"
+          fillOpacity="0.8"
+          style={{ letterSpacing: "0.08em" }}
+        >
+          東へ
+        </text>
+
+        {/* 歩く人。進み具合に合わせて城から東へ進む */}
+        <g className="map-loading-walker" style={{ transform: walkerTransform }}>
+          <g
+            className="map-walker"
+            stroke="#b45309"
+            strokeWidth="3"
+            strokeLinecap="round"
+            strokeLinejoin="round"
           >
-            {TIPS[tipIndex]}
-          </p>
-        )}
-      </div>
+            {WALKER_FRAMES.map((lines, frame) => (
+              <g key={frame} className={`map-walker-frame is-${frame + 1}`}>
+                <circle cx="40" cy="16" r="6" />
+                <line x1="40" y1="22" x2="40" y2="46" />
+                {lines.map(([x1, y1, x2, y2], i) => (
+                  <line key={i} x1={x1} y1={y1} x2={x2} y2={y2} />
+                ))}
+              </g>
+            ))}
+          </g>
+        </g>
+      </svg>
     </div>
   );
 }
