@@ -198,20 +198,29 @@ body.grandma-chat-open .leaflet-container {
 }
 
 /* 読み込み中の絵：道の点・歩く人・下のゲージ・到着演出 */
-.map-loading-dot {
-  fill: #ecdcc0;
-  stroke: #d8c39a;
-  stroke-width: 1;
-  transition:
-    fill 0.35s ease-out,
-    stroke 0.35s ease-out,
-    r 0.35s ease-out;
+.map-loading-dot__core {
+  fill: #e6d8bd;
+  transition: fill 0.35s ease-out;
 }
 
-.map-loading-dot.is-lit {
+.map-loading-dot__halo {
   fill: #7ed957;
-  stroke: #4caf50;
-  r: 3.8;
+  opacity: 0;
+  transform-box: fill-box;
+  transform-origin: center;
+  transform: scale(0.4);
+  transition:
+    opacity 0.4s ease-out,
+    transform 0.4s cubic-bezier(0.22, 0.8, 0.3, 1);
+}
+
+.map-loading-dot.is-lit .map-loading-dot__core {
+  fill: #5fbf3f;
+}
+
+.map-loading-dot.is-lit .map-loading-dot__halo {
+  opacity: 0.22;
+  transform: scale(1);
 }
 
 .map-loading-walker {

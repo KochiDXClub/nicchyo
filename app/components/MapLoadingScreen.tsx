@@ -11,7 +11,7 @@ import { ROAD_CONFIG } from "@/app/(public)/map/config/roadConfig";
  */
 
 const VIEW_W = 320;
-const VIEW_H = 96;
+const VIEW_H = 92;
 const PAD_X = 28;
 const ROAD_TOP = 26;
 const DOT_COUNT = 18;
@@ -90,7 +90,6 @@ const DOTS = Array.from({ length: DOT_COUNT }, (_, i) => {
 });
 
 const WEST_END = ROAD_PATH[0];
-const EAST_END = ROAD_PATH[ROAD_PATH.length - 1];
 
 /** 歩く人（3 コマ）。見た目は従来のローディングと同じ */
 const WALKER_FRAMES: Array<Array<[number, number, number, number]>> = [
@@ -131,63 +130,43 @@ export default function MapLoadingScreen({ progress }: MapLoadingScreenProps) {
   ).toFixed(1)}px) scale(${WALKER_SCALE})`;
 
   return (
-    <div className="map-loading-silhouette w-full max-w-sm px-6">
+    <div className="map-loading-silhouette flex w-full max-w-md flex-col items-center gap-4 px-6">
       <svg
         viewBox={`0 0 ${VIEW_W} ${VIEW_H}`}
         className="h-auto w-full overflow-visible"
         aria-hidden="true"
         fill="none"
       >
-        {/* 道 */}
-        <path d={ROAD_D} stroke="#f3dfae" strokeWidth="14" strokeLinecap="round" strokeLinejoin="round" />
+        {/* 道。太い淡色の帯に、細い中心線を重ねる */}
+        <path d={ROAD_D} stroke="#f2e4c6" strokeWidth="11" strokeLinecap="round" strokeLinejoin="round" />
         <path
           d={ROAD_D}
-          stroke="#c2820a"
-          strokeOpacity="0.45"
-          strokeWidth="1.2"
-          strokeDasharray="5 4"
+          stroke="#d3b27a"
+          strokeOpacity="0.55"
+          strokeWidth="1"
+          strokeDasharray="4 5"
           strokeLinecap="round"
           strokeLinejoin="round"
         />
 
-        {/* 店の点。進み具合に合わせて西から灯る */}
-        {DOTS.map((dot, i) => (
-          <circle
-            key={i}
-            cx={dot.x}
-            cy={dot.y}
-            r={3.2}
-            className={`map-loading-dot${i < litCount ? " is-lit" : ""}`}
-          />
-        ))}
+        {/* 店の点。進み具合に合わせて西から灯る。灯った点には淡い輪をつける */}
+        {DOTS.map((dot, i) => {
+          const lit = i < litCount;
+          return (
+            <g key={i} className={`map-loading-dot${lit ? " is-lit" : ""}`}>
+              <circle cx={dot.x} cy={dot.y} r={6} className="map-loading-dot__halo" />
+              <circle cx={dot.x} cy={dot.y} r={2.6} className="map-loading-dot__core" />
+            </g>
+          );
+        })}
 
-        {/* 高知城（西端） */}
-        <g transform={`translate(${WEST_END.x - 7} ${WEST_END.y - 24})`} stroke="#a16207" strokeWidth="1.6" strokeLinejoin="round">
-          <path d="M2 14 L2 6 L7 2 L12 6 L12 14 Z" fill="#fff7e6" />
-          <path d="M0 8 L14 8" />
+        {/* 西端の目印。文字だけの小さな札にとどめる */}
+        <g transform={`translate(${WEST_END.x} ${WEST_END.y + 20})`}>
+          <rect x="-19" y="-8" width="38" height="16" rx="8" fill="#ffffff" fillOpacity="0.85" stroke="#e8d7b4" />
+          <text textAnchor="middle" y="3.5" fontSize="8.5" fill="#8a5a12" fontWeight="600" style={{ letterSpacing: "0.06em" }}>
+            高知城
+          </text>
         </g>
-        <text
-          x={WEST_END.x}
-          y={WEST_END.y + 26}
-          textAnchor="middle"
-          fontSize="9"
-          fill="#92400e"
-          fontWeight="600"
-          style={{ letterSpacing: "0.08em" }}
-        >
-          高知城
-        </text>
-        <text
-          x={EAST_END.x}
-          y={EAST_END.y + 26}
-          textAnchor="middle"
-          fontSize="9"
-          fill="#a16207"
-          fillOpacity="0.8"
-          style={{ letterSpacing: "0.08em" }}
-        >
-          東へ
-        </text>
 
         {/* 歩く人。進み具合に合わせて城から東へ進む */}
         <g className="map-loading-walker" style={{ transform: walkerTransform }}>
@@ -210,6 +189,11 @@ export default function MapLoadingScreen({ progress }: MapLoadingScreenProps) {
           </g>
         </g>
       </svg>
+
+      <div className="flex flex-col items-center gap-1.5">
+        <div className="text-xs font-semibold tracking-[0.35em] text-amber-700">LOADING</div>
+        <p className="text-[12px] tracking-wide text-amber-800/70">地図を準備しています</p>
+      </div>
     </div>
   );
 }

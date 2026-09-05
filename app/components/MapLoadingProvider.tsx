@@ -141,11 +141,15 @@ export default function MapLoadingProvider({ children }: { children: React.React
 
   const markMapReady = useCallback(() => reportMapStage("ready"), [reportMapStage]);
 
-  // /map 以外へ行ったら、途中でも畳む
+  // /map 以外へ行ったら、途中でも畳む。
+  // リンクを押した直後は pathname がまだ元ページのままなので、pathname が実際に変わったときだけ判定する
+  const lastPathnameRef = useRef(pathname);
   useEffect(() => {
-    if (state.status === "idle") return;
+    if (lastPathnameRef.current === pathname) return;
+    lastPathnameRef.current = pathname;
+    if (statusRef.current === "idle") return;
     if (pathname && !pathname.startsWith("/map")) reset();
-  }, [pathname, state.status, reset]);
+  }, [pathname, reset]);
 
   // 保険。WebGL の初期化に失敗したり、タブが裏に回って描画が止まると ready が来ず、
   // ローディングが解除されないまま残る。上限を過ぎたら地図を待たずに畳む。
@@ -156,10 +160,11 @@ export default function MapLoadingProvider({ children }: { children: React.React
   }, [state.status, finish]);
 
   // /map へ向かうリンクはどこにあっても拾う（NavigationBar や各ページの素の Link を含む）。
-  // React のハンドラは root で処理されるので、document のバブリングで見れば preventDefault 済みかが分かる
+  // next/link はクライアント遷移のために preventDefault するので、defaultPrevented では判定せず
+  // 捕捉フェーズで見る。遷移しなかった場合は MAX_LOADING_MS の上限で畳まれる
   useEffect(() => {
     const handleClick = (event: MouseEvent) => {
-      if (event.defaultPrevented || event.button !== 0) return;
+      if (event.button !== 0) return;
       if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
       const target = event.target as Element | null;
       const anchor = target?.closest?.("a[href]");
@@ -176,8 +181,8 @@ export default function MapLoadingProvider({ children }: { children: React.React
       if (!url.pathname.startsWith("/map")) return;
       startMapLoading();
     };
-    document.addEventListener("click", handleClick);
-    return () => document.removeEventListener("click", handleClick);
+    document.addEventListener("click", handleClick, true);
+    return () => document.removeEventListener("click", handleClick, true);
   }, [startMapLoading]);
 
   useEffect(() => clearTimers, [clearTimers]);
