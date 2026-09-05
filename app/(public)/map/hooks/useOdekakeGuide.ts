@@ -287,8 +287,10 @@ export function useOdekakeGuide({
   const remaining = selected?.route?.distanceMeters ?? null;
   if (navigating && remaining !== null && startDistanceRef.current === null) startDistanceRef.current = remaining;
   const progress =
-    navigating && remaining !== null && startDistanceRef.current
-      ? Math.min(1, Math.max(0, 1 - remaining / startDistanceRef.current))
+    navigating && remaining !== null && startDistanceRef.current !== null
+      ? startDistanceRef.current > 0
+        ? Math.min(1, Math.max(0, 1 - remaining / startDistanceRef.current))
+        : 1
       : 0;
 
   const arrived = useMemo(() => {
@@ -301,20 +303,39 @@ export function useOdekakeGuide({
     if (id === null) setNavigating(false);
   }, []);
 
+  // 現在地が無い状態で「案内をはじめる」を押したときは、許可・取得を求めて待ち、
+  // 現在地が取れたら自動で案内を始める
+  const pendingNavigationRef = useRef<string | null>(null);
   const startNavigation = useCallback(
     (spot: MapSpot) => {
       if (!kinds.includes(spot.kind)) setKinds((prev) => (prev.includes(spot.kind) ? prev : [...prev, spot.kind]));
       setSelectedId(spot.id);
-      // 現在地が無ければ案内は始めず、許可・取得を求める
       if (!geolocation) {
+        pendingNavigationRef.current = spot.id;
         requestLocation();
         return;
       }
+      pendingNavigationRef.current = null;
       setNavigating(true);
     },
     [geolocation, kinds, requestLocation]
   );
-  const stopNavigation = useCallback(() => setNavigating(false), []);
+  useEffect(() => {
+    if (!geolocation || !pendingNavigationRef.current) return;
+    if (selectedId !== pendingNavigationRef.current) {
+      pendingNavigationRef.current = null;
+      return;
+    }
+    pendingNavigationRef.current = null;
+    setNavigating(true);
+  }, [geolocation, selectedId]);
+  useEffect(() => {
+    if (!active) pendingNavigationRef.current = null;
+  }, [active]);
+  const stopNavigation = useCallback(() => {
+    pendingNavigationRef.current = null;
+    setNavigating(false);
+  }, []);
 
   return {
     active,
