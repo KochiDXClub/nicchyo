@@ -25,17 +25,30 @@ const KEY_PATTERN = /^[a-z0-9][a-z0-9-]{1,63}$/;
 function isHttpUrl(value: string): boolean {
   try {
     const url = new URL(value);
-    return url.protocol === "https:" || url.protocol === "http:";
+    // 公開ページに埋め込む（img / 外部リンク）ため、混在コンテンツを避けて https に限定する
+    return url.protocol === "https:";
   } catch {
     return false;
   }
 }
 
+/** 改行・制御文字を含まない短い文字列か（公開 UI と AI のプロンプトに流れる値に使う） */
+const CONTROL_CHARS = /[\u0000-\u001f\u007f]/;
+function isPlainShortText(value: unknown, max: number): value is string {
+  return typeof value === "string" && value.trim().length > 0 && value.length <= max && !CONTROL_CHARS.test(value);
+}
+
 function toStringArray(value: unknown): string[] | null {
   if (value === undefined || value === null) return [];
   if (!Array.isArray(value)) return null;
-  const items = value.map((v) => (typeof v === "string" ? v.trim() : "")).filter(Boolean);
-  return items.length > 30 ? null : items;
+  if (value.length > 30) return null;
+  const items: string[] = [];
+  for (const v of value) {
+    if (typeof v === "string" && v.trim() === "") continue;
+    if (!isPlainShortText(v, 40)) return null;
+    items.push(v.trim());
+  }
+  return items;
 }
 
 function nullableText(value: unknown, max: number): string | null | undefined {
@@ -52,9 +65,8 @@ function validate(body: SpotInput, { requireAll }: { requireAll: boolean }):
   const values: Record<string, unknown> = {};
 
   if (body.name !== undefined || requireAll) {
-    const name = typeof body.name === "string" ? body.name.trim() : "";
-    if (!name || name.length > 80) return { ok: false, error: "名前は1〜80文字で入力してください" };
-    values.name = name;
+    if (!isPlainShortText(body.name, 80)) return { ok: false, error: "名前は1〜80文字（改行なし）で入力してください" };
+    values.name = body.name.trim();
   }
   if (body.description !== undefined || requireAll) {
     const description = typeof body.description === "string" ? body.description.trim() : "";
@@ -85,7 +97,8 @@ function validate(body: SpotInput, { requireAll }: { requireAll: boolean }):
   }
   if (body.image_url !== undefined || requireAll) {
     const imageUrl = typeof body.image_url === "string" ? body.image_url.trim() : "";
-    if (!imageUrl || imageUrl.length > 500 || !(imageUrl.startsWith("/") || isHttpUrl(imageUrl))) {
+    const isSitePath = imageUrl.startsWith("/") && !imageUrl.startsWith("//");
+    if (!imageUrl || imageUrl.length > 500 || !(isSitePath || isHttpUrl(imageUrl))) {
       return { ok: false, error: "アイコン画像のURLが不正です" };
     }
     values.image_url = imageUrl;
@@ -136,7 +149,7 @@ function validate(body: SpotInput, { requireAll }: { requireAll: boolean }):
     const value = nullableText(body[field], 1000);
     if (body[field] !== undefined && value === undefined) return { ok: false, error: "URLが長すぎます" };
     if (value !== undefined) {
-      if (value !== null && !isHttpUrl(value)) return { ok: false, error: "URLは http(s):// で始めてください" };
+      if (value !== null && !isHttpUrl(value)) return { ok: false, error: "URLは https:// で始めてください" };
       values[field] = value;
     }
   }
