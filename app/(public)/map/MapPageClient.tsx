@@ -36,6 +36,8 @@ import FacilityLayer from "./components/FacilityLayer";
 import FacilityGuidePanel from "./components/FacilityGuidePanel";
 import { useFacilityGuide } from "./hooks/useFacilityGuide";
 import { parseFacilityCategoryId } from "@/lib/facilities/facilities";
+import SpotCard from "./components/SpotCard";
+import { facilityToSpot, type MapSpot } from "@/lib/spots";
 import {
   buildNearbyNote,
   isPointInRotatedRect,
@@ -195,6 +197,13 @@ export default function MapPageClient({
     const query = params.toString();
     router.replace(query ? `/map?${query}` : "/map", { scroll: false });
   }, [router, searchParamsKey]);
+  // タップしたスポット（電停・駅・建物・施設）。店舗以外は SpotCard で表示する
+  const [selectedSpot, setSelectedSpot] = useState<MapSpot | null>(null);
+  const closeSpotCard = useCallback(() => setSelectedSpot(null), []);
+  // おでかけサポートの一覧やカテゴリを切り替えたらカードは閉じる
+  useEffect(() => {
+    setSelectedSpot(null);
+  }, [facilityCategoryId]);
   const [agentOpen, setAgentOpen] = useState(false);
   const [showVendorPrompt, setShowVendorPrompt] = useState(false);
   const [vendorShopName, setVendorShopName] = useState<string | null>(null);
@@ -913,6 +922,8 @@ export default function MapPageClient({
               onMapReady={markMapReady}
               onMapStage={reportMapStage}
               onMapInstance={handleMapInstance}
+              onSpotSelect={setSelectedSpot}
+              selectedSpotId={selectedSpot?.id}
               onUserLocationUpdate={(coords) => {
                 setUserLocation({ lat: coords.lat, lng: coords.lng });
                 setIsInMarket(coords.inMarket);
@@ -989,8 +1000,9 @@ export default function MapPageClient({
                   nearestFacilityId={facilityGuide.nearest?.facility.id ?? null}
                   routePoints={facilityGuide.nearest?.route.points}
                   userLocation={facilityGuide.userLocation}
+                  onSelectFacility={(facility) => setSelectedSpot(facilityToSpot(facility))}
                 />
-                {!mapCharacterConsultActive && !nearbyState && (
+                {!mapCharacterConsultActive && !nearbyState && !selectedSpot && (
                   <FacilityGuidePanel
                     category={facilityGuide.category}
                     facilities={facilityGuide.facilities}
@@ -1001,6 +1013,19 @@ export default function MapPageClient({
                 )}
               </>
             )}
+
+            {/* スポットカード：店舗以外のスポット（電停・駅・建物・施設）をタップしたとき */}
+            <AnimatePresence>
+              {selectedSpot && !mapCharacterConsultActive && !nearbyState && (
+                <SpotCard
+                  key={selectedSpot.id}
+                  spot={selectedSpot}
+                  map={mapInstance}
+                  origin={isInMarket && userLocation ? userLocation : null}
+                  onClose={closeSpotCard}
+                />
+              )}
+            </AnimatePresence>
           </div>
       </main>
 

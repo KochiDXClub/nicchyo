@@ -3,7 +3,7 @@
 import { Fragment, memo, useCallback, useEffect, useState } from "react";
 import type { ComponentType } from "react";
 import type { OptimizedShopLayerWithClusteringProps } from "./OptimizedShopLayerWithClustering";
-import { CircleMarker, Marker, Pane, Popup, Rectangle, useMap } from "react-leaflet";
+import { CircleMarker, Marker, Pane, Rectangle, useMap } from "react-leaflet";
 import L from "leaflet";
 import type { LatLngBoundsExpression } from "leaflet";
 import type { Landmark } from "../types/landmark";
@@ -13,6 +13,19 @@ import type { MapRouteConfig, MapRoutePoint } from "../types/mapRoute";
 import RoadOverlay from "./RoadOverlay";
 import ChomeAreaMarkers from "./ChomeAreaMarkers";
 import { OVERVIEW_ZONE_MAX_ZOOM } from "../config/displayConfig";
+import { landmarkSpotId } from "@/lib/spots";
+
+/**
+ * 選択中のランドマークは、元の DivIcon と同じ HTML に is-selected を足して
+ * 少し大きく見せる（CSS: .map-landmark-visual.is-selected）。
+ */
+function buildSelectedLandmarkIcon(base: L.DivIcon): L.DivIcon {
+  const html = typeof base.options.html === "string" ? base.options.html : "";
+  return L.divIcon({
+    ...base.options,
+    html: html.replace('class="map-landmark-visual', 'class="map-landmark-visual is-selected'),
+  });
+}
 
 const MIN_ZOOM_LABEL_NAMES = new Set(["高知城", "高知駅", "チンチン電車"]);
 const MIN_ZOOM_ONLY_LABEL = { name: "日曜市", lat: 33.56145, lng: 133.5383 };
@@ -28,6 +41,8 @@ export const MapOverlays = memo(function MapOverlays({
   highlightEventTargets,
   visibleLandmarkSpecs,
   landmarkIcons,
+  onLandmarkClick,
+  selectedSpotId,
   isMinimumZoomMode,
   isOverviewZoneMode,
   shops,
@@ -54,6 +69,8 @@ export const MapOverlays = memo(function MapOverlays({
   highlightEventTargets: boolean;
   visibleLandmarkSpecs: Landmark[];
   landmarkIcons: Map<string, L.DivIcon>;
+  onLandmarkClick?: (landmark: Landmark) => void;
+  selectedSpotId?: string;
   isMinimumZoomMode: boolean;
   isOverviewZoneMode: boolean;
   shops: Shop[];
@@ -146,26 +163,29 @@ export const MapOverlays = memo(function MapOverlays({
       )}
 
       <Pane name="landmarks" style={{ zIndex: highlightEventTargets ? 3000 : 70 }}>
-        {visibleLandmarkSpecs.map((spec) => (
-          <Marker
-            key={`landmark-${spec.key}`}
-            position={[spec.lat, spec.lng]}
-            icon={landmarkIcons.get(spec.key) ?? L.divIcon({ className: "map-landmark-icon" })}
-            interactive
-            keyboard={false}
-            opacity={1}
-            zIndexOffset={highlightEventTargets ? 1800 : 0}
-          >
-            <Popup pane="landmark-popup" offset={[0, -18]} className="map-landmark-popup">
-              <div className="min-w-[180px] max-w-[220px]">
-                <p className="text-sm font-bold text-slate-900">{spec.name}</p>
-                <p className="mt-1 text-xs leading-relaxed text-slate-600">{spec.description}</p>
-              </div>
-            </Popup>
-          </Marker>
-        ))}
+        {visibleLandmarkSpecs.map((spec) => {
+          const baseIcon = landmarkIcons.get(spec.key) ?? L.divIcon({ className: "map-landmark-icon" });
+          const isSelected = selectedSpotId === landmarkSpotId(spec.key);
+          return (
+            <Marker
+              key={`landmark-${spec.key}`}
+              position={[spec.lat, spec.lng]}
+              icon={isSelected ? buildSelectedLandmarkIcon(baseIcon) : baseIcon}
+              interactive
+              keyboard={false}
+              opacity={1}
+              zIndexOffset={highlightEventTargets ? 1800 : isSelected ? 900 : 0}
+              eventHandlers={{
+                click: (event) => {
+                  // 地図側のクリック（バナーを閉じる等）に伝えない
+                  L.DomEvent.stopPropagation(event.originalEvent);
+                  onLandmarkClick?.(spec);
+                },
+              }}
+            />
+          );
+        })}
       </Pane>
-      <Pane name="landmark-popup" style={{ zIndex: 10000 }} />
 
       {/* 縮小時（zoom < 17）: 丁目エリアバッジ */}
       {!isMinimumZoomMode && isOverviewZoneMode && (
