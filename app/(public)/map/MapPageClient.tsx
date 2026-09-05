@@ -1045,7 +1045,7 @@ export default function MapPageClient({
               <>
                 <GuideLayer
                   map={mapInstance}
-                  spots={guide.ranked.map((entry) => entry.spot)}
+                  spots={guide.visibleSpots}
                   selectedSpotId={guide.selectedId}
                   routes={guide.routes}
                   onSelectSpot={setSelectedSpot}
