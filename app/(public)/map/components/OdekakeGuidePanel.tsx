@@ -6,7 +6,7 @@
  * おでかけサポートのボトムシート。
  *
  *   - たたむと小さなピルだけ。マップを隠さない
- *   - 開くと: 目的（プリセット）/ 種類の切り替え / 条件 / 起点 / 行程表
+ *   - 開くと: 種類の切り替え / 条件 / 起点 / 行程表
  *   - 行程表は「起点 → 各スポット」を縦の破線でつないだ停留所リスト。
  *     マップに引く破線ルートと同じ表現で、どこからどこへ行くのかが一目で分かる
  *   - 行をタップすると経路が引かれ、「案内をはじめる」で案内中モードに入る
@@ -17,7 +17,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ChevronRight, LocateFixed, Navigation, X as XIcon } from 'lucide-react';
 import type { MapSpot } from '@/lib/spots';
-import { GUIDE_PRESETS, type RankedSpot } from '@/lib/guide';
+import type { RankedSpot } from '@/lib/guide';
 import { formatDistance } from '@/lib/facilities/nearest';
 import type { MapCamera } from '../types/mapCamera';
 import { GUIDE_KIND_OPTIONS, type OdekakeGuide } from '../hooks/useOdekakeGuide';
@@ -143,12 +143,7 @@ export default function OdekakeGuidePanel({ guide, map, onClose, onOpenSpot }: O
   const [isOpen, setIsOpen] = useState(guide.kinds.length === 0);
   const dragStartY = useRef<number | null>(null);
 
-  // URL 経由でプリセットが切り替わったら閉じた状態に戻す（画面内でえらんだときは開いたまま）。
-  // 種類が未選択なら目的をえらぶために開く
-  useEffect(() => {
-    setIsOpen(guide.kinds.length === 0);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [guide.presetId]);
+  // 種類が未選択なら、えらぶために開く
   useEffect(() => {
     if (guide.kinds.length === 0) setIsOpen(true);
   }, [guide.kinds.length]);
@@ -215,9 +210,12 @@ export default function OdekakeGuidePanel({ guide, map, onClose, onOpenSpot }: O
     dragStartY.current = null;
   };
 
-  const preset = GUIDE_PRESETS.find((p) => p.id === guide.presetId) ?? null;
   const choosing = guide.kinds.length === 0;
-  const title = preset ? preset.label : choosing ? 'いま、どうしたい？' : 'ちかくの場所';
+  const title = choosing
+    ? 'おでかけサポート'
+    : GUIDE_KIND_OPTIONS.filter((o) => guide.kinds.includes(o.kind))
+        .map((o) => o.label)
+        .join('・');
   const nearest = guide.nearest;
   const originLabel = guide.origin?.label ?? '現在地';
   const hasRoutes = guide.ranked.some((entry) => entry.route);
@@ -266,7 +264,7 @@ export default function OdekakeGuidePanel({ guide, map, onClose, onOpenSpot }: O
                       : `${guide.ranked.length}か所`}
               </span>
               <span className="mt-0.5 block text-[11px] leading-none text-slate-500">
-                {nearest?.route ? 'いちばん近い' : needsLocationAttention ? title : choosing ? '目的をえらぶ' : title}
+                {nearest?.route ? 'いちばん近い' : needsLocationAttention ? title : choosing ? '種類をえらぶ' : title}
               </span>
             </span>
             {nearest?.route && (
@@ -310,8 +308,7 @@ export default function OdekakeGuidePanel({ guide, map, onClose, onOpenSpot }: O
           </div>
           <div className="flex items-start justify-between gap-3 px-5 pb-3">
             <div className="min-w-0">
-              <p className="text-[11px] font-semibold text-amber-700">おでかけサポート</p>
-              <h3 className="mt-0.5 text-[18px] font-black leading-tight tracking-tight text-nicchyo-ink">{title}</h3>
+              <h3 className="text-[18px] font-black leading-tight tracking-tight text-nicchyo-ink">{title}</h3>
               {!choosing && hasRoutes && <p className="mt-1 text-[11px] text-slate-500">{originLabel}から近い順</p>}
             </div>
             <button
@@ -329,35 +326,8 @@ export default function OdekakeGuidePanel({ guide, map, onClose, onOpenSpot }: O
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pb-[calc(env(safe-area-inset-bottom,0px)+0.75rem)]">
-          {/* 目的（プリセット） */}
-          {choosing && (
-            <div className="px-5 pt-4">
-              <div className="grid grid-cols-2 gap-2.5">
-                {GUIDE_PRESETS.map((p) => (
-                  <button
-                    key={p.id}
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      guide.applyPreset(p.id);
-                    }}
-                    className={`${FOCUS_RING} flex items-start gap-2.5 rounded-2xl bg-nicchyo-base px-3.5 py-3.5 text-left ring-1 ring-amber-100 transition-transform active:scale-[0.98]`}
-                  >
-                    <span className="mt-0.5 text-[22px] leading-none" aria-hidden>
-                      {p.emoji}
-                    </span>
-                    <span className="min-w-0">
-                      <span className="block text-[14px] font-bold text-nicchyo-ink">{p.label}</span>
-                    </span>
-                  </button>
-                ))}
-              </div>
-              <p className="mb-2 mt-5 text-[12px] font-semibold text-slate-500">種類からえらぶ</p>
-            </div>
-          )}
-
           {/* 種類（複数選択） */}
-          <div className={`flex gap-2 overflow-x-auto px-5 [scrollbar-width:none] ${choosing ? 'pb-4' : 'pb-2 pt-3'}`}>
+          <div className="flex gap-2 overflow-x-auto px-5 pb-2 pt-3 [scrollbar-width:none]">
             {GUIDE_KIND_OPTIONS.map((option) => (
               <KindToggle key={option.kind} active={guide.kinds.includes(option.kind)} onClick={() => guide.toggleKind(option.kind)}>
                 <span aria-hidden className="mr-1">

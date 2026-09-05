@@ -25,5 +25,3 @@ export {
 } from './origin';
 export { rankSpots, isSpotOpen } from './ranking';
 export type { RankOptions, RankedSpot } from './ranking';
-export { GUIDE_PRESETS, getGuidePreset } from './presets';
-export type { GuidePreset } from './presets';

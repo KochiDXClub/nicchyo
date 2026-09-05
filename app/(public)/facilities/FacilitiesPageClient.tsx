@@ -12,8 +12,6 @@ import Link from 'next/link';
 import { motion } from 'framer-motion';
 import NavigationBar from '../../components/NavigationBar';
 import { FACILITY_CATEGORIES, type FacilityCategoryId } from '@/lib/facilities/facilities';
-import { GUIDE_PRESETS } from '@/lib/guide/presets';
-import { guideHrefForPreset } from '@/lib/guide/query';
 
 type FacilitiesPageClientProps = {
   /**
@@ -78,28 +76,7 @@ export default function FacilitiesPageClient({ counts }: FacilitiesPageClientPro
       </div>
 
       <div className="relative mx-auto max-w-lg px-4">
-        {/* 目的からえらぶ（プリセット） */}
-        <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.2em] text-amber-600">いま、どうしたい？</p>
-        <ul className="mb-8 grid grid-cols-2 gap-3">
-          {GUIDE_PRESETS.map((preset) => (
-            <li key={preset.id}>
-              <Link
-                href={guideHrefForPreset(preset.id)}
-                className="flex h-full items-center gap-2.5 rounded-2xl border border-amber-100 bg-white px-3 py-3 shadow-sm transition active:scale-[0.98]"
-              >
-                <span className="text-2xl leading-none" aria-hidden="true">
-                  {preset.emoji}
-                </span>
-                <span className="min-w-0">
-                  <span className="block text-sm font-bold text-gray-900">{preset.label}</span>
-                </span>
-              </Link>
-            </li>
-          ))}
-        </ul>
-
         {/* 3つのカテゴリボックス */}
-        <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.2em] text-amber-600">種類からさがす</p>
         <ul className="space-y-4">
           {FACILITY_CATEGORIES.map((category, i) => (
             <li key={category.id}>
