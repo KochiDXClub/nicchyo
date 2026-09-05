@@ -113,8 +113,6 @@ function toPayload(form: FormState) {
     latitude: Number(form.latitude),
     longitude: Number(form.longitude),
     image_url: form.image_url,
-    width_px: 40,
-    height_px: 40,
     lines: splitList(form.lines),
     tags: splitList(form.tags),
     notes: form.notes.trim() || null,
@@ -333,7 +331,8 @@ export default function AdminSpotsPage() {
       const res = await fetch("/api/admin/spots", {
         method: creating ? "POST" : "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(toPayload(form)),
+        // アイコンの大きさはマップ編集が持つ。作成時だけ既定値を送り、保存では触らない
+        body: JSON.stringify(creating ? { ...toPayload(form), width_px: 40, height_px: 40 } : toPayload(form)),
       });
       if (!res.ok) {
         const data = (await res.json()) as { error?: string };
