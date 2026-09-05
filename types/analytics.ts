@@ -3,7 +3,11 @@ export type AnalyticsEventName =
   | "shop_impression"
   | "shop_view"
   | "shop_scroll"
-  | "add_to_bag";
+  | "add_to_bag"
+  | "guide_open"
+  | "guide_navigation_start"
+  | "guide_arrived"
+  | "guide_navigation_stop";
 
 export type VisitorKey = string;
 
@@ -33,11 +37,22 @@ export interface ShopScrollParams {
   viewport_time?: number;
 }
 
+/** おでかけサポートの利用ログ（guide_events） */
+export interface GuideEventParams {
+  preset_id?: string | null;
+  kinds?: string[];
+  spot_key?: string | null;
+  origin_type?: string | null;
+  walk_minutes?: number | null;
+  distance_meters?: number | null;
+}
+
 export type AnalyticsParams =
   | PageViewParams
   | ShopImpressionParams
   | ShopViewParams
   | ShopScrollParams
+  | GuideEventParams
   | Record<string, unknown>;
 
 export interface SendEventOptions {

@@ -3,6 +3,7 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/database.types";
 import type { DatabaseWithExtensions } from "@/types/database.extensions";
 import { buildGrandmaAiSystemPrompt } from "@/app/(public)/map/data/grandmaAiContext";
+import { loadSpotSupport } from "@/lib/guide/spotSupport.server";
 import { requireSameOrigin } from "@/lib/security/requestGuards";
 import { maskPii } from "@/lib/privacy/maskPii";
 import { enforceRateLimit } from "@/lib/security/rateLimit";
@@ -341,6 +342,9 @@ async function createStreamingConsultResponse(options: {
     memorySummary,
   } = options;
 
+  // お手洗い・休けい・電停の質問に、実データ（map_landmarks）と徒歩の目安で答えられるようにする
+  const spotSupport = await loadSpotSupport(supabase, location);
+
   const upstream = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
     headers: {
@@ -360,7 +364,10 @@ async function createStreamingConsultResponse(options: {
             [
               buildConversationPatternPrompt(selectedCharacters, conversationPattern),
               buildStreamingFormatPrompt(selectedCharacters, conversationPattern),
-            ].join("\n\n")
+              spotSupport.prompt,
+            ]
+              .filter(Boolean)
+              .join("\n\n")
           ),
         },
         {
@@ -840,6 +847,8 @@ export async function POST(request: Request) {
       });
     }
 
+    const spotSupport = await loadSpotSupport(supabase, location);
+
     const chatResponse = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -856,7 +865,9 @@ export async function POST(request: Request) {
             role: "system",
             content: buildGrandmaAiSystemPrompt(
               selectedCharacters,
-              buildConversationPatternPrompt(selectedCharacters, conversationPattern)
+              [buildConversationPatternPrompt(selectedCharacters, conversationPattern), spotSupport.prompt]
+                .filter(Boolean)
+                .join("\n\n")
             ),
           },
           {

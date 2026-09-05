@@ -30,6 +30,7 @@ import {
   type RankedSpot,
 } from '@/lib/guide';
 import type { GuideQuery } from '@/lib/guide/query';
+import { sendEvent } from '@/lib/analytics/sendEvent';
 
 export type OriginMode = 'auto' | 'map-center';
 
@@ -201,6 +202,31 @@ export function useOdekakeGuide({
     return distanceInMeters(origin.point, selected.spot) <= ARRIVAL_METERS;
   }, [navigating, origin, selected]);
 
+  // ── 利用ログ（open / navigation_start / arrived / navigation_stop） ──
+  const eventContext = useCallback(
+    (spot?: MapSpot | null) => {
+      const entry = spot ? ranked.find((e) => e.spot.id === spot.id) : null;
+      return {
+        preset_id: query?.presetId ?? null,
+        kinds,
+        spot_key: spot?.landmarkKey ?? null,
+        origin_type: origin?.type ?? null,
+        walk_minutes: entry?.route?.walkMinutes ?? null,
+        distance_meters: entry?.route ? Math.round(entry.route.distanceMeters) : null,
+      };
+    },
+    [kinds, origin?.type, query?.presetId, ranked]
+  );
+  const eventContextRef = useRef(eventContext);
+  eventContextRef.current = eventContext;
+
+  useEffect(() => {
+    if (!active) return;
+    sendEvent('guide_open', eventContextRef.current(), { toServer: true });
+  }, [active, queryKey]);
+
+  const arrivedLoggedRef = useRef<string | null>(null);
+
   const select = useCallback((id: string | null) => {
     setSelectedId(id);
     if (id === null) setNavigating(false);
@@ -211,10 +237,23 @@ export function useOdekakeGuide({
       if (!kinds.includes(spot.kind)) setKinds((prev) => (prev.includes(spot.kind) ? prev : [...prev, spot.kind]));
       setSelectedId(spot.id);
       setNavigating(true);
+      arrivedLoggedRef.current = null;
+      sendEvent('guide_navigation_start', eventContextRef.current(spot), { toServer: true });
     },
     [kinds]
   );
-  const stopNavigation = useCallback(() => setNavigating(false), []);
+  const stopNavigation = useCallback(() => {
+    setNavigating(false);
+    if (selected && arrivedLoggedRef.current !== selected.spot.id) {
+      sendEvent('guide_navigation_stop', eventContextRef.current(selected.spot), { toServer: true });
+    }
+  }, [selected]);
+
+  useEffect(() => {
+    if (!arrived || !selected || arrivedLoggedRef.current === selected.spot.id) return;
+    arrivedLoggedRef.current = selected.spot.id;
+    sendEvent('guide_arrived', eventContextRef.current(selected.spot), { toServer: true });
+  }, [arrived, selected]);
 
   return {
     active,

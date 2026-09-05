@@ -56,6 +56,8 @@ type SearchLogRow = { keyword: string; searched_at: string };
 type ConsultLogRow = { intent_category: string | null; consulted_at: string };
 type VendorCatRow = { categories: { name: string } | null };
 type ConsultFeedbackRow = { question_text: string | null; comment: string | null; created_at: string; turn_text: string | null };
+type GuideEventRow = { event_type: string; preset_id: string | null; kinds: string[] | null; spot_key: string | null; origin_type: string | null };
+type SpotNameRow = { key: string; name: string | null };
 
 export default async function AdminAnalyticsPage() {
   const cookieStore = await cookies();
@@ -80,6 +82,8 @@ export default async function AdminAnalyticsPage() {
     consultLogsResult,
     vendorCatsResult,
     lowRatingResult,
+    guideEventsResult,
+    spotNamesResult,
   ] = await Promise.all([
     // web_page_analytics: 過去30日分
     dc.from("web_page_analytics")
@@ -108,6 +112,12 @@ export default async function AdminAnalyticsPage() {
       .eq("rating", -1)
       .order("created_at", { ascending: false })
       .limit(20),
+    // guide_events: おでかけサポートの利用（今月）
+    dc.from("guide_events")
+      .select("event_type, preset_id, kinds, spot_key, origin_type")
+      .gte("created_at", monthStartTs),
+    // スポット名（案内先の表示用）
+    dc.from("map_landmarks").select("key, name"),
   ]);
 
   const pageRows = (pageAnalyticsResult.data ?? []) as PageAnalyticsRow[];
@@ -116,6 +126,33 @@ export default async function AdminAnalyticsPage() {
   const consultLogs = (consultLogsResult.data ?? []) as ConsultLogRow[];
   const vendorCats = (vendorCatsResult.data ?? []) as unknown as VendorCatRow[];
   const lowRatingFeedback = (lowRatingResult.data ?? []) as ConsultFeedbackRow[];
+  const guideEvents = (guideEventsResult.data ?? []) as unknown as GuideEventRow[];
+  const spotNameByKey = new Map(((spotNamesResult.data ?? []) as SpotNameRow[]).map((r) => [r.key, r.name ?? r.key]));
+
+  // ---- おでかけサポート（今月） ----
+  const guideCounts = { open: 0, navigation_start: 0, arrived: 0, navigation_stop: 0 } as Record<string, number>;
+  const guideSpotMap = new Map<string, number>();
+  const guidePresetMap = new Map<string, number>();
+  const guideOriginMap = new Map<string, number>();
+  for (const e of guideEvents) {
+    guideCounts[e.event_type] = (guideCounts[e.event_type] ?? 0) + 1;
+    if (e.event_type === "navigation_start" && e.spot_key) guideSpotMap.set(e.spot_key, (guideSpotMap.get(e.spot_key) ?? 0) + 1);
+    if (e.event_type === "open") {
+      const label = e.preset_id ?? (e.kinds && e.kinds.length > 0 ? e.kinds.join("+") : "menu");
+      guidePresetMap.set(label, (guidePresetMap.get(label) ?? 0) + 1);
+      if (e.origin_type) guideOriginMap.set(e.origin_type, (guideOriginMap.get(e.origin_type) ?? 0) + 1);
+    }
+  }
+  const guideTopSpots = Array.from(guideSpotMap.entries())
+    .map(([key, count]) => ({ key, name: spotNameByKey.get(key) ?? key, count }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 6);
+  const guideTopPresets = Array.from(guidePresetMap.entries())
+    .map(([label, count]) => ({ label, count }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 6);
+  const guideArrivalRate = guideCounts.navigation_start > 0 ? Math.round((guideCounts.arrived / guideCounts.navigation_start) * 100) : null;
+  const guideGeoRate = guideCounts.open > 0 ? Math.round(((guideOriginMap.get("geolocation") ?? 0) / guideCounts.open) * 100) : null;
 
   // 管理者アクセスを除外
   const userRows = pageRows.filter((r) => !isAdmin(r.user_role));
@@ -242,6 +279,65 @@ export default async function AdminAnalyticsPage() {
               </div>
             ))}
           </div>
+        </section>
+
+        {/* おでかけサポート（今月） */}
+        <section className="mb-8 rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+          <h2 className="mb-1 text-lg font-bold text-slate-800">おでかけサポート</h2>
+          <p className="mb-4 text-xs text-slate-400">今月の利用（お手洗い・休けい・のりものの案内）</p>
+          {guideEvents.length === 0 ? (
+            <p className="py-6 text-center text-sm text-slate-400">データがありません</p>
+          ) : (
+            <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
+              <div className="space-y-3">
+                {[
+                  { label: "案内を開いた", value: guideCounts.open },
+                  { label: "案内をはじめた", value: guideCounts.navigation_start },
+                  { label: "到着", value: guideCounts.arrived },
+                  { label: "途中でやめた", value: guideCounts.navigation_stop },
+                ].map((row) => (
+                  <div key={row.label} className="flex items-center justify-between">
+                    <p className="text-sm text-slate-500">{row.label}</p>
+                    <p className="text-xl font-bold text-slate-800">{row.value.toLocaleString()}</p>
+                  </div>
+                ))}
+                <div className="flex items-center justify-between border-t border-slate-100 pt-3">
+                  <p className="text-sm text-slate-500">到着率</p>
+                  <p className="text-base font-semibold text-slate-700">{guideArrivalRate === null ? "—" : `${guideArrivalRate}%`}</p>
+                </div>
+                <div className="flex items-center justify-between">
+                  <p className="text-sm text-slate-500">現在地から案内できた割合</p>
+                  <p className="text-base font-semibold text-slate-700">{guideGeoRate === null ? "—" : `${guideGeoRate}%`}</p>
+                </div>
+              </div>
+              <div>
+                <p className="mb-2 text-xs font-semibold text-slate-500">よく案内した場所</p>
+                {guideTopSpots.length === 0 ? (
+                  <p className="text-sm text-slate-400">まだありません</p>
+                ) : (
+                  <ul className="space-y-2">
+                    {guideTopSpots.map((s) => (
+                      <li key={s.key} className="flex items-center justify-between text-sm">
+                        <span className="truncate text-slate-800">{s.name}</span>
+                        <span className="shrink-0 text-slate-500">{s.count}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+              <div>
+                <p className="mb-2 text-xs font-semibold text-slate-500">入口（目的・種類）</p>
+                <ul className="space-y-2">
+                  {guideTopPresets.map((p) => (
+                    <li key={p.label} className="flex items-center justify-between text-sm">
+                      <span className="truncate text-slate-800">{p.label}</span>
+                      <span className="shrink-0 text-slate-500">{p.count}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          )}
         </section>
 
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
