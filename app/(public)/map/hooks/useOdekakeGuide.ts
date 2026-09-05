@@ -23,6 +23,7 @@ import { landmarkToSpot, type MapSpot, type SpotKind } from '@/lib/spots';
 import { distanceInMeters, type LatLng } from '@/lib/facilities/geo';
 import {
   buildGuideNetworkForMap,
+  findGuideRoute,
   geolocationOrigin,
   rankSpots,
   type GuideNetwork,
@@ -288,8 +289,10 @@ export function useOdekakeGuide({
   const remaining = selected?.route?.distanceMeters ?? null;
   if (navigating && remaining !== null && startDistanceRef.current === null) startDistanceRef.current = remaining;
   const progress =
-    navigating && remaining !== null && startDistanceRef.current
-      ? Math.min(1, Math.max(0, 1 - remaining / startDistanceRef.current))
+    navigating && remaining !== null && startDistanceRef.current !== null
+      ? startDistanceRef.current > 0
+        ? Math.min(1, Math.max(0, 1 - remaining / startDistanceRef.current))
+        : 1
       : 0;
 
   const arrived = useMemo(() => {
@@ -301,24 +304,35 @@ export function useOdekakeGuide({
   const eventContext = useCallback(
     (spot?: MapSpot | null) => {
       const entry = spot ? ranked.find((e) => e.spot.id === spot.id) : null;
+      // 一覧にまだ無いスポット（種類を足した直後）は、その場で経路を計算して記録する
+      const route =
+        entry?.route ??
+        (spot && origin ? findGuideRoute(origin.point, spot, network, { destinationName: spot.name }) : null);
       return {
-        preset_id: null,
         kinds,
         spot_key: spot?.landmarkKey ?? null,
         origin_type: origin?.type ?? null,
-        walk_minutes: entry?.route?.walkMinutes ?? null,
-        distance_meters: entry?.route ? Math.round(entry.route.distanceMeters) : null,
+        walk_minutes: route?.walkMinutes ?? null,
+        distance_meters: route ? Math.round(route.distanceMeters) : null,
       };
     },
-    [kinds, origin?.type, ranked]
+    [kinds, network, origin, ranked]
   );
   const eventContextRef = useRef(eventContext);
   eventContextRef.current = eventContext;
 
+  // guide_open は位置情報の状態が確定してから（許可の可否が origin_type に反映されてから）1回だけ送る
+  const openLoggedKeyRef = useRef<string | null>(null);
+  const geoSettled = geoStatus !== 'checking' && geoStatus !== 'requesting';
   useEffect(() => {
-    if (!active) return;
+    if (!active) {
+      openLoggedKeyRef.current = null;
+      return;
+    }
+    if (!geoSettled || openLoggedKeyRef.current === queryKey) return;
+    openLoggedKeyRef.current = queryKey;
     sendEvent('guide_open', eventContextRef.current(), { toServer: true });
-  }, [active, queryKey]);
+  }, [active, geoSettled, queryKey]);
 
   const arrivedLoggedRef = useRef<string | null>(null);
 
@@ -327,22 +341,43 @@ export function useOdekakeGuide({
     if (id === null) setNavigating(false);
   }, []);
 
+  // 現在地が無い状態で「案内をはじめる」を押したときは、許可・取得を求めて待ち、
+  // 現在地が取れたら自動で案内を始める
+  const pendingNavigationRef = useRef<string | null>(null);
   const startNavigation = useCallback(
     (spot: MapSpot) => {
       if (!kinds.includes(spot.kind)) setKinds((prev) => (prev.includes(spot.kind) ? prev : [...prev, spot.kind]));
       setSelectedId(spot.id);
-      // 現在地が無ければ案内は始めず、許可・取得を求める
       if (!geolocation) {
+        pendingNavigationRef.current = spot.id;
         requestLocation();
         return;
       }
+      pendingNavigationRef.current = null;
       setNavigating(true);
       arrivedLoggedRef.current = null;
       sendEvent('guide_navigation_start', eventContextRef.current(spot), { toServer: true });
     },
     [geolocation, kinds, requestLocation]
   );
+  // 許可待ちだったスポットは、現在地が取れたら自動で案内を始める（ログもここで送る）
+  useEffect(() => {
+    if (!geolocation || !pendingNavigationRef.current) return;
+    if (selectedId !== pendingNavigationRef.current) {
+      pendingNavigationRef.current = null;
+      return;
+    }
+    pendingNavigationRef.current = null;
+    setNavigating(true);
+    arrivedLoggedRef.current = null;
+    const spot = ranked.find((e) => e.spot.id === selectedId)?.spot ?? spots.find((s) => s.id === selectedId);
+    if (spot) sendEvent('guide_navigation_start', eventContextRef.current(spot), { toServer: true });
+  }, [geolocation, ranked, selectedId, spots]);
+  useEffect(() => {
+    if (!active) pendingNavigationRef.current = null;
+  }, [active]);
   const stopNavigation = useCallback(() => {
+    pendingNavigationRef.current = null;
     setNavigating(false);
     if (selected && arrivedLoggedRef.current !== selected.spot.id) {
       sendEvent('guide_navigation_stop', eventContextRef.current(selected.spot), { toServer: true });
