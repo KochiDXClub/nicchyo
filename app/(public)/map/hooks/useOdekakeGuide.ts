@@ -5,8 +5,8 @@
  *
  * おでかけサポートの状態をまとめて持つフック。
  *
- *   URL（?guide= / ?facility=）→ 初期の種別・条件
- *   種別・条件チップ / 起点の切り替え / 選択中スポット / 案内中 … は画面側の状態
+ *   URL（?guide=menu / ?facility=）→ 初期の種類
+ *   種類・条件チップ / 選択中スポット / 案内中 … は画面側の状態
  *   経路・順位の計算は lib/guide（案内エンジン）に委ねる
  *
  * 起点は端末の現在地だけ。会場の外にいてもそこから道なりの経路・距離・時間を出す。
@@ -24,7 +24,6 @@ import { distanceInMeters, type LatLng } from '@/lib/facilities/geo';
 import {
   buildGuideNetworkForMap,
   geolocationOrigin,
-  GUIDE_PRESETS,
   rankSpots,
   type GuideNetwork,
   type GuideOrigin,
@@ -88,16 +87,16 @@ export function useOdekakeGuide({
 }) {
   const active = query !== null;
 
-  // ── 種別・条件（URL から初期化し、画面のチップで変える） ──
+  // ── 種類・条件（URL から初期化し、画面のチップで変える） ──
   const [kinds, setKinds] = useState<SpotKind[]>(query?.kinds ?? []);
-  const [anyTags, setAnyTags] = useState<string[]>(query?.requiredAnyTags ?? []);
-  const queryKey = query ? `${query.presetId ?? ''}|${query.kinds.join(',')}|${query.requiredAnyTags.join(',')}` : '';
+  const [anyTags, setAnyTags] = useState<string[]>([]);
+  const queryKey = query ? query.kinds.join(',') : '';
   const lastQueryKeyRef = useRef(queryKey);
   useEffect(() => {
     if (lastQueryKeyRef.current === queryKey) return;
     lastQueryKeyRef.current = queryKey;
     setKinds(query?.kinds ?? []);
-    setAnyTags(query?.requiredAnyTags ?? []);
+    setAnyTags([]);
     setSelectedId(null);
     setNavigating(false);
   }, [query, queryKey]);
@@ -108,13 +107,6 @@ export function useOdekakeGuide({
   }, []);
   const toggleAnyTag = useCallback((tag: string) => {
     setAnyTags((prev) => (prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]));
-  }, []);
-  const applyPreset = useCallback((presetId: string) => {
-    const preset = GUIDE_PRESETS.find((p) => p.id === presetId);
-    if (!preset) return;
-    setKinds([...preset.kinds]);
-    setAnyTags([...(preset.requiredAnyTags ?? [])]);
-    setSelectedId(null);
   }, []);
 
   // ── 選択・案内中 ──
@@ -251,10 +243,8 @@ export function useOdekakeGuide({
       network,
       kinds,
       requiredAnyTags: anyTags,
-      preferTags: query?.preferTags,
-      hideClosed: query?.hideClosed,
     });
-  }, [active, anyTags, kinds, network, origin, query?.hideClosed, query?.preferTags, spots]);
+  }, [active, anyTags, kinds, network, origin, spots]);
 
   /** いま選べる条件タグ（表示中の種別のスポットが持つタグの和集合） */
   const availableTags = useMemo(() => {
@@ -310,7 +300,7 @@ export function useOdekakeGuide({
     (spot?: MapSpot | null) => {
       const entry = spot ? ranked.find((e) => e.spot.id === spot.id) : null;
       return {
-        preset_id: query?.presetId ?? null,
+        preset_id: null,
         kinds,
         spot_key: spot?.landmarkKey ?? null,
         origin_type: origin?.type ?? null,
@@ -318,7 +308,7 @@ export function useOdekakeGuide({
         distance_meters: entry?.route ? Math.round(entry.route.distanceMeters) : null,
       };
     },
-    [kinds, origin?.type, query?.presetId, ranked]
+    [kinds, origin?.type, ranked]
   );
   const eventContextRef = useRef(eventContext);
   eventContextRef.current = eventContext;
@@ -365,13 +355,11 @@ export function useOdekakeGuide({
 
   return {
     active,
-    presetId: query?.presetId ?? null,
     kinds,
     toggleKind,
     anyTags,
     toggleAnyTag,
     availableTags,
-    applyPreset,
     origin,
     hasGeolocation,
     geoStatus,
