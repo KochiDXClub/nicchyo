@@ -409,7 +409,7 @@ export default function MapPageClient({
     setMapInstance(map);
   }, []);
 
-  const guide = useOdekakeGuide({ query: guideQuery, landmarks, mapRoute, map: mapInstance });
+  const guide = useOdekakeGuide({ query: guideQuery, landmarks, mapRoute });
   const guideActive = guide.active;
   // スポットカードの「ここへ案内」: 案内を開いて（URL に guide=menu）、そのスポットへ案内を始める
   const navigateToSpot = useCallback(

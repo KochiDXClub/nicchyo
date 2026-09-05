@@ -9,23 +9,23 @@
  *   種別・条件チップ / 起点の切り替え / 選択中スポット / 案内中 … は画面側の状態
  *   経路・順位の計算は lib/guide（案内エンジン）に委ねる
  *
- * 起点は端末の現在地。会場の外にいてもそこから道なりの経路・距離・時間を出す。
- * 現在地が取れないときだけ地図の中心（それも無ければ会場の中心）を使う。
+ * 起点は端末の現在地だけ。会場の外にいてもそこから道なりの経路・距離・時間を出す。
+ * 位置情報が許可されていない・取れていないときは、適当な場所から経路を出さず、
+ * 状態（geoStatus）を画面に出して許可・再試行を促す。
  * 案内が開いている間は watchPosition で現在地を追い、残り距離を更新する。
  * 小さな測位のゆらぎで起点が動かないよう、一定以上動いたときだけ更新する。
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Landmark } from '../types/landmark';
-import type { MapCamera } from '../types/mapCamera';
 import type { MapRoute } from '../types/mapRoute';
 import { landmarkToSpot, type MapSpot, type SpotKind } from '@/lib/spots';
 import { distanceInMeters, type LatLng } from '@/lib/facilities/geo';
 import {
   buildGuideNetworkForMap,
+  geolocationOrigin,
   GUIDE_PRESETS,
   rankSpots,
-  resolveOrigin,
   type GuideNetwork,
   type GuideOrigin,
   type RankedSpot,
@@ -53,6 +53,18 @@ export const GUIDE_KIND_OPTIONS: GuideKindOption[] = [
 type Geolocation = { point: LatLng; accuracyMeters?: number };
 
 /**
+ * 位置情報の状態
+ *   checking    : 許可状態を調べている
+ *   prompt      : まだ許可を求めていない（ボタンで求める）
+ *   requesting  : 許可を求めている / 取得中
+ *   granted     : 取得できている
+ *   denied      : 許可されていない
+ *   error       : 取得に失敗した（タイムアウト・測位不能）
+ *   unsupported : この端末では使えない
+ */
+export type GeoStatus = 'checking' | 'prompt' | 'requesting' | 'granted' | 'denied' | 'error' | 'unsupported';
+
+/**
  * 内容が同じなら前と同じ参照を返す。配列や経路を毎回作り直すと、描画側の effect が
  * そのたびに走ってマーカーや線が消えては出る（点滅する）ため、キーで比較して抑える。
  */
@@ -68,13 +80,11 @@ export function useOdekakeGuide({
   query,
   landmarks,
   mapRoute,
-  map,
 }: {
   /** null なら案内は閉じている */
   query: GuideQuery | null;
   landmarks: Landmark[];
   mapRoute: MapRoute | undefined;
-  map: MapCamera | null;
 }) {
   const active = query !== null;
 
@@ -113,51 +123,107 @@ export function useOdekakeGuide({
 
   // ── 現在地（案内が開いている間だけ追う） ──
   const [geolocation, setGeolocation] = useState<Geolocation | null>(null);
-  useEffect(() => {
-    if (!active) {
-      setGeolocation(null);
+  const [geoStatus, setGeoStatus] = useState<GeoStatus>('checking');
+  const watchIdRef = useRef<number | null>(null);
+
+  const stopWatching = useCallback(() => {
+    if (watchIdRef.current !== null && typeof navigator !== 'undefined' && 'geolocation' in navigator) {
+      navigator.geolocation.clearWatch(watchIdRef.current);
+    }
+    watchIdRef.current = null;
+  }, []);
+
+  /** 位置情報の取得を始める。未許可ならブラウザの許可ダイアログが出る（ユーザー操作から呼ぶ） */
+  const requestLocation = useCallback(() => {
+    if (typeof navigator === 'undefined' || !('geolocation' in navigator)) {
+      setGeoStatus('unsupported');
       return;
     }
-    if (typeof navigator === 'undefined' || !('geolocation' in navigator)) return;
-    const watchId = navigator.geolocation.watchPosition(
+    stopWatching();
+    setGeoStatus((prev) => (prev === 'granted' ? prev : 'requesting'));
+    watchIdRef.current = navigator.geolocation.watchPosition(
       (position) => {
         const point = { lat: position.coords.latitude, lng: position.coords.longitude };
         if (!Number.isFinite(point.lat) || !Number.isFinite(point.lng)) return;
+        setGeoStatus('granted');
         setGeolocation((prev) => {
           if (prev && distanceInMeters(prev.point, point) < ORIGIN_MOVE_THRESHOLD_METERS) return prev;
           return { point, accuracyMeters: position.coords.accuracy };
         });
       },
-      // 一度取れた現在地は、後のタイムアウト等のエラーでは捨てない
-      // （捨てると起点が地図の中心へ切り替わり、経路がブレる）
-      () => setGeolocation((prev) => prev),
+      (error) => {
+        if (error.code === error.PERMISSION_DENIED) {
+          setGeolocation(null);
+          setGeoStatus('denied');
+          return;
+        }
+        // 一度取れた現在地は、後のタイムアウト等のエラーでは捨てない（起点がブレるため）。
+        // まだ取れていなければ「取得に失敗」として再試行を促す
+        setGeolocation((prev) => {
+          if (!prev) setGeoStatus('error');
+          return prev;
+        });
+      },
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 5000 }
     );
-    return () => navigator.geolocation.clearWatch(watchId);
-  }, [active]);
+  }, [stopWatching]);
 
-  // ── 地図の中心（現在地が取れないときだけ使う。動かしたときに更新） ──
-  const [mapCenter, setMapCenter] = useState<LatLng | null>(null);
   useEffect(() => {
-    if (!map || !active) return;
-    const update = () => {
-      const center = map.getCenter();
-      setMapCenter({ lat: center.lat, lng: center.lng });
+    if (!active) {
+      stopWatching();
+      setGeolocation(null);
+      setGeoStatus('checking');
+      return;
+    }
+    if (typeof navigator === 'undefined' || !('geolocation' in navigator)) {
+      setGeoStatus('unsupported');
+      return;
+    }
+    let cancelled = false;
+    let permission: PermissionStatus | null = null;
+    const applyState = (state: PermissionState) => {
+      if (cancelled) return;
+      if (state === 'granted') requestLocation();
+      else if (state === 'denied') {
+        stopWatching();
+        setGeolocation(null);
+        setGeoStatus('denied');
+      } else setGeoStatus('prompt');
     };
-    update();
-    map.on('moveend', update);
+    // 許可済みなら黙って取得を始め、未許可ならボタンで求める（Permissions API が無い端末は
+    // 状態が分からないのでボタンを出す）
+    if (typeof navigator.permissions?.query === 'function') {
+      navigator.permissions
+        .query({ name: 'geolocation' })
+        .then((status) => {
+          permission = status;
+          applyState(status.state);
+          status.onchange = () => applyState(status.state);
+        })
+        .catch(() => applyState('prompt'));
+    } else {
+      applyState('prompt');
+    }
     return () => {
-      map.off('moveend', update);
+      cancelled = true;
+      if (permission) permission.onchange = null;
+      stopWatching();
     };
-  }, [map, active]);
+  }, [active, requestLocation, stopWatching]);
+
+  // 許可ダイアログが放置された等で「取得中」のまま止まらないよう、一定時間で失敗扱いにする
+  useEffect(() => {
+    if (geoStatus !== 'requesting') return;
+    const timer = window.setTimeout(() => setGeoStatus((prev) => (prev === 'requesting' ? 'error' : prev)), 20000);
+    return () => window.clearTimeout(timer);
+  }, [geoStatus]);
 
   const hasGeolocation = geolocation !== null;
-  // 現在地があるときは地図の中心の更新に反応しない（起点が作り直されて経路が再計算されるのを防ぐ）
-  const centerForOrigin = geolocation ? null : mapCenter;
+  // 起点は端末の現在地だけ。取れていないときは経路を出さない
   const origin: GuideOrigin | null = useMemo(() => {
-    if (!active) return null;
-    return resolveOrigin({ geolocation, mapCenter: centerForOrigin });
-  }, [active, geolocation, centerForOrigin]);
+    if (!active || !geolocation) return null;
+    return geolocationOrigin(geolocation.point, geolocation.accuracyMeters);
+  }, [active, geolocation]);
 
   // ── スポットと道のネットワーク ──
   const spots = useMemo(() => landmarks.map(landmarkToSpot), [landmarks]);
@@ -273,11 +339,16 @@ export function useOdekakeGuide({
     (spot: MapSpot) => {
       if (!kinds.includes(spot.kind)) setKinds((prev) => (prev.includes(spot.kind) ? prev : [...prev, spot.kind]));
       setSelectedId(spot.id);
+      // 現在地が無ければ案内は始めず、許可・取得を求める
+      if (!geolocation) {
+        requestLocation();
+        return;
+      }
       setNavigating(true);
       arrivedLoggedRef.current = null;
       sendEvent('guide_navigation_start', eventContextRef.current(spot), { toServer: true });
     },
-    [kinds]
+    [geolocation, kinds, requestLocation]
   );
   const stopNavigation = useCallback(() => {
     setNavigating(false);
@@ -303,6 +374,8 @@ export function useOdekakeGuide({
     applyPreset,
     origin,
     hasGeolocation,
+    geoStatus,
+    requestLocation,
     spots,
     visibleSpots,
     ranked,
