@@ -15,7 +15,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ChevronRight, Navigation, X as XIcon } from 'lucide-react';
+import { ChevronRight, LocateFixed, Navigation, X as XIcon } from 'lucide-react';
 import type { MapSpot } from '@/lib/spots';
 import { GUIDE_PRESETS, type RankedSpot } from '@/lib/guide';
 import { formatDistance } from '@/lib/facilities/nearest';
@@ -94,6 +94,51 @@ function ConditionToggle({ active, onClick, children }: { active: boolean; onCli
   );
 }
 
+/** 位置情報の状態ごとの表示（行程表の起点の位置に出す） */
+function LocationStatusRow({ status, onRequest }: { status: OdekakeGuide['geoStatus']; onRequest: () => void }) {
+  const messages: Record<Exclude<OdekakeGuide['geoStatus'], 'granted'>, { title: string; note?: string; action?: string }> = {
+    checking: { title: '位置情報を確認中' },
+    prompt: { title: '位置情報を許可してください', note: '現在地からの道のりを案内します', action: '位置情報を許可する' },
+    requesting: { title: '現在地を取得中' },
+    denied: { title: '位置情報が許可されていません', note: 'ブラウザや端末の設定で許可してください', action: 'もう一度試す' },
+    error: { title: '位置情報の取得に失敗しました', action: 'もう一度試す' },
+    unsupported: { title: 'この端末では位置情報を使えません' },
+  };
+  if (status === 'granted') return null;
+  const message = messages[status];
+  const isError = status === 'denied' || status === 'error';
+  return (
+    <li className="relative flex items-start gap-3 py-2">
+      <span
+        className={`relative z-10 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white ring-2 ${
+          isError ? 'ring-rose-300 text-rose-500' : 'ring-slate-300 text-slate-500'
+        }`}
+        aria-hidden
+      >
+        <LocateFixed size={16} />
+      </span>
+      <div className="min-w-0 flex-1 rounded-2xl bg-nicchyo-base px-3.5 py-3 ring-1 ring-amber-100">
+        <p className={`text-[13px] font-bold ${isError ? 'text-rose-700' : 'text-nicchyo-ink'}`} role="status">
+          {message.title}
+        </p>
+        {message.note && <p className="mt-0.5 text-[11px] text-slate-500">{message.note}</p>}
+        {message.action && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onRequest();
+            }}
+            className={`${FOCUS_RING} mt-2 flex items-center gap-1.5 rounded-full bg-nicchyo-accent px-3.5 py-1.5 text-[12px] font-bold text-nicchyo-ink active:scale-[0.97]`}
+          >
+            <LocateFixed size={13} /> {message.action}
+          </button>
+        )}
+      </div>
+    </li>
+  );
+}
+
 export default function OdekakeGuidePanel({ guide, map, onClose, onOpenSpot }: OdekakeGuidePanelProps) {
   const [isOpen, setIsOpen] = useState(guide.kinds.length === 0);
   const dragStartY = useRef<number | null>(null);
@@ -112,6 +157,13 @@ export default function OdekakeGuidePanel({ guide, map, onClose, onOpenSpot }: O
   useEffect(() => {
     if (guide.navigating) setIsOpen(false);
   }, [guide.navigating]);
+
+  // 位置情報が未許可・拒否・取得失敗のときは、その案内が見えるようシートを開く
+  const needsLocationAttention = guide.geoStatus === 'prompt' || guide.geoStatus === 'denied' || guide.geoStatus === 'error';
+  useEffect(() => {
+    if (needsLocationAttention && !guide.navigating && guide.kinds.length > 0) setIsOpen(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [guide.geoStatus]);
 
   const focusEntry = useCallback(
     (entry: RankedSpot) => {
@@ -187,19 +239,34 @@ export default function OdekakeGuidePanel({ guide, map, onClose, onOpenSpot }: O
             onTouchStart={(e) => e.stopPropagation()}
             className={`${FOCUS_RING} flex max-w-[min(88vw,26rem)] items-center gap-3 rounded-full bg-white py-2 pl-2 pr-4 shadow-[0_8px_24px_rgba(58,58,58,0.18)] ring-1 ring-black/5 transition-transform active:scale-[0.97]`}
           >
-            {nearest ? (
+            {nearest?.route ? (
               <SpotIcon spot={nearest.spot} size={36} />
             ) : (
-              <span className="flex h-9 w-9 items-center justify-center rounded-full bg-nicchyo-accent text-nicchyo-ink" aria-hidden>
-                <Navigation size={16} />
+              <span
+                className={`flex h-9 w-9 items-center justify-center rounded-full ${
+                  needsLocationAttention ? 'bg-rose-50 text-rose-500' : 'bg-nicchyo-accent text-nicchyo-ink'
+                }`}
+                aria-hidden
+              >
+                {needsLocationAttention ? <LocateFixed size={16} /> : <Navigation size={16} />}
               </span>
             )}
             <span className="min-w-0 text-left">
               <span className="block truncate text-[14px] font-bold leading-tight text-nicchyo-ink">
-                {nearest ? nearest.spot.name : choosing ? 'おでかけサポート' : `${guide.ranked.length}か所`}
+                {nearest?.route
+                  ? nearest.spot.name
+                  : needsLocationAttention
+                    ? guide.geoStatus === 'prompt'
+                      ? '位置情報を許可してください'
+                      : guide.geoStatus === 'denied'
+                        ? '位置情報が許可されていません'
+                        : '位置情報の取得に失敗しました'
+                    : choosing
+                      ? 'おでかけサポート'
+                      : `${guide.ranked.length}か所`}
               </span>
               <span className="mt-0.5 block text-[11px] leading-none text-slate-500">
-                {nearest?.route ? 'いちばん近い' : title}
+                {nearest?.route ? 'いちばん近い' : needsLocationAttention ? title : choosing ? '目的をえらぶ' : title}
               </span>
             </span>
             {nearest?.route && (
@@ -328,14 +395,16 @@ export default function OdekakeGuidePanel({ guide, map, onClose, onOpenSpot }: O
                 className="pointer-events-none absolute bottom-6 left-[17px] top-4 w-0 border-l-2 border-dashed border-slate-300"
               />
 
-              {/* 起点 */}
-              {guide.origin && (
+              {/* 起点（現在地が取れていなければ、状態と許可ボタンを出す） */}
+              {guide.origin ? (
                 <li className="relative flex items-center gap-3 py-2">
                   <span className="relative z-10 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white ring-2 ring-slate-300">
                     <span className="h-2.5 w-2.5 rounded-full bg-nicchyo-ink" />
                   </span>
                   <span className="min-w-0 flex-1 text-[12px] font-semibold text-slate-600">{originLabel}</span>
                 </li>
+              ) : (
+                <LocationStatusRow status={guide.geoStatus} onRequest={guide.requestLocation} />
               )}
 
               {guide.ranked.map((entry, index) => {
@@ -394,7 +463,7 @@ export default function OdekakeGuidePanel({ guide, map, onClose, onOpenSpot }: O
                           e.stopPropagation();
                           handleNavigate(entry);
                         }}
-                        aria-label={`${spot.name}へ案内をはじめる`}
+                        aria-label={guide.origin ? `${spot.name}へ案内をはじめる` : '位置情報を許可して案内をはじめる'}
                         className={`${FOCUS_RING} flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-white shadow-sm transition-transform active:scale-95`}
                         style={{ backgroundColor: spot.accentColor }}
                       >
