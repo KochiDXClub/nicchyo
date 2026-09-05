@@ -42,8 +42,6 @@ export type FacilityCategory = {
    * のりものは、マップ上の停留場バッジと同じ tram-stop.svg を使う。
    */
   iconUrl?: string;
-  /** ボックスに添える一文 */
-  description: string;
   /** マーカーとボックスの配色（Tailwindクラス） */
   boxClass: string;
   /** マーカーの地色（CSSカラー） */
@@ -56,7 +54,6 @@ export const FACILITY_CATEGORIES: FacilityCategory[] = [
     label: 'お手洗い',
     emoji: '🚻',
     iconUrl: '/images/maps/elements/facilities/restroom.svg',
-    description: '会場の近くで使えるお手洗いをさがします',
     boxClass: 'border-sky-200 bg-sky-50 text-sky-900',
     markerColor: '#0284c7',
   },
@@ -65,7 +62,6 @@ export const FACILITY_CATEGORIES: FacilityCategory[] = [
     label: '休けいベンチ',
     emoji: '🌿',
     iconUrl: '/images/maps/elements/facilities/rest.svg',
-    description: '荷物を置いて、ひと息つける場所をさがします',
     boxClass: 'border-emerald-200 bg-emerald-50 text-emerald-900',
     markerColor: '#059669',
   },
@@ -74,7 +70,6 @@ export const FACILITY_CATEGORIES: FacilityCategory[] = [
     label: 'のりもの',
     emoji: '🚋',
     iconUrl: '/images/maps/elements/transit/tram-stop.svg',
-    description: '路面電車の停留場やJR高知駅をさがします',
     boxClass: 'border-amber-200 bg-amber-50 text-amber-900',
     markerColor: '#d97706',
   },
