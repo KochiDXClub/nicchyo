@@ -56,10 +56,7 @@ export default function GuideNavigationBar({ target, originLabel, arrived, progr
               {route.walkMinutes}
               <span className="ml-0.5 text-[12px] font-bold">分</span>
             </p>
-            <p className="mt-1 text-[11px] leading-none text-slate-500">
-              {route.approximate ? 'あと約' : 'あと'}
-              {formatDistance(route.distanceMeters).replace('約', '')}
-            </p>
+            <p className="mt-1 text-[11px] leading-none text-slate-500">あと{formatDistance(route.distanceMeters)}</p>
           </div>
         )}
         <button
@@ -80,9 +77,7 @@ export default function GuideNavigationBar({ target, originLabel, arrived, progr
             <p className="text-[14px] font-bold leading-snug text-nicchyo-ink">{current.instruction}</p>
             {next && <p className="mt-1 text-[12px] leading-snug text-slate-500">つぎに {next.instruction}</p>}
           </>
-        ) : (
-          <p className="text-[12px] text-slate-500">道のりを計算しています</p>
-        )}
+        ) : null}
         <div className="mt-2.5 flex items-center justify-between">
           <button
             type="button"

@@ -48,6 +48,8 @@ export type GuideNetwork = {
    * （つながないと、区間の端まで戻ってから来る遠回りの経路になる）
    */
   segmentJunctions: Map<string, number[]>;
+  /** 区間（`${pathId}:${segmentIndex}`）→ 両端ノード。attachPoint を速くするための索引 */
+  segmentNodes?: Map<string, [number, number]>;
 };
 
 export type GuideOriginType = 'geolocation' | 'map-center' | 'spot' | 'venue';

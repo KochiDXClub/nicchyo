@@ -11,7 +11,9 @@ export type {
 export { buildGuideNetwork, DEFAULT_JOIN_DISTANCE_METERS } from './network';
 export { findGuideRoute } from './routing';
 export { buildRouteSteps, bearingDegrees, compassLabel } from './steps';
-export { buildGuidePaths, buildGuidePathsFromMapRoute, GUIDE_CONNECTOR_PATHS, MARKET_PATH_NAME } from './paths';
+export { buildGuidePaths, buildGuidePathsFromMapRoute, buildGuideNetworkForMap, MARKET_PATH_NAME } from './paths';
+export { buildWalkNetwork, isInsideWalkNetwork, fallbackPathName } from './walkNetwork';
+export type { WalkNetworkData } from './walkNetwork';
 export {
   resolveOrigin,
   describeOrigin,

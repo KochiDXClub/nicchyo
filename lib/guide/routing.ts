@@ -1,10 +1,9 @@
 /**
  * 起点 → 目的地 の経路を求める
  *
- *   1. 起点・目的地をいちばん近い道へ仮につなぐ（attachPoint）
- *   2. ダイクストラで最短路を出す
- *   3. 道を通ると明らかに遠回りになるとき（どちらも道から離れた近距離同士など）は
- *      直線の目安にする
+ *   1. 起点・目的地をいちばん近い道へつなぐ（attachPoint。道の外を歩くのはこの区間だけ）
+ *   2. ダイクストラで最短路を出す。道の上を必ず通る
+ *   3. 道がつながっていない（離れ小島）ときだけ、直線の目安に落とす
  *   4. 折れ線からステップ案内を作る
  */
 
@@ -18,8 +17,6 @@ import type { GuideNetwork, GuideRoute, LatLng } from './types';
 export type FindRouteOptions = {
   originLabel?: string;
   destinationName: string;
-  /** 道を通った距離がこの倍率 × 直線目安より長ければ直線にする */
-  maxDetourRatio?: number;
 };
 
 function dedupe(points: LatLng[]): LatLng[] {
@@ -52,12 +49,6 @@ export function findGuideRoute(
   const destinationId = attachPoint(work, destination);
   const result = shortestPath(work, originId, destinationId);
   if (!result) return straightRoute(origin, destination, options);
-
-  const straightEstimate = distanceInMeters(origin, destination) * DETOUR_RATIO;
-  const maxDetourRatio = options.maxDetourRatio ?? 1.6;
-  if (result.distanceMeters > straightEstimate * maxDetourRatio) {
-    return straightRoute(origin, destination, options);
-  }
 
   const pathById = new Map(work.paths.map((path) => [path.id, path]));
   const rawPoints = result.nodeIds.map((id) => work.nodes[id].point);

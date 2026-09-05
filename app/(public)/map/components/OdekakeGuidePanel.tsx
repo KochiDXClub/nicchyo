@@ -15,7 +15,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ChevronRight, Crosshair, MapPin, Navigation, X as XIcon } from 'lucide-react';
+import { ChevronRight, Navigation, X as XIcon } from 'lucide-react';
 import type { MapSpot } from '@/lib/spots';
 import { GUIDE_PRESETS, type RankedSpot } from '@/lib/guide';
 import { formatDistance } from '@/lib/facilities/nearest';
@@ -199,7 +199,7 @@ export default function OdekakeGuidePanel({ guide, map, onClose, onOpenSpot }: O
                 {nearest ? nearest.spot.name : choosing ? 'おでかけサポート' : `${guide.ranked.length}か所`}
               </span>
               <span className="mt-0.5 block text-[11px] leading-none text-slate-500">
-                {nearest?.route ? `いちばん近い${nearest.route.approximate ? '（目安）' : ''}` : choosing ? 'タップして目的をえらぶ' : title}
+                {nearest?.route ? 'いちばん近い' : title}
               </span>
             </span>
             {nearest?.route && (
@@ -245,11 +245,7 @@ export default function OdekakeGuidePanel({ guide, map, onClose, onOpenSpot }: O
             <div className="min-w-0">
               <p className="text-[11px] font-semibold text-amber-700">おでかけサポート</p>
               <h3 className="mt-0.5 text-[18px] font-black leading-tight tracking-tight text-nicchyo-ink">{title}</h3>
-              {!choosing && (
-                <p className="mt-1 text-[11px] text-slate-500">
-                  {hasRoutes ? `${originLabel}から近い順` : '現在地が分かると、近い順に並びます'}
-                </p>
-              )}
+              {!choosing && hasRoutes && <p className="mt-1 text-[11px] text-slate-500">{originLabel}から近い順</p>}
             </div>
             <button
               type="button"
@@ -285,7 +281,6 @@ export default function OdekakeGuidePanel({ guide, map, onClose, onOpenSpot }: O
                     </span>
                     <span className="min-w-0">
                       <span className="block text-[14px] font-bold text-nicchyo-ink">{p.label}</span>
-                      <span className="mt-0.5 block text-[11px] leading-snug text-slate-500">{p.description}</span>
                     </span>
                   </button>
                 ))}
@@ -321,8 +316,7 @@ export default function OdekakeGuidePanel({ guide, map, onClose, onOpenSpot }: O
           {/* 行程表 */}
           {!choosing && guide.ranked.length === 0 && (
             <div className="mx-5 my-4 rounded-2xl bg-slate-50 px-4 py-6 text-center">
-              <p className="text-[13px] font-semibold text-slate-700">この条件に合う場所がありません</p>
-              <p className="mt-1 text-[11px] text-slate-500">条件を外すか、ほかの種類も選んでみてください</p>
+              <p className="text-[13px] font-semibold text-slate-700">該当なし</p>
             </div>
           )}
 
@@ -341,24 +335,6 @@ export default function OdekakeGuidePanel({ guide, map, onClose, onOpenSpot }: O
                     <span className="h-2.5 w-2.5 rounded-full bg-nicchyo-ink" />
                   </span>
                   <span className="min-w-0 flex-1 text-[12px] font-semibold text-slate-600">{originLabel}</span>
-                  {guide.hasUsableGeolocation && guide.originMode === 'map-center' && (
-                    <button
-                      type="button"
-                      onClick={() => guide.setOriginMode('auto')}
-                      className={`${FOCUS_RING} flex shrink-0 items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-700`}
-                    >
-                      <Crosshair size={11} /> 現在地にする
-                    </button>
-                  )}
-                  {guide.origin.type === 'geolocation' && (
-                    <button
-                      type="button"
-                      onClick={() => guide.setOriginMode('map-center')}
-                      className={`${FOCUS_RING} flex shrink-0 items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-700`}
-                    >
-                      <MapPin size={11} /> 地図の中心にする
-                    </button>
-                  )}
                 </li>
               )}
 
@@ -398,7 +374,6 @@ export default function OdekakeGuidePanel({ guide, map, onClose, onOpenSpot }: O
                           </span>
                           <span className="mt-0.5 block truncate text-[11px] text-slate-500">
                             {route ? formatDistance(route.distanceMeters) : spot.description}
-                            {route?.approximate && '（目安）'}
                             {entry.reasons.map((reason) => (
                               <span key={reason} className="ml-1.5 rounded bg-slate-100 px-1 py-[1px] text-[10px] text-slate-600">
                                 {reason}
