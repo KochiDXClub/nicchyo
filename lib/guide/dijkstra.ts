@@ -1,5 +1,6 @@
 /**
- * ダイクストラ法（ノード数は多くても数百なので、単純な配列ベースで十分）
+ * ダイクストラ法（二分ヒープ）。歩行者ネットワークは数千ノードあるので、
+ * 配列を毎回なめる実装では遅い。
  */
 
 import type { GuideNetwork } from './types';
@@ -12,35 +13,73 @@ export type ShortestPath = {
   distanceMeters: number;
 };
 
+class MinHeap {
+  private items: Array<{ id: number; dist: number }> = [];
+
+  get size(): number {
+    return this.items.length;
+  }
+
+  push(id: number, dist: number): void {
+    const items = this.items;
+    items.push({ id, dist });
+    let i = items.length - 1;
+    while (i > 0) {
+      const parent = (i - 1) >> 1;
+      if (items[parent].dist <= items[i].dist) break;
+      [items[parent], items[i]] = [items[i], items[parent]];
+      i = parent;
+    }
+  }
+
+  pop(): { id: number; dist: number } | undefined {
+    const items = this.items;
+    if (items.length === 0) return undefined;
+    const top = items[0];
+    const last = items.pop()!;
+    if (items.length > 0) {
+      items[0] = last;
+      let i = 0;
+      for (;;) {
+        const left = i * 2 + 1;
+        const right = left + 1;
+        let smallest = i;
+        if (left < items.length && items[left].dist < items[smallest].dist) smallest = left;
+        if (right < items.length && items[right].dist < items[smallest].dist) smallest = right;
+        if (smallest === i) break;
+        [items[smallest], items[i]] = [items[i], items[smallest]];
+        i = smallest;
+      }
+    }
+    return top;
+  }
+}
+
 export function shortestPath(network: GuideNetwork, from: number, to: number): ShortestPath | null {
   if (from === to) return { nodeIds: [from], edgePathIds: [], distanceMeters: 0 };
 
   const count = network.nodes.length;
-  const dist = new Array<number>(count).fill(Infinity);
-  const prev = new Array<number>(count).fill(-1);
+  const dist = new Float64Array(count).fill(Infinity);
+  const prev = new Int32Array(count).fill(-1);
   const prevPath = new Array<string | null>(count).fill(null);
-  const done = new Array<boolean>(count).fill(false);
+  const done = new Uint8Array(count);
+  const heap = new MinHeap();
   dist[from] = 0;
+  heap.push(from, 0);
 
-  for (let iteration = 0; iteration < count; iteration += 1) {
-    let current = -1;
-    let best = Infinity;
-    for (let id = 0; id < count; id += 1) {
-      if (!done[id] && dist[id] < best) {
-        best = dist[id];
-        current = id;
-      }
-    }
-    if (current === -1) break;
-    if (current === to) break;
-    done[current] = true;
+  while (heap.size > 0) {
+    const current = heap.pop()!;
+    if (done[current.id]) continue;
+    done[current.id] = 1;
+    if (current.id === to) break;
 
-    for (const edge of network.adjacency.get(current) ?? []) {
-      const next = dist[current] + edge.distanceMeters;
+    for (const edge of network.adjacency.get(current.id) ?? []) {
+      const next = current.dist + edge.distanceMeters;
       if (next < dist[edge.to]) {
         dist[edge.to] = next;
-        prev[edge.to] = current;
+        prev[edge.to] = current.id;
         prevPath[edge.to] = edge.pathId;
+        heap.push(edge.to, next);
       }
     }
   }
