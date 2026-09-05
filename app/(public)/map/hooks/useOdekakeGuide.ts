@@ -9,32 +9,34 @@
  *   種別・条件チップ / 起点の切り替え / 選択中スポット / 案内中 … は画面側の状態
  *   経路・順位の計算は lib/guide（案内エンジン）に委ねる
  *
- * 起点は「会場内で取れている現在地 → 地図の中心 → 会場の中心」の順で決める。
- * 案内中（navigating）は watchPosition で現在地を追い、残り距離を更新する。
+ * 起点は端末の現在地。会場の外にいてもそこから道なりの経路・距離・時間を出す。
+ * 現在地が取れないときだけ地図の中心（それも無ければ会場の中心）を使う。
+ * 案内が開いている間は watchPosition で現在地を追い、残り距離を更新する。
+ * 小さな測位のゆらぎで起点が動かないよう、一定以上動いたときだけ更新する。
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { isInsideSundayMarket } from '../config/roadConfig';
 import type { Landmark } from '../types/landmark';
 import type { MapCamera } from '../types/mapCamera';
 import type { MapRoute } from '../types/mapRoute';
 import { landmarkToSpot, type MapSpot, type SpotKind } from '@/lib/spots';
 import { distanceInMeters, type LatLng } from '@/lib/facilities/geo';
 import {
-  buildGuideNetwork,
-  buildGuidePaths,
+  buildGuideNetworkForMap,
   GUIDE_PRESETS,
   rankSpots,
   resolveOrigin,
+  type GuideNetwork,
   type GuideOrigin,
   type RankedSpot,
+  type WalkNetworkData,
 } from '@/lib/guide';
 import type { GuideQuery } from '@/lib/guide/query';
 
-export type OriginMode = 'auto' | 'map-center';
-
 /** この距離以内に近づいたら「到着」 */
 const ARRIVAL_METERS = 25;
+/** 測位の更新がこの距離未満なら起点を動かさない（ゆらぎで経路がブレるのを防ぐ） */
+const ORIGIN_MOVE_THRESHOLD_METERS = 8;
 /** 上位何件までルート線を薄く描くか（選択中は別に濃く描く） */
 const FAINT_ROUTE_COUNT = 3;
 
@@ -47,7 +49,7 @@ export const GUIDE_KIND_OPTIONS: GuideKindOption[] = [
   { kind: 'landmark', label: '目印', emoji: '🏯' },
 ];
 
-type Geolocation = { point: LatLng; inMarket: boolean; accuracyMeters?: number };
+type Geolocation = { point: LatLng; accuracyMeters?: number };
 
 export function useOdekakeGuide({
   query,
@@ -107,10 +109,10 @@ export function useOdekakeGuide({
     const watchId = navigator.geolocation.watchPosition(
       (position) => {
         const point = { lat: position.coords.latitude, lng: position.coords.longitude };
-        setGeolocation({
-          point,
-          inMarket: isInsideSundayMarket(point.lat, point.lng),
-          accuracyMeters: position.coords.accuracy,
+        if (!Number.isFinite(point.lat) || !Number.isFinite(point.lng)) return;
+        setGeolocation((prev) => {
+          if (prev && distanceInMeters(prev.point, point) < ORIGIN_MOVE_THRESHOLD_METERS) return prev;
+          return { point, accuracyMeters: position.coords.accuracy };
         });
       },
       () => setGeolocation(null),
@@ -119,7 +121,7 @@ export function useOdekakeGuide({
     return () => navigator.geolocation.clearWatch(watchId);
   }, [active]);
 
-  // ── 地図の中心（現在地が使えないときの起点） ──
+  // ── 地図の中心（現在地が取れないときだけ使う。動かしたときに更新） ──
   const [mapCenter, setMapCenter] = useState<LatLng | null>(null);
   useEffect(() => {
     if (!map || !active) return;
@@ -134,19 +136,30 @@ export function useOdekakeGuide({
     };
   }, [map, active]);
 
-  const [originMode, setOriginMode] = useState<OriginMode>('auto');
-  const hasUsableGeolocation = Boolean(geolocation?.inMarket);
+  const hasGeolocation = geolocation !== null;
   const origin: GuideOrigin | null = useMemo(() => {
     if (!active) return null;
-    return resolveOrigin({
-      geolocation: originMode === 'auto' ? geolocation : null,
-      mapCenter,
-    });
-  }, [active, geolocation, mapCenter, originMode]);
+    return resolveOrigin({ geolocation, mapCenter: geolocation ? null : mapCenter });
+  }, [active, geolocation, mapCenter]);
 
   // ── スポットと道のネットワーク ──
   const spots = useMemo(() => landmarks.map(landmarkToSpot), [landmarks]);
-  const network = useMemo(() => (mapRoute ? buildGuideNetwork(buildGuidePaths(mapRoute)) : null), [mapRoute]);
+  // 歩行者ネットワーク（約270KB）は案内を開いたときに初めて読み込む
+  const [walkData, setWalkData] = useState<WalkNetworkData | null>(null);
+  useEffect(() => {
+    if (!active || walkData) return;
+    let cancelled = false;
+    void import('@/lib/guide/data/kochi-walk-network.json').then((mod) => {
+      if (!cancelled) setWalkData(mod.default as WalkNetworkData);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [active, walkData]);
+  const network: GuideNetwork | null = useMemo(
+    () => (active ? buildGuideNetworkForMap(walkData, mapRoute ?? null) : null),
+    [active, mapRoute, walkData]
+  );
 
   const ranked: RankedSpot[] = useMemo(() => {
     if (!active || kinds.length === 0) return [];
@@ -226,9 +239,7 @@ export function useOdekakeGuide({
     availableTags,
     applyPreset,
     origin,
-    originMode,
-    setOriginMode,
-    hasUsableGeolocation,
+    hasGeolocation,
     spots,
     ranked,
     nearest,

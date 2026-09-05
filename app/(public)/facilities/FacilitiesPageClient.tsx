@@ -92,7 +92,6 @@ export default function FacilitiesPageClient({ counts }: FacilitiesPageClientPro
                 </span>
                 <span className="min-w-0">
                   <span className="block text-sm font-bold text-gray-900">{preset.label}</span>
-                  <span className="block text-[10px] leading-snug text-gray-500">{preset.description}</span>
                 </span>
               </Link>
             </li>
