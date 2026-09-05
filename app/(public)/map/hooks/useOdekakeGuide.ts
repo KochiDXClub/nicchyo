@@ -89,7 +89,9 @@ export function useOdekakeGuide({
   // ── 種類・条件（URL から初期化し、画面のチップで変える） ──
   const [kinds, setKinds] = useState<SpotKind[]>(query?.kinds ?? []);
   const [anyTags, setAnyTags] = useState<string[]>([]);
-  const queryKey = query ? query.kinds.join(',') : '';
+  // 閉じているとき（null）と ?guide=menu（種類なし）を区別し、閉じて開き直したときも
+  // 選択・案内中の状態をリセットする
+  const queryKey = query ? `open:${query.kinds.join(',')}` : 'closed';
   const lastQueryKeyRef = useRef(queryKey);
   useEffect(() => {
     if (lastQueryKeyRef.current === queryKey) return;
