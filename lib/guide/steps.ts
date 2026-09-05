@@ -24,7 +24,7 @@ export type RouteLeg = {
 /** この角度（度）以上向きが変わったら「曲がる」とみなす */
 export const TURN_THRESHOLD_DEGREES = 35;
 /** これより短い区間は案内に出さない（折れ線の細かなゆらぎを吸収） */
-const MIN_STEP_METERS = 8;
+const MIN_STEP_METERS = 15;
 
 /** 北を0度とした方位角（時計回り） */
 export function bearingDegrees(from: LatLng, to: LatLng): number {
@@ -56,7 +56,7 @@ type Segment = {
   start: LatLng;
 };
 
-/** 区間を「同じ道・ほぼ同じ向き」でまとめる */
+/** 区間を「同じ道・ほぼ同じ向き」でまとめ、短すぎる区間は前後に吸収する */
 function mergeLegs(legs: RouteLeg[]): Segment[] {
   const segments: Segment[] = [];
   for (const leg of legs) {
@@ -75,6 +75,13 @@ function mergeLegs(legs: RouteLeg[]): Segment[] {
     // 短すぎる区間は前の区間に吸収する（向きは前のまま）
     if (last && distance < MIN_STEP_METERS) {
       last.distanceMeters += distance;
+      continue;
+    }
+    // 前の区間が短すぎる（道へ出る数メートルなど）なら、この区間に置き換える
+    if (last && last.distanceMeters < MIN_STEP_METERS && segments.length >= 1) {
+      segments.pop();
+      const carried = last.distanceMeters;
+      segments.push({ pathName: leg.pathName, bearing, distanceMeters: distance + carried, start: last.start });
       continue;
     }
     segments.push({ pathName: leg.pathName, bearing, distanceMeters: distance, start: leg.from });

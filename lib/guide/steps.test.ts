@@ -54,6 +54,21 @@ describe('buildRouteSteps', () => {
     expect(steps.some((s) => s.kind === 'turn-left' && s.instruction.includes('駅前の通り'))).toBe(true);
   });
 
+  it('道へ出る数メートルや到着前の数メートルは、独立したステップにしない', () => {
+    const steps = buildRouteSteps(
+      [
+        // 現在地から道へ 3m（西）
+        { from: { lat: 33.562, lng: 133.53503 }, to: { lat: 33.562, lng: 133.535 }, pathName: null },
+        { from: { lat: 33.562, lng: 133.535 }, to: { lat: 33.562, lng: 133.538 }, pathName: '追手筋' },
+        // 道から目的地へ 5m（北）
+        { from: { lat: 33.562, lng: 133.538 }, to: { lat: 33.56205, lng: 133.538 }, pathName: null },
+      ],
+      { destinationName: '中央公園' }
+    );
+    expect(steps.map((s) => s.kind)).toEqual(['depart', 'straight', 'arrive']);
+    expect(steps[1].instruction).toMatch(/^追手筋を東へ約\d+m$/);
+  });
+
   it('区間が無ければ「すぐそこ」', () => {
     const steps = buildRouteSteps([], { destinationName: 'ベンチ' });
     expect(steps).toHaveLength(1);
