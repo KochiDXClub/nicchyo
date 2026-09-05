@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getRole } from "@/lib/auth/permissions";
 import { createAdminClient, authorizeAdmin } from "../categories/_helpers";
+import { SPOT_CATEGORIES, type SpotCategory, type AdminSpot } from "@/lib/spots/adminSpot";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -12,33 +13,7 @@ export const dynamic = "force-dynamic";
  * スポットカードとおでかけサポートで使う属性（カテゴリ・写真・タグ・路線など）を編集する。
  */
 
-export const SPOT_CATEGORIES = ["transit", "landmark", "restroom", "rest"] as const;
-export type SpotCategory = (typeof SPOT_CATEGORIES)[number];
-
-export interface AdminSpot {
-  key: string;
-  name: string;
-  description: string;
-  image_url: string;
-  latitude: number;
-  longitude: number;
-  width_px: number;
-  height_px: number;
-  show_at_min_zoom: boolean;
-  category: SpotCategory;
-  transit_mode: "tram" | "jr" | null;
-  lines: string[];
-  tags: string[];
-  notes: string | null;
-  external_url: string | null;
-  photo_url: string | null;
-  photo_credit: string | null;
-  open_from: string | null;
-  open_until: string | null;
-  show_on_map: boolean;
-  verified: boolean;
-  updated_at: string;
-}
+export { SPOT_CATEGORIES, type SpotCategory, type AdminSpot } from "@/lib/spots/adminSpot";
 
 const SELECT_COLUMNS =
   "key, name, description, image_url, latitude, longitude, width_px, height_px, show_at_min_zoom, category, transit_mode, lines, tags, notes, external_url, photo_url, photo_credit, open_from, open_until, show_on_map, verified, updated_at";

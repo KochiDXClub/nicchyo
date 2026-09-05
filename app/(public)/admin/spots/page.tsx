@@ -16,7 +16,7 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { AdminLayout, AdminPageHeader } from "@/components/admin";
 import { showToast } from "@/lib/admin/toast";
-import { SPOT_CATEGORIES, type AdminSpot, type SpotCategory } from "@/app/api/admin/spots/route";
+import { SPOT_CATEGORIES, type AdminSpot, type SpotCategory } from "@/lib/spots/adminSpot";
 
 const CATEGORY_LABEL: Record<SpotCategory, string> = {
   transit: "のりもの",
