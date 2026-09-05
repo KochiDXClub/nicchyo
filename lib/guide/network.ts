@@ -19,6 +19,7 @@ type Builder = {
   nodes: GuideNetworkNode[];
   adjacency: Map<number, GuideNetworkEdge[]>;
   segmentJunctions: Map<string, number[]>;
+  segmentNodes: Map<string, [number, number]>;
 };
 
 /**
@@ -56,6 +57,7 @@ function buildPathNodes(builder: Builder, paths: GuidePath[]): PathNodeIds {
     const nodeIds = path.points.map((point) => addNode(builder, point, path.id));
     for (let i = 0; i < nodeIds.length - 1; i += 1) {
       addEdge(builder, nodeIds[i], nodeIds[i + 1], path.id);
+      builder.segmentNodes.set(`${path.id}:${i}`, [nodeIds[i], nodeIds[i + 1]]);
     }
     ids.set(path.id, nodeIds);
   }
@@ -105,7 +107,7 @@ export function buildGuideNetwork(
 ): GuideNetwork {
   const joinDistanceMeters = options.joinDistanceMeters ?? DEFAULT_JOIN_DISTANCE_METERS;
   const usable = paths.filter((path) => path.points.length >= 1);
-  const builder: Builder = { nodes: [], adjacency: new Map(), segmentJunctions: new Map() };
+  const builder: Builder = { nodes: [], adjacency: new Map(), segmentJunctions: new Map(), segmentNodes: new Map() };
   const pathNodeIds = buildPathNodes(builder, usable);
   joinEndpoints(builder, usable, pathNodeIds, joinDistanceMeters);
   return {
@@ -113,6 +115,7 @@ export function buildGuideNetwork(
     nodes: builder.nodes,
     adjacency: builder.adjacency,
     segmentJunctions: builder.segmentJunctions,
+    segmentNodes: builder.segmentNodes,
   };
 }
 
@@ -132,6 +135,7 @@ export function attachPoint(
     nodes: network.nodes,
     adjacency: network.adjacency,
     segmentJunctions: network.segmentJunctions,
+    segmentNodes: network.segmentNodes ?? new Map(),
   };
   const pointId = addNode(builder, point, null);
 
@@ -164,6 +168,8 @@ export function attachPoint(
 
 /** 道 pathId の segmentIndex 番目の区間の両端ノードIDを探す */
 function findSegmentNodes(network: GuideNetwork, pathId: string, segmentIndex: number): [number, number] | null {
+  const indexed = network.segmentNodes?.get(`${pathId}:${segmentIndex}`);
+  if (indexed) return indexed;
   const path = network.paths.find((p) => p.id === pathId);
   if (!path) return null;
   const start = path.points[segmentIndex];
@@ -189,5 +195,7 @@ export function cloneNetwork(network: GuideNetwork): GuideNetwork {
     nodes: network.nodes.map((node) => ({ ...node })),
     adjacency: new Map(Array.from(network.adjacency.entries()).map(([id, edges]) => [id, edges.map((e) => ({ ...e }))])),
     segmentJunctions: new Map(Array.from(network.segmentJunctions.entries()).map(([key, ids]) => [key, [...ids]])),
+    // 区間の索引は読み取り専用なので共有してよい
+    segmentNodes: network.segmentNodes,
   };
 }

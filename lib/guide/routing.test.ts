@@ -61,15 +61,15 @@ describe('findGuideRoute', () => {
     expect(route.steps[route.steps.length - 1].instruction).toBe('中央公園に到着');
   });
 
-  it('道から離れた近距離同士は直線の目安にする', () => {
+  it('道から離れていても、いちばん近い道へ出てから道の上を通る（直線にはしない）', () => {
     const route = findGuideRoute(
       { lat: 33.5700, lng: 133.5390 },
       { lat: 33.5701, lng: 133.5391 },
       network,
       { destinationName: 'すぐそこ' }
     );
-    expect(route.viaNetwork).toBe(false);
-    expect(route.points).toHaveLength(2);
+    expect(route.viaNetwork).toBe(true);
+    expect(route.points.length).toBeGreaterThan(2);
   });
 
   it('ネットワークが無ければ直線', () => {

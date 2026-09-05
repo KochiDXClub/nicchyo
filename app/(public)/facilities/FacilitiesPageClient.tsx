@@ -74,10 +74,6 @@ export default function FacilitiesPageClient({ counts }: FacilitiesPageClientPro
           <h1 className="mt-1 text-[2.25rem] font-black leading-none tracking-tight text-gray-900">
             おでかけサポート
           </h1>
-          <p className="mt-3 text-sm leading-relaxed text-gray-500">
-            さがしたいものをえらぶと、マップで場所を光らせてご案内します。
-            現在地がわかるときは、一番近い場所までの道のりもお知らせします。
-          </p>
         </div>
       </div>
 
@@ -129,7 +125,6 @@ export default function FacilitiesPageClient({ counts }: FacilitiesPageClientPro
                 )}
                 <span className="flex-1">
                   <span className="block text-lg font-bold">{category.label}</span>
-                  <span className="mt-1 block text-sm opacity-80">{category.description}</span>
                   <span className="mt-1 block text-xs opacity-60">
                     {counts[category.id]}
                     か所

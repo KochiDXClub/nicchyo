@@ -46,16 +46,17 @@ export function describeOrigin(origin: GuideOrigin): string {
 
 /**
  * 起点を優先順で決める。
- * 現在地 → 地図の中心 → 会場の中心。現在地は「会場内で取れている」ときだけ使う
- * （測位失敗時のフォールバック座標をそのまま使うと最寄りを断定してしまうため）。
+ * 選んだスポット → 端末の現在地 → 地図の中心 → 会場の中心。
+ * 現在地は会場の外にあってもそのまま使う（そこから道なりの経路・距離・時間を出す）。
+ * 渡す現在地は端末の測位結果に限ること（測位失敗時の代替座標を混ぜない）。
  */
 export function resolveOrigin(input: {
-  geolocation?: { point: LatLng; inMarket: boolean; accuracyMeters?: number } | null;
+  geolocation?: { point: LatLng; accuracyMeters?: number } | null;
   mapCenter?: LatLng | null;
   spot?: { id: string; name: string; lat: number; lng: number } | null;
 }): GuideOrigin {
   if (input.spot) return spotOrigin(input.spot);
-  if (input.geolocation?.inMarket) return geolocationOrigin(input.geolocation.point, input.geolocation.accuracyMeters);
+  if (input.geolocation) return geolocationOrigin(input.geolocation.point, input.geolocation.accuracyMeters);
   if (input.mapCenter) return mapCenterOrigin(input.mapCenter);
   return venueOrigin();
 }
