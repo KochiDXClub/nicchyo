@@ -19,10 +19,20 @@ export type SpotSupport = {
   prompt: string;
 };
 
+/** 高知市の範囲内の有限な座標だけを起点として使う（NaN / Infinity / 範囲外は会場の中心に落とす） */
+function sanitizeOrigin(origin: LatLng | null): LatLng | null {
+  if (!origin) return null;
+  const { lat, lng } = origin;
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  if (lat < 33.4 || lat > 33.7 || lng < 133.4 || lng > 133.7) return null;
+  return { lat, lng };
+}
+
 export async function loadSpotSupport(
   supabase: SupabaseClient<Database>,
-  origin: LatLng | null
+  rawOrigin: LatLng | null
 ): Promise<SpotSupport> {
+  const origin = sanitizeOrigin(rawOrigin);
   try {
     const [landmarks, mapRoute] = await Promise.all([fetchLandmarksFromDb(supabase), fetchMapRouteFromDb(supabase)]);
     if (landmarks.length === 0) return { suggestions: [], prompt: '' };

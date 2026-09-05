@@ -16,6 +16,7 @@ const EVENT_TYPES = ["open", "navigation_start", "arrived", "navigation_stop"] a
 type GuideEventType = (typeof EVENT_TYPES)[number];
 const KINDS = ["restroom", "rest", "transit", "landmark"] as const;
 const ORIGIN_TYPES = ["geolocation", "map-center", "spot", "venue"] as const;
+const MAX_META_CHARS = 2000;
 
 type Body = {
   visitor_key?: string | null;
@@ -68,6 +69,9 @@ export async function POST(request: Request) {
       ? (body.origin_type as string)
       : null;
 
+    // meta は任意 JSON なので大きさを制限する（テーブルの肥大化を防ぐ）
+    const metaJson = body.meta && typeof body.meta === "object" ? JSON.stringify(body.meta) : null;
+
     const serviceClient = getServiceClient();
     const { error } = await serviceClient.from("guide_events").insert({
       visitor_key: shortText(body.visitor_key, 128),
@@ -78,7 +82,7 @@ export async function POST(request: Request) {
       origin_type: originType,
       walk_minutes: smallInt(body.walk_minutes),
       distance_meters: smallInt(body.distance_meters),
-      meta: body.meta && typeof body.meta === "object" ? (JSON.parse(JSON.stringify(body.meta)) as Json) : null,
+      meta: metaJson && metaJson.length <= MAX_META_CHARS ? (JSON.parse(metaJson) as Json) : null,
     });
 
     if (error) {
