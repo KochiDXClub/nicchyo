@@ -52,6 +52,18 @@ export const GUIDE_KIND_OPTIONS: GuideKindOption[] = [
 
 type Geolocation = { point: LatLng; accuracyMeters?: number };
 
+/**
+ * 内容が同じなら前と同じ参照を返す。配列や経路を毎回作り直すと、描画側の effect が
+ * そのたびに走ってマーカーや線が消えては出る（点滅する）ため、キーで比較して抑える。
+ */
+function useStableByKey<T>(value: T, key: string): T {
+  const ref = useRef<{ key: string; value: T }>({ key, value });
+  if (ref.current.key !== key) ref.current = { key, value };
+  return ref.current.value;
+}
+
+const pointKey = (point: LatLng) => `${point.lat.toFixed(6)},${point.lng.toFixed(6)}`;
+
 export function useOdekakeGuide({
   query,
   landmarks,
@@ -116,7 +128,9 @@ export function useOdekakeGuide({
           return { point, accuracyMeters: position.coords.accuracy };
         });
       },
-      () => setGeolocation(null),
+      // 一度取れた現在地は、後のタイムアウト等のエラーでは捨てない
+      // （捨てると起点が地図の中心へ切り替わり、経路がブレる）
+      () => setGeolocation((prev) => prev),
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 5000 }
     );
     return () => navigator.geolocation.clearWatch(watchId);
@@ -138,10 +152,12 @@ export function useOdekakeGuide({
   }, [map, active]);
 
   const hasGeolocation = geolocation !== null;
+  // 現在地があるときは地図の中心の更新に反応しない（起点が作り直されて経路が再計算されるのを防ぐ）
+  const centerForOrigin = geolocation ? null : mapCenter;
   const origin: GuideOrigin | null = useMemo(() => {
     if (!active) return null;
-    return resolveOrigin({ geolocation, mapCenter: geolocation ? null : mapCenter });
-  }, [active, geolocation, mapCenter]);
+    return resolveOrigin({ geolocation, mapCenter: centerForOrigin });
+  }, [active, geolocation, centerForOrigin]);
 
   // ── スポットと道のネットワーク ──
   const spots = useMemo(() => landmarks.map(landmarkToSpot), [landmarks]);
@@ -186,8 +202,12 @@ export function useOdekakeGuide({
   const selected = useMemo(() => ranked.find((entry) => entry.spot.id === selectedId) ?? null, [ranked, selectedId]);
   const nearest = ranked[0] ?? null;
 
-  /** 描く経路（上位数件は薄く、選択中は濃く） */
-  const routes = useMemo(() => {
+  /** マップに描くスポット（表示中の種類のもの）。中身が同じなら同じ配列を返す */
+  const visibleSpotsRaw = useMemo(() => ranked.map((entry) => entry.spot), [ranked]);
+  const visibleSpots = useStableByKey(visibleSpotsRaw, visibleSpotsRaw.map((spot) => spot.id).join('|'));
+
+  /** 描く経路（上位数件は薄く、選択中は濃く）。折れ線が同じなら同じ配列を返す */
+  const routesRaw = useMemo(() => {
     const faint = ranked
       .slice(0, FAINT_ROUTE_COUNT)
       .filter((entry) => entry.route && entry.spot.id !== selectedId)
@@ -197,6 +217,10 @@ export function useOdekakeGuide({
       : [];
     return [...faint, ...strong];
   }, [ranked, selected, selectedId]);
+  const routes = useStableByKey(
+    routesRaw,
+    routesRaw.map((r) => `${r.id}:${r.emphasis}:${r.points.length}:${pointKey(r.points[0])}:${pointKey(r.points[r.points.length - 1])}`).join('|')
+  );
 
   // 出発時の距離を覚えておき、進み具合（0〜1）を出す
   const startDistanceRef = useRef<number | null>(null);
@@ -280,6 +304,7 @@ export function useOdekakeGuide({
     origin,
     hasGeolocation,
     spots,
+    visibleSpots,
     ranked,
     nearest,
     selected,
