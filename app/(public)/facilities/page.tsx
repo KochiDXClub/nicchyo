@@ -6,6 +6,9 @@ import { countFacilitiesByCategory } from '@/lib/facilities/landmarkFacilities';
 import type { FacilityCategoryId } from '@/lib/facilities/facilities';
 import FacilitiesPageClient from './FacilitiesPageClient';
 
+// 件数は DB から毎回読む（静的化すると 0 件のまま固定されてしまう）
+export const dynamic = 'force-dynamic';
+
 export const metadata: Metadata = {
   title: 'おでかけサポート',
   description:
