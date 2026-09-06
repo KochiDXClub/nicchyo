@@ -19,6 +19,7 @@ export type StallRenderer = "svg" | "div";
 export type BackgroundOverlayMode = "webp" | "svg" | "off";
 export type MapRenderer = "leaflet" | "maplibre";
 export type BasemapMode = "raster-carto" | "vector-openfreemap";
+export type CrowdMode = "off" | "sprite";
 
 export interface MapFeatureFlags {
   /**
@@ -72,6 +73,12 @@ export interface MapFeatureFlags {
    * - vector-openfreemap: OpenFreeMap のベクタータイル（回転してもラベルが正立する）
    */
   basemap: BasemapMode;
+  /**
+   * 道の上のお客さん（人影。maplibre のときだけ有効）。
+   * - off: 出さない（既定）
+   * - sprite: シード付きの決定論的な配置で人影を散らし、2 コマで微動させる
+   */
+  crowd: CrowdMode;
 }
 
 /**
@@ -90,10 +97,12 @@ export const DEFAULT_MAP_FEATURE_FLAGS: MapFeatureFlags = {
   shopLayerHiding: true,
   renderer: "leaflet",
   basemap: "raster-carto",
+  crowd: "off",
 };
 
 export const MAP_RENDERERS: readonly MapRenderer[] = ["leaflet", "maplibre"];
 export const BASEMAP_MODES: readonly BasemapMode[] = ["raster-carto", "vector-openfreemap"];
+export const CROWD_MODES: readonly CrowdMode[] = ["off", "sprite"];
 
 export const BACKGROUND_OVERLAY_MODES: readonly BackgroundOverlayMode[] = ["webp", "svg", "off"];
 
@@ -124,6 +133,12 @@ export const MAP_FEATURE_FLAG_DEFS: readonly MapFeatureFlagDef[] = [
     label: "背景地図（maplibre のみ）",
     description: "raster-carto: 今と同じ CARTO の画像タイル / vector-openfreemap: OpenFreeMap のベクタータイル",
     options: BASEMAP_MODES,
+  },
+  {
+    key: "crowd",
+    label: "道のお客さん（maplibre のみ）",
+    description: "off: 出さない（既定） / sprite: 道の上に人影をまばらに置いてにぎわいを出す（タップ不可）",
+    options: CROWD_MODES,
   },
   {
     key: "stallRenderer",
