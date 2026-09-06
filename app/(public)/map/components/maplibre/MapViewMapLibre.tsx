@@ -32,7 +32,9 @@ import maplibregl, {
 import "maplibre-gl/dist/maplibre-gl.css";
 import type { MapViewProps } from "../MapView";
 import type { Shop } from "../../data/shops";
+import type { Landmark } from "../../types/landmark";
 import type { MapRoutePoint } from "../../types/mapRoute";
+import { landmarkToSpot } from "@/lib/spots";
 import ShopDetailBanner from "../ShopDetailBanner";
 import { useBag } from "../../../../../lib/storage/BagContext";
 import { FAVORITE_SHOPS_UPDATED_EVENT, loadFavoriteShopIds } from "../../../../../lib/favoriteShops";
@@ -136,6 +138,27 @@ const LAYER_SHOP_NAMEPLATES = "nicchyo-shop-nameplates";
 const LAYER_SHOP_BADGES_FAVORITE = "nicchyo-shop-badge-favorite";
 const LAYER_SHOP_BADGES_BAG = "nicchyo-shop-badge-bag";
 const LAYER_LANDMARK_LABELS = "nicchyo-landmark-labels";
+
+/** ランドマークの GeoJSON。selectedKey に一致するものは properties.selected = 1（拡大表示） */
+function buildLandmarkFeatures(
+  specs: Landmark[],
+  selectedKey: string | null
+): GeoJSON.FeatureCollection<GeoJSON.Point> {
+  return {
+    type: "FeatureCollection",
+    features: specs.map((spec) => ({
+      type: "Feature",
+      properties: {
+        key: spec.key,
+        image: `landmark:${spec.key}`,
+        name: spec.name,
+        showAtMinZoom: spec.showAtMinZoom ? 1 : 0,
+        selected: spec.key === selectedKey ? 1 : 0,
+      },
+      geometry: { type: "Point", coordinates: [spec.lng, spec.lat] },
+    })),
+  };
+}
 const IMG_NAMEPLATE = "nameplate-bg";
 const IMG_BADGE_FAVORITE = "badge:favorite";
 const IMG_BADGE_BAG = "badge:bag";
@@ -247,9 +270,18 @@ export default function MapViewMapLibre({
   onClearSearch,
   overlaySlot,
   spotlightShopId,
+  onSpotSelect,
+  selectedSpotId,
 }: MapViewProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
+  // ランドマークのクリックは map.on で一度だけ登録するので、最新のコールバックは ref で持つ
+  const onSpotSelectRef = useRef(onSpotSelect);
+  onSpotSelectRef.current = onSpotSelect;
+  const landmarksRef = useRef(landmarks);
+  landmarksRef.current = landmarks;
+  // 画像の登録に成功したランドマーク（ソースに載せたもの）。選択の切り替え時に setData で使う
+  const landmarkSpecsRef = useRef<Landmark[]>([]);
   // ページ側（「このへん」の出現判定、施設案内の flyTo、ズームスライダー）に渡すカメラ操作
   const [camera, setCamera] = useState<MapCamera | null>(null);
   // ズームスライダーは操作中とその直後だけ出す（Leaflet 版と同じ 3 秒）
@@ -595,34 +627,33 @@ export default function MapViewMapLibre({
         })
       );
       if (disposed) return;
+      // 選択中（スポットカード表示中）のランドマークは properties.selected を 1 にして
+      // 拡大する。layout プロパティでは feature-state が使えないので、選択が変わるたびに
+      // setData で属性ごと差し替える（buildLandmarkFeatures を共有）
+      landmarkSpecsRef.current = specs.filter((spec) => map.hasImage(`landmark:${spec.key}`));
       map.addSource(SRC_LANDMARKS, {
         type: "geojson",
-        data: {
-          type: "FeatureCollection",
-          features: specs
-            .filter((spec) => map.hasImage(`landmark:${spec.key}`))
-            .map((spec) => ({
-              type: "Feature",
-              properties: {
-                image: `landmark:${spec.key}`,
-                name: spec.name,
-                showAtMinZoom: spec.showAtMinZoom ? 1 : 0,
-              },
-              geometry: { type: "Point", coordinates: [spec.lng, spec.lat] },
-            })),
-        },
+        data: buildLandmarkFeatures(landmarkSpecsRef.current, null),
       });
-      // 画像は表示幅で登録済みなので、倍率は 1.22^(z-18) だけ（0.5〜2.8 に制限）
+      // 画像は表示幅で登録済みなので、倍率は 1.22^(z-18) だけ（0.5〜2.8 に制限）。
+      // スポットカードで選択中のランドマークは 1.18 倍にして目立たせる
+      // （"zoom" は interpolate の直下でしか使えないので、選択倍率は各出力側に掛ける）
+      const selectedScale: ExpressionSpecification = [
+        "case",
+        ["==", ["get", "selected"], 1],
+        1.18,
+        1,
+      ];
       const landmarkSize: ExpressionSpecification = [
         "interpolate",
         ["exponential", 1.22],
         ["zoom"],
         13.5,
-        0.5,
+        ["*", 0.5, selectedScale],
         17,
-        1,
+        selectedScale,
         20,
-        1.816,
+        ["*", 1.816, selectedScale],
       ];
       const landmarkLayout = {
         "icon-image": ["get", "image"] as ExpressionSpecification,
@@ -647,6 +678,24 @@ export default function MapViewMapLibre({
         minzoom: MIN_ZOOM + 0.8,
         layout: landmarkLayout,
       });
+      // ランドマークのタップ → スポットカード（店舗バナーは閉じる）
+      const handleLandmarkClick = (e: maplibregl.MapLayerMouseEvent) => {
+        const key = e.features?.[0]?.properties?.key;
+        if (typeof key !== "string") return;
+        const landmark = landmarksRef.current?.find((spec) => spec.key === key);
+        if (!landmark) return;
+        setSelectedShop(null);
+        onSpotSelectRef.current?.(landmarkToSpot(landmark));
+      };
+      for (const layerId of ["nicchyo-landmarks-min", "nicchyo-landmarks"]) {
+        map.on("click", layerId, handleLandmarkClick);
+        map.on("mouseenter", layerId, () => {
+          map.getCanvas().style.cursor = "pointer";
+        });
+        map.on("mouseleave", layerId, () => {
+          map.getCanvas().style.cursor = "";
+        });
+      }
       // 地名ラベル（俯瞰時 zoom ≤ MIN+2.5 だけ。Leaflet 版の主要地名ラベルに相当）
       map.addLayer({
         id: LAYER_LANDMARK_LABELS,
@@ -919,6 +968,16 @@ export default function MapViewMapLibre({
       map.off("zoomend", handleZoomEnd);
     };
   }, [mapLoaded, featureFlags.roadSnap, snapToRoad]);
+
+  // スポットカードで選択中のランドマークを拡大する（properties.selected を差し替える）
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapLoaded) return;
+    const source = map.getSource(SRC_LANDMARKS) as maplibregl.GeoJSONSource | undefined;
+    if (!source) return;
+    const key = selectedSpotId?.startsWith("landmark:") ? selectedSpotId.slice("landmark:".length) : null;
+    source.setData(buildLandmarkFeatures(landmarkSpecsRef.current, key));
+  }, [mapLoaded, selectedSpotId]);
 
   // おでかけサポート案内中は FacilityLayer が案内先を表示するため、通常のランドマークは隠す
   useEffect(() => {

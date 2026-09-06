@@ -48,6 +48,7 @@ import {
 } from '../config/displayConfig';
 import { useBag } from "../../../../lib/storage/BagContext";
 import type { Landmark } from "../types/landmark";
+import { landmarkToSpot, type MapSpot } from "@/lib/spots";
 import type { MapRoute } from "../types/mapRoute";
 import {
   getAutoRotationForVisibleRoad,
@@ -166,6 +167,13 @@ export type MapViewProps = {
   /** 管理画面で保存したマップ動作フラグ。URL の ?mapFlags= がクライアント側で上書きする */
   featureFlags?: MapFeatureFlags;
   onShopSelect?: (shop: Shop) => void;
+  /**
+   * 電停・駅・建物などのランドマークがタップされたときに呼ばれる。
+   * 店舗以外のスポットは親（MapPageClient）が SpotCard で表示する。
+   */
+  onSpotSelect?: (spot: MapSpot) => void;
+  /** 選択中のスポットID（MapSpot.id）。該当するランドマークを少し大きく表示する */
+  selectedSpotId?: string;
   spotlightShopId?: number;
   onClearSearch?: () => void;
   /** マップ座標系内にレンダリングするオーバーレイ（キャラクターなど） */
@@ -519,6 +527,8 @@ const MapView = memo(function MapView({
   suppressInitialLocationFocus = false,
   featureFlags: featureFlagsProp,
   onShopSelect,
+  onSpotSelect,
+  selectedSpotId,
   spotlightShopId,
   onClearSearch,
   overlaySlot,
@@ -788,6 +798,16 @@ const MapView = memo(function MapView({
   // - Leaflet から直接呼ばれる（React の state を経由しない）
   // - ViewMode に応じて段階的にズームアップ
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // ランドマーク（電停・駅・建物）のタップ：店舗バナーを閉じてスポットカードに渡す
+  const handleLandmarkClick = useCallback(
+    (landmark: Landmark) => {
+      setSelectedShop(null);
+      setShopBannerOrigin(null);
+      onSpotSelect?.(landmarkToSpot(landmark));
+    },
+    [onSpotSelect]
+  );
+
   const handleShopClick = useCallback((clickedShop: Shop, origin?: ShopBannerOrigin) => {
     if (!mapRef.current) return;
 
@@ -1249,6 +1269,8 @@ const MapView = memo(function MapView({
             highlightEventTargets={highlightEventTargets}
             visibleLandmarkSpecs={visibleLandmarkSpecs}
             landmarkIcons={landmarkIcons}
+            onLandmarkClick={handleLandmarkClick}
+            selectedSpotId={selectedSpotId}
             isMinimumZoomMode={isMinimumZoomMode}
             isOverviewZoneMode={isOverviewZoneMode}
             shops={shops}
