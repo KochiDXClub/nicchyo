@@ -18,6 +18,7 @@ const ADMIN_PAGES_DIR = path.join(process.cwd(), "app", "(public)", "admin");
  */
 const PATHS_INTENTIONALLY_NOT_IN_NAV = new Set([
   "/admin", // /admin/dashboard へのリダイレクト
+  "/admin/page-visibility", // 設定の「公開範囲」タブへ統合済み
 ]);
 
 /** app/(public)/admin 配下の page.tsx から実在するルートを列挙する */
@@ -102,8 +103,10 @@ describe("adminNav", () => {
   });
 
   it("サブパスでも親項目が選択状態になる", () => {
-    expect(isAdminNavItemActive("/admin/reports", "/admin/reports/123")).toBe(true);
+    expect(isAdminNavItemActive("/admin/security-reports", "/admin/security-reports/2026-09-01")).toBe(
+      true
+    );
     // 前方一致だけで誤判定しない
-    expect(isAdminNavItemActive("/admin/reports", "/admin/reports-archive")).toBe(false);
+    expect(isAdminNavItemActive("/admin/reports", "/admin/security-reports")).toBe(false);
   });
 });

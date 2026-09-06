@@ -8,6 +8,10 @@ import { enforceRateLimit } from "@/lib/security/rateLimit";
 import { MARKET_CENTER } from "@/lib/constants";
 import { loadSpotSupport } from "@/lib/guide/spotSupport.server";
 import type { SupportSuggestion } from "@/lib/guide/support";
+import {
+  MAP_AGENT_SYSTEM_PROMPT,
+  buildMapAgentPrompt,
+} from "@/lib/grandma/prompts/mapAgentPrompt";
 
 type Answers = {
   purpose?: string;
@@ -191,41 +195,6 @@ function pickShops(answers: Answers, location: [number, number], shops: BaseShop
   };
 }
 
-function buildPrompt(
-  answers: Answers,
-  candidates: BaseShop[],
-  start: [number, number]
-) {
-  const lines = candidates.map((shop) => {
-    const products = shop.products.slice(0, 6).join(", ");
-    return `${shop.name} (id:${shop.id}, category:${shop.category}, products:${products}, lat:${shop.lat.toFixed(
-      5
-    )}, lng:${shop.lng.toFixed(5)})`;
-  });
-
-  return `
-あなたは高知の日曜市で買い物ルートを提案する案内AIです。回答は短めに、JSONのみを返してください。
-出発地点: lat ${start[0].toFixed(5)}, lng ${start[1].toFixed(5)}
-ユーザー入力:
-- 目的: ${answers.purpose ?? "未回答"}
-- 欲しいもの: ${answers.needs ?? "未回答"}
-- 回りたい件数: ${answers.visitCount ?? "未回答"}
-- 好きな料理: ${answers.favoriteFood ?? "未回答"}
-
-候補店舗(最大6件):
-${lines.join("\n")}
-
-出力JSONの形:
-{
-  "title": "string",
-  "summary": "string",
-  "shops": [{ "id": number, "name": "string", "reason": "string", "icon": "string" }],
-  "routeHint": "string",
-  "shoppingList": ["string", ...]
-}
-`.trim();
-}
-
 async function callOpenAI(
   answers: Answers,
   ranked: BaseShop[],
@@ -234,7 +203,7 @@ async function callOpenAI(
   if (!OPENAI_API_KEY) return null;
 
   const topShops = ranked.slice(0, 6);
-  const prompt = buildPrompt(answers, topShops, start);
+  const prompt = buildMapAgentPrompt(answers, topShops, start);
 
   const res = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
@@ -245,11 +214,7 @@ async function callOpenAI(
     body: JSON.stringify({
       model: "gpt-4o-mini",
       messages: [
-        {
-          role: "system",
-          content:
-            "You are a concise shopping guide for Kochi Sunday Market. Reply only with JSON that matches the requested schema. Keep route hints short and realistic.",
-        },
+        { role: "system", content: MAP_AGENT_SYSTEM_PROMPT },
         { role: "user", content: prompt },
       ],
       response_format: { type: "json_object" },

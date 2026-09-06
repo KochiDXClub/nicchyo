@@ -1,24 +1,14 @@
-import type { ConsultCharacter } from "../../consult/data/consultCharacters";
+import { describe, it, expect } from "vitest";
+import { buildGrandmaAiSystemPrompt, CONSULT_OUTPUT_RULES } from "./consultSystemPrompt";
+import { CONSULT_CHARACTERS } from "@/app/(public)/consult/data/consultCharacters";
 
-export function buildGrandmaAiSystemPrompt(
-  characters: ConsultCharacter[],
-  conversationPattern: string
-): string {
-  const castBlock = characters
-    .map((character) => {
-      return [
-        `- id: ${character.id}`,
-        `  name: ${character.name}`,
-        `  personality: ${character.personality}`,
-        `  speech_style: ${character.speechStyle}`,
-      ].join("\n");
-    })
-    .join("\n");
+const twoChars = CONSULT_CHARACTERS.slice(0, 2);
 
-  // NOTE: 先頭〜出力ルールまでは全リクエスト共通の固定文（プロンプトキャッシュの対象）。
-  // キャラクター選択・会話構成など毎回変わる内容は末尾にまとめ、共通プレフィックスを
-  // できるだけ長く保つ（OpenAI 側のプロンプトキャッシュは先頭一致の長さで効くため）。
-  return `
+/**
+ * プロンプトを分割して lib/grandma/prompts/ に移したときに文面が変わっていないことを固定する。
+ * ここが落ちたら、AIへ送る文が意図せず変わっている。
+ */
+const EXPECTED_PROMPT = `
 あなたは高知県・日曜市の案内会話を生成するAIです。
 日曜市の店や回り方が中心ですが、高知市の観光や食の話題にも一般知識ベースで答えてよいです。
 
@@ -61,9 +51,35 @@ export function buildGrandmaAiSystemPrompt(
 
 今回は、次の選ばれたキャラクターだけが会話に参加します。必ずこの人たちだけを登場させてください。
 
-${castBlock}
+- id: nichiyosan
+  name: にちよさん
+  personality: やさしく場をつなぎ、話を整理しながら土佐弁で案内する。
+  speech_style: 土佐弁
+- id: yoichisan
+  name: よういちさん
+  personality: 落ち着いていて、昔から知っている目線でしみじみ語る。
+  speech_style: 土佐弁
 
 今回の会話構成:
-${conversationPattern}
+構成1: テスト用の会話構成
 `.trim();
-}
+
+describe("buildGrandmaAiSystemPrompt", () => {
+  it("分割前と同じ文面を組み立てる", () => {
+    const prompt = buildGrandmaAiSystemPrompt(twoChars, "構成1: テスト用の会話構成");
+    expect(prompt).toBe(EXPECTED_PROMPT);
+  });
+
+  it("毎回変わる部分（キャラと会話構成）は出力ルールより後ろに置く", () => {
+    // プロンプトキャッシュは先頭一致で効くので、可変部分が前に来ると
+    // 共通プレフィックスが短くなりヒット率が落ちる
+    const prompt = buildGrandmaAiSystemPrompt(twoChars, "構成1: テスト用の会話構成");
+    expect(prompt.indexOf("## 出力ルール")).toBeLessThan(prompt.indexOf("今回の会話構成:"));
+    expect(prompt.indexOf("## 出力ルール")).toBeLessThan(prompt.indexOf("- id: nichiyosan"));
+  });
+
+  it("出力ルールは JSON スキーマと対になる項目を含む", () => {
+    expect(CONSULT_OUTPUT_RULES).toContain("turns[].speakerId");
+    expect(CONSULT_OUTPUT_RULES).toContain("followUpQuestion");
+  });
+});

@@ -1,3 +1,5 @@
+import { CONSULT_CHARACTER_PROMPT_PROFILES } from "@/lib/grandma/prompts/consultCharacterProfiles";
+
 export type ConsultCharacterId =
   | "nichiyosan"
   | "yoichisan"
@@ -11,7 +13,9 @@ export type ConsultCharacter = {
   image: string;
   imageScale: string;
   imagePosition: string;
+  /** AIに渡す人格。文面は lib/grandma/prompts/consultCharacterProfiles.ts にある */
   personality: string;
+  /** AIに渡す話し方。文面は lib/grandma/prompts/consultCharacterProfiles.ts にある */
   speechStyle: string;
 };
 
@@ -23,8 +27,7 @@ export const CONSULT_CHARACTERS: ConsultCharacter[] = [
     image: "/images/obaasan_transparent.png",
     imageScale: "scale-125",
     imagePosition: "center 28%",
-    personality: "やさしく場をつなぎ、話を整理しながら土佐弁で案内する。",
-    speechStyle: "土佐弁",
+    ...CONSULT_CHARACTER_PROMPT_PROFILES.nichiyosan,
   },
   {
     id: "yoichisan",
@@ -33,8 +36,7 @@ export const CONSULT_CHARACTERS: ConsultCharacter[] = [
     image: "/images/characters/ojichan.png",
     imageScale: "scale-125",
     imagePosition: "center 14%",
-    personality: "落ち着いていて、昔から知っている目線でしみじみ語る。",
-    speechStyle: "土佐弁",
+    ...CONSULT_CHARACTER_PROMPT_PROFILES.yoichisan,
   },
   {
     id: "miraikun",
@@ -43,8 +45,7 @@ export const CONSULT_CHARACTERS: ConsultCharacter[] = [
     image: "/images/characters/onisan.png",
     imageScale: "scale-125",
     imagePosition: "center 12%",
-    personality: "テンポがよく、軽やかで親しみやすく話す。",
-    speechStyle: "標準語",
+    ...CONSULT_CHARACTER_PROMPT_PROFILES.miraikun,
   },
   {
     id: "yosakochan",
@@ -53,8 +54,7 @@ export const CONSULT_CHARACTERS: ConsultCharacter[] = [
     image: "/images/characters/onesan.png",
     imageScale: "scale-125",
     imagePosition: "center 22%",
-    personality: "明るく華やかで、気分が上がるように話す。",
-    speechStyle: "土佐弁",
+    ...CONSULT_CHARACTER_PROMPT_PROFILES.yosakochan,
   },
 ];
 
