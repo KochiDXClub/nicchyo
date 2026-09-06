@@ -3,6 +3,7 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/database.types";
 import type { DatabaseWithExtensions } from "@/types/database.extensions";
 import { buildGrandmaAiSystemPrompt } from "@/lib/grandma/prompts/consultSystemPrompt";
+import { fetchAiPrompts } from "@/lib/grandma/prompts/promptStore.server";
 import { requireSameOrigin } from "@/lib/security/requestGuards";
 import { maskPii } from "@/lib/privacy/maskPii";
 import { enforceRateLimit } from "@/lib/security/rateLimit";
@@ -343,6 +344,9 @@ async function createStreamingConsultResponse(options: {
     memorySummary,
   } = options;
 
+  // 管理画面で保存した文面を使う。読めなければコード側の既定値に落ちる
+  const aiPrompts = await fetchAiPrompts();
+
   const upstream = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
     headers: {
@@ -362,7 +366,8 @@ async function createStreamingConsultResponse(options: {
             [
               buildConversationPatternPrompt(selectedCharacters, conversationPattern),
               buildStreamingFormatPrompt(selectedCharacters, conversationPattern),
-            ].join("\n\n")
+            ].join("\n\n"),
+            aiPrompts
           ),
         },
         {
@@ -858,7 +863,8 @@ export async function POST(request: Request) {
             role: "system",
             content: buildGrandmaAiSystemPrompt(
               selectedCharacters,
-              buildConversationPatternPrompt(selectedCharacters, conversationPattern)
+              buildConversationPatternPrompt(selectedCharacters, conversationPattern),
+              await fetchAiPrompts()
             ),
           },
           {
