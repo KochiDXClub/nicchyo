@@ -11,7 +11,7 @@ import {
   CONSULT_CONTENT_RULES,
   CONSULT_CONVERSATION_RULES,
   CONSULT_OUTPUT_RULES,
-} from "./consultSystemPrompt";
+} from "./consultRules";
 import { CONSULT_CHARACTER_PROMPT_PROFILES } from "./consultCharacterProfiles";
 
 describe("AI_PROMPT_DEFS", () => {
@@ -39,6 +39,19 @@ describe("AI_PROMPT_DEFS", () => {
   it("既定値は自身の上限に収まっている", () => {
     for (const def of AI_PROMPT_DEFS) {
       expect(def.defaultBody.length).toBeLessThanOrEqual(def.maxLength);
+    }
+  });
+
+  it("既定値がすべて文字列として解決できている（循環参照の検出）", () => {
+    // promptKeys.ts と consultSystemPrompt.ts が相互に import すると、
+    // 初期化順によって既定値が undefined になり、プロンプトに文字列
+    // "undefined" が混ざる。既定値は consultRules.ts（葉モジュール）から引くこと
+    for (const def of AI_PROMPT_DEFS) {
+      expect(typeof def.defaultBody, `${def.key} の既定値`).toBe("string");
+    }
+    const nonEmpty = AI_PROMPT_DEFS.filter((def) => def.key !== "consult.operator_note");
+    for (const def of nonEmpty) {
+      expect(def.defaultBody.trim(), `${def.key} の既定値`).not.toBe("");
     }
   });
 
