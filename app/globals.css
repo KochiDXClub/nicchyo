@@ -72,6 +72,8 @@
   --vh: 1vh; /* JavaScriptで動的に更新 */
   --desktop-menu-offset: 0px;
   --consult-bg: radial-gradient(120% 120% at 10% 0%, #ffedd5 0%, #fed7aa 50%, #fdba74 100%);
+  /* NavigationBar の内側の高さ（h-14）。下に固定するものはこれを避ける */
+  --nav-bar-height: 3.5rem;
   --consult-surface: rgba(255, 255, 255, 0.94);
   --consult-border: rgba(148, 163, 184, 0.45);
 }

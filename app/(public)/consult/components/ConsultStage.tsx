@@ -323,7 +323,12 @@ export default function ConsultStage({
   };
 
   return (
-    <div className="flex min-h-[calc(100dvh-96px)] w-full flex-col gap-3 px-4 pb-28 pt-3">
+    <div
+      className="flex min-h-[calc(100dvh-96px)] w-full flex-col gap-3 px-4 pt-3"
+      // 下端に固定した「話しかける」とナビゲーションバーの分だけ空ける。
+      // ここを決め打ちにすると、ホームインジケータのある端末で本文が隠れる
+      style={{ paddingBottom: "calc(var(--safe-bottom, 0px) + var(--nav-bar-height) + 6rem)" }}
+    >
       {/*
         にちよさんは常に画面に残す。
         話し相手が読み進めるうちに消えてしまうと、話しかける相手が居なくなり、
@@ -483,9 +488,10 @@ export default function ConsultStage({
       {/* 音声は大きく、文字は最後の手段として小さく。
           音声シートが出ている間と応答待ちの間は、押すべきものが2つにならないよう隠す */}
       <div
-        className={`fixed inset-x-0 bottom-[72px] z-20 flex items-center justify-center gap-3 px-4 ${
+        className={`fixed inset-x-0 z-20 flex items-center justify-center gap-3 px-4 ${
           speech.isListening || phase !== "idle" || isBusy ? "hidden" : ""
         }`}
+        style={{ bottom: "calc(var(--safe-bottom, 0px) + var(--nav-bar-height) + 0.75rem)" }}
       >
         {speech.isSupported && (
           <button
@@ -534,7 +540,10 @@ export default function ConsultStage({
             aria-hidden="true"
           />
 
-          <div className="relative rounded-t-3xl bg-white px-4 pb-8 pt-4 shadow-2xl">
+          <div
+            className="relative rounded-t-3xl bg-white px-4 pt-4 shadow-2xl"
+            style={{ paddingBottom: "calc(var(--safe-bottom, 0px) + 5rem)" }}
+          >
             <div className="mb-3 flex items-center justify-between">
               <p className="flex items-center gap-2 text-sm font-bold text-amber-900">
                 {speech.isListening ? (
@@ -617,7 +626,10 @@ export default function ConsultStage({
       {/* 文字入力は最後の手段なので、普段は畳んでおく */}
       {textOpen && (
         <div className="fixed inset-0 z-40 flex flex-col justify-end bg-black/30">
-          <div className="rounded-t-3xl bg-white p-4 pb-8">
+          <div
+            className="rounded-t-3xl bg-white p-4"
+            style={{ paddingBottom: "calc(var(--safe-bottom, 0px) + 5rem)" }}
+          >
             <div className="mb-2 flex items-center justify-between">
               <p className="text-sm font-bold text-amber-900">文字で聞く</p>
               <button type="button" onClick={() => setTextOpen(false)} aria-label="閉じる">
@@ -653,7 +665,10 @@ export default function ConsultStage({
       {/* 過去の相談。消えたのではなく畳まれているだけ、と分かるようにする */}
       {historyOpen && (
         <div className="fixed inset-0 z-40 flex flex-col bg-black/30">
-          <div className="mt-auto max-h-[80dvh] overflow-y-auto rounded-t-3xl bg-white p-4 pb-8">
+          <div
+            className="mt-auto max-h-[80dvh] overflow-y-auto rounded-t-3xl bg-white p-4"
+            style={{ paddingBottom: "calc(var(--safe-bottom, 0px) + 5rem)" }}
+          >
             <div className="mb-3 flex items-center justify-between">
               <p className="text-sm font-bold text-amber-900">
                 これまでの相談（{entries.length}件）
