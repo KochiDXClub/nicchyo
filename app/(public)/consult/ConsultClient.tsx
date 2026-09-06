@@ -6,8 +6,7 @@ import NavigationBar from "../../components/NavigationBar";
 import GrandmaChatter from "../map/components/GrandmaChatter";
 import ShopDetailBanner from "../map/components/ShopDetailBanner";
 import { grandmaComments } from "../map/data/grandmaComments";
-import GrandmaAvatar from "./components/GrandmaAvatar";
-import type { GrandmaPose } from "@/lib/grandma/pose";
+import ConsultStage from "./components/ConsultStage";
 import type { ConsultCharacterId } from "./data/consultCharacters";
 import type {
   ConsultAskResponse,
@@ -24,8 +23,15 @@ export default function ConsultClient({ embedded = false }: { embedded?: boolean
   const [knownShops, setKnownShops] = useState<Shop[]>([]);
   const [selectedShop, setSelectedShop] = useState<Shop | null>(null);
   const [preferredCharacterId, setPreferredCharacterId] = useState<ConsultCharacterId | null>(null);
-  const [grandmaPose, setGrandmaPose] = useState<GrandmaPose>("idle");
   const searchParams = useSearchParams();
+
+  const handleSelectShop = useCallback(
+    (shopId: number, shopFromCard?: Shop) => {
+      const shop = shopFromCard ?? knownShops.find((item) => item.id === shopId) ?? null;
+      if (shop) setSelectedShop(shop);
+    },
+    [knownShops]
+  );
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -276,52 +282,38 @@ export default function ConsultClient({ embedded = false }: { embedded?: boolean
     >
       {!embedded && <div className="pointer-events-none absolute inset-0 z-0 bg-[var(--consult-bg)]" aria-hidden="true" />}
       <main className="relative z-10 flex w-full items-start justify-center px-3 pb-16 pt-2">
-        <div className="flex w-full max-w-5xl flex-col gap-2">
-
-          {/* ヘッダー：standalone のみ表示 */}
-          {!embedded && (
-            <section className="flex flex-col items-center gap-3 pb-1 pt-4 text-center">
-              <GrandmaAvatar pose={grandmaPose} />
-              <div>
-                <p className="eyebrow">Nichiyo-san</p>
-                <h1 className="mt-1 font-display text-2xl text-amber-900 md:text-3xl">
-                  なんでも、聞いてください
-                </h1>
-              </div>
-              <div className="flex flex-wrap justify-center gap-1.5">
-                <span className="rounded-full border border-amber-200/70 bg-white/70 px-3 py-1 text-xs font-bold text-amber-800">🎤 音声入力OK</span>
-                <span className="rounded-full border border-amber-200/70 bg-white/70 px-3 py-1 text-xs font-bold text-amber-800">📷 写真相談OK</span>
-              </div>
-            </section>
+        <div className="flex w-full max-w-3xl flex-col gap-2">
+          {embedded ? (
+            // マップ内に埋め込むときは、これまでどおりの会話パネル
+            <GrandmaChatter
+              titleLabel="にちよさん"
+              fullWidth
+              variant="consult"
+              embedded
+              comments={grandmaComments}
+              onAsk={handleGrandmaAsk}
+              onAskStream={handleGrandmaAskStream}
+              allShops={knownShops}
+              aiSuggestedShops={aiSuggestedShops}
+              onSelectShop={handleSelectShop}
+              initialOpen
+              layout="page"
+              onClear={() => setAiSuggestedShops([])}
+              autoAskText={autoAskText}
+              autoAskContext={autoAskContext}
+              enableSpeechInput
+              preferredCharacterId={preferredCharacterId}
+              onPreferredCharacterChange={setPreferredCharacterId}
+            />
+          ) : (
+            // 現地でスマホを片手に使う前提の画面
+            <ConsultStage
+              onAskStream={handleGrandmaAskStream}
+              allShops={knownShops}
+              onSelectShop={handleSelectShop}
+              autoAskText={autoAskText}
+            />
           )}
-
-          <GrandmaChatter
-            titleLabel="にちよさん"
-            fullWidth
-            variant="consult"
-            embedded={embedded}
-            comments={grandmaComments}
-            onAsk={handleGrandmaAsk}
-            onAskStream={handleGrandmaAskStream}
-            allShops={knownShops}
-            aiSuggestedShops={aiSuggestedShops}
-            onSelectShop={(shopId, shopFromCard) => {
-              const shop =
-                shopFromCard ?? knownShops.find((item) => item.id === shopId) ?? null;
-              if (shop) {
-                setSelectedShop(shop);
-              }
-            }}
-            initialOpen
-            layout="page"
-            onClear={() => setAiSuggestedShops([])}
-            autoAskText={autoAskText}
-            autoAskContext={autoAskContext}
-            enableSpeechInput
-            preferredCharacterId={preferredCharacterId}
-            onPreferredCharacterChange={setPreferredCharacterId}
-            onPoseChange={setGrandmaPose}
-          />
         </div>
       </main>
       {selectedShop && <ShopDetailBanner shop={selectedShop} onClose={() => setSelectedShop(null)} />}

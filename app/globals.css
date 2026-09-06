@@ -1563,9 +1563,29 @@ body.home-poster-zoom-open .hamburger-button {
   50%      { transform: translateY(-2px); }
 }
 
+/* キャラ絵そのものを音声入力の当たり判定にする（歩きながら片手で押せるように） */
+.grandma-avatar--tappable {
+  -webkit-tap-highlight-color: transparent;
+  cursor: pointer;
+  border: 0;
+  background: none;
+  padding: 0;
+}
+
+.grandma-avatar--tappable:active {
+  transform: scale(0.97);
+}
+
+.grandma-avatar--tappable:focus-visible {
+  outline: 3px solid rgba(245, 158, 11, 0.8);
+  outline-offset: 6px;
+  border-radius: 9999px;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .grandma-avatar,
-  .grandma-avatar__inner {
+  .grandma-avatar__inner,
+  .grandma-avatar--tappable:active {
     animation: none;
     transition: none;
     transform: none;

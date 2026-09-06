@@ -1,0 +1,465 @@
+"use client";
+
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Keyboard, Mic, RotateCcw, Send, X } from "lucide-react";
+import { useSpeechInput } from "@/lib/hooks/useSpeechInput";
+import { resolveGrandmaPose } from "@/lib/grandma/pose";
+import {
+  buildHistoryForRequest,
+  createEmptySession,
+  pickSuggestions,
+  restoreSession,
+  toDateKey,
+  type ConsultEntry,
+} from "@/lib/grandma/consultSession";
+import GrandmaAvatar from "./GrandmaAvatar";
+import type { Shop } from "../../map/data/shops";
+import type {
+  ConsultAskResponse,
+  ConsultAskStreamEvent,
+  ConsultHistoryEntry,
+} from "../types/consultConversation";
+
+const SESSION_STORAGE_KEY = "nicchyo-consult-session";
+
+/**
+ * 現地でよく出る質問。候補ボタンの母集団。
+ * ここが「一番速くて、騒音に強くて、API を叩かずに済ませられる」入口になる。
+ */
+const QUESTION_POOL = [
+  "今の季節の旬は何？",
+  "混雑を避けるコツは？",
+  "子ども連れでも楽しめる？",
+  "日曜市の回り方を教えて",
+  "お土産におすすめは？",
+  "近くで座って休める場所は？",
+  "食べ歩きできるものある？",
+  "写真映えする場所は？",
+] as const;
+
+export interface ConsultStageProps {
+  onAskStream: (
+    text: string,
+    imageFile: File | null | undefined,
+    context: { shopId?: number; shopName?: string; source?: "suggestion" | "input" } | undefined,
+    history: ConsultHistoryEntry[] | undefined,
+    memorySummary: string | undefined,
+    onEvent: (event: ConsultAskStreamEvent) => void
+  ) => Promise<ConsultAskResponse>;
+  allShops?: Shop[];
+  onSelectShop?: (shopId: number, shop?: Shop) => void;
+  /** ?q= で開かれたときに自動で聞く */
+  autoAskText?: string | null;
+}
+
+type StagePhase = "idle" | "confirming" | "thinking";
+
+/**
+ * 現地・スマホ・片手を前提にした相談画面。
+ *
+ * 会話ログを積み上げず、「今の答え」1枚だけを主役にする。
+ * 現地の相談はほぼ全部が独立した1往復で終わり、文脈が積み上がらないため、
+ * ログを積むと縦に伸びるだけで得がない（キャラを大きく置く余地も失う）。
+ *
+ * 入力手段の優先順位は、速さと騒音耐性で決めている：
+ *   候補ボタン（0.5秒・騒音に強い） > 音声（3〜5秒・騒音に弱い） > 文字（15秒以上）
+ */
+export default function ConsultStage({
+  onAskStream,
+  allShops = [],
+  onSelectShop,
+  autoAskText,
+}: ConsultStageProps) {
+  const [entries, setEntries] = useState<ConsultEntry[]>([]);
+  const [phase, setPhase] = useState<StagePhase>("idle");
+  const [draft, setDraft] = useState("");
+  const [streamingText, setStreamingText] = useState<string | null>(null);
+  const [streamingSpeaker, setStreamingSpeaker] = useState<string | null>(null);
+  /** 応答待ちの間も「何を聞いたか」を出しておくため */
+  const [pendingQuestion, setPendingQuestion] = useState<string | null>(null);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [textOpen, setTextOpen] = useState(false);
+  const [typed, setTyped] = useState("");
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [hasRestored, setHasRestored] = useState(false);
+  const [autoAsked, setAutoAsked] = useState(false);
+
+  const entriesRef = useRef<ConsultEntry[]>([]);
+  entriesRef.current = entries;
+  const textInputRef = useRef<HTMLTextAreaElement | null>(null);
+
+  // 認識が終わったら、そのまま送らずに確認へ回す。
+  // 日曜市は騒がしく誤認識が避けられないので、黙って送ると
+  // 「なぜ変な答えが返ってきたのか」が利用者に分からなくなる。
+  const handleSpeechSettled = useCallback((transcript: string) => {
+    if (!transcript) return;
+    setDraft(transcript);
+    setPhase("confirming");
+  }, []);
+
+  const speech = useSpeechInput({ onSettled: handleSpeechSettled });
+
+  const pose = resolveGrandmaPose({
+    isListening: speech.isListening,
+    isStreaming: streamingText !== null,
+    aiStatus: phase === "thinking" ? "thinking" : "idle",
+  });
+
+  // 相談の保存と復元。日付が変わっていれば畳まれる（前の日曜市の相談は残さない）
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    setEntries(restoreSession(window.localStorage.getItem(SESSION_STORAGE_KEY)).entries);
+    setHasRestored(true);
+  }, []);
+
+  useEffect(() => {
+    if (!hasRestored || typeof window === "undefined") return;
+    try {
+      window.localStorage.setItem(
+        SESSION_STORAGE_KEY,
+        JSON.stringify({ dateKey: toDateKey(), entries })
+      );
+    } catch {
+      // 保存できなくても相談自体は続けられるので握りつぶす
+    }
+  }, [entries, hasRestored]);
+
+  const ask = useCallback(
+    async (question: string, source: "suggestion" | "input") => {
+      const text = question.trim();
+      if (!text || phase === "thinking") return;
+
+      setErrorMessage(null);
+      setPhase("thinking");
+      setDraft("");
+      setPendingQuestion(text);
+      setStreamingText(null);
+      setStreamingSpeaker(null);
+
+      const history = buildHistoryForRequest(entriesRef.current);
+
+      const handleEvent = (event: ConsultAskStreamEvent) => {
+        if (event.type === "first_turn_start") {
+          setStreamingSpeaker(event.speakerName);
+          setStreamingText("");
+        } else if (event.type === "first_turn_delta") {
+          setStreamingText((prev) => `${prev ?? ""}${event.delta}`);
+        }
+      };
+
+      try {
+        const response = await onAskStream(
+          text,
+          null,
+          { source },
+          history,
+          undefined,
+          handleEvent
+        );
+
+        if (response.errorMessage) setErrorMessage(response.errorMessage);
+
+        const answer = (response.turns ?? [])
+          .map((turn) => turn.text)
+          .join("\n\n")
+          .trim();
+
+        setEntries((prev) => [
+          {
+            id: response.consultId ?? `${Date.now()}`,
+            question: text,
+            answer: answer || response.reply,
+            speakerName: response.turns?.[0]?.speakerName,
+            shopIds: response.shopIds,
+            followUpQuestion: response.followUpQuestion,
+          },
+          ...prev,
+        ]);
+      } catch {
+        setErrorMessage("接続に失敗しました。少し時間をおいて、もう一度試してください。");
+      } finally {
+        setStreamingText(null);
+        setStreamingSpeaker(null);
+        setPendingQuestion(null);
+        setPhase("idle");
+      }
+    },
+    [onAskStream, phase]
+  );
+
+  useEffect(() => {
+    if (!hasRestored || autoAsked || !autoAskText) return;
+    setAutoAsked(true);
+    void ask(autoAskText, "input");
+  }, [ask, autoAsked, autoAskText, hasRestored]);
+
+  const current = entries[0] ?? null;
+  const suggestions = useMemo(
+    () => pickSuggestions({ entries, pool: QUESTION_POOL }),
+    [entries]
+  );
+  const currentShops = useMemo(() => {
+    if (!current?.shopIds?.length) return [];
+    return current.shopIds
+      .map((id) => allShops.find((shop) => shop.id === id))
+      .filter((shop): shop is Shop => !!shop)
+      .slice(0, 4);
+  }, [allShops, current]);
+
+  const isBusy = phase === "thinking";
+  const showAnswer = isBusy || streamingText !== null || !!current;
+
+  const handleMicTap = () => {
+    if (speech.isListening) {
+      speech.stop();
+      return;
+    }
+    setErrorMessage(null);
+    setPhase("idle");
+    speech.start();
+  };
+
+  const openTextInput = () => {
+    setTextOpen(true);
+    setTyped(draft);
+    // シートが描画されてからでないとフォーカスが乗らない
+    requestAnimationFrame(() => textInputRef.current?.focus());
+  };
+
+  return (
+    <div className="flex min-h-[calc(100dvh-96px)] w-full flex-col gap-3 px-4 pb-28 pt-3">
+      {/* 畳んだ履歴。件数を出しておかないと「消えた」と思われる */}
+      {entries.length > 1 && (
+        <button
+          type="button"
+          onClick={() => setHistoryOpen(true)}
+          className="self-center rounded-full border border-amber-200/80 bg-white/70 px-4 py-1.5 text-xs font-bold text-amber-800"
+        >
+          これまでの相談 {entries.length}件 ▾
+        </button>
+      )}
+
+      {/* キャラ。答えが出たら縮小して上に退く（大きいままだと本文が読めない） */}
+      <div className="flex flex-col items-center">
+        <GrandmaAvatar
+          pose={pose}
+          size={showAnswer ? "compact" : "hero"}
+          onClick={speech.isSupported ? handleMicTap : undefined}
+          label={speech.isListening ? "音声入力を止める" : "にちよさんに話しかける"}
+        />
+        {!showAnswer && (
+          <p className="mt-2 text-center text-sm font-bold text-amber-900">
+            {speech.isListening
+              ? "聞きよるよ…"
+              : speech.isSupported
+                ? "にちよさんをタップして話しかけてね"
+                : "聞きたいことを選んでね"}
+          </p>
+        )}
+      </div>
+
+      {/* 認識中の暫定テキスト。何が聞こえているかその場で見せる */}
+      {speech.isListening && speech.interim && (
+        <p className="rounded-2xl bg-amber-50 px-4 py-3 text-center text-base text-amber-900">
+          {speech.interim}
+        </p>
+      )}
+
+      {/* 誤認識をここで止める。黙って送らない */}
+      {phase === "confirming" && (
+        <div className="rounded-2xl border border-amber-200 bg-white p-4 shadow-sm">
+          <p className="text-xs font-bold text-amber-700">これでよかった？</p>
+          <p className="mt-1 text-lg leading-relaxed text-slate-800">{draft}</p>
+          <div className="mt-3 flex gap-2">
+            <button
+              type="button"
+              onClick={() => void ask(draft, "input")}
+              className="flex flex-1 items-center justify-center gap-1.5 rounded-full bg-gradient-to-br from-amber-500 to-orange-500 px-4 py-3 text-base font-bold text-white shadow-sm"
+            >
+              <Send className="h-4 w-4" aria-hidden="true" />
+              これで聞く
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setPhase("idle");
+                speech.start();
+              }}
+              className="flex items-center justify-center gap-1.5 rounded-full border border-amber-200 px-4 py-3 text-sm font-bold text-amber-800"
+            >
+              <RotateCcw className="h-4 w-4" aria-hidden="true" />
+              言い直す
+            </button>
+            <button
+              type="button"
+              onClick={openTextInput}
+              aria-label="文字で直す"
+              className="flex items-center justify-center rounded-full border border-amber-200 px-3 py-3 text-amber-800"
+            >
+              <Keyboard className="h-4 w-4" aria-hidden="true" />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* 今の答え。1枚だけ */}
+      {showAnswer && (
+        <div className="rounded-3xl border border-amber-100 bg-white/90 p-4 shadow-sm">
+          {/* 質問は隠さず、明確に格下で置く。誤認識に気づける必要があるため */}
+          <p className="truncate text-xs text-slate-400">
+            {pendingQuestion ?? current?.question}
+          </p>
+          <p className="mt-1 text-[11px] font-bold text-amber-700">
+            {streamingSpeaker ?? current?.speakerName ?? "にちよさん"}
+          </p>
+          <p className="mt-2 whitespace-pre-wrap text-[15px] leading-7 text-slate-800">
+            {streamingText !== null
+              ? streamingText || "…"
+              : isBusy
+                ? "考えよるよ…"
+                : current?.answer}
+          </p>
+
+          {currentShops.length > 0 && (
+            <div className="mt-3 flex flex-wrap gap-1.5">
+              {currentShops.map((shop) => (
+                <button
+                  key={shop.id}
+                  type="button"
+                  onClick={() => onSelectShop?.(shop.id, shop)}
+                  className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-bold text-amber-900"
+                >
+                  {shop.name}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {errorMessage && (
+        <p className="rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-700">{errorMessage}</p>
+      )}
+
+      {/* 候補ボタン。ここが主役 */}
+      {phase !== "confirming" && suggestions.length > 0 && (
+        <div className="flex flex-col gap-2">
+          {suggestions.map((question) => (
+            <button
+              key={question}
+              type="button"
+              disabled={isBusy}
+              onClick={() => void ask(question, "suggestion")}
+              className="w-full rounded-2xl border border-amber-200 bg-white px-4 py-4 text-left text-base font-bold text-amber-900 shadow-sm transition active:scale-[0.98] disabled:opacity-50"
+            >
+              {question}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* 音声は大きく、文字は最後の手段として小さく */}
+      <div className="fixed inset-x-0 bottom-[72px] z-20 flex items-center justify-center gap-3 px-4">
+        {speech.isSupported && (
+          <button
+            type="button"
+            onClick={handleMicTap}
+            disabled={isBusy}
+            className={`flex flex-1 items-center justify-center gap-2 rounded-full px-6 py-4 text-base font-bold shadow-lg transition disabled:opacity-50 ${
+              speech.isListening
+                ? "bg-red-500 text-white"
+                : "bg-gradient-to-br from-amber-500 to-orange-500 text-white"
+            }`}
+          >
+            <Mic className="h-5 w-5" aria-hidden="true" />
+            {speech.isListening ? "とめる" : "話しかける"}
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={openTextInput}
+          disabled={isBusy}
+          aria-label="文字で聞く"
+          className={`flex items-center justify-center rounded-full border border-amber-200 bg-white/95 text-amber-800 shadow-lg disabled:opacity-50 ${
+            speech.isSupported ? "h-14 w-14" : "flex-1 gap-2 px-6 py-4 text-base font-bold"
+          }`}
+        >
+          <Keyboard className="h-5 w-5" aria-hidden="true" />
+          {!speech.isSupported && "文字で聞く"}
+        </button>
+      </div>
+
+      {/* 文字入力は最後の手段なので、普段は畳んでおく */}
+      {textOpen && (
+        <div className="fixed inset-0 z-40 flex flex-col justify-end bg-black/30">
+          <div className="rounded-t-3xl bg-white p-4 pb-8">
+            <div className="mb-2 flex items-center justify-between">
+              <p className="text-sm font-bold text-amber-900">文字で聞く</p>
+              <button type="button" onClick={() => setTextOpen(false)} aria-label="閉じる">
+                <X className="h-5 w-5 text-slate-400" aria-hidden="true" />
+              </button>
+            </div>
+            <textarea
+              ref={textInputRef}
+              value={typed}
+              onChange={(event) => setTyped(event.target.value)}
+              rows={3}
+              placeholder="（例）今の旬の果物は？"
+              className="w-full rounded-2xl border border-amber-200 p-3 text-base text-slate-800 outline-none focus:border-amber-400"
+            />
+            <button
+              type="button"
+              disabled={!typed.trim()}
+              onClick={() => {
+                const question = typed.trim();
+                setTextOpen(false);
+                setTyped("");
+                void ask(question, "input");
+              }}
+              className="mt-2 flex w-full items-center justify-center gap-2 rounded-full bg-gradient-to-br from-amber-500 to-orange-500 px-6 py-4 text-base font-bold text-white disabled:opacity-40"
+            >
+              <Send className="h-4 w-4" aria-hidden="true" />
+              聞く
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* 過去の相談。消えたのではなく畳まれているだけ、と分かるようにする */}
+      {historyOpen && (
+        <div className="fixed inset-0 z-40 flex flex-col bg-black/30">
+          <div className="mt-auto max-h-[80dvh] overflow-y-auto rounded-t-3xl bg-white p-4 pb-8">
+            <div className="mb-3 flex items-center justify-between">
+              <p className="text-sm font-bold text-amber-900">
+                これまでの相談（{entries.length}件）
+              </p>
+              <button type="button" onClick={() => setHistoryOpen(false)} aria-label="閉じる">
+                <X className="h-5 w-5 text-slate-400" aria-hidden="true" />
+              </button>
+            </div>
+            <ul className="flex flex-col gap-4">
+              {entries.map((item) => (
+                <li key={item.id} className="border-b border-amber-100 pb-3 last:border-0">
+                  <p className="text-xs text-slate-400">{item.question}</p>
+                  <p className="mt-1 whitespace-pre-wrap text-sm leading-6 text-slate-700">
+                    {item.answer}
+                  </p>
+                </li>
+              ))}
+            </ul>
+            <button
+              type="button"
+              onClick={() => {
+                setEntries(createEmptySession().entries);
+                setHistoryOpen(false);
+              }}
+              className="mt-4 w-full rounded-full border border-amber-200 py-3 text-sm font-bold text-amber-800"
+            >
+              相談を最初からにする
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
