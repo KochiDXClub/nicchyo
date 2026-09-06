@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Keyboard, Mic, RotateCcw, Send, Square, X } from "lucide-react";
+import { AlertCircle, Keyboard, Mic, RotateCcw, Send, Square, X } from "lucide-react";
+import toast from "react-hot-toast";
 import { useSpeechInput } from "@/lib/hooks/useSpeechInput";
 import { resolveGrandmaPose } from "@/lib/grandma/pose";
 import {
@@ -87,7 +88,6 @@ export default function ConsultStage({
   const [historyOpen, setHistoryOpen] = useState(false);
   const [textOpen, setTextOpen] = useState(false);
   const [typed, setTyped] = useState("");
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [hasRestored, setHasRestored] = useState(false);
   const [autoAsked, setAutoAsked] = useState(false);
   /**
@@ -128,6 +128,10 @@ export default function ConsultStage({
   // 日曜市は騒がしく誤認識が避けられないので、黙って送ると
   // 「なぜ変な答えが返ってきたのか」が利用者に分からなくなる。
   const cancellingRef = useRef(false);
+  // notifyError は下で定義するので、ref 越しに呼ぶ
+  const notifyErrorRef = useRef<
+    ((message: string, retry?: { label: string; run: () => void }) => void) | null
+  >(null);
   const handleSpeechSettled = useCallback((transcript: string) => {
     // 「やめる」で止めたときは確認へ進めない（stop() でも onend は通るため）
     if (cancellingRef.current) {
@@ -142,7 +146,9 @@ export default function ConsultStage({
   const handleSpeechError = useCallback(() => {
     // 何も起きずにシートが消えると壊れたように見えるので、必ず理由を出す
     setPhase("idle");
-    setErrorMessage("声が聞き取れんかった。マイクの許可を確かめるか、文字で聞いてみてね。");
+    notifyErrorRef.current?.(
+      "声が聞き取れんかった。マイクの許可を確かめるか、文字で聞いてみてね。"
+    );
   }, []);
 
   const speech = useSpeechInput({
@@ -183,6 +189,56 @@ export default function ConsultStage({
     }
   }, [entries, hasRestored]);
 
+  /**
+   * エラーの知らせ。
+   *
+   * 以前は答えのカードの下に出していたが、そこは読み進めないと見えない位置で、
+   * 下までスクロールしていると気づけなかった。画面の上に出して、
+   * 目に入る場所で知らせる。
+   *
+   * 屋外で読むので、既定の3秒では短い。やり直せるものには手段を添える。
+   */
+  const notifyError = useCallback(
+    (message: string, retry?: { label: string; run: () => void }) => {
+      toast.custom(
+        (item) => (
+          <div
+            className={`pointer-events-auto flex w-[min(92vw,26rem)] items-start gap-2.5 rounded-2xl border border-red-200 bg-white px-4 py-3 shadow-lg transition duration-200 ${
+              item.visible ? "translate-y-0 opacity-100" : "-translate-y-2 opacity-0"
+            }`}
+          >
+            <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-red-500" aria-hidden="true" />
+            <p className="flex-1 text-sm leading-6 text-slate-700">{message}</p>
+            {retry && (
+              <button
+                type="button"
+                onClick={() => {
+                  toast.dismiss(item.id);
+                  retry.run();
+                }}
+                className="shrink-0 rounded-full bg-red-500 px-3 py-1.5 text-xs font-bold text-white"
+              >
+                {retry.label}
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => toast.dismiss(item.id)}
+              aria-label="閉じる"
+              className="shrink-0"
+            >
+              <X className="h-4 w-4 text-slate-400" aria-hidden="true" />
+            </button>
+          </div>
+        ),
+        // 同じ id にして、続けて失敗しても積み上がらないようにする
+        { id: "consult-error", duration: 7000, position: "top-center" }
+      );
+    },
+    []
+  );
+  notifyErrorRef.current = notifyError;
+
   // QR やリンクから来た店舗の前提は、最初の質問にだけ添える
   const autoAskContextRef = useRef(autoAskContext);
   autoAskContextRef.current = autoAskContext;
@@ -192,7 +248,7 @@ export default function ConsultStage({
       const text = question.trim();
       if (!text || phase === "thinking") return;
 
-      setErrorMessage(null);
+      toast.dismiss("consult-error");
       setPhase("thinking");
       setDraft("");
       setPendingQuestion(text);
@@ -220,13 +276,12 @@ export default function ConsultStage({
           handleEvent
         );
 
-        if (response.errorMessage) setErrorMessage(response.errorMessage);
-
         // 失敗した回答を相談として残さない。残すと、お詫び文が答えとして保存され、
         // 次のリクエストの履歴に混ざり、その質問が候補ボタンから消えてしまう
         if (response.errorCode) {
-          setErrorMessage(
-            response.errorMessage ?? "うまく聞けんかった。もう一度試してみてね。"
+          notifyError(
+            response.errorMessage ?? "うまく聞けんかった。もう一度試してみてね。",
+            { label: "もう一度", run: () => void askRef.current?.(text, source, withContext) }
           );
           return;
         }
@@ -256,7 +311,10 @@ export default function ConsultStage({
           ...prev,
         ]);
       } catch {
-        setErrorMessage("接続に失敗しました。少し時間をおいて、もう一度試してください。");
+        notifyError("つながらんかった。電波を確かめて、もう一度試してみてね。", {
+          label: "もう一度",
+          run: () => void askRef.current?.(text, source, withContext),
+        });
       } finally {
         setStreamingText(null);
         setStreamingSpeaker(null);
@@ -264,8 +322,11 @@ export default function ConsultStage({
         setPhase("idle");
       }
     },
-    [onAskStream, phase]
+    [notifyError, onAskStream, phase]
   );
+
+  const askRef = useRef<typeof ask | null>(null);
+  askRef.current = ask;
 
   useEffect(() => {
     if (!hasRestored || autoAsked || !autoAskText) return;
@@ -339,7 +400,7 @@ export default function ConsultStage({
       speech.stop();
       return;
     }
-    setErrorMessage(null);
+    toast.dismiss("consult-error");
     setPhase("idle");
     speech.start();
   };
@@ -503,10 +564,6 @@ export default function ConsultStage({
             </div>
           )}
         </div>
-      )}
-
-      {errorMessage && (
-        <p className="rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-700">{errorMessage}</p>
       )}
 
       {/* 候補ボタン。ここが主役。待っている間は薄く残さず、消す */}
