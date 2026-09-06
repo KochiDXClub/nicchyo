@@ -6,7 +6,7 @@ import SearchClient from "./SearchClient";
 import SearchLoading from "./loading";
 import type { Shop } from "../map/data/shops";
 import { fetchVendorShopsFromDb } from "../map/services/shopDb";
-import type { Landmark } from "../map/types/landmark";
+import { filterMapVisibleLandmarks, type Landmark } from "../map/types/landmark";
 import { fetchLandmarksFromDb } from "../map/services/landmarksDb";
 
 export const metadata: Metadata = {
@@ -28,7 +28,8 @@ async function loadLandmarks(): Promise<Landmark[]> {
   try {
     const cookieStore = await cookies();
     const supabase = createClient(cookieStore);
-    return await fetchLandmarksFromDb(supabase);
+    // 検索ページのマップに描くのは常時表示のランドマークだけ（お手洗い等は除く）
+    return filterMapVisibleLandmarks(await fetchLandmarksFromDb(supabase));
   } catch {
     return [];
   }

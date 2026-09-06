@@ -11,17 +11,17 @@
 import Link from 'next/link';
 import { motion } from 'framer-motion';
 import NavigationBar from '../../components/NavigationBar';
-import { FACILITY_CATEGORIES, getFacilitiesByCategory } from '@/lib/facilities/facilities';
+import { FACILITY_CATEGORIES, type FacilityCategoryId } from '@/lib/facilities/facilities';
 
 type FacilitiesPageClientProps = {
   /**
-   * 「のりもの」の件数。静的データを持たないため（マップのランドマークが
-   * 唯一の情報源）、サーバー側で取得した件数を親から受け取る。
+   * カテゴリごとの件数。施設データは map_landmarks が唯一の情報源なので、
+   * サーバー側で数えた値を親から受け取る。
    */
-  transportCount: number;
+  counts: Record<FacilityCategoryId, number>;
 };
 
-export default function FacilitiesPageClient({ transportCount }: FacilitiesPageClientProps) {
+export default function FacilitiesPageClient({ counts }: FacilitiesPageClientProps) {
   return (
     <main className="relative min-h-screen bg-[#FDFBF7] pb-28 text-gray-900">
       {/* 見出し：/story と同じ霧のヒーロー演出。吹き出し状のカードは使わず、
@@ -72,10 +72,6 @@ export default function FacilitiesPageClient({ transportCount }: FacilitiesPageC
           <h1 className="mt-1 text-[2.25rem] font-black leading-none tracking-tight text-gray-900">
             おでかけサポート
           </h1>
-          <p className="mt-3 text-sm leading-relaxed text-gray-500">
-            さがしたいものをえらぶと、マップで場所を光らせてご案内します。
-            現在地がわかるときは、一番近い場所までの道のりもお知らせします。
-          </p>
         </div>
       </div>
 
@@ -105,11 +101,8 @@ export default function FacilitiesPageClient({ transportCount }: FacilitiesPageC
                 )}
                 <span className="flex-1">
                   <span className="block text-lg font-bold">{category.label}</span>
-                  <span className="mt-1 block text-sm opacity-80">{category.description}</span>
                   <span className="mt-1 block text-xs opacity-60">
-                    {category.id === 'transport'
-                      ? transportCount
-                      : getFacilitiesByCategory(category.id).length}
+                    {counts[category.id]}
                     か所
                   </span>
                 </span>
