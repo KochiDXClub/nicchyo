@@ -288,19 +288,25 @@ export default function ConsultStage({
 
   return (
     <div className="flex min-h-[calc(100dvh-96px)] w-full flex-col gap-3 px-4 pb-28 pt-3">
-      {/* 畳んだ履歴。件数を出しておかないと「消えた」と思われる */}
-      {entries.length > 1 && (
-        <button
-          type="button"
-          onClick={() => setHistoryOpen(true)}
-          className="self-center rounded-full border border-amber-200/80 bg-white/70 px-4 py-1.5 text-xs font-bold text-amber-800"
-        >
-          これまでの相談 {entries.length}件 ▾
-        </button>
-      )}
+      {/*
+        にちよさんは常に画面に残す。
+        話し相手が読み進めるうちに消えてしまうと、話しかける相手が居なくなり、
+        音声入力の入口（＝キャラ自身がボタン）にも戻れなくなるため。
+        答えが長いときはここだけが残り、本文がこの下を流れていく。
+      */}
+      <div className="sticky top-0 z-30 -mx-4 flex flex-col items-center gap-2 bg-[#FFFAF0]/85 px-4 pb-1 pt-2 backdrop-blur-md">
+        {/* 畳んだ履歴。件数を出しておかないと「消えた」と思われる */}
+        {entries.length > 1 && (
+          <button
+            type="button"
+            onClick={() => setHistoryOpen(true)}
+            className="rounded-full border border-amber-200/80 bg-white/70 px-4 py-1.5 text-xs font-bold text-amber-800"
+          >
+            これまでの相談 {entries.length}件 ▾
+          </button>
+        )}
 
-      {/* キャラ。答えが出たら縮小して上に退く（大きいままだと本文が読めない） */}
-      <div className="flex flex-col items-center">
+        {/* 答えが出たら縮小して上に退く（大きいままだと本文が読めない） */}
         <GrandmaAvatar
           pose={pose}
           size={showAnswer ? "compact" : "hero"}
@@ -308,7 +314,7 @@ export default function ConsultStage({
           label={speech.isListening ? "音声入力を止める" : "にちよさんに話しかける"}
         />
         {!showAnswer && (
-          <p className="mt-2 text-center text-sm font-bold text-amber-900">
+          <p className="text-center text-sm font-bold text-amber-900">
             {speech.isListening
               ? "聞きよるよ…"
               : speech.isSupported
@@ -316,6 +322,12 @@ export default function ConsultStage({
                 : "聞きたいことを選んでね"}
           </p>
         )}
+
+        {/* 下に流れる本文が、固定部分の縁でぶつ切りに見えないようにする */}
+        <div
+          className="pointer-events-none absolute inset-x-0 top-full h-4 bg-gradient-to-b from-[#FFFAF0]/85 to-transparent"
+          aria-hidden="true"
+        />
       </div>
 
       {/* 認識中の暫定テキスト。何が聞こえているかその場で見せる */}
