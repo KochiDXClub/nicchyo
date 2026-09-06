@@ -23,14 +23,19 @@ AIに送るプロンプト文の置き場所。**プロンプトの文面を直�
 | `shopChatPrompt.ts` | 店舗詳細ページのチャット |
 | `itineraryPrompt.ts` | 旅程プランナー |
 | `mapAgentPrompt.ts` | マップAIアシスタント |
+| `promptKeys.ts` | DBで上書きできるキーの定義と、既定値へのフォールバック |
+| `promptStore.server.ts` | `ai_prompts` からアクティブな文面を読む（サーバー専用） |
 
 ## 運営が調整してよい文 / コード側の契約
 
-将来この一部をDBに出して管理画面から編集できるようにする（#567）。
+この一部はDBに出して管理画面から編集できるようにする（#567）。
 そのため各定数には、どちらに属するかを次の目印で書いてある。
 
 - `運営調整可` … 発話数・方言の濃さ・断り方など、日曜市を知っている人が決めるべき文面
 - `コード契約` … 変えるとアプリが壊れる文面
+
+DBで上書きできるのは `promptKeys.ts` の `AI_PROMPT_DEFS` に載っているキーだけ。
+ここに `コード契約` の文面を足してはいけない。
 
 「コード契約」の代表が `CONSULT_OUTPUT_RULES` と `buildStreamingFormatPrompt()`。
 これらは `buildResponseSchema()` のJSON schema、`parseStreamingConsultOutput()` のパーサ、
