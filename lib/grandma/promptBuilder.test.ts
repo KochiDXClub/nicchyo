@@ -1,12 +1,14 @@
 import { describe, it, expect } from "vitest";
 import {
   pickConversationPattern,
-  buildConversationPatternPrompt,
-  buildStreamingFormatPrompt,
   parseStreamingConsultOutput,
   buildReplyFromTurns,
-  CONSULT_CONVERSATION_PATTERNS,
 } from "./promptBuilder";
+import {
+  buildConversationPatternPrompt,
+  buildStreamingFormatPrompt,
+  CONSULT_CONVERSATION_PATTERNS,
+} from "./prompts/consultConversation";
 import { CONSULT_CHARACTERS } from "@/app/(public)/consult/data/consultCharacters";
 
 const twoChars = CONSULT_CHARACTERS.slice(0, 2);
