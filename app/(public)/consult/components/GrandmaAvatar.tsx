@@ -29,14 +29,19 @@ function useLingeringPose(pose: GrandmaPose): GrandmaPose {
 }
 
 /**
- * hero  … 待機中の主役。これ自体が音声入力ボタンになる
- * compact … 答えが出たあと、上に退いた状態
+ * hero   … 既定。これ自体が音声入力ボタンになる
+ * pinned … 読むために利用者がスクロールしたときだけ、場所を空けるために縮む
+ *
+ * 大きさを決めてよいのは「利用者が読む場所を必要としているか」だけで、
+ * 「答えがあるかどうか」ではない。アプリの状態で勝手に縮むと、
+ * なぜ縮んだのかが利用者に分からず、話し相手が急に遠ざかったように見える。
  */
-export type GrandmaAvatarSize = "hero" | "compact";
+export type GrandmaAvatarSize = "hero" | "pinned";
 
 const SIZE_CLASS: Record<GrandmaAvatarSize, string> = {
   hero: "h-[200px] w-[200px] md:h-[240px] md:w-[240px]",
-  compact: "h-[72px] w-[72px] md:h-[88px] md:w-[88px]",
+  // 縮んでもキャラとして見えていられる大きさに留める（小さすぎるとただのアイコンになる）
+  pinned: "h-[96px] w-[96px] md:h-[112px] md:w-[112px]",
 };
 
 export interface GrandmaAvatarProps {
@@ -57,7 +62,7 @@ export interface GrandmaAvatarProps {
  */
 export default function GrandmaAvatar({
   pose,
-  size = "compact",
+  size = "hero",
   onClick,
   label,
   className,
@@ -72,7 +77,7 @@ export default function GrandmaAvatar({
         width={240}
         height={240}
         priority
-        className={`${SIZE_CLASS[size]} object-contain drop-shadow-[0_8px_16px_rgba(146,64,14,0.25)] transition-[height,width] duration-300`}
+        className={`${SIZE_CLASS[size]} grandma-avatar__image object-contain drop-shadow-[0_8px_16px_rgba(146,64,14,0.25)]`}
       />
     </div>
   );

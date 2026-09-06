@@ -94,6 +94,29 @@ export default function ConsultStage({
   const entriesRef = useRef<ConsultEntry[]>([]);
   entriesRef.current = entries;
   const textInputRef = useRef<HTMLTextAreaElement | null>(null);
+  const topSentinelRef = useRef<HTMLDivElement | null>(null);
+
+  /**
+   * にちよさんの大きさは「利用者が読む場所を欲しがっているか」だけで決める。
+   *
+   * 答えが出たかどうかでは決めない。それだと質問した瞬間に縮んでしまい、
+   * 一番動きが効く「考えている」最中に小さくなってしまう。しかも一度縮むと
+   * 二度と戻らず、キャラを中心に据えた画面でなくなってしまう。
+   *
+   * スクロール量を毎フレーム見ると屋外の長時間利用で電池に響くので、
+   * 画面最上部の目印が見えているかどうかだけを IntersectionObserver で見る。
+   */
+  const [isScrolledDown, setIsScrolledDown] = useState(false);
+  useEffect(() => {
+    const sentinel = topSentinelRef.current;
+    if (!sentinel || typeof IntersectionObserver === "undefined") return;
+    const observer = new IntersectionObserver(
+      ([entry]) => setIsScrolledDown(!entry.isIntersecting),
+      { threshold: 0 }
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, []);
 
   // 認識が終わったら、そのまま送らずに確認へ回す。
   // 日曜市は騒がしく誤認識が避けられないので、黙って送ると
@@ -294,6 +317,9 @@ export default function ConsultStage({
         音声入力の入口（＝キャラ自身がボタン）にも戻れなくなるため。
         答えが長いときはここだけが残り、本文がこの下を流れていく。
       */}
+      {/* 「画面の一番上にいるか」を測るための目印。見た目には出ない */}
+      <div ref={topSentinelRef} aria-hidden="true" className="h-px w-full shrink-0" />
+
       <div className="sticky top-0 z-30 -mx-4 flex flex-col items-center gap-2 bg-[#FFFAF0]/85 px-4 pb-1 pt-2 backdrop-blur-md">
         {/* 畳んだ履歴。件数を出しておかないと「消えた」と思われる */}
         {entries.length > 1 && (
@@ -309,11 +335,12 @@ export default function ConsultStage({
         {/* 答えが出たら縮小して上に退く（大きいままだと本文が読めない） */}
         <GrandmaAvatar
           pose={pose}
-          size={showAnswer ? "compact" : "hero"}
+          size={isScrolledDown ? "pinned" : "hero"}
           onClick={speech.isSupported ? handleMicTap : undefined}
           label={speech.isListening ? "音声入力を止める" : "にちよさんに話しかける"}
         />
-        {!showAnswer && (
+        {/* 聞き取り中の合図は常に出す。案内文は会話が始まったら引っ込める */}
+        {!isScrolledDown && (speech.isListening || !showAnswer) && (
           <p className="text-center text-sm font-bold text-amber-900">
             {speech.isListening
               ? "聞きよるよ…"
