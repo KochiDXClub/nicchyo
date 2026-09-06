@@ -189,6 +189,17 @@ export default function SpotCard({ spot, map, origin, onClose }: SpotCardProps) 
           {venueNote}
         </p>
 
+        {/*
+          座標が実測で確認できていないスポット（管理画面の「位置を確認済み」が未チェック）は、
+          その場で探し回らせないよう先に断っておく。列が無い環境では undefined になるので、
+          明示的に false のときだけ出す。
+        */}
+        {spot.verified === false && (
+          <p className="mt-1 pl-[17px] text-[11px] leading-relaxed text-slate-400">
+            場所はおおよその位置です。現地の案内表示もあわせてご確認ください。
+          </p>
+        )}
+
         {spot.lines && spot.lines.length > 0 && (
           <div className="mt-2.5 flex flex-wrap gap-1.5">
             {spot.lines.map((line) => (

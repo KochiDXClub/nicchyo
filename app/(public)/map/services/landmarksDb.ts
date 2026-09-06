@@ -115,7 +115,10 @@ export async function fetchLandmarksFromDb(
         openFrom: row.open_from ?? undefined,
         openUntil: row.open_until ?? undefined,
         showOnMap: row.show_on_map ?? true,
-        verified: Boolean(row.verified),
+        // 列そのものが無い（マイグレーション未適用のフォールバック）ときは undefined。
+        // Boolean(undefined) にすると全スポットが「未確認」扱いになり、
+        // SpotCard に「位置はおおよそ」の注記が一斉に出てしまう。
+        verified: row.verified === undefined ? undefined : Boolean(row.verified),
       };
     })
     .filter((row): row is Landmark => row !== null);
