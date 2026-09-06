@@ -1582,7 +1582,32 @@ body.home-poster-zoom-open .hamburger-button {
   border-radius: 9999px;
 }
 
+/* 応答待ちに出す文章の骨組み。前の答えを残さないための置き換え */
+.consult-skeleton {
+  display: block;
+  background: linear-gradient(90deg, #fde68a55 0%, #fef3c7 50%, #fde68a55 100%);
+  background-size: 200% 100%;
+  animation: consult-skeleton-sweep 1.4s ease-in-out infinite;
+}
+
+@keyframes consult-skeleton-sweep {
+  from { background-position: 200% 0; }
+  to   { background-position: -200% 0; }
+}
+
+/* 録音中の赤い点 */
+.consult-mic-dot {
+  animation: consult-mic-pulse 1.1s ease-in-out infinite;
+}
+
+@keyframes consult-mic-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%      { opacity: 0.45; transform: scale(0.82); }
+}
+
 @media (prefers-reduced-motion: reduce) {
+  .consult-skeleton,
+  .consult-mic-dot,
   .grandma-avatar,
   .grandma-avatar__inner,
   .grandma-avatar--tappable:active {

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Keyboard, Mic, RotateCcw, Send, X } from "lucide-react";
+import { Keyboard, Mic, RotateCcw, Send, Square, X } from "lucide-react";
 import { useSpeechInput } from "@/lib/hooks/useSpeechInput";
 import { resolveGrandmaPose } from "@/lib/grandma/pose";
 import {
@@ -121,7 +121,13 @@ export default function ConsultStage({
   // 認識が終わったら、そのまま送らずに確認へ回す。
   // 日曜市は騒がしく誤認識が避けられないので、黙って送ると
   // 「なぜ変な答えが返ってきたのか」が利用者に分からなくなる。
+  const cancellingRef = useRef(false);
   const handleSpeechSettled = useCallback((transcript: string) => {
+    // 「やめる」で止めたときは確認へ進めない（stop() でも onend は通るため）
+    if (cancellingRef.current) {
+      cancellingRef.current = false;
+      return;
+    }
     if (!transcript) return;
     setDraft(transcript);
     setPhase("confirming");
@@ -302,6 +308,13 @@ export default function ConsultStage({
     speech.start();
   };
 
+  const cancelVoice = () => {
+    cancellingRef.current = true;
+    speech.stop();
+    setDraft("");
+    setPhase("idle");
+  };
+
   const openTextInput = () => {
     setTextOpen(true);
     setTyped(draft);
@@ -402,58 +415,6 @@ export default function ConsultStage({
         )}
       </div>
 
-      {/* 認識中の暫定テキスト。何が聞こえているかその場で見せる */}
-      {speech.isListening && speech.interim && (
-        <p className="rounded-2xl bg-amber-50 px-4 py-3 text-center text-base text-amber-900">
-          {speech.interim}
-        </p>
-      )}
-
-      {/* 誤認識をここで止める。黙って送らない */}
-      {phase === "confirming" && (
-        <div className="rounded-3xl border border-amber-200 bg-white p-4 shadow-sm">
-          <p className="text-xs font-bold text-amber-700">これでよかった？</p>
-          <p className="mt-2 text-xl leading-relaxed text-slate-800">{draft}</p>
-
-          {/*
-            送信は主たる操作なので、幅いっぱい・高さも十分に取る。
-            以前は「これで聞く」「言い直す」「文字」を1行に詰めていたため、
-            細い端末で文字が折り返して押しづらくなっていた。
-            やり直し系は下段に2つ並べ、主たる操作と強さを分ける。
-          */}
-          <button
-            type="button"
-            onClick={() => void ask(draft, "input")}
-            className="mt-4 flex w-full items-center justify-center gap-2 rounded-full bg-gradient-to-br from-amber-500 to-orange-500 px-6 py-4 text-lg font-bold text-white shadow-sm transition active:scale-[0.98]"
-          >
-            <Send className="h-5 w-5 shrink-0" aria-hidden="true" />
-            これで聞く
-          </button>
-
-          <div className="mt-2 grid grid-cols-2 gap-2">
-            <button
-              type="button"
-              onClick={() => {
-                setPhase("idle");
-                speech.start();
-              }}
-              className="flex items-center justify-center gap-1.5 rounded-full border border-amber-200 py-3 text-sm font-bold text-amber-800 transition active:scale-[0.98]"
-            >
-              <RotateCcw className="h-4 w-4 shrink-0" aria-hidden="true" />
-              言い直す
-            </button>
-            <button
-              type="button"
-              onClick={openTextInput}
-              className="flex items-center justify-center gap-1.5 rounded-full border border-amber-200 py-3 text-sm font-bold text-amber-800 transition active:scale-[0.98]"
-            >
-              <Keyboard className="h-4 w-4 shrink-0" aria-hidden="true" />
-              文字で直す
-            </button>
-          </div>
-        </div>
-      )}
-
       {/* 今の答え。1枚だけ */}
       {showAnswer && (
         <div className="rounded-3xl border border-amber-100 bg-white/90 p-4 shadow-sm">
@@ -464,16 +425,22 @@ export default function ConsultStage({
           <p className="mt-1 text-[11px] font-bold text-amber-700">
             {streamingSpeaker ?? current?.speakerName ?? "にちよさん"}
           </p>
-          <p className="mt-2 whitespace-pre-wrap text-[15px] leading-7 text-slate-800">
-            {streamingText !== null
-              ? streamingText || "…"
-              : isBusy
-                ? "考えよるよ…"
-                : current?.answer}
-          </p>
+          {isBusy && !streamingText ? (
+            // 応答待ち。前の答えを残すと「過去の会話が透けている」ように見えるので、
+            // これから来る文章の骨組みだけを出す
+            <div className="mt-3 flex flex-col gap-2" aria-live="polite" aria-label="考え中">
+              <span className="consult-skeleton h-3.5 w-4/5 rounded-full" />
+              <span className="consult-skeleton h-3.5 w-full rounded-full" style={{ animationDelay: "120ms" }} />
+              <span className="consult-skeleton h-3.5 w-3/5 rounded-full" style={{ animationDelay: "240ms" }} />
+            </div>
+          ) : (
+            <p className="mt-2 whitespace-pre-wrap text-[15px] leading-7 text-slate-800">
+              {streamingText !== null ? streamingText || "…" : current?.answer}
+            </p>
+          )}
 
           {/* 紹介されたお店。写真を主役にしたカードで出す */}
-          {currentShops.length > 0 && onSelectShop && (
+          {!isBusy && currentShops.length > 0 && onSelectShop && (
             <div className="mt-4">
               <p className="mb-2 text-[11px] font-bold text-amber-700">
                 {currentShops.length === 1 ? "このお店だよ" : `おすすめのお店 ${currentShops.length}件`}
@@ -497,16 +464,15 @@ export default function ConsultStage({
         <p className="rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-700">{errorMessage}</p>
       )}
 
-      {/* 候補ボタン。ここが主役 */}
-      {phase !== "confirming" && suggestions.length > 0 && (
+      {/* 候補ボタン。ここが主役。待っている間は薄く残さず、消す */}
+      {phase === "idle" && !isBusy && suggestions.length > 0 && (
         <div className="flex flex-col gap-2">
           {suggestions.map((question) => (
             <button
               key={question}
               type="button"
-              disabled={isBusy}
               onClick={() => void ask(question, "suggestion")}
-              className="w-full rounded-2xl border border-amber-200 bg-white px-4 py-4 text-left text-base font-bold text-amber-900 shadow-sm transition active:scale-[0.98] disabled:opacity-50"
+              className="w-full rounded-2xl border border-amber-200 bg-white px-4 py-4 text-left text-base font-bold text-amber-900 shadow-sm transition active:scale-[0.98]"
             >
               {question}
             </button>
@@ -515,10 +481,10 @@ export default function ConsultStage({
       )}
 
       {/* 音声は大きく、文字は最後の手段として小さく。
-          確認中はカード内の「言い直す」と競合するので出さない */}
+          音声シートが出ている間と応答待ちの間は、押すべきものが2つにならないよう隠す */}
       <div
         className={`fixed inset-x-0 bottom-[72px] z-20 flex items-center justify-center gap-3 px-4 ${
-          phase === "confirming" ? "hidden" : ""
+          speech.isListening || phase !== "idle" || isBusy ? "hidden" : ""
         }`}
       >
         {speech.isSupported && (
@@ -549,6 +515,104 @@ export default function ConsultStage({
           {!speech.isSupported && "文字で聞く"}
         </button>
       </div>
+
+      {/*
+        音声入力のシート。
+
+        画面のどこまでスクロールしていても使えるよう、通常フローではなく
+        ビューポートに固定する。以前は「聞こえている内容」も「送信ボタン」も
+        通常フローの上のほうに置いていたため、読み進めた状態で話しかけると
+        自分が何と言ったのかも、どう送るのかも画面に出てこなかった。
+
+        背後を暗くしているのは、この瞬間にやることを1つに絞るため。
+      */}
+      {(speech.isListening || phase === "confirming") && (
+        <div className="fixed inset-0 z-40 flex flex-col justify-end">
+          <div
+            className="absolute inset-0 bg-slate-900/40"
+            onClick={cancelVoice}
+            aria-hidden="true"
+          />
+
+          <div className="relative rounded-t-3xl bg-white px-4 pb-8 pt-4 shadow-2xl">
+            <div className="mb-3 flex items-center justify-between">
+              <p className="flex items-center gap-2 text-sm font-bold text-amber-900">
+                {speech.isListening ? (
+                  <>
+                    <span className="consult-mic-dot h-2.5 w-2.5 rounded-full bg-red-500" />
+                    聞きよるよ…
+                  </>
+                ) : (
+                  "これでよかった？"
+                )}
+              </p>
+              <button type="button" onClick={cancelVoice} aria-label="やめる">
+                <X className="h-5 w-5 text-slate-400" aria-hidden="true" />
+              </button>
+            </div>
+
+            {/* 何と言ったのかを、確認できる大きさで出す */}
+            <p
+              className="min-h-[3.5rem] text-xl leading-relaxed text-slate-800"
+              aria-live="polite"
+            >
+              {speech.isListening ? (
+                speech.interim || (
+                  <span className="text-slate-400">聞きたいことを話してね</span>
+                )
+              ) : (
+                draft
+              )}
+            </p>
+
+            {speech.isListening ? (
+              <button
+                type="button"
+                onClick={speech.stop}
+                className="mt-4 flex w-full items-center justify-center gap-2 rounded-full bg-slate-800 px-6 py-4 text-lg font-bold text-white shadow-sm transition active:scale-[0.98]"
+              >
+                <Square className="h-4 w-4 shrink-0" aria-hidden="true" />
+                話し終わった
+              </button>
+            ) : (
+              <>
+                {/* 送信は主たる操作なので、幅いっぱい・高さも十分に取る */}
+                <button
+                  type="button"
+                  onClick={() => void ask(draft, "input")}
+                  className="mt-4 flex w-full items-center justify-center gap-2 rounded-full bg-gradient-to-br from-amber-500 to-orange-500 px-6 py-4 text-lg font-bold text-white shadow-sm transition active:scale-[0.98]"
+                >
+                  <Send className="h-5 w-5 shrink-0" aria-hidden="true" />
+                  これで聞く
+                </button>
+
+                {/* やり直し系は下段に並べ、主たる操作と強さを分ける */}
+                <div className="mt-2 grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPhase("idle");
+                      speech.start();
+                    }}
+                    className="flex items-center justify-center gap-1.5 rounded-full border border-amber-200 py-3 text-sm font-bold text-amber-800 transition active:scale-[0.98]"
+                  >
+                    <RotateCcw className="h-4 w-4 shrink-0" aria-hidden="true" />
+                    言い直す
+                  </button>
+                  <button
+                    type="button"
+                    onClick={openTextInput}
+                    className="flex items-center justify-center gap-1.5 rounded-full border border-amber-200 py-3 text-sm font-bold text-amber-800 transition active:scale-[0.98]"
+                  >
+                    <Keyboard className="h-4 w-4 shrink-0" aria-hidden="true" />
+                    文字で直す
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* 文字入力は最後の手段なので、普段は畳んでおく */}
       {textOpen && (
