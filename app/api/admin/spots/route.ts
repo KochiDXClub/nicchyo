@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { getRole } from "@/lib/auth/permissions";
+import { requireSameOrigin } from "@/lib/security/requestGuards";
+import { enforceRateLimit } from "@/lib/security/rateLimit";
 import { createAdminClient, authorizeAdmin } from "../categories/_helpers";
 import { SPOT_CATEGORIES, type SpotCategory, type AdminSpot } from "@/lib/spots/adminSpot";
 
@@ -51,10 +53,16 @@ function toStringArray(value: unknown): string[] | null {
   return items;
 }
 
+/**
+ * 空欄を許す任意項目。未指定は undefined、空文字・null は null（DBのNULL）にする。
+ * 改行・制御文字の禁止は isPlainShortText と同じ基準で揃える
+ * （notes / photo_credit も公開UIとAIのプロンプトに流れるため）。
+ */
 function nullableText(value: unknown, max: number): string | null | undefined {
   if (value === undefined) return undefined;
   if (value === null || value === "") return null;
   if (typeof value !== "string" || value.length > max) return undefined;
+  if (CONTROL_CHARS.test(value)) return undefined;
   return value.trim();
 }
 
@@ -70,7 +78,9 @@ function validate(body: SpotInput, { requireAll }: { requireAll: boolean }):
   }
   if (body.description !== undefined || requireAll) {
     const description = typeof body.description === "string" ? body.description.trim() : "";
-    if (description.length > 400) return { ok: false, error: "説明は400文字以内で入力してください" };
+    if (description.length > 400 || CONTROL_CHARS.test(description)) {
+      return { ok: false, error: "説明は400文字以内（改行なし）で入力してください" };
+    }
     values.description = description;
   }
   if (body.category !== undefined || requireAll) {
@@ -157,7 +167,10 @@ function validate(body: SpotInput, { requireAll }: { requireAll: boolean }):
   return { ok: true, values };
 }
 
-export async function GET() {
+export async function GET(req: Request) {
+  const originCheck = requireSameOrigin(req);
+  if (!originCheck.ok) return originCheck.response;
+
   const { error } = await authorizeAdmin();
   if (error) return NextResponse.json({ error }, { status: 403 });
 
@@ -178,6 +191,16 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
+  const originCheck = requireSameOrigin(req);
+  if (!originCheck.ok) return originCheck.response;
+
+  const rateLimited = await enforceRateLimit(req, {
+    bucket: "admin-spots-post",
+    limit: 30,
+    windowMs: 10 * 60 * 1000,
+  });
+  if (rateLimited) return rateLimited;
+
   const { user, error } = await authorizeAdmin();
   if (error || !user) return NextResponse.json({ error }, { status: 403 });
 
@@ -220,6 +243,16 @@ export async function POST(req: Request) {
 }
 
 export async function PATCH(req: Request) {
+  const originCheck = requireSameOrigin(req);
+  if (!originCheck.ok) return originCheck.response;
+
+  const rateLimited = await enforceRateLimit(req, {
+    bucket: "admin-spots-patch",
+    limit: 60,
+    windowMs: 10 * 60 * 1000,
+  });
+  if (rateLimited) return rateLimited;
+
   const { user, error } = await authorizeAdmin();
   if (error || !user) return NextResponse.json({ error }, { status: 403 });
 
@@ -260,6 +293,16 @@ export async function PATCH(req: Request) {
 }
 
 export async function DELETE(req: Request) {
+  const originCheck = requireSameOrigin(req);
+  if (!originCheck.ok) return originCheck.response;
+
+  const rateLimited = await enforceRateLimit(req, {
+    bucket: "admin-spots-delete",
+    limit: 30,
+    windowMs: 10 * 60 * 1000,
+  });
+  if (rateLimited) return rateLimited;
+
   const { user, error } = await authorizeAdmin();
   if (error || !user) return NextResponse.json({ error }, { status: 403 });
 

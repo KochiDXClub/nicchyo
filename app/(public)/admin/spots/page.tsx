@@ -367,9 +367,19 @@ export default function AdminSpotsPage() {
     <AdminLayout>
       <AdminPageHeader eyebrow="マスタ管理" title="スポット管理" />
 
-      <p className="mb-4 text-xs leading-relaxed text-slate-500">
+      <p className="mb-3 text-xs leading-relaxed text-slate-500">
         電停・駅・建物・お手洗い・休けい場所の情報（写真・タグ・路線・補足）を編集します。
         マップ上の位置とアイコンの大きさは「マップ編集」で調整してください。
+      </p>
+
+      {/*
+        restore_map_layout_snapshot は「スナップショットに無い key を削除する」仕様のため、
+        ここで追加したスポットは、それより前に保存されたスナップショットへ復元すると消える。
+        既存関数の仕様の帰結だが、運用中に気づけないと復旧できないので画面に出しておく。
+      */}
+      <p className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-800">
+        ここで追加したスポットは「マップ編集」のスナップショットに含まれます。
+        追加より前に保存されたスナップショットへ復元すると、そのスポットは削除されるためご注意ください。
       </p>
 
       <div className="mb-4 flex flex-wrap items-center gap-2">

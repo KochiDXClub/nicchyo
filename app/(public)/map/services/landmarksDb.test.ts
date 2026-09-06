@@ -57,7 +57,8 @@ describe("fetchLandmarksFromDb", () => {
         openFrom: undefined,
         openUntil: undefined,
         showOnMap: true,
-        verified: false,
+        // 列が無い行では「未確認」と断定せず undefined にする
+        verified: undefined,
       },
     ]);
   });
@@ -139,6 +140,8 @@ describe("fetchLandmarksFromDb", () => {
     expect(select.mock.calls[1][0]).not.toContain("category");
     expect(result.map((l) => l.key)).toEqual(["castle"]);
     expect(result[0].category).toBeUndefined();
+    // 列が無いだけなのに全件「未確認」にしない（SpotCardの注記が誤って一斉に出る）
+    expect(result[0].verified).toBeUndefined();
     consoleWarnSpy.mockRestore();
   });
 
