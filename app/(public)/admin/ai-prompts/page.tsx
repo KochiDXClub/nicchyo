@@ -27,6 +27,7 @@ import {
   type AiPromptSet,
 } from "@/lib/grandma/prompts/promptKeys";
 import { PromptPreview } from "./components/PromptPreview";
+import { PromptHistory } from "./components/PromptHistory";
 
 const GROUP_LABELS: Record<AiPromptDef["group"], { title: string; description: string }> = {
   weekly: {
@@ -61,13 +62,16 @@ function PromptField({
   value,
   savedValue,
   onChange,
+  onRestored,
 }: {
   def: AiPromptDef;
   value: string;
   /** 現在保存されている値。差分の表示に使う */
   savedValue: string;
   onChange: (key: AiPromptKey, next: string) => void;
+  onRestored: (key: AiPromptKey) => void;
 }) {
+  const [showHistory, setShowHistory] = useState(false);
   const validation = validateAiPromptBody(def.key, value);
   const isDefault = value === def.defaultBody;
   const isDirty = value !== savedValue;
@@ -121,13 +125,28 @@ function PromptField({
         ) : null}
         <button
           type="button"
+          onClick={() => setShowHistory((current) => !current)}
+          className="ml-auto rounded-md border border-slate-300 px-2 py-1 text-[12px] text-slate-600"
+        >
+          {showHistory ? "履歴を閉じる" : "履歴"}
+        </button>
+        <button
+          type="button"
           onClick={() => onChange(def.key, def.defaultBody)}
           disabled={isDefault}
-          className="ml-auto rounded-md border border-slate-300 px-2 py-1 text-[12px] text-slate-600 disabled:opacity-40"
+          className="rounded-md border border-slate-300 px-2 py-1 text-[12px] text-slate-600 disabled:opacity-40"
         >
           既定値に戻す
         </button>
       </div>
+
+      {showHistory ? (
+        <PromptHistory
+          def={def}
+          onRestored={() => onRestored(def.key)}
+          onClose={() => setShowHistory(false)}
+        />
+      ) : null}
     </div>
   );
 }
@@ -148,20 +167,43 @@ export default function AdminAiPromptsPage() {
     if (!permissions.isAdmin) router.push("/");
   }, [isLoading, permissions.isAdmin, router]);
 
-  const fetchPrompts = useCallback(async () => {
-    setLoading(true);
+  const loadPrompts = useCallback(async (): Promise<AiPromptSet | null> => {
     try {
       const res = await fetch("/api/admin/ai-prompts");
       if (!res.ok) throw new Error("failed");
       const data = (await res.json()) as { prompts: AiPromptSet };
-      setSaved(data.prompts);
-      setDraft(data.prompts);
+      return data.prompts;
     } catch {
       showToast.error("プロンプトの取得に失敗しました");
-    } finally {
-      setLoading(false);
+      return null;
     }
   }, []);
+
+  /** 保存直後・初回。編集内容は保存済みの値に揃える */
+  const fetchPrompts = useCallback(async () => {
+    setLoading(true);
+    const prompts = await loadPrompts();
+    if (prompts) {
+      setSaved(prompts);
+      setDraft(prompts);
+    }
+    setLoading(false);
+  }, [loadPrompts]);
+
+  /**
+   * 履歴から1項目を戻したあと。
+   * 戻した項目だけを新しい値に差し替え、他の項目の未保存の編集は残す
+   * （全部を上書きすると、書きかけの文章が黙って消える）
+   */
+  const handleRestored = useCallback(
+    async (key: AiPromptKey) => {
+      const prompts = await loadPrompts();
+      if (!prompts) return;
+      setSaved(prompts);
+      setDraft((current) => ({ ...current, [key]: prompts[key] }));
+    },
+    [loadPrompts]
+  );
 
   useEffect(() => {
     if (!permissions.isAdmin) return;
@@ -244,6 +286,7 @@ export default function AdminAiPromptsPage() {
                       value={draft[def.key]}
                       savedValue={saved[def.key]}
                       onChange={handleChange}
+                      onRestored={handleRestored}
                     />
                   ))}
                 </section>
