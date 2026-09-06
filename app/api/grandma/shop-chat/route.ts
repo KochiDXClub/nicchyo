@@ -1,37 +1,15 @@
 import { NextRequest } from "next/server";
 import { requireSameOrigin } from "@/lib/security/requestGuards";
 import { enforceRateLimit } from "@/lib/security/rateLimit";
+import {
+  buildShopChatSystemPrompt,
+  type ShopChatContext,
+} from "@/lib/grandma/prompts/shopChatPrompt";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 type ChatMessage = { role: "user" | "assistant"; text: string };
-
-function buildSystemPrompt(shopName: string, shopContext: {
-  category?: string;
-  catchphrase?: string;
-  shopStrength?: string;
-  products?: string[];
-  chome?: string;
-}): string {
-  const lines: string[] = [
-    "あなたは高知の日曜市（にちよさん）の案内役「にちよさん」です。",
-    "土佐弁を交えつつ、温かくて親しみやすいトーンで回答してください。",
-    "回答は簡潔に、200文字以内を目安にしてください。",
-    "",
-    "【お店情報】",
-    `・店名: ${shopName}`,
-  ];
-  if (shopContext.chome) lines.push(`・場所: ${shopContext.chome}`);
-  if (shopContext.category) lines.push(`・カテゴリ: ${shopContext.category}`);
-  if (shopContext.catchphrase) lines.push(`・キャッチコピー: ${shopContext.catchphrase}`);
-  if (shopContext.shopStrength) lines.push(`・こだわり: ${shopContext.shopStrength}`);
-  if (shopContext.products && shopContext.products.length > 0) {
-    lines.push(`・主な商品: ${shopContext.products.slice(0, 10).join("、")}`);
-  }
-  lines.push("", "このお店についての質問に、上記情報を元に答えてください。");
-  return lines.join("\n");
-}
 
 export async function POST(req: NextRequest) {
   const originCheck = requireSameOrigin(req);
@@ -51,13 +29,7 @@ export async function POST(req: NextRequest) {
 
   let body: {
     shopName: string;
-    shopContext: {
-      category?: string;
-      catchphrase?: string;
-      shopStrength?: string;
-      products?: string[];
-      chome?: string;
-    };
+    shopContext: ShopChatContext;
     history: ChatMessage[];
     text: string;
   };
@@ -73,7 +45,7 @@ export async function POST(req: NextRequest) {
     return new Response("Missing required fields", { status: 400 });
   }
 
-  const systemPrompt = buildSystemPrompt(shopName, shopContext ?? {});
+  const systemPrompt = buildShopChatSystemPrompt(shopName, shopContext ?? {});
   const messages = [
     { role: "system", content: systemPrompt },
     ...history.map((m) => ({ role: m.role, content: m.text })),

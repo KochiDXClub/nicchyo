@@ -75,8 +75,8 @@ export default function FacilitiesPageClient({ counts }: FacilitiesPageClientPro
         </div>
       </div>
 
-      {/* 3つのカテゴリボックス */}
       <div className="relative mx-auto max-w-lg px-4">
+        {/* 3つのカテゴリボックス */}
         <ul className="space-y-4">
           {FACILITY_CATEGORIES.map((category, i) => (
             <li key={category.id}>
