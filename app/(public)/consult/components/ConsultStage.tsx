@@ -665,9 +665,14 @@ export default function ConsultStage({
 
       {/* 文字入力は最後の手段なので、普段は畳んでおく */}
       {textOpen && (
-        <div className="fixed inset-0 z-40 flex flex-col justify-end bg-black/30">
+        <div className="fixed inset-0 z-40 flex flex-col justify-end">
           <div
-            className="rounded-t-3xl bg-white p-4"
+            className="absolute inset-0 bg-black/30"
+            onClick={() => setTextOpen(false)}
+            aria-hidden="true"
+          />
+          <div
+            className="relative rounded-t-3xl bg-white p-4"
             style={{ paddingBottom: "calc(var(--safe-bottom, 0px) + 5rem)" }}
           >
             <div className="mb-2 flex items-center justify-between">
@@ -702,14 +707,24 @@ export default function ConsultStage({
         </div>
       )}
 
-      {/* 過去の相談。消えたのではなく畳まれているだけ、と分かるようにする */}
+      {/*
+        過去の相談。消えたのではなく畳まれているだけ、と分かるようにする。
+
+        見出しと「最初からにする」は固定し、一覧だけをスクロールさせる。
+        シート全体を1つのスクロール領域にしていたときは、下まで読むと
+        閉じるボタンも下のボタンも画面外へ流れ、一番上まで戻らないと
+        押せなかった。
+      */}
       {historyOpen && (
-        <div className="fixed inset-0 z-40 flex flex-col bg-black/30">
+        <div className="fixed inset-0 z-40 flex flex-col justify-end">
           <div
-            className="mt-auto max-h-[80dvh] overflow-y-auto rounded-t-3xl bg-white p-4"
-            style={{ paddingBottom: "calc(var(--safe-bottom, 0px) + 5rem)" }}
-          >
-            <div className="mb-3 flex items-center justify-between">
+            className="absolute inset-0 bg-black/30"
+            onClick={() => setHistoryOpen(false)}
+            aria-hidden="true"
+          />
+
+          <div className="relative flex max-h-[85dvh] flex-col overflow-hidden rounded-t-3xl bg-white">
+            <div className="flex shrink-0 items-center justify-between border-b border-amber-100 px-4 py-3">
               <p className="text-sm font-bold text-amber-900">
                 これまでの相談（{entries.length}件）
               </p>
@@ -717,7 +732,9 @@ export default function ConsultStage({
                 <X className="h-5 w-5 text-slate-400" aria-hidden="true" />
               </button>
             </div>
-            <ul className="flex flex-col gap-4">
+
+            {/* ここだけスクロールする。overscroll-contain で背後まで動かさない */}
+            <ul className="flex flex-1 flex-col gap-4 overflow-y-auto overscroll-contain px-4 py-4">
               {entries.map((item) => {
                 const itemShops = resolveShops(item.shopIds);
                 return (
@@ -737,16 +754,22 @@ export default function ConsultStage({
                 );
               })}
             </ul>
-            <button
-              type="button"
-              onClick={() => {
-                setEntries(createEmptySession().entries);
-                setHistoryOpen(false);
-              }}
-              className="mt-4 w-full rounded-full border border-amber-200 py-3 text-sm font-bold text-amber-800"
+
+            <div
+              className="shrink-0 border-t border-amber-100 bg-white px-4 pt-3"
+              style={{ paddingBottom: "calc(var(--safe-bottom, 0px) + 5rem)" }}
             >
-              相談を最初からにする
-            </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setEntries(createEmptySession().entries);
+                  setHistoryOpen(false);
+                }}
+                className="w-full rounded-full border border-amber-200 py-3 text-sm font-bold text-amber-800 transition active:scale-[0.98]"
+              >
+                相談を最初からにする
+              </button>
+            </div>
           </div>
         </div>
       )}
