@@ -39,7 +39,10 @@ function useLingeringPose(pose: GrandmaPose): GrandmaPose {
 export type GrandmaAvatarSize = "hero" | "pinned";
 
 const SIZE_CLASS: Record<GrandmaAvatarSize, string> = {
-  hero: "h-[200px] w-[200px] md:h-[240px] md:w-[240px]",
+  // 縦の短い端末（iPhone SE など）では、候補ボタン3つが下端固定の
+  // 「話しかける」に隠れてしまうので、その分だけキャラを小さくする。
+  // 幅ではなく高さで切り替えるのは、足りなくなるのが縦だけのため
+  hero: "h-[168px] w-[168px] [@media(min-height:700px)]:h-[200px] [@media(min-height:700px)]:w-[200px] md:h-[240px] md:w-[240px]",
   // 固定バーに常駐する取っ手。大きさは変えず、出入りだけさせる
   pinned: "h-[64px] w-[64px] md:h-[72px] md:w-[72px]",
 };

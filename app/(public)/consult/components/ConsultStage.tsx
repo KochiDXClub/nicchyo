@@ -590,6 +590,20 @@ export default function ConsultStage({
         }`}
         style={{ bottom: "calc(var(--safe-bottom, 0px) + var(--nav-bar-height) + 0.75rem)" }}
       >
+        {/*
+          答えが長いとき、本文はこの固定ボタンの下を流れていく。
+          何も敷かないと文章が不透明なボタンでぶつ切りにされ、
+          読んでいる途中で1行が消えたように見える。
+          下に向かって背景色へ溶かし、「続きは下にある」と分かるようにする。
+        */}
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-x-0 -top-10 -z-10 bg-gradient-to-b from-transparent via-[#FFFAF0]/95 to-[#FFFAF0]"
+          style={{
+            bottom: "calc(-1 * (var(--safe-bottom, 0px) + var(--nav-bar-height) + 0.75rem))",
+          }}
+        />
+
         {speech.isSupported && (
           <button
             type="button"
