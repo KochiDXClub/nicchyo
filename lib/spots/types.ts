@@ -45,6 +45,11 @@ export type MapSpot = {
   lines?: string[];
   /** 補足（設備・注意など） */
   notes?: string;
+  /** 利用できる時間帯（'HH:MM'）。未設定なら終日 */
+  openFrom?: string;
+  openUntil?: string;
+  /** 座標を実測・確認済みか。false なら案内で「おおよそ」と添える */
+  verified?: boolean;
   /** kind: 'shop' のときの店舗ID */
   shopId?: number;
   /** kind が landmark/transit のときの map_landmarks.key */

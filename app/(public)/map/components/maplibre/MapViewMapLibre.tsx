@@ -61,6 +61,9 @@ import {
   OVERVIEW_ZONE_MIN_ZOOM,
   SHOP_MARKER_LOD_OFFSETS,
 } from "../../config/displayConfig";
+import { buildCrowdSprites } from "./crowdSprites";
+import { buildCrowdPeople, crowdToGeoJSON } from "../../utils/crowdPlacement";
+import { CROWD_FRAME_COUNT } from "../../config/crowdParts";
 import {
   buildBadgeSprite,
   buildNameplateSprite,
@@ -112,7 +115,27 @@ const SRC_ROAD = "nicchyo-road";
 const SRC_SHOPS = "nicchyo-shops";
 const SRC_LANDMARKS = "nicchyo-landmarks";
 const SRC_TINT = "nicchyo-tint";
+const SRC_CROWD = "nicchyo-crowd";
 const LAYER_SHOPS = "nicchyo-shops";
+const LAYER_CROWD = "nicchyo-crowd";
+/** 人影の歩きのコマ送り。2〜3fps のゆっくりした切り替えで「動いている」ことだけ伝える */
+const CROWD_FRAME_INTERVAL_MS = 440;
+
+/**
+ * 人影の icon-image。コマ送りは全体で 1 回の setLayoutProperty で済ませる
+ * （何体いてもコストは一定）。frame は 0 か 1 を交互に渡す。
+ */
+function crowdIconImage(frame: number): ExpressionSpecification {
+  return [
+    "concat",
+    "person:",
+    ["get", "kind"],
+    ":",
+    ["to-string", ["get", "flip"]],
+    ":",
+    ["to-string", ["%", ["+", ["get", "phase"], frame], CROWD_FRAME_COUNT]],
+  ];
+}
 
 const CHOME_KANJI: Record<string, string> = {
   一丁目: "一",
@@ -609,6 +632,49 @@ export default function MapViewMapLibre({
         paint: { "line-color": "#a89070", "line-width": 1, "line-opacity": 0.5 },
       });
 
+      // お客さん（人影）。道の上にまばらに散らして「にぎわい」を出す。
+      // 店舗より下のレイヤーに置き、不透明度を落として背景に沈める。
+      // クリックハンドラは付けない（触れるものが増えると「主役は屋台」の原則が崩れる）
+      if (featureFlags.crowd === "sprite") {
+        const crowdRatio = Math.min(3, window.devicePixelRatio || 2);
+        const crowdSprites = await buildCrowdSprites(crowdRatio);
+        if (disposed) return;
+        for (const sprite of crowdSprites) {
+          if (!map.hasImage(sprite.id)) {
+            map.addImage(sprite.id, sprite.image, { pixelRatio: sprite.pixelRatio });
+          }
+        }
+        const people = buildCrowdPeople(routePoints, {
+          halfWidthMeters: routeConfig.roadHalfWidthMeters,
+        });
+        map.addSource(SRC_CROWD, { type: "geojson", data: crowdToGeoJSON(people) });
+        map.addLayer({
+          id: LAYER_CROWD,
+          type: "symbol",
+          source: SRC_CROWD,
+          // 屋台が出るズームから。俯瞰では点にしかならないので出さない
+          minzoom: OVERVIEW_MAX,
+          layout: {
+            "icon-image": crowdIconImage(0),
+            "icon-size": [
+              "interpolate",
+              ["linear"],
+              ["zoom"],
+              MAX_ZOOM + SHOP_MARKER_LOD_OFFSETS.stall,
+              0.6,
+              MAX_ZOOM,
+              1,
+            ],
+            "icon-anchor": "bottom",
+            "icon-allow-overlap": true,
+            "icon-ignore-placement": true,
+            "icon-rotation-alignment": "viewport",
+          },
+          // 背景として沈ませる（濃いと屋台と主役争いになる）
+          paint: { "icon-opacity": 0.72 },
+        });
+      }
+
       // ランドマーク画像（ズームに応じて 1.22^(z-18) 倍、Leaflet 版と同じ式）。
       // SVG も混ざるので、表示幅 × pixelRatio で描き起こしてから登録する
       const specs = landmarks ?? [];
@@ -968,6 +1034,23 @@ export default function MapViewMapLibre({
       map.off("zoomend", handleZoomEnd);
     };
   }, [mapLoaded, featureFlags.roadSnap, snapToRoad]);
+
+  // 人影の歩き（2 コマ）。何体いても setLayoutProperty は 1 回で済むのでコストは一定。
+  // 裏タブのときは動かさない（見えないコマ送りに電池を使わない）
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapLoaded) return;
+    if (featureFlags.crowd !== "sprite") return;
+    if (!map.getLayer(LAYER_CROWD)) return;
+    let frame = 0;
+    const timer = window.setInterval(() => {
+      if (typeof document !== "undefined" && document.hidden) return;
+      if (!map.getLayer(LAYER_CROWD)) return;
+      frame = (frame + 1) % CROWD_FRAME_COUNT;
+      map.setLayoutProperty(LAYER_CROWD, "icon-image", crowdIconImage(frame));
+    }, CROWD_FRAME_INTERVAL_MS);
+    return () => window.clearInterval(timer);
+  }, [mapLoaded, featureFlags.crowd]);
 
   // スポットカードで選択中のランドマークを拡大する（properties.selected を差し替える）
   useEffect(() => {

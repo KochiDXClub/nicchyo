@@ -73,8 +73,16 @@ function svgForState(recipe: SpriteRecipe, state: StallState, px: number): strin
   );
 }
 
-/** SVG 文字列をビットマップに描き起こす（pixelRatio 倍で描いて高解像度画面でも鮮明にする） */
-export async function rasterizeSvg(svg: string, px: number, pixelRatio: number): Promise<ImageData> {
+/**
+ * SVG 文字列をビットマップに描き起こす（pixelRatio 倍で描いて高解像度画面でも鮮明にする）。
+ * 縦長の絵（人影など）は heightPx を渡す。省略時は px の正方形。
+ */
+export async function rasterizeSvg(
+  svg: string,
+  px: number,
+  pixelRatio: number,
+  heightPx = px
+): Promise<ImageData> {
   // data URL で読む（blob: だと環境によって SVG の読み込みに失敗することがある）
   const url = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
   const img = new Image();
@@ -84,14 +92,15 @@ export async function rasterizeSvg(svg: string, px: number, pixelRatio: number):
     img.onerror = () => reject(new Error("stall sprite の描き起こしに失敗しました"));
     img.src = url;
   });
-  const size = Math.round(px * pixelRatio);
+  const width = Math.round(px * pixelRatio);
+  const height = Math.round(heightPx * pixelRatio);
   const canvas = document.createElement("canvas");
-  canvas.width = size;
-  canvas.height = size;
+  canvas.width = width;
+  canvas.height = height;
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("canvas 2d context を取得できません");
-  ctx.drawImage(img, 0, 0, size, size);
-  return ctx.getImageData(0, 0, size, size);
+  ctx.drawImage(img, 0, 0, width, height);
+  return ctx.getImageData(0, 0, width, height);
 }
 
 /**
