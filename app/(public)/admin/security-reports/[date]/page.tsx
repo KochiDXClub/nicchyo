@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { createClient as createServiceClient } from "@supabase/supabase-js";
 import Link from "next/link";
+import { AdminLayout } from "@/components/admin";
 
 interface ReportRow {
   report_date: string;
@@ -36,12 +37,13 @@ export default async function ReportDetailPage({ params }: { params: Promise<{ d
   if (!report) notFound();
 
   return (
-    <main className="min-h-screen bg-nicchyo-base pb-16">
+    <AdminLayout withBottomPadding={false}>
+      <main className="min-h-screen bg-nicchyo-base pb-16">
       {/* 戻るナビ */}
       <div className="sticky top-0 z-10 border-b border-nicchyo-ink/10 bg-nicchyo-base/90 px-4 py-3 backdrop-blur">
         <div className="mx-auto flex max-w-4xl items-center gap-3">
           <Link
-            href="/reports"
+            href="/admin/security-reports"
             className="rounded-full border border-nicchyo-ink/20 px-3 py-1 text-xs font-semibold text-nicchyo-ink/70 hover:bg-nicchyo-ink/5"
           >
             ← 一覧へ
@@ -58,6 +60,7 @@ export default async function ReportDetailPage({ params }: { params: Promise<{ d
         sandbox="allow-same-origin"
         title={`セキュリティレポート ${report.report_date}`}
       />
-    </main>
+      </main>
+    </AdminLayout>
   );
 }
