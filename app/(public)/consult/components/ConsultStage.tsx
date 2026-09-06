@@ -13,6 +13,7 @@ import {
   type ConsultEntry,
 } from "@/lib/grandma/consultSession";
 import GrandmaAvatar from "./GrandmaAvatar";
+import ConsultShopCard from "./ConsultShopCard";
 import type { Shop } from "../../map/data/shops";
 import type {
   ConsultAskResponse,
@@ -83,6 +84,12 @@ export default function ConsultStage({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [hasRestored, setHasRestored] = useState(false);
   const [autoAsked, setAutoAsked] = useState(false);
+  /**
+   * 回答に添えられて返ってきたお店。
+   * 店舗そのものは localStorage に保存せず（重いので）ID だけ持ち、
+   * 実体はこの表と allShops から引く。
+   */
+  const [shopsById, setShopsById] = useState<Record<number, Shop>>({});
 
   const entriesRef = useRef<ConsultEntry[]>([]);
   entriesRef.current = entries;
@@ -159,6 +166,14 @@ export default function ConsultStage({
 
         if (response.errorMessage) setErrorMessage(response.errorMessage);
 
+        if (response.shops?.length) {
+          setShopsById((prev) => {
+            const next = { ...prev };
+            for (const shop of response.shops ?? []) next[shop.id] = shop;
+            return next;
+          });
+        }
+
         const answer = (response.turns ?? [])
           .map((turn) => turn.text)
           .join("\n\n")
@@ -201,10 +216,10 @@ export default function ConsultStage({
   const currentShops = useMemo(() => {
     if (!current?.shopIds?.length) return [];
     return current.shopIds
-      .map((id) => allShops.find((shop) => shop.id === id))
+      .map((id) => shopsById[id] ?? allShops.find((shop) => shop.id === id))
       .filter((shop): shop is Shop => !!shop)
-      .slice(0, 4);
-  }, [allShops, current]);
+      .slice(0, 6);
+  }, [allShops, current, shopsById]);
 
   const isBusy = phase === "thinking";
   const showAnswer = isBusy || streamingText !== null || !!current;
@@ -320,18 +335,22 @@ export default function ConsultStage({
                 : current?.answer}
           </p>
 
-          {currentShops.length > 0 && (
-            <div className="mt-3 flex flex-wrap gap-1.5">
-              {currentShops.map((shop) => (
-                <button
-                  key={shop.id}
-                  type="button"
-                  onClick={() => onSelectShop?.(shop.id, shop)}
-                  className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-bold text-amber-900"
-                >
-                  {shop.name}
-                </button>
-              ))}
+          {/* 紹介されたお店。写真を主役にしたカードで出す */}
+          {currentShops.length > 0 && onSelectShop && (
+            <div className="mt-4">
+              <p className="mb-2 text-[11px] font-bold text-amber-700">
+                {currentShops.length === 1 ? "このお店だよ" : `おすすめのお店 ${currentShops.length}件`}
+              </p>
+              {currentShops.length === 1 ? (
+                <ConsultShopCard shop={currentShops[0]} onSelect={onSelectShop} variant="single" />
+              ) : (
+                // 横スワイプにして、答えのカードが縦に伸びないようにする
+                <div className="-mx-4 flex snap-x snap-mandatory gap-2.5 overflow-x-auto px-4 pb-1">
+                  {currentShops.map((shop) => (
+                    <ConsultShopCard key={shop.id} shop={shop} onSelect={onSelectShop} />
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </div>
