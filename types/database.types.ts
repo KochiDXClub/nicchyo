@@ -374,39 +374,78 @@ export type Database = {
       }
       map_landmarks: {
         Row: {
+          category: string
           created_at: string
           description: string
+          external_url: string | null
           height_px: number
           image_url: string
           key: string
           latitude: number
+          lines: string[]
           longitude: number
           name: string
+          notes: string | null
+          open_from: string | null
+          open_until: string | null
+          photo_credit: string | null
+          photo_url: string | null
           show_at_min_zoom: boolean
+          show_on_map: boolean
+          tags: string[]
+          transit_mode: string | null
+          updated_at: string
+          verified: boolean
           width_px: number
         }
         Insert: {
+          category?: string
           created_at?: string
           description?: string
+          external_url?: string | null
           height_px: number
           image_url: string
           key: string
           latitude: number
+          lines?: string[]
           longitude: number
           name: string
+          notes?: string | null
+          open_from?: string | null
+          open_until?: string | null
+          photo_credit?: string | null
+          photo_url?: string | null
           show_at_min_zoom?: boolean
+          show_on_map?: boolean
+          tags?: string[]
+          transit_mode?: string | null
+          updated_at?: string
+          verified?: boolean
           width_px: number
         }
         Update: {
+          category?: string
           created_at?: string
           description?: string
+          external_url?: string | null
           height_px?: number
           image_url?: string
           key?: string
           latitude?: number
+          lines?: string[]
           longitude?: number
           name?: string
+          notes?: string | null
+          open_from?: string | null
+          open_until?: string | null
+          photo_credit?: string | null
+          photo_url?: string | null
           show_at_min_zoom?: boolean
+          show_on_map?: boolean
+          tags?: string[]
+          transit_mode?: string | null
+          updated_at?: string
+          verified?: boolean
           width_px?: number
         }
         Relationships: []

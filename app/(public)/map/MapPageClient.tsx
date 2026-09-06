@@ -37,7 +37,9 @@ import FacilityGuidePanel from "./components/FacilityGuidePanel";
 import { useFacilityGuide } from "./hooks/useFacilityGuide";
 import { parseFacilityCategoryId } from "@/lib/facilities/facilities";
 import SpotCard from "./components/SpotCard";
-import { facilityToSpot, type MapSpot } from "@/lib/spots";
+import { facilityToSpot, landmarkToSpot, type MapSpot } from "@/lib/spots";
+import { filterMapVisibleLandmarks } from "./types/landmark";
+import type { Facility } from "@/lib/facilities/facilities";
 import {
   buildNearbyNote,
   isPointInRotatedRect,
@@ -197,8 +199,20 @@ export default function MapPageClient({
     const query = params.toString();
     router.replace(query ? `/map?${query}` : "/map", { scroll: false });
   }, [router, searchParamsKey]);
+  // マップに常時描画するランドマーク（お手洗い・休けいなど show_on_map=false は除く）
+  const mapLandmarks = useMemo(() => filterMapVisibleLandmarks(landmarks), [landmarks]);
   // タップしたスポット（電停・駅・建物・施設）。店舗以外は SpotCard で表示する
   const [selectedSpot, setSelectedSpot] = useState<MapSpot | null>(null);
+  // おでかけサポートの施設は map_landmarks 由来なので、写真や路線を持つ元のランドマークから
+  // スポットを作る（見つからなければ Facility の情報だけで作る）
+  const openFacilitySpot = useCallback(
+    (facility: Facility) => {
+      const key = facility.id.startsWith("landmark-") ? facility.id.slice("landmark-".length) : null;
+      const landmark = key ? landmarks.find((l) => l.key === key) : undefined;
+      setSelectedSpot(landmark ? landmarkToSpot(landmark) : facilityToSpot(facility));
+    },
+    [landmarks]
+  );
   const closeSpotCard = useCallback(() => setSelectedSpot(null), []);
   // おでかけサポートの一覧やカテゴリを切り替えたらカードは閉じる
   useEffect(() => {
@@ -910,7 +924,7 @@ export default function MapPageClient({
 
             <MapView
               shops={shops}
-              landmarks={landmarks}
+              landmarks={mapLandmarks}
               mapRoute={mapRoute}
               featureFlags={featureFlags}
               initialShopId={initialShopId}
@@ -1000,7 +1014,7 @@ export default function MapPageClient({
                   nearestFacilityId={facilityGuide.nearest?.facility.id ?? null}
                   routePoints={facilityGuide.nearest?.route.points}
                   userLocation={facilityGuide.userLocation}
-                  onSelectFacility={(facility) => setSelectedSpot(facilityToSpot(facility))}
+                  onSelectFacility={openFacilitySpot}
                 />
                 {!mapCharacterConsultActive && !nearbyState && !selectedSpot && (
                   <FacilityGuidePanel
@@ -1075,7 +1089,7 @@ export default function MapPageClient({
                 <Suspense fallback={null}>
                   <SearchClient
                     shops={shops}
-                    landmarks={landmarks}
+                    landmarks={mapLandmarks}
                     embedded
                     initialQuery={mapSearchQuery}
                     initialCategory={mapSearchCategory}
