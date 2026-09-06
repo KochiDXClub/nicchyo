@@ -115,7 +115,9 @@ export async function fetchLandmarksFromDb(
         openFrom: row.open_from ?? undefined,
         openUntil: row.open_until ?? undefined,
         showOnMap: row.show_on_map ?? true,
-        // 列が無い環境では「未確認」と断定せず undefined（案内で「おおよそ」と出さない）
+        // 列そのものが無い（マイグレーション未適用のフォールバック）ときは undefined。
+        // Boolean(undefined) にすると全スポットが「未確認」扱いになり、
+        // SpotCard に「位置はおおよそ」の注記が一斉に出てしまう。
         verified: row.verified === undefined ? undefined : Boolean(row.verified),
       };
     })
