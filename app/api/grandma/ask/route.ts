@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/database.types";
 import type { DatabaseWithExtensions } from "@/types/database.extensions";
-import { buildGrandmaAiSystemPrompt } from "@/app/(public)/map/data/grandmaAiContext";
+import { buildGrandmaAiSystemPrompt } from "@/lib/grandma/prompts/consultSystemPrompt";
 import { requireSameOrigin } from "@/lib/security/requestGuards";
 import { maskPii } from "@/lib/privacy/maskPii";
 import { enforceRateLimit } from "@/lib/security/rateLimit";
@@ -44,11 +44,13 @@ import {
 import {
   buildResponseSchema,
   pickConversationPattern,
-  buildConversationPatternPrompt,
-  buildStreamingFormatPrompt,
   parseStreamingConsultOutput,
   buildReplyFromTurns,
 } from "@/lib/grandma/promptBuilder";
+import {
+  buildConversationPatternPrompt,
+  buildStreamingFormatPrompt,
+} from "@/lib/grandma/prompts/consultConversation";
 import { handleAbuseDetection } from "@/lib/grandma/abuseDetection";
 import { z } from "zod";
 
