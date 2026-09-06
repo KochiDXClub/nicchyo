@@ -213,13 +213,58 @@ export default function ConsultStage({
     () => pickSuggestions({ entries, pool: QUESTION_POOL }),
     [entries]
   );
-  const currentShops = useMemo(() => {
-    if (!current?.shopIds?.length) return [];
-    return current.shopIds
-      .map((id) => shopsById[id] ?? allShops.find((shop) => shop.id === id))
-      .filter((shop): shop is Shop => !!shop)
-      .slice(0, 6);
-  }, [allShops, current, shopsById]);
+
+  const resolveShops = useCallback(
+    (shopIds?: number[]) =>
+      (shopIds ?? [])
+        .map((id) => shopsById[id] ?? allShops.find((shop) => shop.id === id))
+        .filter((shop): shop is Shop => !!shop)
+        .slice(0, 6),
+    [allShops, shopsById]
+  );
+  const currentShops = useMemo(
+    () => resolveShops(current?.shopIds),
+    [current?.shopIds, resolveShops]
+  );
+
+  /**
+   * 前回の相談を開き直したときは、店舗の実体が手元に無い（ID しか保存していない）。
+   * そのままだと写真の出ないカードになるので、取り直す。
+   *
+   * ただし全件取得は屋外の細い回線には重いので、
+   * 「引けない ID が実際にあるとき」だけ、1回に限って取りに行く。
+   */
+  const shopFetchStartedRef = useRef(false);
+  useEffect(() => {
+    if (!hasRestored || shopFetchStartedRef.current) return;
+    const needed = entries.flatMap((entry) => entry.shopIds ?? []);
+    if (needed.length === 0) return;
+    const hasMissing = needed.some(
+      (id) => !shopsById[id] && !allShops.some((shop) => shop.id === id)
+    );
+    if (!hasMissing) return;
+
+    shopFetchStartedRef.current = true;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const response = await fetch("/api/shops");
+        if (!response.ok) return;
+        const payload = (await response.json()) as { shops?: Shop[] };
+        if (cancelled || !Array.isArray(payload.shops)) return;
+        setShopsById((prev) => {
+          const next = { ...prev };
+          for (const shop of payload.shops ?? []) next[shop.id] = shop;
+          return next;
+        });
+      } catch {
+        // 取れなくても写真が出ないだけで、相談自体は続けられる
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [allShops, entries, hasRestored, shopsById]);
 
   const isBusy = phase === "thinking";
   const showAnswer = isBusy || streamingText !== null || !!current;
@@ -457,14 +502,24 @@ export default function ConsultStage({
               </button>
             </div>
             <ul className="flex flex-col gap-4">
-              {entries.map((item) => (
-                <li key={item.id} className="border-b border-amber-100 pb-3 last:border-0">
-                  <p className="text-xs text-slate-400">{item.question}</p>
-                  <p className="mt-1 whitespace-pre-wrap text-sm leading-6 text-slate-700">
-                    {item.answer}
-                  </p>
-                </li>
-              ))}
+              {entries.map((item) => {
+                const itemShops = resolveShops(item.shopIds);
+                return (
+                  <li key={item.id} className="border-b border-amber-100 pb-3 last:border-0">
+                    <p className="text-xs text-slate-400">{item.question}</p>
+                    <p className="mt-1 whitespace-pre-wrap text-sm leading-6 text-slate-700">
+                      {item.answer}
+                    </p>
+                    {itemShops.length > 0 && onSelectShop && (
+                      <div className="-mx-4 mt-2 flex snap-x snap-mandatory gap-2.5 overflow-x-auto px-4 pb-1">
+                        {itemShops.map((shop) => (
+                          <ConsultShopCard key={shop.id} shop={shop} onSelect={onSelectShop} />
+                        ))}
+                      </div>
+                    )}
+                  </li>
+                );
+              })}
             </ul>
             <button
               type="button"
