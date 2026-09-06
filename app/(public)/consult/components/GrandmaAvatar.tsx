@@ -40,8 +40,8 @@ export type GrandmaAvatarSize = "hero" | "pinned";
 
 const SIZE_CLASS: Record<GrandmaAvatarSize, string> = {
   hero: "h-[200px] w-[200px] md:h-[240px] md:w-[240px]",
-  // 縮んでもキャラとして見えていられる大きさに留める（小さすぎるとただのアイコンになる）
-  pinned: "h-[96px] w-[96px] md:h-[112px] md:w-[112px]",
+  // 固定バーに常駐する取っ手。大きさは変えず、出入りだけさせる
+  pinned: "h-[64px] w-[64px] md:h-[72px] md:w-[72px]",
 };
 
 export interface GrandmaAvatarProps {
@@ -77,7 +77,7 @@ export default function GrandmaAvatar({
         width={240}
         height={240}
         priority
-        className={`${SIZE_CLASS[size]} grandma-avatar__image object-contain drop-shadow-[0_8px_16px_rgba(146,64,14,0.25)]`}
+        className={`${SIZE_CLASS[size]} object-contain drop-shadow-[0_8px_16px_rgba(146,64,14,0.25)]`}
       />
     </div>
   );

@@ -320,27 +320,78 @@ export default function ConsultStage({
       {/* 「画面の一番上にいるか」を測るための目印。見た目には出ない */}
       <div ref={topSentinelRef} aria-hidden="true" className="h-px w-full shrink-0" />
 
-      <div className="sticky top-0 z-30 -mx-4 flex flex-col items-center gap-2 bg-[#FFFAF0]/85 px-4 pb-1 pt-2 backdrop-blur-md">
-        {/* 畳んだ履歴。件数を出しておかないと「消えた」と思われる */}
-        {entries.length > 1 && (
-          <button
-            type="button"
-            onClick={() => setHistoryOpen(true)}
-            className="rounded-full border border-amber-200/80 bg-white/70 px-4 py-1.5 text-xs font-bold text-amber-800"
-          >
-            これまでの相談 {entries.length}件 ▾
-          </button>
-        )}
+      {/*
+        固定バー。高さは常に一定で、中身は不透明度と transform でしか動かさない。
 
-        {/* 答えが出たら縮小して上に退く（大きいままだと本文が読めない） */}
+        以前はここでキャラの height / width をアニメーションさせていたが、
+        それだとスクロール中に毎フレーム レイアウトが走り、下の本文まで動いて
+        スクロールと喧嘩する（ガタついて見える原因）。
+        大きいにちよさんは下の通常フローに置いて自然に流れさせ、
+        ここには小さいにちよさんが出入りするだけにした。
+      */}
+      <div className="sticky top-0 z-30 -mx-4 flex h-[76px] shrink-0 items-center gap-3 px-4">
+        <div
+          aria-hidden="true"
+          className={`pointer-events-none absolute inset-0 bg-[#FFFAF0]/85 backdrop-blur-md transition-opacity duration-200 ${
+            isScrolledDown ? "opacity-100" : "opacity-0"
+          }`}
+        />
+        {/* 下の本文が固定バーの縁でぶつ切りに見えないようにする */}
+        <div
+          aria-hidden="true"
+          className={`pointer-events-none absolute inset-x-0 top-full h-4 bg-gradient-to-b from-[#FFFAF0]/85 to-transparent transition-opacity duration-200 ${
+            isScrolledDown ? "opacity-100" : "opacity-0"
+          }`}
+        />
+
+        {/* 読み進めている間の話し相手。大きさは変えず、出入りだけさせる */}
+        <div
+          className={`relative transition-[opacity,transform] duration-200 ${
+            isScrolledDown
+              ? "translate-y-0 opacity-100"
+              : "pointer-events-none -translate-y-1 opacity-0"
+          }`}
+        >
+          <GrandmaAvatar
+            pose={pose}
+            size="pinned"
+            onClick={speech.isSupported ? handleMicTap : undefined}
+            label={speech.isListening ? "音声入力を止める" : "にちよさんに話しかける"}
+          />
+        </div>
+
+        <div className="relative ml-auto">
+          {speech.isListening ? (
+            // 聞き取り中は、上まで戻らなくても分かるようにする
+            <span className="rounded-full bg-red-500 px-3 py-1.5 text-xs font-bold text-white">
+              聞きよるよ…
+            </span>
+          ) : entries.length > 1 ? (
+            // 畳んだ履歴。件数を出しておかないと「消えた」と思われる
+            <button
+              type="button"
+              onClick={() => setHistoryOpen(true)}
+              className="rounded-full border border-amber-200/80 bg-white/70 px-4 py-1.5 text-xs font-bold text-amber-800"
+            >
+              これまでの相談 {entries.length}件 ▾
+            </button>
+          ) : null}
+        </div>
+      </div>
+
+      {/*
+        主役のにちよさん。通常フローに置いてあるので、読み進めれば自然に
+        画面外へ流れ、上に戻ればまた現れる。大きさは一切変えないので
+        スクロール中にレイアウトが動かない。
+      */}
+      <div className="flex flex-col items-center gap-2">
         <GrandmaAvatar
           pose={pose}
-          size={isScrolledDown ? "pinned" : "hero"}
+          size="hero"
           onClick={speech.isSupported ? handleMicTap : undefined}
           label={speech.isListening ? "音声入力を止める" : "にちよさんに話しかける"}
         />
-        {/* 聞き取り中の合図は常に出す。案内文は会話が始まったら引っ込める */}
-        {!isScrolledDown && (speech.isListening || !showAnswer) && (
+        {(speech.isListening || !showAnswer) && (
           <p className="text-center text-sm font-bold text-amber-900">
             {speech.isListening
               ? "聞きよるよ…"
@@ -349,12 +400,6 @@ export default function ConsultStage({
                 : "聞きたいことを選んでね"}
           </p>
         )}
-
-        {/* 下に流れる本文が、固定部分の縁でぶつ切りに見えないようにする */}
-        <div
-          className="pointer-events-none absolute inset-x-0 top-full h-4 bg-gradient-to-b from-[#FFFAF0]/85 to-transparent"
-          aria-hidden="true"
-        />
       </div>
 
       {/* 認識中の暫定テキスト。何が聞こえているかその場で見せる */}
@@ -366,36 +411,44 @@ export default function ConsultStage({
 
       {/* 誤認識をここで止める。黙って送らない */}
       {phase === "confirming" && (
-        <div className="rounded-2xl border border-amber-200 bg-white p-4 shadow-sm">
+        <div className="rounded-3xl border border-amber-200 bg-white p-4 shadow-sm">
           <p className="text-xs font-bold text-amber-700">これでよかった？</p>
-          <p className="mt-1 text-lg leading-relaxed text-slate-800">{draft}</p>
-          <div className="mt-3 flex gap-2">
-            <button
-              type="button"
-              onClick={() => void ask(draft, "input")}
-              className="flex flex-1 items-center justify-center gap-1.5 rounded-full bg-gradient-to-br from-amber-500 to-orange-500 px-4 py-3 text-base font-bold text-white shadow-sm"
-            >
-              <Send className="h-4 w-4" aria-hidden="true" />
-              これで聞く
-            </button>
+          <p className="mt-2 text-xl leading-relaxed text-slate-800">{draft}</p>
+
+          {/*
+            送信は主たる操作なので、幅いっぱい・高さも十分に取る。
+            以前は「これで聞く」「言い直す」「文字」を1行に詰めていたため、
+            細い端末で文字が折り返して押しづらくなっていた。
+            やり直し系は下段に2つ並べ、主たる操作と強さを分ける。
+          */}
+          <button
+            type="button"
+            onClick={() => void ask(draft, "input")}
+            className="mt-4 flex w-full items-center justify-center gap-2 rounded-full bg-gradient-to-br from-amber-500 to-orange-500 px-6 py-4 text-lg font-bold text-white shadow-sm transition active:scale-[0.98]"
+          >
+            <Send className="h-5 w-5 shrink-0" aria-hidden="true" />
+            これで聞く
+          </button>
+
+          <div className="mt-2 grid grid-cols-2 gap-2">
             <button
               type="button"
               onClick={() => {
                 setPhase("idle");
                 speech.start();
               }}
-              className="flex items-center justify-center gap-1.5 rounded-full border border-amber-200 px-4 py-3 text-sm font-bold text-amber-800"
+              className="flex items-center justify-center gap-1.5 rounded-full border border-amber-200 py-3 text-sm font-bold text-amber-800 transition active:scale-[0.98]"
             >
-              <RotateCcw className="h-4 w-4" aria-hidden="true" />
+              <RotateCcw className="h-4 w-4 shrink-0" aria-hidden="true" />
               言い直す
             </button>
             <button
               type="button"
               onClick={openTextInput}
-              aria-label="文字で直す"
-              className="flex items-center justify-center rounded-full border border-amber-200 px-3 py-3 text-amber-800"
+              className="flex items-center justify-center gap-1.5 rounded-full border border-amber-200 py-3 text-sm font-bold text-amber-800 transition active:scale-[0.98]"
             >
-              <Keyboard className="h-4 w-4" aria-hidden="true" />
+              <Keyboard className="h-4 w-4 shrink-0" aria-hidden="true" />
+              文字で直す
             </button>
           </div>
         </div>
@@ -461,8 +514,13 @@ export default function ConsultStage({
         </div>
       )}
 
-      {/* 音声は大きく、文字は最後の手段として小さく */}
-      <div className="fixed inset-x-0 bottom-[72px] z-20 flex items-center justify-center gap-3 px-4">
+      {/* 音声は大きく、文字は最後の手段として小さく。
+          確認中はカード内の「言い直す」と競合するので出さない */}
+      <div
+        className={`fixed inset-x-0 bottom-[72px] z-20 flex items-center justify-center gap-3 px-4 ${
+          phase === "confirming" ? "hidden" : ""
+        }`}
+      >
         {speech.isSupported && (
           <button
             type="button"
