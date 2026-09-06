@@ -312,6 +312,7 @@ export default function ConsultClient({ embedded = false }: { embedded?: boolean
               allShops={knownShops}
               onSelectShop={handleSelectShop}
               autoAskText={autoAskText}
+              autoAskContext={autoAskContext}
             />
           )}
         </div>

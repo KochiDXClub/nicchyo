@@ -1608,13 +1608,17 @@ body.home-poster-zoom-open .hamburger-button {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  /* data-pose 付きの指定に負けないよう、同じ詳細度で打ち消す
+     （.grandma-avatar__inner だけでは thinking / speaking のループが残る） */
+  .grandma-avatar[data-pose] .grandma-avatar__inner,
   .consult-skeleton,
   .consult-mic-dot,
   .grandma-avatar,
+  .grandma-avatar[data-pose],
   .grandma-avatar__inner,
   .grandma-avatar--tappable:active {
-    animation: none;
-    transition: none;
-    transform: none;
+    animation: none !important;
+    transition: none !important;
+    transform: none !important;
   }
 }

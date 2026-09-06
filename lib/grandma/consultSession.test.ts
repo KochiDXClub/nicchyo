@@ -5,6 +5,7 @@ import {
   restoreSession,
   buildHistoryForRequest,
   pickSuggestions,
+  importHandoffEntries,
   type ConsultEntry,
 } from "./consultSession";
 
@@ -120,5 +121,65 @@ describe("pickSuggestions", () => {
 describe("createEmptySession", () => {
   it("今日の日付を持つ", () => {
     expect(createEmptySession(new Date(2026, 8, 6)).dateKey).toBe("2026-09-06");
+  });
+});
+
+describe("importHandoffEntries", () => {
+  const handoff = (messages: unknown[]) => JSON.stringify({ messages, hasUserAsked: true });
+
+  it("引き継ぎが無ければ空", () => {
+    expect(importHandoffEntries(null)).toEqual([]);
+  });
+
+  it("user と assistant の組を1件に畳む", () => {
+    const raw = handoff([
+      { role: "user", text: "旬は？" },
+      { role: "assistant", text: "文旦やき" },
+    ]);
+    expect(importHandoffEntries(raw)).toEqual([
+      { id: "handoff-1", question: "旬は？", answer: "文旦やき" },
+    ]);
+  });
+
+  it("新しいものが先頭に来る", () => {
+    const raw = handoff([
+      { role: "user", text: "1つめ" },
+      { role: "assistant", text: "答え1" },
+      { role: "user", text: "2つめ" },
+      { role: "assistant", text: "答え2" },
+    ]);
+    expect(importHandoffEntries(raw).map((e) => e.question)).toEqual(["2つめ", "1つめ"]);
+  });
+
+  it("答えの無い質問は捨てる", () => {
+    const raw = handoff([{ role: "user", text: "まだ答えが無い" }]);
+    expect(importHandoffEntries(raw)).toEqual([]);
+  });
+
+  it("質問の無い答えは捨てる", () => {
+    const raw = handoff([{ role: "assistant", text: "いきなり答え" }]);
+    expect(importHandoffEntries(raw)).toEqual([]);
+  });
+
+  it("配列だけの古い形も読める", () => {
+    const raw = JSON.stringify([
+      { role: "user", text: "旬は？" },
+      { role: "assistant", text: "文旦やき" },
+    ]);
+    expect(importHandoffEntries(raw)).toHaveLength(1);
+  });
+
+  it("空文字や壊れた要素は飛ばす", () => {
+    const raw = handoff([
+      { role: "user", text: "  " },
+      { role: "user", text: "旬は？" },
+      { role: "assistant", text: "文旦やき" },
+      null,
+    ]);
+    expect(importHandoffEntries(raw)).toHaveLength(1);
+  });
+
+  it("壊れたJSONでも落ちない", () => {
+    expect(importHandoffEntries("{こわれ")).toEqual([]);
   });
 });

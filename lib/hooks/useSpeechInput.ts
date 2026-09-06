@@ -44,6 +44,8 @@ function getSpeechConstructor(): SpeechRecognitionConstructor | null {
 export interface UseSpeechInputOptions {
   /** 認識が終わったときに、確定した文字列を受け取る（空文字なら聞き取れなかった） */
   onSettled?: (transcript: string) => void;
+  /** マイクを拒否された・回線が無いなど、認識が始められなかったとき */
+  onError?: () => void;
   lang?: string;
 }
 
@@ -58,6 +60,7 @@ export interface UseSpeechInput {
 
 export function useSpeechInput({
   onSettled,
+  onError,
   lang = "ja-JP",
 }: UseSpeechInputOptions = {}): UseSpeechInput {
   const [isSupported, setIsSupported] = useState(false);
@@ -71,6 +74,10 @@ export function useSpeechInput({
   // 古いクロージャを呼んでしまう
   const onSettledRef = useRef(onSettled);
   onSettledRef.current = onSettled;
+  const onErrorRef = useRef(onError);
+  onErrorRef.current = onError;
+  // エラーの直後は onend も来る。二重に知らせないための印
+  const erroredRef = useRef(false);
 
   useEffect(() => {
     const speechConstructor = getSpeechConstructor();
@@ -99,6 +106,7 @@ export function useSpeechInput({
     recognition.interimResults = true;
     recognition.continuous = true;
     transcriptRef.current = "";
+    erroredRef.current = false;
     setInterim("");
 
     recognition.onresult = (event) => {
@@ -109,10 +117,16 @@ export function useSpeechInput({
       setInterim(text);
     };
     recognition.onerror = () => {
+      erroredRef.current = true;
       setIsListening(false);
+      onErrorRef.current?.();
     };
     recognition.onend = () => {
       setIsListening(false);
+      if (erroredRef.current) {
+        erroredRef.current = false;
+        return;
+      }
       onSettledRef.current?.(transcriptRef.current.trim());
     };
 

@@ -116,3 +116,40 @@ export function pickSuggestions({ entries, pool, count = 3 }: PickSuggestionsInp
   }
   return picked.slice(0, count);
 }
+
+/**
+ * マップ上の相談から「くわしく相談する」で遷移してきたときの引き継ぎ。
+ *
+ * マップ側（MapCharacterConsult）は発話の並びを nicchyo-consult-chat に書く。
+ * こちらは1往復を1件として持つので、user → assistant の組に畳み直す。
+ * 読み込めなかったら黙って諦める（引き継げなくても相談は続けられる）。
+ */
+export function importHandoffEntries(raw: string | null): ConsultEntry[] {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    const messages = Array.isArray(parsed)
+      ? parsed
+      : ((parsed as { messages?: unknown })?.messages ?? []);
+    if (!Array.isArray(messages)) return [];
+
+    const entries: ConsultEntry[] = [];
+    let question: string | null = null;
+    messages.forEach((raw, index) => {
+      const message = raw as { role?: unknown; text?: unknown };
+      if (typeof message?.text !== "string" || !message.text.trim()) return;
+      if (message.role === "user") {
+        question = message.text;
+        return;
+      }
+      if (message.role === "assistant" && question) {
+        entries.push({ id: `handoff-${index}`, question, answer: message.text });
+        question = null;
+      }
+    });
+    // 保持は新しい順
+    return entries.reverse();
+  } catch {
+    return [];
+  }
+}

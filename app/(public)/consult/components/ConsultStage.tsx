@@ -8,6 +8,7 @@ import {
   buildHistoryForRequest,
   createEmptySession,
   pickSuggestions,
+  importHandoffEntries,
   restoreSession,
   toDateKey,
   type ConsultEntry,
@@ -22,6 +23,8 @@ import type {
 } from "../types/consultConversation";
 
 const SESSION_STORAGE_KEY = "nicchyo-consult-session";
+/** マップ上の相談から「くわしく相談する」で渡ってくる引き継ぎ（MapCharacterConsult と共有） */
+const HANDOFF_STORAGE_KEY = "nicchyo-consult-chat";
 
 /**
  * 現地でよく出る質問。候補ボタンの母集団。
@@ -51,6 +54,8 @@ export interface ConsultStageProps {
   onSelectShop?: (shopId: number, shop?: Shop) => void;
   /** ?q= で開かれたときに自動で聞く */
   autoAskText?: string | null;
+  /** ?shopId= / ?shopName= 付きで開かれたとき、その店を前提に答えさせる */
+  autoAskContext?: { shopId?: number; shopName?: string };
 }
 
 type StagePhase = "idle" | "confirming" | "thinking";
@@ -70,6 +75,7 @@ export default function ConsultStage({
   allShops = [],
   onSelectShop,
   autoAskText,
+  autoAskContext,
 }: ConsultStageProps) {
   const [entries, setEntries] = useState<ConsultEntry[]>([]);
   const [phase, setPhase] = useState<StagePhase>("idle");
@@ -133,7 +139,16 @@ export default function ConsultStage({
     setPhase("confirming");
   }, []);
 
-  const speech = useSpeechInput({ onSettled: handleSpeechSettled });
+  const handleSpeechError = useCallback(() => {
+    // 何も起きずにシートが消えると壊れたように見えるので、必ず理由を出す
+    setPhase("idle");
+    setErrorMessage("声が聞き取れんかった。マイクの許可を確かめるか、文字で聞いてみてね。");
+  }, []);
+
+  const speech = useSpeechInput({
+    onSettled: handleSpeechSettled,
+    onError: handleSpeechError,
+  });
 
   const pose = resolveGrandmaPose({
     isListening: speech.isListening,
@@ -144,7 +159,15 @@ export default function ConsultStage({
   // 相談の保存と復元。日付が変わっていれば畳まれる（前の日曜市の相談は残さない）
   useEffect(() => {
     if (typeof window === "undefined") return;
-    setEntries(restoreSession(window.localStorage.getItem(SESSION_STORAGE_KEY)).entries);
+    try {
+      const restored = restoreSession(window.localStorage.getItem(SESSION_STORAGE_KEY)).entries;
+      // マップ上の相談から遷移してきた分を引き継ぐ（取り込んだら消す）
+      const handed = importHandoffEntries(window.localStorage.getItem(HANDOFF_STORAGE_KEY));
+      if (handed.length > 0) window.localStorage.removeItem(HANDOFF_STORAGE_KEY);
+      setEntries([...handed, ...restored]);
+    } catch {
+      // サイトデータが読めない設定でも相談は始められるようにする
+    }
     setHasRestored(true);
   }, []);
 
@@ -160,8 +183,12 @@ export default function ConsultStage({
     }
   }, [entries, hasRestored]);
 
+  // QR やリンクから来た店舗の前提は、最初の質問にだけ添える
+  const autoAskContextRef = useRef(autoAskContext);
+  autoAskContextRef.current = autoAskContext;
+
   const ask = useCallback(
-    async (question: string, source: "suggestion" | "input") => {
+    async (question: string, source: "suggestion" | "input", withContext = false) => {
       const text = question.trim();
       if (!text || phase === "thinking") return;
 
@@ -187,13 +214,22 @@ export default function ConsultStage({
         const response = await onAskStream(
           text,
           null,
-          { source },
+          { source, ...(withContext ? autoAskContextRef.current : undefined) },
           history,
           undefined,
           handleEvent
         );
 
         if (response.errorMessage) setErrorMessage(response.errorMessage);
+
+        // 失敗した回答を相談として残さない。残すと、お詫び文が答えとして保存され、
+        // 次のリクエストの履歴に混ざり、その質問が候補ボタンから消えてしまう
+        if (response.errorCode) {
+          setErrorMessage(
+            response.errorMessage ?? "うまく聞けんかった。もう一度試してみてね。"
+          );
+          return;
+        }
 
         if (response.shops?.length) {
           setShopsById((prev) => {
@@ -234,7 +270,7 @@ export default function ConsultStage({
   useEffect(() => {
     if (!hasRestored || autoAsked || !autoAskText) return;
     setAutoAsked(true);
-    void ask(autoAskText, "input");
+    void ask(autoAskText, "input", true);
   }, [ask, autoAsked, autoAskText, hasRestored]);
 
   const current = entries[0] ?? null;
@@ -309,8 +345,12 @@ export default function ConsultStage({
   };
 
   const cancelVoice = () => {
-    cancellingRef.current = true;
-    speech.stop();
+    // 印を立ててよいのは、これから onend が来る「聞き取り中」のときだけ。
+    // 確認中に立てると、次に成功した音声入力を取り違えて捨ててしまう
+    if (speech.isListening) {
+      cancellingRef.current = true;
+      speech.stop();
+    }
     setDraft("");
     setPhase("idle");
   };
