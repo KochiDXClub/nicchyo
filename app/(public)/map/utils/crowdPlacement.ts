@@ -49,12 +49,16 @@ export const DEFAULT_MAX_CROWD = 260;
 /** 人の立ち位置を道幅のどこまで許すか（1.0 だと道の縁＝屋台の足元に重なる） */
 const LATERAL_RATIO = 0.62;
 
-/** 種類ごとの出やすさ。大人と買い物客が多数派 */
+/** 種類ごとの出やすさ。大人と買い物客が多数派、残りをまんべんなく散らす */
 const KIND_WEIGHTS: Record<CrowdKind, number> = {
-  adult: 0.38,
-  shopper: 0.3,
-  child: 0.16,
-  granny: 0.16,
+  adult: 0.2,
+  shopper: 0.16,
+  girl: 0.14,
+  child: 0.1,
+  granny: 0.1,
+  grandpa: 0.1,
+  tourist: 0.1,
+  snacker: 0.1,
 };
 
 /** mulberry32。短く決定論的で、シードを変えれば並びも変わる */

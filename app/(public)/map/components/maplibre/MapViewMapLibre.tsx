@@ -118,8 +118,8 @@ const SRC_TINT = "nicchyo-tint";
 const SRC_CROWD = "nicchyo-crowd";
 const LAYER_SHOPS = "nicchyo-shops";
 const LAYER_CROWD = "nicchyo-crowd";
-/** 人影の歩きのコマ送り。4〜5fps あれば「動いている」と分かる（60fps は要らない） */
-const CROWD_FRAME_INTERVAL_MS = 220;
+/** 人影の歩きのコマ送り。2〜3fps のゆっくりした切り替えで「動いている」ことだけ伝える */
+const CROWD_FRAME_INTERVAL_MS = 440;
 
 /**
  * 人影の icon-image。コマ送りは全体で 1 回の setLayoutProperty で済ませる

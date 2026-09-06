@@ -65,7 +65,8 @@ describe("buildCrowdPeople", () => {
     }
     // 全員が同じ位相だと「波」になって安っぽいので、位相は割れているはず
     expect(new Set(people.map((p) => p.phase)).size).toBe(2);
-    expect(new Set(people.map((p) => p.kind)).size).toBeGreaterThan(1);
+    // 用意した種類はひととおり道に出る（同じ人ばかり並ばない）
+    expect(new Set(people.map((p) => p.kind)).size).toBe(CROWD_KINDS.length);
   });
 
   it("道が無ければ 0 人", () => {
