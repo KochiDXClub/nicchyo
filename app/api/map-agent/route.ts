@@ -6,6 +6,8 @@ import { fetchVendorShopsFromDb } from "@/app/(public)/map/services/shopDb";
 import { requireSameOrigin } from "@/lib/security/requestGuards";
 import { enforceRateLimit } from "@/lib/security/rateLimit";
 import { MARKET_CENTER } from "@/lib/constants";
+import { loadSpotSupport } from "@/lib/guide/spotSupport.server";
+import type { SupportSuggestion } from "@/lib/guide/support";
 import {
   MAP_AGENT_SYSTEM_PROMPT,
   buildMapAgentPrompt,
@@ -31,6 +33,8 @@ type PlanResult = {
   shops: PlanShop[];
   routeHint: string;
   shoppingList: string[];
+  /** 出発地点からいちばん近いお手洗い・休けい・電停（おでかけサポートへのリンク付き） */
+  support?: SupportSuggestion[];
 };
 
 type BaseShop = {
@@ -56,11 +60,16 @@ const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SUPABASE_KEY = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY;
 
-async function loadShops(): Promise<BaseShop[]> {
-  if (!SUPABASE_URL || !SUPABASE_KEY) return [];
-  const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_KEY, {
+function createReadClient() {
+  if (!SUPABASE_URL || !SUPABASE_KEY) return null;
+  return createClient<Database>(SUPABASE_URL, SUPABASE_KEY, {
     auth: { persistSession: false },
   });
+}
+
+async function loadShops(): Promise<BaseShop[]> {
+  const supabase = createReadClient();
+  if (!supabase) return [];
   const shops = await fetchVendorShopsFromDb(supabase);
   return shops.map((shop) => ({
     id: shop.id,
@@ -277,15 +286,17 @@ export async function POST(request: Request) {
     const answers: Answers = parsed.data.answers ?? {};
     const start = parsed.data.location ?? MARKET_CENTER;
 
-    const baseShops = await loadShops();
+    const readClient = createReadClient();
+    const [baseShops, spotSupport] = await Promise.all([
+      loadShops(),
+      readClient
+        ? loadSpotSupport(readClient, { lat: start[0], lng: start[1] })
+        : Promise.resolve({ suggestions: [], prompt: "" }),
+    ]);
     const ranked = rankShops(answers, baseShops);
     const aiPlan = await callOpenAI(answers, ranked, start);
-    if (aiPlan) {
-      return NextResponse.json(aiPlan, { status: 200 });
-    }
-
-    const fallback = pickShops(answers, start, baseShops);
-    return NextResponse.json(fallback, { status: 200 });
+    const plan = aiPlan ?? pickShops(answers, start, baseShops);
+    return NextResponse.json({ ...plan, support: spotSupport.suggestions }, { status: 200 });
   } catch {
     return NextResponse.json({ message: "failed to build plan" }, { status: 500 });
   }

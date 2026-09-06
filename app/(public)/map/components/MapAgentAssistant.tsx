@@ -33,12 +33,23 @@ type PlanShop = {
   icon: string;
 };
 
+type PlanSupport = {
+  kind: string;
+  label: string;
+  spotName: string;
+  walkMinutes: number;
+  approximate: boolean;
+  href: string;
+};
+
 type PlanResult = {
   title: string;
   summary: string;
   shops: PlanShop[];
   routeHint: string;
   shoppingList: string[];
+  /** 出発地点から近いお手洗い・休けい・電停（おでかけサポートへのリンク付き） */
+  support?: PlanSupport[];
 };
 
 type MapAgentAssistantProps = {
@@ -468,6 +479,22 @@ export default function MapAgentAssistant({
                     <div className="rounded-md bg-amber-50 border border-amber-200 px-3 py-2 text-[12px] text-amber-800">
                       {plan.routeHint}
                     </div>
+                    {plan.support && plan.support.length > 0 && (
+                      <div className="space-y-1">
+                        <p className="text-[11px] font-semibold text-amber-700">困ったときは</p>
+                        <div className="flex flex-wrap gap-2 text-xs">
+                          {plan.support.map((s) => (
+                            <a
+                              key={s.kind}
+                              href={s.href}
+                              className="rounded-full border border-amber-200 bg-white px-2.5 py-[4px] font-semibold text-amber-900 hover:border-amber-300"
+                            >
+                              {s.label}: {s.spotName}（徒歩{s.walkMinutes}分{s.approximate ? '・目安' : ''}）
+                            </a>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                     <div className="flex justify-end">
                       <button
                         type="button"
