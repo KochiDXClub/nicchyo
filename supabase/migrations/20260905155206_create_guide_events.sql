@@ -40,8 +40,10 @@ begin
   ) then
     create policy guide_events_admin_select
       on guide_events for select
-      -- user_metadata はユーザー自身が書き換えられるため、app_metadata だけを信頼する
-      using ((auth.jwt() -> 'app_metadata' ->> 'role') in ('admin', 'super_admin'));
+      to authenticated
+      -- user_metadata はユーザー自身が書き換えられるため、app_metadata だけを信頼する。
+      -- super_admin は 20260806104907 で admin に統合済みなので判定に含めない
+      using (coalesce(auth.jwt() -> 'app_metadata' ->> 'role', '') = 'admin');
   end if;
 end $$;
 
