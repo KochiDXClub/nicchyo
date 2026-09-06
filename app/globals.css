@@ -72,6 +72,8 @@
   --vh: 1vh; /* JavaScriptで動的に更新 */
   --desktop-menu-offset: 0px;
   --consult-bg: radial-gradient(120% 120% at 10% 0%, #ffedd5 0%, #fed7aa 50%, #fdba74 100%);
+  /* NavigationBar の内側の高さ（h-14）。下に固定するものはこれを避ける */
+  --nav-bar-height: 3.5rem;
   --consult-surface: rgba(255, 255, 255, 0.94);
   --consult-border: rgba(148, 163, 184, 0.45);
 }
@@ -1495,4 +1497,128 @@ body.home-poster-zoom-open .hamburger-button {
 .leaflet-shop-pane.shop-layer-hidden {
   visibility: hidden;
   pointer-events: none;
+}
+
+/* ------------------------------------------------------------------
+ * 相談ページのキャラ絵（にちよさん）の構え
+ *
+ * 会話の状態をキャラの姿勢で表す。考え中のスピナーや録音中の表示を
+ * キャラの動きに置き換えるのが狙い。
+ *
+ * 二層に分けてあるのが要点：
+ *   外側 .grandma-avatar        … 状態が変わる瞬間の遷移（transition で滑らかに）
+ *   内側 .grandma-avatar__inner … 待機中のループ（animation で安く）
+ * こうすると「遷移だけ滑らか、ループはカクついてよい」を両立できる。
+ * ループは CSS アニメーションなのでコンポジタ側で動き、JS は一切走らない。
+ * ------------------------------------------------------------------ */
+
+.grandma-avatar {
+  /* 足元寄りを軸にすると、首をかしげる動きが自然に見える */
+  transform-origin: 50% 85%;
+  transition: transform 260ms cubic-bezier(0.2, 0.7, 0.3, 1);
+}
+
+/* 音声入力中：少し前傾して大きくなる（＝録音中インジケータの代わり） */
+.grandma-avatar[data-pose="listening"] {
+  transform: scale(1.04) rotate(-2deg);
+}
+
+/* 応答待ち：首をかしげる（＝ローディングスピナーの代わり） */
+.grandma-avatar[data-pose="thinking"] {
+  transform: rotate(3deg);
+}
+
+/* 返答中：わずかに寄る */
+.grandma-avatar[data-pose="speaking"] {
+  transform: scale(1.02);
+}
+
+.grandma-avatar__inner {
+  animation: grandma-breathe 4s ease-in-out infinite alternate;
+}
+
+/* 聞いているときは呼吸が速くなる＝前のめりに見える */
+.grandma-avatar[data-pose="listening"] .grandma-avatar__inner {
+  animation-duration: 1.6s;
+}
+
+.grandma-avatar[data-pose="thinking"] .grandma-avatar__inner {
+  animation: grandma-sway 2.4s ease-in-out infinite;
+}
+
+.grandma-avatar[data-pose="speaking"] .grandma-avatar__inner {
+  animation: grandma-nod 900ms ease-in-out infinite;
+}
+
+@keyframes grandma-breathe {
+  from { transform: translateY(0) scale(1); }
+  to   { transform: translateY(-3px) scale(1.006); }
+}
+
+@keyframes grandma-sway {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50%      { transform: translateY(-2px) rotate(-1.5deg); }
+}
+
+@keyframes grandma-nod {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-2px); }
+}
+
+/* キャラ絵そのものを音声入力の当たり判定にする（歩きながら片手で押せるように） */
+.grandma-avatar--tappable {
+  -webkit-tap-highlight-color: transparent;
+  cursor: pointer;
+  border: 0;
+  background: none;
+  padding: 0;
+}
+
+.grandma-avatar--tappable:active {
+  transform: scale(0.97);
+}
+
+.grandma-avatar--tappable:focus-visible {
+  outline: 3px solid rgba(245, 158, 11, 0.8);
+  outline-offset: 6px;
+  border-radius: 9999px;
+}
+
+/* 応答待ちに出す文章の骨組み。前の答えを残さないための置き換え */
+.consult-skeleton {
+  display: block;
+  background: linear-gradient(90deg, #fde68a55 0%, #fef3c7 50%, #fde68a55 100%);
+  background-size: 200% 100%;
+  animation: consult-skeleton-sweep 1.4s ease-in-out infinite;
+}
+
+@keyframes consult-skeleton-sweep {
+  from { background-position: 200% 0; }
+  to   { background-position: -200% 0; }
+}
+
+/* 録音中の赤い点 */
+.consult-mic-dot {
+  animation: consult-mic-pulse 1.1s ease-in-out infinite;
+}
+
+@keyframes consult-mic-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%      { opacity: 0.45; transform: scale(0.82); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* data-pose 付きの指定に負けないよう、同じ詳細度で打ち消す
+     （.grandma-avatar__inner だけでは thinking / speaking のループが残る） */
+  .grandma-avatar[data-pose] .grandma-avatar__inner,
+  .consult-skeleton,
+  .consult-mic-dot,
+  .grandma-avatar,
+  .grandma-avatar[data-pose],
+  .grandma-avatar__inner,
+  .grandma-avatar--tappable:active {
+    animation: none !important;
+    transition: none !important;
+    transform: none !important;
+  }
 }
