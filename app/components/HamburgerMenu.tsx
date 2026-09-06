@@ -148,154 +148,18 @@ export default function HamburgerMenu() {
                 <>
                   {permissions.isAdmin && (
                     <>
-                      <li>
-                        <div className="rounded-lg bg-red-50 px-3 py-2 mb-2">
-                          <p className="text-xs font-semibold text-red-700 flex items-center gap-1">
-                            <MenuIcon name="settings" className="h-4 w-4 text-red-700" />
-                            管理メニュー
-                          </p>
-                        </div>
-                      </li>
                       <MenuLi href="/admin/dashboard">
                         <Link
                           href="/admin/dashboard"
                           onClick={closeMenu}
-                          className={menuItemClass('/admin/dashboard', 'hover:bg-red-50')}
+                          className={menuItemClass('/admin', 'hover:bg-red-50')}
                         >
-                          <MenuIcon name="chart" className={`h-5 w-5 ${isActive('/admin/dashboard') ? 'text-white' : 'text-red-600'}`} />
+                          <MenuIcon name="settings" className={`h-5 w-5 ${isActive('/admin') ? 'text-white' : 'text-red-600'}`} />
                           <div className="flex-1">
-                            <p className="text-sm font-medium">ダッシュボード</p>
-                            <p className={`text-xs ${isActive('/admin/dashboard') ? 'text-white/80' : 'text-gray-500'}`}>アクセスと運用状況を確認</p>
+                            <p className="text-sm font-medium">管理者ページ</p>
+                            <p className={`text-xs ${isActive('/admin') ? 'text-white/80' : 'text-gray-500'}`}>運用・対応・分析・設定はこちら</p>
                           </div>
-                          <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${isActive('/admin/dashboard') ? 'bg-white/20 text-white' : 'bg-red-100 text-red-700'}`}>
-                            管理
-                          </span>
-                        </Link>
-                      </MenuLi>
-                      <MenuLi href="/admin/analytics">
-                        <Link
-                          href="/admin/analytics"
-                          onClick={closeMenu}
-                          className={menuItemClass('/admin/analytics', 'hover:bg-red-50')}
-                        >
-                          <MenuIcon name="chart" className={`h-5 w-5 ${isActive('/admin/analytics') ? 'text-white' : 'text-red-600'}`} />
-                          <div className="flex-1">
-                            <p className="text-sm font-medium">アナリティクス</p>
-                            <p className={`text-xs ${isActive('/admin/analytics') ? 'text-white/80' : 'text-gray-500'}`}>訪問者・検索・AI分析</p>
-                          </div>
-                          <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${isActive('/admin/analytics') ? 'bg-white/20 text-white' : 'bg-red-100 text-red-700'}`}>
-                            管理
-                          </span>
-                        </Link>
-                      </MenuLi>
-                      <MenuLi href="/admin/map-edit">
-                        <Link
-                          href="/admin/map-edit"
-                          onClick={closeMenu}
-                          className={menuItemClass('/admin/map-edit', 'hover:bg-red-50')}
-                        >
-                          <MenuIcon name="shop" className={`h-5 w-5 ${isActive('/admin/map-edit') ? 'text-white' : 'text-red-600'}`} />
-                          <div className="flex-1">
-                            <p className="text-sm font-medium">マップ編集</p>
-                            <p className={`text-xs ${isActive('/admin/map-edit') ? 'text-white/80' : 'text-gray-500'}`}>店舗マーカと建物を編集</p>
-                          </div>
-                          <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${isActive('/admin/map-edit') ? 'bg-white/20 text-white' : 'bg-red-100 text-red-700'}`}>
-                            管理
-                          </span>
-                        </Link>
-                      </MenuLi>
-                      <MenuLi href="/admin/users">
-                        <Link
-                          href="/admin/users"
-                          onClick={closeMenu}
-                          className={menuItemClass('/admin/users', 'hover:bg-red-50')}
-                        >
-                          <MenuIcon name="users" className={`h-5 w-5 ${isActive('/admin/users') ? 'text-white' : 'text-red-600'}`} />
-                          <div className="flex-1">
-                            <p className="text-sm font-medium">ユーザー管理</p>
-                            <p className={`text-xs ${isActive('/admin/users') ? 'text-white/80' : 'text-gray-500'}`}>アカウントと権限を確認</p>
-                          </div>
-                          <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${isActive('/admin/users') ? 'bg-white/20 text-white' : 'bg-red-100 text-red-700'}`}>
-                            管理
-                          </span>
-                        </Link>
-                      </MenuLi>
-                      <MenuLi href="/admin/content">
-                        <Link
-                          href="/admin/content"
-                          onClick={closeMenu}
-                          className={menuItemClass('/admin/content', 'hover:bg-red-50')}
-                        >
-                          <MenuIcon name="pencil" className={`h-5 w-5 ${isActive('/admin/content') ? 'text-white' : 'text-red-600'}`} />
-                          <div className="flex-1">
-                            <p className="text-sm font-medium">コンテンツ管理</p>
-                            <p className={`text-xs ${isActive('/admin/content') ? 'text-white/80' : 'text-gray-500'}`}>出店者の投稿を管理</p>
-                          </div>
-                          <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${isActive('/admin/content') ? 'bg-white/20 text-white' : 'bg-red-100 text-red-700'}`}>
-                            管理
-                          </span>
-                        </Link>
-                      </MenuLi>
-                      <MenuLi href="/admin/audit-logs">
-                        <Link
-                          href="/admin/audit-logs"
-                          onClick={closeMenu}
-                          className={menuItemClass('/admin/audit-logs', 'hover:bg-red-50')}
-                        >
-                          <MenuIcon name="list" className={`h-5 w-5 ${isActive('/admin/audit-logs') ? 'text-white' : 'text-red-600'}`} />
-                          <div className="flex-1">
-                            <p className="text-sm font-medium">監査ログ</p>
-                            <p className={`text-xs ${isActive('/admin/audit-logs') ? 'text-white/80' : 'text-gray-500'}`}>管理者の操作履歴</p>
-                          </div>
-                          <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${isActive('/admin/audit-logs') ? 'bg-white/20 text-white' : 'bg-red-100 text-red-700'}`}>
-                            管理
-                          </span>
-                        </Link>
-                      </MenuLi>
-                      <MenuLi href="/admin/notifications">
-                        <Link
-                          href="/admin/notifications"
-                          onClick={closeMenu}
-                          className={menuItemClass('/admin/notifications', 'hover:bg-red-50')}
-                        >
-                          <MenuIcon name="bell" className={`h-5 w-5 ${isActive('/admin/notifications') ? 'text-white' : 'text-red-600'}`} />
-                          <div className="flex-1">
-                            <p className="text-sm font-medium">通知</p>
-                            <p className={`text-xs ${isActive('/admin/notifications') ? 'text-white/80' : 'text-gray-500'}`}>申請・報告のお知らせ</p>
-                          </div>
-                          <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${isActive('/admin/notifications') ? 'bg-white/20 text-white' : 'bg-red-100 text-red-700'}`}>
-                            管理
-                          </span>
-                        </Link>
-                      </MenuLi>
-                      <MenuLi href="/admin/settings">
-                        <Link
-                          href="/admin/settings"
-                          onClick={closeMenu}
-                          className={menuItemClass('/admin/settings', 'hover:bg-red-50')}
-                        >
-                          <MenuIcon name="settings" className={`h-5 w-5 ${isActive('/admin/settings') ? 'text-white' : 'text-red-600'}`} />
-                          <div className="flex-1">
-                            <p className="text-sm font-medium">設定</p>
-                            <p className={`text-xs ${isActive('/admin/settings') ? 'text-white/80' : 'text-gray-500'}`}>公開設定と運用上限</p>
-                          </div>
-                          <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${isActive('/admin/settings') ? 'bg-white/20 text-white' : 'bg-red-100 text-red-700'}`}>
-                            管理
-                          </span>
-                        </Link>
-                      </MenuLi>
-                      <MenuLi href="/admin/page-visibility">
-                        <Link
-                          href="/admin/page-visibility"
-                          onClick={closeMenu}
-                          className={menuItemClass('/admin/page-visibility', 'hover:bg-red-50')}
-                        >
-                          <MenuIcon name="list" className={`h-5 w-5 ${isActive('/admin/page-visibility') ? 'text-white' : 'text-red-600'}`} />
-                          <div className="flex-1">
-                            <p className="text-sm font-medium">ページ公開設定</p>
-                            <p className={`text-xs ${isActive('/admin/page-visibility') ? 'text-white/80' : 'text-gray-500'}`}>ロール別に公開・非公開を切替</p>
-                          </div>
-                          <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${isActive('/admin/page-visibility') ? 'bg-white/20 text-white' : 'bg-red-100 text-red-700'}`}>
+                          <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${isActive('/admin') ? 'bg-white/20 text-white' : 'bg-red-100 text-red-700'}`}>
                             管理
                           </span>
                         </Link>
