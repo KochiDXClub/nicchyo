@@ -1,12 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import Image from "next/image";
 import { useSearchParams } from "next/navigation";
 import NavigationBar from "../../components/NavigationBar";
 import GrandmaChatter from "../map/components/GrandmaChatter";
 import ShopDetailBanner from "../map/components/ShopDetailBanner";
 import { grandmaComments } from "../map/data/grandmaComments";
+import GrandmaAvatar from "./components/GrandmaAvatar";
+import type { GrandmaPose } from "@/lib/grandma/pose";
 import type { ConsultCharacterId } from "./data/consultCharacters";
 import type {
   ConsultAskResponse,
@@ -23,6 +24,7 @@ export default function ConsultClient({ embedded = false }: { embedded?: boolean
   const [knownShops, setKnownShops] = useState<Shop[]>([]);
   const [selectedShop, setSelectedShop] = useState<Shop | null>(null);
   const [preferredCharacterId, setPreferredCharacterId] = useState<ConsultCharacterId | null>(null);
+  const [grandmaPose, setGrandmaPose] = useState<GrandmaPose>("idle");
   const searchParams = useSearchParams();
 
   useEffect(() => {
@@ -279,13 +281,7 @@ export default function ConsultClient({ embedded = false }: { embedded?: boolean
           {/* ヘッダー：standalone のみ表示 */}
           {!embedded && (
             <section className="flex flex-col items-center gap-3 pb-1 pt-4 text-center">
-              <Image
-                src="/characters/obaasan.png"
-                alt="にちよさん"
-                width={180}
-                height={180}
-                className="h-[120px] w-[120px] object-contain drop-shadow-[0_8px_16px_rgba(146,64,14,0.25)] md:h-[180px] md:w-[180px]"
-              />
+              <GrandmaAvatar pose={grandmaPose} />
               <div>
                 <p className="eyebrow">Nichiyo-san</p>
                 <h1 className="mt-1 font-display text-2xl text-amber-900 md:text-3xl">
@@ -324,6 +320,7 @@ export default function ConsultClient({ embedded = false }: { embedded?: boolean
             enableSpeechInput
             preferredCharacterId={preferredCharacterId}
             onPreferredCharacterChange={setPreferredCharacterId}
+            onPoseChange={setGrandmaPose}
           />
         </div>
       </main>

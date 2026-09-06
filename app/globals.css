@@ -1496,3 +1496,78 @@ body.home-poster-zoom-open .hamburger-button {
   visibility: hidden;
   pointer-events: none;
 }
+
+/* ------------------------------------------------------------------
+ * 相談ページのキャラ絵（にちよさん）の構え
+ *
+ * 会話の状態をキャラの姿勢で表す。考え中のスピナーや録音中の表示を
+ * キャラの動きに置き換えるのが狙い。
+ *
+ * 二層に分けてあるのが要点：
+ *   外側 .grandma-avatar        … 状態が変わる瞬間の遷移（transition で滑らかに）
+ *   内側 .grandma-avatar__inner … 待機中のループ（animation で安く）
+ * こうすると「遷移だけ滑らか、ループはカクついてよい」を両立できる。
+ * ループは CSS アニメーションなのでコンポジタ側で動き、JS は一切走らない。
+ * ------------------------------------------------------------------ */
+
+.grandma-avatar {
+  /* 足元寄りを軸にすると、首をかしげる動きが自然に見える */
+  transform-origin: 50% 85%;
+  transition: transform 260ms cubic-bezier(0.2, 0.7, 0.3, 1);
+}
+
+/* 音声入力中：少し前傾して大きくなる（＝録音中インジケータの代わり） */
+.grandma-avatar[data-pose="listening"] {
+  transform: scale(1.04) rotate(-2deg);
+}
+
+/* 応答待ち：首をかしげる（＝ローディングスピナーの代わり） */
+.grandma-avatar[data-pose="thinking"] {
+  transform: rotate(3deg);
+}
+
+/* 返答中：わずかに寄る */
+.grandma-avatar[data-pose="speaking"] {
+  transform: scale(1.02);
+}
+
+.grandma-avatar__inner {
+  animation: grandma-breathe 4s ease-in-out infinite alternate;
+}
+
+/* 聞いているときは呼吸が速くなる＝前のめりに見える */
+.grandma-avatar[data-pose="listening"] .grandma-avatar__inner {
+  animation-duration: 1.6s;
+}
+
+.grandma-avatar[data-pose="thinking"] .grandma-avatar__inner {
+  animation: grandma-sway 2.4s ease-in-out infinite;
+}
+
+.grandma-avatar[data-pose="speaking"] .grandma-avatar__inner {
+  animation: grandma-nod 900ms ease-in-out infinite;
+}
+
+@keyframes grandma-breathe {
+  from { transform: translateY(0) scale(1); }
+  to   { transform: translateY(-3px) scale(1.006); }
+}
+
+@keyframes grandma-sway {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50%      { transform: translateY(-2px) rotate(-1.5deg); }
+}
+
+@keyframes grandma-nod {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-2px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .grandma-avatar,
+  .grandma-avatar__inner {
+    animation: none;
+    transition: none;
+    transform: none;
+  }
+}

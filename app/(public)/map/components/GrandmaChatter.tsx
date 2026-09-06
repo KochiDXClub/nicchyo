@@ -29,6 +29,7 @@ import { grandmaCommentPool, pickNextComment } from "../services/grandmaCommentS
 import type { Shop } from "../data/shops";
 import { getSmartSuggestions } from "../utils/suggestionGenerator";
 import { getShopBannerImage } from "@/lib/shopImages";
+import { resolveGrandmaPose, type GrandmaPose } from "@/lib/grandma/pose";
 import { saveAiMapPayload } from "@/lib/searchMapStorage";
 import { generateItinerary, type ItineraryPlan } from "@/lib/itinerary";
 import { useAvatarDrag } from "../../../../lib/hooks/useAvatarDrag";
@@ -113,6 +114,8 @@ type GrandmaChatterProps = {
   onPreferredCharacterChange?: (characterId: ConsultCharacterId | null) => void;
   onCommentSeen?: (id: string, genre: string) => void;
   embedded?: boolean;
+  /** 会話の状態（待機・聞いている・考えている・答えている）をページ側のキャラ絵に伝える */
+  onPoseChange?: (pose: GrandmaPose) => void;
 };
 
 // ─── おさんぽプランの質問カード ──────────────────────────────────────────────
@@ -468,6 +471,7 @@ const GrandmaChatter = memo(function GrandmaChatter({
   onPreferredCharacterChange,
   onCommentSeen,
   embedded = false,
+  onPoseChange,
 }: GrandmaChatterProps) {
   const isConsultVariant = variant === "consult";
   const pool = comments && comments.length > 0 ? comments : grandmaCommentPool;
@@ -517,6 +521,17 @@ const GrandmaChatter = memo(function GrandmaChatter({
   const chatStorageKeyRef = useRef<string | null>(null);
   const [isSpeechSupported, setIsSpeechSupported] = useState(false);
   const [isListening, setIsListening] = useState(false);
+
+  // キャラ絵の構え。ここは既存の状態から導出するだけで、新しい state は増やさない
+  const grandmaPose = resolveGrandmaPose({
+    isListening,
+    isStreaming: !!activeStreamingMessageId,
+    aiStatus,
+  });
+  useEffect(() => {
+    onPoseChange?.(grandmaPose);
+  }, [grandmaPose, onPoseChange]);
+
   // 生成した画像プレビューの ObjectURL を追跡し、メモリリークを防ぐ。
   // 送信済みのURLはチャットメッセージ/再送信で使い続けるため即revokeせず、
   // アンマウント時にまとめて解放する。未送信のまま差し替え/取消したURLは即revokeする。
