@@ -20,6 +20,7 @@
 import {
   AlertTriangle,
   BarChart3,
+  Bot,
   CalendarDays,
   ClipboardList,
   FileText,
@@ -207,6 +208,12 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
     label: "システム",
     access: "admin",
     items: [
+      {
+        label: "AIプロンプト",
+        href: "/admin/ai-prompts",
+        icon: Bot,
+        description: "にちよさんたちの話し方と答え方を調整する",
+      },
       {
         label: "設定",
         href: "/admin/settings",
