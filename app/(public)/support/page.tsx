@@ -3,6 +3,7 @@ import Link from "next/link";
 import NavigationBar from "../../components/NavigationBar";
 import MapLink from "../../components/MapLink";
 import { fetchWeeklyVisitors } from "@/lib/analytics/weeklyVisitors.server";
+import SupporterSlots from "@/components/SupporterSlots";
 import RunwayMeter from "./RunwayMeter";
 import {
   ANNUAL_COST_RANGE_JPY,
@@ -10,7 +11,6 @@ import {
   RUNNING_COSTS,
   RUNWAY_MONTHS,
   SPONSOR_UNIT_ANNUAL_JPY,
-  SUPPORTERS,
   TRACK_RECORD,
   formatJpy,
   hasCostBreakdown,
@@ -164,6 +164,14 @@ export default async function SupportPage() {
           </dl>
         </section>
 
+        {/* 空いているうちも枠を出す。協賛すると何が得られるかは、枠を見せた方が早い */}
+        <section className="mt-14 border-t border-nicchyo-ink/10 pt-10">
+          <h2 className="text-[12px] font-bold tracking-[0.1em] text-nicchyo-ink/40">
+            支えてくださる方
+          </h2>
+          <SupporterSlots className="mt-5" />
+        </section>
+
         {/* 協賛。金額が決まっていれば「1口で何ヶ月ぶん」まで出す */}
         <section className="mt-14 border-t border-nicchyo-ink/10 pt-10">
           <h2 className="text-[12px] font-bold tracking-[0.1em] text-nicchyo-ink/40">
@@ -185,29 +193,9 @@ export default async function SupportPage() {
             協賛について問い合わせる
           </Link>
           <p className="mt-3 text-[12px] text-nicchyo-ink/40">
-            このページと「nicchyoとは」にお名前を掲載します／1年ごと
+            掲載は1年ごとに更新します
           </p>
         </section>
-
-        {SUPPORTERS.length > 0 && (
-          <section className="mt-14 border-t border-nicchyo-ink/10 pt-10">
-            <h2 className="text-[12px] font-bold tracking-[0.1em] text-nicchyo-ink/40">
-              支えてくださっている方
-            </h2>
-            <ul className="mt-5 space-y-3">
-              {SUPPORTERS.map((supporter) => (
-                <li key={supporter.name} className="text-[15px] font-bold">
-                  {supporter.name}
-                  {supporter.note && (
-                    <span className="ml-2 text-[12px] font-normal text-nicchyo-ink/40">
-                      {supporter.note}
-                    </span>
-                  )}
-                </li>
-              ))}
-            </ul>
-          </section>
-        )}
 
         <p className="mt-14 border-t border-nicchyo-ink/10 pt-8 text-[12px] leading-loose text-nicchyo-ink/40">
           いただいたお金は運営費だけに使います。会計は顧問の教員が確認しています。

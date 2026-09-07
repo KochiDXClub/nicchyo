@@ -24,6 +24,7 @@ export type PainPointItem = {
 };
 
 export type SlideRichContent =
+  | { type: "supporters" }
   | { type: "characters"; items: CharacterItem[] }
   | { type: "achievements"; items: AchievementItem[] }
   | { type: "painPoints"; items: PainPointItem[] }
@@ -151,6 +152,16 @@ export const aboutSlides: AboutSlide[] = [
     action: {
       label: "活動の記録を見る",
       href: "/activities",
+    },
+  },
+  {
+    id: "supporters",
+    title: "支えてくださる方",
+    description: "サーバー代は協賛でまかないます。",
+    richContent: { type: "supporters" },
+    action: {
+      label: "運営費を見る",
+      href: "/support",
     },
   },
   {

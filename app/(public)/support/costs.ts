@@ -40,9 +40,6 @@ export const FUNDS_ON_HAND_JPY = 0;
 /** 協賛1口の年額。決まったら埋める（何ヶ月ぶんにあたるかはページ側が計算する） */
 export const SPONSOR_UNIT_ANNUAL_JPY: number | null = null;
 
-/** 掲載する協賛・支援者。空のあいだは一覧そのものを出さない */
-export const SUPPORTERS: { name: string; note?: string }[] = [];
-
 /** これまでの評価。協賛や助成を検討する人が見るところ */
 export const TRACK_RECORD = [
   { label: "こうちNPOアワード2025", value: "ワカモノ未来賞" },
