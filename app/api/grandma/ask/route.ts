@@ -4,6 +4,9 @@ import type { Database } from "@/types/database.types";
 import type { DatabaseWithExtensions } from "@/types/database.extensions";
 import { buildGrandmaAiSystemPrompt } from "@/lib/grandma/prompts/consultSystemPrompt";
 import { fetchAiPrompts } from "@/lib/grandma/prompts/promptStore.server";
+import { buildChatCompletionBody } from "@/lib/ai/models";
+import { resolveAiModelFor } from "@/lib/ai/modelStore.server";
+import { loadSpotSupport } from "@/lib/guide/spotSupport.server";
 import { requireSameOrigin } from "@/lib/security/requestGuards";
 import { maskPii } from "@/lib/privacy/maskPii";
 import { enforceRateLimit } from "@/lib/security/rateLimit";
@@ -340,6 +343,9 @@ async function createStreamingConsultResponse(options: {
 
   // 管理画面で保存した文面を使う。読めなければコード側の既定値に落ちる
   const aiPrompts = await fetchAiPrompts();
+  // お手洗い・休けい・電停の質問に、実データ（map_landmarks）と徒歩の目安で答えられるようにする
+  const spotSupport = await loadSpotSupport(supabase, location);
+  const aiModel = await resolveAiModelFor("consult");
 
   const upstream = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
@@ -347,26 +353,29 @@ async function createStreamingConsultResponse(options: {
       Authorization: `Bearer ${openaiKey}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({
-      model: "gpt-4o-mini",
-      temperature: 0.7,
-      max_tokens: 500,
-      stream: true,
-      messages: [
-        {
-          role: "system",
-          content: buildGrandmaAiSystemPrompt(
-            selectedCharacters,
-            buildStreamingFormatPrompt(selectedCharacters),
-            aiPrompts
-          ),
-        },
-        {
-          role: "user",
-          content: userContent,
-        },
-      ],
-    }),
+    body: JSON.stringify(
+      buildChatCompletionBody(aiModel, {
+        messages: [
+          {
+            role: "system",
+            content: buildGrandmaAiSystemPrompt(
+              selectedCharacters,
+              [buildStreamingFormatPrompt(selectedCharacters), spotSupport.prompt]
+                .filter(Boolean)
+                .join("\n\n"),
+              aiPrompts
+            ),
+          },
+          {
+            role: "user",
+            content: userContent,
+          },
+        ],
+        maxOutputTokens: 500,
+        temperature: 0.7,
+        stream: true,
+      })
+    ),
   });
 
   if (!upstream.ok || !upstream.body) {
@@ -836,32 +845,36 @@ export async function POST(request: Request) {
       });
     }
 
+    const spotSupport = await loadSpotSupport(supabase, location);
+    const aiModel = await resolveAiModelFor("consult");
+
     const chatResponse = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${openaiKey}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({
-        model: "gpt-4o-mini",
-        temperature: 0.7,
-        max_tokens: 500,
-        response_format: buildResponseSchema(selectedCharacters),
-        messages: [
-          {
-            role: "system",
-            content: buildGrandmaAiSystemPrompt(
-              selectedCharacters,
-              "",
-              await fetchAiPrompts()
-            ),
-          },
-          {
-            role: "user",
-            content: userContent,
-          },
-        ],
-      }),
+      body: JSON.stringify(
+        buildChatCompletionBody(aiModel, {
+          messages: [
+            {
+              role: "system",
+              content: buildGrandmaAiSystemPrompt(
+                selectedCharacters,
+                spotSupport.prompt,
+                await fetchAiPrompts()
+              ),
+            },
+            {
+              role: "user",
+              content: userContent,
+            },
+          ],
+          maxOutputTokens: 500,
+          temperature: 0.7,
+          responseFormat: buildResponseSchema(selectedCharacters),
+        })
+      ),
     });
     if (!chatResponse.ok) {
       return NextResponse.json(
