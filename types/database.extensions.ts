@@ -61,6 +61,20 @@ export type AiUseCaseRow = {
   updated_at: string;
 };
 
+export type MapViewSettingsRow = {
+  key: string;
+  mode: "auto" | "manual";
+  padding_meters: number;
+  north: number | null;
+  south: number | null;
+  east: number | null;
+  west: number | null;
+  min_zoom: number;
+  updated_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 type ExtendedPublicSchema = Omit<Database["public"], "Tables"> & {
   Tables: Database["public"]["Tables"] & {
     admin_notifications: {
@@ -100,6 +114,14 @@ type ExtendedPublicSchema = Omit<Database["public"], "Tables"> & {
       Insert: never;
       // 運営が変えられるのは「どのモデルを当てるか」だけ
       Update: Partial<Pick<AiUseCaseRow, "model_id" | "reasoning_effort" | "updated_by">>;
+      Relationships: never[];
+    };
+    map_view_settings: {
+      Row: MapViewSettingsRow;
+      // 行を増やすのはマイグレーション。APIが触るのは key = 'default' の中身だけ
+      Insert: Pick<MapViewSettingsRow, "key"> &
+        Partial<Omit<MapViewSettingsRow, "key" | "created_at" | "updated_at">>;
+      Update: Partial<Omit<MapViewSettingsRow, "key" | "created_at" | "updated_at">>;
       Relationships: never[];
     };
   };

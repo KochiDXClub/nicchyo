@@ -24,6 +24,7 @@ import {
   CalendarDays,
   ClipboardList,
   FileText,
+  Frame,
   Gauge,
   Inbox,
   LayoutDashboard,
@@ -169,6 +170,12 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
         href: "/admin/map-edit",
         icon: MapIcon,
         description: "マップ上の建物と店舗の配置を編集する",
+      },
+      {
+        label: "マップの表示範囲",
+        href: "/admin/map-view",
+        icon: Frame,
+        description: "マップをどこまで動かせるかを地図の上で決める",
       },
       {
         label: "スポット管理",
