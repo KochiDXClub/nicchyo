@@ -3,8 +3,36 @@
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useCallback, Suspense } from "react";
-import { AnimatePresence, motion } from "framer-motion";
+import { useEffect, useCallback, useRef, Suspense } from "react";
+import {
+  AnimatePresence,
+  motion,
+  useDragControls,
+  useReducedMotion,
+  type PanInfo,
+} from "framer-motion";
+import {
+  ArrowLeft,
+  CalendarDays,
+  ClipboardList,
+  Compass,
+  FileText,
+  Info,
+  LayoutDashboard,
+  LayoutGrid,
+  LogIn,
+  LogOut,
+  MessageCircle,
+  Newspaper,
+  Package,
+  Settings,
+  ShoppingBag,
+  Store,
+  UserRound,
+  Users,
+  X,
+  type LucideIcon,
+} from "lucide-react";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { useBag } from "@/lib/storage/BagContext";
 import { useMenu } from "@/lib/ui/MenuContext";
@@ -17,35 +45,63 @@ type NavItem = {
   href: string;
   /** 実際に遷移するページ（href と異なる場合）。ページ公開設定の判定に使う */
   target?: string;
-  icon: "search" | "chat" | "admin" | "story";
+  icon: LucideIcon;
 };
 
 const baseNavItems: NavItem[] = [
   // 相談ボタンはマップ上では onConsultClick 経由で /consult へ遷移する
-  { name: "相談", href: "/map", target: "/consult", icon: "chat" },
-  { name: "近況", href: "/story", icon: "story" },
+  { name: "相談", href: "/map", target: "/consult", icon: MessageCircle },
+  { name: "近況", href: "/story", icon: Newspaper },
 ];
 
-// ─── セカンダリメニュー項目（2列グリッド） ────────────────────────────────────
-const secondaryMenuItems = [
-  { label: "おでかけサポート", href: "/facilities", emoji: "🧭", color: "bg-teal-50", textColor: "text-teal-800", border: "border-teal-100", wide: true },
-  { label: "日曜市カレンダー", href: "/calendar", emoji: "📅", color: "bg-sky-50",  textColor: "text-sky-800",    border: "border-sky-100",   wide: true },
-  { label: "マイページ",  href: "/my-profile", emoji: "👤", color: "bg-violet-50",  textColor: "text-violet-800", border: "border-violet-100" },
-  { label: "nicchyoとは", href: "/about",      emoji: "ℹ️", color: "bg-slate-50",   textColor: "text-slate-700",  border: "border-slate-100"  },
+// ─── メニューの項目 ───────────────────────────────────────────────────────────
+// 絵文字は端末ごとに絵柄が変わって揃わないので、線の太さを合わせたアイコンを使う。
+type SheetItem = {
+  label: string;
+  href: string;
+  icon: LucideIcon;
+};
+
+const secondaryMenuItems: SheetItem[] = [
+  { label: "おでかけサポート", href: "/facilities", icon: Compass },
+  { label: "日曜市カレンダー", href: "/calendar", icon: CalendarDays },
+  { label: "マイページ", href: "/my-profile", icon: UserRound },
+  { label: "nicchyoとは", href: "/about", icon: Info },
 ];
 
 // ─── 出店者・管理者メニュー ────────────────────────────────────────────────────
-const vendorMenuItems = [
-  { label: "出店者ダッシュボード", href: "/vendor/dashboard", emoji: "🏪" },
-  { label: "商品管理",            href: "/vendor/products",  emoji: "📦" },
-  { label: "注文管理",            href: "/vendor/orders",    emoji: "📋" },
+const vendorMenuItems: SheetItem[] = [
+  { label: "出店者ダッシュボード", href: "/vendor/dashboard", icon: Store },
+  { label: "商品管理", href: "/vendor/products", icon: Package },
+  { label: "注文管理", href: "/vendor/orders", icon: ClipboardList },
 ];
 
-const adminMenuItems = [
-  { label: "管理ダッシュボード", href: "/admin/dashboard", emoji: "⚙️" },
-  { label: "ユーザー管理",       href: "/admin/users",     emoji: "👥" },
-  { label: "コンテンツ管理",     href: "/admin/content",   emoji: "📝" },
+const adminMenuItems: SheetItem[] = [
+  { label: "管理ダッシュボード", href: "/admin/dashboard", icon: LayoutDashboard },
+  { label: "ユーザー管理", href: "/admin/users", icon: Users },
+  { label: "コンテンツ管理", href: "/admin/content", icon: FileText },
 ];
+
+/** iOS のシートに近い、最後にすっと止まる曲線 */
+const EASE_OUT_SHEET: [number, number, number, number] = [0.32, 0.72, 0, 1];
+const EASE_IN_SHEET: [number, number, number, number] = [0.4, 0, 1, 1];
+
+// ─── body のスクロール固定 ────────────────────────────────────────────────────
+/**
+ * NavigationBar はマップ読み込み中など同時に2つ描かれることがあるので、
+ * 数を数えてから外す。片方が閉じただけで背面が動き出さないようにする。
+ */
+let scrollLockCount = 0;
+
+function lockBodyScroll() {
+  scrollLockCount += 1;
+  if (scrollLockCount === 1) document.body.style.overflow = "hidden";
+}
+
+function unlockBodyScroll() {
+  scrollLockCount = Math.max(0, scrollLockCount - 1);
+  if (scrollLockCount === 0) document.body.style.overflow = "";
+}
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 type NavigationBarProps = {
@@ -74,10 +130,34 @@ function NavigationBarInner({
   const { isMenuOpen: menuOpen, toggleMenu, closeMenu } = useMenu();
   const { isLinkVisible } = usePageVisibility();
   const { startMapLoading } = useMapLoading();
+  const prefersReducedMotion = useReducedMotion();
+  const dragControls = useDragControls();
+  const menuButtonRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     onMenuOpenChange?.(menuOpen);
   }, [menuOpen, onMenuOpenChange]);
+
+  // 開いている間は背面を固定し、Esc で閉じられるようにする
+  useEffect(() => {
+    if (!menuOpen) return;
+    lockBodyScroll();
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") closeMenu();
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      unlockBodyScroll();
+    };
+  }, [menuOpen, closeMenu]);
+
+  // 閉じたらメニューボタンへフォーカスを戻す（キーボード操作が迷子にならないように）
+  const wasMenuOpen = useRef(false);
+  useEffect(() => {
+    if (wasMenuOpen.current && !menuOpen) menuButtonRef.current?.focus();
+    wasMenuOpen.current = menuOpen;
+  }, [menuOpen]);
 
   const panel = searchParams?.get("panel");
   const isRoleConsoleArea =
@@ -93,7 +173,7 @@ function NavigationBarInner({
   const isConsultVisible = isLinkVisible(consultItem.target ?? consultItem.href);
   const rightNavItems = (
     permissions.isAdmin
-      ? [...baseNavItems.slice(1), { name: "管理", href: "/admin/dashboard", icon: "admin" as const }]
+      ? [...baseNavItems.slice(1), { name: "管理", href: "/admin/dashboard", icon: Settings }]
       : baseNavItems.slice(1)
   ).filter((item) => isLinkVisible(item.target ?? item.href));
   const visibleSecondaryItems = secondaryMenuItems.filter((item) => isLinkVisible(item.href));
@@ -123,13 +203,28 @@ function NavigationBarInner({
     goToMap();
   };
 
+  /** ハンドルを下に引いたら閉じる */
+  const handleDragEnd = (_event: unknown, info: PanInfo) => {
+    if (info.offset.y > 90 || info.velocity.y > 600) closeMenu();
+  };
+
   const roleLabel = permissions.isAdmin
-    ? { text: "管理者", color: "bg-red-100 text-red-700" }
+    ? "管理者"
     : permissions.isModerator
-    ? { text: "モデレーター", color: "bg-purple-100 text-purple-700" }
+    ? "モデレーター"
     : permissions.isVendor
-    ? { text: "出店者", color: "bg-amber-100 text-amber-700" }
+    ? "出店者"
     : null;
+
+  // シートは「ひとかたまり」で上がってくる。要素ごとに遅れて現れると点滅して見えるので、
+  // 中身には一切アニメーションを掛けない。
+  const sheetTransition = prefersReducedMotion
+    ? { duration: 0 }
+    : { duration: 0.46, ease: EASE_OUT_SHEET };
+  const sheetExitTransition = prefersReducedMotion
+    ? { duration: 0 }
+    : { duration: 0.24, ease: EASE_IN_SHEET };
+  const fadeTransition = { duration: prefersReducedMotion ? 0 : 0.2 };
 
   if (isRoleConsoleArea) return null;
 
@@ -145,188 +240,135 @@ function NavigationBarInner({
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              transition={{ duration: 0.2 }}
-              className="fixed inset-0 z-[9995] bg-black/40 backdrop-blur-sm"
+              transition={fadeTransition}
+              className="fixed inset-0 z-[9995] bg-slate-900/40 backdrop-blur-[3px]"
               onClick={closeMenu}
+              aria-hidden
             />
 
             {/* シート本体 */}
             <motion.div
               key="sheet"
+              role="dialog"
+              aria-modal="true"
+              aria-label="メニュー"
+              tabIndex={-1}
               initial={{ y: "100%" }}
               animate={{ y: 0 }}
-              exit={{ y: "100%" }}
-              transition={{ type: "spring", damping: 32, stiffness: 340 }}
-              className="fixed bottom-0 left-0 right-0 z-[9996] rounded-t-[2rem] bg-[#FFFCF7] shadow-2xl"
+              exit={{ y: "100%", transition: sheetExitTransition }}
+              transition={sheetTransition}
+              drag="y"
+              dragListener={false}
+              dragControls={dragControls}
+              dragConstraints={{ top: 0, bottom: 0 }}
+              dragElastic={{ top: 0, bottom: 0.55 }}
+              dragMomentum={false}
+              onDragEnd={handleDragEnd}
+              className="fixed bottom-0 left-0 right-0 z-[9996] mx-auto w-full max-w-lg rounded-t-[28px] bg-[#FFFCF7] shadow-[0_-16px_48px_-12px_rgba(15,23,42,0.28)] ring-1 ring-slate-900/5 outline-none"
               style={{ paddingBottom: "calc(var(--safe-bottom, 0px) + 5.5rem)" }}
             >
-              {/* ドラッグハンドル */}
-              <div className="mx-auto mt-3.5 mb-0 h-[5px] w-12 rounded-full bg-gray-200/80" />
+              {/* ドラッグハンドル（下に引くと閉じる） */}
+              <div
+                onPointerDown={(event) => dragControls.start(event)}
+                className="flex cursor-grab touch-none justify-center pb-1 pt-3 active:cursor-grabbing"
+              >
+                <span className="h-[5px] w-11 rounded-full bg-slate-300/80" aria-hidden />
+              </div>
 
               {/* スクロール領域 */}
-              <div className="max-h-[78dvh] overflow-y-auto overscroll-contain px-4 pb-3 pt-4">
+              <div className="max-h-[74dvh] overflow-y-auto overscroll-contain px-3 pb-2 pt-1">
 
-                {/* ─ ユーザーセクション ─ */}
+                {/* ─ ユーザー ─ */}
                 {isLoggedIn && user ? (
-                  <div className="mb-4 flex items-center gap-3.5 rounded-2xl bg-gradient-to-r from-amber-50 to-orange-50 px-4 py-3.5 ring-1 ring-amber-100">
+                  <button
+                    type="button"
+                    onClick={() => handleMenuItemClick("/my-profile")}
+                    className="flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left transition active:bg-black/[0.04]"
+                  >
                     {user.avatarUrl ? (
                       <Image
                         src={user.avatarUrl}
-                        alt={user.name}
-                        width={48}
-                        height={48}
-                        className="h-12 w-12 rounded-full object-cover ring-2 ring-white shadow-sm"
+                        alt=""
+                        width={40}
+                        height={40}
+                        className="h-10 w-10 shrink-0 rounded-full object-cover"
                       />
                     ) : (
-                      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-amber-400 to-orange-500 text-xl font-bold text-white shadow-sm ring-2 ring-white">
+                      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-amber-400 text-[15px] font-bold text-white">
                         {user.name.charAt(0).toUpperCase()}
-                      </div>
+                      </span>
                     )}
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-[15px] font-bold text-gray-900">{user.name}</p>
-                      {user.email && (
-                        <p className="truncate text-[12px] text-gray-500 mt-0.5">{user.email}</p>
-                      )}
-                    </div>
+                    <span className="min-w-0 flex-1 truncate text-[15px] font-semibold text-slate-900">
+                      {user.name}
+                    </span>
                     {roleLabel && (
-                      <span className={`shrink-0 rounded-full px-3 py-1 text-[11px] font-bold ${roleLabel.color}`}>
-                        {roleLabel.text}
-                      </span>
+                      <span className="shrink-0 text-[12px] font-medium text-slate-400">{roleLabel}</span>
                     )}
-                  </div>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => handleMenuItemClick("/login")}
-                    className="mb-4 flex w-full items-center gap-4 rounded-2xl border-2 border-dashed border-amber-200 bg-amber-50/50 px-4 py-4 text-left transition active:scale-[0.98] active:bg-amber-50"
-                  >
-                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-amber-100">
-                      <svg className="h-6 w-6 text-amber-500" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24" aria-hidden>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" />
-                      </svg>
-                    </div>
-                    <div>
-                      <p className="text-[15px] font-bold text-gray-800">ログイン / 登録</p>
-                      <p className="mt-0.5 text-[12px] text-gray-400">アカウントでもっと便利に</p>
-                    </div>
-                    <svg className="ml-auto h-5 w-5 text-gray-300" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-                    </svg>
                   </button>
+                ) : (
+                  <MenuRow
+                    icon={LogIn}
+                    label="ログイン / 登録"
+                    onClick={() => handleMenuItemClick("/login")}
+                  />
                 )}
 
-                {/* ─ プライマリ：バッグ ─ */}
+                <MenuDivider />
+
+                {/* ─ 主なリンク ─ */}
                 {isBagVisible && (
-                <button
-                  type="button"
-                  onClick={() => handleMenuItemClick("/bag")}
-                  className={`mb-4 flex w-full items-center gap-3 rounded-2xl px-4 py-3.5 text-left transition active:scale-[0.98] ${
-                    bagItems.length > 0
-                      ? "border border-amber-200 bg-amber-50"
-                      : "border border-slate-100 bg-white shadow-sm"
-                  }`}
-                >
-                  <div className="relative shrink-0">
-                    <span className="text-xl">🛍️</span>
-                    {bagItems.length > 0 && (
-                      <span className="absolute -right-1.5 -top-1.5 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-amber-500 px-1 text-[10px] font-bold leading-none text-white">
-                        {bagItems.length}
-                      </span>
-                    )}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className={`text-[14px] font-bold ${bagItems.length > 0 ? "text-amber-800" : "text-gray-700"}`}>
-                      バッグ
-                    </p>
-                    {bagItems.length > 0 && (
-                      <p className="text-[12px] text-amber-600">{bagItems.length}品入っています</p>
-                    )}
-                  </div>
-                  <svg className="h-4 w-4 shrink-0 text-gray-300" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-                  </svg>
-                </button>
+                  <MenuRow
+                    icon={ShoppingBag}
+                    label="バッグ"
+                    badge={bagItems.length > 0 ? bagItems.length : undefined}
+                    onClick={() => handleMenuItemClick("/bag")}
+                  />
                 )}
-
-                <hr className="mb-4 border-slate-100" />
-
-                {/* ─ セカンダリ：2列グリッド ─ */}
-                <div className="mb-4 grid grid-cols-2 gap-3">
-                  {visibleSecondaryItems.map((item, i) => (
-                    <motion.button
-                      key={item.href}
-                      initial={{ opacity: 0, scale: 0.92 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      transition={{ delay: i * 0.05, type: "spring", damping: 18, stiffness: 280 }}
-                      onClick={() => handleMenuItemClick(item.href)}
-                      className={`flex items-center gap-3 rounded-2xl border ${item.border} ${item.color} px-4 py-3.5 transition active:scale-[0.97] ${"wide" in item && item.wide ? "col-span-2" : ""}`}
-                    >
-                      <span className="text-xl">{item.emoji}</span>
-                      <span className={`text-[13px] font-bold ${item.textColor}`}>{item.label}</span>
-                    </motion.button>
-                  ))}
-                </div>
-
-                <hr className="mb-4 border-slate-100" />
+                {visibleSecondaryItems.map((item) => (
+                  <MenuRow
+                    key={item.href}
+                    icon={item.icon}
+                    label={item.label}
+                    onClick={() => handleMenuItemClick(item.href)}
+                  />
+                ))}
 
                 {/* ─ 出店者メニュー ─ */}
                 {(permissions.isVendor || permissions.isAdmin) && visibleVendorItems.length > 0 && (
-                  <div className="mb-4">
-                    <p className="mb-2.5 text-[11px] font-bold uppercase tracking-[0.14em] text-amber-500">出店者</p>
-                    <div className="overflow-hidden rounded-2xl border border-amber-100 bg-white shadow-sm">
-                      {visibleVendorItems.map((item, i) => (
-                        <button
-                          type="button"
-                          key={item.href}
-                          onClick={() => handleMenuItemClick(item.href)}
-                          className={`flex w-full items-center gap-4 px-4 py-[14px] text-left transition active:bg-amber-50 ${i !== 0 ? "border-t border-gray-100" : ""}`}
-                        >
-                          <span className="text-xl">{item.emoji}</span>
-                          <span className="flex-1 text-[14px] font-semibold text-gray-800">{item.label}</span>
-                          <svg className="h-4 w-4 text-gray-300" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24" aria-hidden>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-                          </svg>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
+                  <>
+                    <MenuDivider label="出店者" />
+                    {visibleVendorItems.map((item) => (
+                      <MenuRow
+                        key={item.href}
+                        icon={item.icon}
+                        label={item.label}
+                        onClick={() => handleMenuItemClick(item.href)}
+                      />
+                    ))}
+                  </>
                 )}
 
                 {/* ─ 管理メニュー ─ */}
                 {permissions.isAdmin && (
-                  <div className="mb-4">
-                    <p className="mb-2.5 text-[11px] font-bold uppercase tracking-[0.14em] text-red-400">管理者</p>
-                    <div className="overflow-hidden rounded-2xl border border-red-100 bg-white shadow-sm">
-                      {adminMenuItems.map((item, i) => (
-                        <button
-                          type="button"
-                          key={item.href}
-                          onClick={() => handleMenuItemClick(item.href)}
-                          className={`flex w-full items-center gap-4 px-4 py-[14px] text-left transition active:bg-red-50 ${i !== 0 ? "border-t border-gray-100" : ""}`}
-                        >
-                          <span className="text-xl">{item.emoji}</span>
-                          <span className="flex-1 text-[14px] font-semibold text-gray-800">{item.label}</span>
-                          <svg className="h-4 w-4 text-gray-300" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24" aria-hidden>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-                          </svg>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
+                  <>
+                    <MenuDivider label="管理者" />
+                    {adminMenuItems.map((item) => (
+                      <MenuRow
+                        key={item.href}
+                        icon={item.icon}
+                        label={item.label}
+                        onClick={() => handleMenuItemClick(item.href)}
+                      />
+                    ))}
+                  </>
                 )}
 
                 {/* ─ ログアウト ─ */}
                 {isLoggedIn && (
-                  <button
-                    type="button"
-                    onClick={handleLogout}
-                    className="flex w-full items-center justify-center gap-2.5 rounded-2xl border border-gray-200 bg-white py-[14px] text-[14px] font-semibold text-gray-500 shadow-sm transition active:bg-gray-50 active:scale-[0.98]"
-                  >
-                    <svg className="h-[18px] w-[18px]" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0 0 13.5 3h-6a2.25 2.25 0 0 0-2.25 2.25v13.5A2.25 2.25 0 0 0 7.5 21h6a2.25 2.25 0 0 0 2.25-2.25V15m3 0 3-3m0 0-3-3m3 3H9" />
-                    </svg>
-                    ログアウト
-                  </button>
+                  <>
+                    <MenuDivider />
+                    <MenuRow icon={LogOut} label="ログアウト" muted onClick={handleLogout} />
+                  </>
                 )}
               </div>
             </motion.div>
@@ -340,7 +382,7 @@ function NavigationBarInner({
         className={`navigation-bar ${position} bottom-0 left-0 right-0 z-[9997] border-t text-sm leading-none shadow-sm transition-colors duration-300 ${
           isCloseUxActive
             ? "cursor-pointer border-green-500 bg-green-500"
-            : "border-gray-200/60 bg-white/90 backdrop-blur-md"
+            : "border-slate-200/60 bg-white/90 backdrop-blur-md"
         }`}
         style={{ paddingBottom: "var(--safe-bottom, 0px)" }}
       >
@@ -354,11 +396,12 @@ function NavigationBarInner({
               <button
                 type="button"
                 onClick={onConsultClick}
-                className="group flex h-full flex-1 flex-col items-center justify-center gap-1 text-gray-400 transition-all duration-200 hover:bg-gray-50/50 hover:text-gray-600"
+                className="group flex h-full flex-1 flex-col items-center justify-center gap-1 text-slate-400 transition-colors duration-200 hover:text-slate-600"
               >
-                <NavIcon
-                  name={consultItem.icon}
-                  className="h-6 w-6 transition-transform duration-200 group-hover:scale-105"
+                <consultItem.icon
+                  className="h-[22px] w-[22px] transition-transform duration-200 group-hover:scale-105 group-active:scale-95"
+                  strokeWidth={1.7}
+                  aria-hidden
                 />
                 <span className="text-[10px] font-medium leading-none tracking-tight">
                   {consultItem.name}
@@ -374,18 +417,41 @@ function NavigationBarInner({
             {/* 中央：メニューボタン */}
             <div className="flex flex-1 items-center justify-center">
               <button
+                ref={menuButtonRef}
                 type="button"
                 onClick={toggleMenu}
-                className="flex flex-col items-center gap-1 transition-all duration-200 active:scale-95"
+                aria-expanded={menuOpen}
+                aria-haspopup="dialog"
+                aria-label={menuOpen ? "メニューを閉じる" : "メニューを開く"}
+                className="flex flex-col items-center gap-1"
               >
-                <motion.div
-                  animate={menuOpen ? { rotate: 45, scale: 1.1 } : { rotate: 0, scale: 1 }}
-                  transition={{ type: "spring", damping: 20, stiffness: 300 }}
-                  className="flex h-11 w-11 items-center justify-center rounded-full bg-gray-900 text-white shadow-md"
+                <motion.span
+                  animate={{ scale: menuOpen ? 1.06 : 1 }}
+                  whileTap={{ scale: 0.94 }}
+                  transition={
+                    prefersReducedMotion
+                      ? { duration: 0 }
+                      : { type: "spring", damping: 24, stiffness: 420 }
+                  }
+                  className="relative flex h-11 w-11 items-center justify-center rounded-full bg-slate-900 text-white shadow-[0_6px_16px_-4px_rgba(15,23,42,0.5)]"
                 >
-                  <MenuGridIcon className="h-5 w-5" />
-                </motion.div>
-                <span className="text-[10px] font-medium leading-none tracking-tight text-gray-500">
+                  {/* 開閉でアイコンを重ねて入れ替える（回転だけだと格子も×も見た目が変わらない） */}
+                  <motion.span
+                    className="absolute inset-0 flex items-center justify-center"
+                    animate={{ opacity: menuOpen ? 0 : 1, scale: menuOpen ? 0.7 : 1 }}
+                    transition={fadeTransition}
+                  >
+                    <LayoutGrid className="h-[19px] w-[19px]" strokeWidth={2} aria-hidden />
+                  </motion.span>
+                  <motion.span
+                    className="absolute inset-0 flex items-center justify-center"
+                    animate={{ opacity: menuOpen ? 1 : 0, scale: menuOpen ? 1 : 0.7 }}
+                    transition={fadeTransition}
+                  >
+                    <X className="h-[21px] w-[21px]" strokeWidth={2.2} aria-hidden />
+                  </motion.span>
+                </motion.span>
+                <span className="text-[10px] font-medium leading-none tracking-tight text-slate-500">
                   メニュー
                 </span>
               </button>
@@ -409,9 +475,7 @@ function NavigationBarInner({
           <div className="mx-auto flex h-14 max-w-lg items-center justify-center">
             <div className="flex flex-col items-center gap-1">
               <div className="flex h-9 w-9 items-center justify-center rounded-full bg-white/20">
-                <svg className="h-5 w-5 text-white" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24" aria-hidden>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                </svg>
+                <X className="h-5 w-5 text-white" strokeWidth={2.4} aria-hidden />
               </div>
               <span className="text-[10px] font-medium leading-none tracking-tight text-white/80">
                 閉じる
@@ -424,11 +488,9 @@ function NavigationBarInner({
             <button
               type="button"
               onClick={goToMap}
-              className="flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold text-gray-600 transition active:scale-95 hover:bg-gray-100"
+              className="flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold text-slate-600 transition active:scale-95 hover:bg-slate-100"
             >
-              <svg className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
-              </svg>
+              <ArrowLeft className="h-[18px] w-[18px]" strokeWidth={2} aria-hidden />
               マップにもどる
             </button>
           </div>
@@ -438,23 +500,71 @@ function NavigationBarInner({
   );
 }
 
+// ─── シートの部品 ─────────────────────────────────────────────────────────────
+/** メニューの1行。アイコン・字送り・高さを全項目で揃える */
+function MenuRow({
+  icon: Icon,
+  label,
+  badge,
+  muted = false,
+  onClick,
+}: {
+  icon: LucideIcon;
+  label: string;
+  badge?: number;
+  muted?: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex w-full items-center gap-3.5 rounded-2xl px-3 py-3 text-left transition active:bg-black/[0.04]"
+    >
+      <Icon
+        className={`h-[21px] w-[21px] shrink-0 ${muted ? "text-slate-400" : "text-slate-500"}`}
+        strokeWidth={1.7}
+        aria-hidden
+      />
+      <span className={`flex-1 text-[15px] font-medium ${muted ? "text-slate-500" : "text-slate-800"}`}>
+        {label}
+      </span>
+      {badge !== undefined && (
+        <span className="flex h-[22px] min-w-[22px] items-center justify-center rounded-full bg-amber-500 px-1.5 text-[11px] font-bold leading-none text-white">
+          {badge}
+        </span>
+      )}
+    </button>
+  );
+}
+
+/** 区切り線。見出しを添えるときは線の代わりに小さな文字を置く */
+function MenuDivider({ label }: { label?: string }) {
+  if (label) {
+    return (
+      <p className="mb-1 mt-4 px-3 text-[11px] font-semibold tracking-wide text-slate-400">{label}</p>
+    );
+  }
+  return <div className="my-2 h-px bg-slate-900/[0.06]" />;
+}
+
 // ─── NavLinkItem ──────────────────────────────────────────────────────────────
 function NavLinkItem({ item, isActive }: { item: NavItem; isActive: boolean }) {
+  const Icon = item.icon;
   return (
     <Link
       href={item.href}
       prefetch={false}
-      className={`group flex h-full flex-1 flex-col items-center justify-center gap-1 transition-all duration-200 ${
-        isActive
-          ? "text-amber-600"
-          : "text-gray-400 hover:bg-gray-50/50 hover:text-gray-600"
+      className={`group flex h-full flex-1 flex-col items-center justify-center gap-1 transition-colors duration-200 ${
+        isActive ? "text-amber-600" : "text-slate-400 hover:text-slate-600"
       }`}
     >
-      <NavIcon
-        name={item.icon}
-        className={`h-6 w-6 transition-transform duration-200 ${
+      <Icon
+        className={`h-[22px] w-[22px] transition-transform duration-200 group-active:scale-95 ${
           isActive ? "scale-105" : "group-hover:scale-105"
         }`}
+        strokeWidth={isActive ? 2 : 1.7}
+        aria-hidden
       />
       <span className="text-[10px] font-medium leading-none tracking-tight">
         {item.name}
@@ -469,71 +579,4 @@ export default function NavigationBar(props: NavigationBarProps) {
       <NavigationBarInner {...props} />
     </Suspense>
   );
-}
-
-// ─── Icons ────────────────────────────────────────────────────────────────────
-function MenuGridIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="currentColor" viewBox="0 0 24 24" aria-hidden>
-      <rect x="3"  y="3"  width="7" height="7" rx="1.5" />
-      <rect x="14" y="3"  width="7" height="7" rx="1.5" />
-      <rect x="3"  y="14" width="7" height="7" rx="1.5" />
-      <rect x="14" y="14" width="7" height="7" rx="1.5" />
-    </svg>
-  );
-}
-
-type NavIconProps = { name: NavItem["icon"]; className?: string };
-
-function NavIcon({ name, className }: NavIconProps) {
-  const props = {
-    className,
-    fill: "none",
-    stroke: "currentColor",
-    strokeWidth: 1.6,
-    viewBox: "0 0 24 24",
-    "aria-hidden": true,
-  } as const;
-
-  switch (name) {
-    case "search":
-      return (
-        <svg {...props}>
-          <circle cx="11" cy="11" r="6.5" />
-          <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 16.5 20 20" />
-        </svg>
-      );
-    case "chat":
-      return (
-        <svg {...props}>
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            d="M4.5 6.75A2.25 2.25 0 0 1 6.75 4.5h10.5A2.25 2.25 0 0 1 19.5 6.75v6A2.25 2.25 0 0 1 17.25 15H9l-3.75 3v-3H6.75A2.25 2.25 0 0 1 4.5 12.75v-6Z"
-          />
-        </svg>
-      );
-    case "story":
-      return (
-        <svg {...props}>
-          <rect x="3" y="3" width="7" height="7" rx="1" strokeLinecap="round" strokeLinejoin="round" />
-          <rect x="14" y="3" width="7" height="7" rx="1" strokeLinecap="round" strokeLinejoin="round" />
-          <rect x="3" y="14" width="7" height="7" rx="1" strokeLinecap="round" strokeLinejoin="round" />
-          <rect x="14" y="14" width="7" height="7" rx="1" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-      );
-    case "admin":
-      return (
-        <svg {...props}>
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            d="M10.343 3.94c.09-.542.56-.94 1.11-.94h1.093c.55 0 1.02.398 1.11.94l.149.894c.07.424.384.764.78.93.398.164.855.142 1.205-.108l.737-.527a1.125 1.125 0 0 1 1.45.12l.773.774c.39.389.44 1.002.12 1.45l-.527.737c-.25.35-.272.806-.107 1.204.165.397.505.71.93.78l.893.15c.543.09.94.56.94 1.109v1.094c0 .55-.397 1.02-.94 1.11l-.893.149c-.425.07-.765.383-.93.78-.165.398-.143.854.107 1.204l.527.738c.32.447.269 1.06-.12 1.45l-.774.773a1.125 1.125 0 0 1-1.449.12l-.738-.527c-.35-.25-.806-.272-1.203-.107-.397.165-.71.505-.781.929l-.149.894c-.09.542-.56.94-1.11.94h-1.094c-.55 0-1.019-.398-1.11-.94l-.148-.894c-.071-.424-.384-.764-.781-.93-.398-.164-.854-.142-1.204.108l-.738.527c-.447.32-1.06.269-1.45-.12l-.773-.774a1.125 1.125 0 0 1-.12-1.45l.527-.737c.25-.35.273-.806.108-1.204-.165-.397-.505-.71-.93-.78l-.894-.15c-.542-.09-.94-.56-.94-1.109v-1.094c0-.55.398-1.02.94-1.11l.894-.149c.424-.07.765-.383.93-.78.165-.398.143-.854-.107-1.204l-.527-.738a1.125 1.125 0 0 1 .12-1.45l.773-.773a1.125 1.125 0 0 1 1.45-.12l.737.527c.35.25.807.272 1.204.107.397-.165.71-.505.78-.929l.15-.894Z"
-          />
-          <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
-        </svg>
-      );
-    default:
-      return null;
-  }
 }
