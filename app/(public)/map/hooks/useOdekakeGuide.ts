@@ -23,6 +23,7 @@ import { landmarkToSpot, type MapSpot, type SpotKind } from '@/lib/spots';
 import { distanceInMeters, type LatLng } from '@/lib/facilities/geo';
 import {
   buildGuideNetworkForMap,
+  findGuideRoute,
   geolocationOrigin,
   rankSpots,
   type GuideNetwork,
@@ -31,6 +32,7 @@ import {
   type WalkNetworkData,
 } from '@/lib/guide';
 import type { GuideQuery } from '@/lib/guide/query';
+import { sendEvent } from '@/lib/analytics/sendEvent';
 
 /** この距離以内に近づいたら「到着」 */
 const ARRIVAL_METERS = 25;
@@ -298,6 +300,42 @@ export function useOdekakeGuide({
     return distanceInMeters(origin.point, selected.spot) <= ARRIVAL_METERS;
   }, [navigating, origin, selected]);
 
+  // ── 利用ログ（open / navigation_start / arrived / navigation_stop） ──
+  const eventContext = useCallback(
+    (spot?: MapSpot | null) => {
+      const entry = spot ? ranked.find((e) => e.spot.id === spot.id) : null;
+      // 一覧にまだ無いスポット（種類を足した直後）は、その場で経路を計算して記録する
+      const route =
+        entry?.route ??
+        (spot && origin ? findGuideRoute(origin.point, spot, network, { destinationName: spot.name }) : null);
+      return {
+        kinds,
+        spot_key: spot?.landmarkKey ?? null,
+        origin_type: origin?.type ?? null,
+        walk_minutes: route?.walkMinutes ?? null,
+        distance_meters: route ? Math.round(route.distanceMeters) : null,
+      };
+    },
+    [kinds, network, origin, ranked]
+  );
+  const eventContextRef = useRef(eventContext);
+  eventContextRef.current = eventContext;
+
+  // guide_open は位置情報の状態が確定してから（許可の可否が origin_type に反映されてから）1回だけ送る
+  const openLoggedKeyRef = useRef<string | null>(null);
+  const geoSettled = geoStatus !== 'checking' && geoStatus !== 'requesting';
+  useEffect(() => {
+    if (!active) {
+      openLoggedKeyRef.current = null;
+      return;
+    }
+    if (!geoSettled || openLoggedKeyRef.current === queryKey) return;
+    openLoggedKeyRef.current = queryKey;
+    sendEvent('guide_open', eventContextRef.current(), { toServer: true });
+  }, [active, geoSettled, queryKey]);
+
+  const arrivedLoggedRef = useRef<string | null>(null);
+
   const select = useCallback((id: string | null) => {
     setSelectedId(id);
     if (id === null) setNavigating(false);
@@ -317,9 +355,12 @@ export function useOdekakeGuide({
       }
       pendingNavigationRef.current = null;
       setNavigating(true);
+      arrivedLoggedRef.current = null;
+      sendEvent('guide_navigation_start', eventContextRef.current(spot), { toServer: true });
     },
     [geolocation, kinds, requestLocation]
   );
+  // 許可待ちだったスポットは、現在地が取れたら自動で案内を始める（ログもここで送る）
   useEffect(() => {
     if (!geolocation || !pendingNavigationRef.current) return;
     if (selectedId !== pendingNavigationRef.current) {
@@ -328,14 +369,26 @@ export function useOdekakeGuide({
     }
     pendingNavigationRef.current = null;
     setNavigating(true);
-  }, [geolocation, selectedId]);
+    arrivedLoggedRef.current = null;
+    const spot = ranked.find((e) => e.spot.id === selectedId)?.spot ?? spots.find((s) => s.id === selectedId);
+    if (spot) sendEvent('guide_navigation_start', eventContextRef.current(spot), { toServer: true });
+  }, [geolocation, ranked, selectedId, spots]);
   useEffect(() => {
     if (!active) pendingNavigationRef.current = null;
   }, [active]);
   const stopNavigation = useCallback(() => {
     pendingNavigationRef.current = null;
     setNavigating(false);
-  }, []);
+    if (selected && arrivedLoggedRef.current !== selected.spot.id) {
+      sendEvent('guide_navigation_stop', eventContextRef.current(selected.spot), { toServer: true });
+    }
+  }, [selected]);
+
+  useEffect(() => {
+    if (!arrived || !selected || arrivedLoggedRef.current === selected.spot.id) return;
+    arrivedLoggedRef.current = selected.spot.id;
+    sendEvent('guide_arrived', eventContextRef.current(selected.spot), { toServer: true });
+  }, [arrived, selected]);
 
   return {
     active,
