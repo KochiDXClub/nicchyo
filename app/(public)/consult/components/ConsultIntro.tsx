@@ -93,7 +93,7 @@ export default function ConsultIntro({ targetRef, onSettled }: ConsultIntroProps
   return (
     <div
       // 下のナビゲーションバー（z-[9997]）より下に置く。
-      // 入りの1秒足らずで行き先を選べなくなるのは、待たせ方として重い
+      // 入りの2秒ほど行き先を選べなくなるのは、待たせ方として重い
       className={`consult-intro fixed inset-0 z-[9990] overflow-hidden transition-opacity duration-200 ${
         leaving ? "pointer-events-none opacity-0" : "opacity-100"
       }`}
