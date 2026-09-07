@@ -209,10 +209,10 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
     access: "admin",
     items: [
       {
-        label: "AIプロンプト",
+        label: "AIの設定",
         href: "/admin/ai-prompts",
         icon: Bot,
-        description: "にちよさんたちの話し方と答え方を調整する",
+        description: "話し方と答え方、場面ごとに使うAIモデルを調整する",
       },
       {
         label: "設定",

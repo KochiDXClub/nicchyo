@@ -194,8 +194,202 @@ export function isAiUseCase(value: unknown): value is AiUseCase {
   return typeof value === "string" && AI_USE_CASE_DEF_BY_KEY.has(value as AiUseCase);
 }
 
-export function isAiModelId(value: unknown): value is string {
-  return typeof value === "string" && AI_MODEL_DEF_BY_ID.has(value);
+// ─── 台帳（DB の ai_models / ai_use_cases）───────────────────────────────
+
+/**
+ * 選べるモデルと、AIを使っている機能の一覧。
+ *
+ * 実体は DB の ai_models / ai_use_cases。**モデルはDBに行を足すだけで増やせる**
+ * （能力の列も行が持っているため）。DBが読めないときは下の CODE_AI_CATALOG に落ちる。
+ *
+ * 一方で **機能はDBに行を足しても増えない。** 実際にモデルを使うのはコード側の
+ * 呼び出し（resolveAiModelFor("consult") など）で、AI_USE_CASES に無いキーの行は
+ * どこからも参照されない。行はコードが持つ機能に対応する台帳という位置づけ。
+ */
+export type AiCatalog = {
+  models: readonly AiModelDef[];
+  useCases: readonly AiUseCaseDef[];
+};
+
+/** DBが読めないときに使うコード側の台帳 */
+export const CODE_AI_CATALOG: AiCatalog = {
+  models: AI_MODEL_DEFS,
+  useCases: AI_USE_CASE_DEFS,
+};
+
+/**
+ * DBの CHECK 制約（ai_models_reasoning_efforts_valid）と同じ語彙。
+ * ここを増やすときはマイグレーションも要る（models.test.ts が突き合わせる）
+ */
+export const REASONING_EFFORTS: readonly ReasoningEffort[] = [
+  "none",
+  "minimal",
+  "low",
+  "medium",
+  "high",
+  "xhigh",
+  "max",
+];
+
+export function isReasoningEffort(value: unknown): value is ReasoningEffort {
+  return typeof value === "string" && REASONING_EFFORTS.includes(value as ReasoningEffort);
+}
+
+export function findAiModel(catalog: AiCatalog, modelId: unknown): AiModelDef | undefined {
+  if (typeof modelId !== "string") return undefined;
+  return catalog.models.find((model) => model.id === modelId);
+}
+
+export function isAiModelId(catalog: AiCatalog, value: unknown): value is string {
+  return findAiModel(catalog, value) !== undefined;
+}
+
+/**
+ * 推論の余白の上限。これを超える値は台帳の書き間違いとみなす。
+ * DBの CHECK 制約（ai_models_headroom_bounded）と同値
+ */
+export const MAX_REASONING_HEADROOM_TOKENS = 32000;
+
+/**
+ * ai_models の1行を定義に変換する。
+ *
+ * **1列ずつ正しくても、組み合わせが壊れていれば捨てる。**
+ * 壊れた能力でリクエストを組むと、その機能の全リクエストが落ち続ける
+ * （あるいは本文が空のまま 200 で返り続ける）。コード側の定義に落ちて
+ * 動き続けるほうが被害が小さい。
+ *
+ * なお **同じIDの行が汚染された場合、コード側の定義はフォールバックにならない**
+ * （findAiModel が台帳の行を先に引くため）。だからここで内部矛盾を弾く必要がある。
+ * DB側にも同じ不変条件を CHECK 制約として置いてある。
+ */
+export function parseAiModelRow(row: unknown): AiModelDef | null {
+  if (!row || typeof row !== "object") return null;
+  const r = row as Record<string, unknown>;
+
+  const id = typeof r.id === "string" ? r.id.trim() : "";
+  const label = typeof r.label === "string" ? r.label.trim() : "";
+  if (!id || !label) return null;
+
+  // 提供終了は読み取り側の .eq("is_selectable", true) でも絞っているが、
+  // ここでも落とす。台帳を読む経路がフィルタを1つ書き忘れるだけで復活するため
+  if (r.is_selectable === false) return null;
+
+  const tokenParam = r.token_param;
+  if (tokenParam !== "max_tokens" && tokenParam !== "max_completion_tokens") return null;
+
+  const efforts = Array.isArray(r.reasoning_efforts)
+    ? r.reasoning_efforts.filter(isReasoningEffort)
+    : [];
+
+  // 推論モデルに max_tokens を送ると 400 で全リクエストが落ちる
+  if (efforts.length > 0 && tokenParam !== "max_completion_tokens") return null;
+
+  const rawHeadroom = Number(r.reasoning_headroom_tokens);
+  const headroom = Number.isFinite(rawHeadroom)
+    ? Math.min(Math.max(rawHeadroom, 0), MAX_REASONING_HEADROOM_TOKENS)
+    : 0;
+
+  // 実際に考えさせる深さを持つのに余白が無いと、推論だけで出力上限を使い切り、
+  // エラーにならないまま本文が空で返る
+  if (efforts.some(usesThinkingTokens) && headroom === 0) return null;
+
+  const priceIn = Number(r.price_input_per_mtok);
+  const priceOut = Number(r.price_output_per_mtok);
+
+  return {
+    id,
+    label,
+    description: typeof r.description === "string" ? r.description : "",
+    tokenParam,
+    // 判断できない値は「送らない」に倒す。送って 400 になるより被害が小さい
+    supportsTemperature: r.supports_temperature === true,
+    reasoningEfforts: efforts,
+    reasoningHeadroomTokens: headroom,
+    pricing: {
+      input: Number.isFinite(priceIn) ? priceIn : 0,
+      output: Number.isFinite(priceOut) ? priceOut : 0,
+    },
+  };
+}
+
+/** ai_use_cases の1行から、機能の定義といま当てているモデルを取り出す */
+export function parseAiUseCaseRow(
+  row: unknown
+): { def: AiUseCaseDef; choice: AiModelChoice | null } | null {
+  if (!row || typeof row !== "object") return null;
+  const r = row as Record<string, unknown>;
+
+  // コードが呼んでいない機能の行は無視する。
+  // 行を足しても新しいAI機能は生まれない（呼び出し側はコードにしかない）
+  if (!isAiUseCase(r.key)) return null;
+  const fallback = AI_USE_CASE_DEF_BY_KEY.get(r.key);
+  if (!fallback) return null;
+
+  const label = typeof r.label === "string" && r.label.trim() ? r.label.trim() : fallback.label;
+  const description =
+    typeof r.description === "string" && r.description.trim()
+      ? r.description.trim()
+      : fallback.description;
+
+  const choice =
+    typeof r.model_id === "string" && r.model_id.trim()
+      ? {
+          modelId: r.model_id.trim(),
+          ...(isReasoningEffort(r.reasoning_effort)
+            ? { reasoningEffort: r.reasoning_effort }
+            : {}),
+        }
+      : null;
+
+  return {
+    def: { useCase: r.key, label, description, defaultModelId: fallback.defaultModelId },
+    choice,
+  };
+}
+
+/**
+ * DBの行から台帳を組み立てる。
+ * どちらか片方でも読めなければ、その側だけコード側の定義に落ちる。
+ */
+export function buildAiCatalog(modelRows: unknown, useCaseRows: unknown): AiCatalog {
+  const models = Array.isArray(modelRows)
+    ? modelRows.map(parseAiModelRow).filter((def): def is AiModelDef => def !== null)
+    : [];
+  const useCases = Array.isArray(useCaseRows)
+    ? useCaseRows
+        .map(parseAiUseCaseRow)
+        .filter((parsed): parsed is { def: AiUseCaseDef; choice: AiModelChoice | null } => parsed !== null)
+        .map((parsed) => parsed.def)
+    : [];
+
+  return {
+    models: models.length > 0 ? models : CODE_AI_CATALOG.models,
+    useCases: useCases.length > 0 ? useCases : CODE_AI_CATALOG.useCases,
+  };
+}
+
+/**
+ * ai_use_cases の行から、機能ごとの選択一式を組み立てる。
+ * model_id が null の機能はコード側の既定値のまま。
+ */
+export function normalizeAiModelSettings(catalog: AiCatalog, rows: unknown): AiModelSettingSet {
+  const result: AiModelSettingSet = { ...DEFAULT_AI_MODEL_SETTINGS };
+  if (!Array.isArray(rows)) return result;
+
+  for (const row of rows) {
+    const parsed = parseAiUseCaseRow(row);
+    if (!parsed || !parsed.choice) continue;
+    const validated = validateAiModelChoice(
+      catalog,
+      parsed.def.useCase,
+      parsed.choice.modelId,
+      parsed.choice.reasoningEffort
+    );
+    if (!validated.ok) continue;
+    result[validated.useCase] = validated.choice;
+  }
+
+  return result;
 }
 
 export type AiModelValidationError =
@@ -216,55 +410,32 @@ export type AiModelValidationResult =
  * （validateAiPromptBody と同じ方針）。
  */
 export function validateAiModelChoice(
+  catalog: AiCatalog,
   useCase: unknown,
   modelId: unknown,
   reasoningEffort?: unknown
 ): AiModelValidationResult {
   if (!isAiUseCase(useCase)) return { ok: false, reason: "unknown_use_case" };
-  if (!isAiModelId(modelId)) return { ok: false, reason: "unknown_model" };
 
-  const model = AI_MODEL_DEF_BY_ID.get(modelId);
+  const model = findAiModel(catalog, modelId);
+  // 台帳に無いモデルは通さない。管理画面からの入力をそのまま OpenAI に渡すと、
+  // 存在しないモデル名で全リクエストが落ちる
   if (!model) return { ok: false, reason: "unknown_model" };
 
   if (reasoningEffort === undefined || reasoningEffort === null || reasoningEffort === "") {
-    return { ok: true, useCase, choice: { modelId } };
+    return { ok: true, useCase, choice: { modelId: model.id } };
   }
   // 推論を受け付けないモデルに深さを指定させない。
   // 保存できてしまうと、モデルを戻したときに効かない設定が残り続ける
-  if (!model.reasoningEfforts.includes(reasoningEffort as ReasoningEffort)) {
+  if (!isReasoningEffort(reasoningEffort) || !model.reasoningEfforts.includes(reasoningEffort)) {
     return { ok: false, reason: "unsupported_reasoning_effort" };
   }
 
   return {
     ok: true,
     useCase,
-    choice: { modelId, reasoningEffort: reasoningEffort as ReasoningEffort },
+    choice: { modelId: model.id, reasoningEffort },
   };
-}
-
-/**
- * DBから読んだ行を、欠けている場面を既定値で埋めた完全な組に正規化する。
- *
- * 検証を通らなかった値はすべて既定値に落とす。設定が壊れていても
- * AIが動き続けることを優先する（normalizeAiPrompts と同じ方針）。
- */
-export function normalizeAiModelSettings(rows: unknown): AiModelSettingSet {
-  const result: AiModelSettingSet = { ...DEFAULT_AI_MODEL_SETTINGS };
-  if (!Array.isArray(rows)) return result;
-
-  for (const row of rows) {
-    if (!row || typeof row !== "object") continue;
-    const { use_case: useCase, model_id: modelId, reasoning_effort: effort } = row as {
-      use_case?: unknown;
-      model_id?: unknown;
-      reasoning_effort?: unknown;
-    };
-    const validated = validateAiModelChoice(useCase, modelId, effort);
-    if (!validated.ok) continue;
-    result[validated.useCase] = validated.choice;
-  }
-
-  return result;
 }
 
 /** 実際に使うモデルと推論の深さ。choice を定義と突き合わせて解決したもの */
@@ -273,11 +444,18 @@ export type ResolvedAiModel = {
   reasoningEffort?: ReasoningEffort;
 };
 
-export function resolveAiModelChoice(choice: AiModelChoice, useCase: AiUseCase): ResolvedAiModel {
+export function resolveAiModelChoice(
+  catalog: AiCatalog,
+  choice: AiModelChoice,
+  useCase: AiUseCase
+): ResolvedAiModel {
+  // 台帳に無いIDが保存されていても（提供終了したモデルを台帳から消した等）、
+  // コード側の既定値に落ちて動き続ける
   const def =
-    AI_MODEL_DEF_BY_ID.get(choice.modelId) ??
+    findAiModel(catalog, choice.modelId) ??
+    findAiModel(catalog, DEFAULT_AI_MODEL_SETTINGS[useCase].modelId) ??
     AI_MODEL_DEF_BY_ID.get(DEFAULT_AI_MODEL_SETTINGS[useCase].modelId);
-  // 既定値のIDが許可リストに無い、は定義の書き間違いなのでテストで落とす
+  // 既定値のIDがコード側の定義にも無い、は書き間違いなのでテストで落とす
   if (!def) throw new Error(`AIモデルの既定値が AI_MODEL_DEFS にありません: ${useCase}`);
 
   const effort =
