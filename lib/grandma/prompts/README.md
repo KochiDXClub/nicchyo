@@ -20,12 +20,25 @@ AIに送るプロンプト文の置き場所。**プロンプトの文面を直�
 | `consultRules.ts` | 相談のプロンプト文（会話ルール・内容ルール・出力ルール）。**葉モジュール。何も import しない** |
 | `consultSystemPrompt.ts` | 相談のシステムプロンプトの組み立て |
 | `consultCharacterProfiles.ts` | キャラ4人の `personality` / `speechStyle`（AIに渡す人格設定） |
-| `consultConversation.ts` | 掛け合いの構成パターンと、ストリーミング出力フォーマットの指示 |
+| `consultConversation.ts` | 発話数の上限（`CONSULT_MAX_TURNS`）と、ストリーミング出力フォーマットの指示 |
 | `shopChatPrompt.ts` | 店舗詳細ページのチャット |
 | `itineraryPrompt.ts` | 旅程プランナー |
 | `mapAgentPrompt.ts` | マップAIアシスタント |
 | `promptKeys.ts` | DBで上書きできるキーの定義と、既定値へのフォールバック |
 | `promptStore.server.ts` | `ai_prompts` からアクティブな文面を読む（サーバー専用） |
+
+## 1人語りの原則（何をコードで縛り、何をDBに任せるか）
+
+相談は「選ばれたキャラ1人がユーザーに話す」形にしている（2026-09 に2人の掛け合いから変更）。
+その際、コード側が決めることを次の3つだけに絞った。
+
+- 話し手は1人（`pickConsultCharacters()` が1人だけ返す）
+- 発話数は 1〜`CONSULT_MAX_TURNS`（JSON schema とストリーミング形式が受け取れる範囲）
+- 行フォーマット（TURN / SHOP_IDS / …）
+
+「発話はいくつか」「何文・何文字か」「答えをどう組み立てるか」「方言の濃さ」は
+すべて DB の `consult.conversation_rules` で決める。**コードに発話数や話者順の指示を
+足し戻さないこと。** 後ろに置いた具体的な指示ほど強く効くので、DBの文面が無視される。
 
 ## 運営が調整してよい文 / コード側の契約
 

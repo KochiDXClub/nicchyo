@@ -21,12 +21,7 @@ export {
   CONSULT_CAST_HEADER,
   buildGrandmaAiSystemPrompt,
 } from "./consultSystemPrompt";
-export {
-  CONSULT_CONVERSATION_PATTERNS,
-  ALL_CAST_CONVERSATION_PATTERN,
-  buildConversationPatternPrompt,
-  buildStreamingFormatPrompt,
-} from "./consultConversation";
+export { CONSULT_MAX_TURNS, buildStreamingFormatPrompt } from "./consultConversation";
 export {
   SHOP_CHAT_PERSONA_RULES,
   SHOP_CHAT_CLOSING_INSTRUCTION,
