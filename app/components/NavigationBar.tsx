@@ -13,7 +13,9 @@ import {
 } from "framer-motion";
 import {
   ArrowLeft,
+  BarChart3,
   CalendarDays,
+  CircleHelp,
   ClipboardList,
   Compass,
   FileText,
@@ -22,19 +24,17 @@ import {
   LayoutGrid,
   LogIn,
   LogOut,
+  Mail,
   MessageCircle,
   Newspaper,
   Package,
   Settings,
-  ShoppingBag,
   Store,
-  UserRound,
   Users,
   X,
   type LucideIcon,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth/AuthContext";
-import { useBag } from "@/lib/storage/BagContext";
 import { useMenu } from "@/lib/ui/MenuContext";
 import { usePageVisibility } from "@/lib/pageVisibility/PageVisibilityContext";
 import { useMapLoading } from "./MapLoadingProvider";
@@ -62,11 +62,18 @@ type SheetItem = {
   icon: LucideIcon;
 };
 
-const secondaryMenuItems: SheetItem[] = [
+/** 日曜市を歩くときに使うページ */
+const visitMenuItems: SheetItem[] = [
   { label: "おでかけサポート", href: "/facilities", icon: Compass },
   { label: "日曜市カレンダー", href: "/calendar", icon: CalendarDays },
-  { label: "マイページ", href: "/my-profile", icon: UserRound },
+  { label: "日曜市をデータで見る", href: "/analysis", icon: BarChart3 },
+];
+
+/** nicchyo そのものについてのページ */
+const aboutMenuItems: SheetItem[] = [
   { label: "nicchyoとは", href: "/about", icon: Info },
+  { label: "よくある質問", href: "/faq", icon: CircleHelp },
+  { label: "お問い合わせ", href: "/contact", icon: Mail },
 ];
 
 // ─── 出店者・管理者メニュー ────────────────────────────────────────────────────
@@ -126,7 +133,6 @@ function NavigationBarInner({
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user, isLoggedIn, permissions, logout } = useAuth();
-  const { items: bagItems } = useBag();
   const { isMenuOpen: menuOpen, toggleMenu, closeMenu } = useMenu();
   const { isLinkVisible } = usePageVisibility();
   const { startMapLoading } = useMapLoading();
@@ -176,9 +182,9 @@ function NavigationBarInner({
       ? [...baseNavItems.slice(1), { name: "管理", href: "/admin/dashboard", icon: Settings }]
       : baseNavItems.slice(1)
   ).filter((item) => isLinkVisible(item.target ?? item.href));
-  const visibleSecondaryItems = secondaryMenuItems.filter((item) => isLinkVisible(item.href));
+  const visibleVisitItems = visitMenuItems.filter((item) => isLinkVisible(item.href));
+  const visibleAboutItems = aboutMenuItems.filter((item) => isLinkVisible(item.href));
   const visibleVendorItems = vendorMenuItems.filter((item) => isLinkVisible(item.href));
-  const isBagVisible = isLinkVisible("/bag");
 
   // router.push はリンクと違って Provider のクリック監視に掛からないので、/map へ向かう前に自分で始める
   const goToMap = useCallback(() => {
@@ -264,7 +270,7 @@ function NavigationBarInner({
               dragElastic={{ top: 0, bottom: 0.55 }}
               dragMomentum={false}
               onDragEnd={handleDragEnd}
-              className="fixed bottom-0 left-0 right-0 z-[9996] mx-auto w-full max-w-lg rounded-t-[28px] bg-[#FFFCF7] shadow-[0_-16px_48px_-12px_rgba(15,23,42,0.28)] ring-1 ring-slate-900/5 outline-none"
+              className="fixed bottom-0 left-0 right-0 z-[9996] mx-auto w-full max-w-lg rounded-t-[28px] bg-nicchyo-base shadow-[0_-16px_48px_-12px_rgba(58,58,58,0.3)] ring-1 ring-nicchyo-ink/[0.07] outline-none"
               style={{ paddingBottom: "calc(var(--safe-bottom, 0px) + 5.5rem)" }}
             >
               {/* ドラッグハンドル（下に引くと閉じる） */}
@@ -272,7 +278,7 @@ function NavigationBarInner({
                 onPointerDown={(event) => dragControls.start(event)}
                 className="flex cursor-grab touch-none justify-center pb-1 pt-3 active:cursor-grabbing"
               >
-                <span className="h-[5px] w-11 rounded-full bg-slate-300/80" aria-hidden />
+                <span className="h-[5px] w-11 rounded-full bg-nicchyo-ink/15" aria-hidden />
               </div>
 
               {/* スクロール領域 */}
@@ -283,7 +289,7 @@ function NavigationBarInner({
                   <button
                     type="button"
                     onClick={() => handleMenuItemClick("/my-profile")}
-                    className="flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left transition active:bg-black/[0.04]"
+                    className="flex w-full items-center gap-3.5 rounded-2xl px-3 py-3 text-left transition active:bg-nicchyo-ink/[0.05]"
                   >
                     {user.avatarUrl ? (
                       <Image
@@ -294,15 +300,15 @@ function NavigationBarInner({
                         className="h-10 w-10 shrink-0 rounded-full object-cover"
                       />
                     ) : (
-                      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-amber-400 text-[15px] font-bold text-white">
+                      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-nicchyo-primary text-[15px] font-bold text-white">
                         {user.name.charAt(0).toUpperCase()}
                       </span>
                     )}
-                    <span className="min-w-0 flex-1 truncate text-[15px] font-semibold text-slate-900">
+                    <span className="min-w-0 flex-1 truncate text-[15px] font-semibold text-nicchyo-ink">
                       {user.name}
                     </span>
                     {roleLabel && (
-                      <span className="shrink-0 text-[12px] font-medium text-slate-400">{roleLabel}</span>
+                      <span className="shrink-0 text-[12px] font-medium text-nicchyo-ink/45">{roleLabel}</span>
                     )}
                   </button>
                 ) : (
@@ -315,16 +321,8 @@ function NavigationBarInner({
 
                 <MenuDivider />
 
-                {/* ─ 主なリンク ─ */}
-                {isBagVisible && (
-                  <MenuRow
-                    icon={ShoppingBag}
-                    label="バッグ"
-                    badge={bagItems.length > 0 ? bagItems.length : undefined}
-                    onClick={() => handleMenuItemClick("/bag")}
-                  />
-                )}
-                {visibleSecondaryItems.map((item) => (
+                {/* ─ 日曜市を歩くためのページ ─ */}
+                {visibleVisitItems.map((item) => (
                   <MenuRow
                     key={item.href}
                     icon={item.icon}
@@ -332,6 +330,22 @@ function NavigationBarInner({
                     onClick={() => handleMenuItemClick(item.href)}
                   />
                 ))}
+
+                {/* ─ nicchyo について ─ */}
+                {visibleAboutItems.length > 0 && (
+                  <>
+                    <MenuDivider />
+                    {visibleAboutItems.map((item) => (
+                      <MenuRow
+                        key={item.href}
+                        icon={item.icon}
+                        label={item.label}
+                        muted
+                        onClick={() => handleMenuItemClick(item.href)}
+                      />
+                    ))}
+                  </>
+                )}
 
                 {/* ─ 出店者メニュー ─ */}
                 {(permissions.isVendor || permissions.isAdmin) && visibleVendorItems.length > 0 && (
@@ -505,13 +519,12 @@ function NavigationBarInner({
 function MenuRow({
   icon: Icon,
   label,
-  badge,
   muted = false,
   onClick,
 }: {
   icon: LucideIcon;
   label: string;
-  badge?: number;
+  /** 補助的な項目。少し小さく、控えめな色にする */
   muted?: boolean;
   onClick: () => void;
 }) {
@@ -519,21 +532,22 @@ function MenuRow({
     <button
       type="button"
       onClick={onClick}
-      className="flex w-full items-center gap-3.5 rounded-2xl px-3 py-3 text-left transition active:bg-black/[0.04]"
+      className="flex w-full items-center gap-3.5 rounded-2xl px-3 text-left transition active:bg-nicchyo-ink/[0.05]"
     >
       <Icon
-        className={`h-[21px] w-[21px] shrink-0 ${muted ? "text-slate-400" : "text-slate-500"}`}
+        className={`shrink-0 ${muted ? "h-[19px] w-[19px] text-nicchyo-ink/35" : "h-[21px] w-[21px] text-nicchyo-ink/55"}`}
         strokeWidth={1.7}
         aria-hidden
       />
-      <span className={`flex-1 text-[15px] font-medium ${muted ? "text-slate-500" : "text-slate-800"}`}>
+      <span
+        className={
+          muted
+            ? "flex-1 py-2.5 text-[14px] font-medium text-nicchyo-ink/70"
+            : "flex-1 py-3 text-[15px] font-semibold text-nicchyo-ink"
+        }
+      >
         {label}
       </span>
-      {badge !== undefined && (
-        <span className="flex h-[22px] min-w-[22px] items-center justify-center rounded-full bg-amber-500 px-1.5 text-[11px] font-bold leading-none text-white">
-          {badge}
-        </span>
-      )}
     </button>
   );
 }
@@ -542,10 +556,10 @@ function MenuRow({
 function MenuDivider({ label }: { label?: string }) {
   if (label) {
     return (
-      <p className="mb-1 mt-4 px-3 text-[11px] font-semibold tracking-wide text-slate-400">{label}</p>
+      <p className="mb-1 mt-4 px-3 text-[11px] font-semibold tracking-wide text-nicchyo-ink/40">{label}</p>
     );
   }
-  return <div className="my-2 h-px bg-slate-900/[0.06]" />;
+  return <div className="my-2 h-px bg-nicchyo-ink/[0.08]" />;
 }
 
 // ─── NavLinkItem ──────────────────────────────────────────────────────────────
