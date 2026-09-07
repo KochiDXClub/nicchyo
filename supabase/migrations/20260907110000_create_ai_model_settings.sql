@@ -54,6 +54,11 @@ begin
 end;
 $$;
 
+-- Supabase は新規関数に public への EXECUTE を既定で付ける。
+-- returns trigger なので直接呼んでも Postgres が拒否するが、方針として剥がす。
+-- 先例: 20260906123419_revoke_public_execute_on_map_layout_functions.sql
+revoke all on function public.ai_model_settings_touch_updated_at() from public, anon, authenticated;
+
 drop trigger if exists ai_model_settings_touch_updated_at on ai_model_settings;
 create trigger ai_model_settings_touch_updated_at
   before insert or update on ai_model_settings

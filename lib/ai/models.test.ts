@@ -48,6 +48,19 @@ describe("AI_MODEL_DEFS", () => {
     }
   });
 
+  it("モデルが受け付ける深さはすべてDBのCHECK制約に載っている", () => {
+    // supabase/migrations/20260907110000_create_ai_model_settings.sql の
+    // ai_model_settings_reasoning_effort_valid と同じ集合。
+    // ここに無い値をモデル定義に足すと、アプリ側の検証は通るのにDBのCHECKで落ち、
+    // 運営には「保存に失敗しました」しか出ない。増やすときはマイグレーションも要る
+    const DB_ALLOWED_EFFORTS = ["none", "minimal", "low", "medium", "high", "xhigh", "max"];
+    for (const def of AI_MODEL_DEFS) {
+      for (const effort of def.reasoningEfforts) {
+        expect(DB_ALLOWED_EFFORTS, `${def.id} の ${effort}`).toContain(effort);
+      }
+    }
+  });
+
   it("推論しないモデルは max_tokens、推論モデルは max_completion_tokens を使う", () => {
     for (const def of AI_MODEL_DEFS) {
       const expected = def.reasoningEfforts.length === 0 ? "max_tokens" : "max_completion_tokens";
