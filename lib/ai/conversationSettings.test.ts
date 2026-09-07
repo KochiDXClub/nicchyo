@@ -1,0 +1,108 @@
+import { describe, it, expect } from "vitest";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import {
+  AI_CONVERSATION_SETTING_DEFS,
+  DEFAULT_AI_CONVERSATION_SETTINGS,
+  normalizeAiConversationSettings,
+  validateAiConversationSettingValue,
+} from "./conversationSettings";
+
+describe("validateAiConversationSettingValue", () => {
+  it("範囲内の整数だけを受け付ける", () => {
+    expect(validateAiConversationSettingValue("consult.max_turns", 2)).toEqual({
+      ok: true,
+      key: "consult.max_turns",
+      value: 2,
+    });
+  });
+
+  it("知らないキーを弾く", () => {
+    expect(validateAiConversationSettingValue("consult.unknown", 1)).toEqual({
+      ok: false,
+      reason: "unknown_key",
+    });
+  });
+
+  it("整数でない値を弾く", () => {
+    for (const value of [1.5, "2", null, undefined, NaN]) {
+      expect(validateAiConversationSettingValue("consult.max_turns", value)).toEqual({
+        ok: false,
+        reason: "not_integer",
+      });
+    }
+  });
+
+  it("範囲外を弾く（発話数を10にすると吹き出しが10個並ぶ）", () => {
+    expect(validateAiConversationSettingValue("consult.max_turns", 10)).toEqual({
+      ok: false,
+      reason: "out_of_range",
+    });
+    expect(validateAiConversationSettingValue("consult.max_output_tokens", 50)).toEqual({
+      ok: false,
+      reason: "out_of_range",
+    });
+  });
+});
+
+describe("normalizeAiConversationSettings", () => {
+  it("DBの値で上書きする", () => {
+    expect(
+      normalizeAiConversationSettings([{ key: "consult.history_limit", value: 2 }])[
+        "consult.history_limit"
+      ]
+    ).toBe(2);
+  });
+
+  it("壊れた行は既定値に落とす（設定が壊れてもAIは動き続ける）", () => {
+    const settings = normalizeAiConversationSettings([
+      { key: "consult.max_turns", value: 99 },
+      { key: "consult.max_output_tokens", value: "たくさん" },
+      null,
+      "ごみ",
+    ]);
+    expect(settings).toEqual(DEFAULT_AI_CONVERSATION_SETTINGS);
+  });
+
+  it("読めなければ既定値一式を返す", () => {
+    expect(normalizeAiConversationSettings(null)).toEqual(DEFAULT_AI_CONVERSATION_SETTINGS);
+  });
+});
+
+/**
+ * コード側の定義とマイグレーションの初期データを突き合わせる。
+ *
+ * DBが正本で、コード側はDBが読めないときのフォールバック。片方だけ直すと
+ * 平常時とDB障害時で違う値が使われるので、ズレたらここで落とす。
+ * （lib/ai/models.test.ts が ai_models に対してやっているのと同じ）
+ */
+describe("マイグレーションの初期データとの突き合わせ", () => {
+  const sql = readFileSync(
+    join(process.cwd(), "supabase/migrations/20260907160000_create_ai_conversation_settings.sql"),
+    "utf-8"
+  );
+
+  it("すべてのキーがマイグレーションに入っている", () => {
+    for (const def of AI_CONVERSATION_SETTING_DEFS) {
+      expect(sql).toContain(`'${def.key}'`);
+    }
+  });
+
+  it("既定値と上下限がマイグレーションと一致する", () => {
+    for (const def of AI_CONVERSATION_SETTING_DEFS) {
+      // 初期データの行は「値, 下限, 上限, 並び順」の並びで書いてある
+      const row = sql.slice(sql.indexOf(`'${def.key}'`));
+      const values = row.match(/\n\s*(-?\d+),\s*(-?\d+),\s*(-?\d+),\s*(-?\d+)\n/);
+      expect(values, `${def.key} の初期データが読み取れない`).not.toBeNull();
+      expect(Number(values![1]), `${def.key} の既定値`).toBe(def.defaultValue);
+      expect(Number(values![2]), `${def.key} の下限`).toBe(def.minValue);
+      expect(Number(values![3]), `${def.key} の上限`).toBe(def.maxValue);
+    }
+  });
+
+  it("APIから行を作れないようにしてある（行を足しても設定は増えない）", () => {
+    const types = readFileSync(join(process.cwd(), "types/database.extensions.ts"), "utf-8");
+    const table = types.slice(types.indexOf("ai_conversation_settings: {"));
+    expect(table.slice(0, table.indexOf("};"))).toContain("Insert: never");
+  });
+});

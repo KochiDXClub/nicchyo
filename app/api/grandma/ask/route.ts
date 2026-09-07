@@ -6,6 +6,7 @@ import { buildGrandmaAiSystemPrompt } from "@/lib/grandma/prompts/consultSystemP
 import { fetchAiPrompts } from "@/lib/grandma/prompts/promptStore.server";
 import { buildChatCompletionBody } from "@/lib/ai/models";
 import { resolveAiModelFor } from "@/lib/ai/modelStore.server";
+import { fetchAiConversationSettings } from "@/lib/ai/conversationSettings.server";
 import { loadSpotSupport } from "@/lib/guide/spotSupport.server";
 import { requireSameOrigin } from "@/lib/security/requestGuards";
 import { maskPii } from "@/lib/privacy/maskPii";
@@ -344,8 +345,9 @@ async function createStreamingConsultResponse(options: {
     memorySummary,
   } = options;
 
-  // 管理画面で保存した文面を使う。読めなければコード側の既定値に落ちる
+  // 管理画面で保存した文面と会話設定を使う。読めなければコード側の既定値に落ちる
   const aiPrompts = await fetchAiPrompts();
+  const conversationSettings = await fetchAiConversationSettings();
   // お手洗い・休けい・電停の質問に、実データ（map_landmarks）と徒歩の目安で答えられるようにする
   const spotSupport = await loadSpotSupport(supabase, location);
   const aiModel = await resolveAiModelFor("consult");
@@ -363,7 +365,13 @@ async function createStreamingConsultResponse(options: {
             role: "system",
             content: buildGrandmaAiSystemPrompt(
               selectedCharacters,
-              [buildStreamingFormatPrompt(selectedCharacters), spotSupport.prompt]
+              [
+                buildStreamingFormatPrompt(
+                  selectedCharacters,
+                  conversationSettings["consult.max_turns"]
+                ),
+                spotSupport.prompt,
+              ]
                 .filter(Boolean)
                 .join("\n\n"),
               aiPrompts
@@ -374,7 +382,7 @@ async function createStreamingConsultResponse(options: {
             content: userContent,
           },
         ],
-        maxOutputTokens: 500,
+        maxOutputTokens: conversationSettings["consult.max_output_tokens"],
         temperature: 0.7,
         stream: true,
       })
@@ -800,8 +808,12 @@ export async function POST(request: Request) {
             .join("\n")
         : "該当なし";
 
+    // 履歴件数は管理画面で変えられる。ストリーミング経路もこの本文を使うので、
+    // 経路が分かれる前に読む（react cache 済みなので問い合わせは1回）
+    const historyLimit = (await fetchAiConversationSettings())["consult.history_limit"];
+
     const userContextText = [
-      buildHistoryContext(history, memorySummary),
+      buildHistoryContext(history, memorySummary, historyLimit),
       `今回の質問: ${text || "（画像についての相談）"}`,
       `位置情報: ${location ? `${location.lat}, ${location.lng}` : "不明"}`,
       `現在の季節: ${currentSeason.seasonName}`,
@@ -856,6 +868,7 @@ export async function POST(request: Request) {
 
     const spotSupport = await loadSpotSupport(supabase, location);
     const aiModel = await resolveAiModelFor("consult");
+    const conversationSettings = await fetchAiConversationSettings();
 
     const chatResponse = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
@@ -870,7 +883,12 @@ export async function POST(request: Request) {
               role: "system",
               content: buildGrandmaAiSystemPrompt(
                 selectedCharacters,
-                [buildJsonFormatPrompt(), spotSupport.prompt].filter(Boolean).join("\n\n"),
+                [
+                  buildJsonFormatPrompt(conversationSettings["consult.max_turns"]),
+                  spotSupport.prompt,
+                ]
+                  .filter(Boolean)
+                  .join("\n\n"),
                 await fetchAiPrompts()
               ),
             },
@@ -879,9 +897,12 @@ export async function POST(request: Request) {
               content: userContent,
             },
           ],
-          maxOutputTokens: 500,
+          maxOutputTokens: conversationSettings["consult.max_output_tokens"],
           temperature: 0.7,
-          responseFormat: buildResponseSchema(selectedCharacters),
+          responseFormat: buildResponseSchema(
+            selectedCharacters,
+            conversationSettings["consult.max_turns"]
+          ),
         })
       ),
     });
