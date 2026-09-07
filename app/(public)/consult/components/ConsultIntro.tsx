@@ -1,0 +1,118 @@
+"use client";
+
+import Image from "next/image";
+import { useEffect, useRef, useState, type RefObject } from "react";
+import { computeIntroTransform, toTransformStyle } from "@/lib/grandma/introTransform";
+
+/** 大きいまま見せる間。ここで「誰に相談する画面か」が伝わる */
+const HOLD_MS = 420;
+/** 定位置まで縮む間 */
+const SHRINK_MS = 720;
+/** 縮み終わってから消えるまで */
+const FADE_MS = 220;
+
+/** 勢いよく縮んで、定位置でそっと止まる曲線 */
+const EASING = "cubic-bezier(0.22, 0.61, 0.36, 1)";
+
+export interface ConsultIntroProps {
+  /** 縮んだ先。ページ内のにちよさん（hero）を囲む要素 */
+  targetRef: RefObject<HTMLElement | null>;
+}
+
+/**
+ * 相談ページの入り。
+ *
+ * にちよさんを画面いっぱいに出してから、ページ内の定位置まで縮める。
+ * マップ・検索と違い、この画面は「誰かに相談する」ことが分からないと使えないので、
+ * 待っている間に読ませる文章ではなく、相手そのものを見せる。
+ *
+ * 動かすのは transform と opacity だけにしてある。height / width を動かすと
+ * 毎フレーム レイアウトが走り、下の候補ボタンまで一緒に動いてしまう。
+ *
+ * 動きを減らす設定のときは何も出さない（相談は待たされる画面ではないので、
+ * 演出を省いても失われる情報がない）。
+ */
+export default function ConsultIntro({ targetRef }: ConsultIntroProps) {
+  const heroRef = useRef<HTMLDivElement | null>(null);
+  const [transform, setTransform] = useState<string | null>(null);
+  const [leaving, setLeaving] = useState(false);
+  const [finished, setFinished] = useState(false);
+
+  useEffect(() => {
+    if (
+      typeof window === "undefined" ||
+      window.matchMedia?.("(prefers-reduced-motion: reduce)").matches
+    ) {
+      setFinished(true);
+      return;
+    }
+
+    const timers: ReturnType<typeof setTimeout>[] = [];
+
+    timers.push(
+      setTimeout(() => {
+        const from = heroRef.current?.getBoundingClientRect();
+        const to = targetRef.current?.getBoundingClientRect();
+        // 測れないとき・大きい絵が定位置より十分大きく出ていないときは、
+        // 演出を諦めてそのままページを見せる（見当違いの場所へ飛ぶより良い）
+        if (!from || !to || to.width === 0 || from.width < to.width * 1.5) {
+          setFinished(true);
+          return;
+        }
+
+        setTransform(toTransformStyle(computeIntroTransform(from, to)));
+        timers.push(setTimeout(() => setLeaving(true), SHRINK_MS));
+        timers.push(setTimeout(() => setFinished(true), SHRINK_MS + FADE_MS));
+      }, HOLD_MS)
+    );
+
+    return () => timers.forEach(clearTimeout);
+  }, [targetRef]);
+
+  if (finished) return null;
+
+  return (
+    <div
+      // 下のナビゲーションバー（z-[9997]）より下に置く。
+      // 入りの1秒足らずで行き先を選べなくなるのは、待たせ方として重い
+      className={`consult-intro fixed inset-0 z-[9990] overflow-hidden transition-opacity duration-200 ${
+        leaving ? "pointer-events-none opacity-0" : "opacity-100"
+      }`}
+      aria-hidden="true"
+    >
+      <div
+        ref={heroRef}
+        // 絵の四角には透けた余白が広くあり、にちよさん自身は縦69%・横43%しかない。
+        // 画面いっぱいに見せるには、四角のほうを画面より大きく取る必要がある
+        // （縦は 80vh ぶんの四角＝にちよさんが画面の高さの半分強、横は 188vw で頭打ち）
+        className="absolute left-1/2 top-[44%] h-[min(188vw,80vh)] w-[min(188vw,80vh)]"
+        style={{
+          // 中央寄せの分は常に効かせたままにしないと、縮む先が半分ずれる
+          transform: `translate(-50%, -50%)${transform ? ` ${transform}` : ""}`,
+          transition: transform ? `transform ${SHRINK_MS}ms ${EASING}` : undefined,
+        }}
+      >
+        <div className="consult-intro__hero h-full w-full">
+          <Image
+            src="/characters/obaasan.png"
+            alt=""
+            width={480}
+            height={480}
+            priority
+            className="h-full w-full object-contain drop-shadow-[0_8px_16px_rgba(146,64,14,0.25)]"
+          />
+        </div>
+      </div>
+
+      {/* 縮み始めたら引っ込める。定位置に着いたときに文字だけ残ると、消し忘れに見える */}
+      <div
+        className={`absolute inset-x-0 bottom-[18%] flex flex-col items-center gap-1.5 transition-opacity duration-300 ${
+          transform ? "opacity-0" : "opacity-100"
+        }`}
+      >
+        <div className="text-xs font-semibold tracking-[0.35em] text-amber-700">LOADING</div>
+        <p className="text-[12px] tracking-wide text-amber-800/80">にちよさんを呼びよるよ…</p>
+      </div>
+    </div>
+  );
+}

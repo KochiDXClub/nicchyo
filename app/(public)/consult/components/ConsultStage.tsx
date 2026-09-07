@@ -15,6 +15,7 @@ import {
   type ConsultEntry,
 } from "@/lib/grandma/consultSession";
 import GrandmaAvatar from "./GrandmaAvatar";
+import ConsultIntro from "./ConsultIntro";
 import ConsultShopCard from "./ConsultShopCard";
 import type { Shop } from "../../map/data/shops";
 import type {
@@ -101,6 +102,8 @@ export default function ConsultStage({
   entriesRef.current = entries;
   const textInputRef = useRef<HTMLTextAreaElement | null>(null);
   const topSentinelRef = useRef<HTMLDivElement | null>(null);
+  /** 入りの演出で、大きいにちよさんが縮んで着地する先 */
+  const heroAvatarRef = useRef<HTMLDivElement | null>(null);
 
   /**
    * にちよさんの大きさは「利用者が読む場所を欲しがっているか」だけで決める。
@@ -439,6 +442,9 @@ export default function ConsultStage({
       {/* 「画面の一番上にいるか」を測るための目印。見た目には出ない */}
       <div ref={topSentinelRef} aria-hidden="true" className="h-px w-full shrink-0" />
 
+      {/* 入りの演出。大きいにちよさんが、下の定位置まで縮んでいく */}
+      <ConsultIntro targetRef={heroAvatarRef} />
+
       {/*
         固定バー。高さは常に一定で、中身は不透明度と transform でしか動かさない。
 
@@ -504,12 +510,15 @@ export default function ConsultStage({
         スクロール中にレイアウトが動かない。
       */}
       <div className="flex flex-col items-center gap-2">
-        <GrandmaAvatar
-          pose={pose}
-          size="hero"
-          onClick={speech.isSupported ? handleMicTap : undefined}
-          label={speech.isListening ? "音声入力を止める" : "にちよさんに話しかける"}
-        />
+        {/* flex にして、囲んだだけで下に行間の隙間が出ないようにする（測る先がずれる） */}
+        <div ref={heroAvatarRef} className="flex">
+          <GrandmaAvatar
+            pose={pose}
+            size="hero"
+            onClick={speech.isSupported ? handleMicTap : undefined}
+            label={speech.isListening ? "音声入力を止める" : "にちよさんに話しかける"}
+          />
+        </div>
         {(speech.isListening || !showAnswer) && (
           <p className="text-center text-sm font-bold text-amber-900">
             {speech.isListening

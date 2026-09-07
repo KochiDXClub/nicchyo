@@ -1607,6 +1607,22 @@ body.home-poster-zoom-open .hamburger-button {
   50%      { opacity: 0.45; transform: scale(0.82); }
 }
 
+/* 相談ページの入り。ページと同じ地の色（nicchyo-base）で覆う。
+   別の色にすると、消える瞬間に背景が切り替わったように見える */
+.consult-intro {
+  background: #FFFAF0;
+}
+
+/* 出てくる瞬間だけ薄く入れる。いきなり画面いっぱいに出ると圧が強い */
+.consult-intro__hero {
+  animation: consult-intro-appear 280ms ease-out both;
+}
+
+@keyframes consult-intro-appear {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   /* data-pose 付きの指定に負けないよう、同じ詳細度で打ち消す
      （.grandma-avatar__inner だけでは thinking / speaking のループが残る） */
@@ -1620,5 +1636,11 @@ body.home-poster-zoom-open .hamburger-button {
     animation: none !important;
     transition: none !important;
     transform: none !important;
+  }
+
+  /* 入りの演出は、JS が外すまでの一瞬も出さない（見せているのは動きだけで、
+     文字や情報を載せていないので、丸ごと省いて困らない） */
+  .consult-intro {
+    display: none !important;
   }
 }
