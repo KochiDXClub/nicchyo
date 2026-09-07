@@ -42,6 +42,7 @@ export const PAGE_REGISTRY: readonly PageRegistryEntry[] = [
   { path: "/about", label: "nicchyoとは", group: "来訪者向け" },
   { path: "/faq", label: "よくある質問", group: "来訪者向け" },
   { path: "/contact", label: "お問い合わせ", group: "来訪者向け" },
+  { path: "/support", label: "運営について", group: "来訪者向け", description: "運営費と協賛のお願い" },
   { path: "/privacy", label: "プライバシーポリシー", group: "来訪者向け" },
   { path: "/user", label: "ユーザーページ", group: "来訪者向け" },
 
