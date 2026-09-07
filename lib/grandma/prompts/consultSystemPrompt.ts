@@ -9,7 +9,7 @@ import {
   CONSULT_CAST_HEADER,
   CONSULT_INTRO,
   CONSULT_OPERATOR_NOTE_HEADER,
-  CONSULT_OUTPUT_RULES,
+  CONSULT_ANSWER_RULES,
 } from "./consultRules";
 
 // 文面は consultRules.ts が本体。ここから読めた方が呼び出し側が楽なので再エクスポートする
@@ -17,7 +17,7 @@ export {
   CONSULT_INTRO,
   CONSULT_CONVERSATION_RULES,
   CONSULT_CONTENT_RULES,
-  CONSULT_OUTPUT_RULES,
+  CONSULT_ANSWER_RULES,
   CONSULT_CAST_HEADER,
   CONSULT_OPERATOR_NOTE_HEADER,
 } from "./consultRules";
@@ -40,13 +40,17 @@ function buildCastBlock(characters: ConsultCharacter[], prompts: AiPromptSet): s
  *
  * 並び順に意味がある。
  *
- *   [固定]  イントロ → 出力ルール          … 全リクエスト共通。プロンプトキャッシュの対象
+ *   [固定]  イントロ → 返答の作り方        … 全リクエスト共通。プロンプトキャッシュの対象
  *   ---
  *   [可変]  会話ルール → 内容ルール →
  *           今週のメモ → 話し手 → 追加指示  … 運営が編集する / 毎回変わる
  *
- * 追加指示（tailPrompt）は、ストリーミングの行フォーマットなど
- * コード側がリクエストごとに組み立てる文。空なら何も足さない。
+ * 追加指示（tailPrompt）は、出力形式の指示など、コード側がリクエストごとに
+ * 組み立てる文。空なら何も足さない。
+ *
+ * ★ 出力形式（JSON / プレーンテキスト）は経路ごとに違うので、必ず tailPrompt で
+ *   渡す。固定部分に書くと、ストリーミング時に「JSONのみ」と
+ *   「プレーンテキストのみ」が同居してモデルがどちらに従うか決まらなくなる。
  *
  * 会話ルールと内容ルールは運営がDBから編集するので、固定部分に置くと
  * 編集のたびに共通プレフィックスが変わってキャッシュが効かなくなる。
@@ -65,7 +69,7 @@ export function buildGrandmaAiSystemPrompt(
   return [
     // ここから固定文（プロンプトキャッシュの対象）
     CONSULT_INTRO,
-    CONSULT_OUTPUT_RULES,
+    CONSULT_ANSWER_RULES,
     "---",
     // ここから可変。前方に動かさないこと
     prompts["consult.conversation_rules"],
