@@ -30,7 +30,7 @@ export interface ConsultIntroProps {
  *
  * にちよさんを画面いっぱいに出してから、ページ内の定位置まで縮める。
  * マップ・検索と違い、この画面は「誰かに相談する」ことが分からないと使えないので、
- * 待っている間に読ませる文章ではなく、相手そのものを見せる。
+ * 待っている間に読ませる文章は置かず、相手そのものだけを見せる。
  *
  * 動かすのは transform と opacity だけにしてある。height / width を動かすと
  * 毎フレーム レイアウトが走り、下の候補ボタンまで一緒に動いてしまう。
@@ -121,16 +121,6 @@ export default function ConsultIntro({ targetRef, onSettled }: ConsultIntroProps
             className="h-full w-full object-contain drop-shadow-[0_8px_16px_rgba(146,64,14,0.25)]"
           />
         </div>
-      </div>
-
-      {/* 縮み始めたら引っ込める。定位置に着いたときに文字だけ残ると、消し忘れに見える */}
-      <div
-        className={`absolute inset-x-0 bottom-[18%] flex flex-col items-center gap-1.5 transition-opacity duration-300 ${
-          transform ? "opacity-0" : "opacity-100"
-        }`}
-      >
-        <div className="text-xs font-semibold tracking-[0.35em] text-amber-700">LOADING</div>
-        <p className="text-[12px] tracking-wide text-amber-800/80">にちよさんを呼びよるよ…</p>
       </div>
     </div>
   );
