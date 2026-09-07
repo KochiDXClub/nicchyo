@@ -10,42 +10,37 @@
 --   そのたびにコード変更 → PR → デプロイを待つと、調整が週をまたぐ。
 --   プロンプトをDBに逃がしたのと同じ理由（#567）。
 --
+-- テーブルが持つのは「運営が決めた値」と「受け付ける範囲」だけ。
+-- 見出し・説明・並び順はコード側（lib/ai/conversationSettings.ts）が持つ。
+-- 両方に置くと、画面の表示だけDBを見て検証はコードを見る、という
+-- 食い違いが起きる。DBに置いた範囲は、APIを通らない書き込み
+-- （SQLエディタでの手直しなど）に効く最後の砦として持たせている。
+--
 -- ★ このテーブルの限界を明記しておく。
 --   行を足しても新しい設定は生まれない。実際に値を読むのはコード側
---   （resolveAiConversationSettings() → ask/route.ts）で、行はそれに
+--   （fetchAiConversationSettings() → ask/route.ts）で、行はそれに
 --   対応する台帳。コードに無い key の行は、どこからも参照されない行が
---   増えるだけになる。そのため insert は API から塞いである
---   （update のみ。型でも Insert: never）。
---   コード側の定義は lib/ai/conversationSettings.ts。
+--   増えるだけになる。そのため insert は塞いである（下の revoke と、
+--   型の Insert: never）。
 --   ズレは lib/ai/conversationSettings.test.ts が止める。
---
--- 上下限を行に持たせているのは、値を間違えたときの被害がキーごとに
--- 違うため。発話数を10にすれば吹き出しが10個並び、返答の長さを50に
--- すれば文の途中で切れる。DBのCHECK制約と読み取り側の両方で挟む。
 -- =====================================================================
 
 -- ─── 設定の一覧 ────────────────────────────────────────────────────────
 create table if not exists ai_conversation_settings (
   -- 設定のキー。lib/ai/conversationSettings.ts の定義と対応する
   key text primary key,
-  -- 管理画面の見出し
-  label text not null,
-  -- 管理画面の説明文。運営が何を決める値なのか分かる言葉にする
-  description text not null default '',
   -- 運営が決めた値
   value integer not null,
-  -- 受け付ける範囲。キーごとに違う（マイグレーションが正本）
+  -- 受け付ける範囲。キーごとに違う（値を間違えたときの被害が違うため）
   min_value integer not null,
   max_value integer not null,
-  -- 管理画面の並び順
-  sort_order integer not null default 0,
   updated_by uuid references auth.users (id) on delete set null,
   updated_at timestamptz not null default now(),
 
   constraint ai_conversation_settings_bounds_sane check (min_value <= max_value),
   -- 範囲外の値を保存できないようにする。
   -- 読み取り側（normalizeAiConversationSettings）も同じ範囲で挟むが、
-  -- APIを介さない書き込み（SQLエディタでの手直しなど）はここでしか止まらない
+  -- APIを介さない書き込みはここでしか止まらない
   constraint ai_conversation_settings_value_in_bounds
     check (value between min_value and max_value)
 );
@@ -72,35 +67,28 @@ create trigger ai_conversation_settings_touch_updated_at
   for each row execute function public.ai_conversation_settings_touch_updated_at();
 
 -- ─── 初期データ ────────────────────────────────────────────────────────
--- 見出し・説明・上下限はマイグレーションを正本にする（do update で直せる）。
--- value は運営が決めた値なので触らない。
-insert into ai_conversation_settings
-  (key, label, description, value, min_value, max_value, sort_order)
+-- 上下限はマイグレーションを正本にする（do update で直せる）。
+-- 値は「発話数, 下限, 上限」の順。lib/ai/conversationSettings.ts と揃える
+insert into ai_conversation_settings (key, value, min_value, max_value)
 values
-  (
-    'consult.max_turns',
-    '1回の返答の発話数',
-    '1回の返答で出す吹き出しの数の上限。2以上にすると1秒ずつ間をあけて順に出るため、同じキャラでも掛け合いのように見える。',
-    1, 1, 3, 10
-  ),
-  (
-    'consult.max_output_tokens',
-    '返答の長さ（最大トークン数）',
-    'AIが1回に生成できる長さの上限。短すぎると文の途中で切れ、長すぎると読まれずに流される。目安は300〜700。',
-    500, 200, 1200, 20
-  ),
-  (
-    'consult.history_limit',
-    'AIに渡す直近の会話の件数',
-    '「さっきの話」をどこまで覚えているか。多いほど文脈は続くが、古いやり取りの言い回しを真似しやすくなる。',
-    6, 0, 12, 30
-  )
+  -- 1回の返答の発話数。2以上にすると1秒ずつ間をあけて別の吹き出しが出るため、
+  -- 同じキャラでも掛け合いのように見える
+  ('consult.max_turns', 1, 1, 3),
+  -- 返答の長さ。300 未満にすると、非ストリーミング経路のJSONが途中で切れる
+  ('consult.max_output_tokens', 500, 300, 1200),
+  -- AIに渡す直近の会話の件数。多いほど古いやり取りの言い回しを真似しやすい
+  ('consult.history_limit', 6, 0, 12)
 on conflict (key) do update set
-  label = excluded.label,
-  description = excluded.description,
   min_value = excluded.min_value,
   max_value = excluded.max_value,
-  sort_order = excluded.sort_order;
+  -- 上下限を狭める向きに直すと、既存の value が新しい範囲から外れて
+  -- CHECK 制約に引っかかり、**このマイグレーション自体が落ちる**。
+  -- しかも範囲外の値は本番にしか無いので、ローカルやCIでは再現しない。
+  -- 運営が決めた値は尊重しつつ、新しい範囲に丸めておく
+  value = least(
+    greatest(ai_conversation_settings.value, excluded.min_value),
+    excluded.max_value
+  );
 
 -- ─── 権限 ──────────────────────────────────────────────────────────────
 alter table ai_conversation_settings enable row level security;
@@ -113,6 +101,13 @@ alter table ai_conversation_settings enable row level security;
 -- RLS だけに頼らず GRANT も明示的に剥がす。
 -- 先例: 20260906120000_create_ai_prompts.sql
 revoke all on public.ai_conversation_settings from anon, authenticated;
+
+-- 行はマイグレーションでしか作らない。APIに許すのは値の更新だけ。
+-- service role は RLS をバイパスするが GRANT はバイパスしないので、ここで効く。
+-- 型（types/database.extensions.ts の Insert: never）だけでは、型を無視した
+-- 呼び出しやSQLの直叩きは止まらない。
+-- マイグレーションの実行者は postgres なので、この revoke の影響を受けない
+revoke insert, delete, truncate on public.ai_conversation_settings from service_role;
 
 -- ポリシーは作らない。
 --
