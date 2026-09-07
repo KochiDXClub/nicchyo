@@ -4,6 +4,7 @@ import type { Database } from "@/types/database.types";
 import type { DatabaseWithExtensions } from "@/types/database.extensions";
 import { buildGrandmaAiSystemPrompt } from "@/lib/grandma/prompts/consultSystemPrompt";
 import { fetchAiPrompts } from "@/lib/grandma/prompts/promptStore.server";
+import { loadSpotSupport } from "@/lib/guide/spotSupport.server";
 import { requireSameOrigin } from "@/lib/security/requestGuards";
 import { maskPii } from "@/lib/privacy/maskPii";
 import { enforceRateLimit } from "@/lib/security/rateLimit";
@@ -346,6 +347,8 @@ async function createStreamingConsultResponse(options: {
 
   // 管理画面で保存した文面を使う。読めなければコード側の既定値に落ちる
   const aiPrompts = await fetchAiPrompts();
+  // お手洗い・休けい・電停の質問に、実データ（map_landmarks）と徒歩の目安で答えられるようにする
+  const spotSupport = await loadSpotSupport(supabase, location);
 
   const upstream = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
@@ -366,7 +369,10 @@ async function createStreamingConsultResponse(options: {
             [
               buildConversationPatternPrompt(selectedCharacters, conversationPattern),
               buildStreamingFormatPrompt(selectedCharacters, conversationPattern),
-            ].join("\n\n"),
+              spotSupport.prompt,
+            ]
+              .filter(Boolean)
+              .join("\n\n"),
             aiPrompts
           ),
         },
@@ -847,6 +853,8 @@ export async function POST(request: Request) {
       });
     }
 
+    const spotSupport = await loadSpotSupport(supabase, location);
+
     const chatResponse = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -863,7 +871,9 @@ export async function POST(request: Request) {
             role: "system",
             content: buildGrandmaAiSystemPrompt(
               selectedCharacters,
-              buildConversationPatternPrompt(selectedCharacters, conversationPattern),
+              [buildConversationPatternPrompt(selectedCharacters, conversationPattern), spotSupport.prompt]
+                .filter(Boolean)
+                .join("\n\n"),
               await fetchAiPrompts()
             ),
           },
