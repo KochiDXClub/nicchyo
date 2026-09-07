@@ -56,31 +56,20 @@ export const CONSULT_CHARACTER_BY_ID = new Map(
   CONSULT_CHARACTERS.map((character) => [character.id, character])
 );
 
+/**
+ * 今回の話し手を1人決める。
+ *
+ * 選んだキャラがいればその人、いなければランダムに1人。
+ * 呼び出し側（API・マップの相談UI）が配列を前提にしているので、
+ * 1人だけ入った配列で返す。以前の「2人の掛け合い」「5%で全員」は廃止した。
+ */
 export function pickConsultCharacters(
   preferredCharacterId?: ConsultCharacterId | null
 ): ConsultCharacter[] {
   const preferredCharacter = preferredCharacterId
     ? CONSULT_CHARACTER_BY_ID.get(preferredCharacterId) ?? null
     : null;
-  if (Math.random() < 0.05) {
-    if (!preferredCharacter) return [...CONSULT_CHARACTERS];
-    return [
-      preferredCharacter,
-      ...CONSULT_CHARACTERS.filter((character) => character.id !== preferredCharacter.id),
-    ];
-  }
-  const pool = preferredCharacter
-    ? CONSULT_CHARACTERS.filter((character) => character.id !== preferredCharacter.id)
-    : [...CONSULT_CHARACTERS];
-  const shuffled = [...pool];
-  for (let index = shuffled.length - 1; index > 0; index -= 1) {
-    const swapIndex = Math.floor(Math.random() * (index + 1));
-    const current = shuffled[index];
-    shuffled[index] = shuffled[swapIndex];
-    shuffled[swapIndex] = current;
-  }
-  if (!preferredCharacter) {
-    return shuffled.slice(0, 2);
-  }
-  return [preferredCharacter, ...shuffled.slice(0, 1)];
+  if (preferredCharacter) return [preferredCharacter];
+  const index = Math.floor(Math.random() * CONSULT_CHARACTERS.length);
+  return [CONSULT_CHARACTERS[index]];
 }

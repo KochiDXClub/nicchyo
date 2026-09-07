@@ -43,7 +43,10 @@ function buildCastBlock(characters: ConsultCharacter[], prompts: AiPromptSet): s
  *   [固定]  イントロ → 出力ルール          … 全リクエスト共通。プロンプトキャッシュの対象
  *   ---
  *   [可変]  会話ルール → 内容ルール →
- *           今週のメモ → キャラ → 会話構成  … 運営が編集する / 毎回変わる
+ *           今週のメモ → 話し手 → 追加指示  … 運営が編集する / 毎回変わる
+ *
+ * 追加指示（tailPrompt）は、ストリーミングの行フォーマットなど
+ * コード側がリクエストごとに組み立てる文。空なら何も足さない。
  *
  * 会話ルールと内容ルールは運営がDBから編集するので、固定部分に置くと
  * 編集のたびに共通プレフィックスが変わってキャッシュが効かなくなる。
@@ -54,7 +57,7 @@ function buildCastBlock(characters: ConsultCharacter[], prompts: AiPromptSet): s
  */
 export function buildGrandmaAiSystemPrompt(
   characters: ConsultCharacter[],
-  conversationPattern: string,
+  tailPrompt: string,
   prompts: AiPromptSet = DEFAULT_AI_PROMPTS
 ): string {
   const operatorNote = prompts["consult.operator_note"].trim();
@@ -69,6 +72,6 @@ export function buildGrandmaAiSystemPrompt(
     prompts["consult.content_rules"],
     ...(operatorNote ? [`${CONSULT_OPERATOR_NOTE_HEADER}\n${operatorNote}`] : []),
     `${CONSULT_CAST_HEADER}\n\n${buildCastBlock(characters, prompts)}`,
-    `今回の会話構成:\n${conversationPattern}`,
+    ...(tailPrompt.trim() ? [tailPrompt] : []),
   ].join("\n\n");
 }

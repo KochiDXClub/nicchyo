@@ -44,14 +44,10 @@ import {
 } from "@/lib/grandma/vendorSearch";
 import {
   buildResponseSchema,
-  pickConversationPattern,
   parseStreamingConsultOutput,
   buildReplyFromTurns,
 } from "@/lib/grandma/promptBuilder";
-import {
-  buildConversationPatternPrompt,
-  buildStreamingFormatPrompt,
-} from "@/lib/grandma/prompts/consultConversation";
+import { buildStreamingFormatPrompt } from "@/lib/grandma/prompts/consultConversation";
 import { handleAbuseDetection } from "@/lib/grandma/abuseDetection";
 import { z } from "zod";
 
@@ -308,7 +304,6 @@ async function finalizeConsultResponse(options: {
 async function createStreamingConsultResponse(options: {
   openaiKey: string;
   selectedCharacters: ConsultCharacter[];
-  conversationPattern: ReturnType<typeof pickConversationPattern>;
   userContent:
     | string
     | Array<{ type: "text"; text: string } | { type: "image_url"; image_url: { url: string } }>;
@@ -328,7 +323,6 @@ async function createStreamingConsultResponse(options: {
   const {
     openaiKey,
     selectedCharacters,
-    conversationPattern,
     userContent,
     request,
     supabase,
@@ -363,10 +357,7 @@ async function createStreamingConsultResponse(options: {
           role: "system",
           content: buildGrandmaAiSystemPrompt(
             selectedCharacters,
-            [
-              buildConversationPatternPrompt(selectedCharacters, conversationPattern),
-              buildStreamingFormatPrompt(selectedCharacters, conversationPattern),
-            ].join("\n\n"),
+            buildStreamingFormatPrompt(selectedCharacters),
             aiPrompts
           ),
         },
@@ -583,7 +574,6 @@ export async function POST(request: Request) {
         );
       }
     }
-    const conversationPattern = pickConversationPattern(selectedCharacters);
     if (normalized.includes("おばあちゃんは何者") || normalized.includes("おばあちゃん何者")) {
       return NextResponse.json({
         reply: "高知の日曜市を案内するにちよさんたちやきね。気軽に聞いてや。",
@@ -830,7 +820,6 @@ export async function POST(request: Request) {
       return createStreamingConsultResponse({
         openaiKey,
         selectedCharacters,
-        conversationPattern,
         userContent,
         request,
         supabase,
@@ -857,13 +846,13 @@ export async function POST(request: Request) {
         model: "gpt-4o-mini",
         temperature: 0.7,
         max_tokens: 500,
-        response_format: buildResponseSchema(selectedCharacters, conversationPattern),
+        response_format: buildResponseSchema(selectedCharacters),
         messages: [
           {
             role: "system",
             content: buildGrandmaAiSystemPrompt(
               selectedCharacters,
-              buildConversationPatternPrompt(selectedCharacters, conversationPattern),
+              "",
               await fetchAiPrompts()
             ),
           },

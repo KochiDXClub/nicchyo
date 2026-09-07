@@ -4,16 +4,13 @@ import {
   type ConsultCharacterId,
 } from "@/app/(public)/consult/data/consultCharacters";
 import type { ConsultTurn } from "@/app/(public)/consult/types/consultConversation";
-import type { ConversationPattern, StreamedConsultPayload } from "./types";
-import {
-  ALL_CAST_CONVERSATION_PATTERN,
-  CONSULT_CONVERSATION_PATTERNS,
-} from "./prompts/consultConversation";
+import type { StreamedConsultPayload } from "./types";
+import { CONSULT_MAX_TURNS } from "./prompts/consultConversation";
 
 // プロンプト文（会話構成・出力フォーマットの指示）は lib/grandma/prompts/ に集約した。
 // このファイルにはスキーマ定義とレスポンスのパースだけを残す。
 
-export function buildResponseSchema(characters: ConsultCharacter[], pattern: ConversationPattern) {
+export function buildResponseSchema(characters: ConsultCharacter[]) {
   return {
     type: "json_schema",
     json_schema: {
@@ -25,8 +22,9 @@ export function buildResponseSchema(characters: ConsultCharacter[], pattern: Con
           summary: { type: "string" },
           turns: {
             type: "array",
-            minItems: pattern.turnCount,
-            maxItems: pattern.turnCount,
+            // 発話数の目安は会話ルール（DB）が決める。ここは受け取れる範囲だけを縛る
+            minItems: 1,
+            maxItems: CONSULT_MAX_TURNS,
             items: {
               type: "object",
               additionalProperties: false,
@@ -54,14 +52,6 @@ export function buildResponseSchema(characters: ConsultCharacter[], pattern: Con
       },
     },
   } as const;
-}
-
-export function pickConversationPattern(characters: ConsultCharacter[]): ConversationPattern {
-  if (characters.length >= 4) {
-    return ALL_CAST_CONVERSATION_PATTERN;
-  }
-  const index = Math.floor(Math.random() * CONSULT_CONVERSATION_PATTERNS.length);
-  return CONSULT_CONVERSATION_PATTERNS[index];
 }
 
 /**

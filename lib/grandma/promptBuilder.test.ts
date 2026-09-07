@@ -1,58 +1,57 @@
 import { describe, it, expect } from "vitest";
 import {
-  pickConversationPattern,
+  buildResponseSchema,
   parseStreamingConsultOutput,
   buildReplyFromTurns,
 } from "./promptBuilder";
+import { buildStreamingFormatPrompt, CONSULT_MAX_TURNS } from "./prompts/consultConversation";
 import {
-  buildConversationPatternPrompt,
-  buildStreamingFormatPrompt,
-  CONSULT_CONVERSATION_PATTERNS,
-} from "./prompts/consultConversation";
-import { CONSULT_CHARACTERS } from "@/app/(public)/consult/data/consultCharacters";
+  CONSULT_CHARACTERS,
+  pickConsultCharacters,
+} from "@/app/(public)/consult/data/consultCharacters";
 
 const twoChars = CONSULT_CHARACTERS.slice(0, 2);
-const fourChars = CONSULT_CHARACTERS;
+const oneChar = CONSULT_CHARACTERS.slice(0, 1);
 
-describe("pickConversationPattern", () => {
-  it("4キャラ以上の場合は all_cast パターン", () => {
-    const pattern = pickConversationPattern(fourChars);
-    expect(pattern.id).toBe("all_cast");
-    expect(pattern.turnCount).toBe(4);
+describe("pickConsultCharacters", () => {
+  it("選んだキャラがいればその1人だけを返す", () => {
+    expect(pickConsultCharacters("miraikun").map((c) => c.id)).toEqual(["miraikun"]);
   });
 
-  it("2キャラの場合は4パターンのいずれか", () => {
-    const pattern = pickConversationPattern(twoChars);
-    const validIds = CONSULT_CONVERSATION_PATTERNS.map((p) => p.id);
-    expect(validIds).toContain(pattern.id);
+  it("未選択なら4人の中から1人だけを返す", () => {
+    for (let i = 0; i < 20; i += 1) {
+      const picked = pickConsultCharacters();
+      expect(picked).toHaveLength(1);
+      expect(CONSULT_CHARACTERS).toContain(picked[0]);
+    }
   });
 });
 
-describe("buildConversationPatternPrompt", () => {
-  it("発話数の指示を含む", () => {
-    const pattern = CONSULT_CONVERSATION_PATTERNS[0];
-    const prompt = buildConversationPatternPrompt(twoChars, pattern);
-    expect(prompt).toContain(`発話数は必ず${pattern.turnCount}つ`);
-  });
-
-  it("キャラ名の順序を含む", () => {
-    const pattern = CONSULT_CONVERSATION_PATTERNS[0];
-    const prompt = buildConversationPatternPrompt(twoChars, pattern);
-    expect(prompt).toContain(twoChars[0].name);
-    expect(prompt).toContain(twoChars[1].name);
+describe("buildResponseSchema", () => {
+  it("発話数は1以上・上限は CONSULT_MAX_TURNS（目安は会話ルールに任せる）", () => {
+    const schema = buildResponseSchema(oneChar);
+    const turns = schema.json_schema.schema.properties.turns;
+    expect(turns.minItems).toBe(1);
+    expect(turns.maxItems).toBe(CONSULT_MAX_TURNS);
+    expect(turns.items.properties.speakerId.enum).toEqual(["nichiyosan"]);
   });
 });
 
 describe("buildStreamingFormatPrompt", () => {
   it("TURN行のフォーマット説明を含む", () => {
-    const pattern = CONSULT_CONVERSATION_PATTERNS[0];
-    const prompt = buildStreamingFormatPrompt(twoChars, pattern);
+    const prompt = buildStreamingFormatPrompt(oneChar);
     expect(prompt).toContain("TURN|speakerId|speakerName|text");
+    expect(prompt).toContain("nichiyosan=にちよさん");
+  });
+
+  it("行数は固定せず上限だけを伝える", () => {
+    const prompt = buildStreamingFormatPrompt(oneChar);
+    expect(prompt).toContain(`1行以上 ${CONSULT_MAX_TURNS} 行以内`);
+    expect(prompt).not.toContain("必ず 4 行");
   });
 
   it("ENDマーカーの指示を含む", () => {
-    const pattern = CONSULT_CONVERSATION_PATTERNS[0];
-    const prompt = buildStreamingFormatPrompt(twoChars, pattern);
+    const prompt = buildStreamingFormatPrompt(oneChar);
     expect(prompt).toContain("END");
   });
 });
