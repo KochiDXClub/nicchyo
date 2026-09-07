@@ -32,6 +32,14 @@ export type AiPromptRow = {
   created_at: string;
 };
 
+export type AiModelSettingRow = {
+  use_case: string;
+  model_id: string;
+  reasoning_effort: string | null;
+  updated_by: string | null;
+  updated_at: string;
+};
+
 type ExtendedPublicSchema = Omit<Database["public"], "Tables"> & {
   Tables: Database["public"]["Tables"] & {
     admin_notifications: {
@@ -54,6 +62,14 @@ type ExtendedPublicSchema = Omit<Database["public"], "Tables"> & {
       Insert: Pick<AiPromptRow, "key" | "body"> &
         Partial<Pick<AiPromptRow, "note" | "updated_by">>;
       Update: Partial<Pick<AiPromptRow, "is_active" | "note">>;
+      Relationships: never[];
+    };
+    ai_model_settings: {
+      Row: AiModelSettingRow;
+      // updated_at はトリガ（ai_model_settings_touch_updated_at）が入れるので送らない
+      Insert: Pick<AiModelSettingRow, "use_case" | "model_id"> &
+        Partial<Pick<AiModelSettingRow, "reasoning_effort" | "updated_by">>;
+      Update: Partial<Pick<AiModelSettingRow, "model_id" | "reasoning_effort" | "updated_by">>;
       Relationships: never[];
     };
   };
