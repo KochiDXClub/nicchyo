@@ -9,14 +9,18 @@
  */
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { SupabaseClient, User } from "@supabase/supabase-js";
 import { createClient as createServiceClient } from "@supabase/supabase-js";
 import { createClient as createServerClient } from "@/utils/supabase/server";
 import type { DatabaseWithExtensions } from "@/types/database.extensions";
 import { getRole, isAdmin } from "./permissions";
 
 export type AdminApiContext = {
-  user: { id: string };
+  // 検証済みセッションの User をそのまま渡す。id だけに絞ると、監査ログに
+  // actor_email / actor_role を書きたくなったときに型で到達できない
+  user: User;
+  /** getRole(user) の結果。監査ログの actor_role にそのまま入れる */
+  role: string | null;
   /** RLS をバイパスする service role クライアント */
   adminClient: SupabaseClient<DatabaseWithExtensions>;
 };
@@ -51,9 +55,10 @@ export async function requireAdminApi(): Promise<
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (!user || !isAdmin(getRole(user))) {
+  const role = getRole(user);
+  if (!user || !isAdmin(role)) {
     return { error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) };
   }
 
-  return { user, adminClient: createAdminServiceClient() };
+  return { user, role, adminClient: createAdminServiceClient() };
 }
