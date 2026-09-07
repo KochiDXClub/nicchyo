@@ -281,6 +281,43 @@ Actions の一覧で、実行名がワークフロー名ではなく `.github/wo
    このときファイル名のタイムスタンプを**本番の記録と同じ version に合わせる**と、
    `db push` が「適用済み」と判定して二重実行を避けられる
 
+**`migration list` の Remote 側にだけある行は消す（放置すると `db push` が止まる）**
+
+リポジトリに対応する `.sql` が無いバージョンが Remote の履歴に残っていると、
+`supabase db push` は**その時点で停止する**。適用対象が無くても関係なく落ちる。
+
+```
+Remote migration versions not found in local migrations directory.
+
+Make sure your local git repo is up-to-date. If the error persists, try repairing
+the migration history table:
+supabase migration repair --status reverted <version> ...
+```
+
+「Local に無いものは無視して進む」わけではないので、**Remote 側の余りは
+必ず解消すること**。`schema_migrations` に status 列は無く、`--status reverted`
+は該当行の削除と同じ意味になる。
+
+消す前に、その行の `statements` 列を必ず確認する。ここには**本番へ実際に流れた
+SQL が入っている**。リポジトリのファイルと1対1で対応しないもの（複数のマイグレーションを
+1回にまとめて適用した場合など）は、消すと再現できなくなる。
+
+```sql
+select version, name, array_to_string(statements, E'\n') as sql
+from supabase_migrations.schema_migrations
+where version in (...);
+```
+
+内容がリポジトリから復元できることを確かめてから消す。復元できないものがあれば、
+先に同じ内容の `.sql` をリポジトリへ追加し、**ファイル名のタイムスタンプを
+Remote の version に合わせる**（そうすれば消さずに一致させられる）。
+
+2026-09-06 の実例: `Migrations Deploy` が動いていなかったことが判明し、未適用だった
+17本を Supabase の管理API経由で手当てした。その際に自動採番された10件
+（`20260906122700` 〜 `20260906123229`）が Remote 側にだけ残り、`db push` が
+止まっていた。10件とも内容がリポジトリの既存ファイルから復元できることを確認して削除し、
+`Remote database is up to date.` になった。経緯は #573 を参照。
+
 ### 補足
 
 - `migrations-check.yml` は `supabase/migrations/**` を触ったPRでしか走らない。ブランチ保護の
