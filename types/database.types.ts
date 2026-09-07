@@ -372,6 +372,48 @@ export type Database = {
           },
         ]
       }
+      guide_events: {
+        Row: {
+          created_at: string
+          distance_meters: number | null
+          event_type: string
+          id: string
+          kinds: string[]
+          meta: Json | null
+          origin_type: string | null
+          preset_id: string | null
+          spot_key: string | null
+          visitor_key: string | null
+          walk_minutes: number | null
+        }
+        Insert: {
+          created_at?: string
+          distance_meters?: number | null
+          event_type: string
+          id?: string
+          kinds?: string[]
+          meta?: Json | null
+          origin_type?: string | null
+          preset_id?: string | null
+          spot_key?: string | null
+          visitor_key?: string | null
+          walk_minutes?: number | null
+        }
+        Update: {
+          created_at?: string
+          distance_meters?: number | null
+          event_type?: string
+          id?: string
+          kinds?: string[]
+          meta?: Json | null
+          origin_type?: string | null
+          preset_id?: string | null
+          spot_key?: string | null
+          visitor_key?: string | null
+          walk_minutes?: number | null
+        }
+        Relationships: []
+      }
       map_landmarks: {
         Row: {
           category: string

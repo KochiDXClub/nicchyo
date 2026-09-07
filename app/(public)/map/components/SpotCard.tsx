@@ -21,7 +21,7 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { ExternalLink, List, LocateFixed, MapPin, X as XIcon } from 'lucide-react';
+import { ExternalLink, List, LocateFixed, MapPin, Navigation, X as XIcon } from 'lucide-react';
 import type { MapSpot } from '@/lib/spots';
 import { getSpotKindMeta } from '@/lib/spots';
 import {
@@ -40,6 +40,8 @@ type SpotCardProps = {
   /** 会場内で取れている現在地。無ければ道のりは出さない */
   origin?: LatLng | null;
   onClose: () => void;
+  /** 「ここへ案内」。おでかけサポートの案内中モードに入る */
+  onNavigate?: (spot: MapSpot) => void;
 };
 
 const FOCUS_ZOOM = 18;
@@ -77,7 +79,7 @@ function getFacilityListHref(spot: MapSpot): { href: string; label: string } | n
   return null;
 }
 
-export default function SpotCard({ spot, map, origin, onClose }: SpotCardProps) {
+export default function SpotCard({ spot, map, origin, onClose, onNavigate }: SpotCardProps) {
   const meta = getSpotKindMeta(spot.kind, spot.transitMode);
   const listLink = getFacilityListHref(spot);
 
@@ -139,10 +141,7 @@ export default function SpotCard({ spot, map, origin, onClose }: SpotCardProps) 
       <div className="flex items-start gap-3 px-5 pb-3 pt-1">
         <SpotIcon spot={spot} sizeClass="h-11 w-11 text-xl" />
         <div className="min-w-0 flex-1">
-          <p
-            className="text-[10px] font-bold uppercase leading-none tracking-wide"
-            style={{ color: spot.accentColor }}
-          >
+          <p className="text-[11px] font-semibold leading-none" style={{ color: spot.accentColor }}>
             {meta.label}
           </p>
           <h3 className="mt-1 text-[17px] font-bold leading-tight text-slate-900">{spot.name}</h3>
@@ -236,11 +235,24 @@ export default function SpotCard({ spot, map, origin, onClose }: SpotCardProps) 
 
         {/* 行動ボタン */}
         <div className="mt-4 flex flex-wrap gap-2">
+          {onNavigate && spot.kind !== 'shop' && (
+            <button
+              type="button"
+              onClick={() => onNavigate(spot)}
+              className="flex items-center gap-1.5 rounded-full px-4 py-2 text-[13px] font-bold text-white shadow-sm transition-transform active:scale-[0.97]"
+              style={{ backgroundColor: spot.accentColor }}
+            >
+              <Navigation size={15} />
+              ここへ案内
+            </button>
+          )}
           <button
             type="button"
             onClick={handleFocus}
-            className="flex items-center gap-1.5 rounded-full px-4 py-2 text-[13px] font-bold text-white shadow-sm transition-transform active:scale-[0.97]"
-            style={{ backgroundColor: spot.accentColor }}
+            className={`flex items-center gap-1.5 rounded-full px-4 py-2 text-[13px] font-bold shadow-sm transition-transform active:scale-[0.97] ${
+              onNavigate && spot.kind !== 'shop' ? 'bg-slate-100 text-slate-700' : 'text-white'
+            }`}
+            style={onNavigate && spot.kind !== 'shop' ? undefined : { backgroundColor: spot.accentColor }}
           >
             <LocateFixed size={15} />
             ここへ寄る
