@@ -870,13 +870,19 @@ export default function ConsultStage({
         イラストそのものが入口。歩きながら片手で開けるよう、当たり判定を
         絵に持たせている（音声入力は下の「話しかける」ボタンに集約した）。
         選び直しても会話は消さない。話し手が変わるのは次の返答から。
+
+        ナビゲーションバー（z-[9997]）はこのシートより手前に描かれるので、
+        下端に寄せたままだと選択肢の下の方がバーに隠れて押せない。
+        バーのぶんだけ持ち上げる（画面下部の固定ボタンと同じ計算）。
       */}
       {isSpeakerPickerOpen && (
-        <div className="fixed inset-0 z-40 flex items-end justify-center bg-black/30 px-3 pb-4">
-          <div
-            className="w-full max-w-md rounded-3xl border border-amber-100 bg-white p-4 shadow-xl"
-            style={{ paddingBottom: "calc(var(--safe-bottom, 0px) + 1rem)" }}
-          >
+        <div
+          className="fixed inset-0 z-40 flex items-end justify-center overflow-y-auto bg-black/30 px-3 pt-16"
+          style={{
+            paddingBottom: "calc(var(--safe-bottom, 0px) + var(--nav-bar-height) + 0.75rem)",
+          }}
+        >
+          <div className="w-full max-w-md rounded-3xl border border-amber-100 bg-white p-4 pb-5 shadow-xl">
             <div className="flex items-center justify-between">
               <p className="text-sm font-bold text-amber-900">だれに聞く？</p>
               <button
@@ -888,7 +894,7 @@ export default function ConsultStage({
                 <X className="h-4 w-4" aria-hidden="true" />
               </button>
             </div>
-            <ul className="mt-3 flex flex-col gap-2">
+            <ul className="mt-3 flex max-h-[60vh] flex-col gap-2 overflow-y-auto">
               {CONSULT_CHARACTERS.map((character) => {
                 const isCurrent = character.id === speaker.id;
                 return (
