@@ -38,6 +38,7 @@ import { useAuth } from "@/lib/auth/AuthContext";
 import { useMenu } from "@/lib/ui/MenuContext";
 import { usePageVisibility } from "@/lib/pageVisibility/PageVisibilityContext";
 import { useMapLoading } from "./MapLoadingProvider";
+import MenuGrandma from "./MenuGrandma";
 
 // ─── ナビゲーション項目 ────────────────────────────────────────────────────────
 type NavItem = {
@@ -198,13 +199,6 @@ function NavigationBarInner({
     router.push(href);
   };
 
-  /** メニューのにちよさん。押したらナビの「相談」と同じ扱いにする */
-  const handleConsultFromMenu = () => {
-    closeMenu();
-    if (onConsultClick) { onConsultClick(); return; }
-    router.push("/consult");
-  };
-
   const handleCloseMode = useCallback(() => {
     if (onCloseMode) { onCloseMode(); return; }
     if (isPanelOpen) { goToMap(); }
@@ -354,23 +348,7 @@ function NavigationBarInner({
                           />
                         ))}
                       </div>
-                      {isConsultVisible && (
-                        <button
-                          type="button"
-                          onClick={handleConsultFromMenu}
-                          aria-label="にちよさんに聞く"
-                          className="-mb-2 -mr-3 shrink-0 transition active:scale-95"
-                        >
-                          <Image
-                            src="/images/obaasan_transparent.png"
-                            alt=""
-                            width={256}
-                            height={256}
-                            className="h-36 w-36 object-contain"
-                            aria-hidden
-                          />
-                        </button>
-                      )}
+                      <MenuGrandma />
                     </div>
                   </>
                 )}
