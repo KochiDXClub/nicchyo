@@ -34,7 +34,7 @@ export default function RunwayMeter({ segments, totalMonths }: RunwayMeterProps)
   return (
     <div
       role="img"
-      aria-label={`1年ぶんのサーバー代のうち、支援でまかなえているのは ${covered.toFixed(1)} ヶ月ぶん`}
+      aria-label={`1年ぶんの運営費のうち、ご支援でまかなえているのは ${covered.toFixed(1)} ヶ月ぶん`}
     >
       <div className="flex gap-[2px]">
         {Array.from({ length: totalMonths }, (_, month) => (

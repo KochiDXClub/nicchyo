@@ -36,7 +36,9 @@ export default function SupporterSlots({
           </li>
         ))}
       </ul>
-      <p className="mt-3 text-[12px] text-nicchyo-ink/40">ここにお名前とロゴが入ります</p>
+      <p className="mt-3 text-[12px] text-nicchyo-ink/40">
+        この枠に、お名前またはロゴを掲載いたします
+      </p>
     </div>
   );
 }

@@ -23,7 +23,7 @@ import {
 export const metadata = {
   title: "運営について",
   description:
-    "nicchyo のサーバー代と、いまどこまで支えられているか。協賛のお願いについて。",
+    "nicchyo の運営にかかる費用と、ご支援いただいている状況をご報告しています。協賛のご相談も承っております。",
 };
 
 export default async function SupportPage() {
@@ -60,13 +60,13 @@ export default async function SupportPage() {
       <div className="mx-auto max-w-lg px-6">
         <h1 className="text-[1.75rem] font-bold leading-snug tracking-tight">運営について</h1>
         <p className="mt-3 text-[15px] leading-loose text-nicchyo-ink/60">
-          高知高専の学生と顧問の教員で動かしています。広告はありません。
+          高知高専の学生と顧問の教員が運営しております。広告は掲載しておりません。
         </p>
 
         {/* このページで唯一の図。必要額と集まった額を1つのメーターで見せる */}
         <section className="mt-14">
           <h2 className="text-[12px] font-bold tracking-[0.1em] text-nicchyo-ink/40">
-            支えられている期間
+            ご支援いただいている期間
           </h2>
           <p className="mt-4 flex items-baseline gap-2">
             <span className="text-[3.5rem] font-bold leading-none text-nicchyo-ink">
@@ -90,19 +90,19 @@ export default async function SupportPage() {
                 style={{ backgroundColor: otherSegment.color }}
                 aria-hidden
               />
-              その他（助成金・匿名の支援） {formatJpy(otherSegment.amountJpy)}
+              その他（助成金・匿名でのご支援） {formatJpy(otherSegment.amountJpy)}
             </p>
           )}
 
           <p className="mt-4 text-[13px] leading-relaxed text-nicchyo-ink/50">
             {FUNDS_ON_HAND_JPY > 0
-              ? `お預かりしている ${formatJpy(FUNDS_ON_HAND_JPY)} で、ここまで動かせます。`
-              : "いまは全額を学生が出しています。"}
+              ? `ご支援いただいた ${formatJpy(FUNDS_ON_HAND_JPY)} で、ここまで運営することができます。`
+              : "現在は、運営費の全額を学生が負担しております。"}
           </p>
 
           {/* メーターの色がどの協賛かを、名前と金額で結びつける場所も兼ねる */}
           <h3 className="mt-10 text-[12px] font-bold tracking-[0.1em] text-nicchyo-ink/40">
-            支えてくださる方
+            ご支援くださる皆さま
           </h3>
           <SupporterSlots className="mt-4" />
         </section>
@@ -110,7 +110,7 @@ export default async function SupportPage() {
         {/* 費用。図はメーターに任せ、ここは金額をそろえて並べるだけにする */}
         <section className="mt-14 border-t border-nicchyo-ink/10 pt-10">
           <h2 className="text-[12px] font-bold tracking-[0.1em] text-nicchyo-ink/40">
-            毎月かかるお金
+            毎月の運営費
           </h2>
 
           {showBreakdown ? (
@@ -146,8 +146,8 @@ export default async function SupportPage() {
                 <span className="text-[2rem] font-bold leading-none">約 {formatJpy(monthly)}</span>
               </p>
               <p className="mt-3 text-[13px] leading-relaxed text-nicchyo-ink/50">
-                年 {formatJpy(ANNUAL_COST_RANGE_JPY.min)}〜{formatJpy(ANNUAL_COST_RANGE_JPY.max)}
-                の見込みから、多い方で置いています。
+                年間 {formatJpy(ANNUAL_COST_RANGE_JPY.min)}〜{formatJpy(ANNUAL_COST_RANGE_JPY.max)}
+                の見込みのうち、多い方を基準としております。
               </p>
               <ul className="mt-4 flex flex-wrap gap-x-5 gap-y-1.5">
                 {RUNNING_COSTS.map((cost) => (
@@ -163,11 +163,11 @@ export default async function SupportPage() {
         {/* 届いている範囲。ここに大きな数字を置くと、上のメーターと主役が割れる */}
         <section className="mt-14 border-t border-nicchyo-ink/10 pt-10">
           <h2 className="text-[12px] font-bold tracking-[0.1em] text-nicchyo-ink/40">
-            届いているところ
+            ご利用の状況
           </h2>
           <dl className="mt-5">
             <div className="flex items-baseline justify-between gap-4 border-b border-nicchyo-ink/[0.06] py-3.5">
-              <dt className="text-[15px] text-nicchyo-ink/70">今週の訪問者</dt>
+              <dt className="text-[15px] text-nicchyo-ink/70">今週の訪問者数</dt>
               <dd className="shrink-0 text-[15px] font-bold tabular-nums">
                 {weeklyVisitors === null
                   ? <span className="text-nicchyo-ink/30">集計中</span>
@@ -194,9 +194,9 @@ export default async function SupportPage() {
 
           {SPONSOR_UNIT_ANNUAL_JPY !== null && unitMonths !== null && (
             <p className="mt-4 text-[1.75rem] font-bold leading-snug">
-              1口 {formatJpy(SPONSOR_UNIT_ANNUAL_JPY)}で、
+              1口 {formatJpy(SPONSOR_UNIT_ANNUAL_JPY)}のご協賛で、
               <br />
-              {unitMonths.toFixed(1)}ヶ月ぶん動きます。
+              {unitMonths.toFixed(1)}ヶ月ぶん運営できます。
             </p>
           )}
 
@@ -204,15 +204,15 @@ export default async function SupportPage() {
             href="/contact?category=sponsor"
             className="mt-6 flex w-full items-center justify-center rounded-2xl bg-nicchyo-ink px-4 py-4 text-[15px] font-bold text-white transition active:scale-[0.99] hover:bg-nicchyo-ink/90"
           >
-            協賛について問い合わせる
+            協賛のご相談はこちら
           </Link>
           <p className="mt-3 text-[12px] text-nicchyo-ink/40">
-            掲載は1年ごとに更新します
+            掲載は1年ごとに更新いたします
           </p>
         </section>
 
         <p className="mt-14 border-t border-nicchyo-ink/10 pt-8 text-[12px] leading-loose text-nicchyo-ink/40">
-          いただいたお金は運営費だけに使います。会計は顧問の教員が確認しています。
+          ご支援いただいた資金は、運営費以外には使用いたしません。会計は顧問の教員が確認しております。
         </p>
 
         <div className="py-10 text-center">

@@ -52,7 +52,7 @@ export const aboutSlides: AboutSlide[] = [
   {
     id: "painPoints",
     title: "こんな悩み、ありませんか？",
-    description: "日曜市ってなんとなく足が向かない理由がある。",
+    description: "日曜市には、なんとなく足が向かない理由があります。",
     richContent: {
       type: "painPoints",
       items: [
@@ -110,7 +110,7 @@ export const aboutSlides: AboutSlide[] = [
   {
     id: "story",
     title: "近況",
-    description: "出店者が投稿する今週の写真やお知らせをチェックできます。",
+    description: "出店者の皆さんが投稿した今週の写真やお知らせをご覧いただけます。",
     iconName: "notebook",
     action: {
       label: "近況を見る",
@@ -156,11 +156,11 @@ export const aboutSlides: AboutSlide[] = [
   },
   {
     id: "supporters",
-    title: "支えてくださる方",
-    description: "サーバー代は協賛でまかないます。",
+    title: "ご支援くださる皆さま",
+    description: "運営にかかる費用は、皆さまのご協賛に支えていただいております。",
     richContent: { type: "supporters" },
     action: {
-      label: "運営費を見る",
+      label: "運営についてくわしく",
       href: "/support",
     },
   },
@@ -168,7 +168,7 @@ export const aboutSlides: AboutSlide[] = [
     id: "team",
     title: "チームと活動",
     description:
-      "高知高専の学生と顧問の先生によるプロジェクト。現地での聞き取りを大切にしています。",
+      "高知高専の学生と顧問の教員によるプロジェクトです。現地でお話をうかがうことを大切にしています。",
     iconName: "discover",
   },
   {
