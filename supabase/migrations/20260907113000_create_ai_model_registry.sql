@@ -32,6 +32,21 @@
 --   コード側の定義は lib/ai/models.ts。ズレは lib/ai/models.test.ts が止める。
 -- =====================================================================
 
+-- ─── 旧設計の後始末 ────────────────────────────────────────────────────
+-- 一つ前の版ではこの機能を ai_model_settings 単一テーブルで作っていた。
+-- 本番には出していないが、そのブランチを取り込んで db push を回した開発機や
+-- プレビューDBには残っている。参照されないテーブルが居座るので落とす。
+--
+-- ★ このマイグレーションのバージョンを 20260907110000 から変えているのは、
+--   旧ファイルを同じ番号のまま差し替えると、先に適用した環境で
+--   「適用済み」と判定されて新しいテーブルが作られないため。
+--   しかもアプリは台帳が読めないとコード側の既定値で動くので、
+--   「管理画面で保存しても効かない」状態に誰も気づけない。
+--   （同種の事故は docs/RELEASE.md §9 を参照）
+drop trigger if exists ai_model_settings_touch_updated_at on ai_model_settings;
+drop function if exists public.ai_model_settings_touch_updated_at();
+drop table if exists public.ai_model_settings;
+
 -- ─── 選べるモデルの一覧 ────────────────────────────────────────────────
 create table if not exists ai_models (
   -- OpenAI API に渡す model 名。lib/ai/models.ts の AI_MODEL_DEFS と対応する
@@ -60,6 +75,9 @@ create table if not exists ai_models (
   is_selectable boolean not null default true,
   -- 管理画面での並び順
   sort_order integer not null default 0,
+  -- 能力の列は本番の可用性とコストに直結するので、手で触られた痕跡を残せるようにする。
+  -- 通常はマイグレーションが入れるので null（created_at と updated_at の差でも見分けられる）
+  updated_by uuid references auth.users (id) on delete set null,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
 
@@ -69,7 +87,6 @@ create table if not exists ai_models (
   constraint ai_models_token_param_valid check (
     token_param in ('max_tokens', 'max_completion_tokens')
   ),
-  constraint ai_models_headroom_non_negative check (reasoning_headroom_tokens >= 0),
   constraint ai_models_price_non_negative check (
     price_input_per_mtok >= 0 and price_output_per_mtok >= 0
   ),
@@ -77,6 +94,32 @@ create table if not exists ai_models (
   -- lib/ai/models.ts の ReasoningEffort も直す（models.test.ts が突き合わせる）
   constraint ai_models_reasoning_efforts_valid check (
     reasoning_efforts <@ array['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max']::text[]
+  ),
+
+  -- ── 列どうしの整合。1列ずつ正しくても組み合わせが壊れていると本番が落ちる ──
+  -- 推論モデルは max_completion_tokens でしか動かない。
+  -- max_tokens と reasoning_effort を同時に送ると 400 が返り、
+  -- その機能の全リクエストが落ち続ける（非推論側は将来のために縛らない）
+  constraint ai_models_reasoning_needs_completion_tokens check (
+    cardinality(reasoning_efforts) = 0 or token_param = 'max_completion_tokens'
+  ),
+  -- 実際に考えさせる深さを持つなら余白が要る。0 だと推論だけで出力上限を
+  -- 使い切り、エラーにならないまま本文が空で返る（400より発見が遅れる）
+  constraint ai_models_reasoning_needs_headroom check (
+    not (reasoning_efforts && array['low', 'medium', 'high', 'xhigh', 'max']::text[])
+    or reasoning_headroom_tokens > 0
+  ),
+  -- 余白の上限。桁を間違えると max_completion_tokens が跳ね上がり、
+  -- そのモデルを使う機能が全滅する。lib/ai/models.ts と同値
+  constraint ai_models_headroom_bounded check (
+    reasoning_headroom_tokens >= 0 and reasoning_headroom_tokens <= 32000
+  ),
+  -- 先頭要素は「機能側が深さを指定しなかったときの既定」になる。
+  -- ここが重い側に倒れると、管理画面で誰も何も選んでいないのに
+  -- そのモデルを使う全機能が重くなる
+  constraint ai_models_default_effort_is_light check (
+    cardinality(reasoning_efforts) = 0
+    or reasoning_efforts[1] in ('none', 'minimal', 'low')
   )
 );
 
@@ -116,7 +159,10 @@ returns trigger
 language plpgsql
 -- security definer にはしない。書き込むのは RLS をバイパスする service role
 -- だけで、権限を昇格させる理由がない
-set search_path = public
+-- search_path は空にする。関数内の参照はすべて完全修飾してあるので、
+-- 将来この規律が崩れた時点で解決できずエラーになり、劣化が静かに入らない
+-- （pg_temp を暗黙に先に探索させないためでもある）
+set search_path = ''
 as $$
 declare
   allowed text[];
@@ -165,7 +211,10 @@ create trigger ai_use_cases_validate_model
 create or replace function public.ai_models_touch_updated_at()
 returns trigger
 language plpgsql
-set search_path = public
+-- search_path は空にする。関数内の参照はすべて完全修飾してあるので、
+-- 将来この規律が崩れた時点で解決できずエラーになり、劣化が静かに入らない
+-- （pg_temp を暗黙に先に探索させないためでもある）
+set search_path = ''
 as $$
 begin
   new.updated_at := now();
@@ -179,6 +228,50 @@ drop trigger if exists ai_models_touch_updated_at on ai_models;
 create trigger ai_models_touch_updated_at
   before insert or update on ai_models
   for each row execute function public.ai_models_touch_updated_at();
+
+-- ─── モデル側を変えたら、機能側の設定を追随させる ──────────────────────
+-- 上の ai_use_cases_validate_model は ai_use_cases への書き込みでしか動かない。
+-- あとから ai_models.reasoning_efforts を狭める、is_selectable を落とす、と
+-- いった変更をすると、既存の ai_use_cases に不整合な値が残る。
+--
+-- 読み取り側（normalizeAiModelSettings）が落として既定値に戻すので危険では
+-- ないが、**運営から見ると管理画面の表示が勝手に戻る**。DB側で辻褄を合わせ、
+-- 保存されている値と実際に使われる値を一致させる。
+create or replace function public.ai_models_sync_use_cases()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  -- 選べなくなったモデルを使っていた機能は、モデル未設定に戻す
+  -- （= コード側の既定モデルに落ちる）
+  if old.is_selectable and not new.is_selectable then
+    update public.ai_use_cases
+       set model_id = null, reasoning_effort = null
+     where model_id = new.id;
+    return new;
+  end if;
+
+  -- 受け付けなくなった深さを指定していた機能は、深さだけ未指定に戻す
+  -- （= そのモデルの既定の深さに落ちる）
+  if new.reasoning_efforts is distinct from old.reasoning_efforts then
+    update public.ai_use_cases
+       set reasoning_effort = null
+     where model_id = new.id
+       and reasoning_effort is not null
+       and not (reasoning_effort = any (new.reasoning_efforts));
+  end if;
+
+  return new;
+end;
+$$;
+
+revoke all on function public.ai_models_sync_use_cases() from public, anon, authenticated;
+
+drop trigger if exists ai_models_sync_use_cases on ai_models;
+create trigger ai_models_sync_use_cases
+  after update on ai_models
+  for each row execute function public.ai_models_sync_use_cases();
 
 -- ─── 初期データ ────────────────────────────────────────────────────────
 -- ai_prompts では初期行を入れなかったが（プロンプト文をSQLに焼くとコード側と
@@ -223,7 +316,20 @@ insert into ai_models (
     '5.6 世代の軽量モデル。価格は 5.4 nano とほぼ同じ。推論を切れば速いが、既定のままだと考えてから答えるぶん待ちが伸びる。',
     'max_completion_tokens', true, '{none,low,medium,high,xhigh,max}', 6000, 0.20, 1.20, 50
   )
-on conflict (id) do nothing;
+-- 能力の列はマイグレーションが正本。手で書き換えられていても揃え直す。
+-- do nothing にすると、汚染された行を直す手段がマイグレーション側に無くなる。
+-- is_selectable だけは運営が「提供終了したので隠す」判断で落とすことがあるので触らない
+on conflict (id) do update set
+  label = excluded.label,
+  description = excluded.description,
+  token_param = excluded.token_param,
+  supports_temperature = excluded.supports_temperature,
+  reasoning_efforts = excluded.reasoning_efforts,
+  reasoning_headroom_tokens = excluded.reasoning_headroom_tokens,
+  price_input_per_mtok = excluded.price_input_per_mtok,
+  price_output_per_mtok = excluded.price_output_per_mtok,
+  sort_order = excluded.sort_order,
+  updated_by = null;
 
 -- 機能側は model_id を入れずに作る。
 -- null のあいだはコード側の既定値（AI_USE_CASE_DEFS.defaultModelId）が使われる。
@@ -254,7 +360,12 @@ insert into ai_use_cases (key, label, description, sort_order) values
     '質問から意図を読み取ってJSONで返す。分類・抽出に近い処理。',
     40
   )
-on conflict (key) do nothing;
+-- model_id / reasoning_effort は運営が選んだもの。触らない。
+-- 表示用の列だけ揃え直す
+on conflict (key) do update set
+  label = excluded.label,
+  description = excluded.description,
+  sort_order = excluded.sort_order;
 
 -- ─── 権限 ──────────────────────────────────────────────────────────────
 alter table ai_models enable row level security;

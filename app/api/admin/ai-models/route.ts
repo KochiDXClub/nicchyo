@@ -19,6 +19,8 @@ import {
   AI_USE_CASES,
   DEFAULT_AI_MODEL_SETTINGS,
   buildAiCatalog,
+  findAiModel,
+  isAiUseCase,
   normalizeAiModelSettings,
   validateAiModelChoice,
   type AiModelChoice,
@@ -64,9 +66,18 @@ export async function GET() {
     // モデル未設定（model_id が null）の機能はコード側の既定値が使われている。
     // 画面で「既定のまま」を出し分けるために、設定済みの機能だけを別に返す
     const savedAt: Record<string, string> = {};
+    // 保存されているモデルが台帳から消えた・選べなくなった機能。
+    // 読み取り側は黙って既定値に戻すので、運営に伝えないと
+    // 「設定したはずなのに違うモデルで動いている」ことに気づけない
+    const fellBack: string[] = [];
+
     for (const row of useCasesResult.data ?? []) {
+      // .in() で絞ってはいるが、ここでも見る。クエリを変えたときに
+      // 黙って穴が開かないようにするため（ai-prompts の GET と同じ形）
+      if (!isAiUseCase(row.key)) continue;
       if (!row.model_id) continue;
       savedAt[row.key] = row.updated_at;
+      if (!findAiModel(catalog, row.model_id)) fellBack.push(row.key);
     }
 
     return NextResponse.json({
@@ -75,6 +86,7 @@ export async function GET() {
       settings: normalizeAiModelSettings(catalog, useCasesResult.data),
       defaults: DEFAULT_AI_MODEL_SETTINGS,
       savedAt,
+      fellBack,
     });
   } catch {
     return NextResponse.json({ error: "Failed to load AI registry" }, { status: 500 });
@@ -99,6 +111,12 @@ export async function PUT(request: NextRequest) {
     const body = (await request.json().catch(() => null)) as { settings?: unknown } | null;
     if (!body || !body.settings || typeof body.settings !== "object") {
       return NextResponse.json({ error: "Bad Request" }, { status: 400 });
+    }
+
+    const entries = Object.entries(body.settings as Record<string, unknown>);
+    // 機能の数は決まっている。それを超えるボディは正当な呼び出しではない
+    if (entries.length > AI_USE_CASES.length) {
+      return NextResponse.json({ error: "Too many settings" }, { status: 400 });
     }
 
     // 検証は台帳（DBの ai_models）に対して行う。コード側の定義に対して見ると、
@@ -131,7 +149,7 @@ export async function PUT(request: NextRequest) {
     const accepted: { useCase: AiUseCase; choice: AiModelChoice }[] = [];
     const rejected: { useCase: string; reason: string }[] = [];
 
-    for (const [useCase, value] of Object.entries(body.settings as Record<string, unknown>)) {
+    for (const [useCase, value] of entries) {
       const choice = (value ?? {}) as { modelId?: unknown; reasoningEffort?: unknown };
       const result = validateAiModelChoice(
         catalog,
@@ -142,7 +160,8 @@ export async function PUT(request: NextRequest) {
       if (result.ok) {
         accepted.push({ useCase: result.useCase, choice: result.choice });
       } else {
-        rejected.push({ useCase, reason: result.reason });
+        // 弾いたキーをそのまま返さない（受け取った文字列をレスポンスに反射させない）
+        rejected.push({ useCase: useCase.slice(0, 50), reason: result.reason });
       }
     }
 
@@ -183,19 +202,28 @@ export async function PUT(request: NextRequest) {
     // upsert にすると、コードに無いキーの行を API から作れてしまう。
     // updated_by は必ず検証済みセッションの ID を入れる（クライアントの申告は使わない）
     for (const item of changed) {
-      const { error: updateError } = await auth.adminClient
+      const { data: updated, error: updateError } = await auth.adminClient
         .from(USE_CASES_TABLE)
         .update({
           model_id: item.choice.modelId,
           reasoning_effort: item.choice.reasoningEffort ?? null,
           updated_by: auth.user.id,
         })
-        .eq("key", item.useCase);
+        .eq("key", item.useCase)
+        // 無効化した機能に「保存しました」と返さない。
+        // 読み取り側は is_enabled = true で絞るので、書けても効かない
+        .eq("is_enabled", true)
+        .select("key");
 
       if (updateError) {
         // DB のトリガ（ai_use_cases_validate_model）に弾かれた場合など、
         // 理由が分からないと追跡できない
         console.error("[admin/ai-models] update failed:", updateError.message);
+        return NextResponse.json({ error: "Failed to save AI model settings" }, { status: 500 });
+      }
+      // 0行更新は「成功したが何も効いていない」状態。成功として返さない
+      if (!updated || updated.length === 0) {
+        console.error("[admin/ai-models] no row updated:", item.useCase);
         return NextResponse.json({ error: "Failed to save AI model settings" }, { status: 500 });
       }
     }

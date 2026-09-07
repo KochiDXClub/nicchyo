@@ -245,11 +245,22 @@ export function isAiModelId(catalog: AiCatalog, value: unknown): value is string
 }
 
 /**
+ * 推論の余白の上限。これを超える値は台帳の書き間違いとみなす。
+ * DBの CHECK 制約（ai_models_headroom_bounded）と同値
+ */
+export const MAX_REASONING_HEADROOM_TOKENS = 32000;
+
+/**
  * ai_models の1行を定義に変換する。
  *
- * 能力の列（token_param など）が壊れている行は捨てる。読み飛ばして
- * コード側の既定値に落ちるほうが、壊れた能力でリクエストを組んで
- * 全件 400 になるより被害が小さい。
+ * **1列ずつ正しくても、組み合わせが壊れていれば捨てる。**
+ * 壊れた能力でリクエストを組むと、その機能の全リクエストが落ち続ける
+ * （あるいは本文が空のまま 200 で返り続ける）。コード側の定義に落ちて
+ * 動き続けるほうが被害が小さい。
+ *
+ * なお **同じIDの行が汚染された場合、コード側の定義はフォールバックにならない**
+ * （findAiModel が台帳の行を先に引くため）。だからここで内部矛盾を弾く必要がある。
+ * DB側にも同じ不変条件を CHECK 制約として置いてある。
  */
 export function parseAiModelRow(row: unknown): AiModelDef | null {
   if (!row || typeof row !== "object") return null;
@@ -259,6 +270,10 @@ export function parseAiModelRow(row: unknown): AiModelDef | null {
   const label = typeof r.label === "string" ? r.label.trim() : "";
   if (!id || !label) return null;
 
+  // 提供終了は読み取り側の .eq("is_selectable", true) でも絞っているが、
+  // ここでも落とす。台帳を読む経路がフィルタを1つ書き忘れるだけで復活するため
+  if (r.is_selectable === false) return null;
+
   const tokenParam = r.token_param;
   if (tokenParam !== "max_tokens" && tokenParam !== "max_completion_tokens") return null;
 
@@ -266,7 +281,18 @@ export function parseAiModelRow(row: unknown): AiModelDef | null {
     ? r.reasoning_efforts.filter(isReasoningEffort)
     : [];
 
-  const headroom = Number(r.reasoning_headroom_tokens);
+  // 推論モデルに max_tokens を送ると 400 で全リクエストが落ちる
+  if (efforts.length > 0 && tokenParam !== "max_completion_tokens") return null;
+
+  const rawHeadroom = Number(r.reasoning_headroom_tokens);
+  const headroom = Number.isFinite(rawHeadroom)
+    ? Math.min(Math.max(rawHeadroom, 0), MAX_REASONING_HEADROOM_TOKENS)
+    : 0;
+
+  // 実際に考えさせる深さを持つのに余白が無いと、推論だけで出力上限を使い切り、
+  // エラーにならないまま本文が空で返る
+  if (efforts.some(usesThinkingTokens) && headroom === 0) return null;
+
   const priceIn = Number(r.price_input_per_mtok);
   const priceOut = Number(r.price_output_per_mtok);
 
@@ -275,9 +301,10 @@ export function parseAiModelRow(row: unknown): AiModelDef | null {
     label,
     description: typeof r.description === "string" ? r.description : "",
     tokenParam,
-    supportsTemperature: r.supports_temperature !== false,
+    // 判断できない値は「送らない」に倒す。送って 400 になるより被害が小さい
+    supportsTemperature: r.supports_temperature === true,
     reasoningEfforts: efforts,
-    reasoningHeadroomTokens: Number.isFinite(headroom) && headroom > 0 ? headroom : 0,
+    reasoningHeadroomTokens: headroom,
     pricing: {
       input: Number.isFinite(priceIn) ? priceIn : 0,
       output: Number.isFinite(priceOut) ? priceOut : 0,

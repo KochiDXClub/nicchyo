@@ -52,12 +52,15 @@ function UseCaseRow({
   models,
   value,
   savedAt,
+  fellBack,
   onChange,
 }: {
   def: AiUseCaseDef;
   models: readonly AiModelDef[];
   value: Choice;
   savedAt?: string;
+  /** 保存されていたモデルが台帳から消えて、既定値に戻っている */
+  fellBack?: boolean;
   onChange: (useCase: string, next: Choice) => void;
 }) {
   const model = models.find((item) => item.id === value.modelId);
@@ -88,6 +91,13 @@ function UseCaseRow({
         ) : null}
       </div>
       <p className="mt-1 text-[13px] text-slate-500">{def.description}</p>
+
+      {fellBack ? (
+        <p className="mt-3 rounded-md border border-red-200 bg-red-50 p-2 text-[12px] leading-relaxed text-red-800">
+          前に選んでいたモデルが選べなくなったため、いまは既定のモデルで動いています。
+          選び直して保存してください。
+        </p>
+      ) : null}
 
       <div className="mt-3 grid gap-3 sm:grid-cols-2">
         <div>
@@ -169,6 +179,7 @@ export function ModelSettings() {
   const [saved, setSaved] = useState<AiModelSettingSet>(DEFAULT_AI_MODEL_SETTINGS);
   const [draft, setDraft] = useState<AiModelSettingSet>(DEFAULT_AI_MODEL_SETTINGS);
   const [savedAt, setSavedAt] = useState<Record<string, string>>({});
+  const [fellBack, setFellBack] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -182,12 +193,14 @@ export function ModelSettings() {
         useCases: AiUseCaseDef[];
         settings: AiModelSettingSet;
         savedAt: Record<string, string>;
+        fellBack: string[];
       };
       setModels(json.models);
       setUseCases(json.useCases);
       setSaved(json.settings);
       setDraft(json.settings);
       setSavedAt(json.savedAt ?? {});
+      setFellBack(json.fellBack ?? []);
     } catch {
       showToast.error("モデル台帳の読み込みに失敗しました");
     } finally {
@@ -262,6 +275,7 @@ export function ModelSettings() {
               models={models}
               value={draft[def.useCase] ?? DEFAULT_AI_MODEL_SETTINGS[def.useCase]}
               savedAt={savedAt[def.useCase]}
+              fellBack={fellBack.includes(def.useCase)}
               onChange={handleChange}
             />
           ))}

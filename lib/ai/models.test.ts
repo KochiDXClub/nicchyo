@@ -15,6 +15,7 @@ import {
   findAiModel,
   isAiModelId,
   isAiUseCase,
+  MAX_REASONING_HEADROOM_TOKENS,
   normalizeAiModelSettings,
   parseAiModelRow,
   parseAiUseCaseRow,
@@ -103,13 +104,36 @@ describe("AI_MODEL_DEFS", () => {
  */
 describe("マイグレーションとの突き合わせ", () => {
   const sql = readFileSync(
-    join(process.cwd(), "supabase/migrations/20260907110000_create_ai_model_registry.sql"),
+    join(process.cwd(), "supabase/migrations/20260907113000_create_ai_model_registry.sql"),
     "utf8"
   );
 
-  it("コード側のモデルはすべてマイグレーションの初期データに入っている", () => {
+  /** 初期データから、そのモデルの values タプルだけを切り出す */
+  function seedTupleFor(modelId: string): string {
+    const start = sql.indexOf(`'${modelId}'`);
+    expect(start, `${modelId} が ai_models の初期データにない`).toBeGreaterThan(-1);
+    const end = sql.indexOf("),", start);
+    return sql.slice(start, end);
+  }
+
+  it("コード側のモデルの能力がマイグレーションの初期データと一致している", () => {
+    // IDの有無だけを見ると、能力の列がズレても検知できない。
+    // ズレると「平常時は400、DB障害時は正常」のように環境で壊れ方が変わる
     for (const def of AI_MODEL_DEFS) {
-      expect(sql, `${def.id} が ai_models の初期データにない`).toContain(`'${def.id}'`);
+      const tuple = seedTupleFor(def.id);
+
+      expect(tuple, `${def.id} の token_param`).toContain(`'${def.tokenParam}'`);
+      expect(tuple, `${def.id} の supports_temperature`).toContain(
+        def.supportsTemperature ? "true," : "false,"
+      );
+      expect(tuple, `${def.id} の reasoning_efforts`).toContain(
+        `'{${def.reasoningEfforts.join(",")}}'`
+      );
+      expect(tuple, `${def.id} の reasoning_headroom_tokens`).toContain(
+        `${def.reasoningEfforts.join(",")}}', ${def.reasoningHeadroomTokens},`
+      );
+      expect(tuple, `${def.id} の input 価格`).toContain(def.pricing.input.toFixed(2));
+      expect(tuple, `${def.id} の output 価格`).toContain(def.pricing.output.toFixed(2));
     }
   });
 
@@ -165,6 +189,46 @@ describe("parseAiModelRow", () => {
   it("知らない深さは黙って落とす", () => {
     const parsed = parseAiModelRow(modelRow({ reasoning_efforts: ["low", "ultra", 42] }));
     expect(parsed?.reasoningEfforts).toEqual(["low"]);
+  });
+
+  it("1列ずつ正しくても組み合わせが壊れていれば捨てる", () => {
+    // 推論モデルに max_tokens を送ると 400 で全リクエストが落ちる
+    expect(
+      parseAiModelRow(modelRow({ token_param: "max_tokens", reasoning_efforts: ["low"] }))
+    ).toBeNull();
+    // 余白 0 だと推論だけで枠を使い切り、本文が空のまま 200 で返り続ける
+    expect(
+      parseAiModelRow(modelRow({ reasoning_efforts: ["low"], reasoning_headroom_tokens: 0 }))
+    ).toBeNull();
+  });
+
+  it("推論トークンを使わない深さだけなら余白 0 でよい", () => {
+    const parsed = parseAiModelRow(
+      modelRow({ reasoning_efforts: ["minimal"], reasoning_headroom_tokens: 0 })
+    );
+    expect(parsed?.reasoningEfforts).toEqual(["minimal"]);
+  });
+
+  it("提供終了したモデルは捨てる（読み取り側のフィルタに頼らない）", () => {
+    expect(parseAiModelRow(modelRow({ is_selectable: false }))).toBeNull();
+  });
+
+  it("temperature は判断できない値なら送らない側に倒す", () => {
+    // 送って 400 になるより、送らずにモデル既定値で動くほうが被害が小さい
+    expect(parseAiModelRow(modelRow({ supports_temperature: null }))?.supportsTemperature).toBe(
+      false
+    );
+    expect(parseAiModelRow(modelRow({ supports_temperature: "true" }))?.supportsTemperature).toBe(
+      false
+    );
+    expect(parseAiModelRow(modelRow({ supports_temperature: true }))?.supportsTemperature).toBe(
+      true
+    );
+  });
+
+  it("余白は上限でクランプする（桁を間違えても全滅させない）", () => {
+    const parsed = parseAiModelRow(modelRow({ reasoning_headroom_tokens: 2000000000 }));
+    expect(parsed?.reasoningHeadroomTokens).toBe(MAX_REASONING_HEADROOM_TOKENS);
   });
 });
 

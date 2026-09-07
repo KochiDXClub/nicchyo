@@ -87,10 +87,10 @@ type ExtendedPublicSchema = Omit<Database["public"], "Tables"> & {
     };
     ai_models: {
       Row: AiModelRow;
-      // updated_at はトリガ（ai_models_touch_updated_at）が入れるので送らない
-      Insert: Pick<AiModelRow, "id" | "label" | "token_param"> &
-        Partial<Omit<AiModelRow, "id" | "label" | "token_param" | "created_at" | "updated_at">>;
-      Update: Partial<Omit<AiModelRow, "id" | "created_at" | "updated_at">>;
+      // モデル台帳の追加・変更はマイグレーションで行う。APIから書かせない。
+      // 能力の列を間違えると、そのモデルを使う機能の全リクエストが落ちる
+      Insert: never;
+      Update: never;
       Relationships: never[];
     };
     ai_use_cases: {
