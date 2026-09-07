@@ -17,6 +17,8 @@ import {
   buildItineraryUserPrompt,
   stripAngleBrackets,
 } from "@/lib/grandma/prompts/itineraryPrompt";
+import { buildChatCompletionBody } from "@/lib/ai/models";
+import { resolveAiModelFor } from "@/lib/ai/modelStore.server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -193,21 +195,24 @@ export async function POST(request: Request) {
       template,
     });
 
+    const aiModel = await resolveAiModelFor("itinerary");
+
     const chatResponse = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${openaiKey}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({
-        model: "gpt-4o-mini",
-        temperature: 0.6,
-        max_tokens: 900,
-        messages: [
-          { role: "system", content: ITINERARY_SYSTEM_PROMPT },
-          { role: "user", content: prompt },
-        ],
-      }),
+      body: JSON.stringify(
+        buildChatCompletionBody(aiModel, {
+          messages: [
+            { role: "system", content: ITINERARY_SYSTEM_PROMPT },
+            { role: "user", content: prompt },
+          ],
+          maxOutputTokens: 900,
+          temperature: 0.6,
+        })
+      ),
     });
     if (!chatResponse.ok) {
       return NextResponse.json({ error: "chat completion failed" }, { status: 500 });
