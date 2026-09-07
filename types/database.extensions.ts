@@ -32,11 +32,32 @@ export type AiPromptRow = {
   created_at: string;
 };
 
-export type AiModelSettingRow = {
-  use_case: string;
-  model_id: string;
+export type AiModelRow = {
+  id: string;
+  label: string;
+  description: string;
+  token_param: "max_tokens" | "max_completion_tokens";
+  supports_temperature: boolean;
+  reasoning_efforts: string[];
+  reasoning_headroom_tokens: number;
+  price_input_per_mtok: number;
+  price_output_per_mtok: number;
+  is_selectable: boolean;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+};
+
+export type AiUseCaseRow = {
+  key: string;
+  label: string;
+  description: string;
+  model_id: string | null;
   reasoning_effort: string | null;
+  is_enabled: boolean;
+  sort_order: number;
   updated_by: string | null;
+  created_at: string;
   updated_at: string;
 };
 
@@ -64,12 +85,21 @@ type ExtendedPublicSchema = Omit<Database["public"], "Tables"> & {
       Update: Partial<Pick<AiPromptRow, "is_active" | "note">>;
       Relationships: never[];
     };
-    ai_model_settings: {
-      Row: AiModelSettingRow;
-      // updated_at はトリガ（ai_model_settings_touch_updated_at）が入れるので送らない
-      Insert: Pick<AiModelSettingRow, "use_case" | "model_id"> &
-        Partial<Pick<AiModelSettingRow, "reasoning_effort" | "updated_by">>;
-      Update: Partial<Pick<AiModelSettingRow, "model_id" | "reasoning_effort" | "updated_by">>;
+    ai_models: {
+      Row: AiModelRow;
+      // updated_at はトリガ（ai_models_touch_updated_at）が入れるので送らない
+      Insert: Pick<AiModelRow, "id" | "label" | "token_param"> &
+        Partial<Omit<AiModelRow, "id" | "label" | "token_param" | "created_at" | "updated_at">>;
+      Update: Partial<Omit<AiModelRow, "id" | "created_at" | "updated_at">>;
+      Relationships: never[];
+    };
+    ai_use_cases: {
+      Row: AiUseCaseRow;
+      // 機能の追加はマイグレーションで行う。APIから作らせない
+      // （行を足してもコード側に呼び出しが無ければ何も起きないため）
+      Insert: never;
+      // 運営が変えられるのは「どのモデルを当てるか」だけ
+      Update: Partial<Pick<AiUseCaseRow, "model_id" | "reasoning_effort" | "updated_by">>;
       Relationships: never[];
     };
   };

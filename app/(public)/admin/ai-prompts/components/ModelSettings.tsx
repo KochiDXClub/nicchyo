@@ -1,10 +1,11 @@
 "use client";
 
 /**
- * 場面ごとのAIモデル選択
+ * 機能ごとのAIモデル割り当て
  *
- * 選べるのは lib/ai/models.ts の AI_MODEL_DEFS に載っているモデルだけ。
- * 自由入力にすると、存在しないモデル名で全リクエストが落ちる形の事故になる。
+ * モデルの一覧も機能の一覧も **DBの台帳（ai_models / ai_use_cases）から取る**。
+ * 自由入力にはしない。存在しないモデル名を保存できると、その機能の
+ * 全リクエストが落ちる。
  *
  * 推論の深さはモデルごとに受け付ける値が違うので、モデルを選び直したときに
  * 前のモデルでしか使えない値が残らないよう、選択肢から外れたら未指定に戻す。
@@ -14,12 +15,11 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { LoadingButton } from "@/components/admin";
 import { showToast } from "@/lib/admin/toast";
 import {
-  AI_MODEL_DEFS,
-  AI_MODEL_DEF_BY_ID,
-  AI_USE_CASE_DEFS,
+  CODE_AI_CATALOG,
   DEFAULT_AI_MODEL_SETTINGS,
+  type AiModelDef,
   type AiModelSettingSet,
-  type AiUseCase,
+  type AiUseCaseDef,
   type ReasoningEffort,
 } from "@/lib/ai/models";
 
@@ -33,80 +33,79 @@ const EFFORT_LABELS: Record<ReasoningEffort, string> = {
   max: "最大まで考える",
 };
 
-/** 1質問あたりの目安。相談1回のおおよその実測値（入力1,200 / 出力250 token）で計算する */
+/** 1質問あたりの目安。相談1回のおおよその実測値（入力1,200 / 出力250 token） */
 const TOKENS_PER_ASK = { input: 1200, output: 250 };
+/** 表示用の概算レート。桁感が伝わればよいので固定でよい */
+const USD_TO_YEN = 150;
 
-function estimateCostYen(modelId: string): string | null {
-  const def = AI_MODEL_DEF_BY_ID.get(modelId);
-  if (!def) return null;
+function estimateCostYen(model: AiModelDef): string {
   const usd =
-    (TOKENS_PER_ASK.input * def.pricing.input + TOKENS_PER_ASK.output * def.pricing.output) / 1e6;
-  // 為替は目安。桁感が伝わればよいので固定でよい
-  const yen = usd * 150;
-  return `1回あたり約 ${yen.toFixed(3)} 円`;
+    (TOKENS_PER_ASK.input * model.pricing.input + TOKENS_PER_ASK.output * model.pricing.output) /
+    1e6;
+  return `1回あたり約 ${(usd * USD_TO_YEN).toFixed(3)} 円`;
 }
 
+type Choice = { modelId: string; reasoningEffort?: ReasoningEffort };
+
 function UseCaseRow({
-  useCase,
-  label,
-  description,
+  def,
+  models,
   value,
   savedAt,
   onChange,
 }: {
-  useCase: AiUseCase;
-  label: string;
-  description: string;
-  value: { modelId: string; reasoningEffort?: ReasoningEffort };
+  def: AiUseCaseDef;
+  models: readonly AiModelDef[];
+  value: Choice;
   savedAt?: string;
-  onChange: (useCase: AiUseCase, next: { modelId: string; reasoningEffort?: ReasoningEffort }) => void;
+  onChange: (useCase: string, next: Choice) => void;
 }) {
-  const def = AI_MODEL_DEF_BY_ID.get(value.modelId);
-  const efforts = def?.reasoningEfforts ?? [];
-  const isDefault = value.modelId === DEFAULT_AI_MODEL_SETTINGS[useCase].modelId;
+  const model = models.find((item) => item.id === value.modelId);
+  const efforts = model?.reasoningEfforts ?? [];
+  const isDefault = !savedAt;
 
   const handleModelChange = useCallback(
     (modelId: string) => {
-      const next = AI_MODEL_DEF_BY_ID.get(modelId);
+      const next = models.find((item) => item.id === modelId);
       // 前のモデルでしか使えない深さが残ると、保存時に弾かれる
       const keepEffort =
         value.reasoningEffort && next?.reasoningEfforts.includes(value.reasoningEffort)
           ? value.reasoningEffort
           : undefined;
-      onChange(useCase, { modelId, reasoningEffort: keepEffort });
+      onChange(def.useCase, { modelId, reasoningEffort: keepEffort });
     },
-    [onChange, useCase, value.reasoningEffort]
+    [def.useCase, models, onChange, value.reasoningEffort]
   );
 
   return (
     <div className="rounded-lg border border-slate-200 bg-white p-4">
       <div className="flex flex-wrap items-baseline gap-2">
-        <span className="text-sm font-bold text-slate-900">{label}</span>
+        <span className="text-sm font-bold text-slate-900">{def.label}</span>
         {isDefault ? (
           <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-500">
             既定のまま
           </span>
         ) : null}
       </div>
-      <p className="mt-1 text-[13px] text-slate-500">{description}</p>
+      <p className="mt-1 text-[13px] text-slate-500">{def.description}</p>
 
       <div className="mt-3 grid gap-3 sm:grid-cols-2">
         <div>
           <label
-            htmlFor={`model-${useCase}`}
+            htmlFor={`model-${def.useCase}`}
             className="text-[12px] font-semibold text-slate-600"
           >
             使うモデル
           </label>
           <select
-            id={`model-${useCase}`}
+            id={`model-${def.useCase}`}
             value={value.modelId}
             onChange={(event) => handleModelChange(event.target.value)}
             className="mt-1 w-full rounded-md border border-slate-300 p-2 text-[13px] text-slate-800 focus:border-slate-400 focus:outline-none"
           >
-            {AI_MODEL_DEFS.map((model) => (
-              <option key={model.id} value={model.id}>
-                {model.label}
+            {models.map((item) => (
+              <option key={item.id} value={item.id}>
+                {item.label}
               </option>
             ))}
           </select>
@@ -115,16 +114,16 @@ function UseCaseRow({
         {efforts.length > 0 ? (
           <div>
             <label
-              htmlFor={`effort-${useCase}`}
+              htmlFor={`effort-${def.useCase}`}
               className="text-[12px] font-semibold text-slate-600"
             >
               どれくらい考えさせるか
             </label>
             <select
-              id={`effort-${useCase}`}
+              id={`effort-${def.useCase}`}
               value={value.reasoningEffort ?? ""}
               onChange={(event) =>
-                onChange(useCase, {
+                onChange(def.useCase, {
                   modelId: value.modelId,
                   reasoningEffort: (event.target.value || undefined) as
                     | ReasoningEffort
@@ -144,14 +143,16 @@ function UseCaseRow({
         ) : null}
       </div>
 
-      {def ? (
+      {model ? (
         <p className="mt-3 text-[12px] leading-relaxed text-slate-500">
-          {def.description}
-          <span className="ml-1 whitespace-nowrap text-slate-400">
-            （{estimateCostYen(def.id)}）
-          </span>
+          {model.description}
+          <span className="ml-1 whitespace-nowrap text-slate-400">（{estimateCostYen(model)}）</span>
         </p>
-      ) : null}
+      ) : (
+        <p className="mt-3 text-[12px] font-semibold text-red-600">
+          このモデルは選べなくなっています。選び直してください。
+        </p>
+      )}
 
       {savedAt ? (
         <p className="mt-2 text-[11px] text-slate-400">
@@ -163,6 +164,8 @@ function UseCaseRow({
 }
 
 export function ModelSettings() {
+  const [models, setModels] = useState<readonly AiModelDef[]>(CODE_AI_CATALOG.models);
+  const [useCases, setUseCases] = useState<readonly AiUseCaseDef[]>(CODE_AI_CATALOG.useCases);
   const [saved, setSaved] = useState<AiModelSettingSet>(DEFAULT_AI_MODEL_SETTINGS);
   const [draft, setDraft] = useState<AiModelSettingSet>(DEFAULT_AI_MODEL_SETTINGS);
   const [savedAt, setSavedAt] = useState<Record<string, string>>({});
@@ -175,14 +178,18 @@ export function ModelSettings() {
       const res = await fetch("/api/admin/ai-models");
       if (!res.ok) throw new Error("failed");
       const json = (await res.json()) as {
+        models: AiModelDef[];
+        useCases: AiUseCaseDef[];
         settings: AiModelSettingSet;
         savedAt: Record<string, string>;
       };
+      setModels(json.models);
+      setUseCases(json.useCases);
       setSaved(json.settings);
       setDraft(json.settings);
       setSavedAt(json.savedAt ?? {});
     } catch {
-      showToast.error("モデル設定の読み込みに失敗しました");
+      showToast.error("モデル台帳の読み込みに失敗しました");
     } finally {
       setLoading(false);
     }
@@ -192,21 +199,20 @@ export function ModelSettings() {
     void load();
   }, [load]);
 
-  const handleChange = useCallback(
-    (useCase: AiUseCase, next: { modelId: string; reasoningEffort?: ReasoningEffort }) => {
-      setDraft((current) => ({ ...current, [useCase]: next }));
-    },
-    []
-  );
+  const handleChange = useCallback((useCase: string, next: Choice) => {
+    setDraft((current) => ({ ...current, [useCase]: next }));
+  }, []);
 
   const changed = useMemo(
     () =>
-      AI_USE_CASE_DEFS.filter(
-        (def) =>
-          draft[def.useCase].modelId !== saved[def.useCase].modelId ||
-          draft[def.useCase].reasoningEffort !== saved[def.useCase].reasoningEffort
-      ).map((def) => def.useCase),
-    [draft, saved]
+      useCases
+        .filter(
+          (def) =>
+            draft[def.useCase]?.modelId !== saved[def.useCase]?.modelId ||
+            draft[def.useCase]?.reasoningEffort !== saved[def.useCase]?.reasoningEffort
+        )
+        .map((def) => def.useCase),
+    [draft, saved, useCases]
   );
 
   const handleSave = useCallback(async () => {
@@ -232,9 +238,9 @@ export function ModelSettings() {
   return (
     <section className="space-y-3">
       <div>
-        <h2 className="text-base font-bold text-slate-900">使うAIモデル</h2>
+        <h2 className="text-base font-bold text-slate-900">AIを使っている機能とモデル</h2>
         <p className="text-[13px] text-slate-500">
-          場面ごとに別のモデルを割り当てられます。速さが体験に直結する相談・チャットと、
+          機能ごとに別のモデルを割り当てられます。速さが体験に直結する相談・チャットと、
           じっくり考えさせたい回り方プランでは、向いているモデルが違います。
         </p>
       </div>
@@ -242,20 +248,19 @@ export function ModelSettings() {
       <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-[13px] leading-relaxed text-amber-900">
         変更すると<strong>次の質問からすぐ反映されます</strong>。
         モデルを変えると返事の文体や長さも変わるので、切り替えたあとは実際に
-        相談ページで1〜2問試してください。おかしければ元のモデルに選び直せば戻ります。
+        その機能を1〜2回試してください。おかしければ元のモデルに選び直せば戻ります。
       </p>
 
       {loading ? (
         <p className="text-[13px] text-slate-500">読み込み中...</p>
       ) : (
         <>
-          {AI_USE_CASE_DEFS.map((def) => (
+          {useCases.map((def) => (
             <UseCaseRow
               key={def.useCase}
-              useCase={def.useCase}
-              label={def.label}
-              description={def.description}
-              value={draft[def.useCase]}
+              def={def}
+              models={models}
+              value={draft[def.useCase] ?? DEFAULT_AI_MODEL_SETTINGS[def.useCase]}
               savedAt={savedAt[def.useCase]}
               onChange={handleChange}
             />
@@ -281,6 +286,12 @@ export function ModelSettings() {
               </button>
             ) : null}
           </div>
+
+          <p className="text-[12px] leading-relaxed text-slate-400">
+            選べるモデルの一覧はデータベースの台帳（ai_models）から読んでいます。
+            新しいモデルを増やす・提供終了したモデルを隠すには、開発側でマイグレーションが要ります。
+            機能そのものの追加もコード側の対応が必要です。
+          </p>
         </>
       )}
     </section>
