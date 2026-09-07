@@ -4,6 +4,8 @@ import Image from "next/image";
 import { useEffect, useRef, useState, type RefObject } from "react";
 import { computeIntroTransform, toTransformStyle } from "@/lib/grandma/introTransform";
 
+/** 現れるまで。いきなり大写しの顔が出ると驚かせるので、薄くから出す */
+const ENTER_MS = 300;
 /** 大きいまま見せる間。ここで「誰に相談する画面か」が伝わる */
 const HOLD_MS = 800;
 /** 定位置まで縮む間。急ぐと「消えた」ように見えるので、ゆっくり寄せる */
@@ -40,6 +42,7 @@ export interface ConsultIntroProps {
  */
 export default function ConsultIntro({ targetRef, onSettled }: ConsultIntroProps) {
   const heroRef = useRef<HTMLDivElement | null>(null);
+  const [entered, setEntered] = useState(false);
   const [transform, setTransform] = useState<string | null>(null);
   const [leaving, setLeaving] = useState(false);
   const [finished, setFinished] = useState(false);
@@ -59,6 +62,13 @@ export default function ConsultIntro({ targetRef, onSettled }: ConsultIntroProps
     }
 
     const timers: ReturnType<typeof setTimeout>[] = [];
+
+    // 出すのは次のフレーム。同じフレームで濃くすると transition が乗らず、
+    // 結局いきなり現れてしまう。
+    // 裏のタブでは次のフレームが来ないので、時間でも出るようにしておく
+    // （出さないままだと、戻ってきたときに絵が消えたように見える）
+    const raf = requestAnimationFrame(() => setEntered(true));
+    timers.push(setTimeout(() => setEntered(true), 80));
 
     timers.push(
       setTimeout(() => {
@@ -82,10 +92,14 @@ export default function ConsultIntro({ targetRef, onSettled }: ConsultIntroProps
           }, SHRINK_MS)
         );
         timers.push(setTimeout(() => setFinished(true), SHRINK_MS + FADE_MS));
-      }, HOLD_MS)
+        // 薄く現れきってから、大きいまま見せる時間を数える
+      }, ENTER_MS + HOLD_MS)
     );
 
-    return () => timers.forEach(clearTimeout);
+    return () => {
+      cancelAnimationFrame(raf);
+      timers.forEach(clearTimeout);
+    };
   }, [targetRef]);
 
   if (finished) return null;
@@ -111,7 +125,10 @@ export default function ConsultIntro({ targetRef, onSettled }: ConsultIntroProps
           transition: transform ? `transform ${SHRINK_MS}ms ${EASING}` : undefined,
         }}
       >
-        <div className="consult-intro__hero h-full w-full">
+        <div
+          className="h-full w-full"
+          style={{ opacity: entered ? 1 : 0, transition: `opacity ${ENTER_MS}ms ease-out` }}
+        >
           <Image
             src="/characters/obaasan.png"
             alt=""

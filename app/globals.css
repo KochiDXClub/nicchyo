@@ -1629,16 +1629,6 @@ body.home-poster-zoom-open .hamburger-button {
   to   { opacity: 1; transform: none; }
 }
 
-/* 出てくる瞬間だけ薄く入れる。いきなり画面いっぱいに出ると圧が強い */
-.consult-intro__hero {
-  animation: consult-intro-appear 280ms ease-out both;
-}
-
-@keyframes consult-intro-appear {
-  from { opacity: 0; }
-  to   { opacity: 1; }
-}
-
 @media (prefers-reduced-motion: reduce) {
   /* data-pose 付きの指定に負けないよう、同じ詳細度で打ち消す
      （.grandma-avatar__inner だけでは thinking / speaking のループが残る） */
