@@ -102,7 +102,10 @@ export async function PUT(request: NextRequest) {
       if (result.ok) {
         accepted.push({ key: result.key, value: result.value });
       } else {
-        rejected.push({ key, reason: result.reason });
+        // 送られてきたキーをそのまま返さない。
+        // 知っているキーなら名指しした方が運営のデバッグに役立つが、
+        // 知らないキーは中身が何であれこちらの応答に載せる理由がない
+        rejected.push({ key: isAiPromptKey(key) ? key : "(unknown)", reason: result.reason });
       }
     }
 
