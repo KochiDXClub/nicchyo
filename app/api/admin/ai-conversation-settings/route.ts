@@ -36,15 +36,15 @@ export async function GET() {
 
     const { data, error } = await auth.adminClient
       .from("ai_conversation_settings")
-      .select("key, label, description, value, min_value, max_value, sort_order, updated_at")
+      .select("key, value, updated_at")
       .in("key", AI_CONVERSATION_SETTING_KEYS as string[]);
 
     if (error) {
+      console.error("[ai-conversation-settings] load failed:", error.message);
       return NextResponse.json({ error: "Failed to load settings" }, { status: 500 });
     }
 
-    // 行が無いキーはコード側の既定値が使われている。
-    // 画面には「DBに無い」ことが分かるよう、範囲と説明はコード側の定義から出す
+    // 行が無いキーはコード側の既定値が使われている
     const rowByKey = new Map(
       (data ?? []).filter((row) => isAiConversationSettingKey(row.key)).map((row) => [row.key, row])
     );
@@ -56,22 +56,26 @@ export async function GET() {
       defaults: DEFAULT_AI_CONVERSATION_SETTINGS,
       items: AI_CONVERSATION_SETTING_DEFS.map((def) => {
         const row = rowByKey.get(def.key);
+        // 見出し・説明・範囲はコード側の定義だけを見る。
+        // DBの列も返すと、画面はDBの範囲で判定し API はコードの範囲で検証する、
+        // という食い違いが起きる（DBが広ければ画面は通すのに API が 400、
+        // 狭ければ API を通ったのに DB の CHECK で 500）。
+        // DBの範囲はAPIを通らない書き込みに効く最後の砦として残す
         return {
           key: def.key,
-          // 見出し・説明・範囲はマイグレーションが正本。行があればそちらを出す
-          label: row?.label ?? def.label,
-          description: row?.description ?? def.description,
-          minValue: row?.min_value ?? def.minValue,
-          maxValue: row?.max_value ?? def.maxValue,
+          label: def.label,
+          description: def.description,
+          minValue: def.minValue,
+          maxValue: def.maxValue,
           defaultValue: def.defaultValue,
           value: settings[def.key],
-          sortOrder: row?.sort_order ?? 0,
           savedInDb: !!row,
           updatedAt: row?.updated_at ?? null,
         };
       }),
     });
-  } catch {
+  } catch (error) {
+    console.error("[ai-conversation-settings] load failed:", error);
     return NextResponse.json({ error: "Failed to load settings" }, { status: 500 });
   }
 }
@@ -135,6 +139,7 @@ export async function PUT(request: NextRequest) {
       );
 
     if (readError) {
+      console.error("[ai-conversation-settings] read before save failed:", readError.message);
       return NextResponse.json({ error: "Failed to save settings" }, { status: 500 });
     }
 
@@ -148,9 +153,15 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ ok: true, saved: [], unchanged: true });
     }
 
+    // 1件ずつ更新し、通ったものはその場で監査ログに残す。
+    // 全件終わってからまとめて書くと、2件目で落ちたときに
+    // 1件目は保存済みなのに記録が無い、という状態が作れてしまう。
+    // 版を積まないこのテーブルでは、監査ログが唯一の記録になる
+    const saved: string[] = [];
+
     for (const item of changed) {
-      // insert は型でも DB 権限でも塞いである。行が無いキーは、
-      // マイグレーションが未適用ということなので 0 件更新として弾く
+      // insert は DB の GRANT でも型でも塞いである。行が無いキーは
+      // マイグレーションが未適用ということなので、0件更新として弾く
       const { data: updated, error: updateError } = await auth.adminClient
         .from("ai_conversation_settings")
         .update({ value: item.value, updated_by: auth.user.id })
@@ -158,19 +169,21 @@ export async function PUT(request: NextRequest) {
         .select("key");
 
       if (updateError) {
-        return NextResponse.json({ error: "Failed to save settings" }, { status: 500 });
+        console.error("[ai-conversation-settings] update failed:", updateError.message);
+        return NextResponse.json(
+          { error: "Failed to save settings", saved },
+          { status: 500 }
+        );
       }
       if (!updated || updated.length === 0) {
         // 成功を返すと「保存したのに効かない」状態に気づけない
         return NextResponse.json(
-          { error: "Setting not found", key: item.key },
+          { error: "Setting not found", key: item.key, saved },
           { status: 404 }
         );
       }
-    }
 
-    const { error: auditError } = await auth.adminClient.from("admin_audit_logs").insert(
-      changed.map((item) => ({
+      const { error: auditError } = await auth.adminClient.from("admin_audit_logs").insert({
         actor_id: auth.user.id,
         actor_email: auth.user.email,
         actor_role: auth.role,
@@ -178,13 +191,17 @@ export async function PUT(request: NextRequest) {
         target_type: "ai_conversation_settings",
         target_id: item.key,
         details: JSON.stringify({ value: item.value }),
-      }))
-    );
-    // 監査ログが書けなくても保存は成立している。理由が消えないよう記録だけ残す
-    if (auditError) console.error("[ai-conversation-settings] audit log failed", auditError);
+      });
+      // 監査ログが書けなくても保存は成立している。理由が消えないよう記録だけ残す
+      if (auditError) {
+        console.error("[ai-conversation-settings] audit log failed:", auditError.message);
+      }
+      saved.push(item.key);
+    }
 
-    return NextResponse.json({ ok: true, saved: changed.map((item) => item.key) });
-  } catch {
+    return NextResponse.json({ ok: true, saved });
+  } catch (error) {
+    console.error("[ai-conversation-settings] save failed:", error);
     return NextResponse.json({ error: "Failed to save settings" }, { status: 500 });
   }
 }

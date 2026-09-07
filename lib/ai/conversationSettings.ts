@@ -54,7 +54,10 @@ export const AI_CONVERSATION_SETTING_DEFS: readonly AiConversationSettingDef[] =
     description:
       "AIが1回に生成できる長さの上限。短すぎると文の途中で切れ、長すぎると読まれずに流される。目安は300〜700。",
     defaultValue: 500,
-    minValue: 200,
+    // 300 未満にすると、非ストリーミング経路のJSONが途中で切れる。
+    // turns / shopIds / imageUrl / followUpQuestion / summary を日本語で
+    // 埋めるので、200 では finish_reason=length で壊れた JSON が返る
+    minValue: 300,
     maxValue: 1200,
   },
   {

@@ -60,17 +60,27 @@ import { z } from "zod";
 
 const ConsultHistoryEntrySchema = z.object({
   role: z.enum(["user", "assistant"]),
-  text: z.string(),
-  speakerId: z.string().nullable().optional(),
-  speakerName: z.string().nullable().optional(),
+  // 履歴はそのままプロンプトに入る。長さを縛らないと、1件で
+  // system prompt を押し流せる
+  text: z.string().max(2000),
+  speakerId: z.string().max(64).nullable().optional(),
+  speakerName: z.string().max(64).nullable().optional(),
 });
+
+/**
+ * 履歴の配列。
+ *
+ * 使うのは末尾 consult.history_limit 件だけだが、受け取る段階でも縛る。
+ * multipart 経路は JSON スキーマを通らないので、ここが唯一の検証になる。
+ */
+const ConsultHistoryArraySchema = z.array(ConsultHistoryEntrySchema).max(50);
 
 const AskJsonBodySchema = z.object({
   text: z.string().optional(),
   location: z.object({ lat: z.number(), lng: z.number() }).nullable().optional(),
   shopId: z.number().int().nullable().optional(),
   shopName: z.string().nullable().optional(),
-  history: z.array(ConsultHistoryEntrySchema).optional(),
+  history: ConsultHistoryArraySchema.optional(),
   memorySummary: z.string().optional(),
   preferredCharacterId: z.string().nullable().optional(),
   visitorKey: z.string().max(128).nullable().optional(),
@@ -115,7 +125,12 @@ async function parseRequest(request: Request): Promise<ParsedRequest> {
     }
     if (typeof form.get("history") === "string") {
       try {
-        history = JSON.parse(String(form.get("history"))) as ConsultHistoryEntry[];
+        // JSON経路と違いスキーマを通らないので、ここで検証する。
+        // 配列でない値を渡されると、後段の history.slice() が落ちる
+        const parsed = ConsultHistoryArraySchema.safeParse(
+          JSON.parse(String(form.get("history")))
+        );
+        history = parsed.success ? (parsed.data as ConsultHistoryEntry[]) : [];
       } catch {
         history = [];
       }
@@ -927,7 +942,33 @@ export async function POST(request: Request) {
     };
     const rawStructured =
       chatPayload.choices?.[0]?.message?.content?.trim() ?? "";
-    const structured = JSON.parse(rawStructured) as import("@/lib/grandma/types").StructuredConsultResponse;
+
+    // 返答の長さ（consult.max_output_tokens）を絞りすぎると finish_reason=length で
+    // JSON が途中で切れる。素の JSON.parse だと外側の catch に落ちて汎用500になり、
+    // 運営からは「たまに失敗する」としか見えない。設定ミスと分かる形で残す
+    let structured: import("@/lib/grandma/types").StructuredConsultResponse;
+    try {
+      structured = JSON.parse(rawStructured);
+    } catch {
+      console.error("[grandma/ask] structured output parse failed", {
+        length: rawStructured.length,
+        maxOutputTokens: conversationSettings["consult.max_output_tokens"],
+      });
+      return NextResponse.json(
+        buildErrorResponse(
+          "system_error",
+          selectedCharacters,
+          "いま少し混みゆうみたい。少しおいて、もう一回聞いてみてね。",
+          {
+            retryable: true,
+            errorMessage:
+              "相談の送信に失敗しました。通信状況を確認して、もう一度試してください。",
+            memorySummary,
+          }
+        ),
+        { status: 502 }
+      );
+    }
 
     const turns: ConsultTurn[] = (structured.turns ?? [])
       .map((turn) => {

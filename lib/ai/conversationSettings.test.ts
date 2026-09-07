@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import {
   AI_CONVERSATION_SETTING_DEFS,
@@ -77,10 +77,9 @@ describe("normalizeAiConversationSettings", () => {
  * （lib/ai/models.test.ts が ai_models に対してやっているのと同じ）
  */
 describe("マイグレーションの初期データとの突き合わせ", () => {
-  const sql = readFileSync(
-    join(process.cwd(), "supabase/migrations/20260907160000_create_ai_conversation_settings.sql"),
-    "utf-8"
-  );
+  const MIGRATIONS_DIR = join(process.cwd(), "supabase/migrations");
+  const MIGRATION_FILE = "20260907160000_create_ai_conversation_settings.sql";
+  const sql = readFileSync(join(MIGRATIONS_DIR, MIGRATION_FILE), "utf-8");
 
   it("すべてのキーがマイグレーションに入っている", () => {
     for (const def of AI_CONVERSATION_SETTING_DEFS) {
@@ -90,17 +89,36 @@ describe("マイグレーションの初期データとの突き合わせ", () =
 
   it("既定値と上下限がマイグレーションと一致する", () => {
     for (const def of AI_CONVERSATION_SETTING_DEFS) {
-      // 初期データの行は「値, 下限, 上限, 並び順」の並びで書いてある
-      const row = sql.slice(sql.indexOf(`'${def.key}'`));
-      const values = row.match(/\n\s*(-?\d+),\s*(-?\d+),\s*(-?\d+),\s*(-?\d+)\n/);
-      expect(values, `${def.key} の初期データが読み取れない`).not.toBeNull();
-      expect(Number(values![1]), `${def.key} の既定値`).toBe(def.defaultValue);
-      expect(Number(values![2]), `${def.key} の下限`).toBe(def.minValue);
-      expect(Number(values![3]), `${def.key} の上限`).toBe(def.maxValue);
+      // 初期データの行は ('キー', 値, 下限, 上限) の並びで書いてある
+      const row = new RegExp(
+        `\\('${def.key.replace(".", "\\.")}',\\s*(-?\\d+),\\s*(-?\\d+),\\s*(-?\\d+)\\)`
+      ).exec(sql);
+      expect(row, `${def.key} の初期データが読み取れない`).not.toBeNull();
+      expect(Number(row![1]), `${def.key} の既定値`).toBe(def.defaultValue);
+      expect(Number(row![2]), `${def.key} の下限`).toBe(def.minValue);
+      expect(Number(row![3]), `${def.key} の上限`).toBe(def.maxValue);
     }
   });
 
+  it("上下限を変える別のマイグレーションが増えていない（増えたらこのテストを向け直す）", () => {
+    // 上のテストは1つのファイルだけを見ている。あとから別のマイグレーションで
+    // 範囲を変えると、コード側とのズレを検知できなくなる
+    const others = readdirSync(MIGRATIONS_DIR)
+      .filter((name) => name.endsWith(".sql") && name !== MIGRATION_FILE)
+      .filter((name) => {
+        const body = readFileSync(join(MIGRATIONS_DIR, name), "utf-8");
+        return (
+          body.includes("ai_conversation_settings") &&
+          (body.includes("min_value") || body.includes("max_value"))
+        );
+      });
+    expect(others).toEqual([]);
+  });
+
   it("APIから行を作れないようにしてある（行を足しても設定は増えない）", () => {
+    // 型だけでは、型を無視した呼び出しやSQLの直叩きは止まらない
+    expect(sql).toContain("revoke insert, delete, truncate on public.ai_conversation_settings");
+
     const types = readFileSync(join(process.cwd(), "types/database.extensions.ts"), "utf-8");
     const table = types.slice(types.indexOf("ai_conversation_settings: {"));
     expect(table.slice(0, table.indexOf("};"))).toContain("Insert: never");

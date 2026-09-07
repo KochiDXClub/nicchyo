@@ -63,12 +63,9 @@ export type AiUseCaseRow = {
 
 export type AiConversationSettingRow = {
   key: string;
-  label: string;
-  description: string;
   value: number;
   min_value: number;
   max_value: number;
-  sort_order: number;
   updated_by: string | null;
   updated_at: string;
 };
@@ -92,7 +89,7 @@ type ExtendedPublicSchema = Omit<Database["public"], "Tables"> & {
       // 行を足しても新しい設定は生まれない（値を読むのはコード側）。
       // 設定の追加はマイグレーションとコードの対応が要るので insert は塞ぐ
       Insert: never;
-      // 見出し・説明・上下限はマイグレーションが正本。運営が変えるのは値だけ
+      // 上下限はマイグレーションが正本。運営が変えるのは値だけ
       Update: Partial<Pick<AiConversationSettingRow, "value" | "updated_by">>;
       Relationships: never[];
     };
