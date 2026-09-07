@@ -45,6 +45,8 @@ create table if not exists map_view_settings (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
 
+  constraint map_view_settings_key_not_blank check (btrim(key) <> ''),
+  constraint map_view_settings_key_length check (char_length(key) <= 50),
   constraint map_view_settings_mode_valid check (mode in ('auto', 'manual')),
 
   -- 上限はアプリ側（lib/map/mapViewSettings.ts の MAP_VIEW_LIMITS）と同値。
@@ -127,6 +129,19 @@ end
 $$;
 
 -- 読み取り以外の権限はブラウザ由来のロールから剥がす
--- （Supabase は public スキーマの新規テーブルに既定で権限を付けるため）
+-- （Supabase は public スキーマの新規テーブルに既定で権限を付けるため）。
+--
+-- 読み取りは列を指定して渡す。updated_by は管理者アカウントの auth.users UUID で、
+-- 表示範囲を知るのに要らない。列を絞らない grant select だと、行が必ず1行ある以上、
+-- 一度でも保存されれば未ログインの来訪者が PostgREST 経由で確実に読めてしまう
+-- （先例: 20260807123500_restrict_market_events_public_columns.sql、
+--   20260807105105_create_market_days.sql は最初から列指定）。
 revoke all on public.map_view_settings from anon, authenticated;
-grant select on public.map_view_settings to anon, authenticated;
+
+grant select (
+  key, mode, padding_meters, north, south, east, west, min_zoom, created_at, updated_at
+) on public.map_view_settings to anon;
+
+grant select (
+  key, mode, padding_meters, north, south, east, west, min_zoom, created_at, updated_at
+) on public.map_view_settings to authenticated;

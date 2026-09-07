@@ -207,3 +207,91 @@ export function mapViewSettingsToRow(settings: MapViewSettings) {
     west: settings.bounds?.west ?? null,
   };
 }
+
+/**
+ * 保存前の検証。
+ *
+ * 読み取り側の normalizeMapViewSettings は「壊れた値でもマップが動く」ことを
+ * 優先して黙って丸めるが、保存では丸めない。範囲外の余白を送ったのに 200 が
+ * 返ってきて、実際には別の値が入っている、という状態を作らないため
+ * （app/api/admin/ai-models/route.ts と同じ方針）。
+ *
+ * 送られてこなかった項目は base（＝いまDBに入っている値）を引き継ぐ。
+ * 一部だけ送った保存で、触っていない項目がコード既定値に巻き戻らないようにする。
+ */
+export type MapViewSettingsValidation =
+  | { ok: true; settings: MapViewSettings }
+  | { ok: false; reason: string };
+
+export function validateMapViewSettingsPatch(
+  value: unknown,
+  base: MapViewSettings
+): MapViewSettingsValidation {
+  if (!value || typeof value !== "object") {
+    return { ok: false, reason: "設定の形式が正しくありません。" };
+  }
+  const record = value as Record<string, unknown>;
+
+  let mode = base.mode;
+  if (record.mode !== undefined) {
+    if (record.mode !== "auto" && record.mode !== "manual") {
+      return { ok: false, reason: "範囲の決め方は auto か manual のどちらかです。" };
+    }
+    mode = record.mode;
+  }
+
+  let paddingMeters = base.paddingMeters;
+  if (record.paddingMeters !== undefined) {
+    const next = readNumber(record.paddingMeters);
+    const { min, max } = MAP_VIEW_LIMITS.paddingMeters;
+    if (next === null || next < min || next > max) {
+      return { ok: false, reason: `余白は ${min}m 〜 ${max}m の範囲で指定してください。` };
+    }
+    paddingMeters = next;
+  }
+
+  let minZoom = base.minZoom;
+  if (record.minZoom !== undefined) {
+    const next = readNumber(record.minZoom);
+    const { min, max } = MAP_VIEW_LIMITS.minZoom;
+    if (next === null || next < min || next > max) {
+      return { ok: false, reason: `最小ズームは ${min} 〜 ${max} の範囲で指定してください。` };
+    }
+    minZoom = next;
+  }
+
+  let bounds = base.bounds;
+  if (record.bounds !== undefined) {
+    if (record.bounds === null) {
+      bounds = null;
+    } else {
+      const next = normalizeMapViewBounds(record.bounds);
+      if (!next) {
+        return {
+          ok: false,
+          reason: "長方形の形が正しくありません（南北・東西の向き、または大きさを確認してください）。",
+        };
+      }
+      bounds = next;
+    }
+  }
+
+  if (mode === "manual" && !bounds) {
+    return { ok: false, reason: "手動にするには長方形が必要です。" };
+  }
+
+  return { ok: true, settings: { mode, paddingMeters, bounds, minZoom } };
+}
+
+/** 保存する必要があるかの判定（同じ内容の保存で監査ログを積まないため） */
+export function isSameMapViewSettings(a: MapViewSettings, b: MapViewSettings): boolean {
+  return (
+    a.mode === b.mode &&
+    a.paddingMeters === b.paddingMeters &&
+    a.minZoom === b.minZoom &&
+    a.bounds?.north === b.bounds?.north &&
+    a.bounds?.south === b.bounds?.south &&
+    a.bounds?.east === b.bounds?.east &&
+    a.bounds?.west === b.bounds?.west
+  );
+}

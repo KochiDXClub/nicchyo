@@ -377,7 +377,12 @@ export default function MapViewRangeClient() {
         return;
       }
       setSettings(json.settings as MapViewSettings);
-      setMessage({ kind: "ok", text: "保存しました。マップを再読み込みすると反映されます。" });
+      setMessage({
+        kind: "ok",
+        text: json.unchanged
+          ? "変更はありませんでした。"
+          : "保存しました。マップを再読み込みすると反映されます。",
+      });
     } catch {
       setMessage({ kind: "error", text: "保存できませんでした" });
     } finally {

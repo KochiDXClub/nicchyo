@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import {
   DEFAULT_MAP_VIEW_SETTINGS,
   MAP_VIEW_LIMITS,
   containsRouteBounds,
+  isSameMapViewSettings,
   mapViewSettingsFromRow,
   mapViewSettingsToRow,
   normalizeMapViewBounds,
@@ -10,6 +13,7 @@ import {
   resolveMapViewBounds,
   toLngLatBoundsPair,
   toMapViewBounds,
+  validateMapViewSettingsPatch,
 } from "./mapViewSettings";
 
 /** 追手筋のだいたいの範囲（[[北, 東], [南, 西]] の並び） */
@@ -159,5 +163,120 @@ describe("DB の行との変換", () => {
       west: 133.53,
     };
     expect(mapViewSettingsToRow(mapViewSettingsFromRow(row))).toEqual(row);
+  });
+});
+
+describe("validateMapViewSettingsPatch", () => {
+  const base = { ...DEFAULT_MAP_VIEW_SETTINGS, paddingMeters: 300, minZoom: 14 };
+
+  it("送られてこなかった項目はいまの値を引き継ぐ", () => {
+    const result = validateMapViewSettingsPatch({ mode: "auto" }, base);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.settings.paddingMeters).toBe(300);
+    expect(result.settings.minZoom).toBe(14);
+  });
+
+  it("範囲外の余白は丸めずに弾く", () => {
+    const result = validateMapViewSettingsPatch({ paddingMeters: 99999 }, base);
+    expect(result.ok).toBe(false);
+  });
+
+  it("範囲外の最小ズームは丸めずに弾く", () => {
+    expect(validateMapViewSettingsPatch({ minZoom: 1 }, base).ok).toBe(false);
+    expect(validateMapViewSettingsPatch({ minZoom: 30 }, base).ok).toBe(false);
+  });
+
+  it("知らない決め方は弾く", () => {
+    expect(validateMapViewSettingsPatch({ mode: "widest" }, base).ok).toBe(false);
+  });
+
+  it("壊れた長方形は auto に倒さず弾く", () => {
+    const result = validateMapViewSettingsPatch(
+      { mode: "manual", bounds: { north: 33.55, south: 33.57, east: 133.55, west: 133.53 } },
+      base
+    );
+    expect(result.ok).toBe(false);
+  });
+
+  it("長方形の無い manual は弾く", () => {
+    expect(validateMapViewSettingsPatch({ mode: "manual" }, base).ok).toBe(false);
+  });
+
+  it("設定でない値は弾く", () => {
+    expect(validateMapViewSettingsPatch(null, base).ok).toBe(false);
+    expect(validateMapViewSettingsPatch("広く", base).ok).toBe(false);
+  });
+});
+
+describe("isSameMapViewSettings", () => {
+  const bounds = { north: 33.57, south: 33.55, east: 133.55, west: 133.53 };
+
+  it("同じ内容なら true（同じ保存で監査ログを積まないため）", () => {
+    expect(
+      isSameMapViewSettings(
+        { ...DEFAULT_MAP_VIEW_SETTINGS, bounds },
+        { ...DEFAULT_MAP_VIEW_SETTINGS, bounds: { ...bounds } }
+      )
+    ).toBe(true);
+  });
+
+  it("長方形の1辺でも違えば false", () => {
+    expect(
+      isSameMapViewSettings(
+        { ...DEFAULT_MAP_VIEW_SETTINGS, mode: "manual", bounds },
+        { ...DEFAULT_MAP_VIEW_SETTINGS, mode: "manual", bounds: { ...bounds, north: 33.58 } }
+      )
+    ).toBe(false);
+  });
+
+  it("最小ズームが違えば false", () => {
+    expect(
+      isSameMapViewSettings(DEFAULT_MAP_VIEW_SETTINGS, { ...DEFAULT_MAP_VIEW_SETTINGS, minZoom: 12 })
+    ).toBe(false);
+  });
+});
+
+/**
+ * DBのCHECK制約とコード側の許容範囲は同じ値でなければならない。
+ * 片方だけ広げると、画面では通るのに保存で落ちる（またはその逆）状態になる。
+ */
+describe("マイグレーションとの突き合わせ", () => {
+  const sql = readFileSync(
+    join(process.cwd(), "supabase/migrations/20260907150000_create_map_view_settings.sql"),
+    "utf8"
+  );
+
+  it("余白の上下限がCHECK制約と一致している", () => {
+    expect(sql).toContain(
+      `padding_meters >= ${MAP_VIEW_LIMITS.paddingMeters.min} and padding_meters <= ${MAP_VIEW_LIMITS.paddingMeters.max}`
+    );
+  });
+
+  it("最小ズームの上下限がCHECK制約と一致している", () => {
+    expect(sql).toContain(
+      `min_zoom >= ${MAP_VIEW_LIMITS.minZoom.min} and min_zoom <= ${MAP_VIEW_LIMITS.minZoom.max}`
+    );
+  });
+
+  it("長方形の一辺の上下限がCHECK制約と一致している", () => {
+    const { min, max } = MAP_VIEW_LIMITS.spanDeg;
+    expect(sql).toContain(`north - south between ${min} and ${max}`);
+    expect(sql).toContain(`east - west between ${min} and ${max}`);
+  });
+
+  it("既定値がマイグレーションの初期行と一致している", () => {
+    expect(sql).toContain(
+      `values ('default', '${DEFAULT_MAP_VIEW_SETTINGS.mode}', ${DEFAULT_MAP_VIEW_SETTINGS.paddingMeters}, ${DEFAULT_MAP_VIEW_SETTINGS.minZoom})`
+    );
+  });
+
+  it("公開読み取りで updated_by を渡していない（管理者のUUIDが漏れないように）", () => {
+    // 列を絞らない grant select だと、行が必ず1行ある以上、
+    // 一度でも保存されれば未ログインの来訪者が updated_by を読める
+    expect(sql).not.toMatch(/grant select on public\.map_view_settings/i);
+    for (const match of sql.matchAll(/grant select \(([^)]*)\)/gi)) {
+      expect(match[1]).not.toContain("updated_by");
+    }
   });
 });
