@@ -5,7 +5,7 @@ import {
   buildShopChatSystemPrompt,
   type ShopChatContext,
 } from "@/lib/grandma/prompts/shopChatPrompt";
-import { buildChatCompletionBody } from "@/lib/ai/models";
+import { requestChatCompletion } from "@/lib/ai/openaiFetch";
 import { resolveAiModelFor } from "@/lib/ai/modelStore.server";
 
 export const runtime = "nodejs";
@@ -56,20 +56,11 @@ export async function POST(req: NextRequest) {
 
   const aiModel = await resolveAiModelFor("shopChat");
 
-  const upstream = await fetch("https://api.openai.com/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(
-      buildChatCompletionBody(aiModel, {
-        messages,
-        maxOutputTokens: 280,
-        temperature: 0.7,
-        stream: true,
-      })
-    ),
+  const upstream = await requestChatCompletion(apiKey, aiModel, {
+    messages,
+    maxOutputTokens: 280,
+    temperature: 0.7,
+    stream: true,
   });
 
   if (!upstream.ok || !upstream.body) {

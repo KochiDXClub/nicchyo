@@ -6,6 +6,7 @@ import { createClient as createServerClient } from "@/utils/supabase/server";
 import { requireSameOrigin } from "@/lib/security/requestGuards";
 import { enforceRateLimit } from "@/lib/security/rateLimit";
 import { requireVendorRole } from "@/lib/auth/permissions";
+import { requestEmbeddings } from "@/lib/ai/openaiFetch";
 
 const MAX_CONTENT_LENGTH = 5000;
 const KnowledgeBodySchema = z.object({
@@ -72,11 +73,7 @@ export async function POST(request: Request) {
     // embedding生成
     let embedding: number[] | null = null;
     if (openaiKey) {
-      const embeddingRes = await fetch("https://api.openai.com/v1/embeddings", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${openaiKey}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ model: "text-embedding-3-small", input: content.trim() }),
-      });
+      const embeddingRes = await requestEmbeddings(openaiKey, content.trim());
       if (embeddingRes.ok) {
         const payload = (await embeddingRes.json()) as { data?: { embedding: number[] }[] };
         embedding = payload.data?.[0]?.embedding ?? null;
