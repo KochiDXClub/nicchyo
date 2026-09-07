@@ -28,6 +28,7 @@ import {
 } from "@/lib/grandma/prompts/promptKeys";
 import { PromptPreview } from "./components/PromptPreview";
 import { PromptHistory } from "./components/PromptHistory";
+import { ModelSettings } from "./components/ModelSettings";
 
 const GROUP_LABELS: Record<AiPromptDef["group"], { title: string; description: string }> = {
   weekly: {
@@ -251,8 +252,8 @@ export default function AdminAiPromptsPage() {
     <AdminLayout>
       <AdminPageHeader
         eyebrow="AI"
-        title="AIプロンプト編集"
-        description="にちよさんたちの話し方と答え方を、コードを触らずに調整する"
+        title="AIの設定"
+        description="にちよさんたちの話し方・答え方と、場面ごとに使うAIモデルを、コードを触らずに調整する"
       />
 
       <div className="mx-auto max-w-3xl space-y-4 px-4 py-6">
@@ -345,6 +346,14 @@ export default function AdminAiPromptsPage() {
             </div>
 
             {showPreview ? <PromptPreview prompts={draft} /> : null}
+
+            {/*
+              モデル選択は文面の編集とは別の保存ボタンを持つ。
+              文面の「保存」に巻き込むと、書きかけの文章を保存する気がないときにも
+              モデルの変更が本番へ出てしまう
+            */}
+            <hr className="border-slate-200" />
+            <ModelSettings />
           </>
         )}
       </div>
