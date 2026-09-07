@@ -4,9 +4,17 @@ import { isAnalyticsAllowed, loadGA } from "@/lib/analytics/consentClient";
 import type {
   AnalyticsEventName,
   AnalyticsParams,
+  GuideEventParams,
   SendEventOptions,
   ShopImpressionParams,
 } from "@/types/analytics";
+
+const GUIDE_EVENT_TYPES: Partial<Record<AnalyticsEventName, string>> = {
+  guide_open: "open",
+  guide_navigation_start: "navigation_start",
+  guide_arrived: "arrived",
+  guide_navigation_stop: "navigation_stop",
+};
 
 function getVisitorKey(): string | null {
   if (typeof document === "undefined") return null;
@@ -88,6 +96,20 @@ export function sendEvent(name: AnalyticsEventName, params: AnalyticsParams = {}
         shop_id: p.shop_id,
         event_type: "view",
         meta: { source: p.source ?? null, interaction_method: p.interaction_method ?? null },
+      });
+    }
+
+    const guideEventType = GUIDE_EVENT_TYPES[name];
+    if (guideEventType) {
+      const p = params as GuideEventParams;
+      postJson("/api/analytics/guide-event", {
+        visitor_key,
+        event_type: guideEventType,
+        kinds: p.kinds ?? [],
+        spot_key: p.spot_key ?? null,
+        origin_type: p.origin_type ?? null,
+        walk_minutes: p.walk_minutes ?? null,
+        distance_meters: p.distance_meters ?? null,
       });
     }
   }

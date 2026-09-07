@@ -6,10 +6,14 @@ import { fetchVendorShopsFromDb } from "@/app/(public)/map/services/shopDb";
 import { requireSameOrigin } from "@/lib/security/requestGuards";
 import { enforceRateLimit } from "@/lib/security/rateLimit";
 import { MARKET_CENTER } from "@/lib/constants";
+import { loadSpotSupport } from "@/lib/guide/spotSupport.server";
+import type { SupportSuggestion } from "@/lib/guide/support";
 import {
   MAP_AGENT_SYSTEM_PROMPT,
   buildMapAgentPrompt,
 } from "@/lib/grandma/prompts/mapAgentPrompt";
+import { buildChatCompletionBody } from "@/lib/ai/models";
+import { resolveAiModelFor } from "@/lib/ai/modelStore.server";
 
 type Answers = {
   purpose?: string;
@@ -31,6 +35,8 @@ type PlanResult = {
   shops: PlanShop[];
   routeHint: string;
   shoppingList: string[];
+  /** 出発地点からいちばん近いお手洗い・休けい・電停（おでかけサポートへのリンク付き） */
+  support?: SupportSuggestion[];
 };
 
 type BaseShop = {
@@ -56,11 +62,16 @@ const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SUPABASE_KEY = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY;
 
-async function loadShops(): Promise<BaseShop[]> {
-  if (!SUPABASE_URL || !SUPABASE_KEY) return [];
-  const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_KEY, {
+function createReadClient() {
+  if (!SUPABASE_URL || !SUPABASE_KEY) return null;
+  return createClient<Database>(SUPABASE_URL, SUPABASE_KEY, {
     auth: { persistSession: false },
   });
+}
+
+async function loadShops(): Promise<BaseShop[]> {
+  const supabase = createReadClient();
+  if (!supabase) return [];
   const shops = await fetchVendorShopsFromDb(supabase);
   return shops.map((shop) => ({
     id: shop.id,
@@ -196,21 +207,25 @@ async function callOpenAI(
   const topShops = ranked.slice(0, 6);
   const prompt = buildMapAgentPrompt(answers, topShops, start);
 
+  const aiModel = await resolveAiModelFor("mapAgent");
+
   const res = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
     headers: {
       Authorization: `Bearer ${OPENAI_API_KEY}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({
-      model: "gpt-4o-mini",
-      messages: [
-        { role: "system", content: MAP_AGENT_SYSTEM_PROMPT },
-        { role: "user", content: prompt },
-      ],
-      response_format: { type: "json_object" },
-      temperature: 0.6,
-    }),
+    body: JSON.stringify(
+      buildChatCompletionBody(aiModel, {
+        messages: [
+          { role: "system", content: MAP_AGENT_SYSTEM_PROMPT },
+          { role: "user", content: prompt },
+        ],
+        // 上限は指定しない（従来どおりモデル既定にまかせる）
+        responseFormat: { type: "json_object" },
+        temperature: 0.6,
+      })
+    ),
   });
 
   if (!res.ok) {
@@ -277,15 +292,17 @@ export async function POST(request: Request) {
     const answers: Answers = parsed.data.answers ?? {};
     const start = parsed.data.location ?? MARKET_CENTER;
 
-    const baseShops = await loadShops();
+    const readClient = createReadClient();
+    const [baseShops, spotSupport] = await Promise.all([
+      loadShops(),
+      readClient
+        ? loadSpotSupport(readClient, { lat: start[0], lng: start[1] })
+        : Promise.resolve({ suggestions: [], prompt: "" }),
+    ]);
     const ranked = rankShops(answers, baseShops);
     const aiPlan = await callOpenAI(answers, ranked, start);
-    if (aiPlan) {
-      return NextResponse.json(aiPlan, { status: 200 });
-    }
-
-    const fallback = pickShops(answers, start, baseShops);
-    return NextResponse.json(fallback, { status: 200 });
+    const plan = aiPlan ?? pickShops(answers, start, baseShops);
+    return NextResponse.json({ ...plan, support: spotSupport.suggestions }, { status: 200 });
   } catch {
     return NextResponse.json({ message: "failed to build plan" }, { status: 500 });
   }
