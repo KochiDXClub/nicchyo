@@ -104,6 +104,19 @@ export default function ConsultStage({
   const topSentinelRef = useRef<HTMLDivElement | null>(null);
   /** 入りの演出で、大きいにちよさんが縮んで着地する先 */
   const heroAvatarRef = useRef<HTMLDivElement | null>(null);
+  /**
+   * にちよさんが定位置に着いたか。
+   * 着いてから本文（呼びかけ・候補ボタン・下のボタン）をじわっと出す。
+   * 縮み終わりと同時に文字が出そろうと、動きが止まった瞬間に画面が
+   * いきなり埋まって唐突に見えるため。
+   */
+  const [introSettled, setIntroSettled] = useState(false);
+  const handleIntroSettled = useCallback(() => setIntroSettled(true), []);
+  /** 出てくる順を少しずらす。段になって流れると急に埋まった感じが消える */
+  const revealClass = (delayMs: number) => ({
+    className: `consult-reveal${introSettled ? " is-shown" : ""}`,
+    style: { animationDelay: `${delayMs}ms` },
+  });
 
   /**
    * にちよさんの大きさは「利用者が読む場所を欲しがっているか」だけで決める。
@@ -443,7 +456,7 @@ export default function ConsultStage({
       <div ref={topSentinelRef} aria-hidden="true" className="h-px w-full shrink-0" />
 
       {/* 入りの演出。大きいにちよさんが、下の定位置まで縮んでいく */}
-      <ConsultIntro targetRef={heroAvatarRef} />
+      <ConsultIntro targetRef={heroAvatarRef} onSettled={handleIntroSettled} />
 
       {/*
         固定バー。高さは常に一定で、中身は不透明度と transform でしか動かさない。
@@ -520,7 +533,10 @@ export default function ConsultStage({
           />
         </div>
         {(speech.isListening || !showAnswer) && (
-          <p className="text-center text-sm font-bold text-amber-900">
+          <p
+            style={revealClass(0).style}
+            className={`text-center text-sm font-bold text-amber-900 ${revealClass(0).className}`}
+          >
             {speech.isListening
               ? "聞きよるよ…"
               : speech.isSupported
@@ -532,7 +548,10 @@ export default function ConsultStage({
 
       {/* 今の答え。1枚だけ */}
       {showAnswer && (
-        <div className="rounded-3xl border border-amber-100 bg-white/90 p-4 shadow-sm">
+        <div
+          style={revealClass(0).style}
+          className={`rounded-3xl border border-amber-100 bg-white/90 p-4 shadow-sm ${revealClass(0).className}`}
+        >
           {/* 質問は隠さず、明確に格下で置く。誤認識に気づける必要があるため */}
           <p className="truncate text-xs text-slate-400">
             {pendingQuestion ?? current?.question}
@@ -577,7 +596,10 @@ export default function ConsultStage({
 
       {/* 候補ボタン。ここが主役。待っている間は薄く残さず、消す */}
       {phase === "idle" && !isBusy && suggestions.length > 0 && (
-        <div className="flex flex-col gap-2">
+        <div
+          style={revealClass(140).style}
+          className={`flex flex-col gap-2 ${revealClass(140).className}`}
+        >
           {suggestions.map((question) => (
             <button
               key={question}
@@ -595,9 +617,12 @@ export default function ConsultStage({
           音声シートが出ている間と応答待ちの間は、押すべきものが2つにならないよう隠す */}
       <div
         className={`fixed inset-x-0 z-20 flex items-center justify-center gap-3 px-4 ${
-          speech.isListening || phase !== "idle" || isBusy ? "hidden" : ""
-        }`}
-        style={{ bottom: "calc(var(--safe-bottom, 0px) + var(--nav-bar-height) + 0.75rem)" }}
+          revealClass(280).className
+        } ${speech.isListening || phase !== "idle" || isBusy ? "hidden" : ""}`}
+        style={{
+          bottom: "calc(var(--safe-bottom, 0px) + var(--nav-bar-height) + 0.75rem)",
+          ...revealClass(280).style,
+        }}
       >
         {/*
           答えが長いとき、本文はこの固定ボタンの下を流れていく。

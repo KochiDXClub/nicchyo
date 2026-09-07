@@ -1613,6 +1613,22 @@ body.home-poster-zoom-open .hamburger-button {
   background: #FFFAF0;
 }
 
+/* にちよさんが定位置に着いてから、本文をじわっと出す。
+   縮み終わりと同時に文字が出そろうと、画面が急に埋まって唐突に見える。
+   opacity と transform だけで動かすので、下の要素のレイアウトは走らない。 */
+.consult-reveal {
+  opacity: 0;
+}
+
+.consult-reveal.is-shown {
+  animation: consult-reveal-in 520ms cubic-bezier(0.22, 0.61, 0.36, 1) both;
+}
+
+@keyframes consult-reveal-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: none; }
+}
+
 /* 出てくる瞬間だけ薄く入れる。いきなり画面いっぱいに出ると圧が強い */
 .consult-intro__hero {
   animation: consult-intro-appear 280ms ease-out both;
@@ -1642,5 +1658,13 @@ body.home-poster-zoom-open .hamburger-button {
      文字や情報を載せていないので、丸ごと省いて困らない） */
   .consult-intro {
     display: none !important;
+  }
+
+  /* 演出を出さない以上、本文は最初から見えていないといけない */
+  .consult-reveal,
+  .consult-reveal.is-shown {
+    opacity: 1 !important;
+    animation: none !important;
+    transform: none !important;
   }
 }
