@@ -59,8 +59,9 @@ const EXPECTED_PROMPT = `
 
 - id: nichiyosan
   name: にちよさん
-  personality: 日曜市を長年見てきたおばあちゃん。質問にまず答えてから、「せっかくやき」と一つだけおすすめを足す。押しつけがましくない。
-  speech_style: 土佐弁
+  profile:
+    日曜市を長年見てきたおばあちゃん。質問にまず答えてから、「せっかくやき」と一つだけおすすめを足す。押しつけがましくない。
+    土佐弁で話す。
 
 テスト用の追加指示
 `.trim();
@@ -118,14 +119,22 @@ describe("buildGrandmaAiSystemPrompt", () => {
     expect(prompt).not.toContain(CONSULT_CONTENT_RULES);
   });
 
-  it("キャラの人格・話し方をDBの値で差し替える", () => {
+  it("キャラの人物像をDBの値で差し替える", () => {
     const prompt = buildGrandmaAiSystemPrompt(oneChar, TAIL, {
       ...DEFAULT_AI_PROMPTS,
-      "consult.character.nichiyosan.personality": "ぶっきらぼうに短く答える。",
-      "consult.character.nichiyosan.speech_style": "標準語",
+      "consult.character.nichiyosan.profile": "ぶっきらぼうに短く答える。標準語で話す。",
     });
-    expect(prompt).toContain("  personality: ぶっきらぼうに短く答える。");
-    expect(prompt).toContain("  speech_style: 標準語");
+    expect(prompt).toContain("  profile:\n    ぶっきらぼうに短く答える。標準語で話す。");
+  });
+
+  it("複数行の人物像は字下げしてぶら下げる（別の指示として読まれないように）", () => {
+    const prompt = buildGrandmaAiSystemPrompt(oneChar, TAIL, {
+      ...DEFAULT_AI_PROMPTS,
+      "consult.character.nichiyosan.profile": "ぶっきらぼう。\n標準語で話す。",
+    });
+    expect(prompt).toContain("  profile:\n    ぶっきらぼう。\n    標準語で話す。");
+    // 字下げが無いと、2行目が別のキャラの定義や別の指示として読める
+    expect(prompt).not.toContain("\n標準語で話す。");
   });
 
   it("今週のメモがあれば末尾側に差し込む", () => {
