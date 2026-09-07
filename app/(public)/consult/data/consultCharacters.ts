@@ -1,5 +1,3 @@
-import { CONSULT_CHARACTER_PROMPT_PROFILES } from "@/lib/grandma/prompts/consultCharacterProfiles";
-
 export type ConsultCharacterId =
   | "nichiyosan"
   | "yoichisan"
@@ -13,11 +11,11 @@ export type ConsultCharacter = {
   image: string;
   imageScale: string;
   imagePosition: string;
-  /** AIに渡す人格。文面は lib/grandma/prompts/consultCharacterProfiles.ts にある */
-  personality: string;
-  /** AIに渡す話し方。文面は lib/grandma/prompts/consultCharacterProfiles.ts にある */
-  speechStyle: string;
 };
+
+// AIに渡す人格（personality / speech_style）はここには持たせない。
+// 運営が管理画面から編集できるよう ai_prompts で管理し、
+// プロンプト組み立て時に lib/grandma/prompts/ 側で合流させる。
 
 export const CONSULT_CHARACTERS: ConsultCharacter[] = [
   {
@@ -27,7 +25,6 @@ export const CONSULT_CHARACTERS: ConsultCharacter[] = [
     image: "/images/obaasan_transparent.png",
     imageScale: "scale-125",
     imagePosition: "center 28%",
-    ...CONSULT_CHARACTER_PROMPT_PROFILES.nichiyosan,
   },
   {
     id: "yoichisan",
@@ -36,7 +33,6 @@ export const CONSULT_CHARACTERS: ConsultCharacter[] = [
     image: "/images/characters/ojichan.png",
     imageScale: "scale-125",
     imagePosition: "center 14%",
-    ...CONSULT_CHARACTER_PROMPT_PROFILES.yoichisan,
   },
   {
     id: "miraikun",
@@ -45,7 +41,6 @@ export const CONSULT_CHARACTERS: ConsultCharacter[] = [
     image: "/images/characters/onisan.png",
     imageScale: "scale-125",
     imagePosition: "center 12%",
-    ...CONSULT_CHARACTER_PROMPT_PROFILES.miraikun,
   },
   {
     id: "yosakochan",
@@ -54,7 +49,6 @@ export const CONSULT_CHARACTERS: ConsultCharacter[] = [
     image: "/images/characters/onesan.png",
     imageScale: "scale-125",
     imagePosition: "center 22%",
-    ...CONSULT_CHARACTER_PROMPT_PROFILES.yosakochan,
   },
 ];
 

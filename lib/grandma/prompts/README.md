@@ -17,7 +17,8 @@ AIに送るプロンプト文の置き場所。**プロンプトの文面を直�
 
 | ファイル | 中身 |
 |---|---|
-| `consultSystemPrompt.ts` | 相談（にちよさん）のメインシステムプロンプト。会話ルール・内容ルール・出力ルール |
+| `consultRules.ts` | 相談のプロンプト文（会話ルール・内容ルール・出力ルール）。**葉モジュール。何も import しない** |
+| `consultSystemPrompt.ts` | 相談のシステムプロンプトの組み立て |
 | `consultCharacterProfiles.ts` | キャラ4人の `personality` / `speechStyle`（AIに渡す人格設定） |
 | `consultConversation.ts` | 掛け合いの構成パターンと、ストリーミング出力フォーマットの指示 |
 | `shopChatPrompt.ts` | 店舗詳細ページのチャット |

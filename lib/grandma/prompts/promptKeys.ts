@@ -15,7 +15,9 @@
  */
 import type { ConsultCharacterId } from "@/app/(public)/consult/data/consultCharacters";
 import { CONSULT_CHARACTER_PROMPT_PROFILES } from "./consultCharacterProfiles";
-import { CONSULT_CONTENT_RULES, CONSULT_CONVERSATION_RULES } from "./consultSystemPrompt";
+// consultSystemPrompt.ts ではなく consultRules.ts から引く。
+// consultSystemPrompt.ts はこのファイルを import するので、逆向きに読むと循環参照になる
+import { CONSULT_CONTENT_RULES, CONSULT_CONVERSATION_RULES } from "./consultRules";
 
 export const AI_PROMPT_CHARACTER_IDS: readonly ConsultCharacterId[] = [
   "nichiyosan",
