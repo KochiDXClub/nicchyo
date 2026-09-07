@@ -4,6 +4,7 @@ import NavigationBar from "../../components/NavigationBar";
 import MapLink from "../../components/MapLink";
 import { fetchWeeklyVisitors } from "@/lib/analytics/weeklyVisitors.server";
 import SupporterSlots from "@/components/SupporterSlots";
+import { buildFundingSegments, OTHER_FUNDING_COLOR } from "@/lib/support/supporters";
 import RunwayMeter from "./RunwayMeter";
 import {
   ANNUAL_COST_RANGE_JPY,
@@ -28,6 +29,9 @@ export const metadata = {
 export default async function SupportPage() {
   const weeklyVisitors = await fetchWeeklyVisitors();
   const monthly = monthlyCostJpy();
+  // メーターの塗りを「誰が出した分か」で分ける
+  const segments = buildFundingSegments({ fundsJpy: FUNDS_ON_HAND_JPY, monthlyJpy: monthly });
+  const otherSegment = segments.find((segment) => segment.color === OTHER_FUNDING_COLOR);
   const runway = runwayMonths();
   const unitMonths = sponsorUnitMonths();
   const showBreakdown = hasCostBreakdown();
@@ -75,14 +79,32 @@ export default async function SupportPage() {
           </p>
 
           <div className="mt-6">
-            <RunwayMeter months={runway} totalMonths={RUNWAY_MONTHS} />
+            <RunwayMeter segments={segments} totalMonths={RUNWAY_MONTHS} />
           </div>
 
-          <p className="mt-5 text-[13px] leading-relaxed text-nicchyo-ink/50">
+          {/* 「その他」は掲載枠に出ないので、色と金額をここで示す */}
+          {otherSegment && (
+            <p className="mt-4 flex items-center gap-2 text-[13px] tabular-nums text-nicchyo-ink/50">
+              <span
+                className="h-2 w-2 shrink-0 rounded-[2px]"
+                style={{ backgroundColor: otherSegment.color }}
+                aria-hidden
+              />
+              その他（助成金・匿名の支援） {formatJpy(otherSegment.amountJpy)}
+            </p>
+          )}
+
+          <p className="mt-4 text-[13px] leading-relaxed text-nicchyo-ink/50">
             {FUNDS_ON_HAND_JPY > 0
               ? `お預かりしている ${formatJpy(FUNDS_ON_HAND_JPY)} で、ここまで動かせます。`
               : "いまは全額を学生が出しています。"}
           </p>
+
+          {/* メーターの色がどの協賛かを、名前と金額で結びつける場所も兼ねる */}
+          <h3 className="mt-10 text-[12px] font-bold tracking-[0.1em] text-nicchyo-ink/40">
+            支えてくださる方
+          </h3>
+          <SupporterSlots className="mt-4" />
         </section>
 
         {/* 費用。図はメーターに任せ、ここは金額をそろえて並べるだけにする */}
@@ -162,14 +184,6 @@ export default async function SupportPage() {
               </div>
             ))}
           </dl>
-        </section>
-
-        {/* 空いているうちも枠を出す。協賛すると何が得られるかは、枠を見せた方が早い */}
-        <section className="mt-14 border-t border-nicchyo-ink/10 pt-10">
-          <h2 className="text-[12px] font-bold tracking-[0.1em] text-nicchyo-ink/40">
-            支えてくださる方
-          </h2>
-          <SupporterSlots className="mt-5" />
         </section>
 
         {/* 協賛。金額が決まっていれば「1口で何ヶ月ぶん」まで出す */}
