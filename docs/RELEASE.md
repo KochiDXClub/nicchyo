@@ -281,6 +281,33 @@ Actions の一覧で、実行名がワークフロー名ではなく `.github/wo
    このときファイル名のタイムスタンプを**本番の記録と同じ version に合わせる**と、
    `db push` が「適用済み」と判定して二重実行を避けられる
 
+**`migration list` に Remote だけの行が10件出るのは既知（消さないこと）**
+
+2026-09-06 に `Migrations Deploy` が動いていなかったことが判明し、未適用だった
+17本を Supabase の管理API経由で手当てした。その際に自動採番された記録が
+`20260906122700` 〜 `20260906123229` の10件として残っている。
+
+```
+prevent_vendor_privilege_escalation / close_anon_access_on_unused_tables /
+create_vendor_owner_profiles / secure_get_shop_attendance_estimates /
+restrict_vendors_authenticated_and_role_escalation /
+create_save_roads_and_points_function /
+personal_data_retention_and_analytics_minimization /
+drop_vendors_owner_name_and_kotodutes / create_vendor_inquiries /
+extend_map_landmarks_as_spots
+```
+
+**同じ変更はリポジトリ側の version でも記録済みなので、二重実行は起きない。**
+`db push` は Local にあって Remote に無いものだけを適用するため、Remote だけの
+行は無視される。
+
+この10件は消さない。`statements` 列に**本番へ実際に流れたSQLが入っており**、
+特に `personal_data_retention_and_analytics_minimization`（4本を統合）と
+`drop_vendors_owner_name_and_kotodutes`（2本を統合）は、リポジトリのどのファイルとも
+1対1で対応しない。当時の実行内容を確認できる唯一の記録になっている。
+
+経緯は #573 を参照。
+
 ### 補足
 
 - `migrations-check.yml` は `supabase/migrations/**` を触ったPRでしか走らない。ブランチ保護の
