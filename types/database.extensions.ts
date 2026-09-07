@@ -21,6 +21,17 @@ export type ShopInteractionInsert = {
   ip_address?: string | null;
 };
 
+export type AiPromptRow = {
+  id: string;
+  key: string;
+  body: string;
+  version: number;
+  is_active: boolean;
+  note: string | null;
+  updated_by: string | null;
+  created_at: string;
+};
+
 type ExtendedPublicSchema = Omit<Database["public"], "Tables"> & {
   Tables: Database["public"]["Tables"] & {
     admin_notifications: {
@@ -33,6 +44,16 @@ type ExtendedPublicSchema = Omit<Database["public"], "Tables"> & {
       Row: ShopInteractionInsert & { id: string; created_at: string };
       Insert: ShopInteractionInsert;
       Update: Partial<ShopInteractionInsert>;
+      Relationships: never[];
+    };
+    ai_prompts: {
+      Row: AiPromptRow;
+      // version はトリガ（ai_prompts_activate_new_version）が採番するので送らない。
+      // is_active も型で塞ぐ（false を送るとトリガの切り替えが走らず、
+      // そのキーのアクティブ行が消えて既定値に落ちた状態を作れてしまう）
+      Insert: Pick<AiPromptRow, "key" | "body"> &
+        Partial<Pick<AiPromptRow, "note" | "updated_by">>;
+      Update: Partial<Pick<AiPromptRow, "is_active" | "note">>;
       Relationships: never[];
     };
   };
