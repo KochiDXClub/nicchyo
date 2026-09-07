@@ -43,9 +43,13 @@
 --   しかもアプリは台帳が読めないとコード側の既定値で動くので、
 --   「管理画面で保存しても効かない」状態に誰も気づけない。
 --   （同種の事故は docs/RELEASE.md §9 を参照）
-drop trigger if exists ai_model_settings_touch_updated_at on ai_model_settings;
-drop function if exists public.ai_model_settings_touch_updated_at();
+--
+-- トリガーを個別に落とさないのは、drop trigger の if exists がトリガー名にしか
+-- 効かず、on の後ろのテーブルは実在が必須なため。まっさらなDBに全マイグレーションを
+-- 流すCI（ローカルDBへ全適用）には旧テーブルが無いので 42P01 で落ちる。
+-- テーブルを落とせば、そこに付いていたトリガーも一緒に消える。
 drop table if exists public.ai_model_settings;
+drop function if exists public.ai_model_settings_touch_updated_at();
 
 -- ─── 選べるモデルの一覧 ────────────────────────────────────────────────
 create table if not exists ai_models (
