@@ -5,9 +5,9 @@ import { useEffect, useRef, useState, type RefObject } from "react";
 import { computeIntroTransform, toTransformStyle } from "@/lib/grandma/introTransform";
 
 /** 大きいまま見せる間。ここで「誰に相談する画面か」が伝わる */
-const HOLD_MS = 420;
+const HOLD_MS = 300;
 /** 定位置まで縮む間。急ぐと「消えた」ように見えるので、ゆっくり寄せる */
-const SHRINK_MS = 1020;
+const SHRINK_MS = 1000;
 /** 縮み終わってから消えるまで */
 const FADE_MS = 220;
 

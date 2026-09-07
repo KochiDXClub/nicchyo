@@ -1621,7 +1621,7 @@ body.home-poster-zoom-open .hamburger-button {
 }
 
 .consult-reveal.is-shown {
-  animation: consult-reveal-in 520ms cubic-bezier(0.22, 0.61, 0.36, 1) both;
+  animation: consult-reveal-in 800ms cubic-bezier(0.22, 0.61, 0.36, 1) both;
 }
 
 @keyframes consult-reveal-in {
