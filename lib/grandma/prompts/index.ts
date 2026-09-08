@@ -9,10 +9,7 @@
  * 埋め込まれないが、依存を持ち込む理由がない）。
  * サーバー側は promptStore.server.ts を直接 import する。
  */
-export {
-  CONSULT_CHARACTER_PROMPT_PROFILES,
-  type ConsultCharacterPromptProfile,
-} from "./consultCharacterProfiles";
+export { CONSULT_CHARACTER_PROMPT_PROFILES } from "./consultCharacterProfiles";
 export {
   CONSULT_INTRO,
   CONSULT_CONVERSATION_RULES,

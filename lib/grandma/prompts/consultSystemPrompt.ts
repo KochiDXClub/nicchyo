@@ -22,15 +22,22 @@ export {
   CONSULT_OPERATOR_NOTE_HEADER,
 } from "./consultRules";
 
+/**
+ * 話し手の定義ブロックを組み立てる。
+ *
+ * profile は運営が複数行で書けるので、続きの行を字下げして本文にぶら下げる。
+ * 字下げしないと、2行目以降が別のキャラの定義や別の指示として読める。
+ */
 function buildCastBlock(characters: ConsultCharacter[], prompts: AiPromptSet): string {
   return characters
     .map((character) => {
-      return [
-        `- id: ${character.id}`,
-        `  name: ${character.name}`,
-        `  personality: ${prompts[`consult.character.${character.id}.personality`]}`,
-        `  speech_style: ${prompts[`consult.character.${character.id}.speech_style`]}`,
-      ].join("\n");
+      const profile = prompts[`consult.character.${character.id}.profile`]
+        .split("\n")
+        .map((line) => `    ${line.trim()}`)
+        .join("\n");
+      return [`- id: ${character.id}`, `  name: ${character.name}`, "  profile:", profile].join(
+        "\n"
+      );
     })
     .join("\n");
 }

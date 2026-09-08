@@ -5,6 +5,7 @@ import { AlertCircle, Keyboard, Mic, RotateCcw, Send, Square, X } from "lucide-r
 import toast from "react-hot-toast";
 import { useSpeechInput } from "@/lib/hooks/useSpeechInput";
 import { resolveGrandmaPose } from "@/lib/grandma/pose";
+import { buildConsultGreeting } from "@/lib/grandma/consultGreeting";
 import {
   buildHistoryForRequest,
   createEmptySession,
@@ -15,10 +16,12 @@ import {
   type ConsultEntry,
 } from "@/lib/grandma/consultSession";
 import GrandmaAvatar from "./GrandmaAvatar";
+import ConsultCharacterSwap from "./ConsultCharacterSwap";
 import {
   CONSULT_CHARACTERS,
   CONSULT_CHARACTER_BY_ID,
   DEFAULT_CONSULT_CHARACTER,
+  type ConsultCharacter,
   type ConsultCharacterId,
 } from "../data/consultCharacters";
 import ConsultShopCard from "./ConsultShopCard";
@@ -47,6 +50,9 @@ const QUESTION_POOL = [
   "食べ歩きできるものある？",
   "写真映えする場所は？",
 ] as const;
+
+/** 開いたとき、話し手がその場に現れきるまで。出そろってから本文を出す */
+const APPEAR_MS = 420;
 
 export interface ConsultStageProps {
   onAskStream: (
@@ -102,6 +108,15 @@ export default function ConsultStage({
   const [hasRestored, setHasRestored] = useState(false);
   const [autoAsked, setAutoAsked] = useState(false);
   /**
+   * 今の答えのカードを出してよいか。
+   *
+   * 開き直したときに前の答えが出ていると、聞いてもいないのに誰かが喋っている
+   * 画面になり、話しかける前から読むものが積まれる。相談は1往復で終わることが
+   * ほとんどなので、開いたときはまっさらにして、前の相談は「これまでの相談」に畳む。
+   * （畳むだけで消しはしない）
+   */
+  const [showsCurrentAnswer, setShowsCurrentAnswer] = useState(false);
+  /**
    * 回答に添えられて返ってきたお店。
    * 店舗そのものは localStorage に保存せず（重いので）ID だけ持ち、
    * 実体はこの表と allShops から引く。
@@ -112,6 +127,23 @@ export default function ConsultStage({
   entriesRef.current = entries;
   const textInputRef = useRef<HTMLTextAreaElement | null>(null);
   const topSentinelRef = useRef<HTMLDivElement | null>(null);
+  /** 話し手の立ち位置。入れ替わりの歩きはここへ着く */
+  const heroAvatarRef = useRef<HTMLDivElement | null>(null);
+  /**
+   * 話し手が現れきったか。
+   * 出そろってから本文（ひとこと・候補ボタン・下のボタン）をじわっと出す。
+   * 同時に出すと、画面がいきなり埋まって唐突に見えるため。
+   */
+  const [introSettled, setIntroSettled] = useState(false);
+  useEffect(() => {
+    const timer = setTimeout(() => setIntroSettled(true), APPEAR_MS);
+    return () => clearTimeout(timer);
+  }, []);
+  /** 出てくる順を少しずらす。段になって流れると急に埋まった感じが消える */
+  const revealClass = (delayMs: number) => ({
+    className: `consult-reveal${introSettled ? " is-shown" : ""}`,
+    style: { animationDelay: `${delayMs}ms` },
+  });
 
   /**
    * にちよさんの大きさは「利用者が読む場所を欲しがっているか」だけで決める。
@@ -173,6 +205,64 @@ export default function ConsultStage({
     DEFAULT_CONSULT_CHARACTER;
   const [isSpeakerPickerOpen, setIsSpeakerPickerOpen] = useState(false);
 
+  /**
+   * 今の話し手が言う、最初のひとこと。
+   *
+   * 台本は人ごとに持たせてある（口調が違う人に同じ挨拶をさせると、
+   * 選び分ける意味がなくなる）。選ばれるたびにその人の台本を1つ進めるので、
+   * 行ったり来たりしても同じ台詞が続かない。
+   *
+   * 引く位置に乱数を使うのは初回だけ。描画のたびに変えるとサーバーと食い違うので、
+   * mount 後の effect で決める。
+   */
+  const greetingIndexRef = useRef<Record<string, number>>({});
+  const [greeting, setGreeting] = useState<string | null>(null);
+  useEffect(() => {
+    const shown = greetingIndexRef.current[speaker.id];
+    const index =
+      shown === undefined
+        ? Math.floor(Math.random() * speaker.greeting.lines.length)
+        : shown + 1;
+    greetingIndexRef.current[speaker.id] = index;
+    setGreeting(buildConsultGreeting({ now: new Date(), script: speaker.greeting, index }));
+  }, [speaker]);
+
+  /**
+   * 話し手の入れ替わり。
+   *
+   * 前の人が右へ歩いて去り、新しい人が左から歩いてくる。絵が差し替わるだけだと
+   * 「今だれと話しているのか」が変わったことに気づけないため。
+   * 歩いているあいだページ側の絵は隠す（同じ人が2人並んで見えないように）。
+   */
+  const [swapFrom, setSwapFrom] = useState<ConsultCharacter | null>(null);
+  const shownSpeakerRef = useRef(speaker);
+  /**
+   * この画面で利用者が選び直したか。
+   *
+   * 前に選んだ話し手は localStorage から読み直しており、それが効くのは
+   * 一度描いたあとになる。つまり開いた直後に「にちよさん → 選んでいた人」と
+   * いう変化が必ず起きる。これを入れ替わりとして歩かせると、
+   * 他のページから戻ってくるたびに交代の演出が流れてしまう。
+   * 歩かせてよいのは、この画面で押して選んだときだけ。
+   */
+  const pickedByUserRef = useRef(false);
+  useEffect(() => {
+    if (shownSpeakerRef.current.id === speaker.id) return;
+    const previous = shownSpeakerRef.current;
+    shownSpeakerRef.current = speaker;
+    if (!pickedByUserRef.current) return;
+    setSwapFrom(previous);
+  }, [speaker]);
+  const handleSwapDone = useCallback(() => setSwapFrom(null), []);
+  const handlePickSpeaker = useCallback(
+    (id: ConsultCharacterId) => {
+      pickedByUserRef.current = true;
+      onPreferredCharacterChange?.(id);
+      setIsSpeakerPickerOpen(false);
+    },
+    [onPreferredCharacterChange]
+  );
+
   const pose = resolveGrandmaPose({
     isListening: speech.isListening,
     isStreaming: streamingText !== null,
@@ -186,7 +276,12 @@ export default function ConsultStage({
       const restored = restoreSession(window.localStorage.getItem(SESSION_STORAGE_KEY)).entries;
       // マップ上の相談から遷移してきた分を引き継ぐ（取り込んだら消す）
       const handed = importHandoffEntries(window.localStorage.getItem(HANDOFF_STORAGE_KEY));
-      if (handed.length > 0) window.localStorage.removeItem(HANDOFF_STORAGE_KEY);
+      if (handed.length > 0) {
+        window.localStorage.removeItem(HANDOFF_STORAGE_KEY);
+        // マップの相談から「くわしく相談する」で渡ってきたぶんは、その続きを
+        // 話しに来ているので出す
+        setShowsCurrentAnswer(true);
+      }
       setEntries([...handed, ...restored]);
     } catch {
       // サイトデータが読めない設定でも相談は始められるようにする
@@ -316,6 +411,9 @@ export default function ConsultStage({
           .join("\n\n")
           .trim();
 
+        // 答えが返ってきてから出す。ここより前で立てると、聞くのに失敗したときに
+        // 「前に畳んだはずの答え」が代わりに出てきてしまう
+        setShowsCurrentAnswer(true);
         setEntries((prev) => [
           {
             id: response.consultId ?? `${Date.now()}`,
@@ -351,7 +449,7 @@ export default function ConsultStage({
     void ask(autoAskText, "input", true);
   }, [ask, autoAsked, autoAskText, hasRestored]);
 
-  const current = entries[0] ?? null;
+  const current = showsCurrentAnswer ? entries[0] ?? null : null;
   const suggestions = useMemo(
     () => pickSuggestions({ entries, pool: QUESTION_POOL }),
     [entries]
@@ -456,6 +554,16 @@ export default function ConsultStage({
       {/* 「画面の一番上にいるか」を測るための目印。見た目には出ない */}
       <div ref={topSentinelRef} aria-hidden="true" className="h-px w-full shrink-0" />
 
+      {/* 話し手の入れ替わり。前の人が右へ去り、新しい人が左から歩いてくる */}
+      {swapFrom && (
+        <ConsultCharacterSwap
+          from={swapFrom}
+          to={speaker}
+          targetRef={heroAvatarRef}
+          onDone={handleSwapDone}
+        />
+      )}
+
       {/*
         固定バー。高さは常に一定で、中身は不透明度と transform でしか動かさない。
 
@@ -503,7 +611,7 @@ export default function ConsultStage({
             <span className="rounded-full bg-red-500 px-3 py-1.5 text-xs font-bold text-white">
               聞きよるよ…
             </span>
-          ) : entries.length > 1 ? (
+          ) : entries.length - (current ? 1 : 0) > 0 ? (
             // 畳んだ履歴。件数を出しておかないと「消えた」と思われる
             <button
               type="button"
@@ -522,27 +630,57 @@ export default function ConsultStage({
         スクロール中にレイアウトが動かない。
       */}
       <div className="flex flex-col items-center gap-2">
-        <GrandmaAvatar
-          pose={pose}
-          size="hero"
-          character={speaker}
-          onClick={() => setIsSpeakerPickerOpen(true)}
-          label={`話し手を選ぶ（いまは${speaker.name}）`}
-        />
-        {(speech.isListening || !showAnswer) && (
-          <p className="text-center text-sm font-bold text-amber-900">
-            {speech.isListening
-              ? "聞きよるよ…"
-              : speech.isSupported
-                ? "下のボタンで話しかけてね。イラストをタップすると話し手を変えられるよ"
-                : "聞きたいことを選んでね。イラストをタップすると話し手を変えられるよ"}
-          </p>
+        {/*
+          flex にして、囲んだだけで下に行間の隙間が出ないようにする（測る先がずれる）。
+          開いたときはその場に現れ、現れきったら一度だけ会釈する。
+          入れ替わりの歩きが走っている間は、こちらを隠して歩く絵に任せる。
+        */}
+        <div
+          ref={heroAvatarRef}
+          className={`flex consult-appear${introSettled ? " consult-greet" : ""}`}
+          style={{ opacity: swapFrom ? 0 : 1 }}
+        >
+          <GrandmaAvatar
+            pose={pose}
+            size="hero"
+            character={speaker}
+            onClick={() => setIsSpeakerPickerOpen(true)}
+            label={`話し手を選ぶ（いまは${speaker.name}）`}
+          />
+        </div>
+        {speech.isListening ? (
+          <p className="text-center text-sm font-bold text-amber-900">聞きよるよ…</p>
+        ) : (
+          !showAnswer &&
+          !swapFrom && (
+            /*
+              最初のひとこと。説明文をそのまま置くのではなく、話し手の言葉として出す。
+              「話しかけてよい相手が、もう話しかけてきている」ほうが、
+              この画面が何をする場所かが一行の説明よりも早く伝わる。
+            */
+            <div
+              style={revealClass(0).style}
+              className={`consult-greeting max-w-[19rem] rounded-2xl border border-amber-200 bg-white px-4 py-2.5 text-center shadow-sm ${revealClass(0).className}`}
+            >
+              <p className="text-[15px] font-bold leading-6 text-amber-900">
+                {greeting ?? "なんでも聞いてや。"}
+              </p>
+              <p className="mt-0.5 text-[11px] text-amber-700/80">
+                {speech.isSupported
+                  ? "下のボタンで話しかけてね。イラストをタップすると話し手を変えられるよ"
+                  : "聞きたいことを選んでね。イラストをタップすると話し手を変えられるよ"}
+              </p>
+            </div>
+          )
         )}
       </div>
 
       {/* 今の答え。1枚だけ */}
       {showAnswer && (
-        <div className="rounded-3xl border border-amber-100 bg-white/90 p-4 shadow-sm">
+        <div
+          style={revealClass(0).style}
+          className={`rounded-3xl border border-amber-100 bg-white/90 p-4 shadow-sm ${revealClass(0).className}`}
+        >
           {/* 質問は隠さず、明確に格下で置く。誤認識に気づける必要があるため */}
           <p className="truncate text-xs text-slate-400">
             {pendingQuestion ?? current?.question}
@@ -587,7 +725,10 @@ export default function ConsultStage({
 
       {/* 候補ボタン。ここが主役。待っている間は薄く残さず、消す */}
       {phase === "idle" && !isBusy && suggestions.length > 0 && (
-        <div className="flex flex-col gap-2">
+        <div
+          style={revealClass(140).style}
+          className={`flex flex-col gap-2 ${revealClass(140).className}`}
+        >
           {suggestions.map((question) => (
             <button
               key={question}
@@ -605,9 +746,12 @@ export default function ConsultStage({
           音声シートが出ている間と応答待ちの間は、押すべきものが2つにならないよう隠す */}
       <div
         className={`fixed inset-x-0 z-20 flex items-center justify-center gap-3 px-4 ${
-          speech.isListening || phase !== "idle" || isBusy ? "hidden" : ""
-        }`}
-        style={{ bottom: "calc(var(--safe-bottom, 0px) + var(--nav-bar-height) + 0.75rem)" }}
+          revealClass(280).className
+        } ${speech.isListening || phase !== "idle" || isBusy ? "hidden" : ""}`}
+        style={{
+          bottom: "calc(var(--safe-bottom, 0px) + var(--nav-bar-height) + 0.75rem)",
+          ...revealClass(280).style,
+        }}
       >
         {/*
           答えが長いとき、本文はこの固定ボタンの下を流れていく。
@@ -902,10 +1046,7 @@ export default function ConsultStage({
                     <button
                       type="button"
                       aria-pressed={isCurrent}
-                      onClick={() => {
-                        onPreferredCharacterChange?.(character.id);
-                        setIsSpeakerPickerOpen(false);
-                      }}
+                      onClick={() => handlePickSpeaker(character.id)}
                       className={`flex w-full items-center gap-3 rounded-2xl border p-3 text-left transition active:scale-[0.99] ${
                         isCurrent
                           ? "border-amber-400 bg-amber-50"
