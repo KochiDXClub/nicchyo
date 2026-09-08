@@ -3,7 +3,7 @@ import {
   buildGrandmaAiSystemPrompt,
   CONSULT_CONTENT_RULES,
   CONSULT_CONVERSATION_RULES,
-  CONSULT_OUTPUT_RULES,
+  CONSULT_ANSWER_RULES,
 } from "./consultSystemPrompt";
 import { DEFAULT_AI_PROMPTS } from "./promptKeys";
 import { CONSULT_CHARACTERS } from "@/app/(public)/consult/data/consultCharacters";
@@ -21,15 +21,13 @@ const EXPECTED_PROMPT = `
 あなたは高知県・日曜市の案内会話を生成するAIです。
 日曜市の店や回り方が中心ですが、高知市の観光や食の話題にも一般知識ベースで答えてよいです。
 
-## 出力ルール
-- 必ずJSONのみを返す
-- スキーマに従う
-- summary には、次回以降に引き継ぐ短い会話メモを120文字以内で入れる
-- turns は表示順で返す。発話数の目安は会話ルールに従う
-- turns[].speakerId は必ず今回の話し手の id にする
-- followUpQuestion には、ユーザーが次にAIへ送る質問文を1つだけ入れる
-- followUpQuestion は「〜はどう？」「〜してみる？」のようなAI側の問いかけにしない
-- followUpQuestion はボタンにそのまま出せる自然な質問文にする
+## 返答の作り方
+- 会話メモ（summary）には、次回以降に引き継ぐ短いメモを120文字以内で入れる
+- 発話は表示順に並べる。発話数は会話ルールに従う
+- 発話の話し手は必ず今回の話し手にする
+- 次の質問（followUpQuestion）には、ユーザーが次にAIへ送る質問文を1つだけ入れる
+- 次の質問は「〜はどう？」「〜してみる？」のようなAI側の問いかけにしない
+- 次の質問はボタンにそのまま出せる自然な質問文にする
 - 例: 「朝いちで回るならどの順番がいい？」 「この中でいちばん人気のお店は？」
 
 ---
@@ -87,7 +85,7 @@ describe("buildGrandmaAiSystemPrompt", () => {
     const separator = prompt.indexOf("\n---\n");
 
     // 固定部分（キャッシュの共通プレフィックス）
-    expect(prompt.indexOf("## 出力ルール")).toBeLessThan(separator);
+    expect(prompt.indexOf("## 返答の作り方")).toBeLessThan(separator);
     // 可変部分
     expect(prompt.indexOf("## 会話ルール")).toBeGreaterThan(separator);
     expect(prompt.indexOf("## 内容ルール")).toBeGreaterThan(separator);
@@ -147,12 +145,21 @@ describe("buildGrandmaAiSystemPrompt", () => {
     expect(prompt).not.toContain("## 今週のメモ");
   });
 
-  it("出力ルールはDBで編集できない（スキーマと対の契約）", () => {
+  it("返答の作り方はDBで編集できない（スキーマと対の契約）", () => {
     const prompt = buildGrandmaAiSystemPrompt(oneChar, TAIL, {
       ...DEFAULT_AI_PROMPTS,
       "consult.conversation_rules": "壊してみる",
       "consult.content_rules": "壊してみる",
     });
-    expect(prompt).toContain(CONSULT_OUTPUT_RULES);
+    expect(prompt).toContain(CONSULT_ANSWER_RULES);
+  });
+
+  it("出力形式の指示は固定部分に入れない（経路ごとに違うため）", () => {
+    // ストリーミングは TURN 行のプレーンテキスト、非ストリーミングは JSON。
+    // 固定部分に形式を書くと両方が同居して、モデルがどちらに従うか決まらない。
+    const prompt = buildGrandmaAiSystemPrompt(oneChar, "");
+    expect(prompt).not.toContain("JSON");
+    expect(prompt).not.toContain("プレーンテキスト");
+    expect(prompt).not.toContain("スキーマ");
   });
 });

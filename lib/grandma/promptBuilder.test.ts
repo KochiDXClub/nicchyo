@@ -4,7 +4,11 @@ import {
   parseStreamingConsultOutput,
   buildReplyFromTurns,
 } from "./promptBuilder";
-import { buildStreamingFormatPrompt, CONSULT_MAX_TURNS } from "./prompts/consultConversation";
+import {
+  buildStreamingFormatPrompt,
+  buildJsonFormatPrompt,
+  CONSULT_MAX_TURNS,
+} from "./prompts/consultConversation";
 import {
   CONSULT_CHARACTERS,
   pickConsultCharacters,
@@ -44,15 +48,42 @@ describe("buildStreamingFormatPrompt", () => {
     expect(prompt).toContain("nichiyosan=にちよさん");
   });
 
-  it("行数は固定せず上限だけを伝える", () => {
+  it("発話数の上限を伝える（話者順は指示しない）", () => {
     const prompt = buildStreamingFormatPrompt(oneChar);
-    expect(prompt).toContain(`1行以上 ${CONSULT_MAX_TURNS} 行以内`);
+    if (CONSULT_MAX_TURNS === 1) {
+      expect(prompt).toContain("TURN 行はちょうど1行だけ");
+    } else {
+      expect(prompt).toContain(`1行以上 ${CONSULT_MAX_TURNS} 行以内`);
+    }
     expect(prompt).not.toContain("必ず 4 行");
+  });
+
+  it("JSONで返すよう指示しない（JSONを返されるとTURN行が無くなる）", () => {
+    // 固定部分の「返答の作り方」と同居するので、ここで形式が二重になると
+    // parseStreamingConsultOutput() のフォールバックに落ちて、
+    // JSON文字列がそのまま吹き出しの本文になる
+    const prompt = buildStreamingFormatPrompt(oneChar);
+    expect(prompt).toContain("プレーンテキスト");
+    expect(prompt).not.toContain("JSONのみ");
+    expect(prompt).not.toContain("スキーマに従う");
   });
 
   it("ENDマーカーの指示を含む", () => {
     const prompt = buildStreamingFormatPrompt(oneChar);
     expect(prompt).toContain("END");
+  });
+});
+
+describe("buildJsonFormatPrompt", () => {
+  it("JSONのみを返すよう指示する", () => {
+    const prompt = buildJsonFormatPrompt();
+    expect(prompt).toContain("出力は必ずJSONのみ");
+  });
+
+  it("プレーンテキストの行フォーマットには触れない（ストリーミング側の指示）", () => {
+    const prompt = buildJsonFormatPrompt();
+    expect(prompt).not.toContain("TURN|");
+    expect(prompt).not.toContain("プレーンテキスト");
   });
 });
 
