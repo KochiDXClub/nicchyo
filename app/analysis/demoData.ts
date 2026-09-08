@@ -224,6 +224,37 @@ export const DEMO_SEASON_CALENDAR: { product: string; months: number[] }[] = [
   { product: "いちご", months: [1, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0, 1] },
 ];
 
+// ── Web 来訪者数（実データが取れないときの見本） ───────────────────────
+
+export type DemoVisitorDay = { date: string; value: number };
+
+/**
+ * 日ごとの来訪者数の見本。日曜市は日曜開催なので、日曜だけ大きく跳ねる形にする。
+ * 平日は下調べや思い出しの利用で、日曜の1割前後に落ち着く想定。
+ */
+export function buildDemoVisitorDays(todayIso: string, days = 800): DemoVisitorDay[] {
+  const cursor = new Date(`${todayIso}T00:00:00Z`);
+  cursor.setUTCDate(cursor.getUTCDate() - (days - 1));
+
+  const result: DemoVisitorDay[] = [];
+  for (let i = 0; i < days; i += 1) {
+    const date = isoOf(cursor);
+    const isSunday = cursor.getUTCDay() === 0;
+    const month = cursor.getUTCMonth() + 1;
+
+    // 少しずつ増えていく想定（初期の 0.7 倍から等速で増やす）
+    const growth = 0.7 + (i / days) * 0.6;
+    // 春と秋に来訪が増え、真夏と真冬は落ちる
+    const seasonal = 1 + 0.22 * Math.cos(((month - 4) / 12) * 2 * Math.PI);
+    const noise = 0.82 + hashUnit(date) * 0.36;
+    const base = isSunday ? 780 : 96;
+
+    result.push({ date, value: Math.round(base * growth * seasonal * noise) });
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  }
+  return result;
+}
+
 // ── 定点観測（まだ実施していない） ──────────────────────────────────────
 
 export type FieldSurveyPlan = {

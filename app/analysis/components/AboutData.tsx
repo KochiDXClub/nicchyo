@@ -1,5 +1,5 @@
 import { INK, SERIES, SURFACE } from "../chart";
-import { DemoBadge, LiveBadge, ScrollHint, SectionCard } from "./ui";
+import { DemoBadge, LiveBadge, SectionCard } from "./ui";
 import { FIELD_SURVEY_PLAN } from "../demoData";
 
 export type CoverageItem = {
@@ -200,8 +200,34 @@ export default function AboutData({ coverage }: { coverage: CoverageItem[] }) {
         title="指標の定義"
         description="引用するときは、この定義を一緒に確認してください。定義のない数字は使えません。"
       >
-        <div className="relative overflow-x-auto">
-          <table className="w-full min-w-[620px] border-collapse text-xs">
+        {/* 5列を狭い画面に押し込むと、どの列も読めない幅になる。
+            スマートフォンでは1件ずつのカードにして、縦に読ませる。 */}
+        <ul className="space-y-3 md:hidden">
+          {DEFINITIONS.map((row) => (
+            <li key={row.metric} className="rounded-xl border border-amber-100 bg-amber-50/40 p-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <h4 className="text-sm font-bold text-amber-900">{row.metric}</h4>
+                {row.live ? <LiveBadge /> : <DemoBadge />}
+              </div>
+              <p className="mt-1.5 text-xs leading-relaxed text-amber-900/80">{row.definition}</p>
+              <dl className="mt-2 space-y-1 text-[11px]">
+                <div className="flex gap-2">
+                  <dt className="shrink-0 font-semibold text-amber-900/70">取得元</dt>
+                  <dd className="min-w-0 break-words font-mono text-[10px] text-amber-900/70">
+                    {row.source}
+                  </dd>
+                </div>
+                <div className="flex gap-2">
+                  <dt className="shrink-0 font-semibold text-amber-900/70">更新</dt>
+                  <dd className="text-amber-900/70">{row.cadence}</dd>
+                </div>
+              </dl>
+            </li>
+          ))}
+        </ul>
+
+        <div className="hidden md:block">
+          <table className="w-full border-collapse text-xs">
             <thead>
               <tr>
                 {["指標", "定義", "取得元", "更新", "状態"].map((column) => (
@@ -220,20 +246,20 @@ export default function AboutData({ coverage }: { coverage: CoverageItem[] }) {
                 <tr key={row.metric}>
                   <th
                     scope="row"
-                    className="whitespace-nowrap border-b border-amber-50 px-2 py-2 text-left font-medium text-amber-900"
+                    className="border-b border-amber-50 px-2 py-2 text-left align-top font-medium text-amber-900"
                   >
                     {row.metric}
                   </th>
-                  <td className="border-b border-amber-50 px-2 py-2 text-amber-900/80">
+                  <td className="border-b border-amber-50 px-2 py-2 align-top text-amber-900/80">
                     {row.definition}
                   </td>
-                  <td className="border-b border-amber-50 px-2 py-2 font-mono text-[10px] text-amber-900/70">
+                  <td className="border-b border-amber-50 px-2 py-2 align-top font-mono text-[10px] leading-relaxed text-amber-900/70">
                     {row.source}
                   </td>
-                  <td className="whitespace-nowrap border-b border-amber-50 px-2 py-2 text-amber-900/70">
+                  <td className="whitespace-nowrap border-b border-amber-50 px-2 py-2 align-top text-amber-900/70">
                     {row.cadence}
                   </td>
-                  <td className="border-b border-amber-50 px-2 py-2">
+                  <td className="border-b border-amber-50 px-2 py-2 align-top">
                     {row.live ? <LiveBadge /> : <DemoBadge />}
                   </td>
                 </tr>
@@ -241,7 +267,6 @@ export default function AboutData({ coverage }: { coverage: CoverageItem[] }) {
             </tbody>
           </table>
         </div>
-        <ScrollHint />
       </SectionCard>
 
       <SectionCard

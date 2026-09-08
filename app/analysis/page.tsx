@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { cookies } from "next/headers";
 import { createClient } from "@/utils/supabase/server";
-import VisitorTrendSwitcher from "./VisitorTrendSwitcher";
+import VisitorTrendSwitcher, { type VisitorPoint } from "./VisitorTrendSwitcher";
 import NavigationBar from "@/app/components/NavigationBar";
 import { MARKET_STATUS, type MarketStatus } from "./chart";
 import { LayerHeading, SectionCard, StatTile } from "./components/ui";
@@ -20,9 +20,8 @@ import {
   DEMO_TURNAROUND,
   DISTRICTS,
   buildDemoMarketDays,
+  buildDemoVisitorDays,
 } from "./demoData";
-
-type VisitorChartPoint = { key: string; label: string; value: number; trend: number };
 
 export const revalidate = 3600;
 
@@ -53,6 +52,15 @@ function formatJapaneseDate(isoDate: string) {
   }).format(date);
 }
 
+function formatShortJapaneseDate(isoDate: string) {
+  const date = new Date(`${isoDate}T00:00:00+09:00`);
+  return new Intl.DateTimeFormat("ja-JP", {
+    timeZone: "Asia/Tokyo",
+    month: "numeric",
+    day: "numeric",
+  }).format(date);
+}
+
 function toUtcDate(isoDate: string) {
   return new Date(`${isoDate}T00:00:00Z`);
 }
@@ -69,9 +77,12 @@ function shiftIsoDays(isoDate: string, days: number) {
 
 /** 当日が日曜ならその日、そうでなければ次の日曜。 */
 function getUpcomingSundayIso(isoDate: string) {
-  const date = toUtcDate(isoDate);
-  const shift = (7 - date.getUTCDay()) % 7;
-  return shiftIsoDays(isoDate, shift);
+  return shiftIsoDays(isoDate, (7 - toUtcDate(isoDate).getUTCDay()) % 7);
+}
+
+/** 当日が日曜ならその日、そうでなければ直前の日曜。 */
+function getLatestSundayIso(isoDate: string) {
+  return shiftIsoDays(isoDate, -toUtcDate(isoDate).getUTCDay());
 }
 
 function formatMonthDayLabel(isoDate: string) {
@@ -80,14 +91,14 @@ function formatMonthDayLabel(isoDate: string) {
     timeZone: "Asia/Tokyo",
     month: "numeric",
     day: "numeric",
+    weekday: "narrow",
   }).format(date);
 }
 
 function getWeekStartIso(isoDate: string) {
   const date = toUtcDate(isoDate);
   const day = date.getUTCDay();
-  const shift = day === 0 ? -6 : 1 - day;
-  date.setUTCDate(date.getUTCDate() + shift);
+  date.setUTCDate(date.getUTCDate() + (day === 0 ? -6 : 1 - day));
   return isoFromUtcDate(date);
 }
 
@@ -99,29 +110,40 @@ function shiftMonthKey(monthKey: string, delta: number) {
     .padStart(2, "0")}`;
 }
 
-function addTrend(points: Omit<VisitorChartPoint, "trend">[]) {
-  return points.map((point, index) => {
-    const values = points.slice(Math.max(0, index - 2), index + 1).map((item) => item.value);
-    return { ...point, trend: values.reduce((sum, value) => sum + value, 0) / values.length };
-  });
-}
+// 移動平均の折れ線は出さない。同じ数字を線でもう一度描いているだけで、
+// 日曜だけ跳ねるこのデータでは平均そのものに意味がない。
 
-function buildDailySeries(todayIso: string, byDate: Map<string, number>, days = 14) {
-  const points = Array.from({ length: days }, (_, i) => {
+function buildDailySeries(todayIso: string, byDate: Map<string, number>, days = 14): VisitorPoint[] {
+  return Array.from({ length: days }, (_, i) => {
     const key = shiftIsoDays(todayIso, -(days - 1 - i));
-    return { key, label: formatMonthDayLabel(key), value: byDate.get(key) ?? 0 };
+    return {
+      key,
+      label: formatMonthDayLabel(key),
+      value: byDate.get(key) ?? 0,
+      // 日曜市は日曜開催。週に一度の山を平日と同じ色にすると意味が読めない
+      isMarketDay: toUtcDate(key).getUTCDay() === 0,
+      // 今日はまだ終わっていないので、他の日と同じようには比べられない
+      isPartial: key === todayIso,
+    };
   });
-  return addTrend(points);
 }
 
+/**
+ * 期間ごとの合計。最後の区切りがまだ終わっていない場合（今週・今月・今年）は
+ * 印を付ける。満了した区切りと並べると「急に落ち込んだ」ように読めてしまうため。
+ */
 function buildBucketedSeries(
   keys: string[],
   labels: string[],
-  byBucket: Map<string, number>
-) {
-  return addTrend(
-    keys.map((key, index) => ({ key, label: labels[index], value: byBucket.get(key) ?? 0 }))
-  );
+  byBucket: Map<string, number>,
+  lastIsPartial = false
+): VisitorPoint[] {
+  return keys.map((key, index) => ({
+    key,
+    label: labels[index],
+    value: byBucket.get(key) ?? 0,
+    isPartial: lastIsPartial && index === keys.length - 1,
+  }));
 }
 
 function bucketBy(byDate: Map<string, number>, toKey: (date: string) => string) {
@@ -131,6 +153,21 @@ function bucketBy(byDate: Map<string, number>, toKey: (date: string) => string) 
     result.set(key, (result.get(key) ?? 0) + value);
   });
   return result;
+}
+
+/** その月の末日。月次の集計が途中かどうかの判定に使う。 */
+function lastDayOfMonthIso(isoDate: string) {
+  const [year, month] = isoDate.split("-").map(Number);
+  return isoFromUtcDate(new Date(Date.UTC(year, month, 0)));
+}
+
+/** 直近 days 日の合計と、1日あたりの平均。 */
+function summariseRecent(todayIso: string, byDate: Map<string, number>, days: number) {
+  let total = 0;
+  for (let i = 0; i < days; i += 1) {
+    total += byDate.get(shiftIsoDays(todayIso, -i)) ?? 0;
+  }
+  return { total, average: Math.round(total / days) };
 }
 
 // ── データ取得 ──────────────────────────────────────────────────────────
@@ -289,26 +326,39 @@ export default async function AnalysisPage() {
 
   const hasRealCategories = data.categoryCounts.length > 0;
 
-  const todayVisitors = data.visitorsByDate.get(todayIso) ?? null;
-  const dailyChart = buildDailySeries(todayIso, data.visitorsByDate, 14);
+  // 来訪者数も、記録が無いときは見本を出す（空のグラフだけ置いても何も伝わらない）
+  const hasRealVisitors = data.visitorsByDate.size > 0;
+  const visitorsByDate = hasRealVisitors
+    ? data.visitorsByDate
+    : new Map(buildDemoVisitorDays(todayIso, 800).map((row) => [row.date, row.value]));
+
+  const latestSundayIso = getLatestSundayIso(todayIso);
+  const latestSundayVisitors = visitorsByDate.get(latestSundayIso) ?? null;
+  const recent28 = summariseRecent(todayIso, visitorsByDate, 28);
+
+  const dailyChart = buildDailySeries(todayIso, visitorsByDate, 14);
   const weeklyChart = buildBucketedSeries(
     Array.from({ length: 12 }, (_, i) => shiftIsoDays(getWeekStartIso(todayIso), -7 * (11 - i))),
     Array.from({ length: 12 }, (_, i) =>
       `${formatMonthDayLabel(shiftIsoDays(getWeekStartIso(todayIso), -7 * (11 - i)))}週`
     ),
-    bucketBy(data.visitorsByDate, getWeekStartIso)
+    bucketBy(visitorsByDate, getWeekStartIso),
+    // 週の区切りは月曜はじまり。日曜（＝週の最終日）を終えるまでは途中
+    toUtcDate(todayIso).getUTCDay() !== 0
   );
   const monthlyChart = buildBucketedSeries(
     Array.from({ length: 12 }, (_, i) => shiftMonthKey(todayIso.slice(0, 7), -(11 - i))),
     Array.from({ length: 12 }, (_, i) =>
       shiftMonthKey(todayIso.slice(0, 7), -(11 - i)).replace("-", "/")
     ),
-    bucketBy(data.visitorsByDate, (date) => date.slice(0, 7))
+    bucketBy(visitorsByDate, (date) => date.slice(0, 7)),
+    todayIso !== lastDayOfMonthIso(todayIso)
   );
   const yearlyChart = buildBucketedSeries(
     Array.from({ length: 5 }, (_, i) => String(currentYear - (4 - i))),
     Array.from({ length: 5 }, (_, i) => `${currentYear - (4 - i)}年`),
-    bucketBy(data.visitorsByDate, (date) => date.slice(0, 4))
+    bucketBy(visitorsByDate, (date) => date.slice(0, 4)),
+    todayIso.slice(5) !== "12-31"
   );
 
   const upcoming = data.upcomingStatus;
@@ -555,16 +605,37 @@ export default async function AnalysisPage() {
 
             <SectionCard
               title="Web 来訪者数"
-              description={`${formatJapaneseDate(todayIso)} 時点。nicchyo を開いた端末の数です。`}
-              live={!data.visitorError}
+              description="nicchyo を開いた端末の数です。日曜市は日曜開催なので、日曜だけ大きく跳ねます。"
+              demo={!hasRealVisitors}
+              live={hasRealVisitors && !data.visitorError}
               footnote="これは現地の来場者数ではなく、nicchyo の利用者数です。スマホを持ち、検索して調べる人だけが数えられているため、日曜市の来場者を代表するものではありません。現地での定点観測と突き合わせるまでは、来場者数の推定には使えません。"
             >
-              <p className="text-3xl font-bold text-amber-900 md:text-4xl">
-                {todayVisitors !== null ? todayVisitors.toLocaleString() : "データ未登録"}
-                {todayVisitors !== null ? (
-                  <span className="ml-1.5 text-base font-semibold text-amber-900/70">人</span>
-                ) : null}
-              </p>
+              {/* 「本日の来訪者数」は日曜以外だとほぼ0で、この指標のいちばん意味のない
+                  切り取り方だった。直近の日曜と、直近4週間の水準に置き換える。 */}
+              <div className="grid gap-3 sm:grid-cols-3">
+                <StatTile
+                  label={`直近の日曜（${formatShortJapaneseDate(latestSundayIso)}）`}
+                  value={latestSundayVisitors !== null ? latestSundayVisitors.toLocaleString() : "記録なし"}
+                  unit={latestSundayVisitors !== null ? "人" : undefined}
+                  demo={!hasRealVisitors}
+                  sub="日曜市が開かれた日の来訪者数。"
+                />
+                <StatTile
+                  label="直近4週間の合計"
+                  value={recent28.total.toLocaleString()}
+                  unit="人"
+                  demo={!hasRealVisitors}
+                  sub="平日を含む28日分の合計。"
+                />
+                <StatTile
+                  label="1日あたりの平均"
+                  value={recent28.average.toLocaleString()}
+                  unit="人"
+                  demo={!hasRealVisitors}
+                  sub="直近4週間の平均。日曜の山を平日でならした値。"
+                />
+              </div>
+
               {data.visitorError ? (
                 <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">
                   来訪者数の取得に失敗しました。
