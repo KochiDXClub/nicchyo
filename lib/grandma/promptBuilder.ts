@@ -10,7 +10,10 @@ import { CONSULT_MAX_TURNS } from "./prompts/consultConversation";
 // プロンプト文（会話構成・出力フォーマットの指示）は lib/grandma/prompts/ に集約した。
 // このファイルにはスキーマ定義とレスポンスのパースだけを残す。
 
-export function buildResponseSchema(characters: ConsultCharacter[]) {
+export function buildResponseSchema(
+  characters: ConsultCharacter[],
+  maxTurns: number = CONSULT_MAX_TURNS
+) {
   return {
     type: "json_schema",
     json_schema: {
@@ -24,7 +27,7 @@ export function buildResponseSchema(characters: ConsultCharacter[]) {
             type: "array",
             // 発話数の目安は会話ルール（DB）が決める。ここは受け取れる範囲だけを縛る
             minItems: 1,
-            maxItems: CONSULT_MAX_TURNS,
+            maxItems: maxTurns,
             items: {
               type: "object",
               additionalProperties: false,
