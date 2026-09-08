@@ -6,6 +6,7 @@ import { buildGrandmaAiSystemPrompt } from "@/lib/grandma/prompts/consultSystemP
 import { fetchAiPrompts } from "@/lib/grandma/prompts/promptStore.server";
 import { requestChatCompletion, requestEmbeddings } from "@/lib/ai/openaiFetch";
 import { resolveAiModelFor } from "@/lib/ai/modelStore.server";
+import { fetchAiConversationSettings } from "@/lib/ai/conversationSettings.server";
 import { loadSpotSupport } from "@/lib/guide/spotSupport.server";
 import { requireSameOrigin } from "@/lib/security/requestGuards";
 import { maskPii } from "@/lib/privacy/maskPii";
@@ -59,17 +60,30 @@ import { z } from "zod";
 
 const ConsultHistoryEntrySchema = z.object({
   role: z.enum(["user", "assistant"]),
-  text: z.string(),
-  speakerId: z.string().nullable().optional(),
-  speakerName: z.string().nullable().optional(),
+  // 履歴はそのままプロンプトに入る。長さを縛らないと、1件で
+  // system prompt を押し流せる
+  text: z.string().max(2000),
+  speakerId: z.string().max(64).nullable().optional(),
+  speakerName: z.string().max(64).nullable().optional(),
 });
+
+/**
+ * 履歴の配列。
+ *
+ * 使うのは末尾 consult.history_limit 件だけだが、受け取る段階でも縛る。
+ * multipart 経路は JSON スキーマを通らないので、ここが唯一の検証になる。
+ */
+const ConsultHistoryArraySchema = z.array(ConsultHistoryEntrySchema).max(50);
 
 const AskJsonBodySchema = z.object({
   text: z.string().optional(),
-  location: z.object({ lat: z.number(), lng: z.number() }).nullable().optional(),
+  location: z
+    .object({ lat: z.number(), lng: z.number() })
+    .nullable()
+    .optional(),
   shopId: z.number().int().nullable().optional(),
   shopName: z.string().nullable().optional(),
-  history: z.array(ConsultHistoryEntrySchema).optional(),
+  history: ConsultHistoryArraySchema.optional(),
   memorySummary: z.string().optional(),
   preferredCharacterId: z.string().nullable().optional(),
   visitorKey: z.string().max(128).nullable().optional(),
@@ -105,16 +119,27 @@ async function parseRequest(request: Request): Promise<ParsedRequest> {
         location = null;
       }
     }
-    if (typeof form.get("shopId") === "string" && String(form.get("shopId")).trim()) {
+    if (
+      typeof form.get("shopId") === "string" &&
+      String(form.get("shopId")).trim()
+    ) {
       const parsed = Number(form.get("shopId"));
       targetShopId = Number.isFinite(parsed) ? parsed : null;
     }
-    if (typeof form.get("shopName") === "string" && String(form.get("shopName")).trim()) {
+    if (
+      typeof form.get("shopName") === "string" &&
+      String(form.get("shopName")).trim()
+    ) {
       targetShopName = String(form.get("shopName")).trim();
     }
     if (typeof form.get("history") === "string") {
       try {
-        history = JSON.parse(String(form.get("history"))) as ConsultHistoryEntry[];
+        // JSON経路と違いスキーマを通らないので、ここで検証する。
+        // 配列でない値を渡されると、後段の history.slice() が落ちる
+        const parsed = ConsultHistoryArraySchema.safeParse(
+          JSON.parse(String(form.get("history"))),
+        );
+        history = parsed.success ? (parsed.data as ConsultHistoryEntry[]) : [];
       } catch {
         history = [];
       }
@@ -123,7 +148,9 @@ async function parseRequest(request: Request): Promise<ParsedRequest> {
       memorySummary = String(form.get("memorySummary")).trim();
     }
     if (typeof form.get("preferredCharacterId") === "string") {
-      const value = String(form.get("preferredCharacterId")).trim() as ConsultCharacterId;
+      const value = String(
+        form.get("preferredCharacterId"),
+      ).trim() as ConsultCharacterId;
       preferredCharacterId = CONSULT_CHARACTER_BY_ID.has(value) ? value : null;
     }
     if (typeof form.get("visitorKey") === "string") {
@@ -135,7 +162,11 @@ async function parseRequest(request: Request): Promise<ParsedRequest> {
       stream = streamValue === "1" || streamValue === "true";
     }
     const formImage = form.get("image");
-    if (formImage && typeof formImage === "object" && "arrayBuffer" in formImage) {
+    if (
+      formImage &&
+      typeof formImage === "object" &&
+      "arrayBuffer" in formImage
+    ) {
       const imageFile = formImage as File;
       const arrayBuffer = await imageFile.arrayBuffer();
       const base64 = Buffer.from(arrayBuffer).toString("base64");
@@ -160,7 +191,8 @@ async function parseRequest(request: Request): Promise<ParsedRequest> {
     history = (payload.history ?? []) as ConsultHistoryEntry[];
     memorySummary = payload.memorySummary?.trim() || "";
     const charId = payload.preferredCharacterId as ConsultCharacterId | null;
-    preferredCharacterId = charId && CONSULT_CHARACTER_BY_ID.has(charId) ? charId : null;
+    preferredCharacterId =
+      charId && CONSULT_CHARACTER_BY_ID.has(charId) ? charId : null;
     if (typeof payload.visitorKey === "string") {
       const vk = payload.visitorKey.trim();
       visitorKey = vk.length > 0 && vk.length <= 128 ? vk : null;
@@ -226,7 +258,10 @@ async function finalizeConsultResponse(options: {
     .slice(0, 4);
 
   const shopPool = targetShop
-    ? [targetShop, ...candidateShops.filter((shop) => shop.id !== targetShop.id)]
+    ? [
+        targetShop,
+        ...candidateShops.filter((shop) => shop.id !== targetShop.id),
+      ]
     : candidateShops;
 
   const recommendedIds = sortShopIdsByDistance(
@@ -234,14 +269,16 @@ async function finalizeConsultResponse(options: {
       new Set(
         shopIds
           .map((value) => Number(value))
-          .filter((value) => Number.isFinite(value))
-      )
+          .filter((value) => Number.isFinite(value)),
+      ),
     ).slice(0, 3),
     shopPool,
-    location
+    location,
   );
 
-  const recommendedShops = shopPool.filter((shop) => recommendedIds.includes(shop.id));
+  const recommendedShops = shopPool.filter((shop) =>
+    recommendedIds.includes(shop.id),
+  );
   const finalRecommendedShops =
     recommendedShops.length > 0 || !shopIntent
       ? recommendedShops
@@ -257,10 +294,11 @@ async function finalizeConsultResponse(options: {
     new Set(
       finalRecommendedShops
         .map((shop) => shop.vendorId)
-        .filter((value): value is string => !!value)
-    )
+        .filter((value): value is string => !!value),
+    ),
   );
-  const logIp = request.headers.get("x-forwarded-for")?.split(",")[0].trim() ?? null;
+  const logIp =
+    request.headers.get("x-forwarded-for")?.split(",")[0].trim() ?? null;
   if (logVendorIds.length > 0) {
     const logs = logVendorIds.map((vendorId) => ({
       store_id: vendorId,
@@ -272,27 +310,39 @@ async function finalizeConsultResponse(options: {
       ip_address: logIp,
       visitor_key: visitorKey ?? null,
     }));
-    supabase.from("ai_consult_logs").insert(logs).then(({ error }) => {
-      if (error) console.error("[ai_consult_logs] insert failed:", error.message);
-    });
+    supabase
+      .from("ai_consult_logs")
+      .insert(logs)
+      .then(({ error }) => {
+        if (error)
+          console.error("[ai_consult_logs] insert failed:", error.message);
+      });
   } else {
-    supabase.from("ai_consult_logs").insert({
-      store_id: null,
-      question_text: text ? maskPii(text) : "(画像のみ)",
-      intent_category: intentCategory,
-      keywords,
-      location_type: locationType,
-      is_recommendation: false,
-      ip_address: logIp,
-      visitor_key: visitorKey ?? null,
-    }).then(({ error }) => {
-      if (error) console.error("[ai_consult_logs] insert failed:", error.message);
-    });
+    supabase
+      .from("ai_consult_logs")
+      .insert({
+        store_id: null,
+        question_text: text ? maskPii(text) : "(画像のみ)",
+        intent_category: intentCategory,
+        keywords,
+        location_type: locationType,
+        is_recommendation: false,
+        ip_address: logIp,
+        visitor_key: visitorKey ?? null,
+      })
+      .then(({ error }) => {
+        if (error)
+          console.error("[ai_consult_logs] insert failed:", error.message);
+      });
   }
 
   const safeFollowUpQuestion = isValidFollowUpQuestion(followUpQuestion ?? "")
     ? followUpQuestion.trim()
-    : buildFallbackFollowUpQuestion(text, targetShopName, finalRecommendedShops.length);
+    : buildFallbackFollowUpQuestion(
+        text,
+        targetShopName,
+        finalRecommendedShops.length,
+      );
 
   return {
     reply,
@@ -312,7 +362,10 @@ async function createStreamingConsultResponse(options: {
   selectedCharacters: ConsultCharacter[];
   userContent:
     | string
-    | Array<{ type: "text"; text: string } | { type: "image_url"; image_url: { url: string } }>;
+    | Array<
+        | { type: "text"; text: string }
+        | { type: "image_url"; image_url: { url: string } }
+      >;
   request: Request;
   supabase: SupabaseClient<Database>;
   consultId: string;
@@ -344,8 +397,9 @@ async function createStreamingConsultResponse(options: {
     memorySummary,
   } = options;
 
-  // 管理画面で保存した文面を使う。読めなければコード側の既定値に落ちる
+  // 管理画面で保存した文面と会話設定を使う。読めなければコード側の既定値に落ちる
   const aiPrompts = await fetchAiPrompts();
+  const conversationSettings = await fetchAiConversationSettings();
   // お手洗い・休けい・電停の質問に、実データ（map_landmarks）と徒歩の目安で答えられるようにする
   const spotSupport = await loadSpotSupport(supabase, location);
   const aiModel = await resolveAiModelFor("consult");
@@ -356,10 +410,16 @@ async function createStreamingConsultResponse(options: {
         role: "system",
         content: buildGrandmaAiSystemPrompt(
           selectedCharacters,
-          [buildStreamingFormatPrompt(selectedCharacters), spotSupport.prompt]
+          [
+            buildStreamingFormatPrompt(
+              selectedCharacters,
+              conversationSettings["consult.max_turns"],
+            ),
+            spotSupport.prompt,
+          ]
             .filter(Boolean)
             .join("\n\n"),
-          aiPrompts
+          aiPrompts,
         ),
       },
       {
@@ -367,7 +427,7 @@ async function createStreamingConsultResponse(options: {
         content: userContent,
       },
     ],
-    maxOutputTokens: 500,
+    maxOutputTokens: conversationSettings["consult.max_output_tokens"],
     temperature: 0.7,
     stream: true,
   });
@@ -380,11 +440,12 @@ async function createStreamingConsultResponse(options: {
         "いま少し混みゆうみたい。少しおいて、もう一回聞いてみてね。",
         {
           retryable: true,
-          errorMessage: "相談の送信に失敗しました。通信状況を確認して、もう一度試してください。",
+          errorMessage:
+            "相談の送信に失敗しました。通信状況を確認して、もう一度試してください。",
           memorySummary,
-        }
+        },
       ),
-      { status: 500 }
+      { status: 500 },
     );
   }
 
@@ -404,7 +465,8 @@ async function createStreamingConsultResponse(options: {
       let firstTurnTextLength = 0;
 
       const emitFirstTurnProgress = () => {
-        const firstLine = modelOutput.split(/\r?\n/, 1)[0]?.replace(/\r/g, "") ?? "";
+        const firstLine =
+          modelOutput.split(/\r?\n/, 1)[0]?.replace(/\r/g, "") ?? "";
         if (!firstLine.startsWith("TURN|")) return;
         const parts = firstLine.split("|");
         // 本来は TURN|id|name|text の4分割。モデルが name を省略して
@@ -417,7 +479,9 @@ async function createStreamingConsultResponse(options: {
         const requestedSpeakerId = parts[1].trim() as ConsultCharacterId;
         const matchedCharacter =
           CONSULT_CHARACTER_BY_ID.get(requestedSpeakerId) ??
-          selectedCharacters.find((character) => character.id === requestedSpeakerId) ??
+          selectedCharacters.find(
+            (character) => character.id === requestedSpeakerId,
+          ) ??
           selectedCharacters[0];
         if (!matchedCharacter) return;
         if (!firstTurnStarted) {
@@ -425,10 +489,13 @@ async function createStreamingConsultResponse(options: {
           enqueue({
             type: "first_turn_start",
             speakerId: matchedCharacter.id,
-            speakerName: (hasName ? parts[2].trim() : "") || matchedCharacter.name,
+            speakerName:
+              (hasName ? parts[2].trim() : "") || matchedCharacter.name,
           });
         }
-        const currentText = (hasName ? parts.slice(3) : parts.slice(2)).join("|");
+        const currentText = (hasName ? parts.slice(3) : parts.slice(2)).join(
+          "|",
+        );
         if (currentText.length <= firstTurnTextLength) return;
         enqueue({
           type: "first_turn_delta",
@@ -464,7 +531,10 @@ async function createStreamingConsultResponse(options: {
           }
         }
 
-        const streamedPayload = parseStreamingConsultOutput(modelOutput, selectedCharacters);
+        const streamedPayload = parseStreamingConsultOutput(
+          modelOutput,
+          selectedCharacters,
+        );
         const response = await finalizeConsultResponse({
           request,
           supabase,
@@ -497,9 +567,10 @@ async function createStreamingConsultResponse(options: {
             "いま少し混みゆうみたい。少しおいて、もう一回聞いてみてね。",
             {
               retryable: true,
-              errorMessage: "相談の送信に失敗しました。通信状況を確認して、もう一度試してください。",
+              errorMessage:
+                "相談の送信に失敗しました。通信状況を確認して、もう一度試してください。",
               memorySummary,
-            }
+            },
           ),
         });
       } finally {
@@ -536,7 +607,10 @@ export async function POST(request: Request) {
     try {
       parsedReq = await parseRequest(request);
     } catch (e) {
-      if (e instanceof Error && (e as Error & { statusCode?: number }).statusCode === 400) {
+      if (
+        e instanceof Error &&
+        (e as Error & { statusCode?: number }).statusCode === 400
+      ) {
         return NextResponse.json({ error: e.message }, { status: 400 });
       }
       throw e;
@@ -555,7 +629,10 @@ export async function POST(request: Request) {
     } = parsedReq;
     const question = text || (imageDataUrl ? "画像について教えて" : "");
     if (!question) {
-      return NextResponse.json({ reply: "質問を入力してね。" }, { status: 400 });
+      return NextResponse.json(
+        { reply: "質問を入力してね。" },
+        { status: 400 },
+      );
     }
 
     const normalized = question.replace(/\s+/g, "");
@@ -564,26 +641,37 @@ export async function POST(request: Request) {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
     if (supabaseUrl && serviceRoleKey) {
-      const secClient = createClient<DatabaseWithExtensions>(supabaseUrl, serviceRoleKey);
+      const secClient = createClient<DatabaseWithExtensions>(
+        supabaseUrl,
+        serviceRoleKey,
+      );
       // x-real-ip はVercelが設定する信頼できるヘッダー（スプーフィング不可）
       const forwardedIp =
         request.headers.get("x-real-ip") ??
         request.headers.get("x-forwarded-for")?.split(",").at(-1)?.trim() ??
         null;
       const ip = forwardedIp && forwardedIp !== "unknown" ? forwardedIp : null;
-      const abuseResult = await handleAbuseDetection(secClient, ip, text, visitorKey ?? undefined);
+      const abuseResult = await handleAbuseDetection(
+        secClient,
+        ip,
+        text,
+        visitorKey ?? undefined,
+      );
       if (abuseResult === "blocked") {
         return NextResponse.json(
           buildErrorResponse(
             "unsupported_request",
             selectedCharacters,
-            "申し訳ありませんが、このアクセスはご利用いただけません。"
+            "申し訳ありませんが、このアクセスはご利用いただけません。",
           ),
-          { status: 403 }
+          { status: 403 },
         );
       }
     }
-    if (normalized.includes("おばあちゃんは何者") || normalized.includes("おばあちゃん何者")) {
+    if (
+      normalized.includes("おばあちゃんは何者") ||
+      normalized.includes("おばあちゃん何者")
+    ) {
       return NextResponse.json({
         reply: "高知の日曜市を案内するにちよさんたちやきね。気軽に聞いてや。",
       });
@@ -593,8 +681,8 @@ export async function POST(request: Request) {
         buildErrorResponse(
           "unsupported_request",
           selectedCharacters,
-          "その相談には答えられんけんど、日曜市のお店や回り方なら一緒に考えられるよ。"
-        )
+          "その相談には答えられんけんど、日曜市のお店や回り方なら一緒に考えられるよ。",
+        ),
       );
     }
     if (text && text.length < 4 && !imageDataUrl) {
@@ -602,8 +690,8 @@ export async function POST(request: Request) {
         buildErrorResponse(
           "insufficient_context",
           selectedCharacters,
-          "もう少し詳しく聞かせてくれたら案内しやすいよ。食べたいものや気になるお店があると分かりやすいきね。"
-        )
+          "もう少し詳しく聞かせてくれたら案内しやすいよ。食べたいものや気になるお店があると分かりやすいきね。",
+        ),
       );
     }
 
@@ -618,11 +706,12 @@ export async function POST(request: Request) {
           "いま準備が整ってないみたい。少しおいて、もう一回試してみてね。",
           {
             retryable: true,
-            errorMessage: "相談の準備がまだ整っていません。少し時間をおいて再試行してください。",
+            errorMessage:
+              "相談の準備がまだ整っていません。少し時間をおいて再試行してください。",
             memorySummary,
-          }
+          },
         ),
-        { status: 500 }
+        { status: 500 },
       );
     }
 
@@ -649,11 +738,12 @@ export async function POST(request: Request) {
           "いま少し混みゆうみたい。少しおいて、もう一回聞いてみてね。",
           {
             retryable: true,
-            errorMessage: "相談の送信に失敗しました。通信状況を確認して、もう一度試してください。",
+            errorMessage:
+              "相談の送信に失敗しました。通信状況を確認して、もう一度試してください。",
             memorySummary,
-          }
+          },
         ),
-        { status: 500 }
+        { status: 500 },
       );
     }
     const embeddingPayload = (await embeddingResponse.json()) as {
@@ -668,11 +758,12 @@ export async function POST(request: Request) {
           "いま少し混みゆうみたい。少しおいて、もう一回聞いてみてね。",
           {
             retryable: true,
-            errorMessage: "相談の送信に失敗しました。通信状況を確認して、もう一度試してください。",
+            errorMessage:
+              "相談の送信に失敗しました。通信状況を確認して、もう一度試してください。",
             memorySummary,
-          }
+          },
         ),
-        { status: 500 }
+        { status: 500 },
       );
     }
 
@@ -680,7 +771,7 @@ export async function POST(request: Request) {
       ? await fetchSeasonalProductContext(supabase, currentSeason.seasonId)
       : [];
     const seasonalVendorIds = Array.from(
-      new Set(seasonalProducts.map((row) => row.vendorId))
+      new Set(seasonalProducts.map((row) => row.vendorId)),
     );
 
     const candidateVendorIds = shopIntent
@@ -689,7 +780,7 @@ export async function POST(request: Request) {
           keywords,
           targetShopName,
           embedding,
-          seasonalVendorIds
+          seasonalVendorIds,
         )
       : [];
     if (targetShop?.vendorId) {
@@ -697,7 +788,7 @@ export async function POST(request: Request) {
     }
     const candidateShops = await fetchShopsByVendorIds(
       supabase,
-      Array.from(new Set(candidateVendorIds)).slice(0, 12)
+      Array.from(new Set(candidateVendorIds)).slice(0, 12),
     );
     if (
       shopIntent &&
@@ -710,8 +801,8 @@ export async function POST(request: Request) {
         buildErrorResponse(
           "no_result",
           selectedCharacters,
-          "ぴったり当てはまるお店は見つからんかったけんど、言い方を少し変えると探しやすくなるかもしれんね。"
-        )
+          "ぴったり当てはまるお店は見つからんかったけんど、言い方を少し変えると探しやすくなるかもしれんね。",
+        ),
       );
     }
 
@@ -722,8 +813,12 @@ export async function POST(request: Request) {
         match_threshold: 0.55,
       })
       .returns<{ id: string; similarity: number }[]>();
-    const safeKnowledgeMatches = Array.isArray(knowledgeMatches) ? knowledgeMatches : [];
-    const knowledgeIds = safeKnowledgeMatches.map((row) => row.id).filter(Boolean);
+    const safeKnowledgeMatches = Array.isArray(knowledgeMatches)
+      ? knowledgeMatches
+      : [];
+    const knowledgeIds = safeKnowledgeMatches
+      .map((row) => row.id)
+      .filter(Boolean);
     let knowledgeRows: KnowledgeRow[] = [];
     if (knowledgeIds.length > 0) {
       const { data } = await supabase
@@ -739,8 +834,8 @@ export async function POST(request: Request) {
         [
           targetShop?.vendorId ?? null,
           ...candidateShops.slice(0, 3).map((shop) => shop.vendorId ?? null),
-        ].filter((value): value is string => !!value)
-      )
+        ].filter((value): value is string => !!value),
+      ),
     );
     if (ragVendorIds.length > 0) {
       const knowledgeResults = await Promise.all(
@@ -751,8 +846,10 @@ export async function POST(request: Request) {
             match_count: 2,
             match_threshold: 0.45,
           });
-          return result as { data: { content: string; similarity: number }[] | null };
-        })
+          return result as {
+            data: { content: string; similarity: number }[] | null;
+          };
+        }),
       );
       const snippets = knowledgeResults
         .flatMap((result) => result.data ?? [])
@@ -781,8 +878,14 @@ export async function POST(request: Request) {
             .join("\n")
         : "該当なし";
 
+    // 履歴件数は管理画面で変えられる。ストリーミング経路もこの本文を使うので、
+    // 経路が分かれる前に読む（react cache 済みなので問い合わせは1回）
+    const historyLimit = (await fetchAiConversationSettings())[
+      "consult.history_limit"
+    ];
+
     const userContextText = [
-      buildHistoryContext(history, memorySummary),
+      buildHistoryContext(history, memorySummary, historyLimit),
       `今回の質問: ${text || "（画像についての相談）"}`,
       `位置情報: ${location ? `${location.lat}, ${location.lng}` : "不明"}`,
       `現在の季節: ${currentSeason.seasonName}`,
@@ -795,7 +898,7 @@ export async function POST(request: Request) {
           ? seasonalProducts
               .map(
                 (row) =>
-                  `shop:${row.shopName || "店舗名不明"} | product:${row.productName} | season:${row.seasonName}`
+                  `shop:${row.shopName || "店舗名不明"} | product:${row.productName} | season:${row.seasonName}`,
               )
               .join("\n")
           : "該当なし"
@@ -807,13 +910,18 @@ export async function POST(request: Request) {
 
     const userContent:
       | string
-      | Array<{ type: "text"; text: string } | { type: "image_url"; image_url: { url: string } }> =
-      imageDataUrl
-        ? [
-            { type: "text", text: `${userContextText}\n画像が添付されています。` },
-            { type: "image_url", image_url: { url: imageDataUrl } },
-          ]
-        : userContextText;
+      | Array<
+          | { type: "text"; text: string }
+          | { type: "image_url"; image_url: { url: string } }
+        > = imageDataUrl
+      ? [
+          {
+            type: "text",
+            text: `${userContextText}\n画像が添付されています。`,
+          },
+          { type: "image_url", image_url: { url: imageDataUrl } },
+        ]
+      : userContextText;
 
     if (stream) {
       return createStreamingConsultResponse({
@@ -837,6 +945,7 @@ export async function POST(request: Request) {
 
     const spotSupport = await loadSpotSupport(supabase, location);
     const aiModel = await resolveAiModelFor("consult");
+    const conversationSettings = await fetchAiConversationSettings();
 
     const chatResponse = await requestChatCompletion(openaiKey, aiModel, {
       messages: [
@@ -844,8 +953,13 @@ export async function POST(request: Request) {
           role: "system",
           content: buildGrandmaAiSystemPrompt(
             selectedCharacters,
-            [buildJsonFormatPrompt(), spotSupport.prompt].filter(Boolean).join("\n\n"),
-            await fetchAiPrompts()
+            [
+              buildJsonFormatPrompt(conversationSettings["consult.max_turns"]),
+              spotSupport.prompt,
+            ]
+              .filter(Boolean)
+              .join("\n\n"),
+            await fetchAiPrompts(),
           ),
         },
         {
@@ -853,9 +967,12 @@ export async function POST(request: Request) {
           content: userContent,
         },
       ],
-      maxOutputTokens: 500,
+      maxOutputTokens: conversationSettings["consult.max_output_tokens"],
       temperature: 0.7,
-      responseFormat: buildResponseSchema(selectedCharacters),
+      responseFormat: buildResponseSchema(
+        selectedCharacters,
+        conversationSettings["consult.max_turns"],
+      ),
     });
     if (!chatResponse.ok) {
       return NextResponse.json(
@@ -865,11 +982,12 @@ export async function POST(request: Request) {
           "いま少し混みゆうみたい。少しおいて、もう一回聞いてみてね。",
           {
             retryable: true,
-            errorMessage: "相談の送信に失敗しました。通信状況を確認して、もう一度試してください。",
+            errorMessage:
+              "相談の送信に失敗しました。通信状況を確認して、もう一度試してください。",
             memorySummary,
-          }
+          },
         ),
-        { status: 500 }
+        { status: 500 },
       );
     }
 
@@ -878,7 +996,33 @@ export async function POST(request: Request) {
     };
     const rawStructured =
       chatPayload.choices?.[0]?.message?.content?.trim() ?? "";
-    const structured = JSON.parse(rawStructured) as import("@/lib/grandma/types").StructuredConsultResponse;
+
+    // 返答の長さ（consult.max_output_tokens）を絞りすぎると finish_reason=length で
+    // JSON が途中で切れる。素の JSON.parse だと外側の catch に落ちて汎用500になり、
+    // 運営からは「たまに失敗する」としか見えない。設定ミスと分かる形で残す
+    let structured: import("@/lib/grandma/types").StructuredConsultResponse;
+    try {
+      structured = JSON.parse(rawStructured);
+    } catch {
+      console.error("[grandma/ask] structured output parse failed", {
+        length: rawStructured.length,
+        maxOutputTokens: conversationSettings["consult.max_output_tokens"],
+      });
+      return NextResponse.json(
+        buildErrorResponse(
+          "system_error",
+          selectedCharacters,
+          "いま少し混みゆうみたい。少しおいて、もう一回聞いてみてね。",
+          {
+            retryable: true,
+            errorMessage:
+              "相談の送信に失敗しました。通信状況を確認して、もう一度試してください。",
+            memorySummary,
+          },
+        ),
+        { status: 502 },
+      );
+    }
 
     const turns: ConsultTurn[] = (structured.turns ?? [])
       .map((turn) => {
@@ -916,7 +1060,8 @@ export async function POST(request: Request) {
   } catch {
     return NextResponse.json(
       {
-        reply: "にちよさん: いま少し混みゆうみたい。少しおいて、もう一回聞いてみてね。",
+        reply:
+          "にちよさん: いま少し混みゆうみたい。少しおいて、もう一回聞いてみてね。",
         turns: [
           {
             speakerId: "nichiyosan",
@@ -926,9 +1071,10 @@ export async function POST(request: Request) {
         ],
         errorCode: "system_error",
         retryable: true,
-        errorMessage: "接続に失敗しました。少し時間をおいて、もう一度試してください。",
+        errorMessage:
+          "接続に失敗しました。少し時間をおいて、もう一度試してください。",
       },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

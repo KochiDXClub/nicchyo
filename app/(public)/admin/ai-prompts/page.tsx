@@ -29,6 +29,7 @@ import {
 import { PromptPreview } from "./components/PromptPreview";
 import { PromptHistory } from "./components/PromptHistory";
 import { ModelSettings } from "./components/ModelSettings";
+import { ConversationSettings } from "./components/ConversationSettings";
 
 const GROUP_LABELS: Record<AiPromptDef["group"], { title: string; description: string }> = {
   weekly: {
@@ -354,6 +355,14 @@ export default function AdminAiPromptsPage() {
             */}
             <hr className="border-slate-200" />
             <ModelSettings />
+
+            {/*
+              会話設定も文面とは別の保存ボタンを持つ。理由はモデル選択と同じ。
+              発話数・返答の長さは効きが大きいので、書きかけの文面と一緒に
+              本番へ出してしまわないようにする
+            */}
+            <hr className="border-slate-200" />
+            <ConversationSettings />
           </>
         )}
       </div>
