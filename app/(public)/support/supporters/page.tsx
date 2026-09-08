@@ -3,8 +3,8 @@ import { ArrowLeft } from "lucide-react";
 import NavigationBar from "../../../components/NavigationBar";
 import {
   ANONYMOUS_SUPPORTER_COUNT,
-  formatSince,
-  sortedIndividualSupporters,
+  formatMonth,
+  groupSupportersByYear,
   totalIndividualSupporters,
 } from "@/lib/support/individualSupporters";
 
@@ -27,7 +27,7 @@ export const metadata = {
 };
 
 export default function IndividualSupportersPage() {
-  const supporters = sortedIndividualSupporters();
+  const yearGroups = groupSupportersByYear();
   const total = totalIndividualSupporters();
 
   return (
@@ -52,27 +52,38 @@ export default function IndividualSupportersPage() {
           {total > 0 && `これまでに ${total.toLocaleString("ja-JP")}名のご支援をいただきました。`}
         </p>
 
-        {supporters.length > 0 ? (
-          <ul className="mt-12 border-t border-nicchyo-ink/10">
-            {supporters.map((supporter) => (
-              <li
-                key={`${supporter.name}-${supporter.since}`}
-                className="border-b border-nicchyo-ink/[0.07] py-4"
-              >
-                <div className="flex items-baseline justify-between gap-5">
-                  <span className="text-[15px] font-bold">{supporter.name}</span>
-                  <span className="shrink-0 text-[11.5px] tabular-nums text-nicchyo-ink/40">
-                    {formatSince(supporter.since)}
-                  </span>
-                </div>
-                {supporter.message && (
-                  <p className="mt-1.5 text-[13px] leading-[1.9] text-nicchyo-ink/55">
-                    {supporter.message}
-                  </p>
-                )}
-              </li>
+        {yearGroups.length > 0 ? (
+          /* 年で区切る。期限を切らずに積み上げていくので、増えるほど
+             「続いてきた長さ」が並びに出る */
+          <div className="mt-12 space-y-10">
+            {yearGroups.map((group) => (
+              <section key={group.year}>
+                <h2 className="text-[11px] font-bold tracking-[0.2em] text-nicchyo-ink/40">
+                  {group.year}年
+                </h2>
+                <ul className="mt-4 border-t border-nicchyo-ink/10">
+                  {group.supporters.map((supporter) => (
+                    <li
+                      key={`${supporter.name}-${supporter.since}`}
+                      className="border-b border-nicchyo-ink/[0.07] py-4"
+                    >
+                      <div className="flex items-baseline justify-between gap-5">
+                        <span className="text-[15px] font-bold">{supporter.name}</span>
+                        <span className="shrink-0 text-[11.5px] tabular-nums text-nicchyo-ink/40">
+                          {formatMonth(supporter.since)}
+                        </span>
+                      </div>
+                      {supporter.message && (
+                        <p className="mt-1.5 text-[13px] leading-[1.9] text-nicchyo-ink/55">
+                          {supporter.message}
+                        </p>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </section>
             ))}
-          </ul>
+          </div>
         ) : (
           /* まだお一人もいない状態。空欄のまま置かず、これからであることを書く */
           <p className="mt-12 rounded-[18px] bg-amber-50/70 px-6 py-8 text-center text-[13.5px] leading-[2] text-nicchyo-ink/55 ring-1 ring-amber-600/15">
@@ -87,9 +98,16 @@ export default function IndividualSupportersPage() {
           </p>
         )}
 
-        <p className="mt-14 border-t border-nicchyo-ink/10 pt-8 text-[13px] leading-[2] text-nicchyo-ink/50">
-          金額の多少にかかわらず、同じ大きさで並べております。いつもありがとうございます。
-        </p>
+        <div className="mt-14 space-y-3 border-t border-nicchyo-ink/10 pt-8 text-[13px] leading-[2] text-nicchyo-ink/50">
+          <p>
+            一度いただいたお名前は、期限を切らずに掲載し続けます。金額の多少にかかわらず、同じ大きさで並べております。いつもありがとうございます。
+          </p>
+          {/* 「ずっと掲載する」は「取り下げられない」ではない。同意にもとづいて
+              公開している個人情報なので、逃げ道を必ず書いておく */}
+          <p className="text-nicchyo-ink/40">
+            掲載の取り下げをご希望の際は、いつでもお問い合わせ箱よりお知らせください。
+          </p>
+        </div>
 
         <div className="py-12">
           <Link
