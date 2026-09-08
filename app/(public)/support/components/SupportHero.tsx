@@ -3,6 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { motion, useReducedMotion } from "framer-motion";
+import { CONSULT_CHARACTERS } from "@/app/(public)/consult/data/consultCharacters";
 
 /**
  * ページの入口
@@ -130,21 +131,45 @@ export default function SupportHero({ monthlyLabel, runwayLabel, totalMonths }: 
           </motion.div>
         </div>
 
-        <motion.div
-          {...fadeUp(0.2)}
-          className="order-first flex justify-center lg:order-none lg:justify-end"
+        {/*
+          4人そろえて並べる。ひとりだけだと「学生がひとりで作っている」に見えるが、
+          並んでいると、支えている人が何人もいることが絵として伝わる。
+          少しずつ重ねて肩を寄せた形にして、等間隔に整列させない。
+          手前から順に にちよさん、以降は後ろに回す（このページの顔は彼女）
+        */}
+        <div
+          className="order-first flex items-end justify-center lg:order-none lg:justify-end"
+          aria-hidden
         >
-          <Image
-            src="/images/obaasan_transparent.png"
-            alt=""
-            width={512}
-            height={512}
-            priority
-            draggable={false}
-            aria-hidden
-            className="h-auto w-[168px] select-none object-contain sm:w-[196px] lg:w-[248px]"
-          />
-        </motion.div>
+          {CONSULT_CHARACTERS.map((character, index) => (
+            <motion.div
+              key={character.id}
+              className="relative -ml-6 first:ml-0 sm:-ml-8 lg:-ml-10"
+              style={{ zIndex: CONSULT_CHARACTERS.length - index }}
+              initial={prefersReducedMotion ? false : { opacity: 0, y: 18, scale: 0.92 }}
+              // 奇数番目をわずかに下げる。横一線に並ぶと整列した記念写真になる
+              animate={{ opacity: 1, y: index % 2 === 1 ? 7 : 0, scale: 1 }}
+              transition={{
+                type: "spring",
+                stiffness: 260,
+                damping: 22,
+                // ひとりずつ出す。4人で 0.6 秒ほどに収める
+                delay: 0.18 + index * 0.13,
+              }}
+            >
+              <Image
+                src={character.image}
+                alt=""
+                width={512}
+                height={512}
+                priority
+                draggable={false}
+                sizes="(min-width: 1024px) 118px, (min-width: 640px) 100px, 84px"
+                className="h-auto w-[84px] select-none object-contain sm:w-[100px] lg:w-[118px]"
+              />
+            </motion.div>
+          ))}
+        </div>
       </div>
     </section>
   );
