@@ -326,7 +326,7 @@ export default function MapViewMapLibre({
   const [selectedShop, setSelectedShop] = useState<Shop | null>(null);
   const [mapLoaded, setMapLoaded] = useState(false);
   const [favoriteShopIds, setFavoriteShopIds] = useState<number[]>([]);
-  const { addItem, items: bagItems } = useBag();
+  const { items: bagItems } = useBag();
 
   const featureFlags = useMemo<MapFeatureFlags>(
     () =>
@@ -1147,15 +1147,6 @@ export default function MapViewMapLibre({
     ? "calc(4.5rem + env(safe-area-inset-bottom,0px) + 5.5rem + 25px)"
     : "calc(4.5rem + env(safe-area-inset-bottom,0px) + 0.5rem + 25px)";
 
-  const handleAddToBag = useCallback(
-    (name: string, fromShopId?: number) => {
-      const value = name.trim();
-      if (!value) return;
-      addItem({ name: value, fromShopId });
-    },
-    [addItem]
-  );
-
   return (
     <div className="relative h-full w-full">
       {/* maplibre-gl.css が .maplibregl-map に position:relative を当てるので、サイズはインラインで明示する */}
@@ -1209,7 +1200,6 @@ export default function MapViewMapLibre({
           key={selectedShop.id}
           shop={selectedShop}
           onClose={() => setSelectedShop(null)}
-          onAddToBag={handleAddToBag}
           reserveBottomNavSpace={false}
         />
       )}

@@ -546,7 +546,7 @@ const MapView = memo(function MapView({
 }: MapViewProps = {}) {
   const [isMobile, setIsMobile] = useState(false);
   const [_isInMarket, setIsInMarket] = useState<boolean | null>(null);
-  const { addItem, items: bagItems } = useBag();
+  const { items: bagItems } = useBag();
   const bagShopIds = useMemo(() => {
     return bagItems
       .filter((item) => item.fromShopId)
@@ -904,12 +904,6 @@ const MapView = memo(function MapView({
       }
     }
   }, []);
-
-  const handleAddToBag = useCallback((name: string, fromShopId?: number) => {
-    const value = name.trim();
-    if (!value) return;
-    addItem({ name: value, fromShopId });
-  }, [addItem]);
 
   const handleShopChunkProgress = useCallback((processed: number, total: number, done: boolean) => {
     setShopLoadProgress((prev) => {
@@ -1361,7 +1355,6 @@ const MapView = memo(function MapView({
             onSelectPreviousShop={handleSelectPreviousShop}
             onSelectNextShop={handleSelectNextShop}
             onClose={handleCloseBanner}
-            onAddToBag={handleAddToBag}
             originRect={shopBannerOrigin ?? undefined}
             reserveBottomNavSpace={false}
           />

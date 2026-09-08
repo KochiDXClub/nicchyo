@@ -1,13 +1,12 @@
 "use client";
 
 import { memo, useState, useCallback, useEffect, useLayoutEffect, useMemo, useRef } from "react";
-import { safeJsonParse } from "@/lib/utils/safeJsonParse";
 import type { CSSProperties, RefObject } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import {
   MapPin,
-  ShoppingBag,
+  Heart,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
@@ -19,7 +18,18 @@ import {
 import { Shop } from "../data/shops";
 import { useAuth } from "../../../../lib/auth/AuthContext";
 import { getShopBannerImage } from "../../../../lib/shopImages";
-import { useBag } from "../../../../lib/storage/BagContext";
+import {
+  FAVORITE_SHOPS_KEY,
+  FAVORITE_SHOPS_UPDATED_EVENT,
+  getFavoriteProductsForShop,
+  isProductFavorited,
+  isShopFavorited,
+  loadFavoriteEntries,
+  removeFavoriteShop,
+  toggleFavoriteProduct,
+  toggleFavoriteShop,
+  type FavoriteEntry,
+} from "../../../../lib/favoriteShops";
 import { incrementBannerOpens } from "../../../../lib/storage/marketStats";
 import {
   ShopBannerHero,
@@ -50,9 +60,7 @@ function isMainSurface(surface: BannerSurface): surface is MainSurface {
 // ─── Types ────────────────────────────────────────────────────────────────────
 type ShopDetailBannerProps = {
   shop: Shop;
-  bagCount?: number;
   onClose?: () => void;
-  onAddToBag?: (name: string, fromShopId?: number) => void;
   originRect?: { x: number; y: number; width: number; height: number };
   layout?: "overlay" | "inline";
   openNonce?: number;
@@ -66,31 +74,13 @@ type ShopDetailBannerProps = {
   reserveBottomNavSpace?: boolean;
 };
 
-type BagItem = {
-  name: string;
-  fromShopId?: number;
-};
-
-
 // ─── Constants ────────────────────────────────────────────────────────────────
-const STORAGE_KEY = "nicchyo-fridge-items";
 const OSEKKAI_FALLBACK =
   "あら、ここのお店、最近行ってないねぇ。今日は何が出ちゅうか、ちょっと見てきてくれん？";
 const BOTTOM_NAV_HEIGHT = 56;
 const DRAWER_PEEK_HEIGHT = 150;
 const DRAWER_FULL_RATIO = 0.9;
 const COLLAPSED_SUMMARY_OFFSET_PX = 10;
-
-const buildBagKey = (name: string, shopId?: number) =>
-  `${name.trim().toLowerCase()}-${shopId ?? "any"}`;
-
-
-
-function loadBagItems(): BagItem[] {
-  if (typeof window === "undefined") return [];
-  const raw = localStorage.getItem(STORAGE_KEY);
-  return safeJsonParse<BagItem[]>(raw, []);
-}
 
 function useCenterBounceTrigger(
   rootRef: RefObject<HTMLElement | null>,
@@ -136,9 +126,7 @@ function areShopDetailBannerPropsEqual(
   ) return false;
   // 残りは primitive または useCallback / setState で安定した参照
   return (
-    prev.bagCount === next.bagCount &&
     prev.onClose === next.onClose &&
-    prev.onAddToBag === next.onAddToBag &&
     prev.layout === next.layout &&
     prev.openNonce === next.openNonce &&
     prev.initialMobileSurface === next.initialMobileSurface &&
@@ -155,7 +143,6 @@ function areShopDetailBannerPropsEqual(
 const ShopDetailBanner = memo(function ShopDetailBanner({
   shop,
   onClose,
-  onAddToBag,
   originRect,
   layout = "overlay",
   openNonce = 0,
@@ -170,8 +157,8 @@ const ShopDetailBanner = memo(function ShopDetailBanner({
 }: ShopDetailBannerProps) {
   const router = useRouter();
   const { permissions } = useAuth();
-  const { addItem, removeItem, items: bagContextItems } = useBag();
-  const [bagProductKeys, setBagProductKeys] = useState<Set<string>>(new Set());
+  const [favoriteEntries, setFavoriteEntries] = useState<FavoriteEntry[]>([]);
+  const [pendingShopRemoval, setPendingShopRemoval] = useState<string[] | null>(null);
   const [currentPostIndex, setCurrentPostIndex] = useState(0);
   const [heroImageError, setHeroImageError] = useState(false);
   const [toast, setToast] = useState<{ product: string } | null>(null);
@@ -224,27 +211,20 @@ const ShopDetailBanner = memo(function ShopDetailBanner({
     return () => window.removeEventListener("resize", handleResize);
   }, []);
 
-  // bag sync
+  // お気に入りの同期（同じタブのイベントと、別タブの storage の両方を見る）
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const updateBag = () => {
-      const items = loadBagItems();
-      const keys = new Set<string>();
-      items.forEach((item) => {
-        const key = buildBagKey(item.name, item.fromShopId);
-        keys.add(key);
-        if (item.fromShopId === undefined) {
-          keys.add(buildBagKey(item.name, undefined));
-        }
-      });
-      setBagProductKeys(keys);
+    const sync = () => setFavoriteEntries(loadFavoriteEntries());
+    sync();
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key === FAVORITE_SHOPS_KEY) sync();
     };
-    updateBag();
-    const handler = (event: StorageEvent) => {
-      if (event.key === STORAGE_KEY) updateBag();
+    window.addEventListener(FAVORITE_SHOPS_UPDATED_EVENT, sync);
+    window.addEventListener("storage", handleStorage);
+    return () => {
+      window.removeEventListener(FAVORITE_SHOPS_UPDATED_EVENT, sync);
+      window.removeEventListener("storage", handleStorage);
     };
-    window.addEventListener("storage", handler);
-    return () => window.removeEventListener("storage", handler);
   }, []);
 
   // バナー開封カウント
@@ -253,38 +233,42 @@ const ShopDetailBanner = memo(function ShopDetailBanner({
   }, [shop.id, openNonce]);
 
   const handleProductTap = useCallback((product: string) => {
-    // 即追加 (Undo パターン)
-    if (onAddToBag) {
-      onAddToBag(product, shop.id);
-    } else {
-      addItem({ name: product, fromShopId: shop.id });
-    }
-    setBagProductKeys((prev) => {
-      const next = new Set(prev);
-      next.add(buildBagKey(product, shop.id));
-      return next;
-    });
+    const nextEntries = toggleFavoriteProduct(shop.id, product);
+    setFavoriteEntries(nextEntries);
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
-    setToast({ product });
-    toastTimerRef.current = setTimeout(() => setToast(null), 3500);
-  }, [addItem, onAddToBag, shop.id]);
+    // 外したときは黙って消す。入れたときだけ、どこに入ったかを伝える
+    if (isProductFavorited(nextEntries, shop.id, product)) {
+      setToast({ product });
+      toastTimerRef.current = setTimeout(() => setToast(null), 3500);
+    } else {
+      setToast(null);
+    }
+  }, [shop.id]);
 
   const handleUndoAdd = useCallback((product: string) => {
-    const item = bagContextItems.slice().reverse().find(
-      (i) => i.name === product && i.fromShopId === shop.id
-    );
-    if (item) removeItem(item.id);
-    setBagProductKeys((prev) => {
-      const next = new Set(prev);
-      next.delete(buildBagKey(product, shop.id));
-      return next;
-    });
+    setFavoriteEntries(toggleFavoriteProduct(shop.id, product));
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
     setToast(null);
-  }, [bagContextItems, removeItem, shop.id]);
+  }, [shop.id]);
 
-  const handleBagClick = useCallback(() => { router.push("/bag"); }, [router]);
+  const handleToggleShopFavorite = useCallback(() => {
+    // 商品がぶら下がっている店を消すと商品も一緒に消えるので、そこだけ確認を出す
+    const products = getFavoriteProductsForShop(favoriteEntries, shop.id);
+    if (products.length > 0) {
+      setPendingShopRemoval(products);
+      return;
+    }
+    setFavoriteEntries(toggleFavoriteShop(shop.id));
+  }, [favoriteEntries, shop.id]);
 
+  const handleConfirmShopRemoval = useCallback(() => {
+    setFavoriteEntries(removeFavoriteShop(shop.id));
+    setPendingShopRemoval(null);
+  }, [shop.id]);
+
+  const handleFavoritesClick = useCallback(() => { router.push("/favorites"); }, [router]);
+
+  const isShopFavorite = isShopFavorited(favoriteEntries, shop.id);
   const canEditShop = permissions.canEditShop(shop.vendorId ?? "");
   const bannerSeed = shop.position ?? shop.id;
   const bannerImage = shop.images?.main ?? getShopBannerImage(shop.category, bannerSeed);
@@ -750,6 +734,8 @@ const ShopDetailBanner = memo(function ShopDetailBanner({
             onImageError={() => setHeroImageError(true)}
             mode="expanded"
             onEdit={canEditShop ? handleEditShop : undefined}
+            isFavorite={isShopFavorite}
+            onToggleFavorite={handleToggleShopFavorite}
           />
         )}
 
@@ -830,20 +816,18 @@ const ShopDetailBanner = memo(function ShopDetailBanner({
                     {shop.products.length > 0 && (
                       <button
                         type="button"
-                        onClick={handleBagClick}
+                        onClick={handleFavoritesClick}
                         className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 shadow-sm transition hover:bg-slate-100"
                       >
-                        <ShoppingBag className="h-3.5 w-3.5" />
-                        買い物リスト
+                        <Heart className="h-3.5 w-3.5" />
+                        お気に入り
                       </button>
                     )}
                   </div>
                   {shop.products.length > 0 ? (
                     <div className="space-y-2.5">
                       {shop.products.map((product) => {
-                        const specificKey = buildBagKey(product, shop.id);
-                        const anyKey = buildBagKey(product, undefined);
-                        const isInBag = bagProductKeys.has(specificKey) || bagProductKeys.has(anyKey);
+                        const isProductFavorite = isProductFavorited(favoriteEntries, shop.id, product);
                         const price = shop.productPrices?.[product] ?? null;
                         const productImage = productDetailsByName.get(product.trim().toLowerCase())?.imageUrl;
                         return (
@@ -874,13 +858,22 @@ const ShopDetailBanner = memo(function ShopDetailBanner({
                             <button
                               type="button"
                               onClick={() => handleProductTap(product)}
-                              className={`shrink-0 rounded-full px-3 py-2 text-xs font-bold transition ${
-                                isInBag
-                                  ? "bg-emerald-50 text-emerald-700"
-                                  : "bg-slate-900 text-white"
+                              aria-pressed={isProductFavorite}
+                              aria-label={
+                                isProductFavorite
+                                  ? `${product}をお気に入りから外す`
+                                  : `${product}をお気に入りに入れる`
+                              }
+                              className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full border transition active:scale-95 ${
+                                isProductFavorite
+                                  ? "border-pink-300 bg-pink-500 text-white"
+                                  : "border-pink-200 bg-white text-pink-500 hover:bg-pink-50"
                               }`}
                             >
-                              {isInBag ? "もう一つ" : "追加"}
+                              <Heart
+                                className="h-[18px] w-[18px]"
+                                fill={isProductFavorite ? "currentColor" : "none"}
+                              />
                             </button>
                           </div>
                         );
@@ -928,37 +921,39 @@ const ShopDetailBanner = memo(function ShopDetailBanner({
               </p>
               <button
                 type="button"
-                onClick={handleBagClick}
+                onClick={handleFavoritesClick}
                 className="flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 shadow-sm transition hover:bg-slate-50"
               >
-                <ShoppingBag className="h-3.5 w-3.5" />
-                買い物リスト
+                <Heart className="h-3.5 w-3.5" />
+                お気に入り
               </button>
             </div>
             <div className="flex flex-wrap gap-2">
               {shop.products.map((product) => {
-                const specificKey = buildBagKey(product, shop.id);
-                const anyKey = buildBagKey(product, undefined);
-                const isInBag = bagProductKeys.has(specificKey) || bagProductKeys.has(anyKey);
+                const isProductFavorite = isProductFavorited(favoriteEntries, shop.id, product);
                 const price = shop.productPrices?.[product] ?? null;
                 return (
                   <button
                     key={product}
                     type="button"
                     onClick={() => handleProductTap(product)}
+                    aria-pressed={isProductFavorite}
                     className={`flex items-center gap-1.5 rounded-2xl border px-3 py-2 text-sm font-semibold shadow-sm transition hover:shadow-md ${
-                      isInBag
-                        ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+                      isProductFavorite
+                        ? "border-pink-200 bg-pink-50 text-pink-900"
                         : "border-slate-200 bg-white text-slate-700 hover:border-slate-300"
                     }`}
                   >
+                    <Heart
+                      className={`h-3.5 w-3.5 shrink-0 ${isProductFavorite ? "text-pink-500" : "text-slate-300"}`}
+                      fill={isProductFavorite ? "currentColor" : "none"}
+                    />
                     <span>{product}</span>
                     {price != null && (
-                      <span className={`rounded-full px-1.5 py-0.5 text-xs font-bold ${isInBag ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-500"}`}>
+                      <span className={`rounded-full px-1.5 py-0.5 text-xs font-bold ${isProductFavorite ? "bg-white text-pink-700" : "bg-slate-100 text-slate-500"}`}>
                         ¥{price.toLocaleString()}
                       </span>
                     )}
-                    {isInBag && <span className="text-emerald-500">✓</span>}
                   </button>
                 );
               })}
@@ -1153,7 +1148,7 @@ const ShopDetailBanner = memo(function ShopDetailBanner({
       {/* ── Undo toast ───────────────────────────────────────────────────────── */}
       {toast && (
         <div className="fixed bottom-6 left-1/2 z-[3100] flex -translate-x-1/2 items-center gap-3 rounded-2xl bg-slate-900 px-4 py-3 shadow-xl text-sm text-white">
-          <span>「{toast.product}」を追加しました</span>
+          <span>「{toast.product}」をお気に入りに入れました</span>
           <button
             type="button"
             onClick={() => handleUndoAdd(toast.product)}
@@ -1161,6 +1156,40 @@ const ShopDetailBanner = memo(function ShopDetailBanner({
           >
             取り消す
           </button>
+        </div>
+      )}
+
+      {/* ── お店ごと外すときの確認（入れている商品も消えるため） ─────────────── */}
+      {pendingShopRemoval && (
+        <div
+          className="fixed inset-0 z-[3200] flex items-end justify-center bg-slate-950/40 px-4 pb-8 backdrop-blur-[2px] sm:items-center sm:pb-0"
+          onClick={() => setPendingShopRemoval(null)}
+        >
+          <div
+            className="w-full max-w-sm rounded-[24px] bg-white p-5 shadow-2xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <p className="text-base font-bold text-slate-900">お気に入りから外しますか？</p>
+            <p className="mt-2 text-sm leading-relaxed text-slate-600">
+              このお店に入れている{pendingShopRemoval.length}品も一緒に消えます。
+            </p>
+            <div className="mt-5 flex gap-2">
+              <button
+                type="button"
+                onClick={() => setPendingShopRemoval(null)}
+                className="min-h-11 flex-1 rounded-2xl bg-slate-100 px-4 py-2 text-sm font-bold text-slate-700 transition hover:bg-slate-200"
+              >
+                やめる
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmShopRemoval}
+                className="min-h-11 flex-1 rounded-2xl bg-slate-900 px-4 py-2 text-sm font-bold text-white transition hover:bg-black"
+              >
+                外す
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
