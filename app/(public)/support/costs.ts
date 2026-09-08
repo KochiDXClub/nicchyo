@@ -118,6 +118,10 @@ export const FUNDS_ON_HAND_JPY = 0;
  *
  * 4口で1年ぶんに届く額にしている。口数は SUPPORTER_SLOT_COUNT と SUPPORTER_COLORS の
  * 色数に合わせてあるので、金額を変えるときはそちらも見直す。
+ *
+ * 年に一度見直す前提で置いている（そのことはページにも書いてある）。為替でも動くし、
+ * 機能を足せば運営費が増える。ここを書き換えたら、既にご協賛くださっている方には
+ * 次のご継続の相談のときにお伝えすること。黙って変えない。
  */
 export const SPONSOR_UNIT_ANNUAL_JPY: number | null = 30_000;
 

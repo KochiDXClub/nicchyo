@@ -25,7 +25,7 @@ export default function SupportHero({ monthlyLabel, runwayLabel, totalMonths }: 
 
       <div className="mx-auto grid max-w-[64rem] items-center gap-8 px-6 pb-14 pt-12 sm:px-8 lg:grid-cols-[1.25fr_0.75fr] lg:gap-12 lg:pb-20 lg:pt-16">
         <div>
-          <p className="text-[11px] font-bold tracking-[0.2em] text-amber-700/80">運営と支援について</p>
+          <p className="text-[11px] font-bold tracking-[0.2em] text-amber-700/80">協賛・ご支援について</p>
 
           {/*
             文節を inline-block で包んで、そこでしか折り返させない。

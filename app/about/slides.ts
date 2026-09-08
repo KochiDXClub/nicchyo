@@ -161,7 +161,7 @@ export const aboutSlides: AboutSlide[] = [
       "みなさまのお力添えで続けております。運営にかかる費用も公開しております。",
     richContent: { type: "supporters" },
     action: {
-      label: "運営と支援について",
+      label: "協賛・ご支援について",
       href: "/support",
     },
   },

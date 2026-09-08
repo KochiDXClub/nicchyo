@@ -24,11 +24,11 @@ import {
 } from "./costs";
 
 export const metadata = {
-  title: "運営と支援について",
+  title: "協賛・ご支援について",
   description:
     "nicchyo の運営にかかる費用と、ご支援いただいている状況をご報告しております。協賛のご相談も承っております。",
   openGraph: {
-    title: "運営と支援について | nicchyo",
+    title: "協賛・ご支援について | nicchyo",
     description:
       "高知・日曜市の地図 nicchyo は、高知高専の学生と顧問の教員が運営しております。かかっている費用と、ご支援いただいている状況を公開しております。",
   },
@@ -272,6 +272,17 @@ export default async function SupportPage() {
                 </dd>
               </div>
             </dl>
+          )}
+
+          {/*
+            金額が動きうることを、頼む前に書いておく。あとから値上げをお願いする
+            より、最初から「見直します」と伝えてある方が続けていただきやすい。
+            費用は為替でも動くし、機能を足せば増える
+          */}
+          {SPONSOR_UNIT_ANNUAL_JPY !== null && (
+            <p className="mt-4 text-[12.5px] leading-[1.9] text-nicchyo-ink/45">
+              1口の金額は、運営費の変動や機能の追加に合わせて、年に一度見直させていただきます。次の年のご継続をご相談する際に、改めてご案内いたします。
+            </p>
           )}
 
           <Link
