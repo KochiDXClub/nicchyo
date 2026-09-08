@@ -4,7 +4,7 @@
  * シンボルレイヤーはビットマップしか受け付けないので、屋台パーツの SVG を
  * Canvas で一度だけ描き起こして map.addImage に登録する。
  * 画像の枚数は「形 × 色 × 状態」の組み合わせ数だが、色はカテゴリ数（十数種）、
- * 状態は normal / search / ai / bag / selected の 5 つなので、多くても数十枚に収まる。
+ * 状態は normal / search / ai / selected の 4 つなので、多くても数十枚に収まる。
  * 出店者のカスタム SVG は個別に描き起こす（色は変えられない）。
  */
 
@@ -30,14 +30,13 @@ import { memoImage } from "./rasterCache";
  * 枚数は 形×色×状態 で数十枚に収まるため上限は緩くてよいが、
  * 端末の記憶容量を無制限には使わないよう入れた順に捨てる。
  */
-export type StallState = "normal" | "search" | "ai" | "bag" | "selected";
-export const STALL_STATES: readonly StallState[] = ["normal", "search", "ai", "bag", "selected"];
+export type StallState = "normal" | "search" | "ai" | "selected";
+export const STALL_STATES: readonly StallState[] = ["normal", "search", "ai", "selected"];
 
 /** 状態ごとの屋根・ひさし色（globals.css の状態上書きと同じ値） */
 const STATE_COLORS: Record<Exclude<StallState, "normal" | "selected">, { roof: string; base: string; stripe: string }> = {
   search: { roof: "#2563eb", base: "#93c5fd", stripe: "#2563eb" },
   ai: { roof: "#ef4444", base: "#fca5a5", stripe: "#ef4444" },
-  bag: { roof: "#f8fafc", base: "#34d399", stripe: "#10b981" },
 };
 
 /** 店舗ごとの「形＋色」のキー。同じキーの店舗は同じ画像を共有する */
@@ -224,8 +223,8 @@ export async function rasterizePhotoCircle(
   return ctx.getImageData(0, 0, size, size);
 }
 
-/** お気に入り（♥ 橙）と買い物袋（🛍️ 緑）のバッジ。Leaflet 版 .shop-favorite-badge / .shop-bag-badge と同じ配色 */
-export function buildBadgeSprite(kind: "favorite" | "bag", pixelRatio: number): ImageData {
+/** お気に入り（♥ 橙）のバッジ。Leaflet 版 .shop-favorite-badge と同じ配色 */
+export function buildFavoriteBadgeSprite(pixelRatio: number): ImageData {
   const w = 26;
   const h = 20;
   const pad = 4;
@@ -235,7 +234,7 @@ export function buildBadgeSprite(kind: "favorite" | "bag", pixelRatio: number): 
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("canvas 2d context を取得できません");
   ctx.scale(pixelRatio, pixelRatio);
-  const color = kind === "favorite" ? "#f97316" : "#10b981";
+  const color = "#f97316";
   ctx.save();
   ctx.shadowColor = "rgba(0,0,0,0.18)";
   ctx.shadowBlur = 6;
@@ -251,10 +250,10 @@ export function buildBadgeSprite(kind: "favorite" | "bag", pixelRatio: number): 
   ctx.roundRect(pad + 1, pad + 1, w - 2, h - 2, (h - 2) / 2);
   ctx.stroke();
   ctx.fillStyle = color;
-  ctx.font = kind === "favorite" ? "bold 12px sans-serif" : "11px sans-serif";
+  ctx.font = "bold 12px sans-serif";
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  ctx.fillText(kind === "favorite" ? "♥" : "🛍", pad + w / 2, pad + h / 2 + 0.5);
+  ctx.fillText("♥", pad + w / 2, pad + h / 2 + 0.5);
   return ctx.getImageData(0, 0, canvas.width, canvas.height);
 }
 

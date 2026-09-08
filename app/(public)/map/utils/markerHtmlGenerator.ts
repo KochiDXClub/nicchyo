@@ -131,7 +131,6 @@ export function generateShopMarkerHtml(
     <div class="shop-marker-container" style="${colorStyle}">
       ${productIconHtml}
       <div class="shop-favorite-badge" aria-hidden="true">&#10084;</div>
-      <div class="shop-bag-badge" aria-hidden="true">🛍️</div>
       ${illustrationHtml}
       ${nameplateHtml}
     </div>
