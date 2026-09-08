@@ -14,6 +14,7 @@ import Image from "next/image";
 import { AnimatePresence, motion } from "framer-motion";
 import { Heart, Map as MapIcon, Store, X as XIcon } from "lucide-react";
 import NavigationBar from "../../components/NavigationBar";
+import ShopDetailBanner from "../map/components/ShopDetailBanner";
 import { useShops } from "../../../lib/hooks/useShops";
 import { getShopBannerImage } from "../../../lib/shopImages";
 import { clearSearchMapPayload, saveSearchMapPayload } from "../../../lib/searchMapStorage";
@@ -63,6 +64,8 @@ export default function FavoritesPageClient() {
   const entries = useFavoriteEntries();
   const { shops, isLoading } = useShops();
   const [pendingRemoval, setPendingRemoval] = useState<FavoriteShopGroup | null>(null);
+  // 店をタップしたらこのページの上でバナーを開く（/consult と同じ形）
+  const [selectedShop, setSelectedShop] = useState<Shop | null>(null);
 
   const shopById = useMemo(() => {
     const map = new Map<number, Shop>();
@@ -99,12 +102,12 @@ export default function FavoritesPageClient() {
     router.push(`/map?search=1&label=${encodeURIComponent(MAP_LABEL)}`);
   }, [groups, router]);
 
-  const handleOpenShop = useCallback(
+  const handleSelectShop = useCallback(
     (shopId: number) => {
-      saveSearchMapPayload({ ids: [shopId], label: MAP_LABEL });
-      router.push(`/map?search=1&label=${encodeURIComponent(MAP_LABEL)}&shop=${shopId}`);
+      const shop = shopById.get(shopId);
+      if (shop) setSelectedShop(shop);
     },
-    [router],
+    [shopById],
   );
 
   return (
@@ -112,10 +115,10 @@ export default function FavoritesPageClient() {
       <header className="sticky top-0 z-20 border-b border-stone-200 bg-[#f6f3ec]/95 backdrop-blur-md">
         <div className="mx-auto max-w-xl px-4 pb-4 pt-safe-top">
           <div className="py-4">
-            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-pink-600">Favorites</p>
+            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-favorite-fg">Favorites</p>
             <h1 className="mt-1 text-[30px] font-black tracking-tight text-slate-900">お気に入り</h1>
             <p className="mt-2 text-sm leading-relaxed text-slate-600">
-              気になったお店と商品をここにためておけます。地図で場所を確認して、あとから戻れます。
+              気になったお店と商品をここにためておけます。お店をタップすると詳しく見られます。
             </p>
           </div>
 
@@ -138,7 +141,7 @@ export default function FavoritesPageClient() {
               group={group}
               shop={shopById.get(group.shopId)}
               isLoadingShops={isLoading}
-              onOpenShop={handleOpenShop}
+              onSelectShop={handleSelectShop}
               onRemoveShop={handleShopHeartClick}
               onRemoveProduct={toggleFavoriteProduct}
             />
@@ -213,6 +216,10 @@ export default function FavoritesPageClient() {
         )}
       </AnimatePresence>
 
+      {selectedShop && (
+        <ShopDetailBanner shop={selectedShop} onClose={() => setSelectedShop(null)} />
+      )}
+
       <NavigationBar />
     </main>
   );
@@ -236,14 +243,14 @@ function FavoriteShopCard({
   group,
   shop,
   isLoadingShops,
-  onOpenShop,
+  onSelectShop,
   onRemoveShop,
   onRemoveProduct,
 }: {
   group: FavoriteShopGroup;
   shop: Shop | undefined;
   isLoadingShops: boolean;
-  onOpenShop: (shopId: number) => void;
+  onSelectShop: (shopId: number) => void;
   onRemoveShop: (group: FavoriteShopGroup) => void;
   onRemoveProduct: (shopId: number, product: string) => void;
 }) {
@@ -259,9 +266,9 @@ function FavoriteShopCard({
       <div className="flex items-start gap-3">
         <button
           type="button"
-          onClick={() => onOpenShop(group.shopId)}
+          onClick={() => onSelectShop(group.shopId)}
           className="relative h-16 w-16 shrink-0 overflow-hidden rounded-2xl border border-stone-200 bg-stone-100"
-          aria-label={shop ? `${shop.name}を地図で見る` : "地図で見る"}
+          aria-label={shop ? `${shop.name}の詳細を開く` : "お店の詳細を開く"}
         >
           {previewImage ? (
             <Image src={previewImage} alt="" fill className="object-cover" sizes="64px" />
@@ -274,7 +281,7 @@ function FavoriteShopCard({
 
         <button
           type="button"
-          onClick={() => onOpenShop(group.shopId)}
+          onClick={() => onSelectShop(group.shopId)}
           className="min-w-0 flex-1 text-left"
         >
           <p className="truncate text-[15px] font-bold text-slate-900">
@@ -287,7 +294,7 @@ function FavoriteShopCard({
           type="button"
           onClick={() => onRemoveShop(group)}
           aria-label="お気に入りから外す"
-          className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-pink-300 bg-pink-500 text-white shadow-sm transition hover:bg-pink-600 active:scale-95"
+          className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-favorite-line bg-favorite-fg text-white shadow-sm transition hover:opacity-90 active:scale-95"
         >
           <Heart size={17} fill="currentColor" />
         </button>
@@ -299,10 +306,10 @@ function FavoriteShopCard({
             const price = shop?.productPrices?.[product] ?? null;
             return (
               <li key={product}>
-                <span className="inline-flex items-center gap-1.5 rounded-full border border-pink-200 bg-pink-50 py-1 pl-3 pr-1 text-[13px] font-semibold text-pink-900">
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-favorite-line bg-favorite-bg py-1 pl-3 pr-1 text-[13px] font-semibold text-favorite-fg">
                   {product}
                   {price != null && (
-                    <span className="rounded-full bg-white px-1.5 py-0.5 text-[11px] font-bold text-pink-700">
+                    <span className="rounded-full bg-white px-1.5 py-0.5 text-[11px] font-bold text-favorite-fg">
                       ¥{price.toLocaleString()}
                     </span>
                   )}
@@ -310,7 +317,7 @@ function FavoriteShopCard({
                     type="button"
                     onClick={() => onRemoveProduct(group.shopId, product)}
                     aria-label={`${product}をお気に入りから外す`}
-                    className="inline-flex h-6 w-6 items-center justify-center rounded-full text-pink-400 transition hover:bg-white hover:text-pink-700"
+                    className="inline-flex h-6 w-6 items-center justify-center rounded-full text-favorite-fg/50 transition hover:bg-white hover:text-favorite-fg"
                   >
                     <XIcon size={13} />
                   </button>
@@ -327,7 +334,7 @@ function FavoriteShopCard({
 function EmptyState({ onOpenMap }: { onOpenMap: () => void }) {
   return (
     <div className="rounded-[24px] border border-dashed border-stone-300 bg-white/70 px-5 py-10 text-center">
-      <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-pink-50 text-pink-400">
+      <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-favorite-bg text-favorite-fg">
         <Heart size={24} />
       </span>
       <p className="mt-4 text-base font-bold text-slate-900">まだお気に入りはありません</p>
