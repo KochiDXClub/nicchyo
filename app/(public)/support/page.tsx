@@ -1,7 +1,7 @@
 import Link from "next/link";
 import NavigationBar from "../../components/NavigationBar";
 import MapLink from "../../components/MapLink";
-import { fetchWeeklyVisitors } from "@/lib/analytics/weeklyVisitors.server";
+import { fetchMonthlyVisitors, fetchWeeklyVisitors } from "@/lib/analytics/visitorStats.server";
 import { fetchPublishedShopCount } from "@/lib/support/shopCount.server";
 import SupporterSlots from "@/components/SupporterSlots";
 import { buildFundingSegments, OTHER_FUNDING_COLOR } from "@/lib/support/supporters";
@@ -9,6 +9,7 @@ import RunwayMeter from "./RunwayMeter";
 import SupportHero from "./components/SupportHero";
 import SupportSummaryBar from "./components/SupportSummaryBar";
 import CostLedger from "./components/CostLedger";
+import CostPerVisitor from "./components/CostPerVisitor";
 import TrackRecord from "./components/TrackRecord";
 import {
   FUNDS_ON_HAND_JPY,
@@ -80,8 +81,9 @@ function Figure({ label, value }: { label: string; value: number | null; }) {
 }
 
 export default async function SupportPage() {
-  const [weeklyVisitors, shopCount] = await Promise.all([
+  const [weeklyVisitors, monthlyVisitors, shopCount] = await Promise.all([
     fetchWeeklyVisitors(),
+    fetchMonthlyVisitors(),
     fetchPublishedShopCount(),
   ]);
 
@@ -125,6 +127,13 @@ export default async function SupportPage() {
             annualTotalJpy={annual}
             hasPending={hasPending}
           />
+        </Section>
+
+        {/* ── ひとりあたり ───────────────────────────────────────────────
+            台帳は「いくらか」までしか言えない。人数で割って初めて、高いのか
+            安いのかを読み手が判断できる数になる */}
+        <Section label="ひとりあたり">
+          <CostPerVisitor monthlyCostJpy={monthly} actualMonthlyVisitors={monthlyVisitors} />
         </Section>
 
         {/* ── いまの状況 ─────────────────────────────────────────────── */}

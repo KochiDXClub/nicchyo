@@ -183,6 +183,23 @@ export function runwayMonths(
   return fundsJpy / monthly;
 }
 
+/**
+ * 使ってくださった人ひとりあたり、1ヶ月にいくらかかっているか。
+ *
+ * このページの費目はほぼ全部が固定費で、人が増えても月額はほとんど動かない。
+ * だから割り算がそのまま「使われるほど軽くなる」という話になる。
+ * 人数が 0 のときは割れないので null を返す。
+ */
+export function costPerVisitorJpy(monthlyJpy: number, visitors: number): number | null {
+  if (visitors <= 0 || monthlyJpy <= 0) return null;
+  return monthlyJpy / visitors;
+}
+
+/** 1人あたりの額の書き方。1円を切ることがあるので小数第1位まで出す */
+export function formatPerVisitorJpy(value: number): string {
+  return `${value.toFixed(1)}円`;
+}
+
 /** 協賛1口が何ヶ月ぶんにあたるか。金額未定なら null */
 export function sponsorUnitMonths(
   unitAnnualJpy: number | null = SPONSOR_UNIT_ANNUAL_JPY,

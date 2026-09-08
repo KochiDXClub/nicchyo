@@ -3,6 +3,8 @@ import {
   RUNNING_COSTS,
   USD_JPY,
   annualCostJpy,
+  costPerVisitorJpy,
+  formatPerVisitorJpy,
   formatUsd,
   hasPendingCost,
   monthlyCostJpy,
@@ -108,6 +110,33 @@ describe("runwayMonths", () => {
 
   it("月額が 0 なら割り算をしない", () => {
     expect(runwayMonths(30_000, 0)).toBe(0);
+  });
+});
+
+describe("costPerVisitorJpy", () => {
+  it("月額を人数で割る", () => {
+    expect(costPerVisitorJpy(10_000, 3_000)).toBeCloseTo(3.33, 2);
+  });
+
+  // 固定費なので、人数が増えるほど1人あたりは下がる。この節の主張そのもの
+  it("人数が増えるほど1人あたりは下がる", () => {
+    expect(costPerVisitorJpy(10_000, 20_000)!).toBeLessThan(costPerVisitorJpy(10_000, 1_000)!);
+  });
+
+  it("人数が 0 なら割らずに null", () => {
+    expect(costPerVisitorJpy(10_000, 0)).toBeNull();
+  });
+
+  it("月額が 0 なら null", () => {
+    expect(costPerVisitorJpy(0, 3_000)).toBeNull();
+  });
+});
+
+describe("formatPerVisitorJpy", () => {
+  // 1円を切ることがあるので、整数に丸めると 0円 になってしまう
+  it("小数第1位まで出す", () => {
+    expect(formatPerVisitorJpy(3.3333)).toBe("3.3円");
+    expect(formatPerVisitorJpy(0.502)).toBe("0.5円");
   });
 });
 

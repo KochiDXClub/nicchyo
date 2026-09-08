@@ -1,5 +1,5 @@
 import React from "react";
-import { fetchWeeklyVisitors } from "@/lib/analytics/weeklyVisitors.server";
+import { fetchWeeklyVisitors } from "@/lib/analytics/visitorStats.server";
 import AboutStory from "./AboutStory";
 
 export const metadata = {

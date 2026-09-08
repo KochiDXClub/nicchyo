@@ -1,5 +1,5 @@
 /**
- * 今週の訪問者数を数える（サーバー側）
+ * 訪問者数を数える（サーバー側）
  *
  * /about と /support が同じ数字を出すので、取り方をここに置く。
  * 取れなかったときは null を返し、呼び出し側で「集計中」として扱う。
@@ -32,6 +32,11 @@ function getWeekStartIso(isoDate: string) {
   return date.toISOString().slice(0, 10);
 }
 
+/** その月の1日 */
+function getMonthStartIso(isoDate: string) {
+  return `${isoDate.slice(0, 7)}-01`;
+}
+
 function hasSupabaseEnv() {
   return (
     !!process.env.NEXT_PUBLIC_SUPABASE_URL &&
@@ -42,20 +47,18 @@ function hasSupabaseEnv() {
   );
 }
 
-/** 今週（月曜〜今日）の訪問者数。取れなければ null */
-export async function fetchWeeklyVisitors(): Promise<number | null> {
+/** 期間を指定して合計する。範囲の両端を含む */
+async function sumVisitors(fromIso: string, toIso: string): Promise<number | null> {
   if (!hasSupabaseEnv()) return null;
 
   try {
     const cookieStore = await cookies();
     const supabase = createClient(cookieStore);
-    const todayIso = getTokyoTodayIso();
-    const weekStartIso = getWeekStartIso(todayIso);
     const { data, error } = await supabase
       .from("web_visitor_stats")
       .select("visitor_count")
-      .gte("visit_date", weekStartIso)
-      .lte("visit_date", todayIso);
+      .gte("visit_date", fromIso)
+      .lte("visit_date", toIso);
 
     if (error || !Array.isArray(data)) return null;
 
@@ -64,7 +67,24 @@ export async function fetchWeeklyVisitors(): Promise<number | null> {
       0
     );
   } catch (error) {
-    console.warn("[weeklyVisitors] 訪問者数の取得に失敗しました:", error);
+    console.warn("[visitorStats] 訪問者数の取得に失敗しました:", error);
     return null;
   }
+}
+
+/** 今週（月曜〜今日）の訪問者数。取れなければ null */
+export async function fetchWeeklyVisitors(): Promise<number | null> {
+  const todayIso = getTokyoTodayIso();
+  return sumVisitors(getWeekStartIso(todayIso), todayIso);
+}
+
+/**
+ * 今月（1日〜今日）の訪問者数。取れなければ null。
+ *
+ * 月の途中では当然その時点までの数になる。運営費は月額なので、
+ * 「1人あたりいくらか」を出すときの分母はこちらを使う。
+ */
+export async function fetchMonthlyVisitors(): Promise<number | null> {
+  const todayIso = getTokyoTodayIso();
+  return sumVisitors(getMonthStartIso(todayIso), todayIso);
 }
