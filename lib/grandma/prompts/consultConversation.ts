@@ -20,6 +20,10 @@ import type { ConsultCharacter } from "@/app/(public)/consult/data/consultCharac
  * 1 にしているのは、複数発話がUI上は掛け合いに見えるため。
  * `GrandmaChatter` は発話ごとに1秒あけて別の吹き出しを出すので、
  * 同じキャラの2〜3発話でも、以前の2人の掛け合いと見分けがつかない。
+ *
+ * ここはDBが読めないときの既定値。実際に使う値は管理画面で編集でき
+ * （ai_conversation_settings の `consult.max_turns`）、リクエストごとに
+ * 引数で渡ってくる。
  */
 export const CONSULT_MAX_TURNS: number = 1;
 
@@ -29,13 +33,16 @@ export const CONSULT_MAX_TURNS: number = 1;
  * ここで指示している行フォーマット（TURN / SHOP_IDS / IMAGE_URL / FOLLOW_UP / SUMMARY / END）を
  * `parseStreamingConsultOutput()` がそのまま解釈する。両方を同時に直すこと。
  */
-export function buildStreamingFormatPrompt(characters: ConsultCharacter[]) {
+export function buildStreamingFormatPrompt(
+  characters: ConsultCharacter[],
+  maxTurns: number = CONSULT_MAX_TURNS
+) {
   const speakerMap = characters.map((character) => `${character.id}=${character.name}`).join(", ");
   return [
     "出力は必ずプレーンテキストのみ。JSON、Markdown、前置きは禁止。",
-    CONSULT_MAX_TURNS === 1
+    maxTurns === 1
       ? "TURN 行を最初に出力する。TURN 行はちょうど1行だけ。"
-      : `TURN 行を最初に出力する。行数は会話ルールに従い、1行以上 ${CONSULT_MAX_TURNS} 行以内。`,
+      : `TURN 行を最初に出力する。行数は会話ルールに従い、1行以上 ${maxTurns} 行以内。`,
     `TURN 行の形式は TURN|speakerId|speakerName|text。speakerId は ${speakerMap} を使う。`,
     "text には改行を入れない。speakerName は対応する表示名を使う。",
     "TURN 行の後に、次の行をこの順番で必ず1行ずつ出力する。",
@@ -57,13 +64,11 @@ export function buildStreamingFormatPrompt(characters: ConsultCharacter[]) {
  * **両方を同時に渡さないこと**（「JSONのみ」と「プレーンテキストのみ」が
  * 同居して、どちらに従うかがモデル任せになる）。
  */
-export function buildJsonFormatPrompt() {
+export function buildJsonFormatPrompt(maxTurns: number = CONSULT_MAX_TURNS) {
   return [
     "出力は必ずJSONのみ。前置き・Markdownのコードフェンス・説明文は禁止。",
     "渡されたJSONスキーマに従う。",
-    CONSULT_MAX_TURNS === 1
-      ? "turns はちょうど1つ。"
-      : `turns は1つ以上 ${CONSULT_MAX_TURNS} つ以内。`,
+    maxTurns === 1 ? "turns はちょうど1つ。" : `turns は1つ以上 ${maxTurns} つ以内。`,
     "turns[].speakerId は今回の話し手の id にする。",
   ].join("\n");
 }
