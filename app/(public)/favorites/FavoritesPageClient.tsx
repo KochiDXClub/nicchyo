@@ -5,25 +5,29 @@
  *
  * 店ごとにまとめて表示し、商品をぶら下げる。商品を入れていない店は店名だけが並ぶ。
  * 現地で使う主導線はマップ側のお気に入り絞り込みで、このページは
- * 「歩き終わったあとに見返す・地図でまとめて戻る」ための場所として置いている。
+ * 「歩き終わったあとに見返す」「次にどこへ戻るか決める」ための場所。
+ *
+ * 並びは既定で場所順（丁目 → 道沿いの位置）。日曜市は約1.3kmの一本道なので、
+ * 追加した順よりも「どっちの方向に何軒あるか」の方が現地では役に立つ。
  */
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
-import { AnimatePresence, motion } from "framer-motion";
-import { Heart, Map as MapIcon, Store, X as XIcon } from "lucide-react";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import { Heart, Map as MapIcon, X as XIcon } from "lucide-react";
 import NavigationBar from "../../components/NavigationBar";
 import ShopDetailBanner from "../map/components/ShopDetailBanner";
 import { useShops } from "../../../lib/hooks/useShops";
 import { getShopBannerImage } from "../../../lib/shopImages";
-import { clearSearchMapPayload, saveSearchMapPayload } from "../../../lib/searchMapStorage";
+import { saveSearchMapPayload } from "../../../lib/searchMapStorage";
 import {
   FAVORITE_SHOPS_KEY,
   FAVORITE_SHOPS_UPDATED_EVENT,
   groupFavoritesByShop,
   loadFavoriteEntries,
   removeFavoriteShop,
+  saveFavoriteEntries,
   toggleFavoriteProduct,
   type FavoriteEntry,
   type FavoriteShopGroup,
@@ -31,8 +35,22 @@ import {
 import type { Shop } from "../map/data/shops";
 
 const MAP_LABEL = "お気に入りのお店";
+const SORT_STORAGE_KEY = "nicchyo-favorites-sort";
+const NO_CHOME_LABEL = "丁目がまだ分からないお店";
 
-/** お気に入りの変更をこのページに反映する（同じタブのイベントと別タブの storage の両方を見る） */
+type SortKey = "place" | "added";
+
+/** 並びの好みは端末に覚えさせる。毎回選び直させない */
+function loadSort(): SortKey {
+  if (typeof window === "undefined") return "place";
+  try {
+    return localStorage.getItem(SORT_STORAGE_KEY) === "added" ? "added" : "place";
+  } catch {
+    return "place";
+  }
+}
+
+/** お気に入りの変更を反映する（同じタブのイベントと別タブの storage の両方を見る） */
 function useFavoriteEntries(): FavoriteEntry[] {
   const [entries, setEntries] = useState<FavoriteEntry[]>([]);
 
@@ -53,19 +71,84 @@ function useFavoriteEntries(): FavoriteEntry[] {
   return entries;
 }
 
-function shopSubtitle(shop: Shop | undefined): string {
-  if (!shop) return "出店情報を読み込み中";
-  if (shop.chome) return `${shop.chome} / ${shop.position + 1}番あたり`;
-  return `${shop.position + 1}番あたり`;
+type Row = FavoriteShopGroup & { shop: Shop | undefined };
+type Section = { key: string; label: string | null; rows: Row[] };
+
+/**
+ * 表示用の並びを作る。
+ * 場所順は丁目ごとに区切り、丁目の中は道沿いの位置で並べる。
+ * 追加順は区切らずに1本の並びにする（新しいものが上）。
+ */
+function buildSections(rows: Row[], sort: SortKey): Section[] {
+  if (sort === "added") {
+    return rows.length > 0 ? [{ key: "added", label: null, rows }] : [];
+  }
+
+  const byChome = new Map<string, Row[]>();
+  for (const row of rows) {
+    const key = row.shop?.chome ?? NO_CHOME_LABEL;
+    const list = byChome.get(key);
+    if (list) list.push(row);
+    else byChome.set(key, [row]);
+  }
+
+  return Array.from(byChome.entries())
+    .map(([label, groupRows]) => ({
+      key: label,
+      label,
+      rows: groupRows.sort(
+        (a, b) => (a.shop?.position ?? Infinity) - (b.shop?.position ?? Infinity),
+      ),
+    }))
+    // 丁目そのものの並びも道沿いの順にする。丁目が分からないものは最後
+    .sort((a, b) => {
+      if (a.label === NO_CHOME_LABEL) return 1;
+      if (b.label === NO_CHOME_LABEL) return -1;
+      return (a.rows[0]?.shop?.position ?? Infinity) - (b.rows[0]?.shop?.position ?? Infinity);
+    });
 }
 
 export default function FavoritesPageClient() {
   const router = useRouter();
+  const prefersReducedMotion = useReducedMotion();
   const entries = useFavoriteEntries();
   const { shops, isLoading } = useShops();
   const [pendingRemoval, setPendingRemoval] = useState<FavoriteShopGroup | null>(null);
   // 店をタップしたらこのページの上でバナーを開く（/consult と同じ形）
   const [selectedShop, setSelectedShop] = useState<Shop | null>(null);
+  const [sort, setSort] = useState<SortKey>("place");
+  // 外したものを戻せるようにする。1タップで消せる代わりに、必ず戻せる
+  const [undo, setUndo] = useState<{ label: string; entries: FavoriteEntry[] } | null>(null);
+  const undoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => setSort(loadSort()), []);
+
+  useEffect(() => () => {
+    if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
+  }, []);
+
+  const offerUndo = useCallback((label: string, removed: FavoriteEntry[]) => {
+    if (removed.length === 0) return;
+    if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
+    setUndo({ label, entries: removed });
+    undoTimerRef.current = setTimeout(() => setUndo(null), 6000);
+  }, []);
+
+  const handleUndo = useCallback(() => {
+    if (!undo) return;
+    saveFavoriteEntries([...loadFavoriteEntries(), ...undo.entries]);
+    if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
+    setUndo(null);
+  }, [undo]);
+
+  const changeSort = useCallback((next: SortKey) => {
+    setSort(next);
+    try {
+      localStorage.setItem(SORT_STORAGE_KEY, next);
+    } catch {
+      // 保存できなくても並び替えそのものは効かせる
+    }
+  }, []);
 
   const shopById = useMemo(() => {
     const map = new Map<number, Shop>();
@@ -73,34 +156,61 @@ export default function FavoritesPageClient() {
     return map;
   }, [shops]);
 
-  const groups = useMemo(() => groupFavoritesByShop(entries), [entries]);
+  const rows = useMemo<Row[]>(
+    () => groupFavoritesByShop(entries).map((group) => ({ ...group, shop: shopById.get(group.shopId) })),
+    [entries, shopById],
+  );
+  const sections = useMemo(() => buildSections(rows, sort), [rows, sort]);
   const productCount = entries.filter((entry) => entry.product !== null).length;
 
-  const handleShopHeartClick = useCallback((group: FavoriteShopGroup) => {
-    // 商品がぶら下がっている店を消すと商品も一緒に消えるので、そこだけ確認を出す
-    if (group.products.length > 0) {
-      setPendingRemoval(group);
-      return;
-    }
-    removeFavoriteShop(group.shopId);
-  }, []);
+  const removeShop = useCallback(
+    (shopId: number, label: string) => {
+      const removed = loadFavoriteEntries().filter((entry) => entry.shopId === shopId);
+      removeFavoriteShop(shopId);
+      offerUndo(label, removed);
+    },
+    [offerUndo],
+  );
+
+  const handleShopHeartClick = useCallback(
+    (row: Row) => {
+      // 商品がぶら下がっている店を消すと商品も一緒に消えるので、そこだけ確認を出す。
+      // 店だけのときは1タップで外して、取り消しで戻せるようにする
+      if (row.products.length > 0) {
+        setPendingRemoval(row);
+        return;
+      }
+      removeShop(row.shopId, row.shop?.name ?? "お店");
+    },
+    [removeShop],
+  );
 
   const handleConfirmRemoval = useCallback(() => {
     if (!pendingRemoval) return;
-    removeFavoriteShop(pendingRemoval.shopId);
+    removeShop(pendingRemoval.shopId, shopById.get(pendingRemoval.shopId)?.name ?? "お店");
     setPendingRemoval(null);
-  }, [pendingRemoval]);
+  }, [pendingRemoval, removeShop, shopById]);
+
+  const handleRemoveProduct = useCallback(
+    (shopId: number, product: string) => {
+      const removed = loadFavoriteEntries().filter(
+        (entry) => entry.shopId === shopId && entry.product === product,
+      );
+      toggleFavoriteProduct(shopId, product);
+      offerUndo(product, removed);
+    },
+    [offerUndo],
+  );
 
   const handleOpenMap = useCallback(() => {
-    if (groups.length === 0) {
-      clearSearchMapPayload();
+    const ids = rows.map((row) => row.shopId);
+    if (ids.length === 0) {
       router.push("/map");
       return;
     }
-    const ids = groups.map((group) => group.shopId);
     saveSearchMapPayload({ ids, label: MAP_LABEL });
     router.push(`/map?search=1&label=${encodeURIComponent(MAP_LABEL)}`);
-  }, [groups, router]);
+  }, [rows, router]);
 
   const handleSelectShop = useCallback(
     (shopId: number) => {
@@ -110,111 +220,87 @@ export default function FavoritesPageClient() {
     [shopById],
   );
 
-  return (
-    <main className="min-h-screen bg-[#f6f3ec] pb-28 text-slate-900 md:pb-20">
-      <header className="sticky top-0 z-20 border-b border-stone-200 bg-[#f6f3ec]/95 backdrop-blur-md">
-        <div className="mx-auto max-w-xl px-4 pb-4 pt-safe-top">
-          <div className="py-4">
-            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-favorite-fg">Favorites</p>
-            <h1 className="mt-1 text-[30px] font-black tracking-tight text-slate-900">お気に入り</h1>
-            <p className="mt-2 text-sm leading-relaxed text-slate-600">
-              気になったお店と商品をここにためておけます。お店をタップすると詳しく見られます。
-            </p>
-          </div>
+  const isEmpty = rows.length === 0;
 
-          {groups.length > 0 && (
-            <div className="grid grid-cols-2 gap-2 rounded-3xl border border-stone-200 bg-white p-3 shadow-sm">
-              <SummaryCell icon={<Store size={16} />} label="お店" value={`${groups.length}店`} />
-              <SummaryCell icon={<Heart size={16} />} label="商品" value={`${productCount}品`} />
-            </div>
+  return (
+    <main className="min-h-screen bg-[#f6f3ec] pb-20 text-slate-900">
+      {/* スクロール中も残すのは、見出しと「地図でみる」だけにする。
+          並び替えは一度決めれば触らないので、本文と一緒に流す */}
+      <header className="sticky top-0 z-20 border-b border-stone-200 bg-[#f6f3ec]/95 backdrop-blur-md">
+        <div className="mx-auto flex max-w-xl items-center justify-between gap-3 px-4 pt-safe-top">
+          <h1 className="flex min-w-0 items-baseline gap-2 py-3">
+            <span className="text-[22px] font-black leading-none tracking-tight">お気に入り</span>
+            {!isEmpty && (
+              <span className="shrink-0 text-[12px] font-semibold text-slate-400">
+                {rows.length}店{productCount > 0 && ` ・ ${productCount}品`}
+              </span>
+            )}
+          </h1>
+
+          {!isEmpty && (
+            <button
+              type="button"
+              onClick={handleOpenMap}
+              className="my-1.5 inline-flex min-h-10 shrink-0 items-center gap-1.5 rounded-full bg-slate-900 px-3.5 text-[13px] font-bold text-white transition hover:bg-black active:scale-95"
+            >
+              <MapIcon size={15} />
+              地図でみる
+            </button>
           )}
         </div>
       </header>
 
-      <div className="mx-auto max-w-xl space-y-3 px-4 py-5">
-        {groups.length === 0 ? (
+      <div className="mx-auto max-w-xl px-4 pb-4">
+        {isEmpty ? (
           <EmptyState onOpenMap={() => router.push("/map")} />
         ) : (
-          groups.map((group) => (
-            <FavoriteShopCard
-              key={group.shopId}
-              group={group}
-              shop={shopById.get(group.shopId)}
-              isLoadingShops={isLoading}
-              onSelectShop={handleSelectShop}
-              onRemoveShop={handleShopHeartClick}
-              onRemoveProduct={toggleFavoriteProduct}
-            />
-          ))
+          <div className="space-y-5">
+            <SortToggle value={sort} onChange={changeSort} />
+            {sections.map((section) => (
+              <section key={section.key}>
+                {section.label && (
+                  <h2 className="mb-1.5 flex items-baseline gap-2 px-1">
+                    <span className="text-[13px] font-black tracking-wide text-slate-700">
+                      {section.label}
+                    </span>
+                    <span className="text-[11px] font-semibold text-slate-400">
+                      {section.rows.length}店
+                    </span>
+                  </h2>
+                )}
+
+                <ul className="divide-y divide-stone-200/80 overflow-hidden rounded-[18px] border border-stone-200 bg-white">
+                  {section.rows.map((row) => (
+                    <FavoriteRow
+                      key={row.shopId}
+                      row={row}
+                      isLoadingShops={isLoading}
+                      showChome={sort === "added"}
+                      onSelectShop={handleSelectShop}
+                      onRemoveShop={handleShopHeartClick}
+                      onRemoveProduct={handleRemoveProduct}
+                    />
+                  ))}
+                </ul>
+              </section>
+            ))}
+          </div>
         )}
       </div>
 
-      {groups.length > 0 && (
-        <div
-          className="fixed left-0 right-0 z-30 px-4"
-          style={{ bottom: "calc(3.25rem + var(--safe-bottom, 0px))" }}
-        >
-          <div className="mx-auto max-w-xl">
-            <button
-              type="button"
-              onClick={handleOpenMap}
-              className="flex min-h-14 w-full items-center justify-between gap-3 rounded-[24px] bg-slate-950 px-5 py-4 text-left text-white shadow-[0_18px_40px_rgba(15,23,42,0.28)] transition hover:bg-black active:scale-[0.99]"
-            >
-              <div className="flex items-center gap-3">
-                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white/10">
-                  <MapIcon size={18} />
-                </div>
-                <div>
-                  <p className="text-[11px] font-black uppercase tracking-[0.18em] text-white/60">Map</p>
-                  <p className="text-sm font-bold">お気に入りのお店を地図で見る</p>
-                </div>
-              </div>
-              <span className="text-sm font-bold text-white/80">{groups.length}店</span>
-            </button>
-          </div>
-        </div>
-      )}
+      <UndoToast
+        undo={undo}
+        onUndo={handleUndo}
+        reduceMotion={!!prefersReducedMotion}
+      />
 
-      <AnimatePresence>
-        {pendingRemoval && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/40 px-4 pb-8 backdrop-blur-[2px] sm:items-center sm:pb-0"
-            onClick={() => setPendingRemoval(null)}
-          >
-            <motion.div
-              initial={{ opacity: 0, y: 24 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 24 }}
-              className="w-full max-w-sm rounded-[24px] bg-white p-5 shadow-2xl"
-              onClick={(event) => event.stopPropagation()}
-            >
-              <p className="text-base font-bold text-slate-900">お気に入りから外しますか？</p>
-              <p className="mt-2 text-sm leading-relaxed text-slate-600">
-                このお店に入れている{pendingRemoval.products.length}品も一緒に消えます。
-              </p>
-              <div className="mt-5 flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => setPendingRemoval(null)}
-                  className="min-h-11 flex-1 rounded-2xl bg-stone-100 px-4 py-2 text-sm font-bold text-slate-700 transition hover:bg-stone-200"
-                >
-                  やめる
-                </button>
-                <button
-                  type="button"
-                  onClick={handleConfirmRemoval}
-                  className="min-h-11 flex-1 rounded-2xl bg-slate-900 px-4 py-2 text-sm font-bold text-white transition hover:bg-black"
-                >
-                  外す
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <RemoveShopDialog
+        productCount={pendingRemoval?.products.length ?? 0}
+        open={!!pendingRemoval}
+        onCancel={() => setPendingRemoval(null)}
+        onConfirm={handleConfirmRemoval}
+        reduceMotion={!!prefersReducedMotion}
+      />
 
       {selectedShop && (
         <ShopDetailBanner shop={selectedShop} onClose={() => setSelectedShop(null)} />
@@ -225,35 +311,53 @@ export default function FavoritesPageClient() {
   );
 }
 
-function SummaryCell({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
+/** 並び替え。選択肢が2つなので、開くのではなくその場で切り替えられる形にする */
+function SortToggle({ value, onChange }: { value: SortKey; onChange: (next: SortKey) => void }) {
+  const options: { key: SortKey; label: string }[] = [
+    { key: "place", label: "場所順" },
+    { key: "added", label: "追加順" },
+  ];
+
   return (
-    <div className="flex items-center gap-2 rounded-2xl bg-stone-50 px-3 py-2">
-      <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-white text-slate-500 shadow-sm">
-        {icon}
-      </span>
-      <div className="min-w-0">
-        <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400">{label}</p>
-        <p className="text-sm font-black text-slate-900">{value}</p>
-      </div>
+    <div
+      role="group"
+      aria-label="並び替え"
+      className="inline-flex rounded-full border border-stone-200 bg-white p-0.5"
+    >
+      {options.map((option) => (
+        <button
+          key={option.key}
+          type="button"
+          onClick={() => onChange(option.key)}
+          aria-pressed={value === option.key}
+          className={`min-h-9 rounded-full px-3.5 text-[13px] font-bold transition ${
+            value === option.key ? "bg-slate-900 text-white" : "text-slate-500 hover:text-slate-800"
+          }`}
+        >
+          {option.label}
+        </button>
+      ))}
     </div>
   );
 }
 
-function FavoriteShopCard({
-  group,
-  shop,
+function FavoriteRow({
+  row,
   isLoadingShops,
+  showChome,
   onSelectShop,
   onRemoveShop,
   onRemoveProduct,
 }: {
-  group: FavoriteShopGroup;
-  shop: Shop | undefined;
+  row: Row;
   isLoadingShops: boolean;
+  /** 丁目で区切っていないときだけ、行のほうに丁目を出す */
+  showChome: boolean;
   onSelectShop: (shopId: number) => void;
-  onRemoveShop: (group: FavoriteShopGroup) => void;
+  onRemoveShop: (row: Row) => void;
   onRemoveProduct: (shopId: number, product: string) => void;
 }) {
+  const { shop } = row;
   const previewImage = shop
     ? shop.images?.main ||
       shop.images?.thumbnail ||
@@ -261,63 +365,60 @@ function FavoriteShopCard({
       getShopBannerImage(shop.category, shop.position ?? shop.id)
     : null;
 
+  const place = shop
+    ? [showChome ? shop.chome : null, `${shop.position + 1}番あたり`].filter(Boolean).join(" ・ ")
+    : isLoadingShops
+      ? "読み込み中"
+      : "出店情報が見つかりません";
+
   return (
-    <section className="rounded-[22px] border border-stone-200 bg-white p-3 shadow-sm">
-      <div className="flex items-start gap-3">
+    <li className="px-3 py-2.5">
+      <div className="flex items-center gap-3">
         <button
           type="button"
-          onClick={() => onSelectShop(group.shopId)}
-          className="relative h-16 w-16 shrink-0 overflow-hidden rounded-2xl border border-stone-200 bg-stone-100"
+          onClick={() => onSelectShop(row.shopId)}
+          className="flex min-w-0 flex-1 items-center gap-3 text-left"
           aria-label={shop ? `${shop.name}の詳細を開く` : "お店の詳細を開く"}
         >
-          {previewImage ? (
-            <Image src={previewImage} alt="" fill className="object-cover" sizes="64px" />
-          ) : (
-            <span className="flex h-full w-full items-center justify-center text-[11px] font-semibold text-stone-400">
-              {isLoadingShops ? "…" : "画像"}
+          <span className="relative h-14 w-14 shrink-0 overflow-hidden rounded-xl bg-stone-100">
+            {previewImage ? (
+              <Image src={previewImage} alt="" fill className="object-cover" sizes="56px" />
+            ) : null}
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-[15px] font-bold leading-tight">
+              {shop?.name ?? (isLoadingShops ? "読み込み中…" : `お店 #${row.shopId}`)}
             </span>
-          )}
+            <span className="mt-1 block truncate text-[12px] text-slate-500">{place}</span>
+          </span>
         </button>
 
         <button
           type="button"
-          onClick={() => onSelectShop(group.shopId)}
-          className="min-w-0 flex-1 text-left"
-        >
-          <p className="truncate text-[15px] font-bold text-slate-900">
-            {shop?.name ?? (isLoadingShops ? "読み込み中…" : `お店 #${group.shopId}`)}
-          </p>
-          <p className="mt-0.5 truncate text-xs text-slate-500">{shopSubtitle(shop)}</p>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => onRemoveShop(group)}
+          onClick={() => onRemoveShop(row)}
           aria-label="お気に入りから外す"
-          className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-favorite-line bg-favorite-fg text-white shadow-sm transition hover:opacity-90 active:scale-95"
+          className="-mr-1 inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-favorite-fg/75 transition hover:bg-favorite-bg hover:text-favorite-fg active:scale-90"
         >
-          <Heart size={17} fill="currentColor" />
+          <Heart size={18} fill="currentColor" />
         </button>
       </div>
 
-      {group.products.length > 0 && (
-        <ul className="mt-3 flex flex-wrap gap-1.5 border-t border-stone-100 pt-3">
-          {group.products.map((product) => {
+      {row.products.length > 0 && (
+        <ul className="mt-2 flex flex-wrap gap-1.5 pl-[68px]">
+          {row.products.map((product) => {
             const price = shop?.productPrices?.[product] ?? null;
             return (
               <li key={product}>
-                <span className="inline-flex items-center gap-1.5 rounded-full border border-favorite-line bg-favorite-bg py-1 pl-3 pr-1 text-[13px] font-semibold text-favorite-fg">
-                  {product}
+                <span className="inline-flex h-8 items-center gap-1 rounded-full bg-favorite-bg pl-2.5 pr-1 text-[12px] font-semibold text-favorite-fg">
+                  <span className="max-w-[9rem] truncate">{product}</span>
                   {price != null && (
-                    <span className="rounded-full bg-white px-1.5 py-0.5 text-[11px] font-bold text-favorite-fg">
-                      ¥{price.toLocaleString()}
-                    </span>
+                    <span className="text-[11px] font-bold opacity-70">¥{price.toLocaleString()}</span>
                   )}
                   <button
                     type="button"
-                    onClick={() => onRemoveProduct(group.shopId, product)}
+                    onClick={() => onRemoveProduct(row.shopId, product)}
                     aria-label={`${product}をお気に入りから外す`}
-                    className="inline-flex h-6 w-6 items-center justify-center rounded-full text-favorite-fg/50 transition hover:bg-white hover:text-favorite-fg"
+                    className="inline-flex h-7 w-7 items-center justify-center rounded-full transition hover:bg-white active:scale-90"
                   >
                     <XIcon size={13} />
                   </button>
@@ -327,29 +428,131 @@ function FavoriteShopCard({
           })}
         </ul>
       )}
-    </section>
+    </li>
   );
 }
 
 function EmptyState({ onOpenMap }: { onOpenMap: () => void }) {
   return (
-    <div className="rounded-[24px] border border-dashed border-stone-300 bg-white/70 px-5 py-10 text-center">
-      <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-favorite-bg text-favorite-fg">
-        <Heart size={24} />
+    <div className="flex min-h-[58vh] flex-col items-center justify-center px-6 text-center">
+      <span className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-favorite-bg text-favorite-fg">
+        <Heart size={28} />
       </span>
-      <p className="mt-4 text-base font-bold text-slate-900">まだお気に入りはありません</p>
-      <p className="mx-auto mt-2 max-w-xs text-sm leading-relaxed text-slate-600">
-        気になったお店や商品のハートを押すと、ここにたまります。日曜市は1.3kmと長いので、
-        先に進んでしまっても地図で戻ってこられます。
-      </p>
+      <p className="mt-5 text-[15px] font-bold">気になったお店のハートを押すと、ここにたまります</p>
       <button
         type="button"
         onClick={onOpenMap}
-        className="mt-5 inline-flex min-h-11 items-center gap-2 rounded-2xl bg-slate-900 px-5 py-2.5 text-sm font-bold text-white transition hover:bg-black active:scale-[0.98]"
+        className="mt-6 inline-flex min-h-12 items-center gap-2 rounded-full bg-slate-900 px-6 text-sm font-bold text-white transition hover:bg-black active:scale-[0.98]"
       >
         <MapIcon size={16} />
         マップでお店を探す
       </button>
     </div>
+  );
+}
+
+/**
+ * 外したものを戻す知らせ。
+ *
+ * ハート1つで消せるようにしている以上、取り消せることが前提になる。
+ * 位置は下部ナビとセーフエリアの上。
+ */
+function UndoToast({
+  undo,
+  onUndo,
+  reduceMotion,
+}: {
+  undo: { label: string; entries: FavoriteEntry[] } | null;
+  onUndo: () => void;
+  reduceMotion: boolean;
+}) {
+  return (
+    <AnimatePresence>
+      {undo && (
+        <motion.div
+          initial={reduceMotion ? false : { opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={reduceMotion ? { opacity: 0 } : { opacity: 0, y: 16 }}
+          transition={{ duration: reduceMotion ? 0 : 0.22, ease: [0.22, 1, 0.36, 1] }}
+          className="pointer-events-none fixed inset-x-0 z-40 px-4"
+          style={{ bottom: "calc(4.75rem + var(--safe-bottom, 0px))" }}
+        >
+          <div className="pointer-events-auto mx-auto flex max-w-sm items-center gap-3 rounded-[22px] border border-white/10 bg-slate-950/95 px-4 py-3 text-white shadow-2xl backdrop-blur-md">
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-bold">{undo.label}</p>
+              <p className="text-[12px] text-white/65">お気に入りから外しました</p>
+            </div>
+            <button
+              type="button"
+              onClick={onUndo}
+              className="shrink-0 rounded-full bg-white/15 px-3 py-1.5 text-xs font-bold transition hover:bg-white/25 active:scale-95"
+            >
+              元に戻す
+            </button>
+          </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+}
+
+/** お店ごと外すときの確認。入れている商品も一緒に消えるため、ここだけ確認を出す */
+function RemoveShopDialog({
+  productCount,
+  open,
+  onCancel,
+  onConfirm,
+  reduceMotion,
+}: {
+  productCount: number;
+  open: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+  reduceMotion: boolean;
+}) {
+  return (
+    <AnimatePresence>
+      {open && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: reduceMotion ? 0 : 0.18 }}
+          className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/40 px-4 backdrop-blur-[2px] sm:items-center"
+          style={{ paddingBottom: "calc(2rem + var(--safe-bottom, 0px))" }}
+          onClick={onCancel}
+        >
+          <motion.div
+            initial={reduceMotion ? false : { opacity: 0, y: 24 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={reduceMotion ? { opacity: 0 } : { opacity: 0, y: 24 }}
+            transition={{ duration: reduceMotion ? 0 : 0.22, ease: [0.22, 1, 0.36, 1] }}
+            className="w-full max-w-sm rounded-[24px] bg-white p-5 shadow-2xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <p className="text-base font-bold">お気に入りから外しますか？</p>
+            <p className="mt-2 text-sm leading-relaxed text-slate-600">
+              このお店に入れている{productCount}品も一緒に消えます。
+            </p>
+            <div className="mt-5 flex gap-2">
+              <button
+                type="button"
+                onClick={onCancel}
+                className="min-h-12 flex-1 rounded-2xl bg-stone-100 text-sm font-bold text-slate-700 transition hover:bg-stone-200"
+              >
+                やめる
+              </button>
+              <button
+                type="button"
+                onClick={onConfirm}
+                className="min-h-12 flex-1 rounded-2xl bg-slate-900 text-sm font-bold text-white transition hover:bg-black"
+              >
+                外す
+              </button>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 }
