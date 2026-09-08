@@ -18,6 +18,12 @@ import {
 } from "@/lib/grandma/consultSession";
 import GrandmaAvatar from "./GrandmaAvatar";
 import ConsultIntro from "./ConsultIntro";
+import {
+  CONSULT_CHARACTERS,
+  CONSULT_CHARACTER_BY_ID,
+  DEFAULT_CONSULT_CHARACTER,
+  type ConsultCharacterId,
+} from "../data/consultCharacters";
 import ConsultShopCard from "./ConsultShopCard";
 import type { Shop } from "../../map/data/shops";
 import type {
@@ -68,6 +74,9 @@ export interface ConsultStageProps {
   autoAskText?: string | null;
   /** ?shopId= / ?shopName= 付きで開かれたとき、その店を前提に答えさせる */
   autoAskContext?: { shopId?: number; shopName?: string };
+  /** いま話しているキャラ。null なら既定のにちよさん */
+  preferredCharacterId?: ConsultCharacterId | null;
+  onPreferredCharacterChange?: (id: ConsultCharacterId) => void;
 }
 
 type StagePhase = "idle" | "confirming" | "thinking";
@@ -88,6 +97,8 @@ export default function ConsultStage({
   onSelectShop,
   autoAskText,
   autoAskContext,
+  preferredCharacterId,
+  onPreferredCharacterChange,
 }: ConsultStageProps) {
   const [entries, setEntries] = useState<ConsultEntry[]>([]);
   const [phase, setPhase] = useState<StagePhase>("idle");
@@ -192,6 +203,12 @@ export default function ConsultStage({
     onSettled: handleSpeechSettled,
     onError: handleSpeechError,
   });
+
+  // 今の話し手。選んでいなければ既定のにちよさんが出る
+  const speaker =
+    (preferredCharacterId ? CONSULT_CHARACTER_BY_ID.get(preferredCharacterId) : null) ??
+    DEFAULT_CONSULT_CHARACTER;
+  const [isSpeakerPickerOpen, setIsSpeakerPickerOpen] = useState(false);
 
   const pose = resolveGrandmaPose({
     isListening: speech.isListening,
@@ -477,7 +494,7 @@ export default function ConsultStage({
       <div ref={topSentinelRef} aria-hidden="true" className="h-px w-full shrink-0" />
 
       {/* 入りの演出。大きいにちよさんが、下の定位置まで縮んでいく */}
-      <ConsultIntro targetRef={heroAvatarRef} onSettled={handleIntroSettled} />
+      <ConsultIntro targetRef={heroAvatarRef} character={speaker} onSettled={handleIntroSettled} />
 
       {/*
         固定バー。高さは常に一定で、中身は不透明度と transform でしか動かさない。
@@ -514,8 +531,9 @@ export default function ConsultStage({
           <GrandmaAvatar
             pose={pose}
             size="pinned"
-            onClick={speech.isSupported ? handleMicTap : undefined}
-            label={speech.isListening ? "音声入力を止める" : "にちよさんに話しかける"}
+            character={speaker}
+            onClick={() => setIsSpeakerPickerOpen(true)}
+            label={`話し手を選ぶ（いまは${speaker.name}）`}
           />
         </div>
 
@@ -546,18 +564,15 @@ export default function ConsultStage({
       <div className="flex flex-col items-center gap-2">
         {/*
           flex にして、囲んだだけで下に行間の隙間が出ないようにする（測る先がずれる）。
-          定位置に着いたら一度だけ会釈する。縮む動きが「小さくなった」ではなく
-          「こっちに来て、目の前に座った」として読めるようにするため。
+          歩いてきて定位置に着いたら、一度だけ会釈する。
         */}
-        <div
-          ref={heroAvatarRef}
-          className={`flex${introSettled ? " consult-greet" : ""}`}
-        >
+        <div ref={heroAvatarRef} className={`flex${introSettled ? " consult-greet" : ""}`}>
           <GrandmaAvatar
             pose={pose}
             size="hero"
-            onClick={speech.isSupported ? handleMicTap : undefined}
-            label={speech.isListening ? "音声入力を止める" : "にちよさんに話しかける"}
+            character={speaker}
+            onClick={() => setIsSpeakerPickerOpen(true)}
+            label={`話し手を選ぶ（いまは${speaker.name}）`}
           />
         </div>
         {speech.isListening ? (
@@ -565,9 +580,9 @@ export default function ConsultStage({
         ) : (
           !showAnswer && (
             /*
-              最初のひとこと。説明文をそのまま置くのではなく、にちよさんの言葉として出す。
+              最初のひとこと。説明文をそのまま置くのではなく、話し手の言葉として出す。
               「話しかけてよい相手が、もう話しかけてきている」ほうが、
-              タップしてよいことが一行の説明よりも早く伝わる。
+              この画面が何をする場所かが一行の説明よりも早く伝わる。
             */
             <div
               style={revealClass(0).style}
@@ -578,8 +593,8 @@ export default function ConsultStage({
               </p>
               <p className="mt-0.5 text-[11px] text-amber-700/80">
                 {speech.isSupported
-                  ? "にちよさんをタップして話しかけてね"
-                  : "聞きたいことを選んでね"}
+                  ? "下のボタンで話しかけてね。イラストをタップすると話し手を変えられるよ"
+                  : "聞きたいことを選んでね。イラストをタップすると話し手を変えられるよ"}
               </p>
             </div>
           )
@@ -597,7 +612,7 @@ export default function ConsultStage({
             {pendingQuestion ?? current?.question}
           </p>
           <p className="mt-1 text-[11px] font-bold text-amber-700">
-            {streamingSpeaker ?? current?.speakerName ?? "にちよさん"}
+            {streamingSpeaker ?? current?.speakerName ?? speaker.name}
           </p>
           {isBusy && !streamingText ? (
             // 応答待ち。前の答えを残すと「過去の会話が透けている」ように見えるので、
@@ -915,6 +930,87 @@ export default function ConsultStage({
                 相談を最初からにする
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/*
+        話し手を選ぶシート。
+
+        イラストそのものが入口。歩きながら片手で開けるよう、当たり判定を
+        絵に持たせている（音声入力は下の「話しかける」ボタンに集約した）。
+        選び直しても会話は消さない。話し手が変わるのは次の返答から。
+
+        ナビゲーションバー（z-[9997]）はこのシートより手前に描かれるので、
+        下端に寄せたままだと選択肢の下の方がバーに隠れて押せない。
+        バーのぶんだけ持ち上げる（画面下部の固定ボタンと同じ計算）。
+      */}
+      {isSpeakerPickerOpen && (
+        <div
+          className="fixed inset-0 z-40 flex items-end justify-center overflow-y-auto bg-black/30 px-3 pt-16"
+          style={{
+            paddingBottom: "calc(var(--safe-bottom, 0px) + var(--nav-bar-height) + 0.75rem)",
+          }}
+        >
+          <div className="w-full max-w-md rounded-3xl border border-amber-100 bg-white p-4 pb-5 shadow-xl">
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-bold text-amber-900">だれに聞く？</p>
+              <button
+                type="button"
+                onClick={() => setIsSpeakerPickerOpen(false)}
+                aria-label="閉じる"
+                className="flex h-9 w-9 items-center justify-center rounded-full border border-amber-200 text-amber-800"
+              >
+                <X className="h-4 w-4" aria-hidden="true" />
+              </button>
+            </div>
+            <ul className="mt-3 flex max-h-[60vh] flex-col gap-2 overflow-y-auto">
+              {CONSULT_CHARACTERS.map((character) => {
+                const isCurrent = character.id === speaker.id;
+                return (
+                  <li key={character.id}>
+                    <button
+                      type="button"
+                      aria-pressed={isCurrent}
+                      onClick={() => {
+                        onPreferredCharacterChange?.(character.id);
+                        setIsSpeakerPickerOpen(false);
+                      }}
+                      className={`flex w-full items-center gap-3 rounded-2xl border p-3 text-left transition active:scale-[0.99] ${
+                        isCurrent
+                          ? "border-amber-400 bg-amber-50"
+                          : "border-amber-100 bg-white"
+                      }`}
+                    >
+                      <span className="h-14 w-14 shrink-0 overflow-hidden rounded-2xl border border-amber-100 bg-amber-50">
+                        {/* 一覧では next/image の最適化より、行の切り抜き指定をそのまま使う方が崩れない */}
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={character.image}
+                          alt=""
+                          className={`h-full w-full object-cover ${character.imageScale}`}
+                          style={{ objectPosition: character.imagePosition }}
+                          draggable={false}
+                        />
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-sm font-bold text-slate-900">
+                          {character.name}
+                        </span>
+                        <span className="mt-0.5 block text-xs text-slate-500">
+                          {character.subtitle}
+                        </span>
+                      </span>
+                      {isCurrent && (
+                        <span className="shrink-0 rounded-full bg-amber-500 px-2 py-1 text-[11px] font-bold text-white">
+                          いま
+                        </span>
+                      )}
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
           </div>
         </div>
       )}

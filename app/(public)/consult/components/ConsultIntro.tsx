@@ -3,6 +3,11 @@
 import Image from "next/image";
 import { useEffect, useRef, useState, type RefObject } from "react";
 import { computeWalkInStartX } from "@/lib/grandma/introWalk";
+import GrandmaAvatar from "./GrandmaAvatar";
+import {
+  DEFAULT_CONSULT_CHARACTER_ID,
+  type ConsultCharacter,
+} from "../data/consultCharacters";
 
 /** 画面の外から定位置まで歩いてくる時間 */
 const WALK_MS = 1800;
@@ -17,24 +22,26 @@ const STEP_MS = 420;
 const EASING = "cubic-bezier(0.12, 0.4, 0.28, 1)";
 
 /**
- * 歩いてくるところの絵（左から右へ歩く横顔）。
+ * にちよさんが歩いてくるところの絵（左から右へ歩く横顔）。
  *
- * 差し替え予定。並べた順にコマ送りするので、2枚以上あれば足が入れ替わって歩く。
- * 今は正面の絵しかないため1枚で、上下の揺れだけで歩いて見せている。
+ * まだ無いので空。並べた順にコマ送りするので、2枚以上入れれば足が入れ替わって歩く。
+ * 絵が無い間は正面の絵のまま、上下の揺れだけで歩いて見せる。
  *
  * 描き足すときの決まり：
  *   - 正面の絵（obaasan.png）と同じ 1024×1024 の透過 PNG
  *   - 足元の位置と背の高さを正面の絵とそろえる（着いた瞬間に飛ばないため）
  *   - 進む向きは右
+ *
+ * 他の話し手（よういちさん・みらいくん・よさこちゃん）の横顔は無いので、
+ * その人が選ばれているときは正面のまま歩いてくる。
  */
-const WALK_FRAMES = ["/characters/obaasan.png"];
-
-/** 定位置に着いてから見せる、こちらを向いた絵 */
-const FRONT_FRAME = "/characters/obaasan.png";
+const WALK_FRAMES: string[] = [];
 
 export interface ConsultIntroProps {
-  /** 歩いてきて止まる先。ページ内のにちよさん（hero）を囲む要素 */
+  /** 歩いてきて止まる先。ページ内の話し手（hero）を囲む要素 */
   targetRef: RefObject<HTMLElement | null>;
+  /** 今の話し手。歩いてくるのはこの人（選ばれている人と食い違うと別人が現れる） */
+  character: ConsultCharacter;
   /**
    * にちよさんが定位置に着いた合図。
    * 演出をしなかったとき（動きを減らす設定・測れなかったとき）もすぐに呼ぶので、
@@ -48,7 +55,7 @@ type Spot = { left: number; top: number; width: number; height: number; startX: 
 /**
  * 相談ページの入り。
  *
- * にちよさんが画面の左の外からとことこ歩いてきて、定位置で止まり、こちらを向く。
+ * 話し手が画面の左の外からとことこ歩いてきて、定位置で止まり、こちらを向く。
  * マップ・検索と違い、この画面は「誰かに相談する」ことが分からないと使えないので、
  * 待っている間に読ませる文章は置かず、相手が来るところだけを見せる。
  *
@@ -59,7 +66,7 @@ type Spot = { left: number; top: number; width: number; height: number; startX: 
  * 動きを減らす設定のときは何も出さない（相談は待たされる画面ではないので、
  * 演出を省いても失われる情報がない）。
  */
-export default function ConsultIntro({ targetRef, onSettled }: ConsultIntroProps) {
+export default function ConsultIntro({ targetRef, character, onSettled }: ConsultIntroProps) {
   const [spot, setSpot] = useState<Spot | null>(null);
   const [walking, setWalking] = useState(false);
   const [arrived, setArrived] = useState(false);
@@ -129,12 +136,17 @@ export default function ConsultIntro({ targetRef, onSettled }: ConsultIntroProps
     };
   }, [targetRef]);
 
-  // 足の入れ替わり。絵が1枚しかない間は回しても何も変わらないので回さない
+  // 足の入れ替わり。横顔の絵が2枚以上あるときだけ回す
+  const frameCount = character.id === DEFAULT_CONSULT_CHARACTER_ID ? WALK_FRAMES.length : 0;
   useEffect(() => {
-    if (WALK_FRAMES.length < 2 || !walking || arrived) return;
-    const id = setInterval(() => setFrame((prev) => (prev + 1) % WALK_FRAMES.length), STEP_MS);
+    if (frameCount < 2 || !walking || arrived) return;
+    const id = setInterval(() => setFrame((prev) => (prev + 1) % frameCount), STEP_MS);
     return () => clearInterval(id);
-  }, [walking, arrived]);
+  }, [frameCount, walking, arrived]);
+
+  // 横顔の絵があるのは既定の話し手だけ。他の人は正面のまま歩いてくる
+  const walkFrames = character.id === DEFAULT_CONSULT_CHARACTER_ID ? WALK_FRAMES : [];
+  const showWalkFrames = walkFrames.length > 0 && !arrived;
 
   if (finished) return null;
 
@@ -160,8 +172,12 @@ export default function ConsultIntro({ targetRef, onSettled }: ConsultIntroProps
           }}
         >
           {/* 一歩ごとの上下の揺れ。着いたら止める */}
-          <div className={`consult-intro__step relative h-full w-full${arrived ? " is-arrived" : ""}`}>
-            {WALK_FRAMES.map((src, index) => (
+          <div
+            className={`consult-intro__step relative flex h-full w-full items-start justify-center${
+              arrived ? " is-arrived" : ""
+            }`}
+          >
+            {walkFrames.map((src, index) => (
               <Image
                 key={src}
                 src={src}
@@ -171,25 +187,26 @@ export default function ConsultIntro({ targetRef, onSettled }: ConsultIntroProps
                 priority
                 className="absolute inset-0 h-full w-full object-contain drop-shadow-[0_8px_16px_rgba(146,64,14,0.25)]"
                 style={{
-                  opacity: !arrived && index === frame ? 1 : 0,
+                  opacity: showWalkFrames && index === frame ? 1 : 0,
                   transition: `opacity ${TURN_MS}ms ease-out`,
                 }}
               />
             ))}
 
-            {/* 着いたところで、こちらを向く */}
-            <Image
-              src={FRONT_FRAME}
-              alt=""
-              width={480}
-              height={480}
-              priority
-              className="absolute inset-0 h-full w-full object-contain drop-shadow-[0_8px_16px_rgba(146,64,14,0.25)]"
+            {/*
+              こちらを向いた姿。ページ側と同じ GrandmaAvatar を使う。
+              話し手ごとの拡大率や位置の調整をここで書き写すと、
+              着いた瞬間に絵がずれる（同じものを使えばずれようがない）。
+            */}
+            <div
+              className="absolute inset-0"
               style={{
-                opacity: arrived ? 1 : 0,
+                opacity: showWalkFrames ? 0 : 1,
                 transition: `opacity ${TURN_MS}ms ease-out`,
               }}
-            />
+            >
+              <GrandmaAvatar pose="idle" size="hero" character={character} />
+            </div>
           </div>
         </div>
       )}

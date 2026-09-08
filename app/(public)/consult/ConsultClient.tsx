@@ -7,7 +7,11 @@ import GrandmaChatter from "../map/components/GrandmaChatter";
 import ShopDetailBanner from "../map/components/ShopDetailBanner";
 import { grandmaComments } from "../map/data/grandmaComments";
 import ConsultStage from "./components/ConsultStage";
-import type { ConsultCharacterId } from "./data/consultCharacters";
+import {
+  CONSULT_CHARACTER_BY_ID,
+  DEFAULT_CONSULT_CHARACTER_ID,
+  type ConsultCharacterId,
+} from "./data/consultCharacters";
 import type {
   ConsultAskResponse,
   ConsultAskStreamEvent,
@@ -22,7 +26,9 @@ export default function ConsultClient({ embedded = false }: { embedded?: boolean
   const [aiSuggestedShops, setAiSuggestedShops] = useState<Shop[]>([]);
   const [knownShops, setKnownShops] = useState<Shop[]>([]);
   const [selectedShop, setSelectedShop] = useState<Shop | null>(null);
-  const [preferredCharacterId, setPreferredCharacterId] = useState<ConsultCharacterId | null>(null);
+  // 既定はにちよさん。null にすると話し手が毎回変わり、会話全体が掛け合いに見える
+  const [preferredCharacterId, setPreferredCharacterId] =
+    useState<ConsultCharacterId>(DEFAULT_CONSULT_CHARACTER_ID);
   const searchParams = useSearchParams();
 
   const handleSelectShop = useCallback(
@@ -36,16 +42,13 @@ export default function ConsultClient({ embedded = false }: { embedded?: boolean
   useEffect(() => {
     if (typeof window === "undefined") return;
     const saved = window.localStorage.getItem(PREFERRED_CHARACTER_STORAGE_KEY);
-    if (!saved) return;
+    // 消えたキャラのIDが残っていても既定に落ちるようにする
+    if (!saved || !CONSULT_CHARACTER_BY_ID.has(saved as ConsultCharacterId)) return;
     setPreferredCharacterId(saved as ConsultCharacterId);
   }, []);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    if (!preferredCharacterId) {
-      window.localStorage.removeItem(PREFERRED_CHARACTER_STORAGE_KEY);
-      return;
-    }
     window.localStorage.setItem(PREFERRED_CHARACTER_STORAGE_KEY, preferredCharacterId);
   }, [preferredCharacterId]);
 
@@ -313,6 +316,8 @@ export default function ConsultClient({ embedded = false }: { embedded?: boolean
               onSelectShop={handleSelectShop}
               autoAskText={autoAskText}
               autoAskContext={autoAskContext}
+              preferredCharacterId={preferredCharacterId}
+              onPreferredCharacterChange={setPreferredCharacterId}
             />
           )}
         </div>

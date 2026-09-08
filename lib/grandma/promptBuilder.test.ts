@@ -11,6 +11,7 @@ import {
 } from "./prompts/consultConversation";
 import {
   CONSULT_CHARACTERS,
+  DEFAULT_CONSULT_CHARACTER_ID,
   pickConsultCharacters,
 } from "@/app/(public)/consult/data/consultCharacters";
 
@@ -22,12 +23,18 @@ describe("pickConsultCharacters", () => {
     expect(pickConsultCharacters("miraikun").map((c) => c.id)).toEqual(["miraikun"]);
   });
 
-  it("未選択なら4人の中から1人だけを返す", () => {
+  it("未選択なら既定のにちよさんを返す（ランダムに変えない）", () => {
+    // 質問のたびに話し手が入れ替わると、1回の返答が1人でも
+    // 会話全体としては複数キャラの掛け合いに見える
     for (let i = 0; i < 20; i += 1) {
-      const picked = pickConsultCharacters();
-      expect(picked).toHaveLength(1);
-      expect(CONSULT_CHARACTERS).toContain(picked[0]);
+      expect(pickConsultCharacters().map((c) => c.id)).toEqual([DEFAULT_CONSULT_CHARACTER_ID]);
     }
+  });
+
+  it("知らないIDが来ても既定に落ちる", () => {
+    expect(
+      pickConsultCharacters("dareka" as (typeof CONSULT_CHARACTERS)[number]["id"]).map((c) => c.id)
+    ).toEqual([DEFAULT_CONSULT_CHARACTER_ID]);
   });
 });
 
