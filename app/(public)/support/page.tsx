@@ -11,6 +11,7 @@ import SupportSummaryBar from "./components/SupportSummaryBar";
 import CostLedger from "./components/CostLedger";
 import CostPerVisitor from "./components/CostPerVisitor";
 import TrackRecord from "./components/TrackRecord";
+import Reveal from "@/components/Reveal";
 import {
   FUNDS_ON_HAND_JPY,
   RUNNING_COSTS,
@@ -34,6 +35,31 @@ export const metadata = {
       "高知・日曜市の地図 nicchyo は、高知高専の学生と顧問の教員が運営しております。かかっている費用と、ご支援いただいている状況を公開しております。",
   },
 };
+
+/**
+ * ご協賛でお返しできること。
+ *
+ * すでに実装してあるものだけを並べる。ここに書いた時点で約束になるので、
+ * 部員が入れ替わっても手をかけずに続くもの以外は足さないこと。
+ */
+const SPONSOR_OFFERS = [
+  {
+    title: "お名前またはロゴの掲載",
+    body: "このページと「nicchyoとは」に掲載いたします。",
+  },
+  {
+    title: "支えていただいた分を、図でお示しします",
+    body: "ご希望に応じて、上の図にご協賛ぶんの色がつきます。何ヶ月ぶんを支えていただいているかが、そのまま見える形になります。",
+  },
+  {
+    title: "マップへのご紹介",
+    body: "ご希望に応じて、日曜市の周辺で立ち寄れる場所として、マップにご紹介いたします。",
+  },
+  {
+    title: "更新のご相談",
+    body: "期間が終わる前に、こちらからご連絡いたします。",
+  },
+] as const;
 
 /** 入口を過ぎたことを要約バーに知らせる目印 */
 const HERO_SENTINEL_ID = "support-hero-end";
@@ -59,7 +85,8 @@ function Section({
       <h2 className="text-[11px] font-bold tracking-[0.2em] text-nicchyo-ink/40 lg:col-span-3 lg:sticky lg:top-24 lg:self-start">
         {label}
       </h2>
-      <div className="mt-6 lg:col-span-9 lg:mt-0">{children}</div>
+      {/* 貼り付く見出しは包まない。transform が効いているあいだ sticky の基準が変わる */}
+      <Reveal className="mt-6 lg:col-span-9 lg:mt-0">{children}</Reveal>
     </section>
   );
 }
@@ -215,6 +242,41 @@ export default async function SupportPage() {
           </p>
         </Section>
 
+        {/* ── ご提案できること ────────────────────────────────────────────
+            ご協賛を検討する側がいちばん知りたいところ。条件の一項目として
+            他と同じ大きさで並べていると、探さないと見つからない */}
+        <Section label="ご提案できること">
+          {/*
+            すでに動いているものだけを書く。ここに書いたことは約束になるので、
+            部員が入れ替わっても手をかけずに続くもの以外は載せない。
+
+            頭に「1年間を通して」を置いているのは、1口が運営費の3ヶ月分にあたる
+            ことと、掲載が1年続くことを混同されないため。個々の項目に期間を
+            書き足すより、まとめて一度言う方が読みやすい
+          */}
+          <div className="rounded-[22px] bg-amber-50/70 p-6 ring-1 ring-amber-600/15 sm:p-8">
+            <p className="text-[14px] font-bold leading-[1.9]">
+              1口につき、1年間を通して以下をご案内いたします。
+            </p>
+            <ul className="mt-5 space-y-4">
+              {SPONSOR_OFFERS.map((offer) => (
+                <li key={offer.title} className="flex gap-3.5">
+                  <span
+                    className="mt-[0.55rem] h-1.5 w-1.5 shrink-0 rounded-full bg-amber-600"
+                    aria-hidden
+                  />
+                  <span>
+                    <strong className="block text-[14.5px] font-bold">{offer.title}</strong>
+                    <span className="mt-1 block text-[13px] leading-[1.95] text-nicchyo-ink/60">
+                      {offer.body}
+                    </span>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </Section>
+
         {/* ── ご相談について ──────────────────────────────────────────── */}
         <Section label="ご相談について">
           <dl className="border-t border-nicchyo-ink/10">
@@ -222,30 +284,6 @@ export default async function SupportPage() {
               <dt className="text-[14px] font-bold">お支払いについて</dt>
               <dd className="mt-1.5 text-[13px] leading-[1.95] text-nicchyo-ink/55">
                 サイト内での決済は承っておりません。お問い合わせ箱にてご相談を承ります。
-              </dd>
-            </div>
-            <div className="border-b border-nicchyo-ink/[0.07] py-4">
-              <dt className="text-[14px] font-bold">掲載について</dt>
-              {/*
-                すでに動いているものだけを書く。ここに書いたことは約束になるので、
-                部員が入れ替わっても手をかけずに続くもの以外は載せない。
-
-                頭に「1年間を通して」を置いているのは、1口が運営費の3ヶ月分にあたる
-                ことと、掲載が1年続くことを混同されないため。個々の項目に期間を
-                書き足すより、まとめて一度言う方が読みやすい
-              */}
-              <dd className="mt-1.5 text-[13px] leading-[1.95] text-nicchyo-ink/55">
-                <p>1口につき、1年間を通して以下をご案内いたします。</p>
-                <ul className="mt-1.5 space-y-1.5">
-                  <li>このページと「nicchyoとは」に、お名前またはロゴを掲載いたします</li>
-                  <li>
-                    ご希望に応じて、上の図にご協賛ぶんの色がつきます。何ヶ月ぶんを支えていただいているかが、そのまま見える形になります
-                  </li>
-                  <li>
-                    ご希望に応じて、日曜市の周辺で立ち寄れる場所として、マップにご紹介いたします
-                  </li>
-                  <li>期間が終わる前に、更新のご相談をいたします</li>
-                </ul>
               </dd>
             </div>
             <div className="border-b border-nicchyo-ink/[0.07] py-4">
