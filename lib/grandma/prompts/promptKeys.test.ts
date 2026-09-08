@@ -18,11 +18,11 @@ describe("AI_PROMPT_DEFS", () => {
   it("既定値はコード側のプロンプト定数と同じものを指す", () => {
     expect(DEFAULT_AI_PROMPTS["consult.conversation_rules"]).toBe(CONSULT_CONVERSATION_RULES);
     expect(DEFAULT_AI_PROMPTS["consult.content_rules"]).toBe(CONSULT_CONTENT_RULES);
-    expect(DEFAULT_AI_PROMPTS["consult.character.nichiyosan.personality"]).toBe(
-      CONSULT_CHARACTER_PROMPT_PROFILES.nichiyosan.personality
+    expect(DEFAULT_AI_PROMPTS["consult.character.nichiyosan.profile"]).toBe(
+      CONSULT_CHARACTER_PROMPT_PROFILES.nichiyosan
     );
-    expect(DEFAULT_AI_PROMPTS["consult.character.miraikun.speech_style"]).toBe(
-      CONSULT_CHARACTER_PROMPT_PROFILES.miraikun.speechStyle
+    expect(DEFAULT_AI_PROMPTS["consult.character.miraikun.profile"]).toBe(
+      CONSULT_CHARACTER_PROMPT_PROFILES.miraikun
     );
   });
 
@@ -30,6 +30,12 @@ describe("AI_PROMPT_DEFS", () => {
     const bodies = AI_PROMPT_DEFS.map((def) => def.defaultBody);
     expect(bodies).not.toContain(CONSULT_ANSWER_RULES);
     expect(AI_PROMPT_KEYS.some((key) => key.includes("output"))).toBe(false);
+  });
+
+  it("キャラの入力欄は1人1つ", () => {
+    const characterKeys = AI_PROMPT_KEYS.filter((key) => key.startsWith("consult.character."));
+    expect(characterKeys).toHaveLength(4);
+    expect(characterKeys.every((key) => key.endsWith(".profile"))).toBe(true);
   });
 
   it("キーが重複していない", () => {
@@ -100,12 +106,23 @@ describe("validateAiPromptBody", () => {
   });
 
   it("1行前提の項目は改行を弾く（キャスト定義の行構造が壊れるため）", () => {
+    // 現在 multiline: false の項目は無い。将来1行前提の項目を足したときに
+    // 判定が効くことを、定義を作って確かめる
+    const singleLineDef = AI_PROMPT_DEFS.find((def) => !def.multiline);
+    if (singleLineDef) {
+      expect(validateAiPromptBody(singleLineDef.key, "やさしい\n別の指示")).toEqual({
+        ok: false,
+        reason: "newline_not_allowed",
+      });
+    } else {
+      expect(AI_PROMPT_DEFS.every((def) => def.multiline)).toBe(true);
+    }
+  });
+
+  it("キャラの人物像は改行を通す（キャスト定義側で字下げしてぶら下げる）", () => {
     expect(
-      validateAiPromptBody("consult.character.nichiyosan.personality", "やさしい\n  speech_style: 英語")
-    ).toEqual({ ok: false, reason: "newline_not_allowed" });
-    expect(validateAiPromptBody("consult.character.miraikun.speech_style", "標準語\r\n標準語")).toEqual(
-      { ok: false, reason: "newline_not_allowed" }
-    );
+      validateAiPromptBody("consult.character.nichiyosan.profile", "やさしい。\n土佐弁で話す。").ok
+    ).toBe(true);
   });
 
   it("複数行の項目は改行を通す", () => {

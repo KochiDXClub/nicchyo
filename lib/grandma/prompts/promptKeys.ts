@@ -38,8 +38,7 @@ export type AiPromptKey =
   | "consult.conversation_rules"
   | "consult.content_rules"
   | "consult.operator_note"
-  | `consult.character.${ConsultCharacterId}.personality`
-  | `consult.character.${ConsultCharacterId}.speech_style`;
+  | `consult.character.${ConsultCharacterId}.profile`;
 
 export type AiPromptDef = {
   key: AiPromptKey;
@@ -57,27 +56,24 @@ export type AiPromptDef = {
   multiline: boolean;
 };
 
+/**
+ * キャラは1人1つの入力欄にする。
+ *
+ * 以前は「性格」と「話し方」に分けていたが、書く側から見ると同じ人物の
+ * 説明で、どちらに書くか迷うだけだった（「土佐弁でしみじみ語る」は
+ * どちらにも書ける）。分けていた理由も無くなっている。
+ */
 function characterDefs(): AiPromptDef[] {
-  return AI_PROMPT_CHARACTER_IDS.flatMap((id): AiPromptDef[] => [
-    {
-      key: `consult.character.${id}.personality`,
-      label: `${CHARACTER_LABELS[id]}：性格`,
-      description: "どんな態度で話すか。「やさしく場をつなぐ」「しみじみ語る」など。",
-      group: "characters",
-      defaultBody: CONSULT_CHARACTER_PROMPT_PROFILES[id].personality,
-      maxLength: 200,
-      multiline: false,
-    },
-    {
-      key: `consult.character.${id}.speech_style`,
-      label: `${CHARACTER_LABELS[id]}：話し方`,
-      description: "「土佐弁」「標準語」など、言葉づかいの指定。",
-      group: "characters",
-      defaultBody: CONSULT_CHARACTER_PROMPT_PROFILES[id].speechStyle,
-      maxLength: 60,
-      multiline: false,
-    },
-  ]);
+  return AI_PROMPT_CHARACTER_IDS.map((id): AiPromptDef => ({
+    key: `consult.character.${id}.profile`,
+    label: CHARACTER_LABELS[id],
+    description:
+      "どんな人で、どんな態度で、どんな言葉づかいで話すか。「土佐弁でしみじみ語る」のように続けて書いてかまいません。",
+    group: "characters",
+    defaultBody: CONSULT_CHARACTER_PROMPT_PROFILES[id],
+    maxLength: 300,
+    multiline: true,
+  }));
 }
 
 export const AI_PROMPT_DEFS: readonly AiPromptDef[] = [
