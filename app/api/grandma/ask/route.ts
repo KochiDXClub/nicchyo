@@ -50,7 +50,10 @@ import {
   parseStreamingConsultOutput,
   buildReplyFromTurns,
 } from "@/lib/grandma/promptBuilder";
-import { buildStreamingFormatPrompt } from "@/lib/grandma/prompts/consultConversation";
+import {
+  buildStreamingFormatPrompt,
+  buildJsonFormatPrompt,
+} from "@/lib/grandma/prompts/consultConversation";
 import { handleAbuseDetection } from "@/lib/grandma/abuseDetection";
 import { z } from "zod";
 
@@ -404,7 +407,13 @@ async function createStreamingConsultResponse(options: {
         const firstLine = modelOutput.split(/\r?\n/, 1)[0]?.replace(/\r/g, "") ?? "";
         if (!firstLine.startsWith("TURN|")) return;
         const parts = firstLine.split("|");
-        if (parts.length < 4) return;
+        // 本来は TURN|id|name|text の4分割。モデルが name を省略して
+        // TURN|id|text で返すことがあり、parseStreamingConsultOutput() も
+        // それを許容している（1行目が閉じるまでは name か text か区別が
+        // つかないので、行が閉じてから text として流す）。
+        const firstLineClosed = /\r?\n/.test(modelOutput);
+        const hasName = parts.length >= 4;
+        if (!hasName && !(firstLineClosed && parts.length === 3)) return;
         const requestedSpeakerId = parts[1].trim() as ConsultCharacterId;
         const matchedCharacter =
           CONSULT_CHARACTER_BY_ID.get(requestedSpeakerId) ??
@@ -416,10 +425,10 @@ async function createStreamingConsultResponse(options: {
           enqueue({
             type: "first_turn_start",
             speakerId: matchedCharacter.id,
-            speakerName: parts[2].trim() || matchedCharacter.name,
+            speakerName: (hasName ? parts[2].trim() : "") || matchedCharacter.name,
           });
         }
-        const currentText = parts.slice(3).join("|");
+        const currentText = (hasName ? parts.slice(3) : parts.slice(2)).join("|");
         if (currentText.length <= firstTurnTextLength) return;
         enqueue({
           type: "first_turn_delta",
@@ -835,7 +844,7 @@ export async function POST(request: Request) {
           role: "system",
           content: buildGrandmaAiSystemPrompt(
             selectedCharacters,
-            spotSupport.prompt,
+            [buildJsonFormatPrompt(), spotSupport.prompt].filter(Boolean).join("\n\n"),
             await fetchAiPrompts()
           ),
         },
