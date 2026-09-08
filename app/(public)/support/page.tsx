@@ -11,7 +11,9 @@ import SupportSummaryBar from "./components/SupportSummaryBar";
 import CostLedger from "./components/CostLedger";
 import CostPerVisitor from "./components/CostPerVisitor";
 import TrackRecord from "./components/TrackRecord";
+import TeamStructure from "./components/TeamStructure";
 import Reveal from "@/components/Reveal";
+import { totalIndividualSupporters } from "@/lib/support/individualSupporters";
 import {
   FUNDS_ON_HAND_JPY,
   RUNNING_COSTS,
@@ -122,6 +124,8 @@ export default async function SupportPage() {
   const otherSegment = segments.find((segment) => segment.color === OTHER_FUNDING_COLOR);
   const runway = runwayMonths();
   const unitMonths = sponsorUnitMonths();
+
+  const individualSupporterCount = totalIndividualSupporters();
 
   const monthlyLabel = `${formatJpy(monthly)}${hasPending ? "以上" : ""}`;
   const runwayLabel = `${runway.toFixed(1)}ヶ月`;
@@ -242,6 +246,13 @@ export default async function SupportPage() {
           </p>
         </Section>
 
+        {/* ── 運営体制 ────────────────────────────────────────────────
+            名前を並べた組織図ではなく、お金がどこに入って最後に誰へ届くのかを
+            1枚で見せる。「卒業したら誰が続けるのか」がここでの主題 */}
+        <Section label="運営体制">
+          <TeamStructure />
+        </Section>
+
         {/* ── ご提案できること ────────────────────────────────────────────
             ご協賛を検討する側がいちばん知りたいところ。条件の一項目として
             他と同じ大きさで並べていると、探さないと見つからない */}
@@ -284,6 +295,27 @@ export default async function SupportPage() {
               <dt className="text-[14px] font-bold">お支払いについて</dt>
               <dd className="mt-1.5 text-[13px] leading-[1.95] text-nicchyo-ink/55">
                 サイト内での決済は承っておりません。お問い合わせ箱にてご相談を承ります。
+              </dd>
+            </div>
+            <div className="border-b border-nicchyo-ink/[0.07] py-4">
+              {/*
+                個人のご支援は、企業の掲載枠とは別の受け皿にする。
+                枠とロゴの並びにお名前を混ぜると、金額の大小がそのまま
+                見た目の差になってしまう
+              */}
+              <dt className="text-[14px] font-bold">個人でのご支援について</dt>
+              <dd className="mt-1.5 text-[13px] leading-[1.95] text-nicchyo-ink/55">
+                金額は問いません。掲載にご同意いただける場合は、
+                <Link
+                  href="/support/supporters"
+                  className="font-bold text-amber-700 underline underline-offset-4 transition hover:text-amber-800"
+                >
+                  ご支援くださった皆さま
+                </Link>
+                のページにお名前を掲載いたします
+                {individualSupporterCount > 0 &&
+                  `（これまでに ${individualSupporterCount.toLocaleString("ja-JP")}名）`}
+                。企業さまの掲載枠とは分けて、金額の多少にかかわらず同じ大きさで並べております。
               </dd>
             </div>
             <div className="border-b border-nicchyo-ink/[0.07] py-4">

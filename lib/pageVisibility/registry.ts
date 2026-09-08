@@ -43,6 +43,7 @@ export const PAGE_REGISTRY: readonly PageRegistryEntry[] = [
   { path: "/faq", label: "よくある質問", group: "来訪者向け" },
   { path: "/contact", label: "お問い合わせ", group: "来訪者向け" },
   { path: "/support", label: "協賛・ご支援について", group: "来訪者向け", description: "運営費と協賛のお願い" },
+  { path: "/support/supporters", label: "ご支援くださった皆さま", group: "来訪者向け", description: "個人でご支援くださった方のお名前" },
   { path: "/privacy", label: "プライバシーポリシー", group: "来訪者向け" },
   { path: "/user", label: "ユーザーページ", group: "来訪者向け" },
 
