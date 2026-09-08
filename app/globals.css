@@ -547,23 +547,39 @@ body.grandma-chat-open .leaflet-container {
   letter-spacing: 0.04em;
 }
 
+/*
+ * お気に入りの印。
+ *
+ * 中身は SHOP_FAVORITE_BADGE_HTML の SVG（❤ の文字だと端末ごとに絵柄が
+ * 変わるため）。文字ではなく固定寸法の丸にしてあるので、フォントに
+ * 左右されず大きさが揃う。
+ *
+ * 枠と影は木札（.shop-nameplate）と同じ配色にして、木の看板が並ぶ
+ * マップの世界から浮かないようにしている。地は白ではなくサイトの
+ * クリーム（--nicchyo-base 相当）。ハートの色はお気に入り色。
+ */
 .shop-favorite-badge {
   position: absolute;
-  top: -14px;
-  right: -12px;
+  top: -13px;
+  right: -11px;
   display: none;
   align-items: center;
   justify-content: center;
+  box-sizing: border-box;
+  width: 20px;
+  height: 20px;
   border-radius: 9999px;
-  border: 2px solid #f97316;
-  background: #ffffff;
-  color: #f97316;
-  font-size: 11px;
-  font-weight: 700;
-  line-height: 1;
-  padding: 2px 4px;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.18);
+  border: 1px solid rgba(140, 106, 62, 0.45);
+  background: #fffaf0;
+  box-shadow: 0 2px 4px rgba(76, 53, 22, 0.2);
   pointer-events: none;
+}
+
+.shop-favorite-badge svg {
+  width: 11px;
+  height: 11px;
+  display: block;
+  fill: var(--favorite-fg, #be123c);
 }
 
 .shop-side-north .shop-favorite-badge {

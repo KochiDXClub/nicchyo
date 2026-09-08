@@ -223,37 +223,58 @@ export async function rasterizePhotoCircle(
   return ctx.getImageData(0, 0, size, size);
 }
 
-/** お気に入り（♥ 橙）のバッジ。Leaflet 版 .shop-favorite-badge と同じ配色 */
+/** Leaflet 版 SHOP_FAVORITE_BADGE_HTML と同じハート。24 の viewBox で持つ */
+const FAVORITE_HEART_PATH =
+  "M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z";
+
+/**
+ * お気に入りの印。Leaflet 版 .shop-favorite-badge と同じ見た目にする。
+ *
+ * クリーム地に木札と同じ茶色の枠、中身はお気に入り色のハート。
+ * 文字（♥ や絵文字）ではなくパスで描くので、端末のフォントに左右されない。
+ */
 export function buildFavoriteBadgeSprite(pixelRatio: number): ImageData {
-  const w = 26;
-  const h = 20;
+  const d = 20;
   const pad = 4;
+  const size = d + pad * 2;
   const canvas = document.createElement("canvas");
-  canvas.width = Math.round((w + pad * 2) * pixelRatio);
-  canvas.height = Math.round((h + pad * 2) * pixelRatio);
+  canvas.width = Math.round(size * pixelRatio);
+  canvas.height = Math.round(size * pixelRatio);
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("canvas 2d context を取得できません");
   ctx.scale(pixelRatio, pixelRatio);
-  const color = "#f97316";
+
+  const c = pad + d / 2;
+  const r = d / 2 - 0.5;
+
+  // 地（クリーム）と影
   ctx.save();
-  ctx.shadowColor = "rgba(0,0,0,0.18)";
-  ctx.shadowBlur = 6;
+  ctx.shadowColor = "rgba(76,53,22,0.2)";
+  ctx.shadowBlur = 4;
   ctx.shadowOffsetY = 2;
-  ctx.fillStyle = "#ffffff";
+  ctx.fillStyle = "#fffaf0";
   ctx.beginPath();
-  ctx.roundRect(pad, pad, w, h, h / 2);
+  ctx.arc(c, c, r, 0, Math.PI * 2);
   ctx.fill();
   ctx.restore();
-  ctx.lineWidth = 2;
-  ctx.strokeStyle = color;
+
+  // 枠（木札と同じ茶）
+  ctx.lineWidth = 1;
+  ctx.strokeStyle = "rgba(140,106,62,0.45)";
   ctx.beginPath();
-  ctx.roundRect(pad + 1, pad + 1, w - 2, h - 2, (h - 2) / 2);
+  ctx.arc(c, c, r, 0, Math.PI * 2);
   ctx.stroke();
-  ctx.fillStyle = color;
-  ctx.font = "bold 12px sans-serif";
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  ctx.fillText("♥", pad + w / 2, pad + h / 2 + 0.5);
+
+  // ハート（お気に入り色）
+  const heart = 11;
+  const scale = heart / 24;
+  ctx.save();
+  ctx.translate(c - heart / 2, c - heart / 2);
+  ctx.scale(scale, scale);
+  ctx.fillStyle = "#be123c";
+  ctx.fill(new Path2D(FAVORITE_HEART_PATH));
+  ctx.restore();
+
   return ctx.getImageData(0, 0, canvas.width, canvas.height);
 }
 
