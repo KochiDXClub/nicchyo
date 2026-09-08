@@ -61,6 +61,8 @@ import {
   OVERVIEW_ZONE_MAX_ZOOM,
 } from "./config/displayConfig";
 
+import type { MapViewSettings } from "@/lib/map/mapViewSettings";
+
 const MapViewLeaflet = dynamic(() => import("./components/MapView"), {
   ssr: false,
 });
@@ -78,6 +80,8 @@ type MapPageClientProps = {
   mapRoute: MapRoute;
   /** 管理画面で保存したマップ動作フラグ（未指定なら既定値） */
   featureFlags?: MapFeatureFlags;
+  /** 管理画面で保存したマップの可動範囲（未指定なら既定値。MapLibre 版でのみ効く） */
+  mapViewSettings?: MapViewSettings;
 };
 
 
@@ -163,6 +167,7 @@ export default function MapPageClient({
   landmarks,
   mapRoute,
   featureFlags,
+  mapViewSettings,
 }: MapPageClientProps) {
   // 描画ライブラリの選択（管理画面の設定に URL の ?mapFlags=renderer:maplibre を重ねる）
   const MapView = useMemo(() => {
@@ -958,6 +963,7 @@ export default function MapPageClient({
               landmarks={mapLandmarks}
               mapRoute={mapRoute}
               featureFlags={featureFlags}
+              mapViewSettings={mapViewSettings}
               initialShopId={initialShopId}
               openInitialShopBanner={!isAiFocusMode}
               agentOpen={agentOpen}
