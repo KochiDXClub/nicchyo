@@ -4,6 +4,21 @@ export type ConsultCharacterId =
   | "miraikun"
   | "yosakochan";
 
+/**
+ * 相談ページを開いたとき・話し手を選び直したときに言う、最初のひとこと。
+ *
+ * AI の返答ではなく画面の文言なので、ここに直接置く（API を待たずに出したいし、
+ * 待たせて出すものでもない）。人ごとに口調が違うので、呼びかけも人ごとに持つ。
+ */
+export type ConsultGreetingScript = {
+  /** 時間帯ごとの呼びかけ */
+  morning: string;
+  afternoon: string;
+  evening: string;
+  /** 呼びかけのあとに続くひとこと。選ばれるたびに次の1つへ進む */
+  lines: readonly string[];
+};
+
 export type ConsultCharacter = {
   id: ConsultCharacterId;
   name: string;
@@ -11,6 +26,7 @@ export type ConsultCharacter = {
   image: string;
   imageScale: string;
   imagePosition: string;
+  greeting: ConsultGreetingScript;
 };
 
 // AIに渡す人格（personality / speech_style）はここには持たせない。
@@ -25,6 +41,20 @@ export const CONSULT_CHARACTERS: ConsultCharacter[] = [
     image: "/images/obaasan_transparent.png",
     imageScale: "scale-125",
     imagePosition: "center 28%",
+    // 日曜市の大ベテラン。土佐弁で、ゆっくり構える
+    greeting: {
+      morning: "おはよう。",
+      afternoon: "こんにちは。",
+      evening: "こんばんは。",
+      lines: [
+        "今日はええ風やねぇ、ゆっくり歩きや。",
+        "この通りのことなら、なんでも聞いてや。",
+        "旬のもんが知りたかったら、わしに聞きや。",
+        "人が多いときは、端の道が歩きやすいよ。",
+        "困ったことがあったら、遠慮せんと言うてね。",
+        "はじめてでも大丈夫。ちゃんと案内するきに。",
+      ],
+    },
   },
   {
     id: "yoichisan",
@@ -33,6 +63,20 @@ export const CONSULT_CHARACTERS: ConsultCharacter[] = [
     image: "/images/characters/ojichan.png",
     imageScale: "scale-125",
     imagePosition: "center 14%",
+    // 市を支えてきたジェントルマン。落ち着いた丁寧語
+    greeting: {
+      morning: "おはようございます。",
+      afternoon: "こんにちは。",
+      evening: "こんばんは。",
+      lines: [
+        "ようこそ日曜市へ。ご案内しますよ。",
+        "お探しのものがあれば、遠慮なくどうぞ。",
+        "この市は三百年続いております。ゆっくり歩いてみてください。",
+        "気になるお店があれば、お教えします。",
+        "混み合う前に回るのが、うまい歩き方です。",
+        "何から見ましょうか。お付き合いしますよ。",
+      ],
+    },
   },
   {
     id: "miraikun",
@@ -41,6 +85,20 @@ export const CONSULT_CHARACTERS: ConsultCharacter[] = [
     image: "/images/characters/onisan.png",
     imageScale: "scale-125",
     imagePosition: "center 12%",
+    // さわやかな高知の青年。明るい敬語
+    greeting: {
+      morning: "おはようございます！",
+      afternoon: "こんにちは！",
+      evening: "こんばんは！",
+      lines: [
+        "日曜市、はじめてですか？ 案内しますね。",
+        "気になること、どんどん聞いてください！",
+        "今日はどこから回りましょうか。",
+        "食べ歩きなら、いいお店を知ってますよ。",
+        "写真映えする場所も紹介できます！",
+        "歩きながらでも聞いてくださいね。",
+      ],
+    },
   },
   {
     id: "yosakochan",
@@ -49,6 +107,20 @@ export const CONSULT_CHARACTERS: ConsultCharacter[] = [
     image: "/images/characters/onesan.png",
     imageScale: "scale-125",
     imagePosition: "center 22%",
+    // 明るく華やかな土佐っ子。元気のいい土佐弁
+    greeting: {
+      morning: "おはよー！",
+      afternoon: "こんにちは！",
+      evening: "こんばんはー！",
+      lines: [
+        "よう来たね！ 今日はめいっぱい楽しんでいこ！",
+        "なんでも聞いて！ 一緒に回ろうや。",
+        "おいしいもん、ようけあるきね！",
+        "迷うたら声かけて。案内するき！",
+        "せっかくやき、端から端まで歩いてみいや。",
+        "今日はどこ行く？ わたしが決めてもええ？",
+      ],
+    },
   },
 ];
 

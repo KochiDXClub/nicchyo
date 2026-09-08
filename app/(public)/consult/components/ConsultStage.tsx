@@ -6,7 +6,6 @@ import toast from "react-hot-toast";
 import { useSpeechInput } from "@/lib/hooks/useSpeechInput";
 import { resolveGrandmaPose } from "@/lib/grandma/pose";
 import { buildConsultGreeting } from "@/lib/grandma/consultGreeting";
-import { grandmaComments } from "../../map/data/grandmaComments";
 import {
   buildHistoryForRequest,
   createEmptySession,
@@ -17,11 +16,12 @@ import {
   type ConsultEntry,
 } from "@/lib/grandma/consultSession";
 import GrandmaAvatar from "./GrandmaAvatar";
-import ConsultIntro from "./ConsultIntro";
+import ConsultCharacterSwap from "./ConsultCharacterSwap";
 import {
   CONSULT_CHARACTERS,
   CONSULT_CHARACTER_BY_ID,
   DEFAULT_CONSULT_CHARACTER,
+  type ConsultCharacter,
   type ConsultCharacterId,
 } from "../data/consultCharacters";
 import ConsultShopCard from "./ConsultShopCard";
@@ -51,13 +51,8 @@ const QUESTION_POOL = [
   "写真映えする場所は？",
 ] as const;
 
-/**
- * 最初のひとことに使う台本。
- * お知らせ（bag を見て、など）や催しは、開いた直後に言われても行き場がないので外す。
- */
-const GREETING_LINES = grandmaComments
-  .filter((comment) => comment.genre === "monologue" || comment.genre === "tutorial")
-  .map((comment) => comment.text);
+/** 開いたとき、話し手がその場に現れきるまで。出そろってから本文を出す */
+const APPEAR_MS = 420;
 
 export interface ConsultStageProps {
   onAskStream: (
@@ -123,26 +118,17 @@ export default function ConsultStage({
   entriesRef.current = entries;
   const textInputRef = useRef<HTMLTextAreaElement | null>(null);
   const topSentinelRef = useRef<HTMLDivElement | null>(null);
-  /** 入りの演出で、大きいにちよさんが縮んで着地する先 */
+  /** 話し手の立ち位置。入れ替わりの歩きはここへ着く */
   const heroAvatarRef = useRef<HTMLDivElement | null>(null);
   /**
-   * にちよさんが定位置に着いたか。
-   * 着いてから本文（呼びかけ・候補ボタン・下のボタン）をじわっと出す。
-   * 縮み終わりと同時に文字が出そろうと、動きが止まった瞬間に画面が
-   * いきなり埋まって唐突に見えるため。
+   * 話し手が現れきったか。
+   * 出そろってから本文（ひとこと・候補ボタン・下のボタン）をじわっと出す。
+   * 同時に出すと、画面がいきなり埋まって唐突に見えるため。
    */
   const [introSettled, setIntroSettled] = useState(false);
-  const handleIntroSettled = useCallback(() => setIntroSettled(true), []);
-  /**
-   * にちよさんが着いたときに言うひとこと。
-   * 引く値が毎回変わるので、描画のたびに変えるとサーバーと食い違う。
-   * 画面に出るのは演出のあとなので、mount 後に一度だけ決めれば間に合う。
-   */
-  const [greeting, setGreeting] = useState<string | null>(null);
   useEffect(() => {
-    setGreeting(
-      buildConsultGreeting({ now: new Date(), lines: GREETING_LINES, random: Math.random() })
-    );
+    const timer = setTimeout(() => setIntroSettled(true), APPEAR_MS);
+    return () => clearTimeout(timer);
   }, []);
   /** 出てくる順を少しずらす。段になって流れると急に埋まった感じが消える */
   const revealClass = (delayMs: number) => ({
@@ -209,6 +195,44 @@ export default function ConsultStage({
     (preferredCharacterId ? CONSULT_CHARACTER_BY_ID.get(preferredCharacterId) : null) ??
     DEFAULT_CONSULT_CHARACTER;
   const [isSpeakerPickerOpen, setIsSpeakerPickerOpen] = useState(false);
+
+  /**
+   * 今の話し手が言う、最初のひとこと。
+   *
+   * 台本は人ごとに持たせてある（口調が違う人に同じ挨拶をさせると、
+   * 選び分ける意味がなくなる）。選ばれるたびにその人の台本を1つ進めるので、
+   * 行ったり来たりしても同じ台詞が続かない。
+   *
+   * 引く位置に乱数を使うのは初回だけ。描画のたびに変えるとサーバーと食い違うので、
+   * mount 後の effect で決める。
+   */
+  const greetingIndexRef = useRef<Record<string, number>>({});
+  const [greeting, setGreeting] = useState<string | null>(null);
+  useEffect(() => {
+    const shown = greetingIndexRef.current[speaker.id];
+    const index =
+      shown === undefined
+        ? Math.floor(Math.random() * speaker.greeting.lines.length)
+        : shown + 1;
+    greetingIndexRef.current[speaker.id] = index;
+    setGreeting(buildConsultGreeting({ now: new Date(), script: speaker.greeting, index }));
+  }, [speaker]);
+
+  /**
+   * 話し手の入れ替わり。
+   *
+   * 前の人が右へ歩いて去り、新しい人が左から歩いてくる。絵が差し替わるだけだと
+   * 「今だれと話しているのか」が変わったことに気づけないため。
+   * 歩いているあいだページ側の絵は隠す（同じ人が2人並んで見えないように）。
+   */
+  const [swapFrom, setSwapFrom] = useState<ConsultCharacter | null>(null);
+  const shownSpeakerRef = useRef(speaker);
+  useEffect(() => {
+    if (shownSpeakerRef.current.id === speaker.id) return;
+    setSwapFrom(shownSpeakerRef.current);
+    shownSpeakerRef.current = speaker;
+  }, [speaker]);
+  const handleSwapDone = useCallback(() => setSwapFrom(null), []);
 
   const pose = resolveGrandmaPose({
     isListening: speech.isListening,
@@ -493,8 +517,15 @@ export default function ConsultStage({
       {/* 「画面の一番上にいるか」を測るための目印。見た目には出ない */}
       <div ref={topSentinelRef} aria-hidden="true" className="h-px w-full shrink-0" />
 
-      {/* 入りの演出。大きいにちよさんが、下の定位置まで縮んでいく */}
-      <ConsultIntro targetRef={heroAvatarRef} character={speaker} onSettled={handleIntroSettled} />
+      {/* 話し手の入れ替わり。前の人が右へ去り、新しい人が左から歩いてくる */}
+      {swapFrom && (
+        <ConsultCharacterSwap
+          from={swapFrom}
+          to={speaker}
+          targetRef={heroAvatarRef}
+          onDone={handleSwapDone}
+        />
+      )}
 
       {/*
         固定バー。高さは常に一定で、中身は不透明度と transform でしか動かさない。
@@ -564,9 +595,14 @@ export default function ConsultStage({
       <div className="flex flex-col items-center gap-2">
         {/*
           flex にして、囲んだだけで下に行間の隙間が出ないようにする（測る先がずれる）。
-          歩いてきて定位置に着いたら、一度だけ会釈する。
+          開いたときはその場に現れ、現れきったら一度だけ会釈する。
+          入れ替わりの歩きが走っている間は、こちらを隠して歩く絵に任せる。
         */}
-        <div ref={heroAvatarRef} className={`flex${introSettled ? " consult-greet" : ""}`}>
+        <div
+          ref={heroAvatarRef}
+          className={`flex consult-appear${introSettled ? " consult-greet" : ""}`}
+          style={{ opacity: swapFrom ? 0 : 1 }}
+        >
           <GrandmaAvatar
             pose={pose}
             size="hero"
@@ -578,7 +614,8 @@ export default function ConsultStage({
         {speech.isListening ? (
           <p className="text-center text-sm font-bold text-amber-900">聞きよるよ…</p>
         ) : (
-          !showAnswer && (
+          !showAnswer &&
+          !swapFrom && (
             /*
               最初のひとこと。説明文をそのまま置くのではなく、話し手の言葉として出す。
               「話しかけてよい相手が、もう話しかけてきている」ほうが、

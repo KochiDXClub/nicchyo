@@ -1607,26 +1607,25 @@ body.home-poster-zoom-open .hamburger-button {
   50%      { opacity: 0.45; transform: scale(0.82); }
 }
 
-/* 相談ページの入り。ページと同じ地の色（nicchyo-base）で覆う。
-   別の色にすると、消える瞬間に背景が切り替わったように見える */
-.consult-intro {
-  background: #FFFAF0;
+/* 歩いている間の上下の揺れ。一歩ごとに軽く沈む。
+   横顔の絵がまだ無いので、この揺れが「歩いている」ことを伝える */
+.consult-walk__step {
+  animation: consult-walk-step 380ms ease-in-out infinite;
 }
 
-/* 歩いてくる間の上下の揺れ。一歩ごとに軽く沈む。
-   絵が1枚しかない今は、この揺れだけが「歩いている」ことを伝える */
-.consult-intro__step {
-  animation: consult-intro-step 420ms ease-in-out infinite;
-}
-
-/* 着いたら足を止める */
-.consult-intro__step.is-arrived {
-  animation: none;
-}
-
-@keyframes consult-intro-step {
+@keyframes consult-walk-step {
   0%, 100% { transform: translateY(0); }
   50%      { transform: translateY(-2.2%); }
+}
+
+/* 相談ページを開いたときの出現。その場でふっと現れる */
+.consult-appear {
+  animation: consult-appear-in 420ms cubic-bezier(0.22, 0.61, 0.36, 1) both;
+}
+
+@keyframes consult-appear-in {
+  from { opacity: 0; transform: translateY(6px) scale(0.94); }
+  to   { opacity: 1; transform: none; }
 }
 
 /* 定位置に着いたときの会釈。
@@ -1695,14 +1694,11 @@ body.home-poster-zoom-open .hamburger-button {
     transform: none !important;
   }
 
-  /* 入りの演出は、JS が外すまでの一瞬も出さない（見せているのは動きだけで、
-     文字や情報を載せていないので、丸ごと省いて困らない） */
-  .consult-intro {
-    display: none !important;
-  }
-
-  /* 会釈も動きなので出さない。ひとことは文字なので、そのまま出したままにする */
-  .consult-greet {
+  /* 出現も会釈も歩きも動きなので出さない。
+     ひとことは文字なので、そのまま出したままにする */
+  .consult-appear,
+  .consult-greet,
+  .consult-walk__step {
     animation: none !important;
     transform: none !important;
   }

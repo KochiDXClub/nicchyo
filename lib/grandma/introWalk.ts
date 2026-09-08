@@ -1,10 +1,11 @@
 /**
- * 相談ページの入りで、にちよさんが画面の外から歩いてくるときの位置。
+ * 相談ページで、話し手が入れ替わるときの立ち位置。
  *
- * 大きさは変えない。定位置と同じ大きさのまま、画面の左の外から歩いてきて
- * 定位置で止まる。大きさが変わる動きは「なぜ縮んだのか」の説明が要るが、
- * 歩いてくる動きは説明が要らない。
+ * 前の人は定位置から右の画面外へ歩いて去り、次の人は左の画面外から歩いてきて
+ * 定位置で止まる。絵を差し替えるだけだと「別人になった」ことが伝わりにくいが、
+ * 出て行って入ってくるなら説明が要らない。
  *
+ * 大きさは変えない（定位置と同じ大きさのまま横に動くだけ）。
  * 表示側の都合を持ち込まない純関数にしてある。
  */
 
@@ -25,4 +26,17 @@ const OFFSCREEN_GAP = 24;
  */
 export function computeWalkInStartX({ left, width }: IntroRect, gap = OFFSCREEN_GAP): number {
   return -(left + width + gap);
+}
+
+/**
+ * 歩き去る先の横位置（定位置からの差、px）を返す。
+ *
+ * 定位置に置いた絵をこれだけ右へずらすと、絵の左端が画面の右の外に出る。
+ */
+export function computeWalkOutEndX(
+  { left }: IntroRect,
+  viewportWidth: number,
+  gap = OFFSCREEN_GAP
+): number {
+  return viewportWidth - left + gap;
 }
