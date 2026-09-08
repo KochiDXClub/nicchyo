@@ -46,9 +46,15 @@ type CostPerVisitorProps = {
 };
 
 /** 人のかたち。頭と肩だけの単純な形にして、100個並べても潰れないようにする */
-function PersonGlyph({ className }: { className: string }) {
+function PersonGlyph({
+  className,
+  style,
+}: {
+  className: string;
+  style?: React.CSSProperties;
+}) {
   return (
-    <svg viewBox="0 0 12 24" fill="currentColor" aria-hidden className={className}>
+    <svg viewBox="0 0 12 24" fill="currentColor" aria-hidden className={className} style={style}>
       <circle cx="6" cy="4.6" r="3.9" />
       <path d="M6 10.6c-3.3 0-5.9 2.3-5.9 5.3V23c0 .55.45 1 1 1h9.8c.55 0 1-.45 1-1v-7.1c0-3-2.6-5.3-5.9-5.3Z" />
     </svg>
@@ -95,24 +101,41 @@ export default function CostPerVisitor({
         aria-label={`日曜市の来場者のうち ${percent}%（およそ${visitorsLabel}人）を、ひとかたち1%として ${FIGURE_COUNT} かたちで表した図`}
         // 列数は FIGURE_COUNT を割り切れる数だけにする。auto-fill に任せると
         // 最後の行だけ数個で終わり、意図した形に見えない
-        className="mt-9 grid grid-cols-[repeat(10,minmax(0,1fr))] gap-y-2.5 sm:grid-cols-[repeat(20,minmax(0,1fr))] lg:grid-cols-[repeat(25,minmax(0,1fr))]"
+        className="mt-9 grid grid-cols-[repeat(10,minmax(0,1fr))] gap-y-1.5 sm:grid-cols-[repeat(20,minmax(0,1fr))] lg:grid-cols-[repeat(25,minmax(0,1fr))]"
       >
         {Array.from({ length: FIGURE_COUNT }, (_, index) => (
-          <span key={index} className="flex justify-center">
+          // かたちそのものを押せるようにする。つまみを掴まなくても、見えている
+          // 位置を直接指させる方が早い。
+          // キーボードと読み上げにはつまみ（range）が本体なので、こちらは
+          // tabIndex=-1 でタブ順から外す。親が role="img" なので中身は読み上げ
+          // されず、同じ操作が二重に現れることもない
+          <button
+            key={index}
+            type="button"
+            tabIndex={-1}
+            title={`${index + 1}%`}
+            onClick={() => setPercent(index + 1)}
+            className="flex w-full cursor-pointer justify-center py-1 focus:outline-none"
+          >
             <PersonGlyph
               className={`h-5 w-auto transition-colors duration-500 motion-reduce:transition-none sm:h-6 ${
                 // 届いていないぶんは、地に沈むくらいまで薄くする。濃いと
                 // 「もう一つの群衆」に見えて、塗られたぶんの意味が薄れる
                 index < percent ? "text-[#D97706]" : "text-nicchyo-ink/[0.06]"
               }`}
+              // 左から順に色が回るくらいの、ごく短い遅れ。押した位置まで
+              // 塗りが流れていくように見せる（動きを減らす設定では transition
+              // ごと切れるので、この遅れも効かない）
+              style={{ transitionDelay: `${Math.min(index, 30) * 8}ms` }}
             />
-          </span>
+          </button>
         ))}
       </div>
 
-      <p className="mt-4 text-[11.5px] text-nicchyo-ink/40">
+      <p className="mt-3 text-[11.5px] leading-relaxed text-nicchyo-ink/40">
         ひとかたち = 全体の1%（およそ
-        {Math.round(MONTHLY_MARKET_VISITORS / 100).toLocaleString("ja-JP")}人）
+        {Math.round(MONTHLY_MARKET_VISITORS / 100).toLocaleString("ja-JP")}人）。
+        かたちを押すと、その割合に切り替わります。
       </p>
 
       {/* つまみ。割合を動かすと上の数字と図が同時に変わる */}
