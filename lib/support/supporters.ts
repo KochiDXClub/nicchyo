@@ -43,7 +43,7 @@ export const SUPPORTER_SLOT_COUNT = 3;
 export const SUPPORTER_COLORS = ["#D97706", "#15803D", "#0369A1", "#7C3AED"] as const;
 
 /**
- * 名前が表に出ていない支援（助成金・匿名の寄付・色枠を使い切ったぶん）。
+ * 名前が表に出ていない支援（助成金・賞金・匿名の寄付・色枠を使い切ったぶん）。
  * identity ではなくまとめ先なので、彩度を持たない中立色にする。
  */
 export const OTHER_FUNDING_COLOR = "#8A8177";

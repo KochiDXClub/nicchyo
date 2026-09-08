@@ -157,7 +157,8 @@ export const aboutSlides: AboutSlide[] = [
   {
     id: "supporters",
     title: "ご支援くださる皆さま",
-    description: "運営にかかる費用は、皆さまのご協賛に支えていただいております。",
+    description:
+      "みなさまのお力添えで続けております。運営にかかる費用も公開しております。",
     richContent: { type: "supporters" },
     action: {
       label: "運営についてくわしく",

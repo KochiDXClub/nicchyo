@@ -27,14 +27,20 @@ export default function SupportHero({ monthlyLabel, runwayLabel, totalMonths }: 
         <div>
           <p className="text-[11px] font-bold tracking-[0.2em] text-amber-700/80">運営について</p>
 
-          {/* 折り返しは balance に任せる。改行を固定すると、端末幅によって
-              最後の1文字だけが次の行に落ちる */}
-          <h1 className="mt-5 text-[1.6rem] font-bold leading-[1.5] tracking-tight [text-wrap:balance] sm:text-[2rem] lg:text-[2.3rem]">
-            この地図は、学生が実費で動かしております。
+          {/*
+            文節を inline-block で包んで、そこでしか折り返させない。
+            日本語は語中でも折れるので、素のままだと幅によって「みなさ／まの」の
+            ように切れる。改行を固定すると今度は端末幅に合わなくなるため、
+            折り返す位置の候補だけを決めて、どこで折るかは幅に任せる。
+          */}
+          <h1 className="mt-5 text-[1.6rem] font-bold leading-[1.5] tracking-tight sm:text-[2rem] lg:text-[2.3rem]">
+            <span className="inline-block">この地図は、</span>
+            <span className="inline-block">みなさまのご支援のもとで</span>
+            <span className="inline-block">成り立っております。</span>
           </h1>
 
           <p className="mt-5 max-w-[33rem] text-[14.5px] leading-[2] text-nicchyo-ink/60 [text-wrap:pretty]">
-            高知・日曜市を案内する nicchyo は、高知高専の学生と顧問の教員が運営しております。広告は掲載しておりません。
+            高知・日曜市を案内する nicchyo は、高知高専の学生と顧問の教員が運営しております。広告は掲載せず、これまでいただいた賞金とご支援で続けてまいりました。
           </p>
 
           {/* 判断に要る2つの数字。囲まずに罫線でそろえる */}

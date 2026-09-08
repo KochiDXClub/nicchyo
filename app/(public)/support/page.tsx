@@ -157,14 +157,14 @@ export default async function SupportPage() {
                   style={{ backgroundColor: otherSegment.color }}
                   aria-hidden
                 />
-                その他（助成金・匿名でのご支援） {formatJpy(otherSegment.amountJpy)}
+                その他（助成金・賞金・匿名でのご支援） {formatJpy(otherSegment.amountJpy)}
               </p>
             )}
 
             <p className="mt-5 border-t border-nicchyo-ink/[0.07] pt-5 text-[13px] leading-[1.95] text-nicchyo-ink/55">
               {FUNDS_ON_HAND_JPY > 0
-                ? `ご支援いただいた ${formatJpy(FUNDS_ON_HAND_JPY)} で、ここまで運営することができます。`
-                : "現在は、運営費の全額を学生が負担しております。"}
+                ? `いただいた ${formatJpy(FUNDS_ON_HAND_JPY)} で、ここまで運営することができます。ありがとうございます。`
+                : "これまでは、いただいた賞金と学生の負担で運営してまいりました。続けていくためのご協賛を探しております。"}
             </p>
           </div>
 
@@ -185,6 +185,11 @@ export default async function SupportPage() {
           <div className="mt-10">
             <TrackRecord />
           </div>
+
+          {/* 数字と実績は、お金以外のご協力の上に立っている。ここで名前を挙げておく */}
+          <p className="mt-8 text-[13px] leading-[1.95] text-nicchyo-ink/55">
+            日曜市に出店されているみなさま、高知市商業振興課のみなさまにご協力をいただき、ここまで続けてくることができました。
+          </p>
         </Section>
 
         {/* ── ご相談について ──────────────────────────────────────────── */}
@@ -224,6 +229,11 @@ export default async function SupportPage() {
             協賛のご相談
           </Link>
         </Section>
+
+        {/* 締め。お願いで終わらせず、いま支えてくださっている方への礼で閉じる */}
+        <p className="mt-16 border-t border-nicchyo-ink/10 pt-10 text-[13px] leading-[2] text-nicchyo-ink/50">
+          日曜市に関わるみなさまのお力添えで、この地図は続いております。いつもありがとうございます。
+        </p>
 
         <div className="py-12 text-center">
           <MapLink

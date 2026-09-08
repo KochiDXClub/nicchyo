@@ -42,8 +42,10 @@ export default function SupporterSlots({
           </li>
         ))}
       </ul>
-      <p className="mt-3 text-[12px] text-nicchyo-ink/40">
-        この枠に、お名前またはロゴを掲載いたします
+      {/* 掲載枠の説明より、まず礼を先に置く。枠の案内は空きが残っているときだけでよい */}
+      <p className="mt-3 text-[12px] leading-relaxed text-nicchyo-ink/40">
+        {supporters.length > 0 && "ご支援いただき、ありがとうございます。"}
+        {slots.some((slot) => slot === null) && "この枠に、お名前またはロゴを掲載いたします"}
       </p>
     </div>
   );
