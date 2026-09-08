@@ -44,7 +44,6 @@ import { readPerfShopCount, synthesizeShops } from "@/lib/perf/syntheticShops";
 import {
   buildRoadPolygon,
   densifyPath,
-  expandBoundsByMeters,
   getDefaultMapRoutePoints,
   getEffectiveMapRouteConfig,
   getRouteBounds,
@@ -55,6 +54,12 @@ import {
   smoothRoutePath,
 } from "../../utils/mapRouteGeometry";
 import { getRecommendedZoomBounds } from "../../config/roadConfig";
+import {
+  DEFAULT_MAP_VIEW_SETTINGS,
+  normalizeMapViewSettings,
+  resolveMapViewBounds,
+  toLngLatBoundsPair,
+} from "@/lib/map/mapViewSettings";
 import { OPENFREEMAP_STYLE_URL } from "../../config/basemap";
 import {
   OVERVIEW_ZONE_MAX_ZOOM,
@@ -89,7 +94,6 @@ const ZOOM_BOUNDS = getRecommendedZoomBounds();
  * 表示境界（LOD・丁目バッジ・タイル不透明度など）は Leaflet 版の定数を 1 ずらして使う。
  */
 const ZOOM_OFFSET = -1;
-const MIN_ZOOM = ZOOM_BOUNDS.min + ZOOM_OFFSET;
 const MAX_ZOOM = ZOOM_BOUNDS.max + ZOOM_OFFSET;
 const INITIAL_ZOOM = MAX_ZOOM;
 const OVERVIEW_MIN = OVERVIEW_ZONE_MIN_ZOOM + ZOOM_OFFSET;
@@ -188,7 +192,7 @@ const IMG_BADGE_BAG = "badge:bag";
 const PHOTO_SIZE_PX = 50;
 const TEXT_FONT = ["Noto Sans Bold"];
 
-function buildRasterStyle(tileOpacityByZoom: boolean): StyleSpecification {
+function buildRasterStyle(tileOpacityByZoom: boolean, minZoom: number): StyleSpecification {
   return {
     version: 8,
     // 文字を出すレイヤーを足すときのためにグリフだけ用意しておく（現状は未使用）
@@ -211,7 +215,7 @@ function buildRasterStyle(tileOpacityByZoom: boolean): StyleSpecification {
         paint: {
           // Leaflet 版と同じ: 最小ズーム付近は 0.44、それ以外は 0.22
           "raster-opacity": tileOpacityByZoom
-            ? (["step", ["zoom"], 0.44, MIN_ZOOM + 0.5, 0.22] as ExpressionSpecification)
+            ? (["step", ["zoom"], 0.44, minZoom + 0.5, 0.22] as ExpressionSpecification)
             : 0.22,
           "raster-fade-duration": 0,
         },
@@ -278,6 +282,7 @@ export default function MapViewMapLibre({
   landmarks,
   mapRoute,
   featureFlags: featureFlagsProp,
+  mapViewSettings: mapViewSettingsProp,
   searchShopIds,
   aiShopIds,
   commentShopId,
@@ -335,6 +340,14 @@ export default function MapViewMapLibre({
     return normalized.length >= 2 ? normalized : getDefaultMapRoutePoints();
   }, [mapRoute]);
   const routeConfig = useMemo(() => getEffectiveMapRouteConfig(mapRoute?.config), [mapRoute]);
+
+  // 管理画面「マップの表示範囲」の設定。未設定・壊れた値なら既定値に落ちる
+  const viewSettings = useMemo(
+    () => normalizeMapViewSettings(mapViewSettingsProp ?? DEFAULT_MAP_VIEW_SETTINGS),
+    [mapViewSettingsProp]
+  );
+  // 引ける下限（MapLibre 基準）。建物・地名ラベルの表示境界もここを起点にする
+  const minZoom = viewSettings.minZoom + ZOOM_OFFSET;
 
   // 現在地の追従（Leaflet 版と同じく初期値はオン。ユーザーがドラッグしたらオフ）
   const [isTracking, setIsTracking] = useState(true);
@@ -435,23 +448,19 @@ export default function MapViewMapLibre({
     void projected;
     const initialCenter: [number, number] = [nearestRoutePoint.lng, nearestRoutePoint.lat];
     // 可動範囲。MapLibre の maxBounds は「範囲が画面に収まる倍率まで」しか縮小できなくなるので、
-    // 最小ズーム（市場全体が見える倍率）まで引けるよう Leaflet 版より広めに取る
-    const maxBounds = expandBoundsByMeters(bounds, Math.max(routeConfig.visibleDistanceMeters + 48, 120) + 600);
-    // [[lat, lng], [lat, lng]] の並び順に依存せず、南西・北東を最小・最大から組み立てる
-    const lats = [maxBounds[0][0], maxBounds[1][0]];
-    const lngs = [maxBounds[0][1], maxBounds[1][1]];
-    const maxBoundsLngLat: LngLatBoundsLike = [
-      [Math.min(...lngs), Math.min(...lats)],
-      [Math.max(...lngs), Math.max(...lats)],
-    ];
+    // 最小ズーム（市場全体が見える倍率）まで引けるよう Leaflet 版より広めに取る。
+    // 広さは管理画面「マップの表示範囲」で決める（既定値は従来と同じ道の範囲＋720m）
+    const maxBoundsLngLat: LngLatBoundsLike = toLngLatBoundsPair(
+      resolveMapViewBounds(viewSettings, bounds)
+    );
 
     const useVector = featureFlags.basemap === "vector-openfreemap";
     const map = new maplibregl.Map({
       container,
-      style: useVector ? OPENFREEMAP_STYLE_URL : buildRasterStyle(featureFlags.tileOpacityByZoom),
+      style: useVector ? OPENFREEMAP_STYLE_URL : buildRasterStyle(featureFlags.tileOpacityByZoom, minZoom),
       center: initialCenter,
       zoom: INITIAL_ZOOM,
-      minZoom: MIN_ZOOM,
+      minZoom,
       maxZoom: MAX_ZOOM,
       bearing: computeRoadBearing(routePoints, center),
       pitch: 0,
@@ -733,7 +742,7 @@ export default function MapViewMapLibre({
         id: "nicchyo-landmarks-min",
         type: "symbol",
         source: SRC_LANDMARKS,
-        maxzoom: MIN_ZOOM + 0.8,
+        maxzoom: minZoom + 0.8,
         filter: ["==", ["get", "showAtMinZoom"], 1],
         layout: landmarkLayout,
       });
@@ -741,7 +750,7 @@ export default function MapViewMapLibre({
         id: "nicchyo-landmarks",
         type: "symbol",
         source: SRC_LANDMARKS,
-        minzoom: MIN_ZOOM + 0.8,
+        minzoom: minZoom + 0.8,
         layout: landmarkLayout,
       });
       // ランドマークのタップ → スポットカード（店舗バナーは閉じる）
@@ -767,7 +776,7 @@ export default function MapViewMapLibre({
         id: LAYER_LANDMARK_LABELS,
         type: "symbol",
         source: SRC_LANDMARKS,
-        maxzoom: MIN_ZOOM + 2.5,
+        maxzoom: minZoom + 2.5,
         layout: {
           "text-field": ["get", "name"],
           "text-font": TEXT_FONT,
@@ -1159,7 +1168,7 @@ export default function MapViewMapLibre({
           map={camera}
           isTracking={isTracking}
           onToggleTracking={toggleTracking}
-          minZoom={MIN_ZOOM - ZOOM_OFFSET}
+          minZoom={minZoom - ZOOM_OFFSET}
           maxZoom={MAX_ZOOM - ZOOM_OFFSET}
           zoomSliderVisible={zoomSliderVisible}
           onZoomSliderInteract={keepZoomSliderAlive}
