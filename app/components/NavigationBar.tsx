@@ -19,6 +19,7 @@ import {
   ClipboardList,
   Compass,
   FileText,
+  HeartHandshake,
   Info,
   LayoutDashboard,
   LayoutGrid,
@@ -73,6 +74,7 @@ const visitMenuItems: SheetItem[] = [
 /** nicchyo そのものについてのページ */
 const aboutMenuItems: SheetItem[] = [
   { label: "nicchyoとは", href: "/about", icon: Info },
+  { label: "運営について", href: "/support", icon: HeartHandshake },
   { label: "よくある質問", href: "/faq", icon: CircleHelp },
   { label: "お問い合わせ", href: "/contact", icon: Mail },
 ];
