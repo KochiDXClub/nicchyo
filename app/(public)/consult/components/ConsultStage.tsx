@@ -227,12 +227,32 @@ export default function ConsultStage({
    */
   const [swapFrom, setSwapFrom] = useState<ConsultCharacter | null>(null);
   const shownSpeakerRef = useRef(speaker);
+  /**
+   * この画面で利用者が選び直したか。
+   *
+   * 前に選んだ話し手は localStorage から読み直しており、それが効くのは
+   * 一度描いたあとになる。つまり開いた直後に「にちよさん → 選んでいた人」と
+   * いう変化が必ず起きる。これを入れ替わりとして歩かせると、
+   * 他のページから戻ってくるたびに交代の演出が流れてしまう。
+   * 歩かせてよいのは、この画面で押して選んだときだけ。
+   */
+  const pickedByUserRef = useRef(false);
   useEffect(() => {
     if (shownSpeakerRef.current.id === speaker.id) return;
-    setSwapFrom(shownSpeakerRef.current);
+    const previous = shownSpeakerRef.current;
     shownSpeakerRef.current = speaker;
+    if (!pickedByUserRef.current) return;
+    setSwapFrom(previous);
   }, [speaker]);
   const handleSwapDone = useCallback(() => setSwapFrom(null), []);
+  const handlePickSpeaker = useCallback(
+    (id: ConsultCharacterId) => {
+      pickedByUserRef.current = true;
+      onPreferredCharacterChange?.(id);
+      setIsSpeakerPickerOpen(false);
+    },
+    [onPreferredCharacterChange]
+  );
 
   const pose = resolveGrandmaPose({
     isListening: speech.isListening,
@@ -1009,10 +1029,7 @@ export default function ConsultStage({
                     <button
                       type="button"
                       aria-pressed={isCurrent}
-                      onClick={() => {
-                        onPreferredCharacterChange?.(character.id);
-                        setIsSpeakerPickerOpen(false);
-                      }}
+                      onClick={() => handlePickSpeaker(character.id)}
                       className={`flex w-full items-center gap-3 rounded-2xl border p-3 text-left transition active:scale-[0.99] ${
                         isCurrent
                           ? "border-amber-400 bg-amber-50"
