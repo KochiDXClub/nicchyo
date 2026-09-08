@@ -13,6 +13,9 @@ import {
   getFavoriteProductsForShop,
   groupFavoritesByShop,
   favoriteEntryKey,
+  migrateBagItemsToFavorites,
+  BAG_MIGRATION_FLAG_KEY,
+  LEGACY_BAG_STORAGE_KEY,
   FAVORITE_SHOPS_KEY,
   FAVORITE_SHOPS_UPDATED_EVENT,
   type FavoriteEntry,
@@ -255,6 +258,73 @@ describe('favoriteShops', () => {
       ]);
       removeFavoriteShop(1);
       expect(storedEntries()).toEqual([{ shopId: 2, product: null }]);
+    });
+  });
+
+
+  describe('migrateBagItemsToFavorites', () => {
+    it('店が分かるバッグの中身をお気に入りへ移す', () => {
+      localStorage.setItem(
+        LEGACY_BAG_STORAGE_KEY,
+        JSON.stringify([
+          { id: 'a', name: 'いも天', fromShopId: 1, createdAt: 1 },
+          { id: 'b', name: 'ゆず', fromShopId: 2, createdAt: 2 },
+        ]),
+      );
+
+      expect(migrateBagItemsToFavorites()).toEqual({ migrated: 2, skipped: 0 });
+      expect(storedEntries()).toEqual([
+        { shopId: 1, product: 'いも天' },
+        { shopId: 2, product: 'ゆず' },
+      ]);
+    });
+
+    it('店が分からないものは取り込まず、数だけ返す', () => {
+      localStorage.setItem(
+        LEGACY_BAG_STORAGE_KEY,
+        JSON.stringify([
+          { id: 'a', name: '牛乳', createdAt: 1 },
+          { id: 'b', name: 'いも天', fromShopId: 1, createdAt: 2 },
+        ]),
+      );
+
+      expect(migrateBagItemsToFavorites()).toEqual({ migrated: 1, skipped: 1 });
+      expect(storedEntries()).toEqual([{ shopId: 1, product: 'いも天' }]);
+    });
+
+    it('すでにお気に入りにあるものは重ねない', () => {
+      seed([{ shopId: 1, product: 'いも天' }]);
+      localStorage.setItem(
+        LEGACY_BAG_STORAGE_KEY,
+        JSON.stringify([{ id: 'a', name: 'いも天', fromShopId: 1, createdAt: 1 }]),
+      );
+
+      expect(migrateBagItemsToFavorites()).toEqual({ migrated: 0, skipped: 0 });
+      expect(storedEntries()).toEqual([{ shopId: 1, product: 'いも天' }]);
+    });
+
+    it('2回目以降は何もしない（外したものが復活しない）', () => {
+      localStorage.setItem(
+        LEGACY_BAG_STORAGE_KEY,
+        JSON.stringify([{ id: 'a', name: 'いも天', fromShopId: 1, createdAt: 1 }]),
+      );
+      migrateBagItemsToFavorites();
+      removeFavoriteShop(1);
+
+      expect(migrateBagItemsToFavorites()).toBeNull();
+      expect(storedEntries()).toEqual([]);
+    });
+
+    it('バッグが空でも移行済みの印は立てる', () => {
+      expect(migrateBagItemsToFavorites()).toEqual({ migrated: 0, skipped: 0 });
+      expect(localStorage.getItem(BAG_MIGRATION_FLAG_KEY)).toBe('1');
+      expect(migrateBagItemsToFavorites()).toBeNull();
+    });
+
+    it('バッグのJSONが壊れていても落ちない', () => {
+      localStorage.setItem(LEGACY_BAG_STORAGE_KEY, '{invalid-json}');
+      expect(migrateBagItemsToFavorites()).toEqual({ migrated: 0, skipped: 0 });
+      expect(storedEntries()).toEqual([]);
     });
   });
 
