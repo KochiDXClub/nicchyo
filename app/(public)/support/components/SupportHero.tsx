@@ -26,6 +26,62 @@ import { CONSULT_CHARACTERS } from "@/app/(public)/consult/data/consultCharacter
  */
 const HEADLINE_LINES = ["この地図は、", "みなさまのご支援のもとで", "成り立っております。"];
 
+/**
+ * 前列に立つ人。ここに挙げていない話し手は後列に回る。
+ *
+ * 話し手が増えたときに誰も消えないよう、前列だけを名指しして、残りは自動で
+ * 後ろへ送る形にしてある。
+ */
+const FRONT_ROW_IDS: readonly string[] = ["nichiyosan", "yosakochan"];
+
+/**
+ * 出てくる順は CONSULT_CHARACTERS の並びそのまま
+ * （にちよさん → よういちさん → みらいくん → よさこちゃん）。
+ * このページの顔であるにちよさんが先に立って、周りに集まってくる形になる。
+ */
+const HERO_CAST = CONSULT_CHARACTERS.map((character, index) => ({ character, index }));
+const frontRow = HERO_CAST.filter(({ character }) => FRONT_ROW_IDS.includes(character.id));
+const backRow = HERO_CAST.filter(({ character }) => !FRONT_ROW_IDS.includes(character.id));
+
+/** 1人ぶん。出る順だけが違い、大きさと動きは全員そろえる */
+function HeroCharacter({
+  character,
+  appearIndex,
+  className,
+  reduceMotion,
+}: {
+  character: (typeof CONSULT_CHARACTERS)[number];
+  appearIndex: number;
+  className?: string;
+  reduceMotion: boolean;
+}) {
+  return (
+    <motion.div
+      className={className}
+      initial={reduceMotion ? false : { opacity: 0, y: 18, scale: 0.92 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      transition={{
+        type: "spring",
+        stiffness: 260,
+        damping: 22,
+        // ひとりずつ出す。4人で 0.6 秒ほどに収める
+        delay: 0.18 + appearIndex * 0.13,
+      }}
+    >
+      <Image
+        src={character.image}
+        alt=""
+        width={512}
+        height={512}
+        priority
+        draggable={false}
+        sizes="(min-width: 1024px) 154px, (min-width: 640px) 130px, 110px"
+        className="h-auto w-[110px] select-none object-contain sm:w-[130px] lg:w-[154px]"
+      />
+    </motion.div>
+  );
+}
+
 type SupportHeroProps = {
   monthlyLabel: string;
   runwayLabel: string;
@@ -134,41 +190,40 @@ export default function SupportHero({ monthlyLabel, runwayLabel, totalMonths }: 
         {/*
           4人そろえて並べる。ひとりだけだと「学生がひとりで作っている」に見えるが、
           並んでいると、支えている人が何人もいることが絵として伝わる。
-          少しずつ重ねて肩を寄せた形にして、等間隔に整列させない。
-          手前から順に にちよさん、以降は後ろに回す（このページの顔は彼女）
+
+          横一列ではなく2列にする。後列を広めに、前列を狭めて重ねると、
+          整列した記念写真ではなく、寄り集まった一団に見える。
         */}
-        <div
-          className="order-first flex items-end justify-center lg:order-none lg:justify-end"
-          aria-hidden
-        >
-          {CONSULT_CHARACTERS.map((character, index) => (
-            <motion.div
-              key={character.id}
-              className="relative -ml-6 first:ml-0 sm:-ml-8 lg:-ml-10"
-              style={{ zIndex: CONSULT_CHARACTERS.length - index }}
-              initial={prefersReducedMotion ? false : { opacity: 0, y: 18, scale: 0.92 }}
-              // 奇数番目をわずかに下げる。横一線に並ぶと整列した記念写真になる
-              animate={{ opacity: 1, y: index % 2 === 1 ? 7 : 0, scale: 1 }}
-              transition={{
-                type: "spring",
-                stiffness: 260,
-                damping: 22,
-                // ひとりずつ出す。4人で 0.6 秒ほどに収める
-                delay: 0.18 + index * 0.13,
-              }}
-            >
-              <Image
-                src={character.image}
-                alt=""
-                width={512}
-                height={512}
-                priority
-                draggable={false}
-                sizes="(min-width: 1024px) 118px, (min-width: 640px) 100px, 84px"
-                className="h-auto w-[84px] select-none object-contain sm:w-[100px] lg:w-[118px]"
+        {/*
+          両列とも中央でそろえる。左右のどちらかに寄せると、列の幅が違うぶん
+          片側だけがはみ出して、集合写真の形が崩れる
+        */}
+        <div className="order-first flex flex-col items-center lg:order-none" aria-hidden>
+          {/* 後列。前列よりわずかに広く、肩が両脇からのぞくくらいに留める */}
+          <div className="flex justify-center">
+            {backRow.map(({ character, index }, position) => (
+              <HeroCharacter
+                key={character.id}
+                character={character}
+                appearIndex={index}
+                className={position > 0 ? "-ml-4 sm:-ml-5 lg:-ml-6" : undefined}
+                reduceMotion={!!prefersReducedMotion}
               />
-            </motion.div>
-          ))}
+            ))}
+          </div>
+
+          {/* 前列。後列に重ねて手前に置く。重なり量は絵の高さのおよそ4割 */}
+          <div className="relative z-10 -mt-[2.75rem] flex justify-center sm:-mt-[3.25rem] lg:-mt-[3.9rem]">
+            {frontRow.map(({ character, index }, position) => (
+              <HeroCharacter
+                key={character.id}
+                character={character}
+                appearIndex={index}
+                className={position > 0 ? "-ml-10 sm:-ml-12 lg:-ml-14" : undefined}
+                reduceMotion={!!prefersReducedMotion}
+              />
+            ))}
+          </div>
         </div>
       </div>
     </section>
