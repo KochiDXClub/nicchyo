@@ -57,7 +57,6 @@ import {
   loadFavoriteShopIds,
 } from "../../../lib/favoriteShops";
 import { useFavoriteShopIds } from "../../../lib/hooks/useFavorites";
-import { useBag } from "../../../lib/storage/BagContext";
 import { stripShopIdsDirective } from "@/lib/grandma/consultUtils";
 import {
   OVERVIEW_ZONE_MIN_ZOOM,
@@ -230,7 +229,6 @@ export default function MapPageClient({
   useEffect(() => {
     if (mapLoadingStatus !== "idle") setMapLoadingHandedOff(true);
   }, [mapLoadingStatus]);
-  const { items: bagItems } = useBag();
   const initialShopIdParam = searchParams?.get("shop");
   const isAiFocusMode = searchParams?.get("ai") === "1";
   const searchParamsKey = searchParams?.toString() ?? "";
@@ -782,11 +780,8 @@ export default function MapPageClient({
       .map((id) => shopById.get(id))
       .filter((shop): shop is Shop => !!shop);
     const favoriteIds = new Set(loadFavoriteShopIds());
-    const bagShopIds = bagItems
-      .map((item) => item.fromShopId)
-      .filter((id): id is number => typeof id === "number");
     const interestCategories = deriveInterestCategories(
-      [...favoriteIds, ...bagShopIds],
+      [...favoriteIds],
       (id) => shopById.get(id)?.category
     );
     const recommendations: NearbyRecommendedShop[] = selectNearbyRecommendations(
@@ -807,7 +802,7 @@ export default function MapPageClient({
       recommendations,
       note: buildNearbyNote(summary),
     });
-  }, [bagItems, shopById, shops]);
+  }, [shopById, shops]);
 
   const closeNearbyPanel = useCallback(() => {
     setNearbyState(null);

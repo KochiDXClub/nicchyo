@@ -53,7 +53,6 @@ export const MapOverlays = memo(function MapOverlays({
   searchShopIds,
   aiHighlightShopIds,
   commentHighlightShopIds,
-  bagShopIds,
   onChomeClick,
   stallRenderer,
   shopLayerHiding = false,
@@ -81,7 +80,6 @@ export const MapOverlays = memo(function MapOverlays({
   searchShopIds?: number[];
   aiHighlightShopIds?: number[];
   commentHighlightShopIds?: number[];
-  bagShopIds: number[];
   onChomeClick?: (chome: string) => void;
   /** 屋台の描画方式（lib/mapFeatureFlags.ts の stallRenderer） */
   stallRenderer?: 'svg' | 'div';
@@ -207,7 +205,6 @@ export const MapOverlays = memo(function MapOverlays({
           searchShopIds={searchShopIds}
           aiHighlightShopIds={aiHighlightShopIds}
           commentHighlightShopIds={commentHighlightShopIds}
-          bagShopIds={bagShopIds}
           stallRenderer={stallRenderer}
           hidden={shopLayerHiding && !shopsVisible}
           visibleMinZoom={shopLayerHiding ? OVERVIEW_ZONE_MAX_ZOOM : undefined}
