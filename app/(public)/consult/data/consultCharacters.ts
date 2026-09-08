@@ -56,12 +56,24 @@ export const CONSULT_CHARACTER_BY_ID = new Map(
   CONSULT_CHARACTERS.map((character) => [character.id, character])
 );
 
+/** 話し手を選んでいないときの既定。最初に出てくるのはこの人 */
+export const DEFAULT_CONSULT_CHARACTER_ID: ConsultCharacterId = "nichiyosan";
+
+export const DEFAULT_CONSULT_CHARACTER =
+  CONSULT_CHARACTER_BY_ID.get(DEFAULT_CONSULT_CHARACTER_ID) ?? CONSULT_CHARACTERS[0];
+
 /**
  * 今回の話し手を1人決める。
  *
- * 選んだキャラがいればその人、いなければランダムに1人。
+ * 選んだキャラがいればその人、いなければ既定のにちよさん。
  * 呼び出し側（API・マップの相談UI）が配列を前提にしているので、
  * 1人だけ入った配列で返す。以前の「2人の掛け合い」「5%で全員」は廃止した。
+ *
+ * ★ ここでランダムに選ばないこと。
+ *   1回の返答は1人でも、質問のたびに話し手が入れ替わると、会話全体としては
+ *   複数キャラの掛け合いに見える。しかも直近の会話は履歴としてモデルに渡るので、
+ *   別のキャラの発言を手本にして掛け合いを続けようとする。
+ *   話し手はユーザーが選ぶもので、選んでいなければ既定の1人に固定する。
  */
 export function pickConsultCharacters(
   preferredCharacterId?: ConsultCharacterId | null
@@ -69,7 +81,5 @@ export function pickConsultCharacters(
   const preferredCharacter = preferredCharacterId
     ? CONSULT_CHARACTER_BY_ID.get(preferredCharacterId) ?? null
     : null;
-  if (preferredCharacter) return [preferredCharacter];
-  const index = Math.floor(Math.random() * CONSULT_CHARACTERS.length);
-  return [CONSULT_CHARACTERS[index]];
+  return [preferredCharacter ?? DEFAULT_CONSULT_CHARACTER];
 }
