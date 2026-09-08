@@ -1,0 +1,3 @@
+# CHANGELOG-unreleased.md は全PRが「## 一覧」直下に1行足すので、
+# 通常マージだと内容が無関係でも必ず衝突する。union で両方の行を残す
+docs/CHANGELOG-unreleased.md merge=union
