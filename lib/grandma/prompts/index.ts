@@ -17,11 +17,15 @@ export {
   CONSULT_INTRO,
   CONSULT_CONVERSATION_RULES,
   CONSULT_CONTENT_RULES,
-  CONSULT_OUTPUT_RULES,
+  CONSULT_ANSWER_RULES,
   CONSULT_CAST_HEADER,
   buildGrandmaAiSystemPrompt,
 } from "./consultSystemPrompt";
-export { CONSULT_MAX_TURNS, buildStreamingFormatPrompt } from "./consultConversation";
+export {
+  CONSULT_MAX_TURNS,
+  buildStreamingFormatPrompt,
+  buildJsonFormatPrompt,
+} from "./consultConversation";
 export {
   SHOP_CHAT_PERSONA_RULES,
   SHOP_CHAT_CLOSING_INSTRUCTION,
