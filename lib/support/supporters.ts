@@ -31,8 +31,15 @@ export type Supporter = {
 
 export const SUPPORTERS: Supporter[] = [];
 
-/** 空き枠をいくつ見せるか。埋まっている数と合わせて、この数まで枠を並べる */
-export const SUPPORTER_SLOT_COUNT = 3;
+/**
+ * 空き枠をいくつ見せるか。埋まっている数と合わせて、この数まで枠を並べる。
+ *
+ * 募集している口数と一致させること。枠の数がそのまま「あと何社ぶん空いているか」に
+ * なるので、口数と食い違うと図が嘘をつく。
+ * SUPPORTER_COLORS の色数を超える数にもしないこと（超えたぶんは灰色にまとめられ、
+ * 「ご協賛ぶんの色がつく」という掲載の案内が守れなくなる）。
+ */
+export const SUPPORTER_SLOT_COUNT = 4;
 
 /**
  * 協賛ごとの色。並び順は固定で、増えても使い回さない。

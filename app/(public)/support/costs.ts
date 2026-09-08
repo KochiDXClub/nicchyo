@@ -109,8 +109,17 @@ export const RUNNING_COSTS: RunningCost[] = [
  */
 export const FUNDS_ON_HAND_JPY = 0;
 
-/** 協賛1口の年額。決まったら埋める（何ヶ月ぶんにあたるかはページ側が計算する） */
-export const SPONSOR_UNIT_ANNUAL_JPY: number | null = null;
+/**
+ * 協賛1口の年額。
+ *
+ * 「年額」であることが要。1口で運営費のおよそ3ヶ月分をまかなえる金額にしてあるが、
+ * 掲載の期間は3ヶ月ではなく1年。金額の根拠（何ヶ月ぶんか）と、お返しする期間（1年）は
+ * 別の話なので、画面では必ず分けて出すこと。混ぜると「3ヶ月しか載らない」と読まれる。
+ *
+ * 4口で1年ぶんに届く額にしている。口数は SUPPORTER_SLOT_COUNT と SUPPORTER_COLORS の
+ * 色数に合わせてあるので、金額を変えるときはそちらも見直す。
+ */
+export const SPONSOR_UNIT_ANNUAL_JPY: number | null = 30_000;
 
 export function formatJpy(value: number): string {
   return `${Math.round(value).toLocaleString("ja-JP")}円`;

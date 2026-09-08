@@ -29,7 +29,12 @@ export default function SupporterSlots({
 
   return (
     <div className={className}>
-      <ul className="grid grid-cols-3 gap-2.5">
+      {/*
+        列数は枠の幅から決める。/support の本文（広い）と /about のスライド（max-w-sm）の
+        両方で使うので、固定の列数にすると片方で潰れる。
+        9rem を下限にすると、狭いところで2列、広いところで4列に落ち着く
+      */}
+      <ul className="grid grid-cols-[repeat(auto-fit,minmax(9rem,1fr))] gap-2.5">
         {slots.map((slot, index) => (
           <li key={slot?.name ?? `empty-${index}`}>
             {slot ? (

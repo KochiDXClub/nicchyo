@@ -51,7 +51,12 @@ export default function RunwayMeter({ segments, totalMonths, ghostMonths }: Runw
   return (
     <div
       role="img"
-      aria-label={`1年ぶんの運営費のうち、ご支援でまかなえているのは ${covered.toFixed(1)} ヶ月ぶん`}
+      aria-label={
+        `${totalMonths}ヶ月ぶんの運営費のうち、ご支援でまかなえているのは ${covered.toFixed(1)}ヶ月ぶん` +
+        (ghostEnd > covered
+          ? `。ご協賛1口が入ると ${ghostEnd.toFixed(1)}ヶ月ぶんまで伸びます`
+          : "")
+      }
     >
       <div className="flex gap-[3px]">
         {Array.from({ length: totalMonths }, (_, month) => (

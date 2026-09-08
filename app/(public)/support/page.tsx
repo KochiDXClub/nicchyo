@@ -149,6 +149,20 @@ export default async function SupportPage() {
               />
             </div>
 
+            {/*
+              斜線は「1口入るとここまで伸びる」という予告なので、何を指しているかを
+              必ず言葉で添える。図だけ出しても、塗り忘れにしか見えない
+            */}
+            {unitMonths !== null && (
+              <p className="mt-4 flex items-center gap-2 text-[12.5px] text-nicchyo-ink/50">
+                <span
+                  className="h-2.5 w-2.5 shrink-0 rounded-[2px] bg-[repeating-linear-gradient(-45deg,rgba(217,119,6,0.45)_0_3px,rgba(217,119,6,0.12)_3px_6px)]"
+                  aria-hidden
+                />
+                ご協賛1口で、ここまで伸びます
+              </p>
+            )}
+
             {/* 「その他」は掲載枠に出ないので、色と金額をここで示す */}
             {otherSegment && (
               <p className="mt-5 flex items-center gap-2 text-[12.5px] tabular-nums text-nicchyo-ink/50">
@@ -205,15 +219,23 @@ export default async function SupportPage() {
               <dt className="text-[14px] font-bold">掲載について</dt>
               {/*
                 すでに動いているものだけを書く。ここに書いたことは約束になるので、
-                部員が入れ替わっても手をかけずに続くもの以外は載せない
+                部員が入れ替わっても手をかけずに続くもの以外は載せない。
+
+                頭に「1年間を通して」を置いているのは、1口が運営費の3ヶ月分にあたる
+                ことと、掲載が1年続くことを混同されないため。個々の項目に期間を
+                書き足すより、まとめて一度言う方が読みやすい
               */}
               <dd className="mt-1.5 text-[13px] leading-[1.95] text-nicchyo-ink/55">
-                <ul className="space-y-1.5">
+                <p>1口につき、1年間を通して以下をご案内いたします。</p>
+                <ul className="mt-1.5 space-y-1.5">
                   <li>このページと「nicchyoとは」に、お名前またはロゴを掲載いたします</li>
                   <li>
                     ご希望に応じて、上の図にご協賛ぶんの色がつきます。何ヶ月ぶんを支えていただいているかが、そのまま見える形になります
                   </li>
-                  <li>掲載は1年ごとに更新いたします</li>
+                  <li>
+                    ご希望に応じて、日曜市の周辺で立ち寄れる場所として、マップにご紹介いたします
+                  </li>
+                  <li>期間が終わる前に、更新のご相談をいたします</li>
                 </ul>
               </dd>
             </div>
@@ -225,11 +247,31 @@ export default async function SupportPage() {
             </div>
           </dl>
 
+          {/*
+            金額・掲載期間・まかなえる運営費を、1行ずつ分けて出す。
+            「1口 30,000円（3ヶ月分）」のように1行にまとめると、3ヶ月しか
+            掲載されないと読まれる。3ヶ月は金額の根拠、1年は掲載の期間で、別の話
+          */}
           {SPONSOR_UNIT_ANNUAL_JPY !== null && unitMonths !== null && (
-            <p className="mt-8 text-[1.4rem] font-bold leading-[1.6]">
-              1口 {formatJpy(SPONSOR_UNIT_ANNUAL_JPY)}のご協賛で、
-              {unitMonths.toFixed(1)}ヶ月ぶん運営することができます。
-            </p>
+            <dl className="mt-9 border-t border-nicchyo-ink/10">
+              <div className="flex items-baseline justify-between gap-6 border-b border-nicchyo-ink/[0.07] py-4">
+                <dt className="text-[13px] text-nicchyo-ink/55">ご協賛 1口</dt>
+                <dd className="text-[1.7rem] font-bold leading-none tabular-nums">
+                  {formatJpy(SPONSOR_UNIT_ANNUAL_JPY)}
+                  <span className="ml-1.5 text-[13px] font-bold text-nicchyo-ink/40">/ 年</span>
+                </dd>
+              </div>
+              <div className="flex items-baseline justify-between gap-6 border-b border-nicchyo-ink/[0.07] py-4">
+                <dt className="text-[13px] text-nicchyo-ink/55">掲載の期間</dt>
+                <dd className="text-[15px] font-bold">1年間</dd>
+              </div>
+              <div className="flex items-baseline justify-between gap-6 py-4">
+                <dt className="text-[13px] text-nicchyo-ink/55">まかなえる運営費</dt>
+                <dd className="text-[15px] font-bold tabular-nums">
+                  およそ {unitMonths.toFixed(1)}ヶ月分
+                </dd>
+              </div>
+            </dl>
           )}
 
           <Link
