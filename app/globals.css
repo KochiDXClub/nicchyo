@@ -1613,6 +1613,22 @@ body.home-poster-zoom-open .hamburger-button {
   background: #FFFAF0;
 }
 
+/* 歩いてくる間の上下の揺れ。一歩ごとに軽く沈む。
+   絵が1枚しかない今は、この揺れだけが「歩いている」ことを伝える */
+.consult-intro__step {
+  animation: consult-intro-step 420ms ease-in-out infinite;
+}
+
+/* 着いたら足を止める */
+.consult-intro__step.is-arrived {
+  animation: none;
+}
+
+@keyframes consult-intro-step {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-2.2%); }
+}
+
 /* 定位置に着いたときの会釈。
    縮む動きが「絵が小さくなった」ではなく「こっちに来て、目の前に座った」
    として読めるようにする。オーバーレイが消えてから始めるので、
