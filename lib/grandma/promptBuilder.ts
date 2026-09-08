@@ -14,7 +14,7 @@ export function buildResponseSchema(characters: ConsultCharacter[]) {
   return {
     type: "json_schema",
     json_schema: {
-      name: "consult_duet_response",
+      name: "consult_response",
       schema: {
         type: "object",
         additionalProperties: false,

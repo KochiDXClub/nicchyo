@@ -50,19 +50,26 @@ export const CONSULT_CONTENT_RULES = `## 内容ルール
 /**
  * コード契約: 変えるとアプリが壊れる。管理画面から編集できるようにしてはいけない。
  *
- * `buildResponseSchema()` の JSON schema と対になっており、`turns[].speakerId` と
- * `followUpQuestion` の仕様には `parseStreamingConsultOutput()` と `GrandmaChatter`
- * の描画が依存している。
+ * `buildResponseSchema()` の JSON schema と対になっており、話し手・次の質問の
+ * 仕様には `parseStreamingConsultOutput()` と `GrandmaChatter` の描画が依存している。
+ *
+ * ★ ここに出力の**形式**（JSONで返す／プレーンテキストで返す）を書かないこと。
+ *   形式は経路ごとに違う。ストリーミングは TURN 行のプレーンテキスト、
+ *   非ストリーミングは JSON スキーマで、それぞれ
+ *   `buildStreamingFormatPrompt()` と `buildJsonFormatPrompt()` が末尾で指示する。
+ *   ここに形式を書くと、ストリーミング時に「JSONのみを返す」と
+ *   「プレーンテキストのみ。JSON禁止」が同じプロンプトに同居する。
+ *   モデルがJSONを返すと TURN 行が1つも無くなり、
+ *   `parseStreamingConsultOutput()` のフォールバックでJSON文字列がそのまま
+ *   吹き出しの本文になる（店舗候補・次の質問・会話メモはすべて失われる）。
  */
-export const CONSULT_OUTPUT_RULES = `## 出力ルール
-- 必ずJSONのみを返す
-- スキーマに従う
-- summary には、次回以降に引き継ぐ短い会話メモを120文字以内で入れる
-- turns は表示順で返す。発話数の目安は会話ルールに従う
-- turns[].speakerId は必ず今回の話し手の id にする
-- followUpQuestion には、ユーザーが次にAIへ送る質問文を1つだけ入れる
-- followUpQuestion は「〜はどう？」「〜してみる？」のようなAI側の問いかけにしない
-- followUpQuestion はボタンにそのまま出せる自然な質問文にする
+export const CONSULT_ANSWER_RULES = `## 返答の作り方
+- 会話メモ（summary）には、次回以降に引き継ぐ短いメモを120文字以内で入れる
+- 発話は表示順に並べる。発話数は会話ルールに従う
+- 発話の話し手は必ず今回の話し手にする
+- 次の質問（followUpQuestion）には、ユーザーが次にAIへ送る質問文を1つだけ入れる
+- 次の質問は「〜はどう？」「〜してみる？」のようなAI側の問いかけにしない
+- 次の質問はボタンにそのまま出せる自然な質問文にする
 - 例: 「朝いちで回るならどの順番がいい？」 「この中でいちばん人気のお店は？」`;
 
 /** コード契約: 末尾の可変ブロックの導入文 */
