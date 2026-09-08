@@ -139,8 +139,8 @@ function GenreFilter({
           aria-pressed={favoritesActive}
           className={`flex shrink-0 items-center gap-1 whitespace-nowrap rounded-chip border px-[13px] py-[7px] text-[13px] font-bold shadow-chip transition-all duration-[120ms] ${
             favoritesActive
-              ? 'border-pink-600 bg-pink-500 text-white'
-              : 'border-pink-200 bg-white text-pink-700 hover:bg-pink-50 active:bg-pink-50'
+              ? 'border-favorite-fg bg-favorite-fg text-white'
+              : 'border-favorite-line bg-white text-favorite-fg hover:bg-favorite-bg active:bg-favorite-bg'
           }`}
           whileTap={{ scale: 0.88 }}
         >
@@ -152,7 +152,7 @@ function GenreFilter({
           お気に入り
           <span
             className={`rounded-full px-1.5 text-[11px] font-bold ${
-              favoritesActive ? 'bg-white/25 text-white' : 'bg-pink-50 text-pink-600'
+              favoritesActive ? 'bg-white/25 text-white' : 'bg-favorite-bg text-favorite-fg'
             }`}
           >
             {favoriteCount}
