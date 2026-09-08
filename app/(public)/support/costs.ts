@@ -12,6 +12,24 @@
 /** 1年ぶんの運営費を、何ヶ月ぶん賄えているかで見せる */
 export const RUNWAY_MONTHS = 12;
 
+/**
+ * 為替
+ *
+ * Vercel・Supabase・OpenAI の請求はドル建てなので、円で出している額は換算値でしかない。
+ * 「3,000円」のような丸めた円を実費として出すと、為替が動いたときに嘘になるうえ、
+ * 元がドルであることも隠れる。レートと基準日を持って、画面にも並べて出す。
+ *
+ * 月初に一度見て書き換える。1円の変動で、この規模なら年 600円ほど動く。
+ */
+export const USD_JPY = {
+  rate: 154.36,
+  /** このレートを見た日 */
+  asOf: "2026-09-07",
+} as const;
+
+/** 請求通貨。円建ては国内で買っているものだけ */
+export type Currency = "USD" | "JPY";
+
 /** 請求の周期。年払いのものは月額に割って並べる */
 export type BillingCycle = "monthly" | "annual";
 
@@ -24,8 +42,9 @@ export type RunningCost = {
    * 金額だけを並べても「高いか安いか」しか伝わらないため、対価を1行で添える
    */
   stopsWhat: string;
-  /** 請求額（円）。まだ確定していなければ null */
-  amountJpy: number | null;
+  /** 請求額。currency の通貨で書く。まだ確定していなければ null */
+  amount: number | null;
+  currency: Currency;
   cycle: BillingCycle;
 };
 
@@ -35,28 +54,35 @@ export const RUNNING_COSTS: RunningCost[] = [
     label: "Vercel",
     purpose: "サイトの配信",
     stopsWhat: "止まればサイトが開きません",
-    amountJpy: 3_000,
+    // Pro プランは開発者1人あたり $20。人数を増やすとそのぶん増える
+    amount: 20,
+    currency: "USD",
     cycle: "monthly",
   },
   {
     label: "Supabase",
     purpose: "店舗データとログイン",
     stopsWhat: "止まれば店舗の情報を引けません",
-    amountJpy: 3_000,
+    // Pro プラン $25（最小のデータベース1台ぶんの費用を含む）
+    amount: 25,
+    currency: "USD",
     cycle: "monthly",
   },
   {
     label: "OpenAI API",
     purpose: "にちよさんの相談",
     stopsWhat: "止まれば相談だけが使えません",
-    amountJpy: 1_000,
+    // 使った分だけの従量課金。毎月ダッシュボードの実績で書き換える
+    amount: 6.5,
+    currency: "USD",
     cycle: "monthly",
   },
   {
     label: "ドメイン",
     purpose: "nicchyo.jp の維持",
     stopsWhat: "止まれば配布済みのQRコードが開きません",
-    amountJpy: 7_000,
+    amount: 7_000,
+    currency: "JPY",
     cycle: "annual",
   },
 ];
@@ -74,10 +100,22 @@ export function formatJpy(value: number): string {
   return `${Math.round(value).toLocaleString("ja-JP")}円`;
 }
 
-/** 費目の月額換算。年払いのものは12で割る。未確定なら null */
-export function monthlyOf(cost: RunningCost): number | null {
-  if (cost.amountJpy === null) return null;
-  return cost.cycle === "annual" ? cost.amountJpy / 12 : cost.amountJpy;
+/** ドル建ての請求額。表示に使う（円と並べて、換算前の額を見せる） */
+export function formatUsd(value: number): string {
+  // $20 は「$20」、$6.5 は「$6.50」。桁が揃わないと台帳として読みにくい
+  return `$${Number.isInteger(value) ? value : value.toFixed(2)}`;
+}
+
+/** 請求額を円に直す。円建てはそのまま */
+export function toJpy(amount: number, currency: Currency, rate: number = USD_JPY.rate): number {
+  return currency === "USD" ? amount * rate : amount;
+}
+
+/** 費目の月額（円）。年払いのものは12で割る。未確定なら null */
+export function monthlyJpyOf(cost: RunningCost, rate: number = USD_JPY.rate): number | null {
+  if (cost.amount === null) return null;
+  const jpy = toJpy(cost.amount, cost.currency, rate);
+  return cost.cycle === "annual" ? jpy / 12 : jpy;
 }
 
 /**
@@ -88,17 +126,23 @@ export function monthlyOf(cost: RunningCost): number | null {
  * いるあいだは合計を「◯◯円以上」として出す（表示の判断はページ側）。
  */
 export function hasPendingCost(costs: RunningCost[] = RUNNING_COSTS): boolean {
-  return costs.some((cost) => cost.amountJpy === null);
+  return costs.some((cost) => cost.amount === null);
 }
 
-/** 1ヶ月にかかる額。未確定の費目は 0 として足す */
-export function monthlyCostJpy(costs: RunningCost[] = RUNNING_COSTS): number {
-  return costs.reduce((sum, cost) => sum + (monthlyOf(cost) ?? 0), 0);
+/** 1ヶ月にかかる額（円）。未確定の費目は 0 として足す */
+export function monthlyCostJpy(
+  costs: RunningCost[] = RUNNING_COSTS,
+  rate: number = USD_JPY.rate
+): number {
+  return costs.reduce((sum, cost) => sum + (monthlyJpyOf(cost, rate) ?? 0), 0);
 }
 
-/** 1年にかかる額 */
-export function annualCostJpy(costs: RunningCost[] = RUNNING_COSTS): number {
-  return monthlyCostJpy(costs) * 12;
+/** 1年にかかる額（円） */
+export function annualCostJpy(
+  costs: RunningCost[] = RUNNING_COSTS,
+  rate: number = USD_JPY.rate
+): number {
+  return monthlyCostJpy(costs, rate) * 12;
 }
 
 /** 手元の額で何ヶ月動かせるか */

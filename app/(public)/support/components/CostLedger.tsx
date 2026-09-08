@@ -1,4 +1,10 @@
-import { formatJpy, monthlyOf, type RunningCost } from "../costs";
+import {
+  USD_JPY,
+  formatJpy,
+  formatUsd,
+  monthlyJpyOf,
+  type RunningCost,
+} from "../costs";
 
 /**
  * 費目の台帳
@@ -7,8 +13,8 @@ import { formatJpy, monthlyOf, type RunningCost } from "../costs";
  * 「止まると何ができなくなるか」を添える。図はメーターに任せ、ここは金額の桁を
  * そろえて読ませることだけをする。
  *
- * 年払いのものは月額に割った額を主にして、元の請求額を横に添える。月額だけだと
- * 実際の請求と突き合わせられず、年額だけだと他の費目と比べられない。
+ * 主にする数字は月額（円）。円だけを出すと、ドル建ての請求まで固定額に見えるので、
+ * 換算前の請求額（$20/月、7,000円/年）を必ず横に添える。レートと基準日は末尾に置く。
  */
 
 type CostLedgerProps = {
@@ -19,17 +25,30 @@ type CostLedgerProps = {
   hasPending: boolean;
 };
 
+/** 換算前の請求額。月払いの円建てだけは、主の数字と同じなので出さない */
+function sourceAmount(cost: RunningCost): string | null {
+  if (cost.amount === null) return null;
+  if (cost.currency === "USD") {
+    return `${formatUsd(cost.amount)} / ${cost.cycle === "annual" ? "年" : "月"}`;
+  }
+  if (cost.cycle === "annual") return `年 ${formatJpy(cost.amount)}`;
+  return null;
+}
+
 export default function CostLedger({
   costs,
   monthlyTotalJpy,
   annualTotalJpy,
   hasPending,
 }: CostLedgerProps) {
+  const usesUsd = costs.some((cost) => cost.currency === "USD" && cost.amount !== null);
+
   return (
     <div>
       <dl className="border-t border-nicchyo-ink/10">
         {costs.map((cost) => {
-          const monthly = monthlyOf(cost);
+          const monthly = monthlyJpyOf(cost);
+          const source = sourceAmount(cost);
           return (
             <div
               key={cost.label}
@@ -51,9 +70,9 @@ export default function CostLedger({
                     <span className="block text-[15px] font-bold tabular-nums">
                       {formatJpy(monthly)}
                     </span>
-                    {cost.cycle === "annual" && cost.amountJpy !== null && (
+                    {source && (
                       <span className="mt-0.5 block text-[11.5px] tabular-nums text-nicchyo-ink/40">
-                        年 {formatJpy(cost.amountJpy)}
+                        {source}
                       </span>
                     )}
                   </>
@@ -77,6 +96,18 @@ export default function CostLedger({
           </span>
         </span>
       </div>
+
+      {usesUsd && (
+        <p className="mt-5 text-[12px] leading-relaxed text-nicchyo-ink/40">
+          ドル建ての請求は 1ドル {USD_JPY.rate.toFixed(2)}円（
+          {new Date(USD_JPY.asOf).toLocaleDateString("ja-JP", {
+            year: "numeric",
+            month: "long",
+            day: "numeric",
+          })}
+          時点）で換算しております。為替により、実際にお支払いする額は毎月変わります。
+        </p>
+      )}
     </div>
   );
 }
