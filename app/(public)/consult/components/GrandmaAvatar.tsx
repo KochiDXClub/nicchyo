@@ -3,6 +3,11 @@
 import Image from "next/image";
 import { useEffect, useState } from "react";
 import type { GrandmaPose } from "@/lib/grandma/pose";
+import {
+  DEFAULT_CONSULT_CHARACTER,
+  DEFAULT_CONSULT_CHARACTER_ID,
+  type ConsultCharacter,
+} from "../data/consultCharacters";
 
 /**
  * 答え終わってすぐ待機に戻すと機械的に見えるので、少しだけ余韻を置く。
@@ -54,14 +59,19 @@ export interface GrandmaAvatarProps {
   onClick?: () => void;
   label?: string;
   className?: string;
+  /** 今の話し手。省略すると既定のにちよさん */
+  character?: ConsultCharacter;
 }
 
 /**
- * にちよさん。
+ * 今の話し手。
  *
  * 会話の状態に合わせて姿勢が変わる（待機＝呼吸、聞いている＝前傾、
  * 考えている＝首をかしげる、答えている＝うなずく）。
  * 動きの定義は app/globals.css の .grandma-avatar 側にある。
+ *
+ * にちよさんだけ専用の切り抜き（/characters/obaasan.png）を使う。
+ * 他のキャラは一覧と同じ画像を使うので、拡大率と位置を行から引く。
  */
 export default function GrandmaAvatar({
   pose,
@@ -69,18 +79,23 @@ export default function GrandmaAvatar({
   onClick,
   label,
   className,
+  character = DEFAULT_CONSULT_CHARACTER,
 }: GrandmaAvatarProps) {
   const displayedPose = useLingeringPose(pose);
+  const isDefaultCharacter = character.id === DEFAULT_CONSULT_CHARACTER_ID;
 
   const picture = (
     <div className="grandma-avatar__inner">
       <Image
-        src="/characters/obaasan.png"
-        alt="にちよさん"
+        src={isDefaultCharacter ? "/characters/obaasan.png" : character.image}
+        alt={character.name}
         width={240}
         height={240}
         priority
-        className={`${SIZE_CLASS[size]} object-contain drop-shadow-[0_8px_16px_rgba(146,64,14,0.25)]`}
+        className={`${SIZE_CLASS[size]} object-contain drop-shadow-[0_8px_16px_rgba(146,64,14,0.25)] ${
+          isDefaultCharacter ? "" : character.imageScale
+        }`}
+        style={isDefaultCharacter ? undefined : { objectPosition: character.imagePosition }}
       />
     </div>
   );
