@@ -198,13 +198,23 @@ export default async function SupportPage() {
             <div className="border-b border-nicchyo-ink/[0.07] py-4">
               <dt className="text-[14px] font-bold">お支払いについて</dt>
               <dd className="mt-1.5 text-[13px] leading-[1.95] text-nicchyo-ink/55">
-                サイト内での決済は承っておりません。運営者個人の氏名と住所を公開することになるためです。お問い合わせ箱にてご相談を承ります。
+                サイト内での決済は承っておりません。お問い合わせ箱にてご相談を承ります。
               </dd>
             </div>
             <div className="border-b border-nicchyo-ink/[0.07] py-4">
               <dt className="text-[14px] font-bold">掲載について</dt>
+              {/*
+                すでに動いているものだけを書く。ここに書いたことは約束になるので、
+                部員が入れ替わっても手をかけずに続くもの以外は載せない
+              */}
               <dd className="mt-1.5 text-[13px] leading-[1.95] text-nicchyo-ink/55">
-                このページと「nicchyoとは」に、お名前またはロゴを掲載いたします。1年ごとに更新いたします。
+                <ul className="space-y-1.5">
+                  <li>このページと「nicchyoとは」に、お名前またはロゴを掲載いたします</li>
+                  <li>
+                    ご希望に応じて、上の図にご協賛ぶんの色がつきます。何ヶ月ぶんを支えていただいているかが、そのまま見える形になります
+                  </li>
+                  <li>掲載は1年ごとに更新いたします</li>
+                </ul>
               </dd>
             </div>
             <div className="border-b border-nicchyo-ink/[0.07] py-4">
