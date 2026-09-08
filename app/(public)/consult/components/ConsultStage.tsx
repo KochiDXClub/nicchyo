@@ -108,6 +108,15 @@ export default function ConsultStage({
   const [hasRestored, setHasRestored] = useState(false);
   const [autoAsked, setAutoAsked] = useState(false);
   /**
+   * 今の答えのカードを出してよいか。
+   *
+   * 開き直したときに前の答えが出ていると、聞いてもいないのに誰かが喋っている
+   * 画面になり、話しかける前から読むものが積まれる。相談は1往復で終わることが
+   * ほとんどなので、開いたときはまっさらにして、前の相談は「これまでの相談」に畳む。
+   * （畳むだけで消しはしない）
+   */
+  const [showsCurrentAnswer, setShowsCurrentAnswer] = useState(false);
+  /**
    * 回答に添えられて返ってきたお店。
    * 店舗そのものは localStorage に保存せず（重いので）ID だけ持ち、
    * 実体はこの表と allShops から引く。
@@ -267,7 +276,12 @@ export default function ConsultStage({
       const restored = restoreSession(window.localStorage.getItem(SESSION_STORAGE_KEY)).entries;
       // マップ上の相談から遷移してきた分を引き継ぐ（取り込んだら消す）
       const handed = importHandoffEntries(window.localStorage.getItem(HANDOFF_STORAGE_KEY));
-      if (handed.length > 0) window.localStorage.removeItem(HANDOFF_STORAGE_KEY);
+      if (handed.length > 0) {
+        window.localStorage.removeItem(HANDOFF_STORAGE_KEY);
+        // マップの相談から「くわしく相談する」で渡ってきたぶんは、その続きを
+        // 話しに来ているので出す
+        setShowsCurrentAnswer(true);
+      }
       setEntries([...handed, ...restored]);
     } catch {
       // サイトデータが読めない設定でも相談は始められるようにする
@@ -397,6 +411,9 @@ export default function ConsultStage({
           .join("\n\n")
           .trim();
 
+        // 答えが返ってきてから出す。ここより前で立てると、聞くのに失敗したときに
+        // 「前に畳んだはずの答え」が代わりに出てきてしまう
+        setShowsCurrentAnswer(true);
         setEntries((prev) => [
           {
             id: response.consultId ?? `${Date.now()}`,
@@ -432,7 +449,7 @@ export default function ConsultStage({
     void ask(autoAskText, "input", true);
   }, [ask, autoAsked, autoAskText, hasRestored]);
 
-  const current = entries[0] ?? null;
+  const current = showsCurrentAnswer ? entries[0] ?? null : null;
   const suggestions = useMemo(
     () => pickSuggestions({ entries, pool: QUESTION_POOL }),
     [entries]
@@ -594,7 +611,7 @@ export default function ConsultStage({
             <span className="rounded-full bg-red-500 px-3 py-1.5 text-xs font-bold text-white">
               聞きよるよ…
             </span>
-          ) : entries.length > 1 ? (
+          ) : entries.length - (current ? 1 : 0) > 0 ? (
             // 畳んだ履歴。件数を出しておかないと「消えた」と思われる
             <button
               type="button"
