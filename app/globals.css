@@ -1734,4 +1734,18 @@ body.home-poster-zoom-open .hamburger-button {
   .support-page section {
     break-inside: avoid;
   }
+
+  /* 画面に入ったときの演出は、紙では効かせない。
+     スクロールしていない節は opacity:0 のままなので、そのまま印刷すると
+     本文がごっそり消える。framer-motion はインラインで書くので !important が要る */
+  .reveal {
+    opacity: 1 !important;
+    transform: none !important;
+  }
+
+  /* 見出しは行ごとに窓で覆って落としている。紙では窓を外す */
+  .support-page h1 span {
+    overflow: visible !important;
+    transform: none !important;
+  }
 }

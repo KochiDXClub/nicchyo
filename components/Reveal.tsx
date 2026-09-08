@@ -28,7 +28,9 @@ export default function Reveal({ children, className, delay = 0 }: RevealProps) 
 
   return (
     <motion.div
-      className={className}
+      // 印刷では演出を消す必要がある（画面に入っていない節が opacity:0 のまま
+      // 紙に出てしまう）。globals.css の @media print がこの名前を見ている
+      className={className ? `reveal ${className}` : "reveal"}
       initial={prefersReducedMotion ? false : { opacity: 0, y: 14 }}
       whileInView={prefersReducedMotion ? undefined : { opacity: 1, y: 0 }}
       viewport={{ once: true, margin: "0px 0px -10% 0px" }}
