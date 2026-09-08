@@ -10,7 +10,7 @@ import {
 import {
   CONSULT_CONTENT_RULES,
   CONSULT_CONVERSATION_RULES,
-  CONSULT_OUTPUT_RULES,
+  CONSULT_ANSWER_RULES,
 } from "./consultRules";
 import { CONSULT_CHARACTER_PROMPT_PROFILES } from "./consultCharacterProfiles";
 
@@ -28,7 +28,7 @@ describe("AI_PROMPT_DEFS", () => {
 
   it("出力ルールは編集対象に入れない（スキーマと対の契約なので壊れると相談が止まる）", () => {
     const bodies = AI_PROMPT_DEFS.map((def) => def.defaultBody);
-    expect(bodies).not.toContain(CONSULT_OUTPUT_RULES);
+    expect(bodies).not.toContain(CONSULT_ANSWER_RULES);
     expect(AI_PROMPT_KEYS.some((key) => key.includes("output"))).toBe(false);
   });
 
