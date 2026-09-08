@@ -12,7 +12,7 @@ import {
   MAP_AGENT_SYSTEM_PROMPT,
   buildMapAgentPrompt,
 } from "@/lib/grandma/prompts/mapAgentPrompt";
-import { buildChatCompletionBody } from "@/lib/ai/models";
+import { requestChatCompletion } from "@/lib/ai/openaiFetch";
 import { resolveAiModelFor } from "@/lib/ai/modelStore.server";
 
 type Answers = {
@@ -209,23 +209,14 @@ async function callOpenAI(
 
   const aiModel = await resolveAiModelFor("mapAgent");
 
-  const res = await fetch("https://api.openai.com/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${OPENAI_API_KEY}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(
-      buildChatCompletionBody(aiModel, {
-        messages: [
-          { role: "system", content: MAP_AGENT_SYSTEM_PROMPT },
-          { role: "user", content: prompt },
-        ],
-        // 上限は指定しない（従来どおりモデル既定にまかせる）
-        responseFormat: { type: "json_object" },
-        temperature: 0.6,
-      })
-    ),
+  const res = await requestChatCompletion(OPENAI_API_KEY, aiModel, {
+    messages: [
+      { role: "system", content: MAP_AGENT_SYSTEM_PROMPT },
+      { role: "user", content: prompt },
+    ],
+    // 上限は指定しない（従来どおりモデル既定にまかせる）
+    responseFormat: { type: "json_object" },
+    temperature: 0.6,
   });
 
   if (!res.ok) {
