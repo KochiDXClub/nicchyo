@@ -5,6 +5,8 @@ import { AlertCircle, Keyboard, Mic, RotateCcw, Send, Square, X } from "lucide-r
 import toast from "react-hot-toast";
 import { useSpeechInput } from "@/lib/hooks/useSpeechInput";
 import { resolveGrandmaPose } from "@/lib/grandma/pose";
+import { buildConsultGreeting } from "@/lib/grandma/consultGreeting";
+import { grandmaComments } from "../../map/data/grandmaComments";
 import {
   buildHistoryForRequest,
   createEmptySession,
@@ -42,6 +44,14 @@ const QUESTION_POOL = [
   "食べ歩きできるものある？",
   "写真映えする場所は？",
 ] as const;
+
+/**
+ * 最初のひとことに使う台本。
+ * お知らせ（bag を見て、など）や催しは、開いた直後に言われても行き場がないので外す。
+ */
+const GREETING_LINES = grandmaComments
+  .filter((comment) => comment.genre === "monologue" || comment.genre === "tutorial")
+  .map((comment) => comment.text);
 
 export interface ConsultStageProps {
   onAskStream: (
@@ -112,6 +122,17 @@ export default function ConsultStage({
    */
   const [introSettled, setIntroSettled] = useState(false);
   const handleIntroSettled = useCallback(() => setIntroSettled(true), []);
+  /**
+   * にちよさんが着いたときに言うひとこと。
+   * 引く値が毎回変わるので、描画のたびに変えるとサーバーと食い違う。
+   * 画面に出るのは演出のあとなので、mount 後に一度だけ決めれば間に合う。
+   */
+  const [greeting, setGreeting] = useState<string | null>(null);
+  useEffect(() => {
+    setGreeting(
+      buildConsultGreeting({ now: new Date(), lines: GREETING_LINES, random: Math.random() })
+    );
+  }, []);
   /** 出てくる順を少しずらす。段になって流れると急に埋まった感じが消える */
   const revealClass = (delayMs: number) => ({
     className: `consult-reveal${introSettled ? " is-shown" : ""}`,
@@ -523,8 +544,15 @@ export default function ConsultStage({
         スクロール中にレイアウトが動かない。
       */}
       <div className="flex flex-col items-center gap-2">
-        {/* flex にして、囲んだだけで下に行間の隙間が出ないようにする（測る先がずれる） */}
-        <div ref={heroAvatarRef} className="flex">
+        {/*
+          flex にして、囲んだだけで下に行間の隙間が出ないようにする（測る先がずれる）。
+          定位置に着いたら一度だけ会釈する。縮む動きが「小さくなった」ではなく
+          「こっちに来て、目の前に座った」として読めるようにするため。
+        */}
+        <div
+          ref={heroAvatarRef}
+          className={`flex${introSettled ? " consult-greet" : ""}`}
+        >
           <GrandmaAvatar
             pose={pose}
             size="hero"
@@ -532,17 +560,29 @@ export default function ConsultStage({
             label={speech.isListening ? "音声入力を止める" : "にちよさんに話しかける"}
           />
         </div>
-        {(speech.isListening || !showAnswer) && (
-          <p
-            style={revealClass(0).style}
-            className={`text-center text-sm font-bold text-amber-900 ${revealClass(0).className}`}
-          >
-            {speech.isListening
-              ? "聞きよるよ…"
-              : speech.isSupported
-                ? "にちよさんをタップして話しかけてね"
-                : "聞きたいことを選んでね"}
-          </p>
+        {speech.isListening ? (
+          <p className="text-center text-sm font-bold text-amber-900">聞きよるよ…</p>
+        ) : (
+          !showAnswer && (
+            /*
+              最初のひとこと。説明文をそのまま置くのではなく、にちよさんの言葉として出す。
+              「話しかけてよい相手が、もう話しかけてきている」ほうが、
+              タップしてよいことが一行の説明よりも早く伝わる。
+            */
+            <div
+              style={revealClass(0).style}
+              className={`consult-greeting max-w-[19rem] rounded-2xl border border-amber-200 bg-white px-4 py-2.5 text-center shadow-sm ${revealClass(0).className}`}
+            >
+              <p className="text-[15px] font-bold leading-6 text-amber-900">
+                {greeting ?? "なんでも聞いてや。"}
+              </p>
+              <p className="mt-0.5 text-[11px] text-amber-700/80">
+                {speech.isSupported
+                  ? "にちよさんをタップして話しかけてね"
+                  : "聞きたいことを選んでね"}
+              </p>
+            </div>
+          )
         )}
       </div>
 
