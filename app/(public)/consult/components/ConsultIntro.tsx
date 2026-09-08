@@ -116,9 +116,9 @@ export default function ConsultIntro({ targetRef, onSettled }: ConsultIntroProps
       <div
         ref={heroRef}
         // 絵の四角には透けた余白が広くあり、にちよさん自身は縦69%・横43%しかない。
-        // 画面いっぱいに見せるには、四角のほうを画面より大きく取る必要がある
-        // （縦は 80vh ぶんの四角＝にちよさんが画面の高さの半分強、横は 188vw で頭打ち）
-        className="absolute left-1/2 top-[44%] h-[min(188vw,80vh)] w-[min(188vw,80vh)]"
+        // 大きく見せるには、四角のほうを画面より大きく取る必要がある
+        // （縦は 56vh ぶんの四角＝にちよさんが画面の高さの4割ほど、横は 132vw で頭打ち）
+        className="absolute left-1/2 top-[44%] h-[min(132vw,56vh)] w-[min(132vw,56vh)]"
         style={{
           // 中央寄せの分は常に効かせたままにしないと、縮む先が半分ずれる
           transform: `translate(-50%, -50%)${transform ? ` ${transform}` : ""}`,
