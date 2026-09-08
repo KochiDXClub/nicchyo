@@ -36,6 +36,7 @@ const ACTION_LABELS: Record<string, string> = {
   shop_approved: "店舗承認",
   shop_suspended: "店舗停止",
   ai_model_updated: "AIモデル変更",
+  ai_conversation_setting_updated: "AI会話設定変更",
   bulk_operation: "一括操作",
   data_export: "データエクスポート",
   login: "ログイン",

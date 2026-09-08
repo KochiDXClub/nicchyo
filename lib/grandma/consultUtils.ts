@@ -170,8 +170,20 @@ export function buildErrorResponse(
   };
 }
 
-export function buildHistoryContext(history: ConsultHistoryEntry[], memorySummary: string) {
-  const recentHistory = history.slice(-6);
+/**
+ * 直近の会話をプロンプト用のブロックにする。
+ *
+ * `historyLimit` は管理画面で変えられる（ai_conversation_settings の
+ * `consult.history_limit`）。多いほど文脈は続くが、**古いやり取りの言い回しを
+ * 手本にしやすくなる**。会話の作り方を変えた直後は、変更前の会話が残っていると
+ * 前の形式が再現され続ける。
+ */
+export function buildHistoryContext(
+  history: ConsultHistoryEntry[],
+  memorySummary: string,
+  historyLimit = 6
+) {
+  const recentHistory = historyLimit > 0 ? history.slice(-historyLimit) : [];
   const historyBlock =
     recentHistory.length > 0
       ? recentHistory
