@@ -69,6 +69,17 @@ export const RUNNING_COSTS: RunningCost[] = [
     cycle: "monthly",
   },
   {
+    label: "Supabase（開発用）",
+    purpose: "本番に触らず試すための複製",
+    stopsWhat: "止まれば本番のデータで試すことになります",
+    // develop 用の永続ブランチ。$0.01344/時 なので月 730 時間で $9.81。
+    // Pro に付く $10 のコンピュートクレジットは本番ぶんで使い切っていて、
+    // ブランチには回らないため、まるごと上乗せになる
+    amount: 9.81,
+    currency: "USD",
+    cycle: "monthly",
+  },
+  {
     label: "OpenAI API",
     purpose: "にちよさんの相談",
     stopsWhat: "止まれば相談だけが使えません",
