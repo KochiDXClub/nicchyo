@@ -792,54 +792,6 @@ body.grandma-chat-open .leaflet-container {
   display: inline-flex;
 }
 
-.shop-bag-badge {
-  position: absolute;
-  top: -14px;
-  right: -12px;
-  display: none;
-  align-items: center;
-  justify-content: center;
-  border-radius: 9999px;
-  border: 2px solid #10b981;
-  background: #ffffff;
-  color: #10b981;
-  font-size: 11px;
-  font-weight: 700;
-  line-height: 1;
-  padding: 3px 5px;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.18);
-  pointer-events: none;
-  z-index: 5;
-}
-
-.shop-side-north .shop-bag-badge {
-  left: -12px;
-  right: auto;
-}
-
-.shop-lod-photo.shop-marker-bag .shop-bag-badge,
-.shop-lod-nameplate.shop-marker-bag .shop-bag-badge,
-.compact-shop-marker.shop-marker-bag .shop-bag-badge {
-  display: inline-flex;
-}
-
-.shop-marker-bag .stall-roof {
-  fill: #f8fafc;
-}
-
-.shop-marker-bag .stall-awning-base {
-  fill: #34d399;
-}
-
-.shop-marker-bag .stall-awning-stripe {
-  fill: #10b981;
-}
-
-.shop-marker-bag .shop-marker-compact {
-  background: linear-gradient(180deg, #10b981 0%, #059669 100%) !important;
-  border: 2px solid #ffffff;
-}
-
 body.shop-banner-open .hamburger-button {
   display: none;
 }
@@ -1473,19 +1425,6 @@ body.home-poster-zoom-open .hamburger-button {
     90deg,
     #ef4444 0 10%,
     #fca5a5 10% 20%
-  ) !important;
-}
-
-.shop-marker-bag .shop-illustration-3d .stall-roof {
-  background: linear-gradient(135deg, #ffffff, #f1f5f9) !important;
-  box-shadow: 0 4px 8px rgba(16, 185, 129, 0.25), inset -6px 0 0 rgba(209, 213, 219, 0.25) !important;
-}
-
-.shop-marker-bag .shop-illustration-3d .stall-awning {
-  background: repeating-linear-gradient(
-    90deg,
-    #10b981 0 10%,
-    #34d399 10% 20%
   ) !important;
 }
 
