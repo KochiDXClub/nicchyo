@@ -4,7 +4,7 @@ import type { Database } from "@/types/database.types";
 import type { DatabaseWithExtensions } from "@/types/database.extensions";
 import { buildGrandmaAiSystemPrompt } from "@/lib/grandma/prompts/consultSystemPrompt";
 import { fetchAiPrompts } from "@/lib/grandma/prompts/promptStore.server";
-import { buildChatCompletionBody } from "@/lib/ai/models";
+import { requestChatCompletion, requestEmbeddings } from "@/lib/ai/openaiFetch";
 import { resolveAiModelFor } from "@/lib/ai/modelStore.server";
 import { loadSpotSupport } from "@/lib/guide/spotSupport.server";
 import { requireSameOrigin } from "@/lib/security/requestGuards";
@@ -350,35 +350,26 @@ async function createStreamingConsultResponse(options: {
   const spotSupport = await loadSpotSupport(supabase, location);
   const aiModel = await resolveAiModelFor("consult");
 
-  const upstream = await fetch("https://api.openai.com/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${openaiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(
-      buildChatCompletionBody(aiModel, {
-        messages: [
-          {
-            role: "system",
-            content: buildGrandmaAiSystemPrompt(
-              selectedCharacters,
-              [buildStreamingFormatPrompt(selectedCharacters), spotSupport.prompt]
-                .filter(Boolean)
-                .join("\n\n"),
-              aiPrompts
-            ),
-          },
-          {
-            role: "user",
-            content: userContent,
-          },
-        ],
-        maxOutputTokens: 500,
-        temperature: 0.7,
-        stream: true,
-      })
-    ),
+  const upstream = await requestChatCompletion(openaiKey, aiModel, {
+    messages: [
+      {
+        role: "system",
+        content: buildGrandmaAiSystemPrompt(
+          selectedCharacters,
+          [buildStreamingFormatPrompt(selectedCharacters), spotSupport.prompt]
+            .filter(Boolean)
+            .join("\n\n"),
+          aiPrompts
+        ),
+      },
+      {
+        role: "user",
+        content: userContent,
+      },
+    ],
+    maxOutputTokens: 500,
+    temperature: 0.7,
+    stream: true,
   });
 
   if (!upstream.ok || !upstream.body) {
@@ -649,17 +640,7 @@ export async function POST(request: Request) {
       targetShop = await fetchShopByName(supabase, targetShopName);
     }
 
-    const embeddingResponse = await fetch("https://api.openai.com/v1/embeddings", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${openaiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "text-embedding-3-small",
-        input: question,
-      }),
-    });
+    const embeddingResponse = await requestEmbeddings(openaiKey, question);
     if (!embeddingResponse.ok) {
       return NextResponse.json(
         buildErrorResponse(
@@ -857,33 +838,24 @@ export async function POST(request: Request) {
     const spotSupport = await loadSpotSupport(supabase, location);
     const aiModel = await resolveAiModelFor("consult");
 
-    const chatResponse = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${openaiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(
-        buildChatCompletionBody(aiModel, {
-          messages: [
-            {
-              role: "system",
-              content: buildGrandmaAiSystemPrompt(
-                selectedCharacters,
-                [buildJsonFormatPrompt(), spotSupport.prompt].filter(Boolean).join("\n\n"),
-                await fetchAiPrompts()
-              ),
-            },
-            {
-              role: "user",
-              content: userContent,
-            },
-          ],
-          maxOutputTokens: 500,
-          temperature: 0.7,
-          responseFormat: buildResponseSchema(selectedCharacters),
-        })
-      ),
+    const chatResponse = await requestChatCompletion(openaiKey, aiModel, {
+      messages: [
+        {
+          role: "system",
+          content: buildGrandmaAiSystemPrompt(
+            selectedCharacters,
+            [buildJsonFormatPrompt(), spotSupport.prompt].filter(Boolean).join("\n\n"),
+            await fetchAiPrompts()
+          ),
+        },
+        {
+          role: "user",
+          content: userContent,
+        },
+      ],
+      maxOutputTokens: 500,
+      temperature: 0.7,
+      responseFormat: buildResponseSchema(selectedCharacters),
     });
     if (!chatResponse.ok) {
       return NextResponse.json(

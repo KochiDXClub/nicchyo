@@ -17,7 +17,7 @@ import {
   buildItineraryUserPrompt,
   stripAngleBrackets,
 } from "@/lib/grandma/prompts/itineraryPrompt";
-import { buildChatCompletionBody } from "@/lib/ai/models";
+import { requestChatCompletion, requestEmbeddings } from "@/lib/ai/openaiFetch";
 import { resolveAiModelFor } from "@/lib/ai/modelStore.server";
 
 export const runtime = "nodejs";
@@ -131,17 +131,7 @@ export async function POST(request: Request) {
     // 興味が未指定だとクエリがほぼ定数になるため、会話の文脈も混ぜて検索の意味を持たせる
     const contextHint = [memorySummary, historyText].filter(Boolean).join(" ").slice(0, 300);
     const queryText = `日曜市おさんぽプラン。興味:${interest || "未指定"} ${contextHint}`.trim();
-    const embeddingResponse = await fetch("https://api.openai.com/v1/embeddings", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${openaiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "text-embedding-3-small",
-        input: queryText,
-      }),
-    });
+    const embeddingResponse = await requestEmbeddings(openaiKey, queryText);
     if (!embeddingResponse.ok) {
       return NextResponse.json({ error: "embedding failed" }, { status: 500 });
     }
@@ -197,22 +187,13 @@ export async function POST(request: Request) {
 
     const aiModel = await resolveAiModelFor("itinerary");
 
-    const chatResponse = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${openaiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(
-        buildChatCompletionBody(aiModel, {
-          messages: [
-            { role: "system", content: ITINERARY_SYSTEM_PROMPT },
-            { role: "user", content: prompt },
-          ],
-          maxOutputTokens: 900,
-          temperature: 0.6,
-        })
-      ),
+    const chatResponse = await requestChatCompletion(openaiKey, aiModel, {
+      messages: [
+        { role: "system", content: ITINERARY_SYSTEM_PROMPT },
+        { role: "user", content: prompt },
+      ],
+      maxOutputTokens: 900,
+      temperature: 0.6,
     });
     if (!chatResponse.ok) {
       return NextResponse.json({ error: "chat completion failed" }, { status: 500 });
