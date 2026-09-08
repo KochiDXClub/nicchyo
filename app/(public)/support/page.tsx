@@ -1,3 +1,5 @@
+import Link from "next/link";
+import { ArrowRight } from "lucide-react";
 import NavigationBar from "../../components/NavigationBar";
 import MapLink from "../../components/MapLink";
 import { fetchMonthlyVisitors, fetchWeeklyVisitors } from "@/lib/analytics/visitorStats.server";
@@ -197,11 +199,34 @@ export default async function SupportPage() {
             </p>
           </div>
 
-          {/* メーターの色がどの協賛かを、名前と金額で結びつける場所も兼ねる */}
+          {/* メーターの色がどの協賛かを、名前と金額で結びつける場所も兼ねる。
+              個人のご支援は別のページなので、見出しでも「ご協賛」と区別する
+              （個人側は「ご支援くださった皆さま」で、名前が紛らわしい） */}
           <h3 className="mt-12 text-[11px] font-bold tracking-[0.2em] text-nicchyo-ink/40">
-            ご支援くださる皆さま
+            ご協賛くださる皆さま
           </h3>
           <SupporterSlots className="mt-5" />
+
+          {/* 個人の一覧への導線。掲載枠のすぐ下が、探している人がいちばん見る所 */}
+          <Link
+            href="/support/supporters"
+            className="group mt-7 flex items-center justify-between gap-4 border-t border-nicchyo-ink/10 pt-5 transition-colors hover:text-amber-800"
+          >
+            <span>
+              <span className="block text-[14px] font-bold text-amber-700 underline-offset-4 group-hover:underline">
+                個人でご支援くださった皆さま
+              </span>
+              <span className="mt-1 block text-[12.5px] text-nicchyo-ink/45">
+                {individualSupporterCount > 0
+                  ? `${individualSupporterCount.toLocaleString("ja-JP")}名のお名前を掲載しております`
+                  : "これから、こちらにお名前を掲載してまいります"}
+              </span>
+            </span>
+            <ArrowRight
+              className="h-4 w-4 shrink-0 text-amber-700/60 transition group-hover:translate-x-0.5 group-hover:text-amber-700"
+              aria-hidden
+            />
+          </Link>
         </Section>
 
         {/* ── 届いている範囲 ──────────────────────────────────────────── */}
@@ -246,6 +271,16 @@ export default async function SupportPage() {
               <dt className="text-[14px] font-bold">お支払いについて</dt>
               <dd className="mt-1.5 text-[13px] leading-[1.95] text-nicchyo-ink/55">
                 サイト内での決済は承っておりません。お問い合わせ箱にてご相談を承ります。
+              </dd>
+            </div>
+            <div className="border-b border-nicchyo-ink/[0.07] py-4">
+              {/*
+                先に書いておく。経理の方が後から確認して話が止まるより、
+                最初にお伝えした方が誠実で、結果として早く進む
+              */}
+              <dt className="text-[14px] font-bold">税制上の優遇について</dt>
+              <dd className="mt-1.5 text-[13px] leading-[1.95] text-nicchyo-ink/55">
+                恐れ入りますが、寄附金控除などの税制上の優遇の対象にはなりません。あらかじめご了承いただけますと幸いです。
               </dd>
             </div>
             <div className="border-b border-nicchyo-ink/[0.07] py-4">

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ArrowRight } from "lucide-react";
 import { formatJpy } from "../costs";
 
 /**
@@ -117,9 +118,13 @@ export default function SupportWays({
           </Link>
           <Link
             href="/support/supporters"
-            className="mt-3 block text-center text-[12.5px] font-bold text-nicchyo-ink/45 underline-offset-4 transition hover:text-nicchyo-ink/75 hover:underline"
+            className="group mt-3 flex items-center justify-center gap-1.5 text-[12.5px] font-bold text-amber-700 underline-offset-4 transition hover:text-amber-800 hover:underline"
           >
-            掲載されている方を見る
+            ご支援くださった皆さまを見る
+            <ArrowRight
+              className="h-3.5 w-3.5 transition group-hover:translate-x-0.5"
+              aria-hidden
+            />
           </Link>
         </div>
       </div>
