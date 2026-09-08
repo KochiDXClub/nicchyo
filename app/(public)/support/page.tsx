@@ -1,4 +1,3 @@
-import Link from "next/link";
 import NavigationBar from "../../components/NavigationBar";
 import MapLink from "../../components/MapLink";
 import { fetchMonthlyVisitors, fetchWeeklyVisitors } from "@/lib/analytics/visitorStats.server";
@@ -12,6 +11,7 @@ import CostLedger from "./components/CostLedger";
 import CostPerVisitor from "./components/CostPerVisitor";
 import TrackRecord from "./components/TrackRecord";
 import TeamStructure from "./components/TeamStructure";
+import SupportWays from "./components/SupportWays";
 import Reveal from "@/components/Reveal";
 import { totalIndividualSupporters } from "@/lib/support/individualSupporters";
 import {
@@ -37,31 +37,6 @@ export const metadata = {
       "高知・日曜市の地図 nicchyo は、高知高専の学生と顧問の教員が運営しております。かかっている費用と、ご支援いただいている状況を公開しております。",
   },
 };
-
-/**
- * ご協賛でお返しできること。
- *
- * すでに実装してあるものだけを並べる。ここに書いた時点で約束になるので、
- * 部員が入れ替わっても手をかけずに続くもの以外は足さないこと。
- */
-const SPONSOR_OFFERS = [
-  {
-    title: "お名前またはロゴの掲載",
-    body: "このページと「nicchyoとは」に掲載いたします。",
-  },
-  {
-    title: "支えていただいた分を、図でお示しします",
-    body: "ご希望に応じて、上の図にご協賛ぶんの色がつきます。何ヶ月ぶんを支えていただいているかが、そのまま見える形になります。",
-  },
-  {
-    title: "マップへのご紹介",
-    body: "ご希望に応じて、日曜市の周辺で立ち寄れる場所として、マップにご紹介いたします。",
-  },
-  {
-    title: "更新のご相談",
-    body: "期間が終わる前に、こちらからご連絡いたします。",
-  },
-] as const;
 
 /** 入口を過ぎたことを要約バーに知らせる目印 */
 const HERO_SENTINEL_ID = "support-hero-end";
@@ -253,39 +228,15 @@ export default async function SupportPage() {
           <TeamStructure />
         </Section>
 
-        {/* ── ご提案できること ────────────────────────────────────────────
-            ご協賛を検討する側がいちばん知りたいところ。条件の一項目として
-            他と同じ大きさで並べていると、探さないと見つからない */}
-        <Section label="ご提案できること">
-          {/*
-            すでに動いているものだけを書く。ここに書いたことは約束になるので、
-            部員が入れ替わっても手をかけずに続くもの以外は載せない。
-
-            頭に「1年間を通して」を置いているのは、1口が運営費の3ヶ月分にあたる
-            ことと、掲載が1年続くことを混同されないため。個々の項目に期間を
-            書き足すより、まとめて一度言う方が読みやすい
-          */}
-          <div className="rounded-[22px] bg-amber-50/70 p-6 ring-1 ring-amber-600/15 sm:p-8">
-            <p className="text-[14px] font-bold leading-[1.9]">
-              1口につき、1年間を通して以下をご案内いたします。
-            </p>
-            <ul className="mt-5 space-y-4">
-              {SPONSOR_OFFERS.map((offer) => (
-                <li key={offer.title} className="flex gap-3.5">
-                  <span
-                    className="mt-[0.55rem] h-1.5 w-1.5 shrink-0 rounded-full bg-amber-600"
-                    aria-hidden
-                  />
-                  <span>
-                    <strong className="block text-[14.5px] font-bold">{offer.title}</strong>
-                    <span className="mt-1 block text-[13px] leading-[1.95] text-nicchyo-ink/60">
-                      {offer.body}
-                    </span>
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </div>
+        {/* ── ご支援の方法 ────────────────────────────────────────────
+            個人と組織では、お返しできるものも決め方も違う。ひとつにまとめると
+            どちらの人も自分の話として読めなくなるので、最初から道を分ける */}
+        <Section label="ご支援の方法">
+          <SupportWays
+            sponsorUnitAnnualJpy={SPONSOR_UNIT_ANNUAL_JPY}
+            sponsorUnitMonths={unitMonths}
+            individualSupporterCount={individualSupporterCount}
+          />
         </Section>
 
         {/* ── ご相談について ──────────────────────────────────────────── */}
@@ -298,78 +249,12 @@ export default async function SupportPage() {
               </dd>
             </div>
             <div className="border-b border-nicchyo-ink/[0.07] py-4">
-              {/*
-                個人のご支援は、企業の掲載枠とは別の受け皿にする。
-                枠とロゴの並びにお名前を混ぜると、金額の大小がそのまま
-                見た目の差になってしまう
-              */}
-              <dt className="text-[14px] font-bold">個人でのご支援について</dt>
-              <dd className="mt-1.5 text-[13px] leading-[1.95] text-nicchyo-ink/55">
-                金額は問いません。掲載にご同意いただける場合は、
-                <Link
-                  href="/support/supporters"
-                  className="font-bold text-amber-700 underline underline-offset-4 transition hover:text-amber-800"
-                >
-                  ご支援くださった皆さま
-                </Link>
-                のページにお名前を掲載いたします
-                {individualSupporterCount > 0 &&
-                  `（これまでに ${individualSupporterCount.toLocaleString("ja-JP")}名）`}
-                。企業さまの掲載枠とは分けて、金額の多少にかかわらず同じ大きさで並べております。
-              </dd>
-            </div>
-            <div className="border-b border-nicchyo-ink/[0.07] py-4">
               <dt className="text-[14px] font-bold">会計について</dt>
               <dd className="mt-1.5 text-[13px] leading-[1.95] text-nicchyo-ink/55">
                 お預かりした資金は、運営費以外には使用いたしません。会計は顧問の教員が確認しております。
               </dd>
             </div>
           </dl>
-
-          {/*
-            金額・掲載期間・まかなえる運営費を、1行ずつ分けて出す。
-            「1口 30,000円（3ヶ月分）」のように1行にまとめると、3ヶ月しか
-            掲載されないと読まれる。3ヶ月は金額の根拠、1年は掲載の期間で、別の話
-          */}
-          {SPONSOR_UNIT_ANNUAL_JPY !== null && unitMonths !== null && (
-            <dl className="mt-9 border-t border-nicchyo-ink/10">
-              <div className="flex items-baseline justify-between gap-6 border-b border-nicchyo-ink/[0.07] py-4">
-                <dt className="text-[13px] text-nicchyo-ink/55">ご協賛 1口</dt>
-                <dd className="text-[1.7rem] font-bold leading-none tabular-nums">
-                  {formatJpy(SPONSOR_UNIT_ANNUAL_JPY)}
-                  <span className="ml-1.5 text-[13px] font-bold text-nicchyo-ink/40">/ 年</span>
-                </dd>
-              </div>
-              <div className="flex items-baseline justify-between gap-6 border-b border-nicchyo-ink/[0.07] py-4">
-                <dt className="text-[13px] text-nicchyo-ink/55">掲載の期間</dt>
-                <dd className="text-[15px] font-bold">1年間</dd>
-              </div>
-              <div className="flex items-baseline justify-between gap-6 py-4">
-                <dt className="text-[13px] text-nicchyo-ink/55">まかなえる運営費</dt>
-                <dd className="text-[15px] font-bold tabular-nums">
-                  およそ {unitMonths.toFixed(1)}ヶ月分
-                </dd>
-              </div>
-            </dl>
-          )}
-
-          {/*
-            金額が動きうることを、頼む前に書いておく。あとから値上げをお願いする
-            より、最初から「見直します」と伝えてある方が続けていただきやすい。
-            費用は為替でも動くし、機能を足せば増える
-          */}
-          {SPONSOR_UNIT_ANNUAL_JPY !== null && (
-            <p className="mt-4 text-[12.5px] leading-[1.9] text-nicchyo-ink/45">
-              1口の金額は、運営費の変動や機能の追加に合わせて、年に一度見直させていただきます。次の年のご継続をご相談する際に、改めてご案内いたします。
-            </p>
-          )}
-
-          <Link
-            href="/contact?category=sponsor"
-            className="mt-8 flex w-full items-center justify-center rounded-2xl bg-nicchyo-ink px-4 py-4 text-[15px] font-bold text-white shadow-[0_6px_16px_-6px_rgba(58,58,58,0.55)] transition hover:bg-nicchyo-ink/90 active:scale-[0.99] sm:w-fit sm:px-12"
-          >
-            協賛のご相談
-          </Link>
         </Section>
 
         {/* 締め。お願いで終わらせず、いま支えてくださっている方への礼で閉じる */}
