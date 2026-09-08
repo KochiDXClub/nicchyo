@@ -1,20 +1,23 @@
-import Image from "next/image";
 import Link from "next/link";
 import NavigationBar from "../../components/NavigationBar";
 import MapLink from "../../components/MapLink";
 import { fetchWeeklyVisitors } from "@/lib/analytics/weeklyVisitors.server";
+import { fetchPublishedShopCount } from "@/lib/support/shopCount.server";
 import SupporterSlots from "@/components/SupporterSlots";
 import { buildFundingSegments, OTHER_FUNDING_COLOR } from "@/lib/support/supporters";
 import RunwayMeter from "./RunwayMeter";
+import SupportHero from "./components/SupportHero";
+import SupportSummaryBar from "./components/SupportSummaryBar";
+import CostLedger from "./components/CostLedger";
+import TrackRecord from "./components/TrackRecord";
 import {
-  ANNUAL_COST_RANGE_JPY,
   FUNDS_ON_HAND_JPY,
   RUNNING_COSTS,
   RUNWAY_MONTHS,
   SPONSOR_UNIT_ANNUAL_JPY,
-  TRACK_RECORD,
+  annualCostJpy,
   formatJpy,
-  hasCostBreakdown,
+  hasPendingCost,
   monthlyCostJpy,
   runwayMonths,
   sponsorUnitMonths,
@@ -23,199 +26,206 @@ import {
 export const metadata = {
   title: "運営について",
   description:
-    "nicchyo の運営にかかる費用と、ご支援いただいている状況をご報告しています。協賛のご相談も承っております。",
+    "nicchyo の運営にかかる費用と、ご支援いただいている状況をご報告しております。協賛のご相談も承っております。",
+  openGraph: {
+    title: "運営について | nicchyo",
+    description:
+      "高知・日曜市の地図 nicchyo は、高知高専の学生と顧問の教員が運営しております。かかっている費用と、ご支援いただいている状況を公開しております。",
+  },
 };
 
+/** 入口を過ぎたことを要約バーに知らせる目印 */
+const HERO_SENTINEL_ID = "support-hero-end";
+
+/**
+ * 見出しと中身を左右に分ける。読み物ではなく報告なので、見出しは横に置いて
+ * 本文の流れを切らない。デスクトップでは見出しがその節のあいだ貼り付く
+ */
+function Section({
+  id,
+  label,
+  children,
+}: {
+  id?: string;
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section
+      id={id}
+      className="scroll-mt-24 border-t border-nicchyo-ink/10 pt-10 lg:grid lg:grid-cols-12 lg:gap-x-12 lg:pt-16"
+    >
+      <h2 className="text-[11px] font-bold tracking-[0.2em] text-nicchyo-ink/40 lg:col-span-3 lg:sticky lg:top-24 lg:self-start">
+        {label}
+      </h2>
+      <div className="mt-6 lg:col-span-9 lg:mt-0">{children}</div>
+    </section>
+  );
+}
+
+/** 数字ひとつ。取れなかったときは「集計中」に落とす */
+function Figure({ label, value }: { label: string; value: number | null; }) {
+  return (
+    <div>
+      <dt className="text-[11px] tracking-[0.08em] text-nicchyo-ink/45">{label}</dt>
+      <dd className="mt-1.5 text-[1.7rem] font-bold leading-none tabular-nums">
+        {value === null ? (
+          <span className="text-[15px] font-bold text-nicchyo-ink/30">集計中</span>
+        ) : (
+          value.toLocaleString("ja-JP")
+        )}
+      </dd>
+    </div>
+  );
+}
+
 export default async function SupportPage() {
-  const weeklyVisitors = await fetchWeeklyVisitors();
+  const [weeklyVisitors, shopCount] = await Promise.all([
+    fetchWeeklyVisitors(),
+    fetchPublishedShopCount(),
+  ]);
+
   const monthly = monthlyCostJpy();
+  const annual = annualCostJpy();
+  const hasPending = hasPendingCost();
   // メーターの塗りを「誰が出した分か」で分ける
   const segments = buildFundingSegments({ fundsJpy: FUNDS_ON_HAND_JPY, monthlyJpy: monthly });
   const otherSegment = segments.find((segment) => segment.color === OTHER_FUNDING_COLOR);
   const runway = runwayMonths();
   const unitMonths = sponsorUnitMonths();
-  const showBreakdown = hasCostBreakdown();
+
+  const monthlyLabel = `${formatJpy(monthly)}${hasPending ? "以上" : ""}`;
+  const runwayLabel = `${runway.toFixed(1)}ヶ月`;
 
   return (
-    <main className="min-h-screen bg-nicchyo-base text-nicchyo-ink pb-[calc(3rem+var(--safe-bottom))]">
-      {/*
-        入口は絵と余白だけ。数字は下にあるので、ここに文字を載せない。
-        高さは画面のおよそ半分。小さい端末で潰れず、大きい端末で間延びしないよう上下を止める。
-      */}
-      <section className="relative isolate flex h-[44vh] min-h-[260px] max-h-[400px] items-center justify-center overflow-hidden">
-        <div className="absolute inset-0 -z-10 bg-gradient-to-b from-amber-100/80 via-amber-50/50 to-nicchyo-base" />
-        <div className="absolute left-1/2 top-1/2 -z-10 h-64 w-64 -translate-x-1/2 -translate-y-[58%] rounded-full bg-white/70 blur-3xl sm:h-80 sm:w-80" />
-        <Image
-          src="/images/obaasan_transparent.png"
-          alt=""
-          width={512}
-          height={512}
-          priority
-          draggable={false}
-          className="h-[84%] w-auto select-none object-contain"
-          aria-hidden
-        />
-      </section>
+    <main
+      className="support-page min-h-screen bg-nicchyo-base text-nicchyo-ink"
+      style={{ paddingBottom: "calc(var(--nav-bar-height) + var(--safe-bottom, 0px) + 2rem)" }}
+    >
+      <SupportSummaryBar
+        monthlyLabel={monthlyLabel}
+        runwayLabel={runwayLabel}
+        totalMonths={RUNWAY_MONTHS}
+        sentinelId={HERO_SENTINEL_ID}
+      />
 
-      <div className="mx-auto max-w-lg px-6">
-        <h1 className="text-[1.75rem] font-bold leading-snug tracking-tight">運営について</h1>
-        <p className="mt-3 text-[15px] leading-loose text-nicchyo-ink/60">
-          高知高専の学生と顧問の教員が運営しております。広告は掲載しておりません。
-        </p>
+      <SupportHero
+        monthlyLabel={monthlyLabel}
+        runwayLabel={runwayLabel}
+        totalMonths={RUNWAY_MONTHS}
+      />
+      <div id={HERO_SENTINEL_ID} aria-hidden />
 
-        {/* このページで唯一の図。必要額と集まった額を1つのメーターで見せる */}
-        <section className="mt-14">
-          <h2 className="text-[12px] font-bold tracking-[0.1em] text-nicchyo-ink/40">
-            ご支援いただいている期間
-          </h2>
-          <p className="mt-4 flex items-baseline gap-2">
-            <span className="text-[3.5rem] font-bold leading-none text-nicchyo-ink">
-              {runway.toFixed(1)}
-            </span>
-            <span className="text-lg font-bold text-nicchyo-ink/50">ヶ月</span>
-            <span className="ml-auto text-[13px] text-nicchyo-ink/40">
-              / {RUNWAY_MONTHS}ヶ月
-            </span>
-          </p>
+      <div className="mx-auto max-w-[64rem] px-6 sm:px-8">
+        {/* ── 運営費 ────────────────────────────────────────────────── */}
+        <Section id="costs" label="運営費">
+          <CostLedger
+            costs={RUNNING_COSTS}
+            monthlyTotalJpy={monthly}
+            annualTotalJpy={annual}
+            hasPending={hasPending}
+          />
+        </Section>
 
-          <div className="mt-6">
-            <RunwayMeter segments={segments} totalMonths={RUNWAY_MONTHS} />
+        {/* ── いまの状況 ─────────────────────────────────────────────── */}
+        <Section label="いまの状況">
+          {/* このページで唯一、面として立てるところ。図の主役はここだけにする */}
+          <div className="rounded-[22px] bg-white p-6 shadow-[0_1px_2px_rgba(58,58,58,0.04),0_18px_40px_-28px_rgba(146,64,14,0.5)] ring-1 ring-nicchyo-ink/[0.07] sm:p-8">
+            <p className="flex items-baseline gap-2.5">
+              <span className="text-[3rem] font-bold leading-none tabular-nums sm:text-[3.5rem]">
+                {runway.toFixed(1)}
+              </span>
+              <span className="text-[17px] font-bold text-nicchyo-ink/50">ヶ月</span>
+              <span className="ml-auto text-[13px] tabular-nums text-nicchyo-ink/40">
+                / {RUNWAY_MONTHS}ヶ月
+              </span>
+            </p>
+
+            <div className="mt-6">
+              <RunwayMeter
+                segments={segments}
+                totalMonths={RUNWAY_MONTHS}
+                ghostMonths={unitMonths ?? undefined}
+              />
+            </div>
+
+            {/* 「その他」は掲載枠に出ないので、色と金額をここで示す */}
+            {otherSegment && (
+              <p className="mt-5 flex items-center gap-2 text-[12.5px] tabular-nums text-nicchyo-ink/50">
+                <span
+                  className="h-2 w-2 shrink-0 rounded-[2px]"
+                  style={{ backgroundColor: otherSegment.color }}
+                  aria-hidden
+                />
+                その他（助成金・匿名でのご支援） {formatJpy(otherSegment.amountJpy)}
+              </p>
+            )}
+
+            <p className="mt-5 border-t border-nicchyo-ink/[0.07] pt-5 text-[13px] leading-[1.95] text-nicchyo-ink/55">
+              {FUNDS_ON_HAND_JPY > 0
+                ? `ご支援いただいた ${formatJpy(FUNDS_ON_HAND_JPY)} で、ここまで運営することができます。`
+                : "現在は、運営費の全額を学生が負担しております。"}
+            </p>
           </div>
 
-          {/* 「その他」は掲載枠に出ないので、色と金額をここで示す */}
-          {otherSegment && (
-            <p className="mt-4 flex items-center gap-2 text-[13px] tabular-nums text-nicchyo-ink/50">
-              <span
-                className="h-2 w-2 shrink-0 rounded-[2px]"
-                style={{ backgroundColor: otherSegment.color }}
-                aria-hidden
-              />
-              その他（助成金・匿名でのご支援） {formatJpy(otherSegment.amountJpy)}
-            </p>
-          )}
-
-          <p className="mt-4 text-[13px] leading-relaxed text-nicchyo-ink/50">
-            {FUNDS_ON_HAND_JPY > 0
-              ? `ご支援いただいた ${formatJpy(FUNDS_ON_HAND_JPY)} で、ここまで運営することができます。`
-              : "現在は、運営費の全額を学生が負担しております。"}
-          </p>
-
           {/* メーターの色がどの協賛かを、名前と金額で結びつける場所も兼ねる */}
-          <h3 className="mt-10 text-[12px] font-bold tracking-[0.1em] text-nicchyo-ink/40">
+          <h3 className="mt-12 text-[11px] font-bold tracking-[0.2em] text-nicchyo-ink/40">
             ご支援くださる皆さま
           </h3>
-          <SupporterSlots className="mt-4" />
-        </section>
+          <SupporterSlots className="mt-5" />
+        </Section>
 
-        {/* 費用。図はメーターに任せ、ここは金額をそろえて並べるだけにする */}
-        <section className="mt-14 border-t border-nicchyo-ink/10 pt-10">
-          <h2 className="text-[12px] font-bold tracking-[0.1em] text-nicchyo-ink/40">
-            毎月の運営費
-          </h2>
+        {/* ── 届いている範囲 ──────────────────────────────────────────── */}
+        <Section label="届いている範囲">
+          <dl className="flex gap-10 border-b border-nicchyo-ink/[0.07] pb-7 sm:gap-16">
+            <Figure label="マップに載っている店舗" value={shopCount} />
+            <Figure label="今週の訪問者数" value={weeklyVisitors} />
+          </dl>
 
-          {showBreakdown ? (
-            <>
-              <dl className="mt-5">
-                {RUNNING_COSTS.map((cost) => (
-                  <div
-                    key={cost.label}
-                    className="flex items-baseline justify-between gap-4 border-b border-nicchyo-ink/[0.06] py-3.5 last:border-0"
-                  >
-                    <dt>
-                      <span className="block text-[15px] font-bold">{cost.label}</span>
-                      <span className="block text-[12px] text-nicchyo-ink/40">{cost.purpose}</span>
-                    </dt>
-                    <dd className="shrink-0 text-[15px] font-bold tabular-nums">
-                      {cost.monthlyJpy === null ? (
-                        <span className="text-nicchyo-ink/30">調整中</span>
-                      ) : (
-                        formatJpy(cost.monthlyJpy)
-                      )}
-                    </dd>
-                  </div>
-                ))}
-              </dl>
-              <p className="mt-5 flex items-baseline justify-between gap-4">
-                <span className="text-[13px] text-nicchyo-ink/50">合計</span>
-                <span className="text-2xl font-bold tabular-nums">{formatJpy(monthly)}</span>
-              </p>
-            </>
-          ) : (
-            <>
-              <p className="mt-4 flex items-baseline gap-2">
-                <span className="text-[2rem] font-bold leading-none">約 {formatJpy(monthly)}</span>
-              </p>
-              <p className="mt-3 text-[13px] leading-relaxed text-nicchyo-ink/50">
-                年間 {formatJpy(ANNUAL_COST_RANGE_JPY.min)}〜{formatJpy(ANNUAL_COST_RANGE_JPY.max)}
-                の見込みのうち、多い方を基準としております。
-              </p>
-              <ul className="mt-4 flex flex-wrap gap-x-5 gap-y-1.5">
-                {RUNNING_COSTS.map((cost) => (
-                  <li key={cost.label} className="text-[13px] text-nicchyo-ink/45">
-                    {cost.label}
-                  </li>
-                ))}
-              </ul>
-            </>
-          )}
-        </section>
+          <div className="mt-10">
+            <TrackRecord />
+          </div>
+        </Section>
 
-        {/* 届いている範囲。ここに大きな数字を置くと、上のメーターと主役が割れる */}
-        <section className="mt-14 border-t border-nicchyo-ink/10 pt-10">
-          <h2 className="text-[12px] font-bold tracking-[0.1em] text-nicchyo-ink/40">
-            ご利用の状況
-          </h2>
-          <dl className="mt-5">
-            <div className="flex items-baseline justify-between gap-4 border-b border-nicchyo-ink/[0.06] py-3.5">
-              <dt className="text-[15px] text-nicchyo-ink/70">今週の訪問者数</dt>
-              <dd className="shrink-0 text-[15px] font-bold tabular-nums">
-                {weeklyVisitors === null
-                  ? <span className="text-nicchyo-ink/30">集計中</span>
-                  : `${weeklyVisitors.toLocaleString("ja-JP")}人`}
+        {/* ── ご相談について ──────────────────────────────────────────── */}
+        <Section label="ご相談について">
+          <dl className="border-t border-nicchyo-ink/10">
+            <div className="border-b border-nicchyo-ink/[0.07] py-4">
+              <dt className="text-[14px] font-bold">お支払いについて</dt>
+              <dd className="mt-1.5 text-[13px] leading-[1.95] text-nicchyo-ink/55">
+                サイト内での決済は承っておりません。運営者個人の氏名と住所を公開することになるためです。お問い合わせ箱にてご相談を承ります。
               </dd>
             </div>
-            {TRACK_RECORD.map((item) => (
-              <div
-                key={item.label}
-                className="flex items-baseline justify-between gap-4 border-b border-nicchyo-ink/[0.06] py-3.5 last:border-0"
-              >
-                <dt className="text-[15px] text-nicchyo-ink/70">{item.label}</dt>
-                <dd className="shrink-0 text-[15px] font-bold">{item.value}</dd>
-              </div>
-            ))}
+            <div className="border-b border-nicchyo-ink/[0.07] py-4">
+              <dt className="text-[14px] font-bold">掲載について</dt>
+              <dd className="mt-1.5 text-[13px] leading-[1.95] text-nicchyo-ink/55">
+                このページと「nicchyoとは」に、お名前またはロゴを掲載いたします。1年ごとに更新いたします。
+              </dd>
+            </div>
+            <div className="border-b border-nicchyo-ink/[0.07] py-4">
+              <dt className="text-[14px] font-bold">会計について</dt>
+              <dd className="mt-1.5 text-[13px] leading-[1.95] text-nicchyo-ink/55">
+                お預かりした資金は、運営費以外には使用いたしません。会計は顧問の教員が確認しております。
+              </dd>
+            </div>
           </dl>
-        </section>
-
-        {/* 協賛。金額が決まっていれば「1口で何ヶ月ぶん」まで出す */}
-        <section className="mt-14 border-t border-nicchyo-ink/10 pt-10">
-          <h2 className="text-[12px] font-bold tracking-[0.1em] text-nicchyo-ink/40">
-            協賛のお願い
-          </h2>
 
           {SPONSOR_UNIT_ANNUAL_JPY !== null && unitMonths !== null && (
-            <p className="mt-4 text-[1.75rem] font-bold leading-snug">
+            <p className="mt-8 text-[1.4rem] font-bold leading-[1.6]">
               1口 {formatJpy(SPONSOR_UNIT_ANNUAL_JPY)}のご協賛で、
-              <br />
-              {unitMonths.toFixed(1)}ヶ月ぶん運営できます。
+              {unitMonths.toFixed(1)}ヶ月ぶん運営することができます。
             </p>
           )}
 
           <Link
             href="/contact?category=sponsor"
-            className="mt-6 flex w-full items-center justify-center rounded-2xl bg-nicchyo-ink px-4 py-4 text-[15px] font-bold text-white transition active:scale-[0.99] hover:bg-nicchyo-ink/90"
+            className="mt-8 flex w-full items-center justify-center rounded-2xl bg-nicchyo-ink px-4 py-4 text-[15px] font-bold text-white shadow-[0_6px_16px_-6px_rgba(58,58,58,0.55)] transition hover:bg-nicchyo-ink/90 active:scale-[0.99] sm:w-fit sm:px-12"
           >
-            協賛のご相談はこちら
+            協賛のご相談
           </Link>
-          <p className="mt-3 text-[12px] text-nicchyo-ink/40">
-            掲載は1年ごとに更新いたします
-          </p>
-        </section>
+        </Section>
 
-        <p className="mt-14 border-t border-nicchyo-ink/10 pt-8 text-[12px] leading-loose text-nicchyo-ink/40">
-          ご支援いただいた資金は、運営費以外には使用いたしません。会計は顧問の教員が確認しております。
-        </p>
-
-        <div className="py-10 text-center">
+        <div className="py-12 text-center">
           <MapLink
             href="/map"
             className="text-[13px] font-bold text-nicchyo-ink/40 transition hover:text-nicchyo-ink/70"

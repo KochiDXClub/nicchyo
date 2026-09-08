@@ -32,7 +32,13 @@ export default function SupporterSlots({
       <ul className="grid grid-cols-3 gap-2.5">
         {slots.map((slot, index) => (
           <li key={slot?.name ?? `empty-${index}`}>
-            {slot ? <FilledSlot supporter={slot} color={colors[index]} /> : <EmptySlot />}
+            {slot ? (
+              <FilledSlot supporter={slot} color={colors[index]} />
+            ) : (
+              // 最初の空き枠にだけ言葉を入れる。空欄が3つ並ぶより、1つ目が
+              // 募集中だと分かる方が、何を差し上げられるかが伝わる
+              <EmptySlot isFirstOpen={index === supporters.length} />
+            )}
           </li>
         ))}
       </ul>
@@ -90,6 +96,17 @@ function FilledSlot({ supporter, color }: { supporter: Supporter; color: string 
   );
 }
 
-function EmptySlot() {
-  return <div className={`${SLOT_SHAPE} border border-dashed border-nicchyo-ink/20`} aria-hidden />;
+function EmptySlot({ isFirstOpen = false }: { isFirstOpen?: boolean }) {
+  if (!isFirstOpen) {
+    return <div className={`${SLOT_SHAPE} border border-dashed border-nicchyo-ink/20`} aria-hidden />;
+  }
+  return (
+    <div className={`${SLOT_SHAPE} border border-dashed border-amber-600/45 bg-amber-50/40`}>
+      <span className="text-[11.5px] font-bold leading-snug text-amber-700/85">
+        募集して
+        <br />
+        おります
+      </span>
+    </div>
+  );
 }

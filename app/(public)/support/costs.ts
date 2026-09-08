@@ -9,27 +9,57 @@
  * わからないうちは null にしておけば、ページ側がその前提で表示を変える。
  */
 
-/** 1年ぶんのサーバー代を、何ヶ月ぶん賄えているかで見せる */
+/** 1年ぶんの運営費を、何ヶ月ぶん賄えているかで見せる */
 export const RUNWAY_MONTHS = 12;
+
+/** 請求の周期。年払いのものは月額に割って並べる */
+export type BillingCycle = "monthly" | "annual";
 
 export type RunningCost = {
   label: string;
-  /** 何に使っているか。1行で */
+  /** 何に使っているか。短く */
   purpose: string;
-  /** 月額（円）。まだ確定していなければ null */
-  monthlyJpy: number | null;
+  /**
+   * この費目が止まると何ができなくなるか。短く。
+   * 金額だけを並べても「高いか安いか」しか伝わらないため、対価を1行で添える
+   */
+  stopsWhat: string;
+  /** 請求額（円）。まだ確定していなければ null */
+  amountJpy: number | null;
+  cycle: BillingCycle;
 };
 
-/** 月々かかっているもの。請求額が判明したら monthlyJpy を埋める */
+/** 月々かかっているもの。請求額が変わったら書き換える */
 export const RUNNING_COSTS: RunningCost[] = [
-  { label: "Vercel", purpose: "サイトの配信", monthlyJpy: null },
-  { label: "Supabase", purpose: "店舗データとログイン", monthlyJpy: null },
-  { label: "OpenAI API", purpose: "にちよさんの相談", monthlyJpy: null },
-  { label: "ドメイン", purpose: "nicchyo.jp の維持", monthlyJpy: null },
+  {
+    label: "Vercel",
+    purpose: "サイトの配信",
+    stopsWhat: "止まればサイトが開きません",
+    amountJpy: 3_000,
+    cycle: "monthly",
+  },
+  {
+    label: "Supabase",
+    purpose: "店舗データとログイン",
+    stopsWhat: "止まれば店舗の情報を引けません",
+    amountJpy: 3_000,
+    cycle: "monthly",
+  },
+  {
+    label: "OpenAI API",
+    purpose: "にちよさんの相談",
+    stopsWhat: "止まれば相談だけが使えません",
+    amountJpy: 1_000,
+    cycle: "monthly",
+  },
+  {
+    label: "ドメイン",
+    purpose: "nicchyo.jp の維持",
+    stopsWhat: "止まれば配布済みのQRコードが開きません",
+    amountJpy: 7_000,
+    cycle: "annual",
+  },
 ];
-
-/** 内訳が埋まるまで使う、年額の見込み */
-export const ANNUAL_COST_RANGE_JPY = { min: 150_000, max: 200_000 };
 
 /**
  * いま支援でお預かりしている額。
@@ -40,36 +70,35 @@ export const FUNDS_ON_HAND_JPY = 0;
 /** 協賛1口の年額。決まったら埋める（何ヶ月ぶんにあたるかはページ側が計算する） */
 export const SPONSOR_UNIT_ANNUAL_JPY: number | null = null;
 
-/** これまでの評価。協賛や助成を検討する人が見るところ */
-export const TRACK_RECORD = [
-  { label: "こうちNPOアワード2025", value: "ワカモノ未来賞" },
-  { label: "高知市商業振興課", value: "公式連携" },
-];
-
 export function formatJpy(value: number): string {
   return `${Math.round(value).toLocaleString("ja-JP")}円`;
 }
 
-/** 内訳がひとつでも埋まっていれば、内訳を出す */
-export function hasCostBreakdown(costs: RunningCost[] = RUNNING_COSTS): boolean {
-  return costs.some((cost) => cost.monthlyJpy !== null);
+/** 費目の月額換算。年払いのものは12で割る。未確定なら null */
+export function monthlyOf(cost: RunningCost): number | null {
+  if (cost.amountJpy === null) return null;
+  return cost.cycle === "annual" ? cost.amountJpy / 12 : cost.amountJpy;
 }
 
 /**
- * 1ヶ月にかかる額。
+ * 金額が未確定の費目があるか。
  *
- * 内訳が埋まっていればその合計。まだなら年額の見込みの **上限** から出す。
- * 少なく見積もって「あと何ヶ月」を長く見せると、このページの信用が落ちるので、
- * わからないうちは多い方に倒す。
+ * 未確定のぶんは合計に入らないので、合計は実際より少なく出る。少なく見せると
+ * 「あと何ヶ月動くか」が長く出てこのページの信用が落ちるため、1つでも残って
+ * いるあいだは合計を「◯◯円以上」として出す（表示の判断はページ側）。
  */
+export function hasPendingCost(costs: RunningCost[] = RUNNING_COSTS): boolean {
+  return costs.some((cost) => cost.amountJpy === null);
+}
+
+/** 1ヶ月にかかる額。未確定の費目は 0 として足す */
 export function monthlyCostJpy(costs: RunningCost[] = RUNNING_COSTS): number {
-  const known = costs.filter((cost) => cost.monthlyJpy !== null);
-  if (known.length > 0) {
-    return known.reduce((sum, cost) => sum + (cost.monthlyJpy ?? 0), 0);
-  }
-  // 見込みからの割り算なので、100円単位に丸める。16,667円 のような桁まで出すと
-  // 実測したように見えてしまう
-  return Math.round(ANNUAL_COST_RANGE_JPY.max / 12 / 100) * 100;
+  return costs.reduce((sum, cost) => sum + (monthlyOf(cost) ?? 0), 0);
+}
+
+/** 1年にかかる額 */
+export function annualCostJpy(costs: RunningCost[] = RUNNING_COSTS): number {
+  return monthlyCostJpy(costs) * 12;
 }
 
 /** 手元の額で何ヶ月動かせるか */
