@@ -24,11 +24,11 @@ import {
 } from "./costs";
 
 export const metadata = {
-  title: "運営について",
+  title: "運営と支援について",
   description:
     "nicchyo の運営にかかる費用と、ご支援いただいている状況をご報告しております。協賛のご相談も承っております。",
   openGraph: {
-    title: "運営について | nicchyo",
+    title: "運営と支援について | nicchyo",
     description:
       "高知・日曜市の地図 nicchyo は、高知高専の学生と顧問の教員が運営しております。かかっている費用と、ご支援いただいている状況を公開しております。",
   },
