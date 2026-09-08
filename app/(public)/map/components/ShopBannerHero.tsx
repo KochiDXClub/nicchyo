@@ -229,7 +229,7 @@ export function ShopBannerHero({
                 aria-label={isFavorite ? "お気に入りから外す" : "お気に入りに入れる"}
                 className={`flex h-10 w-10 items-center justify-center rounded-full backdrop-blur-sm transition active:scale-95 ${
                   isFavorite
-                    ? "bg-pink-500 text-white hover:bg-pink-600"
+                    ? "bg-favorite-fg text-white hover:opacity-90"
                     : "bg-white/20 text-white hover:bg-white/30"
                 }`}
               >

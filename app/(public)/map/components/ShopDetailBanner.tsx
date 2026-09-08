@@ -4,6 +4,7 @@ import { memo, useState, useCallback, useEffect, useLayoutEffect, useMemo, useRe
 import type { CSSProperties, RefObject } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import {
   MapPin,
   Heart,
@@ -156,6 +157,7 @@ const ShopDetailBanner = memo(function ShopDetailBanner({
   reserveBottomNavSpace = true,
 }: ShopDetailBannerProps) {
   const router = useRouter();
+  const prefersReducedMotion = useReducedMotion();
   const { permissions } = useAuth();
   const [favoriteEntries, setFavoriteEntries] = useState<FavoriteEntry[]>([]);
   const [pendingShopRemoval, setPendingShopRemoval] = useState<string[] | null>(null);
@@ -866,8 +868,8 @@ const ShopDetailBanner = memo(function ShopDetailBanner({
                               }
                               className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full border transition active:scale-95 ${
                                 isProductFavorite
-                                  ? "border-pink-300 bg-pink-500 text-white"
-                                  : "border-pink-200 bg-white text-pink-500 hover:bg-pink-50"
+                                  ? "border-favorite-line bg-favorite-fg text-white"
+                                  : "border-favorite-line bg-white text-favorite-fg hover:bg-favorite-bg"
                               }`}
                             >
                               <Heart
@@ -940,17 +942,17 @@ const ShopDetailBanner = memo(function ShopDetailBanner({
                     aria-pressed={isProductFavorite}
                     className={`flex items-center gap-1.5 rounded-2xl border px-3 py-2 text-sm font-semibold shadow-sm transition hover:shadow-md ${
                       isProductFavorite
-                        ? "border-pink-200 bg-pink-50 text-pink-900"
+                        ? "border-favorite-line bg-favorite-bg text-favorite-fg"
                         : "border-slate-200 bg-white text-slate-700 hover:border-slate-300"
                     }`}
                   >
                     <Heart
-                      className={`h-3.5 w-3.5 shrink-0 ${isProductFavorite ? "text-pink-500" : "text-slate-300"}`}
+                      className={`h-3.5 w-3.5 shrink-0 ${isProductFavorite ? "text-favorite-fg" : "text-slate-300"}`}
                       fill={isProductFavorite ? "currentColor" : "none"}
                     />
                     <span>{product}</span>
                     {price != null && (
-                      <span className={`rounded-full px-1.5 py-0.5 text-xs font-bold ${isProductFavorite ? "bg-white text-pink-700" : "bg-slate-100 text-slate-500"}`}>
+                      <span className={`rounded-full px-1.5 py-0.5 text-xs font-bold ${isProductFavorite ? "bg-white text-favorite-fg" : "bg-slate-100 text-slate-500"}`}>
                         ¥{price.toLocaleString()}
                       </span>
                     )}
@@ -1145,56 +1147,133 @@ const ShopDetailBanner = memo(function ShopDetailBanner({
           </div>
       </div>
 
-      {/* ── Undo toast ───────────────────────────────────────────────────────── */}
-      {toast && (
-        <div className="fixed bottom-6 left-1/2 z-[3100] flex -translate-x-1/2 items-center gap-3 rounded-2xl bg-slate-900 px-4 py-3 shadow-xl text-sm text-white">
-          <span>「{toast.product}」をお気に入りに入れました</span>
-          <button
-            type="button"
-            onClick={() => handleUndoAdd(toast.product)}
-            className="rounded-full bg-white/20 px-3 py-1 text-xs font-bold transition hover:bg-white/30"
-          >
-            取り消す
-          </button>
-        </div>
-      )}
+      <FavoriteAddedToast
+        product={toast?.product ?? null}
+        onUndo={handleUndoAdd}
+        reduceMotion={!!prefersReducedMotion}
+      />
 
-      {/* ── お店ごと外すときの確認（入れている商品も消えるため） ─────────────── */}
-      {pendingShopRemoval && (
-        <div
-          className="fixed inset-0 z-[3200] flex items-end justify-center bg-slate-950/40 px-4 pb-8 backdrop-blur-[2px] sm:items-center sm:pb-0"
-          onClick={() => setPendingShopRemoval(null)}
+      <RemoveShopFavoriteDialog
+        productCount={pendingShopRemoval?.length ?? 0}
+        open={!!pendingShopRemoval}
+        onCancel={() => setPendingShopRemoval(null)}
+        onConfirm={handleConfirmShopRemoval}
+        reduceMotion={!!prefersReducedMotion}
+      />
+    </div>
+  );
+}, areShopDetailBannerPropsEqual);
+
+/**
+ * 商品をお気に入りに入れたときの知らせ。
+ *
+ * 画面の幅いっぱいの箱を敷いてから中身を中央に置く。以前は要素そのものを
+ * left:50% + translate で中央に寄せていたため、商品名が長いと箱が画面より
+ * 広がり、左右にはみ出していた。
+ * 位置は下部ナビとセーフエリアの上。ページ側のトーストと同じ高さに合わせる。
+ */
+function FavoriteAddedToast({
+  product,
+  onUndo,
+  reduceMotion,
+}: {
+  product: string | null;
+  onUndo: (product: string) => void;
+  reduceMotion: boolean;
+}) {
+  return (
+    <AnimatePresence>
+      {product && (
+        <motion.div
+          initial={reduceMotion ? false : { opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={reduceMotion ? { opacity: 0 } : { opacity: 0, y: 16 }}
+          transition={{ duration: reduceMotion ? 0 : 0.22, ease: [0.22, 1, 0.36, 1] }}
+          className="pointer-events-none fixed inset-x-0 z-[3100] px-4"
+          style={{ bottom: "calc(4.75rem + var(--safe-bottom, 0px))" }}
         >
-          <div
+          <div className="pointer-events-auto mx-auto flex max-w-sm items-center gap-3 rounded-[22px] border border-white/10 bg-slate-950/95 px-4 py-3 text-white shadow-2xl backdrop-blur-md">
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/15">
+              <Heart className="h-4 w-4" fill="currentColor" />
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-bold">{product}</p>
+              <p className="text-[12px] text-white/65">お気に入りに入れました</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => onUndo(product)}
+              className="shrink-0 rounded-full bg-white/15 px-3 py-1.5 text-xs font-bold transition hover:bg-white/25 active:scale-95"
+            >
+              取り消す
+            </button>
+          </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+}
+
+/** お店ごと外すときの確認。入れている商品も一緒に消えるため、ここだけ確認を出す */
+function RemoveShopFavoriteDialog({
+  productCount,
+  open,
+  onCancel,
+  onConfirm,
+  reduceMotion,
+}: {
+  productCount: number;
+  open: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+  reduceMotion: boolean;
+}) {
+  return (
+    <AnimatePresence>
+      {open && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: reduceMotion ? 0 : 0.18 }}
+          className="fixed inset-0 z-[3200] flex items-end justify-center bg-slate-950/40 px-4 backdrop-blur-[2px] sm:items-center"
+          style={{ paddingBottom: "calc(2rem + var(--safe-bottom, 0px))" }}
+          onClick={onCancel}
+        >
+          <motion.div
+            initial={reduceMotion ? false : { opacity: 0, y: 24 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={reduceMotion ? { opacity: 0 } : { opacity: 0, y: 24 }}
+            transition={{ duration: reduceMotion ? 0 : 0.22, ease: [0.22, 1, 0.36, 1] }}
             className="w-full max-w-sm rounded-[24px] bg-white p-5 shadow-2xl"
             onClick={(event) => event.stopPropagation()}
           >
             <p className="text-base font-bold text-slate-900">お気に入りから外しますか？</p>
             <p className="mt-2 text-sm leading-relaxed text-slate-600">
-              このお店に入れている{pendingShopRemoval.length}品も一緒に消えます。
+              このお店に入れている{productCount}品も一緒に消えます。
             </p>
             <div className="mt-5 flex gap-2">
               <button
                 type="button"
-                onClick={() => setPendingShopRemoval(null)}
+                onClick={onCancel}
                 className="min-h-11 flex-1 rounded-2xl bg-slate-100 px-4 py-2 text-sm font-bold text-slate-700 transition hover:bg-slate-200"
               >
                 やめる
               </button>
               <button
                 type="button"
-                onClick={handleConfirmShopRemoval}
+                onClick={onConfirm}
                 className="min-h-11 flex-1 rounded-2xl bg-slate-900 px-4 py-2 text-sm font-bold text-white transition hover:bg-black"
               >
                 外す
               </button>
             </div>
-          </div>
-        </div>
+          </motion.div>
+        </motion.div>
       )}
-    </div>
+    </AnimatePresence>
   );
-}, areShopDetailBannerPropsEqual);
+}
 
 export default ShopDetailBanner;
 
