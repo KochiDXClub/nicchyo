@@ -48,6 +48,27 @@ export function classifyLocationType(
     : "pre_visit";
 }
 
+/**
+ * AI に渡す「来訪者の居場所」の説明
+ *
+ * 緯度・経度そのものは外部（OpenAI）へ渡さない。回答に効くのは
+ * 「会場にいるのか、これから向かうのか」だけで、会場までの距離や
+ * 近いお店の並べ替え・徒歩の分数はサーバー側で済ませてから渡している。
+ * 座標を渡しても、モデルが数値から新しく導けることはほとんど無い。
+ */
+export function describeLocationForPrompt(
+  location: { lat: number; lng: number } | null | undefined
+): string {
+  switch (classifyLocationType(location)) {
+    case "on_site":
+      return "日曜市の会場のあたりにいる";
+    case "pre_visit":
+      return "会場から離れたところにいる（これから向かうか、別の場所で見ている）";
+    default:
+      return "不明";
+  }
+}
+
 export function classifyIntent(question: string): string {
   if (/人気|売れ|ランキング|売れ筋/.test(question)) return "人気商品";
   if (/味|美味|うまい|おいし|甘|辛|酸っ|塩/.test(question)) return "味";

@@ -33,6 +33,7 @@ import {
   buildErrorResponse,
   buildHistoryContext,
   classifyLocationType,
+  describeLocationForPrompt,
   classifyIntent,
   isValidFollowUpQuestion,
   buildFallbackFollowUpQuestion,
@@ -887,7 +888,7 @@ export async function POST(request: Request) {
     const userContextText = [
       buildHistoryContext(history, memorySummary, historyLimit),
       `今回の質問: ${text || "（画像についての相談）"}`,
-      `位置情報: ${location ? `${location.lat}, ${location.lng}` : "不明"}`,
+      `来訪者の居場所: ${describeLocationForPrompt(location)}`,
       `現在の季節: ${currentSeason.seasonName}`,
       targetShop
         ? `注目中の店舗: id:${targetShop.id} | name:${targetShop.name}`
