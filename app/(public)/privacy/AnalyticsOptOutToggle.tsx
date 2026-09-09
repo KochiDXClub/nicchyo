@@ -44,14 +44,8 @@ export default function AnalyticsOptOutToggle() {
 
   return (
     <div>
-      <div className="flex items-start justify-between gap-4">
-        <div className="min-w-0">
-          <p className="text-sm font-semibold text-gray-800">この端末でのアクセス解析</p>
-          <p className="mt-1 text-sm leading-relaxed text-gray-600">
-            止めると、閲覧したページの記録も Google アナリティクスへの送信も行いません。
-            サービスの利用そのものには影響しません。
-          </p>
-        </div>
+      <div className="flex items-center justify-between gap-4">
+        <p className="text-[0.95rem] font-semibold text-nicchyo-ink">この端末でのアクセス解析</p>
 
         <button
           type="button"
@@ -60,39 +54,44 @@ export default function AnalyticsOptOutToggle() {
           aria-label="この端末でのアクセス解析"
           disabled={optedOut === null}
           onClick={toggle}
-          className={`relative mt-1 inline-flex h-7 w-12 flex-shrink-0 items-center rounded-full transition-colors disabled:opacity-50 ${
-            enabled ? "bg-amber-500" : "bg-gray-300"
+          className={`relative inline-flex h-8 w-14 flex-shrink-0 items-center rounded-full transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-nicchyo-primary disabled:opacity-50 ${
+            enabled ? "bg-nicchyo-primary" : "bg-[#D8CFC0]"
           }`}
         >
           <span
-            className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${
-              enabled ? "translate-x-6" : "translate-x-1"
+            className={`inline-block h-6 w-6 transform rounded-full bg-white shadow-sm transition-transform ${
+              enabled ? "translate-x-7" : "translate-x-1"
             }`}
           />
         </button>
       </div>
 
+      <p className="mt-3 text-sm leading-[1.9] text-[#5C574F]">
+        お止めになると、ご覧になったページの記録も Google アナリティクスへの送信もいたしません。
+        サービスのご利用そのものには影響ございません。
+      </p>
+
       <p className="mt-3 flex min-h-5 items-center gap-1.5 text-xs">
         {optedOut === null ? (
-          <span className="flex items-center gap-1.5 text-gray-400">
+          <span className="flex items-center gap-1.5 text-[#A79E92]">
             <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            設定を読み込んでいます
+            設定を読み込んでおります
           </span>
         ) : justSaved ? (
-          <span className="flex items-center gap-1.5 font-semibold text-emerald-600">
+          <span className="flex items-center gap-1.5 font-semibold text-[#3F7F2E]">
             <Check className="h-3.5 w-3.5" />
             {optedOut ? "この端末での解析を止めました" : "この端末での解析を再開しました"}
           </span>
         ) : (
-          <span className="text-gray-400">
-            {optedOut ? "現在：止めています" : "現在：有効です"}
+          <span className="text-[#A79E92]">
+            {optedOut ? "現在は止めております" : "現在は有効です"}
           </span>
         )}
       </p>
 
-      <p className="mt-3 text-xs leading-relaxed text-gray-400">
-        この設定はお使いのブラウザに保存されます。別の端末やブラウザ、閲覧データを消したあとは、
-        あらためて設定してください。
+      <p className="mt-3 text-xs leading-[1.85] text-[#A79E92]">
+        この設定はお使いのブラウザに保存されます。別の端末やブラウザをお使いの場合、
+        また閲覧データを消去なさったあとは、あらためてご設定ください。
       </p>
     </div>
   );
