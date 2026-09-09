@@ -103,7 +103,6 @@ export default function ConsultStage({
   /** 応答待ちの間も「何を聞いたか」を出しておくため */
   const [pendingQuestion, setPendingQuestion] = useState<string | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
-  const [textOpen, setTextOpen] = useState(false);
   const [typed, setTyped] = useState("");
   const [hasRestored, setHasRestored] = useState(false);
   const [autoAsked, setAutoAsked] = useState(false);
@@ -125,7 +124,7 @@ export default function ConsultStage({
 
   const entriesRef = useRef<ConsultEntry[]>([]);
   entriesRef.current = entries;
-  const textInputRef = useRef<HTMLTextAreaElement | null>(null);
+  const textInputRef = useRef<HTMLInputElement | null>(null);
   const topSentinelRef = useRef<HTMLDivElement | null>(null);
   /** 話し手の立ち位置。入れ替わりの歩きはここへ着く */
   const heroAvatarRef = useRef<HTMLDivElement | null>(null);
@@ -531,10 +530,13 @@ export default function ConsultStage({
     setPhase("idle");
   };
 
+  // 音声の確認シートから「文字で直す」に切り替えるときだけ使う。
+  // 入力欄自体は最初から常に出ているので、ここでは
+  // シートを閉じて聞き取れた分を引き継ぎ、フォーカスを移すだけでよい
   const openTextInput = () => {
-    setTextOpen(true);
+    setPhase("idle");
     setTyped(draft);
-    // シートが描画されてからでないとフォーカスが乗らない
+    setDraft("");
     requestAnimationFrame(() => textInputRef.current?.focus());
   };
 
@@ -779,17 +781,41 @@ export default function ConsultStage({
           }}
         />
 
-        {/* 文字入力を既定にする。音声は騒がしい現地では速いが、
+        {/* 文字入力を既定にする。タップして開く一段階を挟まず、
+            最初から入力欄を出しておく。音声は騒がしい現地では速いが、
             静かな場所や周りに人がいるときは声を出しにくいため */}
-        <button
-          type="button"
-          onClick={openTextInput}
-          disabled={isBusy}
-          className="flex flex-1 items-center justify-center gap-2 rounded-full bg-gradient-to-br from-amber-500 to-orange-500 px-6 py-4 text-base font-bold text-white shadow-lg transition disabled:opacity-50"
-        >
-          <Keyboard className="h-5 w-5" aria-hidden="true" />
-          文字で聞く
-        </button>
+        <div className="flex flex-1 items-center gap-2 rounded-full border border-amber-200 bg-white/95 py-1.5 pl-5 pr-1.5 shadow-lg">
+          <input
+            ref={textInputRef}
+            type="text"
+            value={typed}
+            onChange={(event) => setTyped(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key !== "Enter" || isBusy) return;
+              const question = typed.trim();
+              if (!question) return;
+              event.preventDefault();
+              setTyped("");
+              void ask(question, "input");
+            }}
+            placeholder="（例）今の旬の果物は？"
+            disabled={isBusy}
+            className="min-w-0 flex-1 bg-transparent py-2.5 text-base text-slate-800 outline-none placeholder:text-slate-400 disabled:opacity-50"
+          />
+          <button
+            type="button"
+            disabled={isBusy || !typed.trim()}
+            onClick={() => {
+              const question = typed.trim();
+              setTyped("");
+              void ask(question, "input");
+            }}
+            aria-label="聞く"
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-amber-500 to-orange-500 text-white shadow-sm transition disabled:opacity-40"
+          >
+            <Send className="h-4 w-4" aria-hidden="true" />
+          </button>
+        </div>
         {speech.isSupported && (
           <button
             type="button"
@@ -904,50 +930,6 @@ export default function ConsultStage({
                 </div>
               </>
             )}
-          </div>
-        </div>
-      )}
-
-      {/* 文字入力は最後の手段なので、普段は畳んでおく */}
-      {textOpen && (
-        <div className="fixed inset-0 z-40 flex flex-col justify-end">
-          <div
-            className="absolute inset-0 bg-black/30"
-            onClick={() => setTextOpen(false)}
-            aria-hidden="true"
-          />
-          <div
-            className="relative mx-auto rounded-t-3xl bg-white p-4 md:max-w-md"
-            style={{ paddingBottom: "calc(var(--safe-bottom, 0px) + 5rem)" }}
-          >
-            <div className="mb-2 flex items-center justify-between">
-              <p className="text-sm font-bold text-amber-900">文字で聞く</p>
-              <button type="button" onClick={() => setTextOpen(false)} aria-label="閉じる">
-                <X className="h-5 w-5 text-slate-400" aria-hidden="true" />
-              </button>
-            </div>
-            <textarea
-              ref={textInputRef}
-              value={typed}
-              onChange={(event) => setTyped(event.target.value)}
-              rows={3}
-              placeholder="（例）今の旬の果物は？"
-              className="w-full rounded-2xl border border-amber-200 p-3 text-base text-slate-800 outline-none focus:border-amber-400"
-            />
-            <button
-              type="button"
-              disabled={!typed.trim()}
-              onClick={() => {
-                const question = typed.trim();
-                setTextOpen(false);
-                setTyped("");
-                void ask(question, "input");
-              }}
-              className="mt-2 flex w-full items-center justify-center gap-2 rounded-full bg-gradient-to-br from-amber-500 to-orange-500 px-6 py-4 text-base font-bold text-white disabled:opacity-40"
-            >
-              <Send className="h-4 w-4" aria-hidden="true" />
-              聞く
-            </button>
           </div>
         </div>
       )}
