@@ -2,7 +2,7 @@
 
 import type { ReactNode } from "react";
 import Image from "next/image";
-import { ArrowLeft, Clock, Pencil, X as XIcon } from "lucide-react";
+import { ArrowLeft, Clock, Heart, Pencil, X as XIcon } from "lucide-react";
 import type { Shop } from "../data/shops";
 
 // ─── Shared types ─────────────────────────────────────────────────────────────
@@ -105,6 +105,8 @@ export function ShopBannerHero({
   mode,
   showProductPreview = false,
   onEdit,
+  isFavorite = false,
+  onToggleFavorite,
 }: {
   shop: Shop;
   bannerImage: string;
@@ -114,6 +116,9 @@ export function ShopBannerHero({
   mode: "compact" | "expanded";
   showProductPreview?: boolean;
   onEdit?: () => void;
+  /** その店の行が1つでもあれば点灯する（商品だけ入れた場合も点灯） */
+  isFavorite?: boolean;
+  onToggleFavorite?: () => void;
 }) {
   if (mode === "compact") {
     return (
@@ -215,16 +220,33 @@ export function ShopBannerHero({
               </p>
             )}
           </div>
-          {onEdit && (
-            <button
-              type="button"
-              onClick={onEdit}
-              className="shrink-0 flex items-center gap-1.5 rounded-full bg-white/20 px-3 py-1.5 text-xs font-bold text-white backdrop-blur-sm transition hover:bg-white/30"
-            >
-              <Pencil className="h-3 w-3" />
-              編集
-            </button>
-          )}
+          <div className="flex shrink-0 items-center gap-2">
+            {onToggleFavorite && (
+              <button
+                type="button"
+                onClick={onToggleFavorite}
+                aria-pressed={isFavorite}
+                aria-label={isFavorite ? "お気に入りから外す" : "お気に入りに入れる"}
+                className={`flex h-10 w-10 items-center justify-center rounded-full backdrop-blur-sm transition active:scale-95 ${
+                  isFavorite
+                    ? "bg-favorite-fg text-white hover:opacity-90"
+                    : "bg-white/20 text-white hover:bg-white/30"
+                }`}
+              >
+                <Heart className="h-[18px] w-[18px]" fill={isFavorite ? "currentColor" : "none"} />
+              </button>
+            )}
+            {onEdit && (
+              <button
+                type="button"
+                onClick={onEdit}
+                className="flex items-center gap-1.5 rounded-full bg-white/20 px-3 py-1.5 text-xs font-bold text-white backdrop-blur-sm transition hover:bg-white/30"
+              >
+                <Pencil className="h-3 w-3" />
+                編集
+              </button>
+            )}
+          </div>
         </div>
       </div>
     </div>

@@ -4,7 +4,7 @@ import { headers } from "next/headers";
 import "./globals.css";
 import { AuthProvider } from "@/lib/auth/AuthContext";
 import { MenuProvider } from "@/lib/ui/MenuContext";
-import { BagProvider } from "@/lib/storage/BagContext";
+import FavoritesBagMigration from "@/app/components/FavoritesBagMigration";
 import { PageVisibilityProvider } from "@/lib/pageVisibility/PageVisibilityContext";
 import AppHeader from "./components/AppHeader";
 import MapLoadingProvider from "./components/MapLoadingProvider";
@@ -92,18 +92,17 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <ViewportHeightUpdater />
         <AuthProvider>
           <PageVisibilityProvider>
-            <BagProvider>
-              <MenuProvider>
-                <MapLoadingProvider>
-                  <AppHeader />
-                  <Suspense fallback={null}>
-                    <PageVisitTracker />
-                  </Suspense>
-                  {children}
-                  <Toaster />
-                </MapLoadingProvider>
-              </MenuProvider>
-            </BagProvider>
+            <MenuProvider>
+              <MapLoadingProvider>
+                <AppHeader />
+                <FavoritesBagMigration />
+                <Suspense fallback={null}>
+                  <PageVisitTracker />
+                </Suspense>
+                {children}
+                <Toaster />
+              </MapLoadingProvider>
+            </MenuProvider>
           </PageVisibilityProvider>
         </AuthProvider>
       </body>

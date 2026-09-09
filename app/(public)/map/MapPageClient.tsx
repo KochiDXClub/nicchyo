@@ -5,7 +5,7 @@ import dynamic from "next/dynamic";
 import { useEffect, useMemo, useState, useRef, useCallback, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { AnimatePresence, motion, useDragControls } from "framer-motion";
-import { Navigation } from "lucide-react";
+import { Heart, Navigation } from "lucide-react";
 import SearchClient from "../search/SearchClient";
 import type { MapCamera as LeafletMap } from "./types/mapCamera";
 import { clearSearchMapPayload, loadAiMapPayload, loadSearchMapPayload } from "../../../lib/searchMapStorage";
@@ -53,8 +53,10 @@ import {
   deriveInterestCategories,
   selectNearbyRecommendations,
 } from "./utils/nearbyRecommendations";
-import { loadFavoriteShopIds } from "../../../lib/favoriteShops";
-import { useBag } from "../../../lib/storage/BagContext";
+import {
+  loadFavoriteShopIds,
+} from "../../../lib/favoriteShops";
+import { useFavoriteShopIds } from "../../../lib/hooks/useFavorites";
 import { stripShopIdsDirective } from "@/lib/grandma/consultUtils";
 import {
   OVERVIEW_ZONE_MIN_ZOOM,
@@ -95,10 +97,18 @@ function GenreFilter({
   categories,
   selected,
   onSelect,
+  favoritesActive,
+  favoriteCount,
+  onToggleFavorites,
 }: {
   categories: readonly string[];
   selected: string | null;
   onSelect: (cat: string) => void;
+  /** お気に入りだけに絞り込んでいるか */
+  favoritesActive: boolean;
+  /** 0件のときはチップ自体を出さない（初来訪者の画面を増やさないため） */
+  favoriteCount: number;
+  onToggleFavorites: () => void;
 }) {
   const isSelectedHidden = selected !== null && categories.indexOf(selected) >= GENRE_PREVIEW_COUNT;
   const [expanded, setExpanded] = useState(isSelectedHidden);
@@ -120,6 +130,33 @@ function GenreFilter({
 
   return (
     <div className="flex flex-wrap items-center gap-1.5">
+      {favoriteCount > 0 && (
+        <motion.button
+          type="button"
+          onClick={onToggleFavorites}
+          aria-pressed={favoritesActive}
+          className={`flex shrink-0 items-center gap-1 whitespace-nowrap rounded-chip border px-[13px] py-[7px] text-[13px] font-bold shadow-chip transition-all duration-[120ms] ${
+            favoritesActive
+              ? 'border-favorite-fg bg-favorite-fg text-white'
+              : 'border-favorite-line bg-white text-favorite-fg hover:bg-favorite-bg active:bg-favorite-bg'
+          }`}
+          whileTap={{ scale: 0.88 }}
+        >
+          <Heart
+            className="h-3.5 w-3.5"
+            fill={favoritesActive ? 'currentColor' : 'none'}
+            aria-hidden
+          />
+          お気に入り
+          <span
+            className={`rounded-full px-1.5 text-[11px] font-bold ${
+              favoritesActive ? 'bg-white/25 text-white' : 'bg-favorite-bg text-favorite-fg'
+            }`}
+          >
+            {favoriteCount}
+          </span>
+        </motion.button>
+      )}
       {previewCategories.map((cat) => (
         <motion.button key={cat} type="button" onClick={() => onSelect(cat)} className={chipClass(cat)} whileTap={{ scale: 0.88 }}>
           {cat}
@@ -192,7 +229,6 @@ export default function MapPageClient({
   useEffect(() => {
     if (mapLoadingStatus !== "idle") setMapLoadingHandedOff(true);
   }, [mapLoadingStatus]);
-  const { items: bagItems } = useBag();
   const initialShopIdParam = searchParams?.get("shop");
   const isAiFocusMode = searchParams?.get("ai") === "1";
   const searchParamsKey = searchParams?.toString() ?? "";
@@ -299,6 +335,14 @@ export default function MapPageClient({
     () => searchParams?.get("q") ?? '',
   );
   const [mapSearchCategory, setMapSearchCategory] = useState<string | null>(null);
+  // お気に入り絞り込み。歩きながら1タップで「あとで戻る店」だけの地図にできる
+  const [favoritesOnly, setFavoritesOnly] = useState(false);
+  const favoriteShopIds = useFavoriteShopIds();
+
+  // 最後の1件を外したら絞り込みも解除する（0件の地図に取り残さない）
+  useEffect(() => {
+    if (favoriteShopIds.length === 0) setFavoritesOnly(false);
+  }, [favoriteShopIds.length]);
   const mapSearchIndex = useMemo(() => buildSearchIndex(shops), [shops]);
   const mapSearchResults = useShopSearch({
     shops,
@@ -307,13 +351,22 @@ export default function MapPageClient({
     category: mapSearchCategory,
     chome: null,
   });
-  const mapSearchShopIds = useMemo(
-    () =>
-      mapSearchQuery.trim() || mapSearchCategory
-        ? mapSearchResults.map((s) => s.id)
-        : undefined,
-    [mapSearchCategory, mapSearchQuery, mapSearchResults],
-  );
+  const mapSearchShopIds = useMemo(() => {
+    const hasTextOrCategory = !!mapSearchQuery.trim() || !!mapSearchCategory;
+    const matchedIds = hasTextOrCategory ? mapSearchResults.map((s) => s.id) : undefined;
+    if (!favoritesOnly) return matchedIds;
+    // お気に入りチップは検索・ジャンルと重ねて効かせる
+    if (!matchedIds) return favoriteShopIds;
+    const favoriteSet = new Set(favoriteShopIds);
+    return matchedIds.filter((id) => favoriteSet.has(id));
+  }, [
+    favoriteShopIds,
+    favoritesOnly,
+    mapSearchCategory,
+    mapSearchQuery,
+    mapSearchResults,
+  ]);
+  const hasMapFilter = !!mapSearchQuery.trim() || !!mapSearchCategory || favoritesOnly;
   const [aiMarkerPayload, setAiMarkerPayload] = useState<{
     ids: number[];
     label: string;
@@ -674,8 +727,7 @@ export default function MapPageClient({
   const hasSearchMode =
     activePanel === 'search' ||
     !!searchMarkerPayload ||
-    !!mapSearchQuery.trim() ||
-    !!mapSearchCategory ||
+    hasMapFilter ||
     !!mapSearchShopIds?.length;
   const hasAiMode =
     mapCharacterConsultActive ||
@@ -722,17 +774,14 @@ export default function MapPageClient({
           rect
         )
     );
-    // おすすめ: 行動シグナル（お気に入り・買い物リスト）から
+    // おすすめ: 行動シグナル（お気に入り）から
     // 興味ジャンルを導き、範囲内の店舗（近い順）から9店を選ぶ
     const inAreaShops = summary.shopIds
       .map((id) => shopById.get(id))
       .filter((shop): shop is Shop => !!shop);
     const favoriteIds = new Set(loadFavoriteShopIds());
-    const bagShopIds = bagItems
-      .map((item) => item.fromShopId)
-      .filter((id): id is number => typeof id === "number");
     const interestCategories = deriveInterestCategories(
-      [...favoriteIds, ...bagShopIds],
+      [...favoriteIds],
       (id) => shopById.get(id)?.category
     );
     const recommendations: NearbyRecommendedShop[] = selectNearbyRecommendations(
@@ -753,7 +802,7 @@ export default function MapPageClient({
       recommendations,
       note: buildNearbyNote(summary),
     });
-  }, [bagItems, shopById, shops]);
+  }, [shopById, shops]);
 
   const closeNearbyPanel = useCallback(() => {
     setNearbyState(null);
@@ -912,7 +961,7 @@ export default function MapPageClient({
 
                 {/* 検索バー */}
                 <div className={`flex items-center gap-2 rounded-full px-4 py-2.5 shadow-lg ring-1 backdrop-blur-sm transition-all duration-200 ${
-                  mapSearchQuery.trim() || mapSearchCategory
+                  hasMapFilter
                     ? 'bg-gradient-to-r from-amber-100/95 to-orange-50/95 ring-amber-400/50'
                     : 'bg-white/90 ring-slate-900/8'
                 }`}>
@@ -927,17 +976,18 @@ export default function MapPageClient({
                     onChange={(e) => setMapSearchQuery(e.target.value)}
                     className="flex-1 bg-transparent text-sm text-slate-800 outline-none placeholder:text-slate-400"
                   />
-                  {(mapSearchQuery.trim() || mapSearchCategory) && (
+                  {hasMapFilter && (
                     <span className="shrink-0 rounded-full bg-amber-500 px-2 py-0.5 text-[11px] font-bold text-white">
-                      {mapSearchResults.length}件
+                      {mapSearchShopIds?.length ?? mapSearchResults.length}件
                     </span>
                   )}
-                  {(mapSearchQuery || mapSearchCategory) && (
+                  {hasMapFilter && (
                     <button
                       type="button"
                       onClick={() => {
                         setMapSearchQuery('');
                         setMapSearchCategory(null);
+                        setFavoritesOnly(false);
                       }}
                       className="shrink-0 rounded-full bg-slate-100 p-1.5 text-slate-500 hover:bg-slate-200 transition-colors"
                       aria-label="検索をクリア"
@@ -954,6 +1004,9 @@ export default function MapPageClient({
                   categories={SHOP_CATEGORY_NAMES}
                   selected={mapSearchCategory}
                   onSelect={(cat) => setMapSearchCategory(mapSearchCategory === cat ? null : cat)}
+                  favoritesActive={favoritesOnly}
+                  favoriteCount={favoriteShopIds.length}
+                  onToggleFavorites={() => setFavoritesOnly((prev) => !prev)}
                 />
               </div>
             )}
@@ -985,6 +1038,7 @@ export default function MapPageClient({
                 setSearchMarkerPayload(null);
                 setMapSearchQuery('');
                 setMapSearchCategory(null);
+                setFavoritesOnly(false);
                 setAiMarkerPayload(null);
               }}
               // おでかけサポート表示中は施設に合わせた画角を優先し、

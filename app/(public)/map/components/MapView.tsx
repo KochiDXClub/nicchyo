@@ -40,14 +40,13 @@ import { MapOverlays, getVisibleMajorPlaceLabels } from "./MapOverlays";
 import {
   getRecommendedZoomBounds,
 } from '../config/roadConfig';
-import { FAVORITE_SHOPS_KEY, FAVORITE_SHOPS_UPDATED_EVENT, loadFavoriteShopIds } from "../../../../lib/favoriteShops";
+import { useFavoriteShopIds } from "../../../../lib/hooks/useFavorites";
 import {
   getViewModeForZoom,
   ViewMode,
   OVERVIEW_ZONE_MIN_ZOOM,
   OVERVIEW_ZONE_MAX_ZOOM,
 } from '../config/displayConfig';
-import { useBag } from "../../../../lib/storage/BagContext";
 import type { Landmark } from "../types/landmark";
 import { landmarkToSpot, type MapSpot } from "@/lib/spots";
 import type { MapRoute } from "../types/mapRoute";
@@ -546,14 +545,6 @@ const MapView = memo(function MapView({
 }: MapViewProps = {}) {
   const [isMobile, setIsMobile] = useState(false);
   const [_isInMarket, setIsInMarket] = useState<boolean | null>(null);
-  const { addItem, items: bagItems } = useBag();
-  const bagShopIds = useMemo(() => {
-    return bagItems
-      .filter((item) => item.fromShopId)
-      .map((item) => item.fromShopId!)
-      .filter((id, index, self) => self.indexOf(id) === index);
-  }, [bagItems]);
-
   const routePoints = useMemo(
     () => {
       const normalized = normalizeMapRoutePoints(mapRoute?.points ?? []);
@@ -667,7 +658,7 @@ const MapView = memo(function MapView({
   });
 
   const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
-  const [favoriteShopIds, setFavoriteShopIds] = useState<number[]>([]);
+  const favoriteShopIds = useFavoriteShopIds();
   const [_planOrder, setPlanOrder] = useState<number[]>([]);
   const [mapInstance, setMapInstance] = useState<L.Map | null>(null);
   const mapRef = useRef<L.Map | null>(null);
@@ -778,27 +769,6 @@ const MapView = memo(function MapView({
     }
   }, []);
 
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    setFavoriteShopIds(loadFavoriteShopIds());
-    const handleStorage = (event: StorageEvent) => {
-      if (event.key === FAVORITE_SHOPS_KEY) {
-        setFavoriteShopIds(loadFavoriteShopIds());
-      }
-    };
-    const handleFavoriteUpdate = (event: Event) => {
-      if (event.type === FAVORITE_SHOPS_UPDATED_EVENT) {
-        setFavoriteShopIds(loadFavoriteShopIds());
-      }
-    };
-    window.addEventListener("storage", handleStorage);
-    window.addEventListener(FAVORITE_SHOPS_UPDATED_EVENT, handleFavoriteUpdate);
-    return () => {
-      window.removeEventListener("storage", handleStorage);
-      window.removeEventListener(FAVORITE_SHOPS_UPDATED_EVENT, handleFavoriteUpdate);
-    };
-  }, []);
-
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   // 【ポイント7】店舗クリック時のコールバック（段階的ズームアップ対応）
   // - useCallback でメモ化（不要な再生成を防ぐ）
@@ -904,12 +874,6 @@ const MapView = memo(function MapView({
       }
     }
   }, []);
-
-  const handleAddToBag = useCallback((name: string, fromShopId?: number) => {
-    const value = name.trim();
-    if (!value) return;
-    addItem({ name: value, fromShopId });
-  }, [addItem]);
 
   const handleShopChunkProgress = useCallback((processed: number, total: number, done: boolean) => {
     setShopLoadProgress((prev) => {
@@ -1288,7 +1252,6 @@ const MapView = memo(function MapView({
             searchShopIds={searchShopIds}
             aiHighlightShopIds={aiShopIds}
             commentHighlightShopIds={commentHighlightShopIds}
-            bagShopIds={bagShopIds}
             onChomeClick={handleChomeClick}
             stallRenderer={featureFlags.stallRenderer}
             shopLayerHiding={featureFlags.shopLayerHiding}
@@ -1361,7 +1324,6 @@ const MapView = memo(function MapView({
             onSelectPreviousShop={handleSelectPreviousShop}
             onSelectNextShop={handleSelectNextShop}
             onClose={handleCloseBanner}
-            onAddToBag={handleAddToBag}
             originRect={shopBannerOrigin ?? undefined}
             reserveBottomNavSpace={false}
           />

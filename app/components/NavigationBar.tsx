@@ -19,6 +19,7 @@ import {
   ClipboardList,
   Compass,
   FileText,
+  Heart,
   HeartHandshake,
   Info,
   LayoutDashboard,
@@ -69,6 +70,7 @@ type SheetItem = {
 
 /** 日曜市を歩くときに使うページ */
 const visitMenuItems: SheetItem[] = [
+  { label: "お気に入り", href: "/favorites", icon: Heart },
   { label: "おでかけサポート", href: "/facilities", icon: Compass },
   { label: "日曜市カレンダー", href: "/calendar", icon: CalendarDays },
   // 中身がまだサンプル値なので、開く前に分かるようにしておく
