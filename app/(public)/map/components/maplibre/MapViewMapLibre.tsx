@@ -31,6 +31,7 @@ import type {
   StyleSpecification,
 } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
+import "@/lib/map/maplibreWorker";
 import type { MapViewProps } from "../MapView";
 import type { Shop } from "../../data/shops";
 import type { Landmark } from "../../types/landmark";
