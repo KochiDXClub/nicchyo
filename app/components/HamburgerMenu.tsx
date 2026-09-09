@@ -311,16 +311,16 @@ export default function HamburgerMenu() {
 
                   {permissions.isGeneralUser && (
                     <>
-                      <MenuLi href="/bag">
+                      <MenuLi href="/favorites">
                         <Link
-                          href="/bag"
+                          href="/favorites"
                           onClick={closeMenu}
-                          className={menuItemClass('/bag', 'hover:bg-amber-50')}
+                          className={menuItemClass('/favorites', 'hover:bg-amber-50')}
                         >
-                          <MenuIcon name="bag" className={`h-5 w-5 ${isActive('/bag') ? 'text-white' : 'text-gray-600'}`} />
+                          <MenuIcon name="bag" className={`h-5 w-5 ${isActive('/favorites') ? 'text-white' : 'text-gray-600'}`} />
                           <div className="flex-1">
-                            <p className="text-sm font-medium">お買い物リスト</p>
-                            <p className={`text-xs ${isActive('/bag') ? 'text-white/80' : 'text-gray-500'}`}>買うものをメモ</p>
+                            <p className="text-sm font-medium">お気に入り</p>
+                            <p className={`text-xs ${isActive('/favorites') ? 'text-white/80' : 'text-gray-500'}`}>気になったお店と商品</p>
                           </div>
                         </Link>
                       </MenuLi>
@@ -344,16 +344,16 @@ export default function HamburgerMenu() {
                 </>
               ) : (
                 <>
-                  <MenuLi href="/bag">
+                  <MenuLi href="/favorites">
                     <Link
-                      href="/bag"
+                      href="/favorites"
                       onClick={closeMenu}
                       className="flex items-center gap-3 rounded-lg border-2 border-amber-300 bg-amber-50 px-4 py-3 text-amber-900 shadow-sm transition hover:-translate-y-0.5 hover:bg-amber-100 hover:shadow-md"
                     >
                       <MenuIcon name="bag" className="h-5 w-5 text-amber-700" />
                       <div className="flex-1">
-                        <p className="text-sm font-semibold">お買い物リスト</p>
-                        <p className="text-xs text-amber-700/80">買うものをメモ</p>
+                        <p className="text-sm font-semibold">お気に入り</p>
+                        <p className="text-xs text-amber-700/80">気になったお店と商品</p>
                       </div>
                     </Link>
                   </MenuLi>

@@ -12,7 +12,8 @@ import SearchInput from './components/SearchInput';
 import CategoryFilter from './components/CategoryFilter';
 import SearchResults from './components/SearchResults';
 import SearchDiscovery from './components/SearchDiscovery';
-import { loadFavoriteShopIds, toggleFavoriteShopId } from '../../../lib/favoriteShops';
+import { useFavoriteShopIds } from '../../../lib/hooks/useFavorites';
+import { useShopFavoriteToggle } from '../../components/favorites/useShopFavoriteToggle';
 import { saveSearchMapPayload } from '../../../lib/searchMapStorage';
 import { recordProductSearch } from '@/app/vendor/_services/analyticsService';
 import ShopDetailBanner from '../map/components/ShopDetailBanner';
@@ -138,7 +139,10 @@ export default function SearchClient({
   const itemsPerPage = 10;
   const [textQuery, setTextQuery] = useState(initialQuery);
   const [category, setCategory] = useState<string | null>(initialCategory);
-  const [favoriteShopIds, setFavoriteShopIds] = useState<number[]>([]);
+  // 購読つきで読む。同じ画面に出す店舗バナーでハートを押しても一覧が追従する
+  const favoriteShopIds = useFavoriteShopIds();
+  const { toggleShopFavorite, confirmDialog: removeShopFavoriteDialog } =
+    useShopFavoriteToggle({ zIndexClassName: 'z-[3300]' });
   const [selectedShop, setSelectedShop] = useState<Shop | null>(null);
   const [openedShop, setOpenedShop] = useState<Shop | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
@@ -146,10 +150,6 @@ export default function SearchClient({
   const skipNextEmbeddedSyncRef = useRef(embedded);
   const prevInitialQueryRef = useRef(initialQuery);
   const prevInitialCategoryRef = useRef(initialCategory);
-
-  useEffect(() => {
-    setFavoriteShopIds(loadFavoriteShopIds());
-  }, []);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -186,9 +186,10 @@ export default function SearchClient({
     setCategory(initialCategory);
   }, [initialCategory, initialQuery]);
 
+  // 商品がぶら下がっている店を外すときの確認は useShopFavoriteToggle が持つ。
+  // 以前はここで黙って商品ごと消していた
   const handleToggleFavorite = (shopId: number) => {
-    const next = toggleFavoriteShopId(shopId);
-    setFavoriteShopIds(next);
+    toggleShopFavorite(shopId);
   };
 
   // 検索インデックスを事前構築（初回のみ）
@@ -547,6 +548,7 @@ export default function SearchClient({
       </main>
 
       {!embedded && <NavigationBar />}
+      {removeShopFavoriteDialog}
     </div>
   );
 }

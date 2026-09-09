@@ -38,8 +38,7 @@ import type { Landmark } from "../../types/landmark";
 import type { MapRoutePoint } from "../../types/mapRoute";
 import { landmarkToSpot } from "@/lib/spots";
 import ShopDetailBanner from "../ShopDetailBanner";
-import { useBag } from "../../../../../lib/storage/BagContext";
-import { FAVORITE_SHOPS_UPDATED_EVENT, loadFavoriteShopIds } from "../../../../../lib/favoriteShops";
+import { useFavoriteShopIds } from "../../../../../lib/hooks/useFavorites";
 import { resolveMapFeatureFlags, type MapFeatureFlags } from "@/lib/mapFeatureFlags";
 import { runFullBenchmark, type BenchMapLike } from "@/lib/perf/mapBenchmark";
 import { readPerfShopCount, synthesizeShops } from "@/lib/perf/syntheticShops";
@@ -325,8 +324,7 @@ export default function MapViewMapLibre({
   const chomeMarkersRef = useRef<maplibregl.Marker[]>([]);
   const [selectedShop, setSelectedShop] = useState<Shop | null>(null);
   const [mapLoaded, setMapLoaded] = useState(false);
-  const [favoriteShopIds, setFavoriteShopIds] = useState<number[]>([]);
-  const { addItem, items: bagItems } = useBag();
+  const favoriteShopIds = useFavoriteShopIds();
 
   const featureFlags = useMemo<MapFeatureFlags>(
     () =>
@@ -387,33 +385,18 @@ export default function MapViewMapLibre({
   const shopsRef = useRef(shops);
   shopsRef.current = shops;
 
-  // ---- 店舗の状態（検索 / AI / 買い物袋 / 選択）→ GeoJSON の state 属性 ----
-  const bagShopIds = useMemo(
-    () =>
-      (bagItems ?? [])
-        .map((item) => item.fromShopId)
-        .filter((id): id is number => typeof id === "number"),
-    [bagItems]
-  );
-  useEffect(() => {
-    setFavoriteShopIds(loadFavoriteShopIds());
-    const handler = () => setFavoriteShopIds(loadFavoriteShopIds());
-    window.addEventListener(FAVORITE_SHOPS_UPDATED_EVENT, handler);
-    return () => window.removeEventListener(FAVORITE_SHOPS_UPDATED_EVENT, handler);
-  }, []);
-
+  // ---- 店舗の状態（検索 / AI / 選択）→ GeoJSON の state 属性 ----
   const shopStates = useMemo<ShopStateMap>(() => {
     const m: ShopStateMap = new Map();
-    for (const id of bagShopIds) m.set(id, "bag");
     for (const id of aiShopIds ?? []) m.set(id, "ai");
     for (const id of searchShopIds ?? []) m.set(id, "search");
     if (commentShopId) m.set(commentShopId, "ai");
     if (selectedShop) m.set(selectedShop.id, "selected");
     return m;
-  }, [bagShopIds, aiShopIds, searchShopIds, commentShopId, selectedShop]);
+  }, [aiShopIds, searchShopIds, commentShopId, selectedShop]);
   const display = useMemo<ShopDisplayState>(
-    () => ({ states: shopStates, favorites: new Set(favoriteShopIds), bags: new Set(bagShopIds) }),
-    [shopStates, favoriteShopIds, bagShopIds]
+    () => ({ states: shopStates, favorites: new Set(favoriteShopIds), bags: new Set<number>() }),
+    [shopStates, favoriteShopIds]
   );
   const displayRef = useRef(display);
   displayRef.current = display;
@@ -1147,15 +1130,6 @@ export default function MapViewMapLibre({
     ? "calc(4.5rem + env(safe-area-inset-bottom,0px) + 5.5rem + 25px)"
     : "calc(4.5rem + env(safe-area-inset-bottom,0px) + 0.5rem + 25px)";
 
-  const handleAddToBag = useCallback(
-    (name: string, fromShopId?: number) => {
-      const value = name.trim();
-      if (!value) return;
-      addItem({ name: value, fromShopId });
-    },
-    [addItem]
-  );
-
   return (
     <div className="relative h-full w-full">
       {/* maplibre-gl.css が .maplibregl-map に position:relative を当てるので、サイズはインラインで明示する */}
@@ -1209,7 +1183,6 @@ export default function MapViewMapLibre({
           key={selectedShop.id}
           shop={selectedShop}
           onClose={() => setSelectedShop(null)}
-          onAddToBag={handleAddToBag}
           reserveBottomNavSpace={false}
         />
       )}
