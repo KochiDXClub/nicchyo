@@ -38,7 +38,6 @@ import type { Landmark } from "../../types/landmark";
 import type { MapRoutePoint } from "../../types/mapRoute";
 import { landmarkToSpot } from "@/lib/spots";
 import ShopDetailBanner from "../ShopDetailBanner";
-import { useBag } from "../../../../../lib/storage/BagContext";
 import { useFavoriteShopIds } from "../../../../../lib/hooks/useFavorites";
 import { resolveMapFeatureFlags, type MapFeatureFlags } from "@/lib/mapFeatureFlags";
 import { runFullBenchmark, type BenchMapLike } from "@/lib/perf/mapBenchmark";
@@ -326,7 +325,6 @@ export default function MapViewMapLibre({
   const [selectedShop, setSelectedShop] = useState<Shop | null>(null);
   const [mapLoaded, setMapLoaded] = useState(false);
   const favoriteShopIds = useFavoriteShopIds();
-  const { items: bagItems } = useBag();
 
   const featureFlags = useMemo<MapFeatureFlags>(
     () =>
@@ -387,26 +385,18 @@ export default function MapViewMapLibre({
   const shopsRef = useRef(shops);
   shopsRef.current = shops;
 
-  // ---- 店舗の状態（検索 / AI / 買い物袋 / 選択）→ GeoJSON の state 属性 ----
-  const bagShopIds = useMemo(
-    () =>
-      (bagItems ?? [])
-        .map((item) => item.fromShopId)
-        .filter((id): id is number => typeof id === "number"),
-    [bagItems]
-  );
+  // ---- 店舗の状態（検索 / AI / 選択）→ GeoJSON の state 属性 ----
   const shopStates = useMemo<ShopStateMap>(() => {
     const m: ShopStateMap = new Map();
-    for (const id of bagShopIds) m.set(id, "bag");
     for (const id of aiShopIds ?? []) m.set(id, "ai");
     for (const id of searchShopIds ?? []) m.set(id, "search");
     if (commentShopId) m.set(commentShopId, "ai");
     if (selectedShop) m.set(selectedShop.id, "selected");
     return m;
-  }, [bagShopIds, aiShopIds, searchShopIds, commentShopId, selectedShop]);
+  }, [aiShopIds, searchShopIds, commentShopId, selectedShop]);
   const display = useMemo<ShopDisplayState>(
-    () => ({ states: shopStates, favorites: new Set(favoriteShopIds), bags: new Set(bagShopIds) }),
-    [shopStates, favoriteShopIds, bagShopIds]
+    () => ({ states: shopStates, favorites: new Set(favoriteShopIds), bags: new Set<number>() }),
+    [shopStates, favoriteShopIds]
   );
   const displayRef = useRef(display);
   displayRef.current = display;

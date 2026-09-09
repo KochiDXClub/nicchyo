@@ -14,6 +14,8 @@ import {
   groupFavoritesByShop,
   favoriteEntryKey,
   migrateBagItemsToFavorites,
+  clearLegacyShoppingChecklist,
+  LEGACY_SHOPPING_CHECKED_KEY,
   BAG_MIGRATION_FLAG_KEY,
   LEGACY_BAG_STORAGE_KEY,
   FAVORITE_SHOPS_KEY,
@@ -344,6 +346,20 @@ describe('favoriteShops', () => {
       localStorage.setItem(LEGACY_BAG_STORAGE_KEY, '{invalid-json}');
       expect(migrateBagItemsToFavorites()).toEqual({ migrated: 0, skipped: 0 });
       expect(storedEntries()).toEqual([]);
+    });
+  });
+
+  describe('clearLegacyShoppingChecklist', () => {
+    it('買い物チェックリストを消す（お気に入りには持ち込まない）', () => {
+      localStorage.setItem(LEGACY_SHOPPING_CHECKED_KEY, JSON.stringify(['a']));
+      clearLegacyShoppingChecklist();
+      expect(localStorage.getItem(LEGACY_SHOPPING_CHECKED_KEY)).toBeNull();
+    });
+
+    it('移行元のバッグ本体は消さない（移行に失敗していたときの控え）', () => {
+      localStorage.setItem(LEGACY_BAG_STORAGE_KEY, JSON.stringify([]));
+      clearLegacyShoppingChecklist();
+      expect(localStorage.getItem(LEGACY_BAG_STORAGE_KEY)).not.toBeNull();
     });
   });
 

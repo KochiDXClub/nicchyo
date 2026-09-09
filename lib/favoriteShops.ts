@@ -251,6 +251,21 @@ export function migrateBagItemsToFavorites(): BagMigrationResult | null {
   return { migrated: added.length, skipped };
 }
 
+/** 旧バッグの買い物チェックリスト。お気に入りには持ち込まないので消すだけ */
+export const LEGACY_SHOPPING_CHECKED_KEY = "nicchyo-shopping-checked";
+
+/**
+ * バッグ撤去後に残る、お気に入りへ持ち込まない保存物を消す。
+ *
+ * 買い物チェックリストは「どれを買い終えたか」の印で、店にも商品にも紐づかない
+ * ため移行先がない。移行元の nicchyo-fridge-items は残す（移行に失敗していた
+ * ときの控えになるので、こちらから消しにいかない）。
+ */
+export function clearLegacyShoppingChecklist(): void {
+  if (typeof window === "undefined") return;
+  localStorage.removeItem(LEGACY_SHOPPING_CHECKED_KEY);
+}
+
 // ─── 既存UI向けの互換API ──────────────────────────────────────────────────────
 // 店単位のハートしか扱わない画面（検索・マップ）はこちらを使い続けられる。
 // 商品対応の画面が出そろったら段階的に上のAPIへ寄せる。

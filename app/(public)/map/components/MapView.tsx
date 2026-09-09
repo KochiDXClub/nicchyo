@@ -47,7 +47,6 @@ import {
   OVERVIEW_ZONE_MIN_ZOOM,
   OVERVIEW_ZONE_MAX_ZOOM,
 } from '../config/displayConfig';
-import { useBag } from "../../../../lib/storage/BagContext";
 import type { Landmark } from "../types/landmark";
 import { landmarkToSpot, type MapSpot } from "@/lib/spots";
 import type { MapRoute } from "../types/mapRoute";
@@ -546,14 +545,6 @@ const MapView = memo(function MapView({
 }: MapViewProps = {}) {
   const [isMobile, setIsMobile] = useState(false);
   const [_isInMarket, setIsInMarket] = useState<boolean | null>(null);
-  const { items: bagItems } = useBag();
-  const bagShopIds = useMemo(() => {
-    return bagItems
-      .filter((item) => item.fromShopId)
-      .map((item) => item.fromShopId!)
-      .filter((id, index, self) => self.indexOf(id) === index);
-  }, [bagItems]);
-
   const routePoints = useMemo(
     () => {
       const normalized = normalizeMapRoutePoints(mapRoute?.points ?? []);
@@ -1261,7 +1252,6 @@ const MapView = memo(function MapView({
             searchShopIds={searchShopIds}
             aiHighlightShopIds={aiShopIds}
             commentHighlightShopIds={commentHighlightShopIds}
-            bagShopIds={bagShopIds}
             onChomeClick={handleChomeClick}
             stallRenderer={featureFlags.stallRenderer}
             shopLayerHiding={featureFlags.shopLayerHiding}

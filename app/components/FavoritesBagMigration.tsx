@@ -16,7 +16,10 @@
 
 import { useEffect } from "react";
 import toast from "react-hot-toast";
-import { migrateBagItemsToFavorites } from "@/lib/favoriteShops";
+import {
+  clearLegacyShoppingChecklist,
+  migrateBagItemsToFavorites,
+} from "@/lib/favoriteShops";
 
 export default function FavoritesBagMigration() {
   useEffect(() => {
@@ -28,6 +31,8 @@ export default function FavoritesBagMigration() {
       // ここで落として画面全体を巻き込まない
       return;
     }
+    // 旧バッグのチェック状態は移す先がないので、移すものが無くても消しておく
+    clearLegacyShoppingChecklist();
     if (!result || result.migrated === 0) return;
 
     // 店が分からないものは地図に出せないので移せていない。黙って消さずに伝える

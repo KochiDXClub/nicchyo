@@ -42,6 +42,13 @@ const nextConfig = {
         destination: '/calendar',
         permanent: true,
       },
+      // 買い物リストはお気に入りに一本化した。配ったQRコードや外部リンクが
+      // /bag を指していても迷子にしない
+      {
+        source: '/bag',
+        destination: '/favorites',
+        permanent: true,
+      },
     ];
   },
 
