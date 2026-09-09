@@ -896,26 +896,22 @@ export default function MapViewMapLibre({
       });
 
       // お気に入りバッジ（Leaflet 版と同じく photo LOD 以上で右上に）
-      for (const [layerId, imageId, prop] of [
-        [LAYER_SHOP_BADGES_FAVORITE, IMG_BADGE_FAVORITE, "favorite"],
-      ] as const) {
-        map.addLayer({
-          id: layerId,
-          type: "symbol",
-          source: SRC_SHOPS,
-          minzoom: MAX_ZOOM + SHOP_MARKER_LOD_OFFSETS.photo,
-          filter: ["==", ["get", prop], true],
-          layout: {
-            "icon-image": imageId,
-            "icon-size": stallScale,
-            "icon-anchor": "center",
-            "icon-offset": ["case", ["==", ["get", "side"], "north"], ["literal", [-30, -66]], ["literal", [30, -66]]],
-            "icon-allow-overlap": true,
-            "icon-ignore-placement": true,
-            "icon-rotation-alignment": "viewport",
-          },
-        });
-      }
+      map.addLayer({
+        id: LAYER_SHOP_BADGES_FAVORITE,
+        type: "symbol",
+        source: SRC_SHOPS,
+        minzoom: MAX_ZOOM + SHOP_MARKER_LOD_OFFSETS.photo,
+        filter: ["==", ["get", "favorite"], true],
+        layout: {
+          "icon-image": IMG_BADGE_FAVORITE,
+          "icon-size": stallScale,
+          "icon-anchor": "center",
+          "icon-offset": ["case", ["==", ["get", "side"], "north"], ["literal", [-30, -66]], ["literal", [30, -66]]],
+          "icon-allow-overlap": true,
+          "icon-ignore-placement": true,
+          "icon-rotation-alignment": "viewport",
+        },
+      });
 
       map.on("click", LAYER_SHOPS, (e) => {
         const f = e.features?.[0];
