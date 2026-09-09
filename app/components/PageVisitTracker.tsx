@@ -3,10 +3,10 @@
 import { usePathname, useSearchParams } from "next/navigation";
 import { useEffect, useRef } from "react";
 
-import { isAnalyticsAllowed } from "@/lib/analytics/consentClient";
+import { isAnalyticsOptedOut, loadGA } from "@/lib/analytics/consentClient";
 
 function sendVisit(path: string, durationSeconds: number) {
-  if (typeof window !== "undefined" && !isAnalyticsAllowed()) return;
+  if (isAnalyticsOptedOut()) return;
   const payload = JSON.stringify({ path, durationSeconds });
 
   if (typeof navigator !== "undefined" && typeof navigator.sendBeacon === "function") {
@@ -40,6 +40,12 @@ export default function PageVisitTracker() {
       sentRef.current = true;
     }
   };
+
+  // 以前は同意バナーが GA を読み込んでいた。バナーを廃止したのでここで読み込む
+  useEffect(() => {
+    const gaId = process.env.NEXT_PUBLIC_GOOGLE_ANALYTICS_ID;
+    if (gaId && process.env.NODE_ENV === "production") loadGA(gaId);
+  }, []);
 
   useEffect(() => {
     const search = searchParams?.toString();

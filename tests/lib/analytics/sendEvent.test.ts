@@ -1,21 +1,16 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { beforeEach, afterEach, describe, it, expect, vi } from "vitest";
 
-// Mock the consentClient module with a controllable flag
+// GA の読み込みだけ差し替える（同意バナー廃止に伴い、送信の可否を切り替える仕組みは無くなった）
 vi.mock("../../../lib/analytics/consentClient", () => {
-  let allowed = true;
   return {
-    isAnalyticsAllowed: () => allowed,
     loadGA: vi.fn(),
-    __setAllowed: (v: boolean) => {
-      allowed = v;
-    },
+    isAnalyticsOptedOut: () => false,
   } as any;
 });
 
 describe("sendEvent wrapper", () => {
   let sendEvent: (...args: any[]) => void;
-  let consentMock: any;
 
   beforeEach(async () => {
     // reset globals
@@ -28,8 +23,6 @@ describe("sendEvent wrapper", () => {
       value: "nicchyo_visitor_id=visitor123",
     });
 
-    // import mocked consent module and the sendEvent module
-    consentMock = await import("../../../lib/analytics/consentClient");
     ({ sendEvent } = await import("../../../lib/analytics/sendEvent"));
   });
 
@@ -41,10 +34,7 @@ describe("sendEvent wrapper", () => {
     } catch {}
   });
 
-  it("sends dataLayer/gtag and posts to server when allowed and toServer=true", async () => {
-    // ensure allowed
-    consentMock.__setAllowed(true);
-
+  it("sends dataLayer/gtag and posts to server when toServer=true", async () => {
     sendEvent("shop_impression" as any, { shop_id: "shop1", list_position: 2, context: "list" }, { toServer: true });
 
     // dataLayer push
@@ -62,13 +52,10 @@ describe("sendEvent wrapper", () => {
     expect(fetchCall[0]).toContain("/api/analytics/shop-interaction");
   });
 
-  it("does nothing when consent is not allowed", async () => {
-    consentMock.__setAllowed(false);
+  it("toServer を指定しなければサーバーへは送らない", async () => {
+    sendEvent("shop_impression" as any, { shop_id: "shop2" });
 
-    sendEvent("shop_impression" as any, { shop_id: "shop2" }, { toServer: true });
-
-    expect((globalThis as any).dataLayer.length).toBe(0);
-    expect((globalThis as any).gtag).not.toHaveBeenCalled();
+    expect((globalThis as any).dataLayer.length).toBeGreaterThan(0);
     expect((globalThis as any).fetch).not.toHaveBeenCalled();
   });
 });

@@ -1,6 +1,6 @@
 "use client";
 
-import { isAnalyticsAllowed, loadGA } from "@/lib/analytics/consentClient";
+import { isAnalyticsOptedOut, loadGA } from "@/lib/analytics/consentClient";
 import type {
   AnalyticsEventName,
   AnalyticsParams,
@@ -44,7 +44,7 @@ async function postJson(url: string, body: unknown) {
 }
 
 export function sendEvent(name: AnalyticsEventName, params: AnalyticsParams = {}, options: SendEventOptions = {}) {
-  if (!isAnalyticsAllowed()) return;
+  if (isAnalyticsOptedOut()) return;
 
   // Ensure GA loader present in production if not yet loaded
   interface GtagWindow {

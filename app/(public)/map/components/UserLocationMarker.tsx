@@ -11,6 +11,7 @@ import {
   normalizeMapRoutePoints,
   projectPointOntoSegments,
 } from '../utils/mapRouteGeometry';
+import { useLocationPermissionGate } from '../hooks/useLocationPermissionGate';
 
 const MARKET_CENTER: [number, number] = [33.5614118, 133.5379706];
 
@@ -58,6 +59,7 @@ export default function UserLocationMarker({
   // 初回位置取得フラグ（マップを位置に移動させるため）
   const isFirstLocationRef = useRef(true);
   const routeVisibleRef = useRef(false);
+  const canAskLocation = useLocationPermissionGate();
   const effectiveRoutePoints = useMemo(() => {
     const activeRoutePoints = normalizeMapRoutePoints(routePoints ?? []);
     return activeRoutePoints.length >= 2 ? activeRoutePoints : getDefaultMapRoutePoints();
@@ -119,6 +121,8 @@ export default function UserLocationMarker({
 
   useEffect(() => {
     if (!map) return;
+    // 読み込み中にブラウザの許可ダイアログを出さない（畳まれてから少し待つ）
+    if (!canAskLocation) return;
 
     // Create marker with direction arrow structure
     const createIconHtml = () => {
@@ -356,7 +360,7 @@ export default function UserLocationMarker({
     return () => {
       removeMarker();
     };
-  }, [effectiveRouteConfig, effectiveRoutePoints, map, routeSegments, suppressInitialFocus]);
+  }, [canAskLocation, effectiveRouteConfig, effectiveRoutePoints, map, routeSegments, suppressInitialFocus]);
 
   return null;
 }

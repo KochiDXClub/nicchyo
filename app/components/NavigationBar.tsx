@@ -25,6 +25,7 @@ import {
   LogIn,
   LogOut,
   Mail,
+  ShieldCheck,
   MessageCircle,
   Newspaper,
   Package,
@@ -75,6 +76,7 @@ const aboutMenuItems: SheetItem[] = [
   { label: "nicchyoとは", href: "/about", icon: Info },
   { label: "よくある質問", href: "/faq", icon: CircleHelp },
   { label: "お問い合わせ", href: "/contact", icon: Mail },
+  { label: "プライバシーポリシー", href: "/privacy", icon: ShieldCheck },
 ];
 
 // ─── 出店者・管理者メニュー ────────────────────────────────────────────────────

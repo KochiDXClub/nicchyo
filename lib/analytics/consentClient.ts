@@ -1,47 +1,41 @@
-const ANALYTICS_CONSENT_KEY = "nicchyo_analytics_consent";
-const LOCATION_CONSENT_KEY = "nicchyo_location_consent";
-const CONSENT_CHANGE_EVENT = "nicchyo-consent-change";
+/**
+ * アクセス解析の停止設定と、Google アナリティクスの読み込み
+ *
+ * 解析は既定で動く（オプトアウト方式）。何を外部へ送っているかは /privacy に記載し、
+ * 同じページから停止できるようにしている。
+ * 停止の設定はこの端末のブラウザにだけ保存される（端末や別ブラウザには引き継がれない）。
+ */
 
-export type ConsentValue = "accepted" | "declined" | null;
+const ANALYTICS_OPT_OUT_KEY = "nicchyo_analytics_opt_out";
 
-function readConsent(key: string): ConsentValue {
-  if (typeof window === "undefined") return null;
-  const value = window.localStorage.getItem(key);
-  return value === "accepted" || value === "declined" ? value : null;
+/** 停止設定が変わったことを同じ画面の中で知らせる */
+export const ANALYTICS_OPT_OUT_CHANGE_EVENT = "nicchyo-analytics-opt-out-change";
+
+/** アクセス解析を止めているか。読めない環境（サーバー側など）では止めていない扱い */
+export function isAnalyticsOptedOut(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    return window.localStorage.getItem(ANALYTICS_OPT_OUT_KEY) === "1";
+  } catch {
+    // プライベートモードなどで localStorage が読めないことがある
+    return false;
+  }
 }
 
-function writeConsent(key: string, value: Exclude<ConsentValue, null>): void {
+export function setAnalyticsOptOut(optedOut: boolean): void {
   if (typeof window === "undefined") return;
-  window.localStorage.setItem(key, value);
-  window.dispatchEvent(new Event(CONSENT_CHANGE_EVENT));
-}
-
-export function isAnalyticsAllowed(): boolean {
-  return getAnalyticsConsent() === "accepted";
-}
-
-export function isLocationAllowed(): boolean {
-  return getLocationConsent() === "accepted";
-}
-
-export function getAnalyticsConsent(): ConsentValue {
-  return readConsent(ANALYTICS_CONSENT_KEY);
-}
-
-export function getLocationConsent(): ConsentValue {
-  return readConsent(LOCATION_CONSENT_KEY);
-}
-
-export function setAnalyticsConsent(value: Exclude<ConsentValue, null>): void {
-  writeConsent(ANALYTICS_CONSENT_KEY, value);
-}
-
-export function setLocationConsent(value: Exclude<ConsentValue, null>): void {
-  writeConsent(LOCATION_CONSENT_KEY, value);
+  try {
+    if (optedOut) window.localStorage.setItem(ANALYTICS_OPT_OUT_KEY, "1");
+    else window.localStorage.removeItem(ANALYTICS_OPT_OUT_KEY);
+  } catch {
+    return;
+  }
+  window.dispatchEvent(new Event(ANALYTICS_OPT_OUT_CHANGE_EVENT));
 }
 
 export function loadGA(gaId: string): void {
   if (typeof window === "undefined") return;
+  if (isAnalyticsOptedOut()) return;
   if (document.getElementById("ga-script")) return;
 
   const script = document.createElement("script");
