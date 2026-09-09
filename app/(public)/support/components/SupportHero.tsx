@@ -175,36 +175,40 @@ export default function SupportHero({
 
           {/*
             判断に要る3つの数字。囲まずに罫線でそろえる。
-            かかる額 → いただいた額 → あと何ヶ月もつか、の順に読ませる
+            かかる額 → いただいた額 → あと何ヶ月もつか、の順に読ませる。
+
+            狭い画面では3つ横に並べると1つあたりが窮屈なので、
+            「支えていただいている期間」だけ下の行へ回して幅いっぱいに使う。
+            折り返す行があるぶん罫線は divide-x に任せられない（行頭に
+            余計な縦線が出る）ので、1つずつ指定する。
           */}
           <motion.dl
             {...fadeUp(0.5)}
-            className="mt-9 grid max-w-[34rem] grid-cols-3 divide-x divide-nicchyo-ink/10 border-y border-nicchyo-ink/10"
+            className="mt-9 grid max-w-[34rem] grid-cols-2 border-y border-nicchyo-ink/10 sm:grid-cols-3"
           >
-            <div className="py-4 pr-3 sm:pr-5">
+            <div className="border-r border-nicchyo-ink/10 py-4 pr-4 sm:pr-5">
               <dt className="text-[11px] leading-snug tracking-[0.08em] text-nicchyo-ink/45">
                 毎月の運営費
               </dt>
-              <dd className="mt-1.5 text-[1.2rem] font-bold leading-none tabular-nums sm:text-[1.45rem]">
+              <dd className="mt-1.5 text-[1.35rem] font-bold leading-none tabular-nums sm:text-[1.45rem]">
                 {monthlyLabel}
               </dd>
             </div>
-            <div className="py-4 pl-3 pr-3 sm:pl-5 sm:pr-5">
+            <div className="py-4 pl-4 sm:border-r sm:border-nicchyo-ink/10 sm:pl-5 sm:pr-5">
               <dt className="text-[11px] leading-snug tracking-[0.08em] text-nicchyo-ink/45">
                 これまでのご支援
               </dt>
-              <dd className="mt-1.5 text-[1.2rem] font-bold leading-none tabular-nums sm:text-[1.45rem]">
+              <dd className="mt-1.5 text-[1.35rem] font-bold leading-none tabular-nums sm:text-[1.45rem]">
                 {totalReceivedLabel}
               </dd>
             </div>
-            <div className="py-4 pl-3 sm:pl-5">
+            <div className="col-span-2 border-t border-nicchyo-ink/10 py-4 sm:col-span-1 sm:border-t-0 sm:pl-5">
               <dt className="text-[11px] leading-snug tracking-[0.08em] text-nicchyo-ink/45">
                 支えていただいている期間
               </dt>
-              <dd className="mt-1.5 text-[1.2rem] font-bold leading-none tabular-nums sm:text-[1.45rem]">
+              <dd className="mt-1.5 text-[1.35rem] font-bold leading-none tabular-nums sm:text-[1.45rem]">
                 {runwayLabel}
-                {/* 狭い画面では「/ 12ヶ月」が途中で折れるので、下の行へ回す */}
-                <span className="mt-1 block text-[11px] font-bold text-nicchyo-ink/35 sm:ml-1 sm:mt-0 sm:inline sm:text-[12px]">
+                <span className="ml-1.5 text-[12px] font-bold text-nicchyo-ink/35">
                   / {totalMonths}ヶ月
                 </span>
               </dd>
