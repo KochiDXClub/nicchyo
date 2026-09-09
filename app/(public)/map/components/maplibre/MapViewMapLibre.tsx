@@ -24,10 +24,11 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import maplibregl, {
-  type ExpressionSpecification,
-  type LngLatBoundsLike,
-  type StyleSpecification,
+import * as maplibregl from "maplibre-gl";
+import type {
+  ExpressionSpecification,
+  LngLatBoundsLike,
+  StyleSpecification,
 } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import type { MapViewProps } from "../MapView";
