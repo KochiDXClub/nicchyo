@@ -5,6 +5,7 @@ import { motion, AnimatePresence, type PanInfo } from "framer-motion";
 import Link from "next/link";
 import Image from "next/image";
 import { ArrowLeft, ArrowRight, X } from "lucide-react";
+import SupporterSlots from "@/components/SupporterSlots";
 import { AboutIcon } from "./AboutIcon";
 import { aboutSlides, type SlideRichContent } from "./slides";
 
@@ -24,6 +25,7 @@ const SLIDE_THEMES: Record<string, SlideTheme> = {
   calendar: { accent: "#0EA5E9", light: "#F0F9FF", text: "#075985", border: "#BAE6FD" },
   facilities: { accent: "#14B8A6", light: "#F0FDFA", text: "#115E59", border: "#99F6E4" },
   achievements: { accent: "#F59E0B", light: "#FFFBEB", text: "#92400E", border: "#FDE68A" },
+  supporters: { accent: "#F59E0B", light: "#FFFBEB", text: "#92400E", border: "#FDE68A" },
   team: { accent: "#64748B", light: "#F8FAFC", text: "#334155", border: "#E2E8F0" },
   roadmap: { accent: "#10B981", light: "#ECFDF5", text: "#065F46", border: "#A7F3D0" },
   version: { accent: "#6366F1", light: "#EEF2FF", text: "#3730A3", border: "#C7D2FE" },
@@ -57,6 +59,14 @@ function RichContent({
             <p className="text-sm font-semibold text-gray-700 leading-snug">{p.text}</p>
           </div>
         ))}
+      </div>
+    );
+  }
+
+  if (content.type === "supporters") {
+    return (
+      <div className="mb-8 w-full max-w-sm">
+        <SupporterSlots />
       </div>
     );
   }

@@ -7,7 +7,7 @@ import { enforceRateLimit } from "@/lib/security/rateLimit";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const VALID_CATEGORIES = ["question", "feedback", "bug", "other"] as const;
+const VALID_CATEGORIES = ["question", "feedback", "bug", "sponsor", "other"] as const;
 
 function isValidEmail(email: string): boolean {
   if (!email || email.length > 254) return false;
