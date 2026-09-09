@@ -15,7 +15,7 @@ export const grandmaComments: GrandmaComment[] = [
   {
     id: 'notice-01',
     genre: 'notice',
-    text: 'お気に入りに入れたお店、忘れてない？',
+    text: '気になったお店は、ハートを押しておくとあとで戻れるきね。',
     link: { href: '/favorites', label: 'お気に入りを開く' },
   },
   {
@@ -85,7 +85,7 @@ export const mapTutorialComments: import('../types/grandmaComment').GrandmaComme
   { id: 'tut-05', genre: 'tutorial', text: 'お店の写真の右下にあるハートを押すと、そのお店ごとお気に入りにできるよ。' },
   { id: 'tut-07', genre: 'tutorial', text: '日曜市は毎週日曜日の早朝から夕方まで、約300軒が並ぶきね。' },
   { id: 'tut-08', genre: 'tutorial', text: 'AIに「野菜が安いお店は？」など聞くと、おすすめのお店を教えてくれるよ。' },
-  { id: 'tut-09', genre: 'tutorial', text: 'お気に入りに入れたお店は、地図の上の「お気に入り」を押すとまとめて見られるよ。', link: { href: '/favorites', label: 'お気に入りを開く' } },
+  { id: 'tut-09', genre: 'tutorial', text: 'ハートを押したお店は、あとからまとめて見られるよ。地図の上にも「お気に入り」の絞り込みが出てくるきね。', link: { href: '/favorites', label: 'お気に入りを開く' } },
   { id: 'tut-10', genre: 'tutorial', text: '準備は整ったね！お気に入りのお店をたくさん見つけてきてね。' },
 ];
 

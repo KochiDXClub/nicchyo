@@ -94,17 +94,17 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <ViewportHeightUpdater />
         <AuthProvider>
           <PageVisibilityProvider>
-              <MenuProvider>
-                <MapLoadingProvider>
-                  <AppHeader />
-                  <FavoritesBagMigration />
-                  <Suspense fallback={null}>
-                    <PageVisitTracker />
-                  </Suspense>
-                  {children}
-                  <Toaster />
-                </MapLoadingProvider>
-              </MenuProvider>
+            <MenuProvider>
+              <MapLoadingProvider>
+                <AppHeader />
+                <FavoritesBagMigration />
+                <Suspense fallback={null}>
+                  <PageVisitTracker />
+                </Suspense>
+                {children}
+                <Toaster />
+              </MapLoadingProvider>
+            </MenuProvider>
           </PageVisibilityProvider>
         </AuthProvider>
       </body>

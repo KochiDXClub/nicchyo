@@ -774,7 +774,7 @@ export default function MapPageClient({
           rect
         )
     );
-    // おすすめ: 行動シグナル（お気に入り・買い物リスト）から
+    // おすすめ: 行動シグナル（お気に入り）から
     // 興味ジャンルを導き、範囲内の店舗（近い順）から9店を選ぶ
     const inAreaShops = summary.shopIds
       .map((id) => shopById.get(id))
