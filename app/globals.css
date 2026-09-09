@@ -1711,3 +1711,41 @@ body.home-poster-zoom-open .hamburger-button {
     transform: none !important;
   }
 }
+
+/* ===== 印刷 =====
+   運営について（/support）は、助成金の申請に添えたり社内で回覧されたりする。
+   紙にしたときに、画面用の固定要素と背景が邪魔をしないようにする。 */
+@media print {
+  /* 下端に固定されたナビは、紙では全ページに重なるだけ */
+  .navigation-bar {
+    display: none !important;
+  }
+
+  .support-page {
+    padding-bottom: 0 !important;
+  }
+
+  /* 背景の暖色は、インクを使うだけで情報を持たない */
+  .support-page section > .absolute {
+    display: none !important;
+  }
+
+  /* 節の途中で切れると、見出しと数字が別のページに離れる */
+  .support-page section {
+    break-inside: avoid;
+  }
+
+  /* 画面に入ったときの演出は、紙では効かせない。
+     スクロールしていない節は opacity:0 のままなので、そのまま印刷すると
+     本文がごっそり消える。framer-motion はインラインで書くので !important が要る */
+  .reveal {
+    opacity: 1 !important;
+    transform: none !important;
+  }
+
+  /* 見出しは行ごとに窓で覆って落としている。紙では窓を外す */
+  .support-page h1 span {
+    overflow: visible !important;
+    transform: none !important;
+  }
+}

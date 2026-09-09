@@ -19,6 +19,7 @@ import {
   ClipboardList,
   Compass,
   FileText,
+  HeartHandshake,
   Info,
   LayoutDashboard,
   LayoutGrid,
@@ -62,18 +63,22 @@ type SheetItem = {
   label: string;
   href: string;
   icon: LucideIcon;
+  /** 開発中であることなど、開く前に伝えておきたい一言（例: デモ） */
+  badge?: string;
 };
 
 /** 日曜市を歩くときに使うページ */
 const visitMenuItems: SheetItem[] = [
   { label: "おでかけサポート", href: "/facilities", icon: Compass },
   { label: "日曜市カレンダー", href: "/calendar", icon: CalendarDays },
-  { label: "日曜市をデータで見る", href: "/analysis", icon: BarChart3 },
+  // 中身がまだサンプル値なので、開く前に分かるようにしておく
+  { label: "日曜市をデータで見る", href: "/analysis", icon: BarChart3, badge: "デモ" },
 ];
 
 /** nicchyo そのものについてのページ */
 const aboutMenuItems: SheetItem[] = [
   { label: "nicchyoとは", href: "/about", icon: Info },
+  { label: "協賛・ご支援について", href: "/support", icon: HeartHandshake },
   { label: "よくある質問", href: "/faq", icon: CircleHelp },
   { label: "お問い合わせ", href: "/contact", icon: Mail },
   { label: "プライバシーポリシー", href: "/privacy", icon: ShieldCheck },
@@ -330,6 +335,7 @@ function NavigationBarInner({
                     key={item.href}
                     icon={item.icon}
                     label={item.label}
+                    badge={item.badge}
                     onClick={() => handleMenuItemClick(item.href)}
                   />
                 ))}
@@ -345,6 +351,7 @@ function NavigationBarInner({
                             key={item.href}
                             icon={item.icon}
                             label={item.label}
+                            badge={item.badge}
                             muted
                             onClick={() => handleMenuItemClick(item.href)}
                           />
@@ -364,6 +371,7 @@ function NavigationBarInner({
                         key={item.href}
                         icon={item.icon}
                         label={item.label}
+                        badge={item.badge}
                         onClick={() => handleMenuItemClick(item.href)}
                       />
                     ))}
@@ -379,6 +387,7 @@ function NavigationBarInner({
                         key={item.href}
                         icon={item.icon}
                         label={item.label}
+                        badge={item.badge}
                         onClick={() => handleMenuItemClick(item.href)}
                       />
                     ))}
@@ -527,11 +536,14 @@ function NavigationBarInner({
 function MenuRow({
   icon: Icon,
   label,
+  badge,
   muted = false,
   onClick,
 }: {
   icon: LucideIcon;
   label: string;
+  /** ラベルの右に添える一言（例: デモ） */
+  badge?: string;
   /** 補助的な項目。少し小さく、控えめな色にする */
   muted?: boolean;
   onClick: () => void;
@@ -556,6 +568,11 @@ function MenuRow({
       >
         {label}
       </span>
+      {badge ? (
+        <span className="shrink-0 rounded-full border border-dashed border-rose-300 bg-rose-50 px-2 py-0.5 text-[10px] font-bold text-rose-700">
+          {badge}
+        </span>
+      ) : null}
     </button>
   );
 }

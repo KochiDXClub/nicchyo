@@ -382,6 +382,16 @@ export default function HamburgerMenu() {
                 >
                   <MenuIcon name="chart" className={`h-5 w-5 ${isActive('/analysis') ? 'text-white' : 'text-gray-600'}`} />
                   <p className="text-sm font-medium">日曜市をデータで見る</p>
+                  {/* 中身がまだサンプル値なので、開く前に分かるようにしておく */}
+                  <span
+                    className={`ml-auto shrink-0 rounded-full border border-dashed px-2 py-0.5 text-[10px] font-bold ${
+                      isActive('/analysis')
+                        ? 'border-white/60 bg-white/15 text-white'
+                        : 'border-rose-300 bg-rose-50 text-rose-700'
+                    }`}
+                  >
+                    デモ
+                  </span>
                 </Link>
               </MenuLi>
               {!isLoggedIn && (

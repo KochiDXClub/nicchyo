@@ -24,6 +24,7 @@ export type PainPointItem = {
 };
 
 export type SlideRichContent =
+  | { type: "supporters" }
   | { type: "characters"; items: CharacterItem[] }
   | { type: "achievements"; items: AchievementItem[] }
   | { type: "painPoints"; items: PainPointItem[] }
@@ -51,7 +52,7 @@ export const aboutSlides: AboutSlide[] = [
   {
     id: "painPoints",
     title: "こんな悩み、ありませんか？",
-    description: "日曜市ってなんとなく足が向かない理由がある。",
+    description: "日曜市には、なんとなく足が向かない理由があります。",
     richContent: {
       type: "painPoints",
       items: [
@@ -109,7 +110,7 @@ export const aboutSlides: AboutSlide[] = [
   {
     id: "story",
     title: "近況",
-    description: "出店者が投稿する今週の写真やお知らせをチェックできます。",
+    description: "出店者の皆さんが投稿した今週の写真やお知らせをご覧いただけます。",
     iconName: "notebook",
     action: {
       label: "近況を見る",
@@ -154,10 +155,21 @@ export const aboutSlides: AboutSlide[] = [
     },
   },
   {
+    id: "supporters",
+    title: "ご支援くださる皆さま",
+    description:
+      "みなさまのお力添えで続けております。運営にかかる費用も公開しております。",
+    richContent: { type: "supporters" },
+    action: {
+      label: "協賛・ご支援について",
+      href: "/support",
+    },
+  },
+  {
     id: "team",
     title: "チームと活動",
     description:
-      "高知高専の学生と顧問の先生によるプロジェクト。現地での聞き取りを大切にしています。",
+      "高知高専の学生と顧問の教員によるプロジェクトです。現地でお話をうかがうことを大切にしています。",
     iconName: "discover",
   },
   {
