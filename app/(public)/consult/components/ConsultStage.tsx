@@ -745,7 +745,7 @@ export default function ConsultStage({
       {/* 音声は大きく、文字は最後の手段として小さく。
           音声シートが出ている間と応答待ちの間は、押すべきものが2つにならないよう隠す */}
       <div
-        className={`fixed inset-x-0 z-20 flex items-center justify-center gap-3 px-4 ${
+        className={`fixed inset-x-0 z-20 mx-auto flex items-center justify-center gap-3 px-4 md:max-w-3xl ${
           revealClass(280).className
         } ${speech.isListening || phase !== "idle" || isBusy ? "hidden" : ""}`}
         style={{
@@ -815,7 +815,7 @@ export default function ConsultStage({
           />
 
           <div
-            className="relative rounded-t-3xl bg-white px-4 pt-4 shadow-2xl"
+            className="relative mx-auto rounded-t-3xl bg-white px-4 pt-4 shadow-2xl md:max-w-md"
             style={{ paddingBottom: "calc(var(--safe-bottom, 0px) + 5rem)" }}
           >
             <div className="mb-3 flex items-center justify-between">
@@ -906,7 +906,7 @@ export default function ConsultStage({
             aria-hidden="true"
           />
           <div
-            className="relative rounded-t-3xl bg-white p-4"
+            className="relative mx-auto rounded-t-3xl bg-white p-4 md:max-w-md"
             style={{ paddingBottom: "calc(var(--safe-bottom, 0px) + 5rem)" }}
           >
             <div className="mb-2 flex items-center justify-between">
@@ -957,7 +957,7 @@ export default function ConsultStage({
             aria-hidden="true"
           />
 
-          <div className="relative flex max-h-[85dvh] flex-col overflow-hidden rounded-t-3xl bg-white">
+          <div className="relative mx-auto flex max-h-[85dvh] flex-col overflow-hidden rounded-t-3xl bg-white md:max-w-md">
             <div className="flex shrink-0 items-center justify-between border-b border-amber-100 px-4 py-3">
               <p className="text-sm font-bold text-amber-900">
                 これまでの相談（{entries.length}件）
