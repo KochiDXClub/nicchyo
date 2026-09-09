@@ -69,6 +69,7 @@ export default function PrivacyPage() {
             nicchyo（以下「当サービス」といいます）は、高知・日曜市を初めて訪れる方をご案内するための地図サービスです。
             会員登録をしなくてもお使いいただけ、その場合にお名前やご連絡先を頂戴することはございません。
             このページでは、どのような情報を、何のために、どこへ送っているのかを具体的にご説明いたします。
+            位置情報とマイクは、お使いになる場面でのみ許可をお尋ねいたします。
           </p>
         </div>
 
@@ -132,7 +133,30 @@ export default function PrivacyPage() {
             </Prose>
           </Section>
 
-          <Section number={3} title="外部への送信">
+          <Section number={3} title="音声入力（マイク）の取り扱い">
+            <Prose>
+              AI へのご相談は、文字のご入力のほかに、話しかけてご入力いただくこともできます。
+              お使いになるにはブラウザからマイクの許可が必要で、
+              「話しかける」ボタンを押していただいたときだけ働きます。常時聞き取ることはございません。
+            </Prose>
+            <Prose>
+              音声を文字に変換する処理は、ブラウザに備わっている音声認識のしくみに任せております。
+              そのため<strong className="font-semibold text-nicchyo-ink">多くのブラウザ（Chrome・Edge・Safari
+              など）では、変換のために音声がブラウザの提供元のサーバーへ送られます。</strong>
+              どこへ送られるかはお使いのブラウザによって決まります。
+            </Prose>
+            <Prose>
+              当サービスがお預かりするのは<strong className="font-semibold text-nicchyo-ink">変換されたあとの文字だけ</strong>で、
+              音声そのものを受け取ることも、保存することもございません。変換された文字は画面でご確認いただけ、
+              送信されたときにはじめて、通常のご相談と同じ扱いになります。
+            </Prose>
+            <Prose>
+              マイクの許可をされない場合や、お使いのブラウザが対応していない場合でも、
+              文字のご入力で同じようにご相談いただけます。
+            </Prose>
+          </Section>
+
+          <Section number={4} title="外部への送信">
             <Prose>
               電気通信事業法の外部送信規律にもとづき、利用者の情報を外部へ送信しているものを記載いたします。
             </Prose>
@@ -158,11 +182,12 @@ export default function PrivacyPage() {
             <p className="mt-6 text-sm leading-[1.9] text-[#8C8378]">
               いずれにも現在地（緯度・経度）は含まれません。地図の背景を配信する事業者には、
               表示している地図の範囲が伝わります。AI への送信は当サービスのサーバーを経由して行っており、
-              ご相談の内容は回答を作成するためにのみ用います。
+              ご相談の内容は回答を作成するためにのみ用います。音声入力をお使いになったときの音声は、
+              当サービスではなくブラウザから送られます（上の「音声入力（マイク）の取り扱い」をご覧ください）。
             </p>
           </Section>
 
-          <Section number={4} title="アクセス解析を止める">
+          <Section number={5} title="アクセス解析を止める">
             <Prose>
               アクセス解析は既定で有効ですが、いつでもお止めいただけます。下のスイッチでお切り替えください。
             </Prose>
@@ -183,7 +208,7 @@ export default function PrivacyPage() {
             </Prose>
           </Section>
 
-          <Section number={5} title="情報の使いみち">
+          <Section number={6} title="情報の使いみち">
             <ul className="space-y-3 text-[0.95rem] leading-[1.9] text-[#5C574F]">
               {[
                 "地図・検索・ご案内を、初めての方に分かりやすく作り直すため",
@@ -200,7 +225,7 @@ export default function PrivacyPage() {
             </ul>
           </Section>
 
-          <Section number={6} title="第三者への提供と保存期間">
+          <Section number={7} title="第三者への提供と保存期間">
             <Prose>
               法令に基づく場合を除き、お客様の個人情報を同意なく第三者へ提供することはございません。
               上の「外部への送信」に挙げた事業者へは、サービスの運営に必要な範囲で業務を委託しており、
@@ -212,7 +237,7 @@ export default function PrivacyPage() {
             </Prose>
           </Section>
 
-          <Section number={7} title="お問い合わせ窓口">
+          <Section number={8} title="お問い合わせ窓口">
             <Prose>
               個人情報の取り扱いについてのご質問、ご自身の情報の開示・削除のご希望は、
               下記のフォームよりご連絡ください。
