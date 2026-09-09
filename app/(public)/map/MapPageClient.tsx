@@ -226,7 +226,6 @@ export default function MapPageClient({
   useEffect(() => {
     setSelectedSpot(null);
   }, [guideQuery]);
-  const [agentOpen, setAgentOpen] = useState(false);
   const [showVendorPrompt, setShowVendorPrompt] = useState(false);
   const [vendorShopName, setVendorShopName] = useState<string | null>(null);
   const [_isHoldActive, _setIsHoldActive] = useState(false);
@@ -966,8 +965,6 @@ export default function MapPageClient({
               mapViewSettings={mapViewSettings}
               initialShopId={initialShopId}
               openInitialShopBanner={!isAiFocusMode}
-              agentOpen={agentOpen}
-              onAgentToggle={setAgentOpen}
               searchShopIds={searchMarkerPayload?.ids ?? mapSearchShopIds}
               aiShopIds={aiMarkerPayload?.ids}
               onMapReady={markMapReady}

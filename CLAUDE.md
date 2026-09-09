@@ -51,7 +51,7 @@ PRを出す前は必ず `npm run build` でビルドが通ることを確認す�
 - **Styling**: Tailwind CSS（カスタムパレット: `nicchyo-base/primary/accent/ink/soft-green`）
 - **DB**: Supabase（メイン）、Prismaスキーマも存在
 - **Map**: Leaflet + react-leaflet（`reactStrictMode: false` ← Leafletの二重初期化防止）
-- **AI**: OpenAI API（RAG構成、`app/api/grandma/` と `app/api/map-agent/`）
+- **AI**: OpenAI API（RAG構成、`app/api/grandma/`）
 - **Auth**: Supabase Auth（`lib/auth/AuthContext.tsx`）
 
 ## Required Environment Variables
@@ -82,7 +82,6 @@ app/
 └── api/               # API Routes
     ├── shops/         # 店舗データ取得・編集
     ├── grandma/       # AI「にちよさん」バックエンド
-    ├── map-agent/     # マップAIアシスタント
     ├── analytics/     # アクセス解析
     └── vendor/        # 出店者向けAPI
 ```

@@ -23,7 +23,6 @@ import { shops as baseShops, Shop } from "../data/shops";
 import ShopDetailBanner from "./ShopDetailBanner";
 import BackgroundOverlay from "./BackgroundOverlay";
 import UserLocationMarker from "./UserLocationMarker";
-import MapAgentAssistant from "./MapAgentAssistant";
 import OptimizedShopLayerWithClustering from "./OptimizedShopLayerWithClustering";
 import { LiveZoomMapControls } from "./MapControls";
 import type { MapCamera } from "../types/mapCamera";
@@ -81,7 +80,6 @@ const ZOOM_BOUNDS = getRecommendedZoomBounds();
 const MIN_ZOOM = ZOOM_BOUNDS.min;
 const MAX_ZOOM = ZOOM_BOUNDS.max;
 const INITIAL_ZOOM = MAX_ZOOM;
-const AGENT_STORAGE_KEY = "nicchyo-map-agent-plan";
 /**
  * ズーム倍率に関わらず常に表示する、公共交通機関のランドマークか判定する。
  * 「城」「オーテピア」等の一般ランドマークは、丁目バッジが出る通常ズーム
@@ -149,8 +147,6 @@ export type MapViewProps = {
   mapRoute?: MapRoute;
   initialShopId?: number;
   openInitialShopBanner?: boolean;
-  agentOpen?: boolean;
-  onAgentToggle?: (open: boolean) => void;
   searchShopIds?: number[];
   /** 地図が描き終えた（ローディングを畳んでよい） */
   onMapReady?: () => void;
@@ -362,7 +358,6 @@ function applyLandmarkScale(map: L.Map, enabled: boolean) {
     .style.setProperty("--landmark-scale", enabled ? getLandmarkScale(map.getZoom()).toFixed(3) : "1");
 }
 
-const MemoizedMapAgentAssistant = memo(MapAgentAssistant);
 const MemoizedUserLocationMarker = memo(UserLocationMarker);
 
 /**
@@ -520,8 +515,6 @@ const MapView = memo(function MapView({
   mapRoute,
   initialShopId,
   openInitialShopBanner = true,
-  agentOpen,
-  onAgentToggle,
   searchShopIds,
   onMapReady,
   eventTargets,
@@ -666,9 +659,7 @@ const MapView = memo(function MapView({
     return Math.ceil(Math.hypot(w, h) + 120);
   });
 
-  const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
   const [favoriteShopIds, setFavoriteShopIds] = useState<number[]>([]);
-  const [_planOrder, setPlanOrder] = useState<number[]>([]);
   const [mapInstance, setMapInstance] = useState<L.Map | null>(null);
   const mapRef = useRef<L.Map | null>(null);
   const isTouchGestureActiveRef = useRef(false);
@@ -763,20 +754,6 @@ const MapView = memo(function MapView({
       document.body.classList.remove("shop-banner-open");
     };
   }, [selectedShop]);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    try {
-      const raw = localStorage.getItem(AGENT_STORAGE_KEY);
-      if (!raw) return;
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed?.order)) {
-        setPlanOrder(parsed.order);
-      }
-    } catch {
-      // ignore parse errors
-    }
-  }, []);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -885,26 +862,6 @@ const MapView = memo(function MapView({
     }
   }, [onShopSelect, selectedShop, shopBannerMainSurface, shops, showMapToast]);
 
-  const handleOpenShop = useCallback((shopId: number) => {
-    const target = shops.find((s) => s.id === shopId);
-    if (target) {
-      handleShopClick(target);
-    }
-  }, [handleShopClick, shops]);
-
-  const handlePlanUpdate = useCallback((order: number[]) => {
-    setPlanOrder(order);
-    if (typeof window !== "undefined") {
-      try {
-        const raw = localStorage.getItem(AGENT_STORAGE_KEY);
-        const parsed = raw ? JSON.parse(raw) : {};
-        localStorage.setItem(AGENT_STORAGE_KEY, JSON.stringify({ ...parsed, order }));
-      } catch {
-        // ignore storage errors
-      }
-    }
-  }, []);
-
   const handleAddToBag = useCallback((name: string, fromShopId?: number) => {
     const value = name.trim();
     if (!value) return;
@@ -939,7 +896,7 @@ const MapView = memo(function MapView({
   } = zoomModes;
   const shouldRenderEventGlow = highlightEventTargets && zoomModes.canRenderEventGlow;
   const shouldRenderLandmarks = zoomModes.canRenderLandmarks || highlightEventTargets;
-  const interactionDisabled = agentOpen ?? false;
+  const interactionDisabled = false;
   const mapRotation = normalizeRotationDeg(autoRotation);
 
   useEffect(() => {
@@ -1027,7 +984,6 @@ const MapView = memo(function MapView({
 
   const handleUserLocationUpdate = useCallback(
     (inMarket: boolean, position: [number, number]) => {
-      setUserLocation(position);
       setIsInMarket(inMarket);
       onUserLocationUpdate?.({
         lat: position[0],
@@ -1214,11 +1170,11 @@ const MapView = memo(function MapView({
           zoomAnimation
           markerZoomAnimation
           fadeAnimation
-          scrollWheelZoom={!agentOpen && !isMobile}
+          scrollWheelZoom={!isMobile}
           dragging={false}
           touchZoom={false}
-          doubleClickZoom={!agentOpen && !isMobile}
-          className={`h-full w-full ${agentOpen ? "pointer-events-none" : ""}`}
+          doubleClickZoom={!isMobile}
+          className="h-full w-full"
           style={{
             height: "100%",
             width: "100%",
@@ -1367,15 +1323,6 @@ const MapView = memo(function MapView({
           />
         </>
       )}
-
-      <MemoizedMapAgentAssistant
-        onOpenShop={handleOpenShop}
-        onPlanUpdate={handlePlanUpdate}
-        userLocation={userLocation}
-        isOpen={agentOpen}
-        onToggle={onAgentToggle}
-        hideLauncher
-      />
 
       {/* 外部から注入するオーバーレイ（マップ座標系内） */}
       {overlaySlot}
