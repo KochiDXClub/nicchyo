@@ -1,140 +1,46 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
+import { INK, SERIES, SURFACE } from "./chart";
+import { TableView } from "./components/ui";
 
-type VisitorChartPoint = {
+export type VisitorPoint = {
   key: string;
   label: string;
   value: number;
-  trend: number;
+  /** 日曜市の開催日（日次表示のときだけ意味がある） */
+  isMarketDay?: boolean;
+  /** まだ期間が終わっていない区切り（今週・今月・今年・今日） */
+  isPartial?: boolean;
 };
 
 type Mode = "daily" | "weekly" | "monthly" | "yearly";
 
 type Props = {
-  dailyChart: VisitorChartPoint[];
-  weeklyChart: VisitorChartPoint[];
-  monthlyChart: VisitorChartPoint[];
-  yearlyChart: VisitorChartPoint[];
+  dailyChart: VisitorPoint[];
+  weeklyChart: VisitorPoint[];
+  monthlyChart: VisitorPoint[];
+  yearlyChart: VisitorPoint[];
 };
 
-function VisitorCompositeChart({
-  title,
-  subtitle,
-  data,
-}: {
-  title: string;
-  subtitle: string;
-  data: VisitorChartPoint[];
-}) {
-  const width = 720;
-  const height = 260;
-  const marginTop = 16;
-  const marginRight = 16;
-  const marginBottom = 44;
-  const marginLeft = 36;
-  const chartWidth = width - marginLeft - marginRight;
-  const chartHeight = height - marginTop - marginBottom;
-  const baseMax = data.reduce((max, point) => Math.max(max, point.value, point.trend), 0);
-  const maxValue = Math.max(1, Math.ceil(baseMax * 1.1));
-  const step = data.length > 0 ? chartWidth / data.length : chartWidth;
-  const barWidth = Math.max(6, step * 0.58);
-  const labelStep = Math.max(1, Math.ceil(data.length / 6));
+const MODES: { key: Mode; label: string }[] = [
+  { key: "daily", label: "日次" },
+  { key: "weekly", label: "週次" },
+  { key: "monthly", label: "月次" },
+  { key: "yearly", label: "年次" },
+];
 
-  const xAt = (index: number) => marginLeft + index * step + step / 2;
-  const yAt = (value: number) => marginTop + chartHeight - (value / maxValue) * chartHeight;
-  const linePath = data
-    .map((point, index) => `${index === 0 ? "M" : "L"} ${xAt(index)} ${yAt(point.trend)}`)
-    .join(" ");
-  const scrollRef = useRef<HTMLDivElement | null>(null);
-
-  useEffect(() => {
-    const el = scrollRef.current;
-    if (!el) return;
-    el.scrollLeft = el.scrollWidth;
-  }, [data]);
-
-  return (
-    <article className="rounded-2xl border border-amber-100 bg-amber-50/50 p-4">
-      <h3 className="text-base font-bold text-amber-900">{title}</h3>
-      <p className="mt-1 text-xs text-amber-800/80">{subtitle}</p>
-      <div ref={scrollRef} className="mt-3 w-full overflow-x-auto">
-        <svg viewBox={`0 0 ${width} ${height}`} className="min-w-[680px] w-full">
-          {[0, 1, 2, 3, 4].map((lineIndex) => {
-            const ratio = lineIndex / 4;
-            const y = marginTop + chartHeight * ratio;
-            return (
-              <line
-                key={`grid-${lineIndex}`}
-                x1={marginLeft}
-                y1={y}
-                x2={width - marginRight}
-                y2={y}
-                stroke="#FDE68A"
-                strokeWidth="1"
-              />
-            );
-          })}
-
-          {data.map((point, index) => {
-            const barHeight = (point.value / maxValue) * chartHeight;
-            return (
-              <rect
-                key={`bar-${point.key}`}
-                x={xAt(index) - barWidth / 2}
-                y={marginTop + chartHeight - barHeight}
-                width={barWidth}
-                height={barHeight}
-                rx={4}
-                fill="#F59E0B"
-                opacity="0.82"
-              />
-            );
-          })}
-
-          {data.length > 1 ? (
-            <path d={linePath} fill="none" stroke="#9A3412" strokeWidth="2.5" strokeLinecap="round" />
-          ) : null}
-
-          {data.map((point, index) => (
-            <circle
-              key={`dot-${point.key}`}
-              cx={xAt(index)}
-              cy={yAt(point.trend)}
-              r="2.5"
-              fill="#9A3412"
-            />
-          ))}
-
-          {data.map((point, index) =>
-            index % labelStep === 0 || index === data.length - 1 ? (
-              <text
-                key={`label-${point.key}`}
-                x={xAt(index)}
-                y={height - 16}
-                textAnchor="middle"
-                className="fill-amber-900 text-[10px]"
-              >
-                {point.label}
-              </text>
-            ) : null
-          )}
-        </svg>
-      </div>
-      <div className="mt-2 flex items-center gap-4 text-[11px] text-amber-900/80">
-        <span className="inline-flex items-center gap-1">
-          <span className="inline-block h-2.5 w-2.5 rounded-sm bg-amber-500" />
-          棒: 実数値
-        </span>
-        <span className="inline-flex items-center gap-1">
-          <span className="inline-block h-0.5 w-4 bg-amber-900" />
-          折れ線: 3期間移動平均
-        </span>
-      </div>
-    </article>
-  );
-}
-
+/**
+ * 来訪者数の推移。
+ *
+ * 縦棒を横に並べる形をやめて、横棒を縦に積む形にしている。
+ * 縦棒だと画面幅に合わせて図ごと縮むため、スマートフォンでは目盛りも値も
+ * 読めない大きさになっていた。横棒なら文字が縮まないので、
+ * すべての行に実数をそのまま出せる。
+ *
+ * 日次では日曜（日曜市の開催日）だけを濃く塗る。平日と混ぜて同じ色にすると、
+ * 週に一度の山が「変動が大きいデータ」に見えてしまう。
+ */
 export default function VisitorTrendSwitcher({
   dailyChart,
   weeklyChart,
@@ -145,34 +51,34 @@ export default function VisitorTrendSwitcher({
 
   const selected = useMemo(() => {
     if (mode === "weekly") {
-      return { title: "週次推移", subtitle: "直近12週間の来訪者数（週合計）", data: weeklyChart };
+      return { caption: "直近12週間（週ごとの合計）", data: weeklyChart };
     }
     if (mode === "monthly") {
-      return { title: "月次推移", subtitle: "直近12か月の来訪者数（月合計）", data: monthlyChart };
+      return { caption: "直近12か月（月ごとの合計）", data: monthlyChart };
     }
     if (mode === "yearly") {
-      return { title: "年次推移", subtitle: "直近5年の来訪者数（年合計）", data: yearlyChart };
+      return { caption: "直近5年（年ごとの合計）", data: yearlyChart };
     }
-    return { title: "日次推移", subtitle: "直近14日間の来訪者数", data: dailyChart };
+    return { caption: "直近14日間", data: dailyChart };
   }, [mode, dailyChart, weeklyChart, monthlyChart, yearlyChart]);
 
-  const modes: { key: Mode; label: string }[] = [
-    { key: "daily", label: "日次" },
-    { key: "weekly", label: "週次" },
-    { key: "monthly", label: "月次" },
-    { key: "yearly", label: "年次" },
-  ];
+  const data = selected.data;
+  const max = data.reduce((m, point) => Math.max(m, point.value), 0);
+  const total = data.reduce((sum, point) => sum + point.value, 0);
+  const hasMarketDayMix =
+    mode === "daily" && data.some((point) => point.isMarketDay) && data.some((point) => !point.isMarketDay);
 
   return (
-    <div className="space-y-3">
+    <div>
       <div className="flex flex-wrap gap-2">
-        {modes.map((item) => {
+        {MODES.map((item) => {
           const active = item.key === mode;
           return (
             <button
               key={item.key}
               type="button"
               onClick={() => setMode(item.key)}
+              aria-pressed={active}
               className={[
                 "rounded-full border px-4 py-1.5 text-sm font-semibold transition",
                 active
@@ -186,7 +92,98 @@ export default function VisitorTrendSwitcher({
         })}
       </div>
 
-      <VisitorCompositeChart title={selected.title} subtitle={selected.subtitle} data={selected.data} />
+      <p className="mt-3 text-xs" style={{ color: INK.muted }}>
+        {selected.caption}
+      </p>
+
+      {total === 0 ? (
+        <p className="mt-3 rounded-xl border border-dashed border-amber-200 bg-amber-50/50 px-4 py-6 text-center text-sm text-amber-800">
+          この期間の記録がまだありません
+        </p>
+      ) : (
+        <>
+          <ul className="mt-3 space-y-1.5">
+            {data.map((point) => {
+              const ratio = max > 0 ? point.value / max : 0;
+              // 集計途中の区切りは必ず控えめに描く。満了した区切りと同じ濃さで並べると
+              // 「急に落ち込んだ」ように読めてしまう。
+              const emphasised = !point.isPartial && (!hasMarketDayMix || point.isMarketDay);
+              return (
+                <li
+                  key={point.key}
+                  className="grid grid-cols-[5.5rem_1fr_3.4rem] items-center gap-2"
+                  title={`${point.label}：${point.value.toLocaleString()} 人${
+                    point.isPartial ? "（集計途中）" : ""
+                  }`}
+                >
+                  <span
+                    className="whitespace-nowrap text-[11px] font-medium"
+                    style={{ color: emphasised ? INK.secondary : INK.muted }}
+                  >
+                    {point.label}
+                    {point.isPartial ? <span className="ml-1 font-normal">途中</span> : null}
+                  </span>
+                  <span className="block h-3.5 rounded-sm" style={{ backgroundColor: SURFACE.grid }}>
+                    <span
+                      className="block h-3.5"
+                      style={{
+                        width: `${Math.max(ratio * 100, point.value > 0 ? 1.5 : 0)}%`,
+                        backgroundColor: emphasised ? SERIES.bar : SERIES.muted,
+                        borderRadius: "0 4px 4px 0",
+                      }}
+                    />
+                  </span>
+                  <span
+                    className="text-right text-[11px] tabular-nums"
+                    style={{ color: emphasised ? INK.secondary : INK.muted }}
+                  >
+                    {point.value.toLocaleString()}
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+
+          {hasMarketDayMix ? (
+            <ul className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5">
+              <li className="flex items-center gap-1.5 text-[11px]" style={{ color: INK.secondary }}>
+                <span
+                  aria-hidden="true"
+                  className="inline-block h-3 w-3 rounded-sm"
+                  style={{ backgroundColor: SERIES.bar }}
+                />
+                日曜（日曜市の開催日）
+              </li>
+              <li className="flex items-center gap-1.5 text-[11px]" style={{ color: INK.secondary }}>
+                <span
+                  aria-hidden="true"
+                  className="inline-block h-3 w-3 rounded-sm"
+                  style={{ backgroundColor: SERIES.muted }}
+                />
+                その他の曜日
+              </li>
+            </ul>
+          ) : null}
+
+          <p className="mt-3 text-[11px]" style={{ color: INK.muted }}>
+            この期間の合計 {total.toLocaleString()} 人 ／ 最大 {max.toLocaleString()} 人
+            {data.some((point) => point.isPartial)
+              ? "。「途中」はまだ期間が終わっていないため、他と同じようには比べられません。"
+              : ""}
+          </p>
+
+          <TableView
+            columns={hasMarketDayMix ? ["期間", "来訪者数", "区分"] : ["期間", "来訪者数"]}
+            rows={data.map((point) => {
+              const label = point.isPartial ? `${point.label}（集計途中）` : point.label;
+              return hasMarketDayMix
+                ? [label, point.value.toLocaleString(), point.isMarketDay ? "日曜" : "平日"]
+                : [label, point.value.toLocaleString()];
+            })}
+            caption={`${selected.caption}／合計 ${total.toLocaleString()} 人`}
+          />
+        </>
+      )}
     </div>
   );
 }
