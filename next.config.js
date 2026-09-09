@@ -2,6 +2,14 @@
 const nextConfig = {
   reactStrictMode: false, // Leaflet が開発モードで二重初期化されるのを防ぐ
 
+  experimental: {
+    // 直前に見たページの内容を一定時間クライアントに残す（Next 15 以降の既定は 0 秒＝残さない）。
+    // マップ→相談→マップのように戻ってきたときにサーバー往復ぶんを丸ごと省ける。
+    // サーバー側で描いた内容が最大 30 秒古いままになりうるので、
+    // ログアウト時は AuthContext から router.refresh() で必ず捨てる。
+    staleTimes: { dynamic: 30 },
+  },
+
   // 画像最適化設定
   images: {
     formats: ['image/webp', 'image/avif'],

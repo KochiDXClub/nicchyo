@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useEffect, useRef, useState, ReactNode } from "react";
 import type { User, UserRole, PermissionCheck } from "./types";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
+import { useRouter } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
 
 interface AuthContextType {
@@ -74,6 +75,7 @@ async function mapSupabaseUserWithVendorId(user: SupabaseUser, supabase: ReturnT
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  const router = useRouter();
   const supabaseRef = useRef<ReturnType<typeof createClient> | null>(null);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [user, setUser] = useState<User | null>(null);
@@ -208,6 +210,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await supabase.auth.signOut();
     setUser(null);
     setIsLoggedIn(false);
+    // クライアントに残っているページ内容（next.config.js の staleTimes）を捨てる。
+    // これをしないと、ログイン中に描かれたサーバー側の内容が
+    // ログアウト後の画面移動でそのまま出てしまうことがある
+    router.refresh();
   };
 
   return (
