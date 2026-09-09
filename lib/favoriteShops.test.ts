@@ -69,6 +69,33 @@ describe('favoriteShops', () => {
       ]);
     });
 
+    it('旧形式は読むたびに addedAt が変わらない（追加順の並びが揺れない）', () => {
+      localStorage.setItem(FAVORITE_SHOPS_KEY, JSON.stringify([1, 2, 3]));
+      const first = loadFavoriteEntries();
+      const second = loadFavoriteEntries();
+      expect(second).toEqual(first);
+    });
+
+    it('旧形式は保存されていた順を addedAt の昇順として残す', () => {
+      localStorage.setItem(FAVORITE_SHOPS_KEY, JSON.stringify([7, 8, 9]));
+      const addedAt = loadFavoriteEntries().map((e) => e.addedAt);
+      expect(addedAt[0]).toBeLessThan(addedAt[1]);
+      expect(addedAt[1]).toBeLessThan(addedAt[2]);
+    });
+
+    it('addedAt が無い行は読むたびに変わらない', () => {
+      localStorage.setItem(
+        FAVORITE_SHOPS_KEY,
+        JSON.stringify([{ shopId: 1, product: 'いも天' }]),
+      );
+      expect(loadFavoriteEntries()).toEqual(loadFavoriteEntries());
+    });
+
+    it('旧形式に null が混ざっても幽霊の店を作らない', () => {
+      localStorage.setItem(FAVORITE_SHOPS_KEY, JSON.stringify([1, null, 2]));
+      expect(loadFavoriteEntries().map((e) => e.shopId)).not.toContain(0);
+    });
+
     it('同じ店・同じ商品の重複を落とす', () => {
       seed([
         { shopId: 1, product: 'いも天' },
@@ -238,9 +265,9 @@ describe('favoriteShops', () => {
     });
 
     it('loadFavoriteShopIds は旧形式の値を正規化する', () => {
-      // "2" -> 2、null -> 0（Number(null) === 0）、重複した 1 は落ちる
+      // "2" -> 2、null は捨てる（0 番の店にしない）、重複した 1 は落ちる
       localStorage.setItem(FAVORITE_SHOPS_KEY, JSON.stringify([1, '2', null, 1, 3]));
-      expect(loadFavoriteShopIds()).toEqual([1, 2, 0, 3]);
+      expect(loadFavoriteShopIds()).toEqual([1, 2, 3]);
     });
 
     it('loadFavoriteShopIds は数値にならない値を捨てる', () => {

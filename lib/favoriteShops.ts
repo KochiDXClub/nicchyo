@@ -28,25 +28,40 @@ function normalizeProduct(value: unknown): string | null {
 }
 
 /**
+ * 追加時刻が分からない行に入れる値。
+ *
+ * ここで Date.now() を入れてはいけない。旧形式のまま使っている利用者は
+ * 書き戻しが起きるまで読み込みのたびに変換を通るので、読むたびに
+ * 「追加した時刻」が今になってしまい、「追加順」の並びが毎回変わる。
+ * 分からないものは「いちばん古い」に倒して、並びを安定させる。
+ */
+const UNKNOWN_ADDED_AT = 0;
+
+/**
  * 旧形式（number[]）を新形式に読み替える。
  * 保存済みデータを書き換えるのは次の保存時なので、ここでは変換するだけにする。
+ *
+ * 追加時刻は保存されていないが、保存順は「先に入れたものが前」なので、
+ * その並びだけは残す（添字を足して昇順にする）。
  */
 function migrateLegacyIds(value: unknown[]): FavoriteEntry[] {
-  const now = Date.now();
   const seen = new Set<number>();
   const entries: FavoriteEntry[] = [];
   for (const raw of value) {
+    if (typeof raw !== "number" && typeof raw !== "string") continue;
     const shopId = Number(raw);
     if (!Number.isFinite(shopId) || seen.has(shopId)) continue;
     seen.add(shopId);
-    entries.push({ shopId, product: null, addedAt: now });
+    entries.push({ shopId, product: null, addedAt: UNKNOWN_ADDED_AT + entries.length });
   }
   return entries;
 }
 
 function normalizeEntries(value: unknown): FavoriteEntry[] {
   if (!Array.isArray(value)) return [];
-  // 旧形式（number[]）は要素が object でないことで見分ける
+  // 旧形式（number[]）は、行が object でないことで見分ける。
+  // null は「新形式の行ではない」ので旧形式側に倒し、中で捨てる
+  // （ここで新形式扱いにすると、null が1つ混ざっただけで全部消える）
   const looksLegacy = value.every((item) => typeof item !== "object" || item === null);
   if (looksLegacy) return migrateLegacyIds(value);
 
@@ -65,7 +80,7 @@ function normalizeEntries(value: unknown): FavoriteEntry[] {
     entries.push({
       shopId,
       product,
-      addedAt: Number.isFinite(addedAt) ? addedAt : Date.now(),
+      addedAt: Number.isFinite(addedAt) ? addedAt : UNKNOWN_ADDED_AT,
     });
   }
   return entries;
