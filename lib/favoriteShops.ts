@@ -214,8 +214,10 @@ export function migrateBagItemsToFavorites(): BagMigrationResult | null {
 
   const raw = localStorage.getItem(LEGACY_BAG_STORAGE_KEY);
   const items = safeJsonParse<unknown>(raw, []);
-  localStorage.setItem(BAG_MIGRATION_FLAG_KEY, "1");
-  if (!Array.isArray(items) || items.length === 0) return { migrated: 0, skipped: 0 };
+  if (!Array.isArray(items) || items.length === 0) {
+    localStorage.setItem(BAG_MIGRATION_FLAG_KEY, "1");
+    return { migrated: 0, skipped: 0 };
+  }
 
   const current = loadFavoriteEntries();
   const seen = new Set(current.map((entry) => favoriteEntryKey(entry.shopId, entry.product)));
@@ -241,7 +243,11 @@ export function migrateBagItemsToFavorites(): BagMigrationResult | null {
     added.push({ shopId, product, addedAt: now });
   }
 
+  // 印は保存が通ってから立てる。先に立てると、保存に失敗した（容量超過や
+  // プライベートブラウズなど）ときに、バッグの中身が移らないまま二度と
+  // 移行が走らなくなる
   if (added.length > 0) saveFavoriteEntries([...current, ...added]);
+  localStorage.setItem(BAG_MIGRATION_FLAG_KEY, "1");
   return { migrated: added.length, skipped };
 }
 

@@ -321,6 +321,25 @@ describe('favoriteShops', () => {
       expect(migrateBagItemsToFavorites()).toBeNull();
     });
 
+    it('保存に失敗したら印を立てない（次の起動でやり直せる）', () => {
+      localStorage.setItem(
+        LEGACY_BAG_STORAGE_KEY,
+        JSON.stringify([{ name: 'いも天', fromShopId: 12 }]),
+      );
+      const setItem = vi
+        .spyOn(Storage.prototype, 'setItem')
+        .mockImplementation((key: string) => {
+          if (key === FAVORITE_SHOPS_KEY) throw new Error('QuotaExceededError');
+        });
+
+      expect(() => migrateBagItemsToFavorites()).toThrow();
+      setItem.mockRestore();
+
+      expect(localStorage.getItem(BAG_MIGRATION_FLAG_KEY)).toBeNull();
+      // やり直すと今度は移せる
+      expect(migrateBagItemsToFavorites()).toEqual({ migrated: 1, skipped: 0 });
+    });
+
     it('バッグのJSONが壊れていても落ちない', () => {
       localStorage.setItem(LEGACY_BAG_STORAGE_KEY, '{invalid-json}');
       expect(migrateBagItemsToFavorites()).toEqual({ migrated: 0, skipped: 0 });
