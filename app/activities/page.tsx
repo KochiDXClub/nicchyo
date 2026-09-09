@@ -2,19 +2,14 @@ import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import { ArrowUpRight, ChevronLeft } from "lucide-react";
-import { getActivitiesSortedDesc } from "../data/activities";
+import { ACTIVITY_CATEGORY_STYLES, getActivitiesSortedDesc } from "../data/activities";
 
 export const metadata: Metadata = {
   title: "取り組み | nicchyo",
   description: "nicchyoの活動記録、行政連携、現地調査、受賞、発表の一覧です。",
 };
 
-const categoryStyles = {
-  行政連携: "bg-[#efe1ce] text-[#7b4721]",
-  現地調査: "bg-[#f7e8d7] text-[#8b4d20]",
-  発表: "bg-[#f1e5d4] text-[#754420]",
-  受賞: "bg-[#f6ead7] text-[#7d4b1f]",
-} as const;
+const categoryStyles = ACTIVITY_CATEGORY_STYLES;
 
 export default function ActivitiesPage() {
   const activities = getActivitiesSortedDesc();

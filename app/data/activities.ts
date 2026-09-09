@@ -19,6 +19,17 @@ export type ActivityItem = {
   }>;
 };
 
+/**
+ * カテゴリのバッジ色。/activities と /support の両方で同じ見え方にするため、
+ * データと一緒にここに置く（片方だけ色が変わると別の分類に見える）
+ */
+export const ACTIVITY_CATEGORY_STYLES: Record<ActivityCategory, string> = {
+  行政連携: "bg-[#efe1ce] text-[#7b4721]",
+  現地調査: "bg-[#f7e8d7] text-[#8b4d20]",
+  発表: "bg-[#f1e5d4] text-[#754420]",
+  受賞: "bg-[#f6ead7] text-[#7d4b1f]",
+};
+
 export const ACTIVITIES: ActivityItem[] = [
   {
     slug: "2025-07-15-kochi-city-meeting-1",
