@@ -21,6 +21,7 @@ import {
   RUNNING_COSTS,
   RUNWAY_MONTHS,
   SPONSOR_UNIT_ANNUAL_JPY,
+  TOTAL_RECEIVED_JPY,
   annualCostJpy,
   formatJpy,
   hasPendingCost,
@@ -105,6 +106,7 @@ export default async function SupportPage() {
   const individualSupporterCount = totalIndividualSupporters();
 
   const monthlyLabel = `${formatJpy(monthly)}${hasPending ? "以上" : ""}`;
+  const totalReceivedLabel = formatJpy(TOTAL_RECEIVED_JPY);
   const runwayLabel = `${runway.toFixed(1)}ヶ月`;
 
   return (
@@ -121,6 +123,7 @@ export default async function SupportPage() {
 
       <SupportHero
         monthlyLabel={monthlyLabel}
+        totalReceivedLabel={totalReceivedLabel}
         runwayLabel={runwayLabel}
         totalMonths={RUNWAY_MONTHS}
       />

@@ -112,11 +112,18 @@ function HeroCharacter({
 
 type SupportHeroProps = {
   monthlyLabel: string;
+  /** これまでにいただいた総額 */
+  totalReceivedLabel: string;
   runwayLabel: string;
   totalMonths: number;
 };
 
-export default function SupportHero({ monthlyLabel, runwayLabel, totalMonths }: SupportHeroProps) {
+export default function SupportHero({
+  monthlyLabel,
+  totalReceivedLabel,
+  runwayLabel,
+  totalMonths,
+}: SupportHeroProps) {
   const prefersReducedMotion = useReducedMotion();
 
   /** 入口の要素を、上から順に少しずつ遅らせて出す */
@@ -172,24 +179,38 @@ export default function SupportHero({ monthlyLabel, runwayLabel, totalMonths }: 
             高知・日曜市を案内する nicchyo は、高知高専の学生と顧問の教員が運営しております。広告は掲載せず、これまでいただいた賞金とご支援で続けてまいりました。
           </motion.p>
 
-          {/* 判断に要る2つの数字。囲まずに罫線でそろえる */}
+          {/*
+            判断に要る3つの数字。囲まずに罫線でそろえる。
+            かかる額 → いただいた額 → あと何ヶ月もつか、の順に読ませる
+          */}
           <motion.dl
             {...fadeUp(0.5)}
-            className="mt-9 flex max-w-[30rem] divide-x divide-nicchyo-ink/10 border-y border-nicchyo-ink/10"
+            className="mt-9 grid max-w-[34rem] grid-cols-3 divide-x divide-nicchyo-ink/10 border-y border-nicchyo-ink/10"
           >
-            <div className="flex-1 py-4 pr-5">
-              <dt className="text-[11px] tracking-[0.08em] text-nicchyo-ink/45">毎月の運営費</dt>
-              <dd className="mt-1.5 text-[1.55rem] font-bold leading-none tabular-nums">
+            <div className="py-4 pr-3 sm:pr-5">
+              <dt className="text-[11px] leading-snug tracking-[0.08em] text-nicchyo-ink/45">
+                毎月の運営費
+              </dt>
+              <dd className="mt-1.5 text-[1.2rem] font-bold leading-none tabular-nums sm:text-[1.45rem]">
                 {monthlyLabel}
               </dd>
             </div>
-            <div className="flex-1 py-4 pl-5">
-              <dt className="text-[11px] tracking-[0.08em] text-nicchyo-ink/45">
-                ご支援いただいている期間
+            <div className="py-4 pl-3 pr-3 sm:pl-5 sm:pr-5">
+              <dt className="text-[11px] leading-snug tracking-[0.08em] text-nicchyo-ink/45">
+                これまでのご支援
               </dt>
-              <dd className="mt-1.5 text-[1.55rem] font-bold leading-none tabular-nums">
+              <dd className="mt-1.5 text-[1.2rem] font-bold leading-none tabular-nums sm:text-[1.45rem]">
+                {totalReceivedLabel}
+              </dd>
+            </div>
+            <div className="py-4 pl-3 sm:pl-5">
+              <dt className="text-[11px] leading-snug tracking-[0.08em] text-nicchyo-ink/45">
+                支えていただいている期間
+              </dt>
+              <dd className="mt-1.5 text-[1.2rem] font-bold leading-none tabular-nums sm:text-[1.45rem]">
                 {runwayLabel}
-                <span className="ml-1.5 text-[13px] font-bold text-nicchyo-ink/35">
+                {/* 狭い画面では「/ 12ヶ月」が途中で折れるので、下の行へ回す */}
+                <span className="mt-1 block text-[11px] font-bold text-nicchyo-ink/35 sm:ml-1 sm:mt-0 sm:inline sm:text-[12px]">
                   / {totalMonths}ヶ月
                 </span>
               </dd>

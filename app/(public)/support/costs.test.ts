@@ -1,6 +1,8 @@
 import { describe, it, expect } from "vitest";
 import {
+  FUNDS_ON_HAND_JPY,
   RUNNING_COSTS,
+  TOTAL_RECEIVED_JPY,
   USD_JPY,
   annualCostJpy,
   costPerVisitorJpy,
@@ -154,6 +156,12 @@ describe("実際に載せている費目", () => {
   // レートを画面に出す以上、基準日が読める形でないと意味がない
   it("為替の基準日が日付として解釈できる", () => {
     expect(Number.isNaN(new Date(USD_JPY.asOf).getTime())).toBe(false);
+  });
+
+  // 累計は減らないので、手元の額を下回ることはありえない。
+  // 片方だけ更新したときに気づけるようにしておく
+  it("ご支援の総額は、いまお預かりしている額を下回らない", () => {
+    expect(TOTAL_RECEIVED_JPY).toBeGreaterThanOrEqual(FUNDS_ON_HAND_JPY);
   });
 
   it("すべての費目に金額が入っている", () => {
