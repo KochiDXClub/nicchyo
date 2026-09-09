@@ -9,8 +9,10 @@ import { motion, useReducedMotion } from "framer-motion";
  * 長いページを上から順に読ませるための下地。1要素ずつ派手に動かすのではなく、
  * かたまりごとに一度だけ、短く動かす。二度目は動かさない（once）。
  *
- * 動きを減らす設定のときは initial を false にして、最初から見えている状態で置く。
- * 要素の構造は変えないので、ハイドレーションのずれは起きない。
+ * 動きを減らす設定のときは、動かす指定を外すのではなく時間だけを 0 にする。
+ * この設定はサーバーでは読めないので、サーバーは必ず opacity:0 を書く。
+ * クライアントだけ initial を外すと、その食い違いを React が直さないため、
+ * 設定している方には中身が一切見えなくなる。
  *
  * ※ position: sticky を含むかたまりは包まないこと。transform が効いているあいだ、
  *   貼り付く基準が変わる。
@@ -31,10 +33,14 @@ export default function Reveal({ children, className, delay = 0 }: RevealProps) 
       // 印刷では演出を消す必要がある（画面に入っていない節が opacity:0 のまま
       // 紙に出てしまう）。globals.css の @media print がこの名前を見ている
       className={className ? `reveal ${className}` : "reveal"}
-      initial={prefersReducedMotion ? false : { opacity: 0, y: 14 }}
-      whileInView={prefersReducedMotion ? undefined : { opacity: 1, y: 0 }}
+      initial={{ opacity: 0, y: 14 }}
+      whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true, margin: "0px 0px -10% 0px" }}
-      transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1], delay }}
+      transition={
+        prefersReducedMotion
+          ? { duration: 0 }
+          : { duration: 0.5, ease: [0.22, 1, 0.36, 1], delay }
+      }
     >
       {children}
     </motion.div>

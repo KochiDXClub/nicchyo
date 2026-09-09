@@ -1,6 +1,6 @@
 "use client";
 
-import type { CSSProperties } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { motion, useReducedMotion } from "framer-motion";
@@ -52,55 +52,107 @@ const HERO_TUNING: Record<string, { scale?: number; nudgeX?: string }> = {
   miraikun: { scale: 1.1, nudgeX: "-translate-x-2 sm:-translate-x-3 lg:-translate-x-4" },
 };
 
+/**
+ * 左から歩いてくる人。ここに挙げていない人は右から来る。
+ * 前列・後列の並びと合わせてあるので、左の2人・右の2人がそれぞれ寄ってくる形になる。
+ */
+const WALK_FROM_LEFT_IDS: readonly string[] = ["nichiyosan", "yoichisan"];
+
+/**
+ * 歩いてくる動きは相談ページの入れ替わりと同じものを使う
+ * （ConsultCharacterSwap / globals.css の consult-walk-step）。
+ * 揃えておくと、サイト全体でキャラクターの動き方が1つに見える。
+ */
+const WALK_MS = 900;
+const WALK_EASING = "cubic-bezier(0.12, 0.4, 0.28, 1)";
+/** 1歩ぶんの上下の揺れ。globals.css の consult-walk-step と同じ長さ */
+const STEP_MS = 380;
+
 const HERO_CAST = CONSULT_CHARACTERS.map((character, index) => ({ character, index }));
 const frontRow = HERO_CAST.filter(({ character }) => FRONT_ROW_IDS.includes(character.id));
 const backRow = HERO_CAST.filter(({ character }) => !FRONT_ROW_IDS.includes(character.id));
 
 /**
+ * 歩き出す前・歩いている最中・歩かずに置くだけ、の3つ。
+ *
+ * 「歩かない」を最初の描画で決めないのが要。動きを減らす設定かどうかはサーバーでは
+ * わからないので、サーバーとクライアントで違う style を書くと、React が食い違いを
+ * 直さずにサーバー側の opacity:0 を残してしまい、その人にだけ絵が出なくなる。
+ * どちらも waiting で描いておいて、判断はマウント後の1回に寄せる。
+ */
+type WalkPhase = "waiting" | "walking" | "placed";
+
+/**
  * 1人ぶん。
  *
- * 出方は「1秒ほどかけて、静かに浮かび上がる」。跳ねさせたり弾ませたりすると、
- * 集合写真ではなくゲームの演出に見える。動かすのは透明度だけにして、
- * 位置と大きさは最初から最後まで動かさない。
+ * 左右の袖から歩いてきて、定位置で止まる。動きは相談ページの入れ替わりと同じで、
+ * 横に動かすトランジションと、上下に揺れる consult-walk-step の組み合わせ。
+ *
+ * 揺れは無限ループなので、そのまま使うと着いたあとも足踏みし続ける。
+ * 繰り返し回数だけをここで縛って、歩き終わりに止まるようにする
+ * （クラスは残すので、動きを減らす設定のときは globals.css 側でも消える）。
+ *
+ * 横の移動・揺れ・人ごとの微調整は、それぞれ別の要素に持たせる。
+ * 同じ要素に transform を重ねると、あとから当てた方だけが効く。
+ *
+ * style は phase によらず必ず書く。片方だけ style を外すと、サーバーが書いた
+ * 分がそのまま残って絵が消える。
  */
 function HeroCharacter({
   character,
   appearIndex,
   className,
-  reduceMotion,
+  phase,
 }: {
   character: (typeof CONSULT_CHARACTERS)[number];
   appearIndex: number;
   className?: string;
-  reduceMotion: boolean;
+  phase: WalkPhase;
 }) {
   const { scale = 1, nudgeX } = HERO_TUNING[character.id] ?? {};
+  const fromLeft = WALK_FROM_LEFT_IDS.includes(character.id);
+  const delay = 150 + appearIndex * 200;
+
+  // 出発点は袖の外。幅は並びの側が CSS 変数で持つ
+  const startX = fromLeft ? "calc(var(--hero-walk-x) * -1)" : "var(--hero-walk-x)";
+  const waiting = phase === "waiting";
 
   return (
-    <motion.div
+    <div
       className={className}
-      initial={reduceMotion ? false : { opacity: 0 }}
-      animate={{ opacity: 1 }}
-      transition={{
-        duration: 0.9,
-        ease: "easeOut",
-        // ひとりずつ。前の人が出きる前に次が始まる程度にずらす
-        delay: 0.15 + appearIndex * 0.2,
+      style={{
+        transform: waiting ? `translateX(${startX})` : "translateX(0)",
+        opacity: waiting ? 0 : 1,
+        // 姿は歩き出しですぐ見せる。横の動きだけをゆっくり効かせる
+        transition:
+          phase === "walking"
+            ? `transform ${WALK_MS}ms ${WALK_EASING} ${delay}ms, opacity 420ms ease-out ${delay}ms`
+            : "none",
       }}
     >
-      <Image
-        src={character.image}
-        alt=""
-        width={512}
-        height={512}
-        priority
-        draggable={false}
-        // いちばん大きい人に合わせておく。小さい人が少し多めに読むだけで害はない
-        sizes="(min-width: 1024px) 200px, (min-width: 640px) 170px, 145px"
-        style={{ "--hero-char-scale": scale } as CSSProperties}
-        className={`h-auto w-[calc(var(--hero-char-w)_*_var(--hero-char-scale))] select-none object-contain ${nudgeX ?? ""}`}
-      />
-    </motion.div>
+      <div
+        className={phase === "walking" ? "consult-walk__step" : undefined}
+        style={{
+          animationDelay: `${delay}ms`,
+          // 歩いているあいだだけ揺らす。900ms のうち 2歩ぶん揺れて、
+          // 残りで静かに止まる
+          animationIterationCount: Math.floor(WALK_MS / STEP_MS),
+        }}
+      >
+        <Image
+          src={character.image}
+          alt=""
+          width={512}
+          height={512}
+          priority
+          draggable={false}
+          // いちばん大きい人に合わせておく。小さい人が少し多めに読むだけで害はない
+          sizes="(min-width: 1024px) 200px, (min-width: 640px) 170px, 145px"
+          style={{ "--hero-char-scale": scale } as CSSProperties}
+          className={`h-auto w-[calc(var(--hero-char-w)_*_var(--hero-char-scale))] select-none object-contain ${nudgeX ?? ""}`}
+        />
+      </div>
+    </div>
   );
 }
 
@@ -120,15 +172,50 @@ export default function SupportHero({
 }: SupportHeroProps) {
   const prefersReducedMotion = useReducedMotion();
 
-  /** 入口の要素を、上から順に少しずつ遅らせて出す */
-  const fadeUp = (delay: number) =>
-    prefersReducedMotion
-      ? {}
-      : {
-          initial: { opacity: 0, y: 10 },
-          animate: { opacity: 1, y: 0 },
-          transition: { duration: 0.5, ease: [0.22, 1, 0.36, 1] as const, delay },
-        };
+  /**
+   * 歩き出す合図。
+   *
+   * 出発点を描いてから終点を決めないと transform が乗らず、瞬間移動になる。
+   * ConsultCharacterSwap と同じく、フレームを2つ待ってから切り替える。
+   * 裏のタブでは次のフレームが来ないので、時間でも動き出すようにしておく。
+   *
+   * 動きを減らす設定の方には歩かせず、その場に置く。ここで判断するのは、
+   * サーバーではこの設定が読めないため（最初の描画は全員 waiting でそろえる）。
+   */
+  const [phase, setPhase] = useState<WalkPhase>("waiting");
+
+  useEffect(() => {
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      setPhase("placed");
+      return;
+    }
+    let second = 0;
+    const first = requestAnimationFrame(() => {
+      second = requestAnimationFrame(() => setPhase("walking"));
+    });
+    const kick = setTimeout(() => setPhase("walking"), 120);
+    return () => {
+      cancelAnimationFrame(first);
+      cancelAnimationFrame(second);
+      clearTimeout(kick);
+    };
+  }, []);
+
+  /**
+   * 入口の要素を、上から順に少しずつ遅らせて出す。
+   *
+   * 動きを減らす設定でも initial・animate は外さず、時間だけを 0 にする。
+   * 外してしまうと、サーバーが書いた opacity:0 が残ったままになり、その設定の
+   * 方には見出し以外が何も見えなくなる（サーバーではこの設定が読めないため、
+   * 最初の描画はどちらも opacity:0 でそろえるしかない）。
+   */
+  const fadeUp = (delay: number) => ({
+    initial: { opacity: 0, y: 10 },
+    animate: { opacity: 1, y: 0 },
+    transition: prefersReducedMotion
+      ? { duration: 0 }
+      : { duration: 0.5, ease: [0.22, 1, 0.36, 1] as const, delay },
+  });
 
   return (
     <section className="relative isolate overflow-hidden">
@@ -152,13 +239,13 @@ export default function SupportHero({
               <span key={line} className="block -mb-[0.14em] overflow-hidden pb-[0.14em]">
                 <motion.span
                   className="inline-block"
-                  initial={prefersReducedMotion ? false : { y: "-115%" }}
+                  initial={{ y: "-115%" }}
                   animate={{ y: 0 }}
-                  transition={{
-                    duration: 0.62,
-                    ease: [0.22, 1, 0.36, 1],
-                    delay: 0.12 + index * 0.085,
-                  }}
+                  transition={
+                    prefersReducedMotion
+                      ? { duration: 0 }
+                      : { duration: 0.62, ease: [0.22, 1, 0.36, 1], delay: 0.12 + index * 0.085 }
+                  }
                 >
                   {line}
                 </motion.span>
@@ -246,7 +333,7 @@ export default function SupportHero({
           片側だけがはみ出して、集合写真の形が崩れる
         */}
         <div
-          className="order-first flex flex-col items-center [--hero-char-w:110px] sm:[--hero-char-w:130px] lg:order-none lg:[--hero-char-w:154px]"
+          className="order-first flex flex-col items-center overflow-hidden [--hero-char-w:110px] [--hero-walk-x:120px] sm:[--hero-char-w:130px] sm:[--hero-walk-x:160px] lg:order-none lg:[--hero-char-w:154px] lg:[--hero-walk-x:200px]"
           aria-hidden
         >
           {/* 後列。前列よりわずかに広く、肩が両脇からのぞくくらいに留める */}
@@ -257,7 +344,7 @@ export default function SupportHero({
                 character={character}
                 appearIndex={index}
                 className={position > 0 ? "-ml-6 sm:-ml-8 lg:-ml-10" : undefined}
-                reduceMotion={!!prefersReducedMotion}
+                phase={phase}
               />
             ))}
           </div>
@@ -270,7 +357,7 @@ export default function SupportHero({
                 character={character}
                 appearIndex={index}
                 className={position > 0 ? "-ml-14 sm:-ml-16 lg:-ml-20" : undefined}
-                reduceMotion={!!prefersReducedMotion}
+                phase={phase}
               />
             ))}
           </div>
