@@ -12,6 +12,7 @@ import type { MapRoute } from './types/mapRoute';
 import { fetchMapRouteFromDb, getFallbackMapRoute } from './services/mapRouteDb';
 import { safeJsonLd } from '@/lib/utils/jsonLd';
 import { fetchMapFeatureFlags } from '@/lib/mapFeatureFlags.server';
+import { fetchMapViewSettings } from '@/lib/map/mapViewSettings.server';
 
 export const metadata: Metadata = {
   title: "日曜市マップ",
@@ -101,6 +102,8 @@ export default async function MapPage() {
 
   // マップ動作フラグ（管理画面で切替可能。URL の ?mapFlags= はクライアント側で上書きする）
   const featureFlags = await fetchMapFeatureFlags();
+  // マップの可動範囲（管理画面「マップの表示範囲」で設定する。MapLibre 版でのみ効く）
+  const mapViewSettings = await fetchMapViewSettings();
 
   return (
     <>
@@ -115,6 +118,7 @@ export default async function MapPage() {
         landmarks={landmarks}
         mapRoute={mapRoute}
         featureFlags={featureFlags}
+        mapViewSettings={mapViewSettings}
         />
       </Suspense>
     </>

@@ -35,6 +35,7 @@ import {
   type RoadSnapMode,
   type ZoomSkipMode,
 } from "@/lib/mapFeatureFlags";
+import type { MapViewSettings } from "@/lib/map/mapViewSettings";
 import { MapOverlays, getVisibleMajorPlaceLabels } from "./MapOverlays";
 import {
   getRecommendedZoomBounds,
@@ -166,6 +167,12 @@ export type MapViewProps = {
   suppressInitialLocationFocus?: boolean;
   /** 管理画面で保存したマップ動作フラグ。URL の ?mapFlags= がクライアント側で上書きする */
   featureFlags?: MapFeatureFlags;
+  /**
+   * 管理画面「マップの表示範囲」で保存した可動範囲。
+   * 効くのは MapLibre 版だけ。Leaflet 版は従来どおり「道の範囲＋可視距離」の
+   * 狭い枠のままにしてある（既定の描画の操作感まで黙って変えないため）。
+   */
+  mapViewSettings?: MapViewSettings;
   onShopSelect?: (shop: Shop) => void;
   /**
    * 電停・駅・建物などのランドマークがタップされたときに呼ばれる。
