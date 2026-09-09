@@ -310,7 +310,7 @@ export default function GuideLayer({ map, spots, selectedSpotId, routes, onSelec
     maplibreRef.current = state;
     const latest = latestRef.current;
     maplibreSyncRoutes(state, latest.routes);
-    void import('maplibre-gl').then(({ default: maplibregl }) => {
+    void import('maplibre-gl').then((maplibregl) => {
       if (disposed) return;
       state.maplibregl = maplibregl;
       const pending = state.pendingSpots ?? latestRef.current;
