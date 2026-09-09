@@ -1,5 +1,6 @@
 "use client";
 
+import type { CSSProperties } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { motion, useReducedMotion } from "framer-motion";
@@ -37,23 +38,20 @@ const FRONT_ROW_IDS: readonly string[] = ["nichiyosan", "yosakochan"];
 /**
  * 人ごとの微調整。
  *
- * イラストによって、絵の中で人物が占める割合も、周りの透明な余白の入り方も違う。
- * 同じ幅で並べても同じ大きさには見えないので、ここで見た目をそろえる。
+ * scale は基準の幅にかける倍率。イラストによって、絵の中で人物が占める割合も
+ * 周りの透明な余白の入り方も違うので、同じ幅で並べても同じ大きさには見えない。
+ * 基準の幅は並びの側が CSS 変数（--hero-char-w）で持ち、ここでは倍率だけを持つ。
+ * こうしておくと、倍率を増やすたびに Tailwind のクラス文字列を足さずに済む。
  *
  * nudgeX は transform なので、並びの幅を変えずにその人だけを動かせる。
  * margin で寄せると中央そろえが効いて、隣の人まで一緒に動いてしまう。
  */
-const HERO_TUNING: Record<string, { large?: boolean; nudgeX?: string }> = {
-  // 絵の中の人物が小さめなので、1.3倍にして他とそろえる
-  nichiyosan: { large: true },
-  yoichisan: { large: true, nudgeX: "translate-x-3 sm:translate-x-4 lg:translate-x-6" },
+const HERO_TUNING: Record<string, { scale?: number; nudgeX?: string }> = {
+  nichiyosan: { scale: 1.3 },
+  yoichisan: { scale: 1.3, nudgeX: "translate-x-3 sm:translate-x-4 lg:translate-x-6" },
+  miraikun: { scale: 1.1, nudgeX: "-translate-x-2 sm:-translate-x-3 lg:-translate-x-4" },
 };
 
-/**
- * 出てくる順は CONSULT_CHARACTERS の並びそのまま
- * （にちよさん → よういちさん → みらいくん → よさこちゃん）。
- * このページの顔であるにちよさんが先に立って、周りに集まってくる形になる。
- */
 const HERO_CAST = CONSULT_CHARACTERS.map((character, index) => ({ character, index }));
 const frontRow = HERO_CAST.filter(({ character }) => FRONT_ROW_IDS.includes(character.id));
 const backRow = HERO_CAST.filter(({ character }) => !FRONT_ROW_IDS.includes(character.id));
@@ -76,13 +74,7 @@ function HeroCharacter({
   className?: string;
   reduceMotion: boolean;
 }) {
-  const tuning = HERO_TUNING[character.id] ?? {};
-  const widthClass = tuning.large
-    ? "w-[143px] sm:w-[169px] lg:w-[200px]"
-    : "w-[110px] sm:w-[130px] lg:w-[154px]";
-  const sizes = tuning.large
-    ? "(min-width: 1024px) 200px, (min-width: 640px) 169px, 143px"
-    : "(min-width: 1024px) 154px, (min-width: 640px) 130px, 110px";
+  const { scale = 1, nudgeX } = HERO_TUNING[character.id] ?? {};
 
   return (
     <motion.div
@@ -103,8 +95,10 @@ function HeroCharacter({
         height={512}
         priority
         draggable={false}
-        sizes={sizes}
-        className={`h-auto select-none object-contain ${widthClass} ${tuning.nudgeX ?? ""}`}
+        // いちばん大きい人に合わせておく。小さい人が少し多めに読むだけで害はない
+        sizes="(min-width: 1024px) 200px, (min-width: 640px) 170px, 145px"
+        style={{ "--hero-char-scale": scale } as CSSProperties}
+        className={`h-auto w-[calc(var(--hero-char-w)_*_var(--hero-char-scale))] select-none object-contain ${nudgeX ?? ""}`}
       />
     </motion.div>
   );
@@ -247,7 +241,10 @@ export default function SupportHero({
           両列とも中央でそろえる。左右のどちらかに寄せると、列の幅が違うぶん
           片側だけがはみ出して、集合写真の形が崩れる
         */}
-        <div className="order-first flex flex-col items-center lg:order-none" aria-hidden>
+        <div
+          className="order-first flex flex-col items-center [--hero-char-w:110px] sm:[--hero-char-w:130px] lg:order-none lg:[--hero-char-w:154px]"
+          aria-hidden
+        >
           {/* 後列。前列よりわずかに広く、肩が両脇からのぞくくらいに留める */}
           <div className="flex items-end justify-center">
             {backRow.map(({ character, index }, position) => (
