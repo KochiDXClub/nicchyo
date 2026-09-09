@@ -11,9 +11,9 @@
  */
 
 import { useEffect, useRef } from "react";
+import * as maplibregl from "maplibre-gl";
 
 import { useLocationPermissionGate } from "../../hooks/useLocationPermissionGate";
-import maplibregl from "maplibre-gl";
 import type { MapRouteConfig, MapRoutePoint } from "../../types/mapRoute";
 import {
   getDefaultMapRouteConfig,
