@@ -17,7 +17,19 @@ import {
 } from "../../config/stallParts";
 import { sanitizeCssColor } from "../../utils/markerHtmlGenerator";
 import type { Shop } from "../../data/shops";
+import { memoImage } from "./rasterCache";
 
+/**
+ * 描き起こした画像の使い回し
+ *
+ * マップページから離れると map.remove() で MapLibre ごと捨てられるが、
+ * このモジュールはページ遷移をまたいで生き続ける。屋台・建物・バッジは
+ * 「形・色・状態・pixelRatio」だけで中身が決まる（＝内容アドレス）ので、
+ * 一度描いたものを取っておけば再訪時の描き起こしを丸ごと省ける。
+ *
+ * 枚数は 形×色×状態 で数十枚に収まるため上限は緩くてよいが、
+ * 端末の記憶容量を無制限には使わないよう入れた順に捨てる。
+ */
 export type StallState = "normal" | "search" | "ai" | "bag" | "selected";
 export const STALL_STATES: readonly StallState[] = ["normal", "search", "ai", "bag", "selected"];
 
@@ -107,7 +119,17 @@ export async function rasterizeSvg(
  * 任意の画像 URL（SVG を含む）を、表示幅 widthPx × pixelRatio のビットマップに描き起こす。
  * MapLibre の loadImage は SVG を読めないので、ランドマーク画像はこちらで読む。
  */
-export async function rasterizeImageUrl(
+export function rasterizeImageUrl(
+  url: string,
+  widthPx: number,
+  pixelRatio: number
+): Promise<ImageData> {
+  return memoImage(`url:${url}@${widthPx}x${pixelRatio}`, () =>
+    rasterizeImageUrlUncached(url, widthPx, pixelRatio)
+  );
+}
+
+async function rasterizeImageUrlUncached(
   url: string,
   widthPx: number,
   pixelRatio: number
@@ -296,7 +318,9 @@ export async function buildStallSprites(shops: Shop[], pixelRatio = 2): Promise<
   for (const [key, recipe] of recipes) {
     for (const state of STALL_STATES) {
       jobs.push(
-        rasterizeSvg(svgForState(recipe, state, px), px, pixelRatio)
+        memoImage(`stall:${key}:${state}@${pixelRatio}`, () =>
+          rasterizeSvg(svgForState(recipe, state, px), px, pixelRatio)
+        )
           .then((image) => ({ id: stallImageId(key, state), image, pixelRatio }))
           .catch((error: unknown) => {
             // 1 枚の失敗で全体を止めない（その店舗はアイコン無しになる）
