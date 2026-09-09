@@ -820,8 +820,9 @@ export default function MapViewMapLibre({
 
       // 屋根の上の丸窓（写真）は店舗ごとに違うので、必要になった時点で遅延生成する
       const photoJobs = new Map<string, Promise<void>>();
-      map.on("styleimagemissing", (e) => {
-        const id = e.id;
+      // v6 から styleimagemissing は「起きたことを知らせるだけ」になり、
+      // リスナーの中で addImage しても要求は解決されない。画像を用意する側は resolver を使う
+      map.setMissingStyleImageResolver((id) => {
         if (!id.startsWith("photo:") || photoJobs.has(id)) return;
         const shopId = Number(id.slice("photo:".length));
         const shop = shopsRef.current.find((s) => s.id === shopId);
