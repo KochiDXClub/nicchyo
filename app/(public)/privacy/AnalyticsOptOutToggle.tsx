@@ -91,7 +91,7 @@ export default function AnalyticsOptOutToggle() {
 
       <p className="mt-3 text-xs leading-[1.85] text-[#A79E92]">
         この設定はお使いのブラウザに保存されます。別の端末やブラウザをお使いの場合、
-        また閲覧データを消去なさったあとは、あらためてご設定ください。
+        また閲覧データを消去されたあとは、あらためてご設定ください。
       </p>
     </div>
   );

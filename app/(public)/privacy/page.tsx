@@ -60,21 +60,21 @@ export default function PrivacyPage() {
       <main className="mx-auto max-w-[38rem] px-5">
         {/* 導入 */}
         <div className="pt-12 pb-10">
-          <h1 className="font-display text-[1.75rem] leading-[1.5] text-nicchyo-ink sm:text-[2rem]">
+          <h1 className="text-[1.6rem] font-bold leading-[1.55] tracking-[-0.01em] text-nicchyo-ink sm:text-[1.875rem]">
             お預かりする情報を、
             <br />
             できるだけ少なく
           </h1>
           <p className="mt-6 text-[0.95rem] leading-[1.95] text-[#5C574F]">
             nicchyo（以下「当サービス」といいます）は、高知・日曜市を初めて訪れる方をご案内するための地図サービスです。
-            会員登録をなさらなくてもお使いいただけ、その場合にお名前やご連絡先を頂戴することはございません。
+            会員登録をしなくてもお使いいただけ、その場合にお名前やご連絡先を頂戴することはございません。
             このページでは、どのような情報を、何のために、どこへ送っているのかを具体的にご説明いたします。
           </p>
         </div>
 
         {/* 中心にある約束 */}
         <div className="border-l-[3px] border-nicchyo-primary pl-5 sm:pl-6">
-          <p className="font-display text-[1.15rem] leading-[1.75] text-nicchyo-ink sm:text-[1.3rem]">
+          <p className="text-[1.05rem] font-bold leading-[1.9] text-nicchyo-ink sm:text-[1.15rem]">
             現在地は、お使いの端末の中だけで使います。
             当サービスのサーバーにも、外部にも送っておりません。
           </p>
@@ -84,7 +84,7 @@ export default function PrivacyPage() {
           <Section number={1} title="お預かりしている情報">
             <Detail term="ご覧になったページの記録（自動）">
               ページのアドレス、滞在時間、日付、そしてブラウザごとに割り当てるランダムな識別子（Cookie{" "}
-              <Code>nicchyo_visitor_id</Code>）をお預かりしております。どのページがよくご覧になられているかを知り、
+              <Code>nicchyo_visitor_id</Code>）をお預かりしております。どのページがよくご覧いただいているかを知り、
               ご案内を作り直すために用いるもので、お名前と結び付くことはございません。
             </Detail>
             <Detail term="お店への反応の記録（自動）">
@@ -112,10 +112,10 @@ export default function PrivacyPage() {
             </Prose>
             <Prose>
               取得にはブラウザの許可が必要です。許可をお尋ねする画面は、地図が表示されてからお出しいたします。
-              許可をなさらない場合でも、地図・検索・お店の情報はすべてお使いいただけます。
+              許可をされない場合でも、地図・検索・お店の情報はすべてお使いいただけます。
             </Prose>
             <Prose>
-              一度許可なさったあとで取りやめたいときは、ブラウザの設定（サイトごとの権限）からご変更いただけます。
+              一度許可されたあとで取りやめたいときは、ブラウザの設定（サイトごとの権限）からご変更いただけます。
             </Prose>
           </Section>
 
@@ -174,7 +174,7 @@ export default function PrivacyPage() {
             <ul className="space-y-3 text-[0.95rem] leading-[1.9] text-[#5C574F]">
               {[
                 "地図・検索・ご案内を、初めての方に分かりやすく作り直すため",
-                "どのご案内がお使いになられているかを知り、次に作るものを決めるため",
+                "どのご案内をお使いいただいているかを知り、次に作るものを決めるため",
                 "お問い合わせへの回答やご連絡のため",
                 "出店者の方へのご連絡や、出店情報の掲載のため",
                 "不正なアクセスや利用規約違反を防ぎ、対応するため",
@@ -235,7 +235,7 @@ function Section({
   return (
     <section>
       <h2 className="flex items-baseline gap-3 text-[1.05rem] font-semibold text-nicchyo-ink">
-        <span className="font-display text-sm text-nicchyo-soft-green">{number}</span>
+        <span className="text-sm font-bold tabular-nums text-nicchyo-soft-green">{number}</span>
         {title}
       </h2>
       <div className="mt-5">{children}</div>
