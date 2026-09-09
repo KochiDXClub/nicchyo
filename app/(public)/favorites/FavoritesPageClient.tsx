@@ -22,6 +22,7 @@ import { useShops } from "../../../lib/hooks/useShops";
 import { getShopBannerImage } from "../../../lib/shopImages";
 import { saveSearchMapPayload } from "../../../lib/searchMapStorage";
 import { useFavoriteEntries } from "../../../lib/hooks/useFavorites";
+import RemoveShopFavoriteDialog from "../../components/favorites/RemoveShopFavoriteDialog";
 import {
   groupFavoritesByShop,
   loadFavoriteEntries,
@@ -299,12 +300,13 @@ export default function FavoritesPageClient() {
         reduceMotion={!!prefersReducedMotion}
       />
 
-      <RemoveShopDialog
+      <RemoveShopFavoriteDialog
         productCount={pendingRemoval?.products.length ?? 0}
         open={!!pendingRemoval}
         onCancel={() => setPendingRemoval(null)}
         onConfirm={handleConfirmRemoval}
         reduceMotion={!!prefersReducedMotion}
+        zIndexClassName="z-50"
       />
 
       {selectedShop && (
@@ -508,63 +510,3 @@ function UndoToast({
   );
 }
 
-/** お店ごと外すときの確認。入れている商品も一緒に消えるため、ここだけ確認を出す */
-function RemoveShopDialog({
-  productCount,
-  open,
-  onCancel,
-  onConfirm,
-  reduceMotion,
-}: {
-  productCount: number;
-  open: boolean;
-  onCancel: () => void;
-  onConfirm: () => void;
-  reduceMotion: boolean;
-}) {
-  return (
-    <AnimatePresence>
-      {open && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: reduceMotion ? 0 : 0.18 }}
-          className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/40 px-4 backdrop-blur-[2px] sm:items-center"
-          style={{ paddingBottom: "calc(2rem + var(--safe-bottom, 0px))" }}
-          onClick={onCancel}
-        >
-          <motion.div
-            initial={reduceMotion ? false : { opacity: 0, y: 24 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={reduceMotion ? { opacity: 0 } : { opacity: 0, y: 24 }}
-            transition={{ duration: reduceMotion ? 0 : 0.22, ease: [0.22, 1, 0.36, 1] }}
-            className="w-full max-w-sm rounded-[24px] bg-white p-5 shadow-2xl"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <p className="text-base font-bold">お気に入りから外しますか？</p>
-            <p className="mt-2 text-sm leading-relaxed text-slate-600">
-              このお店に入れている{productCount}品も一緒に消えます。
-            </p>
-            <div className="mt-5 flex gap-2">
-              <button
-                type="button"
-                onClick={onCancel}
-                className="min-h-12 flex-1 rounded-2xl bg-stone-100 text-sm font-bold text-slate-700 transition hover:bg-stone-200"
-              >
-                やめる
-              </button>
-              <button
-                type="button"
-                onClick={onConfirm}
-                className="min-h-12 flex-1 rounded-2xl bg-slate-900 text-sm font-bold text-white transition hover:bg-black"
-              >
-                外す
-              </button>
-            </div>
-          </motion.div>
-        </motion.div>
-      )}
-    </AnimatePresence>
-  );
-}
