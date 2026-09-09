@@ -39,7 +39,7 @@ import type { MapRoutePoint } from "../../types/mapRoute";
 import { landmarkToSpot } from "@/lib/spots";
 import ShopDetailBanner from "../ShopDetailBanner";
 import { useBag } from "../../../../../lib/storage/BagContext";
-import { FAVORITE_SHOPS_UPDATED_EVENT, loadFavoriteShopIds } from "../../../../../lib/favoriteShops";
+import { useFavoriteShopIds } from "../../../../../lib/hooks/useFavorites";
 import { resolveMapFeatureFlags, type MapFeatureFlags } from "@/lib/mapFeatureFlags";
 import { runFullBenchmark, type BenchMapLike } from "@/lib/perf/mapBenchmark";
 import { readPerfShopCount, synthesizeShops } from "@/lib/perf/syntheticShops";
@@ -325,7 +325,7 @@ export default function MapViewMapLibre({
   const chomeMarkersRef = useRef<maplibregl.Marker[]>([]);
   const [selectedShop, setSelectedShop] = useState<Shop | null>(null);
   const [mapLoaded, setMapLoaded] = useState(false);
-  const [favoriteShopIds, setFavoriteShopIds] = useState<number[]>([]);
+  const favoriteShopIds = useFavoriteShopIds();
   const { items: bagItems } = useBag();
 
   const featureFlags = useMemo<MapFeatureFlags>(
@@ -395,13 +395,6 @@ export default function MapViewMapLibre({
         .filter((id): id is number => typeof id === "number"),
     [bagItems]
   );
-  useEffect(() => {
-    setFavoriteShopIds(loadFavoriteShopIds());
-    const handler = () => setFavoriteShopIds(loadFavoriteShopIds());
-    window.addEventListener(FAVORITE_SHOPS_UPDATED_EVENT, handler);
-    return () => window.removeEventListener(FAVORITE_SHOPS_UPDATED_EVENT, handler);
-  }, []);
-
   const shopStates = useMemo<ShopStateMap>(() => {
     const m: ShopStateMap = new Map();
     for (const id of bagShopIds) m.set(id, "bag");

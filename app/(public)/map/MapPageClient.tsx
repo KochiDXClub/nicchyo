@@ -54,10 +54,9 @@ import {
   selectNearbyRecommendations,
 } from "./utils/nearbyRecommendations";
 import {
-  FAVORITE_SHOPS_KEY,
-  FAVORITE_SHOPS_UPDATED_EVENT,
   loadFavoriteShopIds,
 } from "../../../lib/favoriteShops";
+import { useFavoriteShopIds } from "../../../lib/hooks/useFavorites";
 import { useBag } from "../../../lib/storage/BagContext";
 import { stripShopIdsDirective } from "@/lib/grandma/consultUtils";
 import {
@@ -340,21 +339,7 @@ export default function MapPageClient({
   const [mapSearchCategory, setMapSearchCategory] = useState<string | null>(null);
   // お気に入り絞り込み。歩きながら1タップで「あとで戻る店」だけの地図にできる
   const [favoritesOnly, setFavoritesOnly] = useState(false);
-  const [favoriteShopIds, setFavoriteShopIds] = useState<number[]>([]);
-
-  useEffect(() => {
-    const sync = () => setFavoriteShopIds(loadFavoriteShopIds());
-    sync();
-    const handleStorage = (event: StorageEvent) => {
-      if (event.key === FAVORITE_SHOPS_KEY) sync();
-    };
-    window.addEventListener(FAVORITE_SHOPS_UPDATED_EVENT, sync);
-    window.addEventListener("storage", handleStorage);
-    return () => {
-      window.removeEventListener(FAVORITE_SHOPS_UPDATED_EVENT, sync);
-      window.removeEventListener("storage", handleStorage);
-    };
-  }, []);
+  const favoriteShopIds = useFavoriteShopIds();
 
   // 最後の1件を外したら絞り込みも解除する（0件の地図に取り残さない）
   useEffect(() => {

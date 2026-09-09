@@ -40,7 +40,7 @@ import { MapOverlays, getVisibleMajorPlaceLabels } from "./MapOverlays";
 import {
   getRecommendedZoomBounds,
 } from '../config/roadConfig';
-import { FAVORITE_SHOPS_KEY, FAVORITE_SHOPS_UPDATED_EVENT, loadFavoriteShopIds } from "../../../../lib/favoriteShops";
+import { useFavoriteShopIds } from "../../../../lib/hooks/useFavorites";
 import {
   getViewModeForZoom,
   ViewMode,
@@ -667,7 +667,7 @@ const MapView = memo(function MapView({
   });
 
   const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
-  const [favoriteShopIds, setFavoriteShopIds] = useState<number[]>([]);
+  const favoriteShopIds = useFavoriteShopIds();
   const [_planOrder, setPlanOrder] = useState<number[]>([]);
   const [mapInstance, setMapInstance] = useState<L.Map | null>(null);
   const mapRef = useRef<L.Map | null>(null);
@@ -776,27 +776,6 @@ const MapView = memo(function MapView({
     } catch {
       // ignore parse errors
     }
-  }, []);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    setFavoriteShopIds(loadFavoriteShopIds());
-    const handleStorage = (event: StorageEvent) => {
-      if (event.key === FAVORITE_SHOPS_KEY) {
-        setFavoriteShopIds(loadFavoriteShopIds());
-      }
-    };
-    const handleFavoriteUpdate = (event: Event) => {
-      if (event.type === FAVORITE_SHOPS_UPDATED_EVENT) {
-        setFavoriteShopIds(loadFavoriteShopIds());
-      }
-    };
-    window.addEventListener("storage", handleStorage);
-    window.addEventListener(FAVORITE_SHOPS_UPDATED_EVENT, handleFavoriteUpdate);
-    return () => {
-      window.removeEventListener("storage", handleStorage);
-      window.removeEventListener(FAVORITE_SHOPS_UPDATED_EVENT, handleFavoriteUpdate);
-    };
   }, []);
 
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
