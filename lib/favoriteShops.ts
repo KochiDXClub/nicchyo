@@ -185,6 +185,72 @@ export function removeFavoriteShop(shopId: number): FavoriteEntry[] {
   return saveFavoriteEntries(current.filter((entry) => entry.shopId !== shopId));
 }
 
+// ─── 旧バッグ（買い物リスト）からの移行 ──────────────────────────────────────
+
+/** 旧バッグの保存キー。バッグ機能の撤去後も、移行のためだけに読む */
+export const LEGACY_BAG_STORAGE_KEY = "nicchyo-fridge-items";
+/** 移行を1回だけ走らせるための印 */
+export const BAG_MIGRATION_FLAG_KEY = "nicchyo-favorites-bag-migrated";
+
+export type BagMigrationResult = {
+  /** お気に入りに取り込んだ商品の数 */
+  migrated: number;
+  /** どの店のものか分からず取り込めなかった数 */
+  skipped: number;
+};
+
+/**
+ * 旧バッグの中身をお気に入りへ1回だけ移す。
+ *
+ * 店が分かるもの（fromShopId がある）だけを `{ shopId, product }` として取り込む。
+ * 店が分からないものは地図に出せないので取り込めないが、黙って全部消すよりはよい。
+ * 移行済みの印を立てるので、2回目以降は何もしない（利用者が外したものが復活しない）。
+ *
+ * 戻り値が null なら「移行済み、またはブラウザ外」で、何もしていない。
+ */
+export function migrateBagItemsToFavorites(): BagMigrationResult | null {
+  if (typeof window === "undefined") return null;
+  if (localStorage.getItem(BAG_MIGRATION_FLAG_KEY)) return null;
+
+  const raw = localStorage.getItem(LEGACY_BAG_STORAGE_KEY);
+  const items = safeJsonParse<unknown>(raw, []);
+  if (!Array.isArray(items) || items.length === 0) {
+    localStorage.setItem(BAG_MIGRATION_FLAG_KEY, "1");
+    return { migrated: 0, skipped: 0 };
+  }
+
+  const current = loadFavoriteEntries();
+  const seen = new Set(current.map((entry) => favoriteEntryKey(entry.shopId, entry.product)));
+  const added: FavoriteEntry[] = [];
+  const now = Date.now();
+  let skipped = 0;
+
+  for (const item of items) {
+    if (typeof item !== "object" || item === null) {
+      skipped += 1;
+      continue;
+    }
+    const record = item as Record<string, unknown>;
+    const product = normalizeProduct(record.name);
+    const shopId = Number(record.fromShopId);
+    if (product === null || !Number.isFinite(shopId)) {
+      skipped += 1;
+      continue;
+    }
+    const key = favoriteEntryKey(shopId, product);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    added.push({ shopId, product, addedAt: now });
+  }
+
+  // 印は保存が通ってから立てる。先に立てると、保存に失敗した（容量超過や
+  // プライベートブラウズなど）ときに、バッグの中身が移らないまま二度と
+  // 移行が走らなくなる
+  if (added.length > 0) saveFavoriteEntries([...current, ...added]);
+  localStorage.setItem(BAG_MIGRATION_FLAG_KEY, "1");
+  return { migrated: added.length, skipped };
+}
+
 // ─── 既存UI向けの互換API ──────────────────────────────────────────────────────
 // 店単位のハートしか扱わない画面（検索・マップ）はこちらを使い続けられる。
 // 商品対応の画面が出そろったら段階的に上のAPIへ寄せる。
