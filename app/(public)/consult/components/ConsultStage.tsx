@@ -540,7 +540,19 @@ export default function ConsultStage({
 
   return (
     <div
-      className="flex min-h-[calc(100dvh-96px)] w-full flex-col gap-3 px-4 pt-3"
+      // min-height ではなく height + overflow-y-auto にして、この中だけで
+      // スクロールを完結させる。min-height のままページ全体でスクロールさせると、
+      // 下端固定の「話しかける」バーはビューポート基準の位置に居続けるのに対し、
+      // キャラ・ひとこと・候補ボタンは開いた直後（スクロール前）の自然な高さで
+      // 描かれるため、縦の低い画面（PCの非全画面ウィンドウなど）では
+      // スクロールする前から候補ボタンにバーが重なって見えていた。
+      //
+      // height は「この要素より上（親 main の pt-2）」と「下端の話しかけるバー
+      // の分（paddingBottom と同じ式）」を両方引く。paddingBottom だけでは、
+      // 中身がその場に収まってしまう高さのときスクロールが発生せず、
+      // バーの領域まで普通に描画されて隠れてしまうため、
+      // 「バーの領域には最初から描画させない」ところまで height 側でも絞る
+      className="flex h-[calc(100dvh-0.5rem-var(--safe-bottom,0px)-var(--nav-bar-height)-6rem)] w-full flex-col gap-3 overflow-y-auto px-4 pt-3"
       // 下端に固定した「話しかける」とナビゲーションバーの分だけ空ける。
       // ここを決め打ちにすると、ホームインジケータのある端末で本文が隠れる
       style={{ paddingBottom: "calc(var(--safe-bottom, 0px) + var(--nav-bar-height) + 6rem)" }}
@@ -742,7 +754,7 @@ export default function ConsultStage({
         </div>
       )}
 
-      {/* 音声は大きく、文字は最後の手段として小さく。
+      {/* 文字入力を大きく既定にし、音声は選べる小さいボタンにする。
           音声シートが出ている間と応答待ちの間は、押すべきものが2つにならないよう隠す */}
       <div
         className={`fixed inset-x-0 z-20 mx-auto flex items-center justify-center gap-3 px-4 md:max-w-3xl ${
@@ -767,33 +779,32 @@ export default function ConsultStage({
           }}
         />
 
+        {/* 文字入力を既定にする。音声は騒がしい現地では速いが、
+            静かな場所や周りに人がいるときは声を出しにくいため */}
+        <button
+          type="button"
+          onClick={openTextInput}
+          disabled={isBusy}
+          className="flex flex-1 items-center justify-center gap-2 rounded-full bg-gradient-to-br from-amber-500 to-orange-500 px-6 py-4 text-base font-bold text-white shadow-lg transition disabled:opacity-50"
+        >
+          <Keyboard className="h-5 w-5" aria-hidden="true" />
+          文字で聞く
+        </button>
         {speech.isSupported && (
           <button
             type="button"
             onClick={handleMicTap}
             disabled={isBusy}
-            className={`flex flex-1 items-center justify-center gap-2 rounded-full px-6 py-4 text-base font-bold shadow-lg transition disabled:opacity-50 ${
+            aria-label={speech.isListening ? "とめる" : "音声で聞く"}
+            className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-full shadow-lg transition disabled:opacity-50 ${
               speech.isListening
                 ? "bg-red-500 text-white"
-                : "bg-gradient-to-br from-amber-500 to-orange-500 text-white"
+                : "border border-amber-200 bg-white/95 text-amber-800"
             }`}
           >
             <Mic className="h-5 w-5" aria-hidden="true" />
-            {speech.isListening ? "とめる" : "話しかける"}
           </button>
         )}
-        <button
-          type="button"
-          onClick={openTextInput}
-          disabled={isBusy}
-          aria-label="文字で聞く"
-          className={`flex items-center justify-center rounded-full border border-amber-200 bg-white/95 text-amber-800 shadow-lg disabled:opacity-50 ${
-            speech.isSupported ? "h-14 w-14" : "flex-1 gap-2 px-6 py-4 text-base font-bold"
-          }`}
-        >
-          <Keyboard className="h-5 w-5" aria-hidden="true" />
-          {!speech.isSupported && "文字で聞く"}
-        </button>
       </div>
 
       {/*
