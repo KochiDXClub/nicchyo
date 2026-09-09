@@ -26,7 +26,8 @@ import {
 import type { ConsultAskResponse, ConsultTurn } from '../../consult/types/consultConversation';
 import type { Shop } from '../data/shops';
 import { getOrCreateConsultVisitorKey } from '../../../../lib/consultVisitorKey';
-import { toggleFavoriteShopId, loadFavoriteShopIds } from '../../../../lib/favoriteShops';
+import { useFavoriteShopIdSet } from '../../../../lib/hooks/useFavorites';
+import { useShopFavoriteToggle } from '../../../components/favorites/useShopFavoriteToggle';
 
 const PLAN_KEY = 'nicchyo-map-agent-plan';
 // /consult ページ（GrandmaChatter, layout="page"）が会話履歴を保存する localStorage キー。
@@ -172,7 +173,10 @@ export default function MapCharacterConsult({
   const [thumbsDownOpen, setThumbsDownOpen] = useState(false);
   const [thumbsDownComment, setThumbsDownComment] = useState('');
   const [recommendedShops, setRecommendedShops] = useState<Shop[]>([]);
-  const [favoriteIds, setFavoriteIds] = useState<Set<number>>(() => new Set(loadFavoriteShopIds()));
+  // 購読つきで読む。他の画面でハートを押しても、この一覧が取り残されない
+  const favoriteIds = useFavoriteShopIdSet();
+  const { toggleShopFavorite, confirmDialog: removeShopFavoriteDialog } =
+    useShopFavoriteToggle({ zIndexClassName: 'z-[3300]' });
   const [routeIds, setRouteIds] = useState<Set<number>>(() => {
     if (typeof window === 'undefined') return new Set();
     try {
@@ -488,9 +492,10 @@ export default function MapCharacterConsult({
     setTimeout(() => handleSend(lastUserMsg), 100);
   }, [clearPlayback, handleSend, lastUserMsg]);
 
+  // 商品がぶら下がっている店を外すときの確認は useShopFavoriteToggle が持つ。
+  // 以前はここで黙って商品ごと消していた
   const handleFavorite = (shopId: number) => {
-    const next = toggleFavoriteShopId(shopId);
-    setFavoriteIds(new Set(next));
+    toggleShopFavorite(shopId);
   };
 
   const handleAddToRoute = (shop: Shop) => {
@@ -538,6 +543,9 @@ export default function MapCharacterConsult({
   const inputDescription = statusLabel ? `${helperTextId} ${statusTextId}` : helperTextId;
 
   return (
+    <>
+    {/* 確認ダイアログは pointer-events-none の外側に出す（中に置くと押せない） */}
+    {removeShopFavoriteDialog}
     <div className="pointer-events-none absolute bottom-[calc(4.5rem+env(safe-area-inset-bottom,0px)+0.75rem)] left-4 right-4 z-[1300] translate-y-[30px]">
       <div className="mb-3 flex justify-start">
         {activeCharacter && (
@@ -784,5 +792,6 @@ export default function MapCharacterConsult({
         </div>
       </div>
     </div>
+    </>
   );
 }

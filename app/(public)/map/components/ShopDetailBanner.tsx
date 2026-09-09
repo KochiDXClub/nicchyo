@@ -20,17 +20,12 @@ import { Shop } from "../data/shops";
 import { useAuth } from "../../../../lib/auth/AuthContext";
 import { getShopBannerImage } from "../../../../lib/shopImages";
 import {
-  FAVORITE_SHOPS_KEY,
-  FAVORITE_SHOPS_UPDATED_EVENT,
-  getFavoriteProductsForShop,
   isProductFavorited,
   isShopFavorited,
-  loadFavoriteEntries,
-  removeFavoriteShop,
   toggleFavoriteProduct,
-  toggleFavoriteShop,
-  type FavoriteEntry,
 } from "../../../../lib/favoriteShops";
+import { useFavoriteEntries } from "../../../../lib/hooks/useFavorites";
+import { useShopFavoriteToggle } from "../../../components/favorites/useShopFavoriteToggle";
 import { incrementBannerOpens } from "../../../../lib/storage/marketStats";
 import {
   ShopBannerHero,
@@ -159,8 +154,9 @@ const ShopDetailBanner = memo(function ShopDetailBanner({
   const router = useRouter();
   const prefersReducedMotion = useReducedMotion();
   const { permissions } = useAuth();
-  const [favoriteEntries, setFavoriteEntries] = useState<FavoriteEntry[]>([]);
-  const [pendingShopRemoval, setPendingShopRemoval] = useState<string[] | null>(null);
+  const favoriteEntries = useFavoriteEntries();
+  const { toggleShopFavorite, confirmDialog: removeShopFavoriteDialog } =
+    useShopFavoriteToggle();
   const [currentPostIndex, setCurrentPostIndex] = useState(0);
   const [heroImageError, setHeroImageError] = useState(false);
   const [toast, setToast] = useState<{ product: string } | null>(null);
@@ -213,22 +209,6 @@ const ShopDetailBanner = memo(function ShopDetailBanner({
     return () => window.removeEventListener("resize", handleResize);
   }, []);
 
-  // お気に入りの同期（同じタブのイベントと、別タブの storage の両方を見る）
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const sync = () => setFavoriteEntries(loadFavoriteEntries());
-    sync();
-    const handleStorage = (event: StorageEvent) => {
-      if (event.key === FAVORITE_SHOPS_KEY) sync();
-    };
-    window.addEventListener(FAVORITE_SHOPS_UPDATED_EVENT, sync);
-    window.addEventListener("storage", handleStorage);
-    return () => {
-      window.removeEventListener(FAVORITE_SHOPS_UPDATED_EVENT, sync);
-      window.removeEventListener("storage", handleStorage);
-    };
-  }, []);
-
   // バナー開封カウント
   useEffect(() => {
     incrementBannerOpens();
@@ -236,7 +216,6 @@ const ShopDetailBanner = memo(function ShopDetailBanner({
 
   const handleProductTap = useCallback((product: string) => {
     const nextEntries = toggleFavoriteProduct(shop.id, product);
-    setFavoriteEntries(nextEntries);
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
     // 外したときは黙って消す。入れたときだけ、どこに入ったかを伝える
     if (isProductFavorited(nextEntries, shop.id, product)) {
@@ -248,25 +227,15 @@ const ShopDetailBanner = memo(function ShopDetailBanner({
   }, [shop.id]);
 
   const handleUndoAdd = useCallback((product: string) => {
-    setFavoriteEntries(toggleFavoriteProduct(shop.id, product));
+    toggleFavoriteProduct(shop.id, product);
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
     setToast(null);
   }, [shop.id]);
 
+  // 商品がぶら下がっているときの確認は useShopFavoriteToggle が持つ
   const handleToggleShopFavorite = useCallback(() => {
-    // 商品がぶら下がっている店を消すと商品も一緒に消えるので、そこだけ確認を出す
-    const products = getFavoriteProductsForShop(favoriteEntries, shop.id);
-    if (products.length > 0) {
-      setPendingShopRemoval(products);
-      return;
-    }
-    setFavoriteEntries(toggleFavoriteShop(shop.id));
-  }, [favoriteEntries, shop.id]);
-
-  const handleConfirmShopRemoval = useCallback(() => {
-    setFavoriteEntries(removeFavoriteShop(shop.id));
-    setPendingShopRemoval(null);
-  }, [shop.id]);
+    toggleShopFavorite(shop.id);
+  }, [toggleShopFavorite, shop.id]);
 
   const handleFavoritesClick = useCallback(() => { router.push("/favorites"); }, [router]);
 
@@ -1153,13 +1122,7 @@ const ShopDetailBanner = memo(function ShopDetailBanner({
         reduceMotion={!!prefersReducedMotion}
       />
 
-      <RemoveShopFavoriteDialog
-        productCount={pendingShopRemoval?.length ?? 0}
-        open={!!pendingShopRemoval}
-        onCancel={() => setPendingShopRemoval(null)}
-        onConfirm={handleConfirmShopRemoval}
-        reduceMotion={!!prefersReducedMotion}
-      />
+      {removeShopFavoriteDialog}
     </div>
   );
 }, areShopDetailBannerPropsEqual);
@@ -1208,67 +1171,6 @@ function FavoriteAddedToast({
               取り消す
             </button>
           </div>
-        </motion.div>
-      )}
-    </AnimatePresence>
-  );
-}
-
-/** お店ごと外すときの確認。入れている商品も一緒に消えるため、ここだけ確認を出す */
-function RemoveShopFavoriteDialog({
-  productCount,
-  open,
-  onCancel,
-  onConfirm,
-  reduceMotion,
-}: {
-  productCount: number;
-  open: boolean;
-  onCancel: () => void;
-  onConfirm: () => void;
-  reduceMotion: boolean;
-}) {
-  return (
-    <AnimatePresence>
-      {open && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: reduceMotion ? 0 : 0.18 }}
-          className="fixed inset-0 z-[3200] flex items-end justify-center bg-slate-950/40 px-4 backdrop-blur-[2px] sm:items-center"
-          style={{ paddingBottom: "calc(2rem + var(--safe-bottom, 0px))" }}
-          onClick={onCancel}
-        >
-          <motion.div
-            initial={reduceMotion ? false : { opacity: 0, y: 24 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={reduceMotion ? { opacity: 0 } : { opacity: 0, y: 24 }}
-            transition={{ duration: reduceMotion ? 0 : 0.22, ease: [0.22, 1, 0.36, 1] }}
-            className="w-full max-w-sm rounded-[24px] bg-white p-5 shadow-2xl"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <p className="text-base font-bold text-slate-900">お気に入りから外しますか？</p>
-            <p className="mt-2 text-sm leading-relaxed text-slate-600">
-              このお店に入れている{productCount}品も一緒に消えます。
-            </p>
-            <div className="mt-5 flex gap-2">
-              <button
-                type="button"
-                onClick={onCancel}
-                className="min-h-11 flex-1 rounded-2xl bg-slate-100 px-4 py-2 text-sm font-bold text-slate-700 transition hover:bg-slate-200"
-              >
-                やめる
-              </button>
-              <button
-                type="button"
-                onClick={onConfirm}
-                className="min-h-11 flex-1 rounded-2xl bg-slate-900 px-4 py-2 text-sm font-bold text-white transition hover:bg-black"
-              >
-                外す
-              </button>
-            </div>
-          </motion.div>
         </motion.div>
       )}
     </AnimatePresence>
