@@ -35,6 +35,21 @@ const HEADLINE_LINES = ["この地図は、", "みなさまのご支援のもと
 const FRONT_ROW_IDS: readonly string[] = ["nichiyosan", "yosakochan"];
 
 /**
+ * 人ごとの微調整。
+ *
+ * イラストによって、絵の中で人物が占める割合も、周りの透明な余白の入り方も違う。
+ * 同じ幅で並べても同じ大きさには見えないので、ここで見た目をそろえる。
+ *
+ * nudgeX は transform なので、並びの幅を変えずにその人だけを動かせる。
+ * margin で寄せると中央そろえが効いて、隣の人まで一緒に動いてしまう。
+ */
+const HERO_TUNING: Record<string, { large?: boolean; nudgeX?: string }> = {
+  // 絵の中の人物が小さめなので、1.3倍にして他とそろえる
+  nichiyosan: { large: true },
+  yoichisan: { large: true, nudgeX: "translate-x-3 sm:translate-x-4 lg:translate-x-6" },
+};
+
+/**
  * 出てくる順は CONSULT_CHARACTERS の並びそのまま
  * （にちよさん → よういちさん → みらいくん → よさこちゃん）。
  * このページの顔であるにちよさんが先に立って、周りに集まってくる形になる。
@@ -43,7 +58,13 @@ const HERO_CAST = CONSULT_CHARACTERS.map((character, index) => ({ character, ind
 const frontRow = HERO_CAST.filter(({ character }) => FRONT_ROW_IDS.includes(character.id));
 const backRow = HERO_CAST.filter(({ character }) => !FRONT_ROW_IDS.includes(character.id));
 
-/** 1人ぶん。出る順だけが違い、大きさと動きは全員そろえる */
+/**
+ * 1人ぶん。
+ *
+ * 出方は「1秒ほどかけて、静かに浮かび上がる」。跳ねさせたり弾ませたりすると、
+ * 集合写真ではなくゲームの演出に見える。動かすのは透明度だけにして、
+ * 位置と大きさは最初から最後まで動かさない。
+ */
 function HeroCharacter({
   character,
   appearIndex,
@@ -55,17 +76,24 @@ function HeroCharacter({
   className?: string;
   reduceMotion: boolean;
 }) {
+  const tuning = HERO_TUNING[character.id] ?? {};
+  const widthClass = tuning.large
+    ? "w-[143px] sm:w-[169px] lg:w-[200px]"
+    : "w-[110px] sm:w-[130px] lg:w-[154px]";
+  const sizes = tuning.large
+    ? "(min-width: 1024px) 200px, (min-width: 640px) 169px, 143px"
+    : "(min-width: 1024px) 154px, (min-width: 640px) 130px, 110px";
+
   return (
     <motion.div
       className={className}
-      initial={reduceMotion ? false : { opacity: 0, y: 18, scale: 0.92 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
+      initial={reduceMotion ? false : { opacity: 0 }}
+      animate={{ opacity: 1 }}
       transition={{
-        type: "spring",
-        stiffness: 260,
-        damping: 22,
-        // ひとりずつ出す。4人で 0.6 秒ほどに収める
-        delay: 0.18 + appearIndex * 0.13,
+        duration: 0.9,
+        ease: "easeOut",
+        // ひとりずつ。前の人が出きる前に次が始まる程度にずらす
+        delay: 0.15 + appearIndex * 0.2,
       }}
     >
       <Image
@@ -75,8 +103,8 @@ function HeroCharacter({
         height={512}
         priority
         draggable={false}
-        sizes="(min-width: 1024px) 154px, (min-width: 640px) 130px, 110px"
-        className="h-auto w-[110px] select-none object-contain sm:w-[130px] lg:w-[154px]"
+        sizes={sizes}
+        className={`h-auto select-none object-contain ${widthClass} ${tuning.nudgeX ?? ""}`}
       />
     </motion.div>
   );
@@ -200,26 +228,26 @@ export default function SupportHero({ monthlyLabel, runwayLabel, totalMonths }: 
         */}
         <div className="order-first flex flex-col items-center lg:order-none" aria-hidden>
           {/* 後列。前列よりわずかに広く、肩が両脇からのぞくくらいに留める */}
-          <div className="flex justify-center">
+          <div className="flex items-end justify-center">
             {backRow.map(({ character, index }, position) => (
               <HeroCharacter
                 key={character.id}
                 character={character}
                 appearIndex={index}
-                className={position > 0 ? "-ml-4 sm:-ml-5 lg:-ml-6" : undefined}
+                className={position > 0 ? "-ml-6 sm:-ml-8 lg:-ml-10" : undefined}
                 reduceMotion={!!prefersReducedMotion}
               />
             ))}
           </div>
 
           {/* 前列。後列に重ねて手前に置く。重なり量は絵の高さのおよそ4割 */}
-          <div className="relative z-10 -mt-[2.75rem] flex justify-center sm:-mt-[3.25rem] lg:-mt-[3.9rem]">
+          <div className="relative z-10 -mt-[4.5rem] flex items-end justify-center sm:-mt-[5.5rem] lg:-mt-[6.5rem]">
             {frontRow.map(({ character, index }, position) => (
               <HeroCharacter
                 key={character.id}
                 character={character}
                 appearIndex={index}
-                className={position > 0 ? "-ml-10 sm:-ml-12 lg:-ml-14" : undefined}
+                className={position > 0 ? "-ml-14 sm:-ml-16 lg:-ml-20" : undefined}
                 reduceMotion={!!prefersReducedMotion}
               />
             ))}
