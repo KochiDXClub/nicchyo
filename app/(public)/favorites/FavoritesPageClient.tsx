@@ -21,9 +21,8 @@ import ShopDetailBanner from "../map/components/ShopDetailBanner";
 import { useShops } from "../../../lib/hooks/useShops";
 import { getShopBannerImage } from "../../../lib/shopImages";
 import { saveSearchMapPayload } from "../../../lib/searchMapStorage";
+import { useFavoriteEntries } from "../../../lib/hooks/useFavorites";
 import {
-  FAVORITE_SHOPS_KEY,
-  FAVORITE_SHOPS_UPDATED_EVENT,
   groupFavoritesByShop,
   loadFavoriteEntries,
   removeFavoriteShop,
@@ -40,6 +39,11 @@ const NO_CHOME_LABEL = "丁目がまだ分からないお店";
 
 type SortKey = "place" | "added";
 
+/** 取り消しを出しておく時間 */
+const UNDO_DURATION_MS = 6000;
+
+type UndoItem = { id: number; label: string; entries: FavoriteEntry[] };
+
 /** 並びの好みは端末に覚えさせる。毎回選び直させない */
 function loadSort(): SortKey {
   if (typeof window === "undefined") return "place";
@@ -48,27 +52,6 @@ function loadSort(): SortKey {
   } catch {
     return "place";
   }
-}
-
-/** お気に入りの変更を反映する（同じタブのイベントと別タブの storage の両方を見る） */
-function useFavoriteEntries(): FavoriteEntry[] {
-  const [entries, setEntries] = useState<FavoriteEntry[]>([]);
-
-  useEffect(() => {
-    const sync = () => setEntries(loadFavoriteEntries());
-    sync();
-    const handleStorage = (event: StorageEvent) => {
-      if (event.key === FAVORITE_SHOPS_KEY) sync();
-    };
-    window.addEventListener(FAVORITE_SHOPS_UPDATED_EVENT, sync);
-    window.addEventListener("storage", handleStorage);
-    return () => {
-      window.removeEventListener(FAVORITE_SHOPS_UPDATED_EVENT, sync);
-      window.removeEventListener("storage", handleStorage);
-    };
-  }, []);
-
-  return entries;
 }
 
 type Row = FavoriteShopGroup & { shop: Shop | undefined };
@@ -117,29 +100,50 @@ export default function FavoritesPageClient() {
   // 店をタップしたらこのページの上でバナーを開く（/consult と同じ形）
   const [selectedShop, setSelectedShop] = useState<Shop | null>(null);
   const [sort, setSort] = useState<SortKey>("place");
-  // 外したものを戻せるようにする。1タップで消せる代わりに、必ず戻せる
-  const [undo, setUndo] = useState<{ label: string; entries: FavoriteEntry[] } | null>(null);
-  const undoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // 外したものを戻せるようにする。1タップで消せる代わりに、必ず戻せる。
+  // ハート1つで消せる以上、続けて何件も外すのは普通に起きるので、
+  // 1件しか覚えないと2件目を外した時点で1件目が戻せなくなる。積んで持つ
+  const [undos, setUndos] = useState<UndoItem[]>([]);
+  const undoTimersRef = useRef(new Map<number, ReturnType<typeof setTimeout>>());
+  const undoSeqRef = useRef(0);
 
   useEffect(() => setSort(loadSort()), []);
 
-  useEffect(() => () => {
-    if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
+  useEffect(() => {
+    const timers = undoTimersRef.current;
+    return () => {
+      timers.forEach((timer) => clearTimeout(timer));
+      timers.clear();
+    };
   }, []);
 
-  const offerUndo = useCallback((label: string, removed: FavoriteEntry[]) => {
-    if (removed.length === 0) return;
-    if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
-    setUndo({ label, entries: removed });
-    undoTimerRef.current = setTimeout(() => setUndo(null), 6000);
+  const dropUndo = useCallback((id: number) => {
+    const timer = undoTimersRef.current.get(id);
+    if (timer) clearTimeout(timer);
+    undoTimersRef.current.delete(id);
+    setUndos((prev) => prev.filter((item) => item.id !== id));
   }, []);
 
+  const offerUndo = useCallback(
+    (label: string, removed: FavoriteEntry[]) => {
+      if (removed.length === 0) return;
+      const id = ++undoSeqRef.current;
+      setUndos((prev) => [...prev, { id, label, entries: removed }]);
+      undoTimersRef.current.set(
+        id,
+        setTimeout(() => dropUndo(id), UNDO_DURATION_MS),
+      );
+    },
+    [dropUndo],
+  );
+
+  // 新しく外したものから戻す。戻すと、その1つ前の取り消しが顔を出す
   const handleUndo = useCallback(() => {
-    if (!undo) return;
-    saveFavoriteEntries([...loadFavoriteEntries(), ...undo.entries]);
-    if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
-    setUndo(null);
-  }, [undo]);
+    const latest = undos[undos.length - 1];
+    if (!latest) return;
+    saveFavoriteEntries([...loadFavoriteEntries(), ...latest.entries]);
+    dropUndo(latest.id);
+  }, [undos, dropUndo]);
 
   const changeSort = useCallback((next: SortKey) => {
     setSort(next);
@@ -289,7 +293,8 @@ export default function FavoritesPageClient() {
       </div>
 
       <UndoToast
-        undo={undo}
+        undo={undos[undos.length - 1] ?? null}
+        pendingCount={undos.length}
         onUndo={handleUndo}
         reduceMotion={!!prefersReducedMotion}
       />
@@ -459,10 +464,13 @@ function EmptyState({ onOpenMap }: { onOpenMap: () => void }) {
  */
 function UndoToast({
   undo,
+  pendingCount,
   onUndo,
   reduceMotion,
 }: {
-  undo: { label: string; entries: FavoriteEntry[] } | null;
+  undo: UndoItem | null;
+  /** まだ戻せるものの数。2件以上なら「あと何件戻せるか」を出す */
+  pendingCount: number;
   onUndo: () => void;
   reduceMotion: boolean;
 }) {
@@ -470,6 +478,7 @@ function UndoToast({
     <AnimatePresence>
       {undo && (
         <motion.div
+          key={undo.id}
           initial={reduceMotion ? false : { opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
           exit={reduceMotion ? { opacity: 0 } : { opacity: 0, y: 16 }}
@@ -480,7 +489,10 @@ function UndoToast({
           <div className="pointer-events-auto mx-auto flex max-w-sm items-center gap-3 rounded-[22px] border border-white/10 bg-slate-950/95 px-4 py-3 text-white shadow-2xl backdrop-blur-md">
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-bold">{undo.label}</p>
-              <p className="text-[12px] text-white/65">お気に入りから外しました</p>
+              <p className="text-[12px] text-white/65">
+                お気に入りから外しました
+                {pendingCount > 1 && ` ・ ほかに${pendingCount - 1}件戻せます`}
+              </p>
             </div>
             <button
               type="button"
