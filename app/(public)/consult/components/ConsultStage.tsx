@@ -103,7 +103,6 @@ export default function ConsultStage({
   /** 応答待ちの間も「何を聞いたか」を出しておくため */
   const [pendingQuestion, setPendingQuestion] = useState<string | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
-  const [textOpen, setTextOpen] = useState(false);
   const [typed, setTyped] = useState("");
   const [hasRestored, setHasRestored] = useState(false);
   const [autoAsked, setAutoAsked] = useState(false);
@@ -125,7 +124,7 @@ export default function ConsultStage({
 
   const entriesRef = useRef<ConsultEntry[]>([]);
   entriesRef.current = entries;
-  const textInputRef = useRef<HTMLTextAreaElement | null>(null);
+  const textInputRef = useRef<HTMLInputElement | null>(null);
   const topSentinelRef = useRef<HTMLDivElement | null>(null);
   /** 話し手の立ち位置。入れ替わりの歩きはここへ着く */
   const heroAvatarRef = useRef<HTMLDivElement | null>(null);
@@ -531,16 +530,31 @@ export default function ConsultStage({
     setPhase("idle");
   };
 
+  // 音声の確認シートから「文字で直す」に切り替えるときだけ使う。
+  // 入力欄自体は最初から常に出ているので、ここでは
+  // シートを閉じて聞き取れた分を引き継ぎ、フォーカスを移すだけでよい
   const openTextInput = () => {
-    setTextOpen(true);
+    setPhase("idle");
     setTyped(draft);
-    // シートが描画されてからでないとフォーカスが乗らない
+    setDraft("");
     requestAnimationFrame(() => textInputRef.current?.focus());
   };
 
   return (
     <div
-      className="flex min-h-[calc(100dvh-96px)] w-full flex-col gap-3 px-4 pt-3"
+      // min-height ではなく height + overflow-y-auto にして、この中だけで
+      // スクロールを完結させる。min-height のままページ全体でスクロールさせると、
+      // 下端固定の「話しかける」バーはビューポート基準の位置に居続けるのに対し、
+      // キャラ・ひとこと・候補ボタンは開いた直後（スクロール前）の自然な高さで
+      // 描かれるため、縦の低い画面（PCの非全画面ウィンドウなど）では
+      // スクロールする前から候補ボタンにバーが重なって見えていた。
+      //
+      // height は「この要素より上（親 main の pt-2）」と「下端の話しかけるバー
+      // の分（paddingBottom と同じ式）」を両方引く。paddingBottom だけでは、
+      // 中身がその場に収まってしまう高さのときスクロールが発生せず、
+      // バーの領域まで普通に描画されて隠れてしまうため、
+      // 「バーの領域には最初から描画させない」ところまで height 側でも絞る
+      className="flex h-[calc(100dvh-0.5rem-var(--safe-bottom,0px)-var(--nav-bar-height)-6rem)] w-full flex-col gap-3 overflow-y-auto px-4 pt-3"
       // 下端に固定した「話しかける」とナビゲーションバーの分だけ空ける。
       // ここを決め打ちにすると、ホームインジケータのある端末で本文が隠れる
       style={{ paddingBottom: "calc(var(--safe-bottom, 0px) + var(--nav-bar-height) + 6rem)" }}
@@ -742,10 +756,10 @@ export default function ConsultStage({
         </div>
       )}
 
-      {/* 音声は大きく、文字は最後の手段として小さく。
+      {/* 文字入力を大きく既定にし、音声は選べる小さいボタンにする。
           音声シートが出ている間と応答待ちの間は、押すべきものが2つにならないよう隠す */}
       <div
-        className={`fixed inset-x-0 z-20 flex items-center justify-center gap-3 px-4 ${
+        className={`fixed inset-x-0 z-20 mx-auto flex items-center justify-center gap-3 px-4 md:max-w-3xl ${
           revealClass(280).className
         } ${speech.isListening || phase !== "idle" || isBusy ? "hidden" : ""}`}
         style={{
@@ -767,33 +781,56 @@ export default function ConsultStage({
           }}
         />
 
+        {/* 文字入力を既定にする。タップして開く一段階を挟まず、
+            最初から入力欄を出しておく。音声は騒がしい現地では速いが、
+            静かな場所や周りに人がいるときは声を出しにくいため */}
+        <div className="flex flex-1 items-center gap-2 rounded-full border border-amber-200 bg-white/95 py-1.5 pl-5 pr-1.5 shadow-lg">
+          <input
+            ref={textInputRef}
+            type="text"
+            value={typed}
+            onChange={(event) => setTyped(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key !== "Enter" || isBusy) return;
+              const question = typed.trim();
+              if (!question) return;
+              event.preventDefault();
+              setTyped("");
+              void ask(question, "input");
+            }}
+            placeholder="（例）今の旬の果物は？"
+            disabled={isBusy}
+            className="min-w-0 flex-1 bg-transparent py-2.5 text-base text-slate-800 outline-none placeholder:text-slate-400 disabled:opacity-50"
+          />
+          <button
+            type="button"
+            disabled={isBusy || !typed.trim()}
+            onClick={() => {
+              const question = typed.trim();
+              setTyped("");
+              void ask(question, "input");
+            }}
+            aria-label="聞く"
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-amber-500 to-orange-500 text-white shadow-sm transition disabled:opacity-40"
+          >
+            <Send className="h-4 w-4" aria-hidden="true" />
+          </button>
+        </div>
         {speech.isSupported && (
           <button
             type="button"
             onClick={handleMicTap}
             disabled={isBusy}
-            className={`flex flex-1 items-center justify-center gap-2 rounded-full px-6 py-4 text-base font-bold shadow-lg transition disabled:opacity-50 ${
+            aria-label={speech.isListening ? "とめる" : "音声で聞く"}
+            className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-full shadow-lg transition disabled:opacity-50 ${
               speech.isListening
                 ? "bg-red-500 text-white"
-                : "bg-gradient-to-br from-amber-500 to-orange-500 text-white"
+                : "border border-amber-200 bg-white/95 text-amber-800"
             }`}
           >
             <Mic className="h-5 w-5" aria-hidden="true" />
-            {speech.isListening ? "とめる" : "話しかける"}
           </button>
         )}
-        <button
-          type="button"
-          onClick={openTextInput}
-          disabled={isBusy}
-          aria-label="文字で聞く"
-          className={`flex items-center justify-center rounded-full border border-amber-200 bg-white/95 text-amber-800 shadow-lg disabled:opacity-50 ${
-            speech.isSupported ? "h-14 w-14" : "flex-1 gap-2 px-6 py-4 text-base font-bold"
-          }`}
-        >
-          <Keyboard className="h-5 w-5" aria-hidden="true" />
-          {!speech.isSupported && "文字で聞く"}
-        </button>
       </div>
 
       {/*
@@ -815,7 +852,7 @@ export default function ConsultStage({
           />
 
           <div
-            className="relative rounded-t-3xl bg-white px-4 pt-4 shadow-2xl"
+            className="relative mx-auto rounded-t-3xl bg-white px-4 pt-4 shadow-2xl md:max-w-md"
             style={{ paddingBottom: "calc(var(--safe-bottom, 0px) + 5rem)" }}
           >
             <div className="mb-3 flex items-center justify-between">
@@ -897,50 +934,6 @@ export default function ConsultStage({
         </div>
       )}
 
-      {/* 文字入力は最後の手段なので、普段は畳んでおく */}
-      {textOpen && (
-        <div className="fixed inset-0 z-40 flex flex-col justify-end">
-          <div
-            className="absolute inset-0 bg-black/30"
-            onClick={() => setTextOpen(false)}
-            aria-hidden="true"
-          />
-          <div
-            className="relative rounded-t-3xl bg-white p-4"
-            style={{ paddingBottom: "calc(var(--safe-bottom, 0px) + 5rem)" }}
-          >
-            <div className="mb-2 flex items-center justify-between">
-              <p className="text-sm font-bold text-amber-900">文字で聞く</p>
-              <button type="button" onClick={() => setTextOpen(false)} aria-label="閉じる">
-                <X className="h-5 w-5 text-slate-400" aria-hidden="true" />
-              </button>
-            </div>
-            <textarea
-              ref={textInputRef}
-              value={typed}
-              onChange={(event) => setTyped(event.target.value)}
-              rows={3}
-              placeholder="（例）今の旬の果物は？"
-              className="w-full rounded-2xl border border-amber-200 p-3 text-base text-slate-800 outline-none focus:border-amber-400"
-            />
-            <button
-              type="button"
-              disabled={!typed.trim()}
-              onClick={() => {
-                const question = typed.trim();
-                setTextOpen(false);
-                setTyped("");
-                void ask(question, "input");
-              }}
-              className="mt-2 flex w-full items-center justify-center gap-2 rounded-full bg-gradient-to-br from-amber-500 to-orange-500 px-6 py-4 text-base font-bold text-white disabled:opacity-40"
-            >
-              <Send className="h-4 w-4" aria-hidden="true" />
-              聞く
-            </button>
-          </div>
-        </div>
-      )}
-
       {/*
         過去の相談。消えたのではなく畳まれているだけ、と分かるようにする。
 
@@ -957,7 +950,7 @@ export default function ConsultStage({
             aria-hidden="true"
           />
 
-          <div className="relative flex max-h-[85dvh] flex-col overflow-hidden rounded-t-3xl bg-white">
+          <div className="relative mx-auto flex max-h-[85dvh] flex-col overflow-hidden rounded-t-3xl bg-white md:max-w-md">
             <div className="flex shrink-0 items-center justify-between border-b border-amber-100 px-4 py-3">
               <p className="text-sm font-bold text-amber-900">
                 これまでの相談（{entries.length}件）
