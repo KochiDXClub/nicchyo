@@ -738,15 +738,6 @@ const MapView = memo(function MapView({
     }
   }, [initialShopId, openInitialShopBanner, shops]);
 
-  // ShopScanCards のカードがタップされたとき。マーカータップと同じ状態にする
-  useEffect(() => {
-    if (!focusShopRequest) return;
-    const shop = shops.find((s) => s.id === focusShopRequest.shopId);
-    if (shop) setSelectedShop(shop);
-    // token が変わったときだけ開き直す（同じ店を続けてタップできるように）
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [focusShopRequest?.token]);
-
   useEffect(() => {
     setDisplayShops(sourceShops);
   }, [sourceShops]);
@@ -792,6 +783,18 @@ const MapView = memo(function MapView({
   // - ViewMode に応じて段階的にズームアップ
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   // ランドマーク（電停・駅・建物）のタップ：店舗バナーを閉じてスポットカードに渡す
+  // ShopScanCards のカードがタップされたとき。
+  // setSelectedShop を直に呼ぶとバナーのセッション番号と初期サーフェスの更新を
+  // 飛ばしてしまい、直前の操作によっては前回の状態のまま開く。マーカーを
+  // タップしたときとまったく同じ経路（handleShopClick）を通す
+  useEffect(() => {
+    if (!focusShopRequest) return;
+    const shop = shops.find((s) => s.id === focusShopRequest.shopId);
+    if (shop) handleShopClick(shop);
+    // token が変わったときだけ開き直す（同じ店を続けてタップできるように）
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusShopRequest?.token]);
+
   const handleLandmarkClick = useCallback(
     (landmark: Landmark) => {
       setSelectedShop(null);
