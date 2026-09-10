@@ -194,6 +194,13 @@ export type MapViewProps = {
    * ことになるのを避ける。
    */
   suppressLandmarks?: boolean;
+  /**
+   * true のとき、マーカーの木札（店名）と屋根の上の写真窓を伏せる。
+   * ShopScanCards が同じ店の写真と名前を上に重ねているあいだに使う。
+   * 両方出すと、同じ店の写真が2枚並び、店名も2箇所に出てしまう。
+   * 屋台のイラスト自体は残すので、マーカーが消えたようには見えない。
+   */
+  suppressShopNameplates?: boolean;
   /** 現在地ボタンの top 位置（px）。検索エリアの実際の高さに合わせて親から渡す */
   trackingButtonTop?: number;
   /**
@@ -540,6 +547,7 @@ const MapView = memo(function MapView({
   overlaySlot,
   hideMapUI = false,
   suppressLandmarks = false,
+  suppressShopNameplates = false,
   trackingButtonTop,
   onGestureActiveChange,
 }: MapViewProps = {}) {
@@ -1147,7 +1155,7 @@ const MapView = memo(function MapView({
 
   return (
     <div
-      className={`relative h-full w-full overflow-hidden${spotlightShopId ? " map-spotlight-mode" : ""}${activeHighlightShopIds && activeHighlightShopIds.length > 0 ? " map-search-spotlight-mode" : ""}`}
+      className={`relative h-full w-full overflow-hidden${spotlightShopId ? " map-spotlight-mode" : ""}${activeHighlightShopIds && activeHighlightShopIds.length > 0 ? " map-search-spotlight-mode" : ""}${suppressShopNameplates ? " map-scan-cards-active" : ""}`}
       style={{
       ["--map-rotation-inverse" as string]: `${-mapRotation}deg`,
       }}

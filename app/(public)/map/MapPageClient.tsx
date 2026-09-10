@@ -28,6 +28,7 @@ import { getOrCreateConsultVisitorKey } from "../../../lib/consultVisitorKey";
 import MarketStatusBar from "../../components/market/MarketStatusBar";
 import { useMarketCalendar } from "../../../lib/market/useMarketCalendar";
 import MapCharacterConsult from "./components/MapCharacterConsult";
+import ShopScanCards from "./components/ShopScanCards";
 import NearbyExploreButton from "./components/NearbyExploreButton";
 import NearbyExplorePanel, {
   type NearbyRecommendedShop,
@@ -325,6 +326,7 @@ export default function MapPageClient({
   const dragControls = useDragControls();
   const [mapCharacterConsultActive, setMapCharacterConsultActive] = useState(false);
   const [mapInstance, setMapInstance] = useState<LeafletMap | null>(null);
+  const [scanCardsActive, setScanCardsActive] = useState(false);
   const mapRef = useRef<LeafletMap | null>(null);
   const introFocusTimerRef = useRef<number | null>(null);
   const [searchMarkerPayload, setSearchMarkerPayload] = useState<{
@@ -1047,6 +1049,8 @@ export default function MapPageClient({
               hideMapUI={mapCharacterConsultActive || !!nearbyState}
               // おでかけサポート案内中は GuideLayer 側のマーカーだけを見せる
               suppressLandmarks={guideActive}
+              // ShopScanCards が写真と名前を重ねているあいだは、マーカー側の木札と写真窓を伏せる
+              suppressShopNameplates={scanCardsActive}
               trackingButtonTop={trackingButtonTop}
               onGestureActiveChange={setIsMapGestureActive}
               overlaySlot={
@@ -1071,6 +1075,20 @@ export default function MapPageClient({
                     onClose={closeNearbyPanel}
                   />
                 ) : undefined
+              }
+            />
+
+            {/* 地図を動かしているあいだだけ、屋台マーカーの上に写真と名前を重ねる。
+                静止時は地図の絵を優先し、探しているときだけ情報を前に出す */}
+            <ShopScanCards
+              map={mapInstance}
+              shops={shops}
+              onActiveChange={setScanCardsActive}
+              enabled={
+                !mapCharacterConsultActive &&
+                !nearbyState &&
+                !guideActive &&
+                !isShopBannerOpen
               }
             />
 

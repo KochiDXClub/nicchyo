@@ -328,6 +328,7 @@ export default function MapViewMapLibre({
   trackingButtonTop,
   hideMapUI = false,
   suppressLandmarks = false,
+  suppressShopNameplates = false,
   onUserLocationUpdate,
   suppressInitialLocationFocus = false,
   onClearSearch,
@@ -1163,6 +1164,18 @@ export default function MapViewMapLibre({
       if (map.getLayer(id)) map.setLayoutProperty(id, "visibility", visibility);
     }
   }, [mapLoaded, suppressLandmarks]);
+
+  // ShopScanCards が同じ店の写真と名前を上に重ねているあいだは、
+  // マーカー側の木札と屋根の上の写真窓を伏せる（同じ店の写真が2枚並ぶのを避ける）。
+  // 屋台のスプライト自体は残すので、マーカーが消えたようには見えない
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapLoaded) return;
+    const visibility = suppressShopNameplates ? "none" : "visible";
+    for (const id of [LAYER_SHOP_NAMEPLATES, LAYER_SHOP_PHOTOS]) {
+      if (map.getLayer(id)) map.setLayoutProperty(id, "visibility", visibility);
+    }
+  }, [mapLoaded, suppressShopNameplates]);
 
   // ---- 計測の橋渡し（?perf=1 のときだけ） ----
   useEffect(() => {

@@ -1749,3 +1749,14 @@ body.home-poster-zoom-open .hamburger-button {
     transform: none !important;
   }
 }
+
+/* ShopScanCards が同じ店の写真と名前をマーカーの上に重ねているあいだは、
+   マーカー側の木札と写真窓を伏せる（同じ店の写真が2枚並ぶのを避ける）。
+   屋台のイラスト自体は残すので、マーカーが消えたようには見えない。
+   MapLibre 版はシンボルレイヤーなので CSS では消せず、
+   MapViewMapLibre 側で visibility を切り替えている。 */
+.map-scan-cards-active .shop-nameplate,
+.map-scan-cards-active .shop-product-icon {
+  opacity: 0;
+  transition: opacity 200ms ease-out;
+}
