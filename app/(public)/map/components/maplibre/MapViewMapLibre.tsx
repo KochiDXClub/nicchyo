@@ -976,12 +976,19 @@ export default function MapViewMapLibre({
         },
       });
 
-      // 木札（店名）: nameplate LOD（maxZoom-0.8）以上。道の外側へ出し、重なるものは自動で間引く
+      // 木札（店名）: 対象が絞れている店だけに出す。
+      //
+      // 以前は nameplate LOD 以上の全店に出していたが、店名は「すでに対象を持っている
+      // とき（検索・AI・選択）」に要るもので、通りを流し見しているときに答えになるのは
+      // 写真のほう。日曜市には店名を持たない店も多い。全店に出すと、道の外側へ伸びた札が
+      // 画面端で切れる（390px 幅では中心から 238px 必要なのに 195px しかない）うえ、
+      // 静止時の地図が文字で埋まる。探しているあいだは ShopScanCards が写真ごと前に出す。
       map.addLayer({
         id: LAYER_SHOP_NAMEPLATES,
         type: "symbol",
         source: SRC_SHOPS,
         minzoom: MAX_ZOOM + SHOP_MARKER_LOD_OFFSETS.nameplate,
+        filter: ["match", ["get", "state"], ["search", "ai", "selected"], true, false],
         layout: {
           "text-field": ["get", "name"],
           "text-font": TEXT_FONT,
