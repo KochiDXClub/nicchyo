@@ -126,8 +126,27 @@ export default function ShopScanCards({
     return () => clearTimeout(timer);
   }, [shown]);
 
-  // 写真を先読みしておく。初回のパンでデコードが一斉に走ると、
-  // カードが1枚ずつ遅れて現れて出方が乱れる
+  /**
+   * 写真が描ける状態になった URL。
+   *
+   * カードは写真が主役なので、写真が無い枠が先に出るのは避けたい。固定の待ち時間で
+   * ごまかすと、回線が遅ければ間に合わず、速ければ無駄に待つことになる。
+   * 読み込みが終わったものから順に出す。
+   * 店舗ではなく URL で持つのは、同じ写真を多くの店で使い回しているため
+   * （1枚読めれば、それを使う店のカードはすべて出せる）。
+   */
+  const [loadedPhotos, setLoadedPhotos] = useState<ReadonlySet<string>>(() => new Set());
+  const loadedPhotosRef = useRef<ReadonlySet<string>>(loadedPhotos);
+
+  const markPhotoLoaded = useCallback((url: string) => {
+    if (loadedPhotosRef.current.has(url)) return;
+    const next = new Set(loadedPhotosRef.current);
+    next.add(url);
+    loadedPhotosRef.current = next;
+    setLoadedPhotos(next);
+  }, []);
+
+  // 写真を先読みしておく。パンを始めた時点で読み終わっていれば、待たずに出せる
   useEffect(() => {
     if (typeof window === "undefined" || shops.length === 0) return;
     const urls = new Set<string>();
@@ -138,13 +157,20 @@ export default function ShopScanCards({
     const images = [...urls].map((url) => {
       const image = new window.Image();
       image.decoding = "async";
+      // 読めなかったものも「済み」にする。そうしないとそのカードが永久に出ない
+      image.onload = () => markPhotoLoaded(url);
+      image.onerror = () => markPhotoLoaded(url);
       image.src = url;
+      if (image.complete && image.naturalWidth > 0) markPhotoLoaded(url);
       return image;
     });
     return () => {
-      for (const image of images) image.src = "";
+      for (const image of images) {
+        image.onload = null;
+        image.onerror = null;
+      }
     };
-  }, [shops]);
+  }, [shops, markPhotoLoaded]);
 
   const shopById = useMemo(() => {
     const m = new Map<number, Shop>();
@@ -328,6 +354,9 @@ export default function ShopScanCards({
         if (!shop) return null;
         const point = pointsRef.current.get(id);
         const roof = resolveStallColors(shop.category, sanitizeCssColor(shop.illustration?.color));
+        const photo = resolvePhoto(shop);
+        // 写真が描けるようになったカードだけ出す
+        const photoReady = loadedPhotos.has(photo);
         return (
           <div
             key={id}
@@ -342,9 +371,11 @@ export default function ShopScanCards({
             }}
           >
             {/* 位置は外側、出入りの見た目は内側。transform を取り合わないよう分ける。
-                出現は CSS アニメーション（マウント時に走る）、消えるときは層ごとフェード */}
+                出現は写真が読めてからクラスを付けて走らせる。消えるときは層ごとフェード */}
             <div
-              className="nicchyo-scan-card relative h-full w-full overflow-hidden rounded-[14px]"
+              className={`relative h-full w-full overflow-hidden rounded-[14px] ${
+                photoReady ? "nicchyo-scan-card" : "opacity-0"
+              }`}
               style={{
                 // 写真が読めなかったときに白い穴が空かないよう、屋根の淡い色を下敷きにする
                 backgroundColor: roof.light,
@@ -357,10 +388,17 @@ export default function ShopScanCards({
                   最適化エンドポイントを挟まない素の img で出す。読み込むのは
                   地図側でも使っている小さな webp なので最適化の利得も薄い */}
               <img
-                src={resolvePhoto(shop)}
+                src={photo}
                 alt=""
                 decoding="async"
                 draggable={false}
+                onLoad={() => markPhotoLoaded(photo)}
+                // 読めなかったものも「済み」にする。そうしないとカードが永久に出ない
+                onError={() => markPhotoLoaded(photo)}
+                ref={(el) => {
+                  // キャッシュ済みだと onLoad が付く前に発火し終えていることがある
+                  if (el?.complete && el.naturalWidth > 0) markPhotoLoaded(photo);
+                }}
                 className="absolute inset-0 h-full w-full object-cover"
               />
               {shop.name ? (
