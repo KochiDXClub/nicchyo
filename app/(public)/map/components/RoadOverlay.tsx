@@ -11,6 +11,7 @@ import {
   ROAD_STYLE,
   getRoadCorridorHalfWidthMeters,
   getRoadEdgeWeight,
+  ROAD_LANE_DASH_ZOOM_STEP,
   getRoadLaneDashArray,
   getRoadLaneWeight,
 } from '../config/roadStyle';
@@ -314,7 +315,7 @@ function RoadSurface({
           color: ROAD_STYLE.laneColor,
           weight: laneWeight,
           opacity: ROAD_STYLE.laneOpacity,
-          dashArray: getRoadLaneDashArray(laneWeight),
+          dashArray: getRoadLaneDashArray(zoom),
           lineCap: 'butt',
           lineJoin: 'round',
         }}
@@ -362,18 +363,12 @@ function RoadSurface({
  */
 function useQuantizedRoadZoom(): number {
   const map = useMap();
-  const [zoom, setZoom] = useState(() => map.getZoom());
+  const [zoom, setZoom] = useState(() => quantizeRoadZoom(map.getZoom()));
 
   useEffect(() => {
     const onZoom = () => {
-      const next = map.getZoom();
-      // 縁と中央線のどちらの段階も変わらないズーム移動では state を据え置く
-      setZoom((prev) =>
-        getRoadEdgeWeight(prev) === getRoadEdgeWeight(next) &&
-        getRoadLaneWeight(prev) === getRoadLaneWeight(next)
-          ? prev
-          : next
-      );
+      const next = quantizeRoadZoom(map.getZoom());
+      setZoom((prev) => (prev === next ? prev : next));
     };
     map.on('zoomend', onZoom);
     return () => {
@@ -382,6 +377,15 @@ function useQuantizedRoadZoom(): number {
   }, [map]);
 
   return zoom;
+}
+
+/**
+ * 中央線の破線は実寸で決まるのでズームに連続で追従するが、zoomSnap 0.05 の刻みごとに
+ * 書き換えると DOM への書き込みが増える。MapLibre 側の step と同じ刻みに丸めて、
+ * 両者の見え方を揃えつつ書き換え回数を抑える。
+ */
+function quantizeRoadZoom(zoom: number): number {
+  return Math.round(zoom / ROAD_LANE_DASH_ZOOM_STEP) * ROAD_LANE_DASH_ZOOM_STEP;
 }
 
 export default memo(RoadOverlay);

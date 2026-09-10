@@ -58,10 +58,12 @@ import {
 import { getRecommendedZoomBounds } from "../../config/roadConfig";
 import {
   ROAD_EDGE_WEIGHT_STOPS,
-  ROAD_LANE_DASH_RATIO,
+  ROAD_LANE_DASH_ZOOM_RANGE,
+  ROAD_LANE_DASH_ZOOM_STEP,
   ROAD_LANE_WEIGHT_STOPS,
   ROAD_STYLE,
   getRoadCorridorHalfWidthMeters,
+  getRoadLaneDashUnits,
 } from "../../config/roadStyle";
 import {
   DEFAULT_MAP_VIEW_SETTINGS,
@@ -231,6 +233,30 @@ function buildRasterStyle(tileOpacityByZoom: boolean, minZoom: number): StyleSpe
       },
     ],
   };
+}
+
+/**
+ * 中央線の破線を step 式で組み立てる。
+ *
+ * 破線の長さは実寸（メートル）で決まるのでズームに連続で変わるが、
+ * line-dasharray は interpolate に対応していない。Leaflet 側と同じ刻みで
+ * 段階を刻み、両者の見え方を揃える。
+ */
+function buildLaneDashExpression(): ExpressionSpecification {
+  // 出力が配列なので ["literal", [...]] で包む。そのまま渡すと MapLibre が
+  // 式として解釈しようとして "Expression name must be a string" で落ちる
+  const dash = (zoom: number) => ["literal", getRoadLaneDashUnits(zoom)];
+  const [minZoom, maxZoom] = ROAD_LANE_DASH_ZOOM_RANGE;
+  const stops: unknown[] = [];
+  for (let zoom = minZoom + ROAD_LANE_DASH_ZOOM_STEP; zoom <= maxZoom; zoom += ROAD_LANE_DASH_ZOOM_STEP) {
+    stops.push(zoom + ZOOM_OFFSET, dash(zoom));
+  }
+  return [
+    "step",
+    ["zoom"],
+    dash(minZoom),
+    ...stops,
+  ] as unknown as ExpressionSpecification;
 }
 
 /** 道の向きに合わせた bearing（Leaflet 版の自動回転と同じく、道が縦になる向き） */
@@ -660,8 +686,9 @@ export default function MapViewMapLibre({
               width,
             ]),
           ] as ExpressionSpecification,
-          // line-dasharray は線幅を単位に取る。Leaflet 側も同じ比率を px に直している
-          "line-dasharray": [...ROAD_LANE_DASH_RATIO],
+          // 破線は実寸（メートル）なのでズームで長さが変わる。line-dasharray は
+          // interpolate に対応していないため、Leaflet 側と同じ刻みの step で近似する
+          "line-dasharray": buildLaneDashExpression(),
         },
       });
       map.addLayer({
