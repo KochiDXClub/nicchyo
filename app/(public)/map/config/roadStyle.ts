@@ -83,14 +83,63 @@ export const ROAD_LANE_WEIGHT_STOPS: ReadonlyArray<readonly [number, number]> = 
 ];
 
 /**
- * 中央線の破線パターン（線幅に対する倍率で [線, 空白]）。
+ * 中央線の破線の実寸（メートル）で [線, 空白]。
  *
- * MapLibre の line-dasharray は線幅を単位に取るため、Leaflet 側も線幅を掛けて
- * px に直す。こうしないと線幅を変えたときに両者の破線の見え方がズレる。
+ * 以前は線幅に対する倍率で持っていたが、線幅はズームで 1〜2px しか変わらないので
+ * 破線の長さが画面上でほぼ一定になり、道が大きくなる拡大時ほど相対的に短く見えていた。
+ * 実際の車線境界線は実寸で決まっているので、こちらも実寸で持ってズームに追従させる。
  */
-export const ROAD_LANE_DASH_RATIO: readonly [number, number] = [12, 5];
+export const ROAD_LANE_DASH_METERS: readonly [number, number] = [5, 2.5];
+
+/** 引いたときに破線が潰れて点線に見えなくならないための下限（px） */
+const ROAD_LANE_DASH_MIN_PX = 6;
+
+/** 破線の長さを実寸で決めるときの基準緯度（追手筋の中心線） */
+const ROAD_REFERENCE_LATITUDE = 33.5614118;
+
+/** ズーム0・256px タイルでの m/px。Leaflet と MapLibre で同じ尺度になる */
+const METERS_PER_PIXEL_AT_ZOOM_0 = 156543.03392;
+
+/** Leaflet のズームでの 1m あたりのピクセル数 */
+function getPixelsPerMeter(zoom: number): number {
+  const metersPerPixel =
+    (METERS_PER_PIXEL_AT_ZOOM_0 * Math.cos((ROAD_REFERENCE_LATITUDE * Math.PI) / 180)) /
+    Math.pow(2, zoom);
+  return 1 / metersPerPixel;
+}
+
+/**
+ * 中央線の破線を px で返す（Leaflet のズーム基準）。
+ *
+ * 実寸どおりだと引いたときに 1px を割って破線が消えるので、
+ * 下限を割る場合だけ線と空白を同じ比率で引き伸ばす。
+ */
+export function getRoadLaneDashPx(zoom: number): [number, number] {
+  const pixelsPerMeter = getPixelsPerMeter(zoom);
+  const [dashMeters, gapMeters] = ROAD_LANE_DASH_METERS;
+  const dashPx = dashMeters * pixelsPerMeter;
+  const scale = Math.max(1, ROAD_LANE_DASH_MIN_PX / dashPx);
+  return [dashPx * scale, gapMeters * pixelsPerMeter * scale];
+}
 
 /** Leaflet の dashArray（px 指定）に変換する */
-export function getRoadLaneDashArray(weight: number): string {
-  return ROAD_LANE_DASH_RATIO.map((ratio) => ratio * weight).join(',');
+export function getRoadLaneDashArray(zoom: number): string {
+  return getRoadLaneDashPx(zoom)
+    .map((px) => px.toFixed(1))
+    .join(',');
+}
+
+/**
+ * MapLibre の line-dasharray（線幅を単位に取る）に変換する。
+ *
+ * line-dasharray は interpolate に対応していないため、MapLibre 側は step で
+ * 段階的に近似する。その段階の刻み。
+ */
+export const ROAD_LANE_DASH_ZOOM_STEP = 0.5;
+export const ROAD_LANE_DASH_ZOOM_RANGE: readonly [number, number] = [15, 21];
+
+export function getRoadLaneDashUnits(zoom: number): [number, number] {
+  const weight = getRoadLaneWeight(zoom);
+  const [dashPx, gapPx] = getRoadLaneDashPx(zoom);
+  return [dashPx / weight, gapPx / weight];
 }
