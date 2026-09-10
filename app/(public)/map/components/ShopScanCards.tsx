@@ -58,6 +58,11 @@ const CARD_GAP = 8;
 /** 画面の外どれだけまで先読みして出すか */
 const VIEWPORT_MARGIN = 160;
 
+/** これ以上動いていたらドラッグ（パン）とみなしてタップにしない */
+const TAP_MOVE_TOLERANCE_PX = 8;
+/** これより長く押していたらタップにしない */
+const TAP_MAX_DURATION_MS = 700;
+
 /**
  * ズームからカードの高さを決める。
  *
@@ -86,6 +91,7 @@ export default function ShopScanCards({
   shops,
   enabled = true,
   onActiveChange,
+  onSelectShop,
 }: {
   map: MapCamera | null;
   shops: Shop[];
@@ -93,6 +99,8 @@ export default function ShopScanCards({
   enabled?: boolean;
   /** カードが出ている / 消えたときに呼ばれる。マーカー側の木札と写真窓を伏せるのに使う */
   onActiveChange?: (active: boolean) => void;
+  /** カードがタップされたとき。マーカーをタップしたのと同じ扱いにする */
+  onSelectShop?: (shop: Shop) => void;
 }) {
   const [shown, setShown] = useState(false);
   const [visibleIds, setVisibleIds] = useState<number[]>([]);
@@ -150,6 +158,66 @@ export default function ShopScanCards({
       if (holdTimer) clearTimeout(holdTimer);
     };
   }, [map, enabled]);
+
+  /**
+   * カードのタップ判定。
+   *
+   * カード層は pointer-events: none のままにしてある。カードが当たり判定を持つと
+   * その上から始めたドラッグを地図が受け取れず、パンできなくなるため。
+   * 代わりに地図コンテナの click を拾い、押した位置からほとんど動いていない
+   * ときだけタップとみなして、カードの矩形と突き合わせる。
+   */
+  useEffect(() => {
+    if (!map || !shown || !onSelectShop) return;
+    const container = map.getContainer();
+
+    let downX = 0;
+    let downY = 0;
+    let downAt = 0;
+
+    const onPointerDown = (e: PointerEvent) => {
+      downX = e.clientX;
+      downY = e.clientY;
+      downAt = e.timeStamp;
+    };
+
+    const onClick = (e: MouseEvent) => {
+      // ドラッグの終わりにも click は飛ぶので、動いた量と時間で弾く
+      if (Math.hypot(e.clientX - downX, e.clientY - downY) > TAP_MOVE_TOLERANCE_PX) return;
+      if (e.timeStamp - downAt > TAP_MAX_DURATION_MS) return;
+
+      const rect = container.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      const height = cardHeightRef.current;
+
+      let bestId: number | null = null;
+      let bestDistance = Infinity;
+      for (const id of visibleIdsRef.current) {
+        const point = pointsRef.current.get(id);
+        if (!point) continue;
+        // カードは店舗の座標を下端として、上に伸びている
+        if (Math.abs(x - point.x) > CARD_WIDTH / 2) continue;
+        if (y < point.y - height || y > point.y) continue;
+        // 隣のカードとわずかに重なる場合に備えて、中心が近いほうを採る
+        const distance = Math.hypot(x - point.x, y - (point.y - height / 2));
+        if (distance < bestDistance) {
+          bestDistance = distance;
+          bestId = id;
+        }
+      }
+      if (bestId === null) return;
+      const shop = shopById.get(bestId);
+      if (shop) onSelectShop(shop);
+    };
+
+    container.addEventListener("pointerdown", onPointerDown, { passive: true });
+    container.addEventListener("click", onClick);
+    return () => {
+      container.removeEventListener("pointerdown", onPointerDown);
+      container.removeEventListener("click", onClick);
+    };
+  }, [map, shown, onSelectShop, shopById]);
 
   // 出ているあいだだけ、毎フレーム位置を更新する
   useEffect(() => {

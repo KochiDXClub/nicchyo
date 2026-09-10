@@ -327,6 +327,12 @@ export default function MapPageClient({
   const [mapCharacterConsultActive, setMapCharacterConsultActive] = useState(false);
   const [mapInstance, setMapInstance] = useState<LeafletMap | null>(null);
   const [scanCardsActive, setScanCardsActive] = useState(false);
+  // ShopScanCards のカードがタップされたときに、詳細バナーを開くよう地図へ渡す要求。
+  // 同じ店を続けてタップしても開き直せるよう token を進める
+  const [focusShopRequest, setFocusShopRequest] = useState<{ shopId: number; token: number } | null>(null);
+  const handleScanCardSelect = useCallback((shop: Shop) => {
+    setFocusShopRequest((prev) => ({ shopId: shop.id, token: (prev?.token ?? 0) + 1 }));
+  }, []);
   const mapRef = useRef<LeafletMap | null>(null);
   const introFocusTimerRef = useRef<number | null>(null);
   const [searchMarkerPayload, setSearchMarkerPayload] = useState<{
@@ -1051,6 +1057,7 @@ export default function MapPageClient({
               suppressLandmarks={guideActive}
               // ShopScanCards が写真と名前を重ねているあいだは、マーカー側の木札と写真窓を伏せる
               suppressShopNameplates={scanCardsActive}
+              focusShopRequest={focusShopRequest}
               trackingButtonTop={trackingButtonTop}
               onGestureActiveChange={setIsMapGestureActive}
               overlaySlot={
@@ -1084,6 +1091,7 @@ export default function MapPageClient({
               map={mapInstance}
               shops={shops}
               onActiveChange={setScanCardsActive}
+              onSelectShop={handleScanCardSelect}
               enabled={
                 !mapCharacterConsultActive &&
                 !nearbyState &&

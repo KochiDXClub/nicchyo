@@ -201,6 +201,12 @@ export type MapViewProps = {
    * 屋台のイラスト自体は残すので、マーカーが消えたようには見えない。
    */
   suppressShopNameplates?: boolean;
+  /**
+   * 外から店舗の詳細バナーを開く要求。マーカーをタップしたときと同じ状態にする。
+   * 同じ店を続けてタップしても開き直せるよう、id ではなく token の変化で発火させる。
+   * ShopScanCards のカードをタップしたときに使う。
+   */
+  focusShopRequest?: { shopId: number; token: number } | null;
   /** 現在地ボタンの top 位置（px）。検索エリアの実際の高さに合わせて親から渡す */
   trackingButtonTop?: number;
   /**
@@ -548,6 +554,7 @@ const MapView = memo(function MapView({
   hideMapUI = false,
   suppressLandmarks = false,
   suppressShopNameplates = false,
+  focusShopRequest = null,
   trackingButtonTop,
   onGestureActiveChange,
 }: MapViewProps = {}) {
@@ -738,6 +745,15 @@ const MapView = memo(function MapView({
       }
     }
   }, [initialShopId, openInitialShopBanner, shops]);
+
+  // ShopScanCards のカードがタップされたとき。マーカータップと同じ状態にする
+  useEffect(() => {
+    if (!focusShopRequest) return;
+    const shop = shops.find((s) => s.id === focusShopRequest.shopId);
+    if (shop) setSelectedShop(shop);
+    // token が変わったときだけ開き直す（同じ店を続けてタップできるように）
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusShopRequest?.token]);
 
   useEffect(() => {
     setDisplayShops(sourceShops);
