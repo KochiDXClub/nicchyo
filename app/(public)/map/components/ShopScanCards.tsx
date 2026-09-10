@@ -63,6 +63,11 @@ const TAP_MOVE_TOLERANCE_PX = 8;
 /** これより長く押していたらタップにしない */
 const TAP_MAX_DURATION_MS = 700;
 
+/** 消えるときのフェード時間。globals.css の出現アニメーションと対になる */
+const FADE_OUT_MS = 200;
+/** 写真を先読みする最大枚数（同じ画像を使い回すので実際はもっと少ない） */
+const PRELOAD_LIMIT = 24;
+
 /**
  * ズームからカードの高さを決める。
  *
@@ -109,6 +114,37 @@ export default function ShopScanCards({
   useEffect(() => {
     onActiveChange?.(shown);
   }, [shown, onActiveChange]);
+
+  // フェードアウトが終わったらカードを外す。
+  // 残したままだと、次に出るときマウント済みで出現アニメーションが走らない
+  useEffect(() => {
+    if (shown) return;
+    const timer = setTimeout(() => {
+      visibleIdsRef.current = [];
+      setVisibleIds([]);
+    }, FADE_OUT_MS);
+    return () => clearTimeout(timer);
+  }, [shown]);
+
+  // 写真を先読みしておく。初回のパンでデコードが一斉に走ると、
+  // カードが1枚ずつ遅れて現れて出方が乱れる
+  useEffect(() => {
+    if (typeof window === "undefined" || shops.length === 0) return;
+    const urls = new Set<string>();
+    for (const shop of shops) {
+      urls.add(resolvePhoto(shop));
+      if (urls.size >= PRELOAD_LIMIT) break;
+    }
+    const images = [...urls].map((url) => {
+      const image = new window.Image();
+      image.decoding = "async";
+      image.src = url;
+      return image;
+    });
+    return () => {
+      for (const image of images) image.src = "";
+    };
+  }, [shops]);
 
   const shopById = useMemo(() => {
     const m = new Map<number, Shop>();
@@ -280,7 +316,13 @@ export default function ShopScanCards({
   if (visibleIds.length === 0) return null;
 
   return (
-    <div className="pointer-events-none absolute inset-0 z-[400] overflow-hidden" aria-hidden="true">
+    <div
+      className={`pointer-events-none absolute inset-0 z-[400] overflow-hidden transition-opacity ease-out ${
+        shown ? "opacity-100" : "opacity-0"
+      }`}
+      style={{ transitionDuration: `${FADE_OUT_MS}ms` }}
+      aria-hidden="true"
+    >
       {visibleIds.map((id) => {
         const shop = shopById.get(id);
         if (!shop) return null;
@@ -299,11 +341,10 @@ export default function ShopScanCards({
                 : "translate3d(-9999px, -9999px, 0)",
             }}
           >
-            {/* 位置は外側、出入りの見た目は内側。transform を取り合わないよう分ける */}
+            {/* 位置は外側、出入りの見た目は内側。transform を取り合わないよう分ける。
+                出現は CSS アニメーション（マウント時に走る）、消えるときは層ごとフェード */}
             <div
-              className={`relative h-full w-full overflow-hidden rounded-[14px] transition-[opacity,transform] duration-200 ease-out ${
-                shown ? "scale-100 opacity-100" : "scale-95 opacity-0"
-              }`}
+              className="nicchyo-scan-card relative h-full w-full overflow-hidden rounded-[14px]"
               style={{
                 // 写真が読めなかったときに白い穴が空かないよう、屋根の淡い色を下敷きにする
                 backgroundColor: roof.light,
