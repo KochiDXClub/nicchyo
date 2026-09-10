@@ -27,6 +27,7 @@ import {
   LogIn,
   LogOut,
   Mail,
+  ShieldCheck,
   MessageCircle,
   Newspaper,
   Package,
@@ -82,6 +83,7 @@ const aboutMenuItems: SheetItem[] = [
   { label: "協賛・ご支援について", href: "/support", icon: HeartHandshake },
   { label: "よくある質問", href: "/faq", icon: CircleHelp },
   { label: "お問い合わせ", href: "/contact", icon: Mail },
+  { label: "プライバシーポリシー", href: "/privacy", icon: ShieldCheck },
 ];
 
 // ─── 出店者・管理者メニュー ────────────────────────────────────────────────────

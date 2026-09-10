@@ -9,7 +9,6 @@ import { PageVisibilityProvider } from "@/lib/pageVisibility/PageVisibilityConte
 import AppHeader from "./components/AppHeader";
 import MapLoadingProvider from "./components/MapLoadingProvider";
 import PageVisitTracker from "./components/PageVisitTracker";
-import CookieConsent from "./components/CookieConsent";
 import ViewportHeightUpdater from "./components/ViewportHeightUpdater";
 import { Toaster } from "@/components/admin";
 import { safeJsonLd } from "@/lib/utils/jsonLd";
@@ -90,7 +89,6 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         />
       </head>
       <body className="bg-nicchyo-base text-nicchyo-ink">
-        <CookieConsent />
         <ViewportHeightUpdater />
         <AuthProvider>
           <PageVisibilityProvider>

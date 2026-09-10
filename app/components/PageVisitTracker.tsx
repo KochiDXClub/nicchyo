@@ -3,10 +3,14 @@
 import { usePathname, useSearchParams } from "next/navigation";
 import { useEffect, useRef } from "react";
 
-import { isAnalyticsAllowed } from "@/lib/analytics/consentClient";
+import {
+  ANALYTICS_OPT_OUT_CHANGE_EVENT,
+  isAnalyticsOptedOut,
+  loadGA,
+} from "@/lib/analytics/consentClient";
 
 function sendVisit(path: string, durationSeconds: number) {
-  if (typeof window !== "undefined" && !isAnalyticsAllowed()) return;
+  if (isAnalyticsOptedOut()) return;
   const payload = JSON.stringify({ path, durationSeconds });
 
   if (typeof navigator !== "undefined" && typeof navigator.sendBeacon === "function") {
@@ -41,6 +45,22 @@ export default function PageVisitTracker() {
     }
   };
 
+  // 以前は同意バナーが GA を読み込んでいた。バナーを廃止したのでここで読み込む。
+  // 停止・再開はその場で効かせたいので、切り替えを購読して読み直す
+  // （loadGA が ga-disable も揃えるため、止めているときは読み込まず指示だけ出す）
+  useEffect(() => {
+    const sync = () => {
+      if (process.env.NODE_ENV === "production") loadGA();
+    };
+    sync();
+    window.addEventListener(ANALYTICS_OPT_OUT_CHANGE_EVENT, sync);
+    window.addEventListener("storage", sync);
+    return () => {
+      window.removeEventListener(ANALYTICS_OPT_OUT_CHANGE_EVENT, sync);
+      window.removeEventListener("storage", sync);
+    };
+  }, []);
+
   useEffect(() => {
     const search = searchParams?.toString();
     const nextPath = search ? `${pathname}?${search}` : pathname;
@@ -54,7 +74,8 @@ export default function PageVisitTracker() {
     sentRef.current = false;
     sendVisit(nextPath, 1);
 
-    // Fire GA4 page_view for SPA navigations if gtag is available
+    // 画面遷移ぶんの GA4 page_view。止めている端末では送らない
+    if (isAnalyticsOptedOut()) return;
     try {
       const w = window as Window & { gtag?: (...args: unknown[]) => void };
       if (typeof w?.gtag === "function") {
