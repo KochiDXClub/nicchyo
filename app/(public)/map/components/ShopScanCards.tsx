@@ -70,6 +70,13 @@ const VIEWPORT_MARGIN = 160;
 /** これ以下の重なりは許容する（隣り合うカードが1〜2px かすめる程度で消さない） */
 const COLLISION_TOLERANCE_PX = 3;
 
+/**
+ * 顔ぶれと重なりを取り直す間隔。
+ * 位置は毎フレーム書くが、どのカードを出すかは毎フレーム変わらない。
+ * 出入りはフェードするので、この程度の粗さでは気づかれない。
+ */
+const RECOMPUTE_INTERVAL_MS = 100;
+
 /** これ以上動いていたらドラッグ（パン）とみなしてタップにしない */
 const TAP_MOVE_TOLERANCE_PX = 8;
 /** これより長く押していたらタップにしない */
@@ -335,24 +342,44 @@ export default function ShopScanCards({
   /**
    * 位置と、出す顔ぶれの更新。
    *
-   * 地図が動いたときだけ rAF を 1 つ積む。絞り込みモードは動きに関係なく出したままに
-   * するので、常時 rAF を回すと止まっているあいだも電池を使い続けることになる。
+   * 【細かい震えを避けるための作り】
+   * 位置の書き込みは move のハンドラの中で同期的に行う。requestAnimationFrame に
+   * 逃がすと、地図のキャンバスが描かれた次のフレームで DOM が動くことになり、
+   * パンの速さによって遅れ量が変わって細かく震えて見える。MapLibre 標準の
+   * Marker も move の中で同期的に transform を書いている。
    *
-   * 重なりの回避もここで行う。カードの高さは店舗間隔から逆算しているが、それは
-   * 道が縦向きのときの話で、地図を回すと並びが変わって重なる。絞り込みモードでは
-   * 対象が離れて散らばるとも限らない。画面の中心に近いものから置いて、
-   * すでに置いたカードと重なるものは出さない。
+   * 座標は丸めない。地図はサブピクセル単位で滑らかに動くので、整数に丸めると
+   * カードだけが 1px 単位で飛び、これも震えになる。
+   *
+   * どのカードを出すか（顔ぶれ）と重なりの判定は毎フレーム要らないので、
+   * rAF で間引いて別に回す。絞り込みモードは動かなくても出したままにするので、
+   * 常時 rAF を回さないようにもしている。
    */
   useEffect(() => {
     if (!map || !shown) return;
 
     let raf = 0;
     let disposed = false;
+    let lastRecomputeAt = 0;
+    let pendingForce = false;
 
-    const update = () => {
-      raf = 0;
-      if (disposed) return;
+    /** 表示中のカードの位置だけ書き直す。move の中で同期的に呼ぶ */
+    const applyPositions = () => {
+      const height = cardHeightRef.current;
+      for (const id of visibleIdsRef.current) {
+        const shop = shopById.get(id);
+        if (!shop) continue;
+        const point = map.latLngToContainerPoint([shop.lat, shop.lng]);
+        pointsRef.current.set(id, point);
+        const node = nodesRef.current.get(id);
+        if (node) {
+          node.style.transform = `translate3d(${point.x - CARD_WIDTH / 2}px, ${point.y - height}px, 0)`;
+        }
+      }
+    };
 
+    /** 顔ぶれと重なりの判定。画面の中心に近いものから置き、重なるものは出さない */
+    const recompute = () => {
       const container = map.getContainer();
       const width = container.clientWidth;
       const height = container.clientHeight;
@@ -366,7 +393,6 @@ export default function ShopScanCards({
       }
       const currentHeight = cardHeightRef.current;
 
-      // 画面（と少しの余白）に入っているものを、中心に近い順に並べる
       const inView: Array<{ id: number; point: Point; distance: number }> = [];
       for (const shop of candidates) {
         const point = map.latLngToContainerPoint([shop.lat, shop.lng]);
@@ -406,10 +432,6 @@ export default function ShopScanCards({
         placed.push(rect);
         next.push(item.id);
         pointsRef.current.set(item.id, item.point);
-        const node = nodesRef.current.get(item.id);
-        if (node) {
-          node.style.transform = `translate3d(${Math.round(rect.x1)}px, ${Math.round(rect.y1)}px, 0)`;
-        }
       }
 
       // 顔ぶれの比較は並び順に依存しないよう、id を昇順に揃えてから行う
@@ -428,22 +450,47 @@ export default function ShopScanCards({
         visibleIdsRef.current = next;
         setVisibleIds(next);
       }
+      applyPositions();
     };
 
-    const schedule = () => {
+    const maybeRecompute = (force: boolean) => {
+      if (force) pendingForce = true;
       if (raf !== 0) return;
-      raf = requestAnimationFrame(update);
+      raf = requestAnimationFrame(() => {
+        raf = 0;
+        if (disposed) return;
+        const now = performance.now();
+        const forceNow = pendingForce;
+        pendingForce = false;
+        if (!forceNow && now - lastRecomputeAt < RECOMPUTE_INTERVAL_MS) return;
+        lastRecomputeAt = now;
+        recompute();
+      });
     };
 
-    schedule();
-    const events: MapCameraEvent[] = ["move", "zoom", "moveend", "zoomend"];
-    for (const event of events) map.on(event, schedule);
+    // 動いているあいだ: 位置は毎フレーム同期で、顔ぶれは間引いて
+    const onMove = () => {
+      applyPositions();
+      maybeRecompute(false);
+    };
+    // 止まったとき / ズームが確定したとき: 顔ぶれを必ず取り直す
+    const onSettle = () => {
+      applyPositions();
+      maybeRecompute(true);
+    };
+
+    recompute();
+    const moveEvents: MapCameraEvent[] = ["move", "zoom"];
+    const settleEvents: MapCameraEvent[] = ["moveend", "zoomend"];
+    for (const event of moveEvents) map.on(event, onMove);
+    for (const event of settleEvents) map.on(event, onSettle);
     return () => {
       disposed = true;
       if (raf !== 0) cancelAnimationFrame(raf);
-      for (const event of events) map.off(event, schedule);
+      for (const event of moveEvents) map.off(event, onMove);
+      for (const event of settleEvents) map.off(event, onSettle);
     };
-  }, [map, candidates, shown]);
+  }, [map, candidates, shown, shopById]);
 
   if (visibleIds.length === 0) return null;
 
@@ -472,7 +519,7 @@ export default function ShopScanCards({
               width: CARD_WIDTH,
               height: cardHeight,
               transform: point
-                ? `translate3d(${Math.round(point.x - CARD_WIDTH / 2)}px, ${Math.round(point.y - cardHeight)}px, 0)`
+                ? `translate3d(${point.x - CARD_WIDTH / 2}px, ${point.y - cardHeight}px, 0)`
                 : "translate3d(-9999px, -9999px, 0)",
             }}
           >
