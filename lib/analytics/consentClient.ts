@@ -8,25 +8,65 @@
 
 const ANALYTICS_OPT_OUT_KEY = "nicchyo_analytics_opt_out";
 
+/** 同意バナーがあった頃（オプトイン方式）のキー。意思を引き継ぐためだけに読む */
+const LEGACY_ANALYTICS_CONSENT_KEY = "nicchyo_analytics_consent";
+const LEGACY_LOCATION_CONSENT_KEY = "nicchyo_location_consent";
+
 /** 停止設定が変わったことを同じ画面の中で知らせる */
 export const ANALYTICS_OPT_OUT_CHANGE_EVENT = "nicchyo-analytics-opt-out-change";
 
+/** プライベートモードなどで localStorage に触れないことがある */
+function getStorage(): Storage | null {
+  if (typeof window === "undefined") return null;
+  try {
+    return window.localStorage;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * バナーで「拒否する」を選んでいた人の意思を、新しい停止設定へ引き継ぐ。
+ *
+ * 引き継ぎが済んだら旧キーは消すので、以後は新キーだけを見ればよい。
+ * 位置情報の旧キーはもう誰も読まないため、あわせて片付ける。
+ */
+function migrateLegacyConsent(storage: Storage): void {
+  try {
+    const legacy = storage.getItem(LEGACY_ANALYTICS_CONSENT_KEY);
+    if (legacy !== null) {
+      // 新しい設定を自分で決めたあとなら、そちらを優先する
+      if (legacy === "declined" && storage.getItem(ANALYTICS_OPT_OUT_KEY) === null) {
+        storage.setItem(ANALYTICS_OPT_OUT_KEY, "1");
+      }
+      storage.removeItem(LEGACY_ANALYTICS_CONSENT_KEY);
+    }
+    storage.removeItem(LEGACY_LOCATION_CONSENT_KEY);
+  } catch {
+    // 書き込めない環境では引き継げないが、読み取りは続行させる
+  }
+}
+
 /** アクセス解析を止めているか。読めない環境（サーバー側など）では止めていない扱い */
 export function isAnalyticsOptedOut(): boolean {
-  if (typeof window === "undefined") return false;
+  const storage = getStorage();
+  if (!storage) return false;
+  migrateLegacyConsent(storage);
   try {
-    return window.localStorage.getItem(ANALYTICS_OPT_OUT_KEY) === "1";
+    return storage.getItem(ANALYTICS_OPT_OUT_KEY) === "1";
   } catch {
-    // プライベートモードなどで localStorage が読めないことがある
     return false;
   }
 }
 
 export function setAnalyticsOptOut(optedOut: boolean): void {
-  if (typeof window === "undefined") return;
+  const storage = getStorage();
+  if (!storage) return;
+  // 旧キーを先に片付けないと、解析を再開したあとに引き継ぎが再び走ってしまう
+  migrateLegacyConsent(storage);
   try {
-    if (optedOut) window.localStorage.setItem(ANALYTICS_OPT_OUT_KEY, "1");
-    else window.localStorage.removeItem(ANALYTICS_OPT_OUT_KEY);
+    if (optedOut) storage.setItem(ANALYTICS_OPT_OUT_KEY, "1");
+    else storage.removeItem(ANALYTICS_OPT_OUT_KEY);
   } catch {
     return;
   }
