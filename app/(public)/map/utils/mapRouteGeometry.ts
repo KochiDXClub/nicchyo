@@ -521,14 +521,21 @@ export function smoothPath(path: Array<[number, number]>, radius: number): Array
   });
 }
 
-export function buildRoadPolygon(
+/**
+ * 中心線から左右へオフセットした2本の縁を返す。
+ *
+ * 道の輪郭を「閉じたポリゴンの stroke」で描くと、道の両端（始点・終点）にも
+ * 線が回り込んで長方形に閉じてしまい、現実には先へ続いている道が
+ * 切り取った紙のように見える。縁を左右2本の独立した線として描くために分けている。
+ */
+export function buildRoadEdges(
   centerline: Array<[number, number]>,
   halfWidthMeters: number
-): Array<[number, number]> {
-  if (centerline.length < 2) return [];
-
+): { left: Array<[number, number]>; right: Array<[number, number]> } {
   const left: Array<[number, number]> = [];
   const right: Array<[number, number]> = [];
+  if (centerline.length < 2) return { left, right };
+
   for (let i = 0; i < centerline.length; i += 1) {
     const prev = centerline[Math.max(0, i - 1)];
     const next = centerline[Math.min(centerline.length - 1, i + 1)];
@@ -544,6 +551,15 @@ export function buildRoadPolygon(
     right.push([curr[0] - dLat, curr[1] - dLng]);
   }
 
+  return { left, right };
+}
+
+export function buildRoadPolygon(
+  centerline: Array<[number, number]>,
+  halfWidthMeters: number
+): Array<[number, number]> {
+  if (centerline.length < 2) return [];
+  const { left, right } = buildRoadEdges(centerline, halfWidthMeters);
   return [...left, ...right.reverse()];
 }
 
