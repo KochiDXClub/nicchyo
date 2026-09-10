@@ -25,6 +25,9 @@ function getStorage(): Storage | null {
   }
 }
 
+/** この画面で引き継ぎを済ませたか。旧キーは消すだけなので、一度やれば二度目は要らない */
+let legacyConsentMigrated = false;
+
 /**
  * バナーで「拒否する」を選んでいた人の意思を、新しい停止設定へ引き継ぐ。
  *
@@ -32,6 +35,8 @@ function getStorage(): Storage | null {
  * 位置情報の旧キーはもう誰も読まないため、あわせて片付ける。
  */
 function migrateLegacyConsent(storage: Storage): void {
+  if (legacyConsentMigrated) return;
+  legacyConsentMigrated = true;
   try {
     const legacy = storage.getItem(LEGACY_ANALYTICS_CONSENT_KEY);
     if (legacy !== null) {

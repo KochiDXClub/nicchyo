@@ -1,11 +1,13 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { beforeEach, afterEach, describe, it, expect, vi } from "vitest";
 
-// GA の読み込みだけ差し替える（同意バナー廃止に伴い、送信の可否を切り替える仕組みは無くなった）
+// GA の読み込みは差し替える。停止設定はテストごとに切り替えられるようにする
+const consent = vi.hoisted(() => ({ optedOut: false }));
+
 vi.mock("../../../lib/analytics/consentClient", () => {
   return {
     loadGA: vi.fn(),
-    isAnalyticsOptedOut: () => false,
+    isAnalyticsOptedOut: () => consent.optedOut,
   } as any;
 });
 
@@ -13,6 +15,7 @@ describe("sendEvent wrapper", () => {
   let sendEvent: (...args: any[]) => void;
 
   beforeEach(async () => {
+    consent.optedOut = false;
     // reset globals
     globalThis.fetch = vi.fn(() => Promise.resolve({ ok: true })) as any;
     (globalThis as any).window = globalThis as any;
@@ -57,5 +60,15 @@ describe("sendEvent wrapper", () => {
 
     expect((globalThis as any).dataLayer.length).toBeGreaterThan(0);
     expect((globalThis as any).fetch).not.toHaveBeenCalled();
+  });
+
+  it("解析を止めている端末では、どこへも送らない", async () => {
+    consent.optedOut = true;
+
+    sendEvent("shop_impression" as any, { shop_id: "shop3" }, { toServer: true });
+
+    expect((globalThis as any).dataLayer.length).toBe(0);
+    expect((globalThis as any).gtag).not.toHaveBeenCalled();
+    expect(globalThis.fetch).not.toHaveBeenCalled();
   });
 });

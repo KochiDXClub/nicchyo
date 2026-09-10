@@ -46,14 +46,13 @@ async function postJson(url: string, body: unknown) {
 export function sendEvent(name: AnalyticsEventName, params: AnalyticsParams = {}, options: SendEventOptions = {}) {
   if (isAnalyticsOptedOut()) return;
 
-  // Ensure GA loader present in production if not yet loaded
   interface GtagWindow {
-    __nicchyo_ga_loaded?: boolean;
     dataLayer?: unknown[];
     gtag?: (...args: unknown[]) => void;
   }
+  // GA がまだ読み込まれていなければ読み込む（二重読み込みは loadGA 側で防いでいる）
   try {
-    if (typeof window !== "undefined" && !(window as Window & GtagWindow).__nicchyo_ga_loaded) {
+    if (typeof window !== "undefined") {
       const gaId = process.env.NEXT_PUBLIC_GOOGLE_ANALYTICS_ID;
       if (gaId && process.env.NODE_ENV === "production") loadGA(gaId);
     }

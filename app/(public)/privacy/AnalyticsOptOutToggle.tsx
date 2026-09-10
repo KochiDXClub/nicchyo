@@ -22,8 +22,14 @@ export default function AnalyticsOptOutToggle() {
   useEffect(() => {
     const read = () => setOptedOut(isAnalyticsOptedOut());
     read();
+    // 同じ画面の中での切り替え
     window.addEventListener(ANALYTICS_OPT_OUT_CHANGE_EVENT, read);
-    return () => window.removeEventListener(ANALYTICS_OPT_OUT_CHANGE_EVENT, read);
+    // 別のタブで切り替えられたとき（storage は他のタブからのみ届く）
+    window.addEventListener("storage", read);
+    return () => {
+      window.removeEventListener(ANALYTICS_OPT_OUT_CHANGE_EVENT, read);
+      window.removeEventListener("storage", read);
+    };
   }, []);
 
   useEffect(() => {
