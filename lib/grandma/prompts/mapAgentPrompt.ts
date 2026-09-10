@@ -2,7 +2,13 @@
  * マップAIアシスタント（`app/api/map-agent`）のプロンプト
  *
  * ここだけ英語で書かれている。買い物ルート提案のJSONを返させる。
+ *
+ * 来訪者の緯度・経度は渡さない。「会場のあたりにいる／離れたところにいる」の
+ * 区分だけを渡す（相談側と同じ扱い。/privacy の記載もこれを前提にしている）。
+ * 実際の並び順は受け取ったあとサーバー側で距離順に組み直すので、
+ * 生の座標をAIに渡す必要がない。
  */
+import { describeLocationForPrompt } from "@/lib/grandma/consultUtils";
 
 /** コード契約: JSONのみを返す約束 */
 export const MAP_AGENT_SYSTEM_PROMPT =
@@ -27,7 +33,7 @@ export type MapAgentCandidate = {
 export function buildMapAgentPrompt(
   answers: MapAgentAnswers,
   candidates: MapAgentCandidate[],
-  start: [number, number]
+  location: { lat: number; lng: number } | null
 ): string {
   const lines = candidates.map((shop) => {
     const products = shop.products.slice(0, 6).join(", ");
@@ -38,7 +44,7 @@ export function buildMapAgentPrompt(
 
   return `
 あなたは高知の日曜市で買い物ルートを提案する案内AIです。回答は短めに、JSONのみを返してください。
-出発地点: lat ${start[0].toFixed(5)}, lng ${start[1].toFixed(5)}
+来訪者の居場所: ${describeLocationForPrompt(location)}
 ユーザー入力:
 - 目的: ${answers.purpose ?? "未回答"}
 - 欲しいもの: ${answers.needs ?? "未回答"}

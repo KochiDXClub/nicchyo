@@ -52,11 +52,7 @@ function migrateLegacyConsent(storage: Storage): void {
   }
 }
 
-/** アクセス解析を止めているか。読めない環境（サーバー側など）では止めていない扱い */
-export function isAnalyticsOptedOut(): boolean {
-  const storage = getStorage();
-  if (!storage) return false;
-  migrateLegacyConsent(storage);
+function isStoredOptOut(storage: Storage): boolean {
   try {
     return storage.getItem(ANALYTICS_OPT_OUT_KEY) === "1";
   } catch {
@@ -64,18 +60,36 @@ export function isAnalyticsOptedOut(): boolean {
   }
 }
 
-export function setAnalyticsOptOut(optedOut: boolean): void {
+/** アクセス解析を止めているか。読めない環境（サーバー側など）では止めていない扱い */
+export function isAnalyticsOptedOut(): boolean {
   const storage = getStorage();
-  if (!storage) return;
+  if (!storage) return false;
+  migrateLegacyConsent(storage);
+  return isStoredOptOut(storage);
+}
+
+/**
+ * 停止設定を保存する。保存できたかどうかを返す。
+ *
+ * プライベートモードや容量超過で書き込めないことがある。黙って失敗すると
+ * 「止めたつもりなのに次の来訪では動いている」ことになるので、
+ * 呼ぶ側が気づけるように結果を返す。
+ */
+export function setAnalyticsOptOut(optedOut: boolean): boolean {
+  const storage = getStorage();
+  if (!storage) return false;
   // 旧キーを先に片付けないと、解析を再開したあとに引き継ぎが再び走ってしまう
   migrateLegacyConsent(storage);
   try {
     if (optedOut) storage.setItem(ANALYTICS_OPT_OUT_KEY, "1");
     else storage.removeItem(ANALYTICS_OPT_OUT_KEY);
+    // 書けたつもりで実は残っていないことがあるため、読み直して確かめる
+    if (isStoredOptOut(storage) !== optedOut) return false;
   } catch {
-    return;
+    return false;
   }
   window.dispatchEvent(new Event(ANALYTICS_OPT_OUT_CHANGE_EVENT));
+  return true;
 }
 
 export function loadGA(gaId: string): void {

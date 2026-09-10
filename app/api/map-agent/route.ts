@@ -200,12 +200,14 @@ function pickShops(answers: Answers, location: [number, number], shops: BaseShop
 async function callOpenAI(
   answers: Answers,
   ranked: BaseShop[],
-  start: [number, number]
+  start: [number, number],
+  location: { lat: number; lng: number } | null
 ): Promise<PlanResult | null> {
   if (!OPENAI_API_KEY) return null;
 
   const topShops = ranked.slice(0, 6);
-  const prompt = buildMapAgentPrompt(answers, topShops, start);
+  // AI には居場所の区分までしか渡さない。距離順の組み直しは start を使って手元で行う
+  const prompt = buildMapAgentPrompt(answers, topShops, location);
 
   const aiModel = await resolveAiModelFor("mapAgent");
 
@@ -281,6 +283,9 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: "Invalid request body" }, { status: 400 });
     }
     const answers: Answers = parsed.data.answers ?? {};
+    const location = parsed.data.location
+      ? { lat: parsed.data.location[0], lng: parsed.data.location[1] }
+      : null;
     const start = parsed.data.location ?? MARKET_CENTER;
 
     const readClient = createReadClient();
@@ -291,7 +296,7 @@ export async function POST(request: Request) {
         : Promise.resolve({ suggestions: [], prompt: "" }),
     ]);
     const ranked = rankShops(answers, baseShops);
-    const aiPlan = await callOpenAI(answers, ranked, start);
+    const aiPlan = await callOpenAI(answers, ranked, start, location);
     const plan = aiPlan ?? pickShops(answers, start, baseShops);
     return NextResponse.json({ ...plan, support: spotSupport.suggestions }, { status: 200 });
   } catch {

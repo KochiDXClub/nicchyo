@@ -24,14 +24,51 @@ describe("アクセス解析の停止設定", () => {
     expect(isAnalyticsOptedOut()).toBe(false);
   });
 
-  it("止める・再開するを保存できる", async () => {
+  it("止める・再開するを保存でき、保存できたことを返す", async () => {
     const { isAnalyticsOptedOut, setAnalyticsOptOut } = await loadConsentClient();
 
-    setAnalyticsOptOut(true);
+    expect(setAnalyticsOptOut(true)).toBe(true);
     expect(isAnalyticsOptedOut()).toBe(true);
 
-    setAnalyticsOptOut(false);
+    expect(setAnalyticsOptOut(false)).toBe(true);
     expect(isAnalyticsOptedOut()).toBe(false);
+  });
+
+  describe("保存できなかったとき", () => {
+    it("書き込みが例外になったら false を返す", async () => {
+      const { setAnalyticsOptOut } = await loadConsentClient();
+      const setItem = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+        throw new DOMException("QuotaExceededError");
+      });
+
+      expect(setAnalyticsOptOut(true)).toBe(false);
+
+      setItem.mockRestore();
+    });
+
+    it("例外は出ないが実際には残らなかったときも false を返す", async () => {
+      const { setAnalyticsOptOut } = await loadConsentClient();
+      // 書けたように見えて保存されないブラウザを模す
+      const setItem = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => undefined);
+
+      expect(setAnalyticsOptOut(true)).toBe(false);
+
+      setItem.mockRestore();
+    });
+
+    it("保存できなかったときは切り替わったことを知らせない", async () => {
+      const { setAnalyticsOptOut, ANALYTICS_OPT_OUT_CHANGE_EVENT } = await loadConsentClient();
+      const listener = vi.fn();
+      window.addEventListener(ANALYTICS_OPT_OUT_CHANGE_EVENT, listener);
+      const setItem = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => undefined);
+
+      setAnalyticsOptOut(true);
+
+      expect(listener).not.toHaveBeenCalled();
+
+      setItem.mockRestore();
+      window.removeEventListener(ANALYTICS_OPT_OUT_CHANGE_EVENT, listener);
+    });
   });
 
   describe("同意バナー時代の設定の引き継ぎ", () => {
