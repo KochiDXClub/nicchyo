@@ -325,7 +325,6 @@ export default function MapPageClient({
   const dragControls = useDragControls();
   const [mapCharacterConsultActive, setMapCharacterConsultActive] = useState(false);
   const [mapInstance, setMapInstance] = useState<LeafletMap | null>(null);
-  const [scanCardsActive, setScanCardsActive] = useState(false);
   // ShopScanCards のカードがタップされたときに、詳細バナーを開くよう地図へ渡す要求。
   // 同じ店を続けてタップしても開き直せるよう token を進める
   const [focusShopRequest, setFocusShopRequest] = useState<{ shopId: number; token: number } | null>(null);
@@ -1052,8 +1051,6 @@ export default function MapPageClient({
               hideMapUI={mapCharacterConsultActive || !!nearbyState}
               // おでかけサポート案内中は GuideLayer 側のマーカーだけを見せる
               suppressLandmarks={guideActive}
-              // ShopScanCards が写真と名前を重ねているあいだは、マーカー側の木札と写真窓を伏せる
-              suppressShopNameplates={scanCardsActive}
               focusShopRequest={focusShopRequest}
               trackingButtonTop={trackingButtonTop}
               onGestureActiveChange={setIsMapGestureActive}
@@ -1087,7 +1084,6 @@ export default function MapPageClient({
             <ShopScanCards
               map={mapInstance}
               shops={shops}
-              onActiveChange={setScanCardsActive}
               onSelectShop={handleScanCardSelect}
               enabled={
                 !mapCharacterConsultActive &&

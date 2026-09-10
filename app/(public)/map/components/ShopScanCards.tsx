@@ -100,25 +100,18 @@ export default function ShopScanCards({
   map,
   shops,
   enabled = true,
-  onActiveChange,
   onSelectShop,
 }: {
   map: MapCamera | null;
   shops: Shop[];
   /** 他のパネルが開いているときなど、呼び出し側から止めたいとき */
   enabled?: boolean;
-  /** カードが出ている / 消えたときに呼ばれる。マーカー側の木札と写真窓を伏せるのに使う */
-  onActiveChange?: (active: boolean) => void;
   /** カードがタップされたとき。マーカーをタップしたのと同じ扱いにする */
   onSelectShop?: (shop: Shop) => void;
 }) {
   const [shown, setShown] = useState(false);
   const [visibleIds, setVisibleIds] = useState<number[]>([]);
   const [cardHeight, setCardHeight] = useState(MIN_CARD_HEIGHT);
-
-  useEffect(() => {
-    onActiveChange?.(shown);
-  }, [shown, onActiveChange]);
 
   // フェードアウトが終わったらカードを外す。
   // 残したままだと、次に出るときマウント済みで出現アニメーションが走らない
