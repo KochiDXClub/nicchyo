@@ -988,7 +988,9 @@ export default function MapViewMapLibre({
         type: "symbol",
         source: SRC_SHOPS,
         minzoom: MAX_ZOOM + SHOP_MARKER_LOD_OFFSETS.nameplate,
-        filter: ["match", ["get", "state"], ["search", "ai", "selected"], true, false],
+        // 検索 / AI の結果は ShopScanCards がカードで名前ごと出すので、ここでは出さない
+        // （同じ店の名前が木札とカードで二重になる）
+        filter: ["match", ["get", "state"], ["selected"], true, false],
         layout: {
           "text-field": ["get", "name"],
           "text-font": TEXT_FONT,

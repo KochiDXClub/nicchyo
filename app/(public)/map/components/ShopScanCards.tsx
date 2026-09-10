@@ -34,7 +34,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Shop } from "../data/shops";
-import { isLeafletMap, type MapCamera } from "../types/mapCamera";
+import { isLeafletMap, type MapCamera, type MapCameraEvent } from "../types/mapCamera";
 import { getShopBannerImage } from "@/lib/shopImages";
 import { getPixelsPerMeter } from "../config/roadStyle";
 import { resolveStallColors } from "../config/shopCategories";
@@ -66,6 +66,9 @@ const CARD_GAP = 8;
 
 /** 画面の外どれだけまで先読みして出すか */
 const VIEWPORT_MARGIN = 160;
+
+/** これ以下の重なりは許容する（隣り合うカードが1〜2px かすめる程度で消さない） */
+const COLLISION_TOLERANCE_PX = 3;
 
 /** これ以上動いていたらドラッグ（パン）とみなしてタップにしない */
 const TAP_MOVE_TOLERANCE_PX = 8;
@@ -104,18 +107,36 @@ export default function ShopScanCards({
   map,
   shops,
   enabled = true,
+  highlightShopIds,
   onSelectShop,
 }: {
   map: MapCamera | null;
   shops: Shop[];
   /** 他のパネルが開いているときなど、呼び出し側から止めたいとき */
   enabled?: boolean;
+  /**
+   * 検索結果や AI のおすすめで対象が絞れているときの店舗 ID。
+   *
+   * 1件でもあれば「絞り込みモード」になり、その店だけカードを出して、
+   * ほかの店にはパンしても出さない。探している対象と、それ以外との対比を作る。
+   * このモードではパンしていなくても出したままにする（結果の位置を指すため）。
+   */
+  highlightShopIds?: number[];
   /** カードがタップされたとき。マーカーをタップしたのと同じ扱いにする */
   onSelectShop?: (shop: Shop) => void;
 }) {
   const [shown, setShown] = useState(false);
   const [visibleIds, setVisibleIds] = useState<number[]>([]);
   const [cardHeight, setCardHeight] = useState(MIN_CARD_HEIGHT);
+
+  const isHighlightMode = (highlightShopIds?.length ?? 0) > 0;
+
+  /** カードを出す候補。絞り込みモードでは対象の店だけ */
+  const candidates = useMemo(() => {
+    if (!isHighlightMode) return shops;
+    const ids = new Set(highlightShopIds);
+    return shops.filter((shop) => ids.has(shop.id));
+  }, [shops, highlightShopIds, isHighlightMode]);
 
   // フェードアウトが終わったらカードを外す。
   // 残したままだと、次に出るときマウント済みで出現アニメーションが走らない
@@ -193,7 +214,8 @@ export default function ShopScanCards({
     else nodesRef.current.delete(id);
   }, []);
 
-  // 動きの検知。move はズーム中にも飛ぶので、ズームで探しているときも出る
+  // 動きの検知。move はズーム中にも飛ぶので、ズームで探しているときも出る。
+  // 絞り込みモードでは動きに関係なく出したままにする
   useEffect(() => {
     // Leaflet 版では出さない。
     //
@@ -208,6 +230,13 @@ export default function ShopScanCards({
       setShown(false);
       return;
     }
+    if (isHighlightMode) {
+      setShown(true);
+      return;
+    }
+    // 絞り込みモードから戻ってきたときに出したままにならないよう、一度伏せる。
+    // パンの途中なら、次の move ですぐ出る
+    setShown(false);
 
     let holdTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -230,7 +259,7 @@ export default function ShopScanCards({
       map.off("moveend", sleep);
       if (holdTimer) clearTimeout(holdTimer);
     };
-  }, [map, enabled]);
+  }, [map, enabled, isHighlightMode]);
 
   /**
    * カードのタップ判定。
@@ -292,15 +321,32 @@ export default function ShopScanCards({
     };
   }, [map, shown, onSelectShop, shopById]);
 
-  // 出ているあいだだけ、毎フレーム位置を更新する
+  /**
+   * 位置と、出す顔ぶれの更新。
+   *
+   * 地図が動いたときだけ rAF を 1 つ積む。絞り込みモードは動きに関係なく出したままに
+   * するので、常時 rAF を回すと止まっているあいだも電池を使い続けることになる。
+   *
+   * 重なりの回避もここで行う。カードの高さは店舗間隔から逆算しているが、それは
+   * 道が縦向きのときの話で、地図を回すと並びが変わって重なる。絞り込みモードでは
+   * 対象が離れて散らばるとも限らない。画面の中心に近いものから置いて、
+   * すでに置いたカードと重なるものは出さない。
+   */
   useEffect(() => {
     if (!map || !shown) return;
 
     let raf = 0;
-    const tick = () => {
+    let disposed = false;
+
+    const update = () => {
+      raf = 0;
+      if (disposed) return;
+
       const container = map.getContainer();
       const width = container.clientWidth;
       const height = container.clientHeight;
+      const centerX = width / 2;
+      const centerY = height / 2;
 
       const nextHeight = getCardHeight(map.getZoom());
       if (nextHeight !== cardHeightRef.current) {
@@ -309,8 +355,9 @@ export default function ShopScanCards({
       }
       const currentHeight = cardHeightRef.current;
 
-      const next: number[] = [];
-      for (const shop of shops) {
+      // 画面（と少しの余白）に入っているものを、中心に近い順に並べる
+      const inView: Array<{ id: number; point: Point; distance: number }> = [];
+      for (const shop of candidates) {
         const point = map.latLngToContainerPoint([shop.lat, shop.lng]);
         if (
           point.x < -VIEWPORT_MARGIN ||
@@ -320,14 +367,42 @@ export default function ShopScanCards({
         ) {
           continue;
         }
-        next.push(shop.id);
-        pointsRef.current.set(shop.id, point);
-        const node = nodesRef.current.get(shop.id);
+        inView.push({
+          id: shop.id,
+          point,
+          distance: Math.hypot(point.x - centerX, point.y - centerY),
+        });
+      }
+      inView.sort((a, b) => a.distance - b.distance);
+
+      const placed: Array<{ x1: number; y1: number; x2: number; y2: number }> = [];
+      const next: number[] = [];
+      for (const item of inView) {
+        const rect = {
+          x1: item.point.x - CARD_WIDTH / 2,
+          y1: item.point.y - currentHeight,
+          x2: item.point.x + CARD_WIDTH / 2,
+          y2: item.point.y,
+        };
+        const collides = placed.some(
+          (other) =>
+            rect.x1 < other.x2 - COLLISION_TOLERANCE_PX &&
+            rect.x2 > other.x1 + COLLISION_TOLERANCE_PX &&
+            rect.y1 < other.y2 - COLLISION_TOLERANCE_PX &&
+            rect.y2 > other.y1 + COLLISION_TOLERANCE_PX
+        );
+        if (collides) continue;
+        placed.push(rect);
+        next.push(item.id);
+        pointsRef.current.set(item.id, item.point);
+        const node = nodesRef.current.get(item.id);
         if (node) {
-          node.style.transform = `translate3d(${Math.round(point.x - CARD_WIDTH / 2)}px, ${Math.round(point.y - currentHeight)}px, 0)`;
+          node.style.transform = `translate3d(${Math.round(rect.x1)}px, ${Math.round(rect.y1)}px, 0)`;
         }
       }
 
+      // 顔ぶれの比較は並び順に依存しないよう、id を昇順に揃えてから行う
+      next.sort((a, b) => a - b);
       const prev = visibleIdsRef.current;
       let changed = prev.length !== next.length;
       if (!changed) {
@@ -342,13 +417,22 @@ export default function ShopScanCards({
         visibleIdsRef.current = next;
         setVisibleIds(next);
       }
-
-      raf = requestAnimationFrame(tick);
     };
 
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, [map, shops, shown]);
+    const schedule = () => {
+      if (raf !== 0) return;
+      raf = requestAnimationFrame(update);
+    };
+
+    schedule();
+    const events: MapCameraEvent[] = ["move", "zoom", "moveend", "zoomend"];
+    for (const event of events) map.on(event, schedule);
+    return () => {
+      disposed = true;
+      if (raf !== 0) cancelAnimationFrame(raf);
+      for (const event of events) map.off(event, schedule);
+    };
+  }, [map, candidates, shown]);
 
   if (visibleIds.length === 0) return null;
 
