@@ -58,6 +58,8 @@ import {
 import { getRecommendedZoomBounds } from "../../config/roadConfig";
 import {
   ROAD_EDGE_WEIGHT_STOPS,
+  ROAD_LANE_DASH_RATIO,
+  ROAD_LANE_WEIGHT_STOPS,
   ROAD_STYLE,
   getRoadCorridorHalfWidthMeters,
 } from "../../config/roadStyle";
@@ -591,6 +593,7 @@ export default function MapViewMapLibre({
       const polygons: GeoJSON.Feature[] = [];
       const corridors: GeoJSON.Feature[] = [];
       const edgeLines: GeoJSON.Feature[] = [];
+      const laneLines: GeoJSON.Feature[] = [];
       const toPolygonFeature = (ring: Array<[number, number]>): GeoJSON.Feature => ({
         type: "Feature",
         properties: {},
@@ -619,10 +622,13 @@ export default function MapViewMapLibre({
         // 線が回り込み、先へ続いている道が切り取った紙のように見えるため
         const edges = buildRoadEdges(smoothed, routeConfig.roadHalfWidthMeters);
         edgeLines.push(toLineFeature(edges.left), toLineFeature(edges.right));
+
+        laneLines.push(toLineFeature(smoothed));
       }
       map.addSource(SRC_ROAD, { type: "geojson", data: { type: "FeatureCollection", features: polygons } });
       map.addSource(`${SRC_ROAD}-corridor`, { type: "geojson", data: { type: "FeatureCollection", features: corridors } });
       map.addSource(`${SRC_ROAD}-edges`, { type: "geojson", data: { type: "FeatureCollection", features: edgeLines } });
+      map.addSource(`${SRC_ROAD}-lane`, { type: "geojson", data: { type: "FeatureCollection", features: laneLines } });
       map.addLayer({
         id: "nicchyo-road-fill",
         type: "fill",
@@ -634,6 +640,29 @@ export default function MapViewMapLibre({
         type: "fill",
         source: `${SRC_ROAD}-corridor`,
         paint: { "fill-color": ROAD_STYLE.corridorColor, "fill-opacity": 1 },
+      });
+      // 中央線（車道の白い破線）。俯瞰時はこの上のタイントに隠れるよう先に足す
+      map.addLayer({
+        id: "nicchyo-road-lane",
+        type: "line",
+        source: `${SRC_ROAD}-lane`,
+        layout: { "line-cap": "butt", "line-join": "round" },
+        paint: {
+          "line-color": ROAD_STYLE.laneColor,
+          "line-opacity": ROAD_STYLE.laneOpacity,
+          // Leaflet 版の getRoadLaneWeight と同じ段階
+          "line-width": [
+            "step",
+            ["zoom"],
+            ROAD_LANE_WEIGHT_STOPS[0][1],
+            ...ROAD_LANE_WEIGHT_STOPS.slice(1).flatMap(([zoom, width]) => [
+              zoom + ZOOM_OFFSET,
+              width,
+            ]),
+          ] as ExpressionSpecification,
+          // line-dasharray は線幅を単位に取る。Leaflet 側も同じ比率を px に直している
+          "line-dasharray": [...ROAD_LANE_DASH_RATIO],
+        },
       });
       map.addLayer({
         id: "nicchyo-road-overview-tint",
