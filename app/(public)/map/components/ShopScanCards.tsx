@@ -38,8 +38,13 @@ import { sanitizeCssColor } from "../utils/markerHtmlGenerator";
 
 /** これ未満のズームでは出さない（Leaflet 換算） */
 const MIN_ZOOM = 20.5;
-/** 地図が止まってからカードを残す時間 */
-const HOLD_MS = 2500;
+/**
+ * 地図が止まってからカードを残す時間。
+ *
+ * 屋台の並びこそがこの地図の主役なので、止まったあとも長く残すと主客が入れ替わる。
+ * 動かしているあいだの検索性を足すだけに留めて、止まったらすぐ屋台の絵に戻す。
+ */
+const HOLD_MS = 500;
 
 /**
  * 列の中の店舗間隔（メートル）。market_locations 300件の実測値。
