@@ -11,8 +11,11 @@ import {
   ROAD_STYLE,
   getRoadCorridorHalfWidthMeters,
   getRoadEdgeWeight,
+  getRoadLaneDashArray,
+  getRoadLaneWeight,
 } from '../config/roadStyle';
 import L, { LatLngBoundsExpression } from 'leaflet';
+import { DEFAULT_MAP_ROUTE_CONFIG } from '../types/mapRoute';
 import type { MapRouteConfig, MapRoutePoint } from '../types/mapRoute';
 import {
   buildRoadEdges,
@@ -229,7 +232,7 @@ function CurvedRoad({
   return (
     <RoadSurface
       centerline={smoothedCenterline}
-      halfWidthMeters={15.6}
+      halfWidthMeters={DEFAULT_MAP_ROUTE_CONFIG.roadHalfWidthMeters}
       overviewTint={overviewTint}
       onTap={onTap}
       chainKey="curved-main"
@@ -261,7 +264,9 @@ function RoadSurface({
   onTap?: (latlng: L.LatLng) => void;
   chainKey: string;
 }) {
-  const edgeWeight = useRoadEdgeWeight();
+  const zoom = useQuantizedRoadZoom();
+  const edgeWeight = getRoadEdgeWeight(zoom);
+  const laneWeight = getRoadLaneWeight(zoom);
 
   const geometry = useMemo(() => {
     const roadPolygon = buildRoadPolygon(centerline, halfWidthMeters);
@@ -301,6 +306,19 @@ function RoadSurface({
           }}
         />
       )}
+      {/* 中央線（車道の白い破線）。俯瞰時はこの下のタイントに隠れるよう先に描く */}
+      <Polyline
+        positions={centerline}
+        interactive={false}
+        pathOptions={{
+          color: ROAD_STYLE.laneColor,
+          weight: laneWeight,
+          opacity: ROAD_STYLE.laneOpacity,
+          dashArray: getRoadLaneDashArray(laneWeight),
+          lineCap: 'butt',
+          lineJoin: 'round',
+        }}
+      />
       {overviewTint && (
         <Polygon
           positions={geometry.roadPolygon}
@@ -342,14 +360,20 @@ function RoadSurface({
  * 段階は粗く量子化してあるので、zoomSnap 0.05 の刻みで zoomend が飛んできても
  * 実際に state が変わるのは段階をまたいだときだけ。
  */
-function useRoadEdgeWeight(): number {
+function useQuantizedRoadZoom(): number {
   const map = useMap();
-  const [weight, setWeight] = useState(() => getRoadEdgeWeight(map.getZoom()));
+  const [zoom, setZoom] = useState(() => map.getZoom());
 
   useEffect(() => {
     const onZoom = () => {
-      const next = getRoadEdgeWeight(map.getZoom());
-      setWeight((prev) => (prev === next ? prev : next));
+      const next = map.getZoom();
+      // 縁と中央線のどちらの段階も変わらないズーム移動では state を据え置く
+      setZoom((prev) =>
+        getRoadEdgeWeight(prev) === getRoadEdgeWeight(next) &&
+        getRoadLaneWeight(prev) === getRoadLaneWeight(next)
+          ? prev
+          : next
+      );
     };
     map.on('zoomend', onZoom);
     return () => {
@@ -357,7 +381,7 @@ function useRoadEdgeWeight(): number {
     };
   }, [map]);
 
-  return weight;
+  return zoom;
 }
 
 export default memo(RoadOverlay);

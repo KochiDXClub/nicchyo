@@ -22,6 +22,9 @@ export const ROAD_STYLE = {
   /** 道の縁（両サイド）。地面の切り替わりを示す実線 */
   edgeColor: '#a98a52',
   edgeOpacity: 0.7,
+  /** 中央線（車道の白い破線）。アスファルトが見えている通路の上に描く */
+  laneColor: '#ffffff',
+  laneOpacity: 0.75,
   /** 俯瞰時に道全体へかぶせる色 */
   overviewTintColor: '#7ED957',
   overviewTintOpacity: 0.34,
@@ -64,3 +67,30 @@ export const ROAD_EDGE_WEIGHT_STOPS: ReadonlyArray<readonly [number, number]> = 
   [18.5, 2.5],
   [20, 3],
 ];
+
+/** 中央線の線幅（px）。縁より細くして、縁と主張が競合しないようにする */
+export function getRoadLaneWeight(zoom: number): number {
+  if (zoom >= 20) return 2;
+  if (zoom >= 18.5) return 1.5;
+  return 1;
+}
+
+/** getRoadLaneWeight が段階を変えるズーム境界（MapLibre の式と共有する） */
+export const ROAD_LANE_WEIGHT_STOPS: ReadonlyArray<readonly [number, number]> = [
+  [0, 1],
+  [18.5, 1.5],
+  [20, 2],
+];
+
+/**
+ * 中央線の破線パターン（線幅に対する倍率で [線, 空白]）。
+ *
+ * MapLibre の line-dasharray は線幅を単位に取るため、Leaflet 側も線幅を掛けて
+ * px に直す。こうしないと線幅を変えたときに両者の破線の見え方がズレる。
+ */
+export const ROAD_LANE_DASH_RATIO: readonly [number, number] = [12, 5];
+
+/** Leaflet の dashArray（px 指定）に変換する */
+export function getRoadLaneDashArray(weight: number): string {
+  return ROAD_LANE_DASH_RATIO.map((ratio) => ratio * weight).join(',');
+}
