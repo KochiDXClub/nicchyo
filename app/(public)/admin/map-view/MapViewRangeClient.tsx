@@ -413,7 +413,18 @@ export default function MapViewRangeClient() {
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
         {/* 地図 */}
         <div className="relative h-[520px] overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
-          <div ref={containerRef} className="absolute inset-0" />
+          {/*
+            位置とサイズは Tailwind のクラスではなくインラインで書く。
+            MapLibre はこの div に .maplibregl-map を付け、maplibre-gl.css が
+            そこへ position:relative を当てる。Tailwind の .absolute と詳細度が
+            同じなので、後から読み込まれる maplibre-gl.css が勝つ。そうなると
+            inset-0 が効かず、中身は絶対配置の canvas だけなので高さが 0 に潰れ、
+            地図が一切見えなくなる（MapViewMapLibre も同じ理由でインライン指定）。
+          */}
+          <div
+            ref={containerRef}
+            style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }}
+          />
           <div className="pointer-events-none absolute left-3 top-3 rounded-full bg-white/90 px-3 py-1 text-[11px] font-semibold text-slate-600 shadow">
             黒い四隅をドラッグして範囲を決める
           </div>
