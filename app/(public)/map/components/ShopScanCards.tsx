@@ -214,8 +214,7 @@ export default function ShopScanCards({
     else nodesRef.current.delete(id);
   }, []);
 
-  // 動きの検知。move はズーム中にも飛ぶので、ズームで探しているときも出る。
-  // 絞り込みモードでは動きに関係なく出したままにする
+  // 動きの検知。move はズーム中にも飛ぶので、ズームで探しているときも出る
   useEffect(() => {
     // Leaflet 版では出さない。
     //
@@ -230,9 +229,21 @@ export default function ShopScanCards({
       setShown(false);
       return;
     }
+    // 絞り込みモードでは、パンの有無に関わらずズームだけで決める。
+    // 結果の位置を指し続けたいので動きは見ないが、引いた状態でカードが密集して
+    // 読めなくなるのは通常時と同じなので、ズームの下限には従う
     if (isHighlightMode) {
-      setShown(true);
-      return;
+      const syncByZoom = () => {
+        const next = map.getZoom() >= MIN_ZOOM;
+        if (next !== shownRef.current) setShown(next);
+      };
+      syncByZoom();
+      map.on("move", syncByZoom);
+      map.on("zoomend", syncByZoom);
+      return () => {
+        map.off("move", syncByZoom);
+        map.off("zoomend", syncByZoom);
+      };
     }
     // 絞り込みモードから戻ってきたときに出したままにならないよう、一度伏せる。
     // パンの途中なら、次の move ですぐ出る
