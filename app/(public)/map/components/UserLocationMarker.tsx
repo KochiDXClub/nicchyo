@@ -59,7 +59,8 @@ export default function UserLocationMarker({
   // 初回位置取得フラグ（マップを位置に移動させるため）
   const isFirstLocationRef = useRef(true);
   const routeVisibleRef = useRef(false);
-  const canAskLocation = useLocationPermissionGate();
+  // 追従ボタンを押されたのは「ご自分から現在地を求められた」ということなので待たせない
+  const canAskLocation = useLocationPermissionGate(isTracking === true);
   const effectiveRoutePoints = useMemo(() => {
     const activeRoutePoints = normalizeMapRoutePoints(routePoints ?? []);
     return activeRoutePoints.length >= 2 ? activeRoutePoints : getDefaultMapRoutePoints();

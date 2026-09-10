@@ -52,10 +52,7 @@ export function sendEvent(name: AnalyticsEventName, params: AnalyticsParams = {}
   }
   // GA がまだ読み込まれていなければ読み込む（二重読み込みは loadGA 側で防いでいる）
   try {
-    if (typeof window !== "undefined") {
-      const gaId = process.env.NEXT_PUBLIC_GOOGLE_ANALYTICS_ID;
-      if (gaId && process.env.NODE_ENV === "production") loadGA(gaId);
-    }
+    if (typeof window !== "undefined" && process.env.NODE_ENV === "production") loadGA();
   } catch {}
 
   const payload = safeJson(params) ?? {};

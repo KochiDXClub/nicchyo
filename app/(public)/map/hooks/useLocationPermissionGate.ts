@@ -16,7 +16,7 @@ export const LOCATION_PROMPT_DELAY_MS = 3000;
 async function isGeolocationAlreadyGranted(): Promise<boolean> {
   if (typeof navigator === "undefined" || !navigator.permissions?.query) return false;
   try {
-    const status = await navigator.permissions.query({ name: "geolocation" as PermissionName });
+    const status = await navigator.permissions.query({ name: "geolocation" });
     return status.state === "granted";
   } catch {
     // 名前を扱えないブラウザでは例外になる
@@ -35,14 +35,25 @@ async function isGeolocationAlreadyGranted(): Promise<boolean> {
  * ただし、すでに許可している方にはダイアログが出ないので待つ理由がない。
  * その場合は畳まれ次第すぐ取りにいき、現在地の表示を遅らせない。
  *
+ * 先送りしてよいのは「こちらから勝手に聞く」ぶんだけ。
+ * 現在地ボタンなど、来訪者がご自分から求められたときは待たせない（requested）。
+ *
  * 一度開けたら閉じない（画面遷移の途中で status が変わっても取得は止めない）。
  */
-export function useLocationPermissionGate(delayMs: number = LOCATION_PROMPT_DELAY_MS): boolean {
+export function useLocationPermissionGate(
+  requested: boolean = false,
+  delayMs: number = LOCATION_PROMPT_DELAY_MS
+): boolean {
   const { status } = useMapLoading();
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
     if (ready) return;
+    // 来訪者がご自分から求められたなら、ローディング中でもすぐ通す
+    if (requested) {
+      setReady(true);
+      return;
+    }
     // status が idle ＝ ローディングの覆いが畳み終わっている
     if (status !== "idle") return;
 
@@ -62,7 +73,7 @@ export function useLocationPermissionGate(delayMs: number = LOCATION_PROMPT_DELA
       cancelled = true;
       if (timer !== undefined) window.clearTimeout(timer);
     };
-  }, [status, delayMs, ready]);
+  }, [status, delayMs, ready, requested]);
 
   return ready;
 }

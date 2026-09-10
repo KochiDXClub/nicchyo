@@ -16,6 +16,45 @@ async function loadConsentClient() {
 describe("アクセス解析の停止設定", () => {
   beforeEach(() => {
     window.localStorage.clear();
+    vi.unstubAllEnvs();
+    delete (window as unknown as Record<string, unknown>)["ga-disable-G-TEST"];
+  });
+
+  describe("読み込み済みの Google アナリティクスの停止", () => {
+    const flag = () => (window as unknown as Record<string, unknown>)["ga-disable-G-TEST"];
+
+    it("止めると ga-disable が立ち、再開すると下りる", async () => {
+      vi.stubEnv("NEXT_PUBLIC_GOOGLE_ANALYTICS_ID", "G-TEST");
+      const { setAnalyticsOptOut } = await loadConsentClient();
+
+      setAnalyticsOptOut(true);
+      expect(flag()).toBe(true);
+
+      setAnalyticsOptOut(false);
+      expect(flag()).toBe(false);
+    });
+
+    it("保存できなかったときは ga-disable も動かさない", async () => {
+      vi.stubEnv("NEXT_PUBLIC_GOOGLE_ANALYTICS_ID", "G-TEST");
+      const { setAnalyticsOptOut } = await loadConsentClient();
+      const setItem = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => undefined);
+
+      expect(setAnalyticsOptOut(true)).toBe(false);
+      expect(flag()).toBeUndefined();
+
+      setItem.mockRestore();
+    });
+
+    it("止めている端末では GA を読み込まず、止める指示だけ出す", async () => {
+      vi.stubEnv("NEXT_PUBLIC_GOOGLE_ANALYTICS_ID", "G-TEST");
+      window.localStorage.setItem(OPT_OUT_KEY, "1");
+      const { loadGA } = await loadConsentClient();
+
+      loadGA();
+
+      expect(document.getElementById("ga-script")).toBeNull();
+      expect(flag()).toBe(true);
+    });
   });
 
   it("何も設定していなければ止めていない扱いになる", async () => {
@@ -54,6 +93,35 @@ describe("アクセス解析の停止設定", () => {
       expect(setAnalyticsOptOut(true)).toBe(false);
 
       setItem.mockRestore();
+    });
+
+    it("読み直しができなかったときも false を返す", async () => {
+      const { setAnalyticsOptOut } = await loadConsentClient();
+      const setItem = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => undefined);
+      const getItem = vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
+        throw new DOMException("SecurityError");
+      });
+
+      // 再開（false）でも「確かめられていない」ので成功と言わない
+      expect(setAnalyticsOptOut(false)).toBe(false);
+
+      getItem.mockRestore();
+      setItem.mockRestore();
+    });
+
+    it("旧キーを消せなかったら、済みにせず次の機会にやり直す", async () => {
+      window.localStorage.setItem(LEGACY_ANALYTICS_KEY, "declined");
+      const { isAnalyticsOptedOut } = await loadConsentClient();
+      const removeItem = vi.spyOn(Storage.prototype, "removeItem").mockImplementation(() => {
+        throw new DOMException("SecurityError");
+      });
+
+      expect(isAnalyticsOptedOut()).toBe(true);
+      removeItem.mockRestore();
+
+      // やり直せていれば、ここで旧キーが片付く
+      isAnalyticsOptedOut();
+      expect(window.localStorage.getItem(LEGACY_ANALYTICS_KEY)).toBeNull();
     });
 
     it("保存できなかったときは切り替わったことを知らせない", async () => {

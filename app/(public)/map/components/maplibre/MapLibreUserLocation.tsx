@@ -94,7 +94,8 @@ export default function MapLibreUserLocation({
   const onLocationUpdateRef = useRef(onLocationUpdate);
   const isTrackingRef = useRef(isTracking);
   const animFrameRef = useRef<number | null>(null);
-  const canAskLocation = useLocationPermissionGate();
+  // 追従ボタンを押されたのは「ご自分から現在地を求められた」ということなので待たせない
+  const canAskLocation = useLocationPermissionGate(isTracking === true);
 
   useEffect(() => {
     onLocationUpdateRef.current = onLocationUpdate;
