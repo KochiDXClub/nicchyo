@@ -9,7 +9,6 @@ import { resolveAiModelFor } from "@/lib/ai/modelStore.server";
 import { fetchAiConversationSettings } from "@/lib/ai/conversationSettings.server";
 import { loadSpotSupport } from "@/lib/guide/spotSupport.server";
 import { requireSameOrigin } from "@/lib/security/requestGuards";
-import { maskPii } from "@/lib/privacy/maskPii";
 import { enforceRateLimit } from "@/lib/security/rateLimit";
 import {
   CONSULT_CHARACTER_BY_ID,
@@ -216,7 +215,6 @@ async function parseRequest(request: Request): Promise<ParsedRequest> {
 }
 
 async function finalizeConsultResponse(options: {
-  request: Request;
   supabase: SupabaseClient<Database>;
   consultId: string;
   text: string;
@@ -235,7 +233,6 @@ async function finalizeConsultResponse(options: {
   memorySummary: string;
 }): Promise<ConsultAskResponse> {
   const {
-    request,
     supabase,
     consultId,
     text,
@@ -298,17 +295,16 @@ async function finalizeConsultResponse(options: {
         .filter((value): value is string => !!value),
     ),
   );
-  const logIp =
-    request.headers.get("x-forwarded-for")?.split(",")[0].trim() ?? null;
+  // 相談内容そのもの（質問文）と IP アドレスは保存しない。読み手が無く、
+  // 保存すると来訪者の相談内容と IP が対で溜まるだけになるため（#629）。
+  // 解析に使うのは意図分類・キーワード・場所種別だけ。
   if (logVendorIds.length > 0) {
     const logs = logVendorIds.map((vendorId) => ({
       store_id: vendorId,
-      question_text: text ? maskPii(text) : "(画像のみ)",
       intent_category: intentCategory,
       keywords,
       location_type: locationType,
       is_recommendation: true,
-      ip_address: logIp,
       visitor_key: visitorKey ?? null,
     }));
     supabase
@@ -323,12 +319,10 @@ async function finalizeConsultResponse(options: {
       .from("ai_consult_logs")
       .insert({
         store_id: null,
-        question_text: text ? maskPii(text) : "(画像のみ)",
         intent_category: intentCategory,
         keywords,
         location_type: locationType,
         is_recommendation: false,
-        ip_address: logIp,
         visitor_key: visitorKey ?? null,
       })
       .then(({ error }) => {
@@ -367,7 +361,6 @@ async function createStreamingConsultResponse(options: {
         | { type: "text"; text: string }
         | { type: "image_url"; image_url: { url: string } }
       >;
-  request: Request;
   supabase: SupabaseClient<Database>;
   consultId: string;
   text: string;
@@ -384,7 +377,6 @@ async function createStreamingConsultResponse(options: {
     openaiKey,
     selectedCharacters,
     userContent,
-    request,
     supabase,
     consultId,
     text,
@@ -537,7 +529,6 @@ async function createStreamingConsultResponse(options: {
           selectedCharacters,
         );
         const response = await finalizeConsultResponse({
-          request,
           supabase,
           consultId,
           text,
@@ -929,7 +920,6 @@ export async function POST(request: Request) {
         openaiKey,
         selectedCharacters,
         userContent,
-        request,
         supabase,
         consultId,
         text,
@@ -1038,7 +1028,6 @@ export async function POST(request: Request) {
       .filter((turn): turn is ConsultTurn => !!turn && turn.text.length > 0)
       .slice(0, 4);
     const response = await finalizeConsultResponse({
-      request,
       supabase,
       consultId,
       text,

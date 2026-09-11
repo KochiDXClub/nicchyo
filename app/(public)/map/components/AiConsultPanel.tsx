@@ -6,6 +6,7 @@ import { ChevronRight, Send, Sparkles } from "lucide-react";
 import type { Shop } from "../data/shops";
 import type { BannerTheme } from "./ShopBannerHero";
 import { ShopSubviewHeader } from "./ShopBannerHero";
+import { ConsultFeedback } from "@/components/consult/ConsultFeedback";
 
 type ChatMsg = { role: "user" | "assistant"; text: string };
 
@@ -37,6 +38,9 @@ export function AiConsultPanel({
   const [messages, setMessages] = useState<ChatMsg[]>([]);
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
+  /** 直近の回答を識別する ID と、そのときの質問。評価を送るときに使う */
+  const [lastConsultId, setLastConsultId] = useState<string | null>(null);
+  const [lastQuestion, setLastQuestion] = useState<string>("");
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const abortRef = useRef<AbortController | null>(null);
@@ -45,6 +49,8 @@ export function AiConsultPanel({
     setMessages([]);
     setInput("");
     setStreaming(false);
+    setLastConsultId(null);
+    setLastQuestion("");
     abortRef.current?.abort();
   }, [shop.id]);
 
@@ -106,6 +112,10 @@ export function AiConsultPanel({
           }),
         });
         if (!res.ok || !res.body) throw new Error("upstream error");
+
+        // この回答を識別する ID。評価を送るときに使う
+        setLastConsultId(res.headers.get("X-Consult-Id") ?? null);
+        setLastQuestion(trimmed);
 
         const reader = res.body.getReader();
         const decoder = new TextDecoder();
@@ -182,7 +192,7 @@ export function AiConsultPanel({
           !isEmpty ? (
             <button
               type="button"
-              onClick={() => { setMessages([]); setInput(""); }}
+              onClick={() => { setMessages([]); setInput(""); setLastConsultId(null); setLastQuestion(""); }}
               className="text-xs font-semibold text-slate-400 transition hover:text-slate-600 px-2 py-1.5 rounded-full hover:bg-slate-100"
             >
               クリア
@@ -303,6 +313,16 @@ export function AiConsultPanel({
                 </div>
               );
             })}
+            {/* 答えが出そろってから評価を出す。書いている途中には出さない */}
+            {!streaming && lastConsultId && (
+              <ConsultFeedback
+                key={lastConsultId}
+                consultId={lastConsultId}
+                questionText={lastQuestion}
+                answerText={messages[messages.length - 1]?.text}
+                className="px-1 pb-1"
+              />
+            )}
             <div ref={messagesEndRef} />
           </div>
         )}
