@@ -50,8 +50,10 @@ export async function POST(request: Request) {
     consult_id: data.consultId,
     turn_index: data.turnIndex,
     rating: data.rating,
-    // 低評価の理由を知るために質問文と回答文は残すが、メールアドレス・電話番号は伏せる。
-    // 相談ログ側（ai_consult_logs）は質問文を保存しない方針に変えたので、
+    // やりとりの中身（質問文・回答文）は、低評価のときに「やりとりも送る」を
+    // 選んでいただいた場合だけクライアントから届く。選ばれなければ undefined のまま
+    // ここに来て null が入る。届いた場合もメールアドレス・電話番号は伏せる。
+    // 相談ログ側（ai_consult_logs）は質問文を保存しないので、
     // 自由文がサーバーに残るのはここだけになる（#629）
     comment: data.comment ? maskPii(data.comment) : null,
     question_text: data.questionText ? maskPii(data.questionText) : null,

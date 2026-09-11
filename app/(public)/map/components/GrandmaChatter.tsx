@@ -569,6 +569,8 @@ const GrandmaChatter = memo(function GrandmaChatter({
   const [ratedMessageIds, setRatedMessageIds] = useState<Set<string>>(new Set());
   const [thumbsDownOpenId, setThumbsDownOpenId] = useState<string | null>(null);
   const [thumbsDownComments, setThumbsDownComments] = useState<Record<string, string>>({});
+  /** 低評価のときに、やりとりの中身も送ってよいかどうか。既定は送らない */
+  const [thumbsDownShareTranscript, setThumbsDownShareTranscript] = useState<Record<string, boolean>>({});
   const speechStartTextRef = useRef("");
   const speechRecognitionRef = useRef<{
     start: () => void;
@@ -1031,15 +1033,28 @@ const GrandmaChatter = memo(function GrandmaChatter({
     void handleAskSubmit(SHOP_CONSULT_PROMPT, nextContext, true);
   };
 
-  const submitFeedback = async (messageId: string, rating: 1 | -1, comment?: string) => {
+  /**
+   * 評価を送る。
+   *
+   * やりとりの中身（質問文・回答文）は既定で送らない。低評価のときに
+   * 「やりとりの内容も送る」を選んでいただいた場合だけ添える（#629）。
+   */
+  const submitFeedback = async (
+    messageId: string,
+    rating: 1 | -1,
+    comment?: string,
+    includeTranscript = false,
+  ) => {
     const message = chatMessages.find((m) => m.id === messageId);
     if (!message?.consultId || message.turnIndex === undefined) return;
     setRatedMessageIds((prev) => new Set(prev).add(messageId));
     setThumbsDownOpenId((prev) => (prev === messageId ? null : prev));
-    const questionText = chatMessages
-      .slice(0, chatMessages.findIndex((m) => m.id === messageId))
-      .reverse()
-      .find((m) => m.role === "user")?.text ?? "";
+    const questionText = includeTranscript
+      ? chatMessages
+          .slice(0, chatMessages.findIndex((m) => m.id === messageId))
+          .reverse()
+          .find((m) => m.role === "user")?.text ?? ""
+      : undefined;
     try {
       await fetch("/api/grandma/feedback", {
         method: "POST",
@@ -1050,7 +1065,7 @@ const GrandmaChatter = memo(function GrandmaChatter({
           rating,
           comment: comment ?? null,
           questionText,
-          turnText: message.text,
+          turnText: includeTranscript ? message.text : undefined,
         }),
       });
     } catch {
@@ -1792,27 +1807,39 @@ const GrandmaChatter = memo(function GrandmaChatter({
                           )}
                         </div>
                         {thumbsDownOpenId === message.id && !ratedMessageIds.has(message.id) && (
-                          <div className="mb-2 flex items-center gap-1.5 pl-1">
-                            <input
-                              type="text"
-                              value={thumbsDownComments[message.id] ?? ""}
-                              onChange={(e) => setThumbsDownComments((prev) => ({ ...prev, [message.id]: e.target.value }))}
-                              onKeyDown={(e) => {
-                                if (e.key === "Enter") {
-                                  void submitFeedback(message.id, -1, thumbsDownComments[message.id]);
-                                }
-                              }}
-                              placeholder="改善点を教えてください（任意）"
-                              maxLength={200}
-                              className="h-7 flex-1 rounded-lg border border-rose-200 bg-white px-2 text-[11px] text-slate-600 placeholder:text-slate-300 focus:border-rose-300 focus:outline-none"
-                            />
-                            <button
-                              type="button"
-                              onClick={() => void submitFeedback(message.id, -1, thumbsDownComments[message.id])}
-                              className="rounded-lg border border-rose-200 bg-rose-50 px-2 py-0.5 text-[11px] font-medium text-rose-600 hover:bg-rose-100"
-                            >
-                              送信
-                            </button>
+                          <div className="mb-2 flex flex-col gap-1 pl-1">
+                            <div className="flex items-center gap-1.5">
+                              <input
+                                type="text"
+                                value={thumbsDownComments[message.id] ?? ""}
+                                onChange={(e) => setThumbsDownComments((prev) => ({ ...prev, [message.id]: e.target.value }))}
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter") {
+                                    void submitFeedback(message.id, -1, thumbsDownComments[message.id], thumbsDownShareTranscript[message.id] ?? false);
+                                  }
+                                }}
+                                placeholder="改善点を教えてください（任意）"
+                                maxLength={200}
+                                className="h-7 flex-1 rounded-lg border border-rose-200 bg-white px-2 text-[11px] text-slate-600 placeholder:text-slate-300 focus:border-rose-300 focus:outline-none"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => void submitFeedback(message.id, -1, thumbsDownComments[message.id], thumbsDownShareTranscript[message.id] ?? false)}
+                                className="rounded-lg border border-rose-200 bg-rose-50 px-2 py-0.5 text-[11px] font-medium text-rose-600 hover:bg-rose-100"
+                              >
+                                送信
+                              </button>
+                            </div>
+                            {/* やりとりの中身は既定で送らない。選んでいただいたときだけ添える（#629） */}
+                            <label className="flex cursor-pointer items-center gap-1.5 py-1 text-[11px] text-slate-500">
+                              <input
+                                type="checkbox"
+                                checked={thumbsDownShareTranscript[message.id] ?? false}
+                                onChange={(e) => setThumbsDownShareTranscript((prev) => ({ ...prev, [message.id]: e.target.checked }))}
+                                className="h-3.5 w-3.5 rounded border-rose-200 text-rose-500 focus:ring-rose-300"
+                              />
+                              このときのやりとりも送る（改善に使わせていただきます）
+                            </label>
                           </div>
                         )}
                         <MessageBubble
