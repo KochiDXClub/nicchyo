@@ -71,7 +71,7 @@ import { buildCrowdSprites } from "./crowdSprites";
 import { buildCrowdPeople, crowdToGeoJSON } from "../../utils/crowdPlacement";
 import { CROWD_FRAME_COUNT } from "../../config/crowdParts";
 import {
-  buildBadgeSprite,
+  buildFavoriteBadgeSprite,
   buildNameplateSprite,
   buildStallSprites,
   rasterizeImageUrl,
@@ -154,17 +154,15 @@ const CHOME_KANJI: Record<string, string> = {
 
 type ShopStateMap = Map<number, StallState>;
 
-/** GeoJSON に載せる店舗ごとの表示状態（状態色・お気に入り・買い物袋） */
+/** GeoJSON に載せる店舗ごとの表示状態（状態色・お気に入り） */
 interface ShopDisplayState {
   states: ShopStateMap;
   favorites: Set<number>;
-  bags: Set<number>;
 }
 
 const LAYER_SHOP_PHOTOS = "nicchyo-shop-photos";
 const LAYER_SHOP_NAMEPLATES = "nicchyo-shop-nameplates";
 const LAYER_SHOP_BADGES_FAVORITE = "nicchyo-shop-badge-favorite";
-const LAYER_SHOP_BADGES_BAG = "nicchyo-shop-badge-bag";
 const LAYER_LANDMARK_LABELS = "nicchyo-landmark-labels";
 
 /** ランドマークの GeoJSON。selectedKey に一致するものは properties.selected = 1（拡大表示） */
@@ -189,7 +187,6 @@ function buildLandmarkFeatures(
 }
 const IMG_NAMEPLATE = "nameplate-bg";
 const IMG_BADGE_FAVORITE = "badge:favorite";
-const IMG_BADGE_BAG = "badge:bag";
 const PHOTO_SIZE_PX = 50;
 const TEXT_FONT = ["Noto Sans Bold"];
 
@@ -268,7 +265,6 @@ function shopsToGeoJSON(shops: Shop[], display: ShopDisplayState): GeoJSON.Featu
             // 道の北側は木札を右（道の外側）、南側は左に出す（Leaflet 版 .shop-side-*）
             side: getRoadSide(s.lat, s.lng),
             favorite: display.favorites.has(s.id),
-            bag: display.bags.has(s.id),
             // 屋根の上の丸窓。写真が無ければカテゴリの既定画像
             photo: s.images?.main ?? getShopBannerImage(s.category, s.position ?? s.id),
             photoBorder: stall.dark,
@@ -395,7 +391,7 @@ export default function MapViewMapLibre({
     return m;
   }, [aiShopIds, searchShopIds, commentShopId, selectedShop]);
   const display = useMemo<ShopDisplayState>(
-    () => ({ states: shopStates, favorites: new Set(favoriteShopIds), bags: new Set<number>() }),
+    () => ({ states: shopStates, favorites: new Set(favoriteShopIds) }),
     [shopStates, favoriteShopIds]
   );
   const displayRef = useRef(display);
@@ -787,10 +783,7 @@ export default function MapViewMapLibre({
       // バッジと木札の下地
       const uiRatio = Math.min(3, window.devicePixelRatio || 2);
       if (!map.hasImage(IMG_BADGE_FAVORITE)) {
-        map.addImage(IMG_BADGE_FAVORITE, buildBadgeSprite("favorite", uiRatio), { pixelRatio: uiRatio });
-      }
-      if (!map.hasImage(IMG_BADGE_BAG)) {
-        map.addImage(IMG_BADGE_BAG, buildBadgeSprite("bag", uiRatio), { pixelRatio: uiRatio });
+        map.addImage(IMG_BADGE_FAVORITE, buildFavoriteBadgeSprite(uiRatio), { pixelRatio: uiRatio });
       }
       if (!map.hasImage(IMG_NAMEPLATE)) {
         const plate = buildNameplateSprite(uiRatio);
@@ -902,28 +895,23 @@ export default function MapViewMapLibre({
         paint: { "text-color": "#4a3826" },
       });
 
-      // お気に入り・買い物袋バッジ（Leaflet 版と同じく photo LOD 以上で右上に）
-      for (const [layerId, imageId, prop] of [
-        [LAYER_SHOP_BADGES_FAVORITE, IMG_BADGE_FAVORITE, "favorite"],
-        [LAYER_SHOP_BADGES_BAG, IMG_BADGE_BAG, "bag"],
-      ] as const) {
-        map.addLayer({
-          id: layerId,
-          type: "symbol",
-          source: SRC_SHOPS,
-          minzoom: MAX_ZOOM + SHOP_MARKER_LOD_OFFSETS.photo,
-          filter: ["==", ["get", prop], true],
-          layout: {
-            "icon-image": imageId,
-            "icon-size": stallScale,
-            "icon-anchor": "center",
-            "icon-offset": ["case", ["==", ["get", "side"], "north"], ["literal", [-30, -66]], ["literal", [30, -66]]],
-            "icon-allow-overlap": true,
-            "icon-ignore-placement": true,
-            "icon-rotation-alignment": "viewport",
-          },
-        });
-      }
+      // お気に入りバッジ（Leaflet 版と同じく photo LOD 以上で右上に）
+      map.addLayer({
+        id: LAYER_SHOP_BADGES_FAVORITE,
+        type: "symbol",
+        source: SRC_SHOPS,
+        minzoom: MAX_ZOOM + SHOP_MARKER_LOD_OFFSETS.photo,
+        filter: ["==", ["get", "favorite"], true],
+        layout: {
+          "icon-image": IMG_BADGE_FAVORITE,
+          "icon-size": stallScale,
+          "icon-anchor": "center",
+          "icon-offset": ["case", ["==", ["get", "side"], "north"], ["literal", [-30, -66]], ["literal", [30, -66]]],
+          "icon-allow-overlap": true,
+          "icon-ignore-placement": true,
+          "icon-rotation-alignment": "viewport",
+        },
+      });
 
       map.on("click", LAYER_SHOPS, (e) => {
         const f = e.features?.[0];
