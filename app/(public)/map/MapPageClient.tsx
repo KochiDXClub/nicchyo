@@ -38,7 +38,7 @@ import OdekakeGuidePanel from "./components/OdekakeGuidePanel";
 import GuideNavigationBar from "./components/GuideNavigationBar";
 import OdekakeLaunchButton from "./components/OdekakeLaunchButton";
 import { useOdekakeGuide } from "./hooks/useOdekakeGuide";
-import { GUIDE_MENU_VALUE, parseGuideQuery } from "@/lib/guide/query";
+import { GUIDE_MENU_VALUE, parseGuideQuery, type GuideQuery } from "@/lib/guide/query";
 import SpotCard from "./components/SpotCard";
 import type { MapSpot } from "@/lib/spots";
 import { filterMapVisibleLandmarks } from "./types/landmark";
@@ -234,25 +234,53 @@ export default function MapPageClient({
   const searchParamsKey = searchParams?.toString() ?? "";
   const initialShopId = initialShopIdParam ? Number(initialShopIdParam) : undefined;
   // おでかけサポート: ?guide=<プリセット|menu> または旧 ?facility=<カテゴリ> で開く
-  const guideQuery = useMemo(
+  // URL から読んだ状態。初回表示や /facilities からのリンク、共有リンクで使う
+  const guideQueryFromUrl = useMemo(
     () => parseGuideQuery(searchParams ?? null),
     // searchParams オブジェクトは毎レンダー同一とは限らないので文字列で比較する
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [searchParamsKey]
   );
-  const replaceGuideParam = useCallback(
+  // おでかけサポートの開閉。
+  //
+  // 以前は router.replace で URL を書き換えて開閉していたが、/map は cookies() を
+  // 使う動的ページなので、URL が変わるたびに店舗300件を含むページ全体をサーバーから
+  // 取り直していた（実測で1回あたり約380KB・数百ms）。画面の状態を変えるだけなのに
+  // ページを読み直すのと同じ負荷がかかっていた。
+  //
+  // そこで開閉は画面内の状態で即座に反映し、URL は共有・リロード用に
+  // history.replaceState で静かに合わせるだけにする。サーバーへは行かない。
+  const [guideOverride, setGuideOverride] = useState<GuideQuery | null | undefined>(undefined);
+  const syncGuideUrl = useCallback(
     (value: string | null) => {
+      if (typeof window === "undefined") return;
       const params = new URLSearchParams(searchParamsKey);
       params.delete("facility");
       if (value) params.set("guide", value);
       else params.delete("guide");
       const query = params.toString();
-      router.replace(query ? `/map?${query}` : "/map", { scroll: false });
+      window.history.replaceState(null, "", query ? `/map?${query}` : "/map");
     },
-    [router, searchParamsKey]
+    [searchParamsKey]
   );
-  const closeGuide = useCallback(() => replaceGuideParam(null), [replaceGuideParam]);
-  const openGuideMenu = useCallback(() => replaceGuideParam(GUIDE_MENU_VALUE), [replaceGuideParam]);
+  const closeGuide = useCallback(() => {
+    setGuideOverride(null);
+    syncGuideUrl(null);
+  }, [syncGuideUrl]);
+  const openGuideMenu = useCallback(() => {
+    setGuideOverride({ kinds: [] });
+    syncGuideUrl(GUIDE_MENU_VALUE);
+  }, [syncGuideUrl]);
+  // 画面で開閉したらそちらを優先し、まだ触っていなければ URL の指定に従う
+  const guideQuery = guideOverride !== undefined ? guideOverride : guideQueryFromUrl;
+  // /facilities からのリンクなど、URL 側の指定が変わったら画面の状態を捨てて従う
+  const guideUrlKey = guideQueryFromUrl ? `open:${guideQueryFromUrl.kinds.join(",")}` : "closed";
+  const lastGuideUrlKeyRef = useRef(guideUrlKey);
+  useEffect(() => {
+    if (lastGuideUrlKeyRef.current === guideUrlKey) return;
+    lastGuideUrlKeyRef.current = guideUrlKey;
+    setGuideOverride(undefined);
+  }, [guideUrlKey]);
   // マップに常時描画するランドマーク（お手洗い・休けいなど show_on_map=false は除く）
   const mapLandmarks = useMemo(() => filterMapVisibleLandmarks(landmarks), [landmarks]);
   // タップしたスポット（電停・駅・建物・施設）。店舗以外は SpotCard で表示する
