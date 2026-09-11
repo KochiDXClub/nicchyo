@@ -4,6 +4,7 @@ import { z } from "zod";
 import type { Database } from "@/types/database.types";
 import { requireSameOrigin } from "@/lib/security/requestGuards";
 import { enforceRateLimit } from "@/lib/security/rateLimit";
+import { maskPii } from "@/lib/privacy/maskPii";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -49,9 +50,12 @@ export async function POST(request: Request) {
     consult_id: data.consultId,
     turn_index: data.turnIndex,
     rating: data.rating,
-    comment: data.comment ?? null,
-    question_text: data.questionText ?? null,
-    turn_text: data.turnText ?? null,
+    // 低評価の理由を知るために質問文と回答文は残すが、メールアドレス・電話番号は伏せる。
+    // 相談ログ側（ai_consult_logs）は質問文を保存しない方針に変えたので、
+    // 自由文がサーバーに残るのはここだけになる（#629）
+    comment: data.comment ? maskPii(data.comment) : null,
+    question_text: data.questionText ? maskPii(data.questionText) : null,
+    turn_text: data.turnText ? maskPii(data.turnText) : null,
   });
 
   if (error) {
