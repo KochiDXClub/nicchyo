@@ -11,7 +11,6 @@ import type { MapCamera as LeafletMap } from "./types/mapCamera";
 import { clearSearchMapPayload, loadAiMapPayload, loadSearchMapPayload } from "../../../lib/searchMapStorage";
 import NextImage from "next/image";
 import { getShopBannerImage } from "../../../lib/shopImages";
-const _GrandmaChatter = dynamic(() => import("./components/GrandmaChatter"), { ssr: false });
 import { useAuth } from "../../../lib/auth/AuthContext";
 import { SHOP_CATEGORY_NAMES } from "./data/shops";
 import type { Shop } from "./data/shops";
@@ -24,10 +23,8 @@ import { grandmaEvents } from "./data/grandmaEvents";
 import { recordMarketEnter, recordMarketExit } from "../../../lib/storage/marketStats";
 import { buildSearchIndex } from "../search/lib/searchIndex";
 import { useShopSearch } from "../search/hooks/useShopSearch";
-import { getOrCreateConsultVisitorKey } from "../../../lib/consultVisitorKey";
 import MarketStatusBar from "../../components/market/MarketStatusBar";
 import { useMarketCalendar } from "../../../lib/market/useMarketCalendar";
-import MapCharacterConsult from "./components/MapCharacterConsult";
 import NearbyExploreButton from "./components/NearbyExploreButton";
 import NearbyExplorePanel, {
   type NearbyRecommendedShop,
@@ -57,7 +54,6 @@ import {
   loadFavoriteShopIds,
 } from "../../../lib/favoriteShops";
 import { useFavoriteShopIds } from "../../../lib/hooks/useFavorites";
-import { stripShopIdsDirective } from "@/lib/grandma/consultUtils";
 import {
   OVERVIEW_ZONE_MIN_ZOOM,
   OVERVIEW_ZONE_MAX_ZOOM,
@@ -323,7 +319,6 @@ export default function MapPageClient({
   }, []);
 
   const dragControls = useDragControls();
-  const [mapCharacterConsultActive, setMapCharacterConsultActive] = useState(false);
   const [mapInstance, setMapInstance] = useState<LeafletMap | null>(null);
   const mapRef = useRef<LeafletMap | null>(null);
   const introFocusTimerRef = useRef<number | null>(null);
@@ -388,34 +383,33 @@ export default function MapPageClient({
     setMapSearchQuery('');
     setMapSearchCategory(null);
   }, []);
-  const closeMapCharacterConsult = useCallback(() => {
-    setMapCharacterConsultActive(false);
+  /** AI のおすすめ表示を畳む。相談そのものは /consult に集約した */
+  const clearAiRecommendation = useCallback(() => {
     setAiMarkerPayload(null);
   }, []);
-  const startMapCharacterConsult = useCallback(() => {
-    // Open consult page instead of inline map-native consult by default
+  /** 相談は /consult に一本化した。マップ上でキャラクターと会話する形は廃止 */
+  const goToConsult = useCallback(() => {
     clearMapSearchState();
     setNearbyState(null);
-    setMapCharacterConsultActive(false);
     router.push('/consult');
   }, [clearMapSearchState, router]);
   const closeMapInteractionMode = useCallback(() => {
     clearMapSearchState();
-    closeMapCharacterConsult();
+    clearAiRecommendation();
     setNearbyState(null);
     router.push('/map');
-  }, [clearMapSearchState, closeMapCharacterConsult, router]);
+  }, [clearMapSearchState, clearAiRecommendation, router]);
 
-  // 旧 URL 互換: /map?panel=consult が来ても直接 AI 相談モードを起動する
+  // 旧 URL 互換: /map?panel=consult が来たら相談ページへ送る
   useEffect(() => {
     if (searchParams?.get("panel") === "consult") {
-      startMapCharacterConsult();
+      goToConsult();
       return;
     }
     if (activePanel === 'search') {
-      closeMapCharacterConsult();
+      clearAiRecommendation();
     }
-  }, [activePanel, closeMapCharacterConsult, searchParams, startMapCharacterConsult]);
+  }, [activePanel, clearAiRecommendation, searchParams, goToConsult]);
 
   const vendorShopId = user?.vendorId ?? null;
   const activeEvent = useMemo(() => {
@@ -598,73 +592,6 @@ export default function MapPageClient({
     }
   };
 
-  const _handleGrandmaAsk = useCallback(async (
-    text: string,
-    imageFile?: File | null,
-    context?: { shopId?: number; shopName?: string; source?: "suggestion" | "input" },
-    _history?: Array<{ role: "user" | "assistant"; text: string }>,
-    _memorySummary?: string
-  ) => {
-    try {
-      const visitorKey = getOrCreateConsultVisitorKey();
-      const useForm = !!imageFile;
-      const body = useForm
-        ? (() => {
-            const form = new FormData();
-            form.append("text", text);
-            form.append("location", JSON.stringify(userLocation ?? null));
-            if (context?.shopId) form.append("shopId", String(context.shopId));
-            if (context?.shopName) form.append("shopName", context.shopName);
-            if (visitorKey) form.append("visitorKey", visitorKey);
-            if (imageFile) form.append("image", imageFile);
-            return form;
-          })()
-        : JSON.stringify({
-            text,
-            location: userLocation,
-            shopId: context?.shopId ?? null,
-            shopName: context?.shopName ?? null,
-            visitorKey,
-          });
-      const response = await fetch("/api/grandma/ask", {
-        method: "POST",
-        headers: useForm ? undefined : { "Content-Type": "application/json" },
-        body,
-      });
-      const payload = (await response.json()) as {
-        reply?: string;
-        imageUrl?: string;
-        shopIds?: number[];
-        errorMessage?: string;
-      };
-      if (!response.ok) {
-        return {
-          reply:
-            payload.reply ??
-            payload.errorMessage ??
-            "ごめんね、今は答えを出せんかった。時間をおいて試してね。",
-        };
-      }
-      const rawReply =
-        payload.reply ?? "ごめんね、今は答えを出せんかった。時間をおいて試してね。";
-      if (payload.shopIds && payload.shopIds.length > 0) {
-        setAiMarkerPayload({ ids: payload.shopIds, label: "AIおすすめ", source: 'other' });
-        const cleaned = stripShopIdsDirective(rawReply);
-        return {
-          reply: cleaned || "おすすめのお店を表示したよ。",
-          imageUrl: payload.imageUrl,
-          shopIds: payload.shopIds,
-        };
-      }
-      setAiMarkerPayload(null);
-      return { reply: rawReply, imageUrl: payload.imageUrl };
-    } catch {
-      return {
-        reply: "ごめんね、今は答えを出せんかった。時間をおいて試してね。",
-      };
-    }
-  }, [userLocation]);
-
   const handleCommentShopFocus = useCallback(
     (shopId: number) => {
       const map = mapRef.current;
@@ -729,9 +656,7 @@ export default function MapPageClient({
     !!searchMarkerPayload ||
     hasMapFilter ||
     !!mapSearchShopIds?.length;
-  const hasAiMode =
-    mapCharacterConsultActive ||
-    !!aiMarkerPayload;
+  const hasAiMode = !!aiMarkerPayload;
 
   // ── 「このへん、なにがある？」──────────────────────
   // 他のモード（検索・AI相談・店舗バナー・パネル表示中）ではボタンを出さない
@@ -912,7 +837,7 @@ export default function MapPageClient({
             )}
 
             {/* 検索バー・ジャンルフィルター周辺の地図をぼかし、UIの視認性を高める（白要素は使わない） */}
-            {!mapCharacterConsultActive && !nearbyState && (
+            {!nearbyState && (
               <div
                 aria-hidden
                 className="pointer-events-none absolute inset-x-0 top-0 z-[1000] h-[100px] backdrop-blur-[1.5px] [mask-image:linear-gradient(to_bottom,black,black_55%,transparent)] [-webkit-mask-image:linear-gradient(to_bottom,black,black_55%,transparent)]"
@@ -920,7 +845,7 @@ export default function MapPageClient({
             )}
 
             {/* おでかけサポート案内中ヘッダー：検索バーの代わりに表示 */}
-            {guideActive && !mapCharacterConsultActive && !nearbyState && (
+            {guideActive && !nearbyState && (
               guide.navigating && guide.selected ? (
                 <GuideNavigationBar
                   target={guide.selected}
@@ -948,7 +873,7 @@ export default function MapPageClient({
             )}
 
             {/* 全幅検索バー + ジャンルフィルター（AI相談・このへん・おでかけサポートモード時は非表示） */}
-            {!mapCharacterConsultActive && !nearbyState && !guideActive && (
+            {!nearbyState && !guideActive && (
               <div
                 ref={searchAreaRef}
                 className="absolute left-3 right-3 top-3 z-[1001] flex flex-col gap-2"
@@ -1044,21 +969,13 @@ export default function MapPageClient({
               // おでかけサポート表示中は施設に合わせた画角を優先し、
               // 現在地取得時の自動ズームで上書きされないようにする
               suppressInitialLocationFocus={isAiFocusMode || guideActive}
-              hideMapUI={mapCharacterConsultActive || !!nearbyState}
+              hideMapUI={!!nearbyState}
               // おでかけサポート案内中は GuideLayer 側のマーカーだけを見せる
               suppressLandmarks={guideActive}
               trackingButtonTop={trackingButtonTop}
               onGestureActiveChange={setIsMapGestureActive}
               overlaySlot={
-                mapCharacterConsultActive ? (
-                  <MapCharacterConsult
-                    map={mapInstance}
-                    shops={shops}
-                    onShopsRecommended={(shopIds) => {
-                      setAiMarkerPayload({ ids: shopIds, label: 'AIおすすめ', source: 'other' });
-                    }}
-                  />
-                ) : nearbyState ? (
+                nearbyState ? (
                   <NearbyExplorePanel
                     summary={nearbyState.summary}
                     recommendations={nearbyState.recommendations}
@@ -1088,15 +1005,13 @@ export default function MapPageClient({
             />
 
             {/* 「このへん、なにがある？」ボタン（対象ズーム帯で静止時にフェード表示） */}
-            {!mapCharacterConsultActive && (
-              <NearbyExploreButton
-                visible={nearbyButtonVisible}
-                onClick={openNearbyPanel}
-              />
-            )}
+            <NearbyExploreButton
+              visible={nearbyButtonVisible}
+              onClick={openNearbyPanel}
+            />
 
             {/* おでかけサポートを開くボタン（現在地ボタンと同じ高さの左側） */}
-            {!guideActive && !mapCharacterConsultActive && !nearbyState && !isShopBannerOpen && (
+            {!guideActive && !nearbyState && !isShopBannerOpen && (
               <OdekakeLaunchButton top={trackingButtonTop} onClick={openGuideMenu} />
             )}
 
@@ -1110,7 +1025,7 @@ export default function MapPageClient({
                   routes={guide.routes}
                   onSelectSpot={setSelectedSpot}
                 />
-                {!mapCharacterConsultActive && !nearbyState && !selectedSpot && (
+                {!nearbyState && !selectedSpot && (
                   <OdekakeGuidePanel guide={guide} map={mapInstance} onClose={closeGuide} onOpenSpot={setSelectedSpot} />
                 )}
               </>
@@ -1118,7 +1033,7 @@ export default function MapPageClient({
 
             {/* スポットカード：店舗以外のスポット（電停・駅・建物・施設）をタップしたとき */}
             <AnimatePresence>
-              {selectedSpot && !mapCharacterConsultActive && !nearbyState && (
+              {selectedSpot && !nearbyState && (
                 <SpotCard
                   key={selectedSpot.id}
                   spot={selectedSpot}
@@ -1205,11 +1120,11 @@ export default function MapPageClient({
         <NavigationBar
           onMenuOpenChange={(open) => {
             if (open) {
-              closeMapCharacterConsult();
+              clearAiRecommendation();
               closeNearbyPanel();
             }
           }}
-          onConsultClick={startMapCharacterConsult}
+          onConsultClick={goToConsult}
           closeModeActive={hasSearchMode || hasAiMode || !!nearbyState || guideActive}
           onCloseMode={closeMapInteractionMode}
         />

@@ -996,6 +996,13 @@ export default function ConsultStage({
                         ))}
                       </div>
                     )}
+                    {/* 過去の答えにもその場で評価を付けられるようにする */}
+                    <ConsultFeedback
+                      consultId={item.id}
+                      questionText={item.question}
+                      answerText={item.answer}
+                      className="mt-2"
+                    />
                   </li>
                 );
               })}
