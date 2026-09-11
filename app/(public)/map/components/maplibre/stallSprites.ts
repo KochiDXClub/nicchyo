@@ -15,7 +15,11 @@ import {
   resolveStallParts,
   type StallPartsSpec,
 } from "../../config/stallParts";
-import { sanitizeCssColor } from "../../utils/markerHtmlGenerator";
+import {
+  SHOP_FAVORITE_COLOR_FALLBACK,
+  SHOP_FAVORITE_HEART_PATH,
+  sanitizeCssColor,
+} from "../../utils/markerHtmlGenerator";
 import type { Shop } from "../../data/shops";
 import { memoImage } from "./rasterCache";
 
@@ -223,9 +227,23 @@ export async function rasterizePhotoCircle(
   return ctx.getImageData(0, 0, size, size);
 }
 
-/** Leaflet 版 SHOP_FAVORITE_BADGE_HTML と同じハート。24 の viewBox で持つ */
-const FAVORITE_HEART_PATH =
-  "M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z";
+/**
+ * お気に入り色を CSS 変数から読む（Leaflet 版と同じ色にするため）
+ *
+ * スプライトを描き起こすのは地図の初期化時で、そのときには
+ * スタイルシートは読み終わっている。読めなかったときだけ控えの値を使う。
+ */
+function resolveFavoriteColor(): string {
+  if (typeof window === "undefined") return SHOP_FAVORITE_COLOR_FALLBACK;
+  try {
+    const value = getComputedStyle(document.documentElement)
+      .getPropertyValue("--favorite-fg")
+      .trim();
+    return sanitizeCssColor(value) ?? SHOP_FAVORITE_COLOR_FALLBACK;
+  } catch {
+    return SHOP_FAVORITE_COLOR_FALLBACK;
+  }
+}
 
 /**
  * お気に入りの印。Leaflet 版 .shop-favorite-badge と同じ見た目にする。
@@ -271,8 +289,8 @@ export function buildFavoriteBadgeSprite(pixelRatio: number): ImageData {
   ctx.save();
   ctx.translate(c - heart / 2, c - heart / 2);
   ctx.scale(scale, scale);
-  ctx.fillStyle = "#be123c";
-  ctx.fill(new Path2D(FAVORITE_HEART_PATH));
+  ctx.fillStyle = resolveFavoriteColor();
+  ctx.fill(new Path2D(SHOP_FAVORITE_HEART_PATH));
   ctx.restore();
 
   return ctx.getImageData(0, 0, canvas.width, canvas.height);
