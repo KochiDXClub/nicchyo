@@ -497,6 +497,8 @@ export default function MapPageClient({
 
   const guide = useOdekakeGuide({ query: guideQuery, landmarks, mapRoute });
   const guideActive = guide.active;
+  /** おでかけサポートを開いたが、まだ何を探すか決めていない（中央の選択画面が出ている） */
+  const isChoosingGuideKind = guideActive && guide.kinds.length === 0 && !guide.navigating;
   // スポットカードの「ここへ案内」: 案内を開いて（URL に guide=menu）、そのスポットへ案内を始める
   const navigateToSpot = useCallback(
     (spot: MapSpot) => {
@@ -947,8 +949,12 @@ export default function MapPageClient({
               />
             )}
 
-            {/* おでかけサポート案内中ヘッダー：検索バーの代わりに表示 */}
-            {guideActive && !mapCharacterConsultActive && !nearbyState && (
+            {/*
+              おでかけサポート案内中ヘッダー：検索バーの代わりに表示。
+              種類をえらんでいる間は出さない。中央の選択画面に閉じるボタンがあり、
+              上にも「とじる」を出すと閉じ方が複数見えて迷わせるため
+            */}
+            {guideActive && !isChoosingGuideKind && !mapCharacterConsultActive && !nearbyState && (
               guide.navigating && guide.selected ? (
                 <GuideNavigationBar
                   target={guide.selected}

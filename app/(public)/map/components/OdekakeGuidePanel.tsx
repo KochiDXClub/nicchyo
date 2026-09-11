@@ -5,6 +5,7 @@
  *
  * おでかけサポートのボトムシート。
  *
+ *   - 種類が決まるまでは画面中央の選択画面（OdekakeKindChooser）に任せる
  *   - たたむと小さなピルだけ。マップを隠さない
  *   - 開くと: 種類の切り替え / 条件 / 起点 / 行程表
  *   - 行程表は「起点 → 各スポット」を縦の破線でつないだ停留所リスト。
@@ -21,6 +22,7 @@ import type { RankedSpot } from '@/lib/guide';
 import { formatDistance } from '@/lib/facilities/nearest';
 import type { MapCamera } from '../types/mapCamera';
 import { GUIDE_KIND_OPTIONS, type OdekakeGuide } from '../hooks/useOdekakeGuide';
+import OdekakeKindChooser from './OdekakeKindChooser';
 
 type OdekakeGuidePanelProps = {
   guide: OdekakeGuide;
@@ -219,6 +221,12 @@ export default function OdekakeGuidePanel({ guide, map, onClose, onOpenSpot }: O
   const nearest = guide.nearest;
   const originLabel = guide.origin?.label ?? '現在地';
   const hasRoutes = guide.ranked.some((entry) => entry.route);
+
+  // まだ何を探すか決まっていないうちは、画面の中央で選んでもらう。
+  // 下の帯に小さなチップを並べるだけでは、初めての人に何ができるのか伝わらない
+  if (choosing && !guide.navigating) {
+    return <OdekakeKindChooser onSelect={guide.toggleKind} onClose={onClose} />;
+  }
 
   return (
     <>
