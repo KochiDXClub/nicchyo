@@ -956,7 +956,6 @@ export default function MapPageClient({
                   arrived={guide.arrived}
                   progress={guide.progress}
                   onStop={guide.stopNavigation}
-                  onOpenDetail={() => setSelectedSpot(guide.selected!.spot)}
                 />
               ) : (
                 <div className="absolute left-3 right-3 top-3 z-[1001] flex items-center gap-3 rounded-full bg-white py-2 pl-2 pr-2 shadow-[0_8px_24px_rgba(58,58,58,0.18)] ring-1 ring-black/5">
