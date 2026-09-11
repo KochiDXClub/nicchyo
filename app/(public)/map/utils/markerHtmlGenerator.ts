@@ -104,6 +104,31 @@ export interface ShopMarkerHtmlOptions {
   stallRenderer?: StallRendererOption;
 }
 
+/**
+ * お気に入りの印。
+ *
+ * かつては ❤（U+2764）の文字をそのまま置いていたが、端末ごとに絵文字の
+ * 絵柄が変わって揃わない（`NavigationBar` と同じ理由）。線と塗りを自分で
+ * 持つ SVG に替えて、どの端末でも同じ形にする。
+ *
+ * 色は tailwind.config.js / globals.css に定義済みのお気に入り色
+ * （--favorite-fg）。枠と影は木札（.shop-nameplate）と同じ family にして、
+ * 日曜市の木の看板が並ぶ世界から浮かないようにしている。
+ */
+/**
+ * ハートの形（viewBox 24 × 24）
+ *
+ * Leaflet 版はこの文字列を SVG に埋め、MapLibre 版は Path2D に渡して
+ * Canvas に描く。形を直すときに片方だけ変わらないよう、出どころはここ 1 つにする。
+ */
+export const SHOP_FAVORITE_HEART_PATH =
+  "M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z";
+
+/** お気に入り色。CSS 変数 --favorite-fg を読めないときの控え（globals.css と同じ値） */
+export const SHOP_FAVORITE_COLOR_FALLBACK = "#be123c";
+
+export const SHOP_FAVORITE_BADGE_HTML = `<div class="shop-favorite-badge" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><path d="${SHOP_FAVORITE_HEART_PATH}"/></svg></div>`;
+
 export function generateShopMarkerHtml(
   shop: Shop,
   { bannerImage, illustrationSize, includeNameplate, stallRenderer = 'svg' }: ShopMarkerHtmlOptions
@@ -130,7 +155,7 @@ export function generateShopMarkerHtml(
   return `
     <div class="shop-marker-container" style="${colorStyle}">
       ${productIconHtml}
-      <div class="shop-favorite-badge" aria-hidden="true">&#10084;</div>
+      ${SHOP_FAVORITE_BADGE_HTML}
       ${illustrationHtml}
       ${nameplateHtml}
     </div>

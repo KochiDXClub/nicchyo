@@ -21,7 +21,7 @@ import {
 } from '../config/displayConfig';
 import { getRoadSide } from '../config/roadConfig';
 import { getShopBannerImage } from '../../../../lib/shopImages';
-import { generateShopMarkerHtml } from '../utils/markerHtmlGenerator';
+import { generateShopMarkerHtml, SHOP_FAVORITE_BADGE_HTML } from '../utils/markerHtmlGenerator';
 
 type ShopBannerOrigin = { x: number; y: number; width: number; height: number };
 
@@ -256,7 +256,7 @@ function OptimizedShopLayerWithClustering({
       return L.divIcon({
         html: `
           <div class="shop-marker-compact-wrapper">
-            <div class="shop-favorite-badge" aria-hidden="true">&#10084;</div>
+            ${SHOP_FAVORITE_BADGE_HTML}
             <div class="shop-marker-compact"></div>
           </div>
         `,
