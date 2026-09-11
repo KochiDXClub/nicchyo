@@ -17,7 +17,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ChevronRight, LocateFixed, Navigation, X as XIcon } from 'lucide-react';
-import type { MapSpot } from '@/lib/spots';
+import type { MapSpot, SpotKind } from '@/lib/spots';
 import type { RankedSpot } from '@/lib/guide';
 import { formatDistance } from '@/lib/facilities/nearest';
 import type { MapCamera } from '../types/mapCamera';
@@ -141,6 +141,13 @@ function LocationStatusRow({ status, onRequest }: { status: OdekakeGuide['geoSta
   );
 }
 
+/** 選択画面に添える、種類ごとの件数 */
+function countSpotsByKind(spots: MapSpot[]): Partial<Record<SpotKind, number>> {
+  const counts: Partial<Record<SpotKind, number>> = {};
+  for (const spot of spots) counts[spot.kind] = (counts[spot.kind] ?? 0) + 1;
+  return counts;
+}
+
 export default function OdekakeGuidePanel({ guide, map, onClose, onOpenSpot }: OdekakeGuidePanelProps) {
   const [isOpen, setIsOpen] = useState(guide.kinds.length === 0);
   const dragStartY = useRef<number | null>(null);
@@ -225,7 +232,7 @@ export default function OdekakeGuidePanel({ guide, map, onClose, onOpenSpot }: O
   // まだ何を探すか決まっていないうちは、画面の中央で選んでもらう。
   // 下の帯に小さなチップを並べるだけでは、初めての人に何ができるのか伝わらない
   if (choosing && !guide.navigating) {
-    return <OdekakeKindChooser onSelect={guide.toggleKind} onClose={onClose} />;
+    return <OdekakeKindChooser onSelect={guide.toggleKind} onClose={onClose} counts={countSpotsByKind(guide.spots)} />;
   }
 
   return (
@@ -490,6 +497,10 @@ export default function OdekakeGuidePanel({ guide, map, onClose, onOpenSpot }: O
               })}
             </ol>
           )}
+          {/* 旧 /facilities ページにあった断り書き。一覧の下に1行だけ残す */}
+          <p className="mx-5 mb-1 mt-3 text-[11px] leading-relaxed text-slate-400">
+            掲載している情報は変わることがあります。当日の最新の状況は、現地の案内表示もあわせてご確認ください。
+          </p>
         </div>
       </div>
     </>
