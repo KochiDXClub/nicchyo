@@ -222,42 +222,16 @@ export function useOdekakeGuide({
 
   // ── スポットと道のネットワーク ──
   const spots = useMemo(() => landmarks.map(landmarkToSpot), [landmarks]);
-  // 歩行者ネットワーク（約270KB）。
-  //
-  // 以前は「案内を開いたとき」に読み込んでいたが、それだと押してから取得が始まり、
-  // 届くまで経路を引けないぶん待たされた。地図が落ち着いたころに裏で取っておく。
-  // 取得はブラウザが暇なときに回すので、初回表示の邪魔はしない。
+  // 歩行者ネットワーク（約270KB）は案内を開いたときに初めて読み込む
   const [walkData, setWalkData] = useState<WalkNetworkData | null>(null);
   useEffect(() => {
-    if (walkData) return;
+    if (!active || walkData) return;
     let cancelled = false;
-    const load = () => {
-      void import('@/lib/guide/data/kochi-walk-network.json').then((mod) => {
-        if (!cancelled) setWalkData(mod.default as WalkNetworkData);
-      });
-    };
-    // 開いているなら待たずに読む。まだなら暇なときに先読みする
-    if (active) {
-      load();
-      return () => {
-        cancelled = true;
-      };
-    }
-    const w = window as Window & {
-      requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number;
-      cancelIdleCallback?: (id: number) => void;
-    };
-    if (typeof w.requestIdleCallback === 'function') {
-      const id = w.requestIdleCallback(load, { timeout: 4000 });
-      return () => {
-        cancelled = true;
-        w.cancelIdleCallback?.(id);
-      };
-    }
-    const timer = window.setTimeout(load, 2500);
+    void import('@/lib/guide/data/kochi-walk-network.json').then((mod) => {
+      if (!cancelled) setWalkData(mod.default as WalkNetworkData);
+    });
     return () => {
       cancelled = true;
-      window.clearTimeout(timer);
     };
   }, [active, walkData]);
   const network: GuideNetwork | null = useMemo(
