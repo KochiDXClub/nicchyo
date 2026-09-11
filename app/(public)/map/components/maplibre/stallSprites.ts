@@ -4,7 +4,7 @@
  * シンボルレイヤーはビットマップしか受け付けないので、屋台パーツの SVG を
  * Canvas で一度だけ描き起こして map.addImage に登録する。
  * 画像の枚数は「形 × 色 × 状態」の組み合わせ数だが、色はカテゴリ数（十数種）、
- * 状態は normal / search / ai / bag / selected の 5 つなので、多くても数十枚に収まる。
+ * 状態は normal / search / ai / selected の 4 つなので、多くても数十枚に収まる。
  * 出店者のカスタム SVG は個別に描き起こす（色は変えられない）。
  */
 
@@ -15,7 +15,11 @@ import {
   resolveStallParts,
   type StallPartsSpec,
 } from "../../config/stallParts";
-import { sanitizeCssColor } from "../../utils/markerHtmlGenerator";
+import {
+  SHOP_FAVORITE_COLOR_FALLBACK,
+  SHOP_FAVORITE_HEART_PATH,
+  sanitizeCssColor,
+} from "../../utils/markerHtmlGenerator";
 import type { Shop } from "../../data/shops";
 import { memoImage } from "./rasterCache";
 
@@ -30,14 +34,13 @@ import { memoImage } from "./rasterCache";
  * 枚数は 形×色×状態 で数十枚に収まるため上限は緩くてよいが、
  * 端末の記憶容量を無制限には使わないよう入れた順に捨てる。
  */
-export type StallState = "normal" | "search" | "ai" | "bag" | "selected";
-export const STALL_STATES: readonly StallState[] = ["normal", "search", "ai", "bag", "selected"];
+export type StallState = "normal" | "search" | "ai" | "selected";
+export const STALL_STATES: readonly StallState[] = ["normal", "search", "ai", "selected"];
 
 /** 状態ごとの屋根・ひさし色（globals.css の状態上書きと同じ値） */
 const STATE_COLORS: Record<Exclude<StallState, "normal" | "selected">, { roof: string; base: string; stripe: string }> = {
   search: { roof: "#2563eb", base: "#93c5fd", stripe: "#2563eb" },
   ai: { roof: "#ef4444", base: "#fca5a5", stripe: "#ef4444" },
-  bag: { roof: "#f8fafc", base: "#34d399", stripe: "#10b981" },
 };
 
 /** 店舗ごとの「形＋色」のキー。同じキーの店舗は同じ画像を共有する */
@@ -224,37 +227,72 @@ export async function rasterizePhotoCircle(
   return ctx.getImageData(0, 0, size, size);
 }
 
-/** お気に入り（♥ 橙）と買い物袋（🛍️ 緑）のバッジ。Leaflet 版 .shop-favorite-badge / .shop-bag-badge と同じ配色 */
-export function buildBadgeSprite(kind: "favorite" | "bag", pixelRatio: number): ImageData {
-  const w = 26;
-  const h = 20;
+/**
+ * お気に入り色を CSS 変数から読む（Leaflet 版と同じ色にするため）
+ *
+ * スプライトを描き起こすのは地図の初期化時で、そのときには
+ * スタイルシートは読み終わっている。読めなかったときだけ控えの値を使う。
+ */
+function resolveFavoriteColor(): string {
+  if (typeof window === "undefined") return SHOP_FAVORITE_COLOR_FALLBACK;
+  try {
+    const value = getComputedStyle(document.documentElement)
+      .getPropertyValue("--favorite-fg")
+      .trim();
+    return sanitizeCssColor(value) ?? SHOP_FAVORITE_COLOR_FALLBACK;
+  } catch {
+    return SHOP_FAVORITE_COLOR_FALLBACK;
+  }
+}
+
+/**
+ * お気に入りの印。Leaflet 版 .shop-favorite-badge と同じ見た目にする。
+ *
+ * クリーム地に木札と同じ茶色の枠、中身はお気に入り色のハート。
+ * 文字（♥ や絵文字）ではなくパスで描くので、端末のフォントに左右されない。
+ */
+export function buildFavoriteBadgeSprite(pixelRatio: number): ImageData {
+  const d = 20;
   const pad = 4;
+  const size = d + pad * 2;
   const canvas = document.createElement("canvas");
-  canvas.width = Math.round((w + pad * 2) * pixelRatio);
-  canvas.height = Math.round((h + pad * 2) * pixelRatio);
+  canvas.width = Math.round(size * pixelRatio);
+  canvas.height = Math.round(size * pixelRatio);
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("canvas 2d context を取得できません");
   ctx.scale(pixelRatio, pixelRatio);
-  const color = kind === "favorite" ? "#f97316" : "#10b981";
+
+  const c = pad + d / 2;
+  const r = d / 2 - 0.5;
+
+  // 地（クリーム）と影
   ctx.save();
-  ctx.shadowColor = "rgba(0,0,0,0.18)";
-  ctx.shadowBlur = 6;
+  ctx.shadowColor = "rgba(76,53,22,0.2)";
+  ctx.shadowBlur = 4;
   ctx.shadowOffsetY = 2;
-  ctx.fillStyle = "#ffffff";
+  ctx.fillStyle = "#fffaf0";
   ctx.beginPath();
-  ctx.roundRect(pad, pad, w, h, h / 2);
+  ctx.arc(c, c, r, 0, Math.PI * 2);
   ctx.fill();
   ctx.restore();
-  ctx.lineWidth = 2;
-  ctx.strokeStyle = color;
+
+  // 枠（木札と同じ茶）
+  ctx.lineWidth = 1;
+  ctx.strokeStyle = "rgba(140,106,62,0.45)";
   ctx.beginPath();
-  ctx.roundRect(pad + 1, pad + 1, w - 2, h - 2, (h - 2) / 2);
+  ctx.arc(c, c, r, 0, Math.PI * 2);
   ctx.stroke();
-  ctx.fillStyle = color;
-  ctx.font = kind === "favorite" ? "bold 12px sans-serif" : "11px sans-serif";
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  ctx.fillText(kind === "favorite" ? "♥" : "🛍", pad + w / 2, pad + h / 2 + 0.5);
+
+  // ハート（お気に入り色）
+  const heart = 11;
+  const scale = heart / 24;
+  ctx.save();
+  ctx.translate(c - heart / 2, c - heart / 2);
+  ctx.scale(scale, scale);
+  ctx.fillStyle = resolveFavoriteColor();
+  ctx.fill(new Path2D(SHOP_FAVORITE_HEART_PATH));
+  ctx.restore();
+
   return ctx.getImageData(0, 0, canvas.width, canvas.height);
 }
 

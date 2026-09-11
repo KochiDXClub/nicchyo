@@ -12,6 +12,8 @@
 
 import { useEffect, useRef } from "react";
 import * as maplibregl from "maplibre-gl";
+
+import { useLocationPermissionGate } from "../../hooks/useLocationPermissionGate";
 import type { MapRouteConfig, MapRoutePoint } from "../../types/mapRoute";
 import {
   getDefaultMapRouteConfig,
@@ -92,6 +94,8 @@ export default function MapLibreUserLocation({
   const onLocationUpdateRef = useRef(onLocationUpdate);
   const isTrackingRef = useRef(isTracking);
   const animFrameRef = useRef<number | null>(null);
+  // 追従ボタンを押されたのは「ご自分から現在地を求められた」ということなので待たせない
+  const canAskLocation = useLocationPermissionGate(isTracking === true);
 
   useEffect(() => {
     onLocationUpdateRef.current = onLocationUpdate;
@@ -133,6 +137,8 @@ export default function MapLibreUserLocation({
 
   useEffect(() => {
     if (!map) return;
+    // 読み込み中にブラウザの許可ダイアログを出さない（畳まれてから少し待つ）
+    if (!canAskLocation) return;
 
     const activeRoutePoints = normalizeMapRoutePoints(routePoints ?? []);
     const effectiveRoutePoints = activeRoutePoints.length >= 2 ? activeRoutePoints : getDefaultMapRoutePoints();
@@ -258,7 +264,7 @@ export default function MapLibreUserLocation({
       navigator.geolocation.clearWatch(watchId);
       removeMarker();
     };
-  }, [map, routeConfig, routePoints, suppressInitialFocus, zoomOffset]);
+  }, [canAskLocation, map, routeConfig, routePoints, suppressInitialFocus, zoomOffset]);
 
   return null;
 }
