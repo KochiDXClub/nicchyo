@@ -287,6 +287,7 @@ export default function MapViewMapLibre({
   onMapStage,
   onMapInstance,
   initialShopId,
+  openInitialShopBanner = true,
   trackingButtonTop,
   hideMapUI = false,
   suppressLandmarks = false,
@@ -962,7 +963,12 @@ export default function MapViewMapLibre({
 
       if (initialShopId) {
         const target = shopsRef.current.find((s) => s.id === initialShopId);
-        if (target) map.jumpTo({ center: [target.lng, target.lat], zoom: MAX_ZOOM });
+        if (target) {
+          map.jumpTo({ center: [target.lng, target.lat], zoom: MAX_ZOOM });
+          // 店舗ページや検索結果から `?shop=` で来たときは、寄るだけでなくバナーも開く。
+          // 開かないと「どの店を見ていたのか」が分からなくなる（Leaflet 版と同じ挙動）
+          if (openInitialShopBanner) setSelectedShop(target);
+        }
       }
     };
 

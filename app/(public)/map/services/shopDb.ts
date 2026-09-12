@@ -305,9 +305,9 @@ export async function fetchVendorShopsFromDb(
     }
   }
 
-  return Array.from(dedupedByStoreNumber.values())
-    .sort((a, b) => a.id - b.id)
-    .map(({ assignmentMarketDate: _assignmentMarketDate, ...shop }) => shop);
+  // assignmentMarketDate は「今日この店が出ているか」の判定に使うので、
+  // 落とさずに Shop へそのまま渡す
+  return Array.from(dedupedByStoreNumber.values()).sort((a, b) => a.id - b.id);
 }
 
 export const fetchShopsFromDb = fetchVendorShopsFromDb;
