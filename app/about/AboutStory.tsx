@@ -4,10 +4,17 @@ import React, { useState } from "react";
 import { motion, AnimatePresence, type PanInfo } from "framer-motion";
 import Link from "next/link";
 import Image from "next/image";
-import { ArrowLeft, ArrowRight, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, Bug, Code2, Lightbulb, X, type LucideIcon } from "lucide-react";
 import SupporterSlots from "@/components/SupporterSlots";
 import { AboutIcon } from "./AboutIcon";
-import { aboutSlides, type SlideRichContent } from "./slides";
+import { aboutSlides, type PainPointIconName, type SlideRichContent } from "./slides";
+
+// painPoints の項目に置く線画アイコン。メニューやおでかけと同じ lucide で揃える
+const PAIN_POINT_ICONS: Record<PainPointIconName, LucideIcon> = {
+  bug: Bug,
+  lightbulb: Lightbulb,
+  code: Code2,
+};
 
 // ─── スライドごとの配色 ─────────────────────────────────────────────────────
 // アイコン円・プログレスバー・ドット・アクションボタンに使う。
@@ -28,6 +35,7 @@ const SLIDE_THEMES: Record<string, SlideTheme> = {
   supporters: { accent: "#F59E0B", light: "#FFFBEB", text: "#92400E", border: "#FDE68A" },
   team: { accent: "#64748B", light: "#F8FAFC", text: "#334155", border: "#E2E8F0" },
   roadmap: { accent: "#10B981", light: "#ECFDF5", text: "#065F46", border: "#A7F3D0" },
+  opensource: { accent: "#3A3A3A", light: "#FAFAF9", text: "#3A3A3A", border: "#E7E5E4" },
   version: { accent: "#6366F1", light: "#EEF2FF", text: "#3730A3", border: "#C7D2FE" },
   cta: { accent: "#F59E0B", light: "#FFFBEB", text: "#92400E", border: "#FDE68A" },
 };
@@ -35,6 +43,20 @@ const DEFAULT_THEME = SLIDE_THEMES.intro;
 
 function getSlideTheme(id: string): SlideTheme {
   return SLIDE_THEMES[id] ?? DEFAULT_THEME;
+}
+
+/** 絵文字と同じ幅（2xl ≒ 32px）に収まる、色つきの丸に線画アイコン */
+function PainPointIcon({ name, accent }: { name: PainPointIconName; accent: string }) {
+  const Icon = PAIN_POINT_ICONS[name];
+  return (
+    <span
+      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full"
+      style={{ backgroundColor: `${accent}14`, color: accent }}
+      aria-hidden
+    >
+      <Icon className="h-[18px] w-[18px]" strokeWidth={2.2} />
+    </span>
+  );
 }
 
 function RichContent({
@@ -55,7 +77,11 @@ function RichContent({
             className="flex items-center gap-3 rounded-2xl border bg-white p-4 shadow-sm"
             style={{ borderColor: theme.border }}
           >
-            <span className="text-2xl">{p.emoji}</span>
+            {p.icon ? (
+              <PainPointIcon name={p.icon} accent={theme.accent} />
+            ) : (
+              <span className="text-2xl">{p.emoji}</span>
+            )}
             <p className="text-sm font-semibold text-gray-700 leading-snug">{p.text}</p>
           </div>
         ))}
@@ -245,7 +271,18 @@ export default function AboutStory({ weeklyVisitors }: { weeklyVisitors?: number
             )}
 
             {/* Slide Action Button */}
-            {currentSlide.action && (
+            {currentSlide.action && currentSlide.action.external && (
+              <a
+                href={currentSlide.action.href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mb-4 inline-flex items-center justify-center rounded-full px-8 py-4 text-lg font-bold shadow-lg transition active:scale-95"
+                style={{ backgroundColor: "white", color: theme.text, border: `1px solid ${theme.border}` }}
+              >
+                {currentSlide.action.label}
+              </a>
+            )}
+            {currentSlide.action && !currentSlide.action.external && (
               <Link
                 href={currentSlide.action.href}
                 className="mb-4 inline-flex items-center justify-center rounded-full px-8 py-4 text-lg font-bold shadow-lg transition active:scale-95"
