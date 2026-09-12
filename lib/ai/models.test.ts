@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, it, expect } from "vitest";
 import {
@@ -35,7 +35,7 @@ const reasoning = resolveAiModelChoice(
 );
 const reasoningOff = resolveAiModelChoice(
   catalog,
-  { modelId: "gpt-5.4-nano", reasoningEffort: "minimal" },
+  { modelId: "gpt-5.4-nano", reasoningEffort: "none" },
   "consult"
 );
 
@@ -103,14 +103,20 @@ describe("AI_MODEL_DEFS", () => {
  * 片方だけ直すと、平常時とDB障害時で違うモデルが使われる。
  */
 describe("マイグレーションとの突き合わせ", () => {
-  const sql = readFileSync(
-    join(process.cwd(), "supabase/migrations/20260907113000_create_ai_model_registry.sql"),
-    "utf8"
-  );
+  // 台帳に触るマイグレーションを古い順につなぐ。能力の訂正は後のファイルで
+  // 同じ形の values タプルを再投入する（on conflict do update）ので、
+  // 最後に出てくるタプルが「いまDBにある値」になる
+  const migrationsDir = join(process.cwd(), "supabase/migrations");
+  const sql = readdirSync(migrationsDir)
+    .filter((name) => name.endsWith(".sql"))
+    .sort()
+    .map((name) => readFileSync(join(migrationsDir, name), "utf8"))
+    .filter((content) => content.includes("insert into ai_models"))
+    .join("\n");
 
-  /** 初期データから、そのモデルの values タプルだけを切り出す */
+  /** そのモデルの values タプルのうち、最後に投入されたものを切り出す */
   function seedTupleFor(modelId: string): string {
-    const start = sql.indexOf(`'${modelId}'`);
+    const start = sql.lastIndexOf(`'${modelId}'`);
     expect(start, `${modelId} が ai_models の初期データにない`).toBeGreaterThan(-1);
     const end = sql.indexOf("),", start);
     return sql.slice(start, end);
@@ -319,12 +325,15 @@ describe("validateAiModelChoice", () => {
   });
 
   it("そのモデルが受け付けない深さを弾く", () => {
-    // none は 5.6 Luna だけが受け付ける
-    expect(validateAiModelChoice(catalog, "consult", "gpt-5.4-nano", "none")).toEqual({
+    // minimal は 5.4 系が受け付けない（5 nano は受け付ける）
+    expect(validateAiModelChoice(catalog, "consult", "gpt-5.4-nano", "minimal")).toEqual({
       ok: false,
       reason: "unsupported_reasoning_effort",
     });
-    expect(validateAiModelChoice(catalog, "consult", "gpt-5.6-luna", "none").ok).toBe(true);
+    expect(validateAiModelChoice(catalog, "consult", "gpt-5-nano", "minimal").ok).toBe(true);
+    // max は 5.6 Luna だけが受け付ける
+    expect(validateAiModelChoice(catalog, "consult", "gpt-5.4-nano", "max").ok).toBe(false);
+    expect(validateAiModelChoice(catalog, "consult", "gpt-5.6-luna", "max").ok).toBe(true);
   });
 
   it("台帳に足したモデルは通る（コード側の定義に無くてよい）", () => {
@@ -379,7 +388,7 @@ describe("resolveAiModelChoice", () => {
 
   it("推論モデルで深さ未指定ならモデルの既定値を使う", () => {
     const resolved = resolveAiModelChoice(catalog, { modelId: "gpt-5.4-nano" }, "consult");
-    expect(resolved.reasoningEffort).toBe("minimal");
+    expect(resolved.reasoningEffort).toBe("none");
   });
 
   it("推論しないモデルには深さが付かない", () => {
@@ -426,8 +435,14 @@ describe("resolveMaxOutputTokens", () => {
     expect(resolveMaxOutputTokens(legacy, 280)).toBe(280);
   });
 
-  it("minimal は推論トークンを使わないので上乗せしない", () => {
+  it("none / minimal は推論トークンを使わないので上乗せしない", () => {
     expect(resolveMaxOutputTokens(reasoningOff, 280)).toBe(280);
+    const minimal = resolveAiModelChoice(
+      catalog,
+      { modelId: "gpt-5-nano", reasoningEffort: "minimal" },
+      "consult"
+    );
+    expect(resolveMaxOutputTokens(minimal, 280)).toBe(280);
   });
 
   it("推論を有効にしたら余白を上乗せする（本文が空で返るのを防ぐ）", () => {
@@ -452,7 +467,8 @@ describe("buildChatCompletionBody", () => {
   });
 
   it("temperature を受け付けないモデルには送らない", () => {
-    const body = buildChatCompletionBody(reasoning, {
+    const noTemperature = resolveAiModelChoice(catalog, { modelId: "gpt-5-nano" }, "consult");
+    const body = buildChatCompletionBody(noTemperature, {
       messages,
       maxOutputTokens: 500,
       temperature: 0.7,
