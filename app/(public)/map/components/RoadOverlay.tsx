@@ -200,31 +200,32 @@ function CurvedRoad({
   overviewTint?: boolean;
   onTap?: (latlng: L.LatLng) => void;
 }) {
-  if (!config.segments) {
-    return null;
-  }
+  const segments = config.segments;
 
-  const anchorPoints = config.segments
-    .map((segment) => {
-      const northLat = Math.max(segment.bounds[0][0], segment.bounds[1][0]);
-      const southLat = Math.min(segment.bounds[0][0], segment.bounds[1][0]);
-      const eastLng = Math.max(segment.bounds[0][1], segment.bounds[1][1]);
-      const westLng = Math.min(segment.bounds[0][1], segment.bounds[1][1]);
-      if (isEastWest) {
+  // 毎レンダーで作り直すと配列の同一性が変わり、RoadSurface 側の useMemo が
+  // 一度も効かずに道のポリゴン・通路・縁をすべて計算し直すことになる
+  const smoothedCenterline = useMemo(() => {
+    if (!segments) return [];
+    const anchorPoints = segments
+      .map((segment) => {
+        const northLat = Math.max(segment.bounds[0][0], segment.bounds[1][0]);
+        const southLat = Math.min(segment.bounds[0][0], segment.bounds[1][0]);
+        const eastLng = Math.max(segment.bounds[0][1], segment.bounds[1][1]);
+        const westLng = Math.min(segment.bounds[0][1], segment.bounds[1][1]);
+        if (isEastWest) {
+          return {
+            lat: segment.centerLine ?? (northLat + southLat) / 2,
+            lng: (eastLng + westLng) / 2,
+          };
+        }
         return {
-          lat: segment.centerLine ?? (northLat + southLat) / 2,
-          lng: (eastLng + westLng) / 2,
+          lat: (northLat + southLat) / 2,
+          lng: segment.centerLine ?? (eastLng + westLng) / 2,
         };
-      }
-      return {
-        lat: (northLat + southLat) / 2,
-        lng: segment.centerLine ?? (eastLng + westLng) / 2,
-      };
-    })
-    .sort((a, b) => (isEastWest ? a.lng - b.lng : b.lat - a.lat));
-
-  const centerline = densifyPath(anchorPoints, 8);
-  const smoothedCenterline = smoothPath(centerline, 2);
+      })
+      .sort((a, b) => (isEastWest ? a.lng - b.lng : b.lat - a.lat));
+    return smoothPath(densifyPath(anchorPoints, 8), 2);
+  }, [segments, isEastWest]);
 
   if (smoothedCenterline.length < 2) {
     return null;
@@ -385,7 +386,10 @@ function useQuantizedRoadZoom(): number {
  * 両者の見え方を揃えつつ書き換え回数を抑える。
  */
 function quantizeRoadZoom(zoom: number): number {
-  return Math.round(zoom / ROAD_LANE_DASH_ZOOM_STEP) * ROAD_LANE_DASH_ZOOM_STEP;
+  // 切り捨てなのは MapLibre 側の step 式に合わせるため。四捨五入だと刻みの半分だけ
+  // 早く次の段階へ上がり、たとえばズーム 19.8 で Leaflet 側だけ縁 3px・中央線 2px、
+  // MapLibre 側は 2.5px・1.5px という食い違いが出る
+  return Math.floor(zoom / ROAD_LANE_DASH_ZOOM_STEP) * ROAD_LANE_DASH_ZOOM_STEP;
 }
 
 export default memo(RoadOverlay);

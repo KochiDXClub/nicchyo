@@ -689,6 +689,16 @@ export default function MapPageClient({
     [activateSpotlight, prefetchShopImage, shopById]
   );
 
+  // 検索結果 / AI おすすめで対象が絞れているときの店舗 ID。
+  // 優先順位は MapView 側の activeHighlightShopIds と同じ（検索が先、次に AI）
+  const highlightShopIds = useMemo(() => {
+    const search = searchMarkerPayload?.ids ?? mapSearchShopIds;
+    if (search && search.length > 0) return search;
+    const ai = aiMarkerPayload?.ids;
+    if (ai && ai.length > 0) return ai;
+    return undefined;
+  }, [searchMarkerPayload, mapSearchShopIds, aiMarkerPayload]);
+
   const handleCommentShopOpen = useCallback(
     (shopId: number) => {
       handleCommentShopFocus(shopId);
@@ -1089,6 +1099,7 @@ export default function MapPageClient({
             <ShopScanCards
               map={mapInstance}
               shops={shops}
+              highlightShopIds={highlightShopIds}
               onSelectShop={handleScanCardSelect}
               enabled={
                 !mapCharacterConsultActive &&
