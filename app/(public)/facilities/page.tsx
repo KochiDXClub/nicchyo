@@ -1,42 +1,17 @@
-import type { Metadata } from 'next';
-import { cookies } from 'next/headers';
-import { createClient } from '@/utils/supabase/server';
-import { fetchLandmarksFromDb } from '../map/services/landmarksDb';
-import { countFacilitiesByCategory } from '@/lib/facilities/landmarkFacilities';
-import type { FacilityCategoryId } from '@/lib/facilities/facilities';
-import FacilitiesPageClient from './FacilitiesPageClient';
+import { redirect } from 'next/navigation';
 
-// 件数は DB から毎回読む（静的化すると 0 件のまま固定されてしまう）
-export const dynamic = 'force-dynamic';
-
-export const metadata: Metadata = {
-  title: 'おでかけサポート',
-  description:
-    '高知・日曜市のお手洗い、休けいできるベンチ、電車やバスののりばをマップからさがせます。はじめての方も安心してまわれます。',
-};
-
-export default async function FacilitiesPage() {
-  // カテゴリごとの件数表示のため、マップと同じスポットデータ（map_landmarks）を取得する。
-  // 取得できなくても致命的ではないので、失敗時は0件のまま表示する。
-  let counts: Record<FacilityCategoryId, number> = { restroom: 0, rest: 0, transport: 0 };
-
-  const hasSupabaseEnv =
-    !!process.env.NEXT_PUBLIC_SUPABASE_URL &&
-    !!(
-      process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY ??
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-    );
-
-  if (hasSupabaseEnv) {
-    try {
-      const cookieStore = await cookies();
-      const supabase = createClient(cookieStore);
-      const landmarks = await fetchLandmarksFromDb(supabase);
-      counts = countFacilitiesByCategory(landmarks);
-    } catch (error) {
-      console.error('[FacilitiesPage] スポットの取得に失敗しました:', error);
-    }
-  }
-
-  return <FacilitiesPageClient counts={counts} />;
+/**
+ * /facilities（おでかけサポートのページ）
+ *
+ * 以前は「お手洗い・休けい・のりもの」から種類を選ぶだけのページで、選ぶと
+ * /map?facility=… に飛んで結局は地図に戻っていた。地図の上に同じ選択画面
+ * （OdekakeKindChooser）を作ったので、ページを経由する意味が無くなった。
+ * 種類の定義も2か所にあって既にズレていた（ページは3種類、地図は4種類）。
+ *
+ * URL は残す。にちよさんの回答や共有リンクが /facilities を指しているため、
+ * 消すと壊れる。中身は地図の選択画面へ送るだけにする。
+ * ?facility=restroom のような種類つきの URL は、もともと地図側が受け取る。
+ */
+export default function FacilitiesPage() {
+  redirect('/map?guide=menu');
 }
