@@ -84,9 +84,11 @@ export const AI_MODEL_DEFS: readonly AiModelDef[] = [
     description:
       "会話向けの軽量モデル。2026-07 の比較で最速だった。相談・店舗チャット・意図抽出のような、速さが体験を決める場面向け。",
     tokenParam: "max_completion_tokens",
-    // 未検証。送って 400 になるより、送らずにモデル既定値で動く方を選ぶ
-    supportsTemperature: false,
-    reasoningEfforts: ["minimal", "low", "medium", "high"],
+    // 2026-09-12 に temperature 0.7 で 200 を確認
+    supportsTemperature: true,
+    // 5.4 系は `minimal` を受け付けない（400 unsupported_value。2026-09-12 に実測）。
+    // 受け付けるのは none / low / medium / high / xhigh
+    reasoningEfforts: ["none", "low", "medium", "high", "xhigh"],
     reasoningHeadroomTokens: 4000,
     pricing: { input: 0.2, output: 1.25 },
   },
@@ -96,8 +98,10 @@ export const AI_MODEL_DEFS: readonly AiModelDef[] = [
     description:
       "nano より賢いが約4倍高く、体感で2倍遅い。回り方プランのように、実際に順序を考える必要がある場面向け。",
     tokenParam: "max_completion_tokens",
-    supportsTemperature: false,
-    reasoningEfforts: ["minimal", "low", "medium", "high"],
+    // 2026-09-12 に temperature 0.7 で 200 を確認
+    supportsTemperature: true,
+    // nano と同じく `minimal` は 400。none / low / medium / high / xhigh
+    reasoningEfforts: ["none", "low", "medium", "high", "xhigh"],
     reasoningHeadroomTokens: 6000,
     pricing: { input: 0.75, output: 4.5 },
   },
