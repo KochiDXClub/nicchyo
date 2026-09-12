@@ -180,6 +180,8 @@ export type MapViewProps = {
   onSpotSelect?: (spot: MapSpot) => void;
   /** 店舗バナーの「ここへ案内」。おでかけサポートでその店への道案内を始める */
   onNavigateToShop?: (shop: Shop) => void;
+  /** おでかけサポートで案内中の目的地の店。屋台マーカーを「選択中」の見た目にする */
+  guideTargetShopId?: number;
   /** 選択中のスポットID（MapSpot.id）。該当するランドマークを少し大きく表示する */
   selectedSpotId?: string;
   spotlightShopId?: number;
@@ -537,6 +539,7 @@ const MapView = memo(function MapView({
   onShopSelect,
   onSpotSelect,
   onNavigateToShop,
+  guideTargetShopId,
   selectedSpotId,
   spotlightShopId,
   onClearSearch,
@@ -1250,7 +1253,7 @@ const MapView = memo(function MapView({
             shops={shops}
             onShopClick={handleShopClick}
             onChunkProgress={handleShopChunkProgress}
-            selectedShopId={selectedShop?.id}
+            selectedShopId={selectedShop?.id ?? guideTargetShopId}
             favoriteShopIds={favoriteShopIds}
             searchShopIds={searchShopIds}
             aiHighlightShopIds={aiShopIds}

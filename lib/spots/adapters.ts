@@ -9,6 +9,7 @@ import type { Landmark } from '@/app/(public)/map/types/landmark';
 import type { Shop } from '@/app/(public)/map/data/shops';
 import type { Facility } from '@/lib/facilities/facilities';
 import { getSpotKindMeta } from './spotMeta';
+import { resolveShopImage } from '@/lib/shopImages';
 import type { MapSpot, SpotKind, TransitMode } from './types';
 
 export const JR_STATION_LANDMARK_KEY = 'jr-kochi-station';
@@ -118,7 +119,7 @@ export function shopSpotId(shopId: number): string {
  * ここで作るスポットは経路の終点と案内カードの見出しにだけ使う。
  */
 export function shopToSpot(
-  shop: Pick<Shop, 'id' | 'name' | 'lat' | 'lng' | 'catchphrase' | 'images'>
+  shop: Pick<Shop, 'id' | 'name' | 'lat' | 'lng' | 'catchphrase' | 'images' | 'category' | 'position'>
 ): MapSpot {
   const meta = getSpotKindMeta('shop');
   return {
@@ -130,7 +131,9 @@ export function shopToSpot(
     lng: shop.lng,
     emoji: meta.emoji,
     accentColor: meta.accentColor,
-    photoUrl: shop.images?.main,
+    // 写真はバナーと同じ決め方（登録写真 → カテゴリの既定写真）
+    photoUrl: resolveShopImage(shop),
+    shopId: shop.id,
     verified: true,
   };
 }

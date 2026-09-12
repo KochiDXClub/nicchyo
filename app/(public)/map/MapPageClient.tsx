@@ -519,6 +519,11 @@ export default function MapPageClient({
     },
     [guide, guideActive, openGuideMenu]
   );
+  // 案内中の目的地が店なら、その屋台マーカーを目立たせる（GuideLayer は店のピンを置かない）
+  const guideTargetShopId =
+    guideActive && guide.navigating && guide.selected?.spot.kind === "shop"
+      ? guide.selected.spot.shopId
+      : undefined;
   // 店舗ページから ?navigate=1 で来たときは、着いてすぐその店への案内を始める（1回だけ）
   const autoNavigateDoneRef = useRef(false);
   useEffect(() => {
@@ -1081,6 +1086,7 @@ export default function MapPageClient({
               onMapInstance={handleMapInstance}
               onSpotSelect={setSelectedSpot}
               onNavigateToShop={navigateToShop}
+              guideTargetShopId={guideTargetShopId}
               selectedSpotId={selectedSpot?.id}
               onUserLocationUpdate={(coords) => {
                 setUserLocation({ lat: coords.lat, lng: coords.lng });

@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
+import { cache } from "react";
 import { notFound } from "next/navigation";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/database.types";
 import { formatShopIdToCode, normalizeShopCodeToId } from "@/lib/shops/route";
 import { safeJsonLd } from "@/lib/utils/jsonLd";
+import { resolveShopImage } from "@/lib/shopImages";
 import { fetchVendorShopsFromDb } from "../../map/services/shopDb";
 import type { Shop } from "../../map/data/shops";
 import ReportButton from "./ReportButton";
@@ -15,13 +17,6 @@ type ShopPageProps = {
   }>;
 };
 
-type ShopBasic = {
-  shop_name: string | null;
-  strength: string | null;
-  main_products: string[] | null;
-  shop_image_url: string | null;
-};
-
 function createPublicClient() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY;
@@ -29,45 +24,13 @@ function createPublicClient() {
   return createSupabaseClient<Database>(supabaseUrl, supabaseKey);
 }
 
-/** OGP とタイトル用の軽い取得。本文は下の fetchShop で地図と同じ形を取る */
-async function fetchShopBasic(shopId: number): Promise<ShopBasic | null> {
-  const supabase = createPublicClient();
-  if (!supabase) return null;
-
-  try {
-    const { data: locationData } = await supabase
-      .from("market_locations")
-      .select("id")
-      .eq("store_number", shopId)
-      .maybeSingle();
-    if (!locationData) return null;
-
-    const { data: assignmentData } = await supabase
-      .from("location_assignments")
-      .select("vendor_id")
-      .eq("location_id", locationData.id)
-      .order("market_date", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    if (!assignmentData) return null;
-
-    const { data } = await supabase
-      .from("vendors")
-      .select("shop_name, strength, main_products, shop_image_url")
-      .eq("id", assignmentData.vendor_id)
-      .maybeSingle();
-    return data as ShopBasic | null;
-  } catch {
-    return null;
-  }
-}
-
 /**
  * 地図と同じ Shop を取る。
  * 地図のバナーをそのまま出すので、地図と同じ取得経路（fetchVendorShopsFromDb）を通す。
  * 1店のために全店を引くが、地図ページも同じ処理を毎回しているので負荷は変わらない。
+ * generateMetadata と本文の両方から呼ぶので cache() で1リクエスト1回にする。
  */
-async function fetchShop(shopId: number): Promise<Shop | null> {
+const fetchShop = cache(async (shopId: number): Promise<Shop | null> => {
   const supabase = createPublicClient();
   if (!supabase) return null;
   try {
@@ -76,7 +39,7 @@ async function fetchShop(shopId: number): Promise<Shop | null> {
   } catch {
     return null;
   }
-}
+});
 
 export async function generateMetadata({ params }: ShopPageProps): Promise<Metadata> {
   const { shopCode } = await params;
@@ -86,15 +49,16 @@ export async function generateMetadata({ params }: ShopPageProps): Promise<Metad
   const code = formatShopIdToCode(shopId);
   if (!code) return {};
 
-  const shop = await fetchShopBasic(shopId);
-  const shopName = shop?.shop_name?.trim() || `店舗 ${code}`;
-  const products = shop?.main_products?.slice(0, 3).join("・") ?? "";
+  const shop = await fetchShop(shopId);
+  const shopName = shop?.name?.trim() || `店舗 ${code}`;
+  const products = shop?.products?.slice(0, 3).join("・") ?? "";
   const description = products
     ? `${shopName}（高知・日曜市 ${code}番）の出店情報。取扱商品: ${products}。`
     : `${shopName}（高知・日曜市 ${code}番）の出店情報。インタラクティブ地図で場所を確認できます。`;
 
-  const images = shop?.shop_image_url
-    ? [{ url: shop.shop_image_url, width: 800, height: 600, alt: shopName }]
+  // 共有カードの写真はバナーと同じ（登録写真 → カテゴリの既定写真）。相対パスは metadataBase で絶対 URL になる
+  const images = shop
+    ? [{ url: resolveShopImage(shop), width: 800, height: 600, alt: shopName }]
     : [{ url: "/og-default.png", width: 1200, height: 630, alt: shopName }];
 
   return {
