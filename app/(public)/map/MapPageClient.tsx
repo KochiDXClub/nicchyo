@@ -28,6 +28,7 @@ import { getOrCreateConsultVisitorKey } from "../../../lib/consultVisitorKey";
 import MarketStatusBar from "../../components/market/MarketStatusBar";
 import { useMarketCalendar } from "../../../lib/market/useMarketCalendar";
 import MapCharacterConsult from "./components/MapCharacterConsult";
+import ShopScanCards from "./components/ShopScanCards";
 import NearbyExploreButton from "./components/NearbyExploreButton";
 import NearbyExplorePanel, {
   type NearbyRecommendedShop,
@@ -324,6 +325,12 @@ export default function MapPageClient({
   const dragControls = useDragControls();
   const [mapCharacterConsultActive, setMapCharacterConsultActive] = useState(false);
   const [mapInstance, setMapInstance] = useState<LeafletMap | null>(null);
+  // ShopScanCards のカードがタップされたときに、詳細バナーを開くよう地図へ渡す要求。
+  // 同じ店を続けてタップしても開き直せるよう token を進める
+  const [focusShopRequest, setFocusShopRequest] = useState<{ shopId: number; token: number } | null>(null);
+  const handleScanCardSelect = useCallback((shop: Shop) => {
+    setFocusShopRequest((prev) => ({ shopId: shop.id, token: (prev?.token ?? 0) + 1 }));
+  }, []);
   const mapRef = useRef<LeafletMap | null>(null);
   const introFocusTimerRef = useRef<number | null>(null);
   const [searchMarkerPayload, setSearchMarkerPayload] = useState<{
@@ -1044,6 +1051,7 @@ export default function MapPageClient({
               hideMapUI={mapCharacterConsultActive || !!nearbyState}
               // おでかけサポート案内中は GuideLayer 側のマーカーだけを見せる
               suppressLandmarks={guideActive}
+              focusShopRequest={focusShopRequest}
               trackingButtonTop={trackingButtonTop}
               onGestureActiveChange={setIsMapGestureActive}
               overlaySlot={
@@ -1068,6 +1076,22 @@ export default function MapPageClient({
                     onClose={closeNearbyPanel}
                   />
                 ) : undefined
+              }
+            />
+
+            {/* 地図を動かしているあいだだけ、屋台マーカーの上に写真と名前を重ねる。
+                静止時は地図の絵を優先し、探しているときだけ情報を前に出す。
+                出るのは MapLibre 版だけ（Leaflet 版は回転シェルの中の座標が返るため。
+                ShopScanCards の先頭コメント参照）で、判定は中で行っている */}
+            <ShopScanCards
+              map={mapInstance}
+              shops={shops}
+              onSelectShop={handleScanCardSelect}
+              enabled={
+                !mapCharacterConsultActive &&
+                !nearbyState &&
+                !guideActive &&
+                !isShopBannerOpen
               }
             />
 

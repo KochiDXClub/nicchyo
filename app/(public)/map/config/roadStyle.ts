@@ -100,8 +100,11 @@ const ROAD_REFERENCE_LATITUDE = 33.5614118;
 /** ズーム0・256px タイルでの m/px。Leaflet と MapLibre で同じ尺度になる */
 const METERS_PER_PIXEL_AT_ZOOM_0 = 156543.03392;
 
-/** Leaflet のズームでの 1m あたりのピクセル数 */
-function getPixelsPerMeter(zoom: number): number {
+/**
+ * Leaflet のズームでの 1m あたりのピクセル数。
+ * 中央線の破線のほか、ShopScanCards が店舗の間隔から札の大きさを決めるのにも使う。
+ */
+export function getPixelsPerMeter(zoom: number): number {
   const metersPerPixel =
     (METERS_PER_PIXEL_AT_ZOOM_0 * Math.cos((ROAD_REFERENCE_LATITUDE * Math.PI) / 180)) /
     Math.pow(2, zoom);
