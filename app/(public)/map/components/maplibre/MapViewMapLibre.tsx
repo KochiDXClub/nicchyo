@@ -79,7 +79,7 @@ import {
   stallSpriteKey,
   type StallState,
 } from "./stallSprites";
-import { getShopBannerImage } from "../../../../../lib/shopImages";
+import { resolveShopImage } from "../../../../../lib/shopImages";
 import { MAPLIBRE_MAP_KEY, type MapCamera, type MapCameraEvent } from "../../types/mapCamera";
 import { LiveZoomMapControls } from "../MapControls";
 import SearchResultsSheet, { SpotlightCountdownBar } from "../SearchResultsSheet";
@@ -266,7 +266,7 @@ function shopsToGeoJSON(shops: Shop[], display: ShopDisplayState): GeoJSON.Featu
             side: getRoadSide(s.lat, s.lng),
             favorite: display.favorites.has(s.id),
             // 屋根の上の丸窓。写真が無ければカテゴリの既定画像
-            photo: s.images?.main ?? getShopBannerImage(s.category, s.position ?? s.id),
+            photo: resolveShopImage(s),
             photoBorder: stall.dark,
           },
         };
@@ -296,6 +296,8 @@ export default function MapViewMapLibre({
   overlaySlot,
   spotlightShopId,
   onSpotSelect,
+  onNavigateToShop,
+  guideTargetShopId,
   selectedSpotId,
 }: MapViewProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -388,8 +390,9 @@ export default function MapViewMapLibre({
     for (const id of searchShopIds ?? []) m.set(id, "search");
     if (commentShopId) m.set(commentShopId, "ai");
     if (selectedShop) m.set(selectedShop.id, "selected");
+    if (guideTargetShopId) m.set(guideTargetShopId, "selected");
     return m;
-  }, [aiShopIds, searchShopIds, commentShopId, selectedShop]);
+  }, [aiShopIds, searchShopIds, commentShopId, selectedShop, guideTargetShopId]);
   const display = useMemo<ShopDisplayState>(
     () => ({ states: shopStates, favorites: new Set(favoriteShopIds) }),
     [shopStates, favoriteShopIds]
@@ -804,7 +807,7 @@ export default function MapViewMapLibre({
         const shopId = Number(id.slice("photo:".length));
         const shop = shopsRef.current.find((s) => s.id === shopId);
         if (!shop) return;
-        const url = shop.images?.main ?? getShopBannerImage(shop.category, shop.position ?? shop.id);
+        const url = resolveShopImage(shop);
         const border = resolveStallColors(shop.category, sanitizeCssColor(shop.illustration?.color)).dark;
         // 同じ大きさの透明な仮画像を同期で登録しておく（無いままだと MapLibre が警告を出す）。
         // 読み込めたら updateImage で中身だけ差し替える
@@ -1171,6 +1174,7 @@ export default function MapViewMapLibre({
           key={selectedShop.id}
           shop={selectedShop}
           onClose={() => setSelectedShop(null)}
+          onNavigate={onNavigateToShop ? () => { onNavigateToShop(selectedShop); setSelectedShop(null); } : undefined}
           reserveBottomNavSpace={false}
         />
       )}
