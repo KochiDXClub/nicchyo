@@ -442,6 +442,16 @@ export function validateAiModelChoice(
 export type ResolvedAiModel = {
   def: AiModelDef;
   reasoningEffort?: ReasoningEffort;
+  /**
+   * 選んだモデルを OpenAI 側が受け付けなかったとき（`model_not_found`）に
+   * 代わりに使うコード側の既定モデル。既定モデルそのものを選んでいるときは無い。
+   *
+   * 台帳に載っていても、APIキーの属する OpenAI プロジェクトで使用許可が
+   * 出ていないモデルは 400 で落ちる。管理画面で切り替えた瞬間に来訪者向けの
+   * 相談が全部止まるより、既定モデルで答え続けるほうが被害が小さい。
+   * 実際に落ちた事実は requestChatCompletion がログに残す。
+   */
+  fallbackDef?: AiModelDef;
 };
 
 export function resolveAiModelChoice(
@@ -463,7 +473,16 @@ export function resolveAiModelChoice(
       ? choice.reasoningEffort
       : def.reasoningEfforts[0];
 
-  return effort ? { def, reasoningEffort: effort } : { def };
+  // 既定モデルはコード側の定義から引く。台帳の既定モデル行が消えていても
+  // 逃げ先が無くならないようにするため
+  const codeDefault = AI_MODEL_DEF_BY_ID.get(DEFAULT_AI_MODEL_SETTINGS[useCase].modelId);
+  const fallbackDef = codeDefault && codeDefault.id !== def.id ? codeDefault : undefined;
+
+  return {
+    def,
+    ...(effort ? { reasoningEffort: effort } : {}),
+    ...(fallbackDef ? { fallbackDef } : {}),
+  };
 }
 
 /** 推論トークンが出力上限を食う状態か */

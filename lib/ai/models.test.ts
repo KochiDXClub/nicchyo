@@ -395,6 +395,23 @@ describe("resolveAiModelChoice", () => {
     const resolved = resolveAiModelChoice(withoutDefault, { modelId: "gpt-4o-mini" }, "consult");
     expect(resolved.def.id).toBe("gpt-4o-mini");
   });
+
+  it("既定以外のモデルには逃げ先として既定モデルが付く", () => {
+    expect(reasoning.fallbackDef?.id).toBe(DEFAULT_AI_MODEL_SETTINGS.consult.modelId);
+  });
+
+  it("既定モデルそのものを選んでいるときは逃げ先が付かない", () => {
+    expect(legacy.fallbackDef).toBeUndefined();
+  });
+
+  it("逃げ先は台帳の状態によらずコード側の定義から引く", () => {
+    const withoutDefault: AiCatalog = {
+      models: catalog.models.filter((m) => m.id !== "gpt-4o-mini"),
+      useCases: catalog.useCases,
+    };
+    const resolved = resolveAiModelChoice(withoutDefault, { modelId: "gpt-5.4-nano" }, "consult");
+    expect(resolved.fallbackDef?.id).toBe("gpt-4o-mini");
+  });
 });
 
 describe("findAiModel", () => {
