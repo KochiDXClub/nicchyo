@@ -36,3 +36,16 @@ export function getShopBannerImage(category?: string | null, seed?: number | str
   const images = category ? CATEGORY_BANNER_MAP[category] : undefined;
   return pickFromList(images ?? DEFAULT_BANNERS, seed);
 }
+
+/**
+ * その店を表す写真。バナー・マーカーの丸窓・OGP・案内カードで同じものを使う。
+ * 出店者が登録した写真があればそれ、無ければカテゴリの既定写真（店ごとに固定）
+ */
+export function resolveShopImage(shop: {
+  id: number;
+  category?: string | null;
+  position?: number;
+  images?: { main?: string };
+}) {
+  return shop.images?.main ?? getShopBannerImage(shop.category, shop.position ?? shop.id);
+}
