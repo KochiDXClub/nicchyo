@@ -37,12 +37,6 @@ export {
   type ItineraryPromptInput,
 } from "./itineraryPrompt";
 export {
-  MAP_AGENT_SYSTEM_PROMPT,
-  buildMapAgentPrompt,
-  type MapAgentAnswers,
-  type MapAgentCandidate,
-} from "./mapAgentPrompt";
-export {
   AI_PROMPT_DEFS,
   AI_PROMPT_DEF_BY_KEY,
   AI_PROMPT_KEYS,

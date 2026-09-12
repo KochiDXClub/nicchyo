@@ -454,7 +454,7 @@ describe("buildChatCompletionBody", () => {
   });
 
   it("上限を省略したらトークン上限を送らない（モデル既定にまかせる）", () => {
-    // map-agent は従来から上限を指定していない。勝手に上限を足さないこと
+    // 上限を指定しない呼び出し口がある。勝手に上限を足さないこと
     const body = buildChatCompletionBody(reasoning, { messages });
     expect("max_completion_tokens" in body).toBe(false);
     expect("max_tokens" in body).toBe(false);

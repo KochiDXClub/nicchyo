@@ -20,7 +20,7 @@
  * - 計測の橋渡し（?perf=1 で window.__nicchyoMapBench）
  *
  * 【まだ無いもの（Leaflet 版にある）】
- * AI アシスタント（MapAgentAssistant）、出店者のカスタム SVG 屋台。順に移す。
+ * 出店者のカスタム SVG 屋台。順に移す。
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
