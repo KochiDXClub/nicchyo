@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { cache } from "react";
 import { notFound } from "next/navigation";
+import { headers } from "next/headers";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/database.types";
 import { formatShopIdToCode, normalizeShopCodeToId } from "@/lib/shops/route";
@@ -41,6 +42,20 @@ const fetchShop = cache(async (shopId: number): Promise<Shop | null> => {
   }
 });
 
+/**
+ * 今アクセスされているホストの origin（https://nicchyo-git-xxx.vercel.app など）。
+ * OGP の画像 URL は共有先（LINE・Discord）が取りに来るので、実際に配信している
+ * ホストで組む。metadataBase（NEXT_PUBLIC_SITE_URL / nicchyo.jp）は本番ドメインが
+ * まだ無いプレビュー環境では届かない URL になり、カードの画像が壊れる。
+ */
+async function requestOrigin(): Promise<string | null> {
+  const h = await headers();
+  const host = h.get("x-forwarded-host") ?? h.get("host");
+  if (!host) return null;
+  const proto = h.get("x-forwarded-proto") ?? (host.startsWith("localhost") ? "http" : "https");
+  return `${proto}://${host}`;
+}
+
 export async function generateMetadata({ params }: ShopPageProps): Promise<Metadata> {
   const { shopCode } = await params;
   const shopId = normalizeShopCodeToId(shopCode);
@@ -56,18 +71,30 @@ export async function generateMetadata({ params }: ShopPageProps): Promise<Metad
     ? `${shopName}（高知・日曜市 ${code}番）の出店情報。取扱商品: ${products}。`
     : `${shopName}（高知・日曜市 ${code}番）の出店情報。インタラクティブ地図で場所を確認できます。`;
 
-  // 共有カードの写真はバナーと同じ（登録写真 → カテゴリの既定写真）。相対パスは metadataBase で絶対 URL になる
+  // 共有カードの写真はバナーと同じ（登録写真 → カテゴリの既定写真）。
+  // 相対パス（既定写真）は今のホストで絶対 URL にする
+  const origin = await requestOrigin();
+  const imagePath = shop ? resolveShopImage(shop) : "/og-default.png";
+  const imageUrl = imagePath.startsWith("/") && origin ? `${origin}${imagePath}` : imagePath;
   const images = shop
-    ? [{ url: resolveShopImage(shop), width: 800, height: 600, alt: shopName }]
-    : [{ url: "/og-default.png", width: 1200, height: 630, alt: shopName }];
+    ? [{ url: imageUrl, width: 800, height: 600, alt: shopName }]
+    : [{ url: imageUrl, width: 1200, height: 630, alt: shopName }];
+  const pageTitle = `${shopName} – 日曜市 ${code}番`;
 
   return {
-    title: `${shopName} – 日曜市 ${code}番`,
+    title: pageTitle,
     description,
     openGraph: {
-      title: `${shopName} – 日曜市 ${code}番 | nicchyo`,
+      title: `${pageTitle} | nicchyo`,
       description,
       images,
+      ...(origin ? { url: `${origin}/shops/${code}` } : {}),
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: pageTitle,
+      description,
+      images: [imageUrl],
     },
   };
 }
