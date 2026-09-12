@@ -112,6 +112,7 @@ export function useOdekakeGuide({
     setAnyTags([]);
     setSelectedId(null);
     setNavigating(false);
+    setPinnedSpot(null);
   }, [query, queryKey]);
 
   const toggleKind = useCallback((kind: SpotKind) => {
@@ -231,7 +232,13 @@ export function useOdekakeGuide({
   }, [active, geolocation]);
 
   // ── スポットと道のネットワーク ──
-  const spots = useMemo(() => landmarks.map(landmarkToSpot), [landmarks]);
+  // 候補はランドマーク。店を目的地にしたときだけ、その1店を候補に加える（pinnedSpot）。
+  // 300店を常に候補にすると一覧と経路計算が重くなるので、案内中の1店に限る
+  const [pinnedSpot, setPinnedSpot] = useState<MapSpot | null>(null);
+  const spots = useMemo(() => {
+    const base = landmarks.map(landmarkToSpot);
+    return pinnedSpot ? [...base, pinnedSpot] : base;
+  }, [landmarks, pinnedSpot]);
   // 歩行者ネットワーク（約270KB）。
   //
   // 以前は「案内を開いたとき」に読み込んでいたが、それだと押してから取得が始まり、
@@ -389,6 +396,8 @@ export function useOdekakeGuide({
       // 立てない。立てっぱなしにすると、あとで /facilities から種類を変えて開き直した
       // ときの正当なリセットまで飛ばしてしまう
       if (!active) skipNextResetRef.current = true;
+      // 店はランドマークの候補に無いので、その1店だけを候補に加える
+      setPinnedSpot(spot.kind === 'shop' ? spot : null);
       if (!kinds.includes(spot.kind)) setKinds((prev) => (prev.includes(spot.kind) ? prev : [...prev, spot.kind]));
       setSelectedId(spot.id);
       if (!geolocation) {
@@ -422,6 +431,9 @@ export function useOdekakeGuide({
   const stopNavigation = useCallback(() => {
     pendingNavigationRef.current = null;
     setNavigating(false);
+    // 店を目的地にしていたら候補から外し、種類の一覧にも残さない
+    setPinnedSpot(null);
+    setKinds((prev) => prev.filter((k) => k !== 'shop'));
     if (selected && arrivedLoggedRef.current !== selected.spot.id) {
       sendEvent('guide_navigation_stop', eventContextRef.current(selected.spot), { toServer: true });
     }

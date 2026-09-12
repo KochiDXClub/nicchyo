@@ -178,6 +178,8 @@ export type MapViewProps = {
    * 店舗以外のスポットは親（MapPageClient）が SpotCard で表示する。
    */
   onSpotSelect?: (spot: MapSpot) => void;
+  /** 店舗バナーの「ここへ案内」。おでかけサポートでその店への道案内を始める */
+  onNavigateToShop?: (shop: Shop) => void;
   /** 選択中のスポットID（MapSpot.id）。該当するランドマークを少し大きく表示する */
   selectedSpotId?: string;
   spotlightShopId?: number;
@@ -534,6 +536,7 @@ const MapView = memo(function MapView({
   featureFlags: featureFlagsProp,
   onShopSelect,
   onSpotSelect,
+  onNavigateToShop,
   selectedSpotId,
   spotlightShopId,
   onClearSearch,
@@ -1315,6 +1318,7 @@ const MapView = memo(function MapView({
           <ShopDetailBanner
             key={`${selectedShop.id}-${shopBannerSession}`}
             shop={selectedShop}
+            onNavigate={onNavigateToShop ? () => { onNavigateToShop(selectedShop); setSelectedShop(null); } : undefined}
             openNonce={shopBannerSession}
             initialMobileSurface={shopBannerInitialSurface}
             onMobileMainSurfaceChange={setShopBannerMainSurface}

@@ -40,7 +40,7 @@ import OdekakeLaunchButton from "./components/OdekakeLaunchButton";
 import { useOdekakeGuide } from "./hooks/useOdekakeGuide";
 import { GUIDE_MENU_VALUE, parseGuideQuery, type GuideQuery } from "@/lib/guide/query";
 import SpotCard from "./components/SpotCard";
-import type { MapSpot } from "@/lib/spots";
+import { shopToSpot, type MapSpot } from "@/lib/spots";
 import { filterMapVisibleLandmarks } from "./types/landmark";
 import {
   buildNearbyNote,
@@ -233,6 +233,8 @@ export default function MapPageClient({
   const isAiFocusMode = searchParams?.get("ai") === "1";
   const searchParamsKey = searchParams?.toString() ?? "";
   const initialShopId = initialShopIdParam ? Number(initialShopIdParam) : undefined;
+  // /map?shop=001&navigate=1: 店舗ページの「ここへ案内」から来た。着いたらその店への道案内を始める
+  const navigateParam = searchParams?.get("navigate") === "1";
   // おでかけサポート: ?guide=<プリセット|menu> または旧 ?facility=<カテゴリ> で開く
   // URL から読んだ状態。初回表示や /facilities からのリンク、共有リンクで使う
   const guideQueryFromUrl = useMemo(
@@ -508,6 +510,24 @@ export default function MapPageClient({
     },
     [guide, guideActive, openGuideMenu]
   );
+  // 店舗バナーの「ここへ案内」: 店を目的地にして道案内を始める
+  const navigateToShop = useCallback(
+    (shop: Shop) => {
+      setSelectedSpot(null);
+      if (!guideActive) openGuideMenu();
+      guide.startNavigation(shopToSpot(shop));
+    },
+    [guide, guideActive, openGuideMenu]
+  );
+  // 店舗ページから ?navigate=1 で来たときは、着いてすぐその店への案内を始める（1回だけ）
+  const autoNavigateDoneRef = useRef(false);
+  useEffect(() => {
+    if (!navigateParam || !initialShopId || autoNavigateDoneRef.current) return;
+    const shop = shopById.get(initialShopId);
+    if (!shop) return;
+    autoNavigateDoneRef.current = true;
+    navigateToShop(shop);
+  }, [navigateParam, initialShopId, shopById, navigateToShop]);
 
   const vendorShop = useMemo(() => {
     if (!vendorShopId) return null;
@@ -1051,7 +1071,7 @@ export default function MapPageClient({
               featureFlags={featureFlags}
               mapViewSettings={mapViewSettings}
               initialShopId={initialShopId}
-              openInitialShopBanner={!isAiFocusMode}
+              openInitialShopBanner={!isAiFocusMode && !navigateParam}
               agentOpen={agentOpen}
               onAgentToggle={setAgentOpen}
               searchShopIds={searchMarkerPayload?.ids ?? mapSearchShopIds}
@@ -1060,6 +1080,7 @@ export default function MapPageClient({
               onMapStage={reportMapStage}
               onMapInstance={handleMapInstance}
               onSpotSelect={setSelectedSpot}
+              onNavigateToShop={navigateToShop}
               selectedSpotId={selectedSpot?.id}
               onUserLocationUpdate={(coords) => {
                 setUserLocation({ lat: coords.lat, lng: coords.lng });
