@@ -15,8 +15,11 @@ import {
   Globe,
   X as XIcon,
   Sparkles,
+  Share2,
+  Navigation,
 } from "lucide-react";
 import { Shop } from "../data/shops";
+import { formatShopIdToCode } from "@/lib/shops/route";
 import { useAuth } from "../../../../lib/auth/AuthContext";
 import { getShopBannerImage } from "../../../../lib/shopImages";
 import {
@@ -68,6 +71,8 @@ type ShopDetailBannerProps = {
   onSelectPreviousShop?: () => void;
   onSelectNextShop?: () => void;
   reserveBottomNavSpace?: boolean;
+  /** 「ここへ案内」。おでかけサポートでこの店への道案内を始める。無ければボタンを出さない */
+  onNavigate?: () => void;
 };
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -123,6 +128,7 @@ function areShopDetailBannerPropsEqual(
   // 残りは primitive または useCallback / setState で安定した参照
   return (
     prev.onClose === next.onClose &&
+    prev.onNavigate === next.onNavigate &&
     prev.layout === next.layout &&
     prev.openNonce === next.openNonce &&
     prev.initialMobileSurface === next.initialMobileSurface &&
@@ -139,6 +145,7 @@ function areShopDetailBannerPropsEqual(
 const ShopDetailBanner = memo(function ShopDetailBanner({
   shop,
   onClose,
+  onNavigate,
   originRect,
   layout = "overlay",
   openNonce = 0,
@@ -560,6 +567,34 @@ const ShopDetailBanner = memo(function ShopDetailBanner({
     };
   }, []);
 
+  // ─── 共有 ──────────────────────────────────────────────────────────────────
+  // 店舗ページ（/shops/001）の URL を送る。OGP があるので LINE では店名と写真のカードになる。
+  // 共有シートが使える端末はそれを出し、無い端末は LINE の共有画面へ（URL はクリップボードにも入れる）
+  const shareCode = formatShopIdToCode(shop.id) ?? String(shop.id);
+  const handleShare = useCallback(async () => {
+    if (typeof window === "undefined") return;
+    const url = `${window.location.origin}/shops/${shareCode}`;
+    const title = `${shop.name}｜高知・日曜市 ${shareCode}番`;
+    if (typeof navigator.share === "function") {
+      try {
+        await navigator.share({ title, text: title, url });
+      } catch {
+        // 利用者がキャンセルしたときも来る。何もしない
+      }
+      return;
+    }
+    try {
+      await navigator.clipboard?.writeText(url);
+    } catch {
+      // クリップボードが使えない環境。LINE の共有画面だけ開く
+    }
+    window.open(
+      `https://social-plugins.line.me/lineit/share?url=${encodeURIComponent(url)}`,
+      "_blank",
+      "noopener,noreferrer"
+    );
+  }, [shareCode, shop.name]);
+
   // ─── Theme ──────────────────────────────────────────────────────────────────
   const themeKey: ThemeKey = (shop.themeColor as ThemeKey) ?? "amber";
   const theme = THEME_PRESETS[themeKey] ?? THEME_PRESETS.amber;
@@ -725,6 +760,31 @@ const ShopDetailBanner = memo(function ShopDetailBanner({
 
         {/* ── Accent color bar ─────────────────────────────────────────────── */}
         <div className="h-1 w-full" style={{ backgroundColor: theme.accent }} />
+
+        {/* ── 共有 / ここへ案内 ─────────────────────────────────────────── */}
+        <div className="flex items-center gap-2 px-5 pt-4">
+          {onNavigate && (
+            <motion.button
+              type="button"
+              onClick={onNavigate}
+              whileTap={{ scale: 0.96 }}
+              className="flex h-11 flex-1 items-center justify-center gap-2 rounded-full bg-nicchyo-accent text-[14px] font-black text-nicchyo-ink shadow-[0_6px_18px_rgba(58,58,58,0.18)]"
+            >
+              <Navigation className="h-4 w-4" aria-hidden />
+              ここへ案内
+            </motion.button>
+          )}
+          <motion.button
+            type="button"
+            onClick={handleShare}
+            whileTap={{ scale: 0.96 }}
+            aria-label="このお店を共有する"
+            className={`flex h-11 items-center justify-center gap-2 rounded-full border border-slate-200 bg-white px-4 text-[14px] font-bold text-slate-700 shadow-sm active:bg-slate-50 ${onNavigate ? "" : "flex-1"}`}
+          >
+            <Share2 className="h-4 w-4" aria-hidden />
+            共有
+          </motion.button>
+        </div>
 
         {isMobileOverlay && (
           <div className="space-y-4 px-5 pt-6">

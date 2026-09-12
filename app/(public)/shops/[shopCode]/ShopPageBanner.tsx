@@ -22,6 +22,8 @@ export default function ShopPageBanner({ shop, shopCode }: { shop: Shop; shopCod
       shop={shop}
       layout="inline"
       onClose={() => router.push(`/map?shop=${shopCode}`)}
+      // 「ここへ案内」：地図へ移り、着いたらこの店への道案内を始める
+      onNavigate={() => router.push(`/map?shop=${shopCode}&navigate=1`)}
     />
   );
 }

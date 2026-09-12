@@ -332,6 +332,7 @@ export default function MapViewMapLibre({
   overlaySlot,
   spotlightShopId,
   onSpotSelect,
+  onNavigateToShop,
   selectedSpotId,
 }: MapViewProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -1293,6 +1294,7 @@ export default function MapViewMapLibre({
           key={selectedShop.id}
           shop={selectedShop}
           onClose={() => setSelectedShop(null)}
+          onNavigate={onNavigateToShop ? () => { onNavigateToShop(selectedShop); setSelectedShop(null); } : undefined}
           reserveBottomNavSpace={false}
         />
       )}

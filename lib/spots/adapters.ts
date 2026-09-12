@@ -6,6 +6,7 @@
  */
 
 import type { Landmark } from '@/app/(public)/map/types/landmark';
+import type { Shop } from '@/app/(public)/map/data/shops';
 import type { Facility } from '@/lib/facilities/facilities';
 import { getSpotKindMeta } from './spotMeta';
 import type { MapSpot, SpotKind, TransitMode } from './types';
@@ -104,5 +105,32 @@ export function facilityToSpot(facility: Facility): MapSpot {
     verified: facility.verified,
     tags: emptyToUndefined(facility.tags),
     landmarkKey: landmarkKey ?? undefined,
+  };
+}
+
+export function shopSpotId(shopId: number): string {
+  return `shop:${shopId}`;
+}
+
+/**
+ * 店 → スポット。
+ * おでかけサポートで店を目的地にするための変換。店は地図の屋台として別に描かれているので、
+ * ここで作るスポットは経路の終点と案内カードの見出しにだけ使う。
+ */
+export function shopToSpot(
+  shop: Pick<Shop, 'id' | 'name' | 'lat' | 'lng' | 'catchphrase' | 'images'>
+): MapSpot {
+  const meta = getSpotKindMeta('shop');
+  return {
+    id: shopSpotId(shop.id),
+    kind: 'shop',
+    name: shop.name,
+    description: shop.catchphrase ?? '',
+    lat: shop.lat,
+    lng: shop.lng,
+    emoji: meta.emoji,
+    accentColor: meta.accentColor,
+    photoUrl: shop.images?.main,
+    verified: true,
   };
 }
