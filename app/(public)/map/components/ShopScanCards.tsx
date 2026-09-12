@@ -24,13 +24,17 @@
  * 3倍近く重なるため廃止された（app/globals.css の .shop-nameplate 参照）。
  * 今回は縦積みにして、間隔から逆算した高さに収めることで成立させている。
  *
- * 【レンダラー非依存】
- * MapCamera だけを使うので Leaflet 版・MapLibre 版の両方で動く。
+ * 【いまは MapLibre 版だけ】
+ * 座標の取得は MapCamera だけに頼っているが、Leaflet 版では出さない。
+ * あちらの地図はビューポートより大きい正方形のシェルに入っていて CSS で
+ * 回転させてあり、latLngToContainerPoint が返すのはその回転した箱の中の
+ * 座標だから、ビューポート基準のこの層にそのまま書くとカードが画面外へ飛ぶ。
+ * 対応するにはシェルの中に描いて1枚ずつ逆回転させる作りが要る。
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Shop } from "../data/shops";
-import type { MapCamera } from "../types/mapCamera";
+import { isLeafletMap, type MapCamera } from "../types/mapCamera";
 import { getShopBannerImage } from "@/lib/shopImages";
 import { getPixelsPerMeter } from "../config/roadStyle";
 import { resolveStallColors } from "../config/shopCategories";
@@ -191,7 +195,16 @@ export default function ShopScanCards({
 
   // 動きの検知。move はズーム中にも飛ぶので、ズームで探しているときも出る
   useEffect(() => {
-    if (!map || !enabled) {
+    // Leaflet 版では出さない。
+    //
+    // Leaflet の地図はビューポートより大きい正方形のシェル（対角線ぶんの一辺）に
+    // 入っていて、道が縦になるよう CSS で回転させてある。latLngToContainerPoint が
+    // 返すのはその回転した箱の中の座標で、ビューポート基準のこの層にそのまま
+    // 書くとカードが画面外に飛ぶ（390x844 で x=1000 付近まで出る）。
+    // 正しく出すにはシェルの中に描いて1枚ずつ逆回転させる必要があり、
+    // 屋台マーカーが --map-rotation-inverse でやっているのと同じ作りになる。
+    // いまの描画は MapLibre 版なので、Leaflet 版を残しているあいだは出さない。
+    if (!map || !enabled || isLeafletMap(map)) {
       setShown(false);
       return;
     }

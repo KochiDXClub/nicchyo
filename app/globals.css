@@ -1751,26 +1751,6 @@ body.home-poster-zoom-open .hamburger-button {
 }
 
 /*
- * 木札（店名）は既定では出さない。
- *
- * 店名は「すでに対象を持っているとき（検索・AI・選択）」に要るもので、通りを
- * 流し見しているときに答えになるのは写真のほう。日曜市には店名を持たない店も
- * 多い。全店に出すと、道の外側へ伸びた札が画面端で切れる（390px 幅では中心から
- * 238px 必要なのに 195px しかない）うえ、静止時の地図が文字で埋まる。
- * 探しているあいだは ShopScanCards が写真ごと前に出す。
- * MapLibre 版は MapViewMapLibre 側の filter で同じ絞り込みをしている。
- */
-.custom-shop-marker .shop-nameplate {
-  display: none;
-}
-.custom-shop-marker.shop-marker-search .shop-nameplate,
-.custom-shop-marker.shop-marker-ai .shop-nameplate,
-.custom-shop-marker.shop-marker-selected .shop-nameplate,
-.custom-shop-marker.shop-marker-comment .shop-nameplate {
-  display: block;
-}
-
-/*
  * ShopScanCards の出現。
  *
  * transition ではなく animation を使う。カードは表示が始まったその瞬間に

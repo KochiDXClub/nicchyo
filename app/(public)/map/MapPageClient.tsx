@@ -1083,7 +1083,9 @@ export default function MapPageClient({
             />
 
             {/* 地図を動かしているあいだだけ、屋台マーカーの上に写真と名前を重ねる。
-                静止時は地図の絵を優先し、探しているときだけ情報を前に出す */}
+                静止時は地図の絵を優先し、探しているときだけ情報を前に出す。
+                出るのは MapLibre 版だけ（Leaflet 版は回転シェルの中の座標が返るため。
+                ShopScanCards の先頭コメント参照）で、判定は中で行っている */}
             <ShopScanCards
               map={mapInstance}
               shops={shops}
