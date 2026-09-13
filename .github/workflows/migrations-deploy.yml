@@ -77,6 +77,27 @@ jobs:
       - name: Migration status (before)
         run: supabase migration list --linked
 
+      # リモートとローカルの履歴乖離を事前検知し、原因と解決策をわかりやすく報告する
+      - name: Validate migration sync status
+        run: |
+          list_output=$(supabase migration list --linked 2>&1 || true)
+          # Remote側にあってLocal側にないバージョンを検出
+          missing_versions=$(echo "$list_output" | grep -E '^ +` *` +\| +`[0-9]{14}`' | sed -E 's/.*\| +`([0-9]{14})` +\|.*/\1/' || true)
+
+          if [ -n "$missing_versions" ]; then
+            echo "::error::リモートDB側にローカルリポジトリに存在しないバージョンが検出されました: $missing_versions"
+            echo "### ⚠️ リモートDBとのマイグレーション履歴乖離を検出" >> "$GITHUB_STEP_SUMMARY"
+            echo "リモートDBに記録されていますが、現在のブランチ（\`supabase/migrations/\`）に存在しないバージョンがあります：" >> "$GITHUB_STEP_SUMMARY"
+            echo "\`\`\`" >> "$GITHUB_STEP_SUMMARY"
+            echo "$missing_versions" >> "$GITHUB_STEP_SUMMARY"
+            echo "\`\`\`" >> "$GITHUB_STEP_SUMMARY"
+            echo "**対処方法**:" >> "$GITHUB_STEP_SUMMARY"
+            echo "1. 不要な履歴・テスト実行履歴の場合:" >> "$GITHUB_STEP_SUMMARY"
+            echo "   \`supabase migration repair --status reverted $missing_versions\`" >> "$GITHUB_STEP_SUMMARY"
+            echo "2. 他のPRやブランチで適用された変更の場合、最新のブランチを取り込んでから再実行してください。" >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+
       - name: Dry run
         run: supabase db push --linked --include-all --dry-run
 
