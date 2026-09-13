@@ -16,7 +16,8 @@
     "test": "vitest run --passWithNoTests",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
-    "db:seed": "node scripts/seed-local.mjs"
+    "db:seed": "node scripts/seed-local.mjs",
+    "changelog:pack": "node scripts/pack-changelog.mjs"
   },
   "lint-staged": {
     "*.{ts,tsx}": [
