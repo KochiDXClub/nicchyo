@@ -43,13 +43,15 @@ jobs:
           LAST_RELEASE_DATE="$(git log -1 --format=%cI "$LAST_TAG")"
           DAYS_SINCE=$(( ( $(date +%s) - $(date -d "$LAST_RELEASE_DATE" +%s) ) / 86400 ))
           COMMITS="$(git rev-list --count origin/main..origin/develop)"
-          # 「## 一覧」以降の箇条書きだけを数える（上部の書き方サンプルを拾わないため）
-          ENTRIES="$(awk '/^## 一覧/{f=1;next} f && /^- /{c++} END{print c+0}' docs/CHANGELOG-unreleased.md)"
+          # 「## 一覧」以降の箇条書きと、フラグメントファイルを合算して数える
+          ENTRIES="$(awk '/^## 一覧/{f=1;next} f && /^- /{c++} END{print c+0}' docs/CHANGELOG-unreleased.md 2>/dev/null || echo 0)"
+          FRAGMENTS="$(find docs/changelog-unreleased -maxdepth 1 -name '*.md' ! -name 'README.md' 2>/dev/null | wc -l || echo 0)"
+          TOTAL_ENTRIES=$(( ENTRIES + FRAGMENTS ))
 
           echo "last_tag=$LAST_TAG" >> "$GITHUB_OUTPUT"
           echo "days_since=$DAYS_SINCE" >> "$GITHUB_OUTPUT"
           echo "commits=$COMMITS" >> "$GITHUB_OUTPUT"
-          echo "entries=$ENTRIES" >> "$GITHUB_OUTPUT"
+          echo "entries=$TOTAL_ENTRIES" >> "$GITHUB_OUTPUT"
 
           # 未リリースの変更が無ければ通知不要
           if [ "$COMMITS" -eq 0 ]; then
