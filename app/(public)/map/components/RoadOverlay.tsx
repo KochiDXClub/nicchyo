@@ -385,7 +385,7 @@ function useQuantizedRoadZoom(): number {
  * 書き換えると DOM への書き込みが増える。MapLibre 側の step と同じ刻みに丸めて、
  * 両者の見え方を揃えつつ書き換え回数を抑える。
  */
-function quantizeRoadZoom(zoom: number): number {
+export function quantizeRoadZoom(zoom: number): number {
   // 切り捨てなのは MapLibre 側の step 式に合わせるため。四捨五入だと刻みの半分だけ
   // 早く次の段階へ上がり、たとえばズーム 19.8 で Leaflet 側だけ縁 3px・中央線 2px、
   // MapLibre 側は 2.5px・1.5px という食い違いが出る

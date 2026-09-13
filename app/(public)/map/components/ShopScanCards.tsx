@@ -57,18 +57,42 @@ const HOLD_MS = 500;
 const SHOP_SPACING_METERS = 5.9;
 
 /** カードの幅。左右の列（最大ズームで中心から約121px）でも画面内に収まる値 */
-const CARD_WIDTH = 108;
+export const CARD_WIDTH = 108;
 /** カードの高さ＝写真の高さ。下限・上限 */
-const MIN_CARD_HEIGHT = 56;
-const MAX_CARD_HEIGHT = 88;
+export const MIN_CARD_HEIGHT = 56;
+export const MAX_CARD_HEIGHT = 88;
 /** 隣のカードとのあいだに残す隙間 */
-const CARD_GAP = 8;
+export const CARD_GAP = 8;
 
 /** 画面の外どれだけまで先読みして出すか */
 const VIEWPORT_MARGIN = 160;
 
 /** これ以下の重なりは許容する（隣り合うカードが1〜2px かすめる程度で消さない） */
-const COLLISION_TOLERANCE_PX = 3;
+export const COLLISION_TOLERANCE_PX = 3;
+
+export interface CardRect {
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+}
+
+/**
+ * 2枚のカードが重なっているかを判定する。
+ * tolerancePx 以下のわずかな接触（かすめる程度）は重なりとみなさない。
+ */
+export function hasCardCollision(
+  rect: CardRect,
+  other: CardRect,
+  tolerancePx: number = COLLISION_TOLERANCE_PX
+): boolean {
+  return (
+    rect.x1 < other.x2 - tolerancePx &&
+    rect.x2 > other.x1 + tolerancePx &&
+    rect.y1 < other.y2 - tolerancePx &&
+    rect.y2 > other.y1 + tolerancePx
+  );
+}
 
 /**
  * 顔ぶれと重なりを取り直す間隔。
@@ -97,7 +121,7 @@ const PRELOAD_LIMIT = 24;
  * ※ 地図を大きく回転させると店舗の並びが縦方向でなくなるため、この見積もりは
  *   甘くなる（カードが少し重なる）。自動回転で道は縦向きに保たれる前提の値。
  */
-function getCardHeight(zoom: number): number {
+export function getCardHeight(zoom: number): number {
   const spacingPx = SHOP_SPACING_METERS * getPixelsPerMeter(zoom);
   const room = spacingPx - CARD_GAP;
   const clamped = Math.min(MAX_CARD_HEIGHT, Math.max(MIN_CARD_HEIGHT, room));
@@ -421,13 +445,7 @@ export default function ShopScanCards({
           x2: item.point.x + CARD_WIDTH / 2,
           y2: item.point.y,
         };
-        const collides = placed.some(
-          (other) =>
-            rect.x1 < other.x2 - COLLISION_TOLERANCE_PX &&
-            rect.x2 > other.x1 + COLLISION_TOLERANCE_PX &&
-            rect.y1 < other.y2 - COLLISION_TOLERANCE_PX &&
-            rect.y2 > other.y1 + COLLISION_TOLERANCE_PX
-        );
+        const collides = placed.some((other) => hasCardCollision(rect, other));
         if (collides) continue;
         placed.push(rect);
         next.push(item.id);
