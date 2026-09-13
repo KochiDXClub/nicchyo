@@ -90,27 +90,28 @@ jobs:
             exit 0
           fi
 
-          gh issue create --title "$TITLE" --body "$(cat <<EOF
-$REASON
+          {
+            echo "$REASON"
+            echo ""
+            echo "## 現状"
+            echo ""
+            echo "| 項目 | 値 |"
+            echo "|---|---|"
+            echo "| 前回リリース | \`$LAST_TAG\` |"
+            echo "| 経過日数 | ${DAYS_SINCE} 日 |"
+            echo "| 未リリースのコミット数 | ${COMMITS} |"
+            echo "| 未リリース記載件数（フラグメント含む） | ${ENTRIES} |"
+            echo ""
+            echo "## やること"
+            echo ""
+            echo "[docs/RELEASE.md](../blob/develop/docs/RELEASE.md) の §4「リリース手順」に従ってリリースしてください。"
+            echo "リリースが完了したらこの Issue を閉じてください。"
+            echo ""
+            echo "今回はリリースしない判断をした場合も、理由をコメントに残してこの Issue を閉じてください"
+            echo "（放置すると次の金曜に同じ Issue が立ちます）。"
+            echo ""
+            echo "---"
+            echo "*このIssueは \`.github/workflows/release-reminder.yml\` により自動作成されました。*"
+          } > /tmp/issue-body.md
 
-## 現状
-
-| 項目 | 値 |
-|---|---|
-| 前回リリース | \`$LAST_TAG\` |
-| 経過日数 | ${DAYS_SINCE} 日 |
-| 未リリースのコミット数 | ${COMMITS} |
-| CHANGELOG-unreleased.md の記載件数 | ${ENTRIES} |
-
-## やること
-
-[docs/RELEASE.md](../blob/develop/docs/RELEASE.md) の §4「リリース手順」に従ってリリースしてください。
-リリースが完了したらこの Issue を閉じてください。
-
-今回はリリースしない判断をした場合も、理由をコメントに残してこの Issue を閉じてください
-（放置すると次の金曜に同じ Issue が立ちます）。
-
----
-*このIssueは \`.github/workflows/release-reminder.yml\` により自動作成されました。*
-EOF
-)"
+          gh issue create --title "$TITLE" --body-file /tmp/issue-body.md
