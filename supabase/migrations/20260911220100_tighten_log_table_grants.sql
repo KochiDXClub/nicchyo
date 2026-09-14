@@ -20,6 +20,14 @@
 --   guide_events         service role（app/api/analytics/guide-event。直接 INSERT 不可と明記）
 --   shop_page_views      service role（app/api/analytics/shop-interaction）
 --
+-- 注意（INSERT を剥がさない理由の補足）:
+--   次の 3 表には、ロールを限定しない「誰でも INSERT できる」ポリシーが既にある。
+--   アプリの書き込みが service role 経由でも、anon / authenticated から直接 INSERT できる状態は
+--   このマイグレーションの後も変わらない。INSERT を絞るならポリシー側の見直しが別途必要。
+--     shop_page_views      "anyone can insert page views"   （20260309004000, with check (true)）
+--     product_search_logs  "anyone can insert search logs"  （20260310001000, with check (true)）
+--     web_page_analytics   "public insert page analytics"   （20260312180000, with check (true)）
+--
 -- 読み取り経路（authenticated の SELECT を残す理由）:
 --   ai_consult_logs      出店者が自店分を読む / 管理画面の解析
 --   product_search_logs  認証ユーザーが読む既存ポリシーあり
