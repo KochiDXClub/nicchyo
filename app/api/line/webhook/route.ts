@@ -112,7 +112,12 @@ export async function POST(request: Request) {
             const userId =
               event.source.type === "user"
                 ? event.source.userId
-                : event.source.userId;
+                : event.source.userId ??
+                  ("groupId" in event.source
+                    ? event.source.groupId
+                    : "roomId" in event.source
+                    ? event.source.roomId
+                    : undefined);
 
             // ユーザーごとのレートリミット判定（スパム・過剰トークン消費防止）
             const rateLimitCheck = checkLineUserRateLimit(userId);
