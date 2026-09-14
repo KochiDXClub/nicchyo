@@ -71,7 +71,8 @@ type SheetItem = {
 /** 日曜市を歩くときに使うページ */
 const visitMenuItems: SheetItem[] = [
   { label: "お気に入り", href: "/favorites", icon: Heart },
-  { label: "おでかけサポート", href: "/facilities", icon: Compass },
+  // 地図の上で種類を選ぶ画面を直接開く（/facilities のページは廃止し、ここへ送るだけにした）
+  { label: "おでかけサポート", href: "/map?guide=menu", icon: Compass },
   { label: "日曜市カレンダー", href: "/calendar", icon: CalendarDays },
   // 中身がまだサンプル値なので、開く前に分かるようにしておく
   { label: "日曜市をデータで見る", href: "/analysis", icon: BarChart3, badge: "デモ" },
@@ -192,7 +193,8 @@ function NavigationBarInner({
       ? [...baseNavItems.slice(1), { name: "管理", href: "/admin/dashboard", icon: Settings }]
       : baseNavItems.slice(1)
   ).filter((item) => isLinkVisible(item.target ?? item.href));
-  const visibleVisitItems = visitMenuItems.filter((item) => isLinkVisible(item.href));
+  // 公開設定はパス単位なので、/map?guide=menu のようなクエリは外して判定する
+  const visibleVisitItems = visitMenuItems.filter((item) => isLinkVisible(item.href.split("?")[0]));
   const visibleAboutItems = aboutMenuItems.filter((item) => isLinkVisible(item.href));
   const visibleVendorItems = vendorMenuItems.filter((item) => isLinkVisible(item.href));
 
@@ -205,6 +207,9 @@ function NavigationBarInner({
   const handleMenuItemClick = (href: string) => {
     closeMenu();
     if (href === "/map") { goToMap(); return; }
+    // /map?guide=menu（おでかけサポート）のようにクエリ付きで地図へ向かう項目も、
+    // 地図の読み込み表示を先に始めてから移る
+    if (href.startsWith("/map?")) { startMapLoading(); }
     router.push(href);
   };
 

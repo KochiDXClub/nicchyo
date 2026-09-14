@@ -92,12 +92,22 @@ export function useOdekakeGuide({
   const [kinds, setKinds] = useState<SpotKind[]>(query?.kinds ?? []);
   const [anyTags, setAnyTags] = useState<string[]>([]);
   // 閉じているとき（null）と ?guide=menu（種類なし）を区別し、閉じて開き直したときも
-  // 選択・案内中の状態をリセットする
+  // 選択・案内中の状態をリセットする。
+  //
+  // ただし「ここへ案内」で開いたときだけは別。あれは閉じた状態から
+  // 「開く」と「そのスポットへ案内を始める」を続けて行うので、素直にリセットすると
+  // 直前に始めた案内が消えて、ただ案内が開いただけになる。案内の開始を覚えておき、
+  // その1回はリセットを見送る。
+  const skipNextResetRef = useRef(false);
   const queryKey = query ? `open:${query.kinds.join(',')}` : 'closed';
   const lastQueryKeyRef = useRef(queryKey);
   useEffect(() => {
     if (lastQueryKeyRef.current === queryKey) return;
     lastQueryKeyRef.current = queryKey;
+    if (skipNextResetRef.current) {
+      skipNextResetRef.current = false;
+      return;
+    }
     setKinds(query?.kinds ?? []);
     setAnyTags([]);
     setSelectedId(null);
@@ -222,16 +232,42 @@ export function useOdekakeGuide({
 
   // ── スポットと道のネットワーク ──
   const spots = useMemo(() => landmarks.map(landmarkToSpot), [landmarks]);
-  // 歩行者ネットワーク（約270KB）は案内を開いたときに初めて読み込む
+  // 歩行者ネットワーク（約270KB）。
+  //
+  // 以前は「案内を開いたとき」に読み込んでいたが、それだと押してから取得が始まり、
+  // 届くまで経路を引けないぶん待たされた。地図が落ち着いたころに裏で取っておく。
+  // 取得はブラウザが暇なときに回すので、初回表示の邪魔はしない。
   const [walkData, setWalkData] = useState<WalkNetworkData | null>(null);
   useEffect(() => {
-    if (!active || walkData) return;
+    if (walkData) return;
     let cancelled = false;
-    void import('@/lib/guide/data/kochi-walk-network.json').then((mod) => {
-      if (!cancelled) setWalkData(mod.default as WalkNetworkData);
-    });
+    const load = () => {
+      void import('@/lib/guide/data/kochi-walk-network.json').then((mod) => {
+        if (!cancelled) setWalkData(mod.default as WalkNetworkData);
+      });
+    };
+    // 開いているなら待たずに読む。まだなら暇なときに先読みする
+    if (active) {
+      load();
+      return () => {
+        cancelled = true;
+      };
+    }
+    const w = window as Window & {
+      requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number;
+      cancelIdleCallback?: (id: number) => void;
+    };
+    if (typeof w.requestIdleCallback === 'function') {
+      const id = w.requestIdleCallback(load, { timeout: 4000 });
+      return () => {
+        cancelled = true;
+        w.cancelIdleCallback?.(id);
+      };
+    }
+    const timer = window.setTimeout(load, 2500);
     return () => {
       cancelled = true;
+      window.clearTimeout(timer);
     };
   }, [active, walkData]);
   const network: GuideNetwork | null = useMemo(
@@ -346,6 +382,13 @@ export function useOdekakeGuide({
   const pendingNavigationRef = useRef<string | null>(null);
   const startNavigation = useCallback(
     (spot: MapSpot) => {
+      // 閉じた状態から「ここへ案内」で呼ばれた場合、このあと query が closed → open に
+      // 変わってリセットが走る。ここで始めた案内を消さないよう、その1回を見送らせる。
+      //
+      // すでに開いているとき（シートの一覧から始めたとき）は query が変わらないので
+      // 立てない。立てっぱなしにすると、あとで /facilities から種類を変えて開き直した
+      // ときの正当なリセットまで飛ばしてしまう
+      if (!active) skipNextResetRef.current = true;
       if (!kinds.includes(spot.kind)) setKinds((prev) => (prev.includes(spot.kind) ? prev : [...prev, spot.kind]));
       setSelectedId(spot.id);
       if (!geolocation) {
@@ -358,7 +401,7 @@ export function useOdekakeGuide({
       arrivedLoggedRef.current = null;
       sendEvent('guide_navigation_start', eventContextRef.current(spot), { toServer: true });
     },
-    [geolocation, kinds, requestLocation]
+    [active, geolocation, kinds, requestLocation]
   );
   // 許可待ちだったスポットは、現在地が取れたら自動で案内を始める（ログもここで送る）
   useEffect(() => {

@@ -11,17 +11,16 @@
  *   - 実景写真（あれば）
  *   - 説明・乗り入れ路線・タグ・補足
  *   - 現在地からの道のり（会場内で現在地が取れているときだけ）
- *   - 「ここへ寄る」＝マップをそのスポットへ寄せる
- *   - 種別に応じた次の一手（のりもの一覧へ / 時刻表を見る）
+ *   - 「ここへ案内」＝おでかけサポートの案内を始める
+ *   - 時刻表などの外部リンク（あれば）
  *
  * 開いたときにスポットがシートの陰に隠れないよう、画面の下側にあるときだけ
  * 少しだけ地図をずらす。
  */
 
-import Link from 'next/link';
-import { useCallback, useEffect, useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { ExternalLink, List, LocateFixed, MapPin, Navigation, X as XIcon } from 'lucide-react';
+import { ExternalLink, MapPin, Navigation, X as XIcon } from 'lucide-react';
 import type { MapSpot } from '@/lib/spots';
 import { getSpotKindMeta } from '@/lib/spots';
 import {
@@ -44,7 +43,6 @@ type SpotCardProps = {
   onNavigate?: (spot: MapSpot) => void;
 };
 
-const FOCUS_ZOOM = 18;
 /** 通りからこの距離以内なら「日曜市の通り沿い」と表現する */
 const ON_ROAD_METERS = 40;
 /** スポットがこの割合より下にあるとき、シートに隠れるので地図をずらす */
@@ -72,16 +70,8 @@ function SpotIcon({ spot, sizeClass }: { spot: MapSpot; sizeClass: string }) {
   );
 }
 
-function getFacilityListHref(spot: MapSpot): { href: string; label: string } | null {
-  if (spot.kind === 'transit') return { href: '/map?facility=transport', label: 'のりものを一覧で見る' };
-  if (spot.kind === 'restroom') return { href: '/map?facility=restroom', label: 'お手洗いを一覧で見る' };
-  if (spot.kind === 'rest') return { href: '/map?facility=rest', label: '休けい場所を一覧で見る' };
-  return null;
-}
-
 export default function SpotCard({ spot, map, origin, onClose, onNavigate }: SpotCardProps) {
   const meta = getSpotKindMeta(spot.kind, spot.transitMode);
-  const listLink = getFacilityListHref(spot);
 
   const walk = useMemo(() => {
     if (!origin) return null;
@@ -112,11 +102,6 @@ export default function SpotCard({ spot, map, origin, onClose, onNavigate }: Spo
     // スポットが変わったときだけ動かす（map の再取得では動かさない）
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [spot.id]);
-
-  const handleFocus = useCallback(() => {
-    if (!map) return;
-    map.flyTo([spot.lat, spot.lng], Math.max(FOCUS_ZOOM, map.getZoom()), { animate: true, duration: 0.8 });
-  }, [map, spot.lat, spot.lng]);
 
   return (
     <motion.div
@@ -245,26 +230,6 @@ export default function SpotCard({ spot, map, origin, onClose, onNavigate }: Spo
               <Navigation size={15} />
               ここへ案内
             </button>
-          )}
-          <button
-            type="button"
-            onClick={handleFocus}
-            className={`flex items-center gap-1.5 rounded-full px-4 py-2 text-[13px] font-bold shadow-sm transition-transform active:scale-[0.97] ${
-              onNavigate && spot.kind !== 'shop' ? 'bg-slate-100 text-slate-700' : 'text-white'
-            }`}
-            style={onNavigate && spot.kind !== 'shop' ? undefined : { backgroundColor: spot.accentColor }}
-          >
-            <LocateFixed size={15} />
-            ここへ寄る
-          </button>
-          {listLink && (
-            <Link
-              href={listLink.href}
-              className="flex items-center gap-1.5 rounded-full bg-slate-100 px-4 py-2 text-[13px] font-semibold text-slate-700 transition-colors active:bg-slate-200"
-            >
-              <List size={15} />
-              {listLink.label}
-            </Link>
           )}
           {spot.externalUrl && (
             <a
