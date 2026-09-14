@@ -33,7 +33,11 @@ import type {
 } from "../types/consultConversation";
 
 const SESSION_STORAGE_KEY = "nicchyo-consult-session";
-/** マップ上の相談から「くわしく相談する」で渡ってくる引き継ぎ（MapCharacterConsult と共有） */
+/**
+ * マップ上の相談から「くわしく相談する」で渡ってきた引き継ぎ。
+ * 書き手の MapCharacterConsult は廃止したので新しくは書かれない。
+ * 以前の版で書かれて端末に残っている分を、読んで消すためだけに残している
+ */
 const HANDOFF_STORAGE_KEY = "nicchyo-consult-chat";
 
 /**
