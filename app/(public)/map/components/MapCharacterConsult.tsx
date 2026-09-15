@@ -381,6 +381,8 @@ export default function MapCharacterConsult({
       setFeedbackGiven(false);
       setThumbsDownOpen(false);
       setThumbsDownComment('');
+      // 前の答えで選んだ「やりとりも送る」を次の答えに持ち越さない
+      setShareTranscript(false);
       setRecommendedShops([]);
       setRouteIds(new Set());
 
