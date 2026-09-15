@@ -1,15 +1,15 @@
 "use client";
 
 /**
- * 管理画面マップ編集の MapLibre 版キャンバス（Issue #650）。
+ * 管理画面マップ編集のキャンバス（Issue #650）。
  *
- * 旧 `MapEditCanvas.tsx`（Leaflet背景＋自前SVGキャンバス）と同じ役割を、公開マップと
- * 同じ MapLibre 上に描き直したもの。背景・区画・道・建物が同じ地図の上に乗るため、
- * 投影方式の違いによる位置ずれ（#490）が構造上なくなる。
+ * 旧実装（Leaflet背景＋自前SVGキャンバス。`MapEditCanvas.tsx`/`LeafletBackground.tsx`）を
+ * 置き換え、公開マップと同じ MapLibre 上に描き直したもの。背景・区画・道・建物が
+ * 同じ地図の上に乗るため、投影方式の違いによる位置ずれ（#490）が構造上なくなる。
  *
- * PR①（表示・選択・カメラ操作）に続き、この PR②では編集操作を実装した:
- * 道の頂点ドラッグ・ダブルクリック削除・中点クリックで挿入、建物のドラッグ移動・
- * クリックでの新規配置。道の頂点・建物は GeoJSON レイヤーではなく
+ * PR①（表示・選択・カメラ操作）・PR②（編集操作: 道の頂点ドラッグ・ダブルクリック削除・
+ * 中点クリックで挿入、建物のドラッグ移動・クリックでの新規配置）に続き、この PR③で
+ * 旧実装を削除しこのコンポーネントだけにした。道の頂点・建物は GeoJSON レイヤーではなく
  * `maplibregl.Marker`（ドラッグ可能なDOM要素）で表現している。GeoJSON の
  * `setData` 全置換だと、ドラッグ中に親の state が更新されるたびに要素そのものが
  * 作り直され、ブラウザ標準のドラッグ操作が壊れてしまうため。
@@ -33,6 +33,7 @@ import {
   zoomIdxToMapLibreZoom,
 } from "../mapEditCamera";
 import type {
+  CanvasHandlers,
   EditableLandmark,
   EditableRoad,
   EditableShop,
@@ -40,8 +41,6 @@ import type {
   SlotAction,
   Tab,
 } from "../types";
-import type { CanvasHandlers } from "./MapEditCanvas";
-import { RotationControl } from "./MapEditCanvas";
 
 type Props = {
   tab: Tab;
@@ -259,6 +258,92 @@ function createMidpointElement(): HTMLDivElement {
     cursor: "copy",
   } satisfies Partial<CSSStyleDeclaration>);
   return el;
+}
+
+// 左右それぞれ10度・30度分「加算」するボタン（タップした分だけ回転が積み重なる）
+const ROTATION_STEPS = [-30, -10, 10, 30];
+
+/** 回転角を (-180, 180] の範囲に正規化する（何度も回転を加算しても値が際限なく増えないように） */
+function normalizeRotationDeg(deg: number): number {
+  let normalized = deg % 360;
+  if (normalized > 180) normalized -= 360;
+  if (normalized <= -180) normalized += 360;
+  return normalized;
+}
+
+/**
+ * マップの回転コントロール。左右のボタンはタップするたびにその角度分だけ
+ * 現在の回転角に「加算」していく（例: 右10を2回で右へ20度）。中央のボタンは
+ * 初期角度（0度）に戻すリセット専用。ボタン同士が重ならないよう、円弧状には
+ * 並べず横一列に並べ、それぞれに文字ラベルを付けて何のボタンか分かるようにする。
+ *
+ * 旧 MapEditCanvas.tsx から移設（振る舞いの変更なし）。
+ */
+function RotationControl({
+  rotation,
+  setRotation,
+}: {
+  rotation: number;
+  setRotation: React.Dispatch<React.SetStateAction<number>>;
+}) {
+  const displayDeg = Math.round(normalizeRotationDeg(rotation));
+  const isAtInitial = displayDeg === 0;
+
+  const stepButtonStyle: React.CSSProperties = {
+    padding: "6px 9px",
+    borderRadius: 8,
+    fontSize: 11.5,
+    fontWeight: 800,
+    cursor: "pointer",
+    border: "1px solid #E4D9BF",
+    background: "#FDFBF5",
+    color: "#57503F",
+    whiteSpace: "nowrap",
+  };
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+        {ROTATION_STEPS.filter((deg) => deg < 0).map((deg) => (
+          <button
+            key={deg}
+            type="button"
+            onClick={() => setRotation((prev) => normalizeRotationDeg(prev + deg))}
+            title={`左へ${Math.abs(deg)}度回転（タップするたびに加算）`}
+            style={stepButtonStyle}
+          >
+            {deg}°
+          </button>
+        ))}
+        <button
+          type="button"
+          onClick={() => setRotation(0)}
+          title="初期角度（0度）に戻す"
+          style={{
+            ...stepButtonStyle,
+            padding: "6px 11px",
+            border: isAtInitial ? "2px solid #92400E" : "1px solid #E4D9BF",
+            background: isAtInitial ? "#92400E" : "#fff",
+            color: isAtInitial ? "#fff" : "#57503F",
+          }}
+        >
+          ⟲ リセット
+        </button>
+        {ROTATION_STEPS.filter((deg) => deg > 0).map((deg) => (
+          <button
+            key={deg}
+            type="button"
+            onClick={() => setRotation((prev) => normalizeRotationDeg(prev + deg))}
+            title={`右へ${deg}度回転（タップするたびに加算）`}
+            style={stepButtonStyle}
+          >
+            +{deg}°
+          </button>
+        ))}
+      </div>
+      <div style={{ fontSize: 10.5, fontWeight: 700, color: "#9A8A6A" }}>現在の向き: {displayDeg}°</div>
+    </div>
+  );
 }
 
 export default function MapEditCanvasMapLibre({
