@@ -3,6 +3,16 @@
 import { useState } from "react";
 
 /**
+ * 評価 API（/api/grandma/feedback）は consultId に UUID を求める。
+ * サーバーが発行した ID だけが UUID なので、マップからの引き継ぎ（handoff-N）や
+ * ID が返ってこなかったときの仮の ID（Date.now()）には評価を出さない。
+ * 出しても 400 で保存されないため。
+ */
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+type SendStatus = "idle" | "sending" | "sent" | "failed";
+
+/**
  * AI の回答への評価（役に立った / 改善が必要）を送る小さな UI。
  *
  * やりとりの中身（質問文・回答文）は既定で送らない。低評価のときに
@@ -18,7 +28,7 @@ export function ConsultFeedback({
   tone = "amber",
   className = "",
 }: {
-  /** この回答を識別する UUID。無いときは評価を出さない */
+  /** この回答を識別する UUID。無いとき・UUID でないときは評価を出さない */
   consultId: string | undefined;
   /** 同じ相談の中で何番目の回答か */
   turnIndex?: number;
@@ -30,18 +40,18 @@ export function ConsultFeedback({
   tone?: "amber" | "rose";
   className?: string;
 }) {
-  const [rated, setRated] = useState(false);
+  const [status, setStatus] = useState<SendStatus>("idle");
   const [open, setOpen] = useState(false);
   const [comment, setComment] = useState("");
   const [shareTranscript, setShareTranscript] = useState(false);
 
-  if (!consultId) return null;
+  if (!consultId || !UUID_PATTERN.test(consultId)) return null;
 
   const send = async (rating: 1 | -1, includeTranscript: boolean) => {
-    setRated(true);
-    setOpen(false);
+    if (status === "sending") return;
+    setStatus("sending");
     try {
-      await fetch("/api/grandma/feedback", {
+      const response = await fetch("/api/grandma/feedback", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -53,8 +63,13 @@ export function ConsultFeedback({
           turnText: includeTranscript ? answerText : undefined,
         }),
       });
+      if (!response.ok) throw new Error(`feedback failed: ${response.status}`);
+      setOpen(false);
+      setStatus("sent");
     } catch {
-      // 送れなくても会話の邪魔をしない
+      // 保存できていないのに「ありがとうございました」と出すと、届いたと誤解される。
+      // 入力は残したまま、もう一度送れるようにする
+      setStatus("failed");
     }
   };
 
@@ -63,7 +78,9 @@ export function ConsultFeedback({
       ? { border: "border-rose-200", bg: "bg-rose-50", text: "text-rose-600", hover: "hover:bg-rose-100", ring: "focus:ring-rose-300", check: "text-rose-500" }
       : { border: "border-amber-200", bg: "bg-amber-50", text: "text-amber-700", hover: "hover:bg-amber-100", ring: "focus:ring-amber-300", check: "text-amber-500" };
 
-  if (rated) {
+  const isSending = status === "sending";
+
+  if (status === "sent") {
     return (
       <p className={`text-right text-[11px] text-slate-400 ${className}`}>
         ありがとうございました
@@ -78,7 +95,8 @@ export function ConsultFeedback({
         <button
           type="button"
           onClick={() => void send(1, false)}
-          className="rounded-full p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-nicchyo-primary"
+          disabled={isSending}
+          className="rounded-full p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-nicchyo-primary disabled:opacity-50"
           aria-label="役に立った"
         >
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
@@ -98,6 +116,12 @@ export function ConsultFeedback({
         </button>
       </div>
 
+      {status === "failed" && (
+        <p role="alert" className="mt-1 text-right text-[11px] text-rose-500">
+          送れませんでした。時間をおいて、もう一度お試しください
+        </p>
+      )}
+
       {open && (
         <div className="mt-2 flex flex-col gap-1.5">
           <div className="flex items-center gap-2">
@@ -106,6 +130,8 @@ export function ConsultFeedback({
               value={comment}
               onChange={(e) => setComment(e.target.value)}
               onKeyDown={(e) => {
+                // 日本語入力の変換を確定する Enter で、書きかけのまま送らない
+                if (e.nativeEvent.isComposing) return;
                 if (e.key === "Enter") void send(-1, shareTranscript);
               }}
               placeholder="改善点を教えてください（任意）"
@@ -115,7 +141,8 @@ export function ConsultFeedback({
             <button
               type="button"
               onClick={() => void send(-1, shareTranscript)}
-              className={`shrink-0 rounded-full border ${accent.border} ${accent.bg} px-3 py-1.5 text-[12px] font-bold ${accent.text} ${accent.hover}`}
+              disabled={isSending}
+              className={`shrink-0 rounded-full border disabled:opacity-50 ${accent.border} ${accent.bg} px-3 py-1.5 text-[12px] font-bold ${accent.text} ${accent.hover}`}
             >
               送信
             </button>
