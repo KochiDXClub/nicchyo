@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { AlertCircle, Keyboard, Mic, RotateCcw, Send, Square, X } from "lucide-react";
 import toast from "react-hot-toast";
 import { useSpeechInput } from "@/lib/hooks/useSpeechInput";
@@ -53,6 +53,17 @@ const QUESTION_POOL = [
 
 /** 開いたとき、話し手がその場に現れきるまで。出そろってから本文を出す */
 const APPEAR_MS = 420;
+
+/**
+ * 下端に固定した「話しかける」バーとナビゲーションバーぶんの余白。
+ *
+ * スクロール領域の height（-var(--consult-bar-space) で削る側）と、
+ * その下の paddingBottom（本文が隠れないようにする側）の両方で同じ値を
+ * 使う必要がある。別々にハードコードすると、どちらか一方だけ変更したときに
+ * 本 PR で直した「候補ボタンと入力バーの重なり」が再発するため、
+ * ここ1箇所だけで定義し、CSS カスタムプロパティ経由で両方から参照する。
+ */
+const CONSULT_BAR_SPACE = "calc(var(--safe-bottom, 0px) + var(--nav-bar-height) + 6rem)";
 
 export interface ConsultStageProps {
   onAskStream: (
@@ -550,14 +561,20 @@ export default function ConsultStage({
       // スクロールする前から候補ボタンにバーが重なって見えていた。
       //
       // height は「この要素より上（親 main の pt-2）」と「下端の話しかけるバー
-      // の分（paddingBottom と同じ式）」を両方引く。paddingBottom だけでは、
-      // 中身がその場に収まってしまう高さのときスクロールが発生せず、
-      // バーの領域まで普通に描画されて隠れてしまうため、
+      // の分（--consult-bar-space、paddingBottom と同じ値）」を両方引く。
+      // paddingBottom だけでは、中身がその場に収まってしまう高さのときスクロール
+      // が発生せず、バーの領域まで普通に描画されて隠れてしまうため、
       // 「バーの領域には最初から描画させない」ところまで height 側でも絞る
-      className="flex h-[calc(100dvh-0.5rem-var(--safe-bottom,0px)-var(--nav-bar-height)-6rem)] w-full flex-col gap-3 overflow-y-auto px-4 pt-3"
-      // 下端に固定した「話しかける」とナビゲーションバーの分だけ空ける。
-      // ここを決め打ちにすると、ホームインジケータのある端末で本文が隠れる
-      style={{ paddingBottom: "calc(var(--safe-bottom, 0px) + var(--nav-bar-height) + 6rem)" }}
+      className="flex h-[calc(100dvh-0.5rem-var(--consult-bar-space))] w-full flex-col gap-3 overflow-y-auto px-4 pt-3"
+      style={
+        {
+          // 下端に固定した「話しかける」とナビゲーションバーの分だけ空ける。
+          // ここを決め打ちにすると、ホームインジケータのある端末で本文が隠れる。
+          // height 側の計算式とずれないよう、値は CONSULT_BAR_SPACE の1箇所だけで定義する
+          "--consult-bar-space": CONSULT_BAR_SPACE,
+          paddingBottom: "var(--consult-bar-space)",
+        } as CSSProperties
+      }
     >
       {/*
         にちよさんは常に画面に残す。
@@ -791,6 +808,8 @@ export default function ConsultStage({
             value={typed}
             onChange={(event) => setTyped(event.target.value)}
             onKeyDown={(event) => {
+              // 日本語入力の変換確定の Enter で、未確定テキストのまま送信してしまわないようにする
+              if (event.nativeEvent.isComposing) return;
               if (event.key !== "Enter" || isBusy) return;
               const question = typed.trim();
               if (!question) return;
