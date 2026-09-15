@@ -36,7 +36,7 @@ export const PAGE_REGISTRY: readonly PageRegistryEntry[] = [
   { path: "/events", label: "イベント", group: "来訪者向け" },
   { path: "/calendar", label: "日曜市カレンダー", group: "来訪者向け" },
   { path: "/facilities", label: "おでかけサポート", group: "来訪者向け" },
-  { path: "/bag", label: "買い物リスト", group: "来訪者向け" },
+  { path: "/favorites", label: "お気に入り", group: "来訪者向け" },
   { path: "/activities", label: "活動記録", group: "来訪者向け" },
   { path: "/analysis", label: "来訪分析", group: "来訪者向け" },
   { path: "/about", label: "nicchyoとは", group: "来訪者向け" },

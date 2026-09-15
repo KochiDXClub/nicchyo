@@ -13,6 +13,11 @@ import {
   getFavoriteProductsForShop,
   groupFavoritesByShop,
   favoriteEntryKey,
+  migrateBagItemsToFavorites,
+  clearLegacyShoppingChecklist,
+  LEGACY_SHOPPING_CHECKED_KEY,
+  BAG_MIGRATION_FLAG_KEY,
+  LEGACY_BAG_STORAGE_KEY,
   FAVORITE_SHOPS_KEY,
   FAVORITE_SHOPS_UPDATED_EVENT,
   type FavoriteEntry,
@@ -255,6 +260,106 @@ describe('favoriteShops', () => {
       ]);
       removeFavoriteShop(1);
       expect(storedEntries()).toEqual([{ shopId: 2, product: null }]);
+    });
+  });
+
+
+  describe('migrateBagItemsToFavorites', () => {
+    it('店が分かるバッグの中身をお気に入りへ移す', () => {
+      localStorage.setItem(
+        LEGACY_BAG_STORAGE_KEY,
+        JSON.stringify([
+          { id: 'a', name: 'いも天', fromShopId: 1, createdAt: 1 },
+          { id: 'b', name: 'ゆず', fromShopId: 2, createdAt: 2 },
+        ]),
+      );
+
+      expect(migrateBagItemsToFavorites()).toEqual({ migrated: 2, skipped: 0 });
+      expect(storedEntries()).toEqual([
+        { shopId: 1, product: 'いも天' },
+        { shopId: 2, product: 'ゆず' },
+      ]);
+    });
+
+    it('店が分からないものは取り込まず、数だけ返す', () => {
+      localStorage.setItem(
+        LEGACY_BAG_STORAGE_KEY,
+        JSON.stringify([
+          { id: 'a', name: '牛乳', createdAt: 1 },
+          { id: 'b', name: 'いも天', fromShopId: 1, createdAt: 2 },
+        ]),
+      );
+
+      expect(migrateBagItemsToFavorites()).toEqual({ migrated: 1, skipped: 1 });
+      expect(storedEntries()).toEqual([{ shopId: 1, product: 'いも天' }]);
+    });
+
+    it('すでにお気に入りにあるものは重ねない', () => {
+      seed([{ shopId: 1, product: 'いも天' }]);
+      localStorage.setItem(
+        LEGACY_BAG_STORAGE_KEY,
+        JSON.stringify([{ id: 'a', name: 'いも天', fromShopId: 1, createdAt: 1 }]),
+      );
+
+      expect(migrateBagItemsToFavorites()).toEqual({ migrated: 0, skipped: 0 });
+      expect(storedEntries()).toEqual([{ shopId: 1, product: 'いも天' }]);
+    });
+
+    it('2回目以降は何もしない（外したものが復活しない）', () => {
+      localStorage.setItem(
+        LEGACY_BAG_STORAGE_KEY,
+        JSON.stringify([{ id: 'a', name: 'いも天', fromShopId: 1, createdAt: 1 }]),
+      );
+      migrateBagItemsToFavorites();
+      removeFavoriteShop(1);
+
+      expect(migrateBagItemsToFavorites()).toBeNull();
+      expect(storedEntries()).toEqual([]);
+    });
+
+    it('バッグが空でも移行済みの印は立てる', () => {
+      expect(migrateBagItemsToFavorites()).toEqual({ migrated: 0, skipped: 0 });
+      expect(localStorage.getItem(BAG_MIGRATION_FLAG_KEY)).toBe('1');
+      expect(migrateBagItemsToFavorites()).toBeNull();
+    });
+
+    it('保存に失敗したら印を立てない（次の起動でやり直せる）', () => {
+      localStorage.setItem(
+        LEGACY_BAG_STORAGE_KEY,
+        JSON.stringify([{ name: 'いも天', fromShopId: 12 }]),
+      );
+      const setItem = vi
+        .spyOn(Storage.prototype, 'setItem')
+        .mockImplementation((key: string) => {
+          if (key === FAVORITE_SHOPS_KEY) throw new Error('QuotaExceededError');
+        });
+
+      expect(() => migrateBagItemsToFavorites()).toThrow();
+      setItem.mockRestore();
+
+      expect(localStorage.getItem(BAG_MIGRATION_FLAG_KEY)).toBeNull();
+      // やり直すと今度は移せる
+      expect(migrateBagItemsToFavorites()).toEqual({ migrated: 1, skipped: 0 });
+    });
+
+    it('バッグのJSONが壊れていても落ちない', () => {
+      localStorage.setItem(LEGACY_BAG_STORAGE_KEY, '{invalid-json}');
+      expect(migrateBagItemsToFavorites()).toEqual({ migrated: 0, skipped: 0 });
+      expect(storedEntries()).toEqual([]);
+    });
+  });
+
+  describe('clearLegacyShoppingChecklist', () => {
+    it('買い物チェックリストを消す（お気に入りには持ち込まない）', () => {
+      localStorage.setItem(LEGACY_SHOPPING_CHECKED_KEY, JSON.stringify(['a']));
+      clearLegacyShoppingChecklist();
+      expect(localStorage.getItem(LEGACY_SHOPPING_CHECKED_KEY)).toBeNull();
+    });
+
+    it('移行元のバッグ本体は消さない（移行に失敗していたときの控え）', () => {
+      localStorage.setItem(LEGACY_BAG_STORAGE_KEY, JSON.stringify([]));
+      clearLegacyShoppingChecklist();
+      expect(localStorage.getItem(LEGACY_BAG_STORAGE_KEY)).not.toBeNull();
     });
   });
 

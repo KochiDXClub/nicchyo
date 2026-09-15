@@ -13,6 +13,7 @@ import {
   generateCrowdSvg,
   type CrowdKind,
 } from "../../config/crowdParts";
+import { memoImage } from "./rasterCache";
 import { rasterizeSvg } from "./stallSprites";
 
 export interface CrowdSprite {
@@ -36,7 +37,9 @@ export async function buildCrowdSprites(pixelRatio = 2): Promise<CrowdSprite[]> 
           height: CROWD_ICON_HEIGHT_PX,
         });
         jobs.push(
-          rasterizeSvg(svg, CROWD_ICON_WIDTH_PX, pixelRatio, CROWD_ICON_HEIGHT_PX)
+          memoImage(`crowd:${kind}:${flip}:${frame}@${pixelRatio}`, () =>
+            rasterizeSvg(svg, CROWD_ICON_WIDTH_PX, pixelRatio, CROWD_ICON_HEIGHT_PX)
+          )
             .then((image) => ({ id: crowdImageId(kind, flip, frame), image, pixelRatio }))
             .catch((error: unknown) => {
               // 1 枚の失敗で全体を止めない（その人影は出ないだけ）

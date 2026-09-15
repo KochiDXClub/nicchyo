@@ -19,6 +19,7 @@ import {
   ClipboardList,
   Compass,
   FileText,
+  Heart,
   HeartHandshake,
   Info,
   LayoutDashboard,
@@ -26,6 +27,7 @@ import {
   LogIn,
   LogOut,
   Mail,
+  ShieldCheck,
   MessageCircle,
   Newspaper,
   Package,
@@ -34,8 +36,10 @@ import {
   Users,
   X,
   type LucideIcon,
+  Github,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth/AuthContext";
+import { GITHUB_REPO_URL } from "@/lib/siteLinks";
 import { useMenu } from "@/lib/ui/MenuContext";
 import { usePageVisibility } from "@/lib/pageVisibility/PageVisibilityContext";
 import { useMapLoading } from "./MapLoadingProvider";
@@ -68,6 +72,7 @@ type SheetItem = {
 
 /** 日曜市を歩くときに使うページ */
 const visitMenuItems: SheetItem[] = [
+  { label: "お気に入り", href: "/favorites", icon: Heart },
   { label: "おでかけサポート", href: "/facilities", icon: Compass },
   { label: "日曜市カレンダー", href: "/calendar", icon: CalendarDays },
   // 中身がまだサンプル値なので、開く前に分かるようにしておく
@@ -80,6 +85,7 @@ const aboutMenuItems: SheetItem[] = [
   { label: "協賛・ご支援について", href: "/support", icon: HeartHandshake },
   { label: "よくある質問", href: "/faq", icon: CircleHelp },
   { label: "お問い合わせ", href: "/contact", icon: Mail },
+  { label: "プライバシーポリシー", href: "/privacy", icon: ShieldCheck },
 ];
 
 // ─── 出店者・管理者メニュー ────────────────────────────────────────────────────
@@ -399,6 +405,18 @@ function NavigationBarInner({
                     <MenuRow icon={LogOut} label="ログアウト" muted onClick={handleLogout} />
                   </>
                 )}
+
+                {/* ─ 末尾の小さなリンク。来訪者向けの項目と並べず、フッターとして置く ─ */}
+                <MenuDivider />
+                <a
+                  href={GITHUB_REPO_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1.5 px-3 py-2 text-[11px] font-semibold tracking-wide text-nicchyo-ink/40 transition hover:text-nicchyo-ink/70"
+                >
+                  <Github className="h-3.5 w-3.5" aria-hidden />
+                  オープンソースで開発しています（GitHub）
+                </a>
               </div>
             </motion.div>
           </>

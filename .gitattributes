@@ -1,3 +1,4 @@
-# CHANGELOG-unreleased.md は全PRが「## 一覧」直下に1行足すので、
-# 通常マージだと内容が無関係でも必ず衝突する。union で両方の行を残す
+# 未リリースの変更記録は PR 間のコンフリクトを防ぐため docs/changelog-unreleased/*.md の
+# フラグメント方式を採用（GitHubのPR判定が merge=union を無視するため）。
+# 集約先ファイルに残る手動マージ時の念のための設定として union を維持。
 docs/CHANGELOG-unreleased.md merge=union

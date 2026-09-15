@@ -21,7 +21,7 @@ import {
 } from '../config/displayConfig';
 import { getRoadSide } from '../config/roadConfig';
 import { getShopBannerImage } from '../../../../lib/shopImages';
-import { generateShopMarkerHtml } from '../utils/markerHtmlGenerator';
+import { generateShopMarkerHtml, SHOP_FAVORITE_BADGE_HTML } from '../utils/markerHtmlGenerator';
 
 type ShopBannerOrigin = { x: number; y: number; width: number; height: number };
 
@@ -34,7 +34,6 @@ export interface OptimizedShopLayerWithClusteringProps {
   searchShopIds?: number[];
   aiHighlightShopIds?: number[];
   commentHighlightShopIds?: number[];
-  bagShopIds?: number[];
   /**
    * true のとき、レイヤーは残したままペインごと非表示にする（visibility: hidden）。
    * ズーム 19 未満でレイヤーを付け外しすると 300 マーカーの再生成で 1 秒以上止まるため、
@@ -89,7 +88,6 @@ function OptimizedShopLayerWithClustering({
   searchShopIds,
   aiHighlightShopIds,
   commentHighlightShopIds,
-  bagShopIds,
   stallRenderer = 'svg',
   hidden = false,
   visibleMinZoom,
@@ -117,8 +115,6 @@ function OptimizedShopLayerWithClustering({
   const prevAiHighlightSetRef = useRef<Set<number>>(new Set());
   const commentHighlightSetRef = useRef<Set<number>>(new Set());
   const prevCommentHighlightSetRef = useRef<Set<number>>(new Set());
-  const bagShopSetRef = useRef<Set<number>>(new Set());
-  const prevBagShopSetRef = useRef<Set<number>>(new Set());
   const lastLodRef = useRef<ShopMarkerLod | null>(null);
   const lastMarkerZoomScaleRef = useRef<number | null>(null);
   const selectedShopIdRef = useRef<number | undefined>(undefined);
@@ -169,16 +165,6 @@ function OptimizedShopLayerWithClustering({
       icon.classList.add('shop-marker-comment');
     } else {
       icon.classList.remove('shop-marker-comment');
-    }
-  };
-
-  const setMarkerBag = (marker: L.Marker, isHighlighted: boolean) => {
-    const icon = marker.getElement();
-    if (!icon) return;
-    if (isHighlighted) {
-      icon.classList.add('shop-marker-bag');
-    } else {
-      icon.classList.remove('shop-marker-bag');
     }
   };
 
@@ -270,7 +256,7 @@ function OptimizedShopLayerWithClustering({
       return L.divIcon({
         html: `
           <div class="shop-marker-compact-wrapper">
-            <div class="shop-favorite-badge" aria-hidden="true">&#10084;</div>
+            ${SHOP_FAVORITE_BADGE_HTML}
             <div class="shop-marker-compact"></div>
           </div>
         `,
@@ -346,7 +332,6 @@ function OptimizedShopLayerWithClustering({
         setMarkerHighlight(marker, shop.id, aiHighlightSetRef.current.has(shop.id));
         setMarkerSearchHighlight(marker, searchHighlightSetRef.current.has(shop.id));
         setMarkerCommentHighlight(marker, commentHighlightSetRef.current.has(shop.id));
-        setMarkerBag(marker, bagShopSetRef.current.has(shop.id));
         const currentZoom = map.getZoom();
         const maxZoom = map.getMaxZoom() ?? currentZoom;
         setMarkerLod(marker, getShopMarkerLod(currentZoom, maxZoom));
@@ -429,11 +414,6 @@ function OptimizedShopLayerWithClustering({
             markerElement.classList.add('shop-marker-comment');
           } else {
             markerElement.classList.remove('shop-marker-comment');
-          }
-          if (bagShopSetRef.current.has(shopId)) {
-            markerElement.classList.add('shop-marker-bag');
-          } else {
-            markerElement.classList.remove('shop-marker-bag');
           }
         }
       });
@@ -566,29 +546,6 @@ function OptimizedShopLayerWithClustering({
 
     prevCommentHighlightSetRef.current = nextHighlights;
   }, [commentHighlightShopIds]);
-
-  useEffect(() => {
-    bagShopSetRef.current = new Set(bagShopIds ?? []);
-    const nextHighlights = bagShopSetRef.current;
-    const prevHighlights = prevBagShopSetRef.current;
-    const changed = new Set<number>();
-
-    prevHighlights.forEach((id) => {
-      if (!nextHighlights.has(id)) changed.add(id);
-    });
-    nextHighlights.forEach((id) => {
-      if (!prevHighlights.has(id)) changed.add(id);
-    });
-
-    changed.forEach((id) => {
-      const marker = markersRef.current.get(id);
-      if (marker) {
-        setMarkerBag(marker, nextHighlights.has(id));
-      }
-    });
-
-    prevBagShopSetRef.current = nextHighlights;
-  }, [bagShopIds]);
 
   useEffect(() => {
     markersRef.current.forEach((marker, shopId) => {

@@ -1,23 +1,21 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { beforeEach, afterEach, describe, it, expect, vi } from "vitest";
 
-// Mock the consentClient module with a controllable flag
+// GA の読み込みは差し替える。停止設定はテストごとに切り替えられるようにする
+const consent = vi.hoisted(() => ({ optedOut: false }));
+
 vi.mock("../../../lib/analytics/consentClient", () => {
-  let allowed = true;
   return {
-    isAnalyticsAllowed: () => allowed,
     loadGA: vi.fn(),
-    __setAllowed: (v: boolean) => {
-      allowed = v;
-    },
+    isAnalyticsOptedOut: () => consent.optedOut,
   } as any;
 });
 
 describe("sendEvent wrapper", () => {
   let sendEvent: (...args: any[]) => void;
-  let consentMock: any;
 
   beforeEach(async () => {
+    consent.optedOut = false;
     // reset globals
     globalThis.fetch = vi.fn(() => Promise.resolve({ ok: true })) as any;
     (globalThis as any).window = globalThis as any;
@@ -28,8 +26,6 @@ describe("sendEvent wrapper", () => {
       value: "nicchyo_visitor_id=visitor123",
     });
 
-    // import mocked consent module and the sendEvent module
-    consentMock = await import("../../../lib/analytics/consentClient");
     ({ sendEvent } = await import("../../../lib/analytics/sendEvent"));
   });
 
@@ -41,10 +37,7 @@ describe("sendEvent wrapper", () => {
     } catch {}
   });
 
-  it("sends dataLayer/gtag and posts to server when allowed and toServer=true", async () => {
-    // ensure allowed
-    consentMock.__setAllowed(true);
-
+  it("sends dataLayer/gtag and posts to server when toServer=true", async () => {
     sendEvent("shop_impression" as any, { shop_id: "shop1", list_position: 2, context: "list" }, { toServer: true });
 
     // dataLayer push
@@ -62,13 +55,20 @@ describe("sendEvent wrapper", () => {
     expect(fetchCall[0]).toContain("/api/analytics/shop-interaction");
   });
 
-  it("does nothing when consent is not allowed", async () => {
-    consentMock.__setAllowed(false);
+  it("toServer を指定しなければサーバーへは送らない", async () => {
+    sendEvent("shop_impression" as any, { shop_id: "shop2" });
 
-    sendEvent("shop_impression" as any, { shop_id: "shop2" }, { toServer: true });
+    expect((globalThis as any).dataLayer.length).toBeGreaterThan(0);
+    expect((globalThis as any).fetch).not.toHaveBeenCalled();
+  });
+
+  it("解析を止めている端末では、どこへも送らない", async () => {
+    consent.optedOut = true;
+
+    sendEvent("shop_impression" as any, { shop_id: "shop3" }, { toServer: true });
 
     expect((globalThis as any).dataLayer.length).toBe(0);
     expect((globalThis as any).gtag).not.toHaveBeenCalled();
-    expect((globalThis as any).fetch).not.toHaveBeenCalled();
+    expect(globalThis.fetch).not.toHaveBeenCalled();
   });
 });

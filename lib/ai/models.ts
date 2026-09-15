@@ -21,7 +21,7 @@
  */
 
 /** モデルを使う場面。場面ごとに別のモデルを割り当てられる */
-export type AiUseCase = "consult" | "shopChat" | "itinerary" | "mapAgent";
+export type AiUseCase = "consult" | "shopChat" | "itinerary";
 
 /**
  * 推論の深さ。
@@ -160,12 +160,6 @@ export const AI_USE_CASE_DEFS: readonly AiUseCaseDef[] = [
     label: "回り方プラン",
     description:
       "時間と興味から順路を組み立てる。実際に順序を考える処理なので、ここだけは賢いモデルが効く可能性がある。",
-    defaultModelId: "gpt-4o-mini",
-  },
-  {
-    useCase: "mapAgent",
-    label: "マップAIアシスタント",
-    description: "質問から意図を読み取ってJSONで返す。分類・抽出に近い処理。",
     defaultModelId: "gpt-4o-mini",
   },
 ];
