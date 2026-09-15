@@ -1,13 +1,14 @@
 import { Suspense } from "react";
 import type { Metadata, Viewport } from "next";
+import { headers } from "next/headers";
 import "./globals.css";
 import { AuthProvider } from "@/lib/auth/AuthContext";
 import { MenuProvider } from "@/lib/ui/MenuContext";
-import { BagProvider } from "@/lib/storage/BagContext";
+import FavoritesBagMigration from "@/app/components/FavoritesBagMigration";
+import { PageVisibilityProvider } from "@/lib/pageVisibility/PageVisibilityContext";
 import AppHeader from "./components/AppHeader";
 import MapLoadingProvider from "./components/MapLoadingProvider";
 import PageVisitTracker from "./components/PageVisitTracker";
-import CookieConsent from "./components/CookieConsent";
 import ViewportHeightUpdater from "./components/ViewportHeightUpdater";
 import { Toaster } from "@/components/admin";
 import { safeJsonLd } from "@/lib/utils/jsonLd";
@@ -69,22 +70,31 @@ const organizationJsonLd = {
 };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  // proxy.ts が発行した CSP nonce を読む。
+  // headers() を呼ぶことで全ページがリクエスト時描画（dynamic）になり、Next.js が
+  // <script> に nonce を付与できる。静的生成された HTML には nonce が無く、
+  // script-src 'nonce-…' 'strict-dynamic' の CSP で全スクリプトがブロックされて
+  // ハイドレーションしない（近況ページが提灯ローディングで止まる等）ため必須。
+  // https://nextjs.org/docs/app/guides/content-security-policy#nonces
+  const nonce = (await headers()).get("x-nonce") ?? undefined;
+
   return (
     <html lang="ja">
       <head>
         <script
+          nonce={nonce}
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: safeJsonLd(organizationJsonLd) }}
         />
       </head>
       <body className="bg-nicchyo-base text-nicchyo-ink">
-        <CookieConsent />
         <ViewportHeightUpdater />
         <AuthProvider>
-          <BagProvider>
+          <PageVisibilityProvider>
             <MenuProvider>
               <MapLoadingProvider>
                 <AppHeader />
+                <FavoritesBagMigration />
                 <Suspense fallback={null}>
                   <PageVisitTracker />
                 </Suspense>
@@ -92,7 +102,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                 <Toaster />
               </MapLoadingProvider>
             </MenuProvider>
-          </BagProvider>
+          </PageVisibilityProvider>
         </AuthProvider>
       </body>
     </html>

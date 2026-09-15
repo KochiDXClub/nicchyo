@@ -10,11 +10,12 @@
 
 import Image from 'next/image';
 import Link from 'next/link';
-import { useEffect } from 'react';
+import { useEffect, type ReactNode } from 'react';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/lib/auth/AuthContext';
 import { useMenu } from '@/lib/ui/MenuContext';
 import { getRoleTheme } from '@/lib/theme/roleTheme';
+import { usePageVisibility } from '@/lib/pageVisibility/PageVisibilityContext';
 
 export default function HamburgerMenu() {
   const { isMenuOpen, toggleMenu, closeMenu } = useMenu();
@@ -147,142 +148,22 @@ export default function HamburgerMenu() {
                 <>
                   {permissions.isAdmin && (
                     <>
-                      <li>
-                        <div className="rounded-lg bg-red-50 px-3 py-2 mb-2">
-                          <p className="text-xs font-semibold text-red-700 flex items-center gap-1">
-                            <MenuIcon name="settings" className="h-4 w-4 text-red-700" />
-                            管理メニュー
-                          </p>
-                        </div>
-                      </li>
-                      <li>
+                      <MenuLi href="/admin/dashboard">
                         <Link
                           href="/admin/dashboard"
                           onClick={closeMenu}
-                          className={menuItemClass('/admin/dashboard', 'hover:bg-red-50')}
+                          className={menuItemClass('/admin', 'hover:bg-red-50')}
                         >
-                          <MenuIcon name="chart" className={`h-5 w-5 ${isActive('/admin/dashboard') ? 'text-white' : 'text-red-600'}`} />
+                          <MenuIcon name="settings" className={`h-5 w-5 ${isActive('/admin') ? 'text-white' : 'text-red-600'}`} />
                           <div className="flex-1">
-                            <p className="text-sm font-medium">ダッシュボード</p>
-                            <p className={`text-xs ${isActive('/admin/dashboard') ? 'text-white/80' : 'text-gray-500'}`}>アクセスと運用状況を確認</p>
+                            <p className="text-sm font-medium">管理者ページ</p>
+                            <p className={`text-xs ${isActive('/admin') ? 'text-white/80' : 'text-gray-500'}`}>運用・対応・分析・設定はこちら</p>
                           </div>
-                          <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${isActive('/admin/dashboard') ? 'bg-white/20 text-white' : 'bg-red-100 text-red-700'}`}>
+                          <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${isActive('/admin') ? 'bg-white/20 text-white' : 'bg-red-100 text-red-700'}`}>
                             管理
                           </span>
                         </Link>
-                      </li>
-                      <li>
-                        <Link
-                          href="/admin/analytics"
-                          onClick={closeMenu}
-                          className={menuItemClass('/admin/analytics', 'hover:bg-red-50')}
-                        >
-                          <MenuIcon name="chart" className={`h-5 w-5 ${isActive('/admin/analytics') ? 'text-white' : 'text-red-600'}`} />
-                          <div className="flex-1">
-                            <p className="text-sm font-medium">アナリティクス</p>
-                            <p className={`text-xs ${isActive('/admin/analytics') ? 'text-white/80' : 'text-gray-500'}`}>訪問者・検索・AI分析</p>
-                          </div>
-                          <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${isActive('/admin/analytics') ? 'bg-white/20 text-white' : 'bg-red-100 text-red-700'}`}>
-                            管理
-                          </span>
-                        </Link>
-                      </li>
-                      <li>
-                        <Link
-                          href="/admin/map-edit"
-                          onClick={closeMenu}
-                          className={menuItemClass('/admin/map-edit', 'hover:bg-red-50')}
-                        >
-                          <MenuIcon name="shop" className={`h-5 w-5 ${isActive('/admin/map-edit') ? 'text-white' : 'text-red-600'}`} />
-                          <div className="flex-1">
-                            <p className="text-sm font-medium">マップ編集</p>
-                            <p className={`text-xs ${isActive('/admin/map-edit') ? 'text-white/80' : 'text-gray-500'}`}>店舗マーカと建物を編集</p>
-                          </div>
-                          <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${isActive('/admin/map-edit') ? 'bg-white/20 text-white' : 'bg-red-100 text-red-700'}`}>
-                            管理
-                          </span>
-                        </Link>
-                      </li>
-                      <li>
-                        <Link
-                          href="/admin/users"
-                          onClick={closeMenu}
-                          className={menuItemClass('/admin/users', 'hover:bg-red-50')}
-                        >
-                          <MenuIcon name="users" className={`h-5 w-5 ${isActive('/admin/users') ? 'text-white' : 'text-red-600'}`} />
-                          <div className="flex-1">
-                            <p className="text-sm font-medium">ユーザー管理</p>
-                            <p className={`text-xs ${isActive('/admin/users') ? 'text-white/80' : 'text-gray-500'}`}>アカウントと権限を確認</p>
-                          </div>
-                          <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${isActive('/admin/users') ? 'bg-white/20 text-white' : 'bg-red-100 text-red-700'}`}>
-                            管理
-                          </span>
-                        </Link>
-                      </li>
-                      <li>
-                        <Link
-                          href="/admin/content"
-                          onClick={closeMenu}
-                          className={menuItemClass('/admin/content', 'hover:bg-red-50')}
-                        >
-                          <MenuIcon name="pencil" className={`h-5 w-5 ${isActive('/admin/content') ? 'text-white' : 'text-red-600'}`} />
-                          <div className="flex-1">
-                            <p className="text-sm font-medium">コンテンツ管理</p>
-                            <p className={`text-xs ${isActive('/admin/content') ? 'text-white/80' : 'text-gray-500'}`}>出店者の投稿を管理</p>
-                          </div>
-                          <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${isActive('/admin/content') ? 'bg-white/20 text-white' : 'bg-red-100 text-red-700'}`}>
-                            管理
-                          </span>
-                        </Link>
-                      </li>
-                      <li>
-                        <Link
-                          href="/admin/audit-logs"
-                          onClick={closeMenu}
-                          className={menuItemClass('/admin/audit-logs', 'hover:bg-red-50')}
-                        >
-                          <MenuIcon name="list" className={`h-5 w-5 ${isActive('/admin/audit-logs') ? 'text-white' : 'text-red-600'}`} />
-                          <div className="flex-1">
-                            <p className="text-sm font-medium">監査ログ</p>
-                            <p className={`text-xs ${isActive('/admin/audit-logs') ? 'text-white/80' : 'text-gray-500'}`}>管理者の操作履歴</p>
-                          </div>
-                          <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${isActive('/admin/audit-logs') ? 'bg-white/20 text-white' : 'bg-red-100 text-red-700'}`}>
-                            管理
-                          </span>
-                        </Link>
-                      </li>
-                      <li>
-                        <Link
-                          href="/admin/notifications"
-                          onClick={closeMenu}
-                          className={menuItemClass('/admin/notifications', 'hover:bg-red-50')}
-                        >
-                          <MenuIcon name="bell" className={`h-5 w-5 ${isActive('/admin/notifications') ? 'text-white' : 'text-red-600'}`} />
-                          <div className="flex-1">
-                            <p className="text-sm font-medium">通知</p>
-                            <p className={`text-xs ${isActive('/admin/notifications') ? 'text-white/80' : 'text-gray-500'}`}>申請・報告のお知らせ</p>
-                          </div>
-                          <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${isActive('/admin/notifications') ? 'bg-white/20 text-white' : 'bg-red-100 text-red-700'}`}>
-                            管理
-                          </span>
-                        </Link>
-                      </li>
-                      <li>
-                        <Link
-                          href="/admin/settings"
-                          onClick={closeMenu}
-                          className={menuItemClass('/admin/settings', 'hover:bg-red-50')}
-                        >
-                          <MenuIcon name="settings" className={`h-5 w-5 ${isActive('/admin/settings') ? 'text-white' : 'text-red-600'}`} />
-                          <div className="flex-1">
-                            <p className="text-sm font-medium">設定</p>
-                            <p className={`text-xs ${isActive('/admin/settings') ? 'text-white/80' : 'text-gray-500'}`}>公開設定と運用上限</p>
-                          </div>
-                          <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${isActive('/admin/settings') ? 'bg-white/20 text-white' : 'bg-red-100 text-red-700'}`}>
-                            管理
-                          </span>
-                        </Link>
-                      </li>
+                      </MenuLi>
                       <li>
                         <div className="my-3 border-t border-gray-200" />
                       </li>
@@ -299,7 +180,7 @@ export default function HamburgerMenu() {
                           </p>
                         </div>
                       </li>
-                      <li>
+                      <MenuLi href="/moderator">
                         <Link
                           href="/moderator"
                           onClick={closeMenu}
@@ -314,7 +195,7 @@ export default function HamburgerMenu() {
                             モデレーター
                           </span>
                         </Link>
-                      </li>
+                      </MenuLi>
                       <li>
                         <div className="my-3 border-t border-gray-200" />
                       </li>
@@ -331,7 +212,7 @@ export default function HamburgerMenu() {
                           </p>
                         </div>
                       </li>
-                      <li>
+                      <MenuLi href="/my-shop">
                         <Link
                           href="/my-shop"
                           onClick={closeMenu}
@@ -343,8 +224,8 @@ export default function HamburgerMenu() {
                             <p className={`text-xs ${isActive('/my-shop') ? 'text-white/80' : 'text-gray-500'}`}>店舗ページを見る</p>
                           </div>
                         </Link>
-                      </li>
-                      <li>
+                      </MenuLi>
+                      <MenuLi href="/vendor/post/new">
                         <Link
                           href="/vendor/post/new"
                           onClick={closeMenu}
@@ -356,8 +237,8 @@ export default function HamburgerMenu() {
                             <p className={`text-xs ${isActive('/vendor/post/new') ? 'text-white/80' : 'text-gray-500'}`}>お知らせや出店情報を発信</p>
                           </div>
                         </Link>
-                      </li>
-                      <li>
+                      </MenuLi>
+                      <MenuLi href="/vendor/store">
                         <Link
                           href="/vendor/store"
                           onClick={closeMenu}
@@ -369,8 +250,8 @@ export default function HamburgerMenu() {
                             <p className={`text-xs ${isActive('/vendor/store') ? 'text-white/80' : 'text-gray-500'}`}>営業時間・商品・SNSなど</p>
                           </div>
                         </Link>
-                      </li>
-                      <li>
+                      </MenuLi>
+                      <MenuLi href="/vendor/analytics">
                         <Link
                           href="/vendor/analytics"
                           onClick={closeMenu}
@@ -382,8 +263,8 @@ export default function HamburgerMenu() {
                             <p className={`text-xs ${isActive('/vendor/analytics') ? 'text-white/80' : 'text-gray-500'}`}>閲覧数・商品・AI分析</p>
                           </div>
                         </Link>
-                      </li>
-                      <li>
+                      </MenuLi>
+                      <MenuLi href="/vendor/ai-knowledge">
                         <Link
                           href="/vendor/ai-knowledge"
                           onClick={closeMenu}
@@ -395,8 +276,8 @@ export default function HamburgerMenu() {
                             <p className={`text-xs ${isActive('/vendor/ai-knowledge') ? 'text-white/80' : 'text-gray-500'}`}>お店の情報を学習させる</p>
                           </div>
                         </Link>
-                      </li>
-                      <li>
+                      </MenuLi>
+                      <MenuLi href="/vendor/account">
                         <Link
                           href="/vendor/account"
                           onClick={closeMenu}
@@ -408,8 +289,8 @@ export default function HamburgerMenu() {
                             <p className={`text-xs ${isActive('/vendor/account') ? 'text-white/80' : 'text-gray-500'}`}>名前・メール・パスワード変更</p>
                           </div>
                         </Link>
-                      </li>
-                      <li>
+                      </MenuLi>
+                      <MenuLi href="/vendor/help">
                         <Link
                           href="/vendor/help"
                           onClick={closeMenu}
@@ -421,7 +302,7 @@ export default function HamburgerMenu() {
                             <p className={`text-xs ${isActive('/vendor/help') ? 'text-white/80' : 'text-gray-500'}`}>各機能の説明</p>
                           </div>
                         </Link>
-                      </li>
+                      </MenuLi>
                       <li>
                         <div className="my-3 border-t border-gray-200" />
                       </li>
@@ -430,19 +311,19 @@ export default function HamburgerMenu() {
 
                   {permissions.isGeneralUser && (
                     <>
-                      <li>
+                      <MenuLi href="/favorites">
                         <Link
-                          href="/bag"
+                          href="/favorites"
                           onClick={closeMenu}
-                          className={menuItemClass('/bag', 'hover:bg-amber-50')}
+                          className={menuItemClass('/favorites', 'hover:bg-amber-50')}
                         >
-                          <MenuIcon name="bag" className={`h-5 w-5 ${isActive('/bag') ? 'text-white' : 'text-gray-600'}`} />
+                          <MenuIcon name="bag" className={`h-5 w-5 ${isActive('/favorites') ? 'text-white' : 'text-gray-600'}`} />
                           <div className="flex-1">
-                            <p className="text-sm font-medium">お買い物リスト</p>
-                            <p className={`text-xs ${isActive('/bag') ? 'text-white/80' : 'text-gray-500'}`}>買うものをメモ</p>
+                            <p className="text-sm font-medium">お気に入り</p>
+                            <p className={`text-xs ${isActive('/favorites') ? 'text-white/80' : 'text-gray-500'}`}>気になったお店と商品</p>
                           </div>
                         </Link>
-                      </li>
+                      </MenuLi>
                     </>
                   )}
 
@@ -463,19 +344,19 @@ export default function HamburgerMenu() {
                 </>
               ) : (
                 <>
-                  <li>
+                  <MenuLi href="/favorites">
                     <Link
-                      href="/bag"
+                      href="/favorites"
                       onClick={closeMenu}
                       className="flex items-center gap-3 rounded-lg border-2 border-amber-300 bg-amber-50 px-4 py-3 text-amber-900 shadow-sm transition hover:-translate-y-0.5 hover:bg-amber-100 hover:shadow-md"
                     >
                       <MenuIcon name="bag" className="h-5 w-5 text-amber-700" />
                       <div className="flex-1">
-                        <p className="text-sm font-semibold">お買い物リスト</p>
-                        <p className="text-xs text-amber-700/80">買うものをメモ</p>
+                        <p className="text-sm font-semibold">お気に入り</p>
+                        <p className="text-xs text-amber-700/80">気になったお店と商品</p>
                       </div>
                     </Link>
-                  </li>
+                  </MenuLi>
                 </>
               )}
 
@@ -483,7 +364,7 @@ export default function HamburgerMenu() {
                 <div className="my-3 border-t border-gray-200" />
               </li>
 
-              <li>
+              <MenuLi href="/about">
                 <Link
                   href="/about"
                   onClick={closeMenu}
@@ -492,8 +373,8 @@ export default function HamburgerMenu() {
                   <MenuIcon name="info" className={`h-5 w-5 ${isActive('/about') ? 'text-white' : 'text-gray-600'}`} />
                   <p className="text-sm font-medium">このサービスについて</p>
                 </Link>
-              </li>
-              <li>
+              </MenuLi>
+              <MenuLi href="/analysis">
                 <Link
                   href="/analysis"
                   onClick={closeMenu}
@@ -501,11 +382,21 @@ export default function HamburgerMenu() {
                 >
                   <MenuIcon name="chart" className={`h-5 w-5 ${isActive('/analysis') ? 'text-white' : 'text-gray-600'}`} />
                   <p className="text-sm font-medium">日曜市をデータで見る</p>
+                  {/* 中身がまだサンプル値なので、開く前に分かるようにしておく */}
+                  <span
+                    className={`ml-auto shrink-0 rounded-full border border-dashed px-2 py-0.5 text-[10px] font-bold ${
+                      isActive('/analysis')
+                        ? 'border-white/60 bg-white/15 text-white'
+                        : 'border-rose-300 bg-rose-50 text-rose-700'
+                    }`}
+                  >
+                    デモ
+                  </span>
                 </Link>
-              </li>
+              </MenuLi>
               {!isLoggedIn && (
                 <>
-                  <li>
+                  <MenuLi href="/login">
                     <Link
                       href="/login"
                       onClick={closeMenu}
@@ -514,8 +405,8 @@ export default function HamburgerMenu() {
                       <MenuIcon name="user" className={`h-5 w-5 ${isActive('/login') ? 'text-white' : 'text-gray-600'}`} />
                       <p className="text-sm font-medium">ログイン</p>
                     </Link>
-                  </li>
-                  <li>
+                  </MenuLi>
+                  <MenuLi href="/signup">
                     <Link
                       href="/signup"
                       onClick={closeMenu}
@@ -524,10 +415,10 @@ export default function HamburgerMenu() {
                       <MenuIcon name="user" className={`h-5 w-5 ${isActive('/signup') ? 'text-white' : 'text-gray-600'}`} />
                       <p className="text-sm font-medium">アカウントを作成</p>
                     </Link>
-                  </li>
+                  </MenuLi>
                 </>
               )}
-              <li>
+              <MenuLi href="/faq">
                 <Link
                   href="/faq"
                   onClick={closeMenu}
@@ -536,8 +427,8 @@ export default function HamburgerMenu() {
                   <MenuIcon name="help" className={`h-5 w-5 ${isActive('/faq') ? 'text-white' : 'text-gray-600'}`} />
                   <p className="text-sm font-medium">よくある質問</p>
                 </Link>
-              </li>
-              <li>
+              </MenuLi>
+              <MenuLi href="/contact">
                 <Link
                   href="/contact"
                   onClick={closeMenu}
@@ -546,7 +437,7 @@ export default function HamburgerMenu() {
                   <MenuIcon name="mail" className={`h-5 w-5 ${isActive('/contact') ? 'text-white' : 'text-gray-600'}`} />
                   <p className="text-sm font-medium">お問い合わせ</p>
                 </Link>
-              </li>
+              </MenuLi>
             </ul>
           </nav>
 
@@ -583,6 +474,13 @@ type MenuIconProps = {
   name: MenuIconName;
   className?: string;
 };
+
+/** ページ公開設定で public でないリンクはメニューに出さない */
+function MenuLi({ href, children }: { href: string; children: ReactNode }) {
+  const { isLinkVisible } = usePageVisibility();
+  if (!isLinkVisible(href)) return null;
+  return <li>{children}</li>;
+}
 
 function MenuIcon({ name, className }: MenuIconProps) {
   const props = {

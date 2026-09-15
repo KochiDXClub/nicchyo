@@ -2,6 +2,14 @@
 const nextConfig = {
   reactStrictMode: false, // Leaflet が開発モードで二重初期化されるのを防ぐ
 
+  experimental: {
+    // 直前に見たページの内容を一定時間クライアントに残す（Next 15 以降の既定は 0 秒＝残さない）。
+    // マップ→相談→マップのように戻ってきたときにサーバー往復ぶんを丸ごと省ける。
+    // サーバー側で描いた内容が最大 30 秒古いままになりうるので、
+    // ログアウト時は AuthContext から router.refresh() で必ず捨てる。
+    staleTimes: { dynamic: 30 },
+  },
+
   // 画像最適化設定
   images: {
     formats: ['image/webp', 'image/avif'],
@@ -42,6 +50,13 @@ const nextConfig = {
         destination: '/calendar',
         permanent: true,
       },
+      // 買い物リストはお気に入りに一本化した。配ったQRコードや外部リンクが
+      // /bag を指していても迷子にしない
+      {
+        source: '/bag',
+        destination: '/favorites',
+        permanent: true,
+      },
     ];
   },
 
@@ -55,10 +70,6 @@ const nextConfig = {
           {
             key: 'X-DNS-Prefetch-Control',
             value: 'on'
-          },
-          {
-            key: 'X-Frame-Options',
-            value: 'DENY'
           },
           {
             key: 'X-Content-Type-Options',
@@ -79,6 +90,29 @@ const nextConfig = {
           {
             key: 'Cross-Origin-Opener-Policy',
             value: 'same-origin'
+          },
+        ],
+      },
+      {
+        // iframe 埋め込みは原則禁止（/map 以外は無条件）。
+        source: '/:path((?!map$).*)',
+        headers: [
+          {
+            key: 'X-Frame-Options',
+            value: 'DENY'
+          },
+        ],
+      },
+      {
+        // /map も原則禁止。
+        // 例外は管理画面の計測ページ（/admin/map-perf）が同一オリジンで読み込む /map?perf=1 だけで、
+        // そのときは proxy.ts の CSP frame-ancestors 'self' に委ねる（CSP があれば X-Frame-Options は無視される）。
+        source: '/map',
+        missing: [{ type: 'query', key: 'perf', value: '1' }],
+        headers: [
+          {
+            key: 'X-Frame-Options',
+            value: 'DENY'
           },
         ],
       },

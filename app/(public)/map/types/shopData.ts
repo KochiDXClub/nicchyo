@@ -216,6 +216,10 @@ export interface ShopDisplaySettings {
     size?: 'small' | 'medium' | 'large';
     /** カスタムカラー（運営承認が必要） */
     color?: string;
+    /** 屋根の形。config/stallParts.ts のカタログから選ぶ（未指定は gable） */
+    roof?: 'gable' | 'flat' | 'arch' | 'parasol';
+    /** ひさしの柄。config/stallParts.ts のカタログから選ぶ（未指定は stripe） */
+    awning?: 'stripe' | 'plain' | 'scallop';
     /** カスタムSVG（運営承認が必要） */
     customSvg?: string;
   };

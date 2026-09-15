@@ -13,6 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import MessageBubble from "../../consult/components/MessageBubble";
 import {
   CONSULT_CHARACTERS,
+  DEFAULT_CONSULT_CHARACTER,
   CONSULT_CHARACTER_BY_ID,
   pickConsultCharacters,
   type ConsultCharacter,
@@ -110,10 +111,19 @@ type GrandmaChatterProps = {
   enableSpeechInput?: boolean;
   variant?: "default" | "consult";
   preferredCharacterId?: ConsultCharacterId | null;
-  onPreferredCharacterChange?: (characterId: ConsultCharacterId | null) => void;
+  onPreferredCharacterChange?: (characterId: ConsultCharacterId) => void;
   onCommentSeen?: (id: string, genre: string) => void;
   embedded?: boolean;
 };
+
+/**
+ * 保存した会話の形式。**会話の作り方を変えたら上げること。**
+ *
+ * 復元した会話は直近8件が履歴としてモデルに渡り、次の返答の手本になる。
+ * 2人の掛け合いから1人語りに変えたとき、コードとDBを直しても、
+ * 古い会話が残っている端末では掛け合いが再現され続けた。
+ */
+const CHAT_STORAGE_VERSION = 2;
 
 // ─── おさんぽプランの質問カード ──────────────────────────────────────────────
 // 全問選択式（#392「選択式の質問・3問まで」）。自由入力は使わない
@@ -720,24 +730,31 @@ const GrandmaChatter = memo(function GrandmaChatter({
       const parsed = JSON.parse(saved) as
         | ChatMessage[]
         | {
+            version?: number;
             messages: ChatMessage[];
             hasUserAsked?: boolean;
             conversationSummary?: string;
             activeConsultContext?: AskContext | null;
           };
-      const messages = Array.isArray(parsed) ? parsed : parsed.messages;
+      // 掛け合い時代の会話を読み込まない。
+      // 復元した会話は直近8件が履歴としてモデルに渡り、手本にされる。
+      // 1人語りに変えても、古い会話が残っている端末では掛け合いが続いてしまう。
+      if (Array.isArray(parsed) || parsed.version !== CHAT_STORAGE_VERSION) {
+        localStorage.removeItem(key);
+        setHasLoadedHistory(true);
+        return;
+      }
+      const messages = parsed.messages;
       if (Array.isArray(messages) && messages.length > 0) {
         setChatMessages(messages);
         setHasUserAsked(
-          Array.isArray(parsed)
-            ? messages.some((message) => message.role === "user")
-            : !!parsed.hasUserAsked || messages.some((message) => message.role === "user")
+          !!parsed.hasUserAsked || messages.some((message) => message.role === "user")
         );
       }
-      if (!Array.isArray(parsed) && parsed.conversationSummary) {
+      if (parsed.conversationSummary) {
         setConversationSummary(parsed.conversationSummary);
       }
-      if (!Array.isArray(parsed) && parsed.activeConsultContext) {
+      if (parsed.activeConsultContext) {
         setActiveConsultContext(parsed.activeConsultContext);
       }
     } catch {
@@ -866,6 +883,7 @@ const GrandmaChatter = memo(function GrandmaChatter({
     localStorage.setItem(
       chatStorageKeyRef.current,
       JSON.stringify({
+        version: CHAT_STORAGE_VERSION,
         messages: serializable,
         hasUserAsked,
         conversationSummary,
@@ -1537,10 +1555,13 @@ const GrandmaChatter = memo(function GrandmaChatter({
     : smartContext.placeholder;
   const activeConsultHero =
     CONSULT_CHARACTERS[consultHeroIndex % CONSULT_CHARACTERS.length];
+  // 選んでいなければ既定のにちよさん。「おまかせ（毎回ランダム）」は廃止した。
+  // 質問のたびに話し手が入れ替わると、1回の返答が1人でも会話全体が掛け合いに見える
   const preferredCharacter =
-    preferredCharacterId ? CONSULT_CHARACTER_BY_ID.get(preferredCharacterId) ?? null : null;
-  const isPreferredHero = !!preferredCharacterId && activeConsultHero.id === preferredCharacterId;
-  const defaultConsultSpeaker = CONSULT_CHARACTERS[0];
+    (preferredCharacterId ? CONSULT_CHARACTER_BY_ID.get(preferredCharacterId) : null) ??
+    DEFAULT_CONSULT_CHARACTER;
+  const isPreferredHero = activeConsultHero.id === preferredCharacter.id;
+  const defaultConsultSpeaker = DEFAULT_CONSULT_CHARACTER;
   const getSpeakerCharacter = (speakerId?: ConsultCharacterId) =>
     (speakerId ? CONSULT_CHARACTER_BY_ID.get(speakerId) : null) ?? defaultConsultSpeaker;
   const openSuggestedShopsOnMap = (shopsToOpen: Shop[]) => {
@@ -1725,7 +1746,7 @@ const GrandmaChatter = memo(function GrandmaChatter({
                         <div className="mb-1.5 flex items-center gap-2">
                           <div
                             className={`h-8 w-8 shrink-0 overflow-hidden rounded-full border bg-amber-50 shadow-sm ring-2 ring-white ${
-                              preferredCharacterId && speakerCharacter.id === preferredCharacterId
+                              speakerCharacter.id === preferredCharacter.id
                                 ? "border-orange-400"
                                 : "border-amber-200"
                             }`}
@@ -2781,21 +2802,6 @@ const GrandmaChatter = memo(function GrandmaChatter({
               </button>
             </div>
             <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-5">
-              <button
-                type="button"
-                onClick={() => {
-                  onPreferredCharacterChange?.(null);
-                  setIsPreferredCharacterPickerOpen(false);
-                }}
-                className={`rounded-[1.5rem] border p-4 text-left transition ${
-                  preferredCharacterId === null
-                    ? "border-orange-400 bg-orange-50"
-                    : "border-slate-200 bg-slate-50 hover:bg-slate-100"
-                }`}
-              >
-                <div className="text-base font-semibold text-slate-900">おまかせ</div>
-                <div className="mt-1 text-sm text-slate-500">毎回ランダムで選びます</div>
-              </button>
                 {CONSULT_CHARACTERS.map((character) => (
                   <button
                     key={character.id}
@@ -2805,7 +2811,7 @@ const GrandmaChatter = memo(function GrandmaChatter({
                       setIsPreferredCharacterPickerOpen(false);
                     }}
                     className={`rounded-[1.5rem] border p-3 text-left transition lg:min-w-[210px] ${
-                      preferredCharacterId === character.id
+                      preferredCharacter.id === character.id
                         ? "border-orange-400 bg-orange-50"
                         : "border-slate-200 bg-white hover:bg-amber-50"
                   }`}

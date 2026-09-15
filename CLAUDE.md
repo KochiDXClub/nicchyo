@@ -22,7 +22,7 @@ PRを出す前は必ず `npm run build` でビルドが通ることを確認す�
 
 **本番リリース（`develop` → `main`）の方針は `docs/RELEASE.md`** を参照する。日常のPRは `develop` へ出す。`main` への直接マージはリリース作業と hotfix のみ。
 
-来訪者から見て何かが変わるPRを出すときは、`docs/CHANGELOG-unreleased.md` の「## 一覧」直下に来訪者視点の一言を1行追記する（例: `- 日曜市カレンダーに出店予定と旬を表示するようにした (#444)`）。依存更新・テスト追加・リファクタ・ドキュメントのみの変更は追記しない。この記録がリリースノート（`app/about/versions.ts`）の元になる。
+来訪者から見て何かが変わるPRを出すときは、`docs/changelog-unreleased/<PR番号またはブランチ名>.md` を作成し、来訪者視点の一言を1行記述する（例: `- 日曜市カレンダーに出店予定と旬を表示するようにした (#444)`）。PRごとに個別ファイルを作成することでPR間のコンフリクトを完全に防ぐ。依存更新・テスト追加・リファクタ・ドキュメントのみの変更は作成しない。この記録がリリース時に集約され（`npm run changelog:pack`）、リリースノート（`app/about/versions.ts`）の元になる。
 
 ## 技術的負債解消時の必須確認事項
 
@@ -51,7 +51,7 @@ PRを出す前は必ず `npm run build` でビルドが通ることを確認す�
 - **Styling**: Tailwind CSS（カスタムパレット: `nicchyo-base/primary/accent/ink/soft-green`）
 - **DB**: Supabase（メイン）、Prismaスキーマも存在
 - **Map**: Leaflet + react-leaflet（`reactStrictMode: false` ← Leafletの二重初期化防止）
-- **AI**: OpenAI API（RAG構成、`app/api/grandma/` と `app/api/map-agent/`）
+- **AI**: OpenAI API（RAG構成、`app/api/grandma/`）
 - **Auth**: Supabase Auth（`lib/auth/AuthContext.tsx`）
 
 ## Required Environment Variables
@@ -86,7 +86,6 @@ app/
 └── api/               # API Routes
     ├── shops/         # 店舗データ取得・編集
     ├── grandma/       # AI「にちよさん」バックエンド
-    ├── map-agent/     # マップAIアシスタント
     ├── analytics/     # アクセス解析
     └── vendor/        # 出店者向けAPI
 ```
