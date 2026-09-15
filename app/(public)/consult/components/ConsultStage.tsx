@@ -17,6 +17,7 @@ import {
 } from "@/lib/grandma/consultSession";
 import GrandmaAvatar from "./GrandmaAvatar";
 import ConsultCharacterSwap from "./ConsultCharacterSwap";
+import { ConsultFeedback } from "@/components/consult/ConsultFeedback";
 import {
   CONSULT_CHARACTERS,
   CONSULT_CHARACTER_BY_ID,
@@ -720,6 +721,17 @@ export default function ConsultStage({
               )}
             </div>
           )}
+
+          {/* 答えが出そろってから評価を出す。考え中や読み上げ途中には出さない */}
+          {!isBusy && streamingText === null && current && (
+            <ConsultFeedback
+              key={current.id}
+              consultId={current.id}
+              questionText={current.question}
+              answerText={current.answer}
+              className="mt-3"
+            />
+          )}
         </div>
       )}
 
@@ -984,6 +996,13 @@ export default function ConsultStage({
                         ))}
                       </div>
                     )}
+                    {/* 過去の答えにもその場で評価を付けられるようにする */}
+                    <ConsultFeedback
+                      consultId={item.id}
+                      questionText={item.question}
+                      answerText={item.answer}
+                      className="mt-2"
+                    />
                   </li>
                 );
               })}
