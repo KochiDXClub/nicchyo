@@ -26,12 +26,14 @@ import {
   type VendorOption,
 } from "./types";
 import MapEditCanvas, { type CanvasHandlers } from "./components/MapEditCanvas";
+import MapEditCanvasMapLibre from "./components/MapEditCanvasMapLibre";
 import { SlotDetailPanel, RoadDetailPanel, LandmarkDetailPanel } from "./components/DetailPanels";
 import PendingChangeLog from "./components/PendingChangeLog";
 import RoadLaneView, { buildLaneRoadGroups, type LaneRoadGroup } from "./components/RoadLaneView";
 
 const ZOOMS = [1.2, 3.5, 12];
 const MAX_ZOOM_IDX = ZOOMS.length - 1;
+const CANVAS_ENGINE_STORAGE_KEY = "nicchyo:map-edit-v3:canvasEngine";
 // 道を描いている途中、既存の点からこの距離（メートル）以内をクリックしたら
 // その点にスナップして接続する
 const POINT_SNAP_DISTANCE_METERS = 6;
@@ -113,6 +115,33 @@ export default function MapEditClientV3() {
   const [focus, setFocus] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const [rotation, setRotation] = useState(0);
   const [dragging, setDragging] = useState(false);
+
+  // ── キャンバスエンジン切替（Issue #650: Leaflet+SVG → MapLibre への移行中の比較用） ──
+  // DB・APIには触れず、この画面限定の軽量な切替にする。
+  // 優先順位（強い順）: 1. URLの ?canvas=maplibre  2. localStorageの保存値  3. 既定値(leaflet)
+  const [canvasEngine, setCanvasEngine] = useState<"leaflet" | "maplibre">("leaflet");
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const fromQuery = new URLSearchParams(window.location.search).get("canvas");
+    if (fromQuery === "maplibre" || fromQuery === "leaflet") {
+      setCanvasEngine(fromQuery);
+      window.localStorage.setItem(CANVAS_ENGINE_STORAGE_KEY, fromQuery);
+      return;
+    }
+    const stored = window.localStorage.getItem(CANVAS_ENGINE_STORAGE_KEY);
+    if (stored === "maplibre" || stored === "leaflet") setCanvasEngine(stored);
+  }, []);
+  const toggleCanvasEngine = useCallback(() => {
+    setCanvasEngine((prev) => {
+      const next = prev === "leaflet" ? "maplibre" : "leaflet";
+      try {
+        window.localStorage.setItem(CANVAS_ENGINE_STORAGE_KEY, next);
+      } catch {
+        // 保存できなくても切替自体は続けられる
+      }
+      return next;
+    });
+  }, []);
 
   const [snapshots, setSnapshots] = useState<SnapshotItem[]>([]);
   const [isLoadingSnapshots, setIsLoadingSnapshots] = useState(false);
@@ -380,6 +409,8 @@ export default function MapEditClientV3() {
       setRotation={setRotation}
       dragging={dragging}
       setDragging={setDragging}
+      canvasEngine={canvasEngine}
+      toggleCanvasEngine={toggleCanvasEngine}
       hasUnsavedChanges={hasUnsavedChanges}
       handleSave={handleSave}
       projection={projection}
@@ -444,6 +475,8 @@ type BodyProps = {
   setRotation: React.Dispatch<React.SetStateAction<number>>;
   dragging: boolean;
   setDragging: (value: boolean) => void;
+  canvasEngine: "leaflet" | "maplibre";
+  toggleCanvasEngine: () => void;
   hasUnsavedChanges: boolean;
   handleSave: () => Promise<void>;
   projection: ReturnType<typeof createProjection>;
@@ -468,6 +501,7 @@ function MapEditClientV3Body(props: BodyProps) {
     draft, setDraft, drawAxis, setDrawAxis,
     search, setSearch, pending, log, setPending,
     zoomIdx, setZoomIdx, focus, setFocus, rotation, setRotation, dragging, setDragging,
+    canvasEngine, toggleCanvasEngine,
     hasUnsavedChanges, handleSave, projection, vertexDragRef, panRef, viewportRef,
     snapshots, isLoadingSnapshots, isRestoring, isHistoryOpen, setIsHistoryOpen, handleRestoreSnapshot,
   } = props;
@@ -1066,6 +1100,23 @@ function MapEditClientV3Body(props: BodyProps) {
               <b style={{ fontSize: 13.5, color: "#33302B" }}>{roads.length}</b> 道
             </span>
           </div>
+          {/* Issue #650: Leaflet+SVG → MapLibre移行中の比較用トグル。PR③で旧キャンバスを消す際に外す */}
+          <span
+            onClick={toggleCanvasEngine}
+            title="地図の描画方式を切り替える（比較用。既定はLeaflet）"
+            style={{
+              padding: "8px 13px",
+              borderRadius: 10,
+              fontSize: 12.5,
+              fontWeight: 700,
+              cursor: "pointer",
+              background: canvasEngine === "maplibre" ? "#92400E" : "#fff",
+              color: canvasEngine === "maplibre" ? "#fff" : "#57503F",
+              border: "1px solid #E7DDC4",
+            }}
+          >
+            地図: {canvasEngine === "maplibre" ? "MapLibre" : "Leaflet"}
+          </span>
           <span
             onClick={() => setIsHistoryOpen((v) => !v)}
             style={{
@@ -1163,36 +1214,63 @@ function MapEditClientV3Body(props: BodyProps) {
 
       <div style={{ flex: 1, minHeight: 0, display: "flex", overflow: "hidden" }}>
         <div style={{ flex: 1, minWidth: 0, minHeight: 0, display: "flex", flexDirection: "column" }}>
-          <MapEditCanvas
-            tab={tab}
-            shops={shops}
-            roads={roads}
-            landmarks={landmarks}
-            selectedLocationId={selectedLocationId}
-            selectedRoadId={selectedRoadId}
-            selectedLandmarkKey={selectedLandmarkKey}
-            slotAction={slotAction}
-            roadAction={roadAction}
-            landmarkAction={landmarkAction}
-            draft={draft}
-            search={search}
-            zoom={z}
-            zoomIdx={zoomIdx}
-            focus={focus}
-            setFocus={setFocus}
-            rotation={rotation}
-            setRotation={setRotation}
-            dragging={dragging}
-            setDragging={setDragging}
-            projection={projection}
-            handlers={canvasHandlers}
-            viewportRef={viewportRef}
-            panRef={panRef}
-            vertexDragRef={vertexDragRef}
-            isLoading={isLoading}
-            onZoomIn={() => setZoomIdx((prev) => Math.min(MAX_ZOOM_IDX, prev + 1))}
-            onZoomOut={() => setZoomIdx((prev) => Math.max(0, prev - 1))}
-          />
+          {canvasEngine === "maplibre" ? (
+            <MapEditCanvasMapLibre
+              tab={tab}
+              shops={shops}
+              roads={roads}
+              landmarks={landmarks}
+              selectedLocationId={selectedLocationId}
+              selectedRoadId={selectedRoadId}
+              selectedLandmarkKey={selectedLandmarkKey}
+              slotAction={slotAction}
+              roadAction={roadAction}
+              draft={draft}
+              search={search}
+              zoomIdx={zoomIdx}
+              setZoomIdx={setZoomIdx}
+              focus={focus}
+              setFocus={setFocus}
+              rotation={rotation}
+              setRotation={setRotation}
+              projection={projection}
+              handlers={canvasHandlers}
+              isLoading={isLoading}
+              onZoomIn={() => setZoomIdx((prev) => Math.min(MAX_ZOOM_IDX, prev + 1))}
+              onZoomOut={() => setZoomIdx((prev) => Math.max(0, prev - 1))}
+            />
+          ) : (
+            <MapEditCanvas
+              tab={tab}
+              shops={shops}
+              roads={roads}
+              landmarks={landmarks}
+              selectedLocationId={selectedLocationId}
+              selectedRoadId={selectedRoadId}
+              selectedLandmarkKey={selectedLandmarkKey}
+              slotAction={slotAction}
+              roadAction={roadAction}
+              landmarkAction={landmarkAction}
+              draft={draft}
+              search={search}
+              zoom={z}
+              zoomIdx={zoomIdx}
+              focus={focus}
+              setFocus={setFocus}
+              rotation={rotation}
+              setRotation={setRotation}
+              dragging={dragging}
+              setDragging={setDragging}
+              projection={projection}
+              handlers={canvasHandlers}
+              viewportRef={viewportRef}
+              panRef={panRef}
+              vertexDragRef={vertexDragRef}
+              isLoading={isLoading}
+              onZoomIn={() => setZoomIdx((prev) => Math.min(MAX_ZOOM_IDX, prev + 1))}
+              onZoomOut={() => setZoomIdx((prev) => Math.max(0, prev - 1))}
+            />
+          )}
           {tab === "slot" && (
             <RoadLaneView
               groups={laneGroups}
