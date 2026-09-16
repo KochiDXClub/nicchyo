@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/lib/auth/AuthContext";
 import VendorNavBar from "@/components/vendor/VendorNavBar";
+import { isAnalyticsOptedOut } from "@/lib/analytics/consentClient";
 
 const GuardMessage = ({
   title,
@@ -40,6 +41,8 @@ export default function MyShopLayout({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (pathname !== "/my-shop") return;
+    // 解析を止めている端末では記録しない（/privacy のスイッチはここにも効く）
+    if (isAnalyticsOptedOut()) return;
 
     const endpoint = "/api/analytics/home-visit";
     if (typeof navigator !== "undefined" && typeof navigator.sendBeacon === "function") {

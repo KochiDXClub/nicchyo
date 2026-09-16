@@ -1,57 +1,96 @@
 import { describe, it, expect } from "vitest";
 import {
-  pickConversationPattern,
-  buildConversationPatternPrompt,
-  buildStreamingFormatPrompt,
+  buildResponseSchema,
   parseStreamingConsultOutput,
   buildReplyFromTurns,
-  CONSULT_CONVERSATION_PATTERNS,
 } from "./promptBuilder";
-import { CONSULT_CHARACTERS } from "@/app/(public)/consult/data/consultCharacters";
+import {
+  buildStreamingFormatPrompt,
+  buildJsonFormatPrompt,
+  CONSULT_MAX_TURNS,
+} from "./prompts/consultConversation";
+import {
+  CONSULT_CHARACTERS,
+  DEFAULT_CONSULT_CHARACTER_ID,
+  pickConsultCharacters,
+} from "@/app/(public)/consult/data/consultCharacters";
 
 const twoChars = CONSULT_CHARACTERS.slice(0, 2);
-const fourChars = CONSULT_CHARACTERS;
+const oneChar = CONSULT_CHARACTERS.slice(0, 1);
 
-describe("pickConversationPattern", () => {
-  it("4キャラ以上の場合は all_cast パターン", () => {
-    const pattern = pickConversationPattern(fourChars);
-    expect(pattern.id).toBe("all_cast");
-    expect(pattern.turnCount).toBe(4);
+describe("pickConsultCharacters", () => {
+  it("選んだキャラがいればその1人だけを返す", () => {
+    expect(pickConsultCharacters("miraikun").map((c) => c.id)).toEqual(["miraikun"]);
   });
 
-  it("2キャラの場合は4パターンのいずれか", () => {
-    const pattern = pickConversationPattern(twoChars);
-    const validIds = CONSULT_CONVERSATION_PATTERNS.map((p) => p.id);
-    expect(validIds).toContain(pattern.id);
+  it("未選択なら既定のにちよさんを返す（ランダムに変えない）", () => {
+    // 質問のたびに話し手が入れ替わると、1回の返答が1人でも
+    // 会話全体としては複数キャラの掛け合いに見える
+    for (let i = 0; i < 20; i += 1) {
+      expect(pickConsultCharacters().map((c) => c.id)).toEqual([DEFAULT_CONSULT_CHARACTER_ID]);
+    }
+  });
+
+  it("知らないIDが来ても既定に落ちる", () => {
+    expect(
+      pickConsultCharacters("dareka" as (typeof CONSULT_CHARACTERS)[number]["id"]).map((c) => c.id)
+    ).toEqual([DEFAULT_CONSULT_CHARACTER_ID]);
   });
 });
 
-describe("buildConversationPatternPrompt", () => {
-  it("発話数の指示を含む", () => {
-    const pattern = CONSULT_CONVERSATION_PATTERNS[0];
-    const prompt = buildConversationPatternPrompt(twoChars, pattern);
-    expect(prompt).toContain(`発話数は必ず${pattern.turnCount}つ`);
-  });
-
-  it("キャラ名の順序を含む", () => {
-    const pattern = CONSULT_CONVERSATION_PATTERNS[0];
-    const prompt = buildConversationPatternPrompt(twoChars, pattern);
-    expect(prompt).toContain(twoChars[0].name);
-    expect(prompt).toContain(twoChars[1].name);
+describe("buildResponseSchema", () => {
+  it("発話数は1以上・上限は CONSULT_MAX_TURNS（目安は会話ルールに任せる）", () => {
+    const schema = buildResponseSchema(oneChar);
+    const turns = schema.json_schema.schema.properties.turns;
+    expect(turns.minItems).toBe(1);
+    expect(turns.maxItems).toBe(CONSULT_MAX_TURNS);
+    expect(turns.items.properties.speakerId.enum).toEqual(["nichiyosan"]);
   });
 });
 
 describe("buildStreamingFormatPrompt", () => {
   it("TURN行のフォーマット説明を含む", () => {
-    const pattern = CONSULT_CONVERSATION_PATTERNS[0];
-    const prompt = buildStreamingFormatPrompt(twoChars, pattern);
+    const prompt = buildStreamingFormatPrompt(oneChar);
     expect(prompt).toContain("TURN|speakerId|speakerName|text");
+    expect(prompt).toContain("nichiyosan=にちよさん");
+  });
+
+  it("発話数の上限を伝える（話者順は指示しない）", () => {
+    const prompt = buildStreamingFormatPrompt(oneChar);
+    if (CONSULT_MAX_TURNS === 1) {
+      expect(prompt).toContain("TURN 行はちょうど1行だけ");
+    } else {
+      expect(prompt).toContain(`1行以上 ${CONSULT_MAX_TURNS} 行以内`);
+    }
+    expect(prompt).not.toContain("必ず 4 行");
+  });
+
+  it("JSONで返すよう指示しない（JSONを返されるとTURN行が無くなる）", () => {
+    // 固定部分の「返答の作り方」と同居するので、ここで形式が二重になると
+    // parseStreamingConsultOutput() のフォールバックに落ちて、
+    // JSON文字列がそのまま吹き出しの本文になる
+    const prompt = buildStreamingFormatPrompt(oneChar);
+    expect(prompt).toContain("プレーンテキスト");
+    expect(prompt).not.toContain("JSONのみ");
+    expect(prompt).not.toContain("スキーマに従う");
   });
 
   it("ENDマーカーの指示を含む", () => {
-    const pattern = CONSULT_CONVERSATION_PATTERNS[0];
-    const prompt = buildStreamingFormatPrompt(twoChars, pattern);
+    const prompt = buildStreamingFormatPrompt(oneChar);
     expect(prompt).toContain("END");
+  });
+});
+
+describe("buildJsonFormatPrompt", () => {
+  it("JSONのみを返すよう指示する", () => {
+    const prompt = buildJsonFormatPrompt();
+    expect(prompt).toContain("出力は必ずJSONのみ");
+  });
+
+  it("プレーンテキストの行フォーマットには触れない（ストリーミング側の指示）", () => {
+    const prompt = buildJsonFormatPrompt();
+    expect(prompt).not.toContain("TURN|");
+    expect(prompt).not.toContain("プレーンテキスト");
   });
 });
 

@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 import { createClient as createServerClient } from "@/utils/supabase/server";
 import { getRole, isAdmin } from "@/lib/auth/permissions";
+import { requestEmbeddings } from "@/lib/ai/openaiFetch";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -91,14 +92,7 @@ function buildContent(row: {
 }
 
 async function fetchEmbeddings(apiKey: string, inputs: string[]): Promise<number[][]> {
-  const response = await fetch("https://api.openai.com/v1/embeddings", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ model: "text-embedding-3-small", input: inputs }),
-  });
+  const response = await requestEmbeddings(apiKey, inputs);
 
   if (!response.ok) {
     const text = await response.text();

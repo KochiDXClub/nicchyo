@@ -15,7 +15,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import type { Map as LeafletMap } from 'leaflet';
+import type { MapCamera as LeafletMap } from '../types/mapCamera';
 import { Textarea } from '@/components/ui/textarea';
 import { PromptSuggestion } from '@/components/ui/prompt-suggestion';
 import {
@@ -26,7 +26,8 @@ import {
 import type { ConsultAskResponse, ConsultTurn } from '../../consult/types/consultConversation';
 import type { Shop } from '../data/shops';
 import { getOrCreateConsultVisitorKey } from '../../../../lib/consultVisitorKey';
-import { toggleFavoriteShopId, loadFavoriteShopIds } from '../../../../lib/favoriteShops';
+import { useFavoriteShopIdSet } from '../../../../lib/hooks/useFavorites';
+import { useShopFavoriteToggle } from '../../../components/favorites/useShopFavoriteToggle';
 
 const PLAN_KEY = 'nicchyo-map-agent-plan';
 // /consult ページ（GrandmaChatter, layout="page"）が会話履歴を保存する localStorage キー。
@@ -171,8 +172,13 @@ export default function MapCharacterConsult({
   const [feedbackGiven, setFeedbackGiven] = useState(false);
   const [thumbsDownOpen, setThumbsDownOpen] = useState(false);
   const [thumbsDownComment, setThumbsDownComment] = useState('');
+  /** 低評価のときに、やりとりの中身も送ってよいかどうか。既定は送らない */
+  const [shareTranscript, setShareTranscript] = useState(false);
   const [recommendedShops, setRecommendedShops] = useState<Shop[]>([]);
-  const [favoriteIds, setFavoriteIds] = useState<Set<number>>(() => new Set(loadFavoriteShopIds()));
+  // 購読つきで読む。他の画面でハートを押しても、この一覧が取り残されない
+  const favoriteIds = useFavoriteShopIdSet();
+  const { toggleShopFavorite, confirmDialog: removeShopFavoriteDialog } =
+    useShopFavoriteToggle({ zIndexClassName: 'z-[3300]' });
   const [routeIds, setRouteIds] = useState<Set<number>>(() => {
     if (typeof window === 'undefined') return new Set();
     try {
@@ -332,8 +338,14 @@ export default function MapCharacterConsult({
     clearPlayback();
   }, [clearPlayback]);
 
+  /**
+   * 評価を送る。
+   *
+   * やりとりの中身（質問文・回答文）は既定で送らない。低評価のときに
+   * 「やりとりも送る」を選んでいただいた場合だけ添える（#629）。
+   */
   const submitFeedback = useCallback(
-    async (rating: 1 | -1, comment?: string) => {
+    async (rating: 1 | -1, comment?: string, includeTranscript = false) => {
       if (!lastConsultId) return;
       setFeedbackGiven(true);
       setThumbsDownOpen(false);
@@ -346,8 +358,8 @@ export default function MapCharacterConsult({
             turnIndex: 0,
             rating,
             comment: comment ?? null,
-            questionText: lastQuestionText ?? undefined,
-            turnText: lastTurnText ?? undefined,
+            questionText: includeTranscript ? lastQuestionText ?? undefined : undefined,
+            turnText: includeTranscript ? lastTurnText ?? undefined : undefined,
           }),
         });
       } catch {
@@ -369,6 +381,8 @@ export default function MapCharacterConsult({
       setFeedbackGiven(false);
       setThumbsDownOpen(false);
       setThumbsDownComment('');
+      // 前の答えで選んだ「やりとりも送る」を次の答えに持ち越さない
+      setShareTranscript(false);
       setRecommendedShops([]);
       setRouteIds(new Set());
 
@@ -488,9 +502,10 @@ export default function MapCharacterConsult({
     setTimeout(() => handleSend(lastUserMsg), 100);
   }, [clearPlayback, handleSend, lastUserMsg]);
 
+  // 商品がぶら下がっている店を外すときの確認は useShopFavoriteToggle が持つ。
+  // 以前はここで黙って商品ごと消していた
   const handleFavorite = (shopId: number) => {
-    const next = toggleFavoriteShopId(shopId);
-    setFavoriteIds(new Set(next));
+    toggleShopFavorite(shopId);
   };
 
   const handleAddToRoute = (shop: Shop) => {
@@ -538,6 +553,9 @@ export default function MapCharacterConsult({
   const inputDescription = statusLabel ? `${helperTextId} ${statusTextId}` : helperTextId;
 
   return (
+    <>
+    {/* 確認ダイアログは pointer-events-none の外側に出す（中に置くと押せない） */}
+    {removeShopFavoriteDialog}
     <div className="pointer-events-none absolute bottom-[calc(4.5rem+env(safe-area-inset-bottom,0px)+0.75rem)] left-4 right-4 z-[1300] translate-y-[30px]">
       <div className="mb-3 flex justify-start">
         {activeCharacter && (
@@ -716,24 +734,36 @@ export default function MapCharacterConsult({
             )}
 
             {thumbsDownOpen && (
-              <div className="mt-2 flex items-center gap-2">
-                <input
-                  type="text"
-                  value={thumbsDownComment}
-                  onChange={(e) => setThumbsDownComment(e.target.value)}
-                  placeholder="改善点を教えてください（任意）"
-                  className="flex-1 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[12px] text-slate-800 placeholder:text-slate-400 outline-none focus:border-amber-300"
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') submitFeedback(-1, thumbsDownComment);
-                  }}
-                />
-                <button
-                  type="button"
-                  onClick={() => submitFeedback(-1, thumbsDownComment)}
-                  className="shrink-0 rounded-full bg-amber-500 px-3 py-1.5 text-[12px] font-bold text-white shadow-sm transition hover:bg-amber-600 active:scale-95"
-                >
-                  送信
-                </button>
+              <div className="mt-2 flex flex-col gap-1">
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={thumbsDownComment}
+                    onChange={(e) => setThumbsDownComment(e.target.value)}
+                    placeholder="改善点を教えてください（任意）"
+                    className="flex-1 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[12px] text-slate-800 placeholder:text-slate-400 outline-none focus:border-amber-300"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') submitFeedback(-1, thumbsDownComment, shareTranscript);
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => submitFeedback(-1, thumbsDownComment, shareTranscript)}
+                    className="shrink-0 rounded-full bg-amber-500 px-3 py-1.5 text-[12px] font-bold text-white shadow-sm transition hover:bg-amber-600 active:scale-95"
+                  >
+                    送信
+                  </button>
+                </div>
+                {/* やりとりの中身は既定で送らない。選んでいただいたときだけ添える（#629） */}
+                <label className="flex cursor-pointer items-center gap-1.5 py-1 text-[11px] text-slate-500">
+                  <input
+                    type="checkbox"
+                    checked={shareTranscript}
+                    onChange={(e) => setShareTranscript(e.target.checked)}
+                    className="h-3.5 w-3.5 rounded border-slate-300 text-amber-500 focus:ring-amber-300"
+                  />
+                  このときのやりとりも送る（改善に使わせていただきます）
+                </label>
               </div>
             )}
 
@@ -784,5 +814,6 @@ export default function MapCharacterConsult({
         </div>
       </div>
     </div>
+    </>
   );
 }

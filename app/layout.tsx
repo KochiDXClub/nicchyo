@@ -4,11 +4,11 @@ import { headers } from "next/headers";
 import "./globals.css";
 import { AuthProvider } from "@/lib/auth/AuthContext";
 import { MenuProvider } from "@/lib/ui/MenuContext";
-import { BagProvider } from "@/lib/storage/BagContext";
+import FavoritesBagMigration from "@/app/components/FavoritesBagMigration";
+import { PageVisibilityProvider } from "@/lib/pageVisibility/PageVisibilityContext";
 import AppHeader from "./components/AppHeader";
 import MapLoadingProvider from "./components/MapLoadingProvider";
 import PageVisitTracker from "./components/PageVisitTracker";
-import CookieConsent from "./components/CookieConsent";
 import ViewportHeightUpdater from "./components/ViewportHeightUpdater";
 import { Toaster } from "@/components/admin";
 import { safeJsonLd } from "@/lib/utils/jsonLd";
@@ -89,13 +89,13 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         />
       </head>
       <body className="bg-nicchyo-base text-nicchyo-ink">
-        <CookieConsent />
         <ViewportHeightUpdater />
         <AuthProvider>
-          <BagProvider>
+          <PageVisibilityProvider>
             <MenuProvider>
               <MapLoadingProvider>
                 <AppHeader />
+                <FavoritesBagMigration />
                 <Suspense fallback={null}>
                   <PageVisitTracker />
                 </Suspense>
@@ -103,7 +103,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                 <Toaster />
               </MapLoadingProvider>
             </MenuProvider>
-          </BagProvider>
+          </PageVisibilityProvider>
         </AuthProvider>
       </body>
     </html>

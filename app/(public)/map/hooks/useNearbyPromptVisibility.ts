@@ -25,7 +25,7 @@
  */
 
 import { useEffect, useRef, useState } from 'react';
-import type { Map as LeafletMap } from 'leaflet';
+import type { MapCamera } from '../types/mapCamera';
 
 /** 入力からこの時間内に起きた地図移動はユーザー操作とみなす（ホイール慣性・スナップ追従込み） */
 const USER_INPUT_ATTRIBUTION_MS = 1600;
@@ -33,7 +33,7 @@ const SHOW_DELAY_AFTER_ZOOM_MS = 500;
 const SHOW_DELAY_AFTER_PAN_MS = 1000;
 
 type UseNearbyPromptVisibilityArgs = {
-  map: LeafletMap | null;
+  map: MapCamera | null;
   /** true の間は表示せず、スケジュールも止める（パネル・相談・検索モード中など） */
   suppressed: boolean;
   /** 出現対象のズーム帯 [minZoom, maxZoom) */

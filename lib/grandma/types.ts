@@ -86,9 +86,3 @@ export type StreamedConsultPayload = {
   imageUrl: string | null;
   followUpQuestion: string;
 };
-
-export type ConversationPattern = {
-  id: "pattern1" | "pattern2" | "pattern3" | "pattern4" | "all_cast";
-  instruction: string;
-  turnCount: number;
-};

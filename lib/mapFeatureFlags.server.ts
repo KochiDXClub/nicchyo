@@ -4,6 +4,7 @@
  * （app/api/maintenance-status と同じ方式）。失敗したら既定値を返す。
  */
 
+import { cache } from "react";
 import { createClient as createServiceClient } from "@supabase/supabase-js";
 import {
   DEFAULT_MAP_FEATURE_FLAGS,
@@ -13,7 +14,8 @@ import {
 
 export const MAP_FLAGS_SETTINGS_KEY = "map_flags";
 
-export async function fetchMapFeatureFlags(): Promise<MapFeatureFlags> {
+// layout と page の両方から呼ぶので、1 リクエスト内では 1 回だけ問い合わせる
+export const fetchMapFeatureFlags = cache(async (): Promise<MapFeatureFlags> => {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !key) return DEFAULT_MAP_FEATURE_FLAGS;
@@ -30,4 +32,4 @@ export async function fetchMapFeatureFlags(): Promise<MapFeatureFlags> {
   } catch {
     return DEFAULT_MAP_FEATURE_FLAGS;
   }
-}
+});

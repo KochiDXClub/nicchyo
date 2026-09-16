@@ -175,11 +175,9 @@ export type Database = {
           created_at: string
           id: string
           intent_category: string | null
-          ip_address: string | null
           is_recommendation: boolean | null
           keywords: string[] | null
           location_type: string | null
-          question_text: string
           store_id: string | null
           visitor_key: string | null
         }
@@ -188,11 +186,9 @@ export type Database = {
           created_at?: string
           id?: string
           intent_category?: string | null
-          ip_address?: string | null
           is_recommendation?: boolean | null
           keywords?: string[] | null
           location_type?: string | null
-          question_text: string
           store_id?: string | null
           visitor_key?: string | null
         }
@@ -201,11 +197,9 @@ export type Database = {
           created_at?: string
           id?: string
           intent_category?: string | null
-          ip_address?: string | null
           is_recommendation?: boolean | null
           keywords?: string[] | null
           location_type?: string | null
-          question_text?: string
           store_id?: string | null
           visitor_key?: string | null
         }
@@ -372,41 +366,122 @@ export type Database = {
           },
         ]
       }
-      map_landmarks: {
+      guide_events: {
         Row: {
           created_at: string
-          description: string
-          height_px: number
-          image_url: string
-          key: string
-          latitude: number
-          longitude: number
-          name: string
-          show_at_min_zoom: boolean
-          width_px: number
+          distance_meters: number | null
+          event_type: string
+          id: string
+          kinds: string[]
+          meta: Json | null
+          origin_type: string | null
+          preset_id: string | null
+          spot_key: string | null
+          visitor_key: string | null
+          walk_minutes: number | null
         }
         Insert: {
           created_at?: string
-          description?: string
+          distance_meters?: number | null
+          event_type: string
+          id?: string
+          kinds?: string[]
+          meta?: Json | null
+          origin_type?: string | null
+          preset_id?: string | null
+          spot_key?: string | null
+          visitor_key?: string | null
+          walk_minutes?: number | null
+        }
+        Update: {
+          created_at?: string
+          distance_meters?: number | null
+          event_type?: string
+          id?: string
+          kinds?: string[]
+          meta?: Json | null
+          origin_type?: string | null
+          preset_id?: string | null
+          spot_key?: string | null
+          visitor_key?: string | null
+          walk_minutes?: number | null
+        }
+        Relationships: []
+      }
+      map_landmarks: {
+        Row: {
+          category: string
+          created_at: string
+          description: string
+          external_url: string | null
           height_px: number
           image_url: string
           key: string
           latitude: number
+          lines: string[]
           longitude: number
           name: string
+          notes: string | null
+          open_from: string | null
+          open_until: string | null
+          photo_credit: string | null
+          photo_url: string | null
+          show_at_min_zoom: boolean
+          show_on_map: boolean
+          tags: string[]
+          transit_mode: string | null
+          updated_at: string
+          verified: boolean
+          width_px: number
+        }
+        Insert: {
+          category?: string
+          created_at?: string
+          description?: string
+          external_url?: string | null
+          height_px: number
+          image_url: string
+          key: string
+          latitude: number
+          lines?: string[]
+          longitude: number
+          name: string
+          notes?: string | null
+          open_from?: string | null
+          open_until?: string | null
+          photo_credit?: string | null
+          photo_url?: string | null
           show_at_min_zoom?: boolean
+          show_on_map?: boolean
+          tags?: string[]
+          transit_mode?: string | null
+          updated_at?: string
+          verified?: boolean
           width_px: number
         }
         Update: {
+          category?: string
           created_at?: string
           description?: string
+          external_url?: string | null
           height_px?: number
           image_url?: string
           key?: string
           latitude?: number
+          lines?: string[]
           longitude?: number
           name?: string
+          notes?: string | null
+          open_from?: string | null
+          open_until?: string | null
+          photo_credit?: string | null
+          photo_url?: string | null
           show_at_min_zoom?: boolean
+          show_on_map?: boolean
+          tags?: string[]
+          transit_mode?: string | null
+          updated_at?: string
+          verified?: boolean
           width_px?: number
         }
         Relationships: []

@@ -4,6 +4,7 @@ import { z } from "zod";
 import type { Database } from "@/types/database.types";
 import { requireSameOrigin } from "@/lib/security/requestGuards";
 import { enforceRateLimit } from "@/lib/security/rateLimit";
+import { maskPii } from "@/lib/privacy/maskPii";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -49,9 +50,14 @@ export async function POST(request: Request) {
     consult_id: data.consultId,
     turn_index: data.turnIndex,
     rating: data.rating,
-    comment: data.comment ?? null,
-    question_text: data.questionText ?? null,
-    turn_text: data.turnText ?? null,
+    // やりとりの中身（質問文・回答文）は、低評価のときに「やりとりも送る」を
+    // 選んでいただいた場合だけクライアントから届く。選ばれなければ undefined のまま
+    // ここに来て null が入る。届いた場合もメールアドレス・電話番号は伏せる。
+    // 相談ログ側（ai_consult_logs）は質問文を保存しないので、
+    // 自由文がサーバーに残るのはここだけになる（#629）
+    comment: data.comment ? maskPii(data.comment) : null,
+    question_text: data.questionText ? maskPii(data.questionText) : null,
+    turn_text: data.turnText ? maskPii(data.turnText) : null,
   });
 
   if (error) {

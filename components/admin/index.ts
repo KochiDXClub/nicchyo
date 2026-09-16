@@ -8,3 +8,6 @@ export { Toaster } from "./Toaster";
 export { AdminSidebar } from "./AdminSidebar";
 export { AdminLayout } from "./AdminLayout";
 export { AdminPageHeader } from "./AdminPageHeader";
+export { AdminTabs, type AdminTab } from "./AdminTabs";
+// TrafficOverview はサーバーコンポーネントのため、このバレルには載せない
+// （クライアントコンポーネントから読み込まれると next/headers でビルドが壊れる）

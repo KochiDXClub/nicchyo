@@ -131,6 +131,8 @@ const COMPARE_OPTIONS = {
   backgroundOverlay: ["webp", "svg", "off"],
   tileOpacityByZoom: ["on", "off"],
   shopLayerHiding: ["on", "off"],
+  renderer: ["leaflet", "maplibre"],
+  basemap: ["raster-carto", "vector-openfreemap"],
 };
 if (compareKey && !COMPARE_OPTIONS[compareKey]) {
   console.error(`--compare に使えるのは: ${Object.keys(COMPARE_OPTIONS).join(", ")}`);
@@ -151,7 +153,12 @@ for (const variant of variants) {
   for (let i = 0; i < runs; i++) {
     await page.goto(variantTarget, { waitUntil: "networkidle" });
     await page.waitForFunction(() => !!window.__nicchyoMapBench, null, { timeout: 60000 });
-    await page.waitForFunction(() => document.querySelectorAll(".custom-shop-marker").length >= 5, null, { timeout: 60000 });
+    // Leaflet は DOM マーカーが出るまで、MapLibre（GPU 描画、DOM マーカー無し）は Map 本体の公開まで待つ
+    await page.waitForFunction(
+      () => document.querySelectorAll(".custom-shop-marker").length >= 5 || !!window.__nicchyoMapLibre,
+      null,
+      { timeout: 60000 }
+    );
     await page.waitForTimeout(4000);
     const report = await page.evaluate(() => window.__nicchyoMapBench.run());
     reports.push(report);

@@ -178,3 +178,53 @@ export function generateStallSvg(
     `</svg>`
   );
 }
+
+/** スプライト用の色。CSS 変数の代わりに明示的な色を焼き込む */
+export interface StallSpriteColors {
+  roof: string;
+  awningBase: string;
+  awningStripe: string;
+  /** 選択などの縁取り。無ければ描かない */
+  outline?: string;
+}
+
+/**
+ * MapLibre のシンボルレイヤー用に、色を焼き込んだ単体 SVG を返す。
+ * inline SVG 版（generateStallSvg）は CSS の fill に頼るが、画像として描き起こすときは
+ * スタイルシートが効かないので、ここでは fill 属性を直接書く。
+ * 形の定義は同じカタログを使うので、両方式で見た目が揃う。
+ */
+export function generateStallSpriteSvg(
+  spec: StallPartsSpec,
+  colors: StallSpriteColors,
+  size: { width: number; height: number }
+): string {
+  const roof = ROOF_DEFS[spec.roof];
+  const awning = AWNING_DEFS[spec.awning];
+  const roofTransform = roof.transform ? ` transform="${roof.transform}"` : "";
+  const awningTransform = awning.transform ? ` transform="${awning.transform}"` : "";
+  const outline = colors.outline
+    ? ` stroke="${colors.outline}" stroke-width="3" stroke-linejoin="round"`
+    : "";
+  const awningAccent = awning.accent
+    ? `<path d="${awning.accent}" fill="${colors.awningStripe}"/>`
+    : "";
+
+  return (
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${STALL_VIEWBOX} ${STALL_VIEWBOX}" ` +
+    `width="${size.width}" height="${size.height}">` +
+    `<ellipse cx="50" cy="91" rx="42" ry="7" fill="rgba(0,0,0,0.16)"/>` +
+    `<path d="${LEGS_PATH}" fill="#8b5e34"/>` +
+    `<path d="${BODY_PATH}" fill="#f1ede6" stroke="${colors.outline ?? "rgba(90,80,70,0.4)"}" stroke-width="${colors.outline ? 3 : 2}" stroke-linejoin="round"/>` +
+    `<path d="${COUNTER_PATH}" fill="#ec9a0c"/>` +
+    `<g${awningTransform}>` +
+    `<path d="${awning.base}" fill="${colors.awningBase}"${outline}/>` +
+    awningAccent +
+    `</g>` +
+    `<g${roofTransform}>` +
+    `<path d="${roof.d}" fill="${colors.roof}"${outline}/>` +
+    `<path d="${roof.light}" fill="#ffffff" opacity="0.22"/>` +
+    `</g>` +
+    `</svg>`
+  );
+}
