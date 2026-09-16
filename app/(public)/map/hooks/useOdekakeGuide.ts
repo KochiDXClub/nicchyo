@@ -253,6 +253,14 @@ export function useOdekakeGuide({
         cancelled = true;
       };
     }
+    // 先読みは案内を使わない人にも約270KBを送る。データセーバーや遅い回線では
+    // 先読みせず、開いたときに読む（その場合だけ従来どおり少し待たせる）
+    const conn = (
+      navigator as Navigator & { connection?: { saveData?: boolean; effectiveType?: string } }
+    ).connection;
+    if (conn?.saveData || conn?.effectiveType === '2g' || conn?.effectiveType === 'slow-2g') {
+      return;
+    }
     const w = window as Window & {
       requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number;
       cancelIdleCallback?: (id: number) => void;
