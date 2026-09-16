@@ -1,9 +1,18 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { normalizeSiteUrl } from "./constants";
 
 const DEFAULT = "https://nicchyo.jp";
 
 describe("normalizeSiteUrl", () => {
+  // 設定ミスの警告はここで検証する対象なので、テスト出力には混ぜない
+  beforeEach(() => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+    delete process.env.VERCEL_ENV;
+  });
+
   describe("既定値にフォールバックする", () => {
     it.each([
       ["未設定", undefined],
@@ -61,18 +70,33 @@ describe("normalizeSiteUrl", () => {
 
   describe("設定ミスに気づけるようにする", () => {
     it("値が入っているのに不正なときは警告を出す", () => {
-      const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
       normalizeSiteUrl("nicchyo.jp");
-      expect(warn).toHaveBeenCalledOnce();
-      warn.mockRestore();
+      expect(console.warn).toHaveBeenCalledOnce();
     });
 
     it("未設定・空文字は想定内なので警告を出さない", () => {
-      const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
       normalizeSiteUrl(undefined);
       normalizeSiteUrl("");
-      expect(warn).not.toHaveBeenCalled();
-      warn.mockRestore();
+      expect(console.warn).not.toHaveBeenCalled();
+    });
+
+    // 仮ドメイン（nicchyo.jp）を指したまま本番稼働するのを防ぐため、
+    // 本番だけは警告で済ませずビルドを落とす
+    it("本番では値が入っているのに不正なら例外を投げる", () => {
+      process.env.VERCEL_ENV = "production";
+      expect(() => normalizeSiteUrl("nicchyo.jp")).toThrow(/NEXT_PUBLIC_SITE_URL/);
+      expect(() => normalizeSiteUrl("javascript:alert(1)")).toThrow(/NEXT_PUBLIC_SITE_URL/);
+    });
+
+    it("本番でも未設定・空文字は既定値で通す", () => {
+      process.env.VERCEL_ENV = "production";
+      expect(normalizeSiteUrl(undefined)).toBe(DEFAULT);
+      expect(normalizeSiteUrl("")).toBe(DEFAULT);
+    });
+
+    it("プレビューでは落とさず既定値で動く", () => {
+      process.env.VERCEL_ENV = "preview";
+      expect(normalizeSiteUrl("nicchyo.jp")).toBe(DEFAULT);
     });
   });
 });

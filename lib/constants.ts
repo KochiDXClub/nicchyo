@@ -21,30 +21,39 @@ const DEFAULT_SITE_URL = "https://nicchyo.jp";
  *   （new URL("javascript:alert(1)") は例外を投げないので、この検証が必要）
  *
  * `https://nicchyo.jp/base/` のようなサブパス運用は `https://nicchyo.jp/base` として維持する。
+ *
+ * 不正な値のときの扱いは環境で変える。未設定・空文字は想定内なので黙って既定値を使うが、
+ * 「設定されているのに不正」は設定ミスなので、本番（VERCEL_ENV=production）では例外を投げて
+ * ビルドを失敗させる。開発・プレビューでは警告だけ出して既定値で動かす。
  */
 export function normalizeSiteUrl(value: string | undefined): string {
   const trimmed = value?.trim();
   // 未設定・空文字は想定内なので黙って既定値を使う
   if (!trimmed) return DEFAULT_SITE_URL;
 
-  // 「設定されているのに不正」は設定ミスなので気づけるようにする。
+  // 「設定されているのに不正」は設定ミス。
   // nicchyo.jp は仮ドメインのため、黙って既定値に戻すと canonical・JSON-LD・sitemap が
-  // 仮ドメインを指したまま本番稼働してしまう
-  const fallbackWithWarning = (reason: string) => {
-    console.warn(
-      `[SITE_URL] NEXT_PUBLIC_SITE_URL が${reason}のため ${DEFAULT_SITE_URL} を使います: ${JSON.stringify(value)}`
-    );
+  // 仮ドメインを指したまま本番稼働してしまう。
+  //
+  // 本番ビルドでは落として気づかせる。開発・プレビューでは警告だけにして、
+  // 設定が揃っていない環境でも動かせるようにする
+  const fallbackOrThrow = (reason: string) => {
+    const message = `NEXT_PUBLIC_SITE_URL が${reason}: ${JSON.stringify(value)}`;
+    if (process.env.VERCEL_ENV === "production") {
+      throw new Error(`[SITE_URL] ${message}`);
+    }
+    console.warn(`[SITE_URL] ${message}のため ${DEFAULT_SITE_URL} を使います`);
     return DEFAULT_SITE_URL;
   };
 
   try {
     const url = new URL(trimmed);
     if (url.protocol !== "http:" && url.protocol !== "https:") {
-      return fallbackWithWarning("http/https ではない");
+      return fallbackOrThrow("http/https ではない");
     }
-    return (url.origin + url.pathname).replace(/\/+$/, "") || fallbackWithWarning("空のURL");
+    return (url.origin + url.pathname).replace(/\/+$/, "") || fallbackOrThrow("空のURL");
   } catch {
-    return fallbackWithWarning("URLとして解釈できない");
+    return fallbackOrThrow("URLとして解釈できない");
   }
 }
 
