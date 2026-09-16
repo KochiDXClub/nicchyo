@@ -52,7 +52,7 @@ export async function POST(request: Request, { params }: RouteParams) {
     bucket: "vendor-inquiry-replies-post",
     limit: 20,
     windowMs: 10 * 60 * 1000,
-    keySuffix: user.id,
+    identity: user.id,
   });
   if (rateLimited) return rateLimited;
 
