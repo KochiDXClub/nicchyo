@@ -80,11 +80,14 @@ export function useOdekakeGuide({
   query,
   landmarks,
   mapRoute,
+  preload = true,
 }: {
   /** null なら案内は閉じている */
   query: GuideQuery | null;
   landmarks: Landmark[];
   mapRoute: MapRoute | undefined;
+  /** 閉じている間に歩行者ネットワークを先読みするか。機能を隠しているときは false */
+  preload?: boolean;
 }) {
   const active = query !== null;
 
@@ -255,6 +258,7 @@ export function useOdekakeGuide({
     }
     // 先読みは案内を使わない人にも約270KBを送る。データセーバーや遅い回線では
     // 先読みせず、開いたときに読む（その場合だけ従来どおり少し待たせる）
+    if (!preload) return;
     const conn = (
       navigator as Navigator & { connection?: { saveData?: boolean; effectiveType?: string } }
     ).connection;
@@ -277,7 +281,7 @@ export function useOdekakeGuide({
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [active, walkData]);
+  }, [active, preload, walkData]);
   const network: GuideNetwork | null = useMemo(
     () => (active ? buildGuideNetworkForMap(walkData, mapRoute ?? null) : null),
     [active, mapRoute, walkData]

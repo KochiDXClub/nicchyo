@@ -16,8 +16,9 @@ import { redirect } from 'next/navigation';
  * 307（redirect）にしているのは、ページを戻す余地を残すため。308 はブラウザに
  * 強くキャッシュされ、戻したときに古い転送が残る。
  *
- * おでかけサポートだけを非公開にする設定は無くした。地図（/map、常に公開）の
- * 一部になったため、表示可否は地図に従う。隠したくなったら起動ボタン側で判定する。
+ * 公開設定では、このパスが「おでかけサポート」機能のキーを兼ねる
+ * （lib/pageVisibility/registry.ts の ODEKAKE_VISIBILITY_PATH）。非公開にすると
+ * proxy.ts がこの URL を塞ぎ、地図側も案内を開かなくなる。
  */
 export default function FacilitiesPage() {
   redirect('/map?guide=menu');

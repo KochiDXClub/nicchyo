@@ -59,6 +59,8 @@ import {
 } from "../../../lib/favoriteShops";
 import { useFavoriteShopIds } from "../../../lib/hooks/useFavorites";
 import { stripShopIdsDirective } from "@/lib/grandma/consultUtils";
+import { usePageVisibility } from "@/lib/pageVisibility/PageVisibilityContext";
+import { ODEKAKE_VISIBILITY_PATH } from "@/lib/pageVisibility/registry";
 import {
   OVERVIEW_ZONE_MIN_ZOOM,
   OVERVIEW_ZONE_MAX_ZOOM,
@@ -272,8 +274,20 @@ export default function MapPageClient({
     setGuideOverride({ kinds: [] });
     syncGuideUrl(GUIDE_MENU_VALUE);
   }, [syncGuideUrl]);
+  // おでかけサポートの公開設定（地図の一部だが、機能として単独で切り替えられる）
+  //   public   : 通常どおり
+  //   unlisted : 入口（起動ボタン・「ここへ案内」）を出さない。?guide= の URL からは開ける
+  //   private  : 機能ごと止める。URL で指定されても開かない
+  const { resolve: resolveVisibility } = usePageVisibility();
+  const odekakeVisibility = resolveVisibility(ODEKAKE_VISIBILITY_PATH).state;
+  const odekakeEnabled = odekakeVisibility !== "private";
+  const odekakeEntryVisible = odekakeVisibility === "public";
   // 画面で開閉したらそちらを優先し、まだ触っていなければ URL の指定に従う
-  const guideQuery = guideOverride !== undefined ? guideOverride : guideQueryFromUrl;
+  const guideQuery = !odekakeEnabled
+    ? null
+    : guideOverride !== undefined
+      ? guideOverride
+      : guideQueryFromUrl;
   // /facilities からのリンクなど、URL 側の指定が変わったら画面の状態を捨てて従う
   const guideUrlKey = guideQueryFromUrl ? `open:${guideQueryFromUrl.kinds.join(",")}` : "closed";
   const lastGuideUrlKeyRef = useRef(guideUrlKey);
@@ -501,7 +515,7 @@ export default function MapPageClient({
     setMapInstance(map);
   }, []);
 
-  const guide = useOdekakeGuide({ query: guideQuery, landmarks, mapRoute });
+  const guide = useOdekakeGuide({ query: guideQuery, landmarks, mapRoute, preload: odekakeEntryVisible });
   const guideActive = guide.active;
   /** おでかけサポートを開いたが、まだ何を探すか決めていない（中央の選択画面が出ている） */
   const isChoosingGuideKind = guideActive && guide.kinds.length === 0 && !guide.navigating;
@@ -1161,7 +1175,7 @@ export default function MapPageClient({
             )}
 
             {/* おでかけサポートを開くボタン（現在地ボタンと同じ高さの左側） */}
-            {!guideActive && !mapCharacterConsultActive && !nearbyState && !isShopBannerOpen && (
+            {odekakeEntryVisible && !guideActive && !mapCharacterConsultActive && !nearbyState && !isShopBannerOpen && (
               <OdekakeLaunchButton top={trackingButtonTop} onClick={openGuideMenu} />
             )}
 
@@ -1190,7 +1204,7 @@ export default function MapPageClient({
                   map={mapInstance}
                   origin={isInMarket && userLocation ? userLocation : null}
                   onClose={closeSpotCard}
-                  onNavigate={navigateToSpot}
+                  onNavigate={odekakeEntryVisible ? navigateToSpot : undefined}
                 />
               )}
             </AnimatePresence>

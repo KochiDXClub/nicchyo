@@ -28,6 +28,12 @@ const VENDOR_ONLY: readonly VisibilityRole[] = ["vendor"];
 export const PAGE_REGISTRY: readonly PageRegistryEntry[] = [
   // ── 来訪者向け ─────────────────────────────────────────────
   { path: "/map", label: "マップ", group: "来訪者向け", description: "ホーム。常に公開", lockedPublic: true },
+  {
+    path: "/facilities",
+    label: "おでかけサポート",
+    group: "来訪者向け",
+    description: "地図上の案内機能。限定公開で入口（メニュー・起動ボタン・「ここへ案内」）を隠し、非公開で機能ごと止める",
+  },
   { path: "/search", label: "店舗検索", group: "来訪者向け" },
   { path: "/shops", label: "店舗詳細", group: "来訪者向け", description: "/shops/001 など" },
   { path: "/consult", label: "にちよさん相談", group: "来訪者向け" },
@@ -79,6 +85,16 @@ export const PAGE_REGISTRY: readonly PageRegistryEntry[] = [
   { path: "/admin/settings", label: "設定", group: "管理者向け", codeAllowed: ADMIN_ONLY, lockedPublic: true },
   { path: "/admin/page-visibility", label: "ページ公開設定", group: "管理者向け", codeAllowed: ADMIN_ONLY, lockedPublic: true },
 ];
+
+/**
+ * おでかけサポートの公開設定のキー。
+ *
+ * おでかけサポートはページではなく地図（/map、常に公開）の一部だが、機能として
+ * 単独で隠したり止めたりできるようにしておく。キーには旧ページの URL を使う。
+ * /facilities は地図の案内へ転送するだけの URL として残っているので、非公開にすると
+ * proxy.ts がこの URL も塞ぎ、地図側（MapPageClient）も案内を開かなくなる。
+ */
+export const ODEKAKE_VISIBILITY_PATH = "/facilities";
 
 /** pathname に最も長く前方一致するレジストリ項目を返す。無ければ null */
 export function findRegistryEntry(pathname: string): PageRegistryEntry | null {
