@@ -1,6 +1,6 @@
-import { Map, ShoppingBag, User, HelpCircle } from "lucide-react";
+import { Map, Heart, User, HelpCircle } from "lucide-react";
 
-export type FaqCategory = "general" | "map" | "list" | "account";
+export type FaqCategory = "general" | "map" | "favorites" | "account";
 
 export interface FaqItem {
   id: string;
@@ -12,7 +12,7 @@ export interface FaqItem {
 export const FAQ_CATEGORIES = [
   { id: "all", label: "すべて", icon: null },
   { id: "map", label: "マップ・店舗", icon: Map },
-  { id: "list", label: "お買い物リスト", icon: ShoppingBag },
+  { id: "favorites", label: "お気に入り", icon: Heart },
   { id: "account", label: "アカウント", icon: User },
   { id: "general", label: "その他", icon: HelpCircle },
 ] as const;
@@ -38,24 +38,30 @@ export const FAQ_DATA: FaqItem[] = [
     a: "はい、マップ画面の検索バーから店名や商品名で検索できます。「トマト」や「刃物」などのキーワードでも探せますよ。",
   },
 
-  // Shopping List (Bag)
+  // Favorites
   {
-    id: "list-save",
-    category: "list",
-    q: "作ったお買い物リストは保存されますか？",
+    id: "favorites-save",
+    category: "favorites",
+    q: "お気に入りに入れたお店は保存されますか？",
     a: "はい、お使いのスマートフォンのブラウザに自動的に保存されます。次回開いたときもそのまま残っていますのでご安心ください。",
   },
   {
-    id: "list-share",
-    category: "list",
-    q: "家族とリストを共有できますか？",
-    a: "申し訳ありません。現在は共有機能はなく、それぞれの端末でリストを管理する形になっています。スクリーンショットなどを送って活用してみてくださいね。",
+    id: "favorites-how",
+    category: "favorites",
+    q: "気になるお店や商品はどうやって取っておきますか？",
+    a: "お店の写真や商品の横にあるハートを押すと、お気に入りに入ります。入れたお店はマップ上にもハートが付くので、現地で探すときの目印になります。",
   },
   {
-    id: "list-offline",
-    category: "list",
-    q: "電波が悪い場所でもリストは見られますか？",
-    a: "はい、一度読み込んだリストは端末に保存されているため、電波が入りにくい場所でも確認やチェックが可能です。",
+    id: "favorites-share",
+    category: "favorites",
+    q: "家族とお気に入りを共有できますか？",
+    a: "申し訳ありません。現在は共有機能はなく、それぞれの端末でお気に入りを管理する形になっています。スクリーンショットなどを送って活用してみてくださいね。",
+  },
+  {
+    id: "favorites-offline",
+    category: "favorites",
+    q: "電波が悪い場所でもお気に入りは見られますか？",
+    a: "はい、お気に入りは端末に保存されているため、電波が入りにくい場所でも確認できます。",
   },
 
   // Account

@@ -1,5 +1,6 @@
 import { AboutIconName } from "./AboutIcon";
 import { currentVersion, type VersionEntry } from "./versions";
+import { GITHUB_REPO_URL } from "@/lib/siteLinks";
 
 export type CharacterItem = {
   img: string;
@@ -18,8 +19,12 @@ export type AchievementItem = {
   dynamicKey?: "weeklyVisitors";
 };
 
+/** 項目の先頭に置く印。絵文字か、サイトの他の画面と同じ線画アイコン（lucide）のどちらか */
+export type PainPointIconName = "bug" | "lightbulb" | "code";
+
 export type PainPointItem = {
-  emoji: string;
+  emoji?: string;
+  icon?: PainPointIconName;
   text: string;
 };
 
@@ -40,6 +45,8 @@ export type AboutSlide = {
     label: string;
     href: string;
     primary?: boolean;
+    /** サイトの外（GitHub など）。新しいタブで開く */
+    external?: boolean;
   };
 };
 
@@ -171,6 +178,25 @@ export const aboutSlides: AboutSlide[] = [
     description:
       "高知高専の学生と顧問の教員によるプロジェクトです。現地でお話をうかがうことを大切にしています。",
     iconName: "discover",
+  },
+  {
+    id: "opensource",
+    title: "オープンソースで作っています",
+    description:
+      "nicchyo のコードは GitHub で公開しています。使ってみて気づいたことを、どなたでも届けられます。",
+    richContent: {
+      type: "painPoints",
+      items: [
+        { icon: "bug", text: "うまく動かないところの報告" },
+        { icon: "lightbulb", text: "こんな機能がほしい、という提案" },
+        { icon: "code", text: "コードやデザインでの参加" },
+      ],
+    },
+    action: {
+      label: "GitHub で見る",
+      href: GITHUB_REPO_URL,
+      external: true,
+    },
   },
   {
     id: "roadmap",

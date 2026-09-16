@@ -28,6 +28,7 @@ import { getOrCreateConsultVisitorKey } from "../../../lib/consultVisitorKey";
 import MarketStatusBar from "../../components/market/MarketStatusBar";
 import { useMarketCalendar } from "../../../lib/market/useMarketCalendar";
 import MapCharacterConsult from "./components/MapCharacterConsult";
+import ShopScanCards from "./components/ShopScanCards";
 import NearbyExploreButton from "./components/NearbyExploreButton";
 import NearbyExplorePanel, {
   type NearbyRecommendedShop,
@@ -290,7 +291,6 @@ export default function MapPageClient({
   useEffect(() => {
     setSelectedSpot(null);
   }, [guideQuery]);
-  const [agentOpen, setAgentOpen] = useState(false);
   const [showVendorPrompt, setShowVendorPrompt] = useState(false);
   const [vendorShopName, setVendorShopName] = useState<string | null>(null);
   const [_isHoldActive, _setIsHoldActive] = useState(false);
@@ -353,6 +353,12 @@ export default function MapPageClient({
   const dragControls = useDragControls();
   const [mapCharacterConsultActive, setMapCharacterConsultActive] = useState(false);
   const [mapInstance, setMapInstance] = useState<LeafletMap | null>(null);
+  // ShopScanCards のカードがタップされたときに、詳細バナーを開くよう地図へ渡す要求。
+  // 同じ店を続けてタップしても開き直せるよう token を進める
+  const [focusShopRequest, setFocusShopRequest] = useState<{ shopId: number; token: number } | null>(null);
+  const handleScanCardSelect = useCallback((shop: Shop) => {
+    setFocusShopRequest((prev) => ({ shopId: shop.id, token: (prev?.token ?? 0) + 1 }));
+  }, []);
   const mapRef = useRef<LeafletMap | null>(null);
   const introFocusTimerRef = useRef<number | null>(null);
   const [searchMarkerPayload, setSearchMarkerPayload] = useState<{
@@ -712,6 +718,16 @@ export default function MapPageClient({
     [activateSpotlight, prefetchShopImage, shopById]
   );
 
+  // 検索結果 / AI おすすめで対象が絞れているときの店舗 ID。
+  // 優先順位は MapView 側の activeHighlightShopIds と同じ（検索が先、次に AI）
+  const highlightShopIds = useMemo(() => {
+    const search = searchMarkerPayload?.ids ?? mapSearchShopIds;
+    if (search && search.length > 0) return search;
+    const ai = aiMarkerPayload?.ids;
+    if (ai && ai.length > 0) return ai;
+    return undefined;
+  }, [searchMarkerPayload, mapSearchShopIds, aiMarkerPayload]);
+
   const handleCommentShopOpen = useCallback(
     (shopId: number) => {
       handleCommentShopFocus(shopId);
@@ -1052,8 +1068,6 @@ export default function MapPageClient({
               mapViewSettings={mapViewSettings}
               initialShopId={initialShopId}
               openInitialShopBanner={!isAiFocusMode}
-              agentOpen={agentOpen}
-              onAgentToggle={setAgentOpen}
               searchShopIds={searchMarkerPayload?.ids ?? mapSearchShopIds}
               aiShopIds={aiMarkerPayload?.ids}
               onMapReady={markMapReady}
@@ -1080,6 +1094,7 @@ export default function MapPageClient({
               hideMapUI={mapCharacterConsultActive || !!nearbyState}
               // おでかけサポート案内中は GuideLayer 側のマーカーだけを見せる
               suppressLandmarks={guideActive}
+              focusShopRequest={focusShopRequest}
               trackingButtonTop={trackingButtonTop}
               onGestureActiveChange={setIsMapGestureActive}
               overlaySlot={
@@ -1104,6 +1119,23 @@ export default function MapPageClient({
                     onClose={closeNearbyPanel}
                   />
                 ) : undefined
+              }
+            />
+
+            {/* 地図を動かしているあいだだけ、屋台マーカーの上に写真と名前を重ねる。
+                静止時は地図の絵を優先し、探しているときだけ情報を前に出す。
+                出るのは MapLibre 版だけ（Leaflet 版は回転シェルの中の座標が返るため。
+                ShopScanCards の先頭コメント参照）で、判定は中で行っている */}
+            <ShopScanCards
+              map={mapInstance}
+              shops={shops}
+              highlightShopIds={highlightShopIds}
+              onSelectShop={handleScanCardSelect}
+              enabled={
+                !mapCharacterConsultActive &&
+                !nearbyState &&
+                !guideActive &&
+                !isShopBannerOpen
               }
             />
 

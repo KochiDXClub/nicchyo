@@ -11,7 +11,7 @@ AIに送るプロンプト文の置き場所。**プロンプトの文面を直�
 | `lib/grandma/promptBuilder.ts` の会話構成 | `consultConversation.ts` |
 | `app/api/grandma/shop-chat/route.ts` の `buildSystemPrompt()` | `shopChatPrompt.ts` |
 | `app/api/grandma/itinerary/route.ts` のインラインプロンプト | `itineraryPrompt.ts` |
-| `app/api/map-agent/route.ts` のインラインプロンプト | `mapAgentPrompt.ts` |
+| `app/api/map-agent/route.ts` のインラインプロンプト | `mapAgentPrompt.ts`（機能ごと削除済み） |
 
 ## ファイル構成
 
@@ -23,7 +23,6 @@ AIに送るプロンプト文の置き場所。**プロンプトの文面を直�
 | `consultConversation.ts` | 発話数の上限（`CONSULT_MAX_TURNS`）と、出力形式の指示（プレーンテキスト／JSON） |
 | `shopChatPrompt.ts` | 店舗詳細ページのチャット |
 | `itineraryPrompt.ts` | 旅程プランナー |
-| `mapAgentPrompt.ts` | マップAIアシスタント |
 | `promptKeys.ts` | DBで上書きできるキーの定義と、既定値へのフォールバック |
 | `promptStore.server.ts` | `ai_prompts` からアクティブな文面を読む（サーバー専用） |
 
