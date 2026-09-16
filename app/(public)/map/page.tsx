@@ -3,6 +3,7 @@ import { Suspense } from 'react';
 import { cookies } from 'next/headers';
 import { createClient } from '@/utils/supabase/server';
 import MapPageClient from './MapPageClient';
+import MapLoadingOverlay from '../../components/MapLoadingOverlay';
 import type { Shop } from './data/shops';
 import { fetchVendorShopsFromDb } from './services/shopDb';
 import { fetchLandmarksFromDb } from './services/landmarksDb';
@@ -10,6 +11,8 @@ import type { Landmark } from './types/landmark';
 import type { MapRoute } from './types/mapRoute';
 import { fetchMapRouteFromDb, getFallbackMapRoute } from './services/mapRouteDb';
 import { safeJsonLd } from '@/lib/utils/jsonLd';
+import { fetchMapFeatureFlags } from '@/lib/mapFeatureFlags.server';
+import { fetchMapViewSettings } from '@/lib/map/mapViewSettings.server';
 
 export const metadata: Metadata = {
   title: "日曜市マップ",
@@ -97,21 +100,25 @@ export default async function MapPage() {
     }
   }
 
+  // マップ動作フラグ（管理画面で切替可能。URL の ?mapFlags= はクライアント側で上書きする）
+  const featureFlags = await fetchMapFeatureFlags();
+  // マップの可動範囲（管理画面「マップの表示範囲」で設定する。MapLibre 版でのみ効く）
+  const mapViewSettings = await fetchMapViewSettings();
+
   return (
     <>
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: safeJsonLd(sundayMarketJsonLd) }}
       />
-      <Suspense
-        fallback={
-          <div className="flex h-screen items-center justify-center">Loading...</div>
-        }
-      >
+      {/* 地図チャンクの遅延読み込み中もローディング画面を切らさない */}
+      <Suspense fallback={<MapLoadingOverlay minStage="page" />}>
         <MapPageClient
         shops={shops}
         landmarks={landmarks}
         mapRoute={mapRoute}
+        featureFlags={featureFlags}
+        mapViewSettings={mapViewSettings}
         />
       </Suspense>
     </>

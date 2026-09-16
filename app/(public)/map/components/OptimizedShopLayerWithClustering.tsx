@@ -21,7 +21,7 @@ import {
 } from '../config/displayConfig';
 import { getRoadSide } from '../config/roadConfig';
 import { getShopBannerImage } from '../../../../lib/shopImages';
-import { generateShopMarkerHtml } from '../utils/markerHtmlGenerator';
+import { generateShopMarkerHtml, SHOP_FAVORITE_BADGE_HTML } from '../utils/markerHtmlGenerator';
 
 type ShopBannerOrigin = { x: number; y: number; width: number; height: number };
 
@@ -34,10 +34,26 @@ export interface OptimizedShopLayerWithClusteringProps {
   searchShopIds?: number[];
   aiHighlightShopIds?: number[];
   commentHighlightShopIds?: number[];
-  bagShopIds?: number[];
+  /**
+   * true のとき、レイヤーは残したままペインごと非表示にする（visibility: hidden）。
+   * ズーム 19 未満でレイヤーを付け外しすると 300 マーカーの再生成で 1 秒以上止まるため、
+   * lib/mapFeatureFlags.ts の shopLayerHiding が on のときはこの方式を使う。
+   */
+  hidden?: boolean;
+  /**
+   * hidden モードで店舗が見える最小ズーム。ズームアニメーション開始時（zoomanim）に目標倍率が
+   * これ未満ならクラスタグループを先に外し、zoomend で markercluster が画面内の店舗を
+   * 一斉に DOM へ載せてから隠す、という無駄を避ける。
+   */
+  visibleMinZoom?: number;
+  /** 屋台の描画方式（lib/mapFeatureFlags.ts の stallRenderer）。既定は svg */
+  stallRenderer?: 'svg' | 'div';
 }
 
 const COMPACT_ICON_SIZE: [number, number] = [24, 36];
+
+/** 店舗マーカー専用の Leaflet ペイン名（要素には leaflet-shop-pane クラスが付く） */
+const SHOP_PANE = 'shop';
 const COMPACT_ICON_ANCHOR: [number, number] = [12, 18];
 
 /**
@@ -72,8 +88,17 @@ function OptimizedShopLayerWithClustering({
   searchShopIds,
   aiHighlightShopIds,
   commentHighlightShopIds,
-  bagShopIds,
+  stallRenderer = 'svg',
+  hidden = false,
+  visibleMinZoom,
 }: OptimizedShopLayerWithClusteringProps) {
+  // 非表示中は LOD 更新を止め、表示に戻ったときに 1 回だけ更新する
+  const hiddenRef = useRef(hidden);
+  const updateDensityRef = useRef<(() => void) | null>(null);
+  const visibleMinZoomRef = useRef(visibleMinZoom);
+  useEffect(() => {
+    visibleMinZoomRef.current = visibleMinZoom;
+  }, [visibleMinZoom]);
   const map = useMap();
   const clusterGroupRef = useRef<L.MarkerClusterGroup | null>(null);
   const markersRef = useRef<Map<number, L.Marker>>(new Map());
@@ -90,8 +115,6 @@ function OptimizedShopLayerWithClustering({
   const prevAiHighlightSetRef = useRef<Set<number>>(new Set());
   const commentHighlightSetRef = useRef<Set<number>>(new Set());
   const prevCommentHighlightSetRef = useRef<Set<number>>(new Set());
-  const bagShopSetRef = useRef<Set<number>>(new Set());
-  const prevBagShopSetRef = useRef<Set<number>>(new Set());
   const lastLodRef = useRef<ShopMarkerLod | null>(null);
   const lastMarkerZoomScaleRef = useRef<number | null>(null);
   const selectedShopIdRef = useRef<number | undefined>(undefined);
@@ -145,16 +168,6 @@ function OptimizedShopLayerWithClustering({
     }
   };
 
-  const setMarkerBag = (marker: L.Marker, isHighlighted: boolean) => {
-    const icon = marker.getElement();
-    if (!icon) return;
-    if (isHighlighted) {
-      icon.classList.add('shop-marker-bag');
-    } else {
-      icon.classList.remove('shop-marker-bag');
-    }
-  };
-
   /**
    * 表示段階をルート要素のクラスで表す。
    * 何を出すかは CSS 側が加算方式で決める（LOD が上がるほど要素が増える）。
@@ -181,8 +194,39 @@ function OptimizedShopLayerWithClustering({
     selectedShopIdRef.current = selectedShopId;
   }, [selectedShopId]);
 
+  // 店舗専用のペイン。丁目マーカーやランドマーク（markerPane）と分けることで、
+  // 店舗だけをペインごと非表示にできる。zIndex は markerPane(600) より上（店舗が最前面）
+  useEffect(() => {
+    if (!map.getPane(SHOP_PANE)) {
+      const pane = map.createPane(SHOP_PANE);
+      pane.style.zIndex = '610';
+    }
+  }, [map]);
+
+  /**
+   * 非表示の切替。
+   * ペインを visibility:hidden にするだけでは、低倍率で markercluster が 300 マーカー全部を
+   * DOM に載せて毎ズーム再配置し続ける（クラスタリング無効のため画面内の全マーカーが DOM に入る）。
+   * そこで非表示中はクラスタグループごと地図から外す。マーカーとアイコンは保持するので、
+   * 再表示は 300 個の生成をやり直さずグループを戻すだけで済む。
+   */
+  useEffect(() => {
+    hiddenRef.current = hidden;
+    const pane = map.getPane(SHOP_PANE);
+    if (pane) pane.classList.toggle('shop-layer-hidden', hidden);
+    const group = clusterGroupRef.current;
+    if (!group) return;
+    if (hidden) {
+      if (map.hasLayer(group)) map.removeLayer(group);
+    } else {
+      if (!map.hasLayer(group)) map.addLayer(group);
+      updateDensityRef.current?.();
+    }
+  }, [hidden, map]);
+
   useEffect(() => {
     const markers = L.markerClusterGroup({
+      clusterPane: SHOP_PANE,
       disableClusteringAtZoom: 1,
       spiderfyOnMaxZoom: false,
       showCoverageOnHover: false,
@@ -212,7 +256,7 @@ function OptimizedShopLayerWithClustering({
       return L.divIcon({
         html: `
           <div class="shop-marker-compact-wrapper">
-            <div class="shop-favorite-badge" aria-hidden="true">&#10084;</div>
+            ${SHOP_FAVORITE_BADGE_HTML}
             <div class="shop-marker-compact"></div>
           </div>
         `,
@@ -242,6 +286,7 @@ function OptimizedShopLayerWithClustering({
           bannerImage,
           illustrationSize: sizeKey,
           includeNameplate: true,
+          stallRenderer,
         }),
         className: `custom-shop-marker ${sideClass(shop)}`,
         iconSize: [sizeConfig.width, sizeConfig.height],
@@ -252,7 +297,11 @@ function OptimizedShopLayerWithClustering({
     // 現在のズームに必要なアイコンだけを先に作る。
     // 作った LOD を記録しておかないと、直後の updateMarkerDensity() が
     // 「まだ何も描いていない」と判断して全マーカーに setIcon をやり直してしまう。
-    const initialLod = getShopMarkerLod(map.getZoom(), map.getMaxZoom() ?? map.getZoom());
+    // 非表示モードで生成されるときは、表示されるのはズーム 19 以上（点 LOD は使われない）なので
+    // 最初から屋台アイコンで作る。こうすると境界を越えて表示されるときに setIcon の一斉差し替えが起きない
+    const initialLod = hiddenRef.current
+      ? 'stall'
+      : getShopMarkerLod(map.getZoom(), map.getMaxZoom() ?? map.getZoom());
     lastLodRef.current = initialLod;
 
     // Create a map for fast shop lookup during density updates
@@ -271,6 +320,7 @@ function OptimizedShopLayerWithClustering({
 
       const marker = L.marker([shop.lat, shop.lng], {
         icon: initialIcon,
+        pane: SHOP_PANE,
       });
 
       marker.on('click', () => {
@@ -282,7 +332,6 @@ function OptimizedShopLayerWithClustering({
         setMarkerHighlight(marker, shop.id, aiHighlightSetRef.current.has(shop.id));
         setMarkerSearchHighlight(marker, searchHighlightSetRef.current.has(shop.id));
         setMarkerCommentHighlight(marker, commentHighlightSetRef.current.has(shop.id));
-        setMarkerBag(marker, bagShopSetRef.current.has(shop.id));
         const currentZoom = map.getZoom();
         const maxZoom = map.getMaxZoom() ?? currentZoom;
         setMarkerLod(marker, getShopMarkerLod(currentZoom, maxZoom));
@@ -294,6 +343,8 @@ function OptimizedShopLayerWithClustering({
     });
 
     const updateMarkerDensity = () => {
+      // 非表示中は何もしない（表示に戻るときに hidden の effect が呼び直す）
+      if (hiddenRef.current) return;
       const zoom = map.getZoom();
       const maxZoom = map.getMaxZoom() ?? zoom;
       const nextLod = getShopMarkerLod(zoom, maxZoom);
@@ -364,26 +415,37 @@ function OptimizedShopLayerWithClustering({
           } else {
             markerElement.classList.remove('shop-marker-comment');
           }
-          if (bagShopSetRef.current.has(shopId)) {
-            markerElement.classList.add('shop-marker-bag');
-          } else {
-            markerElement.classList.remove('shop-marker-bag');
-          }
         }
       });
     };
 
     map.on('zoomend', updateMarkerDensity);
+    updateDensityRef.current = updateMarkerDensity;
+
+    // ズーム先が「店舗の見えない倍率」なら、zoomend の前にグループを外す。
+    // zoomend まで待つと markercluster が画面内の店舗（低倍率ほど多い）を一度 DOM に載せてしまう
+    const handleZoomAnim = (event: L.ZoomAnimEvent) => {
+      const minZoom = visibleMinZoomRef.current;
+      if (minZoom === undefined) return;
+      if (event.zoom < minZoom && map.hasLayer(markers)) {
+        hiddenRef.current = true;
+        map.removeLayer(markers);
+      }
+    };
+    map.on('zoomanim', handleZoomAnim);
     updateMarkerDensity();
 
-    map.addLayer(markers);
+    // 非表示で生成されたときは地図に載せない（hidden の effect が表示時に載せる）
+    if (!hiddenRef.current) map.addLayer(markers);
 
     const markersMap = markersRef.current;
     const stallIcons = stallIconsRef.current;
     const dotIcons = dotIconsRef.current;
     return () => {
       map.off('zoomend', updateMarkerDensity);
-      map.removeLayer(markers);
+      updateDensityRef.current = null;
+      map.off('zoomanim', handleZoomAnim);
+      if (map.hasLayer(markers)) map.removeLayer(markers);
       clusterGroupRef.current = null;
       markersMap.clear();
       stallIcons.clear();
@@ -391,7 +453,7 @@ function OptimizedShopLayerWithClustering({
       lastLodRef.current = null;
       lastMarkerZoomScaleRef.current = null;
     };
-  }, [map, onChunkProgress, onShopClick, shops]);
+  }, [map, onChunkProgress, onShopClick, shops, stallRenderer]);
 
   useEffect(() => {
     favoriteSetRef.current = new Set(favoriteShopIds ?? []);
@@ -484,29 +546,6 @@ function OptimizedShopLayerWithClustering({
 
     prevCommentHighlightSetRef.current = nextHighlights;
   }, [commentHighlightShopIds]);
-
-  useEffect(() => {
-    bagShopSetRef.current = new Set(bagShopIds ?? []);
-    const nextHighlights = bagShopSetRef.current;
-    const prevHighlights = prevBagShopSetRef.current;
-    const changed = new Set<number>();
-
-    prevHighlights.forEach((id) => {
-      if (!nextHighlights.has(id)) changed.add(id);
-    });
-    nextHighlights.forEach((id) => {
-      if (!prevHighlights.has(id)) changed.add(id);
-    });
-
-    changed.forEach((id) => {
-      const marker = markersRef.current.get(id);
-      if (marker) {
-        setMarkerBag(marker, nextHighlights.has(id));
-      }
-    });
-
-    prevBagShopSetRef.current = nextHighlights;
-  }, [bagShopIds]);
 
   useEffect(() => {
     markersRef.current.forEach((marker, shopId) => {

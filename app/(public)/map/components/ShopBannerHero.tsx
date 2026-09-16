@@ -2,8 +2,20 @@
 
 import type { ReactNode } from "react";
 import Image from "next/image";
-import { ArrowLeft, Clock, Pencil, X as XIcon } from "lucide-react";
+import { ArrowLeft, Clock, Heart, Pencil, X as XIcon } from "lucide-react";
 import type { Shop } from "../data/shops";
+import { toIsoDate } from "@/lib/market/calendar";
+
+/**
+ * 今日この店が出ているかを、割り当てられた出店日で判定する。
+ *
+ * 出店日が分からないときは false を返してバッジを出さない。
+ * 「出ていない」と断定はせず、単に何も言わない扱いにする。
+ */
+function isOpenToday(shop: Shop): boolean {
+  if (!shop.assignmentMarketDate) return false;
+  return shop.assignmentMarketDate === toIsoDate(new Date());
+}
 
 // ─── Shared types ─────────────────────────────────────────────────────────────
 export type BannerTheme = {
@@ -105,6 +117,8 @@ export function ShopBannerHero({
   mode,
   showProductPreview = false,
   onEdit,
+  isFavorite = false,
+  onToggleFavorite,
 }: {
   shop: Shop;
   bannerImage: string;
@@ -114,6 +128,9 @@ export function ShopBannerHero({
   mode: "compact" | "expanded";
   showProductPreview?: boolean;
   onEdit?: () => void;
+  /** その店の行が1つでもあれば点灯する（商品だけ入れた場合も点灯） */
+  isFavorite?: boolean;
+  onToggleFavorite?: () => void;
 }) {
   if (mode === "compact") {
     return (
@@ -142,9 +159,11 @@ export function ShopBannerHero({
             >
               {shop.category || "ショップ"}
             </span>
-            <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700">
-              今日出店中
-            </span>
+            {isOpenToday(shop) && (
+              <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700">
+                今日出店中
+              </span>
+            )}
           </div>
           <h2 className="mt-1 line-clamp-2 text-[17px] font-extrabold leading-tight text-slate-900">
             {shop.name}
@@ -202,9 +221,11 @@ export function ShopBannerHero({
               <span className="rounded-full bg-white/18 px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.16em] text-white backdrop-blur-sm">
                 {shop.category || "ショップ"}
               </span>
-              <span className="rounded-full bg-emerald-400/20 px-2.5 py-1 text-[11px] font-bold text-white backdrop-blur-sm">
-                今日出店中
-              </span>
+              {isOpenToday(shop) && (
+                <span className="rounded-full bg-emerald-400/20 px-2.5 py-1 text-[11px] font-bold text-white backdrop-blur-sm">
+                  今日出店中
+                </span>
+              )}
             </div>
             <h2 className="text-3xl font-extrabold leading-tight text-white drop-shadow-md md:text-4xl">
               {shop.name}
@@ -215,16 +236,33 @@ export function ShopBannerHero({
               </p>
             )}
           </div>
-          {onEdit && (
-            <button
-              type="button"
-              onClick={onEdit}
-              className="shrink-0 flex items-center gap-1.5 rounded-full bg-white/20 px-3 py-1.5 text-xs font-bold text-white backdrop-blur-sm transition hover:bg-white/30"
-            >
-              <Pencil className="h-3 w-3" />
-              編集
-            </button>
-          )}
+          <div className="flex shrink-0 items-center gap-2">
+            {onToggleFavorite && (
+              <button
+                type="button"
+                onClick={onToggleFavorite}
+                aria-pressed={isFavorite}
+                aria-label={isFavorite ? "お気に入りから外す" : "お気に入りに入れる"}
+                className={`flex h-10 w-10 items-center justify-center rounded-full backdrop-blur-sm transition active:scale-95 ${
+                  isFavorite
+                    ? "bg-favorite-fg text-white hover:opacity-90"
+                    : "bg-white/20 text-white hover:bg-white/30"
+                }`}
+              >
+                <Heart className="h-[18px] w-[18px]" fill={isFavorite ? "currentColor" : "none"} />
+              </button>
+            )}
+            {onEdit && (
+              <button
+                type="button"
+                onClick={onEdit}
+                className="flex items-center gap-1.5 rounded-full bg-white/20 px-3 py-1.5 text-xs font-bold text-white backdrop-blur-sm transition hover:bg-white/30"
+              >
+                <Pencil className="h-3 w-3" />
+                編集
+              </button>
+            )}
+          </div>
         </div>
       </div>
     </div>
@@ -319,9 +357,11 @@ export function ShopSubviewHeader({
               >
                 {shop.category || "ショップ"}
               </span>
-              <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700">
-                今日出店中
-              </span>
+              {isOpenToday(shop) && (
+                <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700">
+                  今日出店中
+                </span>
+              )}
             </div>
             <p className="mt-1 line-clamp-1 text-sm font-bold text-slate-900">{shop.name}</p>
             {shop.catchphrase && (

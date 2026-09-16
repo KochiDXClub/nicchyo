@@ -29,7 +29,7 @@ export type ShopInteractionInsert = {
 
 // vendor_inquiries / vendor_inquiry_replies
 // supabase/migrations/20260830100000_create_vendor_inquiries.sql 参照。
-// マイグレーションがdevelopにマージされ次第、`supabase gen types` で生成される型に置き換える。
+// `supabase gen types` を再実行した時点で、生成される型に置き換える。
 // union型の定義はバリデーション側（lib/vendorInquiries/constants.ts）を単一の情報源とし、
 // 片方だけ直して気づかない事故を防ぐためここでは再エクスポートのみ行う。
 export type {
@@ -52,6 +52,33 @@ export type VendorInquiryRow = {
   updated_at: string;
 };
 
+export type AiPromptRow = {
+  id: string;
+  key: string;
+  body: string;
+  version: number;
+  is_active: boolean;
+  note: string | null;
+  updated_by: string | null;
+  created_at: string;
+};
+
+export type AiModelRow = {
+  id: string;
+  label: string;
+  description: string;
+  token_param: "max_tokens" | "max_completion_tokens";
+  supports_temperature: boolean;
+  reasoning_efforts: string[];
+  reasoning_headroom_tokens: number;
+  price_input_per_mtok: number;
+  price_output_per_mtok: number;
+  is_selectable: boolean;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+};
+
 export type VendorInquiryInsert = Pick<VendorInquiryRow, "topic" | "category" | "body"> &
   Partial<Pick<VendorInquiryRow, "id" | "vendor_id" | "urgency" | "image_url" | "status" | "created_at" | "updated_at">>;
 
@@ -68,6 +95,42 @@ export type VendorInquiryReplyRow = {
 
 export type VendorInquiryReplyInsert = Pick<VendorInquiryReplyRow, "inquiry_id" | "sender_role" | "body"> &
   Partial<Pick<VendorInquiryReplyRow, "id" | "sender_id" | "created_at">>;
+
+export type AiUseCaseRow = {
+  key: string;
+  label: string;
+  description: string;
+  model_id: string | null;
+  reasoning_effort: string | null;
+  is_enabled: boolean;
+  sort_order: number;
+  updated_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type MapViewSettingsRow = {
+  key: string;
+  mode: "auto" | "manual";
+  padding_meters: number;
+  north: number | null;
+  south: number | null;
+  east: number | null;
+  west: number | null;
+  min_zoom: number;
+  updated_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type AiConversationSettingRow = {
+  key: string;
+  value: number;
+  min_value: number;
+  max_value: number;
+  updated_by: string | null;
+  updated_at: string;
+};
 
 type ExtendedPublicSchema = Omit<Database["public"], "Tables"> & {
   Tables: Database["public"]["Tables"] & {
@@ -93,6 +156,50 @@ type ExtendedPublicSchema = Omit<Database["public"], "Tables"> & {
       Row: VendorInquiryReplyRow;
       Insert: VendorInquiryReplyInsert;
       Update: Partial<VendorInquiryReplyRow>;
+      Relationships: never[];
+    };
+    ai_conversation_settings: {
+      Row: AiConversationSettingRow;
+      // 行を足しても新しい設定は生まれない（値を読むのはコード側）。
+      // 設定の追加はマイグレーションとコードの対応が要るので insert は塞ぐ
+      Insert: never;
+      // 上下限はマイグレーションが正本。運営が変えるのは値だけ
+      Update: Partial<Pick<AiConversationSettingRow, "value" | "updated_by">>;
+      Relationships: never[];
+    };
+    ai_prompts: {
+      Row: AiPromptRow;
+      // version はトリガ（ai_prompts_activate_new_version）が採番するので送らない。
+      // is_active も型で塞ぐ（false を送るとトリガの切り替えが走らず、
+      // そのキーのアクティブ行が消えて既定値に落ちた状態を作れてしまう）
+      Insert: Pick<AiPromptRow, "key" | "body"> &
+        Partial<Pick<AiPromptRow, "note" | "updated_by">>;
+      Update: Partial<Pick<AiPromptRow, "is_active" | "note">>;
+      Relationships: never[];
+    };
+    ai_models: {
+      Row: AiModelRow;
+      // モデル台帳の追加・変更はマイグレーションで行う。APIから書かせない。
+      // 能力の列を間違えると、そのモデルを使う機能の全リクエストが落ちる
+      Insert: never;
+      Update: never;
+      Relationships: never[];
+    };
+    ai_use_cases: {
+      Row: AiUseCaseRow;
+      // 機能の追加はマイグレーションで行う。APIから作らせない
+      // （行を足してもコード側に呼び出しが無ければ何も起きないため）
+      Insert: never;
+      // 運営が変えられるのは「どのモデルを当てるか」だけ
+      Update: Partial<Pick<AiUseCaseRow, "model_id" | "reasoning_effort" | "updated_by">>;
+      Relationships: never[];
+    };
+    map_view_settings: {
+      Row: MapViewSettingsRow;
+      // 行を増やすのはマイグレーション。APIが触るのは key = 'default' の中身だけ
+      Insert: Pick<MapViewSettingsRow, "key"> &
+        Partial<Omit<MapViewSettingsRow, "key" | "created_at" | "updated_at">>;
+      Update: Partial<Omit<MapViewSettingsRow, "key" | "created_at" | "updated_at">>;
       Relationships: never[];
     };
   };

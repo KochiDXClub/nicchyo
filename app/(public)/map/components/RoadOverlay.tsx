@@ -7,9 +7,19 @@
 import { Fragment, memo, useMemo, useEffect, useState } from 'react';
 import { ImageOverlay, Marker, Polygon, Polyline, Rectangle, useMap } from 'react-leaflet';
 import { ROAD_CONFIG, RoadConfig } from '../config/roadConfig';
+import {
+  ROAD_STYLE,
+  getRoadCorridorHalfWidthMeters,
+  getRoadEdgeWeight,
+  ROAD_LANE_DASH_ZOOM_STEP,
+  getRoadLaneDashArray,
+  getRoadLaneWeight,
+} from '../config/roadStyle';
 import L, { LatLngBoundsExpression } from 'leaflet';
+import { DEFAULT_MAP_ROUTE_CONFIG } from '../types/mapRoute';
 import type { MapRouteConfig, MapRoutePoint } from '../types/mapRoute';
 import {
+  buildRoadEdges,
   buildRoadPolygon,
   densifyPath,
   getEffectiveMapRouteConfig,
@@ -94,8 +104,8 @@ function RoadOverlay({
             bounds={config.bounds as LatLngBoundsExpression}
             pathOptions={{
               stroke: false,
-              fillColor: '#22c55e',
-              fillOpacity: 0.34,
+              fillColor: ROAD_STYLE.overviewTintColor,
+              fillOpacity: ROAD_STYLE.overviewTintOpacity,
             }}
           />
         )}
@@ -117,8 +127,8 @@ function RoadOverlay({
             bounds={config.bounds as LatLngBoundsExpression}
             pathOptions={{
               stroke: false,
-              fillColor: '#22c55e',
-              fillOpacity: 0.34,
+              fillColor: ROAD_STYLE.overviewTintColor,
+              fillOpacity: ROAD_STYLE.overviewTintOpacity,
             }}
           />
         )}
@@ -170,8 +180,8 @@ function PlaceholderRoad({
           bounds={config.bounds as LatLngBoundsExpression}
           pathOptions={{
             stroke: false,
-            fillColor: '#22c55e',
-            fillOpacity: 0.34,
+            fillColor: ROAD_STYLE.overviewTintColor,
+            fillOpacity: ROAD_STYLE.overviewTintOpacity,
           }}
         />
       )}
@@ -190,75 +200,196 @@ function CurvedRoad({
   overviewTint?: boolean;
   onTap?: (latlng: L.LatLng) => void;
 }) {
-  if (!config.segments) {
+  const segments = config.segments;
+
+  // 毎レンダーで作り直すと配列の同一性が変わり、RoadSurface 側の useMemo が
+  // 一度も効かずに道のポリゴン・通路・縁をすべて計算し直すことになる
+  const smoothedCenterline = useMemo(() => {
+    if (!segments) return [];
+    const anchorPoints = segments
+      .map((segment) => {
+        const northLat = Math.max(segment.bounds[0][0], segment.bounds[1][0]);
+        const southLat = Math.min(segment.bounds[0][0], segment.bounds[1][0]);
+        const eastLng = Math.max(segment.bounds[0][1], segment.bounds[1][1]);
+        const westLng = Math.min(segment.bounds[0][1], segment.bounds[1][1]);
+        if (isEastWest) {
+          return {
+            lat: segment.centerLine ?? (northLat + southLat) / 2,
+            lng: (eastLng + westLng) / 2,
+          };
+        }
+        return {
+          lat: (northLat + southLat) / 2,
+          lng: segment.centerLine ?? (eastLng + westLng) / 2,
+        };
+      })
+      .sort((a, b) => (isEastWest ? a.lng - b.lng : b.lat - a.lat));
+    return smoothPath(densifyPath(anchorPoints, 8), 2);
+  }, [segments, isEastWest]);
+
+  if (smoothedCenterline.length < 2) {
     return null;
   }
 
-  const anchorPoints = config.segments
-    .map((segment) => {
-      const northLat = Math.max(segment.bounds[0][0], segment.bounds[1][0]);
-      const southLat = Math.min(segment.bounds[0][0], segment.bounds[1][0]);
-      const eastLng = Math.max(segment.bounds[0][1], segment.bounds[1][1]);
-      const westLng = Math.min(segment.bounds[0][1], segment.bounds[1][1]);
-      if (isEastWest) {
-        return {
-          lat: segment.centerLine ?? (northLat + southLat) / 2,
-          lng: (eastLng + westLng) / 2,
-        };
-      }
-      return {
-        lat: (northLat + southLat) / 2,
-        lng: segment.centerLine ?? (eastLng + westLng) / 2,
-      };
-    })
-    .sort((a, b) => (isEastWest ? a.lng - b.lng : b.lat - a.lat));
+  return (
+    <RoadSurface
+      centerline={smoothedCenterline}
+      halfWidthMeters={DEFAULT_MAP_ROUTE_CONFIG.roadHalfWidthMeters}
+      overviewTint={overviewTint}
+      onTap={onTap}
+      chainKey="curved-main"
+    />
+  );
+}
 
-  const centerline = densifyPath(anchorPoints, 8);
-  const smoothedCenterline = smoothPath(centerline, 2);
-  const roadPolygon = buildRoadPolygon(smoothedCenterline, 15.6);
+/**
+ * 道の面・縁・中央通路をまとめて描く。
+ *
+ * 【輪郭について】
+ * 縁は閉じたポリゴンの stroke ではなく、左右2本の独立した線で描く。
+ * 閉じた stroke だと道の両端にも線が回り込んで長方形に閉じてしまい、
+ * 現実には先へ続いている道が「切り取った紙」に見えるため。
+ *
+ * 【塗り分けについて】
+ * 面を1色で塗らず、中央に彩度を落とした通路帯を重ねる。詳細は config/roadStyle.ts。
+ */
+function RoadSurface({
+  centerline,
+  halfWidthMeters,
+  overviewTint = false,
+  onTap,
+  chainKey,
+}: {
+  centerline: Array<[number, number]>;
+  halfWidthMeters: number;
+  overviewTint?: boolean;
+  onTap?: (latlng: L.LatLng) => void;
+  chainKey: string;
+}) {
+  const zoom = useQuantizedRoadZoom();
+  const edgeWeight = getRoadEdgeWeight(zoom);
+  const laneWeight = getRoadLaneWeight(zoom);
 
-  if (roadPolygon.length < 3 || smoothedCenterline.length < 2) {
+  const geometry = useMemo(() => {
+    const roadPolygon = buildRoadPolygon(centerline, halfWidthMeters);
+    const corridorPolygon = buildRoadPolygon(
+      centerline,
+      getRoadCorridorHalfWidthMeters(halfWidthMeters)
+    );
+    const edges = buildRoadEdges(centerline, halfWidthMeters);
+    return { roadPolygon, corridorPolygon, edges };
+  }, [centerline, halfWidthMeters]);
+
+  if (geometry.roadPolygon.length < 3) {
     return null;
   }
 
   return (
     <>
+      {/* 屋台が並ぶ帯（道の全幅）。縁はここでは描かない */}
       <Polygon
-        positions={roadPolygon}
+        positions={geometry.roadPolygon}
         interactive={false}
         pathOptions={{
-          color: '#c2820a',
-          weight: 1.5,
-          opacity: 0.38,
-          dashArray: '10,6',
-          lineCap: 'round',
-          fillColor: '#d4c5b0',
+          stroke: false,
+          fillColor: ROAD_STYLE.surfaceColor,
           fillOpacity: 1,
+        }}
+      />
+      {/* 中央の通路。アスファルトが見えている部分 */}
+      {geometry.corridorPolygon.length >= 3 && (
+        <Polygon
+          positions={geometry.corridorPolygon}
+          interactive={false}
+          pathOptions={{
+            stroke: false,
+            fillColor: ROAD_STYLE.corridorColor,
+            fillOpacity: 1,
+          }}
+        />
+      )}
+      {/* 中央線（車道の白い破線）。俯瞰時はこの下のタイントに隠れるよう先に描く */}
+      <Polyline
+        positions={centerline}
+        interactive={false}
+        pathOptions={{
+          color: ROAD_STYLE.laneColor,
+          weight: laneWeight,
+          opacity: ROAD_STYLE.laneOpacity,
+          dashArray: getRoadLaneDashArray(zoom),
+          lineCap: 'butt',
+          lineJoin: 'round',
         }}
       />
       {overviewTint && (
         <Polygon
-          positions={roadPolygon}
+          positions={geometry.roadPolygon}
           pathOptions={{
             stroke: false,
-            fillColor: '#22c55e',
-            fillOpacity: 0.36,
+            fillColor: ROAD_STYLE.overviewTintColor,
+            fillOpacity: ROAD_STYLE.overviewTintOpacity,
           }}
           eventHandlers={onTap ? { click: (e) => onTap(e.latlng) } : undefined}
         />
       )}
-      <Polyline
-        positions={smoothedCenterline}
-        interactive={false}
-        pathOptions={{
-          color: '#a89070',
-          weight: 1,
-          opacity: 0.5,
-        }}
+      {/* 縁は左右それぞれ独立した線。両端は開いたままにする */}
+      {(['left', 'right'] as const).map((side) => (
+        <Polyline
+          key={`road-edge-${chainKey}-${side}`}
+          positions={geometry.edges[side]}
+          interactive={false}
+          pathOptions={{
+            color: ROAD_STYLE.edgeColor,
+            weight: edgeWeight,
+            opacity: ROAD_STYLE.edgeOpacity,
+            lineCap: 'round',
+            lineJoin: 'round',
+          }}
+        />
+      ))}
+      <NoboriMarkersForRoadEdges
+        left={geometry.edges.left}
+        right={geometry.edges.right}
+        chainKey={chainKey}
       />
-      <NoboriMarkersForCenterline positions={smoothedCenterline} chainKey="curved-main" />
     </>
   );
+}
+
+/**
+ * 道の縁の線幅をズームに追従させる。
+ *
+ * 段階は粗く量子化してあるので、zoomSnap 0.05 の刻みで zoomend が飛んできても
+ * 実際に state が変わるのは段階をまたいだときだけ。
+ */
+function useQuantizedRoadZoom(): number {
+  const map = useMap();
+  const [zoom, setZoom] = useState(() => quantizeRoadZoom(map.getZoom()));
+
+  useEffect(() => {
+    const onZoom = () => {
+      const next = quantizeRoadZoom(map.getZoom());
+      setZoom((prev) => (prev === next ? prev : next));
+    };
+    map.on('zoomend', onZoom);
+    return () => {
+      map.off('zoomend', onZoom);
+    };
+  }, [map]);
+
+  return zoom;
+}
+
+/**
+ * 中央線の破線は実寸で決まるのでズームに連続で追従するが、zoomSnap 0.05 の刻みごとに
+ * 書き換えると DOM への書き込みが増える。MapLibre 側の step と同じ刻みに丸めて、
+ * 両者の見え方を揃えつつ書き換え回数を抑える。
+ */
+export function quantizeRoadZoom(zoom: number): number {
+  // 切り捨てなのは MapLibre 側の step 式に合わせるため。四捨五入だと刻みの半分だけ
+  // 早く次の段階へ上がり、たとえばズーム 19.8 で Leaflet 側だけ縁 3px・中央線 2px、
+  // MapLibre 側は 2.5px・1.5px という食い違いが出る
+  return Math.floor(zoom / ROAD_LANE_DASH_ZOOM_STEP) * ROAD_LANE_DASH_ZOOM_STEP;
 }
 
 export default memo(RoadOverlay);
@@ -285,23 +416,18 @@ function DynamicRoad({
         const centerline = densifyPath(anchorPoints, 6);
         const smoothedCenterline =
           chain.points.length >= 3 ? smoothRoutePath(centerline, 2) : centerline;
-        const roadPolygon = buildRoadPolygon(
-          smoothedCenterline,
-          routeConfig.roadHalfWidthMeters
-        );
 
-        if (roadPolygon.length < 3 || smoothedCenterline.length < 2) {
+        if (smoothedCenterline.length < 2) {
           return null;
         }
 
         return {
           key: chain.key,
-          roadPolygon,
           smoothedCenterline,
         };
       })
-      .filter((item): item is { key: string; roadPolygon: Array<[number, number]>; smoothedCenterline: Array<[number, number]> } => Boolean(item));
-  }, [points, routeConfig.roadHalfWidthMeters]);
+      .filter((item): item is { key: string; smoothedCenterline: Array<[number, number]> } => Boolean(item));
+  }, [points]);
 
   if (chainGeometry.length === 0) {
     return null;
@@ -312,40 +438,13 @@ function DynamicRoad({
       {chainGeometry.map((chain) => {
         return (
           <Fragment key={chain.key}>
-            <Polygon
-              positions={chain.roadPolygon}
-              pathOptions={{
-                color: '#c2820a',
-                weight: 1.5,
-                opacity: 0.38,
-                dashArray: '10,6',
-                lineCap: 'round',
-                fillColor: '#d4c5b0',
-                fillOpacity: 1,
-              }}
+            <RoadSurface
+              centerline={chain.smoothedCenterline}
+              halfWidthMeters={routeConfig.roadHalfWidthMeters}
+              overviewTint={overviewTint}
+              onTap={onTap}
+              chainKey={chain.key}
             />
-            {overviewTint && (
-              <Polygon
-                positions={chain.roadPolygon}
-                pathOptions={{
-                  stroke: false,
-                  fillColor: '#22c55e',
-                  fillOpacity: 0.36,
-                }}
-                eventHandlers={onTap ? { click: (e) => onTap(e.latlng) } : undefined}
-              />
-            )}
-            <Polyline
-              positions={chain.smoothedCenterline}
-              pathOptions={{
-                color: '#a89070',
-                weight: 1,
-                opacity: 0.5,
-                lineCap: 'round',
-                lineJoin: 'round',
-              }}
-            />
-            <NoboriMarkersForCenterline positions={chain.smoothedCenterline} chainKey={chain.key} />
           </Fragment>
         );
       })}
@@ -374,11 +473,20 @@ function createNoboriIcon(): L.DivIcon {
   });
 }
 
-const NoboriMarkersForCenterline = memo(function NoboriMarkersForCenterline({
-  positions,
+/**
+ * のぼり旗を道の両サイドに立てる。
+ *
+ * 以前は中心線の上に並べていたが、そこは来訪者が歩く通路にあたるため、
+ * 通路の真ん中に旗が立っている状態になっていた。旗は店の脇に立つものなので、
+ * 道の左右の縁へ交互に振り分ける。
+ */
+const NoboriMarkersForRoadEdges = memo(function NoboriMarkersForRoadEdges({
+  left,
+  right,
   chainKey,
 }: {
-  positions: Array<[number, number]>;
+  left: Array<[number, number]>;
+  right: Array<[number, number]>;
   chainKey: string;
 }) {
   const map = useMap();
@@ -391,10 +499,16 @@ const NoboriMarkersForCenterline = memo(function NoboriMarkersForCenterline({
   }, [map]);
 
   const flagPoints = useMemo(() => {
-    if (zoom < 16 || positions.length === 0) return [];
-    const step = Math.max(5, Math.ceil(positions.length / 13));
-    return positions.filter((_, i) => i % step === 0);
-  }, [zoom, positions]);
+    const count = Math.min(left.length, right.length);
+    if (zoom < 16 || count === 0) return [];
+    const step = Math.max(5, Math.ceil(count / 13));
+    const points: Array<[number, number]> = [];
+    for (let i = 0; i < count; i += step) {
+      // 片側に寄らないよう、サンプリングのたびに左右を入れ替える
+      points.push(Math.floor(i / step) % 2 === 0 ? left[i] : right[i]);
+    }
+    return points;
+  }, [zoom, left, right]);
 
   const icon = useMemo(() => createNoboriIcon(), []);
 

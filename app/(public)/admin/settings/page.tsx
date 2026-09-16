@@ -3,9 +3,32 @@
 export const dynamic = "force-dynamic";
 
 import { useAuth } from "@/lib/auth/AuthContext";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { AdminLayout, AdminPageHeader } from "@/components/admin";
+import { AdminTabs, type AdminTab } from "@/components/admin/AdminTabs";
+import { PageVisibilitySection } from "./components/PageVisibilitySection";
+import { PillSelect } from "@/components/admin/PillSelect";
+import {
+  DEFAULT_MAP_FEATURE_FLAGS,
+  MAP_FEATURE_FLAG_DEFS,
+  type MapFeatureFlags,
+} from "@/lib/mapFeatureFlags";
+
+/** 設定タブ。分散していた設定の入口をここに一本化する */
+type SettingsTabKey = "general" | "visibility" | "flags" | "email" | "danger";
+
+const SETTINGS_TABS: readonly AdminTab<SettingsTabKey>[] = [
+  { key: "general", label: "全般" },
+  { key: "visibility", label: "公開範囲" },
+  { key: "flags", label: "機能フラグ" },
+  { key: "email", label: "通知メール" },
+  { key: "danger", label: "危険な操作", tone: "danger" },
+];
+
+function isSettingsTabKey(value: string | null): value is SettingsTabKey {
+  return SETTINGS_TABS.some((tab) => tab.key === value);
+}
 
 type PublicSettings = {
   siteName: string;
@@ -80,7 +103,7 @@ function EmailNotificationSection() {
   };
 
   return (
-    <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+    <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
       <p className="text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">Notifications</p>
       <h3 className="mt-2 text-xl font-bold text-slate-900">メール通知設定</h3>
 
@@ -145,8 +168,12 @@ function EmailNotificationSection() {
 export default function AdminSettingsPage() {
   const { permissions, isLoading } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const [tab, setTab] = useState<SettingsTabKey>("general");
   const [publicSettings, setPublicSettings] = useState<PublicSettings>(DEFAULT_PUBLIC_SETTINGS);
   const [mapSettings, setMapSettings] = useState<MapSettings>(DEFAULT_MAP_SETTINGS);
+  const [mapFlags, setMapFlags] = useState<MapFeatureFlags>(DEFAULT_MAP_FEATURE_FLAGS);
+  const [initialMapFlags, setInitialMapFlags] = useState<MapFeatureFlags>(DEFAULT_MAP_FEATURE_FLAGS);
   const [initialPublicSettings, setInitialPublicSettings] = useState<PublicSettings>(DEFAULT_PUBLIC_SETTINGS);
   const [initialMapSettings, setInitialMapSettings] = useState<MapSettings>(DEFAULT_MAP_SETTINGS);
   const [isFetching, setIsFetching] = useState(true);
@@ -163,6 +190,19 @@ export default function AdminSettingsPage() {
     }
   }, [isLoading, permissions.isAdmin, router]);
 
+  // ?tab=visibility のように直接リンクできるようにする
+  useEffect(() => {
+    const requested = searchParams.get("tab");
+    if (isSettingsTabKey(requested)) setTab(requested);
+  }, [searchParams]);
+
+  const handleTabChange = (next: SettingsTabKey) => {
+    setTab(next);
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("tab", next);
+    router.replace(`/admin/settings?${params.toString()}`, { scroll: false });
+  };
+
   useEffect(() => {
     if (isLoading || !permissions.isAdmin) return;
     let active = true;
@@ -172,14 +212,18 @@ export default function AdminSettingsPage() {
         const data = (await response.json()) as {
           public?: Partial<PublicSettings>;
           map?: Partial<MapSettings>;
+          mapFlags?: Partial<MapFeatureFlags>;
         };
         if (!active) return;
         const nextPublic = { ...DEFAULT_PUBLIC_SETTINGS, ...(data.public ?? {}) };
         const nextMap = { ...DEFAULT_MAP_SETTINGS, ...(data.map ?? {}) };
+        const nextFlags = { ...DEFAULT_MAP_FEATURE_FLAGS, ...(data.mapFlags ?? {}) };
         setPublicSettings(nextPublic);
         setMapSettings(nextMap);
+        setMapFlags(nextFlags);
         setInitialPublicSettings(nextPublic);
         setInitialMapSettings(nextMap);
+        setInitialMapFlags(nextFlags);
       })
       .catch(() => {
         if (!active) return;
@@ -196,8 +240,9 @@ export default function AdminSettingsPage() {
   const hasChanges = useMemo(
     () =>
       JSON.stringify(publicSettings) !== JSON.stringify(initialPublicSettings) ||
-      JSON.stringify(mapSettings) !== JSON.stringify(initialMapSettings),
-    [initialMapSettings, initialPublicSettings, mapSettings, publicSettings]
+      JSON.stringify(mapSettings) !== JSON.stringify(initialMapSettings) ||
+      JSON.stringify(mapFlags) !== JSON.stringify(initialMapFlags),
+    [initialMapFlags, initialMapSettings, initialPublicSettings, mapFlags, mapSettings, publicSettings]
   );
 
   if (isLoading || !permissions.isAdmin) {
@@ -251,14 +296,22 @@ export default function AdminSettingsPage() {
         body: JSON.stringify({
           public: publicSettings,
           map: mapSettings,
+          mapFlags,
         }),
       });
       if (!response.ok) throw new Error("failed");
-      const data = (await response.json()) as { public: PublicSettings; map: MapSettings };
+      const data = (await response.json()) as {
+        public: PublicSettings;
+        map: MapSettings;
+        mapFlags?: MapFeatureFlags;
+      };
+      const savedFlags = { ...DEFAULT_MAP_FEATURE_FLAGS, ...(data.mapFlags ?? {}) };
       setPublicSettings(data.public);
       setMapSettings(data.map);
+      setMapFlags(savedFlags);
       setInitialPublicSettings(data.public);
       setInitialMapSettings(data.map);
+      setInitialMapFlags(savedFlags);
       setMessage("設定を保存しました。");
     } catch {
       setMessage("設定の保存に失敗しました。");
@@ -269,15 +322,25 @@ export default function AdminSettingsPage() {
 
   return (
     <AdminLayout>
-      <AdminPageHeader eyebrow="System Settings" title="システム設定" />
+      <AdminPageHeader
+        eyebrow="Settings"
+        title="設定"
+        description="公開範囲・機能フラグ・通知メール・危険な操作をここでまとめて管理します。"
+      />
+      <AdminTabs tabs={SETTINGS_TABS} value={tab} onChange={handleTabChange} />
 
       <div className="mx-auto max-w-7xl px-4 py-8 pb-24">
-        <div className="mb-6 rounded-2xl bg-white p-5 shadow">
+        {(tab === "general" || tab === "flags") && (
+        <div className="mb-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>
-              <h2 className="text-lg font-bold text-slate-900">公開設定と運用上限</h2>
+              <h2 className="text-lg font-bold text-slate-900">
+                {tab === "general" ? "サイト全体の公開状態" : "マップの動作と上限"}
+              </h2>
               <p className="mt-1 text-sm text-slate-500">
-                公開状態、マップ編集の上限、認証が必要な危険操作をここで管理します。
+                {tab === "general"
+                  ? "サイト名・メンテナンス表示・共通のお知らせを設定します。"
+                  : "描画方式の切替と、マップ編集で扱える件数の上限を設定します。変更は本番のマップに即時反映されます。"}
               </p>
             </div>
             <button
@@ -291,9 +354,11 @@ export default function AdminSettingsPage() {
           </div>
           {message ? <p className="mt-3 text-sm text-slate-600">{message}</p> : null}
         </div>
+        )}
 
-        <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
-          <section className="rounded-2xl bg-white p-6 shadow">
+        {tab === "general" && (
+        <div className="grid grid-cols-1 gap-6">
+          <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
             <p className="text-xs font-semibold uppercase tracking-[0.25em] text-sky-600">Public</p>
             <h3 className="mt-2 text-xl font-bold text-slate-900">公開設定</h3>
             <div className="mt-6 space-y-5">
@@ -375,8 +440,51 @@ export default function AdminSettingsPage() {
               </label>
             </div>
           </section>
+        </div>
+        )}
 
-          <section className="rounded-2xl bg-white p-6 shadow">
+        {tab === "visibility" && <PageVisibilitySection />}
+
+        {tab === "flags" && (
+        <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+          <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+            <p className="text-xs font-semibold uppercase tracking-[0.25em] text-emerald-600">Map Behavior</p>
+            <h3 className="mt-2 text-xl font-bold text-slate-900">マップ動作フラグ</h3>
+            <p className="mt-1 text-sm text-slate-500">
+              描画方式やパフォーマンス改善の仕組みの切替。本番のマップに即時反映されます。実験だけなら「マップ計測」ページの実験スイッチ（URL の <code className="rounded bg-slate-100 px-1">?mapFlags=</code>）を使ってください。
+            </p>
+            <div className="mt-6 grid grid-cols-1 gap-5 md:grid-cols-2">
+              {MAP_FEATURE_FLAG_DEFS.map((def) =>
+                def.options === "boolean" ? (
+                  <label key={def.key} className="flex items-start gap-3 rounded-xl border border-slate-200 px-4 py-3">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(mapFlags[def.key])}
+                      onChange={(event) => setMapFlags((prev) => ({ ...prev, [def.key]: event.target.checked }))}
+                      className="mt-1"
+                    />
+                    <span>
+                      <span className="block text-sm font-medium text-slate-700">{def.label}</span>
+                      <span className="block text-xs text-slate-500">{def.description}</span>
+                    </span>
+                  </label>
+                ) : (
+                  <label key={def.key} className="block">
+                    <span className="mb-1 block text-sm font-medium text-slate-700">{def.label}</span>
+                    <span className="mb-2 block text-xs text-slate-500">{def.description}</span>
+                    <PillSelect
+                      size="md"
+                      value={String(mapFlags[def.key])}
+                      onChange={(next) => setMapFlags((prev) => ({ ...prev, [def.key]: next }))}
+                      options={def.options.map((option) => ({ value: option, label: option }))}
+                    />
+                  </label>
+                )
+              )}
+            </div>
+          </section>
+
+          <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
             <p className="text-xs font-semibold uppercase tracking-[0.25em] text-emerald-600">Map Limits</p>
             <h3 className="mt-2 text-xl font-bold text-slate-900">マップ利用上限</h3>
             <div className="mt-6 grid grid-cols-1 gap-5 md:grid-cols-2">
@@ -450,11 +558,12 @@ export default function AdminSettingsPage() {
             </div>
           </section>
         </div>
+        )}
 
-        {/* メール通知設定 */}
-        <EmailNotificationSection />
+        {tab === "email" && <EmailNotificationSection />}
 
-        <section className="mt-6 rounded-2xl border border-rose-200 bg-rose-50 p-6 shadow-sm">
+        {tab === "danger" && (
+        <section className="rounded-2xl border border-rose-200 bg-rose-50 p-6 shadow-sm">
           <p className="text-xs font-semibold uppercase tracking-[0.25em] text-rose-600">Danger Zone</p>
           <h3 className="mt-2 text-xl font-bold text-slate-900">認証が必要な危険操作</h3>
           <p className="mt-2 text-sm text-slate-600">
@@ -500,6 +609,7 @@ export default function AdminSettingsPage() {
             </button>
           </div>
         </section>
+        )}
       </div>
     </AdminLayout>
   );

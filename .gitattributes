@@ -1,0 +1,4 @@
+# 未リリースの変更記録は PR 間のコンフリクトを防ぐため docs/changelog-unreleased/*.md の
+# フラグメント方式を採用（GitHubのPR判定が merge=union を無視するため）。
+# 集約先ファイルに残る手動マージ時の念のための設定として union を維持。
+docs/CHANGELOG-unreleased.md merge=union

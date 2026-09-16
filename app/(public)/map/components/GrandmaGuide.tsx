@@ -65,11 +65,11 @@ export default function GrandmaGuide() {
       </div>
       <nav className="flex flex-col gap-1 px-2 pb-3 pt-2 text-sm font-semibold text-gray-800">
         <Link
-          href="/bag"
+          href="/favorites"
           onClick={handleMenuClose}
           className="rounded-lg px-3 py-2 transition hover:bg-amber-50"
         >
-          買い物リスト
+          お気に入り
         </Link>
         <Link
           href="/user"

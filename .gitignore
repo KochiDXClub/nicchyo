@@ -150,3 +150,6 @@ test-results/
 .claude/settings.local.json
 .claude/commands/
 .worktrees/
+
+# maplibre-gl のワーカー（scripts/copy-maplibre-worker.mjs が node_modules から複製する）
+/public/maplibre/

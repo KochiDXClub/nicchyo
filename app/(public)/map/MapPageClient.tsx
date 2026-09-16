@@ -5,8 +5,9 @@ import dynamic from "next/dynamic";
 import { useEffect, useMemo, useState, useRef, useCallback, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { AnimatePresence, motion, useDragControls } from "framer-motion";
+import { Heart, Navigation } from "lucide-react";
 import SearchClient from "../search/SearchClient";
-import type { Map as LeafletMap } from "leaflet";
+import type { MapCamera as LeafletMap } from "./types/mapCamera";
 import { clearSearchMapPayload, loadAiMapPayload, loadSearchMapPayload } from "../../../lib/searchMapStorage";
 import NextImage from "next/image";
 import { getShopBannerImage } from "../../../lib/shopImages";
@@ -16,7 +17,9 @@ import { SHOP_CATEGORY_NAMES } from "./data/shops";
 import type { Shop } from "./data/shops";
 import type { Landmark } from "./types/landmark";
 import type { MapRoute } from "./types/mapRoute";
+import { resolveMapFeatureFlags, type MapFeatureFlags } from "@/lib/mapFeatureFlags";
 import { useMapLoading } from "../../components/MapLoadingProvider";
+import MapLoadingOverlay from "../../components/MapLoadingOverlay";
 import { grandmaEvents } from "./data/grandmaEvents";
 import { recordMarketEnter, recordMarketExit } from "../../../lib/storage/marketStats";
 import { buildSearchIndex } from "../search/lib/searchIndex";
@@ -25,15 +28,21 @@ import { getOrCreateConsultVisitorKey } from "../../../lib/consultVisitorKey";
 import MarketStatusBar from "../../components/market/MarketStatusBar";
 import { useMarketCalendar } from "../../../lib/market/useMarketCalendar";
 import MapCharacterConsult from "./components/MapCharacterConsult";
+import ShopScanCards from "./components/ShopScanCards";
 import NearbyExploreButton from "./components/NearbyExploreButton";
 import NearbyExplorePanel, {
   type NearbyRecommendedShop,
 } from "./components/NearbyExplorePanel";
 import { useNearbyPromptVisibility } from "./hooks/useNearbyPromptVisibility";
-import FacilityLayer from "./components/FacilityLayer";
-import FacilityGuidePanel from "./components/FacilityGuidePanel";
-import { useFacilityGuide } from "./hooks/useFacilityGuide";
-import { parseFacilityCategoryId } from "@/lib/facilities/facilities";
+import GuideLayer from "./components/GuideLayer";
+import OdekakeGuidePanel from "./components/OdekakeGuidePanel";
+import GuideNavigationBar from "./components/GuideNavigationBar";
+import OdekakeLaunchButton from "./components/OdekakeLaunchButton";
+import { useOdekakeGuide } from "./hooks/useOdekakeGuide";
+import { GUIDE_MENU_VALUE, parseGuideQuery } from "@/lib/guide/query";
+import SpotCard from "./components/SpotCard";
+import type { MapSpot } from "@/lib/spots";
+import { filterMapVisibleLandmarks } from "./types/landmark";
 import {
   buildNearbyNote,
   isPointInRotatedRect,
@@ -45,22 +54,37 @@ import {
   deriveInterestCategories,
   selectNearbyRecommendations,
 } from "./utils/nearbyRecommendations";
-import { loadFavoriteShopIds } from "../../../lib/favoriteShops";
-import { useBag } from "../../../lib/storage/BagContext";
+import {
+  loadFavoriteShopIds,
+} from "../../../lib/favoriteShops";
+import { useFavoriteShopIds } from "../../../lib/hooks/useFavorites";
 import { stripShopIdsDirective } from "@/lib/grandma/consultUtils";
 import {
   OVERVIEW_ZONE_MIN_ZOOM,
   OVERVIEW_ZONE_MAX_ZOOM,
 } from "./config/displayConfig";
 
-const MapView = dynamic(() => import("./components/MapView"), {
+import type { MapViewSettings } from "@/lib/map/mapViewSettings";
+
+const MapViewLeaflet = dynamic(() => import("./components/MapView"), {
   ssr: false,
+});
+// MapLibre 版（移行中の並走検証用）。選ばれたときだけ読み込む。
+// ssr: false にすると Next がこのチャンクの preload を HTML に出さなくなり、
+// 268KB の maplibre チャンクがハイドレーション完了後にようやくダウンロードされる。
+// 地図の生成自体は useEffect の中なので、サーバーでは器の div だけが描かれる。
+const MapViewMapLibre = dynamic(() => import("./components/maplibre/MapViewMapLibre"), {
+  ssr: true,
 });
 
 type MapPageClientProps = {
   shops: Shop[];
   landmarks: Landmark[];
   mapRoute: MapRoute;
+  /** 管理画面で保存したマップ動作フラグ（未指定なら既定値） */
+  featureFlags?: MapFeatureFlags;
+  /** 管理画面で保存したマップの可動範囲（未指定なら既定値。MapLibre 版でのみ効く） */
+  mapViewSettings?: MapViewSettings;
 };
 
 
@@ -74,10 +98,18 @@ function GenreFilter({
   categories,
   selected,
   onSelect,
+  favoritesActive,
+  favoriteCount,
+  onToggleFavorites,
 }: {
   categories: readonly string[];
   selected: string | null;
   onSelect: (cat: string) => void;
+  /** お気に入りだけに絞り込んでいるか */
+  favoritesActive: boolean;
+  /** 0件のときはチップ自体を出さない（初来訪者の画面を増やさないため） */
+  favoriteCount: number;
+  onToggleFavorites: () => void;
 }) {
   const isSelectedHidden = selected !== null && categories.indexOf(selected) >= GENRE_PREVIEW_COUNT;
   const [expanded, setExpanded] = useState(isSelectedHidden);
@@ -99,6 +131,33 @@ function GenreFilter({
 
   return (
     <div className="flex flex-wrap items-center gap-1.5">
+      {favoriteCount > 0 && (
+        <motion.button
+          type="button"
+          onClick={onToggleFavorites}
+          aria-pressed={favoritesActive}
+          className={`flex shrink-0 items-center gap-1 whitespace-nowrap rounded-chip border px-[13px] py-[7px] text-[13px] font-bold shadow-chip transition-all duration-[120ms] ${
+            favoritesActive
+              ? 'border-favorite-fg bg-favorite-fg text-white'
+              : 'border-favorite-line bg-white text-favorite-fg hover:bg-favorite-bg active:bg-favorite-bg'
+          }`}
+          whileTap={{ scale: 0.88 }}
+        >
+          <Heart
+            className="h-3.5 w-3.5"
+            fill={favoritesActive ? 'currentColor' : 'none'}
+            aria-hidden
+          />
+          お気に入り
+          <span
+            className={`rounded-full px-1.5 text-[11px] font-bold ${
+              favoritesActive ? 'bg-white/25 text-white' : 'bg-favorite-bg text-favorite-fg'
+            }`}
+          >
+            {favoriteCount}
+          </span>
+        </motion.button>
+      )}
       {previewCategories.map((cat) => (
         <motion.button key={cat} type="button" onClick={() => onSelect(cat)} className={chipClass(cat)} whileTap={{ scale: 0.88 }}>
           {cat}
@@ -145,28 +204,65 @@ export default function MapPageClient({
   shops,
   landmarks,
   mapRoute,
+  featureFlags,
+  mapViewSettings,
 }: MapPageClientProps) {
+  // 描画ライブラリの選択（管理画面の設定に URL の ?mapFlags=renderer:maplibre を重ねる）
+  const MapView = useMemo(() => {
+    const resolved = resolveMapFeatureFlags(
+      featureFlags,
+      typeof window === "undefined" ? "" : window.location.search
+    );
+    return resolved.renderer === "maplibre" ? MapViewMapLibre : MapViewLeaflet;
+  }, [featureFlags]);
   const showGrandma = false;
   const searchParams = useSearchParams();
   const router = useRouter();
   const activePanel = searchParams?.get("panel") === "search" ? "search" : null;
   const { user, permissions } = useAuth();
-  const { markMapReady } = useMapLoading();
-  const { items: bagItems } = useBag();
+  const { status: mapLoadingStatus, takeOverMapLoading, reportMapStage, markMapReady } = useMapLoading();
+  // 直アクセスやリロードでは、ハイドレーションが済むまで Provider のオーバーレイが出せない。
+  // その間はこのページ自身が同じ画面をサーバー描画に含めておき、Provider 側が立ち上がったら引き渡す
+  const [mapLoadingHandedOff, setMapLoadingHandedOff] = useState(false);
+  useEffect(() => {
+    takeOverMapLoading();
+  }, [takeOverMapLoading]);
+  useEffect(() => {
+    if (mapLoadingStatus !== "idle") setMapLoadingHandedOff(true);
+  }, [mapLoadingStatus]);
   const initialShopIdParam = searchParams?.get("shop");
   const isAiFocusMode = searchParams?.get("ai") === "1";
   const searchParamsKey = searchParams?.toString() ?? "";
   const initialShopId = initialShopIdParam ? Number(initialShopIdParam) : undefined;
-  // おでかけサポート（/facilities）から ?facility=<カテゴリ> で入ってくる
-  const facilityCategoryId = parseFacilityCategoryId(searchParams?.get("facility"));
-  const facilityGuide = useFacilityGuide(facilityCategoryId, landmarks);
-  const closeFacilityGuide = useCallback(() => {
-    const params = new URLSearchParams(searchParamsKey);
-    params.delete("facility");
-    const query = params.toString();
-    router.replace(query ? `/map?${query}` : "/map", { scroll: false });
-  }, [router, searchParamsKey]);
-  const [agentOpen, setAgentOpen] = useState(false);
+  // おでかけサポート: ?guide=<プリセット|menu> または旧 ?facility=<カテゴリ> で開く
+  const guideQuery = useMemo(
+    () => parseGuideQuery(searchParams ?? null),
+    // searchParams オブジェクトは毎レンダー同一とは限らないので文字列で比較する
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [searchParamsKey]
+  );
+  const replaceGuideParam = useCallback(
+    (value: string | null) => {
+      const params = new URLSearchParams(searchParamsKey);
+      params.delete("facility");
+      if (value) params.set("guide", value);
+      else params.delete("guide");
+      const query = params.toString();
+      router.replace(query ? `/map?${query}` : "/map", { scroll: false });
+    },
+    [router, searchParamsKey]
+  );
+  const closeGuide = useCallback(() => replaceGuideParam(null), [replaceGuideParam]);
+  const openGuideMenu = useCallback(() => replaceGuideParam(GUIDE_MENU_VALUE), [replaceGuideParam]);
+  // マップに常時描画するランドマーク（お手洗い・休けいなど show_on_map=false は除く）
+  const mapLandmarks = useMemo(() => filterMapVisibleLandmarks(landmarks), [landmarks]);
+  // タップしたスポット（電停・駅・建物・施設）。店舗以外は SpotCard で表示する
+  const [selectedSpot, setSelectedSpot] = useState<MapSpot | null>(null);
+  const closeSpotCard = useCallback(() => setSelectedSpot(null), []);
+  // おでかけサポートの一覧やプリセットを切り替えたらカードは閉じる
+  useEffect(() => {
+    setSelectedSpot(null);
+  }, [guideQuery]);
   const [showVendorPrompt, setShowVendorPrompt] = useState(false);
   const [vendorShopName, setVendorShopName] = useState<string | null>(null);
   const [_isHoldActive, _setIsHoldActive] = useState(false);
@@ -229,6 +325,12 @@ export default function MapPageClient({
   const dragControls = useDragControls();
   const [mapCharacterConsultActive, setMapCharacterConsultActive] = useState(false);
   const [mapInstance, setMapInstance] = useState<LeafletMap | null>(null);
+  // ShopScanCards のカードがタップされたときに、詳細バナーを開くよう地図へ渡す要求。
+  // 同じ店を続けてタップしても開き直せるよう token を進める
+  const [focusShopRequest, setFocusShopRequest] = useState<{ shopId: number; token: number } | null>(null);
+  const handleScanCardSelect = useCallback((shop: Shop) => {
+    setFocusShopRequest((prev) => ({ shopId: shop.id, token: (prev?.token ?? 0) + 1 }));
+  }, []);
   const mapRef = useRef<LeafletMap | null>(null);
   const introFocusTimerRef = useRef<number | null>(null);
   const [searchMarkerPayload, setSearchMarkerPayload] = useState<{
@@ -239,6 +341,14 @@ export default function MapPageClient({
     () => searchParams?.get("q") ?? '',
   );
   const [mapSearchCategory, setMapSearchCategory] = useState<string | null>(null);
+  // お気に入り絞り込み。歩きながら1タップで「あとで戻る店」だけの地図にできる
+  const [favoritesOnly, setFavoritesOnly] = useState(false);
+  const favoriteShopIds = useFavoriteShopIds();
+
+  // 最後の1件を外したら絞り込みも解除する（0件の地図に取り残さない）
+  useEffect(() => {
+    if (favoriteShopIds.length === 0) setFavoritesOnly(false);
+  }, [favoriteShopIds.length]);
   const mapSearchIndex = useMemo(() => buildSearchIndex(shops), [shops]);
   const mapSearchResults = useShopSearch({
     shops,
@@ -247,13 +357,22 @@ export default function MapPageClient({
     category: mapSearchCategory,
     chome: null,
   });
-  const mapSearchShopIds = useMemo(
-    () =>
-      mapSearchQuery.trim() || mapSearchCategory
-        ? mapSearchResults.map((s) => s.id)
-        : undefined,
-    [mapSearchCategory, mapSearchQuery, mapSearchResults],
-  );
+  const mapSearchShopIds = useMemo(() => {
+    const hasTextOrCategory = !!mapSearchQuery.trim() || !!mapSearchCategory;
+    const matchedIds = hasTextOrCategory ? mapSearchResults.map((s) => s.id) : undefined;
+    if (!favoritesOnly) return matchedIds;
+    // お気に入りチップは検索・ジャンルと重ねて効かせる
+    if (!matchedIds) return favoriteShopIds;
+    const favoriteSet = new Set(favoriteShopIds);
+    return matchedIds.filter((id) => favoriteSet.has(id));
+  }, [
+    favoriteShopIds,
+    favoritesOnly,
+    mapSearchCategory,
+    mapSearchQuery,
+    mapSearchResults,
+  ]);
+  const hasMapFilter = !!mapSearchQuery.trim() || !!mapSearchCategory || favoritesOnly;
   const [aiMarkerPayload, setAiMarkerPayload] = useState<{
     ids: number[];
     label: string;
@@ -353,6 +472,18 @@ export default function MapPageClient({
     mapRef.current = map;
     setMapInstance(map);
   }, []);
+
+  const guide = useOdekakeGuide({ query: guideQuery, landmarks, mapRoute });
+  const guideActive = guide.active;
+  // スポットカードの「ここへ案内」: 案内を開いて（URL に guide=menu）、そのスポットへ案内を始める
+  const navigateToSpot = useCallback(
+    (spot: MapSpot) => {
+      setSelectedSpot(null);
+      if (!guideActive) openGuideMenu();
+      guide.startNavigation(spot);
+    },
+    [guide, guideActive, openGuideMenu]
+  );
 
   const vendorShop = useMemo(() => {
     if (!vendorShopId) return null;
@@ -557,6 +688,16 @@ export default function MapPageClient({
     [activateSpotlight, prefetchShopImage, shopById]
   );
 
+  // 検索結果 / AI おすすめで対象が絞れているときの店舗 ID。
+  // 優先順位は MapView 側の activeHighlightShopIds と同じ（検索が先、次に AI）
+  const highlightShopIds = useMemo(() => {
+    const search = searchMarkerPayload?.ids ?? mapSearchShopIds;
+    if (search && search.length > 0) return search;
+    const ai = aiMarkerPayload?.ids;
+    if (ai && ai.length > 0) return ai;
+    return undefined;
+  }, [searchMarkerPayload, mapSearchShopIds, aiMarkerPayload]);
+
   const handleCommentShopOpen = useCallback(
     (shopId: number) => {
       handleCommentShopFocus(shopId);
@@ -602,8 +743,7 @@ export default function MapPageClient({
   const hasSearchMode =
     activePanel === 'search' ||
     !!searchMarkerPayload ||
-    !!mapSearchQuery.trim() ||
-    !!mapSearchCategory ||
+    hasMapFilter ||
     !!mapSearchShopIds?.length;
   const hasAiMode =
     mapCharacterConsultActive ||
@@ -612,7 +752,7 @@ export default function MapPageClient({
   // ── 「このへん、なにがある？」──────────────────────
   // 他のモード（検索・AI相談・店舗バナー・パネル表示中）ではボタンを出さない
   const nearbySuppressed =
-    !!nearbyState || hasSearchMode || hasAiMode || isShopBannerOpen || !!facilityGuide.category;
+    !!nearbyState || hasSearchMode || hasAiMode || isShopBannerOpen || guideActive;
   // 回転のみのジェスチャーは Leaflet の move/zoom を発火させないため、
   // MapView から素通しで受け取ってボタンの静止判定に反映する
   const [isMapGestureActive, setIsMapGestureActive] = useState(false);
@@ -650,17 +790,14 @@ export default function MapPageClient({
           rect
         )
     );
-    // おすすめ: 行動シグナル（お気に入り・買い物リスト）から
+    // おすすめ: 行動シグナル（お気に入り）から
     // 興味ジャンルを導き、範囲内の店舗（近い順）から9店を選ぶ
     const inAreaShops = summary.shopIds
       .map((id) => shopById.get(id))
       .filter((shop): shop is Shop => !!shop);
     const favoriteIds = new Set(loadFavoriteShopIds());
-    const bagShopIds = bagItems
-      .map((item) => item.fromShopId)
-      .filter((id): id is number => typeof id === "number");
     const interestCategories = deriveInterestCategories(
-      [...favoriteIds, ...bagShopIds],
+      [...favoriteIds],
       (id) => shopById.get(id)?.category
     );
     const recommendations: NearbyRecommendedShop[] = selectNearbyRecommendations(
@@ -681,7 +818,7 @@ export default function MapPageClient({
       recommendations,
       note: buildNearbyNote(summary),
     });
-  }, [bagItems, shopById, shops]);
+  }, [shopById, shops]);
 
   const closeNearbyPanel = useCallback(() => {
     setNearbyState(null);
@@ -799,19 +936,35 @@ export default function MapPageClient({
             )}
 
             {/* おでかけサポート案内中ヘッダー：検索バーの代わりに表示 */}
-            {facilityGuide.category && !mapCharacterConsultActive && !nearbyState && (
-              <div className="absolute left-3 right-3 top-3 z-[1001] flex items-center gap-2.5 rounded-full bg-white/95 px-4 py-2.5 shadow-lg ring-1 ring-slate-900/8 backdrop-blur-sm">
-                <span className="text-lg leading-none" aria-hidden="true">
-                  {facilityGuide.category.emoji}
-                </span>
-                <p className="flex-1 text-sm font-bold text-slate-800">
-                  {facilityGuide.category.label}を案内中
-                </p>
-              </div>
+            {guideActive && !mapCharacterConsultActive && !nearbyState && (
+              guide.navigating && guide.selected ? (
+                <GuideNavigationBar
+                  target={guide.selected}
+                  originLabel={guide.origin?.label ?? "現在地"}
+                  arrived={guide.arrived}
+                  progress={guide.progress}
+                  onStop={guide.stopNavigation}
+                  onOpenDetail={() => setSelectedSpot(guide.selected!.spot)}
+                />
+              ) : (
+                <div className="absolute left-3 right-3 top-3 z-[1001] flex items-center gap-3 rounded-full bg-white py-2 pl-2 pr-2 shadow-[0_8px_24px_rgba(58,58,58,0.18)] ring-1 ring-black/5">
+                  <span className="flex h-8 w-8 items-center justify-center rounded-full bg-nicchyo-accent text-nicchyo-ink" aria-hidden="true">
+                    <Navigation size={15} />
+                  </span>
+                  <p className="flex-1 text-[14px] font-bold text-nicchyo-ink">おでかけサポート</p>
+                  <button
+                    type="button"
+                    onClick={closeGuide}
+                    className="rounded-full bg-slate-100 px-3 py-1.5 text-[12px] font-semibold text-slate-600 active:bg-slate-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400"
+                  >
+                    とじる
+                  </button>
+                </div>
+              )
             )}
 
             {/* 全幅検索バー + ジャンルフィルター（AI相談・このへん・おでかけサポートモード時は非表示） */}
-            {!mapCharacterConsultActive && !nearbyState && !facilityGuide.category && (
+            {!mapCharacterConsultActive && !nearbyState && !guideActive && (
               <div
                 ref={searchAreaRef}
                 className="absolute left-3 right-3 top-3 z-[1001] flex flex-col gap-2"
@@ -824,7 +977,7 @@ export default function MapPageClient({
 
                 {/* 検索バー */}
                 <div className={`flex items-center gap-2 rounded-full px-4 py-2.5 shadow-lg ring-1 backdrop-blur-sm transition-all duration-200 ${
-                  mapSearchQuery.trim() || mapSearchCategory
+                  hasMapFilter
                     ? 'bg-gradient-to-r from-amber-100/95 to-orange-50/95 ring-amber-400/50'
                     : 'bg-white/90 ring-slate-900/8'
                 }`}>
@@ -839,17 +992,18 @@ export default function MapPageClient({
                     onChange={(e) => setMapSearchQuery(e.target.value)}
                     className="flex-1 bg-transparent text-sm text-slate-800 outline-none placeholder:text-slate-400"
                   />
-                  {(mapSearchQuery.trim() || mapSearchCategory) && (
+                  {hasMapFilter && (
                     <span className="shrink-0 rounded-full bg-amber-500 px-2 py-0.5 text-[11px] font-bold text-white">
-                      {mapSearchResults.length}件
+                      {mapSearchShopIds?.length ?? mapSearchResults.length}件
                     </span>
                   )}
-                  {(mapSearchQuery || mapSearchCategory) && (
+                  {hasMapFilter && (
                     <button
                       type="button"
                       onClick={() => {
                         setMapSearchQuery('');
                         setMapSearchCategory(null);
+                        setFavoritesOnly(false);
                       }}
                       className="shrink-0 rounded-full bg-slate-100 p-1.5 text-slate-500 hover:bg-slate-200 transition-colors"
                       aria-label="検索をクリア"
@@ -866,22 +1020,28 @@ export default function MapPageClient({
                   categories={SHOP_CATEGORY_NAMES}
                   selected={mapSearchCategory}
                   onSelect={(cat) => setMapSearchCategory(mapSearchCategory === cat ? null : cat)}
+                  favoritesActive={favoritesOnly}
+                  favoriteCount={favoriteShopIds.length}
+                  onToggleFavorites={() => setFavoritesOnly((prev) => !prev)}
                 />
               </div>
             )}
 
             <MapView
               shops={shops}
-              landmarks={landmarks}
+              landmarks={mapLandmarks}
               mapRoute={mapRoute}
+              featureFlags={featureFlags}
+              mapViewSettings={mapViewSettings}
               initialShopId={initialShopId}
               openInitialShopBanner={!isAiFocusMode}
-              agentOpen={agentOpen}
-              onAgentToggle={setAgentOpen}
               searchShopIds={searchMarkerPayload?.ids ?? mapSearchShopIds}
               aiShopIds={aiMarkerPayload?.ids}
               onMapReady={markMapReady}
+              onMapStage={reportMapStage}
               onMapInstance={handleMapInstance}
+              onSpotSelect={setSelectedSpot}
+              selectedSpotId={selectedSpot?.id}
               onUserLocationUpdate={(coords) => {
                 setUserLocation({ lat: coords.lat, lng: coords.lng });
                 setIsInMarket(coords.inMarket);
@@ -892,14 +1052,16 @@ export default function MapPageClient({
                 setSearchMarkerPayload(null);
                 setMapSearchQuery('');
                 setMapSearchCategory(null);
+                setFavoritesOnly(false);
                 setAiMarkerPayload(null);
               }}
               // おでかけサポート表示中は施設に合わせた画角を優先し、
               // 現在地取得時の自動ズームで上書きされないようにする
-              suppressInitialLocationFocus={isAiFocusMode || Boolean(facilityGuide.category)}
+              suppressInitialLocationFocus={isAiFocusMode || guideActive}
               hideMapUI={mapCharacterConsultActive || !!nearbyState}
-              // おでかけサポート案内中は FacilityLayer 側のマーカーだけを見せる
-              suppressLandmarks={Boolean(facilityGuide.category)}
+              // おでかけサポート案内中は GuideLayer 側のマーカーだけを見せる
+              suppressLandmarks={guideActive}
+              focusShopRequest={focusShopRequest}
               trackingButtonTop={trackingButtonTop}
               onGestureActiveChange={setIsMapGestureActive}
               overlaySlot={
@@ -927,6 +1089,23 @@ export default function MapPageClient({
               }
             />
 
+            {/* 地図を動かしているあいだだけ、屋台マーカーの上に写真と名前を重ねる。
+                静止時は地図の絵を優先し、探しているときだけ情報を前に出す。
+                出るのは MapLibre 版だけ（Leaflet 版は回転シェルの中の座標が返るため。
+                ShopScanCards の先頭コメント参照）で、判定は中で行っている */}
+            <ShopScanCards
+              map={mapInstance}
+              shops={shops}
+              highlightShopIds={highlightShopIds}
+              onSelectShop={handleScanCardSelect}
+              enabled={
+                !mapCharacterConsultActive &&
+                !nearbyState &&
+                !guideActive &&
+                !isShopBannerOpen
+              }
+            />
+
             {/* 「このへん」の対象範囲（画面中央80%）を示すオレンジ枠。
                 ボタンと同時にフェードで浮き出て、パネル表示中も残る */}
             <div
@@ -948,28 +1127,40 @@ export default function MapPageClient({
               />
             )}
 
-            {/* おでかけサポート：選んだカテゴリの施設を強調表示し、最寄りを案内する */}
-            {facilityGuide.category && (
+            {/* おでかけサポートを開くボタン（現在地ボタンと同じ高さの左側） */}
+            {!guideActive && !mapCharacterConsultActive && !nearbyState && !isShopBannerOpen && (
+              <OdekakeLaunchButton top={trackingButtonTop} onClick={openGuideMenu} />
+            )}
+
+            {/* おでかけサポート：表示中の種別のスポットと経路を描き、一覧・案内を出す */}
+            {guideActive && (
               <>
-                <FacilityLayer
+                <GuideLayer
                   map={mapInstance}
-                  category={facilityGuide.category}
-                  facilities={facilityGuide.facilities}
-                  nearestFacilityId={facilityGuide.nearest?.facility.id ?? null}
-                  routePoints={facilityGuide.nearest?.route.points}
-                  userLocation={facilityGuide.userLocation}
+                  spots={guide.visibleSpots}
+                  selectedSpotId={guide.selectedId}
+                  routes={guide.routes}
+                  onSelectSpot={setSelectedSpot}
                 />
-                {!mapCharacterConsultActive && !nearbyState && (
-                  <FacilityGuidePanel
-                    category={facilityGuide.category}
-                    facilities={facilityGuide.facilities}
-                    ranked={facilityGuide.ranked}
-                    map={mapInstance}
-                    onClose={closeFacilityGuide}
-                  />
+                {!mapCharacterConsultActive && !nearbyState && !selectedSpot && (
+                  <OdekakeGuidePanel guide={guide} map={mapInstance} onClose={closeGuide} onOpenSpot={setSelectedSpot} />
                 )}
               </>
             )}
+
+            {/* スポットカード：店舗以外のスポット（電停・駅・建物・施設）をタップしたとき */}
+            <AnimatePresence>
+              {selectedSpot && !mapCharacterConsultActive && !nearbyState && (
+                <SpotCard
+                  key={selectedSpot.id}
+                  spot={selectedSpot}
+                  map={mapInstance}
+                  origin={isInMarket && userLocation ? userLocation : null}
+                  onClose={closeSpotCard}
+                  onNavigate={navigateToSpot}
+                />
+              )}
+            </AnimatePresence>
           </div>
       </main>
 
@@ -1019,7 +1210,7 @@ export default function MapPageClient({
                 <Suspense fallback={null}>
                   <SearchClient
                     shops={shops}
-                    landmarks={landmarks}
+                    landmarks={mapLandmarks}
                     embedded
                     initialQuery={mapSearchQuery}
                     initialCategory={mapSearchCategory}
@@ -1051,10 +1242,12 @@ export default function MapPageClient({
             }
           }}
           onConsultClick={startMapCharacterConsult}
-          closeModeActive={hasSearchMode || hasAiMode || !!nearbyState || !!facilityGuide.category}
+          closeModeActive={hasSearchMode || hasAiMode || !!nearbyState || guideActive}
           onCloseMode={closeMapInteractionMode}
         />
       )}
+
+      {!mapLoadingHandedOff && <MapLoadingOverlay minStage="page" />}
     </div>
   );
 }
