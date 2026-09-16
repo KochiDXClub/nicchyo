@@ -34,6 +34,17 @@
 --   RLS を再帰的に呼ぶのを避けるため security definer + set search_path = ''（完全修飾）が
 --   必要になる。現在はテーブルを一切読まず auth.jwt() だけを見るため、
 --   security definer にしてはならない（RLS をバイパスできる関数を不要に公開することになる）。
+--
+--   auth.jwt() は発行済みトークンのクレームを見るため、app_metadata.role を変更しても
+--   対象ユーザーのトークンが更新されるまで（既定で最大1時間）反映されない。
+--   特に降格・権限剥奪は即時に効かない。即時性が要る操作は、API側で
+--   supabase.auth.getUser()（GoTrue に問い合わせるため常に最新）を使うこと。
+--
+--   そのため、API層（getUser）とRLS層（auth.jwt）で判定の鮮度がずれる。
+--   現在は運営APIが service_role を使うため表面化しないが、運営APIをRLSに寄せると
+--   認可の鮮度が落ちる点に注意すること。即時性が必要という結論になった場合は、
+--   is_operator() の中身を auth.users.raw_app_meta_data の直読み
+--   （security definer + set search_path = ''）に差し替えれば済む。
 
 -- ── ヘルパー関数 ──────────────────────────────────────────────────────
 
@@ -62,7 +73,11 @@ comment on function public.is_operator() is
   '運営（admin / moderator）かどうかを判定する。市役所ロールは #478 で追加予定のため、その時点で is_city() 等を別途用意する。';
 
 -- 呼び出し元自身のロールを返すだけなので PUBLIC 実行でも情報は漏れないが、
--- 多層防御として実際に必要なロールだけに絞る
+-- 多層防御として実際に必要なロールだけに絞る。
+--
+-- なお public スキーマに置くため、この2関数は PostgREST の RPC としても露出する
+-- （POST /rest/v1/rpc/is_operator）。返るのは呼び出し元自身の判定結果だけなので
+-- 他人の情報は漏れないが、公開APIが2本増えて見える点は認識しておくこと。
 revoke execute on function public.current_user_role() from public;
 revoke execute on function public.is_operator() from public;
 grant execute on function public.current_user_role(), public.is_operator()
@@ -71,21 +86,26 @@ grant execute on function public.current_user_role(), public.is_operator()
 -- ── vendor_inquiries の運営向けポリシーを差し替え ────────────────────────
 -- 出店者向けポリシー（vendors select/insert own inquiries）は auth.uid() = vendor_id の
 -- 本人判定でありロールに依存しないため、変更しない。
+--
+-- 各ポリシーで is_operator() を (select ...) で包むのは、InitPlan として1回だけ
+-- 評価されることを保証するため（Supabase の RLS パフォーマンス指針）。
+-- 運営向けポリシーは permissive なので出店者向けポリシーと OR で結合され、
+-- 出店者が自分のスレッドを引くときにも qual に載る。包まないと行数分の呼び出しになりうる。
 
 drop policy if exists "operators select all inquiries" on public.vendor_inquiries;
 create policy "operators select all inquiries"
   on public.vendor_inquiries
   for select
   to authenticated
-  using (public.is_operator());
+  using ((select public.is_operator()));
 
 drop policy if exists "operators update all inquiries" on public.vendor_inquiries;
 create policy "operators update all inquiries"
   on public.vendor_inquiries
   for update
   to authenticated
-  using (public.is_operator())
-  with check (public.is_operator());
+  using ((select public.is_operator()))
+  with check ((select public.is_operator()));
 
 -- ── vendor_inquiry_replies の運営向けポリシーを差し替え ──────────────────
 
@@ -94,7 +114,7 @@ create policy "operators select all inquiry replies"
   on public.vendor_inquiry_replies
   for select
   to authenticated
-  using (public.is_operator());
+  using ((select public.is_operator()));
 
 drop policy if exists "operators insert inquiry replies" on public.vendor_inquiry_replies;
 create policy "operators insert inquiry replies"
@@ -104,7 +124,7 @@ create policy "operators insert inquiry replies"
   with check (
     sender_role in ('operator', 'city')
     and sender_id = auth.uid()
-    and public.is_operator()
+    and (select public.is_operator())
   );
 
 -- 目的: 運営判定の情報源を vendors.role から auth.users の app_metadata.role に移し、
