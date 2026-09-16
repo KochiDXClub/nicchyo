@@ -24,14 +24,27 @@ const DEFAULT_SITE_URL = "https://nicchyo.jp";
  */
 export function normalizeSiteUrl(value: string | undefined): string {
   const trimmed = value?.trim();
+  // 未設定・空文字は想定内なので黙って既定値を使う
   if (!trimmed) return DEFAULT_SITE_URL;
+
+  // 「設定されているのに不正」は設定ミスなので気づけるようにする。
+  // nicchyo.jp は仮ドメインのため、黙って既定値に戻すと canonical・JSON-LD・sitemap が
+  // 仮ドメインを指したまま本番稼働してしまう
+  const fallbackWithWarning = (reason: string) => {
+    console.warn(
+      `[SITE_URL] NEXT_PUBLIC_SITE_URL が${reason}のため ${DEFAULT_SITE_URL} を使います: ${JSON.stringify(value)}`
+    );
+    return DEFAULT_SITE_URL;
+  };
 
   try {
     const url = new URL(trimmed);
-    if (url.protocol !== "http:" && url.protocol !== "https:") return DEFAULT_SITE_URL;
-    return (url.origin + url.pathname).replace(/\/+$/, "") || DEFAULT_SITE_URL;
+    if (url.protocol !== "http:" && url.protocol !== "https:") {
+      return fallbackWithWarning("http/https ではない");
+    }
+    return (url.origin + url.pathname).replace(/\/+$/, "") || fallbackWithWarning("空のURL");
   } catch {
-    return DEFAULT_SITE_URL;
+    return fallbackWithWarning("URLとして解釈できない");
   }
 }
 
