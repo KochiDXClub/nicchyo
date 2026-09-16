@@ -175,11 +175,9 @@ export type Database = {
           created_at: string
           id: string
           intent_category: string | null
-          ip_address: string | null
           is_recommendation: boolean | null
           keywords: string[] | null
           location_type: string | null
-          question_text: string
           store_id: string | null
           visitor_key: string | null
         }
@@ -188,11 +186,9 @@ export type Database = {
           created_at?: string
           id?: string
           intent_category?: string | null
-          ip_address?: string | null
           is_recommendation?: boolean | null
           keywords?: string[] | null
           location_type?: string | null
-          question_text: string
           store_id?: string | null
           visitor_key?: string | null
         }
@@ -201,11 +197,9 @@ export type Database = {
           created_at?: string
           id?: string
           intent_category?: string | null
-          ip_address?: string | null
           is_recommendation?: boolean | null
           keywords?: string[] | null
           location_type?: string | null
-          question_text?: string
           store_id?: string | null
           visitor_key?: string | null
         }

@@ -91,6 +91,3 @@ export function detectAbuse(text: string): AbuseEvent | null {
 
   return null;
 }
-
-// レートリミット超過チェック（ai_consult_logsの件数で判定）
-export const RATE_LIMIT_PER_HOUR = 20;
