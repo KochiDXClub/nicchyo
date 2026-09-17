@@ -284,7 +284,12 @@ export default function ConsultClient({ embedded = false }: { embedded?: boolean
       className={`relative min-h-screen ${embedded ? "bg-transparent" : "bg-[var(--consult-bg)]"}`}
     >
       {!embedded && <div className="pointer-events-none absolute inset-0 z-0 bg-[var(--consult-bg)]" aria-hidden="true" />}
-      <main className="relative z-10 flex w-full items-start justify-center px-3 pb-16 pt-2">
+      {/* 「これまでの相談」サイドバー（lg 以上）の分だけ、中央寄せの本文を右へ逃がす */}
+      <main
+        className={`relative z-10 flex w-full items-start justify-center px-3 pb-16 pt-2 ${
+          embedded ? "" : "lg:pl-[22rem]"
+        }`}
+      >
         <div className="flex w-full max-w-3xl flex-col gap-2">
           {embedded ? (
             // マップ内に埋め込むときは、これまでどおりの会話パネル

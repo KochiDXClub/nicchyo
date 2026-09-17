@@ -517,6 +517,34 @@ export default function ConsultStage({
     };
   }, [allShops, entries, hasRestored, shopsById]);
 
+  /**
+   * 「これまでの相談」の中身。モバイルはボトムシート、PC（lg 以上）は
+   * 常時表示のサイドバーで、見た目の器は違うが中身の一覧は同じもの。
+   * 二重に書くと片方だけ直して食い違う事故が起きるので、ここ1箇所にする。
+   */
+  const renderHistoryList = () => (
+    <ul className="flex flex-col gap-4">
+      {entries.map((item) => {
+        const itemShops = resolveShops(item.shopIds);
+        return (
+          <li key={item.id} className="border-b border-amber-100 pb-3 last:border-0">
+            <p className="text-xs text-slate-400">{item.question}</p>
+            <p className="mt-1 whitespace-pre-wrap text-sm leading-6 text-slate-700">
+              {item.answer}
+            </p>
+            {itemShops.length > 0 && onSelectShop && (
+              <div className="-mx-4 mt-2 flex snap-x snap-mandatory gap-2.5 overflow-x-auto px-4 pb-1">
+                {itemShops.map((shop) => (
+                  <ConsultShopCard key={shop.id} shop={shop} onSelect={onSelectShop} />
+                ))}
+              </div>
+            )}
+          </li>
+        );
+      })}
+    </ul>
+  );
+
   const isBusy = phase === "thinking";
   const showAnswer = isBusy || streamingText !== null || !!current;
 
@@ -643,11 +671,12 @@ export default function ConsultStage({
               聞きよるよ…
             </span>
           ) : entries.length - (current ? 1 : 0) > 0 ? (
-            // 畳んだ履歴。件数を出しておかないと「消えた」と思われる
+            // 畳んだ履歴。件数を出しておかないと「消えた」と思われる。
+            // lg 以上は常時表示のサイドバーに置き換わるので、ここは非表示にする
             <button
               type="button"
               onClick={() => setHistoryOpen(true)}
-              className="rounded-full border border-amber-200/80 bg-white/70 px-4 py-1.5 text-xs font-bold text-amber-800"
+              className="rounded-full border border-amber-200/80 bg-white/70 px-4 py-1.5 text-xs font-bold text-amber-800 lg:hidden"
             >
               これまでの相談 {entries.length}件 ▾
             </button>
@@ -980,26 +1009,9 @@ export default function ConsultStage({
             </div>
 
             {/* ここだけスクロールする。overscroll-contain で背後まで動かさない */}
-            <ul className="flex flex-1 flex-col gap-4 overflow-y-auto overscroll-contain px-4 py-4">
-              {entries.map((item) => {
-                const itemShops = resolveShops(item.shopIds);
-                return (
-                  <li key={item.id} className="border-b border-amber-100 pb-3 last:border-0">
-                    <p className="text-xs text-slate-400">{item.question}</p>
-                    <p className="mt-1 whitespace-pre-wrap text-sm leading-6 text-slate-700">
-                      {item.answer}
-                    </p>
-                    {itemShops.length > 0 && onSelectShop && (
-                      <div className="-mx-4 mt-2 flex snap-x snap-mandatory gap-2.5 overflow-x-auto px-4 pb-1">
-                        {itemShops.map((shop) => (
-                          <ConsultShopCard key={shop.id} shop={shop} onSelect={onSelectShop} />
-                        ))}
-                      </div>
-                    )}
-                  </li>
-                );
-              })}
-            </ul>
+            <div className="flex-1 overflow-y-auto overscroll-contain px-4 py-4">
+              {renderHistoryList()}
+            </div>
 
             <div
               className="shrink-0 border-t border-amber-100 bg-white px-4 pt-3"
@@ -1016,6 +1028,41 @@ export default function ConsultStage({
                 相談を最初からにする
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/*
+        これまでの相談（PC 用サイドバー）。
+        lg 以上は縦の余白が十分にあり、Claude のようなサイドバーを常時出しておける。
+        中身を畳んで再度開く操作をなくし、いつでも見えている状態にする。
+        entries.length - (current ? 1 : 0) は、上のトグルボタンと同じ「畳んだ履歴が
+        1件以上あるか」の判定（今の答えは current 側に出ているので数えない）。
+      */}
+      {entries.length - (current ? 1 : 0) > 0 && (
+        <div
+          className="fixed left-6 z-20 hidden w-72 flex-col overflow-hidden rounded-3xl border border-amber-100 bg-white/90 shadow-sm backdrop-blur-sm lg:flex"
+          style={{
+            top: "5.5rem",
+            bottom: "calc(var(--safe-bottom, 0px) + var(--nav-bar-height) + 1.5rem)",
+          }}
+        >
+          <div className="flex shrink-0 items-center justify-between border-b border-amber-100 px-4 py-3">
+            <p className="text-sm font-bold text-amber-900">
+              これまでの相談（{entries.length}件）
+            </p>
+          </div>
+          <div className="flex-1 overflow-y-auto overscroll-contain px-4 py-4">
+            {renderHistoryList()}
+          </div>
+          <div className="shrink-0 border-t border-amber-100 bg-white px-4 py-3">
+            <button
+              type="button"
+              onClick={() => setEntries(createEmptySession().entries)}
+              className="w-full rounded-full border border-amber-200 py-2.5 text-sm font-bold text-amber-800 transition active:scale-[0.98]"
+            >
+              相談を最初からにする
+            </button>
           </div>
         </div>
       )}
