@@ -83,6 +83,13 @@ export interface ConsultStageProps {
   /** いま話しているキャラ。null なら既定のにちよさん */
   preferredCharacterId?: ConsultCharacterId | null;
   onPreferredCharacterChange?: (id: ConsultCharacterId) => void;
+  /**
+   * PC版「これまでの相談」サイドバーの開閉状態。
+   * チャット欄を中央に置くか右へ逃がすかは親（ConsultClient）側のレイアウトが
+   * 決めるため、開閉の状態そのものは親に持たせ、ここからは通知だけする。
+   */
+  isHistorySidebarOpen?: boolean;
+  onHistorySidebarOpenChange?: (open: boolean) => void;
 }
 
 type StagePhase = "idle" | "confirming" | "thinking";
@@ -105,6 +112,8 @@ export default function ConsultStage({
   autoAskContext,
   preferredCharacterId,
   onPreferredCharacterChange,
+  isHistorySidebarOpen = false,
+  onHistorySidebarOpenChange,
 }: ConsultStageProps) {
   const [entries, setEntries] = useState<ConsultEntry[]>([]);
   const [phase, setPhase] = useState<StagePhase>("idle");
@@ -671,15 +680,28 @@ export default function ConsultStage({
               聞きよるよ…
             </span>
           ) : entries.length - (current ? 1 : 0) > 0 ? (
-            // 畳んだ履歴。件数を出しておかないと「消えた」と思われる。
-            // lg 以上は常時表示のサイドバーに置き換わるので、ここは非表示にする
-            <button
-              type="button"
-              onClick={() => setHistoryOpen(true)}
-              className="rounded-full border border-amber-200/80 bg-white/70 px-4 py-1.5 text-xs font-bold text-amber-800 lg:hidden"
-            >
-              これまでの相談 {entries.length}件 ▾
-            </button>
+            <>
+              {/* 畳んだ履歴。件数を出しておかないと「消えた」と思われる（モバイルはシートで開く） */}
+              <button
+                type="button"
+                onClick={() => setHistoryOpen(true)}
+                className="rounded-full border border-amber-200/80 bg-white/70 px-4 py-1.5 text-xs font-bold text-amber-800 lg:hidden"
+              >
+                これまでの相談 {entries.length}件 ▾
+              </button>
+              {/*
+                lg 以上はサイドバーの開閉ボタンにする。既定は閉じておき、
+                チャット欄を中央のまま保つ（開いたときだけ右へ逃げてよい）
+              */}
+              <button
+                type="button"
+                onClick={() => onHistorySidebarOpenChange?.(!isHistorySidebarOpen)}
+                aria-pressed={isHistorySidebarOpen}
+                className="hidden rounded-full border border-amber-200/80 bg-white/70 px-4 py-1.5 text-xs font-bold text-amber-800 lg:inline-flex"
+              >
+                これまでの相談 {entries.length}件 {isHistorySidebarOpen ? "▸" : "◂"}
+              </button>
+            </>
           ) : null}
         </div>
       </div>
@@ -1034,12 +1056,13 @@ export default function ConsultStage({
 
       {/*
         これまでの相談（PC 用サイドバー）。
-        lg 以上は縦の余白が十分にあり、Claude のようなサイドバーを常時出しておける。
-        中身を畳んで再度開く操作をなくし、いつでも見えている状態にする。
+        lg 以上は縦の余白が十分にあり、Claude のようなサイドバーを出しておける。
+        ただし既定では閉じておき、チャット欄は中央のまま保つ。上のボタンで
+        開いたときだけ表示し、チャット欄も右へ逃がす（ConsultClient 側の処理）。
         entries.length - (current ? 1 : 0) は、上のトグルボタンと同じ「畳んだ履歴が
         1件以上あるか」の判定（今の答えは current 側に出ているので数えない）。
       */}
-      {entries.length - (current ? 1 : 0) > 0 && (
+      {isHistorySidebarOpen && entries.length - (current ? 1 : 0) > 0 && (
         <div
           className="fixed left-6 z-20 hidden w-72 flex-col overflow-hidden rounded-3xl border border-amber-100 bg-white/90 shadow-sm backdrop-blur-sm lg:flex"
           style={{
@@ -1051,6 +1074,13 @@ export default function ConsultStage({
             <p className="text-sm font-bold text-amber-900">
               これまでの相談（{entries.length}件）
             </p>
+            <button
+              type="button"
+              onClick={() => onHistorySidebarOpenChange?.(false)}
+              aria-label="閉じる"
+            >
+              <X className="h-4 w-4 text-slate-400" aria-hidden="true" />
+            </button>
           </div>
           <div className="flex-1 overflow-y-auto overscroll-contain px-4 py-4">
             {renderHistoryList()}
@@ -1058,7 +1088,12 @@ export default function ConsultStage({
           <div className="shrink-0 border-t border-amber-100 bg-white px-4 py-3">
             <button
               type="button"
-              onClick={() => setEntries(createEmptySession().entries)}
+              onClick={() => {
+                setEntries(createEmptySession().entries);
+                // 履歴が0件になるとサイドバー自体を描画しなくなるので、
+                // 開いたままだとチャット欄だけ右へ逃げた空白が残ってしまう
+                onHistorySidebarOpenChange?.(false);
+              }}
               className="w-full rounded-full border border-amber-200 py-2.5 text-sm font-bold text-amber-800 transition active:scale-[0.98]"
             >
               相談を最初からにする
