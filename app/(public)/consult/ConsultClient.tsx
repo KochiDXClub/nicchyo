@@ -292,7 +292,7 @@ export default function ConsultClient({ embedded = false }: { embedded?: boolean
       */}
       <main
         className={`relative z-10 flex w-full items-start justify-center px-3 pb-16 pt-2 ${
-          !embedded && isHistorySidebarOpen ? "lg:pl-[22rem]" : ""
+          !embedded && isHistorySidebarOpen ? "lg:pl-80" : ""
         }`}
       >
         <div className="flex w-full max-w-3xl flex-col gap-2">

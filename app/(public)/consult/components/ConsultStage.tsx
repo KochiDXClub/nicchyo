@@ -1,7 +1,17 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
-import { AlertCircle, Keyboard, Mic, RotateCcw, Send, Square, X } from "lucide-react";
+import {
+  AlertCircle,
+  Keyboard,
+  Mic,
+  PanelLeftClose,
+  PanelLeftOpen,
+  RotateCcw,
+  Send,
+  Square,
+  X,
+} from "lucide-react";
 import toast from "react-hot-toast";
 import { useSpeechInput } from "@/lib/hooks/useSpeechInput";
 import { resolveGrandmaPose } from "@/lib/grandma/pose";
@@ -469,6 +479,8 @@ export default function ConsultStage({
   }, [ask, autoAsked, autoAskText, hasRestored]);
 
   const current = showsCurrentAnswer ? entries[0] ?? null : null;
+  // 畳んだ履歴が1件以上あるか（今の答えは current 側に出ているので数えない）
+  const hasHistory = entries.length - (current ? 1 : 0) > 0;
   const suggestions = useMemo(
     () => pickSuggestions({ entries, pool: QUESTION_POOL }),
     [entries]
@@ -528,13 +540,29 @@ export default function ConsultStage({
 
   /**
    * 「これまでの相談」の中身。モバイルはボトムシート、PC（lg 以上）は
-   * 常時表示のサイドバーで、見た目の器は違うが中身の一覧は同じもの。
-   * 二重に書くと片方だけ直して食い違う事故が起きるので、ここ1箇所にする。
+   * 常時表示のサイドバーで、見た目の器は違うが元データは同じもの。
+   *
+   * sheet: モバイルの詳細表示。質問と答えを全文出し、紹介した店も添える
+   *   （読むために開くシートなので、内容を惜しまず出す）。
+   * sidebar: PCのサイドバー。Claude デスクトップ版の会話一覧のように、
+   *   1行がコンパクトな行として並ぶ一覧にする（答えは2行に丸め、店は出さない）。
    */
-  const renderHistoryList = () => (
-    <ul className="flex flex-col gap-4">
+  const renderHistoryList = (variant: "sheet" | "sidebar") => (
+    <ul className={variant === "sheet" ? "flex flex-col gap-4" : "flex flex-col gap-0.5"}>
       {entries.map((item) => {
         const itemShops = resolveShops(item.shopIds);
+        if (variant === "sidebar") {
+          return (
+            <li key={item.id}>
+              <div className="rounded-xl px-3 py-2.5 transition hover:bg-amber-50">
+                <p className="line-clamp-1 text-sm font-bold text-slate-800">{item.question}</p>
+                <p className="mt-0.5 line-clamp-2 text-xs leading-5 text-slate-500">
+                  {item.answer}
+                </p>
+              </div>
+            </li>
+          );
+        }
         return (
           <li key={item.id} className="border-b border-amber-100 pb-3 last:border-0">
             <p className="text-xs text-slate-400">{item.question}</p>
@@ -679,29 +707,16 @@ export default function ConsultStage({
             <span className="rounded-full bg-red-500 px-3 py-1.5 text-xs font-bold text-white">
               聞きよるよ…
             </span>
-          ) : entries.length - (current ? 1 : 0) > 0 ? (
-            <>
-              {/* 畳んだ履歴。件数を出しておかないと「消えた」と思われる（モバイルはシートで開く） */}
-              <button
-                type="button"
-                onClick={() => setHistoryOpen(true)}
-                className="rounded-full border border-amber-200/80 bg-white/70 px-4 py-1.5 text-xs font-bold text-amber-800 lg:hidden"
-              >
-                これまでの相談 {entries.length}件 ▾
-              </button>
-              {/*
-                lg 以上はサイドバーの開閉ボタンにする。既定は閉じておき、
-                チャット欄を中央のまま保つ（開いたときだけ右へ逃げてよい）
-              */}
-              <button
-                type="button"
-                onClick={() => onHistorySidebarOpenChange?.(!isHistorySidebarOpen)}
-                aria-pressed={isHistorySidebarOpen}
-                className="hidden rounded-full border border-amber-200/80 bg-white/70 px-4 py-1.5 text-xs font-bold text-amber-800 lg:inline-flex"
-              >
-                これまでの相談 {entries.length}件 {isHistorySidebarOpen ? "▸" : "◂"}
-              </button>
-            </>
+          ) : hasHistory ? (
+            // 畳んだ履歴。件数を出しておかないと「消えた」と思われる。
+            // lg 以上は左上のサイドバー開閉アイコンに役目が移るので、ここは非表示にする
+            <button
+              type="button"
+              onClick={() => setHistoryOpen(true)}
+              className="rounded-full border border-amber-200/80 bg-white/70 px-4 py-1.5 text-xs font-bold text-amber-800 lg:hidden"
+            >
+              これまでの相談 {entries.length}件 ▾
+            </button>
           ) : null}
         </div>
       </div>
@@ -1032,7 +1047,7 @@ export default function ConsultStage({
 
             {/* ここだけスクロールする。overscroll-contain で背後まで動かさない */}
             <div className="flex-1 overflow-y-auto overscroll-contain px-4 py-4">
-              {renderHistoryList()}
+              {renderHistoryList("sheet")}
             </div>
 
             <div
@@ -1055,37 +1070,46 @@ export default function ConsultStage({
       )}
 
       {/*
-        これまでの相談（PC 用サイドバー）。
-        lg 以上は縦の余白が十分にあり、Claude のようなサイドバーを出しておける。
-        ただし既定では閉じておき、チャット欄は中央のまま保つ。上のボタンで
-        開いたときだけ表示し、チャット欄も右へ逃がす（ConsultClient 側の処理）。
-        entries.length - (current ? 1 : 0) は、上のトグルボタンと同じ「畳んだ履歴が
-        1件以上あるか」の判定（今の答えは current 側に出ているので数えない）。
+        これまでの相談（PC 用サイドバー）。Claude デスクトップ版を参考に、
+        ウィンドウ左端に張り付く帯にした。閉じているときは左上に開くアイコンだけを
+        浮かせ、開くとその場でサイドバーの見出しに変わる（Claude の開閉と同じ運び）。
+        既定は閉じておき、チャット欄は中央のまま保つ。開いたときだけチャット欄を
+        右へ逃がす（ConsultClient 側の padding-left で処理）。
       */}
-      {isHistorySidebarOpen && entries.length - (current ? 1 : 0) > 0 && (
+      {hasHistory && !isHistorySidebarOpen && (
+        <button
+          type="button"
+          onClick={() => onHistorySidebarOpenChange?.(true)}
+          aria-label={`これまでの相談を開く（${entries.length}件）`}
+          className="fixed left-4 top-4 z-30 hidden h-9 w-9 items-center justify-center rounded-lg text-slate-500 transition hover:bg-black/5 lg:flex"
+        >
+          <PanelLeftOpen className="h-5 w-5" aria-hidden="true" />
+        </button>
+      )}
+      {hasHistory && isHistorySidebarOpen && (
         <div
-          className="fixed left-6 z-20 hidden w-72 flex-col overflow-hidden rounded-3xl border border-amber-100 bg-white/90 shadow-sm backdrop-blur-sm lg:flex"
+          className="fixed inset-y-0 left-0 z-20 hidden w-72 flex-col border-r border-amber-100 bg-white lg:flex"
           style={{
-            top: "5.5rem",
-            bottom: "calc(var(--safe-bottom, 0px) + var(--nav-bar-height) + 1.5rem)",
+            paddingBottom: "calc(var(--safe-bottom, 0px) + var(--nav-bar-height))",
           }}
         >
-          <div className="flex shrink-0 items-center justify-between border-b border-amber-100 px-4 py-3">
-            <p className="text-sm font-bold text-amber-900">
-              これまでの相談（{entries.length}件）
-            </p>
+          <div className="flex shrink-0 items-center gap-2 px-3 py-3">
             <button
               type="button"
               onClick={() => onHistorySidebarOpenChange?.(false)}
-              aria-label="閉じる"
+              aria-label="サイドバーを閉じる"
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-slate-500 transition hover:bg-black/5"
             >
-              <X className="h-4 w-4 text-slate-400" aria-hidden="true" />
+              <PanelLeftClose className="h-5 w-5" aria-hidden="true" />
             </button>
+            <p className="truncate text-sm font-bold text-slate-700">
+              これまでの相談（{entries.length}件）
+            </p>
           </div>
-          <div className="flex-1 overflow-y-auto overscroll-contain px-4 py-4">
-            {renderHistoryList()}
+          <div className="flex-1 overflow-y-auto overscroll-contain px-2 pb-2">
+            {renderHistoryList("sidebar")}
           </div>
-          <div className="shrink-0 border-t border-amber-100 bg-white px-4 py-3">
+          <div className="shrink-0 border-t border-amber-100 px-3 py-3">
             <button
               type="button"
               onClick={() => {
@@ -1094,7 +1118,7 @@ export default function ConsultStage({
                 // 開いたままだとチャット欄だけ右へ逃げた空白が残ってしまう
                 onHistorySidebarOpenChange?.(false);
               }}
-              className="w-full rounded-full border border-amber-200 py-2.5 text-sm font-bold text-amber-800 transition active:scale-[0.98]"
+              className="w-full rounded-lg px-3 py-2 text-left text-sm font-bold text-amber-800 transition hover:bg-amber-50"
             >
               相談を最初からにする
             </button>
