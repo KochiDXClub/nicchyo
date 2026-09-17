@@ -194,6 +194,9 @@ function buildShopFeatureCollection(
         opacity: match ? 1 : 0.15,
         color: shop.vendorId ? (isSelected ? "#B45309" : "#D97706") : targetable ? "#FFF7E6" : "#FFFDF7",
         strokeColor: shop.vendorId ? "#ffffff" : targetable ? "#B45309" : "#B5AA92",
+        // 出店者ありの区画は color 側で選択を表すが、空き区画は常に同じ色のため
+        // 選択しても見分けられない。circle-radius/circle-stroke-width 側で使う
+        selected: isSelected,
       },
       geometry: { type: "Point", coordinates: [shop.lng, shop.lat] },
     };
@@ -256,7 +259,9 @@ export default function MapEditCanvasMapLibre({
   handlersRef.current = handlers;
   const projectionRef = useRef(projection);
   projectionRef.current = projection;
-  const consumedClickRef = useRef(false);
+  // ユーザー操作由来の moveend で focus/rotation/zoomIdx を書き戻した直後、
+  // 続けて走る同期 effect の easeTo を1回だけスキップするための印
+  const suppressNextSyncRef = useRef(false);
 
   // ── 地図の初期化（1回だけ。reactStrictMode:false 前提） ──────────────
   useEffect(() => {
@@ -322,19 +327,24 @@ export default function MapEditCanvasMapLibre({
         type: "circle",
         source: SRC_SHOPS,
         paint: {
+          // 出店者ありの区画は color 側の変化（buildShopFeatureCollection）で選択を表すが、
+          // 空き区画は常に同じ色のため、選択しても見分けられない。旧キャンバスの
+          // 「選ぶと大きくなり、周りに影が付く」見た目を、大きさとストローク（縁）で近似する
           "circle-radius": [
-            "step",
-            ["zoom"],
-            4,
-            MAPLIBRE_ZOOMS[1],
-            6,
-            MAPLIBRE_ZOOMS[2],
-            13,
+            "case",
+            ["get", "selected"],
+            ["step", ["zoom"], 8, MAPLIBRE_ZOOMS[1], 10, MAPLIBRE_ZOOMS[2], 17],
+            ["step", ["zoom"], 4, MAPLIBRE_ZOOMS[1], 6, MAPLIBRE_ZOOMS[2], 13],
           ] as unknown as ExpressionSpecification,
           "circle-color": ["get", "color"],
           "circle-opacity": ["get", "opacity"],
-          "circle-stroke-color": ["get", "strokeColor"],
-          "circle-stroke-width": 2,
+          "circle-stroke-color": [
+            "case",
+            ["get", "selected"],
+            "rgba(180,83,9,0.55)",
+            ["get", "strokeColor"],
+          ] as unknown as ExpressionSpecification,
+          "circle-stroke-width": ["case", ["get", "selected"], 5, 2] as unknown as ExpressionSpecification,
         },
       });
       map.addLayer({
@@ -363,39 +373,49 @@ export default function MapEditCanvasMapLibre({
           "text-rotation-alignment": "viewport",
         },
         paint: {
-          "text-color": "#57503F",
-          "text-halo-color": "#ffffff",
-          "text-halo-width": 1.4,
+          // 旧キャンバスでは、選ぶと背景 #92400E・白文字になっていた。symbol レイヤーには
+          // 塗りつぶした背景がないため、太い halo で背景に近い見た目を作る
+          "text-color": [
+            "case",
+            ["get", "selected"],
+            "#ffffff",
+            "#57503F",
+          ] as unknown as ExpressionSpecification,
+          "text-halo-color": [
+            "case",
+            ["get", "selected"],
+            "#92400E",
+            "#ffffff",
+          ] as unknown as ExpressionSpecification,
+          "text-halo-width": [
+            "case",
+            ["get", "selected"],
+            4,
+            1.4,
+          ] as unknown as ExpressionSpecification,
           "text-opacity": ["get", "opacity"],
         },
       });
 
+      // 道タブでの選択、区画タブでの選択、建物タブでの選択。それぞれ自分のタブの
+      // ときだけ反応する（道の上のクリックを他タブで無視させ、地図の空き地クリックと
+      // 区別しないようにするため、消費フラグは持たない。空き地クリックで行う
+      // 新規描画・新規配置＝onMapClick は次のPRで実装するので、このPR①では
+      // ファイル冒頭のコメントのとおりまだ呼ばない）
       map.on("click", LAYER_ROAD_CASING, (e) => {
-        consumedClickRef.current = true;
         if (tabRef.current !== "road") return;
         const roadId = e.features?.[0]?.properties?.roadId;
         if (typeof roadId === "string") handlersRef.current.onSelectRoad(roadId);
       });
       map.on("click", LAYER_SHOP_DOTS, (e) => {
-        consumedClickRef.current = true;
         if (tabRef.current !== "slot") return;
         const locationId = e.features?.[0]?.properties?.locationId;
         if (typeof locationId === "string") handlersRef.current.onSelectShop(locationId);
       });
       map.on("click", LAYER_LANDMARKS, (e) => {
-        consumedClickRef.current = true;
         if (tabRef.current !== "landmark") return;
         const key = e.features?.[0]?.properties?.key;
         if (typeof key === "string") handlersRef.current.onSelectLandmark(key);
-      });
-      // 上のレイヤー click で消費されなかったクリックだけ、地図の空き地クリックとして拾う
-      // （道の新規描画・建物の新規配置は次のPRでこれを使う）
-      map.on("click", (e) => {
-        if (consumedClickRef.current) {
-          consumedClickRef.current = false;
-          return;
-        }
-        handlersRef.current.onMapClick(e.lngLat.lat, e.lngLat.lng);
       });
 
       for (const layerId of [LAYER_ROAD_CASING, LAYER_SHOP_DOTS, LAYER_LANDMARKS]) {
@@ -410,10 +430,20 @@ export default function MapEditCanvasMapLibre({
       setReady(true);
     });
 
-    // ユーザー操作（ドラッグ・ホイール・ピンチ・回転）の結果を、親の focus/rotation/zoomIdx へ書き戻す。
-    // プログラム側の easeTo（下の同期 effect）でも moveend は発火するが、そのときは
-    // ほぼ同じ値を書き戻すだけなので実質的な無限ループにはならない
-    map.on("moveend", () => {
+    // ユーザー操作（ドラッグ・ホイール・ピンチ・回転）の結果を、親の focus/rotation/zoomIdx へ
+    // 書き戻す。e.originalEvent はユーザーの入力デバイスイベントが原因のときだけ入っており、
+    // 下の同期 effect の easeTo が別のアニメーションを止めたときの moveend では入らない。
+    // そこだけ見て弾かないと、「途中で止まった側の中途半端な値」を書き戻してしまい、
+    // 連打したズームボタンが1段しか進まない、といった事故になる。
+    //
+    // 書き戻した直後は、この値を使って下の同期 effect も走る。しかし地図は既に
+    // ユーザー操作でその位置にいる（zoomIdx は連続値を段階へ丸めただけで、実際の
+    // ズームとは値がずれている）ため、そのまま easeTo を呼ぶと、地図がユーザーの
+    // 操作を追い越して段階の位置へ「吸い付く」ように動いてしまう。suppressNextSyncRef を
+    // 立てて、この1回だけ同期 effect の easeTo をスキップさせる
+    map.on("moveend", (e) => {
+      if (!e.originalEvent) return;
+      suppressNextSyncRef.current = true;
       const center = map.getCenter();
       setFocus(projectionRef.current.toLocal(center.lat, center.lng));
       setRotation(bearingToRotation(map.getBearing()));
@@ -429,34 +459,37 @@ export default function MapEditCanvasMapLibre({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ── カメラの同期（props → map）。差が小さいときは easeTo を呼ばない ──────────
+  // ── カメラの同期（props → map）。────────────────────────────────
+  // zoom/bearing/center を3つの別々の effect で easeTo すると、それぞれが呼ぶ easeTo が
+  // 互いのアニメーションを止め合い、moveend が「途中で止まった値」を拾ってしまう
+  // （連打したズームボタンが1段しか進まない不具合の原因だった）。1つの effect にまとめ、
+  // 変わったものだけをまとめて1回の easeTo で渡す
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !ready) return;
+    if (suppressNextSyncRef.current) {
+      suppressNextSyncRef.current = false;
+      return;
+    }
+
     const targetZoom = zoomIdxToMapLibreZoom(zoomIdx);
-    if (Math.abs(map.getZoom() - targetZoom) > 0.05) {
-      map.easeTo({ zoom: targetZoom, duration: 200 });
-    }
-  }, [zoomIdx, ready]);
-
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map || !ready) return;
     const targetBearing = rotationToBearing(rotation);
-    if (Math.abs(bearingDiff(map.getBearing(), targetBearing)) > 0.5) {
-      map.easeTo({ bearing: targetBearing, duration: 200 });
-    }
-  }, [rotation, ready]);
+    const targetCenter = projection.toLatLng(focus);
+    const currentCenter = map.getCenter();
 
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map || !ready) return;
-    const target = projection.toLatLng(focus);
-    const current = map.getCenter();
-    if (Math.hypot(current.lat - target.lat, current.lng - target.lng) > 1e-7) {
-      map.easeTo({ center: [target.lng, target.lat], duration: 200 });
-    }
-  }, [focus, projection, ready]);
+    const zoomChanged = Math.abs(map.getZoom() - targetZoom) > 0.05;
+    const bearingChanged = Math.abs(bearingDiff(map.getBearing(), targetBearing)) > 0.5;
+    const centerChanged =
+      Math.hypot(currentCenter.lat - targetCenter.lat, currentCenter.lng - targetCenter.lng) > 1e-7;
+    if (!zoomChanged && !bearingChanged && !centerChanged) return;
+
+    map.easeTo({
+      zoom: targetZoom,
+      bearing: targetBearing,
+      center: [targetCenter.lng, targetCenter.lat],
+      duration: 200,
+    });
+  }, [zoomIdx, rotation, focus, projection, ready]);
 
   // ── データの反映（全置換 setData。公開マップと同じパターン） ──────────
   const query = search.trim().toLowerCase();

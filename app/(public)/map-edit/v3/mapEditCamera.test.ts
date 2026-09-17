@@ -8,7 +8,7 @@ import {
 } from "./mapEditCamera";
 
 describe("MAPLIBRE_ZOOMS", () => {
-  it("has 3 increasing zoom values matching the old ZOOMS=[1.2,3.5,12] progression", () => {
+  it("旧 ZOOMS=[1.2,3.5,12] に対応する、増加する3段階のズーム値を持つ", () => {
     expect(MAPLIBRE_ZOOMS).toHaveLength(3);
     expect(MAPLIBRE_ZOOMS[0]).toBeLessThan(MAPLIBRE_ZOOMS[1]);
     expect(MAPLIBRE_ZOOMS[1]).toBeLessThan(MAPLIBRE_ZOOMS[2]);
@@ -19,24 +19,24 @@ describe("MAPLIBRE_ZOOMS", () => {
 });
 
 describe("zoomIdxToMapLibreZoom / nearestZoomIdx", () => {
-  it("maps each zoomIdx to the corresponding MAPLIBRE_ZOOMS entry", () => {
+  it("各 zoomIdx を対応する MAPLIBRE_ZOOMS の値に変換する", () => {
     expect(zoomIdxToMapLibreZoom(0)).toBe(MAPLIBRE_ZOOMS[0]);
     expect(zoomIdxToMapLibreZoom(1)).toBe(MAPLIBRE_ZOOMS[1]);
     expect(zoomIdxToMapLibreZoom(2)).toBe(MAPLIBRE_ZOOMS[2]);
   });
 
-  it("clamps out-of-range indices to the nearest end", () => {
+  it("範囲外のインデックスは端に丸める", () => {
     expect(zoomIdxToMapLibreZoom(-1)).toBe(MAPLIBRE_ZOOMS[0]);
     expect(zoomIdxToMapLibreZoom(5)).toBe(MAPLIBRE_ZOOMS[2]);
   });
 
-  it("is the inverse of nearestZoomIdx for exact bucket values", () => {
+  it("ちょうど段階の値では nearestZoomIdx の逆変換になる", () => {
     MAPLIBRE_ZOOMS.forEach((zoom, idx) => {
       expect(nearestZoomIdx(zoom)).toBe(idx);
     });
   });
 
-  it("rounds a continuous zoom value to its nearest bucket", () => {
+  it("連続的なズーム値を最も近い段階に丸める", () => {
     const midway = (MAPLIBRE_ZOOMS[0] + MAPLIBRE_ZOOMS[1]) / 2;
     expect(nearestZoomIdx(midway - 0.01)).toBe(0);
     expect(nearestZoomIdx(midway + 0.01)).toBe(1);
@@ -44,19 +44,19 @@ describe("zoomIdxToMapLibreZoom / nearestZoomIdx", () => {
 });
 
 describe("rotationToBearing / bearingToRotation", () => {
-  it("flips the sign", () => {
+  it("符号を反転する", () => {
     expect(rotationToBearing(30)).toBe(-30);
     expect(rotationToBearing(-90)).toBe(90);
     expect(bearingToRotation(30)).toBe(-30);
     expect(bearingToRotation(-90)).toBe(90);
   });
 
-  it("round-trips back to the original value", () => {
+  it("往復すると元の値に戻る", () => {
     expect(bearingToRotation(rotationToBearing(42))).toBe(42);
     expect(rotationToBearing(bearingToRotation(-17))).toBe(-17);
   });
 
-  it("leaves 0 unchanged", () => {
+  it("0 はそのまま変わらない", () => {
     expect(rotationToBearing(0)).toBe(-0);
     expect(bearingToRotation(0)).toBe(-0);
   });

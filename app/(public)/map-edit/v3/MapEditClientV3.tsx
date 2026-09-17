@@ -123,13 +123,17 @@ export default function MapEditClientV3() {
   useEffect(() => {
     if (typeof window === "undefined") return;
     const fromQuery = new URLSearchParams(window.location.search).get("canvas");
-    if (fromQuery === "maplibre" || fromQuery === "leaflet") {
-      setCanvasEngine(fromQuery);
-      window.localStorage.setItem(CANVAS_ENGINE_STORAGE_KEY, fromQuery);
-      return;
+    try {
+      if (fromQuery === "maplibre" || fromQuery === "leaflet") {
+        setCanvasEngine(fromQuery);
+        window.localStorage.setItem(CANVAS_ENGINE_STORAGE_KEY, fromQuery);
+        return;
+      }
+      const stored = window.localStorage.getItem(CANVAS_ENGINE_STORAGE_KEY);
+      if (stored === "maplibre" || stored === "leaflet") setCanvasEngine(stored);
+    } catch {
+      // ストレージが使えない環境でも、初期表示自体は既定のLeafletで続けられる
     }
-    const stored = window.localStorage.getItem(CANVAS_ENGINE_STORAGE_KEY);
-    if (stored === "maplibre" || stored === "leaflet") setCanvasEngine(stored);
   }, []);
   const toggleCanvasEngine = useCallback(() => {
     setCanvasEngine((prev) => {
