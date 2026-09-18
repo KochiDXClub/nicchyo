@@ -12,15 +12,20 @@ const HYPHENS = "\\-\u2010-\u2015\u2212\u30FC";
 // 0始まり、または国際表記（+81）で、区切り（ハイフン類・括弧・空白）を挟み得る数字列の候補。
 // 実際に電話番号とみなすかは桁数で判定する。
 const PHONE_CANDIDATE_PATTERN = new RegExp(
-  `(?<![\\d${HYPHENS}+])(?:\\+81[${HYPHENS}()\\s]*|\\(?0)[\\d${HYPHENS}()\\s]{7,13}\\d(?![\\d${HYPHENS}])`,
+  `(?<![\\d${HYPHENS}])(?:\\+81[${HYPHENS}()\\s]*|\\(?0)[\\d${HYPHENS}()\\s]{7,13}\\d(?![\\d${HYPHENS}])`,
   "g"
 );
 
 function isPhoneNumber(candidate: string): boolean {
-  const digitCount = candidate.replace(/\D/g, "").length;
-  // +81 の後ろは国内番号の先頭の 0 を落とした 9〜10 桁
-  if (candidate.startsWith("+81")) return digitCount - 2 === 9 || digitCount - 2 === 10;
-  return digitCount === 10 || digitCount === 11;
+  const digits = candidate.replace(/\D/g, "");
+  if (candidate.startsWith("+81")) {
+    // +81 の後ろは国内番号の先頭の 0 を落とすのが正式だが、
+    // 「+81 090-…」「+81 (0)90-…」のように残したまま書かれることも多い
+    const national = digits.slice(2);
+    const length = national.startsWith("0") ? national.length - 1 : national.length;
+    return length === 9 || length === 10;
+  }
+  return digits.length === 10 || digits.length === 11;
 }
 
 // 全角の英数字・記号（U+FF01〜FF5E）と全角スペースを半角に置き換える。
