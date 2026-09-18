@@ -28,25 +28,59 @@ export const VENDOR_INQUIRY_STATUS_BY_TOPIC: Record<VendorInquiryTopic, readonly
 
 export const VENDOR_INQUIRY_BODY_MAX_LENGTH = 4000;
 export const VENDOR_INQUIRY_REPLY_BODY_MAX_LENGTH = 4000;
+export const VENDOR_INQUIRY_IMAGE_URL_MAX_LENGTH = 2048;
+
+/** このプロジェクトのSupabaseのホスト。取れなければ https の画像URLは一切許可しない */
+function supabaseStorageHost(): string | null {
+  const raw = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
+  if (!raw) return null;
+  try {
+    return new URL(raw).host;
+  } catch {
+    return null;
+  }
+}
 
 /**
  * image_url に許可する形式か判定する。
- * サイト内の絶対パスと、Supabase Storageのhttps URLのみ許可する
- * （next.config.js の remotePatterns が *.supabase.co に限定しているのと同じ方針）。
+ * サイト内の絶対パスと、このプロジェクトのSupabase Storageのhttps URLのみ許可する。
  *
  * サイト内絶対パスの判定は「先頭が `/` で、かつ2文字目が `/` でも `\` でもない」こと。
- * `//evil.example/a.png` はプロトコル相対URLで外部ホストを指す。
- * `/\evil.example/a.png` もブラウザが `//` に正規化するため同じく外部ホストを指すので、
- * バックスラッシュも併せて弾く必要がある。
+ * `//evil.example/a.png` はプロトコル相対URLで外部ホストを指し、
+ * `/\evil.example/a.png` もブラウザが `//` に正規化するため同じく外部ホストを指す。
  *
- * この検証はスレッド作成時（POST /api/vendor/inquiries）の一度きりで、
- * 保存後の表示時には再検証されない。表示側（#473/#474）はDBに入っている
- * image_url がここを通過した値であることを前提にしてよい。
+ * あわせて制御文字を含む値を拒否する。ブラウザはURLを解釈する前にタブ・LF・CRを
+ * 取り除くため（WHATWG URL 仕様）、残したまま判定すると `/<TAB>/evil.example/a.png` が
+ * `//evil.example/a.png` として外部ホストを指してしまう。`.trim()` が落とすのは
+ * 前後だけなので、途中に入った制御文字はここで弾く必要がある。
+ *
+ * **この検証を表示側の安全性の根拠にしてはいけない。**
+ * vendor_inquiries の INSERT ポリシーは `with check (auth.uid() = vendor_id)` だけで、
+ * image_url の形はDB側で縛っていない。出店者はこのAPIを通さず PostgREST から
+ * 直接任意の値を入れられる。表示側（#473/#474）では必ず再検証・エスケープすること。
  */
-export function isAllowedVendorInquiryImageUrl(value: string): boolean {
+export function isAllowedVendorInquiryImageUrl(
+  value: string,
+  // 既定はこのプロジェクトのSupabaseホスト。テストからは明示的に渡す
+  allowedStorageHost: string | null = supabaseStorageHost()
+): boolean {
   const trimmed = value.trim();
+  if (!trimmed || trimmed.length > VENDOR_INQUIRY_IMAGE_URL_MAX_LENGTH) return false;
+  // 範囲は必ずエスケープ表記で書くこと。制御文字そのものをソースに入れると
+  // git がファイルをバイナリと判定し、差分が読めなくなる（#527 で一度起きた）
+  if (/[\x00-\x1F\x7F]/.test(trimmed)) return false;
+
   if (/^\/(?![/\\])/.test(trimmed)) return true;
-  return /^https:\/\/[a-z0-9-]+\.supabase\.co\//i.test(trimmed);
+
+  // ホストは前方一致ではなく完全一致で見る。`*.supabase.co` をまるごと許すと
+  // 他人のSupabaseプロジェクトの画像も指定できてしまう
+  if (!allowedStorageHost) return false;
+  try {
+    const url = new URL(trimmed);
+    return url.protocol === "https:" && url.host === allowedStorageHost;
+  } catch {
+    return false;
+  }
 }
 
 export function isValidStatusForTopic(topic: VendorInquiryTopic, status: string): boolean {

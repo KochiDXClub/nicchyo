@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { getRole } from "@/lib/auth/permissions";
 import { requireSameOrigin } from "@/lib/security/requestGuards";
 import { enforceRateLimit } from "@/lib/security/rateLimit";
 import { authorizeRequest, createAdminClient } from "../../_shared";
@@ -41,7 +42,7 @@ export async function POST(req: Request, { params }: RouteParams) {
     bucket: "admin-vendor-inquiry-replies-post",
     limit: 60,
     windowMs: 10 * 60 * 1000,
-    keySuffix: user.id,
+    identity: user.id,
   });
   if (rateLimited) return rateLimited;
 
@@ -57,9 +58,11 @@ export async function POST(req: Request, { params }: RouteParams) {
     return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 });
   }
 
+  const senderRole = parsed.data.sender_role ?? "operator";
+
   const { data: inquiry, error: fetchErr } = await dc
     .from("vendor_inquiries")
-    .select("id")
+    .select("id, category")
     .eq("id", id)
     .maybeSingle();
   if (fetchErr) {
@@ -72,7 +75,7 @@ export async function POST(req: Request, { params }: RouteParams) {
     .from("vendor_inquiry_replies")
     .insert({
       inquiry_id: id,
-      sender_role: parsed.data.sender_role ?? "operator",
+      sender_role: senderRole,
       sender_id: user.id,
       body: parsed.data.body,
     })
@@ -82,6 +85,25 @@ export async function POST(req: Request, { params }: RouteParams) {
   if (insertErr) {
     console.error("[admin/vendor-inquiries/:id/replies] insert error:", insertErr.message);
     return NextResponse.json({ error: "送信に失敗しました" }, { status: 500 });
+  }
+
+  // 市役所名義の返信は「運営が市役所の代理で送った」ものなので、誰が送ったかを残す。
+  // 市役所ロール（#478）を足すときは、このAPI側にも
+  // 「city 名義で送れるのは category が city/both のスレッドだけ」という制限が要る。
+  // 現状は service_role でRLSをバイパスするため、RLS側にポリシーを足しても効かない。
+  if (senderRole === "city") {
+    const { error: auditErr } = await dc.from("admin_audit_logs").insert({
+      actor_id: user.id,
+      actor_email: user.email,
+      actor_role: getRole(user),
+      action: "vendor_inquiry_replied_as_city",
+      target_type: "vendor_inquiry",
+      target_id: id,
+      details: JSON.stringify({ reply_id: data.id, inquiry_category: inquiry.category }),
+    });
+    if (auditErr) {
+      console.error("[admin/vendor-inquiries/:id/replies] audit log insert failed:", auditErr.message);
+    }
   }
 
   return NextResponse.json({ reply: data }, { status: 201 });

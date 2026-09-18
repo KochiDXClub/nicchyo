@@ -10,6 +10,7 @@ import {
   VENDOR_INQUIRY_CATEGORIES,
   VENDOR_INQUIRY_URGENCIES,
   VENDOR_INQUIRY_BODY_MAX_LENGTH,
+  VENDOR_INQUIRY_IMAGE_URL_MAX_LENGTH,
   isAllowedVendorInquiryImageUrl,
 } from "@/lib/vendorInquiries/constants";
 
@@ -28,7 +29,13 @@ const CreateInquirySchema = z.object({
   image_url: z
     .string()
     .trim()
-    .refine(isAllowedVendorInquiryImageUrl, { message: "許可されていない画像URLです" })
+    .max(
+      VENDOR_INQUIRY_IMAGE_URL_MAX_LENGTH,
+      `画像URLは${VENDOR_INQUIRY_IMAGE_URL_MAX_LENGTH}文字以内にしてください`
+    )
+    // 関数参照をそのまま渡すと zod が第2引数に RefinementCtx を入れてしまい、
+    // isAllowedVendorInquiryImageUrl の allowedStorageHost と衝突する
+    .refine((v) => isAllowedVendorInquiryImageUrl(v), { message: "許可されていない画像URLです" })
     .optional(),
 });
 
@@ -68,7 +75,7 @@ export async function POST(request: Request) {
 
   // IP単位は「認証前の連打」を止めるための粗い上限にとどめる。
   // 日曜市の会場Wi-FiやキャリアグレードNATで複数の出店者が同一IPになりうるため、
-  // 実際の投稿数の制限は認証後に出店者単位（keySuffix: user.id）でかける。
+  // 実際の投稿数の制限は認証後に出店者単位（identity: user.id）でかける。
   const floodLimited = await enforceRateLimit(request, {
     bucket: "vendor-inquiries-post-ip",
     limit: 300,
@@ -89,7 +96,7 @@ export async function POST(request: Request) {
     bucket: "vendor-inquiries-post",
     limit: 10,
     windowMs: 10 * 60 * 1000,
-    keySuffix: user.id,
+    identity: user.id,
   });
   if (rateLimited) return rateLimited;
 

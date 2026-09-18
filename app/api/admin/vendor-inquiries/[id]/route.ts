@@ -78,7 +78,7 @@ export async function PATCH(req: Request, { params }: RouteParams) {
     bucket: "admin-vendor-inquiries-patch",
     limit: 60,
     windowMs: 10 * 60 * 1000,
-    keySuffix: user.id,
+    identity: user.id,
   });
   if (rateLimited) return rateLimited;
 
@@ -117,10 +117,28 @@ export async function PATCH(req: Request, { params }: RouteParams) {
     );
   }
 
-  const { error: updateErr } = await dc.from("vendor_inquiries").update({ status: parsed.data.status }).eq("id", id);
+  // 同じ値への更新では何もしない。無意味な監査ログが増えるのを防ぐ
+  if (current.status === parsed.data.status) {
+    return NextResponse.json({ ok: true, unchanged: true });
+  }
+
+  // 読んでから更新するまでの間に他の担当者が変えていたら更新しない。
+  // そのまま上書きすると、監査ログの from が実際とは違う値で残る
+  const { data: updated, error: updateErr } = await dc
+    .from("vendor_inquiries")
+    .update({ status: parsed.data.status })
+    .eq("id", id)
+    .eq("status", current.status)
+    .select("id");
   if (updateErr) {
     console.error("[admin/vendor-inquiries/:id] update error:", updateErr.message);
     return NextResponse.json({ error: "更新に失敗しました" }, { status: 500 });
+  }
+  if (!updated || updated.length === 0) {
+    return NextResponse.json(
+      { error: "他の担当者が先に更新しました。画面を開き直してください" },
+      { status: 409 }
+    );
   }
 
   // 監査ログの失敗はステータス更新自体を巻き戻さない（更新はすでに成功しているため）が、
