@@ -1,7 +1,17 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { AlertCircle, Keyboard, Mic, RotateCcw, Send, Square, X } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import {
+  AlertCircle,
+  Keyboard,
+  Mic,
+  PanelLeftClose,
+  PanelLeftOpen,
+  RotateCcw,
+  Send,
+  Square,
+  X,
+} from "lucide-react";
 import toast from "react-hot-toast";
 import { useSpeechInput } from "@/lib/hooks/useSpeechInput";
 import { resolveGrandmaPose } from "@/lib/grandma/pose";
@@ -54,6 +64,17 @@ const QUESTION_POOL = [
 /** 開いたとき、話し手がその場に現れきるまで。出そろってから本文を出す */
 const APPEAR_MS = 420;
 
+/**
+ * 下端に固定した「話しかける」バーとナビゲーションバーぶんの余白。
+ *
+ * スクロール領域の height（-var(--consult-bar-space) で削る側）と、
+ * その下の paddingBottom（本文が隠れないようにする側）の両方で同じ値を
+ * 使う必要がある。別々にハードコードすると、どちらか一方だけ変更したときに
+ * 本 PR で直した「候補ボタンと入力バーの重なり」が再発するため、
+ * ここ1箇所だけで定義し、CSS カスタムプロパティ経由で両方から参照する。
+ */
+const CONSULT_BAR_SPACE = "calc(var(--safe-bottom, 0px) + var(--nav-bar-height) + 6rem)";
+
 export interface ConsultStageProps {
   onAskStream: (
     text: string,
@@ -72,6 +93,13 @@ export interface ConsultStageProps {
   /** いま話しているキャラ。null なら既定のにちよさん */
   preferredCharacterId?: ConsultCharacterId | null;
   onPreferredCharacterChange?: (id: ConsultCharacterId) => void;
+  /**
+   * PC版「これまでの相談」サイドバーの開閉状態。
+   * チャット欄を中央に置くか右へ逃がすかは親（ConsultClient）側のレイアウトが
+   * 決めるため、開閉の状態そのものは親に持たせ、ここからは通知だけする。
+   */
+  isHistorySidebarOpen?: boolean;
+  onHistorySidebarOpenChange?: (open: boolean) => void;
 }
 
 type StagePhase = "idle" | "confirming" | "thinking";
@@ -94,6 +122,8 @@ export default function ConsultStage({
   autoAskContext,
   preferredCharacterId,
   onPreferredCharacterChange,
+  isHistorySidebarOpen = false,
+  onHistorySidebarOpenChange,
 }: ConsultStageProps) {
   const [entries, setEntries] = useState<ConsultEntry[]>([]);
   const [phase, setPhase] = useState<StagePhase>("idle");
@@ -103,7 +133,6 @@ export default function ConsultStage({
   /** 応答待ちの間も「何を聞いたか」を出しておくため */
   const [pendingQuestion, setPendingQuestion] = useState<string | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
-  const [textOpen, setTextOpen] = useState(false);
   const [typed, setTyped] = useState("");
   const [hasRestored, setHasRestored] = useState(false);
   const [autoAsked, setAutoAsked] = useState(false);
@@ -117,6 +146,12 @@ export default function ConsultStage({
    */
   const [showsCurrentAnswer, setShowsCurrentAnswer] = useState(false);
   /**
+   * 「これまでの相談」の1件をタップして、大きい答えカードとして開き直したときの
+   * 対象。null のときは既定どおり最新（entries[0]）を出す。新しく質問したときは
+   * また最新を見せたいので、ask() の頭で null に戻す
+   */
+  const [viewedEntryId, setViewedEntryId] = useState<string | null>(null);
+  /**
    * 回答に添えられて返ってきたお店。
    * 店舗そのものは localStorage に保存せず（重いので）ID だけ持ち、
    * 実体はこの表と allShops から引く。
@@ -125,8 +160,10 @@ export default function ConsultStage({
 
   const entriesRef = useRef<ConsultEntry[]>([]);
   entriesRef.current = entries;
-  const textInputRef = useRef<HTMLTextAreaElement | null>(null);
+  const textInputRef = useRef<HTMLInputElement | null>(null);
   const topSentinelRef = useRef<HTMLDivElement | null>(null);
+  /** 「これまでの相談」から答えカードを開き直したとき、その場所までスクロールを戻す */
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   /** 話し手の立ち位置。入れ替わりの歩きはここへ着く */
   const heroAvatarRef = useRef<HTMLDivElement | null>(null);
   /**
@@ -361,6 +398,8 @@ export default function ConsultStage({
       if (!text || phase === "thinking") return;
 
       toast.dismiss("consult-error");
+      // 過去の相談を開き直していても、新しく聞いたらまた最新の答えを見せる
+      setViewedEntryId(null);
       setPhase("thinking");
       setDraft("");
       setPendingQuestion(text);
@@ -449,7 +488,34 @@ export default function ConsultStage({
     void ask(autoAskText, "input", true);
   }, [ask, autoAsked, autoAskText, hasRestored]);
 
-  const current = showsCurrentAnswer ? entries[0] ?? null : null;
+  // 既定は最新（entries[0]）。「これまでの相談」から1件タップして開き直しているときは
+  // viewedEntryId が指す、その場所を優先する
+  const current = showsCurrentAnswer
+    ? (viewedEntryId ? entries.find((entry) => entry.id === viewedEntryId) : undefined) ??
+      entries[0] ??
+      null
+    : null;
+  /**
+   * サイドバー／シートを出す価値のある件数か。
+   *
+   * current（今の答えカードに出ている1件）を除いた残り件数で判定すると、
+   * 「これまでの相談」が1件だけのときにそれをタップして開き直した瞬間、
+   * 残りが0件になってサイドバーごと消えてしまう（タップして展開したのに
+   * 展開先が消える、というおかしな体験になる）。一覧からは current を
+   * 除かず、選んでいる行を強調表示するだけにしたので、ここも current に
+   * 左右されない「全部で何件あるか」だけで決める
+   */
+  const hasHistory = entries.length > 1;
+
+  // 「これまでの相談」の1件をタップして、大きい答えカードとして開き直す
+  const viewHistoryEntry = useCallback((id: string) => {
+    setViewedEntryId(id);
+    setShowsCurrentAnswer(true);
+    // モバイルのシートは答えカードを覆ってしまうので閉じる。PCのサイドバーは
+    // チャット欄を隠さないので、開いたままでもよい
+    setHistoryOpen(false);
+    scrollContainerRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+  }, []);
   const suggestions = useMemo(
     () => pickSuggestions({ entries, pool: QUESTION_POOL }),
     [entries]
@@ -507,6 +573,78 @@ export default function ConsultStage({
     };
   }, [allShops, entries, hasRestored, shopsById]);
 
+  /**
+   * 「これまでの相談」の中身。モバイルはボトムシート、PC（lg 以上）は
+   * 常時表示のサイドバーで、見た目の器は違うが元データは同じもの。
+   * タップすると、その相談を大きい答えカード（おばあちゃんの今の返事として
+   * 表示される場所）に開き直す。
+   *
+   * 今カードに出ている分（current）も一覧から外さず、選んでいる行として
+   * 強調表示するだけにする。以前は current を一覧から外していたが、
+   * 「これまでの相談」が1件しかないときにそれをタップすると、外を持たない
+   * 一覧が0件になってサイドバーごと消えてしまい、「展開したのに展開先が消える」
+   * というおかしな体験になっていた（Claudeデスクトップ版でも、開いている
+   * 会話は一覧から消えず選択中として残る）。
+   *
+   * sheet: モバイルの詳細表示。質問と答えを全文出し、紹介した店も添える
+   *   （読むために開くシートなので、内容を惜しまず出す）。
+   * sidebar: PCのサイドバー。Claude デスクトップ版の会話一覧のように、
+   *   1行がコンパクトな行として並ぶ一覧にする（答えは2行に丸め、店は出さない）。
+   */
+  const renderHistoryList = (variant: "sheet" | "sidebar") => (
+    <ul className={variant === "sheet" ? "flex flex-col gap-4" : "flex flex-col gap-0.5"}>
+      {entries.map((item) => {
+        const itemShops = resolveShops(item.shopIds);
+        const isActive = item.id === current?.id;
+        if (variant === "sidebar") {
+          return (
+            <li key={item.id}>
+              <button
+                type="button"
+                onClick={() => viewHistoryEntry(item.id)}
+                aria-current={isActive}
+                className={`w-full rounded-xl px-3 py-2.5 text-left transition ${
+                  isActive ? "bg-amber-100" : "hover:bg-amber-50"
+                }`}
+              >
+                <p className="line-clamp-1 text-sm font-bold text-slate-800">{item.question}</p>
+                <p className="mt-0.5 line-clamp-2 text-xs leading-5 text-slate-500">
+                  {item.answer}
+                </p>
+              </button>
+            </li>
+          );
+        }
+        return (
+          <li key={item.id} className="border-b border-amber-100 pb-3 last:border-0">
+            {/* 店のカード（それ自体タップできる）を巻き込まないよう、
+                タップの当たり判定は質問・答えの文章部分だけに絞る */}
+            <button
+              type="button"
+              onClick={() => viewHistoryEntry(item.id)}
+              aria-current={isActive}
+              className={`w-full rounded-xl px-2 py-1 text-left transition active:opacity-70 ${
+                isActive ? "bg-amber-100" : ""
+              }`}
+            >
+              <p className="text-xs text-slate-400">{item.question}</p>
+              <p className="mt-1 whitespace-pre-wrap text-sm leading-6 text-slate-700">
+                {item.answer}
+              </p>
+            </button>
+            {itemShops.length > 0 && onSelectShop && (
+              <div className="-mx-4 mt-2 flex snap-x snap-mandatory gap-2.5 overflow-x-auto px-4 pb-1">
+                {itemShops.map((shop) => (
+                  <ConsultShopCard key={shop.id} shop={shop} onSelect={onSelectShop} />
+                ))}
+              </div>
+            )}
+          </li>
+        );
+      })}
+    </ul>
+  );
+
   const isBusy = phase === "thinking";
   const showAnswer = isBusy || streamingText !== null || !!current;
 
@@ -531,19 +669,41 @@ export default function ConsultStage({
     setPhase("idle");
   };
 
+  // 音声の確認シートから「文字で直す」に切り替えるときだけ使う。
+  // 入力欄自体は最初から常に出ているので、ここでは
+  // シートを閉じて聞き取れた分を引き継ぎ、フォーカスを移すだけでよい
   const openTextInput = () => {
-    setTextOpen(true);
+    setPhase("idle");
     setTyped(draft);
-    // シートが描画されてからでないとフォーカスが乗らない
+    setDraft("");
     requestAnimationFrame(() => textInputRef.current?.focus());
   };
 
   return (
     <div
-      className="flex min-h-[calc(100dvh-96px)] w-full flex-col gap-3 px-4 pt-3"
-      // 下端に固定した「話しかける」とナビゲーションバーの分だけ空ける。
-      // ここを決め打ちにすると、ホームインジケータのある端末で本文が隠れる
-      style={{ paddingBottom: "calc(var(--safe-bottom, 0px) + var(--nav-bar-height) + 6rem)" }}
+      ref={scrollContainerRef}
+      // min-height ではなく height + overflow-y-auto にして、この中だけで
+      // スクロールを完結させる。min-height のままページ全体でスクロールさせると、
+      // 下端固定の「話しかける」バーはビューポート基準の位置に居続けるのに対し、
+      // キャラ・ひとこと・候補ボタンは開いた直後（スクロール前）の自然な高さで
+      // 描かれるため、縦の低い画面（PCの非全画面ウィンドウなど）では
+      // スクロールする前から候補ボタンにバーが重なって見えていた。
+      //
+      // height は「この要素より上（親 main の pt-2）」と「下端の話しかけるバー
+      // の分（--consult-bar-space、paddingBottom と同じ値）」を両方引く。
+      // paddingBottom だけでは、中身がその場に収まってしまう高さのときスクロール
+      // が発生せず、バーの領域まで普通に描画されて隠れてしまうため、
+      // 「バーの領域には最初から描画させない」ところまで height 側でも絞る
+      className="flex h-[calc(100dvh-0.5rem-var(--consult-bar-space))] w-full flex-col gap-3 overflow-y-auto px-4 pt-3"
+      style={
+        {
+          // 下端に固定した「話しかける」とナビゲーションバーの分だけ空ける。
+          // ここを決め打ちにすると、ホームインジケータのある端末で本文が隠れる。
+          // height 側の計算式とずれないよう、値は CONSULT_BAR_SPACE の1箇所だけで定義する
+          "--consult-bar-space": CONSULT_BAR_SPACE,
+          paddingBottom: "var(--consult-bar-space)",
+        } as CSSProperties
+      }
     >
       {/*
         にちよさんは常に画面に残す。
@@ -611,12 +771,13 @@ export default function ConsultStage({
             <span className="rounded-full bg-red-500 px-3 py-1.5 text-xs font-bold text-white">
               聞きよるよ…
             </span>
-          ) : entries.length - (current ? 1 : 0) > 0 ? (
-            // 畳んだ履歴。件数を出しておかないと「消えた」と思われる
+          ) : hasHistory ? (
+            // 畳んだ履歴。件数を出しておかないと「消えた」と思われる。
+            // lg 以上は左上のサイドバー開閉アイコンに役目が移るので、ここは非表示にする
             <button
               type="button"
               onClick={() => setHistoryOpen(true)}
-              className="rounded-full border border-amber-200/80 bg-white/70 px-4 py-1.5 text-xs font-bold text-amber-800"
+              className="rounded-full border border-amber-200/80 bg-white/70 px-4 py-1.5 text-xs font-bold text-amber-800 lg:hidden"
             >
               これまでの相談 {entries.length}件 ▾
             </button>
@@ -742,12 +903,19 @@ export default function ConsultStage({
         </div>
       )}
 
-      {/* 音声は大きく、文字は最後の手段として小さく。
-          音声シートが出ている間と応答待ちの間は、押すべきものが2つにならないよう隠す */}
+      {/* 文字入力を大きく既定にし、音声は選べる小さいボタンにする。
+          音声シートが出ている間と応答待ちの間は、押すべきものが2つにならないよう隠す。
+          外側はビューポート全幅の flex justify-center にし、中身だけ max-w-3xl に絞る
+          （ConsultClient の <main> と同じ組み方）。lg 以上でサイドバーを開いているときは
+          この外側に lg:pl-80 を足して、チャット欄と同じだけ右へ逃がす。内側に
+          max-w-3xl 自体を持たせていた以前の作りだと、この padding がバーの中の余白に
+          しかならず、バー全体は動かせなかった */}
       <div
-        className={`fixed inset-x-0 z-20 flex items-center justify-center gap-3 px-4 ${
-          revealClass(280).className
-        } ${speech.isListening || phase !== "idle" || isBusy ? "hidden" : ""}`}
+        className={`fixed inset-x-0 z-20 flex justify-center px-4 ${
+          isHistorySidebarOpen ? "lg:pl-80" : ""
+        } ${revealClass(280).className} ${
+          speech.isListening || phase !== "idle" || isBusy ? "hidden" : ""
+        }`}
         style={{
           bottom: "calc(var(--safe-bottom, 0px) + var(--nav-bar-height) + 0.75rem)",
           ...revealClass(280).style,
@@ -767,33 +935,60 @@ export default function ConsultStage({
           }}
         />
 
-        {speech.isSupported && (
-          <button
-            type="button"
-            onClick={handleMicTap}
-            disabled={isBusy}
-            className={`flex flex-1 items-center justify-center gap-2 rounded-full px-6 py-4 text-base font-bold shadow-lg transition disabled:opacity-50 ${
-              speech.isListening
-                ? "bg-red-500 text-white"
-                : "bg-gradient-to-br from-amber-500 to-orange-500 text-white"
-            }`}
-          >
-            <Mic className="h-5 w-5" aria-hidden="true" />
-            {speech.isListening ? "とめる" : "話しかける"}
-          </button>
-        )}
-        <button
-          type="button"
-          onClick={openTextInput}
-          disabled={isBusy}
-          aria-label="文字で聞く"
-          className={`flex items-center justify-center rounded-full border border-amber-200 bg-white/95 text-amber-800 shadow-lg disabled:opacity-50 ${
-            speech.isSupported ? "h-14 w-14" : "flex-1 gap-2 px-6 py-4 text-base font-bold"
-          }`}
-        >
-          <Keyboard className="h-5 w-5" aria-hidden="true" />
-          {!speech.isSupported && "文字で聞く"}
-        </button>
+        <div className="flex w-full max-w-3xl items-center justify-center gap-3">
+          {/* 文字入力を既定にする。タップして開く一段階を挟まず、
+              最初から入力欄を出しておく。音声は騒がしい現地では速いが、
+              静かな場所や周りに人がいるときは声を出しにくいため */}
+          <div className="flex flex-1 items-center gap-2 rounded-full border border-amber-200 bg-white/95 py-1.5 pl-5 pr-1.5 shadow-lg">
+            <input
+              ref={textInputRef}
+              type="text"
+              value={typed}
+              onChange={(event) => setTyped(event.target.value)}
+              onKeyDown={(event) => {
+                // 日本語入力の変換確定の Enter で、未確定テキストのまま送信してしまわないようにする
+                if (event.nativeEvent.isComposing) return;
+                if (event.key !== "Enter" || isBusy) return;
+                const question = typed.trim();
+                if (!question) return;
+                event.preventDefault();
+                setTyped("");
+                void ask(question, "input");
+              }}
+              placeholder="（例）今の旬の果物は？"
+              disabled={isBusy}
+              className="min-w-0 flex-1 bg-transparent py-2.5 text-base text-slate-800 outline-none placeholder:text-slate-400 disabled:opacity-50"
+            />
+            <button
+              type="button"
+              disabled={isBusy || !typed.trim()}
+              onClick={() => {
+                const question = typed.trim();
+                setTyped("");
+                void ask(question, "input");
+              }}
+              aria-label="聞く"
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-amber-500 to-orange-500 text-white shadow-sm transition disabled:opacity-40"
+            >
+              <Send className="h-4 w-4" aria-hidden="true" />
+            </button>
+          </div>
+          {speech.isSupported && (
+            <button
+              type="button"
+              onClick={handleMicTap}
+              disabled={isBusy}
+              aria-label={speech.isListening ? "とめる" : "音声で聞く"}
+              className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-full shadow-lg transition disabled:opacity-50 ${
+                speech.isListening
+                  ? "bg-red-500 text-white"
+                  : "border border-amber-200 bg-white/95 text-amber-800"
+              }`}
+            >
+              <Mic className="h-5 w-5" aria-hidden="true" />
+            </button>
+          )}
+        </div>
       </div>
 
       {/*
@@ -815,7 +1010,7 @@ export default function ConsultStage({
           />
 
           <div
-            className="relative rounded-t-3xl bg-white px-4 pt-4 shadow-2xl"
+            className="relative mx-auto rounded-t-3xl bg-white px-4 pt-4 shadow-2xl md:max-w-md"
             style={{ paddingBottom: "calc(var(--safe-bottom, 0px) + 5rem)" }}
           >
             <div className="mb-3 flex items-center justify-between">
@@ -897,50 +1092,6 @@ export default function ConsultStage({
         </div>
       )}
 
-      {/* 文字入力は最後の手段なので、普段は畳んでおく */}
-      {textOpen && (
-        <div className="fixed inset-0 z-40 flex flex-col justify-end">
-          <div
-            className="absolute inset-0 bg-black/30"
-            onClick={() => setTextOpen(false)}
-            aria-hidden="true"
-          />
-          <div
-            className="relative rounded-t-3xl bg-white p-4"
-            style={{ paddingBottom: "calc(var(--safe-bottom, 0px) + 5rem)" }}
-          >
-            <div className="mb-2 flex items-center justify-between">
-              <p className="text-sm font-bold text-amber-900">文字で聞く</p>
-              <button type="button" onClick={() => setTextOpen(false)} aria-label="閉じる">
-                <X className="h-5 w-5 text-slate-400" aria-hidden="true" />
-              </button>
-            </div>
-            <textarea
-              ref={textInputRef}
-              value={typed}
-              onChange={(event) => setTyped(event.target.value)}
-              rows={3}
-              placeholder="（例）今の旬の果物は？"
-              className="w-full rounded-2xl border border-amber-200 p-3 text-base text-slate-800 outline-none focus:border-amber-400"
-            />
-            <button
-              type="button"
-              disabled={!typed.trim()}
-              onClick={() => {
-                const question = typed.trim();
-                setTextOpen(false);
-                setTyped("");
-                void ask(question, "input");
-              }}
-              className="mt-2 flex w-full items-center justify-center gap-2 rounded-full bg-gradient-to-br from-amber-500 to-orange-500 px-6 py-4 text-base font-bold text-white disabled:opacity-40"
-            >
-              <Send className="h-4 w-4" aria-hidden="true" />
-              聞く
-            </button>
-          </div>
-        </div>
-      )}
-
       {/*
         過去の相談。消えたのではなく畳まれているだけ、と分かるようにする。
 
@@ -957,7 +1108,7 @@ export default function ConsultStage({
             aria-hidden="true"
           />
 
-          <div className="relative flex max-h-[85dvh] flex-col overflow-hidden rounded-t-3xl bg-white">
+          <div className="relative mx-auto flex max-h-[85dvh] flex-col overflow-hidden rounded-t-3xl bg-white md:max-w-md">
             <div className="flex shrink-0 items-center justify-between border-b border-amber-100 px-4 py-3">
               <p className="text-sm font-bold text-amber-900">
                 これまでの相談（{entries.length}件）
@@ -968,26 +1119,9 @@ export default function ConsultStage({
             </div>
 
             {/* ここだけスクロールする。overscroll-contain で背後まで動かさない */}
-            <ul className="flex flex-1 flex-col gap-4 overflow-y-auto overscroll-contain px-4 py-4">
-              {entries.map((item) => {
-                const itemShops = resolveShops(item.shopIds);
-                return (
-                  <li key={item.id} className="border-b border-amber-100 pb-3 last:border-0">
-                    <p className="text-xs text-slate-400">{item.question}</p>
-                    <p className="mt-1 whitespace-pre-wrap text-sm leading-6 text-slate-700">
-                      {item.answer}
-                    </p>
-                    {itemShops.length > 0 && onSelectShop && (
-                      <div className="-mx-4 mt-2 flex snap-x snap-mandatory gap-2.5 overflow-x-auto px-4 pb-1">
-                        {itemShops.map((shop) => (
-                          <ConsultShopCard key={shop.id} shop={shop} onSelect={onSelectShop} />
-                        ))}
-                      </div>
-                    )}
-                  </li>
-                );
-              })}
-            </ul>
+            <div className="flex-1 overflow-y-auto overscroll-contain px-4 py-4">
+              {renderHistoryList("sheet")}
+            </div>
 
             <div
               className="shrink-0 border-t border-amber-100 bg-white px-4 pt-3"
@@ -1004,6 +1138,63 @@ export default function ConsultStage({
                 相談を最初からにする
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/*
+        これまでの相談（PC 用サイドバー）。Claude デスクトップ版を参考に、
+        ウィンドウ左端に張り付く帯にした。閉じているときは左上に開くアイコンだけを
+        浮かせ、開くとその場でサイドバーの見出しに変わる（Claude の開閉と同じ運び）。
+        既定は閉じておき、チャット欄は中央のまま保つ。開いたときだけチャット欄を
+        右へ逃がす（ConsultClient 側の padding-left で処理）。
+      */}
+      {hasHistory && !isHistorySidebarOpen && (
+        <button
+          type="button"
+          onClick={() => onHistorySidebarOpenChange?.(true)}
+          aria-label={`これまでの相談を開く（${entries.length}件）`}
+          className="fixed left-4 top-4 z-30 hidden h-9 w-9 items-center justify-center rounded-lg text-slate-500 transition hover:bg-black/5 lg:flex"
+        >
+          <PanelLeftOpen className="h-5 w-5" aria-hidden="true" />
+        </button>
+      )}
+      {hasHistory && isHistorySidebarOpen && (
+        <div
+          className="fixed inset-y-0 left-0 z-20 hidden w-72 flex-col border-r border-amber-100 bg-white lg:flex"
+          style={{
+            paddingBottom: "calc(var(--safe-bottom, 0px) + var(--nav-bar-height))",
+          }}
+        >
+          <div className="flex shrink-0 items-center gap-2 px-3 py-3">
+            <button
+              type="button"
+              onClick={() => onHistorySidebarOpenChange?.(false)}
+              aria-label="サイドバーを閉じる"
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-slate-500 transition hover:bg-black/5"
+            >
+              <PanelLeftClose className="h-5 w-5" aria-hidden="true" />
+            </button>
+            <p className="truncate text-sm font-bold text-slate-700">
+              これまでの相談（{entries.length}件）
+            </p>
+          </div>
+          <div className="flex-1 overflow-y-auto overscroll-contain px-2 pb-2">
+            {renderHistoryList("sidebar")}
+          </div>
+          <div className="shrink-0 border-t border-amber-100 px-3 py-3">
+            <button
+              type="button"
+              onClick={() => {
+                setEntries(createEmptySession().entries);
+                // 履歴が0件になるとサイドバー自体を描画しなくなるので、
+                // 開いたままだとチャット欄だけ右へ逃げた空白が残ってしまう
+                onHistorySidebarOpenChange?.(false);
+              }}
+              className="w-full rounded-lg px-3 py-2 text-left text-sm font-bold text-amber-800 transition hover:bg-amber-50"
+            >
+              相談を最初からにする
+            </button>
           </div>
         </div>
       )}

@@ -29,6 +29,8 @@ export default function ConsultClient({ embedded = false }: { embedded?: boolean
   // 既定はにちよさん。null にすると話し手が毎回変わり、会話全体が掛け合いに見える
   const [preferredCharacterId, setPreferredCharacterId] =
     useState<ConsultCharacterId>(DEFAULT_CONSULT_CHARACTER_ID);
+  // PC版「これまでの相談」サイドバーの開閉。既定は閉じ、チャット欄を中央のまま保つ
+  const [isHistorySidebarOpen, setIsHistorySidebarOpen] = useState(false);
   const searchParams = useSearchParams();
 
   const handleSelectShop = useCallback(
@@ -284,7 +286,15 @@ export default function ConsultClient({ embedded = false }: { embedded?: boolean
       className={`relative min-h-screen ${embedded ? "bg-transparent" : "bg-[var(--consult-bg)]"}`}
     >
       {!embedded && <div className="pointer-events-none absolute inset-0 z-0 bg-[var(--consult-bg)]" aria-hidden="true" />}
-      <main className="relative z-10 flex w-full items-start justify-center px-3 pb-16 pt-2">
+      {/*
+        「これまでの相談」サイドバー（lg 以上）を開いているときだけ、
+        中央寄せの本文を右へ逃がす。既定（閉じている間）はチャット欄を中央に置く
+      */}
+      <main
+        className={`relative z-10 flex w-full items-start justify-center px-3 pb-16 pt-2 ${
+          !embedded && isHistorySidebarOpen ? "lg:pl-80" : ""
+        }`}
+      >
         <div className="flex w-full max-w-3xl flex-col gap-2">
           {embedded ? (
             // マップ内に埋め込むときは、これまでどおりの会話パネル
@@ -318,6 +328,8 @@ export default function ConsultClient({ embedded = false }: { embedded?: boolean
               autoAskContext={autoAskContext}
               preferredCharacterId={preferredCharacterId}
               onPreferredCharacterChange={setPreferredCharacterId}
+              isHistorySidebarOpen={isHistorySidebarOpen}
+              onHistorySidebarOpenChange={setIsHistorySidebarOpen}
             />
           )}
         </div>
