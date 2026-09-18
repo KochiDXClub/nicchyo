@@ -495,8 +495,17 @@ export default function ConsultStage({
       entries[0] ??
       null
     : null;
-  // 畳んだ履歴が1件以上あるか（今の答えは current 側に出ているので数えない）
-  const hasHistory = entries.some((entry) => entry.id !== current?.id);
+  /**
+   * サイドバー／シートを出す価値のある件数か。
+   *
+   * current（今の答えカードに出ている1件）を除いた残り件数で判定すると、
+   * 「これまでの相談」が1件だけのときにそれをタップして開き直した瞬間、
+   * 残りが0件になってサイドバーごと消えてしまう（タップして展開したのに
+   * 展開先が消える、というおかしな体験になる）。一覧からは current を
+   * 除かず、選んでいる行を強調表示するだけにしたので、ここも current に
+   * 左右されない「全部で何件あるか」だけで決める
+   */
+  const hasHistory = entries.length > 1;
 
   // 「これまでの相談」の1件をタップして、大きい答えカードとして開き直す
   const viewHistoryEntry = useCallback((id: string) => {
@@ -568,7 +577,14 @@ export default function ConsultStage({
    * 「これまでの相談」の中身。モバイルはボトムシート、PC（lg 以上）は
    * 常時表示のサイドバーで、見た目の器は違うが元データは同じもの。
    * タップすると、その相談を大きい答えカード（おばあちゃんの今の返事として
-   * 表示される場所）に開き直す。今カードに出ている分は、ここには重複して出さない。
+   * 表示される場所）に開き直す。
+   *
+   * 今カードに出ている分（current）も一覧から外さず、選んでいる行として
+   * 強調表示するだけにする。以前は current を一覧から外していたが、
+   * 「これまでの相談」が1件しかないときにそれをタップすると、外を持たない
+   * 一覧が0件になってサイドバーごと消えてしまい、「展開したのに展開先が消える」
+   * というおかしな体験になっていた（Claudeデスクトップ版でも、開いている
+   * 会話は一覧から消えず選択中として残る）。
    *
    * sheet: モバイルの詳細表示。質問と答えを全文出し、紹介した店も添える
    *   （読むために開くシートなので、内容を惜しまず出す）。
@@ -577,50 +593,55 @@ export default function ConsultStage({
    */
   const renderHistoryList = (variant: "sheet" | "sidebar") => (
     <ul className={variant === "sheet" ? "flex flex-col gap-4" : "flex flex-col gap-0.5"}>
-      {entries
-        .filter((item) => item.id !== current?.id)
-        .map((item) => {
-          const itemShops = resolveShops(item.shopIds);
-          if (variant === "sidebar") {
-            return (
-              <li key={item.id}>
-                <button
-                  type="button"
-                  onClick={() => viewHistoryEntry(item.id)}
-                  className="w-full rounded-xl px-3 py-2.5 text-left transition hover:bg-amber-50"
-                >
-                  <p className="line-clamp-1 text-sm font-bold text-slate-800">{item.question}</p>
-                  <p className="mt-0.5 line-clamp-2 text-xs leading-5 text-slate-500">
-                    {item.answer}
-                  </p>
-                </button>
-              </li>
-            );
-          }
+      {entries.map((item) => {
+        const itemShops = resolveShops(item.shopIds);
+        const isActive = item.id === current?.id;
+        if (variant === "sidebar") {
           return (
-            <li key={item.id} className="border-b border-amber-100 pb-3 last:border-0">
-              {/* 店のカード（それ自体タップできる）を巻き込まないよう、
-                  タップの当たり判定は質問・答えの文章部分だけに絞る */}
+            <li key={item.id}>
               <button
                 type="button"
                 onClick={() => viewHistoryEntry(item.id)}
-                className="w-full text-left transition active:opacity-70"
+                aria-current={isActive}
+                className={`w-full rounded-xl px-3 py-2.5 text-left transition ${
+                  isActive ? "bg-amber-100" : "hover:bg-amber-50"
+                }`}
               >
-                <p className="text-xs text-slate-400">{item.question}</p>
-                <p className="mt-1 whitespace-pre-wrap text-sm leading-6 text-slate-700">
+                <p className="line-clamp-1 text-sm font-bold text-slate-800">{item.question}</p>
+                <p className="mt-0.5 line-clamp-2 text-xs leading-5 text-slate-500">
                   {item.answer}
                 </p>
               </button>
-              {itemShops.length > 0 && onSelectShop && (
-                <div className="-mx-4 mt-2 flex snap-x snap-mandatory gap-2.5 overflow-x-auto px-4 pb-1">
-                  {itemShops.map((shop) => (
-                    <ConsultShopCard key={shop.id} shop={shop} onSelect={onSelectShop} />
-                  ))}
-                </div>
-              )}
             </li>
           );
-        })}
+        }
+        return (
+          <li key={item.id} className="border-b border-amber-100 pb-3 last:border-0">
+            {/* 店のカード（それ自体タップできる）を巻き込まないよう、
+                タップの当たり判定は質問・答えの文章部分だけに絞る */}
+            <button
+              type="button"
+              onClick={() => viewHistoryEntry(item.id)}
+              aria-current={isActive}
+              className={`w-full rounded-xl px-2 py-1 text-left transition active:opacity-70 ${
+                isActive ? "bg-amber-100" : ""
+              }`}
+            >
+              <p className="text-xs text-slate-400">{item.question}</p>
+              <p className="mt-1 whitespace-pre-wrap text-sm leading-6 text-slate-700">
+                {item.answer}
+              </p>
+            </button>
+            {itemShops.length > 0 && onSelectShop && (
+              <div className="-mx-4 mt-2 flex snap-x snap-mandatory gap-2.5 overflow-x-auto px-4 pb-1">
+                {itemShops.map((shop) => (
+                  <ConsultShopCard key={shop.id} shop={shop} onSelect={onSelectShop} />
+                ))}
+              </div>
+            )}
+          </li>
+        );
+      })}
     </ul>
   );
 
