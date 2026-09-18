@@ -9,7 +9,14 @@ type RateLimitOptions = {
   bucket: string;
   limit: number;
   windowMs: number;
+  /** IPと組み合わせてキーを分ける。同一IPの別ユーザーを区別したいときに使う */
   keySuffix?: string | null;
+  /**
+   * IPの代わりにこの値でキーを作る（ログイン済みユーザーIDなど）。
+   * IPを含めないので、回線を変えてもカウントが持ち越される。
+   * 指定した場合 keySuffix は無視する。
+   */
+  identity?: string | null;
   message?: string;
 };
 
@@ -112,10 +119,14 @@ export function getClientIp(request: Request): string {
 
 export async function enforceRateLimit(
   request: Request,
-  { bucket, limit, windowMs, keySuffix, message }: RateLimitOptions
+  { bucket, limit, windowMs, keySuffix, identity, message }: RateLimitOptions
 ): Promise<NextResponse | null> {
-  const ip = getClientIp(request);
-  const key = [bucket, ip, keySuffix ?? ""].join(":");
+  // identity が指定されたときは IP をキーに含めない。
+  // keySuffix は IP と併用する（同一IPの別ユーザーを区別するが、IPを変えると別枠になる）ため、
+  // 「ログイン済みユーザー1人あたり」を数えたい場合は identity を使う
+  const key = identity
+    ? [bucket, "id", identity].join(":")
+    : [bucket, getClientIp(request), keySuffix ?? ""].join(":");
   const defaultMessage = message ?? "リクエストが多すぎます。しばらくしてからお試しください。";
 
   if (upstashRatelimit) {
