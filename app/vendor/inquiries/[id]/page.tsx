@@ -8,7 +8,10 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { ArrowLeft, Loader2, Send } from "lucide-react";
 import { CenteredLoading } from "@/components/ui/loading-spinner";
-import { VENDOR_INQUIRY_REPLY_BODY_MAX_LENGTH } from "@/lib/vendorInquiries/constants";
+import {
+  VENDOR_INQUIRY_REPLY_BODY_MAX_LENGTH,
+  isAllowedVendorInquiryImageUrl,
+} from "@/lib/vendorInquiries/constants";
 import {
   CATEGORY_LABELS,
   SENDER_ROLE_LABELS,
@@ -81,6 +84,14 @@ export default function VendorInquiryDetailPage() {
   // （#470 の設計方針。APIとDBは返信自体を許容している）
   const canReply = inquiry !== null && inquiry.topic !== "report";
 
+  // DBに入っている image_url を信用せず、表示の直前に検証し直す。
+  // 作成APIでも検証しているが、INSERTポリシーは vendor_id しか見ていないため、
+  // 出店者はAPIを通さずPostgRESTから直接任意の値を入れられる（#527 のレビュー参照）。
+  // 通らなければ画像は出さない（next/image は remotePatterns 外のホストで例外を投げ、
+  // 画面ごと落ちるため、その意味でも表示前に弾く必要がある）
+  const safeImageUrl =
+    inquiry?.image_url && isAllowedVendorInquiryImageUrl(inquiry.image_url) ? inquiry.image_url.trim() : null;
+
   return (
     <div className="min-h-screen bg-[#FFFAF0] pb-24">
       <div className="border-b border-amber-100 bg-white/90 px-4 py-4 backdrop-blur-sm">
@@ -122,10 +133,10 @@ export default function VendorInquiryDetailPage() {
 
               <p className="mt-3 whitespace-pre-wrap text-base leading-relaxed text-slate-800">{inquiry.body}</p>
 
-              {inquiry.image_url && (
+              {safeImageUrl && (
                 <div className="mt-3 overflow-hidden rounded-2xl border border-slate-200">
                   <Image
-                    src={inquiry.image_url}
+                    src={safeImageUrl}
                     alt="添付画像"
                     width={640}
                     height={360}
