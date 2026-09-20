@@ -3,9 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import NavigationBar from "../../components/NavigationBar";
-import GrandmaChatter from "../map/components/GrandmaChatter";
 import ShopDetailBanner from "../map/components/ShopDetailBanner";
-import { grandmaComments } from "../map/data/grandmaComments";
 import ConsultStage from "./components/ConsultStage";
 import {
   CONSULT_CHARACTER_BY_ID,
@@ -22,8 +20,7 @@ import { getOrCreateConsultVisitorKey } from "@/lib/consultVisitorKey";
 
 const PREFERRED_CHARACTER_STORAGE_KEY = "nicchyo-consult-preferred-character";
 
-export default function ConsultClient({ embedded = false }: { embedded?: boolean }) {
-  const [aiSuggestedShops, setAiSuggestedShops] = useState<Shop[]>([]);
+export default function ConsultClient() {
   const [knownShops, setKnownShops] = useState<Shop[]>([]);
   const [selectedShop, setSelectedShop] = useState<Shop | null>(null);
   // 既定はにちよさん。null にすると話し手が毎回変わり、会話全体が掛け合いに見える
@@ -129,11 +126,6 @@ export default function ConsultClient({ embedded = false }: { embedded?: boolean
     ok: boolean
   ): ConsultAskResponse => {
     mergeKnownShops(payload.shops);
-    if (payload.shops && payload.shops.length > 0) {
-      setAiSuggestedShops(payload.shops);
-    } else {
-      setAiSuggestedShops([]);
-    }
 
     return {
       reply:
@@ -159,38 +151,6 @@ export default function ConsultClient({ embedded = false }: { embedded?: boolean
     };
   }, [mergeKnownShops]);
 
-  const handleGrandmaAsk = useCallback(async (
-    text: string,
-    imageFile?: File | null,
-    context?: { shopId?: number; shopName?: string; source?: "suggestion" | "input" },
-    history?: ConsultHistoryEntry[],
-    memorySummary?: string
-  ): Promise<ConsultAskResponse> => {
-    try {
-      const { body, headers } = buildAskRequest(
-        text,
-        imageFile,
-        context,
-        history,
-        memorySummary
-      );
-      const response = await fetch("/api/grandma/ask", {
-        method: "POST",
-        headers,
-        body,
-      });
-      const payload = (await response.json()) as Parameters<typeof normalizeAskResponse>[0];
-      return normalizeAskResponse(payload, response.ok);
-    } catch {
-      setAiSuggestedShops([]);
-      return {
-        reply: "ごめんね、今は答えを出せんかった。時間をおいて試してね。",
-        errorCode: "system_error",
-        errorMessage: "接続に失敗しました。少し時間をおいて、もう一度試してください。",
-        retryable: true,
-      };
-    }
-  }, [buildAskRequest, normalizeAskResponse]);
 
   const handleGrandmaAskStream = useCallback(async (
     text: string,
@@ -260,7 +220,6 @@ export default function ConsultClient({ embedded = false }: { embedded?: boolean
         }
       );
     } catch {
-      setAiSuggestedShops([]);
       return {
         reply: "ごめんね、今は答えを出せんかった。時間をおいて試してね。",
         errorCode: "system_error",
@@ -281,49 +240,25 @@ export default function ConsultClient({ embedded = false }: { embedded?: boolean
 
   return (
     <div
-      className={`relative min-h-screen ${embedded ? "bg-transparent" : "bg-[var(--consult-bg)]"}`}
+      className="relative min-h-screen bg-[var(--consult-bg)]"
     >
-      {!embedded && <div className="pointer-events-none absolute inset-0 z-0 bg-[var(--consult-bg)]" aria-hidden="true" />}
+      <div className="pointer-events-none absolute inset-0 z-0 bg-[var(--consult-bg)]" aria-hidden="true" />
       <main className="relative z-10 flex w-full items-start justify-center px-3 pb-16 pt-2">
         <div className="flex w-full max-w-3xl flex-col gap-2">
-          {embedded ? (
-            // マップ内に埋め込むときは、これまでどおりの会話パネル
-            <GrandmaChatter
-              titleLabel="にちよさん"
-              fullWidth
-              variant="consult"
-              embedded
-              comments={grandmaComments}
-              onAsk={handleGrandmaAsk}
-              onAskStream={handleGrandmaAskStream}
-              allShops={knownShops}
-              aiSuggestedShops={aiSuggestedShops}
-              onSelectShop={handleSelectShop}
-              initialOpen
-              layout="page"
-              onClear={() => setAiSuggestedShops([])}
-              autoAskText={autoAskText}
-              autoAskContext={autoAskContext}
-              enableSpeechInput
-              preferredCharacterId={preferredCharacterId}
-              onPreferredCharacterChange={setPreferredCharacterId}
-            />
-          ) : (
-            // 現地でスマホを片手に使う前提の画面
-            <ConsultStage
-              onAskStream={handleGrandmaAskStream}
-              allShops={knownShops}
-              onSelectShop={handleSelectShop}
-              autoAskText={autoAskText}
-              autoAskContext={autoAskContext}
-              preferredCharacterId={preferredCharacterId}
-              onPreferredCharacterChange={setPreferredCharacterId}
-            />
-          )}
+          {/* 現地でスマホを片手に使う前提の画面。相談はこの形に一本化した */}
+          <ConsultStage
+            onAskStream={handleGrandmaAskStream}
+            allShops={knownShops}
+            onSelectShop={handleSelectShop}
+            autoAskText={autoAskText}
+            autoAskContext={autoAskContext}
+            preferredCharacterId={preferredCharacterId}
+            onPreferredCharacterChange={setPreferredCharacterId}
+          />
         </div>
       </main>
       {selectedShop && <ShopDetailBanner shop={selectedShop} onClose={() => setSelectedShop(null)} />}
-      {!embedded && <NavigationBar activeHref="/consult" />}
+      <NavigationBar activeHref="/consult" />
     </div>
   );
 }
