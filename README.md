@@ -76,6 +76,12 @@ OPENAI_API_KEY=
 # NEXT_PUBLIC_MAPBOX_TOKEN= (※Leafletのタイル設定による)
 ```
 
+**本番デプロイ時は `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` も必須**です。
+Vercel は複数インスタンスで動くため、これが無いとレート制限がインスタンスごとの
+in-memory フォールバックになり実効性を失います（未設定のまま本番稼働すると
+`/api/health` が 503 を返します）。ローカル開発では不要です。
+その他の任意環境変数は `.env.example` を参照してください。
+
 ### 3. 開発サーバ
 ```bash
 npm run dev
