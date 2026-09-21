@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/adminClient";
 import { requireSameOrigin } from "@/lib/security/requestGuards";
 import { enforceRateLimit } from "@/lib/security/rateLimit";
 import { authorizeAdmin } from "../events/_helpers";
+import { logAdminAudit } from "@/lib/audit/logAdminAudit";
 import { normalizeStatus, toIsoDate, type MarketDayStatus } from "@/lib/market/calendar";
 
 export const runtime = "nodejs";
@@ -132,22 +133,19 @@ export async function PUT(req: Request) {
     return NextResponse.json({ error: "保存に失敗しました" }, { status: 500 });
   }
 
-  const { error: auditError } = await dc.from("admin_audit_logs").insert({
-    actor_id: user.id,
-    actor_email: user.email,
-    actor_role: getRole(user),
-    action: "market_day_updated",
-    target_type: "market_day",
-    target_id: data.market_date,
-    details: JSON.stringify({
-      before: previous ? { status: previous.status, note: previous.note } : null,
-      after: { status: data.status, note: data.note },
-    }),
-  });
-  if (auditError) {
-    // 監査ログの失敗で保存自体を巻き戻すことはしないが、無言で消さない
-    console.error("[admin/market-days] 監査ログの記録に失敗しました", auditError);
-  }
+  await logAdminAudit(
+    dc,
+    { id: user.id, email: user.email, role: getRole(user) },
+    {
+      action: "market_day_updated",
+      targetType: "market_day",
+      targetId: data.market_date,
+      details: JSON.stringify({
+        before: previous ? { status: previous.status, note: previous.note } : null,
+        after: { status: data.status, note: data.note },
+      }),
+    }
+  );
 
   return NextResponse.json({ day: day as MarketDayRow });
 }
