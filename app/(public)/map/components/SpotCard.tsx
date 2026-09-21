@@ -72,6 +72,9 @@ function SpotIcon({ spot, sizeClass }: { spot: MapSpot; sizeClass: string }) {
 
 export default function SpotCard({ spot, map, origin, onClose, onNavigate }: SpotCardProps) {
   const meta = getSpotKindMeta(spot.kind, spot.transitMode);
+  // 店舗は店舗バナー側で案内するので、ここでは出さない。
+  // おでかけサポートを隠しているときは onNavigate が渡ってこない
+  const canNavigate = !!onNavigate && spot.kind !== 'shop';
 
   const walk = useMemo(() => {
     if (!origin) return null;
@@ -218,31 +221,33 @@ export default function SpotCard({ spot, map, origin, onClose, onNavigate }: Spo
           </p>
         )}
 
-        {/* 行動ボタン */}
-        <div className="mt-4 flex flex-wrap gap-2">
-          {onNavigate && spot.kind !== 'shop' && (
-            <button
-              type="button"
-              onClick={() => onNavigate(spot)}
-              className="flex items-center gap-1.5 rounded-full px-4 py-2 text-[13px] font-bold text-white shadow-sm transition-transform active:scale-[0.97]"
-              style={{ backgroundColor: spot.accentColor }}
-            >
-              <Navigation size={15} />
-              ここへ案内
-            </button>
-          )}
-          {spot.externalUrl && (
-            <a
-              href={spot.externalUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-1.5 rounded-full bg-slate-100 px-4 py-2 text-[13px] font-semibold text-slate-700 transition-colors active:bg-slate-200"
-            >
-              <ExternalLink size={15} />
-              {spot.kind === 'transit' ? '時刻表を見る' : '公式サイト'}
-            </a>
-          )}
-        </div>
+        {/* 行動ボタン。「ここへ案内」も外部リンクも無いときは、行ごと出さない（空の余白が残るため） */}
+        {(canNavigate || spot.externalUrl) && (
+          <div className="mt-4 flex flex-wrap gap-2">
+            {canNavigate && (
+              <button
+                type="button"
+                onClick={() => onNavigate?.(spot)}
+                className="flex items-center gap-1.5 rounded-full px-4 py-2 text-[13px] font-bold text-white shadow-sm transition-transform active:scale-[0.97]"
+                style={{ backgroundColor: spot.accentColor }}
+              >
+                <Navigation size={15} />
+                ここへ案内
+              </button>
+            )}
+            {spot.externalUrl && (
+              <a
+                href={spot.externalUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1.5 rounded-full bg-slate-100 px-4 py-2 text-[13px] font-semibold text-slate-700 transition-colors active:bg-slate-200"
+              >
+                <ExternalLink size={15} />
+                {spot.kind === 'transit' ? '時刻表を見る' : '公式サイト'}
+              </a>
+            )}
+          </div>
+        )}
       </div>
     </motion.div>
   );

@@ -119,6 +119,8 @@ export default function GuideNavigationBar({ target, originLabel, arrived, progr
               exit={{ height: 0, opacity: 0 }}
               transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
               className="overflow-hidden"
+              // カード全体が aria-live の領域なので、開いた説明文をまるごと読み上げないようにする
+              aria-live="off"
             >
               <div className="mt-2.5 border-t border-slate-100 pt-2.5">
                 {spot.photoUrl && (

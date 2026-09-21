@@ -85,6 +85,16 @@ export default function OdekakeKindChooser({
     };
   }, []);
 
+  // 画面をふさぐ選択画面なので、キーボードでも閉じられるようにする（選んだ直後は受けない）
+  useEffect(() => {
+    if (picked) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [picked, onClose]);
+
   const pick = (kind: SpotKind) => {
     if (picked) return; // 二度押しで別の種類に飛ばないようにする
     setPicked(kind);
