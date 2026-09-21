@@ -63,6 +63,8 @@ NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY=
 OPENAI_API_KEY=
 ```
 
+任意の変数を含む全体は `.env.example` を参照する。
+
 ## Architecture
 
 ### ルーティング構造
