@@ -8,6 +8,7 @@ import { getRole, isAdmin, normalizeRole } from "@/lib/auth/permissions";
 import { listAllAuthUsers } from "@/lib/auth/listAllUsers";
 import { MAX_BULK_OPERATION } from "@/lib/constants";
 import { sendBulkEmails } from "@/lib/email/mailer";
+import { logAdminAudit } from "@/lib/audit/logAdminAudit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -152,17 +153,15 @@ export async function POST(req: Request) {
       : failedRecipients.length > 0
         ? `成功${sentCount}件・失敗${failedRecipients.length}件`
         : `成功${sentCount}件`;
-    const { error: auditLogError } = await serviceClient.from("admin_audit_logs").insert({
-      actor_id: user.id,
-      actor_email: user.email,
-      actor_role: getRole(user),
-      action: "broadcast_email",
-      target_type: "email",
-      details: `「${subject}」を${recipientsResult.length}件へ送信（${resultSummary}）`,
-    });
-    if (auditLogError) {
-      console.error("[admin/notifications/broadcast] audit log insert failed:", auditLogError.message);
-    }
+    await logAdminAudit(
+      serviceClient,
+      { id: user.id, email: user.email, role: getRole(user) },
+      {
+        action: "broadcast_email",
+        targetType: "email",
+        details: `「${subject}」を${recipientsResult.length}件へ送信（${resultSummary}）`,
+      }
+    );
 
     return NextResponse.json({
       ok: true,

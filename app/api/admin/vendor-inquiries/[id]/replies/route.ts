@@ -4,6 +4,7 @@ import { getRole } from "@/lib/auth/permissions";
 import { requireSameOrigin } from "@/lib/security/requestGuards";
 import { enforceRateLimit } from "@/lib/security/rateLimit";
 import { authorizeRequest, createAdminClient } from "../../_shared";
+import { logAdminAudit } from "@/lib/audit/logAdminAudit";
 import { VENDOR_INQUIRY_REPLY_BODY_MAX_LENGTH, isUuid } from "@/lib/vendorInquiries/constants";
 
 export const runtime = "nodejs";
@@ -92,18 +93,16 @@ export async function POST(req: Request, { params }: RouteParams) {
   // 「city 名義で送れるのは category が city/both のスレッドだけ」という制限が要る。
   // 現状は service_role でRLSをバイパスするため、RLS側にポリシーを足しても効かない。
   if (senderRole === "city") {
-    const { error: auditErr } = await dc.from("admin_audit_logs").insert({
-      actor_id: user.id,
-      actor_email: user.email,
-      actor_role: getRole(user),
-      action: "vendor_inquiry_replied_as_city",
-      target_type: "vendor_inquiry",
-      target_id: id,
-      details: JSON.stringify({ reply_id: data.id, inquiry_category: inquiry.category }),
-    });
-    if (auditErr) {
-      console.error("[admin/vendor-inquiries/:id/replies] audit log insert failed:", auditErr.message);
-    }
+    await logAdminAudit(
+      dc,
+      { id: user.id, email: user.email, role: getRole(user) },
+      {
+        action: "vendor_inquiry_replied_as_city",
+        targetType: "vendor_inquiry",
+        targetId: id,
+        details: JSON.stringify({ reply_id: data.id, inquiry_category: inquiry.category }),
+      }
+    );
   }
 
   return NextResponse.json({ reply: data }, { status: 201 });

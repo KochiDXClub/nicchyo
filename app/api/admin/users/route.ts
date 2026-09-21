@@ -7,6 +7,7 @@ import { listAllAuthUsers } from "@/lib/auth/listAllUsers";
 import { requireSameOrigin } from "@/lib/security/requestGuards";
 import { enforceRateLimit } from "@/lib/security/rateLimit";
 import type { UserRole } from "@/lib/auth/types";
+import { logAdminAudit } from "@/lib/audit/logAdminAudit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -216,30 +217,32 @@ export async function POST(req: Request) {
   });
   if (roleError) {
     console.error("[admin/users] role set failed:", roleError.message);
-    await serviceClient.from("admin_audit_logs").insert({
-      actor_id: user.id,
-      actor_email: user.email,
-      actor_role: getRole(user),
-      action: "invite_user_role_set_failed",
-      target_type: "user",
-      target_id: invited.user.id,
-      target_name: email,
-      details: `ロール: ${role} の設定に失敗: ${roleError.message}`,
-    });
+    await logAdminAudit(
+      serviceClient,
+      { id: user.id, email: user.email, role: getRole(user) },
+      {
+        action: "invite_user_role_set_failed",
+        targetType: "user",
+        targetId: invited.user.id,
+        targetName: email,
+        details: `ロール: ${role} の設定に失敗: ${roleError.message}`,
+      }
+    );
     return NextResponse.json({ error: "招待は完了しましたがロールの設定に失敗しました" }, { status: 500 });
   }
 
   // 監査ログ
-  await serviceClient.from("admin_audit_logs").insert({
-    actor_id: user.id,
-    actor_email: user.email,
-    actor_role: getRole(user),
-    action: "invite_user",
-    target_type: "user",
-    target_id: invited.user.id,
-    target_name: email,
-    details: `ロール: ${role} で招待`,
-  });
+  await logAdminAudit(
+    serviceClient,
+    { id: user.id, email: user.email, role: getRole(user) },
+    {
+      action: "invite_user",
+      targetType: "user",
+      targetId: invited.user.id,
+      targetName: email,
+      details: `ロール: ${role} で招待`,
+    }
+  );
 
   return NextResponse.json({ ok: true, userId: invited.user.id });
 }
