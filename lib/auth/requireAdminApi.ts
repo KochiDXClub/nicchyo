@@ -89,3 +89,20 @@ export async function authorizeAdmin(): Promise<
   if (!user || !isAdmin(getRole(user))) return { user: null, error: "Forbidden" };
   return { user, error: null };
 }
+
+/**
+ * createAdminServiceClient() の env未設定時版。例外を投げず null を返す。
+ *
+ * 「env が無ければ 503 を返して終わる」ルートで使う（呼び出し側で
+ * `if (!dc) return NextResponse.json(..., { status: 503 })` のように書ける）。
+ * DatabaseWithExtensions の型が必要な箇所での createAdminClient() の
+ * 再実装（env未設定チェック＋createServiceClient呼び出し）が何箇所かに
+ * あったため、ここに1本化する。
+ */
+export function createAdminServiceClientOrNull(): SupabaseClient<DatabaseWithExtensions> | null {
+  try {
+    return createAdminServiceClient();
+  } catch {
+    return null;
+  }
+}
