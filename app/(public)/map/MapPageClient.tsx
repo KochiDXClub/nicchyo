@@ -36,7 +36,7 @@ import OdekakeGuidePanel from "./components/OdekakeGuidePanel";
 import GuideNavigationBar from "./components/GuideNavigationBar";
 import OdekakeLaunchButton from "./components/OdekakeLaunchButton";
 import { useOdekakeGuide } from "./hooks/useOdekakeGuide";
-import { GUIDE_MENU_VALUE, parseGuideQuery, type GuideQuery } from "@/lib/guide/query";
+import { buildMapUrl, GUIDE_MENU_VALUE, parseGuideQuery, type GuideQuery } from "@/lib/guide/query";
 import SpotCard from "./components/SpotCard";
 import type { MapSpot } from "@/lib/spots";
 import { filterMapVisibleLandmarks } from "./types/landmark";
@@ -250,26 +250,6 @@ export default function MapPageClient({
   // そこで開閉は画面内の状態で即座に反映し、URL は共有・リロード用に
   // history.replaceState で静かに合わせるだけにする。サーバーへは行かない。
   const [guideOverride, setGuideOverride] = useState<GuideQuery | null | undefined>(undefined);
-  const syncGuideUrl = useCallback(
-    (value: string | null) => {
-      if (typeof window === "undefined") return;
-      const params = new URLSearchParams(searchParamsKey);
-      params.delete("facility");
-      if (value) params.set("guide", value);
-      else params.delete("guide");
-      const query = params.toString();
-      window.history.replaceState(null, "", query ? `/map?${query}` : "/map");
-    },
-    [searchParamsKey]
-  );
-  const closeGuide = useCallback(() => {
-    setGuideOverride(null);
-    syncGuideUrl(null);
-  }, [syncGuideUrl]);
-  const openGuideMenu = useCallback(() => {
-    setGuideOverride({ kinds: [] });
-    syncGuideUrl(GUIDE_MENU_VALUE);
-  }, [syncGuideUrl]);
   // おでかけサポートの公開設定（地図の一部だが、機能として単独で切り替えられる）
   //   public   : 通常どおり
   //   unlisted : 入口（起動ボタン・「ここへ案内」）を出さない。?guide= の URL からは開ける
@@ -284,6 +264,38 @@ export default function MapPageClient({
     : guideOverride !== undefined
       ? guideOverride
       : guideQueryFromUrl;
+  const isGuideActive = guideQuery !== null;
+  // 現在の URL パラメータ（history.replaceState で書き換えた分も含む）を基準に、
+  // 指定したパラメータを足し引きした /map URL を作る。
+  // router.push や history.replaceState が他のパラメータ（guide、mapFlags、shop 等）を
+  // 意図せず消してしまうのを防ぐ。
+  const buildCurrentMapUrl = useCallback(
+    (updates?: Record<string, string | null | undefined>) => {
+      const currentSearch = typeof window !== "undefined" ? window.location.search : searchParamsKey;
+      return buildMapUrl({
+        currentSearch,
+        guideActive: isGuideActive,
+        updates,
+      });
+    },
+    [isGuideActive, searchParamsKey]
+  );
+  const syncGuideUrl = useCallback(
+    (value: string | null) => {
+      if (typeof window === "undefined") return;
+      const nextUrl = buildCurrentMapUrl({ guide: value });
+      window.history.replaceState(null, "", nextUrl);
+    },
+    [buildCurrentMapUrl]
+  );
+  const closeGuide = useCallback(() => {
+    setGuideOverride(null);
+    syncGuideUrl(null);
+  }, [syncGuideUrl]);
+  const openGuideMenu = useCallback(() => {
+    setGuideOverride({ kinds: [] });
+    syncGuideUrl(GUIDE_MENU_VALUE);
+  }, [syncGuideUrl]);
   // /facilities からのリンクなど、URL 側の指定が変わったら画面の状態を捨てて従う
   const guideUrlKey = guideQueryFromUrl ? `open:${guideQueryFromUrl.kinds.join(",")}` : "closed";
   const lastGuideUrlKeyRef = useRef(guideUrlKey);
@@ -292,6 +304,14 @@ export default function MapPageClient({
     lastGuideUrlKeyRef.current = guideUrlKey;
     setGuideOverride(undefined);
   }, [guideUrlKey]);
+  useEffect(() => {
+    const handlePopState = () => {
+      const query = parseGuideQuery(new URLSearchParams(window.location.search));
+      setGuideOverride(query ?? null);
+    };
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
   // マップに常時描画するランドマーク（お手洗い・休けいなど show_on_map=false は除く）
   const mapLandmarks = useMemo(() => filterMapVisibleLandmarks(landmarks), [landmarks]);
   // タップしたスポット（電停・駅・建物・施設）。店舗以外は SpotCard で表示する
@@ -445,8 +465,9 @@ export default function MapPageClient({
     clearMapSearchState();
     clearAiRecommendation();
     setNearbyState(null);
-    router.push('/map');
-  }, [clearMapSearchState, clearAiRecommendation, router]);
+    closeGuide();
+    router.push(buildCurrentMapUrl({ panel: null, search: null, label: null, q: null, guide: null }));
+  }, [buildCurrentMapUrl, clearMapSearchState, clearAiRecommendation, closeGuide, router]);
 
   // 旧 URL 互換: /map?panel=consult が来たら相談ページへ送る
   useEffect(() => {
@@ -598,7 +619,7 @@ export default function MapPageClient({
 
   const handleOpenVendorBanner = () => {
     if (!vendorShop) return;
-    router.push(`/map?shop=${vendorShop.id}`);
+    router.push(buildCurrentMapUrl({ shop: String(vendorShop.id) }));
     setShowVendorPrompt(false);
   };
 
@@ -680,11 +701,11 @@ export default function MapPageClient({
         document.body.classList.add("shop-banner-open");
       }
       introFocusTimerRef.current = window.setTimeout(() => {
-        router.push(`/map?shop=${shopId}`);
+        router.push(buildCurrentMapUrl({ shop: String(shopId) }));
         introFocusTimerRef.current = null;
       }, 900);
     },
-    [handleCommentShopFocus, router]
+    [buildCurrentMapUrl, handleCommentShopFocus, router]
   );
   const _handleAiImageClick = useCallback(
     (imageUrl: string) => {
@@ -1153,7 +1174,7 @@ export default function MapPageClient({
               dragElastic={{ top: 0, bottom: 0.3 }}
               onDragEnd={(_, info) => {
                 if (info.offset.y > 100 || info.velocity.y > 500) {
-                  router.push("/map");
+                  router.push(buildCurrentMapUrl({ panel: null }));
                 }
               }}
               className="fixed inset-x-0 bottom-0 z-[9990] overflow-hidden rounded-t-3xl bg-black/50 backdrop-blur-xl"
