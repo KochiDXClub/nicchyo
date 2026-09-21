@@ -3,23 +3,9 @@ import { cookies } from "next/headers";
 import { createClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/database.types";
 import { requireSameOrigin } from "@/lib/security/requestGuards";
+import { todayJstString } from "@/lib/time/jstDate";
 
 const VISITOR_COOKIE_NAME = "nicchyo_visitor_id";
-
-function getTokyoTodayIso(baseDate = new Date()) {
-  const formatter = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Asia/Tokyo",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  });
-
-  const parts = formatter.formatToParts(baseDate);
-  const year = parts.find((p) => p.type === "year")?.value ?? "0000";
-  const month = parts.find((p) => p.type === "month")?.value ?? "01";
-  const day = parts.find((p) => p.type === "day")?.value ?? "01";
-  return `${year}-${month}-${day}`;
-}
 
 function isValidVisitorKey(value: string) {
   return /^[a-f0-9-]{16,64}$/i.test(value);
@@ -70,7 +56,7 @@ export async function POST(request: Request) {
     },
   });
 
-  const visitDate = getTokyoTodayIso();
+  const visitDate = todayJstString();
 
   const { data, error } = await supabase.rpc("track_home_visit", {
     p_visit_date: visitDate,
