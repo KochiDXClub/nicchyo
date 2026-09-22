@@ -3,6 +3,7 @@ import { createClient as createServiceClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 import { createClient as createServerClient } from "@/utils/supabase/server";
 import { getRole, isModerator } from "@/lib/auth/permissions";
+import { logAdminAudit } from "@/lib/audit/logAdminAudit";
 import { requireSameOrigin } from "@/lib/security/requestGuards";
 
 export const runtime = "nodejs";
@@ -111,15 +112,16 @@ export async function PATCH(req: Request) {
     return NextResponse.json({ error: "更新に失敗しました" }, { status: 500 });
   }
 
-  await dc.from("admin_audit_logs").insert({
-    actor_id: user.id,
-    actor_email: user.email,
-    actor_role: getRole(user),
-    action: "inquiry_status_changed",
-    target_type: "inquiry",
-    target_id: id,
-    details: JSON.stringify({ status, has_reply: !!reply_notes }),
-  });
+  await logAdminAudit(
+    dc,
+    { id: user.id, email: user.email, role: getRole(user) },
+    {
+      action: "inquiry_status_changed",
+      targetType: "inquiry",
+      targetId: id,
+      details: JSON.stringify({ status, has_reply: !!reply_notes }),
+    }
+  );
 
   return NextResponse.json({ ok: true });
 }

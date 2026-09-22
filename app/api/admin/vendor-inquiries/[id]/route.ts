@@ -4,6 +4,7 @@ import { getRole } from "@/lib/auth/permissions";
 import { requireSameOrigin } from "@/lib/security/requestGuards";
 import { enforceRateLimit } from "@/lib/security/rateLimit";
 import { authorizeRequest, createAdminClient } from "../_shared";
+import { logAdminAudit } from "@/lib/audit/logAdminAudit";
 import {
   VENDOR_INQUIRY_STATUS_BY_TOPIC,
   isUuid,
@@ -143,18 +144,16 @@ export async function PATCH(req: Request, { params }: RouteParams) {
 
   // 監査ログの失敗はステータス更新自体を巻き戻さない（更新はすでに成功しているため）が、
   // 黙って落ちると追跡できなくなるのでログには残す
-  const { error: auditErr } = await dc.from("admin_audit_logs").insert({
-    actor_id: user.id,
-    actor_email: user.email,
-    actor_role: getRole(user),
-    action: "vendor_inquiry_status_changed",
-    target_type: "vendor_inquiry",
-    target_id: id,
-    details: JSON.stringify({ from: current.status, to: parsed.data.status }),
-  });
-  if (auditErr) {
-    console.error("[admin/vendor-inquiries/:id] audit log insert failed:", auditErr.message);
-  }
+  await logAdminAudit(
+    dc,
+    { id: user.id, email: user.email, role: getRole(user) },
+    {
+      action: "vendor_inquiry_status_changed",
+      targetType: "vendor_inquiry",
+      targetId: id,
+      details: JSON.stringify({ from: current.status, to: parsed.data.status }),
+    }
+  );
 
   return NextResponse.json({ ok: true });
 }
