@@ -140,7 +140,8 @@ nicchyo-soft-green: #A0D7A7  （淡い緑）
 - ルート名: kebab-case、コンポーネント: PascalCase、変数/関数: camelCase
 - クライアントコンポーネントには `"use client"` を明示
 - ページ固有のコンポーネントはそのページディレクトリ内の `components/` に置く
-- 共通UIコンポーネントは `components/ui/`（Radix UIベース）
+- **UIを書く前に `docs/DESIGN_SYSTEM.md` を読む**：色・角丸・影・余白・ボタン・ページの外枠はすべてトークンと共通部品にある。生の hex、`slate-*`/`gray-*` の新規追加、`rounded-2xl` などの直書きはしない
+- 共通UIコンポーネントは `components/ui/`（`@/components/ui` のバレルから読む）。同じものを2回目に書こうとしたら、ページ内に作らずここへ足す
 - 管理画面コンポーネントは `components/admin/`
 - ユーティリティ関数は `lib/utils/cn.ts`（`clsx` + `tailwind-merge` のラッパー）
 

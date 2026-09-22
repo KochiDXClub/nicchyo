@@ -94,14 +94,17 @@ export function PageHeader({
   action,
   width = "reading",
   children,
+  style,
   ...props
 }: PageHeaderProps) {
   return (
     <header
       className={cn(
-        "sticky top-0 z-10 border-b border-line-warm bg-nicchyo-base/90 py-4 backdrop-blur",
+        "sticky top-0 z-10 border-b border-line-warm bg-nicchyo-base/90 pb-4 backdrop-blur",
         className
       )}
+      // 上端に貼りつくので、切り欠きぶんは自分で避ける
+      style={{ paddingTop: "calc(1rem + var(--safe-top, 0px))", ...style }}
       {...props}
     >
       <PageContainer width={width} className="flex items-center gap-3">
