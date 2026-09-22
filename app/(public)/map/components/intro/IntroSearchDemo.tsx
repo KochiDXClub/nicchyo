@@ -27,7 +27,7 @@ import {
 } from './IntroStall';
 import type { IntroDemoShop } from './introDemoShops';
 
-const FRAME_HEIGHT = 320;
+const DEFAULT_FRAME_HEIGHT = 320;
 
 /** 6件を道の左右に3件ずつ。left は足元の位置 */
 const STALL_SLOTS = [
@@ -42,9 +42,12 @@ const STALL_SLOTS = [
 export default function IntroSearchDemo({
   shops,
   categories,
+  /** 画面が広いときは縦にもっと見せられる */
+  frameHeight = DEFAULT_FRAME_HEIGHT,
 }: {
   shops: IntroDemoShop[];
   categories: readonly string[];
+  frameHeight?: number;
 }) {
   const [selected, setSelected] = useState<string | null>(null);
   const [openShopId, setOpenShopId] = useState<number | null>(null);
@@ -90,7 +93,7 @@ export default function IntroSearchDemo({
         })}
       </div>
 
-      <IntroDemoFrame height={FRAME_HEIGHT}>
+      <IntroDemoFrame height={frameHeight}>
         <IntroRoad bandWidth="78%" crowd={false}>
           {placed.map((shop, i) => {
             const slot = STALL_SLOTS[i];

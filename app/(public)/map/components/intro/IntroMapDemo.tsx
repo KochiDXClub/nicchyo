@@ -27,7 +27,7 @@ import {
 import type { IntroDemoShop } from './introDemoShops';
 
 /** スマホでマップページを開いたときと同じくらいの、縦に長い画面 */
-const FRAME_HEIGHT = 460;
+const DEFAULT_FRAME_HEIGHT = 460;
 /** 道の全長。枠より長いぶんだけ指で動かせる */
 const ROAD_HEIGHT = 1240;
 /** 上下に置く余白（この中には屋台を置かない） */
@@ -53,7 +53,14 @@ function buildSlots(count: number) {
   });
 }
 
-export default function IntroMapDemo({ shops }: { shops: IntroDemoShop[] }) {
+export default function IntroMapDemo({
+  shops,
+  /** 画面が広いときは縦にもっと見せられる */
+  frameHeight = DEFAULT_FRAME_HEIGHT,
+}: {
+  shops: IntroDemoShop[];
+  frameHeight?: number;
+}) {
   const [openShopId, setOpenShopId] = useState<number | null>(null);
   const [favoriteIds, setFavoriteIds] = useState<number[]>([]);
   /** 指で動かしているあいだと、その直後。本番と同じでカードはこのときだけ出す */
@@ -94,11 +101,11 @@ export default function IntroMapDemo({ shops }: { shops: IntroDemoShop[] }) {
   }, []);
 
   return (
-    <IntroDemoFrame height={FRAME_HEIGHT}>
+    <IntroDemoFrame height={frameHeight}>
       {/* 指で上下に動かせる道。本番のパン操作にあたる */}
       <motion.div
         drag="y"
-        dragConstraints={{ top: FRAME_HEIGHT - ROAD_HEIGHT, bottom: 0 }}
+        dragConstraints={{ top: frameHeight - ROAD_HEIGHT, bottom: 0 }}
         dragElastic={0.06}
         dragMomentum
         onDragStart={startScan}

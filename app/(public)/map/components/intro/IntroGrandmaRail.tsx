@@ -22,8 +22,13 @@ import type { GrandmaPose } from '@/lib/grandma/pose';
 
 /** 左に空ける道の幅。停留点の行はこのぶんだけ右に寄せる */
 export const RAIL_WIDTH = 72;
-/** 停留点の行に確保する高さ。吹き出し2行ぶんが収まる */
+/**
+ * 停留点の行に確保する高さ。
+ * スマホは吹き出しが2行になるぶん高く、PC は横幅があって1行に収まるので低くする。
+ * ここを高くしすぎると、にちよさんがまだ来ていない停留点が「ぽっかり空いた穴」に見える。
+ */
 export const RAIL_STOP_HEIGHT = 84;
+export const RAIL_STOP_HEIGHT_DESKTOP = 72;
 
 const RAIL_CENTER_X = 34;
 const WAVE_AMPLITUDE = 11;
@@ -52,6 +57,7 @@ export default function IntroGrandmaRail({
   stopYs,
   activeStop,
   comment,
+  stopHeight = RAIL_STOP_HEIGHT,
 }: {
   /** 道を引く高さ（案内の中身の高さ） */
   height: number;
@@ -60,6 +66,8 @@ export default function IntroGrandmaRail({
   activeStop: number;
   /** いま立っているところで言うこと */
   comment: string;
+  /** 停留点1つぶんの高さ */
+  stopHeight?: number;
 }) {
   const reduceMotion = useReducedMotion();
   const [pose, setPose] = useState<GrandmaPose>('idle');
@@ -109,12 +117,14 @@ export default function IntroGrandmaRail({
         className="pointer-events-none absolute inset-x-0 z-10"
         initial={false}
         animate={{ top: stopY }}
+        // 停留点の間が遠いこともあるので、ばねは硬めにして早く落ち着かせる。
+        // ゆるいと、読み始めてもまだ滑っている最中ということが起きる
         transition={
           reduceMotion
             ? { duration: 0 }
-            : { type: 'spring', stiffness: 180, damping: 20, mass: 0.9 }
+            : { type: 'spring', stiffness: 300, damping: 30, mass: 0.7 }
         }
-        style={{ height: RAIL_STOP_HEIGHT }}
+        style={{ height: stopHeight }}
       >
         {/* 道の上を跳ねながら移動する。止まるたびに一度だけ弾む */}
         <motion.div
