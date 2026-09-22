@@ -1,24 +1,14 @@
 import { cookies } from "next/headers";
-import type { SupabaseClient, User } from "@supabase/supabase-js";
+import type { User } from "@supabase/supabase-js";
 import { createClient as createServerClient } from "@/utils/supabase/server";
-import { createAdminServiceClient } from "@/lib/auth/requireAdminApi";
 import { getRole, isModerator } from "@/lib/auth/permissions";
-import type { DatabaseWithExtensions } from "@/types/database.extensions";
 
 /**
  * vendor_inquiries / vendor_inquiry_replies を扱うサービスロールクライアント。
- *
- * 生成そのものは共通の createAdminServiceClient に任せる。あちらは環境変数が
- * 無いと throw するが、このAPI群は「設定漏れなら503を返す」挙動に揃えたいので、
- * ここで null に変換している。
+ * 「env未設定なら null（呼び出し側で503にする）」という同じ実装が他にも
+ * あったため、共通の createAdminServiceClientOrNull に1本化した
  */
-export function createAdminClient(): SupabaseClient<DatabaseWithExtensions> | null {
-  try {
-    return createAdminServiceClient();
-  } catch {
-    return null;
-  }
-}
+export { createAdminServiceClientOrNull as createAdminClient } from "@/lib/auth/requireAdminApi";
 
 /**
  * moderator 以上のロールを持つログイン済みユーザーだけを通す。
