@@ -11,7 +11,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Shop } from '../data/shops';
 import type { MapCamera } from '../types/mapCamera';
-import { getShopBannerImage } from '../../../../lib/shopImages';
+import { getShopPreviewImage } from '../../../../lib/shopImages';
 
 export function SpotlightCountdownBar({ shopId }: { shopId: number }) {
   return (
@@ -162,8 +162,7 @@ export default function SearchResultsSheet({
         {/* 一覧は縦スクロール可能 */}
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pb-[env(safe-area-inset-bottom,0px)]">
           {searchShops.map((shop, i) => {
-            const bannerSeed = shop.position ?? shop.id;
-            const imageUrl = shop.images?.main ?? getShopBannerImage(shop.category, bannerSeed);
+            const imageUrl = getShopPreviewImage(shop);
             return (
               <button
                 key={shop.id}

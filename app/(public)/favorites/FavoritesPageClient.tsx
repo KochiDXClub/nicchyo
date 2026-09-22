@@ -19,7 +19,7 @@ import { Heart, Map as MapIcon, X as XIcon } from "lucide-react";
 import NavigationBar from "../../components/NavigationBar";
 import ShopDetailBanner from "../map/components/ShopDetailBanner";
 import { useShops } from "../../../lib/hooks/useShops";
-import { getShopBannerImage } from "../../../lib/shopImages";
+import { getShopPreviewImage } from "../../../lib/shopImages";
 import { saveSearchMapPayload } from "../../../lib/searchMapStorage";
 import { useFavoriteEntries } from "../../../lib/hooks/useFavorites";
 import RemoveShopFavoriteDialog from "../../components/favorites/RemoveShopFavoriteDialog";
@@ -365,12 +365,7 @@ function FavoriteRow({
   onRemoveProduct: (shopId: number, product: string) => void;
 }) {
   const { shop } = row;
-  const previewImage = shop
-    ? shop.images?.main ||
-      shop.images?.thumbnail ||
-      shop.images?.additional?.[0] ||
-      getShopBannerImage(shop.category, shop.position ?? shop.id)
-    : null;
+  const previewImage = shop ? getShopPreviewImage(shop) : null;
 
   const place = shop
     ? [showChome ? shop.chome : null, `${shop.position + 1}番あたり`].filter(Boolean).join(" ・ ")
