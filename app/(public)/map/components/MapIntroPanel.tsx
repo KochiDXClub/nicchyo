@@ -6,42 +6,183 @@
  * 初来訪者に「ここが何のサービスか」を伝える案内パネル。
  *
  * 独立した LP ページではなく、読み込み終わったマップの上に下から重ねる。
- * 全画面で覆わず上に地図を残すのは、「説明を読まされてからマップへ行く」ではなく
- * 「マップに来ていて、その上に説明が出ている」にするため。
- * 見えている地図はタップでそのまま閉じられる。
+ * 最初は画面の半分ほどで開き、上に地図が見えたままにする。そこから下へ
+ * スクロールすると全画面へなめらかに広がり、機能ごとのデモが縦に並ぶ。
+ * 「説明を読まされてからマップへ行く」ではなく「マップに来ていて、その上で
+ * 使い方を触っている」にするための形。
  *
- * 出す条件は useMapIntro が持つ。ここは見た目と閉じ方だけを受け持つ。
+ * デモは絵ではなく、本物の部品（markerHtmlGenerator・ShopBannerHero・道の色）で
+ * 組んである。屋台をタップすればバナーが出るし、ハートを押せば屋根に札が付く。
+ *
+ * 出す条件は useMapIntro が持つ。ここは見た目と開き方だけを受け持つ。
  */
 
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { motion, useDragControls } from 'framer-motion';
 import NextImage from 'next/image';
 import Link from 'next/link';
-import { Map as MapIcon, MessageCircle, Search, X } from 'lucide-react';
+import { ChevronDown, X } from 'lucide-react';
+import type { Shop } from '../types/shopData';
+import { SHOP_CATEGORY_NAMES } from '../config/shopCategories';
+import IntroMapDemo from './intro/IntroMapDemo';
+import IntroSearchDemo from './intro/IntroSearchDemo';
+import IntroConsultDemo from './intro/IntroConsultDemo';
+import { pickIntroDemoShops, pickIntroSearchShops } from './intro/introDemoShops';
 
 type MapIntroPanelProps = {
+  /** マップページが既に読み込んでいる店舗。デモはここから数件借りる */
+  shops?: Shop[];
   onClose: () => void;
 };
 
-const FEATURES = [
-  {
-    icon: MapIcon,
-    title: '地図で探す',
-    body: '並んでいる店がそのまま地図に。タップで写真と品物が見られます。',
-  },
-  {
-    icon: Search,
-    title: '検索でしぼる',
-    body: '「野菜」「果物」などのジャンルや、お店の名前から。',
-  },
-  {
-    icon: MessageCircle,
-    title: 'にちよさんに聞く',
-    body: '「おすすめのランチは？」と話しかけると AI が案内します。',
-  },
-] as const;
+/** 最初に見せる高さ（画面に対する割合）。残りは地図が見えている */
+const PEEK_RATIO = 0.46;
+/** これ以上スクロールしたら全画面に広げる */
+const EXPAND_SCROLL_PX = 6;
+/** 全画面から縮めるときに必要な下向きの引っぱり量（px） */
+const COLLAPSE_PULL_PX = 48;
+/** ナビゲーションバー（h-14）の分。下の操作列が隠れないようにする */
+const NAV_SPACE = 'calc(3.5rem + var(--safe-bottom, 0px))';
 
-export default function MapIntroPanel({ onClose }: MapIntroPanelProps) {
+/** 画面の高さ。アドレスバーの出入りやスマホの回転に追従する */
+function useViewportHeight(): number {
+  const [height, setHeight] = useState(() =>
+    typeof window === 'undefined' ? 0 : window.innerHeight
+  );
+  useEffect(() => {
+    const update = () => setHeight(window.innerHeight);
+    update();
+    window.addEventListener('resize', update);
+    return () => window.removeEventListener('resize', update);
+  }, []);
+  return height;
+}
+
+/**
+ * 下へスクロールしたら全画面、いちばん上でさらに下へ引っぱったら元の高さに戻す。
+ *
+ * 引っぱりは scroll イベントでは取れない（いちばん上では scrollTop が動かない）ので、
+ * ホイールと指の移動量を直接見る。
+ */
+function useSheetExpansion(): {
+  expanded: boolean;
+  scrollRef: React.MutableRefObject<HTMLDivElement | null>;
+  handlers: {
+    onScroll: () => void;
+    onWheel: (event: React.WheelEvent) => void;
+    onTouchStart: (event: React.TouchEvent) => void;
+    onTouchMove: (event: React.TouchEvent) => void;
+  };
+  collapse: () => void;
+} {
+  const [expanded, setExpanded] = useState(false);
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const touchStartYRef = useRef<number | null>(null);
+
+  const collapse = useCallback(() => {
+    setExpanded(false);
+    if (scrollRef.current) scrollRef.current.scrollTop = 0;
+  }, []);
+
+  const onScroll = useCallback(() => {
+    const el = scrollRef.current;
+    if (el && el.scrollTop > EXPAND_SCROLL_PX) setExpanded(true);
+  }, []);
+
+  const atTop = () => (scrollRef.current?.scrollTop ?? 0) <= 0;
+
+  const onWheel = useCallback((event: React.WheelEvent) => {
+    if (event.deltaY > 0) {
+      setExpanded(true);
+      return;
+    }
+    if (event.deltaY < 0 && atTop()) collapse();
+  }, [collapse]);
+
+  const onTouchStart = useCallback((event: React.TouchEvent) => {
+    touchStartYRef.current = event.touches[0]?.clientY ?? null;
+  }, []);
+
+  const onTouchMove = useCallback((event: React.TouchEvent) => {
+    const startY = touchStartYRef.current;
+    const currentY = event.touches[0]?.clientY;
+    if (startY === null || currentY === undefined) return;
+    const delta = currentY - startY;
+    // 指を上へ（= 下へスクロール）動かしたら広げる
+    if (delta < -4) {
+      setExpanded(true);
+      return;
+    }
+    // いちばん上で下へ引っぱったら縮める
+    if (delta > COLLAPSE_PULL_PX && atTop()) collapse();
+  }, [collapse]);
+
+  return {
+    expanded,
+    scrollRef,
+    handlers: { onScroll, onWheel, onTouchStart, onTouchMove },
+    collapse,
+  };
+}
+
+/** デモを1つ抱えた区画。縦に積んで、上から順に読めるようにする */
+function IntroSection({
+  step,
+  title,
+  lead,
+  children,
+}: {
+  step: string;
+  title: string;
+  lead: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="border-t border-nicchyo-ink/[0.07] px-5 py-6">
+      <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-nicchyo-ink/35">
+        {step}
+      </p>
+      <h3 className="mt-1 text-[17px] font-bold leading-tight text-nicchyo-ink">{title}</h3>
+      <p className="mt-1.5 text-[13px] leading-relaxed text-nicchyo-ink/65">{lead}</p>
+      <div className="mt-3.5">{children}</div>
+    </section>
+  );
+}
+
+export default function MapIntroPanel({ shops, onClose }: MapIntroPanelProps) {
   const dragControls = useDragControls();
+  const viewportHeight = useViewportHeight();
+  const { expanded, scrollRef, handlers, collapse } = useSheetExpansion();
+
+  const mapDemoShops = useMemo(() => pickIntroDemoShops(shops), [shops]);
+  const searchCategories = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const shop of shops ?? []) {
+      const key = shop.category || '';
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    }
+    const usable = SHOP_CATEGORY_NAMES.filter((name) => (counts.get(name) ?? 0) >= 2);
+    // 店舗が読めていないときは、控えのデモ店舗が持つカテゴリで見せる
+    return (usable.length >= 3 ? usable : SHOP_CATEGORY_NAMES).slice(0, 3);
+  }, [shops]);
+  const searchDemoShops = useMemo(
+    () => pickIntroSearchShops(shops, searchCategories),
+    [shops, searchCategories]
+  );
+
+  const peekHeight = Math.round(viewportHeight * PEEK_RATIO);
+  const sheetHeight = expanded ? viewportHeight : peekHeight;
+
+  const handleDragEnd = useCallback(
+    (_: unknown, info: { offset: { y: number }; velocity: { y: number } }) => {
+      const pulledDown = info.offset.y > 80 || info.velocity.y > 500;
+      if (!pulledDown) return;
+      // 全画面のときは、まず元の高さへ。もう一度引いたら閉じる
+      if (expanded) collapse();
+      else onClose();
+    },
+    [collapse, expanded, onClose]
+  );
 
   return (
     <>
@@ -55,13 +196,21 @@ export default function MapIntroPanel({ onClose }: MapIntroPanelProps) {
         transition={{ duration: 0.2 }}
         onClick={onClose}
         aria-label="案内を閉じて地図を見る"
-        className="fixed inset-0 z-[9988] cursor-default bg-transparent"
+        aria-hidden={expanded}
+        className={`fixed inset-0 z-[9988] cursor-default bg-transparent ${
+          expanded ? 'pointer-events-none' : ''
+        }`}
       />
 
       <motion.div
         key="map-intro-panel"
         initial={{ y: '100%' }}
-        animate={{ y: 0 }}
+        animate={{
+          y: 0,
+          height: sheetHeight,
+          borderTopLeftRadius: expanded ? 0 : 28,
+          borderTopRightRadius: expanded ? 0 : 28,
+        }}
         exit={{ y: '100%' }}
         transition={{ type: 'spring', damping: 32, stiffness: 300 }}
         drag="y"
@@ -69,17 +218,15 @@ export default function MapIntroPanel({ onClose }: MapIntroPanelProps) {
         dragListener={false}
         dragConstraints={{ top: 0 }}
         dragElastic={{ top: 0, bottom: 0.3 }}
-        onDragEnd={(_, info) => {
-          if (info.offset.y > 80 || info.velocity.y > 500) onClose();
-        }}
+        onDragEnd={handleDragEnd}
         role="dialog"
         aria-modal="false"
         aria-labelledby="map-intro-title"
-        className="fixed inset-x-0 bottom-0 z-[9990] mx-auto w-full max-w-lg rounded-t-[28px] bg-nicchyo-base shadow-[0_-16px_48px_-12px_rgba(58,58,58,0.3)] ring-1 ring-nicchyo-ink/[0.07]"
+        className="fixed inset-x-0 bottom-0 z-[9990] mx-auto flex w-full max-w-lg flex-col overflow-hidden bg-nicchyo-base shadow-[0_-16px_48px_-12px_rgba(58,58,58,0.3)] ring-1 ring-nicchyo-ink/[0.07]"
       >
-        {/* ドラッグハンドル。下へ払っても閉じる */}
+        {/* ドラッグハンドル。全画面のときは元の高さへ、そうでなければ閉じる */}
         <div
-          className="flex h-7 w-full cursor-grab items-center justify-center active:cursor-grabbing"
+          className="flex h-7 w-full shrink-0 cursor-grab items-center justify-center active:cursor-grabbing"
           onPointerDown={(e) => dragControls.start(e)}
           style={{ touchAction: 'none' }}
         >
@@ -90,66 +237,105 @@ export default function MapIntroPanel({ onClose }: MapIntroPanelProps) {
           type="button"
           onClick={onClose}
           aria-label="閉じる"
-          className="absolute right-4 top-4 rounded-full p-1.5 text-nicchyo-ink/40 transition hover:bg-nicchyo-ink/5 hover:text-nicchyo-ink/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-nicchyo-primary"
+          className="absolute right-4 top-4 z-10 rounded-full bg-nicchyo-base/80 p-1.5 text-nicchyo-ink/40 backdrop-blur-sm transition hover:bg-nicchyo-ink/5 hover:text-nicchyo-ink/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-nicchyo-primary"
         >
           <X className="h-4 w-4" />
         </button>
 
-        {/* 読み物は縦に詰まった端末ではスクロールさせ、「地図をみる」は常に見えるところに残す */}
-        <div className="max-h-[52dvh] overflow-y-auto px-5 pt-1">
-          <div className="flex items-center gap-3">
-            <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-full bg-nicchyo-accent/25">
-              <NextImage
-                src="/images/obaasan_transparent.png"
-                alt=""
-                fill
-                sizes="56px"
-                className="object-cover object-top"
-              />
+        <div
+          ref={scrollRef}
+          className="flex-1 overflow-y-auto overscroll-contain"
+          {...handlers}
+        >
+          {/* ── 見出し ── */}
+          <div className="px-5 pt-1">
+            <div className="flex items-center gap-3">
+              <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-full bg-nicchyo-accent/25">
+                <NextImage
+                  src="/images/obaasan_transparent.png"
+                  alt=""
+                  fill
+                  sizes="56px"
+                  className="object-cover object-top"
+                />
+              </div>
+              <div className="min-w-0">
+                <h2
+                  id="map-intro-title"
+                  className="text-[19px] font-bold leading-tight text-nicchyo-ink"
+                >
+                  ようこそ、日曜市へ
+                </h2>
+                <p className="mt-0.5 text-[12px] font-semibold tracking-wide text-nicchyo-ink/45">
+                  nicchyo（ニッチョ）
+                </p>
+              </div>
             </div>
-            <div className="min-w-0">
-              <h2 id="map-intro-title" className="text-[19px] font-bold leading-tight text-nicchyo-ink">
-                ようこそ、日曜市へ
-              </h2>
-              <p className="mt-0.5 text-[12px] font-semibold tracking-wide text-nicchyo-ink/45">
-                nicchyo（ニッチョ）
-              </p>
+
+            <p className="mt-3 text-[13.5px] leading-relaxed text-nicchyo-ink/75">
+              毎週日曜、高知城のふもとから追手筋にかけて約300の店が並びます。
+              この地図は、はじめての人がそこを歩くためのものです。
+            </p>
+
+            {/* 広げる前だけ出すうながし。スクロールすれば全画面になる */}
+            <div
+              className={`mt-4 flex items-center justify-center gap-1.5 pb-5 text-[12px] font-semibold text-nicchyo-ink/40 transition-opacity duration-200 ${
+                expanded ? 'pointer-events-none opacity-0' : 'opacity-100'
+              }`}
+            >
+              <ChevronDown className="h-4 w-4 animate-bounce" aria-hidden />
+              下にスクロールすると、ここで実際に試せます
             </div>
           </div>
 
-          <p className="mt-3 text-[13.5px] leading-relaxed text-nicchyo-ink/75">
-            毎週日曜、高知城のふもとから追手筋にかけて約300の店が並びます。
-            この地図は、はじめての人がそこを歩くためのものです。
-          </p>
+          {/* ── 機能ごとのデモ ── */}
+          <IntroSection
+            step="01"
+            title="地図で店を探す"
+            lead="並んでいる店が、そのまま地図に出ます。屋台をタップすると写真と品物が見られます。"
+          >
+            <IntroMapDemo shops={mapDemoShops} />
+          </IntroSection>
 
-          <ul className="mt-3 space-y-2">
-            {FEATURES.map(({ icon: Icon, title, body }) => (
-              <li
-                key={title}
-                className="flex gap-3 rounded-2xl bg-white/70 px-3.5 py-2.5 ring-1 ring-nicchyo-ink/[0.06]"
-              >
-                <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-nicchyo-soft-green/35 text-nicchyo-ink/70">
-                  <Icon className="h-4 w-4" />
-                </span>
-                <div className="min-w-0">
-                  <p className="text-[13.5px] font-bold text-nicchyo-ink">{title}</p>
-                  <p className="mt-0.5 text-[12.5px] leading-relaxed text-nicchyo-ink/65">{body}</p>
-                </div>
-              </li>
-            ))}
-          </ul>
+          <IntroSection
+            step="02"
+            title="ジャンルでしぼる"
+            lead="「何があるか分からない」ときは、ジャンルから。お店の名前や品物でも探せます。"
+          >
+            <IntroSearchDemo shops={searchDemoShops} categories={searchCategories} />
+          </IntroSection>
+
+          <IntroSection
+            step="03"
+            title="にちよさんに聞く"
+            lead="探すより聞くほうが早いこともあります。土佐弁のAIガイドが案内します。"
+          >
+            <IntroConsultDemo />
+          </IntroSection>
+
+          <div className="border-t border-nicchyo-ink/[0.07] px-5 py-7 text-center">
+            <p className="text-[14px] font-bold leading-relaxed text-nicchyo-ink">
+              あとは、歩くだけ。
+            </p>
+            <p className="mt-1.5 text-[12.5px] leading-relaxed text-nicchyo-ink/55">
+              迷っても大丈夫です。真ん中の通路をまっすぐ行けば、いつかは端に着きます。
+            </p>
+            <Link
+              href="/about"
+              className="mt-4 inline-block text-[12.5px] font-semibold text-nicchyo-ink/45 underline-offset-4 hover:underline"
+            >
+              nicchyo について詳しく
+            </Link>
+          </div>
+
         </div>
 
-        {/* ナビゲーションバー（h-14）に隠れないよう、その分だけ下に余白を取る */}
+        {/* いつでも地図へ戻れるようにする操作列。
+            下のデモに半端に重ならないよう、帯として置いて内容はその手前で止める */}
         <div
-          className="relative px-5 pt-4"
-          style={{ paddingBottom: 'calc(3.5rem + var(--safe-bottom, 0px) + 1rem)' }}
+          className="shrink-0 border-t border-nicchyo-ink/[0.07] bg-nicchyo-base/95 px-5 pt-3 backdrop-blur-sm"
+          style={{ paddingBottom: `calc(${NAV_SPACE} + 0.75rem)` }}
         >
-          {/* 上の読み物が切れているときに、続きがあることが分かるようにぼかす */}
-          <div
-            className="pointer-events-none absolute inset-x-0 -top-6 h-6 bg-gradient-to-t from-nicchyo-base to-transparent"
-            aria-hidden
-          />
           <button
             type="button"
             onClick={onClose}
@@ -157,13 +343,6 @@ export default function MapIntroPanel({ onClose }: MapIntroPanelProps) {
           >
             地図をみる
           </button>
-
-          <Link
-            href="/about"
-            className="mt-3 block text-center text-[12.5px] font-semibold text-nicchyo-ink/45 underline-offset-4 hover:underline"
-          >
-            nicchyo について詳しく
-          </Link>
         </div>
       </motion.div>
     </>

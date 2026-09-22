@@ -26,6 +26,28 @@ export type BannerTheme = {
   light: string;
 };
 
+/**
+ * バナーの配色。店舗の themeColor（出店者が選ぶプリセット）で決まる。
+ *
+ * BannerTheme を受け取る側（ShopDetailBanner・AiConsultPanel・はじめての方への
+ * 案内パネル内のデモ）が同じ色を使えるよう、型と同じ場所に置く。
+ */
+export const BANNER_THEME_PRESETS = {
+  amber:  { bg: "#FFFBEB", accent: "#F59E0B", text: "#92400E", border: "#FDE68A", light: "#FEF3C7" },
+  green:  { bg: "#F0FDF4", accent: "#7ED957", text: "#166534", border: "#BBF7D0", light: "#DCFCE7" },
+  orange: { bg: "#FFF7ED", accent: "#F97316", text: "#9A3412", border: "#FED7AA", light: "#FFEDD5" },
+  earth:  { bg: "#FDF6EE", accent: "#B45309", text: "#7C2D12", border: "#DDB898", light: "#FEF3E2" },
+  navy:   { bg: "#EFF6FF", accent: "#3B82F6", text: "#1E40AF", border: "#BFDBFE", light: "#DBEAFE" },
+  rose:   { bg: "#FFF1F2", accent: "#F43F5E", text: "#9F1239", border: "#FECDD3", light: "#FFE4E6" },
+} as const;
+
+export type BannerThemeKey = keyof typeof BANNER_THEME_PRESETS;
+
+/** 未設定・未知のキーは amber に倒す */
+export function resolveBannerTheme(themeColor?: string | null): BannerTheme {
+  return BANNER_THEME_PRESETS[themeColor as BannerThemeKey] ?? BANNER_THEME_PRESETS.amber;
+}
+
 export type ActivePostItem = {
   /** vendor_contents の id（ハートリアクション連携用） */
   id?: string;

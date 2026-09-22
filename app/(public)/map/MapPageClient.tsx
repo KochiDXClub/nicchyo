@@ -1259,7 +1259,7 @@ export default function MapPageClient({
 
       {/* 初来訪者への案内。地図が出たあとに下から重なり、上には地図が見えたままになる */}
       <AnimatePresence>
-        {introOpen && <MapIntroPanel key="map-intro" onClose={closeIntro} />}
+        {introOpen && <MapIntroPanel key="map-intro" shops={shops} onClose={closeIntro} />}
       </AnimatePresence>
 
       {!mapLoadingHandedOff && <MapLoadingOverlay minStage="page" />}
