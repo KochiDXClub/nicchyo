@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { enforceRateLimit, getClientIp } from './rateLimit';
+import { enforceRateLimit, getClientIp, isUpstashConfigured } from './rateLimit';
 
 describe('rateLimit', () => {
   beforeEach(() => {
@@ -8,6 +8,46 @@ describe('rateLimit', () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
+  });
+
+  describe('isUpstashConfigured', () => {
+    it('reflects that Upstash env vars are not set in this test environment', () => {
+      // テスト環境では UPSTASH_REDIS_REST_URL/TOKEN を設定していない前提
+      expect(isUpstashConfigured).toBe(false);
+    });
+  });
+
+  describe('本番でUpstash未設定のときの起動時警告（Issue #352）', () => {
+    const ORIGINAL_ENV = { ...process.env };
+
+    afterEach(() => {
+      process.env = { ...ORIGINAL_ENV };
+      vi.resetModules();
+    });
+
+    it('VERCEL_ENV=production かつ Upstash未設定なら console.error で警告する', async () => {
+      vi.resetModules();
+      process.env.VERCEL_ENV = 'production';
+      delete process.env.UPSTASH_REDIS_REST_URL;
+      delete process.env.UPSTASH_REDIS_REST_TOKEN;
+      const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+      await import('./rateLimit');
+
+      expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('UPSTASH_REDIS_REST_URL/TOKEN'));
+    });
+
+    it('プレビュー環境（production以外）では警告しない', async () => {
+      vi.resetModules();
+      process.env.VERCEL_ENV = 'preview';
+      delete process.env.UPSTASH_REDIS_REST_URL;
+      delete process.env.UPSTASH_REDIS_REST_TOKEN;
+      const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+      await import('./rateLimit');
+
+      expect(errorSpy).not.toHaveBeenCalled();
+    });
   });
 
   describe('getClientIp', () => {

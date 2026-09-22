@@ -142,7 +142,8 @@ WIP
 - **変数・関数**: `camelCase`
 - クライアントコンポーネントは先頭に `"use client"` を明示する
 - ページ固有のコンポーネントはそのページの `components/` 内に置く
-- 共通UIは `components/ui/`（Radix UIベース）
+- 共通UIは `components/ui/`。`@/components/ui` のバレルから読む
+- **UIを書く前に `docs/DESIGN_SYSTEM.md` を読む**（トークンと共通部品の使い分け）
 
 ### Tailwind カラーパレット
 

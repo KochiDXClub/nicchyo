@@ -5,6 +5,7 @@ import { createClient as createServerClient } from "@/utils/supabase/server";
 import { requireSameOrigin } from "@/lib/security/requestGuards";
 import { enforceRateLimit } from "@/lib/security/rateLimit";
 import { getRole, isAdmin } from "@/lib/auth/permissions";
+import { logAdminAudit } from "@/lib/audit/logAdminAudit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -62,13 +63,11 @@ export async function PATCH(
         return NextResponse.json({ error: "Internal server error" }, { status: 500 });
       }
 
-      await serviceClient.from("admin_audit_logs").insert({
-        actor_id: user.id,
-        action: "suspend_user",
-        target_type: "user",
-        target_id: id,
-        details: "ユーザーを停止",
-      });
+      await logAdminAudit(
+        serviceClient,
+        { id: user.id, email: user.email, role: getRole(user) },
+        { action: "suspend_user", targetType: "user", targetId: id, details: "ユーザーを停止" }
+      );
     } else if (body.action === "restore") {
       const { error } = await serviceClient.auth.admin.updateUserById(id, {
         ban_duration: "none",
@@ -78,13 +77,11 @@ export async function PATCH(
         return NextResponse.json({ error: "Internal server error" }, { status: 500 });
       }
 
-      await serviceClient.from("admin_audit_logs").insert({
-        actor_id: user.id,
-        action: "restore_user",
-        target_type: "user",
-        target_id: id,
-        details: "ユーザーを復帰",
-      });
+      await logAdminAudit(
+        serviceClient,
+        { id: user.id, email: user.email, role: getRole(user) },
+        { action: "restore_user", targetType: "user", targetId: id, details: "ユーザーを復帰" }
+      );
     } else if (body.action === "change_role") {
       const newRole = body.role;
       const validRoles = ["general_user", "vendor", "moderator", "admin"];
@@ -100,13 +97,11 @@ export async function PATCH(
         return NextResponse.json({ error: "Internal server error" }, { status: 500 });
       }
 
-      await serviceClient.from("admin_audit_logs").insert({
-        actor_id: user.id,
-        action: "change_role",
-        target_type: "user",
-        target_id: id,
-        details: `ロールを ${newRole} に変更`,
-      });
+      await logAdminAudit(
+        serviceClient,
+        { id: user.id, email: user.email, role: getRole(user) },
+        { action: "change_role", targetType: "user", targetId: id, details: `ロールを ${newRole} に変更` }
+      );
     } else {
       return NextResponse.json({ error: "Unknown action" }, { status: 400 });
     }

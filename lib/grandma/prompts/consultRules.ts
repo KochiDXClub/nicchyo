@@ -51,7 +51,7 @@ export const CONSULT_CONTENT_RULES = `## 内容ルール
  * コード契約: 変えるとアプリが壊れる。管理画面から編集できるようにしてはいけない。
  *
  * `buildResponseSchema()` の JSON schema と対になっており、話し手・次の質問の
- * 仕様には `parseStreamingConsultOutput()` と `GrandmaChatter` の描画が依存している。
+ * 仕様には `parseStreamingConsultOutput()` と相談画面（`ConsultStage`）の描画が依存している。
  *
  * ★ ここに出力の**形式**（JSONで返す／プレーンテキストで返す）を書かないこと。
  *   形式は経路ごとに違う。ストリーミングは TURN 行のプレーンテキスト、

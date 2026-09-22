@@ -109,7 +109,6 @@ export default function ViewportHeightUpdater() {
   <main className="absolute inset-0">
     <MapView />
   </main>
-  <GrandmaChatter /> {/* fixed position */}
   <NavigationBar />  {/* fixed position */}
 </div>
 {% endraw %}
