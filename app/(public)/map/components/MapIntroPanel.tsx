@@ -497,12 +497,9 @@ export default function MapIntroPanel({ open, shops, onClose }: MapIntroPanelPro
               style={{ height: stopHeight }}
             />
             <div className="mt-3 pl-[var(--intro-rail)] pr-5 md:pr-8">
-              <p className="text-[12.5px] leading-[1.9] text-nicchyo-ink/55 md:text-[13.5px]">
-                迷っても大丈夫です。真ん中の通路をまっすぐ行けば、いつかは端に着きます。
-              </p>
               <Link
                 href="/about"
-                className="mt-5 inline-block text-[12.5px] font-semibold text-nicchyo-ink/45 underline-offset-4 hover:underline"
+                className="inline-block text-[12.5px] font-semibold text-nicchyo-ink/45 underline-offset-4 hover:underline"
               >
                 nicchyo について詳しく
               </Link>
