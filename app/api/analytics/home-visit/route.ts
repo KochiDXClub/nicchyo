@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { createClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/database.types";
 import { requireSameOrigin } from "@/lib/security/requestGuards";
+import { enforceRateLimit } from "@/lib/security/rateLimit";
 
 const VISITOR_COOKIE_NAME = "nicchyo_visitor_id";
 
@@ -28,6 +29,15 @@ function isValidVisitorKey(value: string) {
 export async function POST(request: Request) {
   const originCheck = requireSameOrigin(request);
   if (!originCheck.ok) return originCheck.response;
+
+  // DB側のON CONFLICT DO NOTHINGは同一visitor・同一日を防ぐだけで、
+  // 連打そのもの（RPC呼び出しの回数）は防がないため、IPあたりで上限を設ける（Issue #352）
+  const rateLimited = await enforceRateLimit(request, {
+    bucket: "analytics-home-visit-post",
+    limit: 30,
+    windowMs: 5 * 60 * 1000,
+  });
+  if (rateLimited) return rateLimited;
 
   const cookieStore = await cookies();
   let visitorKey = cookieStore.get(VISITOR_COOKIE_NAME)?.value ?? "";

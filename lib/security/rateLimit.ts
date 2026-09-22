@@ -65,14 +65,29 @@ function inMemoryRateLimit(
 // ── Upstash Redis ──────────────────────────────────────────────────────────
 // UPSTASH_REDIS_REST_URL と UPSTASH_REDIS_REST_TOKEN が設定されている場合に使用する。
 // 複数インスタンス間で共有されるため、水平スケール環境でも正確なレート制限が機能する。
+export const isUpstashConfigured = Boolean(
+  process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN
+);
+
+// 本番（Vercel の VERCEL_ENV=production）はマルチインスタンスが前提のため、
+// in-memory フォールバックだとインスタンスごとに別カウンターになり実効性がない（Issue #352）。
+// ここでリクエストを落とすとUpstash未設定の間サイト全体が止まってしまうため、
+// 「気づけるように大声で警告する」までに留め、実際に落とす/失敗にするのは
+// /api/health（ヘルスチェック監視で気づける）側に任せる。
+// モジュール評価時（サーバーレス関数のコールドスタート毎）に1回走る
+if (process.env.VERCEL_ENV === "production" && !isUpstashConfigured) {
+  console.error(
+    "[rateLimit] UPSTASH_REDIS_REST_URL/TOKEN が本番で未設定です。" +
+      "レート制限がインスタンス内 in-memory にフォールバックし、" +
+      "複数インスタンス構成では実効性がありません。Vercel の環境変数を確認してください。"
+  );
+}
+
 let upstashRatelimit:
   | ((key: string, limit: number, windowMs: number) => Promise<{ success: boolean; reset: number }>)
   | null = null;
 
-if (
-  process.env.UPSTASH_REDIS_REST_URL &&
-  process.env.UPSTASH_REDIS_REST_TOKEN
-) {
+if (isUpstashConfigured) {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const { Redis } = require("@upstash/redis") as typeof import("@upstash/redis");
   // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -107,6 +122,14 @@ if (
 // ── 公開 API ───────────────────────────────────────────────────────────────
 
 
+/**
+ * x-real-ip / x-forwarded-for はこのアプリの前段（Vercel のエッジ）が
+ * 上書きして設定する前提で信頼している。クライアントが直接これらの
+ * ヘッダーを送っても、Vercel 環境ではエッジで実際の接続元IPに書き換わる。
+ * この前提が崩れる構成（別プロキシ経由・セルフホスト等）に変える場合は、
+ * クライアントがヘッダーを偽装してバケットを毎回変え、レート制限を
+ * すり抜けられてしまうため、ここも見直すこと
+ */
 export function getClientIp(request: Request): string {
   const realIp = request.headers.get("x-real-ip");
   if (realIp) return realIp;
