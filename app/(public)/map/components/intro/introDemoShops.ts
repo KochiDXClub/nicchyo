@@ -14,8 +14,8 @@
 import type { Shop } from '../../types/shopData';
 import { SHOP_CATEGORY_NAMES } from '../../config/shopCategories';
 
-/** デモの道に並べる件数 */
-export const INTRO_DEMO_SHOP_COUNT = 5;
+/** デモの道に並べる件数。通りを歩いた感じが出るだけの数を置く */
+export const INTRO_DEMO_SHOP_COUNT = 16;
 
 /**
  * 案内で使うぶんだけを持つ、軽い店舗の形。
@@ -140,4 +140,9 @@ export const FALLBACK_DEMO_SHOPS: IntroDemoShop[] = [
   fallbackShop(3, '植木のお店', '植物・苗', ['鉢植え', '種'], '育てやすい苗もあります'),
   fallbackShop(4, '刃物のお店', '道具・工具', ['包丁', '鎌'], '土佐打刃物の店'),
   fallbackShop(5, '竹かごのお店', '生活雑貨', ['竹かご', 'ざる'], '手編みの竹細工'),
+  fallbackShop(6, '果物のお店', '食材', ['文旦', 'みかん'], '土佐の柑橘が並びます'),
+  fallbackShop(7, '田舎寿司のお店', '食べ物', ['田舎寿司', 'おはぎ'], '朝つくったものだけ'),
+  fallbackShop(8, '花の苗のお店', '植物・苗', ['花の苗', '球根'], '季節の花の苗'),
+  fallbackShop(9, '打刃物のお店', '道具・工具', ['鎌', '鉈'], '研ぎ直しもできます'),
+  fallbackShop(10, '器のお店', '生活雑貨', ['食器', '箸'], '普段づかいの器'),
 ];

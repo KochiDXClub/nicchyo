@@ -292,7 +292,7 @@ export default function MapIntroPanel({ shops, onClose }: MapIntroPanelProps) {
           <IntroSection
             step="01"
             title="地図で店を探す"
-            lead="並んでいる店が、そのまま地図に出ます。屋台をタップすると写真と品物が見られます。"
+            lead="指で通りをたどると、写真と店名が前に出ます。気になった店をタップすると、品物も営業時間も見られます。"
           >
             <IntroMapDemo shops={mapDemoShops} />
           </IntroSection>
@@ -300,7 +300,7 @@ export default function MapIntroPanel({ shops, onClose }: MapIntroPanelProps) {
           <IntroSection
             step="02"
             title="ジャンルでしぼる"
-            lead="「何があるか分からない」ときは、ジャンルから。お店の名前や品物でも探せます。"
+            lead="「何があるか分からない」ときは、ジャンルから。当てはまった店が写真で前に出ます。"
           >
             <IntroSearchDemo shops={searchDemoShops} categories={searchCategories} />
           </IntroSection>

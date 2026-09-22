@@ -3,51 +3,91 @@
 /**
  * 「地図で店を探す」のデモ。
  *
- * 説明で終わらせず、その場で一度やってもらう。
- *   屋台をタップ → 本番と同じバナーが下からせり上がる → ハートで印を付けると屋根に札が出る
- * バナーは ShopBannerHero の compact、屋台は markerHtmlGenerator と、
- * どちらもマップ本体が使っているものをそのまま呼んでいる。
+ * 説明で終わらせず、本番と同じ手順をその場で一度やってもらう。
+ *   道を指でなぞって動かす → 動かしているあいだ写真と店名のカードが前に出る
+ *   → 気になった店をタップ → バナーが全開で開く → ハートで印を付けると屋根に札が出る
+ *
+ * 屋台・カード・バナーはどれもマップ本体が使っている部品をそのまま呼んでいる。
+ * 店名の木札を常時は出さないのも、探しているあいだだけカードを出すのも、
+ * 本番の見せ方に合わせたもの（IntroStall.tsx の IntroStallMarker 参照）。
  */
 
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Heart, X as XIcon } from 'lucide-react';
 import NextImage from 'next/image';
-import { ShopBannerHero, resolveBannerTheme } from '../ShopBannerHero';
-import { getShopBannerImage } from '@/lib/shopImages';
-import { IntroDemoFrame, IntroRoad, IntroStallMarker } from './IntroStall';
+import { ChevronsUpDown } from 'lucide-react';
+import IntroShopSheet from './IntroShopSheet';
+import {
+  INTRO_CARD_HEIGHT,
+  INTRO_CARD_WIDTH,
+  IntroDemoFrame,
+  IntroRoad,
+  IntroScanCard,
+  IntroStallMarker,
+} from './IntroStall';
 import type { IntroDemoShop } from './introDemoShops';
 
 /** スマホでマップページを開いたときと同じくらいの、縦に長い画面 */
 const FRAME_HEIGHT = 460;
+/** 道の全長。枠より長いぶんだけ指で動かせる */
+const ROAD_HEIGHT = 1240;
+/** 上下に置く余白（この中には屋台を置かない） */
+const ROAD_PADDING = 70;
+/** 同じ列の屋台どうしの間隔 */
+const STALL_GAP = 140;
+/** 動かし終わってからカードを残す時間。本番の ShopScanCards と同じ */
+const HOLD_MS = 500;
 
 /**
- * 屋台の置き場所（枠に対する割合）。
- *
- * 道は縦に通っているので、屋台は左右の列に分かれて上から順に並ぶ。
+ * 16軒を道の左右に8軒ずつ、互い違いに並べる。
  * left は足元の位置、side は木札の出る向き（本番と同じで道の外側へ出る）。
  * 真ん中の通路（枠の 39%〜61%）は空けておく。
  */
-const STALL_SLOTS = [
-  { side: 'south' as const, left: '33%', foot: '22%' },
-  { side: 'north' as const, left: '67%', foot: '33%' },
-  { side: 'south' as const, left: '33%', foot: '47%' },
-  { side: 'north' as const, left: '67%', foot: '58%' },
-  { side: 'south' as const, left: '33%', foot: '72%' },
-];
+function buildSlots(count: number) {
+  return Array.from({ length: count }, (_, i) => {
+    const isLeft = i % 2 === 0;
+    return {
+      side: (isLeft ? 'south' : 'north') as 'south' | 'north',
+      left: isLeft ? '32%' : '68%',
+      top: ROAD_PADDING + Math.floor(i / 2) * STALL_GAP + (isLeft ? 0 : STALL_GAP / 2),
+    };
+  });
+}
 
 export default function IntroMapDemo({ shops }: { shops: IntroDemoShop[] }) {
   const [openShopId, setOpenShopId] = useState<number | null>(null);
   const [favoriteIds, setFavoriteIds] = useState<number[]>([]);
-  /** 一度でもタップされたら、うながしの吹き出しは引っ込める */
-  const [hasTapped, setHasTapped] = useState(false);
+  /** 指で動かしているあいだと、その直後。本番と同じでカードはこのときだけ出す */
+  const [scanning, setScanning] = useState(false);
+  /** 一度でも動かしたら、うながしの吹き出しは引っ込める */
+  const [hasPanned, setHasPanned] = useState(false);
+  const holdTimerRef = useRef<number | null>(null);
 
-  const placed = shops.slice(0, STALL_SLOTS.length);
-  const openShop = placed.find((shop) => shop.id === openShopId) ?? null;
+  const slots = buildSlots(shops.length);
+  const placed = shops.map((shop, i) => ({ shop, slot: slots[i] }));
+  const openShop = shops.find((shop) => shop.id === openShopId) ?? null;
 
-  const handleStallClick = useCallback((id: number) => {
-    setHasTapped(true);
-    setOpenShopId((prev) => (prev === id ? null : id));
+  useEffect(
+    () => () => {
+      if (holdTimerRef.current !== null) window.clearTimeout(holdTimerRef.current);
+    },
+    []
+  );
+
+  const startScan = useCallback(() => {
+    if (holdTimerRef.current !== null) {
+      window.clearTimeout(holdTimerRef.current);
+      holdTimerRef.current = null;
+    }
+    setScanning(true);
+    setHasPanned(true);
+  }, []);
+
+  const endScan = useCallback(() => {
+    holdTimerRef.current = window.setTimeout(() => {
+      holdTimerRef.current = null;
+      setScanning(false);
+    }, HOLD_MS);
   }, []);
 
   const toggleFavorite = useCallback((id: number) => {
@@ -56,15 +96,24 @@ export default function IntroMapDemo({ shops }: { shops: IntroDemoShop[] }) {
 
   return (
     <IntroDemoFrame height={FRAME_HEIGHT}>
-      <IntroRoad>
-        {placed.map((shop, i) => {
-          const slot = STALL_SLOTS[i];
-          return (
-            <div
-              key={shop.id}
-              className="absolute"
-              style={{ left: slot.left, top: slot.foot }}
-            >
+      {/* 指で上下に動かせる道。本番のパン操作にあたる */}
+      <motion.div
+        drag="y"
+        dragConstraints={{ top: FRAME_HEIGHT - ROAD_HEIGHT, bottom: 0 }}
+        dragElastic={0.06}
+        dragMomentum
+        onDragStart={startScan}
+        onDragEnd={endScan}
+        // 指の動きを案内パネル側へ流さない。流すと、道を下へ送ったつもりが
+        // パネルの「いちばん上で下へ引く＝縮める」に食われてしまう
+        onTouchStart={(e) => e.stopPropagation()}
+        onTouchMove={(e) => e.stopPropagation()}
+        className="absolute inset-x-0 top-0 cursor-grab touch-pan-x active:cursor-grabbing"
+        style={{ height: ROAD_HEIGHT }}
+      >
+        <IntroRoad>
+          {placed.map(({ shop, slot }) => (
+            <div key={shop.id} className="absolute" style={{ left: slot.left, top: slot.top }}>
               <IntroStallMarker
                 shop={shop}
                 side={slot.side}
@@ -73,24 +122,39 @@ export default function IntroMapDemo({ shops }: { shops: IntroDemoShop[] }) {
                   selected: openShopId === shop.id,
                   favorite: favoriteIds.includes(shop.id),
                 }}
-                onClick={() => handleStallClick(shop.id)}
+                onClick={() => setOpenShopId(shop.id)}
               />
-              {/* 最初の1件だけ、タップできることが分かるように脈打たせる */}
-              {i === 0 && !hasTapped && (
-                <span
-                  className="pointer-events-none absolute left-0 top-0 -translate-x-1/2 animate-ping rounded-full bg-nicchyo-primary/60"
-                  style={{ width: 30, height: 30, marginTop: -34 }}
-                  aria-hidden
-                />
-              )}
             </div>
-          );
-        })}
-      </IntroRoad>
+          ))}
 
-      {/* にちよさんのうながし。タップしたら引っ込む */}
+          {/* 探しているあいだだけ、屋台の上に写真と店名を重ねる（本番の ShopScanCards） */}
+          <div
+            className={`absolute inset-0 transition-opacity duration-300 ${
+              scanning ? 'opacity-100' : 'pointer-events-none opacity-0'
+            }`}
+          >
+            {placed.map(({ shop, slot }) => (
+              <div
+                key={shop.id}
+                className="absolute"
+                style={{
+                  left: slot.left,
+                  top: slot.top,
+                  transform: `translate(-${INTRO_CARD_WIDTH / 2}px, -${INTRO_CARD_HEIGHT}px)`,
+                  width: INTRO_CARD_WIDTH,
+                  height: INTRO_CARD_HEIGHT,
+                }}
+              >
+                <IntroScanCard shop={shop} onClick={() => setOpenShopId(shop.id)} />
+              </div>
+            ))}
+          </div>
+        </IntroRoad>
+      </motion.div>
+
+      {/* にちよさんのうながし。動かしたら引っ込む */}
       <AnimatePresence>
-        {!hasTapped && (
+        {!hasPanned && !openShop && (
           <motion.div
             key="intro-map-hint"
             initial={{ opacity: 0, y: -8 }}
@@ -108,75 +172,23 @@ export default function IntroMapDemo({ shops }: { shops: IntroDemoShop[] }) {
                 className="h-[26px] w-[26px]"
               />
             </span>
-            <span className="rounded-2xl rounded-tl-sm bg-white/95 px-3 py-2 text-[12.5px] font-semibold leading-snug text-nicchyo-ink shadow-md ring-1 ring-nicchyo-ink/10">
-              気になる屋台をタップしてみいや
+            <span className="flex items-center gap-1.5 rounded-2xl rounded-tl-sm bg-white/95 px-3 py-2 text-[12.5px] font-semibold leading-snug text-nicchyo-ink shadow-md ring-1 ring-nicchyo-ink/10">
+              <ChevronsUpDown className="h-3.5 w-3.5 shrink-0 opacity-50" aria-hidden />
+              指で上下に動かして、通りを歩いてみいや
             </span>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* 本番と同じ、下からせり上がるバナー（マップの店舗バナーの畳んだ状態） */}
+      {/* 本番と同じ、下から全開まで開くバナー */}
       <AnimatePresence>
         {openShop && (
-          <motion.div
-            key={`intro-banner-${openShop.id}`}
-            initial={{ y: '100%' }}
-            animate={{ y: 0 }}
-            exit={{ y: '100%' }}
-            transition={{ type: 'spring', damping: 30, stiffness: 320 }}
-            className="absolute inset-x-0 bottom-0 border-t border-slate-100 bg-white px-4 pb-3 pt-2 shadow-[0_-8px_24px_-12px_rgba(15,23,42,0.4)]"
-          >
-            <div className="flex justify-center">
-              <span className="h-1.5 w-10 rounded-full bg-slate-300" aria-hidden />
-            </div>
-
-            <div className="absolute right-3 top-3 flex items-center gap-1.5">
-              <button
-                type="button"
-                onClick={() => toggleFavorite(openShop.id)}
-                aria-pressed={favoriteIds.includes(openShop.id)}
-                aria-label={
-                  favoriteIds.includes(openShop.id) ? 'お気に入りから外す' : 'お気に入りに入れる'
-                }
-                className={`flex h-8 w-8 items-center justify-center rounded-full shadow-sm transition active:scale-95 ${
-                  favoriteIds.includes(openShop.id)
-                    ? 'bg-favorite-fg text-white'
-                    : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
-                }`}
-              >
-                <Heart
-                  className="h-4 w-4"
-                  fill={favoriteIds.includes(openShop.id) ? 'currentColor' : 'none'}
-                />
-              </button>
-              <button
-                type="button"
-                onClick={() => setOpenShopId(null)}
-                aria-label="閉じる"
-                className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-slate-600 shadow-sm transition hover:bg-slate-200"
-              >
-                <XIcon className="h-4 w-4" />
-              </button>
-            </div>
-
-            <div className="mt-1">
-              <ShopBannerHero
-                shop={openShop}
-                bannerImage={getShopBannerImage(openShop.category, openShop.id)}
-                theme={resolveBannerTheme(openShop.themeColor)}
-                heroImageError={false}
-                onImageError={() => {}}
-                mode="compact"
-                showProductPreview
-              />
-            </div>
-
-            <p className="mt-2 text-center text-[11px] font-semibold text-slate-400">
-              {favoriteIds.includes(openShop.id)
-                ? 'ハートを押すと屋根に印が付きます。地図でも探しやすくなります'
-                : 'ハートを押すと、あとからまとめて見られます'}
-            </p>
-          </motion.div>
+          <IntroShopSheet
+            shop={openShop}
+            isFavorite={favoriteIds.includes(openShop.id)}
+            onToggleFavorite={() => toggleFavorite(openShop.id)}
+            onClose={() => setOpenShopId(null)}
+          />
         )}
       </AnimatePresence>
     </IntroDemoFrame>

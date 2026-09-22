@@ -4,32 +4,39 @@
  * 「ジャンルでしぼる」のデモ。
  *
  * マップ上部のジャンルチップ（MapPageClient の GenreFilter）を縮めたもの。
- * 押すと、本番と同じように該当しない屋台が沈む（map-search-spotlight-mode と
- * 同じ落とし方）。
+ * 押すと本番と同じことが起きる。
+ *   当てはまった店 … 写真と店名のカードで大きく前に出る（ShopScanCards）
+ *   外れた店       … 沈んで色が抜ける（map-search-spotlight-mode と同じ落とし方）
+ * カードをタップすれば、地図のときと同じくバナーが全開で開く。
  *
  * 検索バーとお気に入りの絞り込みは、ここでは触っても動かせない（文字を打つ先も、
  * お気に入りに入れた店も無い）ので置いていない。押せそうに見えて動かないものを
  * 並べると、案内のつもりが最初の不信になる。
  */
 
-import { useMemo, useState } from 'react';
-import { IntroDemoFrame, IntroRoad, IntroStallMarker } from './IntroStall';
+import { useCallback, useMemo, useState } from 'react';
+import { AnimatePresence } from 'framer-motion';
+import IntroShopSheet from './IntroShopSheet';
+import {
+  INTRO_CARD_HEIGHT,
+  INTRO_CARD_WIDTH,
+  IntroDemoFrame,
+  IntroRoad,
+  IntroScanCard,
+  IntroStallMarker,
+} from './IntroStall';
 import type { IntroDemoShop } from './introDemoShops';
 
-const FRAME_HEIGHT = 300;
+const FRAME_HEIGHT = 320;
 
-/**
- * 6件を道の左右に3件ずつ。
- * 本番でも店が詰まって見える倍率では木札を出さない（LOD が photo）ので、
- * ここも写真までにして、札同士が重ならないようにしている。
- */
+/** 6件を道の左右に3件ずつ。left は足元の位置 */
 const STALL_SLOTS = [
-  { side: 'south' as const, left: '33%', foot: '26%' },
-  { side: 'north' as const, left: '67%', foot: '38%' },
-  { side: 'south' as const, left: '33%', foot: '52%' },
-  { side: 'north' as const, left: '67%', foot: '64%' },
-  { side: 'south' as const, left: '33%', foot: '78%' },
-  { side: 'north' as const, left: '67%', foot: '90%' },
+  { side: 'south' as const, left: '32%', foot: '24%' },
+  { side: 'north' as const, left: '68%', foot: '36%' },
+  { side: 'south' as const, left: '32%', foot: '50%' },
+  { side: 'north' as const, left: '68%', foot: '62%' },
+  { side: 'south' as const, left: '32%', foot: '76%' },
+  { side: 'north' as const, left: '68%', foot: '88%' },
 ];
 
 export default function IntroSearchDemo({
@@ -40,12 +47,24 @@ export default function IntroSearchDemo({
   categories: readonly string[];
 }) {
   const [selected, setSelected] = useState<string | null>(null);
+  const [openShopId, setOpenShopId] = useState<number | null>(null);
+  const [favoriteIds, setFavoriteIds] = useState<number[]>([]);
 
   const placed = shops.slice(0, STALL_SLOTS.length);
   const matchCount = useMemo(
     () => (selected ? placed.filter((shop) => shop.category === selected).length : 0),
     [placed, selected]
   );
+  const openShop = placed.find((shop) => shop.id === openShopId) ?? null;
+
+  const toggleFavorite = useCallback((id: number) => {
+    setFavoriteIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  }, []);
+
+  const pickCategory = useCallback((category: string) => {
+    setOpenShopId(null);
+    setSelected((prev) => (prev === category ? null : category));
+  }, []);
 
   return (
     <div className="space-y-2">
@@ -57,7 +76,7 @@ export default function IntroSearchDemo({
             <button
               key={category}
               type="button"
-              onClick={() => setSelected(active ? null : category)}
+              onClick={() => pickCategory(category)}
               aria-pressed={active}
               className={`rounded-full border px-3.5 py-1.5 text-[13px] font-bold shadow-sm transition active:scale-95 ${
                 active
@@ -72,7 +91,7 @@ export default function IntroSearchDemo({
       </div>
 
       <IntroDemoFrame height={FRAME_HEIGHT}>
-        <IntroRoad bandWidth="78%">
+        <IntroRoad bandWidth="78%" crowd={false}>
           {placed.map((shop, i) => {
             const slot = STALL_SLOTS[i];
             const matched = !selected || shop.category === selected;
@@ -82,18 +101,56 @@ export default function IntroSearchDemo({
                   shop={shop}
                   side={slot.side}
                   scale={0.58}
-                  lod="photo"
-                  state={{ highlighted: !!selected && matched, dimmed: !!selected && !matched }}
+                  state={{
+                    selected: openShopId === shop.id,
+                    favorite: favoriteIds.includes(shop.id),
+                    highlighted: !!selected && matched,
+                    dimmed: !!selected && !matched,
+                  }}
+                  onClick={() => setOpenShopId(shop.id)}
                 />
               </div>
             );
           })}
+
+          {/* 当てはまった店は、本番と同じく写真と店名のカードで前に出す */}
+          {selected &&
+            placed.map((shop, i) => {
+              if (shop.category !== selected) return null;
+              const slot = STALL_SLOTS[i];
+              return (
+                <div
+                  key={`card-${shop.id}`}
+                  className="absolute"
+                  style={{
+                    left: slot.left,
+                    top: slot.foot,
+                    transform: `translate(-${INTRO_CARD_WIDTH / 2}px, -${INTRO_CARD_HEIGHT}px)`,
+                    width: INTRO_CARD_WIDTH,
+                    height: INTRO_CARD_HEIGHT,
+                  }}
+                >
+                  <IntroScanCard shop={shop} onClick={() => setOpenShopId(shop.id)} />
+                </div>
+              );
+            })}
         </IntroRoad>
+
+        <AnimatePresence>
+          {openShop && (
+            <IntroShopSheet
+              shop={openShop}
+              isFavorite={favoriteIds.includes(openShop.id)}
+              onToggleFavorite={() => toggleFavorite(openShop.id)}
+              onClose={() => setOpenShopId(null)}
+            />
+          )}
+        </AnimatePresence>
       </IntroDemoFrame>
 
       <p className="text-center text-[11px] font-semibold text-nicchyo-ink/40">
         {selected
-          ? `「${selected}」のお店が ${matchCount}件 残りました`
+          ? `「${selected}」のお店が ${matchCount}件。写真と名前で前に出ます`
           : 'ジャンルを押すと、そのお店だけが地図に残ります'}
       </p>
     </div>
