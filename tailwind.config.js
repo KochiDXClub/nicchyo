@@ -80,6 +80,13 @@ module.exports = {
         },
       },
 
+      // 端末の切り欠き・ホームインジケータ。globals.css の :root が実際の値を入れる。
+      // これが無いと pt-safe-top / pb-safe-bottom はクラス名だけあって CSS が出ない
+      spacing: {
+        'safe-top':    'var(--safe-top, 0px)',
+        'safe-bottom': 'var(--safe-bottom, 0px)',
+      },
+
       fontFamily: {
         display: ['"Mochiy Pop One"', '"Zen Kaku Gothic New"', 'sans-serif'],
         sans: [

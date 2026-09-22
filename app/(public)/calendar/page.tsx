@@ -9,6 +9,7 @@ import {
   groupEventsBySunday,
   UPCOMING_SUNDAYS_FULL_COUNT,
 } from "@/lib/market/calendar";
+import { PageContainer, PageShell } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
@@ -25,27 +26,27 @@ export default async function MarketCalendarPage() {
   const sundays = groupEventsBySunday(events, days, UPCOMING_SUNDAYS_FULL_COUNT);
 
   return (
-    <main className="min-h-screen bg-nicchyo-base pb-24 text-nicchyo-ink">
+    <PageShell as="main">
       <div className="bg-gradient-to-b from-nicchyo-soft-green/25 to-transparent pb-6 pt-safe-top">
-        <div className="mx-auto flex max-w-lg flex-col px-4 pt-6">
+        <PageContainer width="narrow" className="pt-6">
           <p className="text-[11px] font-bold uppercase tracking-[0.32em] text-nicchyo-primary">
             Market Calendar
           </p>
           <h1 className="mt-1 text-[2rem] font-black leading-none tracking-tight">
             日曜市カレンダー
           </h1>
-          <p className="mt-2.5 text-sm text-gray-500">
+          <p className="mt-2.5 text-sm text-nicchyo-ink/55">
             開催状況とこれからの予定をお届けします
           </p>
 
           <MarketStatusBar day={day} placement="page" className="mt-5" />
-        </div>
+        </PageContainer>
       </div>
 
-      <div className="mx-auto max-w-lg px-4">
+      <PageContainer width="narrow">
         <UpcomingSundays sundays={sundays} showHeading={false} />
 
-        <p className="mt-6 text-center text-[11px] leading-relaxed text-gray-400">
+        <p className="mt-6 text-center text-[11px] leading-relaxed text-nicchyo-ink/40">
           出店者ごとの当日の様子は
           <br />
           <a href="/story" className="font-semibold text-nicchyo-primary underline underline-offset-2">
@@ -53,9 +54,9 @@ export default async function MarketCalendarPage() {
           </a>
           でご覧いただけます
         </p>
-      </div>
+      </PageContainer>
 
       <NavigationBar />
-    </main>
+    </PageShell>
   );
 }
