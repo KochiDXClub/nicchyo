@@ -15,7 +15,7 @@
  */
 
 import { useEffect, useMemo, useState } from 'react';
-import { motion, useReducedMotion } from 'framer-motion';
+import { animate, motion, useMotionValue, useReducedMotion, useTransform } from 'framer-motion';
 import GrandmaAvatar from '../../../consult/components/GrandmaAvatar';
 import { DEFAULT_CONSULT_CHARACTER } from '../../../consult/data/consultCharacters';
 import type { GrandmaPose } from '@/lib/grandma/pose';
@@ -27,8 +27,8 @@ export const RAIL_WIDTH = 72;
  * スマホは吹き出しが2行になるぶん高く、PC は横幅があって1行に収まるので低くする。
  * ここを高くしすぎると、にちよさんがまだ来ていない停留点が「ぽっかり空いた穴」に見える。
  */
-export const RAIL_STOP_HEIGHT = 84;
-export const RAIL_STOP_HEIGHT_DESKTOP = 72;
+export const RAIL_STOP_HEIGHT = 92;
+export const RAIL_STOP_HEIGHT_DESKTOP = 80;
 
 const RAIL_CENTER_X = 34;
 const WAVE_AMPLITUDE = 11;
@@ -36,6 +36,13 @@ const WAVE_LENGTH = 220;
 const AVATAR_SIZE = 64;
 /** 着いてからしゃべっている時間 */
 const SPEAK_MS = 2200;
+/** 歩く速さ（px/秒）。速いと飛んでいるように見えるので、人が歩くくらいに落とす */
+const WALK_SPEED_PX_PER_SEC = 420;
+const WALK_MIN_SEC = 0.8;
+const WALK_MAX_SEC = 1.9;
+/** 一歩ぶんの上下。踏み出すたびに軽く弾む */
+const WALK_BOB_PX = 4;
+const WALK_STEP_SEC = 0.46;
 
 /** 道の横位置。y に応じて左右に揺れる */
 export function railX(y: number): number {
@@ -71,16 +78,65 @@ export default function IntroGrandmaRail({
 }) {
   const reduceMotion = useReducedMotion();
   const [pose, setPose] = useState<GrandmaPose>('idle');
+  const [walking, setWalking] = useState(false);
 
-  // 着いたらしばらく話している顔にする（会釈する）
+  const stopY = stopYs[activeStop] ?? 0;
+
+  /**
+   * 縦の位置。これを動かすと、横の位置は道の式から引き直される。
+   *
+   * 以前は縦だけを動かして横は着いた先の値をそのまま入れていたので、
+   * 歩き出した瞬間に横へ瞬間移動していた。道がくねっているぶん、
+   * それが「宙を飛んでいる」ように見えていた。
+   */
+  const top = useMotionValue(stopY);
+  const avatarLeft = useTransform(top, (y) => railX(y + AVATAR_SIZE / 2) - AVATAR_SIZE / 2);
+
   useEffect(() => {
+    const distance = Math.abs(stopY - top.get());
+    if (distance < 1) {
+      top.set(stopY);
+      return;
+    }
+    if (reduceMotion) {
+      top.set(stopY);
+      return;
+    }
+    setWalking(true);
+    const controls = animate(top, stopY, {
+      // 距離なりに時間をかける。遠いところへ一瞬で着くと歩いて見えない
+      duration: Math.min(WALK_MAX_SEC, Math.max(WALK_MIN_SEC, distance / WALK_SPEED_PX_PER_SEC)),
+      ease: [0.33, 0, 0.25, 1],
+      onComplete: () => setWalking(false),
+    });
+    return () => {
+      controls.stop();
+      setWalking(false);
+    };
+  }, [stopY, reduceMotion, top]);
+
+  // 歩いているあいだは前を見て、着いたらしばらく話している顔にする
+  useEffect(() => {
+    if (walking) {
+      setPose('idle');
+      return;
+    }
     setPose('speaking');
     const timer = window.setTimeout(() => setPose('idle'), SPEAK_MS);
     return () => window.clearTimeout(timer);
-  }, [activeStop]);
+  }, [walking, activeStop]);
+
+  /**
+   * 言うことは、着いてから差し替える。
+   * 歩いている途中で文字だけ先に変わると、まだ来ていない場所の話を
+   * しながら歩いているように見える。
+   */
+  const [spoken, setSpoken] = useState(comment);
+  useEffect(() => {
+    if (!walking) setSpoken(comment);
+  }, [walking, comment]);
 
   const path = useMemo(() => buildRailPath(height), [height]);
-  const stopY = stopYs[activeStop] ?? 0;
 
   return (
     <>
@@ -112,45 +168,36 @@ export default function IntroGrandmaRail({
         ))}
       </svg>
 
-      {/* 降りてくるにちよさんと、その一言 */}
+      {/* 道を歩いて降りてくるにちよさんと、その一言 */}
       <motion.div
         className="pointer-events-none absolute inset-x-0 z-10"
-        initial={false}
-        animate={{ top: stopY }}
-        // 停留点の間が遠いこともあるので、ばねは硬めにして早く落ち着かせる。
-        // ゆるいと、読み始めてもまだ滑っている最中ということが起きる
-        transition={
-          reduceMotion
-            ? { duration: 0 }
-            : { type: 'spring', stiffness: 300, damping: 30, mass: 0.7 }
-        }
-        style={{ height: stopHeight }}
+        style={{ top, height: stopHeight }}
       >
-        {/* 道の上を跳ねながら移動する。止まるたびに一度だけ弾む */}
-        <motion.div
-          key={reduceMotion ? 'static' : activeStop}
-          className="absolute top-0"
-          style={{ left: railX(stopY) - AVATAR_SIZE / 2 }}
-          animate={reduceMotion ? undefined : { y: [0, -13, 0, -6, 0] }}
-          transition={{ duration: 0.62, times: [0, 0.28, 0.55, 0.8, 1], ease: 'easeOut' }}
-        >
-          <GrandmaAvatar pose={pose} size="pinned" character={DEFAULT_CONSULT_CHARACTER} />
+        {/* 横は道の式から引く。くねりに沿って左右に振れながら降りてくる */}
+        <motion.div className="absolute top-0" style={{ left: avatarLeft }}>
+          {/* 歩いているあいだ、一歩ごとに軽く弾む */}
+          <motion.div
+            animate={walking && !reduceMotion ? { y: [0, -WALK_BOB_PX, 0] } : { y: 0 }}
+            transition={
+              walking && !reduceMotion
+                ? { duration: WALK_STEP_SEC, repeat: Infinity, ease: 'easeInOut' }
+                : { duration: 0.2 }
+            }
+          >
+            <GrandmaAvatar pose={pose} size="pinned" character={DEFAULT_CONSULT_CHARACTER} />
+          </motion.div>
         </motion.div>
 
-        <div
-          className="absolute top-0"
-          style={{ left: RAIL_WIDTH + 4, right: 16 }}
-        >
+        <div className="absolute top-0" style={{ left: RAIL_WIDTH + 4, right: 16 }}>
           <div className="consult-greeting consult-greeting--left rounded-2xl border border-amber-200 bg-white px-4 py-2.5 shadow-sm">
-            {/* 文字だけ差し替わるとぱっと変わって見えるので、ここだけ短く溶かす */}
             <motion.p
-              key={activeStop}
+              key={spoken}
               initial={reduceMotion ? false : { opacity: 0, y: 4 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.28, delay: reduceMotion ? 0 : 0.12 }}
+              transition={{ duration: 0.3 }}
               className="text-[14px] font-bold leading-6 text-amber-900"
             >
-              {comment}
+              {spoken}
             </motion.p>
           </div>
         </div>

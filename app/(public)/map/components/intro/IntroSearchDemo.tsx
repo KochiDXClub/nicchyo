@@ -70,9 +70,9 @@ export default function IntroSearchDemo({
   }, []);
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-3.5">
       {/* ジャンルチップ */}
-      <div className="flex flex-wrap gap-1.5">
+      <div className="flex flex-wrap gap-2">
         {categories.map((category) => {
           const active = selected === category;
           return (
@@ -151,7 +151,7 @@ export default function IntroSearchDemo({
         </AnimatePresence>
       </IntroDemoFrame>
 
-      <p className="text-center text-[11px] font-semibold text-nicchyo-ink/40">
+      <p className="pt-1 text-center text-[11.5px] font-semibold text-nicchyo-ink/40">
         {selected
           ? `「${selected}」のお店が ${matchCount}件。写真と名前で前に出ます`
           : 'ジャンルを押すと、そのお店だけが地図に残ります'}

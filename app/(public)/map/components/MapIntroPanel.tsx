@@ -47,7 +47,16 @@ type MapIntroPanelProps = {
  * 最初に見せる高さ（画面に対する割合）。残りは地図が見えている。
  * 見出し・にちよさんの一言・説明・うながしが切れずに収まる下限で取る。
  */
-const PEEK_RATIO = 0.54;
+const PEEK_RATIO = 0.62;
+/**
+ * にちよさんが次の停留点へ歩き出す基準線（画面の上からの割合）。
+ *
+ * ここを小さくすると、見出しが画面のほぼ上まで来るまで動き出さず、
+ * 「着いてから読む」ではなく「読み終えてから来る」になる。
+ * 見出しが画面に入って少し上がったころに歩き出すくらいがちょうどよい。
+ */
+const ACTIVATE_LINE_RATIO = 0.55;
+
 /** これ以上スクロールしたら全画面に広げる */
 const EXPAND_SCROLL_PX = 6;
 /** 全画面から縮めるときに必要な下向きの引っぱり量（px） */
@@ -199,15 +208,17 @@ function IntroSection({
   return (
     /* 道（絶対配置の SVG）より手前に置く。relative を付けないと、
        位置指定のない中身のほうが下に潜って、文字の上を道が横切る */
-    <section className="relative z-[1] border-t border-nicchyo-ink/[0.07] py-6">
+    <section className="relative z-[1] border-t border-nicchyo-ink/[0.07] py-9 md:py-11">
       <div className="pl-[var(--intro-rail)] pr-5">
         <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-nicchyo-ink/35">
           {step}
         </p>
-        <h3 className="mt-1 text-[17px] font-bold leading-tight text-nicchyo-ink">{title}</h3>
+        <h3 className="mt-1.5 text-[17px] font-bold leading-tight text-nicchyo-ink md:text-[19px]">
+          {title}
+        </h3>
       </div>
       {/* にちよさんの停留点。高さだけ確保しておく */}
-      <div ref={stopRef} className="mt-2" style={{ height: stopHeight }} />
+      <div ref={stopRef} className="mt-3" style={{ height: stopHeight }} />
       {/*
         画面が広くても、デモの横幅は広げすぎない。
         道を画面いっぱいに伸ばすと屋台がまばらに散って、地図に見えなくなる。
@@ -217,7 +228,7 @@ function IntroSection({
         PC は見出しと左端を揃え、横幅は広げすぎない。道を画面いっぱいに
         伸ばすと屋台がまばらに散って、地図に見えなくなる。
       */}
-      <div className="mt-1 px-5 md:pl-[var(--intro-rail)] md:pr-8">
+      <div className="mt-3 px-5 md:pl-[var(--intro-rail)] md:pr-8">
         <div className="md:max-w-[460px]">{children}</div>
       </div>
     </section>
@@ -300,7 +311,7 @@ export default function MapIntroPanel({ shops, onClose }: MapIntroPanelProps) {
     // そのまま使うと基準線が画面よりずっと下に引かれ、開いた時点で
     // にちよさんが2つ目の停留点に立ってしまうので、画面の高さで頭を押さえる
     const view = viewportHeight > 0 ? Math.min(el.clientHeight, viewportHeight) : el.clientHeight;
-    const line = el.scrollTop + view * 0.34;
+    const line = el.scrollTop + view * ACTIVATE_LINE_RATIO;
     let next = 0;
     for (let i = 0; i < ys.length; i += 1) {
       if (ys[i] <= line) next = i;
@@ -373,7 +384,7 @@ export default function MapIntroPanel({ shops, onClose }: MapIntroPanelProps) {
           />
 
           {/* ── 見出し ── */}
-          <div className="relative z-[1] pl-[var(--intro-rail)] pr-5 pt-1 md:pr-8">
+          <div className="relative z-[1] pl-[var(--intro-rail)] pr-5 pt-3 md:pr-8 md:pt-4">
             <h2
               id="map-intro-title"
               className="text-[19px] font-bold leading-tight text-nicchyo-ink md:text-[24px]"
@@ -390,17 +401,17 @@ export default function MapIntroPanel({ shops, onClose }: MapIntroPanelProps) {
             ref={(el) => {
               stopRefs.current[0] = el;
             }}
-            className="mt-2"
+            className="mt-3"
             style={{ height: stopHeight }}
           />
 
           <div className="relative z-[1] pl-[var(--intro-rail)] pr-5 md:pr-8">
-            <p className="text-[13.5px] leading-relaxed text-nicchyo-ink/75 md:text-[15px]">
+            <p className="text-[13.5px] leading-[1.9] text-nicchyo-ink/75 md:text-[15px]">
               毎週日曜、高知城のふもとから追手筋にかけて約300の店が並びます。
               この地図は、はじめての人がそこを歩くためのものです。
             </p>
 
-            <div className="pb-5" />
+            <div className="pb-8" />
           </div>
 
           {/* ── 機能ごとのデモ ── */}
@@ -442,16 +453,16 @@ export default function MapIntroPanel({ shops, onClose }: MapIntroPanelProps) {
           </IntroSection>
         </div>
 
-        <div className="border-t border-nicchyo-ink/[0.07] px-5 py-7 text-center md:px-8">
+        <div className="border-t border-nicchyo-ink/[0.07] px-5 py-11 text-center md:px-8">
           <p className="text-[14px] font-bold leading-relaxed text-nicchyo-ink md:text-[16px]">
             あとは、歩くだけ。
           </p>
-          <p className="mt-1.5 text-[12.5px] leading-relaxed text-nicchyo-ink/55 md:text-[13.5px]">
+          <p className="mt-2.5 text-[12.5px] leading-[1.9] text-nicchyo-ink/55 md:text-[13.5px]">
             迷っても大丈夫です。真ん中の通路をまっすぐ行けば、いつかは端に着きます。
           </p>
           <Link
             href="/about"
-            className="mt-4 inline-block text-[12.5px] font-semibold text-nicchyo-ink/45 underline-offset-4 hover:underline"
+            className="mt-6 inline-block text-[12.5px] font-semibold text-nicchyo-ink/45 underline-offset-4 hover:underline"
           >
             nicchyo について詳しく
           </Link>

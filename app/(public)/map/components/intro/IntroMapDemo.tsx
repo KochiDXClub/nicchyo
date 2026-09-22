@@ -4,8 +4,13 @@
  * 「地図で店を探す」のデモ。
  *
  * 説明で終わらせず、本番と同じ手順をその場で一度やってもらう。
- *   道を指でなぞって動かす → 動かしているあいだ写真と店名のカードが前に出る
- *   → 気になった店をタップ → バナーが全開で開く → ハートで印を付けると屋根に札が出る
+ *   道を上下に動かす → 動かしているあいだ写真と店名のカードが前に出る
+ *   → 気になった店を押す → バナーが全開で開く → ハートで印を付けると屋根に札が出る
+ *
+ * 道は「指でつかんで動かす」のではなく、普通のスクロールにしてある。
+ * つかんで動かす作りだと、上下の指の動きをこの枠が全部持っていってしまい、
+ * スマホで案内の続きへスクロールできなくなる（端まで来ても外へ渡らない）。
+ * 普通のスクロールなら、端に着いたところで外のスクロールへ自然に渡る。
  *
  * 屋台・カード・バナーはどれもマップ本体が使っている部品をそのまま呼んでいる。
  * 店名の木札を常時は出さないのも、探しているあいだだけカードを出すのも、
@@ -68,6 +73,7 @@ export default function IntroMapDemo({
   /** 一度でも動かしたら、うながしの吹き出しは引っ込める */
   const [hasPanned, setHasPanned] = useState(false);
   const holdTimerRef = useRef<number | null>(null);
+  const roadRef = useRef<HTMLDivElement | null>(null);
 
   const slots = buildSlots(shops.length);
   const placed = shops.map((shop, i) => ({ shop, slot: slots[i] }));
@@ -80,16 +86,15 @@ export default function IntroMapDemo({
     []
   );
 
-  const startScan = useCallback(() => {
-    if (holdTimerRef.current !== null) {
-      window.clearTimeout(holdTimerRef.current);
-      holdTimerRef.current = null;
-    }
+  /**
+   * 動かしているあいだはカードを出し、止まってからも少しのあいだ残す。
+   * 止まった瞬間に消すと「動いている絵しか読めない」ことになるので、
+   * 静止画で読める時間を作る（本番の ShopScanCards と同じ考え方）。
+   */
+  const handleRoadScroll = useCallback(() => {
     setScanning(true);
     setHasPanned(true);
-  }, []);
-
-  const endScan = useCallback(() => {
+    if (holdTimerRef.current !== null) window.clearTimeout(holdTimerRef.current);
     holdTimerRef.current = window.setTimeout(() => {
       holdTimerRef.current = null;
       setScanning(false);
@@ -102,61 +107,54 @@ export default function IntroMapDemo({
 
   return (
     <IntroDemoFrame height={frameHeight}>
-      {/* 指で上下に動かせる道。本番のパン操作にあたる */}
-      <motion.div
-        drag="y"
-        dragConstraints={{ top: frameHeight - ROAD_HEIGHT, bottom: 0 }}
-        dragElastic={0.06}
-        dragMomentum
-        onDragStart={startScan}
-        onDragEnd={endScan}
-        // 指の動きを案内パネル側へ流さない。流すと、道を下へ送ったつもりが
-        // パネルの「いちばん上で下へ引く＝縮める」に食われてしまう
-        onTouchStart={(e) => e.stopPropagation()}
-        onTouchMove={(e) => e.stopPropagation()}
-        className="absolute inset-x-0 top-0 cursor-grab touch-pan-x active:cursor-grabbing"
-        style={{ height: ROAD_HEIGHT }}
+      {/* 上下に動かせる道。本番のパン操作にあたる */}
+      <div
+        ref={roadRef}
+        onScroll={handleRoadScroll}
+        className="absolute inset-0 overflow-y-auto overflow-x-hidden"
       >
-        <IntroRoad>
-          {placed.map(({ shop, slot }) => (
-            <div key={shop.id} className="absolute" style={{ left: slot.left, top: slot.top }}>
-              <IntroStallMarker
-                shop={shop}
-                side={slot.side}
-                scale={0.6}
-                state={{
-                  selected: openShopId === shop.id,
-                  favorite: favoriteIds.includes(shop.id),
-                }}
-                onClick={() => setOpenShopId(shop.id)}
-              />
-            </div>
-          ))}
-
-          {/* 探しているあいだだけ、屋台の上に写真と店名を重ねる（本番の ShopScanCards） */}
-          <div
-            className={`absolute inset-0 transition-opacity duration-300 ${
-              scanning ? 'opacity-100' : 'pointer-events-none opacity-0'
-            }`}
-          >
+        <div className="relative w-full" style={{ height: ROAD_HEIGHT }}>
+          <IntroRoad>
             {placed.map(({ shop, slot }) => (
-              <div
-                key={shop.id}
-                className="absolute"
-                style={{
-                  left: slot.left,
-                  top: slot.top,
-                  transform: `translate(-${INTRO_CARD_WIDTH / 2}px, -${INTRO_CARD_HEIGHT}px)`,
-                  width: INTRO_CARD_WIDTH,
-                  height: INTRO_CARD_HEIGHT,
-                }}
-              >
-                <IntroScanCard shop={shop} onClick={() => setOpenShopId(shop.id)} />
+              <div key={shop.id} className="absolute" style={{ left: slot.left, top: slot.top }}>
+                <IntroStallMarker
+                  shop={shop}
+                  side={slot.side}
+                  scale={0.6}
+                  state={{
+                    selected: openShopId === shop.id,
+                    favorite: favoriteIds.includes(shop.id),
+                  }}
+                  onClick={() => setOpenShopId(shop.id)}
+                />
               </div>
             ))}
-          </div>
-        </IntroRoad>
-      </motion.div>
+
+            {/* 探しているあいだだけ、屋台の上に写真と店名を重ねる（本番の ShopScanCards） */}
+            <div
+              className={`absolute inset-0 transition-opacity duration-300 ${
+                scanning ? 'opacity-100' : 'pointer-events-none opacity-0'
+              }`}
+            >
+              {placed.map(({ shop, slot }) => (
+                <div
+                  key={shop.id}
+                  className="absolute"
+                  style={{
+                    left: slot.left,
+                    top: slot.top,
+                    transform: `translate(-${INTRO_CARD_WIDTH / 2}px, -${INTRO_CARD_HEIGHT}px)`,
+                    width: INTRO_CARD_WIDTH,
+                    height: INTRO_CARD_HEIGHT,
+                  }}
+                >
+                  <IntroScanCard shop={shop} onClick={() => setOpenShopId(shop.id)} />
+                </div>
+              ))}
+            </div>
+          </IntroRoad>
+        </div>
+      </div>
 
       {/*
         動かせることの合図。案内の言葉はレールのにちよさんが言うので（案内全体で
