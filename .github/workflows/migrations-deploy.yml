@@ -77,6 +77,29 @@ jobs:
       - name: Migration status (before)
         run: supabase migration list --linked
 
+      # リモートとローカルの履歴乖離を事前検知し、原因と解決策をわかりやすく報告する
+      - name: Validate migration sync status
+        run: |
+          list_output=$(supabase migration list --linked 2>&1 || true)
+          # Remote側にあってLocal側にないバージョンを検出 (LOCAL列が空白でREMOTE列に14桁タイムスタンプが存在する行)
+          missing_versions=$(echo "$list_output" | awk -F '|' 'NF >= 3 && $1 ~ /^[[:space:]]*$/ && $2 ~ /[0-9]{14}/ {gsub(/[[:space:]]/, "", $2); print $2}')
+
+          if [ -n "$missing_versions" ]; then
+            echo "::error::リモートDB側にローカルリポジトリに存在しないバージョンが検出されました: $missing_versions"
+            {
+              echo "### ⚠️ リモートDBとのマイグレーション履歴乖離を検出"
+              echo "リモートDBに記録されていますが、現在のブランチ（\`supabase/migrations/\`）に存在しないバージョンがあります："
+              echo '```'
+              echo "$missing_versions"
+              echo '```'
+              echo "**対処方法**:"
+              echo "1. 不要な履歴・テスト実行履歴の場合:"
+              echo "   \`supabase migration repair --status reverted $missing_versions\`"
+              echo "2. 他のPRやブランチで適用された変更の場合、最新のブランチを取り込んでから再実行してください。"
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+
       - name: Dry run
         run: supabase db push --linked --include-all --dry-run
 

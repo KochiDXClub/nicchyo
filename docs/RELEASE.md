@@ -128,7 +128,7 @@ Projects「nicchyo タスク管理」で、完了しうる上流タスクが1つ
 
 ## 6. 未リリース変更の記録
 
-`docs/CHANGELOG-unreleased.md` に、**develop へマージするPRごとに1行**追記する。
+`docs/changelog-unreleased/` に、**develop へマージするPRごとに個別ファイル（例: `644.md` または `ブランチ名.md`）** を1つ追加する（1行のみ記述）。
 
 ```markdown
 - 日曜市カレンダーに出店予定と旬を表示するようにした (#444)
@@ -136,7 +136,8 @@ Projects「nicchyo タスク管理」で、完了しうる上流タスクが1つ
 
 - 書くのは**来訪者から見て何が変わったか**の一言。実装の詳細はコミットに残るので書かない。
 - 来訪者に見えない変更（依存更新・テスト追加・リファクタ・ドキュメント）は書かなくてよい。
-- 追記は `/ship` の手順に含まれる。PR作成時に一緒に入れる。
+- PRごとに個別ファイルを作成することで、複数PR間のマージコンフリクトを完全に防ぐ。
+- リリース時は `npm run changelog:pack` でこれらを `docs/CHANGELOG-unreleased.md` へ一括集約する。
 
 この記録には2つの役目がある。
 
@@ -185,7 +186,7 @@ Projects「nicchyo タスク管理」で、完了しうる上流タスクが1つ
 4. **v1.5 をリリースする** — v1.4 の本番確認が済んでから、`develop` → `main` のリリースPRを作成。
    同様に確認 → `versions.ts` に v1.5 追記 → マージ → `git tag v1.5`
 5. `main` → `develop` の戻しマージ
-6. `docs/CHANGELOG-unreleased.md` を空にする
+6. `npm run changelog:pack` で未リリースフラグメントを集約し、リリースノート転記後に `docs/CHANGELOG-unreleased.md` の一覧を空にする
 7. 以降は §3 のトリガーと §6 の記録に従って運用する
 
 ---
@@ -208,7 +209,7 @@ Projects「nicchyo タスク管理」で、完了しうる上流タスクが1つ
 ### 流れ
 
 ```
-PR（→ develop）        Migrations Check   : まっさらなローカルPostgresに全マイグレーションを頭から適用。
+PR（全ブランチ対象）      Migrations Check   : まっさらなローカルPostgresに全マイグレーションを頭から適用。
                                             本番には触らない。落ちたらマージしない。
 main にマージ（=リリース） Migrations Deploy  : 本番 Supabase に未適用分だけを順に適用。
                                             Environment `production` の承認を挟む。
@@ -216,8 +217,9 @@ main にマージ（=リリース） Migrations Deploy  : 本番 Supabase に未
 
 - 適用済みかどうかは Supabase 側の `supabase_migrations.schema_migrations` で管理される。
   同じファイルが二度適用されることはない。
-- `develop` へのマージでは本番に適用しない。本番DBは1つしかないため、未リリースのコードが前提の
+- `develop` やフィーチャーブランチへのマージでは本番に適用しない。本番DBは1つしかないため、未リリースのコードが前提の
   スキーマ変更を先に本番へ入れないようにしている。
+- `migrations-deploy.yml` は事前検証でリモート履歴乖離（手動SQLや別ブランチ由来）を検知し、復旧用 repair コマンドを Step Summary に提示する。
 - ロールバックは自動化しない。失敗時は Actions のログを見て、修正マイグレーションを追加して対処する。
 
 ### マイグレーションを書くときのルール

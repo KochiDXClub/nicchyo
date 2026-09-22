@@ -5,6 +5,7 @@ import { requireSameOrigin } from "@/lib/security/requestGuards";
 import { enforceRateLimit } from "@/lib/security/rateLimit";
 import { normalizeCategory, type MarketEventCategory } from "@/lib/market/calendar";
 import { authorizeAdmin, findHighlightConflict, validateHighlightDates, validateImageUrl } from "./_helpers";
+import { logAdminAudit } from "@/lib/audit/logAdminAudit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -172,15 +173,16 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "作成に失敗しました" }, { status: 500 });
   }
 
-  await dc.from("admin_audit_logs").insert({
-    actor_id: user.id,
-    actor_email: user.email,
-    actor_role: getRole(user),
-    action: "event_created",
-    target_type: "market_event",
-    target_id: (event as MarketEvent).id,
-    details: JSON.stringify({ title: data.title }),
-  });
+  await logAdminAudit(
+    dc,
+    { id: user.id, email: user.email, role: getRole(user) },
+    {
+      action: "event_created",
+      targetType: "market_event",
+      targetId: (event as MarketEvent).id,
+      details: JSON.stringify({ title: data.title }),
+    }
+  );
 
   return NextResponse.json({ event: event as MarketEvent }, { status: 201 });
 }

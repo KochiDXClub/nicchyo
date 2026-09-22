@@ -13,7 +13,6 @@ name: Migrations Check
 
 on:
   pull_request:
-    branches: [develop, main]
     paths:
       - 'supabase/migrations/**'
       - '.github/workflows/migrations-check.yml'
@@ -60,6 +59,14 @@ jobs:
               bad=1
             fi
           done
+
+          # タイムスタンプ（最初の14桁）の重複を検知
+          duplicates=$(for f in supabase/migrations/*.sql; do basename "$f" | cut -c 1-14; done | sort | uniq -d)
+          if [ -n "$duplicates" ]; then
+            echo "::error::マイグレーションのタイムスタンプが重複しています: $duplicates"
+            bad=1
+          fi
+
           exit $bad
 
       - name: Start local Postgres

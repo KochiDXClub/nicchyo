@@ -49,10 +49,10 @@ nicchyo は、高知の日曜市のマップを基盤に、以下の要素をつ
     *   `NearbyExploreButton` / `NearbyExplorePanel`: 「このへん、なにがある？」。画面中心付近の店舗を要約し、お気に入り・買い物バッグの傾向から興味ジャンルを推定して最大9件レコメンドする。
     *   お気に入り（`lib/favoriteShops.ts`）・買い物バッグ（`lib/storage/BagContext.tsx`）はいずれも localStorage 永続化で、サーバー同期はしていない。
         *   ⚠️ **買い物バッグは廃止が決定済み**（[#499](https://github.com/KochiDXClub/nicchyo/issues/499) epic / [#500](https://github.com/KochiDXClub/nicchyo/issues/500)）。以下の記述はいずれも現行実装の説明であり、**バッグ機能の上に新しい設計を積まないでください**。ナビゲーション導線はお気に入り一覧に差し替え予定（[#501](https://github.com/KochiDXClub/nicchyo/issues/501)）、お気に入り自体もサーバー同期化が予定されています（[#502](https://github.com/KochiDXClub/nicchyo/issues/502)）。
-    *   AI相談の起点は画面下部 `NavigationBar` の「相談」ボタン（`onConsultClick`）のみ。押すと `/consult` に遷移する。マップ内蔵の `MapCharacterConsult`（地図上に相談UIを重ねる実装）は既にコードとして存在するが、有効化する導線（`mapCharacterConsultActive` を true にする箇所）が現状無く、実質デッドパス。同様に `MapAgentAssistant`（`/api/map-agent` を呼ぶ）も地図上に実装されているが、起動用ランチャーが `hideLauncher` で隠されており到達できない。いずれも将来のマップ内蔵AI相談の下地として残っているコードなので、削除するか有効化するかは [#509](https://github.com/KochiDXClub/nicchyo/issues/509) で判断します。
+    *   AI相談の起点は画面下部 `NavigationBar` の「相談」ボタン（`onConsultClick`）のみ。押すと `/consult` に遷移する。マップ上に相談UIを重ねる形式は廃止した（`MapAgentAssistant` と `/api/map-agent` は [#509](https://github.com/KochiDXClub/nicchyo/issues/509)、到達不能だった `MapCharacterConsult` は [#635](https://github.com/KochiDXClub/nicchyo/issues/635) で削除）。相談は `/consult` に一本化している。
 
 *   **`app/(public)/consult/`（AI案内役「にちよさん」の独立ページ）**
-    *   `ConsultClient.tsx` がロジックのハブ、チャットUIは `GrandmaChatter.tsx` が担う。`GrandmaChatter` はこの `/consult` ページ専用で、マップ側では使われていない（`MapPageClient.tsx` 内の `_GrandmaChatter` はアンダースコア接頭辞の未使用importで、実際には描画されない）。マップ側の相談UIは前項の `MapCharacterConsult` であり、コンポーネントとしては別物。両者は「キャラクター定義（`consultCharacters.ts`）とAPI（`/api/grandma/ask`）を共有するが、UIは別」という関係。
+    *   `ConsultClient.tsx` がロジックのハブ、相談UIは `components/ConsultStage.tsx` が担う。以前のチャットUI `GrandmaChatter.tsx` は使われなくなったため削除した（[#635](https://github.com/KochiDXClub/nicchyo/issues/635)）。
     *   複数AIキャラクター（`consultCharacters.ts`）: にちよさん（土佐弁ベテラン）／よういちさん／みらいくん／よさこちゃん。会話パターンに応じて複数人格が掛け合い形式（`turns`）で返答する。
     *   バックエンドは `app/api/grandma/ask`：質問を OpenAI Embeddings でベクトル化し、Supabase RPC（`match_knowledge_embeddings` / `match_store_knowledge`）で共通ナレッジ・出店者ナレッジを検索するRAG構成。GPT-4o-mini で構造化出力またはストリーミング応答を生成し、おすすめ店舗ID・フォローアップ質問・会話要約を返す。会話ログは `ai_consult_logs` に記録。
     *   マップ側で実際にこのAPIを叩くのは「このへんパネルの追い質問」と「ショップバナーの店舗単位相談（`AiConsultPanel`）」の2箇所（検索バー横には相談導線は無い）。いずれも同じ `/api/grandma/*` を利用する。
@@ -99,7 +99,7 @@ nicchyo は、高知の日曜市のマップを基盤に、以下の要素をつ
     *   `PostCarousel`: 「今日のお知らせ」（近況投稿）を表示
     *   商品一覧: タップで買い物バッグへ即追加、Undoトースト付き（バッグは [#500](https://github.com/KochiDXClub/nicchyo/issues/500) で削除予定。商品単位のお気に入りへの置き換えは [#503](https://github.com/KochiDXClub/nicchyo/issues/503)）
     *   `AiConsultPanel` 起動ボタン: この店舗をコンテキストにしたAI相談
-*   **GrandmaChatter**: `/consult` 単体ページ専用のチャットUI。複数キャラクターの掛け合い表示に対応。マップ側では使われていない（マップの相談UIは別コンポーネント `MapCharacterConsult`。1章参照）。
+*   **ConsultStage**: `/consult` ページの相談UI。選んだ話し手1人が答える。マップ上には相談UIを持たない（1章参照）。
 *   **AI Consultant 導線**: 「このへん」パネル／ショップバナーの2箇所から、いずれも `/api/grandma/*` を呼び出す（検索バー横には相談導線は無い）。
 
 5. 状態管理の流れ

@@ -20,7 +20,7 @@
  * - 計測の橋渡し（?perf=1 で window.__nicchyoMapBench）
  *
  * 【まだ無いもの（Leaflet 版にある）】
- * AI アシスタント（MapAgentAssistant）、出店者のカスタム SVG 屋台。順に移す。
+ * 出店者のカスタム SVG 屋台。順に移す。
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -43,6 +43,7 @@ import { resolveMapFeatureFlags, type MapFeatureFlags } from "@/lib/mapFeatureFl
 import { runFullBenchmark, type BenchMapLike } from "@/lib/perf/mapBenchmark";
 import { readPerfShopCount, synthesizeShops } from "@/lib/perf/syntheticShops";
 import {
+  buildRoadEdges,
   buildRoadPolygon,
   densifyPath,
   getDefaultMapRoutePoints,
@@ -55,6 +56,15 @@ import {
   smoothRoutePath,
 } from "../../utils/mapRouteGeometry";
 import { getRecommendedZoomBounds } from "../../config/roadConfig";
+import {
+  ROAD_EDGE_WEIGHT_STOPS,
+  ROAD_LANE_DASH_ZOOM_RANGE,
+  ROAD_LANE_DASH_ZOOM_STEP,
+  ROAD_LANE_WEIGHT_STOPS,
+  ROAD_STYLE,
+  getRoadCorridorHalfWidthMeters,
+  getRoadLaneDashUnits,
+} from "../../config/roadStyle";
 import {
   DEFAULT_MAP_VIEW_SETTINGS,
   normalizeMapViewSettings,
@@ -222,6 +232,30 @@ function buildRasterStyle(tileOpacityByZoom: boolean, minZoom: number): StyleSpe
   };
 }
 
+/**
+ * 中央線の破線を step 式で組み立てる。
+ *
+ * 破線の長さは実寸（メートル）で決まるのでズームに連続で変わるが、
+ * line-dasharray は interpolate に対応していない。Leaflet 側と同じ刻みで
+ * 段階を刻み、両者の見え方を揃える。
+ */
+function buildLaneDashExpression(): ExpressionSpecification {
+  // 出力が配列なので ["literal", [...]] で包む。そのまま渡すと MapLibre が
+  // 式として解釈しようとして "Expression name must be a string" で落ちる
+  const dash = (zoom: number) => ["literal", getRoadLaneDashUnits(zoom)];
+  const [minZoom, maxZoom] = ROAD_LANE_DASH_ZOOM_RANGE;
+  const stops: unknown[] = [];
+  for (let zoom = minZoom + ROAD_LANE_DASH_ZOOM_STEP; zoom <= maxZoom; zoom += ROAD_LANE_DASH_ZOOM_STEP) {
+    stops.push(zoom + ZOOM_OFFSET, dash(zoom));
+  }
+  return [
+    "step",
+    ["zoom"],
+    dash(minZoom),
+    ...stops,
+  ] as unknown as ExpressionSpecification;
+}
+
 /** 道の向きに合わせた bearing（Leaflet 版の自動回転と同じく、道が縦になる向き） */
 function computeRoadBearing(routePoints: MapRoutePoint[], center: [number, number]): number {
   const pts = normalizeMapRoutePoints(routePoints);
@@ -287,9 +321,11 @@ export default function MapViewMapLibre({
   onMapStage,
   onMapInstance,
   initialShopId,
+  openInitialShopBanner = true,
   trackingButtonTop,
   hideMapUI = false,
   suppressLandmarks = false,
+  focusShopRequest = null,
   onUserLocationUpdate,
   suppressInitialLocationFocus = false,
   onClearSearch,
@@ -580,50 +616,113 @@ export default function MapViewMapLibre({
         map.addLayer({ id: "nicchyo-tint", type: "raster", source: SRC_TINT, paint: { "raster-opacity": 1, "raster-fade-duration": 0 } });
       }
 
-      // 道（Leaflet 版 DynamicRoad と同じ形・色）
+      // 道（Leaflet 版 RoadSurface と同じ形・色。値は config/roadStyle.ts が唯一の定義元）
       const chains = getRouteChains(routePoints);
       const polygons: GeoJSON.Feature[] = [];
-      const centerlines: GeoJSON.Feature[] = [];
+      const corridors: GeoJSON.Feature[] = [];
+      const edgeLines: GeoJSON.Feature[] = [];
+      const laneLines: GeoJSON.Feature[] = [];
+      const toPolygonFeature = (ring: Array<[number, number]>): GeoJSON.Feature => ({
+        type: "Feature",
+        properties: {},
+        geometry: { type: "Polygon", coordinates: [[...ring, ring[0]].map(([lat, lng]) => [lng, lat])] },
+      });
+      const toLineFeature = (line: Array<[number, number]>): GeoJSON.Feature => ({
+        type: "Feature",
+        properties: {},
+        geometry: { type: "LineString", coordinates: line.map(([lat, lng]) => [lng, lat]) },
+      });
       for (const chain of chains) {
         const anchor = chain.points.map((p) => ({ lat: p.lat, lng: p.lng }));
         const centerline = densifyPath(anchor, 6);
         const smoothed = chain.points.length >= 3 ? smoothRoutePath(centerline, 2) : centerline;
         const polygon = buildRoadPolygon(smoothed, routeConfig.roadHalfWidthMeters);
         if (polygon.length < 3 || smoothed.length < 2) continue;
-        polygons.push({
-          type: "Feature",
-          properties: {},
-          geometry: { type: "Polygon", coordinates: [[...polygon, polygon[0]].map(([lat, lng]) => [lng, lat])] },
-        });
-        centerlines.push({
-          type: "Feature",
-          properties: {},
-          geometry: { type: "LineString", coordinates: smoothed.map(([lat, lng]) => [lng, lat]) },
-        });
+        polygons.push(toPolygonFeature(polygon));
+
+        const corridor = buildRoadPolygon(
+          smoothed,
+          getRoadCorridorHalfWidthMeters(routeConfig.roadHalfWidthMeters)
+        );
+        if (corridor.length >= 3) corridors.push(toPolygonFeature(corridor));
+
+        // 縁は左右2本の独立した線。閉じたポリゴンの stroke だと道の両端にも
+        // 線が回り込み、先へ続いている道が切り取った紙のように見えるため
+        const edges = buildRoadEdges(smoothed, routeConfig.roadHalfWidthMeters);
+        edgeLines.push(toLineFeature(edges.left), toLineFeature(edges.right));
+
+        laneLines.push(toLineFeature(smoothed));
       }
       map.addSource(SRC_ROAD, { type: "geojson", data: { type: "FeatureCollection", features: polygons } });
-      map.addSource(`${SRC_ROAD}-center`, { type: "geojson", data: { type: "FeatureCollection", features: centerlines } });
-      map.addLayer({ id: "nicchyo-road-fill", type: "fill", source: SRC_ROAD, paint: { "fill-color": "#d4c5b0", "fill-opacity": 1 } });
+      map.addSource(`${SRC_ROAD}-corridor`, { type: "geojson", data: { type: "FeatureCollection", features: corridors } });
+      map.addSource(`${SRC_ROAD}-edges`, { type: "geojson", data: { type: "FeatureCollection", features: edgeLines } });
+      map.addSource(`${SRC_ROAD}-lane`, { type: "geojson", data: { type: "FeatureCollection", features: laneLines } });
+      map.addLayer({
+        id: "nicchyo-road-fill",
+        type: "fill",
+        source: SRC_ROAD,
+        paint: { "fill-color": ROAD_STYLE.surfaceColor, "fill-opacity": 1 },
+      });
+      map.addLayer({
+        id: "nicchyo-road-corridor",
+        type: "fill",
+        source: `${SRC_ROAD}-corridor`,
+        paint: { "fill-color": ROAD_STYLE.corridorColor, "fill-opacity": 1 },
+      });
+      // 中央線（車道の白い破線）。俯瞰時はこの上のタイントに隠れるよう先に足す
+      map.addLayer({
+        id: "nicchyo-road-lane",
+        type: "line",
+        source: `${SRC_ROAD}-lane`,
+        layout: { "line-cap": "butt", "line-join": "round" },
+        paint: {
+          "line-color": ROAD_STYLE.laneColor,
+          "line-opacity": ROAD_STYLE.laneOpacity,
+          // Leaflet 版の getRoadLaneWeight と同じ段階
+          "line-width": [
+            "step",
+            ["zoom"],
+            ROAD_LANE_WEIGHT_STOPS[0][1],
+            ...ROAD_LANE_WEIGHT_STOPS.slice(1).flatMap(([zoom, width]) => [
+              zoom + ZOOM_OFFSET,
+              width,
+            ]),
+          ] as ExpressionSpecification,
+          // 破線は実寸（メートル）なのでズームで長さが変わる。line-dasharray は
+          // interpolate に対応していないため、Leaflet 側と同じ刻みの step で近似する
+          "line-dasharray": buildLaneDashExpression(),
+        },
+      });
       map.addLayer({
         id: "nicchyo-road-overview-tint",
         type: "fill",
         source: SRC_ROAD,
         maxzoom: OVERVIEW_MAX,
-        paint: { "fill-color": "#22c55e", "fill-opacity": 0.36 },
+        paint: {
+          "fill-color": ROAD_STYLE.overviewTintColor,
+          "fill-opacity": ROAD_STYLE.overviewTintOpacity,
+        },
       });
       map.addLayer({
-        id: "nicchyo-road-outline",
+        id: "nicchyo-road-edges",
         type: "line",
-        source: SRC_ROAD,
-        layout: { "line-cap": "round" },
-        paint: { "line-color": "#c2820a", "line-width": 1.5, "line-opacity": 0.38, "line-dasharray": [6.7, 4] },
-      });
-      map.addLayer({
-        id: "nicchyo-road-centerline",
-        type: "line",
-        source: `${SRC_ROAD}-center`,
+        source: `${SRC_ROAD}-edges`,
         layout: { "line-cap": "round", "line-join": "round" },
-        paint: { "line-color": "#a89070", "line-width": 1, "line-opacity": 0.5 },
+        paint: {
+          "line-color": ROAD_STYLE.edgeColor,
+          "line-opacity": ROAD_STYLE.edgeOpacity,
+          // Leaflet 版の getRoadEdgeWeight と同じ段階。線形補間にすると片方だけ
+          // なめらかに太くなって見た目がズレるので、あちらと同じ step で揃える
+          "line-width": [
+            "step",
+            ["zoom"],
+            ROAD_EDGE_WEIGHT_STOPS[0][1],
+            ...ROAD_EDGE_WEIGHT_STOPS.slice(1).flatMap(([zoom, width]) => [
+              zoom + ZOOM_OFFSET,
+              width,
+            ]),
+          ] as ExpressionSpecification,
+        },
       });
 
       // お客さん（人影）。道の上にまばらに散らして「にぎわい」を出す。
@@ -875,12 +974,21 @@ export default function MapViewMapLibre({
         },
       });
 
-      // 木札（店名）: nameplate LOD（maxZoom-0.8）以上。道の外側へ出し、重なるものは自動で間引く
+      // 木札（店名）: 対象が絞れている店だけに出す。
+      //
+      // 以前は nameplate LOD 以上の全店に出していたが、店名は「すでに対象を持っている
+      // とき（検索・AI・選択）」に要るもので、通りを流し見しているときに答えになるのは
+      // 写真のほう。日曜市には店名を持たない店も多い。全店に出すと、道の外側へ伸びた札が
+      // 画面端で切れる（390px 幅では中心から 238px 必要なのに 195px しかない）うえ、
+      // 静止時の地図が文字で埋まる。探しているあいだは ShopScanCards が写真ごと前に出す。
       map.addLayer({
         id: LAYER_SHOP_NAMEPLATES,
         type: "symbol",
         source: SRC_SHOPS,
         minzoom: MAX_ZOOM + SHOP_MARKER_LOD_OFFSETS.nameplate,
+        // 検索 / AI の結果は ShopScanCards がカードで名前ごと出すので、ここでは出さない
+        // （同じ店の名前が木札とカードで二重になる）
+        filter: ["match", ["get", "state"], ["selected"], true, false],
         layout: {
           "text-field": ["get", "name"],
           "text-font": TEXT_FONT,
@@ -966,7 +1074,12 @@ export default function MapViewMapLibre({
 
       if (initialShopId) {
         const target = shopsRef.current.find((s) => s.id === initialShopId);
-        if (target) map.jumpTo({ center: [target.lng, target.lat], zoom: MAX_ZOOM });
+        if (target) {
+          map.jumpTo({ center: [target.lng, target.lat], zoom: MAX_ZOOM });
+          // 店舗ページや検索結果から `?shop=` で来たときは、寄るだけでなくバナーも開く。
+          // 開かないと「どの店を見ていたのか」が分からなくなる（Leaflet 版と同じ挙動）
+          if (openInitialShopBanner) setSelectedShop(target);
+        }
       }
     };
 
@@ -1058,6 +1171,15 @@ export default function MapViewMapLibre({
       if (map.getLayer(id)) map.setLayoutProperty(id, "visibility", visibility);
     }
   }, [mapLoaded, suppressLandmarks]);
+
+  // ShopScanCards のカードがタップされたとき。マーカータップと同じ状態にする
+  useEffect(() => {
+    if (!focusShopRequest) return;
+    const shop = shopsRef.current.find((s) => s.id === focusShopRequest.shopId);
+    if (shop) setSelectedShop(shop);
+    // token が変わったときだけ開き直す（同じ店を続けてタップできるように）
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusShopRequest?.token]);
 
   // ---- 計測の橋渡し（?perf=1 のときだけ） ----
   useEffect(() => {

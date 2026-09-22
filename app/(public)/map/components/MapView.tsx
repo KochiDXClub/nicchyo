@@ -23,7 +23,6 @@ import { shops as baseShops, Shop } from "../data/shops";
 import ShopDetailBanner from "./ShopDetailBanner";
 import BackgroundOverlay from "./BackgroundOverlay";
 import UserLocationMarker from "./UserLocationMarker";
-import MapAgentAssistant from "./MapAgentAssistant";
 import OptimizedShopLayerWithClustering from "./OptimizedShopLayerWithClustering";
 import { LiveZoomMapControls } from "./MapControls";
 import type { MapCamera } from "../types/mapCamera";
@@ -80,7 +79,6 @@ const ZOOM_BOUNDS = getRecommendedZoomBounds();
 const MIN_ZOOM = ZOOM_BOUNDS.min;
 const MAX_ZOOM = ZOOM_BOUNDS.max;
 const INITIAL_ZOOM = MAX_ZOOM;
-const AGENT_STORAGE_KEY = "nicchyo-map-agent-plan";
 /**
  * ズーム倍率に関わらず常に表示する、公共交通機関のランドマークか判定する。
  * 「城」「オーテピア」等の一般ランドマークは、丁目バッジが出る通常ズーム
@@ -148,8 +146,6 @@ export type MapViewProps = {
   mapRoute?: MapRoute;
   initialShopId?: number;
   openInitialShopBanner?: boolean;
-  agentOpen?: boolean;
-  onAgentToggle?: (open: boolean) => void;
   searchShopIds?: number[];
   /** 地図が描き終えた（ローディングを畳んでよい） */
   onMapReady?: () => void;
@@ -194,6 +190,12 @@ export type MapViewProps = {
    * ことになるのを避ける。
    */
   suppressLandmarks?: boolean;
+  /**
+   * 外から店舗の詳細バナーを開く要求。マーカーをタップしたときと同じ状態にする。
+   * 同じ店を続けてタップしても開き直せるよう、id ではなく token の変化で発火させる。
+   * ShopScanCards のカードをタップしたときに使う。
+   */
+  focusShopRequest?: { shopId: number; token: number } | null;
   /** 現在地ボタンの top 位置（px）。検索エリアの実際の高さに合わせて親から渡す */
   trackingButtonTop?: number;
   /**
@@ -361,7 +363,6 @@ function applyLandmarkScale(map: L.Map, enabled: boolean) {
     .style.setProperty("--landmark-scale", enabled ? getLandmarkScale(map.getZoom()).toFixed(3) : "1");
 }
 
-const MemoizedMapAgentAssistant = memo(MapAgentAssistant);
 const MemoizedUserLocationMarker = memo(UserLocationMarker);
 
 /**
@@ -519,8 +520,6 @@ const MapView = memo(function MapView({
   mapRoute,
   initialShopId,
   openInitialShopBanner = true,
-  agentOpen,
-  onAgentToggle,
   searchShopIds,
   onMapReady,
   eventTargets,
@@ -540,6 +539,7 @@ const MapView = memo(function MapView({
   overlaySlot,
   hideMapUI = false,
   suppressLandmarks = false,
+  focusShopRequest = null,
   trackingButtonTop,
   onGestureActiveChange,
 }: MapViewProps = {}) {
@@ -657,9 +657,7 @@ const MapView = memo(function MapView({
     return Math.ceil(Math.hypot(w, h) + 120);
   });
 
-  const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
   const favoriteShopIds = useFavoriteShopIds();
-  const [_planOrder, setPlanOrder] = useState<number[]>([]);
   const [mapInstance, setMapInstance] = useState<L.Map | null>(null);
   const mapRef = useRef<L.Map | null>(null);
   const isTouchGestureActiveRef = useRef(false);
@@ -755,20 +753,6 @@ const MapView = memo(function MapView({
     };
   }, [selectedShop]);
 
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    try {
-      const raw = localStorage.getItem(AGENT_STORAGE_KEY);
-      if (!raw) return;
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed?.order)) {
-        setPlanOrder(parsed.order);
-      }
-    } catch {
-      // ignore parse errors
-    }
-  }, []);
-
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   // 【ポイント7】店舗クリック時のコールバック（段階的ズームアップ対応）
   // - useCallback でメモ化（不要な再生成を防ぐ）
@@ -776,6 +760,18 @@ const MapView = memo(function MapView({
   // - ViewMode に応じて段階的にズームアップ
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   // ランドマーク（電停・駅・建物）のタップ：店舗バナーを閉じてスポットカードに渡す
+  // ShopScanCards のカードがタップされたとき。
+  // setSelectedShop を直に呼ぶとバナーのセッション番号と初期サーフェスの更新を
+  // 飛ばしてしまい、直前の操作によっては前回の状態のまま開く。マーカーを
+  // タップしたときとまったく同じ経路（handleShopClick）を通す
+  useEffect(() => {
+    if (!focusShopRequest) return;
+    const shop = shops.find((s) => s.id === focusShopRequest.shopId);
+    if (shop) handleShopClick(shop);
+    // token が変わったときだけ開き直す（同じ店を続けてタップできるように）
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusShopRequest?.token]);
+
   const handleLandmarkClick = useCallback(
     (landmark: Landmark) => {
       setSelectedShop(null);
@@ -855,26 +851,6 @@ const MapView = memo(function MapView({
     }
   }, [onShopSelect, selectedShop, shopBannerMainSurface, shops, showMapToast]);
 
-  const handleOpenShop = useCallback((shopId: number) => {
-    const target = shops.find((s) => s.id === shopId);
-    if (target) {
-      handleShopClick(target);
-    }
-  }, [handleShopClick, shops]);
-
-  const handlePlanUpdate = useCallback((order: number[]) => {
-    setPlanOrder(order);
-    if (typeof window !== "undefined") {
-      try {
-        const raw = localStorage.getItem(AGENT_STORAGE_KEY);
-        const parsed = raw ? JSON.parse(raw) : {};
-        localStorage.setItem(AGENT_STORAGE_KEY, JSON.stringify({ ...parsed, order }));
-      } catch {
-        // ignore storage errors
-      }
-    }
-  }, []);
-
   const handleShopChunkProgress = useCallback((processed: number, total: number, done: boolean) => {
     setShopLoadProgress((prev) => {
       if (
@@ -903,7 +879,7 @@ const MapView = memo(function MapView({
   } = zoomModes;
   const shouldRenderEventGlow = highlightEventTargets && zoomModes.canRenderEventGlow;
   const shouldRenderLandmarks = zoomModes.canRenderLandmarks || highlightEventTargets;
-  const interactionDisabled = agentOpen ?? false;
+  const interactionDisabled = false;
   const mapRotation = normalizeRotationDeg(autoRotation);
 
   useEffect(() => {
@@ -991,7 +967,6 @@ const MapView = memo(function MapView({
 
   const handleUserLocationUpdate = useCallback(
     (inMarket: boolean, position: [number, number]) => {
-      setUserLocation(position);
       setIsInMarket(inMarket);
       onUserLocationUpdate?.({
         lat: position[0],
@@ -1178,11 +1153,11 @@ const MapView = memo(function MapView({
           zoomAnimation
           markerZoomAnimation
           fadeAnimation
-          scrollWheelZoom={!agentOpen && !isMobile}
+          scrollWheelZoom={!isMobile}
           dragging={false}
           touchZoom={false}
-          doubleClickZoom={!agentOpen && !isMobile}
-          className={`h-full w-full ${agentOpen ? "pointer-events-none" : ""}`}
+          doubleClickZoom={!isMobile}
+          className="h-full w-full"
           style={{
             height: "100%",
             width: "100%",
@@ -1329,15 +1304,6 @@ const MapView = memo(function MapView({
           />
         </>
       )}
-
-      <MemoizedMapAgentAssistant
-        onOpenShop={handleOpenShop}
-        onPlanUpdate={handlePlanUpdate}
-        userLocation={userLocation}
-        isOpen={agentOpen}
-        onToggle={onAgentToggle}
-        hideLauncher
-      />
 
       {/* 外部から注入するオーバーレイ（マップ座標系内） */}
       {overlaySlot}

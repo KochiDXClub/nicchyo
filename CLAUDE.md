@@ -22,7 +22,7 @@ PRを出す前は必ず `npm run build` でビルドが通ることを確認す�
 
 **本番リリース（`develop` → `main`）の方針は `docs/RELEASE.md`** を参照する。日常のPRは `develop` へ出す。`main` への直接マージはリリース作業と hotfix のみ。
 
-来訪者から見て何かが変わるPRを出すときは、`docs/CHANGELOG-unreleased.md` の「## 一覧」直下に来訪者視点の一言を1行追記する（例: `- 日曜市カレンダーに出店予定と旬を表示するようにした (#444)`）。依存更新・テスト追加・リファクタ・ドキュメントのみの変更は追記しない。この記録がリリースノート（`app/about/versions.ts`）の元になる。
+来訪者から見て何かが変わるPRを出すときは、`docs/changelog-unreleased/<PR番号またはブランチ名>.md` を作成し、来訪者視点の一言を1行記述する（例: `- 日曜市カレンダーに出店予定と旬を表示するようにした (#444)`）。PRごとに個別ファイルを作成することでPR間のコンフリクトを完全に防ぐ。依存更新・テスト追加・リファクタ・ドキュメントのみの変更は作成しない。この記録がリリース時に集約され（`npm run changelog:pack`）、リリースノート（`app/about/versions.ts`）の元になる。
 
 ## 技術的負債解消時の必須確認事項
 
@@ -51,7 +51,7 @@ PRを出す前は必ず `npm run build` でビルドが通ることを確認す�
 - **Styling**: Tailwind CSS（カスタムパレット: `nicchyo-base/primary/accent/ink/soft-green`）
 - **DB**: Supabase（メイン）、Prismaスキーマも存在
 - **Map**: Leaflet + react-leaflet（`reactStrictMode: false` ← Leafletの二重初期化防止）
-- **AI**: OpenAI API（RAG構成、`app/api/grandma/` と `app/api/map-agent/`）
+- **AI**: OpenAI API（RAG構成、`app/api/grandma/`）
 - **Auth**: Supabase Auth（`lib/auth/AuthContext.tsx`）
 
 ## Required Environment Variables
@@ -62,6 +62,8 @@ NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY=
 # 互換用: NEXT_PUBLIC_SUPABASE_ANON_KEY=
 OPENAI_API_KEY=
 ```
+
+任意の変数を含む全体は `.env.example` を参照する。
 
 ## Architecture
 
@@ -82,7 +84,6 @@ app/
 └── api/               # API Routes
     ├── shops/         # 店舗データ取得・編集
     ├── grandma/       # AI「にちよさん」バックエンド
-    ├── map-agent/     # マップAIアシスタント
     ├── analytics/     # アクセス解析
     └── vendor/        # 出店者向けAPI
 ```
@@ -135,10 +136,12 @@ nicchyo-soft-green: #A0D7A7  （淡い緑）
 
 ## Coding Conventions
 
+- **共通化できるところは共通化する**：同じロジック・同じUIパターンが複数箇所に現れたら、都度その場で個別実装せず、既存の共通化スポット（`lib/` 配下のユーティリティ・`components/ui/` 等）へ寄せられないか検討する。片方を直すときにもう片方の直し忘れが起きる「意味のある重複」（認可チェック・監査ログ・日付処理・APIレスポンス整形など）を優先的に共通化すること。逆に、見た目や行数がたまたま似ているだけで将来別々に変化しうるもの（3行程度の小さな処理、意図的に似せているだけのUIなど）まで無理に共通化しない
 - ルート名: kebab-case、コンポーネント: PascalCase、変数/関数: camelCase
 - クライアントコンポーネントには `"use client"` を明示
 - ページ固有のコンポーネントはそのページディレクトリ内の `components/` に置く
-- 共通UIコンポーネントは `components/ui/`（Radix UIベース）
+- **UIを書く前に `docs/DESIGN_SYSTEM.md` を読む**：色・角丸・影・余白・ボタン・ページの外枠はすべてトークンと共通部品にある。生の hex、`slate-*`/`gray-*` の新規追加、`rounded-2xl` などの直書きはしない
+- 共通UIコンポーネントは `components/ui/`（`@/components/ui` のバレルから読む）。同じものを2回目に書こうとしたら、ページ内に作らずここへ足す
 - 管理画面コンポーネントは `components/admin/`
 - ユーティリティ関数は `lib/utils/cn.ts`（`clsx` + `tailwind-merge` のラッパー）
 

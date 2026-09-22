@@ -1,3 +1,65 @@
+const DEFAULT_SITE_URL = "https://nicchyo.jp";
+
+/**
+ * NEXT_PUBLIC_SITE_URL を正規化する。
+ *
+ * この関数の役割は2つ:
+ *   1. app/layout.tsx の `metadataBase: new URL(SITE_URL)` はモジュール評価時に走るため、
+ *      不正な値を返すと全ページが500になる。必ず `new URL()` を通せる値を返すこと
+ *   2. `${SITE_URL}/shops/...` のように文字列連結して使われるため、
+ *      連結して壊れない形（オリジン＋パスのみ・末尾スラッシュなし）に揃えること
+ *
+ * 実装上の注意:
+ * - `??` ではなく `||` を使う: "" や "  "（空文字・空白のみ）は null/undefined ではないため
+ *   `??` ではフォールバックされず、new URL("") が例外を投げる
+ * - 検証した `url` から組み立て直して返す（入力文字列をそのまま返さない）:
+ *   `https://nicchyo.jp?x=1` は new URL() を通るが、連結すると
+ *   `https://nicchyo.jp?x=1/shops/001` とパスがクエリに飲まれる。
+ *   クエリ・フラグメント・既定ポート・スキームの大文字小文字もここで吸収される
+ * - スキーム無し（"nicchyo.jp"）や http/https 以外（"javascript:" 等）は
+ *   new URL() が投げるか不正なURLになるため、プロトコルも明示的に検証する
+ *   （new URL("javascript:alert(1)") は例外を投げないので、この検証が必要）
+ *
+ * `https://nicchyo.jp/base/` のようなサブパス運用は `https://nicchyo.jp/base` として維持する。
+ *
+ * 不正な値のときの扱いは環境で変える。未設定・空文字は想定内なので黙って既定値を使うが、
+ * 「設定されているのに不正」は設定ミスなので、本番（VERCEL_ENV=production）では例外を投げて
+ * ビルドを失敗させる。開発・プレビューでは警告だけ出して既定値で動かす。
+ */
+export function normalizeSiteUrl(value: string | undefined): string {
+  const trimmed = value?.trim();
+  // 未設定・空文字は想定内なので黙って既定値を使う
+  if (!trimmed) return DEFAULT_SITE_URL;
+
+  // 「設定されているのに不正」は設定ミス。
+  // nicchyo.jp は仮ドメインのため、黙って既定値に戻すと canonical・JSON-LD・sitemap が
+  // 仮ドメインを指したまま本番稼働してしまう。
+  //
+  // 本番ビルドでは落として気づかせる。開発・プレビューでは警告だけにして、
+  // 設定が揃っていない環境でも動かせるようにする
+  const fallbackOrThrow = (reason: string) => {
+    const message = `NEXT_PUBLIC_SITE_URL が${reason}: ${JSON.stringify(value)}`;
+    if (process.env.VERCEL_ENV === "production") {
+      throw new Error(`[SITE_URL] ${message}`);
+    }
+    console.warn(`[SITE_URL] ${message}のため ${DEFAULT_SITE_URL} を使います`);
+    return DEFAULT_SITE_URL;
+  };
+
+  try {
+    const url = new URL(trimmed);
+    if (url.protocol !== "http:" && url.protocol !== "https:") {
+      return fallbackOrThrow("http/https ではない");
+    }
+    return (url.origin + url.pathname).replace(/\/+$/, "") || fallbackOrThrow("空のURL");
+  } catch {
+    return fallbackOrThrow("URLとして解釈できない");
+  }
+}
+
+// サイトの絶対URL。metadataBase・JSON-LD・sitemapで共通利用する。
+export const SITE_URL = normalizeSiteUrl(process.env.NEXT_PUBLIC_SITE_URL);
+
 // クーポン1日の最大発行数（coupon_settings.maxDailyIssuance のデフォルト値）
 export const MAX_COUPON_ISSUANCE = 300;
 

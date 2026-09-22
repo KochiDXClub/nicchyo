@@ -10,6 +10,7 @@ import { HourlyDirectionChart, PreVisitHours, ReachProfile } from "./components/
 import { CategoryBars, DistrictMatrix, type CategoryCount } from "./components/ShopComposition";
 import SeasonCalendar from "./components/SeasonCalendar";
 import AboutData, { type CoverageItem } from "./components/AboutData";
+import { todayJstString } from "@/lib/time/jstDate";
 import {
   DEMO_CATEGORY_MATRIX,
   DEMO_COVERAGE,
@@ -26,20 +27,6 @@ import {
 export const revalidate = 3600;
 
 // ── 日付ユーティリティ（すべて Asia/Tokyo 基準） ────────────────────────
-
-function getTokyoTodayIso(baseDate = new Date()) {
-  const formatter = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Asia/Tokyo",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  });
-  const parts = formatter.formatToParts(baseDate);
-  const year = parts.find((p) => p.type === "year")?.value ?? "0000";
-  const month = parts.find((p) => p.type === "month")?.value ?? "01";
-  const day = parts.find((p) => p.type === "day")?.value ?? "01";
-  return `${year}-${month}-${day}`;
-}
 
 function formatJapaneseDate(isoDate: string) {
   const date = new Date(`${isoDate}T00:00:00+09:00`);
@@ -312,7 +299,7 @@ async function fetchAnalysisData(todayIso: string, historyStartIso: string): Pro
 // ── ページ ──────────────────────────────────────────────────────────────
 
 export default async function AnalysisPage() {
-  const todayIso = getTokyoTodayIso();
+  const todayIso = todayJstString();
   const currentYear = Number(todayIso.slice(0, 4));
   const historyStartIso = `${currentYear - 4}-01-01`;
   const upcomingSundayIso = getUpcomingSundayIso(todayIso);
