@@ -15,7 +15,14 @@
  */
 
 import { useEffect, useMemo, useState } from 'react';
-import { animate, motion, useMotionValue, useReducedMotion, useTransform } from 'framer-motion';
+import {
+  AnimatePresence,
+  animate,
+  motion,
+  useMotionValue,
+  useReducedMotion,
+  useTransform,
+} from 'framer-motion';
 import GrandmaAvatar from '../../../consult/components/GrandmaAvatar';
 import { DEFAULT_CONSULT_CHARACTER } from '../../../consult/data/consultCharacters';
 import type { GrandmaPose } from '@/lib/grandma/pose';
@@ -126,16 +133,6 @@ export default function IntroGrandmaRail({
     return () => window.clearTimeout(timer);
   }, [walking, activeStop]);
 
-  /**
-   * 言うことは、着いてから差し替える。
-   * 歩いている途中で文字だけ先に変わると、まだ来ていない場所の話を
-   * しながら歩いているように見える。
-   */
-  const [spoken, setSpoken] = useState(comment);
-  useEffect(() => {
-    if (!walking) setSpoken(comment);
-  }, [walking, comment]);
-
   const path = useMemo(() => buildRailPath(height), [height]);
 
   return (
@@ -188,18 +185,26 @@ export default function IntroGrandmaRail({
           </motion.div>
         </motion.div>
 
+        {/*
+          言うことは、着いてから出す。歩いている途中は何も言わない。
+          歩き出すときに吹き出しをしまい、着いたところで出し直す。
+          文字だけ差し替わると、まだ来ていない場所の話をしながら歩いて見える
+        */}
         <div className="absolute top-0" style={{ left: RAIL_WIDTH + 4, right: 16 }}>
-          <div className="consult-greeting consult-greeting--left rounded-2xl border border-amber-200 bg-white px-4 py-2.5 shadow-sm">
-            <motion.p
-              key={spoken}
-              initial={reduceMotion ? false : { opacity: 0, y: 4 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.3 }}
-              className="text-[14px] font-bold leading-6 text-amber-900"
-            >
-              {spoken}
-            </motion.p>
-          </div>
+          <AnimatePresence mode="wait" initial={false}>
+            {!walking && (
+              <motion.div
+                key={comment}
+                initial={reduceMotion ? false : { opacity: 0, y: 8, scale: 0.97 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={reduceMotion ? { opacity: 0 } : { opacity: 0, y: -6, scale: 0.97 }}
+                transition={{ duration: 0.24, ease: 'easeOut' }}
+                className="consult-greeting consult-greeting--left rounded-2xl border border-amber-200 bg-white px-4 py-2.5 shadow-sm"
+              >
+                <p className="text-[14px] font-bold leading-6 text-amber-900">{comment}</p>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       </motion.div>
     </>

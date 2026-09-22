@@ -178,7 +178,14 @@ export function IntroRoad({
   crowd?: boolean;
 }) {
   return (
-    <div className="absolute inset-0 overflow-hidden" style={{ backgroundColor: '#ece5d8' }}>
+    // isolate は必須。選ばれた屋台には本番の CSS が z-index: 1000 を付ける
+    // （.shop-marker-selected）。本番では Leaflet のマーカー層の中の話だが、
+    // ここでは道を積み重ねの単位にしておかないと、屋台が後から開くバナーより
+    // 手前に浮いて、バナーの写真の上に屋台と木札が乗る
+    <div
+      className="absolute inset-0 isolate overflow-hidden"
+      style={{ backgroundColor: '#ece5d8' }}
+    >
       {/* 道の外の街。形だけの控えめな塊にして、道から視線を奪わない */}
       <div className="absolute inset-0" aria-hidden>
         {BUILDINGS.map((b, i) => (

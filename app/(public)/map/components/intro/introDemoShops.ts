@@ -15,7 +15,7 @@ import type { Shop } from '../../types/shopData';
 import { SHOP_CATEGORY_NAMES } from '../../config/shopCategories';
 
 /** デモの道に並べる件数。通りを歩いた感じが出るだけの数を置く */
-export const INTRO_DEMO_SHOP_COUNT = 16;
+export const INTRO_DEMO_SHOP_COUNT = 8;
 
 /**
  * 案内で使うぶんだけを持つ、軽い店舗の形。
