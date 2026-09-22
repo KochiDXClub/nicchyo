@@ -210,8 +210,9 @@ function IntroSection({
 }) {
   return (
     /* 道（絶対配置の SVG）より手前に置く。relative を付けないと、
-       位置指定のない中身のほうが下に潜って、文字の上を道が横切る */
-    <section className="relative z-[1] border-t border-nicchyo-ink/[0.07] py-9 md:py-11">
+       位置指定のない中身のほうが下に潜って、文字の上を道が横切る。
+       snap-start / snap-always で、この節の先頭がスクロールの止まる位置になる */
+    <section className="relative z-[1] snap-start snap-always border-t border-nicchyo-ink/[0.07] py-9 md:py-11">
       <div className="pl-[var(--intro-rail)] pr-5">
         <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-nicchyo-ink/35">
           {step}
@@ -393,9 +394,16 @@ export default function MapIntroPanel({ open, shops, onClose }: MapIntroPanelPro
         <X className="h-4 w-4" />
       </button>
 
+      {/*
+        節の先頭で必ず一度止まる（scroll-snap）。
+        勢いよく送っても次の見出しが画面の上に来たところで止まり、
+        そこからもう一度送ると次へ進む。節を飛ばして下まで流れないので、
+        どの見どころも先頭から目に入る。
+        止まる位置はブラウザが決めるので、止まった先で位置がずれることもない
+      */}
       <div
         ref={scrollRef}
-        className="flex-1 overflow-y-auto overscroll-contain"
+        className="flex-1 snap-y snap-mandatory overflow-y-auto overscroll-contain"
         {...(isDesktop ? {} : handlers)}
         onScroll={handleScroll}
       >
@@ -413,35 +421,39 @@ export default function MapIntroPanel({ open, shops, onClose }: MapIntroPanelPro
             stopHeight={stopHeight}
           />
 
-          {/* ── 見出し ── */}
-          <div className="relative z-[1] pl-[var(--intro-rail)] pr-5 pt-3 md:pr-8 md:pt-4">
-            <h2
-              id="map-intro-title"
-              className="text-[19px] font-bold leading-tight text-nicchyo-ink md:text-[24px]"
-            >
-              ようこそ、日曜市へ
-            </h2>
-            <p className="mt-0.5 text-[12px] font-semibold tracking-wide text-nicchyo-ink/45">
-              nicchyo（ニッチョ）
-            </p>
-          </div>
+          {/* ── 見出し ──
+              いちばん上も止まる位置にしておく。ここが止まる位置でないと、
+              一度下へ送ったあと先頭へ戻れなくなる（戻る先が無い） */}
+          <div className="snap-start snap-always">
+            <div className="relative z-[1] pl-[var(--intro-rail)] pr-5 pt-3 md:pr-8 md:pt-4">
+              <h2
+                id="map-intro-title"
+                className="text-[19px] font-bold leading-tight text-nicchyo-ink md:text-[24px]"
+              >
+                ようこそ、日曜市へ
+              </h2>
+              <p className="mt-0.5 text-[12px] font-semibold tracking-wide text-nicchyo-ink/45">
+                nicchyo（ニッチョ）
+              </p>
+            </div>
 
-          {/* にちよさんの最初の停留点 */}
-          <div
-            ref={(el) => {
-              stopRefs.current[0] = el;
-            }}
-            className="mt-3"
-            style={{ height: stopHeight }}
-          />
+            {/* にちよさんの最初の停留点 */}
+            <div
+              ref={(el) => {
+                stopRefs.current[0] = el;
+              }}
+              className="mt-3"
+              style={{ height: stopHeight }}
+            />
 
-          <div className="relative z-[1] pl-[var(--intro-rail)] pr-5 md:pr-8">
-            <p className="text-[13.5px] leading-[1.9] text-nicchyo-ink/75 md:text-[15px]">
-              毎週日曜、高知城のふもとから追手筋にかけて約300の店が並びます。
-              この地図は、はじめての人がそこを歩くためのものです。
-            </p>
+            <div className="relative z-[1] pl-[var(--intro-rail)] pr-5 md:pr-8">
+              <p className="text-[13.5px] leading-[1.9] text-nicchyo-ink/75 md:text-[15px]">
+                毎週日曜、高知城のふもとから追手筋にかけて約300の店が並びます。
+                この地図は、はじめての人がそこを歩くためのものです。
+              </p>
 
-            <div className="pb-8" />
+              <div className="pb-8" />
+            </div>
           </div>
 
           {/* ── 機能ごとのデモ ── */}
@@ -483,7 +495,7 @@ export default function MapIntroPanel({ open, shops, onClose }: MapIntroPanelPro
           </IntroSection>
 
           {/* ── 締め。にちよさんの最後の停留点 ── */}
-          <section className="relative z-[1] border-t border-nicchyo-ink/[0.07] py-9 md:py-11">
+          <section className="relative z-[1] snap-start snap-always border-t border-nicchyo-ink/[0.07] py-9 md:py-11">
             <div className="pl-[var(--intro-rail)] pr-5 md:pr-8">
               <h3 className="text-[17px] font-bold leading-tight text-nicchyo-ink md:text-[19px]">
                 日曜市を楽しんで！

@@ -45,16 +45,8 @@ const AVATAR_SIZE = 64;
 const SPEAK_MS = 2200;
 /** 歩く速さ（px/秒）。速いと飛んでいるように見えるので、人が歩くくらいに落とす */
 const WALK_SPEED_PX_PER_SEC = 420;
-/** 先にまだ停留点が控えているときの速さ。急ぎ足だが、走ってはいない */
-const HURRY_SPEED_PX_PER_SEC = 640;
 const WALK_MIN_SEC = 0.8;
 const WALK_MAX_SEC = 1.9;
-/**
- * 途中の停留点で足を止めている時間。
- * 一気に下まで送られても、見出しごとに必ず一度止まって一言言う。
- * 飛ばして着くと「どこを案内していたのか」が抜け落ちる
- */
-const DWELL_MS = 650;
 /**
  * これより小さなずれは歩かずに立ち位置を直す。
  * 停留点は測り直しで数 px 動くことがあり、そのたびに 0.8 秒歩いて
@@ -103,16 +95,11 @@ export default function IntroGrandmaRail({
   const [walking, setWalking] = useState(false);
 
   /**
-   * いま立っている（または向かっている）停留点。
-   *
-   * 向かう先（targetStop）へ一気には行かず、間の停留点を一つずつ経由する。
-   * 勢いよく下まで送られても、見出しごとに必ず一度止まって一言言ってから
-   * 次へ歩く。飛ばすと「どこを案内していたのか」が抜け落ちるし、
-   * 止まらずに通り過ぎるのは案内している人の動きではない
+   * 向かう先へはまっすぐ歩く。途中の停留点で足を止めることはしない。
+   * スクロールのほうが節の先頭で必ず一度止まる（scroll-snap）ので、
+   * 向かう先はふつう隣の停留点で、飛ばして見えることはない
    */
-  const [current, setCurrent] = useState(targetStop);
-  const stopY = stopYs[current] ?? 0;
-  const pendingLegs = Math.abs(targetStop - current);
+  const stopY = stopYs[targetStop] ?? 0;
 
   /**
    * 縦の位置。これを動かすと、横の位置は道の式から引き直される。
@@ -126,18 +113,6 @@ export default function IntroGrandmaRail({
 
   /** 停留点の位置を一度でも測れたか。測れる前の 0 からは歩かず、立ち位置だけ直す */
   const hasMeasuredRef = useRef(false);
-  /**
-   * 歩いている最中か（state の walking と同じ内容を同期で持つ）。
-   * 次の停留点へ進める判定は同じ描画の中で走るので、state の値だと
-   * まだ歩き出していないように見えて、もう一段進めてしまう
-   */
-  const walkingRef = useRef(false);
-  /**
-   * いま立っている停留点に「着いたばかり」か。
-   * 途中の停留点では一言言うぶんだけ足を止めるが、読む人がスクロールして
-   * 歩き出すときは待たない。立っているところで待たされると、動き出しが遅く見える
-   */
-  const justArrivedRef = useRef(false);
 
   useEffect(() => {
     if (stopYs.length === 0) return;
@@ -148,43 +123,18 @@ export default function IntroGrandmaRail({
       top.set(stopY);
       return;
     }
-    walkingRef.current = true;
     setWalking(true);
-    const speed = pendingLegs > 0 ? HURRY_SPEED_PX_PER_SEC : WALK_SPEED_PX_PER_SEC;
     const controls = animate(top, stopY, {
       // 距離なりに時間をかける。遠いところへ一瞬で着くと歩いて見えない
-      duration: Math.min(WALK_MAX_SEC, Math.max(WALK_MIN_SEC, distance / speed)),
+      duration: Math.min(WALK_MAX_SEC, Math.max(WALK_MIN_SEC, distance / WALK_SPEED_PX_PER_SEC)),
       ease: [0.33, 0, 0.25, 1],
-      onComplete: () => {
-        walkingRef.current = false;
-        justArrivedRef.current = true;
-        setWalking(false);
-      },
+      onComplete: () => setWalking(false),
     });
     return () => {
       controls.stop();
-      walkingRef.current = false;
       setWalking(false);
     };
-    // pendingLegs は速さの目安にだけ使う。目的地が変わらないのに歩き直さない
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stopY, stopYs.length, reduceMotion, top]);
-
-  // まだ先があれば次の停留点へ。着いたばかりなら一言ぶん間を置き、
-  // 読む人が動かして歩き出すときはすぐ発つ
-  useEffect(() => {
-    if (walkingRef.current || walking || pendingLegs === 0) return;
-    const step = () => {
-      justArrivedRef.current = false;
-      setCurrent((c) => c + Math.sign(targetStop - c));
-    };
-    if (!justArrivedRef.current || reduceMotion) {
-      step();
-      return;
-    }
-    const timer = window.setTimeout(step, DWELL_MS);
-    return () => window.clearTimeout(timer);
-  }, [walking, pendingLegs, targetStop, reduceMotion]);
 
   // 歩いているあいだは前を見て、着いたらしばらく話している顔にする
   useEffect(() => {
@@ -195,7 +145,7 @@ export default function IntroGrandmaRail({
     setPose('speaking');
     const timer = window.setTimeout(() => setPose('idle'), SPEAK_MS);
     return () => window.clearTimeout(timer);
-  }, [walking, current]);
+  }, [walking, targetStop]);
 
   const path = useMemo(() => buildRailPath(height), [height]);
 
@@ -223,8 +173,8 @@ export default function IntroGrandmaRail({
             key={i}
             cx={railX(y + AVATAR_SIZE / 2)}
             cy={y + AVATAR_SIZE / 2}
-            r={i === current ? 5 : 3.5}
-            fill={i === current ? '#7ED957' : '#e0cba8'}
+            r={i === targetStop ? 5 : 3.5}
+            fill={i === targetStop ? '#7ED957' : '#e0cba8'}
           />
         ))}
       </svg>
@@ -258,7 +208,7 @@ export default function IntroGrandmaRail({
           <AnimatePresence mode="wait" initial={false}>
             {!walking && (
               <motion.div
-                key={current}
+                key={targetStop}
                 initial={reduceMotion ? false : { opacity: 0, y: 8, scale: 0.97 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={reduceMotion ? { opacity: 0 } : { opacity: 0, y: -6, scale: 0.97 }}
@@ -266,7 +216,7 @@ export default function IntroGrandmaRail({
                 className="consult-greeting consult-greeting--left rounded-2xl border border-amber-200 bg-white px-4 py-2.5 shadow-sm"
               >
                 <p className="text-[14px] font-bold leading-6 text-amber-900">
-                  {comments[current] ?? comments[0]}
+                  {comments[targetStop] ?? comments[0]}
                 </p>
               </motion.div>
             )}
