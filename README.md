@@ -25,7 +25,7 @@ nicchyoは、以下の「主機能」と体験を補助する「副機能」で�
 *   **バッグ機能（買い物リスト）**: 気になる商品をメモし、記憶の負担を減らして目の前の体験に集中させる機能。
 *   **近況**: 出店者が投稿する今週の写真・お知らせを一覧で見られる機能（`/story`）。来場者からの投稿は行わず、出店者・運営者からの片方向発信のみで構成しています。
 *   **日曜市カレンダー**: 開催予定・荒天中止・特別開催などのお知らせをまとめて確認できる機能（`/calendar`）。
-*   **おでかけサポート**: お手洗い・休憩用ベンチ・最寄りの公共交通のりばをマップから探せる機能（`/facilities`）。
+*   **おでかけサポート**: お手洗い・休憩用ベンチ・最寄りの公共交通のりばをマップ上で探し、そこまで案内する機能（`/map?guide=menu`）。
 
 詳細は [docs/FEATURES.md](docs/FEATURES.md) をご覧ください。
 
@@ -51,7 +51,7 @@ nicchyoは、以下の「主機能」と体験を補助する「副機能」で�
 *   `app/(public)/bag`: バッグ（買い物リスト）
 *   `app/(public)/story`: 近況（出店者からの一方向発信）
 *   `app/(public)/calendar`: 日曜市カレンダー
-*   `app/(public)/facilities`: おでかけサポート
+*   `app/(public)/facilities`: おでかけサポート（旧ページ。`/map?guide=menu` へ転送するだけ）
 *   `app/(public)/my-shop`: 出店者向けページ
 *   `app/(public)/admin`: 管理者向けページ
 *   `app/api/grandma`, `app/api/map-agent`: AI「にちよさん」バックエンド
@@ -75,6 +75,12 @@ NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY=
 OPENAI_API_KEY=
 # NEXT_PUBLIC_MAPBOX_TOKEN= (※Leafletのタイル設定による)
 ```
+
+**本番デプロイ時は `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` も必須**です。
+Vercel は複数インスタンスで動くため、これが無いとレート制限がインスタンスごとの
+in-memory フォールバックになり実効性を失います（未設定のまま本番稼働すると
+`/api/health` が 503 を返します）。ローカル開発では不要です。
+その他の任意環境変数は `.env.example` を参照してください。
 
 ### 3. 開発サーバ
 ```bash

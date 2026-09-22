@@ -13,6 +13,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireSameOrigin } from "@/lib/security/requestGuards";
 import { enforceRateLimit } from "@/lib/security/rateLimit";
 import { requireAdminApi } from "@/lib/auth/requireAdminApi";
+import { logAdminAudit } from "@/lib/audit/logAdminAudit";
 import {
   AI_CONVERSATION_SETTING_DEFS,
   AI_CONVERSATION_SETTING_KEYS,
@@ -183,19 +184,16 @@ export async function PUT(request: NextRequest) {
         );
       }
 
-      const { error: auditError } = await auth.adminClient.from("admin_audit_logs").insert({
-        actor_id: auth.user.id,
-        actor_email: auth.user.email,
-        actor_role: auth.role,
-        action: "ai_conversation_setting_updated",
-        target_type: "ai_conversation_settings",
-        target_id: item.key,
-        details: JSON.stringify({ value: item.value }),
-      });
-      // 監査ログが書けなくても保存は成立している。理由が消えないよう記録だけ残す
-      if (auditError) {
-        console.error("[ai-conversation-settings] audit log failed:", auditError.message);
-      }
+      await logAdminAudit(
+        auth.adminClient,
+        { id: auth.user.id, email: auth.user.email, role: auth.role },
+        {
+          action: "ai_conversation_setting_updated",
+          targetType: "ai_conversation_settings",
+          targetId: item.key,
+          details: JSON.stringify({ value: item.value }),
+        }
+      );
       saved.push(item.key);
     }
 

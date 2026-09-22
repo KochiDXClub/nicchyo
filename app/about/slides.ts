@@ -141,7 +141,7 @@ export const aboutSlides: AboutSlide[] = [
     iconName: "compass",
     action: {
       label: "おでかけサポートを見る",
-      href: "/facilities",
+      href: "/map?guide=menu",
     },
   },
   {
