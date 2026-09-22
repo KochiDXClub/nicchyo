@@ -70,7 +70,8 @@ describe("logAdminAudit", () => {
     ).resolves.toBeUndefined();
 
     expect(errorSpy).toHaveBeenCalledWith(
-      expect.stringContaining("spot_created"),
+      expect.stringContaining("%s"),
+      "spot_created",
       expect.objectContaining({ message: "boom" })
     );
   });

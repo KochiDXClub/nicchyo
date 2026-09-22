@@ -72,7 +72,10 @@ export async function logAdminAudit(
   const { error } = await client.from("admin_audit_logs").insert(toRow(actor, entry));
 
   if (error) {
-    console.error(`[audit] ${entry.action} の監査ログ記録に失敗しました`, error);
+    // action は呼び出し元（他の管理APIルート）から渡ってくる値のため、
+    // フォーマット文字列側に直接埋め込まない（CodeQL: js/tainted-format-string）。
+    // %s に渡す形にして、値は常にただの文字列として扱われるようにする
+    console.error("[audit] %s の監査ログ記録に失敗しました", entry.action, error);
   }
 }
 
@@ -93,6 +96,6 @@ export async function logAdminAuditBatch(
     .insert(entries.map((entry) => toRow(actor, entry)));
 
   if (error) {
-    console.error(`[audit] ${entries.length}件の監査ログ記録に失敗しました`, error);
+    console.error("[audit] %d件の監査ログ記録に失敗しました", entries.length, error);
   }
 }
