@@ -22,9 +22,9 @@
  */
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { motion, useDragControls } from 'framer-motion';
+import { AnimatePresence, motion, useDragControls } from 'framer-motion';
 import Link from 'next/link';
-import { ChevronDown, X } from 'lucide-react';
+import { X } from 'lucide-react';
 import type { Shop } from '../types/shopData';
 import { SHOP_CATEGORY_NAMES } from '../config/shopCategories';
 import IntroMapDemo from './intro/IntroMapDemo';
@@ -38,6 +38,8 @@ import IntroGrandmaRail, {
 import { pickIntroDemoShops, pickIntroSearchShops } from './intro/introDemoShops';
 
 type MapIntroPanelProps = {
+  /** 開いているか。閉じる動きはこの部品の中の AnimatePresence が受け持つ */
+  open: boolean;
   /** マップページが既に読み込んでいる店舗。デモはここから数件借りる */
   shops?: Shop[];
   onClose: () => void;
@@ -184,6 +186,7 @@ const RAIL_COMMENTS = [
   '通りを上や下へ動かしてみいや。気になった屋台を押したら、中が見えるき。',
   '何があるか分からんときは、ジャンルから見たらえいよ。',
   '探すより聞くほうが早いこともあるき。なんでも聞いてや。',
+  'ほんなら、いってらっしゃい。ええ日曜市になるきね。',
 ] as const;
 
 /**
@@ -235,7 +238,7 @@ function IntroSection({
   );
 }
 
-export default function MapIntroPanel({ shops, onClose }: MapIntroPanelProps) {
+export default function MapIntroPanel({ open, shops, onClose }: MapIntroPanelProps) {
   const dragControls = useDragControls();
   const isDesktop = useIsDesktop();
   const viewportHeight = useViewportHeight();
@@ -288,13 +291,21 @@ export default function MapIntroPanel({ shops, onClose }: MapIntroPanelProps) {
   }, []);
 
   useLayoutEffect(() => {
+    if (!open) return;
     measureRail();
     const area = railAreaRef.current;
     if (!area || typeof ResizeObserver === 'undefined') return;
     const observer = new ResizeObserver(measureRail);
     observer.observe(area);
     return () => observer.disconnect();
-  }, [measureRail]);
+  }, [measureRail, open]);
+
+  // 閉じたら、次に開くときのために先頭へ戻しておく
+  useEffect(() => {
+    if (open) return;
+    setActiveStop(0);
+    collapse();
+  }, [open, collapse]);
 
   /** いま読んでいるのはどの停留点か。画面の少し上を基準線にする */
   const updateActiveStop = useCallback(() => {
@@ -310,6 +321,12 @@ export default function MapIntroPanel({ shops, onClose }: MapIntroPanelProps) {
     // 組み上がった直後の一瞬、この枠は親の高さが効く前で中身なりの高さになる。
     // そのまま使うと基準線が画面よりずっと下に引かれ、開いた時点で
     // にちよさんが2つ目の停留点に立ってしまうので、画面の高さで頭を押さえる
+    // いちばん下まで来たら必ず最後の停留点。締めの節は下端に近く、
+    // 基準線まで上がりきらないことがある
+    if (el.scrollTop + el.clientHeight >= el.scrollHeight - 2) {
+      setActiveStop(ys.length - 1);
+      return;
+    }
     const view = viewportHeight > 0 ? Math.min(el.clientHeight, viewportHeight) : el.clientHeight;
     const line = el.scrollTop + view * ACTIVATE_LINE_RATIO;
     let next = 0;
@@ -451,21 +468,33 @@ export default function MapIntroPanel({ shops, onClose }: MapIntroPanelProps) {
           >
             <IntroConsultDemo />
           </IntroSection>
-        </div>
 
-        <div className="border-t border-nicchyo-ink/[0.07] px-5 py-11 text-center md:px-8">
-          <p className="text-[14px] font-bold leading-relaxed text-nicchyo-ink md:text-[16px]">
-            あとは、歩くだけ。
-          </p>
-          <p className="mt-2.5 text-[12.5px] leading-[1.9] text-nicchyo-ink/55 md:text-[13.5px]">
-            迷っても大丈夫です。真ん中の通路をまっすぐ行けば、いつかは端に着きます。
-          </p>
-          <Link
-            href="/about"
-            className="mt-6 inline-block text-[12.5px] font-semibold text-nicchyo-ink/45 underline-offset-4 hover:underline"
-          >
-            nicchyo について詳しく
-          </Link>
+          {/* ── 締め。にちよさんの最後の停留点 ── */}
+          <section className="relative z-[1] border-t border-nicchyo-ink/[0.07] py-9 md:py-11">
+            <div className="pl-[var(--intro-rail)] pr-5 md:pr-8">
+              <h3 className="text-[17px] font-bold leading-tight text-nicchyo-ink md:text-[19px]">
+                日曜市を楽しんで！
+              </h3>
+            </div>
+            <div
+              ref={(el) => {
+                stopRefs.current[4] = el;
+              }}
+              className="mt-3"
+              style={{ height: stopHeight }}
+            />
+            <div className="mt-3 pl-[var(--intro-rail)] pr-5 md:pr-8">
+              <p className="text-[12.5px] leading-[1.9] text-nicchyo-ink/55 md:text-[13.5px]">
+                迷っても大丈夫です。真ん中の通路をまっすぐ行けば、いつかは端に着きます。
+              </p>
+              <Link
+                href="/about"
+                className="mt-5 inline-block text-[12.5px] font-semibold text-nicchyo-ink/45 underline-offset-4 hover:underline"
+              >
+                nicchyo について詳しく
+              </Link>
+            </div>
+          </section>
         </div>
       </div>
 
@@ -474,17 +503,6 @@ export default function MapIntroPanel({ shops, onClose }: MapIntroPanelProps) {
         className="shrink-0 border-t border-nicchyo-ink/[0.07] bg-nicchyo-base/95 px-5 pt-3 backdrop-blur-sm md:px-8 md:py-4"
         style={isDesktop ? undefined : { paddingBottom: `calc(${NAV_SPACE} + 0.75rem)` }}
       >
-        {/*
-          スクロールできることのうながし。流れの中に置くと、画面の低い端末では
-          折り目より下に隠れて見えない。いちばん見えるところ＝操作列の中に出す。
-          引き上げて広げるのは指の作法なので、PC には出さない。
-        */}
-        {!isDesktop && !expanded && (
-          <div className="mb-2.5 flex items-center justify-center gap-1.5 text-[12px] font-semibold text-nicchyo-ink/40">
-            <ChevronDown className="h-4 w-4 animate-bounce" aria-hidden />
-            下にスクロールすると、ここで実際に試せます
-          </div>
-        )}
         <button
           type="button"
           onClick={onClose}
@@ -496,101 +514,102 @@ export default function MapIntroPanel({ shops, onClose }: MapIntroPanelProps) {
     </>
   );
 
-  // ── PC：中央のダイアログ ─────────────────────────────────────
-  //
-  // 暗幕とダイアログは AnimatePresence の直下に並べる。外側を素の div で
-  // 包むと、閉じる動きが終わっても片付けが走らず、透明なまま画面に残る。
-  // 中央寄せは inset-0 + margin:auto で行う（translate を使うと、framer が
-  // 書く transform と取り合いになる）
-  if (isDesktop) {
-    return (
-      <>
-        {/*
-          暗幕。地図は薄く見えたままにして、どこに戻るのかを残す。
-          key はスマホ側の層と同じにする。画面幅が変わって器が入れ替わったとき、
-          AnimatePresence が古い層の退場をいつまでも待ってしまうのを防ぐ
-        */}
-        <motion.button
-          type="button"
-          key="map-intro-scrim"
+  /*
+   * 器（スマホ＝ボトムシート / PC＝中央のダイアログ）は AnimatePresence の直下に、
+   * それぞれ別の key を持つ1つの要素として置く。
+   *
+   * こうしておく理由が2つある。
+   * - 同じ要素を使い回すと、スマホ用が framer で書き込んだインラインの height や
+   *   角丸が残り、幅が 768px を跨いで変わったときにダイアログが中身の高さまで伸びて、
+   *   途中の節だけが画面に見えるスクロールできない状態になる
+   * - かといって、生きている AnimatePresence の子の中で motion 要素を丸ごと
+   *   付け替えると、その後の退場が終わったと見なされず、透明な層が画面に残る
+   * 直下の key を替えるのは AnimatePresence が本来扱う形なので、どちらも起きない。
+   */
+  return (
+    <AnimatePresence>
+      {open && isDesktop && (
+        <motion.div
+          key="map-intro-pc"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
+          exit={{ opacity: 0, transition: { duration: 0.18 } }}
           transition={{ duration: 0.2 }}
-          onClick={onClose}
-          aria-label="案内を閉じて地図を見る"
-          className="fixed inset-0 z-[9989] cursor-default bg-nicchyo-ink/35 backdrop-blur-[2px]"
-        />
-        <motion.div
-          key="map-intro-shell"
-          initial={{ opacity: 0, y: 16, scale: 0.985 }}
-          animate={{ opacity: 1, y: 0, scale: 1 }}
-          // 閉じる動きだけは時間指定にする。ばねのまま閉じると、見た目は
-          // 消えているのに動きが終わったと見なされず、透明な層が画面に残る
-          exit={{ opacity: 0, y: 12, scale: 0.99, transition: { duration: 0.18 } }}
-          transition={{ type: 'spring', damping: 28, stiffness: 260 }}
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="map-intro-title"
-          className="fixed inset-0 z-[9990] m-auto flex h-[88vh] w-[min(620px,94vw)] flex-col overflow-hidden rounded-[28px] bg-nicchyo-base pt-6 shadow-[0_32px_80px_-24px_rgba(58,58,58,0.55)] ring-1 ring-nicchyo-ink/[0.08]"
+          className="fixed inset-0 z-[9989]"
         >
-          {content}
+          {/* 暗幕。地図は薄く見えたままにして、どこに戻るのかを残す */}
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="案内を閉じて地図を見る"
+            className="absolute inset-0 cursor-default bg-nicchyo-ink/35 backdrop-blur-[2px]"
+          />
+          <motion.div
+            initial={{ y: 16, scale: 0.985 }}
+            animate={{ y: 0, scale: 1 }}
+            transition={{ type: 'spring', damping: 28, stiffness: 260 }}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="map-intro-title"
+            className="absolute inset-0 m-auto flex h-[88vh] w-[min(620px,94vw)] flex-col overflow-hidden rounded-[28px] bg-nicchyo-base pt-6 shadow-[0_32px_80px_-24px_rgba(58,58,58,0.55)] ring-1 ring-nicchyo-ink/[0.08]"
+          >
+            {content}
+          </motion.div>
         </motion.div>
-      </>
-    );
-  }
+      )}
 
-  // ── スマホ：地図の上に重なるボトムシート ───────────────────
-  return (
-    <>
-      {/* 上に見えている地図。暗幕は敷かず、タップで閉じられるようにする */}
-      <motion.button
-        type="button"
-        key="map-intro-scrim"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        transition={{ duration: 0.2 }}
-        onClick={onClose}
-        aria-label="案内を閉じて地図を見る"
-        aria-hidden={expanded}
-        className={`fixed inset-0 z-[9988] cursor-default bg-transparent ${
-          expanded ? 'pointer-events-none' : ''
-        }`}
-      />
-
-      <motion.div
-        key="map-intro-shell"
-        initial={{ y: '100%' }}
-        animate={{
-          y: 0,
-          height: sheetHeight,
-          borderTopLeftRadius: expanded ? 0 : 28,
-          borderTopRightRadius: expanded ? 0 : 28,
-        }}
-        exit={{ y: '100%' }}
-        transition={{ type: 'spring', damping: 32, stiffness: 300 }}
-        drag="y"
-        dragControls={dragControls}
-        dragListener={false}
-        dragConstraints={{ top: 0 }}
-        dragElastic={{ top: 0, bottom: 0.3 }}
-        onDragEnd={handleDragEnd}
-        role="dialog"
-        aria-modal="false"
-        aria-labelledby="map-intro-title"
-        className="fixed inset-x-0 bottom-0 z-[9990] mx-auto flex w-full max-w-lg flex-col overflow-hidden bg-nicchyo-base shadow-[0_-16px_48px_-12px_rgba(58,58,58,0.3)] ring-1 ring-nicchyo-ink/[0.07]"
-      >
-        {/* ドラッグハンドル。全画面のときは元の高さへ、そうでなければ閉じる */}
-        <div
-          className="flex h-7 w-full shrink-0 cursor-grab items-center justify-center active:cursor-grabbing"
-          onPointerDown={(e) => dragControls.start(e)}
-          style={{ touchAction: 'none' }}
+      {open && !isDesktop && (
+        <motion.div
+          key="map-intro-sp"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0, transition: { duration: 0.25 } }}
+          transition={{ duration: 0.2 }}
+          className="pointer-events-none fixed inset-0 z-[9988]"
         >
-          <div className="h-1 w-10 rounded-full bg-nicchyo-ink/15" />
-        </div>
-        {content}
-      </motion.div>
-    </>
+          {/* 上に見えている地図。暗幕は敷かず、タップで閉じられるようにする */}
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="案内を閉じて地図を見る"
+            aria-hidden={expanded}
+            className={`absolute inset-0 cursor-default bg-transparent ${
+              expanded ? 'pointer-events-none' : 'pointer-events-auto'
+            }`}
+          />
+          <motion.div
+            initial={{ y: '100%' }}
+            animate={{
+              y: 0,
+              height: sheetHeight,
+              borderTopLeftRadius: expanded ? 0 : 28,
+              borderTopRightRadius: expanded ? 0 : 28,
+            }}
+            exit={{ y: '100%' }}
+            transition={{ type: 'spring', damping: 32, stiffness: 300 }}
+            drag="y"
+            dragControls={dragControls}
+            dragListener={false}
+            dragConstraints={{ top: 0 }}
+            dragElastic={{ top: 0, bottom: 0.3 }}
+            onDragEnd={handleDragEnd}
+            role="dialog"
+            aria-modal="false"
+            aria-labelledby="map-intro-title"
+            className="pointer-events-auto absolute inset-x-0 bottom-0 mx-auto flex w-full max-w-lg flex-col overflow-hidden bg-nicchyo-base shadow-[0_-16px_48px_-12px_rgba(58,58,58,0.3)] ring-1 ring-nicchyo-ink/[0.07]"
+          >
+            {/* ドラッグハンドル。全画面のときは元の高さへ、そうでなければ閉じる */}
+            <div
+              className="flex h-7 w-full shrink-0 cursor-grab items-center justify-center active:cursor-grabbing"
+              onPointerDown={(e) => dragControls.start(e)}
+              style={{ touchAction: 'none' }}
+            >
+              <div className="h-1 w-10 rounded-full bg-nicchyo-ink/15" />
+            </div>
+            {content}
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 }
