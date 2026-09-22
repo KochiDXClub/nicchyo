@@ -25,6 +25,7 @@ import {
   type ConsultCharacterId,
 } from "../data/consultCharacters";
 import ConsultShopCard from "./ConsultShopCard";
+import ConsultSheet from "./ConsultSheet";
 import type { Shop } from "../../map/data/shops";
 import type {
   ConsultAskResponse,
@@ -811,138 +812,126 @@ export default function ConsultStage({
         背後を暗くしているのは、この瞬間にやることを1つに絞るため。
       */}
       {(speech.isListening || phase === "confirming") && (
-        <div className="fixed inset-0 z-40 flex flex-col justify-end">
-          <div
-            className="absolute inset-0 bg-slate-900/40"
-            onClick={cancelVoice}
-            aria-hidden="true"
-          />
-
-          <div
-            className="relative rounded-t-3xl bg-white px-4 pt-4 shadow-2xl"
-            style={{ paddingBottom: "calc(var(--safe-bottom, 0px) + 5rem)" }}
-          >
-            <div className="mb-3 flex items-center justify-between">
-              <p className="flex items-center gap-2 text-sm font-bold text-amber-900">
-                {speech.isListening ? (
-                  <>
-                    <span className="consult-mic-dot h-2.5 w-2.5 rounded-full bg-red-500" />
-                    聞きよるよ…
-                  </>
-                ) : (
-                  "これでよかった？"
-                )}
-              </p>
-              <button type="button" onClick={cancelVoice} aria-label="やめる">
-                <X className="h-5 w-5 text-slate-400" aria-hidden="true" />
-              </button>
-            </div>
-
-            {/* 何と言ったのかを、確認できる大きさで出す */}
-            <p
-              className="min-h-[3.5rem] text-xl leading-relaxed text-slate-800"
-              aria-live="polite"
-            >
+        <ConsultSheet
+          onClose={cancelVoice}
+          backdropClassName="bg-slate-900/40"
+          className="px-4 pt-4 shadow-2xl"
+          style={{ paddingBottom: "calc(var(--safe-bottom, 0px) + 5rem)" }}
+        >
+          <div className="mb-3 flex items-center justify-between">
+            <p className="flex items-center gap-2 text-sm font-bold text-amber-900">
               {speech.isListening ? (
-                speech.interim || (
-                  <span className="text-slate-400">聞きたいことを話してね</span>
-                )
+                <>
+                  <span className="consult-mic-dot h-2.5 w-2.5 rounded-full bg-red-500" />
+                  聞きよるよ…
+                </>
               ) : (
-                draft
+                "これでよかった？"
               )}
             </p>
+            <button type="button" onClick={cancelVoice} aria-label="やめる">
+              <X className="h-5 w-5 text-slate-400" aria-hidden="true" />
+            </button>
+          </div>
 
+          {/* 何と言ったのかを、確認できる大きさで出す */}
+          <p
+            className="min-h-[3.5rem] text-xl leading-relaxed text-slate-800"
+            aria-live="polite"
+          >
             {speech.isListening ? (
+              speech.interim || (
+                <span className="text-slate-400">聞きたいことを話してね</span>
+              )
+            ) : (
+              draft
+            )}
+          </p>
+
+          {speech.isListening ? (
+            <button
+              type="button"
+              onClick={speech.stop}
+              className="mt-4 flex w-full items-center justify-center gap-2 rounded-full bg-slate-800 px-6 py-4 text-lg font-bold text-white shadow-sm transition active:scale-[0.98]"
+            >
+              <Square className="h-4 w-4 shrink-0" aria-hidden="true" />
+              話し終わった
+            </button>
+          ) : (
+            <>
+              {/* 送信は主たる操作なので、幅いっぱい・高さも十分に取る */}
               <button
                 type="button"
-                onClick={speech.stop}
-                className="mt-4 flex w-full items-center justify-center gap-2 rounded-full bg-slate-800 px-6 py-4 text-lg font-bold text-white shadow-sm transition active:scale-[0.98]"
+                onClick={() => void ask(draft, "input")}
+                className="mt-4 flex w-full items-center justify-center gap-2 rounded-full bg-gradient-to-br from-amber-500 to-orange-500 px-6 py-4 text-lg font-bold text-white shadow-sm transition active:scale-[0.98]"
               >
-                <Square className="h-4 w-4 shrink-0" aria-hidden="true" />
-                話し終わった
+                <Send className="h-5 w-5 shrink-0" aria-hidden="true" />
+                これで聞く
               </button>
-            ) : (
-              <>
-                {/* 送信は主たる操作なので、幅いっぱい・高さも十分に取る */}
+
+              {/* やり直し系は下段に並べ、主たる操作と強さを分ける */}
+              <div className="mt-2 grid grid-cols-2 gap-2">
                 <button
                   type="button"
-                  onClick={() => void ask(draft, "input")}
-                  className="mt-4 flex w-full items-center justify-center gap-2 rounded-full bg-gradient-to-br from-amber-500 to-orange-500 px-6 py-4 text-lg font-bold text-white shadow-sm transition active:scale-[0.98]"
+                  onClick={() => {
+                    setPhase("idle");
+                    speech.start();
+                  }}
+                  className="flex items-center justify-center gap-1.5 rounded-full border border-amber-200 py-3 text-sm font-bold text-amber-800 transition active:scale-[0.98]"
                 >
-                  <Send className="h-5 w-5 shrink-0" aria-hidden="true" />
-                  これで聞く
+                  <RotateCcw className="h-4 w-4 shrink-0" aria-hidden="true" />
+                  言い直す
                 </button>
-
-                {/* やり直し系は下段に並べ、主たる操作と強さを分ける */}
-                <div className="mt-2 grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setPhase("idle");
-                      speech.start();
-                    }}
-                    className="flex items-center justify-center gap-1.5 rounded-full border border-amber-200 py-3 text-sm font-bold text-amber-800 transition active:scale-[0.98]"
-                  >
-                    <RotateCcw className="h-4 w-4 shrink-0" aria-hidden="true" />
-                    言い直す
-                  </button>
-                  <button
-                    type="button"
-                    onClick={openTextInput}
-                    className="flex items-center justify-center gap-1.5 rounded-full border border-amber-200 py-3 text-sm font-bold text-amber-800 transition active:scale-[0.98]"
-                  >
-                    <Keyboard className="h-4 w-4 shrink-0" aria-hidden="true" />
-                    文字で直す
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
-        </div>
+                <button
+                  type="button"
+                  onClick={openTextInput}
+                  className="flex items-center justify-center gap-1.5 rounded-full border border-amber-200 py-3 text-sm font-bold text-amber-800 transition active:scale-[0.98]"
+                >
+                  <Keyboard className="h-4 w-4 shrink-0" aria-hidden="true" />
+                  文字で直す
+                </button>
+              </div>
+            </>
+          )}
+        </ConsultSheet>
       )}
 
       {/* 文字入力は最後の手段なので、普段は畳んでおく */}
       {textOpen && (
-        <div className="fixed inset-0 z-40 flex flex-col justify-end">
-          <div
-            className="absolute inset-0 bg-black/30"
-            onClick={() => setTextOpen(false)}
-            aria-hidden="true"
-          />
-          <div
-            className="relative rounded-t-3xl bg-white p-4"
-            style={{ paddingBottom: "calc(var(--safe-bottom, 0px) + 5rem)" }}
-          >
-            <div className="mb-2 flex items-center justify-between">
-              <p className="text-sm font-bold text-amber-900">文字で聞く</p>
-              <button type="button" onClick={() => setTextOpen(false)} aria-label="閉じる">
-                <X className="h-5 w-5 text-slate-400" aria-hidden="true" />
-              </button>
-            </div>
-            <textarea
-              ref={textInputRef}
-              value={typed}
-              onChange={(event) => setTyped(event.target.value)}
-              rows={3}
-              placeholder="（例）今の旬の果物は？"
-              className="w-full rounded-2xl border border-amber-200 p-3 text-base text-slate-800 outline-none focus:border-amber-400"
-            />
-            <button
-              type="button"
-              disabled={!typed.trim()}
-              onClick={() => {
-                const question = typed.trim();
-                setTextOpen(false);
-                setTyped("");
-                void ask(question, "input");
-              }}
-              className="mt-2 flex w-full items-center justify-center gap-2 rounded-full bg-gradient-to-br from-amber-500 to-orange-500 px-6 py-4 text-base font-bold text-white disabled:opacity-40"
-            >
-              <Send className="h-4 w-4" aria-hidden="true" />
-              聞く
+        <ConsultSheet
+          onClose={() => setTextOpen(false)}
+          className="p-4"
+          style={{ paddingBottom: "calc(var(--safe-bottom, 0px) + 5rem)" }}
+        >
+          <div className="mb-2 flex items-center justify-between">
+            <p className="text-sm font-bold text-amber-900">文字で聞く</p>
+            <button type="button" onClick={() => setTextOpen(false)} aria-label="閉じる">
+              <X className="h-5 w-5 text-slate-400" aria-hidden="true" />
             </button>
           </div>
-        </div>
+          <textarea
+            ref={textInputRef}
+            value={typed}
+            onChange={(event) => setTyped(event.target.value)}
+            rows={3}
+            placeholder="（例）今の旬の果物は？"
+            className="w-full rounded-2xl border border-amber-200 p-3 text-base text-slate-800 outline-none focus:border-amber-400"
+          />
+          <button
+            type="button"
+            disabled={!typed.trim()}
+            onClick={() => {
+              const question = typed.trim();
+              setTextOpen(false);
+              setTyped("");
+              void ask(question, "input");
+            }}
+            className="mt-2 flex w-full items-center justify-center gap-2 rounded-full bg-gradient-to-br from-amber-500 to-orange-500 px-6 py-4 text-base font-bold text-white disabled:opacity-40"
+          >
+            <Send className="h-4 w-4" aria-hidden="true" />
+            聞く
+          </button>
+        </ConsultSheet>
       )}
 
       {/*
@@ -954,62 +943,57 @@ export default function ConsultStage({
         押せなかった。
       */}
       {historyOpen && (
-        <div className="fixed inset-0 z-40 flex flex-col justify-end">
-          <div
-            className="absolute inset-0 bg-black/30"
-            onClick={() => setHistoryOpen(false)}
-            aria-hidden="true"
-          />
-
-          <div className="relative flex max-h-[85dvh] flex-col overflow-hidden rounded-t-3xl bg-white">
-            <div className="flex shrink-0 items-center justify-between border-b border-amber-100 px-4 py-3">
-              <p className="text-sm font-bold text-amber-900">
-                これまでの相談（{entries.length}件）
-              </p>
-              <button type="button" onClick={() => setHistoryOpen(false)} aria-label="閉じる">
-                <X className="h-5 w-5 text-slate-400" aria-hidden="true" />
-              </button>
-            </div>
-
-            {/* ここだけスクロールする。overscroll-contain で背後まで動かさない */}
-            <ul className="flex flex-1 flex-col gap-4 overflow-y-auto overscroll-contain px-4 py-4">
-              {entries.map((item) => {
-                const itemShops = resolveShops(item.shopIds);
-                return (
-                  <li key={item.id} className="border-b border-amber-100 pb-3 last:border-0">
-                    <p className="text-xs text-slate-400">{item.question}</p>
-                    <p className="mt-1 whitespace-pre-wrap text-sm leading-6 text-slate-700">
-                      {item.answer}
-                    </p>
-                    {itemShops.length > 0 && onSelectShop && (
-                      <div className="-mx-4 mt-2 flex snap-x snap-mandatory gap-2.5 overflow-x-auto px-4 pb-1">
-                        {itemShops.map((shop) => (
-                          <ConsultShopCard key={shop.id} shop={shop} onSelect={onSelectShop} />
-                        ))}
-                      </div>
-                    )}
-                  </li>
-                );
-              })}
-            </ul>
-
-            <div
-              className="shrink-0 border-t border-amber-100 bg-white px-4 pt-3"
-              style={{ paddingBottom: "calc(var(--safe-bottom, 0px) + 5rem)" }}
-            >
-              <button
-                type="button"
-                onClick={() => {
-                  setEntries(createEmptySession().entries);
-                  setHistoryOpen(false);
-                }}
-                className="w-full rounded-full border border-amber-200 py-3 text-sm font-bold text-amber-800 transition active:scale-[0.98]"
-              >
-                相談を最初からにする
-              </button>
-            </div>
+        <ConsultSheet
+          onClose={() => setHistoryOpen(false)}
+          className="flex max-h-[85dvh] flex-col overflow-hidden"
+        >
+          <div className="flex shrink-0 items-center justify-between border-b border-amber-100 px-4 py-3">
+            <p className="text-sm font-bold text-amber-900">
+              これまでの相談（{entries.length}件）
+            </p>
+            <button type="button" onClick={() => setHistoryOpen(false)} aria-label="閉じる">
+              <X className="h-5 w-5 text-slate-400" aria-hidden="true" />
+            </button>
           </div>
-        </div>
+
+          {/* ここだけスクロールする。overscroll-contain で背後まで動かさない */}
+          <ul className="flex flex-1 flex-col gap-4 overflow-y-auto overscroll-contain px-4 py-4">
+            {entries.map((item) => {
+              const itemShops = resolveShops(item.shopIds);
+              return (
+                <li key={item.id} className="border-b border-amber-100 pb-3 last:border-0">
+                  <p className="text-xs text-slate-400">{item.question}</p>
+                  <p className="mt-1 whitespace-pre-wrap text-sm leading-6 text-slate-700">
+                    {item.answer}
+                  </p>
+                  {itemShops.length > 0 && onSelectShop && (
+                    <div className="-mx-4 mt-2 flex snap-x snap-mandatory gap-2.5 overflow-x-auto px-4 pb-1">
+                      {itemShops.map((shop) => (
+                        <ConsultShopCard key={shop.id} shop={shop} onSelect={onSelectShop} />
+                      ))}
+                    </div>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+
+          <div
+            className="shrink-0 border-t border-amber-100 bg-white px-4 pt-3"
+            style={{ paddingBottom: "calc(var(--safe-bottom, 0px) + 5rem)" }}
+          >
+            <button
+              type="button"
+              onClick={() => {
+                setEntries(createEmptySession().entries);
+                setHistoryOpen(false);
+              }}
+              className="w-full rounded-full border border-amber-200 py-3 text-sm font-bold text-amber-800 transition active:scale-[0.98]"
+            >
+              相談を最初からにする
+            </button>
+          </div>
+        </ConsultSheet>
       )}
 
       {/*
