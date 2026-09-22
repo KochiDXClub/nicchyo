@@ -157,6 +157,15 @@ const CROWD = [
 const CROWD_SIZE = { width: 13, height: 22 };
 
 /**
+ * 人影の絵は入力が固定なので、モジュールを読んだときに一度だけ作る。
+ * 描画のたびに SVG 文字列を組み立て直すと、カードの出し入れなどで
+ * 道が描き直されるたびに 9 体ぶんの文字列生成が走る
+ */
+const CROWD_HTML: readonly string[] = CROWD.map((person, i) =>
+  generateCrowdSvg(CROWD_KINDS[person.kind], i % 2, person.flip, CROWD_SIZE)
+);
+
+/**
  * 道。真ん中のグレーが通路、その両脇の暖色が屋台の並ぶ帯。
  * 「真ん中を歩けばいい」が色で分かる、という本番の塗り分けをそのまま縮めたもの。
  *
@@ -231,9 +240,7 @@ export function IntroRoad({
               key={i}
               className="absolute -translate-x-1/2 -translate-y-full opacity-80"
               style={{ left: person.left, top: person.top }}
-              dangerouslySetInnerHTML={{
-                __html: generateCrowdSvg(CROWD_KINDS[person.kind], i % 2, person.flip, CROWD_SIZE),
-              }}
+              dangerouslySetInnerHTML={{ __html: CROWD_HTML[i] }}
             />
           ))}
         </div>

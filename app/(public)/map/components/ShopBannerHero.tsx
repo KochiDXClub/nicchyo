@@ -167,6 +167,8 @@ export function ShopBannerHero({
               src={bannerImage}
               alt={`${shop.name}の写真`}
               fill
+              // 枠は 64px 固定。sizes が無いと画面幅ぶんの大きさで取りに行く
+              sizes="64px"
               className="object-cover object-center"
               onError={onImageError}
             />
@@ -230,6 +232,8 @@ export function ShopBannerHero({
           src={bannerImage}
           alt={`${shop.name}の写真`}
           fill
+          // 画面幅いっぱい（PC では最大でもバナーの幅）。sizes が無いと 1920px 幅を取りに行く
+          sizes="(max-width: 768px) 100vw, 640px"
           className="object-cover object-center"
           priority
           onError={onImageError}

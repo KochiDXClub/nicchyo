@@ -342,15 +342,28 @@ export default function MapIntroPanel({ open, shops, onClose }: MapIntroPanelPro
     updateActiveStop();
   }, [updateActiveStop, stopYs, expanded]);
 
+  // 測り直しは描画の直前に1回だけ。scroll はフレームに何度も来るので、
+  // そのたびにレイアウトを読むと動かしている最中がもたつく
+  const measureFrameRef = useRef<number | null>(null);
   const handleScroll = useCallback(() => {
     // PC は最初から開ききっているので、広げる判定は回さない
     if (!isDesktop) handlers.onScroll();
-    // 停留点の位置は、写真の読み込みや字体の差し替わりで後からずれる。
-    // 一度測って終わりにすると、にちよさんが見出しに重なって立つ。
-    // 読むだけなので、動かしている間に取り直して常にいまの位置に合わせる
-    measureRail();
-    updateActiveStop();
+    if (measureFrameRef.current !== null) return;
+    measureFrameRef.current = window.requestAnimationFrame(() => {
+      measureFrameRef.current = null;
+      // 停留点の位置は、写真の読み込みや字体の差し替わりで後からずれる。
+      // 一度測って終わりにすると、にちよさんが見出しに重なって立つ。
+      // 読むだけなので、動かしている間に取り直して常にいまの位置に合わせる
+      measureRail();
+      updateActiveStop();
+    });
   }, [handlers, isDesktop, measureRail, updateActiveStop]);
+  useEffect(
+    () => () => {
+      if (measureFrameRef.current !== null) window.cancelAnimationFrame(measureFrameRef.current);
+    },
+    []
+  );
 
   const stopHeight = isDesktop ? RAIL_STOP_HEIGHT_DESKTOP : RAIL_STOP_HEIGHT;
   const peekHeight = Math.round(viewportHeight * PEEK_RATIO);
@@ -395,8 +408,8 @@ export default function MapIntroPanel({ open, shops, onClose }: MapIntroPanelPro
           <IntroGrandmaRail
             height={railHeight}
             stopYs={stopYs}
-            activeStop={activeStop}
-            comment={RAIL_COMMENTS[activeStop] ?? RAIL_COMMENTS[0]}
+            targetStop={activeStop}
+            comments={RAIL_COMMENTS}
             stopHeight={stopHeight}
           />
 
@@ -440,7 +453,7 @@ export default function MapIntroPanel({ open, shops, onClose }: MapIntroPanelPro
             }}
             stopHeight={stopHeight}
           >
-            <IntroMapDemo shops={mapDemoShops} frameHeight={isDesktop ? 560 : undefined} />
+            <IntroMapDemo shops={mapDemoShops} frameHeight={isDesktop ? 500 : undefined} />
           </IntroSection>
 
           <IntroSection

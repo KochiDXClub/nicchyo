@@ -35,19 +35,19 @@ import type { IntroDemoShop } from './introDemoShops';
 const DEFAULT_FRAME_HEIGHT = 460;
 /**
  * 道の全長。枠より長いぶんだけ動かせる。
- * 8軒（左右4軒ずつ）が収まり、枠の高さより少しだけ長い程度にとどめる。
+ * 6軒（左右3軒ずつ）が収まり、枠の高さより少しだけ長い程度にとどめる。
  * 長すぎると、動かす体験というより「抜けるまで送り続ける」作業になる
  */
-const ROAD_HEIGHT = 700;
+const ROAD_HEIGHT = 620;
 /** 上下に置く余白（この中には屋台を置かない） */
-const ROAD_PADDING = 70;
+const ROAD_PADDING = 90;
 /** 同じ列の屋台どうしの間隔 */
-const STALL_GAP = 140;
+const STALL_GAP = 150;
 /** 動かし終わってからカードを残す時間。本番の ShopScanCards と同じ */
 const HOLD_MS = 500;
 
 /**
- * 8軒を道の左右に4軒ずつ、互い違いに並べる。
+ * 6軒を道の左右に3軒ずつ、互い違いに並べる。
  * left は足元の位置、side は木札の出る向き（本番と同じで道の外側へ出る）。
  * 真ん中の通路（枠の 39%〜61%）は空けておく。
  */

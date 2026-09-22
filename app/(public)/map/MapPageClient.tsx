@@ -31,7 +31,6 @@ import NearbyExplorePanel, {
   type NearbyRecommendedShop,
 } from "./components/NearbyExplorePanel";
 import { useNearbyPromptVisibility } from "./hooks/useNearbyPromptVisibility";
-import MapIntroPanel from "./components/MapIntroPanel";
 import { hasMapDeepLink, MAP_INTRO_PANEL_VALUE, useMapIntro } from "./hooks/useMapIntro";
 import GuideLayer from "./components/GuideLayer";
 import OdekakeGuidePanel from "./components/OdekakeGuidePanel";
@@ -76,6 +75,9 @@ const MapViewLeaflet = dynamic(() => import("./components/MapView"), {
 const MapViewMapLibre = dynamic(() => import("./components/maplibre/MapViewMapLibre"), {
   ssr: true,
 });
+// はじめての方への案内。初回か、メニューから開いたときにだけ要る。
+// 二度目以降の来訪者は一度も開かないので、その人たちに読み込ませない
+const MapIntroPanel = dynamic(() => import("./components/MapIntroPanel"), { ssr: false });
 
 type MapPageClientProps = {
   shops: Shop[];
@@ -316,6 +318,11 @@ export default function MapPageClient({
     hasDeepLink: introHasDeepLink,
     mapArrived,
   });
+  // 一度でも開いたら、閉じる動きのために置いたままにする（読み込むのはこのとき）
+  const [introEverOpened, setIntroEverOpened] = useState(false);
+  useEffect(() => {
+    if (introOpen) setIntroEverOpened(true);
+  }, [introOpen]);
   const closeIntro = useCallback(() => {
     dismissIntro();
     // ?panel=intro を外す。router.push だと店舗300件を含むページを取り直すので、
@@ -1259,7 +1266,7 @@ export default function MapPageClient({
 
       {/* 初来訪者への案内。地図が出たあとに下から重なり、上には地図が見えたままになる */}
       {/* 開閉の動きは MapIntroPanel の中の AnimatePresence が受け持つ */}
-      <MapIntroPanel open={introOpen} shops={shops} onClose={closeIntro} />
+      {introEverOpened && <MapIntroPanel open={introOpen} shops={shops} onClose={closeIntro} />}
 
       {!mapLoadingHandedOff && <MapLoadingOverlay minStage="page" />}
     </div>
