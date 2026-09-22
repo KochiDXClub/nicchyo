@@ -190,6 +190,12 @@ export interface ShopSystemData {
 
   /** 作成日時 */
   createdAt?: number;
+
+  /**
+   * この店に割り当てられている出店日（location_assignments.market_date）。
+   * 当日かどうかの判定にだけ使う。割り当てが無い・日付が無い場合は undefined。
+   */
+  assignmentMarketDate?: string | null;
 }
 
 /**

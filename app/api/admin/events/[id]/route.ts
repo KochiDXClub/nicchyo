@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/adminClient";
 import { requireSameOrigin } from "@/lib/security/requestGuards";
 import { enforceRateLimit } from "@/lib/security/rateLimit";
 import { authorizeAdmin, findHighlightConflict, validateHighlightDates, validateImageUrl } from "../_helpers";
+import { logAdminAudit } from "@/lib/audit/logAdminAudit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -176,15 +177,11 @@ export async function PATCH(req: Request, { params }: Params) {
     return NextResponse.json({ error: "イベントが見つかりません" }, { status: 404 });
   }
 
-  await dc.from("admin_audit_logs").insert({
-    actor_id: user.id,
-    actor_email: user.email,
-    actor_role: getRole(user),
-    action: "event_updated",
-    target_type: "market_event",
-    target_id: id,
-    details: JSON.stringify(updates),
-  });
+  await logAdminAudit(
+    dc,
+    { id: user.id, email: user.email, role: getRole(user) },
+    { action: "event_updated", targetType: "market_event", targetId: id, details: JSON.stringify(updates) }
+  );
 
   return NextResponse.json({ event: data });
 }
@@ -226,15 +223,11 @@ export async function DELETE(req: Request, { params }: Params) {
     return NextResponse.json({ error: "イベントが見つかりません" }, { status: 404 });
   }
 
-  await dc.from("admin_audit_logs").insert({
-    actor_id: user.id,
-    actor_email: user.email,
-    actor_role: getRole(user),
-    action: "event_deleted",
-    target_type: "market_event",
-    target_id: id,
-    details: JSON.stringify({}),
-  });
+  await logAdminAudit(
+    dc,
+    { id: user.id, email: user.email, role: getRole(user) },
+    { action: "event_deleted", targetType: "market_event", targetId: id, details: JSON.stringify({}) }
+  );
 
   return NextResponse.json({ ok: true });
 }

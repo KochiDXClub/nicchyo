@@ -10,6 +10,7 @@ import { fetchLandmarksFromDb } from './services/landmarksDb';
 import type { Landmark } from './types/landmark';
 import type { MapRoute } from './types/mapRoute';
 import { fetchMapRouteFromDb, getFallbackMapRoute } from './services/mapRouteDb';
+import { SITE_URL } from '@/lib/constants';
 import { safeJsonLd } from '@/lib/utils/jsonLd';
 import { fetchMapFeatureFlags } from '@/lib/mapFeatureFlags.server';
 import { fetchMapViewSettings } from '@/lib/map/mapViewSettings.server';
@@ -50,7 +51,7 @@ const sundayMarketJsonLd = {
   organizer: {
     "@type": "Organization",
     name: "nicchyo（ニッチョ）",
-    url: "https://nicchyo.jp",
+    url: SITE_URL,
   },
 };
 

@@ -1,7 +1,4 @@
-import { cookies } from "next/headers";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { createClient as createServerClient } from "@/utils/supabase/server";
-import { getRole, isAdmin } from "@/lib/auth/permissions";
 import type { Database } from "@/types/database.types";
 
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
@@ -118,10 +115,9 @@ export function validateImageUrl(
   return { url: trimmed, error: null };
 }
 
-export async function authorizeAdmin() {
-  const cookieStore = await cookies();
-  const supabase = createServerClient(cookieStore);
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user || !isAdmin(getRole(user))) return { user: null, error: "Forbidden" };
-  return { user, error: null };
-}
+/**
+ * ここに同名の実装がもう1つあった（categories/_helpers.ts と一字一句同じ）。
+ * 共通の場所（lib/auth/requireAdminApi.ts）に1本化し、ここでは
+ * import 元を変えずに済むよう re-export だけする
+ */
+export { authorizeAdmin } from "@/lib/auth/requireAdminApi";

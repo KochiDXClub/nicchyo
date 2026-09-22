@@ -6,6 +6,7 @@ import { requireSameOrigin } from "@/lib/security/requestGuards";
 import { enforceRateLimit, getClientIp } from "@/lib/security/rateLimit";
 import { getRole, isAdmin } from "@/lib/auth/permissions";
 import { MAX_BULK_OPERATION } from "@/lib/constants";
+import { logAdminAudit } from "@/lib/audit/logAdminAudit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -91,18 +92,18 @@ export async function POST(request: Request) {
     const ip = getClientIp(request);
 
     // 監査ログを操作前に記録（削除後に失敗しても痕跡が残るよう）
-    const { error: auditError } = await serviceClient.from("admin_audit_logs").insert({
-      actor_id: user.id,
-      actor_email: user.email ?? null,
-      actor_role: getRole(user),
-      action: `bulk_${action}`,
-      target_type: "vendor",
-      target_id: safeIds.join(","),
-      target_name: shopNames.slice(0, 500),
-      details: `${safeIds.length}件の一括${actionLabel}を試みた`,
-      ip_address: ip !== "unknown" ? ip : null,
-    });
-    if (auditError) console.error("[audit] failed to write audit log", auditError);
+    await logAdminAudit(
+      serviceClient,
+      { id: user.id, email: user.email, role: getRole(user) },
+      {
+        action: `bulk_${action}`,
+        targetType: "vendor",
+        targetId: safeIds.join(","),
+        targetName: shopNames.slice(0, 500),
+        details: `${safeIds.length}件の一括${actionLabel}を試みた`,
+        ipAddress: ip !== "unknown" ? ip : null,
+      }
+    );
 
     const errors: string[] = [];
 

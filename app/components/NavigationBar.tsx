@@ -36,10 +36,13 @@ import {
   Users,
   X,
   type LucideIcon,
+  Github,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth/AuthContext";
+import { GITHUB_REPO_URL } from "@/lib/siteLinks";
 import { useMenu } from "@/lib/ui/MenuContext";
 import { usePageVisibility } from "@/lib/pageVisibility/PageVisibilityContext";
+import { ODEKAKE_VISIBILITY_PATH } from "@/lib/pageVisibility/registry";
 import { useMapLoading } from "./MapLoadingProvider";
 import MenuGrandma from "./MenuGrandma";
 
@@ -66,12 +69,16 @@ type SheetItem = {
   icon: LucideIcon;
   /** 開発中であることなど、開く前に伝えておきたい一言（例: デモ） */
   badge?: string;
+  /** 公開設定を見るキー。省略時は href のパス部分 */
+  visibilityPath?: string;
 };
 
 /** 日曜市を歩くときに使うページ */
 const visitMenuItems: SheetItem[] = [
   { label: "お気に入り", href: "/favorites", icon: Heart },
-  { label: "おでかけサポート", href: "/facilities", icon: Compass },
+  // 地図の上で種類を選ぶ画面を直接開く（/facilities のページは廃止し、ここへ送るだけにした）。
+  // 行き先は常に公開の /map なので、表示の可否は「おでかけサポート」の設定で決める
+  { label: "おでかけサポート", href: "/map?guide=menu", icon: Compass, visibilityPath: ODEKAKE_VISIBILITY_PATH },
   { label: "日曜市カレンダー", href: "/calendar", icon: CalendarDays },
   // 中身がまだサンプル値なので、開く前に分かるようにしておく
   { label: "日曜市をデータで見る", href: "/analysis", icon: BarChart3, badge: "デモ" },
@@ -192,7 +199,10 @@ function NavigationBarInner({
       ? [...baseNavItems.slice(1), { name: "管理", href: "/admin/dashboard", icon: Settings }]
       : baseNavItems.slice(1)
   ).filter((item) => isLinkVisible(item.target ?? item.href));
-  const visibleVisitItems = visitMenuItems.filter((item) => isLinkVisible(item.href));
+  // 公開設定はパス単位なので、/map?guide=menu のようなクエリは外して判定する
+  const visibleVisitItems = visitMenuItems.filter((item) =>
+    isLinkVisible(item.visibilityPath ?? item.href.split("?")[0])
+  );
   const visibleAboutItems = aboutMenuItems.filter((item) => isLinkVisible(item.href));
   const visibleVendorItems = vendorMenuItems.filter((item) => isLinkVisible(item.href));
 
@@ -205,6 +215,9 @@ function NavigationBarInner({
   const handleMenuItemClick = (href: string) => {
     closeMenu();
     if (href === "/map") { goToMap(); return; }
+    // /map?guide=menu（おでかけサポート）のようにクエリ付きで地図へ向かう項目も、
+    // 地図の読み込み表示を先に始めてから移る
+    if (href.startsWith("/map?")) { startMapLoading(); }
     router.push(href);
   };
 
@@ -403,6 +416,18 @@ function NavigationBarInner({
                     <MenuRow icon={LogOut} label="ログアウト" muted onClick={handleLogout} />
                   </>
                 )}
+
+                {/* ─ 末尾の小さなリンク。来訪者向けの項目と並べず、フッターとして置く ─ */}
+                <MenuDivider />
+                <a
+                  href={GITHUB_REPO_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1.5 px-3 py-2 text-[11px] font-semibold tracking-wide text-nicchyo-ink/40 transition hover:text-nicchyo-ink/70"
+                >
+                  <Github className="h-3.5 w-3.5" aria-hidden />
+                  オープンソースで開発しています（GitHub）
+                </a>
               </div>
             </motion.div>
           </>

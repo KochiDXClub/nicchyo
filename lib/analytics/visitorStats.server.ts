@@ -8,22 +8,9 @@
 
 import { cookies } from "next/headers";
 import { createClient } from "@/utils/supabase/server";
+import { todayJstString } from "@/lib/time/jstDate";
 
 /** 日曜市は日曜開催なので、週は月曜はじまりで数える */
-function getTokyoTodayIso(baseDate = new Date()) {
-  const formatter = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Asia/Tokyo",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  });
-  const parts = formatter.formatToParts(baseDate);
-  const year = parts.find((p) => p.type === "year")?.value ?? "0000";
-  const month = parts.find((p) => p.type === "month")?.value ?? "01";
-  const day = parts.find((p) => p.type === "day")?.value ?? "01";
-  return `${year}-${month}-${day}`;
-}
-
 function getWeekStartIso(isoDate: string) {
   const date = new Date(`${isoDate}T00:00:00Z`);
   const day = date.getUTCDay();
@@ -74,7 +61,7 @@ async function sumVisitors(fromIso: string, toIso: string): Promise<number | nul
 
 /** 今週（月曜〜今日）の訪問者数。取れなければ null */
 export async function fetchWeeklyVisitors(): Promise<number | null> {
-  const todayIso = getTokyoTodayIso();
+  const todayIso = todayJstString();
   return sumVisitors(getWeekStartIso(todayIso), todayIso);
 }
 
@@ -85,6 +72,6 @@ export async function fetchWeeklyVisitors(): Promise<number | null> {
  * 「1人あたりいくらか」を出すときの分母はこちらを使う。
  */
 export async function fetchMonthlyVisitors(): Promise<number | null> {
-  const todayIso = getTokyoTodayIso();
+  const todayIso = todayJstString();
   return sumVisitors(getMonthStartIso(todayIso), todayIso);
 }

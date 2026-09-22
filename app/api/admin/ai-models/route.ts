@@ -15,6 +15,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireSameOrigin } from "@/lib/security/requestGuards";
 import { enforceRateLimit } from "@/lib/security/rateLimit";
 import { requireAdminApi } from "@/lib/auth/requireAdminApi";
+import { logAdminAuditBatch } from "@/lib/audit/logAdminAudit";
 import {
   AI_USE_CASES,
   DEFAULT_AI_MODEL_SETTINGS,
@@ -233,23 +234,19 @@ export async function PUT(request: NextRequest) {
     // 集計に使う。抜けると「誰かが変えた」ことしか残らない。
     // 記録に失敗しても保存そのものは成功させる（監査ログのために設定変更を
     // 巻き戻すと、運営から見て何が起きたか分からなくなる）
-    const { error: auditError } = await auth.adminClient.from("admin_audit_logs").insert(
+    await logAdminAuditBatch(
+      auth.adminClient,
+      { id: auth.user.id, email: auth.user.email, role: auth.role },
       changed.map((item) => ({
-        actor_id: auth.user.id,
-        actor_email: auth.user.email,
-        actor_role: auth.role,
         action: "ai_model_updated",
-        target_type: "ai_use_cases",
-        target_id: item.useCase,
+        targetType: "ai_use_cases",
+        targetId: item.useCase,
         details: JSON.stringify({
           modelId: item.choice.modelId,
           reasoningEffort: item.choice.reasoningEffort ?? null,
         }),
       }))
     );
-    if (auditError) {
-      console.error("[admin/ai-models] audit log failed:", auditError.message);
-    }
 
     return NextResponse.json({ ok: true, saved: changed.map((item) => item.useCase) });
   } catch {
