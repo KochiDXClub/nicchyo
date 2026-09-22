@@ -27,6 +27,7 @@ import {
   LogIn,
   LogOut,
   Mail,
+  Sparkles,
   ShieldCheck,
   MessageCircle,
   Newspaper,
@@ -86,6 +87,9 @@ const visitMenuItems: SheetItem[] = [
 
 /** nicchyo そのものについてのページ */
 const aboutMenuItems: SheetItem[] = [
+  // 初回だけ自動で出る案内パネルを、あとから読み直すための入口。
+  // ページではなく地図の上に開くので、行き先は /map のパラメータになる
+  { label: "はじめての方へ", href: "/map?panel=intro", icon: Sparkles },
   { label: "nicchyoとは", href: "/about", icon: Info },
   { label: "協賛・ご支援について", href: "/support", icon: HeartHandshake },
   { label: "よくある質問", href: "/faq", icon: CircleHelp },
@@ -187,9 +191,12 @@ function NavigationBarInner({
     pathname?.startsWith("/admin") ||
     pathname?.startsWith("/vendor") ||
     pathname?.startsWith("/moderator");
-  const isPanelOpen = pathname === "/map" && !!panel;
+  // 画面を覆って「閉じる」が要るのは検索パネルだけ。
+  // ?panel=intro（はじめての方への案内）は地図の上に重なるだけで自前の閉じ方を持つので、
+  // ナビまで閉じるモードにしない
+  const isPanelOpen = pathname === "/map" && panel === "search";
   const isCloseUxActive = isPanelOpen || closeModeActive;
-  const isHome = (activeHref ?? pathname) === "/map" && !panel && !isCloseUxActive;
+  const isHome = (activeHref ?? pathname) === "/map" && !isCloseUxActive;
 
   // ページ公開設定で public でないリンクはナビに出さない
   const consultItem = baseNavItems[0];
