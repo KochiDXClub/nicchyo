@@ -14,12 +14,15 @@
  * デモは絵ではなく、本物の部品（markerHtmlGenerator・ShopBannerHero・道の色）で
  * 組んである。屋台をタップすればバナーが出るし、ハートを押せば屋根に札が付く。
  *
+ * にちよさんの絵は案内全体で1枚だけ（相談デモの中のものを除く）。左端の波線の道を
+ * スクロールに合わせて降りてきて、見出しのすぐ下で一言しゃべる（IntroGrandmaRail）。
+ * 節ごとに絵を置くと「何人もいる」ことになり、案内していた人がいなくなる。
+ *
  * 出す条件は useMapIntro が持つ。ここは見た目と開き方だけを受け持つ。
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { motion, useDragControls } from 'framer-motion';
-import NextImage from 'next/image';
 import Link from 'next/link';
 import { ChevronDown, X } from 'lucide-react';
 import type { Shop } from '../types/shopData';
@@ -27,6 +30,7 @@ import { SHOP_CATEGORY_NAMES } from '../config/shopCategories';
 import IntroMapDemo from './intro/IntroMapDemo';
 import IntroSearchDemo from './intro/IntroSearchDemo';
 import IntroConsultDemo from './intro/IntroConsultDemo';
+import IntroGrandmaRail, { RAIL_STOP_HEIGHT, RAIL_WIDTH } from './intro/IntroGrandmaRail';
 import { pickIntroDemoShops, pickIntroSearchShops } from './intro/introDemoShops';
 
 type MapIntroPanelProps = {
@@ -125,26 +129,49 @@ function useSheetExpansion(): {
   };
 }
 
-/** デモを1つ抱えた区画。縦に積んで、上から順に読めるようにする */
+/**
+ * にちよさんが立ち寄る順に並べた一言。
+ *
+ * 節ごとの説明はここに集約する。薄い字の説明文を別に置くと、案内している人の
+ * 言葉と地の文が二重になるので、説明はにちよさんに言ってもらう。
+ */
+const RAIL_COMMENTS = [
+  'ようこそ、日曜市へ。わしが下まで案内するき、ついてきてや。',
+  '通りを指でなぞってみいや。気になった屋台はタップしたら中が見えるき。',
+  '何があるか分からんときは、ジャンルから見たらえいよ。',
+  '探すより聞くほうが早いこともあるき。なんでも聞いてや。',
+] as const;
+
+/**
+ * デモを1つ抱えた区画。縦に積んで、上から順に読めるようにする。
+ *
+ * 見出しの下には、にちよさんと吹き出しが入るぶんの場所だけ空けておく。
+ * 中身（絵と言葉）はレール側が1組だけ持っていて、その場所まで降りてくる。
+ */
 function IntroSection({
   step,
   title,
-  lead,
+  stopRef,
   children,
 }: {
   step: string;
   title: string;
-  lead: string;
+  stopRef: (el: HTMLDivElement | null) => void;
   children: React.ReactNode;
 }) {
   return (
-    <section className="border-t border-nicchyo-ink/[0.07] px-5 py-6">
-      <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-nicchyo-ink/35">
-        {step}
-      </p>
-      <h3 className="mt-1 text-[17px] font-bold leading-tight text-nicchyo-ink">{title}</h3>
-      <p className="mt-1.5 text-[13px] leading-relaxed text-nicchyo-ink/65">{lead}</p>
-      <div className="mt-3.5">{children}</div>
+    /* 道（絶対配置の SVG）より手前に置く。relative を付けないと、
+       位置指定のない中身のほうが下に潜って、文字の上を道が横切る */
+    <section className="relative z-[1] border-t border-nicchyo-ink/[0.07] py-6">
+      <div className="pl-[var(--intro-rail)] pr-5">
+        <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-nicchyo-ink/35">
+          {step}
+        </p>
+        <h3 className="mt-1 text-[17px] font-bold leading-tight text-nicchyo-ink">{title}</h3>
+      </div>
+      {/* にちよさんの停留点。高さだけ確保しておく */}
+      <div ref={stopRef} className="mt-2" style={{ height: RAIL_STOP_HEIGHT }} />
+      <div className="mt-1 px-5">{children}</div>
     </section>
   );
 }
@@ -169,6 +196,70 @@ export default function MapIntroPanel({ shops, onClose }: MapIntroPanelProps) {
     () => pickIntroSearchShops(shops, searchCategories),
     [shops, searchCategories]
   );
+
+  // ── にちよさんの道 ───────────────────────────────────────────
+  // 停留点の位置は中身の高さで変わる（相談デモは答えが出ると伸びる）ので、
+  // 一度測って終わりにせず、中身の大きさが変わるたびに測り直す
+  const railAreaRef = useRef<HTMLDivElement | null>(null);
+  const stopRefs = useRef<Array<HTMLDivElement | null>>([]);
+  const [railHeight, setRailHeight] = useState(0);
+  const [stopYs, setStopYs] = useState<number[]>([]);
+  const [activeStop, setActiveStop] = useState(0);
+
+  const measureRail = useCallback(() => {
+    const area = railAreaRef.current;
+    if (!area) return;
+    // offsetTop は「位置指定された親からの距離」なので、節に relative を付けた
+    // 時点で節の中での位置になってしまう。どこを起点に測るかを取り違えないよう、
+    // 道の起点との差で測る
+    const areaTop = area.getBoundingClientRect().top;
+    setRailHeight(area.offsetHeight);
+    setStopYs(
+      stopRefs.current.map((el) => (el ? Math.round(el.getBoundingClientRect().top - areaTop) : 0))
+    );
+  }, []);
+
+  useLayoutEffect(() => {
+    measureRail();
+    const area = railAreaRef.current;
+    if (!area || typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(measureRail);
+    observer.observe(area);
+    return () => observer.disconnect();
+  }, [measureRail]);
+
+  /** いま読んでいるのはどの停留点か。画面の少し上を基準線にする */
+  const updateActiveStop = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el || stopYs.length === 0) return;
+    // いちばん上にいるときは必ず最初の停留点。
+    // 下の基準線だけに任せると、下に書いた理由で初回に先へ飛ぶことがある
+    if (el.scrollTop <= 0) {
+      setActiveStop(0);
+      return;
+    }
+    // 組み上がった直後の一瞬、この枠は親の高さが効く前で中身なりの高さになる。
+    // そのまま使うと基準線が画面よりずっと下に引かれ、開いた時点で
+    // にちよさんが2つ目の停留点に立ってしまうので、画面の高さで頭を押さえる
+    const view = viewportHeight > 0 ? Math.min(el.clientHeight, viewportHeight) : el.clientHeight;
+    const line = el.scrollTop + view * 0.34;
+    let next = 0;
+    for (let i = 0; i < stopYs.length; i += 1) {
+      if (stopYs[i] <= line) next = i;
+    }
+    setActiveStop(next);
+  }, [scrollRef, stopYs, viewportHeight]);
+
+  // 停留点の位置・画面の高さ・開き具合が変わったら測り直す。
+  // どれも組み上がりの途中で動くので、一度だけでは正しい答えにならない
+  useEffect(() => {
+    updateActiveStop();
+  }, [updateActiveStop, expanded]);
+
+  const handleScroll = useCallback(() => {
+    handlers.onScroll();
+    updateActiveStop();
+  }, [handlers, updateActiveStop]);
 
   const peekHeight = Math.round(viewportHeight * PEEK_RATIO);
   const sheetHeight = expanded ? viewportHeight : peekHeight;
@@ -246,72 +337,91 @@ export default function MapIntroPanel({ shops, onClose }: MapIntroPanelProps) {
           ref={scrollRef}
           className="flex-1 overflow-y-auto overscroll-contain"
           {...handlers}
+          onScroll={handleScroll}
         >
-          {/* ── 見出し ── */}
-          <div className="px-5 pt-1">
-            <div className="flex items-center gap-3">
-              <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-full bg-nicchyo-accent/25">
-                <NextImage
-                  src="/images/obaasan_transparent.png"
-                  alt=""
-                  fill
-                  sizes="56px"
-                  className="object-cover object-top"
-                />
-              </div>
-              <div className="min-w-0">
-                <h2
-                  id="map-intro-title"
-                  className="text-[19px] font-bold leading-tight text-nicchyo-ink"
-                >
-                  ようこそ、日曜市へ
-                </h2>
-                <p className="mt-0.5 text-[12px] font-semibold tracking-wide text-nicchyo-ink/45">
-                  nicchyo（ニッチョ）
-                </p>
-              </div>
+          {/* にちよさんの道が通る範囲。停留点の位置はここの先頭から測る */}
+          <div
+            ref={railAreaRef}
+            className="relative"
+            style={{ ['--intro-rail' as string]: `${RAIL_WIDTH}px` }}
+          >
+            <IntroGrandmaRail
+              height={railHeight}
+              stopYs={stopYs}
+              activeStop={activeStop}
+              comment={RAIL_COMMENTS[activeStop] ?? RAIL_COMMENTS[0]}
+            />
+
+            {/* ── 見出し ── */}
+            <div className="relative z-[1] pl-[var(--intro-rail)] pr-5 pt-1">
+              <h2
+                id="map-intro-title"
+                className="text-[19px] font-bold leading-tight text-nicchyo-ink"
+              >
+                ようこそ、日曜市へ
+              </h2>
+              <p className="mt-0.5 text-[12px] font-semibold tracking-wide text-nicchyo-ink/45">
+                nicchyo（ニッチョ）
+              </p>
             </div>
 
-            <p className="mt-3 text-[13.5px] leading-relaxed text-nicchyo-ink/75">
-              毎週日曜、高知城のふもとから追手筋にかけて約300の店が並びます。
-              この地図は、はじめての人がそこを歩くためのものです。
-            </p>
-
-            {/* 広げる前だけ出すうながし。スクロールすれば全画面になる */}
+            {/* にちよさんの最初の停留点 */}
             <div
-              className={`mt-4 flex items-center justify-center gap-1.5 pb-5 text-[12px] font-semibold text-nicchyo-ink/40 transition-opacity duration-200 ${
-                expanded ? 'pointer-events-none opacity-0' : 'opacity-100'
-              }`}
-            >
-              <ChevronDown className="h-4 w-4 animate-bounce" aria-hidden />
-              下にスクロールすると、ここで実際に試せます
+              ref={(el) => {
+                stopRefs.current[0] = el;
+              }}
+              className="mt-2"
+              style={{ height: RAIL_STOP_HEIGHT }}
+            />
+
+            <div className="relative z-[1] pl-[var(--intro-rail)] pr-5">
+              <p className="text-[13.5px] leading-relaxed text-nicchyo-ink/75">
+                毎週日曜、高知城のふもとから追手筋にかけて約300の店が並びます。
+                この地図は、はじめての人がそこを歩くためのものです。
+              </p>
+
+              {/* 広げる前だけ出すうながし。スクロールすれば全画面になる */}
+              <div
+                className={`mt-4 flex items-center gap-1.5 pb-5 text-[12px] font-semibold text-nicchyo-ink/40 transition-opacity duration-200 ${
+                  expanded ? 'pointer-events-none opacity-0' : 'opacity-100'
+                }`}
+              >
+                <ChevronDown className="h-4 w-4 animate-bounce" aria-hidden />
+                下にスクロールすると、ここで実際に試せます
+              </div>
             </div>
+
+            {/* ── 機能ごとのデモ ── */}
+            <IntroSection
+              step="01"
+              title="地図で店を探す"
+              stopRef={(el) => {
+                stopRefs.current[1] = el;
+              }}
+            >
+              <IntroMapDemo shops={mapDemoShops} />
+            </IntroSection>
+
+            <IntroSection
+              step="02"
+              title="ジャンルでしぼる"
+              stopRef={(el) => {
+                stopRefs.current[2] = el;
+              }}
+            >
+              <IntroSearchDemo shops={searchDemoShops} categories={searchCategories} />
+            </IntroSection>
+
+            <IntroSection
+              step="03"
+              title="にちよさんに聞く"
+              stopRef={(el) => {
+                stopRefs.current[3] = el;
+              }}
+            >
+              <IntroConsultDemo />
+            </IntroSection>
           </div>
-
-          {/* ── 機能ごとのデモ ── */}
-          <IntroSection
-            step="01"
-            title="地図で店を探す"
-            lead="指で通りをたどると、写真と店名が前に出ます。気になった店をタップすると、品物も営業時間も見られます。"
-          >
-            <IntroMapDemo shops={mapDemoShops} />
-          </IntroSection>
-
-          <IntroSection
-            step="02"
-            title="ジャンルでしぼる"
-            lead="「何があるか分からない」ときは、ジャンルから。当てはまった店が写真で前に出ます。"
-          >
-            <IntroSearchDemo shops={searchDemoShops} categories={searchCategories} />
-          </IntroSection>
-
-          <IntroSection
-            step="03"
-            title="にちよさんに聞く"
-            lead="探すより聞くほうが早いこともあります。土佐弁のAIガイドが案内します。"
-          >
-            <IntroConsultDemo />
-          </IntroSection>
 
           <div className="border-t border-nicchyo-ink/[0.07] px-5 py-7 text-center">
             <p className="text-[14px] font-bold leading-relaxed text-nicchyo-ink">

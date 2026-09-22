@@ -69,7 +69,7 @@ export default function IntroConsultDemo() {
   const remaining = EXCHANGES.filter((e) => e.question !== asked?.question);
 
   return (
-    <div className="flex flex-col gap-3 rounded-2xl bg-white/60 px-4 py-5 ring-1 ring-nicchyo-ink/10">
+    <div className="flex flex-col gap-3 rounded-2xl bg-white/85 px-4 py-5 ring-1 ring-nicchyo-ink/10">
       {/* 主役のにちよさん。相談ページと同じ絵・同じ構えの動き */}
       <div className="flex flex-col items-center gap-2">
         <GrandmaAvatar pose={pose} size="hero" character={DEFAULT_CONSULT_CHARACTER} />

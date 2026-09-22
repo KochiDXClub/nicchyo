@@ -1618,6 +1618,19 @@ body.home-poster-zoom-open .hamburger-button {
   transform: rotate(45deg);
 }
 
+/*
+ * 尻尾を左に出す版。
+ *
+ * はじめての方への案内（MapIntroPanel）では、にちよさんがレールの上を降りてきて
+ * 吹き出しの左に立つので、尻尾も左を向く。形・色・大きさは上と同じものを使う。
+ */
+.consult-greeting--left::before {
+  top: 22px;
+  left: -6px;
+  margin-left: 0;
+  transform: rotate(-45deg);
+}
+
 /* にちよさんが定位置に着いてから、本文をじわっと出す。
    縮み終わりと同時に文字が出そろうと、画面が急に埋まって唐突に見える。
    opacity と transform だけで動かすので、下の要素のレイアウトは走らない。 */

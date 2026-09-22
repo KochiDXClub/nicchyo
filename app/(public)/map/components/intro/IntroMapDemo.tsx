@@ -14,7 +14,6 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import NextImage from 'next/image';
 import { ChevronsUpDown } from 'lucide-react';
 import IntroShopSheet from './IntroShopSheet';
 import {
@@ -152,30 +151,22 @@ export default function IntroMapDemo({ shops }: { shops: IntroDemoShop[] }) {
         </IntroRoad>
       </motion.div>
 
-      {/* にちよさんのうながし。動かしたら引っ込む */}
+      {/*
+        動かせることの合図。案内の言葉はレールのにちよさんが言うので（案内全体で
+        にちよさんの絵は1枚だけ）、ここは形だけの小さな印にとどめる。
+      */}
       <AnimatePresence>
         {!hasPanned && !openShop && (
           <motion.div
             key="intro-map-hint"
-            initial={{ opacity: 0, y: -8 }}
+            initial={{ opacity: 0, y: -6 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -8 }}
+            exit={{ opacity: 0, y: -6 }}
             transition={{ duration: 0.25 }}
-            className="pointer-events-none absolute left-3 top-2.5 flex items-start gap-2"
+            className="pointer-events-none absolute left-1/2 top-3 flex -translate-x-1/2 items-center gap-1.5 rounded-full bg-white/90 px-3 py-1.5 text-[11.5px] font-bold text-nicchyo-ink/70 shadow-sm ring-1 ring-nicchyo-ink/10"
           >
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-nicchyo-accent/30 shadow-sm ring-1 ring-white/70">
-              <NextImage
-                src="/images/obaasan_transparent.png"
-                alt="にちよさん"
-                width={26}
-                height={26}
-                className="h-[26px] w-[26px]"
-              />
-            </span>
-            <span className="flex items-center gap-1.5 rounded-2xl rounded-tl-sm bg-white/95 px-3 py-2 text-[12.5px] font-semibold leading-snug text-nicchyo-ink shadow-md ring-1 ring-nicchyo-ink/10">
-              <ChevronsUpDown className="h-3.5 w-3.5 shrink-0 opacity-50" aria-hidden />
-              指で上下に動かして、通りを歩いてみいや
-            </span>
+            <ChevronsUpDown className="h-3.5 w-3.5 shrink-0 opacity-60" aria-hidden />
+            上下に動かせます
           </motion.div>
         )}
       </AnimatePresence>
