@@ -93,16 +93,19 @@ export function IntroStallMarker({
  * 道。真ん中のグレーが通路、その両脇の暖色が屋台の並ぶ帯。
  * 「真ん中を歩けばいい」が色で分かる、という本番の塗り分けをそのまま縮めたもの。
  *
+ * 向きは縦。本番のマップも追手筋を画面の上下に通して見せているので、
+ * スマホで見たときと同じ向きになる。
+ *
  * 道の外にはうっすら建物を置く。本番はここにベースマップの街が見えているので、
- * 何も描かないと道の上下がただの余白に見えてしまう。
+ * 何も描かないと道の両脇がただの余白に見えてしまう。
  */
 export function IntroRoad({
   children,
-  /** 枠に対する道の高さ。屋台を何段置くかで変える */
-  bandHeight = '82%',
+  /** 枠に対する道の幅 */
+  bandWidth = '74%',
 }: {
   children?: React.ReactNode;
-  bandHeight?: string;
+  bandWidth?: string;
 }) {
   return (
     <div className="absolute inset-0 overflow-hidden" style={{ backgroundColor: '#ece5d8' }}>
@@ -119,26 +122,26 @@ export function IntroRoad({
 
       {/* 屋台が並ぶ帯 */}
       <div
-        className="absolute inset-x-0 top-1/2 -translate-y-1/2"
+        className="absolute inset-y-0 left-1/2 -translate-x-1/2"
         style={{
-          height: bandHeight,
+          width: bandWidth,
           backgroundColor: ROAD_STYLE.surfaceColor,
-          borderTop: `1.5px solid ${ROAD_STYLE.edgeColor}`,
-          borderBottom: `1.5px solid ${ROAD_STYLE.edgeColor}`,
+          borderLeft: `1.5px solid ${ROAD_STYLE.edgeColor}`,
+          borderRight: `1.5px solid ${ROAD_STYLE.edgeColor}`,
         }}
       >
         {/* 中央の通路（アスファルトが見えているところ） */}
         <div
-          className="absolute inset-x-0 top-1/2 -translate-y-1/2"
-          style={{ height: '30%', backgroundColor: ROAD_STYLE.corridorColor }}
+          className="absolute inset-y-0 left-1/2 -translate-x-1/2"
+          style={{ width: '30%', backgroundColor: ROAD_STYLE.corridorColor }}
         >
           {/* 中央線 */}
           <div
-            className="absolute inset-x-0 top-1/2 -translate-y-1/2"
+            className="absolute inset-y-0 left-1/2 -translate-x-1/2"
             style={{
-              height: '2px',
+              width: '2px',
               opacity: ROAD_STYLE.laneOpacity,
-              backgroundImage: `repeating-linear-gradient(to right, ${ROAD_STYLE.laneColor} 0 14px, transparent 14px 26px)`,
+              backgroundImage: `repeating-linear-gradient(to bottom, ${ROAD_STYLE.laneColor} 0 14px, transparent 14px 26px)`,
             }}
           />
         </div>
@@ -148,16 +151,18 @@ export function IntroRoad({
   );
 }
 
-/** 道の外に置く街区。位置は見た目だけの固定値 */
+/** 道の外（左右）に置く街区。位置は見た目だけの固定値 */
 const BUILDINGS = [
-  { left: '4%', top: '1%', w: '18%', h: '7%' },
-  { left: '26%', top: '0%', w: '12%', h: '6%' },
-  { left: '44%', top: '1.5%', w: '22%', h: '6%' },
-  { left: '72%', top: '0%', w: '16%', h: '7%' },
-  { left: '8%', top: '92%', w: '14%', h: '7%' },
-  { left: '30%', top: '93%', w: '20%', h: '6%' },
-  { left: '58%', top: '92%', w: '13%', h: '7%' },
-  { left: '77%', top: '93.5%', w: '18%', h: '6%' },
+  { left: '1%', top: '5%', w: '7%', h: '14%' },
+  { left: '0%', top: '26%', w: '6%', h: '10%' },
+  { left: '1.5%', top: '44%', w: '7%', h: '16%' },
+  { left: '0%', top: '68%', w: '6%', h: '12%' },
+  { left: '1%', top: '85%', w: '7%', h: '11%' },
+  { left: '92%', top: '3%', w: '7%', h: '12%' },
+  { left: '93%', top: '22%', w: '6%', h: '16%' },
+  { left: '91.5%', top: '46%', w: '7%', h: '10%' },
+  { left: '93%', top: '63%', w: '6%', h: '14%' },
+  { left: '92%', top: '84%', w: '7%', h: '12%' },
 ];
 
 /** デモの枠。角丸と影だけを持つ器 */

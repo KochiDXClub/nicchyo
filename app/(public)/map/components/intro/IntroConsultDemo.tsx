@@ -3,15 +3,20 @@
 /**
  * 「にちよさんに聞く」のデモ。
  *
- * 吹き出し・アバター・打っている最中の三点は AiConsultPanel と同じ形にしてある。
- * ただし答えは決め打ちで、AI は呼ばない。案内を開いただけで API を叩かないためと、
- * 初めての人に「こういうやり取りになる」形だけ先に見せたいため。
- * 決め打ちであることは画面にも書いておく。
+ * 相談ページ（ConsultStage）の画面をそのまま縮めたもの。
+ *   大きなにちよさん → 最初のひとこと → 質問の候補ボタン → 答えのカード1枚
+ * キャラ絵は相談ページと同じ GrandmaAvatar（構えが変わるとうなずく）を呼び、
+ * 答えのカード・候補ボタン・考え中の骨組みも相談ページと同じ形にしてある。
+ * チャットの吹き出しが並ぶ画面ではないので、ここも1枚だけ出す。
+ *
+ * 違うのは、答えが決め打ちで AI を呼ばないところ。案内を開いただけで
+ * AI が動かないようにするため。見本であることは画面にも書いてある。
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import NextImage from 'next/image';
-import { ChevronRight } from 'lucide-react';
+import GrandmaAvatar from '../../../consult/components/GrandmaAvatar';
+import { DEFAULT_CONSULT_CHARACTER } from '../../../consult/data/consultCharacters';
+import type { GrandmaPose } from '@/lib/grandma/pose';
 
 type Exchange = { question: string; answer: string };
 
@@ -33,141 +38,98 @@ const EXCHANGES: Exchange[] = [
   },
 ];
 
-type Message = { role: 'user' | 'grandma'; text: string };
+/** 考えている時間。相談ページで実際に待つくらいの長さにする */
+const THINKING_MS = 900;
 
 export default function IntroConsultDemo() {
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [typing, setTyping] = useState(false);
-  const [asked, setAsked] = useState<string[]>([]);
-  const timersRef = useRef<number[]>([]);
-  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const [asked, setAsked] = useState<Exchange | null>(null);
+  const [thinking, setThinking] = useState(false);
+  const timerRef = useRef<number | null>(null);
 
   useEffect(
     () => () => {
-      timersRef.current.forEach((id) => window.clearTimeout(id));
+      if (timerRef.current !== null) window.clearTimeout(timerRef.current);
     },
     []
   );
 
-  // 新しい発言が入ったら下まで送る（本番のチャットと同じ）
-  useEffect(() => {
-    const el = scrollRef.current;
-    if (el) el.scrollTop = el.scrollHeight;
-  }, [messages, typing]);
-
   const ask = useCallback((exchange: Exchange) => {
-    if (typing) return;
-    setAsked((prev) => [...prev, exchange.question]);
-    setMessages((prev) => [...prev, { role: 'user', text: exchange.question }]);
-    setTyping(true);
-    const id = window.setTimeout(() => {
-      setTyping(false);
-      setMessages((prev) => [...prev, { role: 'grandma', text: exchange.answer }]);
-    }, 900);
-    timersRef.current.push(id);
-  }, [typing]);
+    if (thinking) return;
+    setAsked(exchange);
+    setThinking(true);
+    timerRef.current = window.setTimeout(() => {
+      timerRef.current = null;
+      setThinking(false);
+    }, THINKING_MS);
+  }, [thinking]);
 
-  const remaining = EXCHANGES.filter((e) => !asked.includes(e.question));
+  // 相談ページと同じ導き方（考えている → 答えている → 待機）
+  const pose: GrandmaPose = thinking ? 'thinking' : asked ? 'speaking' : 'idle';
+  const showAnswer = asked !== null;
+  const remaining = EXCHANGES.filter((e) => e.question !== asked?.question);
 
   return (
-    <div className="overflow-hidden rounded-2xl bg-white/80 ring-1 ring-nicchyo-ink/10">
-      <div
-        ref={scrollRef}
-        className="max-h-[210px] min-h-[132px] space-y-2.5 overflow-y-auto px-3.5 py-3"
-      >
-        {messages.length === 0 && !typing && (
-          <div className="flex flex-col items-center gap-2 py-3">
-            <span className="flex h-14 w-14 items-center justify-center rounded-full bg-nicchyo-accent/25">
-              <NextImage
-                src="/images/obaasan_transparent.png"
-                alt="にちよさん"
-                width={40}
-                height={40}
-                className="h-10 w-10"
-              />
-            </span>
-            <p className="text-[13px] font-bold text-nicchyo-ink">
-              日曜市のことなら何でも聞いてね
+    <div className="flex flex-col gap-3 rounded-2xl bg-white/60 px-4 py-5 ring-1 ring-nicchyo-ink/10">
+      {/* 主役のにちよさん。相談ページと同じ絵・同じ構えの動き */}
+      <div className="flex flex-col items-center gap-2">
+        <GrandmaAvatar pose={pose} size="hero" character={DEFAULT_CONSULT_CHARACTER} />
+
+        {!showAnswer && (
+          <div className="consult-greeting max-w-[19rem] rounded-2xl border border-amber-200 bg-white px-4 py-2.5 text-center shadow-sm">
+            <p className="text-[15px] font-bold leading-6 text-amber-900">
+              この通りのことなら、なんでも聞いてや。
             </p>
-            <p className="text-[11px] text-nicchyo-ink/45">土佐弁で親切にお答えするがよ〜</p>
-          </div>
-        )}
-
-        {messages.map((message, i) => {
-          const isUser = message.role === 'user';
-          return (
-            <div
-              key={`${message.role}-${i}`}
-              className={`flex items-end gap-2 ${isUser ? 'flex-row-reverse' : 'flex-row'}`}
-            >
-              {!isUser && (
-                <span className="mb-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-nicchyo-accent/25">
-                  <NextImage
-                    src="/images/obaasan_transparent.png"
-                    alt=""
-                    width={20}
-                    height={20}
-                    className="h-5 w-5"
-                  />
-                </span>
-              )}
-              <span
-                className={`max-w-[80%] rounded-2xl px-3.5 py-2.5 text-[13px] leading-relaxed shadow-sm ${
-                  isUser
-                    ? 'rounded-br-sm bg-slate-900 text-white'
-                    : 'rounded-bl-sm border border-amber-200 bg-amber-50 text-slate-800'
-                }`}
-              >
-                {message.text}
-              </span>
-            </div>
-          );
-        })}
-
-        {typing && (
-          <div className="flex items-end gap-2">
-            <span className="mb-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-nicchyo-accent/25">
-              <NextImage
-                src="/images/obaasan_transparent.png"
-                alt=""
-                width={20}
-                height={20}
-                className="h-5 w-5"
-              />
-            </span>
-            <span className="rounded-2xl rounded-bl-sm border border-amber-200 bg-amber-50 px-4 py-3 shadow-sm">
-              <span className="inline-flex items-center gap-1" aria-label="にちよさんが入力中">
-                {[0, 160, 320].map((delay) => (
-                  <span
-                    key={delay}
-                    className="h-1.5 w-1.5 animate-bounce rounded-full bg-amber-500/70"
-                    style={{ animationDelay: `${delay}ms` }}
-                  />
-                ))}
-              </span>
-            </span>
+            <p className="mt-0.5 text-[11px] text-amber-700/80">
+              聞きたいことを選んでね
+            </p>
           </div>
         )}
       </div>
 
-      {remaining.length > 0 && (
-        <div className="space-y-1.5 border-t border-nicchyo-ink/[0.07] bg-white/60 px-3.5 py-3">
+      {/* 今の答え。相談ページと同じで、並べずに1枚だけ出す */}
+      {showAnswer && (
+        <div className="rounded-3xl border border-amber-100 bg-white/90 p-4 shadow-sm">
+          <p className="truncate text-xs text-slate-400">{asked.question}</p>
+          <p className="mt-1 text-[11px] font-bold text-amber-700">
+            {DEFAULT_CONSULT_CHARACTER.name}
+          </p>
+          {thinking ? (
+            <div className="mt-3 flex flex-col gap-2" aria-live="polite" aria-label="考え中">
+              <span className="consult-skeleton h-3.5 w-4/5 rounded-full" />
+              <span
+                className="consult-skeleton h-3.5 w-full rounded-full"
+                style={{ animationDelay: '120ms' }}
+              />
+              <span
+                className="consult-skeleton h-3.5 w-3/5 rounded-full"
+                style={{ animationDelay: '240ms' }}
+              />
+            </div>
+          ) : (
+            <p className="mt-2 whitespace-pre-wrap text-[15px] leading-7 text-slate-800">
+              {asked.answer}
+            </p>
+          )}
+        </div>
+      )}
+
+      {/* 候補ボタン。相談ページではここが主役なので、同じ大きさ・同じ見た目にする */}
+      {!thinking && remaining.length > 0 && (
+        <div className="flex flex-col gap-2">
           {remaining.map((exchange) => (
             <button
               key={exchange.question}
               type="button"
               onClick={() => ask(exchange)}
-              disabled={typing}
-              className="flex w-full items-center gap-2 rounded-xl border border-amber-200 bg-amber-50/70 px-3.5 py-2.5 text-left text-[12.5px] font-semibold text-amber-900 transition active:scale-[0.98] disabled:opacity-50"
+              className="w-full rounded-2xl border border-amber-200 bg-white px-4 py-4 text-left text-base font-bold text-amber-900 shadow-sm transition active:scale-[0.98]"
             >
-              <span className="flex-1">{exchange.question}</span>
-              <ChevronRight className="h-3.5 w-3.5 shrink-0 opacity-40" />
+              {exchange.question}
             </button>
           ))}
         </div>
       )}
 
-      <p className="border-t border-nicchyo-ink/[0.07] px-3.5 py-2 text-center text-[10.5px] leading-relaxed text-nicchyo-ink/40">
+      <p className="text-center text-[10.5px] leading-relaxed text-nicchyo-ink/40">
         ここは見本の受け答えです。実際のにちよさんは、その日のお店の情報をもとに答えます
       </p>
     </div>

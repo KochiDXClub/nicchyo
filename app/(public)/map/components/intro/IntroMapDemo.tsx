@@ -18,17 +18,22 @@ import { getShopBannerImage } from '@/lib/shopImages';
 import { IntroDemoFrame, IntroRoad, IntroStallMarker } from './IntroStall';
 import type { IntroDemoShop } from './introDemoShops';
 
-const FRAME_HEIGHT = 250;
+/** スマホでマップページを開いたときと同じくらいの、縦に長い画面 */
+const FRAME_HEIGHT = 460;
 
 /**
  * 屋台の置き場所（枠に対する割合）。
- * foot は足元の位置。真ん中の通路（枠の 38%〜62%）を空けて、その外側に立たせる。
+ *
+ * 道は縦に通っているので、屋台は左右の列に分かれて上から順に並ぶ。
+ * left は足元の位置、side は木札の出る向き（本番と同じで道の外側へ出る）。
+ * 真ん中の通路（枠の 39%〜61%）は空けておく。
  */
 const STALL_SLOTS = [
-  { side: 'north' as const, left: '22%', foot: '37%' },
-  { side: 'north' as const, left: '56%', foot: '37%' },
-  { side: 'south' as const, left: '34%', foot: '84%' },
-  { side: 'south' as const, left: '70%', foot: '84%' },
+  { side: 'south' as const, left: '33%', foot: '22%' },
+  { side: 'north' as const, left: '67%', foot: '33%' },
+  { side: 'south' as const, left: '33%', foot: '47%' },
+  { side: 'north' as const, left: '67%', foot: '58%' },
+  { side: 'south' as const, left: '33%', foot: '72%' },
 ];
 
 export default function IntroMapDemo({ shops }: { shops: IntroDemoShop[] }) {
@@ -63,7 +68,7 @@ export default function IntroMapDemo({ shops }: { shops: IntroDemoShop[] }) {
               <IntroStallMarker
                 shop={shop}
                 side={slot.side}
-                scale={0.62}
+                scale={0.6}
                 state={{
                   selected: openShopId === shop.id,
                   favorite: favoriteIds.includes(shop.id),
