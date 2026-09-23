@@ -10,7 +10,7 @@ import SearchClient from "../search/SearchClient";
 import type { MapCamera as LeafletMap } from "./types/mapCamera";
 import { clearSearchMapPayload, loadAiMapPayload, loadSearchMapPayload } from "../../../lib/searchMapStorage";
 import NextImage from "next/image";
-import { getShopBannerImage } from "../../../lib/shopImages";
+import { getShopPreviewImage } from "../../../lib/shopImages";
 import { useAuth } from "../../../lib/auth/AuthContext";
 import { SHOP_CATEGORY_NAMES } from "./data/shops";
 import type { Shop } from "./data/shops";
@@ -508,8 +508,7 @@ export default function MapPageClient({
       if (typeof window === "undefined") return;
       const shop = shopById.get(shopId);
       if (!shop) return;
-      const bannerSeed = shop.position ?? shop.id;
-      const src = shop.images?.main ?? getShopBannerImage(shop.category, bannerSeed);
+      const src = getShopPreviewImage(shop);
       if (!src) return;
       const img = new Image();
       img.src = src;
@@ -548,6 +547,9 @@ export default function MapPageClient({
     if (!vendorShopId) return null;
     return shops.find((shop) => shop.vendorId === vendorShopId) ?? null;
   }, [shops, vendorShopId]);
+
+  // 出店者パネルに出す写真。店が見つからないときも既定のバナーが返る（従来と同じ）
+  const vendorShopImage = getShopPreviewImage(vendorShop ?? {});
 
   useEffect(() => {
     if (!searchParams) return;
@@ -797,9 +799,7 @@ export default function MapPageClient({
       shopId: shop.id,
       name: shop.name,
       category: shop.category,
-      imageUrl:
-        shop.images?.main ??
-        getShopBannerImage(shop.category, shop.position ?? shop.id),
+      imageUrl: getShopPreviewImage(shop),
       reason,
     }));
     setNearbyState({
@@ -875,20 +875,10 @@ export default function MapPageClient({
                       ×
                     </button>
                   </div>
-                  {(vendorShop?.images?.main ||
-                    getShopBannerImage(
-                      vendorShop?.category,
-                      (vendorShop?.position ?? vendorShop?.id ?? 0)
-                    )) && (
+                  {vendorShopImage && (
                     <div className="mt-3 overflow-hidden rounded-2xl border border-amber-100 bg-white">
                       <NextImage
-                        src={
-                          vendorShop?.images?.main ??
-                          getShopBannerImage(
-                            vendorShop?.category,
-                            (vendorShop?.position ?? vendorShop?.id ?? 0)
-                          ) ?? ''
-                        }
+                        src={vendorShopImage}
                         alt={`${vendorShopName}の写真`}
                         width={600}
                         height={160}
