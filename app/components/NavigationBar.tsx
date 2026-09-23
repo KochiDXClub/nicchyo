@@ -191,6 +191,12 @@ function NavigationBarInner({
   const isCloseUxActive = isPanelOpen || closeModeActive;
   const isHome = (activeHref ?? pathname) === "/map" && !panel && !isCloseUxActive;
 
+  // 「今いるページ」の判定は遷移先（target）で行う。
+  // 相談は href が /map（マップ上では onConsultClick で /consult へ送る）なので、
+  // href で比べるとマップにいるだけで相談が点いてしまう。
+  const currentHref = activeHref ?? pathname;
+  const isNavItemActive = (item: NavItem) => currentHref === (item.target ?? item.href);
+
   // ページ公開設定で public でないリンクはナビに出さない
   const consultItem = baseNavItems[0];
   const isConsultVisible = isLinkVisible(consultItem.target ?? consultItem.href);
@@ -466,10 +472,7 @@ function NavigationBarInner({
                 </span>
               </button>
             ) : (
-              <NavLinkItem
-                item={consultItem}
-                isActive={(activeHref ?? pathname) === consultItem.href}
-              />
+              <NavLinkItem item={consultItem} isActive={isNavItemActive(consultItem)} />
             )}
 
             {/* 中央：メニューボタン */}
@@ -520,11 +523,7 @@ function NavigationBarInner({
               <div className="flex-1" aria-hidden />
             ) : (
               rightNavItems.map((item) => (
-                <NavLinkItem
-                  key={item.href}
-                  item={item}
-                  isActive={(activeHref ?? pathname) === item.href}
-                />
+                <NavLinkItem key={item.href} item={item} isActive={isNavItemActive(item)} />
               ))
             )}
           </div>
