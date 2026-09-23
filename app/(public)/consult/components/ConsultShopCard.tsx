@@ -3,7 +3,7 @@
 import Image from "next/image";
 import { useState } from "react";
 import { MapPin } from "lucide-react";
-import { getShopBannerImage } from "@/lib/shopImages";
+import { getShopPreviewImage } from "@/lib/shopImages";
 import type { ShopCategory } from "../../map/config/shopCategories";
 import type { Shop } from "../../map/data/shops";
 
@@ -50,7 +50,7 @@ export default function ConsultShopCard({
 }: ConsultShopCardProps) {
   const [imageFailed, setImageFailed] = useState(false);
 
-  const imageUrl = shop.images?.main ?? getShopBannerImage(shop.category, shop.id);
+  const imageUrl = getShopPreviewImage(shop);
   const fallback = CATEGORY_FALLBACK[shop.category as ShopCategory] ?? DEFAULT_FALLBACK;
   const products = (shop.products ?? []).filter(Boolean).slice(0, 3);
   const isSingle = variant === "single";
