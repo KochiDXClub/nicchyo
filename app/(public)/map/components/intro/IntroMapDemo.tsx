@@ -12,15 +12,18 @@
  * スマホで案内の続きへスクロールできなくなる（端まで来ても外へ渡らない）。
  * 普通のスクロールなら、端に着いたところで外のスクロールへ自然に渡る。
  *
- * 屋台・カード・バナーはどれもマップ本体が使っている部品をそのまま呼んでいる。
+ * 屋台・カードはどれもマップ本体が使っている部品をそのまま呼んでいる。
  * 店名の木札を常時は出さないのも、探しているあいだだけカードを出すのも、
  * 本番の見せ方に合わせたもの（IntroStall.tsx の IntroStallMarker 参照）。
+ *
+ * 押した店のバナーはここでは開かない。デモの枠の中に収めると写真と見出しで
+ * 切れてしまうので、親（MapIntroPanel）が案内全体の上に開く。ここは
+ * 「どの店が押されたか」を伝え、選ばれている店とお気に入りの印を受け取って描くだけ。
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ChevronsUpDown } from 'lucide-react';
-import IntroShopSheet from './IntroShopSheet';
 import {
   INTRO_CARD_HEIGHT,
   INTRO_CARD_WIDTH,
@@ -66,12 +69,18 @@ export default function IntroMapDemo({
   shops,
   /** 画面が広いときは縦にもっと見せられる */
   frameHeight = DEFAULT_FRAME_HEIGHT,
+  favoriteIds,
+  selectedShopId,
+  onSelectShop,
 }: {
   shops: IntroDemoShop[];
   frameHeight?: number;
+  /** お気に入りの印が付いている店（案内全体で共通） */
+  favoriteIds: number[];
+  /** いまバナーが開いている店。屋台を選ばれた見た目にする */
+  selectedShopId: number | null;
+  onSelectShop: (shop: IntroDemoShop) => void;
 }) {
-  const [openShopId, setOpenShopId] = useState<number | null>(null);
-  const [favoriteIds, setFavoriteIds] = useState<number[]>([]);
   /** 指で動かしているあいだと、その直後。本番と同じでカードはこのときだけ出す */
   const [scanning, setScanning] = useState(false);
   /** 一度でも動かしたら、うながしの吹き出しは引っ込める */
@@ -81,7 +90,6 @@ export default function IntroMapDemo({
 
   const slots = buildSlots(shops.length);
   const placed = shops.map((shop, i) => ({ shop, slot: slots[i] }));
-  const openShop = shops.find((shop) => shop.id === openShopId) ?? null;
 
   useEffect(
     () => () => {
@@ -105,10 +113,6 @@ export default function IntroMapDemo({
     }, HOLD_MS);
   }, []);
 
-  const toggleFavorite = useCallback((id: number) => {
-    setFavoriteIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
-  }, []);
-
   return (
     <IntroDemoFrame height={frameHeight}>
       {/* 上下に動かせる道。本番のパン操作にあたる */}
@@ -126,10 +130,10 @@ export default function IntroMapDemo({
                   side={slot.side}
                   scale={0.6}
                   state={{
-                    selected: openShopId === shop.id,
+                    selected: selectedShopId === shop.id,
                     favorite: favoriteIds.includes(shop.id),
                   }}
-                  onClick={() => setOpenShopId(shop.id)}
+                  onClick={() => onSelectShop(shop)}
                 />
               </div>
             ))}
@@ -152,7 +156,7 @@ export default function IntroMapDemo({
                     height: INTRO_CARD_HEIGHT,
                   }}
                 >
-                  <IntroScanCard shop={shop} onClick={() => setOpenShopId(shop.id)} />
+                  <IntroScanCard shop={shop} onClick={() => onSelectShop(shop)} />
                 </div>
               ))}
             </div>
@@ -165,30 +169,19 @@ export default function IntroMapDemo({
         にちよさんの絵は1枚だけ）、ここは形だけの小さな印にとどめる。
       */}
       <AnimatePresence>
-        {!hasPanned && !openShop && (
+        {!hasPanned && selectedShopId === null && (
           <motion.div
             key="intro-map-hint"
             initial={{ opacity: 0, y: -6 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -6 }}
+            // 動かし始めたら即座に消す。ゆっくり消すと、出てきた写真カードの上に重なる
+            exit={{ opacity: 0, transition: { duration: 0.08 } }}
             transition={{ duration: 0.25 }}
             className="pointer-events-none absolute left-1/2 top-3 flex -translate-x-1/2 items-center gap-1.5 rounded-full bg-white/90 px-3 py-1.5 text-[11.5px] font-bold text-nicchyo-ink/70 shadow-sm ring-1 ring-nicchyo-ink/10"
           >
             <ChevronsUpDown className="h-3.5 w-3.5 shrink-0 opacity-60" aria-hidden />
             上下に動かせます
           </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* 本番と同じ、下から全開まで開くバナー */}
-      <AnimatePresence>
-        {openShop && (
-          <IntroShopSheet
-            shop={openShop}
-            isFavorite={favoriteIds.includes(openShop.id)}
-            onToggleFavorite={() => toggleFavorite(openShop.id)}
-            onClose={() => setOpenShopId(null)}
-          />
         )}
       </AnimatePresence>
     </IntroDemoFrame>

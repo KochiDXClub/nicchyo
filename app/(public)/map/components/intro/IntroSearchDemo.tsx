@@ -7,7 +7,8 @@
  * 押すと本番と同じことが起きる。
  *   当てはまった店 … 写真と店名のカードで大きく前に出る（ShopScanCards）
  *   外れた店       … 沈んで色が抜ける（map-search-spotlight-mode と同じ落とし方）
- * カードをタップすれば、地図のときと同じくバナーが全開で開く。
+ * カードをタップすれば、地図のときと同じくバナーが全開で開く（開くのは親の
+ * MapIntroPanel。案内全体の上に開くので、ここは押された店を伝えるだけ）。
  *
  * 検索バーとお気に入りの絞り込みは、ここでは触っても動かせない（文字を打つ先も、
  * お気に入りに入れた店も無い）ので置いていない。押せそうに見えて動かないものを
@@ -15,8 +16,6 @@
  */
 
 import { useCallback, useMemo, useState } from 'react';
-import { AnimatePresence } from 'framer-motion';
-import IntroShopSheet from './IntroShopSheet';
 import {
   INTRO_CARD_HEIGHT,
   INTRO_CARD_WIDTH,
@@ -44,28 +43,28 @@ export default function IntroSearchDemo({
   categories,
   /** 画面が広いときは縦にもっと見せられる */
   frameHeight = DEFAULT_FRAME_HEIGHT,
+  favoriteIds,
+  selectedShopId,
+  onSelectShop,
 }: {
   shops: IntroDemoShop[];
   categories: readonly string[];
   frameHeight?: number;
+  /** お気に入りの印が付いている店（案内全体で共通） */
+  favoriteIds: number[];
+  /** いまバナーが開いている店。屋台を選ばれた見た目にする */
+  selectedShopId: number | null;
+  onSelectShop: (shop: IntroDemoShop) => void;
 }) {
   const [selected, setSelected] = useState<string | null>(null);
-  const [openShopId, setOpenShopId] = useState<number | null>(null);
-  const [favoriteIds, setFavoriteIds] = useState<number[]>([]);
 
   const placed = shops.slice(0, STALL_SLOTS.length);
   const matchCount = useMemo(
     () => (selected ? placed.filter((shop) => shop.category === selected).length : 0),
     [placed, selected]
   );
-  const openShop = placed.find((shop) => shop.id === openShopId) ?? null;
-
-  const toggleFavorite = useCallback((id: number) => {
-    setFavoriteIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
-  }, []);
 
   const pickCategory = useCallback((category: string) => {
-    setOpenShopId(null);
     setSelected((prev) => (prev === category ? null : category));
   }, []);
 
@@ -105,12 +104,12 @@ export default function IntroSearchDemo({
                   side={slot.side}
                   scale={0.58}
                   state={{
-                    selected: openShopId === shop.id,
+                    selected: selectedShopId === shop.id,
                     favorite: favoriteIds.includes(shop.id),
                     highlighted: !!selected && matched,
                     dimmed: !!selected && !matched,
                   }}
-                  onClick={() => setOpenShopId(shop.id)}
+                  onClick={() => onSelectShop(shop)}
                 />
               </div>
             );
@@ -133,22 +132,11 @@ export default function IntroSearchDemo({
                     height: INTRO_CARD_HEIGHT,
                   }}
                 >
-                  <IntroScanCard shop={shop} onClick={() => setOpenShopId(shop.id)} />
+                  <IntroScanCard shop={shop} onClick={() => onSelectShop(shop)} />
                 </div>
               );
             })}
         </IntroRoad>
-
-        <AnimatePresence>
-          {openShop && (
-            <IntroShopSheet
-              shop={openShop}
-              isFavorite={favoriteIds.includes(openShop.id)}
-              onToggleFavorite={() => toggleFavorite(openShop.id)}
-              onClose={() => setOpenShopId(null)}
-            />
-          )}
-        </AnimatePresence>
       </IntroDemoFrame>
 
       <p className="pt-1 text-center text-[11.5px] font-semibold text-nicchyo-ink/40">

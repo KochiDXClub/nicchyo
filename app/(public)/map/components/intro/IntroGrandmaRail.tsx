@@ -22,6 +22,7 @@ import {
   useMotionValue,
   useReducedMotion,
   useTransform,
+  type MotionValue,
 } from 'framer-motion';
 import GrandmaAvatar from '../../../consult/components/GrandmaAvatar';
 import { DEFAULT_CONSULT_CHARACTER } from '../../../consult/data/consultCharacters';
@@ -78,6 +79,8 @@ export default function IntroGrandmaRail({
   targetStop,
   comments,
   stopHeight = RAIL_STOP_HEIGHT,
+  scrollY,
+  viewHeight = 0,
 }: {
   /** 道を引く高さ（案内の中身の高さ） */
   height: number;
@@ -89,6 +92,10 @@ export default function IntroGrandmaRail({
   comments: readonly string[];
   /** 停留点1つぶんの高さ */
   stopHeight?: number;
+  /** いまのスクロール位置（中身の先頭からの px）。画面の外から歩き始めるときの判定に使う */
+  scrollY?: MotionValue<number>;
+  /** 見えている範囲の高さ */
+  viewHeight?: number;
 }) {
   const reduceMotion = useReducedMotion();
   const [pose, setPose] = useState<GrandmaPose>('idle');
@@ -116,13 +123,26 @@ export default function IntroGrandmaRail({
 
   useEffect(() => {
     if (stopYs.length === 0) return;
-    const distance = Math.abs(stopY - top.get());
+    let from = top.get();
     // 開いた直後（まだ 0 に居る）と、測り直しの小さなずれは歩かない
-    if (!hasMeasuredRef.current || distance < SNAP_PX || reduceMotion) {
+    if (!hasMeasuredRef.current || Math.abs(stopY - from) < SNAP_PX || reduceMotion) {
       hasMeasuredRef.current = true;
       top.set(stopY);
       return;
     }
+    /*
+     * 前の停留点が画面の外に流れていたら、画面の端のすぐ外から歩き始める。
+     * 節を送ると前の停留点は上に消えるので、そこから律儀に歩くと着くまでの
+     * 1秒近く、画面にはにちよさんが居ない。端から入ってくれば、送った直後から見える
+     */
+    if (scrollY && viewHeight > 0) {
+      const visibleTop = scrollY.get();
+      const visibleBottom = visibleTop + viewHeight;
+      if (from + AVATAR_SIZE < visibleTop) from = visibleTop - AVATAR_SIZE;
+      else if (from > visibleBottom) from = visibleBottom;
+      top.set(from);
+    }
+    const distance = Math.abs(stopY - from);
     setWalking(true);
     const controls = animate(top, stopY, {
       // 距離なりに時間をかける。遠いところへ一瞬で着くと歩いて見えない
@@ -134,6 +154,8 @@ export default function IntroGrandmaRail({
       controls.stop();
       setWalking(false);
     };
+    // scrollY / viewHeight は歩き始める瞬間に読むだけ。値が変わるたびに歩き直さない
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stopY, stopYs.length, reduceMotion, top]);
 
   // 歩いているあいだは前を見て、着いたらしばらく話している顔にする

@@ -11,8 +11,13 @@
  * 「説明を読まされてからマップへ行く」ではなく「マップに来ていて、その上で
  * 使い方を触っている」にするための形。
  *
+ * 節の先頭で必ず一度止まる（scroll-snap）ので、勢いよく送っても見どころを
+ * 飛ばさない。下の操作列には進み具合の点があり、押せばその節へ飛べる。
+ *
  * デモは絵ではなく、本物の部品（markerHtmlGenerator・ShopBannerHero・道の色）で
  * 組んである。屋台をタップすればバナーが出るし、ハートを押せば屋根に札が付く。
+ * バナーはデモの枠の中ではなく、案内全体の上に本番と同じ大きさで開く。
+ * お気に入りは案内全体で1つの束なので、地図デモで付けた印はジャンルデモでも付いている。
  *
  * にちよさんの絵は案内全体で1枚だけ（相談デモの中のものを除く）。左端の波線の道を
  * スクロールに合わせて降りてきて、見出しのすぐ下で一言しゃべる（IntroGrandmaRail）。
@@ -22,20 +27,31 @@
  */
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { AnimatePresence, motion, useDragControls } from 'framer-motion';
+import {
+  AnimatePresence,
+  motion,
+  useDragControls,
+  useMotionValue,
+  useReducedMotion,
+} from 'framer-motion';
 import Link from 'next/link';
-import { X } from 'lucide-react';
+import { ArrowUpRight, ChevronUp, Map as MapIcon, MessageCircle, Tag, X } from 'lucide-react';
 import type { Shop } from '../types/shopData';
 import { SHOP_CATEGORY_NAMES } from '../config/shopCategories';
 import IntroMapDemo from './intro/IntroMapDemo';
 import IntroSearchDemo from './intro/IntroSearchDemo';
 import IntroConsultDemo from './intro/IntroConsultDemo';
+import IntroShopSheet from './intro/IntroShopSheet';
 import IntroGrandmaRail, {
   RAIL_STOP_HEIGHT,
   RAIL_STOP_HEIGHT_DESKTOP,
   RAIL_WIDTH,
 } from './intro/IntroGrandmaRail';
-import { pickIntroDemoShops, pickIntroSearchShops } from './intro/introDemoShops';
+import {
+  pickIntroDemoShops,
+  pickIntroSearchShops,
+  type IntroDemoShop,
+} from './intro/introDemoShops';
 
 type MapIntroPanelProps = {
   /** 開いているか。閉じる動きはこの部品の中の AnimatePresence が受け持つ */
@@ -47,9 +63,10 @@ type MapIntroPanelProps = {
 
 /**
  * 最初に見せる高さ（画面に対する割合）。残りは地図が見えている。
- * 見出し・にちよさんの一言・説明・うながしが切れずに収まる下限で取る。
+ * 見出し・にちよさんの一言・数字・説明に加えて、次の節の見出しが
+ * 下端にのぞく高さで取る。次があると分かるところまで見せておく。
  */
-const PEEK_RATIO = 0.62;
+const PEEK_RATIO = 0.67;
 /**
  * にちよさんが次の停留点へ歩き出す基準線（画面の上からの割合）。
  *
@@ -65,6 +82,10 @@ const EXPAND_SCROLL_PX = 6;
 const COLLAPSE_PULL_PX = 48;
 /** ナビゲーションバー（h-14）の分。下の操作列が隠れないようにする */
 const NAV_SPACE = 'calc(3.5rem + var(--safe-bottom, 0px))';
+/** 半開きのときの角丸 */
+const SHEET_RADIUS = 28;
+
+const DESKTOP_QUERY = '(min-width: 768px)';
 
 /**
  * 画面の広さ。スマホと PC で案内の形そのものを変える。
@@ -91,8 +112,6 @@ function useIsDesktop(): boolean {
   }, []);
   return isDesktop;
 }
-
-const DESKTOP_QUERY = '(min-width: 768px)';
 
 /** 画面の高さ。アドレスバーの出入りやスマホの回転に追従する */
 function useViewportHeight(): number {
@@ -123,12 +142,14 @@ function useSheetExpansion(): {
     onTouchStart: (event: React.TouchEvent) => void;
     onTouchMove: (event: React.TouchEvent) => void;
   };
+  expand: () => void;
   collapse: () => void;
 } {
   const [expanded, setExpanded] = useState(false);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const touchStartYRef = useRef<number | null>(null);
 
+  const expand = useCallback(() => setExpanded(true), []);
   const collapse = useCallback(() => {
     setExpanded(false);
     if (scrollRef.current) scrollRef.current.scrollTop = 0;
@@ -171,6 +192,7 @@ function useSheetExpansion(): {
     expanded,
     scrollRef,
     handlers: { onScroll, onWheel, onTouchStart, onTouchMove },
+    expand,
     collapse,
   };
 }
@@ -189,61 +211,131 @@ const RAIL_COMMENTS = [
   'ほんなら、いってらっしゃい。ええ日曜市になるきね。',
 ] as const;
 
+/** 停留点の名前。進み具合の点の読み上げと、締めの振り返りに使う */
+const STOP_LABELS = ['ようこそ', '地図で店を探す', 'ジャンルでしぼる', 'にちよさんに聞く', 'おわり'] as const;
+
+/** 締めで振り返る、できること3つ */
+const RECAP = [
+  { stop: 1, Icon: MapIcon, title: '地図で店を探す', note: '通りを動かすと写真と名前が出る' },
+  { stop: 2, Icon: Tag, title: 'ジャンルでしぼる', note: '押したジャンルの店だけ残る' },
+  { stop: 3, Icon: MessageCircle, title: 'にちよさんに聞く', note: '迷ったら、なんでも聞ける' },
+] as const;
+
+/**
+ * 進み具合。いまどの節にいるかを点の並びで示し、押せばその節へ飛ぶ。
+ *
+ * いま居る点だけ長く伸ばす。通り過ぎた点は薄い緑、まだの点は灰色。
+ * 「あと何節あるか」が読む前に分かるので、長い案内でも先が見える。
+ */
+function IntroProgress({
+  active,
+  labels,
+  onSelect,
+}: {
+  active: number;
+  labels: readonly string[];
+  onSelect: (index: number) => void;
+}) {
+  return (
+    <div role="tablist" aria-label="案内の進み具合" className="flex items-center gap-1">
+      {labels.map((label, i) => {
+        const state = i === active ? 'current' : i < active ? 'done' : 'todo';
+        return (
+          <button
+            key={label}
+            type="button"
+            role="tab"
+            aria-selected={i === active}
+            aria-label={label}
+            onClick={() => onSelect(i)}
+            className="flex h-9 items-center px-0.5 focus-visible:outline-none"
+          >
+            <span
+              className={`block h-1.5 rounded-full transition-all duration-300 ${
+                state === 'current'
+                  ? 'w-6 bg-nicchyo-primary'
+                  : state === 'done'
+                    ? 'w-1.5 bg-nicchyo-primary/45'
+                    : 'w-1.5 bg-nicchyo-ink/15'
+              }`}
+            />
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 /**
  * デモを1つ抱えた区画。縦に積んで、上から順に読めるようにする。
  *
  * 見出しの下には、にちよさんと吹き出しが入るぶんの場所だけ空けておく。
  * 中身（絵と言葉）はレール側が1組だけ持っていて、その場所まで降りてくる。
+ *
+ * デモは節が画面に入ったときに一度だけ、下からふわりと現れる。
+ * 節ごとに止まるスクロールと合わせて、1節が1枚のスライドとして立ち上がる。
  */
 function IntroSection({
+  index,
   step,
   title,
   stopRef,
   stopHeight,
+  viewportRoot,
   children,
 }: {
+  index: number;
   step: string;
   title: string;
   stopRef: (el: HTMLDivElement | null) => void;
   stopHeight: number;
+  viewportRoot: React.RefObject<HTMLDivElement | null>;
   children: React.ReactNode;
 }) {
+  const reduceMotion = useReducedMotion();
   return (
     /* 道（絶対配置の SVG）より手前に置く。relative を付けないと、
        位置指定のない中身のほうが下に潜って、文字の上を道が横切る。
        snap-start / snap-always で、この節の先頭がスクロールの止まる位置になる */
-    <section className="relative z-[1] snap-start snap-always border-t border-nicchyo-ink/[0.07] py-9 md:py-11">
-      <div className="pl-[var(--intro-rail)] pr-5">
-        <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-nicchyo-ink/35">
+    <section
+      data-intro-stop={index}
+      className="relative z-[1] snap-start snap-always border-t border-nicchyo-ink/[0.07] pb-9 pt-8 md:py-11"
+    >
+      <div className="flex items-center gap-2.5 pl-[var(--intro-rail)] pr-5 md:pr-8">
+        <span className="inline-flex h-7 min-w-[1.75rem] shrink-0 items-center justify-center rounded-full bg-nicchyo-primary px-1 text-[11.5px] font-extrabold tracking-wider text-white shadow-[0_4px_10px_-4px_rgba(126,217,87,0.9)]">
           {step}
-        </p>
-        <h3 className="mt-1.5 text-[17px] font-bold leading-tight text-nicchyo-ink md:text-[19px]">
+        </span>
+        <h3 className="text-[20px] font-extrabold leading-tight tracking-tight text-nicchyo-ink md:text-[22px]">
           {title}
         </h3>
       </div>
       {/* にちよさんの停留点。高さだけ確保しておく */}
       <div ref={stopRef} className="mt-3" style={{ height: stopHeight }} />
       {/*
-        画面が広くても、デモの横幅は広げすぎない。
-        道を画面いっぱいに伸ばすと屋台がまばらに散って、地図に見えなくなる。
-      */}
-      {/*
         スマホはデモを端まで使う（地図は広いほうがよい）。
-        PC は見出しと左端を揃え、横幅は広げすぎない。道を画面いっぱいに
-        伸ばすと屋台がまばらに散って、地図に見えなくなる。
+        PC は見出しと左端を揃え、右端はダイアログの余白に揃える。
       */}
-      <div className="mt-3 px-5 md:pl-[var(--intro-rail)] md:pr-8">
-        <div className="md:max-w-[460px]">{children}</div>
-      </div>
+      <motion.div
+        className="mt-3 px-5 md:pl-[var(--intro-rail)] md:pr-8"
+        initial={reduceMotion ? false : { opacity: 0, y: 18 }}
+        whileInView={{ opacity: 1, y: 0 }}
+        viewport={{ root: viewportRoot, once: true, amount: 0.2 }}
+        transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+      >
+        {children}
+      </motion.div>
     </section>
   );
 }
+
+type OpenShop = { shop: IntroDemoShop; source: 'map' | 'search' };
 
 export default function MapIntroPanel({ open, shops, onClose }: MapIntroPanelProps) {
   const dragControls = useDragControls();
   const isDesktop = useIsDesktop();
   const viewportHeight = useViewportHeight();
-  const { expanded, scrollRef, handlers, collapse } = useSheetExpansion();
+  const reduceMotion = useReducedMotion();
+  const { expanded, scrollRef, handlers, expand, collapse } = useSheetExpansion();
 
   const mapDemoShops = useMemo(() => pickIntroDemoShops(shops), [shops]);
   const searchCategories = useMemo(() => {
@@ -261,6 +353,25 @@ export default function MapIntroPanel({ open, shops, onClose }: MapIntroPanelPro
     [shops, searchCategories]
   );
 
+  // ── デモで開いた店とお気に入り ─────────────────────────────
+  // バナーはデモの枠の中ではなく案内全体の上に開くので、どのデモから開いたかを
+  // ここで持つ。お気に入りも案内全体で1つの束にして、両方のデモで同じ印が付く
+  const [openShop, setOpenShop] = useState<OpenShop | null>(null);
+  const [favoriteIds, setFavoriteIds] = useState<number[]>([]);
+
+  const openShopFrom = useCallback(
+    (source: OpenShop['source']) => (shop: IntroDemoShop) => {
+      setOpenShop({ shop, source });
+      // 半開きのままだとバナーの置き場が狭いので、開くと同時に全画面へ
+      if (!isDesktop) expand();
+    },
+    [expand, isDesktop]
+  );
+  const closeShop = useCallback(() => setOpenShop(null), []);
+  const toggleFavorite = useCallback((id: number) => {
+    setFavoriteIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  }, []);
+
   // ── にちよさんの道 ───────────────────────────────────────────
   // 停留点の位置は中身の高さで変わる（相談デモは答えが出ると伸びる）ので、
   // 一度測って終わりにせず、中身の大きさが変わるたびに測り直す
@@ -271,6 +382,13 @@ export default function MapIntroPanel({ open, shops, onClose }: MapIntroPanelPro
   // 判定は毎回いまの値で行いたいので、state とは別に ref でも持つ
   const stopYsRef = useRef<number[]>([]);
   const [activeStop, setActiveStop] = useState(0);
+  /**
+   * スクロール枠の高さ。締めの節をこの高さにして、最後の1枚が先頭で揃うようにする。
+   * にちよさんが画面の外から歩き始めるときの「外」の判定にも使う
+   */
+  const [scrollerHeight, setScrollerHeight] = useState(0);
+  /** いまのスクロール位置。描き直さずに読めるよう motion value で持つ */
+  const scrollY = useMotionValue(0);
 
   /** 同じ並びなら state を置き換えない。スクロールのたびに描き直さないため */
   const sameStops = (a: number[], b: number[]) =>
@@ -289,7 +407,17 @@ export default function MapIntroPanel({ open, shops, onClose }: MapIntroPanelPro
     stopYsRef.current = ys;
     setRailHeight(area.offsetHeight);
     setStopYs((prev) => (sameStops(prev, ys) ? prev : ys));
-  }, []);
+    const scroller = scrollRef.current;
+    if (scroller) {
+      // 組み上がった直後の一瞬、この枠は親の高さが効く前で中身なりの高さになる。
+      // その値をそのまま使うと締めの節が何画面ぶんにも伸びるので、画面の高さで頭を押さえる
+      const height = Math.min(
+        scroller.clientHeight,
+        window.innerHeight > 0 ? window.innerHeight : scroller.clientHeight
+      );
+      setScrollerHeight((prev) => (prev === height ? prev : height));
+    }
+  }, [scrollRef]);
 
   useLayoutEffect(() => {
     if (!open) return;
@@ -298,13 +426,16 @@ export default function MapIntroPanel({ open, shops, onClose }: MapIntroPanelPro
     if (!area || typeof ResizeObserver === 'undefined') return;
     const observer = new ResizeObserver(measureRail);
     observer.observe(area);
+    const scroller = scrollRef.current;
+    if (scroller) observer.observe(scroller);
     return () => observer.disconnect();
-  }, [measureRail, open]);
+  }, [measureRail, open, scrollRef]);
 
   // 閉じたら、次に開くときのために先頭へ戻しておく
   useEffect(() => {
     if (open) return;
     setActiveStop(0);
+    setOpenShop(null);
     collapse();
   }, [open, collapse]);
 
@@ -319,15 +450,15 @@ export default function MapIntroPanel({ open, shops, onClose }: MapIntroPanelPro
       setActiveStop(0);
       return;
     }
-    // 組み上がった直後の一瞬、この枠は親の高さが効く前で中身なりの高さになる。
-    // そのまま使うと基準線が画面よりずっと下に引かれ、開いた時点で
-    // にちよさんが2つ目の停留点に立ってしまうので、画面の高さで頭を押さえる
     // いちばん下まで来たら必ず最後の停留点。締めの節は下端に近く、
     // 基準線まで上がりきらないことがある
     if (el.scrollTop + el.clientHeight >= el.scrollHeight - 2) {
       setActiveStop(ys.length - 1);
       return;
     }
+    // 組み上がった直後の一瞬、この枠は親の高さが効く前で中身なりの高さになる。
+    // そのまま使うと基準線が画面よりずっと下に引かれ、開いた時点で
+    // にちよさんが2つ目の停留点に立ってしまうので、画面の高さで頭を押さえる
     const view = viewportHeight > 0 ? Math.min(el.clientHeight, viewportHeight) : el.clientHeight;
     const line = el.scrollTop + view * ACTIVATE_LINE_RATIO;
     let next = 0;
@@ -349,6 +480,7 @@ export default function MapIntroPanel({ open, shops, onClose }: MapIntroPanelPro
   const handleScroll = useCallback(() => {
     // PC は最初から開ききっているので、広げる判定は回さない
     if (!isDesktop) handlers.onScroll();
+    if (scrollRef.current) scrollY.set(scrollRef.current.scrollTop);
     if (measureFrameRef.current !== null) return;
     measureFrameRef.current = window.requestAnimationFrame(() => {
       measureFrameRef.current = null;
@@ -358,12 +490,27 @@ export default function MapIntroPanel({ open, shops, onClose }: MapIntroPanelPro
       measureRail();
       updateActiveStop();
     });
-  }, [handlers, isDesktop, measureRail, updateActiveStop]);
+  }, [handlers, isDesktop, measureRail, scrollRef, scrollY, updateActiveStop]);
   useEffect(
     () => () => {
       if (measureFrameRef.current !== null) window.cancelAnimationFrame(measureFrameRef.current);
     },
     []
+  );
+
+  /** 進み具合の点や締めの振り返りから、その節の先頭へ */
+  const scrollToStop = useCallback(
+    (index: number) => {
+      const scroller = scrollRef.current;
+      const area = railAreaRef.current;
+      if (!scroller || !area) return;
+      const target = area.querySelector<HTMLElement>(`[data-intro-stop="${index}"]`);
+      if (!target) return;
+      const top = target.getBoundingClientRect().top - area.getBoundingClientRect().top;
+      if (!isDesktop && index > 0) expand();
+      scroller.scrollTo({ top, behavior: reduceMotion ? 'auto' : 'smooth' });
+    },
+    [expand, isDesktop, reduceMotion, scrollRef]
   );
 
   const stopHeight = isDesktop ? RAIL_STOP_HEIGHT_DESKTOP : RAIL_STOP_HEIGHT;
@@ -419,22 +566,28 @@ export default function MapIntroPanel({ open, shops, onClose }: MapIntroPanelPro
             targetStop={activeStop}
             comments={RAIL_COMMENTS}
             stopHeight={stopHeight}
+            scrollY={scrollY}
+            viewHeight={scrollerHeight}
           />
 
           {/* ── 見出し ──
               いちばん上も止まる位置にしておく。ここが止まる位置でないと、
-              一度下へ送ったあと先頭へ戻れなくなる（戻る先が無い） */}
-          <div className="snap-start snap-always">
-            <div className="relative z-[1] pl-[var(--intro-rail)] pr-5 pt-3 md:pr-8 md:pt-4">
+              一度下へ送ったあと先頭へ戻れなくなる（戻る先が無い）。
+              右上に差す黄色は、地図の上に「はじまり」があることの合図 */}
+          <div
+            data-intro-stop={0}
+            className="snap-start snap-always bg-[radial-gradient(120%_70%_at_100%_0%,rgba(255,222,89,0.32),transparent_60%)]"
+          >
+            <div className="relative z-[1] pl-[var(--intro-rail)] pr-12 pt-4 md:pr-16 md:pt-5">
+              <span className="inline-flex items-center rounded-full bg-nicchyo-accent/70 px-2.5 py-1 text-[11px] font-bold tracking-[0.14em] text-nicchyo-ink/80">
+                はじめての方へ
+              </span>
               <h2
                 id="map-intro-title"
-                className="text-[19px] font-bold leading-tight text-nicchyo-ink md:text-[24px]"
+                className="mt-3 text-[26px] font-extrabold leading-[1.15] tracking-tight text-nicchyo-ink md:text-[32px]"
               >
                 ようこそ、日曜市へ
               </h2>
-              <p className="mt-0.5 text-[12px] font-semibold tracking-wide text-nicchyo-ink/45">
-                nicchyo（ニッチョ）
-              </p>
             </div>
 
             {/* にちよさんの最初の停留点 */}
@@ -447,59 +600,102 @@ export default function MapIntroPanel({ open, shops, onClose }: MapIntroPanelPro
             />
 
             <div className="relative z-[1] pl-[var(--intro-rail)] pr-5 md:pr-8">
-              <p className="text-[13.5px] leading-[1.9] text-nicchyo-ink/75 md:text-[15px]">
-                毎週日曜、高知城のふもとから追手筋にかけて約300の店が並びます。
-                この地図は、はじめての人がそこを歩くためのものです。
+              {/* 日曜市の大きさ。数字で先に「どのくらい歩くのか」を伝える */}
+              <dl className="grid grid-cols-3 gap-2">
+                {[
+                  { label: '開催', value: '毎週日曜' },
+                  { label: '店の数', value: '約300店' },
+                  { label: '長さ', value: '約1.3km' },
+                ].map((stat) => (
+                  <div
+                    key={stat.label}
+                    className="rounded-2xl bg-white/75 px-3 py-2 ring-1 ring-nicchyo-ink/[0.06]"
+                  >
+                    <dt className="text-[10.5px] font-bold tracking-wide text-nicchyo-ink/45">
+                      {stat.label}
+                    </dt>
+                    <dd className="mt-0.5 text-[16px] font-extrabold tracking-tight text-nicchyo-ink md:text-[18px]">
+                      {stat.value}
+                    </dd>
+                  </div>
+                ))}
+              </dl>
+              <p className="mt-3.5 text-[13.5px] leading-[1.85] text-nicchyo-ink/70 md:text-[15px]">
+                高知城のふもとから追手筋まで。nicchyo（ニッチョ）は、はじめての人がそこを歩くための地図です。
               </p>
 
-              <div className="pb-8" />
+              <div className="pb-4" />
             </div>
           </div>
 
           {/* ── 機能ごとのデモ ── */}
           <IntroSection
+            index={1}
             step="01"
-            title="地図で店を探す"
+            title={STOP_LABELS[1]}
             stopRef={(el) => {
               stopRefs.current[1] = el;
             }}
             stopHeight={stopHeight}
+            viewportRoot={scrollRef}
           >
-            <IntroMapDemo shops={mapDemoShops} frameHeight={isDesktop ? 500 : undefined} />
+            <IntroMapDemo
+              shops={mapDemoShops}
+              frameHeight={isDesktop ? 500 : undefined}
+              favoriteIds={favoriteIds}
+              selectedShopId={openShop?.source === 'map' ? openShop.shop.id : null}
+              onSelectShop={openShopFrom('map')}
+            />
           </IntroSection>
 
           <IntroSection
+            index={2}
             step="02"
-            title="ジャンルでしぼる"
+            title={STOP_LABELS[2]}
             stopRef={(el) => {
               stopRefs.current[2] = el;
             }}
             stopHeight={stopHeight}
+            viewportRoot={scrollRef}
           >
             <IntroSearchDemo
               shops={searchDemoShops}
               categories={searchCategories}
               frameHeight={isDesktop ? 380 : undefined}
+              favoriteIds={favoriteIds}
+              selectedShopId={openShop?.source === 'search' ? openShop.shop.id : null}
+              onSelectShop={openShopFrom('search')}
             />
           </IntroSection>
 
           <IntroSection
+            index={3}
             step="03"
-            title="にちよさんに聞く"
+            title={STOP_LABELS[3]}
             stopRef={(el) => {
               stopRefs.current[3] = el;
             }}
             stopHeight={stopHeight}
+            viewportRoot={scrollRef}
           >
             <IntroConsultDemo />
           </IntroSection>
 
-          {/* ── 締め。にちよさんの最後の停留点 ── */}
-          <section className="relative z-[1] snap-start snap-always border-t border-nicchyo-ink/[0.07] py-9 md:py-11">
+          {/* ── 締め。にちよさんの最後の停留点 ──
+              1画面ぶんの高さを取り、最後の1枚として先頭で揃う。
+              できること3つを振り返り、押せばその節へ戻れる */}
+          <section
+            data-intro-stop={4}
+            className="relative z-[1] flex snap-start snap-always flex-col border-t border-nicchyo-ink/[0.07] py-9 md:py-11"
+            style={scrollerHeight > 0 ? { minHeight: scrollerHeight } : undefined}
+          >
             <div className="pl-[var(--intro-rail)] pr-5 md:pr-8">
-              <h3 className="text-[17px] font-bold leading-tight text-nicchyo-ink md:text-[19px]">
+              <h3 className="text-[24px] font-extrabold leading-tight tracking-tight text-nicchyo-ink md:text-[28px]">
                 日曜市を楽しんで！
               </h3>
+              <p className="mt-2 text-[13px] font-semibold text-nicchyo-ink/50 md:text-[14px]">
+                この案内は、メニューの「はじめての方へ」からいつでも読み直せます
+              </p>
             </div>
             <div
               ref={(el) => {
@@ -508,31 +704,91 @@ export default function MapIntroPanel({ open, shops, onClose }: MapIntroPanelPro
               className="mt-3"
               style={{ height: stopHeight }}
             />
-            <div className="mt-3 pl-[var(--intro-rail)] pr-5 md:pr-8">
-              <Link
-                href="/about"
-                className="inline-block text-[12.5px] font-semibold text-nicchyo-ink/45 underline-offset-4 hover:underline"
-              >
-                nicchyo について詳しく
-              </Link>
+            <div className="mt-2 flex flex-1 flex-col pl-[var(--intro-rail)] pr-5 md:pr-8">
+              {/* 振り返りは残りの高さの真ん中に。上に寄せると下半分が空いて見える */}
+              <ul className="my-auto space-y-2 py-2">
+                {RECAP.map(({ stop, Icon, title, note }) => (
+                  <li key={stop}>
+                    <button
+                      type="button"
+                      onClick={() => scrollToStop(stop)}
+                      className="group flex w-full items-center gap-3 rounded-2xl bg-white/80 px-3.5 py-3 text-left ring-1 ring-nicchyo-ink/[0.06] transition hover:bg-white active:scale-[0.99]"
+                    >
+                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-nicchyo-primary/15 text-emerald-700">
+                        <Icon className="h-4.5 w-4.5" aria-hidden />
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-[14px] font-bold text-nicchyo-ink">{title}</span>
+                        <span className="block text-[12px] text-nicchyo-ink/55">{note}</span>
+                      </span>
+                      <ChevronUp
+                        className="h-4 w-4 shrink-0 text-nicchyo-ink/30 transition group-hover:text-nicchyo-ink/60"
+                        aria-hidden
+                      />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+              <div className="pt-5">
+                <Link
+                  href="/about"
+                  className="inline-flex items-center gap-1 text-[12.5px] font-semibold text-nicchyo-ink/50 underline-offset-4 transition hover:text-nicchyo-ink/80 hover:underline"
+                >
+                  nicchyo について詳しく
+                  <ArrowUpRight className="h-3.5 w-3.5" aria-hidden />
+                </Link>
+              </div>
             </div>
           </section>
         </div>
       </div>
 
-      {/* いつでも地図へ戻れるようにする操作列 */}
+      {/* いつでも地図へ戻れるようにする操作列。左に進み具合、右に地図へ戻るボタン */}
       <div
-        className="shrink-0 border-t border-nicchyo-ink/[0.07] bg-nicchyo-base/95 px-5 pt-3 backdrop-blur-sm md:px-8 md:py-4"
-        style={isDesktop ? undefined : { paddingBottom: `calc(${NAV_SPACE} + 0.75rem)` }}
+        className="shrink-0 border-t border-nicchyo-ink/[0.07] bg-nicchyo-base/95 px-5 pt-2.5 backdrop-blur-sm md:px-8 md:py-3.5"
+        style={isDesktop ? undefined : { paddingBottom: `calc(${NAV_SPACE} + 0.625rem)` }}
       >
-        <button
-          type="button"
-          onClick={onClose}
-          className="mx-auto block w-full rounded-2xl bg-nicchyo-primary py-3.5 text-[15px] font-bold text-white shadow-[0_6px_16px_-6px_rgba(126,217,87,0.9)] transition active:scale-[0.98] hover:brightness-[1.03] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-nicchyo-primary focus-visible:ring-offset-2 md:w-[260px]"
-        >
-          地図をみる
-        </button>
+        <div className="flex items-center justify-between gap-4">
+          <IntroProgress active={activeStop} labels={STOP_LABELS} onSelect={scrollToStop} />
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex-1 rounded-2xl bg-nicchyo-primary py-3.5 text-[15px] font-bold text-white shadow-[0_6px_16px_-6px_rgba(126,217,87,0.9)] transition active:scale-[0.98] hover:brightness-[1.03] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-nicchyo-primary focus-visible:ring-offset-2 md:w-[240px] md:flex-none"
+          >
+            地図をみる
+          </button>
+        </div>
       </div>
+
+      {/*
+        本番と同じ、下から全開まで開くバナー。
+        デモの枠の中に収めると写真と見出しで切れてしまうので、案内全体の上に開く
+      */}
+      <AnimatePresence>
+        {openShop && (
+          <motion.div
+            key="intro-shop-overlay"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0, transition: { duration: 0.2 } }}
+            transition={{ duration: 0.2 }}
+            className="absolute inset-0 z-30"
+          >
+            <button
+              type="button"
+              onClick={closeShop}
+              aria-label="バナーを閉じる"
+              className="absolute inset-0 cursor-default bg-nicchyo-ink/30 backdrop-blur-[1px]"
+            />
+            <IntroShopSheet
+              shop={openShop.shop}
+              isFavorite={favoriteIds.includes(openShop.shop.id)}
+              onToggleFavorite={() => toggleFavorite(openShop.shop.id)}
+              onClose={closeShop}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
     </>
   );
 
@@ -557,7 +813,9 @@ export default function MapIntroPanel({ open, shops, onClose }: MapIntroPanelPro
           animate={{ opacity: 1 }}
           exit={{ opacity: 0, transition: { duration: 0.18 } }}
           transition={{ duration: 0.2 }}
-          className="fixed inset-0 z-[9989]"
+          // ナビゲーションバー（z-[9997]）より手前。暗幕の上にナビだけ明るく残ると、
+          // 案内の外に別の操作があるように見える
+          className="fixed inset-0 z-[9998]"
         >
           {/* 暗幕。地図は薄く見えたままにして、どこに戻るのかを残す */}
           <button
@@ -600,12 +858,19 @@ export default function MapIntroPanel({ open, shops, onClose }: MapIntroPanelPro
             }`}
           />
           <motion.div
-            initial={{ y: '100%' }}
+            // 高さも最初から半開きの値で始める。指定しないと中身なりの高さから
+            // 半開きへ縮みながら上がってきて、「大きく出てから小さくなる」動きが見える
+            initial={{
+              y: '100%',
+              height: peekHeight,
+              borderTopLeftRadius: SHEET_RADIUS,
+              borderTopRightRadius: SHEET_RADIUS,
+            }}
             animate={{
               y: 0,
               height: sheetHeight,
-              borderTopLeftRadius: expanded ? 0 : 28,
-              borderTopRightRadius: expanded ? 0 : 28,
+              borderTopLeftRadius: expanded ? 0 : SHEET_RADIUS,
+              borderTopRightRadius: expanded ? 0 : SHEET_RADIUS,
             }}
             exit={{ y: '100%' }}
             transition={{ type: 'spring', damping: 32, stiffness: 300 }}
