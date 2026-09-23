@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { getShopBannerImage } from './shopImages';
+import { getShopBannerImage, getShopPreviewImage } from './shopImages';
 
 describe('getShopBannerImage', () => {
   // Constants from the source file for verification
@@ -62,5 +62,100 @@ describe('getShopBannerImage', () => {
       expect(result1).toBe(result2);
     });
 
+  });
+});
+
+
+describe('getShopPreviewImage', () => {
+  const INGREDIENT_IMAGES = ["/images/shops/ninjin.webp", "/images/shops/retasu.webp"];
+
+  describe('登録された写真があるときはそれを使う', () => {
+    it('main を最優先する', () => {
+      const result = getShopPreviewImage({
+        id: 1,
+        position: 2,
+        category: '食材',
+        images: { main: '/main.webp', thumbnail: '/thumb.webp', additional: ['/extra.webp'] },
+      });
+      expect(result).toBe('/main.webp');
+    });
+
+    it('main が無ければ thumbnail を使う（以前は相談画面だけ既定画像になっていた）', () => {
+      const result = getShopPreviewImage({
+        id: 1,
+        position: 2,
+        category: '食材',
+        images: { thumbnail: '/thumb.webp' },
+      });
+      expect(result).toBe('/thumb.webp');
+    });
+
+    it('main も thumbnail も無ければ additional の最初を使う', () => {
+      const result = getShopPreviewImage({
+        id: 1,
+        category: '食材',
+        images: { additional: ['/extra.webp', '/extra2.webp'] },
+      });
+      expect(result).toBe('/extra.webp');
+    });
+
+    it('additional の先頭が空でも、埋まっているものを拾う', () => {
+      const result = getShopPreviewImage({
+        id: 1,
+        category: '食材',
+        images: { additional: [undefined, '', '/extra2.webp'] },
+      });
+      expect(result).toBe('/extra2.webp');
+    });
+
+    it('空文字は「登録されていない」として扱う', () => {
+      const result = getShopPreviewImage({
+        id: 1,
+        position: 2,
+        category: '食材',
+        images: { main: '', thumbnail: '' },
+      });
+      expect(INGREDIENT_IMAGES).toContain(result);
+    });
+  });
+
+  describe('写真が無いときはカテゴリの既定画像', () => {
+    it('種には position を使う（id ではない）', () => {
+      // position と id で剰余が変わる組み合わせ。以前は画面ごとに別の写真が出ていた
+      const viaPosition = getShopBannerImage('食材', 2);
+      const result = getShopPreviewImage({ id: 5, position: 2, category: '食材' });
+      expect(result).toBe(viaPosition);
+      expect(result).not.toBe(getShopBannerImage('食材', 5));
+    });
+
+    it('position が無ければ id にフォールバックする', () => {
+      const result = getShopPreviewImage({ id: 5, category: '食材' });
+      expect(result).toBe(getShopBannerImage('食材', 5));
+    });
+
+    it('position が 0 でも id に落ちない（0 は正当な位置）', () => {
+      const result = getShopPreviewImage({ id: 5, position: 0, category: '食材' });
+      expect(result).toBe(getShopBannerImage('食材', 0));
+    });
+
+    it('同じ店なら何度呼んでも同じ写真になる', () => {
+      const shop = { id: 7, position: 3, category: '生活雑貨' };
+      expect(getShopPreviewImage(shop)).toBe(getShopPreviewImage(shop));
+    });
+
+    it('カテゴリが無い店でも既定のバナーを返す', () => {
+      const result = getShopPreviewImage({ id: 1, position: 1 });
+      expect(result).toBe("/images/shops/tosahamono.webp");
+    });
+
+    it('images そのものが無くても落ちない', () => {
+      const result = getShopPreviewImage({ id: 1, position: 1, category: '食材' });
+      expect(INGREDIENT_IMAGES).toContain(result);
+    });
+
+    it('空のオブジェクトでも既定のバナーを返す', () => {
+      // MapPageClient の出店者パネルが、店が見つからないときに {} を渡す
+      expect(getShopPreviewImage({})).toBe("/images/shops/tosahamono.webp");
+    });
   });
 });
