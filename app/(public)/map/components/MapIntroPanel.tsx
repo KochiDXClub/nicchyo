@@ -6,8 +6,9 @@
  * 初来訪者に「ここが何のサービスか」を伝える案内パネル。
  *
  * 独立した LP ページではなく、読み込み終わったマップの上に下から重ねる。
- * 最初は画面の半分ほどで開き、上に地図が見えたままにする。そこから下へ
- * スクロールすると全画面へなめらかに広がり、機能ごとのデモが縦に並ぶ。
+ * 最初は画面の6割ほどで開き、上に地図が見えたままにする。シートは指に付いてきて、
+ * 離した速さと位置で「半開き」か「全画面」の段に吸い付く（useSheetGestures）。
+ * 全画面では機能ごとのデモが縦に並ぶ。
  * 「説明を読まされてからマップへ行く」ではなく「マップに来ていて、その上で
  * 使い方を触っている」にするための形。
  *
@@ -29,10 +30,11 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   AnimatePresence,
+  animate,
   motion,
-  useDragControls,
   useMotionValue,
   useReducedMotion,
+  useTransform,
 } from 'framer-motion';
 import Link from 'next/link';
 import { ArrowUpRight, ChevronUp, Map as MapIcon, MessageCircle, Tag, X } from 'lucide-react';
@@ -76,10 +78,20 @@ const PEEK_RATIO = 0.67;
  */
 const ACTIVATE_LINE_RATIO = 0.55;
 
-/** これ以上スクロールしたら全画面に広げる */
+/** これ以上スクロールしたら全画面に広げる（ホイールや点からの移動の分） */
 const EXPAND_SCROLL_PX = 6;
-/** 全画面から縮めるときに必要な下向きの引っぱり量（px） */
-const COLLAPSE_PULL_PX = 48;
+/** 半開きからさらにこれだけ引き下げて離したら閉じる（px、抵抗をかける前の指の量） */
+const DISMISS_PULL_PX = 110;
+/** これより速く払ったら、位置に関係なく払った向きの段へ（px/ms） */
+const FLICK_VELOCITY = 0.45;
+/** 半開きより下へ引くときの抵抗。1 で指と同じ、0 で動かない */
+const OVERPULL_RESISTANCE = 0.5;
+/** 指の向きを決めるまでの遊び（px） */
+const GESTURE_SLOP_PX = 3;
+/** 段に着いたときの手応え（対応端末のみ。iOS は無視する） */
+const DETENT_HAPTIC_MS = 8;
+/** 段へ吸い付く動き。速く、行き過ぎない */
+const DETENT_SPRING = { type: 'spring', stiffness: 420, damping: 38, mass: 0.9 } as const;
 /** ナビゲーションバー（h-14）の分。下の操作列が隠れないようにする */
 const NAV_SPACE = 'calc(3.5rem + var(--safe-bottom, 0px))';
 /** 半開きのときの角丸 */
@@ -128,73 +140,292 @@ function useViewportHeight(): number {
 }
 
 /**
- * 下へスクロールしたら全画面、いちばん上でさらに下へ引っぱったら元の高さに戻す。
+ * ボトムシートの段（ディテント）と指の作法。
  *
- * 引っぱりは scroll イベントでは取れない（いちばん上では scrollTop が動かない）ので、
- * ホイールと指の移動量を直接見る。
+ * 段は「半開き」と「全画面」の2つ。Apple Maps や Google Maps のシートと同じで、
+ * 指を置いて動かしているあいだはシートの上端が指に 1:1 で付いてくる（しきい値で
+ * 急に切り替わらない）。離したら、速く払っていればその向きの段へ、ゆっくりなら
+ * 近いほうの段へ吸い付く。半開きからさらに下へ引くと、抵抗を受けながら
+ * シート全体が下がり、離したところで閉じる。
+ *
+ * どの指の動きがシートのもので、どれが中身のスクロールかは、最初の一動きで決める。
+ *   半開き           … 上下どちらへ動かしてもシート（中身はまだ読む段ではない）
+ *   全画面で先頭     … 下へ引いたらシート、上へ送ったら中身のスクロール
+ *   全画面で途中     … 中身のスクロール
+ * シートと決めたときだけ touchmove を preventDefault して、ブラウザのスクロールを
+ * 止める。React の onTouchMove は passive で preventDefault が効かないので、
+ * ここだけ素の addEventListener（passive: false）で付ける。
+ *
+ * 半開きから上へ引き続けて全画面に着いたあとは、残りの指の動きぶんだけ中身を
+ * 手で送る。指を離さずに「持ち上げてそのまま読み始める」ができる。
+ * 手で送っているあいだは scroll-snap を切り、離してから近い節へ寄せて戻す
+ * （切らないと、送るたびに節の先頭へ跳ね戻されて指に付いてこない）。
  */
-function useSheetExpansion(): {
+function useSheetGestures({
+  peekHeight,
+  fullHeight,
+  onClose,
+  reduceMotion,
+}: {
+  peekHeight: number;
+  fullHeight: number;
+  onClose: () => void;
+  reduceMotion: boolean;
+}): {
   expanded: boolean;
+  sheetRef: React.MutableRefObject<HTMLDivElement | null>;
   scrollRef: React.MutableRefObject<HTMLDivElement | null>;
-  handlers: {
-    onScroll: () => void;
-    onWheel: (event: React.WheelEvent) => void;
-    onTouchStart: (event: React.TouchEvent) => void;
-    onTouchMove: (event: React.TouchEvent) => void;
-  };
+  height: ReturnType<typeof useMotionValue<number>>;
+  pull: ReturnType<typeof useMotionValue<number>>;
+  radius: ReturnType<typeof useTransform<number, number>>;
+  onScroll: () => void;
+  onWheel: (event: React.WheelEvent) => void;
   expand: () => void;
   collapse: () => void;
+  toggle: () => void;
 } {
   const [expanded, setExpanded] = useState(false);
+  const expandedRef = useRef(false);
+  const sheetRef = useRef<HTMLDivElement | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
-  const touchStartYRef = useRef<number | null>(null);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+  const sizeRef = useRef({ peek: peekHeight, full: fullHeight });
+  sizeRef.current = { peek: peekHeight, full: fullHeight };
 
-  const expand = useCallback(() => setExpanded(true), []);
+  /** シートの高さ。半開きと全画面のあいだを指なりに動く */
+  const height = useMotionValue(peekHeight);
+  /** 半開きよりさらに下へ引いた量。シート全体を下げる */
+  const pull = useMotionValue(0);
+  /** 角丸。全画面に近づくほど角が立つ */
+  const radius = useTransform(height, (h) => {
+    const { peek, full } = sizeRef.current;
+    if (full <= peek) return SHEET_RADIUS;
+    const t = Math.min(1, Math.max(0, (h - peek) / (full - peek)));
+    return SHEET_RADIUS * (1 - t);
+  });
+
+  const draggingRef = useRef(false);
+
+  const settle = useCallback(
+    (target: 'peek' | 'full', byGesture = false) => {
+      const { peek, full } = sizeRef.current;
+      const changed = expandedRef.current !== (target === 'full');
+      expandedRef.current = target === 'full';
+      setExpanded(target === 'full');
+      const to = target === 'full' ? full : peek;
+      if (reduceMotion) height.set(to);
+      else animate(height, to, DETENT_SPRING);
+      if (pull.get() !== 0) {
+        if (reduceMotion) pull.set(0);
+        else animate(pull, 0, DETENT_SPRING);
+      }
+      if (byGesture && changed && typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+        try {
+          navigator.vibrate(DETENT_HAPTIC_MS);
+        } catch {
+          /* 対応していない端末では何もしない */
+        }
+      }
+    },
+    [height, pull, reduceMotion]
+  );
+
+  const expand = useCallback(() => settle('full'), [settle]);
   const collapse = useCallback(() => {
-    setExpanded(false);
+    settle('peek');
     if (scrollRef.current) scrollRef.current.scrollTop = 0;
-  }, []);
+  }, [settle]);
+  const toggle = useCallback(() => {
+    if (expandedRef.current) collapse();
+    else expand();
+  }, [collapse, expand]);
+
+  // 画面の高さが変わったら（アドレスバーの出入り・回転）、いまの段の高さに合わせ直す
+  useEffect(() => {
+    if (draggingRef.current) return;
+    height.set(expandedRef.current ? fullHeight : peekHeight);
+  }, [fullHeight, height, peekHeight]);
 
   const onScroll = useCallback(() => {
     const el = scrollRef.current;
-    if (el && el.scrollTop > EXPAND_SCROLL_PX) setExpanded(true);
-  }, []);
+    if (el && el.scrollTop > EXPAND_SCROLL_PX && !expandedRef.current) settle('full');
+  }, [settle]);
 
-  const atTop = () => (scrollRef.current?.scrollTop ?? 0) <= 0;
+  const onWheel = useCallback(
+    (event: React.WheelEvent) => {
+      if (event.deltaY > 0 && !expandedRef.current) settle('full');
+      else if (event.deltaY < 0 && (scrollRef.current?.scrollTop ?? 0) <= 0) collapse();
+    },
+    [collapse, settle]
+  );
 
-  const onWheel = useCallback((event: React.WheelEvent) => {
-    if (event.deltaY > 0) {
-      setExpanded(true);
-      return;
-    }
-    if (event.deltaY < 0 && atTop()) collapse();
-  }, [collapse]);
+  // ── 指の作法 ──
+  useEffect(() => {
+    const sheet = sheetRef.current;
+    if (!sheet) return;
 
-  const onTouchStart = useCallback((event: React.TouchEvent) => {
-    touchStartYRef.current = event.touches[0]?.clientY ?? null;
-  }, []);
+    type Gesture = {
+      startY: number;
+      startOffset: number;
+      startScrollTop: number;
+      mode: 'undecided' | 'sheet' | 'scroll';
+      /** 速さを出すための直近の指の位置 */
+      samples: Array<{ t: number; y: number }>;
+      /** 全画面に着いたあと、中身を手で送ったか */
+      scrolledByHand: boolean;
+    };
+    let gesture: Gesture | null = null;
+    let restoreSnapTimer: number | null = null;
 
-  const onTouchMove = useCallback((event: React.TouchEvent) => {
-    const startY = touchStartYRef.current;
-    const currentY = event.touches[0]?.clientY;
-    if (startY === null || currentY === undefined) return;
-    const delta = currentY - startY;
-    // 指を上へ（= 下へスクロール）動かしたら広げる
-    if (delta < -4) {
-      setExpanded(true);
-      return;
-    }
-    // いちばん上で下へ引っぱったら縮める
-    if (delta > COLLAPSE_PULL_PX && atTop()) collapse();
-  }, [collapse]);
+    const scroller = () => scrollRef.current;
 
-  return {
-    expanded,
-    scrollRef,
-    handlers: { onScroll, onWheel, onTouchStart, onTouchMove },
-    expand,
-    collapse,
-  };
+    /** 手で送ったあと、近い節の先頭へ寄せてから scroll-snap を戻す */
+    const resnap = () => {
+      const el = scroller();
+      if (!el) return;
+      const view = el.clientHeight;
+      const st = el.scrollTop;
+      const maxTop = el.scrollHeight - view;
+      const tops = Array.from(el.querySelectorAll<HTMLElement>('[data-intro-stop]')).map((node) => {
+        const top = Math.round(node.getBoundingClientRect().top - el.getBoundingClientRect().top + st);
+        return { top: Math.min(top, maxTop), bottom: top + node.offsetHeight };
+      });
+      // 画面より背の高い節の中に居るなら、そのまま（snap もそこは自由に動ける）
+      const covered = tops.some((sec) => sec.top <= st && sec.bottom >= st + view);
+      let target = st;
+      if (!covered && tops.length > 0) {
+        target = tops.reduce((best, sec) =>
+          Math.abs(sec.top - st) < Math.abs(best - st) ? sec.top : best, tops[0].top);
+      }
+      if (target !== st) el.scrollTo({ top: target, behavior: reduceMotion ? 'auto' : 'smooth' });
+      if (restoreSnapTimer !== null) window.clearTimeout(restoreSnapTimer);
+      restoreSnapTimer = window.setTimeout(() => {
+        restoreSnapTimer = null;
+        el.style.scrollSnapType = '';
+      }, target !== st && !reduceMotion ? 450 : 0);
+    };
+
+    const onTouchStart = (event: TouchEvent) => {
+      if (event.touches.length !== 1) return;
+      const y = event.touches[0].clientY;
+      const { full } = sizeRef.current;
+      gesture = {
+        startY: y,
+        startOffset: full - height.get() + pull.get() / OVERPULL_RESISTANCE,
+        startScrollTop: scroller()?.scrollTop ?? 0,
+        mode: 'undecided',
+        samples: [{ t: event.timeStamp, y }],
+        scrolledByHand: false,
+      };
+    };
+
+    const onTouchMove = (event: TouchEvent) => {
+      if (!gesture || event.touches.length !== 1) return;
+      const y = event.touches[0].clientY;
+      const dy = y - gesture.startY;
+      gesture.samples.push({ t: event.timeStamp, y });
+      if (gesture.samples.length > 6) gesture.samples.shift();
+
+      if (gesture.mode === 'undecided') {
+        if (Math.abs(dy) < GESTURE_SLOP_PX) return;
+        const atTop = (scroller()?.scrollTop ?? 0) <= 0;
+        const sheetOwns = !expandedRef.current || (atTop && dy > 0);
+        gesture.mode = sheetOwns ? 'sheet' : 'scroll';
+        if (sheetOwns) draggingRef.current = true;
+      }
+      if (gesture.mode !== 'sheet') return;
+      if (!event.cancelable) return;
+      event.preventDefault();
+
+      const { peek, full } = sizeRef.current;
+      const range = full - peek;
+      // offset = 全画面の上端から、いまのシートの上端までの距離
+      const offset = gesture.startOffset + dy;
+      const el = scroller();
+      if (offset < 0) {
+        // 全画面より上へ引いている → 残りは中身を手で送る
+        height.set(full);
+        pull.set(0);
+        if (el) {
+          if (!gesture.scrolledByHand) {
+            gesture.scrolledByHand = true;
+            gesture.startScrollTop = el.scrollTop;
+            el.style.scrollSnapType = 'none';
+          }
+          el.scrollTop = gesture.startScrollTop - offset;
+        }
+      } else if (offset <= range) {
+        height.set(full - offset);
+        pull.set(0);
+      } else {
+        height.set(peek);
+        pull.set((offset - range) * OVERPULL_RESISTANCE);
+      }
+    };
+
+    const finish = (cancelled: boolean) => {
+      if (!gesture) return;
+      const g = gesture;
+      gesture = null;
+      if (g.mode !== 'sheet') return;
+      draggingRef.current = false;
+
+      // 直近 80ms ほどの動きから速さを出す（px/ms、下向きが正）
+      const last = g.samples[g.samples.length - 1];
+      let first = g.samples[0];
+      for (const sample of g.samples) {
+        if (last.t - sample.t <= 90) {
+          first = sample;
+          break;
+        }
+      }
+      const dt = Math.max(1, last.t - first.t);
+      const velocity = cancelled ? 0 : (last.y - first.y) / dt;
+
+      const { peek, full } = sizeRef.current;
+      const range = full - peek;
+
+      if (pull.get() > 0) {
+        const pulled = pull.get() / OVERPULL_RESISTANCE;
+        if (!cancelled && (pulled > DISMISS_PULL_PX || velocity > FLICK_VELOCITY)) {
+          onCloseRef.current();
+          return;
+        }
+        settle('peek', true);
+        return;
+      }
+
+      const offset = full - height.get();
+      let target: 'peek' | 'full';
+      if (velocity > FLICK_VELOCITY) target = 'peek';
+      else if (velocity < -FLICK_VELOCITY) target = 'full';
+      else target = offset < range / 2 ? 'full' : 'peek';
+      if (g.scrolledByHand) target = 'full';
+      settle(target, true);
+      if (g.scrolledByHand) resnap();
+      if (target === 'peek' && scrollRef.current) scrollRef.current.scrollTop = 0;
+    };
+
+    const onTouchEnd = () => finish(false);
+    const onTouchCancel = () => finish(true);
+
+    const scrollerAtMount = scrollRef.current;
+    sheet.addEventListener('touchstart', onTouchStart, { passive: true });
+    sheet.addEventListener('touchmove', onTouchMove, { passive: false });
+    sheet.addEventListener('touchend', onTouchEnd);
+    sheet.addEventListener('touchcancel', onTouchCancel);
+    return () => {
+      sheet.removeEventListener('touchstart', onTouchStart);
+      sheet.removeEventListener('touchmove', onTouchMove);
+      sheet.removeEventListener('touchend', onTouchEnd);
+      sheet.removeEventListener('touchcancel', onTouchCancel);
+      if (restoreSnapTimer !== null) window.clearTimeout(restoreSnapTimer);
+      if (scrollerAtMount) scrollerAtMount.style.scrollSnapType = '';
+    };
+  }, [height, pull, reduceMotion, settle]);
+
+  return { expanded, sheetRef, scrollRef, height, pull, radius, onScroll, onWheel, expand, collapse, toggle };
 }
 
 /**
@@ -237,7 +468,7 @@ function IntroProgress({
   onSelect: (index: number) => void;
 }) {
   return (
-    <div role="tablist" aria-label="案内の進み具合" className="flex items-center gap-1">
+    <div role="tablist" aria-label="案内の進み具合" className="-ml-2 flex items-center">
       {labels.map((label, i) => {
         const state = i === active ? 'current' : i < active ? 'done' : 'todo';
         return (
@@ -248,7 +479,7 @@ function IntroProgress({
             aria-selected={i === active}
             aria-label={label}
             onClick={() => onSelect(i)}
-            className="flex h-9 items-center px-0.5 focus-visible:outline-none"
+            className="flex h-11 w-7 items-center justify-center focus-visible:outline-none"
           >
             <span
               className={`block h-1.5 rounded-full transition-all duration-300 ${
@@ -331,11 +562,23 @@ function IntroSection({
 type OpenShop = { shop: IntroDemoShop; source: 'map' | 'search' };
 
 export default function MapIntroPanel({ open, shops, onClose }: MapIntroPanelProps) {
-  const dragControls = useDragControls();
   const isDesktop = useIsDesktop();
   const viewportHeight = useViewportHeight();
-  const reduceMotion = useReducedMotion();
-  const { expanded, scrollRef, handlers, expand, collapse } = useSheetExpansion();
+  const reduceMotion = useReducedMotion() ?? false;
+  const peekHeight = Math.round(viewportHeight * PEEK_RATIO);
+  const {
+    expanded,
+    sheetRef,
+    scrollRef,
+    height: sheetHeight,
+    pull: sheetPull,
+    radius: sheetRadius,
+    onScroll: onSheetScroll,
+    onWheel: onSheetWheel,
+    expand,
+    collapse,
+    toggle: toggleSheet,
+  } = useSheetGestures({ peekHeight, fullHeight: viewportHeight, onClose, reduceMotion });
 
   const mapDemoShops = useMemo(() => pickIntroDemoShops(shops), [shops]);
   const searchCategories = useMemo(() => {
@@ -479,7 +722,7 @@ export default function MapIntroPanel({ open, shops, onClose }: MapIntroPanelPro
   const measureFrameRef = useRef<number | null>(null);
   const handleScroll = useCallback(() => {
     // PC は最初から開ききっているので、広げる判定は回さない
-    if (!isDesktop) handlers.onScroll();
+    if (!isDesktop) onSheetScroll();
     if (scrollRef.current) scrollY.set(scrollRef.current.scrollTop);
     if (measureFrameRef.current !== null) return;
     measureFrameRef.current = window.requestAnimationFrame(() => {
@@ -490,7 +733,7 @@ export default function MapIntroPanel({ open, shops, onClose }: MapIntroPanelPro
       measureRail();
       updateActiveStop();
     });
-  }, [handlers, isDesktop, measureRail, scrollRef, scrollY, updateActiveStop]);
+  }, [isDesktop, measureRail, onSheetScroll, scrollRef, scrollY, updateActiveStop]);
   useEffect(
     () => () => {
       if (measureFrameRef.current !== null) window.cancelAnimationFrame(measureFrameRef.current);
@@ -514,19 +757,6 @@ export default function MapIntroPanel({ open, shops, onClose }: MapIntroPanelPro
   );
 
   const stopHeight = isDesktop ? RAIL_STOP_HEIGHT_DESKTOP : RAIL_STOP_HEIGHT;
-  const peekHeight = Math.round(viewportHeight * PEEK_RATIO);
-  const sheetHeight = expanded ? viewportHeight : peekHeight;
-
-  const handleDragEnd = useCallback(
-    (_: unknown, info: { offset: { y: number }; velocity: { y: number } }) => {
-      const pulledDown = info.offset.y > 80 || info.velocity.y > 500;
-      if (!pulledDown) return;
-      // 全画面のときは、まず元の高さへ。もう一度引いたら閉じる
-      if (expanded) collapse();
-      else onClose();
-    },
-    [collapse, expanded, onClose]
-  );
 
   // 案内の中身。器（スマホ＝ボトムシート / PC＝中央のダイアログ）は別でも、
   // 読むものと触るものは同じ1組を使う
@@ -536,9 +766,11 @@ export default function MapIntroPanel({ open, shops, onClose }: MapIntroPanelPro
         type="button"
         onClick={onClose}
         aria-label="閉じる"
-        className="absolute right-4 top-4 z-20 rounded-full bg-nicchyo-base/80 p-1.5 text-nicchyo-ink/40 backdrop-blur-sm transition hover:bg-nicchyo-ink/5 hover:text-nicchyo-ink/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-nicchyo-primary"
+        className="absolute right-2 top-2 z-20 flex h-11 w-11 items-center justify-center rounded-full text-nicchyo-ink/45 transition hover:bg-nicchyo-ink/5 hover:text-nicchyo-ink/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-nicchyo-primary md:right-3 md:top-3"
       >
-        <X className="h-4 w-4" />
+        <span className="flex h-8 w-8 items-center justify-center rounded-full bg-nicchyo-base/80 backdrop-blur-sm">
+          <X className="h-4 w-4" />
+        </span>
       </button>
 
       {/*
@@ -551,7 +783,7 @@ export default function MapIntroPanel({ open, shops, onClose }: MapIntroPanelPro
       <div
         ref={scrollRef}
         className="flex-1 snap-y snap-mandatory overflow-y-auto overscroll-contain"
-        {...(isDesktop ? {} : handlers)}
+        onWheel={isDesktop ? undefined : onSheetWheel}
         onScroll={handleScroll}
       >
         {/* にちよさんの道が通る範囲。停留点の位置はここの先頭から測る */}
@@ -600,28 +832,15 @@ export default function MapIntroPanel({ open, shops, onClose }: MapIntroPanelPro
             />
 
             <div className="relative z-[1] pl-[var(--intro-rail)] pr-5 md:pr-8">
-              {/* 日曜市の大きさ。数字で先に「どのくらい歩くのか」を伝える */}
-              <dl className="grid grid-cols-3 gap-2">
-                {[
-                  { label: '開催', value: '毎週日曜' },
-                  { label: '店の数', value: '約300店' },
-                  { label: '長さ', value: '約1.3km' },
-                ].map((stat) => (
-                  <div
-                    key={stat.label}
-                    className="rounded-2xl bg-white/75 px-3 py-2 ring-1 ring-nicchyo-ink/[0.06]"
-                  >
-                    <dt className="text-[10.5px] font-bold tracking-wide text-nicchyo-ink/45">
-                      {stat.label}
-                    </dt>
-                    <dd className="mt-0.5 text-[16px] font-extrabold tracking-tight text-nicchyo-ink md:text-[18px]">
-                      {stat.value}
-                    </dd>
-                  </div>
-                ))}
-              </dl>
-              <p className="mt-3.5 text-[13.5px] leading-[1.85] text-nicchyo-ink/70 md:text-[15px]">
-                高知城のふもとから追手筋まで。nicchyo（ニッチョ）は、はじめての人がそこを歩くための地図です。
+              {/* 日曜市の大きさは文章のまま、数字だけ少し立てる。札や枠に切り出さない */}
+              <p className="text-[15px] leading-[1.9] text-nicchyo-ink/75 md:text-[16px]">
+                <b className="font-bold text-nicchyo-ink">毎週日曜</b>
+                、高知城のふもとから追手筋まで
+                <b className="font-bold text-nicchyo-ink">約1.3km</b>
+                。<b className="font-bold text-nicchyo-ink">およそ300の店</b>が並びます。
+              </p>
+              <p className="mt-1.5 text-[13.5px] leading-[1.85] text-nicchyo-ink/55 md:text-[14px]">
+                nicchyo（ニッチョ）は、はじめての人がそこを歩くための地図です。
               </p>
 
               <div className="pb-4" />
@@ -857,43 +1076,45 @@ export default function MapIntroPanel({ open, shops, onClose }: MapIntroPanelPro
               expanded ? 'pointer-events-none' : 'pointer-events-auto'
             }`}
           />
+          {/*
+            外側は出入りの動き（下から上がる・下へ消える）だけ。
+            高さ・引き下げ・角丸は指の作法（useSheetGestures）が motion value で直接動かす。
+            同じ要素で animate と手動の値を混ぜると、指を離した瞬間に取り合いになる
+          */}
           <motion.div
-            // 高さも最初から半開きの値で始める。指定しないと中身なりの高さから
-            // 半開きへ縮みながら上がってきて、「大きく出てから小さくなる」動きが見える
-            initial={{
-              y: '100%',
-              height: peekHeight,
-              borderTopLeftRadius: SHEET_RADIUS,
-              borderTopRightRadius: SHEET_RADIUS,
-            }}
-            animate={{
-              y: 0,
-              height: sheetHeight,
-              borderTopLeftRadius: expanded ? 0 : SHEET_RADIUS,
-              borderTopRightRadius: expanded ? 0 : SHEET_RADIUS,
-            }}
+            initial={{ y: '100%' }}
+            animate={{ y: 0 }}
             exit={{ y: '100%' }}
             transition={{ type: 'spring', damping: 32, stiffness: 300 }}
-            drag="y"
-            dragControls={dragControls}
-            dragListener={false}
-            dragConstraints={{ top: 0 }}
-            dragElastic={{ top: 0, bottom: 0.3 }}
-            onDragEnd={handleDragEnd}
-            role="dialog"
-            aria-modal="false"
-            aria-labelledby="map-intro-title"
-            className="pointer-events-auto absolute inset-x-0 bottom-0 mx-auto flex w-full max-w-lg flex-col overflow-hidden bg-nicchyo-base shadow-[0_-16px_48px_-12px_rgba(58,58,58,0.3)] ring-1 ring-nicchyo-ink/[0.07]"
+            className="pointer-events-auto absolute inset-x-0 bottom-0 mx-auto w-full max-w-lg"
           >
-            {/* ドラッグハンドル。全画面のときは元の高さへ、そうでなければ閉じる */}
-            <div
-              className="flex h-7 w-full shrink-0 cursor-grab items-center justify-center active:cursor-grabbing"
-              onPointerDown={(e) => dragControls.start(e)}
-              style={{ touchAction: 'none' }}
+            <motion.div
+              ref={sheetRef}
+              role="dialog"
+              aria-modal="false"
+              aria-labelledby="map-intro-title"
+              style={{
+                height: sheetHeight,
+                y: sheetPull,
+                borderTopLeftRadius: sheetRadius,
+                borderTopRightRadius: sheetRadius,
+              }}
+              className="relative flex flex-col overflow-hidden bg-nicchyo-base shadow-[0_-16px_48px_-12px_rgba(58,58,58,0.3)] ring-1 ring-nicchyo-ink/[0.07] [-webkit-tap-highlight-color:transparent]"
             >
-              <div className="h-1 w-10 rounded-full bg-nicchyo-ink/15" />
-            </div>
-            {content}
+              {/*
+                つまみ。指で引くのが本来の作法だが、押しても段が切り替わる
+                （全画面 ⇄ 半開き）ので、引く操作が難しい人にも同じことができる
+              */}
+              <button
+                type="button"
+                onClick={toggleSheet}
+                aria-label={expanded ? '案内を半分にたたむ' : '案内を全画面に広げる'}
+                className="flex h-7 w-full shrink-0 items-center justify-center focus-visible:outline-none"
+              >
+                <span className="h-1 w-10 rounded-full bg-nicchyo-ink/15" />
+              </button>
+              {content}
+            </motion.div>
           </motion.div>
         </motion.div>
       )}

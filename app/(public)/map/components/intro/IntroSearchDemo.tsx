@@ -80,7 +80,7 @@ export default function IntroSearchDemo({
               type="button"
               onClick={() => pickCategory(category)}
               aria-pressed={active}
-              className={`rounded-full border px-3.5 py-1.5 text-[13px] font-bold shadow-sm transition active:scale-95 ${
+              className={`min-h-[40px] rounded-full border px-4 text-[13px] font-bold shadow-sm transition active:scale-95 ${
                 active
                   ? 'border-amber-400 bg-amber-400 text-white'
                   : 'border-amber-200 bg-white text-amber-900 hover:bg-amber-50'
