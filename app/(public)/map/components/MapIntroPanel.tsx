@@ -21,7 +21,8 @@
  * お気に入りは案内全体で1つの束なので、地図デモで付けた印はジャンルデモでも付いている。
  *
  * にちよさんの絵は案内全体で1枚だけ（相談デモの中のものを除く）。左端の波線の道を
- * スクロールに合わせて降りてきて、見出しのすぐ下で一言しゃべる（IntroGrandmaRail）。
+ * スクロールと一緒に降りてきて、見出しのすぐ下の停留点で止まったときだけ一言しゃべる
+ * （IntroGrandmaRail）。
  * 節ごとに絵を置くと「何人もいる」ことになり、案内していた人がいなくなる。
  *
  * 出す条件は useMapIntro が持つ。ここは見た目と開き方だけを受け持つ。
@@ -628,6 +629,8 @@ export default function MapIntroPanel({ open, shops, onClose }: MapIntroPanelPro
   const stopRefs = useRef<Array<HTMLDivElement | null>>([]);
   const [railHeight, setRailHeight] = useState(0);
   const [stopYs, setStopYs] = useState<number[]>([]);
+  /** 各停留点にぴったり立つスクロール位置（節の先頭）。にちよさんがスクロールと一緒に動く物差し */
+  const [anchorYs, setAnchorYs] = useState<number[]>([]);
   // 判定は毎回いまの値で行いたいので、state とは別に ref でも持つ
   const stopYsRef = useRef<number[]>([]);
   const [activeStop, setActiveStop] = useState(0);
@@ -657,6 +660,12 @@ export default function MapIntroPanel({ open, shops, onClose }: MapIntroPanelPro
     setRailHeight(area.offsetHeight);
     setStopYs((prev) => (sameStops(prev, ys) ? prev : ys));
     const scroller = scrollRef.current;
+    // 節の先頭（scroll-snap で止まる位置）。最後の節は下端までしか送れないので、そこで頭を押さえる
+    const maxScroll = scroller ? Math.max(0, scroller.scrollHeight - scroller.clientHeight) : Infinity;
+    const anchors = Array.from(area.querySelectorAll<HTMLElement>('[data-intro-stop]')).map((el) =>
+      Math.min(maxScroll, Math.round(el.getBoundingClientRect().top - areaTop))
+    );
+    setAnchorYs((prev) => (sameStops(prev, anchors) ? prev : anchors));
     if (scroller) {
       // 組み上がった直後の一瞬、この枠は親の高さが効く前で中身なりの高さになる。
       // その値をそのまま使うと締めの節が何画面ぶんにも伸びるので、画面の高さで頭を押さえる
@@ -802,11 +811,10 @@ export default function MapIntroPanel({ open, shops, onClose }: MapIntroPanelPro
           <IntroGrandmaRail
             height={railHeight}
             stopYs={stopYs}
-            targetStop={activeStop}
+            anchorYs={anchorYs}
+            scrollY={scrollY}
             comments={RAIL_COMMENTS}
             stopHeight={stopHeight}
-            scrollY={scrollY}
-            viewHeight={scrollerHeight}
           />
 
           {/* ── 見出し ──

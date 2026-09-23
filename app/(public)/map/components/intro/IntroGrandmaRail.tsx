@@ -3,9 +3,18 @@
 /**
  * 案内パネルを縦に貫く、にちよさんの道。
  *
- * 案内の中でにちよさんの絵は1枚だけにして、スクロールに合わせてその1枚が
- * 上から下へ降りてくる。停留点は各見出しのすぐ下で、着いたところで一言しゃべる。
+ * 案内の中でにちよさんの絵は1枚だけにして、スクロールと一緒にその1枚が
+ * 道を降りていく。停留点は各見出しのすぐ下で、そこに着いたときだけ一言しゃべる。
  * 絵を節ごとに置くと「何人もいる」ことになり、案内していた人がいなくなる。
+ *
+ * 【動き方】
+ * スクロール位置から「いま居るべき道の位置」を連続的に決める（節の先頭にいれば
+ * その節の停留点、節と節のあいだならそのぶんだけ途中）。にちよさんはそこへ向かって
+ * 毎フレーム歩く。速さの上限は人が歩くくらい（WALK_SPEED_PX_PER_SEC）で、
+ *   ・それより遅くスクロールしていれば、同じ速さで一緒に動く（画面上でほぼ止まって見える）
+ *   ・それより速く送られれば、遅れて追いかけ、止まってから追いつく
+ *   ・途中で止まれば、そこで止まる（停留点でなければ何も言わない）
+ * 停留点に着いて止まったときだけ吹き出しを出す。動いている間は何も言わない。
  *
  * 道は静かな波線で常に描いておく。降りる先が見えていると、下にまだ続きがあることが
  * 読む前に分かる。デモの枠は不透明なので、その裏は通り抜けているように見える。
@@ -14,11 +23,11 @@
  * 相談ページと同じもの（.consult-greeting）を、尻尾だけ左向きにして使う。
  */
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AnimatePresence,
-  animate,
   motion,
+  useAnimationFrame,
   useMotionValue,
   useReducedMotion,
   useTransform,
@@ -44,19 +53,45 @@ const WAVE_LENGTH = 220;
 const AVATAR_SIZE = 64;
 /** 着いてからしゃべっている時間 */
 const SPEAK_MS = 2200;
-/** 歩く速さ（px/秒）。速いと飛んでいるように見えるので、人が歩くくらいに落とす */
+/** 歩く速さの上限（px/秒）。これより遅いスクロールには同じ速さで付いていく */
 const WALK_SPEED_PX_PER_SEC = 420;
-const WALK_MIN_SEC = 0.8;
-const WALK_MAX_SEC = 1.9;
+/** 目的地の手前この距離から減速して、ぴたりと止まる */
+const ARRIVE_EASE_PX = 28;
 /**
  * これより小さなずれは歩かずに立ち位置を直す。
- * 停留点は測り直しで数 px 動くことがあり、そのたびに 0.8 秒歩いて
- * 吹き出しをしまっていては落ち着かない
+ * 停留点は測り直しで数 px 動くことがあり、そのたびに歩いて
+ * 吹き出しをしまっていては落ち着かない。スクロール中は使わない
  */
 const SNAP_PX = 12;
+/** 停留点からこの距離までなら「そこに立っている」とみなして一言言う */
+const STANDING_PX = 8;
+/** スクロールが止まってからこれだけ経てば、位置のずれは測り直しによるものとみなす */
+const SCROLL_SETTLE_MS = 160;
+/** 動きが止まってからこれだけ経てば、歩き終えたとみなす（1〜2フレームの間は続いているとみなす） */
+const WALK_SETTLE_MS = 120;
 /** 一歩ぶんの上下。踏み出すたびに軽く弾む */
 const WALK_BOB_PX = 4;
 const WALK_STEP_SEC = 0.46;
+
+/**
+ * スクロール位置から「いま居るべき道の位置」を引く。
+ * anchorYs[i] のスクロール位置で stopYs[i] にぴったり立ち、あいだは比例で埋める
+ */
+export function railPositionFor(scrollTop: number, anchorYs: number[], stopYs: number[]): number {
+  const n = Math.min(anchorYs.length, stopYs.length);
+  if (n === 0) return 0;
+  if (scrollTop <= anchorYs[0]) return stopYs[0];
+  for (let i = 0; i < n - 1; i += 1) {
+    const a0 = anchorYs[i];
+    const a1 = anchorYs[i + 1];
+    if (scrollTop <= a1) {
+      const span = a1 - a0;
+      const t = span > 0 ? (scrollTop - a0) / span : 1;
+      return stopYs[i] + (stopYs[i + 1] - stopYs[i]) * Math.min(1, Math.max(0, t));
+    }
+  }
+  return stopYs[n - 1];
+}
 
 /** 道の横位置。y に応じて左右に揺れる */
 export function railX(y: number): number {
@@ -76,37 +111,29 @@ function buildRailPath(height: number): string {
 export default function IntroGrandmaRail({
   height,
   stopYs,
-  targetStop,
+  anchorYs,
+  scrollY,
   comments,
   stopHeight = RAIL_STOP_HEIGHT,
-  scrollY,
-  viewHeight = 0,
 }: {
   /** 道を引く高さ（案内の中身の高さ） */
   height: number;
   /** 各停留点の上端。中身の先頭からの px */
   stopYs: number[];
-  /** 読んでいる場所から決まる、向かう先の停留点 */
-  targetStop: number;
+  /** 各停留点にぴったり立つスクロール位置（節の先頭）。stopYs と同じ並び */
+  anchorYs: number[];
+  /** いまのスクロール位置（中身の先頭からの px） */
+  scrollY: MotionValue<number>;
   /** 停留点ごとに言うこと */
   comments: readonly string[];
   /** 停留点1つぶんの高さ */
   stopHeight?: number;
-  /** いまのスクロール位置（中身の先頭からの px）。画面の外から歩き始めるときの判定に使う */
-  scrollY?: MotionValue<number>;
-  /** 見えている範囲の高さ */
-  viewHeight?: number;
 }) {
   const reduceMotion = useReducedMotion();
   const [pose, setPose] = useState<GrandmaPose>('idle');
   const [walking, setWalking] = useState(false);
-
-  /**
-   * 向かう先へはまっすぐ歩く。途中の停留点で足を止めることはしない。
-   * スクロールのほうが節の先頭で必ず一度止まる（scroll-snap）ので、
-   * 向かう先はふつう隣の停留点で、飛ばして見えることはない
-   */
-  const stopY = stopYs[targetStop] ?? 0;
+  /** 止まっている停留点。途中で止まっているときは null（何も言わない） */
+  const [standing, setStanding] = useState<number | null>(null);
 
   /**
    * 縦の位置。これを動かすと、横の位置は道の式から引き直される。
@@ -115,59 +142,137 @@ export default function IntroGrandmaRail({
    * 歩き出した瞬間に横へ瞬間移動していた。道がくねっているぶん、
    * それが「宙を飛んでいる」ように見えていた。
    */
-  const top = useMotionValue(stopY);
+  const top = useMotionValue(0);
   const avatarLeft = useTransform(top, (y) => railX(y + AVATAR_SIZE / 2) - AVATAR_SIZE / 2);
 
   /** 停留点の位置を一度でも測れたか。測れる前の 0 からは歩かず、立ち位置だけ直す */
   const hasMeasuredRef = useRef(false);
+  /** いま居るべき位置（スクロール位置から引いたもの） */
+  const desiredRef = useRef(0);
+  /** 最後にスクロールが動いた時刻 */
+  const scrollMovedAtRef = useRef(0);
+  /** 最後に足を動かした時刻と、歩いている最中か */
+  const lastMovedAtRef = useRef(0);
+  const walkingRef = useRef(false);
 
+  const stopYsRef = useRef(stopYs);
+  stopYsRef.current = stopYs;
+  /**
+   * 指が画面に触れているか。
+   *
+   * 指で送っている最中にここが毎フレーム描き換えると、離したあとの慣性が
+   * 消えて節の途中で止まってしまう（Chrome は指が付いている間の中身の変化を
+   * 見てジェスチャを切り直す）。触れている間は足を止め、離れてから追いかける。
+   * ホイールやトラックパッド（PC）には指が無いので、常に一緒に動く
+   */
+  const fingerDownRef = useRef(false);
   useEffect(() => {
-    if (stopYs.length === 0) return;
-    let from = top.get();
-    // 開いた直後（まだ 0 に居る）と、測り直しの小さなずれは歩かない
-    if (!hasMeasuredRef.current || Math.abs(stopY - from) < SNAP_PX || reduceMotion) {
-      hasMeasuredRef.current = true;
-      top.set(stopY);
+    const down = () => {
+      fingerDownRef.current = true;
+    };
+    const up = (event: TouchEvent) => {
+      if (event.touches.length === 0) fingerDownRef.current = false;
+    };
+    window.addEventListener('touchstart', down, { passive: true, capture: true });
+    window.addEventListener('touchend', up, { passive: true, capture: true });
+    window.addEventListener('touchcancel', up, { passive: true, capture: true });
+    return () => {
+      window.removeEventListener('touchstart', down, { capture: true });
+      window.removeEventListener('touchend', up, { capture: true });
+      window.removeEventListener('touchcancel', up, { capture: true });
+    };
+  }, []);
+
+  /** いまの位置から、立っている停留点を引く */
+  const standingAt = useCallback((y: number): number | null => {
+    const ys = stopYsRef.current;
+    for (let i = 0; i < ys.length; i += 1) {
+      if (Math.abs(ys[i] - y) <= STANDING_PX) return i;
+    }
+    return null;
+  }, []);
+
+  // スクロールが動くたびに「居るべき位置」を引き直す。測り直しで停留点が動いたときも同じ
+  useEffect(() => {
+    const update = () => {
+      desiredRef.current = railPositionFor(scrollY.get(), anchorYs, stopYs);
+    };
+    update();
+    const unsubscribe = scrollY.on('change', () => {
+      scrollMovedAtRef.current = performance.now();
+      update();
+    });
+    return unsubscribe;
+  }, [anchorYs, scrollY, stopYs]);
+
+  // 開いた直後（まだ 0 に居る）は歩かず、居るべき位置に立つ
+  useEffect(() => {
+    if (stopYs.length === 0 || anchorYs.length === 0 || hasMeasuredRef.current) return;
+    hasMeasuredRef.current = true;
+    top.set(desiredRef.current);
+    setStanding(standingAt(desiredRef.current));
+  }, [anchorYs.length, standingAt, stopYs.length, top]);
+
+  // 毎フレーム、居るべき位置へ向かって歩く
+  useAnimationFrame((now, deltaMs) => {
+    if (!hasMeasuredRef.current) return;
+    // 指が触れているあいだは足を止め、離れてから追いかける（下の fingerDownRef 参照）
+    if (fingerDownRef.current) return;
+    const dt = Math.min(deltaMs, 64) / 1000;
+    const current = top.get();
+    const target = desiredRef.current;
+    const delta = target - current;
+    const scrolling = now - scrollMovedAtRef.current < SCROLL_SETTLE_MS;
+
+    let step: number;
+    let moved = false;
+    if (reduceMotion) {
+      step = delta;
+    } else if (!walkingRef.current && !scrolling && Math.abs(delta) < SNAP_PX) {
+      // 測り直しの小さなずれ。歩かずに立ち位置だけ直す
+      step = delta;
+    } else if (Math.abs(delta) < 0.5) {
+      step = delta;
+    } else {
+      // 上限の速さで追いかける。手前では減速して、ぴたりと止まる
+      const maxStep = WALK_SPEED_PX_PER_SEC * dt;
+      const eased = Math.abs(delta) < ARRIVE_EASE_PX ? delta * Math.min(1, dt * 14) : delta;
+      step = Math.max(-maxStep, Math.min(maxStep, eased));
+      if (Math.abs(delta) >= 0.5 && Math.abs(step) < 0.15) step = Math.sign(delta) * 0.15;
+      moved = true;
+    }
+    if (step !== 0) top.set(current + step);
+
+    if (moved) {
+      lastMovedAtRef.current = now;
+      if (!walkingRef.current) {
+        walkingRef.current = true;
+        setWalking(true);
+        setStanding(null);
+      }
       return;
     }
-    /*
-     * 前の停留点が画面の外に流れていたら、画面の端のすぐ外から歩き始める。
-     * 節を送ると前の停留点は上に消えるので、そこから律儀に歩くと着くまでの
-     * 1秒近く、画面にはにちよさんが居ない。端から入ってくれば、送った直後から見える
-     */
-    if (scrollY && viewHeight > 0) {
-      const visibleTop = scrollY.get();
-      const visibleBottom = visibleTop + viewHeight;
-      if (from + AVATAR_SIZE < visibleTop) from = visibleTop - AVATAR_SIZE;
-      else if (from > visibleBottom) from = visibleBottom;
-      top.set(from);
-    }
-    const distance = Math.abs(stopY - from);
-    setWalking(true);
-    const controls = animate(top, stopY, {
-      // 距離なりに時間をかける。遠いところへ一瞬で着くと歩いて見えない
-      duration: Math.min(WALK_MAX_SEC, Math.max(WALK_MIN_SEC, distance / WALK_SPEED_PX_PER_SEC)),
-      ease: [0.33, 0, 0.25, 1],
-      onComplete: () => setWalking(false),
-    });
-    return () => {
-      controls.stop();
+    if (walkingRef.current && now - lastMovedAtRef.current > WALK_SETTLE_MS) {
+      walkingRef.current = false;
       setWalking(false);
-    };
-    // scrollY / viewHeight は歩き始める瞬間に読むだけ。値が変わるたびに歩き直さない
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stopY, stopYs.length, reduceMotion, top]);
+      setStanding(standingAt(top.get()));
+    } else if (!walkingRef.current && step !== 0) {
+      // 立ち位置を直したあとも、どの停留点に居るかは合わせておく
+      const next = standingAt(top.get());
+      setStanding((prev) => (prev === next ? prev : next));
+    }
+  });
 
-  // 歩いているあいだは前を見て、着いたらしばらく話している顔にする
+  // 歩いているあいだは前を見て、停留点に着いたらしばらく話している顔にする
   useEffect(() => {
-    if (walking) {
+    if (walking || standing === null) {
       setPose('idle');
       return;
     }
     setPose('speaking');
     const timer = window.setTimeout(() => setPose('idle'), SPEAK_MS);
     return () => window.clearTimeout(timer);
-  }, [walking, targetStop]);
+  }, [walking, standing]);
 
   const path = useMemo(() => buildRailPath(height), [height]);
 
@@ -195,8 +300,8 @@ export default function IntroGrandmaRail({
             key={i}
             cx={railX(y + AVATAR_SIZE / 2)}
             cy={y + AVATAR_SIZE / 2}
-            r={i === targetStop ? 5 : 3.5}
-            fill={i === targetStop ? '#7ED957' : '#e0cba8'}
+            r={i === standing ? 5 : 3.5}
+            fill={i === standing ? '#7ED957' : '#e0cba8'}
           />
         ))}
       </svg>
@@ -227,15 +332,16 @@ export default function IntroGrandmaRail({
         </motion.div>
 
         {/*
-          言うことは、着いてから出す。歩いている途中は何も言わない。
-          歩き出すときに吹き出しをしまい、着いたところで出し直す。
-          文字だけ差し替わると、まだ来ていない場所の話をしながら歩いて見える
+          言うことは、停留点に着いて止まってから出す。歩いている途中と、
+          途中で止まっているときは何も言わない。歩き出すときに吹き出しをしまい、
+          着いたところで出し直す。文字だけ差し替わると、まだ来ていない場所の
+          話をしながら歩いて見える
         */}
         <div className="absolute top-0" style={{ left: RAIL_WIDTH + 4, right: 16 }}>
           <AnimatePresence mode="wait" initial={false}>
-            {!walking && (
+            {!walking && standing !== null && (
               <motion.div
-                key={targetStop}
+                key={standing}
                 initial={reduceMotion ? false : { opacity: 0, y: 8, scale: 0.97 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={reduceMotion ? { opacity: 0 } : { opacity: 0, y: -6, scale: 0.97 }}
@@ -243,7 +349,7 @@ export default function IntroGrandmaRail({
                 className="consult-greeting consult-greeting--left rounded-2xl border border-amber-200 bg-white px-4 py-2.5 shadow-sm"
               >
                 <p className="text-[14px] font-bold leading-6 text-amber-900">
-                  {comments[targetStop] ?? comments[0]}
+                  {comments[standing] ?? comments[0]}
                 </p>
               </motion.div>
             )}
