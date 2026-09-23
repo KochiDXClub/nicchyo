@@ -18,7 +18,7 @@ import {
 } from "lucide-react";
 import { Shop } from "../data/shops";
 import { useAuth } from "../../../../lib/auth/AuthContext";
-import { getShopBannerImage } from "../../../../lib/shopImages";
+import { getShopPreviewImage } from "../../../../lib/shopImages";
 import {
   isProductFavorited,
   isShopFavorited,
@@ -241,8 +241,7 @@ const ShopDetailBanner = memo(function ShopDetailBanner({
 
   const isShopFavorite = isShopFavorited(favoriteEntries, shop.id);
   const canEditShop = permissions.canEditShop(shop.vendorId ?? "");
-  const bannerSeed = shop.position ?? shop.id;
-  const bannerImage = shop.images?.main ?? getShopBannerImage(shop.category, bannerSeed);
+  const bannerImage = getShopPreviewImage(shop);
 
   const handleEditShop = useCallback(() => { router.push("/my-shop"); }, [router]);
 
