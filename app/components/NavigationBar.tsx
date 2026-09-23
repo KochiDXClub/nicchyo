@@ -210,7 +210,9 @@ function NavigationBarInner({
   const visibleVisitItems = visitMenuItems.filter((item) =>
     isLinkVisible(item.visibilityPath ?? item.href.split("?")[0])
   );
-  const visibleAboutItems = aboutMenuItems.filter((item) => isLinkVisible(item.href));
+  const visibleAboutItems = aboutMenuItems.filter((item) =>
+    isLinkVisible(item.visibilityPath ?? item.href.split("?")[0])
+  );
   const visibleVendorItems = vendorMenuItems.filter((item) => isLinkVisible(item.href));
 
   // router.push はリンクと違って Provider のクリック監視に掛からないので、/map へ向かう前に自分で始める

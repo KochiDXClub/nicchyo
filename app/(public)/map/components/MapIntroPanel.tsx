@@ -173,7 +173,8 @@ function useSheetGestures({
   reduceMotion: boolean;
 }): {
   expanded: boolean;
-  sheetRef: React.MutableRefObject<HTMLDivElement | null>;
+  /** シートの要素を受け取る callback ref。要素が作り直されるたびに指の作法を付け直す */
+  sheetRef: (el: HTMLDivElement | null) => void;
   scrollRef: React.MutableRefObject<HTMLDivElement | null>;
   height: ReturnType<typeof useMotionValue<number>>;
   pull: ReturnType<typeof useMotionValue<number>>;
@@ -186,7 +187,13 @@ function useSheetGestures({
 } {
   const [expanded, setExpanded] = useState(false);
   const expandedRef = useRef(false);
-  const sheetRef = useRef<HTMLDivElement | null>(null);
+  /*
+   * シートの要素は state で持つ。閉じると要素ごと消え、開き直すと新しい要素になる。
+   * useRef だと effect が初回の要素にしか listener を付けず、開き直したあとは
+   * 指に付いてこなくなる
+   */
+  const [sheetEl, setSheetEl] = useState<HTMLDivElement | null>(null);
+  const sheetRef = useCallback((el: HTMLDivElement | null) => setSheetEl(el), []);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
@@ -262,7 +269,7 @@ function useSheetGestures({
 
   // ── 指の作法 ──
   useEffect(() => {
-    const sheet = sheetRef.current;
+    const sheet = sheetEl;
     if (!sheet) return;
 
     type Gesture = {
@@ -423,7 +430,7 @@ function useSheetGestures({
       if (restoreSnapTimer !== null) window.clearTimeout(restoreSnapTimer);
       if (scrollerAtMount) scrollerAtMount.style.scrollSnapType = '';
     };
-  }, [height, pull, reduceMotion, settle]);
+  }, [height, pull, reduceMotion, settle, sheetEl]);
 
   return { expanded, sheetRef, scrollRef, height, pull, radius, onScroll, onWheel, expand, collapse, toggle };
 }
@@ -468,15 +475,14 @@ function IntroProgress({
   onSelect: (index: number) => void;
 }) {
   return (
-    <div role="tablist" aria-label="案内の進み具合" className="-ml-2 flex items-center">
+    <nav aria-label="案内の進み具合" className="-ml-2 flex items-center">
       {labels.map((label, i) => {
         const state = i === active ? 'current' : i < active ? 'done' : 'todo';
         return (
           <button
             key={label}
             type="button"
-            role="tab"
-            aria-selected={i === active}
+            aria-current={i === active ? 'step' : undefined}
             aria-label={label}
             onClick={() => onSelect(i)}
             className="flex h-11 w-7 items-center justify-center focus-visible:outline-none"
@@ -493,7 +499,7 @@ function IntroProgress({
           </button>
         );
       })}
-    </div>
+    </nav>
   );
 }
 
@@ -679,8 +685,9 @@ export default function MapIntroPanel({ open, shops, onClose }: MapIntroPanelPro
     if (open) return;
     setActiveStop(0);
     setOpenShop(null);
+    scrollY.set(0);
     collapse();
-  }, [open, collapse]);
+  }, [open, collapse, scrollY]);
 
   /** いま読んでいるのはどの停留点か。画面の少し上を基準線にする */
   const updateActiveStop = useCallback(() => {
