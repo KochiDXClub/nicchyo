@@ -201,13 +201,18 @@ export default function IntroGrandmaRail({
         ))}
       </svg>
 
-      {/* 道を歩いて降りてくるにちよさんと、その一言 */}
+      {/*
+        道を歩いて降りてくるにちよさんと、その一言。
+        位置は top/left ではなく transform（y / x）で動かす。top を毎フレーム
+        書き換えるとそのたびにレイアウトが走り、スクロール中の測り直しと
+        ぶつかって歩きがカクつく。transform なら合成だけで済み、小数の位置も出せる
+      */}
       <motion.div
-        className="pointer-events-none absolute inset-x-0 z-10"
-        style={{ top, height: stopHeight }}
+        className="pointer-events-none absolute inset-x-0 top-0 z-10 will-change-transform"
+        style={{ y: top, height: stopHeight }}
       >
         {/* 横は道の式から引く。くねりに沿って左右に振れながら降りてくる */}
-        <motion.div className="absolute top-0" style={{ left: avatarLeft }}>
+        <motion.div className="absolute left-0 top-0 will-change-transform" style={{ x: avatarLeft }}>
           {/* 歩いているあいだ、一歩ごとに軽く弾む */}
           <motion.div
             animate={walking && !reduceMotion ? { y: [0, -WALK_BOB_PX, 0] } : { y: 0 }}
