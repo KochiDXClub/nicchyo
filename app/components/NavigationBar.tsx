@@ -85,6 +85,9 @@ const visitMenuItems: SheetItem[] = [
   { label: "日曜市をデータで見る", href: "/analysis", icon: BarChart3, badge: "デモ" },
 ];
 
+/** 地図の上に重なるだけで、ナビの状態を変えない ?panel= の値 */
+const HOME_PANEL_VALUES = new Set(["intro"]);
+
 /** nicchyo そのものについてのページ */
 const aboutMenuItems: SheetItem[] = [
   // 初回だけ自動で出る案内パネルを、あとから読み直すための入口。
@@ -196,7 +199,16 @@ function NavigationBarInner({
   // ナビまで閉じるモードにしない
   const isPanelOpen = pathname === "/map" && panel === "search";
   const isCloseUxActive = isPanelOpen || closeModeActive;
-  const isHome = (activeHref ?? pathname) === "/map" && !isCloseUxActive;
+  /*
+   * 地図に「居る」とみなす ?panel= の値の許可リスト。
+   * 案内（intro）は地図の上に重なるだけなので、ナビはふつうの地図の状態のまま。
+   * ここに無い値が付いているときは地図ではない扱いにして、新しいパネルを足したとき
+   * 黙ってフルナビ表示に倒れないようにする（検索は上の isCloseUxActive が閉じるモードにする）
+   */
+  const isHome =
+    (activeHref ?? pathname) === "/map" &&
+    !isCloseUxActive &&
+    (!panel || HOME_PANEL_VALUES.has(panel));
 
   // ページ公開設定で public でないリンクはナビに出さない
   const consultItem = baseNavItems[0];
