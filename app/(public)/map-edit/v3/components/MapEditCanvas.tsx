@@ -472,8 +472,10 @@ export default function MapEditCanvas({
  * 現在の回転角に「加算」していく（例: 右10を2回で右へ20度）。中央のボタンは
  * 初期角度（0度）に戻すリセット専用。ボタン同士が重ならないよう、円弧状には
  * 並べず横一列に並べ、それぞれに文字ラベルを付けて何のボタンか分かるようにする。
+ *
+ * MapEditCanvasMapLibre（MapLibre版キャンバス）でもそのまま再利用するため export している。
  */
-function RotationControl({
+export function RotationControl({
   rotation,
   setRotation,
 }: {
