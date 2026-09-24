@@ -260,10 +260,15 @@ export default function ConsultClient() {
         出てしまう（サイドバーを開いて本文が中央からずれるとなおさら目立つ）。
         読みやすい行幅への制限と中央/左寄せの切り替えは、スクロール領域の
         内側（ConsultStage 側の内側ラッパー）で行い、スクロールする箱自体は
-        画面の右端まで届く幅にしておく
+        画面の右端まで届く幅にしておく。
+
+        同じ理由で左右の px も持たせない（横方向の余白は ConsultStage 側の
+        内側ラッパーが px-4 で持つ）。ここに px を付けると、スクロールする箱の
+        右端が画面の真の右端から px 分だけ内側にずれ、チャットのスクロールバーが
+        画面端にぴったり付かなくなる
       */}
       <main
-        className={`relative z-10 w-full px-3 pb-16 ${
+        className={`relative z-10 w-full pb-16 ${
           isHistorySidebarOpen ? "lg:pl-80" : ""
         }`}
       >

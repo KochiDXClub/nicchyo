@@ -1173,18 +1173,27 @@ export default function ConsultStage({
         浮かせ、開くとその場でサイドバーの見出しに変わる（Claude の開閉と同じ運び）。
         既定は閉じておき、チャット欄は中央のまま保つ。開いたときだけチャット欄を
         右へ逃がす（ConsultClient 側の padding-left で処理）。
+
+        履歴が0件でもサイドバー自体は出しておく（Claude デスクトップ版も会話が
+        無い状態で一覧欄を消さない）。ここでいきなり消えると「開いたのに開き先が
+        消えた」という体験になるうえ、そもそもサイドバーの存在に気づけない。
+        中身が空のときは一覧の代わりに案内文を出す
       */}
-      {hasHistory && !isHistorySidebarOpen && (
+      {!isHistorySidebarOpen && (
         <button
           type="button"
           onClick={() => onHistorySidebarOpenChange?.(true)}
-          aria-label={`これまでの相談を開く（${entries.length}件）`}
+          aria-label={
+            entries.length > 0
+              ? `これまでの相談を開く（${entries.length}件）`
+              : "これまでの相談を開く"
+          }
           className="fixed left-4 top-4 z-30 hidden h-9 w-9 items-center justify-center rounded-lg text-slate-500 transition hover:bg-black/5 lg:flex"
         >
           <PanelLeftOpen className="h-5 w-5" aria-hidden="true" />
         </button>
       )}
-      {hasHistory && isHistorySidebarOpen && (
+      {isHistorySidebarOpen && (
         <div
           className="fixed inset-y-0 left-0 z-20 hidden w-72 flex-col border-r border-amber-100 bg-white lg:flex"
           style={{
@@ -1201,26 +1210,31 @@ export default function ConsultStage({
               <PanelLeftClose className="h-5 w-5" aria-hidden="true" />
             </button>
             <p className="truncate text-sm font-bold text-slate-700">
-              これまでの相談（{entries.length}件）
+              これまでの相談{entries.length > 0 ? `（${entries.length}件）` : ""}
             </p>
           </div>
           <div className="flex-1 overflow-y-auto overscroll-contain px-2 pb-2">
-            {renderHistoryList("sidebar")}
+            {entries.length > 0 ? (
+              renderHistoryList("sidebar")
+            ) : (
+              <p className="px-2 pt-3 text-sm leading-6 text-slate-400">
+                ここに相談の履歴を残していくよ。にちよさんに話しかけてみてね
+              </p>
+            )}
           </div>
-          <div className="shrink-0 border-t border-amber-100 px-3 py-3">
-            <button
-              type="button"
-              onClick={() => {
-                setEntries(createEmptySession().entries);
-                // 履歴が0件になるとサイドバー自体を描画しなくなるので、
-                // 開いたままだとチャット欄だけ右へ逃げた空白が残ってしまう
-                onHistorySidebarOpenChange?.(false);
-              }}
-              className="w-full rounded-lg px-3 py-2 text-left text-sm font-bold text-amber-800 transition hover:bg-amber-50"
-            >
-              相談を最初からにする
-            </button>
-          </div>
+          {entries.length > 0 && (
+            <div className="shrink-0 border-t border-amber-100 px-3 py-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setEntries(createEmptySession().entries);
+                }}
+                className="w-full rounded-lg px-3 py-2 text-left text-sm font-bold text-amber-800 transition hover:bg-amber-50"
+              >
+                相談を最初からにする
+              </button>
+            </div>
+          )}
         </div>
       )}
 
