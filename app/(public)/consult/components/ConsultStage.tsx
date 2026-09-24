@@ -1213,7 +1213,13 @@ export default function ConsultStage({
               これまでの相談{entries.length > 0 ? `（${entries.length}件）` : ""}
             </p>
           </div>
-          <div className="flex-1 overflow-y-auto overscroll-contain px-2 pb-2">
+          {/*
+            一覧が長いとここ自体がスクロールする。スクロールバーは要素の
+            border-box の右端にぴったり付く（padding では動かせない）ため、
+            mr-1 でこの箱自体をサイドバーと本文の境界線（border-r）から
+            少し離しておかないと、スクロールバーが境界線と重なって見えてしまう
+          */}
+          <div className="mr-1 flex-1 overflow-y-auto overscroll-contain px-2 pb-2">
             {entries.length > 0 ? (
               renderHistoryList("sidebar")
             ) : (
