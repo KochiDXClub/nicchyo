@@ -1,25 +1,31 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
-import { fetchVendorShopsFromDb } from "@/app/(public)/map/services/shopDb";
+import { fetchPublicShops } from "@/app/(public)/map/services/shopCache";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY;
-
-  if (!supabaseUrl || !supabaseKey) {
+  const hasSupabaseEnv =
+    !!process.env.NEXT_PUBLIC_SUPABASE_URL &&
+    !!(
+      process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY ??
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    );
+  if (!hasSupabaseEnv) {
     return NextResponse.json({ shops: [] }, { status: 503 });
   }
 
-  const supabase = createClient(supabaseUrl, supabaseKey, {
-    auth: { persistSession: false },
-  });
-
   try {
-    const shops = await fetchVendorShopsFromDb(supabase);
-    return NextResponse.json({ shops }, { status: 200 });
+    const shops = await fetchPublicShops();
+    // 認可判定を含まない公開データなので CDN にもキャッシュさせる。
+    // 投稿の出入りが最大 5 分遅れるが、この API はお気に入り・相談履歴の復元用で許容できる
+    return NextResponse.json(
+      { shops },
+      {
+        status: 200,
+        headers: { "Cache-Control": "public, s-maxage=300, stale-while-revalidate=3600" },
+      }
+    );
   } catch (error) {
     console.error(error);
     return NextResponse.json({ shops: [] }, { status: 500 });
