@@ -168,7 +168,7 @@ export async function fetchActiveContentRows(
     .order("created_at", { ascending: false });
 
   if (error) {
-    console.warn("[fetchVendorShopsFromDb] vendor_contents の取得に失敗しました:", error.message);
+    console.warn("[fetchActiveContentRows] vendor_contents の取得に失敗しました:", error.message);
     return [];
   }
   return Array.isArray(data) ? (data as ActiveContentRow[]) : [];
