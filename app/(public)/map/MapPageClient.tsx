@@ -5,11 +5,10 @@ import dynamic from "next/dynamic";
 import { useEffect, useMemo, useState, useRef, useCallback, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { AnimatePresence, motion, useDragControls } from "framer-motion";
-import { Heart, Navigation } from "lucide-react";
+import { Navigation } from "lucide-react";
 import SearchClient from "../search/SearchClient";
 import type { MapCamera as LeafletMap } from "./types/mapCamera";
 import { clearSearchMapPayload, loadAiMapPayload, loadSearchMapPayload } from "../../../lib/searchMapStorage";
-import NextImage from "next/image";
 import { getShopPreviewImage } from "../../../lib/shopImages";
 import { useAuth } from "../../../lib/auth/AuthContext";
 import { SHOP_CATEGORY_NAMES } from "./data/shops";
@@ -21,8 +20,9 @@ import { useMapLoading } from "../../components/MapLoadingProvider";
 import MapLoadingOverlay from "../../components/MapLoadingOverlay";
 import { grandmaEvents } from "./data/grandmaEvents";
 import { recordMarketEnter, recordMarketExit } from "../../../lib/storage/marketStats";
-import { buildSearchIndex } from "../search/lib/searchIndex";
-import { useShopSearch } from "../search/hooks/useShopSearch";
+import { useMapSearchFilter } from "./hooks/useMapSearchFilter";
+import { GenreFilter } from "./components/GenreFilter";
+import { VendorShopPrompt } from "./components/VendorShopPrompt";
 import MarketStatusBar from "../../components/market/MarketStatusBar";
 import { useMarketCalendar } from "../../../lib/market/useMarketCalendar";
 import ShopScanCards from "./components/ShopScanCards";
@@ -89,118 +89,8 @@ type MapPageClientProps = {
   mapViewSettings?: MapViewSettings;
 };
 
-
-// モバイル（375px基準）でチップ3件が収まり、残りは折りたたむUX判断
-const GENRE_PREVIEW_COUNT = 3;
-
 // 「このへん、なにがある？」の対象範囲＝画面に見えているマップの80%の長方形
 const NEARBY_AREA_RATIO = 0.8;
-
-function GenreFilter({
-  categories,
-  selected,
-  onSelect,
-  favoritesActive,
-  favoriteCount,
-  onToggleFavorites,
-}: {
-  categories: readonly string[];
-  selected: string | null;
-  onSelect: (cat: string) => void;
-  /** お気に入りだけに絞り込んでいるか */
-  favoritesActive: boolean;
-  /** 0件のときはチップ自体を出さない（初来訪者の画面を増やさないため） */
-  favoriteCount: number;
-  onToggleFavorites: () => void;
-}) {
-  const isSelectedHidden = selected !== null && categories.indexOf(selected) >= GENRE_PREVIEW_COUNT;
-  const [expanded, setExpanded] = useState(isSelectedHidden);
-
-  useEffect(() => {
-    if (isSelectedHidden) setExpanded(true);
-  }, [isSelectedHidden]);
-
-  const previewCategories = categories.slice(0, GENRE_PREVIEW_COUNT);
-  const hiddenCategories = categories.slice(GENRE_PREVIEW_COUNT);
-
-  function chipClass(cat: string) {
-    return `shrink-0 whitespace-nowrap rounded-chip border px-[13px] py-[7px] text-[13px] font-bold shadow-chip transition-all duration-[120ms] ${
-      selected === cat
-        ? 'border-amber-600 bg-amber-500 text-white'
-        : 'border-amber-200 bg-white text-amber-900 hover:bg-amber-50 active:bg-amber-50'
-    }`;
-  }
-
-  return (
-    <div className="flex flex-wrap items-center gap-1.5">
-      {favoriteCount > 0 && (
-        <motion.button
-          type="button"
-          onClick={onToggleFavorites}
-          aria-pressed={favoritesActive}
-          className={`flex shrink-0 items-center gap-1 whitespace-nowrap rounded-chip border px-[13px] py-[7px] text-[13px] font-bold shadow-chip transition-all duration-[120ms] ${
-            favoritesActive
-              ? 'border-favorite-fg bg-favorite-fg text-white'
-              : 'border-favorite-line bg-white text-favorite-fg hover:bg-favorite-bg active:bg-favorite-bg'
-          }`}
-          whileTap={{ scale: 0.88 }}
-        >
-          <Heart
-            className="h-3.5 w-3.5"
-            fill={favoritesActive ? 'currentColor' : 'none'}
-            aria-hidden
-          />
-          お気に入り
-          <span
-            className={`rounded-full px-1.5 text-[11px] font-bold ${
-              favoritesActive ? 'bg-white/25 text-white' : 'bg-favorite-bg text-favorite-fg'
-            }`}
-          >
-            {favoriteCount}
-          </span>
-        </motion.button>
-      )}
-      {previewCategories.map((cat) => (
-        <motion.button key={cat} type="button" onClick={() => onSelect(cat)} className={chipClass(cat)} whileTap={{ scale: 0.88 }}>
-          {cat}
-        </motion.button>
-      ))}
-
-      {/* 展開中の追加チップ（アニメ付き） */}
-      <AnimatePresence initial={false}>
-        {expanded && hiddenCategories.map((cat, i) => (
-          <motion.button
-            key={cat}
-            type="button"
-            onClick={() => onSelect(cat)}
-            className={chipClass(cat)}
-            initial={{ opacity: 0, scale: 0.82, y: -4 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.82, y: -4 }}
-            transition={{ duration: 0.18, delay: i * 0.04, ease: [0.22, 1, 0.36, 1] }}
-          >
-            {cat}
-          </motion.button>
-        ))}
-      </AnimatePresence>
-
-      {/* ＋ / × トグルボタン（チップと同列・オレンジ） */}
-      <motion.button
-        type="button"
-        onClick={() => setExpanded((v) => !v)}
-        aria-label={expanded ? 'ジャンルを閉じる' : 'ジャンルをもっと見る'}
-        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-amber-500 text-white shadow-md active:scale-90"
-        animate={{ rotate: expanded ? 45 : 0 }}
-        transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
-        whileTap={{ scale: 0.88 }}
-      >
-        <svg width="13" height="13" viewBox="0 0 10 10" fill="none" aria-hidden>
-          <path d="M5 1v8M1 5h8" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
-        </svg>
-      </motion.button>
-    </div>
-  );
-}
 
 export default function MapPageClient({
   shops,
@@ -429,42 +319,22 @@ export default function MapPageClient({
     ids: number[];
     label: string;
   } | null>(null);
-  const [mapSearchQuery, setMapSearchQuery] = useState(
-    () => searchParams?.get("q") ?? '',
-  );
-  const [mapSearchCategory, setMapSearchCategory] = useState<string | null>(null);
-  // お気に入り絞り込み。歩きながら1タップで「あとで戻る店」だけの地図にできる
-  const [favoritesOnly, setFavoritesOnly] = useState(false);
   const favoriteShopIds = useFavoriteShopIds();
-
-  // 最後の1件を外したら絞り込みも解除する（0件の地図に取り残さない）
-  useEffect(() => {
-    if (favoriteShopIds.length === 0) setFavoritesOnly(false);
-  }, [favoriteShopIds.length]);
-  const mapSearchIndex = useMemo(() => buildSearchIndex(shops), [shops]);
-  const mapSearchResults = useShopSearch({
-    shops,
-    searchIndex: mapSearchIndex,
-    textQuery: mapSearchQuery,
+  const {
+    query: mapSearchQuery,
+    setQuery: setMapSearchQuery,
     category: mapSearchCategory,
-    chome: null,
-  });
-  const mapSearchShopIds = useMemo(() => {
-    const hasTextOrCategory = !!mapSearchQuery.trim() || !!mapSearchCategory;
-    const matchedIds = hasTextOrCategory ? mapSearchResults.map((s) => s.id) : undefined;
-    if (!favoritesOnly) return matchedIds;
-    // お気に入りチップは検索・ジャンルと重ねて効かせる
-    if (!matchedIds) return favoriteShopIds;
-    const favoriteSet = new Set(favoriteShopIds);
-    return matchedIds.filter((id) => favoriteSet.has(id));
-  }, [
-    favoriteShopIds,
+    setCategory: setMapSearchCategory,
     favoritesOnly,
-    mapSearchCategory,
-    mapSearchQuery,
-    mapSearchResults,
-  ]);
-  const hasMapFilter = !!mapSearchQuery.trim() || !!mapSearchCategory || favoritesOnly;
+    setFavoritesOnly,
+    results: mapSearchResults,
+    shopIds: mapSearchShopIds,
+    hasFilter: hasMapFilter,
+  } = useMapSearchFilter({
+    shops,
+    favoriteShopIds,
+    initialQuery: searchParams?.get("q") ?? "",
+  });
   const [aiMarkerPayload, setAiMarkerPayload] = useState<{
     ids: number[];
     label: string;
@@ -485,7 +355,7 @@ export default function MapPageClient({
     setSearchMarkerPayload(null);
     setMapSearchQuery('');
     setMapSearchCategory(null);
-  }, []);
+  }, [setMapSearchCategory, setMapSearchQuery]);
   /** AI のおすすめ表示を畳む。相談そのものは /consult に集約した */
   const clearAiRecommendation = useCallback(() => {
     setAiMarkerPayload(null);
@@ -890,56 +760,12 @@ export default function MapPageClient({
       >
         <div className="relative h-full overflow-hidden">
             {showVendorPrompt && vendorShopName && (
-              <div className="absolute left-4 right-4 top-1/2 z-[1300] -translate-y-1/2">
-                <div className="rounded-2xl border border-amber-200 bg-white/95 p-4 shadow-xl">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-amber-700">
-                        出店者向け
-                      </p>
-                      <p className="mt-2 text-sm font-semibold text-slate-900">
-                        {vendorShopName} のショップバナーを開きますか？
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setShowVendorPrompt(false)}
-                      className="h-8 w-8 rounded-full border border-amber-200 bg-white text-xs font-bold text-amber-700 shadow-sm hover:bg-amber-50"
-                      aria-label="閉じる"
-                    >
-                      ×
-                    </button>
-                  </div>
-                  {vendorShopImage && (
-                    <div className="mt-3 overflow-hidden rounded-2xl border border-amber-100 bg-white">
-                      <NextImage
-                        src={vendorShopImage}
-                        alt={`${vendorShopName}の写真`}
-                        width={600}
-                        height={160}
-                        className="h-40 w-full object-cover object-center"
-                      />
-
-                    </div>
-                  )}
-                  <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
-                    <button
-                      type="button"
-                      onClick={handleOpenVendorBanner}
-                      className="w-full rounded-xl bg-amber-600 px-4 py-2 text-sm font-semibold text-white shadow-sm shadow-amber-200/70 transition hover:bg-amber-500"
-                    >
-                        お店の情報を開く
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setShowVendorPrompt(false)}
-                      className="w-full rounded-xl border border-amber-200 bg-white px-4 py-2 text-sm font-semibold text-amber-800 shadow-sm transition hover:bg-amber-50"
-                    >
-                      後で
-                    </button>
-                  </div>
-                </div>
-              </div>
+              <VendorShopPrompt
+                shopName={vendorShopName}
+                shopImage={vendorShopImage}
+                onOpen={handleOpenVendorBanner}
+                onDismiss={() => setShowVendorPrompt(false)}
+              />
             )}
 
             {/* 検索バー・ジャンルフィルター周辺の地図をぼかし、UIの視認性を高める（白要素は使わない） */}
