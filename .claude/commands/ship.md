@@ -29,6 +29,14 @@ npm test 2>&1 | tail -10
 npm run build 2>&1 | tail -20
 ```
 
+### 6. コード健康診断（共通化・デザインルールの悪化チェック）
+```bash
+git fetch origin develop && npm run code-health:diff
+```
+⚠️ が出たら「悪化した箇所」を直す（既存の共通部品を使う・コピペを共通化する）。
+直さない場合は理由を PR 本文に書く。出力された表（`.code-health/diff.md`）は PR 本文の「補足」に貼る。
+詳細は `docs/CODE_HEALTH.md`。
+
 ### 6. 変更ファイル数（10 件以内推奨）
 ```bash
 git diff --stat $(git merge-base HEAD origin/develop) HEAD
@@ -63,6 +71,7 @@ git log --oneline $(git merge-base HEAD origin/develop)..HEAD
 - ✅/❌ Lint
 - ✅/❌ テスト
 - ✅/❌ ビルド
+- ✅/⚠️ コード健康診断（悪化なし / 悪化あり・理由を記載）
 - 変更ファイル数（10 件超えなら分割を提案）
 - ✅/➖ CHANGELOG-unreleased.md への追記（来訪者に見えない変更なら ➖）
 

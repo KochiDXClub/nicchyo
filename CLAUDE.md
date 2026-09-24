@@ -18,6 +18,10 @@ npx vitest run lib/favoriteShops.test.ts  # 単一テストファイルの実行
 
 PRを出す前は必ず `npm run build` でビルドが通ることを確認する。
 
+**コードの健康診断でビフォーアフターを確認する**（詳細は `docs/CODE_HEALTH.md`）：
+- 実装を始める前に `npm run code-health` を実行し、触る場所に既存の共通部品・重複・ルール違反がないかを `.code-health/report.html` で確かめる
+- PR を出す前に `npm run code-health:diff` を実行する。⚠️（悪化）が出たら「悪化した箇所」を直す。直さない場合は理由を PR に書く。結果の表は PR 本文に貼る
+
 **PRは小さく出す**：チーム開発のためレビューしやすさを優先する。1PRは1つの目的（機能追加・バグ修正・リファクタを混在させない）。目安は変更ファイル10件以内。大きな作業は事前にサブタスクに分割してからPRを作成する。
 
 **本番リリース（`develop` → `main`）の方針は `docs/RELEASE.md`** を参照する。日常のPRは `develop` へ出す。`main` への直接マージはリリース作業と hotfix のみ。
