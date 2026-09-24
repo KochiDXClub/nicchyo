@@ -31,6 +31,7 @@ import NearbyExplorePanel, {
   type NearbyRecommendedShop,
 } from "./components/NearbyExplorePanel";
 import { useNearbyPromptVisibility } from "./hooks/useNearbyPromptVisibility";
+import { hasMapDeepLink, MAP_INTRO_PANEL_VALUE, useMapIntro } from "./hooks/useMapIntro";
 import GuideLayer from "./components/GuideLayer";
 import OdekakeGuidePanel from "./components/OdekakeGuidePanel";
 import GuideNavigationBar from "./components/GuideNavigationBar";
@@ -74,6 +75,9 @@ const MapViewLeaflet = dynamic(() => import("./components/MapView"), {
 const MapViewMapLibre = dynamic(() => import("./components/maplibre/MapViewMapLibre"), {
   ssr: true,
 });
+// はじめての方への案内。初回か、メニューから開いたときにだけ要る。
+// 二度目以降の来訪者は一度も開かないので、その人たちに読み込ませない
+const MapIntroPanel = dynamic(() => import("./components/MapIntroPanel"), { ssr: false });
 
 type MapPageClientProps = {
   shops: Shop[];
@@ -296,6 +300,37 @@ export default function MapPageClient({
     setGuideOverride({ kinds: [] });
     syncGuideUrl(GUIDE_MENU_VALUE);
   }, [syncGuideUrl]);
+
+  // ── 初回案内パネル ────────────────────────────────────────────
+  // 独立した LP ページを作らず、読み込み終わった地図の上に重ねて出す。
+  // 地図が出きる前に被せると「LP を見てからマップへ行く」体験になるため、
+  // Provider のローディングが畳まれた（= 地図が画面に出た）あとにだけ開く
+  const mapArrived = mapLoadingHandedOff && mapLoadingStatus === "idle";
+  const introRequested = searchParams?.get("panel") === MAP_INTRO_PANEL_VALUE;
+  const introHasDeepLink = useMemo(
+    () => hasMapDeepLink(searchParams ?? null),
+    // searchParams オブジェクトは毎レンダー同一とは限らないので文字列で比較する
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [searchParamsKey]
+  );
+  const { open: introOpen, close: dismissIntro } = useMapIntro({
+    requested: introRequested,
+    hasDeepLink: introHasDeepLink,
+    mapArrived,
+  });
+  // 一度でも開いたら、閉じる動きのために置いたままにする（読み込むのはこのとき）
+  const [introEverOpened, setIntroEverOpened] = useState(false);
+  useEffect(() => {
+    if (introOpen) setIntroEverOpened(true);
+  }, [introOpen]);
+  const closeIntro = useCallback(() => {
+    dismissIntro();
+    // ?panel=intro を外す。router.push だと店舗300件を含むページを取り直すので、
+    // URL は history.replaceState で静かに合わせるだけにする（おでかけサポートと同じ）
+    if (introRequested && typeof window !== "undefined") {
+      window.history.replaceState(null, "", buildCurrentMapUrl({ panel: null }));
+    }
+  }, [buildCurrentMapUrl, dismissIntro, introRequested]);
   // /facilities からのリンクなど、URL 側の指定が変わったら画面の状態を捨てて従う
   const guideUrlKey = guideQueryFromUrl ? `open:${guideQueryFromUrl.kinds.join(",")}` : "closed";
   const lastGuideUrlKeyRef = useRef(guideUrlKey);
@@ -744,7 +779,7 @@ export default function MapPageClient({
   // ── 「このへん、なにがある？」──────────────────────
   // 他のモード（検索・AI相談・店舗バナー・パネル表示中）ではボタンを出さない
   const nearbySuppressed =
-    !!nearbyState || hasSearchMode || hasAiMode || isShopBannerOpen || guideActive;
+    !!nearbyState || hasSearchMode || hasAiMode || isShopBannerOpen || guideActive || introOpen;
   // 回転のみのジェスチャーは Leaflet の move/zoom を発火させないため、
   // MapView から素通しで受け取ってボタンの静止判定に反映する
   const [isMapGestureActive, setIsMapGestureActive] = useState(false);
@@ -1216,6 +1251,19 @@ export default function MapPageClient({
           onConsultClick={goToConsult}
           closeModeActive={hasSearchMode || hasAiMode || !!nearbyState || guideActive}
           onCloseMode={closeMapInteractionMode}
+        />
+      )}
+
+      {/* 初来訪者への案内。地図が出たあとに下から重なり、上には地図が見えたままになる */}
+      {/* 開閉の動きは MapIntroPanel の中の AnimatePresence が受け持つ */}
+      {introEverOpened && (
+        <MapIntroPanel
+          open={introOpen}
+          shops={shops}
+          landmarks={landmarks}
+          mapRoute={mapRoute}
+          showOdekake={odekakeEntryVisible}
+          onClose={closeIntro}
         />
       )}
 
