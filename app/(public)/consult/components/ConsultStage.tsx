@@ -36,6 +36,7 @@ import {
 } from "../data/consultCharacters";
 import ConsultShopCard from "./ConsultShopCard";
 import ConsultSheet from "./ConsultSheet";
+import { isImeComposing } from "@/lib/utils/isImeComposing";
 import type { Shop } from "../../map/data/shops";
 import type {
   ConsultAskResponse,
@@ -116,8 +117,8 @@ type StagePhase = "idle" | "confirming" | "thinking";
  * 現地の相談はほぼ全部が独立した1往復で終わり、文脈が積み上がらないため、
  * ログを積むと縦に伸びるだけで得がない（キャラを大きく置く余地も失う）。
  *
- * 入力手段の優先順位は、速さと騒音耐性で決めている：
- *   候補ボタン（0.5秒・騒音に強い） > 音声（3〜5秒・騒音に弱い） > 文字（15秒以上）
+ * 入力手段は、候補ボタン・文字入力を既定にし、音声は選べる小さいボタンに
+ * している（静かな場所や周りに人がいるときは声を出しにくいため）。
  */
 export default function ConsultStage({
   onAskStream,
@@ -508,9 +509,14 @@ export default function ConsultStage({
    * 残りが0件になってサイドバーごと消えてしまう（タップして展開したのに
    * 展開先が消える、というおかしな体験になる）。一覧からは current を
    * 除かず、選んでいる行を強調表示するだけにしたので、ここも current に
-   * 左右されない「全部で何件あるか」だけで決める
+   * 左右されない「全部で何件あるか」だけで決める。
+   *
+   * `> 1` にしてしまうと、モバイルで1件だけ相談した後にページへ戻ってきた
+   * とき（showsCurrentAnswer=false → current=null）に「これまでの相談」
+   * ボタンごと出なくなり、前の答えに戻る手段がなくなる。1件でもボタンは
+   * 出す必要があるので `> 0` にする
    */
-  const hasHistory = entries.length > 1;
+  const hasHistory = entries.length > 0;
 
   // 「これまでの相談」の1件をタップして、大きい答えカードとして開き直す
   const viewHistoryEntry = useCallback((id: string) => {
@@ -580,7 +586,7 @@ export default function ConsultStage({
 
   /**
    * 「これまでの相談」の中身。モバイルはボトムシート、PC（lg 以上）は
-   * 常時表示のサイドバーで、見た目の器は違うが元データは同じもの。
+   * 開閉式のサイドバー（既定は閉じる）で、見た目の器は違うが元データは同じもの。
    * タップすると、その相談を大きい答えカード（おばあちゃんの今の返事として
    * 表示される場所）に開き直す。
    *
@@ -715,11 +721,13 @@ export default function ConsultStage({
       className="h-[calc(100dvh-var(--consult-bar-space))] w-full overflow-y-auto px-4"
       style={
         {
-          // 下端に固定した「話しかける」とナビゲーションバーの分だけ空ける。
-          // ここを決め打ちにすると、ホームインジケータのある端末で本文が隠れる。
-          // height 側の計算式とずれないよう、値は CONSULT_BAR_SPACE の1箇所だけで定義する
+          // 下端に固定した「話しかける」とナビゲーションバーの分は、上の
+          // height 側で既に差し引いている（この箱自体がその高さぶん
+          // 画面の下までは伸びない）。ここでさらに paddingBottom を
+          // CONSULT_BAR_SPACE と同じ値にすると二重に空いてしまうので、
+          // 最後の要素がバーに張り付かない程度の小さい余白だけ持たせる
           "--consult-bar-space": CONSULT_BAR_SPACE,
-          paddingBottom: "var(--consult-bar-space)",
+          paddingBottom: "1rem",
         } as CSSProperties
       }
     >
@@ -943,12 +951,17 @@ export default function ConsultStage({
           音声シートが出ている間と応答待ちの間は、押すべきものが2つにならないよう隠す。
           外側はビューポート全幅の flex にし、中身だけ max-w-3xl に絞る
           （ConsultClient の <main> と同じ組み方）。lg 以上でサイドバーを開いているときは
-          この外側に lg:pl-80 を足してチャット欄と同じだけ右へ逃がし、さらに
+          この外側に左パディングを足してチャット欄と同じだけ右へ逃がし、さらに
           justify-center のままだと「逃がした残りスペースの中でまた中央寄せ」になって
-          チャット本体とズレるため、lg:justify-start に切り替えて左詰めにする */}
+          チャット本体とズレるため、lg:justify-start に切り替えて左詰めにする。
+
+          パディングは lg:pl-80（main と同じ 20rem）だけでなく lg:pl-[21rem] にする。
+          チャットのスクロール箱は main の 20rem に加えて自分自身の px-4（1rem）を
+          持っているため、本文の左端は実際には 21rem 分空いている。ここを 20rem の
+          ままにすると、入力欄だけ本文より 1rem 左にずれて見える */}
       <div
         className={`fixed inset-x-0 z-20 flex justify-center px-4 ${
-          isHistorySidebarOpen ? "lg:justify-start lg:pl-80" : ""
+          isHistorySidebarOpen ? "lg:justify-start lg:pl-[21rem]" : ""
         } ${revealClass(280).className} ${
           speech.isListening || phase !== "idle" || isBusy ? "hidden" : ""
         }`}
@@ -983,7 +996,7 @@ export default function ConsultStage({
               onChange={(event) => setTyped(event.target.value)}
               onKeyDown={(event) => {
                 // 日本語入力の変換確定の Enter で、未確定テキストのまま送信してしまわないようにする
-                if (event.nativeEvent.isComposing) return;
+                if (isImeComposing(event)) return;
                 if (event.key !== "Enter" || isBusy) return;
                 const question = typed.trim();
                 if (!question) return;
@@ -992,6 +1005,8 @@ export default function ConsultStage({
                 void ask(question, "input");
               }}
               placeholder="（例）今の旬の果物は？"
+              aria-label="にちよさんへの質問"
+              enterKeyHint="send"
               disabled={isBusy}
               className="min-w-0 flex-1 bg-transparent py-2.5 text-base text-slate-800 outline-none placeholder:text-slate-400 disabled:opacity-50"
             />
@@ -1156,6 +1171,7 @@ export default function ConsultStage({
             <button
               type="button"
               onClick={() => {
+                if (!window.confirm("これまでの相談をすべて消すよ。よろしい？")) return;
                 setEntries(createEmptySession().entries);
                 setHistoryOpen(false);
               }}
@@ -1188,13 +1204,15 @@ export default function ConsultStage({
               ? `これまでの相談を開く（${entries.length}件）`
               : "これまでの相談を開く"
           }
+          aria-expanded={false}
           className="fixed left-4 top-4 z-30 hidden h-9 w-9 items-center justify-center rounded-lg text-slate-500 transition hover:bg-black/5 lg:flex"
         >
           <PanelLeftOpen className="h-5 w-5" aria-hidden="true" />
         </button>
       )}
       {isHistorySidebarOpen && (
-        <div
+        <aside
+          aria-label="これまでの相談"
           className="fixed inset-y-0 left-0 z-20 hidden w-72 flex-col border-r border-amber-100 bg-white lg:flex"
           style={{
             paddingBottom: "calc(var(--safe-bottom, 0px) + var(--nav-bar-height))",
@@ -1205,6 +1223,7 @@ export default function ConsultStage({
               type="button"
               onClick={() => onHistorySidebarOpenChange?.(false)}
               aria-label="サイドバーを閉じる"
+              aria-expanded={true}
               className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-slate-500 transition hover:bg-black/5"
             >
               <PanelLeftClose className="h-5 w-5" aria-hidden="true" />
@@ -1233,6 +1252,7 @@ export default function ConsultStage({
               <button
                 type="button"
                 onClick={() => {
+                  if (!window.confirm("これまでの相談をすべて消すよ。よろしい？")) return;
                   setEntries(createEmptySession().entries);
                 }}
                 className="w-full rounded-lg px-3 py-2 text-left text-sm font-bold text-amber-800 transition hover:bg-amber-50"
@@ -1241,7 +1261,7 @@ export default function ConsultStage({
               </button>
             </div>
           )}
-        </div>
+        </aside>
       )}
 
       {/*
