@@ -246,8 +246,13 @@ export default function ConsultClient() {
     >
       <div className="pointer-events-none absolute inset-0 z-0 bg-[var(--consult-bg)]" aria-hidden="true" />
       {/*
-        「これまでの相談」サイドバー（lg 以上）を開いているときだけ、
-        中央寄せの本文を右へ逃がす。既定（閉じている間）はチャット欄を中央に置く
+        「これまでの相談」サイドバー（lg 以上）を開いているときは、チャット欄を
+        サイドバーのすぐ右（固定ガター lg:pl-80）に寄せる。中央寄せ（justify-center）の
+        ままだと、「サイドバー分を除いた残りスペースの中でさらに中央寄せ」になり、
+        画面が広いほど残りスペース自体が広がってサイドバーとチャット欄の間に
+        巨大な空白が生まれてしまう（ワイドモニタで特に顕著）。開いている間だけ
+        justify-start にし、その空白をなくす。既定（閉じている間）はチャット欄を
+        画面全体の中央に置く
       */}
       {/*
         pt は付けない。ConsultStage 側のスクロール領域が自前で pt-3 を持っており、
@@ -256,7 +261,7 @@ export default function ConsultClient() {
       */}
       <main
         className={`relative z-10 flex w-full items-start justify-center px-3 pb-16 ${
-          isHistorySidebarOpen ? "lg:pl-80" : ""
+          isHistorySidebarOpen ? "lg:justify-start lg:pl-80" : ""
         }`}
       >
         <div className="flex w-full max-w-3xl flex-col gap-2">
