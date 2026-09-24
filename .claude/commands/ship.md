@@ -34,7 +34,8 @@ npm run build 2>&1 | tail -20
 git fetch origin develop && npm run code-health:diff
 ```
 ⚠️ が出たら「悪化した箇所」を直す（既存の共通部品を使う・コピペを共通化する）。
-直さない場合は理由を PR 本文に書く。出力された表（`.code-health/diff.md`）は PR 本文の「補足」に貼る。
+出力された `.code-health/diff.md` は PR 本文の「共通基盤チェック」欄にそのまま貼る。
+直さない場合は、その中の「悪化を残す理由・今後の対応」に理由を書く。
 詳細は `docs/CODE_HEALTH.md`。
 
 ### 6. 変更ファイル数（10 件以内推奨）
@@ -96,6 +97,9 @@ git log --oneline $(git merge-base HEAD origin/develop)..HEAD
 - [ ] `npm run build` が通ることを確認した
 - [ ] ローカルで動作確認した
 - [ ] 関連するテストを追加・更新した（該当する場合）
+
+## 共通基盤チェック
+（.code-health/diff.md の中身をそのまま貼る）
 ```
 
 すべて ✅ なら「出荷OK」と報告し、PR 説明草案を提示する。

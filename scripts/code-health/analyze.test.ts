@@ -96,6 +96,10 @@ describe("diffReports", () => {
     const diff = diffReports(analyze(base), analyze(base));
     expect(diff.failed).toBe(false);
     expect(diff.changedFiles).toHaveLength(0);
+    const md = diffToMarkdown(diff);
+    expect(md).toMatch(/^✅ \*\*悪化なし\*\*/);
+    expect(md).toContain("| 共通化率 | 30%以上 |");
+    expect(md).not.toContain("悪化を残す理由");
   });
 
   it("変更したファイルでルール違反が増えたら悪化として場所と値を示す", () => {
@@ -107,7 +111,10 @@ describe("diffReports", () => {
     expect(diff.failed).toBe(true);
     expect(diff.ruleRegressions.map((r) => r.rule).sort()).toEqual(["neutralPalette", "rawHex"]);
     expect(diff.ruleRegressions.find((r) => r.rule === "rawHex")?.newValues).toEqual(["#abcdef"]);
-    expect(diffToMarkdown(diff)).toContain("`app/x/page.tsx` 生の hex カラー（種類）: 0 → 1");
+    const md = diffToMarkdown(diff);
+    expect(md).toContain("⚠️ **悪化あり（2か所）**");
+    expect(md).toContain("- `app/x/page.tsx`：生の hex カラー（種類） 0 → 1（`#abcdef`）");
+    expect(md).toContain("**悪化を残す理由・今後の対応**");
   });
 
   it("新しいファイルでコピペが増えたら相手の場所を示す", () => {

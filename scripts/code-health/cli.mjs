@@ -102,11 +102,13 @@ function main() {
   writeFileSync(join(outDir, "report.html"), renderHtml(after, diff));
 
   if (diff) {
+    // diff.md は PR 本文の「共通基盤チェック」欄にそのまま貼る（見出しはテンプレート側にある）
     const md = diffToMarkdown(diff);
     writeFileSync(join(outDir, "diff.md"), md + "\n");
     writeFileSync(join(outDir, "diff.json"), JSON.stringify(diff, null, 2));
-    if (args.summaryFile) appendFileSync(args.summaryFile, md + "\n");
+    if (args.summaryFile) appendFileSync(args.summaryFile, diffToMarkdown(diff, { heading: true }) + "\n");
     console.log(md);
+    console.log(`\nPR 本文の「共通基盤チェック」欄に貼る内容: ${join(args.out, "diff.md")}`);
   } else {
     console.log(shortSummary(after));
   }
