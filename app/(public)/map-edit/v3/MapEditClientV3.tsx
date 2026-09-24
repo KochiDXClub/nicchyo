@@ -1109,7 +1109,7 @@ function MapEditClientV3Body(props: BodyProps) {
           {/* Issue #650: Leaflet+SVG → MapLibre移行中の比較用トグル。PR③で旧キャンバスを消す際に外す */}
           <span
             onClick={toggleCanvasEngine}
-            title="地図の描画方式を切り替える（比較用。既定はLeaflet）"
+            title="地図の描画方式を切り替える（比較用。既定はMapLibre）"
             style={{
               padding: "8px 13px",
               borderRadius: 10,

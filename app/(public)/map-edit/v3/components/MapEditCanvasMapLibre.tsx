@@ -108,6 +108,8 @@ function buildBackgroundStyle(): StyleSpecification {
         maxzoom: 20,
       },
     },
+    // 店番号（symbol レイヤー）の text-field に必要。公開マップと同じ配信元・フォント
+    glyphs: "https://tiles.openfreemap.org/fonts/{fontstack}/{range}.pbf",
     layers: [
       { id: "background", type: "background", paint: { "background-color": "#FFFAF0" } },
       // 編集画面ではこの背景そのものが位置合わせの基準になるため、公開マップの
@@ -275,6 +277,7 @@ export default function MapEditCanvasMapLibre({
   selectedRoadId,
   selectedLandmarkKey,
   slotAction,
+  roadAction,
   draft,
   search,
   zoomIdx,
@@ -296,6 +299,8 @@ export default function MapEditCanvasMapLibre({
   // イベントハンドラは map 初期化時に1回だけ登録するため、最新値は ref 経由で読む
   const tabRef = useRef(tab);
   tabRef.current = tab;
+  const roadActionRef = useRef(roadAction);
+  roadActionRef.current = roadAction;
   const handlersRef = useRef(handlers);
   handlersRef.current = handlers;
   const projectionRef = useRef(projection);
@@ -407,6 +412,7 @@ export default function MapEditCanvasMapLibre({
         minzoom: MAPLIBRE_ZOOMS[2] - 0.2,
         layout: {
           "text-field": ["get", "position"],
+          "text-font": ["Noto Sans Bold"],
           "text-size": 10,
           "text-allow-overlap": true,
           "text-ignore-placement": true,
@@ -419,6 +425,8 @@ export default function MapEditCanvasMapLibre({
       // といった操作が下の「空き地クリック」に届かなくなる）
       map.on("click", LAYER_ROAD_CASING, (e) => {
         if (tabRef.current !== "road") return;
+        // 新規描画中は、既存の点へのスナップ・接続のため空き地クリック（onMapClick）へ流す
+        if (roadActionRef.current === "draw") return;
         consumedClickRef.current = true;
         const roadId = e.features?.[0]?.properties?.roadId;
         if (typeof roadId === "string") handlersRef.current.onSelectRoad(roadId);
