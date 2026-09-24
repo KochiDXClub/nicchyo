@@ -27,6 +27,7 @@ import {
   LogIn,
   LogOut,
   Mail,
+  Sparkles,
   ShieldCheck,
   MessageCircle,
   Newspaper,
@@ -42,6 +43,7 @@ import { useAuth } from "@/lib/auth/AuthContext";
 import { GITHUB_REPO_URL } from "@/lib/siteLinks";
 import { useMenu } from "@/lib/ui/MenuContext";
 import { usePageVisibility } from "@/lib/pageVisibility/PageVisibilityContext";
+import { ODEKAKE_VISIBILITY_PATH } from "@/lib/pageVisibility/registry";
 import { useMapLoading } from "./MapLoadingProvider";
 import MenuGrandma from "./MenuGrandma";
 
@@ -68,19 +70,29 @@ type SheetItem = {
   icon: LucideIcon;
   /** 開発中であることなど、開く前に伝えておきたい一言（例: デモ） */
   badge?: string;
+  /** 公開設定を見るキー。省略時は href のパス部分 */
+  visibilityPath?: string;
 };
 
 /** 日曜市を歩くときに使うページ */
 const visitMenuItems: SheetItem[] = [
   { label: "お気に入り", href: "/favorites", icon: Heart },
-  { label: "おでかけサポート", href: "/facilities", icon: Compass },
+  // 地図の上で種類を選ぶ画面を直接開く（/facilities のページは廃止し、ここへ送るだけにした）。
+  // 行き先は常に公開の /map なので、表示の可否は「おでかけサポート」の設定で決める
+  { label: "おでかけサポート", href: "/map?guide=menu", icon: Compass, visibilityPath: ODEKAKE_VISIBILITY_PATH },
   { label: "日曜市カレンダー", href: "/calendar", icon: CalendarDays },
   // 中身がまだサンプル値なので、開く前に分かるようにしておく
   { label: "日曜市をデータで見る", href: "/analysis", icon: BarChart3, badge: "デモ" },
 ];
 
+/** 地図の上に重なるだけで、ナビの状態を変えない ?panel= の値 */
+const HOME_PANEL_VALUES = new Set(["intro"]);
+
 /** nicchyo そのものについてのページ */
 const aboutMenuItems: SheetItem[] = [
+  // 初回だけ自動で出る案内パネルを、あとから読み直すための入口。
+  // ページではなく地図の上に開くので、行き先は /map のパラメータになる
+  { label: "はじめての方へ", href: "/map?panel=intro", icon: Sparkles },
   { label: "nicchyoとは", href: "/about", icon: Info },
   { label: "協賛・ご支援について", href: "/support", icon: HeartHandshake },
   { label: "よくある質問", href: "/faq", icon: CircleHelp },
@@ -182,9 +194,27 @@ function NavigationBarInner({
     pathname?.startsWith("/admin") ||
     pathname?.startsWith("/vendor") ||
     pathname?.startsWith("/moderator");
-  const isPanelOpen = pathname === "/map" && !!panel;
+  // 画面を覆って「閉じる」が要るのは検索パネルだけ。
+  // ?panel=intro（はじめての方への案内）は地図の上に重なるだけで自前の閉じ方を持つので、
+  // ナビまで閉じるモードにしない
+  const isPanelOpen = pathname === "/map" && panel === "search";
   const isCloseUxActive = isPanelOpen || closeModeActive;
-  const isHome = (activeHref ?? pathname) === "/map" && !panel && !isCloseUxActive;
+  /*
+   * 地図に「居る」とみなす ?panel= の値の許可リスト。
+   * 案内（intro）は地図の上に重なるだけなので、ナビはふつうの地図の状態のまま。
+   * ここに無い値が付いているときは地図ではない扱いにして、新しいパネルを足したとき
+   * 黙ってフルナビ表示に倒れないようにする（検索は上の isCloseUxActive が閉じるモードにする）
+   */
+  const isHome =
+    (activeHref ?? pathname) === "/map" &&
+    !isCloseUxActive &&
+    (!panel || HOME_PANEL_VALUES.has(panel));
+
+  // 「今いるページ」の判定は遷移先（target）で行う。
+  // 相談は href が /map（マップ上では onConsultClick で /consult へ送る）なので、
+  // href で比べるとマップにいるだけで相談が点いてしまう。
+  const currentHref = activeHref ?? pathname;
+  const isNavItemActive = (item: NavItem) => currentHref === (item.target ?? item.href);
 
   // ページ公開設定で public でないリンクはナビに出さない
   const consultItem = baseNavItems[0];
@@ -194,8 +224,13 @@ function NavigationBarInner({
       ? [...baseNavItems.slice(1), { name: "管理", href: "/admin/dashboard", icon: Settings }]
       : baseNavItems.slice(1)
   ).filter((item) => isLinkVisible(item.target ?? item.href));
-  const visibleVisitItems = visitMenuItems.filter((item) => isLinkVisible(item.href));
-  const visibleAboutItems = aboutMenuItems.filter((item) => isLinkVisible(item.href));
+  // 公開設定はパス単位なので、/map?guide=menu のようなクエリは外して判定する
+  const visibleVisitItems = visitMenuItems.filter((item) =>
+    isLinkVisible(item.visibilityPath ?? item.href.split("?")[0])
+  );
+  const visibleAboutItems = aboutMenuItems.filter((item) =>
+    isLinkVisible(item.visibilityPath ?? item.href.split("?")[0])
+  );
   const visibleVendorItems = vendorMenuItems.filter((item) => isLinkVisible(item.href));
 
   // router.push はリンクと違って Provider のクリック監視に掛からないので、/map へ向かう前に自分で始める
@@ -207,6 +242,9 @@ function NavigationBarInner({
   const handleMenuItemClick = (href: string) => {
     closeMenu();
     if (href === "/map") { goToMap(); return; }
+    // /map?guide=menu（おでかけサポート）のようにクエリ付きで地図へ向かう項目も、
+    // 地図の読み込み表示を先に始めてから移る
+    if (href.startsWith("/map?")) { startMapLoading(); }
     router.push(href);
   };
 
@@ -455,10 +493,7 @@ function NavigationBarInner({
                 </span>
               </button>
             ) : (
-              <NavLinkItem
-                item={consultItem}
-                isActive={(activeHref ?? pathname) === consultItem.href}
-              />
+              <NavLinkItem item={consultItem} isActive={isNavItemActive(consultItem)} />
             )}
 
             {/* 中央：メニューボタン */}
@@ -509,11 +544,7 @@ function NavigationBarInner({
               <div className="flex-1" aria-hidden />
             ) : (
               rightNavItems.map((item) => (
-                <NavLinkItem
-                  key={item.href}
-                  item={item}
-                  isActive={(activeHref ?? pathname) === item.href}
-                />
+                <NavLinkItem key={item.href} item={item} isActive={isNavItemActive(item)} />
               ))
             )}
           </div>

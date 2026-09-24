@@ -5,6 +5,7 @@ import { createClient as createServerClient } from "@/utils/supabase/server";
 import { requireSameOrigin } from "@/lib/security/requestGuards";
 import { enforceRateLimit } from "@/lib/security/rateLimit";
 import { getRole } from "@/lib/auth/permissions";
+import { logAdminAudit } from "@/lib/audit/logAdminAudit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -104,13 +105,16 @@ export async function POST(request: Request) {
         deletedCount = count ?? 0;
       }
 
-      await serviceClient.from("admin_audit_logs").insert({
-        actor_id: user.id,
-        action: "clean_map_history",
-        target_type: "system",
-        target_id: "map_layout_snapshots",
-        details: `古いマップ履歴を整理: ${deletedCount}件削除、${keepIds.length}件保持`,
-      });
+      await logAdminAudit(
+        serviceClient,
+        { id: user.id, email: user.email, role: getRole(user) },
+        {
+          action: "clean_map_history",
+          targetType: "system",
+          targetId: "map_layout_snapshots",
+          details: `古いマップ履歴を整理: ${deletedCount}件削除、${keepIds.length}件保持`,
+        }
+      );
 
       return NextResponse.json({ ok: true, deletedCount });
     }
@@ -127,13 +131,16 @@ export async function POST(request: Request) {
 
       const deletedCount = count ?? 0;
 
-      await serviceClient.from("admin_audit_logs").insert({
-        actor_id: user.id,
-        action: "delete_analytics",
-        target_type: "system",
-        target_id: "web_page_analytics",
-        details: `分析ログを全削除: ${deletedCount}件`,
-      });
+      await logAdminAudit(
+        serviceClient,
+        { id: user.id, email: user.email, role: getRole(user) },
+        {
+          action: "delete_analytics",
+          targetType: "system",
+          targetId: "web_page_analytics",
+          details: `分析ログを全削除: ${deletedCount}件`,
+        }
+      );
 
       return NextResponse.json({ ok: true, deletedCount });
     }

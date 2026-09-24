@@ -2,14 +2,13 @@ import type { MetadataRoute } from "next";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/database.types";
 import { formatShopIdToCode } from "@/lib/shops/route";
+import { SITE_URL } from "@/lib/constants";
 import {
   EMPTY_PAGE_VISIBILITY_SETTINGS,
   isLinkVisible,
   parsePageVisibilitySettings,
   type PageVisibilitySettings,
 } from "@/lib/pageVisibility";
-
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://nicchyo.jp";
 
 // ページ公開設定・出店状況の変更を1時間以内に反映する
 export const revalidate = 3600;

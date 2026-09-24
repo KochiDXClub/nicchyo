@@ -300,7 +300,7 @@ export default function AboutStory({ weeklyVisitors }: { weeklyVisitors?: number
       </div>
 
       {/* Bottom Navigation */}
-      <div className="fixed bottom-0 left-0 right-0 border-t border-white/60 bg-white/90 px-6 pt-4 pb-3 backdrop-blur-sm safe-bottom">
+      <div className="fixed bottom-0 left-0 right-0 border-t border-white/60 bg-white/90 px-6 pt-4 pb-[calc(0.75rem+var(--safe-bottom,0px))] backdrop-blur-sm">
         {/* Dot navigation: タップで任意のスライドへジャンプできる */}
         <div className="mx-auto mb-3 flex max-w-md items-center justify-center gap-1.5 overflow-x-auto px-1">
           {aboutSlides.map((slide, i) => (

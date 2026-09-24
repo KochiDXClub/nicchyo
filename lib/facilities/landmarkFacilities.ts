@@ -57,16 +57,6 @@ export function getFacilitiesFromLandmarks(
     .map((landmark) => toFacility(landmark, categoryId));
 }
 
-/** カテゴリごとの件数（おでかけサポートのトップ画面用） */
-export function countFacilitiesByCategory(landmarks: Landmark[]): Record<FacilityCategoryId, number> {
-  const counts: Record<FacilityCategoryId, number> = { restroom: 0, rest: 0, transport: 0 };
-  for (const landmark of landmarks) {
-    const category = getFacilityCategoryOfLandmark(landmark);
-    if (category) counts[category] += 1;
-  }
-  return counts;
-}
-
 /** 電停・JR駅だけを取り出す（後方互換。getFacilitiesFromLandmarks(…, 'transport') と同じ） */
 export function getTransitFacilities(landmarks: Landmark[]): Facility[] {
   return getFacilitiesFromLandmarks(landmarks, 'transport');

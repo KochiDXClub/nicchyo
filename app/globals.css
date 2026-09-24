@@ -1096,6 +1096,15 @@ body.home-poster-zoom-open .hamburger-button {
   }
 }
 
+/*
+ * 案内パネルのおでかけサポートのデモ（IntroOdekakeDemo）。
+ * 枠が画面の外にあるあいだは、案内先の印の脈打ちを止める。影の動きは毎フレームの
+ * 塗り直しになり、別の節を指で送っているときの慣性を弱める
+ */
+.intro-odekake-demo[data-inview='false'] .facility-marker--nearest .facility-marker__pin {
+  animation-play-state: paused;
+}
+
 @keyframes shop-banner-expand {
   0% {
     transform:
@@ -1616,6 +1625,19 @@ body.home-poster-zoom-open .hamburger-button {
   border-left: 1px solid #fde68a;
   border-top-left-radius: 3px;
   transform: rotate(45deg);
+}
+
+/*
+ * 尻尾を左に出す版。
+ *
+ * はじめての方への案内（MapIntroPanel）では、にちよさんがレールの上を降りてきて
+ * 吹き出しの左に立つので、尻尾も左を向く。形・色・大きさは上と同じものを使う。
+ */
+.consult-greeting--left::before {
+  top: 22px;
+  left: -6px;
+  margin-left: 0;
+  transform: rotate(-45deg);
 }
 
 /* にちよさんが定位置に着いてから、本文をじわっと出す。

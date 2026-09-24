@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/database.types";
 import { requireSameOrigin } from "@/lib/security/requestGuards";
 import { enforceRateLimit } from "@/lib/security/rateLimit";
+import { todayJstString } from "@/lib/time/jstDate";
 
 type VendorRow = {
   category_id: string | null;
@@ -16,20 +17,6 @@ type VisitorRow = {
   visit_date: string;
   visitor_count: number | null;
 };
-
-function getTokyoTodayIso(baseDate = new Date()) {
-  const formatter = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Asia/Tokyo",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  });
-  const parts = formatter.formatToParts(baseDate);
-  const year = parts.find((p) => p.type === "year")?.value ?? "0000";
-  const month = parts.find((p) => p.type === "month")?.value ?? "01";
-  const day = parts.find((p) => p.type === "day")?.value ?? "01";
-  return `${year}-${month}-${day}`;
-}
 
 function getWeekStartIso(isoDate: string) {
   const date = new Date(`${isoDate}T00:00:00Z`);
@@ -67,7 +54,7 @@ export async function GET(request: NextRequest) {
     },
   });
 
-  const todayIso = getTokyoTodayIso();
+  const todayIso = todayJstString();
   const weekStartIso = getWeekStartIso(todayIso);
 
   const [

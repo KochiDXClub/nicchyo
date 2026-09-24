@@ -63,6 +63,8 @@ NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY=
 OPENAI_API_KEY=
 ```
 
+任意の変数を含む全体は `.env.example` を参照する。
+
 ## Architecture
 
 ### ルーティング構造
@@ -134,10 +136,12 @@ nicchyo-soft-green: #A0D7A7  （淡い緑）
 
 ## Coding Conventions
 
+- **共通化できるところは共通化する**：同じロジック・同じUIパターンが複数箇所に現れたら、都度その場で個別実装せず、既存の共通化スポット（`lib/` 配下のユーティリティ・`components/ui/` 等）へ寄せられないか検討する。片方を直すときにもう片方の直し忘れが起きる「意味のある重複」（認可チェック・監査ログ・日付処理・APIレスポンス整形など）を優先的に共通化すること。逆に、見た目や行数がたまたま似ているだけで将来別々に変化しうるもの（3行程度の小さな処理、意図的に似せているだけのUIなど）まで無理に共通化しない
 - ルート名: kebab-case、コンポーネント: PascalCase、変数/関数: camelCase
 - クライアントコンポーネントには `"use client"` を明示
 - ページ固有のコンポーネントはそのページディレクトリ内の `components/` に置く
-- 共通UIコンポーネントは `components/ui/`（Radix UIベース）
+- **UIを書く前に `docs/DESIGN_SYSTEM.md` を読む**：色・角丸・影・余白・ボタン・ページの外枠はすべてトークンと共通部品にある。生の hex、`slate-*`/`gray-*` の新規追加、`rounded-2xl` などの直書きはしない
+- 共通UIコンポーネントは `components/ui/`（`@/components/ui` のバレルから読む）。同じものを2回目に書こうとしたら、ページ内に作らずここへ足す
 - 管理画面コンポーネントは `components/admin/`
 - ユーティリティ関数は `lib/utils/cn.ts`（`clsx` + `tailwind-merge` のラッパー）
 
