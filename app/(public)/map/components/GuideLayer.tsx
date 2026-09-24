@@ -46,7 +46,8 @@ const escapeHtml = (value: string) =>
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
 
-function buildMarkerHtml(spot: MapSpot, isSelected: boolean): string {
+/** 施設の印の HTML。案内パネルのデモ（IntroOdekakeDemo）も同じものを使う */
+export function buildFacilityMarkerHtml(spot: MapSpot, isSelected: boolean): string {
   const size = isSelected ? 52 : 40;
   const fontSize = isSelected ? 26 : 20;
   const stateClass = isSelected ? 'facility-marker--nearest' : '';
@@ -70,9 +71,9 @@ function buildMarkerHtml(spot: MapSpot, isSelected: boolean): string {
 }
 
 /** ルート線の見た目（Leaflet / MapLibre 共通） */
-const ROUTE_CASING = { color: '#ffffff', weight: 9, opacity: 0.9 };
-const ROUTE_STRONG = { weight: 5, opacity: 0.95, dash: [12, 9] as [number, number] };
-const ROUTE_FAINT = { weight: 3, opacity: 0.45, dash: [6, 8] as [number, number] };
+export const ROUTE_CASING = { color: '#ffffff', weight: 9, opacity: 0.9 };
+export const ROUTE_STRONG = { weight: 5, opacity: 0.95, dash: [12, 9] as [number, number] };
+export const ROUTE_FAINT = { weight: 3, opacity: 0.45, dash: [6, 8] as [number, number] };
 
 const routeStyleKey = (route: GuideRouteLine) => `${route.color}:${route.emphasis}`;
 
@@ -99,7 +100,7 @@ function leafletSyncMarkers(state: LeafletState, spots: MapSpot[], selectedSpotI
     const size = isSelected ? 52 : 40;
     const marker = L.marker([spot.lat, spot.lng], {
       icon: L.divIcon({
-        html: buildMarkerHtml(spot, isSelected),
+        html: buildFacilityMarkerHtml(spot, isSelected),
         className: 'facility-marker-container',
         iconSize: [size, size],
         iconAnchor: [size / 2, size / 2],
@@ -181,7 +182,7 @@ function maplibreSyncMarkers(state: MapLibreState, spots: MapSpot[], selectedSpo
     const isSelected = spot.id === selectedSpotId;
     const el = document.createElement('div');
     el.className = 'facility-marker-container';
-    el.innerHTML = buildMarkerHtml(spot, isSelected);
+    el.innerHTML = buildFacilityMarkerHtml(spot, isSelected);
     el.style.zIndex = isSelected ? '2' : '1';
     if (onSelectSpot) {
       el.style.cursor = 'pointer';

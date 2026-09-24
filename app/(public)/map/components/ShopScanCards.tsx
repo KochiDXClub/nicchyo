@@ -35,7 +35,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Shop } from "../data/shops";
 import { isLeafletMap, type MapCamera, type MapCameraEvent } from "../types/mapCamera";
-import { getShopBannerImage } from "@/lib/shopImages";
+import { getShopPreviewImage } from "@/lib/shopImages";
 import { getPixelsPerMeter } from "../config/roadStyle";
 import { resolveStallColors } from "../config/shopCategories";
 import { sanitizeCssColor } from "../utils/markerHtmlGenerator";
@@ -131,7 +131,7 @@ export function getCardHeight(zoom: number): number {
 type Point = { x: number; y: number };
 
 function resolvePhoto(shop: Shop): string {
-  return shop.images?.main ?? getShopBannerImage(shop.category, shop.position ?? shop.id);
+  return getShopPreviewImage(shop);
 }
 
 export default function ShopScanCards({

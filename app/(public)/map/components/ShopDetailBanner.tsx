@@ -21,7 +21,7 @@ import {
 import { Shop } from "../data/shops";
 import { formatShopIdToCode } from "@/lib/shops/route";
 import { useAuth } from "../../../../lib/auth/AuthContext";
-import { resolveShopImage } from "../../../../lib/shopImages";
+import { getShopPreviewImage } from "../../../../lib/shopImages";
 import {
   isProductFavorited,
   isShopFavorited,
@@ -33,22 +33,12 @@ import { incrementBannerOpens } from "../../../../lib/storage/marketStats";
 import {
   ShopBannerHero,
   ShopBusinessInfoCard,
+  resolveBannerTheme,
   type ActivePostItem,
 } from "./ShopBannerHero";
 import { PostCarousel } from "./PostCarousel";
 import { AiConsultPanel } from "./AiConsultPanel";
 
-// ─── Theme presets ────────────────────────────────────────────────────────────
-const THEME_PRESETS = {
-  amber:  { bg: "#FFFBEB", accent: "#F59E0B", text: "#92400E", border: "#FDE68A", light: "#FEF3C7" },
-  green:  { bg: "#F0FDF4", accent: "#7ED957", text: "#166534", border: "#BBF7D0", light: "#DCFCE7" },
-  orange: { bg: "#FFF7ED", accent: "#F97316", text: "#9A3412", border: "#FED7AA", light: "#FFEDD5" },
-  earth:  { bg: "#FDF6EE", accent: "#B45309", text: "#7C2D12", border: "#DDB898", light: "#FEF3E2" },
-  navy:   { bg: "#EFF6FF", accent: "#3B82F6", text: "#1E40AF", border: "#BFDBFE", light: "#DBEAFE" },
-  rose:   { bg: "#FFF1F2", accent: "#F43F5E", text: "#9F1239", border: "#FECDD3", light: "#FFE4E6" },
-} as const;
-
-type ThemeKey = keyof typeof THEME_PRESETS;
 type MainSurface = "summary" | "detail";
 type BannerSurface = MainSurface | "ai";
 
@@ -248,7 +238,7 @@ const ShopDetailBanner = memo(function ShopDetailBanner({
 
   const isShopFavorite = isShopFavorited(favoriteEntries, shop.id);
   const canEditShop = permissions.canEditShop(shop.vendorId ?? "");
-  const bannerImage = resolveShopImage(shop);
+  const bannerImage = getShopPreviewImage(shop);
 
   const handleEditShop = useCallback(() => { router.push("/my-shop"); }, [router]);
 
@@ -595,8 +585,7 @@ const ShopDetailBanner = memo(function ShopDetailBanner({
   }, [shareCode, shop.name]);
 
   // ─── Theme ──────────────────────────────────────────────────────────────────
-  const themeKey: ThemeKey = (shop.themeColor as ThemeKey) ?? "amber";
-  const theme = THEME_PRESETS[themeKey] ?? THEME_PRESETS.amber;
+  const theme = resolveBannerTheme(shop.themeColor);
 
   // ─── Render ──────────────────────────────────────────────────────────────────
   return (
@@ -1237,5 +1226,3 @@ function FavoriteAddedToast({
 }
 
 export default ShopDetailBanner;
-
-
