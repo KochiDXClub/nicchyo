@@ -88,7 +88,8 @@ module.exports = {
       },
 
       fontFamily: {
-        display: ['"Mochiy Pop One"', '"Zen Kaku Gothic New"', 'sans-serif'],
+        // Mochiy Pop One は app/layout.tsx の next/font が --font-mochiy に入れる
+        display: ['var(--font-mochiy)', '"Zen Kaku Gothic New"', 'sans-serif'],
         sans: [
           '"Zen Kaku Gothic New"',
           '"Hiragino Kaku Gothic ProN"',
