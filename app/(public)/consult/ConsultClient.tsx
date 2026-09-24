@@ -242,7 +242,12 @@ export default function ConsultClient() {
 
   return (
     <div
-      className="relative min-h-screen bg-[var(--consult-bg)]"
+      // チャットのスクロールは ConsultStage 内側の overflow-y-auto だけで完結させたい。
+      // ここに overflow-hidden を付けておかないと、何かの拍子に中身が 100dvh を
+      // わずかに超えたときページ本体（html）側にもスクロールバーが出て、意図した
+      // チャット用スクロールバーの隣にもう1本（グローバル装飾で同じ緑色の）スクロール
+      // バーが並んで見えてしまう
+      className="relative min-h-screen overflow-hidden bg-[var(--consult-bg)]"
     >
       <div className="pointer-events-none absolute inset-0 z-0 bg-[var(--consult-bg)]" aria-hidden="true" />
       {/*
