@@ -1266,7 +1266,16 @@ export default function MapPageClient({
 
       {/* 初来訪者への案内。地図が出たあとに下から重なり、上には地図が見えたままになる */}
       {/* 開閉の動きは MapIntroPanel の中の AnimatePresence が受け持つ */}
-      {introEverOpened && <MapIntroPanel open={introOpen} shops={shops} onClose={closeIntro} />}
+      {introEverOpened && (
+        <MapIntroPanel
+          open={introOpen}
+          shops={shops}
+          landmarks={landmarks}
+          mapRoute={mapRoute}
+          showOdekake={odekakeEntryVisible}
+          onClose={closeIntro}
+        />
+      )}
 
       {!mapLoadingHandedOff && <MapLoadingOverlay minStage="page" />}
     </div>

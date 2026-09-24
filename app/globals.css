@@ -1096,6 +1096,15 @@ body.home-poster-zoom-open .hamburger-button {
   }
 }
 
+/*
+ * 案内パネルのおでかけサポートのデモ（IntroOdekakeDemo）。
+ * 枠が画面の外にあるあいだは、案内先の印の脈打ちを止める。影の動きは毎フレームの
+ * 塗り直しになり、別の節を指で送っているときの慣性を弱める
+ */
+.intro-odekake-demo[data-inview='false'] .facility-marker--nearest .facility-marker__pin {
+  animation-play-state: paused;
+}
+
 @keyframes shop-banner-expand {
   0% {
     transform:

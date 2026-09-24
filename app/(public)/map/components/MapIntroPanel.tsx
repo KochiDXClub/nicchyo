@@ -38,12 +38,18 @@ import {
   useTransform,
 } from 'framer-motion';
 import Link from 'next/link';
-import { ArrowUpRight, ChevronUp, Map as MapIcon, MessageCircle, Tag, X } from 'lucide-react';
+import { ArrowUpRight, X } from 'lucide-react';
 import type { Shop } from '../types/shopData';
+import type { Landmark } from '../types/landmark';
+import type { MapRoute } from '../types/mapRoute';
+import type { MapSpot } from '@/lib/spots';
+import SpotCard from './SpotCard';
 import { SHOP_CATEGORY_NAMES } from '../config/shopCategories';
 import IntroMapDemo from './intro/IntroMapDemo';
 import IntroSearchDemo from './intro/IntroSearchDemo';
 import IntroConsultDemo from './intro/IntroConsultDemo';
+import IntroOdekakeDemo from './intro/IntroOdekakeDemo';
+import { useIntroOdekakeGuide } from './intro/useIntroOdekakeGuide';
 import IntroShopSheet from './intro/IntroShopSheet';
 import IntroGrandmaRail, {
   RAIL_STOP_HEIGHT,
@@ -61,6 +67,16 @@ type MapIntroPanelProps = {
   open: boolean;
   /** マップページが既に読み込んでいる店舗。デモはここから数件借りる */
   shops?: Shop[];
+  /** マップページが既に読み込んでいるランドマーク。おでかけサポートのデモはここからお手洗いを借りる */
+  landmarks?: Landmark[];
+  /** 会場の道。おでかけサポートのデモの道すじと地図に使う */
+  mapRoute: MapRoute;
+  /**
+   * おでかけサポートの節を出すか。
+   * 本番でおでかけサポートの入口を隠しているとき（公開設定が限定公開・非公開）は、
+   * 案内でも触れない。使えないものを紹介すると、地図に戻って探すことになる
+   */
+  showOdekake?: boolean;
   onClose: () => void;
 };
 
@@ -436,29 +452,31 @@ function useSheetGestures({
   return { expanded, sheetRef, scrollRef, height, pull, radius, onScroll, onWheel, expand, collapse, toggle };
 }
 
+type IntroStopKey = 'welcome' | 'map' | 'search' | 'consult' | 'odekake' | 'end';
+
 /**
- * にちよさんが立ち寄る順に並べた一言。
+ * にちよさんが立ち寄る順に並べた停留点。名前は進み具合の点の読み上げに、
+ * 一言は停留点に着いたときの吹き出しに使う。
  *
  * 節ごとの説明はここに集約する。薄い字の説明文を別に置くと、案内している人の
  * 言葉と地の文が二重になるので、説明はにちよさんに言ってもらう。
  */
-const RAIL_COMMENTS = [
-  'ようこそ、日曜市へ。まずはわしが、ざっと案内するきね。',
-  '屋台の写真が順に出てくるき。気になった店を押したら、中が見えるき。',
-  '何があるか分からんときは、ジャンルから見たらえいよ。',
-  '探すより聞くほうが早いこともあるき。なんでも聞いてや。',
-  'ほんなら、いってらっしゃい。ええ日曜市になるきね。',
-] as const;
-
-/** 停留点の名前。進み具合の点の読み上げと、締めの振り返りに使う */
-const STOP_LABELS = ['ようこそ', '地図で店を探す', 'ジャンルでしぼる', 'にちよさんに聞く', 'おわり'] as const;
-
-/** 締めで振り返る、できること3つ */
-const RECAP = [
-  { stop: 1, Icon: MapIcon, title: '地図で店を探す', note: '屋台を押すと、写真と中が見える' },
-  { stop: 2, Icon: Tag, title: 'ジャンルでしぼる', note: '押したジャンルの店だけ残る' },
-  { stop: 3, Icon: MessageCircle, title: 'にちよさんに聞く', note: '迷ったら、なんでも聞ける' },
-] as const;
+const INTRO_STOPS: ReadonlyArray<{ key: IntroStopKey; label: string; comment: string }> = [
+  { key: 'welcome', label: 'ようこそ', comment: 'ようこそ、日曜市へ。まずはわしが、ざっと案内するきね。' },
+  {
+    key: 'map',
+    label: '地図で店を探す',
+    comment: '屋台の写真が順に出てくるき。気になった店を押したら、中が見えるき。',
+  },
+  { key: 'search', label: 'ジャンルでしぼる', comment: '何があるか分からんときは、ジャンルから見たらえいよ。' },
+  { key: 'consult', label: 'にちよさんに聞く', comment: '探すより聞くほうが早いこともあるき。なんでも聞いてや。' },
+  {
+    key: 'odekake',
+    label: 'おでかけサポート',
+    comment: 'お手洗いはここで探しや。いちばん近いところまで、道なりに連れていくき。',
+  },
+  { key: 'end', label: 'おわり', comment: 'ほんなら、いってらっしゃい。ええ日曜市になるきね。' },
+];
 
 /**
  * 進み具合。いまどの節にいるかを点の並びで示し、押せばその節へ飛ぶ。
@@ -568,7 +586,14 @@ function IntroSection({
 
 type OpenShop = { shop: IntroDemoShop; source: 'map' | 'search' };
 
-export default function MapIntroPanel({ open, shops, onClose }: MapIntroPanelProps) {
+export default function MapIntroPanel({
+  open,
+  shops,
+  landmarks,
+  mapRoute,
+  showOdekake = true,
+  onClose,
+}: MapIntroPanelProps) {
   const isDesktop = useIsDesktop();
   const viewportHeight = useViewportHeight();
   const reduceMotion = useReducedMotion() ?? false;
@@ -603,6 +628,25 @@ export default function MapIntroPanel({ open, shops, onClose }: MapIntroPanelPro
     [shops, searchCategories]
   );
 
+  // ── 停留点の並び ─────────────────────────────────────────────
+  // おでかけサポートを隠しているときはその節ごと抜く。番号・点・一言もそれに合わせる
+  const stops = useMemo(
+    () => INTRO_STOPS.filter((stop) => showOdekake || stop.key !== 'odekake'),
+    [showOdekake]
+  );
+  const stopLabels = useMemo(() => stops.map((stop) => stop.label), [stops]);
+  const stopComments = useMemo(() => stops.map((stop) => stop.comment), [stops]);
+  const stopIndex = useCallback(
+    (key: IntroStopKey) => stops.findIndex((stop) => stop.key === key),
+    [stops]
+  );
+
+  // ── おでかけサポートのデモ ───────────────────────────────────
+  // 経路と案内先はフックが持つ。印を押したときのスポットカードは、店のバナーと同じく
+  // デモの枠の中ではなく案内全体の上に開くので、開いているスポットはここで持つ
+  const odekake = useIntroOdekakeGuide({ landmarks, mapRoute });
+  const [openSpot, setOpenSpot] = useState<MapSpot | null>(null);
+
   // ── デモで開いた店とお気に入り ─────────────────────────────
   // バナーはデモの枠の中ではなく案内全体の上に開くので、どのデモから開いたかを
   // ここで持つ。お気に入りも案内全体で1つの束にして、両方のデモで同じ印が付く
@@ -621,6 +665,23 @@ export default function MapIntroPanel({ open, shops, onClose }: MapIntroPanelPro
   const toggleFavorite = useCallback((id: number) => {
     setFavoriteIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
   }, []);
+  const openSpotCard = useCallback(
+    (spot: MapSpot) => {
+      setOpenSpot(spot);
+      if (!isDesktop) expand();
+    },
+    [expand, isDesktop]
+  );
+  const closeSpotCard = useCallback(() => setOpenSpot(null), []);
+  /** スポットカードの「ここへ案内」。本番と同じく、案内先が切り替わってカードは閉じる */
+  const navigateOdekake = odekake.navigateTo;
+  const navigateFromSpotCard = useCallback(
+    (spot: MapSpot) => {
+      navigateOdekake(spot);
+      setOpenSpot(null);
+    },
+    [navigateOdekake]
+  );
 
   // ── にちよさんの道 ───────────────────────────────────────────
   // 停留点の位置は中身の高さで変わる（相談デモは答えが出ると伸びる）ので、
@@ -646,6 +707,7 @@ export default function MapIntroPanel({ open, shops, onClose }: MapIntroPanelPro
   const sameStops = (a: number[], b: number[]) =>
     a.length === b.length && a.every((v, i) => v === b[i]);
 
+  const stopCount = stops.length;
   const measureRail = useCallback(() => {
     const area = railAreaRef.current;
     if (!area) return;
@@ -653,9 +715,9 @@ export default function MapIntroPanel({ open, shops, onClose }: MapIntroPanelPro
     // 時点で節の中での位置になってしまう。どこを起点に測るかを取り違えないよう、
     // 道の起点との差で測る
     const areaTop = area.getBoundingClientRect().top;
-    const ys = stopRefs.current.map((el) =>
-      el ? Math.round(el.getBoundingClientRect().top - areaTop) : 0
-    );
+    const ys = stopRefs.current
+      .slice(0, stopCount)
+      .map((el) => (el ? Math.round(el.getBoundingClientRect().top - areaTop) : 0));
     stopYsRef.current = ys;
     setRailHeight(area.offsetHeight);
     setStopYs((prev) => (sameStops(prev, ys) ? prev : ys));
@@ -675,7 +737,7 @@ export default function MapIntroPanel({ open, shops, onClose }: MapIntroPanelPro
       );
       setScrollerHeight((prev) => (prev === height ? prev : height));
     }
-  }, [scrollRef]);
+  }, [scrollRef, stopCount]);
 
   useLayoutEffect(() => {
     if (!open) return;
@@ -690,13 +752,16 @@ export default function MapIntroPanel({ open, shops, onClose }: MapIntroPanelPro
   }, [measureRail, open, scrollRef]);
 
   // 閉じたら、次に開くときのために先頭へ戻しておく
+  const resetOdekake = odekake.reset;
   useEffect(() => {
     if (open) return;
     setActiveStop(0);
     setOpenShop(null);
+    setOpenSpot(null);
+    resetOdekake();
     scrollY.set(0);
     collapse();
-  }, [open, collapse, scrollY]);
+  }, [open, collapse, resetOdekake, scrollY]);
 
   /** いま読んでいるのはどの停留点か。画面の少し上を基準線にする */
   const updateActiveStop = useCallback(() => {
@@ -757,7 +822,7 @@ export default function MapIntroPanel({ open, shops, onClose }: MapIntroPanelPro
     []
   );
 
-  /** 進み具合の点や締めの振り返りから、その節の先頭へ */
+  /** 進み具合の点から、その節の先頭へ */
   const scrollToStop = useCallback(
     (index: number) => {
       const scroller = scrollRef.current;
@@ -813,7 +878,7 @@ export default function MapIntroPanel({ open, shops, onClose }: MapIntroPanelPro
             stopYs={stopYs}
             anchorYs={anchorYs}
             scrollY={scrollY}
-            comments={RAIL_COMMENTS}
+            comments={stopComments}
             stopHeight={stopHeight}
           />
 
@@ -864,11 +929,11 @@ export default function MapIntroPanel({ open, shops, onClose }: MapIntroPanelPro
 
           {/* ── 機能ごとのデモ ── */}
           <IntroSection
-            index={1}
+            index={stopIndex('map')}
             step="01"
-            title={STOP_LABELS[1]}
+            title={stopLabels[stopIndex('map')]}
             stopRef={(el) => {
-              stopRefs.current[1] = el;
+              stopRefs.current[stopIndex('map')] = el;
             }}
             stopHeight={stopHeight}
             viewportRoot={scrollRef}
@@ -883,11 +948,11 @@ export default function MapIntroPanel({ open, shops, onClose }: MapIntroPanelPro
           </IntroSection>
 
           <IntroSection
-            index={2}
+            index={stopIndex('search')}
             step="02"
-            title={STOP_LABELS[2]}
+            title={stopLabels[stopIndex('search')]}
             stopRef={(el) => {
-              stopRefs.current[2] = el;
+              stopRefs.current[stopIndex('search')] = el;
             }}
             stopHeight={stopHeight}
             viewportRoot={scrollRef}
@@ -903,11 +968,11 @@ export default function MapIntroPanel({ open, shops, onClose }: MapIntroPanelPro
           </IntroSection>
 
           <IntroSection
-            index={3}
+            index={stopIndex('consult')}
             step="03"
-            title={STOP_LABELS[3]}
+            title={stopLabels[stopIndex('consult')]}
             stopRef={(el) => {
-              stopRefs.current[3] = el;
+              stopRefs.current[stopIndex('consult')] = el;
             }}
             stopHeight={stopHeight}
             viewportRoot={scrollRef}
@@ -915,58 +980,54 @@ export default function MapIntroPanel({ open, shops, onClose }: MapIntroPanelPro
             <IntroConsultDemo />
           </IntroSection>
 
+          {showOdekake && (
+            <IntroSection
+              index={stopIndex('odekake')}
+              step="04"
+              title={stopLabels[stopIndex('odekake')]}
+              stopRef={(el) => {
+                stopRefs.current[stopIndex('odekake')] = el;
+              }}
+              stopHeight={stopHeight}
+              viewportRoot={scrollRef}
+            >
+              <IntroOdekakeDemo
+                guide={odekake}
+                frameHeight={isDesktop ? 500 : undefined}
+                onOpenSpot={openSpotCard}
+              />
+            </IntroSection>
+          )}
+
           {/* ── 締め。にちよさんの最後の停留点 ──
               1画面ぶんの高さを取り、最後の1枚として先頭で揃う。
-              できること3つを振り返り、押せばその節へ戻れる */}
+              見出し・にちよさんの一言・読み直し方を真ん中にまとめる。
+              上に寄せると下半分が空いて見え、下に寄せると停留点が見えるまで間がある */}
           <section
-            data-intro-stop={4}
+            data-intro-stop={stopIndex('end')}
             className="relative z-[1] flex snap-start snap-always flex-col border-t border-nicchyo-ink/[0.07] py-9 md:py-11"
             style={scrollerHeight > 0 ? { minHeight: scrollerHeight } : undefined}
           >
-            <div className="pl-[var(--intro-rail)] pr-5 md:pr-8">
-              <h3 className="text-[24px] font-extrabold leading-tight tracking-tight text-nicchyo-ink md:text-[28px]">
-                日曜市を楽しんで！
-              </h3>
-              <p className="mt-2 text-[13px] font-semibold text-nicchyo-ink/50 md:text-[14px]">
-                この案内は、メニューの「はじめての方へ」からいつでも読み直せます
-              </p>
-            </div>
-            <div
-              ref={(el) => {
-                stopRefs.current[4] = el;
-              }}
-              className="mt-3"
-              style={{ height: stopHeight }}
-            />
-            <div className="mt-2 flex flex-1 flex-col pl-[var(--intro-rail)] pr-5 md:pr-8">
-              {/* 振り返りは残りの高さの真ん中に。上に寄せると下半分が空いて見える */}
-              <ul className="my-auto space-y-2 py-2">
-                {RECAP.map(({ stop, Icon, title, note }) => (
-                  <li key={stop}>
-                    <button
-                      type="button"
-                      onClick={() => scrollToStop(stop)}
-                      className="group flex w-full items-center gap-3 rounded-2xl bg-white/80 px-3.5 py-3 text-left ring-1 ring-nicchyo-ink/[0.06] transition hover:bg-white active:scale-[0.99]"
-                    >
-                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-nicchyo-primary/15 text-emerald-700">
-                        <Icon className="h-4.5 w-4.5" aria-hidden />
-                      </span>
-                      <span className="min-w-0 flex-1">
-                        <span className="block text-[14px] font-bold text-nicchyo-ink">{title}</span>
-                        <span className="block text-[12px] text-nicchyo-ink/55">{note}</span>
-                      </span>
-                      <ChevronUp
-                        className="h-4 w-4 shrink-0 text-nicchyo-ink/30 transition group-hover:text-nicchyo-ink/60"
-                        aria-hidden
-                      />
-                    </button>
-                  </li>
-                ))}
-              </ul>
-              <div className="pt-5">
+            <div className="my-auto">
+              <div className="pl-[var(--intro-rail)] pr-5 md:pr-8">
+                <h3 className="text-[24px] font-extrabold leading-tight tracking-tight text-nicchyo-ink md:text-[28px]">
+                  日曜市を楽しんで！
+                </h3>
+              </div>
+              <div
+                ref={(el) => {
+                  stopRefs.current[stopIndex('end')] = el;
+                }}
+                className="mt-3"
+                style={{ height: stopHeight }}
+              />
+              <div className="pl-[var(--intro-rail)] pr-5 md:pr-8">
+                <p className="text-[13px] font-semibold leading-relaxed text-nicchyo-ink/50 md:text-[14px]">
+                  この案内は、メニューの「はじめての方へ」からいつでも読み直せます
+                </p>
                 <Link
                   href="/about"
-                  className="inline-flex items-center gap-1 text-[12.5px] font-semibold text-nicchyo-ink/50 underline-offset-4 transition hover:text-nicchyo-ink/80 hover:underline"
+                  className="mt-5 inline-flex items-center gap-1 text-[12.5px] font-semibold text-nicchyo-ink/50 underline-offset-4 transition hover:text-nicchyo-ink/80 hover:underline"
                 >
                   nicchyo について詳しく
                   <ArrowUpRight className="h-3.5 w-3.5" aria-hidden />
@@ -983,7 +1044,7 @@ export default function MapIntroPanel({ open, shops, onClose }: MapIntroPanelPro
         style={isDesktop ? undefined : { paddingBottom: `calc(${NAV_SPACE} + 0.625rem)` }}
       >
         <div className="flex items-center justify-between gap-4">
-          <IntroProgress active={activeStop} labels={STOP_LABELS} onSelect={scrollToStop} />
+          <IntroProgress active={activeStop} labels={stopLabels} onSelect={scrollToStop} />
           <button
             type="button"
             onClick={onClose}
@@ -1020,6 +1081,44 @@ export default function MapIntroPanel({ open, shops, onClose }: MapIntroPanelPro
               onToggleFavorite={() => toggleFavorite(openShop.shop.id)}
               onClose={closeShop}
             />
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/*
+        お手洗いの印を押したときの、本番と同じスポットカード。
+        地図（map）は無いので寄せる動きは無く、現在地からの道のりも出さない。
+        「ここへ案内」を押すと、デモの案内先がそのお手洗いに切り替わる
+      */}
+      <AnimatePresence>
+        {openSpot && (
+          <motion.div
+            key="intro-spot-overlay"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0, transition: { duration: 0.2 } }}
+            transition={{ duration: 0.2 }}
+            className="absolute inset-0 z-30"
+          >
+            <button
+              type="button"
+              onClick={closeSpotCard}
+              aria-label="スポットカードを閉じる"
+              className="absolute inset-0 cursor-default bg-nicchyo-ink/30 backdrop-blur-[1px]"
+            />
+            {/* スマホはナビゲーションバーの上で止める。バーの裏に「ここへ案内」が隠れないように */}
+            <div
+              className="absolute inset-x-0 top-0"
+              style={{ bottom: isDesktop ? 0 : NAV_SPACE }}
+            >
+              <SpotCard
+                spot={openSpot}
+                map={null}
+                origin={null}
+                onClose={closeSpotCard}
+                onNavigate={navigateFromSpotCard}
+              />
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
