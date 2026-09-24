@@ -21,6 +21,16 @@
  *
  * 絵は相談ページと同じ GrandmaAvatar（構えが変わると会釈する）、吹き出しも
  * 相談ページと同じもの（.consult-greeting）を、尻尾だけ左向きにして使う。
+ *
+ * 【つまんで送る】
+ * にちよさんはつまんで上下に引ける。引いているあいだは指に 1:1 で付いてきて、
+ * そのぶん案内の中身が送られる（指の動き → スクロール位置の対応は introScrub.ts）。
+ * 上下どちらへ引いても同じ倍率。指が道の上端・下端を越えたら、にちよさんは
+ * 端に留まり、越えたぶんに応じた速さで中身が流れ続ける（先頭や最後まで、
+ * 指を離さずに戻れる・進める）。離すと近い節の先頭に寄り、
+ * 残りは自分で歩いて停留点に立ち、いつもどおり一言話す。
+ * 対応端末では、つまんだときと停留点を通り過ぎるたびに短く振動する。
+ * 動かさずに離す（押しただけ）と、つまめることを一言で教える。
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -36,6 +46,8 @@ import {
 import GrandmaAvatar from '../../../consult/components/GrandmaAvatar';
 import { DEFAULT_CONSULT_CHARACTER } from '../../../consult/data/consultCharacters';
 import type { GrandmaPose } from '@/lib/grandma/pose';
+import { vibrate } from '@/lib/ui/haptics';
+import { edgeScrollSpeed, passedStopIndex, scrubGain, scrubScrollTop } from './introScrub';
 
 /** 左に空ける道の幅。停留点の行はこのぶんだけ右に寄せる */
 export const RAIL_WIDTH = 72;
@@ -72,6 +84,16 @@ const WALK_SETTLE_MS = 120;
 /** 一歩ぶんの上下。踏み出すたびに軽く弾む */
 const WALK_BOB_PX = 4;
 const WALK_STEP_SEC = 0.46;
+/** つまんだときの手応え（対応端末のみ） */
+const GRAB_HAPTIC_MS = 10;
+/** つまんで送っているとき、停留点を通り過ぎるたびの手応え */
+const STOP_TICK_HAPTIC_MS = 4;
+/** これより動かさずに離したら「押しただけ」とみなす */
+const TAP_SLOP_PX = 6;
+/** 道の上端・下端から、にちよさんが行ける範囲までの余白 */
+const TRACK_MARGIN_PX = 8;
+/** 押しただけのときに教える一言 */
+const HINT_COMMENT = 'わしをつまんで上や下に引いたら、そのぶん案内が進むき。';
 
 /**
  * スクロール位置から「いま居るべき道の位置」を引く。
@@ -115,6 +137,10 @@ export default function IntroGrandmaRail({
   scrollY,
   comments,
   stopHeight = RAIL_STOP_HEIGHT,
+  scrollerRef,
+  onScrubStart,
+  onScrub,
+  onScrubEnd,
 }: {
   /** 道を引く高さ（案内の中身の高さ） */
   height: number;
@@ -128,12 +154,29 @@ export default function IntroGrandmaRail({
   comments: readonly string[];
   /** 停留点1つぶんの高さ */
   stopHeight?: number;
+  /** 中身をスクロールする枠。つまんで送るときの道の範囲と、スクロールできる量を読む */
+  scrollerRef: React.RefObject<HTMLDivElement | null>;
+  /** つまんだとき（親は scroll-snap を切る） */
+  onScrubStart: () => void;
+  /** つまんで送っているあいだ、行くべきスクロール位置 */
+  onScrub: (scrollTop: number) => void;
+  /** 離したとき（親は近い節の先頭に寄せて scroll-snap を戻す） */
+  onScrubEnd: () => void;
 }) {
   const reduceMotion = useReducedMotion();
   const [pose, setPose] = useState<GrandmaPose>('idle');
   const [walking, setWalking] = useState(false);
   /** 止まっている停留点。途中で止まっているときは null（何も言わない） */
   const [standing, setStanding] = useState<number | null>(null);
+  /** つまんで引いている最中か */
+  const [grabbing, setGrabbing] = useState(false);
+  const grabbingRef = useRef(false);
+  /** 押しただけのときに出す、つまめることの一言 */
+  const [hint, setHint] = useState(false);
+  const hintTimerRef = useRef<number | null>(null);
+  const railSvgRef = useRef<SVGSVGElement | null>(null);
+  const anchorYsRef = useRef(anchorYs);
+  anchorYsRef.current = anchorYs;
 
   /**
    * 縦の位置。これを動かすと、横の位置は道の式から引き直される。
@@ -216,9 +259,30 @@ export default function IntroGrandmaRail({
   // 毎フレーム、居るべき位置へ向かって歩く
   useAnimationFrame((now, deltaMs) => {
     if (!hasMeasuredRef.current) return;
+    const dt = Math.min(deltaMs, 64) / 1000;
+    // つまんで引かれているあいだは、指が位置を決める。指が道の端を越えていれば、
+    // 越えたぶんに応じた速さで中身を送り続ける（絵は端に留まり、道が流れる）
+    const grab = grabRef.current;
+    if (grab) {
+      const scroller = scrollerRef.current;
+      const edgeWalking = grab.edgeSpeed !== 0;
+      if (edgeWalking !== edgeWalkingRef.current) {
+        edgeWalkingRef.current = edgeWalking;
+        setWalking(edgeWalking);
+      }
+      if (scroller && edgeWalking) {
+        const next = Math.min(grab.maxScroll, Math.max(0, scroller.scrollTop + grab.edgeSpeed * dt));
+        if (Math.round(next) !== Math.round(scroller.scrollTop)) {
+          // ここを新しい基準にして、指を戻したときに続きから動くようにする
+          grab.anchorScrollTop = next;
+          grab.anchorY = grab.avatarTop;
+          applyScrub(grab, Math.round(next));
+        }
+      }
+      return;
+    }
     // 指が触れているあいだは足を止め、離れてから追いかける（下の fingerDownRef 参照）
     if (fingerDownRef.current) return;
-    const dt = Math.min(deltaMs, 64) / 1000;
     const current = top.get();
     const target = desiredRef.current;
     const delta = target - current;
@@ -265,14 +329,144 @@ export default function IntroGrandmaRail({
 
   // 歩いているあいだは前を見て、停留点に着いたらしばらく話している顔にする
   useEffect(() => {
-    if (walking || standing === null) {
+    if (walking || grabbing || (standing === null && !hint)) {
       setPose('idle');
       return;
     }
     setPose('speaking');
     const timer = window.setTimeout(() => setPose('idle'), SPEAK_MS);
     return () => window.clearTimeout(timer);
-  }, [walking, standing]);
+  }, [grabbing, hint, standing, walking]);
+
+  const showHint = useCallback(() => {
+    setHint(true);
+    if (hintTimerRef.current !== null) window.clearTimeout(hintTimerRef.current);
+    hintTimerRef.current = window.setTimeout(() => {
+      hintTimerRef.current = null;
+      setHint(false);
+    }, SPEAK_MS + 1200);
+  }, []);
+  useEffect(
+    () => () => {
+      if (hintTimerRef.current !== null) window.clearTimeout(hintTimerRef.current);
+    },
+    []
+  );
+
+  // ── つまんで送る ─────────────────────────────────────────────
+  type Grab = {
+    pointerId: number;
+    /** 指と絵の上端の差。引いているあいだ絵がこの差を保つ */
+    offsetY: number;
+    startClientY: number;
+    moved: boolean;
+    /** 絵の上端が行ける範囲（画面上の px） */
+    minY: number;
+    maxY: number;
+    maxScroll: number;
+    /** 指 1px あたり中身が動く px */
+    gain: number;
+    /** 指の動きの基準。端で送り続けたあとはそこが新しい基準になる */
+    anchorY: number;
+    anchorScrollTop: number;
+    /** いまの絵の上端（範囲に収めたあと、画面上の px） */
+    avatarTop: number;
+    /** 指が端を越えているときに送り続ける速さ（px/秒、上へ戻すときは負） */
+    edgeSpeed: number;
+    lastStop: number;
+  };
+  const grabRef = useRef<Grab | null>(null);
+  /** 端で送り続けているあいだ、その場で足を動かして見せる */
+  const edgeWalkingRef = useRef(false);
+
+  /** 中身をこの位置へ送り、絵を指の下に置き直し、停留点を通り過ぎたら手応えを返す */
+  const applyScrub = (grab: Grab, scrollTop: number) => {
+    onScrub(scrollTop);
+    // 中身が動いたあとの道の上端から測り直して、絵を指の下に置く
+    const areaTop = railSvgRef.current?.getBoundingClientRect().top ?? 0;
+    const maxTop = Math.max(0, height - AVATAR_SIZE);
+    top.set(Math.min(maxTop, Math.max(0, grab.avatarTop - areaTop)));
+    const stop = passedStopIndex(scrollTop, anchorYsRef.current);
+    if (stop !== grab.lastStop) {
+      grab.lastStop = stop;
+      vibrate(STOP_TICK_HAPTIC_MS);
+    }
+  };
+
+  const onPointerDown = (event: React.PointerEvent<HTMLButtonElement>) => {
+    if (!hasMeasuredRef.current || grabRef.current) return;
+    if (event.pointerType === 'mouse' && event.button !== 0) return;
+    const scroller = scrollerRef.current;
+    if (!scroller) return;
+    // マウスでは絵の画像がドラッグされたり文字が選ばれたりしないようにする
+    if (event.pointerType === 'mouse') event.preventDefault();
+    const avatar = event.currentTarget.getBoundingClientRect();
+    const track = scroller.getBoundingClientRect();
+    const maxScroll = Math.max(0, scroller.scrollHeight - scroller.clientHeight);
+    const minY = track.top + TRACK_MARGIN_PX;
+    const maxY = Math.max(minY, track.bottom - TRACK_MARGIN_PX - AVATAR_SIZE);
+    grabRef.current = {
+      pointerId: event.pointerId,
+      offsetY: event.clientY - avatar.top,
+      startClientY: event.clientY,
+      moved: false,
+      minY,
+      maxY,
+      maxScroll,
+      gain: scrubGain(maxY - minY, maxScroll),
+      anchorY: Math.min(maxY, Math.max(minY, avatar.top)),
+      anchorScrollTop: scroller.scrollTop,
+      avatarTop: avatar.top,
+      edgeSpeed: 0,
+      lastStop: passedStopIndex(scroller.scrollTop, anchorYsRef.current),
+    };
+    event.currentTarget.setPointerCapture(event.pointerId);
+    grabbingRef.current = true;
+    setGrabbing(true);
+    setHint(false);
+    vibrate(GRAB_HAPTIC_MS);
+    onScrubStart();
+  };
+
+  const onPointerMove = (event: React.PointerEvent<HTMLButtonElement>) => {
+    const grab = grabRef.current;
+    if (!grab || event.pointerId !== grab.pointerId) return;
+    if (!grab.moved && Math.abs(event.clientY - grab.startClientY) < TAP_SLOP_PX) return;
+    grab.moved = true;
+    const rawTop = event.clientY - grab.offsetY;
+    grab.avatarTop = Math.min(grab.maxY, Math.max(grab.minY, rawTop));
+    // 端を越えたぶんは、毎フレームの送り（下の useAnimationFrame）に任せる
+    grab.edgeSpeed = edgeScrollSpeed(rawTop, grab.minY, grab.maxY);
+    applyScrub(
+      grab,
+      scrubScrollTop({
+        anchorScrollTop: grab.anchorScrollTop,
+        anchorY: grab.anchorY,
+        y: grab.avatarTop,
+        gain: grab.gain,
+        maxScroll: grab.maxScroll,
+      })
+    );
+  };
+
+  const onPointerEnd = (event: React.PointerEvent<HTMLButtonElement>) => {
+    const grab = grabRef.current;
+    if (!grab || event.pointerId !== grab.pointerId) return;
+    grabRef.current = null;
+    grabbingRef.current = false;
+    setGrabbing(false);
+    if (edgeWalkingRef.current) {
+      edgeWalkingRef.current = false;
+      setWalking(false);
+    }
+    try {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    } catch {
+      /* すでに離れている */
+    }
+    onScrubEnd();
+    if (!grab.moved) showHint();
+  };
 
   const path = useMemo(() => buildRailPath(height), [height]);
 
@@ -280,6 +474,7 @@ export default function IntroGrandmaRail({
     <>
       {/* 道。中身の裏に敷く */}
       <svg
+        ref={railSvgRef}
         className="pointer-events-none absolute left-0 top-0 z-0"
         width={RAIL_WIDTH}
         height={Math.max(height, 0)}
@@ -318,17 +513,45 @@ export default function IntroGrandmaRail({
       >
         {/* 横は道の式から引く。くねりに沿って左右に振れながら降りてくる */}
         <motion.div className="absolute left-0 top-0 will-change-transform" style={{ x: avatarLeft }}>
-          {/* 歩いているあいだ、一歩ごとに軽く弾む */}
-          <motion.div
-            animate={walking && !reduceMotion ? { y: [0, -WALK_BOB_PX, 0] } : { y: 0 }}
-            transition={
-              walking && !reduceMotion
-                ? { duration: WALK_STEP_SEC, repeat: Infinity, ease: 'easeInOut' }
-                : { duration: 0.2 }
-            }
+          {/*
+            にちよさんはつまめる。touch-none で、ここから始まる指はブラウザのスクロールに
+            渡さず、pointer の動きだけを受け取る。data-intro-grab はシートの指の作法に
+            「この指はにちよさんのもの」と伝える印。
+            つまんでいるあいだは少し大きくして、持ち上げた感じを出す
+          */}
+          <motion.button
+            type="button"
+            data-intro-grab
+            aria-label="にちよさん。つまんで上下に引くと案内が進む"
+            onPointerDown={onPointerDown}
+            onPointerMove={onPointerMove}
+            onPointerUp={onPointerEnd}
+            onPointerCancel={onPointerEnd}
+            onClick={(event) => {
+              // キーボードからの押下（detail が 0）は、つまめることを一言で教える
+              if (event.detail === 0) showHint();
+            }}
+            className={`pointer-events-auto block touch-none select-none appearance-none rounded-full border-0 bg-transparent p-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-nicchyo-primary focus-visible:ring-offset-2 ${
+              grabbing ? 'cursor-grabbing' : 'cursor-grab'
+            }`}
+            animate={{ scale: grabbing && !reduceMotion ? 1.08 : 1 }}
+            transition={{ type: 'spring', stiffness: 400, damping: 26 }}
+            style={{
+              filter: grabbing ? 'drop-shadow(0 8px 12px rgba(58,58,58,0.28))' : 'none',
+            }}
           >
-            <GrandmaAvatar pose={pose} size="pinned" character={DEFAULT_CONSULT_CHARACTER} />
-          </motion.div>
+            {/* 歩いているあいだ、一歩ごとに軽く弾む */}
+            <motion.div
+              animate={walking && !reduceMotion ? { y: [0, -WALK_BOB_PX, 0] } : { y: 0 }}
+              transition={
+                walking && !reduceMotion
+                  ? { duration: WALK_STEP_SEC, repeat: Infinity, ease: 'easeInOut' }
+                  : { duration: 0.2 }
+              }
+            >
+              <GrandmaAvatar pose={pose} size="pinned" character={DEFAULT_CONSULT_CHARACTER} />
+            </motion.div>
+          </motion.button>
         </motion.div>
 
         {/*
@@ -339,9 +562,9 @@ export default function IntroGrandmaRail({
         */}
         <div className="absolute top-0" style={{ left: RAIL_WIDTH + 4, right: 16 }}>
           <AnimatePresence mode="wait" initial={false}>
-            {!walking && standing !== null && (
+            {!walking && !grabbing && (standing !== null || hint) && (
               <motion.div
-                key={standing}
+                key={hint ? 'hint' : standing}
                 initial={reduceMotion ? false : { opacity: 0, y: 8, scale: 0.97 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={reduceMotion ? { opacity: 0 } : { opacity: 0, y: -6, scale: 0.97 }}
@@ -349,7 +572,7 @@ export default function IntroGrandmaRail({
                 className="consult-greeting consult-greeting--left rounded-2xl border border-amber-200 bg-white px-4 py-2.5 shadow-sm"
               >
                 <p className="text-[14px] font-bold leading-6 text-amber-900">
-                  {comments[standing] ?? comments[0]}
+                  {hint ? HINT_COMMENT : comments[standing ?? 0] ?? comments[0]}
                 </p>
               </motion.div>
             )}
