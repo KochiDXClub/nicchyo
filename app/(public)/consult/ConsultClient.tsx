@@ -246,25 +246,23 @@ export default function ConsultClient() {
     >
       <div className="pointer-events-none absolute inset-0 z-0 bg-[var(--consult-bg)]" aria-hidden="true" />
       {/*
-        「これまでの相談」サイドバー（lg 以上）を開いているときは、チャット欄を
-        サイドバーのすぐ右（固定ガター lg:pl-80）に寄せる。中央寄せ（justify-center）の
-        ままだと、「サイドバー分を除いた残りスペースの中でさらに中央寄せ」になり、
-        画面が広いほど残りスペース自体が広がってサイドバーとチャット欄の間に
-        巨大な空白が生まれてしまう（ワイドモニタで特に顕著）。開いている間だけ
-        justify-start にし、その空白をなくす。既定（閉じている間）はチャット欄を
-        画面全体の中央に置く
-      */}
-      {/*
-        pt は付けない。ConsultStage 側のスクロール領域が自前で pt-3 を持っており、
-        ここに pt を足すとスクロール領域の外側（＝スクロールしても消えない場所）に
-        隙間ができてしまう。上部の余白は ConsultStage 側の pt-3 だけに任せる
+        「これまでの相談」サイドバー（lg 以上）を開いているときは、
+        サイドバーのすぐ右（固定ガター lg:pl-80）から本文を始める。
+
+        ここでは幅を max-w-3xl に絞らない（ConsultStage に w-full のまま渡す）。
+        絞ってしまうと、その狭い箱の内側でスクロールすることになり、縦スクロール
+        バーが画面の右端ではなく「箱の右端＝画面中央寄りの中途半端な位置」に
+        出てしまう（サイドバーを開いて本文が中央からずれるとなおさら目立つ）。
+        読みやすい行幅への制限と中央/左寄せの切り替えは、スクロール領域の
+        内側（ConsultStage 側の内側ラッパー）で行い、スクロールする箱自体は
+        画面の右端まで届く幅にしておく
       */}
       <main
-        className={`relative z-10 flex w-full items-start justify-center px-3 pb-16 ${
-          isHistorySidebarOpen ? "lg:justify-start lg:pl-80" : ""
+        className={`relative z-10 w-full px-3 pb-16 ${
+          isHistorySidebarOpen ? "lg:pl-80" : ""
         }`}
       >
-        <div className="flex w-full max-w-3xl flex-col gap-2">
+        <div className="w-full">
           {/* 現地でスマホを片手に使う前提の画面。相談はこの形に一本化した */}
           <ConsultStage
             onAskStream={handleGrandmaAskStream}

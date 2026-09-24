@@ -707,8 +707,12 @@ export default function ConsultStage({
       // （sticky の張り付き基準がスクロールポートの padding edge になるため）。
       // その結果、どれだけスクロールしても画面最上部に padding-top ぶんの
       // 隙間が残り続けてしまう。margin なら sticky の基準に含まれないため、
-      // スクロールすれば margin ごと上に流れ、固定バーが画面最上部にぴったり張り付く
-      className="flex h-[calc(100dvh-var(--consult-bar-space))] w-full flex-col gap-3 overflow-y-auto px-4"
+      // スクロールすれば margin ごと上に流れ、固定バーが画面最上部にぴったり張り付く。
+      //
+      // 幅は絞らず w-full のまま（PC で読みやすい行幅に絞るのは内側のラッパーで
+      // 行う）。ここで max-w を付けてしまうと、スクロールする箱自体が狭くなり、
+      // 縦スクロールバーが画面の右端ではなく箱の右端＝中途半端な位置に出てしまう
+      className="h-[calc(100dvh-var(--consult-bar-space))] w-full overflow-y-auto px-4"
       style={
         {
           // 下端に固定した「話しかける」とナビゲーションバーの分だけ空ける。
@@ -719,6 +723,19 @@ export default function ConsultStage({
         } as CSSProperties
       }
     >
+      {/*
+        読みやすい行幅への制限（max-w-3xl）と、中央寄せ／左寄せの切り替えは
+        ここで行う。サイドバーを開いている間は、チャット欄をサイドバーのすぐ右に
+        寄せたいので mx-auto をやめて左詰めにする（付けたままだと「サイドバー分を
+        除いた幅の中でさらに中央寄せ」になり、サイドバーとの間に空白ができてしまう
+        ——ConsultClient の <main> で一度直したのと同じ理由）。閉じている間は
+        これまで通り画面全体の中央に置く
+      */}
+      <div
+        className={`mx-auto flex w-full max-w-3xl flex-col gap-3 ${
+          isHistorySidebarOpen ? "lg:mx-0" : ""
+        }`}
+      >
       {/*
         にちよさんは常に画面に残す。
         話し相手が読み進めるうちに消えてしまうと、話しかける相手が居なくなり、
@@ -920,17 +937,18 @@ export default function ConsultStage({
           ))}
         </div>
       )}
+      </div>
 
       {/* 文字入力を大きく既定にし、音声は選べる小さいボタンにする。
           音声シートが出ている間と応答待ちの間は、押すべきものが2つにならないよう隠す。
-          外側はビューポート全幅の flex justify-center にし、中身だけ max-w-3xl に絞る
+          外側はビューポート全幅の flex にし、中身だけ max-w-3xl に絞る
           （ConsultClient の <main> と同じ組み方）。lg 以上でサイドバーを開いているときは
-          この外側に lg:pl-80 を足して、チャット欄と同じだけ右へ逃がす。内側に
-          max-w-3xl 自体を持たせていた以前の作りだと、この padding がバーの中の余白に
-          しかならず、バー全体は動かせなかった */}
+          この外側に lg:pl-80 を足してチャット欄と同じだけ右へ逃がし、さらに
+          justify-center のままだと「逃がした残りスペースの中でまた中央寄せ」になって
+          チャット本体とズレるため、lg:justify-start に切り替えて左詰めにする */}
       <div
         className={`fixed inset-x-0 z-20 flex justify-center px-4 ${
-          isHistorySidebarOpen ? "lg:pl-80" : ""
+          isHistorySidebarOpen ? "lg:justify-start lg:pl-80" : ""
         } ${revealClass(280).className} ${
           speech.isListening || phase !== "idle" || isBusy ? "hidden" : ""
         }`}
