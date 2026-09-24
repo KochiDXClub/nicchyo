@@ -1,47 +1,59 @@
 import { describe, expect, it } from 'vitest';
-import { createScrubMapping, passedStopIndex } from './introScrub';
+import {
+  EDGE_SCROLL_MAX_SPEED,
+  EDGE_SCROLL_SPEED_PER_PX,
+  edgeScrollSpeed,
+  passedStopIndex,
+  scrubGain,
+  scrubScrollTop,
+} from './introScrub';
 
-describe('createScrubMapping', () => {
-  const base = { grabY: 100, grabScrollTop: 1000, minY: 20, maxY: 620, maxScroll: 3000 };
-
-  it('つまんだ位置ではスクロール位置が変わらない', () => {
-    expect(createScrubMapping(base)(100)).toBe(1000);
+describe('scrubGain', () => {
+  it('道の高さで案内全体を送れる倍率にする', () => {
+    expect(scrubGain(600, 3000)).toBeCloseTo(5, 5);
   });
 
-  it('道の下端まで引くと最後、上端まで戻すと先頭になる', () => {
-    // 上へ戻す余地が十分ある（倍率の上限に掛からない）つまみ方
-    const map = createScrubMapping({ ...base, grabY: 300 });
-    expect(map(620)).toBe(3000);
-    expect(map(20)).toBe(0);
+  it('上限と下限に収める', () => {
+    expect(scrubGain(100, 3000)).toBe(8);
+    expect(scrubGain(600, 100)).toBe(1);
+    expect(scrubGain(100, 3000, { maxGain: 4 })).toBe(4);
   });
 
-  it('あいだは比例で埋まる（上下で倍率が違ってよい）', () => {
-    const map = createScrubMapping(base);
-    // 下: 残り 2000px を 520px で割るので約 3.85 倍
-    expect(map(360)).toBe(2000);
-    // 上: 残り 1000px を 80px で割るので 12.5 倍 → 上限 8 倍に掛かる
-    expect(map(60)).toBe(1000 - 40 * 8);
+  it('道の高さが 0 でも壊れない', () => {
+    expect(Number.isFinite(scrubGain(0, 3000))).toBe(true);
+  });
+});
+
+describe('scrubScrollTop', () => {
+  const base = { anchorScrollTop: 1000, anchorY: 100, gain: 5, maxScroll: 3000 };
+
+  it('基準の位置では変わらず、上下どちらへも同じ倍率で動く', () => {
+    expect(scrubScrollTop({ ...base, y: 100 })).toBe(1000);
+    expect(scrubScrollTop({ ...base, y: 140 })).toBe(1200);
+    expect(scrubScrollTop({ ...base, y: 60 })).toBe(800);
   });
 
-  it('範囲の外の指は端で止める', () => {
-    const map = createScrubMapping({ ...base, grabY: 300 });
-    expect(map(-50)).toBe(0);
-    expect(map(900)).toBe(3000);
+  it('先頭と最後で止める', () => {
+    expect(scrubScrollTop({ ...base, y: -500 })).toBe(0);
+    expect(scrubScrollTop({ ...base, y: 900 })).toBe(3000);
+  });
+});
+
+describe('edgeScrollSpeed', () => {
+  it('道の内側では送らない', () => {
+    expect(edgeScrollSpeed(100, 20, 620)).toBe(0);
+    expect(edgeScrollSpeed(20, 20, 620)).toBe(0);
+    expect(edgeScrollSpeed(620, 20, 620)).toBe(0);
   });
 
-  it('上端のすぐそばでつまんだときは倍率の上限に掛かり、一度では先頭まで届かない', () => {
-    const map = createScrubMapping(base);
-    expect(map(20)).toBe(1000 - 80 * 8);
+  it('上端を越えたら上へ、下端を越えたら下へ、越えたぶんだけ速く送る', () => {
+    expect(edgeScrollSpeed(10, 20, 620)).toBe(-10 * EDGE_SCROLL_SPEED_PER_PX);
+    expect(edgeScrollSpeed(640, 20, 620)).toBe(20 * EDGE_SCROLL_SPEED_PER_PX);
   });
 
-  it('倍率の上限は変えられる', () => {
-    const map = createScrubMapping({ ...base, maxGain: 2 });
-    expect(map(60)).toBe(1000 - 40 * 2);
-  });
-
-  it('最後に居るときは下へ引いても動かず、先頭では上へ戻しても動かない', () => {
-    expect(createScrubMapping({ ...base, grabScrollTop: 3000 })(620)).toBe(3000);
-    expect(createScrubMapping({ ...base, grabScrollTop: 0 })(20)).toBe(0);
+  it('速さには上限がある', () => {
+    expect(edgeScrollSpeed(-1000, 20, 620)).toBe(-EDGE_SCROLL_MAX_SPEED);
+    expect(edgeScrollSpeed(5000, 20, 620)).toBe(EDGE_SCROLL_MAX_SPEED);
   });
 });
 

@@ -1,49 +1,64 @@
 /**
- * にちよさんをつまんで送るときの、指の位置 → スクロール位置の対応。
+ * にちよさんをつまんで送るときの、指の動き → スクロール位置の対応。
  *
- * つまんだ瞬間の位置をそのまま「いまのスクロール位置」に結び、
- * 道（案内の左の列）の下端まで引けば案内の最後、上端まで戻せば先頭、になるよう
- * 上下それぞれで倍率を決める。つまんだ瞬間に中身が跳ねず、しかも
- * 「下まで引けば最後まで行く」がいつも成り立つ。
+ * 【倍率】
+ * 指 1px でどれだけ中身が動くか。道（案内の左の列）の高さで案内全体を一往復
+ * できる倍率にして、上下どちらへ引いても同じ手応えにする。以前は上下で倍率を
+ * 別々に決めていたが、にちよさんは節の先頭（画面の上のほう）に立っているので
+ * 上へ戻す余地が小さく、上向きの倍率だけ跳ね上がって数 px で何画面も飛んでいた。
+ * 倍率には上限と下限を置く。
  *
- * 倍率には上限を置く。上端のすぐそばでつまんで上へ戻すときなど、残りの
- * 指の余地に対して残りのスクロールが大きすぎると、数 px で何画面も飛んで
- * 制御できなくなるため。上限に掛かったときは一度の引きで端まで届かないが、
- * つまみ直せばよい。
+ * 【端で送り続ける】
+ * 指が道の上端・下端を越えたら、越えたぶんに応じた速さで中身を送り続ける
+ * （並べ替えのドラッグで一覧の端に持っていくと流れていく、あの動き）。
+ * にちよさんは端に留まり、道のほうが流れてくる。これで、上のほうに立っている
+ * にちよさんを上へ引いても、指を離さずに先頭まで戻れる。
  */
 
-export type ScrubMappingOptions = {
-  /** つまんだときの指（にちよさんの上端）の位置。画面上の px */
-  grabY: number;
-  /** つまんだときのスクロール位置 */
-  grabScrollTop: number;
-  /** にちよさんの上端が動ける範囲（画面上の px）。道の上端と、下端から絵の高さを引いた位置 */
-  minY: number;
-  maxY: number;
-  /** スクロールできる最大値 */
-  maxScroll: number;
-  /** 指 1px あたり中身が動く最大 px */
-  maxGain?: number;
-};
-
 export const DEFAULT_SCRUB_MAX_GAIN = 8;
+export const DEFAULT_SCRUB_MIN_GAIN = 1;
+
+/** 端を越えた指 1px あたりの、送る速さ（px/秒） */
+export const EDGE_SCROLL_SPEED_PER_PX = 24;
+/** 端で送り続けるときの速さの上限（px/秒） */
+export const EDGE_SCROLL_MAX_SPEED = 1400;
 
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 
-/** 指の位置（画面上の px）からスクロール位置を返す関数を作る */
-export function createScrubMapping(options: ScrubMappingOptions): (y: number) => number {
-  const { grabY, grabScrollTop, minY, maxY, maxScroll } = options;
+/** 道の高さ（にちよさんが動ける範囲）で案内全体を送れる倍率 */
+export function scrubGain(
+  trackHeight: number,
+  maxScroll: number,
+  options: { minGain?: number; maxGain?: number } = {}
+): number {
+  const minGain = options.minGain ?? DEFAULT_SCRUB_MIN_GAIN;
   const maxGain = options.maxGain ?? DEFAULT_SCRUB_MAX_GAIN;
-  const downRoom = Math.max(1, maxY - grabY);
-  const upRoom = Math.max(1, grabY - minY);
-  const downGain = Math.min(maxGain, Math.max(0, maxScroll - grabScrollTop) / downRoom);
-  const upGain = Math.min(maxGain, Math.max(0, grabScrollTop) / upRoom);
-  return (y: number) => {
-    const clampedY = clamp(y, minY, maxY);
-    const delta = clampedY - grabY;
-    const scrollTop = delta >= 0 ? grabScrollTop + delta * downGain : grabScrollTop + delta * upGain;
-    return clamp(Math.round(scrollTop), 0, maxScroll);
-  };
+  return clamp(maxScroll / Math.max(1, trackHeight), minGain, maxGain);
+}
+
+/**
+ * 基準（つまんだ位置、または端で送ったあとの位置）からの指の動きで、
+ * 行くべきスクロール位置を返す
+ */
+export function scrubScrollTop(options: {
+  anchorScrollTop: number;
+  anchorY: number;
+  y: number;
+  gain: number;
+  maxScroll: number;
+}): number {
+  const { anchorScrollTop, anchorY, y, gain, maxScroll } = options;
+  return clamp(Math.round(anchorScrollTop + (y - anchorY) * gain), 0, maxScroll);
+}
+
+/**
+ * 指が道の端を越えているときの、送り続ける速さ（px/秒。上へ戻すときは負）。
+ * 端の内側なら 0
+ */
+export function edgeScrollSpeed(y: number, minY: number, maxY: number): number {
+  if (y < minY) return -Math.min(EDGE_SCROLL_MAX_SPEED, (minY - y) * EDGE_SCROLL_SPEED_PER_PX);
+  if (y > maxY) return Math.min(EDGE_SCROLL_MAX_SPEED, (y - maxY) * EDGE_SCROLL_SPEED_PER_PX);
+  return 0;
 }
 
 /**

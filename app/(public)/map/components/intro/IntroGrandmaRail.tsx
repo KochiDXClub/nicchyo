@@ -24,8 +24,10 @@
  *
  * 【つまんで送る】
  * にちよさんはつまんで上下に引ける。引いているあいだは指に 1:1 で付いてきて、
- * そのぶん案内の中身が送られる（指の位置 → スクロール位置の対応は introScrub.ts）。
- * 道の下端まで引けば最後、上端まで戻せば先頭。離すと近い節の先頭に寄り、
+ * そのぶん案内の中身が送られる（指の動き → スクロール位置の対応は introScrub.ts）。
+ * 上下どちらへ引いても同じ倍率。指が道の上端・下端を越えたら、にちよさんは
+ * 端に留まり、越えたぶんに応じた速さで中身が流れ続ける（先頭や最後まで、
+ * 指を離さずに戻れる・進める）。離すと近い節の先頭に寄り、
  * 残りは自分で歩いて停留点に立ち、いつもどおり一言話す。
  * 対応端末では、つまんだときと停留点を通り過ぎるたびに短く振動する。
  * 動かさずに離す（押しただけ）と、つまめることを一言で教える。
@@ -45,7 +47,7 @@ import GrandmaAvatar from '../../../consult/components/GrandmaAvatar';
 import { DEFAULT_CONSULT_CHARACTER } from '../../../consult/data/consultCharacters';
 import type { GrandmaPose } from '@/lib/grandma/pose';
 import { vibrate } from '@/lib/ui/haptics';
-import { createScrubMapping, passedStopIndex } from './introScrub';
+import { edgeScrollSpeed, passedStopIndex, scrubGain, scrubScrollTop } from './introScrub';
 
 /** 左に空ける道の幅。停留点の行はこのぶんだけ右に寄せる */
 export const RAIL_WIDTH = 72;
@@ -257,11 +259,30 @@ export default function IntroGrandmaRail({
   // 毎フレーム、居るべき位置へ向かって歩く
   useAnimationFrame((now, deltaMs) => {
     if (!hasMeasuredRef.current) return;
+    const dt = Math.min(deltaMs, 64) / 1000;
+    // つまんで引かれているあいだは、指が位置を決める。指が道の端を越えていれば、
+    // 越えたぶんに応じた速さで中身を送り続ける（絵は端に留まり、道が流れる）
+    const grab = grabRef.current;
+    if (grab) {
+      const scroller = scrollerRef.current;
+      const edgeWalking = grab.edgeSpeed !== 0;
+      if (edgeWalking !== edgeWalkingRef.current) {
+        edgeWalkingRef.current = edgeWalking;
+        setWalking(edgeWalking);
+      }
+      if (scroller && edgeWalking) {
+        const next = Math.min(grab.maxScroll, Math.max(0, scroller.scrollTop + grab.edgeSpeed * dt));
+        if (Math.round(next) !== Math.round(scroller.scrollTop)) {
+          // ここを新しい基準にして、指を戻したときに続きから動くようにする
+          grab.anchorScrollTop = next;
+          grab.anchorY = grab.avatarTop;
+          applyScrub(grab, Math.round(next));
+        }
+      }
+      return;
+    }
     // 指が触れているあいだは足を止め、離れてから追いかける（下の fingerDownRef 参照）
     if (fingerDownRef.current) return;
-    // つまんで引かれているあいだは、指が位置を決める
-    if (grabbingRef.current) return;
-    const dt = Math.min(deltaMs, 64) / 1000;
     const current = top.get();
     const target = desiredRef.current;
     const delta = target - current;
@@ -342,10 +363,35 @@ export default function IntroGrandmaRail({
     /** 絵の上端が行ける範囲（画面上の px） */
     minY: number;
     maxY: number;
-    map: (avatarTop: number) => number;
+    maxScroll: number;
+    /** 指 1px あたり中身が動く px */
+    gain: number;
+    /** 指の動きの基準。端で送り続けたあとはそこが新しい基準になる */
+    anchorY: number;
+    anchorScrollTop: number;
+    /** いまの絵の上端（範囲に収めたあと、画面上の px） */
+    avatarTop: number;
+    /** 指が端を越えているときに送り続ける速さ（px/秒、上へ戻すときは負） */
+    edgeSpeed: number;
     lastStop: number;
   };
   const grabRef = useRef<Grab | null>(null);
+  /** 端で送り続けているあいだ、その場で足を動かして見せる */
+  const edgeWalkingRef = useRef(false);
+
+  /** 中身をこの位置へ送り、絵を指の下に置き直し、停留点を通り過ぎたら手応えを返す */
+  const applyScrub = (grab: Grab, scrollTop: number) => {
+    onScrub(scrollTop);
+    // 中身が動いたあとの道の上端から測り直して、絵を指の下に置く
+    const areaTop = railSvgRef.current?.getBoundingClientRect().top ?? 0;
+    const maxTop = Math.max(0, height - AVATAR_SIZE);
+    top.set(Math.min(maxTop, Math.max(0, grab.avatarTop - areaTop)));
+    const stop = passedStopIndex(scrollTop, anchorYsRef.current);
+    if (stop !== grab.lastStop) {
+      grab.lastStop = stop;
+      vibrate(STOP_TICK_HAPTIC_MS);
+    }
+  };
 
   const onPointerDown = (event: React.PointerEvent<HTMLButtonElement>) => {
     if (!hasMeasuredRef.current || grabRef.current) return;
@@ -366,7 +412,12 @@ export default function IntroGrandmaRail({
       moved: false,
       minY,
       maxY,
-      map: createScrubMapping({ grabY: avatar.top, grabScrollTop: scroller.scrollTop, minY, maxY, maxScroll }),
+      maxScroll,
+      gain: scrubGain(maxY - minY, maxScroll),
+      anchorY: Math.min(maxY, Math.max(minY, avatar.top)),
+      anchorScrollTop: scroller.scrollTop,
+      avatarTop: avatar.top,
+      edgeSpeed: 0,
       lastStop: passedStopIndex(scroller.scrollTop, anchorYsRef.current),
     };
     event.currentTarget.setPointerCapture(event.pointerId);
@@ -382,18 +433,20 @@ export default function IntroGrandmaRail({
     if (!grab || event.pointerId !== grab.pointerId) return;
     if (!grab.moved && Math.abs(event.clientY - grab.startClientY) < TAP_SLOP_PX) return;
     grab.moved = true;
-    const avatarTop = Math.min(grab.maxY, Math.max(grab.minY, event.clientY - grab.offsetY));
-    const scrollTop = grab.map(avatarTop);
-    onScrub(scrollTop);
-    // 中身が動いたあとの道の上端から測り直して、絵を指の下に置く
-    const areaTop = railSvgRef.current?.getBoundingClientRect().top ?? 0;
-    const maxTop = Math.max(0, height - AVATAR_SIZE);
-    top.set(Math.min(maxTop, Math.max(0, avatarTop - areaTop)));
-    const stop = passedStopIndex(scrollTop, anchorYsRef.current);
-    if (stop !== grab.lastStop) {
-      grab.lastStop = stop;
-      vibrate(STOP_TICK_HAPTIC_MS);
-    }
+    const rawTop = event.clientY - grab.offsetY;
+    grab.avatarTop = Math.min(grab.maxY, Math.max(grab.minY, rawTop));
+    // 端を越えたぶんは、毎フレームの送り（下の useAnimationFrame）に任せる
+    grab.edgeSpeed = edgeScrollSpeed(rawTop, grab.minY, grab.maxY);
+    applyScrub(
+      grab,
+      scrubScrollTop({
+        anchorScrollTop: grab.anchorScrollTop,
+        anchorY: grab.anchorY,
+        y: grab.avatarTop,
+        gain: grab.gain,
+        maxScroll: grab.maxScroll,
+      })
+    );
   };
 
   const onPointerEnd = (event: React.PointerEvent<HTMLButtonElement>) => {
@@ -402,6 +455,10 @@ export default function IntroGrandmaRail({
     grabRef.current = null;
     grabbingRef.current = false;
     setGrabbing(false);
+    if (edgeWalkingRef.current) {
+      edgeWalkingRef.current = false;
+      setWalking(false);
+    }
     try {
       event.currentTarget.releasePointerCapture(event.pointerId);
     } catch {
