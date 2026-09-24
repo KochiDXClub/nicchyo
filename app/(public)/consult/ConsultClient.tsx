@@ -249,8 +249,13 @@ export default function ConsultClient() {
         「これまでの相談」サイドバー（lg 以上）を開いているときだけ、
         中央寄せの本文を右へ逃がす。既定（閉じている間）はチャット欄を中央に置く
       */}
+      {/*
+        pt は付けない。ConsultStage 側のスクロール領域が自前で pt-3 を持っており、
+        ここに pt を足すとスクロール領域の外側（＝スクロールしても消えない場所）に
+        隙間ができてしまう。上部の余白は ConsultStage 側の pt-3 だけに任せる
+      */}
       <main
-        className={`relative z-10 flex w-full items-start justify-center px-3 pb-16 pt-2 ${
+        className={`relative z-10 flex w-full items-start justify-center px-3 pb-16 ${
           isHistorySidebarOpen ? "lg:pl-80" : ""
         }`}
       >

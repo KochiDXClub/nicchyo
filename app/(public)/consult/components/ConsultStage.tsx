@@ -694,12 +694,21 @@ export default function ConsultStage({
       // 描かれるため、縦の低い画面（PCの非全画面ウィンドウなど）では
       // スクロールする前から候補ボタンにバーが重なって見えていた。
       //
-      // height は「この要素より上（親 main の pt-2）」と「下端の話しかけるバー
-      // の分（--consult-bar-space、paddingBottom と同じ値）」を両方引く。
-      // paddingBottom だけでは、中身がその場に収まってしまう高さのときスクロール
-      // が発生せず、バーの領域まで普通に描画されて隠れてしまうため、
-      // 「バーの領域には最初から描画させない」ところまで height 側でも絞る
-      className="flex h-[calc(100dvh-0.5rem-var(--consult-bar-space))] w-full flex-col gap-3 overflow-y-auto px-4 pt-3"
+      // height は「下端の話しかけるバーの分（--consult-bar-space、paddingBottom
+      // と同じ値）」を引く。paddingBottom だけでは、中身がその場に収まってしまう
+      // 高さのときスクロールが発生せず、バーの領域まで普通に描画されて
+      // 隠れてしまうため、「バーの領域には最初から描画させない」ところまで
+      // height 側でも絞る。
+      //
+      // 親 main 側には上の余白を一切持たせない。上の余白は、この要素の
+      // padding-top ではなく最初の子（topSentinelRef）の margin-top で作る。
+      // スクロールコンテナ自身に padding-top を付けると、sticky な子要素は
+      // その padding ぶんより内側（画面最上部寄り）には張り付けなくなる
+      // （sticky の張り付き基準がスクロールポートの padding edge になるため）。
+      // その結果、どれだけスクロールしても画面最上部に padding-top ぶんの
+      // 隙間が残り続けてしまう。margin なら sticky の基準に含まれないため、
+      // スクロールすれば margin ごと上に流れ、固定バーが画面最上部にぴったり張り付く
+      className="flex h-[calc(100dvh-var(--consult-bar-space))] w-full flex-col gap-3 overflow-y-auto px-4"
       style={
         {
           // 下端に固定した「話しかける」とナビゲーションバーの分だけ空ける。
@@ -716,8 +725,12 @@ export default function ConsultStage({
         音声入力の入口（＝キャラ自身がボタン）にも戻れなくなるため。
         答えが長いときはここだけが残り、本文がこの下を流れていく。
       */}
-      {/* 「画面の一番上にいるか」を測るための目印。見た目には出ない */}
-      <div ref={topSentinelRef} aria-hidden="true" className="h-px w-full shrink-0" />
+      {/*
+        「画面の一番上にいるか」を測るための目印。見た目には出ないが、
+        上の余白（本来 padding-top で持たせたい分）を margin-top として
+        ここに持たせている（理由はスクロールコンテナの className 側のコメント参照）
+      */}
+      <div ref={topSentinelRef} aria-hidden="true" className="mt-3 h-px w-full shrink-0" />
 
       {/* 話し手の入れ替わり。前の人が右へ去り、新しい人が左から歩いてくる */}
       {swapFrom && (
