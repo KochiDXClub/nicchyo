@@ -15,7 +15,6 @@ import SearchDiscovery from './components/SearchDiscovery';
 import { useFavoriteShopIds } from '../../../lib/hooks/useFavorites';
 import { useShopFavoriteToggle } from '../../components/favorites/useShopFavoriteToggle';
 import { saveSearchMapPayload } from '../../../lib/searchMapStorage';
-import { recordProductSearch } from '@/app/vendor/_services/analyticsService';
 import ShopDetailBanner from '../map/components/ShopDetailBanner';
 
 const MapView = dynamic(() => import('../map/components/MapView'), {
@@ -232,7 +231,11 @@ export default function SearchClient({
     const kw = textQuery.trim();
     if (kw.length < 2) return;
     const timer = setTimeout(() => {
-      recordProductSearch(kw, filteredShops.length).catch(() => {/* ignore */});
+      // 記録には Supabase のライブラリが要る。静的に import すると検索画面と地図の
+      // 最初の JS に入ってしまうため、記録するときに読み込む
+      import('@/app/vendor/_services/analyticsService')
+        .then(({ recordProductSearch }) => recordProductSearch(kw, filteredShops.length))
+        .catch(() => {/* ignore */});
     }, 1000);
     return () => clearTimeout(timer);
   }, [textQuery, filteredShops.length]);
