@@ -51,6 +51,7 @@ import IntroConsultDemo from './intro/IntroConsultDemo';
 import IntroOdekakeDemo from './intro/IntroOdekakeDemo';
 import { useIntroOdekakeGuide } from './intro/useIntroOdekakeGuide';
 import IntroShopSheet from './intro/IntroShopSheet';
+import { vibrate } from '@/lib/ui/haptics';
 import IntroGrandmaRail, {
   RAIL_STOP_HEIGHT,
   RAIL_STOP_HEIGHT_DESKTOP,
@@ -109,6 +110,8 @@ const GESTURE_SLOP_PX = 3;
 const DETENT_HAPTIC_MS = 8;
 /** 段へ吸い付く動き。速く、行き過ぎない */
 const DETENT_SPRING = { type: 'spring', stiffness: 420, damping: 38, mass: 0.9 } as const;
+/** 段へ吸い付く動きがほぼ収まるまでの時間（DETENT_SPRING の実測） */
+const EXPAND_SETTLE_MS = 320;
 /** ナビゲーションバー（h-14）の分。下の操作列が隠れないようにする */
 const NAV_SPACE = 'calc(3.5rem + var(--safe-bottom, 0px))';
 /** 半開きのときの角丸 */
@@ -201,6 +204,8 @@ function useSheetGestures({
   expand: () => void;
   collapse: () => void;
   toggle: () => void;
+  /** にちよさんをつまんで送るときの、中身の動かし方 */
+  scrub: { start: () => void; to: (scrollTop: number) => void; end: () => void };
 } {
   const [expanded, setExpanded] = useState(false);
   const expandedRef = useRef(false);
@@ -230,6 +235,10 @@ function useSheetGestures({
   });
 
   const draggingRef = useRef(false);
+  /** にちよさんをつまんで送っている最中か。そのあいだは中身が動いても段を変えない */
+  const scrubbingRef = useRef(false);
+  /** 手で送ったあと scroll-snap を戻すまでの待ち */
+  const restoreSnapTimerRef = useRef<number | null>(null);
 
   const settle = useCallback(
     (target: 'peek' | 'full', byGesture = false) => {
@@ -244,13 +253,7 @@ function useSheetGestures({
         if (reduceMotion) pull.set(0);
         else animate(pull, 0, DETENT_SPRING);
       }
-      if (byGesture && changed && typeof navigator !== 'undefined' && 'vibrate' in navigator) {
-        try {
-          navigator.vibrate(DETENT_HAPTIC_MS);
-        } catch {
-          /* 対応していない端末では何もしない */
-        }
-      }
+      if (byGesture && changed) vibrate(DETENT_HAPTIC_MS);
     },
     [height, pull, reduceMotion]
   );
@@ -272,9 +275,37 @@ function useSheetGestures({
   }, [fullHeight, height, peekHeight]);
 
   const onScroll = useCallback(() => {
+    // つまんで送っているあいだは半開きのまま。離したときに広げる
+    if (scrubbingRef.current) return;
     const el = scrollRef.current;
     if (el && el.scrollTop > EXPAND_SCROLL_PX && !expandedRef.current) settle('full');
   }, [settle]);
+
+  /** 手で送ったあと、近い節の先頭へ寄せてから scroll-snap を戻す */
+  const resnap = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const view = el.clientHeight;
+    const st = el.scrollTop;
+    const maxTop = el.scrollHeight - view;
+    const tops = Array.from(el.querySelectorAll<HTMLElement>('[data-intro-stop]')).map((node) => {
+      const top = Math.round(node.getBoundingClientRect().top - el.getBoundingClientRect().top + st);
+      return { top: Math.min(top, maxTop), bottom: top + node.offsetHeight };
+    });
+    // 画面より背の高い節の中に居るなら、そのまま（snap もそこは自由に動ける）
+    const covered = tops.some((sec) => sec.top <= st && sec.bottom >= st + view);
+    let target = st;
+    if (!covered && tops.length > 0) {
+      target = tops.reduce((best, sec) =>
+        Math.abs(sec.top - st) < Math.abs(best - st) ? sec.top : best, tops[0].top);
+    }
+    if (target !== st) el.scrollTo({ top: target, behavior: reduceMotion ? 'auto' : 'smooth' });
+    if (restoreSnapTimerRef.current !== null) window.clearTimeout(restoreSnapTimerRef.current);
+    restoreSnapTimerRef.current = window.setTimeout(() => {
+      restoreSnapTimerRef.current = null;
+      el.style.scrollSnapType = '';
+    }, target !== st && !reduceMotion ? 450 : 0);
+  }, [reduceMotion]);
 
   const onWheel = useCallback(
     (event: React.WheelEvent) => {
@@ -300,38 +331,17 @@ function useSheetGestures({
       scrolledByHand: boolean;
     };
     let gesture: Gesture | null = null;
-    let restoreSnapTimer: number | null = null;
 
     const scroller = () => scrollRef.current;
 
-    /** 手で送ったあと、近い節の先頭へ寄せてから scroll-snap を戻す */
-    const resnap = () => {
-      const el = scroller();
-      if (!el) return;
-      const view = el.clientHeight;
-      const st = el.scrollTop;
-      const maxTop = el.scrollHeight - view;
-      const tops = Array.from(el.querySelectorAll<HTMLElement>('[data-intro-stop]')).map((node) => {
-        const top = Math.round(node.getBoundingClientRect().top - el.getBoundingClientRect().top + st);
-        return { top: Math.min(top, maxTop), bottom: top + node.offsetHeight };
-      });
-      // 画面より背の高い節の中に居るなら、そのまま（snap もそこは自由に動ける）
-      const covered = tops.some((sec) => sec.top <= st && sec.bottom >= st + view);
-      let target = st;
-      if (!covered && tops.length > 0) {
-        target = tops.reduce((best, sec) =>
-          Math.abs(sec.top - st) < Math.abs(best - st) ? sec.top : best, tops[0].top);
-      }
-      if (target !== st) el.scrollTo({ top: target, behavior: reduceMotion ? 'auto' : 'smooth' });
-      if (restoreSnapTimer !== null) window.clearTimeout(restoreSnapTimer);
-      restoreSnapTimer = window.setTimeout(() => {
-        restoreSnapTimer = null;
-        el.style.scrollSnapType = '';
-      }, target !== st && !reduceMotion ? 450 : 0);
-    };
-
     const onTouchStart = (event: TouchEvent) => {
       if (event.touches.length !== 1) return;
+      // にちよさんの上から始まった指は、にちよさんが受け持つ（IntroGrandmaRail）。
+      // シートを動かしも、中身を送りもしない
+      if ((event.target as Element | null)?.closest?.('[data-intro-grab]')) {
+        gesture = null;
+        return;
+      }
       const y = event.touches[0].clientY;
       const { full } = sizeRef.current;
       gesture = {
@@ -444,12 +454,49 @@ function useSheetGestures({
       sheet.removeEventListener('touchmove', onTouchMove);
       sheet.removeEventListener('touchend', onTouchEnd);
       sheet.removeEventListener('touchcancel', onTouchCancel);
-      if (restoreSnapTimer !== null) window.clearTimeout(restoreSnapTimer);
+      if (restoreSnapTimerRef.current !== null) window.clearTimeout(restoreSnapTimerRef.current);
       if (scrollerAtMount) scrollerAtMount.style.scrollSnapType = '';
     };
-  }, [height, pull, reduceMotion, settle, sheetEl]);
+  }, [height, pull, reduceMotion, resnap, settle, sheetEl]);
 
-  return { expanded, sheetRef, scrollRef, height, pull, radius, onScroll, onWheel, expand, collapse, toggle };
+  /*
+   * にちよさんをつまんで送るとき。指が付いているあいだは scroll-snap を切って
+   * 指なりに送り、離したら手で送ったときと同じく近い節の先頭へ寄せる。
+   * 半開きのままつまんだときは、引いているあいだはシートを動かさず（指の下で
+   * シートが伸びると絵が指から離れる）、離してから全画面に広げる
+   */
+  const scrub = useMemo(
+    () => ({
+      start: () => {
+        scrubbingRef.current = true;
+        if (restoreSnapTimerRef.current !== null) {
+          window.clearTimeout(restoreSnapTimerRef.current);
+          restoreSnapTimerRef.current = null;
+        }
+        const el = scrollRef.current;
+        if (el) el.style.scrollSnapType = 'none';
+      },
+      to: (scrollTop: number) => {
+        const el = scrollRef.current;
+        if (el) el.scrollTop = scrollTop;
+      },
+      end: () => {
+        scrubbingRef.current = false;
+        const scrolled = (scrollRef.current?.scrollTop ?? 0) > EXPAND_SCROLL_PX;
+        if (!expandedRef.current && scrolled) {
+          // 半開きのままつまんでいたら、まず全画面に広げる。寄せる先はシートが
+          // 広がりきった高さで決めないと、背の高い節の途中で止まってしまう
+          settle('full');
+          window.setTimeout(resnap, reduceMotion ? 0 : EXPAND_SETTLE_MS);
+          return;
+        }
+        resnap();
+      },
+    }),
+    [reduceMotion, resnap, settle]
+  );
+
+  return { expanded, sheetRef, scrollRef, height, pull, radius, onScroll, onWheel, expand, collapse, toggle, scrub };
 }
 
 type IntroStopKey = 'welcome' | 'map' | 'search' | 'consult' | 'odekake' | 'end';
@@ -610,6 +657,7 @@ export default function MapIntroPanel({
     expand,
     collapse,
     toggle: toggleSheet,
+    scrub,
   } = useSheetGestures({ peekHeight, fullHeight: viewportHeight, onClose, reduceMotion });
 
   const mapDemoShops = useMemo(() => pickIntroDemoShops(shops), [shops]);
@@ -880,6 +928,10 @@ export default function MapIntroPanel({
             scrollY={scrollY}
             comments={stopComments}
             stopHeight={stopHeight}
+            scrollerRef={scrollRef}
+            onScrubStart={scrub.start}
+            onScrub={scrub.to}
+            onScrubEnd={scrub.end}
           />
 
           {/* ── 見出し ──
