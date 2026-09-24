@@ -27,6 +27,7 @@ import { motion, useReducedMotion } from 'framer-motion';
 import { Landmark as LandmarkIcon, X as XIcon } from 'lucide-react';
 import { GUIDE_KIND_OPTIONS } from '../hooks/useOdekakeGuide';
 import type { SpotKind } from '@/lib/spots';
+import { vibrate } from '@/lib/ui/haptics';
 
 /** /facilities と地図で使っているアイコン。目印だけは専用画像が無いので線画で代える */
 const KIND_ICON_URL: Partial<Record<SpotKind, string>> = {
@@ -99,9 +100,7 @@ export default function OdekakeKindChooser({
     if (picked) return; // 二度押しで別の種類に飛ばないようにする
     setPicked(kind);
     // 押した感触。対応していない端末では何も起きない
-    if (typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') {
-      navigator.vibrate(12);
-    }
+    vibrate(12);
     const hold = reduceMotion ? 0 : PICK_HOLD_MS;
     timerRef.current = window.setTimeout(() => onSelect(kind), hold);
   };
