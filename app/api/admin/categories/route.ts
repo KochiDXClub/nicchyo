@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getRole } from "@/lib/auth/permissions";
 import { createAdminClient, authorizeAdmin } from "./_helpers";
 import { logAdminAudit } from "@/lib/audit/logAdminAudit";
+import { revalidatePublicShops } from "@/app/(public)/map/services/shopCache";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -77,5 +78,6 @@ export async function POST(req: Request) {
     }
   );
 
+  revalidatePublicShops();
   return NextResponse.json({ category: data as Category }, { status: 201 });
 }

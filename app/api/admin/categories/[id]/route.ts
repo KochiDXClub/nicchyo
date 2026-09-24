@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getRole } from "@/lib/auth/permissions";
 import { createAdminClient, authorizeAdmin } from "../_helpers";
 import { logAdminAudit } from "@/lib/audit/logAdminAudit";
+import { revalidatePublicShops } from "@/app/(public)/map/services/shopCache";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -51,6 +52,8 @@ export async function PATCH(req: Request, { params }: Params) {
     { action: "category_updated", targetType: "category", targetId: id, details: JSON.stringify({ name }) }
   );
 
+  // カテゴリー名はマップの店舗情報に載るため、キャッシュを捨てる
+  revalidatePublicShops();
   return NextResponse.json({ category: data });
 }
 
@@ -87,5 +90,6 @@ export async function DELETE(_req: Request, { params }: Params) {
     { action: "category_deleted", targetType: "category", targetId: id, details: JSON.stringify({}) }
   );
 
+  revalidatePublicShops();
   return NextResponse.json({ ok: true });
 }

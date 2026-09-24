@@ -7,6 +7,7 @@ import { enforceRateLimit, getClientIp } from "@/lib/security/rateLimit";
 import { getRole, isAdmin } from "@/lib/auth/permissions";
 import { MAX_BULK_OPERATION } from "@/lib/constants";
 import { logAdminAudit } from "@/lib/audit/logAdminAudit";
+import { revalidatePublicShops } from "@/app/(public)/map/services/shopCache";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -129,6 +130,9 @@ export async function POST(request: Request) {
     } else {
       return NextResponse.json({ error: "Unknown action" }, { status: 400 });
     }
+
+    // 削除した出店者をマップの店舗キャッシュから消す（一部失敗でも成功分は反映する）
+    if (action === "delete") revalidatePublicShops();
 
     if (errors.length > 0) {
       return NextResponse.json(
