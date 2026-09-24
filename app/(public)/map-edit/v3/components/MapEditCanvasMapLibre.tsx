@@ -225,6 +225,8 @@ function styleLandmarkElement(
     boxShadow: "0 1px 4px rgba(0,0,0,.2)",
     opacity: String(opts.opacity),
     cursor: opts.draggable ? "grab" : "default",
+    // 建物タブ以外では、下にある区画・道のクリックを奪わない
+    pointerEvents: opts.draggable ? "auto" : "none",
   } satisfies Partial<CSSStyleDeclaration>);
 }
 
@@ -301,6 +303,10 @@ export default function MapEditCanvasMapLibre({
   // ユーザー操作由来の moveend で focus/rotation/zoomIdx を書き戻した直後、
   // 続けて走る同期 effect の easeTo を1回だけスキップするための印
   const suppressNextSyncRef = useRef(false);
+  // 同期 effect の easeTo 呼び出し中かどうか。easeTo は進行中のアニメーション（慣性・
+  // キーボード移動など。これらも originalEvent 付き）を同期的に止めて moveend を出すため、
+  // その途中値をユーザー操作として書き戻さないための印
+  const syncingCameraRef = useRef(false);
   // 道・区画レイヤーで選択が起きたクリックかどうか。立っている間は、地図全体の
   // click（空き地クリック＝新規描画の点追加・新規配置用）に流さない
   const consumedClickRef = useRef(false);
@@ -461,7 +467,7 @@ export default function MapEditCanvasMapLibre({
     // 操作を追い越して段階の位置へ「吸い付く」ように動いてしまう。suppressNextSyncRef を
     // 立てて、この1回だけ同期 effect の easeTo をスキップさせる
     map.on("moveend", (e) => {
-      if (!e.originalEvent) return;
+      if (!e.originalEvent || syncingCameraRef.current) return;
       suppressNextSyncRef.current = true;
       const center = map.getCenter();
       setFocus(projectionRef.current.toLocal(center.lat, center.lng));
@@ -510,12 +516,17 @@ export default function MapEditCanvasMapLibre({
       Math.hypot(currentCenter.lat - targetCenter.lat, currentCenter.lng - targetCenter.lng) > 1e-7;
     if (!zoomChanged && !bearingChanged && !centerChanged) return;
 
-    map.easeTo({
-      zoom: targetZoom,
-      bearing: targetBearing,
-      center: [targetCenter.lng, targetCenter.lat],
-      duration: 200,
-    });
+    syncingCameraRef.current = true;
+    try {
+      map.easeTo({
+        zoom: targetZoom,
+        bearing: targetBearing,
+        center: [targetCenter.lng, targetCenter.lat],
+        duration: 200,
+      });
+    } finally {
+      syncingCameraRef.current = false;
+    }
   }, [zoomIdx, rotation, focus, projection, ready]);
 
   // ── データの反映（全置換 setData。公開マップと同じパターン） ──────────
@@ -557,8 +568,8 @@ export default function MapEditCanvasMapLibre({
       if (!marker) {
         const el = document.createElement("div");
         el.addEventListener("click", (event) => {
-          event.stopPropagation();
           if (tabRef.current !== "landmark") return;
+          event.stopPropagation();
           handlersRef.current.onSelectLandmark(landmark.key);
         });
         marker = new maplibregl.Marker({ element: el, draggable, anchor: "center" });
@@ -607,6 +618,8 @@ export default function MapEditCanvasMapLibre({
       let marker = vertexExisting.get(point.id);
       if (!marker) {
         const el = createVertexElement();
+        // 頂点のクリックが下の道レイヤーの click に伝わり、選択が別の道へ飛ぶのを防ぐ
+        el.addEventListener("click", (event) => event.stopPropagation());
         el.addEventListener("dblclick", (event) => {
           event.stopPropagation();
           handlersRef.current.onVertexRemove(road.id, point.id);

@@ -120,7 +120,7 @@ export default function MapEditClientV3() {
   // DB・APIには触れず、この画面限定の軽量な切替にする。
   // PR②で編集操作（頂点ドラッグ・建物ドラッグ配置）までMapLibre版に揃えたため、
   // ここから既定をMapLibre版にする（何か問題があれば ?canvas=leaflet かトグルで戻せる）。
-  // 優先順位（強い順）: 1. URLの ?canvas=leaflet  2. localStorageの保存値  3. 既定値(maplibre)
+  // 優先順位（強い順）: 1. URLの ?canvas=leaflet|maplibre  2. localStorageの保存値  3. 既定値(maplibre)
   const [canvasEngine, setCanvasEngine] = useState<"leaflet" | "maplibre">("maplibre");
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -134,7 +134,7 @@ export default function MapEditClientV3() {
       const stored = window.localStorage.getItem(CANVAS_ENGINE_STORAGE_KEY);
       if (stored === "maplibre" || stored === "leaflet") setCanvasEngine(stored);
     } catch {
-      // ストレージが使えない環境でも、初期表示自体は既定のLeafletで続けられる
+      // ストレージが使えない環境でも、初期表示自体は既定の描画方式で続けられる
     }
   }, []);
   const toggleCanvasEngine = useCallback(() => {
