@@ -1,6 +1,7 @@
 import { AboutIconName } from "./AboutIcon";
 import { currentVersion, type VersionEntry } from "./versions";
 import { GITHUB_REPO_URL } from "@/lib/siteLinks";
+import { siteText } from "@/lib/siteCopy";
 
 export type CharacterItem = {
   img: string;
@@ -50,168 +51,167 @@ export type AboutSlide = {
   };
 };
 
+// 文言はスプレッドシートで編集する（docs/SITE_COPY.md）。スライドの順番・アイコン・リンク先・項目の数はここで決める
 export const aboutSlides: AboutSlide[] = [
   {
     id: "intro",
-    title: "nicchyo",
-    description: "高知・日曜市をもっと歩きやすく、もっと知りやすくするデジタルマップです。",
+    title: siteText("about.intro.title"),
+    description: siteText("about.intro.description"),
   },
   {
     id: "painPoints",
-    title: "こんな悩み、ありませんか？",
-    description: "日曜市には、なんとなく足が向かない理由があります。",
+    title: siteText("about.painPoints.title"),
+    description: siteText("about.painPoints.description"),
     richContent: {
       type: "painPoints",
       items: [
-        { emoji: "🗺️", text: "広くて、どこから回ればいいかわからない" },
-        { emoji: "🔍", text: "何が買えるのか、事前に調べにくい" },
-        { emoji: "😶", text: "知らない人に話しかけるのが苦手" },
+        { emoji: "🗺️", text: siteText("about.painPoints.1") },
+        { emoji: "🔍", text: siteText("about.painPoints.2") },
+        { emoji: "😶", text: siteText("about.painPoints.3") },
       ],
     },
   },
   {
     id: "concept",
-    title: "迷ってこそが日曜市！",
-    description: "だけど、ちょっとだけデジタルの力で「歩きやすく」「探しやすく」しました。",
+    title: siteText("about.concept.title"),
+    description: siteText("about.concept.description"),
     iconName: "route",
   },
   {
     id: "map",
-    title: "マップ",
-    description: "今どこにいるか、近くに何があるか。屋台の位置がすぐにわかります。",
+    title: siteText("about.map.title"),
+    description: siteText("about.map.description"),
     iconName: "map",
     action: {
-      label: "マップを見る",
+      label: siteText("about.map.action"),
       href: "/map",
       primary: true,
     },
   },
   {
     id: "search",
-    title: "さがす",
-    description: "季節の野菜や、あのお店。検索機能でお目当てを見つけやすく。",
+    title: siteText("about.search.title"),
+    description: siteText("about.search.description"),
     iconName: "spark",
     action: {
-      label: "お店を探す",
+      label: siteText("about.search.action"),
       href: "/search",
     },
   },
   {
     id: "consult",
-    title: "4人のAIキャラに相談する",
-    description: "検索では拾いきれない曖昧な関心を、対話を通じて整理します。",
+    title: siteText("about.consult.title"),
+    description: siteText("about.consult.description"),
     richContent: {
       type: "characters",
       items: [
-        { img: "/images/obaasan_transparent.png", name: "にちよさん", role: "やさしく案内", desc: "おだやかな言葉でゆっくり教えてくれます", bg: "bg-orange-50" },
-        { img: "/images/characters/ojichan.png", name: "よういちさん", role: "落ち着いて解説", desc: "歴史や豆知識もくわしく教えてくれます", bg: "bg-sky-50" },
-        { img: "/images/characters/onisan.png", name: "みらいくん", role: "テキパキ提案", desc: "テンポよく効率的な回り方を教えてくれます", bg: "bg-green-50" },
-        { img: "/images/characters/onesan.png", name: "よさこちゃん", role: "気軽に話しかけやすい", desc: "フレンドリーに楽しく一緒に探してくれます", bg: "bg-pink-50" },
+        { img: "/images/obaasan_transparent.png", name: siteText("about.consult.1.name"), role: siteText("about.consult.1.role"), desc: siteText("about.consult.1.desc"), bg: "bg-orange-50" },
+        { img: "/images/characters/ojichan.png", name: siteText("about.consult.2.name"), role: siteText("about.consult.2.role"), desc: siteText("about.consult.2.desc"), bg: "bg-sky-50" },
+        { img: "/images/characters/onisan.png", name: siteText("about.consult.3.name"), role: siteText("about.consult.3.role"), desc: siteText("about.consult.3.desc"), bg: "bg-green-50" },
+        { img: "/images/characters/onesan.png", name: siteText("about.consult.4.name"), role: siteText("about.consult.4.role"), desc: siteText("about.consult.4.desc"), bg: "bg-pink-50" },
       ],
     },
     action: {
-      label: "にちよさんに聞く",
+      label: siteText("about.consult.action"),
       href: "/consult",
     },
   },
   {
     id: "story",
-    title: "近況",
-    description: "出店者の皆さんが投稿した今週の写真やお知らせをご覧いただけます。",
+    title: siteText("about.story.title"),
+    description: siteText("about.story.description"),
     iconName: "notebook",
     action: {
-      label: "近況を見る",
+      label: siteText("about.story.action"),
       href: "/story",
     },
   },
   {
     id: "calendar",
-    title: "日曜市カレンダー",
-    description: "開催予定や荒天中止・特別開催のお知らせもすぐに確認できます。",
+    title: siteText("about.calendar.title"),
+    description: siteText("about.calendar.description"),
     iconName: "event",
     action: {
-      label: "カレンダーを見る",
+      label: siteText("about.calendar.action"),
       href: "/calendar",
     },
   },
   {
     id: "facilities",
-    title: "おでかけサポート",
-    description: "お手洗い・休けいできるベンチ・電車やバスののりばもマップから探せます。",
+    title: siteText("about.facilities.title"),
+    description: siteText("about.facilities.description"),
     iconName: "compass",
     action: {
-      label: "おでかけサポートを見る",
+      label: siteText("about.facilities.action"),
       href: "/map?guide=menu",
     },
   },
   {
     id: "achievements",
-    title: "高知のまちと育てています",
-    description: "地域とともに、少しずつ積み上げてきた実績です。",
+    title: siteText("about.achievements.title"),
+    description: siteText("about.achievements.description"),
     richContent: {
       type: "achievements",
       items: [
-        { emoji: "🏆", label: "こうちNPOアワード2025", value: "ワカモノ未来賞", sub: "受賞" },
-        { emoji: "🤝", label: "高知市商業振興課", value: "公式連携", sub: "実施中" },
-        { emoji: "👥", label: "今週の訪問者", value: "集計中", sub: "が利用", dynamicKey: "weeklyVisitors" },
+        { emoji: "🏆", label: siteText("about.achievements.1.label"), value: siteText("about.achievements.1.value"), sub: siteText("about.achievements.1.sub") },
+        { emoji: "🤝", label: siteText("about.achievements.2.label"), value: siteText("about.achievements.2.value"), sub: siteText("about.achievements.2.sub") },
+        { emoji: "👥", label: siteText("about.achievements.3.label"), value: siteText("about.achievements.3.value"), sub: siteText("about.achievements.3.sub"), dynamicKey: "weeklyVisitors" },
       ],
     },
     action: {
-      label: "活動の記録を見る",
+      label: siteText("about.achievements.action"),
       href: "/activities",
     },
   },
   {
     id: "supporters",
-    title: "ご支援くださる皆さま",
-    description:
-      "みなさまのお力添えで続けております。運営にかかる費用も公開しております。",
+    title: siteText("about.supporters.title"),
+    description: siteText("about.supporters.description"),
     richContent: { type: "supporters" },
     action: {
-      label: "協賛・ご支援について",
+      label: siteText("about.supporters.action"),
       href: "/support",
     },
   },
   {
     id: "team",
-    title: "チームと活動",
-    description:
-      "高知高専の学生と顧問の教員によるプロジェクトです。現地でお話をうかがうことを大切にしています。",
+    title: siteText("about.team.title"),
+    description: siteText("about.team.description"),
     iconName: "discover",
   },
   {
     id: "opensource",
-    title: "オープンソースで作っています",
-    description:
-      "nicchyo のコードは GitHub で公開しています。使ってみて気づいたことを、どなたでも届けられます。",
+    title: siteText("about.opensource.title"),
+    description: siteText("about.opensource.description"),
     richContent: {
       type: "painPoints",
       items: [
-        { icon: "bug", text: "うまく動かないところの報告" },
-        { icon: "lightbulb", text: "こんな機能がほしい、という提案" },
-        { icon: "code", text: "コードやデザインでの参加" },
+        { icon: "bug", text: siteText("about.opensource.1") },
+        { icon: "lightbulb", text: siteText("about.opensource.2") },
+        { icon: "code", text: siteText("about.opensource.3") },
       ],
     },
     action: {
-      label: "GitHub で見る",
+      label: siteText("about.opensource.action"),
       href: GITHUB_REPO_URL,
       external: true,
     },
   },
   {
     id: "roadmap",
-    title: "これからのnicchyo",
-    description: "完成形を固定せず、運用と改善を繰り返しながら育てていきます。",
+    title: siteText("about.roadmap.title"),
+    description: siteText("about.roadmap.description"),
     richContent: {
       type: "painPoints",
       items: [
-        { emoji: "🗺️", text: "1年目：デジタルマップの本格運用と検証" },
-        { emoji: "📈", text: "2〜3年目：利用データをもとに定着・高度化" },
-        { emoji: "🌱", text: "将来：得られた知見を他の地域マーケットへ" },
+        { emoji: "🗺️", text: siteText("about.roadmap.1") },
+        { emoji: "📈", text: siteText("about.roadmap.2") },
+        { emoji: "🌱", text: siteText("about.roadmap.3") },
       ],
     },
   },
   {
+    // 見出しと説明はリリースノート（versions.ts）から作るのでシートの対象外
     id: "version",
     title: `nicchyo ${currentVersion.version}`,
     description: currentVersion.title,
@@ -220,17 +220,17 @@ export const aboutSlides: AboutSlide[] = [
       entry: currentVersion,
     },
     action: {
-      label: "過去のバージョンを見る",
+      label: siteText("about.version.action"),
       href: "/about/versions",
     },
   },
   {
     id: "cta",
-    title: "さあ、日曜市へ",
-    description: "デジタル片手に、新しい発見を探しに行きませんか？",
+    title: siteText("about.cta.title"),
+    description: siteText("about.cta.description"),
     iconName: "map",
     action: {
-      label: "マップを見る",
+      label: siteText("about.cta.action"),
       href: "/map",
       primary: true,
     },
