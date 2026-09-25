@@ -332,6 +332,8 @@ export default function MapViewMapLibre({
   overlaySlot,
   spotlightShopId,
   onSpotSelect,
+  onNavigateToShop,
+  guideTargetShopId,
   selectedSpotId,
 }: MapViewProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -424,8 +426,9 @@ export default function MapViewMapLibre({
     for (const id of searchShopIds ?? []) m.set(id, "search");
     if (commentShopId) m.set(commentShopId, "ai");
     if (selectedShop) m.set(selectedShop.id, "selected");
+    if (guideTargetShopId) m.set(guideTargetShopId, "selected");
     return m;
-  }, [aiShopIds, searchShopIds, commentShopId, selectedShop]);
+  }, [aiShopIds, searchShopIds, commentShopId, selectedShop, guideTargetShopId]);
   const display = useMemo<ShopDisplayState>(
     () => ({ states: shopStates, favorites: new Set(favoriteShopIds) }),
     [shopStates, favoriteShopIds]
@@ -1293,6 +1296,7 @@ export default function MapViewMapLibre({
           key={selectedShop.id}
           shop={selectedShop}
           onClose={() => setSelectedShop(null)}
+          onNavigate={onNavigateToShop ? () => { onNavigateToShop(selectedShop); setSelectedShop(null); } : undefined}
           reserveBottomNavSpace={false}
         />
       )}
