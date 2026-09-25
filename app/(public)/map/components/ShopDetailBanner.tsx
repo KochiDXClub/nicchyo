@@ -1,10 +1,10 @@
 "use client";
 
-import { memo, useState, useCallback, useEffect, useLayoutEffect, useMemo, useRef } from "react";
-import type { CSSProperties, RefObject } from "react";
+import { memo, useState, useCallback, useEffect, useMemo, useRef } from "react";
+import type { CSSProperties } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import {
   MapPin,
   Heart,
@@ -30,6 +30,7 @@ import {
 import { useFavoriteEntries } from "../../../../lib/hooks/useFavorites";
 import { useShopFavoriteToggle } from "../../../components/favorites/useShopFavoriteToggle";
 import { incrementBannerOpens } from "../../../../lib/storage/marketStats";
+import { useCenterBounceTrigger } from "../../../../lib/hooks/useCenterBounceTrigger";
 import {
   ShopBannerHero,
   ShopBusinessInfoCard,
@@ -38,13 +39,13 @@ import {
 } from "./ShopBannerHero";
 import { PostCarousel } from "./PostCarousel";
 import { AiConsultPanel } from "./AiConsultPanel";
-
-type MainSurface = "summary" | "detail";
-type BannerSurface = MainSurface | "ai";
-
-function isMainSurface(surface: BannerSurface): surface is MainSurface {
-  return surface === "summary" || surface === "detail";
-}
+import { ShopFavoriteToast } from "./ShopFavoriteToast";
+import {
+  useShopDetailDrawer,
+  isMainSurface,
+  type MainSurface,
+  type BannerSurface,
+} from "./useShopDetailDrawer";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type ShopDetailBannerProps = {
@@ -69,36 +70,6 @@ type ShopDetailBannerProps = {
 const OSEKKAI_FALLBACK =
   "あら、ここのお店、最近行ってないねぇ。今日は何が出ちゅうか、ちょっと見てきてくれん？";
 const BOTTOM_NAV_HEIGHT = 56;
-const DRAWER_PEEK_HEIGHT = 150;
-const DRAWER_FULL_RATIO = 0.9;
-const COLLAPSED_SUMMARY_OFFSET_PX = 10;
-
-function useCenterBounceTrigger(
-  rootRef: RefObject<HTMLElement | null>,
-  targetRef: RefObject<HTMLElement | null>
-) {
-  const [isActive, setIsActive] = useState(false);
-
-  useEffect(() => {
-    const root = rootRef.current;
-    const target = targetRef.current;
-    if (!root || !target || typeof IntersectionObserver === "undefined") {
-      return;
-    }
-    const observer = new IntersectionObserver(
-      ([entry]) => { setIsActive(entry.isIntersecting); },
-      { root, threshold: 0.55, rootMargin: "-28% 0px -28% 0px" }
-    );
-    observer.observe(target);
-    return () => observer.disconnect();
-  }, [rootRef, targetRef]);
-
-  return isActive;
-}
-
-
-
-
 
 
 // ─── Main Component ───────────────────────────────────────────────────────────
@@ -164,29 +135,28 @@ const ShopDetailBanner = memo(function ShopDetailBanner({
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   const activePostRef = useRef<HTMLDivElement | null>(null);
   const activePostCarouselRef = useRef<HTMLDivElement | null>(null);
-  const sheetBodyRef = useRef<HTMLDivElement | null>(null);
   const mainScrollTopRef = useRef(0);
-  const lastMainSurfaceRef = useRef<MainSurface>(initialMobileSurface);
-  const drawerRafRef = useRef<number | null>(null);
-  const drawerTranslateRef = useRef(0);
-  const drawerDragRef = useRef({
-    active: false,
-    startY: 0,
-    startTranslate: 0,
-    lastY: 0,
-    lastTime: 0,
-    velocity: 0,
-  });
-  const [isDesktopViewport, setIsDesktopViewport] = useState(() => {
-    if (typeof window === "undefined") return true;
-    return window.innerWidth >= 768;
-  });
-  const [drawerSurface, setDrawerSurface] = useState<MainSurface>(initialMobileSurface);
-  const drawerSurfaceRef = useRef<MainSurface>(initialMobileSurface);
-  drawerSurfaceRef.current = drawerSurface;
-  const [drawerHeights, setDrawerHeights] = useState({
-    peek: DRAWER_PEEK_HEIGHT,
-    full: 620,
+  const bottomNavOffsetPx = reserveBottomNavSpace ? BOTTOM_NAV_HEIGHT : 0;
+
+  const {
+    isMobileOverlay,
+    sheetBodyRef,
+    drawerHeights,
+    lastMainSurfaceRef,
+    syncDrawerSurface,
+    handleDrawerTouchStart,
+    handleDrawerTouchMove,
+    handleDrawerTouchEnd,
+    handleDrawerHandleClick,
+  } = useShopDetailDrawer({
+    layout,
+    initialMobileSurface,
+    openNonce,
+    shopId: shop.id,
+    bottomNavOffsetPx,
+    surface,
+    setSurface,
+    onMobileMainSurfaceChange,
   });
 
   // body scroll lock
@@ -195,16 +165,6 @@ const ShopDetailBanner = memo(function ShopDetailBanner({
     document.body.classList.add("shop-banner-open");
     return () => { document.body.classList.remove("shop-banner-open"); };
   }, [layout]);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const handleResize = () => {
-      setIsDesktopViewport(window.innerWidth >= 768);
-    };
-    handleResize();
-    window.addEventListener("resize", handleResize);
-    return () => window.removeEventListener("resize", handleResize);
-  }, []);
 
   // バナー開封カウント
   useEffect(() => {
@@ -290,13 +250,14 @@ const ShopDetailBanner = memo(function ShopDetailBanner({
     setToast(null);
     setSurface(initialMobileSurface);
     lastMainSurfaceRef.current = initialMobileSurface;
-    setDrawerSurface(initialMobileSurface);
+    // モバイルのドロワー高さ自体のリセットは useShopDetailDrawer 内の
+    // useLayoutEffect（同じ initialMobileSurface / openNonce / shopId を見ている）が担う
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
     armInteractionLock();
     return () => {
       if (interactionLockTimerRef.current) clearTimeout(interactionLockTimerRef.current);
     };
-  }, [armInteractionLock, initialMobileSurface, shop.id, openNonce]);
+  }, [armInteractionLock, initialMobileSurface, lastMainSurfaceRef, shop.id, openNonce]);
 
   useEffect(() => {
     if (activePosts.length <= 1) return;
@@ -316,155 +277,9 @@ const ShopDetailBanner = memo(function ShopDetailBanner({
 
   const isActivePostCentered = useCenterBounceTrigger(scrollContainerRef, activePostRef);
   const isInline = layout === "inline";
-  const isMobileOverlay = layout === "overlay" && !isDesktopViewport;
   const isExpandedMobileMain = isMobileOverlay && surface === "detail";
   const showMobileSummaryHeader = isMobileOverlay && surface === "summary";
   const showMobileDetailControls = isMobileOverlay && surface === "detail";
-  const bottomNavOffsetPx = reserveBottomNavSpace ? BOTTOM_NAV_HEIGHT : 0;
-
-  const getDrawerHeights = useCallback(() => {
-    if (typeof window === "undefined") {
-      return { peek: DRAWER_PEEK_HEIGHT, full: 620 };
-    }
-    const rootStyle = getComputedStyle(document.documentElement);
-    const safeBottom = Number.parseFloat(rootStyle.getPropertyValue("--safe-bottom")) || 0;
-    const full = Math.max(
-      DRAWER_PEEK_HEIGHT + 220,
-      Math.min(
-        window.innerHeight - bottomNavOffsetPx - safeBottom,
-        Math.round(window.innerHeight * DRAWER_FULL_RATIO - bottomNavOffsetPx)
-      )
-    );
-    return {
-      peek: Math.min(DRAWER_PEEK_HEIGHT, full),
-      full,
-    };
-  }, [bottomNavOffsetPx]);
-
-  const getDrawerTranslateForSurface = useCallback((
-    nextSurface: MainSurface | BannerSurface,
-    heights: { peek: number; full: number }
-  ) => {
-    const visibleHeight = nextSurface === "summary" ? heights.peek : heights.full;
-    const baseTranslate = Math.max(0, heights.full - visibleHeight);
-    return nextSurface === "summary"
-      ? baseTranslate + COLLAPSED_SUMMARY_OFFSET_PX
-      : baseTranslate;
-  }, []);
-
-  const applyDrawerTranslate = useCallback((
-    nextTranslate: number,
-    options?: { immediate?: boolean }
-  ) => {
-    if (!isMobileOverlay) return;
-    const body = sheetBodyRef.current;
-    if (!body) return;
-    const maxTranslate = Math.max(
-      0,
-      drawerHeights.full - drawerHeights.peek + COLLAPSED_SUMMARY_OFFSET_PX
-    );
-    const clamped = Math.max(0, Math.min(maxTranslate, nextTranslate));
-    drawerTranslateRef.current = clamped;
-    if (options?.immediate) {
-      // 同期的にDOMを更新 → ブラウザの初回ペイント前に確実に反映
-      if (drawerRafRef.current !== null) {
-        cancelAnimationFrame(drawerRafRef.current);
-        drawerRafRef.current = null;
-      }
-      body.style.transition = "none";
-      body.style.transform = `translate3d(0, ${clamped}px, 0)`;
-    } else {
-      if (drawerRafRef.current !== null) {
-        cancelAnimationFrame(drawerRafRef.current);
-      }
-      drawerRafRef.current = requestAnimationFrame(() => {
-        const target = sheetBodyRef.current;
-        if (!target) return;
-        target.style.transition = "transform 280ms cubic-bezier(0.2, 0.8, 0.2, 1)";
-        target.style.transform = `translate3d(0, ${clamped}px, 0)`;
-      });
-    }
-  }, [drawerHeights.full, drawerHeights.peek, isMobileOverlay]);
-
-  const syncDrawerSurface = useCallback((
-    nextSurface: MainSurface,
-    options?: { immediate?: boolean }
-  ) => {
-    if (!isMobileOverlay) return;
-    lastMainSurfaceRef.current = nextSurface;
-    setDrawerSurface(nextSurface);
-    applyDrawerTranslate(getDrawerTranslateForSurface(nextSurface, drawerHeights), options);
-  }, [applyDrawerTranslate, drawerHeights, getDrawerTranslateForSurface, isMobileOverlay]);
-
-  const handleDrawerTouchStart = useCallback((e: React.TouchEvent) => {
-    if (!isMobileOverlay || !isMainSurface(surface)) return;
-    const touch = e.touches[0];
-    drawerDragRef.current = {
-      active: true,
-      startY: touch.clientY,
-      startTranslate: drawerTranslateRef.current,
-      lastY: touch.clientY,
-      lastTime: performance.now(),
-      velocity: 0,
-    };
-    const body = sheetBodyRef.current;
-    if (body) body.style.transition = "none";
-  }, [isMobileOverlay, surface]);
-
-  const handleDrawerTouchMove = useCallback((e: React.TouchEvent) => {
-    if (!isMobileOverlay || !drawerDragRef.current.active || !isMainSurface(surface)) return;
-    const touch = e.touches[0];
-    const now = performance.now();
-    const dySinceLast = touch.clientY - drawerDragRef.current.lastY;
-    const dt = now - drawerDragRef.current.lastTime;
-    if (dt > 0) {
-      drawerDragRef.current.velocity = (dySinceLast / dt) * 1000;
-    }
-    drawerDragRef.current.lastY = touch.clientY;
-    drawerDragRef.current.lastTime = now;
-    const nextTranslate =
-      drawerDragRef.current.startTranslate + (touch.clientY - drawerDragRef.current.startY);
-    if (e.cancelable) {
-      e.preventDefault();
-    }
-    applyDrawerTranslate(nextTranslate, { immediate: true });
-  }, [applyDrawerTranslate, isMobileOverlay, surface]);
-
-  const handleDrawerTouchEnd = useCallback(() => {
-    if (!isMobileOverlay || !drawerDragRef.current.active || !isMainSurface(surface)) return;
-    drawerDragRef.current.active = false;
-    const velocity = drawerDragRef.current.velocity;
-    const visibleHeight = drawerHeights.full - drawerTranslateRef.current;
-    const snapHeights = [drawerHeights.peek, drawerHeights.full] as const;
-
-    let nextSurface: MainSurface = snapHeights.reduce<MainSurface>((closest, height, index) => {
-      const currentDistance = Math.abs(height - visibleHeight);
-      const closestDistance = Math.abs(
-        (closest === "summary" ? snapHeights[0] : snapHeights[1]) - visibleHeight
-      );
-      return currentDistance < closestDistance
-        ? index === 0
-          ? "summary"
-          : "detail"
-        : closest;
-    }, drawerSurface);
-
-    if (velocity < -220) {
-      nextSurface = "detail";
-    } else if (velocity > 220) {
-      nextSurface = "summary";
-    }
-
-    setSurface(nextSurface);
-    syncDrawerSurface(nextSurface);
-  }, [drawerHeights.full, drawerHeights.peek, drawerSurface, isMobileOverlay, surface, syncDrawerSurface]);
-
-  const handleDrawerHandleClick = useCallback(() => {
-    if (!isMobileOverlay || !isMainSurface(surface)) return;
-    const nextSurface: MainSurface = drawerSurface === "summary" ? "detail" : "summary";
-    setSurface(nextSurface);
-    syncDrawerSurface(nextSurface);
-  }, [drawerSurface, isMobileOverlay, surface, syncDrawerSurface]);
 
   const handleBackToMain = useCallback(() => {
     const nextSurface = lastMainSurfaceRef.current;
@@ -479,7 +294,7 @@ const ShopDetailBanner = memo(function ShopDetailBanner({
       syncDrawerSurface(nextSurface, { immediate: false });
     }
     armInteractionLock(420);
-  }, [armInteractionLock, isMobileOverlay, syncDrawerSurface]);
+  }, [armInteractionLock, isMobileOverlay, lastMainSurfaceRef, syncDrawerSurface]);
 
   const handleOpenAiPanel = useCallback(() => {
     if (!contentInteractive) return;
@@ -491,70 +306,7 @@ const ShopDetailBanner = memo(function ShopDetailBanner({
     if (isMobileOverlay) {
       syncDrawerSurface("detail");
     }
-  }, [contentInteractive, isMobileOverlay, surface, syncDrawerSurface]);
-
-  useEffect(() => {
-    if (!isMobileOverlay) return;
-    const updateDrawerHeights = () => {
-      const nextHeights = getDrawerHeights();
-      setDrawerHeights(nextHeights);
-      // ref から読むことで stale closure / 循環依存を回避
-      const nextSurface = drawerSurfaceRef.current;
-      drawerTranslateRef.current = getDrawerTranslateForSurface(nextSurface, nextHeights);
-      const body = sheetBodyRef.current;
-      if (body) {
-        body.style.transition = "none";
-        body.style.transform = `translate3d(0, ${drawerTranslateRef.current}px, 0)`;
-      }
-    };
-    updateDrawerHeights();
-    window.addEventListener("resize", updateDrawerHeights);
-    return () => window.removeEventListener("resize", updateDrawerHeights);
-  }, [getDrawerHeights, getDrawerTranslateForSurface, isMobileOverlay]);
-
-  useEffect(() => {
-    if (!isMobileOverlay || !isMainSurface(surface)) return;
-    onMobileMainSurfaceChange?.(surface);
-  }, [isMobileOverlay, onMobileMainSurfaceChange, surface]);
-
-  // useLayoutEffect で paint 前に同期的にDOMを更新 → 初回フラッシュを防ぐ
-  // applyDrawerTranslate / drawerHeights を deps に入れない → 循環依存を断ち切る
-  useLayoutEffect(() => {
-    if (!isMobileOverlay) return;
-    const nextSurface: MainSurface = initialMobileSurface;
-    lastMainSurfaceRef.current = nextSurface;
-    drawerSurfaceRef.current = nextSurface;
-    setDrawerSurface(nextSurface);
-    setSurface(nextSurface);
-    const heights = getDrawerHeights();
-    setDrawerHeights(heights);
-    const expandedTranslate = getDrawerTranslateForSurface(nextSurface, heights);
-    drawerTranslateRef.current = expandedTranslate;
-
-    const body = sheetBodyRef.current;
-    if (!body) return;
-
-    // ① ペイント前にパネルを完全に画面外（下）に配置
-    body.style.transition = "none";
-    body.style.transform = `translate3d(0, ${heights.full}px, 0)`;
-
-    // ② ペイント後、展開位置へスライドアップ（下から登場するアニメーション）
-    const rafId = requestAnimationFrame(() => {
-      body.style.transition = "transform 350ms cubic-bezier(0.2, 0.8, 0.2, 1)";
-      body.style.transform = `translate3d(0, ${expandedTranslate}px, 0)`;
-    });
-
-    return () => cancelAnimationFrame(rafId);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initialMobileSurface, isMobileOverlay, openNonce, shop.id]);
-
-  useEffect(() => {
-    return () => {
-      if (drawerRafRef.current !== null) {
-        cancelAnimationFrame(drawerRafRef.current);
-      }
-    };
-  }, []);
+  }, [contentInteractive, isMobileOverlay, lastMainSurfaceRef, surface, syncDrawerSurface]);
 
   // ─── 共有 ──────────────────────────────────────────────────────────────────
   // 店舗ページ（/shops/001）の URL を送る。OGP があるので LINE では店名と写真のカードになる。
@@ -644,7 +396,7 @@ const ShopDetailBanner = memo(function ShopDetailBanner({
           {showMobileSummaryHeader && (
             <div
               className="relative shrink-0 overflow-hidden border-b border-slate-100 bg-white px-4 pb-3 pt-2 touch-none"
-              style={{ height: `${DRAWER_PEEK_HEIGHT}px` }}
+              style={{ height: `${drawerHeights.peek}px` }}
               onTouchStart={handleDrawerTouchStart}
               onTouchMove={handleDrawerTouchMove}
               onTouchEnd={handleDrawerTouchEnd}
@@ -1164,7 +916,7 @@ const ShopDetailBanner = memo(function ShopDetailBanner({
           </div>
       </div>
 
-      <FavoriteAddedToast
+      <ShopFavoriteToast
         product={toast?.product ?? null}
         onUndo={handleUndoAdd}
         reduceMotion={!!prefersReducedMotion}
@@ -1174,55 +926,5 @@ const ShopDetailBanner = memo(function ShopDetailBanner({
     </div>
   );
 }, areShopDetailBannerPropsEqual);
-
-/**
- * 商品をお気に入りに入れたときの知らせ。
- *
- * 画面の幅いっぱいの箱を敷いてから中身を中央に置く。以前は要素そのものを
- * left:50% + translate で中央に寄せていたため、商品名が長いと箱が画面より
- * 広がり、左右にはみ出していた。
- * 位置は下部ナビとセーフエリアの上。ページ側のトーストと同じ高さに合わせる。
- */
-function FavoriteAddedToast({
-  product,
-  onUndo,
-  reduceMotion,
-}: {
-  product: string | null;
-  onUndo: (product: string) => void;
-  reduceMotion: boolean;
-}) {
-  return (
-    <AnimatePresence>
-      {product && (
-        <motion.div
-          initial={reduceMotion ? false : { opacity: 0, y: 16 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={reduceMotion ? { opacity: 0 } : { opacity: 0, y: 16 }}
-          transition={{ duration: reduceMotion ? 0 : 0.22, ease: [0.22, 1, 0.36, 1] }}
-          className="pointer-events-none fixed inset-x-0 z-[3100] px-4"
-          style={{ bottom: "calc(4.75rem + var(--safe-bottom, 0px))" }}
-        >
-          <div className="pointer-events-auto mx-auto flex max-w-sm items-center gap-3 rounded-[22px] border border-white/10 bg-slate-950/95 px-4 py-3 text-white shadow-2xl backdrop-blur-md">
-            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/15">
-              <Heart className="h-4 w-4" fill="currentColor" />
-            </span>
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-bold">{product}</p>
-              <p className="text-[12px] text-white/65">お気に入りに入れました</p>
-            </div>
-            <button
-              type="button"
-              onClick={() => onUndo(product)}
-              className="shrink-0 rounded-full bg-white/15 px-3 py-1.5 text-xs font-bold transition hover:bg-white/25 active:scale-95"
-            >
-              取り消す
-            </button>
-          </div>
-        </motion.div>
-      )}
-    </AnimatePresence>
-  );
-}
 
 export default ShopDetailBanner;
