@@ -44,8 +44,9 @@ describe("buildTexts", () => {
       ["a.three", "<b>太字</b>", "", ""],
       ["a.four", "あいうえお", "4", ""],
       ["bad key", "x", "", ""],
+      ["a.five", "**太字の閉じ忘れ", "", ""],
     ]);
-    expect(errors).toHaveLength(5);
+    expect(errors).toHaveLength(6);
   });
 
   it("見出しの列がなければ止める", () => {

@@ -47,6 +47,7 @@ import GrandmaAvatar from '../../../consult/components/GrandmaAvatar';
 import { DEFAULT_CONSULT_CHARACTER } from '../../../consult/data/consultCharacters';
 import type { GrandmaPose } from '@/lib/grandma/pose';
 import { vibrate } from '@/lib/ui/haptics';
+import { siteText } from '@/lib/siteCopy';
 import { edgeScrollSpeed, passedStopIndex, scrubGain, scrubScrollTop } from './introScrub';
 
 /** 左に空ける道の幅。停留点の行はこのぶんだけ右に寄せる */
@@ -93,7 +94,7 @@ const TAP_SLOP_PX = 6;
 /** 道の上端・下端から、にちよさんが行ける範囲までの余白 */
 const TRACK_MARGIN_PX = 8;
 /** 押しただけのときに教える一言 */
-const HINT_COMMENT = 'わしをつまんで上や下に引いたら、そのぶん案内が進むき。';
+const HINT_COMMENT = siteText('mapIntro.railHint');
 
 /**
  * スクロール位置から「いま居るべき道の位置」を引く。

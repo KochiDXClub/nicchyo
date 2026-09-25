@@ -98,6 +98,8 @@ function requireColumns(rows, columns, required, sheetName, errors) {
 function checkText(value, where, errors) {
   if (value === "") errors.push(`${where}: 空欄です`);
   if (HTML_TAG_PATTERN.test(value)) errors.push(`${where}: HTML のタグは使えません`);
+  // 太字は **ここ** で表す（lib/siteCopy.ts の siteTextWithEmphasis）。閉じ忘れると以降が全部太字になる
+  if (value.split("**").length % 2 === 0) errors.push(`${where}: 太字の ** が閉じていません`);
 }
 
 /**
