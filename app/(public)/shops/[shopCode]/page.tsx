@@ -2,13 +2,11 @@ import type { Metadata } from "next";
 import { cache } from "react";
 import { notFound } from "next/navigation";
 import { headers } from "next/headers";
-import { createClient as createSupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "@/types/database.types";
 import { formatShopIdToCode, normalizeShopCodeToId } from "@/lib/shops/route";
 import { safeJsonLd } from "@/lib/utils/jsonLd";
 import { SITE_URL } from "@/lib/constants";
 import { resolveShopImage } from "@/lib/shopImages";
-import { fetchVendorShopsFromDb } from "../../map/services/shopDb";
+import { fetchPublicShops } from "../../map/services/shopCache";
 import type { Shop } from "../../map/data/shops";
 import ReportButton from "./ReportButton";
 import ShopPageBanner from "./ShopPageBanner";
@@ -19,24 +17,15 @@ type ShopPageProps = {
   }>;
 };
 
-function createPublicClient() {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY;
-  if (!supabaseUrl || !supabaseKey) return null;
-  return createSupabaseClient<Database>(supabaseUrl, supabaseKey);
-}
-
 /**
  * 地図と同じ Shop を取る。
- * 地図のバナーをそのまま出すので、地図と同じ取得経路（fetchVendorShopsFromDb）を通す。
- * 1店のために全店を引くが、地図ページも同じ処理を毎回しているので負荷は変わらない。
+ * /map や /search と共通のキャッシュ（fetchPublicShops）を通すことで、
+ * Supabase への不要な再クエリを防ぎつつ同一の店舗データを表示する。
  * generateMetadata と本文の両方から呼ぶので cache() で1リクエスト1回にする。
  */
 const fetchShop = cache(async (shopId: number): Promise<Shop | null> => {
-  const supabase = createPublicClient();
-  if (!supabase) return null;
   try {
-    const shops = await fetchVendorShopsFromDb(supabase);
+    const shops = await fetchPublicShops();
     return shops.find((shop) => shop.id === shopId) ?? null;
   } catch {
     return null;
@@ -44,15 +33,17 @@ const fetchShop = cache(async (shopId: number): Promise<Shop | null> => {
 });
 
 /**
- * 今アクセスされているホストの origin（https://nicchyo-git-xxx.vercel.app など）。
- * OGP の画像 URL は共有先（LINE・Discord）が取りに来るので、実際に配信している
- * ホストで組む。metadataBase（NEXT_PUBLIC_SITE_URL / nicchyo.jp）は本番ドメインが
- * まだ無いプレビュー環境では届かない URL になり、カードの画像が壊れる。
+ * OGP 画像や canonical URL のためのオリジンを解決する。
+ * NEXT_PUBLIC_SITE_URL が設定されていればその値を優先し、
+ * 未設定のプレビュー環境等ではリクエストヘッダー（x-forwarded-host / host）から解決する。
  */
-async function requestOrigin(): Promise<string | null> {
+async function resolveOrigin(): Promise<string | null> {
+  if (process.env.NEXT_PUBLIC_SITE_URL) {
+    return SITE_URL;
+  }
   const h = await headers();
   const host = h.get("x-forwarded-host") ?? h.get("host");
-  if (!host) return null;
+  if (!host) return SITE_URL;
   const proto = h.get("x-forwarded-proto") ?? (host.startsWith("localhost") ? "http" : "https");
   return `${proto}://${host}`;
 }
@@ -74,7 +65,7 @@ export async function generateMetadata({ params }: ShopPageProps): Promise<Metad
 
   // 共有カードの写真はバナーと同じ（登録写真 → カテゴリの既定写真）。
   // 相対パス（既定写真）は今のホストで絶対 URL にする
-  const origin = await requestOrigin();
+  const origin = await resolveOrigin();
   const imagePath = shop ? resolveShopImage(shop) : "/og-default.png";
   const imageUrl = imagePath.startsWith("/") && origin ? `${origin}${imagePath}` : imagePath;
   const images = shop
