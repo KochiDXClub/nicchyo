@@ -20,7 +20,7 @@ import {
   type ShopMarkerLod,
 } from '../config/displayConfig';
 import { getRoadSide } from '../config/roadConfig';
-import { getShopPreviewImage } from '../../../../lib/shopImages';
+import { getShopThumbnailImage } from '../../../../lib/shopImages';
 import { generateShopMarkerHtml, SHOP_FAVORITE_BADGE_HTML } from '../utils/markerHtmlGenerator';
 
 type ShopBannerOrigin = { x: number; y: number; width: number; height: number };
@@ -278,7 +278,7 @@ function OptimizedShopLayerWithClustering({
     const createStallIcon = (shop: Shop) => {
       const sizeKey = shop.illustration?.size ?? DEFAULT_ILLUSTRATION_SIZE;
       const sizeConfig = ILLUSTRATION_SIZES[sizeKey];
-      const bannerImage = getShopPreviewImage(shop);
+      const bannerImage = getShopThumbnailImage(shop);
 
       return L.divIcon({
         html: generateShopMarkerHtml(shop, {

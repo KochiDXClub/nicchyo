@@ -166,16 +166,32 @@ export async function rasterizePhotoCircle(
   url: string,
   sizePx: number,
   borderColor: string,
-  pixelRatio: number
+  pixelRatio: number,
+  fallbackUrl?: string
 ): Promise<ImageData> {
-  const img = new Image();
-  img.decoding = "async";
-  img.crossOrigin = "anonymous";
-  await new Promise<void>((resolve, reject) => {
-    img.onload = () => resolve();
-    img.onerror = () => reject(new Error(`写真の読み込みに失敗しました: ${url}`));
-    img.src = url;
-  });
+  const loadImage = async (src: string): Promise<HTMLImageElement> => {
+    const el = new Image();
+    el.decoding = "async";
+    el.crossOrigin = "anonymous";
+    await new Promise<void>((resolve, reject) => {
+      el.onload = () => resolve();
+      el.onerror = () => reject(new Error(`写真の読み込みに失敗しました: ${src}`));
+      el.src = src;
+    });
+    return el;
+  };
+
+  let img: HTMLImageElement;
+  try {
+    img = await loadImage(url);
+  } catch (err) {
+    if (fallbackUrl && fallbackUrl !== url) {
+      img = await loadImage(fallbackUrl);
+    } else {
+      throw err;
+    }
+  }
+
   const pad = 4; // 影のぶん
   const size = Math.round((sizePx + pad * 2) * pixelRatio);
   const canvas = document.createElement("canvas");

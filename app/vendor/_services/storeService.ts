@@ -1,4 +1,5 @@
 import { createClient } from "@/utils/supabase/client";
+import { createStoreImages } from "@/lib/image/clientCompression";
 import type { Store, PaymentMethod, RainPolicy } from "../_types";
 
 export type Category = { id: string; name: string };
@@ -64,13 +65,32 @@ export async function fetchVendorStore(vendorId: string): Promise<Store | null> 
 
 export async function uploadStoreImage(vendorId: string, file: File): Promise<string> {
   const supabase = createClient();
-  const ext = file.name.split(".").pop()?.toLowerCase() ?? "jpg";
-  const path = `${vendorId}/store-main.${ext}`;
-  const { error } = await supabase.storage
-    .from("vendor-images")
-    .upload(path, file, { contentType: file.type, upsert: true });
-  if (error) throw error;
-  const { data } = supabase.storage.from("vendor-images").getPublicUrl(path);
+
+  // クライアント側でメイン用(1200px)とサムネ用(160px)のWebP画像に圧縮・リサイズ
+  const { mainBlob, thumbBlob } = await createStoreImages(file);
+
+  const mainPath = `${vendorId}/store-main.webp`;
+  const thumbPath = `${vendorId}/store-thumb.webp`;
+
+  // メインとサムネイルを並行アップロード
+  const [mainResult, thumbResult] = await Promise.all([
+    supabase.storage
+      .from("vendor-images")
+      .upload(mainPath, mainBlob, { contentType: "image/webp", upsert: true }),
+    supabase.storage
+      .from("vendor-images")
+      .upload(thumbPath, thumbBlob, { contentType: "image/webp", upsert: true }),
+  ]);
+
+  if (mainResult.error) throw mainResult.error;
+  if (thumbResult.error) {
+    console.warn(
+      "[uploadStoreImage] サムネイルのアップロードに失敗しました:",
+      thumbResult.error.message
+    );
+  }
+
+  const { data } = supabase.storage.from("vendor-images").getPublicUrl(mainPath);
   return data.publicUrl;
 }
 
