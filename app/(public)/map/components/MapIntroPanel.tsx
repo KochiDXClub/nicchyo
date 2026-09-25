@@ -31,6 +31,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion, useMotionValue, useReducedMotion } from 'framer-motion';
 import Link from 'next/link';
+import { siteText, siteTextWithEmphasis } from '@/lib/siteCopy';
 import { ArrowUpRight, X } from 'lucide-react';
 import type { Shop } from '../types/shopData';
 import type { Landmark } from '../types/landmark';
@@ -105,22 +106,14 @@ type IntroStopKey = 'welcome' | 'map' | 'search' | 'consult' | 'odekake' | 'end'
  * 節ごとの説明はここに集約する。薄い字の説明文を別に置くと、案内している人の
  * 言葉と地の文が二重になるので、説明はにちよさんに言ってもらう。
  */
-const INTRO_STOPS: ReadonlyArray<{ key: IntroStopKey; label: string; comment: string }> = [
-  { key: 'welcome', label: 'ようこそ', comment: 'ようこそ、日曜市へ。まずはわしが、ざっと案内するきね。' },
-  {
-    key: 'map',
-    label: '地図で店を探す',
-    comment: '屋台の写真が順に出てくるき。気になった店を押したら、中が見えるき。',
-  },
-  { key: 'search', label: 'ジャンルでしぼる', comment: '何があるか分からんときは、ジャンルから見たらえいよ。' },
-  { key: 'consult', label: 'にちよさんに聞く', comment: '探すより聞くほうが早いこともあるき。なんでも聞いてや。' },
-  {
-    key: 'odekake',
-    label: 'おでかけサポート',
-    comment: 'お手洗いはここで探しや。いちばん近いところまで、道なりに連れていくき。',
-  },
-  { key: 'end', label: 'おわり', comment: 'ほんなら、いってらっしゃい。ええ日曜市になるきね。' },
-];
+const INTRO_STOPS: ReadonlyArray<{ key: IntroStopKey; label: string; comment: string }> = (
+  ['welcome', 'map', 'search', 'consult', 'odekake', 'end'] as const
+).map((key) => ({
+  key,
+  // 名前と一言はスプレッドシートで編集する（docs/SITE_COPY.md）
+  label: siteText(`mapIntro.${key}.label`),
+  comment: siteText(`mapIntro.${key}.comment`),
+}));
 
 
 type OpenShop = { shop: IntroDemoShop; source: 'map' | 'search' };
@@ -436,13 +429,13 @@ export default function MapIntroPanel({
           >
             <div className="relative z-[1] pl-[var(--intro-rail)] pr-12 pt-4 md:pr-16 md:pt-5">
               <span className="inline-flex items-center rounded-full bg-nicchyo-accent/70 px-2.5 py-1 text-[11px] font-bold tracking-[0.14em] text-nicchyo-ink/80">
-                はじめての方へ
+                {siteText('mapIntro.badge')}
               </span>
               <h2
                 id="map-intro-title"
                 className="mt-3 text-[26px] font-extrabold leading-[1.15] tracking-tight text-nicchyo-ink md:text-[32px]"
               >
-                ようこそ、日曜市へ
+                {siteText('mapIntro.title')}
               </h2>
             </div>
 
@@ -458,13 +451,10 @@ export default function MapIntroPanel({
             <div className="relative z-[1] pl-[var(--intro-rail)] pr-5 md:pr-8">
               {/* 日曜市の大きさは文章のまま、数字だけ少し立てる。札や枠に切り出さない */}
               <p className="text-[15px] leading-[1.9] text-nicchyo-ink/75 md:text-[16px]">
-                <b className="font-bold text-nicchyo-ink">毎週日曜</b>
-                、高知城のふもとから追手筋まで
-                <b className="font-bold text-nicchyo-ink">約1.3km</b>
-                。<b className="font-bold text-nicchyo-ink">およそ300の店</b>が並びます。
+                {siteTextWithEmphasis('mapIntro.lead', 'font-bold text-nicchyo-ink')}
               </p>
               <p className="mt-1.5 text-[13.5px] leading-[1.85] text-nicchyo-ink/55 md:text-[14px]">
-                nicchyo（ニッチョ）は、はじめての人がそこを歩くための地図です。
+                {siteText('mapIntro.sub')}
               </p>
 
               <div className="pb-4" />
@@ -555,7 +545,7 @@ export default function MapIntroPanel({
             <div className="my-auto">
               <div className="pl-[var(--intro-rail)] pr-5 md:pr-8">
                 <h3 className="text-[24px] font-extrabold leading-tight tracking-tight text-nicchyo-ink md:text-[28px]">
-                  日曜市を楽しんで！
+                  {siteText('mapIntro.endTitle')}
                 </h3>
               </div>
               <div
@@ -567,13 +557,13 @@ export default function MapIntroPanel({
               />
               <div className="pl-[var(--intro-rail)] pr-5 md:pr-8">
                 <p className="text-[13px] font-semibold leading-relaxed text-nicchyo-ink/50 md:text-[14px]">
-                  この案内は、メニューの「はじめての方へ」からいつでも読み直せます
+                  {siteText('mapIntro.reread')}
                 </p>
                 <Link
                   href="/about"
                   className="mt-5 inline-flex items-center gap-1 text-[12.5px] font-semibold text-nicchyo-ink/50 underline-offset-4 transition hover:text-nicchyo-ink/80 hover:underline"
                 >
-                  nicchyo について詳しく
+                  {siteText('mapIntro.aboutLink')}
                   <ArrowUpRight className="h-3.5 w-3.5" aria-hidden />
                 </Link>
               </div>
@@ -594,7 +584,7 @@ export default function MapIntroPanel({
             onClick={onClose}
             className="flex-1 rounded-2xl bg-nicchyo-primary py-3.5 text-[15px] font-bold text-white shadow-[0_6px_16px_-6px_rgba(126,217,87,0.9)] transition active:scale-[0.98] hover:brightness-[1.03] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-nicchyo-primary focus-visible:ring-offset-2 md:w-[240px] md:flex-none"
           >
-            地図をみる
+            {siteText('mapIntro.close')}
           </button>
         </div>
       </div>
