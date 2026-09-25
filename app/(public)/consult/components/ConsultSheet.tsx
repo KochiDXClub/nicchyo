@@ -16,8 +16,8 @@ export interface ConsultSheetProps {
 /**
  * 相談ページで使う、画面下端から出てくるシートの共通の器。
  *
- * 「暗幕＋画面下端に張り付く角丸カード」という骨組みが、音声確認・文字入力・
- * これまでの相談の3箇所に別々に書かれていた（fixed inset-0 z-40 ...
+ * 「暗幕＋画面下端に張り付く角丸カード」という骨組みが、音声確認・
+ * これまでの相談（モバイル）の複数箇所に別々に書かれていた（fixed inset-0 z-40 ...
  * rounded-t-3xl bg-white という同じマークアップの重複）。見た目・挙動は
  * 変えず、ここに1本化しただけ。中身とパディング・最大高さなどの
  * 見た目の差分だけを呼び出し側から渡す。
@@ -39,7 +39,13 @@ export default function ConsultSheet({
         onClick={onClose}
         aria-hidden="true"
       />
-      <div className={`relative rounded-t-3xl bg-white ${className}`} style={style}>
+      {/*
+        呼び出し側は md:max-w-md のような幅の上限しか渡してこない前提。
+        器（この親の flex flex-col justify-end）は横方向を中央寄せしないので、
+        mx-auto w-full をここで常に持たせておかないと、上限だけ効いて
+        画面左端に寄ってしまう（PC で幅が狭くならない限り気づかない）
+      */}
+      <div className={`relative mx-auto w-full rounded-t-3xl bg-white ${className}`} style={style}>
         {children}
       </div>
     </div>
