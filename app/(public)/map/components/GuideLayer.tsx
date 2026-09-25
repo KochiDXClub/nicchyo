@@ -94,6 +94,8 @@ function leafletSyncMarkers(state: LeafletState, spots: MapSpot[], selectedSpotI
   const { L, markerGroup } = state;
   markerGroup.clearLayers();
   for (const spot of spots) {
+    // 店は地図の屋台マーカー（選択中の見た目）をそのまま目印にする
+    if (spot.kind === 'shop') continue;
     const isSelected = spot.id === selectedSpotId;
     const size = isSelected ? 52 : 40;
     const marker = L.marker([spot.lat, spot.lng], {
@@ -176,6 +178,7 @@ function maplibreSyncMarkers(state: MapLibreState, spots: MapSpot[], selectedSpo
   for (const marker of state.markers) marker.remove();
   state.markers = [];
   for (const spot of spots) {
+    if (spot.kind === 'shop') continue;
     const isSelected = spot.id === selectedSpotId;
     const el = document.createElement('div');
     el.className = 'facility-marker-container';
