@@ -137,6 +137,24 @@ export async function resizeImageToBlob(
   });
 }
 
+const EXTENSIONS: Record<string, string> = {
+  "image/webp": "webp",
+  "image/jpeg": "jpg",
+  "image/png": "png",
+};
+
+/**
+ * 変換後の Blob の実際の形式から、アップロード時の Content-Type と拡張子を決める。
+ *
+ * WebP を書き出せないブラウザでは、toBlob が JPEG（上のフォールバック）や
+ * PNG（未対応の形式を指定したときの仕様上の既定）を返す。
+ * image/webp と決め打ちで保存すると、中身と Content-Type が食い違ってどのブラウザでも表示できなくなる。
+ */
+export function imageUploadInfo(blob: Blob): { contentType: string; ext: string } {
+  const contentType = blob.type || "image/jpeg";
+  return { contentType, ext: EXTENSIONS[contentType] ?? "jpg" };
+}
+
 /**
  * 店舗画像 1 ファイルから「メイン用」と「サムネイル用」の 2 つの WebP Blob を生成する
  */

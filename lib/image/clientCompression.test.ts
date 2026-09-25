@@ -4,6 +4,7 @@ import {
   resizeImageToBlob,
   createStoreImages,
   createPostImage,
+  imageUploadInfo,
 } from "./clientCompression";
 
 class MockImage {
@@ -165,5 +166,54 @@ describe("resizeImageToBlob & createStoreImages", () => {
 
     expect(postBlob).toBe(mockBlob);
     expect(mockCanvas.width).toBe(1200);
+  });
+});
+
+describe("WebP を書き出せないブラウザ", () => {
+  beforeEach(() => {
+    vi.stubGlobal("Image", MockImage);
+    vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:mock-url");
+    vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  it("toBlob が null を返したら JPEG で書き出し直す", async () => {
+    const jpegBlob = new Blob(["jpeg"], { type: "image/jpeg" });
+    const toBlob = vi.fn((callback: (blob: Blob | null) => void, type: string) => {
+      callback(type === "image/jpeg" ? jpegBlob : null);
+    });
+    const mockCanvas = {
+      width: 0,
+      height: 0,
+      getContext: vi.fn(() => ({
+        imageSmoothingEnabled: false,
+        imageSmoothingQuality: "low",
+        drawImage: vi.fn(),
+      })),
+      toBlob,
+    };
+    vi.spyOn(document, "createElement").mockImplementation((tag: string) => {
+      if (tag === "canvas") return mockCanvas as unknown as HTMLCanvasElement;
+      return document.createElement(tag);
+    });
+
+    const result = await createPostImage(new File(["x"], "photo.jpg", { type: "image/jpeg" }));
+
+    expect(result).toBe(jpegBlob);
+    expect(toBlob.mock.calls.map((c) => c[1])).toEqual(["image/webp", "image/jpeg"]);
+    expect(imageUploadInfo(result)).toEqual({ contentType: "image/jpeg", ext: "jpg" });
+  });
+});
+
+describe("imageUploadInfo", () => {
+  it("Blob の実際の形式から Content-Type と拡張子を決める", () => {
+    expect(imageUploadInfo(new Blob([], { type: "image/webp" }))).toEqual({ contentType: "image/webp", ext: "webp" });
+    expect(imageUploadInfo(new Blob([], { type: "image/jpeg" }))).toEqual({ contentType: "image/jpeg", ext: "jpg" });
+    // WebP 未対応のブラウザは、指定形式を無視して PNG を返すことがある
+    expect(imageUploadInfo(new Blob([], { type: "image/png" }))).toEqual({ contentType: "image/png", ext: "png" });
   });
 });

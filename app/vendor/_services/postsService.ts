@@ -1,5 +1,5 @@
 import { createClient } from "@/utils/supabase/client";
-import { createPostImage } from "@/lib/image/clientCompression";
+import { createPostImage, imageUploadInfo } from "@/lib/image/clientCompression";
 import type { Post } from "../_types";
 import { getNextSundayExpiry } from "@/lib/utils/date";
 import { fetchReactionCounts } from "@/lib/story/reactions";
@@ -78,11 +78,13 @@ export async function createPost(
   let imageUrl: string | null = existingImageUrl ?? null;
 
   if (imageFile) {
-    const webpBlob = await createPostImage(imageFile);
-    const path = `${vendorId}/${Date.now()}.webp`;
+    const imageBlob = await createPostImage(imageFile);
+    // WebP を書き出せないブラウザでは JPEG/PNG になるので、実際の形式で保存する
+    const { contentType, ext } = imageUploadInfo(imageBlob);
+    const path = `${vendorId}/${Date.now()}.${ext}`;
     const { error: uploadError } = await supabase.storage
       .from("vendor-images")
-      .upload(path, webpBlob, { contentType: "image/webp", upsert: false });
+      .upload(path, imageBlob, { contentType, upsert: false });
 
     if (!uploadError) {
       const { data: urlData } = supabase.storage
