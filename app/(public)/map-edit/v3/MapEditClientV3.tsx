@@ -118,8 +118,10 @@ export default function MapEditClientV3() {
 
   // ── キャンバスエンジン切替（Issue #650: Leaflet+SVG → MapLibre への移行中の比較用） ──
   // DB・APIには触れず、この画面限定の軽量な切替にする。
-  // 優先順位（強い順）: 1. URLの ?canvas=maplibre  2. localStorageの保存値  3. 既定値(leaflet)
-  const [canvasEngine, setCanvasEngine] = useState<"leaflet" | "maplibre">("leaflet");
+  // PR②で編集操作（頂点ドラッグ・建物ドラッグ配置）までMapLibre版に揃えたため、
+  // ここから既定をMapLibre版にする（何か問題があれば ?canvas=leaflet かトグルで戻せる）。
+  // 優先順位（強い順）: 1. URLの ?canvas=leaflet|maplibre  2. localStorageの保存値  3. 既定値(maplibre)
+  const [canvasEngine, setCanvasEngine] = useState<"leaflet" | "maplibre">("maplibre");
   useEffect(() => {
     if (typeof window === "undefined") return;
     const fromQuery = new URLSearchParams(window.location.search).get("canvas");
@@ -132,7 +134,7 @@ export default function MapEditClientV3() {
       const stored = window.localStorage.getItem(CANVAS_ENGINE_STORAGE_KEY);
       if (stored === "maplibre" || stored === "leaflet") setCanvasEngine(stored);
     } catch {
-      // ストレージが使えない環境でも、初期表示自体は既定のLeafletで続けられる
+      // ストレージが使えない環境でも、初期表示自体は既定の描画方式で続けられる
     }
   }, []);
   const toggleCanvasEngine = useCallback(() => {
@@ -1107,7 +1109,7 @@ function MapEditClientV3Body(props: BodyProps) {
           {/* Issue #650: Leaflet+SVG → MapLibre移行中の比較用トグル。PR③で旧キャンバスを消す際に外す */}
           <span
             onClick={toggleCanvasEngine}
-            title="地図の描画方式を切り替える（比較用。既定はLeaflet）"
+            title="地図の描画方式を切り替える（比較用。既定はMapLibre）"
             style={{
               padding: "8px 13px",
               borderRadius: 10,
