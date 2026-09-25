@@ -1,14 +1,18 @@
 "use client";
 
 /**
- * 管理画面マップ編集の MapLibre 版キャンバス（Issue #650 PR①）。
+ * 管理画面マップ編集の MapLibre 版キャンバス（Issue #650）。
  *
  * 旧 `MapEditCanvas.tsx`（Leaflet背景＋自前SVGキャンバス）と同じ役割を、公開マップと
  * 同じ MapLibre 上に描き直したもの。背景・区画・道・建物が同じ地図の上に乗るため、
  * 投影方式の違いによる位置ずれ（#490）が構造上なくなる。
  *
- * このPR①では表示・選択・カメラ操作までを実装する。道の新規描画・頂点編集・建物の
- * ドラッグ移動は次のPRで追加する（`handlers` の該当メソッドは型としては残すが呼ばない）。
+ * PR①（表示・選択・カメラ操作）に続き、この PR②では編集操作を実装した:
+ * 道の頂点ドラッグ・ダブルクリック削除・中点クリックで挿入、建物のドラッグ移動・
+ * クリックでの新規配置。道の頂点・建物は GeoJSON レイヤーではなく
+ * `maplibregl.Marker`（ドラッグ可能なDOM要素）で表現している。GeoJSON の
+ * `setData` 全置換だと、ドラッグ中に親の state が更新されるたびに要素そのものが
+ * 作り直され、ブラウザ標準のドラッグ操作が壊れてしまうため。
  *
  * MapEditClientV3 が持つカメラ状態（focus/zoomIdx/rotation）は変えず、MapLibreの
  * center/zoom/bearingとの相互変換は mapEditCamera.ts に閉じ込めている。
@@ -76,7 +80,6 @@ const SRC_ROAD_FILL = "nicchyo-edit-road-fill";
 const SRC_ROAD_DASH = "nicchyo-edit-road-dash";
 const SRC_DRAFT = "nicchyo-edit-draft";
 const SRC_SHOPS = "nicchyo-edit-shops";
-const SRC_LANDMARKS = "nicchyo-edit-landmarks";
 
 const LAYER_ROAD_CASING = "nicchyo-edit-road-casing-layer";
 const LAYER_ROAD_FILL = "nicchyo-edit-road-fill-layer";
@@ -84,7 +87,6 @@ const LAYER_ROAD_DASH = "nicchyo-edit-road-dash-layer";
 const LAYER_DRAFT = "nicchyo-edit-draft-layer";
 const LAYER_SHOP_DOTS = "nicchyo-edit-shop-dots-layer";
 const LAYER_SHOP_NUMBERS = "nicchyo-edit-shop-numbers-layer";
-const LAYER_LANDMARKS = "nicchyo-edit-landmarks-layer";
 
 function emptyFC(): GeoJSON.FeatureCollection {
   return { type: "FeatureCollection", features: [] };
@@ -106,6 +108,8 @@ function buildBackgroundStyle(): StyleSpecification {
         maxzoom: 20,
       },
     },
+    // 店番号（symbol レイヤー）の text-field に必要。公開マップと同じ配信元・フォント
+    glyphs: "https://tiles.openfreemap.org/fonts/{fontstack}/{range}.pbf",
     layers: [
       { id: "background", type: "background", paint: { "background-color": "#FFFAF0" } },
       // 編集画面ではこの背景そのものが位置合わせの基準になるため、公開マップの
@@ -204,25 +208,64 @@ function buildShopFeatureCollection(
   return { type: "FeatureCollection", features };
 }
 
-function buildLandmarkFeatureCollection(
-  landmarks: EditableLandmark[],
-  opts: { tab: Tab; selectedLandmarkKey: string | null; query: string }
-): GeoJSON.FeatureCollection {
-  const features: GeoJSON.Feature[] = landmarks.map((landmark) => {
-    const isSelected = opts.tab === "landmark" && opts.selectedLandmarkKey === landmark.key;
-    const dim = opts.tab === "landmark" && !!opts.query && !landmark.name.toLowerCase().includes(opts.query);
-    return {
-      type: "Feature",
-      properties: {
-        key: landmark.key,
-        label: `\u{1F3DB}\u{FE0F} ${landmark.name}`,
-        opacity: opts.tab === "landmark" ? (dim ? 0.25 : 1) : 0.55,
-        selected: isSelected,
-      },
-      geometry: { type: "Point", coordinates: [landmark.lng, landmark.lat] },
-    };
-  });
-  return { type: "FeatureCollection", features };
+/** 建物ラベル（Marker）の見た目を、旧 MapEditCanvas.tsx の建物マーカーに合わせて更新する */
+function styleLandmarkElement(
+  el: HTMLDivElement,
+  landmark: EditableLandmark,
+  opts: { isSelected: boolean; opacity: number; draggable: boolean }
+) {
+  el.textContent = `\u{1F3DB}\u{FE0F} ${landmark.name}`;
+  Object.assign(el.style, {
+    padding: "3px 8px",
+    borderRadius: "8px",
+    fontSize: "11px",
+    fontWeight: "800",
+    whiteSpace: "nowrap",
+    background: opts.isSelected ? "#92400E" : "#ffffffee",
+    color: opts.isSelected ? "#fff" : "#57503F",
+    border: "1px solid #E0B877",
+    boxShadow: "0 1px 4px rgba(0,0,0,.2)",
+    opacity: String(opts.opacity),
+    cursor: opts.draggable ? "grab" : "default",
+    // 建物タブ以外では、下にある区画・道のクリックを奪わない
+    pointerEvents: opts.draggable ? "auto" : "none",
+  } satisfies Partial<CSSStyleDeclaration>);
+}
+
+/** 道の頂点ハンドル（Marker）の見た目。旧 MapEditCanvas.tsx の頂点ハンドルと同じ */
+function createVertexElement(): HTMLDivElement {
+  const el = document.createElement("div");
+  Object.assign(el.style, {
+    width: "18px",
+    height: "18px",
+    borderRadius: "5px",
+    background: "#fff",
+    border: "3px solid #B45309",
+    boxShadow: "0 2px 6px rgba(0,0,0,.3)",
+    cursor: "grab",
+  } satisfies Partial<CSSStyleDeclaration>);
+  return el;
+}
+
+/** 中点ハンドル（Marker）の見た目。旧 MapEditCanvas.tsx の中点ハンドルと同じ */
+function createMidpointElement(): HTMLDivElement {
+  const el = document.createElement("div");
+  el.textContent = "＋";
+  Object.assign(el.style, {
+    width: "16px",
+    height: "16px",
+    borderRadius: "50%",
+    background: "#FFF7E6",
+    border: "2px dashed #B45309",
+    color: "#92400E",
+    fontSize: "10px",
+    fontWeight: "900",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    cursor: "copy",
+  } satisfies Partial<CSSStyleDeclaration>);
+  return el;
 }
 
 export default function MapEditCanvasMapLibre({
@@ -234,6 +277,7 @@ export default function MapEditCanvasMapLibre({
   selectedRoadId,
   selectedLandmarkKey,
   slotAction,
+  roadAction,
   draft,
   search,
   zoomIdx,
@@ -255,6 +299,8 @@ export default function MapEditCanvasMapLibre({
   // イベントハンドラは map 初期化時に1回だけ登録するため、最新値は ref 経由で読む
   const tabRef = useRef(tab);
   tabRef.current = tab;
+  const roadActionRef = useRef(roadAction);
+  roadActionRef.current = roadAction;
   const handlersRef = useRef(handlers);
   handlersRef.current = handlers;
   const projectionRef = useRef(projection);
@@ -262,6 +308,19 @@ export default function MapEditCanvasMapLibre({
   // ユーザー操作由来の moveend で focus/rotation/zoomIdx を書き戻した直後、
   // 続けて走る同期 effect の easeTo を1回だけスキップするための印
   const suppressNextSyncRef = useRef(false);
+  // 同期 effect の easeTo 呼び出し中かどうか。easeTo は進行中のアニメーション（慣性・
+  // キーボード移動など。これらも originalEvent 付き）を同期的に止めて moveend を出すため、
+  // その途中値をユーザー操作として書き戻さないための印
+  const syncingCameraRef = useRef(false);
+  // 道・区画レイヤーで選択が起きたクリックかどうか。立っている間は、地図全体の
+  // click（空き地クリック＝新規描画の点追加・新規配置用）に流さない
+  const consumedClickRef = useRef(false);
+
+  // 建物・道の頂点/中点は GeoJSON ではなく maplibregl.Marker（ドラッグ可能なDOM要素）で持つ。
+  // id をキーに使い回し、setLngLat で位置だけ更新する（作り直すとドラッグ中の操作が壊れるため）
+  const landmarkMarkersRef = useRef<Map<string, maplibregl.Marker>>(new Map());
+  const vertexMarkersRef = useRef<Map<string, maplibregl.Marker>>(new Map());
+  const midpointMarkersRef = useRef<maplibregl.Marker[]>([]);
 
   // ── 地図の初期化（1回だけ。reactStrictMode:false 前提） ──────────────
   useEffect(() => {
@@ -289,7 +348,6 @@ export default function MapEditCanvasMapLibre({
       map.addSource(SRC_ROAD_DASH, { type: "geojson", data: emptyFC() });
       map.addSource(SRC_DRAFT, { type: "geojson", data: emptyFC() });
       map.addSource(SRC_SHOPS, { type: "geojson", data: emptyFC() });
-      map.addSource(SRC_LANDMARKS, { type: "geojson", data: emptyFC() });
 
       // 道: 当たり判定を広めに取った下地（casing）の上に、実際の道幅の塗り（fill）を重ねる
       map.addLayer({
@@ -354,6 +412,7 @@ export default function MapEditCanvasMapLibre({
         minzoom: MAPLIBRE_ZOOMS[2] - 0.2,
         layout: {
           "text-field": ["get", "position"],
+          "text-font": ["Noto Sans Bold"],
           "text-size": 10,
           "text-allow-overlap": true,
           "text-ignore-placement": true,
@@ -361,64 +420,38 @@ export default function MapEditCanvasMapLibre({
         paint: { "text-color": "#ffffff", "text-opacity": ["get", "opacity"] },
       });
 
-      map.addLayer({
-        id: LAYER_LANDMARKS,
-        type: "symbol",
-        source: SRC_LANDMARKS,
-        layout: {
-          "text-field": ["get", "label"],
-          "text-size": 11,
-          "text-allow-overlap": true,
-          "text-ignore-placement": true,
-          "text-rotation-alignment": "viewport",
-        },
-        paint: {
-          // 旧キャンバスでは、選ぶと背景 #92400E・白文字になっていた。symbol レイヤーには
-          // 塗りつぶした背景がないため、太い halo で背景に近い見た目を作る
-          "text-color": [
-            "case",
-            ["get", "selected"],
-            "#ffffff",
-            "#57503F",
-          ] as unknown as ExpressionSpecification,
-          "text-halo-color": [
-            "case",
-            ["get", "selected"],
-            "#92400E",
-            "#ffffff",
-          ] as unknown as ExpressionSpecification,
-          "text-halo-width": [
-            "case",
-            ["get", "selected"],
-            4,
-            1.4,
-          ] as unknown as ExpressionSpecification,
-          "text-opacity": ["get", "opacity"],
-        },
-      });
-
-      // 道タブでの選択、区画タブでの選択、建物タブでの選択。それぞれ自分のタブの
-      // ときだけ反応する（道の上のクリックを他タブで無視させ、地図の空き地クリックと
-      // 区別しないようにするため、消費フラグは持たない。空き地クリックで行う
-      // 新規描画・新規配置＝onMapClick は次のPRで実装するので、このPR①では
-      // ファイル冒頭のコメントのとおりまだ呼ばない）
+      // タブが実際にこのレイヤーで選択したときだけ消費したことにする（タブ判定より
+      // 前に一律で立てると、道タブで道の上をクリックして新規描画の点を打つ、
+      // といった操作が下の「空き地クリック」に届かなくなる）
       map.on("click", LAYER_ROAD_CASING, (e) => {
         if (tabRef.current !== "road") return;
+        // 新規描画中は、既存の点へのスナップ・接続のため空き地クリック（onMapClick）へ流す
+        if (roadActionRef.current === "draw") return;
+        consumedClickRef.current = true;
         const roadId = e.features?.[0]?.properties?.roadId;
         if (typeof roadId === "string") handlersRef.current.onSelectRoad(roadId);
       });
       map.on("click", LAYER_SHOP_DOTS, (e) => {
         if (tabRef.current !== "slot") return;
+        consumedClickRef.current = true;
         const locationId = e.features?.[0]?.properties?.locationId;
         if (typeof locationId === "string") handlersRef.current.onSelectShop(locationId);
       });
-      map.on("click", LAYER_LANDMARKS, (e) => {
-        if (tabRef.current !== "landmark") return;
-        const key = e.features?.[0]?.properties?.key;
-        if (typeof key === "string") handlersRef.current.onSelectLandmark(key);
+      // 建物（landmark）はGeoJSONレイヤーではなくドラッグ可能なDOM要素（Marker）で
+      // 表現しているため、選択クリックはマーカー自身のイベントで処理する（下の方の
+      // landmarkMarkersRef 周りを参照）。ここでは道・区画レイヤー以外の
+      // クリックだけを、地図の空き地クリックとして拾う（道の新規描画時の点追加・
+      // 建物の新規配置に使う。マーカー自体は map のキャンバスと別のDOM要素なので、
+      // マーカー上のクリックはそもそもここに来ない）
+      map.on("click", (e) => {
+        if (consumedClickRef.current) {
+          consumedClickRef.current = false;
+          return;
+        }
+        handlersRef.current.onMapClick(e.lngLat.lat, e.lngLat.lng);
       });
 
-      for (const layerId of [LAYER_ROAD_CASING, LAYER_SHOP_DOTS, LAYER_LANDMARKS]) {
+      for (const layerId of [LAYER_ROAD_CASING, LAYER_SHOP_DOTS]) {
         map.on("mouseenter", layerId, () => {
           map.getCanvas().style.cursor = "pointer";
         });
@@ -442,7 +475,7 @@ export default function MapEditCanvasMapLibre({
     // 操作を追い越して段階の位置へ「吸い付く」ように動いてしまう。suppressNextSyncRef を
     // 立てて、この1回だけ同期 effect の easeTo をスキップさせる
     map.on("moveend", (e) => {
-      if (!e.originalEvent) return;
+      if (!e.originalEvent || syncingCameraRef.current) return;
       suppressNextSyncRef.current = true;
       const center = map.getCenter();
       setFocus(projectionRef.current.toLocal(center.lat, center.lng));
@@ -450,7 +483,15 @@ export default function MapEditCanvasMapLibre({
       setZoomIdx(nearestZoomIdx(map.getZoom()));
     });
 
+    const landmarkMarkers = landmarkMarkersRef.current;
+    const vertexMarkers = vertexMarkersRef.current;
     return () => {
+      landmarkMarkers.forEach((m) => m.remove());
+      landmarkMarkers.clear();
+      vertexMarkers.forEach((m) => m.remove());
+      vertexMarkers.clear();
+      midpointMarkersRef.current.forEach((m) => m.remove());
+      midpointMarkersRef.current = [];
       map.remove();
       mapRef.current = null;
       setReady(false);
@@ -483,12 +524,17 @@ export default function MapEditCanvasMapLibre({
       Math.hypot(currentCenter.lat - targetCenter.lat, currentCenter.lng - targetCenter.lng) > 1e-7;
     if (!zoomChanged && !bearingChanged && !centerChanged) return;
 
-    map.easeTo({
-      zoom: targetZoom,
-      bearing: targetBearing,
-      center: [targetCenter.lng, targetCenter.lat],
-      duration: 200,
-    });
+    syncingCameraRef.current = true;
+    try {
+      map.easeTo({
+        zoom: targetZoom,
+        bearing: targetBearing,
+        center: [targetCenter.lng, targetCenter.lat],
+        duration: 200,
+      });
+    } finally {
+      syncingCameraRef.current = false;
+    }
   }, [zoomIdx, rotation, focus, projection, ready]);
 
   // ── データの反映（全置換 setData。公開マップと同じパターン） ──────────
@@ -512,12 +558,121 @@ export default function MapEditCanvasMapLibre({
     map.setLayoutProperty(LAYER_SHOP_NUMBERS, "visibility", tab === "slot" ? "visible" : "none");
   }, [shops, selectedLocationId, slotAction, query, tab, ready]);
 
+  // ── 建物（Marker）。ドラッグ中も要素を作り直さないよう、key で使い回す ──────────
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !ready) return;
-    const data = buildLandmarkFeatureCollection(landmarks, { tab, selectedLandmarkKey, query });
-    (map.getSource(SRC_LANDMARKS) as maplibregl.GeoJSONSource).setData(data);
+    const existing = landmarkMarkersRef.current;
+    const seen = new Set<string>();
+
+    for (const landmark of landmarks) {
+      seen.add(landmark.key);
+      const isSelected = tab === "landmark" && selectedLandmarkKey === landmark.key;
+      const dim = tab === "landmark" && !!query && !landmark.name.toLowerCase().includes(query);
+      const opacity = tab === "landmark" ? (dim ? 0.25 : 1) : 0.55;
+      const draggable = tab === "landmark";
+
+      let marker = existing.get(landmark.key);
+      if (!marker) {
+        const el = document.createElement("div");
+        el.addEventListener("click", (event) => {
+          if (tabRef.current !== "landmark") return;
+          event.stopPropagation();
+          handlersRef.current.onSelectLandmark(landmark.key);
+        });
+        marker = new maplibregl.Marker({ element: el, draggable, anchor: "center" });
+        marker.on("drag", () => {
+          const lngLat = marker!.getLngLat();
+          handlersRef.current.onMoveLandmark(landmark.key, lngLat.lat, lngLat.lng);
+        });
+        marker.setLngLat([landmark.lng, landmark.lat]);
+        marker.addTo(map);
+        existing.set(landmark.key, marker);
+      } else {
+        // ドラッグ中の自分自身の更新も通るが、ほぼ同じ座標へのno-opになるだけで実害はない
+        marker.setLngLat([landmark.lng, landmark.lat]);
+      }
+      marker.setDraggable(draggable);
+      styleLandmarkElement(marker.getElement() as HTMLDivElement, landmark, { isSelected, opacity, draggable });
+    }
+
+    for (const [key, marker] of existing) {
+      if (!seen.has(key)) {
+        marker.remove();
+        existing.delete(key);
+      }
+    }
   }, [landmarks, tab, selectedLandmarkKey, query, ready]);
+
+  // ── 道の頂点・中点（Marker）。選択中の道だけ、tab==="road" のときに出す ──────────
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !ready) return;
+    const vertexExisting = vertexMarkersRef.current;
+    const midpointExisting = midpointMarkersRef.current;
+    const road = tab === "road" ? roads.find((r) => r.id === selectedRoadId) ?? null : null;
+
+    if (!road) {
+      vertexExisting.forEach((m) => m.remove());
+      vertexExisting.clear();
+      midpointExisting.forEach((m) => m.remove());
+      midpointMarkersRef.current = [];
+      return;
+    }
+
+    const seen = new Set<string>();
+    for (const point of road.points) {
+      seen.add(point.id);
+      let marker = vertexExisting.get(point.id);
+      if (!marker) {
+        const el = createVertexElement();
+        // 頂点のクリックが下の道レイヤーの click に伝わり、選択が別の道へ飛ぶのを防ぐ
+        el.addEventListener("click", (event) => event.stopPropagation());
+        el.addEventListener("dblclick", (event) => {
+          event.stopPropagation();
+          handlersRef.current.onVertexRemove(road.id, point.id);
+        });
+        marker = new maplibregl.Marker({ element: el, draggable: true, anchor: "center" });
+        marker.on("drag", () => {
+          const lngLat = marker!.getLngLat();
+          handlersRef.current.onVertexMove(road.id, point.id, lngLat.lat, lngLat.lng);
+        });
+        marker.on("dragend", () => handlersRef.current.onVertexMoveEnd(road.id));
+        marker.setLngLat([point.lng, point.lat]);
+        marker.addTo(map);
+        vertexExisting.set(point.id, marker);
+      } else {
+        marker.setLngLat([point.lng, point.lat]);
+      }
+    }
+    for (const [id, marker] of vertexExisting) {
+      if (!seen.has(id)) {
+        marker.remove();
+        vertexExisting.delete(id);
+      }
+    }
+
+    // 中点はドラッグ対象ではないので、頂点構成が変わるたびに単純に作り直してよい
+    midpointExisting.forEach((m) => m.remove());
+    const nextMidpoints: maplibregl.Marker[] = [];
+    for (let i = 0; i < road.points.length - 1; i += 1) {
+      const a = road.points[i];
+      const b = road.points[i + 1];
+      const midLat = (a.lat + b.lat) / 2;
+      const midLng = (a.lng + b.lng) / 2;
+      const el = createMidpointElement();
+      const index = i;
+      el.addEventListener("click", (event) => {
+        event.stopPropagation();
+        handlersRef.current.onMidpointInsert(road.id, index, midLat, midLng);
+      });
+      const marker = new maplibregl.Marker({ element: el, anchor: "center" });
+      marker.setLngLat([midLng, midLat]);
+      marker.addTo(map);
+      nextMidpoints.push(marker);
+    }
+    midpointMarkersRef.current = nextMidpoints;
+  }, [roads, selectedRoadId, tab, ready]);
 
   useEffect(() => {
     const map = mapRef.current;
