@@ -23,7 +23,7 @@
  * 出店者のカスタム SVG 屋台。順に移す。
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as maplibregl from "maplibre-gl";
 import type {
   ExpressionSpecification,
@@ -308,7 +308,7 @@ function shopsToGeoJSON(shops: Shop[], display: ShopDisplayState): GeoJSON.Featu
   };
 }
 
-export default function MapViewMapLibre({
+function MapViewMapLibre({
   shops: initialShops,
   landmarks,
   mapRoute,
@@ -1303,3 +1303,7 @@ export default function MapViewMapLibre({
     </div>
   );
 }
+
+// 親（MapPageClient）は現在地の更新などで頻繁に描き直される。props が変わらない限り、
+// この 1,300 行の本体は再実行しない（Leaflet 版 MapView と同じく memo で包む）
+export default memo(MapViewMapLibre);
