@@ -75,3 +75,6 @@ export function getShopPreviewImage(shop: ShopPreviewSource): string {
 
   return getShopBannerImage(shop.category, shop.position ?? shop.id ?? undefined);
 }
+
+/** その店を表す写真（後方互換エイリアス）。 */
+export const resolveShopImage = getShopPreviewImage;
