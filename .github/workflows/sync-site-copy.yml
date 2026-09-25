@@ -1,0 +1,79 @@
+name: Sync site copy
+
+# スプレッドシートで編集した文言を content/site-copy/ に取り込み、develop 向けの PR を作る（docs/SITE_COPY.md）。
+# シートの ID はリポジトリの Variables の SITE_COPY_SHEET_ID に置く。未設定なら何もしない。
+
+on:
+  workflow_dispatch:
+  schedule:
+    # 毎朝 6:00（JST）
+    - cron: '0 21 * * *'
+
+concurrency:
+  group: sync-site-copy
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pull-requests: write
+  # 作った PR で CI を起動するため（GITHUB_TOKEN の push では CI が自動で走らない）
+  actions: write
+
+env:
+  SYNC_BRANCH: chore/site-copy-sync
+
+jobs:
+  sync:
+    name: Import copy from spreadsheet
+    if: vars.SITE_COPY_SHEET_ID != ''
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: develop
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      # 依存パッケージを使わないので npm ci は不要
+      - name: Import from spreadsheet
+        env:
+          SITE_COPY_SHEET_ID: ${{ vars.SITE_COPY_SHEET_ID }}
+        run: node scripts/site-copy/sync.mjs
+
+      - name: Open or update PR
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          if git diff --quiet -- content/site-copy; then
+            echo "シートと同じ内容なので PR は作りません。"
+            echo "変更なし" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git switch -C "$SYNC_BRANCH"
+          git add content/site-copy
+          git commit -m "chore: スプレッドシートの文言を取り込む"
+          # 取り込み用ブランチは毎回シートの内容で作り直す（手で足したコミットは消える）
+          git push --force origin "$SYNC_BRANCH"
+
+          PR_URL="$(gh pr list --head "$SYNC_BRANCH" --base develop --state open --json url -q '.[0].url')"
+          if [ -z "$PR_URL" ]; then
+            PR_URL="$(gh pr create --base develop --head "$SYNC_BRANCH" \
+              --title "chore: スプレッドシートの文言を取り込む" \
+              --body "スプレッドシートで編集された文言の取り込みです（docs/SITE_COPY.md）。
+
+          「Files changed」で変わった文言を確認し、Vercel のプレビューで見た目を確かめてからマージしてください。
+          マージ前にシートが再び編集されると、このブランチは最新のシートの内容で作り直されます。")"
+          fi
+
+          gh workflow run ci.yml --ref "$SYNC_BRANCH"
+          echo "取り込み PR: $PR_URL" >> "$GITHUB_STEP_SUMMARY"
