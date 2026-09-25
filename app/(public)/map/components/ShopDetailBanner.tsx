@@ -4,7 +4,7 @@ import { memo, useState, useCallback, useEffect, useMemo, useRef } from "react";
 import type { CSSProperties } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { useReducedMotion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import {
   MapPin,
   Heart,
