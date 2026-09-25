@@ -356,13 +356,13 @@ export default function VendorStorePage() {
             >
               <Camera size={28} />
               <span className="text-sm font-medium">タップして写真を選択</span>
-              <span className="text-xs text-slate-400">JPG・PNG・WebP / 最大5MB</span>
+              <span className="text-xs text-slate-400">JPG・PNG・WebP・iPhone写真など</span>
             </button>
           )}
           <input
             ref={imageInputRef}
             type="file"
-            accept="image/jpeg,image/png,image/webp"
+            accept="image/*,.heic,.heif"
             onChange={handleImageChange}
             className="hidden"
           />

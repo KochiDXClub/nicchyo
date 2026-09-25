@@ -3,6 +3,7 @@ import {
   calculateFitDimensions,
   resizeImageToBlob,
   createStoreImages,
+  createPostImage,
 } from "./clientCompression";
 
 class MockImage {
@@ -137,5 +138,32 @@ describe("resizeImageToBlob & createStoreImages", () => {
 
     expect(mainBlob).toBeDefined();
     expect(thumbBlob).toBeDefined();
+  });
+
+  it("createPostImage で単一の WebP Blob が生成される", async () => {
+    const mockBlob = new Blob(["post-image"], { type: "image/webp" });
+
+    const mockCanvas = {
+      width: 0,
+      height: 0,
+      getContext: vi.fn(() => ({
+        imageSmoothingEnabled: false,
+        imageSmoothingQuality: "low",
+        drawImage: vi.fn(),
+      })),
+      toBlob: vi.fn((callback: (blob: Blob | null) => void) => {
+        callback(mockBlob);
+      }),
+    };
+    vi.spyOn(document, "createElement").mockImplementation((tag: string) => {
+      if (tag === "canvas") return mockCanvas as unknown as HTMLCanvasElement;
+      return document.createElement(tag);
+    });
+
+    const file = new File(["test"], "photo.heic", { type: "image/heic" });
+    const postBlob = await createPostImage(file);
+
+    expect(postBlob).toBe(mockBlob);
+    expect(mockCanvas.width).toBe(1200);
   });
 });

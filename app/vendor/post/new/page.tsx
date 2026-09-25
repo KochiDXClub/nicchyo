@@ -389,10 +389,10 @@ export default function VendorPostNewPage() {
               >
                 <ImageIcon size={24} />
                 <span className="text-base font-medium">タップして画像を追加</span>
-                <span className="text-sm text-slate-400">JPG / PNG / WEBP（5MB以内）</span>
+                <span className="text-sm text-slate-400">JPG・PNG・WebP・iPhone写真など</span>
               </button>
             )}
-            <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleImageChange} />
+            <input ref={fileInputRef} type="file" accept="image/*,.heic,.heif" className="hidden" onChange={handleImageChange} />
           </div>
 
           {/* 表示期間 */}

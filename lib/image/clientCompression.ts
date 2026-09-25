@@ -28,6 +28,12 @@ export const STORE_IMAGE_CONFIG = {
   },
 } as const;
 
+export const POST_IMAGE_CONFIG = {
+  maxDimension: 1200,
+  quality: 0.82,
+  mimeType: "image/webp",
+} as const;
+
 /**
  * 縦横比を維持しながら、長辺が maxDimension 以下になる幅と高さを計算する
  */
@@ -145,4 +151,11 @@ export async function createStoreImages(file: File): Promise<{
   ]);
 
   return { mainBlob, thumbBlob };
+}
+
+/**
+  * 近況投稿（ポスト）用画像 1 ファイルを WebP Blob にリサイズ・圧縮する
+  */
+export async function createPostImage(file: File): Promise<Blob> {
+  return resizeImageToBlob(file, POST_IMAGE_CONFIG);
 }
