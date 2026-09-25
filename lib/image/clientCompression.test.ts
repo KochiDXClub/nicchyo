@@ -5,6 +5,10 @@ import {
   createStoreImages,
   createPostImage,
   imageUploadInfo,
+  canDecodeImage,
+  imageErrorMessage,
+  ImageDecodeError,
+  IMAGE_DECODE_ERROR_MESSAGE,
 } from "./clientCompression";
 
 class MockImage {
@@ -24,6 +28,15 @@ class MockImage {
     this._src = val;
     setTimeout(() => {
       if (this.onload) this.onload();
+    }, 0);
+  }
+}
+
+/** ブラウザが読めない形式（Android Chrome での HEIC など）を再現する */
+class BrokenImage extends MockImage {
+  set src(_val: string) {
+    setTimeout(() => {
+      if (this.onerror) this.onerror();
     }, 0);
   }
 }
@@ -215,5 +228,58 @@ describe("imageUploadInfo", () => {
     expect(imageUploadInfo(new Blob([], { type: "image/jpeg" }))).toEqual({ contentType: "image/jpeg", ext: "jpg" });
     // WebP 未対応のブラウザは、指定形式を無視して PNG を返すことがある
     expect(imageUploadInfo(new Blob([], { type: "image/png" }))).toEqual({ contentType: "image/png", ext: "png" });
+  });
+});
+
+describe("デコードできない画像", () => {
+  beforeEach(() => {
+    vi.stubGlobal("Image", BrokenImage);
+    vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:mock-url");
+    vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  const heic = () => new File(["heic"], "photo.heic", { type: "image/heic" });
+
+  it("変換すると ImageDecodeError で失敗する", async () => {
+    await expect(createPostImage(heic())).rejects.toBeInstanceOf(ImageDecodeError);
+    await expect(createStoreImages(heic())).rejects.toBeInstanceOf(ImageDecodeError);
+  });
+
+  it("canDecodeImage は false を返し、object URL を解放する", async () => {
+    await expect(canDecodeImage(heic())).resolves.toBe(false);
+    expect(URL.revokeObjectURL).toHaveBeenCalledWith("blob:mock-url");
+  });
+});
+
+describe("canDecodeImage（読める画像）", () => {
+  beforeEach(() => {
+    vi.stubGlobal("Image", MockImage);
+    vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:mock-url");
+    vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  it("true を返す", async () => {
+    await expect(canDecodeImage(new File(["x"], "photo.jpg", { type: "image/jpeg" }))).resolves.toBe(true);
+  });
+});
+
+describe("imageErrorMessage", () => {
+  it("デコード失敗なら写真の選び直しを促す", () => {
+    expect(imageErrorMessage(new ImageDecodeError(), "投稿に失敗しました")).toBe(IMAGE_DECODE_ERROR_MESSAGE);
+  });
+
+  it("それ以外のエラーは fallback を返す", () => {
+    expect(imageErrorMessage(new Error("network"), "投稿に失敗しました")).toBe("投稿に失敗しました");
+    expect(imageErrorMessage("unknown", "保存に失敗しました")).toBe("保存に失敗しました");
   });
 });

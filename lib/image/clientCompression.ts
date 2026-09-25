@@ -59,6 +59,28 @@ export function calculateFitDimensions(
 }
 
 /**
+ * ブラウザが画像をデコードできなかったときのエラー。
+ * Android Chrome で本物の HEIC を選んだときなど、形式そのものが読めない場合に投げる。
+ * 通信エラーなどと見分けて、出店者に「別の写真を選び直す」よう伝えるために使う。
+ */
+export class ImageDecodeError extends Error {
+  constructor() {
+    super("画像の読み込みに失敗しました");
+    this.name = "ImageDecodeError";
+  }
+}
+
+export const IMAGE_DECODE_ERROR_MESSAGE =
+  "この形式の写真は読み込めませんでした。JPEG か PNG の写真を選び直してください。";
+
+/**
+ * 画面に出すエラーメッセージを決める。デコード失敗なら選び直しを促し、それ以外は fallback を返す
+ */
+export function imageErrorMessage(err: unknown, fallback: string): string {
+  return err instanceof ImageDecodeError ? IMAGE_DECODE_ERROR_MESSAGE : fallback;
+}
+
+/**
  * File または Blob を読み込み、HTMLImageElement を生成する
  */
 function loadImageElement(source: Blob): Promise<HTMLImageElement> {
@@ -72,10 +94,22 @@ function loadImageElement(source: Blob): Promise<HTMLImageElement> {
     };
     img.onerror = () => {
       URL.revokeObjectURL(url);
-      reject(new Error("画像の読み込みに失敗しました"));
+      reject(new ImageDecodeError());
     };
     img.src = url;
   });
+}
+
+/**
+ * このブラウザで画像をデコードできるかを確かめる。写真を選んだ時点で呼び、送信前に知らせるために使う
+ */
+export async function canDecodeImage(source: Blob): Promise<boolean> {
+  try {
+    await loadImageElement(source);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /**
