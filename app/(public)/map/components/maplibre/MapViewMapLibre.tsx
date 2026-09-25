@@ -86,16 +86,21 @@ import {
   buildStallSprites,
   rasterizeImageUrl,
   rasterizePhotoCircle,
-  stallSpriteKey,
-  type StallState,
 } from "./stallSprites";
 import { getShopPreviewImage } from "../../../../../lib/shopImages";
 import { MAPLIBRE_MAP_KEY, type MapCamera, type MapCameraEvent } from "../../types/mapCamera";
 import { LiveZoomMapControls } from "../MapControls";
 import SearchResultsSheet, { SpotlightCountdownBar } from "../SearchResultsSheet";
 import MapLibreUserLocation from "./MapLibreUserLocation";
+import {
+  buildShopFeatures,
+  diffShopDisplay,
+  shopsToGeoJSON,
+  type ShopDisplayState,
+  type ShopFeature,
+  type ShopStateMap,
+} from "./shopFeatures";
 import { ROAD_SNAP_DELAY_MS, ROAD_SNAP_MIN_DISTANCE_METERS } from "@/lib/constants";
-import { getRoadSide } from "../../config/roadConfig";
 import { resolveStallColors } from "../../config/shopCategories";
 import { sanitizeCssColor } from "../../utils/markerHtmlGenerator";
 
@@ -161,14 +166,6 @@ const CHOME_KANJI: Record<string, string> = {
   六丁目: "六",
   七丁目: "七",
 };
-
-type ShopStateMap = Map<number, StallState>;
-
-/** GeoJSON に載せる店舗ごとの表示状態（状態色・お気に入り） */
-interface ShopDisplayState {
-  states: ShopStateMap;
-  favorites: Set<number>;
-}
 
 const LAYER_SHOP_PHOTOS = "nicchyo-shop-photos";
 const LAYER_SHOP_NAMEPLATES = "nicchyo-shop-nameplates";
@@ -278,34 +275,6 @@ function computeRoadBearing(routePoints: MapRoutePoint[], center: [number, numbe
   const compass = (Math.atan2(dx, dy) * 180) / Math.PI; // 北 = 0、時計回り
   // Leaflet 版は「道の進行方向 + 180」を上にしていたので合わせる
   return ((compass + 180) % 360 + 360) % 360;
-}
-
-function shopsToGeoJSON(shops: Shop[], display: ShopDisplayState): GeoJSON.FeatureCollection {
-  return {
-    type: "FeatureCollection",
-    features: shops
-      .filter((s) => !s.illustration?.customSvg)
-      .map((s) => {
-        const stall = resolveStallColors(s.category, sanitizeCssColor(s.illustration?.color));
-        return {
-          type: "Feature",
-          id: s.id,
-          geometry: { type: "Point", coordinates: [s.lng, s.lat] },
-          properties: {
-            id: s.id,
-            name: s.name,
-            spriteKey: stallSpriteKey(s),
-            state: display.states.get(s.id) ?? "normal",
-            // 道の北側は木札を右（道の外側）、南側は左に出す（Leaflet 版 .shop-side-*）
-            side: getRoadSide(s.lat, s.lng),
-            favorite: display.favorites.has(s.id),
-            // 屋根の上の丸窓。写真が無ければカテゴリの既定画像
-            photo: getShopPreviewImage(s),
-            photoBorder: stall.dark,
-          },
-        };
-      }),
-  };
 }
 
 export default function MapViewMapLibre({
@@ -436,11 +405,28 @@ export default function MapViewMapLibre({
   const displayRef = useRef(display);
   displayRef.current = display;
 
+  // 店舗リストで決まる部分（屋台の見た目・道のどちら側か・写真）は店舗リストごとに 1 回だけ作る
+  const shopFeatures = useMemo(() => buildShopFeatures(shops), [shops]);
+  const shopFeaturesRef = useRef(shopFeatures);
+  shopFeaturesRef.current = shopFeatures;
+  // ソースに最後に反映した内容。次の反映はここからの差分だけ送る
+  const appliedShopDataRef = useRef<{ features: ShopFeature[]; display: ShopDisplayState } | null>(null);
+
   const applyShopData = useCallback((next: ShopDisplayState) => {
     const map = mapRef.current;
     const src = map?.getSource(SRC_SHOPS) as maplibregl.GeoJSONSource | undefined;
     if (!src) return;
-    src.setData(shopsToGeoJSON(shopsRef.current, next));
+    const features = shopFeaturesRef.current;
+    const applied = appliedShopDataRef.current;
+    if (applied && applied.features === features) {
+      // 変わった店だけ送る。setData だと全タイルを作り直すが、
+      // updateData ならその店を含むタイルだけで済む
+      const update = diffShopDisplay(features, applied.display, next);
+      if (update.length > 0) src.updateData({ update });
+    } else {
+      src.setData(shopsToGeoJSON(features, next));
+    }
+    appliedShopDataRef.current = { features, display: next };
   }, []);
 
   useEffect(() => {
@@ -928,9 +914,11 @@ export default function MapViewMapLibre({
 
       map.addSource(SRC_SHOPS, {
         type: "geojson",
-        data: shopsToGeoJSON(shopsRef.current, displayRef.current),
+        data: shopsToGeoJSON(shopFeaturesRef.current, displayRef.current),
+        // updateData の差分は店舗 ID で当てる
         promoteId: "id",
       });
+      appliedShopDataRef.current = { features: shopFeaturesRef.current, display: displayRef.current };
       const stallScale: ExpressionSpecification = [
         "interpolate",
         ["linear"],
