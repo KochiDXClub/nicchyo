@@ -1,10 +1,7 @@
 import { NextResponse } from "next/server";
-import { createClient as createServiceClient } from "@supabase/supabase-js";
-import { cookies } from "next/headers";
-import { createClient as createServerClient } from "@/utils/supabase/server";
 import { requireSameOrigin } from "@/lib/security/requestGuards";
 import { enforceRateLimit, getClientIp } from "@/lib/security/rateLimit";
-import { getRole, isAdmin } from "@/lib/auth/permissions";
+import { requireAdminApi } from "@/lib/auth/requireAdminApi";
 import { MAX_BULK_OPERATION } from "@/lib/constants";
 import { logAdminAudit } from "@/lib/audit/logAdminAudit";
 import { revalidatePublicShops } from "@/app/(public)/map/services/shopCache";
@@ -26,21 +23,9 @@ export async function POST(request: Request) {
     });
     if (rateLimited) return rateLimited;
 
-    const cookieStore = await cookies();
-    const supabase = createServerClient(cookieStore);
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user || !isAdmin(getRole(user))) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-    if (!supabaseUrl || !serviceRoleKey) {
-      return NextResponse.json({ error: "Internal server error" }, { status: 500 });
-    }
+    const auth = await requireAdminApi();
+    if ("error" in auth) return auth.error;
+    const { user, role, adminClient: serviceClient } = auth;
 
     const body = (await request.json()) as {
       action: BulkAction;
@@ -63,10 +48,6 @@ export async function POST(request: Request) {
         { status: 400 }
       );
     }
-
-    const serviceClient = createServiceClient(supabaseUrl, serviceRoleKey, {
-      auth: { persistSession: false, autoRefreshToken: false },
-    });
 
     // 自分自身への操作を除外
     const withoutSelf = ids.filter((id) => id !== user.id);
@@ -95,7 +76,7 @@ export async function POST(request: Request) {
     // 監査ログを操作前に記録（削除後に失敗しても痕跡が残るよう）
     await logAdminAudit(
       serviceClient,
-      { id: user.id, email: user.email, role: getRole(user) },
+      { id: user.id, email: user.email, role },
       {
         action: `bulk_${action}`,
         targetType: "vendor",
