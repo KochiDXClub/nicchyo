@@ -90,6 +90,27 @@ export async function uploadStoreImage(vendorId: string, file: File): Promise<st
     );
   }
 
+  // 過去の旧店舗画像（store-main.jpg, store-main.png 等、WebP 以外の旧ファイル）があれば削除
+  try {
+    const { data: existingFiles } = await supabase.storage
+      .from("vendor-images")
+      .list(vendorId);
+
+    const legacyFiles = (existingFiles ?? [])
+      .filter(
+        (f) =>
+          f.name.startsWith("store-main.") &&
+          !f.name.endsWith(".webp")
+      )
+      .map((f) => `${vendorId}/${f.name}`);
+
+    if (legacyFiles.length > 0) {
+      await supabase.storage.from("vendor-images").remove(legacyFiles);
+    }
+  } catch (cleanErr) {
+    console.warn("[uploadStoreImage] 旧店舗画像のクリーンアップに失敗しました:", cleanErr);
+  }
+
   const { data } = supabase.storage.from("vendor-images").getPublicUrl(mainPath);
   return data.publicUrl;
 }
