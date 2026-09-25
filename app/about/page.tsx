@@ -1,11 +1,11 @@
 import React from "react";
 import { fetchWeeklyVisitors } from "@/lib/analytics/visitorStats.server";
+import { siteText } from "@/lib/siteCopy";
 import AboutStory from "./AboutStory";
 
 export const metadata = {
-  title: "nicchyo について",
-  description:
-    "nicchyo は高知・日曜市のデジタル体験を探求するプロジェクトです。観光客・地元の方・出店者をつなぐプラットフォームの背景をご紹介します。",
+  title: siteText("about.meta.title"),
+  description: siteText("about.meta.description"),
 };
 
 export default async function AboutPage() {
