@@ -1,0 +1,36 @@
+-- GPT-6 Luna を選択肢に加える（GPT-5.6 Luna も引き続き選べる）
+--
+-- GPT-6 Luna は 2026-09-22 公開。価格は $0.10 / $0.50（5.6 Luna は $0.20 / $1.20）。
+-- 受け付ける深さは 5.6 Luna と同じ none / low / medium / high / xhigh / max。
+-- API 側の既定は medium なので、先頭（= 機能側で未指定のときの既定）を none にして
+-- 推論を明示的に切る。
+--
+-- temperature は未実測。「推論なしなら受け付ける」「既定値の 1 以外は受け付けない」
+-- の両方の情報があるため、送らない側（false）に倒す。
+--
+-- 形は 20260907113000_create_ai_model_registry.sql の初期データと同じ
+-- values タプルで書く。lib/ai/models.test.ts が「最後に投入されたタプル」を
+-- コード側の AI_MODEL_DEFS と突き合わせる。
+insert into ai_models (
+  id, label, description, token_param, supports_temperature,
+  reasoning_efforts, reasoning_headroom_tokens,
+  price_input_per_mtok, price_output_per_mtok, sort_order
+) values
+  (
+    'gpt-6-luna',
+    'GPT-6 Luna',
+    '6 世代の軽量モデル（5.6 Luna の後継）。候補の中で 5 nano の次に安く、推論なしなら最初の文字が出るのが速い。深さを上げると考えてから答えるぶん待ちが伸びる。',
+    'max_completion_tokens', false, '{none,low,medium,high,xhigh,max}', 6000, 0.10, 0.50, 60
+  )
+-- is_selectable は運営の判断で落とすことがあるので触らない（初期データと同じ方針）
+on conflict (id) do update set
+  label = excluded.label,
+  description = excluded.description,
+  token_param = excluded.token_param,
+  supports_temperature = excluded.supports_temperature,
+  reasoning_efforts = excluded.reasoning_efforts,
+  reasoning_headroom_tokens = excluded.reasoning_headroom_tokens,
+  price_input_per_mtok = excluded.price_input_per_mtok,
+  price_output_per_mtok = excluded.price_output_per_mtok,
+  sort_order = excluded.sort_order,
+  updated_by = null;

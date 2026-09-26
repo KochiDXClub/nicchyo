@@ -103,20 +103,24 @@ describe("AI_MODEL_DEFS", () => {
  * 片方だけ直すと、平常時とDB障害時で違うモデルが使われる。
  */
 describe("マイグレーションとの突き合わせ", () => {
-  // 台帳に触るマイグレーションを古い順につなぐ。能力の訂正は後のファイルで
-  // 同じ形の values タプルを再投入する（on conflict do update）ので、
+  // 台帳に触るマイグレーションを古い順につなぐ。モデルの追加・能力の訂正は
+  // 後のファイルで同じ形の values タプルを投入する（on conflict do update）ので、
   // 最後に出てくるタプルが「いまDBにある値」になる
   const migrationsDir = join(process.cwd(), "supabase/migrations");
   const sql = readdirSync(migrationsDir)
     .filter((name) => name.endsWith(".sql"))
     .sort()
-    .map((name) => readFileSync(join(migrationsDir, name), "utf8"))
+    // Windows の checkout では改行が CRLF になるので LF に揃えてから探す
+    .map((name) => readFileSync(join(migrationsDir, name), "utf8").replace(/\r\n/g, "\n"))
     .filter((content) => content.includes("insert into ai_models"))
     .join("\n");
 
   /** そのモデルの values タプルのうち、最後に投入されたものを切り出す */
   function seedTupleFor(modelId: string): string {
-    const start = sql.lastIndexOf(`'${modelId}'`);
+    // タプルの中の id は `'gpt-x',` + 改行の形で書く。update 文などで id を
+    // 引用符つきで書いても（where id = 'gpt-x';）拾わないよう、この形で探す。
+    // id から正規表現を組まない（エスケープ漏れで別の id に当たるのを避ける）
+    const start = sql.lastIndexOf(`'${modelId}',\n`);
     expect(start, `${modelId} が ai_models の初期データにない`).toBeGreaterThan(-1);
     const end = sql.indexOf("),", start);
     return sql.slice(start, end);
@@ -331,9 +335,10 @@ describe("validateAiModelChoice", () => {
       reason: "unsupported_reasoning_effort",
     });
     expect(validateAiModelChoice(catalog, "consult", "gpt-5-nano", "minimal").ok).toBe(true);
-    // max は 5.6 Luna だけが受け付ける
+    // max は 5.6 Luna と 6 Luna だけが受け付ける
     expect(validateAiModelChoice(catalog, "consult", "gpt-5.4-nano", "max").ok).toBe(false);
     expect(validateAiModelChoice(catalog, "consult", "gpt-5.6-luna", "max").ok).toBe(true);
+    expect(validateAiModelChoice(catalog, "consult", "gpt-6-luna", "max").ok).toBe(true);
   });
 
   it("台帳に足したモデルは通る（コード側の定義に無くてよい）", () => {
@@ -474,6 +479,44 @@ describe("buildChatCompletionBody", () => {
       temperature: 0.7,
     });
     expect(body.temperature).toBeUndefined();
+  });
+
+  describe("推論モデルの temperature", () => {
+    // temperature を受け付ける推論モデル（5.x / 6 系は推論なしのときだけ受け付ける）
+    const def = parseAiModelRow(
+      modelRow({ supports_temperature: true, reasoning_efforts: ["none", "low"] })
+    );
+    if (!def) throw new Error("テスト用の行が読めない");
+    const withTemperature: AiCatalog = { models: [def], useCases: catalog.useCases };
+
+    it("推論ありのときは送らない（none 以外と一緒に送ると 400）", () => {
+      const low = resolveAiModelChoice(
+        withTemperature,
+        { modelId: def.id, reasoningEffort: "low" },
+        "consult"
+      );
+      const body = buildChatCompletionBody(low, { messages, maxOutputTokens: 500, temperature: 0.7 });
+      expect(body.temperature).toBeUndefined();
+      expect(body.reasoning_effort).toBe("low");
+    });
+
+    it("推論なし（none）なら送る", () => {
+      const none = resolveAiModelChoice(withTemperature, { modelId: def.id }, "consult");
+      const body = buildChatCompletionBody(none, { messages, maxOutputTokens: 500, temperature: 0.7 });
+      expect(body.temperature).toBe(0.7);
+      expect(body.reasoning_effort).toBe("none");
+    });
+  });
+
+  it("6 Luna は深さ未指定でも none を明示して送る（API 側の既定は medium）", () => {
+    const luna = resolveAiModelChoice(catalog, { modelId: "gpt-6-luna" }, "consult");
+    const body = buildChatCompletionBody(luna, { messages, maxOutputTokens: 500, temperature: 0.7 });
+    expect(body).toEqual({
+      model: "gpt-6-luna",
+      messages,
+      max_completion_tokens: 500,
+      reasoning_effort: "none",
+    });
   });
 
   it("推論しないモデルには reasoning_effort を送らない", () => {

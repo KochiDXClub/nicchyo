@@ -10,6 +10,7 @@ import {
   requestEmbeddings,
 } from "@/lib/ai/openaiFetch";
 import { resolveAiModelFor } from "@/lib/ai/modelStore.server";
+import { parseFirstJsonObject } from "@/lib/ai/structuredOutput";
 import type { ResolvedAiModel } from "@/lib/ai/models";
 import { fetchAiConversationSettings } from "@/lib/ai/conversationSettings.server";
 import { loadSpotSupport } from "@/lib/guide/spotSupport.server";
@@ -1031,9 +1032,13 @@ export async function handleConsultAsk(
     // 返答の長さ（consult.max_output_tokens）を絞りすぎると finish_reason=length で
     // JSON が途中で切れる。素の JSON.parse だと外側の catch に落ちて汎用500になり、
     // 運営からは「たまに失敗する」としか見えない。設定ミスと分かる形で残す
+    // 正しいオブジェクトのあとに余計な文字が付いた返事（GPT-6 Luna の推論なしで起きる）は
+    // 先頭のオブジェクトを使う。途中で切れた JSON は従来どおり失敗にする
     let structured: import("@/lib/grandma/types").StructuredConsultResponse;
     try {
-      structured = JSON.parse(rawStructured);
+      structured = parseFirstJsonObject(
+        rawStructured,
+      ) as import("@/lib/grandma/types").StructuredConsultResponse;
     } catch {
       console.error("[grandma/ask] structured output parse failed", {
         length: rawStructured.length,

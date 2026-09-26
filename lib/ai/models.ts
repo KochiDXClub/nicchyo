@@ -41,7 +41,8 @@ export type AiModelDef = {
   /**
    * temperature を送ってよいか。
    * false のモデルには送らない。送って 400 で落ちるより、送らずに
-   * モデル既定値で動く方が被害が小さい
+   * モデル既定値で動く方が被害が小さい。
+   * true でも、推論の深さが none 以外のときは送らない（buildChatCompletionBody）
    */
   supportsTemperature: boolean;
   /**
@@ -126,6 +127,23 @@ export const AI_MODEL_DEFS: readonly AiModelDef[] = [
     reasoningEfforts: ["none", "low", "medium", "high", "xhigh", "max"],
     reasoningHeadroomTokens: 6000,
     pricing: { input: 0.2, output: 1.2 },
+  },
+  {
+    id: "gpt-6-luna",
+    label: "GPT-6 Luna",
+    description:
+      "6 世代の軽量モデル（5.6 Luna の後継）。候補の中で 5 nano の次に安く、推論なしなら最初の文字が出るのが速い。深さを上げると考えてから答えるぶん待ちが伸びる。",
+    tokenParam: "max_completion_tokens",
+    // 未実測。5.x 系と同じく推論なし（none）なら受け付けるという情報と、
+    // 既定値（1）以外は一切受け付けないという情報が混在している。
+    // 送って全リクエストが 400 になるより、送らずにモデル既定値で動く方を選ぶ。
+    // 実測で 200 を確認したら true にしてよい（推論ありのときは buildChatCompletionBody が送らない）
+    supportsTemperature: false,
+    // API 側の既定は medium。先頭の none を既定にして、明示的に推論を切る
+    reasoningEfforts: ["none", "low", "medium", "high", "xhigh", "max"],
+    // 5.6 Luna より出力が長めになる傾向があるので、5.6 Luna と同じ余白を確保する
+    reasoningHeadroomTokens: 6000,
+    pricing: { input: 0.1, output: 0.5 },
   },
 ];
 
@@ -532,7 +550,13 @@ export function buildChatCompletionBody(
     body[def.tokenParam] = resolveMaxOutputTokens(model, params.maxOutputTokens);
   }
 
-  if (params.temperature !== undefined && def.supportsTemperature) {
+  // 推論モデルが temperature を受け付けるのは推論なし（none）のときだけ。
+  // 深さを上げたまま送ると 400 で全リクエストが落ちる
+  if (
+    params.temperature !== undefined &&
+    def.supportsTemperature &&
+    (reasoningEffort === undefined || reasoningEffort === "none")
+  ) {
     body.temperature = params.temperature;
   }
   if (reasoningEffort) {
