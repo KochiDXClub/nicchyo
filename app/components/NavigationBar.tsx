@@ -33,6 +33,7 @@ import {
   Newspaper,
   Package,
   Settings,
+  Siren,
   Store,
   Users,
   X,
@@ -80,6 +81,8 @@ const visitMenuItems: SheetItem[] = [
   // 地図の上で種類を選ぶ画面を直接開く（/facilities のページは廃止し、ここへ送るだけにした）。
   // 行き先は常に公開の /map なので、表示の可否は「おでかけサポート」の設定で決める
   { label: "おでかけサポート", href: "/map?guide=menu", icon: Compass, visibilityPath: ODEKAKE_VISIBILITY_PATH },
+  // 揺れたときにすることと、避難場所（おでかけサポートの「避難場所」）への入口
+  { label: "地震・津波のときは", href: "/emergency", icon: Siren },
   { label: "日曜市カレンダー", href: "/calendar", icon: CalendarDays },
   // 中身がまだサンプル値なので、開く前に分かるようにしておく
   { label: "日曜市をデータで見る", href: "/analysis", icon: BarChart3, badge: "デモ" },

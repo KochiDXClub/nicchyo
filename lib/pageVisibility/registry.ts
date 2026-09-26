@@ -34,6 +34,12 @@ export const PAGE_REGISTRY: readonly PageRegistryEntry[] = [
     group: "来訪者向け",
     description: "地図上の案内機能。限定公開で入口（メニュー・起動ボタン・「ここへ案内」）を隠し、非公開で機能ごと止める",
   },
+  {
+    path: "/emergency",
+    label: "地震・津波のときは",
+    group: "来訪者向け",
+    description: "揺れたときにすることと避難場所の探し方。命に関わる案内なので、原則は公開のままにする",
+  },
   { path: "/search", label: "店舗検索", group: "来訪者向け" },
   { path: "/shops", label: "店舗詳細", group: "来訪者向け", description: "/shops/001 など" },
   { path: "/consult", label: "にちよさん相談", group: "来訪者向け" },
