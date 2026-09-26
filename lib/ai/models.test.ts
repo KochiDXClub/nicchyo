@@ -335,16 +335,10 @@ describe("validateAiModelChoice", () => {
       reason: "unsupported_reasoning_effort",
     });
     expect(validateAiModelChoice(catalog, "consult", "gpt-5-nano", "minimal").ok).toBe(true);
-    // max は 6 Luna だけが受け付ける
+    // max は 5.6 Luna と 6 Luna だけが受け付ける
     expect(validateAiModelChoice(catalog, "consult", "gpt-5.4-nano", "max").ok).toBe(false);
+    expect(validateAiModelChoice(catalog, "consult", "gpt-5.6-luna", "max").ok).toBe(true);
     expect(validateAiModelChoice(catalog, "consult", "gpt-6-luna", "max").ok).toBe(true);
-  });
-
-  it("選択肢から外した 5.6 Luna は通さない", () => {
-    expect(validateAiModelChoice(catalog, "consult", "gpt-5.6-luna")).toEqual({
-      ok: false,
-      reason: "unknown_model",
-    });
   });
 
   it("台帳に足したモデルは通る（コード側の定義に無くてよい）", () => {

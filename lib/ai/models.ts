@@ -118,6 +118,17 @@ export const AI_MODEL_DEFS: readonly AiModelDef[] = [
     pricing: { input: 0.05, output: 0.4 },
   },
   {
+    id: "gpt-5.6-luna",
+    label: "GPT-5.6 Luna",
+    description:
+      "5.6 世代の軽量モデル。価格は 5.4 nano とほぼ同じ。推論を切れば速いが、既定のままだと考えてから答えるぶん待ちが伸びる。",
+    tokenParam: "max_completion_tokens",
+    supportsTemperature: true,
+    reasoningEfforts: ["none", "low", "medium", "high", "xhigh", "max"],
+    reasoningHeadroomTokens: 6000,
+    pricing: { input: 0.2, output: 1.2 },
+  },
+  {
     id: "gpt-6-luna",
     label: "GPT-6 Luna",
     description:
