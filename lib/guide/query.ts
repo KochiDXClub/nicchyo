@@ -3,6 +3,7 @@
  *
  *   /map?guide=menu           … 案内を開く（種類は画面で選ぶ）
  *   /map?facility=restroom    … /facilities のカテゴリから開く。種類1つに変換する
+ *   /map?facility=evacuation  … 避難場所だけを出して開く（災害時の案内ページから）
  *
  * URL を起点にすることで、/facilities からのリンク・共有・戻る操作が自然に動く。
  */
@@ -19,12 +20,14 @@ const FACILITY_TO_KIND: Record<string, SpotKind> = {
   restroom: 'restroom',
   rest: 'rest',
   transport: 'transit',
+  evacuation: 'evacuation',
 };
 
 const KIND_TO_FACILITY: Partial<Record<SpotKind, string>> = {
   restroom: 'restroom',
   rest: 'rest',
   transit: 'transport',
+  evacuation: 'evacuation',
 };
 
 type ParamsLike = { get(name: string): string | null } | null | undefined;

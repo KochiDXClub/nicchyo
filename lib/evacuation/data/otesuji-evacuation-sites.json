@@ -1,0 +1,669 @@
+{
+  "retrievedAt": "2026-09-26",
+  "sites": [
+    {
+      "id": "E3920100410201",
+      "name": "ウェルカムホテル高知",
+      "address": "追手筋1-8-25",
+      "lat": 33.561649,
+      "lng": 133.540088,
+      "hazards": [
+        "tsunami"
+      ],
+      "isShelter": false
+    },
+    {
+      "id": "E3920100411201",
+      "name": "オーテピア",
+      "address": "追手筋2-1-1",
+      "lat": 33.560925,
+      "lng": 133.537166,
+      "hazards": [
+        "tsunami"
+      ],
+      "isShelter": false
+    },
+    {
+      "id": "E3920100414201",
+      "name": "高知県立高知城歴史博物館",
+      "address": "追手筋2-7-5",
+      "lat": 33.56015,
+      "lng": 133.534,
+      "hazards": [
+        "tsunami"
+      ],
+      "isShelter": false
+    },
+    {
+      "id": "E3920100345201",
+      "name": "ピッコロビル",
+      "address": "帯屋町2-2-13-3",
+      "lat": 33.560479,
+      "lng": 133.536723,
+      "hazards": [
+        "tsunami"
+      ],
+      "isShelter": false
+    },
+    {
+      "id": "E3920100347201",
+      "name": "岡村ビル",
+      "address": "帯屋町2-2-22",
+      "lat": 33.560288,
+      "lng": 133.536168,
+      "hazards": [
+        "tsunami"
+      ],
+      "isShelter": false
+    },
+    {
+      "id": "E3920100346201",
+      "name": "帯屋町チェントロ",
+      "address": "帯屋町2-2-9",
+      "lat": 33.560472,
+      "lng": 133.537186,
+      "hazards": [
+        "tsunami"
+      ],
+      "isShelter": false
+    },
+    {
+      "id": "E3920100125201",
+      "name": "ビ・ウェル九反田【ＲＩＶＥＲ　ＦＲＯＮＴ】",
+      "address": "九反田14-5",
+      "lat": 33.560272,
+      "lng": 133.536208,
+      "hazards": [
+        "tsunami"
+      ],
+      "isShelter": false
+    },
+    {
+      "id": "E3920100099201",
+      "name": "丸ノ内緑地",
+      "address": "丸ノ内1-20",
+      "lat": 33.559893,
+      "lng": 133.533003,
+      "hazards": [
+        "fire"
+      ],
+      "isShelter": false
+    },
+    {
+      "id": "E3920100348201",
+      "name": "Ａｐパーク高知（立体駐車場）",
+      "address": "帯屋町2-5-11",
+      "lat": 33.559574,
+      "lng": 133.534391,
+      "hazards": [
+        "tsunami"
+      ],
+      "isShelter": false
+    },
+    {
+      "id": "E3920100465201",
+      "name": "高知パレスホテル　新館",
+      "address": "廿代町1-18",
+      "lat": 33.563094,
+      "lng": 133.541596,
+      "hazards": [
+        "tsunami"
+      ],
+      "isShelter": false
+    },
+    {
+      "id": "E3920100412201",
+      "name": "高知追手前高等学校",
+      "address": "追手筋2-2-10",
+      "lat": 33.562151,
+      "lng": 133.53649,
+      "hazards": [
+        "tsunami"
+      ],
+      "isShelter": true
+    },
+    {
+      "id": "E3920100466201",
+      "name": "高知パレスホテル　禁煙館",
+      "address": "廿代町4-1",
+      "lat": 33.563185,
+      "lng": 133.541181,
+      "hazards": [
+        "tsunami"
+      ],
+      "isShelter": false
+    },
+    {
+      "id": "E3920100344201",
+      "name": "ビ・ウェルおびさんロード",
+      "address": "帯屋町1-13-8",
+      "lat": 33.560087,
+      "lng": 133.538515,
+      "hazards": [
+        "tsunami"
+      ],
+      "isShelter": false
+    },
+    {
+      "id": "E3920100525201",
+      "name": "高知県自治会館",
+      "address": "本町4-1-35",
+      "lat": 33.559311,
+      "lng": 133.533009,
+      "hazards": [
+        "tsunami"
+      ],
+      "isShelter": false
+    },
+    {
+      "id": "E3920100006201",
+      "name": "土佐塾Ｓｅｉｚｏ館",
+      "address": "はりまや町3-7-18",
+      "lat": 33.563292,
+      "lng": 133.544389,
+      "hazards": [
+        "tsunami"
+      ],
+      "isShelter": false
+    },
+    {
+      "id": "E3920100007201",
+      "name": "土佐塾本館",
+      "address": "はりまや町3-7-8",
+      "lat": 33.563473,
+      "lng": 133.544399,
+      "hazards": [
+        "tsunami"
+      ],
+      "isShelter": false
+    },
+    {
+      "id": "E3920100100201",
+      "name": "高知公園",
+      "address": "丸ノ内1-2-1",
+      "lat": 33.561492,
+      "lng": 133.532382,
+      "hazards": [
+        "flood",
+        "tsunami",
+        "fire"
+      ],
+      "isShelter": false
+    },
+    {
+      "id": "E3920100526201",
+      "name": "ビ・ウェル本町",
+      "address": "本町4-1-48",
+      "lat": 33.558986,
+      "lng": 133.533836,
+      "hazards": [
+        "tsunami"
+      ],
+      "isShelter": false
+    },
+    {
+      "id": "E3920100590201",
+      "name": "ビ・ウェル京町",
+      "address": "はりまや町1-2-12",
+      "lat": 33.560494,
+      "lng": 133.541987,
+      "hazards": [
+        "tsunami"
+      ],
+      "isShelter": false
+    },
+    {
+      "id": "E3920100343201",
+      "name": "中央公園",
+      "address": "帯屋町1-11-27",
+      "lat": 33.560147,
+      "lng": 133.540537,
+      "hazards": [
+        "landslide",
+        "fire"
+      ],
+      "isShelter": false
+    },
+    {
+      "id": "E3920100522201",
+      "name": "伊予銀行高知支店",
+      "address": "本町2-1-9",
+      "lat": 33.559456,
+      "lng": 133.537234,
+      "hazards": [
+        "tsunami"
+      ],
+      "isShelter": false
+    },
+    {
+      "id": "E3920100051201",
+      "name": "ホテル高砂",
+      "address": "駅前町2-1",
+      "lat": 33.564271,
+      "lng": 133.543088,
+      "hazards": [
+        "tsunami"
+      ],
+      "isShelter": false
+    },
+    {
+      "id": "E3920100110201",
+      "name": "高知県庁北庁舎",
+      "address": "丸ノ内2-4-1",
+      "lat": 33.562322,
+      "lng": 133.532544,
+      "hazards": [
+        "tsunami"
+      ],
+      "isShelter": false
+    },
+    {
+      "id": "E3920100524201",
+      "name": "高知電気ビル",
+      "address": "本町4-1-16",
+      "lat": 33.558511,
+      "lng": 133.532666,
+      "hazards": [
+        "tsunami"
+      ],
+      "isShelter": false
+    },
+    {
+      "id": "E3920100101201",
+      "name": "高知県庁本庁舎",
+      "address": "丸ノ内1-2-20",
+      "lat": 33.55972,
+      "lng": 133.531113,
+      "hazards": [
+        "tsunami"
+      ],
+      "isShelter": false
+    },
+    {
+      "id": "E3920100523201",
+      "name": "百十四銀行高知支店",
+      "address": "本町3-3-36",
+      "lat": 33.558282,
+      "lng": 133.5345,
+      "hazards": [
+        "tsunami"
+      ],
+      "isShelter": false
+    },
+    {
+      "id": "E3920100004201",
+      "name": "ビ・ウェル播磨屋",
+      "address": "はりまや町3-21-2",
+      "lat": 33.562263,
+      "lng": 133.546115,
+      "hazards": [
+        "tsunami"
+      ],
+      "isShelter": false
+    },
+    {
+      "id": "E3920100003201",
+      "name": "北街ビル",
+      "address": "はりまや町3-20-1",
+      "lat": 33.562687,
+      "lng": 133.546138,
+      "hazards": [
+        "tsunami"
+      ],
+      "isShelter": false
+    },
+    {
+      "id": "E3920100528201",
+      "name": "ザ　クラウンパレス新阪急高知",
+      "address": "本町4-2-50",
+      "lat": 33.557915,
+      "lng": 133.53379,
+      "hazards": [
+        "tsunami"
+      ],
+      "isShelter": false
+    },
+    {
+      "id": "E3920100005201",
+      "name": "ビ・ウェル播磨屋弐番館",
+      "address": "はりまや町3-21-23",
+      "lat": 33.562191,
+      "lng": 133.546449,
+      "hazards": [
+        "tsunami"
+      ],
+      "isShelter": false
+    },
+    {
+      "id": "E3920100531201",
+      "name": "高知市役所本庁舎",
+      "address": "本町5-1-45",
+      "lat": 33.558592,
+      "lng": 133.531127,
+      "hazards": [
+        "flood",
+        "landslide",
+        "earthquake",
+        "tsunami"
+      ],
+      "isShelter": false
+    },
+    {
+      "id": "E3920100002201",
+      "name": "はりまや橋小学校",
+      "address": "はりまや町2-14-8",
+      "lat": 33.561266,
+      "lng": 133.546528,
+      "hazards": [
+        "flood",
+        "landslide",
+        "earthquake",
+        "tsunami"
+      ],
+      "isShelter": true
+    },
+    {
+      "id": "E3920100527201",
+      "name": "高知県建設会館",
+      "address": "本町4-2-15",
+      "lat": 33.557469,
+      "lng": 133.533927,
+      "hazards": [
+        "tsunami"
+      ],
+      "isShelter": false
+    },
+    {
+      "id": "E3920100109201",
+      "name": "高知丸の内高等学校",
+      "address": "丸ノ内2-2-40",
+      "lat": 33.563499,
+      "lng": 133.532947,
+      "hazards": [
+        "tsunami"
+      ],
+      "isShelter": true
+    },
+    {
+      "id": "E3920100443201",
+      "name": "１２３＋Ｎはりまや橋店",
+      "address": "南はりまや町1-8-1",
+      "lat": 33.55912,
+      "lng": 133.5434,
+      "hazards": [
+        "tsunami"
+      ],
+      "isShelter": false
+    },
+    {
+      "id": "E3920100531202",
+      "name": "高知市役所第二庁舎",
+      "address": "本町5-1-45",
+      "lat": 33.558275,
+      "lng": 133.530644,
+      "hazards": [
+        "tsunami"
+      ],
+      "isShelter": false
+    },
+    {
+      "id": "E3920100513201",
+      "name": "オリエントホテル高知和風吉萬",
+      "address": "北本町2-1-22",
+      "lat": 33.565521,
+      "lng": 133.544497,
+      "hazards": [
+        "tsunami"
+      ],
+      "isShelter": false
+    },
+    {
+      "id": "E3920100534201",
+      "name": "高知会館",
+      "address": "本町5-6-42",
+      "lat": 33.557631,
+      "lng": 133.531508,
+      "hazards": [
+        "tsunami"
+      ],
+      "isShelter": false
+    },
+    {
+      "id": "E3920100511201",
+      "name": "更生保護施設高坂寮",
+      "address": "北本町1-3-3",
+      "lat": 33.565123,
+      "lng": 133.539969,
+      "hazards": [
+        "tsunami"
+      ],
+      "isShelter": false
+    },
+    {
+      "id": "E3920100530201",
+      "name": "高知地方合同庁舎",
+      "address": "本町4-3-41",
+      "lat": 33.557043,
+      "lng": 133.533726,
+      "hazards": [
+        "tsunami"
+      ],
+      "isShelter": false
+    },
+    {
+      "id": "E3920100049201",
+      "name": "高知県公立大学法人　永国寺キャンパス教育研究棟",
+      "address": "永国寺町2-22",
+      "lat": 33.56439,
+      "lng": 133.535493,
+      "hazards": [
+        "tsunami"
+      ],
+      "isShelter": false
+    },
+    {
+      "id": "E3920100529201",
+      "name": "県民文化ホール",
+      "address": "本町4-3-30",
+      "lat": 33.556801,
+      "lng": 133.533143,
+      "hazards": [
+        "tsunami"
+      ],
+      "isShelter": true
+    },
+    {
+      "id": "E3920100001201",
+      "name": "ロイヤルガーデンはりまや町",
+      "address": "はりまや町1-13-20",
+      "lat": 33.559587,
+      "lng": 133.546336,
+      "hazards": [
+        "tsunami"
+      ],
+      "isShelter": false
+    },
+    {
+      "id": "E3920100102201",
+      "name": "高知地方裁判所",
+      "address": "丸ノ内1-3-5",
+      "lat": 33.559201,
+      "lng": 133.529358,
+      "hazards": [
+        "tsunami"
+      ],
+      "isShelter": false
+    },
+    {
+      "id": "E3920100532201",
+      "name": "高知共済会館",
+      "address": "本町5-3-20",
+      "lat": 33.558124,
+      "lng": 133.529983,
+      "hazards": [
+        "tsunami"
+      ],
+      "isShelter": false
+    },
+    {
+      "id": "E3920100370201",
+      "name": "高知市役所たかじょう庁舎",
+      "address": "鷹匠町2-1-43",
+      "lat": 33.556739,
+      "lng": 133.531873,
+      "hazards": [
+        "tsunami"
+      ],
+      "isShelter": false
+    },
+    {
+      "id": "E3920100512201",
+      "name": "龍馬看護ふくし専門学校",
+      "address": "北本町1-5-3",
+      "lat": 33.56574,
+      "lng": 133.538687,
+      "hazards": [
+        "tsunami"
+      ],
+      "isShelter": false
+    },
+    {
+      "id": "E3920100288201",
+      "name": "ビ・ウェル高知城公園",
+      "address": "小津町2-3",
+      "lat": 33.563933,
+      "lng": 133.530637,
+      "hazards": [
+        "tsunami"
+      ],
+      "isShelter": false
+    },
+    {
+      "id": "E3920100111201",
+      "name": "Ｊ．ビルディング",
+      "address": "丸ノ内2-8-17",
+      "lat": 33.562973,
+      "lng": 133.529216,
+      "hazards": [
+        "tsunami"
+      ],
+      "isShelter": false
+    },
+    {
+      "id": "E3920100533201",
+      "name": "不二興産ビル（立体駐車場）",
+      "address": "本町5-4-21",
+      "lat": 33.557344,
+      "lng": 133.529763,
+      "hazards": [
+        "tsunami"
+      ],
+      "isShelter": false
+    },
+    {
+      "id": "E3920100508201",
+      "name": "高知中央郵便局",
+      "address": "北本町1-10-18",
+      "lat": 33.566669,
+      "lng": 133.541269,
+      "hazards": [
+        "tsunami"
+      ],
+      "isShelter": false
+    },
+    {
+      "id": "E3920100352201",
+      "name": "エレガンテ大川筋",
+      "address": "大川筋2-6-8",
+      "lat": 33.565035,
+      "lng": 133.532375,
+      "hazards": [
+        "tsunami"
+      ],
+      "isShelter": false
+    },
+    {
+      "id": "E3920100509201",
+      "name": "ＪＲクレメントイン高知",
+      "address": "北本町1-10-59",
+      "lat": 33.566935,
+      "lng": 133.541654,
+      "hazards": [
+        "tsunami"
+      ],
+      "isShelter": false
+    },
+    {
+      "id": "E3920100289201",
+      "name": "龍馬学園グローバル校舎",
+      "address": "小津町3-19",
+      "lat": 33.563604,
+      "lng": 133.528979,
+      "hazards": [
+        "tsunami"
+      ],
+      "isShelter": false
+    },
+    {
+      "id": "E3920100510201",
+      "name": "龍馬情報ビジネス＆フード専門学校",
+      "address": "北本町1-12-6",
+      "lat": 33.566755,
+      "lng": 133.539337,
+      "hazards": [
+        "tsunami"
+      ],
+      "isShelter": false
+    },
+    {
+      "id": "E3920100126201",
+      "name": "文化プラザ「かるぽーと」",
+      "address": "九反田2-1",
+      "lat": 33.558339,
+      "lng": 133.547222,
+      "hazards": [
+        "flood",
+        "landslide",
+        "earthquake",
+        "tsunami"
+      ],
+      "isShelter": true
+    },
+    {
+      "id": "E3920100278201",
+      "name": "オリエントホテル高知",
+      "address": "升形5-37",
+      "lat": 33.557246,
+      "lng": 133.528872,
+      "hazards": [
+        "tsunami"
+      ],
+      "isShelter": false
+    },
+    {
+      "id": "E3920100010201",
+      "name": "江ノ口コミュニティセンター",
+      "address": "愛宕町1-10-7",
+      "lat": 33.566289,
+      "lng": 133.536047,
+      "hazards": [
+        "flood",
+        "landslide",
+        "earthquake",
+        "tsunami"
+      ],
+      "isShelter": true
+    },
+    {
+      "id": "E3920100048201",
+      "name": "高知よさこい咲都合同庁舎",
+      "address": "栄田町2-2-10",
+      "lat": 33.567427,
+      "lng": 133.544965,
+      "hazards": [
+        "tsunami"
+      ],
+      "isShelter": false
+    }
+  ]
+}

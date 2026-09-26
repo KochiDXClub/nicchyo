@@ -19,7 +19,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Landmark } from '../types/landmark';
 import type { MapRoute } from '../types/mapRoute';
-import { landmarkToSpot, type MapSpot, type SpotKind } from '@/lib/spots';
+import { evacuationSiteToSpot, landmarkToSpot, type MapSpot, type SpotKind } from '@/lib/spots';
+import { EVACUATION_SITES } from '@/lib/evacuation/sites';
 import { distanceInMeters, type LatLng } from '@/lib/facilities/geo';
 import {
   buildGuideNetworkForMap,
@@ -48,7 +49,11 @@ export const GUIDE_KIND_OPTIONS: GuideKindOption[] = [
   { kind: 'rest', label: '休けい', emoji: '🌿' },
   { kind: 'transit', label: 'のりもの', emoji: '🚋' },
   { kind: 'landmark', label: '目印', emoji: '🏯' },
+  { kind: 'evacuation', label: '避難場所', emoji: '🏃' },
 ];
+
+/** 避難場所は公式データを写した固定の一覧なので、一度だけスポットにする */
+const EVACUATION_SPOTS: MapSpot[] = EVACUATION_SITES.map(evacuationSiteToSpot);
 
 type Geolocation = { point: LatLng; accuracyMeters?: number };
 
@@ -235,11 +240,11 @@ export function useOdekakeGuide({
   }, [active, geolocation]);
 
   // ── スポットと道のネットワーク ──
-  // 候補はランドマーク。店を目的地にしたときだけ、その1店を候補に加える（pinnedSpot）。
+  // 候補はランドマークと避難場所。店を目的地にしたときだけ、その1店を候補に加える（pinnedSpot）。
   // 300店を常に候補にすると一覧と経路計算が重くなるので、案内中の1店に限る
   const [pinnedSpot, setPinnedSpot] = useState<MapSpot | null>(null);
   const spots = useMemo(() => {
-    const base = landmarks.map(landmarkToSpot);
+    const base = [...landmarks.map(landmarkToSpot), ...EVACUATION_SPOTS];
     return pinnedSpot ? [...base, pinnedSpot] : base;
   }, [landmarks, pinnedSpot]);
   // 歩行者ネットワーク（約270KB）。

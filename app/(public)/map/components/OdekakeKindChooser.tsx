@@ -10,7 +10,7 @@
  * 「いくつ選べるのか」も分からない。画面の残り84%は地図のままで、
  * いま何を求められているのかが伝わらなかった。
  *
- * そこで、種類が決まるまでは画面の中央に出し、4つを大きな面として並べる。
+ * そこで、種類が決まるまでは画面の中央に出し、種類を大きな面として並べる。
  * ひとつ選べば従来のボトムシート（近い順の一覧）に切り替わる。
  *
  * アイコンは /facilities（おでかけサポートのページ）と地図のマーカーで使っている
@@ -34,6 +34,7 @@ const KIND_ICON_URL: Partial<Record<SpotKind, string>> = {
   restroom: '/images/maps/elements/facilities/restroom.svg',
   rest: '/images/maps/elements/facilities/rest.svg',
   transit: '/images/maps/elements/transit/tram-stop.svg',
+  evacuation: '/images/maps/elements/facilities/evacuation.svg',
 };
 
 /** 何のためのものかを一言で。ラベルだけでは伝わらないので添える */
@@ -42,6 +43,7 @@ const KIND_NOTE: Partial<Record<SpotKind, string>> = {
   rest: '座れる場所を探す',
   transit: '電停・駅を探す',
   landmark: '目印になる場所',
+  evacuation: '地震・津波のときに',
 };
 
 const FOCUS_RING =
@@ -156,6 +158,8 @@ export default function OdekakeKindChooser({
           {GUIDE_KIND_OPTIONS.map((option, i) => {
             const isPicked = picked === option.kind;
             const isOther = picked !== null && !isPicked;
+            // 2列に並べて1つ余ったときは、横いっぱいに広げて段をそろえる
+            const isLoneLast = i === GUIDE_KIND_OPTIONS.length - 1 && GUIDE_KIND_OPTIONS.length % 2 === 1;
             return (
               <motion.button
                 key={option.kind}
@@ -163,7 +167,7 @@ export default function OdekakeKindChooser({
                 onClick={() => pick(option.kind)}
                 aria-pressed={isPicked}
                 disabled={isOther}
-                className={`${FOCUS_RING} flex flex-col items-center justify-center gap-1.5 rounded-2xl border-2 bg-white px-3 py-4 text-nicchyo-ink disabled:cursor-default`}
+                className={`${FOCUS_RING} ${isLoneLast ? 'col-span-2' : ''} flex flex-col items-center justify-center gap-1.5 rounded-2xl border-2 bg-white px-3 py-4 text-nicchyo-ink disabled:cursor-default`}
                 style={{ borderColor: SOFT_GREEN_BORDER }}
                 initial={reduceMotion ? false : { opacity: 0, y: 10 }}
                 animate={

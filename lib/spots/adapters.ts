@@ -8,6 +8,7 @@
 import type { Landmark } from '@/app/(public)/map/types/landmark';
 import type { Shop } from '@/app/(public)/map/data/shops';
 import type { Facility } from '@/lib/facilities/facilities';
+import { EVACUATION_DATA_SOURCE, hazardLabelsOf, type EvacuationSite } from '@/lib/evacuation/sites';
 import { getSpotKindMeta } from './spotMeta';
 import { resolveShopImage } from '@/lib/shopImages';
 import type { MapSpot, SpotKind, TransitMode } from './types';
@@ -134,6 +135,39 @@ export function shopToSpot(
     // 写真はバナーと同じ決め方（登録写真 → カテゴリの既定写真）
     photoUrl: resolveShopImage(shop),
     shopId: shop.id,
+    verified: true,
+  };
+}
+
+export function evacuationSpotId(siteId: string): string {
+  return `evacuation:${siteId}`;
+}
+
+export const EVACUATION_ICON_URL = '/images/maps/elements/facilities/evacuation.svg';
+
+/**
+ * 避難場所 → スポット。
+ * 使える災害の種類はタグに載せる。おでかけサポートの条件チップ（「津波」など）で
+ * 絞り込めるようにするため。対応しない種類へ案内してしまわないよう、
+ * 補足にも「〇〇のときの避難先です」と書き出す。
+ */
+export function evacuationSiteToSpot(site: EvacuationSite): MapSpot {
+  const meta = getSpotKindMeta('evacuation');
+  const hazardLabels = hazardLabelsOf(site);
+  return {
+    id: evacuationSpotId(site.id),
+    kind: 'evacuation',
+    name: site.name,
+    description: `${site.address}（指定緊急避難場所${site.isShelter ? '・指定避難所' : ''}）`,
+    lat: site.lat,
+    lng: site.lng,
+    iconUrl: EVACUATION_ICON_URL,
+    emoji: meta.emoji,
+    accentColor: meta.accentColor,
+    tags: hazardLabels,
+    notes: `${hazardLabels.join('・')}のときの避難先として指定されています。ほかの災害のときは使えないことがあります。建物への入り方は現地の案内表示に従ってください。（${EVACUATION_DATA_SOURCE.credit}）`,
+    externalUrl: EVACUATION_DATA_SOURCE.url,
+    // 座標は公式データの値をそのまま使う
     verified: true,
   };
 }

@@ -9,6 +9,7 @@ describe('parseGuideQuery', () => {
     expect(parseGuideQuery(new URLSearchParams('facility=transport'))?.kinds).toEqual(['transit']);
     expect(parseGuideQuery(new URLSearchParams('facility=restroom'))?.kinds).toEqual(['restroom']);
     expect(parseGuideQuery(new URLSearchParams('facility=rest'))?.kinds).toEqual(['rest']);
+    expect(parseGuideQuery(new URLSearchParams('facility=evacuation'))?.kinds).toEqual(['evacuation']);
   });
 
   it('知らない値・パラメータなしは null', () => {
@@ -23,6 +24,7 @@ describe('guideHrefForKind', () => {
   it('種類ごとのリンクは facility= 形式を保つ', () => {
     expect(guideHrefForKind('transit')).toBe('/map?facility=transport');
     expect(guideHrefForKind('restroom')).toBe('/map?facility=restroom');
+    expect(guideHrefForKind('evacuation')).toBe('/map?facility=evacuation');
     expect(guideHrefForKind('landmark')).toBe('/map?guide=menu');
   });
 });

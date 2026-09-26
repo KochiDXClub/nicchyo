@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import type { Landmark } from '@/app/(public)/map/types/landmark';
 import type { Facility } from '@/lib/facilities/facilities';
-import { facilityToSpot, getTransitModeFromLandmarkKey, landmarkToSpot } from './adapters';
+import { evacuationSiteToSpot, facilityToSpot, getTransitModeFromLandmarkKey, landmarkToSpot } from './adapters';
+import type { HazardType } from '@/lib/evacuation/sites';
 import { JR_ACCENT_COLOR, TRAM_ACCENT_COLOR } from './spotMeta';
 
 const baseLandmark: Landmark = {
@@ -126,5 +127,38 @@ describe('landmarkToSpot（DBの属性つき）', () => {
   it('category が無い古いデータは key の規約で判定する', () => {
     expect(landmarkToSpot({ ...baseLandmark, key: 'tram-horizume' }).kind).toBe('transit');
     expect(landmarkToSpot({ ...baseLandmark, key: 'otepia' }).kind).toBe('landmark');
+  });
+});
+
+describe('evacuationSiteToSpot', () => {
+  const site = {
+    id: 'E3920100100201',
+    name: '高知公園',
+    address: '丸ノ内1-2-1',
+    lat: 33.561492,
+    lng: 133.532382,
+    hazards: ['flood', 'tsunami', 'fire'] as HazardType[],
+    isShelter: false,
+  };
+
+  it('evacuation 種別のスポットになり、IDは共通IDから作る', () => {
+    const spot = evacuationSiteToSpot(site);
+    expect(spot.id).toBe('evacuation:E3920100100201');
+    expect(spot.kind).toBe('evacuation');
+    expect(spot.lat).toBe(site.lat);
+    expect(spot.lng).toBe(site.lng);
+    expect(spot.verified).toBe(true);
+  });
+
+  it('使える災害の種類をタグにし、補足でも断る', () => {
+    const spot = evacuationSiteToSpot(site);
+    expect(spot.tags).toEqual(['津波', '大規模な火事', '洪水']);
+    expect(spot.notes).toContain('津波・大規模な火事・洪水のときの避難先');
+    expect(spot.notes).toContain('国土地理院');
+  });
+
+  it('指定避難所を兼ねるときは説明に出す', () => {
+    expect(evacuationSiteToSpot({ ...site, isShelter: true }).description).toContain('指定避難所');
+    expect(evacuationSiteToSpot(site).description).not.toContain('指定避難所');
   });
 });

@@ -1,9 +1,11 @@
 export type { MapSpot, SpotKind, TransitMode } from './types';
-export { getSpotKindMeta, TRAM_ACCENT_COLOR, JR_ACCENT_COLOR } from './spotMeta';
+export { getSpotKindMeta, TRAM_ACCENT_COLOR, JR_ACCENT_COLOR, EVACUATION_ACCENT_COLOR } from './spotMeta';
 export {
   landmarkToSpot,
   facilityToSpot,
   shopToSpot,
+  evacuationSiteToSpot,
+  evacuationSpotId,
   landmarkSpotId,
   facilitySpotId,
   shopSpotId,

@@ -12,13 +12,13 @@
  * カードの中身は専用バナーに委ねる。
  */
 
-export type SpotKind = 'transit' | 'landmark' | 'restroom' | 'rest' | 'shop';
+export type SpotKind = 'transit' | 'landmark' | 'restroom' | 'rest' | 'evacuation' | 'shop';
 
 /** 交通機関の種別。transit のときだけ意味を持つ */
 export type TransitMode = 'tram' | 'jr';
 
 export type MapSpot = {
-  /** `landmark:<key>` / `facility:<id>` / `shop:<id>` の形。種別をまたいで一意 */
+  /** `landmark:<key>` / `facility:<id>` / `evacuation:<id>` / `shop:<id>` の形。種別をまたいで一意 */
   id: string;
   kind: SpotKind;
   transitMode?: TransitMode;

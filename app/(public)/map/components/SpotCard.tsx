@@ -243,7 +243,7 @@ export default function SpotCard({ spot, map, origin, onClose, onNavigate }: Spo
                 className="flex items-center gap-1.5 rounded-full bg-slate-100 px-4 py-2 text-[13px] font-semibold text-slate-700 transition-colors active:bg-slate-200"
               >
                 <ExternalLink size={15} />
-                {spot.kind === 'transit' ? '時刻表を見る' : '公式サイト'}
+                {spot.kind === 'transit' ? '時刻表を見る' : spot.kind === 'evacuation' ? '出典を見る' : '公式サイト'}
               </a>
             )}
           </div>
