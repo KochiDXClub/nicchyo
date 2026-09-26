@@ -64,6 +64,13 @@ export type EvacuationSite = {
   isShelter: boolean;
 };
 
+/**
+ * TODO(要再検証): data/otesuji-evacuation-sites.json（2026-09-26 作成）は、国土地理院の原本ではなく、
+ * 原本を自治体ごとに分けて毎月そのまま公開しているミラー（github.com/motohasystem/jp-shelter-api、
+ * 2026-09-01 更新分）から作った。作成環境から hinanmap.gsi.go.jp に接続できなかったため。
+ * 値は加工していないが、本番に出す前に https://hinanmap.gsi.go.jp/ の原本（高知市・392014）を
+ * ダウンロードし、scripts/build-evacuation-sites.mjs で作り直して差分が無いことを確かめる。
+ */
 export const EVACUATION_DATA_SOURCE = {
   /** 画面に出す出典表記（国土地理院コンテンツ利用規約に沿って「加工して作成」と添える） */
   credit: '出典：国土地理院「指定緊急避難場所データ」（高知県高知市）を加工して作成',
