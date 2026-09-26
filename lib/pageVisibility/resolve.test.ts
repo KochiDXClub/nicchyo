@@ -75,6 +75,12 @@ describe("resolvePageVisibility", () => {
     expect(resolvePageVisibility("/map", "anon", locked).state).toBe("public");
   });
 
+  it("「地震・津波のときは」は命に関わる案内なので非公開にできない", () => {
+    const off: PageVisibilitySettings = { pages: { "/emergency": { roles: { anon: "private", general_user: "unlisted" } } } };
+    expect(resolvePageVisibility("/emergency", "anon", off).state).toBe("public");
+    expect(resolvePageVisibility("/emergency", "general_user", off).state).toBe("public");
+  });
+
   it("おでかけサポートは地図（常に公開）とは別に止められ、保存した設定も読み戻せる", () => {
     const off = parsePageVisibilitySettings({
       pages: { [ODEKAKE_VISIBILITY_PATH]: { roles: { anon: "private", general_user: "unlisted" } } },
