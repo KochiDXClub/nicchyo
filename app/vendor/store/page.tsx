@@ -7,6 +7,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { fetchVendorStore, saveVendorStore, uploadStoreImage, fetchCategories } from "../_services/storeService";
+import { canDecodeImage, imageErrorMessage, IMAGE_DECODE_ERROR_MESSAGE } from "@/lib/image/clientCompression";
 import type { Category } from "../_services/storeService";
 import type { PaymentMethod, RainPolicy, Store } from "../_types";
 import {
@@ -132,9 +133,16 @@ export default function VendorStorePage() {
     return () => window.removeEventListener("beforeunload", handler);
   }, [isDirty]);
 
-  function handleImageChange(e: React.ChangeEvent<HTMLInputElement>) {
+  async function handleImageChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
+    // 保存時の変換でつまずく前に、このブラウザで読める写真かを確かめる
+    if (!(await canDecodeImage(file))) {
+      setError(IMAGE_DECODE_ERROR_MESSAGE);
+      if (imageInputRef.current) imageInputRef.current.value = "";
+      return;
+    }
+    setError(null);
     setImageFile(file);
     setImagePreview(URL.createObjectURL(file));
     setIsDirty(true);
@@ -182,8 +190,8 @@ export default function VendorStorePage() {
       setIsDirty(false);
       setIsSaved(true);
       setTimeout(() => setIsSaved(false), 3000);
-    } catch {
-      setError("保存に失敗しました。もう一度お試しください。");
+    } catch (err) {
+      setError(imageErrorMessage(err, "保存に失敗しました。もう一度お試しください。"));
     } finally {
       setIsSaving(false);
     }
