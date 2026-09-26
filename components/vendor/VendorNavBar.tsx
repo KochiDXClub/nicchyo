@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
-import { Store, Megaphone, ArrowLeft, LogOut, Map as MapIcon } from "lucide-react";
+import { Mail, Megaphone, ArrowLeft, LogOut, Map as MapIcon } from "lucide-react";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { VENDOR_NAV_ITEMS } from "./vendorNavItems";
 
@@ -146,10 +146,11 @@ export default function VendorNavBar() {
       >
         {isHome ? (
           <div className="mx-auto flex h-16 max-w-lg items-center">
+            {/* 店舗情報への導線はメニューシート（VENDOR_NAV_ITEMS）に残してある */}
             <NavSlot
-              icon={<Store size={24} />}
-              label="店舗情報"
-              onClick={() => router.push("/vendor/store")}
+              icon={<Mail size={24} />}
+              label="連絡"
+              onClick={() => router.push("/vendor/inquiries")}
             />
 
             <div className="flex flex-1 items-center justify-center">
