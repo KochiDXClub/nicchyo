@@ -35,7 +35,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Shop } from "../data/shops";
 import { isLeafletMap, type MapCamera, type MapCameraEvent } from "../types/mapCamera";
-import { getShopPreviewImage } from "@/lib/shopImages";
+import { getShopPreviewImage, getShopThumbnailImage } from "@/lib/shopImages";
 import { getPixelsPerMeter } from "../config/roadStyle";
 import { resolveStallColors } from "../config/shopCategories";
 import { sanitizeCssColor } from "../utils/markerHtmlGenerator";
@@ -131,7 +131,7 @@ export function getCardHeight(zoom: number): number {
 type Point = { x: number; y: number };
 
 function resolvePhoto(shop: Shop): string {
-  return getShopPreviewImage(shop);
+  return getShopThumbnailImage(shop);
 }
 
 export default function ShopScanCards({
@@ -564,8 +564,15 @@ export default function ShopScanCards({
                 decoding="async"
                 draggable={false}
                 onLoad={() => markPhotoLoaded(photo)}
-                // 読めなかったものも「済み」にする。そうしないとカードが永久に出ない
-                onError={() => markPhotoLoaded(photo)}
+                // 読めなかったものも「済み」にする。サムネイル読み込み失敗時はメイン画像へフォールバック
+                onError={(e) => {
+                  const fallback = getShopPreviewImage(shop);
+                  if (fallback && e.currentTarget.src !== fallback) {
+                    e.currentTarget.src = fallback;
+                    return;
+                  }
+                  markPhotoLoaded(photo);
+                }}
                 ref={(el) => {
                   // キャッシュ済みだと onLoad が付く前に発火し終えていることがある
                   if (el?.complete && el.naturalWidth > 0) markPhotoLoaded(photo);
