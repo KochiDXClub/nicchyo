@@ -110,7 +110,8 @@ describe("マイグレーションとの突き合わせ", () => {
   const sql = readdirSync(migrationsDir)
     .filter((name) => name.endsWith(".sql"))
     .sort()
-    .map((name) => readFileSync(join(migrationsDir, name), "utf8"))
+    // Windows の checkout では改行が CRLF になるので LF に揃えてから探す
+    .map((name) => readFileSync(join(migrationsDir, name), "utf8").replace(/\r\n/g, "\n"))
     .filter((content) => content.includes("insert into ai_models"))
     .join("\n");
 
@@ -118,9 +119,8 @@ describe("マイグレーションとの突き合わせ", () => {
   function seedTupleFor(modelId: string): string {
     // タプルの中の id は `'gpt-x',` + 改行の形で書く。update 文などで id を
     // 引用符つきで書いても（where id = 'gpt-x';）拾わないよう、この形で探す。
-    // Windows の checkout では改行が CRLF になるので \r も許す
-    const pattern = new RegExp(`'${modelId.replace(/\./g, "\\.")}',\\r?\\n`, "g");
-    const start = [...sql.matchAll(pattern)].at(-1)?.index ?? -1;
+    // id から正規表現を組まない（エスケープ漏れで別の id に当たるのを避ける）
+    const start = sql.lastIndexOf(`'${modelId}',\n`);
     expect(start, `${modelId} が ai_models の初期データにない`).toBeGreaterThan(-1);
     const end = sql.indexOf("),", start);
     return sql.slice(start, end);
