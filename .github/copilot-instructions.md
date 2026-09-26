@@ -36,8 +36,9 @@
 - Next.js の App Router/Layouts を利用するため、クライアントコンポーネントが必要なファイルは冒頭に "use client" を置く。
 - UI は Tailwind CSS。カスタムパレットは tailwind.config.js にある。
 - public/ に画像を置き、コード中は静的パス参照を優先する（大きなバイナリは避ける）。
-- PR 前: npm run build を実行して型/ルート問題を捕まえる（.next/ をコミットしない）。
-- テストは現状ほぼ未実装だが、vite/ vitest が用意されている。テスト追加時は vitest 慣例に従う（*.test.ts[x]）。
+- PR 前: `npm run lint`、`npm test`、`npm run build` を実行する。
+- **コード健康診断（必須）**: PR 前に必ず `npm run code-health:diff` を実行し、出力された `.code-health/diff.md` を PR 本文の「## 共通基盤チェック」に貼る。悪化（⚠️）があれば修正する（詳細は `AGENTS.md` / `docs/CODE_HEALTH.md`）。
+- テスト追加時は vitest 慣例に従う（*.test.ts[x]）。
 - Prisma 関連コマンドは package.json に定義済み（generate / migrate）。
 
 ---

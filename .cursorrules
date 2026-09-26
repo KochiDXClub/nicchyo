@@ -1,0 +1,13 @@
+# Cursor Rules for nicchyo-platform
+
+Always read and follow `AGENTS.md` and `docs/CODE_HEALTH.md`.
+
+## Mandatory PR Rules
+Before creating any pull request or finishing a task:
+1. Run `npm run lint` and ensure 0 warnings/errors.
+2. Run `npm test` and ensure all tests pass.
+3. Run `npm run build` and ensure build passes.
+4. **MANDATORY**: Run `npm run code-health:diff`.
+   - If there are regressions (⚠️), fix them.
+   - Always copy the generated `.code-health/diff.md` content into the "## 共通基盤チェック" section of the PR description.
+5. Create a changelog fragment in `docs/changelog-unreleased/<branch-or-PR>.md` if user-facing changes were made.
