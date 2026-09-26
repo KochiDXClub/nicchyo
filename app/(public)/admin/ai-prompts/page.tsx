@@ -29,6 +29,7 @@ import {
 import { PromptPreview } from "./components/PromptPreview";
 import { PromptHistory } from "./components/PromptHistory";
 import { ModelSettings } from "./components/ModelSettings";
+import { ModelPlayground } from "./components/ModelPlayground";
 import { ConversationSettings } from "./components/ConversationSettings";
 
 const GROUP_LABELS: Record<AiPromptDef["group"], { title: string; description: string }> = {
@@ -355,6 +356,10 @@ export default function AdminAiPromptsPage() {
             */}
             <hr className="border-slate-200" />
             <ModelSettings />
+
+            {/* モデルを切り替える前に、その場で返事と所要時間を比べる */}
+            <hr className="border-slate-200" />
+            <ModelPlayground />
 
             {/*
               会話設定も文面とは別の保存ボタンを持つ。理由はモデル選択と同じ。
