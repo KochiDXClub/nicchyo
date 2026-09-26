@@ -85,9 +85,11 @@ export const AI_MODEL_DEFS: readonly AiModelDef[] = [
     description:
       "会話向けの軽量モデル。2026-07 の比較で最速だった。相談・店舗チャット・意図抽出のような、速さが体験を決める場面向け。",
     tokenParam: "max_completion_tokens",
-    // 未検証。送って 400 になるより、送らずにモデル既定値で動く方を選ぶ
-    supportsTemperature: false,
-    reasoningEfforts: ["minimal", "low", "medium", "high"],
+    // 2026-09-12 に temperature 0.7 で 200 を確認
+    supportsTemperature: true,
+    // 5.4 系は `minimal` を受け付けない（400 unsupported_value。2026-09-12 に実測）。
+    // 受け付けるのは none / low / medium / high / xhigh
+    reasoningEfforts: ["none", "low", "medium", "high", "xhigh"],
     reasoningHeadroomTokens: 4000,
     pricing: { input: 0.2, output: 1.25 },
   },
@@ -97,8 +99,10 @@ export const AI_MODEL_DEFS: readonly AiModelDef[] = [
     description:
       "nano より賢いが約4倍高く、体感で2倍遅い。回り方プランのように、実際に順序を考える必要がある場面向け。",
     tokenParam: "max_completion_tokens",
-    supportsTemperature: false,
-    reasoningEfforts: ["minimal", "low", "medium", "high"],
+    // 2026-09-12 に temperature 0.7 で 200 を確認
+    supportsTemperature: true,
+    // nano と同じく `minimal` は 400。none / low / medium / high / xhigh
+    reasoningEfforts: ["none", "low", "medium", "high", "xhigh"],
     reasoningHeadroomTokens: 6000,
     pricing: { input: 0.75, output: 4.5 },
   },
@@ -443,6 +447,16 @@ export function validateAiModelChoice(
 export type ResolvedAiModel = {
   def: AiModelDef;
   reasoningEffort?: ReasoningEffort;
+  /**
+   * 選んだモデルを OpenAI 側が受け付けなかったとき（`model_not_found`）に
+   * 代わりに使うコード側の既定モデル。既定モデルそのものを選んでいるときは無い。
+   *
+   * 台帳に載っていても、APIキーの属する OpenAI プロジェクトで使用許可が
+   * 出ていないモデルは 400 で落ちる。管理画面で切り替えた瞬間に来訪者向けの
+   * 相談が全部止まるより、既定モデルで答え続けるほうが被害が小さい。
+   * 実際に落ちた事実は requestChatCompletion がログに残す。
+   */
+  fallbackDef?: AiModelDef;
 };
 
 export function resolveAiModelChoice(
@@ -464,7 +478,16 @@ export function resolveAiModelChoice(
       ? choice.reasoningEffort
       : def.reasoningEfforts[0];
 
-  return effort ? { def, reasoningEffort: effort } : { def };
+  // 既定モデルはコード側の定義から引く。台帳の既定モデル行が消えていても
+  // 逃げ先が無くならないようにするため
+  const codeDefault = AI_MODEL_DEF_BY_ID.get(DEFAULT_AI_MODEL_SETTINGS[useCase].modelId);
+  const fallbackDef = codeDefault && codeDefault.id !== def.id ? codeDefault : undefined;
+
+  return {
+    def,
+    ...(effort ? { reasoningEffort: effort } : {}),
+    ...(fallbackDef ? { fallbackDef } : {}),
+  };
 }
 
 /** 推論トークンが出力上限を食う状態か */

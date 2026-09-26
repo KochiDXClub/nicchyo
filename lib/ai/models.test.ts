@@ -35,7 +35,7 @@ const reasoning = resolveAiModelChoice(
 );
 const reasoningOff = resolveAiModelChoice(
   catalog,
-  { modelId: "gpt-5.4-nano", reasoningEffort: "minimal" },
+  { modelId: "gpt-5.4-nano", reasoningEffort: "none" },
   "consult"
 );
 
@@ -117,8 +117,10 @@ describe("マイグレーションとの突き合わせ", () => {
   /** そのモデルの values タプルのうち、最後に投入されたものを切り出す */
   function seedTupleFor(modelId: string): string {
     // タプルの中の id は `'gpt-x',` + 改行の形で書く。update 文などで id を
-    // 引用符つきで書いても（where id = 'gpt-x';）拾わないよう、この形で探す
-    const start = sql.lastIndexOf(`'${modelId}',\n`);
+    // 引用符つきで書いても（where id = 'gpt-x';）拾わないよう、この形で探す。
+    // Windows の checkout では改行が CRLF になるので \r も許す
+    const pattern = new RegExp(`'${modelId.replace(/\./g, "\\.")}',\\r?\\n`, "g");
+    const start = [...sql.matchAll(pattern)].at(-1)?.index ?? -1;
     expect(start, `${modelId} が ai_models の初期データにない`).toBeGreaterThan(-1);
     const end = sql.indexOf("),", start);
     return sql.slice(start, end);
@@ -327,12 +329,15 @@ describe("validateAiModelChoice", () => {
   });
 
   it("そのモデルが受け付けない深さを弾く", () => {
-    // none は 6 Luna だけが受け付ける
-    expect(validateAiModelChoice(catalog, "consult", "gpt-5.4-nano", "none")).toEqual({
+    // minimal は 5.4 系が受け付けない（5 nano は受け付ける）
+    expect(validateAiModelChoice(catalog, "consult", "gpt-5.4-nano", "minimal")).toEqual({
       ok: false,
       reason: "unsupported_reasoning_effort",
     });
-    expect(validateAiModelChoice(catalog, "consult", "gpt-6-luna", "none").ok).toBe(true);
+    expect(validateAiModelChoice(catalog, "consult", "gpt-5-nano", "minimal").ok).toBe(true);
+    // max は 6 Luna だけが受け付ける
+    expect(validateAiModelChoice(catalog, "consult", "gpt-5.4-nano", "max").ok).toBe(false);
+    expect(validateAiModelChoice(catalog, "consult", "gpt-6-luna", "max").ok).toBe(true);
   });
 
   it("選択肢から外した 5.6 Luna は通さない", () => {
@@ -394,7 +399,7 @@ describe("resolveAiModelChoice", () => {
 
   it("推論モデルで深さ未指定ならモデルの既定値を使う", () => {
     const resolved = resolveAiModelChoice(catalog, { modelId: "gpt-5.4-nano" }, "consult");
-    expect(resolved.reasoningEffort).toBe("minimal");
+    expect(resolved.reasoningEffort).toBe("none");
   });
 
   it("推論しないモデルには深さが付かない", () => {
@@ -410,6 +415,23 @@ describe("resolveAiModelChoice", () => {
     const resolved = resolveAiModelChoice(withoutDefault, { modelId: "gpt-4o-mini" }, "consult");
     expect(resolved.def.id).toBe("gpt-4o-mini");
   });
+
+  it("既定以外のモデルには逃げ先として既定モデルが付く", () => {
+    expect(reasoning.fallbackDef?.id).toBe(DEFAULT_AI_MODEL_SETTINGS.consult.modelId);
+  });
+
+  it("既定モデルそのものを選んでいるときは逃げ先が付かない", () => {
+    expect(legacy.fallbackDef).toBeUndefined();
+  });
+
+  it("逃げ先は台帳の状態によらずコード側の定義から引く", () => {
+    const withoutDefault: AiCatalog = {
+      models: catalog.models.filter((m) => m.id !== "gpt-4o-mini"),
+      useCases: catalog.useCases,
+    };
+    const resolved = resolveAiModelChoice(withoutDefault, { modelId: "gpt-5.4-nano" }, "consult");
+    expect(resolved.fallbackDef?.id).toBe("gpt-4o-mini");
+  });
 });
 
 describe("findAiModel", () => {
@@ -424,8 +446,14 @@ describe("resolveMaxOutputTokens", () => {
     expect(resolveMaxOutputTokens(legacy, 280)).toBe(280);
   });
 
-  it("minimal は推論トークンを使わないので上乗せしない", () => {
+  it("none / minimal は推論トークンを使わないので上乗せしない", () => {
     expect(resolveMaxOutputTokens(reasoningOff, 280)).toBe(280);
+    const minimal = resolveAiModelChoice(
+      catalog,
+      { modelId: "gpt-5-nano", reasoningEffort: "minimal" },
+      "consult"
+    );
+    expect(resolveMaxOutputTokens(minimal, 280)).toBe(280);
   });
 
   it("推論を有効にしたら余白を上乗せする（本文が空で返るのを防ぐ）", () => {
@@ -450,7 +478,8 @@ describe("buildChatCompletionBody", () => {
   });
 
   it("temperature を受け付けないモデルには送らない", () => {
-    const body = buildChatCompletionBody(reasoning, {
+    const noTemperature = resolveAiModelChoice(catalog, { modelId: "gpt-5-nano" }, "consult");
+    const body = buildChatCompletionBody(noTemperature, {
       messages,
       maxOutputTokens: 500,
       temperature: 0.7,
