@@ -449,15 +449,35 @@ export default function MapPageClient({
     },
     [guide, guideActive, openGuideMenu]
   );
-  // 店舗バナーの「ここへ案内」: 店を目的地にして道案内を始める
+  // 店舗バナーの「ここへ案内」: 店を目的地にして道案内を始める。
+  // 地図（memo 済み）に渡すので参照を保つ。guide は描画のたびに作り直されるオブジェクトなので、
+  // 依存に入れず最新値を ref から読む
+  const guideRef = useRef(guide);
+  guideRef.current = guide;
   const navigateToShop = useCallback(
     (shop: Shop) => {
       setSelectedSpot(null);
       if (!guideActive) openGuideMenu();
-      guide.startNavigation(shopToSpot(shop));
+      guideRef.current.startNavigation(shopToSpot(shop));
     },
-    [guide, guideActive, openGuideMenu]
+    [guideActive, openGuideMenu]
   );
+  // 以下も地図に渡すコールバック。インラインで書くと毎回別の関数になり、地図の memo が効かない
+  const handleUserLocationUpdate = useCallback(
+    (coords: { lat: number; lng: number; inMarket: boolean }) => {
+      setUserLocation({ lat: coords.lat, lng: coords.lng });
+      setIsInMarket(coords.inMarket);
+    },
+    []
+  );
+  const handleClearSearch = useCallback(() => {
+    clearSearchMapPayload();
+    setSearchMarkerPayload(null);
+    setMapSearchQuery('');
+    setMapSearchCategory(null);
+    setFavoritesOnly(false);
+    setAiMarkerPayload(null);
+  }, [setMapSearchQuery, setMapSearchCategory, setFavoritesOnly]);
   // 案内中の目的地が店なら、その屋台マーカーを目立たせる（GuideLayer は店のピンを置かない）
   const guideTargetShopId =
     guideActive && guide.navigating && guide.selected?.spot.kind === "shop"
@@ -913,19 +933,9 @@ export default function MapPageClient({
               onNavigateToShop={navigateToShop}
               guideTargetShopId={guideTargetShopId}
               selectedSpotId={selectedSpot?.id}
-              onUserLocationUpdate={(coords) => {
-                setUserLocation({ lat: coords.lat, lng: coords.lng });
-                setIsInMarket(coords.inMarket);
-              }}
+              onUserLocationUpdate={handleUserLocationUpdate}
               spotlightShopId={spotlightShopId ?? undefined}
-              onClearSearch={() => {
-                clearSearchMapPayload();
-                setSearchMarkerPayload(null);
-                setMapSearchQuery('');
-                setMapSearchCategory(null);
-                setFavoritesOnly(false);
-                setAiMarkerPayload(null);
-              }}
+              onClearSearch={handleClearSearch}
               // おでかけサポート表示中は施設に合わせた画角を優先し、
               // 現在地取得時の自動ズームで上書きされないようにする
               suppressInitialLocationFocus={isAiFocusMode || guideActive}
