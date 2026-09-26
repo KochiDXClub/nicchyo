@@ -8,6 +8,7 @@ import type { Shop } from './data/shops';
 import { fetchPublicShops } from './services/shopCache';
 import { fetchLandmarksFromDb } from './services/landmarksDb';
 import type { Landmark } from './types/landmark';
+import { withOptimizedLandmarkImage } from './utils/landmarkImages';
 import type { MapRoute } from './types/mapRoute';
 import { fetchMapRouteFromDb, getFallbackMapRoute } from './services/mapRouteDb';
 import { SITE_URL } from '@/lib/constants';
@@ -86,7 +87,7 @@ export default async function MapPage() {
       }
 
       if (landmarksResult.status === "fulfilled") {
-        landmarks = landmarksResult.value;
+        landmarks = landmarksResult.value.map(withOptimizedLandmarkImage);
       } else {
         console.warn("[MapPage] 建物データの取得に失敗しました:", landmarksResult.reason);
       }
