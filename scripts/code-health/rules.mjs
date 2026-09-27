@@ -111,7 +111,9 @@ export const RULES = [
     source: "DESIGN_SYSTEM.md §6",
     why: "共通のモーダル部品が無く、各所で背景・閉じ方・フォーカス制御を個別に書いている",
     pattern: /\bfixed inset-0\b/g,
-    scope: (f) => f.kind === "own" && /\.tsx$/.test(f.path),
+    // 共通モーダルそのもの（唯一の正しい置き場所）は対象から外す。
+    // directSupabaseClient が lib/supabase・utils/supabase を外しているのと同じ考え方
+    scope: (f) => f.kind === "own" && /\.tsx$/.test(f.path) && f.path !== "components/admin/code-health/Modal.tsx",
     countMode: "files",
   },
   {

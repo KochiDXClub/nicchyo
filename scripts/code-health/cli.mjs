@@ -3,12 +3,14 @@
 //
 //   npm run code-health                 今のコードを測って .code-health/report.html を作る
 //   npm run code-health:diff            develop との分岐点と比べる（悪化があれば終了コード 1）
+//   npm run code-health:save            測った結果を Supabase の code_health_snapshots に保存する（CI 用）
 //
 // オプション:
 //   --base <ref>          比較相手（ref と HEAD の分岐点を before にする）
 //   --strict              悪化があれば終了コード 1
 //   --out <dir>           出力先（既定 .code-health）
 //   --summary-file <path> Markdown の結果を追記する（CI の $GITHUB_STEP_SUMMARY 用）
+//   --save                結果を Supabase に保存する（SUPABASE_SERVICE_ROLE_KEY が必要）
 
 import { execFileSync, spawnSync } from "node:child_process";
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -17,15 +19,17 @@ import { analyze, isTargetPath } from "./analyze.mjs";
 import { diffReports, diffToMarkdown } from "./diff.mjs";
 import { renderHtml } from "./report-html.mjs";
 import { METRICS, RULES } from "./rules.mjs";
+import { loadSupabaseEnv, saveSnapshot } from "./save.mjs";
 
 function parseArgs(argv) {
-  const args = { base: null, strict: false, out: ".code-health", summaryFile: null };
+  const args = { base: null, strict: false, out: ".code-health", summaryFile: null, save: false };
   for (let i = 0; i < argv.length; i += 1) {
     const a = argv[i];
     if (a === "--base") args.base = argv[++i];
     else if (a === "--strict") args.strict = true;
     else if (a === "--out") args.out = argv[++i];
     else if (a === "--summary-file") args.summaryFile = argv[++i];
+    else if (a === "--save") args.save = true;
     else throw new Error(`不明なオプション: ${a}`);
   }
   return args;
@@ -76,12 +80,14 @@ function shortSummary(report) {
   return lines.join("\n");
 }
 
-function main() {
+async function main() {
   const args = parseArgs(process.argv.slice(2));
   const root = git(["rev-parse", "--show-toplevel"]);
   process.chdir(root);
 
-  const after = analyze(readWorkingTree(), { label: `作業ツリー（${git(["rev-parse", "--abbrev-ref", "HEAD"])}）` });
+  const branch = git(["rev-parse", "--abbrev-ref", "HEAD"]);
+  const commit = git(["rev-parse", "HEAD"]);
+  const after = analyze(readWorkingTree(), { label: `作業ツリー（${branch}）` });
 
   let diff = null;
   if (args.base) {
@@ -114,7 +120,16 @@ function main() {
   }
   console.log(`\nレポート: ${join(args.out, "report.html")}`);
 
+  if (args.save) {
+    const supabaseEnv = loadSupabaseEnv();
+    await saveSnapshot(after, { commit, branch }, supabaseEnv);
+    console.log(`\nSupabase の code_health_snapshots に保存しました（${commit.slice(0, 7)} / ${branch}）`);
+  }
+
   if (args.strict && diff?.failed) process.exit(1);
 }
 
-main();
+main().catch((error) => {
+  console.error(error.message);
+  process.exit(1);
+});

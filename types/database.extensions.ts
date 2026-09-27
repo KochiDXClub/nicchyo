@@ -5,6 +5,7 @@ import type {
   VendorInquiryTopic,
   VendorInquiryUrgency,
 } from "@/lib/vendorInquiries/constants";
+import type { SnapshotFile, SnapshotSummary } from "@/lib/code-health/types";
 
 // ── Tables not included in Supabase auto-generated types ──────────────────────
 // These must be maintained manually until the next `supabase gen types` run.
@@ -109,6 +110,18 @@ export type AiUseCaseRow = {
   updated_at: string;
 };
 
+// code_health_snapshots
+// supabase/migrations/20260927120000_create_code_health_snapshots.sql 参照。
+// summary/files の中身は lib/code-health/types.ts を単一の情報源とする。
+export type CodeHealthSnapshotRow = {
+  id: string;
+  commit: string;
+  branch: string;
+  summary: SnapshotSummary;
+  files: SnapshotFile[];
+  created_at: string;
+};
+
 export type MapViewSettingsRow = {
   key: string;
   mode: "auto" | "manual";
@@ -200,6 +213,14 @@ type ExtendedPublicSchema = Omit<Database["public"], "Tables"> & {
       Insert: Pick<MapViewSettingsRow, "key"> &
         Partial<Omit<MapViewSettingsRow, "key" | "created_at" | "updated_at">>;
       Update: Partial<Omit<MapViewSettingsRow, "key" | "created_at" | "updated_at">>;
+      Relationships: never[];
+    };
+    code_health_snapshots: {
+      Row: CodeHealthSnapshotRow;
+      // 書き込みは CI（scripts/code-health/save.mjs）が service role で行う。
+      // 管理画面からは読むだけなので API からの insert/update は塞ぐ
+      Insert: never;
+      Update: never;
       Relationships: never[];
     };
   };
