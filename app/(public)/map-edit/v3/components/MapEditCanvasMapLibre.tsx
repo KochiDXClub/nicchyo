@@ -472,12 +472,20 @@ export default function MapEditCanvasMapLibre({
         paint: {
           // 出店者ありの区画は color 側の変化（buildShopFeatureCollection）で選択を表すが、
           // 空き区画は常に同じ色のため、選択しても見分けられない。旧キャンバスの
-          // 「選ぶと大きくなり、周りに影が付く」見た目を、大きさとストローク（縁）で近似する
+          // 「選ぶと大きくなり、周りに影が付く」見た目を、大きさとストローク（縁）で近似する。
+          //
+          // zoom ベースの step/interpolate は式全体で1回までしか使えない
+          // （MapLibre のスタイル検証エラー: "Only one zoom-based step or interpolate
+          // subexpression may be used"）。case の各分岐に別々の zoom step を持たせるのではなく、
+          // 外側を1本の zoom step にし、各段の値を case で選ぶ形に入れ替える
           "circle-radius": [
-            "case",
-            ["get", "selected"],
-            ["step", ["zoom"], 8, MAPLIBRE_ZOOMS[1], 10, MAPLIBRE_ZOOMS[2], 17],
-            ["step", ["zoom"], 4, MAPLIBRE_ZOOMS[1], 6, MAPLIBRE_ZOOMS[2], 13],
+            "step",
+            ["zoom"],
+            ["case", ["get", "selected"], 8, 4],
+            MAPLIBRE_ZOOMS[1],
+            ["case", ["get", "selected"], 10, 6],
+            MAPLIBRE_ZOOMS[2],
+            ["case", ["get", "selected"], 17, 13],
           ] as unknown as ExpressionSpecification,
           "circle-color": ["get", "color"],
           "circle-opacity": ["get", "opacity"],
