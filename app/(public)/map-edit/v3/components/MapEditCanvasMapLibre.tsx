@@ -20,9 +20,10 @@
 
 import { useEffect, useRef, useState } from "react";
 import * as maplibregl from "maplibre-gl";
-import type { ExpressionSpecification, StyleSpecification } from "maplibre-gl";
+import type { ExpressionSpecification } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import "@/lib/map/maplibreWorker";
+import { OPENFREEMAP_STYLE_URL } from "../../../map/config/basemap";
 import { buildRoadPolygon } from "../../../map/utils/mapRouteGeometry";
 import type { Projection } from "../geo";
 import {
@@ -89,33 +90,6 @@ const LAYER_SHOP_NUMBERS = "nicchyo-edit-shop-numbers-layer";
 
 function emptyFC(): GeoJSON.FeatureCollection {
   return { type: "FeatureCollection", features: [] };
-}
-
-function buildBackgroundStyle(): StyleSpecification {
-  const tiles = ["a", "b", "c", "d"].map(
-    (s) => `https://${s}.basemaps.cartocdn.com/rastertiles/voyager_nolabels/{z}/{x}/{y}.png`
-  );
-  return {
-    version: 8,
-    sources: {
-      carto: {
-        type: "raster",
-        tiles,
-        tileSize: 256,
-        attribution:
-          '&copy; OpenStreetMap contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
-        maxzoom: 20,
-      },
-    },
-    // 店番号（symbol レイヤー）の text-field に必要。公開マップと同じ配信元・フォント
-    glyphs: "https://tiles.openfreemap.org/fonts/{fontstack}/{range}.pbf",
-    layers: [
-      { id: "background", type: "background", paint: { "background-color": "#FFFAF0" } },
-      // 編集画面ではこの背景そのものが位置合わせの基準になるため、公開マップの
-      // 薄いオーバーレイ用途とは違い不透明で表示する
-      { id: "basemap", type: "raster", source: "carto", paint: { "raster-fade-duration": 0 } },
-    ],
-  };
 }
 
 /** 角度の差を (-180, 180] に正規化する（359度と1度の差を2度として扱うため） */
@@ -415,7 +389,10 @@ export default function MapEditCanvasMapLibre({
     const initialCenter = projectionRef.current.toLatLng(focus);
     const map = new maplibregl.Map({
       container,
-      style: buildBackgroundStyle(),
+      // CARTO のラスタータイルは無料枠のレート制限で「API KEY REQUIRED」の
+      // 透かしが出ることがあるため、公開マップの vector-openfreemap モードと
+      // 同じ OpenFreeMap のベクタータイル（キー不要・レート制限なし）を使う
+      style: OPENFREEMAP_STYLE_URL,
       center: [initialCenter.lng, initialCenter.lat],
       zoom: zoomIdxToMapLibreZoom(zoomIdx),
       bearing: rotationToBearing(rotation),
