@@ -4,6 +4,7 @@ import { createClient as createServerClient } from "@/utils/supabase/server";
 import { getRole, isModerator } from "@/lib/auth/permissions";
 import { requireSameOrigin } from "@/lib/security/requestGuards";
 import { createAdminClient } from "@/lib/supabase/adminClient";
+import { logAdminAudit } from "@/lib/audit/logAdminAudit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -103,15 +104,16 @@ export async function PATCH(req: Request) {
   }
 
   // 監査ログ
-  await dc.from("admin_audit_logs").insert({
-    actor_id: user.id,
-    actor_email: user.email,
-    actor_role: getRole(user),
-    action: "report_status_changed",
-    target_type: "report",
-    target_id: id,
-    details: JSON.stringify({ status, resolution_notes: resolution_notes ?? null }),
-  });
+  await logAdminAudit(
+    dc,
+    { id: user.id, email: user.email, role: getRole(user) },
+    {
+      action: "report_status_changed",
+      targetType: "report",
+      targetId: id,
+      details: JSON.stringify({ status, resolution_notes: resolution_notes ?? null }),
+    }
+  );
 
   return NextResponse.json({ ok: true });
 }

@@ -56,6 +56,19 @@ export type PendingChange = {
   before?: PendingChangeSnapshot;
 };
 
+/** キャンバス（MapEditCanvasMapLibre）から親（MapEditClientV3）へ通知する操作 */
+export type CanvasHandlers = {
+  onSelectShop: (locationId: string) => void;
+  onSelectRoad: (roadId: string) => void;
+  onSelectLandmark: (key: string) => void;
+  onMoveLandmark: (key: string, lat: number, lng: number) => void;
+  onMapClick: (lat: number, lng: number) => void;
+  onVertexMove: (roadId: string, pointId: string, lat: number, lng: number) => void;
+  onVertexMoveEnd: (roadId: string) => void;
+  onVertexRemove: (roadId: string, pointId: string) => void;
+  onMidpointInsert: (roadId: string, afterIndex: number, lat: number, lng: number) => void;
+};
+
 export const ROAD_KIND_LABELS: Record<RoadKind, string> = {
   market: "出店可の通り",
   street: "一般道",

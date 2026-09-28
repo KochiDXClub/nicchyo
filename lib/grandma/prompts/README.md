@@ -35,8 +35,8 @@ AIに送るプロンプト文の置き場所。**プロンプトの文面を直�
 - 発話数は 1〜`CONSULT_MAX_TURNS`（JSON schema とストリーミング形式が受け取れる範囲）
 - 行フォーマット（TURN / SHOP_IDS / …）
 
-`CONSULT_MAX_TURNS` は 1。2以上にすると、`GrandmaChatter` が発話ごとに1秒あけて
-別の吹き出しを出すため、同じキャラの複数発話でも以前の2人の掛け合いに見える。
+`CONSULT_MAX_TURNS` は 1。相談画面（`ConsultStage`）は複数の発話を1つの答えにつなげ、
+最初の発話の話し手の名前で出すので、2以上にしても掛け合いにはならず長い答えになるだけ。
 
 「発話はいくつか」「何文・何文字か」「答えをどう組み立てるか」「方言の濃さ」は
 すべて DB の `consult.conversation_rules` で決める。**コードに発話数や話者順の指示を
@@ -55,7 +55,7 @@ DBで上書きできるのは `promptKeys.ts` の `AI_PROMPT_DEFS` に載って�
 
 「コード契約」の代表が `CONSULT_ANSWER_RULES` と `buildStreamingFormatPrompt()` /
 `buildJsonFormatPrompt()`。これらは `buildResponseSchema()` のJSON schema、
-`parseStreamingConsultOutput()` のパーサ、`GrandmaChatter` の描画と対になっている。
+`parseStreamingConsultOutput()` のパーサ、相談画面（`ConsultStage`）の描画と対になっている。
 1行消すだけで相談機能が止まるので、管理画面から編集できるようにしてはいけない。
 
 ## 出力形式は経路ごとに違う（固定部分に書かない）

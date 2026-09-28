@@ -3,23 +3,10 @@ import { cookies } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/utils/supabase/server";
 import { requireSameOrigin } from "@/lib/security/requestGuards";
+import { enforceRateLimit } from "@/lib/security/rateLimit";
+import { todayJstString } from "@/lib/time/jstDate";
 
 const VISITOR_COOKIE_NAME = "nicchyo_visitor_id";
-
-
-function getTokyoTodayIso(baseDate = new Date()) {
-  const formatter = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Asia/Tokyo",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  });
-  const parts = formatter.formatToParts(baseDate);
-  const year = parts.find((p) => p.type === "year")?.value ?? "0000";
-  const month = parts.find((p) => p.type === "month")?.value ?? "01";
-  const day = parts.find((p) => p.type === "day")?.value ?? "01";
-  return `${year}-${month}-${day}`;
-}
 
 function isValidVisitorKey(value: string) {
   return value.length >= 16 && value.length <= 128;
@@ -37,6 +24,15 @@ function normalizeRole(user: unknown) {
 export async function POST(request: NextRequest) {
   const originCheck = requireSameOrigin(request);
   if (!originCheck.ok) return originCheck.response;
+
+  // 認証不要でだれでも叩ける書き込みAPI。同一オリジン要求でもボットや壊れた
+  // クライアントの連打はありえるため、IPあたりで上限を設ける（Issue #352）
+  const rateLimited = await enforceRateLimit(request, {
+    bucket: "analytics-page-visit-post",
+    limit: 30,
+    windowMs: 5 * 60 * 1000,
+  });
+  if (rateLimited) return rateLimited;
 
   const cookieStore = await cookies();
   const supabase = createClient(cookieStore);
@@ -78,7 +74,7 @@ export async function POST(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const visitDate = getTokyoTodayIso();
+  const visitDate = todayJstString();
   const { error } = await supabase.from("web_page_analytics").insert({
     visit_date: visitDate,
     visitor_key: visitorKey,

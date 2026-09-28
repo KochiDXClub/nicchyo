@@ -20,6 +20,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          # コード健康診断で PR の分岐点と比べるため、履歴ごと取得する
+          fetch-depth: 0
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -38,6 +41,14 @@ jobs:
 
       - name: Test
         run: npm test
+
+      # 共通化・デザインルールのビフォーアフターをジョブのサマリーに出す（docs/CODE_HEALTH.md）。
+      # 運用に慣れるまでは失敗扱いにしない（--strict を付けない）
+      - name: Code health
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: node scripts/code-health/cli.mjs --base "origin/$BASE_REF" --summary-file "$GITHUB_STEP_SUMMARY"
 
       - name: Build
         run: npm run build

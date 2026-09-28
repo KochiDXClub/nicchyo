@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import type { Metadata, Viewport } from "next";
 import { headers } from "next/headers";
+import { Mochiy_Pop_One } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/lib/auth/AuthContext";
 import { MenuProvider } from "@/lib/ui/MenuContext";
@@ -12,9 +13,22 @@ import PageVisitTracker from "./components/PageVisitTracker";
 import ViewportHeightUpdater from "./components/ViewportHeightUpdater";
 import { Toaster } from "@/components/admin";
 import { safeJsonLd } from "@/lib/utils/jsonLd";
+import { SITE_URL } from "@/lib/constants";
+
+// 見出し用の丸文字。以前は globals.css の @import で Google Fonts から読んでいたが、
+// それだと「ページの CSS → Google の CSS（約110KB）」を読み終えるまで画面が描かれず、
+// 遅い回線では最初の表示が数秒遅れていた。next/font でビルド時に取り込み、自サイトから配信する。
+// 使う画面が限られるので先読み（preload）はしない（地図などの読み込みと回線を取り合わないため）
+const mochiyPopOne = Mochiy_Pop_One({
+  weight: "400",
+  subsets: ["latin"],
+  display: "swap",
+  preload: false,
+  variable: "--font-mochiy",
+});
 
 export const metadata: Metadata = {
-  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || "https://nicchyo.jp"),
+  metadataBase: new URL(SITE_URL),
   title: {
     default: "nicchyo | 高知の日曜市を、未来へつなぐ",
     template: "%s | nicchyo",
@@ -54,8 +68,6 @@ export const viewport: Viewport = {
   viewportFit: "cover",
 };
 
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://nicchyo.jp";
-
 const organizationJsonLd = {
   "@context": "https://schema.org",
   "@type": "Organization",
@@ -80,7 +92,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const nonce = (await headers()).get("x-nonce") ?? undefined;
 
   return (
-    <html lang="ja">
+    <html lang="ja" className={mochiyPopOne.variable}>
       <head>
         <script
           nonce={nonce}

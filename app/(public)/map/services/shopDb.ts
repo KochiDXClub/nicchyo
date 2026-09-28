@@ -30,7 +30,7 @@ type OwnerProfileRow = {
   owner_name: string | null;
 };
 
-type ActiveContentRow = {
+export type ActiveContentRow = {
   id: string;
   vendor_id: string | null;
   body: string | null;
@@ -84,9 +84,23 @@ function normalizeChome(value: string | null): Shop["chome"] {
   return undefined;
 }
 
-export async function fetchVendorShopsFromDb(
+/**
+ * 店舗の基本データ（投稿以外）。
+ * 更新がまれで 1 回あたりの転送量が大きい（数百 KB）ため、/map と /api/shops では
+ * shopCache.ts 経由でキャッシュして使う。JSON にそのまま載る素の行だけを持たせる。
+ */
+export type VendorShopBaseRows = {
+  vendors: VendorRow[];
+  ownerProfiles: OwnerProfileRow[];
+  categories: CategoryRow[];
+  products: ProductRow[];
+  locations: LocationRow[];
+  assignments: AssignmentRow[];
+};
+
+export async function fetchVendorShopBaseRows(
   supabase: SupabaseClient<Database>
-): Promise<Shop[]> {
+): Promise<{ rows: VendorShopBaseRows; failedTables: string[] }> {
   const [
     { data: vendorsData, error: vendorsError },
     { data: ownerProfilesData, error: ownerProfilesError },
@@ -94,7 +108,6 @@ export async function fetchVendorShopsFromDb(
     { data: productsData, error: productsError },
     { data: locationsData, error: locationsError },
     { data: assignmentsData, error: assignmentsError },
-    { data: activeContentsData, error: contentsError },
   ] = await Promise.all([
     supabase
       .from("vendors")
@@ -106,19 +119,11 @@ export async function fetchVendorShopsFromDb(
       .from("market_locations")
       .select("id, store_number, latitude, longitude, district"),
     supabase.from("location_assignments").select("vendor_id, location_id, market_date"),
-    supabase
-      .from("vendor_contents")
-      .select("id, vendor_id, body, image_url, expires_at, created_at")
-      // RLS の「vendors can read own contents」ポリシー（状態条件なし）が
-      // OR 結合されるため、認証済みベンダーのセッションで本人の hidden/deleted
-      // 投稿がマップバナーに紛れ込まないよう明示する（/api/stories と同じ対策）
-      .eq("status", "active")
-      .gt("expires_at", new Date().toISOString())
-      .order("created_at", { ascending: false }),
   ]);
 
   // どれか1つでも失敗すると該当データが黙って空扱いになり店舗が減る/消えるため、
   // 原因追跡できるよう警告として残す（握りつぶし自体は既存の設計を踏襲）
+  const failedTables: string[] = [];
   for (const [label, error] of [
     ["vendors", vendorsError],
     ["vendor_owner_profiles", ownerProfilesError],
@@ -126,36 +131,70 @@ export async function fetchVendorShopsFromDb(
     ["products", productsError],
     ["market_locations", locationsError],
     ["location_assignments", assignmentsError],
-    ["vendor_contents", contentsError],
   ] as const) {
     if (error) {
       console.warn(`[fetchVendorShopsFromDb] ${label} の取得に失敗しました:`, error.message);
+      failedTables.push(label);
     }
   }
 
-  const vendors = Array.isArray(vendorsData)
-    ? (vendorsData as VendorRow[])
-    : [];
+  return {
+    rows: {
+      vendors: Array.isArray(vendorsData) ? (vendorsData as VendorRow[]) : [],
+      ownerProfiles: Array.isArray(ownerProfilesData)
+        ? (ownerProfilesData as OwnerProfileRow[])
+        : [],
+      categories: Array.isArray(categoriesData) ? (categoriesData as CategoryRow[]) : [],
+      products: Array.isArray(productsData) ? (productsData as ProductRow[]) : [],
+      locations: Array.isArray(locationsData) ? (locationsData as LocationRow[]) : [],
+      assignments: Array.isArray(assignmentsData) ? (assignmentsData as AssignmentRow[]) : [],
+    },
+    failedTables,
+  };
+}
+
+/** 有効期限内の投稿。期限切れがあるので基本データとは分けて毎回取る（数十 KB 程度） */
+export async function fetchActiveContentRows(
+  supabase: SupabaseClient<Database>
+): Promise<ActiveContentRow[]> {
+  const { data, error } = await supabase
+    .from("vendor_contents")
+    .select("id, vendor_id, body, image_url, expires_at, created_at")
+    // RLS の「vendors can read own contents」ポリシー（状態条件なし）が
+    // OR 結合されるため、認証済みベンダーのセッションで本人の hidden/deleted
+    // 投稿がマップバナーに紛れ込まないよう明示する（/api/stories と同じ対策）
+    .eq("status", "active")
+    .gt("expires_at", new Date().toISOString())
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    console.warn("[fetchActiveContentRows] vendor_contents の取得に失敗しました:", error.message);
+    return [];
+  }
+  return Array.isArray(data) ? (data as ActiveContentRow[]) : [];
+}
+
+export async function fetchVendorShopsFromDb(
+  supabase: SupabaseClient<Database>
+): Promise<Shop[]> {
+  const [{ rows }, activeContents] = await Promise.all([
+    fetchVendorShopBaseRows(supabase),
+    fetchActiveContentRows(supabase),
+  ]);
+  return buildVendorShops(rows, activeContents);
+}
+
+export function buildVendorShops(
+  base: VendorShopBaseRows,
+  activeContents: ActiveContentRow[]
+): Shop[] {
+  const { vendors, categories, products, locations, assignments } = base;
   const ownerNameByVendorId = new Map<string, string>();
-  (Array.isArray(ownerProfilesData) ? (ownerProfilesData as OwnerProfileRow[]) : []).forEach(
-    (row) => {
-      if (row.vendor_id && row.owner_name) {
-        ownerNameByVendorId.set(row.vendor_id, row.owner_name);
-      }
+  base.ownerProfiles.forEach((row) => {
+    if (row.vendor_id && row.owner_name) {
+      ownerNameByVendorId.set(row.vendor_id, row.owner_name);
     }
-  );
-  const categories = Array.isArray(categoriesData)
-    ? (categoriesData as CategoryRow[])
-    : [];
-  const products = Array.isArray(productsData)
-    ? (productsData as ProductRow[])
-    : [];
-  const locations = Array.isArray(locationsData)
-    ? (locationsData as LocationRow[])
-    : [];
-  const assignments = Array.isArray(assignmentsData)
-    ? (assignmentsData as AssignmentRow[])
-    : [];
+  });
 
   const categoryNameById = new Map<string, string>();
   categories.forEach((row) => {
@@ -173,9 +212,6 @@ export async function fetchVendorShopsFromDb(
   });
 
   // 有効期限内の投稿を vendor_id ごとに時系列で保持
-  const activeContents = Array.isArray(activeContentsData)
-    ? (activeContentsData as ActiveContentRow[])
-    : [];
   const activeContentsByVendor = new Map<string, ActiveContentRow[]>();
   activeContents.forEach((row) => {
     if (!row.vendor_id) return;

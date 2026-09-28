@@ -41,7 +41,8 @@ export type AiModelDef = {
   /**
    * temperature を送ってよいか。
    * false のモデルには送らない。送って 400 で落ちるより、送らずに
-   * モデル既定値で動く方が被害が小さい
+   * モデル既定値で動く方が被害が小さい。
+   * true でも、推論の深さが none 以外のときは送らない（buildChatCompletionBody）
    */
   supportsTemperature: boolean;
   /**
@@ -84,9 +85,11 @@ export const AI_MODEL_DEFS: readonly AiModelDef[] = [
     description:
       "会話向けの軽量モデル。2026-07 の比較で最速だった。相談・店舗チャット・意図抽出のような、速さが体験を決める場面向け。",
     tokenParam: "max_completion_tokens",
-    // 未検証。送って 400 になるより、送らずにモデル既定値で動く方を選ぶ
-    supportsTemperature: false,
-    reasoningEfforts: ["minimal", "low", "medium", "high"],
+    // 2026-09-12 に temperature 0.7 で 200 を確認
+    supportsTemperature: true,
+    // 5.4 系は `minimal` を受け付けない（400 unsupported_value。2026-09-12 に実測）。
+    // 受け付けるのは none / low / medium / high / xhigh
+    reasoningEfforts: ["none", "low", "medium", "high", "xhigh"],
     reasoningHeadroomTokens: 4000,
     pricing: { input: 0.2, output: 1.25 },
   },
@@ -96,8 +99,10 @@ export const AI_MODEL_DEFS: readonly AiModelDef[] = [
     description:
       "nano より賢いが約4倍高く、体感で2倍遅い。回り方プランのように、実際に順序を考える必要がある場面向け。",
     tokenParam: "max_completion_tokens",
-    supportsTemperature: false,
-    reasoningEfforts: ["minimal", "low", "medium", "high"],
+    // 2026-09-12 に temperature 0.7 で 200 を確認
+    supportsTemperature: true,
+    // nano と同じく `minimal` は 400。none / low / medium / high / xhigh
+    reasoningEfforts: ["none", "low", "medium", "high", "xhigh"],
     reasoningHeadroomTokens: 6000,
     pricing: { input: 0.75, output: 4.5 },
   },
@@ -122,6 +127,23 @@ export const AI_MODEL_DEFS: readonly AiModelDef[] = [
     reasoningEfforts: ["none", "low", "medium", "high", "xhigh", "max"],
     reasoningHeadroomTokens: 6000,
     pricing: { input: 0.2, output: 1.2 },
+  },
+  {
+    id: "gpt-6-luna",
+    label: "GPT-6 Luna",
+    description:
+      "6 世代の軽量モデル（5.6 Luna の後継）。候補の中で 5 nano の次に安く、推論なしなら最初の文字が出るのが速い。深さを上げると考えてから答えるぶん待ちが伸びる。",
+    tokenParam: "max_completion_tokens",
+    // 未実測。5.x 系と同じく推論なし（none）なら受け付けるという情報と、
+    // 既定値（1）以外は一切受け付けないという情報が混在している。
+    // 送って全リクエストが 400 になるより、送らずにモデル既定値で動く方を選ぶ。
+    // 実測で 200 を確認したら true にしてよい（推論ありのときは buildChatCompletionBody が送らない）
+    supportsTemperature: false,
+    // API 側の既定は medium。先頭の none を既定にして、明示的に推論を切る
+    reasoningEfforts: ["none", "low", "medium", "high", "xhigh", "max"],
+    // 5.6 Luna より出力が長めになる傾向があるので、5.6 Luna と同じ余白を確保する
+    reasoningHeadroomTokens: 6000,
+    pricing: { input: 0.1, output: 0.5 },
   },
 ];
 
@@ -436,6 +458,16 @@ export function validateAiModelChoice(
 export type ResolvedAiModel = {
   def: AiModelDef;
   reasoningEffort?: ReasoningEffort;
+  /**
+   * 選んだモデルを OpenAI 側が受け付けなかったとき（`model_not_found`）に
+   * 代わりに使うコード側の既定モデル。既定モデルそのものを選んでいるときは無い。
+   *
+   * 台帳に載っていても、APIキーの属する OpenAI プロジェクトで使用許可が
+   * 出ていないモデルは 400 で落ちる。管理画面で切り替えた瞬間に来訪者向けの
+   * 相談が全部止まるより、既定モデルで答え続けるほうが被害が小さい。
+   * 実際に落ちた事実は requestChatCompletion がログに残す。
+   */
+  fallbackDef?: AiModelDef;
 };
 
 export function resolveAiModelChoice(
@@ -457,7 +489,16 @@ export function resolveAiModelChoice(
       ? choice.reasoningEffort
       : def.reasoningEfforts[0];
 
-  return effort ? { def, reasoningEffort: effort } : { def };
+  // 既定モデルはコード側の定義から引く。台帳の既定モデル行が消えていても
+  // 逃げ先が無くならないようにするため
+  const codeDefault = AI_MODEL_DEF_BY_ID.get(DEFAULT_AI_MODEL_SETTINGS[useCase].modelId);
+  const fallbackDef = codeDefault && codeDefault.id !== def.id ? codeDefault : undefined;
+
+  return {
+    def,
+    ...(effort ? { reasoningEffort: effort } : {}),
+    ...(fallbackDef ? { fallbackDef } : {}),
+  };
 }
 
 /** 推論トークンが出力上限を食う状態か */
@@ -509,7 +550,13 @@ export function buildChatCompletionBody(
     body[def.tokenParam] = resolveMaxOutputTokens(model, params.maxOutputTokens);
   }
 
-  if (params.temperature !== undefined && def.supportsTemperature) {
+  // 推論モデルが temperature を受け付けるのは推論なし（none）のときだけ。
+  // 深さを上げたまま送ると 400 で全リクエストが落ちる
+  if (
+    params.temperature !== undefined &&
+    def.supportsTemperature &&
+    (reasoningEffort === undefined || reasoningEffort === "none")
+  ) {
     body.temperature = params.temperature;
   }
   if (reasoningEffort) {

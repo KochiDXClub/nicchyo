@@ -3,23 +3,10 @@ import { cookies } from "next/headers";
 import { createClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/database.types";
 import { requireSameOrigin } from "@/lib/security/requestGuards";
+import { enforceRateLimit } from "@/lib/security/rateLimit";
+import { todayJstString } from "@/lib/time/jstDate";
 
 const VISITOR_COOKIE_NAME = "nicchyo_visitor_id";
-
-function getTokyoTodayIso(baseDate = new Date()) {
-  const formatter = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Asia/Tokyo",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  });
-
-  const parts = formatter.formatToParts(baseDate);
-  const year = parts.find((p) => p.type === "year")?.value ?? "0000";
-  const month = parts.find((p) => p.type === "month")?.value ?? "01";
-  const day = parts.find((p) => p.type === "day")?.value ?? "01";
-  return `${year}-${month}-${day}`;
-}
 
 function isValidVisitorKey(value: string) {
   return /^[a-f0-9-]{16,64}$/i.test(value);
@@ -28,6 +15,15 @@ function isValidVisitorKey(value: string) {
 export async function POST(request: Request) {
   const originCheck = requireSameOrigin(request);
   if (!originCheck.ok) return originCheck.response;
+
+  // DB側のON CONFLICT DO NOTHINGは同一visitor・同一日を防ぐだけで、
+  // 連打そのもの（RPC呼び出しの回数）は防がないため、IPあたりで上限を設ける（Issue #352）
+  const rateLimited = await enforceRateLimit(request, {
+    bucket: "analytics-home-visit-post",
+    limit: 30,
+    windowMs: 5 * 60 * 1000,
+  });
+  if (rateLimited) return rateLimited;
 
   const cookieStore = await cookies();
   let visitorKey = cookieStore.get(VISITOR_COOKIE_NAME)?.value ?? "";
@@ -70,7 +66,7 @@ export async function POST(request: Request) {
     },
   });
 
-  const visitDate = getTokyoTodayIso();
+  const visitDate = todayJstString();
 
   const { data, error } = await supabase.rpc("track_home_visit", {
     p_visit_date: visitDate,

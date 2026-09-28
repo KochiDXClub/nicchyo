@@ -5,11 +5,13 @@ import { createClient } from '@/utils/supabase/server';
 import MapPageClient from './MapPageClient';
 import MapLoadingOverlay from '../../components/MapLoadingOverlay';
 import type { Shop } from './data/shops';
-import { fetchVendorShopsFromDb } from './services/shopDb';
+import { fetchPublicShops } from './services/shopCache';
 import { fetchLandmarksFromDb } from './services/landmarksDb';
 import type { Landmark } from './types/landmark';
+import { withOptimizedLandmarkImage } from './utils/landmarkImages';
 import type { MapRoute } from './types/mapRoute';
 import { fetchMapRouteFromDb, getFallbackMapRoute } from './services/mapRouteDb';
+import { SITE_URL } from '@/lib/constants';
 import { safeJsonLd } from '@/lib/utils/jsonLd';
 import { fetchMapFeatureFlags } from '@/lib/mapFeatureFlags.server';
 import { fetchMapViewSettings } from '@/lib/map/mapViewSettings.server';
@@ -50,7 +52,7 @@ const sundayMarketJsonLd = {
   organizer: {
     "@type": "Organization",
     name: "nicchyo（ニッチョ）",
-    url: "https://nicchyo.jp",
+    url: SITE_URL,
   },
 };
 
@@ -72,7 +74,8 @@ export default async function MapPage() {
       const supabase = createClient(cookieStore);
       // 1つの取得が失敗しても他の取得結果を巻き込まないよう、allSettled で独立に扱う
       const [shopsResult, landmarksResult, mapRouteResult] = await Promise.allSettled([
-        fetchVendorShopsFromDb(supabase),
+        // 店舗は全員共通のキャッシュから読む（ログイン状態に関係なく同じ内容）
+        fetchPublicShops(),
         fetchLandmarksFromDb(supabase),
         fetchMapRouteFromDb(supabase),
       ]);
@@ -84,7 +87,7 @@ export default async function MapPage() {
       }
 
       if (landmarksResult.status === "fulfilled") {
-        landmarks = landmarksResult.value;
+        landmarks = landmarksResult.value.map(withOptimizedLandmarkImage);
       } else {
         console.warn("[MapPage] 建物データの取得に失敗しました:", landmarksResult.reason);
       }

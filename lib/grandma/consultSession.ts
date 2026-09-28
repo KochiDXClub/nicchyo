@@ -120,7 +120,8 @@ export function pickSuggestions({ entries, pool, count = 3 }: PickSuggestionsInp
 /**
  * マップ上の相談から「くわしく相談する」で遷移してきたときの引き継ぎ。
  *
- * マップ側（MapCharacterConsult）は発話の並びを nicchyo-consult-chat に書く。
+ * 以前のマップ側の相談（MapCharacterConsult、廃止済み）は発話の並びを
+ * nicchyo-consult-chat に書いていた。いまは新しく書かれないが、端末に残った分を読む。
  * こちらは1往復を1件として持つので、user → assistant の組に畳み直す。
  * 読み込めなかったら黙って諦める（引き継げなくても相談は続けられる）。
  */

@@ -4,7 +4,23 @@ import React, { createContext, useContext, useEffect, useRef, useState, ReactNod
 import type { User, UserRole, PermissionCheck } from "./types";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
 import { useRouter } from "next/navigation";
-import { createClient } from "@/utils/supabase/client";
+
+type BrowserSupabase = ReturnType<(typeof import("@/utils/supabase/client"))["createClient"]>;
+
+// Supabase のライブラリ（圧縮後で約60KB）は、ログイン状態を確かめるまで要らない。
+// 静的に import すると全ページの最初の JS に入り、地図など表示に必要な JS と
+// 回線を取り合うため、使う直前に読み込む（読み込みは1回だけ）
+let supabasePromise: Promise<BrowserSupabase> | null = null;
+function loadSupabase(): Promise<BrowserSupabase> {
+  supabasePromise ??= import("@/utils/supabase/client")
+    .then((mod) => mod.createClient())
+    .catch((err: unknown) => {
+      // 読み込みに失敗したら次の呼び出しで取り直せるようにする
+      supabasePromise = null;
+      throw err;
+    });
+  return supabasePromise;
+}
 
 interface AuthContextType {
   isLoggedIn: boolean;
@@ -29,7 +45,7 @@ function normalizeRole(value?: string | null): UserRole {
   return "general_user";
 }
 
-async function mapSupabaseUserWithVendorId(user: SupabaseUser, supabase: ReturnType<typeof createClient>): Promise<User> {
+async function mapSupabaseUserWithVendorId(user: SupabaseUser, supabase: BrowserSupabase): Promise<User> {
   const appMeta = user.app_metadata as { role?: string; provider?: string } | undefined;
   const userMeta = user.user_metadata as {
     role?: string;
@@ -76,7 +92,7 @@ async function mapSupabaseUserWithVendorId(user: SupabaseUser, supabase: ReturnT
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
-  const supabaseRef = useRef<ReturnType<typeof createClient> | null>(null);
+  const supabaseRef = useRef<BrowserSupabase | null>(null);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -88,9 +104,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const init = async () => {
       if (!supabaseRef.current) {
         try {
-          supabaseRef.current = createClient();
+          supabaseRef.current = await loadSupabase();
         } catch {
-          setIsLoading(false);
+          if (active) setIsLoading(false);
           return;
         }
       }
@@ -174,7 +190,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     captchaToken?: string
   ) => {
     const email = identifier.trim();
-    const supabase = supabaseRef.current ?? createClient();
+    const supabase = supabaseRef.current ?? (await loadSupabase());
     const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
@@ -199,14 +215,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (updates.email && updates.email !== user.email) {
       payload.email = updates.email;
     }
-    const supabase = supabaseRef.current ?? createClient();
+    const supabase = supabaseRef.current ?? (await loadSupabase());
     const { data, error } = await supabase.auth.updateUser(payload);
     if (error || !data.user) return;
     setUser(await mapSupabaseUserWithVendorId(data.user, supabase));
   };
 
   const logout = async () => {
-    const supabase = supabaseRef.current ?? createClient();
+    const supabase = supabaseRef.current ?? (await loadSupabase());
     await supabase.auth.signOut();
     setUser(null);
     setIsLoggedIn(false);

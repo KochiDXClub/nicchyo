@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { findRegistryEntry, PAGE_REGISTRY } from "./registry";
+import { findRegistryEntry, ODEKAKE_VISIBILITY_PATH, PAGE_REGISTRY } from "./registry";
 import {
   isLinkVisible,
   isSafeRedirectPath,
@@ -73,6 +73,15 @@ describe("resolvePageVisibility", () => {
   it("lockedPublic のページは private にできない", () => {
     const locked: PageVisibilitySettings = { pages: { "/map": { roles: { anon: "private" } } } };
     expect(resolvePageVisibility("/map", "anon", locked).state).toBe("public");
+  });
+
+  it("おでかけサポートは地図（常に公開）とは別に止められ、保存した設定も読み戻せる", () => {
+    const off = parsePageVisibilitySettings({
+      pages: { [ODEKAKE_VISIBILITY_PATH]: { roles: { anon: "private", general_user: "unlisted" } } },
+    });
+    expect(resolvePageVisibility(ODEKAKE_VISIBILITY_PATH, "anon", off).state).toBe("private");
+    expect(resolvePageVisibility(ODEKAKE_VISIBILITY_PATH, "general_user", off).state).toBe("unlisted");
+    expect(resolvePageVisibility("/map", "anon", off).state).toBe("public");
   });
 
   it("未登録パスは常に public", () => {

@@ -41,6 +41,9 @@ export interface MapPerfRunRow {
   user_agent: string;
 }
 
+// map_perf_runs はまだ生成済み型定義に含まれていない。共通の
+// createAdminServiceClient（DatabaseWithExtensions型）に寄せると
+// このテーブルへのクエリが軒並み型エラーになるため、dedup の対象からは外す
 function createAdminClient() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;

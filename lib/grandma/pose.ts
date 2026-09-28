@@ -4,13 +4,13 @@
  * 会話の状態（聞いている・考えている・答えている）をキャラの姿勢に写す。
  * これによりローディングスピナーや録音中インジケータをキャラの動きに置き換えられる。
  *
- * 表示側の都合を持ち込まない純関数にしてあるので、GrandmaChatter の状態から
+ * 表示側の都合を持ち込まない純関数にしてあるので、相談画面（ConsultStage）の状態から
  * そのまま導出できる（新しい state を増やさない）。
  */
 
 export type GrandmaPose = "idle" | "listening" | "thinking" | "speaking";
 
-/** GrandmaChatter が持っている aiStatus と同じ形 */
+/** 相談画面の AI の状態 */
 export type GrandmaAiStatus = "idle" | "thinking" | "answered" | "error";
 
 export interface GrandmaPoseInput {

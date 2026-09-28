@@ -62,3 +62,47 @@ export async function requireAdminApi(): Promise<
 
   return { user, role, adminClient: createAdminServiceClient() };
 }
+
+/**
+ * admin ロールでなければ弾く、requireAdminApi() の簡易版。
+ *
+ * 呼び出し側で `{ user, error }` の形をそのまま使い続けている既存ルートが
+ * 多いため、そちらに合わせた戻り値の形で用意している
+ * （エラーを NextResponse ではなく文字列で返す。呼び出し側は自前で
+ * `NextResponse.json({ error }, { status: 403 })` 等に変換する）。
+ * `adminClient` は含まないので、必要なら `@/lib/supabase/adminClient` の
+ * createAdminClient() を別途呼ぶこと。
+ *
+ * 新規に書くルートは requireAdminApi() を使うことを推奨する
+ * （adminClient・role がまとめて手に入り、401レスポンスも直接返せるため）。
+ * これは、既に authorizeAdmin() の形で書かれている既存ルート向けの
+ * 共通化用エクスポート（Issue: 共通化調査で見つかった重複）。
+ */
+export async function authorizeAdmin(): Promise<
+  { user: User; error: null } | { user: null; error: string }
+> {
+  const cookieStore = await cookies();
+  const supabase = createServerClient(cookieStore);
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user || !isAdmin(getRole(user))) return { user: null, error: "Forbidden" };
+  return { user, error: null };
+}
+
+/**
+ * createAdminServiceClient() の env未設定時版。例外を投げず null を返す。
+ *
+ * 「env が無ければ 503 を返して終わる」ルートで使う（呼び出し側で
+ * `if (!dc) return NextResponse.json(..., { status: 503 })` のように書ける）。
+ * DatabaseWithExtensions の型が必要な箇所での createAdminClient() の
+ * 再実装（env未設定チェック＋createServiceClient呼び出し）が何箇所かに
+ * あったため、ここに1本化する。
+ */
+export function createAdminServiceClientOrNull(): SupabaseClient<DatabaseWithExtensions> | null {
+  try {
+    return createAdminServiceClient();
+  } catch {
+    return null;
+  }
+}

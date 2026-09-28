@@ -9,6 +9,7 @@ import { useAuth } from "@/lib/auth/AuthContext";
 import { createPost, fetchVendorPosts, fetchPostById, repostContent } from "../../_services/postsService";
 import type { ExpirationPreset, Post, PostStatus } from "../../_types";
 import { getNextSundayExpiry } from "@/lib/utils/date";
+import { canDecodeImage, imageErrorMessage, IMAGE_DECODE_ERROR_MESSAGE } from "@/lib/image/clientCompression";
 import {
   ArrowLeft,
   Image as ImageIcon,
@@ -213,9 +214,16 @@ export default function VendorPostNewPage() {
     router.push(`/vendor/post/new?repost=${post.id}`);
   }
 
-  function handleImageChange(e: ChangeEvent<HTMLInputElement>) {
+  async function handleImageChange(e: ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
+    // 送信時の変換でつまずく前に、このブラウザで読める写真かを確かめる
+    if (!(await canDecodeImage(file))) {
+      setFormError(IMAGE_DECODE_ERROR_MESSAGE);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      return;
+    }
+    setFormError(null);
     setImageFile(file);
     setExistingImageUrl(null);
     const reader = new FileReader();
@@ -240,8 +248,8 @@ export default function VendorPostNewPage() {
       await createPost(user.id, text, expiresAt, imageFile ?? undefined, existingImageUrl ?? undefined);
       setIsSubmitted(true);
       setHistoryLoaded(false); // 次回履歴タブ開時に再取得
-    } catch {
-      setFormError("投稿に失敗しました。もう一度お試しください。");
+    } catch (err) {
+      setFormError(imageErrorMessage(err, "投稿に失敗しました。もう一度お試しください。"));
     } finally {
       setIsSubmitting(false);
     }
@@ -389,10 +397,10 @@ export default function VendorPostNewPage() {
               >
                 <ImageIcon size={24} />
                 <span className="text-base font-medium">タップして画像を追加</span>
-                <span className="text-sm text-slate-400">JPG / PNG / WEBP（5MB以内）</span>
+                <span className="text-sm text-slate-400">JPG・PNG・WebP・iPhone写真など</span>
               </button>
             )}
-            <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleImageChange} />
+            <input ref={fileInputRef} type="file" accept="image/*,.heic,.heif" className="hidden" onChange={handleImageChange} />
           </div>
 
           {/* 表示期間 */}

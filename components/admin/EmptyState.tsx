@@ -1,5 +1,16 @@
 import React from "react";
+import { EmptyState as BaseEmptyState, Button } from "@/components/ui";
 
+/**
+ * 管理画面の空状態。
+ *
+ * 中身は共通の EmptyState（components/ui/empty-state.tsx）。
+ * 呼び出し側の書き方（絵文字と action: {label, onClick}）はそのままにしたいので、
+ * ここで受け取って渡し替えている。新しく書くところは共通のほうを直接使う。
+ *
+ * 管理画面は情報量が多いので tone は neutral。ボタンの色も、以前の blue-600 から
+ * プロダクトの主色（amber）に揃えた。
+ */
 interface EmptyStateProps {
   icon?: string;
   title: string;
@@ -17,21 +28,19 @@ export const EmptyState = React.memo(function EmptyState({
   action,
 }: EmptyStateProps) {
   return (
-    <div className="flex flex-col items-center justify-center py-12 px-4">
-      <div className="text-6xl mb-4" aria-hidden="true">
-        {icon}
-      </div>
-      <h3 className="text-lg font-semibold text-gray-900 mb-2">{title}</h3>
-      {description && <p className="text-sm text-gray-600 mb-4 text-center max-w-md">{description}</p>}
-      {action && (
-        <button
-          type="button"
-          onClick={action.onClick}
-          className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
-        >
-          {action.label}
-        </button>
-      )}
-    </div>
+    <BaseEmptyState
+      icon={icon}
+      title={title}
+      description={description}
+      tone="neutral"
+      bordered={false}
+      action={
+        action ? (
+          <Button size="sm" onClick={action.onClick}>
+            {action.label}
+          </Button>
+        ) : undefined
+      }
+    />
   );
 });

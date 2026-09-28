@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Landmark } from '@/app/(public)/map/types/landmark';
 import {
-  countFacilitiesByCategory,
   getFacilitiesFromLandmarks,
   getFacilityCategoryOfLandmark,
 } from './landmarkFacilities';
@@ -67,11 +66,5 @@ describe('getFacilitiesFromLandmarks', () => {
     ]);
     expect(transit[0].markerColor).toBe('#f97316');
     expect(transit[1].markerColor).toBe('#1d4ed8');
-  });
-});
-
-describe('countFacilitiesByCategory', () => {
-  it('カテゴリごとの件数を返す', () => {
-    expect(countFacilitiesByCategory(landmarks)).toEqual({ restroom: 1, rest: 1, transport: 3 });
   });
 });

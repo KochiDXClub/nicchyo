@@ -3,6 +3,7 @@ import { getRole } from "@/lib/auth/permissions";
 import { requireSameOrigin } from "@/lib/security/requestGuards";
 import { enforceRateLimit } from "@/lib/security/rateLimit";
 import { createAdminClient, authorizeAdmin } from "../categories/_helpers";
+import { logAdminAudit } from "@/lib/audit/logAdminAudit";
 import { SPOT_CATEGORIES, type SpotCategory, type AdminSpot } from "@/lib/spots/adminSpot";
 
 export const runtime = "nodejs";
@@ -229,15 +230,16 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "作成に失敗しました" }, { status: 500 });
   }
 
-  await dc.from("admin_audit_logs").insert({
-    actor_id: user.id,
-    actor_email: user.email,
-    actor_role: getRole(user),
-    action: "spot_created",
-    target_type: "map_landmark",
-    target_id: key,
-    details: JSON.stringify({ name: result.values.name, category: result.values.category }),
-  });
+  await logAdminAudit(
+    dc,
+    { id: user.id, email: user.email, role: getRole(user) },
+    {
+      action: "spot_created",
+      targetType: "map_landmark",
+      targetId: key,
+      details: JSON.stringify({ name: result.values.name, category: result.values.category }),
+    }
+  );
 
   return NextResponse.json({ spot: data as unknown as AdminSpot }, { status: 201 });
 }
@@ -279,15 +281,16 @@ export async function PATCH(req: Request) {
   if (dbError) return NextResponse.json({ error: "更新に失敗しました" }, { status: 500 });
   if (!data) return NextResponse.json({ error: "スポットが見つかりません" }, { status: 404 });
 
-  await dc.from("admin_audit_logs").insert({
-    actor_id: user.id,
-    actor_email: user.email,
-    actor_role: getRole(user),
-    action: "spot_updated",
-    target_type: "map_landmark",
-    target_id: key,
-    details: JSON.stringify({ fields: Object.keys(result.values) }),
-  });
+  await logAdminAudit(
+    dc,
+    { id: user.id, email: user.email, role: getRole(user) },
+    {
+      action: "spot_updated",
+      targetType: "map_landmark",
+      targetId: key,
+      details: JSON.stringify({ fields: Object.keys(result.values) }),
+    }
+  );
 
   return NextResponse.json({ spot: data as unknown as AdminSpot });
 }
@@ -321,15 +324,11 @@ export async function DELETE(req: Request) {
   if (dbError) return NextResponse.json({ error: "削除に失敗しました" }, { status: 500 });
   if (!count) return NextResponse.json({ error: "スポットが見つかりません" }, { status: 404 });
 
-  await dc.from("admin_audit_logs").insert({
-    actor_id: user.id,
-    actor_email: user.email,
-    actor_role: getRole(user),
-    action: "spot_deleted",
-    target_type: "map_landmark",
-    target_id: key,
-    details: null,
-  });
+  await logAdminAudit(
+    dc,
+    { id: user.id, email: user.email, role: getRole(user) },
+    { action: "spot_deleted", targetType: "map_landmark", targetId: key }
+  );
 
   return NextResponse.json({ ok: true });
 }

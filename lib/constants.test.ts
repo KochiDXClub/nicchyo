@@ -1,0 +1,102 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { normalizeSiteUrl } from "./constants";
+
+const DEFAULT = "https://nicchyo.jp";
+
+describe("normalizeSiteUrl", () => {
+  // 設定ミスの警告はここで検証する対象なので、テスト出力には混ぜない
+  beforeEach(() => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+    delete process.env.VERCEL_ENV;
+  });
+
+  describe("既定値にフォールバックする", () => {
+    it.each([
+      ["未設定", undefined],
+      ["空文字", ""],
+      ["空白のみ", "  "],
+      // 末尾スラッシュを剥がした結果が空になるケース。
+      // フォールバックの後に剥がす実装だと "" が返り、new URL("") で全ページが500になる
+      ["スラッシュのみ", "/"],
+      ["スラッシュの繰り返し", "///"],
+      // スキーム無し・http/https以外は new URL() が投げるか、おかしなURLになる
+      ["スキーム無し", "nicchyo.jp"],
+      ["http/https以外", "javascript:alert(1)"],
+    ])("%s: %s", (_label, input) => {
+      expect(normalizeSiteUrl(input)).toBe(DEFAULT);
+    });
+  });
+
+  // 既定値と同じホストで書くと「正規化した」のか「既定値に戻した」のかを
+  // テストが区別できなくなるため、正規化のケースは example.com で確認する。
+  // （区別できないと「少しでも怪しければ既定値に戻す」実装に書き換えられても気づけず、
+  //   プレビュー環境で本番ドメインのURLが出るようになる）
+  describe("入力のホストを保ったまま正規化する", () => {
+    it.each([
+      ["正常な値", "https://example.com", "https://example.com"],
+      ["末尾スラッシュ付き", "https://example.com/", "https://example.com"],
+      ["前後に空白", "  https://example.com  ", "https://example.com"],
+      ["プレビュー環境のhttp", "http://localhost:3000", "http://localhost:3000"],
+      // new URL() は通るが、そのまま連結すると壊れる入力。
+      // 例: "https://example.com?x=1" + "/shops/001" -> パスがクエリに飲まれる
+      ["クエリ付き", "https://example.com?x=1", "https://example.com"],
+      ["フラグメント付き", "https://example.com#a", "https://example.com"],
+      ["スラッシュ1本", "https:/example.com", "https://example.com"],
+      ["大文字スキーム", "HTTPS://example.com", "https://example.com"],
+      ["既定ポート付き", "https://example.com:443", "https://example.com"],
+      ["既定でないポート", "https://example.com:8443", "https://example.com:8443"],
+      ["認証情報付き", "https://user:pw@example.com/", "https://example.com"],
+      // サブパス運用は維持する
+      ["サブパス", "https://example.com/base/", "https://example.com/base"],
+    ])("%s: %s -> %s", (_label, input, expected) => {
+      expect(normalizeSiteUrl(input)).toBe(expected);
+    });
+  });
+
+  it("戻り値を連結してもURLが壊れない", () => {
+    for (const input of ["https://example.com?x=1", "https://example.com#a", "https://example.com/"]) {
+      expect(`${normalizeSiteUrl(input)}/shops/001`).toBe("https://example.com/shops/001");
+    }
+  });
+
+  it("戻り値は必ず new URL() を通せる", () => {
+    for (const input of [undefined, "", "  ", "/", "///", "nicchyo.jp", "https://example.com/"]) {
+      expect(() => new URL(normalizeSiteUrl(input))).not.toThrow();
+    }
+  });
+
+  describe("設定ミスに気づけるようにする", () => {
+    it("値が入っているのに不正なときは警告を出す", () => {
+      normalizeSiteUrl("nicchyo.jp");
+      expect(console.warn).toHaveBeenCalledOnce();
+    });
+
+    it("未設定・空文字は想定内なので警告を出さない", () => {
+      normalizeSiteUrl(undefined);
+      normalizeSiteUrl("");
+      expect(console.warn).not.toHaveBeenCalled();
+    });
+
+    // 仮ドメイン（nicchyo.jp）を指したまま本番稼働するのを防ぐため、
+    // 本番だけは警告で済ませずビルドを落とす
+    it("本番では値が入っているのに不正なら例外を投げる", () => {
+      process.env.VERCEL_ENV = "production";
+      expect(() => normalizeSiteUrl("nicchyo.jp")).toThrow(/NEXT_PUBLIC_SITE_URL/);
+      expect(() => normalizeSiteUrl("javascript:alert(1)")).toThrow(/NEXT_PUBLIC_SITE_URL/);
+    });
+
+    it("本番でも未設定・空文字は既定値で通す", () => {
+      process.env.VERCEL_ENV = "production";
+      expect(normalizeSiteUrl(undefined)).toBe(DEFAULT);
+      expect(normalizeSiteUrl("")).toBe(DEFAULT);
+    });
+
+    it("プレビューでは落とさず既定値で動く", () => {
+      process.env.VERCEL_ENV = "preview";
+      expect(normalizeSiteUrl("nicchyo.jp")).toBe(DEFAULT);
+    });
+  });
+});

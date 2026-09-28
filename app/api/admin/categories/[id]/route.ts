@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { getRole } from "@/lib/auth/permissions";
 import { createAdminClient, authorizeAdmin } from "../_helpers";
+import { logAdminAudit } from "@/lib/audit/logAdminAudit";
+import { revalidatePublicShops } from "@/app/(public)/map/services/shopCache";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -44,16 +46,14 @@ export async function PATCH(req: Request, { params }: Params) {
     return NextResponse.json({ error: "更新に失敗しました" }, { status: 500 });
   }
 
-  await dc.from("admin_audit_logs").insert({
-    actor_id: user.id,
-    actor_email: user.email,
-    actor_role: getRole(user),
-    action: "category_updated",
-    target_type: "category",
-    target_id: id,
-    details: JSON.stringify({ name }),
-  });
+  await logAdminAudit(
+    dc,
+    { id: user.id, email: user.email, role: getRole(user) },
+    { action: "category_updated", targetType: "category", targetId: id, details: JSON.stringify({ name }) }
+  );
 
+  // カテゴリー名はマップの店舗情報に載るため、キャッシュを捨てる
+  revalidatePublicShops();
   return NextResponse.json({ category: data });
 }
 
@@ -84,15 +84,12 @@ export async function DELETE(_req: Request, { params }: Params) {
     return NextResponse.json({ error: "カテゴリが見つかりません" }, { status: 404 });
   }
 
-  await dc.from("admin_audit_logs").insert({
-    actor_id: user.id,
-    actor_email: user.email,
-    actor_role: getRole(user),
-    action: "category_deleted",
-    target_type: "category",
-    target_id: id,
-    details: JSON.stringify({}),
-  });
+  await logAdminAudit(
+    dc,
+    { id: user.id, email: user.email, role: getRole(user) },
+    { action: "category_deleted", targetType: "category", targetId: id, details: JSON.stringify({}) }
+  );
 
+  revalidatePublicShops();
   return NextResponse.json({ ok: true });
 }

@@ -75,7 +75,8 @@ export const grandmaComments: GrandmaComment[] = [
 
 /**
  * マップ初回表示時のチュートリアルコメント（最大10個・繰り返しなし）
- * FirstVisitGuide の代替として GrandmaChatter 内で順に表示される
+ * FirstVisitGuide の代替として GrandmaChatter 内で順に表示していた。
+ * GrandmaChatter の廃止により、現在はどこからも使われていない
  */
 export const mapTutorialComments: import('../types/grandmaComment').GrandmaComment[] = [
   { id: 'tut-01', genre: 'tutorial', text: 'ようこそ、日曜市へ！マップのお店マーカーをタップすると詳細が見られるよ。' },

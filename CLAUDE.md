@@ -18,6 +18,10 @@ npx vitest run lib/favoriteShops.test.ts  # 単一テストファイルの実行
 
 PRを出す前は必ず `npm run build` でビルドが通ることを確認する。
 
+**コードの健康診断でビフォーアフターを確認する**（詳細は `docs/CODE_HEALTH.md`）：
+- 実装を始める前に `npm run code-health` を実行し、触る場所に既存の共通部品・重複・ルール違反がないかを `.code-health/report.html` で確かめる
+- PR を出す前に `npm run code-health:diff` を実行する。⚠️（悪化）が出たら「悪化した箇所」を直す。出力された `.code-health/diff.md` は PR 本文の「共通基盤チェック」欄に貼る（悪化を直さない場合は、その欄の「悪化を残す理由・今後の対応」に理由を書く）
+
 **PRは小さく出す**：チーム開発のためレビューしやすさを優先する。1PRは1つの目的（機能追加・バグ修正・リファクタを混在させない）。目安は変更ファイル10件以内。大きな作業は事前にサブタスクに分割してからPRを作成する。
 
 **本番リリース（`develop` → `main`）の方針は `docs/RELEASE.md`** を参照する。日常のPRは `develop` へ出す。`main` への直接マージはリリース作業と hotfix のみ。
@@ -62,6 +66,8 @@ NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY=
 # 互換用: NEXT_PUBLIC_SUPABASE_ANON_KEY=
 OPENAI_API_KEY=
 ```
+
+任意の変数を含む全体は `.env.example` を参照する。
 
 ## Architecture
 
@@ -134,12 +140,15 @@ nicchyo-soft-green: #A0D7A7  （淡い緑）
 
 ## Coding Conventions
 
+- **共通化できるところは共通化する**：同じロジック・同じUIパターンが複数箇所に現れたら、都度その場で個別実装せず、既存の共通化スポット（`lib/` 配下のユーティリティ・`components/ui/` 等）へ寄せられないか検討する。片方を直すときにもう片方の直し忘れが起きる「意味のある重複」（認可チェック・監査ログ・日付処理・APIレスポンス整形など）を優先的に共通化すること。逆に、見た目や行数がたまたま似ているだけで将来別々に変化しうるもの（3行程度の小さな処理、意図的に似せているだけのUIなど）まで無理に共通化しない
 - ルート名: kebab-case、コンポーネント: PascalCase、変数/関数: camelCase
 - クライアントコンポーネントには `"use client"` を明示
 - ページ固有のコンポーネントはそのページディレクトリ内の `components/` に置く
-- 共通UIコンポーネントは `components/ui/`（Radix UIベース）
+- **UIを書く前に `docs/DESIGN_SYSTEM.md` を読む**：色・角丸・影・余白・ボタン・ページの外枠はすべてトークンと共通部品にある。生の hex、`slate-*`/`gray-*` の新規追加、`rounded-2xl` などの直書きはしない
+- 共通UIコンポーネントは `components/ui/`（`@/components/ui` のバレルから読む）。同じものを2回目に書こうとしたら、ページ内に作らずここへ足す
 - 管理画面コンポーネントは `components/admin/`
 - ユーティリティ関数は `lib/utils/cn.ts`（`clsx` + `tailwind-merge` のラッパー）
+- **シートで編集する文言**（`content/site-copy/*.json`）はスプレッドシートから生成されるので直接編集しない。読むときは `siteText(key)`。手順は `docs/SITE_COPY.md`
 
 ## 重要な制約
 

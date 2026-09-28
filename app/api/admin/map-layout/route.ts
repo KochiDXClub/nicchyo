@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { createClient as createServerClient } from "@/utils/supabase/server";
 import { fetchLandmarksFromDb } from "@/app/(public)/map/services/landmarksDb";
 import { fetchMapRouteFromDb } from "@/app/(public)/map/services/mapRouteDb";
+import { revalidatePublicShops } from "@/app/(public)/map/services/shopCache";
 import { requireSameOrigin } from "@/lib/security/requestGuards";
 import { enforceRateLimit } from "@/lib/security/rateLimit";
 import { authorizeAdmin } from "@/app/api/admin/categories/_helpers";
@@ -107,6 +108,8 @@ export async function GET() {
 }
 
 export async function PUT(request: NextRequest) {
+  // 区画・割り当てを書き換え始めたら、途中で失敗しても公開マップの店舗キャッシュを捨てる
+  let shopWritesStarted = false;
   try {
     const originCheck = requireSameOrigin(request);
     if (!originCheck.ok) return originCheck.response;
@@ -305,6 +308,7 @@ export async function PUT(request: NextRequest) {
       );
     }
 
+    shopWritesStarted = true;
     if (body.shops.updated.length > 0) {
       const createdShops = body.shops.updated.filter((shop) => shop.locationId.startsWith("new-"));
       const existingShops = body.shops.updated.filter((shop) => !shop.locationId.startsWith("new-"));
@@ -497,5 +501,7 @@ export async function PUT(request: NextRequest) {
     return NextResponse.json({ ok: true });
   } catch {
     return NextResponse.json({ error: "Failed to save map layout" }, { status: 500 });
+  } finally {
+    if (shopWritesStarted) revalidatePublicShops();
   }
 }

@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/adminClient";
 import { requireSameOrigin } from "@/lib/security/requestGuards";
 import { enforceRateLimit } from "@/lib/security/rateLimit";
 import { authorizeAdmin } from "../_helpers";
+import { logAdminAudit } from "@/lib/audit/logAdminAudit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -100,18 +101,16 @@ export async function POST(req: Request) {
   }
 
   // サービスロールによる特権書き込みなので、他の管理操作と同様に痕跡を残す
-  const { error: auditError } = await dc.from("admin_audit_logs").insert({
-    actor_id: user.id,
-    actor_email: user.email,
-    actor_role: getRole(user),
-    action: "event_image_uploaded",
-    target_type: "market_event_image",
-    target_id: path,
-    details: JSON.stringify({ size: file.size, type: file.type }),
-  });
-  if (auditError) {
-    console.error("[admin/events/image] 監査ログの記録に失敗しました", auditError);
-  }
+  await logAdminAudit(
+    dc,
+    { id: user.id, email: user.email, role: getRole(user) },
+    {
+      action: "event_image_uploaded",
+      targetType: "market_event_image",
+      targetId: path,
+      details: JSON.stringify({ size: file.size, type: file.type }),
+    }
+  );
 
   const { data } = dc.storage.from("vendor-images").getPublicUrl(path);
   return NextResponse.json({ url: data.publicUrl });

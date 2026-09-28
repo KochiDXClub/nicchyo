@@ -19,6 +19,12 @@ describe('todayJstString', () => {
     vi.useRealTimers();
   });
 
+  it('accepts an explicit baseDate instead of the current time', () => {
+    // 2024-01-01T23:30:00Z は 2024-01-02T08:30:00+09:00 (JST)
+    const result = todayJstString(new Date('2024-01-01T23:30:00Z'));
+    expect(result).toBe('2024-01-02');
+  });
+
   it('throws an error if Intl.DateTimeFormat fails to provide year/month/day', () => {
     // We only need to mock formatToParts for this specific test
     vi.stubGlobal('Intl', {

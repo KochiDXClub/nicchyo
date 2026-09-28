@@ -6,7 +6,7 @@ import { memo } from "react";
 import type { MouseEvent } from "react";
 import type { Shop } from "../../map/data/shops";
 import { saveSearchMapPayload } from "../../../../lib/searchMapStorage";
-import { getShopBannerImage } from "../../../../lib/shopImages";
+import { getShopPreviewImage } from "../../../../lib/shopImages";
 
 interface ShopResultCardProps {
   shop: Shop;
@@ -31,11 +31,7 @@ function ShopResultCard({
   enableSearchMapHighlight = false,
   mapLabel: mapLabelProp,
 }: ShopResultCardProps) {
-  const previewImage =
-    shop.images?.main ||
-    shop.images?.thumbnail ||
-    shop.images?.additional?.[0] ||
-    getShopBannerImage(shop.category, shop.position ?? shop.id);
+  const previewImage = getShopPreviewImage(shop);
   const mapLabel = mapLabelProp ?? shop.name;
   const mapHref = enableSearchMapHighlight
     ? `/map?search=1&label=${encodeURIComponent(mapLabel)}&shop=${shop.id}`

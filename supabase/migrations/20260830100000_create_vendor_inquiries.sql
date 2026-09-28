@@ -156,6 +156,10 @@ create policy "vendors insert own inquiries"
 -- 運営（admin/moderator）は全件参照可
 -- vendors.role を直接参照する（JWT app_metadata ではなくDBを信頼起点にする。
 -- 20260807120000_restrict_vendors_authenticated_and_role_escalation.sql と同じ理由）
+--
+-- 【この判断は 20260904090000_operator_role_helper_functions.sql で撤回された】
+-- 管理者アカウントには vendors 行が存在しないため、この exists は常に false になりうる。
+-- 運営向けポリシーは同マイグレーションで public.is_operator() に差し替え済み。理由は #528 参照。
 drop policy if exists "operators select all inquiries" on public.vendor_inquiries;
 create policy "operators select all inquiries"
   on public.vendor_inquiries

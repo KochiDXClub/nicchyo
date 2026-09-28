@@ -14,6 +14,7 @@ import { createClient as createServerClient } from "@/utils/supabase/server";
 import { requireSameOrigin } from "@/lib/security/requestGuards";
 import { enforceRateLimit } from "@/lib/security/rateLimit";
 import { requireAdminApi, type AdminApiContext } from "@/lib/auth/requireAdminApi";
+import { logAdminAudit } from "@/lib/audit/logAdminAudit";
 import { fetchMapRouteFromDb } from "@/app/(public)/map/services/mapRouteDb";
 import {
   getDefaultMapRoutePoints,
@@ -185,18 +186,16 @@ export async function PUT(request: NextRequest) {
 
     // 誰がいつ範囲を変えたかを残す。記録に失敗しても保存は成功させる
     // （監査ログのために設定変更を巻き戻すと、何が効いているのか分からなくなる）
-    const { error: auditError } = await auth.adminClient.from("admin_audit_logs").insert({
-      actor_id: auth.user.id,
-      actor_email: auth.user.email,
-      actor_role: auth.role,
-      action: "map_view_settings_updated",
-      target_type: TABLE,
-      target_id: MAP_VIEW_SETTINGS_KEY,
-      details: JSON.stringify(settings),
-    });
-    if (auditError) {
-      console.error("[admin/map-view] audit log failed:", auditError.message);
-    }
+    await logAdminAudit(
+      auth.adminClient,
+      { id: auth.user.id, email: auth.user.email, role: auth.role },
+      {
+        action: "map_view_settings_updated",
+        targetType: TABLE,
+        targetId: MAP_VIEW_SETTINGS_KEY,
+        details: JSON.stringify(settings),
+      }
+    );
 
     return NextResponse.json({ ok: true, settings });
   } catch {

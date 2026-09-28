@@ -5,7 +5,7 @@ import { createClient } from "@/utils/supabase/server";
 import SearchClient from "./SearchClient";
 import SearchLoading from "./loading";
 import type { Shop } from "../map/data/shops";
-import { fetchVendorShopsFromDb } from "../map/services/shopDb";
+import { fetchPublicShops } from "../map/services/shopCache";
 import { filterMapVisibleLandmarks, type Landmark } from "../map/types/landmark";
 import { fetchLandmarksFromDb } from "../map/services/landmarksDb";
 
@@ -16,9 +16,8 @@ export const metadata: Metadata = {
 
 async function loadShops(): Promise<Shop[]> {
   try {
-    const cookieStore = await cookies();
-    const supabase = createClient(cookieStore);
-    return await fetchVendorShopsFromDb(supabase);
+    // 店舗は /map と同じ全員共通のキャッシュから読む
+    return await fetchPublicShops();
   } catch {
     return [];
   }

@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, ArrowUpRight } from "lucide-react";
+import { GITHUB_ISSUES_URL, GITHUB_REPO_URL } from "@/lib/siteLinks";
 import NavigationBar from "../../components/NavigationBar";
 import MapLink from "../../components/MapLink";
 import { fetchMonthlyVisitors, fetchWeeklyVisitors } from "@/lib/analytics/visitorStats.server";
@@ -265,6 +266,41 @@ export default async function SupportPage() {
             sponsorUnitMonths={unitMonths}
             individualSupporterCount={individualSupporterCount}
           />
+        </Section>
+
+        {/* ── コードでのご支援 ────────────────────────────────────────
+            お金以外の支え方。技術者や学生が「自分にもできることがある」と
+            気づける入口。リポジトリは公開しているので、そこへ素直につなぐ */}
+        <Section label="コードでのご支援">
+          <p className="text-[13px] leading-[1.95] text-nicchyo-ink/55">
+            nicchyo はオープンソースで開発しています。うまく動かないところの報告や、こんな機能がほしいという提案、コードやデザインでの参加も、大切なご支援です。
+          </p>
+          <div className="mt-5 border-t border-nicchyo-ink/10">
+            <a
+              href={GITHUB_REPO_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="group flex items-center justify-between gap-4 border-b border-nicchyo-ink/[0.07] py-4 transition-colors hover:text-amber-800"
+            >
+              <span>
+                <span className="block text-[14px] font-bold text-amber-700 underline-offset-4 group-hover:underline">GitHub でコードを見る</span>
+                <span className="mt-1 block text-[12.5px] text-nicchyo-ink/45">KochiDXClub/nicchyo</span>
+              </span>
+              <ArrowUpRight className="h-4 w-4 shrink-0 text-amber-700/60 transition group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-amber-700" aria-hidden />
+            </a>
+            <a
+              href={GITHUB_ISSUES_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="group flex items-center justify-between gap-4 border-b border-nicchyo-ink/[0.07] py-4 transition-colors hover:text-amber-800"
+            >
+              <span>
+                <span className="block text-[14px] font-bold text-amber-700 underline-offset-4 group-hover:underline">気づいたことを届ける</span>
+                <span className="mt-1 block text-[12.5px] text-nicchyo-ink/45">不具合の報告や機能の提案は Issues へ。GitHub のアカウントがあればどなたでも書けます</span>
+              </span>
+              <ArrowUpRight className="h-4 w-4 shrink-0 text-amber-700/60 transition group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-amber-700" aria-hidden />
+            </a>
+          </div>
         </Section>
 
         {/* ── ご相談について ──────────────────────────────────────────── */}

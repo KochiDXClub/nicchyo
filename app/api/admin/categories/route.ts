@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { getRole } from "@/lib/auth/permissions";
 import { createAdminClient, authorizeAdmin } from "./_helpers";
+import { logAdminAudit } from "@/lib/audit/logAdminAudit";
+import { revalidatePublicShops } from "@/app/(public)/map/services/shopCache";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -65,15 +67,17 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "作成に失敗しました" }, { status: 500 });
   }
 
-  await dc.from("admin_audit_logs").insert({
-    actor_id: user.id,
-    actor_email: user.email,
-    actor_role: getRole(user),
-    action: "category_created",
-    target_type: "category",
-    target_id: (data as Category).id,
-    details: JSON.stringify({ name }),
-  });
+  await logAdminAudit(
+    dc,
+    { id: user.id, email: user.email, role: getRole(user) },
+    {
+      action: "category_created",
+      targetType: "category",
+      targetId: (data as Category).id,
+      details: JSON.stringify({ name }),
+    }
+  );
 
+  revalidatePublicShops();
   return NextResponse.json({ category: data as Category }, { status: 201 });
 }

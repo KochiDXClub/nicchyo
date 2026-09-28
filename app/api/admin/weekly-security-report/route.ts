@@ -1,6 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { createClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
+import { todayJstString } from "@/lib/time/jstDate";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -58,17 +59,6 @@ function getServiceClient() {
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !key) throw new Error("Supabase service env missing");
   return createClient(url, key, { auth: { persistSession: false } });
-}
-
-function tokyoIsoDate(date: Date): string {
-  const formatter = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Asia/Tokyo",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  });
-  const parts = formatter.formatToParts(date);
-  return `${parts.find((p) => p.type === "year")?.value}-${parts.find((p) => p.type === "month")?.value}-${parts.find((p) => p.type === "day")?.value}`;
 }
 
 function countBy<T>(items: T[], key: (item: T) => string | null): Map<string, number> {
@@ -429,7 +419,7 @@ async function runWeeklyReport(): Promise<{
   totalVisitors: number;
 }> {
   const today = new Date();
-  const reportDate = tokyoIsoDate(today);
+  const reportDate = todayJstString(today);
 
   // 過去7日間を集計対象
   const weekEndDate = new Date(today);
@@ -437,8 +427,8 @@ async function runWeeklyReport(): Promise<{
   const weekStartDate = new Date(weekEndDate);
   weekStartDate.setDate(weekStartDate.getDate() - 6);
 
-  const weekEnd = tokyoIsoDate(weekEndDate);
-  const weekStart = tokyoIsoDate(weekStartDate);
+  const weekEnd = todayJstString(weekEndDate);
+  const weekStart = todayJstString(weekStartDate);
 
   // データ収集
   const rawData = await fetchWeekData(weekStart, weekEnd);
