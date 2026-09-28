@@ -16,12 +16,17 @@ export type MarketDayRow = {
  * 開催ステータスと予定をすでに1つの日曜カードにまとめているのに合わせ、
  * 管理画面側も useAdminEvents と同じカードに統合した。取得・保存の作法は
  * useAdminEvents に揃えている。
+ *
+ * ステータスのボタンは押した瞬間には保存しない（下書きなしで即座に公開されると
+ * 誤操作がそのまま来訪者に見えてしまうため）。「保存する」を押すまでは
+ * statusDrafts / noteDrafts が確定値（days）と食い違ったままの「下書き」状態になる。
  */
 export function useAdminMarketDays({ isAdmin }: { isAdmin: boolean }) {
   const [days, setDays] = useState<MarketDayRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [savingDate, setSavingDate] = useState<string | null>(null);
   const [noteDrafts, setNoteDrafts] = useState<Record<string, string>>({});
+  const [statusDrafts, setStatusDrafts] = useState<Record<string, MarketDayStatus>>({});
 
   const fetchDays = useCallback(async () => {
     setLoading(true);
@@ -44,7 +49,6 @@ export function useAdminMarketDays({ isAdmin }: { isAdmin: boolean }) {
 
   // 過去に使った一言（重複除去・新しい順）。雨天中止のように同じ文言を
   // 繰り返し使うことが多いため、毎回タイプし直さなくて済むようにする。
-  // 選んでもすぐには保存されず、入力欄に入るだけ（保存はステータスボタン任せ）。
   const recentNotes = useMemo(() => {
     const seen = new Set<string>();
     const notes: string[] = [];
@@ -71,7 +75,18 @@ export function useAdminMarketDays({ isAdmin }: { isAdmin: boolean }) {
         const data = (await res.json()) as { error?: string };
         throw new Error(data.error ?? "failed");
       }
-      showToast.success(`${formatEventDate(dateIso)} を保存しました`);
+      showToast.success(`${formatEventDate(dateIso)} を公開しました`);
+      // 保存できたら下書きは確定値と同じになるので消しておく（確定値側は再取得で追従する）
+      setStatusDrafts((prev) => {
+        const next = { ...prev };
+        delete next[dateIso];
+        return next;
+      });
+      setNoteDrafts((prev) => {
+        const next = { ...prev };
+        delete next[dateIso];
+        return next;
+      });
       void fetchDays();
     } catch (e) {
       showToast.error(e instanceof Error ? e.message : "保存に失敗しました");
@@ -80,10 +95,18 @@ export function useAdminMarketDays({ isAdmin }: { isAdmin: boolean }) {
     }
   };
 
-  const statusFor = (dateIso: string): MarketDayStatus | null => {
+  /** 確定済み（公開中）のステータス。ボタンを押しただけではここは変わらない */
+  const committedStatusFor = (dateIso: string): MarketDayStatus | null => {
     const row = byDate.get(dateIso);
     return row ? normalizeStatus(row.status) : null;
   };
+
+  /** 画面上で選ばれている値。まだ保存していなければ確定済みの値と同じ */
+  const draftStatusFor = (dateIso: string): MarketDayStatus | null =>
+    statusDrafts[dateIso] ?? committedStatusFor(dateIso);
+
+  const setStatusDraft = (dateIso: string, status: MarketDayStatus) =>
+    setStatusDrafts((prev) => ({ ...prev, [dateIso]: status }));
 
   const noteFor = (dateIso: string): string =>
     noteDrafts[dateIso] ?? byDate.get(dateIso)?.note ?? "";
@@ -91,13 +114,20 @@ export function useAdminMarketDays({ isAdmin }: { isAdmin: boolean }) {
   const setNoteDraft = (dateIso: string, note: string) =>
     setNoteDrafts((prev) => ({ ...prev, [dateIso]: note }));
 
+  const isDirty = (dateIso: string): boolean =>
+    draftStatusFor(dateIso) !== committedStatusFor(dateIso) ||
+    noteFor(dateIso) !== (byDate.get(dateIso)?.note ?? "");
+
   return {
     loading,
     savingDate,
     recentNotes,
-    statusFor,
+    committedStatusFor,
+    draftStatusFor,
+    setStatusDraft,
     noteFor,
     setNoteDraft,
+    isDirty,
     save,
   };
 }

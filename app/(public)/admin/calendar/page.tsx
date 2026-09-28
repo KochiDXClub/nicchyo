@@ -2,14 +2,15 @@
 
 export const dynamic = "force-dynamic";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { ChevronDown, ChevronRight } from "lucide-react";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { AdminLayout, AdminPageHeader } from "@/components/admin";
 import { formatEventDate, getRelativeSundayLabel, getCategoryPresentation } from "@/lib/market/calendar";
 import { useAdminEvents, CATEGORY_OPTIONS, SUNDAY_COUNT } from "./useAdminEvents";
 import { useAdminMarketDays } from "./useAdminMarketDays";
-import { MarketDayStatusEditor } from "./MarketDayStatusEditor";
+import { MarketDayStatusEditor, MarketDayStatusChip } from "./MarketDayStatusEditor";
 import { EventRow } from "./EventRow";
 import { HistoryTemplatePicker } from "./HistoryTemplatePicker";
 import { HighlightWeekPicker } from "./HighlightWeekPicker";
@@ -26,14 +27,27 @@ export default function AdminCalendarPage() {
   const e = useAdminEvents({ isAdmin: permissions.isAdmin });
   const d = useAdminMarketDays({ isAdmin: permissions.isAdmin });
 
+  // 各カードは既定で畳んでおく。ステータス編集の常時表示は縦に長くなりすぎるため、
+  // 触りたい週だけタップで開く（events/market-days 統合時のフィードバックで追加）
+  const [expandedDates, setExpandedDates] = useState<Set<string>>(new Set());
+  const toggleExpanded = (dateIso: string) =>
+    setExpandedDates((prev) => {
+      const next = new Set(prev);
+      if (next.has(dateIso)) next.delete(dateIso);
+      else next.add(dateIso);
+      return next;
+    });
+  const expand = (dateIso: string) =>
+    setExpandedDates((prev) => (prev.has(dateIso) ? prev : new Set(prev).add(dateIso)));
+
   return (
     <AdminLayout>
       <AdminPageHeader eyebrow="日曜市カレンダー" title="開催ステータス・予定の入稿" />
 
       <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-        開催ステータスは<strong>下書きなしで即座に公開</strong>され、マップと近況ページの
+        開催ステータスは<strong>「保存する」を押した時点で公開</strong>され、マップと近況ページの
         最上部に表示されます。予定は日曜ごとに何件でも追加でき、
-        <strong>必須はタイトルと種別だけ</strong>です。
+        <strong>必須はタイトルと種別だけ</strong>です。各日のカードはタップで開閉します。
       </div>
 
       <div className="mb-4 flex items-center gap-3">
@@ -52,62 +66,90 @@ export default function AdminCalendarPage() {
         <div className="flex items-center justify-center py-16 text-slate-400">読み込み中...</div>
       ) : (
         <div className="space-y-3">
-          {e.sundays.map(({ dateIso, weeksAhead, items }) => (
-            <div
-              key={dateIso}
-              className={`rounded-xl border bg-white shadow-sm ${
-                weeksAhead === 0 ? "border-amber-300" : "border-slate-200"
-              }`}
-            >
+          {e.sundays.map(({ dateIso, weeksAhead, items }) => {
+            const isExpanded = expandedDates.has(dateIso);
+            return (
               <div
-                className={`flex items-center gap-2 rounded-t-xl px-4 py-2.5 ${
-                  weeksAhead === 0 ? "bg-amber-50" : "bg-slate-50"
+                key={dateIso}
+                className={`rounded-xl border bg-white shadow-sm ${
+                  weeksAhead === 0 ? "border-amber-300" : "border-slate-200"
                 }`}
               >
-                <span className="font-semibold text-slate-900">{formatEventDate(dateIso)}</span>
-                <span className="text-xs text-slate-400">
-                  {getRelativeSundayLabel(weeksAhead)}
-                </span>
-                <span className="text-xs text-slate-400">{items.length}件</span>
-                <button
-                  type="button"
-                  onClick={() => e.openCreate(dateIso)}
-                  className="ml-auto rounded-lg bg-amber-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-600"
+                <div
+                  className={`flex items-center gap-2 px-4 py-2.5 ${
+                    isExpanded ? "rounded-t-xl" : "rounded-xl"
+                  } ${weeksAhead === 0 ? "bg-amber-50" : "bg-slate-50"}`}
                 >
-                  ＋ この日に追加
-                </button>
-              </div>
-
-              <div className="border-b border-slate-100 px-4 py-3">
-                <MarketDayStatusEditor
-                  currentStatus={d.statusFor(dateIso)}
-                  noteDraft={d.noteFor(dateIso)}
-                  isSaving={d.savingDate === dateIso}
-                  recentNotes={d.recentNotes}
-                  onSetNoteDraft={(note) => d.setNoteDraft(dateIso, note)}
-                  onSave={(status, note) => void d.save(dateIso, status, note)}
-                />
-              </div>
-
-              {items.length === 0 ? (
-                <p className="px-4 py-4 text-sm text-slate-400">予定はありません</p>
-              ) : (
-                <div className="divide-y divide-slate-100">
-                  {items.map((event) => (
-                    <EventRow
-                      key={`${dateIso}-${event.id}`}
-                      event={event}
-                      sundayIso={dateIso}
-                      deleting={e.deletingId === event.id}
-                      onEdit={e.openEdit}
-                      onDelete={e.handleDelete}
-                      onTogglePublish={e.handleTogglePublish}
-                    />
-                  ))}
+                  <button
+                    type="button"
+                    onClick={() => toggleExpanded(dateIso)}
+                    className="flex min-w-0 flex-1 items-center gap-2 text-left"
+                    aria-expanded={isExpanded}
+                  >
+                    {isExpanded ? (
+                      <ChevronDown className="h-4 w-4 shrink-0 text-slate-400" />
+                    ) : (
+                      <ChevronRight className="h-4 w-4 shrink-0 text-slate-400" />
+                    )}
+                    <span className="font-semibold text-slate-900">{formatEventDate(dateIso)}</span>
+                    <span className="text-xs text-slate-400">
+                      {getRelativeSundayLabel(weeksAhead)}
+                    </span>
+                    <MarketDayStatusChip status={d.committedStatusFor(dateIso)} />
+                    <span className="text-xs text-slate-400">{items.length}件</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      expand(dateIso);
+                      e.openCreate(dateIso);
+                    }}
+                    className="shrink-0 rounded-lg bg-amber-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-600"
+                  >
+                    ＋ この日に追加
+                  </button>
                 </div>
-              )}
-            </div>
-          ))}
+
+                {isExpanded && (
+                  <>
+                    <div className="border-b border-slate-100 px-4 py-3">
+                      <MarketDayStatusEditor
+                        committedStatus={d.committedStatusFor(dateIso)}
+                        draftStatus={d.draftStatusFor(dateIso)}
+                        noteDraft={d.noteFor(dateIso)}
+                        isDirty={d.isDirty(dateIso)}
+                        isSaving={d.savingDate === dateIso}
+                        recentNotes={d.recentNotes}
+                        onSelectStatus={(status) => d.setStatusDraft(dateIso, status)}
+                        onSetNoteDraft={(note) => d.setNoteDraft(dateIso, note)}
+                        onSave={() =>
+                          void d.save(dateIso, d.draftStatusFor(dateIso) ?? "open", d.noteFor(dateIso))
+                        }
+                      />
+                    </div>
+
+                    {items.length === 0 ? (
+                      <p className="px-4 py-4 text-sm text-slate-400">予定はありません</p>
+                    ) : (
+                      <div className="divide-y divide-slate-100">
+                        {items.map((event) => (
+                          <EventRow
+                            key={`${dateIso}-${event.id}`}
+                            event={event}
+                            sundayIso={dateIso}
+                            deleting={e.deletingId === event.id}
+                            onEdit={e.openEdit}
+                            onDelete={e.handleDelete}
+                            onTogglePublish={e.handleTogglePublish}
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            );
+          })}
 
           {e.outOfRange.length > 0 && (
             <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
