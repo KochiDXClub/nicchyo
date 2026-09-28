@@ -1,13 +1,21 @@
 import { NextResponse } from "next/server";
 import { validateLineSignature } from "@/lib/line/signature";
 import { sendLineReply } from "@/lib/line/client";
-import { checkLineUserRateLimit } from "@/lib/line/rateLimit";
+import {
+  checkLineUserRateLimit,
+  getLineRateLimitKey,
+  isDuplicateLineEvent,
+} from "@/lib/line/rateLimit";
 import {
   generateLineConsultReply,
   DEFAULT_LINE_QUICK_REPLIES,
 } from "@/lib/line/consultAi";
 import { enforceRateLimit } from "@/lib/security/rateLimit";
-import type { LineWebhookPayload, LineOutgoingMessage } from "@/lib/line/types";
+import type {
+  LineWebhookPayload,
+  LineOutgoingMessage,
+  LineEventSource,
+} from "@/lib/line/types";
 import { SITE_URL } from "@/lib/constants";
 
 export const runtime = "nodejs";
@@ -37,6 +45,33 @@ const WELCOME_GREETING_TEXT = `友だち追加、まっことありがとうね�
 
 画面下のメニューから、いつでもワンタップで開けます。
 今日はええ風が吹きゆうねぇ、どうぞゆっくり歩いていってね！🍵`.trim();
+
+/**
+ * 送信元ごとのレートリミットを検査し、超過していれば待機案内を返信して true を返す。
+ * OpenAI を呼びうるイベント（メッセージ・ポストバック）の前に必ず通す。
+ */
+async function replyIfRateLimited(
+  request: Request,
+  channelAccessToken: string,
+  source: LineEventSource,
+  replyToken: string
+): Promise<boolean> {
+  const rateLimitCheck = await checkLineUserRateLimit(
+    request,
+    getLineRateLimitKey(source)
+  );
+  if (rateLimitCheck.allowed) return false;
+
+  const blockedMsg: LineOutgoingMessage = {
+    type: "text",
+    text:
+      rateLimitCheck.message ||
+      "少し時間をおいてから、また気軽に話しかけてねぇ🍵",
+    quickReply: { items: DEFAULT_LINE_QUICK_REPLIES },
+  };
+  await sendLineReply(channelAccessToken, replyToken, [blockedMsg]);
+  return true;
+}
 
 export async function POST(request: Request) {
   try {
@@ -95,6 +130,17 @@ export async function POST(request: Request) {
     await Promise.all(
       events.map(async (event) => {
         try {
+          // LINE の再送（isRedelivery）などで同じイベントが再び届いた場合は、
+          // 二重に OpenAI を呼んだり二重に返信したりしないよう処理しない
+          if (await isDuplicateLineEvent(request, event.webhookEventId)) {
+            console.warn(
+              "[LINE webhook] Skipped duplicate event:",
+              event.webhookEventId,
+              event.deliveryContext?.isRedelivery ? "(redelivery)" : ""
+            );
+            return;
+          }
+
           // A. 友だち追加イベント
           if (event.type === "follow") {
             const welcomeMsg: LineOutgoingMessage = {
@@ -110,29 +156,15 @@ export async function POST(request: Request) {
 
           // B. メッセージ受信イベント
           if (event.type === "message") {
-            const userId =
-              event.source.type === "user"
-                ? event.source.userId
-                : event.source.userId ??
-                  ("groupId" in event.source
-                    ? event.source.groupId
-                    : "roomId" in event.source
-                    ? event.source.roomId
-                    : undefined);
-
-            // ユーザーごとのレートリミット判定（スパム・過剰トークン消費防止）
-            const rateLimitCheck = checkLineUserRateLimit(userId);
-            if (!rateLimitCheck.allowed) {
-              const blockedMsg: LineOutgoingMessage = {
-                type: "text",
-                text:
-                  rateLimitCheck.message ||
-                  "少し時間をおいてから、また気軽に話しかけてねぇ🍵",
-                quickReply: { items: DEFAULT_LINE_QUICK_REPLIES },
-              };
-              await sendLineReply(channelAccessToken, event.replyToken, [
-                blockedMsg,
-              ]);
+            // 送信元ごとのレートリミット判定（スパム・過剰トークン消費防止）
+            if (
+              await replyIfRateLimited(
+                request,
+                channelAccessToken,
+                event.source,
+                event.replyToken
+              )
+            ) {
               return;
             }
 
@@ -196,6 +228,17 @@ export async function POST(request: Request) {
 
           // C. ポストバック（リッチメニュー等のボタンタップ）
           if (event.type === "postback") {
+            // ポストバックも OpenAI を呼ぶため、メッセージと同じレートリミットを通す
+            if (
+              await replyIfRateLimited(
+                request,
+                channelAccessToken,
+                event.source,
+                event.replyToken
+              )
+            ) {
+              return;
+            }
             const data = event.postback.data;
             const reply = await generateLineConsultReply(data);
             await sendLineReply(channelAccessToken, event.replyToken, [reply]);

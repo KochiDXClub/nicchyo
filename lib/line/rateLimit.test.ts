@@ -1,72 +1,96 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import {
   checkLineUserRateLimit,
-  _resetLineRateLimitStore,
+  getLineRateLimitKey,
+  isDuplicateLineEvent,
 } from "./rateLimit";
+
+// 共有レートリミッター（lib/security/rateLimit）の in-memory フォールバックはテスト間で
+// リセットできないため、テストごとに別のキーを使う
+const req = () => new Request("http://localhost/api/line/webhook", { method: "POST" });
 
 describe("checkLineUserRateLimit", () => {
   beforeEach(() => {
-    _resetLineRateLimitStore();
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-09-27T00:00:00Z"));
   });
 
-  it("短時間の送信が制限内（5回まで）なら許可される", () => {
-    const userId = "U_user_test_1";
-    const now = 1000000;
+  afterEach(() => {
+    vi.useRealTimers();
+  });
 
+  it("短時間の送信が制限内（5回まで）なら許可される", async () => {
     for (let i = 0; i < 5; i++) {
-      const res = checkLineUserRateLimit(userId, now + i * 1000);
+      const res = await checkLineUserRateLimit(req(), "user:U_test_1");
       expect(res.allowed).toBe(true);
     }
   });
 
-  it("1分間に6回以上送信するとレートリミットでブロックされる", () => {
-    const userId = "U_user_test_2";
-    const now = 1000000;
-
-    // 5回送信
+  it("1分間に6回以上送信するとレートリミットでブロックされる", async () => {
     for (let i = 0; i < 5; i++) {
-      checkLineUserRateLimit(userId, now + i * 1000);
+      await checkLineUserRateLimit(req(), "user:U_test_2");
     }
-
-    // 6回目（1分以内）
-    const blocked = checkLineUserRateLimit(userId, now + 10 * 1000);
+    const blocked = await checkLineUserRateLimit(req(), "user:U_test_2");
     expect(blocked.allowed).toBe(false);
     expect(blocked.message).toContain("1分ばあ待ってから");
     expect(blocked.retryAfterSeconds).toBeGreaterThan(0);
   });
 
-  it("1分経過後は再びリクエストが許可される", () => {
-    const userId = "U_user_test_3";
-    const now = 1000000;
-
-    // 5回送信してブロック状態にする
+  it("1分経過後は再びリクエストが許可される", async () => {
     for (let i = 0; i < 5; i++) {
-      checkLineUserRateLimit(userId, now + i * 1000);
+      await checkLineUserRateLimit(req(), "user:U_test_3");
     }
-    expect(checkLineUserRateLimit(userId, now + 10 * 1000).allowed).toBe(false);
+    expect((await checkLineUserRateLimit(req(), "user:U_test_3")).allowed).toBe(false);
 
-    // 65秒後
-    const afterCooldown = checkLineUserRateLimit(userId, now + 65 * 1000);
-    expect(afterCooldown.allowed).toBe(true);
+    vi.advanceTimersByTime(65 * 1000);
+    expect((await checkLineUserRateLimit(req(), "user:U_test_3")).allowed).toBe(true);
   });
 
-  it("異なるユーザー同士はお互いに影響しない", () => {
-    const userA = "U_user_A";
-    const userB = "U_user_B";
-    const now = 1000000;
-
-    // userA をブロック状態にする
-    for (let i = 0; i < 5; i++) {
-      checkLineUserRateLimit(userA, now + i * 1000);
+  it("10分間に26回以上送信すると継続利用制限でブロックされる", async () => {
+    for (let i = 0; i < 25; i++) {
+      expect((await checkLineUserRateLimit(req(), "user:U_test_long")).allowed).toBe(true);
+      // 1分あたり5回の制限にかからない間隔で送る
+      vi.advanceTimersByTime(13 * 1000);
     }
-    expect(checkLineUserRateLimit(userA, now + 10 * 1000).allowed).toBe(false);
-
-    // userB はまだ送信していないので許可される
-    expect(checkLineUserRateLimit(userB, now + 10 * 1000).allowed).toBe(true);
+    const blocked = await checkLineUserRateLimit(req(), "user:U_test_long");
+    expect(blocked.allowed).toBe(false);
+    expect(blocked.message).toContain("少し時間をおいてから");
   });
 
-  it("userId が undefined の場合は通過させる", () => {
-    expect(checkLineUserRateLimit(undefined).allowed).toBe(true);
-    expect(checkLineUserRateLimit(null).allowed).toBe(true);
+  it("異なるキー同士はお互いに影響しない", async () => {
+    for (let i = 0; i < 5; i++) {
+      await checkLineUserRateLimit(req(), "user:U_A");
+    }
+    expect((await checkLineUserRateLimit(req(), "user:U_A")).allowed).toBe(false);
+    expect((await checkLineUserRateLimit(req(), "user:U_B")).allowed).toBe(true);
+  });
+});
+
+describe("getLineRateLimitKey", () => {
+  it("userId があればユーザー単位のキーになる", () => {
+    expect(getLineRateLimitKey({ type: "user", userId: "U1" })).toBe("user:U1");
+    expect(getLineRateLimitKey({ type: "group", groupId: "C1", userId: "U2" })).toBe("user:U2");
+  });
+
+  it("userId が取れないグループ/トークルームは groupId/roomId 単位のキーになる", () => {
+    expect(getLineRateLimitKey({ type: "group", groupId: "C1" })).toBe("group:C1");
+    expect(getLineRateLimitKey({ type: "room", roomId: "R1" })).toBe("room:R1");
+  });
+
+  it("送信元が無い場合も共通キーで数え、制限をすり抜けない", () => {
+    expect(getLineRateLimitKey(undefined)).toBe("unknown");
+  });
+});
+
+describe("isDuplicateLineEvent", () => {
+  it("同じ webhookEventId の2回目以降を重複として検出する", async () => {
+    expect(await isDuplicateLineEvent(req(), "evt_dup_1")).toBe(false);
+    expect(await isDuplicateLineEvent(req(), "evt_dup_1")).toBe(true);
+    expect(await isDuplicateLineEvent(req(), "evt_dup_2")).toBe(false);
+  });
+
+  it("webhookEventId が無い場合は重複扱いしない", async () => {
+    expect(await isDuplicateLineEvent(req(), undefined)).toBe(false);
+    expect(await isDuplicateLineEvent(req(), undefined)).toBe(false);
   });
 });

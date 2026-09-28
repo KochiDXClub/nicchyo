@@ -7,9 +7,8 @@ vi.mock("@/lib/line/client", () => ({
   sendLineReply: vi.fn().mockResolvedValue({ success: true }),
 }));
 
-vi.mock("@/lib/security/rateLimit", () => ({
-  enforceRateLimit: vi.fn().mockResolvedValue(null),
-}));
+// レートリミット・重複排除は実物（in-memory フォールバック）を使う。
+// in-memory のカウンターはテスト間で共有されるため、webhookEventId・userId はテストごとに変える
 
 import { sendLineReply } from "@/lib/line/client";
 
@@ -203,6 +202,66 @@ describe("app/api/line/webhook/route", () => {
           type: "text",
           text: expect.stringContaining("スタンプありがとう！"),
         }),
+      ])
+    );
+  });
+
+  it("同じ webhookEventId の再送は二重に処理しない", async () => {
+    const body = {
+      destination: "U123",
+      events: [
+        {
+          type: "message",
+          mode: "active",
+          timestamp: Date.now(),
+          source: { type: "user", userId: "U_user_redelivery" },
+          webhookEventId: "evt_redelivery",
+          replyToken: "reply_token_redelivery",
+          deliveryContext: { isRedelivery: false },
+          message: { id: "msg_r", type: "text", text: "マップ" },
+        },
+      ],
+    };
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    expect((await POST(createSignedRequest(body))).status).toBe(200);
+    const redelivered = {
+      ...body,
+      events: [{ ...body.events[0], deliveryContext: { isRedelivery: true } }],
+    };
+    expect((await POST(createSignedRequest(redelivered))).status).toBe(200);
+
+    expect(sendLineReply).toHaveBeenCalledTimes(1);
+    warnSpy.mockRestore();
+  });
+
+  it("userId が取れないグループでも groupId 単位でレートリミットがかかる", async () => {
+    const makeBody = (i: number) => ({
+      destination: "U123",
+      events: [
+        {
+          type: "message",
+          mode: "active",
+          timestamp: Date.now(),
+          source: { type: "group", groupId: "C_group_ratelimit" },
+          webhookEventId: `evt_group_${i}`,
+          replyToken: `reply_token_group_${i}`,
+          deliveryContext: { isRedelivery: false },
+          message: { id: `msg_g_${i}`, type: "text", text: "マップ" },
+        },
+      ],
+    });
+
+    for (let i = 0; i < 6; i++) {
+      await POST(createSignedRequest(makeBody(i)));
+    }
+
+    expect(sendLineReply).toHaveBeenCalledTimes(6);
+    expect(sendLineReply).toHaveBeenLastCalledWith(
+      token,
+      "reply_token_group_5",
+      expect.arrayContaining([
+        expect.objectContaining({ text: expect.stringContaining("1分ばあ待ってから") }),
       ])
     );
   });
