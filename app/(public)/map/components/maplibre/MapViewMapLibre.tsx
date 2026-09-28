@@ -87,7 +87,7 @@ import {
   rasterizeImageUrl,
   rasterizePhotoCircle,
 } from "./stallSprites";
-import { getShopPreviewImage } from "../../../../../lib/shopImages";
+import { getShopPreviewImage, getShopThumbnailImage } from "../../../../../lib/shopImages";
 import { MAPLIBRE_MAP_KEY, type MapCamera, type MapCameraEvent } from "../../types/mapCamera";
 import { LiveZoomMapControls } from "../MapControls";
 import SearchResultsSheet, { SpotlightCountdownBar } from "../SearchResultsSheet";
@@ -892,7 +892,8 @@ function MapViewMapLibre({
         const shopId = Number(id.slice("photo:".length));
         const shop = shopsRef.current.find((s) => s.id === shopId);
         if (!shop) return;
-        const url = getShopPreviewImage(shop);
+        const url = getShopThumbnailImage(shop);
+        const fallbackUrl = getShopPreviewImage(shop);
         const border = resolveStallColors(shop.category, sanitizeCssColor(shop.illustration?.color)).dark;
         // 同じ大きさの透明な仮画像を同期で登録しておく（無いままだと MapLibre が警告を出す）。
         // 読み込めたら updateImage で中身だけ差し替える
@@ -902,7 +903,7 @@ function MapViewMapLibre({
         }
         photoJobs.set(
           id,
-          rasterizePhotoCircle(url, PHOTO_SIZE_PX, border, uiRatio)
+          rasterizePhotoCircle(url, PHOTO_SIZE_PX, border, uiRatio, fallbackUrl)
             .then((data) => {
               if (!disposed && map.hasImage(id)) map.updateImage(id, data);
             })

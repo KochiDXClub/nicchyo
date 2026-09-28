@@ -19,7 +19,8 @@
     "db:seed": "node scripts/seed-local.mjs",
     "changelog:pack": "node scripts/pack-changelog.mjs",
     "code-health": "node scripts/code-health/cli.mjs",
-    "code-health:diff": "node scripts/code-health/cli.mjs --base origin/develop --strict"
+    "code-health:diff": "node scripts/code-health/cli.mjs --base origin/develop --strict",
+    "migrate:vendor-images": "node scripts/migrate-vendor-images.mjs"
   },
   "lint-staged": {
     "*.{ts,tsx}": [

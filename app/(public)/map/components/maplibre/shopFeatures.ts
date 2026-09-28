@@ -14,7 +14,7 @@ import type { Shop } from "../../data/shops";
 import { getRoadSide } from "../../config/roadConfig";
 import { resolveStallColors } from "../../config/shopCategories";
 import { sanitizeCssColor } from "../../utils/markerHtmlGenerator";
-import { getShopPreviewImage } from "../../../../../lib/shopImages";
+import { getShopThumbnailImage } from "../../../../../lib/shopImages";
 import { stallSpriteKey, type StallState } from "./stallSprites";
 
 export type ShopStateMap = Map<number, StallState>;
@@ -43,8 +43,8 @@ export function buildShopFeatures(shops: Shop[]): ShopFeature[] {
           spriteKey: stallSpriteKey(s),
           // 道の北側は木札を右（道の外側）、南側は左に出す（Leaflet 版 .shop-side-*）
           side: getRoadSide(s.lat, s.lng),
-          // 屋根の上の丸窓。写真が無ければカテゴリの既定画像
-          photo: getShopPreviewImage(s),
+          // 屋根の上の丸窓。写真が無ければカテゴリの既定画像（軽量なサムネイルを優先）
+          photo: getShopThumbnailImage(s),
           photoBorder: stall.dark,
         },
       };
