@@ -88,37 +88,24 @@ export default function AdminCalendarPage() {
                   weeksAhead === 0 ? "border-amber-300" : "border-slate-200"
                 }`}
               >
-                <div
-                  className={`flex items-center gap-2 px-4 py-2.5 ${
+                <button
+                  type="button"
+                  onClick={() => toggleExpanded(dateIso)}
+                  className={`flex w-full items-center gap-2 px-4 py-2.5 text-left ${
                     isExpanded ? "rounded-t-xl" : "rounded-xl"
                   } ${weeksAhead === 0 ? "bg-amber-50" : "bg-slate-50"}`}
+                  aria-expanded={isExpanded}
                 >
-                  <button
-                    type="button"
-                    onClick={() => toggleExpanded(dateIso)}
-                    className="flex min-w-0 flex-1 items-center gap-2 text-left"
-                    aria-expanded={isExpanded}
-                  >
-                    {isExpanded ? (
-                      <ChevronDown className="h-4 w-4 shrink-0 text-slate-400" />
-                    ) : (
-                      <ChevronRight className="h-4 w-4 shrink-0 text-slate-400" />
-                    )}
-                    <span className="font-semibold text-slate-900">{formatEventDate(dateIso)}</span>
-                    <span className="text-xs text-slate-400">
-                      {getRelativeSundayLabel(weeksAhead)}
-                    </span>
-                    <MarketDayStatusChip status={d.committedStatusFor(dateIso)} />
-                    <span className="text-xs text-slate-400">{items.length}件</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => openCreateIn(dateIso)}
-                    className="shrink-0 rounded-lg bg-amber-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-600"
-                  >
-                    ＋ この日に追加
-                  </button>
-                </div>
+                  {isExpanded ? (
+                    <ChevronDown className="h-4 w-4 shrink-0 text-slate-400" />
+                  ) : (
+                    <ChevronRight className="h-4 w-4 shrink-0 text-slate-400" />
+                  )}
+                  <span className="font-semibold text-slate-900">{formatEventDate(dateIso)}</span>
+                  <span className="text-xs text-slate-400">{getRelativeSundayLabel(weeksAhead)}</span>
+                  <MarketDayStatusChip status={d.committedStatusFor(dateIso)} />
+                  <span className="text-xs text-slate-400">{items.length}件</span>
+                </button>
 
                 {isExpanded && (
                   <>
@@ -138,10 +125,21 @@ export default function AdminCalendarPage() {
                       />
                     </div>
 
+                    <div className="flex items-center justify-between px-4 py-2.5">
+                      <span className="text-xs font-semibold text-slate-600">予定</span>
+                      <button
+                        type="button"
+                        onClick={() => openCreateIn(dateIso)}
+                        className="rounded-lg bg-amber-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-600"
+                      >
+                        ＋ 予定を追加
+                      </button>
+                    </div>
+
                     {items.length === 0 ? (
-                      <p className="px-4 py-4 text-sm text-slate-400">予定はありません</p>
+                      <p className="px-4 pb-4 text-sm text-slate-400">予定はありません</p>
                     ) : (
-                      <div className="divide-y divide-slate-100">
+                      <div className="divide-y divide-slate-100 border-t border-slate-100">
                         {items.map((event) => (
                           <EventRow
                             key={`${dateIso}-${event.id}`}
