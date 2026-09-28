@@ -6,13 +6,15 @@ import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { AdminLayout, AdminPageHeader } from "@/components/admin";
-import { formatEventDate, getCategoryPresentation, getRelativeSundayLabel } from "@/lib/market/calendar";
+import { formatEventDate, getRelativeSundayLabel, getCategoryPresentation } from "@/lib/market/calendar";
 import { useAdminEvents, CATEGORY_OPTIONS, SUNDAY_COUNT } from "./useAdminEvents";
+import { useAdminMarketDays } from "./useAdminMarketDays";
+import { MarketDayStatusEditor } from "./MarketDayStatusEditor";
 import { EventRow } from "./EventRow";
 import { HistoryTemplatePicker } from "./HistoryTemplatePicker";
 import { HighlightWeekPicker } from "./HighlightWeekPicker";
 
-export default function AdminEventsPage() {
+export default function AdminCalendarPage() {
   const { permissions, isLoading } = useAuth();
   const router = useRouter();
 
@@ -22,15 +24,16 @@ export default function AdminEventsPage() {
   }, [isLoading, permissions.isAdmin, router]);
 
   const e = useAdminEvents({ isAdmin: permissions.isAdmin });
+  const d = useAdminMarketDays({ isAdmin: permissions.isAdmin });
 
   return (
     <AdminLayout>
-      <AdminPageHeader eyebrow="日曜市カレンダー" title="予定の入稿" />
+      <AdminPageHeader eyebrow="日曜市カレンダー" title="開催ステータス・予定の入稿" />
 
-      <div className="mb-4 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600">
-        日曜ごとに予定を追加します。1つの日曜に何件でも追加できます。
-        <strong className="text-slate-800">必須はタイトルと種別だけ</strong>で、
-        時間・場所・連続開催・画像はすべて任意です。
+      <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+        開催ステータスは<strong>下書きなしで即座に公開</strong>され、マップと近況ページの
+        最上部に表示されます。予定は日曜ごとに何件でも追加でき、
+        <strong>必須はタイトルと種別だけ</strong>です。
       </div>
 
       <div className="mb-4 flex items-center gap-3">
@@ -41,11 +44,11 @@ export default function AdminEventsPage() {
             onChange={(ev) => e.setShowAll(ev.target.checked)}
             className="accent-amber-500"
           />
-          非公開も表示する
+          非公開の予定も表示する
         </label>
       </div>
 
-      {e.loading ? (
+      {e.loading || d.loading ? (
         <div className="flex items-center justify-center py-16 text-slate-400">読み込み中...</div>
       ) : (
         <div className="space-y-3">
@@ -73,6 +76,17 @@ export default function AdminEventsPage() {
                 >
                   ＋ この日に追加
                 </button>
+              </div>
+
+              <div className="border-b border-slate-100 px-4 py-3">
+                <MarketDayStatusEditor
+                  currentStatus={d.statusFor(dateIso)}
+                  noteDraft={d.noteFor(dateIso)}
+                  isSaving={d.savingDate === dateIso}
+                  recentNotes={d.recentNotes}
+                  onSetNoteDraft={(note) => d.setNoteDraft(dateIso, note)}
+                  onSave={(status, note) => void d.save(dateIso, status, note)}
+                />
               </div>
 
               {items.length === 0 ? (
