@@ -55,7 +55,7 @@ export function getShopBannerImage(category?: string | null, seed?: number | str
  * 拾う順番は広いほう（実際の写真があるなら必ず使う）、種は position を先にする。
  * position は運営が管理する不変の値で、id より安定しているため。
  */
-type ShopPreviewSource = {
+export type ShopPreviewSource = {
   id?: number | null;
   /** 道路上の位置。運営管理で変わらないので、既定画像の種にはこちらを優先する */
   position?: number | null;
@@ -78,3 +78,37 @@ export function getShopPreviewImage(shop: ShopPreviewSource): string {
 
 /** その店を表す写真（後方互換エイリアス）。 */
 export const resolveShopImage = getShopPreviewImage;
+
+/**
+ * URL が店舗メイン画像（store-main.*）かどうかを判定する
+ */
+export function isStoreMainImage(url: string): boolean {
+  return /(^|\/)store-main\.[a-zA-Z0-9]+(\?.*)?$/.test(url);
+}
+
+/**
+ * store-main.* の画像 URL から対応するサムネイル URL（store-thumb.webp）を導出する
+ */
+export function toStoreThumbUrl(url: string): string {
+  return url.replace(/(^|\/)store-main\.[a-zA-Z0-9]+/, "$1store-thumb.webp");
+}
+
+/**
+ * マップの丸窓写真やスキャンカードなど、小さな枠（128px〜200px前後）で表示する写真 URL を解決する。
+ *
+ * 1. shop.images.thumbnail があれば最優先
+ * 2. main 画像が store-main.* の場合、軽量な store-thumb.webp に置き換えて返す
+ * 3. それ以外（過去の画像や外部URL、既定画像など）は通常の getShopPreviewImage を返す
+ */
+export function getShopThumbnailImage(shop: ShopPreviewSource): string {
+  if (shop.images?.thumbnail) {
+    return shop.images.thumbnail;
+  }
+
+  const mainUrl = shop.images?.main;
+  if (mainUrl && isStoreMainImage(mainUrl)) {
+    return toStoreThumbUrl(mainUrl);
+  }
+
+  return getShopPreviewImage(shop);
+}

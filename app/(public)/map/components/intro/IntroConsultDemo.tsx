@@ -17,26 +17,18 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import GrandmaAvatar from '../../../consult/components/GrandmaAvatar';
 import { DEFAULT_CONSULT_CHARACTER } from '../../../consult/data/consultCharacters';
 import type { GrandmaPose } from '@/lib/grandma/pose';
+import { siteText } from '@/lib/siteCopy';
 
 type Exchange = { question: string; answer: string };
 
-/** 実際によく聞かれる形に寄せた見本。答えは案内用の決め打ち */
-const EXCHANGES: Exchange[] = [
-  {
-    question: 'おすすめのランチは？',
-    answer:
-      '歩きながら食べるなら芋天がええよ。揚げたてを紙袋で渡してくれるき、そのまま次の店へ行けるがよ。',
-  },
-  {
-    question: 'はじめてでも大丈夫？',
-    answer:
-      'もちろん。まずは真ん中の通路をまっすぐ歩いてみて。気になった店で足を止めたらええき。',
-  },
-  {
-    question: 'お手洗いはどこ？',
-    answer: '追手筋沿いに何か所かあるよ。「おでかけ」を押したら、近いところまで案内するきね。',
-  },
-];
+/**
+ * 実際によく聞かれる形に寄せた見本。答えは案内用の決め打ち。
+ * 文言はスプレッドシートで編集する（docs/SITE_COPY.md）。組の数はここで決める
+ */
+const EXCHANGES: Exchange[] = ([1, 2, 3] as const).map((n) => ({
+  question: siteText(`mapIntro.consultDemo.${n}.q`),
+  answer: siteText(`mapIntro.consultDemo.${n}.a`),
+}));
 
 /** 考えている時間。相談ページで実際に待つくらいの長さにする */
 const THINKING_MS = 900;
@@ -77,10 +69,10 @@ export default function IntroConsultDemo() {
         {!showAnswer && (
           <div className="consult-greeting max-w-[19rem] rounded-2xl border border-amber-200 bg-white px-4 py-2.5 text-center shadow-sm">
             <p className="text-[15px] font-bold leading-6 text-amber-900">
-              この通りのことなら、なんでも聞いてや。
+              {siteText('mapIntro.consultDemo.greeting')}
             </p>
             <p className="mt-0.5 text-[11px] text-amber-700/80">
-              聞きたいことを選んでね
+              {siteText('mapIntro.consultDemo.prompt')}
             </p>
           </div>
         )}
@@ -130,7 +122,7 @@ export default function IntroConsultDemo() {
       )}
 
       <p className="text-center text-[10.5px] leading-relaxed text-nicchyo-ink/40">
-        ここは見本の受け答えです。実際のにちよさんは、その日のお店の情報をもとに答えます
+        {siteText('mapIntro.consultDemo.note')}
       </p>
     </div>
   );

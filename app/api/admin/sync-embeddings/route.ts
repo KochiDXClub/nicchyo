@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { cookies } from "next/headers";
-import { createClient as createServerClient } from "@/utils/supabase/server";
-import { getRole, isAdmin } from "@/lib/auth/permissions";
+import { requireAdminApi } from "@/lib/auth/requireAdminApi";
 import { requestEmbeddings } from "@/lib/ai/openaiFetch";
 
 export const runtime = "nodejs";
@@ -265,15 +263,8 @@ export async function GET(req: NextRequest) {
 
 // 手動実行用（管理画面から POST で叩く場合）
 export async function POST(_req: NextRequest) {
-  const cookieStore = await cookies();
-  const supabase = createServerClient(cookieStore);
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user || !isAdmin(getRole(user))) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const auth = await requireAdminApi();
+  if ("error" in auth) return auth.error;
 
   try {
     const startedAt = new Date().toISOString();

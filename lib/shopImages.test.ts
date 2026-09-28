@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { getShopBannerImage, getShopPreviewImage } from './shopImages';
+import { getShopBannerImage, getShopPreviewImage, getShopThumbnailImage } from './shopImages';
 
 describe('getShopBannerImage', () => {
   // Constants from the source file for verification
@@ -159,3 +159,56 @@ describe('getShopPreviewImage', () => {
     });
   });
 });
+
+describe('getShopThumbnailImage', () => {
+  it('thumbnail が指定されていれば最優先で返す', () => {
+    const result = getShopThumbnailImage({
+      id: 1,
+      images: {
+        main: 'https://example.supabase.co/storage/v1/object/public/vendor-images/v1/store-main.webp',
+        thumbnail: 'https://example.supabase.co/storage/v1/object/public/vendor-images/v1/custom-thumb.webp',
+      },
+    });
+    expect(result).toBe('https://example.supabase.co/storage/v1/object/public/vendor-images/v1/custom-thumb.webp');
+  });
+
+  it('store-main.webp のメイン画像がある場合、store-thumb.webp に置き換えて返す', () => {
+    const result = getShopThumbnailImage({
+      id: 1,
+      images: {
+        main: 'https://example.supabase.co/storage/v1/object/public/vendor-images/v1/store-main.webp',
+      },
+    });
+    expect(result).toBe('https://example.supabase.co/storage/v1/object/public/vendor-images/v1/store-thumb.webp');
+  });
+
+  it('store-main.jpg など異なる拡張子でも store-thumb.webp に変換する', () => {
+    const result = getShopThumbnailImage({
+      id: 1,
+      images: {
+        main: 'https://example.supabase.co/storage/v1/object/public/vendor-images/v1/store-main.jpg',
+      },
+    });
+    expect(result).toBe('https://example.supabase.co/storage/v1/object/public/vendor-images/v1/store-thumb.webp');
+  });
+
+  it('store-main 以外の一般的な画像URLの場合は getShopPreviewImage にフォールバックする', () => {
+    const result = getShopThumbnailImage({
+      id: 1,
+      images: {
+        main: 'https://example.com/banner.png',
+      },
+    });
+    expect(result).toBe('https://example.com/banner.png');
+  });
+
+  it('画像が未登録の場合はカテゴリ既定画像を返す', () => {
+    const result = getShopThumbnailImage({
+      id: 1,
+      position: 1,
+      category: '生活雑貨',
+    });
+    expect(result).toBe(getShopPreviewImage({ id: 1, position: 1, category: '生活雑貨' }));
+  });
+});
+

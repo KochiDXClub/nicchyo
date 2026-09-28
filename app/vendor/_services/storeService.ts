@@ -1,4 +1,5 @@
 import { createClient } from "@/utils/supabase/client";
+import { createStoreImages, imageUploadInfo } from "@/lib/image/clientCompression";
 import type { Store, PaymentMethod, RainPolicy } from "../_types";
 
 export type Category = { id: string; name: string };
@@ -64,13 +65,57 @@ export async function fetchVendorStore(vendorId: string): Promise<Store | null> 
 
 export async function uploadStoreImage(vendorId: string, file: File): Promise<string> {
   const supabase = createClient();
-  const ext = file.name.split(".").pop()?.toLowerCase() ?? "jpg";
-  const path = `${vendorId}/store-main.${ext}`;
-  const { error } = await supabase.storage
-    .from("vendor-images")
-    .upload(path, file, { contentType: file.type, upsert: true });
-  if (error) throw error;
-  const { data } = supabase.storage.from("vendor-images").getPublicUrl(path);
+
+  // クライアント側でメイン用(1200px)とサムネ用(160px)のWebP画像に圧縮・リサイズ
+  const { mainBlob, thumbBlob } = await createStoreImages(file);
+
+  // WebP を書き出せないブラウザでは JPEG/PNG になるので、実際の形式で保存する
+  const main = imageUploadInfo(mainBlob);
+  const mainPath = `${vendorId}/store-main.${main.ext}`;
+  // サムネイルの URL はメイン画像の URL から store-thumb.webp として組み立てる（lib/shopImages.ts の toStoreThumbUrl）。
+  // 名前は固定したまま Content-Type だけ実際の形式に合わせる。ブラウザは Content-Type で画像を読むので表示できる
+  const thumbPath = `${vendorId}/store-thumb.webp`;
+
+  // メインとサムネイルを並行アップロード
+  const [mainResult, thumbResult] = await Promise.all([
+    supabase.storage
+      .from("vendor-images")
+      .upload(mainPath, mainBlob, { contentType: main.contentType, upsert: true }),
+    supabase.storage
+      .from("vendor-images")
+      .upload(thumbPath, thumbBlob, {
+        contentType: imageUploadInfo(thumbBlob).contentType,
+        upsert: true,
+      }),
+  ]);
+
+  if (mainResult.error) throw mainResult.error;
+  if (thumbResult.error) {
+    console.warn(
+      "[uploadStoreImage] サムネイルのアップロードに失敗しました:",
+      thumbResult.error.message
+    );
+  }
+
+  // 今回保存したもの以外の store-main.*（旧形式の .jpg/.png や、形式が変わったときの前回分）を削除
+  try {
+    const { data: existingFiles } = await supabase.storage
+      .from("vendor-images")
+      .list(vendorId);
+
+    const legacyFiles = (existingFiles ?? [])
+      .filter((f) => f.name.startsWith("store-main."))
+      .map((f) => `${vendorId}/${f.name}`)
+      .filter((path) => path !== mainPath);
+
+    if (legacyFiles.length > 0) {
+      await supabase.storage.from("vendor-images").remove(legacyFiles);
+    }
+  } catch (cleanErr) {
+    console.warn("[uploadStoreImage] 旧店舗画像のクリーンアップに失敗しました:", cleanErr);
+  }
+
+  const { data } = supabase.storage.from("vendor-images").getPublicUrl(mainPath);
   return data.publicUrl;
 }
 

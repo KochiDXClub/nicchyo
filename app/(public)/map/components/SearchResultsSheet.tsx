@@ -11,7 +11,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Shop } from '../data/shops';
 import type { MapCamera } from '../types/mapCamera';
-import { getShopPreviewImage } from '../../../../lib/shopImages';
+import { getShopPreviewImage, getShopThumbnailImage } from '../../../../lib/shopImages';
 
 export function SpotlightCountdownBar({ shopId }: { shopId: number }) {
   return (
@@ -162,7 +162,7 @@ export default function SearchResultsSheet({
         {/* 一覧は縦スクロール可能 */}
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pb-[env(safe-area-inset-bottom,0px)]">
           {searchShops.map((shop, i) => {
-            const imageUrl = getShopPreviewImage(shop);
+            const imageUrl = getShopThumbnailImage(shop);
             return (
               <button
                 key={shop.id}
@@ -175,7 +175,18 @@ export default function SearchResultsSheet({
                 <div className="shrink-0 h-10 w-10 overflow-hidden rounded-xl bg-slate-100">
                   {imageUrl && (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={imageUrl} alt="" className="h-full w-full object-cover" draggable={false} />
+                    <img
+                      src={imageUrl}
+                      alt=""
+                      className="h-full w-full object-cover"
+                      draggable={false}
+                      onError={(e) => {
+                        const fallback = getShopPreviewImage(shop);
+                        if (fallback && e.currentTarget.src !== fallback) {
+                          e.currentTarget.src = fallback;
+                        }
+                      }}
+                    />
                   )}
                 </div>
                 <div className="min-w-0 flex-1">

@@ -1,9 +1,7 @@
 import { NextResponse } from "next/server";
-import { createClient as createServiceClient } from "@supabase/supabase-js";
-import { cookies } from "next/headers";
-import { createClient as createServerClient } from "@/utils/supabase/server";
-import { getRole, isAdmin, normalizeRole, ROLE_HIERARCHY } from "@/lib/auth/permissions";
+import { normalizeRole, ROLE_HIERARCHY } from "@/lib/auth/permissions";
 import { listAllAuthUsers } from "@/lib/auth/listAllUsers";
+import { requireAdminApi } from "@/lib/auth/requireAdminApi";
 import { requireSameOrigin } from "@/lib/security/requestGuards";
 import { enforceRateLimit } from "@/lib/security/rateLimit";
 import type { UserRole } from "@/lib/auth/types";
@@ -56,29 +54,9 @@ function formatDateTime(value?: string | null) {
 
 export async function GET() {
   try {
-    const cookieStore = await cookies();
-    const supabase = createServerClient(cookieStore);
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user || !isAdmin(getRole(user))) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-    if (!supabaseUrl || !serviceRoleKey) {
-      return NextResponse.json({ error: "Supabase admin env missing" }, { status: 500 });
-    }
-
-    const serviceClient = createServiceClient(supabaseUrl, serviceRoleKey, {
-      auth: {
-        persistSession: false,
-        autoRefreshToken: false,
-      },
-    });
+    const auth = await requireAdminApi();
+    if ("error" in auth) return auth.error;
+    const { adminClient: serviceClient } = auth;
 
     const usersResult = await listAllAuthUsers(serviceClient);
     if (usersResult.error) {
@@ -164,15 +142,9 @@ export async function POST(req: Request) {
   });
   if (rateLimited) return rateLimited;
 
-  const cookieStore = await cookies();
-  const supabase = createServerClient(cookieStore);
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user || !isAdmin(getRole(user))) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const auth = await requireAdminApi();
+  if ("error" in auth) return auth.error;
+  const { user, role: callerRole, adminClient: serviceClient } = auth;
 
   const body = await req.json() as { email?: string; role?: string };
   const email = (body.email ?? "").trim().toLowerCase();
@@ -185,20 +157,9 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "無効なロールです" }, { status: 400 });
   }
 
-  const callerRole = getRole(user);
   if (role === "moderator" && callerRole !== "admin") {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
-
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!supabaseUrl || !serviceRoleKey) {
-    return NextResponse.json({ error: "Supabase env missing" }, { status: 500 });
-  }
-
-  const serviceClient = createServiceClient(supabaseUrl, serviceRoleKey, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
 
   // 招待メール送信
   const { data: invited, error: inviteError } = await serviceClient.auth.admin.inviteUserByEmail(email);
@@ -219,7 +180,7 @@ export async function POST(req: Request) {
     console.error("[admin/users] role set failed:", roleError.message);
     await logAdminAudit(
       serviceClient,
-      { id: user.id, email: user.email, role: getRole(user) },
+      { id: user.id, email: user.email, role: callerRole },
       {
         action: "invite_user_role_set_failed",
         targetType: "user",
@@ -234,7 +195,7 @@ export async function POST(req: Request) {
   // 監査ログ
   await logAdminAudit(
     serviceClient,
-    { id: user.id, email: user.email, role: getRole(user) },
+    { id: user.id, email: user.email, role: callerRole },
     {
       action: "invite_user",
       targetType: "user",
