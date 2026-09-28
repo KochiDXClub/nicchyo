@@ -3,6 +3,7 @@ import {
   getKeywordQuickResponse,
   generateLineConsultReply,
 } from "./consultAi";
+import { SITE_URL } from "../constants";
 
 describe("getKeywordQuickResponse", () => {
   it("マップ関連キーワードに即時回答する", () => {
@@ -36,6 +37,12 @@ describe("getKeywordQuickResponse", () => {
   it("挨拶に温かい土佐弁で即時回答する", () => {
     expect(getKeywordQuickResponse("こんにちは")).toContain("にちよさんやきね");
     expect(getKeywordQuickResponse("おはよう")).toContain("にちよさんやきね");
+  });
+
+  it("リンクはサイト共通の SITE_URL を基点にし、個人のプレビューURLを指さない", () => {
+    const text = getKeywordQuickResponse("マップ");
+    expect(text).toContain(`${SITE_URL}/map`);
+    expect(text).not.toContain("vercel.app");
   });
 
   it("マッチしない質問には null を返す", () => {

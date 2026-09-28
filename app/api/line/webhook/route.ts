@@ -8,13 +8,14 @@ import {
 } from "@/lib/line/consultAi";
 import { enforceRateLimit } from "@/lib/security/rateLimit";
 import type { LineWebhookPayload, LineOutgoingMessage } from "@/lib/line/types";
+import { SITE_URL } from "@/lib/constants";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const APP_BASE_URL =
-  process.env.NEXT_PUBLIC_SITE_URL ||
-  "https://nicchyo-git-develop-yutodesuys-projects.vercel.app";
+// LINEで送るリンクの基点。app/layout.tsx・sitemap と同じく lib/constants の SITE_URL
+// （NEXT_PUBLIC_SITE_URL を正規化し、未設定時は https://nicchyo.jp）を使う
+const APP_BASE_URL = SITE_URL;
 
 /** 友だち追加（初回フォロー）時のウェルカムメッセージ */
 const WELCOME_GREETING_TEXT = `友だち追加、まっことありがとうねぇ！🍊
