@@ -85,6 +85,17 @@ describe("ConsultFeedback", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it("Safari の変換確定（keyCode 229）の Enter でも送らない", () => {
+    const fetchMock = mockFetch(true);
+    render(<ConsultFeedback consultId={CONSULT_ID} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "改善が必要" }));
+    const input = screen.getByPlaceholderText("改善点を教えてください（任意）");
+    fireEvent.keyDown(input, { key: "Enter", keyCode: 229 });
+
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it("変換中でなければ Enter で送る", async () => {
     const fetchMock = mockFetch(true);
     render(<ConsultFeedback consultId={CONSULT_ID} />);

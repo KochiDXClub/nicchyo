@@ -130,8 +130,10 @@ export function ConsultFeedback({
               value={comment}
               onChange={(e) => setComment(e.target.value)}
               onKeyDown={(e) => {
-                // 日本語入力の変換を確定する Enter で、書きかけのまま送らない
-                if (e.nativeEvent.isComposing) return;
+                // 日本語入力の変換を確定する Enter で、書きかけのまま送らない。
+                // Safari は確定の keydown で isComposing が false になることがあるので、
+                // 変換中を表す keyCode 229 も見る
+                if (e.nativeEvent.isComposing || e.keyCode === 229) return;
                 if (e.key === "Enter") void send(-1, shareTranscript);
               }}
               placeholder="改善点を教えてください（任意）"
