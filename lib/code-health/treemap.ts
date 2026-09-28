@@ -95,4 +95,5 @@ export const DUP_RATIO_CUTS = [0, 5, 10, 20, 35, 50];
 export const VIOLATION_CUTS = [0, 2, 5, 10, 20, 40];
 
 // 連続値を色の濃さに変換する配色（薄い→濃い）。段階数は cuts.length + 1 に合わせる
+// 生の hex（DESIGN_SYSTEM.md §5「やらないこと」の例外: データ可視化の配色）
 export const SEQUENTIAL_PALETTE = ["#fef3c7", "#fde68a", "#fcd34d", "#fbbf24", "#f59e0b", "#d97706", "#92400e"];

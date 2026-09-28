@@ -35,9 +35,6 @@ begin
     create policy "admins read code health snapshots"
     on code_health_snapshots
     for select
-    using (
-      coalesce(auth.jwt() -> 'app_metadata' ->> 'role', auth.jwt() -> 'user_metadata' ->> 'role')
-      in ('admin', 'super_admin')
-    );
+    using (coalesce(auth.jwt() -> 'app_metadata' ->> 'role', '') = 'admin');
   end if;
 end $$;

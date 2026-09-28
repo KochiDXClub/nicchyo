@@ -40,6 +40,17 @@ function colorOf(file: SnapshotFile, mode: ColorMode): string {
   return ROLE_COLOR[file.role] ?? ROLE_COLOR.other;
 }
 
+/**
+ * colorStep() は cuts（境界値、要素数 N）に対して 0〜N の段階を返す
+ * （0: ちょうど0、1〜N-1: 前後の境界の間、N: 最後の境界を超える）。
+ * SEQUENTIAL_PALETTE は N+1 色を持つので、凡例も 0〜N の全段階を出す
+ */
+function legendLabel(step: number, cuts: number[], unit: string): string {
+  if (step === 0) return `0${unit}`;
+  if (step === cuts.length) return `${cuts[cuts.length - 1]}${unit}超`;
+  return `${cuts[step - 1]}〜${cuts[step]}${unit}`;
+}
+
 export function CodeTreemap({ files }: CodeTreemapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(0);
@@ -156,18 +167,16 @@ export function CodeTreemap({ files }: CodeTreemapProps) {
                 {role.label}
               </button>
             ))
-          : (mode === "dup" ? DUP_RATIO_CUTS : VIOLATION_CUTS).map((cut, i) => (
-              <span key={cut} className="flex items-center gap-1.5 text-nicchyo-ink/70">
-                <span
-                  className="h-2.5 w-2.5 rounded-chip"
-                  style={{ background: SEQUENTIAL_PALETTE[i] }}
-                  aria-hidden="true"
-                />
-                {i === 0 ? "0" : `${(mode === "dup" ? DUP_RATIO_CUTS : VIOLATION_CUTS)[i - 1]}〜`}
-                {cut}
-                {mode === "dup" ? "%" : "件"}
-              </span>
-            ))}
+          : (() => {
+              const cuts = mode === "dup" ? DUP_RATIO_CUTS : VIOLATION_CUTS;
+              const unit = mode === "dup" ? "%" : "件";
+              return SEQUENTIAL_PALETTE.map((color, step) => (
+                <span key={step} className="flex items-center gap-1.5 text-nicchyo-ink/70">
+                  <span className="h-2.5 w-2.5 rounded-chip" style={{ background: color }} aria-hidden="true" />
+                  {legendLabel(step, cuts, unit)}
+                </span>
+              ));
+            })()}
       </div>
 
       <Modal open={selectedFile !== null} onClose={() => setSelectedFile(null)} title={selectedFile?.path ?? ""}>

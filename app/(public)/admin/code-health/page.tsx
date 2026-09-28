@@ -19,7 +19,7 @@ const SNAPSHOT_LIMIT = 10;
  */
 export default async function CodeHealthPage() {
   const supabase = createClientWithExtensions(await cookies());
-  const { data: snapshots } = await supabase
+  const { data: snapshots, error } = await supabase
     .from("code_health_snapshots")
     .select("id, commit, branch, summary, files, created_at")
     .order("created_at", { ascending: false })
@@ -33,7 +33,14 @@ export default async function CodeHealthPage() {
         description="共通化率・コピペ率・デザインルール違反の状態を測る"
       />
       <div className="mx-auto max-w-7xl px-4 py-8 pb-20">
-        {!snapshots || snapshots.length === 0 ? (
+        {error ? (
+          <EmptyState
+            icon={FileWarning}
+            tone="neutral"
+            title="スナップショットを読み込めませんでした"
+            description={`データベースへの問い合わせに失敗しました（${error.message}）。テーブルの作成・権限設定を確認してください。`}
+          />
+        ) : !snapshots || snapshots.length === 0 ? (
           <EmptyState
             icon={FileWarning}
             tone="neutral"
