@@ -1,10 +1,7 @@
 import { NextResponse } from "next/server";
-import { createClient as createServiceClient } from "@supabase/supabase-js";
-import { cookies } from "next/headers";
-import { createClient as createServerClient } from "@/utils/supabase/server";
 import { requireSameOrigin } from "@/lib/security/requestGuards";
 import { enforceRateLimit } from "@/lib/security/rateLimit";
-import { getRole, isAdmin } from "@/lib/auth/permissions";
+import { requireAdminApi } from "@/lib/auth/requireAdminApi";
 import { logAdminAudit } from "@/lib/audit/logAdminAudit";
 
 export const runtime = "nodejs";
@@ -30,29 +27,14 @@ export async function PATCH(
     if (rateLimited) return rateLimited;
 
     const { id } = await params;
-    const cookieStore = await cookies();
-    const supabase = createServerClient(cookieStore);
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user || !isAdmin(getRole(user))) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const auth = await requireAdminApi();
+    if ("error" in auth) return auth.error;
+    const { user, role, adminClient: serviceClient } = auth;
     if (id === user.id) {
       return NextResponse.json({ error: "自分自身への操作はできません" }, { status: 400 });
     }
 
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-    if (!supabaseUrl || !serviceRoleKey) {
-      return NextResponse.json({ error: "Supabase env missing" }, { status: 500 });
-    }
-
     const body = (await request.json()) as PatchBody;
-    const serviceClient = createServiceClient(supabaseUrl, serviceRoleKey, {
-      auth: { persistSession: false, autoRefreshToken: false },
-    });
 
     if (body.action === "suspend") {
       const { error } = await serviceClient.auth.admin.updateUserById(id, {
@@ -65,7 +47,7 @@ export async function PATCH(
 
       await logAdminAudit(
         serviceClient,
-        { id: user.id, email: user.email, role: getRole(user) },
+        { id: user.id, email: user.email, role },
         { action: "suspend_user", targetType: "user", targetId: id, details: "ユーザーを停止" }
       );
     } else if (body.action === "restore") {
@@ -79,7 +61,7 @@ export async function PATCH(
 
       await logAdminAudit(
         serviceClient,
-        { id: user.id, email: user.email, role: getRole(user) },
+        { id: user.id, email: user.email, role },
         { action: "restore_user", targetType: "user", targetId: id, details: "ユーザーを復帰" }
       );
     } else if (body.action === "change_role") {
@@ -99,7 +81,7 @@ export async function PATCH(
 
       await logAdminAudit(
         serviceClient,
-        { id: user.id, email: user.email, role: getRole(user) },
+        { id: user.id, email: user.email, role },
         { action: "change_role", targetType: "user", targetId: id, details: `ロールを ${newRole} に変更` }
       );
     } else {

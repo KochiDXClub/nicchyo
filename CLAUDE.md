@@ -148,6 +148,7 @@ nicchyo-soft-green: #A0D7A7  （淡い緑）
 - 共通UIコンポーネントは `components/ui/`（`@/components/ui` のバレルから読む）。同じものを2回目に書こうとしたら、ページ内に作らずここへ足す
 - 管理画面コンポーネントは `components/admin/`
 - ユーティリティ関数は `lib/utils/cn.ts`（`clsx` + `tailwind-merge` のラッパー）
+- **シートで編集する文言**（`content/site-copy/*.json`）はスプレッドシートから生成されるので直接編集しない。読むときは `siteText(key)`。手順は `docs/SITE_COPY.md`
 
 ## 重要な制約
 
