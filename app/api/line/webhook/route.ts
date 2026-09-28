@@ -52,17 +52,18 @@ export async function POST(request: Request) {
     const channelSecret = process.env.LINE_CHANNEL_SECRET;
     const channelAccessToken = process.env.LINE_CHANNEL_ACCESS_TOKEN;
 
+    // 設定ミスで 5xx を返し続けると LINE 側で Webhook がエラー扱いになり続けるため、
+    // ログで気づけるようにしたうえで 200 を返す（署名検証ができないので何も処理しない）
     if (!channelSecret || !channelAccessToken) {
       console.error(
         "[LINE webhook] Missing LINE_CHANNEL_SECRET or LINE_CHANNEL_ACCESS_TOKEN"
       );
-      return NextResponse.json(
-        { error: "LINE credentials not configured on server" },
-        { status: 500 }
-      );
+      return NextResponse.json({ status: "ignored" }, { status: 200 });
     }
 
     // 3. リクエスト本文の取得と署名検証
+    // 署名不一致は LINE 以外からのリクエスト（またはシークレットの設定ミス）なので 401 で拒否する。
+    // LINE Developers の「検証」も正しい署名付きで送られるため、ここは 200 にしない
     const rawBody = await request.text();
     const signature = request.headers.get("x-line-signature");
 
@@ -79,10 +80,9 @@ export async function POST(request: Request) {
     try {
       payload = JSON.parse(rawBody) as LineWebhookPayload;
     } catch {
-      return NextResponse.json(
-        { error: "Invalid JSON payload" },
-        { status: 400 }
-      );
+      // 署名は正しい＝LINEから届いたもの。再送されても直らないので 200 で受け流す
+      console.error("[LINE webhook] Failed to parse signed payload as JSON");
+      return NextResponse.json({ status: "ignored" }, { status: 200 });
     }
 
     const events = payload.events ?? [];
@@ -211,11 +211,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ status: "ok" }, { status: 200 });
   } catch (err) {
     console.error("[LINE webhook] Top-level handler error:", err);
-    // 最上位例外でも 500 JSON を返す
-    return NextResponse.json(
-      { error: "Internal Server Error" },
-      { status: 500 }
-    );
+    // 最上位例外でもエラー応答が続くと LINE 側で Webhook がエラー扱いになるため 200 を返す
+    return NextResponse.json({ status: "error" }, { status: 200 });
   }
 }
 

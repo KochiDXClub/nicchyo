@@ -71,11 +71,30 @@ describe("app/api/line/webhook/route", () => {
     expect(res.status).toBe(401);
   });
 
-  it("環境変数が不足している場合は 500 を返す", async () => {
+  it("環境変数が不足している場合はログを出して 200 を返し、何も処理しない", async () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     delete process.env.LINE_CHANNEL_SECRET;
     const req = createSignedRequest({ events: [] });
     const res = await POST(req);
-    expect(res.status).toBe(500);
+    expect(res.status).toBe(200);
+    expect(errorSpy).toHaveBeenCalled();
+    expect(sendLineReply).not.toHaveBeenCalled();
+    errorSpy.mockRestore();
+  });
+
+  it("署名は正しいが JSON として解釈できない場合も 200 を返す", async () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const rawBody = "{not json";
+    const signature = createHmac("sha256", secret).update(rawBody, "utf8").digest("base64");
+    const req = new Request("http://localhost/api/line/webhook", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-line-signature": signature },
+      body: rawBody,
+    });
+    const res = await POST(req);
+    expect(res.status).toBe(200);
+    expect(sendLineReply).not.toHaveBeenCalled();
+    errorSpy.mockRestore();
   });
 
   it("空の events 配列でも正常に 200 を返す（LINE疎通確認用）", async () => {
