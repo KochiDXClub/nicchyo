@@ -4,7 +4,7 @@ import Link from "next/link";
 import { lockBodyScroll, unlockBodyScroll } from "@/lib/ui/bodyScrollLock";
 import Image from "next/image";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useCallback, useRef, useState, Suspense } from "react";
+import { useEffect, useCallback, useId, useRef, useState, Suspense } from "react";
 import {
   AnimatePresence,
   motion,
@@ -684,6 +684,8 @@ function NavLinkItem({ item, isActive }: { item: NavItem; isActive: boolean }) {
 function StoryNavChooser({ item, isActive }: { item: NavItem; isActive: boolean }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
+  // 矢印キーで動く menu ではなく、ただのリンク2つなので、開閉ボタンと一覧を aria-controls でつなぐだけにする
+  const listId = useId();
 
   useEffect(() => {
     if (!open) return;
@@ -707,7 +709,7 @@ function StoryNavChooser({ item, isActive }: { item: NavItem; isActive: boolean 
         type="button"
         onClick={() => setOpen((prev) => !prev)}
         aria-expanded={open}
-        aria-haspopup="menu"
+        aria-controls={open ? listId : undefined}
         className={navItemClass(isActive || open)}
       >
         <NavItemContent item={item} isActive={isActive || open} />
@@ -715,7 +717,8 @@ function StoryNavChooser({ item, isActive }: { item: NavItem; isActive: boolean 
       <AnimatePresence>
         {open && (
           <motion.div
-            role="menu"
+            id={listId}
+            role="group"
             aria-label="近況の行き先"
             initial={{ opacity: 0, y: 6 }}
             animate={{ opacity: 1, y: 0 }}
@@ -728,7 +731,6 @@ function StoryNavChooser({ item, isActive }: { item: NavItem; isActive: boolean 
                 key={choice.href}
                 href={choice.href}
                 prefetch={false}
-                role="menuitem"
                 onClick={() => setOpen(false)}
                 className="block rounded-btn px-3 py-2.5 text-left transition hover:bg-nicchyo-ink/5 active:bg-nicchyo-ink/10"
               >
