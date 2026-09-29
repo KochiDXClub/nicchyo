@@ -86,7 +86,7 @@ export default function VendorSidebar({
                   }`}
                   aria-current={isActive ? "page" : undefined}
                 >
-                  <span className="mt-0.5 text-xl" aria-hidden="true">{item.emoji}</span>
+                  <item.icon className="mt-0.5 h-5 w-5 shrink-0" strokeWidth={1.7} aria-hidden />
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-semibold">{item.label}</p>
                     <p className="mt-0.5 text-[11px] leading-relaxed text-slate-500">{item.description}</p>
