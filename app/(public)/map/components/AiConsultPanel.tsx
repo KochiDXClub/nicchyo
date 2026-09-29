@@ -6,6 +6,7 @@ import { ChevronRight, Send, Sparkles } from "lucide-react";
 import type { Shop } from "../data/shops";
 import type { BannerTheme } from "./ShopBannerHero";
 import { ShopSubviewHeader } from "./ShopBannerHero";
+import { isImeComposing } from "@/lib/utils/isImeComposing";
 import { ConsultFeedback } from "@/components/consult/ConsultFeedback";
 
 type ChatMsg = { role: "user" | "assistant"; text: string };
@@ -163,7 +164,7 @@ export function AiConsultPanel({
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-      if (e.nativeEvent.isComposing) return;
+      if (isImeComposing(e)) return;
       if (e.key === "Enter" && !e.shiftKey) {
         e.preventDefault();
         handleSubmit();
