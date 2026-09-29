@@ -84,6 +84,8 @@ export function useMapLibreUserLocation({
   // 次の位置取得が来たら追従を外す（最初の寄せを抑える・位置が来る前に追従を切られた）
   const releaseOnNextFixRef = useRef(false);
   const hasFixRef = useRef(false);
+  // 位置情報を拒否された。control はボタンを無効にして OFF に戻る（trackuserlocationend は出さない）
+  const permissionDeniedRef = useRef(false);
   const routeRef = useRef<RouteGeometry>(buildRouteGeometry(routePoints, routeConfig));
   const onLocationUpdateRef = useRef(onLocationUpdate);
   const [isTracking, setIsTracking] = useState(false);
@@ -147,6 +149,12 @@ export function useMapLibreUserLocation({
     };
     const handleError = (event: { code: number; message: string }) => {
       console.warn("Failed to get geolocation", event.code, event.message);
+      if (event.code === 1) {
+        permissionDeniedRef.current = true;
+        releaseOnNextFixRef.current = false;
+        isTrackingRef.current = false;
+        setIsTracking(false);
+      }
       inMarketRef.current = false;
       onLocationUpdateRef.current?.(false, MARKET_CENTER);
     };
@@ -168,12 +176,10 @@ export function useMapLibreUserLocation({
     control.on("trackuserlocationend", handleTrackEnd);
 
     map.addControl(control, "bottom-right");
-    // 標準のボタンは出さない（追従ボタンは MapControls のものを使う）
-    const group = map
-      .getContainer()
-      .querySelector<HTMLElement>(".maplibregl-ctrl-geolocate")
-      ?.closest<HTMLElement>(".maplibregl-ctrl-group");
-    if (group) group.style.display = "none";
+    // 標準のボタンは出さない（追従ボタンは MapControls のものを使う）。
+    // ボタンの親は この control が onAdd で作った自分専用の枠なので、ほかの control には影響しない
+    const ownContainer = map.getContainer().querySelector<HTMLElement>(".maplibregl-ctrl-geolocate")?.parentElement;
+    if (ownContainer) ownContainer.style.display = "none";
 
     controlRef.current = control;
 
@@ -194,6 +200,7 @@ export function useMapLibreUserLocation({
       isTrackingRef.current = false;
       releaseOnNextFixRef.current = false;
       hasFixRef.current = false;
+      permissionDeniedRef.current = false;
       setIsTracking(false);
     };
   }, [map, zoomOffset]);
@@ -205,6 +212,12 @@ export function useMapLibreUserLocation({
     if (retryTimerRef.current !== null) {
       window.clearTimeout(retryTimerRef.current);
       retryTimerRef.current = null;
+    }
+    if (permissionDeniedRef.current) {
+      // 拒否されたあとは control のボタンが無効のままなので、待たずに抜ける
+      console.warn("Geolocation permission denied");
+      onLocationUpdateRef.current?.(false, MARKET_CENTER);
+      return;
     }
     let tries = 0;
     const attempt = () => {

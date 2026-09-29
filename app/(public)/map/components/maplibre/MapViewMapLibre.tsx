@@ -368,6 +368,11 @@ function MapViewMapLibre({
     routeConfig,
   });
 
+  // 追従中は吸着しない。吸着のパンは control から「ユーザーが地図を動かした」に見えて追従が外れるうえ、
+  // 次の測位でまた現在地へ戻されるので意味もない
+  const isTrackingRef = useRef(isTracking);
+  isTrackingRef.current = isTracking;
+
   // 道への吸着: 中心を道の上へ投影した点を返す。もともと道の上（ずれが小さい）なら null
   const roadSnapModeRef = useRef(featureFlags.roadSnap);
   roadSnapModeRef.current = featureFlags.roadSnap;
@@ -1110,6 +1115,7 @@ function MapViewMapLibre({
       clearSnapTimer();
       timer = window.setTimeout(() => {
         timer = null;
+        if (isTrackingRef.current) return;
         const c = map.getCenter();
         const snapped = snapToRoad(c.lat, c.lng);
         if (!snapped) return;
