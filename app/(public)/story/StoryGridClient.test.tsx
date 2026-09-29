@@ -2,7 +2,6 @@ import React from "react";
 import { render, screen, act, fireEvent } from "@testing-library/react";
 import { vi } from "vitest";
 import StoryGridClient from "./StoryGridClient";
-import { LOADING_LANTERN_DURATION_MS } from "./components/LoadingLantern";
 import type { StoryItem } from "./types";
 
 // ナビゲーションバーは Auth/Bag/Menu の各 Context に依存するため、
@@ -17,6 +16,12 @@ vi.mock("@/lib/story/reactions", () => ({
   toggleReaction: vi.fn().mockResolvedValue({ count: 1, reacted: true }),
 }));
 
+// シートの開閉アニメーションを待たずに結果を確かめるため、動きを減らす設定で描く
+vi.mock("framer-motion", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("framer-motion")>()),
+  useReducedMotion: () => true,
+}));
+
 function makeStory(overrides: Partial<StoryItem>): StoryItem {
   return {
     id: "id",
@@ -29,72 +34,94 @@ function makeStory(overrides: Partial<StoryItem>): StoryItem {
   };
 }
 
-describe("StoryGridClient のプレビュー枠（FeaturedStoryPreview）", () => {
-  beforeEach(() => {
-    vi.useFakeTimers();
-  });
+const STORIES = [
+  makeStory({ id: "a", vendor: { id: "v1", shop_name: "八百屋A", shop_image_url: null, store_number: 1 } }),
+  makeStory({ id: "b", vendor: { id: "v2", shop_name: "八百屋B", shop_image_url: null, store_number: 2 } }),
+];
 
+function mockViewport({ desktop }: { desktop: boolean }) {
+  vi.stubGlobal(
+    "matchMedia",
+    vi.fn().mockImplementation((query: string) => ({
+      matches: desktop,
+      media: query,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+    }))
+  );
+}
+
+async function renderPage(stories: StoryItem[] = STORIES) {
+  vi.spyOn(global, "fetch").mockImplementation(async (input) => {
+    const url = String(input);
+    return {
+      ok: true,
+      json: async () => (url.includes("/api/stories") ? stories : {}),
+    } as Response;
+  });
+  render(<StoryGridClient />);
+  // /api/stories のフェッチ完了を待つ
+  await act(async () => {
+    await Promise.resolve();
+    await Promise.resolve();
+  });
+}
+
+describe("StoryGridClient", () => {
   afterEach(() => {
-    vi.useRealTimers();
     vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+    window.history.replaceState(null, "", "/");
   });
 
-  it("今週の投稿を自動送りし、一定時間ごとに次の投稿へ切り替わる", async () => {
-    const stories = [
-      makeStory({ id: "a", vendor: { id: "v1", shop_name: "八百屋A", shop_image_url: null, store_number: 1 } }),
-      makeStory({ id: "b", vendor: { id: "v2", shop_name: "八百屋B", shop_image_url: null, store_number: 2 } }),
-    ];
-    vi.spyOn(global, "fetch").mockResolvedValue({
-      ok: true,
-      json: async () => stories,
-    } as Response);
+  it("スマホでは最新の投稿が半開きのシートで出て、タップすると全画面で再生が始まる", async () => {
+    mockViewport({ desktop: false });
+    await renderPage();
 
-    render(<StoryGridClient />);
+    fireEvent.click(screen.getByTestId("story-peek-sheet"));
 
-    // 提灯ローディングの表示時間を経過させる
-    await act(async () => {
-      vi.advanceTimersByTime(LOADING_LANTERN_DURATION_MS);
-    });
-    // /api/stories のフェッチ完了を待つ
-    await act(async () => {
-      await Promise.resolve();
-      await Promise.resolve();
-    });
-
-    expect(screen.getByText("八百屋A")).toBeInTheDocument();
-
-    // プレビュー枠の自動送り（4秒）で次の投稿に切り替わる
-    await act(async () => {
-      vi.advanceTimersByTime(4000);
-    });
-
-    expect(screen.getByText("八百屋B")).toBeInTheDocument();
-    expect(screen.queryByText("八百屋A")).not.toBeInTheDocument();
+    // 全画面ビューア（ハートの操作を持つ）が先頭の投稿で開く
+    expect(await screen.findByLabelText("ハートを送る")).toBeInTheDocument();
   });
 
-  it("プレビュー枠をタップすると、その投稿から全画面ビューアが開く", async () => {
-    const stories = [
-      makeStory({ id: "a", vendor: { id: "v1", shop_name: "八百屋A", shop_image_url: null, store_number: 1 } }),
-    ];
-    vi.spyOn(global, "fetch").mockResolvedValue({
-      ok: true,
-      json: async () => stories,
-    } as Response);
+  it("シートの閉じるを押すと、シートが消えて一覧だけになる", async () => {
+    mockViewport({ desktop: false });
+    await renderPage();
 
-    render(<StoryGridClient />);
+    const sheet = screen.getByTestId("story-peek-sheet");
+    fireEvent.click(sheet.querySelector('[aria-label="閉じる"]') as HTMLElement);
 
-    await act(async () => {
-      vi.advanceTimersByTime(LOADING_LANTERN_DURATION_MS);
-    });
-    await act(async () => {
-      await Promise.resolve();
-      await Promise.resolve();
-    });
+    expect(screen.queryByTestId("story-peek-sheet")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("ハートを送る")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "八百屋Bの投稿を見る" })).toBeInTheDocument();
+  });
 
-    const previewButton = screen.getByRole("button", { name: "八百屋Aの近況を全画面で見る" });
-    fireEvent.click(previewButton);
+  it("PC の幅ではシートを出さない（一覧の横に表紙が出る）", async () => {
+    mockViewport({ desktop: true });
+    await renderPage();
 
-    // 全画面ビューア（閉じるボタンを持つ）が開く
-    expect(screen.getByLabelText("閉じる")).toBeInTheDocument();
+    expect(screen.queryByTestId("story-peek-sheet")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "八百屋Aの近況を再生" })).toBeInTheDocument();
+  });
+
+  it("?content= 付きで開いたときは、シートを出さずにその投稿を全画面で開く", async () => {
+    mockViewport({ desktop: false });
+    window.history.replaceState(null, "", "/story?content=b");
+    await renderPage();
+
+    expect(screen.queryByTestId("story-peek-sheet")).not.toBeInTheDocument();
+    expect(await screen.findByLabelText("ハートを送る")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "八百屋Bをマップで見る" })).toBeInTheDocument();
+  });
+
+  it("店の列から選ぶと、その店のいちばん新しい投稿から開く", async () => {
+    mockViewport({ desktop: true });
+    await renderPage();
+
+    fireEvent.click(screen.getByRole("button", { name: "八百屋Bの近況を見る" }));
+
+    expect(await screen.findByRole("link", { name: "八百屋Bをマップで見る" })).toBeInTheDocument();
   });
 });
