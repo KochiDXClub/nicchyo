@@ -161,12 +161,12 @@ export default function StoryPeekSheet({ story, count, onLaunch, onDismiss, demo
   };
 
   const handleKeyDown = (e: KeyboardEvent) => {
-    if (e.key === "Enter" || e.key === " ") {
-      e.preventDefault();
-      launch();
-    } else if (e.key === "Escape") {
-      dismiss();
-    }
+    if (e.key === "Escape") dismiss();
+  };
+
+  const handleLaunchButton = (e: MouseEvent) => {
+    e.stopPropagation();
+    launch();
   };
 
   const handleClose = (e: MouseEvent) => {
@@ -179,9 +179,8 @@ export default function StoryPeekSheet({ story, count, onLaunch, onDismiss, demo
   return (
     <motion.div
       ref={sheetRef}
-      role="button"
-      tabIndex={0}
-      aria-label={`${shopName}の近況を再生`}
+      role="dialog"
+      aria-label={`${shopName}の最新の近況`}
       data-testid="story-peek-sheet"
       className="fixed inset-x-0 z-[9990] outline-none md:hidden"
       style={{ bottom: NAV_SPACE, height, y, touchAction: "none" }}
@@ -204,6 +203,11 @@ export default function StoryPeekSheet({ story, count, onLaunch, onDismiss, demo
           aria-hidden
           className="absolute left-1/2 top-1.5 z-20 h-1 w-10 -translate-x-1/2 rounded-chip bg-white/60"
         />
+        {/* 指やマウスではシートのどこを押しても再生する（onClick）。キーボードと読み上げには、
+            閉じるボタンと並ぶ独立したボタンとして同じ操作を出す（ボタンの中にボタンを入れない） */}
+        <button type="button" onClick={handleLaunchButton} className="sr-only">
+          {shopName}の近況を再生
+        </button>
         <StoryCover
           story={story}
           count={count}
