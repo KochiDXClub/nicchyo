@@ -3,7 +3,7 @@
 //
 //   npm run code-health                 今のコードを測って .code-health/report.html を作る
 //   npm run code-health:diff            develop との分岐点と比べる（悪化があれば終了コード 1）
-//   npm run code-health:save            測った結果を Supabase の code_health_snapshots に保存する（CI 用）
+//   npm run code-health:save            測った結果を Supabase の code_health_snapshots に保存する（本番ビルドでは save-on-deploy.mjs から呼ばれる）
 //
 // オプション:
 //   --base <ref>          比較相手（ref と HEAD の分岐点を before にする）
@@ -85,8 +85,9 @@ async function main() {
   const root = git(["rev-parse", "--show-toplevel"]);
   process.chdir(root);
 
-  const branch = git(["rev-parse", "--abbrev-ref", "HEAD"]);
-  const commit = git(["rev-parse", "HEAD"]);
+  // Vercel のビルドは detached HEAD なので、ブランチ名・コミットは Vercel の環境変数を優先する
+  const branch = process.env.VERCEL_GIT_COMMIT_REF || git(["rev-parse", "--abbrev-ref", "HEAD"]);
+  const commit = process.env.VERCEL_GIT_COMMIT_SHA || git(["rev-parse", "HEAD"]);
   const after = analyze(readWorkingTree(), { label: `作業ツリー（${branch}）` });
 
   let diff = null;

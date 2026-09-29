@@ -19,10 +19,14 @@ npm run code-health:save   # 測った結果を Supabase の code_health_snapsho
   （結論1行・主要指標と変化した項目だけの表・悪化した箇所・理由欄。全項目は折りたたみの中）
 - 比較相手が古いときは先に `git fetch origin develop` する
 - PR では CI（Lint / Type Check / Test / Build）が同じ比較をして、ジョブのサマリーに表を出す（今は失敗扱いにしない）
-- `main` への push では CI が `code-health:save` を実行し、結果を Supabase に保存する。
-  保存された履歴は管理画面 `/admin/code-health` から見られる（最新の状態と前回比、ツリーマップ、
-  ルール違反の多いファイル）。`code-health:save` は `SUPABASE_SERVICE_ROLE_KEY` が要るので、
-  ローカルで試すときは環境変数に local の service role key を渡す
+- 本番デプロイ（Vercel の production ビルド）のたびに、`prebuild` から
+  `scripts/code-health/save-on-deploy.mjs` が結果を Supabase に保存する。キーは Vercel に
+  登録済みの `SUPABASE_SERVICE_ROLE_KEY` を使うので、GitHub Actions 側のシークレットは要らない。
+  同じコミットの Redeploy では保存しない。保存に失敗してもビルドは止めない（ビルドログに警告が出る）。
+  CI・プレビュー・ローカルの `npm run build` では何もしない
+- 保存された履歴は管理画面 `/admin/code-health` から見られる（最新の状態と前回比、ツリーマップ、
+  ルール違反の多いファイル）。手動で保存したいときは `npm run code-health:save`
+  （`SUPABASE_SERVICE_ROLE_KEY` が要るので、ローカルで試すときは環境変数に local の service role key を渡す）
 
 ## AI・人が開発するときの流れ
 

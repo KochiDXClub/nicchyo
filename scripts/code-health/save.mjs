@@ -1,5 +1,5 @@
 // Supabase の code_health_snapshots テーブルへスナップショットを保存する。
-// CI（main への push）から service role で呼ぶ想定。
+// 本番ビルド（Vercel）から save-on-deploy.mjs 経由で、service role で呼ぶ想定。
 //
 // summary/files は analyze() の戻り値をそのまま保存すると重い（全ファイルの ruleHits など）ため、
 // 管理画面の表示に必要な形へ間引いてから保存する。
@@ -85,4 +85,18 @@ export async function saveSnapshot(report, meta, supabaseEnv) {
     const body = await res.text().catch(() => "");
     throw new Error(`code_health_snapshots への保存に失敗しました: ${res.status} ${body}`);
   }
+}
+
+/** 同じコミットのスナップショットが既にあるか（Vercel の Redeploy で二重に保存しないため） */
+export async function snapshotExists(commit, supabaseEnv) {
+  const res = await fetch(
+    `${supabaseEnv.url}/rest/v1/code_health_snapshots?select=id&commit=eq.${encodeURIComponent(commit)}&limit=1`,
+    { headers: { apikey: supabaseEnv.serviceKey, Authorization: `Bearer ${supabaseEnv.serviceKey}` } },
+  );
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    throw new Error(`code_health_snapshots の確認に失敗しました: ${res.status} ${body}`);
+  }
+  const rows = await res.json();
+  return rows.length > 0;
 }
