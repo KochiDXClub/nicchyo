@@ -15,10 +15,10 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as maplibregl from "maplibre-gl";
-import type { StyleSpecification } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import "@/lib/map/maplibreWorker";
 import { Loader2, RotateCcw, Save } from "lucide-react";
+import { OPENFREEMAP_STYLE_URL } from "@/app/(public)/map/config/basemap";
 import type { MapRoute } from "@/app/(public)/map/types/mapRoute";
 import {
   getRouteBounds,
@@ -37,34 +37,6 @@ import {
 
 /** MapLibre は 512px タイル基準なので、Leaflet 基準のズーム値から 1 引く */
 const ZOOM_OFFSET = -1;
-
-const CARTO_TILES = ["a", "b", "c", "d"].map(
-  (s) => `https://${s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png`
-);
-
-/**
- * 下敷きの地図。MapLibre は渡したスタイルを書き換えることがあるので、
- * 使い回さず毎回組み立てる
- */
-function buildPreviewStyle(): StyleSpecification {
-  return {
-    version: 8,
-    sources: {
-      carto: {
-        type: "raster",
-        tiles: CARTO_TILES,
-        tileSize: 256,
-        maxzoom: 20,
-        attribution:
-          '&copy; OpenStreetMap contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
-      },
-    },
-    layers: [
-      { id: "background", type: "background", paint: { "background-color": "#FFFAF0" } },
-      { id: "basemap", type: "raster", source: "carto", paint: { "raster-opacity": 0.85 } },
-    ],
-  };
-}
 
 const SRC_RANGE = "range";
 const SRC_ROAD = "road";
@@ -223,7 +195,10 @@ export default function MapViewRangeClient() {
 
     const map = new maplibregl.Map({
       container,
-      style: buildPreviewStyle(),
+      // CARTO のラスタータイルは無料枠のレート制限で「API KEY REQUIRED」の
+      // 透かしが出ることがあるため、公開マップの vector-openfreemap モードと
+      // 同じ OpenFreeMap のベクタータイル（キー不要・レート制限なし）を使う
+      style: OPENFREEMAP_STYLE_URL,
       bounds: [
         [initialBounds.west, initialBounds.south],
         [initialBounds.east, initialBounds.north],
