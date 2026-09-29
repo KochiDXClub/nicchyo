@@ -1,6 +1,8 @@
 "use client";
 
 import Image from "next/image";
+import { cn } from "@/lib/utils/cn";
+import type { StoryCharacter } from "../types";
 
 /**
  * ストーリーの上端に重ねる部品（経過バーと店の名札）。
@@ -61,6 +63,50 @@ export function StoryShopInfo({ shopName, avatarUrl, timeLabel }: ShopInfoProps)
         <p className="text-white/60 text-[11px] leading-tight">{timeLabel}</p>
       </div>
     </>
+  );
+}
+
+type CharacterBubbleProps = {
+  character: StoryCharacter;
+  className?: string;
+};
+
+/**
+ * 店のAIキャラのひとこと。店主の書いた本文とは別に、キャラの吹き出しで出す。
+ * AI の言葉だと分かるように、名前の横に必ず「AI」の印を付ける。
+ */
+export function StoryCharacterBubble({ character, className }: CharacterBubbleProps) {
+  return (
+    <div className={cn("flex items-end gap-2", className)}>
+      <div className="relative h-11 w-11 flex-shrink-0 overflow-hidden rounded-full bg-white ring-2 ring-white/80">
+        <Image
+          src={character.imageUrl}
+          alt=""
+          fill
+          sizes="44px"
+          unoptimized
+          className="object-cover"
+        />
+      </div>
+      <div className="min-w-0 rounded-card rounded-bl-md bg-white px-3.5 py-2.5 text-left text-nicchyo-ink shadow-float">
+        <p className="flex items-center gap-1.5 text-[11px] font-bold leading-tight text-nicchyo-ink/55">
+          <span className="truncate">{character.name}</span>
+          <span className="flex-shrink-0 rounded-chip bg-nicchyo-ink/10 px-1.5 py-px text-[10px] text-nicchyo-ink/70">
+            AI
+          </span>
+        </p>
+        <p className="mt-0.5 text-sm leading-relaxed">{character.line}</p>
+      </div>
+    </div>
+  );
+}
+
+/** デモの投稿であることを示す印。架空の店を本物と取り違えないように、名札の横に置く */
+export function StoryDemoBadge() {
+  return (
+    <span className="flex-shrink-0 rounded-chip bg-nicchyo-accent px-2 py-0.5 text-[10px] font-bold text-nicchyo-ink">
+      デモ
+    </span>
   );
 }
 
