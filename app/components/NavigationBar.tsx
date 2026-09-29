@@ -212,13 +212,16 @@ function NavigationBarInner({
   // ページ公開設定で public でないリンクはナビに出さない
   const consultItem = baseNavItems[0];
   const isConsultVisible = isLinkVisible(consultItem.target ?? consultItem.href);
-  // 近況ボタンの行き先。開発中は近況と近況（デモ）の両方を公開していて、押すとどちらへ
-  // 行くかを選ぶ。公開設定で片方だけにすれば（リリース後など）、押してすぐそちらへ行く
+  // 近況ボタンの行き先。近況と近況（デモ）の両方が公開のとき、モデレーター以上は押すと
+  // どちらへ行くかを選べる。公開設定で片方だけにすれば、誰が押してもすぐそちらへ行く
   const storyItem = baseNavItems[1];
   const storyHrefs = [storyItem.href, STORY_DEMO_HREF].filter((href) => isLinkVisible(href));
-  const showStoryChooser = storyHrefs.length === 2;
+  // 見比べるための選択メニューは開発メンバー（モデレーター以上）にだけ出す。来訪者には、
+  // 本番の公開設定を触り忘れても開発用のメニューが出ないよう、公開されている先頭（近況が
+  // 公開なら近況、そうでなければデモ）へ直接行かせる
+  const showStoryChooser = storyHrefs.length === 2 && permissions.isModerator;
   const storyNavItem: NavItem | null =
-    storyHrefs.length === 1 ? { ...storyItem, href: storyHrefs[0] } : null;
+    storyHrefs.length > 0 && !showStoryChooser ? { ...storyItem, href: storyHrefs[0] } : null;
   const adminNavItems: NavItem[] = permissions.isAdmin
     ? [{ name: "管理", href: "/admin/dashboard", icon: Settings }]
     : [];
