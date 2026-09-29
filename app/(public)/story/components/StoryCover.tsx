@@ -65,9 +65,8 @@ export default function StoryCover({ story, count, headerAction, footer, priorit
       {(story.body || story.character || footer) && (
         <div className="absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-black/70 to-transparent px-4 pb-4 pt-16">
           {story.character && <StoryCharacterBubble character={story.character} className="mb-3" />}
-          {story.body && (
-            <p className="line-clamp-3 text-sm leading-relaxed text-white">{story.body}</p>
-          )}
+          {/* 店主の説明は二番目の情報。表紙では1行だけのぞかせ、全文は再生中の「詳しく」で読む */}
+          {story.body && <p className="truncate text-[13px] text-white/75">{story.body}</p>}
           {footer}
         </div>
       )}
