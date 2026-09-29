@@ -177,7 +177,8 @@ export default function StoryPeekSheet({ story, count, onLaunch, onDismiss }: Pr
   return (
     <motion.div
       ref={sheetRef}
-      role="dialog"
+      // 一覧も同時に触れる「重なっているだけ」のシートなので、モーダルの dialog ではなく region にする
+      role="region"
       aria-label={`${shopName}の最新の近況`}
       data-testid="story-peek-sheet"
       className="fixed inset-x-0 z-[9990] outline-none md:hidden"

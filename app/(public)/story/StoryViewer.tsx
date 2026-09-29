@@ -204,14 +204,21 @@ export default function StoryViewer({ stories, initialIndex, onClose }: Props) {
       exit={{ opacity: 0 }}
       transition={{ duration: 0.18 }}
       className="fixed inset-0 z-[10000] bg-black flex flex-col touch-none"
-      onPointerDown={handlePressStart}
-      onPointerMove={handlePressMove}
-      onPointerUp={handlePressEnd}
-      onPointerLeave={handlePressCancel}
-      onPointerCancel={handlePressCancel}
+      // PC で縦長の枠の外（左右の黒い余白）をクリックしたら閉じる。スマホでは枠が画面いっぱいなので起きない
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
     >
-      {/* PC では画面いっぱいに横長で広げず、スマホと同じ縦長の枠に収めて中央に置く */}
-      <div className="relative mx-auto h-full w-full md:max-w-[calc(100dvh*9/16)]">
+      {/* PC では画面いっぱいに横長で広げず、スマホと同じ縦長の枠に収めて中央に置く。
+          タップ送り・長押しの判定はこの枠の中だけで取り、切り替えの横スライドも枠の外へはみ出させない */}
+      <div
+        className="relative mx-auto h-full w-full overflow-hidden md:max-w-[calc(100dvh*9/16)]"
+        onPointerDown={handlePressStart}
+        onPointerMove={handlePressMove}
+        onPointerUp={handlePressEnd}
+        onPointerLeave={handlePressCancel}
+        onPointerCancel={handlePressCancel}
+      >
       {/* 上部：ショップ情報 + 閉じる */}
       <div className="absolute top-0 left-0 right-0 z-10 px-4 pt-10 pb-4 bg-gradient-to-b from-black/60 to-transparent">
         {/* プログレスバー */}
