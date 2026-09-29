@@ -86,11 +86,11 @@ describe("StoryGridClient", () => {
     expect(await screen.findByLabelText("ハートを送る")).toBeInTheDocument();
   });
 
-  it("シートはダイアログとして読み上げられ、中の再生ボタンからも全画面で再生できる", async () => {
+  it("シートは名前付きの領域として読み上げられ、中の再生ボタンからも全画面で再生できる", async () => {
     mockViewport({ desktop: false });
     await renderPage();
 
-    const sheet = screen.getByRole("dialog", { name: "八百屋Aの最新の近況" });
+    const sheet = screen.getByRole("region", { name: "八百屋Aの最新の近況" });
     // ボタンの中にボタンを入れないよう、再生と閉じるは別々のボタンとしてシートの中に並ぶ
     const launchButton = within(sheet).getByRole("button", { name: "八百屋Aの近況を再生" });
     expect(within(sheet).getByRole("button", { name: "閉じる" })).toBeInTheDocument();
