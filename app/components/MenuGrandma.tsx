@@ -102,7 +102,7 @@ export default function MenuGrandma() {
         className="-mb-2 -mr-3 block"
       >
         <Image
-          src="/images/obaasan_transparent.png"
+          src="/images/obaasan_transparent.webp"
           alt=""
           width={288}
           height={288}

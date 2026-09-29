@@ -813,7 +813,7 @@ const ShopDetailBanner = memo(function ShopDetailBanner({
               <div className="flex items-start gap-3">
                 <div className="shrink-0">
                   <Image
-                    src="/images/obaasan_transparent.png"
+                    src="/images/obaasan_transparent.webp"
                     alt="おせっかいばあちゃん"
                     width={60}
                     height={60}
