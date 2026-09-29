@@ -91,10 +91,15 @@ export default function StoryViewer({ stories, initialIndex, onClose, demo }: Pr
   }, [index, paused, goNext]);
 
   // 表示中ストーリーのハート状態（総数・自分が押したか）を取得する。
-  // デモの投稿はサーバーに無いので、見本の数から始める
+  // デモの投稿はサーバーに無いので、見本の数から始める。
+  // 見本の数は ref から読み、effect は「デモかどうか」と投稿が変わったときだけ走らせる。
+  // demo オブジェクトそのものに依存すると、親が描き直すたびに押したハートが見本の数に戻る
+  const isDemo = demo !== undefined;
+  const demoHeartCountsRef = useRef(demo?.heartCounts);
+  demoHeartCountsRef.current = demo?.heartCounts;
   useEffect(() => {
-    if (demo) {
-      setReaction({ count: demo.heartCounts[story.id] ?? 0, reacted: false });
+    if (isDemo) {
+      setReaction({ count: demoHeartCountsRef.current?.[story.id] ?? 0, reacted: false });
       return;
     }
     if (!visitorKey) return;
@@ -104,24 +109,24 @@ export default function StoryViewer({ stories, initialIndex, onClose, demo }: Pr
       .then((state) => { if (!cancelled) setReaction(state); })
       .catch(() => { if (!cancelled) setReaction({ count: 0, reacted: false }); });
     return () => { cancelled = true; };
-  }, [demo, story.id, visitorKey]);
+  }, [isDemo, story.id, visitorKey]);
 
   // ハートのトグル（楽観更新→失敗時は元に戻す）
   const handleToggleReaction = useCallback(async () => {
-    if (!reaction || (!demo && !visitorKey)) return;
+    if (!reaction || (!isDemo && !visitorKey)) return;
     const previous = reaction;
     setReaction({
       reacted: !previous.reacted,
       count: previous.count + (previous.reacted ? -1 : 1),
     });
     // デモはこの画面の中だけで数える（visitorKey の判定は型の絞り込みのため）
-    if (demo || !visitorKey) return;
+    if (isDemo || !visitorKey) return;
     try {
       setReaction(await toggleReaction(story.id, visitorKey));
     } catch {
       setReaction(previous);
     }
-  }, [demo, reaction, story.id, visitorKey]);
+  }, [isDemo, reaction, story.id, visitorKey]);
 
   const handleDragEnd = (_: unknown, info: { offset: { x: number }; velocity: { x: number } }) => {
     const { x } = info.offset;
