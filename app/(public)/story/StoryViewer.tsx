@@ -6,6 +6,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { getStoryAgeBucket, STORY_AGE_IMAGE_CLASS } from "./age";
 import { getOrCreateConsultVisitorKey } from "@/lib/consultVisitorKey";
+import { useBodyScrollLock } from "@/lib/ui/bodyScrollLock";
 import { fetchReactionState, toggleReaction, type ReactionState } from "@/lib/story/reactions";
 import type { StoryItem } from "./types";
 
@@ -38,11 +39,7 @@ export default function StoryViewer({ stories, initialIndex, onClose }: Props) {
   const avatarUrl = story.vendor?.shop_image_url ?? null;
 
   // スクロールロック
-  useEffect(() => {
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => { document.body.style.overflow = prev; };
-  }, []);
+  useBodyScrollLock();
 
   const goNext = useCallback(() => {
     if (index < stories.length - 1) {
