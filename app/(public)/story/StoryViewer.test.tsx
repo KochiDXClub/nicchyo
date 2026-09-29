@@ -50,9 +50,9 @@ function mockContainerRect(container: HTMLElement) {
   });
 }
 
-// StoryViewer のルート要素（onPointerDown 等を持つ）を取得する
+// StoryViewer の縦長の枠（onPointerDown 等を持つ。ルート要素のすぐ内側）を取得する
 function getPressSurface(container: HTMLElement) {
-  const el = container.firstElementChild as HTMLElement;
+  const el = container.firstElementChild?.firstElementChild as HTMLElement;
   mockContainerRect(el);
   return el;
 }
@@ -226,6 +226,22 @@ describe("StoryViewer", () => {
     });
 
     expect(screen.getByText("テスト青果店")).toBeInTheDocument(); // a のまま
+  });
+
+  it("PC で枠の外の黒い余白を押すと閉じ、前後には送らない", () => {
+    const stories = [makeStory({ id: "a" }), makeStory({ id: "b" })];
+    const onClose = vi.fn();
+    const { container } = render(
+      <StoryViewer stories={stories} initialIndex={0} onClose={onClose} />
+    );
+    const backdrop = container.firstElementChild as HTMLElement;
+
+    fireEvent.pointerDown(backdrop, { clientX: 5, clientY: 400, pointerId: 1 });
+    fireEvent.pointerUp(backdrop, { clientX: 5, clientY: 400, pointerId: 1 });
+    fireEvent.click(backdrop);
+
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(screen.getByText("テスト青果店")).toBeInTheDocument();
   });
 });
 
