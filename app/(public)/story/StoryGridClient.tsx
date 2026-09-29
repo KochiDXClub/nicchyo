@@ -246,7 +246,7 @@ export default function StoryGridClient({ demo }: Props = {}) {
             stories={stories}
             initialIndex={viewerIndex}
             onClose={() => setViewerIndex(null)}
-            demo={demo ? { heartCounts: demo.heartCounts } : undefined}
+            demo={demo}
           />
         )}
       </AnimatePresence>

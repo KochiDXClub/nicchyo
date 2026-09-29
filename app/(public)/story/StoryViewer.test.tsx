@@ -228,3 +228,27 @@ describe("StoryViewer", () => {
     expect(screen.getByText("テスト青果店")).toBeInTheDocument(); // a のまま
   });
 });
+
+describe("StoryViewer（デモ）", () => {
+  it("押したハートは、親が描き直して demo を作り直しても見本の数に戻らない", async () => {
+    const { toggleReaction } = await import("@/lib/story/reactions");
+    const stories = [makeStory({ id: "d1" })];
+    const onClose = vi.fn();
+    const { rerender } = render(
+      <StoryViewer stories={stories} initialIndex={0} onClose={onClose} demo={{ heartCounts: { d1: 7 } }} />
+    );
+
+    const heart = screen.getByLabelText("ハートを送る");
+    const heartArea = heart.parentElement as HTMLElement;
+    expect(heartArea).toHaveTextContent("7");
+    fireEvent.click(heart);
+    expect(heartArea).toHaveTextContent("8");
+
+    // 親の描き直しで、中身が同じ新しい demo オブジェクトが渡される
+    rerender(
+      <StoryViewer stories={stories} initialIndex={0} onClose={onClose} demo={{ heartCounts: { d1: 7 } }} />
+    );
+    expect(heartArea).toHaveTextContent("8");
+    expect(toggleReaction).not.toHaveBeenCalled();
+  });
+});
