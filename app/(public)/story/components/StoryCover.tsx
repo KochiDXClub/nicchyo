@@ -3,7 +3,13 @@
 import Image from "next/image";
 import type { ReactNode } from "react";
 import type { StoryItem } from "../types";
-import { formatRelativeTime, StoryProgressBars, StoryShopInfo } from "./StoryChrome";
+import {
+  formatRelativeTime,
+  StoryCharacterBubble,
+  StoryDemoBadge,
+  StoryProgressBars,
+  StoryShopInfo,
+} from "./StoryChrome";
 
 type Props = {
   story: StoryItem;
@@ -15,6 +21,8 @@ type Props = {
   footer?: ReactNode;
   /** 画像の読み込みを優先するか。最初の画面に出るときだけ true */
   priority?: boolean;
+  /** デモの投稿か。名札の横に「デモ」の印を出す */
+  demo?: boolean;
 };
 
 /**
@@ -26,7 +34,7 @@ type Props = {
  *
  * 大きさは親が決める（スマホは半開きのシート、PC は縦長のカード）。
  */
-export default function StoryCover({ story, count, headerAction, footer, priority }: Props) {
+export default function StoryCover({ story, count, headerAction, footer, priority, demo }: Props) {
   const shopName = story.vendor?.shop_name ?? "出店者";
 
   return (
@@ -49,12 +57,14 @@ export default function StoryCover({ story, count, headerAction, footer, priorit
             avatarUrl={story.vendor?.shop_image_url ?? null}
             timeLabel={formatRelativeTime(new Date(story.created_at))}
           />
+          {demo && <StoryDemoBadge />}
           {headerAction}
         </div>
       </div>
 
-      {(story.body || footer) && (
+      {(story.body || story.character || footer) && (
         <div className="absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-black/70 to-transparent px-4 pb-4 pt-16">
+          {story.character && <StoryCharacterBubble character={story.character} className="mb-3" />}
           {story.body && (
             <p className="line-clamp-3 text-sm leading-relaxed text-white">{story.body}</p>
           )}
