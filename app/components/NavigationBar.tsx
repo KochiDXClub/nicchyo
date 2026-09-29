@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { lockBodyScroll, unlockBodyScroll } from "@/lib/ui/bodyScrollLock";
 import Image from "next/image";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useCallback, useRef, Suspense } from "react";
@@ -116,23 +117,6 @@ const adminMenuItems: SheetItem[] = [
 /** iOS のシートに近い、最後にすっと止まる曲線 */
 const EASE_OUT_SHEET: [number, number, number, number] = [0.32, 0.72, 0, 1];
 const EASE_IN_SHEET: [number, number, number, number] = [0.4, 0, 1, 1];
-
-// ─── body のスクロール固定 ────────────────────────────────────────────────────
-/**
- * NavigationBar はマップ読み込み中など同時に2つ描かれることがあるので、
- * 数を数えてから外す。片方が閉じただけで背面が動き出さないようにする。
- */
-let scrollLockCount = 0;
-
-function lockBodyScroll() {
-  scrollLockCount += 1;
-  if (scrollLockCount === 1) document.body.style.overflow = "hidden";
-}
-
-function unlockBodyScroll() {
-  scrollLockCount = Math.max(0, scrollLockCount - 1);
-  if (scrollLockCount === 0) document.body.style.overflow = "";
-}
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 type NavigationBarProps = {
