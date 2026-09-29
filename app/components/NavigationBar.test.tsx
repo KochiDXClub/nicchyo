@@ -12,11 +12,14 @@ vi.mock("next/navigation", () => ({
   useSearchParams: () => new URLSearchParams(),
 }));
 
+// ロールは各テストで差し替える
+let isModerator = false;
+
 vi.mock("@/lib/auth/AuthContext", () => ({
   useAuth: () => ({
     user: null,
     isLoggedIn: false,
-    permissions: { isAdmin: false, isModerator: false, isVendor: false },
+    permissions: { isAdmin: false, isModerator, isVendor: false },
     logout: vi.fn(),
   }),
 }));
@@ -65,15 +68,23 @@ describe("NavigationBar の「今いるページ」表示", () => {
 describe("NavigationBar の近況ボタンの行き先", () => {
   afterEach(() => {
     hiddenPaths = [];
+    isModerator = false;
   });
 
-  it("近況とデモの両方が公開なら、押すとどちらへ行くか選べる", () => {
+  it("近況とデモの両方が公開なら、モデレーター以上は押すとどちらへ行くか選べる", () => {
+    isModerator = true;
     render(<NavigationBar activeHref="/map" />);
     fireEvent.click(screen.getByRole("button", { name: "近況" }));
 
     const group = screen.getByRole("group", { name: "近況の行き先" });
     const links = within(group).getAllByRole("link");
     expect(links.map((link) => link.getAttribute("href"))).toEqual(["/story", "/demo/story"]);
+  });
+
+  it("近況とデモの両方が公開でも、来訪者には選択メニューを出さず近況へ直接行く", () => {
+    render(<NavigationBar activeHref="/map" />);
+    expect(navLink("近況").getAttribute("href")).toBe("/story");
+    expect(screen.queryByRole("group", { name: "近況の行き先" })).not.toBeInTheDocument();
   });
 
   it("近況だけ公開なら、近況へ直接行く", () => {
