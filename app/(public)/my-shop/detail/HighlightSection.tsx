@@ -7,7 +7,7 @@ const ILLUSTRATION_OPTIONS = [
   {
     id: "obaasan",
     label: "おせっかいばあちゃん",
-    src: "/images/obaasan_transparent.png",
+    src: "/images/obaasan_transparent.webp",
   },
 ];
 
@@ -22,7 +22,7 @@ export function HighlightSection({
 }) {
   const [editHighlight, setEditHighlight] = useState(false);
   const [selectedIllustration, setSelectedIllustration] = useState(
-    "/images/obaasan_transparent.png"
+    "/images/obaasan_transparent.webp"
   );
   const [showIllustrationOptions, setShowIllustrationOptions] = useState(false);
   useEffect(() => {

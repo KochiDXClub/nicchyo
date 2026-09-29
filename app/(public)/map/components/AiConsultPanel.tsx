@@ -211,7 +211,7 @@ export function AiConsultPanel({
                 style={{ backgroundColor: theme.light }}
               >
                 <Image
-                  src="/images/obaasan_transparent.png"
+                  src="/images/obaasan_transparent.webp"
                   alt="にちよさん"
                   width={56}
                   height={56}
@@ -281,7 +281,7 @@ export function AiConsultPanel({
                       style={{ backgroundColor: theme.light }}
                     >
                       <Image
-                        src="/images/obaasan_transparent.png"
+                        src="/images/obaasan_transparent.webp"
                         alt="にちよさん"
                         width={24}
                         height={24}

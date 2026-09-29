@@ -80,8 +80,8 @@ export interface GrandmaAvatarProps {
  * 考えている＝首をかしげる、答えている＝うなずく）。
  * 動きの定義は app/globals.css の .grandma-avatar 側にある。
  *
- * にちよさんだけ専用の切り抜き（/characters/obaasan.png）を使う。
- * 他のキャラは一覧と同じ画像を使うので、拡大率と位置を行から引く。
+ * 絵はキャラ一覧と同じ画像を使う。にちよさんは絵をそのまま出し、
+ * 他のキャラは一覧用に寄せてあるので、拡大率と位置を行から引く。
  */
 export default function GrandmaAvatar({
   pose,
@@ -97,7 +97,7 @@ export default function GrandmaAvatar({
   const picture = (
     <div className="grandma-avatar__inner">
       <Image
-        src={isDefaultCharacter ? "/characters/obaasan.png" : character.image}
+        src={character.image}
         alt={character.name}
         width={240}
         height={240}

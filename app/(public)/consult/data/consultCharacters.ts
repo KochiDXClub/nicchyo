@@ -38,7 +38,7 @@ export const CONSULT_CHARACTERS: ConsultCharacter[] = [
     id: "nichiyosan",
     name: "にちよさん",
     subtitle: "日曜市のことなんでも知っちゅう大ベテラン",
-    image: "/images/obaasan_transparent.png",
+    image: "/images/obaasan_transparent.webp",
     imageScale: "scale-125",
     imagePosition: "center 28%",
     // 日曜市の大ベテラン。土佐弁で、ゆっくり構える
@@ -60,7 +60,7 @@ export const CONSULT_CHARACTERS: ConsultCharacter[] = [
     id: "yoichisan",
     name: "よういちさん",
     subtitle: "日曜市を支えてきたジェントルマン",
-    image: "/images/characters/ojichan.png",
+    image: "/images/characters/ojichan.webp",
     imageScale: "scale-125",
     imagePosition: "center 14%",
     // 市を支えてきたジェントルマン。落ち着いた丁寧語
@@ -82,7 +82,7 @@ export const CONSULT_CHARACTERS: ConsultCharacter[] = [
     id: "miraikun",
     name: "みらいくん",
     subtitle: "さわやかで希望あふれる高知の青年",
-    image: "/images/characters/onisan.png",
+    image: "/images/characters/onisan.webp",
     imageScale: "scale-125",
     imagePosition: "center 12%",
     // さわやかな高知の青年。明るい敬語
@@ -104,7 +104,7 @@ export const CONSULT_CHARACTERS: ConsultCharacter[] = [
     id: "yosakochan",
     name: "よさこちゃん",
     subtitle: "明るく華やかで、みんなを元気づけてくれる土佐っ子",
-    image: "/images/characters/onesan.png",
+    image: "/images/characters/onesan.webp",
     imageScale: "scale-125",
     imagePosition: "center 22%",
     // 明るく華やかな土佐っ子。元気のいい土佐弁
