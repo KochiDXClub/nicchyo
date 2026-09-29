@@ -1,5 +1,5 @@
 import React from "react";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { vi } from "vitest";
 import NavigationBar from "./NavigationBar";
 
@@ -71,8 +71,9 @@ describe("NavigationBar の近況ボタンの行き先", () => {
     render(<NavigationBar activeHref="/map" />);
     fireEvent.click(screen.getByRole("button", { name: "近況" }));
 
-    const items = screen.getAllByRole("menuitem");
-    expect(items.map((item) => item.getAttribute("href"))).toEqual(["/story", "/demo/story"]);
+    const group = screen.getByRole("group", { name: "近況の行き先" });
+    const links = within(group).getAllByRole("link");
+    expect(links.map((link) => link.getAttribute("href"))).toEqual(["/story", "/demo/story"]);
   });
 
   it("近況だけ公開なら、近況へ直接行く", () => {
