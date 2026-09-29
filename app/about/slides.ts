@@ -105,10 +105,10 @@ export const aboutSlides: AboutSlide[] = [
     richContent: {
       type: "characters",
       items: [
-        { img: "/images/obaasan_transparent.png", name: siteText("about.consult.1.name"), role: siteText("about.consult.1.role"), desc: siteText("about.consult.1.desc"), bg: "bg-orange-50" },
-        { img: "/images/characters/ojichan.png", name: siteText("about.consult.2.name"), role: siteText("about.consult.2.role"), desc: siteText("about.consult.2.desc"), bg: "bg-sky-50" },
-        { img: "/images/characters/onisan.png", name: siteText("about.consult.3.name"), role: siteText("about.consult.3.role"), desc: siteText("about.consult.3.desc"), bg: "bg-green-50" },
-        { img: "/images/characters/onesan.png", name: siteText("about.consult.4.name"), role: siteText("about.consult.4.role"), desc: siteText("about.consult.4.desc"), bg: "bg-pink-50" },
+        { img: "/images/obaasan_transparent.webp", name: siteText("about.consult.1.name"), role: siteText("about.consult.1.role"), desc: siteText("about.consult.1.desc"), bg: "bg-orange-50" },
+        { img: "/images/characters/ojichan.webp", name: siteText("about.consult.2.name"), role: siteText("about.consult.2.role"), desc: siteText("about.consult.2.desc"), bg: "bg-sky-50" },
+        { img: "/images/characters/onisan.webp", name: siteText("about.consult.3.name"), role: siteText("about.consult.3.role"), desc: siteText("about.consult.3.desc"), bg: "bg-green-50" },
+        { img: "/images/characters/onesan.webp", name: siteText("about.consult.4.name"), role: siteText("about.consult.4.role"), desc: siteText("about.consult.4.desc"), bg: "bg-pink-50" },
       ],
     },
     action: {
