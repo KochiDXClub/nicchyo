@@ -6,6 +6,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { Store, Megaphone, ArrowLeft, LogOut, Map as MapIcon } from "lucide-react";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { VENDOR_NAV_ITEMS } from "./vendorNavItems";
+import { useBodyScrollLock } from "@/lib/ui/bodyScrollLock";
 
 const HOME_HREF = "/my-shop";
 
@@ -20,15 +21,8 @@ export default function VendorNavBar() {
   // /my-shop* はサイドバーが無いので全サイズで表示する。
   const inVendorConsole = pathname?.startsWith("/vendor") ?? false;
 
-  // シートを開いている間は背面スクロールを止める
-  useEffect(() => {
-    if (!sheetOpen) return;
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = prev;
-    };
-  }, [sheetOpen]);
+  // シートを開いている間は背面スクロールを止める（重なる固定と数を合わせる共通の仕組み）
+  useBodyScrollLock(sheetOpen);
 
   // ルート変更でシートを閉じる
   useEffect(() => {
