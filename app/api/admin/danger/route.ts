@@ -1,10 +1,9 @@
 import { NextResponse } from "next/server";
-import { createClient as createServiceClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 import { createClient as createServerClient } from "@/utils/supabase/server";
 import { requireSameOrigin } from "@/lib/security/requestGuards";
 import { enforceRateLimit } from "@/lib/security/rateLimit";
-import { getRole } from "@/lib/auth/permissions";
+import { requireAdminApi } from "@/lib/auth/requireAdminApi";
 import { logAdminAudit } from "@/lib/audit/logAdminAudit";
 
 export const runtime = "nodejs";
@@ -24,21 +23,10 @@ export async function POST(request: Request) {
     });
     if (rateLimited) return rateLimited;
 
-    const cookieStore = await cookies();
-    const supabase = createServerClient(cookieStore);
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user || getRole(user) !== "admin") {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-    if (!supabaseUrl || !serviceRoleKey) {
-      return NextResponse.json({ error: "Supabase env missing" }, { status: 500 });
-    }
+    // requireAdminApi() は role === "admin" のときだけ成功する
+    const auth = await requireAdminApi();
+    if ("error" in auth) return auth.error;
+    const { user, role, adminClient: serviceClient } = auth;
 
     const body = (await request.json()) as {
       action: DangerAction;
@@ -57,14 +45,12 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "User email not found" }, { status: 400 });
     }
 
+    const cookieStore = await cookies();
+    const supabase = createServerClient(cookieStore);
     const { error: authError } = await supabase.auth.signInWithPassword({ email, password });
     if (authError) {
       return NextResponse.json({ error: "パスワードが正しくありません" }, { status: 403 });
     }
-
-    const serviceClient = createServiceClient(supabaseUrl, serviceRoleKey, {
-      auth: { persistSession: false, autoRefreshToken: false },
-    });
 
     if (action === "clean-map-history") {
       const keepCount = typeof body.keepCount === "number" && body.keepCount > 0 ? body.keepCount : 10;
@@ -107,7 +93,7 @@ export async function POST(request: Request) {
 
       await logAdminAudit(
         serviceClient,
-        { id: user.id, email: user.email, role: getRole(user) },
+        { id: user.id, email: user.email, role },
         {
           action: "clean_map_history",
           targetType: "system",
@@ -120,10 +106,14 @@ export async function POST(request: Request) {
     }
 
     if (action === "delete-analytics") {
+      // web_page_analytics.id は数値（Postgres の identity 列）なので、
+      // 他テーブルと同じ UUID の番兵値ではなく、実在しない数値（0）を使う。
+      // 型なしクライアントのままでは気づけなかった不一致（Supabase の
+      // delete は無条件削除を弾くため、全削除には常に真になる neq が要る）
       const { count, error: deleteError } = await serviceClient
         .from("web_page_analytics")
         .delete({ count: "exact" })
-        .neq("id", "00000000-0000-0000-0000-000000000000");
+        .neq("id", 0);
 
       if (deleteError) {
         return NextResponse.json({ error: "削除に失敗しました" }, { status: 500 });
@@ -133,7 +123,7 @@ export async function POST(request: Request) {
 
       await logAdminAudit(
         serviceClient,
-        { id: user.id, email: user.email, role: getRole(user) },
+        { id: user.id, email: user.email, role },
         {
           action: "delete_analytics",
           targetType: "system",

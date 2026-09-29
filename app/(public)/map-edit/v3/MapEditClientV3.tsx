@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   distanceMeters,
   findNearestRoadId as findNearestRoadIdShared,
-  getDefaultMapRouteConfig,
   getRouteCenter,
 } from "../../map/utils/mapRouteGeometry";
 import type { MapRouteConfig, MapRoutePoint, RoadKind } from "../../map/types/mapRoute";
@@ -26,7 +25,11 @@ import {
   type Tab,
   type VendorOption,
 } from "./types";
+import { useMapEditData, type MapSettingsLimits } from "./useMapEditData";
 import MapEditCanvasMapLibre from "./components/MapEditCanvasMapLibre";
+import { MapEditHeader } from "./components/MapEditHeader";
+import { MapEditModeBanner } from "./components/MapEditModeBanner";
+import { SnapshotHistoryPanel } from "./components/SnapshotHistoryPanel";
 import { SlotDetailPanel, RoadDetailPanel, LandmarkDetailPanel } from "./components/DetailPanels";
 import PendingChangeLog from "./components/PendingChangeLog";
 import RoadLaneView, { buildLaneRoadGroups, type LaneRoadGroup } from "./components/RoadLaneView";
@@ -54,47 +57,10 @@ function cloneRoads(roads: EditableRoad[]) {
   return roads.map((road) => ({ ...road, points: road.points.map((p) => ({ ...p })) }));
 }
 
-type MapSettingsLimits = {
-  maxLandmarks: number;
-  maxUnassignedShopMarkers: number;
-};
-
-const DEFAULT_MAP_SETTINGS_LIMITS: MapSettingsLimits = {
-  maxLandmarks: 80,
-  maxUnassignedShopMarkers: 40,
-};
-
-async function fetchMapLayout() {
-  const response = await fetch("/api/admin/map-layout");
-  if (!response.ok) throw new Error("failed");
-  return response.json() as Promise<{
-    shops?: EditableShop[];
-    landmarks?: EditableLandmark[];
-    route?: { points: MapRoutePoint[]; config: MapRouteConfig };
-    roads?: EditableRoad[];
-    vendors?: VendorOption[];
-    mapSettingsLimits?: MapSettingsLimits;
-  }>;
-}
-
 let pendingIdCounter = 0;
 
 export default function MapEditClientV3() {
   const [tab, setTab] = useState<Tab>("slot");
-  const [isLoading, setIsLoading] = useState(true);
-  const [isSaving, setIsSaving] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
-
-  const [shops, setShops] = useState<EditableShop[]>([]);
-  const [landmarks, setLandmarks] = useState<EditableLandmark[]>([]);
-  const [roads, setRoads] = useState<EditableRoad[]>([]);
-  const [routeConfig, setRouteConfig] = useState<MapRouteConfig>(getDefaultMapRouteConfig());
-  const [vendorOptions, setVendorOptions] = useState<VendorOption[]>([]);
-  const [mapSettingsLimits, setMapSettingsLimits] = useState<MapSettingsLimits>(DEFAULT_MAP_SETTINGS_LIMITS);
-
-  const [initialShops, setInitialShops] = useState<EditableShop[]>([]);
-  const [initialLandmarks, setInitialLandmarks] = useState<EditableLandmark[]>([]);
-  const [initialRoads, setInitialRoads] = useState<EditableRoad[]>([]);
 
   const [selectedLocationId, setSelectedLocationId] = useState<string | null>(null);
   const [selectedRoadId, setSelectedRoadId] = useState<string | null>(null);
@@ -113,239 +79,32 @@ export default function MapEditClientV3() {
   const [focus, setFocus] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const [rotation, setRotation] = useState(0);
 
-  const [snapshots, setSnapshots] = useState<SnapshotItem[]>([]);
-  const [isLoadingSnapshots, setIsLoadingSnapshots] = useState(false);
-  const [isRestoring, setIsRestoring] = useState<string | null>(null);
-  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
-
-  const originRef = useRef<{ lat: number; lng: number } | null>(null);
   const log = useCallback((label: string, text: string, before?: PendingChangeSnapshot) => {
     pendingIdCounter += 1;
     setPending((prev) => [{ id: pendingIdCounter, label, text, before }, ...prev]);
   }, []);
 
-  // ── データ取得 ──────────────────────────────────────────
-  useEffect(() => {
-    let active = true;
-    void fetchMapLayout()
-      .then((data) => {
-        if (!active) return;
-        const nextShops = Array.isArray(data.shops) ? data.shops : [];
-        const nextLandmarks = Array.isArray(data.landmarks) ? data.landmarks : [];
-        const nextRoads = Array.isArray(data.roads) ? data.roads : [];
-        const nextConfig = { ...getDefaultMapRouteConfig(), ...(data.route?.config ?? {}) };
-        const nextVendors = Array.isArray(data.vendors) ? data.vendors : [];
-
-        setShops(nextShops);
-        setLandmarks(nextLandmarks);
-        setRoads(nextRoads);
-        setRouteConfig(nextConfig);
-        setVendorOptions(nextVendors);
-        if (data.mapSettingsLimits) setMapSettingsLimits(data.mapSettingsLimits);
-        setInitialShops(cloneShops(nextShops));
-        setInitialLandmarks(cloneLandmarks(nextLandmarks));
-        setInitialRoads(cloneRoads(nextRoads));
-
-        const allPoints = nextRoads.flatMap((road) => road.points);
-        const center = getRouteCenter(allPoints);
-        originRef.current = { lat: center[0], lng: center[1] };
-        setFocus({ x: 0, y: 0 });
-      })
-      .catch(() => {
-        if (active) setMessage("マップ編集データの取得に失敗しました。");
-      })
-      .finally(() => {
-        if (active) setIsLoading(false);
-      });
-    return () => {
-      active = false;
-    };
-  }, []);
-
-  const projection = useMemo(() => {
-    const origin = originRef.current ?? { lat: 0, lng: 0 };
-    return createProjection(origin.lat, origin.lng);
-  }, [roads.length > 0]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // ── 差分判定 ──────────────────────────────────────────
-  const hasUnsavedChanges = useMemo(() => {
-    const initialShopMap = new Map(initialShops.map((s) => [s.locationId, s]));
-    const currentShopMap = new Map(shops.map((s) => [s.locationId, s]));
-    const shopChanged = shops.some((shop) => {
-      const initial = initialShopMap.get(shop.locationId);
-      if (!initial) return true;
-      return (
-        initial.lat !== shop.lat ||
-        initial.lng !== shop.lng ||
-        initial.position !== shop.position ||
-        initial.vendorId !== shop.vendorId
-      );
-    });
-    const shopDeleted = initialShops.some((s) => !currentShopMap.has(s.locationId));
-
-    const initialLandmarkMap = new Map(initialLandmarks.map((l) => [l.key, l]));
-    const currentLandmarkMap = new Map(landmarks.map((l) => [l.key, l]));
-    const landmarkChanged = landmarks.some((landmark) => {
-      const initial = initialLandmarkMap.get(landmark.key);
-      if (!initial) return true;
-      return (
-        initial.name !== landmark.name ||
-        initial.description !== landmark.description ||
-        initial.url !== landmark.url ||
-        initial.lat !== landmark.lat ||
-        initial.lng !== landmark.lng ||
-        initial.widthPx !== landmark.widthPx ||
-        initial.heightPx !== landmark.heightPx ||
-        initial.showAtMinZoom !== landmark.showAtMinZoom
-      );
-    });
-    const landmarkDeleted = initialLandmarks.some((l) => !currentLandmarkMap.has(l.key));
-
-    const roadsChanged = JSON.stringify(roads) !== JSON.stringify(initialRoads);
-
-    return shopChanged || shopDeleted || landmarkChanged || landmarkDeleted || roadsChanged;
-  }, [shops, initialShops, landmarks, initialLandmarks, roads, initialRoads]);
-
-  // ── 保存 ──────────────────────────────────────────
-  const handleSave = useCallback(async () => {
-    setIsSaving(true);
-    setMessage(null);
-    try {
-      const initialShopMap = new Map(initialShops.map((s) => [s.locationId, s]));
-      const updatedShops = shops.filter((shop) => {
-        const initial = initialShopMap.get(shop.locationId);
-        if (!initial) return true;
-        return (
-          initial.lat !== shop.lat ||
-          initial.lng !== shop.lng ||
-          initial.position !== shop.position ||
-          initial.vendorId !== shop.vendorId
-        );
-      });
-      const currentShopIds = new Set(shops.map((s) => s.locationId));
-      const deletedLocationIds = initialShops
-        .filter((s) => !currentShopIds.has(s.locationId))
-        .map((s) => s.locationId);
-
-      const initialLandmarkMap = new Map(initialLandmarks.map((l) => [l.key, l]));
-      const upsertLandmarks = landmarks.filter((landmark) => {
-        const initial = initialLandmarkMap.get(landmark.key);
-        if (!initial) return true;
-        return JSON.stringify(initial) !== JSON.stringify(landmark);
-      });
-      const currentLandmarkKeys = new Set(landmarks.map((l) => l.key));
-      const deletedKeys = initialLandmarks
-        .filter((l) => !currentLandmarkKeys.has(l.key))
-        .map((l) => l.key);
-
-      const routePoints = roads.flatMap((road) => road.points);
-
-      const response = await fetch("/api/admin/map-layout", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          shops: { updated: updatedShops, deletedLocationIds },
-          landmarks: { upsert: upsertLandmarks, deletedKeys },
-          route: { points: routePoints, config: routeConfig },
-          roads: roads.map(({ points: _points, ...road }) => road),
-        }),
-      });
-
-      if (!response.ok) {
-        const data = (await response.json().catch(() => null)) as { error?: string } | null;
-        setMessage(data?.error ?? "保存に失敗しました。");
-        return;
-      }
-
-      const nextData = await fetchMapLayout();
-      const nextShops = Array.isArray(nextData.shops) ? nextData.shops : [];
-      const nextLandmarks = Array.isArray(nextData.landmarks) ? nextData.landmarks : [];
-      const nextRoads = Array.isArray(nextData.roads) ? nextData.roads : [];
-      setShops(nextShops);
-      setLandmarks(nextLandmarks);
-      setRoads(nextRoads);
-      setInitialShops(cloneShops(nextShops));
-      setInitialLandmarks(cloneLandmarks(nextLandmarks));
-      setInitialRoads(cloneRoads(nextRoads));
-      setPending([]);
-      setMessage("保存しました。");
-    } catch {
-      setMessage("保存に失敗しました。通信環境を確認してください。");
-    } finally {
-      setIsSaving(false);
-    }
-  }, [shops, initialShops, landmarks, initialLandmarks, roads, routeConfig]);
-
-  // ── スナップショット ──────────────────────────────────────────
-  const loadSnapshots = useCallback(async () => {
-    setIsLoadingSnapshots(true);
-    try {
-      const response = await fetch("/api/admin/map-layout/snapshots");
-      if (!response.ok) return;
-      const data = (await response.json()) as { snapshots?: SnapshotItem[] };
-      setSnapshots(Array.isArray(data.snapshots) ? data.snapshots : []);
-    } finally {
-      setIsLoadingSnapshots(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (isHistoryOpen) void loadSnapshots();
-  }, [isHistoryOpen, loadSnapshots]);
-
-  const handleRestoreSnapshot = useCallback(
-    async (snapshotId: string) => {
-      if (hasUnsavedChanges) {
-        setMessage("未保存の変更があるため復元できません。先に保存するか変更を取り消してください。");
-        return;
-      }
-      setIsRestoring(snapshotId);
-      try {
-        const response = await fetch("/api/admin/map-layout/snapshots", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ snapshotId }),
-        });
-        if (!response.ok) {
-          setMessage("復元に失敗しました。");
-          return;
-        }
-        const nextData = await fetchMapLayout();
-        const nextShops = Array.isArray(nextData.shops) ? nextData.shops : [];
-        const nextLandmarks = Array.isArray(nextData.landmarks) ? nextData.landmarks : [];
-        const nextRoads = Array.isArray(nextData.roads) ? nextData.roads : [];
-        setShops(nextShops);
-        setLandmarks(nextLandmarks);
-        setRoads(nextRoads);
-        setInitialShops(cloneShops(nextShops));
-        setInitialLandmarks(cloneLandmarks(nextLandmarks));
-        setInitialRoads(cloneRoads(nextRoads));
-        setPending([]);
-        setMessage("スナップショットを復元しました。");
-        await loadSnapshots();
-      } finally {
-        setIsRestoring(null);
-      }
-    },
-    [hasUnsavedChanges, loadSnapshots]
-  );
+  const data = useMapEditData({
+    onLoaded: () => setFocus({ x: 0, y: 0 }),
+    clearPending: () => setPending([]),
+  });
 
   return (
     <MapEditClientV3Body
       tab={tab}
       setTab={setTab}
-      isLoading={isLoading}
-      isSaving={isSaving}
-      message={message}
-      shops={shops}
-      setShops={setShops}
-      landmarks={landmarks}
-      setLandmarks={setLandmarks}
-      roads={roads}
-      setRoads={setRoads}
-      routeConfig={routeConfig}
-      vendorOptions={vendorOptions}
-      mapSettingsLimits={mapSettingsLimits}
+      isLoading={data.isLoading}
+      isSaving={data.isSaving}
+      message={data.message}
+      shops={data.shops}
+      setShops={data.setShops}
+      landmarks={data.landmarks}
+      setLandmarks={data.setLandmarks}
+      roads={data.roads}
+      setRoads={data.setRoads}
+      routeConfig={data.routeConfig}
+      vendorOptions={data.vendorOptions}
+      mapSettingsLimits={data.mapSettingsLimits}
       selectedLocationId={selectedLocationId}
       setSelectedLocationId={setSelectedLocationId}
       selectedRoadId={selectedRoadId}
@@ -373,15 +132,15 @@ export default function MapEditClientV3() {
       setFocus={setFocus}
       rotation={rotation}
       setRotation={setRotation}
-      hasUnsavedChanges={hasUnsavedChanges}
-      handleSave={handleSave}
-      projection={projection}
-      snapshots={snapshots}
-      isLoadingSnapshots={isLoadingSnapshots}
-      isRestoring={isRestoring}
-      isHistoryOpen={isHistoryOpen}
-      setIsHistoryOpen={setIsHistoryOpen}
-      handleRestoreSnapshot={handleRestoreSnapshot}
+      hasUnsavedChanges={data.hasUnsavedChanges}
+      handleSave={data.handleSave}
+      projection={data.projection}
+      snapshots={data.snapshots}
+      isLoadingSnapshots={data.isLoadingSnapshots}
+      isRestoring={data.isRestoring}
+      isHistoryOpen={data.isHistoryOpen}
+      setIsHistoryOpen={data.setIsHistoryOpen}
+      handleRestoreSnapshot={data.handleRestoreSnapshot}
     />
   );
 }
@@ -978,108 +737,23 @@ function MapEditClientV3Body(props: BodyProps) {
         overflow: "hidden",
       }}
     >
-      <header
-        style={{
-          flexShrink: 0,
-          display: "flex",
-          alignItems: "center",
-          gap: 14,
-          padding: "12px 20px",
-          background: "#fff",
-          borderBottom: "1px solid #EDE3CD",
-          flexWrap: "wrap",
+      <MapEditHeader
+        tab={tab}
+        onTabChange={(t) => {
+          setTab(t);
+          cancelMode();
         }}
-      >
-        <div style={{ display: "flex", alignItems: "baseline", gap: 10, flexShrink: 0 }}>
-          <span style={{ fontSize: 17, fontWeight: 900 }}>マップ編集</span>
-        </div>
-
-        <div style={{ display: "flex", border: "1px solid #E4D9BF", borderRadius: 11, overflow: "hidden", flexShrink: 0 }}>
-          {(["slot", "road", "landmark"] as Tab[]).map((t) => (
-            <span
-              key={t}
-              onClick={() => {
-                setTab(t);
-                cancelMode();
-              }}
-              style={{
-                padding: "8px 14px",
-                fontSize: 12.5,
-                fontWeight: 700,
-                cursor: "pointer",
-                background: tab === t ? "#92400E" : "#fff",
-                color: tab === t ? "#fff" : "#57503F",
-                whiteSpace: "nowrap",
-              }}
-            >
-              {t === "slot" ? "店舗位置を編集" : t === "road" ? "道を編集" : "建物を編集"}
-            </span>
-          ))}
-        </div>
-
-        <div style={{ position: "relative", flex: 1, maxWidth: 360, minWidth: 150 }}>
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder={
-              tab === "road" ? "道の名称で検索" : tab === "landmark" ? "建物の名称で検索" : "区画番号・出店者名で検索"
-            }
-            style={{
-              width: "100%",
-              boxSizing: "border-box",
-              padding: "9px 13px",
-              borderRadius: 11,
-              border: "1px solid #E4D9BF",
-              background: "#FDFBF5",
-              fontSize: 13,
-              outline: "none",
-            }}
-          />
-        </div>
-
-        <div style={{ display: "flex", alignItems: "center", gap: 12, marginLeft: "auto", flexWrap: "wrap" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 12, color: "#7A7264" }}>
-            <span>
-              <b style={{ fontSize: 13.5, color: "#33302B" }}>{shopCounts.occupied}</b> 出店
-            </span>
-            <span>
-              <b style={{ fontSize: 13.5, color: "#33302B" }}>{shopCounts.vacant}</b> 空き
-            </span>
-            <span>
-              <b style={{ fontSize: 13.5, color: "#33302B" }}>{roads.length}</b> 道
-            </span>
-          </div>
-          <span
-            onClick={() => setIsHistoryOpen((v) => !v)}
-            style={{
-              padding: "8px 13px",
-              borderRadius: 10,
-              fontSize: 12.5,
-              fontWeight: 700,
-              cursor: "pointer",
-              background: "#fff",
-              color: "#57503F",
-              border: "1px solid #E7DDC4",
-            }}
-          >
-            変更履歴
-          </span>
-          <span
-            onClick={() => void handleSave()}
-            style={{
-              padding: "9px 17px",
-              borderRadius: 11,
-              fontSize: 13,
-              fontWeight: 700,
-              cursor: hasUnsavedChanges && !isSaving ? "pointer" : "default",
-              background: hasUnsavedChanges ? "#F59E0B" : "#F3E7CC",
-              color: hasUnsavedChanges ? "#fff" : "#A8996F",
-            }}
-          >
-            {isSaving ? "保存中..." : hasUnsavedChanges ? `変更を保存（${pending.length}）` : "保存済み"}
-          </span>
-        </div>
-      </header>
+        search={search}
+        onSearchChange={setSearch}
+        occupiedCount={shopCounts.occupied}
+        vacantCount={shopCounts.vacant}
+        roadCount={roads.length}
+        onToggleHistory={() => setIsHistoryOpen((v) => !v)}
+        hasUnsavedChanges={hasUnsavedChanges}
+        isSaving={isSaving}
+        pendingCount={pending.length}
+        onSave={() => void handleSave()}
+      />
 
       {message && (
         <div style={{ padding: "8px 20px", background: "#FFF7E6", color: "#92400E", fontSize: 12.5, borderBottom: "1px solid #EDE3CD" }}>
@@ -1087,62 +761,15 @@ function MapEditClientV3Body(props: BodyProps) {
         </div>
       )}
 
-      {(slotAction !== "idle" || roadAction !== "idle") && (
-        <div
-          style={{
-            flexShrink: 0,
-            display: "flex",
-            alignItems: "center",
-            gap: 12,
-            padding: "9px 20px",
-            background: "#92400E",
-            color: "#fff",
-          }}
-        >
-          <span style={{ fontSize: 13, fontWeight: 700 }}>
-            {slotAction === "move"
-              ? "移動先の空き区画をクリックしてください"
-              : slotAction === "place"
-                ? "新規出店者を置く空き区画をクリックしてください"
-                : `地図をクリックして道を伸ばしてください（${drawAxis === "h" ? "横向き" : drawAxis === "v" ? "縦向き" : "自由"}・既存の点をクリックするとそこにつながって道が確定します）`}
-          </span>
-          {roadAction === "draw" && (
-            <div style={{ display: "flex", gap: 5 }}>
-              {(["h", "v", "free"] as const).map((axis) => (
-                <span
-                  key={axis}
-                  onClick={() => setDrawAxis(axis)}
-                  style={{
-                    padding: "5px 10px",
-                    borderRadius: 8,
-                    fontSize: 12,
-                    fontWeight: 700,
-                    cursor: "pointer",
-                    background: drawAxis === axis ? "#fff" : "rgba(255,255,255,.16)",
-                    color: drawAxis === axis ? "#92400E" : "#fff",
-                  }}
-                >
-                  {axis === "h" ? "横向き" : axis === "v" ? "縦向き" : "自由"}
-                </span>
-              ))}
-            </div>
-          )}
-          {roadAction === "draw" && draft.length >= 2 && (
-            <span
-              onClick={() => finishDraw()}
-              style={{ fontSize: 12.5, fontWeight: 700, background: "#fff", color: "#92400E", borderRadius: 9, padding: "5px 12px", cursor: "pointer" }}
-            >
-              この形で確定
-            </span>
-          )}
-          <span
-            onClick={cancelMode}
-            style={{ marginLeft: "auto", fontSize: 12.5, fontWeight: 700, border: "1px solid rgba(255,255,255,.5)", borderRadius: 9, padding: "5px 11px", cursor: "pointer" }}
-          >
-            キャンセル (Esc)
-          </span>
-        </div>
-      )}
+      <MapEditModeBanner
+        slotAction={slotAction}
+        roadAction={roadAction}
+        drawAxis={drawAxis}
+        onDrawAxisChange={setDrawAxis}
+        draftLength={draft.length}
+        onFinishDraw={() => finishDraw()}
+        onCancel={cancelMode}
+      />
 
       <div style={{ flex: 1, minHeight: 0, display: "flex", overflow: "hidden" }}>
         <div style={{ flex: 1, minWidth: 0, minHeight: 0, display: "flex", flexDirection: "column" }}>
@@ -1195,43 +822,14 @@ function MapEditClientV3Body(props: BodyProps) {
           }}
         >
           {isHistoryOpen ? (
-            <div style={{ padding: 16 }}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-                <span style={{ fontSize: 13, fontWeight: 900 }}>変更履歴（スナップショット）</span>
-                <span onClick={() => setIsHistoryOpen(false)} style={{ cursor: "pointer", fontSize: 12, color: "#9A8A6A" }}>
-                  閉じる
-                </span>
-              </div>
-              {isLoadingSnapshots ? (
-                <p style={{ fontSize: 12, color: "#9A8A6A" }}>読み込み中...</p>
-              ) : snapshots.length === 0 ? (
-                <p style={{ fontSize: 12, color: "#9A8A6A" }}>スナップショットはまだありません。</p>
-              ) : (
-                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                  {snapshots.map((snap) => (
-                    <div key={snap.id} style={{ border: "1px solid #F3EBD8", borderRadius: 10, padding: 10 }}>
-                      <p style={{ margin: 0, fontSize: 11.5, color: "#9A8A6A" }}>
-                        {new Date(snap.created_at).toLocaleString("ja-JP")}
-                      </p>
-                      <span
-                        onClick={() => void handleRestoreSnapshot(snap.id)}
-                        style={{
-                          marginTop: 6,
-                          display: "inline-block",
-                          fontSize: 12,
-                          fontWeight: 700,
-                          color: "#92400E",
-                          cursor: hasUnsavedChanges || isRestoring ? "default" : "pointer",
-                          opacity: hasUnsavedChanges || isRestoring ? 0.4 : 1,
-                        }}
-                      >
-                        {isRestoring === snap.id ? "復元中..." : "この状態に復元"}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
+            <SnapshotHistoryPanel
+              snapshots={snapshots}
+              isLoadingSnapshots={isLoadingSnapshots}
+              isRestoring={isRestoring}
+              hasUnsavedChanges={hasUnsavedChanges}
+              onClose={() => setIsHistoryOpen(false)}
+              onRestore={(id) => void handleRestoreSnapshot(id)}
+            />
           ) : (
             <>
               {tab === "slot" && (

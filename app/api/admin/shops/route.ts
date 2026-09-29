@@ -1,8 +1,5 @@
 import { NextResponse } from "next/server";
-import { createClient as createServiceClient } from "@supabase/supabase-js";
-import { cookies } from "next/headers";
-import { createClient as createServerClient } from "@/utils/supabase/server";
-import { getRole, isAdmin } from "@/lib/auth/permissions";
+import { requireAdminApi } from "@/lib/auth/requireAdminApi";
 import { listAllAuthUsers } from "@/lib/auth/listAllUsers";
 
 export const runtime = "nodejs";
@@ -31,25 +28,9 @@ function formatDate(value?: string | null) {
 
 export async function GET() {
   try {
-    const cookieStore = await cookies();
-    const supabase = createServerClient(cookieStore);
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user || !isAdmin(getRole(user))) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-    if (!supabaseUrl || !serviceRoleKey) {
-      return NextResponse.json({ error: "Supabase env missing" }, { status: 500 });
-    }
-
-    const serviceClient = createServiceClient(supabaseUrl, serviceRoleKey, {
-      auth: { persistSession: false, autoRefreshToken: false },
-    });
+    const auth = await requireAdminApi();
+    if ("error" in auth) return auth.error;
+    const { adminClient: serviceClient } = auth;
 
     // vendors + categories を取得
     const { data: vendorsData, error: vendorsError } = await serviceClient

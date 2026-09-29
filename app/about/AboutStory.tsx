@@ -8,6 +8,7 @@ import { ArrowLeft, ArrowRight, Bug, Code2, Lightbulb, X, type LucideIcon } from
 import SupporterSlots from "@/components/SupporterSlots";
 import { AboutIcon } from "./AboutIcon";
 import { aboutSlides, type PainPointIconName, type SlideRichContent } from "./slides";
+import { siteText } from "@/lib/siteCopy";
 
 // painPoints の項目に置く線画アイコン。メニューやおでかけと同じ lucide で揃える
 const PAIN_POINT_ICONS: Record<PainPointIconName, LucideIcon> = {
@@ -352,10 +353,10 @@ export default function AboutStory({ weeklyVisitors }: { weeklyVisitors?: number
             aria-label="Next slide"
           >
             {currentIndex === aboutSlides.length - 1 ? (
-              <span>完了</span>
+              <span>{siteText("about.nav.done")}</span>
             ) : (
               <>
-                <span>次へ</span>
+                <span>{siteText("about.nav.next")}</span>
                 <ArrowRight className="h-5 w-5" />
               </>
             )}
