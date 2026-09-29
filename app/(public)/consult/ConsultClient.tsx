@@ -26,6 +26,8 @@ export default function ConsultClient() {
   // 既定はにちよさん。null にすると話し手が毎回変わり、会話全体が掛け合いに見える
   const [preferredCharacterId, setPreferredCharacterId] =
     useState<ConsultCharacterId>(DEFAULT_CONSULT_CHARACTER_ID);
+  // PC版「これまでの相談」サイドバーの開閉。既定は閉じ、チャット欄を中央のまま保つ
+  const [isHistorySidebarOpen, setIsHistorySidebarOpen] = useState(false);
   const searchParams = useSearchParams();
 
   const handleSelectShop = useCallback(
@@ -240,11 +242,37 @@ export default function ConsultClient() {
 
   return (
     <div
-      className="relative min-h-screen bg-[var(--consult-bg)]"
+      // チャットのスクロールは ConsultStage 内側の overflow-y-auto だけで完結させたい。
+      // ここに overflow-hidden を付けておかないと、何かの拍子に中身が 100dvh を
+      // わずかに超えたときページ本体（html）側にもスクロールバーが出て、意図した
+      // チャット用スクロールバーの隣にもう1本（グローバル装飾で同じ緑色の）スクロール
+      // バーが並んで見えてしまう
+      className="relative min-h-screen overflow-hidden bg-[var(--consult-bg)]"
     >
       <div className="pointer-events-none absolute inset-0 z-0 bg-[var(--consult-bg)]" aria-hidden="true" />
-      <main className="relative z-10 flex w-full items-start justify-center px-3 pb-16 pt-2">
-        <div className="flex w-full max-w-3xl flex-col gap-2">
+      {/*
+        「これまでの相談」サイドバー（lg 以上）を開いているときは、
+        サイドバーのすぐ右（固定ガター lg:pl-80）から本文を始める。
+
+        ここでは幅を max-w-3xl に絞らない（ConsultStage に w-full のまま渡す）。
+        絞ってしまうと、その狭い箱の内側でスクロールすることになり、縦スクロール
+        バーが画面の右端ではなく「箱の右端＝画面中央寄りの中途半端な位置」に
+        出てしまう（サイドバーを開いて本文が中央からずれるとなおさら目立つ）。
+        読みやすい行幅への制限と中央/左寄せの切り替えは、スクロール領域の
+        内側（ConsultStage 側の内側ラッパー）で行い、スクロールする箱自体は
+        画面の右端まで届く幅にしておく。
+
+        同じ理由で左右の px も持たせない（横方向の余白は ConsultStage 側の
+        内側ラッパーが px-4 で持つ）。ここに px を付けると、スクロールする箱の
+        右端が画面の真の右端から px 分だけ内側にずれ、チャットのスクロールバーが
+        画面端にぴったり付かなくなる
+      */}
+      <main
+        className={`relative z-10 w-full pb-16 ${
+          isHistorySidebarOpen ? "lg:pl-80" : ""
+        }`}
+      >
+        <div className="w-full">
           {/* 現地でスマホを片手に使う前提の画面。相談はこの形に一本化した */}
           <ConsultStage
             onAskStream={handleGrandmaAskStream}
@@ -254,6 +282,8 @@ export default function ConsultClient() {
             autoAskContext={autoAskContext}
             preferredCharacterId={preferredCharacterId}
             onPreferredCharacterChange={setPreferredCharacterId}
+            isHistorySidebarOpen={isHistorySidebarOpen}
+            onHistorySidebarOpenChange={setIsHistorySidebarOpen}
           />
         </div>
       </main>

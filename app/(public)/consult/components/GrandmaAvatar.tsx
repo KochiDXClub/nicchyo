@@ -46,8 +46,18 @@ export type GrandmaAvatarSize = "hero" | "pinned";
 const SIZE_CLASS: Record<GrandmaAvatarSize, string> = {
   // 縦の短い端末（iPhone SE など）では、候補ボタン3つが下端固定の
   // 「話しかける」に隠れてしまうので、その分だけキャラを小さくする。
-  // 幅ではなく高さで切り替えるのは、足りなくなるのが縦だけのため
-  hero: "h-[168px] w-[168px] [@media(min-height:700px)]:h-[200px] [@media(min-height:700px)]:w-[200px] md:h-[240px] md:w-[240px]",
+  // 幅ではなく高さで切り替えるのは、足りなくなるのが縦だけのため。
+  // md:（幅のみ）で240pxへ上げると、幅は広いが高さの低いPCウィンドウ
+  // （1280x650など）で候補ボタンが下端固定バーに隠れて重なっていたので、
+  // 240pxへ上げる条件にも高さの十分さ（700px以上）を必須にする。
+  //
+  // 注意: この 700px は ConsultStage.tsx の下端バー分の余白
+  // （CONSULT_BAR_SPACE、6rem+固定要素ぶん）と、hero サイズ・挨拶吹き出し・
+  // 候補ボタン3つの実測で決めた値で、CSS の @media は
+  // var(--nav-bar-height) 等のカスタムプロパティを条件式に使えないため、
+  // 自動では追従しない。下端バーの実高さや候補ボタンの数・大きさを
+  // 変えるときは、この値も一緒に見直すこと。
+  hero: "h-[168px] w-[168px] [@media(min-height:700px)]:h-[200px] [@media(min-height:700px)]:w-[200px] [@media(min-width:768px)_and_(min-height:700px)]:h-[240px] [@media(min-width:768px)_and_(min-height:700px)]:w-[240px]",
   // 固定バーに常駐する取っ手。大きさは変えず、出入りだけさせる
   pinned: "h-[64px] w-[64px] md:h-[72px] md:w-[72px]",
 };

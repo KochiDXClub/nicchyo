@@ -107,6 +107,10 @@ export async function POST(req: NextRequest) {
       "Transfer-Encoding": "chunked",
       "Cache-Control": "no-cache",
       "X-Accel-Buffering": "no",
+      // この回答を識別する ID。評価（/api/grandma/feedback）と突き合わせるために返す。
+      // 本文はそのまま画面に出す文字列なので、ID はヘッダーで渡す
+      "X-Consult-Id": crypto.randomUUID(),
+      "Access-Control-Expose-Headers": "X-Consult-Id",
     },
   });
 }
