@@ -34,7 +34,7 @@ begin
   ) then
     create policy "admins read code health snapshots"
     on code_health_snapshots
-    for select
+    for select to authenticated
     using (coalesce(auth.jwt() -> 'app_metadata' ->> 'role', '') = 'admin');
   end if;
 end $$;

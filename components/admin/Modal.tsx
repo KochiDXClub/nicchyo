@@ -1,7 +1,7 @@
 "use client";
 
-// コード健康診断ページ用の共通モーダル。`fixed inset-0` の個別実装が複数箇所にあった問題
-// （docs/DESIGN_SYSTEM.md §6）を、まずこのページの範囲で解消する。
+// 管理画面の共通モーダル。`fixed inset-0` の個別実装が複数箇所にあった問題
+// （docs/DESIGN_SYSTEM.md §6）の受け皿。今はコード健康診断ページだけが使っている。
 //
 // components/ui/ には置かない。"use client" を要るものを置くと、バレル経由で
 // サーバーコンポーネントから読まれたときに壊れる（DESIGN_SYSTEM.md §5）。
@@ -19,6 +19,12 @@ export interface ModalProps {
 
 export function Modal({ open, onClose, title, children, widthClassName = "max-w-2xl" }: ModalProps) {
   const dialogRef = useRef<HTMLDivElement>(null);
+  // 呼び出し側が毎回新しい onClose を渡しても、開いている間に effect を張り直さない
+  // （張り直すとクリーンアップで元の要素にフォーカスが戻ってしまう）
+  const onCloseRef = useRef(onClose);
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  });
 
   useEffect(() => {
     if (!open) return;
@@ -28,7 +34,7 @@ export function Modal({ open, onClose, title, children, widthClassName = "max-w-
 
     function onKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") {
-        onClose();
+        onCloseRef.current();
         return;
       }
       if (event.key !== "Tab") return;
@@ -52,7 +58,7 @@ export function Modal({ open, onClose, title, children, widthClassName = "max-w-
       document.removeEventListener("keydown", onKeyDown);
       previouslyFocused?.focus();
     };
-  }, [open, onClose]);
+  }, [open]);
 
   if (!open) return null;
 

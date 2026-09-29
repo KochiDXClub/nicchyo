@@ -23,7 +23,10 @@ npm run code-health:save   # 測った結果を Supabase の code_health_snapsho
   `scripts/code-health/save-on-deploy.mjs` が結果を Supabase に保存する。キーは Vercel に
   登録済みの `SUPABASE_SERVICE_ROLE_KEY` を使うので、GitHub Actions 側のシークレットは要らない。
   同じコミットの Redeploy では保存しない。保存に失敗してもビルドは止めない（ビルドログに警告が出る）。
-  CI・プレビュー・ローカルの `npm run build` では何もしない
+  CI・プレビュー・ローカルの `npm run build` では何もしない。
+  保存はビルド本体より前（`prebuild`）なので、その後ビルドが失敗したコミットの結果も残る。
+  また、テーブルを作るマイグレーションは main への push 後に Actions で適用されるため、
+  それより先に本番ビルドが走った初回だけは保存に失敗することがある（次のデプロイから入る）
 - 保存された履歴は管理画面 `/admin/code-health` から見られる（最新の状態と前回比、ツリーマップ、
   ルール違反の多いファイル）。手動で保存したいときは `npm run code-health:save`
   （`SUPABASE_SERVICE_ROLE_KEY` が要るので、ローカルで試すときは環境変数に local の service role key を渡す）

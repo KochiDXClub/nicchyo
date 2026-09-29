@@ -10,7 +10,7 @@ import {
   VIOLATION_CUTS,
 } from "@/lib/code-health/treemap";
 import type { SnapshotFile } from "@/lib/code-health/types";
-import { Modal } from "./Modal";
+import { Modal } from "@/components/admin";
 
 export interface CodeTreemapProps {
   files: SnapshotFile[];

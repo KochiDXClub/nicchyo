@@ -217,7 +217,7 @@ type ExtendedPublicSchema = Omit<Database["public"], "Tables"> & {
     };
     code_health_snapshots: {
       Row: CodeHealthSnapshotRow;
-      // 書き込みは CI（scripts/code-health/save.mjs）が service role で行う。
+      // 書き込みは本番ビルド（scripts/code-health/save-on-deploy.mjs）が service role で行う。
       // 管理画面からは読むだけなので API からの insert/update は塞ぐ
       Insert: never;
       Update: never;

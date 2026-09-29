@@ -14,8 +14,8 @@ const SNAPSHOT_LIMIT = 10;
  * コード健康診断（管理画面）
  *
  * 認可は app/(public)/admin/layout.tsx が行う（管理者以外はトップへ）。
- * データは code_health_snapshots から読むだけ。書き込みは CI（main への push）から
- * service role で行うので、ここでは admin の JWT で RLS を通す通常のクライアントで足りる。
+ * データは code_health_snapshots から読むだけ。書き込みは本番デプロイ（Vercel の production ビルド）
+ * から service role で行うので、ここでは admin の JWT で RLS を通す通常のクライアントで足りる。
  */
 export default async function CodeHealthPage() {
   const supabase = createClientWithExtensions(await cookies());
@@ -45,7 +45,7 @@ export default async function CodeHealthPage() {
             icon={FileWarning}
             tone="neutral"
             title="まだスナップショットがありません"
-            description="main へ push すると CI が npm run code-health:save を実行し、ここに結果が並びます。ローカルで試すには npm run code-health:save を直接実行してください。"
+            description="本番にデプロイされるたびに、ビルドの中で自動的に結果が保存され、ここに並びます。ローカルで試すには npm run code-health:save を直接実行してください。"
           />
         ) : (
           <CodeHealthDashboard snapshots={snapshots} />
