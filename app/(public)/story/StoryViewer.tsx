@@ -4,7 +4,13 @@ import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPoi
 import { motion, AnimatePresence } from "framer-motion";
 import Image from "next/image";
 import Link from "next/link";
-import { formatRelativeTime, StoryProgressBars, StoryShopInfo } from "./components/StoryChrome";
+import {
+  formatRelativeTime,
+  StoryCharacterBubble,
+  StoryDemoBadge,
+  StoryProgressBars,
+  StoryShopInfo,
+} from "./components/StoryChrome";
 import { getOrCreateConsultVisitorKey } from "@/lib/consultVisitorKey";
 import { useBodyScrollLock } from "@/lib/ui/bodyScrollLock";
 import { fetchReactionState, toggleReaction, type ReactionState } from "@/lib/story/reactions";
@@ -22,9 +28,14 @@ type Props = {
   stories: StoryItem[];
   initialIndex: number;
   onClose: () => void;
+  /**
+   * デモ（/demo/story）として開くとき。ハートはサーバーに送らず、この画面の中だけで数える。
+   * heartCounts は投稿ごとの見本のハート数
+   */
+  demo?: { heartCounts: Record<string, number> };
 };
 
-export default function StoryViewer({ stories, initialIndex, onClose }: Props) {
+export default function StoryViewer({ stories, initialIndex, onClose, demo }: Props) {
   const [index, setIndex] = useState(initialIndex);
   const [direction, setDirection] = useState<1 | -1>(1);
   const [paused, setPaused] = useState(false);
@@ -79,8 +90,13 @@ export default function StoryViewer({ stories, initialIndex, onClose }: Props) {
     };
   }, [index, paused, goNext]);
 
-  // 表示中ストーリーのハート状態（総数・自分が押したか）を取得する
+  // 表示中ストーリーのハート状態（総数・自分が押したか）を取得する。
+  // デモの投稿はサーバーに無いので、見本の数から始める
   useEffect(() => {
+    if (demo) {
+      setReaction({ count: demo.heartCounts[story.id] ?? 0, reacted: false });
+      return;
+    }
     if (!visitorKey) return;
     let cancelled = false;
     setReaction(null);
@@ -88,22 +104,24 @@ export default function StoryViewer({ stories, initialIndex, onClose }: Props) {
       .then((state) => { if (!cancelled) setReaction(state); })
       .catch(() => { if (!cancelled) setReaction({ count: 0, reacted: false }); });
     return () => { cancelled = true; };
-  }, [story.id, visitorKey]);
+  }, [demo, story.id, visitorKey]);
 
   // ハートのトグル（楽観更新→失敗時は元に戻す）
   const handleToggleReaction = useCallback(async () => {
-    if (!visitorKey || !reaction) return;
+    if (!reaction || (!demo && !visitorKey)) return;
     const previous = reaction;
     setReaction({
       reacted: !previous.reacted,
       count: previous.count + (previous.reacted ? -1 : 1),
     });
+    // デモはこの画面の中だけで数える（visitorKey の判定は型の絞り込みのため）
+    if (demo || !visitorKey) return;
     try {
       setReaction(await toggleReaction(story.id, visitorKey));
     } catch {
       setReaction(previous);
     }
-  }, [reaction, story.id, visitorKey]);
+  }, [demo, reaction, story.id, visitorKey]);
 
   const handleDragEnd = (_: unknown, info: { offset: { x: number }; velocity: { x: number } }) => {
     const { x } = info.offset;
@@ -243,6 +261,7 @@ export default function StoryViewer({ stories, initialIndex, onClose }: Props) {
           ) : (
             <div className="flex items-center gap-2.5 flex-1 min-w-0">{shopInfo}</div>
           )}
+          {demo && <StoryDemoBadge />}
           <button
             type="button"
             onPointerDown={(e) => e.stopPropagation()}
@@ -318,9 +337,13 @@ export default function StoryViewer({ stories, initialIndex, onClose }: Props) {
       </div>
 
       {/* 下部：キャプション */}
-      {story.body && (
+      {(story.body || story.character) && (
         <div className="absolute bottom-0 left-0 right-0 z-10 px-4 pt-16 pb-10 bg-gradient-to-t from-black/70 to-transparent">
-          <p className="text-white text-sm leading-relaxed">{story.body}</p>
+          {/* 店のAIキャラのひとこと。ハートのボタンと重ならないよう右を空ける */}
+          {story.character && (
+            <StoryCharacterBubble character={story.character} className="mb-3 pr-16" />
+          )}
+          {story.body && <p className="text-white text-sm leading-relaxed">{story.body}</p>}
         </div>
       )}
 

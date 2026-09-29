@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120">
+  <rect width="120" height="120" fill="#FFF0C7"/>
+  <!-- 服とエプロン -->
+  <path d="M28 120c2-20 16-30 32-30s30 10 32 30z" fill="#D9794A"/>
+  <path d="M44 100h32v20H44z" fill="#FFFFFF"/>
+  <path d="M44 100q16-8 32 0" stroke="#FFFFFF" stroke-width="4" fill="none"/>
+  <!-- 顔 -->
+  <circle cx="60" cy="64" r="26" fill="#F6D2B0"/>
+  <!-- 三角巾 -->
+  <path d="M33 58c0-18 12-30 27-30s27 12 27 30c-8-8-17-11-27-11s-19 3-27 11z" fill="#E86A6A"/>
+  <circle cx="44" cy="40" r="2" fill="#FFFFFF"/><circle cx="60" cy="34" r="2" fill="#FFFFFF"/><circle cx="76" cy="40" r="2" fill="#FFFFFF"/>
+  <path d="M84 50l12 4-10 6z" fill="#E86A6A"/>
+  <!-- 目（にっこり）・口・ほほ -->
+  <path d="M46 64q4-4 8 0M66 64q4-4 8 0" stroke="#3A3A3A" stroke-width="2.6" fill="none" stroke-linecap="round"/>
+  <path d="M50 74q10 10 20 0z" fill="#C0513F"/>
+  <circle cx="44" cy="72" r="4" fill="#F4A6A0" opacity=".8"/>
+  <circle cx="76" cy="72" r="4" fill="#F4A6A0" opacity=".8"/>
+</svg>
