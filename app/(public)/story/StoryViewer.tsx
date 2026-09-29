@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPoi
 import { motion, AnimatePresence } from "framer-motion";
 import Image from "next/image";
 import Link from "next/link";
-import { getStoryAgeBucket, STORY_AGE_IMAGE_CLASS } from "./age";
+import { formatRelativeTime, StoryProgressBars, StoryShopInfo } from "./components/StoryChrome";
 import { getOrCreateConsultVisitorKey } from "@/lib/consultVisitorKey";
 import { useBodyScrollLock } from "@/lib/ui/bodyScrollLock";
 import { fetchReactionState, toggleReaction, type ReactionState } from "@/lib/story/reactions";
@@ -178,29 +178,24 @@ export default function StoryViewer({ stories, initialIndex, onClose }: Props) {
     setPaused(false);
   }, [clearLongPressTimer]);
 
-  const postedDate = new Date(story.created_at);
-  const timeLabel = formatRelativeTime(postedDate);
-  const ageBucket = getStoryAgeBucket(story.created_at);
+  // PC ではキーボードでも送れるようにする（← → で前後、Esc で閉じる）
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "ArrowRight") goNext();
+      else if (e.key === "ArrowLeft") goPrev();
+      else if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [goNext, goPrev, onClose]);
+
+  const timeLabel = formatRelativeTime(new Date(story.created_at));
 
   // マップ上のショップバナー（/map?shop=<店舗番号>）へのリンク用。
   // 割当が無い出店者はリンク無効。
   const storeNumber = story.vendor?.store_number ?? null;
 
-  const shopInfo = (
-    <>
-      <div className="w-8 h-8 rounded-full overflow-hidden bg-nicchyo-soft-green ring-2 ring-nicchyo-primary flex-shrink-0 flex items-center justify-center">
-        {avatarUrl ? (
-          <Image src={avatarUrl} alt={shopName} width={32} height={32} className="object-cover w-full h-full" />
-        ) : (
-          <span className="text-xs font-bold text-nicchyo-ink">{shopName.charAt(0)}</span>
-        )}
-      </div>
-      <div className="flex-1 min-w-0">
-        <p className="text-white font-semibold text-sm leading-tight truncate">{shopName}</p>
-        <p className="text-white/60 text-[11px] leading-tight">{timeLabel}</p>
-      </div>
-    </>
-  );
+  const shopInfo = <StoryShopInfo shopName={shopName} avatarUrl={avatarUrl} timeLabel={timeLabel} />;
 
   return (
     <motion.div
@@ -215,28 +210,17 @@ export default function StoryViewer({ stories, initialIndex, onClose }: Props) {
       onPointerLeave={handlePressCancel}
       onPointerCancel={handlePressCancel}
     >
+      {/* PC では画面いっぱいに横長で広げず、スマホと同じ縦長の枠に収めて中央に置く */}
+      <div className="relative mx-auto h-full w-full md:max-w-[calc(100dvh*9/16)]">
       {/* 上部：ショップ情報 + 閉じる */}
       <div className="absolute top-0 left-0 right-0 z-10 px-4 pt-10 pb-4 bg-gradient-to-b from-black/60 to-transparent">
         {/* プログレスバー */}
-        <div className="flex gap-1 mb-3">
-          {stories.map((_, i) => (
-            <div key={i} className="flex-1 h-[3px] rounded-full overflow-hidden bg-white/30">
-              {i < index ? (
-                <div className="h-full w-full bg-white rounded-full" />
-              ) : i === index ? (
-                <div
-                  className="h-full bg-white rounded-full"
-                  style={{
-                    animation: `story-progress ${STORY_DURATION}ms linear forwards`,
-                    animationPlayState: paused ? "paused" : "running",
-                  }}
-                />
-              ) : (
-                <div className="h-full w-0" />
-              )}
-            </div>
-          ))}
-        </div>
+        <StoryProgressBars
+          count={stories.length}
+          index={index}
+          durationMs={STORY_DURATION}
+          paused={paused}
+        />
 
         {/* ショップ情報行 */}
         <div className="flex items-center gap-2.5">
@@ -290,7 +274,7 @@ export default function StoryViewer({ stories, initialIndex, onClose }: Props) {
             src={story.image_url}
             alt={story.body ?? shopName}
             fill
-            className={`object-contain select-none ${STORY_AGE_IMAGE_CLASS[ageBucket]}`}
+            className="object-contain select-none"
             draggable={false}
             priority
           />
@@ -362,17 +346,8 @@ export default function StoryViewer({ stories, initialIndex, onClose }: Props) {
           </svg>
         </motion.div>
       )}
+      </div>
     </motion.div>
   );
 }
 
-function formatRelativeTime(date: Date): string {
-  const diff = Date.now() - date.getTime();
-  const min = Math.floor(diff / 60000);
-  if (min < 1) return "たった今";
-  if (min < 60) return `${min}分前`;
-  const h = Math.floor(min / 60);
-  if (h < 24) return `${h}時間前`;
-  const d = Math.floor(h / 24);
-  return `${d}日前`;
-}
