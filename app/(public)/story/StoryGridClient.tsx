@@ -107,10 +107,20 @@ export default function StoryGridClient({ demo }: Props = {}) {
 
   // シートを引き上げ切ったら、その上に全画面ビューアを重ねる。ビューアがフェードインし
   // 終わるまでシートを残しておかないと、あいだに一覧が一瞬透けて見える
+  const peekHandoffTimerRef = useRef<number | null>(null);
   const launchFromPeek = () => {
     setViewerIndex(0);
-    window.setTimeout(() => setPeekOpen(false), PEEK_HANDOFF_MS);
+    peekHandoffTimerRef.current = window.setTimeout(() => {
+      peekHandoffTimerRef.current = null;
+      setPeekOpen(false);
+    }, PEEK_HANDOFF_MS);
   };
+  useEffect(
+    () => () => {
+      if (peekHandoffTimerRef.current !== null) window.clearTimeout(peekHandoffTimerRef.current);
+    },
+    []
+  );
 
   const hasThisWeek = stories.some((story) => getStoryAgeBucket(story.created_at) === "this_week");
   // 「これからの日曜市」は通常は出店者の投稿より下に置く（近況を運営の予定が占拠しないため）。
@@ -236,7 +246,7 @@ export default function StoryGridClient({ demo }: Props = {}) {
             stories={stories}
             initialIndex={viewerIndex}
             onClose={() => setViewerIndex(null)}
-            demo={demo ? { heartCounts: demo.heartCounts } : undefined}
+            demo={demo}
           />
         )}
       </AnimatePresence>
