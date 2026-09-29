@@ -125,3 +125,50 @@ describe("StoryGridClient", () => {
     expect(await screen.findByRole("link", { name: "八百屋Bをマップで見る" })).toBeInTheDocument();
   });
 });
+
+describe("StoryGridClient（デモ）", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  const DEMO_STORIES = [
+    makeStory({
+      id: "d1",
+      body: "今朝ほった人参です",
+      vendor: { id: "dv1", shop_name: "見本の農園", shop_image_url: null, store_number: null },
+      character: { name: "農園のげんじい", imageUrl: "/images/demo/story/char-farmer.svg", line: "葉っぱも食べてみいや" },
+    }),
+  ];
+
+  it("API を読まずに見本の投稿を出し、店のAIキャラのひとことを見せる", async () => {
+    mockViewport({ desktop: false });
+    const fetchSpy = vi.spyOn(global, "fetch").mockResolvedValue({ ok: true, json: async () => ({}) } as Response);
+    render(<StoryGridClient demo={{ stories: DEMO_STORIES, heartCounts: { d1: 7 } }} />);
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(fetchSpy.mock.calls.some(([url]) => String(url).includes("/api/stories"))).toBe(false);
+    expect(screen.getByText("近況のデモです。お店・投稿・AIキャラのひとことは、すべて見本です。")).toBeInTheDocument();
+    // 半開きのシートにキャラの吹き出しが出る
+    expect(screen.getByTestId("story-peek-sheet")).toHaveTextContent("葉っぱも食べてみいや");
+  });
+
+  it("デモのハートはサーバーに送らず、その場で数える", async () => {
+    mockViewport({ desktop: true });
+    vi.spyOn(global, "fetch").mockResolvedValue({ ok: true, json: async () => ({}) } as Response);
+    const { toggleReaction } = await import("@/lib/story/reactions");
+    render(<StoryGridClient demo={{ stories: DEMO_STORIES, heartCounts: { d1: 7 } }} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "見本の農園の近況を再生" }));
+    const heart = await screen.findByLabelText("ハートを送る");
+    // ハートのボタンの下に数が出る
+    const heartArea = heart.parentElement as HTMLElement;
+    expect(heartArea).toHaveTextContent("7");
+    fireEvent.click(heart);
+
+    expect(heartArea).toHaveTextContent("8");
+    expect(toggleReaction).not.toHaveBeenCalled();
+  });
+});

@@ -38,6 +38,12 @@ export const PAGE_REGISTRY: readonly PageRegistryEntry[] = [
   { path: "/shops", label: "店舗詳細", group: "来訪者向け", description: "/shops/001 など" },
   { path: "/consult", label: "にちよさん相談", group: "来訪者向け" },
   { path: "/story", label: "近況", group: "来訪者向け" },
+  {
+    path: "/demo/story",
+    label: "近況（デモ）",
+    group: "来訪者向け",
+    description: "架空の店の見本投稿と、店のAIキャラのひとことを見せるデモ",
+  },
   { path: "/posts", label: "投稿一覧", group: "来訪者向け" },
   { path: "/events", label: "イベント", group: "来訪者向け" },
   { path: "/calendar", label: "日曜市カレンダー", group: "来訪者向け" },
