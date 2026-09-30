@@ -40,6 +40,8 @@ function isCategoryId(value: string | null): value is CategoryId {
 export default function ContactForm() {
   const searchParams = useSearchParams();
   const initialCategory = searchParams?.get("category") ?? null;
+  // 出店者トップの「運営に問い合わせる」から ?message= で相談の内容を持ってくる
+  const initialMessage = searchParams?.get("message")?.slice(0, 1000) ?? undefined;
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
@@ -54,6 +56,7 @@ export default function ContactForm() {
     defaultValues: {
       // /support の「協賛について問い合わせる」から ?category=sponsor で来る
       category: isCategoryId(initialCategory) ? initialCategory : "question",
+      message: initialMessage,
     },
   });
 

@@ -2,10 +2,13 @@
 
 import Link from "next/link";
 import { motion, useReducedMotion } from "framer-motion";
+import { MessageCircleQuestionMark, X } from "lucide-react";
 import GrandmaAvatar from "@/app/(public)/consult/components/GrandmaAvatar";
 import { DEFAULT_CONSULT_CHARACTER } from "@/app/(public)/consult/data/consultCharacters";
 import { resolveGrandmaPose } from "@/lib/grandma/pose";
 import { useVendorAskInbox } from "./useVendorAsk";
+import VendorHelpInput from "../help/VendorHelpInput";
+import { contactHrefFor, useVendorHelpChat } from "../help/useVendorHelpChat";
 
 /** 待っているあいだの、にちよさんの決まったひとこと */
 const IDLE_LINE = "今日もおつかれさま！";
@@ -25,8 +28,13 @@ export default function VendorAskStage({ vendorId }: { vendorId: string }) {
   const { status, pendingCount } = useVendorAskInbox(vendorId);
   const reduceMotion = useReducedMotion() ?? false;
   const showInbox = status === "ready" && pendingCount > 0;
+  const help = useVendorHelpChat();
 
-  const pose = resolveGrandmaPose({ isListening: false, isStreaming: false, aiStatus: "idle" });
+  const pose = resolveGrandmaPose({
+    isListening: false,
+    isStreaming: help.status === "streaming",
+    aiStatus: help.status === "thinking" ? "thinking" : "idle",
+  });
 
   return (
     <section aria-label="にちよさん" className="flex flex-col items-center gap-4">
@@ -76,14 +84,88 @@ export default function VendorAskStage({ vendorId }: { vendorId: string }) {
         )}
       </div>
 
-      <div className="consult-greeting w-full max-w-md rounded-card border border-amber-200 bg-white px-5 py-4 text-center shadow-card">
-        <p className="text-lg font-bold leading-relaxed text-amber-900">{IDLE_LINE}</p>
-        {showInbox && (
-          <p className="mt-1 text-sm leading-relaxed text-amber-900/80">
-            教えてほしいことが{pendingCount}つあるき、手が空いたら上の吹き出しを押してや。
-          </p>
+      <div
+        className="consult-greeting w-full max-w-md rounded-card border border-amber-200 bg-white px-5 py-4 shadow-card"
+        aria-live="polite"
+      >
+        {help.question ? (
+          <HelpAnswer
+            question={help.question}
+            answer={help.answer}
+            status={help.status}
+            onClose={help.close}
+          />
+        ) : (
+          <div className="text-center">
+            <p className="text-lg font-bold leading-relaxed text-amber-900">{IDLE_LINE}</p>
+            {showInbox ? (
+              <p className="mt-1 text-sm leading-relaxed text-amber-900/80">
+                教えてほしいことが{pendingCount}つあるき、手が空いたら上の吹き出しを押してや。
+              </p>
+            ) : (
+              <p className="mt-1 text-sm leading-relaxed text-amber-900/80">
+                使い方で困ったら、下から聞いてや。
+              </p>
+            )}
+          </div>
         )}
       </div>
+
+      <VendorHelpInput busy={help.busy} showSuggestions={!help.question} onAsk={(text) => void help.ask(text)} />
     </section>
+  );
+}
+
+/** 吹き出しの中身：聞いたことと、にちよさんの答え */
+function HelpAnswer({
+  question,
+  answer,
+  status,
+  onClose,
+}: {
+  question: string;
+  answer: string;
+  status: ReturnType<typeof useVendorHelpChat>["status"];
+  onClose: () => void;
+}) {
+  const finished = status === "done" || status === "error";
+
+  return (
+    <div>
+      <div className="flex items-start gap-2">
+        <p className="min-w-0 flex-1 text-sm leading-relaxed text-nicchyo-ink/70">
+          <span className="sr-only">あなたの相談：</span>
+          「{question}」
+        </p>
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="相談を閉じる"
+          className="-mr-2 -mt-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-nicchyo-ink/55 transition active:scale-95 motion-reduce:active:scale-100"
+        >
+          <X className="h-4 w-4" aria-hidden />
+        </button>
+      </div>
+
+      {status === "thinking" ? (
+        <div className="mt-3 flex flex-col gap-2" aria-label="にちよさんが考えています">
+          <span className="consult-skeleton h-3.5 w-4/5 rounded-full" />
+          <span className="consult-skeleton h-3.5 w-3/5 rounded-full" style={{ animationDelay: "120ms" }} />
+        </div>
+      ) : (
+        <p className="mt-2 whitespace-pre-wrap text-base leading-relaxed text-amber-900">{answer}</p>
+      )}
+
+      {/* にちよさんで解決しないときの逃げ道。答えを読み終えてから出す */}
+      {finished && (
+        <Link
+          href={contactHrefFor(question)}
+          className="mt-4 flex items-center justify-center gap-1.5 rounded-chip border border-amber-200 px-4 py-2.5 text-sm font-bold text-amber-900 transition active:scale-95 motion-reduce:active:scale-100"
+        >
+          <MessageCircleQuestionMark className="h-4 w-4 shrink-0" aria-hidden />
+          解決しないときは運営に問い合わせる
+        </Link>
+      )}
+    </div>
   );
 }
