@@ -1,8 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import Image from "next/image";
+import { PageContainer, PageShell, PageTitle } from "@/components/ui";
 import { getShopBannerImage } from "@/lib/shopImages";
 import { useVendorShopProfile, type FormState } from "./useVendorShopProfile";
 import { ProductsSection } from "./ProductsSection";
@@ -61,24 +61,9 @@ export default function MyShopDetailPage() {
     form.imageMain.trim() || getShopBannerImage(form.category, vendorId ?? "default");
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-amber-50 via-orange-50 to-yellow-50 pb-24">
-      <div className="mx-auto w-full max-w-4xl px-4 pt-6">
-        <div className="mb-4 rounded-2xl border border-amber-100 bg-white/95 px-6 py-5 text-center shadow-sm">
-          <p className="text-base font-semibold uppercase tracking-[0.14em] text-amber-700">
-            My shop
-          </p>
-          <h1 className="mt-1 text-5xl font-bold text-slate-900">
-            出店情報の入力
-          </h1>
-        </div>
-        <div className="mb-4 flex items-center justify-center gap-3">
-          <Link
-            href="/my-shop"
-            className="inline-flex items-center gap-2 rounded-full border border-amber-200 bg-white px-4 py-2 text-sm font-semibold text-amber-800 shadow-sm transition hover:bg-amber-50"
-          >
-            ← 出店者メニューへ戻る
-          </Link>
-        </div>
+    <PageShell bottomNav={false}>
+      <PageTitle title="出店情報の入力" width="wide" />
+      <PageContainer width="wide">
         {loadError && (
           <div className="mb-4 rounded-2xl border border-rose-100 bg-rose-50 px-4 py-3 text-sm text-rose-700">
             {loadError}
@@ -374,7 +359,7 @@ export default function MyShopDetailPage() {
           </div>
         </form>
 
-      </div>
-    </div>
+      </PageContainer>
+    </PageShell>
   );
 }

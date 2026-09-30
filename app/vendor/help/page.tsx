@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { ArrowLeft, Megaphone, Store, BarChart2, Sparkles, User, ChevronRight } from "lucide-react";
+import { PageContainer, PageShell, PageTitle } from "@/components/ui";
+import { Megaphone, Store, BarChart2, Sparkles, User, ChevronRight } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -71,24 +72,11 @@ const GUIDE_SECTIONS = [
 
 export default function VendorHelpPage() {
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(251,191,36,0.16),_rgba(255,250,240,0))] pb-24">
+    <PageShell bottomNav={false}>
       {/* ヘッダー */}
-      <div className="border-b border-amber-100/80 bg-white/90 px-4 py-4 backdrop-blur-sm">
-        <div className="mx-auto flex max-w-2xl items-center gap-3">
-          <Link
-            href="/my-shop"
-            className="flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50"
-          >
-            <ArrowLeft size={19} />
-          </Link>
-          <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-amber-600">Help Guide</p>
-            <h1 className="text-2xl font-bold tracking-tight text-slate-900">使い方ガイド</h1>
-          </div>
-        </div>
-      </div>
+      <PageTitle title="使い方ガイド" />
 
-      <div className="mx-auto max-w-2xl space-y-5 px-4 pt-5">
+      <PageContainer className="space-y-5">
         <div className="rounded-[28px] border border-amber-200 bg-white p-4 shadow-sm md:p-5">
           <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
             <div className="min-w-0">
@@ -154,8 +142,8 @@ export default function VendorHelpPage() {
           );
         })}
         </div>
-      </div>
+      </PageContainer>
 
-    </div>
+    </PageShell>
   );
 }

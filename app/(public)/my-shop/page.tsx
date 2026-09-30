@@ -86,10 +86,7 @@ export default function MyShopPage() {
   const shopName = summary?.shopName ?? "";
 
   return (
-    <div
-      className="relative min-h-screen"
-      style={{ paddingBottom: "calc(4.5rem + env(safe-area-inset-bottom, 0px))" }}
-    >
+    <div className="relative min-h-screen">
       {/* 背景：AI相談ページと同じグラデーション（画面全体・スクロールで固定） */}
       <div className="pointer-events-none fixed inset-0 z-0 bg-[var(--consult-bg)]" aria-hidden="true" />
 

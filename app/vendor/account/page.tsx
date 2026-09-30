@@ -3,11 +3,10 @@
 export const dynamic = "force-dynamic";
 
 import { useState, type FormEvent } from "react";
-import Link from "next/link";
+import { PageContainer, PageShell, PageTitle } from "@/components/ui";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth/AuthContext";
 import {
-  ArrowLeft,
   Save,
   CheckCircle2,
   Loader2,
@@ -170,23 +169,10 @@ export default function VendorAccountPage() {
   const isDeleteReady = deleteConfirm === deleteConfirmEmail;
 
   return (
-    <div className="min-h-screen bg-[#FFFAF0] pb-24">
-      <div className="border-b border-amber-100 bg-white/90 px-4 py-4 backdrop-blur-sm">
-        <div className="mx-auto flex max-w-2xl items-center gap-3">
-          <Link
-            href="/my-shop"
-            className="flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50"
-          >
-            <ArrowLeft size={18} />
-          </Link>
-          <div>
-            <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-amber-600">Account</p>
-            <h1 className="text-xl font-bold text-slate-900">アカウント設定</h1>
-          </div>
-        </div>
-      </div>
+    <PageShell bottomNav={false}>
+      <PageTitle title="アカウント設定" />
 
-      <div className="mx-auto max-w-2xl space-y-4 px-4 pt-5">
+      <PageContainer className="space-y-4">
         <div className="rounded-3xl border border-amber-100 bg-white p-4 shadow-sm">
           <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-amber-600">Account</p>
           <h2 className="mt-1 text-2xl font-bold text-slate-900">アカウント設定</h2>
@@ -403,7 +389,7 @@ export default function VendorAccountPage() {
           )}
         </div>
 
-      </div>
-    </div>
+      </PageContainer>
+    </PageShell>
   );
 }

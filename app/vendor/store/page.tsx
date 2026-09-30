@@ -3,7 +3,7 @@
 export const dynamic = "force-dynamic";
 
 import { useState, useEffect, useRef, type FormEvent } from "react";
-import Link from "next/link";
+import { Badge, PageContainer, PageShell, PageTitle } from "@/components/ui";
 import Image from "next/image";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { fetchVendorStore, saveVendorStore, uploadStoreImage, fetchCategories } from "../_services/storeService";
@@ -12,7 +12,6 @@ import type { Category } from "../_services/storeService";
 import type { PaymentMethod, Store } from "../_types";
 import { PAYMENT_OPTIONS, RAIN_OPTIONS, TIME_OPTIONS } from "@/lib/vendor/storeOptions";
 import {
-  ArrowLeft,
   Save,
   CheckCircle2,
   Plus,
@@ -263,28 +262,13 @@ export default function VendorStorePage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#FFFAF0] pb-24">
-      <div className="border-b border-amber-100 bg-white/90 px-4 py-4 backdrop-blur-sm">
-        <div className="mx-auto flex max-w-2xl items-center gap-3">
-          <Link
-            href="/my-shop"
-            className="flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50"
-          >
-            <ArrowLeft size={18} />
-          </Link>
-          <div>
-            <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-amber-600">Store Info</p>
-            <h1 className="text-xl font-bold text-slate-900">店舗情報の編集</h1>
-          </div>
-          {isDirty && (
-            <span className="ml-auto rounded-full bg-amber-100 px-2.5 py-1 text-[10px] font-semibold text-amber-700">
-              未保存
-            </span>
-          )}
-        </div>
-      </div>
+    <PageShell bottomNav={false}>
+      <PageTitle
+        title="店舗情報の編集"
+        action={isDirty && <Badge variant="amber">未保存</Badge>}
+      />
 
-      <form onSubmit={handleSubmit} onChange={() => setIsDirty(true)} className="mx-auto max-w-2xl space-y-5 px-4 pt-5">
+      <PageContainer as="form" onSubmit={handleSubmit} onChange={() => setIsDirty(true)} className="space-y-5">
 
         {error && (
           <div className="rounded-2xl border border-rose-100 bg-rose-50 px-4 py-3 text-sm text-rose-700">
@@ -695,7 +679,7 @@ export default function VendorStorePage() {
           : <><Save size={18} />変更を保存する</>}
         </button>
 
-      </form>
-    </div>
+      </PageContainer>
+    </PageShell>
   );
 }
