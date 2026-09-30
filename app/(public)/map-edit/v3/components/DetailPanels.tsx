@@ -41,14 +41,12 @@ const dangerButtonStyle: React.CSSProperties = {
 export function SlotDetailPanel({
   shop,
   vendorOptions,
-  onVendorNameChange,
   onVendorSelect,
   onStartMove,
   onClearVendor,
 }: {
   shop: EditableShop | null;
   vendorOptions: VendorOption[];
-  onVendorNameChange: (value: string) => void;
   onVendorSelect: (vendorId: string) => void;
   onStartMove: () => void;
   onClearVendor: () => void;
@@ -79,12 +77,9 @@ export function SlotDetailPanel({
         ))}
       </select>
 
+      {/* 表示名は出店者データの店名から決まる（区画側では保存されない）ため、ここでは表示だけにする */}
       <span style={label}>表示名</span>
-      <input
-        value={shop.name}
-        onChange={(e) => onVendorNameChange(e.target.value)}
-        style={inputStyle}
-      />
+      <p style={{ margin: "0 0 12px", fontSize: 13 }}>{shop.name}</p>
 
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
         <span onClick={onStartMove} style={buttonStyle}>
