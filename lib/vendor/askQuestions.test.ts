@@ -3,6 +3,8 @@ import {
   ASK_GROUPS,
   ASK_LIMIT,
   ASK_QUESTIONS,
+  emptyAnswerFor,
+  isClearable,
   pickQuestions,
   studioQuestions,
   type VendorAskSnapshot,
@@ -197,5 +199,16 @@ describe("答えの要約", () => {
   it("店主名は、公開するかどうかも添える", () => {
     expect(summaryOf("owner", { ...EMPTY, ownerName: "山田", ownerNamePublic: true })).toBe("山田（公開）");
     expect(summaryOf("owner", { ...EMPTY, ownerName: "山田", ownerNamePublic: false })).toBe("山田（非公開）");
+  });
+});
+
+describe("答えを消す", () => {
+  it("つながりと店舗写真だけが消せて、空の答えが作れる", () => {
+    expect(isClearable("instagram")).toBe(true);
+    expect(isClearable("shop-photo")).toBe(true);
+    expect(isClearable("hours")).toBe(false);
+    expect(emptyAnswerFor("website")).toEqual({ id: "website", value: "" });
+    expect(emptyAnswerFor("shop-photo")).toEqual({ id: "shop-photo", imageFile: null });
+    expect(emptyAnswerFor("hours")).toBeNull();
   });
 });

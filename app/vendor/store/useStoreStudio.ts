@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getUpcomingSundayIso } from "@/lib/market/calendar";
 import { imageErrorMessage } from "@/lib/image/clientCompression";
 import {
+  emptyAnswerFor,
   studioQuestions,
   type AskAnswer,
   type AskQuestion,
@@ -22,10 +23,20 @@ const CHEERS = [
   "ありがとうねぇ！",
 ] as const;
 
+/**
+ * 「お店の育ち」に数える質問。今週の商品は週が変わると答えが空に戻るので、
+ * 数に入れると毎週満点から落ちてしまう。数から外すだけで、質問としては残す。
+ */
+const countsForGrowth = (question: AskQuestion) => question.tier !== "weekly";
+
 const COMPLETE_CHEER = "ぜんぶ教えてくれて、ありがとう！満点じゃ！";
 
 /** ひとことを出しておく長さ */
 const CHEER_MS = 2400;
+
+const isClearAnswer = (answer: AskAnswer) =>
+  (answer.id === "shop-photo" && !answer.imageFile) ||
+  ((answer.id === "instagram" || answer.id === "x" || answer.id === "website") && !answer.value.trim());
 
 export type StoreStudioStatus = "loading" | "ready" | "error";
 
@@ -43,6 +54,8 @@ export function useStoreStudio(vendorId: string | null) {
   const [openId, setOpenId] = useState<AskQuestionId | null>(null);
   /** 「続きを答える」で順に聞いている最中か */
   const [queueMode, setQueueMode] = useState(false);
+  /** 「続きを答える」の途中で「飛ばす」にした質問（画面を閉じるまで聞き直さない） */
+  const [queueSkipped, setQueueSkipped] = useState<AskQuestionId[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   /** 答えたあとのひとこと。key を変えて、続けて答えても出し直す */
@@ -77,18 +90,26 @@ export function useStoreStudio(vendorId: string | null) {
 
   const groups = useMemo(() => (snapshot ? studioQuestions(snapshot) : []), [snapshot]);
   const allQuestions = useMemo(() => groups.flatMap((group) => group.questions), [groups]);
+  const growthQuestions = useMemo(() => allQuestions.filter(countsForGrowth), [allQuestions]);
   const answeredCount = snapshot
-    ? allQuestions.filter((question) => question.isAnswered(snapshot)).length
+    ? growthQuestions.filter((question) => question.isAnswered(snapshot)).length
     : 0;
-  const total = allQuestions.length;
+  const total = growthQuestions.length;
   const isComplete = total > 0 && answeredCount === total;
 
   /** まだ答えていない質問のうち、章の並びで先頭のもの */
   const nextUnanswered = useCallback(
-    (from: VendorAskSnapshot, except?: AskQuestionId): AskQuestion | null =>
+    (
+      from: VendorAskSnapshot,
+      except?: AskQuestionId,
+      skipped: readonly AskQuestionId[] = []
+    ): AskQuestion | null =>
       studioQuestions(from)
         .flatMap((group) => group.questions)
-        .find((question) => question.id !== except && !question.isAnswered(from)) ?? null,
+        .find(
+          (question) =>
+            question.id !== except && !skipped.includes(question.id) && !question.isAnswered(from)
+        ) ?? null,
     []
   );
 
@@ -97,12 +118,14 @@ export function useStoreStudio(vendorId: string | null) {
   const open = useCallback((id: AskQuestionId) => {
     setError(null);
     setQueueMode(false);
+    setQueueSkipped([]);
     setOpenId(id);
   }, []);
 
   const close = useCallback(() => {
     setOpenId(null);
     setQueueMode(false);
+    setQueueSkipped([]);
     setError(null);
   }, []);
 
@@ -112,8 +135,25 @@ export function useStoreStudio(vendorId: string | null) {
     if (!next) return;
     setError(null);
     setQueueMode(true);
+    setQueueSkipped([]);
     setOpenId(next.id);
   }, [snapshot, nextUnanswered]);
+
+  /** 「続きを答える」の途中で、この質問だけ飛ばして次へ進む */
+  const skipCurrent = useCallback(() => {
+    if (!snapshot || !openId) return;
+    const skipped = [...queueSkipped, openId];
+    const next = nextUnanswered(snapshot, openId, skipped);
+    setError(null);
+    setQueueSkipped(skipped);
+    if (next) {
+      setOpenId(next.id);
+    } else {
+      setOpenId(null);
+      setQueueMode(false);
+      setQueueSkipped([]);
+    }
+  }, [snapshot, openId, queueSkipped, nextUnanswered]);
 
   const showCheer = useCallback((complete: boolean) => {
     cheerCount.current += 1;
@@ -136,14 +176,17 @@ export function useStoreStudio(vendorId: string | null) {
         const latest = await fetchAskSnapshot(vendorId, weekDate);
         setSnapshot(latest);
 
-        const remaining = nextUnanswered(latest, answer.id);
+        const remaining = nextUnanswered(latest, answer.id, queueSkipped);
         const nowComplete = studioQuestions(latest)
           .flatMap((group) => group.questions)
+          .filter(countsForGrowth)
           .every((question) => question.isAnswered(latest));
-        showCheer(nowComplete);
+        // 答えを消したときは、ほめない
+        const cleared = isClearAnswer(answer);
+        if (!cleared) showCheer(nowComplete);
 
         // 「続きを答える」の最中は、次の質問へそのまま進む。それ以外は閉じる
-        if (queueMode && remaining) {
+        if (queueMode && remaining && !cleared) {
           setOpenId(remaining.id);
         } else {
           setOpenId(null);
@@ -159,7 +202,16 @@ export function useStoreStudio(vendorId: string | null) {
         setSaving(false);
       }
     },
-    [vendorId, saving, weekDate, nextUnanswered, showCheer, queueMode]
+    [vendorId, saving, weekDate, nextUnanswered, showCheer, queueMode, queueSkipped]
+  );
+
+  /** 入れた値を消す（つながりと店舗写真）。消せない質問では何もしない */
+  const clear = useCallback(
+    (id: AskQuestionId) => {
+      const empty = emptyAnswerFor(id);
+      if (empty) void save(empty);
+    },
+    [save]
   );
 
   return {
@@ -177,6 +229,8 @@ export function useStoreStudio(vendorId: string | null) {
     open,
     close,
     startQueue,
+    skipCurrent,
+    clear,
     save,
   };
 }

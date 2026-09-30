@@ -254,7 +254,7 @@ export function ProductPricesInput({ snapshot, saving, onSubmit, onSkip }: Input
   const toItems = (list: PriceRow[]) =>
     list.map((row) => {
       const price = row.price.trim() === "" ? null : Number.parseInt(row.price, 10);
-      return { name: row.name, price: Number.isNaN(price) ? null : price };
+      return { name: row.name, price: price === null || Number.isNaN(price) || price < 0 ? null : price };
     });
 
   return (

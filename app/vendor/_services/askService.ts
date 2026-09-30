@@ -95,7 +95,10 @@ export async function fetchAskSnapshot(
     styleTags: (vendor.style_tags as string[] | null) ?? [],
     ownerName: owner?.owner_name ?? undefined,
     ownerNamePublic: owner?.is_public ?? false,
-    products: mainProducts.map((name) => ({ name, price: prices[name] ?? null })),
+    // 「商品」ページだけで登録した人にも、商品名を補って見せる
+    products: (mainProducts.length > 0 ? mainProducts : products.map((item) => item.name)).map(
+      (name) => ({ name, price: prices[name] ?? null })
+    ),
     schedule: (vendor.schedule as string[] | null) ?? [],
     snsX: vendor.sns_x ?? undefined,
     businessHoursStart: vendor.business_hours_start ?? undefined,
@@ -314,8 +317,10 @@ export async function saveAskAnswer(
     case "x":
       return updateVendor(supabase, vendorId, { sns_x: orNull(answer.value) });
     case "shop-photo": {
+      if (!answer.imageFile) return updateVendor(supabase, vendorId, { shop_image_url: null });
       const imageUrl = await uploadStoreImage(vendorId, answer.imageFile);
-      return updateVendor(supabase, vendorId, { shop_image_url: imageUrl });
+      // 毎回同じパスに上書きされるので、版をつけてブラウザの古いキャッシュを避ける
+      return updateVendor(supabase, vendorId, { shop_image_url: `${imageUrl}?v=${Date.now()}` });
     }
     case "shop-name":
       return updateVendor(supabase, vendorId, { shop_name: answer.text.trim() });

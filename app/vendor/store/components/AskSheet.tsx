@@ -6,7 +6,7 @@ import GrandmaAvatar from "@/app/(public)/consult/components/GrandmaAvatar";
 import { DEFAULT_CONSULT_CHARACTER } from "@/app/(public)/consult/data/consultCharacters";
 import AskInput from "@/components/vendor/ask/AskInputs";
 import { useBodyScrollLock } from "@/lib/ui/bodyScrollLock";
-import type { AskAnswer, AskQuestion, VendorAskSnapshot } from "@/lib/vendor/askQuestions";
+import { isClearable, type AskAnswer, type AskQuestion, type VendorAskSnapshot } from "@/lib/vendor/askQuestions";
 
 /**
  * にちよさんが質問してくるシート。画面下から上がってきて、にちよさんが質問し、
@@ -22,6 +22,8 @@ export default function AskSheet({
   queueMode,
   onClose,
   onSubmit,
+  onSkip,
+  onClear,
 }: {
   question: AskQuestion;
   snapshot: VendorAskSnapshot;
@@ -30,6 +32,10 @@ export default function AskSheet({
   queueMode: boolean;
   onClose: () => void;
   onSubmit: (answer: AskAnswer) => void;
+  /** 「続きを答える」の途中で、この質問だけ飛ばす */
+  onSkip: () => void;
+  /** 入れた値を消す */
+  onClear: () => void;
 }) {
   const reduceMotion = useReducedMotion();
   useBodyScrollLock(true);
@@ -93,6 +99,30 @@ export default function AskSheet({
             onSkip={onClose}
             skipLabel={queueMode ? "ここまでにする" : "閉じる"}
           />
+          {(queueMode || (isClearable(question.id) && question.isAnswered(snapshot))) && (
+            <div className="mt-3 flex items-center justify-center gap-4 text-sm">
+              {queueMode && (
+                <button
+                  type="button"
+                  onClick={onSkip}
+                  disabled={saving}
+                  className="font-semibold text-nicchyo-ink/60 underline underline-offset-2 disabled:opacity-50"
+                >
+                  この質問は飛ばす
+                </button>
+              )}
+              {isClearable(question.id) && question.isAnswered(snapshot) && (
+                <button
+                  type="button"
+                  onClick={onClear}
+                  disabled={saving}
+                  className="font-semibold text-rose-600 underline underline-offset-2 disabled:opacity-50"
+                >
+                  この答えを消す
+                </button>
+              )}
+            </div>
+          )}
           {error && (
             <p className="mt-3 text-sm text-rose-600" role="alert">
               {error}

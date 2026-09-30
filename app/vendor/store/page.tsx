@@ -152,6 +152,8 @@ export default function VendorStorePage() {
             queueMode={studio.queueMode}
             onClose={studio.close}
             onSubmit={(answer) => void studio.save(answer)}
+            onSkip={studio.skipCurrent}
+            onClear={() => studio.clear(studio.openedQuestion!.id)}
           />
         )}
       </AnimatePresence>

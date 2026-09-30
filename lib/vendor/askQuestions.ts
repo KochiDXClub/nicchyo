@@ -431,6 +431,25 @@ export function studioQuestions(snapshot: VendorAskSnapshot) {
 }
 
 /** 出店者が1つの質問に答えた内容。保存は askService.saveAskAnswer が行う */
+/** 入れた値を「消す」ことができる質問（つながりと店舗写真）。消すときは空の答えを送る */
+const CLEARABLE_IDS: readonly AskQuestionId[] = ["instagram", "x", "website", "shop-photo"];
+
+export const isClearable = (id: AskQuestionId) => CLEARABLE_IDS.includes(id);
+
+/** 質問を「消す」ための、空の答え */
+export function emptyAnswerFor(id: AskQuestionId): AskAnswer | null {
+  switch (id) {
+    case "instagram":
+    case "x":
+    case "website":
+      return { id, value: "" };
+    case "shop-photo":
+      return { id, imageFile: null };
+    default:
+      return null;
+  }
+}
+
 export type AskAnswer =
   | { id: "weekly-products"; products: string[] }
   | { id: "hours"; start: string; end: string }
@@ -445,7 +464,7 @@ export type AskAnswer =
   | { id: "motivation"; text: string }
   | { id: "years"; years: number }
   | { id: "sunday-love"; text: string }
-  | { id: "shop-photo"; imageFile: File }
+  | { id: "shop-photo"; imageFile: File | null }
   | { id: "shop-name"; text: string }
   | { id: "category"; categoryId: string }
   | { id: "style"; tags: string[]; note: string }
