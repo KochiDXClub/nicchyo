@@ -12,6 +12,7 @@ import VendorHelpInput from "../help/VendorHelpInput";
 import HelpAnswerText from "../help/HelpAnswerText";
 import { CONTACT_HREF, contactMessageFor, useVendorHelpChat } from "../help/useVendorHelpChat";
 import { saveContactPrefill } from "@/lib/contact/prefill";
+import { countLabel, countUnit } from "./pendingQuestions";
 
 /** 待っているあいだの、にちよさんの決まったひとこと */
 const IDLE_LINE = "今日もおつかれさま！";
@@ -47,7 +48,8 @@ export default function VendorAskStage({ vendorId }: { vendorId: string }) {
 
         {showInbox && (
           <motion.div
-            className="absolute left-[60%] -top-2"
+            // 狭い画面（320px 幅など）では、はみ出さないよう少し左に寄せる
+            className="absolute -top-2 left-1/2 min-[360px]:left-[60%]"
             initial={reduceMotion ? false : { scale: 0.6, opacity: 0 }}
             animate={reduceMotion ? { scale: 1, opacity: 1 } : { scale: 1, opacity: 1, y: [0, -4, 0] }}
             transition={
@@ -62,7 +64,6 @@ export default function VendorAskStage({ vendorId }: { vendorId: string }) {
           >
             <Link
               href="/my-shop/ask"
-              aria-label={`にちよさんからの質問に答える（${pendingCount}つ）`}
               className="relative flex items-center gap-2 rounded-chip bg-white py-1.5 pl-1.5 pr-2.5 shadow-lift ring-1 ring-amber-200 transition active:scale-95 motion-reduce:active:scale-100"
             >
               <span
@@ -71,7 +72,9 @@ export default function VendorAskStage({ vendorId }: { vendorId: string }) {
               >
                 !
               </span>
-              <span aria-hidden className="whitespace-nowrap text-sm font-bold leading-none text-amber-900">
+              {/* 見えている文字（「質問が5つ」）をそのままリンクの名前にする。音声操作で見えている言葉を言えば押せるように */}
+              <span className="whitespace-nowrap text-sm font-bold leading-none text-amber-900">
+                <span className="sr-only">にちよさんからの</span>
                 質問が
                 <span
                   data-testid="vendor-ask-inbox-count"
@@ -79,7 +82,7 @@ export default function VendorAskStage({ vendorId }: { vendorId: string }) {
                 >
                   {pendingCount}
                 </span>
-                つ
+                {countUnit(pendingCount)}
               </span>
               <ChevronRight aria-hidden className="-ml-1 h-4 w-4 shrink-0 text-amber-700/70" />
               {/* 吹き出しのしっぽ（にちよさんの方を向く） */}
@@ -114,7 +117,7 @@ export default function VendorAskStage({ vendorId }: { vendorId: string }) {
             <p className="text-lg font-bold leading-relaxed text-amber-900">{IDLE_LINE}</p>
             {showInbox ? (
               <p className="mt-1 text-sm leading-relaxed text-amber-900/80">
-                教えてほしいことが{pendingCount}つあるき、手が空いたら上の「質問」を押してや。
+                教えてほしいことが{countLabel(pendingCount)}あるき、手が空いたら上の「質問」を押してや。
               </p>
             ) : (
               <p className="mt-1 text-sm leading-relaxed text-amber-900/80">

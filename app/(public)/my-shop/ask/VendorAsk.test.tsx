@@ -4,12 +4,14 @@ import { vi } from "vitest";
 import type { VendorAskSnapshot } from "@/lib/vendor/askQuestions";
 import VendorAskStage from "./VendorAskStage";
 import VendorAskSession from "./VendorAskSession";
+import { countLabel } from "./pendingQuestions";
 
 const fetchAskSnapshot = vi.fn();
+const { MockAskUserFacingError } = vi.hoisted(() => ({ MockAskUserFacingError: class extends Error {} }));
 const saveAskAnswer = vi.fn();
 
 vi.mock("@/app/vendor/_services/askService", () => ({
-  AskUserFacingError: class extends Error {},
+  AskUserFacingError: MockAskUserFacingError,
   fetchAskSnapshot: (...args: unknown[]) => fetchAskSnapshot(...args),
   saveAskAnswer: (...args: unknown[]) => saveAskAnswer(...args),
 }));
@@ -49,7 +51,7 @@ async function renderWith(ui: React.ReactElement, snapshot: VendorAskSnapshot) {
   });
 }
 
-const inbox = () => screen.queryByRole("link", { name: /にちよさんからの質問に答える/ });
+const inbox = () => screen.queryByRole("link", { name: /にちよさんからの\s*質問が/ });
 
 describe("VendorAskStage（出店者トップ）", () => {
   beforeEach(() => {
@@ -69,8 +71,8 @@ describe("VendorAskStage（出店者トップ）", () => {
       { ...FULL, instagram: undefined, website: undefined, strength: undefined, motivation: undefined, sundayLove: undefined }
     );
 
-    // 1回に聞く数の上限（3つ）ではなく、入力が要る質問の数（急ぎ2つ＋マニアック3つ）
-    expect(inbox()).toHaveAccessibleName("にちよさんからの質問に答える（5つ）");
+    // 入力が要る質問の数（急ぎ2つ＋マニアック3つ）。見えている「質問が5つ」がそのままリンクの名前になる
+    expect(inbox()).toHaveAccessibleName(/にちよさんからの\s*質問が\s*5\s*つ/);
     expect(inbox()).toHaveAttribute("href", "/my-shop/ask");
     expect(screen.getByTestId("vendor-ask-inbox-count")).toHaveTextContent("5");
     expect(screen.queryByText(/インスタグラム/)).not.toBeInTheDocument();
@@ -123,5 +125,68 @@ describe("VendorAskSession（質問ページ）", () => {
     // あとでにした質問を選ぶと、また聞く
     expect(screen.getByText(/インスタグラムをやっちょったら/, { selector: "p" })).toBeInTheDocument();
     expect(toggle).toHaveAttribute("aria-expanded", "false");
+  });
+
+  it("答えると保存して、保存後の状態から次の質問へ進む", async () => {
+    await renderWith(<VendorAskSession vendorId="v1" />, { ...FULL, instagram: undefined, website: undefined });
+    fetchAskSnapshot.mockResolvedValueOnce({ ...FULL, website: undefined });
+
+    fireEvent.change(screen.getByRole("textbox", { name: "インスタグラムのID" }), { target: { value: "@shop" } });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "これでええ！" }));
+    });
+
+    expect(saveAskAnswer).toHaveBeenCalledWith("v1", expect.any(String), expect.objectContaining({ id: "instagram" }));
+    expect(screen.getByRole("textbox", { name: "webサイトのURL" })).toBeInTheDocument();
+    // 次の質問に進んだら、質問の吹き出しへフォーカスを移す
+    expect(screen.getByText(/webサイト/, { selector: "p" }).parentElement).toHaveFocus();
+  });
+
+  it("読めば対処できる理由で保存できなかったときは、その理由を出して同じ質問にとどまる", async () => {
+    await renderWith(<VendorAskSession vendorId="v1" />, { ...FULL, instagram: undefined });
+    saveAskAnswer.mockRejectedValueOnce(new MockAskUserFacingError("先に看板商品を登録してください"));
+
+    fireEvent.change(screen.getByRole("textbox", { name: "インスタグラムのID" }), { target: { value: "@shop" } });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "これでええ！" }));
+    });
+
+    expect(screen.getByRole("alert")).toHaveTextContent("先に看板商品を登録してください");
+    expect(screen.getByRole("textbox", { name: "インスタグラムのID" })).toBeInTheDocument();
+  });
+
+  it("保存できたあと読み直しだけ失敗したら、保存できなかったとは言わずに先へ進む", async () => {
+    await renderWith(<VendorAskSession vendorId="v1" />, { ...FULL, instagram: undefined, website: undefined });
+    fetchAskSnapshot.mockRejectedValueOnce(new Error("offline"));
+
+    fireEvent.change(screen.getByRole("textbox", { name: "インスタグラムのID" }), { target: { value: "@shop" } });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "これでええ！" }));
+    });
+
+    expect(screen.getByRole("alert")).toHaveTextContent("保存はできたけど");
+    expect(screen.getByRole("textbox", { name: "webサイトのURL" })).toBeInTheDocument();
+  });
+
+  it("聞き終わっても「あとで」にした質問が残っていれば、この回のうちに答えられる", async () => {
+    await renderWith(<VendorAskSession vendorId="v1" />, { ...FULL, instagram: undefined });
+
+    fireEvent.click(screen.getByRole("button", { name: "あとで" }));
+    expect(screen.getByRole("button", { name: /のこり 1つ/ })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "あとにした質問に答える" }));
+
+    expect(screen.getByRole("textbox", { name: "インスタグラムのID" })).toBeInTheDocument();
+  });
+
+  it("h1 で、どのページにいるかを伝える", async () => {
+    await renderWith(<VendorAskSession vendorId="v1" />, FULL);
+    expect(screen.getByRole("heading", { level: 1, name: "にちよさんからの質問" })).toBeInTheDocument();
+  });
+});
+
+describe("countLabel", () => {
+  it("9までは「つ」、10からは「こ」で数える", () => {
+    expect(countLabel(3)).toBe("3つ");
+    expect(countLabel(11)).toBe("11こ");
   });
 });
