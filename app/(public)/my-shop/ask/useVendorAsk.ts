@@ -11,7 +11,11 @@ import {
   type AskQuestionId,
   type VendorAskSnapshot,
 } from "@/lib/vendor/askQuestions";
-import { fetchAskSnapshot, saveAskAnswer } from "@/app/vendor/_services/askService";
+import {
+  AskUserFacingError,
+  fetchAskSnapshot,
+  saveAskAnswer,
+} from "@/app/vendor/_services/askService";
 
 export type VendorAskStatus = "loading" | "asking" | "done" | "error";
 
@@ -123,7 +127,12 @@ export function useVendorAsk(vendorId: string | null) {
         setStep(resolved);
         pickNext(latest, resolved);
       } catch (err) {
-        setError(imageErrorMessage(err, "うまく保存できんかった。もういっぺんやってみてや。"));
+        // 読めば対処できる理由（例:「先に看板商品を登録してください」）は隠さずに出す
+        setError(
+          err instanceof AskUserFacingError
+            ? err.message
+            : imageErrorMessage(err, "うまく保存できんかった。もういっぺんやってみてや。")
+        );
       } finally {
         setSaving(false);
       }
