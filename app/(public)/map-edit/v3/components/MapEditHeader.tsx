@@ -13,6 +13,7 @@ export function MapEditHeader({
   isSaving,
   pendingCount,
   onSave,
+  saveBlocked = false,
 }: {
   search: string;
   onSearchChange: (value: string) => void;
@@ -27,6 +28,8 @@ export function MapEditHeader({
   isSaving: boolean;
   pendingCount: number;
   onSave: () => void;
+  /** true のとき保存できない（DB のマイグレーション前） */
+  saveBlocked?: boolean;
 }) {
   return (
     <header
@@ -94,18 +97,26 @@ export function MapEditHeader({
           変更履歴
         </span>
         <span
-          onClick={onSave}
+          onClick={saveBlocked ? undefined : onSave}
+          title={saveBlocked ? "データベースの更新（マイグレーション）の適用待ちのため保存できません" : undefined}
           style={{
             padding: "9px 17px",
             borderRadius: 11,
             fontSize: 13,
             fontWeight: 700,
-            cursor: hasUnsavedChanges && !isSaving ? "pointer" : "default",
+            cursor: hasUnsavedChanges && !isSaving && !saveBlocked ? "pointer" : "default",
+            opacity: saveBlocked ? 0.5 : 1,
             background: hasUnsavedChanges ? "#F59E0B" : "#F3E7CC",
             color: hasUnsavedChanges ? "#fff" : "#A8996F",
           }}
         >
-          {isSaving ? "保存中..." : hasUnsavedChanges ? `変更を保存（${pendingCount}）` : "保存済み"}
+          {saveBlocked
+            ? "保存できません（DB更新待ち）"
+            : isSaving
+              ? "保存中..."
+              : hasUnsavedChanges
+                ? `変更を保存（${pendingCount}）`
+                : "保存済み"}
         </span>
       </div>
     </header>

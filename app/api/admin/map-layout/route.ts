@@ -20,8 +20,10 @@ import {
   findRoadIdsWithShops,
   isRouteConfigChanged,
   loadEditableRoads,
+  hasRoadPositionSchema,
   loadEditableShops,
   loadEditableVendors,
+  ROAD_POSITION_SCHEMA_MISSING_MESSAGE,
   loadMapSettingsLimits,
   loadRouteConfig,
   loadVendorCategories,
@@ -146,7 +148,7 @@ export async function GET() {
     const cookieStore = await cookies();
     const supabase = createServerClient(cookieStore);
 
-    const [editableShops, landmarks, mapRoute, roads, vendors, categories, mapSettingsLimits] = await Promise.all([
+    const [editableShops, landmarks, mapRoute, roads, vendors, categories, mapSettingsLimits, schemaReady] = await Promise.all([
       loadEditableShops(supabase),
       fetchLandmarksFromDb(supabase),
       fetchMapRouteFromDb(supabase),
@@ -154,9 +156,12 @@ export async function GET() {
       loadEditableVendors(supabase),
       loadVendorCategories(supabase),
       loadMapSettingsLimits(supabase),
+      hasRoadPositionSchema(supabase),
     ]);
 
     return NextResponse.json({
+      // false のあいだ（マイグレーション前）は、画面は開けるが保存と移行処理はできない
+      schemaReady,
       shops: editableShops,
       landmarks,
       route: mapRoute,
@@ -190,6 +195,10 @@ export async function PUT(request: NextRequest) {
     const cookieStore = await cookies();
     const supabase = createServerClient(cookieStore);
     const adminWriteClient = createAdminWriteClient();
+
+    if (!(await hasRoadPositionSchema(supabase))) {
+      return NextResponse.json({ error: ROAD_POSITION_SCHEMA_MISSING_MESSAGE }, { status: 503 });
+    }
 
     const body = (await request.json()) as {
       shops?: {
