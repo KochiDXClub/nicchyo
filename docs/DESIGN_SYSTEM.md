@@ -85,6 +85,17 @@
 | `shadow-float` | 地から浮いている固定物（パネル・ポップオーバー） |
 | `shadow-pop` | 押せることを主張するボタン |
 
+### 状態（良否）
+
+指標を「良い/もう少し/要改善」のように見せる場面用。`bg`/`fg`/`line` の組で使う
+（`favorite` / `ai` / `info` と同じ形）。
+
+| 用途 | クラス |
+|---|---|
+| 目標達成・問題なし | `bg-status-good-bg text-status-good-fg ring-status-good-line` |
+| もう少し | `bg-status-warning-bg text-status-warning-fg ring-status-warning-line` |
+| 要改善 | `bg-status-critical-bg text-status-critical-fg ring-status-critical-line` |
+
 ### 動き
 
 開閉には `ease-out-soft` を使う。線形だと安っぽく見える。
@@ -168,6 +179,9 @@ import { PageShell, PageContainer, PageHeader } from "@/components/ui";
 ## 5. やらないこと
 
 - **生の hex を書かない。** 現状 165 種類ある。増やさない
+  - 例外：データ可視化の配色（`scripts/code-health/rules.mjs` の `ROLES`、
+    `lib/code-health/treemap.ts` の `SEQUENTIAL_PALETTE`）。ツリーマップ・凡例の色は
+    データに応じて動的に選ぶ inline style で、Tailwind のクラス名では表現できないため対象外
 - **`slate-*` / `gray-*` を新しく書かない。** 文字は ink の不透明度、罫は `line`
 - **グラデーションを増やさない。** 現状 25 種類以上ある。面は単色で足りる
 - **`components/ui/` に `"use client"` が要るものを置かない。** バレル経由で

@@ -210,7 +210,7 @@ export default async function AdminDashboardPage() {
       label: `${formatMonthDay(nextSundayIso)}（日）の開催ステータス`,
       count: nextMarketDaySet ? 0 : 1,
       valueLabel: nextMarketDaySet ? "設定済み" : "未設定",
-      href: "/admin/market-days",
+      href: "/admin/calendar",
       icon: Sun,
     },
   ];

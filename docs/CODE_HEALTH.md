@@ -11,6 +11,7 @@ CLAUDE.md・DESIGN_SYSTEM.md で決めた書き方から外れていないかを
 ```bash
 npm run code-health        # 今のコードを測る → .code-health/report.html
 npm run code-health:diff   # develop との分岐点と比べる（悪化があれば終了コード 1）
+npm run code-health:save   # 測った結果を Supabase の code_health_snapshots に保存する
 ```
 
 - `.code-health/report.html` をブラウザで開くと、ツリーマップ・目標との比較・コピペ一覧が見られる
@@ -18,6 +19,17 @@ npm run code-health:diff   # develop との分岐点と比べる（悪化があ�
   （結論1行・主要指標と変化した項目だけの表・悪化した箇所・理由欄。全項目は折りたたみの中）
 - 比較相手が古いときは先に `git fetch origin develop` する
 - PR では CI（Lint / Type Check / Test / Build）が同じ比較をして、ジョブのサマリーに表を出す（今は失敗扱いにしない）
+- 本番デプロイ（Vercel の production ビルド）のたびに、`prebuild` から
+  `scripts/code-health/save-on-deploy.mjs` が結果を Supabase に保存する。キーは Vercel に
+  登録済みの `SUPABASE_SERVICE_ROLE_KEY` を使うので、GitHub Actions 側のシークレットは要らない。
+  同じコミットの Redeploy では保存しない。保存に失敗してもビルドは止めない（ビルドログに警告が出る）。
+  CI・プレビュー・ローカルの `npm run build` では何もしない。
+  保存はビルド本体より前（`prebuild`）なので、その後ビルドが失敗したコミットの結果も残る。
+  また、テーブルを作るマイグレーションは main への push 後に Actions で適用されるため、
+  それより先に本番ビルドが走った初回だけは保存に失敗することがある（次のデプロイから入る）
+- 保存された履歴は管理画面 `/admin/code-health` から見られる（最新の状態と前回比、ツリーマップ、
+  ルール違反の多いファイル）。手動で保存したいときは `npm run code-health:save`
+  （`SUPABASE_SERVICE_ROLE_KEY` が要るので、ローカルで試すときは環境変数に local の service role key を渡す）
 
 ## AI・人が開発するときの流れ
 

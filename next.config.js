@@ -57,6 +57,17 @@ const nextConfig = {
         destination: '/favorites',
         permanent: true,
       },
+      // 開催ステータス・予定の入稿は /admin/calendar に一本化した
+      {
+        source: '/admin/market-days',
+        destination: '/admin/calendar',
+        permanent: true,
+      },
+      {
+        source: '/admin/events',
+        destination: '/admin/calendar',
+        permanent: true,
+      },
     ];
   },
 
