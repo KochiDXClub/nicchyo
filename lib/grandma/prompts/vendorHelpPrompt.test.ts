@@ -59,12 +59,12 @@ describe("buildVendorHelpSystemPrompt", () => {
     expect(prompt).toContain("よく出た言葉: いも天");
     expect(prompt).toContain("このお店の投稿へのハート: 取れなかった");
     expect(prompt).toContain("自分で記録した売れ数（多い順）: トマト 12");
-    expect(prompt).toContain("nicchyo の来訪者数: 今週 1,234人 / 今月 取れなかった");
+    expect(prompt).toContain("nicchyo の来訪者数: 今週（月曜から今日まで） 1,234人 / 今月 取れなかった");
     expect(prompt).toContain("よく検索した言葉: まだない");
     expect(prompt).toContain("よく売れている商品: なす");
   });
 
   it("閲覧数とお気に入り数はまだ数えていないと伝えるよう指示する", () => {
-    expect(buildVendorHelpSystemPrompt([], {})).toContain("お店の閲覧数とお気に入り数は、まだ数えていません");
+    expect(buildVendorHelpSystemPrompt([], {})).toContain("お店の閲覧数とお気に入り数は、まだ正しく数えられていません");
   });
 });
