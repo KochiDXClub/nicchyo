@@ -3,7 +3,7 @@
 import { useEffect, useRef } from "react";
 import { projectPointOntoRoute } from "../../../map/utils/mapRouteGeometry";
 import type { Projection } from "../geo";
-import { CHOME_ORDER, type EditableRoad, type EditableShop, type SlotAction } from "../types";
+import { CHOME_ORDER, type EditableRoad, type EditableShop } from "../types";
 
 export type Side = "north" | "south";
 
@@ -82,13 +82,14 @@ export function buildLaneRoadGroups(
 export default function RoadLaneView({
   groups,
   selectedLocationId,
-  slotAction,
+  isPickingTarget,
   search,
   onSelectShop,
 }: {
   groups: LaneRoadGroup[];
   selectedLocationId: string | null;
-  slotAction: SlotAction;
+  /** 出店者の移動先を選んでいる最中か（空き区画を移動先として強調する） */
+  isPickingTarget: boolean;
   search: string;
   onSelectShop: (locationId: string) => void;
 }) {
@@ -106,14 +107,16 @@ export default function RoadLaneView({
 
   if (groups.length === 0) return null;
 
-  const renderCell = (item: LaneShop | undefined) => {
+  // 空きセル（向かい側だけに区画がある列）にも key を付ける。付けないと React の
+  // 「Each child in a list should have a unique key」警告が出る
+  const renderCell = (item: LaneShop | undefined, emptyKey: string) => {
     if (!item) {
-      return <div style={{ width: 64, height: 44, flexShrink: 0 }} />;
+      return <div key={emptyKey} style={{ width: 64, height: 44, flexShrink: 0 }} />;
     }
     const { shop } = item;
     const isSelected = selectedLocationId === shop.locationId;
     const match = !q || String(shop.position).includes(q) || shop.name.toLowerCase().includes(q);
-    const targetable = (slotAction === "move" || slotAction === "place") && !shop.vendorId;
+    const targetable = isPickingTarget && !shop.vendorId;
 
     return (
       <div
@@ -182,10 +185,10 @@ export default function RoadLaneView({
                 {road.name} {section.chome}
               </span>
               <div style={{ display: "flex", gap: 4 }}>
-                {Array.from({ length: section.columns }, (_, i) => renderCell(section.north[i]))}
+                {Array.from({ length: section.columns }, (_, i) => renderCell(section.north[i], `north-empty-${i}`))}
               </div>
               <div style={{ display: "flex", gap: 4 }}>
-                {Array.from({ length: section.columns }, (_, i) => renderCell(section.south[i]))}
+                {Array.from({ length: section.columns }, (_, i) => renderCell(section.south[i], `south-empty-${i}`))}
               </div>
             </div>
           ))}
