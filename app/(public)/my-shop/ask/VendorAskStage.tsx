@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { motion, useReducedMotion } from "framer-motion";
+import { ChevronRight } from "lucide-react";
 import GrandmaAvatar from "@/app/(public)/consult/components/GrandmaAvatar";
 import { DEFAULT_CONSULT_CHARACTER } from "@/app/(public)/consult/data/consultCharacters";
 import { resolveGrandmaPose } from "@/lib/grandma/pose";
@@ -35,7 +36,7 @@ export default function VendorAskStage({ vendorId }: { vendorId: string }) {
 
         {showInbox && (
           <motion.div
-            className="absolute right-0 top-2 translate-x-1/4"
+            className="absolute left-[60%] -top-2"
             initial={reduceMotion ? false : { scale: 0.6, opacity: 0 }}
             animate={reduceMotion ? { scale: 1, opacity: 1 } : { scale: 1, opacity: 1, y: [0, -4, 0] }}
             transition={
@@ -51,21 +52,25 @@ export default function VendorAskStage({ vendorId }: { vendorId: string }) {
             <Link
               href="/my-shop/ask"
               aria-label={`にちよさんからの質問に答える（${pendingCount}つ）`}
-              className="relative flex items-center gap-1.5 rounded-full bg-white py-1.5 pl-1.5 pr-3 shadow-lift ring-1 ring-amber-200 transition active:scale-95 motion-reduce:active:scale-100"
+              className="relative flex items-center gap-2 rounded-chip bg-white py-1.5 pl-1.5 pr-2.5 shadow-lift ring-1 ring-amber-200 transition active:scale-95 motion-reduce:active:scale-100"
             >
               <span
                 aria-hidden
-                className="flex h-7 w-7 items-center justify-center rounded-full bg-amber-500 text-base font-black leading-none text-white"
+                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-amber-500 text-base font-black leading-none text-white"
               >
                 !
               </span>
-              <span
-                aria-hidden
-                data-testid="vendor-ask-inbox-count"
-                className="text-base font-bold tabular-nums leading-none text-amber-900"
-              >
-                {pendingCount}
+              <span aria-hidden className="whitespace-nowrap text-sm font-bold leading-none text-amber-900">
+                質問が
+                <span
+                  data-testid="vendor-ask-inbox-count"
+                  className="mx-0.5 text-lg tabular-nums text-amber-600"
+                >
+                  {pendingCount}
+                </span>
+                つ
               </span>
+              <ChevronRight aria-hidden className="-ml-1 h-4 w-4 shrink-0 text-amber-700/70" />
               {/* 吹き出しのしっぽ（にちよさんの方を向く） */}
               <span
                 aria-hidden
@@ -80,7 +85,7 @@ export default function VendorAskStage({ vendorId }: { vendorId: string }) {
         <p className="text-lg font-bold leading-relaxed text-amber-900">{IDLE_LINE}</p>
         {showInbox && (
           <p className="mt-1 text-sm leading-relaxed text-amber-900/80">
-            教えてほしいことが{pendingCount}つあるき、手が空いたら上の吹き出しを押してや。
+            教えてほしいことが{pendingCount}つあるき、手が空いたら上の「質問」を押してや。
           </p>
         )}
       </div>
