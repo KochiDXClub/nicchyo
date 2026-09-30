@@ -21,9 +21,6 @@ const choiceClass = (selected: boolean) =>
       : "bg-white text-nicchyo-ink ring-1 ring-line"
   );
 
-/** 当日判断を選んで補足が空のときに入れる文。未回答（既定値のまま）と見分けるため */
-const UNDECIDED_RAIN_NOTE = RAIN_OPTIONS.find((option) => option.key === "undecided")?.desc ?? "";
-
 type AskFormProps = {
   canSubmit: boolean;
   saving: boolean;
@@ -204,7 +201,9 @@ function HoursInput({ snapshot, saving, onSubmit, onSkip }: InputProps) {
 
 function SignatureInput({ snapshot, saving, onSubmit, onSkip, question }: InputProps) {
   const existingImage = snapshot.signatureProduct?.imageUrl;
-  const [name, setName] = useState(snapshot.signatureProduct?.name ?? "");
+  const [name, setName] = useState(
+    snapshot.signatureProduct?.name ?? snapshot.signatureNameHint ?? ""
+  );
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(existingImage ?? null);
   const [error, setError] = useState<string | null>(null);
@@ -325,7 +324,7 @@ function PaymentInput({ snapshot, saving, onSubmit, onSkip }: InputProps) {
 function RainInput({ snapshot, saving, onSubmit, onSkip }: InputProps) {
   // 既定値の「当日判断」のままは未回答と区別がつかないので、答えるまで何も選ばせない
   const [policy, setPolicy] = useState<RainPolicy | null>(
-    snapshot.rainPolicy !== "undecided" || snapshot.rainNote ? snapshot.rainPolicy : null
+    snapshot.rainAnswered ? snapshot.rainPolicy : null
   );
   const [note, setNote] = useState(snapshot.rainNote ?? "");
 
@@ -335,9 +334,7 @@ function RainInput({ snapshot, saving, onSubmit, onSkip }: InputProps) {
       saving={saving}
       onSkip={onSkip}
       onSubmit={() => {
-        if (!policy) return;
-        const finalNote = note.trim() || (policy === "undecided" ? UNDECIDED_RAIN_NOTE : "");
-        onSubmit({ id: "rain", policy, note: finalNote });
+        if (policy) onSubmit({ id: "rain", policy, note });
       }}
     >
       <div className="flex flex-col gap-2">
