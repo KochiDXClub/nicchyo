@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useForm } from "react-hook-form";
@@ -9,6 +9,7 @@ import * as z from "zod";
 import { motion } from "framer-motion";
 import { Loader2, Send, CheckCircle2, AlertCircle, HelpCircle, Bug, MessageSquare, Mail, Handshake, RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
+import { takeContactPrefill } from "@/lib/contact/prefill";
 
 const contactSchema = z.object({
   name: z.string().optional(),
@@ -40,8 +41,6 @@ function isCategoryId(value: string | null): value is CategoryId {
 export default function ContactForm() {
   const searchParams = useSearchParams();
   const initialCategory = searchParams?.get("category") ?? null;
-  // 出店者トップの「運営に問い合わせる」から ?message= で相談の内容を持ってくる
-  const initialMessage = searchParams?.get("message")?.slice(0, 1000) ?? undefined;
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
@@ -56,9 +55,15 @@ export default function ContactForm() {
     defaultValues: {
       // /support の「協賛について問い合わせる」から ?category=sponsor で来る
       category: isCategoryId(initialCategory) ? initialCategory : "question",
-      message: initialMessage,
     },
   });
+
+  // 出店者トップの「運営に問い合わせる」から来たときは、相談の内容を本文に入れておく。
+  // URL に載せると解析や履歴に自由文が残るため、sessionStorage で受け取る（lib/contact/prefill.ts）
+  useEffect(() => {
+    const prefill = takeContactPrefill();
+    if (prefill) setValue("message", prefill);
+  }, [setValue]);
 
   const selectedCategory = watch("category");
   const emailValue = watch("email");

@@ -2,7 +2,8 @@ import React from "react";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { vi } from "vitest";
 import VendorAskStage from "../ask/VendorAskStage";
-import { contactHrefFor, trimHistory } from "./useVendorHelpChat";
+import { CONTACT_HREF, trimHistory } from "./useVendorHelpChat";
+import { takeContactPrefill } from "@/lib/contact/prefill";
 
 vi.mock("@/app/vendor/_services/askService", () => ({
   AskUserFacingError: class extends Error {},
@@ -67,11 +68,15 @@ describe("出店者トップのにちよさんへの相談", () => {
     expect(JSON.parse(init.body)).toEqual({ text: "写真を変えたい", history: [] });
 
     const contact = screen.getByRole("link", { name: /運営に問い合わせる/ });
-    expect(contact.getAttribute("href")).toBe(contactHrefFor("写真を変えたい"));
+    // 相談の内容は URL に載せない（解析や履歴に残るため）。押したときに sessionStorage で渡す
+    expect(contact.getAttribute("href")).toBe(CONTACT_HREF);
+    fireEvent.click(contact);
+    expect(takeContactPrefill()).toContain("写真を変えたい");
 
-    // 閉じると、いつものひとことに戻る
+    // 閉じると、いつものひとことに戻り、続けて聞けるよう入力欄にフォーカスが戻る
     fireEvent.click(screen.getByRole("button", { name: "相談を閉じる" }));
     expect(screen.getByText("今日もおつかれさま！")).toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "にちよさんに相談する" })).toHaveFocus();
   });
 
   it("続けて聞くと、前のやりとりをいっしょに送る", async () => {
@@ -103,6 +108,62 @@ describe("出店者トップのにちよさんへの相談", () => {
     await waitFor(() => expect(screen.getByText(/うまく答えられんかった/)).toBeInTheDocument());
     expect(screen.getByRole("link", { name: /運営に問い合わせる/ })).toBeInTheDocument();
   });
+  it("ログインが切れたとき（401・403）は、ログインし直すよう案内する", async () => {
+    fetchMock.mockResolvedValue(new Response("", { status: 401 }));
+    render(<VendorAskStage vendorId="v1" />);
+    await askFromInput("写真を変えたい");
+    await waitFor(() => expect(screen.getByText(/ログインが切れたみたい/)).toBeInTheDocument());
+  });
+
+  it("聞きすぎ（429）のときは、少し休むよう案内する", async () => {
+    fetchMock.mockResolvedValue(new Response("", { status: 429 }));
+    render(<VendorAskStage vendorId="v1" />);
+    await askFromInput("写真を変えたい");
+    await waitFor(() => expect(screen.getByText(/続けて聞きすぎた/)).toBeInTheDocument());
+  });
+
+  it("答えの途中で切れたら、切れたことを書き足し、続きの話には使わない", async () => {
+    const encoder = new TextEncoder();
+    // 1回目の読み取りで途中まで返し、2回目の読み取りで回線が切れる
+    let pulls = 0;
+    const broken = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        pulls += 1;
+        if (pulls === 1) controller.enqueue(encoder.encode("写真は店舗情報ページで"));
+        else controller.error(new Error("network"));
+      },
+    });
+    fetchMock
+      .mockResolvedValueOnce(new Response(broken))
+      .mockResolvedValueOnce(new Response(streamOf("答え")));
+    render(<VendorAskStage vendorId="v1" />);
+
+    await askFromInput("写真を変えたい");
+    await waitFor(() => expect(screen.getByText(/途中で切れてしもうた/)).toBeInTheDocument());
+    expect(screen.getByText(/写真は店舗情報ページで/)).toBeInTheDocument();
+
+    await askFromInput("もう一回");
+    expect(JSON.parse(fetchMock.mock.calls[1][1].body).history).toEqual([]);
+  });
+
+  it("答えを待つあいだも入力欄からフォーカスを外さない", async () => {
+    let finish: (() => void) | undefined;
+    fetchMock.mockReturnValue(
+      new Promise<Response>((resolve) => {
+        finish = () => resolve(new Response(streamOf("答え")));
+      })
+    );
+    render(<VendorAskStage vendorId="v1" />);
+    const input = screen.getByRole("textbox", { name: "にちよさんに相談する" });
+    input.focus();
+    await askFromInput("写真を変えたい");
+
+    expect(input).not.toBeDisabled();
+    expect(input).toHaveAttribute("aria-disabled", "true");
+    expect(input).toHaveFocus();
+    await act(async () => finish?.());
+    await waitFor(() => expect(screen.getByText("答え")).toBeInTheDocument());
+  });
 });
 
 describe("trimHistory", () => {
@@ -120,15 +181,5 @@ describe("trimHistory", () => {
   it("1件が長すぎるときは2000文字で切る", () => {
     const [turn] = trimHistory([{ role: "assistant", text: "x".repeat(2500) }]);
     expect(turn.text).toHaveLength(2000);
-  });
-});
-
-describe("contactHrefFor", () => {
-  it("問い合わせフォームへ、相談の内容を入れた状態で渡す", () => {
-    const href = contactHrefFor("出店料について");
-    const params = new URL(href, "https://example.com").searchParams;
-    expect(href.startsWith("/contact?")).toBe(true);
-    expect(params.get("category")).toBe("question");
-    expect(params.get("message")).toContain("出店料について");
   });
 });

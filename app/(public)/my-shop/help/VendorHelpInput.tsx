@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { forwardRef, useState } from "react";
 import { Send } from "lucide-react";
 import { isImeComposing } from "@/lib/utils/isImeComposing";
 
@@ -8,13 +8,13 @@ import { isImeComposing } from "@/lib/utils/isImeComposing";
  * にちよさんの下の入力欄。相談ページ（ConsultStage）の文字入力と同じ形にそろえる。
  * 最初から入力欄を出しておき、Enter（日本語の変換確定は除く）か送信ボタンで聞く。
  */
-export default function VendorHelpInput({
-  busy,
-  onAsk,
-}: {
-  busy: boolean;
-  onAsk: (text: string) => void;
-}) {
+const VendorHelpInput = forwardRef<
+  HTMLInputElement,
+  {
+    busy: boolean;
+    onAsk: (text: string) => void;
+  }
+>(function VendorHelpInput({ busy, onAsk }, ref) {
   const [typed, setTyped] = useState("");
 
   const send = (raw: string) => {
@@ -25,8 +25,9 @@ export default function VendorHelpInput({
   };
 
   return (
-    <div className="flex w-full max-w-md items-center gap-2 rounded-chip border border-amber-200 bg-white/95 py-1.5 pl-5 pr-1.5 shadow-lift">
+    <div className="flex w-full max-w-md items-center gap-2 rounded-chip border border-amber-200 bg-white/95 py-1.5 pl-5 pr-1.5 shadow-card focus-within:ring-2 focus-within:ring-amber-400">
       <input
+        ref={ref}
         type="text"
         value={typed}
         onChange={(event) => setTyped(event.target.value)}
@@ -41,18 +42,23 @@ export default function VendorHelpInput({
         aria-label="にちよさんに相談する"
         enterKeyHint="send"
         maxLength={1000}
-        disabled={busy}
-        className="min-w-0 flex-1 bg-transparent py-2.5 text-base text-nicchyo-ink outline-none placeholder:text-nicchyo-ink/40 disabled:opacity-50"
+        // 答えを待つあいだも disabled にはしない。disabled にするとフォーカスが外れ、
+        // 続けて聞くたびに入力欄まで戻らないといけなくなる（送信は send で止める）
+        readOnly={busy}
+        aria-disabled={busy}
+        className="min-w-0 flex-1 bg-transparent py-2.5 text-base text-nicchyo-ink outline-none placeholder:text-nicchyo-ink/40 read-only:opacity-50"
       />
       <button
         type="button"
         disabled={busy || !typed.trim()}
         onClick={() => send(typed)}
         aria-label="聞く"
-        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-amber-500 to-orange-500 text-white shadow-sm transition disabled:opacity-40"
+        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-amber-500 to-orange-500 text-white shadow-pop transition disabled:opacity-40"
       >
         <Send className="h-4 w-4" aria-hidden="true" />
       </button>
     </div>
   );
-}
+});
+
+export default VendorHelpInput;

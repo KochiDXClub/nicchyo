@@ -1,5 +1,6 @@
 "use client";
 
+import { useRef } from "react";
 import Link from "next/link";
 import { motion, useReducedMotion } from "framer-motion";
 import { ChevronRight, MessageCircleQuestionMark, X } from "lucide-react";
@@ -9,7 +10,8 @@ import { resolveGrandmaPose } from "@/lib/grandma/pose";
 import { useVendorAskInbox } from "./useVendorAsk";
 import VendorHelpInput from "../help/VendorHelpInput";
 import HelpAnswerText from "../help/HelpAnswerText";
-import { contactHrefFor, useVendorHelpChat } from "../help/useVendorHelpChat";
+import { CONTACT_HREF, contactMessageFor, useVendorHelpChat } from "../help/useVendorHelpChat";
+import { saveContactPrefill } from "@/lib/contact/prefill";
 
 /** 待っているあいだの、にちよさんの決まったひとこと */
 const IDLE_LINE = "今日もおつかれさま！";
@@ -30,6 +32,7 @@ export default function VendorAskStage({ vendorId }: { vendorId: string }) {
   const reduceMotion = useReducedMotion() ?? false;
   const showInbox = status === "ready" && pendingCount > 0;
   const help = useVendorHelpChat();
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const pose = resolveGrandmaPose({
     isListening: false,
@@ -92,13 +95,19 @@ export default function VendorAskStage({ vendorId }: { vendorId: string }) {
       <div
         className="consult-greeting w-full max-w-md rounded-card border border-amber-200 bg-white px-5 py-4 shadow-card"
         aria-live="polite"
+        // 流れてくる途中の答えを細切れに読み上げないよう、言い終わってからまとめて読ませる
+        aria-busy={help.busy}
       >
         {help.question ? (
           <HelpAnswer
             question={help.question}
             answer={help.answer}
             status={help.status}
-            onClose={help.close}
+            onClose={() => {
+              help.close();
+              // 閉じるボタンが消えてフォーカスが迷子にならないよう、入力欄へ戻す
+              inputRef.current?.focus();
+            }}
           />
         ) : (
           <div className="text-center">
@@ -116,7 +125,7 @@ export default function VendorAskStage({ vendorId }: { vendorId: string }) {
         )}
       </div>
 
-      <VendorHelpInput busy={help.busy} onAsk={(text) => void help.ask(text)} />
+      <VendorHelpInput ref={inputRef} busy={help.busy} onAsk={(text) => void help.ask(text)} />
     </section>
   );
 }
@@ -153,9 +162,10 @@ function HelpAnswer({
       </div>
 
       {status === "thinking" ? (
-        <div className="mt-3 flex flex-col gap-2" aria-label="にちよさんが考えています">
-          <span className="consult-skeleton h-3.5 w-4/5 rounded-full" />
-          <span className="consult-skeleton h-3.5 w-3/5 rounded-full" style={{ animationDelay: "120ms" }} />
+        <div className="mt-3 flex flex-col gap-2">
+          <span className="sr-only">にちよさんが考えています</span>
+          <span aria-hidden className="consult-skeleton h-3.5 w-4/5 rounded-full" />
+          <span aria-hidden className="consult-skeleton h-3.5 w-3/5 rounded-full" style={{ animationDelay: "120ms" }} />
         </div>
       ) : (
         <HelpAnswerText answer={answer} />
@@ -164,7 +174,8 @@ function HelpAnswer({
       {/* にちよさんで解決しないときの逃げ道。答えを読み終えてから出す */}
       {finished && (
         <Link
-          href={contactHrefFor(question)}
+          href={CONTACT_HREF}
+          onClick={() => saveContactPrefill(contactMessageFor(question))}
           className="mt-4 flex items-center justify-center gap-1.5 rounded-chip border border-amber-200 px-4 py-2.5 text-sm font-bold text-amber-900 transition active:scale-95 motion-reduce:active:scale-100"
         >
           <MessageCircleQuestionMark className="h-4 w-4 shrink-0" aria-hidden />

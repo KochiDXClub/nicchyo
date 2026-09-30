@@ -26,6 +26,9 @@ describe("splitHelpAnswer", () => {
       { type: "text", text: "ここを見て" },
     ]);
     expect(splitHelpAnswer("[管理](/admin)")).toEqual([{ type: "text", text: "管理" }]);
+    expect(splitHelpAnswer("[押して](javascript:alert)")).toEqual([{ type: "text", text: "押して" }]);
+    expect(splitHelpAnswer("[店](//vendor/store)")).toEqual([{ type: "text", text: "店" }]);
+    expect(splitHelpAnswer("/vendorfoo を見て")).toEqual([{ type: "text", text: "/vendorfoo を見て" }]);
     expect(splitHelpAnswer("https://example.com/vendor/store")).toEqual([
       { type: "text", text: "https://example.com/vendor/store" },
     ]);

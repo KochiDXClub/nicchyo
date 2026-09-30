@@ -13,6 +13,31 @@ const HISTORY_TOTAL_MAX = 6000;
 
 const ERROR_LINE = "ごめんよ、うまく答えられんかった。もういっぺん聞いてみてや。";
 
+/** 失敗の理由ごとの、にちよさんのひとこと */
+const FAILURE_LINES = {
+  login: "ログインが切れたみたい。ページを開き直して、もういっぺんログインしてや。",
+  rate: "ちょっと続けて聞きすぎたみたい。少し休んでから、また聞いてや。",
+  upstream: ERROR_LINE,
+} as const;
+
+type FailureReason = keyof typeof FAILURE_LINES;
+
+class HelpChatFailure extends Error {
+  constructor(readonly reason: FailureReason) {
+    super(reason);
+  }
+}
+
+function failureReasonFor(status: number): FailureReason {
+  // 403 は出店者でない・別のサイトから、のどちらか。どちらもログインし直せば直るので同じ案内にする
+  if (status === 401 || status === 403) return "login";
+  if (status === 429) return "rate";
+  return "upstream";
+}
+
+/** 答えの途中で切れたとき、読んでいる人に切れたことが分かるよう末尾に足す */
+const CUT_OFF_NOTE = "\n\n（途中で切れてしもうた。もういっぺん聞いてみてや。）";
+
 /**
  * 直近のやりとりを、サーバーの上限に収まるよう新しい方から詰める。
  * 上限を超えると 400 になり、続けて聞けなくなるため。
@@ -64,7 +89,7 @@ export function useVendorHelpChat() {
         body: JSON.stringify({ text, history: trimHistory(historyRef.current) }),
       });
       if (!res.ok || !res.body) {
-        throw new Error(res.status === 429 ? "rate" : "upstream");
+        throw new HelpChatFailure(res.ok ? "upstream" : failureReasonFor(res.status));
       }
 
       const reader = res.body.getReader();
@@ -77,7 +102,7 @@ export function useVendorHelpChat() {
         setStatus("streaming");
       }
       received += decoder.decode();
-      if (!received.trim()) throw new Error("empty");
+      if (!received.trim()) throw new HelpChatFailure("upstream");
 
       setAnswer(received);
       setStatus("done");
@@ -89,11 +114,11 @@ export function useVendorHelpChat() {
     } catch (err) {
       // 新しい質問に切り替えた・画面を離れたときの中断は、失敗として出さない
       if (ctrl.signal.aborted) return;
-      setAnswer(
-        err instanceof Error && err.message === "rate"
-          ? "ちょっと続けて聞きすぎたみたい。少し休んでから、また聞いてや。"
-          : received || ERROR_LINE
-      );
+      if (received.trim()) {
+        setAnswer(received + CUT_OFF_NOTE);
+      } else {
+        setAnswer(FAILURE_LINES[err instanceof HelpChatFailure ? err.reason : "upstream"]);
+      }
       setStatus("error");
     } finally {
       if (abortRef.current === ctrl) abortRef.current = null;
@@ -119,12 +144,13 @@ export function useVendorHelpChat() {
   };
 }
 
+/** 「運営に問い合わせる」の行き先。運営が実際に見て返事をしている問い合わせフォーム */
+export const CONTACT_HREF = "/contact?category=question";
+
 /**
- * 「運営に問い合わせる」の行き先。運営が実際に見て返事をしている問い合わせフォームへ、
- * 相談した内容を入れた状態で渡す（フォームの本文は10〜1000文字）。
+ * 問い合わせフォームに入れておく本文。URL には載せず、押したときに
+ * saveContactPrefill で渡す（lib/contact/prefill.ts）。
  */
-export function contactHrefFor(question: string): string {
-  const message = `【出店者ページのにちよさんへの相談から】\n${question}`.slice(0, 1000);
-  const params = new URLSearchParams({ category: "question", message });
-  return `/contact?${params.toString()}`;
+export function contactMessageFor(question: string): string {
+  return `【出店者ページのにちよさんへの相談から】\n${question}`;
 }
