@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { VENDOR_HELP_GUIDE } from "@/lib/vendor/helpGuide";
+import { VENDOR_HELP_PAGES } from "@/lib/vendor/helpPages";
 import { buildVendorHelpSystemPrompt } from "./vendorHelpPrompt";
 
 describe("buildVendorHelpSystemPrompt", () => {
@@ -9,6 +10,16 @@ describe("buildVendorHelpSystemPrompt", () => {
     for (const section of VENDOR_HELP_GUIDE) {
       expect(prompt).toContain(`■ ${section.title}（画面: ${section.href}）`);
     }
+  });
+
+  it("案内できる画面を名前と URL で渡し、名前をリンクにして書くよう伝える", () => {
+    const prompt = buildVendorHelpSystemPrompt([], {});
+
+    for (const page of VENDOR_HELP_PAGES) {
+      expect(prompt).toContain(`・${page.name}: ${page.href}`);
+    }
+    expect(prompt).toContain("[近況投稿ページ](/vendor/post/new)");
+    expect(prompt).toContain("一覧にない画面へのリンクを作ったりしないでください");
   });
 
   it("お店の登録内容を入れ、空の項目は「まだ登録されていない」と伝える", () => {
