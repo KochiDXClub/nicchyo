@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@/utils/supabase/client";
 import { imageUploadInfo, resizeImageToBlob, STORE_IMAGE_CONFIG } from "@/lib/image/clientCompression";
+import { uploadStoreImage } from "./storeService";
 import type { AskAnswer, VendorAskSnapshot } from "@/lib/vendor/askQuestions";
 import type { PaymentMethod, RainPolicy } from "../_types";
 
@@ -36,11 +37,11 @@ export async function fetchAskSnapshot(
 ): Promise<VendorAskSnapshot> {
   const supabase = untypedClient();
 
-  const [vendorResult, productResult, weeklyResult] = await Promise.all([
+  const [vendorResult, productResult, weeklyResult, ownerResult, categoryResult] = await Promise.all([
     supabase
       .from("vendors")
       .select(
-        "business_hours_start, business_hours_end, payment_methods, payment_note, sns_instagram, sns_hp, rain_policy, rain_note, rain_answered_at, signature_product_name, strength, motivation, years_running, sunday_love"
+        "shop_name, shop_image_url, category_id, style, style_tags, main_products, main_product_prices, schedule, sns_x, business_hours_start, business_hours_end, payment_methods, payment_note, sns_instagram, sns_hp, rain_policy, rain_note, rain_answered_at, signature_product_name, strength, motivation, years_running, sunday_love"
       )
       .eq("id", vendorId)
       .single(),
@@ -55,6 +56,13 @@ export async function fetchAskSnapshot(
       .eq("vendor_id", vendorId)
       .eq("week_date", weekDate)
       .maybeSingle(),
+    // 店主名は vendors から分離済み（公開するかどうかは本人が決める）
+    supabase
+      .from("vendor_owner_profiles")
+      .select("owner_name, is_public")
+      .eq("vendor_id", vendorId)
+      .maybeSingle(),
+    supabase.from("categories").select("id, name").order("name"),
   ]);
 
   if (vendorResult.error || !vendorResult.data) {
@@ -67,12 +75,29 @@ export async function fetchAskSnapshot(
     description: string | null;
   }[];
   const weekly = weeklyResult.data;
+  const owner = ownerResult.data as { owner_name: string | null; is_public: boolean | null } | null;
+  const categories = (categoryResult.data ?? []) as { id: string; name: string }[];
+  const categoryId = (vendor.category_id as string | null) ?? undefined;
+  const mainProducts = (vendor.main_products as string[] | null) ?? [];
+  const prices = (vendor.main_product_prices as Record<string, number | null> | null) ?? {};
   // 看板商品は vendors.signature_product_name と同じ名前の商品。
   // 「登録順の先頭」で決めると、別の商品名を答えたときに先頭の商品を書き換えてしまう
   const signatureName = (vendor.signature_product_name as string | null)?.trim();
   const product = signatureName ? products.find((item) => item.name === signatureName) : undefined;
 
   return {
+    shopName: vendor.shop_name ?? undefined,
+    shopImageUrl: vendor.shop_image_url ?? undefined,
+    categoryId,
+    categoryName: categories.find((category) => category.id === categoryId)?.name,
+    categoryOptions: categories,
+    style: vendor.style ?? undefined,
+    styleTags: (vendor.style_tags as string[] | null) ?? [],
+    ownerName: owner?.owner_name ?? undefined,
+    ownerNamePublic: owner?.is_public ?? false,
+    products: mainProducts.map((name) => ({ name, price: prices[name] ?? null })),
+    schedule: (vendor.schedule as string[] | null) ?? [],
+    snsX: vendor.sns_x ?? undefined,
     businessHoursStart: vendor.business_hours_start ?? undefined,
     businessHoursEnd: vendor.business_hours_end ?? undefined,
     signatureProduct: product
@@ -286,6 +311,44 @@ export async function saveAskAnswer(
       return updateVendor(supabase, vendorId, { sns_instagram: orNull(answer.value) });
     case "website":
       return updateVendor(supabase, vendorId, { sns_hp: orNull(answer.value) });
+    case "x":
+      return updateVendor(supabase, vendorId, { sns_x: orNull(answer.value) });
+    case "shop-photo": {
+      const imageUrl = await uploadStoreImage(vendorId, answer.imageFile);
+      return updateVendor(supabase, vendorId, { shop_image_url: imageUrl });
+    }
+    case "shop-name":
+      return updateVendor(supabase, vendorId, { shop_name: answer.text.trim() });
+    case "category":
+      return updateVendor(supabase, vendorId, { category_id: answer.categoryId || null });
+    case "style":
+      return updateVendor(supabase, vendorId, {
+        style_tags: answer.tags,
+        style: answer.note.trim(),
+      });
+    case "owner": {
+      // 店主名は専用テーブルへ。公開するかどうかも本人の設定として保存する
+      const { error } = await supabase.from("vendor_owner_profiles").upsert(
+        {
+          vendor_id: vendorId,
+          owner_name: orNull(answer.name),
+          is_public: answer.isPublic,
+        },
+        { onConflict: "vendor_id" }
+      );
+      if (error) throw error;
+      return;
+    }
+    case "products": {
+      const prices: Record<string, number | null> = {};
+      for (const item of answer.items) prices[item.name] = item.price;
+      return updateVendor(supabase, vendorId, {
+        main_products: answer.items.map((item) => item.name),
+        main_product_prices: prices,
+      });
+    }
+    case "schedule":
+      return updateVendor(supabase, vendorId, { schedule: answer.items });
     case "rain":
       return updateVendor(supabase, vendorId, {
         rain_policy: answer.policy,

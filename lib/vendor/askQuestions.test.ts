@@ -1,11 +1,19 @@
 import { describe, expect, it } from "vitest";
 import {
+  ASK_GROUPS,
   ASK_LIMIT,
+  ASK_QUESTIONS,
   pickQuestions,
+  studioQuestions,
   type VendorAskSnapshot,
 } from "./askQuestions";
 
 const EMPTY: VendorAskSnapshot = {
+  categoryOptions: [],
+  styleTags: [],
+  ownerNamePublic: false,
+  products: [],
+  schedule: [],
   paymentMethods: [],
   rainPolicy: "undecided",
   rainAnswered: false,
@@ -14,6 +22,7 @@ const EMPTY: VendorAskSnapshot = {
 
 /** 急ぎの質問がすべて答え済みの状態 */
 const URGENT_DONE: VendorAskSnapshot = {
+  ...EMPTY,
   businessHoursStart: "8:00",
   businessHoursEnd: "15:00",
   signatureProduct: { name: "トマト", imageUrl: "https://example.com/a.webp", description: "甘い" },
@@ -112,5 +121,81 @@ describe("pickQuestions", () => {
 
   it("年数は0年でも答え済みとして扱う", () => {
     expect(ids({ ...URGENT_DONE, strength: "あ", motivation: "い", sundayLove: "う", yearsRunning: 0 })).toEqual([]);
+  });
+
+  it("編集画面だけの質問（profile）は、トップでは聞かない", () => {
+    const picked = ids(EMPTY, { limit: 50 });
+    const profileIds = ASK_QUESTIONS.filter((q) => q.tier === "profile").map((q) => q.id);
+    expect(profileIds.length).toBeGreaterThan(0);
+    for (const id of profileIds) expect(picked).not.toContain(id);
+  });
+});
+
+describe("編集画面の章立て", () => {
+  it("すべての質問が、ちょうど1つの章に入っている", () => {
+    const placed = ASK_GROUPS.flatMap((group) => [...group.ids]);
+    expect(new Set(placed).size).toBe(placed.length);
+    expect([...placed].sort()).toEqual(ASK_QUESTIONS.map((q) => q.id).sort());
+  });
+
+  it("聞く意味の無い質問（看板商品が無いときの商品PR）は章から外れる", () => {
+    const all = studioQuestions(EMPTY).flatMap((group) => group.questions.map((q) => q.id));
+    expect(all).not.toContain("signature-pr");
+    const withSignature = studioQuestions({ ...EMPTY, signatureProduct: { name: "トマト" } }).flatMap(
+      (group) => group.questions.map((q) => q.id)
+    );
+    expect(withSignature).toContain("signature-pr");
+  });
+});
+
+describe("答えの要約", () => {
+  const summaryOf = (id: string, snapshot: VendorAskSnapshot) =>
+    ASK_QUESTIONS.find((q) => q.id === id)!.summary(snapshot);
+
+  it("答えが無ければ、どの質問も null を返す", () => {
+    for (const question of ASK_QUESTIONS) {
+      if (question.id === "signature-pr") continue;
+      expect(question.summary(EMPTY)).toBeNull();
+    }
+  });
+
+  it("答え済みの質問は、isAnswered と要約の有無が食い違わない", () => {
+    const full: VendorAskSnapshot = {
+      ...URGENT_DONE,
+      shopName: "山田農園",
+      shopImageUrl: "https://example.com/store-main.webp",
+      categoryId: "c1",
+      categoryName: "食材",
+      styleTags: ["試食あり"],
+      ownerName: "山田",
+      products: [{ name: "トマト", price: 300 }],
+      schedule: ["毎週日曜日"],
+      snsX: "@yamada",
+      strength: "あ",
+      motivation: "い",
+      yearsRunning: 0,
+      sundayLove: "う",
+    };
+    for (const question of ASK_QUESTIONS) {
+      expect(question.isAnswered(full)).toBe(true);
+      expect(question.summary(full)).not.toBeNull();
+    }
+  });
+
+  it("商品は値段つきで並べ、多いときは「ほか◯件」で切る", () => {
+    const products = ["A", "B", "C", "D", "E"].map((name, i) => ({ name, price: (i + 1) * 100 }));
+    expect(summaryOf("products", { ...EMPTY, products })).toBe("A ¥100、B ¥200、C ¥300 ほか2件");
+    expect(summaryOf("products", { ...EMPTY, products: [{ name: "トマト", price: null }] })).toBe("トマト");
+  });
+
+  it("支払方法は、選択肢の名前と自由入力を並べる", () => {
+    expect(
+      summaryOf("payment", { ...EMPTY, paymentMethods: ["cash", "paypay"], paymentNote: "QUOカード" })
+    ).toBe("現金・PayPay・QUOカード");
+  });
+
+  it("店主名は、公開するかどうかも添える", () => {
+    expect(summaryOf("owner", { ...EMPTY, ownerName: "山田", ownerNamePublic: true })).toBe("山田（公開）");
+    expect(summaryOf("owner", { ...EMPTY, ownerName: "山田", ownerNamePublic: false })).toBe("山田（非公開）");
   });
 });

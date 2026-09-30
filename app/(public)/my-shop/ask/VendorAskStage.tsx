@@ -5,7 +5,7 @@ import { DEFAULT_CONSULT_CHARACTER } from "@/app/(public)/consult/data/consultCh
 import { Button, Surface } from "@/components/ui";
 import { cn } from "@/lib/utils/cn";
 import { resolveGrandmaPose } from "@/lib/grandma/pose";
-import AskInput from "./AskInputs";
+import AskInput from "@/components/vendor/ask/AskInputs";
 import { useVendorAsk } from "./useVendorAsk";
 
 /**
