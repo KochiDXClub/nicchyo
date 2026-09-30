@@ -72,6 +72,24 @@ module.exports = {
           fg:   '#1d4ed8',
           line: '#bfdbfe',
         },
+        // 目標に対する達成度合い（管理画面「コード健康診断」など、指標を良否で見せる場面）
+        status: {
+          good: {
+            bg:   '#f0fdf4',
+            fg:   '#15803d',
+            line: '#bbf7d0',
+          },
+          warning: {
+            bg:   '#fffbeb',
+            fg:   '#b45309',
+            line: '#fde68a',
+          },
+          critical: {
+            bg:   '#fef2f2',
+            fg:   '#b91c1c',
+            line: '#fecaca',
+          },
+        },
 
         // ===== 面 =====
         surface: {

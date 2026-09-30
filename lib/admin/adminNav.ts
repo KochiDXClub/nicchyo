@@ -34,8 +34,8 @@ import {
   ScrollText,
   Settings,
   ShieldCheck,
+  Stethoscope,
   Store,
-  Sun,
   Tags,
   Users,
 } from "lucide-react";
@@ -96,16 +96,10 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
     access: "admin",
     items: [
       {
-        label: "開催ステータス",
-        href: "/admin/market-days",
-        icon: Sun,
-        description: "日曜市を開催するかどうかを来訪者に知らせる",
-      },
-      {
-        label: "予定・イベント",
-        href: "/admin/events",
+        label: "日曜市カレンダー",
+        href: "/admin/calendar",
         icon: CalendarDays,
-        description: "カレンダーに出す出店予定やイベントを入稿する",
+        description: "開催ステータスの切替と、出店予定・イベントの入稿をまとめて行う",
       },
     ],
   },
@@ -207,6 +201,12 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
         href: "/admin/security-reports",
         icon: ShieldCheck,
         description: "週次のセキュリティレポートを閲覧する",
+      },
+      {
+        label: "コード健康診断",
+        href: "/admin/code-health",
+        icon: Stethoscope,
+        description: "共通化率・コピペ率・デザインルール違反の状態を見る",
       },
     ],
   },
