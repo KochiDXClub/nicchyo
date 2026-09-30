@@ -36,6 +36,19 @@ describe("StoryGridSections", () => {
     expect(screen.getAllByRole("button", { name: /の投稿を見る$/ })).toHaveLength(stories.length);
   });
 
+  it("たたんだ「それより前」は数えず、見えている件数が少なければカードで並べる", () => {
+    const older = Array.from({ length: STORY_CARD_LAYOUT_MAX + 4 }, (_, i) => makeStory(`o${i}`, 30));
+    render(
+      <StoryGridSections
+        stories={[makeStory("new1", 0, "今週の本文"), makeStory("new2", 1), ...older]}
+        heartCounts={{}}
+        onOpen={vi.fn()}
+      />
+    );
+
+    expect(screen.getByText("今週の本文")).toBeInTheDocument();
+  });
+
   it("今週・先週の投稿があれば「それより前」はたたんでおき、押すと開く", () => {
     render(
       <StoryGridSections
