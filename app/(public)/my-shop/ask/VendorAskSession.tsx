@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils/cn";
 import type { AskQuestion, AskQuestionId } from "@/lib/vendor/askQuestions";
 import AskInput from "./AskInputs";
 import { useVendorAsk } from "./useVendorAsk";
+import { countLabel } from "./pendingQuestions";
 
 /** 聞き終わったときのひとこと */
 function doneLine(answeredCount: number, skippedCount: number): string {
@@ -22,6 +23,7 @@ function doneLine(answeredCount: number, skippedCount: number): string {
 /**
  * 「のこり ◯つ」を押すと開く、これから聞く質問の一覧。
  * 質問を押すと、その質問へ飛ぶ（「あとで」にした質問も選べばまた聞く）。
+ * 聞き終わった画面でも、「あとで」にした質問が残っていれば出す。
  */
 function QuestionList({
   questions,
@@ -37,6 +39,7 @@ function QuestionList({
   const [open, setOpen] = useState(false);
   const listId = useId();
   const rootRef = useRef<HTMLDivElement>(null);
+  const toggleRef = useRef<HTMLButtonElement>(null);
 
   // 外側を押すか Esc で閉じる。開いているあいだだけ登録する
   useEffect(() => {
@@ -45,7 +48,10 @@ function QuestionList({
       if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
     };
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setOpen(false);
+      if (event.key !== "Escape") return;
+      setOpen(false);
+      // 一覧の中にいたフォーカスが、一覧ごと消えて迷子にならないよう開くボタンへ戻す
+      toggleRef.current?.focus();
     };
     document.addEventListener("pointerdown", onPointerDown);
     document.addEventListener("keydown", onKeyDown);
@@ -58,13 +64,14 @@ function QuestionList({
   return (
     <div ref={rootRef}>
       <button
+        ref={toggleRef}
         type="button"
         onClick={() => setOpen((prev) => !prev)}
         aria-expanded={open}
         aria-controls={listId}
         className="flex items-center gap-1 rounded-full bg-white/90 px-3 py-1.5 text-xs font-bold text-amber-900 shadow-card ring-1 ring-amber-200 transition active:scale-95 motion-reduce:active:scale-100"
       >
-        のこり {questions.length}つ
+        のこり {countLabel(questions.length)}
         <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", open && "rotate-180")} aria-hidden />
       </button>
 
@@ -151,11 +158,23 @@ export default function VendorAskSession({ vendorId }: { vendorId: string }) {
     aiStatus: saving ? "thinking" : "idle",
   });
 
+  // 次の質問に進んだら、質問の吹き出しへフォーカスを移す。押したボタンや一覧が消えて
+  // フォーカスが迷子になるのを防ぎ、読み上げでも新しい質問から読めるようにする（最初の表示は除く）
+  const questionRef = useRef<HTMLDivElement>(null);
+  const shownIdRef = useRef<AskQuestionId | null>(null);
+  const currentId = current?.id ?? null;
+  useEffect(() => {
+    const previous = shownIdRef.current;
+    shownIdRef.current = currentId;
+    if (previous !== null && previous !== currentId) questionRef.current?.focus();
+  }, [currentId]);
+
   return (
     <div className="relative min-h-screen">
       <div className="pointer-events-none fixed inset-0 z-0 bg-[var(--consult-bg)]" aria-hidden="true" />
 
       <div className="relative z-10 mx-auto flex w-full max-w-md flex-col items-center gap-4 px-5 pb-10">
+        <h1 className="sr-only">にちよさんからの質問</h1>
         <header
           className="relative flex w-full items-center justify-between"
           style={{ paddingTop: "calc(0.75rem + var(--safe-top, 0px))" }}
@@ -167,7 +186,7 @@ export default function VendorAskSession({ vendorId }: { vendorId: string }) {
           >
             <X className="h-5 w-5" aria-hidden />
           </Link>
-          {status === "asking" && (
+          {unanswered.length > 0 && (status === "asking" || status === "done") && (
             <QuestionList
               questions={unanswered}
               currentId={current?.id ?? null}
@@ -182,13 +201,16 @@ export default function VendorAskSession({ vendorId }: { vendorId: string }) {
         </div>
 
         <div
-          className="consult-greeting w-full rounded-card border border-amber-200 bg-white px-5 py-4 text-center shadow-card"
+          ref={questionRef}
+          tabIndex={-1}
+          className="consult-greeting w-full rounded-card border border-amber-200 bg-white px-5 py-4 text-center shadow-card outline-none"
           aria-live="polite"
         >
           {status === "loading" && (
-            <div className="flex flex-col items-center gap-2" aria-label="読み込み中">
-              <span className="consult-skeleton h-3.5 w-4/5 rounded-full" />
-              <span className="consult-skeleton h-3.5 w-3/5 rounded-full" style={{ animationDelay: "120ms" }} />
+            <div className="flex flex-col items-center gap-2">
+              <span className="sr-only">読み込み中</span>
+              <span aria-hidden className="consult-skeleton h-3.5 w-4/5 rounded-full" />
+              <span aria-hidden className="consult-skeleton h-3.5 w-3/5 rounded-full" style={{ animationDelay: "120ms" }} />
             </div>
           )}
           {status === "error" && (
@@ -209,9 +231,17 @@ export default function VendorAskSession({ vendorId }: { vendorId: string }) {
         )}
 
         {status === "done" && (
-          <Link href="/my-shop" className={buttonClass({ variant: "secondary", className: "w-full" })}>
-            もどる
-          </Link>
+          <div className="flex w-full flex-col gap-2">
+            {/* 「あとで」にした質問がまだあるなら、この回のうちに答えられるようにする */}
+            {unanswered.length > 0 && (
+              <Button className="w-full" onClick={() => jumpTo(unanswered[0].id)}>
+                あとにした質問に答える
+              </Button>
+            )}
+            <Link href="/my-shop" className={buttonClass({ variant: "secondary", className: "w-full" })}>
+              もどる
+            </Link>
+          </div>
         )}
 
         {status === "asking" && current && snapshot && (

@@ -88,11 +88,6 @@ export function useVendorAsk(vendorId: string | null) {
       setError(null);
       try {
         await saveAskAnswer(vendorId, weekDate, value);
-        const latest = await fetchAskSnapshot(vendorId, weekDate);
-        handledRef.current = [...handledRef.current, current.id];
-        setFocusId(null);
-        setSnapshot(latest);
-        setAnsweredCount((count) => count + 1);
       } catch (err) {
         // 読めば対処できる理由（例:「先に看板商品を登録してください」）は隠さずに出す
         setError(
@@ -100,6 +95,19 @@ export function useVendorAsk(vendorId: string | null) {
             ? err.message
             : imageErrorMessage(err, "うまく保存できんかった。もういっぺんやってみてや。")
         );
+        setSaving(false);
+        return;
+      }
+
+      // ここからは保存できたあと。読み直しに失敗しても「保存できんかった」とは言わない
+      // （同じ写真をもう一度送らせてしまうため）。答えた質問として先へ進む
+      handledRef.current = [...handledRef.current, current.id];
+      setFocusId(null);
+      setAnsweredCount((count) => count + 1);
+      try {
+        setSnapshot(await fetchAskSnapshot(vendorId, weekDate));
+      } catch {
+        setError("保存はできたけど、画面を新しくできんかった。開き直すと出るきね。");
       } finally {
         setSaving(false);
       }
