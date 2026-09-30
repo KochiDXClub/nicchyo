@@ -8,6 +8,7 @@ import { DEFAULT_CONSULT_CHARACTER } from "@/app/(public)/consult/data/consultCh
 import { resolveGrandmaPose } from "@/lib/grandma/pose";
 import { useVendorAskInbox } from "./useVendorAsk";
 import VendorHelpInput from "../help/VendorHelpInput";
+import HelpAnswerText from "../help/HelpAnswerText";
 import { contactHrefFor, useVendorHelpChat } from "../help/useVendorHelpChat";
 
 /** 待っているあいだの、にちよさんの決まったひとこと */
@@ -157,7 +158,7 @@ function HelpAnswer({
           <span className="consult-skeleton h-3.5 w-3/5 rounded-full" style={{ animationDelay: "120ms" }} />
         </div>
       ) : (
-        <p className="mt-2 whitespace-pre-wrap text-base leading-relaxed text-amber-900">{answer}</p>
+        <HelpAnswerText answer={answer} />
       )}
 
       {/* にちよさんで解決しないときの逃げ道。答えを読み終えてから出す */}
