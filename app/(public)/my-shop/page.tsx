@@ -84,27 +84,13 @@ export default function MyShopPage() {
 
   const shopName = summary?.shopName ?? "";
 
-  // 背景の線画に直接載る文字を守るクリームのグロー（袋文字を使わず柔らかく）
-  const textGlow =
-    "[text-shadow:0_1px_14px_rgba(255,250,240,0.95),0_0_3px_rgba(255,250,240,0.9)]";
-
   return (
     <div
       className="relative min-h-screen"
       style={{ paddingBottom: "calc(4.5rem + env(safe-area-inset-bottom, 0px))" }}
     >
-      {/* 背景：日曜市のライン画（画面全体・スクロールで固定） */}
-      <div className="fixed inset-0 z-0">
-        <Image
-          src="/images/my-shop-bg.jpg"
-          alt=""
-          fill
-          priority
-          sizes="100vw"
-          className="scale-105 object-cover object-center blur-[1px]"
-        />
-        <div className="absolute inset-0 bg-gradient-to-b from-white/10 via-white/20 to-nicchyo-base/60" />
-      </div>
+      {/* 背景：AI相談ページと同じグラデーション（画面全体・スクロールで固定） */}
+      <div className="pointer-events-none fixed inset-0 z-0 bg-[var(--consult-bg)]" aria-hidden="true" />
 
       {/* スクロールで現れる細いスティッキーバー */}
       <AnimatePresence>
@@ -129,11 +115,11 @@ export default function MyShopPage() {
       <div className="relative z-10 mx-auto w-full max-w-3xl px-4">
         {/* 挨拶ヒーロー */}
         <header className="pb-8 pt-14 sm:pt-20">
-          <p className={`eyebrow ${textGlow}`}>My Shop</p>
-          <h1 className={`mt-2 font-display text-[2rem] leading-tight text-nicchyo-ink sm:text-4xl ${textGlow}`}>
+          <p className="eyebrow">My Shop</p>
+          <h1 className="mt-2 font-display text-[2rem] leading-tight text-nicchyo-ink sm:text-4xl">
             おかえりなさい{user?.name ? `、${user.name}さん` : ""}
           </h1>
-          <p className={`mt-3 text-[15px] font-medium text-slate-600 ${textGlow}`}>
+          <p className="mt-3 text-[15px] font-medium text-slate-600">
             {shopName && <span className="font-bold text-nicchyo-ink">{shopName}</span>}
             {shopName && <span className="mx-2 text-amber-300" aria-hidden="true">·</span>}
             <span className="text-amber-700">{sundayLabel}</span>
@@ -241,7 +227,7 @@ export default function MyShopPage() {
           <Reveal reduceMotion={reduceMotion} className="mb-6">
             <section>
               <div className="mb-3 flex items-end justify-between gap-3">
-                <h2 className={`font-display text-xl text-nicchyo-ink ${textGlow}`}>最近の投稿</h2>
+                <h2 className="font-display text-xl text-nicchyo-ink">最近の投稿</h2>
                 {posts.length > 0 && (
                   <Link
                     href="/vendor/posts"
@@ -314,7 +300,7 @@ export default function MyShopPage() {
         )}
 
         {/* ほかの機能はメニューへ誘導（下部バー中央） */}
-        <p className={`pb-2 text-center text-[13px] text-slate-500 ${textGlow}`}>
+        <p className="pb-2 text-center text-[13px] text-slate-500">
           ほかの機能は下の
           <span className="mx-1 font-bold text-amber-700">メニュー</span>
           から
