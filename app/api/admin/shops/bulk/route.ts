@@ -91,8 +91,17 @@ export async function POST(request: Request) {
 
     if (action === "delete") {
       for (const id of safeIds) {
+        // アカウントのある出店者は、アカウントを消すとトリガーで出店者の行も消える
+        // （20260930110000_allow_vendors_without_account.sql）
         const { error } = await serviceClient.auth.admin.deleteUser(id);
-        if (error) errors.push(id);
+        if (!error) continue;
+        // マップ編集で登録したアカウントのない出店者は、アカウントが見つからないので行を直接消す
+        if (error.status === 404) {
+          const { error: vendorDeleteError } = await serviceClient.from("vendors").delete().eq("id", id);
+          if (vendorDeleteError) errors.push(id);
+        } else {
+          errors.push(id);
+        }
       }
     } else if (action === "suspend") {
       for (const id of safeIds) {

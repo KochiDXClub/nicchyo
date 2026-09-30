@@ -8,7 +8,7 @@ import { parsePageVisibilitySettings } from "@/lib/pageVisibility";
 import { normalizeMapFeatureFlags } from "@/lib/mapFeatureFlags";
 import { createClient as createServiceClient } from "@supabase/supabase-js";
 import { MAP_FLAGS_SETTINGS_KEY } from "@/lib/mapFeatureFlags.server";
-import { DEFAULT_MAX_LANDMARKS, DEFAULT_MAX_UNASSIGNED_SHOP_MARKERS } from "@/app/(public)/map/config/mapSettingsDefaults";
+import { DEFAULT_MAX_LANDMARKS, DEFAULT_MAX_UNASSIGNED_SHOP_MARKERS } from "@/lib/map/mapSettingsDefaults";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

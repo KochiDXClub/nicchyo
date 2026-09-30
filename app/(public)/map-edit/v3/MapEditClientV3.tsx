@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useKeyboardShortcuts } from "@/lib/hooks/useKeyboardShortcuts";
 import { useUnsavedChangesWarning } from "@/lib/hooks/useUnsavedChangesWarning";
 import { distanceMeters, getRouteCenter } from "../../map/utils/mapRouteGeometry";
-import { resolveSlotPositions, roadLengthMeters, roadSlotLatLng } from "../../map/utils/roadSlotPosition";
+import { resolveSlotPositions, roadLengthMeters, roadSlotLatLng } from "@/lib/map/roadSlotPosition";
 import type { MapRoutePoint, RoadKind } from "../../map/types/mapRoute";
 import { EMPTY_HISTORY, focusOfOperation, netChanges, type EditHistory, type EditOperation } from "./editHistory";
 import { ROAD_KIND_DEFAULT_WIDTH, ROAD_KIND_LABELS, type CanvasHandlers, type EditableShop, type Selection, type Tool } from "./types";
@@ -15,7 +15,8 @@ import { useLaneKeyboardNavigation } from "./useLaneKeyboardNavigation";
 import MapEditCanvasMapLibre from "./components/MapEditCanvasMapLibre";
 import { MapEditHeader } from "./components/MapEditHeader";
 import { SnapshotHistoryPanel } from "./components/SnapshotHistoryPanel";
-import { SlotDetailPanel, RoadDetailPanel, RoadListPanel, LandmarkDetailPanel } from "./components/DetailPanels";
+import { RoadDetailPanel, RoadListPanel, LandmarkDetailPanel } from "./components/DetailPanels";
+import SlotVendorPanel from "./components/SlotVendorPanel";
 import PendingChangeLog from "./components/PendingChangeLog";
 import RoadLaneView, { buildLaneRoadGroups, type LaneRoadGroup } from "./components/RoadLaneView";
 import ToolPalette from "./components/ToolPalette";
@@ -48,8 +49,6 @@ function slotsOnRoad(shops: EditableShop[], roadId: string): SlotOnRoad[] {
 export default function MapEditClientV3() {
   const [tool, setTool] = useState<Tool>("select");
   const [selection, setSelection] = useState<Selection | null>(null);
-  // 「この出店者を移動」で移動先の区画を選んでいる最中の、移動元の区画
-  const [moveSourceId, setMoveSourceId] = useState<string | null>(null);
   const [draft, setDraft] = useState<{ lat: number; lng: number }[]>([]);
   const [drawAxis, setDrawAxis] = useState<"h" | "v" | "free">("h");
   // 区画分けツールで選んだ道と、その設定
@@ -81,8 +80,9 @@ export default function MapEditClientV3() {
     setRoads: data.setRoads,
     landmarks,
     setLandmarks: data.setLandmarks,
+    vendors: data.vendors,
+    setVendors: data.setVendors,
     routeConfig: data.routeConfig,
-    vendorOptions: data.vendorOptions,
     mapSettingsLimits: data.mapSettingsLimits,
     setMessage,
   });
@@ -185,7 +185,6 @@ export default function MapEditClientV3() {
   const backToSelect = useCallback(() => {
     setTool("select");
     setDraft([]);
-    setMoveSourceId(null);
     setSplitRoadId(null);
     setSplitSettings(null);
   }, []);
@@ -193,7 +192,6 @@ export default function MapEditClientV3() {
   const changeTool = useCallback(
     (next: Tool) => {
       setDraft([]);
-      setMoveSourceId(null);
       setSplitRoadId(null);
       setSplitSettings(null);
       setTool(next);
@@ -205,20 +203,14 @@ export default function MapEditClientV3() {
   );
 
   // ── 選択 ──────────────────────────────
-  const selectShop = useCallback(
-    (locationId: string) => {
-      if (moveSourceId && moveSourceId !== locationId) {
-        const target = shops.find((s) => s.locationId === locationId);
-        if (target && !target.vendorId) {
-          ops.moveVendor(moveSourceId, locationId);
-        } else {
-          setMessage("移動先には空き区画を選んでください。");
-        }
-        setMoveSourceId(null);
-      }
-      setSelection({ kind: "slot", id: locationId });
+  const selectShop = useCallback((locationId: string) => setSelection({ kind: "slot", id: locationId }), []);
+
+  // 出店者のピン（地図）・セル（区画レーン）を別の区画へドラッグしたら、移動先を選び直す
+  const dropVendor = useCallback(
+    (fromLocationId: string, toLocationId: string) => {
+      if (ops.moveVendor(fromLocationId, toLocationId)) setSelection({ kind: "slot", id: toLocationId });
     },
-    [moveSourceId, shops, ops, setMessage]
+    [ops]
   );
 
   // 下部の区画レーンで店舗名をタップした時・キーボードで移動した時は、選択に加えて
@@ -327,12 +319,12 @@ export default function MapEditClientV3() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
-      if (tool !== "select" || moveSourceId) backToSelect();
+      if (tool !== "select") backToSelect();
       else setSelection(null);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [tool, moveSourceId, backToSelect]);
+  }, [tool, backToSelect]);
 
   useLaneKeyboardNavigation({
     enabled: tool === "select",
@@ -359,6 +351,7 @@ export default function MapEditClientV3() {
   // ── 地図からの操作 ──────────────────────────────
   const canvasHandlers: CanvasHandlers = {
     onSelectShop: selectShop,
+    onDropVendor: dropVendor,
     onSelectRoad: selectRoad,
     onSelectLandmark: (key) => setSelection({ kind: "landmark", id: key }),
     onMoveLandmark: ops.moveLandmarkLive,
@@ -375,7 +368,7 @@ export default function MapEditClientV3() {
         if (key) setSelection({ kind: "landmark", id: key });
         return;
       }
-      if (tool === "select" && !moveSourceId) setSelection(null);
+      if (tool === "select") setSelection(null);
     },
     onVertexMove: ops.moveVertexLive,
     onVertexMoveEnd: ops.moveVertexEnd,
@@ -384,9 +377,7 @@ export default function MapEditClientV3() {
   };
 
   const toolHintMessage =
-    moveSourceId
-      ? "移動先の空き区画をクリック（地図か下の区画レーン）。Escで中断"
-      : tool === "drawRoad"
+    tool === "drawRoad"
         ? `クリックで点を追加（${drawAxis === "h" ? "横向き" : drawAxis === "v" ? "縦向き" : "自由"}）。既存の点をクリックするとつながって確定、Escで中断`
         : tool === "splitSlots"
           ? splitRoad
@@ -435,7 +426,6 @@ export default function MapEditClientV3() {
             <MapEditCanvasMapLibre
               tool={tool}
               selection={selection}
-              isPickingTarget={!!moveSourceId}
               unsavedKeys={unsavedKeys}
               shops={displayShops}
               roads={roads}
@@ -497,8 +487,8 @@ export default function MapEditClientV3() {
             <RoadLaneView
               groups={laneGroups}
               selectedLocationId={selection.id}
-              isPickingTarget={!!moveSourceId}
               search={search}
+              onDropVendor={dropVendor}
               onSelectShop={(locationId) => {
                 const shop = displayShops.find((s) => s.locationId === locationId);
                 if (shop) selectShopAndFocus(shop);
@@ -572,15 +562,17 @@ export default function MapEditClientV3() {
                 </p>
               )}
               {selectedShop && (
-                <SlotDetailPanel
+                <SlotVendorPanel
                   shop={selectedShop}
                   roadName={roads.find((r) => r.id === selectedShop.roadId)?.name ?? null}
-                  vendorOptions={data.vendorOptions}
-                  onVendorSelect={(vendorId) => ops.assignVendor(selectedShop.locationId, vendorId)}
-                  onStartMove={() => {
-                    setTool("select");
-                    setMoveSourceId(selectedShop.locationId);
-                  }}
+                  vendor={data.vendors.find((v) => v.id === selectedShop.vendorId) ?? null}
+                  vendors={data.vendors}
+                  categories={data.categories}
+                  onSelectVendor={(vendorId) => ops.assignVendor(selectedShop.locationId, vendorId)}
+                  onRegisterVendor={(draft) => ops.registerVendor(selectedShop.locationId, draft)}
+                  onUpdateVendor={(patch, logText, coalesceKey) =>
+                    selectedShop.vendorId && ops.updateVendor(selectedShop.vendorId, patch, logText, { coalesceKey })
+                  }
                   onClearVendor={() => ops.clearVendor(selectedShop.locationId)}
                   onDelete={() => {
                     if (ops.deleteSlot(selectedShop.locationId)) setSelection(null);

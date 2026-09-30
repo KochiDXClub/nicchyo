@@ -39,8 +39,6 @@ import type { CanvasHandlers, EditableLandmark, EditableRoad, EditableShop, Sele
 type Props = {
   tool: Tool;
   selection: Selection | null;
-  /** 出店者の移動先を選んでいる最中か（空き区画を移動先として強調する） */
-  isPickingTarget: boolean;
   /** 保存していない変更がある要素（"shops:<locationId>" / "roads:<id>" / "landmarks:<key>"） */
   unsavedKeys: ReadonlySet<string>;
   shops: EditableShop[];
@@ -77,6 +75,7 @@ const SRC_ROAD_UNSAVED = "nicchyo-edit-road-unsaved";
 const SRC_DRAFT = "nicchyo-edit-draft";
 const SRC_SHOPS = "nicchyo-edit-shops";
 const SRC_SLOT_PREVIEW = "nicchyo-edit-slot-preview";
+const SRC_VENDOR_DRAG = "nicchyo-edit-vendor-drag";
 
 const LAYER_ROAD_CASING = "nicchyo-edit-road-casing-layer";
 const LAYER_ROAD_FILL = "nicchyo-edit-road-fill-layer";
@@ -86,6 +85,9 @@ const LAYER_DRAFT = "nicchyo-edit-draft-layer";
 const LAYER_SHOP_DOTS = "nicchyo-edit-shop-dots-layer";
 const LAYER_SHOP_NUMBERS = "nicchyo-edit-shop-numbers-layer";
 const LAYER_SLOT_PREVIEW = "nicchyo-edit-slot-preview-layer";
+const LAYER_VENDOR_DRAG = "nicchyo-edit-vendor-drag-layer";
+/** ピンを掴んだ・離した地点から、区画を探す範囲（px）。点が小さいので少し広めに取る */
+const SLOT_HIT_RADIUS_PX = 8;
 
 function emptyFC(): GeoJSON.FeatureCollection {
   return { type: "FeatureCollection", features: [] };
@@ -172,7 +174,6 @@ function buildShopFeatureCollection(
   shops: EditableShop[],
   opts: {
     selectedLocationId: string | null;
-    isPickingTarget: boolean;
     query: string;
     unsavedKeys: ReadonlySet<string>;
   }
@@ -181,7 +182,6 @@ function buildShopFeatureCollection(
     const isSelected = opts.selectedLocationId === shop.locationId;
     const match =
       !opts.query || String(shop.position).includes(opts.query) || shop.name.toLowerCase().includes(opts.query);
-    const targetable = opts.isPickingTarget && !shop.vendorId;
     const unsaved = opts.unsavedKeys.has(`shops:${shop.locationId}`);
     return {
       type: "Feature",
@@ -189,14 +189,18 @@ function buildShopFeatureCollection(
         locationId: shop.locationId,
         position: shop.position,
         opacity: match ? 1 : 0.15,
-        color: shop.vendorId ? (isSelected ? "#B45309" : "#D97706") : targetable ? "#FFF7E6" : "#FFFDF7",
+        hasVendor: !!shop.vendorId,
+        // 出店者のいる区画はオレンジのピン、空き区画はグレーで、ひと目で空きと分かるようにする
+        color: shop.vendorId
+          ? isSelected
+            ? EDITOR_COLORS.selectedSlot
+            : EDITOR_COLORS.occupiedSlot
+          : EDITOR_COLORS.vacantSlot,
         strokeColor: unsaved
           ? EDITOR_COLORS.unsaved
           : shop.vendorId
-            ? "#ffffff"
-            : targetable
-              ? "#B45309"
-              : "#B5AA92",
+            ? EDITOR_COLORS.surface
+            : EDITOR_COLORS.vacantSlotStroke,
         // 出店者ありの区画は color 側で選択を表すが、空き区画は常に同じ色のため
         // 選択しても見分けられない。circle-radius/circle-stroke-width 側で使う
         selected: isSelected,
@@ -356,7 +360,6 @@ function RotationControl({
 export default function MapEditCanvasMapLibre({
   tool,
   selection,
-  isPickingTarget,
   unsavedKeys,
   shops,
   roads,
@@ -398,6 +401,8 @@ export default function MapEditCanvasMapLibre({
   // キーボード移動など。これらも originalEvent 付き）を同期的に止めて moveend を出すため、
   // その途中値をユーザー操作として書き戻さないための印
   const syncingCameraRef = useRef(false);
+  // 出店者のピンをドラッグしている最中の状態（移動元の区画・今重なっている移動先・動いたか）
+  const vendorDragRef = useRef<{ fromId: string; targetId: string | null; moved: boolean } | null>(null);
   // 道・区画レイヤーで選択が起きたクリックかどうか。立っている間は、地図全体の
   // click（空き地クリック＝新規描画の点追加・新規配置用）に流さない
   const consumedClickRef = useRef(false);
@@ -437,7 +442,9 @@ export default function MapEditCanvasMapLibre({
       map.addSource(SRC_ROAD_DASH, { type: "geojson", data: emptyFC() });
       map.addSource(SRC_ROAD_UNSAVED, { type: "geojson", data: emptyFC() });
       map.addSource(SRC_DRAFT, { type: "geojson", data: emptyFC() });
-      map.addSource(SRC_SHOPS, { type: "geojson", data: emptyFC() });
+      // promoteId: ドラッグ中の移動先の強調に feature-state（区画ごとの状態）を使うため
+      map.addSource(SRC_SHOPS, { type: "geojson", data: emptyFC(), promoteId: "locationId" });
+      map.addSource(SRC_VENDOR_DRAG, { type: "geojson", data: emptyFC() });
       map.addSource(SRC_SLOT_PREVIEW, { type: "geojson", data: emptyFC() });
 
       // 道: 当たり判定を広めに取った下地（casing）の上に、実際の道幅の塗り（fill）を重ねる
@@ -504,11 +511,20 @@ export default function MapEditCanvasMapLibre({
           "circle-opacity": ["get", "opacity"],
           "circle-stroke-color": [
             "case",
+            ["boolean", ["feature-state", "dropTarget"], false],
+            EDITOR_COLORS.accent,
             ["get", "selected"],
             "rgba(180,83,9,0.55)",
             ["get", "strokeColor"],
           ] as unknown as ExpressionSpecification,
-          "circle-stroke-width": ["case", ["get", "selected"], 5, 2] as unknown as ExpressionSpecification,
+          "circle-stroke-width": [
+            "case",
+            ["boolean", ["feature-state", "dropTarget"], false],
+            6,
+            ["get", "selected"],
+            5,
+            2,
+          ] as unknown as ExpressionSpecification,
         },
       });
       map.addLayer({
@@ -525,6 +541,82 @@ export default function MapEditCanvasMapLibre({
         },
         paint: { "text-color": "#ffffff", "text-opacity": ["get", "opacity"] },
       });
+
+      // ドラッグ中のピン（カーソルについてくる）
+      map.addLayer({
+        id: LAYER_VENDOR_DRAG,
+        type: "circle",
+        source: SRC_VENDOR_DRAG,
+        paint: {
+          "circle-radius": 11,
+          "circle-color": EDITOR_COLORS.occupiedSlot,
+          "circle-opacity": 0.75,
+          "circle-stroke-width": 2,
+          "circle-stroke-color": EDITOR_COLORS.surface,
+        },
+      });
+
+      // ── 出店者のピンのドラッグ（別の区画へ移す・入れ替える） ──
+      // 出店者のいる区画の点を掴んだら地図のパンを止め、離した地点の区画へ移す。
+      // マウスとタッチの両方で同じ流れにする
+      const slotAt = (point: maplibregl.PointLike): string | null => {
+        const p = maplibregl.Point.convert(point);
+        const features = map.queryRenderedFeatures(
+          [
+            [p.x - SLOT_HIT_RADIUS_PX, p.y - SLOT_HIT_RADIUS_PX],
+            [p.x + SLOT_HIT_RADIUS_PX, p.y + SLOT_HIT_RADIUS_PX],
+          ],
+          { layers: [LAYER_SHOP_DOTS] }
+        );
+        const id = features[0]?.properties?.locationId;
+        return typeof id === "string" ? id : null;
+      };
+      const setDropTarget = (id: string | null) => {
+        const drag = vendorDragRef.current;
+        if (!drag || drag.targetId === id) return;
+        if (drag.targetId) map.setFeatureState({ source: SRC_SHOPS, id: drag.targetId }, { dropTarget: false });
+        if (id) map.setFeatureState({ source: SRC_SHOPS, id }, { dropTarget: true });
+        drag.targetId = id;
+      };
+      const startVendorDrag = (e: maplibregl.MapLayerMouseEvent | maplibregl.MapLayerTouchEvent) => {
+        if (toolRef.current !== "select") return;
+        if ("points" in e && e.points.length !== 1) return;
+        const feature = e.features?.[0];
+        const locationId = feature?.properties?.locationId;
+        if (!feature?.properties?.hasVendor || typeof locationId !== "string") return;
+        e.preventDefault(); // 地図のパンを止める
+        vendorDragRef.current = { fromId: locationId, targetId: null, moved: false };
+        map.getCanvas().style.cursor = "grabbing";
+      };
+      const moveVendorDrag = (e: maplibregl.MapMouseEvent | maplibregl.MapTouchEvent) => {
+        const drag = vendorDragRef.current;
+        if (!drag) return;
+        drag.moved = true;
+        (map.getSource(SRC_VENDOR_DRAG) as maplibregl.GeoJSONSource).setData({
+          type: "FeatureCollection",
+          features: [{ type: "Feature", properties: {}, geometry: { type: "Point", coordinates: [e.lngLat.lng, e.lngLat.lat] } }],
+        });
+        const target = slotAt(e.point);
+        setDropTarget(target && target !== drag.fromId ? target : null);
+      };
+      const endVendorDrag = () => {
+        const drag = vendorDragRef.current;
+        if (!drag) return;
+        const { fromId, targetId, moved } = drag;
+        setDropTarget(null);
+        vendorDragRef.current = null;
+        (map.getSource(SRC_VENDOR_DRAG) as maplibregl.GeoJSONSource).setData(emptyFC());
+        map.getCanvas().style.cursor = "";
+        // 動かしたときは地図の click は起きない（MapLibre はクリックとみなす移動量を超えた
+        // マウス操作で click を出さない）ので、ここで消費済みの印を立てる必要はない
+        if (moved && targetId) handlersRef.current.onDropVendor(fromId, targetId);
+      };
+      map.on("mousedown", LAYER_SHOP_DOTS, startVendorDrag);
+      map.on("touchstart", LAYER_SHOP_DOTS, startVendorDrag);
+      map.on("mousemove", moveVendorDrag);
+      map.on("touchmove", moveVendorDrag);
+      map.on("mouseup", endVendorDrag);
+      map.on("touchend", endVendorDrag);
 
       // 区画分けのプレビュー。区画の上に重ね、作る・動く・消すを色で分ける
       map.addLayer({
@@ -687,9 +779,9 @@ export default function MapEditCanvasMapLibre({
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !ready) return;
-    const data = buildShopFeatureCollection(shops, { selectedLocationId, isPickingTarget, query, unsavedKeys });
+    const data = buildShopFeatureCollection(shops, { selectedLocationId, query, unsavedKeys });
     (map.getSource(SRC_SHOPS) as maplibregl.GeoJSONSource).setData(data);
-  }, [shops, selectedLocationId, isPickingTarget, query, unsavedKeys, ready]);
+  }, [shops, selectedLocationId, query, unsavedKeys, ready]);
 
   // ── 建物（Marker）。ドラッグ中も要素を作り直さないよう、key で使い回す ──────────
   useEffect(() => {
