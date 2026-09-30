@@ -81,7 +81,7 @@ app/
 │   ├── search/        # 店舗検索
 │   ├── bag/           # 買い物リスト
 │   ├── consult/       # AI「にちよさん」チャット
-│   ├── shops/[code]/  # 店舗詳細（コードは3桁ゼロ埋め: 001〜300）
+│   ├── shops/[code]/  # 店舗詳細（コードは3桁ゼロ埋め: 001〜999）
 │   ├── my-shop/       # 出店者向けページ
 │   └── ...
 ├── private/           # 要認証ページ
@@ -121,7 +121,7 @@ Layer 0: Leafletベースマップ
 
 ### 店舗コード体系
 
-店舗IDは1〜300の整数。URLパラメータ・QRコードでは3桁ゼロ埋め文字列（`001`〜`300`）。変換は `lib/shops/route.ts` の `normalizeShopCodeToId` / `formatShopIdToCode` を使う。
+店舗IDは1〜999の整数（`MAX_SHOP_ID`）。URLパラメータ・QRコードでは3桁ゼロ埋め文字列（`001`〜`999`）。変換は `lib/shops/route.ts` の `normalizeShopCodeToId` / `formatShopIdToCode` を使う。
 
 `next.config.js` に `/shops001` → `/shops/001` のリライトルールあり。
 

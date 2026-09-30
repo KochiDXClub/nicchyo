@@ -14,6 +14,7 @@ import {
   MAP_FEATURE_FLAG_DEFS,
   type MapFeatureFlags,
 } from "@/lib/mapFeatureFlags";
+import { DEFAULT_MAX_LANDMARKS, DEFAULT_MAX_UNASSIGNED_SHOP_MARKERS } from "@/app/(public)/map/config/mapSettingsDefaults";
 
 /** 設定タブ。分散していた設定の入口をここに一本化する */
 type SettingsTabKey = "general" | "visibility" | "flags" | "email" | "danger";
@@ -54,8 +55,8 @@ const DEFAULT_PUBLIC_SETTINGS: PublicSettings = {
 };
 
 const DEFAULT_MAP_SETTINGS: MapSettings = {
-  maxLandmarks: 80,
-  maxUnassignedShopMarkers: 40,
+  maxLandmarks: DEFAULT_MAX_LANDMARKS,
+  maxUnassignedShopMarkers: DEFAULT_MAX_UNASSIGNED_SHOP_MARKERS,
   maxMapSnapshots: 50,
   maxEditZoom: 20,
 };

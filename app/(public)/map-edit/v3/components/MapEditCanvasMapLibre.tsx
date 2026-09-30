@@ -47,6 +47,8 @@ type Props = {
   roads: EditableRoad[];
   landmarks: EditableLandmark[];
   draft: { lat: number; lng: number }[];
+  /** 区画分けツールのプレビュー（適用前の、新しく作る・動く・消す区画の位置） */
+  previewSlots: Array<{ lat: number; lng: number; status: "create" | "move" | "delete" }>;
   search: string;
   zoomIdx: number;
   setZoomIdx: React.Dispatch<React.SetStateAction<number>>;
@@ -74,6 +76,7 @@ const SRC_ROAD_DASH = "nicchyo-edit-road-dash";
 const SRC_ROAD_UNSAVED = "nicchyo-edit-road-unsaved";
 const SRC_DRAFT = "nicchyo-edit-draft";
 const SRC_SHOPS = "nicchyo-edit-shops";
+const SRC_SLOT_PREVIEW = "nicchyo-edit-slot-preview";
 
 const LAYER_ROAD_CASING = "nicchyo-edit-road-casing-layer";
 const LAYER_ROAD_FILL = "nicchyo-edit-road-fill-layer";
@@ -82,6 +85,7 @@ const LAYER_ROAD_UNSAVED = "nicchyo-edit-road-unsaved-layer";
 const LAYER_DRAFT = "nicchyo-edit-draft-layer";
 const LAYER_SHOP_DOTS = "nicchyo-edit-shop-dots-layer";
 const LAYER_SHOP_NUMBERS = "nicchyo-edit-shop-numbers-layer";
+const LAYER_SLOT_PREVIEW = "nicchyo-edit-slot-preview-layer";
 
 function emptyFC(): GeoJSON.FeatureCollection {
   return { type: "FeatureCollection", features: [] };
@@ -358,6 +362,7 @@ export default function MapEditCanvasMapLibre({
   roads,
   landmarks,
   draft,
+  previewSlots,
   search,
   zoomIdx,
   setZoomIdx,
@@ -433,6 +438,7 @@ export default function MapEditCanvasMapLibre({
       map.addSource(SRC_ROAD_UNSAVED, { type: "geojson", data: emptyFC() });
       map.addSource(SRC_DRAFT, { type: "geojson", data: emptyFC() });
       map.addSource(SRC_SHOPS, { type: "geojson", data: emptyFC() });
+      map.addSource(SRC_SLOT_PREVIEW, { type: "geojson", data: emptyFC() });
 
       // 道: 当たり判定を広めに取った下地（casing）の上に、実際の道幅の塗り（fill）を重ねる
       map.addLayer({
@@ -518,6 +524,34 @@ export default function MapEditCanvasMapLibre({
           "text-ignore-placement": true,
         },
         paint: { "text-color": "#ffffff", "text-opacity": ["get", "opacity"] },
+      });
+
+      // 区画分けのプレビュー。区画の上に重ね、作る・動く・消すを色で分ける
+      map.addLayer({
+        id: LAYER_SLOT_PREVIEW,
+        type: "circle",
+        source: SRC_SLOT_PREVIEW,
+        paint: {
+          "circle-radius": ["step", ["zoom"], 5, MAPLIBRE_ZOOMS[1], 7, MAPLIBRE_ZOOMS[2], 14] as unknown as ExpressionSpecification,
+          "circle-color": [
+            "match",
+            ["get", "status"],
+            "create",
+            EDITOR_COLORS.previewCreate,
+            "move",
+            EDITOR_COLORS.previewMove,
+            "rgba(0,0,0,0)",
+          ] as unknown as ExpressionSpecification,
+          "circle-opacity": 0.85,
+          "circle-stroke-width": 2.5,
+          "circle-stroke-color": [
+            "match",
+            ["get", "status"],
+            "delete",
+            EDITOR_COLORS.previewDelete,
+            EDITOR_COLORS.surface,
+          ] as unknown as ExpressionSpecification,
+        },
       });
 
       // 道具が実際にこのレイヤーで選択したときだけ消費したことにする（一律で立てると、
@@ -781,6 +815,19 @@ export default function MapEditCanvasMapLibre({
     }
     midpointMarkersRef.current = nextMidpoints;
   }, [roads, selectedRoadId, tool, ready]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !ready) return;
+    (map.getSource(SRC_SLOT_PREVIEW) as maplibregl.GeoJSONSource).setData({
+      type: "FeatureCollection",
+      features: previewSlots.map((slot) => ({
+        type: "Feature",
+        properties: { status: slot.status },
+        geometry: { type: "Point", coordinates: [slot.lng, slot.lat] },
+      })),
+    });
+  }, [previewSlots, ready]);
 
   useEffect(() => {
     const map = mapRef.current;
