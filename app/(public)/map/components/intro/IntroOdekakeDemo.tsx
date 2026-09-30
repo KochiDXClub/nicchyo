@@ -8,7 +8,7 @@
  *   お手洗いの印   … 本番の GuideLayer と同じ HTML（facility-marker）。押すと本番と同じ
  *                    スポットカードが開き、「ここへ案内」で案内先が切り替わる
  *   経路の破線     … 本番と同じ太さ・色・破線。案内先へは濃く、ほかの近い所へは薄く
- *   現在地の点     … 本番の現在地マーカー（MapLibreUserLocation）と同じ青い点
+ *   現在地の点     … 本番の現在地の点（MapLibre 標準の GeolocateControl）に似せた青い点
  *   下のピル       … 案内をやめたとき。本番でシートをたたんだときと同じ「いちばん近い」の札
  *
  * 場所は本番の座標そのもの（map_landmarks）。地図ライブラリは載せず、実座標を
@@ -107,7 +107,7 @@ function useNavBarHeight(targetId: string | null): [React.MutableRefObject<HTMLD
 const toPoints = (points: { x: number; y: number }[]) =>
   points.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
 
-/** 本番の現在地マーカー（MapLibreUserLocation の MARKER_HTML）と同じ青い点 */
+/** 本番の現在地の点（MapLibre 標準の GeolocateControl）に似せた青い点 */
 function CurrentLocationDot({ x, y }: { x: number; y: number }) {
   return (
     <div

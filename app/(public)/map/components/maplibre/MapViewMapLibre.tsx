@@ -16,7 +16,7 @@
  * - 回転・ピンチ・ドラッグは MapLibre 標準（自作ジェスチャー不要）
  * - ページ側の部品（「このへん」の出現判定、ズームスライダー、おでかけサポート、検索結果シート）は
  *   MapCamera アダプタ経由で Leaflet 版と共用
- * - 現在地マーカーと追従（MapLibreUserLocation）、道への吸着（after / integrated）
+ * - 現在地と追従は MapLibre 標準の GeolocateControl（useMapLibreUserLocation）、道への吸着（after / integrated）
  * - 計測の橋渡し（?perf=1 で window.__nicchyoMapBench）
  *
  * 【まだ無いもの（Leaflet 版にある）】
@@ -91,7 +91,7 @@ import { getShopPreviewImage, getShopThumbnailImage } from "../../../../../lib/s
 import { MAPLIBRE_MAP_KEY, type MapCamera, type MapCameraEvent } from "../../types/mapCamera";
 import { LiveZoomMapControls } from "../MapControls";
 import SearchResultsSheet, { SpotlightCountdownBar } from "../SearchResultsSheet";
-import MapLibreUserLocation from "./MapLibreUserLocation";
+import { useMapLibreUserLocation } from "./useMapLibreUserLocation";
 import {
   buildShopFeatures,
   diffShopDisplay,
@@ -352,15 +352,26 @@ function MapViewMapLibre({
   // 引ける下限（MapLibre 基準）。建物・地名ラベルの表示境界もここを起点にする
   const minZoom = viewSettings.minZoom + ZOOM_OFFSET;
 
-  // 現在地の追従（Leaflet 版と同じく初期値はオン。ユーザーがドラッグしたらオフ）
-  const [isTracking, setIsTracking] = useState(true);
-  const toggleTracking = useCallback(() => setIsTracking((prev) => !prev), []);
   const handleUserLocationUpdate = useCallback(
     (inMarket: boolean, position: [number, number]) => {
       onUserLocationUpdate?.({ lat: position[0], lng: position[1], inMarket });
     },
     [onUserLocationUpdate]
   );
+  // 現在地と追従（MapLibre 標準の GeolocateControl。ユーザーが地図を動かしたら追従をやめる）
+  const { isTracking, toggleTracking } = useMapLibreUserLocation({
+    map: mapLoaded ? mapRef.current : null,
+    zoomOffset: ZOOM_OFFSET,
+    onLocationUpdate: handleUserLocationUpdate,
+    suppressInitialFocus: suppressInitialLocationFocus,
+    routePoints,
+    routeConfig,
+  });
+
+  // 追従中は吸着しない。吸着のパンは control から「ユーザーが地図を動かした」に見えて追従が外れるうえ、
+  // 次の測位でまた現在地へ戻されるので意味もない
+  const isTrackingRef = useRef(isTracking);
+  isTrackingRef.current = isTracking;
 
   // 道への吸着: 中心を道の上へ投影した点を返す。もともと道の上（ずれが小さい）なら null
   const roadSnapModeRef = useRef(featureFlags.roadSnap);
@@ -566,8 +577,6 @@ function MapViewMapLibre({
       // ズーム操作中はスライダーを出す
       map.on("zoomstart", keepZoomSliderAlive);
       map.on("zoom", keepZoomSliderAlive);
-      // ユーザーが地図を動かしたら追従をやめる
-      map.on("dragstart", () => setIsTracking(false));
       // ローディングを畳むのはタイルやグリフまで描き終えた（idle）とき。
       // タブが裏にあると idle が来ないことがあるので、load から少し待ったら畳む
       let readyReported = false;
@@ -1106,6 +1115,7 @@ function MapViewMapLibre({
       clearSnapTimer();
       timer = window.setTimeout(() => {
         timer = null;
+        if (isTrackingRef.current) return;
         const c = map.getCenter();
         const snapped = snapToRoad(c.lat, c.lng);
         if (!snapped) return;
@@ -1254,17 +1264,6 @@ function MapViewMapLibre({
           trackingButtonTop={trackingButtonTop}
         />
       )}
-      {/* 現在地（道の上にいるときだけ表示。追従中は位置更新で中心を合わせる） */}
-      <MapLibreUserLocation
-        map={mapLoaded ? mapRef.current : null}
-        zoomOffset={ZOOM_OFFSET}
-        onLocationUpdate={handleUserLocationUpdate}
-        isTracking={isTracking}
-        suppressInitialFocus={suppressInitialLocationFocus}
-        routePoints={routePoints}
-        routeConfig={routeConfig}
-      />
-
       {spotlightShopId && <SpotlightCountdownBar shopId={spotlightShopId} />}
 
       {activeHighlightShopIds && activeHighlightShopIds.length > 0 && (
