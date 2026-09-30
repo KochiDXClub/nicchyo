@@ -12,6 +12,11 @@
 --   - RLS の「本人だけ」（vendors.id = auth.uid()）は、アカウントのない出店者の行には
 --     誰も当てはまらないだけなので、見える範囲は広がらない
 --   - 既存の出店者の id（= アカウントの id）は変えない
+--
+-- 今後「アカウントのない出店者に、出店者本人のアカウントを紐づける」機能を作るときの注意:
+--   vendors.id を書き換える・その id を指定してアカウントを作る（auth.admin.createUser({ id })）
+--   といった紐づけを、利用者が自分で起こせる形にすると、他人の出店者データを乗っ取れてしまう。
+--   紐づけは管理者専用の API（service_role）に限り、監査ログに残すこと
 
 alter table vendors drop constraint if exists vendors_id_fkey;
 alter table vendors alter column id set default gen_random_uuid();
@@ -20,7 +25,7 @@ create or replace function public.delete_vendor_on_auth_user_delete()
 returns trigger
 language plpgsql
 security definer
-set search_path = public
+set search_path = ''
 as $$
 begin
   delete from public.vendors where id = old.id;

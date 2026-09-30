@@ -13,7 +13,7 @@ import { resolveSlotPositions } from "@/lib/map/roadSlotPosition";
 import { MAX_SHOP_ID, MIN_SHOP_ID } from "@/lib/shops/route";
 import { logAdminAudit } from "@/lib/audit/logAdminAudit";
 import { getRole } from "@/lib/auth/permissions";
-import { NEW_VENDOR_ID_PREFIX } from "@/app/(public)/map/types/editableShop";
+import { CHOME_ORDER, NEW_VENDOR_ID_PREFIX } from "@/app/(public)/map/types/editableShop";
 import {
   createAdminWriteClient,
   createMapLayoutSnapshot,
@@ -79,11 +79,26 @@ function validateShopAssignments(shops: EditableShop[]) {
   return null;
 }
 
-/** 区画の店番と道基準の位置が正しい形か（DB の制約に当たる前に、分かる言葉で返すため） */
+/** 道の始点からの距離の上限（m）。会場の道は最長でも数km なので、明らかにおかしい値だけを弾く */
+const MAX_ROAD_DISTANCE_M = 10_000;
+const CHOME_VALUES = new Set<string>(CHOME_ORDER);
+
+/** 区画の店番・位置・丁目が正しい形か（DB の制約に当たる前に、分かる言葉で返すため） */
 function validateShopFields(shops: EditableShop[]) {
   for (const shop of shops) {
     if (!Number.isInteger(shop.position) || shop.position < MIN_SHOP_ID || shop.position > MAX_SHOP_ID) {
       return `店番は ${MIN_SHOP_ID}〜${MAX_SHOP_ID} の整数にしてください（${shop.position}）`;
+    }
+    if (
+      !Number.isFinite(shop.lat) ||
+      !Number.isFinite(shop.lng) ||
+      Math.abs(shop.lat) > 90 ||
+      Math.abs(shop.lng) > 180
+    ) {
+      return `店番 ${shop.position} の位置（緯度経度）が正しくありません`;
+    }
+    if (shop.chome !== undefined && shop.chome !== null && !CHOME_VALUES.has(shop.chome)) {
+      return `店番 ${shop.position} の丁目が正しくありません`;
     }
     const roadFields = [shop.roadId, shop.roadDistanceM, shop.roadSide, shop.roadOffsetM];
     const filled = roadFields.filter((value) => value !== undefined && value !== null).length;
@@ -93,6 +108,7 @@ function validateShopFields(shops: EditableShop[]) {
       typeof shop.roadId !== "string" ||
       !Number.isFinite(shop.roadDistanceM) ||
       (shop.roadDistanceM as number) < 0 ||
+      (shop.roadDistanceM as number) > MAX_ROAD_DISTANCE_M ||
       (shop.roadSide !== "left" && shop.roadSide !== "right") ||
       !Number.isFinite(shop.roadOffsetM) ||
       (shop.roadOffsetM as number) < 0 ||
@@ -103,6 +119,14 @@ function validateShopFields(shops: EditableShop[]) {
   }
   return null;
 }
+
+type VendorRowBeforeSave = {
+  id: string;
+  shop_name?: string | null;
+  category_id?: string | null;
+  strength?: string | null;
+  main_products?: string[] | null;
+};
 
 /** 保存後の区画で、店番が重なっていないか */
 function findDuplicatePosition(shops: EditableShop[]): number | null {
@@ -209,12 +233,14 @@ export async function PUT(request: NextRequest) {
     }
 
     const vendorsToWrite = body.vendors?.upsert ?? [];
+    // 更新する既存の出店者の、保存前の値（監査ログに残す）
+    let vendorRowsBeforeSave: VendorRowBeforeSave[] = [];
     if (vendorsToWrite.length > 0) {
       const existingIds = vendorsToWrite.map((v) => v.id).filter((id) => typeof id === "string" && !id.startsWith(NEW_VENDOR_ID_PREFIX));
       const [existingResult, categories] = await Promise.all([
         existingIds.length > 0
-          ? supabase.from("vendors").select("id").in("id", existingIds)
-          : Promise.resolve({ data: [] as { id: string }[], error: null }),
+          ? supabase.from("vendors").select("id, shop_name, category_id, strength, main_products").in("id", existingIds)
+          : Promise.resolve({ data: [] as VendorRowBeforeSave[], error: null }),
         loadVendorCategories(supabase),
       ]);
       if (existingResult.error) {
@@ -227,6 +253,7 @@ export async function PUT(request: NextRequest) {
       if (vendorError) {
         return NextResponse.json({ error: vendorError }, { status: 400 });
       }
+      vendorRowsBeforeSave = existingResult.data ?? [];
     }
     // 区画に割り当てる新しい出店者（仮 id）は、同じ保存で登録するものに限る
     const newVendorIds = new Set(vendorsToWrite.map((v) => v.id).filter((id) => id.startsWith(NEW_VENDOR_ID_PREFIX)));
@@ -416,7 +443,7 @@ export async function PUT(request: NextRequest) {
     // 道の点は全削除→全再挿入になるため、変更がない保存で毎回書き込むと無駄なDB書き込みになる
     const saveRoads = routePointsChanged || roadsChanged;
     shopWritesStarted = true;
-    const { error: saveError } = await adminWriteClient.rpc("save_map_layout", {
+    const { data: saveResult, error: saveError } = await adminWriteClient.rpc("save_map_layout", {
       p_save_roads: saveRoads,
       p_roads: (body.roads ?? []).map((road) => ({
         id: road.id,
@@ -464,19 +491,31 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: "Failed to save map layout" }, { status: 500 });
     }
 
-    // 出店者の登録・更新は、配置（スナップショットで戻せる）と違って戻せないため監査ログに残す
+    // 出店者の登録・更新は、配置（スナップショットで戻せる）と違って戻せないため監査ログに残す。
+    // 新規登録は採番された id、更新は保存前後の値を残し、どの行をどう変えたか後から追えるようにする
     if (vendorsToWrite.length > 0) {
-      const created = vendorsToWrite.filter((v) => v.id.startsWith(NEW_VENDOR_ID_PREFIX));
-      const updated = vendorsToWrite.filter((v) => !v.id.startsWith(NEW_VENDOR_ID_PREFIX));
+      const createdIdByDraftId =
+        (saveResult as { createdVendors?: Record<string, string> } | null)?.createdVendors ?? {};
+      const beforeById = new Map(vendorRowsBeforeSave.map((row) => [row.id, row]));
+      const created = vendorsToWrite
+        .filter((v) => v.id.startsWith(NEW_VENDOR_ID_PREFIX))
+        .map((v) => ({ id: createdIdByDraftId[v.id] ?? null, name: v.name.trim() }));
+      const updated = vendorsToWrite
+        .filter((v) => !v.id.startsWith(NEW_VENDOR_ID_PREFIX))
+        .map((v) => ({
+          id: v.id,
+          before: beforeById.get(v.id) ?? null,
+          after: { shop_name: v.name.trim(), category_id: v.categoryId, strength: v.strength.trim(), main_products: v.mainProducts },
+        }));
       await logAdminAudit(
         adminWriteClient,
         { id: user.id, email: user.email, role: getRole(user) },
         {
           action: "map_edit_save_vendors",
           targetType: "vendor",
-          targetId: updated.map((v) => v.id).join(",") || null,
+          targetId: [...created.map((v) => v.id), ...updated.map((v) => v.id)].filter(Boolean).join(",").slice(0, 2000),
           targetName: vendorsToWrite.map((v) => v.name.trim()).join(", ").slice(0, 500),
-          details: `マップ編集から出店者を新規登録 ${created.length} 件・更新 ${updated.length} 件`,
+          details: JSON.stringify({ created, updated }),
         }
       );
     }
