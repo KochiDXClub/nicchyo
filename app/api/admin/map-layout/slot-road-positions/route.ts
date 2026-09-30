@@ -7,10 +7,12 @@ import { authorizeAdmin } from "@/app/api/admin/categories/_helpers";
 import {
   createAdminWriteClient,
   createMapLayoutSnapshot,
+  hasRoadPositionSchema,
   loadEditableRoads,
   loadEditableShops,
   loadRouteConfig,
   planSlotRoadPositions,
+  ROAD_POSITION_SCHEMA_MISSING_MESSAGE,
 } from "../_shared";
 
 /**
@@ -62,6 +64,10 @@ export async function POST(request: NextRequest) {
     const cookieStore = await cookies();
     const supabase = createServerClient(cookieStore);
     const adminWriteClient = createAdminWriteClient();
+
+    if (!(await hasRoadPositionSchema(supabase))) {
+      return NextResponse.json({ error: ROAD_POSITION_SCHEMA_MISSING_MESSAGE }, { status: 503 });
+    }
 
     const { shops, roads, plan } = await loadPlan(supabase);
     if (plan.matched.length === 0) {
