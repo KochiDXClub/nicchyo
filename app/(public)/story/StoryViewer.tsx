@@ -13,6 +13,8 @@ import {
 } from "./components/StoryChrome";
 import { getOrCreateConsultVisitorKey } from "@/lib/consultVisitorKey";
 import { useBodyScrollLock } from "@/lib/ui/bodyScrollLock";
+import { ChevronUp } from "lucide-react";
+import StoryDetailSheet from "./components/StoryDetailSheet";
 import { fetchReactionState, toggleReaction, type ReactionState } from "@/lib/story/reactions";
 import type { StoryItem } from "./types";
 
@@ -23,6 +25,9 @@ const SWIPE_VELOCITY = 300; // px/s
 // タップ/長押し判定のしきい値（Instagramのストーリー操作に合わせる）
 const LONG_PRESS_MS = 220;
 const TAP_MOVE_TOLERANCE = 10; // px（これを超えたらスワイプ扱いにしてタップ送りを無効化）
+// 縦のスワイプ：上へ払うと「詳しく」を開き、下へ払うとビューアを閉じる
+const SWIPE_UP_DISTANCE = 60; // px
+const SWIPE_DOWN_DISTANCE = 90; // px
 
 type Props = {
   stories: StoryItem[];
@@ -39,6 +44,9 @@ export default function StoryViewer({ stories, initialIndex, onClose, demo }: Pr
   const [index, setIndex] = useState(initialIndex);
   const [direction, setDirection] = useState<1 | -1>(1);
   const [paused, setPaused] = useState(false);
+  // 「詳しく」（店主の説明とマップへの導線）を開いているか。開いているあいだは自動送りを止める
+  const [detailOpen, setDetailOpen] = useState(false);
+  const stopped = paused || detailOpen;
   // 匿名ハート用の visitorKey（相談機能と共通の識別子を流用）
   const [visitorKey] = useState(() =>
     typeof window !== "undefined" ? getOrCreateConsultVisitorKey() : ""
@@ -48,6 +56,8 @@ export default function StoryViewer({ stories, initialIndex, onClose, demo }: Pr
   const story = stories[index];
   const shopName = story.vendor?.shop_name ?? "出店者";
   const avatarUrl = story.vendor?.shop_image_url ?? null;
+  // 「詳しく」に出すものがあるか（店主の説明か、マップの店への導線）
+  const hasDetail = Boolean(story.body) || story.vendor?.store_number != null;
 
   // スクロールロック
   useBodyScrollLock();
@@ -73,14 +83,15 @@ export default function StoryViewer({ stories, initialIndex, onClose, demo }: Pr
   const elapsedRef = useRef(0);
   const segmentStartRef = useRef(0);
 
-  // 投稿が切り替わったら経過時間をリセット
+  // 投稿が切り替わったら経過時間をリセットし、「詳しく」も閉じる
   useEffect(() => {
     elapsedRef.current = 0;
+    setDetailOpen(false);
   }, [index]);
 
   // 15秒自動送り（ホールド中は停止し、解除時は残り時間で再開）
   useEffect(() => {
-    if (paused) return;
+    if (stopped) return;
     segmentStartRef.current = Date.now();
     const remaining = Math.max(0, STORY_DURATION - elapsedRef.current);
     const timer = setTimeout(goNext, remaining);
@@ -88,7 +99,7 @@ export default function StoryViewer({ stories, initialIndex, onClose, demo }: Pr
       clearTimeout(timer);
       elapsedRef.current += Date.now() - segmentStartRef.current;
     };
-  }, [index, paused, goNext]);
+  }, [index, stopped, goNext]);
 
   // 表示中ストーリーのハート状態（総数・自分が押したか）を取得する。
   // デモの投稿はサーバーに無いので、見本の数から始める。
@@ -186,13 +197,23 @@ export default function StoryViewer({ stories, initialIndex, onClose, demo }: Pr
       setPaused(false);
       // スワイプ中だった／長押し中だった場合はタップ送りしない
       // （スワイプは handleDragEnd、長押しは離した時点で何もしないのが正解）
-      if (!press || press.moved || press.longPress) return;
+      if (!press || press.longPress) return;
+      if (press.moved) {
+        // 縦に大きく払ったときだけ扱う（横のスワイプは handleDragEnd が受け持つ）
+        const dx = e.clientX - press.x;
+        const dy = e.clientY - press.y;
+        if (Math.abs(dy) > Math.abs(dx)) {
+          if (dy < -SWIPE_UP_DISTANCE && hasDetail) setDetailOpen(true);
+          else if (dy > SWIPE_DOWN_DISTANCE) onClose();
+        }
+        return;
+      }
       const rect = e.currentTarget.getBoundingClientRect();
       const tappedRight = press.x - rect.left > rect.width / 2;
       if (tappedRight) goNext();
       else goPrev();
     },
-    [clearLongPressTimer, goNext, goPrev]
+    [clearLongPressTimer, goNext, goPrev, hasDetail, onClose]
   );
 
   const handlePressCancel = useCallback(() => {
@@ -204,13 +225,18 @@ export default function StoryViewer({ stories, initialIndex, onClose, demo }: Pr
   // PC ではキーボードでも送れるようにする（← → で前後、Esc で閉じる）
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
+      // 「詳しく」を開いているあいだは、Esc でそれだけを閉じ、送りもしない
+      if (detailOpen) {
+        if (e.key === "Escape") setDetailOpen(false);
+        return;
+      }
       if (e.key === "ArrowRight") goNext();
       else if (e.key === "ArrowLeft") goPrev();
       else if (e.key === "Escape") onClose();
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [goNext, goPrev, onClose]);
+  }, [detailOpen, goNext, goPrev, onClose]);
 
   const timeLabel = formatRelativeTime(new Date(story.created_at));
 
@@ -249,7 +275,7 @@ export default function StoryViewer({ stories, initialIndex, onClose, demo }: Pr
           count={stories.length}
           index={index}
           durationMs={STORY_DURATION}
-          paused={paused}
+          paused={stopped}
         />
 
         {/* ショップ情報行 */}
@@ -341,16 +367,36 @@ export default function StoryViewer({ stories, initialIndex, onClose, demo }: Pr
         )}
       </div>
 
-      {/* 下部：キャプション */}
-      {(story.body || story.character) && (
+      {/* 下部：店のAIキャラのひとこと（主役）と、「詳しく」への入口。
+          店主の説明は二番目の情報なので、ここでは1行だけのぞかせ、全文は「詳しく」で読む */}
+      {(story.character || hasDetail) && (
         <div className="absolute bottom-0 left-0 right-0 z-10 px-4 pt-16 pb-10 bg-gradient-to-t from-black/70 to-transparent">
-          {/* 店のAIキャラのひとこと。ハートのボタンと重ならないよう右を空ける */}
+          {/* ハートのボタンと重ならないよう右を空ける */}
           {story.character && (
             <StoryCharacterBubble character={story.character} className="mb-3 pr-16" />
           )}
-          {story.body && <p className="text-white text-sm leading-relaxed">{story.body}</p>}
+          {hasDetail && (
+            <button
+              type="button"
+              onPointerDown={(e) => e.stopPropagation()}
+              onPointerUp={(e) => e.stopPropagation()}
+              onClick={() => setDetailOpen(true)}
+              aria-expanded={detailOpen}
+              className="flex w-full items-center gap-2 pr-16 text-left"
+            >
+              <span className="min-w-0 flex-1 truncate text-[13px] text-white/75">
+                {story.body ?? "お店の場所を見る"}
+              </span>
+              <span className="flex flex-shrink-0 items-center gap-0.5 text-xs font-semibold text-white">
+                詳しく
+                <ChevronUp className="h-4 w-4" aria-hidden />
+              </span>
+            </button>
+          )}
         </div>
       )}
+
+      <StoryDetailSheet open={detailOpen} story={story} onClose={() => setDetailOpen(false)} />
 
       {/* ホールド中インジケーター */}
       {paused && (
@@ -370,7 +416,7 @@ export default function StoryViewer({ stories, initialIndex, onClose, demo }: Pr
           initial={{ opacity: 1 }}
           animate={{ opacity: 0 }}
           transition={{ delay: 2, duration: 0.6 }}
-          className="absolute bottom-8 inset-x-0 z-10 pointer-events-none flex items-center justify-center gap-2 text-white/60"
+          className="absolute left-1/2 top-1/2 z-10 -translate-x-1/2 -translate-y-1/2 pointer-events-none flex items-center gap-2 whitespace-nowrap rounded-chip bg-black/55 px-3 py-1.5 text-white/85"
         >
           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />

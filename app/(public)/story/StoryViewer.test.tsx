@@ -1,5 +1,5 @@
 import React from "react";
-import { render, screen, fireEvent, act } from "@testing-library/react";
+import { render, screen, fireEvent, act, within } from "@testing-library/react";
 import { vi } from "vitest";
 import StoryViewer from "./StoryViewer";
 import type { StoryItem } from "./types";
@@ -266,5 +266,84 @@ describe("StoryViewer（デモ）", () => {
     );
     expect(heartArea).toHaveTextContent("8");
     expect(toggleReaction).not.toHaveBeenCalled();
+  });
+});
+
+describe("StoryViewer の「詳しく」", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("下の「詳しく」を押すと、店主の説明の全文とマップへの導線が出る", () => {
+    const stories = [makeStory({ id: "a", body: "朝どれの人参です。\n1袋200円。" })];
+    render(<StoryViewer stories={stories} initialIndex={0} onClose={vi.fn()} />);
+
+    fireEvent.click(screen.getByRole("button", { name: /詳しく/ }));
+
+    const sheet = screen.getByRole("dialog", { name: "テスト青果店の詳しい情報" });
+    expect(sheet).toHaveTextContent("朝どれの人参です。");
+    expect(sheet).toHaveTextContent("1袋200円。");
+    expect(within(sheet).getByRole("link", { name: /マップでお店を見る/ }).getAttribute("href")).toBe(
+      "/map?shop=12"
+    );
+  });
+
+  it("開くとシートへフォーカスが移り、閉じると「詳しく」ボタンへ戻る", () => {
+    render(<StoryViewer stories={[makeStory({ id: "a", body: "説明" })]} initialIndex={0} onClose={vi.fn()} />);
+    const detailButton = screen.getByRole("button", { name: /詳しく/ });
+    detailButton.focus();
+
+    fireEvent.click(detailButton);
+    expect(screen.getByRole("dialog", { name: "テスト青果店の詳しい情報" })).toHaveFocus();
+
+    fireEvent.click(screen.getByRole("button", { name: "詳しくを閉じる" }));
+    expect(detailButton).toHaveFocus();
+  });
+
+  it("本文はシートの中でスクロールでき、下へ引いて閉じる操作はつまみと見出しだけで受ける", () => {
+    render(<StoryViewer stories={[makeStory({ id: "a", body: "長い説明" })]} initialIndex={0} onClose={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: /詳しく/ }));
+
+    const sheet = screen.getByRole("dialog", { name: "テスト青果店の詳しい情報" });
+    const body = within(sheet).getByText("長い説明").closest("div.overflow-y-auto") as HTMLElement;
+    expect(body).not.toBeNull();
+    expect(body.style.touchAction).toBe("pan-y");
+    expect(screen.getByTestId("story-detail-drag-handle")).not.toContainElement(body);
+  });
+
+  it("上へ払うと「詳しく」が開き、開いているあいだは自動送りしない", () => {
+    const stories = [makeStory({ id: "a" }), makeStory({ id: "b", vendor: null })];
+    const { container } = render(<StoryViewer stories={stories} initialIndex={0} onClose={vi.fn()} />);
+    const surface = getPressSurface(container);
+
+    fireEvent.pointerDown(surface, { clientX: 200, clientY: 600, pointerId: 1 });
+    fireEvent.pointerMove(surface, { clientX: 200, clientY: 450, pointerId: 1 });
+    fireEvent.pointerUp(surface, { clientX: 200, clientY: 450, pointerId: 1 });
+
+    expect(screen.getByRole("dialog", { name: "テスト青果店の詳しい情報" })).toBeInTheDocument();
+
+    // 15秒たっても次の投稿（vendor が無い「出店者」）へ進まない
+    act(() => {
+      vi.advanceTimersByTime(16000);
+    });
+    expect(screen.queryByText("出店者")).not.toBeInTheDocument();
+  });
+
+  it("下へ払うとビューアを閉じる", () => {
+    const onClose = vi.fn();
+    const { container } = render(
+      <StoryViewer stories={[makeStory({ id: "a" })]} initialIndex={0} onClose={onClose} />
+    );
+    const surface = getPressSurface(container);
+
+    fireEvent.pointerDown(surface, { clientX: 200, clientY: 300, pointerId: 1 });
+    fireEvent.pointerMove(surface, { clientX: 200, clientY: 450, pointerId: 1 });
+    fireEvent.pointerUp(surface, { clientX: 200, clientY: 450, pointerId: 1 });
+
+    expect(onClose).toHaveBeenCalled();
   });
 });
