@@ -6,6 +6,7 @@
  * ほかの出店者の個別の情報や、来訪者の相談の中身は渡さない。
  */
 import type { VendorHelpGuideSection } from "@/lib/vendor/helpGuide";
+import { VENDOR_HELP_PAGES } from "@/lib/vendor/helpPages";
 import type { VendorHelpMarketStats, VendorHelpShopStats } from "@/lib/vendor/helpChatStats.server";
 
 /** その出店者のお店の登録内容。空の項目は「まだ登録されていない」として伝える */
@@ -29,7 +30,8 @@ export const VENDOR_HELP_PERSONA_RULES = [
   "いま話している相手は、日曜市に出店しているお店の人（出店者）です。来訪者ではありません。",
   "出店者がアプリを使うときに困ったことに答える、ヘルプデスクの役目です。",
   "土佐弁を少し交えつつ、やさしく、短く答えてください。回答は200文字以内を目安にします。",
-  "操作を案内するときは、どの画面で何を押すかを具体的に書いてください。画面の場所は下のガイドの「画面」の値（/vendor/... など）をそのまま書いてかまいません。",
+  "操作を案内するときは、どの画面で何を押すかを具体的に書いてください。",
+  "画面を案内するときは、下の【案内できる画面】の名前と URL を使い、[近況投稿ページ](/vendor/post/new) のような形のリンクで書いてください。URL だけを書いたり、一覧にない画面へのリンクを作ったりしないでください。",
 ];
 
 /** 運営調整可: 答えられないときの決まり */
@@ -103,6 +105,9 @@ export function buildVendorHelpSystemPrompt(
     lines.push(`■ ${section.title}（画面: ${section.href}）`, section.description);
     for (const tip of section.tips) lines.push(`・${tip}`);
   }
+
+  lines.push("", "【案内できる画面】");
+  for (const page of VENDOR_HELP_PAGES) lines.push(`・${page.name}: ${page.href}（${page.about}）`);
 
   lines.push(
     "",
