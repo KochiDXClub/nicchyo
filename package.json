@@ -9,7 +9,7 @@
   "scripts": {
     "predev": "node ./scripts/copy-maplibre-worker.mjs",
     "dev": "next dev",
-    "prebuild": "node ./scripts/copy-maplibre-worker.mjs",
+    "prebuild": "node ./scripts/copy-maplibre-worker.mjs && node ./scripts/code-health/save-on-deploy.mjs",
     "build": "next build",
     "start": "next start",
     "lint": "eslint app/ lib/ components/ types/ utils/ proxy.ts",
@@ -20,6 +20,7 @@
     "changelog:pack": "node scripts/pack-changelog.mjs",
     "code-health": "node scripts/code-health/cli.mjs",
     "code-health:diff": "node scripts/code-health/cli.mjs --base origin/develop --strict",
+    "code-health:save": "node scripts/code-health/cli.mjs --save",
     "migrate:vendor-images": "node scripts/migrate-vendor-images.mjs"
   },
   "lint-staged": {
