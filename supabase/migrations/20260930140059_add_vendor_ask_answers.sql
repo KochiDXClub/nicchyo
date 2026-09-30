@@ -66,7 +66,9 @@ ALTER TABLE public.vendor_weekly_status ENABLE ROW LEVEL SECURITY;
 
 -- 権限は標準の付与に頼らず明示する。匿名ユーザーは読み取りだけ、出店者は自分の行を
 -- 読み書きできる（どの行に触れるかは、下の RLS が auth.uid() = vendor_id で絞る）。
-REVOKE ALL ON public.vendor_weekly_status FROM anon;
+-- Supabase は新しいテーブルに、標準で全権限（TRUNCATE を含む）を anon / authenticated へ付ける。
+-- TRUNCATE は RLS を素通りして全員の行を消せるので、いったん剥がして必要な分だけ付け直す。
+REVOKE ALL ON public.vendor_weekly_status FROM anon, authenticated;
 GRANT SELECT ON public.vendor_weekly_status TO anon;
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.vendor_weekly_status TO authenticated;
 
