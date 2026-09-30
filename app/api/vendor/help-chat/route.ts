@@ -166,7 +166,8 @@ export async function POST(request: Request) {
 
   const vendorId = user.id;
   const readable = openAiSseToTextStream(upstream.body, {
-    onFinish: (answer) => saveHelpLog(vendorId, text, answer),
+    onFinish: (answer, { truncated }) =>
+      saveHelpLog(vendorId, text, truncated ? `${answer}\n［途中で切れた］` : answer),
   });
 
   return new Response(readable, { headers: TEXT_STREAM_HEADERS });

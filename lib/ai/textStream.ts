@@ -12,12 +12,17 @@ export const TEXT_STREAM_HEADERS = {
   "X-Accel-Buffering": "no",
 } as const;
 
+type FinishInfo = {
+  /** OpenAI からの受け取りが途中で失敗した、または利用者側で切れた */
+  truncated: boolean;
+};
+
 type Options = {
   /**
    * 流し終わったあと（途中で切れたときも）に、それまでの答えの全文を渡す。
    * 記録などに使う。ここで失敗しても、利用者への答えには影響させない
    */
-  onFinish?: (text: string) => Promise<void> | void;
+  onFinish?: (text: string, info: FinishInfo) => Promise<void> | void;
 };
 
 export function openAiSseToTextStream(
@@ -27,11 +32,13 @@ export function openAiSseToTextStream(
   const encoder = new TextEncoder();
   const decoder = new TextDecoder();
   const reader = upstream.getReader();
+  let cancelled = false;
 
   return new ReadableStream<Uint8Array>({
     async start(controller) {
       let buffer = "";
       let text = "";
+      let failed = false;
       try {
         while (true) {
           const { done, value } = await reader.read();
@@ -56,23 +63,29 @@ export function openAiSseToTextStream(
           }
         }
       } catch {
-        // 利用者が画面を閉じたなどで読めなくなった。ここまでの答えで終える
+        // OpenAI からの受け取りが途中で失敗した
+        failed = true;
       } finally {
-        try {
-          controller.close();
-        } catch {
-          // すでに閉じている（利用者側で切れた）
-        }
+        // 記録はレスポンスを閉じる前に済ませる。サーバーレスでは、閉じた時点で
+        // 関数が止められて記録が残らないことがあるため
         if (onFinish) {
           try {
-            await onFinish(text);
+            await onFinish(text, { truncated: failed || cancelled });
           } catch {
             // 記録の失敗は答えに影響させない
           }
         }
+        try {
+          // 途中で失敗したときは、正常に終わったように見せず、利用者側に切れたことを伝える
+          if (failed) controller.error(new Error("upstream stream failed"));
+          else controller.close();
+        } catch {
+          // すでに閉じている（利用者側で切れた）
+        }
       }
     },
     cancel() {
+      cancelled = true;
       // 利用者側で切れたら、OpenAI からの受け取りも止める（無駄なトークンを使わない）
       reader.cancel().catch(() => {});
     },

@@ -131,7 +131,7 @@ describe("POST /api/vendor/help-chat", () => {
     expect(system).toContain("・支払い方法: 現金");
     expect(system).toContain("最新情報の投稿");
     expect(system).toContain("話題になった回数: 4回（そのうち、おすすめされた回数: 2回）");
-    expect(system).toContain("nicchyo の来訪者数: 今週 1,200人 / 今月 5,000人");
+    expect(system).toContain("nicchyo の来訪者数: 今週（月曜から今日まで） 1,200人 / 今月 5,000人");
 
     expect(insertLog).toHaveBeenCalledWith({
       vendor_id: "vendor-1",
