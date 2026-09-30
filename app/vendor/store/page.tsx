@@ -13,7 +13,7 @@ import AnswerRow from "./components/AnswerRow";
 import AskSheet from "./components/AskSheet";
 import CheerBubble from "./components/CheerBubble";
 import StallHero from "./components/StallHero";
-import { useStoreStudio } from "./useStoreStudio";
+import { countsForGrowth, useStoreStudio } from "./useStoreStudio";
 
 /** 進み具合に合わせた、にちよさんのひとこと */
 function coachMessage(answered: number, total: number): string {
@@ -67,7 +67,7 @@ export default function VendorStorePage() {
                   className="shrink-0"
                 />
                 <div className="consult-greeting consult-greeting--left min-w-0 flex-1 rounded-card border border-amber-200 bg-amber-50/60 px-4 py-3">
-                  <p className="text-[15px] font-bold leading-relaxed text-amber-900">
+                  <p className="text-base font-bold leading-relaxed text-amber-900">
                     {coachMessage(answeredCount, total)}
                   </p>
                 </div>
@@ -108,7 +108,9 @@ export default function VendorStorePage() {
 
             {/* 章ごとの質問と答え */}
             {groups.map((group) => {
-              const answeredInGroup = group.questions.filter((q) => q.isAnswered(snapshot)).length;
+              // 「お店の育ち」と同じ数え方にする（今週の商品は数に入れない）
+              const growthInGroup = group.questions.filter(countsForGrowth);
+              const answeredInGroup = growthInGroup.filter((q) => q.isAnswered(snapshot)).length;
               return (
                 <section key={group.key} aria-labelledby={`group-${group.key}`}>
                   <div className="mb-2.5 flex items-center justify-between px-1">
@@ -120,7 +122,7 @@ export default function VendorStorePage() {
                       {group.title}
                     </h2>
                     <span className="text-xs font-bold text-amber-900">
-                      {answeredInGroup} / {group.questions.length}
+                      {answeredInGroup} / {growthInGroup.length}
                     </span>
                   </div>
                   <ul className="flex flex-col gap-2.5">

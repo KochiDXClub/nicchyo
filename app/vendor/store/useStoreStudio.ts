@@ -27,7 +27,7 @@ const CHEERS = [
  * 「お店の育ち」に数える質問。今週の商品は週が変わると答えが空に戻るので、
  * 数に入れると毎週満点から落ちてしまう。数から外すだけで、質問としては残す。
  */
-const countsForGrowth = (question: AskQuestion) => question.tier !== "weekly";
+export const countsForGrowth = (question: AskQuestion) => question.tier !== "weekly";
 
 const COMPLETE_CHEER = "ぜんぶ教えてくれて、ありがとう！満点じゃ！";
 
@@ -169,6 +169,7 @@ export function useStoreStudio(vendorId: string | null) {
   const save = useCallback(
     async (answer: AskAnswer) => {
       if (!vendorId || saving) return;
+      const wasComplete = isComplete;
       setSaving(true);
       setError(null);
       try {
@@ -195,7 +196,8 @@ export function useStoreStudio(vendorId: string | null) {
           .every((question) => question.isAnswered(latest));
         // 答えを消したときは、ほめない
         const cleared = isClearAnswer(answer);
-        if (!cleared) showCheer(nowComplete);
+        // 満点のひとことは、この答えで満点になったときだけ（満点のあとに答え直すたびには言わない）
+        if (!cleared) showCheer(nowComplete && !wasComplete);
 
         // 「続きを答える」の最中は、次の質問へそのまま進む。それ以外は閉じる
         if (queueMode && remaining && !cleared) {
@@ -210,10 +212,10 @@ export function useStoreStudio(vendorId: string | null) {
         setSaving(false);
       }
     },
-    [vendorId, saving, weekDate, nextUnanswered, showCheer, queueMode, queueSkipped]
+    [vendorId, saving, isComplete, weekDate, nextUnanswered, showCheer, queueMode, queueSkipped]
   );
 
-  /** 入れた値を消す（つながりと店舗写真）。消せない質問では何もしない */
+  /** 入れた値を消す（つながり・店舗写真・店主名・ジャンル）。消せない質問では何もしない */
   const clear = useCallback(
     (id: AskQuestionId) => {
       const empty = emptyAnswerFor(id);

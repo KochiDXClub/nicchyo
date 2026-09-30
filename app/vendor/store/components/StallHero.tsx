@@ -82,7 +82,8 @@ export default function StallHero({
         </button>
 
         <div className="flex flex-col gap-2 px-5 pb-5 pt-4">
-          <button type="button" onClick={onEditName} className="text-left" aria-label="お店の名前を変える">
+          {/* 見出しはボタンの外に置く（ボタンの中の h1 は見出しとして読まれない）。押す所は見出しの上に重ねる */}
+          <div className="relative">
             <h1
               className={
                 name
@@ -92,7 +93,10 @@ export default function StallHero({
             >
               {name || "お店の名前を決めてや"}
             </h1>
-          </button>
+            <button type="button" onClick={onEditName} className="absolute inset-0 rounded-btn">
+              <span className="sr-only">お店の名前を変える</span>
+            </button>
+          </div>
           {(snapshot.categoryName || snapshot.styleTags.length > 0) && (
             <div className="flex flex-wrap gap-1.5">
               {snapshot.categoryName && <Badge variant="amber">{snapshot.categoryName}</Badge>}

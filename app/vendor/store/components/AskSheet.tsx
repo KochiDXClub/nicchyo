@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import GrandmaAvatar from "@/app/(public)/consult/components/GrandmaAvatar";
 import { DEFAULT_CONSULT_CHARACTER } from "@/app/(public)/consult/data/consultCharacters";
 import AskInput from "@/components/vendor/ask/AskInputs";
 import { useBodyScrollLock } from "@/lib/ui/bodyScrollLock";
+import { useDialogFocus } from "@/lib/ui/useDialogFocus";
 import { isClearable, type AskAnswer, type AskQuestion, type VendorAskSnapshot } from "@/lib/vendor/askQuestions";
 
 /**
@@ -39,6 +40,12 @@ export default function AskSheet({
 }) {
   const reduceMotion = useReducedMotion();
   useBodyScrollLock(true);
+  const sheetRef = useRef<HTMLElement>(null);
+  // 開いたら中へ、次の質問に進んだら新しい入力欄へフォーカスを移し、閉じたら元の行へ戻す
+  useDialogFocus(sheetRef, question.id);
+  /** 「この答えを消す」を一度押したあと（誤って消さないよう、もう一度確かめる） */
+  const [confirmingClear, setConfirmingClear] = useState(false);
+  useEffect(() => setConfirmingClear(false), [question.id]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -62,10 +69,12 @@ export default function AskSheet({
         className="absolute inset-0 bg-nicchyo-ink/40 backdrop-blur-[2px]"
       />
       <motion.section
+        ref={sheetRef}
+        tabIndex={-1}
         role="dialog"
         aria-modal="true"
         aria-label={question.text}
-        className="relative max-h-[90dvh] w-full max-w-[38rem] overflow-y-auto overscroll-contain rounded-t-sheet bg-nicchyo-base shadow-float"
+        className="relative max-h-[90dvh] w-full max-w-[38rem] overflow-y-auto overscroll-contain rounded-t-sheet bg-nicchyo-base shadow-float outline-none"
         style={{ paddingBottom: "calc(var(--safe-bottom, 0px) + 1.5rem)" }}
         initial={reduceMotion ? false : { y: "100%" }}
         animate={{ y: 0 }}
@@ -111,16 +120,38 @@ export default function AskSheet({
                   この質問は飛ばす
                 </button>
               )}
-              {isClearable(question.id) && question.isAnswered(snapshot) && (
-                <button
-                  type="button"
-                  onClick={onClear}
-                  disabled={saving}
-                  className="font-semibold text-rose-600 underline underline-offset-2 disabled:opacity-50"
-                >
-                  この答えを消す
-                </button>
-              )}
+              {isClearable(question.id) &&
+                question.isAnswered(snapshot) &&
+                (confirmingClear ? (
+                  <span className="flex items-center gap-3" role="group" aria-label="この答えを消してよいか">
+                    <span className="font-semibold text-nicchyo-ink/70">ほんまに消す？</span>
+                    <button
+                      type="button"
+                      onClick={onClear}
+                      disabled={saving}
+                      className="font-bold text-rose-600 underline underline-offset-2 disabled:opacity-50"
+                    >
+                      消す
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setConfirmingClear(false)}
+                      disabled={saving}
+                      className="font-semibold text-nicchyo-ink/60 underline underline-offset-2 disabled:opacity-50"
+                    >
+                      やめる
+                    </button>
+                  </span>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setConfirmingClear(true)}
+                    disabled={saving}
+                    className="font-semibold text-rose-600 underline underline-offset-2 disabled:opacity-50"
+                  >
+                    この答えを消す
+                  </button>
+                ))}
             </div>
           )}
           {error && (

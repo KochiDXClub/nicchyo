@@ -65,7 +65,16 @@ export async function fetchAskSnapshot(
     supabase.from("categories").select("id, name").order("name"),
   ]);
 
-  if (vendorResult.error || !vendorResult.data) {
+  // どれか1つでも読めなかったら、画面ごと「読めんかった」にする。
+  // 空として出すと、読めなかった答え（公開の設定や今週の商品）をそのまま上書きさせてしまう
+  if (
+    vendorResult.error ||
+    !vendorResult.data ||
+    productResult.error ||
+    weeklyResult.error ||
+    ownerResult.error ||
+    categoryResult.error
+  ) {
     throw new AskUserFacingError("店舗情報を取得できませんでした。");
   }
   const vendor = vendorResult.data;
@@ -153,10 +162,25 @@ async function updateVendor(
 }
 
 /** 看板商品（vendors.signature_product_name と同じ名前の商品）の id。無ければ null */
-async function findSignatureProductId(
+/** 店舗写真（store-main.* と store-thumb.webp）を Storage から消す。失敗しても投げない */
+async function removeStoreImages(supabase: SupabaseClient, vendorId: string): Promise<void> {
+  try {
+    const { data } = await supabase.storage.from("vendor-images").list(vendorId);
+    const paths = (data ?? [])
+      .map((file) => file.name)
+      .filter((name) => name.startsWith("store-main.") || name === "store-thumb.webp")
+      .map((name) => `${vendorId}/${name}`);
+    if (paths.length > 0) await supabase.storage.from("vendor-images").remove(paths);
+  } catch {
+    // 消せなかった写真は残るが、店舗情報からは外れているので表には出ない
+  }
+}
+
+/** 今の看板商品（vendors.signature_product_name と同じ名前の商品） */
+async function findSignatureProduct(
   supabase: SupabaseClient,
   vendorId: string
-): Promise<string | null> {
+): Promise<{ id: string; imageUrl: string | null } | null> {
   const { data: vendor, error: vendorError } = await supabase
     .from("vendors")
     .select("signature_product_name")
@@ -168,13 +192,18 @@ async function findSignatureProductId(
 
   const { data, error } = await supabase
     .from("products")
-    .select("id")
+    .select("id, image_url")
     .eq("vendor_id", vendorId)
     .eq("name", name)
     .limit(1)
     .maybeSingle();
   if (error) throw error;
-  return (data?.id as string | undefined) ?? null;
+  if (!data) return null;
+  return { id: data.id as string, imageUrl: (data.image_url as string | null) ?? null };
+}
+
+async function findSignatureProductId(supabase: SupabaseClient, vendorId: string): Promise<string | null> {
+  return (await findSignatureProduct(supabase, vendorId))?.id ?? null;
 }
 
 async function uploadProductImage(
@@ -222,22 +251,33 @@ async function saveSignature(
   // 既存の商品を別の名前に書き換えると、その商品が商品一覧から消えてしまう
   const { data: existing, error: findError } = await supabase
     .from("products")
-    .select("id")
+    .select("id, image_url")
     .eq("vendor_id", vendorId)
     .eq("name", trimmed)
     .limit(1)
     .maybeSingle();
   if (findError) throw findError;
 
+  // 名前だけ直したとき（写真を選び直していない）は、前の看板商品の写真を引き継ぐ。
+  // 入力欄には前の写真が出たままなので、出店者は写真もそのままのつもりでいる
+  const carriedImageUrl = imageFile ? null : ((await findSignatureProduct(supabase, vendorId))?.imageUrl ?? null);
+
   let productId = existing?.id as string | undefined;
   if (!productId) {
     const { data, error } = await supabase
       .from("products")
-      .insert({ vendor_id: vendorId, name: trimmed })
+      .insert({ vendor_id: vendorId, name: trimmed, image_url: carriedImageUrl })
       .select("id")
       .single();
     if (error || !data) throw error ?? new Error("商品を登録できませんでした。");
     productId = data.id as string;
+  } else if (carriedImageUrl && !existing?.image_url) {
+    const { error } = await supabase
+      .from("products")
+      .update({ image_url: carriedImageUrl, updated_at: new Date().toISOString() })
+      .eq("id", productId)
+      .eq("vendor_id", vendorId);
+    if (error) throw error;
   }
 
   if (imageFile) {
@@ -317,7 +357,12 @@ export async function saveAskAnswer(
     case "x":
       return updateVendor(supabase, vendorId, { sns_x: orNull(answer.value) });
     case "shop-photo": {
-      if (!answer.imageFile) return updateVendor(supabase, vendorId, { shop_image_url: null });
+      if (!answer.imageFile) {
+        await updateVendor(supabase, vendorId, { shop_image_url: null });
+        // 消した写真を公開の URL のまま残さない。消せなくても、答えを消すことは止めない
+        await removeStoreImages(supabase, vendorId);
+        return;
+      }
       const imageUrl = await uploadStoreImage(vendorId, answer.imageFile);
       // 毎回同じパスに上書きされるので、版をつけてブラウザの古いキャッシュを避ける
       return updateVendor(supabase, vendorId, { shop_image_url: `${imageUrl}?v=${Date.now()}` });

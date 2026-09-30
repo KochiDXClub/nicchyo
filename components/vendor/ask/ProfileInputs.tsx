@@ -220,7 +220,7 @@ export function OwnerInput({ snapshot, saving, onSubmit, onSkip }: InputProps) {
           )}
           aria-hidden="true"
         >
-          <span className="h-4 w-4 rounded-full bg-white shadow-sm" />
+          <span className="h-4 w-4 rounded-full bg-white shadow-chip" />
         </span>
         お店のページにお名前を出す
       </button>

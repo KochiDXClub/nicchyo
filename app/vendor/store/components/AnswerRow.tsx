@@ -35,7 +35,7 @@ export default function AnswerRow({
           "active:scale-[0.99] motion-reduce:active:scale-100",
           answered
             ? "bg-white shadow-card ring-1 ring-line hover:shadow-lift"
-            : "bg-white/70 ring-2 ring-dashed ring-amber-300 hover:bg-white"
+            : "border-2 border-dashed border-amber-300 bg-white/70 hover:bg-white"
         )}
       >
         <span
@@ -50,11 +50,11 @@ export default function AnswerRow({
         <span className="min-w-0 flex-1">
           <span className="block text-xs font-bold leading-snug text-amber-800">{question.text}</span>
           {answered && summary ? (
-            <span className="mt-1 line-clamp-2 block text-[15px] font-semibold leading-snug text-nicchyo-ink">
+            <span className="mt-1 line-clamp-2 block text-base font-semibold leading-snug text-nicchyo-ink">
               {summary}
             </span>
           ) : (
-            <span className="mt-1 block text-[15px] font-semibold text-amber-700">
+            <span className="mt-1 block text-base font-semibold text-amber-700">
               タップして答えてや
             </span>
           )}
