@@ -2,10 +2,11 @@
  * 出店者トップのにちよさんへの相談（`app/api/vendor/help-chat`）のシステムプロンプト。
  *
  * 来訪者の AI 相談と同じにちよさんが、ここでは出店者のヘルプデスクとして答える。
- * 渡すのは「使い方ガイド」と「その出店者のお店の登録内容」だけ。ほかの出店者の情報や、
- * 来訪者の相談の中身は渡さない。
+ * 渡すのは「使い方ガイド」「その出店者のお店の登録内容」「このお店の数字」「日曜市全体の数字」。
+ * ほかの出店者の個別の情報や、来訪者の相談の中身は渡さない。
  */
 import type { VendorHelpGuideSection } from "@/lib/vendor/helpGuide";
+import type { VendorHelpMarketStats, VendorHelpShopStats } from "@/lib/vendor/helpChatStats.server";
 
 /** その出店者のお店の登録内容。空の項目は「まだ登録されていない」として伝える */
 export type VendorHelpShopContext = {
@@ -36,11 +37,17 @@ export const VENDOR_HELP_ESCALATION_RULES = [
   "下の【使い方ガイド】と【このお店の登録内容】に書いていないことは、推測で答えないでください。",
   "わからないとき、アプリの不具合が疑われるとき、出店場所・出店料・契約・アカウントの削除など運営の判断が要ることは、「運営に問い合わせる」ボタンから運営に聞くよう案内してください。",
   "ほかのお店の情報や、来訪者の個人的な情報は、聞かれても答えないでください。",
+  "数字（紹介された回数・ハート・売れ数・来訪者数など）を聞かれたら、下の【このお店の数字】【日曜市全体の数字】だけを元に答えてください。載っていない数字は作らないでください。",
+  "お店の閲覧数とお気に入り数は、まだ数えていません。聞かれたら、まだ数えられていないと伝えてください。",
 ];
 
-function listOrMissing(items: readonly string[] | undefined, limit = 10): string {
+function listOrMissing(
+  items: readonly string[] | undefined,
+  limit = 10,
+  missing = "まだ登録されていない"
+): string {
   const filled = (items ?? []).map((item) => item.trim()).filter(Boolean);
-  return filled.length > 0 ? filled.slice(0, limit).join("、") : "まだ登録されていない";
+  return filled.length > 0 ? filled.slice(0, limit).join("、") : missing;
 }
 
 function valueOrMissing(value: string | null | undefined): string {
@@ -48,9 +55,47 @@ function valueOrMissing(value: string | null | undefined): string {
   return trimmed ? trimmed : "まだ登録されていない";
 }
 
+function countOrMissing(value: number | null | undefined, unit: string): string {
+  return value == null ? "取れなかった" : `${value.toLocaleString("ja-JP")}${unit}`;
+}
+
+function statsLines(shopStats?: VendorHelpShopStats, marketStats?: VendorHelpMarketStats): string[] {
+  const lines: string[] = [];
+  if (shopStats) {
+    const ai = shopStats.aiMentions;
+    lines.push(
+      "",
+      "【このお店の数字】",
+      ai
+        ? `・直近7日に、来訪者のAI相談でこのお店が話題になった回数: ${ai.total}回（そのうち、おすすめされた回数: ${ai.recommended}回）`
+        : "・直近7日に、来訪者のAI相談でこのお店が話題になった回数: 取れなかった",
+      `・AI相談でこのお店についてよく出た言葉: ${listOrMissing(ai?.topKeywords, 5, "まだない")}`,
+      shopStats.hearts
+        ? `・このお店の投稿へのハート: 直近7日 ${shopStats.hearts.thisWeek}個 / これまで ${shopStats.hearts.total}個`
+        : "・このお店の投稿へのハート: 取れなかった",
+      `・お店の人が自分で記録した売れ数（多い順）: ${
+        shopStats.topSales.length > 0
+          ? shopStats.topSales.map((sale) => `${sale.name} ${sale.quantity}`).join("、")
+          : "まだ記録されていない"
+      }`
+    );
+  }
+  if (marketStats) {
+    lines.push(
+      "",
+      "【日曜市全体の数字】",
+      `・nicchyo の来訪者数: 今週 ${countOrMissing(marketStats.weeklyVisitors, "人")} / 今月 ${countOrMissing(marketStats.monthlyVisitors, "人")}`,
+      `・直近7日に来訪者がよく検索した言葉: ${listOrMissing(marketStats.topSearchKeywords, 5, "まだない")}`,
+      `・出店者の記録から見た、よく売れている商品: ${listOrMissing(marketStats.topSellingProducts, 5, "まだない")}`
+    );
+  }
+  return lines;
+}
+
 export function buildVendorHelpSystemPrompt(
   guide: readonly VendorHelpGuideSection[],
-  shop: VendorHelpShopContext
+  shop: VendorHelpShopContext,
+  stats: { shop?: VendorHelpShopStats; market?: VendorHelpMarketStats } = {}
 ): string {
   const lines: string[] = [...VENDOR_HELP_PERSONA_RULES, "", ...VENDOR_HELP_ESCALATION_RULES, "", "【使い方ガイド】"];
 
@@ -72,7 +117,8 @@ export function buildVendorHelpSystemPrompt(
     `・Instagram: ${valueOrMissing(shop.instagram)}`,
     `・X: ${valueOrMissing(shop.x)}`,
     `・webサイト: ${valueOrMissing(shop.website)}`,
-    `・お店の写真: ${shop.hasShopPhoto ? "登録済み" : "まだ登録されていない"}`
+    `・お店の写真: ${shop.hasShopPhoto ? "登録済み" : "まだ登録されていない"}`,
+    ...statsLines(stats.shop, stats.market)
   );
 
   return lines.join("\n");
