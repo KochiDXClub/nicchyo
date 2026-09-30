@@ -27,7 +27,7 @@ alter table market_locations
       road_id is not null
       and road_distance_m is not null and road_distance_m >= 0
       and road_side in ('left', 'right')
-      and road_offset_m is not null and road_offset_m >= 0
+      and road_offset_m is not null and road_offset_m >= 0 and road_offset_m <= 100
     )
   );
 
@@ -67,7 +67,8 @@ create or replace function save_map_layout(
   p_route_config           jsonb,
   p_vendors                jsonb default '[]'::jsonb
 )
-returns void
+-- 新しく登録した出店者の「仮 id → 採番された id」を返す（呼び出し側が監査ログに残すため）
+returns jsonb
 language plpgsql
 security definer
 set search_path = public
@@ -263,6 +264,8 @@ begin
       visible_distance_meters = excluded.visible_distance_meters,
       updated_at              = now();
   end if;
+
+  return jsonb_build_object('createdVendors', v_created_vendors);
 end;
 $$;
 
