@@ -149,7 +149,8 @@ async function saveSignature(
     const { error } = await supabase
       .from("products")
       .update({ name: trimmed, updated_at: new Date().toISOString() })
-      .eq("id", productId);
+      .eq("id", productId)
+      .eq("vendor_id", vendorId);
     if (error) throw error;
   } else {
     const { data, error } = await supabase
@@ -166,7 +167,8 @@ async function saveSignature(
     const { error } = await supabase
       .from("products")
       .update({ image_url: imageUrl, updated_at: new Date().toISOString() })
-      .eq("id", productId);
+      .eq("id", productId)
+      .eq("vendor_id", vendorId);
     if (error) throw error;
   }
 
@@ -218,7 +220,8 @@ export async function saveAskAnswer(
       const { error } = await supabase
         .from("products")
         .update({ description: orNull(answer.text), updated_at: new Date().toISOString() })
-        .eq("id", productId);
+        .eq("id", productId)
+      .eq("vendor_id", vendorId);
       if (error) throw error;
       return;
     }
