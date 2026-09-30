@@ -10,12 +10,7 @@ import { fetchVendorStore } from "@/app/vendor/_services/storeService";
 import { fetchVendorPosts } from "@/app/vendor/_services/postsService";
 import type { Post } from "@/app/vendor/_types";
 import ClosedDaysCalendar from "@/components/vendor/ClosedDaysCalendar";
-
-type SetupStep = {
-  label: string;
-  done: boolean;
-  href: string;
-};
+import VendorAskStage from "./ask/VendorAskStage";
 
 type Summary = {
   shopName: string;
@@ -33,7 +28,6 @@ export default function MyShopPage() {
   const { user } = useAuth();
   const reduceMotion = useReducedMotion();
 
-  const [setupSteps, setSetupSteps] = useState<SetupStep[] | null>(null);
   const [summary, setSummary] = useState<Summary | null>(null);
   const [posts, setPosts] = useState<Post[] | null>(null);
   const [scrolled, setScrolled] = useState(false);
@@ -50,16 +44,6 @@ export default function MyShopPage() {
           scheduleCount: store?.schedule.length ?? 0,
           postCount: posts.length,
         });
-
-        if (!store) return;
-        setSetupSteps([
-          { label: "店舗名を設定する", done: !!store.name?.trim(), href: "/vendor/store" },
-          { label: "商品を追加する", done: store.main_products.length > 0, href: "/vendor/store" },
-          { label: "出店予定日を設定する", done: store.schedule.length > 0, href: "/vendor/store" },
-          { label: "決済方法を設定する", done: store.payment_methods.length > 0, href: "/vendor/store" },
-          { label: "店舗写真を追加する", done: !!store.shop_image_url, href: "/vendor/store" },
-          { label: "最初の投稿をする", done: posts.length > 0, href: "/vendor/post/new" },
-        ]);
       })
       .catch(() => {
         // 取得失敗時は静かに非表示
@@ -72,10 +56,6 @@ export default function MyShopPage() {
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
-
-  const incompleteSteps = setupSteps?.filter((s) => !s.done) ?? [];
-  const completedCount = setupSteps ? setupSteps.length - incompleteSteps.length : 0;
-  const showSetup = setupSteps !== null && incompleteSteps.length > 0;
 
   const sundayLabel = useMemo(() => {
     const d = daysUntilNextSunday();
@@ -114,7 +94,7 @@ export default function MyShopPage() {
 
       <div className="relative z-10 mx-auto w-full max-w-3xl px-4">
         {/* 挨拶ヒーロー */}
-        <header className="pb-8 pt-14 sm:pt-20">
+        <header className="pb-4 pt-10 sm:pt-14">
           <p className="eyebrow">My Shop</p>
           <h1 className="mt-2 font-display text-[2rem] leading-tight text-nicchyo-ink sm:text-4xl">
             おかえりなさい{user?.name ? `、${user.name}さん` : ""}
@@ -126,45 +106,13 @@ export default function MyShopPage() {
           </p>
         </header>
 
-        {/* お店の準備（未完了のときだけ） */}
-        {showSetup && setupSteps && (
-          <Reveal reduceMotion={reduceMotion} className="mb-5">
-            <section className="rounded-panel border border-amber-100 bg-white/85 p-5 shadow-card backdrop-blur-sm">
-              <div className="mb-3 flex items-center justify-between gap-3">
-                <h2 className="font-display text-xl text-nicchyo-ink">お店の準備</h2>
-                <span className="rounded-full bg-amber-100 px-3 py-1 text-sm font-bold text-amber-700">
-                  あと{incompleteSteps.length}件
-                </span>
-              </div>
-
-              <div className="mb-4 h-2.5 w-full overflow-hidden rounded-full bg-amber-100/70">
-                <div
-                  className="h-full rounded-full bg-amber-500 transition-all duration-500"
-                  style={{ width: `${(completedCount / setupSteps.length) * 100}%` }}
-                />
-              </div>
-
-              <ul className="space-y-2">
-                {incompleteSteps.map((step, i) => (
-                  <li key={step.label}>
-                    <Link
-                      href={step.href}
-                      className="flex items-center gap-3.5 rounded-2xl bg-amber-50/80 px-4 py-3.5 text-nicchyo-ink transition active:scale-[0.99] active:bg-amber-100"
-                    >
-                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white text-sm font-bold text-amber-600 shadow-sm">
-                        {i + 1}
-                      </span>
-                      <span className="min-w-0 flex-1 text-[15px] font-bold leading-tight">
-                        {step.label}
-                      </span>
-                      <ChevronRight size={18} className="shrink-0 text-amber-300" />
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </section>
-          </Reveal>
+        {/* にちよさんの質問：出店者の情報入力はここで会話の形で聞く */}
+        {user?.id && (
+          <div className="mb-8">
+            <VendorAskStage vendorId={user.id} />
+          </div>
         )}
+
 
         {/* 主要アクション：いちばん使うのは「発信」 */}
         <Reveal reduceMotion={reduceMotion} className="mb-5">
