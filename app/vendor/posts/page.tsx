@@ -3,17 +3,16 @@
 export const dynamic = "force-dynamic";
 
 import { useState, useEffect } from "react";
+import { CenteredLoading, EmptyMessage, PageContainer, PageShell, PageTitle, buttonClass } from "@/components/ui";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { fetchVendorPosts, repostContent } from "../_services/postsService";
 import type { Post, PostStatus } from "../_types";
 import {
-  ArrowLeft, RotateCcw, Pencil, Clock, CheckCircle2,
+  RotateCcw, Pencil, Clock, CheckCircle2,
   XCircle, PlusCircle, Image as ImageIcon, Heart,
 } from "lucide-react";
-import { CenteredLoading } from "@/components/ui/loading-spinner";
-import { EmptyMessage } from "@/components/ui/empty-message";
 
 type FilterTab = "all" | "active" | "expired";
 
@@ -140,25 +139,13 @@ export default function VendorPostsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#FFFAF0] pb-24">
-      <div className="border-b border-amber-100 bg-white/90 px-4 py-4 backdrop-blur-sm">
-        <div className="mx-auto flex max-w-2xl items-center gap-3">
-          <Link href="/my-shop" className="flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50">
-            <ArrowLeft size={18} />
-          </Link>
-          <div>
-            <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-amber-600">Post History</p>
-            <h1 className="text-xl font-bold text-slate-900">投稿履歴</h1>
-          </div>
-          <Link href="/vendor/post/new"
-            className="ml-auto flex items-center gap-1.5 rounded-full bg-amber-500 px-3 py-2 text-xs font-semibold text-white shadow transition hover:bg-amber-400"
-          >
-            <PlusCircle size={14} />新規投稿
-          </Link>
-        </div>
-      </div>
+    <PageShell bottomNav={false}>
+      <PageTitle
+        title="投稿履歴"
+        action={<Link href="/vendor/post/new" className={buttonClass({ size: "sm" })}><PlusCircle size={14} aria-hidden="true" />新規投稿</Link>}
+      />
 
-      <div className="mx-auto max-w-2xl px-4 pt-4">
+      <PageContainer>
         <div className="mb-4 rounded-3xl border border-amber-100 bg-white p-4 shadow-sm">
           <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-amber-600">Post History</p>
           <h2 className="mt-1 text-2xl font-bold text-slate-900">投稿履歴</h2>
@@ -200,9 +187,9 @@ export default function VendorPostsPage() {
             ))}
           </div>
         )}
-      </div>
+      </PageContainer>
 
       {showToast && <RepostSuccessToast onClose={() => setShowToast(false)} />}
-    </div>
+    </PageShell>
   );
 }
