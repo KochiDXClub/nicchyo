@@ -88,3 +88,26 @@ describe('歩行者ネットワーク（OpenStreetMap）', () => {
     expect(Date.now() - started).toBeLessThan(1000);
   });
 });
+
+describe('buildGuidePathsFromMapRoute（複数の道）', () => {
+  it('別々の道はそれぞれの名前と種別の経路になり、出店可の通りだけを追手筋とする', () => {
+    const mapRoute = {
+      points: [
+        { id: 'a0', lat: 33.5614, lng: 133.53, order: 0, roadId: 'r1' },
+        { id: 'a1', lat: 33.5614, lng: 133.533, order: 1, roadId: 'r1' },
+        { id: 'b0', lat: 33.5605, lng: 133.534, order: 2, roadId: 'r2' },
+        { id: 'b1', lat: 33.5595, lng: 133.534, order: 3, roadId: 'r2' },
+      ],
+      config: getDefaultMapRouteConfig(),
+    };
+    const roads = [
+      { id: 'r1', name: '追手筋', kind: 'market' as const, widthMeters: 36 },
+      { id: 'r2', name: '裏の小路', kind: 'path' as const, widthMeters: 14 },
+    ];
+    const paths = buildGuidePathsFromMapRoute(mapRoute, roads);
+    expect(paths.map((p) => [p.name, p.kind]).sort()).toEqual([
+      ['裏の小路', 'path'],
+      [MARKET_PATH_NAME, 'market'],
+    ].sort());
+  });
+});

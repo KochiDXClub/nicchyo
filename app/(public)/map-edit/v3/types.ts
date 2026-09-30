@@ -49,6 +49,8 @@ export type CanvasHandlers = {
   /** ドラッグを終えた位置（ここで1件の操作として記録する） */
   onMoveLandmarkEnd: (key: string, lat: number, lng: number) => void;
   onMapClick: (lat: number, lng: number) => void;
+  /** 地図のダブルクリック（道を描く道具では描いた道の確定） */
+  onMapDoubleClick: (lat: number, lng: number) => void;
   onVertexMove: (roadId: string, pointId: string, lat: number, lng: number) => void;
   onVertexMoveEnd: (roadId: string, pointId: string, lat: number, lng: number) => void;
   onVertexRemove: (roadId: string, pointId: string) => void;
