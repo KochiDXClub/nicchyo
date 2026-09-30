@@ -11,6 +11,7 @@ import { fetchVendorPosts } from "@/app/vendor/_services/postsService";
 import type { Post } from "@/app/vendor/_types";
 import ClosedDaysCalendar from "@/components/vendor/ClosedDaysCalendar";
 import VendorAskStage from "./ask/VendorAskStage";
+import ShopIcon from "./components/ShopIcon";
 
 /**
  * 質問（にちよさんが聞く）では拾わない項目。新規の出店者が店舗名や写真を
@@ -24,9 +25,7 @@ type SetupStep = {
 
 type Summary = {
   shopName: string;
-  productCount: number;
-  scheduleCount: number;
-  postCount: number;
+  shopImageUrl?: string;
 };
 
 // 今日から次の日曜市（毎週日曜開催）までの日数。0なら当日。
@@ -51,9 +50,7 @@ export default function MyShopPage() {
         setPosts(posts);
         setSummary({
           shopName: store?.name?.trim() || "お店の名前は未設定",
-          productCount: store?.main_products.length ?? 0,
-          scheduleCount: store?.schedule.length ?? 0,
-          postCount: posts.length,
+          shopImageUrl: store?.shop_image_url,
         });
 
         if (!store) return;
@@ -103,7 +100,7 @@ export default function MyShopPage() {
             style={{ paddingTop: "env(safe-area-inset-top, 0px)" }}
           >
             <div className="mx-auto flex max-w-3xl items-center gap-2.5 px-4 py-3">
-              <span className="text-lg" aria-hidden="true">🏪</span>
+              <ShopIcon imageUrl={summary?.shopImageUrl} size="sm" />
               <p className="truncate font-display text-base text-nicchyo-ink">{shopName}</p>
             </div>
           </motion.div>
@@ -111,17 +108,15 @@ export default function MyShopPage() {
       </AnimatePresence>
 
       <div className="relative z-10 mx-auto w-full max-w-3xl px-4">
-        {/* 挨拶ヒーロー */}
-        <header className="pb-4 pt-10 sm:pt-14">
-          <p className="eyebrow !text-amber-900">My Shop</p>
-          <h1 className="mt-2 font-display text-[2rem] leading-tight text-nicchyo-ink sm:text-4xl">
-            おかえりなさい{user?.name ? `、${user.name}さん` : ""}
-          </h1>
-          <p className="mt-3 text-[15px] font-medium text-nicchyo-ink">
-            {shopName && <span className="font-bold text-nicchyo-ink">{shopName}</span>}
-            {shopName && <span className="mx-2 text-amber-300" aria-hidden="true">·</span>}
-            <span className="font-bold text-amber-900">{sundayLabel}</span>
-          </p>
+        {/* お店の名前（アイコン付き）と、次の日曜市まで */}
+        <header className="flex items-center gap-3.5 pb-4 pt-10 sm:pt-14">
+          <ShopIcon imageUrl={summary?.shopImageUrl} />
+          <div className="min-w-0">
+            <h1 className="truncate font-display text-2xl leading-tight text-nicchyo-ink sm:text-3xl">
+              {shopName}
+            </h1>
+            <p className="mt-0.5 text-[15px] font-bold text-amber-900">{sundayLabel}</p>
+          </div>
         </header>
 
         {/* にちよさんの質問：出店者の情報入力はここで会話の形で聞く */}
@@ -182,24 +177,6 @@ export default function MyShopPage() {
             </Link>
           </div>
         </Reveal>
-
-        {/* 状況ストリップ（1行に整理） */}
-        {summary && (
-          <Reveal reduceMotion={reduceMotion} className="mb-6">
-            <div className="flex items-stretch divide-x divide-amber-100 overflow-hidden rounded-panel border border-amber-100 bg-white/75 shadow-card backdrop-blur-sm">
-              {[
-                { label: "商品", value: `${summary.productCount}` },
-                { label: "出店日", value: `${summary.scheduleCount}` },
-                { label: "投稿", value: `${summary.postCount}` },
-              ].map((s) => (
-                <div key={s.label} className="flex flex-1 flex-col items-center gap-0.5 px-3 py-4">
-                  <span className="font-display text-2xl text-nicchyo-ink">{s.value}</span>
-                  <span className="text-xs font-semibold text-slate-500">{s.label}</span>
-                </div>
-              ))}
-            </div>
-          </Reveal>
-        )}
 
         {/* 出店しない日（日曜帯・ホームでは簡易版） */}
         {user?.id && (
