@@ -16,6 +16,18 @@ function untypedClient(): SupabaseClient {
   return createClient() as unknown as SupabaseClient;
 }
 
+/**
+ * 出店者がそのまま読んで対処できる失敗（例:「先に看板商品を登録してください」）。
+ * 画面は、これ以外の失敗（通信・権限など）を「うまく保存できんかった」にまとめるが、
+ * これだけはメッセージをそのまま出す。
+ */
+export class AskUserFacingError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "AskUserFacingError";
+  }
+}
+
 const orNull = (value: string) => value.trim() || null;
 
 export async function fetchAskSnapshot(
@@ -46,7 +58,7 @@ export async function fetchAskSnapshot(
   ]);
 
   if (vendorResult.error || !vendorResult.data) {
-    throw new Error("店舗情報を取得できませんでした。");
+    throw new AskUserFacingError("店舗情報を取得できませんでした。");
   }
   const vendor = vendorResult.data;
   const products = (productResult.data ?? []) as {
@@ -109,7 +121,7 @@ async function updateVendor(
 
   if (error) throw error;
   // RLS で弾かれた・行が無いときはエラーにならず 0 件になるので、成功と取り違えない
-  if (!data || data.length === 0) throw new Error("店舗情報が見つかりませんでした。");
+  if (!data || data.length === 0) throw new AskUserFacingError("店舗情報が見つかりませんでした。");
 }
 
 /** 看板商品（vendors.signature_product_name と同じ名前の商品）の id。無ければ null */
@@ -256,7 +268,7 @@ export async function saveAskAnswer(
       return saveSignature(supabase, vendorId, answer.name, answer.imageFile);
     case "signature-pr": {
       const productId = await findSignatureProductId(supabase, vendorId);
-      if (!productId) throw new Error("先に看板商品を登録してください。");
+      if (!productId) throw new AskUserFacingError("先に看板商品を登録してください。");
       const { error } = await supabase
         .from("products")
         .update({ description: orNull(answer.text), updated_at: new Date().toISOString() })
