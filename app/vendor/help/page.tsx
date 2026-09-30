@@ -1,74 +1,23 @@
 import Link from "next/link";
 import { PageContainer, PageShell, PageTitle } from "@/components/ui";
 import { Megaphone, Store, BarChart2, Sparkles, User, ChevronRight } from "lucide-react";
+import { VENDOR_HELP_GUIDE } from "@/lib/vendor/helpGuide";
 
 export const dynamic = "force-dynamic";
 
-const GUIDE_SECTIONS = [
-  {
-    icon: Megaphone,
-    color: "bg-amber-100 text-amber-600",
-    title: "最新情報の投稿",
-    href: "/vendor/post/new",
-    description: "今日のおすすめ商品・残り数量・出店場所の変更など、お客さんに伝えたい情報をリアルタイムで発信できます。",
-    tips: [
-      "投稿には期限を設定できます（1時間・本日・カスタム日時）",
-      "期限が切れた投稿は自動で非表示になります",
-      "過去の投稿は「投稿履歴」からそのまま再投稿できます",
-      "画像を添付すると目を引きやすくなります",
-    ],
-  },
-  {
-    icon: Store,
-    color: "bg-emerald-100 text-emerald-600",
-    title: "店舗情報の更新",
-    href: "/vendor/store",
-    description: "商品ラインナップ・価格・決済方法・出店予定日・営業時間・SNSリンクを管理します。",
-    tips: [
-      "商品と価格を登録するとマップ上で表示されます",
-      "出店予定日を設定するとお客さんが来店計画を立てやすくなります",
-      "決済方法（現金・カード・PayPayなど）は必ず設定しましょう",
-      "InstagramやXのリンクを追加すると集客につながります",
-    ],
-  },
-  {
-    icon: BarChart2,
-    color: "bg-violet-100 text-violet-600",
-    title: "お店の分析",
-    href: "/vendor/analytics",
-    description: "店舗の閲覧数・クリック数を先週と比較できます。時間帯別・商品別の分析も確認できます。",
-    tips: [
-      "閲覧数が多い時間帯に合わせて投稿するのが効果的です",
-      "商品分析では販売数量を自分で入力して管理できます",
-      "AIばあちゃんに何回紹介されたかも確認できます",
-      "データは毎日更新されます",
-    ],
-  },
-  {
-    icon: Sparkles,
-    color: "bg-rose-100 text-rose-600",
-    title: "AIばあちゃんに教える",
-    href: "/vendor/ai-knowledge",
-    description: "お店のこだわり・おすすめの食べ方・よくある質問への回答などを自由に書くと、AIばあちゃんがお客さんに紹介してくれます。",
-    tips: [
-      "詳しく書くほどAIの紹介精度が上がります",
-      "「午前中が一番おいしい」「試食できます」など具体的な情報が効果的です",
-      "内容はいつでも更新できます",
-      "保存後にAIが自動で学習します（数分かかる場合があります）",
-    ],
-  },
-  {
-    icon: User,
-    color: "bg-slate-100 text-slate-600",
-    title: "アカウント設定",
-    href: "/vendor/account",
-    description: "名前・メールアドレス・パスワードの変更ができます。",
-    tips: [
-      "表示名はお客さんには見えません",
-      "Googleログインの場合、パスワード変更はGoogleアカウント側で行います",
-    ],
-  },
-];
+/** ガイドの各項目に付ける絵と色。文章は lib/vendor/helpGuide.ts（にちよさんへの相談と共通） */
+const SECTION_STYLE: Record<string, { icon: typeof Megaphone; color: string }> = {
+  "/vendor/post/new": { icon: Megaphone, color: "bg-amber-100 text-amber-600" },
+  "/vendor/store": { icon: Store, color: "bg-emerald-100 text-emerald-600" },
+  "/vendor/analytics": { icon: BarChart2, color: "bg-violet-100 text-violet-600" },
+  "/vendor/ai-knowledge": { icon: Sparkles, color: "bg-rose-100 text-rose-600" },
+  "/vendor/account": { icon: User, color: "bg-slate-100 text-slate-600" },
+};
+
+const GUIDE_SECTIONS = VENDOR_HELP_GUIDE.map((section) => ({
+  ...section,
+  ...(SECTION_STYLE[section.href] ?? { icon: Sparkles, color: "bg-amber-100 text-amber-600" }),
+}));
 
 export default function VendorHelpPage() {
   return (

@@ -6,6 +6,7 @@ import {
   type ShopChatContext,
 } from "@/lib/grandma/prompts/shopChatPrompt";
 import { requestChatCompletion } from "@/lib/ai/openaiFetch";
+import { openAiSseToTextStream, TEXT_STREAM_HEADERS } from "@/lib/ai/textStream";
 import { resolveAiModelFor } from "@/lib/ai/modelStore.server";
 
 export const runtime = "nodejs";
@@ -67,46 +68,12 @@ export async function POST(req: NextRequest) {
     return new Response("Upstream error", { status: 502 });
   }
 
-  const encoder = new TextEncoder();
-  const decoder = new TextDecoder();
-
-  const readable = new ReadableStream({
-    async start(controller) {
-      const reader = upstream.body!.getReader();
-      let buffer = "";
-      try {
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split("\n");
-          buffer = lines.pop() ?? "";
-          for (const line of lines) {
-            const trimmed = line.trim();
-            if (!trimmed.startsWith("data:")) continue;
-            const data = trimmed.slice(5).trim();
-            if (data === "[DONE]") continue;
-            try {
-              const parsed = JSON.parse(data);
-              const delta = parsed.choices?.[0]?.delta?.content ?? "";
-              if (delta) controller.enqueue(encoder.encode(delta));
-            } catch {
-              // skip malformed chunk
-            }
-          }
-        }
-      } finally {
-        controller.close();
-      }
-    },
-  });
+  const readable = openAiSseToTextStream(upstream.body);
 
   return new Response(readable, {
     headers: {
-      "Content-Type": "text/plain; charset=utf-8",
+      ...TEXT_STREAM_HEADERS,
       "Transfer-Encoding": "chunked",
-      "Cache-Control": "no-cache",
-      "X-Accel-Buffering": "no",
       // この回答を識別する ID。評価（/api/grandma/feedback）と突き合わせるために返す。
       // 本文はそのまま画面に出す文字列なので、ID はヘッダーで渡す
       "X-Consult-Id": crypto.randomUUID(),
