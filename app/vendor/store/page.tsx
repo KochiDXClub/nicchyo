@@ -9,7 +9,8 @@ import { useAuth } from "@/lib/auth/AuthContext";
 import { fetchVendorStore, saveVendorStore, uploadStoreImage, fetchCategories } from "../_services/storeService";
 import { canDecodeImage, imageErrorMessage, IMAGE_DECODE_ERROR_MESSAGE } from "@/lib/image/clientCompression";
 import type { Category } from "../_services/storeService";
-import type { PaymentMethod, RainPolicy, Store } from "../_types";
+import type { PaymentMethod, Store } from "../_types";
+import { PAYMENT_OPTIONS, RAIN_OPTIONS, TIME_OPTIONS } from "@/lib/vendor/storeOptions";
 import {
   ArrowLeft,
   Save,
@@ -30,19 +31,6 @@ import {
   Globe,
 } from "lucide-react";
 
-const PAYMENT_OPTIONS: { key: PaymentMethod; label: string; emoji: string }[] = [
-  { key: "cash",   label: "現金",      emoji: "💴" },
-  { key: "card",   label: "カード",    emoji: "💳" },
-  { key: "paypay", label: "PayPay",   emoji: "📱" },
-  { key: "ic",     label: "交通系IC", emoji: "🚃" },
-];
-
-const RAIN_OPTIONS: { key: RainPolicy; label: string; desc: string }[] = [
-  { key: "outdoor",  label: "雨でも出店",              desc: "雨天でも通常通り出店" },
-  { key: "cancel",   label: "雨天中止",                desc: "雨天時は出店しない" },
-  { key: "undecided",label: "当日判断（SNSで告知）",   desc: "当日SNSで告知" },
-];
-
 const WEEKDAY_OPTIONS = [
   "毎週日曜日", "毎週土曜日",
   "第1日曜日", "第2日曜日", "第3日曜日", "第4日曜日",
@@ -57,11 +45,6 @@ const STYLE_PRESETS = [
   "試食あり",
   "常設ブース",
 ];
-
-const TIME_OPTIONS = Array.from({ length: 19 }, (_, i) => {
-  const h = i + 6; // 6:00〜24:00
-  return `${h}:00`;
-});
 
 const EMPTY_STORE: Store = {
   id: "", vendor_id: "",
