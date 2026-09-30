@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useKeyboardShortcuts } from "@/lib/hooks/useKeyboardShortcuts";
+import { useUnsavedChangesWarning } from "@/lib/hooks/useUnsavedChangesWarning";
 import {
   distanceMeters,
   findNearestRoadId as findNearestRoadIdShared,
@@ -10,6 +12,17 @@ import type { MapRouteConfig, MapRoutePoint, RoadKind } from "../../map/types/ma
 import { createProjection } from "./geo";
 import { pointAtT, offsetLatLng } from "./roadPlacement";
 import {
+  EMPTY_HISTORY,
+  focusOfOperation,
+  netChanges,
+  recordOperation,
+  redoOperation,
+  undoOperation,
+  type EditHistory,
+  type EditOperation,
+  type EditState,
+} from "./editHistory";
+import {
   ROAD_KIND_DEFAULT_WIDTH,
   ROAD_KIND_LABELS,
   type CanvasHandlers,
@@ -17,8 +30,6 @@ import {
   type EditableRoad,
   type EditableShop,
   type LandmarkAction,
-  type PendingChange,
-  type PendingChangeSnapshot,
   type RoadAction,
   type SlotAction,
   type SnapshotItem,
@@ -47,17 +58,10 @@ const POINT_SNAP_DISTANCE_METERS = 6;
 // （既存の道の編集・削除は対象外）
 const isRoadCreationDisabled = true;
 
-function cloneShops(shops: EditableShop[]) {
-  return shops.map((shop) => ({ ...shop }));
-}
-function cloneLandmarks(landmarks: EditableLandmark[]) {
-  return landmarks.map((landmark) => ({ ...landmark }));
-}
-function cloneRoads(roads: EditableRoad[]) {
-  return roads.map((road) => ({ ...road, points: road.points.map((p) => ({ ...p })) }));
-}
+let operationIdCounter = 0;
 
-let pendingIdCounter = 0;
+/** 記録に付ける補足（同じ入力欄への連続入力を1件にまとめるキーなど） */
+type CommitOptions = { coalesceKey?: string };
 
 export default function MapEditClientV3() {
   const [tab, setTab] = useState<Tab>("slot");
@@ -73,20 +77,17 @@ export default function MapEditClientV3() {
   const [drawAxis, setDrawAxis] = useState<"h" | "v" | "free">("h");
 
   const [search, setSearch] = useState("");
-  const [pending, setPending] = useState<PendingChange[]>([]);
+  const [history, setHistory] = useState<EditHistory>(EMPTY_HISTORY);
+  const changes = useMemo(() => netChanges(history), [history]);
 
   const [zoomIdx, setZoomIdx] = useState(1);
   const [focus, setFocus] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const [rotation, setRotation] = useState(0);
 
-  const log = useCallback((label: string, text: string, before?: PendingChangeSnapshot) => {
-    pendingIdCounter += 1;
-    setPending((prev) => [{ id: pendingIdCounter, label, text, before }, ...prev]);
-  }, []);
-
   const data = useMapEditData({
+    changes,
     onLoaded: () => setFocus({ x: 0, y: 0 }),
-    clearPending: () => setPending([]),
+    clearPending: () => setHistory(EMPTY_HISTORY),
   });
 
   return (
@@ -96,6 +97,7 @@ export default function MapEditClientV3() {
       isLoading={data.isLoading}
       isSaving={data.isSaving}
       message={data.message}
+      setMessage={data.setMessage}
       shops={data.shops}
       setShops={data.setShops}
       landmarks={data.landmarks}
@@ -123,9 +125,8 @@ export default function MapEditClientV3() {
       setDrawAxis={setDrawAxis}
       search={search}
       setSearch={setSearch}
-      pending={pending}
-      log={log}
-      setPending={setPending}
+      history={history}
+      setHistory={setHistory}
       zoomIdx={zoomIdx}
       setZoomIdx={setZoomIdx}
       focus={focus}
@@ -155,6 +156,7 @@ type BodyProps = {
   isLoading: boolean;
   isSaving: boolean;
   message: string | null;
+  setMessage: (message: string | null) => void;
   shops: EditableShop[];
   setShops: React.Dispatch<React.SetStateAction<EditableShop[]>>;
   landmarks: EditableLandmark[];
@@ -182,9 +184,8 @@ type BodyProps = {
   setDrawAxis: (axis: "h" | "v" | "free") => void;
   search: string;
   setSearch: (value: string) => void;
-  pending: PendingChange[];
-  log: (label: string, text: string, before?: PendingChangeSnapshot) => void;
-  setPending: React.Dispatch<React.SetStateAction<PendingChange[]>>;
+  history: EditHistory;
+  setHistory: React.Dispatch<React.SetStateAction<EditHistory>>;
   zoomIdx: number;
   setZoomIdx: React.Dispatch<React.SetStateAction<number>>;
   focus: { x: number; y: number };
@@ -204,20 +205,57 @@ type BodyProps = {
 
 function MapEditClientV3Body(props: BodyProps) {
   const {
-    tab, setTab, isLoading, isSaving, message,
+    tab, setTab, isLoading, isSaving, message, setMessage,
     shops, setShops, landmarks, setLandmarks, roads, setRoads, routeConfig, vendorOptions, mapSettingsLimits,
     selectedLocationId, setSelectedLocationId, selectedRoadId, setSelectedRoadId,
     selectedLandmarkKey, setSelectedLandmarkKey,
     slotAction, setSlotAction, roadAction, setRoadAction, landmarkAction, setLandmarkAction,
     draft, setDraft, drawAxis, setDrawAxis,
-    search, setSearch, pending, log, setPending,
+    search, setSearch, history, setHistory,
     zoomIdx, setZoomIdx, focus, setFocus, rotation, setRotation,
     hasUnsavedChanges, handleSave, projection,
     snapshots, isLoadingSnapshots, isRestoring, isHistoryOpen, setIsHistoryOpen, handleRestoreSnapshot,
   } = props;
 
-  // 道の頂点ドラッグ開始時点のスナップショット（onVertexMoveEnd で「直前を取り消す」に使う）
-  const vertexDragBeforeRef = useRef<PendingChangeSnapshot | null>(null);
+  // ドラッグ開始時点の状態。ドラッグ中は記録せずに見た目だけ動かし、
+  // ドラッグを終えた時点で「開始時点 → 終了時点」を1件の操作として記録する
+  const dragBeforeRef = useRef<EditState | null>(null);
+
+  const currentState = useCallback((): EditState => ({ shops, roads, landmarks }), [shops, roads, landmarks]);
+
+  const applyState = useCallback(
+    (next: EditState) => {
+      if (next.shops !== shops) setShops(next.shops);
+      if (next.roads !== roads) setRoads(next.roads);
+      if (next.landmarks !== landmarks) setLandmarks(next.landmarks);
+    },
+    [shops, roads, landmarks, setShops, setRoads, setLandmarks]
+  );
+
+  /**
+   * 状態を before → after に変え、その変化を1件の操作として記録する。
+   * 編集操作はすべてここ（または commit）を通す。通さずに状態だけ変えると、
+   * 変更一覧・取り消し・保存のどれにも載らない変更になってしまうため。
+   */
+  const commitTransition = useCallback(
+    (before: EditState, after: EditState, label: string, text: string, options: CommitOptions = {}) => {
+      applyState(after);
+      operationIdCounter += 1;
+      const id = operationIdCounter;
+      setHistory((prev) =>
+        recordOperation(prev, { id, label, text, coalesceKey: options.coalesceKey, recordedAt: Date.now(), before, after })
+      );
+    },
+    [applyState, setHistory]
+  );
+
+  const commit = useCallback(
+    (next: Partial<EditState>, label: string, text: string, options?: CommitOptions) => {
+      const before = currentState();
+      commitTransition(before, { ...before, ...next }, label, text, options);
+    },
+    [currentState, commitTransition]
+  );
 
   const selectedShop = useMemo(
     () => shops.find((s) => s.locationId === selectedLocationId) ?? null,
@@ -288,15 +326,17 @@ function MapEditClientV3Body(props: BodyProps) {
           return;
         }
         const fromName = from.name;
-        const before: PendingChangeSnapshot = { shops: cloneShops(shops), roads: cloneRoads(roads), landmarks: cloneLandmarks(landmarks) };
-        setShops((prev) =>
-          prev.map((s) => {
-            if (s.locationId === from.locationId) return { ...s, vendorId: undefined, name: `未設定店舗 ${s.position}` };
-            if (s.locationId === locationId) return { ...s, vendorId: from.vendorId, name: fromName };
-            return s;
-          })
+        commit(
+          {
+            shops: shops.map((s) => {
+              if (s.locationId === from.locationId) return { ...s, vendorId: undefined, name: `未設定店舗 ${s.position}` };
+              if (s.locationId === locationId) return { ...s, vendorId: from.vendorId, name: fromName };
+              return s;
+            }),
+          },
+          String(shop.position),
+          `${fromName} を ${from.position} から移動`
         );
-        log(String(shop.position), `${fromName} を ${from.position} から移動`, before);
         setSlotAction("idle");
         setSelectedLocationId(locationId);
         return;
@@ -314,7 +354,7 @@ function MapEditClientV3Body(props: BodyProps) {
 
       setSelectedLocationId(locationId);
     },
-    [shops, roads, landmarks, slotAction, selectedLocationId, setShops, setSlotAction, setSelectedLocationId, log]
+    [shops, slotAction, selectedLocationId, setSlotAction, setSelectedLocationId, commit]
   );
 
   // 下部の区画レーンで店舗名をタップした時は、選択に加えて地図側もその区画の
@@ -328,42 +368,38 @@ function MapEditClientV3Body(props: BodyProps) {
     [selectShop, shops, projection, setFocus]
   );
 
-  const setVendorName = useCallback(
-    (value: string) => {
-      if (!selectedShop) return;
-      setShops((prev) =>
-        prev.map((s) => (s.locationId === selectedShop.locationId ? { ...s, vendorId: s.vendorId ?? "manual", name: value } : s))
-      );
-    },
-    [selectedShop, setShops]
-  );
-
   const handleVendorSelect = useCallback(
     (vendorId: string) => {
       if (!selectedShop) return;
       const vendor = vendorOptions.find((v) => v.id === vendorId);
-      const before: PendingChangeSnapshot = { shops: cloneShops(shops), roads: cloneRoads(roads), landmarks: cloneLandmarks(landmarks) };
-      setShops((prev) =>
-        prev.map((s) =>
-          s.locationId === selectedShop.locationId
-            ? { ...s, vendorId: vendorId || undefined, name: vendor?.name ?? `未設定店舗 ${s.position}` }
-            : s
-        )
+      commit(
+        {
+          shops: shops.map((s) =>
+            s.locationId === selectedShop.locationId
+              ? { ...s, vendorId: vendorId || undefined, name: vendor?.name ?? `未設定店舗 ${s.position}` }
+              : s
+          ),
+        },
+        String(selectedShop.position),
+        vendor ? `${vendor.name} を割り当て` : "空きに変更"
       );
-      log(String(selectedShop.position), vendor ? `${vendor.name} を割り当て` : "空きに変更", before);
     },
-    [selectedShop, vendorOptions, shops, roads, landmarks, setShops, log]
+    [selectedShop, vendorOptions, shops, commit]
   );
 
   const clearVendor = useCallback(() => {
     if (!selectedShop) return;
     const name = selectedShop.name;
-    const before: PendingChangeSnapshot = { shops: cloneShops(shops), roads: cloneRoads(roads), landmarks: cloneLandmarks(landmarks) };
-    setShops((prev) =>
-      prev.map((s) => (s.locationId === selectedShop.locationId ? { ...s, vendorId: undefined, name: `未設定店舗 ${s.position}` } : s))
+    commit(
+      {
+        shops: shops.map((s) =>
+          s.locationId === selectedShop.locationId ? { ...s, vendorId: undefined, name: `未設定店舗 ${s.position}` } : s
+        ),
+      },
+      String(selectedShop.position),
+      `${name} を空きに変更`
     );
-    log(String(selectedShop.position), `${name} を空きに変更`, before);
-  }, [selectedShop, shops, roads, landmarks, setShops, log]);
+  }, [selectedShop, shops, commit]);
 
   const startMove = useCallback(() => setSlotAction("move"), [setSlotAction]);
   const startPlace = useCallback(() => setSlotAction((prev) => (prev === "place" ? "idle" : "place")), [setSlotAction]);
@@ -372,7 +408,7 @@ function MapEditClientV3Body(props: BodyProps) {
     (road: EditableRoad, count: number) => {
       const currentUnassignedCount = shops.filter((s) => !s.vendorId).length;
       if (currentUnassignedCount + count > mapSettingsLimits.maxUnassignedShopMarkers) {
-        log("道", `未割当マーカは最大 ${mapSettingsLimits.maxUnassignedShopMarkers} 件までです`);
+        setMessage(`未割当マーカは最大 ${mapSettingsLimits.maxUnassignedShopMarkers} 件までです。`);
         return;
       }
       const existingOnRoad = shops.filter((s) => findNearestRoadId({ lat: s.lat, lng: s.lng }) === road.id);
@@ -395,11 +431,9 @@ function MapEditClientV3Body(props: BodyProps) {
           lng: offset.lng,
         });
       }
-      const before: PendingChangeSnapshot = { shops: cloneShops(shops), roads: cloneRoads(roads), landmarks: cloneLandmarks(landmarks) };
-      setShops((prev) => [...prev, ...newShops]);
-      log("道", `${road.name} に ${count} 区画を追加`, before);
+      commit({ shops: [...shops, ...newShops] }, "道", `${road.name} に ${count} 区画を追加`);
     },
-    [shops, roads, landmarks, findNearestRoadId, setShops, log, mapSettingsLimits.maxUnassignedShopMarkers]
+    [shops, findNearestRoadId, commit, setMessage, mapSettingsLimits.maxUnassignedShopMarkers]
   );
 
   // ── 道: 選択・編集 ──────────────────────────────
@@ -426,31 +460,31 @@ function MapEditClientV3Body(props: BodyProps) {
   );
 
   const patchRoad = useCallback(
-    (roadId: string, patch: Partial<EditableRoad>, logText?: string) => {
-      const before: PendingChangeSnapshot = { shops: cloneShops(shops), roads: cloneRoads(roads), landmarks: cloneLandmarks(landmarks) };
-      setRoads((prev) => prev.map((r) => (r.id === roadId ? { ...r, ...patch } : r)));
-      if (logText) {
-        const road = roads.find((r) => r.id === roadId);
-        if (road) log("道", `${road.name} ${logText}`, before);
-      }
+    (roadId: string, patch: Partial<EditableRoad>, logText: string, options?: CommitOptions) => {
+      const road = roads.find((r) => r.id === roadId);
+      if (!road) return;
+      commit(
+        { roads: roads.map((r) => (r.id === roadId ? { ...r, ...patch } : r)) },
+        "道",
+        `${road.name} ${logText}`,
+        options
+      );
     },
-    [shops, roads, landmarks, setRoads, log]
+    [roads, commit]
   );
 
   const deleteRoad = useCallback(() => {
     if (!selectedRoad) return;
     const hasShop = shops.some((s) => findNearestRoadId({ lat: s.lat, lng: s.lng }) === selectedRoad.id);
     if (hasShop) {
-      log("道", `${selectedRoad.name} には区画があるため削除できません`);
+      setMessage(`${selectedRoad.name} には区画があるため削除できません。`);
       return;
     }
     const name = selectedRoad.name;
-    const before: PendingChangeSnapshot = { shops: cloneShops(shops), roads: cloneRoads(roads), landmarks: cloneLandmarks(landmarks) };
-    setRoads((prev) => prev.filter((r) => r.id !== selectedRoad.id));
+    commit({ roads: roads.filter((r) => r.id !== selectedRoad.id) }, "道", `${name} を削除`);
     setSelectedRoadId(null);
     setRoadAction("idle");
-    log("道", `${name} を削除`, before);
-  }, [selectedRoad, shops, roads, landmarks, findNearestRoadId, setRoads, setSelectedRoadId, setRoadAction, log]);
+  }, [selectedRoad, shops, roads, findNearestRoadId, commit, setMessage, setSelectedRoadId, setRoadAction]);
 
   const finishDraw = useCallback(
     (pointsOverride?: { lat: number; lng: number }[]) => {
@@ -466,14 +500,12 @@ function MapEditClientV3Body(props: BodyProps) {
         roadId: id,
       }));
       const newRoad: EditableRoad = { id, name, kind: "street", widthMeters: ROAD_KIND_DEFAULT_WIDTH.street, points };
-      const before: PendingChangeSnapshot = { shops: cloneShops(shops), roads: cloneRoads(roads), landmarks: cloneLandmarks(landmarks) };
-      setRoads((prev) => [...prev, newRoad]);
+      commit({ roads: [...roads, newRoad] }, "道", `${name} を追加（頂点${points.length}）`);
       setDraft([]);
       setRoadAction("idle");
       setSelectedRoadId(id);
-      log("道", `${name} を追加（頂点${points.length}）`, before);
     },
-    [draft, roads, shops, landmarks, setRoads, setDraft, setRoadAction, setSelectedRoadId, log]
+    [draft, roads, commit, setDraft, setRoadAction, setSelectedRoadId]
   );
 
   const cancelMode = useCallback(() => {
@@ -492,25 +524,30 @@ function MapEditClientV3Body(props: BodyProps) {
   );
 
   const patchLandmark = useCallback(
-    (key: string, patch: Partial<EditableLandmark>) => {
-      setLandmarks((prev) => prev.map((l) => (l.key === key ? { ...l, ...patch } : l)));
+    (key: string, patch: Partial<EditableLandmark>, logText: string, options?: CommitOptions) => {
+      const landmark = landmarks.find((l) => l.key === key);
+      if (!landmark) return;
+      commit(
+        { landmarks: landmarks.map((l) => (l.key === key ? { ...l, ...patch } : l)) },
+        "建物",
+        `${landmark.name} ${logText}`,
+        options
+      );
     },
-    [setLandmarks]
+    [landmarks, commit]
   );
 
   const deleteLandmark = useCallback(() => {
     if (!selectedLandmark) return;
     const name = selectedLandmark.name;
-    const before: PendingChangeSnapshot = { shops: cloneShops(shops), roads: cloneRoads(roads), landmarks: cloneLandmarks(landmarks) };
-    setLandmarks((prev) => prev.filter((l) => l.key !== selectedLandmark.key));
+    commit({ landmarks: landmarks.filter((l) => l.key !== selectedLandmark.key) }, "建物", `${name} を削除`);
     setSelectedLandmarkKey(null);
-    log("建物", `${name} を削除`, before);
-  }, [selectedLandmark, shops, roads, landmarks, setLandmarks, setSelectedLandmarkKey, log]);
+  }, [selectedLandmark, landmarks, commit, setSelectedLandmarkKey]);
 
   const addLandmark = useCallback(
     (lat: number, lng: number) => {
       if (landmarks.length >= mapSettingsLimits.maxLandmarks) {
-        log("建物", `建物オブジェクトは最大 ${mapSettingsLimits.maxLandmarks} 件までです`);
+        setMessage(`建物オブジェクトは最大 ${mapSettingsLimits.maxLandmarks} 件までです。`);
         return;
       }
       const key = `landmark-${Date.now()}`;
@@ -525,13 +562,11 @@ function MapEditClientV3Body(props: BodyProps) {
         heightPx: 80,
         showAtMinZoom: false,
       };
-      const before: PendingChangeSnapshot = { shops: cloneShops(shops), roads: cloneRoads(roads), landmarks: cloneLandmarks(landmarks) };
-      setLandmarks((prev) => [...prev, newLandmark]);
+      commit({ landmarks: [...landmarks, newLandmark] }, "建物", "新しい建物を追加");
       setSelectedLandmarkKey(key);
       setLandmarkAction("idle");
-      log("建物", "新しい建物を追加", before);
     },
-    [shops, roads, landmarks, setLandmarks, setSelectedLandmarkKey, setLandmarkAction, log, mapSettingsLimits.maxLandmarks]
+    [landmarks, commit, setMessage, setSelectedLandmarkKey, setLandmarkAction, mapSettingsLimits.maxLandmarks]
   );
 
   // ── キーボード（矢印キー / WASD で区画レーンと同じ並び順に沿って移動） ──────
@@ -628,24 +663,65 @@ function MapEditClientV3Body(props: BodyProps) {
     return () => window.removeEventListener("keydown", onKey);
   }, [tab, selectedShop, shops, laneGroups, projection, cancelMode, setSelectedLocationId, setFocus]);
 
+  // ── 取り消し・やり直し ──────────────────────────────
   const undo = useCallback(() => {
-    setPending((prev) => {
-      const [latest, ...rest] = prev;
-      if (!latest) return prev;
-      if (latest.before) {
-        setShops(latest.before.shops);
-        setRoads(latest.before.roads);
-        setLandmarks(latest.before.landmarks);
-      }
-      return rest;
-    });
-  }, [setPending, setShops, setRoads, setLandmarks]);
+    const result = undoOperation(history, currentState());
+    if (!result) return;
+    applyState(result.state);
+    setHistory(result.history);
+  }, [history, currentState, applyState, setHistory]);
+
+  const redo = useCallback(() => {
+    const result = redoOperation(history, currentState());
+    if (!result) return;
+    applyState(result.state);
+    setHistory(result.history);
+  }, [history, currentState, applyState, setHistory]);
+
+  // Ctrl+Z / Ctrl+Shift+Z（Mac は Cmd）。入力欄の中では文字入力の取り消しを優先して反応しない
+  const shortcuts = useMemo(
+    () => [
+      { key: "z", ctrl: true, description: "直前の操作を取り消す", action: undo },
+      { key: "z", ctrl: true, shift: true, description: "取り消した操作をやり直す", action: redo },
+    ],
+    [undo, redo]
+  );
+  useKeyboardShortcuts(shortcuts);
+
+  useUnsavedChangesWarning(hasUnsavedChanges, {
+    confirmOnLinkClick: true,
+    message: "保存していない変更があります。このページを離れると変更は失われます。移動しますか？",
+  });
+
+  // 変更一覧の行をクリックしたら、その操作の対象の位置へ地図を寄せる
+  const focusOperation = useCallback(
+    (operation: EditOperation) => {
+      const point = focusOfOperation(operation);
+      if (point) setFocus(projection.toLocal(point.lat, point.lng));
+    },
+    [projection, setFocus]
+  );
 
   const canvasHandlers: CanvasHandlers = {
     onSelectShop: selectShop,
     onSelectRoad: selectRoad,
     onSelectLandmark: selectLandmark,
-    onMoveLandmark: (key, lat, lng) => patchLandmark(key, { lat, lng }),
+    onMoveLandmark: (key, lat, lng) => {
+      if (!dragBeforeRef.current) dragBeforeRef.current = currentState();
+      setLandmarks((prev) => prev.map((l) => (l.key === key ? { ...l, lat, lng } : l)));
+    },
+    onMoveLandmarkEnd: (key, lat, lng) => {
+      const before = dragBeforeRef.current ?? currentState();
+      dragBeforeRef.current = null;
+      const landmark = before.landmarks.find((l) => l.key === key);
+      if (!landmark) return;
+      commitTransition(
+        before,
+        { ...before, landmarks: before.landmarks.map((l) => (l.key === key ? { ...l, lat, lng } : l)) },
+        "建物",
+        `${landmark.name} を移動`
+      );
+    },
     // 地図の空白部分クリック時の挙動は、現在のタブ・アクションによって変わる
     // （道編集モードなら道の頂点を追加、建物配置モードなら建物を新規配置）
     onMapClick: (lat, lng) => {
@@ -679,9 +755,7 @@ function MapEditClientV3Body(props: BodyProps) {
       }
     },
     onVertexMove: (roadId, pointId, lat, lng) => {
-      if (!vertexDragBeforeRef.current) {
-        vertexDragBeforeRef.current = { shops: cloneShops(shops), roads: cloneRoads(roads), landmarks: cloneLandmarks(landmarks) };
-      }
+      if (!dragBeforeRef.current) dragBeforeRef.current = currentState();
       setRoads((prev) =>
         prev.map((r) =>
           r.id === roadId
@@ -690,19 +764,36 @@ function MapEditClientV3Body(props: BodyProps) {
         )
       );
     },
-    onVertexMoveEnd: (roadId) => {
-      const road = roads.find((r) => r.id === roadId);
-      const before = vertexDragBeforeRef.current ?? undefined;
-      vertexDragBeforeRef.current = null;
-      if (road) log("道", `${road.name} の形を変更`, before);
+    // 終了時の座標は引数で受け取り、ドラッグ開始時点の状態に当てはめて「後」を作る
+    // （最後の drag イベントによる状態更新がまだ描画に反映されていなくても、記録がずれないようにするため）
+    onVertexMoveEnd: (roadId, pointId, lat, lng) => {
+      const before = dragBeforeRef.current ?? currentState();
+      dragBeforeRef.current = null;
+      const road = before.roads.find((r) => r.id === roadId);
+      if (!road) return;
+      commitTransition(
+        before,
+        {
+          ...before,
+          roads: before.roads.map((r) =>
+            r.id === roadId ? { ...r, points: r.points.map((p) => (p.id === pointId ? { ...p, lat, lng } : p)) } : r
+          ),
+        },
+        "道",
+        `${road.name} の形を変更`
+      );
     },
     onVertexRemove: (roadId, pointId) => {
-      setRoads((prev) =>
-        prev.map((r) =>
-          r.id === roadId && r.points.length > 2
-            ? { ...r, points: r.points.filter((p) => p.id !== pointId) }
-            : r
-        )
+      const road = roads.find((r) => r.id === roadId);
+      if (!road) return;
+      if (road.points.length <= 2) {
+        setMessage("道の点は2つより少なくできません。");
+        return;
+      }
+      commit(
+        { roads: roads.map((r) => (r.id === roadId ? { ...r, points: r.points.filter((p) => p.id !== pointId) } : r)) },
+        "道",
+        `${road.name} の点を削除`
       );
     },
     onMidpointInsert: (roadId, afterIndex, lat, lng) => {
@@ -715,12 +806,16 @@ function MapEditClientV3Body(props: BodyProps) {
         order: afterIndex + 1,
         roadId,
       };
-      setRoads((prev) =>
-        prev.map((r) =>
-          r.id === roadId
-            ? { ...r, points: [...r.points.slice(0, afterIndex + 1), newPoint, ...r.points.slice(afterIndex + 1)] }
-            : r
-        )
+      commit(
+        {
+          roads: roads.map((r) =>
+            r.id === roadId
+              ? { ...r, points: [...r.points.slice(0, afterIndex + 1), newPoint, ...r.points.slice(afterIndex + 1)] }
+              : r
+          ),
+        },
+        "道",
+        `${road.name} に点を追加`
       );
     },
   };
@@ -751,7 +846,7 @@ function MapEditClientV3Body(props: BodyProps) {
         onToggleHistory={() => setIsHistoryOpen((v) => !v)}
         hasUnsavedChanges={hasUnsavedChanges}
         isSaving={isSaving}
-        pendingCount={pending.length}
+        pendingCount={history.past.length}
         onSave={() => void handleSave()}
       />
 
@@ -836,7 +931,6 @@ function MapEditClientV3Body(props: BodyProps) {
                 <SlotDetailPanel
                   shop={selectedShop}
                   vendorOptions={vendorOptions}
-                  onVendorNameChange={setVendorName}
                   onVendorSelect={handleVendorSelect}
                   onStartMove={startMove}
                   onClearVendor={clearVendor}
@@ -848,7 +942,10 @@ function MapEditClientV3Body(props: BodyProps) {
                   roads={roads}
                   search={search}
                   onSelectRoad={selectRoadFromList}
-                  onNameChange={(value) => selectedRoad && patchRoad(selectedRoad.id, { name: value })}
+                  onNameChange={(value) =>
+                    selectedRoad &&
+                    patchRoad(selectedRoad.id, { name: value }, "の名前を変更", { coalesceKey: `road-name:${selectedRoad.id}` })
+                  }
                   onKindChange={(kind: RoadKind) =>
                     selectedRoad && patchRoad(selectedRoad.id, { kind, widthMeters: ROAD_KIND_DEFAULT_WIDTH[kind] }, `を${ROAD_KIND_LABELS[kind]}に変更`)
                   }
@@ -862,13 +959,29 @@ function MapEditClientV3Body(props: BodyProps) {
               {tab === "landmark" && (
                 <LandmarkDetailPanel
                   landmark={selectedLandmark}
-                  onNameChange={(value) => selectedLandmark && patchLandmark(selectedLandmark.key, { name: value })}
-                  onDescriptionChange={(value) => selectedLandmark && patchLandmark(selectedLandmark.key, { description: value })}
+                  onNameChange={(value) =>
+                    selectedLandmark &&
+                    patchLandmark(selectedLandmark.key, { name: value }, "の名前を変更", {
+                      coalesceKey: `landmark-name:${selectedLandmark.key}`,
+                    })
+                  }
+                  onDescriptionChange={(value) =>
+                    selectedLandmark &&
+                    patchLandmark(selectedLandmark.key, { description: value }, "の説明を変更", {
+                      coalesceKey: `landmark-description:${selectedLandmark.key}`,
+                    })
+                  }
                   onDelete={deleteLandmark}
                 />
               )}
 
-              <PendingChangeLog pending={pending} onUndo={undo} />
+              <PendingChangeLog
+                operations={history.past}
+                canRedo={history.future.length > 0}
+                onUndo={undo}
+                onRedo={redo}
+                onSelect={focusOperation}
+              />
             </>
           )}
         </aside>

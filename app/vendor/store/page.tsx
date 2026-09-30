@@ -8,6 +8,7 @@ import Image from "next/image";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { fetchVendorStore, saveVendorStore, uploadStoreImage, fetchCategories } from "../_services/storeService";
 import { canDecodeImage, imageErrorMessage, IMAGE_DECODE_ERROR_MESSAGE } from "@/lib/image/clientCompression";
+import { useUnsavedChangesWarning } from "@/lib/hooks/useUnsavedChangesWarning";
 import type { Category } from "../_services/storeService";
 import type { PaymentMethod, RainPolicy, Store } from "../_types";
 import {
@@ -123,15 +124,7 @@ export default function VendorStorePage() {
   }, [user]);
 
   // 離脱警告（未保存の変更がある場合のみ）
-  useEffect(() => {
-    if (!isDirty) return;
-    const handler = (e: BeforeUnloadEvent) => {
-      e.preventDefault();
-      e.returnValue = "";
-    };
-    window.addEventListener("beforeunload", handler);
-    return () => window.removeEventListener("beforeunload", handler);
-  }, [isDirty]);
+  useUnsavedChangesWarning(isDirty);
 
   async function handleImageChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
