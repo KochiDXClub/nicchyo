@@ -173,6 +173,18 @@ export function useStoreStudio(vendorId: string | null) {
       setError(null);
       try {
         await saveAskAnswer(vendorId, weekDate, answer);
+      } catch (err) {
+        setError(
+          err instanceof AskUserFacingError
+            ? err.message
+            : imageErrorMessage(err, "うまく保存できんかった。もういっぺんやってみてや。")
+        );
+        setSaving(false);
+        return;
+      }
+      try {
+        // 保存はできている。読み直しに失敗しても「保存できんかった」とは言わない
+        // （写真を撮り直して、同じものを二度送らせないため）
         const latest = await fetchAskSnapshot(vendorId, weekDate);
         setSnapshot(latest);
 
@@ -192,12 +204,8 @@ export function useStoreStudio(vendorId: string | null) {
           setOpenId(null);
           setQueueMode(false);
         }
-      } catch (err) {
-        setError(
-          err instanceof AskUserFacingError
-            ? err.message
-            : imageErrorMessage(err, "うまく保存できんかった。もういっぺんやってみてや。")
-        );
+      } catch {
+        setError("保存はできたけど、画面を新しくできんかった。開き直すと出るきね。");
       } finally {
         setSaving(false);
       }

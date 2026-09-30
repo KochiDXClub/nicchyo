@@ -430,7 +430,6 @@ export function studioQuestions(snapshot: VendorAskSnapshot) {
   }));
 }
 
-/** 出店者が1つの質問に答えた内容。保存は askService.saveAskAnswer が行う */
 /** 入れた値を「消す」ことができる質問（つながりと店舗写真）。消すときは空の答えを送る */
 const CLEARABLE_IDS: readonly AskQuestionId[] = ["instagram", "x", "website", "shop-photo"];
 
@@ -450,6 +449,7 @@ export function emptyAnswerFor(id: AskQuestionId): AskAnswer | null {
   }
 }
 
+/** 出店者が1つの質問に答えた内容。保存は askService.saveAskAnswer が行う */
 export type AskAnswer =
   | { id: "weekly-products"; products: string[] }
   | { id: "hours"; start: string; end: string }
