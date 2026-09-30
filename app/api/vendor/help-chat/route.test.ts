@@ -30,6 +30,19 @@ vi.mock("@/utils/supabase/server", () => ({
     }),
   }),
 }));
+vi.mock("@/lib/vendor/helpChatStats.server", () => ({
+  loadVendorHelpShopStats: async () => ({
+    aiMentions: { total: 4, recommended: 2, topKeywords: ["トマト"] },
+    hearts: { thisWeek: 3, total: 10 },
+    topSales: [],
+  }),
+  loadVendorHelpMarketStats: async () => ({
+    weeklyVisitors: 1200,
+    monthlyVisitors: 5000,
+    topSearchKeywords: ["いも天"],
+    topSellingProducts: [],
+  }),
+}));
 vi.mock("@/lib/supabase/adminClient", () => ({
   createAdminClient: () => ({
     from: () => ({ insert: (row: unknown) => insertLog(row) }),
@@ -117,6 +130,8 @@ describe("POST /api/vendor/help-chat", () => {
     expect(system).toContain("・店名: 山田農園");
     expect(system).toContain("・支払い方法: 現金");
     expect(system).toContain("最新情報の投稿");
+    expect(system).toContain("話題になった回数: 4回（そのうち、おすすめされた回数: 2回）");
+    expect(system).toContain("nicchyo の来訪者数: 今週 1,200人 / 今月 5,000人");
 
     expect(insertLog).toHaveBeenCalledWith({
       vendor_id: "vendor-1",

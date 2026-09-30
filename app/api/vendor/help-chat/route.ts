@@ -9,7 +9,9 @@ import { requireVendorRole } from "@/lib/auth/permissions";
 import { requestChatCompletion } from "@/lib/ai/openaiFetch";
 import { openAiSseToTextStream, TEXT_STREAM_HEADERS } from "@/lib/ai/textStream";
 import { resolveAiModelFor } from "@/lib/ai/modelStore.server";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { VENDOR_HELP_GUIDE } from "@/lib/vendor/helpGuide";
+import { loadVendorHelpMarketStats, loadVendorHelpShopStats } from "@/lib/vendor/helpChatStats.server";
 import { PAYMENT_OPTIONS } from "@/lib/vendor/storeOptions";
 import {
   buildVendorHelpSystemPrompt,
@@ -90,7 +92,8 @@ async function loadShopContext(supabase: SupabaseLike, vendorId: string): Promis
  * 出店者トップのにちよさんへの相談（ヘルプデスク）。
  *
  * 来訪者の AI 相談とは別の口にして、出店者本人だけが使えるようにする。
- * にちよさんに渡すのは使い方ガイドと、その出店者のお店の登録内容だけ。
+ * にちよさんに渡すのは使い方ガイド、その出店者のお店の登録内容、このお店の数字と
+ * 日曜市全体の数字（lib/vendor/helpChatStats.server.ts）。
  * 答えは文字のまま少しずつ流す（店舗ページのチャット /api/grandma/shop-chat と同じ形。lib/ai/textStream）。
  * 質問と答えは vendor_help_logs に残す（よくある質問からガイドを直すため）。
  */
@@ -135,8 +138,15 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Server configuration error" }, { status: 500 });
   }
 
-  const shop = await loadShopContext(supabase, user.id);
-  const systemPrompt = buildVendorHelpSystemPrompt(VENDOR_HELP_GUIDE, shop);
+  const [shop, shopStats, marketStats] = await Promise.all([
+    loadShopContext(supabase, user.id),
+    loadVendorHelpShopStats(supabase as unknown as SupabaseClient, user.id),
+    loadVendorHelpMarketStats(supabase as unknown as SupabaseClient),
+  ]);
+  const systemPrompt = buildVendorHelpSystemPrompt(VENDOR_HELP_GUIDE, shop, {
+    shop: shopStats,
+    market: marketStats,
+  });
   const messages = [
     { role: "system", content: systemPrompt },
     ...history.map((message) => ({ role: message.role, content: message.text })),
