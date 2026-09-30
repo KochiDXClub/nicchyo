@@ -8,6 +8,7 @@ import {
 const EMPTY: VendorAskSnapshot = {
   paymentMethods: [],
   rainPolicy: "undecided",
+  rainAnswered: false,
   weekly: null,
 };
 
@@ -20,6 +21,7 @@ const URGENT_DONE: VendorAskSnapshot = {
   instagram: "@yamada",
   website: "https://example.com",
   rainPolicy: "outdoor",
+  rainAnswered: true,
   weekly: { isOpen: true, products: ["トマト"] },
 };
 
@@ -54,10 +56,19 @@ describe("pickQuestions", () => {
     expect(picked).not.toContain("signature");
   });
 
-  it("雨の日は既定の「当日判断」のままなら未回答として聞く", () => {
+  it("雨の日は、答えたと記録されるまで聞く（既定値の「当日判断」のままでは答え済みにしない）", () => {
     expect(ids(EMPTY, { limit: 20 })).toContain("rain");
-    expect(ids({ ...EMPTY, rainNote: "小雨なら出るよ" }, { limit: 20 })).not.toContain("rain");
-    expect(ids({ ...EMPTY, rainPolicy: "cancel" }, { limit: 20 })).not.toContain("rain");
+    expect(ids({ ...EMPTY, rainAnswered: true }, { limit: 20 })).not.toContain("rain");
+  });
+
+  it("看板商品は、名前が決まっていて写真があれば答え済み。名前だけでは写真を聞き直す", () => {
+    const named = { ...EMPTY, signatureProduct: { name: "トマト" } };
+    expect(ids(named, { limit: 20 })).toContain("signature");
+    const withPhoto = {
+      ...EMPTY,
+      signatureProduct: { name: "トマト", imageUrl: "https://example.com/a.webp" },
+    };
+    expect(ids(withPhoto, { limit: 20 })).not.toContain("signature");
   });
 
   it("支払方法は、選択肢か自由入力のどちらかがあれば答え済み", () => {

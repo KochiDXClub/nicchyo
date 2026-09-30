@@ -50,14 +50,18 @@ export const ASK_MANIAC_LIMIT = 1;
 export type VendorAskSnapshot = {
   businessHoursStart?: string;
   businessHoursEnd?: string;
-  /** 看板商品。登録順の先頭の商品 */
+  /** 看板商品（vendors.signature_product_name と同じ名前の商品）。まだ決めていなければ無い */
   signatureProduct?: { name: string; imageUrl?: string; description?: string };
+  /** 看板商品を決める前の入力欄の初期値。登録済みの先頭の商品名 */
+  signatureNameHint?: string;
   paymentMethods: PaymentMethod[];
   paymentNote?: string;
   instagram?: string;
   website?: string;
   rainPolicy: RainPolicy;
   rainNote?: string;
+  /** 雨の日の質問に答えたか。rainPolicy の既定値（当日判断）のままとは区別する */
+  rainAnswered: boolean;
   strength?: string;
   motivation?: string;
   yearsRunning?: number | null;
@@ -149,7 +153,7 @@ export const ASK_QUESTIONS: readonly AskQuestion[] = [
     text: "雨の日はいつも出店しゆう？",
     input: "rain",
     // 既定値の「当日判断」だけでは、本人が答えたのか未回答なのか区別できない
-    isAnswered: (s) => s.rainPolicy !== "undecided" || filled(s.rainNote),
+    isAnswered: (s) => s.rainAnswered,
   },
 
   // マニアックな質問

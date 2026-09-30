@@ -11,20 +11,28 @@ ALTER TABLE vendors
   ADD COLUMN IF NOT EXISTS rain_note text,
   ADD COLUMN IF NOT EXISTS motivation text,
   ADD COLUMN IF NOT EXISTS years_running integer,
-  ADD COLUMN IF NOT EXISTS sunday_love text;
+  ADD COLUMN IF NOT EXISTS sunday_love text,
+  ADD COLUMN IF NOT EXISTS signature_product_name text,
+  ADD COLUMN IF NOT EXISTS rain_answered_at timestamptz;
 
 -- vendors は列単位の GRANT で公開列を絞っている
 -- （20260807112200 / 20260807120000）。列を足しても権限は自動では増えないので、
 -- 来訪者にも見せてよい新規列を明示的に許可する。これを忘れると、出店者本人の
 -- 読み取りも permission denied になり、質問画面が開かなくなる。
-GRANT SELECT (payment_note, rain_note, motivation, years_running, sunday_love)
-  ON public.vendors TO anon, authenticated;
+GRANT SELECT (
+  payment_note, rain_note, motivation, years_running, sunday_love,
+  signature_product_name, rain_answered_at
+) ON public.vendors TO anon, authenticated;
 
 COMMENT ON COLUMN vendors.payment_note IS '決済方法の自由入力（選択肢にないもの）。';
 COMMENT ON COLUMN vendors.rain_note IS '雨の日の出店についてのひとこと（rain_policy の補足）。';
 COMMENT ON COLUMN vendors.motivation IS 'どんな思いで出店しているか。';
 COMMENT ON COLUMN vendors.years_running IS '出店を続けてきた年数。';
 COMMENT ON COLUMN vendors.sunday_love IS '日曜市の好きなところ。';
+COMMENT ON COLUMN vendors.signature_product_name IS
+  '看板商品の商品名。products のうち、この名前の行を看板商品として扱う。/my-shop/detail の保存は商品の行を入れ直して id が変わるため、id ではなく名前で持つ。';
+COMMENT ON COLUMN vendors.rain_answered_at IS
+  '雨の日の質問に答えた日時。rain_policy の既定値（当日判断）のままなのか、本人が当日判断を選んだのかを見分けるために持つ。';
 
 DO $$
 BEGIN
@@ -56,9 +64,11 @@ CREATE INDEX IF NOT EXISTS vendor_weekly_status_week_date_idx
 
 ALTER TABLE public.vendor_weekly_status ENABLE ROW LEVEL SECURITY;
 
--- 匿名ユーザーは読み取りだけ（書き込みは RLS でも弾かれるが、権限自体も絞っておく）
+-- 権限は標準の付与に頼らず明示する。匿名ユーザーは読み取りだけ、出店者は自分の行を
+-- 読み書きできる（どの行に触れるかは、下の RLS が auth.uid() = vendor_id で絞る）。
 REVOKE ALL ON public.vendor_weekly_status FROM anon;
 GRANT SELECT ON public.vendor_weekly_status TO anon;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.vendor_weekly_status TO authenticated;
 
 DO $$
 BEGIN

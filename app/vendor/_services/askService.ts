@@ -28,18 +28,15 @@ export async function fetchAskSnapshot(
     supabase
       .from("vendors")
       .select(
-        "business_hours_start, business_hours_end, payment_methods, payment_note, sns_instagram, sns_hp, rain_policy, rain_note, strength, motivation, years_running, sunday_love"
+        "business_hours_start, business_hours_end, payment_methods, payment_note, sns_instagram, sns_hp, rain_policy, rain_note, rain_answered_at, signature_product_name, strength, motivation, years_running, sunday_love"
       )
       .eq("id", vendorId)
       .single(),
-    // 看板商品は、登録順の先頭の商品として扱う
     supabase
       .from("products")
       .select("id, name, image_url, description")
       .eq("vendor_id", vendorId)
-      .order("created_at", { ascending: true })
-      .limit(1)
-      .maybeSingle(),
+      .order("created_at", { ascending: true }),
     supabase
       .from("vendor_weekly_status")
       .select("is_open, products")
@@ -52,8 +49,16 @@ export async function fetchAskSnapshot(
     throw new Error("店舗情報を取得できませんでした。");
   }
   const vendor = vendorResult.data;
-  const product = productResult.data;
+  const products = (productResult.data ?? []) as {
+    name: string;
+    image_url: string | null;
+    description: string | null;
+  }[];
   const weekly = weeklyResult.data;
+  // 看板商品は vendors.signature_product_name と同じ名前の商品。
+  // 「登録順の先頭」で決めると、別の商品名を答えたときに先頭の商品を書き換えてしまう
+  const signatureName = (vendor.signature_product_name as string | null)?.trim();
+  const product = signatureName ? products.find((item) => item.name === signatureName) : undefined;
 
   return {
     businessHoursStart: vendor.business_hours_start ?? undefined,
@@ -65,12 +70,19 @@ export async function fetchAskSnapshot(
           description: product.description ?? undefined,
         }
       : undefined,
+    // まだ看板商品を決めていない人には、登録済みの先頭の商品名を入力欄の初期値として出す
+    signatureNameHint: products[0]?.name,
     paymentMethods: ((vendor.payment_methods as string[] | null) ?? []) as PaymentMethod[],
     paymentNote: vendor.payment_note ?? undefined,
     instagram: vendor.sns_instagram ?? undefined,
     website: vendor.sns_hp ?? undefined,
     rainPolicy: ((vendor.rain_policy as string | null) ?? "undecided") as RainPolicy,
     rainNote: vendor.rain_note ?? undefined,
+    // 既定値の「当日判断」のままなのか、本人が選んだのかを見分けるため、答えた日時も見る
+    rainAnswered:
+      !!vendor.rain_answered_at ||
+      ((vendor.rain_policy as string | null) ?? "undecided") !== "undecided" ||
+      !!(vendor.rain_note as string | null)?.trim(),
     strength: vendor.strength ?? undefined,
     motivation: vendor.motivation ?? undefined,
     yearsRunning: vendor.years_running ?? null,
@@ -100,16 +112,25 @@ async function updateVendor(
   if (!data || data.length === 0) throw new Error("店舗情報が見つかりませんでした。");
 }
 
-/** 看板商品（登録順の先頭）の id。無ければ null */
+/** 看板商品（vendors.signature_product_name と同じ名前の商品）の id。無ければ null */
 async function findSignatureProductId(
   supabase: SupabaseClient,
   vendorId: string
 ): Promise<string | null> {
+  const { data: vendor, error: vendorError } = await supabase
+    .from("vendors")
+    .select("signature_product_name")
+    .eq("id", vendorId)
+    .single();
+  if (vendorError) throw vendorError;
+  const name = (vendor?.signature_product_name as string | null)?.trim();
+  if (!name) return null;
+
   const { data, error } = await supabase
     .from("products")
     .select("id")
     .eq("vendor_id", vendorId)
-    .order("created_at", { ascending: true })
+    .eq("name", name)
     .limit(1)
     .maybeSingle();
   if (error) throw error;
@@ -131,6 +152,19 @@ async function uploadProductImage(
     .upload(path, blob, { contentType, upsert: true });
   if (error) throw error;
 
+  // 形式が変わったとき（jpg → webp など）に前の写真が残らないよう、同じ商品の古いファイルを消す。
+  // 消せなくても保存自体は成功させたいので、失敗は握りつぶす
+  try {
+    const { data: files } = await supabase.storage.from("vendor-images").list(vendorId);
+    const stale = (files ?? [])
+      .filter((file) => file.name.startsWith(`product-${productId}.`))
+      .map((file) => `${vendorId}/${file.name}`)
+      .filter((existing) => existing !== path);
+    if (stale.length > 0) await supabase.storage.from("vendor-images").remove(stale);
+  } catch {
+    // 容量が少し残るだけ
+  }
+
   // 同じ名前で上書きしても、ブラウザが古い写真を出し続けないよう版を付ける
   const { data } = supabase.storage.from("vendor-images").getPublicUrl(path);
   return `${data.publicUrl}?v=${Date.now()}`;
@@ -143,16 +177,20 @@ async function saveSignature(
   imageFile: File | null
 ): Promise<void> {
   const trimmed = name.trim();
-  let productId = await findSignatureProductId(supabase, vendorId);
 
-  if (productId) {
-    const { error } = await supabase
-      .from("products")
-      .update({ name: trimmed, updated_at: new Date().toISOString() })
-      .eq("id", productId)
-      .eq("vendor_id", vendorId);
-    if (error) throw error;
-  } else {
+  // 同じ名前の商品があればそれを看板商品にし、無ければ新しい商品として登録する。
+  // 既存の商品を別の名前に書き換えると、その商品が商品一覧から消えてしまう
+  const { data: existing, error: findError } = await supabase
+    .from("products")
+    .select("id")
+    .eq("vendor_id", vendorId)
+    .eq("name", trimmed)
+    .limit(1)
+    .maybeSingle();
+  if (findError) throw findError;
+
+  let productId = existing?.id as string | undefined;
+  if (!productId) {
     const { data, error } = await supabase
       .from("products")
       .insert({ vendor_id: vendorId, name: trimmed })
@@ -180,9 +218,11 @@ async function saveSignature(
     .single();
   if (vendorError) throw vendorError;
   const mainProducts = (vendor?.main_products as string[] | null) ?? [];
-  if (!mainProducts.includes(trimmed)) {
-    await updateVendor(supabase, vendorId, { main_products: [...mainProducts, trimmed] });
-  }
+
+  await updateVendor(supabase, vendorId, {
+    signature_product_name: trimmed,
+    ...(mainProducts.includes(trimmed) ? {} : { main_products: [...mainProducts, trimmed] }),
+  });
 }
 
 /** 1つの質問の回答を保存する。weekDate は「今週」の日曜（YYYY-MM-DD） */
@@ -238,6 +278,7 @@ export async function saveAskAnswer(
       return updateVendor(supabase, vendorId, {
         rain_policy: answer.policy,
         rain_note: orNull(answer.note),
+        rain_answered_at: new Date().toISOString(),
       });
     case "strength":
       return updateVendor(supabase, vendorId, { strength: orNull(answer.text) });
