@@ -9,7 +9,7 @@ import type { StoryItem } from "../types";
 import { formatRelativeTime } from "./StoryChrome";
 
 /**
- * これ以下の件数なら、写真だけのグリッドではなく、本文の冒頭まで読めるカードで並べる。
+ * 開いてすぐ見える投稿がこれ以下の件数なら、写真だけのグリッドではなく、本文の冒頭まで読めるカードで並べる。
  * 投稿が少ないうちは、タイルが店名だけになって中身がわからず、右側も空いてしまうため。
  */
 export const STORY_CARD_LAYOUT_MAX = 6;
@@ -42,9 +42,18 @@ export default function StoryGridSections({ stories, heartCounts, onOpen }: Prop
       })).filter((section) => section.items.length > 0),
     [stories]
   );
-  const hasRecent = sections.some((section) => section.bucket !== "older");
+  const recentCount = sections
+    .filter((section) => section.bucket !== "older")
+    .reduce((sum, section) => sum + section.items.length, 0);
+  const hasRecent = recentCount > 0;
+  // 「それより前」を最初から開くかは、最初に描いたときの投稿で一度だけ決める。
+  // StoryGridClient は読み込みが終わってからこの一覧を描くので、ここに来た時点で投稿はそろっている
+  // （読み込み中も一覧を出す・投稿を読み直す形に変えるなら、開き方の決め直しが要る）
   const [olderOpen, setOlderOpen] = useState(!hasRecent);
-  const asCards = stories.length <= STORY_CARD_LAYOUT_MAX;
+  // カードかタイルかは、開いてすぐ見える件数で決める。たたんだ「それより前」は数えない
+  // （今週2件＋それより前10件なら、見えているのは2件なのでカード）。
+  // 開け閉めで並べ方が変わらないよう、「それより前」を開いたかどうかでは切り替えない
+  const asCards = (hasRecent ? recentCount : stories.length) <= STORY_CARD_LAYOUT_MAX;
 
   return (
     <div className="space-y-6">
