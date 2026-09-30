@@ -54,7 +54,6 @@ describe("出店者トップのにちよさんへの相談", () => {
     render(<VendorAskStage vendorId="v1" />);
 
     expect(screen.getByText("今日もおつかれさま！")).toBeInTheDocument();
-    expect(screen.getByText(/運営が保存します/)).toBeInTheDocument();
 
     await askFromInput("写真を変えたい");
 
@@ -93,20 +92,6 @@ describe("出店者トップのにちよさんへの相談", () => {
         { role: "assistant", text: "ひとつめの答え" },
       ],
     });
-  });
-
-  it("よくある困りごとを押すと、そのまま聞く", async () => {
-    fetchMock.mockResolvedValue(new Response(streamOf("答え")));
-    render(<VendorAskStage vendorId="v1" />);
-
-    await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: "出店する日を変えるには？" }));
-    });
-
-    expect(JSON.parse(fetchMock.mock.calls[0][1].body).text).toBe("出店する日を変えるには？");
-    await waitFor(() => expect(screen.getByText("答え")).toBeInTheDocument());
-    // 聞いたあとは、よくある困りごとを下げて答えに集中させる
-    expect(screen.queryByRole("button", { name: "出店する日を変えるには？" })).not.toBeInTheDocument();
   });
 
   it("失敗したら謝って、運営への問い合わせ先を出す", async () => {

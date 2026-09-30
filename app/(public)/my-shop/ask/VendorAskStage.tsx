@@ -111,7 +111,7 @@ export default function VendorAskStage({ vendorId }: { vendorId: string }) {
         )}
       </div>
 
-      <VendorHelpInput busy={help.busy} showSuggestions={!help.question} onAsk={(text) => void help.ask(text)} />
+      <VendorHelpInput busy={help.busy} onAsk={(text) => void help.ask(text)} />
     </section>
   );
 }
