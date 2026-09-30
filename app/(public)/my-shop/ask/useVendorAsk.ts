@@ -69,11 +69,15 @@ export function useVendorAsk(vendorId: string | null) {
   /** 保存後の状態では未回答に見えても、この回ですでに答えた質問は出し直さない */
   const handledRef = useRef<AskQuestionId[]>([]);
 
-  const pending = snapshot ? pendingQuestions(snapshot) : [];
-  const queue = pending.filter(
-    (question) => !skipped.includes(question.id) && !handledRef.current.includes(question.id)
+  /** 一覧から選んだ質問。答えるか飛ばすまでは、順番より優先して聞く */
+  const [focusId, setFocusId] = useState<AskQuestionId | null>(null);
+
+  /** この回でまだ答えていない質問（「あとで」にしたものも含む）。一覧に出す */
+  const unanswered = (snapshot ? pendingQuestions(snapshot) : []).filter(
+    (question) => !handledRef.current.includes(question.id)
   );
-  const current = queue[0] ?? null;
+  const queue = unanswered.filter((question) => !skipped.includes(question.id));
+  const current = queue.find((question) => question.id === focusId) ?? queue[0] ?? null;
 
   const status: VendorAskStatus = failed ? "error" : !snapshot ? "loading" : current ? "asking" : "done";
 
@@ -86,6 +90,7 @@ export function useVendorAsk(vendorId: string | null) {
         await saveAskAnswer(vendorId, weekDate, value);
         const latest = await fetchAskSnapshot(vendorId, weekDate);
         handledRef.current = [...handledRef.current, current.id];
+        setFocusId(null);
         setSnapshot(latest);
         setAnsweredCount((count) => count + 1);
       } catch (err) {
@@ -105,20 +110,34 @@ export function useVendorAsk(vendorId: string | null) {
   const skip = useCallback(() => {
     if (!current || saving) return;
     setError(null);
+    setFocusId(null);
     setSkipped((prev) => [...prev, current.id]);
   }, [current, saving]);
+
+  /** 一覧で選んだ質問へ飛ぶ。「あとで」にしていた質問も、選べばまた聞く */
+  const jumpTo = useCallback(
+    (id: AskQuestionId) => {
+      if (saving) return;
+      setError(null);
+      setSkipped((prev) => prev.filter((skippedId) => skippedId !== id));
+      setFocusId(id);
+    },
+    [saving]
+  );
 
   return {
     status,
     snapshot,
     current,
-    /** この回で、まだ聞いていない質問の数（いま聞いている質問を含む） */
-    remaining: queue.length,
+    /** まだ答えていない質問の一覧（「あとで」にしたものも含む）と、「あとで」にした質問 */
+    unanswered,
+    skippedIds: skipped,
     answeredCount,
     skippedCount: skipped.length,
     saving,
     error,
     answer,
     skip,
+    jumpTo,
   };
 }

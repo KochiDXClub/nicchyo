@@ -1,11 +1,14 @@
 "use client";
 
+import { useEffect, useId, useRef, useState } from "react";
 import Link from "next/link";
-import { X } from "lucide-react";
+import { ChevronDown, X } from "lucide-react";
 import GrandmaAvatar from "@/app/(public)/consult/components/GrandmaAvatar";
 import { DEFAULT_CONSULT_CHARACTER } from "@/app/(public)/consult/data/consultCharacters";
 import { Button, Surface, buttonClass } from "@/components/ui";
 import { resolveGrandmaPose } from "@/lib/grandma/pose";
+import { cn } from "@/lib/utils/cn";
+import type { AskQuestion, AskQuestionId } from "@/lib/vendor/askQuestions";
 import AskInput from "./AskInputs";
 import { useVendorAsk } from "./useVendorAsk";
 
@@ -17,14 +20,130 @@ function doneLine(answeredCount: number, skippedCount: number): string {
 }
 
 /**
+ * 「のこり ◯つ」を押すと開く、これから聞く質問の一覧。
+ * 質問を押すと、その質問へ飛ぶ（「あとで」にした質問も選べばまた聞く）。
+ */
+function QuestionList({
+  questions,
+  currentId,
+  skippedIds,
+  onSelect,
+}: {
+  questions: AskQuestion[];
+  currentId: AskQuestionId | null;
+  skippedIds: AskQuestionId[];
+  onSelect: (id: AskQuestionId) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const listId = useId();
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  // 外側を押すか Esc で閉じる。開いているあいだだけ登録する
+  useEffect(() => {
+    if (!open) return;
+    const onPointerDown = (event: PointerEvent) => {
+      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [open]);
+
+  return (
+    <div ref={rootRef}>
+      <button
+        type="button"
+        onClick={() => setOpen((prev) => !prev)}
+        aria-expanded={open}
+        aria-controls={listId}
+        className="flex items-center gap-1 rounded-full bg-white/90 px-3 py-1.5 text-xs font-bold text-amber-900 shadow-card ring-1 ring-amber-200 transition active:scale-95 motion-reduce:active:scale-100"
+      >
+        のこり {questions.length}つ
+        <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", open && "rotate-180")} aria-hidden />
+      </button>
+
+      {open && (
+        <div
+          id={listId}
+          className="absolute inset-x-0 top-full z-20 mt-2 overflow-hidden rounded-card bg-white shadow-float ring-1 ring-amber-200"
+        >
+          <p className="px-4 pb-1 pt-3 text-xs font-bold text-nicchyo-ink/55">これから聞くこと（押すとその質問へ）</p>
+          <ol className="max-h-[50vh] overflow-y-auto overscroll-contain p-2">
+            {questions.map((question, index) => {
+              const isCurrent = question.id === currentId;
+              const isSkipped = skippedIds.includes(question.id);
+              return (
+                <li key={question.id}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onSelect(question.id);
+                      setOpen(false);
+                    }}
+                    aria-current={isCurrent ? "step" : undefined}
+                    className={cn(
+                      "flex w-full items-start gap-3 rounded-btn px-3 py-2.5 text-left transition",
+                      isCurrent ? "bg-amber-50" : "active:bg-amber-50/60"
+                    )}
+                  >
+                    <span
+                      aria-hidden
+                      className={cn(
+                        "mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[11px] font-bold",
+                        isCurrent ? "bg-amber-500 text-white" : "bg-amber-100 text-amber-900"
+                      )}
+                    >
+                      {index + 1}
+                    </span>
+                    <span className="min-w-0 flex-1 text-sm leading-snug text-nicchyo-ink">{question.text}</span>
+                    {isCurrent && (
+                      <span className="shrink-0 rounded-chip bg-amber-500 px-2 py-0.5 text-[11px] font-bold text-white">
+                        いま
+                      </span>
+                    )}
+                    {isSkipped && !isCurrent && (
+                      <span className="shrink-0 rounded-chip bg-nicchyo-ink/5 px-2 py-0.5 text-[11px] font-bold text-nicchyo-ink/55">
+                        あとで
+                      </span>
+                    )}
+                  </button>
+                </li>
+              );
+            })}
+          </ol>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
  * 質問ページ（/my-shop/ask）の中身。にちよさんと質問だけを出す。
  *
  * 出店者トップの吹き出し（「！」）から来る。上の「×」でいつでも出店者トップへ戻れる
  * （ブラウザの戻るでも同じ）。答えた分はその場で保存しているので、途中でやめても消えない。
  */
 export default function VendorAskSession({ vendorId }: { vendorId: string }) {
-  const { status, snapshot, current, remaining, answeredCount, skippedCount, saving, error, answer, skip } =
-    useVendorAsk(vendorId);
+  const {
+    status,
+    snapshot,
+    current,
+    unanswered,
+    skippedIds,
+    answeredCount,
+    skippedCount,
+    saving,
+    error,
+    answer,
+    skip,
+    jumpTo,
+  } = useVendorAsk(vendorId);
 
   const pose = resolveGrandmaPose({
     isListening: false,
@@ -38,7 +157,7 @@ export default function VendorAskSession({ vendorId }: { vendorId: string }) {
 
       <div className="relative z-10 mx-auto flex w-full max-w-md flex-col items-center gap-4 px-5 pb-10">
         <header
-          className="flex w-full items-center justify-between"
+          className="relative flex w-full items-center justify-between"
           style={{ paddingTop: "calc(0.75rem + var(--safe-top, 0px))" }}
         >
           <Link
@@ -49,9 +168,12 @@ export default function VendorAskSession({ vendorId }: { vendorId: string }) {
             <X className="h-5 w-5" aria-hidden />
           </Link>
           {status === "asking" && (
-            <span className="rounded-full bg-white/80 px-3 py-1 text-xs font-bold text-amber-900 ring-1 ring-amber-200">
-              のこり {remaining}つ
-            </span>
+            <QuestionList
+              questions={unanswered}
+              currentId={current?.id ?? null}
+              skippedIds={skippedIds}
+              onSelect={jumpTo}
+            />
           )}
         </header>
 

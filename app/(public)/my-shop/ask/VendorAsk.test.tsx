@@ -88,7 +88,7 @@ describe("VendorAskSession（質問ページ）", () => {
     await renderWith(<VendorAskSession vendorId="v1" />, { ...FULL, instagram: undefined, website: undefined });
 
     expect(screen.getByText(/インスタグラム/)).toBeInTheDocument();
-    expect(screen.getByText("のこり 2つ")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /のこり 2つ/ })).toHaveAttribute("aria-expanded", "false");
     expect(screen.getByRole("link", { name: "質問をやめて戻る" })).toHaveAttribute("href", "/my-shop");
   });
 
@@ -106,5 +106,22 @@ describe("VendorAskSession（質問ページ）", () => {
 
     expect(screen.getByText("今は聞くことないき、ゆっくりしいや。")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "もどる" })).toHaveAttribute("href", "/my-shop");
+  });
+
+  it("「のこり」を押すと質問の一覧が開き、選んだ質問へ飛べる。「あとで」にしても数は減らない", async () => {
+    await renderWith(<VendorAskSession vendorId="v1" />, { ...FULL, instagram: undefined, website: undefined });
+
+    fireEvent.click(screen.getByRole("button", { name: "あとで" }));
+    // あとでにしても、入力が要る質問の数はそのまま
+    const toggle = screen.getByRole("button", { name: /のこり 2つ/ });
+    fireEvent.click(toggle);
+
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    const instagramItem = screen.getByRole("button", { name: /インスタグラム.*あとで/ });
+    fireEvent.click(instagramItem);
+
+    // あとでにした質問を選ぶと、また聞く
+    expect(screen.getByText(/インスタグラムをやっちょったら/, { selector: "p" })).toBeInTheDocument();
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
   });
 });
