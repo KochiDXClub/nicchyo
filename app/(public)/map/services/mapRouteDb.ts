@@ -14,6 +14,7 @@ type MapRoutePointRow = {
   longitude: number | null;
   sort_order: number | null;
   branch_from_id: string | null;
+  road_id: string | null;
 };
 
 type MapRouteConfigRow = {
@@ -36,7 +37,8 @@ export async function fetchMapRouteFromDb(
   const [pointsResult, configResult] = await Promise.all([
     supabase
       .from("map_route_points")
-      .select("id, latitude, longitude, sort_order, branch_from_id")
+      // road_id: 道ごとに別の線として描くため（mapRouteGeometry.ts の getRouteTopology）
+      .select("id, latitude, longitude, sort_order, branch_from_id, road_id")
       .order("sort_order", { ascending: true }),
     supabase
       .from("map_route_configs")
@@ -61,6 +63,7 @@ export async function fetchMapRouteFromDb(
           lng: Number(row.longitude),
           order: Number(row.sort_order ?? 0),
           branchFromId: row.branch_from_id ?? null,
+          roadId: row.road_id ?? null,
         };
       })
       .filter((row): row is MapRoutePoint => row !== null)

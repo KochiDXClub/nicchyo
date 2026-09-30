@@ -26,8 +26,10 @@ export function buildGuidePathsFromMapRoute(mapRoute: MapRoute, roads: MapRoad[]
 
   chains.forEach((chain, index) => {
     if (chain.points.length < 2) return;
-    const isMain = chain.points.every((point) => !point.branchFromId);
     const road = chain.points.map((point) => (point.roadId ? roadById.get(point.roadId) : undefined)).find(Boolean);
+    // 道ごとに別の線になった（mapRouteGeometry の getRouteTopology）ので、枝でない線がすべて
+    // 追手筋とは限らない。出店可の通り（または道の情報を持たない古い点）だけを本線とする
+    const isMain = chain.points.every((point) => !point.branchFromId) && (!road || road.kind === 'market');
     paths.push({
       id: `route-${chain.key || index}`,
       name: isMain ? MARKET_PATH_NAME : road?.name ?? '横道',

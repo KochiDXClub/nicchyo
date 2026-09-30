@@ -33,7 +33,8 @@ export default function ToolHint({
         fontWeight: 700,
         // 地図の上の中央寄せの枠の中で縮まず、1行に収まる幅まで広がるようにする
         width: "max-content",
-        maxWidth: "min(720px, 100%)",
+        maxWidth: "100%",
+        boxSizing: "border-box",
       }}
     >
       <span>{message}</span>

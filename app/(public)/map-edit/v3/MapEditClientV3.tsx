@@ -26,16 +26,10 @@ import SlotMigrationPanel from "./components/SlotMigrationPanel";
 
 const MAX_ZOOM_IDX = 2;
 // 道を描いている途中、既存の点からこの距離（メートル）以内をクリックしたら
-// その点にスナップして接続する
+// その点に位置を合わせる（道同士が交差・合流する見た目を作れるようにするため）
 const POINT_SNAP_DISTANCE_METERS = 6;
-
-// 公開マップ側（RoadOverlay.tsx / mapRouteDb.ts）が road_id・複数道の概念にまだ
-// 未対応で、単一のグローバルroadHalfWidthMetersで全道路を描画している。
-// この状態で新しい道（kind: "street" など）を追加保存すると、公開マップ上で
-// 無関係な道同士が1本の道として繋がって描画されてしまう恐れがあるため、
-// 公開マップ側の複数道対応が入るまで、新規の道の作成は一時的に無効化する
-// （既存の道の編集・削除は対象外）
-const isRoadCreationDisabled = true;
+// 直前の点とほぼ同じ場所のクリックは点を増やさない（ダブルクリックの2回目のクリックなど）
+const DUPLICATE_POINT_METERS = 0.5;
 
 /** 道基準の位置を持ち、指定の道に乗っている区画（区画分けツールの対象） */
 function slotsOnRoad(shops: EditableShop[], roadId: string): SlotOnRoad[] {
@@ -50,7 +44,7 @@ export default function MapEditClientV3() {
   const [tool, setTool] = useState<Tool>("select");
   const [selection, setSelection] = useState<Selection | null>(null);
   const [draft, setDraft] = useState<{ lat: number; lng: number }[]>([]);
-  const [drawAxis, setDrawAxis] = useState<"h" | "v" | "free">("h");
+  const [drawAxis, setDrawAxis] = useState<"h" | "v" | "free">("free");
   // 区画分けツールで選んだ道と、その設定
   const [splitRoadId, setSplitRoadId] = useState<string | null>(null);
   const [splitSettings, setSplitSettings] = useState<SlotSplitSettings | null>(null);
@@ -268,29 +262,28 @@ export default function MapEditClientV3() {
     [roads]
   );
 
-  const finishDraw = useCallback(
-    (pointsOverride?: { lat: number; lng: number }[]) => {
-      const id = ops.createRoad(pointsOverride ?? draft);
-      if (!id) return;
-      backToSelect();
-      setSelection({ kind: "road", id });
-    },
-    [ops, draft, backToSelect]
-  );
+  /** 描いた道を確定する（ダブルクリック・Enter・「この形で確定」）。点が2つ未満なら知らせるだけ */
+  const finishDraw = useCallback(() => {
+    if (draft.length < 2) {
+      setMessage("道は点を2つ以上打ってから確定してください。");
+      return;
+    }
+    const id = ops.createRoad(draft);
+    if (!id) return;
+    backToSelect();
+    setSelection({ kind: "road", id });
+  }, [ops, draft, backToSelect, setMessage]);
 
   const handleDrawClick = useCallback(
     (lat: number, lng: number) => {
-      // 既存の道の点の近くをクリックした場合は、座標をその点にぴったり合わせて
-      // つなげる（軸ロックより優先し、明示的な接続の意図をそのまま反映する）
+      // 既存の道の点の近くをクリックした場合は、座標をその点にぴったり合わせる
+      // （軸ロックより優先し、明示的な接続の意図をそのまま反映する）
       const snapped = findNearestRoutePoint({ lat, lng });
       const nextLat = snapped ? snapped.lat : lat;
       const nextLng = snapped ? snapped.lng : lng;
 
-      // すでに新しい点を打ってある状態で既存の点をクリックしたら、その場でつなげて道を確定する
-      if (snapped && draft.length >= 1) {
-        finishDraw([...draft, { lat: nextLat, lng: nextLng }]);
-        return;
-      }
+      const last = draft[draft.length - 1];
+      if (last && distanceMeters(last, { lat: nextLat, lng: nextLng }) < DUPLICATE_POINT_METERS) return;
 
       setDraft((prev) => {
         const first = prev[0];
@@ -301,7 +294,7 @@ export default function MapEditClientV3() {
         return [...prev, { lat: pointLat, lng: pointLng }];
       });
     },
-    [findNearestRoutePoint, draft, drawAxis, finishDraw]
+    [findNearestRoutePoint, draft, drawAxis]
   );
 
   // ── 取り消し・やり直し・キーボード ──────────────────────────────
@@ -315,16 +308,24 @@ export default function MapEditClientV3() {
   );
   useKeyboardShortcuts(shortcuts);
 
-  // Esc: 道具の途中なら中断して選択ツールへ。選択ツールなら選択を外す
+  // Esc: 道具の途中なら中断して選択ツールへ。選択ツールなら選択を外す。
+  // Enter: 道を描く道具では描いた道を確定する
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Enter" && tool === "drawRoad") {
+        const target = e.target;
+        if (target instanceof HTMLElement && (target.tagName === "INPUT" || target.tagName === "SELECT" || target.tagName === "TEXTAREA")) return;
+        e.preventDefault();
+        finishDraw();
+        return;
+      }
       if (e.key !== "Escape") return;
       if (tool !== "select") backToSelect();
       else setSelection(null);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [tool, backToSelect]);
+  }, [tool, backToSelect, finishDraw]);
 
   useLaneKeyboardNavigation({
     enabled: tool === "select",
@@ -370,6 +371,9 @@ export default function MapEditClientV3() {
       }
       if (tool === "select") setSelection(null);
     },
+    onMapDoubleClick: () => {
+      if (tool === "drawRoad") finishDraw();
+    },
     onVertexMove: ops.moveVertexLive,
     onVertexMoveEnd: ops.moveVertexEnd,
     onVertexRemove: ops.removeVertex,
@@ -378,7 +382,7 @@ export default function MapEditClientV3() {
 
   const toolHintMessage =
     tool === "drawRoad"
-        ? `クリックで点を追加（${drawAxis === "h" ? "横向き" : drawAxis === "v" ? "縦向き" : "自由"}）。既存の点をクリックするとつながって確定、Escで中断`
+        ? "クリックで点を追加、ダブルクリックかEnterで確定、Escで中断（既存の道の点の近くをクリックすると、その点に合わせます）"
         : tool === "splitSlots"
           ? splitRoad
             ? "右のパネルで区画数や範囲を決めて「適用」。Escで中断"
@@ -446,23 +450,15 @@ export default function MapEditClientV3() {
               onZoomOut={() => setZoomIdx((prev) => Math.max(0, prev - 1))}
             />
             <div style={{ position: "absolute", top: 12, left: 12 }}>
-              <ToolPalette
-                tool={tool}
-                onChange={changeTool}
-                disabled={{
-                  // isRoadCreationDisabled の理由はファイル冒頭の定義部コメント参照
-                  ...(isRoadCreationDisabled
-                    ? { drawRoad: "公開マップ側の複数道対応が完了するまで、新しい道の追加は一時的に無効化しています" }
-                    : {}),
-                }}
-              />
+              <ToolPalette tool={tool} onChange={changeTool} />
             </div>
             {toolHintMessage && (
               <div style={{ position: "absolute", top: 12, left: 180, right: 12, display: "flex", justifyContent: "center", pointerEvents: "none" }}>
-                <div style={{ pointerEvents: "auto" }}>
+                {/* maxWidth: 案内が長いときも左上の道具パレットに重ならず、枠の中で折り返すように */}
+                <div style={{ pointerEvents: "auto", maxWidth: "100%", minWidth: 0 }}>
                   <ToolHint message={toolHintMessage} onCancel={backToSelect}>
                     {tool === "drawRoad" && draft.length >= 2 && (
-                      <button type="button" onClick={() => finishDraw()} style={{ padding: "4px 10px", borderRadius: 8, border: "none", fontWeight: 700, cursor: "pointer" }}>
+                      <button type="button" onClick={finishDraw} style={{ padding: "4px 10px", borderRadius: 8, border: "none", fontWeight: 700, cursor: "pointer" }}>
                         この形で確定
                       </button>
                     )}
