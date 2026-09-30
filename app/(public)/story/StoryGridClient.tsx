@@ -8,6 +8,7 @@ import { EmptyState, PageContainer, PageShell } from "@/components/ui";
 import { cn } from "@/lib/utils/cn";
 import StoryViewer from "./StoryViewer";
 import StoryCover from "./components/StoryCover";
+import { StoryDemoBadge } from "./components/StoryChrome";
 import StoryPeekSheet from "./components/StoryPeekSheet";
 import StoryVendorTray from "./components/StoryVendorTray";
 import StoryGridSections from "./components/StoryGridSections";
@@ -30,18 +31,32 @@ const PEEK_HANDOFF_MS = 250;
  * スマホ … 開くと最新の投稿が「開いたストーリー」の形で下から半分出る（StoryPeekSheet）。
  *          上へ引けばそのまま再生、下へ払えば店の列と一覧が触れる。
  * PC     … 左に最新の投稿の表紙（押すと再生）、右に店の列と一覧を並べる。
+ *
+ * demo を渡すと（/demo/story）、API を読まずに見本の投稿で同じ画面を組む。
+ * ハートはサーバーに送らず、名札の横に「デモ」の印を出す。
  */
-export default function StoryGridClient() {
-  const [stories, setStories] = useState<StoryItem[]>([]);
-  const [loading, setLoading] = useState(true);
+type Props = {
+  demo?: {
+    /** 新しい順の見本の投稿 */
+    stories: StoryItem[];
+    /** 投稿ごとの見本のハート数 */
+    heartCounts: Record<string, number>;
+  };
+};
+
+export default function StoryGridClient({ demo }: Props = {}) {
+  const [stories, setStories] = useState<StoryItem[]>(() => demo?.stories ?? []);
+  const [loading, setLoading] = useState(!demo);
   const [fetchError, setFetchError] = useState(false);
   const [viewerIndex, setViewerIndex] = useState<number | null>(null);
   const [peekOpen, setPeekOpen] = useState(false);
-  const [heartCounts, setHeartCounts] = useState<Record<string, number>>({});
+  const [heartCounts, setHeartCounts] = useState<Record<string, number>>(() => demo?.heartCounts ?? {});
   const nextSunday = useMemo(() => getNextSundayLabel(), []);
   const { calendar } = useMarketCalendar();
+  const isDemo = demo !== undefined;
 
   useEffect(() => {
+    if (isDemo) return;
     fetch("/api/stories")
       .then((r) => r.json())
       .then((data) => {
@@ -50,7 +65,7 @@ export default function StoryGridClient() {
       })
       .catch(() => setFetchError(true))
       .finally(() => setLoading(false));
-  }, []);
+  }, [isDemo]);
 
   // 最初の開き方を一度だけ決める。stories が再フェッチされても勝手に開き直さない。
   //   ?content=<vendor_contents.id> 付き … その投稿を全画面で直接開く
@@ -73,7 +88,7 @@ export default function StoryGridClient() {
 
   // サムネイル用のハート数をバッチ取得（失敗しても一覧の表示には影響させない）
   useEffect(() => {
-    if (stories.length === 0) return;
+    if (isDemo || stories.length === 0) return;
     let cancelled = false;
     fetchReactionCounts(stories.map((story) => story.id))
       .then(({ counts }) => {
@@ -83,7 +98,7 @@ export default function StoryGridClient() {
     return () => {
       cancelled = true;
     };
-  }, [stories]);
+  }, [isDemo, stories]);
 
   const openViewer = (index: number) => {
     setPeekOpen(false);
@@ -142,7 +157,7 @@ export default function StoryGridClient() {
                   className="group relative block aspect-[9/16] w-full overflow-hidden rounded-card shadow-lift"
                   aria-label={`${latest.vendor?.shop_name ?? "出店者"}の近況を再生`}
                 >
-                  <StoryCover story={latest} count={stories.length} priority />
+                  <StoryCover story={latest} count={stories.length} priority demo={isDemo} />
                   <span className="absolute inset-0 z-20 flex items-center justify-center bg-black/0 transition group-hover:bg-black/15">
                     <span className="flex h-14 w-14 items-center justify-center rounded-full bg-white/90 text-nicchyo-ink shadow-pop transition group-hover:scale-105">
                       <Play className="ml-0.5 h-6 w-6 fill-current" aria-hidden />
@@ -158,6 +173,13 @@ export default function StoryGridClient() {
           <div className="min-w-0 space-y-6">
             {/* 開催ステータス：中止の連絡が下にあっては意味がないので最上部に置く */}
             <MarketStatusBar day={calendar.day} placement="page" />
+
+            {isDemo && (
+              <p className="flex items-start gap-2 rounded-card bg-white px-4 py-3 text-xs leading-relaxed text-nicchyo-ink/70 ring-1 ring-line">
+                <StoryDemoBadge />
+                <span>近況のデモです。お店・投稿・AIキャラのひとことは、すべて見本です。</span>
+              </p>
+            )}
 
             {hoistCalendar && <UpcomingSundays sundays={upcomingSundays} showMoreLink />}
 
@@ -193,7 +215,11 @@ export default function StoryGridClient() {
               />
             ) : (
               <>
-                <StoryVendorTray stories={stories} onOpen={openViewer} />
+                {/* 見出しを置かない代わりに、初めて来た人にも何のページかがわかる一言だけ添える */}
+                <div className="space-y-3">
+                  <p className="text-xs text-nicchyo-ink/55">出店者さんが投稿した、日曜市の近況です。</p>
+                  <StoryVendorTray stories={stories} onOpen={openViewer} />
+                </div>
                 <StoryGridSections stories={stories} heartCounts={heartCounts} onOpen={openViewer} />
               </>
             )}
@@ -211,6 +237,7 @@ export default function StoryGridClient() {
         <StoryPeekSheet
           story={latest}
           count={stories.length}
+          demo={isDemo}
           onLaunch={launchFromPeek}
           onDismiss={() => setPeekOpen(false)}
         />
@@ -223,6 +250,7 @@ export default function StoryGridClient() {
             stories={stories}
             initialIndex={viewerIndex}
             onClose={() => setViewerIndex(null)}
+            demo={demo}
           />
         )}
       </AnimatePresence>

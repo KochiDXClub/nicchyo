@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { useAuth } from "@/lib/auth/AuthContext";
 import VendorSidebar from "@/components/vendor/VendorSidebar";
 import VendorNavBar from "@/components/vendor/VendorNavBar";
+import { useBodyScrollLock } from "@/lib/ui/bodyScrollLock";
 
 function GuardMessage({
   title,
@@ -46,14 +47,8 @@ export default function VendorLayout({ children }: { children: ReactNode }) {
     setIsSidebarOpen(false);
   }, [pathname]);
 
-  useEffect(() => {
-    if (!isSidebarOpen) return;
-    const prevOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = prevOverflow;
-    };
-  }, [isSidebarOpen]);
+  // サイドバーを開いているあいだは背面を固定する（重なる固定と数を合わせる共通の仕組み）
+  useBodyScrollLock(isSidebarOpen);
 
   if (isLoading) {
     return (
