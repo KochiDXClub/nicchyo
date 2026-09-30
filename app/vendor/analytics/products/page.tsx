@@ -3,16 +3,15 @@
 export const dynamic = "force-dynamic";
 
 import { useState, useEffect } from "react";
+import { CenteredLoading, EmptyMessage, PageContainer, PageShell, PageTitle } from "@/components/ui";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { fetchAllProductSales, fetchProductSearchTrends } from "../../_services/analyticsService";
 import type { ProductSale, SearchKeywordTrend } from "../../_types";
-import { ArrowLeft, Medal, TrendingUp, Flame } from "lucide-react";
+import { Medal, TrendingUp, Flame } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell,
 } from "recharts";
-import { CenteredLoading } from "@/components/ui/loading-spinner";
-import { EmptyMessage } from "@/components/ui/empty-message";
 
 const RANK_COLORS = ["#f59e0b", "#94a3b8", "#d97706", "#60a5fa", "#a78bfa"];
 const MEDAL_COLORS = ["text-amber-400", "text-slate-400", "text-amber-700"];
@@ -47,20 +46,10 @@ export default function ProductAnalyticsPage() {
   const maxQty = sorted[0]?.quantity ?? 1;
 
   return (
-    <div className="min-h-screen bg-[#FFFAF0] pb-24">
-      <div className="border-b border-amber-100 bg-white/90 px-4 py-4 backdrop-blur-sm">
-        <div className="mx-auto flex max-w-2xl items-center gap-3">
-          <Link href="/vendor/analytics" className="flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50">
-            <ArrowLeft size={18} />
-          </Link>
-          <div>
-            <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-amber-600">Product Analytics</p>
-            <h1 className="text-xl font-bold text-slate-900">商品分析</h1>
-          </div>
-        </div>
-      </div>
+    <PageShell bottomNav={false}>
+      <PageTitle title="商品分析" />
 
-      <div className="mx-auto max-w-2xl space-y-4 px-4 pt-5">
+      <PageContainer className="space-y-4">
 
         {isLoading ? (
           <CenteredLoading />
@@ -179,7 +168,7 @@ export default function ProductAnalyticsPage() {
 
           </>
         )}
-      </div>
-    </div>
+      </PageContainer>
+    </PageShell>
   );
 }

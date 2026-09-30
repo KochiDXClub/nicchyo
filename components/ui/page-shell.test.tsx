@@ -1,7 +1,7 @@
 import React from "react";
 import { render, screen } from "@testing-library/react";
 import { describe, it, expect } from "vitest";
-import { PageShell, PageContainer, PageHeader } from "./page-shell";
+import { PageShell, PageContainer, PageHeader, PageTitle } from "./page-shell";
 
 describe("PageShell", () => {
   it("地の色・文字色・最低の高さを持つ（ページ側で塗り直さないため）", () => {
@@ -96,5 +96,32 @@ describe("PageHeader", () => {
   it("幅は PageContainer と同じ段階を使う", () => {
     const { container } = render(<PageHeader width="wide" label="分析" />);
     expect(container.querySelector(".max-w-\\[64rem\\]")).not.toBeNull();
+  });
+});
+
+describe("PageTitle", () => {
+  it("見出しを h1 で出す", () => {
+    render(<PageTitle title="店舗情報の編集" />);
+    expect(screen.getByRole("heading", { level: 1, name: "店舗情報の編集" })).toBeTruthy();
+  });
+
+  it("右端の操作と、見出しの下の子要素を出す", () => {
+    render(
+      <PageTitle title="投稿履歴" action={<button type="button">新規投稿</button>}>
+        <p>タブ</p>
+      </PageTitle>
+    );
+    expect(screen.getByRole("button", { name: "新規投稿" })).toBeTruthy();
+    expect(screen.getByText("タブ")).toBeTruthy();
+  });
+
+  it("操作が無いときは右端の枠を出さない", () => {
+    const { container } = render(<PageTitle title="使い方ガイド" />);
+    expect(container.querySelector(".shrink-0")).toBeNull();
+  });
+
+  it("戻るための要素（リンク）を持たない", () => {
+    render(<PageTitle title="使い方ガイド" />);
+    expect(screen.queryByRole("link")).toBeNull();
   });
 });
