@@ -33,4 +33,27 @@ describe("buildVendorHelpSystemPrompt", () => {
     expect(prompt).toContain("運営に問い合わせる");
     expect(prompt).toContain("推測で答えないでください");
   });
+
+  it("このお店の数字と日曜市全体の数字を入れ、取れなかった数字はそう伝える", () => {
+    const prompt = buildVendorHelpSystemPrompt([], {}, {
+      shop: {
+        aiMentions: { total: 5, recommended: 3, topKeywords: ["いも天"] },
+        hearts: null,
+        topSales: [{ name: "トマト", quantity: 12 }],
+      },
+      market: { weeklyVisitors: 1234, monthlyVisitors: null, topSearchKeywords: [], topSellingProducts: ["なす"] },
+    });
+
+    expect(prompt).toContain("話題になった回数: 5回（そのうち、おすすめされた回数: 3回）");
+    expect(prompt).toContain("よく出た言葉: いも天");
+    expect(prompt).toContain("このお店の投稿へのハート: 取れなかった");
+    expect(prompt).toContain("自分で記録した売れ数（多い順）: トマト 12");
+    expect(prompt).toContain("nicchyo の来訪者数: 今週 1,234人 / 今月 取れなかった");
+    expect(prompt).toContain("よく検索した言葉: まだない");
+    expect(prompt).toContain("よく売れている商品: なす");
+  });
+
+  it("閲覧数とお気に入り数はまだ数えていないと伝えるよう指示する", () => {
+    expect(buildVendorHelpSystemPrompt([], {})).toContain("お店の閲覧数とお気に入り数は、まだ数えていません");
+  });
 });
