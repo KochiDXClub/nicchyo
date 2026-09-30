@@ -215,7 +215,11 @@ export default function StoryGridClient({ demo }: Props = {}) {
               />
             ) : (
               <>
-                <StoryVendorTray stories={stories} onOpen={openViewer} />
+                {/* 見出しを置かない代わりに、初めて来た人にも何のページかがわかる一言だけ添える */}
+                <div className="space-y-3">
+                  <p className="text-xs text-nicchyo-ink/55">出店者さんが投稿した、日曜市の近況です。</p>
+                  <StoryVendorTray stories={stories} onOpen={openViewer} />
+                </div>
                 <StoryGridSections stories={stories} heartCounts={heartCounts} onOpen={openViewer} />
               </>
             )}
