@@ -4,7 +4,7 @@ export const dynamic = "force-dynamic";
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Plus, ChevronRight, Inbox } from "lucide-react";
+import { Plus, ChevronRight, Inbox } from "lucide-react";
 import { CenteredLoading } from "@/components/ui/loading-spinner";
 import { fetchMyInquiries, type VendorInquiry } from "../_services/inquiriesService";
 import { CATEGORY_LABELS, TOPIC_LABELS, statusLabel } from "@/lib/vendorInquiries/labels";
@@ -45,18 +45,9 @@ export default function VendorInquiriesPage() {
   return (
     <div className="min-h-screen bg-[#FFFAF0] pb-24">
       <div className="border-b border-amber-100 bg-white/90 px-4 py-4 backdrop-blur-sm">
-        <div className="mx-auto flex max-w-2xl items-center gap-3">
-          <Link
-            href="/my-shop"
-            className="flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50"
-            aria-label="マイ店舗へ戻る"
-          >
-            <ArrowLeft size={18} />
-          </Link>
-          <div>
-            <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-amber-600">Contact</p>
-            <h1 className="text-xl font-bold text-slate-900">運営・市役所に連絡</h1>
-          </div>
+        <div className="mx-auto max-w-2xl">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-amber-600">Contact</p>
+          <h1 className="text-xl font-bold text-slate-900">運営・市役所に連絡</h1>
         </div>
       </div>
 
