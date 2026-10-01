@@ -176,7 +176,10 @@ export async function POST(request: Request) {
     onToolCalls: (calls) => {
       const proposal = proposalFromToolCalls(calls, text);
       if (!proposal) return null;
-      proposalNote = `\n［変更案］${JSON.stringify(proposal)}`;
+      proposalNote =
+        proposal.kind === "edit"
+          ? `\n［入力欄を開いた］${proposal.field}`
+          : `\n［変更案］${JSON.stringify(proposal.answer)}`;
       return serializeProposal(proposal);
     },
     onFinish: (answer, { truncated }) => {

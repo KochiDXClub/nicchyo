@@ -104,7 +104,7 @@ describe("VendorAskStage の相談からの変更案", () => {
 
   function replyWithProposal(text: string) {
     const body =
-      text + TEXT_STREAM_DATA_SEPARATOR + serializeProposal({ id: "hours", start: "7:00", end: "13:00" });
+      text + TEXT_STREAM_DATA_SEPARATOR + serializeProposal({ kind: "change", answer: { id: "hours", start: "7:00", end: "13:00" } });
     fetchMock.mockResolvedValueOnce(new Response(body));
   }
 
@@ -149,6 +149,30 @@ describe("VendorAskStage の相談からの変更案", () => {
     await ask("ありがとう");
     const history = JSON.parse(fetchMock.mock.calls[1][1].body).history;
     expect(history[1].text).toContain("保存した");
+  });
+
+  it("値を言わずに「変えたい」だけでも、いまの値を入れた入力欄を開いて保存できる", async () => {
+    // 保存される形（店舗情報の時間の選択肢と同じ「6:00」）
+    await renderWith(<VendorAskStage vendorId="v1" />, { ...FULL, businessHoursStart: "6:00", businessHoursEnd: "14:00" });
+    fetchMock.mockResolvedValueOnce(
+      new Response(TEXT_STREAM_DATA_SEPARATOR + serializeProposal({ kind: "edit", field: "hours" }))
+    );
+
+    await ask("営業時間を変えたい");
+
+    await screen.findByRole("group", { name: "営業時間の変更の確認" });
+    expect(screen.getByText("ここで変えてや。")).toBeInTheDocument();
+    expect(screen.getByText("営業時間、どう変えるかえ？")).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "開始時間" })).toHaveValue("6:00");
+
+    fireEvent.change(screen.getByRole("combobox", { name: "開始時間" }), { target: { value: "7:00" } });
+    fireEvent.change(screen.getByRole("combobox", { name: "終了時間" }), { target: { value: "13:00" } });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "これでええ！" }));
+    });
+
+    expect(saveAskAnswer).toHaveBeenCalledWith("v1", expect.any(String), { id: "hours", start: "7:00", end: "13:00" });
+    expect(screen.getByText("営業時間を変えちょいたで！")).toBeInTheDocument();
   });
 
   it("「やめる」と保存せずに閉じる", async () => {

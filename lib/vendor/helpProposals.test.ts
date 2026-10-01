@@ -7,9 +7,11 @@ import {
 } from "./helpProposals";
 import type { VendorAskSnapshot } from "./askQuestions";
 
-/** 出店者の質問は、値を書かない項目のテストでは空でよい */
-const proposalFromToolCalls = (calls: { name: string; arguments: string }[], userText = "") =>
-  proposalFromToolCallsWith(calls, userText);
+/** お店の情報の変更案だけを取り出す。出店者の質問は、値を書かない項目のテストでは空でよい */
+const proposalFromToolCalls = (calls: { name: string; arguments: string }[], userText = "") => {
+  const proposal = proposalFromToolCallsWith(calls, userText);
+  return proposal?.kind === "change" ? proposal.answer : proposal;
+};
 
 const call = (name: string, args: unknown) => ({ name, arguments: JSON.stringify(args) });
 
@@ -86,10 +88,25 @@ describe("proposalFromToolCalls", () => {
   });
 });
 
+describe("入力欄を開く案（open_field）", () => {
+  it("新しい値が無くても、変えたい項目の入力欄を開く案にする", () => {
+    expect(proposalFromToolCallsWith([call("open_field", { field: "hours" })], "営業時間を変えたい")).toEqual({
+      kind: "edit",
+      field: "hours",
+    });
+  });
+
+  it("写真など、会話から変えない項目は案にしない", () => {
+    expect(proposalFromToolCallsWith([call("open_field", { field: "shop-photo" })], "写真を変えたい")).toBeNull();
+  });
+});
+
 describe("parseProposalFrame", () => {
   it("サーバーが付けた案を読み戻せる", () => {
-    const answer = { id: "rain", policy: "undecided", note: "小雨なら出る" } as const;
-    expect(parseProposalFrame(serializeProposal(answer))).toEqual(answer);
+    const change = { kind: "change", answer: { id: "rain", policy: "undecided", note: "小雨なら出る" } } as const;
+    expect(parseProposalFrame(serializeProposal(change))).toEqual(change);
+    const edit = { kind: "edit", field: "hours" } as const;
+    expect(parseProposalFrame(serializeProposal(edit))).toEqual(edit);
   });
 
   it("形の違うデータは読まない", () => {
