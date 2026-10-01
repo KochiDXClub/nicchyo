@@ -55,7 +55,10 @@ function PostCard({ post, onRepost, onEditRepost }: { post: Post; onRepost: (pos
           </div>
         )}
         <div className="min-w-0 flex-1">
-          <p className="line-clamp-3 text-sm leading-relaxed text-slate-800">{post.text}</p>
+          {/* 写真だけの投稿（ひとこと無し）は空の段落を出さず、見分けられる文言にする */}
+          <p className={`line-clamp-3 text-sm leading-relaxed ${post.text ? "text-slate-800" : "text-slate-400"}`}>
+            {post.text || "写真だけの投稿"}
+          </p>
           <div className="mt-2 flex flex-wrap items-center gap-2">
             <StatusBadge status={post.status} />
             <span className="flex items-center gap-1 text-[11px] text-slate-400">
