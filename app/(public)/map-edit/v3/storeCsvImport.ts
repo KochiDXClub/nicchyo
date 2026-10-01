@@ -132,8 +132,10 @@ export function parseStoreCsv(text: string): { rows: StoreCsvRow[]; errors: Impo
 export type StoreImportRoads = { northSouth: EditableRoad | null; ohashi: EditableRoad | null };
 
 export type StoreImportPlan = {
-  /** 取り込める行の数 */
+  /** 取り込む行の数 */
   rowCount: number;
+  /** 置く道がまだ無いため飛ばした行の数（大橋通りの道を作る前の7丁目など） */
+  skippedRowCount: number;
   createdSlotCount: number;
   updatedSlotCount: number;
   deletedSlotCount: number;
@@ -158,6 +160,9 @@ function median(values: number[]): number | null {
 
 /**
  * 取り込みの計画を立てる（状態は変えない）。
+ * - 置く道は自動で決める（defaultImportRoads）。大橋通りの道がまだ無いあいだは、
+ *   大橋通りの行のうち新しく作る区画だけを飛ばし、ほかの行は取り込む。道を作ってから
+ *   同じ CSV を取り込み直せば、飛ばした行の区画だけが追加される
  * - 本番号＋枝番が同じ区画があれば、位置はそのままで出店者の情報を更新する（取り込み直しても重複しない）
  * - 無ければ道の上に区画を作る。北・南は追手筋（northSouth）の住所録の上側・下側に、
  *   丁目の順（一丁目が西）・番号の順で等間隔に並べる。大橋通りは ohashi の道に、番号の順で左右交互に並べる
@@ -173,29 +178,49 @@ export function planStoreImport(input: {
   replace: boolean;
   now?: number;
 }): StoreImportPlan {
-  const { rows, shops, vendors, categories, roads, replace } = input;
+  const { shops, vendors, categories, roads, replace } = input;
   const errors: ImportIssue[] = [...input.parseErrors];
   const warnings: ImportIssue[] = [];
-  const empty = { rowCount: rows.length, createdSlotCount: 0, updatedSlotCount: 0, deletedSlotCount: 0, createdVendorCount: 0, updatedVendorCount: 0 };
-
-  if (rows.length === 0 && errors.length === 0) errors.push({ line: null, message: "取り込む行がありません。" });
 
   const categoryIdByName = new Map(categories.map((c) => [c.name.trim(), c.id]));
   const shopByNumber = new Map(
     shops.filter((s) => s.officialNumber != null).map((s) => [`${s.officialNumber}-${s.branchNumber ?? 0}`, s])
   );
+  const hasRoad = (road: EditableRoad | null) => !!road && road.points.length >= 2;
+
+  // 大橋通りの道がまだ無ければ、大橋通りの行のうち新しく作る区画は飛ばす
+  const skipped = input.rows.filter(
+    (row) =>
+      row.side === "ohashi" &&
+      !hasRoad(roads.ohashi) &&
+      !shopByNumber.has(`${row.officialNumber}-${row.branchNumber ?? 0}`)
+  );
+  for (const row of skipped) {
+    warnings.push({
+      line: row.line,
+      message: "大橋通りの道がまだ無いため、この行は取り込みません。「道を描く」で「大橋通り」という名前の道を作ってから、同じ CSV を取り込み直してください",
+    });
+  }
+  const rows = input.rows.filter((row) => !skipped.includes(row));
+  const empty = {
+    rowCount: rows.length,
+    skippedRowCount: skipped.length,
+    createdSlotCount: 0,
+    updatedSlotCount: 0,
+    deletedSlotCount: 0,
+    createdVendorCount: 0,
+    updatedVendorCount: 0,
+  };
+
+  if (input.rows.length === 0 && errors.length === 0) errors.push({ line: null, message: "取り込む行がありません。" });
 
   // 道の確認
   for (const row of rows) {
-    const road = row.side === "ohashi" ? roads.ohashi : roads.northSouth;
     const matched = shopByNumber.get(`${row.officialNumber}-${row.branchNumber ?? 0}`);
-    if (!matched && (!road || road.points.length < 2)) {
+    if (!matched && row.side !== "ohashi" && !hasRoad(roads.northSouth)) {
       errors.push({
         line: row.line,
-        message:
-          row.side === "ohashi"
-            ? "大橋通りの道がありません。「道を描く」で大橋通りを作ってから、取り込み画面で選んでください"
-            : "北・南の区画を置く道（追手筋）を選んでください",
+        message: "「北」「南」の区画を置く道（追手筋）がありません。「道を描く」で「追手筋」という名前の道を作ってください",
       });
     }
     if (row.side === "ohashi" && row.chome !== "七丁目") {
@@ -248,7 +273,7 @@ export function planStoreImport(input: {
   }
 
   // ── 削除する区画と、新しい区画の店番 ──
-  const csvKeys = new Set(rows.map((row) => `${row.officialNumber}-${row.branchNumber ?? 0}`));
+  const csvKeys = new Set(input.rows.map((row) => `${row.officialNumber}-${row.branchNumber ?? 0}`));
   const deleted = replace
     ? shops.filter((s) => s.officialNumber == null || !csvKeys.has(`${s.officialNumber}-${s.branchNumber ?? 0}`))
     : [];
@@ -348,6 +373,7 @@ export function planStoreImport(input: {
 
   return {
     rowCount: rows.length,
+    skippedRowCount: skipped.length,
     createdSlotCount: newRows.length,
     updatedSlotCount: rows.length - newRows.length,
     deletedSlotCount: deleted.length,

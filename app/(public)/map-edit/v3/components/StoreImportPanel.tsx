@@ -64,8 +64,6 @@ export default function StoreImportPanel({
   const defaults = useMemo(() => defaultImportRoads(usableRoads), [usableRoads]);
   const [fileName, setFileName] = useState<string | null>(null);
   const [parsed, setParsed] = useState<{ rows: StoreCsvRow[]; errors: ImportIssue[] } | null>(null);
-  const [northSouthRoadId, setNorthSouthRoadId] = useState<string>(defaults.northSouth?.id ?? "");
-  const [ohashiRoadId, setOhashiRoadId] = useState<string>(defaults.ohashi?.id ?? "");
   // 今ある区画は仮のデータなので、最初の取り込みでは置き換える前提にする
   const [replace, setReplace] = useState(true);
 
@@ -78,14 +76,11 @@ export default function StoreImportPanel({
             shops,
             vendors,
             categories,
-            roads: {
-              northSouth: usableRoads.find((r) => r.id === northSouthRoadId) ?? null,
-              ohashi: usableRoads.find((r) => r.id === ohashiRoadId) ?? null,
-            },
+            roads: defaults,
             replace,
           })
         : null,
-    [parsed, shops, vendors, categories, usableRoads, northSouthRoadId, ohashiRoadId, replace]
+    [parsed, shops, vendors, categories, defaults, replace]
   );
 
   const readFile = async (file: File) => {
@@ -93,16 +88,6 @@ export default function StoreImportPanel({
     setParsed(parseStoreCsv(await file.text()));
   };
 
-  const roadSelect = (value: string, onChange: (id: string) => void) => (
-    <select value={value} onChange={(e) => onChange(e.target.value)} style={inputStyle}>
-      <option value="">（なし）</option>
-      {usableRoads.map((road) => (
-        <option key={road.id} value={road.id}>
-          {road.name}
-        </option>
-      ))}
-    </select>
-  );
 
   return (
     <div style={panelWrap}>
@@ -136,14 +121,12 @@ export default function StoreImportPanel({
         />
       </label>
 
-      <label>
-        <span style={label}>「北」「南」の区画を置く道</span>
-        {roadSelect(northSouthRoadId, setNorthSouthRoadId)}
-      </label>
-      <label>
-        <span style={label}>「大橋通り」の区画を置く道</span>
-        {roadSelect(ohashiRoadId, setOhashiRoadId)}
-      </label>
+      {/* 置く道は道の名前から自動で決める（storeCsvImport.ts の defaultImportRoads） */}
+      <p style={noteStyle}>
+        区画を置く道：「北」「南」は {defaults.northSouth ? `「${defaults.northSouth.name}」` : "（追手筋の道がありません）"}、
+        「大橋通り」は{" "}
+        {defaults.ohashi ? `「${defaults.ohashi.name}」` : "（大橋通りの道がまだ無いので、その行は飛ばして取り込みます）"}
+      </p>
       <label style={{ display: "flex", gap: 6, alignItems: "flex-start", fontSize: 12.5, marginBottom: 10 }}>
         <input type="checkbox" checked={replace} onChange={(e) => setReplace(e.target.checked)} />
         <span>CSV に無い区画を削除する（今の区画を置き換える。出店者の情報は消さず、割り当てだけ外れます）</span>
@@ -153,6 +136,7 @@ export default function StoreImportPanel({
         <>
           <p style={noteStyle} aria-live="polite">
             {fileName}：{plan.rowCount} 行
+            {plan.skippedRowCount > 0 && `（大橋通りの道が無いため ${plan.skippedRowCount} 行を飛ばします）`}
             <br />
             区画 新規 {plan.createdSlotCount}・更新 {plan.updatedSlotCount}・削除 {plan.deletedSlotCount}
             <br />
