@@ -10,7 +10,7 @@ import { noteEmbeddingText, type AiNoteInput } from "@/lib/vendor/aiNotes";
 
 /** 一覧・保存の結果で返す列（ベクトルそのものは読まない） */
 export const NOTE_COLUMNS =
-  "id, topic, title, content, for_visitors, for_vendor, updated_at, has_embedding:store_knowledge_searchable";
+  "id, title, content, for_visitors, for_vendor, updated_at, has_embedding:store_knowledge_searchable";
 
 type ServerClient = ReturnType<typeof createServerClient>;
 
@@ -74,7 +74,6 @@ export async function embedNote(note: Pick<AiNoteInput, "title" | "content">): P
 
 export function toNoteRow(note: AiNoteInput) {
   return {
-    topic: note.topic,
     title: note.title,
     content: note.content,
     for_visitors: note.forVisitors,
