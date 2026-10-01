@@ -11,7 +11,7 @@ const IdSchema = z.string().uuid();
 type Params = { params: Promise<{ id: string }> };
 
 /**
- * PATCH: ノートを書き直す（題か本文が変わったらベクトルも作り直す）
+ * PATCH: ノートを書き直す（トピックタイトルか本文が変わったらベクトルも作り直す）
  */
 export async function PATCH(request: Request, { params }: Params) {
   const auth = await requireVendorWrite(request);

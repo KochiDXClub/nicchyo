@@ -2,26 +2,26 @@ import { z } from "zod";
 
 /**
  * にちよさんのノート（出店者がにちよさんに教えるお店のこと）。
- * 1枚 = 話題 + タイトル + 詳しく。届け先ごとに、どのにちよさんへ渡すかを決める。
+ * 1枚 = トピックタイトル（「混む時間」「お支払い方法」など、何の話か）+ 本文。
+ * 届け先ごとに、どのにちよさんへ渡すかを決める。
  * 保存先は store_knowledge（supabase/migrations/20261001160000_store_knowledge_notes.sql）。
  */
 
-export const NOTE_TOPICS = [
-  { id: "recommend", label: "おすすめ" },
-  { id: "busy", label: "混む時間" },
-  { id: "payment", label: "支払い" },
-  { id: "caution", label: "気をつけること" },
-  { id: "other", label: "その他" },
+/** トピックタイトルの候補。押すとそのまま入る（自由に書いてもよい） */
+export const NOTE_TITLE_SUGGESTIONS = [
+  "おすすめ",
+  "混む時間",
+  "お支払い方法",
+  "試食",
+  "気をつけること",
 ] as const;
-
-export type NoteTopic = (typeof NOTE_TOPICS)[number]["id"];
 
 export const NOTE_TITLE_MAX = 60;
 export const NOTE_CONTENT_MAX = 1000;
 
 export type AiNote = {
   id: string;
-  topic: NoteTopic;
+  /** トピックタイトル（何の話か） */
   title: string;
   content: string;
   /** お客さん向けのにちよさん（相談・店舗ページのチャット）に渡すか */
@@ -46,13 +46,10 @@ export const DEFAULT_AI_SETTINGS: AiSettings = {
   sharePopularWithVisitors: false,
 };
 
-const topicIds = NOTE_TOPICS.map((topic) => topic.id) as [NoteTopic, ...NoteTopic[]];
-
 export const AiNoteInputSchema = z
   .object({
-    topic: z.enum(topicIds),
-    title: z.string().trim().min(1, "タイトルを入れてください").max(NOTE_TITLE_MAX),
-    content: z.string().trim().min(1, "詳しくを入れてください").max(NOTE_CONTENT_MAX),
+    title: z.string().trim().min(1, "トピックタイトルを入れてください").max(NOTE_TITLE_MAX),
+    content: z.string().trim().min(1, "本文を入れてください").max(NOTE_CONTENT_MAX),
     forVisitors: z.boolean(),
     forVendor: z.boolean(),
   })
@@ -70,8 +67,8 @@ export const AiSettingsSchema = z.object({
 });
 
 /**
- * 検索用のベクトルにする文章。題と本文をつなげると、
- * 「支払い」のように題にしか出てこない言葉でも見つかるようになる。
+ * 検索用のベクトルにする文章。トピックタイトルと本文をつなげると、
+ * 「お支払い方法」のようにトピックタイトルにしか出てこない言葉でも見つかるようになる。
  */
 export function noteEmbeddingText(note: Pick<AiNoteInput, "title" | "content">): string {
   return `${note.title}\n${note.content}`;
@@ -79,7 +76,6 @@ export function noteEmbeddingText(note: Pick<AiNoteInput, "title" | "content">):
 
 export type StoreKnowledgeRow = {
   id: string;
-  topic: string;
   title: string;
   content: string;
   for_visitors: boolean;
@@ -89,10 +85,8 @@ export type StoreKnowledgeRow = {
 };
 
 export function rowToAiNote(row: StoreKnowledgeRow): AiNote {
-  const topic = topicIds.includes(row.topic as NoteTopic) ? (row.topic as NoteTopic) : "other";
   return {
     id: row.id,
-    topic,
     title: row.title,
     content: row.content,
     forVisitors: row.for_visitors,

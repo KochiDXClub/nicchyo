@@ -1,6 +1,7 @@
--- 「にちよさんに教える」を、1店舗1枚の自由メモから「話題・タイトル・詳しく」のノートの束にする。
+-- 「にちよさんに教える」を、1店舗1枚の自由メモから「トピックタイトル・本文」のノートの束にする。
+-- トピックタイトルは「混む時間」「お支払い方法」のような、そのノートが何の話かを表す見出し。
 --
--- 1. store_knowledge に、話題・タイトル・届け先（お客さん向け / 自分の相談向け）・並び順を足す。
+-- 1. store_knowledge に、トピックタイトル・届け先（お客さん向け / 自分の相談向け）・並び順を足す。
 --    1店舗で何枚でも持てる（これまでも行は複数持てたが、画面とAPIが1枚しか扱っていなかった）。
 --    既存のメモは「その他」の1枚として引き継ぐ。
 -- 2. 出店者ごとの「にちよさんに渡すもの」の設定 vendor_ai_settings を作る。
@@ -15,19 +16,13 @@
 
 ALTER TABLE public.store_knowledge
   ADD COLUMN IF NOT EXISTS title text NOT NULL DEFAULT '',
-  ADD COLUMN IF NOT EXISTS topic text NOT NULL DEFAULT 'other',
   ADD COLUMN IF NOT EXISTS for_visitors boolean NOT NULL DEFAULT true,
   ADD COLUMN IF NOT EXISTS for_vendor boolean NOT NULL DEFAULT true,
   ADD COLUMN IF NOT EXISTS sort_order integer NOT NULL DEFAULT 0;
 
 DO $$
 BEGIN
-  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'store_knowledge_topic_check') THEN
-    ALTER TABLE public.store_knowledge
-      ADD CONSTRAINT store_knowledge_topic_check
-      CHECK (topic IN ('recommend', 'busy', 'payment', 'caution', 'other'));
-  END IF;
-  -- タイトルは一覧で1行に収まる長さ。詳しくはこれまでのAPIの上限（5000字）に合わせる
+  -- トピックタイトルは一覧で1行に収まる長さ。本文はこれまでのAPIの上限（5000字）に合わせる
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'store_knowledge_title_length') THEN
     ALTER TABLE public.store_knowledge
       ADD CONSTRAINT store_knowledge_title_length CHECK (char_length(title) <= 60);
@@ -48,8 +43,7 @@ REVOKE ALL ON public.store_knowledge FROM anon;
 -- これまでの自由メモには題が無いので、一覧で見分けられる名前を付ける
 UPDATE public.store_knowledge SET title = 'お店のメモ' WHERE title = '';
 
-COMMENT ON COLUMN public.store_knowledge.title IS 'ノートの題（話題の見出し）。検索のときは題と本文をつなげてベクトルにする。';
-COMMENT ON COLUMN public.store_knowledge.topic IS '話題。recommend=おすすめ / busy=混む時間 / payment=支払い / caution=気をつけること / other=その他';
+COMMENT ON COLUMN public.store_knowledge.title IS 'トピックタイトル（例：混む時間、お支払い方法）。検索のときはトピックタイトルと本文をつなげてベクトルにする。';
 COMMENT ON COLUMN public.store_knowledge.for_visitors IS 'お客さん向けのにちよさん（相談・店舗ページのチャット）に渡すか';
 COMMENT ON COLUMN public.store_knowledge.for_vendor IS '出店者本人の使い方相談のにちよさんに渡すか';
 COMMENT ON COLUMN public.store_knowledge.sort_order IS '一覧の並び順（小さいほど上）';
