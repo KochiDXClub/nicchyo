@@ -178,7 +178,7 @@ function HelpAnswer({
       {finished && (
         <Link
           href={CONTACT_HREF}
-          onClick={() => saveContactPrefill(contactMessageFor(question))}
+          onClick={() => saveContactPrefill(contactMessageFor(question, answer))}
           className="mt-4 flex items-center justify-center gap-1.5 rounded-chip border border-amber-200 px-4 py-2.5 text-sm font-bold text-amber-900 transition active:scale-95 motion-reduce:active:scale-100"
         >
           <MessageCircleQuestionMark className="h-4 w-4 shrink-0" aria-hidden />

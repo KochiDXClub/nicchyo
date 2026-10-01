@@ -2,7 +2,7 @@ import React from "react";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { vi } from "vitest";
 import VendorAskStage from "../ask/VendorAskStage";
-import { CONTACT_HREF, trimHistory } from "./useVendorHelpChat";
+import { CONTACT_HREF, contactMessageFor, trimHistory } from "./useVendorHelpChat";
 import { takeContactPrefill } from "@/lib/contact/prefill";
 
 vi.mock("@/app/vendor/_services/askService", () => ({
@@ -71,7 +71,11 @@ describe("出店者トップのにちよさんへの相談", () => {
     // 相談の内容は URL に載せない（解析や履歴に残るため）。押したときに sessionStorage で渡す
     expect(contact.getAttribute("href")).toBe(CONTACT_HREF);
     fireEvent.click(contact);
-    expect(takeContactPrefill()).toContain("写真を変えたい");
+    // 運営が「どう答えて解決しなかったか」を分かるよう、にちよさんの答えの冒頭も添える
+    const prefill = takeContactPrefill();
+    expect(prefill).toContain("写真を変えたい");
+    expect(prefill).toContain("（にちよさんの答え）");
+    expect(prefill).toContain("「お店の情報」から変えられるよ。");
 
     // 閉じると、いつものひとことに戻り、続けて聞けるよう入力欄にフォーカスが戻る
     fireEvent.click(screen.getByRole("button", { name: "相談を閉じる" }));
@@ -181,5 +185,18 @@ describe("trimHistory", () => {
   it("1件が長すぎるときは2000文字で切る", () => {
     const [turn] = trimHistory([{ role: "assistant", text: "x".repeat(2500) }]);
     expect(turn.text).toHaveLength(2000);
+  });
+});
+
+describe("contactMessageFor", () => {
+  it("答えのリンクは名前だけにし、長い答えは200字で切る", () => {
+    const message = contactMessageFor("出店料は？", `[店舗情報ページ](/vendor/store)で${"あ".repeat(300)}`);
+    expect(message).toContain("店舗情報ページで");
+    expect(message).not.toContain("/vendor/store");
+    expect(message.endsWith("…")).toBe(true);
+  });
+
+  it("答えが無いときは、相談の内容だけにする", () => {
+    expect(contactMessageFor("出店料は？")).toBe("【出店者ページのにちよさんへの相談から】\n出店料は？");
   });
 });

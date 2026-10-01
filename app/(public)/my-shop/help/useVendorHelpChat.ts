@@ -147,10 +147,23 @@ export function useVendorHelpChat() {
 /** 「運営に問い合わせる」の行き先。運営が実際に見て返事をしている問い合わせフォーム */
 export const CONTACT_HREF = "/contact?category=question";
 
+/** 問い合わせに添える、にちよさんの答えの長さ */
+const CONTACT_ANSWER_EXCERPT = 200;
+
 /**
  * 問い合わせフォームに入れておく本文。URL には載せず、押したときに
- * saveContactPrefill で渡す（lib/contact/prefill.ts）。
+ * saveContactPrefill で渡す（lib/contact/prefill.ts。本文は1000字まで）。
+ *
+ * 運営が「にちよさんがどう答えて、解決しなかったのか」を分かるよう、答えの冒頭も添える。
+ * 答えの中のリンク（[画面の名前](/vendor/...)）は名前だけにする。
  */
-export function contactMessageFor(question: string): string {
-  return `【出店者ページのにちよさんへの相談から】\n${question}`;
+export function contactMessageFor(question: string, answer = ""): string {
+  const lines = ["【出店者ページのにちよさんへの相談から】", question.trim()];
+  const plain = answer.replace(/\[([^\]\n]+)\]\([^)\s]*\)/g, "$1").trim();
+  if (plain) {
+    const excerpt =
+      plain.length > CONTACT_ANSWER_EXCERPT ? `${plain.slice(0, CONTACT_ANSWER_EXCERPT)}…` : plain;
+    lines.push("", "（にちよさんの答え）", excerpt);
+  }
+  return lines.join("\n");
 }
