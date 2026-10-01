@@ -2,7 +2,7 @@
 
 export const dynamic = "force-dynamic";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { AlertCircle } from "lucide-react";
 import { useAuth } from "@/lib/auth/AuthContext";
@@ -34,6 +34,8 @@ export default function VendorPostNewPage() {
   const [customDateTime, setCustomDateTime] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /** 写真を自分で選んだか（編集して再投稿の読み込みが、あとから写真を戻さないように） */
+  const photoChosenRef = useRef(false);
   const [done, setDone] = useState<{ id: string; imageUrl: string; label: string } | null>(null);
 
   useEffect(() => {
@@ -43,8 +45,9 @@ export default function VendorPostNewPage() {
       .then((loaded) => {
         if (!cancelled) setIdentity(loaded);
       })
-      .catch(() => {
-        // 名札が出せなくても投稿はできる
+      .catch((err: unknown) => {
+        // 名札が出せなくても投稿はできる。原因は追えるようにしておく
+        console.warn("[VendorPostNewPage] お店の名札を読めませんでした", err);
       });
     return () => {
       cancelled = true;
@@ -58,8 +61,9 @@ export default function VendorPostNewPage() {
     let cancelled = false;
     fetchPostById(repostId).then((post) => {
       if (cancelled || !post) return;
-      setText(post.text);
-      if (post.image_url) {
+      // 読み込みを待つあいだに書き始めた・写真を選んだときは、それを優先して上書きしない
+      setText((current) => current || post.text);
+      if (post.image_url && !photoChosenRef.current) {
         setImagePreview(post.image_url);
         setExistingImageUrl(post.image_url);
       }
@@ -84,6 +88,7 @@ export default function VendorPostNewPage() {
       return;
     }
     setError(null);
+    photoChosenRef.current = true;
     setImageFile(file);
     setExistingImageUrl(null);
     setImagePreview(URL.createObjectURL(file));

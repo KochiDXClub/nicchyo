@@ -4,6 +4,7 @@ import { vi } from "vitest";
 import VendorPostNewPage from "./page";
 
 const createPost = vi.fn();
+const fetchPostByIdMock = vi.fn();
 let searchParams = new URLSearchParams();
 
 vi.mock("next/navigation", () => ({
@@ -25,7 +26,7 @@ vi.mock("@/lib/image/clientCompression", () => ({
 vi.mock("../../_services/postsService", () => ({
   createPost: (...args: unknown[]) => createPost(...args),
   fetchPostIdentity: async () => ({ shopName: "山田農園", shopImageUrl: null }),
-  fetchPostById: async () => ({ id: "old", text: "前のひとこと", image_url: "https://example.supabase.co/old.webp" }),
+  fetchPostById: (...args: unknown[]) => fetchPostByIdMock(...args),
 }));
 
 async function flush() {
@@ -46,6 +47,8 @@ describe("投稿画面（近況を出す）", () => {
   beforeEach(() => {
     searchParams = new URLSearchParams();
     createPost.mockReset();
+    fetchPostByIdMock.mockReset();
+    fetchPostByIdMock.mockResolvedValue({ id: "old", text: "前のひとこと", image_url: "https://example.supabase.co/old.webp" });
     createPost.mockResolvedValue({ id: "p1", text: "", image_url: "https://example.supabase.co/p1.webp" });
     URL.createObjectURL = vi.fn(() => "blob:preview");
     URL.revokeObjectURL = vi.fn();
@@ -85,6 +88,8 @@ describe("投稿画面（近況を出す）", () => {
     fireEvent.click(screen.getByRole("button", { name: "時間を決める" }));
     expect(screen.getByRole("button", { name: "時間を決める" })).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByRole("button", { name: /近況に出す/ })).toBeDisabled();
+    // 押せない理由を出す
+    expect(screen.getByText("日時を選ぶと出せます")).toBeInTheDocument();
   });
 
   it("「×」で写真を選び直せる", async () => {
@@ -121,5 +126,20 @@ describe("投稿画面（近況を出す）", () => {
       encodeURIComponent("https://example.supabase.co/old.webp")
     );
     expect(screen.getByLabelText("ひとこと（なくても出せます）")).toHaveValue("前のひとこと");
+  });
+
+  it("編集して再投稿の読み込みを待つあいだに写真を選んだら、あとから前の写真に戻さない", async () => {
+    searchParams = new URLSearchParams("repost=old");
+    let resolvePost: (post: unknown) => void = () => {};
+    fetchPostByIdMock.mockImplementationOnce(() => new Promise((resolve) => (resolvePost = resolve)));
+    render(<VendorPostNewPage />);
+    await flush();
+    await pickPhoto();
+
+    await act(async () => {
+      resolvePost({ id: "old", text: "前のひとこと", image_url: "https://example.supabase.co/old.webp" });
+    });
+
+    expect(screen.getByAltText("投稿する写真")).toHaveAttribute("src", "blob:preview");
   });
 });

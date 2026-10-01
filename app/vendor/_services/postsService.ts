@@ -102,7 +102,8 @@ export async function createPost(
     .insert({
       vendor_id: vendorId,
       title: text.slice(0, 50),
-      body: text,
+      // ひとこと無しの投稿は、空文字ではなく null で持つ（読む側は body ?? "" で扱う）
+      body: text || null,
       image_url: imageUrl,
       expires_at: expiresAt.toISOString(),
     })

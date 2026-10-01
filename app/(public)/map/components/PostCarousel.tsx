@@ -160,9 +160,12 @@ export function PostCarousel({
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={post.imageUrl} alt="お知らせ画像" className="h-48 w-full object-cover" />
               )}
-              <p className="whitespace-pre-wrap px-4 pt-3 text-base leading-relaxed text-slate-800">
-                {post.text}
-              </p>
+              {/* 写真だけの投稿（ひとこと無し）もある */}
+              {post.text && (
+                <p className="whitespace-pre-wrap px-4 pt-3 text-base leading-relaxed text-slate-800">
+                  {post.text}
+                </p>
+              )}
             </>
           );
           return (

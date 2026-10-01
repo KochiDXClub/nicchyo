@@ -75,6 +75,8 @@ export default function StoryComposer({
               alt=""
               width={32}
               height={32}
+              // 小さな名札なので最適化は通さない（写真の置き場所のドメインにも左右されない）
+              unoptimized
               className="h-8 w-8 shrink-0 rounded-chip object-cover ring-2 ring-white/70"
             />
           ) : (
@@ -149,8 +151,15 @@ export default function StoryComposer({
               value={customDateTime}
               onChange={(e) => onCustomDateTimeChange(e.target.value)}
               min={localDateTimeInputValue(new Date())}
+              aria-describedby={expiresAt ? undefined : "post-expires-hint"}
               className="w-full rounded-btn bg-white px-3 py-3 text-base text-nicchyo-ink outline-none ring-1 ring-line focus:ring-2 focus:ring-amber-400"
             />
+            {/* 日時が無い・過ぎているあいだは出すボタンを押せないので、理由をここに出す */}
+            {!expiresAt && (
+              <span id="post-expires-hint" className="mt-1.5 block text-sm text-amber-800">
+                {customDateTime ? "これから先の日時を選んでください" : "日時を選ぶと出せます"}
+              </span>
+            )}
           </label>
         )}
       </fieldset>
