@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { TEXT_STREAM_DATA_SEPARATOR } from "@/lib/ai/textStream";
-import { parseProposalFrame, type HelpProposal } from "@/lib/vendor/helpProposals";
+import { HELP_PROPOSAL_LABELS, parseProposalFrame, type HelpProposal } from "@/lib/vendor/helpProposals";
 
 export type VendorHelpTurn = { role: "user" | "assistant"; text: string };
 
@@ -44,9 +44,15 @@ const EDIT_LINE = "ここで変えてや。";
 
 /** 変更案を確かめたあと、続けて聞いたときに話がつながるよう、やりとりに残す一言 */
 const PROPOSAL_OUTCOME_NOTES = {
-  saved: "（出店者が確かめて、この変更を保存した）",
-  dismissed: "（出店者はこの変更をやめた）",
+  saved: (what: string) => `（出店者が確かめて、${what}変更を保存した）`,
+  dismissed: (what: string) => `（出店者は${what}変更をやめた）`,
 } as const;
+
+/** 案が何の項目の話か（「営業時間の」）。保存した・やめたを AI に伝えるとき、何を変えたかも添える */
+function proposalSubject(proposal: HelpProposal | null): string {
+  if (!proposal) return "この";
+  return `${HELP_PROPOSAL_LABELS[proposal.kind === "change" ? proposal.answer.id : proposal.field]}の`;
+}
 
 /**
  * 届いた文字を、答えの本文と、最後に付いた変更案に分ける。
@@ -185,10 +191,10 @@ export function useVendorHelpChat() {
     if (last?.role === "assistant") {
       historyRef.current = [
         ...history.slice(0, -1),
-        { role: "assistant", text: `${last.text}\n${PROPOSAL_OUTCOME_NOTES[outcome]}` },
+        { role: "assistant", text: `${last.text}\n${PROPOSAL_OUTCOME_NOTES[outcome](proposalSubject(proposal))}` },
       ];
     }
-  }, []);
+  }, [proposal]);
 
   return {
     status,

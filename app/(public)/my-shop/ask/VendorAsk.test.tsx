@@ -148,7 +148,7 @@ describe("VendorAskStage の相談からの変更案", () => {
     fetchMock.mockResolvedValueOnce(new Response("はいよ"));
     await ask("ありがとう");
     const history = JSON.parse(fetchMock.mock.calls[1][1].body).history;
-    expect(history[1].text).toContain("保存した");
+    expect(history[1].text).toContain("営業時間の変更を保存した");
   });
 
   it("値を言わずに「変えたい」だけでも、いまの値を入れた入力欄を開いて保存できる", async () => {
