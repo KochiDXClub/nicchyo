@@ -454,6 +454,27 @@ export function emptyAnswerFor(id: AskQuestionId): AskAnswer | null {
   }
 }
 
+/**
+ * その答えが「この答えを消す」（空の答え）かどうか。emptyAnswerFor と対になるので、
+ * 消せる質問を増やしたら、ここも一緒に足す（テストで両方がそろっているか確かめている）
+ */
+export function isClearAnswer(answer: AskAnswer): boolean {
+  switch (answer.id) {
+    case "instagram":
+    case "x":
+    case "website":
+      return !answer.value.trim();
+    case "shop-photo":
+      return !answer.imageFile;
+    case "owner":
+      return !answer.name.trim();
+    case "category":
+      return !answer.categoryId;
+    default:
+      return false;
+  }
+}
+
 /** 出店者が1つの質問に答えた内容。保存は askService.saveAskAnswer が行う */
 export type AskAnswer =
   | { id: "weekly-products"; products: string[] }

@@ -161,7 +161,6 @@ async function updateVendor(
   if (!data || data.length === 0) throw new AskUserFacingError("店舗情報が見つかりませんでした。");
 }
 
-/** 看板商品（vendors.signature_product_name と同じ名前の商品）の id。無ければ null */
 /** 店舗写真（store-main.* と store-thumb.webp）を Storage から消す。失敗しても投げない */
 async function removeStoreImages(supabase: SupabaseClient, vendorId: string): Promise<void> {
   try {
@@ -202,6 +201,7 @@ async function findSignatureProduct(
   return { id: data.id as string, imageUrl: (data.image_url as string | null) ?? null };
 }
 
+/** 看板商品（vendors.signature_product_name と同じ名前の商品）の id。無ければ null */
 async function findSignatureProductId(supabase: SupabaseClient, vendorId: string): Promise<string | null> {
   return (await findSignatureProduct(supabase, vendorId))?.id ?? null;
 }

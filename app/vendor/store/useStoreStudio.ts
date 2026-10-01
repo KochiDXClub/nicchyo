@@ -5,6 +5,7 @@ import { getUpcomingSundayIso } from "@/lib/market/calendar";
 import { imageErrorMessage } from "@/lib/image/clientCompression";
 import {
   emptyAnswerFor,
+  isClearAnswer,
   studioQuestions,
   type AskAnswer,
   type AskQuestion,
@@ -33,10 +34,6 @@ const COMPLETE_CHEER = "ぜんぶ教えてくれて、ありがとう！満点�
 
 /** ひとことを出しておく長さ */
 const CHEER_MS = 2400;
-
-const isClearAnswer = (answer: AskAnswer) =>
-  (answer.id === "shop-photo" && !answer.imageFile) ||
-  ((answer.id === "instagram" || answer.id === "x" || answer.id === "website") && !answer.value.trim());
 
 export type StoreStudioStatus = "loading" | "ready" | "error";
 

@@ -4,6 +4,7 @@ import {
   ASK_LIMIT,
   ASK_QUESTIONS,
   emptyAnswerFor,
+  isClearAnswer,
   isClearable,
   pickQuestions,
   studioQuestions,
@@ -210,5 +211,15 @@ describe("答えを消す", () => {
     expect(emptyAnswerFor("website")).toEqual({ id: "website", value: "" });
     expect(emptyAnswerFor("shop-photo")).toEqual({ id: "shop-photo", imageFile: null });
     expect(emptyAnswerFor("hours")).toBeNull();
+  });
+
+  it("消せる質問の空の答えは、どれも「消した」と判定される（ほめない）", () => {
+    for (const question of ASK_QUESTIONS.filter((q) => isClearable(q.id))) {
+      const empty = emptyAnswerFor(question.id);
+      expect(empty).not.toBeNull();
+      expect(isClearAnswer(empty!)).toBe(true);
+    }
+    expect(isClearAnswer({ id: "owner", name: "山田", isPublic: true })).toBe(false);
+    expect(isClearAnswer({ id: "category", categoryId: "c1" })).toBe(false);
   });
 });
