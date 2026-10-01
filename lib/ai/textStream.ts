@@ -129,9 +129,9 @@ type ToolCallDelta = {
 
 function collectToolCalls(acc: StreamedToolCall[], deltas: ToolCallDelta[]) {
   for (const d of deltas) {
-    const index = typeof d?.index === "number" ? d.index : 0;
-    // 不正に大きい index で配列を伸ばさない
-    if (index < 0 || index > 7) continue;
+    const index = d?.index ?? 0;
+    // 不正な index で配列を伸ばさない
+    if (!Number.isInteger(index) || index < 0 || index > 7) continue;
     const call = (acc[index] ??= { name: "", arguments: "" });
     if (typeof d.function?.name === "string") call.name += d.function.name;
     if (typeof d.function?.arguments === "string") call.arguments += d.function.arguments;

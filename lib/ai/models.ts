@@ -579,6 +579,8 @@ export function buildChatCompletionBody(
   }
   if (params.tools && params.tools.length > 0) {
     body.tools = params.tools;
+    // 一度に呼ぶ関数は1つだけ（確認も1つずつ行うため）
+    body.parallel_tool_calls = false;
   }
 
   return body;

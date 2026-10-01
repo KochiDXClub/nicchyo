@@ -213,12 +213,36 @@ const TOOL_SCHEMAS: Record<string, (args: unknown) => HelpProposalAnswer | null>
   },
 };
 
+const normalize = (value: string) => value.normalize("NFKC").toLowerCase();
+
+/**
+ * 自由に書ける値（リンク・店名）は、出店者がいま書いた言葉に入っているときだけ案にする。
+ * AI に渡すデータには来訪者やほかの出店者が入れた言葉（よく検索された言葉など）も入るため、
+ * そこに紛れた指示で、偽のサイトの URL などを案に出させないようにする
+ */
+function saidByVendor(answer: HelpProposalAnswer, userText: string): boolean {
+  const said = normalize(userText);
+  switch (answer.id) {
+    case "website":
+      return said.includes(normalize(answer.value.replace(/^https?:\/\//i, "").replace(/\/$/, "")));
+    case "instagram":
+    case "x":
+      return said.includes(normalize(answer.value));
+    case "shop-name":
+      return said.includes(normalize(answer.text));
+    default:
+      return true;
+  }
+}
+
 /**
  * AI が呼んだ関数を変更案にする。知らない関数・壊れた引数・範囲外の値は null。
- * 複数呼ばれたときは、最初に読めたものだけを使う（確認は1つずつ）
+ * 複数呼ばれたときは、最初に読めたものだけを使う（確認は1つずつ）。
+ * userText は出店者がいま書いた質問（saidByVendor）
  */
 export function proposalFromToolCalls(
-  calls: { name: string; arguments: string }[]
+  calls: { name: string; arguments: string }[],
+  userText: string
 ): HelpProposalAnswer | null {
   for (const call of calls) {
     const toAnswer = Object.hasOwn(TOOL_SCHEMAS, call.name) ? TOOL_SCHEMAS[call.name] : undefined;
@@ -230,7 +254,7 @@ export function proposalFromToolCalls(
       continue;
     }
     const answer = toAnswer(args);
-    if (answer) return answer;
+    if (answer && saidByVendor(answer, userText)) return answer;
   }
   return null;
 }

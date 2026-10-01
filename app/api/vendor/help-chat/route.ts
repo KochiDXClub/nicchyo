@@ -174,13 +174,16 @@ export async function POST(request: Request) {
   let proposalNote = "";
   const readable = openAiSseToTextStream(upstream.body, {
     onToolCalls: (calls) => {
-      const proposal = proposalFromToolCalls(calls);
+      const proposal = proposalFromToolCalls(calls, text);
       if (!proposal) return null;
       proposalNote = `\n［変更案］${JSON.stringify(proposal)}`;
       return serializeProposal(proposal);
     },
-    onFinish: (answer, { truncated }) =>
-      saveHelpLog(vendorId, text, `${answer}${proposalNote}${truncated ? "\n［途中で切れた］" : ""}`),
+    onFinish: (answer, { truncated }) => {
+      // 後ろの印が切り捨てられないよう、長さは本文の方で詰める
+      const suffix = `${proposalNote}${truncated ? "\n［途中で切れた］" : ""}`;
+      return saveHelpLog(vendorId, text, answer.slice(0, ANSWER_SAVE_MAX - suffix.length) + suffix);
+    },
   });
 
   return new Response(readable, { headers: TEXT_STREAM_HEADERS });
