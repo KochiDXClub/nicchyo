@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@/utils/supabase/client";
 import { imageUploadInfo, resizeImageToBlob, STORE_IMAGE_CONFIG } from "@/lib/image/clientCompression";
+import { uploadStoreImage } from "./storeService";
 import type { AskAnswer, VendorAskSnapshot } from "@/lib/vendor/askQuestions";
 import type { PaymentMethod, RainPolicy } from "../_types";
 
@@ -36,11 +37,11 @@ export async function fetchAskSnapshot(
 ): Promise<VendorAskSnapshot> {
   const supabase = untypedClient();
 
-  const [vendorResult, productResult, weeklyResult] = await Promise.all([
+  const [vendorResult, productResult, weeklyResult, ownerResult, categoryResult] = await Promise.all([
     supabase
       .from("vendors")
       .select(
-        "business_hours_start, business_hours_end, payment_methods, payment_note, sns_instagram, sns_hp, rain_policy, rain_note, rain_answered_at, signature_product_name, strength, motivation, years_running, sunday_love"
+        "shop_name, shop_image_url, category_id, style, style_tags, main_products, main_product_prices, schedule, sns_x, business_hours_start, business_hours_end, payment_methods, payment_note, sns_instagram, sns_hp, rain_policy, rain_note, rain_answered_at, signature_product_name, strength, motivation, years_running, sunday_love"
       )
       .eq("id", vendorId)
       .single(),
@@ -55,9 +56,25 @@ export async function fetchAskSnapshot(
       .eq("vendor_id", vendorId)
       .eq("week_date", weekDate)
       .maybeSingle(),
+    // 店主名は vendors から分離済み（公開するかどうかは本人が決める）
+    supabase
+      .from("vendor_owner_profiles")
+      .select("owner_name, is_public")
+      .eq("vendor_id", vendorId)
+      .maybeSingle(),
+    supabase.from("categories").select("id, name").order("name"),
   ]);
 
-  if (vendorResult.error || !vendorResult.data) {
+  // どれか1つでも読めなかったら、画面ごと「読めんかった」にする。
+  // 空として出すと、読めなかった答え（公開の設定や今週の商品）をそのまま上書きさせてしまう
+  if (
+    vendorResult.error ||
+    !vendorResult.data ||
+    productResult.error ||
+    weeklyResult.error ||
+    ownerResult.error ||
+    categoryResult.error
+  ) {
     throw new AskUserFacingError("店舗情報を取得できませんでした。");
   }
   const vendor = vendorResult.data;
@@ -67,12 +84,32 @@ export async function fetchAskSnapshot(
     description: string | null;
   }[];
   const weekly = weeklyResult.data;
+  const owner = ownerResult.data as { owner_name: string | null; is_public: boolean | null } | null;
+  const categories = (categoryResult.data ?? []) as { id: string; name: string }[];
+  const categoryId = (vendor.category_id as string | null) ?? undefined;
+  const mainProducts = (vendor.main_products as string[] | null) ?? [];
+  const prices = (vendor.main_product_prices as Record<string, number | null> | null) ?? {};
   // 看板商品は vendors.signature_product_name と同じ名前の商品。
   // 「登録順の先頭」で決めると、別の商品名を答えたときに先頭の商品を書き換えてしまう
   const signatureName = (vendor.signature_product_name as string | null)?.trim();
   const product = signatureName ? products.find((item) => item.name === signatureName) : undefined;
 
   return {
+    shopName: vendor.shop_name ?? undefined,
+    shopImageUrl: vendor.shop_image_url ?? undefined,
+    categoryId,
+    categoryName: categories.find((category) => category.id === categoryId)?.name,
+    categoryOptions: categories,
+    style: vendor.style ?? undefined,
+    styleTags: (vendor.style_tags as string[] | null) ?? [],
+    ownerName: owner?.owner_name ?? undefined,
+    ownerNamePublic: owner?.is_public ?? false,
+    // 「商品」ページだけで登録した人にも、商品名を補って見せる
+    products: (mainProducts.length > 0 ? mainProducts : products.map((item) => item.name)).map(
+      (name) => ({ name, price: prices[name] ?? null })
+    ),
+    schedule: (vendor.schedule as string[] | null) ?? [],
+    snsX: vendor.sns_x ?? undefined,
     businessHoursStart: vendor.business_hours_start ?? undefined,
     businessHoursEnd: vendor.business_hours_end ?? undefined,
     signatureProduct: product
@@ -124,11 +161,25 @@ async function updateVendor(
   if (!data || data.length === 0) throw new AskUserFacingError("店舗情報が見つかりませんでした。");
 }
 
-/** 看板商品（vendors.signature_product_name と同じ名前の商品）の id。無ければ null */
-async function findSignatureProductId(
+/** 店舗写真（store-main.* と store-thumb.webp）を Storage から消す。失敗しても投げない */
+async function removeStoreImages(supabase: SupabaseClient, vendorId: string): Promise<void> {
+  try {
+    const { data } = await supabase.storage.from("vendor-images").list(vendorId);
+    const paths = (data ?? [])
+      .map((file) => file.name)
+      .filter((name) => name.startsWith("store-main.") || name === "store-thumb.webp")
+      .map((name) => `${vendorId}/${name}`);
+    if (paths.length > 0) await supabase.storage.from("vendor-images").remove(paths);
+  } catch {
+    // 消せなかった写真は残るが、店舗情報からは外れているので表には出ない
+  }
+}
+
+/** 今の看板商品（vendors.signature_product_name と同じ名前の商品） */
+async function findSignatureProduct(
   supabase: SupabaseClient,
   vendorId: string
-): Promise<string | null> {
+): Promise<{ id: string; imageUrl: string | null } | null> {
   const { data: vendor, error: vendorError } = await supabase
     .from("vendors")
     .select("signature_product_name")
@@ -140,13 +191,19 @@ async function findSignatureProductId(
 
   const { data, error } = await supabase
     .from("products")
-    .select("id")
+    .select("id, image_url")
     .eq("vendor_id", vendorId)
     .eq("name", name)
     .limit(1)
     .maybeSingle();
   if (error) throw error;
-  return (data?.id as string | undefined) ?? null;
+  if (!data) return null;
+  return { id: data.id as string, imageUrl: (data.image_url as string | null) ?? null };
+}
+
+/** 看板商品（vendors.signature_product_name と同じ名前の商品）の id。無ければ null */
+async function findSignatureProductId(supabase: SupabaseClient, vendorId: string): Promise<string | null> {
+  return (await findSignatureProduct(supabase, vendorId))?.id ?? null;
 }
 
 async function uploadProductImage(
@@ -194,22 +251,33 @@ async function saveSignature(
   // 既存の商品を別の名前に書き換えると、その商品が商品一覧から消えてしまう
   const { data: existing, error: findError } = await supabase
     .from("products")
-    .select("id")
+    .select("id, image_url")
     .eq("vendor_id", vendorId)
     .eq("name", trimmed)
     .limit(1)
     .maybeSingle();
   if (findError) throw findError;
 
+  // 名前だけ直したとき（写真を選び直していない）は、前の看板商品の写真を引き継ぐ。
+  // 入力欄には前の写真が出たままなので、出店者は写真もそのままのつもりでいる
+  const carriedImageUrl = imageFile ? null : ((await findSignatureProduct(supabase, vendorId))?.imageUrl ?? null);
+
   let productId = existing?.id as string | undefined;
   if (!productId) {
     const { data, error } = await supabase
       .from("products")
-      .insert({ vendor_id: vendorId, name: trimmed })
+      .insert({ vendor_id: vendorId, name: trimmed, image_url: carriedImageUrl })
       .select("id")
       .single();
     if (error || !data) throw error ?? new Error("商品を登録できませんでした。");
     productId = data.id as string;
+  } else if (carriedImageUrl && !existing?.image_url) {
+    const { error } = await supabase
+      .from("products")
+      .update({ image_url: carriedImageUrl, updated_at: new Date().toISOString() })
+      .eq("id", productId)
+      .eq("vendor_id", vendorId);
+    if (error) throw error;
   }
 
   if (imageFile) {
@@ -286,6 +354,51 @@ export async function saveAskAnswer(
       return updateVendor(supabase, vendorId, { sns_instagram: orNull(answer.value) });
     case "website":
       return updateVendor(supabase, vendorId, { sns_hp: orNull(answer.value) });
+    case "x":
+      return updateVendor(supabase, vendorId, { sns_x: orNull(answer.value) });
+    case "shop-photo": {
+      if (!answer.imageFile) {
+        await updateVendor(supabase, vendorId, { shop_image_url: null });
+        // 消した写真を公開の URL のまま残さない。消せなくても、答えを消すことは止めない
+        await removeStoreImages(supabase, vendorId);
+        return;
+      }
+      const imageUrl = await uploadStoreImage(vendorId, answer.imageFile);
+      // 毎回同じパスに上書きされるので、版をつけてブラウザの古いキャッシュを避ける
+      return updateVendor(supabase, vendorId, { shop_image_url: `${imageUrl}?v=${Date.now()}` });
+    }
+    case "shop-name":
+      return updateVendor(supabase, vendorId, { shop_name: answer.text.trim() });
+    case "category":
+      return updateVendor(supabase, vendorId, { category_id: answer.categoryId || null });
+    case "style":
+      return updateVendor(supabase, vendorId, {
+        style_tags: answer.tags,
+        style: answer.note.trim(),
+      });
+    case "owner": {
+      // 店主名は専用テーブルへ。公開するかどうかも本人の設定として保存する
+      const { error } = await supabase.from("vendor_owner_profiles").upsert(
+        {
+          vendor_id: vendorId,
+          owner_name: orNull(answer.name),
+          is_public: answer.isPublic,
+        },
+        { onConflict: "vendor_id" }
+      );
+      if (error) throw error;
+      return;
+    }
+    case "products": {
+      const prices: Record<string, number | null> = {};
+      for (const item of answer.items) prices[item.name] = item.price;
+      return updateVendor(supabase, vendorId, {
+        main_products: answer.items.map((item) => item.name),
+        main_product_prices: prices,
+      });
+    }
+    case "schedule":
+      return updateVendor(supabase, vendorId, { schedule: answer.items });
     case "rain":
       return updateVendor(supabase, vendorId, {
         rain_policy: answer.policy,

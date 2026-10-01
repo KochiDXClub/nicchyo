@@ -1,65 +1,41 @@
 "use client";
 
-import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
-import Image from "next/image";
-import { Camera, Plus, X } from "lucide-react";
-import { Button } from "@/components/ui";
+import { useState } from "react";
 import { cn } from "@/lib/utils/cn";
-import { canDecodeImage, IMAGE_DECODE_ERROR_MESSAGE } from "@/lib/image/clientCompression";
 import { PAYMENT_OPTIONS, RAIN_OPTIONS, TIME_OPTIONS } from "@/lib/vendor/storeOptions";
 import type { PaymentMethod, RainPolicy } from "@/app/vendor/_types";
-import type { AskAnswer, AskQuestion, VendorAskSnapshot } from "@/lib/vendor/askQuestions";
+import PhotoPickerField from "./PhotoPickerField";
+import { usePhotoPicker } from "./usePhotoPicker";
+import {
+  AskForm,
+  DraftAddRow,
+  RemovableChip,
+  SkipLabelContext,
+  choiceClass,
+  fieldClass,
+  type InputProps,
+} from "./askFormParts";
+import {
+  CategoryInput,
+  LineTextInput,
+  OwnerInput,
+  PhotoInput,
+  ProductPricesInput,
+  ScheduleInput,
+  StyleInput,
+} from "./ProfileInputs";
 
-const fieldClass =
-  "w-full rounded-btn bg-nicchyo-base px-4 py-3 text-base text-nicchyo-ink ring-1 ring-line placeholder:text-nicchyo-ink/40 focus:outline-none focus:ring-2 focus:ring-amber-500/60";
-
-const choiceClass = (selected: boolean) =>
-  cn(
-    "flex min-h-11 items-center gap-2 rounded-btn px-4 py-2.5 text-left text-sm font-semibold transition",
-    selected
-      ? "bg-amber-50 text-amber-900 ring-2 ring-amber-500"
-      : "bg-white text-nicchyo-ink ring-1 ring-line"
-  );
-
-type AskFormProps = {
-  canSubmit: boolean;
-  saving: boolean;
-  onSubmit: () => void;
-  onSkip: () => void;
-  children: ReactNode;
-};
-
-/** 入力欄の下に「これでええ」「あとで」を置く共通の枠 */
-function AskForm({ canSubmit, saving, onSubmit, onSkip, children }: AskFormProps) {
-  const handleSubmit = (event: FormEvent) => {
-    event.preventDefault();
-    if (canSubmit && !saving) onSubmit();
-  };
+/** 質問の種類に合わせた入力欄。質問が変わるたびに状態を捨てたいので、呼び出し側で key を付ける */
+export default function AskInput(props: InputProps & { skipLabel?: string }) {
+  const { skipLabel, ...inputProps } = props;
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-      {children}
-      <div className="flex flex-col gap-2">
-        <Button type="submit" size="lg" disabled={!canSubmit || saving}>
-          {saving ? "保存しよるよ…" : "これでええ！"}
-        </Button>
-        <Button type="button" variant="quiet" size="sm" disabled={saving} onClick={onSkip}>
-          あとで
-        </Button>
-      </div>
-    </form>
+    <SkipLabelContext.Provider value={skipLabel ?? "あとで"}>
+      <AskInputBody {...inputProps} />
+    </SkipLabelContext.Provider>
   );
 }
 
-type InputProps = {
-  question: AskQuestion;
-  snapshot: VendorAskSnapshot;
-  saving: boolean;
-  onSubmit: (answer: AskAnswer) => void;
-  onSkip: () => void;
-};
-
-/** 質問の種類に合わせた入力欄。質問が変わるたびに状態を捨てたいので、呼び出し側で key を付ける */
-export default function AskInput(props: InputProps) {
+function AskInputBody(props: InputProps) {
   switch (props.question.input) {
     case "product-list":
       return <ProductListInput {...props} />;
@@ -79,6 +55,20 @@ export default function AskInput(props: InputProps) {
       return <YearsInput {...props} />;
     case "long-text":
       return <LongTextInput {...props} />;
+    case "line-text":
+      return <LineTextInput {...props} />;
+    case "photo":
+      return <PhotoInput {...props} />;
+    case "category":
+      return <CategoryInput {...props} />;
+    case "style":
+      return <StyleInput {...props} />;
+    case "owner":
+      return <OwnerInput {...props} />;
+    case "product-prices":
+      return <ProductPricesInput {...props} />;
+    case "schedule":
+      return <ScheduleInput {...props} />;
   }
 }
 
@@ -108,43 +98,22 @@ function ProductListInput({ snapshot, saving, onSubmit, onSkip, question }: Inpu
       {items.length > 0 && (
         <ul className="flex flex-wrap gap-2">
           {items.map((item) => (
-            <li
-              key={item}
-              className="flex items-center gap-1.5 rounded-chip bg-amber-50 py-1.5 pl-3.5 pr-2 text-sm font-semibold text-amber-900 ring-1 ring-amber-200"
-            >
-              {item}
-              <button
-                type="button"
-                onClick={() => setItems((prev) => prev.filter((name) => name !== item))}
-                aria-label={`${item}を外す`}
-                className="flex h-6 w-6 items-center justify-center rounded-full text-amber-700"
-              >
-                <X size={14} aria-hidden="true" />
-              </button>
+            <li key={item}>
+              <RemovableChip
+                label={item}
+                onRemove={() => setItems((prev) => prev.filter((name) => name !== item))}
+              />
             </li>
           ))}
         </ul>
       )}
-      <div className="flex gap-2">
-        <input
-          type="text"
-          value={draft}
-          onChange={(event) => setDraft(event.target.value)}
-          onKeyDown={(event) => {
-            // 日本語変換の確定 Enter で追加してしまわないようにする
-            if (event.key !== "Enter" || event.nativeEvent.isComposing) return;
-            event.preventDefault();
-            add();
-          }}
-          placeholder={question.placeholder}
-          aria-label="商品名"
-          enterKeyHint="done"
-          className={fieldClass}
-        />
-        <Button type="button" variant="secondary" size="icon" onClick={add} aria-label="追加する">
-          <Plus size={18} aria-hidden="true" />
-        </Button>
-      </div>
+      <DraftAddRow
+        value={draft}
+        onChange={setDraft}
+        onAdd={add}
+        placeholder={question.placeholder}
+        label="商品名"
+      />
     </AskForm>
   );
 }
@@ -204,33 +173,8 @@ function SignatureInput({ snapshot, saving, onSubmit, onSkip, question }: InputP
   const [name, setName] = useState(
     snapshot.signatureProduct?.name ?? snapshot.signatureNameHint ?? ""
   );
-  const [file, setFile] = useState<File | null>(null);
-  const [preview, setPreview] = useState<string | null>(existingImage ?? null);
-  const [error, setError] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const blobUrlRef = useRef<string | null>(null);
-
-  useEffect(
-    () => () => {
-      if (blobUrlRef.current) URL.revokeObjectURL(blobUrlRef.current);
-    },
-    []
-  );
-
-  const handleFile = async (selected: File | undefined) => {
-    if (!selected) return;
-    // 保存時の変換でつまずく前に、このブラウザで読める写真かを確かめる
-    if (!(await canDecodeImage(selected))) {
-      setError(IMAGE_DECODE_ERROR_MESSAGE);
-      if (fileInputRef.current) fileInputRef.current.value = "";
-      return;
-    }
-    setError(null);
-    if (blobUrlRef.current) URL.revokeObjectURL(blobUrlRef.current);
-    blobUrlRef.current = URL.createObjectURL(selected);
-    setFile(selected);
-    setPreview(blobUrlRef.current);
-  };
+  const picker = usePhotoPicker(existingImage);
+  const { file } = picker;
 
   return (
     <AskForm
@@ -239,36 +183,7 @@ function SignatureInput({ snapshot, saving, onSubmit, onSkip, question }: InputP
       onSkip={onSkip}
       onSubmit={() => onSubmit({ id: "signature", name, imageFile: file })}
     >
-      <button
-        type="button"
-        onClick={() => fileInputRef.current?.click()}
-        aria-label={preview ? "写真を変える" : "写真を選ぶ"}
-        className="relative flex h-44 w-full items-center justify-center overflow-hidden rounded-card bg-nicchyo-base text-nicchyo-ink/55 ring-1 ring-line"
-      >
-        {preview ? (
-          <Image
-            src={preview}
-            alt="看板商品の写真"
-            fill
-            sizes="(min-width: 640px) 32rem, 100vw"
-            unoptimized={preview.startsWith("blob:")}
-            className="object-cover"
-          />
-        ) : (
-          <span className="flex flex-col items-center gap-1.5 text-sm font-semibold">
-            <Camera size={28} aria-hidden="true" />
-            写真を撮る・選ぶ
-          </span>
-        )}
-      </button>
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept="image/*,.heic,.heif"
-        onChange={(event) => void handleFile(event.target.files?.[0])}
-        className="hidden"
-      />
-      {error && <p className="text-sm text-rose-600">{error}</p>}
+      <PhotoPickerField picker={picker} alt="看板商品の写真" />
       <input
         type="text"
         value={name}
@@ -376,8 +291,10 @@ function SingleLineInput({
   question,
   kind,
 }: InputProps & { kind: "handle" | "url" }) {
+  // 同じ「ID を聞く」入力欄を、インスタと X で使い回す
+  const isX = question.id === "x";
   const [value, setValue] = useState(
-    (kind === "handle" ? snapshot.instagram : snapshot.website) ?? ""
+    (kind === "url" ? snapshot.website : isX ? snapshot.snsX : snapshot.instagram) ?? ""
   );
 
   return (
@@ -387,9 +304,9 @@ function SingleLineInput({
       onSkip={onSkip}
       onSubmit={() =>
         onSubmit(
-          kind === "handle"
-            ? { id: "instagram", value: value.trim() }
-            : { id: "website", value: normalizeUrl(value) }
+          kind === "url"
+            ? { id: "website", value: normalizeUrl(value) }
+            : { id: isX ? "x" : "instagram", value: value.trim() }
         )
       }
     >
@@ -398,7 +315,7 @@ function SingleLineInput({
         value={value}
         onChange={(event) => setValue(event.target.value)}
         placeholder={question.placeholder}
-        aria-label={kind === "handle" ? "インスタグラムのID" : "webサイトのURL"}
+        aria-label={kind === "url" ? "webサイトのURL" : isX ? "XのID" : "インスタグラムのID"}
         autoCapitalize="none"
         autoCorrect="off"
         inputMode={kind === "url" ? "url" : "text"}

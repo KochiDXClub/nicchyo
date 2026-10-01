@@ -9,9 +9,10 @@ import { Button, Surface, buttonClass } from "@/components/ui";
 import { resolveGrandmaPose } from "@/lib/grandma/pose";
 import { cn } from "@/lib/utils/cn";
 import type { AskQuestion, AskQuestionId } from "@/lib/vendor/askQuestions";
-import AskInput from "./AskInputs";
+import AskInput from "@/components/vendor/ask/AskInputs";
+import VendorBackdrop from "@/components/vendor/VendorBackdrop";
 import { useVendorAsk } from "./useVendorAsk";
-import { countLabel } from "./pendingQuestions";
+import { countLabel } from "./countLabel";
 
 /** 聞き終わったときのひとこと */
 function doneLine(answeredCount: number, skippedCount: number): string {
@@ -171,7 +172,7 @@ export default function VendorAskSession({ vendorId }: { vendorId: string }) {
 
   return (
     <div className="relative min-h-screen">
-      <div className="pointer-events-none fixed inset-0 z-0 bg-[var(--consult-bg)]" aria-hidden="true" />
+      <VendorBackdrop />
 
       <div className="relative z-10 mx-auto flex w-full max-w-md flex-col items-center gap-4 px-5 pb-10">
         <h1 className="sr-only">にちよさんからの質問</h1>

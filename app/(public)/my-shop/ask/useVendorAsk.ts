@@ -3,13 +3,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getUpcomingSundayIso } from "@/lib/market/calendar";
 import { imageErrorMessage } from "@/lib/image/clientCompression";
-import type { AskAnswer, AskQuestionId, VendorAskSnapshot } from "@/lib/vendor/askQuestions";
+import {
+  pendingQuestions,
+  type AskAnswer,
+  type AskQuestionId,
+  type VendorAskSnapshot,
+} from "@/lib/vendor/askQuestions";
 import {
   AskUserFacingError,
   fetchAskSnapshot,
   saveAskAnswer,
 } from "@/app/vendor/_services/askService";
-import { pendingQuestions } from "./pendingQuestions";
 
 /** 出店者の今の状態を読む。読み終わるまでは null */
 function useAskSnapshot(vendorId: string | null) {

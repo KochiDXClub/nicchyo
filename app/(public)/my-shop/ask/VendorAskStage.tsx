@@ -7,7 +7,7 @@ import GrandmaAvatar from "@/app/(public)/consult/components/GrandmaAvatar";
 import { DEFAULT_CONSULT_CHARACTER } from "@/app/(public)/consult/data/consultCharacters";
 import { resolveGrandmaPose } from "@/lib/grandma/pose";
 import { useVendorAskInbox } from "./useVendorAsk";
-import { countLabel, countUnit } from "./pendingQuestions";
+import { countLabel, countUnit } from "./countLabel";
 
 /** 待っているあいだの、にちよさんの決まったひとこと */
 const IDLE_LINE = "今日もおつかれさま！";
