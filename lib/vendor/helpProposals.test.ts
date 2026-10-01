@@ -7,9 +7,11 @@ import {
 } from "./helpProposals";
 import type { VendorAskSnapshot } from "./askQuestions";
 
-/** 出店者の質問は、値を書かない項目のテストでは空でよい */
-const proposalFromToolCalls = (calls: { name: string; arguments: string }[], userText = "") =>
-  proposalFromToolCallsWith(calls, userText);
+/** お店の情報の変更案だけを取り出す。出店者の質問は、値を書かない項目のテストでは空でよい */
+const proposalFromToolCalls = (calls: { name: string; arguments: string }[], userText = "") => {
+  const proposal = proposalFromToolCallsWith(calls, userText);
+  return proposal?.kind === "change" ? proposal.answer : proposal;
+};
 
 const call = (name: string, args: unknown) => ({ name, arguments: JSON.stringify(args) });
 
@@ -86,10 +88,49 @@ describe("proposalFromToolCalls", () => {
   });
 });
 
+describe("覚えることの案（propose_memory）", () => {
+  it("トピックタイトルと本文を案にする", () => {
+    expect(
+      proposalFromToolCallsWith(
+        [call("propose_memory", { title: " 混む時間 ", content: "9時ごろがいちばん混むき、早めがええ" })],
+        "9時ごろが一番混むがよ"
+      )
+    ).toEqual({ kind: "memory", note: { title: "混む時間", content: "9時ごろがいちばん混むき、早めがええ" } });
+  });
+
+  it("出店者が書いていないリンク・電話番号・データの言葉が入った案は出さない（来訪者が入れた言葉からの混入を防ぐ）", () => {
+    const memory = (content: string) => [call("propose_memory", { title: "予約", content })];
+    const said = "取り置きは電話でできるよ";
+
+    expect(proposalFromToolCallsWith(memory("予約は evil.example から"), said)).toBeNull();
+    expect(proposalFromToolCallsWith(memory("予約は 090-1234-5678 へ"), said)).toBeNull();
+    expect(
+      proposalFromToolCallsWith(memory("予約は事前振込で"), said, {
+        vendorText: said,
+        untrustedWords: ["事前振込"],
+      })
+    ).toBeNull();
+    // 出店者が自分で書いたものは通す（書き方が違っても）
+    const vendorText = "取り置きは 090 1234 5678 に電話してや";
+    expect(
+      proposalFromToolCallsWith(memory("取り置きは 090-1234-5678 に電話"), "うん", { vendorText })
+    ).toMatchObject({ kind: "memory" });
+  });
+
+  it("空・長すぎるものは案にしない", () => {
+    expect(proposalFromToolCallsWith([call("propose_memory", { title: "", content: "あ" })], "")).toBeNull();
+    expect(
+      proposalFromToolCallsWith([call("propose_memory", { title: "長い", content: "あ".repeat(301) })], "")
+    ).toBeNull();
+  });
+});
+
 describe("parseProposalFrame", () => {
   it("サーバーが付けた案を読み戻せる", () => {
-    const answer = { id: "rain", policy: "undecided", note: "小雨なら出る" } as const;
-    expect(parseProposalFrame(serializeProposal(answer))).toEqual(answer);
+    const change = { kind: "change", answer: { id: "rain", policy: "undecided", note: "小雨なら出る" } } as const;
+    expect(parseProposalFrame(serializeProposal(change))).toEqual(change);
+    const memory = { kind: "memory", note: { title: "混む時間", content: "9時ごろがいちばん混む" } } as const;
+    expect(parseProposalFrame(serializeProposal(memory))).toEqual(memory);
   });
 
   it("形の違うデータは読まない", () => {

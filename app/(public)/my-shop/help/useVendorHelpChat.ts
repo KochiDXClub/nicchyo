@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { TEXT_STREAM_DATA_SEPARATOR } from "@/lib/ai/textStream";
-import { parseProposalFrame, type HelpProposalAnswer } from "@/lib/vendor/helpProposals";
+import { parseProposalFrame, type HelpProposal } from "@/lib/vendor/helpProposals";
 
 export type VendorHelpTurn = { role: "user" | "assistant"; text: string };
 
@@ -44,13 +44,15 @@ const PROPOSAL_LINE = "こうでええかえ？";
 const PROPOSAL_OUTCOME_NOTES = {
   saved: "（出店者が確かめて、この変更を保存した）",
   dismissed: "（出店者はこの変更をやめた）",
+  remembered: "（出店者が確かめて、にちよさんが覚えた）",
+  declined: "（出店者は覚えんでええと言うた）",
 } as const;
 
 /**
  * 届いた文字を、答えの本文と、最後に付いた変更案に分ける。
  * 区切り文字はサーバーが本文から取り除いているので、最初の1つで分けてよい
  */
-export function splitHelpStream(received: string): { text: string; proposal: HelpProposalAnswer | null } {
+export function splitHelpStream(received: string): { text: string; proposal: HelpProposal | null } {
   const at = received.indexOf(TEXT_STREAM_DATA_SEPARATOR);
   if (at < 0) return { text: received, proposal: null };
   return {
@@ -88,7 +90,7 @@ export function useVendorHelpChat() {
   const [status, setStatus] = useState<VendorHelpStatus>("idle");
   const [question, setQuestion] = useState<string | null>(null);
   const [answer, setAnswer] = useState("");
-  const [proposal, setProposal] = useState<HelpProposalAnswer | null>(null);
+  const [proposal, setProposal] = useState<HelpProposal | null>(null);
   const historyRef = useRef<VendorHelpTurn[]>([]);
   const abortRef = useRef<AbortController | null>(null);
 

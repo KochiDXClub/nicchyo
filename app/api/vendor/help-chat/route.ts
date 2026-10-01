@@ -11,7 +11,7 @@ import { openAiSseToTextStream, TEXT_STREAM_HEADERS } from "@/lib/ai/textStream"
 import { resolveAiModelFor } from "@/lib/ai/modelStore.server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { VENDOR_HELP_GUIDE } from "@/lib/vendor/helpGuide";
-import { loadVendorHelpMarketStats, loadVendorHelpShopStats } from "@/lib/vendor/helpChatStats.server";
+import { loadVendorHelpMarketStats, loadVendorHelpShopStats, toDataWord } from "@/lib/vendor/helpChatStats.server";
 import { PAYMENT_OPTIONS } from "@/lib/vendor/storeOptions";
 import { HELP_PROPOSAL_TOOLS, proposalFromToolCalls, serializeProposal } from "@/lib/vendor/helpProposals";
 import {
@@ -63,6 +63,10 @@ async function loadShopContext(supabase: SupabaseLike, vendorId: string): Promis
     .maybeSingle();
   if (!vendor) return {};
 
+  // にちよさんがもう覚えていること。同じことを「覚えてよいか」と聞き直さないためだけに、トピックタイトルだけを渡す
+  // （届け先の設定に関係なく。本文は渡さない）。読めなくても相談は続ける
+  const { data: notes } = await supabase.from("store_knowledge").select("title").eq("store_id", vendorId).limit(50);
+
   const row = vendor as Record<string, unknown>;
   let category: string | null = null;
   if (typeof row.category_id === "string") {
@@ -86,6 +90,10 @@ async function loadShopContext(supabase: SupabaseLike, vendorId: string): Promis
     x: row.sns_x as string | null,
     website: row.sns_hp as string | null,
     hasShopPhoto: typeof row.shop_image_url === "string" && row.shop_image_url.trim() !== "",
+    rememberedTitles: ((notes ?? []) as { title: string | null }[])
+      // 見出しのふりをした文字（【】や改行）で、プロンプトの枠を崩させない
+      .map((note) => toDataWord(note.title ?? "", 60))
+      .filter(Boolean),
   };
 }
 
@@ -99,7 +107,8 @@ async function loadShopContext(supabase: SupabaseLike, vendorId: string): Promis
  * 質問と答えは vendor_help_logs に残す（よくある質問からガイドを直すため）。
  *
  * 「営業時間を変えたい」のような頼みには、AI がお店の情報の変更案（lib/vendor/helpProposals.ts）を
- * 出すことがある。検証した案だけを答えの最後に区切り文字のあとに付けて返し、画面が確認してから保存する。
+ * 出すことがある。来訪者に伝えるとよいことを話したら「覚えてよいか」の案も出す。
+ * 検証した案だけを答えの最後に区切り文字のあとに付けて返し、画面が確認してから保存する。
  */
 export async function POST(request: Request) {
   const originCheck = requireSameOrigin(request);
@@ -171,12 +180,24 @@ export async function POST(request: Request) {
   }
 
   const vendorId = user.id;
+  // 覚える案の確かめに使う。出店者が自分で書いた文（いまの質問と、これまでの出店者の発言）と、
+  // 来訪者やほかの出店者が入れた言葉（プロンプトの数字の欄）
+  const vendorText = [...history.filter((turn) => turn.role === "user").map((turn) => turn.text), text].join("\n");
+  const untrustedWords = [
+    ...(shopStats?.aiMentions?.topKeywords ?? []),
+    ...(marketStats?.topSearchKeywords ?? []),
+    ...(marketStats?.topSellingProducts ?? []),
+  ];
   let proposalNote = "";
   const readable = openAiSseToTextStream(upstream.body, {
     onToolCalls: (calls) => {
-      const proposal = proposalFromToolCalls(calls, text);
+      const proposal = proposalFromToolCalls(calls, text, { vendorText, untrustedWords });
       if (!proposal) return null;
-      proposalNote = `\n［変更案］${JSON.stringify(proposal)}`;
+      // 覚える案は、出店者がやめたかもしれない本文を記録に残さず、トピックタイトルだけにする
+      proposalNote =
+        proposal.kind === "memory"
+          ? `\n［覚える案］${proposal.note.title}`
+          : `\n［変更案］${JSON.stringify(proposal.answer)}`;
       return serializeProposal(proposal);
     },
     onFinish: (answer, { truncated }) => {

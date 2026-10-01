@@ -10,6 +10,10 @@ import type { AskAnswer, VendorAskSnapshot } from "@/lib/vendor/askQuestions";
 // AI が直接保存することはない。
 //
 // 変えられる項目はここで決めた分だけ。写真は会話からは変えない（店舗情報の画面で行う）。
+//
+// もう1つ、来訪者に伝えるとよいこと（「雨の日は10時で閉める」など）を出店者が話したら、
+// にちよさんが「覚えちょいてもかまん？」と聞く案（propose_memory）も出す。覚えるのは
+// 出店者が確かめてから（保存先はにちよさんのノート。/api/vendor/ai-notes）。
 
 /** 変更案になる答え。会話からは文字と選択肢だけを扱う */
 export type HelpProposalAnswer = Extract<
@@ -40,6 +44,18 @@ export const HELP_PROPOSAL_LABELS: Record<HelpProposalAnswer["id"], string> = {
   "shop-name": "店名",
   strength: "お店のこだわり",
 };
+
+/** にちよさんが覚えることの案。トピックタイトル + 本文（にちよさんのノートと同じ形） */
+export type HelpMemoryNote = { title: string; content: string };
+
+/** 答えの最後に付く案。お店の情報の変更か、覚えることか */
+export type HelpProposal =
+  | { kind: "change"; answer: HelpProposalAnswer }
+  | { kind: "memory"; note: HelpMemoryNote };
+
+/** 覚えることの案の長さ。ノートの上限より短くして、要点だけにさせる */
+const MEMORY_TITLE_MAX = 30;
+const MEMORY_CONTENT_MAX = 300;
 
 const PAYMENT_KEYS = PAYMENT_OPTIONS.map((option) => option.key) as [string, ...string[]];
 const RAIN_KEYS = RAIN_OPTIONS.map((option) => option.key) as [string, ...string[]];
@@ -149,6 +165,23 @@ export const HELP_PROPOSAL_TOOLS = [
       },
     },
   },
+  {
+    type: "function",
+    function: {
+      name: "propose_memory",
+      description:
+        "出店者が話した、来訪者に伝えるとよいお店のこと（混む時間・おすすめの食べ方・取り置きの可否など）を、にちよさんが覚えてよいか聞く",
+      parameters: {
+        type: "object",
+        properties: {
+          title: { type: "string", description: `何の話か（例: 混む時間、お支払い方法）。${MEMORY_TITLE_MAX}文字以内` },
+          content: { type: "string", description: `覚えること。出店者が話したことだけを、来訪者に伝わる形で。${MEMORY_CONTENT_MAX}文字以内` },
+        },
+        required: ["title", "content"],
+        additionalProperties: false,
+      },
+    },
+  },
 ];
 
 const hour = (h: number) => `${h}:00`;
@@ -235,55 +268,111 @@ function saidByVendor(answer: HelpProposalAnswer, userText: string): boolean {
   }
 }
 
+const MemoryNoteSchema = z.object({
+  title: trimmed(MEMORY_TITLE_MAX).min(1),
+  content: trimmed(MEMORY_CONTENT_MAX).min(1),
+});
+
+/** 連絡先やリンクに見える文字（URL・ドメイン・メール・@ID・電話番号） */
+const CONTACT_LIKE =
+  /https?:\/\/\S+|[\w.+-]+@[\w-]+(?:\.[\w-]+)+|@[\w.]{2,}|[a-z0-9-]+(?:\.[a-z0-9-]+)*\.[a-z]{2,}|\d[\d\-()（）\s]{6,}\d/giu;
+
+/** 覚えることにリンクや連絡先が入っているか。確認カードで、合っているか確かめるよう添える */
+export function memoryHasContact(note: HelpMemoryNote): boolean {
+  return [...normalize(`${note.title}\n${note.content}`).matchAll(CONTACT_LIKE)].length > 0;
+}
+
+const squash = (value: string) => normalize(value).replace(/[\s\-()（）]/g, "");
+
 /**
- * AI が呼んだ関数を変更案にする。知らない関数・壊れた引数・範囲外の値は null。
+ * 覚える案が、出店者が自分で話したことに基づいているか。
+ *
+ * AI に渡すデータには、来訪者やほかの出店者が入れた言葉（よく検索された言葉など）も入る。
+ * そこに紛れた偽のリンクや電話番号が、覚えることに混ざって来訪者の AI に届かないよう、
+ * - 連絡先やリンクに見える文字は、出店者が書いたものだけ
+ * - データの言葉は、出店者も書いたときだけ
+ * 案にする。言い回しは AI が来訪者向けに直すので、文全体の一致までは求めない
+ */
+function memoryGroundedIn(
+  note: HelpMemoryNote,
+  vendorText: string,
+  untrustedWords: readonly string[]
+): boolean {
+  const said = normalize(vendorText);
+  const saidSquashed = squash(vendorText);
+  const body = normalize(`${note.title}\n${note.content}`);
+  for (const match of body.matchAll(CONTACT_LIKE)) {
+    if (!saidSquashed.includes(squash(match[0].replace(/^https?:\/\//, "")))) return false;
+  }
+  return untrustedWords.every((raw) => {
+    const word = normalize(raw.trim());
+    return word.length < 2 || !body.includes(word) || said.includes(word);
+  });
+}
+
+/**
+ * AI が呼んだ関数を案にする。知らない関数・壊れた引数・範囲外の値は null。
  * 複数呼ばれたときは、最初に読めたものだけを使う（確認は1つずつ）。
- * userText は出店者がいま書いた質問（saidByVendor）
+ * userText は出店者がいま書いた質問（saidByVendor）。覚える案の確かめには、
+ * これまでの出店者の発言（vendorText）と、データの言葉（untrustedWords）も使う（memoryGroundedIn）
  */
 export function proposalFromToolCalls(
   calls: { name: string; arguments: string }[],
-  userText: string
-): HelpProposalAnswer | null {
+  userText: string,
+  { vendorText = userText, untrustedWords = [] }: { vendorText?: string; untrustedWords?: readonly string[] } = {}
+): HelpProposal | null {
   for (const call of calls) {
-    const toAnswer = Object.hasOwn(TOOL_SCHEMAS, call.name) ? TOOL_SCHEMAS[call.name] : undefined;
-    if (!toAnswer) continue;
     let args: unknown;
     try {
       args = JSON.parse(call.arguments || "{}");
     } catch {
       continue;
     }
+    if (call.name === "propose_memory") {
+      const parsed = MemoryNoteSchema.safeParse(args);
+      if (parsed.success && memoryGroundedIn(parsed.data, vendorText, untrustedWords)) {
+        return { kind: "memory", note: parsed.data };
+      }
+      continue;
+    }
+    const toAnswer = Object.hasOwn(TOOL_SCHEMAS, call.name) ? TOOL_SCHEMAS[call.name] : undefined;
+    if (!toAnswer) continue;
     const answer = toAnswer(args);
-    if (answer && saidByVendor(answer, userText)) return answer;
+    if (answer && saidByVendor(answer, userText)) return { kind: "change", answer };
   }
   return null;
 }
 
-/** 答えの最後に付ける変更案のデータ */
-export function serializeProposal(answer: HelpProposalAnswer): string {
-  return JSON.stringify({ type: "proposal", answer });
+/** 答えの最後に付ける案のデータ */
+export function serializeProposal(proposal: HelpProposal): string {
+  return JSON.stringify({ type: "proposal", ...proposal });
 }
 
-const ProposalFrameSchema = z.object({
-  type: z.literal("proposal"),
-  answer: z.discriminatedUnion("id", [
-    z.object({ id: z.literal("hours"), start: z.enum(TIME_OPTIONS as [string, ...string[]]), end: z.enum(TIME_OPTIONS as [string, ...string[]]) }),
-    z.object({ id: z.literal("payment"), methods: z.array(z.enum(PAYMENT_KEYS)), note: z.string().max(NOTE_MAX) }),
-    z.object({ id: z.literal("rain"), policy: z.enum(RAIN_KEYS), note: z.string().max(NOTE_MAX) }),
-    z.object({ id: z.literal("instagram"), value: z.string().max(LINK_MAX) }),
-    z.object({ id: z.literal("x"), value: z.string().max(LINK_MAX) }),
-    z.object({ id: z.literal("website"), value: z.string().max(LINK_MAX) }),
-    z.object({ id: z.literal("weekly-products"), products: z.array(z.string().max(PRODUCT_NAME_MAX)).max(PRODUCTS_MAX) }),
-    z.object({ id: z.literal("shop-name"), text: z.string().max(SHOP_NAME_MAX) }),
-    z.object({ id: z.literal("strength"), text: z.string().max(STRENGTH_MAX) }),
-  ]),
-});
+const ChangeAnswerSchema = z.discriminatedUnion("id", [
+  z.object({ id: z.literal("hours"), start: z.enum(TIME_OPTIONS as [string, ...string[]]), end: z.enum(TIME_OPTIONS as [string, ...string[]]) }),
+  z.object({ id: z.literal("payment"), methods: z.array(z.enum(PAYMENT_KEYS)), note: z.string().max(NOTE_MAX) }),
+  z.object({ id: z.literal("rain"), policy: z.enum(RAIN_KEYS), note: z.string().max(NOTE_MAX) }),
+  z.object({ id: z.literal("instagram"), value: z.string().max(LINK_MAX) }),
+  z.object({ id: z.literal("x"), value: z.string().max(LINK_MAX) }),
+  z.object({ id: z.literal("website"), value: z.string().max(LINK_MAX) }),
+  z.object({ id: z.literal("weekly-products"), products: z.array(z.string().max(PRODUCT_NAME_MAX)).max(PRODUCTS_MAX) }),
+  z.object({ id: z.literal("shop-name"), text: z.string().max(SHOP_NAME_MAX) }),
+  z.object({ id: z.literal("strength"), text: z.string().max(STRENGTH_MAX) }),
+]);
 
-/** 画面側で、答えの最後に付いた変更案のデータを読む。読めなければ null */
-export function parseProposalFrame(raw: string): HelpProposalAnswer | null {
+const ProposalFrameSchema = z.discriminatedUnion("kind", [
+  z.object({ type: z.literal("proposal"), kind: z.literal("change"), answer: ChangeAnswerSchema }),
+  z.object({ type: z.literal("proposal"), kind: z.literal("memory"), note: MemoryNoteSchema }),
+]);
+
+/** 画面側で、答えの最後に付いた案のデータを読む。読めなければ null */
+export function parseProposalFrame(raw: string): HelpProposal | null {
   try {
     const parsed = ProposalFrameSchema.safeParse(JSON.parse(raw));
-    return parsed.success ? (parsed.data.answer as HelpProposalAnswer) : null;
+    if (!parsed.success) return null;
+    return parsed.data.kind === "change"
+      ? { kind: "change", answer: parsed.data.answer as HelpProposalAnswer }
+      : { kind: "memory", note: parsed.data.note };
   } catch {
     return null;
   }
