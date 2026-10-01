@@ -12,6 +12,7 @@ import type { Post } from "@/app/vendor/_types";
 import ClosedDaysCalendar from "@/components/vendor/ClosedDaysCalendar";
 import VendorBackdrop from "@/components/vendor/VendorBackdrop";
 import VendorAskStage from "./ask/VendorAskStage";
+import NoticeBanner from "./components/NoticeBanner";
 import ShopIcon from "./components/ShopIcon";
 
 /**
@@ -118,6 +119,13 @@ export default function MyShopPage() {
             <p className="mt-0.5 text-[15px] font-bold text-amber-900">{sundayLabel}</p>
           </div>
         </header>
+
+        {/* 運営・市役所からの、まだ確認していないお知らせ（無ければ何も出さない） */}
+        {user?.id && (
+          <div className="empty:hidden mb-5">
+            <NoticeBanner />
+          </div>
+        )}
 
         {/* にちよさんの質問：出店者の情報入力はここで会話の形で聞く */}
         {user?.id && (
