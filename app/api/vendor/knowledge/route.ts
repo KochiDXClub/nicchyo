@@ -9,6 +9,8 @@ import { requireVendorRole } from "@/lib/auth/permissions";
 import { requestEmbeddings } from "@/lib/ai/openaiFetch";
 
 const MAX_CONTENT_LENGTH = 5000;
+/** 旧画面の自由メモ。20261001160000 で既存のメモに付けた題と同じ */
+const LEGACY_MEMO_TITLE = "お店のメモ";
 const KnowledgeBodySchema = z.object({
   content: z.string().trim().min(1, "content is required").max(MAX_CONTENT_LENGTH, `内容は${MAX_CONTENT_LENGTH}文字以内で入力してください`),
 });
@@ -26,10 +28,13 @@ export async function GET() {
     const forbidden = requireVendorRole(user);
     if (forbidden) return forbidden;
 
+    // 旧画面（自由メモ1枚）は「お店のメモ」の1枚だけを読み書きする。
+    // ノートの束（/api/vendor/ai-notes）で足したほかのノートには触らない
     const { data } = await supabase
       .from("store_knowledge")
       .select("id, content, created_at, updated_at")
       .eq("store_id", user.id)
+      .eq("title", LEGACY_MEMO_TITLE)
       .order("updated_at", { ascending: false })
       .limit(1)
       .single();
@@ -88,6 +93,7 @@ export async function POST(request: Request) {
       .from("store_knowledge")
       .select("id")
       .eq("store_id", user.id)
+      .eq("title", LEGACY_MEMO_TITLE)
       .limit(1)
       .single();
 
@@ -99,7 +105,7 @@ export async function POST(request: Request) {
     } else {
       await serviceClient
         .from("store_knowledge")
-        .insert({ store_id: user.id, content: content.trim(), embedding });
+        .insert({ store_id: user.id, title: LEGACY_MEMO_TITLE, content: content.trim(), embedding });
     }
 
     return NextResponse.json({ ok: true, hasEmbedding: embedding !== null });
