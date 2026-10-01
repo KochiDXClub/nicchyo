@@ -8,7 +8,6 @@ import {
   BarChart3,
   CalendarDays,
   CircleHelp,
-  ClipboardList,
   Compass,
   FileText,
   Heart,
@@ -22,7 +21,6 @@ import {
   ShieldCheck,
   MessageCircle,
   Newspaper,
-  Package,
   Settings,
   Store,
   Users,
@@ -112,11 +110,8 @@ const aboutMenuItems: SheetItem[] = [
 ];
 
 // ─── 出店者・管理者メニュー ────────────────────────────────────────────────────
-const vendorMenuItems: SheetItem[] = [
-  { label: "出店者ダッシュボード", href: "/vendor/dashboard", icon: Store },
-  { label: "商品管理", href: "/vendor/products", icon: Package },
-  { label: "注文管理", href: "/vendor/orders", icon: ClipboardList },
-];
+// 出店者の機能はすべて出店者ページ（/my-shop）からたどれるので、ここは入口の1つだけにする
+const vendorHomeItem: SheetItem = { label: "出店者ページ", href: "/my-shop", icon: Store };
 
 const adminMenuItems: SheetItem[] = [
   { label: "管理ダッシュボード", href: "/admin/dashboard", icon: LayoutDashboard },
@@ -210,7 +205,7 @@ function NavigationBarInner({
   const visibleAboutItems = aboutMenuItems.filter((item) =>
     isLinkVisible(item.visibilityPath ?? item.href.split("?")[0])
   );
-  const visibleVendorItems = vendorMenuItems.filter((item) => isLinkVisible(item.href));
+  const showVendorHome = permissions.isVendor && isLinkVisible(vendorHomeItem.href);
 
   // router.push はリンクと違って Provider のクリック監視に掛からないので、/map へ向かう前に自分で始める
   const goToMap = useCallback(() => {
@@ -268,6 +263,18 @@ function NavigationBarInner({
           />
         )}
 
+        {/* ─ 出店者ページへの入口。出店者がいちばんよく使うので、来訪者向けの項目より上に置く ─ */}
+        {showVendorHome && (
+          <>
+            <MenuDivider label="出店者" />
+            <MenuRow
+              icon={vendorHomeItem.icon}
+              label={vendorHomeItem.label}
+              onClick={() => handleMenuItemClick(vendorHomeItem.href)}
+            />
+          </>
+        )}
+
         <MenuDivider />
 
         {/* ─ 日曜市を歩くためのページ ─ */}
@@ -300,22 +307,6 @@ function NavigationBarInner({
               </div>
               <MenuGrandma />
             </div>
-          </>
-        )}
-
-        {/* ─ 出店者メニュー ─ */}
-        {(permissions.isVendor || permissions.isAdmin) && visibleVendorItems.length > 0 && (
-          <>
-            <MenuDivider label="出店者" />
-            {visibleVendorItems.map((item) => (
-              <MenuRow
-                key={item.href}
-                icon={item.icon}
-                label={item.label}
-                badge={item.badge}
-                onClick={() => handleMenuItemClick(item.href)}
-              />
-            ))}
           </>
         )}
 
