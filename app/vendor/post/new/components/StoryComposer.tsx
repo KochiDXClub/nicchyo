@@ -1,6 +1,7 @@
 "use client";
 
 import { type FormEvent } from "react";
+import Image from "next/image";
 import { AlertCircle, Loader2, Send, X } from "lucide-react";
 import { Button } from "@/components/ui";
 import { cn } from "@/lib/utils/cn";
@@ -57,13 +58,25 @@ export default function StoryComposer({
   return (
     <form onSubmit={handleSubmit} className="space-y-4" aria-busy={submitting}>
       <div className="relative mx-auto aspect-[3/4] w-full overflow-hidden rounded-card bg-black shadow-lift">
-        {/* eslint-disable-next-line @next/next/no-img-element -- 端末の中の写真（blob/data URL）を出すため */}
-        <img src={imageUrl} alt="投稿する写真" className="absolute inset-0 h-full w-full select-none object-contain" />
+        <Image
+          src={imageUrl}
+          alt="投稿する写真"
+          fill
+          sizes="(min-width: 640px) 32rem, 100vw"
+          className="select-none object-contain"
+          // 端末の中の写真（blob URL）は最適化を通せない
+          unoptimized={imageUrl.startsWith("blob:")}
+        />
 
         <div className="absolute inset-x-0 top-0 flex items-center gap-2.5 bg-gradient-to-b from-black/60 to-transparent px-4 pb-8 pt-4">
           {shopImageUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element -- 小さな名札の写真
-            <img src={shopImageUrl} alt="" className="h-8 w-8 shrink-0 rounded-chip object-cover ring-2 ring-white/70" />
+            <Image
+              src={shopImageUrl}
+              alt=""
+              width={32}
+              height={32}
+              className="h-8 w-8 shrink-0 rounded-chip object-cover ring-2 ring-white/70"
+            />
           ) : (
             <span
               aria-hidden="true"

@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { CheckCircle2, Eye, Plus } from "lucide-react";
 import { Button, buttonClass } from "@/components/ui";
@@ -15,9 +16,16 @@ type Props = {
 export default function PostDone({ postId, imageUrl, expiresLabel, onAnother }: Props) {
   return (
     <div className="flex flex-col items-center pt-4 text-center">
-      <div className="relative">
-        {/* eslint-disable-next-line @next/next/no-img-element -- 端末の中の写真（blob/data URL）を出すため */}
-        <img src={imageUrl} alt="" className="aspect-[3/4] h-40 rounded-card bg-black object-cover shadow-lift" />
+      <div className="relative aspect-[3/4] h-40">
+        <Image
+          src={imageUrl}
+          alt=""
+          fill
+          sizes="7.5rem"
+          className="rounded-card bg-black object-cover shadow-lift"
+          // 端末の中の写真（blob URL）は最適化を通せない
+          unoptimized={imageUrl.startsWith("blob:")}
+        />
         <CheckCircle2
           size={40}
           aria-hidden="true"

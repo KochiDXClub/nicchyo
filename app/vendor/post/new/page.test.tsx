@@ -116,7 +116,10 @@ describe("投稿画面（近況を出す）", () => {
     render(<VendorPostNewPage />);
     await flush();
 
-    expect(screen.getByAltText("投稿する写真")).toHaveAttribute("src", "https://example.supabase.co/old.webp");
+    // 保存済みの写真は next/image の最適化を通る
+    expect(screen.getByAltText("投稿する写真").getAttribute("src")).toContain(
+      encodeURIComponent("https://example.supabase.co/old.webp")
+    );
     expect(screen.getByLabelText("ひとこと（なくても出せます）")).toHaveValue("前のひとこと");
   });
 });
