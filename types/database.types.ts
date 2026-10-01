@@ -1160,24 +1160,39 @@ export type Database = {
           content: string
           created_at: string
           embedding: string | null
+          for_vendor: boolean
+          for_visitors: boolean
           id: string
+          sort_order: number
           store_id: string
+          title: string
+          topic: string
           updated_at: string
         }
         Insert: {
           content: string
           created_at?: string
           embedding?: string | null
+          for_vendor?: boolean
+          for_visitors?: boolean
           id?: string
+          sort_order?: number
           store_id: string
+          title?: string
+          topic?: string
           updated_at?: string
         }
         Update: {
           content?: string
           created_at?: string
           embedding?: string | null
+          for_vendor?: boolean
+          for_visitors?: boolean
           id?: string
+          sort_order?: number
           store_id?: string
+          title?: string
+          topic?: string
           updated_at?: string
         }
         Relationships: [
@@ -1225,6 +1240,35 @@ export type Database = {
           todo?: string
         }
         Relationships: []
+      }
+      vendor_ai_settings: {
+        Row: {
+          share_popular_with_visitors: boolean
+          updated_at: string
+          use_stats_in_vendor_help: boolean
+          vendor_id: string
+        }
+        Insert: {
+          share_popular_with_visitors?: boolean
+          updated_at?: string
+          use_stats_in_vendor_help?: boolean
+          vendor_id: string
+        }
+        Update: {
+          share_popular_with_visitors?: boolean
+          updated_at?: string
+          use_stats_in_vendor_help?: boolean
+          vendor_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vendor_ai_settings_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: true
+            referencedRelation: "vendors"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       vendor_contents: {
         Row: {
@@ -1563,6 +1607,21 @@ export type Database = {
           id: string
           similarity: number
           store_id: string
+        }[]
+      }
+      match_store_notes: {
+        Args: {
+          audience: string
+          match_count?: number
+          match_threshold?: number
+          query_embedding: string
+          target_store_id: string
+        }
+        Returns: {
+          content: string
+          id: string
+          similarity: number
+          title: string
         }[]
       }
       match_vendor_embeddings: {
