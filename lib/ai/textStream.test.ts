@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { openAiSseToTextStream } from "./textStream";
+import { openAiSseToTextStream, TEXT_STREAM_DATA_SEPARATOR } from "./textStream";
 
 function sse(chunks: string[], extra = "") {
   const encoder = new TextEncoder();
@@ -91,5 +91,56 @@ describe("openAiSseToTextStream", () => {
     expect(new TextDecoder().decode(first.value)).toBe("途中");
     await expect(reader.read()).rejects.toThrow();
     expect(onFinish).toHaveBeenCalledWith("途中", { truncated: true });
+  });
+});
+
+function sseRaw(events: unknown[]) {
+  const encoder = new TextEncoder();
+  return new ReadableStream<Uint8Array>({
+    start(controller) {
+      for (const event of events) controller.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`));
+      controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+      controller.close();
+    },
+  });
+}
+
+describe("openAiSseToTextStream の関数呼び出し", () => {
+  const toolDelta = (index: number, name: string | undefined, args: string) => ({
+    choices: [{ delta: { tool_calls: [{ index, function: { ...(name ? { name } : {}), arguments: args } }] } }],
+  });
+
+  it("断片で届いた関数呼び出しをつないで渡し、返した文字を区切り文字のあとに付ける", async () => {
+    const onToolCalls = vi.fn(() => "TRAILER");
+    const stream = openAiSseToTextStream(
+      sseRaw([
+        { choices: [{ delta: { content: "こうでええ？" } }] },
+        toolDelta(0, "propose_hours", '{"start_'),
+        toolDelta(0, undefined, 'hour":7,"end_hour":13}'),
+      ]),
+      { onToolCalls }
+    );
+
+    expect(await new Response(stream).text()).toBe(`こうでええ？${TEXT_STREAM_DATA_SEPARATOR}TRAILER`);
+    expect(onToolCalls).toHaveBeenCalledWith([
+      { name: "propose_hours", arguments: '{"start_hour":7,"end_hour":13}' },
+    ]);
+  });
+
+  it("本文に区切り文字が混じっていたら取り除く（変更案のデータになりすませない）", async () => {
+    const stream = openAiSseToTextStream(
+      sseRaw([{ choices: [{ delta: { content: `あ${TEXT_STREAM_DATA_SEPARATOR}{"type":"proposal"}` } }] }]),
+      { onToolCalls: () => "x" }
+    );
+
+    expect(await new Response(stream).text()).toBe('あ{"type":"proposal"}');
+  });
+
+  it("onToolCalls が null を返したら、何も付けない", async () => {
+    const stream = openAiSseToTextStream(sseRaw([toolDelta(0, "unknown", "{}")]), {
+      onToolCalls: () => null,
+    });
+
+    expect(await new Response(stream).text()).toBe("");
   });
 });
