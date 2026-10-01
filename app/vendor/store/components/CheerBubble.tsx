@@ -52,7 +52,7 @@ export default function CheerBubble({
   const reduceMotion = useReducedMotion();
   return (
     <div
-      className="pointer-events-none fixed inset-x-0 z-[1200] flex justify-center px-4"
+      className="pointer-events-none fixed inset-x-0 z-[10010] flex justify-center px-4"
       style={{ top: "calc(var(--safe-top, 0px) + 5rem)" }}
       role="status"
       aria-live="polite"

@@ -13,7 +13,8 @@ import { isClearable, type AskAnswer, type AskQuestion, type VendorAskSnapshot }
  * にちよさんが質問してくるシート。画面下から上がってきて、にちよさんが質問し、
  * 答えを入れるとその場で保存される。
  *
- * 下部ナビ（z-[1002]）より手前に出して、入力欄の下がナビに隠れないようにする。
+ * 出店者の下部ナビ（z-[9997]）とPCのサイドバー（z-[9999]）より手前に出して、
+ * 入力欄の下がナビに隠れないようにする。
  */
 export default function AskSheet({
   question,
@@ -57,7 +58,7 @@ export default function AskSheet({
 
   return (
     <motion.div
-      className="fixed inset-0 z-[1100] flex items-end justify-center"
+      className="fixed inset-0 z-[10000] flex items-end justify-center"
       initial={reduceMotion ? false : { opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={reduceMotion ? { opacity: 0 } : { opacity: 0, transition: { duration: 0.18 } }}
