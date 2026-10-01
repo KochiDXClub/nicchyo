@@ -186,7 +186,7 @@ describe("答えの要約", () => {
 });
 
 describe("答えを消す", () => {
-  it("つながりと店舗写真だけが消せて、空の答えが作れる", () => {
+  it("つながり・店舗写真・店主名・ジャンルが消せて、空の答えが作れる", () => {
     expect(isClearable("instagram")).toBe(true);
     expect(isClearable("shop-photo")).toBe(true);
     expect(isClearable("hours")).toBe(false);
