@@ -162,4 +162,45 @@ describe("POST /api/vendor/help-chat", () => {
     expect(res.status).toBe(502);
     expect(insertLog).not.toHaveBeenCalled();
   });
+
+  it("AI が変更案の関数を呼んだら、検証した案だけを区切り文字のあとに付けて返し、記録にも残す", async () => {
+    getUser.mockResolvedValue({ data: { user: VENDOR } });
+    const encoder = new TextEncoder();
+    const events = [
+      { choices: [{ delta: { content: "こうでええかえ？" } }] },
+      {
+        choices: [
+          {
+            delta: {
+              tool_calls: [
+                { index: 0, function: { name: "propose_hours", arguments: '{"start_hour":7,"end_hour":13}' } },
+              ],
+            },
+          },
+        ],
+      },
+    ];
+    requestChatCompletion.mockResolvedValue(
+      new Response(
+        new ReadableStream({
+          start(controller) {
+            for (const event of events) controller.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`));
+            controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+            controller.close();
+          },
+        })
+      )
+    );
+
+    const res = await post({ text: "営業時間を7時から13時にしたい" });
+
+    const [, , options] = requestChatCompletion.mock.calls[0];
+    expect((options as { tools: { function: { name: string } }[] }).tools.map((t) => t.function.name)).toContain(
+      "propose_hours"
+    );
+    const [text, frame] = (await res.text()).split("\u001e");
+    expect(text).toBe("こうでええかえ？");
+    expect(JSON.parse(frame)).toEqual({ type: "proposal", answer: { id: "hours", start: "7:00", end: "13:00" } });
+    expect(insertLog.mock.calls[0][0].answer).toContain("［変更案］");
+  });
 });

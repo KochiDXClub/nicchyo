@@ -13,6 +13,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { VENDOR_HELP_GUIDE } from "@/lib/vendor/helpGuide";
 import { loadVendorHelpMarketStats, loadVendorHelpShopStats } from "@/lib/vendor/helpChatStats.server";
 import { PAYMENT_OPTIONS } from "@/lib/vendor/storeOptions";
+import { HELP_PROPOSAL_TOOLS, proposalFromToolCalls, serializeProposal } from "@/lib/vendor/helpProposals";
 import {
   buildVendorHelpSystemPrompt,
   type VendorHelpShopContext,
@@ -96,6 +97,9 @@ async function loadShopContext(supabase: SupabaseLike, vendorId: string): Promis
  * 日曜市全体の数字（lib/vendor/helpChatStats.server.ts）。
  * 答えは文字のまま少しずつ流す（店舗ページのチャット /api/grandma/shop-chat と同じ形。lib/ai/textStream）。
  * 質問と答えは vendor_help_logs に残す（よくある質問からガイドを直すため）。
+ *
+ * 「営業時間を変えたい」のような頼みには、AI がお店の情報の変更案（lib/vendor/helpProposals.ts）を
+ * 出すことがある。検証した案だけを答えの最後に区切り文字のあとに付けて返し、画面が確認してから保存する。
  */
 export async function POST(request: Request) {
   const originCheck = requireSameOrigin(request);
@@ -159,15 +163,24 @@ export async function POST(request: Request) {
     maxOutputTokens: 400,
     temperature: 0.5,
     stream: true,
+    // お店の情報の変更案。AI は案を出すだけで、保存は出店者が画面で確かめてから行う
+    tools: HELP_PROPOSAL_TOOLS,
   }).catch(() => null);
   if (!upstream || !upstream.ok || !upstream.body) {
     return NextResponse.json({ error: "Upstream error" }, { status: 502 });
   }
 
   const vendorId = user.id;
+  let proposalNote = "";
   const readable = openAiSseToTextStream(upstream.body, {
+    onToolCalls: (calls) => {
+      const proposal = proposalFromToolCalls(calls);
+      if (!proposal) return null;
+      proposalNote = `\n［変更案］${JSON.stringify(proposal)}`;
+      return serializeProposal(proposal);
+    },
     onFinish: (answer, { truncated }) =>
-      saveHelpLog(vendorId, text, truncated ? `${answer}\n［途中で切れた］` : answer),
+      saveHelpLog(vendorId, text, `${answer}${proposalNote}${truncated ? "\n［途中で切れた］" : ""}`),
   });
 
   return new Response(readable, { headers: TEXT_STREAM_HEADERS });

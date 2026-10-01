@@ -534,6 +534,8 @@ export type ChatCompletionParams = {
   temperature?: number;
   stream?: boolean;
   responseFormat?: unknown;
+  /** 呼んでよい関数（function calling）。形は OpenAI の tools のまま */
+  tools?: unknown[];
 };
 
 /**
@@ -574,6 +576,9 @@ export function buildChatCompletionBody(
   }
   if (params.responseFormat !== undefined) {
     body.response_format = params.responseFormat;
+  }
+  if (params.tools && params.tools.length > 0) {
+    body.tools = params.tools;
   }
 
   return body;
