@@ -4,7 +4,7 @@ import Link from "next/link";
 import { lockBodyScroll, unlockBodyScroll } from "@/lib/ui/bodyScrollLock";
 import Image from "next/image";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useCallback, useRef, Suspense } from "react";
+import { useEffect, useCallback, useId, useRef, useState, Suspense } from "react";
 import {
   AnimatePresence,
   motion,
@@ -62,6 +62,15 @@ const baseNavItems: NavItem[] = [
   { name: "相談", href: "/map", target: "/consult", icon: MessageCircle },
   { name: "近況", href: "/story", icon: Newspaper },
 ];
+
+/** 近況のデモ。近況と両方公開しているときは、ナビの「近況」を押すとどちらへ行くか選べる */
+const STORY_DEMO_HREF = "/demo/story";
+
+/** 近況ボタンを押したときに出す行き先。上から順に並べる */
+const STORY_CHOICES = [
+  { href: "/story", label: "近況", description: "出店者の投稿" },
+  { href: STORY_DEMO_HREF, label: "近況（デモ）", description: "見本の投稿と店のAIキャラ" },
+] as const;
 
 // ─── メニューの項目 ───────────────────────────────────────────────────────────
 // 絵文字は端末ごとに絵柄が変わって揃わないので、線の太さを合わせたアイコンを使う。
@@ -203,11 +212,23 @@ function NavigationBarInner({
   // ページ公開設定で public でないリンクはナビに出さない
   const consultItem = baseNavItems[0];
   const isConsultVisible = isLinkVisible(consultItem.target ?? consultItem.href);
-  const rightNavItems = (
-    permissions.isAdmin
-      ? [...baseNavItems.slice(1), { name: "管理", href: "/admin/dashboard", icon: Settings }]
-      : baseNavItems.slice(1)
-  ).filter((item) => isLinkVisible(item.target ?? item.href));
+  // 近況ボタンの行き先。近況と近況（デモ）の両方が公開のとき、モデレーター以上は押すと
+  // どちらへ行くかを選べる。公開設定で片方だけにすれば、誰が押してもすぐそちらへ行く
+  const storyItem = baseNavItems[1];
+  const storyHrefs = [storyItem.href, STORY_DEMO_HREF].filter((href) => isLinkVisible(href));
+  // 見比べるための選択メニューは開発メンバー（モデレーター以上）にだけ出す。来訪者には、
+  // 本番の公開設定を触り忘れても開発用のメニューが出ないよう、公開されている先頭（近況が
+  // 公開なら近況、そうでなければデモ）へ直接行かせる
+  const showStoryChooser = storyHrefs.length === 2 && permissions.isModerator;
+  const storyNavItem: NavItem | null =
+    storyHrefs.length > 0 && !showStoryChooser ? { ...storyItem, href: storyHrefs[0] } : null;
+  const adminNavItems: NavItem[] = permissions.isAdmin
+    ? [{ name: "管理", href: "/admin/dashboard", icon: Settings }]
+    : [];
+  const rightNavItems = [
+    ...(storyNavItem ? [storyNavItem] : []),
+    ...adminNavItems.filter((item) => isLinkVisible(item.href)),
+  ];
   // 公開設定はパス単位なので、/map?guide=menu のようなクエリは外して判定する
   const visibleVisitItems = visitMenuItems.filter((item) =>
     isLinkVisible(item.visibilityPath ?? item.href.split("?")[0])
@@ -524,12 +545,20 @@ function NavigationBarInner({
             </div>
 
             {/* 右：近況（+ 管理タブがあれば追加）。全部非表示なら空枠で中央のメニュー位置を維持 */}
-            {rightNavItems.length === 0 ? (
+            {rightNavItems.length === 0 && !showStoryChooser ? (
               <div className="flex-1" aria-hidden />
             ) : (
-              rightNavItems.map((item) => (
-                <NavLinkItem key={item.href} item={item} isActive={isNavItemActive(item)} />
-              ))
+              <>
+                {showStoryChooser && (
+                  <StoryNavChooser
+                    item={storyItem}
+                    isActive={currentHref === storyItem.href || currentHref === STORY_DEMO_HREF}
+                  />
+                )}
+                {rightNavItems.map((item) => (
+                  <NavLinkItem key={item.href} item={item} isActive={isNavItemActive(item)} />
+                ))}
+              </>
             )}
           </div>
         ) : isCloseUxActive ? (
@@ -619,16 +648,16 @@ function MenuDivider({ label }: { label?: string }) {
 }
 
 // ─── NavLinkItem ──────────────────────────────────────────────────────────────
-function NavLinkItem({ item, isActive }: { item: NavItem; isActive: boolean }) {
+function navItemClass(isActive: boolean) {
+  return `group flex h-full flex-1 flex-col items-center justify-center gap-1 transition-colors duration-200 ${
+    isActive ? "text-amber-600" : "text-slate-400 hover:text-slate-600"
+  }`;
+}
+
+function NavItemContent({ item, isActive }: { item: NavItem; isActive: boolean }) {
   const Icon = item.icon;
   return (
-    <Link
-      href={item.href}
-      prefetch={false}
-      className={`group flex h-full flex-1 flex-col items-center justify-center gap-1 transition-colors duration-200 ${
-        isActive ? "text-amber-600" : "text-slate-400 hover:text-slate-600"
-      }`}
-    >
+    <>
       <Icon
         className={`h-[22px] w-[22px] transition-transform duration-200 group-active:scale-95 ${
           isActive ? "scale-105" : "group-hover:scale-105"
@@ -639,7 +668,85 @@ function NavLinkItem({ item, isActive }: { item: NavItem; isActive: boolean }) {
       <span className="text-[10px] font-medium leading-none tracking-tight">
         {item.name}
       </span>
+    </>
+  );
+}
+
+function NavLinkItem({ item, isActive }: { item: NavItem; isActive: boolean }) {
+  return (
+    <Link href={item.href} prefetch={false} className={navItemClass(isActive)}>
+      <NavItemContent item={item} isActive={isActive} />
     </Link>
+  );
+}
+
+/**
+ * 近況ボタン（開発中用）。押すと上に小さなメニューが開き、近況と近況（デモ）のどちらへ
+ * 行くかを選ぶ。外側を押すか Esc で閉じる。
+ */
+function StoryNavChooser({ item, isActive }: { item: NavItem; isActive: boolean }) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+  // 矢印キーで動く menu ではなく、ただのリンク2つなので、開閉ボタンと一覧を aria-controls でつなぐだけにする
+  const listId = useId();
+
+  useEffect(() => {
+    if (!open) return;
+    const onPointerDown = (event: PointerEvent) => {
+      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [open]);
+
+  return (
+    <div ref={rootRef} className="relative flex h-full flex-1">
+      <button
+        type="button"
+        onClick={() => setOpen((prev) => !prev)}
+        aria-expanded={open}
+        aria-controls={open ? listId : undefined}
+        className={navItemClass(isActive || open)}
+      >
+        <NavItemContent item={item} isActive={isActive || open} />
+      </button>
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            id={listId}
+            role="group"
+            aria-label="近況の行き先"
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 6 }}
+            transition={{ duration: 0.15 }}
+            className="absolute bottom-full right-2 mb-2 w-56 rounded-panel bg-white p-1.5 shadow-float ring-1 ring-line"
+          >
+            {STORY_CHOICES.map((choice) => (
+              <Link
+                key={choice.href}
+                href={choice.href}
+                prefetch={false}
+                onClick={() => setOpen(false)}
+                className="block rounded-btn px-3 py-2.5 text-left transition hover:bg-nicchyo-ink/5 active:bg-nicchyo-ink/10"
+              >
+                <span className="block text-sm font-bold leading-tight text-nicchyo-ink">{choice.label}</span>
+                <span className="mt-0.5 block text-[11px] leading-tight text-nicchyo-ink/55">
+                  {choice.description}
+                </span>
+              </Link>
+            ))}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
   );
 }
 

@@ -3,16 +3,16 @@
 export const dynamic = "force-dynamic";
 
 import { useState, useEffect } from "react";
+import { Badge, CenteredLoading, PageContainer, PageShell, PageTitle } from "@/components/ui";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { fetchVendorAnalytics, fetchSearchSourceRatio, fetchVendorHeartSummary } from "../_services/analyticsService";
 import type { VendorAnalytics, SearchSourceRatio, HeartSummary } from "../_types";
 import {
-  ArrowLeft, Eye, MousePointerClick, Search,
+  Eye, MousePointerClick, Search,
   BarChart2, Clock, ShoppingBag, TrendingUp,
   ChevronRight, ArrowUp, ArrowDown, MapPin, Navigation, MessageCircle, Heart,
 } from "lucide-react";
-import { CenteredLoading } from "@/components/ui/loading-spinner";
 
 function DeltaBadge({ current, prev }: { current: number; prev: number }) {
   const diff = current - prev;
@@ -66,23 +66,13 @@ export default function VendorAnalyticsPage() {
   ];
 
   return (
-    <div className="min-h-screen bg-[#FFFAF0] pb-24">
-      <div className="border-b border-amber-100 bg-white/90 px-4 py-4 backdrop-blur-sm">
-        <div className="mx-auto flex max-w-2xl items-center gap-3">
-          <Link href="/my-shop" className="flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50">
-            <ArrowLeft size={18} />
-          </Link>
-          <div>
-            <h1 className="text-xl font-bold text-slate-900">お店の分析</h1>
-          </div>
-          <div className="ml-auto flex items-center gap-1.5 rounded-full border border-amber-100 bg-amber-50 px-3 py-1.5">
-            <BarChart2 size={13} className="text-amber-600" />
-            <span className="text-xs font-semibold text-amber-700">{user?.name ?? "出店者"}</span>
-          </div>
-        </div>
-      </div>
+    <PageShell bottomNav={false}>
+      <PageTitle
+        title="お店の分析"
+        action={<Badge variant="amber"><BarChart2 size={13} aria-hidden="true" />{user?.name ?? "出店者"}</Badge>}
+      />
 
-      <div className="mx-auto max-w-2xl space-y-4 px-4 pt-5">
+      <PageContainer className="space-y-4">
 
         {isLoading ? (
           <CenteredLoading />
@@ -220,7 +210,7 @@ export default function VendorAnalyticsPage() {
             </div>
           </>
         )}
-      </div>
-    </div>
+      </PageContainer>
+    </PageShell>
   );
 }

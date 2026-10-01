@@ -88,9 +88,16 @@ export default function MyShopLayout({ children }: { children: ReactNode }) {
     );
   }
 
+  // にちよさんの質問ページは、にちよさんと質問だけを出す（下のナビも出さない）
+  if (pathname === "/my-shop/ask") return <>{children}</>;
+
   return (
     <>
-      {children}
+      {/* 下部ナビ（VendorNavBar）に隠れないよう、余白は /vendor のレイアウトと同じくここで持つ。
+          各ページは自分で下の余白を足さない */}
+      <div style={{ paddingBottom: "calc(3.5rem + env(safe-area-inset-bottom, 0px))" }}>
+        {children}
+      </div>
       <VendorNavBar />
     </>
   );

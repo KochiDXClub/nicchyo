@@ -118,4 +118,36 @@ export function PageHeader({
   );
 }
 
+type PageTitleProps = {
+  title: React.ReactNode;
+  /** 右端に置く操作や札（新規投稿・未保存など）。戻る操作は置かない */
+  action?: React.ReactNode;
+  width?: Width;
+  className?: string;
+  /** 見出しの下に続けて置くもの（タブなど） */
+  children?: React.ReactNode;
+};
+
+/**
+ * ページの見出し。地から中身に移る手前に主色を薄く敷いて、視線の入口を作る。
+ *
+ * 貼りつかない（PageHeader と違ってスクロールで流れる）。戻る操作は置かない：
+ * どの画面にも下に NavigationBar があり、そこから戻れるので、左上に戻るボタンを
+ * 足すと出口が二つになる。来訪者向けの FAQ・カレンダーと同じ形で、出店者ページの
+ * 見出しもこれに揃える。
+ */
+export function PageTitle({ title, action, width = "reading", className, children }: PageTitleProps) {
+  return (
+    <div className={cn("bg-gradient-to-b from-amber-100/50 to-transparent pb-6 pt-safe-top", className)}>
+      <PageContainer width={width} className="pt-6">
+        <div className="flex items-center gap-3">
+          <h1 className="min-w-0 flex-1 text-2xl font-bold tracking-tight">{title}</h1>
+          {action ? <div className="shrink-0">{action}</div> : null}
+        </div>
+        {children}
+      </PageContainer>
+    </div>
+  );
+}
+
 export type { Width as PageWidth };

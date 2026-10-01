@@ -133,6 +133,23 @@ import { PageShell, PageContainer, PageHeader } from "@/components/ui";
 | `reading`（既定） | 38rem | 読み物、入力の多いフォーム |
 | `wide` | 64rem | 図や表が主役の画面（支援・分析） |
 
+### ページの見出し
+
+```tsx
+<PageShell bottomNav={false}>
+  <PageTitle title="店舗情報の編集" action={<Badge variant="amber">未保存</Badge>} />
+  <PageContainer>{/* 中身 */}</PageContainer>
+</PageShell>
+```
+
+`PageTitle` は、地から中身に移る手前に主色を薄く敷いた見出し帯（FAQ・カレンダーと同じ形）。
+貼りつかずスクロールで流れる。貼りつく帯が要るときだけ `PageHeader` を使う。
+
+**左上に戻るボタンを置かない。** どの画面にも下にナビゲーションバーがあり、そこから戻れる。
+戻る操作を足すと出口が二つになる。`action` には「新規投稿」「未保存」のような、そのページ固有の
+操作や札だけを置く（リンクをボタンに見せるなら `buttonClass()`、札なら `Badge`）。
+出店者ページ（`app/vendor/`・`app/(public)/my-shop/`）も同じ。
+
 ### ボタン
 
 ```tsx

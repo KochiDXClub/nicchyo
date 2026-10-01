@@ -10,6 +10,8 @@ export type VendorNavItem = {
 };
 
 export const VENDOR_NAV_ITEMS: VendorNavItem[] = [
+  { label: "運営・市役所に連絡", href: "/vendor/inquiries", emoji: "✉️", description: "質問・報告・相談を送る" },
+  // 下部バーの「店舗情報」枠は「連絡」に差し替えたため、店舗情報への導線はここが主になる
   { label: "店舗情報を更新", href: "/vendor/store", emoji: "🛠️", description: "商品・写真・出店日をまとめて見直す" },
   { label: "最新情報を発信", href: "/vendor/post/new", emoji: "📣", description: "今日のおすすめや売り切れを伝える" },
   { label: "投稿履歴", href: "/vendor/posts", emoji: "📮", description: "これまでの投稿を見返す" },

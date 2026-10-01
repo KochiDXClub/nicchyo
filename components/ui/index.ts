@@ -10,5 +10,5 @@ export { Surface, type SurfaceProps } from "./surface";
 export { Badge, type BadgeProps } from "./badge";
 export { EmptyState, type EmptyStateProps } from "./empty-state";
 export { EmptyMessage } from "./empty-message";
-export { PageShell, PageContainer, PageHeader, type PageWidth } from "./page-shell";
+export { PageShell, PageContainer, PageHeader, PageTitle, type PageWidth } from "./page-shell";
 export { LoadingSpinner, CenteredLoading } from "./loading-spinner";

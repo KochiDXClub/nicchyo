@@ -36,6 +36,8 @@ type Props = {
   onLaunch: () => void;
   /** 下へ払った・閉じるを押したとき */
   onDismiss: () => void;
+  /** デモの投稿か（名札の横に「デモ」の印を出す） */
+  demo?: boolean;
 };
 
 /**
@@ -48,7 +50,7 @@ type Props = {
  * 全画面に着いた時点でシートと全画面ビューア（StoryViewer）の見た目が揃っているので、
  * 引き上げた指からそのまま再生が始まったように見える。
  */
-export default function StoryPeekSheet({ story, count, onLaunch, onDismiss }: Props) {
+export default function StoryPeekSheet({ story, count, onLaunch, onDismiss, demo }: Props) {
   const reduceMotion = useReducedMotion() ?? false;
   const sheetRef = useRef<HTMLDivElement>(null);
   const peekRef = useRef(typeof window === "undefined" ? 0 : Math.round(window.innerHeight * PEEK_RATIO));
@@ -211,6 +213,7 @@ export default function StoryPeekSheet({ story, count, onLaunch, onDismiss }: Pr
           story={story}
           count={count}
           priority
+          demo={demo}
           headerAction={
             <button
               type="button"
