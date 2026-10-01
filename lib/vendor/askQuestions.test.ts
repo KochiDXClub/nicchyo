@@ -1,12 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
   ASK_GROUPS,
-  ASK_LIMIT,
   ASK_QUESTIONS,
   emptyAnswerFor,
   isClearAnswer,
   isClearable,
-  pickQuestions,
+  pendingQuestions,
   studioQuestions,
   type VendorAskSnapshot,
 } from "./askQuestions";
@@ -37,78 +36,61 @@ const URGENT_DONE: VendorAskSnapshot = {
   weekly: { isOpen: true, products: ["トマト"] },
 };
 
-const ids = (snapshot: VendorAskSnapshot, skippedIds: Parameters<typeof pickQuestions>[1] = {}) =>
-  pickQuestions(snapshot, skippedIds).map((question) => question.id);
+const ids = (snapshot: VendorAskSnapshot) => pendingQuestions(snapshot).map((question) => question.id);
 
-describe("pickQuestions", () => {
-  it("何も入力されていなければ、いつもの質問を先頭に上限の3つまで返す", () => {
+describe("pendingQuestions", () => {
+  it("いつもの質問 → 急ぎ → マニアックの順に、入力が要る質問をすべて返す", () => {
     const picked = ids(EMPTY);
-    expect(picked).toHaveLength(ASK_LIMIT);
-    expect(picked).toEqual(["weekly-products", "hours", "signature"]);
+    expect(picked.slice(0, 3)).toEqual(["weekly-products", "hours", "signature"]);
+    expect(picked.slice(-4)).toEqual(["strength", "motivation", "years", "sunday-love"]);
   });
 
   it("今週の商品に答え済みなら、いつもの質問は出さない", () => {
     const picked = ids({ ...EMPTY, weekly: { isOpen: null, products: ["トマト"] } });
-    expect(picked).toEqual(["hours", "signature", "payment"]);
+    expect(picked).not.toContain("weekly-products");
+    expect(picked[0]).toBe("hours");
   });
 
   it("看板商品が未登録のうちは、商品のPRを聞かない", () => {
-    expect(ids(EMPTY, { limit: 20 })).not.toContain("signature-pr");
+    expect(ids(EMPTY)).not.toContain("signature-pr");
   });
 
   it("看板商品が登録されていて紹介文が無ければ、商品のPRを聞く", () => {
-    const picked = ids(
-      {
-        ...EMPTY,
-        signatureProduct: { name: "トマト", imageUrl: "https://example.com/a.webp" },
-      },
-      { limit: 20 }
-    );
+    const picked = ids({
+      ...EMPTY,
+      signatureProduct: { name: "トマト", imageUrl: "https://example.com/a.webp" },
+    });
     expect(picked).toContain("signature-pr");
     expect(picked).not.toContain("signature");
   });
 
   it("雨の日は、答えたと記録されるまで聞く（既定値の「当日判断」のままでは答え済みにしない）", () => {
-    expect(ids(EMPTY, { limit: 20 })).toContain("rain");
-    expect(ids({ ...EMPTY, rainAnswered: true }, { limit: 20 })).not.toContain("rain");
+    expect(ids(EMPTY)).toContain("rain");
+    expect(ids({ ...EMPTY, rainAnswered: true })).not.toContain("rain");
   });
 
   it("看板商品は、名前が決まっていて写真があれば答え済み。名前だけでは写真を聞き直す", () => {
-    const named = { ...EMPTY, signatureProduct: { name: "トマト" } };
-    expect(ids(named, { limit: 20 })).toContain("signature");
+    expect(ids({ ...EMPTY, signatureProduct: { name: "トマト" } })).toContain("signature");
     const withPhoto = {
       ...EMPTY,
       signatureProduct: { name: "トマト", imageUrl: "https://example.com/a.webp" },
     };
-    expect(ids(withPhoto, { limit: 20 })).not.toContain("signature");
+    expect(ids(withPhoto)).not.toContain("signature");
   });
 
   it("支払方法は、選択肢か自由入力のどちらかがあれば答え済み", () => {
-    expect(ids({ ...EMPTY, paymentMethods: ["cash"] }, { limit: 20 })).not.toContain("payment");
-    expect(ids({ ...EMPTY, paymentNote: "現金のみ" }, { limit: 20 })).not.toContain("payment");
+    expect(ids({ ...EMPTY, paymentMethods: ["cash"] })).not.toContain("payment");
+    expect(ids({ ...EMPTY, paymentNote: "現金のみ" })).not.toContain("payment");
   });
 
-  it("急ぎが残っているあいだは、マニアックな質問を出さない", () => {
-    const picked = ids({ ...URGENT_DONE, website: undefined }, { limit: 20 });
-    expect(picked).toEqual(["website"]);
-  });
-
-  it("急ぎがすべて片付いたら、マニアックな質問を1つだけ出す", () => {
-    expect(ids(URGENT_DONE, { limit: 20 })).toEqual(["strength"]);
-  });
-
-  it("「あとで」にした質問は出し直さない", () => {
-    const picked = ids(EMPTY, { skippedIds: ["weekly-products", "hours"] });
-    expect(picked).toEqual(["signature", "payment", "instagram"]);
-  });
-
-  it("急ぎを「あとで」にしたら、その分は数えずにマニアックへ進める", () => {
-    const skippedIds = ["website"] as const;
-    expect(ids({ ...URGENT_DONE, website: undefined }, { skippedIds })).toEqual(["strength"]);
-  });
-
-  it("allowManiac が false なら、急ぎが片付いてもマニアックな質問を出さない", () => {
-    expect(ids(URGENT_DONE, { allowManiac: false })).toEqual([]);
+  it("急ぎが残っていても、マニアックな質問はそのあとに並べて数に入れる", () => {
+    expect(ids({ ...URGENT_DONE, website: undefined })).toEqual([
+      "website",
+      "strength",
+      "motivation",
+      "years",
+      "sunday-love",
+    ]);
   });
 
   it("すべて答え済みなら空を返す", () => {
@@ -127,7 +109,7 @@ describe("pickQuestions", () => {
   });
 
   it("編集画面だけの質問（profile）は、トップでは聞かない", () => {
-    const picked = ids(EMPTY, { limit: 50 });
+    const picked = ids(EMPTY);
     const profileIds = ASK_QUESTIONS.filter((q) => q.tier === "profile").map((q) => q.id);
     expect(profileIds.length).toBeGreaterThan(0);
     for (const id of profileIds) expect(picked).not.toContain(id);

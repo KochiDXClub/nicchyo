@@ -9,13 +9,14 @@ import { PAYMENT_OPTIONS, RAIN_OPTIONS } from "@/lib/vendor/storeOptions";
  * 保存先への書き込みは app/vendor/_services/askService.ts が行う。
  *
  * 使われ方は2つある。
- * - 出店者トップ（/my-shop）: 1回に3つまで、にちよさんが順に聞いてくる
+ * - 出店者トップ（/my-shop）: 入力が要る質問の数を「質問が◯つ」で知らせ、
+ *   質問ページ（/my-shop/ask）で順に聞く（pendingQuestions）
  * - 店舗情報の編集（/vendor/store）: すべての質問を一覧にして、いつでも答え直せる
  *
- * tier は、トップでの聞き方を決める。
- * - urgent  : 急ぎの質問。来訪者が欲しがるのに、まだ入力されていない情報
+ * tier は、トップで聞く順番を決める（weekly → urgent → maniac）。
  * - weekly  : いつもの質問。毎週聞く（その週に答えたら出さない）
- * - maniac  : マニアックな質問。急ぎが片付いてから、1回に1つだけ
+ * - urgent  : 急ぎの質問。来訪者が欲しがるのに、まだ入力されていない情報
+ * - maniac  : マニアックな質問。急ぎのあとに聞く
  * - profile : 店舗情報の基本項目。トップでは聞かず、編集画面だけに出す
  */
 
@@ -61,12 +62,6 @@ export type AskInputKind =
   | "owner"
   | "product-prices"
   | "schedule";
-
-/** 1回に出す質問の数。出店者の負担を増やさないための上限 */
-export const ASK_LIMIT = 3;
-
-/** マニアックな質問を1回に出してよい数 */
-export const ASK_MANIAC_LIMIT = 1;
 
 /** 「答え済みか」を判定するために必要な、出店者の今の状態 */
 export type VendorAskSnapshot = {
@@ -378,45 +373,25 @@ export const ASK_GROUPS: readonly {
   { key: "heart", title: "こだわり", emoji: "💛", ids: ["strength", "motivation", "years", "sunday-love"] },
 ];
 
+/** トップで聞く順。いつもの質問（今週の分）を先に、マニアックな質問は最後に */
+const PENDING_TIER_ORDER = ["weekly", "urgent", "maniac"] as const;
+
 /**
- * 今回の出店者に出す質問を、上限つきで選ぶ。
+ * いま入力が要る質問を、聞く順にすべて返す（profile の質問は含めない）。
  *
- * 順序は「いつもの質問」→「急ぎの質問」→「マニアックな質問」。
- * いつもの質問を先頭にするのは、急ぎが溜まっている新規の出店者でも
- * 今週の分だけは聞き逃さないため。マニアックな質問は、急ぎに残りが無く
- * なってから、1回に1つだけ出す。profile の質問はここでは選ばない。
- *
- * skippedIds は「あとで」と答えた質問。同じ週のうちは出し直さない。
- * allowManiac は、1問ずつ選び直すときに「今回すでにマニアックな質問を出した」
- * ことを伝えるためのもの（false ならマニアックな質問は選ばない）。
+ * 出店者トップの「質問が◯つ」の数と、質問ページで聞く順番の両方に使う。
+ * いつもの質問を先頭にするのは、急ぎが溜まっている新規の出店者でも、
+ * 今週の分だけは聞き逃さないため。
  */
-export function pickQuestions(
-  snapshot: VendorAskSnapshot,
-  options: {
-    limit?: number;
-    skippedIds?: readonly AskQuestionId[];
-    allowManiac?: boolean;
-  } = {}
-): AskQuestion[] {
-  const { limit = ASK_LIMIT, skippedIds = [], allowManiac = true } = options;
-  const skipped = new Set(skippedIds);
-
-  const pending = ASK_QUESTIONS.filter(
-    (question) =>
-      !skipped.has(question.id) &&
-      (question.isApplicable?.(snapshot) ?? true) &&
-      !question.isAnswered(snapshot)
+export function pendingQuestions(snapshot: VendorAskSnapshot): AskQuestion[] {
+  return PENDING_TIER_ORDER.flatMap((tier) =>
+    ASK_QUESTIONS.filter(
+      (question) =>
+        question.tier === tier &&
+        (question.isApplicable?.(snapshot) ?? true) &&
+        !question.isAnswered(snapshot)
+    )
   );
-
-  const weekly = pending.filter((question) => question.tier === "weekly");
-  const urgent = pending.filter((question) => question.tier === "urgent");
-  const maniac = pending.filter((question) => question.tier === "maniac");
-
-  return [
-    ...weekly,
-    ...urgent,
-    ...(allowManiac && urgent.length === 0 ? maniac.slice(0, ASK_MANIAC_LIMIT) : []),
-  ].slice(0, limit);
 }
 
 /** 編集画面で「いま聞ける」質問（聞く意味がある状態のもの）を、章の並びで返す */
