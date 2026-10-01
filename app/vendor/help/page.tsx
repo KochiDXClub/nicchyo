@@ -38,7 +38,7 @@ export default function VendorHelpPage() {
             <div className="grid grid-cols-2 gap-2 md:w-[240px]">
               <div className="rounded-2xl bg-amber-50 px-3 py-3">
                 <p className="text-[11px] font-semibold text-amber-700">おすすめ</p>
-                <p className="mt-1 text-sm font-bold text-amber-900">最新情報の投稿</p>
+                <p className="mt-1 text-sm font-bold text-amber-900">近況を出す</p>
               </div>
               <div className="rounded-2xl bg-emerald-50 px-3 py-3">
                 <p className="text-[11px] font-semibold text-emerald-700">基本設定</p>
