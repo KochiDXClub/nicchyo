@@ -260,12 +260,44 @@ const TOOL_SCHEMAS: Record<string, (args: unknown) => HelpProposalAnswer | null>
 
 const normalize = (value: string) => value.normalize("NFKC").toLowerCase();
 
+/** 連絡先やリンクに見える文字（URL・ドメイン・メール・@ID・電話番号） */
+const CONTACT_LIKE =
+  /https?:\/\/\S+|[\w.+-]+@[\w-]+(?:\.[\w-]+)+|@[\w.]{2,}|[a-z0-9-]+(?:\.[a-z0-9-]+)*\.[a-z]{2,}|\d[\d\-()（）\s]{6,}\d/giu;
+
+const squash = (value: string) => normalize(value).replace(/[\s\-()（）]/g, "");
+
 /**
- * 自由に書ける値（リンク・店名）は、出店者がいま書いた言葉に入っているときだけ案にする。
- * AI に渡すデータには来訪者やほかの出店者が入れた言葉（よく検索された言葉など）も入るため、
- * そこに紛れた指示で、偽のサイトの URL などを案に出させないようにする
+ * AI が書いた自由文が、出店者が自分で話したことに基づいているか。
+ *
+ * AI に渡すデータには、来訪者やほかの出店者が入れた言葉（よく検索された言葉など）も入る。
+ * そこに紛れた偽のリンクや電話番号、宣伝の言葉が、来訪者に見える文に混ざらないよう、
+ * - 連絡先やリンクに見える文字は、出店者が書いたものだけ
+ * - データの言葉は、出店者も書いたときだけ
+ * 通す。言い回しは AI が直すので、文全体の一致までは求めない
  */
-function saidByVendor(answer: HelpProposalAnswer, userText: string): boolean {
+export function textGroundedIn(text: string, vendorText: string, untrustedWords: readonly string[]): boolean {
+  const said = normalize(vendorText);
+  const saidSquashed = squash(vendorText);
+  const body = normalize(text);
+  for (const match of body.matchAll(CONTACT_LIKE)) {
+    if (!saidSquashed.includes(squash(match[0].replace(/^https?:\/\//, "")))) return false;
+  }
+  return untrustedWords.every((raw) => {
+    const word = normalize(raw.trim());
+    return word.length < 2 || !body.includes(word) || said.includes(word);
+  });
+}
+
+/** 出店者が書いた文（いまの質問とこれまでの発言）と、データの言葉 */
+type VendorWords = { userText: string; vendorText: string; untrustedWords: readonly string[] };
+
+/**
+ * 案の値が、出店者が書いたことに基づいているか。
+ * - リンク・SNS の ID・店名：出店者がいま書いた言葉にその値があるときだけ
+ *   （AI に渡すデータに紛れた指示で、偽のサイトの URL などを案に出させない）
+ * - こだわり・今週の商品・支払いと雨の日の補足：textGroundedIn で確かめる
+ */
+function saidByVendor(answer: HelpProposalAnswer, { userText, vendorText, untrustedWords }: VendorWords): boolean {
   const said = normalize(userText);
   switch (answer.id) {
     case "website":
@@ -275,6 +307,13 @@ function saidByVendor(answer: HelpProposalAnswer, userText: string): boolean {
       return said.includes(normalize(answer.value));
     case "shop-name":
       return said.includes(normalize(answer.text));
+    case "strength":
+      return textGroundedIn(answer.text, vendorText, untrustedWords);
+    case "payment":
+    case "rain":
+      return textGroundedIn(answer.note, vendorText, untrustedWords);
+    case "weekly-products":
+      return textGroundedIn(answer.products.join("\n"), vendorText, untrustedWords);
     default:
       return true;
   }
@@ -285,11 +324,13 @@ const OpenFieldSchema = z.object({ field: z.enum(FIELD_IDS) });
 /**
  * AI が呼んだ関数を案にする。知らない関数・壊れた引数・範囲外の値は null。
  * 複数呼ばれたときは、最初に読めたものだけを使う（確認は1つずつ）。
- * userText は出店者がいま書いた質問（saidByVendor）
+ * userText は出店者がいま書いた質問。vendorText（これまでの出店者の発言も含む）と
+ * untrustedWords（データの言葉）とあわせて、値が出店者の話したことに基づくかを確かめる（saidByVendor）
  */
 export function proposalFromToolCalls(
   calls: { name: string; arguments: string }[],
-  userText: string
+  userText: string,
+  { vendorText = userText, untrustedWords = [] }: { vendorText?: string; untrustedWords?: readonly string[] } = {}
 ): HelpProposal | null {
   for (const call of calls) {
     let args: unknown;
@@ -306,7 +347,9 @@ export function proposalFromToolCalls(
     const toAnswer = Object.hasOwn(TOOL_SCHEMAS, call.name) ? TOOL_SCHEMAS[call.name] : undefined;
     if (!toAnswer) continue;
     const answer = toAnswer(args);
-    if (answer && saidByVendor(answer, userText)) return { kind: "change", answer };
+    if (answer && saidByVendor(answer, { userText, vendorText, untrustedWords })) {
+      return { kind: "change", answer };
+    }
   }
   return null;
 }
