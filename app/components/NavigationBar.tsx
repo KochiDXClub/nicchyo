@@ -39,7 +39,9 @@ import { useMapLoading } from "./MapLoadingProvider";
 import MenuGrandma from "./MenuGrandma";
 import {
   BottomNavBackBar,
+  BottomNavItemContent,
   BottomNavLink,
+  bottomNavItemClass,
   MenuDivider,
   MenuRow,
   MenuSheet,
@@ -431,30 +433,6 @@ function NavigationBarInner({
 }
 
 // ─── NavLinkItem ──────────────────────────────────────────────────────────────
-function navItemClass(isActive: boolean) {
-  return `group flex h-full flex-1 flex-col items-center justify-center gap-1 transition-colors duration-200 ${
-    isActive ? "text-amber-600" : "text-slate-400 hover:text-slate-600"
-  }`;
-}
-
-function NavItemContent({ item, isActive }: { item: NavItem; isActive: boolean }) {
-  const Icon = item.icon;
-  return (
-    <>
-      <Icon
-        className={`h-[22px] w-[22px] transition-transform duration-200 group-active:scale-95 ${
-          isActive ? "scale-105" : "group-hover:scale-105"
-        }`}
-        strokeWidth={isActive ? 2 : 1.7}
-        aria-hidden
-      />
-      <span className="text-[10px] font-medium leading-none tracking-tight">
-        {item.name}
-      </span>
-    </>
-  );
-}
-
 function NavLinkItem({ item, isActive }: { item: NavItem; isActive: boolean }) {
   return <BottomNavLink href={item.href} label={item.name} icon={item.icon} isActive={isActive} />;
 }
@@ -492,9 +470,9 @@ function StoryNavChooser({ item, isActive }: { item: NavItem; isActive: boolean 
         onClick={() => setOpen((prev) => !prev)}
         aria-expanded={open}
         aria-controls={open ? listId : undefined}
-        className={navItemClass(isActive || open)}
+        className={bottomNavItemClass(isActive || open)}
       >
-        <NavItemContent item={item} isActive={isActive || open} />
+        <BottomNavItemContent icon={item.icon} label={item.name} isActive={isActive || open} />
       </button>
       <AnimatePresence>
         {open && (

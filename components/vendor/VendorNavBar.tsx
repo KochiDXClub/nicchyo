@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { LogOut, Map as MapIcon, Megaphone, Store } from "lucide-react";
+import { LogOut, Mail, Map as MapIcon, Megaphone } from "lucide-react";
 import { useAuth } from "@/lib/auth/AuthContext";
 import {
   BottomNavBackBar,
@@ -14,7 +14,6 @@ import {
   MenuUserRow,
 } from "@/components/navigation/MenuSheet";
 import { VENDOR_NAV_ITEMS } from "./vendorNavItems";
-import { useBodyScrollLock } from "@/lib/ui/bodyScrollLock";
 
 const HOME_HREF = "/my-shop";
 
@@ -37,8 +36,7 @@ export default function VendorNavBar() {
   // /my-shop* はサイドバーが無いので全サイズで表示する。
   const inVendorConsole = pathname?.startsWith("/vendor") ?? false;
 
-  // シートを開いている間は背面スクロールを止める（重なる固定と数を合わせる共通の仕組み）
-  useBodyScrollLock(sheetOpen);
+  // 背面スクロールの固定・Esc・フォーカスは MenuSheet が受け持つ
   // ルート変更でシートを閉じる
   useEffect(() => {
     setSheetOpen(false);
@@ -104,7 +102,8 @@ export default function VendorNavBar() {
       >
         {isHome ? (
           <div className="mx-auto flex h-14 max-w-lg items-center">
-            <BottomNavLink href="/vendor/store" label="店舗情報" icon={Store} />
+            {/* 店舗情報への導線はメニューシート（VENDOR_NAV_ITEMS）に残してある */}
+            <BottomNavLink href="/vendor/inquiries" label="連絡" icon={Mail} />
             <MenuToggleButton
               open={sheetOpen}
               onClick={() => setSheetOpen((v) => !v)}

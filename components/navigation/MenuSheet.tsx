@@ -10,7 +10,8 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { lockBodyScroll, unlockBodyScroll } from "@/lib/ui/bodyScrollLock";
+import { useBodyScrollLock } from "@/lib/ui/bodyScrollLock";
+import { useDialogFocus } from "@/lib/ui/useDialogFocus";
 import { useEffect, useRef, type ReactNode, type RefObject } from "react";
 import {
   AnimatePresence,
@@ -42,45 +43,28 @@ export function MenuSheet({
   onClose: () => void;
   /** 読み上げ用のシートの名前 */
   label: string;
-  returnFocusRef?: RefObject<HTMLElement>;
+  returnFocusRef?: RefObject<HTMLElement | null>;
   children: ReactNode;
 }) {
   const prefersReducedMotion = useReducedMotion();
-  const dragControls = useDragControls();
 
+  // 背面のスクロールを止める（ほかのシートと重なっても数を合わせる共通の仕組み）
+  useBodyScrollLock(open);
+
+  // 呼び出し側が毎回新しい onClose を渡しても、Esc の登録をやり直さないよう ref で持つ
+  const onCloseRef = useRef(onClose);
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
   useEffect(() => {
     if (!open) return;
-    lockBodyScroll();
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
+      if (event.key === "Escape") onCloseRef.current();
     };
     window.addEventListener("keydown", handleKeyDown);
-    return () => {
-      window.removeEventListener("keydown", handleKeyDown);
-      unlockBodyScroll();
-    };
-  }, [open, onClose]);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [open]);
 
-  // 閉じたらメニューボタンへフォーカスを戻す（キーボード操作が迷子にならないように）
-  const wasOpen = useRef(false);
-  useEffect(() => {
-    if (wasOpen.current && !open) returnFocusRef?.current?.focus();
-    wasOpen.current = open;
-  }, [open, returnFocusRef]);
-
-  /** ハンドルを下に引いたら閉じる */
-  const handleDragEnd = (_event: unknown, info: PanInfo) => {
-    if (info.offset.y > 90 || info.velocity.y > 600) onClose();
-  };
-
-  // シートは「ひとかたまり」で上がってくる。要素ごとに遅れて現れると点滅して見えるので、
-  // 中身には一切アニメーションを掛けない。
-  const sheetTransition = prefersReducedMotion
-    ? { duration: 0 }
-    : { duration: 0.46, ease: EASE_OUT_SHEET };
-  const sheetExitTransition = prefersReducedMotion
-    ? { duration: 0 }
-    : { duration: 0.24, ease: EASE_IN_SHEET };
   const fadeTransition = { duration: prefersReducedMotion ? 0 : 0.2 };
 
   return (
@@ -98,44 +82,88 @@ export function MenuSheet({
             onClick={onClose}
             aria-hidden
           />
-
-          {/* シート本体 */}
-          <motion.div
+          <SheetPanel
             key="sheet"
-            role="dialog"
-            aria-modal="true"
-            aria-label={label}
-            tabIndex={-1}
-            initial={{ y: "100%" }}
-            animate={{ y: 0 }}
-            exit={{ y: "100%", transition: sheetExitTransition }}
-            transition={sheetTransition}
-            drag="y"
-            dragListener={false}
-            dragControls={dragControls}
-            dragConstraints={{ top: 0, bottom: 0 }}
-            dragElastic={{ top: 0, bottom: 0.55 }}
-            dragMomentum={false}
-            onDragEnd={handleDragEnd}
-            className="fixed bottom-0 left-0 right-0 z-[9996] mx-auto w-full max-w-lg rounded-t-[28px] bg-nicchyo-base shadow-[0_-16px_48px_-12px_rgba(58,58,58,0.3)] ring-1 ring-nicchyo-ink/[0.07] outline-none"
-            style={{ paddingBottom: "calc(var(--safe-bottom, 0px) + 5.5rem)" }}
+            label={label}
+            onClose={onClose}
+            returnFocusRef={returnFocusRef}
+            prefersReducedMotion={prefersReducedMotion ?? false}
           >
-            {/* ドラッグハンドル（下に引くと閉じる） */}
-            <div
-              onPointerDown={(event) => dragControls.start(event)}
-              className="flex cursor-grab touch-none justify-center pb-1 pt-3 active:cursor-grabbing"
-            >
-              <span className="h-[5px] w-11 rounded-full bg-nicchyo-ink/15" aria-hidden />
-            </div>
-
-            {/* スクロール領域 */}
-            <div className="max-h-[74dvh] overflow-y-auto overscroll-contain px-3 pb-2 pt-1">
-              {children}
-            </div>
-          </motion.div>
+            {children}
+          </SheetPanel>
         </>
       )}
     </AnimatePresence>
+  );
+}
+
+/**
+ * シート本体。開いているあいだだけ描画されるので、ここでフォーカスの面倒を見る
+ * （開いたら中へ移し、Tab を中で回し、閉じたらメニューボタンへ戻す）。
+ */
+function SheetPanel({
+  label,
+  onClose,
+  returnFocusRef,
+  prefersReducedMotion,
+  children,
+}: {
+  label: string;
+  onClose: () => void;
+  returnFocusRef?: RefObject<HTMLElement | null>;
+  prefersReducedMotion: boolean;
+  children: ReactNode;
+}) {
+  const dragControls = useDragControls();
+  const panelRef = useRef<HTMLDivElement>(null);
+  useDialogFocus(panelRef, undefined, { returnFocusRef });
+
+  /** ハンドルを下に引いたら閉じる */
+  const handleDragEnd = (_event: unknown, info: PanInfo) => {
+    if (info.offset.y > 90 || info.velocity.y > 600) onClose();
+  };
+
+  // シートは「ひとかたまり」で上がってくる。要素ごとに遅れて現れると点滅して見えるので、
+  // 中身には一切アニメーションを掛けない。
+  const sheetTransition = prefersReducedMotion
+    ? { duration: 0 }
+    : { duration: 0.46, ease: EASE_OUT_SHEET };
+  const sheetExitTransition = prefersReducedMotion
+    ? { duration: 0 }
+    : { duration: 0.24, ease: EASE_IN_SHEET };
+
+  return (
+    <motion.div
+      ref={panelRef}
+      role="dialog"
+      aria-modal="true"
+      aria-label={label}
+      tabIndex={-1}
+      initial={{ y: "100%" }}
+      animate={{ y: 0 }}
+      exit={{ y: "100%", transition: sheetExitTransition }}
+      transition={sheetTransition}
+      drag="y"
+      dragListener={false}
+      dragControls={dragControls}
+      dragConstraints={{ top: 0, bottom: 0 }}
+      dragElastic={{ top: 0, bottom: 0.55 }}
+      dragMomentum={false}
+      onDragEnd={handleDragEnd}
+      className="fixed bottom-0 left-0 right-0 z-[9996] mx-auto w-full max-w-lg rounded-t-[28px] bg-nicchyo-base shadow-[0_-16px_48px_-12px_rgba(58,58,58,0.3)] ring-1 ring-nicchyo-ink/[0.07] outline-none"
+      style={{ paddingBottom: "calc(var(--safe-bottom, 0px) + 5.5rem)" }}
+    >
+      {/* ドラッグハンドル（下に引くと閉じる） */}
+      <div
+        onPointerDown={(event) => dragControls.start(event)}
+        className="flex cursor-grab touch-none justify-center pb-1 pt-3 active:cursor-grabbing"
+      >
+        <span className="h-[5px] w-11 rounded-full bg-nicchyo-ink/15" aria-hidden />
+      </div>
+
+      {/* スクロール領域 */}
+      <div className="max-h-[74dvh] overflow-y-auto overscroll-contain px-3 pb-2 pt-1">{children}</div>
+    </motion.div>
   );
 }
 
@@ -296,26 +324,25 @@ export function MenuToggleButton({
   );
 }
 
-/** 下部バー左右のタブ（アイコン＋短いラベル）。今いるページなら amber で点ける */
-export function BottomNavLink({
-  href,
-  label,
+/** 下部バー左右のタブの外枠のクラス。リンクのタブと、押すとメニューが開くタブ（近況の選択など）で共通 */
+export function bottomNavItemClass(isActive: boolean): string {
+  return `group flex h-full flex-1 flex-col items-center justify-center gap-1 transition-colors duration-200 ${
+    isActive ? "text-amber-600" : "text-slate-400 hover:text-slate-600"
+  }`;
+}
+
+/** 下部バー左右のタブの中身（アイコン＋短いラベル） */
+export function BottomNavItemContent({
   icon: Icon,
-  isActive = false,
+  label,
+  isActive,
 }: {
-  href: string;
-  label: string;
   icon: LucideIcon;
-  isActive?: boolean;
+  label: string;
+  isActive: boolean;
 }) {
   return (
-    <Link
-      href={href}
-      prefetch={false}
-      className={`group flex h-full flex-1 flex-col items-center justify-center gap-1 transition-colors duration-200 ${
-        isActive ? "text-amber-600" : "text-slate-400 hover:text-slate-600"
-      }`}
-    >
+    <>
       <Icon
         className={`h-[22px] w-[22px] transition-transform duration-200 group-active:scale-95 ${
           isActive ? "scale-105" : "group-hover:scale-105"
@@ -324,6 +351,25 @@ export function BottomNavLink({
         aria-hidden
       />
       <span className="text-[10px] font-medium leading-none tracking-tight">{label}</span>
+    </>
+  );
+}
+
+/** 下部バー左右のタブ（アイコン＋短いラベル）。今いるページなら amber で点ける */
+export function BottomNavLink({
+  href,
+  label,
+  icon,
+  isActive = false,
+}: {
+  href: string;
+  label: string;
+  icon: LucideIcon;
+  isActive?: boolean;
+}) {
+  return (
+    <Link href={href} prefetch={false} className={bottomNavItemClass(isActive)}>
+      <BottomNavItemContent icon={icon} label={label} isActive={isActive} />
     </Link>
   );
 }

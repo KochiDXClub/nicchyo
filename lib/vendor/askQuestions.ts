@@ -405,7 +405,7 @@ export function studioQuestions(snapshot: VendorAskSnapshot) {
   }));
 }
 
-/** 入れた値を「消す」ことができる質問（つながりと店舗写真）。消すときは空の答えを送る */
+/** 入れた値を「消す」ことができる質問（つながり・店舗写真・店主名・ジャンル）。消すときは空の答えを送る */
 const CLEARABLE_IDS: readonly AskQuestionId[] = ["instagram", "x", "website", "shop-photo", "owner", "category"];
 
 export const isClearable = (id: AskQuestionId) => CLEARABLE_IDS.includes(id);
