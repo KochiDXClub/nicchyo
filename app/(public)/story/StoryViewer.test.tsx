@@ -10,6 +10,11 @@ vi.mock("@/lib/story/reactions", () => ({
   toggleReaction: vi.fn().mockResolvedValue({ count: 1, reacted: true }),
 }));
 
+const recordStoryView = vi.fn();
+vi.mock("@/lib/story/views", () => ({
+  recordStoryView: (...args: unknown[]) => recordStoryView(...args),
+}));
+
 vi.mock("@/lib/consultVisitorKey", () => ({
   getOrCreateConsultVisitorKey: () => "visitor-test",
 }));
@@ -345,5 +350,22 @@ describe("StoryViewer の「詳しく」", () => {
     fireEvent.pointerUp(surface, { clientX: 200, clientY: 450, pointerId: 1 });
 
     expect(onClose).toHaveBeenCalled();
+  });
+});
+
+describe("見た人の記録", () => {
+  beforeEach(() => recordStoryView.mockClear());
+
+  it("開いた近況を1回だけ記録し、デモの近況は記録しない", () => {
+    const { rerender } = render(<StoryViewer stories={[makeStory()]} initialIndex={0} onClose={() => {}} />);
+    rerender(<StoryViewer stories={[makeStory()]} initialIndex={0} onClose={() => {}} />);
+    expect(recordStoryView).toHaveBeenCalledTimes(1);
+    expect(recordStoryView).toHaveBeenCalledWith("story-1", "visitor-test");
+
+    recordStoryView.mockClear();
+    render(
+      <StoryViewer stories={[makeStory({ id: "demo-1" })]} initialIndex={0} onClose={() => {}} demo={{ heartCounts: {} }} />
+    );
+    expect(recordStoryView).not.toHaveBeenCalled();
   });
 });

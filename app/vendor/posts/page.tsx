@@ -3,7 +3,8 @@
 export const dynamic = "force-dynamic";
 
 import { useState, useEffect } from "react";
-import { CenteredLoading, EmptyMessage, PageContainer, PageShell, PageTitle, buttonClass } from "@/components/ui";
+import { CenteredLoading, EmptyMessage, PageContainer, PageShell, PageTitle, Surface, buttonClass } from "@/components/ui";
+import { sumPostStats } from "@/lib/story/postStats";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth/AuthContext";
@@ -11,7 +12,7 @@ import { fetchVendorPosts, repostContent } from "../_services/postsService";
 import type { Post, PostStatus } from "../_types";
 import {
   RotateCcw, Pencil, Clock, CheckCircle2,
-  XCircle, PlusCircle, Image as ImageIcon, Heart,
+  XCircle, PlusCircle, Image as ImageIcon, Heart, Eye,
 } from "lucide-react";
 
 type FilterTab = "all" | "active" | "expired";
@@ -60,13 +61,8 @@ function PostCard({ post, onRepost, onEditRepost }: { post: Post; onRepost: (pos
             <span className="flex items-center gap-1 text-[11px] text-slate-400">
               <Clock size={10} />{timeAgo(post.created_at)}
             </span>
-            {typeof post.heartCount === "number" && (
-              <span className="flex items-center gap-1 rounded-full bg-rose-50 px-2 py-0.5 text-[10px] font-medium text-rose-600">
-                <Heart size={10} className="fill-current" />
-                {post.heartCount}
-              </span>
-            )}
           </div>
+          <PostStatsRow post={post} />
         </div>
       </div>
       <div className="mt-3 flex flex-col gap-2 border-t border-slate-100 pt-3 sm:flex-row">
@@ -82,6 +78,64 @@ function PostCard({ post, onRepost, onEditRepost }: { post: Post; onRepost: (pos
         </button>
       </div>
     </div>
+  );
+}
+
+/** 近況ごとの「見た人」「ハート」。数を読めなかったときは出さない */
+function PostStatsRow({ post }: { post: Post }) {
+  if (typeof post.viewCount !== "number" && typeof post.heartCount !== "number") return null;
+  return (
+    <dl className="mt-2 flex items-center gap-4 text-sm">
+      {typeof post.viewCount === "number" && (
+        <div className="flex items-center gap-1.5 text-nicchyo-ink/70">
+          <dt className="flex items-center gap-1">
+            <Eye size={15} aria-hidden="true" />
+            見た人
+          </dt>
+          <dd className="font-bold tabular-nums text-nicchyo-ink">{post.viewCount}</dd>
+        </div>
+      )}
+      {typeof post.heartCount === "number" && (
+        <div className="flex items-center gap-1.5 text-rose-600">
+          <dt className="flex items-center gap-1">
+            <Heart size={15} className="fill-current" aria-hidden="true" />
+            <span className="sr-only">ハート</span>
+          </dt>
+          <dd className="font-bold tabular-nums">{post.heartCount}</dd>
+        </div>
+      )}
+    </dl>
+  );
+}
+
+/** 公開中の近況が、いまどれくらい見られているか */
+function ActiveSummary({ posts }: { posts: Post[] }) {
+  const active = posts.filter((post) => post.status === "active");
+  if (posts.every((post) => typeof post.viewCount !== "number")) return null;
+  const total = sumPostStats(active.map((post) => ({ views: post.viewCount ?? 0, hearts: post.heartCount ?? 0 })));
+  return (
+    <Surface className="mb-4">
+      <h2 className="text-sm font-bold text-nicchyo-ink/70">公開中の近況（{active.length}件）</h2>
+      <dl className="mt-3 grid grid-cols-2 gap-3">
+        <div className="rounded-btn bg-nicchyo-base px-4 py-3">
+          <dt className="flex items-center gap-1.5 text-sm text-nicchyo-ink/70">
+            <Eye size={16} aria-hidden="true" />
+            見た人
+          </dt>
+          <dd className="mt-1 text-3xl font-bold tabular-nums text-nicchyo-ink">{total.views}</dd>
+        </div>
+        <div className="rounded-btn bg-rose-50 px-4 py-3">
+          <dt className="flex items-center gap-1.5 text-sm text-rose-700">
+            <Heart size={16} className="fill-current" aria-hidden="true" />
+            ハート
+          </dt>
+          <dd className="mt-1 text-3xl font-bold tabular-nums text-rose-700">{total.hearts}</dd>
+        </div>
+      </dl>
+      <p className="mt-3 text-xs leading-relaxed text-nicchyo-ink/55">
+        見た人は、1人が何度見ても1人と数えます。自分で開いた分は数えません。
+      </p>
+    </Surface>
   );
 }
 
@@ -146,18 +200,7 @@ export default function VendorPostsPage() {
       />
 
       <PageContainer>
-        <div className="mb-4 rounded-3xl border border-amber-100 bg-white p-4 shadow-sm">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-amber-600">Post History</p>
-          <h2 className="mt-1 text-2xl font-bold text-slate-900">投稿履歴</h2>
-          <p className="mt-1 text-sm leading-relaxed text-slate-600">
-            文字を大きめにし、再投稿ボタンも押しやすくしています。
-          </p>
-          <div className="mt-3">
-            <Link href="/vendor/post/new" className="inline-flex rounded-2xl bg-amber-500 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-amber-400">
-              新規投稿へ
-            </Link>
-          </div>
-        </div>
+        {!isLoading && <ActiveSummary posts={posts} />}
 
         {error && (
           <div className="mb-4 rounded-2xl border border-rose-100 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</div>
