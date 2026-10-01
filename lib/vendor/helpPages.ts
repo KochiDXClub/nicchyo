@@ -22,7 +22,7 @@ export const VENDOR_HELP_PAGES: readonly VendorHelpPage[] = [
     about: "店名・写真・ジャンル・主な商品・出店日・支払い方法・SNS などを直す",
   },
   { name: "出店カレンダーページ", href: "/my-shop/schedule", about: "お休みする日曜日を登録する" },
-  { name: "お店の分析ページ", href: "/vendor/analytics", about: "お店の情報がどれくらい見られているかを見る" },
+  { name: "お店の分析ページ", href: "/vendor/analytics", about: "お店が何回見られたか、お客さんが何を聞いたかを見る" },
   { name: "にちよさんが覚えちゅうことページ", href: "/vendor/ai-knowledge", about: "にちよさんが相談で覚えたお店のことを見る・直す・忘れさせる" },
   { name: "使い方ガイドページ", href: "/vendor/help", about: "出店者向けの画面の使い方を読む" },
   { name: "アカウント設定ページ", href: "/vendor/account", about: "名前・メールアドレス・パスワードを確かめる" },
