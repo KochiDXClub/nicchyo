@@ -50,7 +50,7 @@ export default function VendorHelpPage() {
               </div>
               <div className="rounded-2xl bg-rose-50 px-3 py-3">
                 <p className="text-[11px] font-semibold text-rose-700">AI活用</p>
-                <p className="mt-1 text-sm font-bold text-rose-900">AIばあちゃんに教える</p>
+                <p className="mt-1 text-sm font-bold text-rose-900">にちよさんの覚えごと</p>
               </div>
             </div>
           </div>
