@@ -51,7 +51,9 @@ export default function NoteSheet({
   const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   const noAudience = !forVisitors && !forVendor;
-  const canSave = title.trim().length > 0 && content.trim().length > 0 && !noAudience && !saving;
+  // 旧「AIに教える」のメモは5000字まで書けたので、上限を超えたまま開くことがある
+  const tooLong = content.length > NOTE_CONTENT_MAX;
+  const canSave = title.trim().length > 0 && content.trim().length > 0 && !tooLong && !noAudience && !saving;
   const contentPlaceholder = CONTENT_PLACEHOLDERS[title.trim()] ?? DEFAULT_CONTENT_PLACEHOLDER;
 
   function handleSubmit(event: FormEvent) {
@@ -119,6 +121,11 @@ export default function NoteSheet({
               </span>
             )}
           </label>
+          {tooLong && (
+            <p className="-mt-3 text-sm text-amber-800">
+              {NOTE_CONTENT_MAX}字までにしてや。長いときは、話ごとに分けて覚えさせると、にちよさんが探しやすいで。
+            </p>
+          )}
 
           <fieldset>
             <legend className="mb-2 text-sm font-semibold text-nicchyo-ink/70">どこで使う？</legend>
@@ -204,7 +211,7 @@ export default function NoteSheet({
 }
 
 /** オン・オフのスイッチ（届け先・渡すものの設定で使う） */
-export function AudienceSwitch({
+function AudienceSwitch({
   label,
   hint,
   checked,

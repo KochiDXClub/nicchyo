@@ -54,7 +54,7 @@ describe("にちよさんが覚えちゅうこと", () => {
     await renderPage();
     const card = screen.getByRole("button", { name: /混む時間/ });
     expect(within(card).getByText("10時〜11時は10分くらい待つことがあります")).toBeInTheDocument();
-    expect(within(card).getByText("お客さんだけ")).toBeInTheDocument();
+    expect(within(card).getByText("お客さんへの案内だけ")).toBeInTheDocument();
   });
 
   it("まだ何も覚えていなければ、相談すれば覚えていくと伝えて、出店者トップへつなぐ", async () => {
@@ -131,6 +131,32 @@ describe("にちよさんが覚えちゅうこと", () => {
       forVendor: true,
     });
     await waitFor(() => expect(screen.getByRole("button", { name: /試食/ })).toBeInTheDocument());
+  });
+
+  it("旧「AIに教える」の長いメモ（1000字超）は、短くするまで保存させず、理由を出す", async () => {
+    fetchAiNotes.mockResolvedValue({
+      notes: [{ ...NOTE, id: "legacy", title: "お店のメモ", content: "あ".repeat(1200) }],
+      settings: {},
+    });
+    await renderPage();
+    fireEvent.click(screen.getByRole("button", { name: /お店のメモ/ }));
+    const sheet = screen.getByRole("dialog", { name: "覚えちゅうことを直す" });
+
+    expect(within(sheet).getByText(/1000字までにしてや/)).toBeInTheDocument();
+    expect(within(sheet).getByRole("button", { name: "これで覚えちょいて" })).toBeDisabled();
+
+    // 長いときは字数の表示もラベルの中に並ぶ
+    fireEvent.change(within(sheet).getByLabelText(/^覚えること/), { target: { value: "あ".repeat(900) } });
+    expect(within(sheet).getByRole("button", { name: "これで覚えちょいて" })).toBeEnabled();
+  });
+
+  it("読み込みに失敗したら、「もういっぺん」で一覧だけを読み直す", async () => {
+    fetchAiNotes.mockRejectedValueOnce(new Error("network"));
+    await renderPage();
+
+    fireEvent.click(screen.getByRole("button", { name: "もういっぺん" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: /混む時間/ })).toBeInTheDocument());
+    expect(fetchAiNotes).toHaveBeenCalledTimes(2);
   });
 
   it("保存できなかったら、シートを開いたまま理由を出す", async () => {

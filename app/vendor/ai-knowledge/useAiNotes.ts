@@ -23,6 +23,8 @@ export function useAiNotes() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const [loadKey, setLoadKey] = useState(0);
+
   useEffect(() => {
     let cancelled = false;
     fetchAiNotes()
@@ -37,6 +39,12 @@ export function useAiNotes() {
     return () => {
       cancelled = true;
     };
+  }, [loadKey]);
+
+  /** 読み込みに失敗したとき、画面ごとではなく一覧だけを読み直す */
+  const reload = useCallback(() => {
+    setStatus("loading");
+    setLoadKey((key) => key + 1);
   }, []);
 
   const openNote = useCallback((note: AiNote | "new") => {
@@ -97,5 +105,6 @@ export function useAiNotes() {
     close,
     save,
     remove,
+    reload,
   };
 }

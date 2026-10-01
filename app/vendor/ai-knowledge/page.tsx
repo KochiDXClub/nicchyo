@@ -23,8 +23,8 @@ import { useAiNotes } from "./useAiNotes";
 
 /** どこで使うかを短く言う */
 function audienceLabel(note: AiNote): string {
-  if (note.forVisitors && note.forVendor) return "お客さん・自分";
-  return note.forVisitors ? "お客さんだけ" : "自分の相談だけ";
+  if (note.forVisitors && note.forVendor) return "お客さんへの案内・自分の相談";
+  return note.forVisitors ? "お客さんへの案内だけ" : "自分の相談だけ";
 }
 
 function MemoryCard({ note, onOpen }: { note: AiNote; onOpen: () => void }) {
@@ -82,7 +82,7 @@ export default function AiKnowledgePage() {
         {memories.status === "error" && (
           <Surface className="text-center">
             <p className="text-base font-bold text-amber-900">うまく開けんかった。もういっぺん開いてみてや。</p>
-            <Button className="mt-4" variant="secondary" onClick={() => window.location.reload()}>
+            <Button className="mt-4" variant="secondary" onClick={memories.reload}>
               もういっぺん
             </Button>
           </Surface>
