@@ -68,6 +68,20 @@ export function exportToCSV<T extends Record<string, unknown>>(
 }
 
 /**
+ * 見出しだけのCSV（取り込み用のテンプレート）をダウンロードする。
+ * exportToCSV はデータが0件だと書き出さないため別に用意する。Excel で開けるよう BOM 付き・CRLF
+ */
+export function downloadCsvTemplate(headers: string[], filename: string): { success: boolean; error?: string } {
+  const csv = headers.map(escapeCSV).join(",") + "\r\n";
+  try {
+    downloadBlob(new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" }), filename);
+    return { success: true };
+  } catch (_error) {
+    return { success: false, error: "テンプレートのダウンロードに失敗しました" };
+  }
+}
+
+/**
  * JSONエクスポート
  */
 export function exportToJSON<T>(data: T[], filename: string): { success: boolean; error?: string } {

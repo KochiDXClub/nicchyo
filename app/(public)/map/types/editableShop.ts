@@ -23,7 +23,19 @@ export type EditableShop = {
   roadDistanceM?: number;
   roadSide?: RoadSide;
   roadOffsetM?: number;
+  /**
+   * 日曜市の住所録の番号（「123-4」の 123 が本番号、4 が枝番）。公開ページの URL・QR に使う
+   * 店番（position）とは別。CSV 取り込みはこの組で区画を探す。無い区画（移行前・手で作った区画）もある
+   */
+  officialNumber?: number;
+  branchNumber?: number;
 };
+
+/** 区画の表示用の番号。住所録の番号（123-4）があればそれ、無ければ店番 */
+export function slotLabel(shop: Pick<EditableShop, "position" | "officialNumber" | "branchNumber">): string {
+  if (shop.officialNumber == null) return String(shop.position);
+  return shop.branchNumber != null ? `${shop.officialNumber}-${shop.branchNumber}` : String(shop.officialNumber);
+}
 
 /**
  * 丁目の表示順・許容値の一覧。サーバー側（_shared.ts の normalizeChome）と
