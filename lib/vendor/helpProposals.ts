@@ -10,6 +10,10 @@ import type { AskAnswer, VendorAskSnapshot } from "@/lib/vendor/askQuestions";
 // AI が直接保存することはない。
 //
 // 変えられる項目はここで決めた分だけ。写真は会話からは変えない（店舗情報の画面で行う）。
+//
+// もう1つ、来訪者に伝えるとよいこと（「雨の日は10時で閉める」など）を出店者が話したら、
+// にちよさんが「覚えちょいてもかまん？」と聞く案（propose_memory）も出す。覚えるのは
+// 出店者が確かめてから（保存先はにちよさんのノート。/api/vendor/ai-notes）。
 
 /** 変更案になる答え。会話からは文字と選択肢だけを扱う */
 export type HelpProposalAnswer = Extract<
@@ -48,10 +52,12 @@ export type HelpProposalField = HelpProposalAnswer["id"];
  * 答えの最後に付く案。
  * - change: 新しい値まで分かったときの変更案（入力欄に案を入れて開く）
  * - edit: 変えたい項目だけ分かったとき（いまの値のまま入力欄を開く）
+ * - memory: 来訪者に伝えるとよいことを、にちよさんが覚えてよいか聞く
  */
 export type HelpProposal =
   | { kind: "change"; answer: HelpProposalAnswer }
-  | { kind: "edit"; field: HelpProposalField };
+  | { kind: "edit"; field: HelpProposalField }
+  | { kind: "memory"; note: HelpMemoryNote };
 
 const FIELD_IDS = [
   "hours",
@@ -64,6 +70,13 @@ const FIELD_IDS = [
   "shop-name",
   "strength",
 ] as const satisfies readonly HelpProposalField[];
+
+/** にちよさんが覚えることの案。トピックタイトル + 本文（にちよさんのノートと同じ形） */
+export type HelpMemoryNote = { title: string; content: string };
+
+/** 覚えることの案の長さ。ノートの上限より短くして、要点だけにさせる */
+const MEMORY_TITLE_MAX = 30;
+const MEMORY_CONTENT_MAX = 300;
 
 const PAYMENT_KEYS = PAYMENT_OPTIONS.map((option) => option.key) as [string, ...string[]];
 const RAIN_KEYS = RAIN_OPTIONS.map((option) => option.key) as [string, ...string[]];
@@ -190,6 +203,23 @@ export const HELP_PROPOSAL_TOOLS = [
           },
         },
         required: ["field"],
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "propose_memory",
+      description:
+        "出店者が話した、来訪者に伝えるとよいお店のこと（混む時間・おすすめの食べ方・取り置きの可否など）を、にちよさんが覚えてよいか聞く",
+      parameters: {
+        type: "object",
+        properties: {
+          title: { type: "string", description: `何の話か（例: 混む時間、お支払い方法）。${MEMORY_TITLE_MAX}文字以内` },
+          content: { type: "string", description: `覚えること。出店者が話したことだけを、来訪者に伝わる形で。${MEMORY_CONTENT_MAX}文字以内` },
+        },
+        required: ["title", "content"],
         additionalProperties: false,
       },
     },
@@ -321,11 +351,21 @@ function saidByVendor(answer: HelpProposalAnswer, { userText, vendorText, untrus
 
 const OpenFieldSchema = z.object({ field: z.enum(FIELD_IDS) });
 
+const MemoryNoteSchema = z.object({
+  title: trimmed(MEMORY_TITLE_MAX).min(1),
+  content: trimmed(MEMORY_CONTENT_MAX).min(1),
+});
+
+/** 覚えることにリンクや連絡先が入っているか。確認カードで、合っているか確かめるよう添える */
+export function memoryHasContact(note: HelpMemoryNote): boolean {
+  return [...normalize(`${note.title}\n${note.content}`).matchAll(CONTACT_LIKE)].length > 0;
+}
+
 /**
  * AI が呼んだ関数を案にする。知らない関数・壊れた引数・範囲外の値は null。
  * 複数呼ばれたときは、最初に読めたものだけを使う（確認は1つずつ）。
  * userText は出店者がいま書いた質問。vendorText（これまでの出店者の発言も含む）と
- * untrustedWords（データの言葉）とあわせて、値が出店者の話したことに基づくかを確かめる（saidByVendor）
+ * untrustedWords（データの言葉）とあわせて、値が出店者の話したことに基づくかを確かめる（saidByVendor・覚える案は textGroundedIn）
  */
 export function proposalFromToolCalls(
   calls: { name: string; arguments: string }[],
@@ -337,6 +377,13 @@ export function proposalFromToolCalls(
     try {
       args = JSON.parse(call.arguments || "{}");
     } catch {
+      continue;
+    }
+    if (call.name === "propose_memory") {
+      const parsed = MemoryNoteSchema.safeParse(args);
+      if (parsed.success && textGroundedIn(`${parsed.data.title}\n${parsed.data.content}`, vendorText, untrustedWords)) {
+        return { kind: "memory", note: parsed.data };
+      }
       continue;
     }
     if (call.name === "open_field") {
@@ -374,6 +421,7 @@ const ChangeAnswerSchema = z.discriminatedUnion("id", [
 const ProposalFrameSchema = z.discriminatedUnion("kind", [
   z.object({ type: z.literal("proposal"), kind: z.literal("change"), answer: ChangeAnswerSchema }),
   z.object({ type: z.literal("proposal"), kind: z.literal("edit"), field: z.enum(FIELD_IDS) }),
+  z.object({ type: z.literal("proposal"), kind: z.literal("memory"), note: MemoryNoteSchema }),
 ]);
 
 /** 画面側で、答えの最後に付いた案のデータを読む。読めなければ null */
@@ -383,7 +431,9 @@ export function parseProposalFrame(raw: string): HelpProposal | null {
     if (!parsed.success) return null;
     return parsed.data.kind === "change"
       ? { kind: "change", answer: parsed.data.answer as HelpProposalAnswer }
-      : { kind: "edit", field: parsed.data.field };
+      : parsed.data.kind === "edit"
+        ? { kind: "edit", field: parsed.data.field }
+        : { kind: "memory", note: parsed.data.note };
   } catch {
     return null;
   }

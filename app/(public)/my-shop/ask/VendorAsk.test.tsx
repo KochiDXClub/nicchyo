@@ -206,6 +206,80 @@ describe("VendorAskStage の相談からの変更案", () => {
   });
 });
 
+describe("VendorAskStage の相談からの「覚えちょいてもかまん？」", () => {
+  const fetchMock = vi.fn();
+
+  beforeEach(() => {
+    fetchAskSnapshot.mockReset();
+    fetchMock.mockReset();
+    vi.stubGlobal("fetch", fetchMock);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  function replyWithMemory() {
+    const body =
+      "それはお客さんにも伝えたいねえ。" +
+      TEXT_STREAM_DATA_SEPARATOR +
+      serializeProposal({ kind: "memory", note: { title: "混む時間", content: "9時ごろがいちばん混む" } });
+    fetchMock.mockResolvedValueOnce(new Response(body));
+  }
+
+  async function ask(text: string) {
+    fireEvent.change(screen.getByRole("textbox", { name: "にちよさんに相談する" }), { target: { value: text } });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "聞く" }));
+    });
+  }
+
+  it("直してから覚えさせると、にちよさんのノートに保存する", async () => {
+    await renderWith(<VendorAskStage vendorId="v1" />, FULL);
+    replyWithMemory();
+    await ask("うちは9時ごろが一番混むがよ");
+
+    await screen.findByRole("group", { name: "にちよさんが覚えることの確認" });
+    expect(screen.getByRole("textbox", { name: "何の話か（トピックタイトル）" })).toHaveValue("混む時間");
+    fireEvent.change(screen.getByRole("textbox", { name: "覚えること" }), {
+      target: { value: "9時ごろがいちばん混む。8時台はゆっくり見られる" },
+    });
+
+    fetchMock.mockResolvedValueOnce(Response.json({ note: { id: "n1" } }));
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "これでええ！" }));
+    });
+
+    const [url, init] = fetchMock.mock.calls[1];
+    expect(url).toBe("/api/vendor/ai-notes");
+    expect(JSON.parse(init.body)).toEqual({
+      title: "混む時間",
+      content: "9時ごろがいちばん混む。8時台はゆっくり見られる",
+      forVisitors: true,
+      forVendor: true,
+    });
+    expect(screen.getByText("覚えちょくね！お客さんに聞かれたら伝えるき。")).toBeInTheDocument();
+    expect(screen.queryByRole("group", { name: /覚えることの確認/ })).not.toBeInTheDocument();
+  });
+
+  it("「いらん」なら覚えない。保存できんかったら理由を出して、確認を残す", async () => {
+    await renderWith(<VendorAskStage vendorId="v1" />, FULL);
+    replyWithMemory();
+    await ask("9時ごろが混む");
+    await screen.findByRole("group", { name: "にちよさんが覚えることの確認" });
+
+    fetchMock.mockResolvedValueOnce(Response.json({ error: "ノートは50枚までです" }, { status: 400 }));
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "これでええ！" }));
+    });
+    expect(screen.getByRole("alert")).toHaveTextContent("ノートは50枚までです");
+
+    fireEvent.click(screen.getByRole("button", { name: "いらん" }));
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(screen.getByText("わかった、覚えんちょくね。")).toBeInTheDocument();
+  });
+});
+
 describe("VendorAskSession（質問ページ）", () => {
   beforeEach(() => {
     fetchAskSnapshot.mockReset();

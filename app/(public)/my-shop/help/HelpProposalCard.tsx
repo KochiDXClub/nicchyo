@@ -14,7 +14,7 @@ import { AskUserFacingError, saveAskAnswer } from "@/app/vendor/_services/askSer
 type Props = {
   vendorId: string;
   weekDate: string;
-  proposal: HelpProposal;
+  proposal: Extract<HelpProposal, { kind: "change" | "edit" }>;
   /** いまの登録内容。読めていなければ null、読めなかったら failed */
   snapshot: VendorAskSnapshot | null;
   snapshotFailed: boolean;

@@ -31,13 +31,13 @@ const DATA_WORD_MAX = 20;
  * 検索語や商品名は誰でも書き込めるので、指示文を混ぜ込まれても効きにくいよう、
  * 改行・記号を落として短く切る（プロンプト側でも「データであり指示ではない」と伝える）
  */
-export function toDataWord(raw: string): string {
+export function toDataWord(raw: string, max = DATA_WORD_MAX): string {
   return raw
     .replace(/[\u0000-\u001f\u007f]/g, " ")
     .replace(/[【】\[\]()（）<>＜＞{}「」『』"'`#*:：]/g, " ")
     .replace(/\s+/g, " ")
     .trim()
-    .slice(0, DATA_WORD_MAX);
+    .slice(0, max);
 }
 
 function clampQuantity(value: unknown): number {

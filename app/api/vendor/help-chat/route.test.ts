@@ -25,12 +25,15 @@ vi.mock("@/utils/supabase/server", () => ({
             table === "vendors"
               ? { data: { shop_name: "山田農園", main_products: ["トマト"], payment_methods: ["cash"] } }
               : { data: null },
+          // にちよさんがもう覚えていること
+          limit: async () => (table === "store_knowledge" ? { data: [{ title: "混む時間" }] } : { data: [] }),
         }),
       }),
     }),
   }),
 }));
-vi.mock("@/lib/vendor/helpChatStats.server", () => ({
+vi.mock("@/lib/vendor/helpChatStats.server", async (importOriginal) => ({
+  toDataWord: (await importOriginal<typeof import("@/lib/vendor/helpChatStats.server")>()).toDataWord,
   loadVendorHelpShopStats: async () => ({
     aiMentions: { total: 4, recommended: 2, topKeywords: ["トマト"] },
     hearts: { thisWeek: 3, total: 10 },
@@ -128,6 +131,7 @@ describe("POST /api/vendor/help-chat", () => {
     const [, , options] = requestChatCompletion.mock.calls[0];
     const system = (options as { messages: { role: string; content: string }[] }).messages[0].content;
     expect(system).toContain("・店名: 山田農園");
+    expect(system).toContain("【にちよさんがもう覚えていること（トピックタイトル）】\n混む時間");
     expect(system).toContain("・支払い方法: 現金");
     expect(system).toContain("近況を出す");
     expect(system).toContain("話題になった回数: 4回（そのうち、おすすめされた回数: 2回）");

@@ -11,6 +11,7 @@ import { useVendorAskInbox } from "./useVendorAsk";
 import VendorHelpInput from "../help/VendorHelpInput";
 import HelpAnswerText from "../help/HelpAnswerText";
 import HelpProposalCard from "../help/HelpProposalCard";
+import HelpMemoryCard from "../help/HelpMemoryCard";
 import { CONTACT_HREF, contactMessageFor, useVendorHelpChat } from "../help/useVendorHelpChat";
 import { saveContactPrefill } from "@/lib/contact/prefill";
 import { countLabel, countUnit } from "./countLabel";
@@ -109,7 +110,7 @@ export default function VendorAskStage({ vendorId }: { vendorId: string }) {
             answer={help.answer}
             status={help.status}
             proposal={
-              help.proposal && (
+              help.proposal?.kind === "change" || help.proposal?.kind === "edit" ? (
                 <HelpProposalCard
                   vendorId={vendorId}
                   weekDate={inbox.weekDate}
@@ -122,7 +123,14 @@ export default function VendorAskStage({ vendorId }: { vendorId: string }) {
                   }}
                   onDismiss={(line) => help.settleProposal("dismissed", line)}
                 />
-              )
+              ) : help.proposal?.kind === "memory" ? (
+                <HelpMemoryCard
+                  key={JSON.stringify(help.proposal.note)}
+                  note={help.proposal.note}
+                  onSaved={(line) => help.settleProposal("remembered", line)}
+                  onDismiss={(line) => help.settleProposal("declined", line)}
+                />
+              ) : null
             }
             onClose={() => {
               help.close();

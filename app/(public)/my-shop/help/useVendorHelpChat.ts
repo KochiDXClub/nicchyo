@@ -46,11 +46,13 @@ const EDIT_LINE = "ここで変えてや。";
 const PROPOSAL_OUTCOME_NOTES = {
   saved: (what: string) => `（出店者が確かめて、${what}変更を保存した）`,
   dismissed: (what: string) => `（出店者は${what}変更をやめた）`,
+  remembered: () => "（出店者が確かめて、にちよさんが覚えた）",
+  declined: () => "（出店者は覚えんでええと言うた）",
 } as const;
 
 /** 案が何の項目の話か（「営業時間の」）。保存した・やめたを AI に伝えるとき、何を変えたかも添える */
 function proposalSubject(proposal: HelpProposal | null): string {
-  if (!proposal) return "この";
+  if (!proposal || proposal.kind === "memory") return "この";
   return `${HELP_PROPOSAL_LABELS[proposal.kind === "change" ? proposal.answer.id : proposal.field]}の`;
 }
 
