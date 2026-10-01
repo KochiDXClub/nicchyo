@@ -8,11 +8,40 @@ import {
 import { requestChatCompletion } from "@/lib/ai/openaiFetch";
 import { openAiSseToTextStream, TEXT_STREAM_HEADERS } from "@/lib/ai/textStream";
 import { resolveAiModelFor } from "@/lib/ai/modelStore.server";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { createAdminClient } from "@/lib/supabase/adminClient";
+import {
+  embedQuestion,
+  formatNotesForPrompt,
+  formatPopularForPrompt,
+  loadPopularForVisitors,
+  searchStoreNotes,
+} from "@/lib/vendor/aiNotes.server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 type ChatMessage = { role: "user" | "assistant"; text: string };
+
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * このお店のノート（届け先がお客さん）と、本人が許したときの「よく売れている商品」を、
+ * プロンプトに足す形で返す。読めなければ空文字（ノート無しで答える）。
+ */
+async function loadShopNotesForVisitors(apiKey: string, vendorId: string, question: string): Promise<string> {
+  const admin = createAdminClient() as unknown as SupabaseClient | null;
+  if (!admin) return "";
+  // 実在するお店の ID のときだけ読む（でたらめな ID で探させない）
+  const { data: vendor } = await admin.from("vendors").select("id").eq("id", vendorId).maybeSingle();
+  if (!vendor) return "";
+  const embedding = await embedQuestion(apiKey, question);
+  const [notes, popular] = await Promise.all([
+    embedding ? searchStoreNotes(admin, embedding, vendorId, "visitor").catch(() => []) : Promise.resolve([]),
+    loadPopularForVisitors(admin, vendorId).catch(() => []),
+  ]);
+  return [formatNotesForPrompt(notes), formatPopularForPrompt(popular)].filter(Boolean).join("\n\n");
+}
 
 export async function POST(req: NextRequest) {
   const originCheck = requireSameOrigin(req);
@@ -35,6 +64,8 @@ export async function POST(req: NextRequest) {
     shopContext: ShopChatContext;
     history: ChatMessage[];
     text: string;
+    /** お店の出店者 ID。あれば、そのお店のノート（届け先がお客さん）を探して答えに使う */
+    vendorId?: unknown;
   };
 
   try {
@@ -48,7 +79,11 @@ export async function POST(req: NextRequest) {
     return new Response("Missing required fields", { status: 400 });
   }
 
-  const systemPrompt = buildShopChatSystemPrompt(shopName, shopContext ?? {});
+  const vendorId = typeof body.vendorId === "string" && UUID_PATTERN.test(body.vendorId) ? body.vendorId : null;
+  const shopNotes = vendorId ? await loadShopNotesForVisitors(apiKey, vendorId, text) : "";
+  const systemPrompt = [buildShopChatSystemPrompt(shopName, shopContext ?? {}), shopNotes]
+    .filter(Boolean)
+    .join("\n\n");
   const messages = [
     { role: "system", content: systemPrompt },
     ...history.map((m) => ({ role: m.role, content: m.text })),

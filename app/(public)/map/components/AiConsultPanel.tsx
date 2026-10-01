@@ -101,6 +101,8 @@ export function AiConsultPanel({
           signal: ctrl.signal,
           body: JSON.stringify({
             shopName: shop.name,
+            // 出店者のノート（届け先がお客さん）を答えに使うため
+            vendorId: shop.vendorId,
             shopContext: {
               category: shop.category,
               catchphrase: shop.catchphrase,

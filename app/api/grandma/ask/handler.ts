@@ -62,6 +62,7 @@ import {
   buildJsonFormatPrompt,
 } from "@/lib/grandma/prompts/consultConversation";
 import { handleAbuseDetection } from "@/lib/grandma/abuseDetection";
+import { loadPopularForVisitors, sanitizeNoteText, searchStoreNotes } from "@/lib/vendor/aiNotes.server";
 import { z } from "zod";
 
 const ConsultHistoryEntrySchema = z.object({
@@ -866,25 +867,31 @@ export async function handleConsultAsk(
         ].filter((value): value is string => !!value),
       ),
     );
+    const vendorNameById = new Map(
+      [targetShop, ...candidateShops]
+        .filter((shop): shop is Shop => !!shop?.vendorId)
+        .map((shop) => [shop.vendorId as string, shop.name]),
+    );
     if (ragVendorIds.length > 0) {
-      const knowledgeResults = await Promise.all(
+      // 出店者のノートは、届け先が「お客さん」のものだけを探す（lib/vendor/aiNotes.server.ts）。
+      // よく売れている商品は、本人が許したお店の分だけ名前を添える（数は渡さない）
+      const admin = supabase as unknown as SupabaseClient;
+      const perShop = await Promise.all(
         ragVendorIds.map(async (vendorId) => {
-          const result = await supabase.rpc("match_store_knowledge", {
-            query_embedding: embedding as unknown as string,
-            target_store_id: vendorId,
-            match_count: 2,
-            match_threshold: 0.45,
-          });
-          return result as {
-            data: { content: string; similarity: number }[] | null;
-          };
+          const [notes, popular] = await Promise.all([
+            searchStoreNotes(admin, embedding, vendorId, "visitor").catch(() => []),
+            loadPopularForVisitors(admin, vendorId).catch(() => []),
+          ]);
+          const shopName = vendorNameById.get(vendorId);
+          const lines = [
+            ...notes.map((note) => `■ ${sanitizeNoteText(note.title)}\n${sanitizeNoteText(note.content)}`),
+            ...(popular.length > 0 ? [`■ よく売れている商品（売れた数は伝えない）\n${popular.join("、")}`] : []),
+          ];
+          if (lines.length === 0) return "";
+          return `［${shopName ?? "お店"}］\n${lines.join("\n")}`;
         }),
       );
-      const snippets = knowledgeResults
-        .flatMap((result) => result.data ?? [])
-        .sort((a, b) => b.similarity - a.similarity)
-        .map((row) => row.content)
-        .filter(Boolean);
+      const snippets = perShop.filter(Boolean);
       if (snippets.length > 0) {
         storeKnowledgeContext = snippets.join("\n---\n");
       }

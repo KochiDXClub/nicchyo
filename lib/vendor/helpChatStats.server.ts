@@ -129,7 +129,12 @@ function sumSales(rows: SaleRow[]): Map<string, number> {
   return totals;
 }
 
-async function loadOwnSales(supabase: SupabaseClient, vendorId: string) {
+/**
+ * このお店でよく売れている商品（売れた数の多い順に最大5つ）。
+ * 出店者本人の相談のほか、本人が許したときはお客さん向けのにちよさんにも名前だけを渡す
+ * （lib/vendor/aiNotes.server.ts）。
+ */
+export async function loadOwnSales(supabase: SupabaseClient, vendorId: string) {
   const { data, error } = await supabase
     .from("product_sales")
     .select("product_name, quantity")

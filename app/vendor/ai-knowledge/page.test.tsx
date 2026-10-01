@@ -25,6 +25,15 @@ vi.mock("../_services/askService", () => ({
   fetchAskSnapshot: () => Promise.reject(new Error("skip")),
 }));
 
+// 「試しに聞いてみる」で店名を読むところ
+vi.mock("@/utils/supabase/client", () => ({
+  createClient: () => ({
+    from: () => ({
+      select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: { shop_name: "山田農園" } }) }) }),
+    }),
+  }),
+}));
+
 const AUTH = { user: { id: "v1", name: "yamada" } };
 vi.mock("@/lib/auth/AuthContext", () => ({ useAuth: () => AUTH }));
 
@@ -147,5 +156,59 @@ describe("にちよさんに教える", () => {
     expect(saveAiSettings).toHaveBeenCalledWith({ useStatsInVendorHelp: true, sharePopularWithVisitors: true });
     expect(toggle).toHaveAttribute("aria-checked", "false");
     expect(screen.getByRole("alert")).toHaveTextContent("うまく保存できんかった。");
+  });
+
+  describe("試しに聞いてみる", () => {
+    const fetchMock = vi.fn();
+    beforeEach(() => {
+      fetchMock.mockReset();
+      fetchMock.mockImplementation(async () => new Response("10時前なら空いちょるで"));
+      vi.stubGlobal("fetch", fetchMock);
+    });
+    afterEach(() => vi.unstubAllGlobals());
+
+    it("お客さんとして聞くと、お店のページのチャットにこのお店として聞いて、答えを出す", async () => {
+      await renderPage();
+      fireEvent.change(screen.getByLabelText("にちよさんに聞くこと"), { target: { value: "何時が空いてる？" } });
+      await act(async () => {
+        fireEvent.click(screen.getByRole("button", { name: "聞く" }));
+      });
+
+      const [url, init] = fetchMock.mock.calls[0];
+      expect(url).toBe("/api/grandma/shop-chat");
+      expect(JSON.parse((init as RequestInit).body as string)).toMatchObject({
+        vendorId: "v1",
+        shopName: "山田農園",
+        text: "何時が空いてる？",
+        history: [],
+      });
+      expect(await screen.findByText("10時前なら空いちょるで")).toBeInTheDocument();
+    });
+
+    it("自分として聞くと、使い方相談のにちよさんに聞く", async () => {
+      await renderPage();
+      fireEvent.click(screen.getByRole("button", { name: "自分として" }));
+      fireEvent.change(screen.getByLabelText("にちよさんに聞くこと"), { target: { value: "土曜のことは？" } });
+      await act(async () => {
+        fireEvent.click(screen.getByRole("button", { name: "聞く" }));
+      });
+
+      expect(fetchMock.mock.calls[0][0]).toBe("/api/vendor/help-chat");
+      expect(JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string)).toEqual({
+        text: "土曜のことは？",
+        history: [],
+      });
+    });
+
+    it("聞きすぎたときは、少し待つように言う", async () => {
+      fetchMock.mockImplementation(async () => new Response("", { status: 429 }));
+      await renderPage();
+      fireEvent.change(screen.getByLabelText("にちよさんに聞くこと"), { target: { value: "空いてる？" } });
+      await act(async () => {
+        fireEvent.click(screen.getByRole("button", { name: "聞く" }));
+      });
+
+      expect(await screen.findByText(/少し待ってから/)).toBeInTheDocument();
+    });
   });
 });

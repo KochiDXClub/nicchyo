@@ -12,6 +12,7 @@ import type { AiNote } from "@/lib/vendor/aiNotes";
 import AiSettingsPanel from "./components/AiSettingsPanel";
 import KnownFacts from "./components/KnownFacts";
 import NoteSheet from "./components/NoteSheet";
+import TryAsk from "./components/TryAsk";
 import { useAiNotes } from "./useAiNotes";
 
 /** 届け先を短く言う */
@@ -106,6 +107,8 @@ export default function AiKnowledgePage() {
                 ノートを書く
               </Button>
             </section>
+
+            {user && <TryAsk vendorId={user.id} />}
 
             {user && <KnownFacts vendorId={user.id} />}
 

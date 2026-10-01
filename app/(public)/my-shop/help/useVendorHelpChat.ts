@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { readTextStream } from "@/lib/ai/readTextStream";
 
 export type VendorHelpTurn = { role: "user" | "assistant"; text: string };
 
@@ -92,16 +93,11 @@ export function useVendorHelpChat() {
         throw new HelpChatFailure(res.ok ? "upstream" : failureReasonFor(res.status));
       }
 
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        received += decoder.decode(value, { stream: true });
-        setAnswer(received);
+      received = await readTextStream(res.body, (soFar) => {
+        received = soFar;
+        setAnswer(soFar);
         setStatus("streaming");
-      }
-      received += decoder.decode();
+      });
       if (!received.trim()) throw new HelpChatFailure("upstream");
 
       setAnswer(received);

@@ -12,6 +12,7 @@ import { resolveAiModelFor } from "@/lib/ai/modelStore.server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { VENDOR_HELP_GUIDE } from "@/lib/vendor/helpGuide";
 import { loadVendorHelpMarketStats, loadVendorHelpShopStats } from "@/lib/vendor/helpChatStats.server";
+import { embedQuestion, formatNotesForPrompt, loadAiSettings, searchStoreNotes } from "@/lib/vendor/aiNotes.server";
 import { PAYMENT_OPTIONS } from "@/lib/vendor/storeOptions";
 import {
   buildVendorHelpSystemPrompt,
@@ -97,6 +98,15 @@ async function loadShopContext(supabase: SupabaseLike, vendorId: string): Promis
  * 答えは文字のまま少しずつ流す（店舗ページのチャット /api/grandma/shop-chat と同じ形。lib/ai/textStream）。
  * 質問と答えは vendor_help_logs に残す（よくある質問からガイドを直すため）。
  */
+/** 質問に近い、届け先が「自分の相談」のノート。読めなければ空（ノート無しで答える） */
+async function loadVendorNotes(apiKey: string, vendorId: string, question: string) {
+  const admin = createAdminClient() as unknown as SupabaseClient | null;
+  if (!admin) return [];
+  const embedding = await embedQuestion(apiKey, question);
+  if (!embedding) return [];
+  return searchStoreNotes(admin, embedding, vendorId, "vendor").catch(() => []);
+}
+
 export async function POST(request: Request) {
   const originCheck = requireSameOrigin(request);
   if (!originCheck.ok) return originCheck.response;
@@ -138,15 +148,24 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Server configuration error" }, { status: 500 });
   }
 
-  const [shop, shopStats, marketStats] = await Promise.all([
+  const session = supabase as unknown as SupabaseClient;
+  const settings = await loadAiSettings(session, user.id);
+  const [shop, shopStats, marketStats, notes] = await Promise.all([
     loadShopContext(supabase, user.id),
-    loadVendorHelpShopStats(supabase as unknown as SupabaseClient, user.id),
-    loadVendorHelpMarketStats(supabase as unknown as SupabaseClient),
+    // お店の数字は、本人が「自分の相談で使う」をオンにしているときだけ渡す
+    settings.useStatsInVendorHelp ? loadVendorHelpShopStats(session, user.id) : Promise.resolve(undefined),
+    loadVendorHelpMarketStats(session),
+    loadVendorNotes(apiKey, user.id, text),
   ]);
-  const systemPrompt = buildVendorHelpSystemPrompt(VENDOR_HELP_GUIDE, shop, {
-    shop: shopStats,
-    market: marketStats,
-  });
+  const systemPrompt = [
+    buildVendorHelpSystemPrompt(VENDOR_HELP_GUIDE, shop, { shop: shopStats, market: marketStats }),
+    settings.useStatsInVendorHelp
+      ? ""
+      : "【このお店の数字】出店者の設定で、この相談には使わないことになっている。数字を聞かれたら、にちよさんに教えるページの「お店の数字の使い方」でオンにできると伝える。",
+    formatNotesForPrompt(notes, "出店者が自分の相談向けに書いたノート"),
+  ]
+    .filter(Boolean)
+    .join("\n\n");
   const messages = [
     { role: "system", content: systemPrompt },
     ...history.map((message) => ({ role: message.role, content: message.text })),
