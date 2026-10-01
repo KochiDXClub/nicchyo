@@ -88,6 +88,19 @@ describe("proposalFromToolCalls", () => {
   });
 });
 
+describe("入力欄を開く案（open_field）", () => {
+  it("新しい値が無くても、変えたい項目の入力欄を開く案にする", () => {
+    expect(proposalFromToolCallsWith([call("open_field", { field: "hours" })], "営業時間を変えたい")).toEqual({
+      kind: "edit",
+      field: "hours",
+    });
+  });
+
+  it("写真など、会話から変えない項目は案にしない", () => {
+    expect(proposalFromToolCallsWith([call("open_field", { field: "shop-photo" })], "写真を変えたい")).toBeNull();
+  });
+});
+
 describe("覚えることの案（propose_memory）", () => {
   it("トピックタイトルと本文を案にする", () => {
     expect(
@@ -131,6 +144,8 @@ describe("parseProposalFrame", () => {
     expect(parseProposalFrame(serializeProposal(change))).toEqual(change);
     const memory = { kind: "memory", note: { title: "混む時間", content: "9時ごろがいちばん混む" } } as const;
     expect(parseProposalFrame(serializeProposal(memory))).toEqual(memory);
+    const edit = { kind: "edit", field: "hours" } as const;
+    expect(parseProposalFrame(serializeProposal(edit))).toEqual(edit);
   });
 
   it("形の違うデータは読まない", () => {

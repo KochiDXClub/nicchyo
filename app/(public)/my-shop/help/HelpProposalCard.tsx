@@ -7,14 +7,14 @@ import { ASK_QUESTION_BY_ID, type AskAnswer, type VendorAskSnapshot } from "@/li
 import {
   applyProposalToSnapshot,
   HELP_PROPOSAL_LABELS,
-  type HelpProposalAnswer,
+  type HelpProposal,
 } from "@/lib/vendor/helpProposals";
 import { AskUserFacingError, saveAskAnswer } from "@/app/vendor/_services/askService";
 
 type Props = {
   vendorId: string;
   weekDate: string;
-  proposal: HelpProposalAnswer;
+  proposal: Extract<HelpProposal, { kind: "change" | "edit" }>;
   /** いまの登録内容。読めていなければ null、読めなかったら failed */
   snapshot: VendorAskSnapshot | null;
   snapshotFailed: boolean;
@@ -26,6 +26,7 @@ const SAVE_ERROR = "うまく保存できんかった。もういっぺんやっ
 
 /**
  * にちよさんの変更案の確認。「これでええかえ？」と聞いて、案を入れた入力欄を出す。
+ * 新しい値が分からず、変えたい項目だけ分かったとき（edit）は、いまの値のまま入力欄を開く。
  * 出店者はその場で直してから保存できる。保存は「にちよさんの質問」と同じ saveAskAnswer。
  */
 export default function HelpProposalCard({
@@ -39,10 +40,13 @@ export default function HelpProposalCard({
 }: Props) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const question = ASK_QUESTION_BY_ID.get(proposal.id);
-  const label = HELP_PROPOSAL_LABELS[proposal.id];
-  // 何から何に変わるのか分かるよう、いまの登録内容も並べる
+  const field = proposal.kind === "change" ? proposal.answer.id : proposal.field;
+  const question = ASK_QUESTION_BY_ID.get(field);
+  const label = HELP_PROPOSAL_LABELS[field];
+  // 何から何に変わるのか分かるよう、いまの登録内容も並べる（edit は入力欄がいまの値なので要らない）
   const current = snapshot && question ? question.summary(snapshot) : null;
+  const inputSnapshot =
+    snapshot && proposal.kind === "change" ? applyProposalToSnapshot(snapshot, proposal.answer) : snapshot;
 
   const save = async (answer: AskAnswer) => {
     if (saving) return;
@@ -64,21 +68,23 @@ export default function HelpProposalCard({
       className="mt-4 rounded-card border border-amber-200 bg-nicchyo-base px-4 py-4"
     >
       <p className="text-sm font-bold text-amber-900">
-        {label}、これでええかえ？
-        <span className="block text-xs font-normal text-amber-900/70">直してから保存してもかまんきね。</span>
+        {proposal.kind === "change" ? `${label}、これでええかえ？` : `${label}、どう変えるかえ？`}
+        <span className="block text-xs font-normal text-amber-900/70">
+          {proposal.kind === "change" ? "直してから保存してもかまんきね。" : "いまの内容から直して保存してや。"}
+        </span>
       </p>
-      {snapshot && (
+      {snapshot && proposal.kind === "change" && (
         <p className="mt-2 text-xs leading-relaxed text-nicchyo-ink/70">
           いまは：{current ?? "まだ登録されていない"}
         </p>
       )}
 
       <div className="mt-3">
-        {snapshot && question ? (
+        {inputSnapshot && question ? (
           <AskInput
             key={JSON.stringify(proposal)}
             question={question}
-            snapshot={applyProposalToSnapshot(snapshot, proposal)}
+            snapshot={inputSnapshot}
             saving={saving}
             onSubmit={(answer) => void save(answer)}
             onSkip={() => onDismiss("ほいたら、そのままにしちょくね。")}

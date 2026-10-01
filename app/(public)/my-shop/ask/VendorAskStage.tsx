@@ -110,11 +110,11 @@ export default function VendorAskStage({ vendorId }: { vendorId: string }) {
             answer={help.answer}
             status={help.status}
             proposal={
-              help.proposal?.kind === "change" ? (
+              help.proposal?.kind === "change" || help.proposal?.kind === "edit" ? (
                 <HelpProposalCard
                   vendorId={vendorId}
                   weekDate={inbox.weekDate}
-                  proposal={help.proposal.answer}
+                  proposal={help.proposal}
                   snapshot={inbox.snapshot}
                   snapshotFailed={status === "error"}
                   onSaved={(line) => {

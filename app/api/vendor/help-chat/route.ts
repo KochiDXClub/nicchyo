@@ -197,7 +197,9 @@ export async function POST(request: Request) {
       proposalNote =
         proposal.kind === "memory"
           ? `\n［覚える案］${proposal.note.title}`
-          : `\n［変更案］${JSON.stringify(proposal.answer)}`;
+          : proposal.kind === "edit"
+            ? `\n［入力欄を開いた］${proposal.field}`
+            : `\n［変更案］${JSON.stringify(proposal.answer)}`;
       return serializeProposal(proposal);
     },
     onFinish: (answer, { truncated }) => {

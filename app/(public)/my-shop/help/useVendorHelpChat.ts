@@ -39,6 +39,8 @@ function failureReasonFor(status: number): FailureReason {
 
 /** 変更案だけが届いて、ひとことが無かったときに出す */
 const PROPOSAL_LINE = "こうでええかえ？";
+/** 入力欄だけが開いて、ひとことが無かったときに出す */
+const EDIT_LINE = "ここで変えてや。";
 
 /** 変更案を確かめたあと、続けて聞いたときに話がつながるよう、やりとりに残す一言 */
 const PROPOSAL_OUTCOME_NOTES = {
@@ -132,7 +134,13 @@ export function useVendorHelpChat() {
       received += decoder.decode();
       const { text: body, proposal: proposed } = splitHelpStream(received);
       received = body;
-      const shown = body.trim() ? body : proposed ? PROPOSAL_LINE : "";
+      const shown = body.trim()
+        ? body
+        : proposed
+          ? proposed.kind === "edit"
+            ? EDIT_LINE
+            : PROPOSAL_LINE
+          : "";
       if (!shown) throw new HelpChatFailure("upstream");
 
       setAnswer(shown);

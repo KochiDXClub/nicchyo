@@ -45,13 +45,34 @@ export const HELP_PROPOSAL_LABELS: Record<HelpProposalAnswer["id"], string> = {
   strength: "お店のこだわり",
 };
 
-/** にちよさんが覚えることの案。トピックタイトル + 本文（にちよさんのノートと同じ形） */
-export type HelpMemoryNote = { title: string; content: string };
+/** 変えられる項目 */
+export type HelpProposalField = HelpProposalAnswer["id"];
 
-/** 答えの最後に付く案。お店の情報の変更か、覚えることか */
+/**
+ * 答えの最後に付く案。
+ * - change: 新しい値まで分かったときの変更案（入力欄に案を入れて開く）
+ * - edit: 変えたい項目だけ分かったとき（いまの値のまま入力欄を開く）
+ * - memory: 来訪者に伝えるとよいことを、にちよさんが覚えてよいか聞く
+ */
 export type HelpProposal =
   | { kind: "change"; answer: HelpProposalAnswer }
+  | { kind: "edit"; field: HelpProposalField }
   | { kind: "memory"; note: HelpMemoryNote };
+
+const FIELD_IDS = [
+  "hours",
+  "payment",
+  "rain",
+  "instagram",
+  "x",
+  "website",
+  "weekly-products",
+  "shop-name",
+  "strength",
+] as const satisfies readonly HelpProposalField[];
+
+/** にちよさんが覚えることの案。トピックタイトル + 本文（にちよさんのノートと同じ形） */
+export type HelpMemoryNote = { title: string; content: string };
 
 /** 覚えることの案の長さ。ノートの上限より短くして、要点だけにさせる */
 const MEMORY_TITLE_MAX = 30;
@@ -168,6 +189,27 @@ export const HELP_PROPOSAL_TOOLS = [
   {
     type: "function",
     function: {
+      name: "open_field",
+      description:
+        "出店者が項目を変えたいと言ったが、新しい値がまだ分からないときに呼ぶ。いまの値を入れた入力欄を開き、出店者がその場で入れる。聞き返さずにこちらを使う",
+      parameters: {
+        type: "object",
+        properties: {
+          field: {
+            type: "string",
+            enum: FIELD_IDS,
+            description:
+              "hours=営業時間、payment=支払い方法、rain=雨の日の出店、instagram、x、website=webサイト、weekly-products=今週出す商品、shop-name=店名、strength=お店のこだわり",
+          },
+        },
+        required: ["field"],
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
       name: "propose_memory",
       description:
         "出店者が話した、来訪者に伝えるとよいお店のこと（混む時間・おすすめの食べ方・取り置きの可否など）を、にちよさんが覚えてよいか聞く",
@@ -268,6 +310,8 @@ function saidByVendor(answer: HelpProposalAnswer, userText: string): boolean {
   }
 }
 
+const OpenFieldSchema = z.object({ field: z.enum(FIELD_IDS) });
+
 const MemoryNoteSchema = z.object({
   title: trimmed(MEMORY_TITLE_MAX).min(1),
   content: trimmed(MEMORY_CONTENT_MAX).min(1),
@@ -335,6 +379,11 @@ export function proposalFromToolCalls(
       }
       continue;
     }
+    if (call.name === "open_field") {
+      const parsed = OpenFieldSchema.safeParse(args);
+      if (parsed.success) return { kind: "edit", field: parsed.data.field };
+      continue;
+    }
     const toAnswer = Object.hasOwn(TOOL_SCHEMAS, call.name) ? TOOL_SCHEMAS[call.name] : undefined;
     if (!toAnswer) continue;
     const answer = toAnswer(args);
@@ -362,6 +411,7 @@ const ChangeAnswerSchema = z.discriminatedUnion("id", [
 
 const ProposalFrameSchema = z.discriminatedUnion("kind", [
   z.object({ type: z.literal("proposal"), kind: z.literal("change"), answer: ChangeAnswerSchema }),
+  z.object({ type: z.literal("proposal"), kind: z.literal("edit"), field: z.enum(FIELD_IDS) }),
   z.object({ type: z.literal("proposal"), kind: z.literal("memory"), note: MemoryNoteSchema }),
 ]);
 
@@ -372,7 +422,9 @@ export function parseProposalFrame(raw: string): HelpProposal | null {
     if (!parsed.success) return null;
     return parsed.data.kind === "change"
       ? { kind: "change", answer: parsed.data.answer as HelpProposalAnswer }
-      : { kind: "memory", note: parsed.data.note };
+      : parsed.data.kind === "edit"
+        ? { kind: "edit", field: parsed.data.field }
+        : { kind: "memory", note: parsed.data.note };
   } catch {
     return null;
   }
