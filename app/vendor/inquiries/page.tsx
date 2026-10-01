@@ -44,11 +44,8 @@ export default function VendorInquiriesPage() {
 
   return (
     <div className="min-h-screen bg-[#FFFAF0] pb-24">
-      <div className="border-b border-amber-100 bg-white/90 px-4 py-4 backdrop-blur-sm">
-        <div className="mx-auto max-w-2xl">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-amber-600">Contact</p>
-          <h1 className="text-xl font-bold text-slate-900">運営・市役所に連絡</h1>
-        </div>
+      <div className="px-4 pt-6">
+        <h1 className="mx-auto max-w-2xl text-xl font-bold text-slate-900">運営・市役所に連絡</h1>
       </div>
 
       <div className="mx-auto max-w-2xl space-y-4 px-4 pt-5">
