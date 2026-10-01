@@ -1,9 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { requireSameOrigin } from "@/lib/security/requestGuards";
-import { enforceRateLimit } from "@/lib/security/rateLimit";
 import { AiNoteInputSchema, rowToAiNote, type StoreKnowledgeRow } from "@/lib/vendor/aiNotes";
-import { embedNote, NOTE_COLUMNS, requireVendor, toNoteRow } from "../shared";
+import { embedNote, NOTE_COLUMNS, requireVendorWrite, toNoteRow } from "../shared";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -16,23 +14,12 @@ type Params = { params: Promise<{ id: string }> };
  * PATCH: ノートを書き直す（題か本文が変わったらベクトルも作り直す）
  */
 export async function PATCH(request: Request, { params }: Params) {
-  const originCheck = requireSameOrigin(request);
-  if (!originCheck.ok) return originCheck.response;
-
-  const auth = await requireVendor();
+  const auth = await requireVendorWrite(request);
   if (!auth.ok) return auth.response;
   const { supabase, user } = auth;
 
   const id = IdSchema.safeParse((await params).id);
   if (!id.success) return NextResponse.json({ error: "Not found" }, { status: 404 });
-
-  const rateLimited = await enforceRateLimit(request, {
-    bucket: "vendor-ai-notes-write",
-    limit: 30,
-    windowMs: 10 * 60 * 1000,
-    identity: user.id,
-  });
-  if (rateLimited) return rateLimited;
 
   const parsed = AiNoteInputSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {
@@ -74,23 +61,12 @@ export async function PATCH(request: Request, { params }: Params) {
  * DELETE: ノートを消す
  */
 export async function DELETE(request: Request, { params }: Params) {
-  const originCheck = requireSameOrigin(request);
-  if (!originCheck.ok) return originCheck.response;
-
-  const auth = await requireVendor();
+  const auth = await requireVendorWrite(request);
   if (!auth.ok) return auth.response;
   const { supabase, user } = auth;
 
   const id = IdSchema.safeParse((await params).id);
   if (!id.success) return NextResponse.json({ error: "Not found" }, { status: 404 });
-
-  const rateLimited = await enforceRateLimit(request, {
-    bucket: "vendor-ai-notes-write",
-    limit: 30,
-    windowMs: 10 * 60 * 1000,
-    identity: user.id,
-  });
-  if (rateLimited) return rateLimited;
 
   const { data, error } = await supabase
     .from("store_knowledge")

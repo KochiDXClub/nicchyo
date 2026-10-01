@@ -1,6 +1,4 @@
 import { NextResponse } from "next/server";
-import { requireSameOrigin } from "@/lib/security/requestGuards";
-import { enforceRateLimit } from "@/lib/security/rateLimit";
 import {
   AiNoteInputSchema,
   DEFAULT_AI_SETTINGS,
@@ -8,7 +6,7 @@ import {
   type AiSettings,
   type StoreKnowledgeRow,
 } from "@/lib/vendor/aiNotes";
-import { embedNote, NOTE_COLUMNS, requireVendor, toNoteRow } from "./shared";
+import { embedNote, NOTE_COLUMNS, requireVendor, requireVendorWrite, toNoteRow } from "./shared";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -60,21 +58,9 @@ export async function GET() {
  * POST: ノートを1枚足す（検索用のベクトルも作る）
  */
 export async function POST(request: Request) {
-  const originCheck = requireSameOrigin(request);
-  if (!originCheck.ok) return originCheck.response;
-
-  const auth = await requireVendor();
+  const auth = await requireVendorWrite(request);
   if (!auth.ok) return auth.response;
   const { supabase, user } = auth;
-
-  // ベクトルを作るたびに OpenAI を呼ぶので、出店者1人あたりで絞る
-  const rateLimited = await enforceRateLimit(request, {
-    bucket: "vendor-ai-notes-write",
-    limit: 30,
-    windowMs: 10 * 60 * 1000,
-    identity: user.id,
-  });
-  if (rateLimited) return rateLimited;
 
   const parsed = AiNoteInputSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {

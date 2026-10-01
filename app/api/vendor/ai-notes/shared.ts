@@ -3,6 +3,8 @@ import { cookies } from "next/headers";
 import type { User } from "@supabase/supabase-js";
 import { createClient as createServerClient } from "@/utils/supabase/server";
 import { requireVendorRole } from "@/lib/auth/permissions";
+import { requireSameOrigin } from "@/lib/security/requestGuards";
+import { enforceRateLimit } from "@/lib/security/rateLimit";
 import { requestEmbeddings } from "@/lib/ai/openaiFetch";
 import { noteEmbeddingText, type AiNoteInput } from "@/lib/vendor/aiNotes";
 
@@ -28,6 +30,29 @@ export async function requireVendor(): Promise<
   const forbidden = requireVendorRole(user);
   if (forbidden) return { ok: false, response: forbidden };
   return { ok: true, user, supabase };
+}
+
+/**
+ * 書き込み（ノートの追加・書き直し・削除、設定の保存）の入口。
+ * 同じオリジンからか、出店者か、書き込みの回数（ベクトル作りで OpenAI を呼ぶので出店者1人あたり）を確かめる。
+ */
+export async function requireVendorWrite(
+  request: Request
+): Promise<{ ok: true; user: User; supabase: ServerClient } | { ok: false; response: NextResponse }> {
+  const originCheck = requireSameOrigin(request);
+  if (!originCheck.ok) return { ok: false, response: originCheck.response };
+
+  const auth = await requireVendor();
+  if (!auth.ok) return auth;
+
+  const rateLimited = await enforceRateLimit(request, {
+    bucket: "vendor-ai-notes-write",
+    limit: 30,
+    windowMs: 10 * 60 * 1000,
+    identity: auth.user.id,
+  });
+  if (rateLimited) return { ok: false, response: rateLimited };
+  return auth;
 }
 
 /**
