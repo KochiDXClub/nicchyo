@@ -2,7 +2,8 @@ import { createClient } from "@/utils/supabase/client";
 import { createPostImage, imageUploadInfo } from "@/lib/image/clientCompression";
 import type { Post } from "../_types";
 import { getNextSundayExpiry } from "@/lib/utils/date";
-import { fetchReactionCounts } from "@/lib/story/reactions";
+import { chunkArray } from "@/lib/story/reactionCounts";
+import { POST_STATS_MAX_IDS, type PostStats } from "@/lib/story/postStats";
 
 type DbContent = {
   id: string;
@@ -51,17 +52,30 @@ export async function fetchVendorPosts(vendorId: string): Promise<Post[]> {
   if (error || !data) return [];
   const posts = data.map(contentToPost);
 
-  // ハート数をバッチ取得してマージ（content_reactions は直クエリ不可のためAPI経由）。
+  // 見た人とハートの数をまとめて取得してマージする。
   // 取得に失敗しても投稿一覧自体は表示する
   try {
-    const { counts } = await fetchReactionCounts(posts.map((post) => post.id));
+    const stats = await fetchPostStats(posts.map((post) => post.id));
     return posts.map((post) => ({
       ...post,
-      heartCount: counts[post.id] ?? 0,
+      viewCount: stats[post.id]?.views ?? 0,
+      heartCount: stats[post.id]?.hearts ?? 0,
     }));
   } catch {
     return posts;
   }
+}
+
+/** 本人の近況ごとの「見た人」「ハート」の数（GET /api/vendor/posts/stats） */
+async function fetchPostStats(ids: string[]): Promise<Record<string, PostStats>> {
+  const merged: Record<string, PostStats> = {};
+  for (const chunk of chunkArray(ids, POST_STATS_MAX_IDS)) {
+    const res = await fetch(`/api/vendor/posts/stats?ids=${chunk.map(encodeURIComponent).join(",")}`);
+    if (!res.ok) throw new Error("数を読み込めませんでした");
+    const { stats } = (await res.json()) as { stats: Record<string, PostStats> };
+    Object.assign(merged, stats);
+  }
+  return merged;
 }
 
 export async function createPost(

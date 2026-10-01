@@ -12,6 +12,8 @@ export type Post = {
   status: PostStatus;
   /** ハートリアクション数（content_reactions 集計。取得失敗時は undefined） */
   heartCount?: number;
+  /** 見た人の数（content_views 集計。1人1回。取得失敗時は undefined） */
+  viewCount?: number;
 };
 
 /** 出店者アナリティクス用のハート集計 */

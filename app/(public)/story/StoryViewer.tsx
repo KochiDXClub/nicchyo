@@ -16,6 +16,7 @@ import { useBodyScrollLock } from "@/lib/ui/bodyScrollLock";
 import { ChevronUp } from "lucide-react";
 import StoryDetailSheet from "./components/StoryDetailSheet";
 import { fetchReactionState, toggleReaction, type ReactionState } from "@/lib/story/reactions";
+import { recordStoryView } from "@/lib/story/views";
 import type { StoryItem } from "./types";
 
 const STORY_DURATION = 15000;
@@ -120,6 +121,14 @@ export default function StoryViewer({ stories, initialIndex, onClose, demo }: Pr
       .then((state) => { if (!cancelled) setReaction(state); })
       .catch(() => { if (!cancelled) setReaction({ count: 0, reacted: false }); });
     return () => { cancelled = true; };
+  }, [isDemo, story.id, visitorKey]);
+
+  // 見たことを記録する（出店者が「見た人」の数を知るため）。同じ画面で行き来しても1投稿1回だけ送る
+  const recordedViewsRef = useRef(new Set<string>());
+  useEffect(() => {
+    if (isDemo || !visitorKey || recordedViewsRef.current.has(story.id)) return;
+    recordedViewsRef.current.add(story.id);
+    recordStoryView(story.id, visitorKey);
   }, [isDemo, story.id, visitorKey]);
 
   // ハートのトグル（楽観更新→失敗時は元に戻す）
