@@ -41,6 +41,30 @@ export const HELP_PROPOSAL_LABELS: Record<HelpProposalAnswer["id"], string> = {
   strength: "お店のこだわり",
 };
 
+/** 変えられる項目 */
+export type HelpProposalField = HelpProposalAnswer["id"];
+
+/**
+ * 答えの最後に付く案。
+ * - change: 新しい値まで分かったときの変更案（入力欄に案を入れて開く）
+ * - edit: 変えたい項目だけ分かったとき（いまの値のまま入力欄を開く）
+ */
+export type HelpProposal =
+  | { kind: "change"; answer: HelpProposalAnswer }
+  | { kind: "edit"; field: HelpProposalField };
+
+const FIELD_IDS = [
+  "hours",
+  "payment",
+  "rain",
+  "instagram",
+  "x",
+  "website",
+  "weekly-products",
+  "shop-name",
+  "strength",
+] as const satisfies readonly HelpProposalField[];
+
 const PAYMENT_KEYS = PAYMENT_OPTIONS.map((option) => option.key) as [string, ...string[]];
 const RAIN_KEYS = RAIN_OPTIONS.map((option) => option.key) as [string, ...string[]];
 
@@ -149,6 +173,27 @@ export const HELP_PROPOSAL_TOOLS = [
       },
     },
   },
+  {
+    type: "function",
+    function: {
+      name: "open_field",
+      description:
+        "出店者が項目を変えたいと言ったが、新しい値がまだ分からないときに呼ぶ。いまの値を入れた入力欄を開き、出店者がその場で入れる。聞き返さずにこちらを使う",
+      parameters: {
+        type: "object",
+        properties: {
+          field: {
+            type: "string",
+            enum: FIELD_IDS,
+            description:
+              "hours=営業時間、payment=支払い方法、rain=雨の日の出店、instagram、x、website=webサイト、weekly-products=今週出す商品、shop-name=店名、strength=お店のこだわり",
+          },
+        },
+        required: ["field"],
+        additionalProperties: false,
+      },
+    },
+  },
 ];
 
 const hour = (h: number) => `${h}:00`;
@@ -235,55 +280,67 @@ function saidByVendor(answer: HelpProposalAnswer, userText: string): boolean {
   }
 }
 
+const OpenFieldSchema = z.object({ field: z.enum(FIELD_IDS) });
+
 /**
- * AI が呼んだ関数を変更案にする。知らない関数・壊れた引数・範囲外の値は null。
+ * AI が呼んだ関数を案にする。知らない関数・壊れた引数・範囲外の値は null。
  * 複数呼ばれたときは、最初に読めたものだけを使う（確認は1つずつ）。
  * userText は出店者がいま書いた質問（saidByVendor）
  */
 export function proposalFromToolCalls(
   calls: { name: string; arguments: string }[],
   userText: string
-): HelpProposalAnswer | null {
+): HelpProposal | null {
   for (const call of calls) {
-    const toAnswer = Object.hasOwn(TOOL_SCHEMAS, call.name) ? TOOL_SCHEMAS[call.name] : undefined;
-    if (!toAnswer) continue;
     let args: unknown;
     try {
       args = JSON.parse(call.arguments || "{}");
     } catch {
       continue;
     }
+    if (call.name === "open_field") {
+      const parsed = OpenFieldSchema.safeParse(args);
+      if (parsed.success) return { kind: "edit", field: parsed.data.field };
+      continue;
+    }
+    const toAnswer = Object.hasOwn(TOOL_SCHEMAS, call.name) ? TOOL_SCHEMAS[call.name] : undefined;
+    if (!toAnswer) continue;
     const answer = toAnswer(args);
-    if (answer && saidByVendor(answer, userText)) return answer;
+    if (answer && saidByVendor(answer, userText)) return { kind: "change", answer };
   }
   return null;
 }
 
-/** 答えの最後に付ける変更案のデータ */
-export function serializeProposal(answer: HelpProposalAnswer): string {
-  return JSON.stringify({ type: "proposal", answer });
+/** 答えの最後に付ける案のデータ */
+export function serializeProposal(proposal: HelpProposal): string {
+  return JSON.stringify({ type: "proposal", ...proposal });
 }
 
-const ProposalFrameSchema = z.object({
-  type: z.literal("proposal"),
-  answer: z.discriminatedUnion("id", [
-    z.object({ id: z.literal("hours"), start: z.enum(TIME_OPTIONS as [string, ...string[]]), end: z.enum(TIME_OPTIONS as [string, ...string[]]) }),
-    z.object({ id: z.literal("payment"), methods: z.array(z.enum(PAYMENT_KEYS)), note: z.string().max(NOTE_MAX) }),
-    z.object({ id: z.literal("rain"), policy: z.enum(RAIN_KEYS), note: z.string().max(NOTE_MAX) }),
-    z.object({ id: z.literal("instagram"), value: z.string().max(LINK_MAX) }),
-    z.object({ id: z.literal("x"), value: z.string().max(LINK_MAX) }),
-    z.object({ id: z.literal("website"), value: z.string().max(LINK_MAX) }),
-    z.object({ id: z.literal("weekly-products"), products: z.array(z.string().max(PRODUCT_NAME_MAX)).max(PRODUCTS_MAX) }),
-    z.object({ id: z.literal("shop-name"), text: z.string().max(SHOP_NAME_MAX) }),
-    z.object({ id: z.literal("strength"), text: z.string().max(STRENGTH_MAX) }),
-  ]),
-});
+const ChangeAnswerSchema = z.discriminatedUnion("id", [
+  z.object({ id: z.literal("hours"), start: z.enum(TIME_OPTIONS as [string, ...string[]]), end: z.enum(TIME_OPTIONS as [string, ...string[]]) }),
+  z.object({ id: z.literal("payment"), methods: z.array(z.enum(PAYMENT_KEYS)), note: z.string().max(NOTE_MAX) }),
+  z.object({ id: z.literal("rain"), policy: z.enum(RAIN_KEYS), note: z.string().max(NOTE_MAX) }),
+  z.object({ id: z.literal("instagram"), value: z.string().max(LINK_MAX) }),
+  z.object({ id: z.literal("x"), value: z.string().max(LINK_MAX) }),
+  z.object({ id: z.literal("website"), value: z.string().max(LINK_MAX) }),
+  z.object({ id: z.literal("weekly-products"), products: z.array(z.string().max(PRODUCT_NAME_MAX)).max(PRODUCTS_MAX) }),
+  z.object({ id: z.literal("shop-name"), text: z.string().max(SHOP_NAME_MAX) }),
+  z.object({ id: z.literal("strength"), text: z.string().max(STRENGTH_MAX) }),
+]);
 
-/** 画面側で、答えの最後に付いた変更案のデータを読む。読めなければ null */
-export function parseProposalFrame(raw: string): HelpProposalAnswer | null {
+const ProposalFrameSchema = z.discriminatedUnion("kind", [
+  z.object({ type: z.literal("proposal"), kind: z.literal("change"), answer: ChangeAnswerSchema }),
+  z.object({ type: z.literal("proposal"), kind: z.literal("edit"), field: z.enum(FIELD_IDS) }),
+]);
+
+/** 画面側で、答えの最後に付いた案のデータを読む。読めなければ null */
+export function parseProposalFrame(raw: string): HelpProposal | null {
   try {
     const parsed = ProposalFrameSchema.safeParse(JSON.parse(raw));
-    return parsed.success ? (parsed.data.answer as HelpProposalAnswer) : null;
+    if (!parsed.success) return null;
+    return parsed.data.kind === "change"
+      ? { kind: "change", answer: parsed.data.answer as HelpProposalAnswer }
+      : { kind: "edit", field: parsed.data.field };
   } catch {
     return null;
   }

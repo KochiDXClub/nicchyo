@@ -200,7 +200,11 @@ describe("POST /api/vendor/help-chat", () => {
     );
     const [text, frame] = (await res.text()).split("\u001e");
     expect(text).toBe("こうでええかえ？");
-    expect(JSON.parse(frame)).toEqual({ type: "proposal", answer: { id: "hours", start: "7:00", end: "13:00" } });
+    expect(JSON.parse(frame)).toEqual({
+      type: "proposal",
+      kind: "change",
+      answer: { id: "hours", start: "7:00", end: "13:00" },
+    });
     expect(insertLog.mock.calls[0][0].answer).toContain("［変更案］");
   });
 });

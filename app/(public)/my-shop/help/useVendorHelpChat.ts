@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { TEXT_STREAM_DATA_SEPARATOR } from "@/lib/ai/textStream";
-import { parseProposalFrame, type HelpProposalAnswer } from "@/lib/vendor/helpProposals";
+import { parseProposalFrame, type HelpProposal } from "@/lib/vendor/helpProposals";
 
 export type VendorHelpTurn = { role: "user" | "assistant"; text: string };
 
@@ -39,6 +39,8 @@ function failureReasonFor(status: number): FailureReason {
 
 /** 変更案だけが届いて、ひとことが無かったときに出す */
 const PROPOSAL_LINE = "こうでええかえ？";
+/** 入力欄だけが開いて、ひとことが無かったときに出す */
+const EDIT_LINE = "ここで変えてや。";
 
 /** 変更案を確かめたあと、続けて聞いたときに話がつながるよう、やりとりに残す一言 */
 const PROPOSAL_OUTCOME_NOTES = {
@@ -50,7 +52,7 @@ const PROPOSAL_OUTCOME_NOTES = {
  * 届いた文字を、答えの本文と、最後に付いた変更案に分ける。
  * 区切り文字はサーバーが本文から取り除いているので、最初の1つで分けてよい
  */
-export function splitHelpStream(received: string): { text: string; proposal: HelpProposalAnswer | null } {
+export function splitHelpStream(received: string): { text: string; proposal: HelpProposal | null } {
   const at = received.indexOf(TEXT_STREAM_DATA_SEPARATOR);
   if (at < 0) return { text: received, proposal: null };
   return {
@@ -88,7 +90,7 @@ export function useVendorHelpChat() {
   const [status, setStatus] = useState<VendorHelpStatus>("idle");
   const [question, setQuestion] = useState<string | null>(null);
   const [answer, setAnswer] = useState("");
-  const [proposal, setProposal] = useState<HelpProposalAnswer | null>(null);
+  const [proposal, setProposal] = useState<HelpProposal | null>(null);
   const historyRef = useRef<VendorHelpTurn[]>([]);
   const abortRef = useRef<AbortController | null>(null);
 
@@ -130,7 +132,13 @@ export function useVendorHelpChat() {
       received += decoder.decode();
       const { text: body, proposal: proposed } = splitHelpStream(received);
       received = body;
-      const shown = body.trim() ? body : proposed ? PROPOSAL_LINE : "";
+      const shown = body.trim()
+        ? body
+        : proposed
+          ? proposed.kind === "edit"
+            ? EDIT_LINE
+            : PROPOSAL_LINE
+          : "";
       if (!shown) throw new HelpChatFailure("upstream");
 
       setAnswer(shown);
