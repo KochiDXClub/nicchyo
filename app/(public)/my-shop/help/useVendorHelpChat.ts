@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { TEXT_STREAM_DATA_SEPARATOR } from "@/lib/ai/textStream";
+import { parseProposalFrame, type HelpProposalAnswer } from "@/lib/vendor/helpProposals";
 
 export type VendorHelpTurn = { role: "user" | "assistant"; text: string };
 
@@ -35,6 +37,28 @@ function failureReasonFor(status: number): FailureReason {
   return "upstream";
 }
 
+/** 変更案だけが届いて、ひとことが無かったときに出す */
+const PROPOSAL_LINE = "こうでええかえ？";
+
+/** 変更案を確かめたあと、続けて聞いたときに話がつながるよう、やりとりに残す一言 */
+const PROPOSAL_OUTCOME_NOTES = {
+  saved: "（出店者が確かめて、この変更を保存した）",
+  dismissed: "（出店者はこの変更をやめた）",
+} as const;
+
+/**
+ * 届いた文字を、答えの本文と、最後に付いた変更案に分ける。
+ * 区切り文字はサーバーが本文から取り除いているので、最初の1つで分けてよい
+ */
+export function splitHelpStream(received: string): { text: string; proposal: HelpProposalAnswer | null } {
+  const at = received.indexOf(TEXT_STREAM_DATA_SEPARATOR);
+  if (at < 0) return { text: received, proposal: null };
+  return {
+    text: received.slice(0, at),
+    proposal: parseProposalFrame(received.slice(at + TEXT_STREAM_DATA_SEPARATOR.length)),
+  };
+}
+
 /** 答えの途中で切れたとき、読んでいる人に切れたことが分かるよう末尾に足す */
 const CUT_OFF_NOTE = "\n\n（途中で切れてしもうた。もういっぺん聞いてみてや。）";
 
@@ -64,6 +88,7 @@ export function useVendorHelpChat() {
   const [status, setStatus] = useState<VendorHelpStatus>("idle");
   const [question, setQuestion] = useState<string | null>(null);
   const [answer, setAnswer] = useState("");
+  const [proposal, setProposal] = useState<HelpProposalAnswer | null>(null);
   const historyRef = useRef<VendorHelpTurn[]>([]);
   const abortRef = useRef<AbortController | null>(null);
 
@@ -78,6 +103,7 @@ export function useVendorHelpChat() {
 
     setQuestion(text);
     setAnswer("");
+    setProposal(null);
     setStatus("thinking");
 
     let received = "";
@@ -98,18 +124,22 @@ export function useVendorHelpChat() {
         const { done, value } = await reader.read();
         if (done) break;
         received += decoder.decode(value, { stream: true });
-        setAnswer(received);
+        setAnswer(splitHelpStream(received).text);
         setStatus("streaming");
       }
       received += decoder.decode();
-      if (!received.trim()) throw new HelpChatFailure("upstream");
+      const { text: body, proposal: proposed } = splitHelpStream(received);
+      received = body;
+      const shown = body.trim() ? body : proposed ? PROPOSAL_LINE : "";
+      if (!shown) throw new HelpChatFailure("upstream");
 
-      setAnswer(received);
+      setAnswer(shown);
+      setProposal(proposed);
       setStatus("done");
       historyRef.current = [
         ...historyRef.current,
         { role: "user" as const, text },
-        { role: "assistant" as const, text: received },
+        { role: "assistant" as const, text: shown },
       ].slice(-HISTORY_MAX);
     } catch (err) {
       // 新しい質問に切り替えた・画面を離れたときの中断は、失敗として出さない
@@ -131,16 +161,36 @@ export function useVendorHelpChat() {
     abortRef.current = null;
     setQuestion(null);
     setAnswer("");
+    setProposal(null);
     setStatus("idle");
+  }, []);
+
+  /**
+   * 変更案を確かめ終えた（保存した・やめた）。確認を閉じて、にちよさんのひとことに替える。
+   * 続けて聞いたときに、保存したかどうかが AI に分かるよう、やりとりにも残す
+   */
+  const settleProposal = useCallback((outcome: keyof typeof PROPOSAL_OUTCOME_NOTES, line: string) => {
+    setProposal(null);
+    setAnswer(line);
+    const history = historyRef.current;
+    const last = history[history.length - 1];
+    if (last?.role === "assistant") {
+      historyRef.current = [
+        ...history.slice(0, -1),
+        { role: "assistant", text: `${last.text}\n${PROPOSAL_OUTCOME_NOTES[outcome]}` },
+      ];
+    }
   }, []);
 
   return {
     status,
     question,
     answer,
+    proposal,
     busy: status === "thinking" || status === "streaming",
     ask,
     close,
+    settleProposal,
   };
 }
 
