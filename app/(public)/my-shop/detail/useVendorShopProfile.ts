@@ -7,6 +7,8 @@ export type SeasonKey = "spring_summer" | "summer_autumn" | "autumn_winter" | "w
 export type ProductItem = {
   name: string;
   imageUrl?: string;
+  /** 商品のPR（紹介）。出店者ページの質問で入力される。保存時に消さないよう持ち回る */
+  description?: string;
   seasons: SeasonKey[];
 };
 
@@ -123,7 +125,7 @@ export function useVendorShopProfile() {
 
       const { data: productsData } = await supabase
         .from("products")
-        .select("id, name, image_url")
+        .select("id, name, image_url, description")
         .eq("vendor_id", vendorId)
         .order("created_at", { ascending: true });
 
@@ -169,6 +171,7 @@ export function useVendorShopProfile() {
         (productsData ?? []).map((item) => ({
           name: item.name,
           imageUrl: item.image_url ?? undefined,
+          description: item.description ?? undefined,
           seasons: seasonsByProduct.get(item.id) ?? [],
         }))
       );
@@ -326,6 +329,7 @@ export function useVendorShopProfile() {
           vendor_id: vendorId,
           name: product.name,
           ...(product.imageUrl ? { image_url: product.imageUrl } : {}),
+          ...(product.description ? { description: product.description } : {}),
         }));
         const { data: insertedProducts, error: insertProductError } = await supabase
           .from("products")

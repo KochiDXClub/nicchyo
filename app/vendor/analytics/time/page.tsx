@@ -3,15 +3,14 @@
 export const dynamic = "force-dynamic";
 
 import { useState, useEffect } from "react";
-import Link from "next/link";
+import { CenteredLoading, PageContainer, PageShell, PageTitle } from "@/components/ui";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { fetchHourlyData } from "../../_services/analyticsService";
 import type { HourlyData } from "../../_types";
-import { ArrowLeft, Clock, TrendingUp } from "lucide-react";
+import { Clock, TrendingUp } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell,
 } from "recharts";
-import { CenteredLoading } from "@/components/ui/loading-spinner";
 
 const PEAK_COLOR = "#f59e0b";
 const BASE_COLOR = "#fde68a";
@@ -43,20 +42,10 @@ export default function TimeAnalyticsPage() {
   const hasData  = maxViews > 0;
 
   return (
-    <div className="min-h-screen bg-[#FFFAF0] pb-24">
-      <div className="border-b border-amber-100 bg-white/90 px-4 py-4 backdrop-blur-sm">
-        <div className="mx-auto flex max-w-2xl items-center gap-3">
-          <Link href="/vendor/analytics" className="flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50">
-            <ArrowLeft size={18} />
-          </Link>
-          <div>
-            <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-amber-600">Time Analytics</p>
-            <h1 className="text-xl font-bold text-slate-900">時間帯分析</h1>
-          </div>
-        </div>
-      </div>
+    <PageShell bottomNav={false}>
+      <PageTitle title="時間帯分析" />
 
-      <div className="mx-auto max-w-2xl space-y-4 px-4 pt-5">
+      <PageContainer className="space-y-4">
         {isLoading ? (
           <CenteredLoading />
         ) : (
@@ -134,7 +123,7 @@ export default function TimeAnalyticsPage() {
             )}
           </>
         )}
-      </div>
-    </div>
+      </PageContainer>
+    </PageShell>
   );
 }

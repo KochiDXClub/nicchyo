@@ -112,7 +112,10 @@ describe("マイグレーションとの突き合わせ", () => {
     .sort()
     // Windows の checkout では改行が CRLF になるので LF に揃えてから探す
     .map((name) => readFileSync(join(migrationsDir, name), "utf8").replace(/\r\n/g, "\n"))
-    .filter((content) => content.includes("insert into ai_models"))
+    // 機能（ai_use_cases）だけを足すマイグレーションもあるので、両方を拾う
+    .filter(
+      (content) => content.includes("insert into ai_models") || content.includes("insert into ai_use_cases")
+    )
     .join("\n");
 
   /** そのモデルの values タプルのうち、最後に投入されたものを切り出す */

@@ -8,6 +8,7 @@
 import React, { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { AdminSidebar } from "./AdminSidebar";
+import { useBodyScrollLock } from "@/lib/ui/bodyScrollLock";
 
 interface AdminLayoutProps {
   children: React.ReactNode;
@@ -25,14 +26,8 @@ export const AdminLayout = React.memo(function AdminLayout({
     setIsSidebarOpen(false);
   }, [pathname]);
 
-  useEffect(() => {
-    if (!isSidebarOpen) return;
-    const prevOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = prevOverflow;
-    };
-  }, [isSidebarOpen]);
+  // サイドバーを開いているあいだは背面を固定する（重なる固定と数を合わせる共通の仕組み）
+  useBodyScrollLock(isSidebarOpen);
 
   return (
     <div className="min-h-screen bg-slate-50 lg:pl-[248px]">

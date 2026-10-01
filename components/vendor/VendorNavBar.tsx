@@ -14,6 +14,7 @@ import {
   MenuUserRow,
 } from "@/components/navigation/MenuSheet";
 import { VENDOR_NAV_ITEMS } from "./vendorNavItems";
+import { useBodyScrollLock } from "@/lib/ui/bodyScrollLock";
 
 const HOME_HREF = "/my-shop";
 
@@ -36,6 +37,8 @@ export default function VendorNavBar() {
   // /my-shop* はサイドバーが無いので全サイズで表示する。
   const inVendorConsole = pathname?.startsWith("/vendor") ?? false;
 
+  // シートを開いている間は背面スクロールを止める（重なる固定と数を合わせる共通の仕組み）
+  useBodyScrollLock(sheetOpen);
   // ルート変更でシートを閉じる
   useEffect(() => {
     setSheetOpen(false);

@@ -3,10 +3,9 @@
 export const dynamic = "force-dynamic";
 
 import { useState, useEffect } from "react";
+import { CenteredLoading, PageContainer, PageShell, PageTitle } from "@/components/ui";
 import Image from "next/image";
-import Link from "next/link";
-import { ArrowLeft, Save, CheckCircle2, Loader2, Sparkles, Info } from "lucide-react";
-import { CenteredLoading } from "@/components/ui/loading-spinner";
+import { Save, CheckCircle2, Loader2, Sparkles, Info } from "lucide-react";
 
 const PLACEHOLDER = `例：
 この店の人気商品は芋天です。
@@ -66,21 +65,11 @@ export default function AiKnowledgePage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#FFFAF0] pb-24">
+    <PageShell bottomNav={false}>
       {/* ヘッダー */}
-      <div className="border-b border-amber-100 bg-white/90 px-4 py-4 backdrop-blur-sm">
-        <div className="mx-auto flex max-w-2xl items-center gap-3">
-          <Link href="/my-shop" className="flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50">
-            <ArrowLeft size={18} />
-          </Link>
-          <div>
-            <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-amber-600">AI Knowledge</p>
-            <h1 className="text-xl font-bold text-slate-900">AIばあちゃんに教えるお店の情報</h1>
-          </div>
-        </div>
-      </div>
+      <PageTitle title="AIばあちゃんに教えるお店の情報" />
 
-      <div className="mx-auto max-w-2xl space-y-4 px-4 pt-5">
+      <PageContainer className="space-y-4">
 
         <div className="rounded-3xl border border-amber-200 bg-white p-4 shadow-sm">
           <div className="flex items-start gap-3">
@@ -183,7 +172,7 @@ export default function AiKnowledgePage() {
           </ul>
         </div>
 
-      </div>
-    </div>
+      </PageContainer>
+    </PageShell>
   );
 }

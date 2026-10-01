@@ -3,14 +3,12 @@
 export const dynamic = "force-dynamic";
 
 import { useState, useEffect } from "react";
+import { CenteredLoading, EmptyMessage, PageContainer, PageShell, PageTitle } from "@/components/ui";
 import Image from "next/image";
-import Link from "next/link";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { fetchAiConsultAnalytics } from "../../_services/analyticsService";
 import type { AiConsultAnalytics } from "../../_types";
-import { ArrowLeft, MessageCircle, Hash, Star, MapPin, Navigation } from "lucide-react";
-import { CenteredLoading } from "@/components/ui/loading-spinner";
-import { EmptyMessage } from "@/components/ui/empty-message";
+import { MessageCircle, Hash, Star, MapPin, Navigation } from "lucide-react";
 
 const TOPIC_COLORS: Record<string, string> = {
   人気商品: "bg-amber-400",
@@ -45,20 +43,10 @@ export default function AiAnalyticsPage() {
   const maxKeyword  = data.keywords[0]?.count ?? 1;
 
   return (
-    <div className="min-h-screen bg-[#FFFAF0] pb-24">
-      <div className="border-b border-amber-100 bg-white/90 px-4 py-4 backdrop-blur-sm">
-        <div className="mx-auto flex max-w-2xl items-center gap-3">
-          <Link href="/vendor/analytics" className="flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50">
-            <ArrowLeft size={18} />
-          </Link>
-          <div>
-            <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-amber-600">AI Analytics</p>
-            <h1 className="text-xl font-bold text-slate-900">AIばあちゃん分析</h1>
-          </div>
-        </div>
-      </div>
+    <PageShell bottomNav={false}>
+      <PageTitle title="AIばあちゃん分析" />
 
-      <div className="mx-auto max-w-2xl space-y-4 px-4 pt-5">
+      <PageContainer className="space-y-4">
         {isLoading ? (
           <CenteredLoading />
         ) : (
@@ -202,7 +190,7 @@ export default function AiAnalyticsPage() {
             </div>
           </>
         )}
-      </div>
-    </div>
+      </PageContainer>
+    </PageShell>
   );
 }
