@@ -140,3 +140,16 @@ export async function repostContent(
   if (error || !data) throw error ?? new Error("再投稿に失敗しました");
   return contentToPost(data as DbContent);
 }
+
+/** 投稿の見本に出す、お店の名前と写真（近況の名札と同じもの） */
+export async function fetchPostIdentity(
+  vendorId: string
+): Promise<{ shopName: string | null; shopImageUrl: string | null }> {
+  const supabase = createClient();
+  const { data } = await supabase
+    .from("vendors")
+    .select("shop_name, shop_image_url")
+    .eq("id", vendorId)
+    .maybeSingle();
+  return { shopName: data?.shop_name ?? null, shopImageUrl: data?.shop_image_url ?? null };
+}
