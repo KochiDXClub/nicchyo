@@ -272,8 +272,8 @@ export default function HamburgerMenu() {
                         >
                           <MenuIcon name="sparkles" className={`h-5 w-5 ${isActive('/vendor/ai-knowledge') ? 'text-white' : 'text-amber-600'}`} />
                           <div className="flex-1">
-                            <p className="text-sm font-medium">AIばあちゃんに教える</p>
-                            <p className={`text-xs ${isActive('/vendor/ai-knowledge') ? 'text-white/80' : 'text-gray-500'}`}>お店の情報を学習させる</p>
+                            <p className="text-sm font-medium">にちよさんに教える</p>
+                            <p className={`text-xs ${isActive('/vendor/ai-knowledge') ? 'text-white/80' : 'text-gray-500'}`}>お店のことをノートで伝える</p>
                           </div>
                         </Link>
                       </MenuLi>

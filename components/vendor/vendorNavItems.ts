@@ -36,7 +36,7 @@ export const VENDOR_NAV_ITEMS: VendorNavItem[] = [
   { label: "最新情報を発信", href: "/vendor/post/new", icon: Megaphone, description: "今日のおすすめや売り切れを伝える", group: "main" },
   { label: "投稿履歴", href: "/vendor/posts", icon: History, description: "これまでの投稿を見返す", group: "main" },
   { label: "お店の分析", href: "/vendor/analytics", icon: BarChart3, description: "どの情報が見られているか確認", group: "main" },
-  { label: "AIに教える", href: "/vendor/ai-knowledge", icon: Sparkles, description: "お店のことをAIに伝える", group: "main" },
+  { label: "にちよさんに教える", href: "/vendor/ai-knowledge", icon: Sparkles, description: "お店のことをノートで伝える", group: "main" },
   { label: "使い方ガイド", href: "/vendor/help", icon: CircleHelp, description: "画面の見方をやさしく案内", group: "support" },
   { label: "アカウント設定", href: "/vendor/account", icon: UserRound, description: "名前やメール、パスワードの確認", group: "support" },
 ];
