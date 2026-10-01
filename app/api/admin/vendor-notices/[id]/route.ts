@@ -26,9 +26,10 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
   }
 
   const db = adminClient as unknown as SupabaseClient;
-  const { data, error } = await db.from("vendor_notices").delete().eq("id", id).select("title").maybeSingle();
+  const { data, error } = await db.from("vendor_notices").delete().eq("id", id).select("sender, title, body, important").maybeSingle();
   if (error) return NextResponse.json({ error: "取り下げられませんでした" }, { status: 500 });
   if (!data) return NextResponse.json({ error: "見つかりません" }, { status: 404 });
+  const removed = data as { sender: string; title: string; body: string; important: boolean };
 
   await logAdminAudit(
     adminClient,
@@ -37,7 +38,9 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
       action: "vendor_notice_deleted",
       targetType: "vendor_notice",
       targetId: id,
-      targetName: (data as { title: string }).title,
+      targetName: removed.title,
+      // 取り下げると行が消えるので、何を出していたかを残す
+      details: JSON.stringify({ sender: removed.sender, important: removed.important, body: removed.body }),
     }
   );
 
