@@ -126,6 +126,8 @@ describe("VendorAskStage の相談からの変更案", () => {
     // 区切りのあとのデータは本文に出さない
     expect(screen.queryByText(/"proposal"/)).not.toBeInTheDocument();
     expect(screen.getByRole("combobox", { name: "開始時間" })).toHaveValue("7:00");
+    // 何から変わるのか分かるよう、いまの登録内容も出す
+    expect(card).toHaveTextContent("いまは：06:00〜14:00");
     // 確かめているあいだは、問い合わせ先を出さない
     expect(screen.queryByRole("link", { name: /運営に問い合わせる/ })).not.toBeInTheDocument();
 

@@ -2,10 +2,14 @@ import { describe, expect, it } from "vitest";
 import {
   applyProposalToSnapshot,
   parseProposalFrame,
-  proposalFromToolCalls,
+  proposalFromToolCalls as proposalFromToolCallsWith,
   serializeProposal,
 } from "./helpProposals";
 import type { VendorAskSnapshot } from "./askQuestions";
+
+/** 出店者の質問は、値を書かない項目のテストでは空でよい */
+const proposalFromToolCalls = (calls: { name: string; arguments: string }[], userText = "") =>
+  proposalFromToolCallsWith(calls, userText);
 
 const call = (name: string, args: unknown) => ({ name, arguments: JSON.stringify(args) });
 
@@ -31,7 +35,7 @@ describe("proposalFromToolCalls", () => {
   });
 
   it("SNS の ID は @ を外し、webサイトは http(s) の URL だけ", () => {
-    expect(proposalFromToolCalls([call("propose_link", { kind: "instagram", value: "@tosa_shop" })])).toEqual({
+    expect(proposalFromToolCalls([call("propose_link", { kind: "instagram", value: "@tosa_shop" })], "インスタを @tosa_shop にして")).toEqual({
       id: "instagram",
       value: "tosa_shop",
     });
@@ -54,9 +58,25 @@ describe("proposalFromToolCalls", () => {
         { name: "propose_text", arguments: "{broken" },
         call("propose_text", { field: "shop-name", text: "土佐の八百屋" }),
         call("propose_rain", { policy: "cancel", note: "" }),
-      ])
+      ], "店名を土佐の八百屋に変えたい")
     ).toEqual({ id: "shop-name", text: "土佐の八百屋" });
     expect(proposalFromToolCalls([{ name: "toString", arguments: "{}" }])).toBeNull();
+  });
+
+  it("リンクや店名は、出店者がいま書いた値のときだけ案にする（データに紛れた指示で偽の URL を出させない）", () => {
+    const site = [call("propose_link", { kind: "website", value: "https://evil.example/" })];
+    expect(proposalFromToolCalls(site, "webサイトを変えたい")).toBeNull();
+    expect(proposalFromToolCalls(site, "サイトを evil.example にして")).toEqual({
+      id: "website",
+      value: "https://evil.example/",
+    });
+    expect(
+      proposalFromToolCalls([call("propose_text", { field: "shop-name", text: "偽の店" })], "店名を変えたい")
+    ).toBeNull();
+    // 全角で書いても同じ値として扱う
+    expect(
+      proposalFromToolCalls([call("propose_link", { kind: "x", value: "tosa" })], "Xは ｔｏｓａ です")
+    ).toEqual({ id: "x", value: "tosa" });
   });
 
   it("長すぎる文は案にしない", () => {

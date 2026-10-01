@@ -41,6 +41,8 @@ export default function HelpProposalCard({
   const [error, setError] = useState<string | null>(null);
   const question = ASK_QUESTION_BY_ID.get(proposal.id);
   const label = HELP_PROPOSAL_LABELS[proposal.id];
+  // 何から何に変わるのか分かるよう、いまの登録内容も並べる
+  const current = snapshot && question ? question.summary(snapshot) : null;
 
   const save = async (answer: AskAnswer) => {
     if (saving) return;
@@ -65,6 +67,11 @@ export default function HelpProposalCard({
         {label}、これでええかえ？
         <span className="block text-xs font-normal text-amber-900/70">直してから保存してもかまんきね。</span>
       </p>
+      {snapshot && (
+        <p className="mt-2 text-xs leading-relaxed text-nicchyo-ink/70">
+          いまは：{current ?? "まだ登録されていない"}
+        </p>
+      )}
 
       <div className="mt-3">
         {snapshot && question ? (
