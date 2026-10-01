@@ -33,7 +33,7 @@ export const VENDOR_NAV_ITEMS: VendorNavItem[] = [
   { label: "運営・市役所に連絡", href: "/vendor/inquiries", icon: Mail, description: "質問・報告・相談を送る", group: "main" },
   // 下部バーの「店舗情報」枠は「連絡」に差し替えたため、店舗情報への導線はここが主になる
   { label: "店舗情報を更新", href: "/vendor/store", icon: Store, description: "商品・写真・出店日をまとめて見直す", group: "main" },
-  { label: "最新情報を発信", href: "/vendor/post/new", icon: Megaphone, description: "今日のおすすめや売り切れを伝える", group: "main" },
+  { label: "近況を出す", href: "/vendor/post/new", icon: Megaphone, description: "今日のおすすめや売り切れを伝える", group: "main" },
   { label: "投稿履歴", href: "/vendor/posts", icon: History, description: "これまでの投稿を見返す", group: "main" },
   { label: "お店の分析", href: "/vendor/analytics", icon: BarChart3, description: "どの情報が見られているか確認", group: "main" },
   { label: "AIに教える", href: "/vendor/ai-knowledge", icon: Sparkles, description: "お店のことをAIに伝える", group: "main" },

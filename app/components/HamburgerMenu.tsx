@@ -233,8 +233,8 @@ export default function HamburgerMenu() {
                         >
                           <MenuIcon name="pencil" className={`h-5 w-5 ${isActive('/vendor/post/new') ? 'text-white' : 'text-amber-600'}`} />
                           <div className="flex-1">
-                            <p className="text-sm font-medium">最新情報の投稿</p>
-                            <p className={`text-xs ${isActive('/vendor/post/new') ? 'text-white/80' : 'text-gray-500'}`}>お知らせや出店情報を発信</p>
+                            <p className="text-sm font-medium">近況を出す</p>
+                            <p className={`text-xs ${isActive('/vendor/post/new') ? 'text-white/80' : 'text-gray-500'}`}>写真1枚で今日のお店を伝える</p>
                           </div>
                         </Link>
                       </MenuLi>

@@ -129,7 +129,7 @@ describe("POST /api/vendor/help-chat", () => {
     const system = (options as { messages: { role: string; content: string }[] }).messages[0].content;
     expect(system).toContain("・店名: 山田農園");
     expect(system).toContain("・支払い方法: 現金");
-    expect(system).toContain("最新情報の投稿");
+    expect(system).toContain("近況を出す");
     expect(system).toContain("話題になった回数: 4回（そのうち、おすすめされた回数: 2回）");
     expect(system).toContain("nicchyo の来訪者数: 今週（月曜から今日まで） 1,200人 / 今月 5,000人");
 

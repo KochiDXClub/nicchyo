@@ -25,6 +25,9 @@ function contentToPost(c: DbContent): Post {
   };
 }
 
+/** ひとこと無しの投稿の title */
+export const PHOTO_ONLY_TITLE = "写真だけの投稿";
+
 export async function fetchPostById(postId: string): Promise<Post | null> {
   const supabase = createClient();
   const { data, error } = await supabase
@@ -101,8 +104,9 @@ export async function createPost(
     .from("vendor_contents")
     .insert({
       vendor_id: vendorId,
-      title: text.slice(0, 50),
-      body: text,
+      title: postTitle(text),
+      // ひとこと無しの投稿は、空文字ではなく null で持つ（読む側は body ?? "" で扱う）
+      body: text || null,
       image_url: imageUrl,
       expires_at: expiresAt.toISOString(),
     })
@@ -111,6 +115,14 @@ export async function createPost(
 
   if (error || !data) throw error ?? new Error("投稿の保存に失敗しました");
   return contentToPost(data as DbContent);
+}
+
+/**
+ * 管理画面の一覧などで見出しに使う title。title は空にできない列なので、
+ * ひとこと無しの投稿は「写真だけの投稿」と入れて、見出しが空欄にならないようにする
+ */
+export function postTitle(text: string): string {
+  return text.trim().slice(0, 50) || PHOTO_ONLY_TITLE;
 }
 
 export async function repostContent(
@@ -129,7 +141,7 @@ export async function repostContent(
     .from("vendor_contents")
     .insert({
       vendor_id: vendorId,
-      title: originalPost.text.slice(0, 50),
+      title: postTitle(originalPost.text),
       body: originalPost.text,
       image_url: originalPost.image_url ?? null,
       expires_at: eod.toISOString(),
@@ -139,4 +151,17 @@ export async function repostContent(
 
   if (error || !data) throw error ?? new Error("再投稿に失敗しました");
   return contentToPost(data as DbContent);
+}
+
+/** 投稿の見本に出す、お店の名前と写真（近況の名札と同じもの） */
+export async function fetchPostIdentity(
+  vendorId: string
+): Promise<{ shopName: string | null; shopImageUrl: string | null }> {
+  const supabase = createClient();
+  const { data } = await supabase
+    .from("vendors")
+    .select("shop_name, shop_image_url")
+    .eq("id", vendorId)
+    .maybeSingle();
+  return { shopName: data?.shop_name ?? null, shopImageUrl: data?.shop_image_url ?? null };
 }

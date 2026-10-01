@@ -166,7 +166,7 @@ export default function MyShopPage() {
               className="flex items-center justify-center gap-2.5 rounded-panel bg-amber-500 px-4 py-5 text-lg font-bold text-white shadow-brand-pop transition active:scale-[0.99] hover:bg-amber-400"
             >
               <Megaphone size={22} />
-              最新情報を発信
+              近況を出す
             </Link>
             <Link
               href="/vendor/store"
