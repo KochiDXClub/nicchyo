@@ -8,20 +8,20 @@ import { cn } from "@/lib/utils/cn";
 import {
   NOTE_CONTENT_MAX,
   NOTE_TITLE_MAX,
-  NOTE_TOPICS,
+  NOTE_TITLE_SUGGESTIONS,
   type AiNote,
   type AiNoteInput,
-  type NoteTopic,
 } from "@/lib/vendor/aiNotes";
 
-/** 話題ごとの、タイトルと詳しくの書き出しの例 */
-const PLACEHOLDERS: Record<NoteTopic, { title: string; content: string }> = {
-  recommend: { title: "例：一番人気は芋天", content: "例：揚げたてを出しちょります。午前中が一番おいしいき、早めに来てや。" },
-  busy: { title: "例：10時〜11時は並びます", content: "例：この時間は10分くらい待つことがあります。お昼前は空いちょります。" },
-  payment: { title: "例：現金だけです", content: "例：PayPay やカードは使えません。小銭があると助かります。" },
-  caution: { title: "例：雨の日は早じまい", content: "例：雨がひどい日は11時ごろに店じまいすることがあります。" },
-  other: { title: "例：試食できます", content: "例：たいていの商品は試食できるき、気軽に声をかけてください。" },
+/** トピックタイトルの候補ごとの、本文の書き出しの例 */
+const CONTENT_PLACEHOLDERS: Record<string, string> = {
+  おすすめ: "例：一番人気は芋天。揚げたてを出しちょります。午前中が一番おいしいき、早めに来てや。",
+  混む時間: "例：10時〜11時は10分くらい待つことがあります。お昼前は空いちょります。",
+  お支払い方法: "例：現金だけです。PayPay やカードは使えません。小銭があると助かります。",
+  試食: "例：たいていの商品は試食できるき、気軽に声をかけてください。",
+  気をつけること: "例：雨がひどい日は11時ごろに店じまいすることがあります。",
 };
+const DEFAULT_CONTENT_PLACEHOLDER = "例：お客さんによく聞かれることや、知っておいてほしいことを書いてや。";
 
 /**
  * ノートを1枚書く・直すシート。画面の下から上がってくる（外枠は VendorSheet）。
@@ -42,7 +42,6 @@ export default function NoteSheet({
   onSave: (input: AiNoteInput) => void;
   onDelete: () => void;
 }) {
-  const [topic, setTopic] = useState<NoteTopic>(note?.topic ?? "recommend");
   const [title, setTitle] = useState(note?.title ?? "");
   const [content, setContent] = useState(note?.content ?? "");
   const [forVisitors, setForVisitors] = useState(note?.forVisitors ?? true);
@@ -52,12 +51,12 @@ export default function NoteSheet({
 
   const noAudience = !forVisitors && !forVendor;
   const canSave = title.trim().length > 0 && content.trim().length > 0 && !noAudience && !saving;
-  const placeholder = PLACEHOLDERS[topic];
+  const contentPlaceholder = CONTENT_PLACEHOLDERS[title.trim()] ?? DEFAULT_CONTENT_PLACEHOLDER;
 
   function handleSubmit(event: FormEvent) {
     event.preventDefault();
     if (!canSave) return;
-    onSave({ topic, title: title.trim(), content: content.trim(), forVisitors, forVendor });
+    onSave({ title: title.trim(), content: content.trim(), forVisitors, forVendor });
   }
 
   return (
@@ -67,51 +66,50 @@ export default function NoteSheet({
             {note ? "ノートを直す" : "ノートを書く"}
           </h2>
 
-          <fieldset>
-            <legend className="mb-2 text-sm font-semibold text-nicchyo-ink/70">話題</legend>
-            <div className="flex flex-wrap gap-2">
-              {NOTE_TOPICS.map((option) => {
-                const selected = topic === option.id;
+          <div>
+            <label htmlFor="note-title" className="mb-1.5 block text-sm font-semibold text-nicchyo-ink/70">
+              トピックタイトル
+            </label>
+            <input
+              id="note-title"
+              type="text"
+              value={title}
+              onChange={(event) => setTitle(event.target.value)}
+              maxLength={NOTE_TITLE_MAX}
+              placeholder="例：混む時間"
+              className="w-full rounded-btn bg-white px-4 py-3 text-base font-semibold text-nicchyo-ink outline-none ring-1 ring-line placeholder:font-normal placeholder:text-nicchyo-ink/40 focus:ring-2 focus:ring-amber-400"
+            />
+            <div className="mt-2 flex flex-wrap gap-2" role="group" aria-label="トピックタイトルの候補">
+              {NOTE_TITLE_SUGGESTIONS.map((suggestion) => {
+                const selected = title.trim() === suggestion;
                 return (
                   <button
-                    key={option.id}
+                    key={suggestion}
                     type="button"
                     aria-pressed={selected}
-                    onClick={() => setTopic(option.id)}
+                    onClick={() => setTitle(suggestion)}
                     className={cn(
-                      "h-10 rounded-chip px-4 text-sm font-semibold transition",
+                      "h-9 rounded-chip px-3.5 text-sm font-semibold transition",
                       selected
                         ? "bg-nicchyo-ink text-white shadow-chip"
                         : "bg-white text-nicchyo-ink/70 ring-1 ring-line hover:bg-nicchyo-base"
                     )}
                   >
-                    {option.label}
+                    {suggestion}
                   </button>
                 );
               })}
             </div>
-          </fieldset>
+          </div>
 
           <label className="block">
-            <span className="mb-1.5 block text-sm font-semibold text-nicchyo-ink/70">タイトル（ひとことで）</span>
-            <input
-              type="text"
-              value={title}
-              onChange={(event) => setTitle(event.target.value)}
-              maxLength={NOTE_TITLE_MAX}
-              placeholder={placeholder.title}
-              className="w-full rounded-btn bg-white px-4 py-3 text-base font-semibold text-nicchyo-ink outline-none ring-1 ring-line placeholder:font-normal placeholder:text-nicchyo-ink/40 focus:ring-2 focus:ring-amber-400"
-            />
-          </label>
-
-          <label className="block">
-            <span className="mb-1.5 block text-sm font-semibold text-nicchyo-ink/70">詳しく</span>
+            <span className="mb-1.5 block text-sm font-semibold text-nicchyo-ink/70">本文</span>
             <textarea
               value={content}
               onChange={(event) => setContent(event.target.value)}
               maxLength={NOTE_CONTENT_MAX}
               rows={5}
-              placeholder={placeholder.content}
+              placeholder={contentPlaceholder}
               className="w-full resize-none rounded-btn bg-white px-4 py-3 text-base leading-relaxed text-nicchyo-ink outline-none ring-1 ring-line placeholder:text-nicchyo-ink/40 focus:ring-2 focus:ring-amber-400"
             />
             {content.length > NOTE_CONTENT_MAX * 0.9 && (

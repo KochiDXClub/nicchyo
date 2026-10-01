@@ -6,15 +6,13 @@ import { AnimatePresence } from "framer-motion";
 import { AlertCircle, ChevronRight, Plus } from "lucide-react";
 import GrandmaAvatar from "@/app/(public)/consult/components/GrandmaAvatar";
 import { DEFAULT_CONSULT_CHARACTER } from "@/app/(public)/consult/data/consultCharacters";
-import { Badge, Button, CenteredLoading, PageContainer, PageShell, PageTitle, Surface } from "@/components/ui";
+import { Button, CenteredLoading, PageContainer, PageShell, PageTitle, Surface } from "@/components/ui";
 import { useAuth } from "@/lib/auth/AuthContext";
-import { NOTE_TOPICS, type AiNote } from "@/lib/vendor/aiNotes";
+import type { AiNote } from "@/lib/vendor/aiNotes";
 import AiSettingsPanel from "./components/AiSettingsPanel";
 import KnownFacts from "./components/KnownFacts";
 import NoteSheet from "./components/NoteSheet";
 import { useAiNotes } from "./useAiNotes";
-
-const topicLabel = (topic: AiNote["topic"]) => NOTE_TOPICS.find((item) => item.id === topic)?.label ?? "その他";
 
 /** 届け先を短く言う */
 function audienceLabel(note: AiNote): string {
@@ -31,11 +29,10 @@ function NoteCard({ note, onOpen }: { note: AiNote; onOpen: () => void }) {
         className="flex w-full items-start gap-3 rounded-card bg-white p-4 text-left shadow-card ring-1 ring-line transition hover:bg-nicchyo-base active:scale-[0.99] motion-reduce:active:scale-100"
       >
         <span className="min-w-0 flex-1">
-          <span className="flex flex-wrap items-center gap-1.5">
-            <Badge variant="amber">{topicLabel(note.topic)}</Badge>
+          <span className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+            <span className="text-base font-bold text-nicchyo-ink">{note.title}</span>
             <span className="text-xs text-nicchyo-ink/55">{audienceLabel(note)}</span>
           </span>
-          <span className="mt-1.5 block text-base font-bold text-nicchyo-ink">{note.title}</span>
           <span className="mt-0.5 line-clamp-2 block text-sm leading-relaxed text-nicchyo-ink/70">{note.content}</span>
           {!note.searchable && (
             <span className="mt-1.5 flex items-center gap-1 text-xs font-semibold text-amber-800">
@@ -52,7 +49,7 @@ function NoteCard({ note, onOpen }: { note: AiNote; onOpen: () => void }) {
 
 /**
  * にちよさんに教える（にちよさんのノート）。
- * 「話題・タイトル・詳しく」のノートを1枚ずつ書き、どのにちよさんに教えるかを選ぶ。
+ * 「トピックタイトル・本文」のノートを1枚ずつ書き、どのにちよさんに教えるかを選ぶ。
  */
 export default function AiKnowledgePage() {
   const { user } = useAuth();
@@ -66,7 +63,7 @@ export default function AiKnowledgePage() {
           <GrandmaAvatar pose="idle" size="pinned" character={DEFAULT_CONSULT_CHARACTER} className="shrink-0" />
           <div className="consult-greeting consult-greeting--left min-w-0 flex-1 rounded-card border border-amber-200 bg-amber-50/60 px-4 py-3">
             <p className="text-base font-bold leading-relaxed text-amber-900">
-              お店のこと、1枚ずつ教えてや。聞かれたら、ここに書いたことで答えるきね。
+              「混む時間」「お支払い方法」みたいに、トピックごとに1枚ずつ教えてや。聞かれたら、ここに書いたことで答えるきね。
             </p>
           </div>
         </div>
@@ -94,7 +91,7 @@ export default function AiKnowledgePage() {
                 <Surface className="text-center">
                   <p className="text-base font-semibold text-nicchyo-ink">まだノートがありません</p>
                   <p className="mt-1 text-sm text-nicchyo-ink/70">
-                    おすすめ・混む時間・支払いなど、お客さんによく聞かれることから書いてみてや。
+                    おすすめ・混む時間・お支払い方法など、お客さんによく聞かれることから書いてみてや。
                   </p>
                 </Surface>
               ) : (
