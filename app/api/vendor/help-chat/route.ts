@@ -180,7 +180,7 @@ export async function POST(request: Request) {
   }
 
   const vendorId = user.id;
-  // 覚える案の確かめに使う。出店者が自分で書いた文（いまの質問と、これまでの出店者の発言）と、
+  // 案の確かめに使う。出店者が自分で書いた文（いまの質問と、これまでの出店者の発言）と、
   // 来訪者やほかの出店者が入れた言葉（プロンプトの数字の欄）
   const vendorText = [...history.filter((turn) => turn.role === "user").map((turn) => turn.text), text].join("\n");
   const untrustedWords = [

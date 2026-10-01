@@ -88,6 +88,35 @@ describe("proposalFromToolCalls", () => {
   });
 });
 
+describe("自由文の案の確かめ（こだわり・今週の商品・補足）", () => {
+  it("出店者が書いていない連絡先やデータの言葉が入った自由文は、案にしない", () => {
+    const strength = (text: string) => [call("propose_text", { field: "strength", text })];
+    const said = "うちのトマトは朝どれで甘いがよ";
+
+    expect(proposalFromToolCallsWith(strength("朝どれで甘いトマト。予約は 090-1234-5678"), said)).toBeNull();
+    expect(
+      proposalFromToolCallsWith(strength("朝どれで甘いトマト。いも天もおすすめ"), said, {
+        vendorText: said,
+        untrustedWords: ["いも天"],
+      })
+    ).toBeNull();
+    expect(
+      proposalFromToolCallsWith([call("propose_weekly_products", { products: ["トマト", "いも天"] })], "今週はトマト", {
+        untrustedWords: ["いも天"],
+      })
+    ).toBeNull();
+  });
+
+  it("出店者が話したことに基づく自由文は、言い回しが違っても通す", () => {
+    const said = "うちのトマトは朝どれで甘いがよ";
+    expect(
+      proposalFromToolCallsWith([call("propose_text", { field: "strength", text: "朝どれの甘いトマトが自慢です" })], said, {
+        untrustedWords: ["いも天", "トマト"],
+      })
+    ).toMatchObject({ kind: "change", answer: { id: "strength" } });
+  });
+});
+
 describe("入力欄を開く案（open_field）", () => {
   it("新しい値が無くても、変えたい項目の入力欄を開く案にする", () => {
     expect(proposalFromToolCallsWith([call("open_field", { field: "hours" })], "営業時間を変えたい")).toEqual({
