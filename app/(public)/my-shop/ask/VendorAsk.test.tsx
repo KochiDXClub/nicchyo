@@ -4,7 +4,7 @@ import { vi } from "vitest";
 import type { VendorAskSnapshot } from "@/lib/vendor/askQuestions";
 import VendorAskStage from "./VendorAskStage";
 import VendorAskSession from "./VendorAskSession";
-import { countLabel } from "./pendingQuestions";
+import { countLabel } from "./countLabel";
 
 const fetchAskSnapshot = vi.fn();
 const { MockAskUserFacingError } = vi.hoisted(() => ({ MockAskUserFacingError: class extends Error {} }));
@@ -28,6 +28,12 @@ vi.mock("framer-motion", async (importOriginal) => ({
 
 /** すべて答え済みの出店者 */
 const FULL: VendorAskSnapshot = {
+  // 店舗情報の編集画面だけで聞く項目（トップの数には入らない）
+  categoryOptions: [],
+  styleTags: [],
+  ownerNamePublic: false,
+  products: [],
+  schedule: [],
   businessHoursStart: "06:00",
   businessHoursEnd: "14:00",
   signatureProduct: { name: "トマト", imageUrl: "https://example.supabase.co/x.webp", description: "甘い" },

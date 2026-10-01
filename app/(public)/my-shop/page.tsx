@@ -10,6 +10,7 @@ import { fetchVendorStore } from "@/app/vendor/_services/storeService";
 import { fetchVendorPosts } from "@/app/vendor/_services/postsService";
 import type { Post } from "@/app/vendor/_types";
 import ClosedDaysCalendar from "@/components/vendor/ClosedDaysCalendar";
+import VendorBackdrop from "@/components/vendor/VendorBackdrop";
 import VendorAskStage from "./ask/VendorAskStage";
 import ShopIcon from "./components/ShopIcon";
 
@@ -84,8 +85,7 @@ export default function MyShopPage() {
 
   return (
     <div className="relative min-h-screen">
-      {/* 背景：AI相談ページと同じグラデーション（画面全体・スクロールで固定） */}
-      <div className="pointer-events-none fixed inset-0 z-0 bg-[var(--consult-bg)]" aria-hidden="true" />
+      <VendorBackdrop />
 
       {/* スクロールで現れる細いスティッキーバー */}
       <AnimatePresence>

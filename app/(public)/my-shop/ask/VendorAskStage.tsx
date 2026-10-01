@@ -12,7 +12,7 @@ import VendorHelpInput from "../help/VendorHelpInput";
 import HelpAnswerText from "../help/HelpAnswerText";
 import { CONTACT_HREF, contactMessageFor, useVendorHelpChat } from "../help/useVendorHelpChat";
 import { saveContactPrefill } from "@/lib/contact/prefill";
-import { countLabel, countUnit } from "./pendingQuestions";
+import { countLabel, countUnit } from "./countLabel";
 
 /** 待っているあいだの、にちよさんの決まったひとこと */
 const IDLE_LINE = "今日もおつかれさま！";
