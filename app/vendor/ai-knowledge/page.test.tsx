@@ -143,7 +143,10 @@ describe("にちよさんが覚えちゅうこと", () => {
     const sheet = screen.getByRole("dialog", { name: "覚えちゅうことを直す" });
 
     expect(within(sheet).getByText(/1000字までにしてや/)).toBeInTheDocument();
-    expect(within(sheet).getByRole("button", { name: "これで覚えちょいて" })).toBeDisabled();
+    const saveButton = within(sheet).getByRole("button", { name: "これで覚えちょいて" });
+    expect(saveButton).toBeDisabled();
+    // 押せない理由をボタンに結び付けて、読み上げでも分かるようにする
+    expect(saveButton).toHaveAccessibleDescription(/1000字までにしてや/);
 
     // 長いときは字数の表示もラベルの中に並ぶ
     fireEvent.change(within(sheet).getByLabelText(/^覚えること/), { target: { value: "あ".repeat(900) } });

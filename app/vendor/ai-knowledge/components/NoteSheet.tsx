@@ -52,7 +52,8 @@ export default function NoteSheet({
 
   const noAudience = !forVisitors && !forVendor;
   // 旧「AIに教える」のメモは5000字まで書けたので、上限を超えたまま開くことがある
-  const tooLong = content.length > NOTE_CONTENT_MAX;
+  // 数え方はサーバーの検証（前後の空白を除いた長さ）にそろえる
+  const tooLong = content.trim().length > NOTE_CONTENT_MAX;
   const canSave = title.trim().length > 0 && content.trim().length > 0 && !tooLong && !noAudience && !saving;
   const contentPlaceholder = CONTENT_PLACEHOLDERS[title.trim()] ?? DEFAULT_CONTENT_PLACEHOLDER;
 
@@ -122,7 +123,7 @@ export default function NoteSheet({
             )}
           </label>
           {tooLong && (
-            <p className="-mt-3 text-sm text-amber-800">
+            <p id="note-too-long" className="-mt-3 text-sm text-amber-800">
               {NOTE_CONTENT_MAX}字までにしてや。長いときは、話ごとに分けて覚えさせると、にちよさんが探しやすいで。
             </p>
           )}
@@ -156,7 +157,7 @@ export default function NoteSheet({
           )}
 
           <div className="flex flex-col gap-2">
-            <Button type="submit" size="lg" disabled={!canSave}>
+            <Button type="submit" size="lg" disabled={!canSave} aria-describedby={tooLong ? "note-too-long" : undefined}>
               {saving ? (
                 <>
                   <Loader2 size={18} className="animate-spin" aria-hidden="true" />
