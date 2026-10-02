@@ -186,7 +186,6 @@ export async function POST(request: Request) {
   const untrustedWords = [
     ...(shopStats?.aiMentions?.topKeywords ?? []),
     ...(marketStats?.topSearchKeywords ?? []),
-    ...(marketStats?.topSellingProducts ?? []),
   ];
   let proposalNote = "";
   const readable = openAiSseToTextStream(upstream.body, {

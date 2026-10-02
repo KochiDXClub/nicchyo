@@ -37,13 +37,11 @@ vi.mock("@/lib/vendor/helpChatStats.server", async (importOriginal) => ({
   loadVendorHelpShopStats: async () => ({
     aiMentions: { total: 4, recommended: 2, topKeywords: ["トマト"] },
     hearts: { thisWeek: 3, total: 10 },
-    topSales: [],
   }),
   loadVendorHelpMarketStats: async () => ({
     weeklyVisitors: 1200,
     monthlyVisitors: 5000,
     topSearchKeywords: ["いも天"],
-    topSellingProducts: [],
   }),
 }));
 vi.mock("@/lib/supabase/adminClient", () => ({
