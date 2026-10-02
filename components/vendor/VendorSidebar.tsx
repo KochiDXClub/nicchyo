@@ -3,10 +3,9 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/lib/auth/AuthContext";
-import { VENDOR_NAV_ITEMS } from "./vendorNavItems";
+import { visibleVendorNavItems } from "./vendorNavItems";
 
 // 下部バーのメニューシートと同一の権威ある導線リストを使う（食い違い防止）
-const navItems = VENDOR_NAV_ITEMS;
 
 export default function VendorSidebar({
   isOpen,
@@ -17,7 +16,8 @@ export default function VendorSidebar({
   onClose: () => void;
 }) {
   const pathname = usePathname();
-  const { user } = useAuth();
+  const { user, permissions } = useAuth();
+  const navItems = visibleVendorNavItems(permissions.canShop);
 
   return (
     <>

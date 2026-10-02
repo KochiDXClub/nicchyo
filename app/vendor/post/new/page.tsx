@@ -18,6 +18,8 @@ import PostDone from "./components/PostDone";
 /** 写真 → ひとこと → 出す、の3歩で終わる投稿画面（近況のストーリーと同じ見た目で書く） */
 export default function VendorPostNewPage() {
   const { user } = useAuth();
+  // 店舗の ID はアカウントの ID（user.id）とは別。必ず所属店舗の ID を使う
+  const vendorId = user?.vendorId;
   const searchParams = useSearchParams();
 
   const [identity, setIdentity] = useState<{ shopName: string | null; shopImageUrl: string | null }>({
@@ -39,9 +41,9 @@ export default function VendorPostNewPage() {
   const [done, setDone] = useState<{ id: string; imageUrl: string; label: string } | null>(null);
 
   useEffect(() => {
-    if (!user) return;
+    if (!vendorId) return;
     let cancelled = false;
-    fetchPostIdentity(user.id)
+    fetchPostIdentity(vendorId)
       .then((loaded) => {
         if (!cancelled) setIdentity(loaded);
       })
@@ -52,7 +54,7 @@ export default function VendorPostNewPage() {
     return () => {
       cancelled = true;
     };
-  }, [user]);
+  }, [vendorId]);
 
   // 投稿履歴の「編集して再投稿」（?repost=ID）から来たら、その投稿の写真とひとことで始める
   useEffect(() => {
@@ -102,7 +104,7 @@ export default function VendorPostNewPage() {
   }
 
   async function handleSubmit() {
-    if (!user || submitting) return;
+    if (!vendorId || submitting) return;
     if (!imageFile && !existingImageUrl) return;
     const at = calcExpiresAt(preset, customDateTime);
     if (!at) {
@@ -113,7 +115,7 @@ export default function VendorPostNewPage() {
     setError(null);
     try {
       const post = await createPost(
-        user.id,
+        vendorId,
         text.trim(),
         at,
         imageFile ?? undefined,

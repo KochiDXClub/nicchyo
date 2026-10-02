@@ -156,6 +156,7 @@ function RepostSuccessToast({ onClose }: { onClose: () => void }) {
 
 export default function VendorPostsPage() {
   const { user } = useAuth();
+  const vendorId = user?.vendorId;
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<FilterTab>("all");
   const [posts, setPosts]         = useState<Post[]>([]);
@@ -164,12 +165,12 @@ export default function VendorPostsPage() {
   const [error, setError]         = useState<string | null>(null);
 
   useEffect(() => {
-    if (!user) return;
-    fetchVendorPosts(user.id)
+    if (!vendorId) return;
+    fetchVendorPosts(vendorId)
       .then(setPosts)
       .catch(() => setError("投稿の読み込みに失敗しました"))
       .finally(() => setIsLoading(false));
-  }, [user]);
+  }, [vendorId]);
 
   const filtered = activeTab === "all" ? posts : posts.filter((p) => p.status === activeTab);
 
@@ -180,9 +181,9 @@ export default function VendorPostsPage() {
   ];
 
   async function handleRepost(post: Post) {
-    if (!user) return;
+    if (!vendorId) return;
     try {
-      const newPost = await repostContent(user.id, post);
+      const newPost = await repostContent(vendorId, post);
       setPosts((prev) => [newPost, ...prev]);
       setShowToast(true);
       setTimeout(() => setShowToast(false), 3000);

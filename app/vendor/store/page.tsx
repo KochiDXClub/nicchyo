@@ -27,7 +27,7 @@ function coachMessage(answered: number, total: number): string {
 export default function VendorStorePage() {
   const { user } = useAuth();
   const reduceMotion = useReducedMotion();
-  const studio = useStoreStudio(user?.id ?? null);
+  const studio = useStoreStudio(user?.vendorId ?? null);
   const { snapshot, groups, answeredCount, total, isComplete } = studio;
 
   const progress = total > 0 ? answeredCount / total : 0;

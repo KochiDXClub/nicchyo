@@ -17,16 +17,33 @@ vi.mock("framer-motion", async (importOriginal) => ({
   useReducedMotion: () => true,
 }));
 
+// 権限は testPermissions に入れたものだけ true（空なら全部 false）
+let testPermissions: string[] | "all" = "all";
 vi.mock("@/lib/auth/AuthContext", () => ({
   useAuth: () => ({
     user: { name: "山田商店" },
     logout: vi.fn(),
+    permissions: { canShop: (key: string) => testPermissions === "all" || testPermissions.includes(key) },
   }),
 }));
 
 describe("VendorNavBar（来訪者メニューと同じ部品で描く）", () => {
   afterEach(() => {
     currentPathname = "/my-shop";
+    testPermissions = "all";
+  });
+
+  it("権限のない導線は出さず、権限の要らない導線（使い方・アカウント）は常に出す", () => {
+    testPermissions = ["post"];
+    render(<VendorNavBar />);
+    fireEvent.click(screen.getByRole("button", { name: "メニューを開く" }));
+
+    expect(screen.getByRole("button", { name: "近況を出す" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "投稿履歴" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "店舗情報を更新" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "お店の分析" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "アカウント設定" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "よくある質問" })).toBeInTheDocument();
   });
 
   it("マイ店舗では中央のメニューボタンで出店者メニューが開き、全項目が並ぶ", () => {

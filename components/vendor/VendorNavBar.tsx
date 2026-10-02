@@ -13,12 +13,10 @@ import {
   MenuToggleButton,
   MenuUserRow,
 } from "@/components/navigation/MenuSheet";
-import { VENDOR_NAV_ITEMS } from "./vendorNavItems";
+import { visibleVendorNavItems } from "./vendorNavItems";
 
 const HOME_HREF = "/my-shop";
 
-const mainItems = VENDOR_NAV_ITEMS.filter((item) => item.group === "main");
-const supportItems = VENDOR_NAV_ITEMS.filter((item) => item.group === "support");
 
 /**
  * 出店者向けの下部バーとメニューシート。
@@ -27,7 +25,10 @@ const supportItems = VENDOR_NAV_ITEMS.filter((item) => item.group === "support")
 export default function VendorNavBar() {
   const pathname = usePathname();
   const router = useRouter();
-  const { user, logout } = useAuth();
+  const { user, logout, permissions } = useAuth();
+  const navItems = visibleVendorNavItems(permissions.canShop);
+  const mainItems = navItems.filter((item) => item.group === "main");
+  const supportItems = navItems.filter((item) => item.group === "support");
   const [sheetOpen, setSheetOpen] = useState(false);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
 
