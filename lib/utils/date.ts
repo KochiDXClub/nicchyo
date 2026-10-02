@@ -28,3 +28,13 @@ export function getNextSundayLabel(): string {
   const sunday = getThisSunday();
   return `${sunday.getMonth() + 1}/${sunday.getDate()}（日）`;
 }
+
+/** 「10月3日 14:05」の形。操作ログや招待リンクの期限など、いつ起きたかを短く出すとき用 */
+export function formatJaDateTime(iso: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return "";
+  // toLocaleString は環境によって「10/3 14:05」のように形が変わるので、自分で組み立てる
+  const hh = String(date.getHours()).padStart(2, "0");
+  const mm = String(date.getMinutes()).padStart(2, "0");
+  return `${date.getMonth() + 1}月${date.getDate()}日 ${hh}:${mm}`;
+}

@@ -27,7 +27,7 @@ export const VENDOR_HELP_PAGES: readonly VendorHelpPage[] = [
   { name: "お店の分析ページ", href: "/vendor/analytics", about: "お店が何回見られたか、お客さんが何を聞いたかを見る" },
   { name: "にちよさんが覚えちゅうことページ", href: "/vendor/ai-knowledge", about: "にちよさんが相談で覚えたお店のことを見る・直す・忘れさせる" },
   { name: "よくある質問ページ", href: "/vendor/help", about: "出店者向けのよくある質問を一覧で読む" },
-  { name: "アカウント設定ページ", href: "/vendor/account", about: "名前・メールアドレス・パスワードを確かめる" },
+  { name: "アカウント設定ページ", href: "/vendor/account", about: "お店のメンバー・招待リンク・操作ログを確かめる" },
 ];
 
 /** 案内してよい画面なら、その画面を返す（末尾の `/` は無視する） */
