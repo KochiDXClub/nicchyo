@@ -14,7 +14,8 @@ function focusablesIn(container: HTMLElement): HTMLElement[] {
 /**
  * モーダル（role="dialog" aria-modal="true"）のフォーカスの面倒を見る。
  *
- * - 開いたとき、中の最初の操作できる所へフォーカスを移す（`resetKey` が変わったときも移し直す）
+ * - 開いたとき、中の最初の操作できる所へフォーカスを移す（`resetKey` が変わったときも移し直す）。
+ *   先に当てたい要素があれば `data-autofocus` を付ける（主ボタンが説明の後ろにあるときなど）
  * - Tab / Shift+Tab を中で回し、背面へ出ないようにする
  * - 閉じたとき、開く前にフォーカスがあった所へ戻す（returnFocusRef があればそこへ戻す）
  *
@@ -74,6 +75,8 @@ export function useDialogFocus(
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
-    (focusablesIn(container)[0] ?? container).focus();
+    // data-autofocus を付けた要素があれば、そこへ。無ければ最初の操作できる所へ
+    const preferred = container.querySelector<HTMLElement>("[data-autofocus]");
+    (preferred ?? focusablesIn(container)[0] ?? container).focus();
   }, [containerRef, resetKey]);
 }

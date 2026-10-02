@@ -1,10 +1,10 @@
-import { VENDOR_HELP_GUIDE } from "./helpGuide";
+import { VENDOR_FAQ } from "./helpFaq";
 import { VENDOR_HELP_PAGES, findVendorHelpPage } from "./helpPages";
 
 describe("VENDOR_HELP_PAGES", () => {
-  it("使い方ガイドに出てくる画面は、すべて案内できる画面に入っている", () => {
-    for (const section of VENDOR_HELP_GUIDE) {
-      expect(findVendorHelpPage(section.href)).not.toBeNull();
+  it("よくある質問に出てくる画面は、すべて案内できる画面に入っている", () => {
+    for (const item of VENDOR_FAQ) {
+      if (item.href) expect(findVendorHelpPage(item.href)).not.toBeNull();
     }
   });
 

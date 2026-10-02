@@ -4,6 +4,8 @@
 
 nicchyo 日曜市マップにおける店舗マーカーの描画構成をまとめる。
 
+地図の描画ライブラリは2系統ある（`lib/mapFeatureFlags.ts` の `renderer`、既定は `leaflet`）。このドキュメントは Leaflet 版（DOM マーカー）の構成。MapLibre 版（`components/maplibre/`）は WebGL で、屋台・建物・バッジを Canvas でビットマップに描き起こして `map.addImage` で登録し（`stallSprites.ts`）、店舗は GeoJSON のシンボルレイヤー（`shopFeatures.ts`）で描く。見た目の方針は [MAP_MARKER_DESIGN.md](./MAP_MARKER_DESIGN.md) を共通で参照する。
+
 このドキュメントはかつて「店舗イラストと当たり判定のずれ」問題を解決した
 React コンポーネント3層構成（`ShopMarker` / `ShopIllustration` / `ShopBubble`）を
 説明していたが、その構成は既に使われていない。現在は Leaflet の生 API と
@@ -25,7 +27,7 @@ HTML 文字列生成による構成に置き換わっている。
 
 ```
 店舗データ
-  fetch-map-data.ts（サーバー側取得）→ services/shopDb.ts（Supabase）
+  page.tsx（サーバー側取得）→ services/shopCache.ts の fetchPublicShops → services/shopDb.ts（Supabase）
       ↓ props
   MapPageClient.tsx → MapView.tsx → MapOverlays.tsx
       ↓
@@ -42,7 +44,7 @@ HTML 文字列生成による構成に置き換わっている。
       │     ILLUSTRATION_SIZES が唯一の正
       │
       └─ classList の付け外しで状態を反映
-            （選択 / AI提案 / 検索ヒット / ことづて / お気に入り / 買い物袋）
+            （選択 / AI提案 / 検索ヒット / コメントハイライト / お気に入り）
       ↓
   app/globals.css
       屋台イラスト（CSS 3D）、バッジ、バナーの実体
@@ -55,36 +57,31 @@ HTML 文字列生成による構成に置き換わっている。
 | `app/(public)/map/components/OptimizedShopLayerWithClustering.tsx` | マーカーの生成・更新・状態反映。Leaflet 生 API |
 | `app/(public)/map/utils/markerHtmlGenerator.ts` | マーカーの HTML 文字列を生成 |
 | `app/(public)/map/config/displayConfig.ts` | サイズ・ズーム別表示ルール |
-| `app/(public)/map/config/roadConfig.ts` | 道の座標基準・中心線 |
+| `app/(public)/map/config/roadConfig.ts` | 道の座標基準・中心線・道の南北判定（`getRoadSide`） |
+| `app/(public)/map/config/shopCategories.ts` | カテゴリ色（`resolveStallColors`） |
+| `app/(public)/map/config/stallParts.ts` | 屋台 SVG のパーツカタログ（屋根・庇の形） |
 | `app/globals.css` | 屋台・バッジ・バナーのスタイル実体 |
 | `lib/shopImages.ts` | カテゴリ別のバナー画像の選択 |
 
-`map-edit`（`app/(public)/map-edit/MapLayoutEditor.tsx`）も同じ
-`OptimizedShopLayerWithClustering` を使う。マーカーの変更は運営の配置編集画面にも波及する。
+運営の配置編集画面（`app/(public)/map-edit/v3/`）は MapLibre 版のキャンバス（`components/MapEditCanvasMapLibre.tsx`）で、この Leaflet のレイヤーは使わない。
 
 ## 屋台イラスト
 
-屋台は画像ではなく **CSS で組んだ疑似3D**。`markerHtmlGenerator` が
-6枚の div を出力し、`globals.css` の `.shop-illustration-3d` 配下が形を作る。
+屋台は画像ではなく、`config/stallParts.ts` のパーツ（屋根 `gable`/`flat`/`arch`/`parasol`、庇 `stripe`/`plain`/`scallop`）から組む **1本の inline SVG**。
+色は SVG 内に書かず、CSS 変数 `--stall-color` / `--stall-color-dark` / `--stall-color-light` で
+`globals.css` が当てる（`resolveStallColors` がカテゴリ色から light / dark を生成）。
+状態色（選択・AI・検索）は同じクラスに対する CSS の fill 上書きで効く。
 
-| 要素 | 役割 |
-|---|---|
-| `.stall-shadow` | 地面の影 |
-| `.stall-roof` | 屋根（`skewX(-12deg)` で奥行きを出す） |
-| `.stall-awning` | 庇（ストライプ） |
-| `.stall-body` | 本体 |
-| `.stall-counter` | カウンター |
-| `.stall-legs` | 脚（3本） |
-
-色は CSS 変数 `--stall-color` / `--stall-color-dark` / `--stall-color-light` で制御する。
-light / dark はベース色から `adjustColor(±25)` で生成される。
+描画方式は `stallRenderer` フラグ（`svg` が既定）。`div` にすると従来の CSS 疑似3D
+（6枚の div。`.stall-shadow` / `.stall-roof` / `.stall-awning` / `.stall-body` /
+`.stall-counter` / `.stall-legs`）に戻る。これは比較実験用。
 
 `shop.illustration.customSvg` が指定されている場合は、`utils/svgSanitizer.ts` の
-`sanitizeInlineSvg()` を通したうえで CSS 3D の代わりに埋め込む。
+`sanitizeInlineSvg()` を通したうえで、どちらの方式よりも優先して埋め込む。
 
-**注意**: `illustration`（type / size / color / customSvg）は型定義上は存在するが、
+**注意**: `illustration`（type / size / color / roof / awning / customSvg）は型定義上は存在するが、
 現状 `shopDb.ts` にも API にもマッピングが無く、DB から供給されていない。
-そのため実運用では全店舗が `size: 'medium'`（60px）・既定色で描画される。
+そのため実運用では全店舗が `size: 'medium'`・既定の屋根と庇・カテゴリ色で描画される。
 
 ## スケールと回転
 
@@ -114,21 +111,19 @@ light / dark はベース色から `adjustColor(±25)` で生成される。
 
 ## ズーム別の表示
 
-`OptimizedShopLayerWithClustering` はズームに応じて3種類のアイコンを切り替える。
-アイコンの切り替えは `marker.setIcon()` による DOM の作り直しなので、
-境界を増やすほど重くなる。
+表示の段階は4つ（`dot` / `stall` / `photo` / `nameplate`）。境界は `map.getMaxZoom()` からの
+オフセットで持つ（`config/displayConfig.ts` の `getShopMarkerLod`）。詳細は
+[MAP_MARKER_DESIGN.md](./MAP_MARKER_DESIGN.md)。
 
-| モード | 内容 |
-|---|---|
-| `compact` | 棒状の簡易アイコン（`.shop-marker-compact`） |
-| `mid` | 屋台イラストのみ |
-| `full` | 屋台 + ミニショップバナー |
+アイコンの DOM は2種類だけ（簡易の `dot` と屋台）。`stall` / `photo` / `nameplate` は同じ DOM を共有し、
+ルート要素の `.shop-lod-*` クラスで写真・木札・バッジの表示を切り替える。
+`marker.setIcon()`（DOM の作り直し）が走るのは `dot` と屋台の1境界だけ。
 
-そもそも店舗レイヤ自体が表示されるかどうかは `MapView.tsx` / `MapOverlays.tsx` が決める。
+そもそも店舗レイヤ自体が表示されるかどうかは `MapView.tsx` / `MapOverlays.tsx` が決める
+（`shopLayerHiding` が on なら、ズーム 19 未満ではレイヤーを外さずにペインごと隠す）。
 メインマップでは丁目バッジ（`ChomeAreaMarkers`）の帯を抜けてから店舗が出る。
 
-**注意**: `map-edit` はズーム条件なしにこのレイヤを描画し、`maxZoom` も
-メインマップ（21）と異なる（20）。ズーム閾値を絶対値で書くと片方で破綻するため、
+**注意**: ズーム閾値を絶対値で書くと `maxZoom` の違う地図で破綻するため、
 `map.getMaxZoom()` 相対で考えること。
 
 ## 状態の反映
@@ -141,8 +136,6 @@ light / dark はベース色から `adjustColor(±25)` で生成される。
 | `.shop-marker-ai` | AI が提案した店 |
 | `.shop-marker-search` | 検索ヒット |
 | `.shop-marker-comment` | コメントハイライト（パルス） |
-| `.shop-marker-kotodute` | ことづてあり |
-| `.shop-marker-bag` | 買い物リストに入っている |
 | `.is-favorite` | お気に入り |
 
 スポットライト（周囲を暗くする演出）は地図ルートの
@@ -152,10 +145,10 @@ light / dark はベース色から `adjustColor(±25)` で生成される。
 
 1. `marker.on('click')` が `getOriginRect()` で開始位置の矩形を測る
 2. `onShopClick(shop, origin)` → `MapView.tsx` の `handleShopClick`
-3. 詳細帯のズームなら `ShopDetailBanner` を開く。俯瞰帯なら近傍の重心へ `flyTo` して拡大を促す
+3. 詳細帯のズームなら `ShopDetailBanner` を開く。俯瞰帯なら近傍の重心へ `flyTo` して拡大を促す（`ViewMode` は `config/displayConfig.ts`）
 
 `ShopDetailBanner` は **MapContainer の外側**にレンダリングされる（地図の再描画を避けるため）。
-開くアニメーションは `getOriginRect()` が返した矩形から展開する。
+開くアニメーションは `getOriginRect()` が返した矩形（屋台イラストの矩形）から展開する。
 
 ## 変更履歴上の注意
 

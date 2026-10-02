@@ -1,14 +1,16 @@
 import { describe, expect, it } from "vitest";
-import { VENDOR_HELP_GUIDE } from "@/lib/vendor/helpGuide";
+import { VENDOR_FAQ } from "@/lib/vendor/helpFaq";
 import { VENDOR_HELP_PAGES } from "@/lib/vendor/helpPages";
 import { buildVendorHelpSystemPrompt } from "./vendorHelpPrompt";
 
 describe("buildVendorHelpSystemPrompt", () => {
-  it("使い方ガイドの各項目と画面の場所を入れる", () => {
-    const prompt = buildVendorHelpSystemPrompt(VENDOR_HELP_GUIDE, {});
+  it("よくある質問の各項目と画面の場所を入れる", () => {
+    const prompt = buildVendorHelpSystemPrompt(VENDOR_FAQ, {});
 
-    for (const section of VENDOR_HELP_GUIDE) {
-      expect(prompt).toContain(`■ ${section.title}（画面: ${section.href}）`);
+    expect(prompt).toContain("【よくある質問】");
+    for (const item of VENDOR_FAQ) {
+      expect(prompt).toContain(`Q. ${item.q}`);
+      expect(prompt).toContain(`A. ${item.a}${item.href ? `（画面: ${item.href}）` : ""}`);
     }
   });
 
@@ -71,5 +73,9 @@ describe("buildVendorHelpSystemPrompt", () => {
     expect(prompt).toContain("お店のお気に入り数は、お客さんの端末の中にしか無く、数えられません");
     expect(prompt).not.toContain("まだ正しく数えられていません");
     expect(prompt).toContain("お店が見られた回数は、下の【このお店の数字】にあるものだけで答えてください");
+  });
+
+  it("分析の数字がまだ無いときの伝え方を指示する", () => {
+    expect(buildVendorHelpSystemPrompt([], {})).toContain("記録がまだないあいだは0や「—」で出ます");
   });
 });
