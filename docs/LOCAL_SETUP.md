@@ -39,7 +39,7 @@ npm run dev
 入手したファイルをプロジェクトルートに置いてください：
 
 ```
-nicchyo-platform/
+nicchyo/
 ├── .env.local              ← 自分で作る（cp .env.example .env.local）
 ├── .env.local.production   ← チームメンバーから入手する
 └── ...
