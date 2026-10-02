@@ -1,5 +1,6 @@
 "use client";
 
+import { resolveAvatarUrl, resolveDisplayName } from "./displayName";
 import React, { createContext, useContext, useEffect, useRef, useState, ReactNode } from "react";
 import type { User, UserRole, PermissionCheck } from "./types";
 import type { SupabaseClient, User as SupabaseUser } from "@supabase/supabase-js";
@@ -32,7 +33,8 @@ interface AuthContextType {
     password: string,
     captchaToken?: string
   ) => Promise<User | null>;
-  updateProfile: (updates: Pick<User, "name" | "email" | "phone" | "avatarUrl">) => Promise<void>;
+  /** 保存できたら true。失敗したら false（画面で知らせられるように） */
+  updateProfile: (updates: Pick<User, "name" | "email" | "phone" | "avatarUrl">) => Promise<boolean>;
   logout: () => Promise<void>;
   isLoading: boolean;
   permissions: PermissionCheck;
@@ -51,16 +53,12 @@ async function mapSupabaseUserWithVendorId(user: SupabaseUser, supabase: Browser
   const appMeta = user.app_metadata as { role?: string; provider?: string } | undefined;
   const userMeta = user.user_metadata as {
     role?: string;
-    name?: string;
-    full_name?: string;
-    avatarUrl?: string;
-    avatar_url?: string;
     phone?: string;
   } | undefined;
 
   const role = normalizeRole(appMeta?.role);
-  const name = userMeta?.name ?? userMeta?.full_name ?? (user.email ? user.email.split("@")[0] : "user");
-  const avatarUrl = userMeta?.avatarUrl ?? userMeta?.avatar_url;
+  const name = resolveDisplayName(user, "user");
+  const avatarUrl = resolveAvatarUrl(user);
   const provider = appMeta?.provider ?? "email";
   const phone = userMeta?.phone;
 
@@ -213,11 +211,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return mapped;
   };
 
-  const updateProfile = async (updates: Pick<User, "name" | "email" | "phone" | "avatarUrl">) => {
-    if (!user) return;
+  const updateProfile = async (updates: Pick<User, "name" | "email" | "phone" | "avatarUrl">): Promise<boolean> => {
+    if (!user) return false;
     const payload: { data?: Record<string, string>; email?: string } = {
       data: {
-        name: updates.name,
+        // name / avatar_url は Google ログインのたびに上書きされるので、本人が変えた値は専用のキーに入れる（lib/auth/displayName.ts）
+        display_name: updates.name,
         avatarUrl: updates.avatarUrl ?? "",
         phone: updates.phone ?? "",
       },
@@ -227,8 +226,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     const supabase = supabaseRef.current ?? (await loadSupabase());
     const { data, error } = await supabase.auth.updateUser(payload);
-    if (error || !data.user) return;
+    if (error || !data.user) return false;
     setUser(await mapSupabaseUserWithVendorId(data.user, supabase));
+    return true;
   };
 
   const logout = async () => {

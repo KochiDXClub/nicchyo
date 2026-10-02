@@ -12,16 +12,17 @@ import ActivityLogSection from "./components/ActivityLogSection";
 import InvitesSection from "./components/InvitesSection";
 import LeaveShopSection from "./components/LeaveShopSection";
 import MembersSection from "./components/MembersSection";
+import ProfileSection from "./components/ProfileSection";
 import WithdrawSection from "./components/WithdrawSection";
 import { useMembers } from "./useMembers";
 
 /**
- * アカウント設定。あなたのアカウント → お店のメンバー → 招待 → 操作ログ → お店を抜ける → 退会、の順。
+ * アカウント設定。あなたのアカウント → 名前と写真 → お店のメンバー → 招待 → 操作ログ → お店を抜ける → 退会、の順。
  * メンバーの管理（招待・権限の変更）と操作ログは、その権限がある人にだけ出す。
  * 権限の規則は lib/vendor/memberRules.ts で、API も同じ規則で守っている。
  */
 export default function VendorAccountPage() {
-  const { user, logout } = useAuth();
+  const { user, logout, updateProfile } = useAuth();
   const router = useRouter();
   const [loggingOut, setLoggingOut] = useState(false);
   const { data, error, loading, reload } = useMembers();
@@ -44,6 +45,8 @@ export default function VendorAccountPage() {
       <PageTitle title="アカウント設定" />
       <PageContainer className="space-y-8">
         <AccountSummary user={user} membership={membership} onLogout={handleLogout} loggingOut={loggingOut} />
+
+        <ProfileSection user={user} updateProfile={updateProfile} />
 
         {loading ? (
           <CenteredLoading />
