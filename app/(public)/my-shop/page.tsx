@@ -131,7 +131,7 @@ export default function MyShopPage() {
         {/* にちよさんの質問：出店者の情報入力はここで会話の形で聞く */}
         {vendorId && (
           <div className="mb-8">
-            <VendorAskStage vendorId={vendorId} />
+            <VendorAskStage vendorId={vendorId} accountId={user?.id} />
           </div>
         )}
 
