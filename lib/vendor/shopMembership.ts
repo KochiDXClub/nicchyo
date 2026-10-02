@@ -20,10 +20,20 @@ type MembershipRow = {
   created_at: string | null;
 };
 
+/** 所属を引く通信そのものが失敗した（「所属なし」とは別。呼び出し側は「もう一度」を出す） */
+export class ShopMembershipLookupError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "ShopMembershipLookupError";
+  }
+}
+
 /**
  * アカウントの所属店舗を1件返す（1アカウント1店舗。所属がなければ null）。
- * RLS により、読めるのは自分の店舗の行だけ。失敗したときも null を返し、呼び出し側は「所属なし」として扱う
- * （権限を誤って広げるより、締め出す側に倒す）。
+ * RLS により、読めるのは自分の店舗の行だけ。
+ * 通信などで引けなかったときは ShopMembershipLookupError を投げる。「所属なし」と取り違えると、
+ * 一時的な失敗だけで代表者に「招待リンクで参加してください」と出してしまうため、呼び出し側が区別する。
+ * どちらの場合も、権限は広げない（引けなければ何もさせない）。
  */
 export async function fetchShopMembership(
   supabase: SupabaseClient,
@@ -36,7 +46,7 @@ export async function fetchShopMembership(
     .maybeSingle();
   if (error) {
     console.error("[shopMembership] lookup failed:", error.message);
-    return null;
+    throw new ShopMembershipLookupError(error.message);
   }
   if (!data) return null;
 
@@ -48,4 +58,23 @@ export async function fetchShopMembership(
     permissions: parseShopPermissions(row.permissions) ?? [],
     joinedAt: row.created_at,
   };
+}
+
+/**
+ * このアカウントが、その店舗のメンバー（代表者を含む）か。
+ * 自分の店舗を開いた分を、閲覧数などに数えないときに使う（user.id と店舗 ID は別物なので、user.id と比べてはいけない）。
+ * service_role など、店舗をまたいで読めるクライアントを渡す。調べられなかったときは false（数える側に倒す）。
+ */
+export async function isShopMember(supabase: SupabaseClient, userId: string, vendorId: string): Promise<boolean> {
+  const { data, error } = await supabase
+    .from("shop_members")
+    .select("user_id")
+    .eq("vendor_id", vendorId)
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (error) {
+    console.error("[shopMembership] member check failed:", error.message);
+    return false;
+  }
+  return data != null;
 }

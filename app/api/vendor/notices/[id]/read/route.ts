@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
  * POST: お知らせに「確認しました」を付ける。2回目以降は何もしない
  */
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const auth = await requireVendorNotices(request);
+  const auth = await requireVendorNotices(request, { permission: "inquiries" });
   if (!auth.ok) return auth.response;
   const { user, vendorId, db } = auth;
 

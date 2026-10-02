@@ -6,6 +6,7 @@ import { createAdminClient } from "@/lib/supabase/adminClient";
 import { requireSameOrigin } from "@/lib/security/requestGuards";
 import { enforceRateLimit } from "@/lib/security/rateLimit";
 import { requireVendorContext } from "@/lib/vendor/shopContext.server";
+import { hasShopPermission } from "@/lib/vendor/shopPermissions";
 import { requestChatCompletion } from "@/lib/ai/openaiFetch";
 import { openAiSseToTextStream, TEXT_STREAM_HEADERS } from "@/lib/ai/textStream";
 import { resolveAiModelFor } from "@/lib/ai/modelStore.server";
@@ -125,7 +126,7 @@ export async function POST(request: Request) {
   // 店舗のメンバーなら誰でも使える（権限で足りない分は、読める範囲の数字だけが渡る）
   const auth = await requireVendorContext();
   if (!auth.ok) return auth.response;
-  const { user, vendorId } = auth;
+  const { user, vendorId, membership } = auth;
   // vendor_help_logs などは生成済み型に無いので、拡張型のクライアントで読む（認証は上で済み）
   const supabase = createClientWithExtensions(await cookies());
 
@@ -149,13 +150,19 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Server configuration error" }, { status: 500 });
   }
 
+  // お店の数字は分析の権限があるときだけ読む。権限がないと RLS が行を返さず「0回」に見えてしまうので、
+  // 読まずに「見る権限がない」とにちよさんに伝える（数字を0と取り違えて答えさせない）
+  const canSeeShopStats = hasShopPermission(membership, "analytics");
   const [shop, shopStats, marketStats] = await Promise.all([
     loadShopContext(supabase, vendorId),
-    loadVendorHelpShopStats(supabase as unknown as SupabaseClient, vendorId),
+    canSeeShopStats
+      ? loadVendorHelpShopStats(supabase as unknown as SupabaseClient, vendorId)
+      : Promise.resolve(undefined),
     loadVendorHelpMarketStats(supabase as unknown as SupabaseClient),
   ]);
   const systemPrompt = buildVendorHelpSystemPrompt(VENDOR_FAQ, shop, {
     shop: shopStats,
+    shopHidden: !canSeeShopStats,
     market: marketStats,
   });
   const messages = [

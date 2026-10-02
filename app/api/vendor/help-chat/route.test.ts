@@ -41,9 +41,10 @@ vi.mock("@/utils/supabase/server", () => {
   // 認証（requireVendorContext）は createClient、お店の読み込みは createClientWithExtensions を使う
   return { createClient: client, createClientWithExtensions: client };
 });
+const loadShopStats = vi.fn();
 vi.mock("@/lib/vendor/helpChatStats.server", async (importOriginal) => ({
   toDataWord: (await importOriginal<typeof import("@/lib/vendor/helpChatStats.server")>()).toDataWord,
-  loadVendorHelpShopStats: async () => ({
+  loadVendorHelpShopStats: async (...args: unknown[]) => (loadShopStats(...args), {
     aiMentions: { total: 4, recommended: 2, topKeywords: ["トマト"] },
     views: { thisWeek: 12, lastWeek: 8 },
     hearts: { thisWeek: 3, total: 10 },
@@ -96,6 +97,7 @@ describe("POST /api/vendor/help-chat", () => {
     getUser.mockReset();
     fetchShopMembership.mockReset();
     fetchShopMembership.mockResolvedValue(OWNER_OF_SHOP);
+    loadShopStats.mockClear();
     requestChatCompletion.mockReset();
     insertLog.mockReset();
     insertLog.mockResolvedValue({ error: null });
@@ -152,6 +154,35 @@ describe("POST /api/vendor/help-chat", () => {
       question: "投稿のやり方は？",
       answer: "投稿はここからやで",
     });
+  });
+
+  it("お店の数字を見る権限がないメンバーには、数字を読まず、見る権限がないとにちよさんに伝える", async () => {
+    getUser.mockResolvedValue({ data: { user: VENDOR } });
+    fetchShopMembership.mockResolvedValue({ vendorId: "shop-1", role: "member", permissions: ["post"], joinedAt: null });
+    requestChatCompletion.mockResolvedValue(sseResponse(["ごめんよ"]));
+
+    await post({ text: "うちの店は何回見られた？" });
+
+    expect(loadShopStats).not.toHaveBeenCalled();
+    const [, , options] = requestChatCompletion.mock.calls[0];
+    const system = (options as { messages: { role: string; content: string }[] }).messages[0].content;
+    expect(system).toContain("お店の数字（見られた回数・ハート・AI相談で話題になった回数）を見る権限がありません");
+    expect(system).not.toContain("話題になった回数: 4回");
+    // 日曜市全体の数字は、これまでどおり渡る
+    expect(system).toContain("nicchyo の来訪者数: 今週（月曜から今日まで） 1,200人");
+  });
+
+  it("分析の権限があるメンバーには、お店の数字を渡す", async () => {
+    getUser.mockResolvedValue({ data: { user: VENDOR } });
+    fetchShopMembership.mockResolvedValue({ vendorId: "shop-1", role: "member", permissions: ["analytics"], joinedAt: null });
+    requestChatCompletion.mockResolvedValue(sseResponse(["はい"]));
+
+    await post({ text: "見られた回数は？" });
+
+    expect(loadShopStats).toHaveBeenCalledWith(expect.anything(), "shop-1");
+    const [, , options] = requestChatCompletion.mock.calls[0];
+    const system = (options as { messages: { role: string; content: string }[] }).messages[0].content;
+    expect(system).toContain("話題になった回数: 4回");
   });
 
   it("これまでのやりとりの合計が長すぎれば 400", async () => {

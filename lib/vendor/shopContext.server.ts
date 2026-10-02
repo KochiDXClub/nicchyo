@@ -3,7 +3,7 @@ import { cookies } from "next/headers";
 import type { User } from "@supabase/supabase-js";
 import { createClient as createServerClient } from "@/utils/supabase/server";
 import { requireVendorRole } from "@/lib/auth/permissions";
-import { fetchShopMembership, type ResolvedShopMembership } from "./shopMembership";
+import { fetchShopMembership, ShopMembershipLookupError, type ResolvedShopMembership } from "./shopMembership";
 import { hasShopPermission, type ShopPermission } from "./shopPermissions";
 
 type ServerClient = ReturnType<typeof createServerClient>;
@@ -39,7 +39,17 @@ export async function requireVendorContext(options?: { permission?: ShopPermissi
   const forbidden = requireVendorRole(user);
   if (forbidden) return { ok: false, response: forbidden };
 
-  const membership = await fetchShopMembership(supabase, user.id);
+  let membership: ResolvedShopMembership | null;
+  try {
+    membership = await fetchShopMembership(supabase, user.id);
+  } catch (err) {
+    if (!(err instanceof ShopMembershipLookupError)) throw err;
+    // 一時的な失敗。「店舗に紐づいていません」(403) と区別して、もう一度試せるようにする
+    return {
+      ok: false,
+      response: NextResponse.json({ error: "一時的に読み込めませんでした。もう一度お試しください" }, { status: 503 }),
+    };
+  }
   if (!membership) {
     return { ok: false, response: NextResponse.json({ error: "店舗に紐づいていません" }, { status: 403 }) };
   }

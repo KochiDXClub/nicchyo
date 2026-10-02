@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/adminClient";
 import { createClient as createServerClient } from "@/utils/supabase/server";
 import { requireSameOrigin } from "@/lib/security/requestGuards";
@@ -7,6 +8,7 @@ import { enforceRateLimit } from "@/lib/security/rateLimit";
 import { MAX_SHOP_ID, MIN_SHOP_ID } from "@/lib/shops/route";
 import { SHOP_VIEW_SOURCES, type ShopViewSource } from "@/lib/analytics/shopViews";
 import { vendorForStore, type Assignment } from "@/lib/analytics/shopVendor";
+import { isShopMember } from "@/lib/vendor/shopMembership";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -74,7 +76,10 @@ export async function POST(request: Request) {
   const {
     data: { user },
   } = await createServerClient(cookieStore).auth.getUser();
-  if (user?.id === vendorId) return NextResponse.json({ ok: true });
+  // 店舗のメンバー（代表者・招待されたメンバー）が自分のお店を開いた分は数えない。user.id は店舗の ID とは別物
+  if (user && (await isShopMember(admin as unknown as SupabaseClient, user.id, vendorId))) {
+    return NextResponse.json({ ok: true });
+  }
 
   const { error } = await admin.from("shop_page_views").insert({ vendor_id: vendorId, source });
   if (error) {

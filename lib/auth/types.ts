@@ -17,6 +17,8 @@ export interface User {
   vendorId?: string;
   /** 所属店舗での立場と権限。店舗に入っていなければ undefined */
   shopMembership?: ShopMembership;
+  /** 所属店舗を引く通信が失敗した（「店舗に入っていない」とは別。画面は「もう一度」を出す） */
+  shopMembershipLookupFailed?: boolean;
   /** 認証プロバイダー。"email" = メール/パスワード、"google" = Googleログイン */
   provider: "email" | "google" | string;
 }

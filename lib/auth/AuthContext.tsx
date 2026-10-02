@@ -3,7 +3,7 @@
 import React, { createContext, useContext, useEffect, useRef, useState, ReactNode } from "react";
 import type { User, UserRole, PermissionCheck } from "./types";
 import type { SupabaseClient, User as SupabaseUser } from "@supabase/supabase-js";
-import { fetchShopMembership } from "@/lib/vendor/shopMembership";
+import { fetchShopMembership, ShopMembershipLookupError } from "@/lib/vendor/shopMembership";
 import { hasShopPermission, type ShopMembership, type ShopPermission } from "@/lib/vendor/shopPermissions";
 import { useRouter } from "next/navigation";
 
@@ -68,11 +68,18 @@ async function mapSupabaseUserWithVendorId(user: SupabaseUser, supabase: Browser
   // 店舗の ID（vendors.id）はアカウントの ID と別なので、user.id を店舗 ID として使わないこと
   let vendorId: string | undefined = undefined;
   let shopMembership: ShopMembership | undefined = undefined;
+  let shopMembershipLookupFailed = false;
   if (role === "vendor" && user.id) {
-    const membership = await fetchShopMembership(supabase as unknown as SupabaseClient, user.id);
-    if (membership) {
-      vendorId = membership.vendorId;
-      shopMembership = { role: membership.role, permissions: membership.permissions };
+    try {
+      const membership = await fetchShopMembership(supabase as unknown as SupabaseClient, user.id);
+      if (membership) {
+        vendorId = membership.vendorId;
+        shopMembership = { role: membership.role, permissions: membership.permissions };
+      }
+    } catch (err) {
+      // 通信などの一時的な失敗。「店舗に入っていない」と取り違えないよう印を付ける（権限は付けない）
+      if (!(err instanceof ShopMembershipLookupError)) throw err;
+      shopMembershipLookupFailed = true;
     }
   }
 
@@ -85,6 +92,7 @@ async function mapSupabaseUserWithVendorId(user: SupabaseUser, supabase: Browser
     role,
     vendorId,
     shopMembership,
+    shopMembershipLookupFailed: shopMembershipLookupFailed || undefined,
     provider,
   };
 }
