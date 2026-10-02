@@ -12,7 +12,8 @@ vi.mock("next/navigation", () => ({
 }));
 
 // 本物と同じく、描き直しても同じ user を返す
-const AUTH = { user: { id: "v1", name: "yamada" } };
+// 店舗の ID（shop-1）はアカウントの ID（v1）と別の値にして、user.id を店舗 ID に使っていないことも確かめる
+const AUTH = { user: { id: "v1", name: "yamada", vendorId: "shop-1" } };
 vi.mock("@/lib/auth/AuthContext", () => ({
   useAuth: () => AUTH,
 }));
@@ -75,7 +76,7 @@ describe("投稿画面（近況を出す）", () => {
       fireEvent.click(screen.getByRole("button", { name: /近況に出す/ }));
     });
 
-    expect(createPost).toHaveBeenCalledWith("v1", "", expect.any(Date), file, undefined);
+    expect(createPost).toHaveBeenCalledWith("shop-1", "", expect.any(Date), file, undefined);
     expect(screen.getByRole("status")).toHaveTextContent("近況に出しました！");
     expect(screen.getByRole("link", { name: /近況で見てみる/ })).toHaveAttribute("href", "/story?content=p1");
   });

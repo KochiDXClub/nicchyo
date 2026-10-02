@@ -37,6 +37,7 @@ function daysUntilNextSunday(): number {
 
 export default function MyShopPage() {
   const { user } = useAuth();
+  const vendorId = user?.vendorId;
   const reduceMotion = useReducedMotion();
 
   const [setupSteps, setSetupSteps] = useState<SetupStep[] | null>(null);
@@ -45,9 +46,9 @@ export default function MyShopPage() {
   const [scrolled, setScrolled] = useState(false);
 
   useEffect(() => {
-    if (!user) return;
+    if (!vendorId) return;
 
-    Promise.all([fetchVendorStore(user.id), fetchVendorPosts(user.id)])
+    Promise.all([fetchVendorStore(vendorId), fetchVendorPosts(vendorId)])
       .then(([store, posts]) => {
         setPosts(posts);
         setSummary({
@@ -66,7 +67,7 @@ export default function MyShopPage() {
       .catch(() => {
         // 取得失敗時は静かに非表示
       });
-  }, [user]);
+  }, [vendorId]);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 96);
@@ -121,16 +122,16 @@ export default function MyShopPage() {
         </header>
 
         {/* 運営・市役所からの、まだ確認していないお知らせ（無ければ何も出さない） */}
-        {user?.id && (
+        {vendorId && (
           <div className="empty:hidden mb-5">
             <NoticeBanner />
           </div>
         )}
 
         {/* にちよさんの質問：出店者の情報入力はここで会話の形で聞く */}
-        {user?.id && (
+        {vendorId && (
           <div className="mb-8">
-            <VendorAskStage vendorId={user.id} />
+            <VendorAskStage vendorId={vendorId} />
           </div>
         )}
 
@@ -187,10 +188,10 @@ export default function MyShopPage() {
         </Reveal>
 
         {/* 出店しない日（日曜帯・ホームでは簡易版） */}
-        {user?.id && (
+        {vendorId && (
           <Reveal reduceMotion={reduceMotion} className="mb-6">
             <div>
-              <ClosedDaysCalendar vendorId={user.id} variant="strip" />
+              <ClosedDaysCalendar vendorId={vendorId} variant="strip" />
               <div className="mt-2 text-right">
                 <Link
                   href="/my-shop/schedule"

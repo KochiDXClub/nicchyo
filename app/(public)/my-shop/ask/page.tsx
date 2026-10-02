@@ -9,6 +9,6 @@ import VendorAskSession from "./VendorAskSession";
  */
 export default function VendorAskPage() {
   const { user } = useAuth();
-  if (!user?.id) return null;
-  return <VendorAskSession vendorId={user.id} />;
+  if (!user?.vendorId) return null;
+  return <VendorAskSession vendorId={user.vendorId} />;
 }

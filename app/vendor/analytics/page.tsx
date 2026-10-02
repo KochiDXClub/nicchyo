@@ -42,17 +42,18 @@ function LoadFailed({ what }: { what: string }) {
  */
 export default function VendorAnalyticsPage() {
   const { user } = useAuth();
+  const vendorId = user?.vendorId;
   const [data, setData] = useState<Loaded | null>(null);
 
   useEffect(() => {
-    if (!user) return;
+    if (!vendorId) return;
     let cancelled = false;
     void (async () => {
       const [views, consult, hearts, trends] = await Promise.allSettled([
-        fetchShopViews(user.id),
-        fetchAiConsultAnalytics(user.id),
+        fetchShopViews(vendorId),
+        fetchAiConsultAnalytics(vendorId),
         fetchVendorHeartSummary(),
-        fetchMyProductNames(user.id).then(fetchProductSearchTrends),
+        fetchMyProductNames(vendorId).then(fetchProductSearchTrends),
       ]);
       if (!cancelled) {
         setData({ views: settled(views), consult: settled(consult), hearts: settled(hearts), trends: settled(trends) });
@@ -61,7 +62,7 @@ export default function VendorAnalyticsPage() {
     return () => {
       cancelled = true;
     };
-  }, [user]);
+  }, [vendorId]);
 
   return (
     <PageShell bottomNav={false}>

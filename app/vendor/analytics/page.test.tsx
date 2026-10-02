@@ -10,7 +10,8 @@ const fetchMyProductNames = vi.fn();
 const fetchProductSearchTrends = vi.fn();
 
 // 本物と同じく、描き直しても同じ user を返す
-const AUTH = { user: { id: "v1" } };
+// 店舗の ID（shop-1）はアカウントの ID（v1）と別の値にして、user.id を店舗 ID に使っていないことも確かめる
+const AUTH = { user: { id: "v1", vendorId: "shop-1" } };
 vi.mock("@/lib/auth/AuthContext", () => ({ useAuth: () => AUTH }));
 vi.mock("../_services/analyticsService", () => ({
   fetchShopViews: (...args: unknown[]) => fetchShopViews(...args),
@@ -60,6 +61,8 @@ describe("お店の分析", () => {
     expect(screen.getByText("地図から")).toBeInTheDocument();
     expect(screen.getByText("お店にある")).toBeInTheDocument();
     expect(fetchProductSearchTrends).toHaveBeenCalledWith(["トマト"]);
+    // 数字は所属店舗の ID で読む（アカウントの ID ではない）
+    expect(fetchShopViews).toHaveBeenCalledWith("shop-1");
   });
 
   it("見られた回数が多くて、時間帯・流入元が一部の行からの数のときは、そう書く", async () => {

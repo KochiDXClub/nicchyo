@@ -84,6 +84,17 @@ export default function VendorLayout({ children }: { children: ReactNode }) {
     );
   }
 
+  // 出店者ロールでも、店舗に入っていなければ使える画面がない（招待リンクかQRでの参加を案内する）
+  if (!user.vendorId) {
+    return (
+      <GuardMessage
+        title="お店に参加していません"
+        message="お店の代表者からもらった招待リンク、または運営から渡されたQRコードで参加してください。"
+        cta={{ href: "/", label: "トップへ戻る" }}
+      />
+    );
+  }
+
   return (
     <div className="min-h-screen bg-[#FFFAF0] lg:pl-72" style={findVendorTourPage(pathname) ? TOUR_BUTTON_GAP : undefined}>
       <VendorSidebar
