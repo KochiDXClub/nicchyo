@@ -77,7 +77,7 @@ export default function VendorFaqClient() {
                 <button
                   type="button"
                   aria-expanded={open}
-                  aria-controls={`faq-${item.id}`}
+                  aria-controls={open ? `faq-${item.id}` : undefined}
                   onClick={() => toggle(item.id)}
                   className="flex w-full items-start justify-between gap-3 p-4 text-left"
                 >
