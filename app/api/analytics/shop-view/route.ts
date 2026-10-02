@@ -6,6 +6,7 @@ import { requireSameOrigin } from "@/lib/security/requestGuards";
 import { enforceRateLimit } from "@/lib/security/rateLimit";
 import { MAX_SHOP_ID, MIN_SHOP_ID } from "@/lib/shops/route";
 import { SHOP_VIEW_SOURCES, type ShopViewSource } from "@/lib/analytics/shopViews";
+import { vendorForStore, type Assignment } from "@/lib/analytics/shopVendor";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -49,19 +50,24 @@ export async function POST(request: Request) {
   const admin = createAdminClient();
   if (!admin) return NextResponse.json({ error: "Service unavailable" }, { status: 503 });
 
-  // 店番号 → 出店者。地図と同じく、その屋台に入っている最新の出店者
+  // 店番号 → 出店者。地図と同じく、自分のいちばん新しい配置がその屋台にある出店者
+  // （決まらないときは記録しない。詳しくは lib/analytics/shopVendor.ts）
   const { data: locations } = await admin.from("market_locations").select("id").eq("store_number", shopId);
-  const locationIds = (locations ?? []).map((row) => row.id as string);
-  if (locationIds.length === 0) return NextResponse.json({ ok: true });
+  const locationIds = new Set((locations ?? []).map((row) => row.id as string));
+  if (locationIds.size === 0) return NextResponse.json({ ok: true });
 
-  const { data: assignment } = await admin
+  const { data: here } = await admin
     .from("location_assignments")
     .select("vendor_id")
-    .in("location_id", locationIds)
-    .order("market_date", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  const vendorId = assignment?.vendor_id as string | null | undefined;
+    .in("location_id", [...locationIds]);
+  const candidates = [...new Set((here ?? []).map((row) => row.vendor_id as string | null).filter((id): id is string => !!id))];
+  if (candidates.length === 0) return NextResponse.json({ ok: true });
+
+  const { data: assignments } = await admin
+    .from("location_assignments")
+    .select("vendor_id, location_id, market_date")
+    .in("vendor_id", candidates);
+  const vendorId = vendorForStore((assignments ?? []) as Assignment[], locationIds);
   if (!vendorId) return NextResponse.json({ ok: true });
 
   const cookieStore = await cookies();
