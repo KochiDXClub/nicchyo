@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { PAYMENT_OPTIONS, RAIN_OPTIONS, TIME_OPTIONS } from "@/lib/vendor/storeOptions";
+import { formatTime, isEndAfterStart, TIME_MINUTES } from "@/lib/vendor/businessHours";
 import type { AskAnswer, VendorAskSnapshot } from "@/lib/vendor/askQuestions";
 
 // 出店者トップの相談で、にちよさんが出す「お店の情報の変更案」。
@@ -94,12 +95,14 @@ export const HELP_PROPOSAL_TOOLS = [
     type: "function",
     function: {
       name: "propose_hours",
-      description: "いつもの営業時間（出店時間）の変更案を出す。何時ちょうどの単位だけ",
+      description: "いつもの営業時間（出店時間）の変更案を出す。10分刻み（7時半なら hour=7, minute=30）。分が出てこなければ省く（0分）",
       parameters: {
         type: "object",
         properties: {
           start_hour: { type: "integer", minimum: 5, maximum: 23, description: "開始の時（5〜23）" },
+          start_minute: { type: "integer", enum: [0, 10, 20, 30, 40, 50], description: "開始の分（10分刻み。省くと0）" },
           end_hour: { type: "integer", minimum: 6, maximum: 24, description: "終了の時（6〜24）" },
+          end_minute: { type: "integer", enum: [0, 10, 20, 30, 40, 50], description: "終了の分（10分刻み。24時なら0。省くと0）" },
         },
         required: ["start_hour", "end_hour"],
         additionalProperties: false,
@@ -226,20 +229,25 @@ export const HELP_PROPOSAL_TOOLS = [
   },
 ];
 
-const hour = (h: number) => `${h}:00`;
-
 const trimmed = (max: number) => z.string().trim().max(max);
 
 /** AI の引数（JSON）を検証して、変更案の答えにする */
 const TOOL_SCHEMAS: Record<string, (args: unknown) => HelpProposalAnswer | null> = {
   propose_hours: (args) => {
+    // 分は10分刻みの選択肢の中だけ。省いたら0分。選べない時刻（24:30 など）や、終わりが始まり以前のときは案にしない
+    const minute = z.number().int().refine((m) => (TIME_MINUTES as number[]).includes(m)).optional();
     const parsed = z
-      .object({ start_hour: z.number().int().min(5).max(23), end_hour: z.number().int().min(6).max(24) })
-      .refine((v) => v.end_hour > v.start_hour)
+      .object({
+        start_hour: z.number().int(),
+        start_minute: minute,
+        end_hour: z.number().int(),
+        end_minute: minute,
+      })
       .safeParse(args);
-    return parsed.success
-      ? { id: "hours", start: hour(parsed.data.start_hour), end: hour(parsed.data.end_hour) }
-      : null;
+    if (!parsed.success) return null;
+    const start = formatTime(parsed.data.start_hour, parsed.data.start_minute ?? 0);
+    const end = formatTime(parsed.data.end_hour, parsed.data.end_minute ?? 0);
+    return isEndAfterStart(start, end) ? { id: "hours", start, end } : null;
   },
   propose_payment: (args) => {
     const parsed = z

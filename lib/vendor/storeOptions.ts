@@ -17,8 +17,8 @@ export const RAIN_OPTIONS: { key: RainPolicy; label: string; desc: string }[] = 
   { key: "undecided",label: "当日判断（SNSで告知）",   desc: "当日SNSで告知" },
 ];
 
-/** 営業時間の選択肢。日曜市は早朝から始まるので 5:00 から選べる */
-export const TIME_OPTIONS = Array.from({ length: 20 }, (_, i) => `${i + 5}:00`);
+/** 営業時間の選択肢（5:00〜24:00 の 10 分刻み）。lib/vendor/businessHours.ts */
+export { TIME_OPTIONS } from "./businessHours";
 
 /** 出店日の選択肢（よく使う並び） */
 export const WEEKDAY_OPTIONS = [
