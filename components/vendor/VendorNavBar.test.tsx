@@ -38,7 +38,6 @@ describe("VendorNavBar（来訪者メニューと同じ部品で描く）", () =
     render(<VendorNavBar />);
     fireEvent.click(screen.getByRole("button", { name: "メニューを開く" }));
 
-    expect(screen.getByRole("button", { name: "近況を出す" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "店舗情報を更新" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "お店の分析" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "アカウント設定" })).toBeInTheDocument();
@@ -50,9 +49,12 @@ describe("VendorNavBar（来訪者メニューと同じ部品で描く）", () =
     fireEvent.click(screen.getByRole("button", { name: "メニューを開く" }));
 
     expect(screen.getByRole("dialog", { name: "出店者メニュー" })).toBeInTheDocument();
-    for (const item of VENDOR_NAV_ITEMS) {
+    // 下部バーに常設している連絡・投稿は、メニューには重ねて出さない
+    for (const item of VENDOR_NAV_ITEMS.filter((nav) => !nav.inBottomBar)) {
       expect(screen.getByRole("button", { name: item.label })).toBeInTheDocument();
     }
+    expect(screen.queryByRole("button", { name: "近況を出す" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "運営・市役所との連絡" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "マップを見る" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "ログアウト" })).toBeInTheDocument();
   });
