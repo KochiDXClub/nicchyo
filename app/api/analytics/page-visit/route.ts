@@ -1,4 +1,5 @@
 import crypto from "crypto";
+import { isSecretTokenPath } from "@/lib/analytics/secretPaths";
 import { cookies } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/utils/supabase/server";
@@ -56,7 +57,7 @@ export async function POST(request: NextRequest) {
     Math.min(86400, Math.round(typeof body?.durationSeconds === "number" ? body.durationSeconds : 0))
   );
 
-  if (!path.startsWith("/") || path.startsWith("/api") || durationSeconds <= 0) {
+  if (!path.startsWith("/") || path.startsWith("/api") || isSecretTokenPath(path) || durationSeconds <= 0) {
     const skippedResponse = NextResponse.json({ ok: true, skipped: true });
     if (shouldSetVisitorCookie) {
       skippedResponse.cookies.set(VISITOR_COOKIE_NAME, visitorKey, {
