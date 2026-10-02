@@ -5,7 +5,7 @@ import Link from "next/link";
 import { ChevronRight, Mail } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { NOTICE_SENDER_LABELS } from "@/lib/vendor/notices";
-import { fetchNotices, type VendorNotice } from "@/app/vendor/_services/noticesService";
+import { fetchNotices, noticesForBanner, type VendorNotice } from "@/app/vendor/_services/noticesService";
 
 /** 見出しまで並べる件数。それより多いときは件数だけ */
 const MAX_TITLES = 3;
@@ -13,13 +13,14 @@ const MAX_TITLES = 3;
 /**
  * 運営・市役所からの、まだ確認していないお知らせ。毎週開く出店者ページのいちばん上で知らせ、
  * 連絡ページのお知らせへ連れていく。全部確認したら出さない。大事なお知らせがあれば目立たせる。
+ * 出すのは直近のものだけ（noticesForBanner）。
  */
 export default function NoticeBanner() {
   const [unconfirmed, setUnconfirmed] = useState<VendorNotice[]>([]);
 
   useEffect(() => {
     fetchNotices()
-      .then((notices) => setUnconfirmed(notices.filter((n) => !n.confirmed)))
+      .then((result) => setUnconfirmed(noticesForBanner(result)))
       .catch(() => {
         // 読めなくても出店者ページは使えるので、静かに出さない
       });

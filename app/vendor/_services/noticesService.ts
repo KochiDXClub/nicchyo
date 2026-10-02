@@ -8,11 +8,29 @@ async function readError(res: Response, fallback: string): Promise<string> {
   return data?.error ?? fallback;
 }
 
-export async function fetchNotices(): Promise<VendorNotice[]> {
+export type VendorNotices = {
+  notices: VendorNotice[];
+  /** 出店者のアカウントができた日時 */
+  joinedAt: string | null;
+};
+
+export async function fetchNotices(): Promise<VendorNotices> {
   const res = await fetch("/api/vendor/notices");
   if (!res.ok) throw new Error(await readError(res, "お知らせを読み込めませんでした"));
-  const data = (await res.json()) as { notices?: VendorNotice[] };
-  return data.notices ?? [];
+  const data = (await res.json()) as { notices?: VendorNotice[]; joinedAt?: string };
+  return { notices: data.notices ?? [], joinedAt: data.joinedAt ?? null };
+}
+
+/** 出店者ページの帯で知らせる期間。過ぎたお知らせは連絡ページでだけ見られる */
+export const NOTICE_BANNER_DAYS = 30;
+
+/**
+ * 出店者ページの帯に出す、まだ確認していないお知らせ。
+ * 古いもの（開催日の過ぎた知らせなど）と、アカウントを作る前に出たものは出さない。
+ */
+export function noticesForBanner({ notices, joinedAt }: VendorNotices, now = Date.now()): VendorNotice[] {
+  const since = Math.max(now - NOTICE_BANNER_DAYS * 24 * 60 * 60 * 1000, joinedAt ? Date.parse(joinedAt) || 0 : 0);
+  return notices.filter((n) => !n.confirmed && Date.parse(n.createdAt) >= since);
 }
 
 export async function confirmNotice(id: string): Promise<void> {

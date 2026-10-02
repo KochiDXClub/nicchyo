@@ -21,7 +21,9 @@ export async function GET(request: Request) {
   if (error) return NextResponse.json({ error: "読み込めませんでした" }, { status: 500 });
 
   const notices = ((data ?? []) as NoticeRow[]).map(rowToNotice);
-  if (notices.length === 0) return NextResponse.json({ notices: [] });
+  // 出店者ページの帯で、登録より前のお知らせまで「未確認」として出さないために使う
+  const joinedAt = user.created_at;
+  if (notices.length === 0) return NextResponse.json({ notices: [], joinedAt });
 
   // 自分の確認だけを読む（ほかの出店者が確認したかどうかは返さない）
   const reads = await db
@@ -34,5 +36,6 @@ export async function GET(request: Request) {
 
   return NextResponse.json({
     notices: notices.map((notice) => ({ ...notice, confirmed: confirmed.has(notice.id) })),
+    joinedAt,
   });
 }
