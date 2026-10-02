@@ -75,6 +75,17 @@ as $$
 declare
   tok public.shop_claim_tokens%rowtype;
 begin
+  -- ロック順は issue_shop_claim_token / unlink_shop と同じ「店舗 → トークン」にそろえる
+  -- （逆順だと、発行と紐づけが同時に起きたときにデッドロックで片方が失敗する）。
+  -- 先にロックなしでトークンから店舗を引き、店舗の行を締めてから、トークンを締め直して有効か確かめる。
+  select * into tok from public.shop_claim_tokens t where t.token_hash = p_token_hash;
+  if not found then
+    return query select 'invalid'::text, null::uuid;
+    return;
+  end if;
+
+  perform 1 from public.vendors v where v.id = tok.vendor_id for update;
+
   select * into tok from public.shop_claim_tokens t where t.token_hash = p_token_hash for update;
   if not found or tok.revoked_at is not null or tok.claimed_at is not null then
     return query select 'invalid'::text, null::uuid;
@@ -86,7 +97,6 @@ begin
     return;
   end if;
 
-  perform 1 from public.vendors v where v.id = tok.vendor_id for update;
   if exists (select 1 from public.shop_members m where m.vendor_id = tok.vendor_id and m.role = 'owner') then
     return query select 'already_claimed'::text, null::uuid;
     return;
