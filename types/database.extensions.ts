@@ -229,3 +229,32 @@ type ExtendedPublicSchema = Omit<Database["public"], "Tables"> & {
 export type DatabaseWithExtensions = Omit<Database, "public"> & {
   public: ExtendedPublicSchema;
 };
+
+// shop_members / vendor_activity_logs
+// supabase/migrations/20261003100000_create_shop_members.sql / 20261003100200_create_vendor_activity_logs.sql 参照。
+// `supabase gen types` を再実行した時点で、生成される型に置き換える。
+// 権限キー・役割の union は lib/vendor/shopPermissions.ts を単一の情報源とする。
+import type { ShopMemberRole, ShopPermission } from "@/lib/vendor/shopPermissions";
+
+export type ShopMemberRow = {
+  vendor_id: string;
+  user_id: string;
+  role: ShopMemberRole;
+  permissions: ShopPermission[];
+  invited_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type VendorActivityLogRow = {
+  id: number;
+  vendor_id: string;
+  actor_id: string | null;
+  actor_name: string | null;
+  action: string;
+  target_type: string | null;
+  target_id: string | null;
+  summary: string;
+  details: Record<string, unknown> | null;
+  created_at: string;
+};

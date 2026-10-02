@@ -15,6 +15,7 @@ on:
   pull_request:
     paths:
       - 'supabase/migrations/**'
+      - 'supabase/checks/**'
       - '.github/workflows/migrations-check.yml'
   push:
     branches: [develop]
@@ -74,6 +75,11 @@ jobs:
 
       - name: Apply all migrations from scratch
         run: supabase db reset --local --no-seed
+
+      # 店舗のメンバー制に張り替えたあとに、旧い判定（auth.uid() だけで店舗の行を絞る RLS）が
+      # 残っていないかを確かめる。詳しくは supabase/checks/no_legacy_vendor_policies.sql
+      - name: Check no legacy vendor policies remain
+        run: psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" -v ON_ERROR_STOP=1 -f supabase/checks/no_legacy_vendor_policies.sql
 
       - name: Show applied migrations
         run: supabase migration list --local
