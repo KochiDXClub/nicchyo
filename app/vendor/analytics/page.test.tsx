@@ -31,7 +31,7 @@ async function renderPage() {
 
 describe("お店の分析", () => {
   beforeEach(() => {
-    fetchShopViews.mockReset().mockResolvedValue({ thisWeek: 0, lastWeek: 0, hourly: hourly({}), sources: { map: 0, search: 0, direct: 0 } });
+    fetchShopViews.mockReset().mockResolvedValue({ thisWeek: 0, lastWeek: 0, hourly: hourly({}), sources: { map: 0, search: 0, direct: 0 }, sampled: false });
     fetchAiConsultAnalytics.mockReset().mockResolvedValue({ topics: [], keywords: [], recommendationCount: 0, totalCount: 0 });
     fetchVendorHeartSummary.mockReset().mockResolvedValue({ total: 0, thisWeek: 0 });
     fetchMyProductNames.mockReset().mockResolvedValue(["トマト"]);
@@ -50,6 +50,7 @@ describe("お店の分析", () => {
       lastWeek: 8,
       hourly: hourly({ 9: 7, 10: 5 }),
       sources: { map: 8, search: 3, direct: 1 },
+      sampled: false,
     });
     fetchProductSearchTrends.mockResolvedValue([{ keyword: "トマト", count: 4, matchesMyProducts: true }]);
     await renderPage();
@@ -59,6 +60,18 @@ describe("お店の分析", () => {
     expect(screen.getByText("地図から")).toBeInTheDocument();
     expect(screen.getByText("お店にある")).toBeInTheDocument();
     expect(fetchProductSearchTrends).toHaveBeenCalledWith(["トマト"]);
+  });
+
+  it("見られた回数が多くて、時間帯・流入元が一部の行からの数のときは、そう書く", async () => {
+    fetchShopViews.mockResolvedValue({
+      thisWeek: 1500,
+      lastWeek: 1200,
+      hourly: hourly({ 9: 600, 10: 400 }),
+      sources: { map: 800, search: 150, direct: 50 },
+      sampled: true,
+    });
+    await renderPage();
+    expect(screen.getByText(/直近の1000回から数えています/)).toBeInTheDocument();
   });
 
   it("相談の数が取れなかったときは、0 にせず「読めんかった」を出す", async () => {

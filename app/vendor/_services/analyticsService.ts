@@ -50,6 +50,8 @@ export async function fetchShopViews(vendorId: string): Promise<ShopViewSummary>
     lastWeek: lastWeekCount.count ?? 0,
     hourly: hourlyCounts(viewRows),
     sources: sourceShares(viewRows),
+    // 回数は exact で数えるが、時間帯・流入元は読めた行（上限あり）から数える。足りないときは画面に書く
+    sampled: (thisWeekCount.count ?? 0) > viewRows.length,
   };
 }
 

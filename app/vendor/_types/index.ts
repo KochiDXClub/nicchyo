@@ -59,6 +59,8 @@ export type ShopViewSummary = {
   lastWeek: number;
   hourly: { hour: number; views: number }[];
   sources: { map: number; search: number; direct: number };
+  /** 時間帯・流入元が、回数のうち一部（直近の行）だけから数えたものか */
+  sampled: boolean;
 };
 
 export type SearchKeywordTrend = {

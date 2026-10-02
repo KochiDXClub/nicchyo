@@ -78,6 +78,11 @@ export default function ViewsSection({ views }: { views: ShopViewSummary }) {
           ))}
         </ul>
       </div>
+      {views.sampled && (
+        <p className="mt-4 text-[11px] leading-relaxed text-nicchyo-ink/55">
+          見られた回数が多いため、時間帯と流入元は、直近の{views.hourly.reduce((sum, item) => sum + item.views, 0)}回から数えています。
+        </p>
+      )}
     </Surface>
   );
 }
