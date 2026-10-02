@@ -1,11 +1,10 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 let pathname = "/vendor/post/new";
 vi.mock("next/navigation", () => ({ usePathname: () => pathname }));
 vi.mock("@/lib/ui/bodyScrollLock", () => ({ useBodyScrollLock: () => {} }));
 
-import { requestOpenVendorTour } from "@/lib/vendor/tourEvents";
 import VendorTourHost from "./VendorTourHost";
 
 const fetchMock = vi.fn();
@@ -116,17 +115,5 @@ describe("VendorTourHost（複数の機能がある画面）", () => {
     expect(screen.getByText("いちばん使うのは、この2つ")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "次へ" }));
     expect(screen.getByText("お休みする日曜日は、押すだけで登録")).toBeTruthy();
-  });
-
-  it("画面の中の機能の「?」から、その機能だけを開く", async () => {
-    respondSeen(["home-chat", "home-actions", "home-calendar"]);
-    render(<VendorTourHost />);
-    await screen.findByRole("button", { name: "「出店者トップ」の説明を見る" });
-    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
-
-    act(() => requestOpenVendorTour("home-calendar"));
-
-    expect(await screen.findByText("お休みする日曜日は、押すだけで登録")).toBeTruthy();
-    expect(screen.queryByRole("button", { name: "次へ" })).toBeNull();
   });
 });

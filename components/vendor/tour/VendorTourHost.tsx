@@ -4,15 +4,13 @@ import { useCallback, useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { AnimatePresence } from "framer-motion";
 import { CircleHelp } from "lucide-react";
-import { onOpenVendorTour } from "@/lib/vendor/tourEvents";
-import { findVendorTourFeature, findVendorTourPage, type TourFeature } from "@/lib/vendor/tours";
+import { findVendorTourPage, type TourFeature } from "@/lib/vendor/tours";
 import TourSheet from "./TourSheet";
 
 /**
  * 出店者の画面の右上に「?」を出し、画面の説明パネルを開く。
  * 初めて開いた画面では、まだ見ていない機能の説明を自動で出す。「了解した」で閉じたら記録して、
- * 次からは自動では出さない。「?」からは、その画面の機能の説明を何度でも見られる。
- * 画面の中の機能ごとの小さな「?」（FeatureHelpButton）の合図を受けて、その機能だけを開くこともある。
+ * 次からは自動では出さない。「?」は画面ごとに右上の1つだけで、その画面の機能の説明を順に何度でも見られる。
  *
  * 記録が読めなかったとき（通信の失敗など）は、自動では出さない。
  * 説明は読めなくても仕事の邪魔にならないが、毎回出ると邪魔になるため。
@@ -40,16 +38,6 @@ export default function VendorTourHost() {
     const unseen = page && seen ? page.features.filter((feature) => !seen.has(feature.key)) : [];
     setShown(unseen.length > 0 ? unseen : null);
   }, [page, seen]);
-
-  // 画面の中の「?」から、その機能だけを開く
-  useEffect(
-    () =>
-      onOpenVendorTour((key) => {
-        const feature = findVendorTourFeature(key);
-        if (feature) setShown([feature]);
-      }),
-    []
-  );
 
   const acknowledge = useCallback(() => {
     const keys = (shown ?? []).map((feature) => feature.key);

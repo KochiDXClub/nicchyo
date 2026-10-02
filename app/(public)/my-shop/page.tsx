@@ -11,7 +11,6 @@ import { fetchVendorPosts } from "@/app/vendor/_services/postsService";
 import type { Post } from "@/app/vendor/_types";
 import ClosedDaysCalendar from "@/components/vendor/ClosedDaysCalendar";
 import VendorBackdrop from "@/components/vendor/VendorBackdrop";
-import FeatureHelpButton from "@/components/vendor/tour/FeatureHelpButton";
 import VendorAskStage from "./ask/VendorAskStage";
 import NoticeBanner from "./components/NoticeBanner";
 import ShopIcon from "./components/ShopIcon";
@@ -130,8 +129,7 @@ export default function MyShopPage() {
 
         {/* にちよさんの質問：出店者の情報入力はここで会話の形で聞く */}
         {user?.id && (
-          <div className="relative mb-8">
-            <FeatureHelpButton tourKey="home-chat" className="absolute right-0 top-0 z-10" />
+          <div className="mb-8">
             <VendorAskStage vendorId={user.id} />
           </div>
         )}
@@ -193,8 +191,7 @@ export default function MyShopPage() {
           <Reveal reduceMotion={reduceMotion} className="mb-6">
             <div>
               <ClosedDaysCalendar vendorId={user.id} variant="strip" />
-              <div className="mt-2 flex items-center justify-end gap-2">
-                <FeatureHelpButton tourKey="home-calendar" />
+              <div className="mt-2 text-right">
                 <Link
                   href="/my-shop/schedule"
                   className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-white/80 px-3 py-1.5 text-xs font-bold text-amber-700 shadow-sm backdrop-blur-sm transition active:scale-95"
