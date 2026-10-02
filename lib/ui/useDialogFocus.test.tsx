@@ -57,3 +57,24 @@ describe("useDialogFocus", () => {
     expect(close).toHaveFocus();
   });
 });
+
+describe("useDialogFocus の data-autofocus", () => {
+  function Preferred() {
+    const ref = useRef<HTMLDivElement>(null);
+    useDialogFocus(ref);
+    return (
+      <div ref={ref} role="dialog" aria-modal="true" tabIndex={-1}>
+        <button type="button">説明の中のボタン</button>
+        <button type="button" data-autofocus>
+          主ボタン
+        </button>
+      </div>
+    );
+  }
+
+  it("data-autofocus を付けた要素があれば、最初のボタンより先にそこへ当てる", () => {
+    render(<Preferred />);
+
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "主ボタン" }));
+  });
+});

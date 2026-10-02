@@ -1385,6 +1385,32 @@ export type Database = {
           },
         ]
       }
+      vendor_tour_seen: {
+        Row: {
+          seen_at: string
+          tour_key: string
+          vendor_id: string
+        }
+        Insert: {
+          seen_at?: string
+          tour_key: string
+          vendor_id: string
+        }
+        Update: {
+          seen_at?: string
+          tour_key?: string
+          vendor_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vendor_tour_seen_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "vendors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       vendors: {
         Row: {
           business_hours_end: string | null

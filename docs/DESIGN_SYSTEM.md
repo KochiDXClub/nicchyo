@@ -149,6 +149,8 @@ import { PageShell, PageContainer, PageHeader } from "@/components/ui";
 戻る操作を足すと出口が二つになる。`action` には「新規投稿」「未保存」のような、そのページ固有の
 操作や札だけを置く（リンクをボタンに見せるなら `buttonClass()`、札なら `Badge`）。
 出店者ページ（`app/vendor/`・`app/(public)/my-shop/`）も同じ。
+出店者ページは右上に画面の説明を開く「?」（`VendorTourHost`）が固定で乗る。そのぶん見出しの右端を空けるため、
+両レイアウトが CSS 変数 `--page-title-end-gap` を設定している（`PageTitle` が読む。ほかの画面では 0）。
 
 ### ボタン
 
