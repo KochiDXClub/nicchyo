@@ -31,6 +31,7 @@ import {
   Map as MapIcon,
   MapPin,
   MessageSquare,
+  QrCode,
   ScrollText,
   Settings,
   ShieldCheck,
@@ -146,6 +147,12 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
         href: "/admin/shops",
         icon: Store,
         description: "店舗情報の確認と編集を行う",
+      },
+      {
+        label: "店舗のQRコード",
+        href: "/admin/shop-claims",
+        icon: QrCode,
+        description: "出店者に配るQRコードの発行と、アカウントとの紐づけの解除を行う",
       },
       {
         label: "ユーザー",

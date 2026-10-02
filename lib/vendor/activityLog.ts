@@ -8,6 +8,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 export const VENDOR_ACTIVITY_LABELS = {
   "member.join": "招待リンクで参加した",
   "member.leave": "店舗を抜けた",
+  "member.withdraw": "退会した",
   "member.remove": "メンバーを外した",
   "member.permissions": "メンバーの権限を変えた",
   "invite.create": "招待リンクを作った",
