@@ -1,15 +1,10 @@
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
-import type { SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
-import { createClient as createServerClient } from "@/utils/supabase/server";
-import { createAdminClient } from "@/lib/supabase/adminClient";
-import { getRole } from "@/lib/auth/permissions";
-import { requireSameOrigin } from "@/lib/security/requestGuards";
-import { enforceRateLimit } from "@/lib/security/rateLimit";
 import { displayNameOf, logVendorActivity } from "@/lib/vendor/activityLog";
 import { INVITE_STATUS_MESSAGE, InviteTokenSchema, type InviteStatus } from "@/lib/vendor/shopInvites";
 import { hashInviteToken } from "@/lib/vendor/shopInvites.server";
+import { requireJoinRequest } from "@/lib/vendor/joinGuard.server";
+import { ensureVendorRole } from "@/lib/vendor/ensureVendorRole.server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -31,28 +26,12 @@ const STATUS_CODE: Record<Exclude<InviteStatus, "ok">, number> = {
  * （参加の途中でロールの付与に失敗しても、押し直せば完了する）。
  */
 export async function POST(request: Request) {
-  const originCheck = requireSameOrigin(request);
-  if (!originCheck.ok) return originCheck.response;
-
-  const cookieStore = await cookies();
-  const {
-    data: { user },
-  } = await createServerClient(cookieStore).auth.getUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
-  const limited = await enforceRateLimit(request, {
-    bucket: "vendor-invite-accept",
-    limit: 10,
-    windowMs: 10 * 60 * 1000,
-    identity: user.id,
-  });
-  if (limited) return limited;
+  const guard = await requireJoinRequest(request, "vendor-invite-accept");
+  if (!guard.ok) return guard.response;
+  const { user, db } = guard;
 
   const parsed = BodySchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: INVITE_STATUS_MESSAGE.invalid, code: "invalid" }, { status: 404 });
-
-  const db = createAdminClient() as unknown as SupabaseClient | null;
-  if (!db) return NextResponse.json({ error: "Service unavailable" }, { status: 503 });
 
   const tokenHash = hashInviteToken(parsed.data.token);
   const { data, error } = await db.rpc("accept_shop_invite", { p_token_hash: tokenHash, p_user_id: user.id });
@@ -86,15 +65,9 @@ export async function POST(request: Request) {
     );
   }
 
-  // 出店者ロールを付ける（運営ロールは下げない）。ロールは app_metadata（本人が書き換えられない側）にだけ持つ。
-  const role = getRole(user);
-  if (role !== "vendor" && role !== "admin" && role !== "moderator") {
-    // app_metadata は項目ごとに混ぜて保存される。role だけを渡し、古い値で他の項目を上書きしない
-    const { error: roleError } = await db.auth.admin.updateUserById(user.id, { app_metadata: { role: "vendor" } });
-    if (roleError) {
-      console.error("[vendor/invites/accept] role update error:", roleError.message);
-      return NextResponse.json({ error: "参加の仕上げに失敗しました。もう一度リンクを開いてください" }, { status: 500 });
-    }
+  // 出店者ロールを付ける（運営ロールは下げない）。失敗しても押し直せば完了する
+  if (!(await ensureVendorRole(db, user, "vendor/invites/accept"))) {
+    return NextResponse.json({ error: "参加の仕上げに失敗しました。もう一度リンクを開いてください" }, { status: 500 });
   }
 
   if (joinedNow && vendorId) {

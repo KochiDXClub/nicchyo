@@ -14,7 +14,7 @@ export const VENDOR_ACTIVITY_LABELS = {
   "invite.revoke": "招待リンクを取り消した",
   "owner.transfer": "代表者を引き継いだ",
   "qr.link": "QRコードで店舗に紐づけた",
-  "qr.reissue": "QRコードを再発行した",
+  "qr.issue": "QRコードを発行（再発行）した",
   "qr.unlink": "店舗との紐づけを解除した",
 } as const;
 
@@ -33,18 +33,33 @@ export type VendorActivityEntry = {
   details?: Record<string, unknown> | null;
 };
 
+function toRow(entry: VendorActivityEntry) {
+  return {
+    vendor_id: entry.vendorId,
+    actor_id: entry.actorId,
+    actor_name: entry.actorName?.slice(0, 100) ?? null,
+    action: entry.action,
+    target_type: entry.targetType ?? null,
+    target_id: entry.targetId ?? null,
+    summary: entry.summary.slice(0, 500),
+    details: entry.details ?? null,
+  };
+}
+
+/** 複数店舗への操作（QR の一括発行など）を、1 回の insert でまとめて記録する */
+export async function logVendorActivities(db: SupabaseClient, entries: VendorActivityEntry[]): Promise<void> {
+  if (entries.length === 0) return;
+  try {
+    const { error } = await db.from("vendor_activity_logs").insert(entries.map(toRow));
+    if (error) console.error("[vendorActivity] insert failed:", error.message);
+  } catch (err) {
+    console.error("[vendorActivity] insert threw:", err instanceof Error ? err.message : err);
+  }
+}
+
 export async function logVendorActivity(db: SupabaseClient, entry: VendorActivityEntry): Promise<void> {
   try {
-    const { error } = await db.from("vendor_activity_logs").insert({
-      vendor_id: entry.vendorId,
-      actor_id: entry.actorId,
-      actor_name: entry.actorName?.slice(0, 100) ?? null,
-      action: entry.action,
-      target_type: entry.targetType ?? null,
-      target_id: entry.targetId ?? null,
-      summary: entry.summary.slice(0, 500),
-      details: entry.details ?? null,
-    });
+    const { error } = await db.from("vendor_activity_logs").insert(toRow(entry));
     if (error) console.error("[vendorActivity] insert failed:", error.message);
   } catch (err) {
     console.error("[vendorActivity] insert threw:", err instanceof Error ? err.message : err);
