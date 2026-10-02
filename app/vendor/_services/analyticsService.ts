@@ -2,6 +2,7 @@ import { createClient } from "@/utils/supabase/client";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { ShopViewSummary, SearchKeywordTrend, AiConsultAnalytics, HeartSummary } from "../_types";
 import { hourlyCounts, sourceShares, type ViewRow } from "@/lib/vendor/analyticsSummary";
+import { countShopViews } from "@/lib/vendor/shopViewCounts";
 
 // ─── お店が見られた数 ────────────────────────────────────────
 
@@ -18,20 +19,9 @@ export async function fetchShopViews(vendorId: string): Promise<ShopViewSummary>
   const supabase = createClient();
   const now = Date.now();
   const weekAgo = new Date(now - WEEK_MS).toISOString();
-  const twoWeeksAgo = new Date(now - 2 * WEEK_MS).toISOString();
 
-  const [thisWeekCount, lastWeekCount, rows] = await Promise.all([
-    supabase
-      .from("shop_page_views")
-      .select("id", { count: "exact", head: true })
-      .eq("vendor_id", vendorId)
-      .gte("viewed_at", weekAgo),
-    supabase
-      .from("shop_page_views")
-      .select("id", { count: "exact", head: true })
-      .eq("vendor_id", vendorId)
-      .gte("viewed_at", twoWeeksAgo)
-      .lt("viewed_at", weekAgo),
+  const [counts, rows] = await Promise.all([
+    countShopViews(supabase, vendorId, now),
     supabase
       .from("shop_page_views")
       .select("viewed_at, source")
@@ -40,18 +30,16 @@ export async function fetchShopViews(vendorId: string): Promise<ShopViewSummary>
       .order("viewed_at", { ascending: false })
       .limit(VIEW_ROWS_LIMIT),
   ]);
-  if (thisWeekCount.error || lastWeekCount.error || rows.error) {
-    throw thisWeekCount.error ?? lastWeekCount.error ?? rows.error;
-  }
+  if (rows.error) throw rows.error;
 
   const viewRows = (rows.data ?? []) as ViewRow[];
   return {
-    thisWeek: thisWeekCount.count ?? 0,
-    lastWeek: lastWeekCount.count ?? 0,
+    thisWeek: counts.thisWeek,
+    lastWeek: counts.lastWeek,
     hourly: hourlyCounts(viewRows),
     sources: sourceShares(viewRows),
     // 回数は exact で数えるが、時間帯・流入元は読めた行（上限あり）から数える。足りないときは画面に書く
-    sampled: (thisWeekCount.count ?? 0) > viewRows.length,
+    sampled: counts.thisWeek > viewRows.length,
   };
 }
 
