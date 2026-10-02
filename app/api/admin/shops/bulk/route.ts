@@ -1,10 +1,12 @@
 import { NextResponse } from "next/server";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { requireSameOrigin } from "@/lib/security/requestGuards";
 import { enforceRateLimit, getClientIp } from "@/lib/security/rateLimit";
 import { requireAdminApi } from "@/lib/auth/requireAdminApi";
 import { MAX_BULK_OPERATION } from "@/lib/constants";
 import { logAdminAudit } from "@/lib/audit/logAdminAudit";
 import { revalidatePublicShops } from "@/app/(public)/map/services/shopCache";
+import { loadShopAccountLinks } from "@/lib/admin/shopAccounts.server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -88,25 +90,37 @@ export async function POST(request: Request) {
     );
 
     const errors: string[] = [];
+    /** 停止・復活の対象になるアカウントが無かった店舗（アカウントなしの店舗）。エラーではない */
+    const skipped: string[] = [];
 
     if (action === "delete") {
-      for (const id of safeIds) {
-        const { error } = await serviceClient.auth.admin.deleteUser(id);
-        if (error) errors.push(id);
+      // 店舗の行を直接消す（商品・投稿・メンバーなどの紐づく行は連動して消える）。
+      // 店舗は、アカウントがなくても存在する（運営が先に作り、出店者があとから紐づく）ので、
+      // 店舗の ID でログインアカウントを探して消すことはしない。メンバーのアカウント自体は残る
+      // （消したいときは、ユーザー管理から）
+      const { error } = await serviceClient.from("vendors").delete().in("id", safeIds);
+      if (error) errors.push(...safeIds);
+    } else if (action === "suspend" || action === "restore") {
+      // 停止・復活は、その店舗のメンバーのログインアカウントに対して行う。
+      // アカウントがない店舗は、対象がないだけなので、エラーにせず飛ばす
+      const { links, error: linkError } = await loadShopAccountLinks(serviceClient as unknown as SupabaseClient, safeIds);
+      if (linkError) {
+        return NextResponse.json({ error: "Failed to load shop members" }, { status: 500 });
       }
-    } else if (action === "suspend") {
       for (const id of safeIds) {
-        const { error } = await serviceClient.auth.admin.updateUserById(id, {
-          ban_duration: "876000h",
-        });
-        if (error) errors.push(id);
-      }
-    } else if (action === "restore") {
-      for (const id of safeIds) {
-        const { error } = await serviceClient.auth.admin.updateUserById(id, {
-          ban_duration: "none",
-        });
-        if (error) errors.push(id);
+        const accountIds = (links.membersByVendor.get(id) ?? []).filter((accountId) => accountId !== user.id);
+        if (accountIds.length === 0) {
+          skipped.push(id);
+          continue;
+        }
+        let failed = false;
+        for (const accountId of accountIds) {
+          const { error } = await serviceClient.auth.admin.updateUserById(accountId, {
+            ban_duration: action === "suspend" ? "876000h" : "none",
+          });
+          if (error) failed = true;
+        }
+        if (failed) errors.push(id);
       }
     } else {
       return NextResponse.json({ error: "Unknown action" }, { status: 400 });
@@ -122,7 +136,7 @@ export async function POST(request: Request) {
       );
     }
 
-    return NextResponse.json({ ok: true, count: safeIds.length });
+    return NextResponse.json({ ok: true, count: safeIds.length - skipped.length, skippedIds: skipped });
   } catch {
     return NextResponse.json({ error: "Failed to process bulk action" }, { status: 500 });
   }

@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { requireAdminApi } from "@/lib/auth/requireAdminApi";
 import { listAllAuthUsers } from "@/lib/auth/listAllUsers";
+import { loadShopAccountLinks } from "@/lib/admin/shopAccounts.server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -65,8 +67,13 @@ export async function GET() {
 
     const authById = new Map(allAuthUsers.map((u) => [u.id, u]));
 
+    // 店舗は、アカウントがなくても存在する（運営が先に作り、出店者があとから QR で紐づく）。
+    // 代表者のアカウントは shop_members から引き、店舗の ID で auth.users を引かない
+    const { links } = await loadShopAccountLinks(serviceClient as unknown as SupabaseClient);
+
     const shops: AdminShop[] = vendors.map((vendor) => {
-      const authUser = authById.get(vendor.id);
+      const ownerAccountId = links.ownerByVendor.get(vendor.id);
+      const authUser = ownerAccountId ? authById.get(ownerAccountId) : undefined;
       const bannedUntil = authUser?.banned_until ? new Date(authUser.banned_until) : null;
       const isSuspended =
         bannedUntil !== null && !Number.isNaN(bannedUntil.getTime()) && bannedUntil > new Date();
@@ -83,7 +90,9 @@ export async function GET() {
         name: vendor.shop_name ?? "名称未設定",
         category: categoryName,
         owner:
-          ownerNameByVendorId.get(vendor.id) ?? authUser?.email?.split("@")[0] ?? "-",
+          ownerNameByVendorId.get(vendor.id) ??
+          authUser?.email?.split("@")[0] ??
+          (ownerAccountId ? "-" : "未紐づけ"),
         email: authUser?.email ?? "-",
         status: isSuspended ? "suspended" : "active",
         registeredDate: formatDate(authUser?.created_at ?? vendor.created_at),
