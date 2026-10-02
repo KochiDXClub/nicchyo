@@ -41,10 +41,10 @@ export default function VendorInquiriesPage() {
   useEffect(() => {
     // お知らせが読めなくても、自分の連絡は使えるようにする（静かに出さない）
     fetchNotices()
-      .then(({ notices }) => {
-        setNotices(notices);
+      .then((result) => {
+        setNotices(result.notices);
         // 出店者ページの帯から #notices で来たとき、一覧は読み込み後に描かれるので、ここで連れていく
-        if (notices.length > 0 && window.location.hash === "#notices") {
+        if (result.notices.length > 0 && window.location.hash === "#notices") {
           requestAnimationFrame(() => document.getElementById("notices")?.scrollIntoView());
         }
       })
