@@ -117,7 +117,7 @@ describe("POST /api/vendor/help-chat", () => {
     expect(requestChatCompletion).not.toHaveBeenCalled();
   });
 
-  it("お店の登録内容と使い方ガイドを渡し、答えを流して、質問と答えを記録する", async () => {
+  it("お店の登録内容とよくある質問を渡し、答えを流して、質問と答えを記録する", async () => {
     getUser.mockResolvedValue({ data: { user: VENDOR } });
     requestChatCompletion.mockResolvedValue(sseResponse(["投稿は", "ここからやで"]));
 
@@ -131,7 +131,7 @@ describe("POST /api/vendor/help-chat", () => {
     expect(system).toContain("・店名: 山田農園");
     expect(system).toContain("【にちよさんがもう覚えていること（トピックタイトル）】\n混む時間");
     expect(system).toContain("・支払い方法: 現金");
-    expect(system).toContain("近況を出す");
+    expect(system).toContain("近況はどうやって出しますか？");
     expect(system).toContain("話題になった回数: 4回（そのうち、おすすめされた回数: 2回）");
     expect(system).toContain("nicchyo の来訪者数: 今週（月曜から今日まで） 1,200人 / 今月 5,000人");
 

@@ -10,7 +10,7 @@ import { requestChatCompletion } from "@/lib/ai/openaiFetch";
 import { openAiSseToTextStream, TEXT_STREAM_HEADERS } from "@/lib/ai/textStream";
 import { resolveAiModelFor } from "@/lib/ai/modelStore.server";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { VENDOR_HELP_GUIDE } from "@/lib/vendor/helpGuide";
+import { VENDOR_FAQ } from "@/lib/vendor/helpFaq";
 import { loadVendorHelpMarketStats, loadVendorHelpShopStats, toDataWord } from "@/lib/vendor/helpChatStats.server";
 import { PAYMENT_OPTIONS } from "@/lib/vendor/storeOptions";
 import { HELP_PROPOSAL_TOOLS, proposalFromToolCalls, serializeProposal } from "@/lib/vendor/helpProposals";
@@ -101,10 +101,10 @@ async function loadShopContext(supabase: SupabaseLike, vendorId: string): Promis
  * 出店者トップのにちよさんへの相談（ヘルプデスク）。
  *
  * 来訪者の AI 相談とは別の口にして、出店者本人だけが使えるようにする。
- * にちよさんに渡すのは使い方ガイド、その出店者のお店の登録内容、このお店の数字と
+ * にちよさんに渡すのはよくある質問、その出店者のお店の登録内容、このお店の数字と
  * 日曜市全体の数字（lib/vendor/helpChatStats.server.ts）。
  * 答えは文字のまま少しずつ流す（店舗ページのチャット /api/grandma/shop-chat と同じ形。lib/ai/textStream）。
- * 質問と答えは vendor_help_logs に残す（よくある質問からガイドを直すため）。
+ * 質問と答えは vendor_help_logs に残す（よくある質問を育てるため）。
  *
  * 「営業時間を変えたい」のような頼みには、AI がお店の情報の変更案（lib/vendor/helpProposals.ts）を
  * 出すことがある。来訪者に伝えるとよいことを話したら「覚えてよいか」の案も出す。
@@ -156,7 +156,7 @@ export async function POST(request: Request) {
     loadVendorHelpShopStats(supabase as unknown as SupabaseClient, user.id),
     loadVendorHelpMarketStats(supabase as unknown as SupabaseClient),
   ]);
-  const systemPrompt = buildVendorHelpSystemPrompt(VENDOR_HELP_GUIDE, shop, {
+  const systemPrompt = buildVendorHelpSystemPrompt(VENDOR_FAQ, shop, {
     shop: shopStats,
     market: marketStats,
   });

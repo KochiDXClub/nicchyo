@@ -188,7 +188,7 @@ export const AI_USE_CASE_DEFS: readonly AiUseCaseDef[] = [
     useCase: "vendorHelp",
     label: "出店者の相談（にちよさん）",
     description:
-      "出店者トップで、出店者がアプリの使い方を聞くヘルプデスク。使い方ガイドとその店の登録内容を元に、200文字程度で答える。",
+      "出店者トップで、出店者がアプリの使い方を聞くヘルプデスク。よくある質問とその店の登録内容を元に、200文字程度で答える。",
     defaultModelId: "gpt-4o-mini",
   },
 ];
