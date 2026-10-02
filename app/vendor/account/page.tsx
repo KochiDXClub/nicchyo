@@ -12,10 +12,11 @@ import ActivityLogSection from "./components/ActivityLogSection";
 import InvitesSection from "./components/InvitesSection";
 import LeaveShopSection from "./components/LeaveShopSection";
 import MembersSection from "./components/MembersSection";
+import WithdrawSection from "./components/WithdrawSection";
 import { useMembers } from "./useMembers";
 
 /**
- * アカウント設定。あなたのアカウント → お店のメンバー → 招待 → 操作ログ → お店を抜ける、の順。
+ * アカウント設定。あなたのアカウント → お店のメンバー → 招待 → 操作ログ → お店を抜ける → 退会、の順。
  * メンバーの管理（招待・権限の変更）と操作ログは、その権限がある人にだけ出す。
  * 権限の規則は lib/vendor/memberRules.ts で、API も同じ規則で守っている。
  */
@@ -61,6 +62,7 @@ export default function VendorAccountPage() {
             {canManageMembers && membership && <InvitesSection membership={membership} onChanged={reload} />}
             {canViewLogs && <ActivityLogSection />}
             <LeaveShopSection role={data.me.role} />
+            <WithdrawSection role={data.me.role} hasOtherMembers={data.members.length > 1} />
           </>
         )}
       </PageContainer>

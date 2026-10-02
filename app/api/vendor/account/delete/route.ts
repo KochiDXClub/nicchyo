@@ -1,63 +1,88 @@
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
-import { createServerClient } from "@supabase/ssr";
-import { createClient as createAdminClient } from "@supabase/supabase-js";
-import { requireSameOrigin } from "@/lib/security/requestGuards";
+import { z } from "zod";
+import { logVendorActivity } from "@/lib/vendor/activityLog";
+import { requireMembersApi } from "../../members/shared";
 
-// TODO: SAVE_DISABLEDが解除され次第、このエンドポイントも有効化してください。
-//       現在は出店者のメールアドレス・パスワードが一部公開状態のため無効化中。
-const DELETE_DISABLED = true;
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
+const BodySchema = z.object({ confirm: z.literal(true) });
+
+/** 退会したメンバーに関する操作ログの文面。名前など、誰だったか分かるものは残さない */
+const ANONYMIZED_SUMMARY = "退会したメンバーに関する記録";
+
+/**
+ * DELETE: 退会する（このアカウントを消す）。店舗のメンバーなら誰でも自分のぶんを退会できる。
+ *
+ * 消すもの: ログインアカウント／お店に残る自分の氏名（代表者のとき vendor_owner_profiles）／操作ログに載った自分の名前
+ * 残すもの: お店の掲載情報（店名・商品・写真・近況）。公開されている情報なので、消したいときは運営に伝えてもらう
+ *
+ * 代表者は、ほかにメンバーがいる間は退会できない（先に引き継ぎ・409）。メンバーが自分だけなら、
+ * お店はアカウントなしの状態に戻る（出ている招待リンクは取り消す。運営が QR を出し直して、次の代表者が紐づく）。
+ */
 export async function DELETE(request: Request) {
-  const originCheck = requireSameOrigin(request);
-  if (!originCheck.ok) return originCheck.response;
+  const auth = await requireMembersApi(request, { write: true, bucket: "vendor-account-delete" });
+  if (!auth.ok) return auth.response;
+  const { db, vendorId, me, user } = auth;
 
-  if (DELETE_DISABLED) {
-    return NextResponse.json(
-      { error: "アカウント削除は現在準備中です。" },
-      { status: 503 }
-    );
+  const parsed = BodySchema.safeParse(await request.json().catch(() => null));
+  if (!parsed.success) return NextResponse.json({ error: "退会の確認が必要です" }, { status: 400 });
+
+  if (me.role === "owner") {
+    const { count, error } = await db
+      .from("shop_members")
+      .select("user_id", { count: "exact", head: true })
+      .eq("vendor_id", vendorId)
+      .neq("user_id", user.id);
+    if (error) return NextResponse.json({ error: "退会できませんでした" }, { status: 500 });
+    if ((count ?? 0) > 0) {
+      return NextResponse.json(
+        { error: "代表者は、先に別のメンバーへ代表者を引き継いでから退会してください", code: "owner_has_members" },
+        { status: 409 },
+      );
+    }
   }
 
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY;
-  const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-  if (!supabaseUrl || !supabaseAnonKey || !supabaseServiceRoleKey) {
-    return NextResponse.json({ error: "サーバー設定エラー" }, { status: 500 });
+  // 1. 操作ログから、このアカウントが誰だったかを消す（自分がした操作と、自分が対象の操作）
+  const { error: anonymizeError } = await db
+    .from("vendor_activity_logs")
+    .update({ actor_name: null, summary: ANONYMIZED_SUMMARY, details: null })
+    .or(`actor_id.eq.${user.id},target_id.eq.${user.id}`);
+  if (anonymizeError) {
+    console.error("[vendor/account/delete] anonymize error:", anonymizeError.message);
+    return NextResponse.json({ error: "退会できませんでした" }, { status: 500 });
   }
 
-  // セッションからリクエスト元のユーザーを取得
-  const cookieStore = await cookies();
-  const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
-    cookies: {
-      getAll: () => cookieStore.getAll(),
-      setAll: (cookiesToSet) => {
-        try {
-          cookiesToSet.forEach(({ name, value, options }) =>
-            cookieStore.set(name, value, options)
-          );
-        } catch {
-          // ignore
-        }
-      },
-    },
-  });
-
-  const { data: { user }, error: sessionError } = await supabase.auth.getUser();
-  if (sessionError || !user) {
-    return NextResponse.json({ error: "認証が必要です" }, { status: 401 });
+  // 2. 代表者として、お店に残っている自分の氏名を消し、出ている招待リンクを取り消す
+  //    （代表者がいなくなったお店に、招待リンクで人が入ってしまわないように）。
+  //    どちらも、やり直しても同じ結果になる操作で、アカウントを消す前に済ませる（途中で失敗しても、もう一度退会できる）
+  if (me.role === "owner") {
+    const { error: profileError } = await db.from("vendor_owner_profiles").delete().eq("vendor_id", vendorId);
+    const { error: inviteError } = await db
+      .from("shop_invites")
+      .update({ revoked_at: new Date().toISOString() })
+      .eq("vendor_id", vendorId)
+      .is("revoked_at", null);
+    if (profileError || inviteError) {
+      console.error("[vendor/account/delete] cleanup error:", profileError?.message ?? inviteError?.message);
+      return NextResponse.json({ error: "退会できませんでした" }, { status: 500 });
+    }
   }
 
-  // 管理者権限でユーザーを削除
-  const adminClient = createAdminClient(supabaseUrl, supabaseServiceRoleKey, {
-    auth: { autoRefreshToken: false, persistSession: false },
-  });
-
-  const { error: deleteError } = await adminClient.auth.admin.deleteUser(user.id);
+  // 3. ログインアカウントを消す（shop_members の行は連動して消える）。失敗したら、1・2 はそのままで、もう一度退会できる
+  const { error: deleteError } = await db.auth.admin.deleteUser(user.id);
   if (deleteError) {
-    return NextResponse.json({ error: "削除に失敗しました" }, { status: 500 });
+    console.error("[vendor/account/delete] deleteUser error:", deleteError.message);
+    return NextResponse.json({ error: "退会できませんでした。もう一度お試しください" }, { status: 500 });
   }
 
-  return NextResponse.json({ success: true });
+  await logVendorActivity(db, {
+    vendorId,
+    actorId: null,
+    actorName: null,
+    action: "member.withdraw",
+    summary: me.role === "owner" ? "代表者が退会した（お店はアカウントなしに戻った）" : "メンバーが退会した",
+  });
+
+  return NextResponse.json({ ok: true });
 }
