@@ -12,7 +12,7 @@ export const dynamic = "force-dynamic";
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const auth = await requireVendorNotices(request);
   if (!auth.ok) return auth.response;
-  const { user, db } = auth;
+  const { user, vendorId, db } = auth;
 
   const rateLimited = await enforceRateLimit(request, {
     bucket: "vendor-notices-read",
@@ -27,7 +27,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: "見つかりません" }, { status: 404 });
   }
 
-  const { error } = await db.from("vendor_notice_reads").insert({ notice_id: id, vendor_id: user.id });
+  const { error } = await db.from("vendor_notice_reads").insert({ notice_id: id, vendor_id: vendorId });
   // 23505: もう確認済み / 23503: 取り下げられたお知らせ
   if (error?.code === "23503") return NextResponse.json({ error: "このお知らせは取り下げられました" }, { status: 404 });
   if (error && error.code !== "23505") {

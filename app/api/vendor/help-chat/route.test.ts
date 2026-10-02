@@ -4,6 +4,13 @@ const getUser = vi.fn();
 const requestChatCompletion = vi.fn();
 const insertLog = vi.fn();
 
+const fetchShopMembership = vi.fn();
+// 店舗の ID（shop-1）はアカウントの ID（vendor-1）と別の値にして、user.id を店舗 ID に使っていないことも確かめる
+vi.mock("@/lib/vendor/shopMembership", () => ({
+  fetchShopMembership: (...args: unknown[]) => fetchShopMembership(...args),
+}));
+const OWNER_OF_SHOP = { vendorId: "shop-1", role: "owner", permissions: [], joinedAt: null };
+
 vi.mock("next/headers", () => ({ cookies: async () => ({}) }));
 vi.mock("@/lib/security/requestGuards", () => ({ requireSameOrigin: () => ({ ok: true }) }));
 vi.mock("@/lib/security/rateLimit", () => ({ enforceRateLimit: async () => null }));
@@ -15,8 +22,8 @@ vi.mock("@/lib/ai/openaiFetch", () => ({
 }));
 
 /** 本人の cookie のクライアント。お店の登録内容は「山田農園」を返す */
-vi.mock("@/utils/supabase/server", () => ({
-  createClientWithExtensions: () => ({
+vi.mock("@/utils/supabase/server", () => {
+  const client = () => ({
     auth: { getUser: () => getUser() },
     from: (table: string) => ({
       select: () => ({
@@ -30,8 +37,10 @@ vi.mock("@/utils/supabase/server", () => ({
         }),
       }),
     }),
-  }),
-}));
+  });
+  // 認証（requireVendorContext）は createClient、お店の読み込みは createClientWithExtensions を使う
+  return { createClient: client, createClientWithExtensions: client };
+});
 vi.mock("@/lib/vendor/helpChatStats.server", async (importOriginal) => ({
   toDataWord: (await importOriginal<typeof import("@/lib/vendor/helpChatStats.server")>()).toDataWord,
   loadVendorHelpShopStats: async () => ({
@@ -85,6 +94,8 @@ function sseResponse(chunks: string[]) {
 describe("POST /api/vendor/help-chat", () => {
   beforeEach(() => {
     getUser.mockReset();
+    fetchShopMembership.mockReset();
+    fetchShopMembership.mockResolvedValue(OWNER_OF_SHOP);
     requestChatCompletion.mockReset();
     insertLog.mockReset();
     insertLog.mockResolvedValue({ error: null });
@@ -137,7 +148,7 @@ describe("POST /api/vendor/help-chat", () => {
     expect(system).toContain("nicchyo の来訪者数: 今週（月曜から今日まで） 1,200人 / 今月 5,000人");
 
     expect(insertLog).toHaveBeenCalledWith({
-      vendor_id: "vendor-1",
+      vendor_id: "shop-1",
       question: "投稿のやり方は？",
       answer: "投稿はここからやで",
     });

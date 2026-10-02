@@ -12,14 +12,14 @@ const SeenSchema = z.object({ keys: z.array(z.string().refine(isVendorTourKey)).
 
 /**
  * GET: 自分が「了解した」で閉じた説明パネルの名前の一覧。
- * vendor_tour_seen は RLS で本人の行だけに絞られているので、service_role は使わない。
+ * vendor_tour_seen は RLS で自分の店舗の行だけに絞られているので、service_role は使わない。
  */
 export async function GET() {
   const auth = await requireVendor();
   if (!auth.ok) return auth.response;
-  const { supabase, user } = auth;
+  const { supabase, vendorId } = auth;
 
-  const { data, error } = await supabase.from("vendor_tour_seen").select("tour_key").eq("vendor_id", user.id);
+  const { data, error } = await supabase.from("vendor_tour_seen").select("tour_key").eq("vendor_id", vendorId);
   if (error) return NextResponse.json({ error: "読み込めませんでした" }, { status: 500 });
 
   return NextResponse.json({ seen: (data ?? []).map((row) => row.tour_key) });
@@ -34,7 +34,7 @@ export async function POST(request: Request) {
 
   const auth = await requireVendor();
   if (!auth.ok) return auth.response;
-  const { supabase, user } = auth;
+  const { supabase, user, vendorId } = auth;
 
   const rateLimited = await enforceRateLimit(request, {
     bucket: "vendor-tour-seen",
@@ -48,7 +48,7 @@ export async function POST(request: Request) {
   if (!parsed.success) return NextResponse.json({ error: "画面の名前を読み取れませんでした" }, { status: 400 });
 
   // 更新はさせない（RLS も insert だけ許す）。すでにあれば何もしない
-  const rows = [...new Set(parsed.data.keys)].map((tourKey) => ({ vendor_id: user.id, tour_key: tourKey }));
+  const rows = [...new Set(parsed.data.keys)].map((tourKey) => ({ vendor_id: vendorId, tour_key: tourKey }));
   const { error } = await supabase
     .from("vendor_tour_seen")
     .upsert(rows, { onConflict: "vendor_id,tour_key", ignoreDuplicates: true });

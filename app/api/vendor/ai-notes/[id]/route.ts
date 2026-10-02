@@ -14,9 +14,9 @@ type Params = { params: Promise<{ id: string }> };
  * PATCH: ノートを書き直す（トピックタイトルか本文が変わったらベクトルも作り直す）
  */
 export async function PATCH(request: Request, { params }: Params) {
-  const auth = await requireVendorWrite(request);
+  const auth = await requireVendorWrite(request, "ai_notes");
   if (!auth.ok) return auth.response;
-  const { supabase, user } = auth;
+  const { supabase, vendorId } = auth;
 
   const id = IdSchema.safeParse((await params).id);
   if (!id.success) return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -31,7 +31,7 @@ export async function PATCH(request: Request, { params }: Params) {
     .from("store_knowledge")
     .select("title, content")
     .eq("id", id.data)
-    .eq("store_id", user.id)
+    .eq("store_id", vendorId)
     .maybeSingle();
   if (readError) return NextResponse.json({ error: "保存できませんでした" }, { status: 500 });
   if (!current) return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -49,7 +49,7 @@ export async function PATCH(request: Request, { params }: Params) {
     .from("store_knowledge")
     .update(update)
     .eq("id", id.data)
-    .eq("store_id", user.id)
+    .eq("store_id", vendorId)
     .select(NOTE_COLUMNS)
     .single();
 
@@ -61,9 +61,9 @@ export async function PATCH(request: Request, { params }: Params) {
  * DELETE: ノートを消す
  */
 export async function DELETE(request: Request, { params }: Params) {
-  const auth = await requireVendorWrite(request);
+  const auth = await requireVendorWrite(request, "ai_notes");
   if (!auth.ok) return auth.response;
-  const { supabase, user } = auth;
+  const { supabase, vendorId } = auth;
 
   const id = IdSchema.safeParse((await params).id);
   if (!id.success) return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -72,7 +72,7 @@ export async function DELETE(request: Request, { params }: Params) {
     .from("store_knowledge")
     .delete()
     .eq("id", id.data)
-    .eq("store_id", user.id)
+    .eq("store_id", vendorId)
     .select("id");
 
   if (error) return NextResponse.json({ error: "消せませんでした" }, { status: 500 });

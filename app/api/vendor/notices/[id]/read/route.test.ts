@@ -3,6 +3,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const getUser = vi.fn();
 const insertRead = vi.fn();
 
+const fetchShopMembership = vi.fn();
+// 店舗の ID（shop-1）はアカウントの ID（vendor-1）と別の値にして、user.id を店舗 ID に使っていないことも確かめる
+vi.mock("@/lib/vendor/shopMembership", () => ({
+  fetchShopMembership: (...args: unknown[]) => fetchShopMembership(...args),
+}));
+const OWNER_OF_SHOP = { vendorId: "shop-1", role: "owner", permissions: [], joinedAt: null };
+
 vi.mock("next/headers", () => ({ cookies: async () => ({}) }));
 vi.mock("@/lib/security/requestGuards", () => ({ requireSameOrigin: () => ({ ok: true }) }));
 vi.mock("@/lib/security/rateLimit", () => ({ enforceRateLimit: async () => null }));
@@ -27,6 +34,8 @@ describe("POST /api/vendor/notices/[id]/read", () => {
   beforeEach(() => {
     getUser.mockReset();
     insertRead.mockReset();
+    fetchShopMembership.mockReset();
+    fetchShopMembership.mockResolvedValue({ ...OWNER_OF_SHOP, permissions: ["inquiries"] });
     getUser.mockResolvedValue({ data: { user: { id: "vendor-1", app_metadata: { role: "vendor" } } } });
     insertRead.mockResolvedValue({ error: null });
   });
@@ -34,7 +43,7 @@ describe("POST /api/vendor/notices/[id]/read", () => {
   it("ログインした出店者として「確認しました」を記録する（出店者は自分のものとしてしか記録できない）", async () => {
     const res = await confirm();
     expect(res.status).toBe(200);
-    expect(insertRead).toHaveBeenCalledWith({ notice_id: NOTICE_ID, vendor_id: "vendor-1" });
+    expect(insertRead).toHaveBeenCalledWith({ notice_id: NOTICE_ID, vendor_id: "shop-1" });
   });
 
   it("出店者でなければ記録しない", async () => {
@@ -43,6 +52,16 @@ describe("POST /api/vendor/notices/[id]/read", () => {
     getUser.mockResolvedValue({ data: { user: null } });
     expect((await confirm()).status).toBe(401);
     expect(insertRead).not.toHaveBeenCalled();
+  });
+
+  it("店舗に入っていない出店者ロールのアカウントと、権限のないメンバーは記録できない", async () => {
+    fetchShopMembership.mockResolvedValue(null);
+    expect((await confirm()).status).toBe(403);
+    fetchShopMembership.mockResolvedValue({ vendorId: "shop-1", role: "member", permissions: ["post"], joinedAt: null });
+    expect((await confirm()).status).toBe(403);
+    fetchShopMembership.mockResolvedValue({ vendorId: "shop-1", role: "member", permissions: ["inquiries"], joinedAt: null });
+    expect((await confirm()).status).toBe(200);
+    expect(insertRead).toHaveBeenCalledTimes(1);
   });
 
   it("2回目はそのまま成功、取り下げられたお知らせは 404、おかしな id は DB に行かない", async () => {

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { createClientWithExtensions } from "@/utils/supabase/server";
-import { requireVendorRole } from "@/lib/auth/permissions";
+import { requireVendorContext } from "@/lib/vendor/shopContext.server";
 import { requireSameOrigin } from "@/lib/security/requestGuards";
 import { isUuid } from "@/lib/vendorInquiries/constants";
 
@@ -20,14 +20,11 @@ export async function GET(request: Request, { params }: RouteParams) {
   // uuid型の列に非UUIDを渡すとPostgreSQLが22P02を返し500になるため、先に弾く
   if (!isUuid(id)) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  const cookieStore = await cookies();
-  const supabase = createClientWithExtensions(cookieStore);
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const forbidden = requireVendorRole(user);
-  if (forbidden) return forbidden;
+  const auth = await requireVendorContext({ permission: "inquiries" });
+  if (!auth.ok) return auth.response;
+  const { vendorId } = auth;
+  // vendor_inquiries は生成済み型に無いので、拡張型のクライアントで読み書きする（認証は上で済み）
+  const supabase = createClientWithExtensions(await cookies());
 
   const { data: inquiry, error: inquiryError } = await supabase
     .from("vendor_inquiries")
@@ -40,7 +37,7 @@ export async function GET(request: Request, { params }: RouteParams) {
     return NextResponse.json({ error: "データ取得に失敗しました" }, { status: 500 });
   }
   // RLSにより他人のスレッドはそもそも取得できないが、念のため明示的にも確認する
-  if (!inquiry || inquiry.vendor_id !== user.id) {
+  if (!inquiry || inquiry.vendor_id !== vendorId) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
