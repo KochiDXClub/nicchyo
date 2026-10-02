@@ -298,7 +298,7 @@ export default function HamburgerMenu() {
                         >
                           <MenuIcon name="help" className={`h-5 w-5 ${isActive('/vendor/help') ? 'text-white' : 'text-amber-600'}`} />
                           <div className="flex-1">
-                            <p className="text-sm font-medium">使い方ガイド</p>
+                            <p className="text-sm font-medium">よくある質問</p>
                             <p className={`text-xs ${isActive('/vendor/help') ? 'text-white/80' : 'text-gray-500'}`}>各機能の説明</p>
                           </div>
                         </Link>

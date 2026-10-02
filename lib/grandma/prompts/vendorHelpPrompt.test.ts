@@ -1,14 +1,16 @@
 import { describe, expect, it } from "vitest";
-import { VENDOR_HELP_GUIDE } from "@/lib/vendor/helpGuide";
+import { VENDOR_FAQ } from "@/lib/vendor/helpFaq";
 import { VENDOR_HELP_PAGES } from "@/lib/vendor/helpPages";
 import { buildVendorHelpSystemPrompt } from "./vendorHelpPrompt";
 
 describe("buildVendorHelpSystemPrompt", () => {
-  it("使い方ガイドの各項目と画面の場所を入れる", () => {
-    const prompt = buildVendorHelpSystemPrompt(VENDOR_HELP_GUIDE, {});
+  it("よくある質問の各項目と画面の場所を入れる", () => {
+    const prompt = buildVendorHelpSystemPrompt(VENDOR_FAQ, {});
 
-    for (const section of VENDOR_HELP_GUIDE) {
-      expect(prompt).toContain(`■ ${section.title}（画面: ${section.href}）`);
+    expect(prompt).toContain("【よくある質問】");
+    for (const item of VENDOR_FAQ) {
+      expect(prompt).toContain(`Q. ${item.q}`);
+      expect(prompt).toContain(`A. ${item.a}${item.href ? `（画面: ${item.href}）` : ""}`);
     }
   });
 
@@ -64,7 +66,7 @@ describe("buildVendorHelpSystemPrompt", () => {
     expect(prompt).toContain("よく検索した言葉: まだない");
   });
 
-  it("閲覧数とお気に入り数はまだ数えていないと伝えるよう指示する", () => {
-    expect(buildVendorHelpSystemPrompt([], {})).toContain("お店の閲覧数とお気に入り数は、まだ正しく数えられていません");
+  it("分析の数字がまだ無いときの伝え方を指示する", () => {
+    expect(buildVendorHelpSystemPrompt([], {})).toContain("記録がまだないあいだは0や「—」で出ます");
   });
 });
