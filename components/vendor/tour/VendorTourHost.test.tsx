@@ -153,7 +153,7 @@ describe("VendorTourHost（複数の機能がある画面）", () => {
     respondSeen(["home-chat", "home-actions"]);
     render(<VendorTourHost />);
 
-    expect(await screen.findByText("お休みする日曜日は、押すだけで登録")).toBeTruthy();
+    expect(await screen.findByText("休みにする日曜日は、押すだけで登録")).toBeTruthy();
     expect(screen.queryByText("言葉にするだけで、お店の情報が直せます")).toBeNull();
     expect(screen.getByText("出店者トップ ／ お休みカレンダー")).toBeTruthy();
 
@@ -172,6 +172,6 @@ describe("VendorTourHost（複数の機能がある画面）", () => {
     fireEvent.click(screen.getByRole("button", { name: "次へ" }));
     expect(screen.getByText("いちばん使うのは、この2つ")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "次へ" }));
-    expect(screen.getByText("お休みする日曜日は、押すだけで登録")).toBeTruthy();
+    expect(screen.getByText("休みにする日曜日は、押すだけで登録")).toBeTruthy();
   });
 });

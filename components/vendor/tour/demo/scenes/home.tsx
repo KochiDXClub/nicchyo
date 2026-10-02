@@ -72,7 +72,7 @@ export function ClosedDayScene({ step }: SceneProps) {
     <>
       <Box rect={{ x: 14, y: 14, w: 120, h: 24 }} className="flex items-center gap-1.5 text-[12px] font-bold text-nicchyo-ink">
         <CalendarDays size={14} aria-hidden="true" className="text-amber-600" />
-        出店する日曜日
+        出店しない日
       </Box>
       {DAYS.map((day, index) => {
         const isOff = off && index === OFF_INDEX;
@@ -94,19 +94,19 @@ export function ClosedDayScene({ step }: SceneProps) {
                 isOff ? "bg-nicchyo-ink/55 text-white" : "bg-status-good-bg text-status-good-fg"
               )}
             >
-              {isOff ? "お休み" : "出店"}
+              {isOff ? "休み" : "出店"}
             </span>
           </Box>
         );
       })}
       <Box rect={{ x: 40, y: 130, w: 240, h: 54 }} className={cn(SURFACE, "px-3 py-2")}>
-        <p className="text-[9px] font-bold text-nicchyo-ink/55">お客さんの画面</p>
+        <p className="text-[9px] font-bold text-nicchyo-ink/55">お客さんには</p>
         <p
           key={step === 2 ? "off" : "on"}
           className={cn("mt-1 flex items-center gap-1.5 text-[12px] font-bold", step === 2 ? "text-nicchyo-ink" : "text-nicchyo-ink/70")}
         >
           <Smile size={14} aria-hidden="true" className={step === 2 ? "text-amber-600" : "text-status-good-fg"} />
-          {step === 2 ? "10/18 はお休みです" : "10/18 は出店します"}
+          {step === 2 ? "10/18 は休みと伝わる" : "10/18 は出店と伝わる"}
         </p>
       </Box>
       <Finger target={step === 2 ? null : tile(OFF_INDEX)} pressed={step === 1} />

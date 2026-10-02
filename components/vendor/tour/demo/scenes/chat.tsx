@@ -12,10 +12,10 @@ const VARIANTS = {
 const INPUT: Rect = { x: 10, y: 158, w: 300, h: 34 };
 const SEND: Rect = { x: 278, y: 162, w: 26, h: 26 };
 const USER_BUBBLE: Rect = { x: 56, y: 10, w: 254, h: 26 };
-const REPLY_BUBBLE: Rect = { x: 10, y: 44, w: 128, h: 24 };
-const CARD: Rect = { x: 10, y: 74, w: 262, h: 74 };
-const SAVE: Rect = { x: 184, y: 112, w: 78, h: 26 };
-const HINT: Rect = { x: 10, y: 14, w: 196, h: 24 };
+const CARD: Rect = { x: 10, y: 44, w: 300, h: 104 };
+const FIELD: Rect = { x: 20, y: 72, w: 280, h: 28 };
+const SAVE: Rect = { x: 188, y: 112, w: 112, h: 28 };
+const HINT: Rect = { x: 14, y: 16, w: 220, h: 20 };
 
 /**
  * 話しかけて、変更案が出て、確かめて保存する。工程: 0 話しかける / 1 打って送る / 2 案が出る / 3 保存で反映。
@@ -31,8 +31,8 @@ export function ChatScene({ step, variant }: SceneProps & { variant: keyof typeo
   return (
     <>
       {!proposed && (
-        <Box key="hint" rect={HINT} {...POP_IN} className={cn(SURFACE, "flex items-center rounded-card rounded-bl-sm px-3 text-[11px] font-bold text-nicchyo-ink")}>
-          変えたいことを話してや
+        <Box key="hint" rect={HINT} {...POP_IN} className="flex items-center text-[11px] font-bold text-nicchyo-ink/55">
+          変えたいことを、そのまま言葉にするだけ
         </Box>
       )}
       {proposed && (
@@ -41,14 +41,14 @@ export function ChatScene({ step, variant }: SceneProps & { variant: keyof typeo
         </Box>
       )}
       {proposed && (
-        <Box rect={REPLY_BUBBLE} {...POP_IN} transition={{ ...POP_IN.transition, delay: 0.25 }} className={cn(SURFACE, "flex items-center rounded-card rounded-bl-sm px-3 text-[11px] font-bold text-nicchyo-ink")}>
-          こうでええかえ？
+        <Box rect={CARD} {...POP_IN} transition={{ ...POP_IN.transition, delay: 0.25 }} className={cn(SURFACE, "px-3 pt-2")}>
+          <p className="text-[11px] font-bold text-nicchyo-ink">{v.label}、これでええかえ？</p>
+          <p className="mt-px text-[9px] text-nicchyo-ink/55">直してから保存してもかまんきね。</p>
         </Box>
       )}
       {proposed && (
-        <Box rect={CARD} {...POP_IN} transition={{ ...POP_IN.transition, delay: 0.5 }} className={cn(SURFACE, "px-3 pt-2")}>
-          <p className="text-[10px] font-bold text-nicchyo-ink/55">{v.label}</p>
-          <p className="mt-0.5 text-[15px] font-bold text-nicchyo-ink">{v.value}</p>
+        <Box rect={FIELD} {...POP_IN} transition={{ ...POP_IN.transition, delay: 0.4 }} className="z-10 flex items-center rounded-btn bg-nicchyo-base px-3 text-[13px] font-bold text-nicchyo-ink ring-1 ring-line-warm">
+          {v.value}
         </Box>
       )}
       {proposed && (
@@ -68,7 +68,7 @@ export function ChatScene({ step, variant }: SceneProps & { variant: keyof typeo
               保存した
             </>
           ) : (
-            "保存"
+            "これでええ！"
           )}
         </Box>
       )}

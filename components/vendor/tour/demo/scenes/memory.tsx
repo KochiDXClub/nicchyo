@@ -2,14 +2,15 @@
 
 import { Check, Sparkles, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
-import { Bar, Box, Finger, POP_IN, SURFACE, type Rect, type SceneProps } from "../primitives";
+import { Box, Finger, POP_IN, SURFACE, type Rect, type SceneProps } from "../primitives";
 
 const SAY: Rect = { x: 70, y: 10, w: 240, h: 26 };
-const REPLY: Rect = { x: 10, y: 44, w: 190, h: 24 };
-const YES: Rect = { x: 10, y: 74, w: 72, h: 26 };
-const NOTE: Rect = { x: 14, y: 116, w: 292, h: 72 };
+const ASK: Rect = { x: 10, y: 44, w: 300, h: 66 };
+const YES: Rect = { x: 196, y: 80, w: 106, h: 24 };
+const SKIP: Rect = { x: 150, y: 80, w: 40, h: 24 };
+const NOTE: Rect = { x: 14, y: 120, w: 292, h: 70 };
 
-/** 話したことが覚えごとになる。工程: 0 話して聞かれる / 1 「覚えてや」/ 2 覚えごとに入る */
+/** 話したことが覚えごとになる。工程: 0 話して聞かれる / 1 「これでええ！」/ 2 覚えごとに入る */
 export function MemoryLearnScene({ step }: SceneProps) {
   const done = step === 2;
   return (
@@ -17,9 +18,15 @@ export function MemoryLearnScene({ step }: SceneProps) {
       <Box rect={SAY} {...POP_IN} className="flex items-center rounded-card rounded-br-sm bg-amber-500 px-3 text-[11px] font-bold text-white">
         10時前は空いちょるよ
       </Box>
-      <Box rect={REPLY} {...POP_IN} transition={{ ...POP_IN.transition, delay: 0.4 }} className={cn(SURFACE, "flex items-center gap-1.5 rounded-card rounded-bl-sm px-3 text-[11px] font-bold text-nicchyo-ink")}>
-        <Sparkles size={12} aria-hidden="true" className="text-amber-600" />
-        覚えちょいてもかまん？
+      <Box rect={ASK} {...POP_IN} transition={{ ...POP_IN.transition, delay: 0.4 }} className={cn(SURFACE, "px-3 pt-2")}>
+        <p className="flex items-center gap-1 text-[11px] font-bold text-nicchyo-ink">
+          <Sparkles size={12} aria-hidden="true" className="text-amber-600" />
+          これ、覚えちょいてもかまん？
+        </p>
+        <p className="mt-px text-[9px] text-nicchyo-ink/55">お客さんに聞かれたときの案内に使うで。</p>
+      </Box>
+      <Box rect={SKIP} className="z-10 flex items-center justify-center text-[10px] font-bold text-nicchyo-ink/55">
+        いらん
       </Box>
       <Box
         rect={YES}
@@ -27,11 +34,11 @@ export function MemoryLearnScene({ step }: SceneProps) {
         animate={{ opacity: 1, y: 0, scale: step === 1 ? 0.94 : 1 }}
         transition={{ delay: step === 0 ? 0.8 : 0 }}
         className={cn(
-          "flex items-center justify-center rounded-chip text-[11px] font-bold text-white transition-colors duration-300",
+          "z-10 flex items-center justify-center rounded-chip text-[11px] font-bold text-white transition-colors duration-300",
           done ? "bg-status-good-fg" : "bg-amber-500"
         )}
       >
-        {done ? "覚えたで" : "覚えてや"}
+        {done ? "覚えたで" : "これでええ！"}
       </Box>
 
       {!done && (
@@ -47,7 +54,7 @@ export function MemoryLearnScene({ step }: SceneProps) {
           </p>
           <p className="mt-1 text-[11px] text-nicchyo-ink/70">10時前は空いています</p>
           <p className="mt-1.5 inline-block rounded-chip bg-amber-100 px-2 py-0.5 text-[9px] font-bold text-amber-900">
-            お客さんへの案内に使う
+            お客さんへの案内
           </p>
         </Box>
       )}
@@ -82,13 +89,15 @@ export function MemoryToggleScene({ step }: SceneProps) {
     <>
       <Box rect={CARD} animate={{ opacity: forgotten ? 0.25 : 1 }} className={cn(SURFACE, "px-3 pt-2")}>
         <p className="text-[11px] font-bold text-nicchyo-ink">空いている時間</p>
-        <Bar rect={{ x: 12, y: 24, w: 150, h: 6 }} />
+      </Box>
+      <Box rect={{ x: 26, y: 34, w: 200, h: 14 }} animate={{ opacity: forgotten ? 0.25 : 1 }} className="text-[10px] font-semibold text-nicchyo-ink/70">
+        どこで使う？
       </Box>
       <Box rect={{ x: 26, y: 52, w: 200, h: 20 }} animate={{ opacity: forgotten ? 0.25 : 1 }} className="flex items-center text-[11px] font-bold text-nicchyo-ink">
-        お客さんへの案内に使う
+        お客さんへの案内
       </Box>
       <Box rect={{ x: 26, y: 84, w: 200, h: 20 }} animate={{ opacity: forgotten ? 0.25 : 1 }} className="flex items-center text-[11px] font-bold text-nicchyo-ink">
-        自分の相談に使う
+        自分の相談
       </Box>
       <Switch rect={TOGGLE_A} on={step === 0} />
       <Switch rect={TOGGLE_B} on />
@@ -99,7 +108,7 @@ export function MemoryToggleScene({ step }: SceneProps) {
       ) : (
         <Box rect={FORGET} className="flex items-center justify-center gap-1.5 rounded-btn bg-white text-[11px] font-bold text-rose-600 shadow-chip ring-1 ring-rose-200">
           <Trash2 size={13} aria-hidden="true" />
-          忘れさせる
+          にちよさんに忘れさせる
         </Box>
       )}
       <Finger target={step === 0 ? null : step === 1 ? TOGGLE_A : FORGET} pressed={step >= 1} />

@@ -37,9 +37,9 @@ export function AnalyticsHeroScene({ step }: SceneProps) {
         </p>
       </Box>
       {step >= 1 && (
-        <Box key="delta" rect={{ x: 190, y: 54, w: 104, h: 26 }} {...POP_IN} className="flex items-center justify-center gap-1 rounded-chip bg-status-good-bg text-[11px] font-bold text-status-good-fg">
+        <Box key="delta" rect={{ x: 150, y: 54, w: 144, h: 26 }} {...POP_IN} className="flex items-center justify-center gap-1 rounded-chip bg-status-good-bg text-[11px] font-bold text-status-good-fg">
           <TrendingUp size={13} aria-hidden="true" />
-          先週より +12回
+          先週より 12回多いです
         </Box>
       )}
       {[

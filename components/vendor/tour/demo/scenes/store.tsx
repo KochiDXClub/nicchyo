@@ -17,7 +17,7 @@ const row = (index: number): Rect => ({ x: 10, y: 8 + index * 34, w: 300, h: ROW
 const TARGET = 2;
 const SHEET: Rect = { x: 0, y: 62, w: 320, h: 138 };
 const FIELD: Rect = { x: 16, y: 106, w: 288, h: 30 };
-const SAVE: Rect = { x: 226, y: 150, w: 78, h: 30 };
+const SAVE: Rect = { x: 192, y: 150, w: 112, h: 30 };
 
 /** 店舗情報の5つのまとまり。工程: 0 まとまり / 1 押す / 2 入力して保存 */
 export function StoreGroupsScene({ step }: SceneProps) {
@@ -76,7 +76,7 @@ export function StoreGroupsScene({ step }: SceneProps) {
             transition={{ type: "spring", stiffness: 220, damping: 26, delay: 0.1 }}
             className="z-20 flex items-center justify-center rounded-chip bg-amber-500 text-[12px] font-bold text-white"
           >
-            保存
+            これでええ！
           </Box>
         </>
       )}

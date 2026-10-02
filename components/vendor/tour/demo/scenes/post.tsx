@@ -1,59 +1,60 @@
 "use client";
 
-import { Camera, Check, Eye, History, Pencil, RotateCcw } from "lucide-react";
+import { Camera, Check, Eye, History, Image as ImageIcon, Pencil, RotateCcw, Send } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { Box, Finger, POP_IN, SURFACE, useTyped, type Rect, type SceneProps } from "../primitives";
 
-const TILE: Rect = { x: 86, y: 14, w: 148, h: 98 };
+const TAKE: Rect = { x: 20, y: 14, w: 134, h: 100 };
+const PICK: Rect = { x: 166, y: 14, w: 134, h: 100 };
+const TILE: Rect = { x: 86, y: 14, w: 148, h: 100 };
 const NOTE: Rect = { x: 18, y: 124, w: 284, h: 28 };
-const SEND: Rect = { x: 202, y: 162, w: 100, h: 28 };
+const SEND: Rect = { x: 126, y: 162, w: 176, h: 28 };
 const SAY = "朝どれのトマト、あと10個";
 
-/** 近況を出す。工程: 0 写真を選ぶ / 1 写真が入る / 2 ひとこと / 3 出す */
+/** 近況を出す。工程: 0 「撮る」か「写真を選ぶ」/ 1 写真が入る / 2 ひとこと / 3 「近況に出す」で公開 */
 export function PostPhotoScene({ step }: SceneProps) {
   const typed = useTyped(SAY, step === 2 ? "typing" : step >= 3 ? "done" : "idle");
   const hasPhoto = step >= 1;
-  const finger = step === 0 ? TILE : step === 1 ? null : step === 2 ? NOTE : SEND;
+  const finger = step === 0 ? TAKE : step === 1 ? null : step === 2 ? NOTE : SEND;
 
   return (
     <>
-      <Box
-        rect={TILE}
-        className={cn(
-          "overflow-hidden rounded-card",
-          hasPhoto ? "bg-amber-200 shadow-card" : "border-2 border-dashed border-amber-400 bg-white"
-        )}
-      >
-        {hasPhoto ? (
-          <Box rect={{ x: 0, y: 0, w: TILE.w, h: TILE.h }} {...POP_IN} className="relative">
-            <span className="absolute inset-x-0 bottom-0 h-9 bg-amber-700/40" />
-            {[24, 62, 100].map((left, i) => (
-              <span
-                key={left}
-                className="absolute rounded-full bg-rose-500 shadow-chip"
-                style={{ left, bottom: 18 + (i === 1 ? 10 : 0), width: 32, height: 32 }}
-              />
-            ))}
-            {[32, 70, 108].map((left, i) => (
-              <span key={left} className="absolute h-2.5 w-2.5 rounded-full bg-emerald-600" style={{ left, bottom: 46 + (i === 1 ? 10 : 0) }} />
-            ))}
-            {step >= 3 && (
-              <span className="absolute left-2 top-2 flex items-center gap-1 rounded-chip bg-status-good-fg px-2 py-0.5 text-[9px] font-bold text-white">
-                <Eye size={10} aria-hidden="true" />
-                公開中
-              </span>
-            )}
-          </Box>
-        ) : (
-          <div className="flex h-full flex-col items-center justify-center gap-1 text-amber-700">
+      {!hasPhoto && (
+        <>
+          <Box rect={TAKE} className="flex flex-col items-center justify-center gap-1.5 rounded-card bg-amber-500 text-[15px] font-bold text-white shadow-pop">
             <Camera size={26} aria-hidden="true" />
-            <span className="text-[10px] font-bold">写真を撮る・選ぶ</span>
-          </div>
-        )}
-      </Box>
+            撮る
+          </Box>
+          <Box rect={PICK} className={cn(SURFACE, "flex flex-col items-center justify-center gap-1.5 rounded-card text-[15px] font-bold text-amber-800")}>
+            <ImageIcon size={26} aria-hidden="true" />
+            写真を選ぶ
+          </Box>
+        </>
+      )}
+      {hasPhoto && (
+        <Box rect={TILE} {...POP_IN} className="overflow-hidden rounded-card bg-amber-200 shadow-card">
+          <span className="absolute inset-x-0 bottom-0 h-9 bg-amber-700/40" />
+          {[24, 62, 100].map((left, i) => (
+            <span
+              key={left}
+              className="absolute rounded-full bg-rose-500 shadow-chip"
+              style={{ left, bottom: 18 + (i === 1 ? 10 : 0), width: 32, height: 32 }}
+            />
+          ))}
+          {[32, 70, 108].map((left, i) => (
+            <span key={left} className="absolute h-2.5 w-2.5 rounded-full bg-emerald-600" style={{ left, bottom: 46 + (i === 1 ? 10 : 0) }} />
+          ))}
+          {step >= 3 && (
+            <span className="absolute left-2 top-2 flex items-center gap-1 rounded-chip bg-status-good-fg px-2 py-0.5 text-[9px] font-bold text-white">
+              <Eye size={10} aria-hidden="true" />
+              公開中
+            </span>
+          )}
+        </Box>
+      )}
 
       <Box rect={NOTE} className={cn(SURFACE, "flex items-center px-3 text-[11px]")}>
-        {typed ? <span className="font-bold text-nicchyo-ink">{typed}</span> : <span className="text-nicchyo-ink/40">ひとこと（なくても出せます）</span>}
+        {typed ? <span className="font-bold text-nicchyo-ink">{typed}</span> : <span className="text-nicchyo-ink/40">ひとこと添える（なくてもOK）</span>}
       </Box>
       <Box
         rect={SEND}
@@ -61,7 +62,7 @@ export function PostPhotoScene({ step }: SceneProps) {
         animate={{ scale: step === 3 ? 1 : hasPhoto ? [1, 1.04, 1] : 1 }}
         transition={{ duration: 1.4, repeat: step === 3 ? 0 : Infinity }}
         className={cn(
-          "flex items-center justify-center gap-1 rounded-chip text-[12px] font-bold text-white transition-colors duration-300",
+          "flex items-center justify-center gap-1.5 rounded-chip text-[12px] font-bold text-white transition-colors duration-300",
           step === 3 ? "bg-status-good-fg" : hasPhoto ? "bg-amber-500" : "bg-nicchyo-ink/20"
         )}
       >
@@ -71,7 +72,10 @@ export function PostPhotoScene({ step }: SceneProps) {
             出しました
           </>
         ) : (
-          "近況を出す"
+          <>
+            <Send size={13} aria-hidden="true" />
+            近況に出す（日曜まで）
+          </>
         )}
       </Box>
       <Finger target={finger} pressed={step === 0 || step === 3} />
@@ -89,7 +93,7 @@ export function PostPeriodScene({ step }: SceneProps) {
   return (
     <>
       <Box rect={{ x: 14, y: 4, w: 160, h: 16 }} className="text-[10px] font-bold text-nicchyo-ink/55">
-        どれくらい出しておく？
+        出しておく期間
       </Box>
       {CHIPS.map((label, index) => (
         <Box

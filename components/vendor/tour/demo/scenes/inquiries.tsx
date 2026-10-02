@@ -8,7 +8,7 @@ import { Box, Finger, POP_IN, SURFACE, useTyped, type Rect, type SceneProps } fr
 const TOPICS = ["質問", "報告・連絡", "相談"] as const;
 const topic = (index: number): Rect => ({ x: 12 + index * 100, y: 10, w: 96, h: 28 });
 const BODY: Rect = { x: 12, y: 48, w: 296, h: 50 };
-const SEND: Rect = { x: 220, y: 108, w: 88, h: 30 };
+const SEND: Rect = { x: 196, y: 108, w: 112, h: 30 };
 const REPLY: Rect = { x: 12, y: 146, w: 296, h: 44 };
 const SAY = "出店場所の相談をしたいです";
 
@@ -43,7 +43,7 @@ export function InquiriesSendScene({ step }: SceneProps) {
         className="flex items-center justify-center gap-1.5 rounded-chip bg-amber-500 text-[11px] font-bold text-white"
       >
         <Send size={12} aria-hidden="true" />
-        送る
+        送信する
       </Box>
 
       <AnimatePresence>
@@ -67,10 +67,10 @@ export function InquiriesSendScene({ step }: SceneProps) {
             <Mail size={15} aria-hidden="true" />
           </span>
           <span className="text-[11px] font-bold leading-snug text-nicchyo-ink">
-            高知市役所から返信が届きました
+            返信が届きました
             <span className="mt-0.5 flex items-center gap-1 text-[9px] font-normal text-nicchyo-ink/55">
               <Check size={10} aria-hidden="true" />
-              連絡ページで読めます
+              この連絡ページで読めます
             </span>
           </span>
         </Box>
