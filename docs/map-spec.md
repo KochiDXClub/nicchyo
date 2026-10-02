@@ -22,7 +22,7 @@ nicchyo は、高知の日曜市のマップを基盤に、以下の要素をつ
 *   🎯 **AI案内役「にちよさん」（Core）**: 独立ページ（`/consult`）から利用する相談機能。マップ側は「このへん」パネルの追い質問とショップバナー単位の相談（`AiConsultPanel`）が同じバックエンドを利用するが、マップ内蔵のチャットUI自体は導線未実装（1章参照）。RAGでナレッジベースを検索し、複数キャラクターの掛け合いで回答する。
 *   🛍 **ショップバナー**: 店舗の最小情報（会話のきっかけ）。マップ・検索結果どちらからも同じコンポーネントで開く。
 *   📣 **近況（旧ことづて の実質的な後継）**: 出店者が投稿する当日の写真・お知らせを見る機能（`/story`）。ショップバナー内の「今日のお知らせ」とデータソースを共有する。
-*   🚻 **おでかけサポート**: お手洗い・休憩ベンチ・公共交通のりばをマップから探せる機能（`/facilities` → `/map` に遷移して案内）。
+*   🚻 **おでかけサポート**: お手洗い・休憩ベンチ・公共交通のりばなどをマップ上で探して徒歩で案内する機能（`/map?guide=menu` で開く。`/facilities` は同URLへのリダイレクトのみ）。
 *   📅 **日曜市カレンダー**: 開催予定・荒天中止・特別開催のお知らせを確認できる機能（`/calendar`）。マップ・近況ページ双方の告知バーとデータを共有する横断的な基盤機能。
 
 ※ 従来の独立した「ことづて投稿ページ」（`app/(public)/posts/`）はモックデータのみでバックエンド接続がなく、ナビゲーション上の導線も無い事実上の未使用ページです。ただしルート自体は公開されているため、URL 直打ちでは到達します。新規開発でこのページを起点にしないでください。削除するかどうかは本ドキュメントでなく [#509](https://github.com/KochiDXClub/nicchyo/issues/509) で判断します。
@@ -35,26 +35,26 @@ nicchyo は、高知の日曜市のマップを基盤に、以下の要素をつ
 *   React + TypeScript
 *   Tailwind CSS
 *   Supabase（DB / Auth / RPC によるベクトル検索）
-*   Leaflet（マップ描画、`react-leaflet`）
-*   OpenAI API（Embeddings + GPT-4o-mini、AI相談のRAGバックエンド。`openai` パッケージは未導入で `fetch` 直叩き）
+*   Leaflet（`react-leaflet`）と MapLibre GL JS（`maplibre-gl`）の2系統でマップを描画。どちらを使うかは `lib/mapFeatureFlags.ts` の `renderer`（既定 `leaflet`。管理画面の設定か URL の `?mapFlags=renderer:maplibre` で切替。MapLibre 版は移行中の並走検証用）
+*   OpenAI API（Embeddings + チャットモデル、AI相談のRAGバックエンド。使用モデルは `lib/ai/models.ts` と管理画面の設定で決まる。`openai` パッケージは未導入で `fetch` 直叩き）
 *   `@anthropic-ai/sdk`（週次セキュリティレポート生成用、マップ・相談機能とは無関係）
 
 1. 各ページが担う機能（現行実装の要約）
 
 *   **`app/(public)/map/`（MapPageClient.tsx がハブ）**
-    *   Leaflet地図本体（`MapView.tsx`、SSR無効の `dynamic import`）を中心に、検索バー／ジャンルフィルター、「このへん、なにがある？」パネル、マップ内AI相談パネル、おでかけサポート案内、開催ステータスバー（`MarketStatusBar`）をオーバーレイで重ねる。
-    *   レイヤー: `OptimizedShopLayerWithClustering`（店舗ピン、クラスタリング対応）／`ChomeAreaMarkers`・`RoadOverlay`・`BackgroundOverlay`（丁目区画・道路形状・背景）／`FacilityLayer`（おでかけサポート選択時の施設マーカー・ルート）／`UserLocationMarker`（現在地、会場内外判定）。
-    *   `ShopDetailBanner.tsx`: 店舗を選択した際に表示される詳細パネル。ヒーロー画像、店名、「今日のお知らせ」（`activePosts` を `PostCarousel` で表示、近況機能とデータ共有）、商品一覧（タップで買い物バッグへ即追加）、SNSリンク、決済方法、「AIに相談する」ボタン（この店舗をコンテキストにした `AiConsultPanel` を起動）を含む。
+    *   地図本体（Leaflet 版 `components/MapView.tsx` または MapLibre 版 `components/maplibre/MapViewMapLibre.tsx`。どちらも SSR 無効の `dynamic import`）を中心に、検索バー／ジャンルフィルター、「このへん、なにがある？」パネル、おでかけサポート（`OdekakeGuidePanel`）、開催ステータスバー（`app/components/market/MarketStatusBar.tsx`）をオーバーレイで重ねる。
+    *   レイヤー（Leaflet 版）: `OptimizedShopLayerWithClustering`（店舗ピン、クラスタリング対応）／`ChomeAreaMarkers`・`RoadOverlay`・`BackgroundOverlay`（丁目区画・道路形状・背景）／`GuideLayer`（おでかけサポートのスポットマーカー・ルート）／`UserLocationMarker`（現在地、会場内外判定）。MapLibre 版は店舗をシンボルレイヤー（`maplibre/shopFeatures.ts`）で描き、現在地は `maplibre/useMapLibreUserLocation.ts`。レイヤー構成は [LAYER_ARCHITECTURE.md](./LAYER_ARCHITECTURE.md)。
+    *   `ShopDetailBanner.tsx`: 店舗を選択した際に表示される詳細パネル。ヒーロー画像、店名、「今日のお知らせ」（`activePosts` を `PostCarousel` で表示、近況機能とデータ共有）、商品一覧（商品単位でお気に入りに追加。`lib/favoriteShops.ts`）、SNSリンク、決済方法、「AIに相談する」ボタン（この店舗をコンテキストにした `AiConsultPanel` を起動）を含む。
         *   「今日のお知らせ」は近況機能（`/story`）と同じ `vendor_contents` を参照するが、**取得条件は同一ではない**。マップ側（`app/(public)/map/services/shopDb.ts`）は `status='active'` かつ `expires_at > 現在時刻`（＝有効期限内のみ）、近況側（`app/api/stories/route.ts`）は `status='active'` かつ `image_url IS NOT NULL` かつ `created_at` 直近31日（＝期限切れも含む）。新機能で「お知らせ」を扱う際はどちらの条件に合わせるかを明示すること。
-    *   `NearbyExploreButton` / `NearbyExplorePanel`: 「このへん、なにがある？」。画面中心付近の店舗を要約し、お気に入り・買い物バッグの傾向から興味ジャンルを推定して最大9件レコメンドする。
-    *   お気に入り（`lib/favoriteShops.ts`）・買い物バッグ（`lib/storage/BagContext.tsx`）はいずれも localStorage 永続化で、サーバー同期はしていない。
-        *   ⚠️ **買い物バッグは廃止が決定済み**（[#499](https://github.com/KochiDXClub/nicchyo/issues/499) epic / [#500](https://github.com/KochiDXClub/nicchyo/issues/500)）。以下の記述はいずれも現行実装の説明であり、**バッグ機能の上に新しい設計を積まないでください**。ナビゲーション導線はお気に入り一覧に差し替え予定（[#501](https://github.com/KochiDXClub/nicchyo/issues/501)）、お気に入り自体もサーバー同期化が予定されています（[#502](https://github.com/KochiDXClub/nicchyo/issues/502)）。
+    *   `NearbyExploreButton` / `NearbyExplorePanel`: 「このへん、なにがある？」。画面中心付近の店舗を要約し、お気に入りの傾向から興味ジャンルを推定してレコメンドする（`utils/nearbyRecommendations.ts`）。
+    *   お気に入り（`lib/favoriteShops.ts`）。一覧は `/favorites`（`NavigationBar` の導線）。
+        *   買い物バッグ（旧 `BagContext`）は廃止・削除済み。前提にしないでください（[#499](https://github.com/KochiDXClub/nicchyo/issues/499)）。
     *   AI相談の起点は画面下部 `NavigationBar` の「相談」ボタン（`onConsultClick`）のみ。押すと `/consult` に遷移する。マップ上に相談UIを重ねる形式は廃止した（`MapAgentAssistant` と `/api/map-agent` は [#509](https://github.com/KochiDXClub/nicchyo/issues/509)、到達不能だった `MapCharacterConsult` は [#635](https://github.com/KochiDXClub/nicchyo/issues/635) で削除）。相談は `/consult` に一本化している。
 
 *   **`app/(public)/consult/`（AI案内役「にちよさん」の独立ページ）**
     *   `ConsultClient.tsx` がロジックのハブ、相談UIは `components/ConsultStage.tsx` が担う。以前のチャットUI `GrandmaChatter.tsx` は使われなくなったため削除した（[#635](https://github.com/KochiDXClub/nicchyo/issues/635)）。
-    *   複数AIキャラクター（`consultCharacters.ts`）: にちよさん（土佐弁ベテラン）／よういちさん／みらいくん／よさこちゃん。会話パターンに応じて複数人格が掛け合い形式（`turns`）で返答する。
-    *   バックエンドは `app/api/grandma/ask`：質問を OpenAI Embeddings でベクトル化し、Supabase RPC（`match_knowledge_embeddings` / `match_store_knowledge`）で共通ナレッジ・出店者ナレッジを検索するRAG構成。GPT-4o-mini で構造化出力またはストリーミング応答を生成し、おすすめ店舗ID・フォローアップ質問・会話要約を返す。会話ログは `ai_consult_logs` に記録。
+    *   複数AIキャラクター（`app/(public)/consult/data/consultCharacters.ts`）: にちよさん（土佐弁ベテラン）／よういちさん／みらいくん／よさこちゃん。会話パターンに応じて複数人格が掛け合い形式（`turns`）で返答する。
+    *   バックエンドは `app/api/grandma/ask`：質問を OpenAI Embeddings でベクトル化し、Supabase RPC（`match_knowledge_embeddings` / `match_store_knowledge`）で共通ナレッジ・出店者ナレッジを検索するRAG構成。チャットモデル（`lib/ai/models.ts`）で構造化出力またはストリーミング応答を生成し、おすすめ店舗ID・フォローアップ質問・会話要約を返す。会話ログは `ai_consult_logs` に記録。
     *   マップ側で実際にこのAPIを叩くのは「このへんパネルの追い質問」と「ショップバナーの店舗単位相談（`AiConsultPanel`）」の2箇所（検索バー横には相談導線は無い）。いずれも同じ `/api/grandma/*` を利用する。
 
 *   **`app/(public)/story/`（近況）**
@@ -63,14 +63,15 @@ nicchyo は、高知の日曜市のマップを基盤に、以下の要素をつ
     *   `StoryViewer.tsx`: 全画面ビューア（自動送り・スワイプ操作）。匿名ハートリアクション（`lib/story/reactions.ts`、来訪者キーで1投稿1ハート）が実装されている。
     *   マップのショップバナー内「今日のお知らせ」と同じデータを参照し、店舗番号経由で `/map?shop=<番号>` へ相互リンクする。
 
-*   **`app/(public)/facilities/`（おでかけサポート）**
-    *   `/facilities` はカテゴリ選択画面のみ（お手洗い・休憩・公共交通の3種、`lib/facilities/facilities.ts`）。地図描画は持たず、選択すると `/map?facility=<category>` に遷移する。
-    *   マップ側の `useFacilityGuide` フックが現在地取得・最寄り施設ランキング（道なり距離）・ルート生成を行い、`FacilityLayer`（マーカー強調）と `FacilityGuidePanel`（一覧）に反映する。
-    *   「のりもの」カテゴリのみ静的データを持たず、マップ上のランドマーク（路面電車停留場・JR駅）から動的に生成する。
+*   **おでかけサポート（`/facilities` は `/map?guide=menu` へのリダイレクトのみ）**
+    *   種類選択は地図上の `OdekakeKindChooser`、起動は `OdekakeLaunchButton`、一覧は `OdekakeGuidePanel`（`SpotCard`）、案内中は `GuideNavigationBar`。状態は `hooks/useOdekakeGuide.ts` が持つ。旧 URL `?facility=<カテゴリ>` も受け付ける。
+    *   現在地取得・最寄りスポットのランキング・道なり経路は `lib/guide/`（`ranking.ts` / `routing.ts` など）と `lib/facilities/`、地図への描画は `GuideLayer`。
+    *   「のりもの」は静的データを持たず、マップ上のランドマーク（路面電車停留場・JR駅。`lib/facilities/transitLandmarks.ts`）から動的に生成する。
+    *   利用ログは `guide_events`（[ANALYTICS_EVENTS.md](./ANALYTICS_EVENTS.md)）。
 
 *   **`app/(public)/calendar/`（日曜市カレンダー）**
     *   サーバーコンポーネント。`lib/market/calendar.ts` の `fetchMarketCalendar()` で開催ステータス・日程一覧を取得。
-    *   `MarketStatusBar` は `placement` propで挙動が変わる: マップ埋め込み（`placement="map"`）は開催中止など例外時のみ表示、カレンダー・近況ページ埋め込み（`placement="page"`）は常時表示。`UpcomingSundays`（今後の日曜日一覧）と組み合わせて使う。
+    *   `MarketStatusBar`（`app/components/market/`）は `placement` propで挙動が変わる: マップ埋め込み（`placement="map"`）は開催中止など例外時のみ表示、カレンダー・近況ページ埋め込み（`placement="page"`）は常時表示。`UpcomingSundays`（同ディレクトリ。今後の日曜日一覧）と組み合わせて使う。
     *   `useMarketCalendar` フック経由で map・story 双方の告知バーとデータを共有する横断的な基盤機能。
 
 *   **`app/(public)/search/`（検索）**
@@ -79,7 +80,7 @@ nicchyo は、高知の日曜市のマップを基盤に、以下の要素をつ
 2. ディレクトリ構成を新規に検討する場合
 
 独立ページ（`recipes`）は削除済み、`posts`（旧ことづて投稿ページ）は事実上未使用であることを前提にしてください。
-`story` / `facilities` / `calendar` / `consult` はいずれも `map` と並ぶ独立ルートとして存在し、マップと相互にリンクしています。新機能を追加する際も、まずこの5ページ＋`search`のどこに属するかを整理してから設計してください。
+`story` / `calendar` / `consult` / `favorites` はいずれも `map` と並ぶ独立ルートとして存在し、マップと相互にリンクしています。新機能を追加する際も、まずこれらのページ＋`search`のどこに属するか（おでかけサポートは `map` 内の機能）を整理してから設計してください。
 
 3. データスキーマ（現行実装の要約）
 
@@ -88,7 +89,7 @@ nicchyo は、高知の日曜市のマップを基盤に、以下の要素をつ
 *   近況・ショップバナーの投稿データ: `app/(public)/story/types.ts` の `StoryItem`（`vendor_contents` テーブル＋`location_assignments` 経由の `store_number` を含む）
 *   近況の匿名リアクション: `lib/story/reactions.ts` の `ReactionState`（`{ count, reacted }`）。DBは `content_reactions(vendor_content_id, visitor_key)`
 *   マップのショップバナーが受け取る「今日のお知らせ」の型: `app/(public)/map/types/shopData.ts` の `activePosts?: { id?, text, imageUrl?, expiresAt, createdAt }[]`（camelCase。上記 `StoryItem` とはデータソース（`vendor_contents`）は共通だが、型としては共有していない点に注意）
-*   おでかけサポートのカテゴリ: `lib/facilities/facilities.ts` の `FacilityCategoryId`（`"restroom" | "rest" | "transport"`）
+*   おでかけサポートのスポット・種類: `lib/guide/types.ts` と `lib/facilities/facilities.ts`（`FacilityCategoryId`）
 
 ※ 旧仕様書にあった `VendorStatus`（開店中/完売の投票）・`RecipeLink` 型は実装が存在しないため削除しました。出店状況の即時性を担保したい場合は、上記の近況データ構造を拡張するか、`ReactionState` に類する匿名投票を新設する形で設計してください。
 
@@ -97,7 +98,7 @@ nicchyo は、高知の日曜市のマップを基盤に、以下の要素をつ
 *   **ShopBanner**: マップ・検索結果どちらからも同じコンポーネントで開く。
     *   店名、ジャンル、ヒーロー画像
     *   `PostCarousel`: 「今日のお知らせ」（近況投稿）を表示
-    *   商品一覧: タップで買い物バッグへ即追加、Undoトースト付き（バッグは [#500](https://github.com/KochiDXClub/nicchyo/issues/500) で削除予定。商品単位のお気に入りへの置き換えは [#503](https://github.com/KochiDXClub/nicchyo/issues/503)）
+    *   商品一覧: タップで商品単位のお気に入りに追加（Undoトースト付き）
     *   `AiConsultPanel` 起動ボタン: この店舗をコンテキストにしたAI相談
 *   **ConsultStage**: `/consult` ページの相談UI。選んだ話し手1人が答える。マップ上には相談UIを持たない（1章参照）。
 *   **AI Consultant 導線**: 「このへん」パネル／ショップバナーの2箇所から、いずれも `/api/grandma/*` を呼び出す（検索バー横には相談導線は無い）。
@@ -106,7 +107,7 @@ nicchyo は、高知の日曜市のマップを基盤に、以下の要素をつ
 
 新規機能を設計する際は、以下の永続化・データソースの分担を踏まえてください。
 
-*   お気に入り・買い物バッグ: localStorage（`lib/favoriteShops.ts`, `lib/storage/BagContext.tsx`）、サーバー同期なし。ただし買い物バッグは [#500](https://github.com/KochiDXClub/nicchyo/issues/500) で削除予定、お気に入りは [#502](https://github.com/KochiDXClub/nicchyo/issues/502) でサーバー同期化予定
+*   お気に入り: localStorage（`lib/favoriteShops.ts`）、サーバー同期なし（同期化は [#502](https://github.com/KochiDXClub/nicchyo/issues/502) で検討）
 *   近況・ショップバナーのお知らせ: Supabase `vendor_contents`（サーバー取得）
 *   AI相談の会話ログ: Supabase `ai_consult_logs`（サーバー記録、研究用）
 *   開催カレンダー: Supabase 経由（`lib/market/calendar.ts`）、map・story 間で共有
@@ -119,6 +120,6 @@ nicchyo は、高知の日曜市のマップを基盤に、以下の要素をつ
 
 7. 計測・分析イベント
 
-イベント命名・送信方法は [docs/ANALYTICS_EVENTS.md](./ANALYTICS_EVENTS.md) を正としてください（`shop_impression` / `shop_view` / `shop_scroll` などは `sendEvent()` 経由で送信。ただし `page_view` のみ `PageVisitTracker.tsx` が `gtag()` を直接呼んでおり `sendEvent()` を経由しない）。本ドキュメントに個別のイベント名を重複定義しません。
+イベントの命名・送信経路・現在発火しているものは [docs/ANALYTICS_EVENTS.md](./ANALYTICS_EVENTS.md) を正としてください。本ドキュメントに個別のイベント名を重複定義しません。
 
 以上を踏まえて、追加・変更したい範囲を具体的に指示してください。ディレクトリ構成案から順に出力させ、その後具体的なコードを提示させる進め方を推奨します。

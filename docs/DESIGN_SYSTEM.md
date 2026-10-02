@@ -1,7 +1,7 @@
 # デザインシステム
 
 このファイルは「こうしたい」ではなく **「いま実際にそうなっている」** を書いたもの。
-値は画面から測って取っている。画面を直してこことズレたら、**画面ではなくこのファイルを直す**。
+値は画面から測って取っている。件数などの数字は 2026-10-02 時点（`npm run code-health` で最新を測れる、[CODE_HEALTH.md](./CODE_HEALTH.md)）。画面を直してこことズレたら、**画面ではなくこのファイルを直す**。
 
 実装は `tailwind.config.js`（トークン）と `components/ui/`（部品）にある。
 
@@ -71,7 +71,7 @@
 | `rounded-panel` | 20px | 画面に固定されるパネル |
 | `rounded-sheet` | 28px | 下から出るシートの上端 |
 
-`rounded-xl` / `rounded-2xl` / `rounded-[22px]` が混ざっていたのをここに寄せる。
+`rounded-xl` / `rounded-2xl` / `rounded-[22px]` が混ざっていたのをここに寄せる（直書きは現状 394 箇所残っている）。
 
 ### 影
 
@@ -197,12 +197,12 @@ import { PageShell, PageContainer, PageHeader } from "@/components/ui";
 
 ## 5. やらないこと
 
-- **生の hex を書かない。** 現状 165 種類ある。増やさない
+- **生の hex を書かない。** 現状 157 種類ある（最新値は `npm run code-health`）。増やさない
   - 例外：データ可視化の配色（`scripts/code-health/rules.mjs` の `ROLES`、
     `lib/code-health/treemap.ts` の `SEQUENTIAL_PALETTE`）。ツリーマップ・凡例の色は
     データに応じて動的に選ぶ inline style で、Tailwind のクラス名では表現できないため対象外
 - **`slate-*` / `gray-*` を新しく書かない。** 文字は ink の不透明度、罫は `line`
-- **グラデーションを増やさない。** 現状 25 種類以上ある。面は単色で足りる
+- **グラデーションを増やさない。** 現状 53 種類ある。面は単色で足りる
 - **`components/ui/` に `"use client"` が要るものを置かない。** バレル経由で
   サーバーコンポーネントから読まれたときに壊れる（`components/admin/index.ts` の
   `TrafficOverview` と同じ問題）
@@ -217,8 +217,8 @@ import { PageShell, PageContainer, PageHeader } from "@/components/ui";
 | 箇所 | 状態 |
 |---|---|
 | 店舗カードの見た目 | `ConsultShopCard`（写真が主役）と `ShopResultCard`（情報＋サムネイル）で角丸・枠・文字色が違う。お気に入りと地図の検索シートはさらに別の一覧行。**どの写真を出すかは `getShopPreviewImage()` に寄せ済み**（下記） |
-| モーダル・シート | `fixed inset-0` が24ファイルに個別実装。共通部品が無い |
-| 中立色 | `slate-*` が既存コードに約950箇所。新規で増やさず、触った画面から ink に寄せる |
+| モーダル・シート | `fixed inset-0` が25箇所に個別実装。共通部品が無い |
+| 中立色 | `slate-*` / `gray-*` が既存コードに約1,700箇所。新規で増やさず、触った画面から ink に寄せる |
 | `@radix-ui/react-scroll-area` | 唯一の利用箇所だった `ui/scroll-area.tsx` を削除したので未使用。次に依存を整理するときに落とす |
 
 新しい画面をこの表の状態に合わせない。**このファイルの 1〜4 に合わせる。**
