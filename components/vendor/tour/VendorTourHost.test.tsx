@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 let pathname = "/vendor/post/new";
@@ -24,6 +24,7 @@ const posts = () => fetchMock.mock.calls.filter(([, init]) => init?.method === "
 beforeEach(() => {
   vi.stubGlobal("fetch", fetchMock);
   fetchMock.mockReset();
+  window.sessionStorage.clear();
   pathname = "/vendor/post/new";
 });
 
@@ -65,6 +66,63 @@ describe("VendorTourHost", () => {
 
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     expect(posts()).toHaveLength(0);
+  });
+
+  it("「見た」の一覧が届く前に「?」で開いた説明を、届いたあとに閉じたり置き換えたりしない", async () => {
+    let resolveSeen: (value: unknown) => void = () => {};
+    fetchMock.mockImplementation(
+      (_url: string, init?: RequestInit) =>
+        init?.method === "POST"
+          ? Promise.resolve({ ok: true, json: async () => ({ ok: true }) })
+          : new Promise((resolve) => {
+              resolveSeen = resolve;
+            })
+    );
+    pathname = "/my-shop";
+    render(<VendorTourHost />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "「出店者トップ」の説明を見る" }));
+    expect(await screen.findByText("言葉にするだけで、お店の情報が直せます")).toBeTruthy();
+
+    // ここで「見た」の一覧が届く（出店者トップの機能は、まだ1つも見ていない）
+    resolveSeen({ ok: true, json: async () => ({ seen: ["home-chat"] }) });
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+    await act(async () => {});
+
+    // 開いたまま。見ていない機能だけの説明に置き換わらない（最初のスライドは「見た」機能のもの）
+    expect(screen.getByRole("dialog")).toBeTruthy();
+    expect(screen.getByText("言葉にするだけで、お店の情報が直せます")).toBeTruthy();
+  });
+
+  it("途中で閉じた説明は、他の画面へ行って戻っても、同じセッションでは自動で出し直さない", async () => {
+    respondSeen([]);
+    const { rerender } = render(<VendorTourHost />);
+    await screen.findByRole("dialog");
+    fireEvent.keyDown(window, { key: "Escape" });
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+
+    pathname = "/vendor/help";
+    rerender(<VendorTourHost />);
+    pathname = "/vendor/post/new";
+    rerender(<VendorTourHost />);
+    await act(async () => {});
+
+    expect(screen.queryByRole("dialog")).toBeNull();
+    // 「?」からは、これまでどおり開ける
+    fireEvent.click(screen.getByRole("button", { name: "「近況を出す」の説明を見る" }));
+    expect(await screen.findByRole("dialog")).toBeTruthy();
+  });
+
+  it("画面が変わったら、開いていた説明は閉じる（遷移先がまだ見ていない画面なら、そちらの説明が自動で出る）", async () => {
+    respondSeen(["post-new", "posts"]);
+    const { rerender } = render(<VendorTourHost />);
+    fireEvent.click(await screen.findByRole("button", { name: "「近況を出す」の説明を見る" }));
+    expect(await screen.findByRole("dialog")).toBeTruthy();
+
+    pathname = "/vendor/posts";
+    rerender(<VendorTourHost />);
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   });
 
   it("記録を読めなかったときは、自動では開かない（「?」は出る）", async () => {

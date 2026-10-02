@@ -1,6 +1,6 @@
 "use client";
 
-import { Camera, ChevronRight, Clock, Link2, Package } from "lucide-react";
+import { Camera, ChevronRight, Clock, Heart, Link2, Package } from "lucide-react";
 import { AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils/cn";
 import { Bar, Box, Finger, SURFACE, type Rect, type SceneProps } from "../primitives";
@@ -10,15 +10,16 @@ const GROUPS = [
   { label: "品ぞろえ", Icon: Package },
   { label: "出店のこと", Icon: Clock },
   { label: "つながり", Icon: Link2 },
+  { label: "こだわり", Icon: Heart },
 ] as const;
-const ROW_H = 34;
-const row = (index: number): Rect => ({ x: 10, y: 10 + index * 40, w: 300, h: ROW_H });
+const ROW_H = 28;
+const row = (index: number): Rect => ({ x: 10, y: 8 + index * 34, w: 300, h: ROW_H });
 const TARGET = 2;
 const SHEET: Rect = { x: 0, y: 62, w: 320, h: 138 };
 const FIELD: Rect = { x: 16, y: 106, w: 288, h: 30 };
 const SAVE: Rect = { x: 226, y: 150, w: 78, h: 30 };
 
-/** 店舗情報の4つのまとまり。工程: 0 まとまり / 1 押す / 2 入力して保存 */
+/** 店舗情報の5つのまとまり。工程: 0 まとまり / 1 押す / 2 入力して保存 */
 export function StoreGroupsScene({ step }: SceneProps) {
   return (
     <>

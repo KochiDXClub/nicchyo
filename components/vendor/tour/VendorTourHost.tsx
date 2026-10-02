@@ -1,9 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { AnimatePresence } from "framer-motion";
 import { CircleHelp } from "lucide-react";
+import { markToursDismissed, wasTourDismissed } from "@/lib/vendor/tourSession";
 import { findVendorTourPage, type TourFeature } from "@/lib/vendor/tours";
 import TourSheet from "./TourSheet";
 
@@ -12,6 +13,7 @@ import TourSheet from "./TourSheet";
  * 初めて開いた画面では、まだ見ていない機能の説明を自動で出す。「了解した」で閉じたら記録して、
  * 次からは自動では出さない。「?」は画面ごとに右上の1つだけで、その画面の機能の説明を順に何度でも見られる。
  *
+ * 途中で閉じた（背景・Esc）説明は、記録には残さないが、同じセッションのあいだは自動で出し直さない。
  * 記録が読めなかったとき（通信の失敗など）は、自動では出さない。
  * 説明は読めなくても仕事の邪魔にならないが、毎回出ると邪魔になるため。
  */
@@ -33,10 +35,21 @@ export default function VendorTourHost() {
     return () => controller.abort();
   }, []);
 
-  // 画面が変わったら前の説明は閉じ、まだ見ていない機能があれば、その分だけ自動で開く
+  // 画面が変わったら、前の説明は閉じる
+  const pagePath = page?.path ?? null;
   useEffect(() => {
-    const unseen = page && seen ? page.features.filter((feature) => !seen.has(feature.key)) : [];
-    setShown(unseen.length > 0 ? unseen : null);
+    setShown(null);
+  }, [pagePath]);
+
+  // まだ見ていない機能があれば、その分だけ自動で開く。自動で開くのは、画面ごとに1回だけ
+  // （「見た」の一覧が届く前に「?」で開いていたら、その説明を上書きしない。
+  //  途中で閉じた機能は、同じセッションのあいだは、戻ってきても自動では開かない）
+  const autoHandledFor = useRef<string | null>(null);
+  useEffect(() => {
+    if (!page || !seen || autoHandledFor.current === page.path) return;
+    autoHandledFor.current = page.path;
+    const unseen = page.features.filter((feature) => !seen.has(feature.key) && !wasTourDismissed(feature.key));
+    if (unseen.length > 0) setShown((current) => current ?? unseen);
   }, [page, seen]);
 
   const acknowledge = useCallback(() => {
@@ -73,7 +86,10 @@ export default function VendorTourHost() {
             showFeatureName={page.features.length > 1}
             features={shown}
             onAcknowledge={acknowledge}
-            onDismiss={() => setShown(null)}
+            onDismiss={() => {
+              markToursDismissed(shown.map((feature) => feature.key));
+              setShown(null);
+            }}
           />
         )}
       </AnimatePresence>

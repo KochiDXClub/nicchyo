@@ -1,6 +1,6 @@
 "use client";
 
-import { Camera, Check, Eye, History, RotateCcw } from "lucide-react";
+import { Camera, Check, Eye, History, Pencil, RotateCcw } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { Box, Finger, POP_IN, SURFACE, useTyped, type Rect, type SceneProps } from "../primitives";
 
@@ -202,16 +202,17 @@ export function PostsTabsScene({ step }: SceneProps) {
   );
 }
 
-const OLD_ROW: Rect = { x: 10, y: 20, w: 300, h: 44 };
-const REPOST: Rect = { x: 226, y: 28, w: 76, h: 28 };
+const OLD_ROW: Rect = { x: 10, y: 14, w: 300, h: 70 };
+const SAME: Rect = { x: 18, y: 54, w: 138, h: 26 };
+const EDIT: Rect = { x: 164, y: 54, w: 138, h: 26 };
 
-/** 期限切れの投稿を出し直す。工程: 0 期限切れ / 1 出し直すを押す / 2 公開中でもう一度出る */
+/** 期限切れの投稿を出し直す。工程: 0 期限切れ / 1 「そのまま再投稿」を押す / 2 公開中でもう一度出る */
 export function PostsRepostScene({ step }: SceneProps) {
   const done = step === 2;
   return (
     <>
       {done && (
-        <Box key="new" rect={{ ...OLD_ROW, y: 14 }} {...POP_IN} className={cn(SURFACE, "z-10 flex items-center gap-2 px-2 ring-status-good-line")}>
+        <Box key="new" rect={{ x: 10, y: 8, w: 300, h: 44 }} {...POP_IN} className={cn(SURFACE, "z-10 flex items-center gap-2 px-2 ring-status-good-line")}>
           <span className="h-8 w-8 rounded-btn bg-amber-200" />
           <span className="space-y-1">
             <span className="block h-1.5 w-28 rounded-full bg-nicchyo-ink/15" />
@@ -226,34 +227,46 @@ export function PostsRepostScene({ step }: SceneProps) {
       <Box
         rect={OLD_ROW}
         initial={false}
-        animate={{ y: done ? 56 : 0, opacity: done ? 0.6 : 1 }}
+        animate={{ y: done ? 46 : 0, opacity: done ? 0.55 : 1 }}
         transition={{ type: "spring", stiffness: 180, damping: 22 }}
-        className={cn(SURFACE, "flex items-center gap-2 px-2")}
+        className={cn(SURFACE, "flex items-start gap-2 px-2 pt-2")}
       >
         <span className="h-8 w-8 rounded-btn bg-nicchyo-ink/15" />
-        <span className="space-y-1">
+        <span className="space-y-1 pt-1">
           <span className="block h-1.5 w-28 rounded-full bg-nicchyo-ink/15" />
           <span className="block h-1.5 w-16 rounded-full bg-nicchyo-ink/10" />
         </span>
-        {!done && <span className="ml-auto h-7 w-[76px]" />}
-        {done && <span className="ml-auto rounded-chip bg-nicchyo-ink/10 px-2 py-0.5 text-[9px] font-bold text-nicchyo-ink/55">期限切れ</span>}
+        <span className="ml-auto rounded-chip bg-nicchyo-ink/10 px-2 py-0.5 text-[9px] font-bold text-nicchyo-ink/55">期限切れ</span>
       </Box>
       {!done && (
-        <Box
-          rect={REPOST}
-          initial={false}
-          animate={{ scale: step === 1 ? 0.94 : 1 }}
-          className="z-10 flex items-center justify-center gap-1 rounded-chip bg-amber-500 text-[11px] font-bold text-white shadow-pop"
-        >
-          <RotateCcw size={12} aria-hidden="true" />
-          出し直す
+        <>
+          <Box
+            rect={SAME}
+            initial={false}
+            animate={{ scale: step === 1 ? 0.95 : 1 }}
+            className="z-10 flex items-center justify-center gap-1 rounded-chip bg-amber-500 text-[11px] font-bold text-white shadow-pop"
+          >
+            <RotateCcw size={12} aria-hidden="true" />
+            そのまま再投稿
+          </Box>
+          <Box rect={EDIT} className="z-10 flex items-center justify-center gap-1 rounded-chip bg-white text-[11px] font-bold text-nicchyo-ink/70 shadow-chip ring-1 ring-line">
+            <Pencil size={12} aria-hidden="true" />
+            編集して再投稿
+          </Box>
+        </>
+      )}
+      {done ? (
+        <Box key="toast" rect={{ x: 40, y: 152, w: 240, h: 30 }} {...POP_IN} className="flex items-center justify-center gap-1.5 rounded-chip bg-status-good-fg text-[11px] font-bold text-white shadow-lift">
+          <Check size={13} aria-hidden="true" />
+          再投稿しました！
+        </Box>
+      ) : (
+        <Box rect={{ x: 10, y: 152, w: 300, h: 36 }} className="flex items-center gap-2 text-[10px] font-bold text-nicchyo-ink/55">
+          <History size={14} aria-hidden="true" />
+          「編集して再投稿」なら、写真とひとことを直せます
         </Box>
       )}
-      <Box rect={{ x: 10, y: 152, w: 300, h: 36 }} className="flex items-center gap-2 text-[10px] font-bold text-nicchyo-ink/55">
-        <History size={14} aria-hidden="true" />
-        写真とひとことを直して出すこともできます
-      </Box>
-      <Finger target={step === 0 ? null : REPOST} pressed={step === 1} />
+      <Finger target={step === 0 ? null : SAME} pressed={step === 1} />
     </>
   );
 }

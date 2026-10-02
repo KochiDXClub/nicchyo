@@ -106,8 +106,8 @@ export const VENDOR_TOUR_PAGES: readonly VendorTourPage[] = [
           {
             scene: "store-groups",
             title: "直したい所を押して、入力して保存",
-            body: "項目は4つのまとまりに分かれています。写真・主な商品・出店日はここから直します。",
-            captions: ["4つのまとまり", "直したい所を押す", "入力して保存"],
+            body: "項目は5つのまとまりに分かれています。写真・主な商品・出店日はここから直します。",
+            captions: ["5つのまとまり", "直したい所を押す", "入力して保存"],
           },
           {
             scene: "chat-payment",
@@ -160,8 +160,8 @@ export const VENDOR_TOUR_PAGES: readonly VendorTourPage[] = [
           {
             scene: "posts-repost",
             title: "前の投稿を、もう一度出せます",
-            body: "そのまま、または写真とひとことを直して出し直せます。",
-            captions: ["期限切れの投稿", "「出し直す」を押す", "公開中でもう一度出る"],
+            body: "「そのまま再投稿」か、写真とひとことを直せる「編集して再投稿」を選べます。",
+            captions: ["期限切れの投稿", "「そのまま再投稿」を押す", "公開中でもう一度出る"],
           },
         ],
       },
