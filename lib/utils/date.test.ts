@@ -67,3 +67,12 @@ describe("getNextSundayLabel", () => {
     expect(getNextSundayLabel()).toBe("7/5（日）");
   });
 });
+
+describe("formatJaDateTime", () => {
+  it("月日と時刻を日本語の形で返す。日時として読めない文字は空にする", async () => {
+    const { formatJaDateTime } = await import("./date");
+
+    expect(formatJaDateTime("2026-10-03T05:05:00Z")).toMatch(/^10月3日 \d{2}:\d{2}$/);
+    expect(formatJaDateTime("nope")).toBe("");
+  });
+});

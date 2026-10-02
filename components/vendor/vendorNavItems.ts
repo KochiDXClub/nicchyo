@@ -42,7 +42,7 @@ export const VENDOR_NAV_ITEMS: VendorNavItem[] = [
   // メニューのカードは幅が狭いので短い名前にする。画面の見出しは「にちよさんが覚えちゅうこと」
   { label: "にちよさんの覚えごと", href: "/vendor/ai-knowledge", icon: Sparkles, description: "にちよさんが覚えちゅうことを見る・直す", group: "main", permission: "ai_notes" },
   { label: "よくある質問", href: "/vendor/help", icon: CircleHelp, description: "困ったときに一覧から探す", group: "support" },
-  { label: "アカウント設定", href: "/vendor/account", icon: UserRound, description: "名前やメール、パスワードの確認", group: "support" },
+  { label: "アカウント設定", href: "/vendor/account", icon: UserRound, description: "メンバーの管理・招待・操作ログ", group: "support" },
 ];
 
 /** 自分の権限で使える導線だけを返す（権限のない画面へ案内して、API で断られるのを避ける） */
