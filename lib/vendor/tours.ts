@@ -89,7 +89,7 @@ export const VENDOR_TOURS: readonly VendorTour[] = [
       {
         scene: "history",
         title: "これまでの近況を見返せます",
-        body: "いま見えているものと、期間が過ぎたものに分かれています。",
+        body: "「公開中」と「期限切れ」に分かれています。",
       },
       {
         scene: "camera",
