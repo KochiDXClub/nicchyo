@@ -1,10 +1,11 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 let pathname = "/vendor/post/new";
 vi.mock("next/navigation", () => ({ usePathname: () => pathname }));
 vi.mock("@/lib/ui/bodyScrollLock", () => ({ useBodyScrollLock: () => {} }));
 
+import { requestOpenVendorTour } from "@/lib/vendor/tourEvents";
 import VendorTourHost from "./VendorTourHost";
 
 const fetchMock = vi.fn();
@@ -19,6 +20,8 @@ function respondSeen(seen: string[] | null) {
   );
 }
 
+const posts = () => fetchMock.mock.calls.filter(([, init]) => init?.method === "POST");
+
 beforeEach(() => {
   vi.stubGlobal("fetch", fetchMock);
   fetchMock.mockReset();
@@ -31,16 +34,15 @@ describe("VendorTourHost", () => {
     render(<VendorTourHost />);
 
     expect(await screen.findByRole("dialog")).toBeTruthy();
-    expect(screen.getByText("写真を1枚、撮るか選ぶだけ")).toBeTruthy();
+    expect(screen.getByText("写真を1枚。ひとことは無くてもOK")).toBeTruthy();
 
     fireEvent.click(screen.getByRole("button", { name: "次へ" }));
     expect(screen.getByText("出しておく期間を選べます")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "了解した" }));
 
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
-    const post = fetchMock.mock.calls.find(([, init]) => init?.method === "POST");
-    expect(post?.[0]).toBe("/api/vendor/tours");
-    expect(JSON.parse(post?.[1].body)).toEqual({ key: "post-new" });
+    expect(posts()[0][0]).toBe("/api/vendor/tours");
+    expect(JSON.parse(posts()[0][1].body)).toEqual({ keys: ["post-new"] });
   });
 
   it("見た画面では自動で開かず、「?」から何度でも開ける", async () => {
@@ -63,7 +65,7 @@ describe("VendorTourHost", () => {
     fireEvent.keyDown(window, { key: "Escape" });
 
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
-    expect(fetchMock.mock.calls.some(([, init]) => init?.method === "POST")).toBe(false);
+    expect(posts()).toHaveLength(0);
   });
 
   it("記録を読めなかったときは、自動では開かない（「?」は出る）", async () => {
@@ -82,5 +84,49 @@ describe("VendorTourHost", () => {
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalled());
     expect(container.firstChild).toBeNull();
+  });
+});
+
+describe("VendorTourHost（複数の機能がある画面）", () => {
+  beforeEach(() => {
+    pathname = "/my-shop";
+  });
+
+  it("まだ見ていない機能の説明だけを自動で出し、見た分は出さない", async () => {
+    respondSeen(["home-chat", "home-actions"]);
+    render(<VendorTourHost />);
+
+    expect(await screen.findByText("お休みする日曜日は、押すだけで登録")).toBeTruthy();
+    expect(screen.queryByText("言葉にするだけで、お店の情報が直せます")).toBeNull();
+    expect(screen.getByText("出店者トップ ／ お休みカレンダー")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "了解した" }));
+    await waitFor(() => expect(posts()).toHaveLength(1));
+    expect(JSON.parse(posts()[0][1].body)).toEqual({ keys: ["home-calendar"] });
+  });
+
+  it("「?」では、その画面の機能の説明を順にすべて見せる", async () => {
+    respondSeen(["home-chat", "home-actions", "home-calendar"]);
+    render(<VendorTourHost />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "「出店者トップ」の説明を見る" }));
+
+    expect(await screen.findByText("言葉にするだけで、お店の情報が直せます")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "次へ" }));
+    expect(screen.getByText("いちばん使うのは、この2つ")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "次へ" }));
+    expect(screen.getByText("お休みする日曜日は、押すだけで登録")).toBeTruthy();
+  });
+
+  it("画面の中の機能の「?」から、その機能だけを開く", async () => {
+    respondSeen(["home-chat", "home-actions", "home-calendar"]);
+    render(<VendorTourHost />);
+    await screen.findByRole("button", { name: "「出店者トップ」の説明を見る" });
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+
+    act(() => requestOpenVendorTour("home-calendar"));
+
+    expect(await screen.findByText("お休みする日曜日は、押すだけで登録")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "次へ" })).toBeNull();
   });
 });

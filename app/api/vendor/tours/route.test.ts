@@ -65,32 +65,39 @@ describe("GET /api/vendor/tours", () => {
 });
 
 describe("POST /api/vendor/tours", () => {
-  it("見たことを、自分の行として記録する（すでにあれば何もしない）", async () => {
-    const res = await post({ key: "post-new" });
+  it("見た機能を、自分の行としてまとめて記録する（すでにあれば何もしない）", async () => {
+    const res = await post({ keys: ["home-chat", "home-calendar", "home-chat"] });
 
     expect(res.status).toBe(200);
     expect(upsert).toHaveBeenCalledWith(
-      { vendor_id: "vendor-1", tour_key: "post-new" },
+      [
+        { vendor_id: "vendor-1", tour_key: "home-chat" },
+        { vendor_id: "vendor-1", tour_key: "home-calendar" },
+      ],
       { onConflict: "vendor_id,tour_key", ignoreDuplicates: true }
     );
   });
 
-  it("知らない名前や、形の違う本文は 400 で、記録しない", async () => {
-    expect((await post({ key: "unknown" })).status).toBe(400);
+  it("知らない名前や、形の違う本文、多すぎる数は 400 で、記録しない", async () => {
+    expect((await post({ keys: ["unknown"] })).status).toBe(400);
+    expect((await post({ keys: ["home-chat", "unknown"] })).status).toBe(400);
+    expect((await post({ keys: [] })).status).toBe(400);
+    expect((await post({ key: "home-chat" })).status).toBe(400);
     expect((await post({})).status).toBe(400);
+    expect((await post({ keys: Array(11).fill("home-chat") })).status).toBe(400);
     expect(upsert).not.toHaveBeenCalled();
   });
 
   it("別のオリジンからは 403 で、記録しない", async () => {
     sameOrigin = false;
 
-    expect((await post({ key: "home" })).status).toBe(403);
+    expect((await post({ keys: ["home-chat"] })).status).toBe(403);
     expect(upsert).not.toHaveBeenCalled();
   });
 
   it("保存に失敗したら 500", async () => {
     upsert.mockResolvedValue({ error: { message: "x" } });
 
-    expect((await post({ key: "home" })).status).toBe(500);
+    expect((await post({ keys: ["home-chat"] })).status).toBe(500);
   });
 });

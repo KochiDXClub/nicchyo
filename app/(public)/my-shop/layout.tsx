@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 import { useAuth } from "@/lib/auth/AuthContext";
 import VendorNavBar from "@/components/vendor/VendorNavBar";
 import VendorTourHost from "@/components/vendor/tour/VendorTourHost";
-import { findVendorTour } from "@/lib/vendor/tours";
+import { findVendorTourPage } from "@/lib/vendor/tours";
 import { isAnalyticsOptedOut } from "@/lib/analytics/consentClient";
 
 const GuardMessage = ({
@@ -102,7 +102,7 @@ export default function MyShopLayout({ children }: { children: ReactNode }) {
           {
             paddingBottom: "calc(3.5rem + env(safe-area-inset-bottom, 0px))",
             // 画面の説明を開く「?」が見出しの右端に重ならないよう、PageTitle の右を空ける
-            ...(findVendorTour(pathname) ? { "--page-title-end-gap": "3rem" } : {}),
+            ...(findVendorTourPage(pathname) ? { "--page-title-end-gap": "3rem" } : {}),
           } as CSSProperties
         }
       >

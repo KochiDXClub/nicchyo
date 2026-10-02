@@ -8,7 +8,7 @@ import { requireVendor } from "../ai-notes/shared";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const SeenSchema = z.object({ key: z.string().refine(isVendorTourKey) });
+const SeenSchema = z.object({ keys: z.array(z.string().refine(isVendorTourKey)).min(1).max(10) });
 
 /**
  * GET: 自分が「了解した」で閉じた説明パネルの名前の一覧。
@@ -26,7 +26,7 @@ export async function GET() {
 }
 
 /**
- * POST: 説明パネルを「了解した」で閉じたと記録する。すでに記録があっても成功にする。
+ * POST: 説明パネルを「了解した」で閉じたと、見た機能（1〜10個）をまとめて記録する。すでに記録があっても成功にする。
  */
 export async function POST(request: Request) {
   const originCheck = requireSameOrigin(request);
@@ -48,9 +48,10 @@ export async function POST(request: Request) {
   if (!parsed.success) return NextResponse.json({ error: "画面の名前を読み取れませんでした" }, { status: 400 });
 
   // 更新はさせない（RLS も insert だけ許す）。すでにあれば何もしない
+  const rows = [...new Set(parsed.data.keys)].map((tourKey) => ({ vendor_id: user.id, tour_key: tourKey }));
   const { error } = await supabase
     .from("vendor_tour_seen")
-    .upsert({ vendor_id: user.id, tour_key: parsed.data.key }, { onConflict: "vendor_id,tour_key", ignoreDuplicates: true });
+    .upsert(rows, { onConflict: "vendor_id,tour_key", ignoreDuplicates: true });
   if (error) return NextResponse.json({ error: "保存できませんでした" }, { status: 500 });
 
   return NextResponse.json({ ok: true });

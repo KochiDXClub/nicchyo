@@ -7,7 +7,7 @@ import { useAuth } from "@/lib/auth/AuthContext";
 import VendorSidebar from "@/components/vendor/VendorSidebar";
 import VendorNavBar from "@/components/vendor/VendorNavBar";
 import VendorTourHost from "@/components/vendor/tour/VendorTourHost";
-import { findVendorTour } from "@/lib/vendor/tours";
+import { findVendorTourPage } from "@/lib/vendor/tours";
 import { useBodyScrollLock } from "@/lib/ui/bodyScrollLock";
 
 /** 画面の説明を開く「?」が見出しの右端に重ならないよう、PageTitle の右を空ける（PageTitle が読む） */
@@ -85,7 +85,7 @@ export default function VendorLayout({ children }: { children: ReactNode }) {
   }
 
   return (
-    <div className="min-h-screen bg-[#FFFAF0] lg:pl-72" style={findVendorTour(pathname) ? TOUR_BUTTON_GAP : undefined}>
+    <div className="min-h-screen bg-[#FFFAF0] lg:pl-72" style={findVendorTourPage(pathname) ? TOUR_BUTTON_GAP : undefined}>
       <VendorSidebar
         isOpen={isSidebarOpen}
         onToggle={() => setIsSidebarOpen((v) => !v)}
