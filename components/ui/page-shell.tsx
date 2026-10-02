@@ -140,7 +140,7 @@ export function PageTitle({ title, action, width = "reading", className, childre
   return (
     <div className={cn("bg-gradient-to-b from-amber-100/50 to-transparent pb-6 pt-safe-top", className)}>
       <PageContainer width={width} className="pt-6">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 pr-[var(--page-title-end-gap,0px)]">
           <h1 className="min-w-0 flex-1 text-2xl font-bold tracking-tight">{title}</h1>
           {action ? <div className="shrink-0">{action}</div> : null}
         </div>

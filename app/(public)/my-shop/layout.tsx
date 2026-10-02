@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, type ReactNode } from "react";
+import { useEffect, type CSSProperties, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/lib/auth/AuthContext";
 import VendorNavBar from "@/components/vendor/VendorNavBar";
+import VendorTourHost from "@/components/vendor/tour/VendorTourHost";
 import { isAnalyticsOptedOut } from "@/lib/analytics/consentClient";
 
 const GuardMessage = ({
@@ -95,10 +96,18 @@ export default function MyShopLayout({ children }: { children: ReactNode }) {
     <>
       {/* 下部ナビ（VendorNavBar）に隠れないよう、余白は /vendor のレイアウトと同じくここで持つ。
           各ページは自分で下の余白を足さない */}
-      <div style={{ paddingBottom: "calc(3.5rem + env(safe-area-inset-bottom, 0px))" }}>
+      <div
+        style={
+          {
+            paddingBottom: "calc(3.5rem + env(safe-area-inset-bottom, 0px))",
+            "--page-title-end-gap": "3rem",
+          } as CSSProperties
+        }
+      >
         {children}
       </div>
       <VendorNavBar />
+      <VendorTourHost />
     </>
   );
 }
