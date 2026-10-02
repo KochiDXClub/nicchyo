@@ -135,9 +135,6 @@ function ActiveSummary({ posts }: { posts: Post[] }) {
           <dd className="mt-1 text-3xl font-bold tabular-nums text-rose-700">{total.hearts}</dd>
         </div>
       </dl>
-      <p className="mt-3 text-xs leading-relaxed text-nicchyo-ink/55">
-        見た人は、1人が何度見ても1人と数えます。自分で開いた分は数えません。
-      </p>
     </Surface>
   );
 }

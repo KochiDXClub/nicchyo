@@ -29,9 +29,6 @@ export default function HeroStats({
         <span className="text-lg font-bold text-nicchyo-ink/70">回</span>
       </p>
       {views && <p className="mt-2 text-sm text-nicchyo-ink/70">{describeChange(views.thisWeek, views.lastWeek)}</p>}
-      <p className="mt-1 text-xs leading-relaxed text-nicchyo-ink/55">
-        お客さんが同じタブでお店を開き直した分は、1回と数えます。自分で開いた分は数えません。
-      </p>
 
       <dl className="mt-5 grid grid-cols-2 divide-x divide-line border-t border-line pt-4">
         <div className="pr-4">
