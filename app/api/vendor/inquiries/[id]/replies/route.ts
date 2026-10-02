@@ -4,7 +4,7 @@ import { z } from "zod";
 import { createClientWithExtensions } from "@/utils/supabase/server";
 import { requireSameOrigin } from "@/lib/security/requestGuards";
 import { enforceRateLimit } from "@/lib/security/rateLimit";
-import { requireVendorRole } from "@/lib/auth/permissions";
+import { requireVendorContext } from "@/lib/vendor/shopContext.server";
 import { VENDOR_INQUIRY_REPLY_BODY_MAX_LENGTH, isUuid } from "@/lib/vendorInquiries/constants";
 
 export const runtime = "nodejs";
@@ -39,14 +39,11 @@ export async function POST(request: Request, { params }: RouteParams) {
   // 存在しないIDと同じ404にして、IDの存在有無が漏れないようにする
   if (!isUuid(id)) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  const cookieStore = await cookies();
-  const supabase = createClientWithExtensions(cookieStore);
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const forbidden = requireVendorRole(user);
-  if (forbidden) return forbidden;
+  const auth = await requireVendorContext({ permission: "inquiries" });
+  if (!auth.ok) return auth.response;
+  const { user } = auth;
+  // vendor_inquiries は生成済み型に無いので、拡張型のクライアントで読み書きする（認証は上で済み）
+  const supabase = createClientWithExtensions(await cookies());
 
   const rateLimited = await enforceRateLimit(request, {
     bucket: "vendor-inquiry-replies-post",

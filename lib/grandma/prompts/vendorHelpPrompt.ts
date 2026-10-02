@@ -80,9 +80,23 @@ function countOrMissing(value: number | null | undefined, unit: string): string 
   return value == null ? "取れなかった" : `${value.toLocaleString("ja-JP")}${unit}`;
 }
 
-function statsLines(shopStats?: VendorHelpShopStats, marketStats?: VendorHelpMarketStats): string[] {
+/** 数字を見る権限がないアカウントには、「0回」と取り違えて答えないよう、見られないことをそのまま伝える */
+const SHOP_STATS_HIDDEN_LINES = [
+  "",
+  "【このお店の数字】",
+  "・このアカウントには、お店の数字（見られた回数・ハート・AI相談で話題になった回数）を見る権限がありません。",
+  "・お店の数字を聞かれたら、数字は答えず、「お店の数字を見られるのは、お店の代表者か、分析の権限があるメンバーです」と案内する。0回などと答えてはいけない",
+];
+
+function statsLines(
+  shopStats?: VendorHelpShopStats,
+  marketStats?: VendorHelpMarketStats,
+  shopStatsHidden = false
+): string[] {
   const lines: string[] = [];
-  if (shopStats) {
+  if (shopStatsHidden) {
+    lines.push(...SHOP_STATS_HIDDEN_LINES);
+  } else if (shopStats) {
     const ai = shopStats.aiMentions;
     lines.push(
       "",
@@ -113,7 +127,7 @@ function statsLines(shopStats?: VendorHelpShopStats, marketStats?: VendorHelpMar
 export function buildVendorHelpSystemPrompt(
   faq: readonly VendorFaqItem[],
   shop: VendorHelpShopContext,
-  stats: { shop?: VendorHelpShopStats; market?: VendorHelpMarketStats } = {}
+  stats: { shop?: VendorHelpShopStats; market?: VendorHelpMarketStats; shopHidden?: boolean } = {}
 ): string {
   const lines: string[] = [
     ...VENDOR_HELP_PERSONA_RULES,
@@ -149,7 +163,7 @@ export function buildVendorHelpSystemPrompt(
     "",
     "【にちよさんがもう覚えていること（トピックタイトル）】",
     listOrMissing(shop.rememberedTitles, 50, "まだない"),
-    ...statsLines(stats.shop, stats.market)
+    ...statsLines(stats.shop, stats.market, stats.shopHidden)
   );
 
   return lines.join("\n");

@@ -5,6 +5,13 @@ const upsert = vi.fn();
 const selectRows = vi.fn();
 let sameOrigin = true;
 
+const fetchShopMembership = vi.fn();
+// 店舗の ID（shop-1）はアカウントの ID（vendor-1）と別の値にして、user.id を店舗 ID に使っていないことも確かめる
+vi.mock("@/lib/vendor/shopMembership", () => ({
+  fetchShopMembership: (...args: unknown[]) => fetchShopMembership(...args),
+}));
+const OWNER_OF_SHOP = { vendorId: "shop-1", role: "owner", permissions: [], joinedAt: null };
+
 vi.mock("next/headers", () => ({ cookies: async () => ({}) }));
 vi.mock("@/lib/security/requestGuards", () => ({
   requireSameOrigin: () =>
@@ -37,6 +44,7 @@ function post(body: unknown) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  fetchShopMembership.mockResolvedValue(OWNER_OF_SHOP);
   sameOrigin = true;
   getUser.mockResolvedValue({ data: { user: VENDOR } });
   upsert.mockResolvedValue({ error: null });
@@ -71,8 +79,8 @@ describe("POST /api/vendor/tours", () => {
     expect(res.status).toBe(200);
     expect(upsert).toHaveBeenCalledWith(
       [
-        { vendor_id: "vendor-1", tour_key: "home-chat" },
-        { vendor_id: "vendor-1", tour_key: "home-calendar" },
+        { vendor_id: "shop-1", tour_key: "home-chat" },
+        { vendor_id: "shop-1", tour_key: "home-calendar" },
       ],
       { onConflict: "vendor_id,tour_key", ignoreDuplicates: true }
     );
@@ -99,5 +107,15 @@ describe("POST /api/vendor/tours", () => {
     upsert.mockResolvedValue({ error: { message: "x" } });
 
     expect((await post({ keys: ["home-chat"] })).status).toBe(500);
+  });
+});
+
+describe("店舗に入っていないアカウント", () => {
+  it("出店者ロールでも、店舗に入っていなければ読み書きできない", async () => {
+    fetchShopMembership.mockResolvedValue(null);
+
+    expect((await GET()).status).toBe(403);
+    expect((await post({ keys: ["home-chat"] })).status).toBe(403);
+    expect(upsert).not.toHaveBeenCalled();
   });
 });

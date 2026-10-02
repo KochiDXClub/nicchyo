@@ -1,11 +1,9 @@
 import { NextResponse } from "next/server";
 import { createClient as createServiceClient } from "@supabase/supabase-js";
-import { cookies } from "next/headers";
 import { z } from "zod";
-import { createClient as createServerClient } from "@/utils/supabase/server";
 import { requireSameOrigin } from "@/lib/security/requestGuards";
 import { enforceRateLimit } from "@/lib/security/rateLimit";
-import { requireVendorRole } from "@/lib/auth/permissions";
+import { requireVendorContext } from "@/lib/vendor/shopContext.server";
 import { requestEmbeddings } from "@/lib/ai/openaiFetch";
 
 const MAX_CONTENT_LENGTH = 5000;
@@ -21,19 +19,16 @@ export const dynamic = "force-dynamic";
 // ─── GET: 既存の知識を取得 ───────────────────────────────────
 export async function GET() {
   try {
-    const cookieStore = await cookies();
-    const supabase = createServerClient(cookieStore);
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    const forbidden = requireVendorRole(user);
-    if (forbidden) return forbidden;
+    const auth = await requireVendorContext({ permission: "ai_notes" });
+    if (!auth.ok) return auth.response;
+    const { vendorId, supabase } = auth;
 
     // 旧画面（自由メモ1枚）は「お店のメモ」の1枚だけを読み書きする。
     // ノートの束（/api/vendor/ai-notes）で足したほかのノートには触らない
     const { data } = await supabase
       .from("store_knowledge")
       .select("id, content, created_at, updated_at")
-      .eq("store_id", user.id)
+      .eq("store_id", vendorId)
       .eq("title", LEGACY_MEMO_TITLE)
       .order("updated_at", { ascending: false })
       .limit(1)
@@ -58,12 +53,9 @@ export async function POST(request: Request) {
     });
     if (rateLimited) return rateLimited;
 
-    const cookieStore = await cookies();
-    const supabase = createServerClient(cookieStore);
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    const forbidden = requireVendorRole(user);
-    if (forbidden) return forbidden;
+    const auth = await requireVendorContext({ permission: "ai_notes" });
+    if (!auth.ok) return auth.response;
+    const { vendorId } = auth;
 
     const parsed = KnowledgeBodySchema.safeParse(await request.json());
     if (!parsed.success) {
@@ -92,7 +84,7 @@ export async function POST(request: Request) {
     const { data: existing } = await serviceClient
       .from("store_knowledge")
       .select("id")
-      .eq("store_id", user.id)
+      .eq("store_id", vendorId)
       .eq("title", LEGACY_MEMO_TITLE)
       .limit(1)
       .single();
@@ -105,7 +97,7 @@ export async function POST(request: Request) {
     } else {
       await serviceClient
         .from("store_knowledge")
-        .insert({ store_id: user.id, title: LEGACY_MEMO_TITLE, content: content.trim(), embedding });
+        .insert({ store_id: vendorId, title: LEGACY_MEMO_TITLE, content: content.trim(), embedding });
     }
 
     return NextResponse.json({ ok: true, hasEmbedding: embedding !== null });

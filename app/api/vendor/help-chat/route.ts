@@ -5,7 +5,8 @@ import { createClientWithExtensions } from "@/utils/supabase/server";
 import { createAdminClient } from "@/lib/supabase/adminClient";
 import { requireSameOrigin } from "@/lib/security/requestGuards";
 import { enforceRateLimit } from "@/lib/security/rateLimit";
-import { requireVendorRole } from "@/lib/auth/permissions";
+import { requireVendorContext } from "@/lib/vendor/shopContext.server";
+import { hasShopPermission } from "@/lib/vendor/shopPermissions";
 import { requestChatCompletion } from "@/lib/ai/openaiFetch";
 import { openAiSseToTextStream, TEXT_STREAM_HEADERS } from "@/lib/ai/textStream";
 import { resolveAiModelFor } from "@/lib/ai/modelStore.server";
@@ -122,14 +123,12 @@ export async function POST(request: Request) {
   });
   if (floodLimited) return floodLimited;
 
-  const cookieStore = await cookies();
-  const supabase = createClientWithExtensions(cookieStore);
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const forbidden = requireVendorRole(user);
-  if (forbidden) return forbidden;
+  // 店舗のメンバーなら誰でも使える（権限で足りない分は、読める範囲の数字だけが渡る）
+  const auth = await requireVendorContext();
+  if (!auth.ok) return auth.response;
+  const { user, vendorId, membership } = auth;
+  // vendor_help_logs などは生成済み型に無いので、拡張型のクライアントで読む（認証は上で済み）
+  const supabase = createClientWithExtensions(await cookies());
 
   // AI を呼ぶので、出店者1人あたりの回数で絞る
   const rateLimited = await enforceRateLimit(request, {
@@ -151,13 +150,19 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Server configuration error" }, { status: 500 });
   }
 
+  // お店の数字は分析の権限があるときだけ読む。権限がないと RLS が行を返さず「0回」に見えてしまうので、
+  // 読まずに「見る権限がない」とにちよさんに伝える（数字を0と取り違えて答えさせない）
+  const canSeeShopStats = hasShopPermission(membership, "analytics");
   const [shop, shopStats, marketStats] = await Promise.all([
-    loadShopContext(supabase, user.id),
-    loadVendorHelpShopStats(supabase as unknown as SupabaseClient, user.id),
+    loadShopContext(supabase, vendorId),
+    canSeeShopStats
+      ? loadVendorHelpShopStats(supabase as unknown as SupabaseClient, vendorId)
+      : Promise.resolve(undefined),
     loadVendorHelpMarketStats(supabase as unknown as SupabaseClient),
   ]);
   const systemPrompt = buildVendorHelpSystemPrompt(VENDOR_FAQ, shop, {
     shop: shopStats,
+    shopHidden: !canSeeShopStats,
     market: marketStats,
   });
   const messages = [
@@ -179,7 +184,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Upstream error" }, { status: 502 });
   }
 
-  const vendorId = user.id;
   // 案の確かめに使う。出店者が自分で書いた文（いまの質問と、これまでの出店者の発言）と、
   // 来訪者やほかの出店者が入れた言葉（プロンプトの数字の欄）
   const vendorText = [...history.filter((turn) => turn.role === "user").map((turn) => turn.text), text].join("\n");

@@ -2,7 +2,9 @@
 
 import React, { createContext, useContext, useEffect, useRef, useState, ReactNode } from "react";
 import type { User, UserRole, PermissionCheck } from "./types";
-import type { User as SupabaseUser } from "@supabase/supabase-js";
+import type { SupabaseClient, User as SupabaseUser } from "@supabase/supabase-js";
+import { fetchShopMembership, ShopMembershipLookupError } from "@/lib/vendor/shopMembership";
+import { hasShopPermission, type ShopMembership, type ShopPermission } from "@/lib/vendor/shopPermissions";
 import { useRouter } from "next/navigation";
 
 type BrowserSupabase = ReturnType<(typeof import("@/utils/supabase/client"))["createClient"]>;
@@ -62,19 +64,22 @@ async function mapSupabaseUserWithVendorId(user: SupabaseUser, supabase: Browser
   const provider = appMeta?.provider ?? "email";
   const phone = userMeta?.phone;
 
-  // vendorsテーブルからvendorIdを取得（user_metadataは改ざん可能なため使用しない）
+  // 所属店舗は shop_members から取得する（user_metadata は改ざん可能なため使用しない）。
+  // 店舗の ID（vendors.id）はアカウントの ID と別なので、user.id を店舗 ID として使わないこと
   let vendorId: string | undefined = undefined;
+  let shopMembership: ShopMembership | undefined = undefined;
+  let shopMembershipLookupFailed = false;
   if (role === "vendor" && user.id) {
-    const { data, error } = await supabase
-      .from("vendors")
-      .select("id")
-      .eq("id", user.id)
-      .maybeSingle();
-    if (error) {
-      console.error("[AuthContext] vendors lookup failed:", error.message);
-    }
-    if (data?.id) {
-      vendorId = data.id;
+    try {
+      const membership = await fetchShopMembership(supabase as unknown as SupabaseClient, user.id);
+      if (membership) {
+        vendorId = membership.vendorId;
+        shopMembership = { role: membership.role, permissions: membership.permissions };
+      }
+    } catch (err) {
+      // 通信などの一時的な失敗。「店舗に入っていない」と取り違えないよう印を付ける（権限は付けない）
+      if (!(err instanceof ShopMembershipLookupError)) throw err;
+      shopMembershipLookupFailed = true;
     }
   }
 
@@ -86,6 +91,8 @@ async function mapSupabaseUserWithVendorId(user: SupabaseUser, supabase: Browser
     avatarUrl,
     role,
     vendorId,
+    shopMembership,
+    shopMembershipLookupFailed: shopMembershipLookupFailed || undefined,
     provider,
   };
 }
@@ -179,6 +186,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (user?.role === "vendor" && user.vendorId === shopVendorId) return true;
       return false;
     },
+
+    canShop: (permission: ShopPermission) =>
+      user?.role === "vendor" && hasShopPermission(user.shopMembership, permission),
 
     canManageAllShops: user?.role === "admin",
     canModerateContent: user?.role === "admin" || user?.role === "moderator",

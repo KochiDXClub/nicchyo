@@ -18,21 +18,21 @@ const MAX_NOTES = 50;
  * GET: 自分のノートの一覧と、にちよさんに渡すものの設定
  */
 export async function GET() {
-  const auth = await requireVendor();
+  const auth = await requireVendor("ai_notes");
   if (!auth.ok) return auth.response;
-  const { supabase, user } = auth;
+  const { supabase, vendorId } = auth;
 
   const [notesResult, settingsResult] = await Promise.all([
     supabase
       .from("store_knowledge")
       .select(NOTE_COLUMNS)
-      .eq("store_id", user.id)
+      .eq("store_id", vendorId)
       .order("sort_order", { ascending: true })
       .order("created_at", { ascending: true }),
     supabase
       .from("vendor_ai_settings")
       .select("use_stats_in_vendor_help, share_popular_with_visitors")
-      .eq("vendor_id", user.id)
+      .eq("vendor_id", vendorId)
       .maybeSingle(),
   ]);
 
@@ -58,9 +58,9 @@ export async function GET() {
  * POST: ノートを1枚足す（検索用のベクトルも作る）
  */
 export async function POST(request: Request) {
-  const auth = await requireVendorWrite(request);
+  const auth = await requireVendorWrite(request, "ai_notes");
   if (!auth.ok) return auth.response;
-  const { supabase, user } = auth;
+  const { supabase, vendorId } = auth;
 
   const parsed = AiNoteInputSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {
@@ -70,7 +70,7 @@ export async function POST(request: Request) {
   const { count, error: countError } = await supabase
     .from("store_knowledge")
     .select("id", { count: "exact", head: true })
-    .eq("store_id", user.id);
+    .eq("store_id", vendorId);
   if (countError) return NextResponse.json({ error: "保存できませんでした" }, { status: 500 });
   if ((count ?? 0) >= MAX_NOTES) {
     return NextResponse.json({ error: `ノートは${MAX_NOTES}枚までです。古いものを消してから足してください` }, { status: 400 });
@@ -80,7 +80,7 @@ export async function POST(request: Request) {
   const { data, error } = await supabase
     .from("store_knowledge")
     .insert({
-      store_id: user.id,
+      store_id: vendorId,
       ...toNoteRow(parsed.data),
       // 新しいノートは下に並べる
       sort_order: count ?? 0,

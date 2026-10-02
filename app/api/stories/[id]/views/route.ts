@@ -5,6 +5,7 @@ import { createAdminClient } from "@/lib/supabase/adminClient";
 import { createClient as createServerClient } from "@/utils/supabase/server";
 import { requireSameOrigin } from "@/lib/security/requestGuards";
 import { enforceRateLimit } from "@/lib/security/rateLimit";
+import { isShopMember } from "@/lib/vendor/shopMembership";
 import { normalizeVisitorKey, isValidContentId } from "../reactions/_helpers";
 
 export const dynamic = "force-dynamic";
@@ -70,7 +71,10 @@ export async function POST(req: Request, { params }: Params) {
   const {
     data: { user },
   } = await createServerClient(cookieStore).auth.getUser();
-  if (user?.id === content.vendor_id) return NextResponse.json({ ok: true });
+  // 店舗のメンバー（代表者・招待されたメンバー）が自分の店舗の近況を開いた分は数えない。user.id は店舗の ID とは別物
+  if (user && (await isShopMember(supabase as unknown as SupabaseClient, user.id, content.vendor_id as string))) {
+    return NextResponse.json({ ok: true });
+  }
 
   const { error } = await supabase
     .from("content_views")

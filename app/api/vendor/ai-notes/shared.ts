@@ -1,8 +1,5 @@
-import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
-import type { User } from "@supabase/supabase-js";
-import { createClient as createServerClient } from "@/utils/supabase/server";
-import { requireVendorRole } from "@/lib/auth/permissions";
+import { requireVendorContext, type VendorContextResult } from "@/lib/vendor/shopContext.server";
+import type { ShopPermission } from "@/lib/vendor/shopPermissions";
 import { requireSameOrigin } from "@/lib/security/requestGuards";
 import { enforceRateLimit } from "@/lib/security/rateLimit";
 import { requestEmbeddings } from "@/lib/ai/openaiFetch";
@@ -12,37 +9,24 @@ import { noteEmbeddingText, type AiNoteInput } from "@/lib/vendor/aiNotes";
 export const NOTE_COLUMNS =
   "id, title, content, for_visitors, for_vendor, updated_at, has_embedding:store_knowledge_searchable";
 
-type ServerClient = ReturnType<typeof createServerClient>;
-
 /**
  * ログイン中の出店者と、その人の権限で読み書きする Supabase クライアント。
- * store_knowledge / vendor_ai_settings は RLS で本人の行だけに絞られているので、service_role は使わない。
+ * store_knowledge / vendor_ai_settings / vendor_tour_seen は RLS で「その店舗のメンバーで権限がある人」に絞られているので、
+ * service_role は使わない。操作する店舗は user.id ではなく vendorId（所属店舗）で指す。
  */
-export async function requireVendor(): Promise<
-  { ok: true; user: User; supabase: ServerClient } | { ok: false; response: NextResponse }
-> {
-  const cookieStore = await cookies();
-  const supabase = createServerClient(cookieStore);
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { ok: false, response: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) };
-  const forbidden = requireVendorRole(user);
-  if (forbidden) return { ok: false, response: forbidden };
-  return { ok: true, user, supabase };
+export async function requireVendor(permission?: ShopPermission): Promise<VendorContextResult> {
+  return requireVendorContext({ permission });
 }
 
 /**
  * 書き込み（ノートの追加・書き直し・削除、設定の保存）の入口。
  * 同じオリジンからか、出店者か、書き込みの回数（ベクトル作りで OpenAI を呼ぶので出店者1人あたり）を確かめる。
  */
-export async function requireVendorWrite(
-  request: Request
-): Promise<{ ok: true; user: User; supabase: ServerClient } | { ok: false; response: NextResponse }> {
+export async function requireVendorWrite(request: Request, permission?: ShopPermission): Promise<VendorContextResult> {
   const originCheck = requireSameOrigin(request);
   if (!originCheck.ok) return { ok: false, response: originCheck.response };
 
-  const auth = await requireVendor();
+  const auth = await requireVendor(permission);
   if (!auth.ok) return auth;
 
   const rateLimited = await enforceRateLimit(request, {

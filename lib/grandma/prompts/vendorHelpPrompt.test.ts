@@ -68,6 +68,22 @@ describe("buildVendorHelpSystemPrompt", () => {
     expect(prompt).toContain("よく検索した言葉: まだない");
   });
 
+  it("お店の数字を見る権限がないアカウントには、数字を渡さず、0回などと答えないよう伝える", () => {
+    const prompt = buildVendorHelpSystemPrompt([], {}, {
+      // 渡された数字があっても、権限がなければ使わない（取り違えて答えないため）
+      shop: { aiMentions: null, views: { thisWeek: 0, lastWeek: 0 }, hearts: null },
+      shopHidden: true,
+      market: { weeklyVisitors: 1234, monthlyVisitors: 5000, topSearchKeywords: [] },
+    });
+
+    expect(prompt).toContain("お店の数字（見られた回数・ハート・AI相談で話題になった回数）を見る権限がありません");
+    expect(prompt).toContain("0回などと答えてはいけない");
+    expect(prompt).not.toContain("直近7日 0回");
+    expect(prompt).not.toContain("このお店が見られた回数（お店の詳細が開かれた回数）:");
+    // 日曜市全体の数字は、お店の権限に関係なく使える
+    expect(prompt).toContain("nicchyo の来訪者数: 今週（月曜から今日まで） 1,234人");
+  });
+
   it("お気に入り数は数えられない、閲覧数は【このお店の数字】だけで答えるよう指示する", () => {
     const prompt = buildVendorHelpSystemPrompt([], {});
     expect(prompt).toContain("お店のお気に入り数は、お客さんの端末の中にしか無く、数えられません");
