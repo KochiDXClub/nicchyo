@@ -1,18 +1,17 @@
 import { NextRequest } from "next/server";
 import { requireSameOrigin } from "@/lib/security/requestGuards";
 import { enforceRateLimit } from "@/lib/security/rateLimit";
-import {
-  buildShopChatSystemPrompt,
-  type ShopChatContext,
-} from "@/lib/grandma/prompts/shopChatPrompt";
+import { buildShopChatSystemPrompt } from "@/lib/grandma/prompts/shopChatPrompt";
+import { fetchAiPrompts } from "@/lib/grandma/prompts/promptStore.server";
+import { resolveShopCharacter, resolveShopCharacterId } from "@/lib/grandma/shopChat/character";
+import { loadShopChat } from "@/lib/grandma/shopChat/context.server";
+import { ShopChatRequestSchema, trimShopChatHistory } from "@/lib/grandma/shopChat/request";
 import { requestChatCompletion } from "@/lib/ai/openaiFetch";
 import { openAiSseToTextStream, TEXT_STREAM_HEADERS } from "@/lib/ai/textStream";
 import { resolveAiModelFor } from "@/lib/ai/modelStore.server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-type ChatMessage = { role: "user" | "assistant"; text: string };
 
 export async function POST(req: NextRequest) {
   const originCheck = requireSameOrigin(req);
@@ -30,28 +29,30 @@ export async function POST(req: NextRequest) {
     return new Response("Server configuration error", { status: 500 });
   }
 
-  let body: {
-    shopName: string;
-    shopContext: ShopChatContext;
-    history: ChatMessage[];
-    text: string;
-  };
-
-  try {
-    body = await req.json();
-  } catch {
+  const parsed = ShopChatRequestSchema.safeParse(await req.json().catch(() => null));
+  if (!parsed.success) {
     return new Response("Bad Request", { status: 400 });
   }
+  const { shopId, text, history } = parsed.data;
 
-  const { shopName, shopContext, history, text } = body;
-  if (!shopName || !text) {
-    return new Response("Missing required fields", { status: 400 });
+  // お店の情報・メモ・キャラは、利用者から受け取らずサーバーが読む
+  const loaded = await loadShopChat(shopId);
+  if (!loaded) {
+    return new Response("Shop not found", { status: 404 });
   }
 
-  const systemPrompt = buildShopChatSystemPrompt(shopName, shopContext ?? {});
+  const prompts = await fetchAiPrompts();
+  const character = resolveShopCharacter(resolveShopCharacterId(loaded.shop.vendorId), prompts);
+
+  const systemPrompt = buildShopChatSystemPrompt({
+    character: { name: character.view.name, profile: character.profile },
+    shopName: loaded.shop.name,
+    shopContext: loaded.context,
+    notes: loaded.notes,
+  });
   const messages = [
     { role: "system", content: systemPrompt },
-    ...history.map((m) => ({ role: m.role, content: m.text })),
+    ...trimShopChatHistory(history).map((m) => ({ role: m.role, content: m.text })),
     { role: "user", content: text },
   ];
 
