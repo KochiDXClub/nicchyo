@@ -192,10 +192,30 @@ create policy "vendors insert own tour seen"
   with check (public.is_shop_member(vendor_id));
 
 -- ── Storage: vendor-images ─────────────────────────────────────────────
--- 先頭のフォルダ名が店舗ID。サブフォルダで用途を分けていないため、権限ごとの粒度までは絞れない
--- （3権限のどれかがあれば、その店舗のフォルダ内を置ける・消せる。仕様として許容する）。
--- 店舗情報(store_edit)・近況(post)・問い合わせ添付(inquiries)のどれかの権限があれば置ける・消せる。
--- フォルダ名は文字として比較する（uuid でない名前が来ても例外にしない）。
+-- 先頭のフォルダ名が店舗ID。置ける・上書きできる・消せるのは、ファイルの種類に応じた権限を持つメンバーだけ。
+-- 既存の公開URL（店舗写真のサムネイルは、メイン画像のURLから組み立てている）を壊さないよう、保存先のパスは変えず、
+-- ファイル名の形で用途を見分ける。
+--   <店舗ID>/inquiries/…                      … inquiries（運営・市役所との連絡の添付）
+--   <店舗ID>/store-main.* / store-thumb.* / product-*  … store_edit（店舗・商品の写真）
+--   <店舗ID>/<日時>.<拡張子> など上記以外      … post（近況の写真）
+-- 代表者は、どの種類でも操作できる。
+
+create or replace function public.vendor_image_permission(object_name text)
+returns text
+language sql
+immutable
+set search_path = ''
+as $$
+  select case
+    when (string_to_array(object_name, '/'))[2] = 'inquiries' then 'inquiries'
+    when (string_to_array(object_name, '/'))[array_length(string_to_array(object_name, '/'), 1)] ~ '^(store-main\.|store-thumb\.|product-)' then 'store_edit'
+    else 'post'
+  end;
+$$;
+
+comment on function public.vendor_image_permission(text) is
+  'vendor-images のファイルを操作するのに要る権限キー。パスの形（inquiries/・店舗/商品写真の名前・それ以外）で決める。';
+
 drop policy if exists "vendors can upload own images" on storage.objects;
 create policy "vendors can upload own images"
   on storage.objects for insert to authenticated
@@ -205,7 +225,7 @@ create policy "vendors can upload own images"
       select 1 from public.shop_members m
       where m.vendor_id::text = (storage.foldername(name))[1]
         and m.user_id = (select auth.uid())
-        and (m.role = 'owner' or m.permissions && array['store_edit', 'post', 'inquiries'])
+        and (m.role = 'owner' or public.vendor_image_permission(name) = any (m.permissions))
     )
   );
 
@@ -218,7 +238,7 @@ create policy "vendors can update own images"
       select 1 from public.shop_members m
       where m.vendor_id::text = (storage.foldername(name))[1]
         and m.user_id = (select auth.uid())
-        and (m.role = 'owner' or m.permissions && array['store_edit', 'post', 'inquiries'])
+        and (m.role = 'owner' or public.vendor_image_permission(name) = any (m.permissions))
     )
   )
   with check (
@@ -227,7 +247,7 @@ create policy "vendors can update own images"
       select 1 from public.shop_members m
       where m.vendor_id::text = (storage.foldername(name))[1]
         and m.user_id = (select auth.uid())
-        and (m.role = 'owner' or m.permissions && array['store_edit', 'post', 'inquiries'])
+        and (m.role = 'owner' or public.vendor_image_permission(name) = any (m.permissions))
     )
   );
 
@@ -240,6 +260,6 @@ create policy "vendors can delete own images"
       select 1 from public.shop_members m
       where m.vendor_id::text = (storage.foldername(name))[1]
         and m.user_id = (select auth.uid())
-        and (m.role = 'owner' or m.permissions && array['store_edit', 'post', 'inquiries'])
+        and (m.role = 'owner' or public.vendor_image_permission(name) = any (m.permissions))
     )
   );
