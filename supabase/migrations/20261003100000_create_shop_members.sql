@@ -52,8 +52,10 @@ create unique index if not exists shop_members_one_owner_per_shop
 create unique index if not exists shop_members_one_shop_per_user
   on public.shop_members (user_id);
 
-create index if not exists shop_members_vendor_id_idx
-  on public.shop_members (vendor_id);
+-- 主キー (vendor_id, user_id) が vendor_id 先頭の検索を兼ねるので、vendor_id だけの索引は作らない。
+-- invited_by は on delete set null の相手側。アカウント削除時の全走査を避ける。
+create index if not exists shop_members_invited_by_idx
+  on public.shop_members (invited_by);
 
 -- ── 判定関数 ──────────────────────────────────────────────────────────
 -- security definer にするのは、shop_members 自身の RLS から呼んでも再帰しないようにするため。
@@ -93,14 +95,36 @@ as $$
   );
 $$;
 
+create or replace function public.is_shop_owner(p_vendor_id uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select exists (
+    select 1
+    from public.shop_members m
+    where m.vendor_id = p_vendor_id
+      and m.user_id = (select auth.uid())
+      and m.role = 'owner'
+  );
+$$;
+
+comment on function public.is_shop_owner(uuid) is
+  '呼び出し元アカウントが、その店舗の代表者か（権限の付け外しでは変わらない、代表者だけの操作に使う）。';
+
 comment on function public.is_shop_member(uuid) is
   '呼び出し元アカウントが、その店舗のメンバー（代表者を含む）か。';
 
--- anon にも付けるのは、anon を含む役割のポリシー式からも評価されるため（auth.uid() が null なので false を返すだけ）。
-revoke all on function public.has_shop_permission(uuid, text) from public;
-revoke all on function public.is_shop_member(uuid) from public;
-grant execute on function public.has_shop_permission(uuid, text) to anon, authenticated, service_role;
-grant execute on function public.is_shop_member(uuid) to anon, authenticated, service_role;
+-- Supabase の default ACL は anon / authenticated にも直接付けるので、public だけでなく両方から剥がす。
+-- 使うポリシーはすべて to authenticated なので、anon には付けない。
+revoke all on function public.has_shop_permission(uuid, text) from public, anon, authenticated;
+revoke all on function public.is_shop_member(uuid) from public, anon, authenticated;
+revoke all on function public.is_shop_owner(uuid) from public, anon, authenticated;
+grant execute on function public.has_shop_permission(uuid, text) to authenticated, service_role;
+grant execute on function public.is_shop_member(uuid) to authenticated, service_role;
+grant execute on function public.is_shop_owner(uuid) to authenticated, service_role;
 
 -- ── shop_members の RLS（読むだけ） ─────────────────────────────────────
 alter table public.shop_members enable row level security;
@@ -135,14 +159,8 @@ begin
 end;
 $$;
 
--- vendors を指す形に付け替える（既存行に孤児があっても止まらないよう not valid。
+-- vendor_notice_reads を vendors 向きに付け替える（既存行に孤児があっても止まらないよう not valid。
 -- 新しい行から効く。全件検証は、孤児が無いことを確かめてから validate constraint で行う）
-alter table public.shop_attendance_vendor
-  drop constraint if exists shop_attendance_vendor_vendor_id_fkey;
-alter table public.shop_attendance_vendor
-  add constraint shop_attendance_vendor_vendor_id_fkey
-  foreign key (vendor_id) references public.vendors (id) on delete cascade not valid;
-
 alter table public.vendor_notice_reads
   drop constraint if exists vendor_notice_reads_vendor_id_fkey;
 alter table public.vendor_notice_reads
@@ -178,9 +196,16 @@ begin
 end;
 $$;
 
-revoke all on function public.add_owner_member_for_legacy_vendor() from public;
+revoke all on function public.add_owner_member_for_legacy_vendor() from public, anon, authenticated;
 
 drop trigger if exists vendors_add_owner_member on public.vendors;
 create trigger vendors_add_owner_member
   after insert on public.vendors
   for each row execute function public.add_owner_member_for_legacy_vendor();
+
+-- ── ブラウザからの店舗作成を閉じる ──────────────────────────────────────
+-- これまで "vendor insert self"（auth.uid() = id）で、ログインした誰でも自分名義の店舗を作れた。
+-- 作ると上のトリガで即座に代表者になり、招待・QR・メンバー管理 API まで通ってしまう。
+-- 店舗は運営が service_role（scripts/ や管理画面の API）で作り、出店者は QR で紐づく流れに変えたので閉じる。
+drop policy if exists "vendor insert self" on public.vendors;
+revoke insert on public.vendors from authenticated;

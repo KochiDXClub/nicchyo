@@ -27,7 +27,9 @@ create table if not exists public.vendor_activity_logs (
   details     jsonb,
   created_at  timestamptz not null default now(),
 
-  constraint vendor_activity_logs_action_format check (action ~ '^[a-z][a-z0-9_.]{0,59}$')
+  constraint vendor_activity_logs_action_format check (action ~ '^[a-z][a-z0-9_.]{0,59}$'),
+  constraint vendor_activity_logs_summary_length check (char_length(summary) <= 500),
+  constraint vendor_activity_logs_actor_name_length check (actor_name is null or char_length(actor_name) <= 100)
 );
 
 comment on table public.vendor_activity_logs is
@@ -39,6 +41,10 @@ comment on column public.vendor_activity_logs.summary is
 
 create index if not exists vendor_activity_logs_vendor_created_idx
   on public.vendor_activity_logs (vendor_id, created_at desc);
+
+-- actor_id は on delete set null の相手側。アカウント削除時の全走査を避ける。
+create index if not exists vendor_activity_logs_actor_id_idx
+  on public.vendor_activity_logs (actor_id);
 
 alter table public.vendor_activity_logs enable row level security;
 

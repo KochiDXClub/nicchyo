@@ -4,11 +4,12 @@
 -- 20261003100000 で入れた has_shop_permission(店舗, 権限) に置き換える。
 --
 --   store_edit … vendors / products / location_assignments / product_sales / vendor_weekly_status /
---                vendor_coupon_settings / shop_attendance_vendor / vendor_owner_profiles / Storage(vendor-images)
+--                vendor_coupon_settings / Storage(vendor-images)
 --   post       … vendor_contents / Storage(vendor-images)
 --   ai_notes   … store_knowledge / vendor_ai_settings
 --   inquiries  … vendor_inquiries / vendor_inquiry_replies
 --   analytics  … shop_page_views / ai_consult_logs / content_reactions
+--   (代表者だけ) vendor_owner_profiles（個人情報）
 --   (権限不要・メンバーなら誰でも) vendor_tour_seen
 --
 -- 公開読み取り（public read …）と運営（admin / moderator）のポリシーは触らない。
@@ -16,7 +17,7 @@
 -- 返信の sender_id は「実際に書いた人」の auth.uid() のまま残す（誰が書いたか分かるように）。
 
 -- ── vendors ───────────────────────────────────────────────────────────
--- 店舗行の新規作成（"vendor insert self"）は、旧来スクリプト・管理者の作成経路用なので触らない。
+-- 店舗行の新規作成（"vendor insert self"）は 20261003100000 で閉じた（店舗は service_role だけが作る）。
 drop policy if exists "vendor update self" on public.vendors;
 create policy "vendor update self"
   on public.vendors for update to authenticated
@@ -24,10 +25,15 @@ create policy "vendor update self"
   with check (public.has_shop_permission(id, 'store_edit'));
 
 -- ── vendor_contents（近況） ────────────────────────────────────────────
+-- 読むだけは analytics でも許す（分析で期限切れ・非表示の投稿の反応まで数えるため。
+-- content_reactions の判定が、このテーブルの行を見られることを前提にしている）
 drop policy if exists "vendors can read own contents" on public.vendor_contents;
 create policy "vendors can read own contents"
   on public.vendor_contents for select to authenticated
-  using (public.has_shop_permission(vendor_id, 'post'));
+  using (
+    public.has_shop_permission(vendor_id, 'post')
+    or public.has_shop_permission(vendor_id, 'analytics')
+  );
 
 drop policy if exists "vendors can insert own contents" on public.vendor_contents;
 create policy "vendors can insert own contents"
@@ -86,27 +92,22 @@ create policy "vcs_vendor_delete"
   on public.vendor_coupon_settings for delete to authenticated
   using (public.has_shop_permission(vendor_id, 'store_edit'));
 
-drop policy if exists "vendor_insert_self" on public.shop_attendance_vendor;
-create policy "vendor_insert_self"
-  on public.shop_attendance_vendor for insert to authenticated
-  with check (public.has_shop_permission(vendor_id, 'store_edit'));
-
--- 出店者本人の氏名（公開/非公開は出店者が管理）
+-- 出店者本人の氏名（公開/非公開は出店者が管理）。個人情報なので、権限ではなく代表者だけに限る。
 drop policy if exists "vendors read own owner profile" on public.vendor_owner_profiles;
 create policy "vendors read own owner profile"
   on public.vendor_owner_profiles for select to authenticated
-  using (public.has_shop_permission(vendor_id, 'store_edit'));
+  using (public.is_shop_owner(vendor_id));
 
 drop policy if exists "vendors insert own owner profile" on public.vendor_owner_profiles;
 create policy "vendors insert own owner profile"
   on public.vendor_owner_profiles for insert to authenticated
-  with check (public.has_shop_permission(vendor_id, 'store_edit'));
+  with check (public.is_shop_owner(vendor_id));
 
 drop policy if exists "vendors update own owner profile" on public.vendor_owner_profiles;
 create policy "vendors update own owner profile"
   on public.vendor_owner_profiles for update to authenticated
-  using (public.has_shop_permission(vendor_id, 'store_edit'))
-  with check (public.has_shop_permission(vendor_id, 'store_edit'));
+  using (public.is_shop_owner(vendor_id))
+  with check (public.is_shop_owner(vendor_id));
 
 -- ── にちよさんの覚えごと（ai_notes） ────────────────────────────────────
 drop policy if exists "vendors manage own knowledge" on public.store_knowledge;
@@ -207,7 +208,9 @@ create policy "vendors insert own tour seen"
   with check (public.is_shop_member(vendor_id));
 
 -- ── Storage: vendor-images ─────────────────────────────────────────────
--- 先頭のフォルダ名が店舗ID。店舗情報(store_edit)・近況(post)・問い合わせ添付(inquiries)のどれかの権限があれば置ける・消せる。
+-- 先頭のフォルダ名が店舗ID。サブフォルダで用途を分けていないため、権限ごとの粒度までは絞れない
+-- （3権限のどれかがあれば、その店舗のフォルダ内を置ける・消せる。仕様として許容する）。
+-- 店舗情報(store_edit)・近況(post)・問い合わせ添付(inquiries)のどれかの権限があれば置ける・消せる。
 -- フォルダ名は文字として比較する（uuid でない名前が来ても例外にしない）。
 drop policy if exists "vendors can upload own images" on storage.objects;
 create policy "vendors can upload own images"
