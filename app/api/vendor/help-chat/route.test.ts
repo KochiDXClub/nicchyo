@@ -36,6 +36,7 @@ vi.mock("@/lib/vendor/helpChatStats.server", async (importOriginal) => ({
   toDataWord: (await importOriginal<typeof import("@/lib/vendor/helpChatStats.server")>()).toDataWord,
   loadVendorHelpShopStats: async () => ({
     aiMentions: { total: 4, recommended: 2, topKeywords: ["トマト"] },
+    views: { thisWeek: 12, lastWeek: 8 },
     hearts: { thisWeek: 3, total: 10 },
   }),
   loadVendorHelpMarketStats: async () => ({

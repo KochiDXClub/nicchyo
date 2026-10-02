@@ -2,7 +2,7 @@
  * 出店者の相談（/api/vendor/help-chat）で、にちよさんに渡す数字を集める。
  *
  * どれも出店者本人の cookie のクライアントで読める範囲だけを使う（service role は使わない）。
- * - このお店の数字: RLS で自分の行だけが読める表（ai_consult_logs・content_reactions）
+ * - このお店の数字: RLS で自分の行だけが読める表（ai_consult_logs・shop_page_views・content_reactions）
  * - 日曜市全体の数字: 出店者の分析画面と同じく、ログインしていれば読める表の合計だけ
  *   （ほかのお店の個別の数字は作らない）
  *
@@ -10,7 +10,6 @@
  *
  * まだ渡さないもの:
  * - 売れ数 … 出店者が手で入れる画面をやめ、以後は更新されないため（古い数字を、いまの話として答えてしまう）
- * - お店の閲覧数（shop_page_views）… 今は書き込む処理が無く、0 と答えてしまうため
  * - お気に入り数 … お気に入りは来訪者の端末（localStorage）にしか無く、数えられないため
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -42,6 +41,8 @@ export function toDataWord(raw: string, max = DATA_WORD_MAX): string {
 export type VendorHelpShopStats = {
   /** 直近7日に、来訪者の AI 相談でこのお店が話題になった回数と、そのうちおすすめされた回数 */
   aiMentions: { total: number; recommended: number; topKeywords: string[] } | null;
+  /** このお店の詳細が開かれた回数（直近7日と、その前の7日）。お店の分析ページの「見られた回数」と同じ数 */
+  views: { thisWeek: number; lastWeek: number } | null;
   /** このお店の投稿へのハート */
   hearts: { thisWeek: number; total: number } | null;
 };
@@ -106,6 +107,27 @@ async function loadHearts(supabase: SupabaseClient) {
   return { total: total.count ?? 0, thisWeek: week.count ?? 0 };
 }
 
+async function loadViews(supabase: SupabaseClient, vendorId: string) {
+  // shop_page_views は RLS で自分のお店の行だけが読める（出店者の分析画面と同じ数え方）
+  const weekAgo = new Date(Date.now() - 7 * DAY_MS).toISOString();
+  const twoWeeksAgo = new Date(Date.now() - 14 * DAY_MS).toISOString();
+  const [thisWeek, lastWeek] = await Promise.all([
+    supabase
+      .from("shop_page_views")
+      .select("id", { count: "exact", head: true })
+      .eq("vendor_id", vendorId)
+      .gte("viewed_at", weekAgo),
+    supabase
+      .from("shop_page_views")
+      .select("id", { count: "exact", head: true })
+      .eq("vendor_id", vendorId)
+      .gte("viewed_at", twoWeeksAgo)
+      .lt("viewed_at", weekAgo),
+  ]);
+  if (thisWeek.error || lastWeek.error) return null;
+  return { thisWeek: thisWeek.count ?? 0, lastWeek: lastWeek.count ?? 0 };
+}
+
 async function loadSearchKeywords(supabase: SupabaseClient) {
   const { data, error } = await supabase
     .from("product_search_logs")
@@ -138,11 +160,12 @@ export async function loadVendorHelpShopStats(
   supabase: SupabaseClient,
   vendorId: string
 ): Promise<VendorHelpShopStats> {
-  const [aiMentions, hearts] = await Promise.all([
+  const [aiMentions, views, hearts] = await Promise.all([
     orFallback(loadAiMentions(supabase, vendorId), null),
+    orFallback(loadViews(supabase, vendorId), null),
     orFallback(loadHearts(supabase), null),
   ]);
-  return { aiMentions, hearts };
+  return { aiMentions, views, hearts };
 }
 
 export async function loadVendorHelpMarketStats(supabase: SupabaseClient): Promise<VendorHelpMarketStats> {

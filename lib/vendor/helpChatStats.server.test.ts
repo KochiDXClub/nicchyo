@@ -27,6 +27,10 @@ function fakeClient(responses: Record<string, Response | ((filters: string[]) =>
           filters.push(`${column}>=`);
           return builder;
         },
+        lt: (column: string) => {
+          filters.push(`${column}<`);
+          return builder;
+        },
         order: () => builder,
         limit: () => builder,
         then(resolve: (value: Response) => void) {
@@ -40,7 +44,7 @@ function fakeClient(responses: Record<string, Response | ((filters: string[]) =>
 }
 
 describe("loadVendorHelpShopStats", () => {
-  it("AI 相談で話題になった回数・言葉、ハートをまとめる", async () => {
+  it("AI 相談で話題になった回数・言葉、お店が見られた回数、ハートをまとめる", async () => {
     const supabase = fakeClient({
       // 回数は count で数える（返ってくる行数は PostgREST の上限で頭打ちになるため）
       ai_consult_logs: (filters) =>
@@ -48,11 +52,14 @@ describe("loadVendorHelpShopStats", () => {
           ? { count: 1 }
           : { count: 2, data: [{ keywords: ["トマト", "甘い"] }, { keywords: ["トマト"] }] },
       content_reactions: (filters) => ({ count: filters.includes("created_at>=") ? 2 : 9 }),
+      // 直近7日（viewed_at>= だけ）と、その前の7日（viewed_at< もある）
+      shop_page_views: (filters) => ({ count: filters.includes("viewed_at<") ? 8 : 12 }),
     });
 
     const stats = await loadVendorHelpShopStats(supabase, "v1");
 
     expect(stats.aiMentions).toEqual({ total: 2, recommended: 1, topKeywords: ["トマト", "甘い"] });
+    expect(stats.views).toEqual({ thisWeek: 12, lastWeek: 8 });
     expect(stats.hearts).toEqual({ thisWeek: 2, total: 9 });
   });
 
@@ -60,10 +67,12 @@ describe("loadVendorHelpShopStats", () => {
     const supabase = fakeClient({
       ai_consult_logs: { error: { message: "denied" } },
       content_reactions: { error: { message: "denied" } },
+      shop_page_views: { error: { message: "denied" } },
     });
 
     expect(await loadVendorHelpShopStats(supabase, "v1")).toEqual({
       aiMentions: null,
+      views: null,
       hearts: null,
     });
   });

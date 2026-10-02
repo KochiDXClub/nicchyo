@@ -49,6 +49,7 @@ describe("buildVendorHelpSystemPrompt", () => {
     const prompt = buildVendorHelpSystemPrompt([], {}, {
       shop: {
         aiMentions: { total: 5, recommended: 3, topKeywords: ["いも天"] },
+        views: { thisWeek: 12, lastWeek: 8 },
         hearts: null,
       },
       market: { weeklyVisitors: 1234, monthlyVisitors: null, topSearchKeywords: [] },
@@ -56,6 +57,7 @@ describe("buildVendorHelpSystemPrompt", () => {
 
     expect(prompt).toContain("話題になった回数: 5回（そのうち、おすすめされた回数: 3回）");
     expect(prompt).toContain("よく出た言葉: いも天");
+    expect(prompt).toContain("このお店が見られた回数（お店の詳細が開かれた回数）: 直近7日 12回 / その前の7日 8回");
     expect(prompt).toContain("このお店の投稿へのハート: 取れなかった");
     // 手で入れる売れ数は、更新されなくなったので渡さない
     expect(prompt).not.toContain("売れ数");
@@ -64,7 +66,10 @@ describe("buildVendorHelpSystemPrompt", () => {
     expect(prompt).toContain("よく検索した言葉: まだない");
   });
 
-  it("閲覧数とお気に入り数はまだ数えていないと伝えるよう指示する", () => {
-    expect(buildVendorHelpSystemPrompt([], {})).toContain("お店の閲覧数とお気に入り数は、まだ正しく数えられていません");
+  it("お気に入り数は数えられない、閲覧数は【このお店の数字】だけで答えるよう指示する", () => {
+    const prompt = buildVendorHelpSystemPrompt([], {});
+    expect(prompt).toContain("お店のお気に入り数は、お客さんの端末の中にしか無く、数えられません");
+    expect(prompt).not.toContain("まだ正しく数えられていません");
+    expect(prompt).toContain("お店が見られた回数は、下の【このお店の数字】にあるものだけで答えてください");
   });
 });
