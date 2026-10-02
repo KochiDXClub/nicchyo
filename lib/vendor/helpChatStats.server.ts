@@ -13,6 +13,7 @@
  * - お気に入り数 … お気に入りは来訪者の端末（localStorage）にしか無く、数えられないため
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { countShopViews } from "@/lib/vendor/shopViewCounts";
 import { fetchMonthlyVisitors, fetchWeeklyVisitors } from "@/lib/analytics/visitorStats.server";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -107,27 +108,6 @@ async function loadHearts(supabase: SupabaseClient) {
   return { total: total.count ?? 0, thisWeek: week.count ?? 0 };
 }
 
-async function loadViews(supabase: SupabaseClient, vendorId: string) {
-  // shop_page_views は RLS で自分のお店の行だけが読める（出店者の分析画面と同じ数え方）
-  const weekAgo = new Date(Date.now() - 7 * DAY_MS).toISOString();
-  const twoWeeksAgo = new Date(Date.now() - 14 * DAY_MS).toISOString();
-  const [thisWeek, lastWeek] = await Promise.all([
-    supabase
-      .from("shop_page_views")
-      .select("id", { count: "exact", head: true })
-      .eq("vendor_id", vendorId)
-      .gte("viewed_at", weekAgo),
-    supabase
-      .from("shop_page_views")
-      .select("id", { count: "exact", head: true })
-      .eq("vendor_id", vendorId)
-      .gte("viewed_at", twoWeeksAgo)
-      .lt("viewed_at", weekAgo),
-  ]);
-  if (thisWeek.error || lastWeek.error) return null;
-  return { thisWeek: thisWeek.count ?? 0, lastWeek: lastWeek.count ?? 0 };
-}
-
 async function loadSearchKeywords(supabase: SupabaseClient) {
   const { data, error } = await supabase
     .from("product_search_logs")
@@ -162,7 +142,7 @@ export async function loadVendorHelpShopStats(
 ): Promise<VendorHelpShopStats> {
   const [aiMentions, views, hearts] = await Promise.all([
     orFallback(loadAiMentions(supabase, vendorId), null),
-    orFallback(loadViews(supabase, vendorId), null),
+    orFallback(countShopViews(supabase, vendorId), null),
     orFallback(loadHearts(supabase), null),
   ]);
   return { aiMentions, views, hearts };
