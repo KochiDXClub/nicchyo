@@ -97,7 +97,7 @@ export const VENDOR_FAQ: readonly VendorFaqItem[] = [
     id: "post-again",
     category: "post",
     q: "前に出した近況をもう一度出したい",
-    a: "「投稿履歴」から、前の投稿をそのまま、または写真とひとことを直して出し直せます。",
+    a: "「投稿履歴」で、期限切れの投稿の「そのまま再投稿」を押すと、そのままもう一度出せます。写真とひとことを直したいときは「編集して再投稿」を押してください。",
     href: "/vendor/posts",
   },
   {
