@@ -1,5 +1,9 @@
 # AI相談 モデル比較テスト（2026-07）
 
+> **ステータス: 検証記録（採用済みの結論は維持、2026-10-02 時点で確認）**
+> 既定は引き続き `gpt-4o-mini`（`lib/ai/models.ts` の `defaultModelId`）。比較で試したモデルのうち OpenAI 系は許可リスト `AI_MODEL_DEFS` に載っており、**運営が管理画面から用途別（consult / shopChat / itinerary / vendorHelp）に切り替えられる**ようになった。Claude / DeepSeek / Gemini は許可リストに無く、採用していない。
+> 料金は `lib/ai/models.ts` の値（2026-09 時点）が最新で、この表は 2026-07 時点の記録。`lib/ai/models.ts` のコメントから本書を参照している。
+
 にちよさんの AI相談（`/consult`, マップのミニチャット）で使用するLLMモデルの選定検討のため、
 実際の system prompt を使い、同じ15問を7モデルに投げて比較した記録。
 
