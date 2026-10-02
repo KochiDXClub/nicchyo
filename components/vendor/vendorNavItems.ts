@@ -49,3 +49,25 @@ export const VENDOR_NAV_ITEMS: VendorNavItem[] = [
 export function visibleVendorNavItems(canShop: (permission: ShopPermission) => boolean): VendorNavItem[] {
   return VENDOR_NAV_ITEMS.filter((item) => !item.permission || canShop(item.permission));
 }
+
+/**
+ * 導線（VENDOR_NAV_ITEMS）に無いが、権限が要る画面。マイ店舗の下の、店舗情報まわりの画面。
+ * URL を直接開かれたときの案内（VendorAccessGate）に使う。
+ */
+const EXTRA_PAGE_PERMISSIONS: { prefix: string; permission: ShopPermission }[] = [
+  { prefix: "/my-shop/schedule", permission: "store_edit" },
+  { prefix: "/my-shop/detail", permission: "store_edit" },
+  { prefix: "/my-shop/ask", permission: "store_edit" },
+];
+
+function matchesPrefix(pathname: string, prefix: string): boolean {
+  return pathname === prefix || pathname.startsWith(`${prefix}/`);
+}
+
+/** その画面を使うのに要る権限。権限が要らない画面（マイ店舗のホーム・使い方・アカウント設定など）は undefined */
+export function requiredPermissionForPath(pathname: string | null): ShopPermission | undefined {
+  if (!pathname) return undefined;
+  const nav = VENDOR_NAV_ITEMS.find((item) => item.permission && matchesPrefix(pathname, item.href));
+  if (nav) return nav.permission;
+  return EXTRA_PAGE_PERMISSIONS.find((page) => matchesPrefix(pathname, page.prefix))?.permission;
+}
