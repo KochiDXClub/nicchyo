@@ -6,7 +6,7 @@ import { ChatScene } from "./chat";
 import { ClosedDayScene, HomeActionsScene } from "./home";
 import { InquiriesSendScene } from "./inquiries";
 import { MemoryLearnScene, MemoryToggleScene } from "./memory";
-import { PostPeriodScene, PostPhotoScene, PostsRepostScene, PostsTabsScene } from "./post";
+import { PostPeriodScene, PostPhotoScene, PostsRepostScene } from "./post";
 import { StoreGroupsScene } from "./store";
 
 /**
@@ -21,7 +21,6 @@ export const SCENES: Record<TourScene, { steps: number; render: (props: ScenePro
   "store-groups": { steps: 3, render: (props) => <StoreGroupsScene {...props} /> },
   "post-photo": { steps: 4, render: (props) => <PostPhotoScene {...props} /> },
   "post-period": { steps: 3, render: (props) => <PostPeriodScene {...props} /> },
-  "posts-tabs": { steps: 3, render: (props) => <PostsTabsScene {...props} /> },
   "posts-repost": { steps: 3, render: (props) => <PostsRepostScene {...props} /> },
   "analytics-hero": { steps: 3, render: (props) => <AnalyticsHeroScene {...props} /> },
   "analytics-questions": { steps: 3, render: (props) => <AnalyticsQuestionsScene {...props} /> },

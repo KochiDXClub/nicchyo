@@ -9,12 +9,12 @@
 
 | ID | 機能 | 重要度 | 状態 | 画面 |
 |---|---|---|---|---|
-| S-01 | 近況を出す（写真＋ひとこと） | **S** | ✅ | `/vendor/post/new` |
+| S-01 | 近況を出す（写真＋ひとこと） | **S** | ✅ | `/vendor/posts`（旧 `/vendor/post/new` は転送） |
 | S-02 | 店舗情報の更新（名前・商品・写真・SNS・決済） | **S** | ✅ | `/vendor/store` |
 | S-03 | 出店予定日・お休み登録 | **S** | ✅ | `/my-shop/schedule`、`/vendor/store` |
 | S-04 | 出店者トップ（ホーム）とにちよさんへの相談 | A | ✅ | `/my-shop`（`/vendor/dashboard` は転送） |
 | S-05 | 運営・市役所との連絡（お知らせ・問い合わせ） | A | ✅ | `/vendor/inquiries` |
-| S-06 | 投稿履歴・出し直し | A | ✅ | `/vendor/posts` |
+| S-06 | 投稿履歴・出し直し | A | ✅ | `/vendor/posts`（S-01 と同じページの下） |
 | S-07 | にちよさんの覚えごと（AIナレッジの確認・修正・削除） | A | ✅ | `/vendor/ai-knowledge` |
 | S-08 | お店の分析 | B | ✅ | `/vendor/analytics` |
 | S-09 | 使い方ガイド | B | ✅ | `/vendor/help` |

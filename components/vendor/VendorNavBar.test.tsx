@@ -39,7 +39,6 @@ describe("VendorNavBar（来訪者メニューと同じ部品で描く）", () =
     fireEvent.click(screen.getByRole("button", { name: "メニューを開く" }));
 
     expect(screen.getByRole("button", { name: "近況を出す" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "投稿履歴" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "店舗情報を更新" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "お店の分析" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "アカウント設定" })).toBeInTheDocument();

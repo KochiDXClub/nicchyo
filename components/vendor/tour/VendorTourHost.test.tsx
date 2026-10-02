@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-let pathname = "/vendor/post/new";
+let pathname = "/vendor/posts";
 vi.mock("next/navigation", () => ({ usePathname: () => pathname }));
 vi.mock("@/lib/ui/bodyScrollLock", () => ({ useBodyScrollLock: () => {} }));
 
@@ -25,7 +25,7 @@ beforeEach(() => {
   vi.stubGlobal("fetch", fetchMock);
   fetchMock.mockReset();
   window.sessionStorage.clear();
-  pathname = "/vendor/post/new";
+  pathname = "/vendor/posts";
 });
 
 describe("VendorTourHost", () => {
@@ -38,6 +38,8 @@ describe("VendorTourHost", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "次へ" }));
     expect(screen.getByText("出しておく期間を選べます")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "次へ" }));
+    expect(screen.getByText("前の投稿を、もう一度出せます")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "了解した" }));
 
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
@@ -103,7 +105,7 @@ describe("VendorTourHost", () => {
 
     pathname = "/vendor/help";
     rerender(<VendorTourHost />);
-    pathname = "/vendor/post/new";
+    pathname = "/vendor/posts";
     rerender(<VendorTourHost />);
     await act(async () => {});
 
@@ -114,12 +116,12 @@ describe("VendorTourHost", () => {
   });
 
   it("画面が変わったら、開いていた説明は閉じる（遷移先がまだ見ていない画面なら、そちらの説明が自動で出る）", async () => {
-    respondSeen(["post-new", "posts"]);
+    respondSeen(["post-new", "posts", "analytics"]);
     const { rerender } = render(<VendorTourHost />);
     fireEvent.click(await screen.findByRole("button", { name: "「近況を出す」の説明を見る" }));
     expect(await screen.findByRole("dialog")).toBeTruthy();
 
-    pathname = "/vendor/posts";
+    pathname = "/vendor/analytics";
     rerender(<VendorTourHost />);
 
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());

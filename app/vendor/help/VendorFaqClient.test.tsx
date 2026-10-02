@@ -12,7 +12,7 @@ describe("VendorFaqClient", () => {
     fireEvent.click(screen.getByRole("button", { name: item.q }));
 
     expect(screen.getByText(item.a)).toBeTruthy();
-    expect(screen.getByRole("link", { name: "投稿履歴ページを開く" }).getAttribute("href")).toBe("/vendor/posts");
+    expect(screen.getByRole("link", { name: "近況投稿ページを開く" }).getAttribute("href")).toBe("/vendor/posts");
   });
 
   it("キーワードで絞り込み、合うものが無ければそう伝える", () => {

@@ -5,7 +5,7 @@ import Image from "next/image";
 import { AlertCircle, Loader2, Send, X } from "lucide-react";
 import { Button } from "@/components/ui";
 import { cn } from "@/lib/utils/cn";
-import type { ExpirationPreset } from "../../../_types";
+import type { ExpirationPreset } from "../../_types";
 import { EXPIRATION_OPTIONS, formatExpiresAt, localDateTimeInputValue } from "../expiration";
 
 export const MAX_TEXT = 300;

@@ -61,7 +61,7 @@ export default function MyShopPage() {
           { label: "店舗名を設定する", done: !!store.name?.trim(), href: "/vendor/store" },
           { label: "出店予定日を設定する", done: store.schedule.length > 0, href: "/vendor/store" },
           { label: "店舗写真を追加する", done: !!store.shop_image_url, href: "/vendor/store" },
-          { label: "最初の投稿をする", done: posts.length > 0, href: "/vendor/post/new" },
+          { label: "最初の投稿をする", done: posts.length > 0, href: "/vendor/posts" },
         ]);
       })
       .catch(() => {
@@ -171,7 +171,7 @@ export default function MyShopPage() {
         <Reveal reduceMotion={reduceMotion} className="mb-5">
           <div className="grid gap-3 sm:grid-cols-2">
             <Link
-              href="/vendor/post/new"
+              href="/vendor/posts"
               className="flex items-center justify-center gap-2.5 rounded-panel bg-amber-500 px-4 py-5 text-lg font-bold text-white shadow-brand-pop transition active:scale-[0.99] hover:bg-amber-400"
             >
               <Megaphone size={22} />
@@ -223,7 +223,7 @@ export default function MyShopPage() {
 
               {posts.length === 0 ? (
                 <Link
-                  href="/vendor/post/new"
+                  href="/vendor/posts"
                   className="flex items-center gap-4 rounded-panel border border-dashed border-amber-300 bg-white/80 p-5 shadow-card backdrop-blur-sm transition active:scale-[0.99]"
                 >
                   <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-amber-100 text-amber-600">

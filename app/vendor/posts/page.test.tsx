@@ -1,15 +1,11 @@
 import React from "react";
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { vi } from "vitest";
-import VendorPostNewPage from "./page";
+import VendorPostsPage from "./page";
 
 const createPost = vi.fn();
-const fetchPostByIdMock = vi.fn();
-let searchParams = new URLSearchParams();
-
-vi.mock("next/navigation", () => ({
-  useSearchParams: () => searchParams,
-}));
+const fetchVendorPostsMock = vi.fn();
+const repostContentMock = vi.fn();
 
 // 本物と同じく、描き直しても同じ user を返す
 // 店舗の ID（shop-1）はアカウントの ID（v1）と別の値にして、user.id を店舗 ID に使っていないことも確かめる
@@ -24,10 +20,11 @@ vi.mock("@/lib/image/clientCompression", () => ({
   IMAGE_DECODE_ERROR_MESSAGE: "読めない写真です",
 }));
 
-vi.mock("../../_services/postsService", () => ({
+vi.mock("../_services/postsService", () => ({
   createPost: (...args: unknown[]) => createPost(...args),
   fetchPostIdentity: async () => ({ shopName: "山田農園", shopImageUrl: null }),
-  fetchPostById: (...args: unknown[]) => fetchPostByIdMock(...args),
+  fetchVendorPosts: (...args: unknown[]) => fetchVendorPostsMock(...args),
+  repostContent: (...args: unknown[]) => repostContentMock(...args),
 }));
 
 async function flush() {
@@ -44,19 +41,32 @@ async function pickPhoto() {
   return file;
 }
 
-describe("投稿画面（近況を出す）", () => {
+const OLD_POST = {
+  id: "old",
+  vendor_id: "shop-1",
+  text: "前のひとこと",
+  image_url: "https://example.supabase.co/old.webp",
+  created_at: "2026-01-01T00:00:00Z",
+  expiration_time: "2026-01-04T00:00:00Z",
+  status: "expired",
+  viewCount: 3,
+  heartCount: 1,
+};
+
+describe("近況ページ（近況を出す＋投稿履歴）", () => {
   beforeEach(() => {
-    searchParams = new URLSearchParams();
     createPost.mockReset();
-    fetchPostByIdMock.mockReset();
-    fetchPostByIdMock.mockResolvedValue({ id: "old", text: "前のひとこと", image_url: "https://example.supabase.co/old.webp" });
+    repostContentMock.mockReset();
+    fetchVendorPostsMock.mockReset();
+    fetchVendorPostsMock.mockResolvedValue([OLD_POST]);
+    window.scrollTo = vi.fn();
     createPost.mockResolvedValue({ id: "p1", text: "", image_url: "https://example.supabase.co/p1.webp" });
     URL.createObjectURL = vi.fn(() => "blob:preview");
     URL.revokeObjectURL = vi.fn();
   });
 
   it("はじめは写真を撮る・選ぶだけを出す。投稿のポイントの説明は出さない", async () => {
-    render(<VendorPostNewPage />);
+    render(<VendorPostsPage />);
     await flush();
     expect(screen.getByRole("button", { name: "撮る" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "写真を選ぶ" })).toBeInTheDocument();
@@ -65,7 +75,7 @@ describe("投稿画面（近況を出す）", () => {
   });
 
   it("写真を選ぶと、店名の入った見本の上でひとことを書け、ひとこと無しでも出せる", async () => {
-    render(<VendorPostNewPage />);
+    render(<VendorPostsPage />);
     await flush();
     const file = await pickPhoto();
 
@@ -82,7 +92,7 @@ describe("投稿画面（近況を出す）", () => {
   });
 
   it("時間を決めるを選んで日時を入れないうちは、出すボタンを押せない", async () => {
-    render(<VendorPostNewPage />);
+    render(<VendorPostsPage />);
     await flush();
     await pickPhoto();
 
@@ -94,7 +104,7 @@ describe("投稿画面（近況を出す）", () => {
   });
 
   it("「×」で写真を選び直せる", async () => {
-    render(<VendorPostNewPage />);
+    render(<VendorPostsPage />);
     await flush();
     await pickPhoto();
 
@@ -104,7 +114,7 @@ describe("投稿画面（近況を出す）", () => {
 
   it("出せなかったときは理由を出して、書いたものは残す", async () => {
     createPost.mockRejectedValueOnce(new Error("network"));
-    render(<VendorPostNewPage />);
+    render(<VendorPostsPage />);
     await flush();
     await pickPhoto();
     fireEvent.change(screen.getByLabelText("ひとこと（なくても出せます）"), { target: { value: "トマト入荷" } });
@@ -117,30 +127,40 @@ describe("投稿画面（近況を出す）", () => {
     expect(screen.getByLabelText("ひとこと（なくても出せます）")).toHaveValue("トマト入荷");
   });
 
-  it("編集して再投稿（?repost=ID）から来たら、前の写真とひとことで始める", async () => {
-    searchParams = new URLSearchParams("repost=old");
-    render(<VendorPostNewPage />);
+  it("同じページに、写真を選ぶ入口と、これまでの投稿の履歴が並ぶ", async () => {
+    render(<VendorPostsPage />);
     await flush();
+
+    expect(screen.getByRole("button", { name: "撮る" })).toBeInTheDocument();
+    expect(screen.getByText("前のひとこと")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /そのまま再投稿/ })).toBeInTheDocument();
+  });
+
+  it("出し終えたら「投稿の一覧に戻る」で履歴に戻れ、出した近況が先頭に載る", async () => {
+    createPost.mockResolvedValueOnce({ id: "p1", text: "", image_url: "https://example.supabase.co/p1.webp", status: "active" });
+    render(<VendorPostsPage />);
+    await flush();
+    await pickPhoto();
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /近況に出す/ }));
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "投稿の一覧に戻る" }));
+
+    expect(screen.getByRole("button", { name: "撮る" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /すべて\s*2/ })).toBeInTheDocument();
+  });
+
+  it("「編集して再投稿」で、前の写真とひとことが入った書く画面が開く", async () => {
+    render(<VendorPostsPage />);
+    await flush();
+
+    fireEvent.click(screen.getByRole("button", { name: /編集して再投稿/ }));
 
     // 保存済みの写真は next/image の最適化を通る
     expect(screen.getByAltText("投稿する写真").getAttribute("src")).toContain(
       encodeURIComponent("https://example.supabase.co/old.webp")
     );
     expect(screen.getByLabelText("ひとこと（なくても出せます）")).toHaveValue("前のひとこと");
-  });
-
-  it("編集して再投稿の読み込みを待つあいだに写真を選んだら、あとから前の写真に戻さない", async () => {
-    searchParams = new URLSearchParams("repost=old");
-    let resolvePost: (post: unknown) => void = () => {};
-    fetchPostByIdMock.mockImplementationOnce(() => new Promise((resolve) => (resolvePost = resolve)));
-    render(<VendorPostNewPage />);
-    await flush();
-    await pickPhoto();
-
-    await act(async () => {
-      resolvePost({ id: "old", text: "前のひとこと", image_url: "https://example.supabase.co/old.webp" });
-    });
-
-    expect(screen.getByAltText("投稿する写真")).toHaveAttribute("src", "blob:preview");
   });
 });

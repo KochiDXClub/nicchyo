@@ -45,6 +45,12 @@ const nextConfig = {
   // /news は「日曜市カレンダー」(/calendar) に作り替えたため、旧URLを転送する
   async redirects() {
     return [
+      // 近況を出す画面と投稿履歴は /vendor/posts の1ページにまとめた
+      {
+        source: '/vendor/post/new',
+        destination: '/vendor/posts',
+        permanent: true,
+      },
       {
         source: '/news',
         destination: '/calendar',

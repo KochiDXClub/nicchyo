@@ -20,7 +20,6 @@ export type TourScene =
   | "store-groups"
   | "post-photo"
   | "post-period"
-  | "posts-tabs"
   | "posts-repost"
   | "analytics-hero"
   | "analytics-questions"
@@ -120,7 +119,7 @@ export const VENDOR_TOUR_PAGES: readonly VendorTourPage[] = [
     ],
   },
   {
-    path: "/vendor/post/new",
+    path: "/vendor/posts",
     screenName: "近況を出す",
     features: [
       {
@@ -139,28 +138,10 @@ export const VENDOR_TOUR_PAGES: readonly VendorTourPage[] = [
             body: "「日曜まで」「1時間だけ」「時間を決める」から選びます。過ぎたら自動で見えなくなります。",
             captions: ["期間を選ぶ", "「1時間だけ」にすると", "時間が来たら自動で消える"],
           },
-        ],
-      },
-    ],
-  },
-  {
-    path: "/vendor/posts",
-    screenName: "投稿履歴",
-    features: [
-      {
-        key: "posts",
-        name: "投稿履歴",
-        slides: [
-          {
-            scene: "posts-tabs",
-            title: "これまでの近況を、絞り込んで見返せます",
-            body: "「すべて」「公開中」「期限切れ」から選べます。",
-            captions: ["すべての投稿", "「期限切れ」を押す", "期限切れだけが並ぶ"],
-          },
           {
             scene: "posts-repost",
             title: "前の投稿を、もう一度出せます",
-            body: "「そのまま再投稿」か、写真とひとことを直せる「編集して再投稿」を選べます。",
+            body: "同じページの下にある一覧から、「そのまま再投稿」か、写真とひとことを直せる「編集して再投稿」を選べます。",
             captions: ["期限切れの投稿", "「そのまま再投稿」を押す", "公開中でもう一度出る"],
           },
         ],

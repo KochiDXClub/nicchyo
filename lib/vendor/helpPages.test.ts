@@ -16,7 +16,7 @@ describe("VENDOR_HELP_PAGES", () => {
 
 describe("findVendorHelpPage", () => {
   it("一覧にある画面を返す（末尾の / は無視する）", () => {
-    expect(findVendorHelpPage("/vendor/post/new")?.name).toBe("近況投稿ページ");
+    expect(findVendorHelpPage("/vendor/posts")?.name).toBe("近況投稿ページ");
     expect(findVendorHelpPage("/my-shop/schedule/")?.name).toBe("出店カレンダーページ");
   });
 

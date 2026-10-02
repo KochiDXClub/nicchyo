@@ -24,7 +24,6 @@ describe("findRegistryEntry", () => {
 
   it("最長一致を優先する", () => {
     expect(findRegistryEntry("/vendor/posts/123")?.path).toBe("/vendor/posts");
-    expect(findRegistryEntry("/vendor/post/new")?.path).toBe("/vendor/post");
   });
 
   it("未登録パスは null", () => {

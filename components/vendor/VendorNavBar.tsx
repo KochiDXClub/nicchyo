@@ -110,7 +110,7 @@ export default function VendorNavBar() {
               onClick={() => setSheetOpen((v) => !v)}
               buttonRef={menuButtonRef}
             />
-            <BottomNavLink href="/vendor/post/new" label="投稿" icon={Megaphone} />
+            <BottomNavLink href="/vendor/posts" label="投稿" icon={Megaphone} />
           </div>
         ) : (
           <BottomNavBackBar label="マイ店舗へ戻る" onClick={() => router.push(HOME_HREF)} />
