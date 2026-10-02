@@ -5,13 +5,16 @@ import {
 } from "../../map/utils/mapRouteGeometry";
 import type { MapRouteConfig, MapRoutePoint } from "../../map/types/mapRoute";
 import { createProjection } from "./geo";
+import type { EntityChange } from "./editHistory";
 import type {
   EditableLandmark,
   EditableRoad,
   EditableShop,
+  EditableVendor,
   SnapshotItem,
-  VendorOption,
+  VendorCategory,
 } from "./types";
+import { DEFAULT_MAX_LANDMARKS, DEFAULT_MAX_UNASSIGNED_SHOP_MARKERS } from "@/lib/map/mapSettingsDefaults";
 
 export type MapSettingsLimits = {
   maxLandmarks: number;
@@ -19,8 +22,8 @@ export type MapSettingsLimits = {
 };
 
 const DEFAULT_MAP_SETTINGS_LIMITS: MapSettingsLimits = {
-  maxLandmarks: 80,
-  maxUnassignedShopMarkers: 40,
+  maxLandmarks: DEFAULT_MAX_LANDMARKS,
+  maxUnassignedShopMarkers: DEFAULT_MAX_UNASSIGNED_SHOP_MARKERS,
 };
 
 async function fetchMapLayout() {
@@ -31,19 +34,39 @@ async function fetchMapLayout() {
     landmarks?: EditableLandmark[];
     route?: { points: MapRoutePoint[]; config: MapRouteConfig };
     roads?: EditableRoad[];
-    vendors?: VendorOption[];
+    vendors?: EditableVendor[];
+    categories?: VendorCategory[];
+    /** DB に道基準の位置の列があるか（無ければマイグレーション前で、保存できない） */
+    schemaReady?: boolean;
     mapSettingsLimits?: MapSettingsLimits;
   }>;
 }
 
-function cloneShops(shops: EditableShop[]) {
-  return shops.map((shop) => ({ ...shop }));
-}
-function cloneLandmarks(landmarks: EditableLandmark[]) {
-  return landmarks.map((landmark) => ({ ...landmark }));
-}
-function cloneRoads(roads: EditableRoad[]) {
-  return roads.map((road) => ({ ...road, points: road.points.map((p) => ({ ...p })) }));
+/**
+ * 保存していない変化（editHistory の netChanges）から、PUT /api/admin/map-layout に送る
+ * 区画・建物の差分を作る。道は従来どおり現在の一覧を丸ごと送る（サーバー側がフル置換で扱うため）。
+ */
+export function buildSavePayloadDiff(changes: EntityChange[]) {
+  const shopChanges = changes.filter((change) => change.kind === "shops");
+  const landmarkChanges = changes.filter((change) => change.kind === "landmarks");
+  const vendorChanges = changes.filter((change) => change.kind === "vendors");
+  return {
+    shops: {
+      updated: shopChanges.flatMap((change) => (change.after ? [change.after as EditableShop] : [])),
+      // 画面上で追加してまだ保存していない区画（new-）は DB に無いので、削除対象に含めない
+      deletedLocationIds: shopChanges
+        .filter((change) => change.before && !change.after && !change.id.startsWith("new-"))
+        .map((change) => change.id),
+    },
+    landmarks: {
+      upsert: landmarkChanges.flatMap((change) => (change.after ? [change.after as EditableLandmark] : [])),
+      deletedKeys: landmarkChanges.filter((change) => change.before && !change.after).map((change) => change.id),
+    },
+    // 出店者は画面から削除しない（「空きにする」は割り当てを外すだけ）ので、追加・更新だけを送る
+    vendors: {
+      upsert: vendorChanges.flatMap((change) => (change.after ? [change.after as EditableVendor] : [])),
+    },
+  };
 }
 
 /**
@@ -53,13 +76,16 @@ function cloneRoads(roads: EditableRoad[]) {
  * （MapEditClientV3Body）が持つ。ここは「サーバーとやり取りする状態」だけに絞る。
  */
 export function useMapEditData({
+  changes,
   onLoaded,
   clearPending,
 }: {
+  /** 保存していない変化（呼び出し側が持つ操作の記録から作る）。保存時の差分と未保存の判定に使う */
+  changes: EntityChange[];
   onLoaded?: () => void;
-  /** 保存・復元が成功したら、呼び出し側が持つ「変更ログ」（pending）も空にする */
+  /** 保存・復元が成功したら、呼び出し側が持つ操作の記録も空にする */
   clearPending?: () => void;
-} = {}) {
+}) {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -68,12 +94,11 @@ export function useMapEditData({
   const [landmarks, setLandmarks] = useState<EditableLandmark[]>([]);
   const [roads, setRoads] = useState<EditableRoad[]>([]);
   const [routeConfig, setRouteConfig] = useState<MapRouteConfig>(getDefaultMapRouteConfig());
-  const [vendorOptions, setVendorOptions] = useState<VendorOption[]>([]);
+  const [vendors, setVendors] = useState<EditableVendor[]>([]);
+  const [categories, setCategories] = useState<VendorCategory[]>([]);
+  // 古い API（schemaReady を返さない）では保存できる前提で扱う
+  const [schemaReady, setSchemaReady] = useState(true);
   const [mapSettingsLimits, setMapSettingsLimits] = useState<MapSettingsLimits>(DEFAULT_MAP_SETTINGS_LIMITS);
-
-  const [initialShops, setInitialShops] = useState<EditableShop[]>([]);
-  const [initialLandmarks, setInitialLandmarks] = useState<EditableLandmark[]>([]);
-  const [initialRoads, setInitialRoads] = useState<EditableRoad[]>([]);
 
   const [snapshots, setSnapshots] = useState<SnapshotItem[]>([]);
   const [isLoadingSnapshots, setIsLoadingSnapshots] = useState(false);
@@ -81,6 +106,19 @@ export function useMapEditData({
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
 
   const originRef = useRef<{ lat: number; lng: number } | null>(null);
+
+  /**
+   * 保存・復元・移行のあとに、サーバーの内容で画面を読み直す。
+   * 読み直した内容が新しい出発点になるので、操作の記録も空にする。
+   */
+  const reloadAfterWrite = useCallback(async () => {
+    const nextData = await fetchMapLayout();
+    setShops(Array.isArray(nextData.shops) ? nextData.shops : []);
+    setLandmarks(Array.isArray(nextData.landmarks) ? nextData.landmarks : []);
+    setRoads(Array.isArray(nextData.roads) ? nextData.roads : []);
+    setVendors(Array.isArray(nextData.vendors) ? nextData.vendors : []);
+    clearPending?.();
+  }, [clearPending]);
 
   // ── データ取得 ──────────────────────────────────────────
   useEffect(() => {
@@ -98,11 +136,10 @@ export function useMapEditData({
         setLandmarks(nextLandmarks);
         setRoads(nextRoads);
         setRouteConfig(nextConfig);
-        setVendorOptions(nextVendors);
+        setVendors(nextVendors);
+        setCategories(Array.isArray(data.categories) ? data.categories : []);
+        setSchemaReady(data.schemaReady !== false);
         if (data.mapSettingsLimits) setMapSettingsLimits(data.mapSettingsLimits);
-        setInitialShops(cloneShops(nextShops));
-        setInitialLandmarks(cloneLandmarks(nextLandmarks));
-        setInitialRoads(cloneRoads(nextRoads));
 
         const allPoints = nextRoads.flatMap((road) => road.points);
         const center = getRouteCenter(allPoints);
@@ -129,84 +166,23 @@ export function useMapEditData({
   }, [roads.length > 0]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── 差分判定 ──────────────────────────────────────────
-  const hasUnsavedChanges = useMemo(() => {
-    const initialShopMap = new Map(initialShops.map((s) => [s.locationId, s]));
-    const currentShopMap = new Map(shops.map((s) => [s.locationId, s]));
-    const shopChanged = shops.some((shop) => {
-      const initial = initialShopMap.get(shop.locationId);
-      if (!initial) return true;
-      return (
-        initial.lat !== shop.lat ||
-        initial.lng !== shop.lng ||
-        initial.position !== shop.position ||
-        initial.vendorId !== shop.vendorId
-      );
-    });
-    const shopDeleted = initialShops.some((s) => !currentShopMap.has(s.locationId));
-
-    const initialLandmarkMap = new Map(initialLandmarks.map((l) => [l.key, l]));
-    const currentLandmarkMap = new Map(landmarks.map((l) => [l.key, l]));
-    const landmarkChanged = landmarks.some((landmark) => {
-      const initial = initialLandmarkMap.get(landmark.key);
-      if (!initial) return true;
-      return (
-        initial.name !== landmark.name ||
-        initial.description !== landmark.description ||
-        initial.url !== landmark.url ||
-        initial.lat !== landmark.lat ||
-        initial.lng !== landmark.lng ||
-        initial.widthPx !== landmark.widthPx ||
-        initial.heightPx !== landmark.heightPx ||
-        initial.showAtMinZoom !== landmark.showAtMinZoom
-      );
-    });
-    const landmarkDeleted = initialLandmarks.some((l) => !currentLandmarkMap.has(l.key));
-
-    const roadsChanged = JSON.stringify(roads) !== JSON.stringify(initialRoads);
-
-    return shopChanged || shopDeleted || landmarkChanged || landmarkDeleted || roadsChanged;
-  }, [shops, initialShops, landmarks, initialLandmarks, roads, initialRoads]);
+  const hasUnsavedChanges = changes.length > 0;
 
   // ── 保存 ──────────────────────────────────────────
   const handleSave = useCallback(async () => {
     setIsSaving(true);
     setMessage(null);
     try {
-      const initialShopMap = new Map(initialShops.map((s) => [s.locationId, s]));
-      const updatedShops = shops.filter((shop) => {
-        const initial = initialShopMap.get(shop.locationId);
-        if (!initial) return true;
-        return (
-          initial.lat !== shop.lat ||
-          initial.lng !== shop.lng ||
-          initial.position !== shop.position ||
-          initial.vendorId !== shop.vendorId
-        );
-      });
-      const currentShopIds = new Set(shops.map((s) => s.locationId));
-      const deletedLocationIds = initialShops
-        .filter((s) => !currentShopIds.has(s.locationId))
-        .map((s) => s.locationId);
-
-      const initialLandmarkMap = new Map(initialLandmarks.map((l) => [l.key, l]));
-      const upsertLandmarks = landmarks.filter((landmark) => {
-        const initial = initialLandmarkMap.get(landmark.key);
-        if (!initial) return true;
-        return JSON.stringify(initial) !== JSON.stringify(landmark);
-      });
-      const currentLandmarkKeys = new Set(landmarks.map((l) => l.key));
-      const deletedKeys = initialLandmarks
-        .filter((l) => !currentLandmarkKeys.has(l.key))
-        .map((l) => l.key);
-
+      const diff = buildSavePayloadDiff(changes);
       const routePoints = roads.flatMap((road) => road.points);
 
       const response = await fetch("/api/admin/map-layout", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          shops: { updated: updatedShops, deletedLocationIds },
-          landmarks: { upsert: upsertLandmarks, deletedKeys },
+          shops: diff.shops,
+          landmarks: diff.landmarks,
+          vendors: diff.vendors,
           route: { points: routePoints, config: routeConfig },
           roads: roads.map(({ points: _points, ...road }) => road),
         }),
@@ -218,24 +194,14 @@ export function useMapEditData({
         return;
       }
 
-      const nextData = await fetchMapLayout();
-      const nextShops = Array.isArray(nextData.shops) ? nextData.shops : [];
-      const nextLandmarks = Array.isArray(nextData.landmarks) ? nextData.landmarks : [];
-      const nextRoads = Array.isArray(nextData.roads) ? nextData.roads : [];
-      setShops(nextShops);
-      setLandmarks(nextLandmarks);
-      setRoads(nextRoads);
-      setInitialShops(cloneShops(nextShops));
-      setInitialLandmarks(cloneLandmarks(nextLandmarks));
-      setInitialRoads(cloneRoads(nextRoads));
-      clearPending?.();
+      await reloadAfterWrite();
       setMessage("保存しました。");
     } catch {
       setMessage("保存に失敗しました。通信環境を確認してください。");
     } finally {
       setIsSaving(false);
     }
-  }, [shops, initialShops, landmarks, initialLandmarks, roads, routeConfig, clearPending]);
+  }, [changes, roads, routeConfig, reloadAfterWrite]);
 
   // ── スナップショット ──────────────────────────────────────────
   const loadSnapshots = useCallback(async () => {
@@ -271,30 +237,21 @@ export function useMapEditData({
           setMessage("復元に失敗しました。");
           return;
         }
-        const nextData = await fetchMapLayout();
-        const nextShops = Array.isArray(nextData.shops) ? nextData.shops : [];
-        const nextLandmarks = Array.isArray(nextData.landmarks) ? nextData.landmarks : [];
-        const nextRoads = Array.isArray(nextData.roads) ? nextData.roads : [];
-        setShops(nextShops);
-        setLandmarks(nextLandmarks);
-        setRoads(nextRoads);
-        setInitialShops(cloneShops(nextShops));
-        setInitialLandmarks(cloneLandmarks(nextLandmarks));
-        setInitialRoads(cloneRoads(nextRoads));
-        clearPending?.();
+        await reloadAfterWrite();
         setMessage("スナップショットを復元しました。");
         await loadSnapshots();
       } finally {
         setIsRestoring(null);
       }
     },
-    [hasUnsavedChanges, loadSnapshots, clearPending]
+    [hasUnsavedChanges, loadSnapshots, reloadAfterWrite]
   );
 
   return {
     isLoading,
     isSaving,
     message,
+    setMessage,
     shops,
     setShops,
     landmarks,
@@ -302,7 +259,10 @@ export function useMapEditData({
     roads,
     setRoads,
     routeConfig,
-    vendorOptions,
+    vendors,
+    setVendors,
+    categories,
+    schemaReady,
     mapSettingsLimits,
     hasUnsavedChanges,
     handleSave,
@@ -313,5 +273,6 @@ export function useMapEditData({
     isHistoryOpen,
     setIsHistoryOpen,
     handleRestoreSnapshot,
+    reloadAfterWrite,
   };
 }

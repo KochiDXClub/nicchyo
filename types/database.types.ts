@@ -704,30 +704,56 @@ export type Database = {
       }
       market_locations: {
         Row: {
+          branch_number: number | null
           created_at: string | null
           district: string | null
           id: string
           latitude: number
           longitude: number
+          official_number: number | null
+          road_distance_m: number | null
+          road_id: string | null
+          road_offset_m: number | null
+          road_side: string | null
           store_number: number
         }
         Insert: {
+          branch_number?: number | null
           created_at?: string | null
           district?: string | null
           id?: string
           latitude: number
           longitude: number
+          official_number?: number | null
+          road_distance_m?: number | null
+          road_id?: string | null
+          road_offset_m?: number | null
+          road_side?: string | null
           store_number: number
         }
         Update: {
+          branch_number?: number | null
           created_at?: string | null
           district?: string | null
           id?: string
           latitude?: number
           longitude?: number
+          official_number?: number | null
+          road_distance_m?: number | null
+          road_id?: string | null
+          road_offset_m?: number | null
+          road_side?: string | null
           store_number?: number
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "market_locations_road_id_fkey"
+            columns: ["road_id"]
+            isOneToOne: false
+            referencedRelation: "map_roads"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       product_sales: {
         Row: {
@@ -1643,9 +1669,29 @@ export type Database = {
         }
         Returns: undefined
       }
+      save_map_layout: {
+        Args: {
+          p_deleted_landmark_keys: Json
+          p_deleted_location_ids: Json
+          p_landmarks: Json
+          p_points: Json
+          p_removed_road_ids: Json
+          p_roads: Json
+          p_route_config: Json
+          p_save_roads: boolean
+          p_shop_positions: Json
+          p_shops: Json
+          p_vendors?: Json
+        }
+        Returns: Json
+      }
       save_roads_and_points: {
         Args: { p_points: Json; p_removed_road_ids?: Json; p_roads: Json }
         Returns: undefined
+      }
+      set_market_location_road_positions: {
+        Args: { p_positions: Json }
+        Returns: number
       }
       track_home_visit: {
         Args: { p_visit_date: string; p_visitor_key: string }

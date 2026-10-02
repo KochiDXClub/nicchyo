@@ -5,6 +5,7 @@ import { createClient as createServerClient } from "@/utils/supabase/server";
 import { requireSameOrigin } from "@/lib/security/requestGuards";
 import { enforceRateLimit } from "@/lib/security/rateLimit";
 import { authorizeAdmin } from "@/app/api/admin/categories/_helpers";
+import { revalidatePublicShops } from "@/app/(public)/map/services/shopCache";
 import type { Landmark as EditableLandmark } from "@/app/(public)/map/types/landmark";
 import type { MapRoad, MapRouteConfig, MapRoutePoint } from "@/app/(public)/map/types/mapRoute";
 import { createAdminWriteClient, createMapLayoutSnapshot, type EditableShop } from "../_shared";
@@ -57,6 +58,9 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
+  // 復元で区画・割り当てを書き換え始めたら、途中で失敗しても公開マップの店舗キャッシュを捨てる
+  // （保存 PUT と同じ扱い。以前は復元後に作り直しておらず、公開マップに古い店舗が残っていた）
+  let shopWritesStarted = false;
   try {
     const originCheck = requireSameOrigin(request);
     if (!originCheck.ok) return originCheck.response;
@@ -109,6 +113,7 @@ export async function POST(request: NextRequest) {
     await createMapLayoutSnapshot(supabase, adminWriteClient, user.id, {
       restoreSourceSnapshotId: body.snapshotId,
     });
+    shopWritesStarted = true;
     await applySnapshot(
       adminWriteClient,
       snapshotShops,
@@ -121,5 +126,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: true });
   } catch {
     return NextResponse.json({ error: "Failed to restore snapshot" }, { status: 500 });
+  } finally {
+    if (shopWritesStarted) revalidatePublicShops();
   }
 }
