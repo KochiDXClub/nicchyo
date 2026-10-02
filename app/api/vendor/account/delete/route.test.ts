@@ -4,7 +4,7 @@ import type { ResolvedShopMembership } from "@/lib/vendor/shopMembership";
 const requireVendorContext = vi.fn();
 const deleteUser = vi.fn();
 const calls: string[] = [];
-let otherMembers = 0;
+let withdrawalStatus = "ok";
 let errors: Record<string, boolean> = {};
 
 vi.mock("@/lib/security/requestGuards", () => ({ requireSameOrigin: () => ({ ok: true }) }));
@@ -35,6 +35,10 @@ vi.mock("@/lib/supabase/adminClient", () => ({
         },
       },
     },
+    rpc: async (name: string) => {
+      calls.push(name);
+      return errors[name] ? { data: null, error: { message: "boom" } } : { data: withdrawalStatus, error: null };
+    },
     from: (table: string) => {
       if (table === "vendor_activity_logs") {
         return {
@@ -45,10 +49,7 @@ vi.mock("@/lib/supabase/adminClient", () => ({
           },
         };
       }
-      if (table === "vendor_owner_profiles") return { delete: () => op("delete-profile") };
-      if (table === "shop_invites") return { update: () => op("revoke-invites") };
-      // shop_members: ほかにメンバーがいるか数える
-      return { select: () => op("count-members", { count: otherMembers, error: null }) };
+      throw new Error(`unexpected table: ${table}`);
     },
   }),
 }));
@@ -75,7 +76,7 @@ const withdraw = (body: unknown = { confirm: true }) =>
 beforeEach(() => {
   vi.clearAllMocks();
   calls.length = 0;
-  otherMembers = 0;
+  withdrawalStatus = "ok";
   errors = {};
   deleteUser.mockResolvedValue({ error: null });
   requireVendorContext.mockResolvedValue(ctx("member"));
@@ -98,22 +99,22 @@ describe("DELETE /api/vendor/account/delete（退会）", () => {
 
   it("ほかにメンバーがいる代表者は、先に引き継ぐよう 409。何も消さない", async () => {
     requireVendorContext.mockResolvedValue(ctx("owner"));
-    otherMembers = 2;
+    withdrawalStatus = "has_members";
 
     const res = await withdraw();
 
     expect(res.status).toBe(409);
     expect((await res.json()).code).toBe("owner_has_members");
-    expect(calls).toEqual(["count-members"]);
+    expect(calls).toEqual(["begin_owner_withdrawal"]);
   });
 
-  it("自分だけの代表者は、氏名を消し、招待リンクを取り消してから、アカウントを消す（アカウントを消すのが最後）", async () => {
+  it("自分だけの代表者は、店舗の行を締めた 1 つの処理で氏名と招待を片付けてから、アカウントを消す（アカウントを消すのが最後）", async () => {
     requireVendorContext.mockResolvedValue(ctx("owner"));
 
     const res = await withdraw();
 
     expect(res.status).toBe(200);
-    expect(calls).toEqual(["count-members", "anonymize-logs", "delete-profile", "revoke-invites", "deleteUser", "final-log"]);
+    expect(calls).toEqual(["begin_owner_withdrawal", "anonymize-logs", "deleteUser", "final-log"]);
   });
 
   it("アカウントを消せなかったら 500 で、もう一度できる（最終のログは残さない）", async () => {
@@ -125,10 +126,18 @@ describe("DELETE /api/vendor/account/delete（退会）", () => {
 
   it("途中の片付けに失敗したら、アカウントは消さない", async () => {
     requireVendorContext.mockResolvedValue(ctx("owner"));
-    errors = { "revoke-invites": true };
+    errors = { begin_owner_withdrawal: true };
 
     expect((await withdraw()).status).toBe(500);
     expect(calls).not.toContain("deleteUser");
+  });
+
+  it("代表者として確認できなかったら（not_owner）、何も消さない", async () => {
+    requireVendorContext.mockResolvedValue(ctx("owner"));
+    withdrawalStatus = "not_owner";
+
+    expect((await withdraw()).status).toBe(403);
+    expect(calls).toEqual(["begin_owner_withdrawal"]);
   });
 
   it("操作ログの匿名化に失敗したら、アカウントは消さない", async () => {

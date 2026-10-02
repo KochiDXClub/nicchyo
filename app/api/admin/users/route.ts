@@ -79,7 +79,12 @@ export async function GET() {
 
     // アカウントが入っている店舗は shop_members から引く（アカウントの ID と店舗の ID は別物。
     // 招待で入ったメンバーには、自分の ID の店舗がない）
-    const { links } = await loadShopAccountLinks(serviceClient as unknown as SupabaseClient);
+    const { links, error: linkError } = await loadShopAccountLinks(serviceClient as unknown as SupabaseClient);
+    if (linkError) {
+      // 失敗したのに続けると、全店舗が「未紐づけ」と表示されてしまう
+      console.error("[admin/users] loadShopAccountLinks error:", linkError);
+      return NextResponse.json({ error: "店舗とアカウントの対応を取得できませんでした" }, { status: 500 });
+    }
 
     // 店主名は vendors から分離済み（service_role なので公開設定に関係なく取得できる）
     const { data: ownerProfilesData } = await serviceClient

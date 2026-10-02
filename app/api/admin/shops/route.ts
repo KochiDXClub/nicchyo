@@ -69,7 +69,12 @@ export async function GET() {
 
     // 店舗は、アカウントがなくても存在する（運営が先に作り、出店者があとから QR で紐づく）。
     // 代表者のアカウントは shop_members から引き、店舗の ID で auth.users を引かない
-    const { links } = await loadShopAccountLinks(serviceClient as unknown as SupabaseClient);
+    const { links, error: linkError } = await loadShopAccountLinks(serviceClient as unknown as SupabaseClient);
+    if (linkError) {
+      // 失敗したのに続けると、全店舗が「未紐づけ」と表示されてしまう
+      console.error("[admin/shops] loadShopAccountLinks error:", linkError);
+      return NextResponse.json({ error: "店舗とアカウントの対応を取得できませんでした" }, { status: 500 });
+    }
 
     const shops: AdminShop[] = vendors.map((vendor) => {
       const ownerAccountId = links.ownerByVendor.get(vendor.id);

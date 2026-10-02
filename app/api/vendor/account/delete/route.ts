@@ -28,19 +28,25 @@ export async function DELETE(request: Request) {
   const parsed = BodySchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: "退会の確認が必要です" }, { status: 400 });
 
+  // 代表者は、メンバーの確認・招待の取り消し・氏名の削除を、店舗の行を締めた 1 つの処理で行う
+  // （確認のあとに招待リンクで人が入って、代表者のいない店舗にメンバーだけが残るのを防ぐ）。
+  // やり直しても同じ結果になる操作で、アカウントを消す前に済ませる（途中で失敗しても、もう一度退会できる）
   if (me.role === "owner") {
-    const { count, error } = await db
-      .from("shop_members")
-      .select("user_id", { count: "exact", head: true })
-      .eq("vendor_id", vendorId)
-      .neq("user_id", user.id);
-    if (error) return NextResponse.json({ error: "退会できませんでした" }, { status: 500 });
-    if ((count ?? 0) > 0) {
+    const { data: status, error } = await db.rpc("begin_owner_withdrawal", {
+      p_vendor_id: vendorId,
+      p_user_id: user.id,
+    });
+    if (error) {
+      console.error("[vendor/account/delete] begin_owner_withdrawal error:", error.message);
+      return NextResponse.json({ error: "退会できませんでした" }, { status: 500 });
+    }
+    if (status === "has_members") {
       return NextResponse.json(
         { error: "代表者は、先に別のメンバーへ代表者を引き継いでから退会してください", code: "owner_has_members" },
         { status: 409 },
       );
     }
+    if (status !== "ok") return NextResponse.json({ error: "退会できませんでした" }, { status: 403 });
   }
 
   // 1. 操作ログから、このアカウントが誰だったかを消す（自分がした操作と、自分が対象の操作）
@@ -53,23 +59,7 @@ export async function DELETE(request: Request) {
     return NextResponse.json({ error: "退会できませんでした" }, { status: 500 });
   }
 
-  // 2. 代表者として、お店に残っている自分の氏名を消し、出ている招待リンクを取り消す
-  //    （代表者がいなくなったお店に、招待リンクで人が入ってしまわないように）。
-  //    どちらも、やり直しても同じ結果になる操作で、アカウントを消す前に済ませる（途中で失敗しても、もう一度退会できる）
-  if (me.role === "owner") {
-    const { error: profileError } = await db.from("vendor_owner_profiles").delete().eq("vendor_id", vendorId);
-    const { error: inviteError } = await db
-      .from("shop_invites")
-      .update({ revoked_at: new Date().toISOString() })
-      .eq("vendor_id", vendorId)
-      .is("revoked_at", null);
-    if (profileError || inviteError) {
-      console.error("[vendor/account/delete] cleanup error:", profileError?.message ?? inviteError?.message);
-      return NextResponse.json({ error: "退会できませんでした" }, { status: 500 });
-    }
-  }
-
-  // 3. ログインアカウントを消す（shop_members の行は連動して消える）。失敗したら、1・2 はそのままで、もう一度退会できる
+  // 2. ログインアカウントを消す（shop_members の行は連動して消える）。失敗したら、1・2 はそのままで、もう一度退会できる
   const { error: deleteError } = await db.auth.admin.deleteUser(user.id);
   if (deleteError) {
     console.error("[vendor/account/delete] deleteUser error:", deleteError.message);

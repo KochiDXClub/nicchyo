@@ -34,12 +34,18 @@ vendor_activity_logs  操作ログ（追記専用）
 | `20261003100200_create_vendor_activity_logs.sql` | 操作ログ |
 | `20261003110000_create_shop_invites_and_transfer.sql` | 招待リンク・招待を受ける関数・代表者の引き継ぎ |
 | `20261003120000_create_shop_claim_tokens.sql` | QR・発行/紐づけ/解除の関数 |
+| `20261003130000_begin_owner_withdrawal.sql` | 代表者の退会（確認・招待の取り消し・氏名の削除を 1 トランザクションで） |
 
 - CI（Migrations Check）が、全マイグレーションをまっさらな DB に流し、さらに `supabase/checks/no_legacy_vendor_policies.sql` で「`auth.uid()` だけで店舗の行を絞る旧い RLS が残っていない」ことを確かめる。**店舗に紐づく新しいテーブルを足すときは、RLS を `has_shop_permission` で書く**（旧い書き方だと CI が落ちる）。
 - **既存の出店者**（開発・検証用 DB）は、`vendors.id` と同じ ID のログインアカウントが、そのまま代表者になる。**本番は店舗データを先に入れてアカウントなしで始める**ので、移行で入るメンバーは 0 件。
 - 旧来のスクリプト（`scripts/create-vendors*.js`。`vendors.id` = ユーザー ID で作る）は、店舗行の作成時に同じ ID のアカウントがあれば代表者を自動で付ける（トリガ）。本番の店舗は、アカウントを作らずに店舗行だけを `service_role`（SQL か `scripts/`）で作る。
 
 ## 3. Supabase の設定（リポジトリの外）
+
+> **デプロイ前チェック（必ず）**
+> 1. 5 本＋ `20261003130000_begin_owner_withdrawal.sql` のマイグレーションを順に適用する。
+> 2. 下の Redirect URLs に `/join/**` と `/claim/**` を足す（なければ、ログイン後に Site URL へ戻され、参加が続かない）。
+> 3. **`/claim/*` と `/join/*` の URL は秘密**（QR は期限なし。最初に使った人が代表者になる）。解析（`web_page_analytics`）と GA には送らない作りになっている（`lib/analytics/secretPaths.ts`）。この除外が入ったコードをデプロイしてから QR・招待を発行すること。GA の「拡張計測」の履歴変更イベントは GA 側で切っておく。
 
 - **Authentication → URL Configuration → Redirect URLs** に、招待リンクとQRの参加ページが戻れるよう、次を許可する（Google ログイン後に、いま開いているページへ戻すため）:
   - `https://<本番ドメイン>/join/**`
