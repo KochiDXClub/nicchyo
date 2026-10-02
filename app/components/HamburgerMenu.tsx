@@ -260,7 +260,7 @@ export default function HamburgerMenu() {
                           <MenuIcon name="chart" className={`h-5 w-5 ${isActive('/vendor/analytics') ? 'text-white' : 'text-amber-600'}`} />
                           <div className="flex-1">
                             <p className="text-sm font-medium">お店の分析</p>
-                            <p className={`text-xs ${isActive('/vendor/analytics') ? 'text-white/80' : 'text-gray-500'}`}>閲覧数・商品・AI分析</p>
+                            <p className={`text-xs ${isActive('/vendor/analytics') ? 'text-white/80' : 'text-gray-500'}`}>見られた回数・お客さんの反応</p>
                           </div>
                         </Link>
                       </MenuLi>

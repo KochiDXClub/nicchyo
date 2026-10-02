@@ -116,16 +116,15 @@ export default function VendorStorePage() {
                   <div className="mb-2.5 flex items-center justify-between px-1">
                     <h2
                       id={`group-${group.key}`}
-                      className="flex items-center gap-2 font-display text-xl text-nicchyo-ink"
+                      className="font-display text-xl text-nicchyo-ink"
                     >
-                      <span aria-hidden="true">{group.emoji}</span>
                       {group.title}
                     </h2>
                     <span className="text-xs font-bold text-amber-900">
                       {answeredInGroup} / {growthInGroup.length}
                     </span>
                   </div>
-                  <ul className="flex flex-col gap-2.5">
+                  <ul className="divide-y divide-line overflow-hidden rounded-card bg-white shadow-card ring-1 ring-line">
                     {group.questions.map((question, index) => (
                       <AnswerRow
                         key={question.id}

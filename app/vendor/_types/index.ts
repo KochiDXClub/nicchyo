@@ -53,39 +53,14 @@ export type Store = {
   catchphrase?: string;
 };
 
-export type VendorAnalytics = {
-  thisWeek: { views: number; clicks: number; searchImpressions: number };
-  lastWeek: { views: number; clicks: number; searchImpressions: number };
-  rank: number;
-  totalVendors: number;
-};
-
-export type ProductSale = {
-  id: string;
-  vendor_id: string;
-  product_name: string;
-  quantity: number;
-  sale_date: string;
-  created_at: string;
-  updated_at: string;
-};
-
-export type HourlyData = {
-  hour: string;
-  views: number;
-};
-
-export type MarketTrend = {
-  rank: number;
-  product_name: string;
-  total_quantity: number;
-  vendor_count: number;
-};
-
-export type SearchSourceRatio = {
-  preVisit: number;  // source = "search"（来訪前）
-  onSite: number;    // source = "map"（現地）
-  other: number;     // source = "direct" など
+/** お店が見られた数（過去7日・その前の7日）と、過去7日の時間帯・流入元 */
+export type ShopViewSummary = {
+  thisWeek: number;
+  lastWeek: number;
+  hourly: { hour: number; views: number }[];
+  sources: { map: number; search: number; direct: number };
+  /** 時間帯・流入元が、回数のうち一部（直近の行）だけから数えたものか */
+  sampled: boolean;
 };
 
 export type SearchKeywordTrend = {
@@ -108,6 +83,5 @@ export type AiConsultAnalytics = {
   topics: AiConsultTopic[];
   keywords: AiKeyword[];
   recommendationCount: number;
-  locationRatio: { preVisit: number; onSite: number };
   totalCount: number;
 };

@@ -68,6 +68,12 @@ const nextConfig = {
         destination: '/admin/calendar',
         permanent: true,
       },
+      // 出店者の分析は1ページにまとめた。ブックマークや使い方ガイドの古いリンクを迷子にしない
+      {
+        source: '/vendor/analytics/:page(time|products|ai|input)',
+        destination: '/vendor/analytics',
+        permanent: true,
+      },
     ];
   },
 
