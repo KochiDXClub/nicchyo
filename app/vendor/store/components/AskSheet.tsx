@@ -53,7 +53,6 @@ export default function AskSheet({
           />
           <div className="consult-greeting consult-greeting--left min-w-0 flex-1 rounded-card border border-amber-200 bg-white px-4 py-3 shadow-card">
             <p className="text-base font-bold leading-relaxed text-amber-900">
-              <span aria-hidden="true">{question.emoji} </span>
               {question.text}
             </p>
           </div>
