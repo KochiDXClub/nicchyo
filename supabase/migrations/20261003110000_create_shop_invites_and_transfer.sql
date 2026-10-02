@@ -54,7 +54,13 @@ as $$
 declare
   inv public.shop_invites%rowtype;
 begin
-  -- 同じリンクを同時に使われても人数を超えないよう、行を締める
+  -- ロック順は「店舗 → 招待」（代表者の退会・QR の解除と同じ順）。逆順だとデッドロックし、
+  -- 店舗の行を締めないと、退会の確認と同時に入ったメンバーが「代表者のいない店舗」に残ってしまう。
+  select * into inv from public.shop_invites i where i.token_hash = p_token_hash;
+  if found then
+    perform 1 from public.vendors v where v.id = inv.vendor_id for update;
+  end if;
+  -- 同じリンクを同時に使われても人数を超えないよう、招待の行も締めて読み直す
   select * into inv from public.shop_invites i where i.token_hash = p_token_hash for update;
 
   if not found or inv.revoked_at is not null then
@@ -134,6 +140,38 @@ begin
   return 'ok';
 end;
 $$;
+
+-- ── 招待を作った人が外れたとき、その人の招待を取り消す ──────────────────
+-- メンバーから外れた・退会した・招待を作る権限（members_manage）を失った人の、未使用の招待は残さない
+-- （権限のない人が出した招待で、期限内に人が入れてしまうのを防ぐ）。API ごとに書かず、ここで一括で担保する。
+create or replace function public.revoke_invites_of_lost_inviter()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  could_invite boolean := old.role = 'owner' or 'members_manage' = any (old.permissions);
+  can_invite boolean := false;
+begin
+  if tg_op = 'UPDATE' then
+    can_invite := new.role = 'owner' or 'members_manage' = any (new.permissions);
+  end if;
+  if could_invite and not can_invite then
+    update public.shop_invites
+       set revoked_at = now()
+     where vendor_id = old.vendor_id and created_by = old.user_id and revoked_at is null;
+  end if;
+  return null;
+end;
+$$;
+
+revoke all on function public.revoke_invites_of_lost_inviter() from public, anon, authenticated;
+
+drop trigger if exists shop_members_revoke_invites on public.shop_members;
+create trigger shop_members_revoke_invites
+  after update or delete on public.shop_members
+  for each row execute function public.revoke_invites_of_lost_inviter();
 
 revoke all on function public.accept_shop_invite(text, uuid) from public, anon, authenticated;
 revoke all on function public.transfer_shop_ownership(uuid, uuid, uuid) from public, anon, authenticated;
