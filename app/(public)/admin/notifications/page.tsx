@@ -9,6 +9,7 @@ import { useAuth } from "@/lib/auth/AuthContext";
 import { AdminLayout, AdminPageHeader, EmptyState } from "@/components/admin";
 import { useAdminNotifications } from "@/lib/hooks/useAdminNotifications";
 import { BroadcastEmailSection } from "./components/BroadcastEmailSection";
+import { VendorNoticeSection } from "./components/VendorNoticeSection";
 import { Bell } from "lucide-react";
 
 const TYPE_ICONS: Record<string, string> = {
@@ -48,6 +49,7 @@ export default function NotificationsPage() {
 
       <div className="mx-auto max-w-3xl px-4 py-8 pb-20">
 
+        {permissions.isAdmin && <VendorNoticeSection />}
         {permissions.isAdmin && <BroadcastEmailSection />}
 
         {/* ヘッダーアクション */}
