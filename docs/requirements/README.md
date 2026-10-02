@@ -16,7 +16,7 @@ nicchyo の機能を **ロール（誰が使うか）** ごとに整理し、各
 | なぜ作るか・何を作らないか（企画） | [FEATURES.md](../FEATURES.md) / [CONCEPT.md](../CONCEPT.md) |
 | どう実装されているか（マップ・相談まわり） | [map-spec.md](../map-spec.md) |
 | 管理画面の項目 | `lib/admin/adminNav.ts`（単一情報源） |
-| 出店者の画面の使い方 | `lib/vendor/helpGuide.ts`（単一情報源） |
+| 出店者の画面の使い方 | `lib/vendor/helpGuide.ts`（単一情報源。#767 のマージで `lib/vendor/helpFaq.ts` に置き換わる予定。マージ時にここを直す） |
 
 矛盾した場合は **「実装の事実」はコードと map-spec.md、「あるべき姿・優先度」はこのディレクトリ** を正とします。
 

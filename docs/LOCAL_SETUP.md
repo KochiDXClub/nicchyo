@@ -20,6 +20,7 @@
 
 ```bash
 # 1. ローカルSupabase起動
+#    ※ リポジトリに supabase/config.toml が無いため、初回は先に `npx supabase init` が必要な可能性があります（未確認）
 npx supabase start
 
 # 2. 本番データをローカルに流し込む
