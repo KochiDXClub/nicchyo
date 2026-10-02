@@ -10,6 +10,7 @@ import {
   CircleHelp,
   Mail,
   Megaphone,
+  Smile,
   Sparkles,
   Store,
   UserRound,
@@ -41,6 +42,8 @@ export const VENDOR_NAV_ITEMS: VendorNavItem[] = [
   { label: "お店の分析", href: "/vendor/analytics", icon: BarChart3, description: "見られた回数とお客さんの反応", group: "main", permission: "analytics" },
   // メニューのカードは幅が狭いので短い名前にする。画面の見出しは「にちよさんが覚えちゅうこと」
   { label: "にちよさんの覚えごと", href: "/vendor/ai-knowledge", icon: Sparkles, description: "にちよさんが覚えちゅうことを見る・直す", group: "main", permission: "ai_notes" },
+  // モック段階。操作権限は、近い性質の ai_notes を仮で使う（キャラ専用の権限は本実装で決める）
+  { label: "お店のキャラクター", href: "/vendor/character", icon: Smile, description: "お店でAIに聞かれたとき、答えるキャラを決める", group: "main", permission: "ai_notes" },
   { label: "よくある質問", href: "/vendor/help", icon: CircleHelp, description: "困ったときに一覧から探す", group: "support" },
   { label: "アカウント設定", href: "/vendor/account", icon: UserRound, description: "メンバーの管理・招待・操作ログ", group: "support" },
 ];
