@@ -4,7 +4,7 @@
 -- 20261003100000 で入れた has_shop_permission(店舗, 権限) に置き換える。
 --
 --   store_edit … vendors / products / location_assignments / product_sales / vendor_weekly_status /
---                vendor_coupon_settings / Storage(vendor-images)
+--                Storage(vendor-images)
 --   post       … vendor_contents / Storage(vendor-images)
 --   ai_notes   … store_knowledge / vendor_ai_settings
 --   inquiries  … vendor_inquiries / vendor_inquiry_replies
@@ -75,22 +75,6 @@ create policy "vendors manage own weekly status"
   on public.vendor_weekly_status for all to authenticated
   using (public.has_shop_permission(vendor_id, 'store_edit'))
   with check (public.has_shop_permission(vendor_id, 'store_edit'));
-
-drop policy if exists "vcs_vendor_insert" on public.vendor_coupon_settings;
-create policy "vcs_vendor_insert"
-  on public.vendor_coupon_settings for insert to authenticated
-  with check (public.has_shop_permission(vendor_id, 'store_edit'));
-
-drop policy if exists "vcs_vendor_update" on public.vendor_coupon_settings;
-create policy "vcs_vendor_update"
-  on public.vendor_coupon_settings for update to authenticated
-  using (public.has_shop_permission(vendor_id, 'store_edit'))
-  with check (public.has_shop_permission(vendor_id, 'store_edit'));
-
-drop policy if exists "vcs_vendor_delete" on public.vendor_coupon_settings;
-create policy "vcs_vendor_delete"
-  on public.vendor_coupon_settings for delete to authenticated
-  using (public.has_shop_permission(vendor_id, 'store_edit'));
 
 -- 出店者本人の氏名（公開/非公開は出店者が管理）。個人情報なので、権限ではなく代表者だけに限る。
 drop policy if exists "vendors read own owner profile" on public.vendor_owner_profiles;
