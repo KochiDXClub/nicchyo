@@ -11,6 +11,11 @@ describe("requiredPermissionForPath", () => {
     expect(requiredPermissionForPath("/vendor/store")).toBe("store_edit");
   });
 
+  it("モック段階のキャラクター設定は導線に出さず、URL で開いたときだけ ai_notes を求める", () => {
+    expect(visibleVendorNavItems(() => true).map((item) => item.href)).not.toContain("/vendor/character");
+    expect(requiredPermissionForPath("/vendor/character")).toBe("ai_notes");
+  });
+
   it("導線のないマイ店舗の店舗情報まわりの画面は store_edit", () => {
     expect(requiredPermissionForPath("/my-shop/schedule")).toBe("store_edit");
     expect(requiredPermissionForPath("/my-shop/detail")).toBe("store_edit");
