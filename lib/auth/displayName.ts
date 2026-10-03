@@ -35,12 +35,35 @@ export function resolveDisplayName(
   return name?.slice(0, 100) || fallback;
 }
 
+/** Google アカウントの写真が置かれているホスト（next.config.js の remotePatterns と同じ） */
+const GOOGLE_AVATAR_HOST = "lh3.googleusercontent.com";
+/** このサイトの Storage の、アカウント写真のバケットのパス（supabase/migrations/20261004100000） */
+const AVATAR_STORAGE_PATH = "/storage/v1/object/public/user-avatars/";
+
+/**
+ * 表示してよい写真の URL か。user_metadata.avatarUrl は本人が自由な文字列に書き換えられるため、
+ * 外部のサーバーの URL をそのまま他のメンバーや運営の画面に出すと、見た人の IP やブラウザの情報が相手に届いてしまう。
+ * 許すのは、このサイトの Storage（user-avatars）と、Google の写真のホストだけ。
+ */
+export function isAllowedAvatarUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol !== "https:" || parsed.username || parsed.password) return false;
+    if (parsed.hostname === GOOGLE_AVATAR_HOST) return true;
+    const storageHost = process.env.NEXT_PUBLIC_SUPABASE_URL ? new URL(process.env.NEXT_PUBLIC_SUPABASE_URL).hostname : null;
+    return !!storageHost && parsed.hostname === storageHost && parsed.pathname.startsWith(AVATAR_STORAGE_PATH);
+  } catch {
+    return false;
+  }
+}
+
 /**
  * 写真の URL。本人が設定した写真があればそれ、削除したとき（空文字）は写真なし、
- * 何も設定していなければ Google の写真。
+ * 何も設定していなければ Google の写真。表示してよい URL（isAllowedAvatarUrl）でなければ、写真なしにする。
  */
 export function resolveAvatarUrl(user: { user_metadata?: ProfileMetadata | null }): string | undefined {
   const meta = user.user_metadata;
-  if (typeof meta?.avatarUrl === "string") return meta.avatarUrl.trim() || undefined;
-  return text(meta?.avatar_url) ?? text(meta?.picture);
+  const url =
+    typeof meta?.avatarUrl === "string" ? meta.avatarUrl.trim() || undefined : (text(meta?.avatar_url) ?? text(meta?.picture));
+  return url && isAllowedAvatarUrl(url) ? url : undefined;
 }

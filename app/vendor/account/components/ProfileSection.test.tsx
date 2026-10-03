@@ -4,12 +4,16 @@ import type { User } from "@/lib/auth/types";
 
 const uploadAccountAvatar = vi.fn();
 const deleteAccountAvatars = vi.fn();
+const keepOnlyAvatar = vi.fn();
+const discardAvatar = vi.fn();
 const canDecodeImage = vi.fn();
 
 vi.mock("../../_services/accountProfileService", () => ({
   AVATAR_PICK_MAX_BYTES: 10 * 1024 * 1024,
   uploadAccountAvatar: (...args: unknown[]) => uploadAccountAvatar(...args),
   deleteAccountAvatars: (...args: unknown[]) => deleteAccountAvatars(...args),
+  keepOnlyAvatar: (...args: unknown[]) => keepOnlyAvatar(...args),
+  discardAvatar: (...args: unknown[]) => discardAvatar(...args),
 }));
 vi.mock("@/lib/image/clientCompression", () => ({
   canDecodeImage: (...args: unknown[]) => canDecodeImage(...args),
@@ -24,11 +28,15 @@ const user = (over: Partial<User> = {}): User =>
 const imageFile = (size = 1000, type = "image/png") => new File([new Uint8Array(size)], "me.png", { type });
 const pick = (file: File) => fireEvent.change(screen.getByLabelText("写真を選ぶ"), { target: { files: [file] } });
 
+const AVATAR_URL = "https://x.supabase.co/storage/v1/object/public/user-avatars/u-1/avatar-1.webp";
+
 beforeEach(() => {
   vi.clearAllMocks();
   canDecodeImage.mockResolvedValue(true);
-  uploadAccountAvatar.mockResolvedValue("https://x.supabase.co/storage/v1/object/public/user-avatars/u-1/avatar-1.webp");
+  uploadAccountAvatar.mockResolvedValue({ url: AVATAR_URL, path: "u-1/avatar-1.webp" });
   deleteAccountAvatars.mockResolvedValue(undefined);
+  keepOnlyAvatar.mockResolvedValue(undefined);
+  discardAvatar.mockResolvedValue(undefined);
 });
 
 describe("ProfileSection", () => {
@@ -71,8 +79,47 @@ describe("ProfileSection", () => {
       name: "山田 太郎",
       email: "taro@example.com",
       phone: "090",
-      avatarUrl: "https://x.supabase.co/storage/v1/object/public/user-avatars/u-1/avatar-1.webp",
+      avatarUrl: AVATAR_URL,
     });
+  });
+
+  it("前の写真は、プロフィールに新しい写真を保存できてから消す（保存より先に消さない）", async () => {
+    const order: string[] = [];
+    const updateProfile = vi.fn().mockImplementation(async () => {
+      order.push("save");
+      return true;
+    });
+    keepOnlyAvatar.mockImplementation(async () => {
+      order.push("remove-old");
+    });
+    render(<ProfileSection user={user()} updateProfile={updateProfile} />);
+
+    pick(imageFile());
+
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("写真を変えました"));
+    expect(order).toEqual(["save", "remove-old"]);
+    expect(keepOnlyAvatar).toHaveBeenCalledWith("u-1", "u-1/avatar-1.webp");
+    expect(discardAvatar).not.toHaveBeenCalled();
+  });
+
+  it("プロフィールに保存できなかったら、いまの写真は消さず、上げた新しい写真のほうを消す", async () => {
+    render(<ProfileSection user={user({ avatarUrl: "https://x/old.webp" })} updateProfile={vi.fn().mockResolvedValue(false)} />);
+
+    pick(imageFile());
+
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("写真を変えられませんでした"));
+    expect(keepOnlyAvatar).not.toHaveBeenCalled();
+    expect(discardAvatar).toHaveBeenCalledWith("u-1/avatar-1.webp");
+  });
+
+  it("保存の途中で例外になっても、上げた新しい写真のほうを消す", async () => {
+    render(<ProfileSection user={user()} updateProfile={vi.fn().mockRejectedValue(new Error("boom"))} />);
+
+    pick(imageFile());
+
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("写真を上げられませんでした"));
+    expect(keepOnlyAvatar).not.toHaveBeenCalled();
+    expect(discardAvatar).toHaveBeenCalledWith("u-1/avatar-1.webp");
   });
 
   it("画像でないファイル・大きすぎる写真・読めない形式は、上げずに知らせる", async () => {

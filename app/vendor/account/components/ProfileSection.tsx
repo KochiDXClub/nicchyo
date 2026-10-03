@@ -6,7 +6,13 @@ import { Button, Surface } from "@/components/ui";
 import { DISPLAY_NAME_MAX_LENGTH } from "@/lib/auth/displayName";
 import type { User } from "@/lib/auth/types";
 import { canDecodeImage, IMAGE_DECODE_ERROR_MESSAGE } from "@/lib/image/clientCompression";
-import { AVATAR_PICK_MAX_BYTES, deleteAccountAvatars, uploadAccountAvatar } from "../../_services/accountProfileService";
+import {
+  AVATAR_PICK_MAX_BYTES,
+  deleteAccountAvatars,
+  discardAvatar,
+  keepOnlyAvatar,
+  uploadAccountAvatar,
+} from "../../_services/accountProfileService";
 
 type UpdateProfile = (updates: Pick<User, "name" | "email" | "phone" | "avatarUrl">) => Promise<boolean>;
 
@@ -51,17 +57,28 @@ export default function ProfileSection({ user, updateProfile }: { user: User; up
       return;
     }
     setBusy("photo");
+    let uploadedPath: string | null = null;
     try {
       if (!(await canDecodeImage(file))) {
         setMessage({ kind: "error", text: IMAGE_DECODE_ERROR_MESSAGE });
         return;
       }
-      const url = await uploadAccountAvatar(user.id, file);
-      const ok = await save({ avatarUrl: url });
-      setMessage(ok ? { kind: "ok", text: "写真を変えました" } : { kind: "error", text: "写真を変えられませんでした。もう一度お試しください" });
+      const uploaded = await uploadAccountAvatar(user.id, file);
+      uploadedPath = uploaded.path;
+      const ok = await save({ avatarUrl: uploaded.url });
+      if (ok) {
+        // プロフィールが新しい写真を指すようになってから、前の写真を消す（先に消すと、保存に失敗したとき写真が壊れる）
+        uploadedPath = null;
+        await keepOnlyAvatar(user.id, uploaded.path);
+        setMessage({ kind: "ok", text: "写真を変えました" });
+      } else {
+        setMessage({ kind: "error", text: "写真を変えられませんでした。もう一度お試しください" });
+      }
     } catch {
       setMessage({ kind: "error", text: "写真を上げられませんでした。もう一度お試しください" });
     } finally {
+      // 上げたのにプロフィールへ保存できなかった写真は、いまの写真を残して、こちらを消す
+      if (uploadedPath) await discardAvatar(uploadedPath);
       setBusy(null);
     }
   };
@@ -89,8 +106,7 @@ export default function ProfileSection({ user, updateProfile }: { user: User; up
         <div className="flex items-center gap-4">
           <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-full bg-amber-500 text-2xl font-bold text-white ring-1 ring-line">
             {user.avatarUrl ? (
-              // Google の写真など外部の URL も出るので、画像の最適化は通さない（すでに小さい）
-              <Image src={user.avatarUrl} alt="いまの写真" width={80} height={80} unoptimized className="h-full w-full object-cover" />
+              <Image src={user.avatarUrl} alt="いまの写真" width={80} height={80} className="h-full w-full object-cover" />
             ) : (
               <span aria-hidden>{user.name.charAt(0)}</span>
             )}

@@ -14,12 +14,15 @@ function browserSupabase(): SupabaseClient {
 }
 
 /**
- * プロフィール写真を上げ、公開 URL を返す。
+ * プロフィール写真を上げ、公開 URL と保存先を返す。
  * 保存先は本人のフォルダ（{userId}/avatar-{時刻}.{拡張子}）。毎回ファイル名を変えるので、
- * ブラウザや CDN が前の写真を出し続けることがない。前の写真は消す（消せなくても保存は成功させる）。
+ * ブラウザや CDN が前の写真を出し続けることがない。
  * フォルダは本人の ID でないと書けない（Storage の RLS。supabase/migrations/20261004100000）。
+ *
+ * ここでは前の写真を消さない。プロフィールに新しい URL を保存できてから keepOnlyAvatar で消す
+ * （保存に失敗したときは、前の URL がまだ指している写真を残し、上げた新しい写真のほうを discardAvatar で消す）。
  */
-export async function uploadAccountAvatar(userId: string, file: File): Promise<string> {
+export async function uploadAccountAvatar(userId: string, file: File): Promise<{ url: string; path: string }> {
   const supabase = browserSupabase();
   const blob = await resizeImageToBlob(file, AVATAR_IMAGE_CONFIG);
   const { contentType, ext } = imageUploadInfo(blob);
@@ -28,13 +31,12 @@ export async function uploadAccountAvatar(userId: string, file: File): Promise<s
   const { error } = await supabase.storage.from(BUCKET).upload(path, blob, { contentType, upsert: true });
   if (error) throw error;
 
-  await removeOldAvatars(supabase, userId, path);
-
-  return supabase.storage.from(BUCKET).getPublicUrl(path).data.publicUrl;
+  return { url: supabase.storage.from(BUCKET).getPublicUrl(path).data.publicUrl, path };
 }
 
-/** 本人のフォルダの写真を（keepPath 以外）消す。keepPath を渡さなければ全部消す。失敗しても投げない */
-export async function removeOldAvatars(supabase: SupabaseClient, userId: string, keepPath?: string): Promise<void> {
+/** 本人のフォルダの写真を、keepPath 以外すべて消す。keepPath を渡さなければ全部消す。失敗しても投げない */
+export async function keepOnlyAvatar(userId: string, keepPath?: string): Promise<void> {
+  const supabase = browserSupabase();
   try {
     const { data } = await supabase.storage.from(BUCKET).list(userId);
     const stale = (data ?? []).map((f) => `${userId}/${f.name}`).filter((p) => p !== keepPath);
@@ -44,7 +46,16 @@ export async function removeOldAvatars(supabase: SupabaseClient, userId: string,
   }
 }
 
-/** 写真を消す（Storage の本人のフォルダを空にする）。URL を空にする更新は、呼び出し側（updateProfile）で行う */
+/** 上げた写真を 1 枚消す（プロフィールに保存できなかったとき）。失敗しても投げない */
+export async function discardAvatar(path: string): Promise<void> {
+  try {
+    await browserSupabase().storage.from(BUCKET).remove([path]);
+  } catch {
+    // 容量が少し残るだけ
+  }
+}
+
+/** 写真をすべて消す（URL を空にする更新は、呼び出し側（updateProfile）で先に行う） */
 export async function deleteAccountAvatars(userId: string): Promise<void> {
-  await removeOldAvatars(browserSupabase(), userId);
+  await keepOnlyAvatar(userId);
 }
