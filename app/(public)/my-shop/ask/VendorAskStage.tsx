@@ -29,13 +29,16 @@ const IDLE_LINE = "今日もおつかれさま！";
  *
  * 話し手は既定のにちよさんに固定する。質問文がにちよさんの口調で書かれているため、
  * 相談ページで選んだ別のキャラに切り替えると言葉遣いが合わなくなる。
+ *
+ * 最後の答えは 10 分のあいだ覚えておき、ページを移って戻ってきても出し直す（lib/vendor/helpChatMemory.ts）。
+ * 覚える持ち主は accountId（ログイン中のアカウント）。無ければ店舗で分ける。
  */
-export default function VendorAskStage({ vendorId }: { vendorId: string }) {
+export default function VendorAskStage({ vendorId, accountId }: { vendorId: string; accountId?: string }) {
   const inbox = useVendorAskInbox(vendorId);
   const { status, pendingCount } = inbox;
   const reduceMotion = useReducedMotion() ?? false;
   const showInbox = status === "ready" && pendingCount > 0;
-  const help = useVendorHelpChat();
+  const help = useVendorHelpChat(accountId ?? vendorId);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const pose = resolveGrandmaPose({

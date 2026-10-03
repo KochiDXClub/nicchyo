@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { TEXT_STREAM_DATA_SEPARATOR } from "@/lib/ai/textStream";
 import { HELP_PROPOSAL_LABELS, parseProposalFrame, type HelpProposal } from "@/lib/vendor/helpProposals";
+import { clearHelpMemory, loadHelpMemory, saveHelpMemory } from "@/lib/vendor/helpChatMemory";
 
 export type VendorHelpTurn = { role: "user" | "assistant"; text: string };
 
@@ -93,8 +94,11 @@ export function trimHistory(turns: VendorHelpTurn[]): VendorHelpTurn[] {
  *
  * 画面に出すのは最新の1問と答えだけ（ヘルプデスクとして「いまの困りごと」に集中させる）。
  * ただし続けて聞いたときに話がつながるよう、これまでのやりとりはサーバーへ渡す。
+ *
+ * memoryOwnerId を渡すと、最後の答えを 10 分のあいだ（このタブで）覚えておき、
+ * ページを移って戻ってきたときに出し直す（lib/vendor/helpChatMemory.ts）。渡さなければ何も覚えない。
  */
-export function useVendorHelpChat() {
+export function useVendorHelpChat(memoryOwnerId?: string) {
   const [status, setStatus] = useState<VendorHelpStatus>("idle");
   const [question, setQuestion] = useState<string | null>(null);
   const [answer, setAnswer] = useState("");
@@ -103,6 +107,27 @@ export function useVendorHelpChat() {
   const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => () => abortRef.current?.abort(), []);
+
+  // 戻ってきたとき、覚えている最後の答えを出し直す（サーバーでの描画と食い違わないよう、表示のあとで読む）。
+  // 戻ってすぐ新しい質問をした場合は、そちらを優先する
+  useEffect(() => {
+    if (!memoryOwnerId) return;
+    const memory = loadHelpMemory(memoryOwnerId);
+    if (!memory || abortRef.current) return;
+    setQuestion((current) => current ?? memory.question);
+    setAnswer((current) => current || memory.answer);
+    setProposal((current) => current ?? memory.proposal);
+    setStatus((current) => (current === "idle" ? "done" : current));
+    if (historyRef.current.length === 0) historyRef.current = memory.history;
+  }, [memoryOwnerId]);
+
+  /** 最後の答えを覚え直す（答えを返し終えたとき・変更案を確かめ終えたとき） */
+  const remember = useCallback(
+    (memory: { question: string; answer: string; proposal: HelpProposal | null }) => {
+      if (memoryOwnerId) saveHelpMemory(memoryOwnerId, { ...memory, history: historyRef.current });
+    },
+    [memoryOwnerId],
+  );
 
   const ask = useCallback(async (raw: string) => {
     const text = raw.trim();
@@ -157,6 +182,7 @@ export function useVendorHelpChat() {
         { role: "user" as const, text },
         { role: "assistant" as const, text: shown },
       ].slice(-HISTORY_MAX);
+      remember({ question: text, answer: shown, proposal: proposed });
     } catch (err) {
       // 新しい質問に切り替えた・画面を離れたときの中断は、失敗として出さない
       if (ctrl.signal.aborted) return;
@@ -169,7 +195,7 @@ export function useVendorHelpChat() {
     } finally {
       if (abortRef.current === ctrl) abortRef.current = null;
     }
-  }, []);
+  }, [remember]);
 
   /** 答えを閉じて、いつものひとことに戻す（これまでのやりとりは覚えておく） */
   const close = useCallback(() => {
@@ -179,7 +205,9 @@ export function useVendorHelpChat() {
     setAnswer("");
     setProposal(null);
     setStatus("idle");
-  }, []);
+    // 閉じたものは、戻ってきても出さない
+    if (memoryOwnerId) clearHelpMemory(memoryOwnerId);
+  }, [memoryOwnerId]);
 
   /**
    * 変更案を確かめ終えた（保存した・やめた）。確認を閉じて、にちよさんのひとことに替える。
@@ -196,7 +224,9 @@ export function useVendorHelpChat() {
         { role: "assistant", text: `${last.text}\n${PROPOSAL_OUTCOME_NOTES[outcome](proposalSubject(proposal))}` },
       ];
     }
-  }, [proposal]);
+    // 確かめ終えた状態（案は閉じ、答えは「保存したで」のひとこと）を覚え直す。戻ってきたときに、同じ案をもう一度出さない
+    if (question) remember({ question, answer: line, proposal: null });
+  }, [proposal, question, remember]);
 
   return {
     status,
