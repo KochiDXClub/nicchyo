@@ -3,6 +3,12 @@ import { describe, expect, it } from "vitest";
 import VendorCharacterPage from "./page";
 
 describe("お店のキャラクター（モック）", () => {
+  it("先頭で「準備中で、保存も申請も届かない」と伝える", () => {
+    render(<VendorCharacterPage />);
+    expect(screen.getByRole("note")).toHaveTextContent("準備中の画面です");
+    expect(screen.getByRole("note")).toHaveTextContent("申請もまだ届きません");
+  });
+
   it("テンプレは10人並び、話し方は変えられないと伝える", () => {
     render(<VendorCharacterPage />);
     const list = screen.getByRole("list", { name: "テンプレキャラ" });

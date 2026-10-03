@@ -86,6 +86,10 @@ export default function VendorCharacterPage() {
     <PageShell bottomNav={false}>
       <PageTitle title="お店のキャラクター" />
       <PageContainer>
+        {/* 保存も運営への申請もまだ動かない。本物の出店者が申請したと思い込まないよう、先頭で伝える */}
+        <p role="note" className="mb-5 rounded-btn bg-amber-50 px-4 py-3 text-sm font-bold leading-relaxed text-amber-900 ring-1 ring-amber-200">
+          準備中の画面です。選んだ内容は保存されず、運営への申請もまだ届きません。
+        </p>
         <Surface className="mb-5 flex items-center gap-4">
           <CharacterAvatar name={activeView.name} image={activeView.image} />
           <div className="min-w-0">
