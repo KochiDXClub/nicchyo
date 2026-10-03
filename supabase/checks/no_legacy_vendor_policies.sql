@@ -12,6 +12,7 @@
 --   - has_shop_permission / is_shop_member / is_shop_owner / shop_members を使うもの（新しい判定）
 --   - vendors.role や is_operator()・current_user_role() を見る、運営向けのもの
 --   - sender_id = auth.uid()（問い合わせの返信を「実際に書いた人」に固定するもの）
+--   - user-avatars バケット（アカウント本人のプロフィール写真。フォルダ名 = 本人の auth.uid()。店舗のデータではない）
 -- 上のどれにも当たらないのに auth.uid() を使うポリシーが見つかったら、権限判定に張り替えるか、
 -- 張り替えが不要な理由を確かめたうえで、この検査の対象外に足す。
 
@@ -24,7 +25,7 @@ begin
   from pg_policies
   where schemaname in ('public', 'storage')
     and (coalesce(qual, '') || ' ' || coalesce(with_check, '')) ~* 'auth\.uid'
-    and (coalesce(qual, '') || ' ' || coalesce(with_check, '')) !~* '(has_shop_permission|is_shop_member|is_shop_owner|shop_members|vendors\.role|is_operator|current_user_role|sender_id)';
+    and (coalesce(qual, '') || ' ' || coalesce(with_check, '')) !~* '(has_shop_permission|is_shop_member|is_shop_owner|shop_members|vendors\.role|is_operator|current_user_role|sender_id|user-avatars)';
 
   if offenders is not null then
     raise exception E'旧い判定（auth.uid() だけ）のポリシーが残っています:\n  %', offenders;

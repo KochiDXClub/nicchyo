@@ -7,7 +7,7 @@ import { SHOP_PERMISSION_META, type ShopMembership } from "@/lib/vendor/shopPerm
 
 /**
  * 自分のアカウント（ログイン中のGoogleアカウント）と、お店での立場・できること。
- * 名前・メールアドレスはGoogle側のもので、ここでは変えない。
+ * 名前と写真は ProfileSection で変える。メールアドレスはGoogle側のもので、ここでは変えない。
  */
 export default function AccountSummary({
   user,
@@ -34,7 +34,7 @@ export default function AccountSummary({
           </div>
           {user.email && <p className="break-all text-sm text-nicchyo-ink/70">{user.email}</p>}
           <p className="text-xs text-nicchyo-ink/55">
-            {user.provider === "google" ? "Googleアカウントでログインしています。名前やメールアドレスは、Googleの設定で変えられます。" : "ログイン中のアカウントです。"}
+            {user.provider === "google" ? "Googleアカウントでログインしています。メールアドレスは、Googleの設定で変えられます。" : "ログイン中のアカウントです。"}
           </p>
         </div>
 

@@ -23,6 +23,12 @@ const nextConfig = {
         hostname: '*.supabase.co',
         pathname: '/storage/v1/object/public/**',
       },
+      {
+        // Google アカウントの写真（出店者のアカウントの写真。lib/auth/displayName.ts の許可と同じ）
+        protocol: 'https',
+        hostname: 'lh3.googleusercontent.com',
+        pathname: '/**',
+      },
     ],
   },
 
