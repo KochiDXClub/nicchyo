@@ -1,9 +1,7 @@
 "use client";
 
 import { useRef, type ChangeEvent } from "react";
-import Link from "next/link";
-import { Camera, History, Images } from "lucide-react";
-import { buttonClass } from "@/components/ui";
+import { Camera, Images } from "lucide-react";
 
 type Props = {
   onPick: (file: File) => void;
@@ -11,6 +9,7 @@ type Props = {
 
 /**
  * 投稿の入口。まず写真を1枚決める（ストーリーと同じく、写真が主役）。
+ * 投稿履歴と同じページの先頭に置くので、履歴が画面の外に押し出されない高さにしている。
  * スマホでは「撮る」でそのままカメラが開き、「選ぶ」で写真の一覧が開く。
  */
 export default function PhotoPicker({ onPick }: Props) {
@@ -25,25 +24,25 @@ export default function PhotoPicker({ onPick }: Props) {
   }
 
   return (
-    <div className="flex flex-col items-center pt-4 text-center">
+    <div className="flex flex-col items-center text-center">
       <p className="text-base font-bold text-nicchyo-ink">今日のお店を、写真1枚で</p>
       <p className="mt-1 text-sm text-nicchyo-ink/70">近況とマップのお店に出ます</p>
 
-      <div className="mt-6 grid w-full grid-cols-2 gap-3">
+      <div className="mt-4 grid w-full grid-cols-2 gap-3">
         <button
           type="button"
           onClick={() => cameraRef.current?.click()}
-          className="flex aspect-square flex-col items-center justify-center gap-3 rounded-card bg-amber-500 text-white shadow-pop transition active:scale-95 motion-reduce:active:scale-100"
+          className="flex flex-col items-center justify-center gap-2 rounded-card py-6 bg-amber-500 text-white shadow-pop transition active:scale-95 motion-reduce:active:scale-100"
         >
-          <Camera size={40} strokeWidth={1.8} aria-hidden="true" />
+          <Camera size={32} strokeWidth={1.8} aria-hidden="true" />
           <span className="text-lg font-bold">撮る</span>
         </button>
         <button
           type="button"
           onClick={() => libraryRef.current?.click()}
-          className="flex aspect-square flex-col items-center justify-center gap-3 rounded-card bg-white text-amber-700 shadow-card ring-1 ring-amber-200 transition active:scale-95 motion-reduce:active:scale-100"
+          className="flex flex-col items-center justify-center gap-2 rounded-card py-6 bg-white text-amber-700 shadow-card ring-1 ring-amber-200 transition active:scale-95 motion-reduce:active:scale-100"
         >
-          <Images size={40} strokeWidth={1.8} aria-hidden="true" />
+          <Images size={32} strokeWidth={1.8} aria-hidden="true" />
           <span className="text-lg font-bold">写真を選ぶ</span>
         </button>
       </div>
@@ -65,11 +64,6 @@ export default function PhotoPicker({ onPick }: Props) {
         onChange={handleChange}
         aria-label="写真を選ぶ"
       />
-
-      <Link href="/vendor/posts" className={buttonClass({ variant: "ghost", className: "mt-6" })}>
-        <History size={16} aria-hidden="true" />
-        これまでの投稿・もう一度出す
-      </Link>
     </div>
   );
 }

@@ -27,7 +27,8 @@ export default function VendorNavBar() {
   const router = useRouter();
   const { user, logout, permissions } = useAuth();
   const navItems = visibleVendorNavItems(permissions.canShop);
-  const mainItems = navItems.filter((item) => item.group === "main");
+  // 下部バーに常設している「連絡」「投稿」は、メニューでは重ねて出さない
+  const mainItems = navItems.filter((item) => item.group === "main" && !item.inBottomBar);
   const supportItems = navItems.filter((item) => item.group === "support");
   const [sheetOpen, setSheetOpen] = useState(false);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
@@ -110,7 +111,7 @@ export default function VendorNavBar() {
               onClick={() => setSheetOpen((v) => !v)}
               buttonRef={menuButtonRef}
             />
-            <BottomNavLink href="/vendor/post/new" label="投稿" icon={Megaphone} />
+            <BottomNavLink href="/vendor/posts" label="投稿" icon={Megaphone} />
           </div>
         ) : (
           <BottomNavBackBar label="マイ店舗へ戻る" onClick={() => router.push(HOME_HREF)} />

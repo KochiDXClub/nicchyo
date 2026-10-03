@@ -29,18 +29,6 @@ function contentToPost(c: DbContent): Post {
 /** ひとこと無しの投稿の title */
 export const PHOTO_ONLY_TITLE = "写真だけの投稿";
 
-export async function fetchPostById(postId: string): Promise<Post | null> {
-  const supabase = createClient();
-  const { data, error } = await supabase
-    .from("vendor_contents")
-    .select("id, vendor_id, body, image_url, expires_at, created_at")
-    .eq("id", postId)
-    .single();
-
-  if (error || !data) return null;
-  return contentToPost(data as DbContent);
-}
-
 export async function fetchVendorPosts(vendorId: string): Promise<Post[]> {
   const supabase = createClient();
   const { data, error } = await supabase

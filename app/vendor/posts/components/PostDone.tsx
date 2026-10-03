@@ -10,10 +10,11 @@ type Props = {
   imageUrl: string;
   expiresLabel: string;
   onAnother: () => void;
+  onBack: () => void;
 };
 
 /** 出し終わったところ。近況でどう見えるかをすぐ見られるようにする */
-export default function PostDone({ postId, imageUrl, expiresLabel, onAnother }: Props) {
+export default function PostDone({ postId, imageUrl, expiresLabel, onAnother, onBack }: Props) {
   return (
     <div className="flex flex-col items-center pt-4 text-center">
       <div className="relative aspect-[3/4] h-40">
@@ -43,6 +44,9 @@ export default function PostDone({ postId, imageUrl, expiresLabel, onAnother }: 
         <Button variant="secondary" size="lg" onClick={onAnother}>
           <Plus size={18} aria-hidden="true" />
           もう1枚出す
+        </Button>
+        <Button variant="ghost" onClick={onBack}>
+          投稿の一覧に戻る
         </Button>
       </div>
     </div>

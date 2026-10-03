@@ -1,5 +1,5 @@
 import { getNextSundayExpiry } from "@/lib/utils/date";
-import type { ExpirationPreset } from "../../_types";
+import type { ExpirationPreset } from "../_types";
 
 /** 表示期間の選択肢。並びは選ばれやすい順（既定は日曜まで） */
 export const EXPIRATION_OPTIONS: { preset: ExpirationPreset; label: string }[] = [

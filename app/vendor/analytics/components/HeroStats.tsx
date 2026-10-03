@@ -59,7 +59,7 @@ export default function HeroStats({
           <p className="text-sm leading-relaxed text-amber-900">
             まだ数字がないき、日曜市のあとにまた見に来てや。写真や近況を整えておくと、見られやすうなるよ。
           </p>
-          <Link href="/vendor/post/new" className={buttonClass({ variant: "secondary", size: "sm", className: "mt-3" })}>
+          <Link href="/vendor/posts" className={buttonClass({ variant: "secondary", size: "sm", className: "mt-3" })}>
             近況を出す
           </Link>
         </div>
