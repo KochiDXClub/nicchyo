@@ -7,34 +7,10 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { AdminLayout, AdminPageHeader, ErrorBoundary } from "@/components/admin";
-import type { ListingStatus } from "@/lib/admin/shopEdit";
+import type { AdminShopDetail } from "@/lib/admin/shopEdit";
 import { PAYMENT_OPTIONS, RAIN_OPTIONS } from "@/lib/vendor/storeOptions";
 import { ListingStatusBadge } from "../ListingStatusBadge";
 
-type ShopDetail = {
-  id: string;
-  shop_name: string;
-  category_name: string | null;
-  style: string | null;
-  strength: string | null;
-  main_products: string[] | null;
-  main_product_prices: Record<string, number | null> | null;
-  payment_methods: string[] | null;
-  rain_policy: string | null;
-  sns_instagram: string | null;
-  sns_x: string | null;
-  sns_hp: string | null;
-  business_hours_start: string | null;
-  business_hours_end: string | null;
-  shop_image_url: string | null;
-  listing_status: ListingStatus;
-  photo_use_allowed: boolean;
-  listing_consented_on: string | null;
-  listing_consent_note: string | null;
-  owner_name: string | null;
-  store_number: number | null;
-  updated_at: string | null;
-};
 
 const EMPTY = "未入力";
 
@@ -58,11 +34,11 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 
 const orEmpty = (value: string | null | undefined) => (value ? value : <span className="text-slate-400">{EMPTY}</span>);
 
-function AdminShopDetailContent() {
+function AdminAdminShopDetailContent() {
   const { permissions, isLoading } = useAuth();
   const router = useRouter();
   const { id } = useParams<{ id: string }>();
-  const [shop, setShop] = useState<ShopDetail | null>(null);
+  const [shop, setShop] = useState<AdminShopDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -78,7 +54,7 @@ function AdminShopDetailContent() {
         const res = await fetch(`/api/admin/shops/${id}`);
         if (res.status === 404) throw new Error("店舗が見つかりません");
         if (!res.ok) throw new Error("店舗の取得に失敗しました");
-        const data = (await res.json()) as { shop: ShopDetail };
+        const data = (await res.json()) as { shop: AdminShopDetail };
         if (!cancelled) setShop(data.shop);
       } catch (e) {
         if (!cancelled) setError(e instanceof Error ? e.message : "店舗の取得に失敗しました");
@@ -184,10 +160,10 @@ function AdminShopDetailContent() {
   );
 }
 
-export default function AdminShopDetailPage() {
+export default function AdminAdminShopDetailPage() {
   return (
     <ErrorBoundary>
-      <AdminShopDetailContent />
+      <AdminAdminShopDetailContent />
     </ErrorBoundary>
   );
 }
