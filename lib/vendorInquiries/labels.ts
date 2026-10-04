@@ -55,7 +55,9 @@ export const STATUS_LABELS: Record<string, { label: string; tone: "waiting" | "p
   in_progress: { label: "検討中", tone: "progress" },
   resolved: { label: "回答済み", tone: "done" },
   // question
-  ai_pending: { label: "AIが対応中", tone: "progress" },
+  // AIの自動応答はまだ無く、実際には運営が目を通すまで待ちの状態なので「確認待ち」と出す。
+  // AIを入れたら「AIが対応中」に戻す（status 自体は ai_pending のまま）
+  ai_pending: { label: "確認待ち", tone: "waiting" },
   ai_resolved: { label: "解決済み", tone: "done" },
   escalated: { label: "担当者に取次ぎ中", tone: "progress" },
   human_answered: { label: "回答済み", tone: "done" },
