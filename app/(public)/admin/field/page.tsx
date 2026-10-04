@@ -73,7 +73,7 @@ function FieldListContent() {
           onChange={(e) => setQuery(e.target.value)}
           placeholder="店名、または店番の数字"
           aria-label="店舗を探す"
-          className="w-full rounded-lg border border-slate-300 bg-white px-3 py-3 text-base focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-200"
+          className="w-full rounded-lg border border-line bg-white px-3 py-3 text-base focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-200"
         />
         <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1">
           {FILTERS.map((f) => (
@@ -83,7 +83,7 @@ function FieldListContent() {
               onClick={() => setFilter(f.key)}
               aria-pressed={filter === f.key}
               className={`shrink-0 rounded-full border px-4 py-2 text-sm font-medium ${
-                filter === f.key ? "border-slate-900 bg-slate-900 text-white" : "border-slate-300 bg-white text-slate-700"
+                filter === f.key ? "border-nicchyo-ink bg-nicchyo-ink text-white" : "border-line bg-white text-nicchyo-ink/70"
               }`}
             >
               {f.label} {loading ? "" : counts[f.key]}
@@ -96,34 +96,34 @@ function FieldListContent() {
             {error}
           </p>
         ) : loading ? (
-          <p className="text-sm text-slate-500">読み込み中…</p>
+          <p className="text-sm text-nicchyo-ink/55">読み込み中…</p>
         ) : visible.length === 0 ? (
-          <p className="py-8 text-center text-sm text-slate-500">該当する店舗がありません</p>
+          <p className="py-8 text-center text-sm text-nicchyo-ink/55">該当する店舗がありません</p>
         ) : (
           <ul className="space-y-2">
             {visible.map((shop) => (
               <li key={shop.id}>
                 <Link
                   href={`/admin/field/${shop.id}`}
-                  className="flex min-h-16 items-center gap-3 rounded-xl border border-slate-200 bg-white p-3 shadow-sm active:bg-slate-50"
+                  className="flex min-h-16 items-center gap-3 rounded-card border border-line bg-white p-3 shadow-sm active:bg-nicchyo-base"
                 >
                   <span
                     className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-lg text-lg font-bold ${
-                      shop.storeNumber !== null ? "bg-green-50 text-green-700" : "bg-slate-100 text-slate-400"
+                      shop.storeNumber !== null ? "bg-green-50 text-green-700" : "bg-nicchyo-base text-nicchyo-ink/40"
                     }`}
                     aria-label={shop.storeNumber !== null ? `店番 ${shop.storeNumber}` : "位置が未登録"}
                   >
                     {shop.storeNumber ?? "–"}
                   </span>
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-base font-semibold text-slate-900">{shop.name}</span>
+                    <span className="block truncate text-base font-semibold text-nicchyo-ink">{shop.name}</span>
                     <span className="mt-1 flex flex-wrap items-center gap-1.5">
                       <ListingStatusBadge status={shop.listingStatus} />
-                      {!shop.hasPhoto ? <span className="text-[11px] text-slate-500">写真なし</span> : null}
-                      {shop.category !== "未分類" ? <span className="text-[11px] text-slate-500">{shop.category}</span> : null}
+                      {!shop.hasPhoto ? <span className="text-[11px] text-nicchyo-ink/55">写真なし</span> : null}
+                      {shop.category !== "未分類" ? <span className="text-[11px] text-nicchyo-ink/55">{shop.category}</span> : null}
                     </span>
                   </span>
-                  <span aria-hidden className="text-slate-400">›</span>
+                  <span aria-hidden className="text-nicchyo-ink/40">›</span>
                 </Link>
               </li>
             ))}

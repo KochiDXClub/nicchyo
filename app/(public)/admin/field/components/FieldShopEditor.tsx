@@ -13,6 +13,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { showToast } from "@/lib/admin/toast";
+import { Surface } from "@/components/ui";
 import { createStoreImages, imageErrorMessage } from "@/lib/image/clientCompression";
 import { LISTING_STATUS_LABELS, LISTING_STATUSES, type AdminShopDetail, type ListingStatus } from "@/lib/admin/shopEdit";
 import { PAYMENT_OPTIONS, RAIN_OPTIONS, TIME_OPTIONS } from "@/lib/vendor/storeOptions";
@@ -93,24 +94,24 @@ function toPayload(form: FormState) {
 }
 
 const inputClass =
-  "w-full rounded-lg border border-slate-300 bg-white px-3 py-3 text-base text-slate-900 placeholder:text-slate-400 focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-200";
+  "w-full rounded-lg border border-line bg-white px-3 py-3 text-base text-nicchyo-ink placeholder:text-nicchyo-ink/40 focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-200";
 const buttonClass =
   "inline-flex min-h-12 items-center justify-center rounded-lg px-4 py-3 text-base font-semibold disabled:opacity-50";
 
 function Card({ title, hint, children }: { title: string; hint?: string; children: React.ReactNode }) {
   return (
-    <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-      <h2 className="text-base font-bold text-slate-900">{title}</h2>
-      {hint ? <p className="mt-1 text-[13px] text-slate-500">{hint}</p> : null}
+    <Surface as="section" padding="sm">
+      <h2 className="text-base font-bold text-nicchyo-ink">{title}</h2>
+      {hint ? <p className="mt-1 text-[13px] text-nicchyo-ink/55">{hint}</p> : null}
       <div className="mt-3 space-y-3">{children}</div>
-    </section>
+    </Surface>
   );
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <label className="block">
-      <span className="mb-1 block text-[13px] font-medium text-slate-600">{label}</span>
+      <span className="mb-1 block text-[13px] font-medium text-nicchyo-ink/70">{label}</span>
       {children}
     </label>
   );
@@ -190,7 +191,7 @@ export function FieldShopEditor({ shopId }: { shopId: string }) {
   }, [form?.business_hours_start, form?.business_hours_end]);
 
   const save = async () => {
-    if (!form || hoursError) return;
+    if (!form || !shop || hoursError) return;
     if (form.products.some((p) => p.price.trim() !== "" && !/^\d+$/.test(p.price.trim()))) {
       showToast.error("価格は数字だけで入力してください");
       return;
@@ -200,7 +201,8 @@ export function FieldShopEditor({ shopId }: { shopId: string }) {
       const res = await fetch(`/api/admin/shops/${shopId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(toPayload(form)),
+        // 開いたあとにほかの人が更新していたら、サーバーが断る（上書きしない）
+        body: JSON.stringify({ ...toPayload(form), updated_at: shop?.updated_at ?? null }),
       });
       if (!res.ok) throw new Error((await readError(res, "保存できませんでした")).message);
       showToast.success("保存しました");
@@ -298,7 +300,7 @@ export function FieldShopEditor({ shopId }: { shopId: string }) {
       </p>
     );
   }
-  if (!shop || !form) return <p className="text-sm text-slate-500">読み込み中…</p>;
+  if (!shop || !form) return <p className="text-sm text-nicchyo-ink/55">読み込み中…</p>;
 
   return (
     <div className="space-y-4 pb-28">
@@ -318,21 +320,21 @@ export function FieldShopEditor({ shopId }: { shopId: string }) {
                     : status === "declined"
                       ? "border-red-600 bg-red-600 text-white"
                       : "border-amber-500 bg-amber-500 text-white"
-                  : "border-slate-300 bg-white text-slate-700"
+                  : "border-line bg-white text-nicchyo-ink/70"
               }`}
             >
               {LISTING_STATUS_LABELS[status]}
             </button>
           ))}
         </div>
-        <label className="flex min-h-12 items-center gap-3 rounded-lg border border-slate-200 px-3">
+        <label className="flex min-h-12 items-center gap-3 rounded-lg border border-line px-3">
           <input
             type="checkbox"
             checked={form.photo_use_allowed}
             onChange={(e) => update("photo_use_allowed", e.target.checked)}
             className="h-6 w-6"
           />
-          <span className="text-base text-slate-800">写真の掲載も許可をもらった</span>
+          <span className="text-base text-nicchyo-ink">写真の掲載も許可をもらった</span>
         </label>
         <Field label="許可をもらった日">
           <input type="date" value={form.listing_consented_on} onChange={(e) => update("listing_consented_on", e.target.value)} className={inputClass} />
@@ -352,9 +354,9 @@ export function FieldShopEditor({ shopId }: { shopId: string }) {
       <Card title="店舗の写真" hint={form.photo_use_allowed ? undefined : "写真を使う許可をもらってから撮影・登録します（上の「写真の掲載も許可をもらった」にチェック → 保存）。"}>
         {shop.shop_image_url ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={shop.shop_image_url} alt={`${shop.shop_name}の写真`} className="max-h-64 w-full rounded-lg border border-slate-200 object-contain" />
+          <img src={shop.shop_image_url} alt={`${shop.shop_name}の写真`} className="max-h-64 w-full rounded-lg border border-line object-contain" />
         ) : (
-          <p className="text-sm text-slate-400">まだ写真がありません</p>
+          <p className="text-sm text-nicchyo-ink/40">まだ写真がありません</p>
         )}
         <label className={`${buttonClass} w-full cursor-pointer bg-amber-500 text-white ${!shop.photo_use_allowed || photoBusy ? "pointer-events-none opacity-50" : ""}`}>
           {photoBusy ? "保存しています…" : "写真を撮る・選ぶ"}
@@ -390,7 +392,7 @@ export function FieldShopEditor({ shopId }: { shopId: string }) {
         <Field label="店主のお名前">
           <input value={form.owner_name} onChange={(e) => update("owner_name", e.target.value)} maxLength={100} className={inputClass} />
         </Field>
-        <p className="text-[13px] text-slate-500">店主名は、出店者本人が公開に切り替えるまで来訪者には表示されません。</p>
+        <p className="text-[13px] text-nicchyo-ink/55">店主名は、出店者本人が公開に切り替えるまで来訪者には表示されません。</p>
         <Field label="こだわり・ひとこと">
           <textarea value={form.strength} onChange={(e) => update("strength", e.target.value)} rows={3} maxLength={500} className={inputClass} />
         </Field>
@@ -422,7 +424,7 @@ export function FieldShopEditor({ shopId }: { shopId: string }) {
               type="button"
               aria-label={`${p.name || "この行"}を削除`}
               onClick={() => update("products", form.products.filter((_, j) => j !== i))}
-              className={`${buttonClass} border border-slate-300 bg-white text-slate-600`}
+              className={`${buttonClass} border border-line bg-white text-nicchyo-ink/70`}
             >
               ✕
             </button>
@@ -432,7 +434,7 @@ export function FieldShopEditor({ shopId }: { shopId: string }) {
           type="button"
           disabled={form.products.length >= 50}
           onClick={() => update("products", [...form.products, { name: "", price: "" }])}
-          className={`${buttonClass} w-full border border-dashed border-slate-400 bg-white text-slate-700`}
+          className={`${buttonClass} w-full border border-dashed border-nicchyo-ink/40 bg-white text-nicchyo-ink/70`}
         >
           ＋ 商品を追加
         </button>
@@ -463,10 +465,10 @@ export function FieldShopEditor({ shopId }: { shopId: string }) {
         </div>
         {hoursError ? <p role="alert" className="text-sm text-red-600">{hoursError}</p> : null}
         <fieldset>
-          <legend className="mb-1 text-[13px] font-medium text-slate-600">使える決済</legend>
+          <legend className="mb-1 text-[13px] font-medium text-nicchyo-ink/70">使える決済</legend>
           <div className="grid grid-cols-2 gap-2">
             {PAYMENT_OPTIONS.map((o) => (
-              <label key={o.key} className="flex min-h-12 items-center gap-2 rounded-lg border border-slate-200 px-3">
+              <label key={o.key} className="flex min-h-12 items-center gap-2 rounded-lg border border-line px-3">
                 <input
                   type="checkbox"
                   className="h-5 w-5"
@@ -481,10 +483,10 @@ export function FieldShopEditor({ shopId }: { shopId: string }) {
           </div>
         </fieldset>
         <fieldset>
-          <legend className="mb-1 text-[13px] font-medium text-slate-600">雨の日</legend>
+          <legend className="mb-1 text-[13px] font-medium text-nicchyo-ink/70">雨の日</legend>
           <div className="space-y-2">
             {RAIN_OPTIONS.map((o) => (
-              <label key={o.key} className="flex min-h-12 items-center gap-2 rounded-lg border border-slate-200 px-3">
+              <label key={o.key} className="flex min-h-12 items-center gap-2 rounded-lg border border-line px-3">
                 <input type="radio" name="rain" className="h-5 w-5" checked={form.rain_policy === o.key} onChange={() => update("rain_policy", o.key)} />
                 <span className="text-base">{o.label}</span>
               </label>
@@ -511,21 +513,21 @@ export function FieldShopEditor({ shopId }: { shopId: string }) {
         </Field>
         <LocationPicker locations={locations} value={pin} onChange={setPin} onPickStoreNumber={pickStoreNumber} />
         <div className="grid grid-cols-2 gap-2">
-          <button type="button" onClick={useCurrentPosition} disabled={gpsBusy} className={`${buttonClass} border border-slate-300 bg-white text-slate-800`}>
+          <button type="button" onClick={useCurrentPosition} disabled={gpsBusy} className={`${buttonClass} border border-line bg-white text-nicchyo-ink`}>
             {gpsBusy ? "取得中…" : "現在地にする"}
           </button>
-          <button type="button" onClick={() => void saveLocation()} disabled={locationBusy || !pin || !storeNumber} className={`${buttonClass} bg-slate-900 text-white`}>
+          <button type="button" onClick={() => void saveLocation()} disabled={locationBusy || !pin || !storeNumber} className={`${buttonClass} bg-nicchyo-ink text-white`}>
             {locationBusy ? "保存中…" : "この位置で保存"}
           </button>
         </div>
-        <p className="text-[13px] text-slate-500">
+        <p className="text-[13px] text-nicchyo-ink/55">
           {shop.store_number != null ? `保存済み: 店番 ${shop.store_number}` : "位置は未登録です"}。保存すると、保存前の状態が地図編集の履歴に残ります。
         </p>
       </Card>
 
-      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-slate-200 bg-white/95 p-3 backdrop-blur lg:left-[248px]">
+      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-white/95 p-3 backdrop-blur lg:left-[248px]">
         <div className="mx-auto flex max-w-2xl gap-2">
-          <Link href="/admin/field" className={`${buttonClass} border border-slate-300 bg-white text-slate-700`}>
+          <Link href="/admin/field" className={`${buttonClass} border border-line bg-white text-nicchyo-ink/70`}>
             一覧へ
           </Link>
           <button type="button" onClick={() => void save()} disabled={saving || !dirty || !!hoursError} className={`${buttonClass} flex-1 bg-green-600 text-white`}>

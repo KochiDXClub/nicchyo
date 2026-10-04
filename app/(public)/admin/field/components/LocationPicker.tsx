@@ -12,6 +12,7 @@ import * as maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import "@/lib/map/maplibreWorker";
 import { OPENFREEMAP_STYLE_URL } from "@/app/(public)/map/config/basemap";
+import { PICKER_COLORS } from "./locationPickerStyle";
 
 export type FieldLocation = {
   storeNumber: number;
@@ -80,9 +81,9 @@ export function LocationPicker({ locations, value, onChange, onPickStoreNumber }
         source: OTHERS_SOURCE,
         paint: {
           "circle-radius": 6,
-          "circle-color": ["case", ["get", "assigned"], "#7ED957", "#9ca3af"],
+          "circle-color": ["case", ["get", "assigned"], PICKER_COLORS.assigned, PICKER_COLORS.vacant],
           "circle-stroke-width": 1.5,
-          "circle-stroke-color": "#ffffff",
+          "circle-stroke-color": PICKER_COLORS.outline,
         },
       });
       loadedRef.current = true;
@@ -126,7 +127,7 @@ export function LocationPicker({ locations, value, onChange, onPickStoreNumber }
       return;
     }
     if (!markerRef.current) {
-      const marker = new maplibregl.Marker({ draggable: true, color: "#e11d48" }).setLngLat([value.lng, value.lat]).addTo(map);
+      const marker = new maplibregl.Marker({ draggable: true, color: PICKER_COLORS.pin }).setLngLat([value.lng, value.lat]).addTo(map);
       marker.on("dragend", () => {
         const p = marker.getLngLat();
         onChangeRef.current({ lat: p.lat, lng: p.lng });
@@ -138,5 +139,5 @@ export function LocationPicker({ locations, value, onChange, onPickStoreNumber }
     map.easeTo({ center: [value.lng, value.lat], duration: 300 });
   }, [value]);
 
-  return <div ref={containerRef} className="h-80 w-full overflow-hidden rounded-xl border border-slate-200" />;
+  return <div ref={containerRef} className="h-80 w-full overflow-hidden rounded-card ring-1 ring-line" />;
 }

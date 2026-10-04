@@ -2,9 +2,8 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient as createServerClient } from "@/utils/supabase/server";
-import { requireSameOrigin } from "@/lib/security/requestGuards";
-import { enforceRateLimit, getClientIp } from "@/lib/security/rateLimit";
 import { requireAdminApi } from "@/lib/auth/requireAdminApi";
+import { guardAdminShopWrite, UUID_RE } from "@/lib/admin/shopApiGuard";
 import { logAdminAudit } from "@/lib/audit/logAdminAudit";
 import { parseShopLocation } from "@/lib/admin/shopLocation";
 import { createMapLayoutSnapshot } from "@/app/api/admin/map-layout/_shared";
@@ -12,8 +11,6 @@ import { revalidatePublicShops } from "@/app/(public)/map/services/shopCache";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 type LocationRow = { id: string; store_number: number; latitude: number; longitude: number };
 
@@ -64,30 +61,11 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
  */
 export async function PUT(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const originCheck = requireSameOrigin(request);
-    if (!originCheck.ok) return originCheck.response;
+    const guard = await guardAdminShopWrite(request, params, { bucket: "admin-shop-location", limit: 120, json: true });
+    if ("error" in guard) return guard.error;
+    const { user, role, adminClient, ip, id } = guard.ctx;
 
-    const rateLimited = await enforceRateLimit(request, {
-      bucket: "admin-shop-location",
-      limit: 120,
-      windowMs: 10 * 60 * 1000,
-    });
-    if (rateLimited) return rateLimited;
-
-    const auth = await requireAdminApi();
-    if ("error" in auth) return auth.error;
-    const { user, role, adminClient } = auth;
-
-    const { id } = await params;
-    if (!UUID_RE.test(id)) return NextResponse.json({ error: "Invalid id" }, { status: 400 });
-
-    let body: unknown;
-    try {
-      body = await request.json();
-    } catch {
-      return NextResponse.json({ error: "リクエストの形が正しくありません" }, { status: 400 });
-    }
-    const parsed = parseShopLocation(body);
+    const parsed = parseShopLocation(guard.body);
     if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 });
     const { storeNumber, lat, lng, force } = parsed.value;
 
@@ -131,35 +109,23 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
     const supabase = createServerClient(await cookies());
     await createMapLayoutSnapshot(supabase, adminClient as unknown as SupabaseClient, user.id, { updatedShopCount: 1 });
 
-    let locationId = existing?.id as string | undefined;
-    if (locationId) {
-      const { error } = await adminClient
-        .from("market_locations")
-        .update({ latitude: lat, longitude: lng })
-        .eq("id", locationId);
-      if (error) return NextResponse.json({ error: "位置を保存できませんでした" }, { status: 500 });
-    } else {
-      const { data, error } = await adminClient
-        .from("market_locations")
-        .insert({ store_number: storeNumber, latitude: lat, longitude: lng })
-        .select("id")
-        .single();
-      if (error || !data) return NextResponse.json({ error: "位置を保存できませんでした" }, { status: 500 });
-      locationId = data.id;
+    // 区画の作成・更新と割り当ての入れ替えは、DB 関数で 1 トランザクションにする
+    const { data: placed, error: placeError } = await adminClient.rpc("admin_place_shop", {
+      p_vendor_id: id,
+      p_store_number: storeNumber,
+      p_lat: lat,
+      p_lng: lng,
+      p_force: force,
+    });
+    if (placeError) return NextResponse.json({ error: "位置を保存できませんでした" }, { status: 500 });
+    // 確認のあとに、別の運営が先に置いたとき
+    if ((placed as { status?: string } | null)?.status === "taken") {
+      return NextResponse.json(
+        { error: `店番 ${storeNumber} は別の店舗が使っています`, code: "STORE_NUMBER_TAKEN", occupantName: null },
+        { status: 409 },
+      );
     }
 
-    // この店舗の以前の店番と、この店番の以前の持ち主（force のとき）を外してから置く
-    const { error: clearVendorError } = await adminClient.from("location_assignments").delete().eq("vendor_id", id);
-    const { error: clearLocationError } = await adminClient.from("location_assignments").delete().eq("location_id", locationId!);
-    if (clearVendorError || clearLocationError) {
-      return NextResponse.json({ error: "店番の割り当てを更新できませんでした" }, { status: 500 });
-    }
-    const { error: assignError } = await adminClient
-      .from("location_assignments")
-      .insert({ location_id: locationId!, vendor_id: id, market_date: new Date().toISOString().slice(0, 10) });
-    if (assignError) return NextResponse.json({ error: "店番の割り当てを保存できませんでした" }, { status: 500 });
-
-    const ip = getClientIp(request);
     await logAdminAudit(
       adminClient,
       { id: user.id, email: user.email, role },
@@ -169,7 +135,7 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
         targetId: id,
         targetName: (vendor.shop_name ?? id).slice(0, 500),
         details: `店番 ${storeNumber} に配置（${lat.toFixed(6)}, ${lng.toFixed(6)}）${force ? " / 別の店舗の割り当てを上書き" : ""}`,
-        ipAddress: ip !== "unknown" ? ip : null,
+        ipAddress: ip,
       },
     );
 

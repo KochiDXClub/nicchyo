@@ -249,29 +249,3 @@ export function parseShopEdit(body: unknown): ShopEditResult {
   return { ok: true, value: { vendor, ownerName } };
 }
 
-/** GET /api/admin/shops/[id] が返す店舗 1 件（閲覧・代理編集の画面で共有する） */
-export type AdminShopDetail = {
-  id: string;
-  shop_name: string;
-  category_id: string | null;
-  category_name: string | null;
-  style: string | null;
-  strength: string | null;
-  main_products: string[] | null;
-  main_product_prices: Record<string, number | null> | null;
-  payment_methods: string[] | null;
-  rain_policy: string | null;
-  sns_instagram: string | null;
-  sns_x: string | null;
-  sns_hp: string | null;
-  business_hours_start: string | null;
-  business_hours_end: string | null;
-  shop_image_url: string | null;
-  listing_status: ListingStatus;
-  photo_use_allowed: boolean;
-  listing_consented_on: string | null;
-  listing_consent_note: string | null;
-  owner_name: string | null;
-  store_number: number | null;
-  updated_at: string | null;
-};
