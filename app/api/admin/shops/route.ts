@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { requireAdminApi } from "@/lib/auth/requireAdminApi";
 import { listAllAuthUsers } from "@/lib/auth/listAllUsers";
 import { loadShopAccountLinks } from "@/lib/admin/shopAccounts.server";
+import type { ListingStatus } from "@/lib/admin/shopEdit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -14,6 +15,8 @@ export type AdminShop = {
   owner: string;
   email: string;
   status: "active" | "suspended";
+  /** 掲載許可（pending=未取得 / allowed=許可済み / declined=断られた） */
+  listingStatus: ListingStatus;
   registeredDate: string;
 };
 
@@ -37,7 +40,7 @@ export async function GET() {
     // vendors + categories を取得
     const { data: vendorsData, error: vendorsError } = await serviceClient
       .from("vendors")
-      .select("id, shop_name, created_at, categories(name)");
+      .select("id, shop_name, created_at, listing_status, categories(name)");
 
     if (vendorsError) {
       return NextResponse.json({ error: "Failed to fetch vendors" }, { status: 500 });
@@ -100,6 +103,7 @@ export async function GET() {
           (ownerAccountId ? "-" : "未紐づけ"),
         email: authUser?.email ?? "-",
         status: isSuspended ? "suspended" : "active",
+        listingStatus: vendor.listing_status as ListingStatus,
         registeredDate: formatDate(authUser?.created_at ?? vendor.created_at),
       };
     });
