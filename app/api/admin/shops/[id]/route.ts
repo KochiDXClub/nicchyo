@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
-import { requireSameOrigin } from "@/lib/security/requestGuards";
-import { enforceRateLimit, getClientIp } from "@/lib/security/rateLimit";
 import { requireAdminApi } from "@/lib/auth/requireAdminApi";
+import { guardAdminShopWrite, UUID_RE } from "@/lib/admin/shopApiGuard";
 import { logAdminAudit } from "@/lib/audit/logAdminAudit";
 import { parseShopEdit } from "@/lib/admin/shopEdit";
 import { isEndAfterStart } from "@/lib/vendor/businessHours";
@@ -9,8 +8,6 @@ import { revalidatePublicShops } from "@/app/(public)/map/services/shopCache";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 // select の列は文字列リテラルで渡す（連結すると、Supabase の型推論が効かなくなる）
 const DETAIL_COLUMNS =
@@ -64,20 +61,10 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
 /** 運営の代理編集。送られた項目だけを更新する（掲載許可の記録もここ） */
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const originCheck = requireSameOrigin(request);
-    if (!originCheck.ok) return originCheck.response;
-
     // 現地で何度も保存するので、バルク操作より緩め
-    const rateLimited = await enforceRateLimit(request, {
-      bucket: "admin-shop-edit",
-      limit: 120,
-      windowMs: 10 * 60 * 1000,
-    });
-    if (rateLimited) return rateLimited;
-
-    const auth = await requireAdminApi();
-    if ("error" in auth) return auth.error;
-    const { user, role, adminClient } = auth;
+    const guard = await guardAdminShopWrite(request, { bucket: "admin-shop-edit", limit: 120 });
+    if ("error" in guard) return guard.error;
+    const { user, role, adminClient, ip } = guard.ctx;
 
     const { id } = await params;
     if (!UUID_RE.test(id)) return NextResponse.json({ error: "Invalid id" }, { status: 400 });
@@ -95,7 +82,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
     const { data: current, error: currentError } = await adminClient
       .from("vendors")
-      .select("shop_name, listing_status, listing_consented_on, business_hours_start, business_hours_end")
+      .select("shop_name, listing_status, listing_consented_on, business_hours_start, business_hours_end, updated_at")
       .eq("id", id)
       .maybeSingle();
     if (currentError) return NextResponse.json({ error: "店舗を取得できませんでした" }, { status: 500 });
@@ -120,12 +107,24 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       update.listing_consented_on = new Date().toISOString().slice(0, 10);
     }
 
+    // 画面を開いたあとに、ほかの運営（や出店者）が更新していたら、上書きせずに断る。
+    // 全項目を送るので、気づかずに相手の許可状態やメモを戻してしまうのを防ぐ
+    const expectedUpdatedAt =
+      typeof (body as { updated_at?: unknown }).updated_at === "string" ? (body as { updated_at: string }).updated_at : null;
+    const conflict = NextResponse.json(
+      { error: "ほかの人が先にこの店舗を更新しました。開き直して、最新の内容で入れ直してください", code: "STALE" },
+      { status: 409 },
+    );
+
     if (Object.keys(update).length > 0) {
-      const { error } = await adminClient
+      let query = adminClient
         .from("vendors")
         .update({ ...update, updated_at: new Date().toISOString() })
         .eq("id", id);
+      if (expectedUpdatedAt && current.updated_at) query = query.eq("updated_at", expectedUpdatedAt);
+      const { data: updated, error } = await query.select("id");
       if (error) return NextResponse.json({ error: "保存できませんでした" }, { status: 500 });
+      if (!updated || updated.length === 0) return conflict;
     }
 
     if (ownerName !== undefined) {
@@ -136,7 +135,6 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       if (error) return NextResponse.json({ error: "店主名を保存できませんでした" }, { status: 500 });
     }
 
-    const ip = getClientIp(request);
     const changed = [...Object.keys(update), ...(ownerName !== undefined ? ["owner_name"] : [])];
     // 許可の変更は経緯を追えるよう、前後の値を残す。メモの中身は残さない（個人情報を含みうる）
     const consentChange =
@@ -152,7 +150,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
         targetId: id,
         targetName: (update.shop_name ?? current.shop_name ?? id).slice(0, 500),
         details: [`代理編集: ${changed.join(", ")}`, consentChange].filter(Boolean).join(" / "),
-        ipAddress: ip !== "unknown" ? ip : null,
+        ipAddress: ip,
       },
     );
 

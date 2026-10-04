@@ -7,8 +7,9 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { AdminLayout, AdminPageHeader, ErrorBoundary } from "@/components/admin";
-import type { AdminShopDetail } from "@/lib/admin/shopEdit";
 import { PAYMENT_OPTIONS, RAIN_OPTIONS } from "@/lib/vendor/storeOptions";
+import type { AdminShopDetail } from "@/lib/admin/shopEdit";
+import { Surface, buttonClass } from "@/components/ui";
 import { ListingStatusBadge } from "../ListingStatusBadge";
 
 
@@ -16,25 +17,25 @@ const EMPTY = "未入力";
 
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="grid grid-cols-[7rem_1fr] gap-3 border-b border-slate-100 py-3 last:border-b-0 sm:grid-cols-[10rem_1fr]">
-      <dt className="text-[13px] text-slate-500">{label}</dt>
-      <dd className="min-w-0 break-words text-sm text-slate-900">{children}</dd>
+    <div className="grid grid-cols-[7rem_1fr] gap-3 border-b border-line py-3 last:border-b-0 sm:grid-cols-[10rem_1fr]">
+      <dt className="text-[13px] text-nicchyo-ink/55">{label}</dt>
+      <dd className="min-w-0 break-words text-sm text-nicchyo-ink">{children}</dd>
     </div>
   );
 }
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
-      <h2 className="mb-1 text-sm font-semibold text-slate-700">{title}</h2>
+    <Surface as="section" padding="sm">
+      <h2 className="mb-1 text-sm font-semibold text-nicchyo-ink/70">{title}</h2>
       <dl>{children}</dl>
-    </section>
+    </Surface>
   );
 }
 
-const orEmpty = (value: string | null | undefined) => (value ? value : <span className="text-slate-400">{EMPTY}</span>);
+const orEmpty = (value: string | null | undefined) => (value ? value : <span className="text-nicchyo-ink/40">{EMPTY}</span>);
 
-function AdminAdminShopDetailContent() {
+function AdminShopDetailContent() {
   const { permissions, isLoading } = useAuth();
   const router = useRouter();
   const { id } = useParams<{ id: string }>();
@@ -79,7 +80,7 @@ function AdminAdminShopDetailContent() {
         title={shop?.shop_name ?? "店舗の詳細"}
         description="店舗の登録内容を確認できます（閲覧のみ）"
         actions={
-          <Link href="/admin/shops" className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 hover:bg-slate-50">
+          <Link href="/admin/shops" className={buttonClass({ variant: "quiet", size: "sm" })}>
             一覧へ
           </Link>
         }
@@ -90,14 +91,14 @@ function AdminAdminShopDetailContent() {
             {error}
           </p>
         ) : !shop ? (
-          <p className="text-sm text-slate-500">読み込み中…</p>
+          <p className="text-sm text-nicchyo-ink/55">読み込み中…</p>
         ) : (
           <>
             <Section title="掲載の許可">
               <Row label="掲載許可">
                 <ListingStatusBadge status={shop.listing_status} />
                 {shop.listing_status !== "allowed" ? (
-                  <span className="ml-2 text-[13px] text-slate-500">来訪者には表示されません</span>
+                  <span className="ml-2 text-[13px] text-nicchyo-ink/55">来訪者には表示されません</span>
                 ) : null}
               </Row>
               <Row label="写真の使用">{shop.photo_use_allowed ? "許可あり" : "許可なし（未確認を含む）"}</Row>
@@ -107,7 +108,7 @@ function AdminAdminShopDetailContent() {
 
             <Section title="基本情報">
               <Row label="店名">{shop.shop_name}</Row>
-              <Row label="店番">{shop.store_number != null ? `${shop.store_number} 番` : <span className="text-slate-400">位置が未登録</span>}</Row>
+              <Row label="店番">{shop.store_number != null ? `${shop.store_number} 番` : <span className="text-nicchyo-ink/40">位置が未登録</span>}</Row>
               <Row label="カテゴリ">{orEmpty(shop.category_name)}</Row>
               <Row label="店主名">{orEmpty(shop.owner_name)}</Row>
               <Row label="こだわり">{orEmpty(shop.strength)}</Row>
@@ -115,9 +116,9 @@ function AdminAdminShopDetailContent() {
               <Row label="店舗写真">
                 {shop.shop_image_url ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={shop.shop_image_url} alt={`${shop.shop_name}の写真`} className="max-h-60 rounded-lg border border-slate-200" />
+                  <img src={shop.shop_image_url} alt={`${shop.shop_name}の写真`} className="max-h-60 rounded-lg ring-1 ring-line" />
                 ) : (
-                  <span className="text-slate-400">{EMPTY}</span>
+                  <span className="text-nicchyo-ink/40">{EMPTY}</span>
                 )}
               </Row>
             </Section>
@@ -125,12 +126,12 @@ function AdminAdminShopDetailContent() {
             <Section title="商品と価格">
               {products.length === 0 ? (
                 <Row label="主な商品">
-                  <span className="text-slate-400">{EMPTY}</span>
+                  <span className="text-nicchyo-ink/40">{EMPTY}</span>
                 </Row>
               ) : (
                 products.map((name) => (
                   <Row key={name} label={name}>
-                    {typeof prices[name] === "number" ? `${prices[name]!.toLocaleString()}円` : <span className="text-slate-400">価格未入力</span>}
+                    {typeof prices[name] === "number" ? `${prices[name]!.toLocaleString()}円` : <span className="text-nicchyo-ink/40">価格未入力</span>}
                   </Row>
                 ))
               )}
@@ -150,7 +151,7 @@ function AdminAdminShopDetailContent() {
               <Row label="ホームページ">{orEmpty(shop.sns_hp)}</Row>
             </Section>
 
-            <p className="text-right text-xs text-slate-400">
+            <p className="text-right text-xs text-nicchyo-ink/40">
               最終更新: {shop.updated_at ? new Date(shop.updated_at).toLocaleString("ja-JP") : "-"}
             </p>
           </>
@@ -160,10 +161,10 @@ function AdminAdminShopDetailContent() {
   );
 }
 
-export default function AdminAdminShopDetailPage() {
+export default function AdminShopDetailPage() {
   return (
     <ErrorBoundary>
-      <AdminAdminShopDetailContent />
+      <AdminShopDetailContent />
     </ErrorBoundary>
   );
 }

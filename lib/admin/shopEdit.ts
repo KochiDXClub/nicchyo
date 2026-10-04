@@ -31,7 +31,7 @@ const PAYMENT_KEYS = new Set<string>(PAYMENT_OPTIONS.map((o) => o.key));
 const RAIN_KEYS = new Set<string>([...RAIN_OPTIONS.map((o) => o.key), "tent"]);
 
 /** vendors に書く列。型は types/database.types.ts の vendors.Update のうち、運営が代理編集する列 */
-export type ShopEditUpdate = Partial<{
+type ShopEditFields = {
   shop_name: string;
   category_id: string | null;
   style: string | null;
@@ -50,7 +50,21 @@ export type ShopEditUpdate = Partial<{
   photo_use_allowed: boolean;
   listing_consented_on: string | null;
   listing_consent_note: string | null;
-}>;
+};
+
+export type ShopEditUpdate = Partial<ShopEditFields>;
+
+type Nullable<T> = { [K in keyof T]: T[K] | null };
+
+/** GET /api/admin/shops/[id] が返す店舗 1 件（閲覧・代理編集の画面で共有する）。列は ShopEditFields から導く */
+export type AdminShopDetail = Pick<ShopEditFields, "shop_name" | "listing_status" | "photo_use_allowed"> &
+  Nullable<Omit<ShopEditFields, "shop_name" | "listing_status" | "photo_use_allowed">> & {
+    id: string;
+    category_name: string | null;
+    owner_name: string | null;
+    store_number: number | null;
+    updated_at: string | null;
+  };
 
 export type ShopEditParsed = {
   vendor: ShopEditUpdate;
@@ -81,6 +95,16 @@ function isHttpUrl(value: string): boolean {
   try {
     const url = new URL(value);
     return url.protocol === "https:" || url.protocol === "http:";
+  } catch {
+    return false;
+  }
+}
+
+/** vendor-images バケットの公開 URL か（https で、Supabase Storage の公開パス） */
+export function isVendorImageUrl(value: string): boolean {
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" && url.pathname.startsWith("/storage/v1/object/public/vendor-images/");
   } catch {
     return false;
   }
@@ -184,7 +208,9 @@ export function parseShopEdit(body: unknown): ShopEditResult {
 
   if ("shop_image_url" in body) {
     const url = textOrNull(body.shop_image_url, 2000);
-    if (url === undefined || (url !== null && !isHttpUrl(url))) return fail("写真の URL が正しくありません");
+    // 来訪者の画面が読み込む URL なので、運営のアップロード先（vendor-images の公開 URL）だけを許す。
+    // 外部のホストを指すと、閲覧者の通信が外へ出る
+    if (url === undefined || (url !== null && !isVendorImageUrl(url))) return fail("写真の URL が正しくありません");
     vendor.shop_image_url = url;
   }
 

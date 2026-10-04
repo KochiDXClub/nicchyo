@@ -1,9 +1,9 @@
 import { LISTING_STATUS_LABELS, type ListingStatus } from "@/lib/admin/shopEdit";
 
 const STYLES: Record<ListingStatus, string> = {
-  allowed: "bg-green-50 text-green-700 ring-green-200",
-  pending: "bg-amber-50 text-amber-700 ring-amber-200",
-  declined: "bg-red-50 text-red-700 ring-red-200",
+  allowed: "bg-status-good-bg text-status-good-fg ring-status-good-line",
+  pending: "bg-status-warning-bg text-status-warning-fg ring-status-warning-line",
+  declined: "bg-status-critical-bg text-status-critical-fg ring-status-critical-line",
 };
 
 /** 掲載許可の状態。「許可済み」以外は来訪者に表示されないことが一覧で分かるようにする */

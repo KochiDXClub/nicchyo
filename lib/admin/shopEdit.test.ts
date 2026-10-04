@@ -55,6 +55,12 @@ describe("parseShopEdit", () => {
     });
   });
 
+  it("写真の URL は vendor-images の公開 URL だけ", () => {
+    const url = "https://x.supabase.co/storage/v1/object/public/vendor-images/a/store-main.webp";
+    expect(ok({ shop_image_url: url }).vendor.shop_image_url).toBe(url);
+    expect(ok({ shop_image_url: null }).vendor.shop_image_url).toBeNull();
+  });
+
   it("不正な値は理由つきで断る", () => {
     for (const body of [
       null,
@@ -66,6 +72,8 @@ describe("parseShopEdit", () => {
       { rain_policy: "storm" },
       { sns_hp: "javascript:alert(1)" },
       { shop_image_url: "ftp://example.com/a.png" },
+      { shop_image_url: "https://example.com/a.png" },
+      { shop_image_url: "http://x.supabase.co/storage/v1/object/public/vendor-images/a/store-main.webp" },
       { listing_status: "yes" },
       { photo_use_allowed: "true" },
       { listing_consented_on: "2026/10/11" },
