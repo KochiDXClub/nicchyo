@@ -14,7 +14,7 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 
 // select の列は文字列リテラルで渡す（連結すると、Supabase の型推論が効かなくなる）
 const DETAIL_COLUMNS =
-  "id, shop_name, category_id, style, strength, main_products, main_product_prices, payment_methods, rain_policy, sns_instagram, sns_x, sns_hp, business_hours_start, business_hours_end, shop_image_url, listing_status, photo_use_allowed, listing_consented_on, listing_consent_note, updated_at" as const;
+  "id, shop_name, category_id, categories(name), style, strength, main_products, main_product_prices, payment_methods, rain_policy, sns_instagram, sns_x, sns_hp, business_hours_start, business_hours_end, shop_image_url, listing_status, photo_use_allowed, listing_consented_on, listing_consent_note, updated_at" as const;
 
 /**
  * 運営が現地で店舗を代理編集するための、店舗 1 件の取得。
@@ -48,8 +48,16 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   const location = assignment?.market_locations as { store_number: number } | { store_number: number }[] | null | undefined;
   const storeNumber = Array.isArray(location) ? location[0]?.store_number : location?.store_number;
 
+  const { categories, ...fields } = vendor;
+  const category = Array.isArray(categories) ? categories[0] : categories;
+
   return NextResponse.json({
-    shop: { ...vendor, owner_name: owner?.owner_name ?? null, store_number: storeNumber ?? null },
+    shop: {
+      ...fields,
+      category_name: (category as { name: string | null } | null | undefined)?.name ?? null,
+      owner_name: owner?.owner_name ?? null,
+      store_number: storeNumber ?? null,
+    },
   });
 }
 
