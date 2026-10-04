@@ -62,3 +62,67 @@ create policy "operators read all vendors"
 -- 来訪者側のクエリで許可状態を確認できるように、機微でない listing_status だけ付与する。
 -- listing_consent_note / listing_consented_on / photo_use_allowed は付与しない（運営は service_role で読む）
 grant select (listing_status) on public.vendors to anon, authenticated;
+
+-- ── 掲載許可の列は、運営（service_role）だけが変えられる ─────────────────
+-- vendors の UPDATE ポリシーは has_shop_permission(id, 'store_edit') だけで、列の制限がない。
+-- 何もしないと、店舗のメンバーが PostgREST から直接、断られた店舗を 'allowed' に戻したり、
+-- 運営が記録した許可日・メモを書き換えたりできてしまう。
+create or replace function public.prevent_vendor_listing_consent_change()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+begin
+  -- 運営の API（service_role）と DB 管理者は変えられる
+  if current_user in ('service_role', 'postgres', 'supabase_admin') then
+    return new;
+  end if;
+
+  if new.listing_status is distinct from old.listing_status
+     or new.photo_use_allowed is distinct from old.photo_use_allowed
+     or new.listing_consented_on is distinct from old.listing_consented_on
+     or new.listing_consent_note is distinct from old.listing_consent_note then
+    raise exception '掲載許可の記録は運営だけが変更できます'
+      using errcode = '42501';
+  end if;
+
+  return new;
+end;
+$$;
+
+drop trigger if exists prevent_vendor_listing_consent_change on public.vendors;
+create trigger prevent_vendor_listing_consent_change
+  before update on public.vendors
+  for each row
+  execute function public.prevent_vendor_listing_consent_change();
+
+-- ── 店舗に紐づく公開テーブルも、許可のない店舗の行は読めなくする ───────────
+-- vendors だけを絞っても、anon キーで products / location_assignments などを直接読めば、
+-- 許可のない店舗の商品・店番・投稿・店主名が見えてしまう。
+-- 「その店舗の行を呼び出し元が vendors で読めるか」を条件にする（vendors の RLS をそのまま使う）。
+--   anon / 来訪者   … 許可済みの店舗だけ
+--   店舗のメンバー … 自分の店舗も（vendors の "members read own vendor"）
+--   運営           … すべて（vendors の "operators read all vendors"）
+-- market_locations は店舗の情報ではなく区画（店番と座標）なので、公開のまま。
+drop policy if exists "public can read products" on public.products;
+create policy "public can read listed products"
+  on public.products for select
+  using (vendor_id in (select id from public.vendors));
+
+drop policy if exists "public read assignments" on public.location_assignments;
+create policy "public read listed assignments"
+  on public.location_assignments for select
+  using (vendor_id in (select id from public.vendors));
+
+drop policy if exists "public can read product_sales" on public.product_sales;
+create policy "public can read listed product_sales"
+  on public.product_sales for select
+  using (vendor_id in (select id from public.vendors));
+
+alter policy "public can read active contents"
+  on public.vendor_contents
+  using (expires_at > now() and status = 'active' and vendor_id in (select id from public.vendors));
+
+alter policy "public read published owner names"
+  on public.vendor_owner_profiles
+  using (is_public = true and vendor_id in (select id from public.vendors));
