@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { projectOntoRoad } from "@/lib/map/roadSlotPosition";
+import { EDITOR_COLORS } from "../editorTheme";
 import { CHOME_ORDER, type EditableRoad, type EditableShop } from "../types";
 
 export type Side = "north" | "south";
@@ -73,18 +74,20 @@ export function buildLaneRoadGroups(
 export default function RoadLaneView({
   groups,
   selectedLocationId,
-  isPickingTarget,
   search,
   onSelectShop,
+  onDropVendor,
 }: {
   groups: LaneRoadGroup[];
   selectedLocationId: string | null;
-  /** 出店者の移動先を選んでいる最中か（空き区画を移動先として強調する） */
-  isPickingTarget: boolean;
   search: string;
   onSelectShop: (locationId: string) => void;
+  /** 出店者のいるセルを別のセルへドラッグしたとき（移動先に出店者がいれば入れ替え） */
+  onDropVendor: (fromLocationId: string, toLocationId: string) => void;
 }) {
   const cellRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+  const [dragFromId, setDragFromId] = useState<string | null>(null);
+  const [dropTargetId, setDropTargetId] = useState<string | null>(null);
   const q = search.trim().toLowerCase();
 
   useEffect(() => {
@@ -107,7 +110,8 @@ export default function RoadLaneView({
     const { shop } = item;
     const isSelected = selectedLocationId === shop.locationId;
     const match = !q || String(shop.position).includes(q) || shop.name.toLowerCase().includes(q);
-    const targetable = isPickingTarget && !shop.vendorId;
+    const targetable = !!dragFromId && dragFromId !== shop.locationId;
+    const isDropTarget = targetable && dropTargetId === shop.locationId;
 
     return (
       <div
@@ -117,6 +121,33 @@ export default function RoadLaneView({
           else cellRefs.current.delete(shop.locationId);
         }}
         onClick={() => onSelectShop(shop.locationId)}
+        draggable={!!shop.vendorId}
+        title={shop.vendorId ? "ドラッグして別の区画へ移せます（出店者がいれば入れ替え）" : undefined}
+        onDragStart={(e) => {
+          e.dataTransfer.setData("text/plain", shop.locationId);
+          e.dataTransfer.effectAllowed = "move";
+          setDragFromId(shop.locationId);
+        }}
+        onDragEnd={() => {
+          setDragFromId(null);
+          setDropTargetId(null);
+        }}
+        onDragOver={(e) => {
+          if (!dragFromId || dragFromId === shop.locationId) return;
+          e.preventDefault();
+          e.dataTransfer.dropEffect = "move";
+          if (dropTargetId !== shop.locationId) setDropTargetId(shop.locationId);
+        }}
+        onDragLeave={() => {
+          if (dropTargetId === shop.locationId) setDropTargetId(null);
+        }}
+        onDrop={(e) => {
+          e.preventDefault();
+          const from = e.dataTransfer.getData("text/plain") || dragFromId;
+          setDragFromId(null);
+          setDropTargetId(null);
+          if (from && from !== shop.locationId) onDropVendor(from, shop.locationId);
+        }}
         style={{
           width: 64,
           height: 44,
@@ -127,8 +158,9 @@ export default function RoadLaneView({
           alignItems: "center",
           justifyContent: "center",
           gap: 1,
-          cursor: "pointer",
-          opacity: match ? 1 : 0.25,
+          cursor: shop.vendorId ? "grab" : "pointer",
+          opacity: match || targetable ? 1 : 0.25,
+          outline: isDropTarget ? `3px solid ${EDITOR_COLORS.accentBorder}` : undefined,
           background: isSelected ? "#92400E" : shop.vendorId ? "#FFF3DA" : targetable ? "#FFFDF7" : "#F5F1E6",
           border: isSelected
             ? "2px solid #92400E"

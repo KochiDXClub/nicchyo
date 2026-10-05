@@ -16,6 +16,11 @@ export const EDITOR_COLORS = {
   surface: "#ffffff",
   /** 保存していない変更がある要素の印 */
   unsaved: "#2563EB",
+  /** 地図上の区画: 空き（グレー）と出店者あり（ピン） */
+  vacantSlot: "#CFC8B8",
+  vacantSlotStroke: "#8C8471",
+  occupiedSlot: "#D97706",
+  selectedSlot: "#B45309",
   /** 区画分けのプレビュー: 新しく作る区画・動く区画・消す区画 */
   previewCreate: "#16A34A",
   previewMove: "#D97706",
