@@ -5,6 +5,7 @@
  * 運営の代理編集は、現地で出店者から聞いた内容を入れるので、サーバー側（service_role）で
  * 受け取った値を検証してから書く。送られてきた項目だけを更新する（未指定の項目は触らない）。
  */
+import { todayJstString } from "@/lib/time/jstDate";
 import { isEndAfterStart, parseTime } from "@/lib/vendor/businessHours";
 import { PAYMENT_OPTIONS, RAIN_OPTIONS } from "@/lib/vendor/storeOptions";
 
@@ -100,14 +101,38 @@ function isHttpUrl(value: string): boolean {
   }
 }
 
-/** vendor-images バケットの公開 URL か（https で、Supabase Storage の公開パス） */
+/**
+ * vendor-images バケットの公開 URL か。
+ * https で、ホストがこのアプリの Supabase（NEXT_PUBLIC_SUPABASE_URL）と同じで、パスが vendor-images の公開パスのとき。
+ * パスだけを見ると、別のホストの同じパスの URL が通ってしまい、来訪者の通信が外へ出る
+ */
 export function isVendorImageUrl(value: string): boolean {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  if (!supabaseUrl) return false;
   try {
     const url = new URL(value);
-    return url.protocol === "https:" && url.pathname.startsWith("/storage/v1/object/public/vendor-images/");
+    return (
+      url.protocol === "https:" &&
+      url.host === new URL(supabaseUrl).host &&
+      url.pathname.startsWith("/storage/v1/object/public/vendor-images/")
+    );
   } catch {
     return false;
   }
+}
+
+/**
+ * 「許可済み」にするとき、許可をもらった日が未記録なら今日（日本時間）にする。
+ * 記録済みの日付は上書きしない。UTC の日付だと、日本時間の 0〜9 時（日曜市の朝）に前日になる。
+ */
+export function consentDateOnAllow(
+  update: { listing_status?: ListingStatus; listing_consented_on?: string | null },
+  currentConsentedOn: string | null,
+  now: Date = new Date(),
+): string | undefined {
+  if (update.listing_status !== "allowed") return undefined;
+  if (update.listing_consented_on !== undefined || currentConsentedOn) return undefined;
+  return todayJstString(now);
 }
 
 export function parseShopEdit(body: unknown): ShopEditResult {

@@ -101,7 +101,10 @@ function AdminShopDetailContent() {
                   <span className="ml-2 text-[13px] text-nicchyo-ink/55">来訪者には表示されません</span>
                 ) : null}
               </Row>
-              <Row label="写真の使用">{shop.photo_use_allowed ? "許可あり" : "許可なし（未確認を含む）"}</Row>
+              <Row label="写真の使用">
+                {shop.photo_use_allowed ? "許可あり" : "許可なし（未確認を含む）"}
+                <span className="mt-1 block text-[13px] text-nicchyo-ink/55">記録のみです。すでにある写真が来訪者に表示されるかどうかには使われていません。</span>
+              </Row>
               <Row label="許可をもらった日">{orEmpty(shop.listing_consented_on)}</Row>
               <Row label="許可のメモ">{orEmpty(shop.listing_consent_note)}</Row>
             </Section>

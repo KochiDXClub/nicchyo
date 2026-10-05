@@ -44,12 +44,14 @@ create policy "public read allowed vendors"
   to anon, authenticated
   using (listing_status = 'allowed');
 
--- 許可前の店舗でも、その店舗のメンバーは自分の店舗を読める（編集画面のため）。
--- has_shop_permission は anon に実行権限がないので、anon 用のポリシーとは分ける
+-- 許可前の店舗でも、その店舗のメンバーは自分の店舗を読める（編集画面・近況投稿などのため）。
+-- 権限（store_edit など）は書き込みの判定で、読むだけなら、店舗のメンバーであれば足りる。
+-- （store_edit のないメンバー、たとえば post だけの人も、自分の店舗の行は読める）
+-- is_shop_member は anon に実行権限がないので、anon 用のポリシーとは分ける
 create policy "members read own vendor"
   on public.vendors for select
   to authenticated
-  using (public.has_shop_permission(id, 'store_edit'));
+  using (public.is_shop_member(id));
 
 -- 運営は許可の有無にかかわらず読める（service_role は RLS を通らないので、これは anon キーで
 -- ログインした運営のため）
