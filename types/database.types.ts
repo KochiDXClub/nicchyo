@@ -223,6 +223,122 @@ export type Database = {
         }
         Relationships: []
       }
+      chome_boundaries: {
+        Row: {
+          confidence: string
+          id: string
+          latitude: number
+          longitude: number
+          name: string
+          sort_order: number
+        }
+        Insert: {
+          confidence?: string
+          id: string
+          latitude: number
+          longitude: number
+          name: string
+          sort_order: number
+        }
+        Update: {
+          confidence?: string
+          id?: string
+          latitude?: number
+          longitude?: number
+          name?: string
+          sort_order?: number
+        }
+        Relationships: []
+      }
+      chome_sections: {
+        Row: {
+          chome_id: number
+          from_boundary_id: string | null
+          road_id: string
+          to_boundary_id: string | null
+        }
+        Insert: {
+          chome_id: number
+          from_boundary_id?: string | null
+          road_id: string
+          to_boundary_id?: string | null
+        }
+        Update: {
+          chome_id?: number
+          from_boundary_id?: string | null
+          road_id?: string
+          to_boundary_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chome_sections_chome_id_fkey"
+            columns: ["chome_id"]
+            isOneToOne: true
+            referencedRelation: "chomes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chome_sections_from_boundary_id_fkey"
+            columns: ["from_boundary_id"]
+            isOneToOne: false
+            referencedRelation: "chome_boundaries"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chome_sections_road_id_fkey"
+            columns: ["road_id"]
+            isOneToOne: false
+            referencedRelation: "map_roads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chome_sections_to_boundary_id_fkey"
+            columns: ["to_boundary_id"]
+            isOneToOne: false
+            referencedRelation: "chome_boundaries"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      chomes: {
+        Row: {
+          color: string
+          east_boundary: string | null
+          id: number
+          name: string
+          ref_number_max: number | null
+          ref_number_min: number | null
+          road_name: string
+          short_name: string
+          sort_order: number
+          west_boundary: string | null
+        }
+        Insert: {
+          color: string
+          east_boundary?: string | null
+          id: number
+          name: string
+          ref_number_max?: number | null
+          ref_number_min?: number | null
+          road_name: string
+          short_name: string
+          sort_order: number
+          west_boundary?: string | null
+        }
+        Update: {
+          color?: string
+          east_boundary?: string | null
+          id?: number
+          name?: string
+          ref_number_max?: number | null
+          ref_number_min?: number | null
+          road_name?: string
+          short_name?: string
+          sort_order?: number
+          west_boundary?: string | null
+        }
+        Relationships: []
+      }
       content_reactions: {
         Row: {
           created_at: string
@@ -705,6 +821,8 @@ export type Database = {
       market_locations: {
         Row: {
           branch_number: number | null
+          chome_id: number | null
+          chome_locked: boolean
           created_at: string | null
           district: string | null
           id: string
@@ -719,6 +837,8 @@ export type Database = {
         }
         Insert: {
           branch_number?: number | null
+          chome_id?: number | null
+          chome_locked?: boolean
           created_at?: string | null
           district?: string | null
           id?: string
@@ -733,6 +853,8 @@ export type Database = {
         }
         Update: {
           branch_number?: number | null
+          chome_id?: number | null
+          chome_locked?: boolean
           created_at?: string | null
           district?: string | null
           id?: string
@@ -746,6 +868,13 @@ export type Database = {
           store_number?: number
         }
         Relationships: [
+          {
+            foreignKeyName: "market_locations_chome_id_fkey"
+            columns: ["chome_id"]
+            isOneToOne: false
+            referencedRelation: "chomes"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "market_locations_road_id_fkey"
             columns: ["road_id"]

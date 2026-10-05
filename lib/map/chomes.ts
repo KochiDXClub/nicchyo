@@ -50,6 +50,13 @@ export function normalizeChomeId(value: string | null | undefined): ChomeId | nu
   return Number.isInteger(n) && n >= 1 && n <= 7 ? (n as ChomeId) : null;
 }
 
+/** 区画の district（market_locations.district）に入っている表記。DB と画面の既存の値 */
+export const CHOME_LEGACY_LABELS = ["一丁目", "二丁目", "三丁目", "四丁目", "五丁目", "六丁目", "七丁目"] as const;
+
+export function legacyChomeLabel(id: ChomeId): (typeof CHOME_LEGACY_LABELS)[number] {
+  return CHOME_LEGACY_LABELS[id - 1];
+}
+
 export function getChome(id: number | null | undefined): Chome | null {
   return CHOMES.find((chome) => chome.id === id) ?? null;
 }

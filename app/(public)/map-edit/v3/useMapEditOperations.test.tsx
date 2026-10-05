@@ -5,6 +5,7 @@ import { DEFAULT_MAP_ROUTE_CONFIG } from "../../map/types/mapRoute";
 import { EMPTY_HISTORY, type EditHistory } from "./editHistory";
 import { planRoadSlots } from "./slotSplitPlan";
 import { DEFAULT_SLOT_OFFSET_M, useMapEditOperations } from "./useMapEditOperations";
+import type { JudgeChome } from "./useChomeJudge";
 import type { EditableLandmark, EditableRoad, EditableShop, EditableVendor } from "./types";
 
 const road: EditableRoad = {
@@ -33,7 +34,12 @@ const slot = (position: number, distanceM: number, extra: Partial<EditableShop> 
   ...extra,
 });
 
-function setup(initialShops: EditableShop[], maxUnassigned = 300, initialVendors: EditableVendor[] = []) {
+function setup(
+  initialShops: EditableShop[],
+  maxUnassigned = 300,
+  initialVendors: EditableVendor[] = [],
+  judgeChome?: JudgeChome
+) {
   const setMessage = vi.fn();
   const hook = renderHook(() => {
     const [history, setHistory] = useState<EditHistory>(EMPTY_HISTORY);
@@ -54,6 +60,7 @@ function setup(initialShops: EditableShop[], maxUnassigned = 300, initialVendors
       setVendors,
       routeConfig: DEFAULT_MAP_ROUTE_CONFIG,
       mapSettingsLimits: { maxLandmarks: 80, maxUnassignedShopMarkers: maxUnassigned },
+      judgeChome,
       setMessage,
     });
     return { ops, shops, vendors, history };
@@ -181,5 +188,63 @@ describe("useMapEditOperations の出店者操作", () => {
     act(() => hook.result.current.ops.clearVendor("loc-1"));
     expect(hook.result.current.shops[0].vendorId).toBeUndefined();
     expect(hook.result.current.vendors).toHaveLength(1);
+  });
+});
+
+describe("丁目の自動判定", () => {
+  const plan3 = () => planRoadSlots(250, settings, []);
+
+  it("区画分けで置いた区画は、道の位置から判定した丁目になる（近くの区画に合わせない）", () => {
+    const judge: JudgeChome = (_roadId, distanceM) => ({ status: "ok", chomeId: distanceM < 20 ? 3 : 4 });
+    const { hook } = setup([slot(1, 5, { chome: "一丁目" })], 300, [], judge);
+    act(() => {
+      hook.result.current.ops.applySlotPlan(road, planRoadSlots(250, settings, [{ locationId: "loc-1", side: "left", distanceM: 5, hasVendor: false }]));
+    });
+    const created = hook.result.current.shops.filter((s) => s.locationId.startsWith("new-"));
+    expect(created.map((s) => s.chome)).toEqual(["三丁目", "四丁目"]);
+  });
+
+  it("境目のすぐ上の区画は丁目を空けて、知らせる", () => {
+    const judge: JudgeChome = () => ({ status: "near_boundary", chomeId: null, candidates: [3, 4] });
+    const { hook, setMessage } = setup([], 300, [], judge);
+    act(() => {
+      hook.result.current.ops.applySlotPlan(road, plan3());
+    });
+    expect(hook.result.current.shops.every((s) => s.chome === undefined)).toBe(true);
+    expect(setMessage).toHaveBeenCalledWith(expect.stringContaining("境目のすぐ上"));
+  });
+
+  it("判定の対象外（境目の設定が無い）ときは、従来どおり近くの区画の丁目に合わせる", () => {
+    const judge: JudgeChome = () => ({ status: "outside", chomeId: null });
+    const { hook } = setup([slot(1, 5, { chome: "二丁目" })], 300, [], judge);
+    act(() => {
+      hook.result.current.ops.applySlotPlan(road, planRoadSlots(250, settings, [{ locationId: "loc-1", side: "left", distanceM: 5, hasVendor: false }]));
+    });
+    expect(hook.result.current.shops.filter((s) => s.locationId.startsWith("new-")).every((s) => s.chome === "二丁目")).toBe(true);
+  });
+});
+
+describe("useMapEditOperations.setSlotChome", () => {
+  it("丁目を選ぶと手動設定になり、取り消せる", () => {
+    const { hook } = setup([slot(1, 5, { chome: "一丁目" })]);
+    act(() => hook.result.current.ops.setSlotChome("loc-1", 2));
+    expect(hook.result.current.shops[0]).toMatchObject({ chome: "二丁目", chomeLocked: true });
+    act(() => hook.result.current.ops.undo());
+    expect(hook.result.current.shops[0]).toMatchObject({ chome: "一丁目" });
+    expect(hook.result.current.shops[0].chomeLocked).toBeUndefined();
+  });
+
+  it("「自動」に戻すと手動設定を外し、道の位置から決め直す（保存で false を送る）", () => {
+    const judge: JudgeChome = () => ({ status: "ok", chomeId: 5 });
+    const { hook } = setup([slot(1, 5, { chome: "二丁目", chomeLocked: true })], 300, [], judge);
+    act(() => hook.result.current.ops.setSlotChome("loc-1", "auto"));
+    expect(hook.result.current.shops[0]).toMatchObject({ chome: "五丁目", chomeLocked: false });
+  });
+
+  it("「自動」でも判定できなければ、今の丁目を残して手動設定だけ外す", () => {
+    const judge: JudgeChome = () => ({ status: "near_boundary", chomeId: null, candidates: [1, 2] });
+    const { hook } = setup([slot(1, 5, { chome: "二丁目", chomeLocked: true })], 300, [], judge);
+    act(() => hook.result.current.ops.setSlotChome("loc-1", "auto"));
+    expect(hook.result.current.shops[0]).toMatchObject({ chome: "二丁目", chomeLocked: false });
   });
 });
