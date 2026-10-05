@@ -102,10 +102,27 @@ describe("planStoreImport", () => {
     expect(result.warnings.some((w) => w.line === 4 && w.message.includes("六丁目"))).toBe(true);
   });
 
-  it("大橋通りの道が無ければ、その行を取り込めない理由として出す", () => {
-    const result = plan(csv(["701,,七丁目,大橋通り,,,"]), { roads: { ohashi: null } });
+  it("大橋通りの道がまだ無ければ、大橋通りの行だけを飛ばして、ほかの行は取り込む", () => {
+    const result = plan(csv(["701,,七丁目,大橋通り,,,", "101,,一丁目,北,,,"]), { roads: { ohashi: null } });
+    expect(result.errors).toEqual([]);
+    expect(result).toMatchObject({ rowCount: 1, skippedRowCount: 1, createdSlotCount: 1 });
+    expect(result.next!.shops.map((s) => s.officialNumber)).toEqual([101]);
+    expect(result.warnings.find((w) => w.line === 2)?.message).toContain("大橋通りの道がまだ無い");
+  });
+
+  it("飛ばした行と同じ番号の区画は、「CSVに無い区画を削除」でも消さない", () => {
+    const ohashiSlot: EditableShop = { locationId: "o", id: 9, position: 9, name: "苗", lat: 0, lng: 0, officialNumber: 701 };
+    // 区画がすでにあれば飛ばさずに出店者だけ更新するので、ここでは別の番号の区画で確かめる
+    const other: EditableShop = { locationId: "x", id: 8, position: 8, name: "x", lat: 0, lng: 0, officialNumber: 999 };
+    const result = plan(csv(["702,,七丁目,大橋通り,,,", "701,,七丁目,大橋通り,,,"]), { shops: [ohashiSlot, other], roads: { ohashi: null }, replace: true });
+    expect(result.next!.shops.map((s) => s.locationId)).toEqual(["o"]);
+    expect(result.skippedRowCount).toBe(1);
+  });
+
+  it("追手筋の道が無ければ、北・南の行は取り込めない理由として出す", () => {
+    const result = plan(csv(["101,,一丁目,北,,,"]), { roads: { northSouth: null } });
     expect(result.next).toBeNull();
-    expect(result.errors[0].message).toContain("大橋通りの道がありません");
+    expect(result.errors[0].message).toContain("追手筋");
   });
 
   it("同じ本番号・枝番の区画があれば、位置はそのままで出店者の情報を更新する（取り込み直しても増えない）", () => {
