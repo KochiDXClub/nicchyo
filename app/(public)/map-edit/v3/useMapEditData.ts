@@ -4,6 +4,7 @@ import {
   getRouteCenter,
 } from "../../map/utils/mapRouteGeometry";
 import type { MapRouteConfig, MapRoutePoint } from "../../map/types/mapRoute";
+import type { ChomeBoundary, ChomeSection } from "@/lib/map/chomeBoundaries";
 import { createProjection } from "./geo";
 import type { EntityChange } from "./editHistory";
 import type {
@@ -39,6 +40,8 @@ async function fetchMapLayout() {
     /** DB に道基準の位置の列があるか（無ければマイグレーション前で、保存できない） */
     schemaReady?: boolean;
     mapSettingsLimits?: MapSettingsLimits;
+    /** 丁目の境目と区間（古い API・マイグレーション前は無い／空） */
+    chome?: { boundaries?: ChomeBoundary[]; sections?: ChomeSection[] };
   }>;
 }
 
@@ -99,6 +102,8 @@ export function useMapEditData({
   // 古い API（schemaReady を返さない）では保存できる前提で扱う
   const [schemaReady, setSchemaReady] = useState(true);
   const [mapSettingsLimits, setMapSettingsLimits] = useState<MapSettingsLimits>(DEFAULT_MAP_SETTINGS_LIMITS);
+  const [chomeBoundaries, setChomeBoundaries] = useState<ChomeBoundary[]>([]);
+  const [chomeSections, setChomeSections] = useState<ChomeSection[]>([]);
 
   const [snapshots, setSnapshots] = useState<SnapshotItem[]>([]);
   const [isLoadingSnapshots, setIsLoadingSnapshots] = useState(false);
@@ -117,6 +122,8 @@ export function useMapEditData({
     setLandmarks(Array.isArray(nextData.landmarks) ? nextData.landmarks : []);
     setRoads(Array.isArray(nextData.roads) ? nextData.roads : []);
     setVendors(Array.isArray(nextData.vendors) ? nextData.vendors : []);
+    setChomeBoundaries(nextData.chome?.boundaries ?? []);
+    setChomeSections(nextData.chome?.sections ?? []);
     clearPending?.();
   }, [clearPending]);
 
@@ -140,6 +147,8 @@ export function useMapEditData({
         setCategories(Array.isArray(data.categories) ? data.categories : []);
         setSchemaReady(data.schemaReady !== false);
         if (data.mapSettingsLimits) setMapSettingsLimits(data.mapSettingsLimits);
+        setChomeBoundaries(data.chome?.boundaries ?? []);
+        setChomeSections(data.chome?.sections ?? []);
 
         const allPoints = nextRoads.flatMap((road) => road.points);
         const center = getRouteCenter(allPoints);
@@ -264,6 +273,8 @@ export function useMapEditData({
     categories,
     schemaReady,
     mapSettingsLimits,
+    chomeBoundaries,
+    chomeSections,
     hasUnsavedChanges,
     handleSave,
     projection,

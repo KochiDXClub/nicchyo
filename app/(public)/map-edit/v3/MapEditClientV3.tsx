@@ -17,6 +17,7 @@ import { MapEditHeader } from "./components/MapEditHeader";
 import { SnapshotHistoryPanel } from "./components/SnapshotHistoryPanel";
 import { RoadDetailPanel, RoadListPanel, LandmarkDetailPanel } from "./components/DetailPanels";
 import SlotVendorPanel from "./components/SlotVendorPanel";
+import { useChomeJudge } from "./useChomeJudge";
 import PendingChangeLog from "./components/PendingChangeLog";
 import RoadLaneView, { buildLaneRoadGroups, type LaneRoadGroup } from "./components/RoadLaneView";
 import ToolPalette from "./components/ToolPalette";
@@ -67,6 +68,8 @@ export default function MapEditClientV3() {
   });
   const { shops, roads, landmarks, projection, setMessage, hasUnsavedChanges } = data;
 
+  const { judge } = useChomeJudge(roads, data.chomeBoundaries, data.chomeSections);
+
   const ops = useMapEditOperations({
     history,
     setHistory,
@@ -80,6 +83,7 @@ export default function MapEditClientV3() {
     setVendors: data.setVendors,
     routeConfig: data.routeConfig,
     mapSettingsLimits: data.mapSettingsLimits,
+    judgeChome: judge,
     setMessage,
   });
 
@@ -604,6 +608,12 @@ export default function MapEditClientV3() {
                     selectedShop.vendorId && ops.updateVendor(selectedShop.vendorId, patch, logText, { coalesceKey })
                   }
                   onClearVendor={() => ops.clearVendor(selectedShop.locationId)}
+                  onChomeChange={(value) => ops.setSlotChome(selectedShop.locationId, value)}
+                  autoChome={
+                    selectedShop.roadId && selectedShop.roadDistanceM != null
+                      ? judge(selectedShop.roadId, selectedShop.roadDistanceM)
+                      : null
+                  }
                   onDelete={() => {
                     if (ops.deleteSlot(selectedShop.locationId)) setSelection(null);
                   }}

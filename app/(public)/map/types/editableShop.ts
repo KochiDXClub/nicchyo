@@ -15,6 +15,11 @@ export type EditableShop = {
   position: number;
   chome?: string;
   /**
+   * 丁目を手で設定した区画（true）。道の位置からの自動判定で上書きしない。
+   * 144番のように、境目の上にあって自動では決まらない区画のため。無ければ自動判定に従う
+   */
+  chomeLocked?: boolean;
+  /**
    * 道基準の位置（market_locations.road_*）。4つとも入っているか、どれも無いかのどちらか。
    * 入っている区画の lat/lng は道の形から計算した値で、道の形を直すとついてくる。
    * 無い区画（移行前の区画）は lat/lng がそのまま位置になる。
