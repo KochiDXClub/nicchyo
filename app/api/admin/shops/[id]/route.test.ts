@@ -57,7 +57,11 @@ beforeEach(() => {
       };
     },
   };
-  guard.mockResolvedValue({ ctx: { user: { id: "admin-1", email: "a@example.com" }, role: "admin", adminClient, ip: null } });
+  // 共通の入口は、店舗 ID の確認と JSON の読み取りまで担う（lib/admin/shopApiGuard.ts）
+  guard.mockImplementation(async (request: Request) => ({
+    ctx: { user: { id: "admin-1", email: "a@example.com" }, role: "admin", adminClient, ip: null, id: ID },
+    body: await request.json(),
+  }));
 });
 
 afterEach(() => vi.useRealTimers());
