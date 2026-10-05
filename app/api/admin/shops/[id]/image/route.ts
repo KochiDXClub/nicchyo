@@ -54,8 +54,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const mainBytes = new Uint8Array(await main.arrayBuffer());
     const thumbBytes = new Uint8Array(await thumb.arrayBuffer());
     const mainType = sniffImageType(mainBytes);
-    const thumbType = sniffImageType(thumbBytes);
-    if (!mainType || !thumbType) return NextResponse.json({ error: "写真の形式が正しくありません" }, { status: 400 });
+    if (!mainType) return NextResponse.json({ error: "写真の形式が正しくありません" }, { status: 400 });
+    // サムネイルは store-thumb.webp の名前で置くので、WebP だけを保存する。WebP を書き出せないブラウザでは
+    // JPEG / PNG が送られてくるが、名前と中身が食い違うと、あとで拡張子で判断する処理が誤動作するので、
+    // サムネイルは保存しない（メインの保存は成功させる。本人の保存 storeService と同じく、サムネイルの失敗は警告にとどめる）
+    const thumbIsWebp = sniffImageType(thumbBytes) === "image/webp";
 
     const mainPath = `${id}/store-main.${IMAGE_EXT[mainType]}`;
     const thumbPath = `${id}/store-thumb.webp`;
@@ -63,8 +66,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
     const mainResult = await storage.upload(mainPath, mainBytes, { contentType: mainType, upsert: true });
     if (mainResult.error) return NextResponse.json({ error: "写真を保存できませんでした" }, { status: 500 });
-    const thumbResult = await storage.upload(thumbPath, thumbBytes, { contentType: thumbType, upsert: true });
-    if (thumbResult.error) console.warn("[admin/shops/image] サムネイルの保存に失敗しました:", thumbResult.error.message);
+    if (thumbIsWebp) {
+      const thumbResult = await storage.upload(thumbPath, thumbBytes, { contentType: "image/webp", upsert: true });
+      if (thumbResult.error) console.warn("[admin/shops/image] サムネイルの保存に失敗しました:", thumbResult.error.message);
+    } else {
+      console.warn("[admin/shops/image] サムネイルが WebP ではないので保存しませんでした");
+    }
 
     // 今回のもの以外の store-main.*（形式が変わったときの前回分）を消す。消せなくても保存自体は成功
     try {

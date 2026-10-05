@@ -56,7 +56,8 @@ begin
   delete from public.location_assignments where location_id = v_location_id;
 
   insert into public.location_assignments (location_id, vendor_id, market_date)
-  values (v_location_id, p_vendor_id, current_date);
+  -- 日本時間の日付（current_date は UTC で、日曜市の朝 0〜9 時は前日になる）
+  values (v_location_id, p_vendor_id, (now() at time zone 'Asia/Tokyo')::date);
 
   return jsonb_build_object('status', 'placed');
 end;

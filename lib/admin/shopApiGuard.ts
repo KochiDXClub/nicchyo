@@ -1,6 +1,6 @@
 /**
  * 運営が店舗を書き換える API（/api/admin/shops/[id]/**）に共通の入口。
- * 同一オリジン → レート制限 → 管理者の認可、の順に確かめる。
+ * 同一オリジン → 管理者の認可 → レート制限（管理者ごと）、の順に確かめる。
  * ルートごとに写すと、片方だけ直して片方が取り残される（認可の順序や上限が食い違う）ので、ここに置く。
  */
 import { NextResponse } from "next/server";
@@ -28,11 +28,18 @@ export async function guardAdminShopWrite(
   const originCheck = requireSameOrigin(request);
   if (!originCheck.ok) return { error: originCheck.response };
 
-  const rateLimited = await enforceRateLimit(request, { bucket: rate.bucket, limit: rate.limit, windowMs: 10 * 60 * 1000 });
-  if (rateLimited) return { error: rateLimited };
-
+  // 認可を先に通し、回数は管理者ごとに数える。日曜市の現地では、複数のスタッフが同じ Wi-Fi・同じ回線の
+  // 共有 IP から同時に保存するので、IP で数えると、急に 429 になる。未ログインの呼び出しは、ここで弾かれる
   const auth = await requireAdminApi();
   if ("error" in auth) return { error: auth.error };
+
+  const rateLimited = await enforceRateLimit(request, {
+    bucket: rate.bucket,
+    limit: rate.limit,
+    windowMs: 10 * 60 * 1000,
+    identity: auth.user.id,
+  });
+  if (rateLimited) return { error: rateLimited };
 
   const { id } = await params;
   if (!UUID_RE.test(id)) return { error: NextResponse.json({ error: "Invalid id" }, { status: 400 }) };

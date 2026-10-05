@@ -6,7 +6,7 @@ import { requireAdminApi } from "@/lib/auth/requireAdminApi";
 import { guardAdminShopWrite, UUID_RE } from "@/lib/admin/shopApiGuard";
 import { logAdminAudit } from "@/lib/audit/logAdminAudit";
 import { parseShopLocation } from "@/lib/admin/shopLocation";
-import { createMapLayoutSnapshot } from "@/app/api/admin/map-layout/_shared";
+import { ensureRecentMapLayoutSnapshot } from "@/app/api/admin/map-layout/_shared";
 import { revalidatePublicShops } from "@/app/(public)/map/services/shopCache";
 
 export const runtime = "nodejs";
@@ -57,7 +57,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
  * - 店番の区画がなければ作る。あれば座標を更新する
  * - その店番を別の店舗が使っているときは、force: true がない限り 409 で断る（上書きの確認用）
  * - この店舗が別の店番に置かれていたときは、そちらを外す（1店舗1店番）
- * 保存の前に、既存の地図編集と同じ形でスナップショットを残す（誤操作を戻せるように）。
+ * 保存の前に、既存の地図編集と同じ形でスナップショットを残す（誤操作を戻せるように。同じ運営が直近 10 分以内に残していれば、それを使う）。
  */
 export async function PUT(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -105,9 +105,10 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
       }
     }
 
-    // 戻せるように、書く前の状態を残す。残せなければ書かない
+    // 戻せるように、書く前の状態を残す。残せなければ書かない。
+    // 同じ運営が直近 10 分以内に残していれば、それを使う（1 店ごとに全店番ぶんを保存し直さない）
     const supabase = createServerClient(await cookies());
-    await createMapLayoutSnapshot(supabase, adminClient as unknown as SupabaseClient, user.id, { updatedShopCount: 1 });
+    await ensureRecentMapLayoutSnapshot(supabase, adminClient as unknown as SupabaseClient, user.id, { updatedShopCount: 1 });
 
     // 区画の作成・更新と割り当ての入れ替えは、DB 関数で 1 トランザクションにする
     const { data: placed, error: placeError } = await adminClient.rpc("admin_place_shop", {
