@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { requireAdminApi } from "@/lib/auth/requireAdminApi";
 import { guardAdminShopWrite, UUID_RE } from "@/lib/admin/shopApiGuard";
 import { logAdminAudit } from "@/lib/audit/logAdminAudit";
-import { parseShopEdit } from "@/lib/admin/shopEdit";
+import { consentDateOnAllow, parseShopEdit } from "@/lib/admin/shopEdit";
 import { isEndAfterStart } from "@/lib/vendor/businessHours";
 import { revalidatePublicShops } from "@/app/(public)/map/services/shopCache";
 
@@ -92,31 +92,34 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       }
     }
 
-    // 許可済みにするとき、許可日が未記録なら今日にする（「いつ許可を得たか」を辿れるように）。
-    // 記録済みの日付は上書きしない
-    if (update.listing_status === "allowed" && update.listing_consented_on === undefined && !current.listing_consented_on) {
-      update.listing_consented_on = new Date().toISOString().slice(0, 10);
-    }
+    const consentedOn = consentDateOnAllow(update, current.listing_consented_on);
+    if (consentedOn) update.listing_consented_on = consentedOn;
 
     // 画面を開いたあとに、ほかの運営（や出店者）が更新していたら、上書きせずに断る。
-    // 全項目を送るので、気づかずに相手の許可状態やメモを戻してしまうのを防ぐ
-    const expectedUpdatedAt =
-      typeof (body as { updated_at?: unknown }).updated_at === "string" ? (body as { updated_at: string }).updated_at : null;
+    // 全項目を送るので、気づかずに相手の許可状態やメモを戻してしまうのを防ぐ。
+    // 画面が読み込んだときの updated_at（まだ一度も更新されていない店舗は null）を必ず送らせる
+    const bodyRecord = body as Record<string, unknown>;
+    const expectedUpdatedAt = bodyRecord.updated_at;
+    if (!("updated_at" in bodyRecord) || (expectedUpdatedAt !== null && typeof expectedUpdatedAt !== "string")) {
+      return NextResponse.json({ error: "updated_at を送ってください（画面を開いたときの値）" }, { status: 400 });
+    }
     const conflict = NextResponse.json(
       { error: "ほかの人が先にこの店舗を更新しました。開き直して、最新の内容で入れ直してください", code: "STALE" },
       { status: 409 },
     );
+    const sameInstant = (a: string | null, b: string | null) =>
+      a === b || (a !== null && b !== null && new Date(a).getTime() === new Date(b).getTime());
+    if (!sameInstant(current.updated_at, expectedUpdatedAt as string | null)) return conflict;
 
-    if (Object.keys(update).length > 0) {
-      let query = adminClient
-        .from("vendors")
-        .update({ ...update, updated_at: new Date().toISOString() })
-        .eq("id", id);
-      if (expectedUpdatedAt && current.updated_at) query = query.eq("updated_at", expectedUpdatedAt);
-      const { data: updated, error } = await query.select("id");
-      if (error) return NextResponse.json({ error: "保存できませんでした" }, { status: 500 });
-      if (!updated || updated.length === 0) return conflict;
-    }
+    // 項目の更新がなく店主名だけのときも、updated_at を進めて同じ確認を通す
+    let query = adminClient
+      .from("vendors")
+      .update({ ...update, updated_at: new Date().toISOString() })
+      .eq("id", id);
+    query = current.updated_at ? query.eq("updated_at", current.updated_at) : query.is("updated_at", null);
+    const { data: updated, error: updateError } = await query.select("id");
+    if (updateError) return NextResponse.json({ error: "保存できませんでした" }, { status: 500 });
+    if (!updated || updated.length === 0) return conflict;
 
     if (ownerName !== undefined) {
       // 店主名の公開可否（is_public）は出店者本人が決める。ここでは触らず、行がなければ非公開で作る

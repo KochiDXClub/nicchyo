@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { parseShopEdit } from "./shopEdit";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { consentDateOnAllow, isVendorImageUrl, parseShopEdit } from "./shopEdit";
 
 const ok = (body: unknown) => {
   const result = parseShopEdit(body);
@@ -55,12 +55,6 @@ describe("parseShopEdit", () => {
     });
   });
 
-  it("写真の URL は vendor-images の公開 URL だけ", () => {
-    const url = "https://x.supabase.co/storage/v1/object/public/vendor-images/a/store-main.webp";
-    expect(ok({ shop_image_url: url }).vendor.shop_image_url).toBe(url);
-    expect(ok({ shop_image_url: null }).vendor.shop_image_url).toBeNull();
-  });
-
   it("不正な値は理由つきで断る", () => {
     for (const body of [
       null,
@@ -73,12 +67,60 @@ describe("parseShopEdit", () => {
       { sns_hp: "javascript:alert(1)" },
       { shop_image_url: "ftp://example.com/a.png" },
       { shop_image_url: "https://example.com/a.png" },
-      { shop_image_url: "http://x.supabase.co/storage/v1/object/public/vendor-images/a/store-main.webp" },
       { listing_status: "yes" },
       { photo_use_allowed: "true" },
       { listing_consented_on: "2026/10/11" },
     ]) {
       expect(parseShopEdit(body).ok, JSON.stringify(body)).toBe(false);
     }
+  });
+});
+
+describe("写真の URL（isVendorImageUrl）", () => {
+  const path = "/storage/v1/object/public/vendor-images/a/store-main.webp";
+
+  beforeEach(() => {
+    vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "https://abc.supabase.co");
+  });
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("このアプリの Supabase の vendor-images の公開 URL だけを許す", () => {
+    expect(isVendorImageUrl(`https://abc.supabase.co${path}`)).toBe(true);
+    expect(ok({ shop_image_url: `https://abc.supabase.co${path}` }).vendor.shop_image_url).toBe(`https://abc.supabase.co${path}`);
+    expect(ok({ shop_image_url: null }).vendor.shop_image_url).toBeNull();
+  });
+
+  it("別のホストの同じパスは断る（来訪者の通信が外へ出るため）", () => {
+    expect(isVendorImageUrl(`https://attacker.example${path}`)).toBe(false);
+    expect(isVendorImageUrl(`https://abc.supabase.co.attacker.example${path}`)).toBe(false);
+    expect(parseShopEdit({ shop_image_url: `https://attacker.example${path}` }).ok).toBe(false);
+  });
+
+  it("http・別のパス・環境変数が無いときは断る", () => {
+    expect(isVendorImageUrl(`http://abc.supabase.co${path}`)).toBe(false);
+    expect(isVendorImageUrl("https://abc.supabase.co/storage/v1/object/public/other-bucket/a.webp")).toBe(false);
+    vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "");
+    expect(isVendorImageUrl(`https://abc.supabase.co${path}`)).toBe(false);
+  });
+});
+
+describe("許可日（consentDateOnAllow）", () => {
+  it("日本時間の朝 6 時（UTC ではまだ前日）は、その日の日本時間の日付になる", () => {
+    // 2026-10-11 06:00 JST = 2026-10-10 21:00 UTC
+    const morning = new Date("2026-10-10T21:00:00Z");
+    expect(consentDateOnAllow({ listing_status: "allowed" }, null, morning)).toBe("2026-10-11");
+    // 日本時間の 0 時ちょうど（UTC 15:00）も同じ
+    expect(consentDateOnAllow({ listing_status: "allowed" }, null, new Date("2026-10-10T15:00:00Z"))).toBe("2026-10-11");
+  });
+
+  it("許可済みにするときだけ。記録済み・指定済みの日付は上書きしない", () => {
+    const now = new Date("2026-10-10T21:00:00Z");
+    expect(consentDateOnAllow({ listing_status: "pending" }, null, now)).toBeUndefined();
+    expect(consentDateOnAllow({}, null, now)).toBeUndefined();
+    expect(consentDateOnAllow({ listing_status: "allowed" }, "2026-10-04", now)).toBeUndefined();
+    expect(consentDateOnAllow({ listing_status: "allowed", listing_consented_on: "2026-10-01" }, null, now)).toBeUndefined();
+    expect(consentDateOnAllow({ listing_status: "allowed", listing_consented_on: null }, null, now)).toBeUndefined();
   });
 });
