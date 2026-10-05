@@ -13,6 +13,7 @@ import type {
   SnapshotItem,
   VendorOption,
 } from "./types";
+import { DEFAULT_MAX_LANDMARKS, DEFAULT_MAX_UNASSIGNED_SHOP_MARKERS } from "../../map/config/mapSettingsDefaults";
 
 export type MapSettingsLimits = {
   maxLandmarks: number;
@@ -20,8 +21,8 @@ export type MapSettingsLimits = {
 };
 
 const DEFAULT_MAP_SETTINGS_LIMITS: MapSettingsLimits = {
-  maxLandmarks: 80,
-  maxUnassignedShopMarkers: 40,
+  maxLandmarks: DEFAULT_MAX_LANDMARKS,
+  maxUnassignedShopMarkers: DEFAULT_MAX_UNASSIGNED_SHOP_MARKERS,
 };
 
 async function fetchMapLayout() {
@@ -94,6 +95,19 @@ export function useMapEditData({
 
   const originRef = useRef<{ lat: number; lng: number } | null>(null);
 
+  /**
+   * 保存・復元・移行のあとに、サーバーの内容で画面を読み直す。
+   * 読み直した内容が新しい出発点になるので、操作の記録も空にする。
+   */
+  const reloadAfterWrite = useCallback(async () => {
+    const nextData = await fetchMapLayout();
+    setShops(Array.isArray(nextData.shops) ? nextData.shops : []);
+    setLandmarks(Array.isArray(nextData.landmarks) ? nextData.landmarks : []);
+    setRoads(Array.isArray(nextData.roads) ? nextData.roads : []);
+    if (Array.isArray(nextData.vendors)) setVendorOptions(nextData.vendors);
+    clearPending?.();
+  }, [clearPending]);
+
   // ── データ取得 ──────────────────────────────────────────
   useEffect(() => {
     let active = true;
@@ -165,21 +179,14 @@ export function useMapEditData({
         return;
       }
 
-      const nextData = await fetchMapLayout();
-      const nextShops = Array.isArray(nextData.shops) ? nextData.shops : [];
-      const nextLandmarks = Array.isArray(nextData.landmarks) ? nextData.landmarks : [];
-      const nextRoads = Array.isArray(nextData.roads) ? nextData.roads : [];
-      setShops(nextShops);
-      setLandmarks(nextLandmarks);
-      setRoads(nextRoads);
-      clearPending?.();
+      await reloadAfterWrite();
       setMessage("保存しました。");
     } catch {
       setMessage("保存に失敗しました。通信環境を確認してください。");
     } finally {
       setIsSaving(false);
     }
-  }, [changes, roads, routeConfig, clearPending]);
+  }, [changes, roads, routeConfig, reloadAfterWrite]);
 
   // ── スナップショット ──────────────────────────────────────────
   const loadSnapshots = useCallback(async () => {
@@ -215,21 +222,14 @@ export function useMapEditData({
           setMessage("復元に失敗しました。");
           return;
         }
-        const nextData = await fetchMapLayout();
-        const nextShops = Array.isArray(nextData.shops) ? nextData.shops : [];
-        const nextLandmarks = Array.isArray(nextData.landmarks) ? nextData.landmarks : [];
-        const nextRoads = Array.isArray(nextData.roads) ? nextData.roads : [];
-        setShops(nextShops);
-        setLandmarks(nextLandmarks);
-        setRoads(nextRoads);
-        clearPending?.();
+        await reloadAfterWrite();
         setMessage("スナップショットを復元しました。");
         await loadSnapshots();
       } finally {
         setIsRestoring(null);
       }
     },
-    [hasUnsavedChanges, loadSnapshots, clearPending]
+    [hasUnsavedChanges, loadSnapshots, reloadAfterWrite]
   );
 
   return {
@@ -255,5 +255,6 @@ export function useMapEditData({
     isHistoryOpen,
     setIsHistoryOpen,
     handleRestoreSnapshot,
+    reloadAfterWrite,
   };
 }

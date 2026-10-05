@@ -31,7 +31,9 @@ export default function ToolHint({
         boxShadow: "0 2px 8px rgba(15,23,42,.25)",
         fontSize: 12.5,
         fontWeight: 700,
-        maxWidth: "min(720px, calc(100% - 200px))",
+        // 地図の上の中央寄せの枠の中で縮まず、1行に収まる幅まで広がるようにする
+        width: "max-content",
+        maxWidth: "min(720px, 100%)",
       }}
     >
       <span>{message}</span>
