@@ -34,6 +34,7 @@ import {
   zoomIdxToMapLibreZoom,
 } from "../mapEditCamera";
 import { EDITOR_COLORS } from "../editorTheme";
+import { slotLabel } from "../../../map/types/editableShop";
 import type { CanvasHandlers, EditableLandmark, EditableRoad, EditableShop, Selection, Tool } from "../types";
 
 type Props = {
@@ -184,13 +185,18 @@ function buildShopFeatureCollection(
   const features: GeoJSON.Feature[] = shops.map((shop) => {
     const isSelected = opts.selectedLocationId === shop.locationId;
     const match =
-      !opts.query || String(shop.position).includes(opts.query) || shop.name.toLowerCase().includes(opts.query);
+      !opts.query ||
+      String(shop.position).includes(opts.query) ||
+      slotLabel(shop).includes(opts.query) ||
+      shop.name.toLowerCase().includes(opts.query);
     const unsaved = opts.unsavedKeys.has(`shops:${shop.locationId}`);
     return {
       type: "Feature",
       properties: {
         locationId: shop.locationId,
         position: shop.position,
+        // 地図に出す番号。住所録の番号（123-4）があればそれ、無ければ店番
+        label: slotLabel(shop),
         opacity: match ? 1 : 0.15,
         hasVendor: !!shop.vendorId,
         // 出店者のいる区画はオレンジのピン、空き区画はグレーで、ひと目で空きと分かるようにする
@@ -563,7 +569,7 @@ export default function MapEditCanvasMapLibre({
         source: SRC_SHOPS,
         minzoom: MAPLIBRE_ZOOMS[2] - 0.2,
         layout: {
-          "text-field": ["get", "position"],
+          "text-field": ["get", "label"],
           "text-font": ["Noto Sans Bold"],
           "text-size": 10,
           "text-allow-overlap": true,

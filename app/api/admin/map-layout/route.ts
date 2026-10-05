@@ -4,8 +4,6 @@ import { createClient as createServerClient } from "@/utils/supabase/server";
 import { fetchLandmarksFromDb } from "@/app/(public)/map/services/landmarksDb";
 import { fetchMapRouteFromDb } from "@/app/(public)/map/services/mapRouteDb";
 import { revalidatePublicShops } from "@/app/(public)/map/services/shopCache";
-import { requireSameOrigin } from "@/lib/security/requestGuards";
-import { enforceRateLimit } from "@/lib/security/rateLimit";
 import { authorizeAdmin } from "@/app/api/admin/categories/_helpers";
 import type { Landmark as EditableLandmark } from "@/app/(public)/map/types/landmark";
 import type { MapRoad, MapRouteConfig, MapRoutePoint } from "@/app/(public)/map/types/mapRoute";
@@ -15,15 +13,14 @@ import { logAdminAudit } from "@/lib/audit/logAdminAudit";
 import { getRole } from "@/lib/auth/permissions";
 import { CHOME_ORDER, NEW_VENDOR_ID_PREFIX } from "@/app/(public)/map/types/editableShop";
 import {
-  createAdminWriteClient,
   createMapLayoutSnapshot,
   findRoadIdsWithShops,
+  hasRoadPositionSchema,
   isRouteConfigChanged,
   loadEditableRoads,
-  hasRoadPositionSchema,
   loadEditableShops,
   loadEditableVendors,
-  ROAD_POSITION_SCHEMA_MISSING_MESSAGE,
+  prepareMapLayoutWrite,
   loadMapSettingsLimits,
   loadRouteConfig,
   loadVendorCategories,
@@ -102,6 +99,17 @@ function validateShopFields(shops: EditableShop[]) {
     if (shop.chome !== undefined && shop.chome !== null && !CHOME_VALUES.has(shop.chome)) {
       return `店番 ${shop.position} の丁目が正しくありません`;
     }
+    for (const [label, value] of [
+      ["本番号", shop.officialNumber],
+      ["枝番", shop.branchNumber],
+    ] as const) {
+      if (value !== undefined && value !== null && (!Number.isInteger(value) || value < 1 || value > 99_999)) {
+        return `店番 ${shop.position} の${label}が正しくありません`;
+      }
+    }
+    if (shop.branchNumber != null && shop.officialNumber == null) {
+      return `店番 ${shop.position} は枝番だけがあり、本番号がありません`;
+    }
     const roadFields = [shop.roadId, shop.roadDistanceM, shop.roadSide, shop.roadOffsetM];
     const filled = roadFields.filter((value) => value !== undefined && value !== null).length;
     if (filled === 0) continue;
@@ -136,6 +144,18 @@ function findDuplicatePosition(shops: EditableShop[]): number | null {
   for (const shop of shops) {
     if (seen.has(shop.position)) return shop.position;
     seen.add(shop.position);
+  }
+  return null;
+}
+
+/** 保存後の区画で、住所録の番号（本番号＋枝番）が重なっていないか */
+function findDuplicateOfficialNumber(shops: EditableShop[]): string | null {
+  const seen = new Set<string>();
+  for (const shop of shops) {
+    if (shop.officialNumber == null) continue;
+    const key = `${shop.officialNumber}-${shop.branchNumber ?? 0}`;
+    if (seen.has(key)) return shop.branchNumber != null ? `${shop.officialNumber}-${shop.branchNumber}` : String(shop.officialNumber);
+    seen.add(key);
   }
   return null;
 }
@@ -179,26 +199,9 @@ export async function PUT(request: NextRequest) {
   // 区画・割り当てを書き換え始めたら、途中で失敗しても公開マップの店舗キャッシュを捨てる
   let shopWritesStarted = false;
   try {
-    const originCheck = requireSameOrigin(request);
-    if (!originCheck.ok) return originCheck.response;
-
-    const rateLimited = await enforceRateLimit(request, {
-      bucket: "admin-map-layout-put",
-      limit: 20,
-      windowMs: 10 * 60 * 1000,
-    });
-    if (rateLimited) return rateLimited;
-
-    const { user, error: authError } = await authorizeAdmin();
-    if (authError || !user) return NextResponse.json({ error: authError }, { status: 403 });
-
-    const cookieStore = await cookies();
-    const supabase = createServerClient(cookieStore);
-    const adminWriteClient = createAdminWriteClient();
-
-    if (!(await hasRoadPositionSchema(supabase))) {
-      return NextResponse.json({ error: ROAD_POSITION_SCHEMA_MISSING_MESSAGE }, { status: 503 });
-    }
+    const prepared = await prepareMapLayoutWrite(request, { bucket: "admin-map-layout-put", limit: 20 });
+    if (!prepared.ok) return prepared.response;
+    const { user, supabase, adminWriteClient } = prepared;
 
     const body = (await request.json()) as {
       shops?: {
@@ -319,6 +322,10 @@ export async function PUT(request: NextRequest) {
     const duplicatePosition = findDuplicatePosition(shopsAfterSave);
     if (duplicatePosition != null) {
       return NextResponse.json({ error: `店番 ${duplicatePosition} が重複しています` }, { status: 400 });
+    }
+    const duplicateOfficialNumber = findDuplicateOfficialNumber(shopsAfterSave);
+    if (duplicateOfficialNumber != null) {
+      return NextResponse.json({ error: `番号 ${duplicateOfficialNumber} の区画が重複しています` }, { status: 400 });
     }
 
     // 送られてきた区画は、緯度経度をクライアントの値ではなく道の形から計算し直した値で書き込む
@@ -480,6 +487,8 @@ export async function PUT(request: NextRequest) {
         roadDistanceM: shop.roadDistanceM ?? null,
         roadSide: shop.roadSide ?? null,
         roadOffsetM: shop.roadOffsetM ?? null,
+        officialNumber: shop.officialNumber ?? null,
+        branchNumber: shop.branchNumber ?? null,
       })),
       p_shop_positions: repositionedShops.map((shop) => ({ locationId: shop.locationId, lat: shop.lat, lng: shop.lng })),
       p_deleted_location_ids: body.shops.deletedLocationIds,

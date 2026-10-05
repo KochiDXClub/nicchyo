@@ -704,11 +704,13 @@ export type Database = {
       }
       market_locations: {
         Row: {
+          branch_number: number | null
           created_at: string | null
           district: string | null
           id: string
           latitude: number
           longitude: number
+          official_number: number | null
           road_distance_m: number | null
           road_id: string | null
           road_offset_m: number | null
@@ -716,11 +718,13 @@ export type Database = {
           store_number: number
         }
         Insert: {
+          branch_number?: number | null
           created_at?: string | null
           district?: string | null
           id?: string
           latitude: number
           longitude: number
+          official_number?: number | null
           road_distance_m?: number | null
           road_id?: string | null
           road_offset_m?: number | null
@@ -728,11 +732,13 @@ export type Database = {
           store_number: number
         }
         Update: {
+          branch_number?: number | null
           created_at?: string | null
           district?: string | null
           id?: string
           latitude?: number
           longitude?: number
+          official_number?: number | null
           road_distance_m?: number | null
           road_id?: string | null
           road_offset_m?: number | null

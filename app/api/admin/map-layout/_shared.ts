@@ -1,4 +1,9 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { NextResponse, type NextRequest } from "next/server";
+import { cookies } from "next/headers";
+import { requireSameOrigin } from "@/lib/security/requestGuards";
+import { enforceRateLimit } from "@/lib/security/rateLimit";
+import { authorizeAdmin } from "@/lib/auth/requireAdminApi";
 import { createClient as createServerClient } from "@/utils/supabase/server";
 import { createAdminClient } from "@/lib/supabase/adminClient";
 import { fetchLandmarksFromDb } from "@/app/(public)/map/services/landmarksDb";
@@ -46,14 +51,14 @@ export function createAdminWriteClient(): SupabaseClient {
 const UNDEFINED_COLUMN = "42703";
 
 /**
- * 区画の道基準の位置（20261004110000_add_road_position_to_market_locations.sql）が
+ * 区画の道基準の位置・住所録の番号（20261004110000_add_road_position_and_numbers_to_market_locations.sql）が
  * DB に入っているか。マイグレーションは main へのマージ後に承認を経て本番へ当たるため、
  * Preview や、リリース直後でマイグレーションの承認待ちの間は、アプリだけが新しくなって
  * 列がまだ無いことがある。その間も画面は開けるようにし、保存と移行処理だけを止める。
  * 同じマイグレーションで save_map_layout 等の関数も作るので、列があれば関数もある。
  */
 export async function hasRoadPositionSchema(supabase: ReturnType<typeof createServerClient>): Promise<boolean> {
-  const { error } = await supabase.from("market_locations").select("road_id").limit(1);
+  const { error } = await supabase.from("market_locations").select("road_id, official_number").limit(1);
   if (!error) return true;
   if (error.code === UNDEFINED_COLUMN) return false;
   throw new Error("Failed to check map layout schema");
@@ -61,6 +66,43 @@ export async function hasRoadPositionSchema(supabase: ReturnType<typeof createSe
 
 export const ROAD_POSITION_SCHEMA_MISSING_MESSAGE =
   "データベースの更新（マイグレーション）がまだ適用されていないため、保存できません。適用後にもう一度お試しください。";
+
+/**
+ * マップ配置を書き込む API（保存 PUT・区画の位置の移行 POST）の共通の前処理。
+ * 同一オリジンの確認 → 連続実行の制限 → 管理者の確認 → DB クライアントの用意 →
+ * マイグレーション前でないかの確認、の順に行う（順番は各ルートで揃える必要があるため1か所にまとめる）。
+ * 通らなければ返すべきレスポンスを、通ればユーザーとクライアントを返す。
+ */
+export async function prepareMapLayoutWrite(
+  request: NextRequest,
+  rateLimit: { bucket: string; limit: number }
+): Promise<
+  | { ok: false; response: Response }
+  | {
+      ok: true;
+      user: NonNullable<Awaited<ReturnType<typeof authorizeAdmin>>["user"]>;
+      supabase: ReturnType<typeof createServerClient>;
+      adminWriteClient: SupabaseClient;
+    }
+> {
+  const originCheck = requireSameOrigin(request);
+  if (!originCheck.ok) return { ok: false, response: originCheck.response };
+
+  const rateLimited = await enforceRateLimit(request, { ...rateLimit, windowMs: 10 * 60 * 1000 });
+  if (rateLimited) return { ok: false, response: rateLimited };
+
+  const { user, error: authError } = await authorizeAdmin();
+  if (authError || !user) return { ok: false, response: NextResponse.json({ error: authError }, { status: 403 }) };
+
+  const cookieStore = await cookies();
+  const supabase = createServerClient(cookieStore);
+  const adminWriteClient = createAdminWriteClient();
+
+  if (!(await hasRoadPositionSchema(supabase))) {
+    return { ok: false, response: NextResponse.json({ error: ROAD_POSITION_SCHEMA_MISSING_MESSAGE }, { status: 503 }) };
+  }
+  return { ok: true, user, supabase, adminWriteClient };
+}
 
 type MarketLocationRow = {
   id: string | null;
@@ -72,13 +114,17 @@ type MarketLocationRow = {
   road_distance_m?: number | null;
   road_side?: string | null;
   road_offset_m?: number | null;
+  official_number?: number | null;
+  branch_number?: number | null;
 };
 
 /** 区画を読む。道基準の位置の列がまだ無い DB（マイグレーション前）では、その列なしで読む */
 async function loadMarketLocationRows(supabase: ReturnType<typeof createServerClient>) {
   const withRoad = await supabase
     .from("market_locations")
-    .select("id, store_number, latitude, longitude, district, road_id, road_distance_m, road_side, road_offset_m");
+    .select(
+      "id, store_number, latitude, longitude, district, road_id, road_distance_m, road_side, road_offset_m, official_number, branch_number"
+    );
   if (withRoad.error?.code !== UNDEFINED_COLUMN) return withRoad as { data: MarketLocationRow[] | null; error: typeof withRoad.error };
   return (await supabase
     .from("market_locations")
@@ -158,6 +204,8 @@ export async function loadEditableShops(supabase: ReturnType<typeof createServer
           lng,
           position: storeNumber,
           chome: normalizeChome((row.district as string | null) ?? null),
+          ...(row.official_number != null ? { officialNumber: Number(row.official_number) } : {}),
+          ...(row.branch_number != null ? { branchNumber: Number(row.branch_number) } : {}),
           ...(hasRoadPosition
             ? {
                 roadId: row.road_id as string,

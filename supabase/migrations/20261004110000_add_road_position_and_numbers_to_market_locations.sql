@@ -10,6 +10,11 @@
 --
 -- 既存の区画は4列とも NULL（道基準の位置なし）で始まり、管理画面の移行処理
 -- （POST /api/admin/map-layout/slot-road-positions）で値を入れる。
+--
+-- あわせて、日曜市の住所録の番号（本番号・枝番。「123-4」の 123 と 4）を区画に持たせる。
+-- 公開ページの URL・QR コードに使う店番（store_number、1〜999）とは別の列にする
+-- （枝番のある区画どうしは本番号が同じなので、店番にすると URL が重なるため）。
+-- マップ編集の CSV 取り込みは、この2つの組で区画を探して作る・更新する。
 
 alter table market_locations
   add column if not exists road_id text references map_roads(id) on delete restrict,
@@ -32,6 +37,15 @@ alter table market_locations
   );
 
 create index if not exists market_locations_road_id_idx on market_locations (road_id);
+
+alter table market_locations
+  add column if not exists official_number integer check (official_number > 0),
+  add column if not exists branch_number integer check (branch_number > 0);
+
+-- 本番号＋枝番は区画ごとに1つ。枝番が無い区画は 0 として扱い、「123」と「123-1」は別の区画になる
+create unique index if not exists market_locations_official_number_uidx
+  on market_locations (official_number, coalesce(branch_number, 0))
+  where official_number is not null;
 
 
 -- ─── save_map_layout ────────────────────────────────────────────────────
@@ -159,7 +173,9 @@ begin
     road_id         = elem->>'roadId',
     road_distance_m = (elem->>'roadDistanceM')::double precision,
     road_side       = elem->>'roadSide',
-    road_offset_m   = (elem->>'roadOffsetM')::double precision
+    road_offset_m   = (elem->>'roadOffsetM')::double precision,
+    official_number = (elem->>'officialNumber')::integer,
+    branch_number   = (elem->>'branchNumber')::integer
   from jsonb_array_elements(coalesce(p_shops, '[]'::jsonb)) as elem
   where (elem->>'locationId') not like 'new-%'
     and ml.id = (elem->>'locationId')::uuid;
@@ -178,7 +194,8 @@ begin
     where value->>'locationId' like 'new-%'
   loop
     insert into market_locations (
-      store_number, latitude, longitude, district, road_id, road_distance_m, road_side, road_offset_m
+      store_number, latitude, longitude, district, road_id, road_distance_m, road_side, road_offset_m,
+      official_number, branch_number
     )
     values (
       (v_elem->>'position')::integer,
@@ -188,7 +205,9 @@ begin
       v_elem->>'roadId',
       (v_elem->>'roadDistanceM')::double precision,
       v_elem->>'roadSide',
-      (v_elem->>'roadOffsetM')::double precision
+      (v_elem->>'roadOffsetM')::double precision,
+      (v_elem->>'officialNumber')::integer,
+      (v_elem->>'branchNumber')::integer
     )
     returning id into v_id;
     v_created := v_created || jsonb_build_object(v_elem->>'locationId', v_id);
@@ -370,7 +389,8 @@ begin
   -- NULL のときは現在値を残す。道基準の位置は、参照先の道があるときだけ戻す
   if p_shops is not null and jsonb_array_length(p_shops) > 0 then
     insert into market_locations (
-      id, store_number, latitude, longitude, district, road_id, road_distance_m, road_side, road_offset_m
+      id, store_number, latitude, longitude, district, road_id, road_distance_m, road_side, road_offset_m,
+      official_number, branch_number
     )
     select
       (elem->>'locationId')::uuid,
@@ -381,7 +401,9 @@ begin
       case when has_road then elem->>'roadId' end,
       case when has_road then (elem->>'roadDistanceM')::double precision end,
       case when has_road then elem->>'roadSide' end,
-      case when has_road then (elem->>'roadOffsetM')::double precision end
+      case when has_road then (elem->>'roadOffsetM')::double precision end,
+      (elem->>'officialNumber')::integer,
+      (elem->>'branchNumber')::integer
     from (
       select
         elem,
@@ -402,7 +424,9 @@ begin
       road_id         = excluded.road_id,
       road_distance_m = excluded.road_distance_m,
       road_side       = excluded.road_side,
-      road_offset_m   = excluded.road_offset_m;
+      road_offset_m   = excluded.road_offset_m,
+      official_number = excluded.official_number,
+      branch_number   = excluded.branch_number;
   end if;
 
   -- ⑤ 割り当てを入れ直す

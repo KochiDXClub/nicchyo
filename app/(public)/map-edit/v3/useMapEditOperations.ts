@@ -394,6 +394,14 @@ export function useMapEditOperations(params: Params) {
     [shops, commit, setMessage, mapSettingsLimits.maxUnassignedShopMarkers]
   );
 
+  /** CSV 取り込みの結果（storeCsvImport.ts の planStoreImport）を1件の操作として当てはめる */
+  const applyStoreImport = useCallback(
+    (next: { shops: EditableShop[]; vendors: EditableVendor[] }, text: string) => {
+      commit({ shops: next.shops, vendors: next.vendors }, "CSV", text);
+    },
+    [commit]
+  );
+
   // ── 道 ──────────────────────────────
   const patchRoad = useCallback(
     (roadId: string, patch: Partial<EditableRoad>, logText: string, options?: CommitOptions) => {
@@ -596,6 +604,7 @@ export function useMapEditOperations(params: Params) {
     clearVendor,
     deleteSlot,
     applySlotPlan,
+    applyStoreImport,
     patchRoad,
     deleteRoad,
     createRoad,

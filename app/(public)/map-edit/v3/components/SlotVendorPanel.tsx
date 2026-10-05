@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { VENDOR_FIELD_LIMITS } from "../../../map/types/editableShop";
+import { VENDOR_FIELD_LIMITS, slotLabel } from "../../../map/types/editableShop";
+import { EDITOR_COLORS } from "../editorTheme";
 import type { EditableShop, EditableVendor, VendorCategory } from "../types";
 import {
   buttonStyle,
@@ -138,7 +139,12 @@ export default function SlotVendorPanel({
 
   return (
     <div style={panelWrap}>
-      <p style={{ margin: "0 0 4px", fontSize: 15, fontWeight: 900 }}>区画 {shop.position}</p>
+      <p style={{ margin: "0 0 4px", fontSize: 15, fontWeight: 900 }}>
+        区画 {slotLabel(shop)}
+        {shop.officialNumber != null && (
+          <span style={{ fontSize: 11.5, fontWeight: 700, color: EDITOR_COLORS.muted }}>（店番 {shop.position}）</span>
+        )}
+      </p>
       <p style={{ ...noteStyle, marginBottom: 12 }}>
         {shop.roadId && shop.roadDistanceM != null
           ? `${roadName ?? "道"} の${shop.roadSide === "left" ? "左" : "右"}側・始点から ${Math.round(shop.roadDistanceM)}m`
