@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { DEFAULT_MAP_ROUTE_CONFIG } from "@/app/(public)/map/types/mapRoute";
-import { isRouteConfigChanged, planSlotRoadPositions, type EditableShop } from "./_shared";
+import { isRouteConfigChanged, planSlotRoadPositions, validateVendorDrafts, type EditableShop, type EditableVendor } from "./_shared";
 
 describe("isRouteConfigChanged", () => {
   it("同じ値なら変更なし", () => {
@@ -67,5 +67,37 @@ describe("planSlotRoadPositions", () => {
   it("道が1本も無ければすべて報告に回す", () => {
     const plan = planSlotRoadPositions([shop(1, 33.56148, 133.531)], [], 18);
     expect(plan.unmatched).toEqual([expect.objectContaining({ position: 1, nearestRoadName: null, distanceToNearestRoadM: null })]);
+  });
+});
+
+describe("validateVendorDrafts", () => {
+  const context = { existingVendorIds: new Set(["v1"]), categoryIds: new Set(["c1"]) };
+  const draft = (patch: Partial<EditableVendor> = {}): EditableVendor => ({
+    id: "new-vendor-1",
+    name: "朝市の八百屋",
+    categoryId: "c1",
+    strength: "",
+    mainProducts: ["柚子"],
+    ...patch,
+  });
+
+  it("新しい出店者と既存の出店者の正しい入力は通す", () => {
+    expect(validateVendorDrafts([draft(), draft({ id: "v1", categoryId: null })], context)).toBeNull();
+  });
+
+  it.each([
+    ["存在しない既存の出店者", draft({ id: "v-unknown" }), "存在しない出店者"],
+    ["店名が空", draft({ name: "  " }), "店名を入れてください"],
+    ["店名が長すぎる", draft({ name: "あ".repeat(61) }), "60 文字以内"],
+    ["存在しないジャンル", draft({ categoryId: "c-unknown" }), "ジャンル"],
+    ["こだわりが長すぎる", draft({ strength: "あ".repeat(401) }), "こだわり"],
+    ["主な商品が多すぎる", draft({ mainProducts: Array.from({ length: 11 }, (_, i) => `品${i}`) }), "主な商品"],
+    ["主な商品に空の項目", draft({ mainProducts: [" "] }), "主な商品"],
+  ])("%s は理由を返す", (_label, vendor, message) => {
+    expect(validateVendorDrafts([vendor], context)).toContain(message);
+  });
+
+  it("同じ出店者が2回送られてきたら拒否する", () => {
+    expect(validateVendorDrafts([draft(), draft()], context)).toContain("正しくありません");
   });
 });

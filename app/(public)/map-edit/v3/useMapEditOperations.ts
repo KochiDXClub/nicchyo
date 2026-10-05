@@ -1,6 +1,6 @@
 import { useCallback, useRef } from "react";
 import type { MapRouteConfig, MapRoutePoint } from "../../map/types/mapRoute";
-import { roadIdOfSlot, roadSlotLatLng } from "../../map/utils/roadSlotPosition";
+import { roadIdOfSlot, roadSlotLatLng } from "@/lib/map/roadSlotPosition";
 import { MAX_SHOP_ID, MIN_SHOP_ID } from "@/lib/shops/route";
 import {
   recordOperation,

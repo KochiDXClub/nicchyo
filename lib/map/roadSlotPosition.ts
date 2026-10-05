@@ -1,5 +1,5 @@
-import { findNearestRoadId, latToMeters, lngToMeters, metersToLat, metersToLng } from "./mapRouteGeometry";
-import type { MapRoutePoint } from "../types/mapRoute";
+import { findNearestRoadId, latToMeters, lngToMeters, metersToLat, metersToLng } from "@/app/(public)/map/utils/mapRouteGeometry";
+import type { MapRoutePoint } from "@/app/(public)/map/types/mapRoute";
 
 /**
  * 区画の「道基準の位置」と緯度経度の相互変換。
