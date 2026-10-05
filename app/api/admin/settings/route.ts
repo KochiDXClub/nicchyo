@@ -8,6 +8,7 @@ import { parsePageVisibilitySettings } from "@/lib/pageVisibility";
 import { normalizeMapFeatureFlags } from "@/lib/mapFeatureFlags";
 import { createClient as createServiceClient } from "@supabase/supabase-js";
 import { MAP_FLAGS_SETTINGS_KEY } from "@/lib/mapFeatureFlags.server";
+import { DEFAULT_MAX_LANDMARKS, DEFAULT_MAX_UNASSIGNED_SHOP_MARKERS } from "@/app/(public)/map/config/mapSettingsDefaults";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -36,8 +37,8 @@ const DEFAULT_PUBLIC_SETTINGS: PublicSettings = {
 };
 
 const DEFAULT_MAP_SETTINGS: MapSettings = {
-  maxLandmarks: 80,
-  maxUnassignedShopMarkers: 40,
+  maxLandmarks: DEFAULT_MAX_LANDMARKS,
+  maxUnassignedShopMarkers: DEFAULT_MAX_UNASSIGNED_SHOP_MARKERS,
   maxMapSnapshots: 50,
   maxEditZoom: 20,
 };
