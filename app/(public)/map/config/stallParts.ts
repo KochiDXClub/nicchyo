@@ -193,10 +193,12 @@ export interface StallSpriteColors {
   photo?: { href: string; stroke: string };
 }
 
-/** 写真をはめ込む本体の矩形（BODY_PATH の外接矩形） */
+/** 屋根の下辺の y（gable / flat / arch / parasol とも 30〜34 に収まる） */
+const ROOF_BOTTOM_Y = 34;
+
 /**
  * 写真入りの屋台は屋根を低くして、写真を見やすくする。
- * 屋根の下辺（y=34）を基準に縦だけ縮めて少し持ち上げ、空いた上の余白は viewBox から切り落とす。
+ * 屋根の下辺（ROOF_BOTTOM_Y）を基準に縦だけ縮めて少し持ち上げ、空いた上の余白は viewBox から切り落とす。
  */
 export const STALL_PHOTO_ROOF_SCALE = 0.6;
 /** 縮めた屋根を上へ持ち上げる量（ひさしに食い込まないように） */
@@ -205,6 +207,7 @@ export const STALL_PHOTO_TOP_TRIM = 8;
 /** 写真入りスプライトの縦横比（高さ ÷ 幅）。高さを基準に幅を決めるので、屋根を削ったぶん写真が大きくなる */
 export const STALL_PHOTO_HEIGHT_RATIO = (STALL_VIEWBOX - STALL_PHOTO_TOP_TRIM) / STALL_VIEWBOX;
 
+/** 写真をはめ込む本体の矩形（BODY_PATH の外接矩形） */
 export const STALL_BODY_RECT = { x: 10, y: 40, width: 80, height: 42 } as const;
 
 /**
@@ -221,7 +224,7 @@ export function generateStallSpriteSvg(
   const roof = ROOF_DEFS[spec.roof];
   const awning = AWNING_DEFS[spec.awning];
   const roofShrink = colors.photo
-    ? `translate(0 ${34 - STALL_PHOTO_ROOF_LIFT}) scale(1 ${STALL_PHOTO_ROOF_SCALE}) translate(0 -34)`
+    ? `translate(0 ${ROOF_BOTTOM_Y - STALL_PHOTO_ROOF_LIFT}) scale(1 ${STALL_PHOTO_ROOF_SCALE}) translate(0 -${ROOF_BOTTOM_Y})`
     : "";
   const roofTransformValue = [roofShrink, roof.transform].filter(Boolean).join(" ");
   const roofTransform = roofTransformValue ? ` transform="${roofTransformValue}"` : "";
@@ -256,7 +259,9 @@ export function generateStallSpriteSvg(
     `</g>` +
     `<g${roofTransform}>` +
     `<path d="${roof.d}" fill="${colors.roof}"${outline}/>` +
-    `<path d="${roof.light}" fill="#ffffff" opacity="0.22"/>` +
+    // かまぼこ屋根のハイライトは本体の曲線からはみ出すので、屋根の形で切り抜く
+    `<clipPath id="stall-roof-clip"><path d="${roof.d}"/></clipPath>` +
+    `<path d="${roof.light}" fill="#ffffff" opacity="0.22" clip-path="url(#stall-roof-clip)"/>` +
     `</g>` +
     `</svg>`
   );
