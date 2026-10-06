@@ -178,6 +178,14 @@ function NavigationBarInner({
   const currentHref = activeHref ?? pathname;
   const isNavItemActive = (item: NavItem) => currentHref === (item.target ?? item.href);
 
+  /*
+   * 地図の上にいる間（ふつうの地図・検索パネル表示中）のナビ。
+   * lg 以上（PC・ノートPC）では画面の端から端までの帯ではなく、下端中央に浮かぶ
+   * 小さな丸いバーにして、広い地図を隠さないようにする。
+   * スマホと、サブページのもどるバーは従来どおり全幅の帯のまま
+   */
+  const isMapNav = isHome || isCloseUxActive;
+
   // ページ公開設定で public でないリンクはナビに出さない
   const consultItem = baseNavItems[0];
   const isConsultVisible = isLinkVisible(consultItem.target ?? consultItem.href);
@@ -354,12 +362,16 @@ function NavigationBarInner({
           isCloseUxActive
             ? "cursor-pointer border-green-500 bg-green-500"
             : "border-slate-200/60 bg-white/90 backdrop-blur-md"
+        } ${
+          isMapNav
+            ? "lg:bottom-4 lg:left-1/2 lg:right-auto lg:w-[22rem] lg:-translate-x-1/2 lg:rounded-full lg:border lg:shadow-float"
+            : ""
         }`}
         style={{ paddingBottom: "var(--safe-bottom, 0px)" }}
       >
         {isHome ? (
           /* ── マップ：フルナビ ── */
-          <div className="mx-auto flex h-14 max-w-lg items-center">
+          <div className="mx-auto flex h-14 max-w-lg items-center lg:h-16">
             {/* 左：相談（ページ公開設定で非表示のときはレイアウト維持のため空枠にする） */}
             {!isConsultVisible ? (
               <div className="flex-1" aria-hidden />
@@ -404,7 +416,7 @@ function NavigationBarInner({
           </div>
         ) : isCloseUxActive ? (
           /* ── パネル表示中：緑バー × ── */
-          <div className="mx-auto flex h-14 max-w-lg items-center justify-center">
+          <div className="mx-auto flex h-14 max-w-lg items-center justify-center lg:h-16">
             <div className="flex flex-col items-center gap-1">
               <div className="flex h-9 w-9 items-center justify-center rounded-full bg-white/20">
                 <X className="h-5 w-5 text-white" strokeWidth={2.4} aria-hidden />

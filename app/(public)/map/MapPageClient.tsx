@@ -794,14 +794,15 @@ export default function MapPageClient({
         <div className="absolute -bottom-20 -right-20 w-80 h-80 bg-gradient-to-tl from-yellow-200 to-amber-200 rounded-full blur-3xl opacity-20"></div>
       </div>
 
-      {/* メイン: NavigationBar(h-14=3.5rem) + safe-area-inset-bottom 分だけ下に余白 */}
+      {/*
+        メイン: NavigationBar(h-14=3.5rem) + safe-area-inset-bottom 分だけ下に余白。
+        lg 以上（PC・ノートPC）のナビは地図の上に浮かぶ小さな丸いバーなので、余白は取らず
+        地図を画面の下端まで広げる
+      */}
       <main
-        className="relative z-10 flex-1 overflow-hidden"
-        style={{
-          paddingBottom: shouldShowNavigationBar
-            ? 'calc(3.5rem + var(--safe-bottom, 0px))'
-            : '0px',
-        }}
+        className={`relative z-10 flex-1 overflow-hidden ${
+          shouldShowNavigationBar ? 'pb-[calc(3.5rem+var(--safe-bottom,0px))] lg:pb-0' : ''
+        }`}
       >
         <div className="relative h-full overflow-hidden">
             {showVendorPrompt && vendorShopName && (
@@ -856,7 +857,7 @@ export default function MapPageClient({
             {!nearbyState && !guideActive && (
               <div
                 ref={searchAreaRef}
-                className="absolute left-3 right-3 top-3 z-[1001] flex flex-col gap-2"
+                className="absolute left-3 right-3 top-3 z-[1001] flex flex-col gap-2 lg:left-4 lg:right-auto lg:top-4 lg:w-[26rem]"
                 onMouseDown={(e) => e.stopPropagation()}
                 onClick={(e) => e.stopPropagation()}
                 onTouchStart={(e) => e.stopPropagation()}

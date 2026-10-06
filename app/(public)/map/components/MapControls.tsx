@@ -181,7 +181,9 @@ export function MapControls({
 
       {/* 現在地追跡ボタン（検索エリアの高さに追従） */}
       <div
-        className="absolute right-4 z-[1000] transition-[top] duration-200"
+        // lg 以上は検索が左上の小さなカードになり、その高さに追従させる必要がないので、
+        // 検索バーの上端（lg:top-4）にそろえる。top は inline style なので !important で上書きする
+        className="absolute right-4 z-[1000] transition-[top] duration-200 lg:!top-4"
         style={{ top: trackingButtonTop }}
         onMouseDown={(e) => e.stopPropagation()}
         onClick={(e) => e.stopPropagation()}
