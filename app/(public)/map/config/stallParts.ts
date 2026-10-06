@@ -198,8 +198,8 @@ export interface StallSpriteColors {
  * 写真入りの屋台は屋根を低くして、写真を見やすくする。
  * 屋根の下辺（y=34）を基準に縦だけ縮め、空いた上の余白は viewBox から切り落とす。
  */
-export const STALL_PHOTO_ROOF_SCALE = 0.75;
-export const STALL_PHOTO_TOP_TRIM = 8;
+export const STALL_PHOTO_ROOF_SCALE = 0.6;
+export const STALL_PHOTO_TOP_TRIM = 14;
 /** 写真入りスプライトの縦横比（高さ ÷ 幅）。高さを基準に幅を決めるので、屋根を削ったぶん写真が大きくなる */
 export const STALL_PHOTO_HEIGHT_RATIO = (STALL_VIEWBOX - STALL_PHOTO_TOP_TRIM) / STALL_VIEWBOX;
 
