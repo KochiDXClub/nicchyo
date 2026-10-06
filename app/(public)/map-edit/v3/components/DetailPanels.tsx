@@ -8,48 +8,25 @@ import type {
   VendorOption,
 } from "../types";
 import { ROAD_KIND_LABELS } from "../types";
-
-const panelWrap: React.CSSProperties = { padding: 16, borderBottom: "1px solid #F3EBD8" };
-const label: React.CSSProperties = { display: "block", fontSize: 11.5, fontWeight: 700, color: "#9A8A6A", marginBottom: 5 };
-const inputStyle: React.CSSProperties = {
-  width: "100%",
-  boxSizing: "border-box",
-  padding: "8px 11px",
-  borderRadius: 9,
-  border: "1px solid #E4D9BF",
-  background: "#FDFBF5",
-  fontSize: 13,
-  outline: "none",
-  marginBottom: 12,
-};
-const buttonStyle: React.CSSProperties = {
-  padding: "8px 13px",
-  borderRadius: 9,
-  fontSize: 12.5,
-  fontWeight: 700,
-  cursor: "pointer",
-  border: "1px solid #E4D9BF",
-  background: "#fff",
-  color: "#57503F",
-};
-const dangerButtonStyle: React.CSSProperties = {
-  ...buttonStyle,
-  border: "1px solid #F2C4B0",
-  color: "#B4472C",
-};
+import { buttonStyle, dangerButtonStyle, inputStyle, label, noteStyle, panelWrap } from "./panelStyles";
 
 export function SlotDetailPanel({
   shop,
+  roadName,
   vendorOptions,
   onVendorSelect,
   onStartMove,
   onClearVendor,
+  onDelete,
 }: {
   shop: EditableShop | null;
+  /** 区画が乗っている道の名前（道基準の位置を持つ区画だけ） */
+  roadName: string | null;
   vendorOptions: VendorOption[];
   onVendorSelect: (vendorId: string) => void;
   onStartMove: () => void;
   onClearVendor: () => void;
+  onDelete: () => void;
 }) {
   if (!shop) {
     return (
@@ -61,7 +38,12 @@ export function SlotDetailPanel({
 
   return (
     <div style={panelWrap}>
-      <p style={{ margin: "0 0 12px", fontSize: 15, fontWeight: 900 }}>区画 {shop.position}</p>
+      <p style={{ margin: "0 0 4px", fontSize: 15, fontWeight: 900 }}>区画 {shop.position}</p>
+      <p style={{ ...noteStyle, marginBottom: 12 }}>
+        {shop.roadId && shop.roadDistanceM != null
+          ? `${roadName ?? "道"} の${shop.roadSide === "left" ? "左" : "右"}側・始点から ${Math.round(shop.roadDistanceM)}m`
+          : "道の上の位置はまだありません（移行前の区画）"}
+      </p>
 
       <span style={label}>出店者（登録済みから選択）</span>
       <select
@@ -90,7 +72,17 @@ export function SlotDetailPanel({
             空きにする
           </span>
         )}
+        <button
+          type="button"
+          onClick={onDelete}
+          disabled={!!shop.vendorId}
+          title={shop.vendorId ? "出店者がいる区画は削除できません。先に「空きにする」で出店者を外してください" : undefined}
+          style={{ ...dangerButtonStyle, opacity: shop.vendorId ? 0.45 : 1, cursor: shop.vendorId ? "not-allowed" : "pointer" }}
+        >
+          この区画を削除
+        </button>
       </div>
+      {shop.vendorId && <p style={{ ...noteStyle, marginTop: 8 }}>区画を削除するには、先に「空きにする」で出店者を外してください。</p>}
     </div>
   );
 }
@@ -143,7 +135,7 @@ export function RoadDetailPanel({
   onWiderClick,
   onNarrowerClick,
   onDelete,
-  onAddSlots,
+  onStartSplit,
   shopCountOnRoad,
 }: {
   road: EditableRoad;
@@ -152,7 +144,8 @@ export function RoadDetailPanel({
   onWiderClick: () => void;
   onNarrowerClick: () => void;
   onDelete: () => void;
-  onAddSlots: (count: number) => void;
+  /** 区画分けツールをこの道で始める */
+  onStartSplit: () => void;
   shopCountOnRoad: (roadId: string) => number;
 }) {
   return (
@@ -199,12 +192,9 @@ export function RoadDetailPanel({
         <>
           <span style={label}>区画（現在 {shopCountOnRoad(road.id)} 区画）</span>
           <div style={{ display: "flex", gap: 8 }}>
-            <span onClick={() => onAddSlots(2)} style={buttonStyle}>
-              ＋2 区画
-            </span>
-            <span onClick={() => onAddSlots(10)} style={buttonStyle}>
-              ＋10 区画
-            </span>
+            <button type="button" onClick={onStartSplit} style={buttonStyle}>
+              区画分け…
+            </button>
           </div>
         </>
       )}
