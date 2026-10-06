@@ -65,12 +65,24 @@ function hashString(value: string): string {
 /**
  * カスタム SVG を px 四方に描くため、ルート <svg> の width / height を差し替える。
  * 指定が無い SVG は Firefox で Canvas に描けないことがある。
+ * viewBox が無く width / height だけの SVG は、差し替えると中身が拡縮されず左上に小さく描かれるので、
+ * 元の大きさから viewBox を補ってから差し替える。
  */
-function withSvgSize(svg: string, px: number): string {
+export function withSvgSize(svg: string, px: number): string {
   return svg.replace(/^<svg\b([^>]*)>/, (_m, attrs: string) => {
+    const attr = (name: string) =>
+      new RegExp(`\\s${name}\\s*=\\s*(?:"([^"]*)"|'([^']*)')`).exec(attrs);
+    const size = (name: string) => {
+      const m = attr(name);
+      const n = m ? parseFloat(m[1] ?? m[2]) : NaN;
+      return Number.isFinite(n) && n > 0 ? n : null;
+    };
+    const w = size("width");
+    const h = size("height");
     const rest = attrs.replace(/\s(width|height)\s*=\s*("[^"]*"|'[^']*')/g, "");
+    const viewBox = !attr("viewBox") && w && h ? ` viewBox="0 0 ${w} ${h}"` : "";
     const ns = /\sxmlns\s*=/.test(rest) ? "" : ' xmlns="http://www.w3.org/2000/svg"';
-    return `<svg${ns}${rest} width="${px}" height="${px}">`;
+    return `<svg${ns}${rest}${viewBox} width="${px}" height="${px}">`;
   });
 }
 
@@ -406,13 +418,15 @@ export async function buildStallSprites(shops: Shop[], pixelRatio = 2): Promise<
     const customSvg = getSafeCustomSvg(shop);
     if (!customSvg) continue;
     const key = stallSpriteKey(shop);
-    // 状態ごとの色替えはできないので、同じ画像を全状態の ID で登録する（選択・検索などは木札・バッジ側で伝わる）
+    // 状態ごとの色替えはできないので、1 回だけ描いて全状態の ID に同じ画像を登録する
+    // （選択・検索などは木札・バッジ側で伝わる）
+    const image = memoImage(`stall:${key}@${pixelRatio}`, () =>
+      rasterizeSvg(withSvgSize(customSvg, px), px, pixelRatio)
+    );
     jobs.push(
       ...STALL_STATES.map((state) =>
-        memoImage(`stall:${key}:${state}@${pixelRatio}`, () =>
-          rasterizeSvg(withSvgSize(customSvg, px), px, pixelRatio)
-        )
-          .then((image) => ({ id: stallImageId(key, state), image, pixelRatio }))
+        image
+          .then((data) => ({ id: stallImageId(key, state), image: data, pixelRatio }))
           .catch((error: unknown) => {
             console.warn("[stallSprites]", key, state, error);
             return null;
