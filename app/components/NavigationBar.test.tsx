@@ -6,26 +6,30 @@ import NavigationBar from "./NavigationBar";
 // パスは各テストで差し替える
 let currentPathname = "/map";
 
+const push = vi.fn();
+
 vi.mock("next/navigation", () => ({
   usePathname: () => currentPathname,
-  useRouter: () => ({ push: vi.fn() }),
+  useRouter: () => ({ push }),
   useSearchParams: () => new URLSearchParams(),
 }));
 
-// ロールは各テストで差し替える
+// ロールとメニューの開閉は各テストで差し替える
 let isModerator = false;
+let isVendor = false;
+let menuOpen = false;
 
 vi.mock("@/lib/auth/AuthContext", () => ({
   useAuth: () => ({
-    user: null,
-    isLoggedIn: false,
-    permissions: { isAdmin: false, isModerator, isVendor: false },
+    user: isVendor ? { id: "v1", name: "山田農園" } : null,
+    isLoggedIn: isVendor,
+    permissions: { isAdmin: false, isModerator, isVendor },
     logout: vi.fn(),
   }),
 }));
 
 vi.mock("@/lib/ui/MenuContext", () => ({
-  useMenu: () => ({ isMenuOpen: false, openMenu: vi.fn(), closeMenu: vi.fn(), toggleMenu: vi.fn() }),
+  useMenu: () => ({ isMenuOpen: menuOpen, openMenu: vi.fn(), closeMenu: vi.fn(), toggleMenu: vi.fn() }),
 }));
 
 // 公開でないパスは各テストで差し替える
@@ -103,5 +107,41 @@ describe("NavigationBar の近況ボタンの行き先", () => {
     hiddenPaths = ["/story", "/demo/story"];
     render(<NavigationBar activeHref="/map" />);
     expect(screen.queryByText("近況")).not.toBeInTheDocument();
+  });
+});
+
+describe("NavigationBar のメニューの出店者ページ", () => {
+  beforeEach(() => {
+    menuOpen = true;
+    push.mockReset();
+  });
+
+  afterEach(() => {
+    menuOpen = false;
+    isVendor = false;
+    hiddenPaths = [];
+  });
+
+  it("出店者には、出店者ページへの入口を1つだけ、来訪者向けの項目より上に出す", () => {
+    isVendor = true;
+    render(<NavigationBar activeHref="/map" />);
+
+    const buttons = screen.getAllByRole("button").map((button) => button.textContent ?? "");
+    const vendorIndex = buttons.findIndex((text) => text.includes("出店者ページ"));
+    const visitIndex = buttons.findIndex((text) => text.includes("お気に入り"));
+    expect(vendorIndex).toBeGreaterThanOrEqual(0);
+    expect(vendorIndex).toBeLessThan(visitIndex);
+    // 使われていない古い出店者ページへの項目は出さない
+    expect(screen.queryByText("出店者ダッシュボード")).not.toBeInTheDocument();
+    expect(screen.queryByText("商品管理")).not.toBeInTheDocument();
+    expect(screen.queryByText("注文管理")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /出店者ページ/ }));
+    expect(push).toHaveBeenCalledWith("/my-shop");
+  });
+
+  it("来訪者には出店者ページを出さない", () => {
+    render(<NavigationBar activeHref="/map" />);
+    expect(screen.queryByText("出店者ページ")).not.toBeInTheDocument();
   });
 });

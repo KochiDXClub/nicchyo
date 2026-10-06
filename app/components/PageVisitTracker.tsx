@@ -3,6 +3,7 @@
 import { usePathname, useSearchParams } from "next/navigation";
 import { useEffect, useRef } from "react";
 
+import { isSecretTokenPath } from "@/lib/analytics/secretPaths";
 import {
   ANALYTICS_OPT_OUT_CHANGE_EVENT,
   isAnalyticsOptedOut,
@@ -10,7 +11,7 @@ import {
 } from "@/lib/analytics/consentClient";
 
 function sendVisit(path: string, durationSeconds: number) {
-  if (isAnalyticsOptedOut()) return;
+  if (isAnalyticsOptedOut() || isSecretTokenPath(path)) return;
   const payload = JSON.stringify({ path, durationSeconds });
 
   if (typeof navigator !== "undefined" && typeof navigator.sendBeacon === "function") {
@@ -75,7 +76,7 @@ export default function PageVisitTracker() {
     sendVisit(nextPath, 1);
 
     // 画面遷移ぶんの GA4 page_view。止めている端末では送らない
-    if (isAnalyticsOptedOut()) return;
+    if (isAnalyticsOptedOut() || isSecretTokenPath(nextPath)) return;
     try {
       const w = window as Window & { gtag?: (...args: unknown[]) => void };
       if (typeof w?.gtag === "function") {

@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { cn } from "@/lib/utils/cn";
-import { PAYMENT_OPTIONS, RAIN_OPTIONS, TIME_OPTIONS } from "@/lib/vendor/storeOptions";
+import { PAYMENT_OPTIONS, RAIN_OPTIONS } from "@/lib/vendor/storeOptions";
+import { formatTime, isEndAfterStart, LAST_HOUR, parseTime, TIME_HOURS, TIME_MINUTES } from "@/lib/vendor/businessHours";
 import type { PaymentMethod, RainPolicy } from "@/app/vendor/_types";
 import PhotoPickerField from "./PhotoPickerField";
 import { usePhotoPicker } from "./usePhotoPicker";
@@ -118,10 +119,55 @@ function ProductListInput({ snapshot, saving, onSubmit, onSkip, question }: Inpu
   );
 }
 
+/** 時刻の選択（時と分）。保存の形は "7:30"。分は10分刻み、24時は0分だけ（lib/vendor/businessHours.ts） */
+function TimeSelect({ value, onChange, label, placeholder }: { value: string; onChange: (value: string) => void; label: string; placeholder: string }) {
+  const parsed = parseTime(value);
+  const hour = parsed ? String(parsed.hour) : "";
+  const minute = parsed ? parsed.minute : 0;
+
+  return (
+    <div className="grid grid-cols-[1fr_auto] gap-1.5">
+      <select
+        value={hour}
+        onChange={(event) => (event.target.value ? onChange(formatTime(Number(event.target.value), Number(event.target.value) === LAST_HOUR ? 0 : minute)) : onChange(""))}
+        aria-label={`${label}（時）`}
+        className={fieldClass}
+      >
+        <option value="">{placeholder}</option>
+        {TIME_HOURS.map((h) => (
+          <option key={h} value={h}>
+            {h}時
+          </option>
+        ))}
+      </select>
+      <select
+        value={minute}
+        onChange={(event) => parsed && onChange(formatTime(parsed.hour, Number(event.target.value)))}
+        disabled={!parsed || parsed.hour === LAST_HOUR}
+        aria-label={`${label}（分）`}
+        className={fieldClass}
+      >
+        {TIME_MINUTES.map((m) => (
+          <option key={m} value={m}>
+            {String(m).padStart(2, "0")}分
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
+/** 保存の形（"7:30"）にそろえる。選べる時刻でなければ空（"06:00" のような形も "6:00" にする） */
+function normalizeTime(value: string | undefined): string {
+  const time = parseTime(value);
+  return time ? formatTime(time.hour, time.minute) : "";
+}
+
 function HoursInput({ snapshot, saving, onSubmit, onSkip }: InputProps) {
-  const [start, setStart] = useState(snapshot.businessHoursStart ?? "");
-  const [end, setEnd] = useState(snapshot.businessHoursEnd ?? "");
-  const valid = !!start && !!end && TIME_OPTIONS.indexOf(end) > TIME_OPTIONS.indexOf(start);
+  // 10分刻みの時刻でない古い値（空・形式違い）は、選び直してもらう
+  const [start, setStart] = useState(normalizeTime(snapshot.businessHoursStart));
+  const [end, setEnd] = useState(normalizeTime(snapshot.businessHoursEnd));
+  const valid = isEndAfterStart(start, end);
 
   return (
     <AskForm
@@ -131,36 +177,13 @@ function HoursInput({ snapshot, saving, onSubmit, onSkip }: InputProps) {
       onSubmit={() => onSubmit({ id: "hours", start, end })}
     >
       <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
-        <select
-          value={start}
-          onChange={(event) => setStart(event.target.value)}
-          aria-label="開始時間"
-          className={fieldClass}
-        >
-          <option value="">何時から</option>
-          {TIME_OPTIONS.map((time) => (
-            <option key={time} value={time}>
-              {time}
-            </option>
-          ))}
-        </select>
+        <TimeSelect value={start} onChange={setStart} label="開始時間" placeholder="何時から" />
         <span className="text-nicchyo-ink/55" aria-hidden="true">
           〜
         </span>
-        <select
-          value={end}
-          onChange={(event) => setEnd(event.target.value)}
-          aria-label="終了時間"
-          className={fieldClass}
-        >
-          <option value="">何時まで</option>
-          {TIME_OPTIONS.map((time) => (
-            <option key={time} value={time}>
-              {time}
-            </option>
-          ))}
-        </select>
+        <TimeSelect value={end} onChange={setEnd} label="終了時間" placeholder="何時まで" />
       </div>
+      <p className="text-xs text-nicchyo-ink/55">10分きざみで選べます（例：7時30分）。</p>
       {start && end && !valid && (
         <p className="text-sm text-rose-600">終わりは、始まりより後にしてや</p>
       )}

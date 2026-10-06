@@ -105,8 +105,6 @@ export type VendorAskSnapshot = {
 export type AskQuestion = {
   id: AskQuestionId;
   tier: AskTier;
-  /** 一覧で質問の頭に付ける絵。編集画面の見た目のためだけに使う */
-  emoji: string;
   text: string;
   input: AskInputKind;
   placeholder?: string;
@@ -139,7 +137,6 @@ export const ASK_QUESTIONS: readonly AskQuestion[] = [
   {
     id: "weekly-products",
     tier: "weekly",
-    emoji: "🛒",
     text: "今週はどんな商品を出品するかえ？",
     input: "product-list",
     placeholder: "（例）トマト",
@@ -151,7 +148,6 @@ export const ASK_QUESTIONS: readonly AskQuestion[] = [
   {
     id: "hours",
     tier: "urgent",
-    emoji: "⏰",
     text: "いつも何時から何時くらいまで出店しちゅう？",
     input: "hours",
     isAnswered: (s) => filled(s.businessHoursStart) && filled(s.businessHoursEnd),
@@ -163,7 +159,6 @@ export const ASK_QUESTIONS: readonly AskQuestion[] = [
   {
     id: "signature",
     tier: "urgent",
-    emoji: "🌟",
     text: "このお店の看板商品を教えてや！",
     input: "signature",
     placeholder: "（例）山田農園のトマト",
@@ -173,7 +168,6 @@ export const ASK_QUESTIONS: readonly AskQuestion[] = [
   {
     id: "signature-pr",
     tier: "urgent",
-    emoji: "📣",
     text: "商品のPR（紹介）をしてや！",
     input: "long-text",
     placeholder: "（例）朝どれの完熟で、甘みがぎゅっと詰まっちゅうよ",
@@ -185,7 +179,6 @@ export const ASK_QUESTIONS: readonly AskQuestion[] = [
   {
     id: "payment",
     tier: "urgent",
-    emoji: "💴",
     text: "支払方法はなにがある？",
     input: "payment",
     isAnswered: (s) => s.paymentMethods.length > 0 || filled(s.paymentNote),
@@ -200,7 +193,6 @@ export const ASK_QUESTIONS: readonly AskQuestion[] = [
   {
     id: "instagram",
     tier: "urgent",
-    emoji: "📷",
     text: "インスタグラムをやっちょったら、IDを教えてや！",
     input: "handle",
     placeholder: "@username",
@@ -210,7 +202,6 @@ export const ASK_QUESTIONS: readonly AskQuestion[] = [
   {
     id: "website",
     tier: "urgent",
-    emoji: "🌐",
     text: "webサイトも登録できるきね！",
     input: "url",
     placeholder: "https://example.com",
@@ -220,7 +211,6 @@ export const ASK_QUESTIONS: readonly AskQuestion[] = [
   {
     id: "rain",
     tier: "urgent",
-    emoji: "☔",
     text: "雨の日はいつも出店しゆう？",
     input: "rain",
     // 既定値の「当日判断」だけでは、本人が答えたのか未回答なのか区別できない
@@ -236,7 +226,6 @@ export const ASK_QUESTIONS: readonly AskQuestion[] = [
   {
     id: "strength",
     tier: "maniac",
-    emoji: "✨",
     text: "このお店のええところを教えてや",
     input: "long-text",
     isAnswered: (s) => filled(s.strength),
@@ -245,7 +234,6 @@ export const ASK_QUESTIONS: readonly AskQuestion[] = [
   {
     id: "motivation",
     tier: "maniac",
-    emoji: "🔥",
     text: "どんな思いで出店しちゅうが？",
     input: "long-text",
     isAnswered: (s) => filled(s.motivation),
@@ -254,7 +242,6 @@ export const ASK_QUESTIONS: readonly AskQuestion[] = [
   {
     id: "years",
     tier: "maniac",
-    emoji: "📅",
     text: "このお店は何年くらい続けてきちゅう？",
     input: "years",
     isAnswered: (s) => s.yearsRunning != null,
@@ -263,7 +250,6 @@ export const ASK_QUESTIONS: readonly AskQuestion[] = [
   {
     id: "sunday-love",
     tier: "maniac",
-    emoji: "💛",
     text: "日曜市のなにが好き？",
     input: "long-text",
     isAnswered: (s) => filled(s.sundayLove),
@@ -274,7 +260,6 @@ export const ASK_QUESTIONS: readonly AskQuestion[] = [
   {
     id: "shop-photo",
     tier: "profile",
-    emoji: "📸",
     text: "お店の写真を見せてや！",
     input: "photo",
     isAnswered: (s) => filled(s.shopImageUrl),
@@ -283,7 +268,6 @@ export const ASK_QUESTIONS: readonly AskQuestion[] = [
   {
     id: "shop-name",
     tier: "profile",
-    emoji: "🏪",
     text: "お店の名前はなんちゅうが？",
     input: "line-text",
     placeholder: "（例）山田農園",
@@ -293,7 +277,6 @@ export const ASK_QUESTIONS: readonly AskQuestion[] = [
   {
     id: "category",
     tier: "profile",
-    emoji: "🧺",
     text: "どんなもんを売りゆう？",
     input: "category",
     isAnswered: (s) => filled(s.categoryId),
@@ -302,7 +285,6 @@ export const ASK_QUESTIONS: readonly AskQuestion[] = [
   {
     id: "style",
     tier: "profile",
-    emoji: "🎪",
     text: "お店のスタイルを教えてや！",
     input: "style",
     isAnswered: (s) => s.styleTags.length > 0 || filled(s.style),
@@ -315,7 +297,6 @@ export const ASK_QUESTIONS: readonly AskQuestion[] = [
   {
     id: "owner",
     tier: "profile",
-    emoji: "🙋",
     text: "店主さんのお名前は？（出さんでもえいよ）",
     input: "owner",
     isAnswered: (s) => filled(s.ownerName),
@@ -325,7 +306,6 @@ export const ASK_QUESTIONS: readonly AskQuestion[] = [
   {
     id: "products",
     tier: "profile",
-    emoji: "🥕",
     text: "主な商品と値段を教えてや！",
     input: "product-prices",
     isAnswered: (s) => s.products.length > 0,
@@ -334,7 +314,6 @@ export const ASK_QUESTIONS: readonly AskQuestion[] = [
   {
     id: "schedule",
     tier: "profile",
-    emoji: "🗓️",
     text: "出店しゆうのはいつ？",
     input: "schedule",
     isAnswered: (s) => s.schedule.length > 0,
@@ -343,7 +322,6 @@ export const ASK_QUESTIONS: readonly AskQuestion[] = [
   {
     id: "x",
     tier: "profile",
-    emoji: "🐦",
     text: "X（旧Twitter）はやっちょる？",
     input: "handle",
     placeholder: "@username",
@@ -363,14 +341,13 @@ export const ASK_QUESTION_BY_ID: ReadonlyMap<AskQuestionId, AskQuestion> = new M
 export const ASK_GROUPS: readonly {
   key: string;
   title: string;
-  emoji: string;
   ids: readonly AskQuestionId[];
 }[] = [
-  { key: "face", title: "お店の顔", emoji: "🏪", ids: ["shop-photo", "shop-name", "category", "style", "owner"] },
-  { key: "goods", title: "品ぞろえ", emoji: "🥕", ids: ["weekly-products", "products", "signature", "signature-pr"] },
-  { key: "market", title: "出店のこと", emoji: "🗓️", ids: ["hours", "schedule", "rain", "payment"] },
-  { key: "link", title: "つながり", emoji: "🔗", ids: ["instagram", "x", "website"] },
-  { key: "heart", title: "こだわり", emoji: "💛", ids: ["strength", "motivation", "years", "sunday-love"] },
+  { key: "face", title: "お店の顔", ids: ["shop-photo", "shop-name", "category", "style", "owner"] },
+  { key: "goods", title: "品ぞろえ", ids: ["weekly-products", "products", "signature", "signature-pr"] },
+  { key: "market", title: "出店のこと", ids: ["hours", "schedule", "rain", "payment"] },
+  { key: "link", title: "つながり", ids: ["instagram", "x", "website"] },
+  { key: "heart", title: "こだわり", ids: ["strength", "motivation", "years", "sunday-love"] },
 ];
 
 /** トップで聞く順。いつもの質問（今週の分）を先に、マニアックな質問は最後に */

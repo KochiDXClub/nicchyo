@@ -12,6 +12,7 @@ import type { Post } from "@/app/vendor/_types";
 import ClosedDaysCalendar from "@/components/vendor/ClosedDaysCalendar";
 import VendorBackdrop from "@/components/vendor/VendorBackdrop";
 import VendorAskStage from "./ask/VendorAskStage";
+import NoticeBanner from "./components/NoticeBanner";
 import ShopIcon from "./components/ShopIcon";
 
 /**
@@ -36,6 +37,7 @@ function daysUntilNextSunday(): number {
 
 export default function MyShopPage() {
   const { user } = useAuth();
+  const vendorId = user?.vendorId;
   const reduceMotion = useReducedMotion();
 
   const [setupSteps, setSetupSteps] = useState<SetupStep[] | null>(null);
@@ -44,9 +46,9 @@ export default function MyShopPage() {
   const [scrolled, setScrolled] = useState(false);
 
   useEffect(() => {
-    if (!user) return;
+    if (!vendorId) return;
 
-    Promise.all([fetchVendorStore(user.id), fetchVendorPosts(user.id)])
+    Promise.all([fetchVendorStore(vendorId), fetchVendorPosts(vendorId)])
       .then(([store, posts]) => {
         setPosts(posts);
         setSummary({
@@ -59,13 +61,13 @@ export default function MyShopPage() {
           { label: "店舗名を設定する", done: !!store.name?.trim(), href: "/vendor/store" },
           { label: "出店予定日を設定する", done: store.schedule.length > 0, href: "/vendor/store" },
           { label: "店舗写真を追加する", done: !!store.shop_image_url, href: "/vendor/store" },
-          { label: "最初の投稿をする", done: posts.length > 0, href: "/vendor/post/new" },
+          { label: "最初の投稿をする", done: posts.length > 0, href: "/vendor/posts" },
         ]);
       })
       .catch(() => {
         // 取得失敗時は静かに非表示
       });
-  }, [user]);
+  }, [vendorId]);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 96);
@@ -119,10 +121,17 @@ export default function MyShopPage() {
           </div>
         </header>
 
+        {/* 運営・市役所からの、まだ確認していないお知らせ（無ければ何も出さない） */}
+        {vendorId && (
+          <div className="empty:hidden mb-5">
+            <NoticeBanner />
+          </div>
+        )}
+
         {/* にちよさんの質問：出店者の情報入力はここで会話の形で聞く */}
-        {user?.id && (
+        {vendorId && (
           <div className="mb-8">
-            <VendorAskStage vendorId={user.id} />
+            <VendorAskStage vendorId={vendorId} accountId={user?.id} />
           </div>
         )}
 
@@ -162,11 +171,11 @@ export default function MyShopPage() {
         <Reveal reduceMotion={reduceMotion} className="mb-5">
           <div className="grid gap-3 sm:grid-cols-2">
             <Link
-              href="/vendor/post/new"
+              href="/vendor/posts"
               className="flex items-center justify-center gap-2.5 rounded-panel bg-amber-500 px-4 py-5 text-lg font-bold text-white shadow-brand-pop transition active:scale-[0.99] hover:bg-amber-400"
             >
               <Megaphone size={22} />
-              最新情報を発信
+              近況を出す
             </Link>
             <Link
               href="/vendor/store"
@@ -179,10 +188,10 @@ export default function MyShopPage() {
         </Reveal>
 
         {/* 出店しない日（日曜帯・ホームでは簡易版） */}
-        {user?.id && (
+        {vendorId && (
           <Reveal reduceMotion={reduceMotion} className="mb-6">
             <div>
-              <ClosedDaysCalendar vendorId={user.id} variant="strip" />
+              <ClosedDaysCalendar vendorId={vendorId} variant="strip" />
               <div className="mt-2 text-right">
                 <Link
                   href="/my-shop/schedule"
@@ -214,7 +223,7 @@ export default function MyShopPage() {
 
               {posts.length === 0 ? (
                 <Link
-                  href="/vendor/post/new"
+                  href="/vendor/posts"
                   className="flex items-center gap-4 rounded-panel border border-dashed border-amber-300 bg-white/80 p-5 shadow-card backdrop-blur-sm transition active:scale-[0.99]"
                 >
                   <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-amber-100 text-amber-600">

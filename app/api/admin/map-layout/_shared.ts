@@ -51,7 +51,7 @@ export function createAdminWriteClient(): SupabaseClient {
 const UNDEFINED_COLUMN = "42703";
 
 /**
- * 区画の道基準の位置・住所録の番号（20261001100000_add_road_position_and_numbers_to_market_locations.sql）が
+ * 区画の道基準の位置・住所録の番号（20261004140000_add_road_position_and_numbers_to_market_locations.sql）が
  * DB に入っているか。マイグレーションは main へのマージ後に承認を経て本番へ当たるため、
  * Preview や、リリース直後でマイグレーションの承認待ちの間は、アプリだけが新しくなって
  * 列がまだ無いことがある。その間も画面は開けるようにし、保存と移行処理だけを止める。
@@ -252,37 +252,56 @@ export async function loadVendorCategories(supabase: ReturnType<typeof createSer
 /**
  * マップ編集画面から送られてきた出店者の追加・更新を検証する。問題があればその理由を返す。
  * 新しい出店者の id は NEW_VENDOR_ID_PREFIX で始まる仮 id、既存の出店者の id は DB にある id であること。
+ *
+ * 既存の出店者は、今の DB の値から変わった項目だけを検証する。編集画面は、1つの項目を直しても
+ * 出店者の全項目をまとめて送るので、すべてを検証すると、出店者本人が my-shop で登録した上限超えの
+ * 値（品目が 11 件以上など。上限は画面側にしかない）が残っているだけで、店名を直した保存全体が
+ * 400 になってしまう。新しい出店者は、すべての項目を検証する。
  */
 export function validateVendorDrafts(
   vendors: EditableVendor[],
-  context: { existingVendorIds: ReadonlySet<string>; categoryIds: ReadonlySet<string> }
+  context: { existingVendors: ReadonlyMap<string, EditableVendor>; categoryIds: ReadonlySet<string> }
 ): string | null {
   const seen = new Set<string>();
   for (const vendor of vendors) {
     if (!vendor || typeof vendor.id !== "string" || seen.has(vendor.id)) return "出店者のデータが正しくありません";
     seen.add(vendor.id);
-    if (!vendor.id.startsWith(NEW_VENDOR_ID_PREFIX) && !context.existingVendorIds.has(vendor.id)) {
-      return "存在しない出店者は更新できません";
-    }
+    const isNew = vendor.id.startsWith(NEW_VENDOR_ID_PREFIX);
+    const current = isNew ? undefined : context.existingVendors.get(vendor.id);
+    if (!isNew && !current) return "存在しない出店者は更新できません";
+
     const name = typeof vendor.name === "string" ? vendor.name.trim() : "";
-    if (!name) return "店名を入れてください";
-    if (name.length > VENDOR_FIELD_LIMITS.nameMaxLength) {
-      return `店名は ${VENDOR_FIELD_LIMITS.nameMaxLength} 文字以内にしてください（${name.slice(0, 20)}…）`;
+    if (!current || name !== current.name.trim()) {
+      if (!name) return "店名を入れてください";
+      if (name.length > VENDOR_FIELD_LIMITS.nameMaxLength) {
+        return `店名は ${VENDOR_FIELD_LIMITS.nameMaxLength} 文字以内にしてください（${name.slice(0, 20)}…）`;
+      }
     }
-    if (vendor.categoryId !== null && (typeof vendor.categoryId !== "string" || !context.categoryIds.has(vendor.categoryId))) {
-      return `${name} のジャンルが正しくありません`;
+    if (!current || vendor.categoryId !== current.categoryId) {
+      if (vendor.categoryId !== null && (typeof vendor.categoryId !== "string" || !context.categoryIds.has(vendor.categoryId))) {
+        return `${name} のジャンルが正しくありません`;
+      }
     }
-    if (typeof vendor.strength !== "string" || vendor.strength.length > VENDOR_FIELD_LIMITS.strengthMaxLength) {
-      return `${name} のこだわりは ${VENDOR_FIELD_LIMITS.strengthMaxLength} 文字以内にしてください`;
+    if (!current || vendor.strength !== current.strength) {
+      if (typeof vendor.strength !== "string" || vendor.strength.length > VENDOR_FIELD_LIMITS.strengthMaxLength) {
+        return `${name} のこだわりは ${VENDOR_FIELD_LIMITS.strengthMaxLength} 文字以内にしてください`;
+      }
     }
-    if (
+    const productsChanged =
+      !current ||
       !Array.isArray(vendor.mainProducts) ||
-      vendor.mainProducts.length > VENDOR_FIELD_LIMITS.mainProductsMaxCount ||
-      vendor.mainProducts.some(
-        (product) => typeof product !== "string" || !product.trim() || product.length > VENDOR_FIELD_LIMITS.mainProductMaxLength
-      )
-    ) {
-      return `${name} の主な商品は ${VENDOR_FIELD_LIMITS.mainProductsMaxCount} 件まで、1件 ${VENDOR_FIELD_LIMITS.mainProductMaxLength} 文字以内にしてください`;
+      vendor.mainProducts.length !== current.mainProducts.length ||
+      vendor.mainProducts.some((product, index) => product !== current.mainProducts[index]);
+    if (productsChanged) {
+      if (
+        !Array.isArray(vendor.mainProducts) ||
+        vendor.mainProducts.length > VENDOR_FIELD_LIMITS.mainProductsMaxCount ||
+        vendor.mainProducts.some(
+          (product) => typeof product !== "string" || !product.trim() || product.length > VENDOR_FIELD_LIMITS.mainProductMaxLength
+        )
+      ) {
+        return `${name} の主な商品は ${VENDOR_FIELD_LIMITS.mainProductsMaxCount} 件まで、1件 ${VENDOR_FIELD_LIMITS.mainProductMaxLength} 文字以内にしてください`;
+      }
     }
   }
   return null;
@@ -580,4 +599,77 @@ export async function createMapLayoutSnapshot(
   if (error) {
     throw new Error("Failed to create map layout snapshot");
   }
+}
+
+/** 現地で店舗を 1 件ずつ置くとき、スナップショットを作り直さない時間（分） */
+export const RECENT_SNAPSHOT_MINUTES = 10;
+
+/**
+ * 同じ運営が直近（既定は 10 分以内）に作ったスナップショットがあれば、新しく作らない。
+ * スナップショットは全店番の配置を丸ごと保存するので、300 店を 1 件ずつ現地で登録すると
+ * 300 個になり、データが膨らみ、/admin/map-edit の「戻す」の一覧も同じ内容で埋まる。
+ * 直近のものが残っていれば、その状態（＝今回の編集より前）へ戻せるので、戻せることは保てる。
+ * @returns 新しく作ったら true、直近のものを使ったら false
+ */
+export async function ensureRecentMapLayoutSnapshot(
+  supabase: ReturnType<typeof createServerClient>,
+  adminWriteClient: SupabaseClient,
+  createdBy: string,
+  summary: SnapshotSummary,
+  withinMinutes: number = RECENT_SNAPSHOT_MINUTES,
+  now: Date = new Date()
+): Promise<boolean> {
+  const since = new Date(now.getTime() - withinMinutes * 60 * 1000).toISOString();
+  const { data, error } = await adminWriteClient
+    .from("map_layout_snapshots")
+    .select("id")
+    .eq("created_by", createdBy)
+    .gte("created_at", since)
+    .limit(1);
+
+  // 調べられなかったときは、念のため作る（戻せないよりは、増えるほうがよい）
+  if (!error && data && data.length > 0) return false;
+
+  await createMapLayoutSnapshot(supabase, adminWriteClient, createdBy, summary);
+  return true;
+}
+
+/**
+ * 送られてきていないが、道の形が変わったために緯度経度を計算し直して書く区画を選ぶ。
+ *
+ * 対象は、点が実際に変わった（または新しくできた）道に乗っている区画だけ。
+ * 移行（slot-road-positions）は緯度経度を変えずに道基準の位置だけを記録するので、
+ * 道から計算した位置は元の緯度経度と少しずれる。道が変わっていないのに全区画を計算し直すと、
+ * 関係のない保存のたびに公開マップ上で区画が動き、変更なしの保存でもスナップショットが増える。
+ */
+export function selectRepositionedShops({
+  shopsAfterSave,
+  currentShops,
+  currentRoads,
+  roadsAfterSave,
+  writtenLocationIds,
+}: {
+  shopsAfterSave: EditableShop[];
+  currentShops: EditableShop[];
+  currentRoads: EditableRoad[];
+  roadsAfterSave: EditableRoad[];
+  writtenLocationIds: ReadonlySet<string>;
+}): EditableShop[] {
+  const roadPointsKey = (points: MapRoutePoint[]) =>
+    points.map((point) => `${point.id}:${point.lat}:${point.lng}`).join("|");
+  const currentRoadById = new Map(currentRoads.map((road) => [road.id, road]));
+  const changedRoadIds = new Set(
+    roadsAfterSave
+      .filter((road) => {
+        const current = currentRoadById.get(road.id);
+        return !current || roadPointsKey(current.points) !== roadPointsKey(road.points);
+      })
+      .map((road) => road.id)
+  );
+  const currentShopById = new Map(currentShops.map((shop) => [shop.locationId, shop]));
+  return shopsAfterSave.filter((shop) => {
+    if (writtenLocationIds.has(shop.locationId) || !shop.roadId || !changedRoadIds.has(shop.roadId)) return false;
+    const current = currentShopById.get(shop.locationId);
+    return !!current && (current.lat !== shop.lat || current.lng !== shop.lng);
+  });
 }

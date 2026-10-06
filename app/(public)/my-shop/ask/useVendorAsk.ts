@@ -44,10 +44,21 @@ function useAskSnapshot(vendorId: string | null) {
  * いま入力が要る質問の数をそのまま数える（「あとで」にしたものも減らさない）。
  */
 export function useVendorAskInbox(vendorId: string | null) {
-  const { snapshot, failed } = useAskSnapshot(vendorId);
+  const { weekDate, snapshot, setSnapshot, failed } = useAskSnapshot(vendorId);
   const status: "loading" | "ready" | "error" = failed ? "error" : snapshot ? "ready" : "loading";
   const pendingCount = snapshot ? pendingQuestions(snapshot).length : 0;
-  return { status, pendingCount };
+
+  /** にちよさんとの相談から情報を変えたあとに読み直す。失敗しても前の状態のまま出す */
+  const refresh = useCallback(async () => {
+    if (!vendorId) return;
+    try {
+      setSnapshot(await fetchAskSnapshot(vendorId, weekDate));
+    } catch {
+      // 数がずれるだけなので、開き直せば直る
+    }
+  }, [vendorId, weekDate, setSnapshot]);
+
+  return { status, pendingCount, snapshot, weekDate, refresh };
 }
 
 export type VendorAskStatus = "loading" | "asking" | "done" | "error";

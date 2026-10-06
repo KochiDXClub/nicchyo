@@ -1,7 +1,6 @@
 {
   "faq.title": "よくある質問",
   "faq.description": "nicchyo（日曜市マップ）の使い方や、高知・日曜市に関するよくある質問をまとめました。",
-  "faq.lead": "日曜市マップの使い方や、困ったときの解決方法をまとめました。キーワード検索もご利用いただけます。",
   "about.meta.title": "nicchyo について",
   "about.meta.description": "nicchyo は高知・日曜市のデジタル体験を探求するプロジェクトです。観光客・地元の方・出店者をつなぐプラットフォームの背景をご紹介します。",
   "about.intro.title": "nicchyo",
@@ -80,7 +79,6 @@
   "mapIntro.badge": "はじめての方へ",
   "mapIntro.title": "ようこそ、日曜市へ",
   "mapIntro.lead": "**毎週日曜**、高知城のふもとから追手筋まで**約1.3km**。**およそ300の店**が並びます。",
-  "mapIntro.sub": "nicchyo（ニッチョ）は、はじめての人がそこを歩くための地図です。",
   "mapIntro.welcome.label": "ようこそ",
   "mapIntro.welcome.comment": "ようこそ、日曜市へ。まずはわしが、ざっと案内するきね。",
   "mapIntro.map.label": "地図で店を探す",
@@ -104,7 +102,6 @@
   "mapIntro.consultDemo.3.a": "追手筋沿いに何か所かあるよ。「おでかけ」を押したら、近いところまで案内するきね。",
   "mapIntro.consultDemo.note": "ここは見本の受け答えです。実際のにちよさんは、その日のお店の情報をもとに答えます",
   "mapIntro.endTitle": "日曜市を楽しんで！",
-  "mapIntro.reread": "この案内は、メニューの「はじめての方へ」からいつでも読み直せます",
   "mapIntro.aboutLink": "nicchyo について詳しく",
   "mapIntro.close": "地図をみる"
 }

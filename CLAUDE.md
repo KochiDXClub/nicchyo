@@ -79,7 +79,6 @@ app/
 ├── (public)/          # 一般ユーザー向けページ
 │   ├── map/           # メイン地図ページ（主機能）
 │   ├── search/        # 店舗検索
-│   ├── bag/           # 買い物リスト
 │   ├── consult/       # AI「にちよさん」チャット
 │   ├── shops/[code]/  # 店舗詳細（コードは3桁ゼロ埋め: 001〜999）
 │   ├── my-shop/       # 出店者向けページ
@@ -98,7 +97,6 @@ app/
 | Context | ファイル | 役割 |
 |---------|---------|------|
 | `AuthProvider` | `lib/auth/AuthContext.tsx` | Supabase認証状態管理 |
-| `BagProvider` | `lib/storage/BagContext.tsx` | 買い物リスト（ローカルストレージ） |
 | `MenuProvider` | `lib/ui/MenuContext.tsx` | ナビゲーションメニュー開閉 |
 | `MapLoadingProvider` | `app/components/MapLoadingProvider` | マップ初期ローディング状態 |
 
@@ -116,7 +114,7 @@ Layer 0: Leafletベースマップ
 
 - **座標の基準**: `config/roadConfig.ts` がすべての基準（高知城前〜追手筋東端）
 - **店舗表示の間引き**: ズームレベルに応じて `utils/zoomCalculator.ts` が密度調整
-- **データ取得**: `fetch-map-data.ts` でサーバーサイド取得 → `MapPageClient.tsx` に渡す
+- **データ取得**: `page.tsx` + `services/shopCache.ts` でサーバーサイド取得 → `MapPageClient.tsx` に渡す
 - **店舗DBアクセス**: `services/shopDb.ts`, `services/shopDataService.ts`
 
 ### 店舗コード体系

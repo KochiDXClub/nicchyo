@@ -74,7 +74,8 @@ const EMPTY_FORM: FormState = {
  */
 export function useVendorShopProfile() {
   const { user, permissions } = useAuth();
-  const vendorId = user?.id ?? null;
+  // 店舗の ID。アカウントの ID（user.id）とは別なので、所属店舗から取る
+  const vendorId = user?.vendorId ?? null;
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [errors, setErrors] = useState<Partial<Record<keyof FormState, string>>>({});
   const [productError, setProductError] = useState("");

@@ -453,9 +453,6 @@ export default function MapIntroPanel({
               <p className="text-[15px] leading-[1.9] text-nicchyo-ink/75 md:text-[16px]">
                 {siteTextWithEmphasis('mapIntro.lead', 'font-bold text-nicchyo-ink')}
               </p>
-              <p className="mt-1.5 text-[13.5px] leading-[1.85] text-nicchyo-ink/55 md:text-[14px]">
-                {siteText('mapIntro.sub')}
-              </p>
 
               <div className="pb-4" />
             </div>
@@ -556,9 +553,6 @@ export default function MapIntroPanel({
                 style={{ height: stopHeight }}
               />
               <div className="pl-[var(--intro-rail)] pr-5 md:pr-8">
-                <p className="text-[13px] font-semibold leading-relaxed text-nicchyo-ink/50 md:text-[14px]">
-                  {siteText('mapIntro.reread')}
-                </p>
                 <Link
                   href="/about"
                   className="mt-5 inline-flex items-center gap-1 text-[12.5px] font-semibold text-nicchyo-ink/50 underline-offset-4 transition hover:text-nicchyo-ink/80 hover:underline"

@@ -4,9 +4,11 @@ export const dynamic = "force-dynamic";
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Plus, ChevronRight, Inbox } from "lucide-react";
+import { Plus, ChevronRight, Inbox } from "lucide-react";
 import { CenteredLoading } from "@/components/ui/loading-spinner";
 import { fetchMyInquiries, type VendorInquiry } from "../_services/inquiriesService";
+import { fetchNotices, type VendorNotice } from "../_services/noticesService";
+import NoticeList from "./components/NoticeList";
 import { CATEGORY_LABELS, TOPIC_LABELS, statusLabel } from "@/lib/vendorInquiries/labels";
 
 const TONE_CLASSES = {
@@ -34,6 +36,23 @@ export default function VendorInquiriesPage() {
   const [inquiries, setInquiries] = useState<VendorInquiry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [notices, setNotices] = useState<VendorNotice[]>([]);
+
+  useEffect(() => {
+    // お知らせが読めなくても、自分の連絡は使えるようにする（静かに出さない）
+    fetchNotices()
+      .then((result) => {
+        setNotices(result.notices);
+        // 出店者ページの帯から #notices で来たとき、一覧は読み込み後に描かれるので、ここで連れていく
+        if (result.notices.length > 0 && window.location.hash === "#notices") {
+          requestAnimationFrame(() => document.getElementById("notices")?.scrollIntoView());
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  const markConfirmed = (id: string) =>
+    setNotices((prev) => prev.map((n) => (n.id === id ? { ...n, confirmed: true } : n)));
 
   useEffect(() => {
     fetchMyInquiries()
@@ -44,23 +63,16 @@ export default function VendorInquiriesPage() {
 
   return (
     <div className="min-h-screen bg-[#FFFAF0] pb-24">
-      <div className="border-b border-amber-100 bg-white/90 px-4 py-4 backdrop-blur-sm">
-        <div className="mx-auto flex max-w-2xl items-center gap-3">
-          <Link
-            href="/my-shop"
-            className="flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50"
-            aria-label="マイ店舗へ戻る"
-          >
-            <ArrowLeft size={18} />
-          </Link>
-          <div>
-            <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-amber-600">Contact</p>
-            <h1 className="text-xl font-bold text-slate-900">運営・市役所に連絡</h1>
-          </div>
-        </div>
+      <div className="px-4 pt-6">
+        <h1 className="mx-auto max-w-2xl text-xl font-bold text-slate-900">運営・市役所との連絡</h1>
       </div>
 
       <div className="mx-auto max-w-2xl space-y-4 px-4 pt-5">
+        {notices.length > 0 && <NoticeList notices={notices} onConfirmed={markConfirmed} />}
+
+        {notices.length > 0 && (
+          <h2 className="px-1 pt-4 text-lg font-bold text-nicchyo-ink">自分から送った連絡</h2>
+        )}
         <Link
           href="/vendor/inquiries/new"
           className="flex w-full items-center justify-center gap-2 rounded-3xl bg-amber-500 py-4 text-base font-bold text-white shadow transition hover:bg-amber-400 active:scale-[0.99]"

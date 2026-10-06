@@ -15,8 +15,8 @@ export default function MyShopSchedulePage() {
           お休みする日を登録しておくと、お客さんに正しく伝わります。
         </p>
 
-        {user?.id ? (
-          <ClosedDaysCalendar vendorId={user.id} variant="full" />
+        {user?.vendorId ? (
+          <ClosedDaysCalendar vendorId={user.vendorId} variant="full" />
         ) : (
           <Surface className="text-nicchyo-ink/55">読み込み中です…</Surface>
         )}

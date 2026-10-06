@@ -188,7 +188,7 @@ export const AI_USE_CASE_DEFS: readonly AiUseCaseDef[] = [
     useCase: "vendorHelp",
     label: "出店者の相談（にちよさん）",
     description:
-      "出店者トップで、出店者がアプリの使い方を聞くヘルプデスク。使い方ガイドとその店の登録内容を元に、200文字程度で答える。",
+      "出店者トップで、出店者がアプリの使い方を聞くヘルプデスク。よくある質問とその店の登録内容を元に、200文字程度で答える。",
     defaultModelId: "gpt-4o-mini",
   },
 ];
@@ -534,6 +534,8 @@ export type ChatCompletionParams = {
   temperature?: number;
   stream?: boolean;
   responseFormat?: unknown;
+  /** 呼んでよい関数（function calling）。形は OpenAI の tools のまま */
+  tools?: unknown[];
 };
 
 /**
@@ -574,6 +576,11 @@ export function buildChatCompletionBody(
   }
   if (params.responseFormat !== undefined) {
     body.response_format = params.responseFormat;
+  }
+  if (params.tools && params.tools.length > 0) {
+    body.tools = params.tools;
+    // 一度に呼ぶ関数は1つだけ（確認も1つずつ行うため）
+    body.parallel_tool_calls = false;
   }
 
   return body;

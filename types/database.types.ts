@@ -1315,24 +1315,36 @@ export type Database = {
           content: string
           created_at: string
           embedding: string | null
+          for_vendor: boolean
+          for_visitors: boolean
           id: string
+          sort_order: number
           store_id: string
+          title: string
           updated_at: string
         }
         Insert: {
           content: string
           created_at?: string
           embedding?: string | null
+          for_vendor?: boolean
+          for_visitors?: boolean
           id?: string
+          sort_order?: number
           store_id: string
+          title?: string
           updated_at?: string
         }
         Update: {
           content?: string
           created_at?: string
           embedding?: string | null
+          for_vendor?: boolean
+          for_visitors?: boolean
           id?: string
+          sort_order?: number
           store_id?: string
+          title?: string
           updated_at?: string
         }
         Relationships: [
@@ -1380,6 +1392,35 @@ export type Database = {
           todo?: string
         }
         Relationships: []
+      }
+      vendor_ai_settings: {
+        Row: {
+          share_popular_with_visitors: boolean
+          updated_at: string
+          use_stats_in_vendor_help: boolean
+          vendor_id: string
+        }
+        Insert: {
+          share_popular_with_visitors?: boolean
+          updated_at?: string
+          use_stats_in_vendor_help?: boolean
+          vendor_id: string
+        }
+        Update: {
+          share_popular_with_visitors?: boolean
+          updated_at?: string
+          use_stats_in_vendor_help?: boolean
+          vendor_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vendor_ai_settings_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: true
+            referencedRelation: "vendors"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       vendor_contents: {
         Row: {
@@ -1499,6 +1540,32 @@ export type Database = {
           },
         ]
       }
+      vendor_tour_seen: {
+        Row: {
+          seen_at: string
+          tour_key: string
+          vendor_id: string
+        }
+        Insert: {
+          seen_at?: string
+          tour_key: string
+          vendor_id: string
+        }
+        Update: {
+          seen_at?: string
+          tour_key?: string
+          vendor_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vendor_tour_seen_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "vendors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       vendors: {
         Row: {
           business_hours_end: string | null
@@ -1507,6 +1574,10 @@ export type Database = {
           closed_dates: string[]
           created_at: string | null
           id: string
+          listing_consent_note: string | null
+          listing_consented_on: string | null
+          listing_status: string
+          photo_use_allowed: boolean
           main_product_prices: Json | null
           main_products: string[] | null
           must_change_password: boolean | null
@@ -1531,6 +1602,10 @@ export type Database = {
           closed_dates?: string[]
           created_at?: string | null
           id: string
+          listing_consent_note?: string | null
+          listing_consented_on?: string | null
+          listing_status?: string
+          photo_use_allowed?: boolean
           main_product_prices?: Json | null
           main_products?: string[] | null
           must_change_password?: boolean | null
@@ -1555,6 +1630,10 @@ export type Database = {
           closed_dates?: string[]
           created_at?: string | null
           id?: string
+          listing_consent_note?: string | null
+          listing_consented_on?: string | null
+          listing_status?: string
+          photo_use_allowed?: boolean
           main_product_prices?: Json | null
           main_products?: string[] | null
           must_change_password?: boolean | null
@@ -1677,6 +1756,16 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      admin_place_shop: {
+        Args: {
+          p_force?: boolean
+          p_lat: number
+          p_lng: number
+          p_store_number: number
+          p_vendor_id: string
+        }
+        Returns: Json
+      }
       get_reaction_counts: {
         Args: { content_ids: string[] }
         Returns: {
@@ -1718,6 +1807,21 @@ export type Database = {
           id: string
           similarity: number
           store_id: string
+        }[]
+      }
+      match_store_notes: {
+        Args: {
+          audience: string
+          match_count?: number
+          match_threshold?: number
+          query_embedding: string
+          target_store_id: string
+        }
+        Returns: {
+          content: string
+          id: string
+          similarity: number
+          title: string
         }[]
       }
       match_vendor_embeddings: {

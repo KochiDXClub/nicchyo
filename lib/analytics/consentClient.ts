@@ -6,6 +6,8 @@
  * 停止の設定はこの端末のブラウザにだけ保存される（端末や別ブラウザには引き継がれない）。
  */
 
+import { isSecretTokenPath } from "./secretPaths";
+
 const ANALYTICS_OPT_OUT_KEY = "nicchyo_analytics_opt_out";
 
 /** 同意バナーがあった頃（オプトイン方式）のキー。意思を引き継ぐためだけに読む */
@@ -154,5 +156,7 @@ export function loadGA(): void {
     w.dataLayer!.push(args);
   };
   w.gtag("js", new Date());
-  w.gtag("config", gaId);
+  // QR・招待リンクの URL にはトークンが入っているので、最初の page_view にも載せない
+  const secret = isSecretTokenPath(window.location.pathname);
+  w.gtag("config", gaId, secret ? { send_page_view: false } : undefined);
 }
