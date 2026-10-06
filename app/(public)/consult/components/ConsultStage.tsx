@@ -964,7 +964,7 @@ export default function ConsultStage({
       {phase === "idle" && !isBusy && suggestions.length > 0 && (
         <div
           style={revealClass(140).style}
-          className={`flex flex-col gap-2 lg:grid lg:grid-cols-2 lg:gap-3 ${revealClass(140).className}`}
+          className={`flex flex-col gap-2 lg:grid lg:auto-cols-fr lg:grid-flow-col lg:gap-3 ${revealClass(140).className}`}
         >
           {suggestions.map((question) => (
             <button
