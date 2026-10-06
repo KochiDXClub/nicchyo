@@ -192,9 +192,16 @@ export default function SlotVendorPanel({
         {shop.chomeLocked ? "（手で設定）" : ""}
         {autoChome && <><br />{describeChomeJudgement(autoChome)}</>}
         {!shop.chomeLocked && autoChome?.status === "ok" && normalizeChomeId(shop.chome) !== autoChome.chomeId && (
-          <><br />今の丁目と自動判定が違います。「自動」を選び直すと自動判定の値になります。</>
+          <><br />今の丁目と自動判定が違います。</>
         )}
       </p>
+      {/* 「自動」は、手で設定していない区画では選び直しても変わらず（同じ値の選択は onChange が呼ばれない）、
+          今の丁目と自動判定がずれた既存の区画を直せないので、ボタンで直接直せるようにする */}
+      {!shop.chomeLocked && autoChome?.status === "ok" && normalizeChomeId(shop.chome) !== autoChome.chomeId && (
+        <button type="button" onClick={() => onChomeChange("auto")} style={{ ...buttonStyle, marginBottom: 12 }}>
+          自動判定の値（{getChome(autoChome.chomeId)?.shortName}）にする
+        </button>
+      )}
 
       <label>
         <span style={label}>登録済みの出店者から選ぶ</span>
