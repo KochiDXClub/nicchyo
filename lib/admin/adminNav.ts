@@ -30,6 +30,7 @@ import {
   LayoutDashboard,
   Map as MapIcon,
   MapPin,
+  MapPinned,
   MessageSquare,
   QrCode,
   ScrollText,
@@ -147,6 +148,12 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
         href: "/admin/shops",
         icon: Store,
         description: "店舗情報の確認と編集を行う",
+      },
+      {
+        label: "現場登録",
+        href: "/admin/field",
+        icon: MapPinned,
+        description: "日曜市の現地で、店舗の情報・掲載許可・写真・位置をスマホで登録する",
       },
       {
         label: "店舗のQRコード",
