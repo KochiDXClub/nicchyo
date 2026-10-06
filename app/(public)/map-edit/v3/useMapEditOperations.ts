@@ -15,8 +15,9 @@ import {
   type EditableLandmark,
   type EditableRoad,
   type EditableShop,
-  type VendorOption,
+  type EditableVendor,
 } from "./types";
+import { NEW_VENDOR_ID_PREFIX } from "../../map/types/editableShop";
 import type { MapSettingsLimits } from "./useMapEditData";
 
 let operationIdCounter = 0;
@@ -34,8 +35,9 @@ type Params = {
   setRoads: React.Dispatch<React.SetStateAction<EditableRoad[]>>;
   landmarks: EditableLandmark[];
   setLandmarks: React.Dispatch<React.SetStateAction<EditableLandmark[]>>;
+  vendors: EditableVendor[];
+  setVendors: React.Dispatch<React.SetStateAction<EditableVendor[]>>;
   routeConfig: MapRouteConfig;
-  vendorOptions: VendorOption[];
   mapSettingsLimits: MapSettingsLimits;
   setMessage: (message: string | null) => void;
 };
@@ -96,8 +98,9 @@ export function useMapEditOperations(params: Params) {
     setRoads,
     landmarks,
     setLandmarks,
+    vendors,
+    setVendors,
     routeConfig,
-    vendorOptions,
     mapSettingsLimits,
     setMessage,
   } = params;
@@ -106,15 +109,19 @@ export function useMapEditOperations(params: Params) {
   // ドラッグを終えた時点で「開始時点 → 終了時点」を1件の操作として記録する
   const dragBeforeRef = useRef<EditState | null>(null);
 
-  const currentState = useCallback((): EditState => ({ shops, roads, landmarks }), [shops, roads, landmarks]);
+  const currentState = useCallback(
+    (): EditState => ({ shops, roads, landmarks, vendors }),
+    [shops, roads, landmarks, vendors]
+  );
 
   const applyState = useCallback(
     (next: EditState) => {
       if (next.shops !== shops) setShops(next.shops);
       if (next.roads !== roads) setRoads(next.roads);
       if (next.landmarks !== landmarks) setLandmarks(next.landmarks);
+      if (next.vendors !== vendors) setVendors(next.vendors);
     },
-    [shops, roads, landmarks, setShops, setRoads, setLandmarks]
+    [shops, roads, landmarks, vendors, setShops, setRoads, setLandmarks, setVendors]
   );
 
   /** 状態を before → after に変え、その変化を1件の操作として記録する */
@@ -166,48 +173,118 @@ export function useMapEditOperations(params: Params) {
   );
 
   // ── 区画・出店者 ──────────────────────────────
-  /** 出店者を別の空き区画へ移す。移せなかったら false */
+  const vendorName = useCallback(
+    (vendorId: string, list: EditableVendor[] = vendors) => list.find((v) => v.id === vendorId)?.name ?? "名称未設定",
+    [vendors]
+  );
+
+  /**
+   * 出店者を別の区画へ移す。移動先に別の出店者がいれば入れ替える。移動元は空きになる。
+   * 移せなかったら false
+   */
   const moveVendor = useCallback(
     (fromLocationId: string, toLocationId: string): boolean => {
       const from = shops.find((s) => s.locationId === fromLocationId);
       const to = shops.find((s) => s.locationId === toLocationId);
-      if (!from || !to || !from.vendorId || to.vendorId || from.locationId === to.locationId) return false;
+      if (!from || !to || !from.vendorId || from.locationId === to.locationId) return false;
+      const movingName = vendorName(from.vendorId);
+      const swapped = to.vendorId;
       commit(
         {
           shops: shops.map((s) => {
-            if (s.locationId === from.locationId) return { ...s, vendorId: undefined, name: vacantShopName(s.position) };
-            if (s.locationId === to.locationId) return { ...s, vendorId: from.vendorId, name: from.name };
+            if (s.locationId === from.locationId) {
+              return swapped
+                ? { ...s, vendorId: swapped, name: vendorName(swapped) }
+                : { ...s, vendorId: undefined, name: vacantShopName(s.position) };
+            }
+            if (s.locationId === to.locationId) return { ...s, vendorId: from.vendorId, name: movingName };
             return s;
           }),
         },
         String(to.position),
-        `${from.name} を ${from.position} から移動`
+        swapped
+          ? `${movingName}（${from.position}）と ${vendorName(swapped)}（${to.position}）を入れ替え`
+          : `${movingName} を ${from.position} から移動`
       );
       return true;
     },
-    [shops, commit]
+    [shops, commit, vendorName]
   );
 
+  /**
+   * 区画に登録済みの出店者を割り当てる（空文字なら空きにする）。
+   * その出店者が別の区画にいれば、そちらは空きにする（同じ出店者を2つの区画に置かないため）
+   */
   const assignVendor = useCallback(
     (locationId: string, vendorId: string) => {
       const shop = shops.find((s) => s.locationId === locationId);
       if (!shop) return;
-      const vendor = vendorOptions.find((v) => v.id === vendorId);
+      const previous = vendorId ? shops.find((s) => s.vendorId === vendorId && s.locationId !== locationId) : undefined;
       commit(
         {
-          shops: shops.map((s) =>
-            s.locationId === locationId
-              ? { ...s, vendorId: vendorId || undefined, name: vendor?.name ?? vacantShopName(s.position) }
-              : s
-          ),
+          shops: shops.map((s) => {
+            if (s.locationId === locationId) {
+              return { ...s, vendorId: vendorId || undefined, name: vendorId ? vendorName(vendorId) : vacantShopName(s.position) };
+            }
+            if (previous && s.locationId === previous.locationId) {
+              return { ...s, vendorId: undefined, name: vacantShopName(s.position) };
+            }
+            return s;
+          }),
         },
         String(shop.position),
-        vendor ? `${vendor.name} を割り当て` : "空きに変更"
+        !vendorId
+          ? "空きに変更"
+          : previous
+            ? `${vendorName(vendorId)} を ${previous.position} から移して割り当て`
+            : `${vendorName(vendorId)} を割り当て`
       );
     },
-    [shops, vendorOptions, commit]
+    [shops, commit, vendorName]
   );
 
+  /** 空き区画に新しい出店者を登録して割り当てる（1件の操作）。登録した出店者の仮 id を返す */
+  const registerVendor = useCallback(
+    (locationId: string, draft: Omit<EditableVendor, "id">): string | null => {
+      const shop = shops.find((s) => s.locationId === locationId);
+      if (!shop) return null;
+      const id = `${NEW_VENDOR_ID_PREFIX}${Date.now()}`;
+      const vendor: EditableVendor = { ...draft, id, name: draft.name.trim() };
+      commit(
+        {
+          vendors: [...vendors, vendor],
+          shops: shops.map((s) => (s.locationId === locationId ? { ...s, vendorId: id, name: vendor.name } : s)),
+        },
+        String(shop.position),
+        `${vendor.name} を新しく登録`
+      );
+      return id;
+    },
+    [shops, vendors, commit]
+  );
+
+  /** 出店者の情報を直す。店名を変えたら、その出店者の区画の表示名も揃える */
+  const updateVendor = useCallback(
+    (vendorId: string, patch: Partial<Omit<EditableVendor, "id">>, logText: string, options?: CommitOptions) => {
+      const vendor = vendors.find((v) => v.id === vendorId);
+      if (!vendor) return;
+      const nextVendor = { ...vendor, ...patch };
+      commit(
+        {
+          vendors: vendors.map((v) => (v.id === vendorId ? nextVendor : v)),
+          ...(patch.name !== undefined
+            ? { shops: shops.map((s) => (s.vendorId === vendorId ? { ...s, name: nextVendor.name } : s)) }
+            : {}),
+        },
+        "出店者",
+        `${vendor.name} ${logText}`,
+        options
+      );
+    },
+    [vendors, shops, commit]
+  );
+
+  /** 区画を空きにする。出店者の情報は消さず、割り当てだけを外す */
   const clearVendor = useCallback(
     (locationId: string) => {
       const shop = shops.find((s) => s.locationId === locationId);
@@ -514,6 +591,8 @@ export function useMapEditOperations(params: Params) {
     shopCountOnRoad,
     moveVendor,
     assignVendor,
+    registerVendor,
+    updateVendor,
     clearVendor,
     deleteSlot,
     applySlotPlan,

@@ -10,8 +10,9 @@ import type {
   EditableLandmark,
   EditableRoad,
   EditableShop,
+  EditableVendor,
   SnapshotItem,
-  VendorOption,
+  VendorCategory,
 } from "./types";
 import { DEFAULT_MAX_LANDMARKS, DEFAULT_MAX_UNASSIGNED_SHOP_MARKERS } from "@/lib/map/mapSettingsDefaults";
 
@@ -33,7 +34,8 @@ async function fetchMapLayout() {
     landmarks?: EditableLandmark[];
     route?: { points: MapRoutePoint[]; config: MapRouteConfig };
     roads?: EditableRoad[];
-    vendors?: VendorOption[];
+    vendors?: EditableVendor[];
+    categories?: VendorCategory[];
     mapSettingsLimits?: MapSettingsLimits;
   }>;
 }
@@ -45,6 +47,7 @@ async function fetchMapLayout() {
 export function buildSavePayloadDiff(changes: EntityChange[]) {
   const shopChanges = changes.filter((change) => change.kind === "shops");
   const landmarkChanges = changes.filter((change) => change.kind === "landmarks");
+  const vendorChanges = changes.filter((change) => change.kind === "vendors");
   return {
     shops: {
       updated: shopChanges.flatMap((change) => (change.after ? [change.after as EditableShop] : [])),
@@ -56,6 +59,10 @@ export function buildSavePayloadDiff(changes: EntityChange[]) {
     landmarks: {
       upsert: landmarkChanges.flatMap((change) => (change.after ? [change.after as EditableLandmark] : [])),
       deletedKeys: landmarkChanges.filter((change) => change.before && !change.after).map((change) => change.id),
+    },
+    // 出店者は画面から削除しない（「空きにする」は割り当てを外すだけ）ので、追加・更新だけを送る
+    vendors: {
+      upsert: vendorChanges.flatMap((change) => (change.after ? [change.after as EditableVendor] : [])),
     },
   };
 }
@@ -85,7 +92,8 @@ export function useMapEditData({
   const [landmarks, setLandmarks] = useState<EditableLandmark[]>([]);
   const [roads, setRoads] = useState<EditableRoad[]>([]);
   const [routeConfig, setRouteConfig] = useState<MapRouteConfig>(getDefaultMapRouteConfig());
-  const [vendorOptions, setVendorOptions] = useState<VendorOption[]>([]);
+  const [vendors, setVendors] = useState<EditableVendor[]>([]);
+  const [categories, setCategories] = useState<VendorCategory[]>([]);
   const [mapSettingsLimits, setMapSettingsLimits] = useState<MapSettingsLimits>(DEFAULT_MAP_SETTINGS_LIMITS);
 
   const [snapshots, setSnapshots] = useState<SnapshotItem[]>([]);
@@ -104,7 +112,7 @@ export function useMapEditData({
     setShops(Array.isArray(nextData.shops) ? nextData.shops : []);
     setLandmarks(Array.isArray(nextData.landmarks) ? nextData.landmarks : []);
     setRoads(Array.isArray(nextData.roads) ? nextData.roads : []);
-    if (Array.isArray(nextData.vendors)) setVendorOptions(nextData.vendors);
+    setVendors(Array.isArray(nextData.vendors) ? nextData.vendors : []);
     clearPending?.();
   }, [clearPending]);
 
@@ -124,7 +132,8 @@ export function useMapEditData({
         setLandmarks(nextLandmarks);
         setRoads(nextRoads);
         setRouteConfig(nextConfig);
-        setVendorOptions(nextVendors);
+        setVendors(nextVendors);
+        setCategories(Array.isArray(data.categories) ? data.categories : []);
         if (data.mapSettingsLimits) setMapSettingsLimits(data.mapSettingsLimits);
 
         const allPoints = nextRoads.flatMap((road) => road.points);
@@ -168,6 +177,7 @@ export function useMapEditData({
         body: JSON.stringify({
           shops: diff.shops,
           landmarks: diff.landmarks,
+          vendors: diff.vendors,
           route: { points: routePoints, config: routeConfig },
           roads: roads.map(({ points: _points, ...road }) => road),
         }),
@@ -244,7 +254,9 @@ export function useMapEditData({
     roads,
     setRoads,
     routeConfig,
-    vendorOptions,
+    vendors,
+    setVendors,
+    categories,
     mapSettingsLimits,
     hasUnsavedChanges,
     handleSave,
