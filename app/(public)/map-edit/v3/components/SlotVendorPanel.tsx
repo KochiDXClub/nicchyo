@@ -18,13 +18,17 @@ type VendorDraft = Omit<EditableVendor, "id">;
 
 const EMPTY_DRAFT: VendorDraft = { name: "", categoryId: null, strength: "", mainProducts: [] };
 
-/** 「柚子、文旦, 生姜」のような入力を、主な商品の一覧に分ける */
-export function parseMainProducts(text: string): string[] {
+/** 「柚子、文旦, 生姜」のような入力を、区切って空の項目を除く（件数は切らない） */
+function splitMainProducts(text: string): string[] {
   return text
     .split(/[,、，\n]/)
     .map((item) => item.trim())
-    .filter(Boolean)
-    .slice(0, VENDOR_FIELD_LIMITS.mainProductsMaxCount);
+    .filter(Boolean);
+}
+
+/** 「柚子、文旦, 生姜」のような入力を、主な商品の一覧に分ける（上限の件数まで） */
+export function parseMainProducts(text: string): string[] {
+  return splitMainProducts(text).slice(0, VENDOR_FIELD_LIMITS.mainProductsMaxCount);
 }
 
 /**
@@ -43,6 +47,7 @@ function VendorFields({
   onProductsCommit: (products: string[]) => void;
 }) {
   const [productsText, setProductsText] = useState(value.mainProducts.join("、"));
+  const [overLimit, setOverLimit] = useState(false);
   const joined = value.mainProducts.join("、");
   // 取り消し・やり直しや別の出店者への切り替えで一覧が変わったら、入力欄も合わせる
   useEffect(() => setProductsText(joined), [joined]);
@@ -87,14 +92,26 @@ function VendorFields({
         <span style={label}>主な商品（「、」で区切る・{VENDOR_FIELD_LIMITS.mainProductsMaxCount}件まで）</span>
         <input
           value={productsText}
-          onChange={(e) => setProductsText(e.target.value)}
+          onChange={(e) => {
+            setProductsText(e.target.value);
+            setOverLimit(false);
+          }}
           onBlur={() => {
+            // 触っていない欄は、そのまま残す（上限を超えた既存の品目を、欄を離れただけで切り捨てない）
+            if (productsText === joined) return;
+            const items = splitMainProducts(productsText);
             const products = parseMainProducts(productsText);
+            setOverLimit(items.length > products.length);
             if (products.join("、") !== joined) onProductsCommit(products);
             else setProductsText(joined);
           }}
-          style={inputStyle}
+          style={{ ...inputStyle, marginBottom: overLimit ? 4 : inputStyle.marginBottom }}
         />
+        {overLimit && (
+          <span style={{ ...errorNoteStyle, display: "block", marginBottom: 12 }}>
+            主な商品は {VENDOR_FIELD_LIMITS.mainProductsMaxCount} 件までです。{VENDOR_FIELD_LIMITS.mainProductsMaxCount + 1} 件目以降は入れていません。
+          </span>
+        )}
       </label>
     </>
   );

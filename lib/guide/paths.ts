@@ -19,7 +19,7 @@ export const MARKET_PATH_NAME = '追手筋';
  * マップの道データから GuidePath を作る。
  * 本線（枝でない点の並び）が追手筋、枝は map_roads の名前（無ければ「横道」）。
  */
-export function buildGuidePathsFromMapRoute(mapRoute: MapRoute, roads: MapRoad[] = []): GuidePath[] {
+export function buildGuidePathsFromMapRoute(mapRoute: MapRoute, roads: MapRoad[] = mapRoute.roads ?? []): GuidePath[] {
   const roadById = new Map(roads.map((road) => [road.id, road]));
   const chains = getRouteChains(mapRoute.points);
   const paths: GuidePath[] = [];
@@ -32,7 +32,9 @@ export function buildGuidePathsFromMapRoute(mapRoute: MapRoute, roads: MapRoad[]
     const isMain = chain.points.every((point) => !point.branchFromId) && (!road || road.kind === 'market');
     paths.push({
       id: `route-${chain.key || index}`,
-      name: isMain ? MARKET_PATH_NAME : road?.name ?? '横道',
+      // 出店可の通りが複数ある（追手筋と大橋通りなど）ので、道の名前があればそれで呼ぶ。
+      // 道の情報が無いとき（読み込めなかった・古いデータ）だけ、本線を「追手筋」とする
+      name: isMain ? road?.name ?? MARKET_PATH_NAME : road?.name ?? '横道',
       kind: isMain ? 'market' : road?.kind ?? 'street',
       verified: true,
       points: chain.points.map((point) => ({ lat: point.lat, lng: point.lng })),
@@ -43,7 +45,7 @@ export function buildGuidePathsFromMapRoute(mapRoute: MapRoute, roads: MapRoad[]
 }
 
 /** 会場の道（DB）だけで組む。歩行者ネットワークが読めないときの最小構成 */
-export function buildGuidePaths(mapRoute: MapRoute, roads: MapRoad[] = []): GuidePath[] {
+export function buildGuidePaths(mapRoute: MapRoute, roads: MapRoad[] = mapRoute.roads ?? []): GuidePath[] {
   return buildGuidePathsFromMapRoute(mapRoute, roads);
 }
 
@@ -54,9 +56,9 @@ export function buildGuidePaths(mapRoute: MapRoute, roads: MapRoad[] = []): Guid
 export function buildGuideNetworkForMap(
   walkData: WalkNetworkData | null,
   mapRoute: MapRoute | null,
-  roads: MapRoad[] = []
+  roads: MapRoad[] | undefined = undefined
 ): GuideNetwork | null {
-  const mapPaths = mapRoute ? buildGuidePathsFromMapRoute(mapRoute, roads) : [];
+  const mapPaths = mapRoute ? buildGuidePathsFromMapRoute(mapRoute, roads ?? mapRoute.roads ?? []) : [];
   if (walkData) return buildWalkNetwork(walkData, mapPaths);
   if (mapPaths.length === 0) return null;
   // buildGuideNetwork は端点の近さで交差点を推定する簡易版
