@@ -217,6 +217,9 @@ export async function rasterizeStallWithPhoto(
   crop.height = rect.height * 4;
   const cropCtx = crop.getContext("2d");
   if (!cropCtx) throw new Error("canvas 2d context を取得できません");
+  // 透過のある写真が JPEG 化で黒くならないよう、白を敷いてから描く
+  cropCtx.fillStyle = "#ffffff";
+  cropCtx.fillRect(0, 0, crop.width, crop.height);
   const scale = Math.max(crop.width / img.naturalWidth, crop.height / img.naturalHeight);
   const dw = img.naturalWidth * scale;
   const dh = img.naturalHeight * scale;

@@ -77,6 +77,7 @@ import {
   ILLUSTRATION_SIZES,
   OVERVIEW_ZONE_MAX_ZOOM,
   OVERVIEW_ZONE_MIN_ZOOM,
+  SHOP_COLUMN_SPACING_METERS,
   SHOP_MARKER_LOD_OFFSETS,
 } from "../../config/displayConfig";
 import { buildCrowdSprites } from "./crowdSprites";
@@ -199,8 +200,6 @@ const IMG_NAMEPLATE = "nameplate-bg";
 const IMG_BADGE_FAVORITE = "badge:favorite";
 /** 写真入りの屋台の大きさ（通常の屋台は 60px。本体の写真が見えるよう一回り大きくする） */
 const PHOTO_STALL_PX = 84;
-/** 列内の店舗間隔（m）。ShopScanCards の SHOP_SPACING_METERS と同じ実測値 */
-const SHOP_COLUMN_SPACING_METERS = 5.9;
 const TEXT_FONT = ["Noto Sans Bold"];
 
 function buildRasterStyle(tileOpacityByZoom: boolean, minZoom: number): StyleSpecification {
@@ -917,7 +916,17 @@ function MapViewMapLibre({
         const placeholderW = Math.round((PHOTO_STALL_PX / STALL_PHOTO_HEIGHT_RATIO) * uiRatio);
         const placeholderH = Math.round(PHOTO_STALL_PX * uiRatio);
         if (!map.hasImage(id)) {
-          map.addImage(id, new ImageData(placeholderW, placeholderH), { pixelRatio: uiRatio });
+          // 状態が変わった店（選択・検索など）は、同じ写真の通常状態の絵を仮に使う。
+          // 透明にすると、新しい絵ができるまで写真が一瞬消えて見える
+          const normalId = `photo:${shopId}:normal`;
+          const normal = state !== "normal" && map.hasImage(normalId) ? map.getImage(normalId) : null;
+          map.addImage(
+            id,
+            normal && normal.data.width === placeholderW && normal.data.height === placeholderH
+              ? normal.data
+              : new ImageData(placeholderW, placeholderH),
+            { pixelRatio: uiRatio }
+          );
         }
         photoJobs.set(
           id,
@@ -1039,19 +1048,22 @@ function MapViewMapLibre({
         },
       });
 
-      map.on("click", LAYER_SHOPS, (e) => {
-        const f = e.features?.[0];
-        const id = f?.properties?.id;
-        if (typeof id !== "number") return;
-        const shop = shopsRef.current.find((s) => s.id === id) ?? null;
-        setSelectedShop(shop);
-      });
-      map.on("mouseenter", LAYER_SHOPS, () => {
-        map.getCanvas().style.cursor = "pointer";
-      });
-      map.on("mouseleave", LAYER_SHOPS, () => {
-        map.getCanvas().style.cursor = "";
-      });
+      // 写真入りの屋台は通常の屋台より大きく、その上に重なるので、両方の層で受ける
+      for (const layerId of [LAYER_SHOPS, LAYER_SHOP_PHOTOS]) {
+        map.on("click", layerId, (e) => {
+          const f = e.features?.[0];
+          const id = f?.properties?.id;
+          if (typeof id !== "number") return;
+          const shop = shopsRef.current.find((s) => s.id === id) ?? null;
+          setSelectedShop(shop);
+        });
+        map.on("mouseenter", layerId, () => {
+          map.getCanvas().style.cursor = "pointer";
+        });
+        map.on("mouseleave", layerId, () => {
+          map.getCanvas().style.cursor = "";
+        });
+      }
 
       // 丁目バッジ（HTML マーカー、17 ≤ zoom < 19 のときだけ表示）
       const chomeGroups = new Map<string, { lats: number[]; lngs: number[] }>();
