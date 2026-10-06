@@ -88,6 +88,7 @@ import {
   rasterizeStallWithPhoto,
   STALL_STATES,
 } from "./stallSprites";
+import { STALL_PHOTO_HEIGHT_RATIO } from "../../config/stallParts";
 import { getShopPreviewImage, getShopThumbnailImage } from "../../../../../lib/shopImages";
 import { MAPLIBRE_MAP_KEY, type MapCamera, type MapCameraEvent } from "../../types/mapCamera";
 import { LiveZoomMapControls } from "../MapControls";
@@ -908,9 +909,10 @@ function MapViewMapLibre({
         const fallbackUrl = getShopPreviewImage(shop);
         // 同じ大きさの透明な仮画像を同期で登録しておく（無いままだと MapLibre が警告を出す）。
         // 読み込めたら updateImage で中身だけ差し替える
-        const placeholderSize = Math.round(PHOTO_STALL_PX * uiRatio);
+        const placeholderW = Math.round((PHOTO_STALL_PX / STALL_PHOTO_HEIGHT_RATIO) * uiRatio);
+        const placeholderH = Math.round(PHOTO_STALL_PX * uiRatio);
         if (!map.hasImage(id)) {
-          map.addImage(id, new ImageData(placeholderSize, placeholderSize), { pixelRatio: uiRatio });
+          map.addImage(id, new ImageData(placeholderW, placeholderH), { pixelRatio: uiRatio });
         }
         photoJobs.set(
           id,

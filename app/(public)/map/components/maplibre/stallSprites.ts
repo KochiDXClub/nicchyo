@@ -14,6 +14,7 @@ import {
   generateStallSpriteSvg,
   resolveStallParts,
   STALL_BODY_RECT,
+  STALL_PHOTO_HEIGHT_RATIO,
   type StallPartsSpec,
 } from "../../config/stallParts";
 import {
@@ -71,7 +72,8 @@ function svgForState(
   recipe: SpriteRecipe,
   state: StallState,
   px: number,
-  photoHref?: string
+  photoHref?: string,
+  heightPx = px
 ): string {
   const stall = resolveStallColors(undefined, recipe.baseColor);
   if (state === "normal" || state === "selected") {
@@ -85,7 +87,7 @@ function svgForState(
         // 写真の縁はカテゴリ色。選ぶと黄色に変わる
         photo: photoHref ? { href: photoHref, stroke: state === "selected" ? "#fbbf24" : stall.dark } : undefined,
       },
-      { width: px, height: px }
+      { width: px, height: heightPx }
     );
   }
   const c = STATE_COLORS[state];
@@ -97,7 +99,7 @@ function svgForState(
       awningStripe: c.stripe,
       photo: photoHref ? { href: photoHref, stroke: c.roof } : undefined,
     },
-    { width: px, height: px }
+    { width: px, height: heightPx }
   );
 }
 
@@ -220,7 +222,9 @@ export async function rasterizeStallWithPhoto(
   const dh = img.naturalHeight * scale;
   cropCtx.drawImage(img, (crop.width - dw) / 2, (crop.height - dh) / 2, dw, dh);
   const href = crop.toDataURL("image/jpeg", 0.85);
-  return rasterizeSvg(svgForState(recipeFor(shop), state, sizePx, href), sizePx, pixelRatio);
+  // sizePx は高さの基準。屋根を削った分だけ同じ高さに対して幅が広がり、写真が大きく写る
+  const widthPx = sizePx / STALL_PHOTO_HEIGHT_RATIO;
+  return rasterizeSvg(svgForState(recipeFor(shop), state, widthPx, href, sizePx), widthPx, pixelRatio, sizePx);
 }
 
 /**

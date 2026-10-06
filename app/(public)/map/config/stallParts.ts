@@ -194,6 +194,15 @@ export interface StallSpriteColors {
 }
 
 /** 写真をはめ込む本体の矩形（BODY_PATH の外接矩形） */
+/**
+ * 写真入りの屋台は屋根を低くして、写真を見やすくする。
+ * 屋根の下辺（y=34）を基準に縦だけ縮め、空いた上の余白は viewBox から切り落とす。
+ */
+export const STALL_PHOTO_ROOF_SCALE = 0.75;
+export const STALL_PHOTO_TOP_TRIM = 8;
+/** 写真入りスプライトの縦横比（高さ ÷ 幅）。高さを基準に幅を決めるので、屋根を削ったぶん写真が大きくなる */
+export const STALL_PHOTO_HEIGHT_RATIO = (STALL_VIEWBOX - STALL_PHOTO_TOP_TRIM) / STALL_VIEWBOX;
+
 export const STALL_BODY_RECT = { x: 10, y: 40, width: 80, height: 42 } as const;
 
 /**
@@ -209,8 +218,13 @@ export function generateStallSpriteSvg(
 ): string {
   const roof = ROOF_DEFS[spec.roof];
   const awning = AWNING_DEFS[spec.awning];
-  const roofTransform = roof.transform ? ` transform="${roof.transform}"` : "";
+  const roofShrink = colors.photo
+    ? `translate(0 34) scale(1 ${STALL_PHOTO_ROOF_SCALE}) translate(0 -34)`
+    : "";
+  const roofTransformValue = [roofShrink, roof.transform].filter(Boolean).join(" ");
+  const roofTransform = roofTransformValue ? ` transform="${roofTransformValue}"` : "";
   const awningTransform = awning.transform ? ` transform="${awning.transform}"` : "";
+  const trim = colors.photo ? STALL_PHOTO_TOP_TRIM : 0;
   const outline = colors.outline
     ? ` stroke="${colors.outline}" stroke-width="3" stroke-linejoin="round"`
     : "";
@@ -229,7 +243,7 @@ export function generateStallSpriteSvg(
       `<path d="${COUNTER_PATH}" fill="#ec9a0c"/>`;
 
   return (
-    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${STALL_VIEWBOX} ${STALL_VIEWBOX}" ` +
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 ${trim} ${STALL_VIEWBOX} ${STALL_VIEWBOX - trim}" ` +
     `width="${size.width}" height="${size.height}">` +
     `<ellipse cx="50" cy="91" rx="42" ry="7" fill="rgba(0,0,0,0.16)"/>` +
     `<path d="${LEGS_PATH}" fill="#8b5e34"/>` +
