@@ -33,26 +33,19 @@ import {
   rotationToBearing,
   zoomIdxToMapLibreZoom,
 } from "../mapEditCamera";
-import type {
-  CanvasHandlers,
-  EditableLandmark,
-  EditableRoad,
-  EditableShop,
-  RoadAction,
-  SlotAction,
-  Tab,
-} from "../types";
+import { EDITOR_COLORS } from "../editorTheme";
+import type { CanvasHandlers, EditableLandmark, EditableRoad, EditableShop, Selection, Tool } from "../types";
 
 type Props = {
-  tab: Tab;
+  tool: Tool;
+  selection: Selection | null;
+  /** 出店者の移動先を選んでいる最中か（空き区画を移動先として強調する） */
+  isPickingTarget: boolean;
+  /** 保存していない変更がある要素（"shops:<locationId>" / "roads:<id>" / "landmarks:<key>"） */
+  unsavedKeys: ReadonlySet<string>;
   shops: EditableShop[];
   roads: EditableRoad[];
   landmarks: EditableLandmark[];
-  selectedLocationId: string | null;
-  selectedRoadId: string | null;
-  selectedLandmarkKey: string | null;
-  slotAction: SlotAction;
-  roadAction: RoadAction;
   draft: { lat: number; lng: number }[];
   search: string;
   zoomIdx: number;
@@ -78,12 +71,14 @@ const ROAD_COLORS: Record<string, { color: string; casing: string }> = {
 const SRC_ROAD_CASING = "nicchyo-edit-road-casing";
 const SRC_ROAD_FILL = "nicchyo-edit-road-fill";
 const SRC_ROAD_DASH = "nicchyo-edit-road-dash";
+const SRC_ROAD_UNSAVED = "nicchyo-edit-road-unsaved";
 const SRC_DRAFT = "nicchyo-edit-draft";
 const SRC_SHOPS = "nicchyo-edit-shops";
 
 const LAYER_ROAD_CASING = "nicchyo-edit-road-casing-layer";
 const LAYER_ROAD_FILL = "nicchyo-edit-road-fill-layer";
 const LAYER_ROAD_DASH = "nicchyo-edit-road-dash-layer";
+const LAYER_ROAD_UNSAVED = "nicchyo-edit-road-unsaved-layer";
 const LAYER_DRAFT = "nicchyo-edit-draft-layer";
 const LAYER_SHOP_DOTS = "nicchyo-edit-shop-dots-layer";
 const LAYER_SHOP_NUMBERS = "nicchyo-edit-shop-numbers-layer";
@@ -106,17 +101,23 @@ function toRing(points: Array<[number, number]>): [number, number][][] {
 
 function buildRoadFeatureCollections(
   roads: EditableRoad[],
-  opts: { selectedRoadId: string | null; tab: Tab; query: string }
-): { casing: GeoJSON.FeatureCollection; fill: GeoJSON.FeatureCollection; dash: GeoJSON.FeatureCollection } {
+  opts: { selectedRoadId: string | null; query: string; unsavedKeys: ReadonlySet<string> }
+): {
+  casing: GeoJSON.FeatureCollection;
+  fill: GeoJSON.FeatureCollection;
+  dash: GeoJSON.FeatureCollection;
+  unsaved: GeoJSON.FeatureCollection;
+} {
   const casing: GeoJSON.Feature[] = [];
   const fill: GeoJSON.Feature[] = [];
   const dash: GeoJSON.Feature[] = [];
+  const unsaved: GeoJSON.Feature[] = [];
 
   for (const road of roads) {
     if (road.points.length < 2) continue;
     const centerline = road.points.map((p) => [p.lat, p.lng] as [number, number]);
-    const isSelected = opts.tab === "road" && opts.selectedRoadId === road.id;
-    const dim = opts.tab === "road" && !!opts.query && !road.name.toLowerCase().includes(opts.query);
+    const isSelected = opts.selectedRoadId === road.id;
+    const dim = !!opts.query && !road.name.toLowerCase().includes(opts.query);
     const opacity = dim ? 0.3 : 1;
     const palette = ROAD_COLORS[road.kind] ?? ROAD_COLORS.street;
 
@@ -138,6 +139,14 @@ function buildRoadFeatureCollections(
       });
     }
 
+    if (opts.unsavedKeys.has(`roads:${road.id}`)) {
+      unsaved.push({
+        type: "Feature",
+        properties: {},
+        geometry: { type: "LineString", coordinates: centerline.map(([lat, lng]) => [lng, lat]) },
+      });
+    }
+
     if (road.kind === "path") {
       dash.push({
         type: "Feature",
@@ -151,18 +160,25 @@ function buildRoadFeatureCollections(
     casing: { type: "FeatureCollection", features: casing },
     fill: { type: "FeatureCollection", features: fill },
     dash: { type: "FeatureCollection", features: dash },
+    unsaved: { type: "FeatureCollection", features: unsaved },
   };
 }
 
 function buildShopFeatureCollection(
   shops: EditableShop[],
-  opts: { selectedLocationId: string | null; slotAction: SlotAction; query: string }
+  opts: {
+    selectedLocationId: string | null;
+    isPickingTarget: boolean;
+    query: string;
+    unsavedKeys: ReadonlySet<string>;
+  }
 ): GeoJSON.FeatureCollection {
   const features: GeoJSON.Feature[] = shops.map((shop) => {
     const isSelected = opts.selectedLocationId === shop.locationId;
     const match =
       !opts.query || String(shop.position).includes(opts.query) || shop.name.toLowerCase().includes(opts.query);
-    const targetable = (opts.slotAction === "move" || opts.slotAction === "place") && !shop.vendorId;
+    const targetable = opts.isPickingTarget && !shop.vendorId;
+    const unsaved = opts.unsavedKeys.has(`shops:${shop.locationId}`);
     return {
       type: "Feature",
       properties: {
@@ -170,7 +186,13 @@ function buildShopFeatureCollection(
         position: shop.position,
         opacity: match ? 1 : 0.15,
         color: shop.vendorId ? (isSelected ? "#B45309" : "#D97706") : targetable ? "#FFF7E6" : "#FFFDF7",
-        strokeColor: shop.vendorId ? "#ffffff" : targetable ? "#B45309" : "#B5AA92",
+        strokeColor: unsaved
+          ? EDITOR_COLORS.unsaved
+          : shop.vendorId
+            ? "#ffffff"
+            : targetable
+              ? "#B45309"
+              : "#B5AA92",
         // 出店者ありの区画は color 側で選択を表すが、空き区画は常に同じ色のため
         // 選択しても見分けられない。circle-radius/circle-stroke-width 側で使う
         selected: isSelected,
@@ -185,7 +207,7 @@ function buildShopFeatureCollection(
 function styleLandmarkElement(
   el: HTMLDivElement,
   landmark: EditableLandmark,
-  opts: { isSelected: boolean; opacity: number; draggable: boolean }
+  opts: { isSelected: boolean; opacity: number; draggable: boolean; unsaved: boolean }
 ) {
   el.textContent = `\u{1F3DB}\u{FE0F} ${landmark.name}`;
   Object.assign(el.style, {
@@ -196,11 +218,11 @@ function styleLandmarkElement(
     whiteSpace: "nowrap",
     background: opts.isSelected ? "#92400E" : "#ffffffee",
     color: opts.isSelected ? "#fff" : "#57503F",
-    border: "1px solid #E0B877",
+    border: opts.unsaved ? `2px solid ${EDITOR_COLORS.unsaved}` : "1px solid #E0B877",
     boxShadow: "0 1px 4px rgba(0,0,0,.2)",
     opacity: String(opts.opacity),
     cursor: opts.draggable ? "grab" : "default",
-    // 建物タブ以外では、下にある区画・道のクリックを奪わない
+    // 選択ツール以外（道を描く・建物を置く等）では、地図へのクリックを奪わない
     pointerEvents: opts.draggable ? "auto" : "none",
   } satisfies Partial<CSSStyleDeclaration>);
 }
@@ -328,15 +350,13 @@ function RotationControl({
 }
 
 export default function MapEditCanvasMapLibre({
-  tab,
+  tool,
+  selection,
+  isPickingTarget,
+  unsavedKeys,
   shops,
   roads,
   landmarks,
-  selectedLocationId,
-  selectedRoadId,
-  selectedLandmarkKey,
-  slotAction,
-  roadAction,
   draft,
   search,
   zoomIdx,
@@ -355,11 +375,13 @@ export default function MapEditCanvasMapLibre({
   const mapRef = useRef<maplibregl.Map | null>(null);
   const [ready, setReady] = useState(false);
 
+  const selectedLocationId = selection?.kind === "slot" ? selection.id : null;
+  const selectedRoadId = selection?.kind === "road" ? selection.id : null;
+  const selectedLandmarkKey = selection?.kind === "landmark" ? selection.id : null;
+
   // イベントハンドラは map 初期化時に1回だけ登録するため、最新値は ref 経由で読む
-  const tabRef = useRef(tab);
-  tabRef.current = tab;
-  const roadActionRef = useRef(roadAction);
-  roadActionRef.current = roadAction;
+  const toolRef = useRef(tool);
+  toolRef.current = tool;
   const handlersRef = useRef(handlers);
   handlersRef.current = handlers;
   const projectionRef = useRef(projection);
@@ -408,6 +430,7 @@ export default function MapEditCanvasMapLibre({
       map.addSource(SRC_ROAD_CASING, { type: "geojson", data: emptyFC() });
       map.addSource(SRC_ROAD_FILL, { type: "geojson", data: emptyFC() });
       map.addSource(SRC_ROAD_DASH, { type: "geojson", data: emptyFC() });
+      map.addSource(SRC_ROAD_UNSAVED, { type: "geojson", data: emptyFC() });
       map.addSource(SRC_DRAFT, { type: "geojson", data: emptyFC() });
       map.addSource(SRC_SHOPS, { type: "geojson", data: emptyFC() });
 
@@ -434,6 +457,13 @@ export default function MapEditCanvasMapLibre({
           "line-dasharray": [2, 2],
           "line-opacity": ["get", "opacity"],
         },
+      });
+      // 保存していない変更がある道は、中心線を点線でなぞって印にする
+      map.addLayer({
+        id: LAYER_ROAD_UNSAVED,
+        type: "line",
+        source: SRC_ROAD_UNSAVED,
+        paint: { "line-color": EDITOR_COLORS.unsaved, "line-width": 3, "line-dasharray": [1.5, 1.5] },
       });
       map.addLayer({
         id: LAYER_DRAFT,
@@ -490,22 +520,22 @@ export default function MapEditCanvasMapLibre({
         paint: { "text-color": "#ffffff", "text-opacity": ["get", "opacity"] },
       });
 
-      // タブが実際にこのレイヤーで選択したときだけ消費したことにする（タブ判定より
-      // 前に一律で立てると、道タブで道の上をクリックして新規描画の点を打つ、
-      // といった操作が下の「空き地クリック」に届かなくなる）
-      map.on("click", LAYER_ROAD_CASING, (e) => {
-        if (tabRef.current !== "road") return;
-        // 新規描画中は、既存の点へのスナップ・接続のため空き地クリック（onMapClick）へ流す
-        if (roadActionRef.current === "draw") return;
-        consumedClickRef.current = true;
-        const roadId = e.features?.[0]?.properties?.roadId;
-        if (typeof roadId === "string") handlersRef.current.onSelectRoad(roadId);
-      });
+      // 道具が実際にこのレイヤーで選択したときだけ消費したことにする（一律で立てると、
+      // 道を描く道具で道の上をクリックして点を打つ、といった操作が下の「空き地クリック」に
+      // 届かなくなる）。区画は道の上に重なっているため、区画のクリックを道より優先する
       map.on("click", LAYER_SHOP_DOTS, (e) => {
-        if (tabRef.current !== "slot") return;
+        if (toolRef.current !== "select") return;
         consumedClickRef.current = true;
         const locationId = e.features?.[0]?.properties?.locationId;
         if (typeof locationId === "string") handlersRef.current.onSelectShop(locationId);
+      });
+      map.on("click", LAYER_ROAD_CASING, (e) => {
+        // 道を描く道具・建物を置く道具では、空き地クリック（onMapClick）へ流す
+        if (toolRef.current !== "select" && toolRef.current !== "splitSlots") return;
+        if (consumedClickRef.current) return;
+        consumedClickRef.current = true;
+        const roadId = e.features?.[0]?.properties?.roadId;
+        if (typeof roadId === "string") handlersRef.current.onSelectRoad(roadId);
       });
       // 建物（landmark）はGeoJSONレイヤーではなくドラッグ可能なDOM要素（Marker）で
       // 表現しているため、選択クリックはマーカー自身のイベントで処理する（下の方の
@@ -613,20 +643,19 @@ export default function MapEditCanvasMapLibre({
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !ready) return;
-    const { casing, fill, dash } = buildRoadFeatureCollections(roads, { selectedRoadId, tab, query });
+    const { casing, fill, dash, unsaved } = buildRoadFeatureCollections(roads, { selectedRoadId, query, unsavedKeys });
     (map.getSource(SRC_ROAD_CASING) as maplibregl.GeoJSONSource).setData(casing);
     (map.getSource(SRC_ROAD_FILL) as maplibregl.GeoJSONSource).setData(fill);
     (map.getSource(SRC_ROAD_DASH) as maplibregl.GeoJSONSource).setData(dash);
-  }, [roads, selectedRoadId, tab, query, ready]);
+    (map.getSource(SRC_ROAD_UNSAVED) as maplibregl.GeoJSONSource).setData(unsaved);
+  }, [roads, selectedRoadId, query, unsavedKeys, ready]);
 
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !ready) return;
-    const data = buildShopFeatureCollection(shops, { selectedLocationId, slotAction, query });
+    const data = buildShopFeatureCollection(shops, { selectedLocationId, isPickingTarget, query, unsavedKeys });
     (map.getSource(SRC_SHOPS) as maplibregl.GeoJSONSource).setData(data);
-    map.setLayoutProperty(LAYER_SHOP_DOTS, "visibility", tab === "slot" ? "visible" : "none");
-    map.setLayoutProperty(LAYER_SHOP_NUMBERS, "visibility", tab === "slot" ? "visible" : "none");
-  }, [shops, selectedLocationId, slotAction, query, tab, ready]);
+  }, [shops, selectedLocationId, isPickingTarget, query, unsavedKeys, ready]);
 
   // ── 建物（Marker）。ドラッグ中も要素を作り直さないよう、key で使い回す ──────────
   useEffect(() => {
@@ -637,16 +666,18 @@ export default function MapEditCanvasMapLibre({
 
     for (const landmark of landmarks) {
       seen.add(landmark.key);
-      const isSelected = tab === "landmark" && selectedLandmarkKey === landmark.key;
-      const dim = tab === "landmark" && !!query && !landmark.name.toLowerCase().includes(query);
-      const opacity = tab === "landmark" ? (dim ? 0.25 : 1) : 0.55;
-      const draggable = tab === "landmark";
+      const isSelected = selectedLandmarkKey === landmark.key;
+      const dim = !!query && !landmark.name.toLowerCase().includes(query);
+      const opacity = dim ? 0.25 : 1;
+      // 選択ツールのときだけ掴める。他の道具のときは地図へのクリックを奪わない
+      const draggable = tool === "select";
+      const unsaved = unsavedKeys.has(`landmarks:${landmark.key}`);
 
       let marker = existing.get(landmark.key);
       if (!marker) {
         const el = document.createElement("div");
         el.addEventListener("click", (event) => {
-          if (tabRef.current !== "landmark") return;
+          if (toolRef.current !== "select") return;
           event.stopPropagation();
           handlersRef.current.onSelectLandmark(landmark.key);
         });
@@ -667,7 +698,7 @@ export default function MapEditCanvasMapLibre({
         marker.setLngLat([landmark.lng, landmark.lat]);
       }
       marker.setDraggable(draggable);
-      styleLandmarkElement(marker.getElement() as HTMLDivElement, landmark, { isSelected, opacity, draggable });
+      styleLandmarkElement(marker.getElement() as HTMLDivElement, landmark, { isSelected, opacity, draggable, unsaved });
     }
 
     for (const [key, marker] of existing) {
@@ -676,15 +707,15 @@ export default function MapEditCanvasMapLibre({
         existing.delete(key);
       }
     }
-  }, [landmarks, tab, selectedLandmarkKey, query, ready]);
+  }, [landmarks, tool, selectedLandmarkKey, query, unsavedKeys, ready]);
 
-  // ── 道の頂点・中点（Marker）。選択中の道だけ、tab==="road" のときに出す ──────────
+  // ── 道の頂点・中点（Marker）。選択ツールで道を選んでいるときだけ出す ──────────
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !ready) return;
     const vertexExisting = vertexMarkersRef.current;
     const midpointExisting = midpointMarkersRef.current;
-    const road = tab === "road" ? roads.find((r) => r.id === selectedRoadId) ?? null : null;
+    const road = tool === "select" ? roads.find((r) => r.id === selectedRoadId) ?? null : null;
 
     if (!road) {
       vertexExisting.forEach((m) => m.remove());
@@ -749,7 +780,7 @@ export default function MapEditCanvasMapLibre({
       nextMidpoints.push(marker);
     }
     midpointMarkersRef.current = nextMidpoints;
-  }, [roads, selectedRoadId, tab, ready]);
+  }, [roads, selectedRoadId, tool, ready]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -800,23 +831,6 @@ export default function MapEditCanvasMapLibre({
           読み込み中...
         </div>
       )}
-
-      <div
-        style={{
-          position: "absolute",
-          top: 12,
-          left: 12,
-          pointerEvents: "none",
-          borderRadius: 999,
-          background: "rgba(255,255,255,.85)",
-          padding: "4px 10px",
-          fontSize: 11,
-          fontWeight: 700,
-          color: "#57503F",
-        }}
-      >
-        MapLibre 版（検証中）
-      </div>
 
       <div
         style={{

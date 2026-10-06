@@ -29,14 +29,17 @@ export type SnapshotItem = {
   } | null;
 };
 
-export type Tab = "slot" | "road" | "landmark";
+/**
+ * 地図左上の道具パレットで選ぶ道具。
+ * 選択以外の道具は、1回の操作を終えるか Esc を押すと選択に戻る。
+ */
+export type Tool = "select" | "drawRoad" | "splitSlots" | "placeLandmark";
 
-export type SlotAction = "idle" | "move" | "place";
-// 道の頂点編集（ドラッグ移動・ダブルクリック削除・中点クリックで追加）は
-// 道を選択しさえすれば常に有効（旧エディタのように、選択したらすぐ触れる）。
-// "draw" は新しい道を新規作成しているときだけの状態。
-export type RoadAction = "idle" | "draw";
-export type LandmarkAction = "idle" | "place";
+/** 選択ツールで選んでいるもの。道・区画・建物のどれか1つ */
+export type Selection =
+  | { kind: "road"; id: string }
+  | { kind: "slot"; id: string }
+  | { kind: "landmark"; id: string };
 
 /** キャンバス（MapEditCanvasMapLibre）から親（MapEditClientV3）へ通知する操作 */
 export type CanvasHandlers = {
