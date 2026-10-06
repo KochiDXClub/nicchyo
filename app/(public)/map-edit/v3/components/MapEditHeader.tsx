@@ -1,26 +1,27 @@
-import type { Tab } from "../types";
+import type { MapSettingsLimits } from "../useMapEditData";
 
 export function MapEditHeader({
-  tab,
-  onTabChange,
   search,
   onSearchChange,
   occupiedCount,
   vacantCount,
   roadCount,
+  landmarkCount,
+  limits,
   onToggleHistory,
   hasUnsavedChanges,
   isSaving,
   pendingCount,
   onSave,
 }: {
-  tab: Tab;
-  onTabChange: (tab: Tab) => void;
   search: string;
   onSearchChange: (value: string) => void;
   occupiedCount: number;
   vacantCount: number;
   roadCount: number;
+  landmarkCount: number;
+  /** 空き区画・建物の上限（/admin/settings）。件数の横に「件数 / 上限」で出す */
+  limits: MapSettingsLimits;
   onToggleHistory: () => void;
   hasUnsavedChanges: boolean;
   isSaving: boolean;
@@ -44,33 +45,11 @@ export function MapEditHeader({
         <span style={{ fontSize: 17, fontWeight: 900 }}>マップ編集</span>
       </div>
 
-      <div style={{ display: "flex", border: "1px solid #E4D9BF", borderRadius: 11, overflow: "hidden", flexShrink: 0 }}>
-        {(["slot", "road", "landmark"] as Tab[]).map((t) => (
-          <span
-            key={t}
-            onClick={() => onTabChange(t)}
-            style={{
-              padding: "8px 14px",
-              fontSize: 12.5,
-              fontWeight: 700,
-              cursor: "pointer",
-              background: tab === t ? "#92400E" : "#fff",
-              color: tab === t ? "#fff" : "#57503F",
-              whiteSpace: "nowrap",
-            }}
-          >
-            {t === "slot" ? "店舗位置を編集" : t === "road" ? "道を編集" : "建物を編集"}
-          </span>
-        ))}
-      </div>
-
       <div style={{ position: "relative", flex: 1, maxWidth: 360, minWidth: 150 }}>
         <input
           value={search}
           onChange={(e) => onSearchChange(e.target.value)}
-          placeholder={
-            tab === "road" ? "道の名称で検索" : tab === "landmark" ? "建物の名称で検索" : "区画番号・出店者名で検索"
-          }
+          placeholder="区画番号・出店者名・道・建物の名前で検索"
           style={{
             width: "100%",
             boxSizing: "border-box",
@@ -89,11 +68,14 @@ export function MapEditHeader({
           <span>
             <b style={{ fontSize: 13.5, color: "#33302B" }}>{occupiedCount}</b> 出店
           </span>
-          <span>
-            <b style={{ fontSize: 13.5, color: "#33302B" }}>{vacantCount}</b> 空き
+          <span title={`空き区画の上限 ${limits.maxUnassignedShopMarkers}`}>
+            <b style={{ fontSize: 13.5, color: "#33302B" }}>{vacantCount}</b>/{limits.maxUnassignedShopMarkers} 空き
           </span>
           <span>
             <b style={{ fontSize: 13.5, color: "#33302B" }}>{roadCount}</b> 道
+          </span>
+          <span title={`建物の上限 ${limits.maxLandmarks}`}>
+            <b style={{ fontSize: 13.5, color: "#33302B" }}>{landmarkCount}</b>/{limits.maxLandmarks} 建物
           </span>
         </div>
         <span
