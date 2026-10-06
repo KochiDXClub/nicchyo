@@ -849,7 +849,12 @@ export default function ConsultStage({
         lg 以上（PC・ノートPC）では左30%のカラムに置き、本文を読み進めても
         画面に残り続けるよう sticky にする。スマホでは従来どおり通常フロー。
       */}
-      <div className="flex flex-col items-center gap-2 lg:sticky lg:top-6 lg:col-start-1 lg:row-start-2">
+      {/*
+        高さを「スクロール領域いっぱい」にして中身を縦中央に置く（sticky なので
+        本文を読み進めても同じ位置に残る）。-2rem は上の目印の余白と下の
+        paddingBottom ぶん。これを引かないと、わずかにスクロールが発生する
+      */}
+      <div className="flex flex-col items-center gap-2 lg:sticky lg:top-0 lg:col-start-1 lg:row-start-2 lg:h-[calc(100dvh-var(--consult-bar-space)-2rem)] lg:justify-center">
         {/*
           flex にして、囲んだだけで下に行間の隙間が出ないようにする（測る先がずれる）。
           開いたときはその場に現れ、現れきったら一度だけ会釈する。
@@ -964,7 +969,7 @@ export default function ConsultStage({
       {phase === "idle" && !isBusy && suggestions.length > 0 && (
         <div
           style={revealClass(140).style}
-          className={`flex flex-col gap-2 lg:grid lg:auto-cols-fr lg:grid-flow-col lg:gap-3 ${revealClass(140).className}`}
+          className={`flex flex-col gap-2 ${revealClass(140).className}`}
         >
           {suggestions.map((question) => (
             <button
