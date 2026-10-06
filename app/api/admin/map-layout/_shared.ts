@@ -46,7 +46,7 @@ export function createAdminWriteClient(): SupabaseClient {
 const UNDEFINED_COLUMN = "42703";
 
 /**
- * 区画の道基準の位置（20261004110000_add_road_position_to_market_locations.sql）が
+ * 区画の道基準の位置（20261004140000_add_road_position_to_market_locations.sql）が
  * DB に入っているか。マイグレーションは main へのマージ後に承認を経て本番へ当たるため、
  * Preview や、リリース直後でマイグレーションの承認待ちの間は、アプリだけが新しくなって
  * 列がまだ無いことがある。その間も画面は開けるようにし、保存と移行処理だけを止める。
