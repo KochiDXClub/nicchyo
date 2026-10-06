@@ -321,7 +321,17 @@ export default function MapEditClientV3() {
       }
       if (e.key !== "Escape") return;
       if (tool !== "select") backToSelect();
-      else setSelection(null);
+      else {
+        // 名前や検索の入力欄で Esc を押しても、詳細パネルごと閉じない（入力の取り消しに使われるため）
+        const target = e.target;
+        const isFormField =
+          target instanceof HTMLElement &&
+          (target.tagName === "INPUT" ||
+            target.tagName === "TEXTAREA" ||
+            target.tagName === "SELECT" ||
+            target.isContentEditable);
+        if (!isFormField) setSelection(null);
+      }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);

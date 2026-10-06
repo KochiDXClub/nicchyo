@@ -1,37 +1,22 @@
--- 出店者（vendors）を、ログインアカウント（auth.users）なしでも登録できるようにする。
+-- 出店者（vendors）の id を、ログインアカウント（auth.users）に頼らずに振れるようにする。
 --
--- これまで vendors.id は auth.users.id への外部キーで、出店者はアカウント招待
--- （/api/admin/users の inviteUserByEmail）からしか作れなかった。
 -- 運用を「運営が分かる情報を先に出店者として登録し、あとから出店者のアカウントに
 -- 紐づける」形に変えるため、マップ編集画面の空き区画から出店者を新規登録できるようにする。
+-- 登録した出店者は、アカウントなしで存在する（店舗とアカウントは shop_members で紐づく。
+-- 20261003100000_create_shop_members.sql）。
 --
--- 影響と対策:
---   - 外部キーの ON DELETE CASCADE（アカウントを消すと出店者も消える）に頼っている
---     処理がある（/api/admin/shops/bulk の一括削除）。アカウントのある出店者は
---     これまでどおり消えるよう、auth.users の削除時に同じ id の vendors を消すトリガーを置く
---   - RLS の「本人だけ」（vendors.id = auth.uid()）は、アカウントのない出店者の行には
---     誰も当てはまらないだけなので、見える範囲は広がらない
---   - 既存の出店者の id（= アカウントの id）は変えない
+-- vendors.id → auth.users の外部キーは、20261003100000 で外している。ここでの外し直しは、
+-- その適用前の環境に備えた保険（外れていれば何もしない）。実質的に新しいのは、id の既定値だけ。
+--
+-- アカウントを削除したときに出店者を消すトリガーは置かない。出店者（お店の掲載情報）は、
+-- アカウントを消しても残す方針（退会 API・begin_owner_withdrawal と同じ）。代表者が退会したり、
+-- 引き継いだ元の代表者が退会したりしても、お店と、残ったメンバーが消えないようにするため。
+-- 出店者の削除は、/api/admin/shops/bulk が vendors の行を直接消す。
+--
+-- 影響:
+--   - RLS の店舗の権限は shop_members で判定する。アカウントのない出店者の行は、
+--     誰のメンバーでもないので、見える範囲は広がらない
+--   - 既存の出店者の id は変えない
 
 alter table vendors drop constraint if exists vendors_id_fkey;
 alter table vendors alter column id set default gen_random_uuid();
-
-create or replace function public.delete_vendor_on_auth_user_delete()
-returns trigger
-language plpgsql
-security definer
-set search_path = public
-as $$
-begin
-  delete from public.vendors where id = old.id;
-  return old;
-end;
-$$;
-
-drop trigger if exists on_auth_user_deleted_delete_vendor on auth.users;
-create trigger on_auth_user_deleted_delete_vendor
-  after delete on auth.users
-  for each row execute function public.delete_vendor_on_auth_user_delete();
-
--- トリガー専用。直接呼べないようにする（20260906123419 と同じ方針）
-revoke execute on function public.delete_vendor_on_auth_user_delete() from public, anon, authenticated;
