@@ -46,7 +46,7 @@ create index if not exists market_locations_road_id_idx on market_locations (roa
 --
 -- 出店者（p_vendors）は、マップ編集画面の空き区画から新しく登録した出店者（id が
 -- "new-vendor-..." の仮 id）と、画面で情報を直した既存の出店者。新しい出店者は
--- 20261004120000 でアカウントなしでも作れるようにしている。区画の vendorId に仮 id が
+-- 20261004150000 でアカウントなしでも作れるようにしている。区画の vendorId に仮 id が
 -- 入っていれば、採番された id に置き換えて割り当てる。
 --
 -- 検証（権限・上限・区画が乗っている道の削除禁止など）とスナップショットの作成は
