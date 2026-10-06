@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { projectOntoRoad } from "@/lib/map/roadSlotPosition";
 import { EDITOR_COLORS } from "../editorTheme";
 import { CHOME_ORDER, type EditableRoad, type EditableShop } from "../types";
+import { slotLabel } from "../../../map/types/editableShop";
 
 export type Side = "north" | "south";
 
@@ -109,7 +110,8 @@ export default function RoadLaneView({
     }
     const { shop } = item;
     const isSelected = selectedLocationId === shop.locationId;
-    const match = !q || String(shop.position).includes(q) || shop.name.toLowerCase().includes(q);
+    const match =
+      !q || String(shop.position).includes(q) || slotLabel(shop).includes(q) || shop.name.toLowerCase().includes(q);
     const targetable = !!dragFromId && dragFromId !== shop.locationId;
     const isDropTarget = targetable && dropTargetId === shop.locationId;
 
@@ -170,7 +172,7 @@ export default function RoadLaneView({
           color: isSelected ? "#fff" : "#57503F",
         }}
       >
-        <span style={{ fontSize: 11, fontWeight: 900, fontFamily: "monospace" }}>{shop.position}</span>
+        <span style={{ fontSize: 11, fontWeight: 900, fontFamily: "monospace" }}>{slotLabel(shop)}</span>
         <span
           style={{
             fontSize: 9.5,

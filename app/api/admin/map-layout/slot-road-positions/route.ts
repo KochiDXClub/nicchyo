@@ -1,18 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { createClient as createServerClient } from "@/utils/supabase/server";
-import { requireSameOrigin } from "@/lib/security/requestGuards";
-import { enforceRateLimit } from "@/lib/security/rateLimit";
 import { authorizeAdmin } from "@/app/api/admin/categories/_helpers";
 import {
-  createAdminWriteClient,
   createMapLayoutSnapshot,
-  hasRoadPositionSchema,
   loadEditableRoads,
   loadEditableShops,
   loadRouteConfig,
   planSlotRoadPositions,
-  ROAD_POSITION_SCHEMA_MISSING_MESSAGE,
+  prepareMapLayoutWrite,
 } from "../_shared";
 
 /**
@@ -48,26 +44,9 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
-    const originCheck = requireSameOrigin(request);
-    if (!originCheck.ok) return originCheck.response;
-
-    const rateLimited = await enforceRateLimit(request, {
-      bucket: "admin-map-layout-slot-road-positions",
-      limit: 5,
-      windowMs: 10 * 60 * 1000,
-    });
-    if (rateLimited) return rateLimited;
-
-    const { user, error: authError } = await authorizeAdmin();
-    if (authError || !user) return NextResponse.json({ error: authError }, { status: 403 });
-
-    const cookieStore = await cookies();
-    const supabase = createServerClient(cookieStore);
-    const adminWriteClient = createAdminWriteClient();
-
-    if (!(await hasRoadPositionSchema(supabase))) {
-      return NextResponse.json({ error: ROAD_POSITION_SCHEMA_MISSING_MESSAGE }, { status: 503 });
-    }
+    const prepared = await prepareMapLayoutWrite(request, { bucket: "admin-map-layout-slot-road-positions", limit: 5 });
+    if (!prepared.ok) return prepared.response;
+    const { user, supabase, adminWriteClient } = prepared;
 
     const { shops, roads, plan } = await loadPlan(supabase);
     if (plan.matched.length === 0) {

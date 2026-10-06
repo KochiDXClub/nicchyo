@@ -23,6 +23,7 @@ import ToolPalette from "./components/ToolPalette";
 import ToolHint from "./components/ToolHint";
 import SlotSplitPanel from "./components/SlotSplitPanel";
 import SlotMigrationPanel from "./components/SlotMigrationPanel";
+import StoreImportPanel from "./components/StoreImportPanel";
 
 const MAX_ZOOM_IDX = 2;
 // 道を描いている途中、既存の点からこの距離（メートル）以内をクリックしたら
@@ -57,6 +58,7 @@ export default function MapEditClientV3() {
   const [splitSettings, setSplitSettings] = useState<SlotSplitSettings | null>(null);
 
   const [search, setSearch] = useState("");
+  const [isImportOpen, setIsImportOpen] = useState(false);
   const [history, setHistory] = useState<EditHistory>(EMPTY_HISTORY);
   const changes = useMemo(() => netChanges(history), [history]);
   const unsavedKeys = useMemo(() => new Set(changes.map((change) => `${change.kind}:${change.id}`)), [changes]);
@@ -428,7 +430,14 @@ export default function MapEditClientV3() {
         roadCount={roads.length}
         landmarkCount={landmarks.length}
         limits={data.mapSettingsLimits}
-        onToggleHistory={() => data.setIsHistoryOpen((v) => !v)}
+        onToggleHistory={() => {
+          setIsImportOpen(false);
+          data.setIsHistoryOpen((v) => !v);
+        }}
+        onToggleImport={() => {
+          data.setIsHistoryOpen(false);
+          setIsImportOpen((v) => !v);
+        }}
         hasUnsavedChanges={hasUnsavedChanges}
         isSaving={data.isSaving}
         pendingCount={history.past.length}
@@ -538,7 +547,25 @@ export default function MapEditClientV3() {
             overflowX: "hidden",
           }}
         >
-          {data.isHistoryOpen ? (
+          {isImportOpen ? (
+            <StoreImportPanel
+              roads={roads}
+              shops={shops}
+              vendors={data.vendors}
+              categories={data.categories}
+              onClose={() => setIsImportOpen(false)}
+              onApply={(plan) => {
+                if (!plan.next) return;
+                ops.applyStoreImport(
+                  plan.next,
+                  `出店者CSVを取り込み（区画 新規${plan.createdSlotCount}・更新${plan.updatedSlotCount}・削除${plan.deletedSlotCount}）`
+                );
+                setIsImportOpen(false);
+                setSelection(null);
+                setMessage("CSV を取り込みました。地図で内容を確かめてから「変更を保存」を押してください。");
+              }}
+            />
+          ) : data.isHistoryOpen ? (
             <SnapshotHistoryPanel
               snapshots={data.snapshots}
               isLoadingSnapshots={data.isLoadingSnapshots}

@@ -9,6 +9,7 @@ export function MapEditHeader({
   landmarkCount,
   limits,
   onToggleHistory,
+  onToggleImport,
   hasUnsavedChanges,
   isSaving,
   pendingCount,
@@ -24,6 +25,8 @@ export function MapEditHeader({
   /** 空き区画・建物の上限（/admin/settings）。件数の横に「件数 / 上限」で出す */
   limits: MapSettingsLimits;
   onToggleHistory: () => void;
+  /** 出店者 CSV の取り込みパネルを開く・閉じる */
+  onToggleImport: () => void;
   hasUnsavedChanges: boolean;
   isSaving: boolean;
   pendingCount: number;
@@ -81,6 +84,21 @@ export function MapEditHeader({
             <b style={{ fontSize: 13.5, color: "#33302B" }}>{landmarkCount}</b>/{limits.maxLandmarks} 建物
           </span>
         </div>
+        <span
+          onClick={onToggleImport}
+          style={{
+            padding: "8px 13px",
+            borderRadius: 10,
+            fontSize: 12.5,
+            fontWeight: 700,
+            cursor: "pointer",
+            background: "#fff",
+            color: "#57503F",
+            border: "1px solid #E7DDC4",
+          }}
+        >
+          CSV取り込み
+        </span>
         <span
           onClick={onToggleHistory}
           style={{
