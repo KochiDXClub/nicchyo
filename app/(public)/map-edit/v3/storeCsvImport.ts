@@ -1,4 +1,4 @@
-import { parseCsv } from "@/lib/csv/parseCsv";
+import { parseCsvWithLines } from "@/lib/csv/parseCsv";
 import { MAX_SHOP_ID, MIN_SHOP_ID } from "@/lib/shops/route";
 import { pointAlongRoad, roadLengthMeters, roadSlotLatLng, type RoadSide } from "@/lib/map/roadSlotPosition";
 import { CHOME_ORDER, NEW_VENDOR_ID_PREFIX, VENDOR_FIELD_LIMITS } from "../../map/types/editableShop";
@@ -74,21 +74,22 @@ function splitProducts(value: string): string[] {
 
 /** CSV の文字列を行にする。行ごとの問題（番号が数字でない等）は errors に入れ、その行は取り込まない */
 export function parseStoreCsv(text: string): { rows: StoreCsvRow[]; errors: ImportIssue[] } {
-  const table = parseCsv(text);
+  const { rows: table, lines: tableLines } = parseCsvWithLines(text);
   const errors: ImportIssue[] = [];
   if (table.length === 0) return { rows: [], errors: [{ line: null, message: "CSV が空です。" }] };
 
   const header = table[0].map((cell) => cell.trim());
   const missing = REQUIRED_HEADERS.filter((name) => !header.includes(name));
   if (missing.length > 0) {
-    return { rows: [], errors: [{ line: 1, message: `見出しに「${missing.join("」「")}」がありません。` }] };
+    return { rows: [], errors: [{ line: 1, message: `見出しに「${missing.join("」「")}」がありません。文字化けしているときは、CSV UTF-8（コンマ区切り）で保存し直してください。` }] };
   }
   const col = (name: string) => header.indexOf(name);
 
   const rows: StoreCsvRow[] = [];
   const seen = new Map<string, number>();
   table.slice(1).forEach((cells, index) => {
-    const line = index + 2;
+    // 値がすべて空の行やクォート内の改行があっても、ファイルの実際の行番号を出す
+    const line = tableLines[index + 1];
     const get = (name: string) => (col(name) >= 0 ? (cells[col(name)] ?? "").trim() : "");
 
     const officialNumber = parsePositiveInt(get("本番号"));
@@ -141,6 +142,8 @@ export type StoreImportPlan = {
   deletedSlotCount: number;
   createdVendorCount: number;
   updatedVendorCount: number;
+  /** 同じ店名の登録済みの出店者があったので、新しく作らずに区画へ割り当てた件数 */
+  reusedVendorCount: number;
   /** 取り込めない理由（1つでもあれば適用しない） */
   errors: ImportIssue[];
   /** 取り込めるが確認してほしいこと */
@@ -210,6 +213,7 @@ export function planStoreImport(input: {
     deletedSlotCount: 0,
     createdVendorCount: 0,
     updatedVendorCount: 0,
+    reusedVendorCount: 0,
   };
 
   if (input.rows.length === 0 && errors.length === 0) errors.push({ line: null, message: "取り込む行がありません。" });
@@ -294,7 +298,19 @@ export function planStoreImport(input: {
   const vendorIndex = new Map(nextVendors.map((v, i) => [v.id, i]));
   let createdVendorCount = 0;
   let updatedVendorCount = 0;
+  let reusedVendorCount = 0;
   const nextShops = shops.filter((s) => !deletedIds.has(s.locationId));
+  // 新しい出店者を作る前に、同じ店名の登録済みの出店者を探して使う。住所録の番号の列は新しいので、
+  // 初めての取り込みでは既存の区画が番号で一致せず、何もしないと、アカウント・写真を持つ実在の出店者と
+  // 同じ店名の出店者が二重にできてしまう（店名で一意に決まるものだけを使い、迷うときは新しく作る）
+  const nameKey = (name: string) => name.normalize("NFKC").replace(/\s+/g, "");
+  const assignedVendorIds = new Set(nextShops.flatMap((s) => (s.vendorId ? [s.vendorId] : [])));
+  const registeredByName = new Map<string, EditableVendor[]>();
+  for (const vendor of vendors) {
+    if (vendor.id.startsWith(NEW_VENDOR_ID_PREFIX)) continue;
+    const key = nameKey(vendor.name);
+    if (key) registeredByName.set(key, [...(registeredByName.get(key) ?? []), vendor]);
+  }
   const shopIndex = new Map(nextShops.map((s, i) => [s.locationId, i]));
   const offsetCache = new Map<string, number>();
   const offsetFor = (road: EditableRoad, side: RoadSide) => {
@@ -331,6 +347,11 @@ export function planStoreImport(input: {
         nextVendors[vendorIndex.get(vendorId)!] = updated;
         updatedVendorCount += 1;
       }
+    } else if (row.name && registeredByName.get(nameKey(row.name))?.length === 1 && !assignedVendorIds.has(registeredByName.get(nameKey(row.name))![0].id)) {
+      // 同じ店名の登録済みの出店者が1人だけで、ほかの区画にいなければ、その出店者を割り当てる（情報は上書きしない）
+      vendorId = registeredByName.get(nameKey(row.name))![0].id;
+      reusedVendorCount += 1;
+      warnings.push({ line: row.line, message: `「${row.name}」は登録済みの出店者です。新しく作らず、この区画に割り当てます` });
     } else {
       vendorId = `${NEW_VENDOR_ID_PREFIX}${now}-${i}`;
       if (!row.name) warnings.push({ line: row.line, message: `店名が空のため「${row.chome} ${STORE_SIDE_LABEL[row.side]} ${label}」にします` });
@@ -344,6 +365,7 @@ export function planStoreImport(input: {
       vendorIndex.set(vendorId, nextVendors.length - 1);
       createdVendorCount += 1;
     }
+    assignedVendorIds.add(vendorId);
     const vendorName = nextVendors[vendorIndex.get(vendorId)!].name;
 
     if (matched) {
@@ -379,6 +401,7 @@ export function planStoreImport(input: {
     deletedSlotCount: deleted.length,
     createdVendorCount,
     updatedVendorCount,
+    reusedVendorCount,
     errors,
     warnings,
     next: { shops: nextShops, vendors: nextVendors },
