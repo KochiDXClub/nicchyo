@@ -63,6 +63,7 @@ import {
   ROAD_LANE_WEIGHT_STOPS,
   ROAD_STYLE,
   getRoadCorridorHalfWidthMeters,
+  getPixelsPerMeter,
   getRoadLaneDashUnits,
 } from "../../config/roadStyle";
 import {
@@ -73,6 +74,7 @@ import {
 } from "@/lib/map/mapViewSettings";
 import { OPENFREEMAP_STYLE_URL } from "../../config/basemap";
 import {
+  ILLUSTRATION_SIZES,
   OVERVIEW_ZONE_MAX_ZOOM,
   OVERVIEW_ZONE_MIN_ZOOM,
   SHOP_MARKER_LOD_OFFSETS,
@@ -89,6 +91,7 @@ import {
   STALL_STATES,
 } from "./stallSprites";
 import { STALL_PHOTO_HEIGHT_RATIO } from "../../config/stallParts";
+import { buildPhotoStallScale } from "./photoStallScale";
 import { getShopPreviewImage, getShopThumbnailImage } from "../../../../../lib/shopImages";
 import { MAPLIBRE_MAP_KEY, type MapCamera, type MapCameraEvent } from "../../types/mapCamera";
 import { LiveZoomMapControls } from "../MapControls";
@@ -196,6 +199,8 @@ const IMG_NAMEPLATE = "nameplate-bg";
 const IMG_BADGE_FAVORITE = "badge:favorite";
 /** 写真入りの屋台の大きさ（通常の屋台は 60px。本体の写真が見えるよう一回り大きくする） */
 const PHOTO_STALL_PX = 84;
+/** 列内の店舗間隔（m）。ShopScanCards の SHOP_SPACING_METERS と同じ実測値 */
+const SHOP_COLUMN_SPACING_METERS = 5.9;
 const TEXT_FONT = ["Noto Sans Bold"];
 
 function buildRasterStyle(tileOpacityByZoom: boolean, minZoom: number): StyleSpecification {
@@ -942,6 +947,15 @@ function MapViewMapLibre({
         MAX_ZOOM,
         1,
       ];
+      // 写真入りは通常の屋台より大きいので、引いたときに隣と重ならないよう倍率を絞る
+      const photoStallScale = buildPhotoStallScale({
+        maxZoom: MAX_ZOOM,
+        photoStallPx: PHOTO_STALL_PX,
+        baseStallPx: ILLUSTRATION_SIZES.medium.height,
+        spacingPxAtMax: SHOP_COLUMN_SPACING_METERS * getPixelsPerMeter(MAX_ZOOM - ZOOM_OFFSET),
+        stallLodOffset: SHOP_MARKER_LOD_OFFSETS.stall,
+        photoLodOffset: SHOP_MARKER_LOD_OFFSETS.photo,
+      });
       map.addLayer({
         id: LAYER_SHOPS,
         type: "symbol",
@@ -966,7 +980,7 @@ function MapViewMapLibre({
         minzoom: MAX_ZOOM + SHOP_MARKER_LOD_OFFSETS.photo,
         layout: {
           "icon-image": ["concat", "photo:", ["get", "id"], ":", ["get", "state"]],
-          "icon-size": stallScale,
+          "icon-size": photoStallScale,
           "icon-anchor": "bottom",
           "icon-allow-overlap": true,
           "icon-ignore-placement": true,
@@ -1007,7 +1021,7 @@ function MapViewMapLibre({
         paint: { "text-color": "#4a3826" },
       });
 
-      // お気に入りバッジ（Leaflet 版と同じく photo LOD 以上で右上に）
+      // お気に入りバッジ（photo LOD 以上で、写真入りの屋台の角に。屋台と同じ倍率で動かす）
       map.addLayer({
         id: LAYER_SHOP_BADGES_FAVORITE,
         type: "symbol",
@@ -1016,7 +1030,7 @@ function MapViewMapLibre({
         filter: ["==", ["get", "favorite"], true],
         layout: {
           "icon-image": IMG_BADGE_FAVORITE,
-          "icon-size": stallScale,
+          "icon-size": photoStallScale,
           "icon-anchor": "center",
           "icon-offset": ["case", ["==", ["get", "side"], "north"], ["literal", [-34, -78]], ["literal", [34, -78]]],
           "icon-allow-overlap": true,
