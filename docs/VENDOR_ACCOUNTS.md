@@ -68,6 +68,21 @@ node scripts/create-shop-boxes.mjs             # 作る（向き先の URL を�
 
 **アカウントのない店舗でも動くもの**（確認済み）: 来訪者の地図・検索・店舗ページへの表示／商品・近況・出店日などの登録（管理側）／マップの配置／管理画面の店舗一覧（代表者の欄は「未紐づけ」）／一括の削除（店舗の行を直接消す）／一括の停止・復活（対象のアカウントがない店舗は、エラーにせず飛ばす）。店舗に紐づく全テーブルは `vendors` を指していて、`auth.users` を店舗の ID で指すものはない（`shop_attendance_vendor` は未使用）。
 
+### 掲載許可（運営が現地で記録する）
+店舗の掲載には、出店者の許可が要る。許可は店舗の行（`vendors`）そのものに記録する（アカウントと紐づく前から運営が管理するため）。
+
+| 列 | 意味 |
+|---|---|
+| `listing_status` | `pending` 未取得 / `allowed` 許可済み / `declined` 断られた。**`allowed` の店舗だけが来訪者に出る** |
+| `photo_use_allowed` | 写真を掲載してよいか |
+| `listing_consented_on` | 許可をもらった日（`allowed` にしたとき、未記録なら今日が入る） |
+| `listing_consent_note` | 許可の経緯のメモ（来訪者・出店者には公開しない） |
+
+- 絞り込みは **DB の RLS**（`vendors` の「public read allowed vendors」）で行う。地図・検索・店舗ページ・サイトマップは匿名クライアントで読むので、まとめて効く。
+- **service_role で店舗を読む箇所は RLS を通らない**ので、`listing_status = 'allowed'` を自分で付ける（にちよさん: `lib/grandma/vendorSearch.ts`）。service_role で来訪者向けに店舗を読む処理を足すときは、同じ条件を忘れない。
+- 既存の店舗は `allowed` へ移行した。`create-shop-boxes.mjs` などで**新しく作る店舗は `pending`** から始まるので、許可を記録するまで来訪者には出ない。
+- 運営の編集は `PATCH /api/admin/shops/[id]`（`lib/admin/shopEdit.ts` が入力を検証し、監査ログに残す）。店舗のメンバーは、許可前でも自分の店舗を読める。
+
 ### 出店者へ QR を配る（運営）
 1. 店舗の箱を先に作る（上）。
 2. 管理画面 `/admin/shop-claims` で、店舗を選んで **QR を発行**（最大 300 店を一括）→ 印刷用のシートを印刷する。**QR の中身は、この画面でしか見られない**（閉じると出せない。出し直しはできる）。

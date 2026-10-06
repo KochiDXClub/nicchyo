@@ -1419,6 +1419,10 @@ export type Database = {
           closed_dates: string[]
           created_at: string | null
           id: string
+          listing_consent_note: string | null
+          listing_consented_on: string | null
+          listing_status: string
+          photo_use_allowed: boolean
           main_product_prices: Json | null
           main_products: string[] | null
           must_change_password: boolean | null
@@ -1443,6 +1447,10 @@ export type Database = {
           closed_dates?: string[]
           created_at?: string | null
           id: string
+          listing_consent_note?: string | null
+          listing_consented_on?: string | null
+          listing_status?: string
+          photo_use_allowed?: boolean
           main_product_prices?: Json | null
           main_products?: string[] | null
           must_change_password?: boolean | null
@@ -1467,6 +1475,10 @@ export type Database = {
           closed_dates?: string[]
           created_at?: string | null
           id?: string
+          listing_consent_note?: string | null
+          listing_consented_on?: string | null
+          listing_status?: string
+          photo_use_allowed?: boolean
           main_product_prices?: Json | null
           main_products?: string[] | null
           must_change_password?: boolean | null
