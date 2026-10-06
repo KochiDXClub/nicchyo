@@ -655,6 +655,10 @@ export default function MapEditCanvasMapLibre({
           const lngLat = marker!.getLngLat();
           handlersRef.current.onMoveLandmark(landmark.key, lngLat.lat, lngLat.lng);
         });
+        marker.on("dragend", () => {
+          const lngLat = marker!.getLngLat();
+          handlersRef.current.onMoveLandmarkEnd(landmark.key, lngLat.lat, lngLat.lng);
+        });
         marker.setLngLat([landmark.lng, landmark.lat]);
         marker.addTo(map);
         existing.set(landmark.key, marker);
@@ -707,7 +711,10 @@ export default function MapEditCanvasMapLibre({
           const lngLat = marker!.getLngLat();
           handlersRef.current.onVertexMove(road.id, point.id, lngLat.lat, lngLat.lng);
         });
-        marker.on("dragend", () => handlersRef.current.onVertexMoveEnd(road.id));
+        marker.on("dragend", () => {
+          const lngLat = marker!.getLngLat();
+          handlersRef.current.onVertexMoveEnd(road.id, point.id, lngLat.lat, lngLat.lng);
+        });
         marker.setLngLat([point.lng, point.lat]);
         marker.addTo(map);
         vertexExisting.set(point.id, marker);
