@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { latToMeters, lngToMeters } from "./mapRouteGeometry";
+import { latToMeters, lngToMeters } from "@/app/(public)/map/utils/mapRouteGeometry";
 import { pointAlongRoad, projectOntoRoad, resolveSlotLatLng, roadLengthMeters, roadSlotLatLng } from "./roadSlotPosition";
 
 // 西 → 東へ約 277m 伸びる道と、途中で北へ折れる道

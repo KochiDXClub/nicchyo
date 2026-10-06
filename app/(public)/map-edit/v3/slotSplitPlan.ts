@@ -1,4 +1,4 @@
-import type { RoadSide } from "../../map/utils/roadSlotPosition";
+import type { RoadSide } from "@/lib/map/roadSlotPosition";
 
 /**
  * 区画分けツールの計算。

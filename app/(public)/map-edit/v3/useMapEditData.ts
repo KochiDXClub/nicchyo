@@ -13,7 +13,7 @@ import type {
   SnapshotItem,
   VendorOption,
 } from "./types";
-import { DEFAULT_MAX_LANDMARKS, DEFAULT_MAX_UNASSIGNED_SHOP_MARKERS } from "../../map/config/mapSettingsDefaults";
+import { DEFAULT_MAX_LANDMARKS, DEFAULT_MAX_UNASSIGNED_SHOP_MARKERS } from "@/lib/map/mapSettingsDefaults";
 
 export type MapSettingsLimits = {
   maxLandmarks: number;

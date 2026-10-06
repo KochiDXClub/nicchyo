@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useKeyboardShortcuts } from "@/lib/hooks/useKeyboardShortcuts";
 import { useUnsavedChangesWarning } from "@/lib/hooks/useUnsavedChangesWarning";
 import { distanceMeters, getRouteCenter } from "../../map/utils/mapRouteGeometry";
-import { resolveSlotPositions, roadLengthMeters, roadSlotLatLng } from "../../map/utils/roadSlotPosition";
+import { resolveSlotPositions, roadLengthMeters, roadSlotLatLng } from "@/lib/map/roadSlotPosition";
 import type { MapRoutePoint, RoadKind } from "../../map/types/mapRoute";
 import { EMPTY_HISTORY, focusOfOperation, netChanges, type EditHistory, type EditOperation } from "./editHistory";
 import { ROAD_KIND_DEFAULT_WIDTH, ROAD_KIND_LABELS, type CanvasHandlers, type EditableShop, type Selection, type Tool } from "./types";

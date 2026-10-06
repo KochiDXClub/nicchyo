@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { projectOntoRoad } from "../../../map/utils/roadSlotPosition";
+import { projectOntoRoad } from "@/lib/map/roadSlotPosition";
 import { CHOME_ORDER, type EditableRoad, type EditableShop } from "../types";
 
 export type Side = "north" | "south";

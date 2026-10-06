@@ -14,7 +14,7 @@ import {
   MAP_FEATURE_FLAG_DEFS,
   type MapFeatureFlags,
 } from "@/lib/mapFeatureFlags";
-import { DEFAULT_MAX_LANDMARKS, DEFAULT_MAX_UNASSIGNED_SHOP_MARKERS } from "@/app/(public)/map/config/mapSettingsDefaults";
+import { DEFAULT_MAX_LANDMARKS, DEFAULT_MAX_UNASSIGNED_SHOP_MARKERS } from "@/lib/map/mapSettingsDefaults";
 
 /** 設定タブ。分散していた設定の入口をここに一本化する */
 type SettingsTabKey = "general" | "visibility" | "flags" | "email" | "danger";

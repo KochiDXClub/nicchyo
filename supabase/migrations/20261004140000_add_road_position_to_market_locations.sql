@@ -41,8 +41,13 @@ create index if not exists market_locations_road_id_idx on market_locations (roa
 -- 一部だけ書き込まれた状態が残っていた。
 --
 -- また、区画が道を外部キーで参照するようになったため、書き込みの順序が重要になる:
---   道の追加・更新 → 道の点 → 区画の削除 → 区画の更新・追加 → 割り当て → 建物
---   → 取り除かれた道の削除（区画がまだ乗っていれば外部キーで失敗し、全体が戻る）
+--   道の追加・更新 → 道の点 → 出店者の追加・更新 → 区画の削除 → 区画の更新・追加
+--   → 割り当て → 建物 → 取り除かれた道の削除（区画がまだ乗っていれば外部キーで失敗し、全体が戻る）
+--
+-- 出店者（p_vendors）は、マップ編集画面の空き区画から新しく登録した出店者（id が
+-- "new-vendor-..." の仮 id）と、画面で情報を直した既存の出店者。新しい出店者は
+-- 20261004150000 でアカウントなしでも作れるようにしている。区画の vendorId に仮 id が
+-- 入っていれば、採番された id に置き換えて割り当てる。
 --
 -- 検証（権限・上限・区画が乗っている道の削除禁止など）とスナップショットの作成は
 -- 呼び出し側（route.ts）が行う。この関数は検証済みの内容を書き込むだけ。
@@ -59,7 +64,8 @@ create or replace function save_map_layout(
   p_deleted_location_ids   jsonb,
   p_landmarks              jsonb,
   p_deleted_landmark_keys  jsonb,
-  p_route_config           jsonb
+  p_route_config           jsonb,
+  p_vendors                jsonb default '[]'::jsonb
 )
 returns void
 language plpgsql
@@ -69,6 +75,7 @@ as $$
 declare
   v_today date := (now() at time zone 'Asia/Tokyo')::date;
   v_created jsonb := '{}'::jsonb;
+  v_created_vendors jsonb := '{}'::jsonb;
   v_elem jsonb;
   v_id uuid;
 begin
@@ -106,6 +113,34 @@ begin
         and (elem->>'branch_from_id') <> '';
     end if;
   end if;
+
+  -- ①' 出店者の追加・更新（区画の割り当てより先に。新しい出店者の仮 id → 採番された id を覚える）
+  for v_elem in select value from jsonb_array_elements(coalesce(p_vendors, '[]'::jsonb))
+  loop
+    if v_elem->>'id' like 'new-vendor-%' then
+      insert into vendors (shop_name, category_id, strength, main_products)
+      values (
+        v_elem->>'name',
+        nullif(v_elem->>'categoryId', '')::uuid,
+        nullif(v_elem->>'strength', ''),
+        array(select jsonb_array_elements_text(coalesce(v_elem->'mainProducts', '[]'::jsonb)))
+      )
+      returning id into v_id;
+      v_created_vendors := v_created_vendors || jsonb_build_object(v_elem->>'id', v_id);
+    else
+      update vendors
+      set
+        shop_name     = v_elem->>'name',
+        category_id   = nullif(v_elem->>'categoryId', '')::uuid,
+        strength      = nullif(v_elem->>'strength', ''),
+        main_products = array(select jsonb_array_elements_text(coalesce(v_elem->'mainProducts', '[]'::jsonb))),
+        updated_at    = now()
+      where id = (v_elem->>'id')::uuid;
+      if not found then
+        raise exception 'vendor not found: %', v_elem->>'id';
+      end if;
+    end if;
+  end loop;
 
   -- ② 区画の削除（先に消す。消した区画の店番を、同じ保存で追加する区画が使えるように）
   if p_deleted_location_ids is not null and jsonb_array_length(p_deleted_location_ids) > 0 then
@@ -163,7 +198,7 @@ begin
   with targets as (
     select
       coalesce((v_created->>(elem->>'locationId'))::uuid, nullif(elem->>'locationId', '')::uuid) as location_id,
-      nullif(elem->>'vendorId', '')::uuid as vendor_id
+      coalesce((v_created_vendors->>(elem->>'vendorId'))::uuid, nullif(elem->>'vendorId', '')::uuid) as vendor_id
     from jsonb_array_elements(coalesce(p_shops, '[]'::jsonb)) as elem
     where (elem->>'locationId') not like 'new-%' or v_created ? (elem->>'locationId')
   )
@@ -174,7 +209,7 @@ begin
   insert into location_assignments (location_id, vendor_id, market_date)
   select
     coalesce((v_created->>(elem->>'locationId'))::uuid, (elem->>'locationId')::uuid),
-    (elem->>'vendorId')::uuid,
+    coalesce((v_created_vendors->>(elem->>'vendorId'))::uuid, (elem->>'vendorId')::uuid),
     v_today
   from jsonb_array_elements(coalesce(p_shops, '[]'::jsonb)) as elem
   where nullif(elem->>'vendorId', '') is not null;
@@ -437,8 +472,8 @@ $$;
 -- ─── 実行権限 ────────────────────────────────────────────────────────────
 -- いずれも SECURITY DEFINER で破壊的な操作を行うため、service_role 専用にする
 -- （20260906123419 と同じ方針。PUBLIC 分も外さないと anon から実行できてしまう）
-revoke execute on function save_map_layout(boolean, jsonb, jsonb, jsonb, jsonb, jsonb, jsonb, jsonb, jsonb, jsonb) from public, anon, authenticated;
-grant execute on function save_map_layout(boolean, jsonb, jsonb, jsonb, jsonb, jsonb, jsonb, jsonb, jsonb, jsonb) to service_role;
+revoke execute on function save_map_layout(boolean, jsonb, jsonb, jsonb, jsonb, jsonb, jsonb, jsonb, jsonb, jsonb, jsonb) from public, anon, authenticated;
+grant execute on function save_map_layout(boolean, jsonb, jsonb, jsonb, jsonb, jsonb, jsonb, jsonb, jsonb, jsonb, jsonb) to service_role;
 
 revoke execute on function set_market_location_road_positions(jsonb) from public, anon, authenticated;
 grant execute on function set_market_location_road_positions(jsonb) to service_role;

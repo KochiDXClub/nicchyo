@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { DEFAULT_MAP_ROUTE_CONFIG } from "@/app/(public)/map/types/mapRoute";
-import { isRouteConfigChanged, planSlotRoadPositions, selectRepositionedShops, type EditableShop } from "./_shared";
+import {
+  isRouteConfigChanged,
+  planSlotRoadPositions,
+  selectRepositionedShops,
+  validateVendorDrafts,
+  type EditableShop,
+  type EditableVendor,
+} from "./_shared";
 
 describe("isRouteConfigChanged", () => {
   it("同じ値なら変更なし", () => {
@@ -67,6 +74,60 @@ describe("planSlotRoadPositions", () => {
   it("道が1本も無ければすべて報告に回す", () => {
     const plan = planSlotRoadPositions([shop(1, 33.56148, 133.531)], [], 18);
     expect(plan.unmatched).toEqual([expect.objectContaining({ position: 1, nearestRoadName: null, distanceToNearestRoadM: null })]);
+  });
+});
+
+describe("validateVendorDrafts", () => {
+  const stored: EditableVendor = { id: "v1", name: "既存の店", categoryId: null, strength: "", mainProducts: ["柚子"] };
+  const context = { existingVendors: new Map([["v1", stored]]), categoryIds: new Set(["c1"]) };
+  const draft = (patch: Partial<EditableVendor> = {}): EditableVendor => ({
+    id: "new-vendor-1",
+    name: "朝市の八百屋",
+    categoryId: "c1",
+    strength: "",
+    mainProducts: ["柚子"],
+    ...patch,
+  });
+
+  it("新しい出店者と既存の出店者の正しい入力は通す", () => {
+    expect(validateVendorDrafts([draft(), draft({ id: "v1", categoryId: null })], context)).toBeNull();
+  });
+
+  it.each([
+    ["存在しない既存の出店者", draft({ id: "v-unknown" }), "存在しない出店者"],
+    ["店名が空", draft({ name: "  " }), "店名を入れてください"],
+    ["店名が長すぎる", draft({ name: "あ".repeat(61) }), "60 文字以内"],
+    ["存在しないジャンル", draft({ categoryId: "c-unknown" }), "ジャンル"],
+    ["こだわりが長すぎる", draft({ strength: "あ".repeat(401) }), "こだわり"],
+    ["主な商品が多すぎる", draft({ mainProducts: Array.from({ length: 11 }, (_, i) => `品${i}`) }), "主な商品"],
+    ["主な商品に空の項目", draft({ mainProducts: [" "] }), "主な商品"],
+  ])("%s は理由を返す", (_label, vendor, message) => {
+    expect(validateVendorDrafts([vendor], context)).toContain(message);
+  });
+
+  it("同じ出店者が2回送られてきたら拒否する", () => {
+    expect(validateVendorDrafts([draft(), draft()], context)).toContain("正しくありません");
+  });
+
+  it("既存の出店者は、DB の値から変わっていない項目なら上限を超えていても通す（店名だけ直した保存を止めない）", () => {
+    const overLimit: EditableVendor = {
+      ...stored,
+      strength: "あ".repeat(500),
+      mainProducts: Array.from({ length: 12 }, (_, i) => `品${i}`),
+    };
+    const ctx = { existingVendors: new Map([["v1", overLimit]]), categoryIds: new Set(["c1"]) };
+    expect(validateVendorDrafts([{ ...overLimit, name: "名前を直した店" }], ctx)).toBeNull();
+  });
+
+  it("既存の出店者でも、変えた項目が上限を超えていれば拒否する", () => {
+    const overLimit: EditableVendor = { ...stored, mainProducts: Array.from({ length: 12 }, (_, i) => `品${i}`) };
+    const ctx = { existingVendors: new Map([["v1", overLimit]]), categoryIds: new Set(["c1"]) };
+    expect(validateVendorDrafts([{ ...overLimit, mainProducts: [...overLimit.mainProducts, "もう1つ"] }], ctx)).toContain("主な商品");
+    expect(validateVendorDrafts([{ ...overLimit, name: "あ".repeat(61) }], ctx)).toContain("60 文字以内");
+  });
+
+  it("既存の出店者の店名を空にする変更は拒否する", () => {
+    expect(validateVendorDrafts([{ ...stored, name: " " }], context)).toContain("店名を入れてください");
   });
 });
 

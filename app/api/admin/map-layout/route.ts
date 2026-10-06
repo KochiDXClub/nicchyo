@@ -9,8 +9,11 @@ import { enforceRateLimit } from "@/lib/security/rateLimit";
 import { authorizeAdmin } from "@/app/api/admin/categories/_helpers";
 import type { Landmark as EditableLandmark } from "@/app/(public)/map/types/landmark";
 import type { MapRoad, MapRouteConfig, MapRoutePoint } from "@/app/(public)/map/types/mapRoute";
-import { resolveSlotPositions } from "@/app/(public)/map/utils/roadSlotPosition";
+import { resolveSlotPositions } from "@/lib/map/roadSlotPosition";
 import { MAX_SHOP_ID, MIN_SHOP_ID } from "@/lib/shops/route";
+import { logAdminAudit } from "@/lib/audit/logAdminAudit";
+import { getRole } from "@/lib/auth/permissions";
+import { NEW_VENDOR_ID_PREFIX } from "@/app/(public)/map/types/editableShop";
 import {
   createAdminWriteClient,
   createMapLayoutSnapshot,
@@ -18,17 +21,16 @@ import {
   isRouteConfigChanged,
   loadEditableRoads,
   loadEditableShops,
+  loadEditableVendors,
   loadMapSettingsLimits,
   loadRouteConfig,
+  loadVendorCategories,
   selectRepositionedShops,
+  validateVendorDrafts,
   type EditableRoad,
   type EditableShop,
+  type EditableVendor,
 } from "./_shared";
-
-type VendorOption = {
-  id: string;
-  name: string;
-};
 
 /**
  * 「このPUTリクエストの保存が完了した後に存在するはずの区画一覧」を作る。
@@ -121,25 +123,25 @@ export async function GET() {
     const cookieStore = await cookies();
     const supabase = createServerClient(cookieStore);
 
-    const [editableShops, landmarks, mapRoute, roads, vendorsResult, mapSettingsLimits] = await Promise.all([
+    const [editableShops, landmarks, mapRoute, roads, vendors, categories, mapSettingsLimits] = await Promise.all([
       loadEditableShops(supabase),
       fetchLandmarksFromDb(supabase),
       fetchMapRouteFromDb(supabase),
       loadEditableRoads(supabase),
-      supabase.from("vendors").select("id, shop_name").order("shop_name", { ascending: true }),
+      loadEditableVendors(supabase),
+      loadVendorCategories(supabase),
       loadMapSettingsLimits(supabase),
     ]);
 
-    if (vendorsResult.error) {
-      return NextResponse.json({ error: "Failed to load vendor options" }, { status: 500 });
-    }
-
-    const vendors: VendorOption[] = (vendorsResult.data ?? []).map((row) => ({
-      id: row.id as string,
-      name: ((row.shop_name as string | null) || "名称未設定").trim(),
-    }));
-
-    return NextResponse.json({ shops: editableShops, landmarks, route: mapRoute, roads, vendors, mapSettingsLimits });
+    return NextResponse.json({
+      shops: editableShops,
+      landmarks,
+      route: mapRoute,
+      roads,
+      vendors,
+      categories,
+      mapSettingsLimits,
+    });
   } catch {
     return NextResponse.json({ error: "Failed to load map layout" }, { status: 500 });
   }
@@ -182,6 +184,8 @@ export async function PUT(request: NextRequest) {
       // 道の一覧全体（フル置換）。未指定の場合は道を一切変更しない
       // （新エディタが導入されるまでの後方互換）
       roads?: MapRoad[];
+      // 空き区画から新しく登録した出店者（仮 id）と、情報を直した既存の出店者
+      vendors?: { upsert?: EditableVendor[] };
     };
 
     if (
@@ -194,7 +198,8 @@ export async function PUT(request: NextRequest) {
       !Array.isArray(body.landmarks.deletedKeys) ||
       !Array.isArray(body.route.points) ||
       !body.route.config ||
-      (body.roads !== undefined && !Array.isArray(body.roads))
+      (body.roads !== undefined && !Array.isArray(body.roads)) ||
+      (body.vendors !== undefined && !Array.isArray(body.vendors?.upsert))
     ) {
       return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
     }
@@ -202,6 +207,48 @@ export async function PUT(request: NextRequest) {
     const shopFieldError = validateShopFields(body.shops.updated);
     if (shopFieldError) {
       return NextResponse.json({ error: shopFieldError }, { status: 400 });
+    }
+
+    const vendorsToWrite = body.vendors?.upsert ?? [];
+    if (vendorsToWrite.length > 0) {
+      const existingIds = vendorsToWrite.map((v) => v.id).filter((id) => typeof id === "string" && !id.startsWith(NEW_VENDOR_ID_PREFIX));
+      const [existingResult, categories] = await Promise.all([
+        existingIds.length > 0
+          ? supabase.from("vendors").select("id, shop_name, category_id, strength, main_products").in("id", existingIds)
+          : Promise.resolve({ data: [], error: null }),
+        loadVendorCategories(supabase),
+      ]);
+      if (existingResult.error) {
+        return NextResponse.json({ error: "Failed to validate vendors" }, { status: 500 });
+      }
+      const existingVendors = new Map<string, EditableVendor>(
+        (existingResult.data ?? []).map((row) => [
+          row.id as string,
+          {
+            id: row.id as string,
+            // 画面に出す名前（loadEditableVendors）と同じにそろえる。画面は空の店名を「名称未設定」で送ってくる
+            name: ((row.shop_name as string | null) || "名称未設定").trim(),
+            categoryId: (row.category_id as string | null) ?? null,
+            strength: (row.strength as string | null) ?? "",
+            mainProducts: Array.isArray(row.main_products) ? (row.main_products as string[]) : [],
+          },
+        ])
+      );
+      const vendorError = validateVendorDrafts(vendorsToWrite, {
+        existingVendors,
+        categoryIds: new Set(categories.map((c) => c.id)),
+      });
+      if (vendorError) {
+        return NextResponse.json({ error: vendorError }, { status: 400 });
+      }
+    }
+    // 区画に割り当てる新しい出店者（仮 id）は、同じ保存で登録するものに限る
+    const newVendorIds = new Set(vendorsToWrite.map((v) => v.id).filter((id) => id.startsWith(NEW_VENDOR_ID_PREFIX)));
+    const unknownNewVendor = body.shops.updated.find(
+      (shop) => shop.vendorId?.startsWith(NEW_VENDOR_ID_PREFIX) && !newVendorIds.has(shop.vendorId)
+    );
+    if (unknownNewVendor) {
+      return NextResponse.json({ error: `店番 ${unknownNewVendor.position} の出店者が見つかりません` }, { status: 400 });
     }
 
     const assignmentValidationError = validateShopAssignments(body.shops.updated);
@@ -356,7 +403,8 @@ export async function PUT(request: NextRequest) {
       routePointsChanged ||
       roadsChanged ||
       routeConfigChanged ||
-      repositionedShops.length > 0;
+      repositionedShops.length > 0 ||
+      vendorsToWrite.length > 0;
 
     if (hasChanges) {
       await createMapLayoutSnapshot(
@@ -417,11 +465,35 @@ export async function PUT(request: NextRequest) {
       p_landmarks: body.landmarks.upsert,
       p_deleted_landmark_keys: body.landmarks.deletedKeys,
       p_route_config: body.route.config,
+      p_vendors: vendorsToWrite.map((vendor) => ({
+        id: vendor.id,
+        name: vendor.name.trim(),
+        categoryId: vendor.categoryId,
+        strength: vendor.strength.trim(),
+        mainProducts: vendor.mainProducts.map((product) => product.trim()),
+      })),
     });
 
     if (saveError) {
       console.error("[admin/map-layout] save_map_layout failed:", saveError.message);
       return NextResponse.json({ error: "Failed to save map layout" }, { status: 500 });
+    }
+
+    // 出店者の登録・更新は、配置（スナップショットで戻せる）と違って戻せないため監査ログに残す
+    if (vendorsToWrite.length > 0) {
+      const created = vendorsToWrite.filter((v) => v.id.startsWith(NEW_VENDOR_ID_PREFIX));
+      const updated = vendorsToWrite.filter((v) => !v.id.startsWith(NEW_VENDOR_ID_PREFIX));
+      await logAdminAudit(
+        adminWriteClient,
+        { id: user.id, email: user.email, role: getRole(user) },
+        {
+          action: "map_edit_save_vendors",
+          targetType: "vendor",
+          targetId: updated.map((v) => v.id).join(",") || null,
+          targetName: vendorsToWrite.map((v) => v.name.trim()).join(", ").slice(0, 500),
+          details: `マップ編集から出店者を新規登録 ${created.length} 件・更新 ${updated.length} 件`,
+        }
+      );
     }
 
     return NextResponse.json({ ok: true });
