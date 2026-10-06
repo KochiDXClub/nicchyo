@@ -90,8 +90,8 @@ export default function NewVendorInquiryPage() {
     try {
       let imageUrl: string | undefined;
       if (imageFile) {
-        if (!user?.id) throw new Error("ログイン情報を確認できませんでした");
-        imageUrl = await uploadInquiryImage(user.id, imageFile);
+        if (!user?.vendorId) throw new Error("ログイン情報を確認できませんでした");
+        imageUrl = await uploadInquiryImage(user.vendorId, imageFile);
       }
       const created = await createInquiry({ topic, category, urgency, body: composedBody, imageUrl });
       router.push(`/vendor/inquiries/${created.id}`);

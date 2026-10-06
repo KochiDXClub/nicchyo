@@ -2,177 +2,135 @@
 
 export const dynamic = "force-dynamic";
 
-import { useState, useEffect } from "react";
-import { CenteredLoading, PageContainer, PageShell, PageTitle } from "@/components/ui";
-import Image from "next/image";
-import { Save, CheckCircle2, Loader2, Sparkles, Info } from "lucide-react";
+import Link from "next/link";
+import { AnimatePresence } from "framer-motion";
+import { AlertCircle, ChevronRight, MessageCircle } from "lucide-react";
+import GrandmaAvatar from "@/app/(public)/consult/components/GrandmaAvatar";
+import { DEFAULT_CONSULT_CHARACTER } from "@/app/(public)/consult/data/consultCharacters";
+import {
+  Button,
+  buttonClass,
+  CenteredLoading,
+  EmptyState,
+  PageContainer,
+  PageShell,
+  PageTitle,
+  Surface,
+} from "@/components/ui";
+import type { AiNote } from "@/lib/vendor/aiNotes";
+import NoteSheet from "./components/NoteSheet";
+import { useAiNotes } from "./useAiNotes";
 
-const PLACEHOLDER = `例：
-この店の人気商品は芋天です。
-揚げたてを提供しているので午前中が一番おいしいです。
-10時〜11時ごろは行列ができることがあります。
-現金のみの対応です。
-試食もできます。`;
+/** どこで使うかを短く言う */
+function audienceLabel(note: AiNote): string {
+  if (note.forVisitors && note.forVendor) return "お客さんへの案内・自分の相談";
+  return note.forVisitors ? "お客さんへの案内だけ" : "自分の相談だけ";
+}
 
-const HINTS = [
-  "おすすめ商品・こだわり",
-  "行列ができやすい時間帯",
-  "よく聞かれる質問への回答",
-  "決済方法・特記事項",
-  "お店の特徴・雰囲気",
-];
+function MemoryCard({ note, onOpen }: { note: AiNote; onOpen: () => void }) {
+  return (
+    <li>
+      <button
+        type="button"
+        onClick={onOpen}
+        className="flex w-full items-start gap-3 rounded-card bg-white p-4 text-left shadow-card ring-1 ring-line transition hover:bg-nicchyo-base active:scale-[0.99] motion-reduce:active:scale-100"
+      >
+        <span className="min-w-0 flex-1">
+          <span className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+            <span className="text-base font-bold text-nicchyo-ink">{note.title}</span>
+            <span className="text-xs text-nicchyo-ink/55">{audienceLabel(note)}</span>
+          </span>
+          <span className="mt-0.5 line-clamp-2 block text-sm leading-relaxed text-nicchyo-ink/70">{note.content}</span>
+          {!note.searchable && (
+            <span className="mt-1.5 flex items-center gap-1 text-xs font-semibold text-amber-800">
+              <AlertCircle size={13} aria-hidden="true" />
+              にちよさんがまだ思い出せません。開いて保存し直してください
+            </span>
+          )}
+        </span>
+        <ChevronRight size={18} aria-hidden="true" className="mt-1 shrink-0 text-nicchyo-ink/40" />
+      </button>
+    </li>
+  );
+}
 
+/**
+ * にちよさんが覚えちゅうこと。
+ *
+ * 出店者トップの相談で、にちよさんが「覚えちょいてもかまん？」と聞いて覚えたこと
+ * （にちよさんのノート）を並べ、見る・直す・忘れさせる。覚えさせる入口は相談が主で、
+ * ここで自分で書いて覚えさせることもできる。
+ */
 export default function AiKnowledgePage() {
-  const [content, setContent] = useState("");
-  const [isLoading, setIsLoading] = useState(true);
-  const [isSaving, setIsSaving] = useState(false);
-  const [savedAt, setSavedAt] = useState<string | null>(null);
-  const [hasEmbedding, setHasEmbedding] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    fetch("/api/vendor/knowledge")
-      .then((r) => r.json())
-      .then((d: { knowledge?: { content: string; updated_at: string } | null }) => {
-        if (d.knowledge) {
-          setContent(d.knowledge.content);
-          setSavedAt(d.knowledge.updated_at);
-        }
-      })
-      .catch(() => {})
-      .finally(() => setIsLoading(false));
-  }, []);
-
-  async function handleSave() {
-    if (isSaving || !content.trim()) return;
-    setIsSaving(true);
-    setError(null);
-    try {
-      const res = await fetch("/api/vendor/knowledge", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content }),
-      });
-      const d = (await res.json()) as { ok?: boolean; hasEmbedding?: boolean; error?: string };
-      if (!res.ok) throw new Error(d.error ?? "保存に失敗しました");
-      setSavedAt(new Date().toISOString());
-      setHasEmbedding(d.hasEmbedding ?? false);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "保存に失敗しました");
-    } finally {
-      setIsSaving(false);
-    }
-  }
+  const memories = useAiNotes();
 
   return (
     <PageShell bottomNav={false}>
-      {/* ヘッダー */}
-      <PageTitle title="AIばあちゃんに教えるお店の情報" />
-
-      <PageContainer className="space-y-4">
-
-        <div className="rounded-3xl border border-amber-200 bg-white p-4 shadow-sm">
-          <div className="flex items-start gap-3">
-            <Image src="/images/obaasan_transparent.webp" alt="AIばあちゃん" width={56} height={56} className="flex-shrink-0 opacity-80" />
-            <div className="min-w-0">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-amber-600">AI Knowledge</p>
-              <h2 className="mt-1 text-2xl font-bold text-slate-900">AIばあちゃんに伝えるお店メモ</h2>
-              <p className="mt-2 text-sm leading-relaxed text-slate-600">
-                ここに書いた内容をもとに、お客さんへお店の魅力や注意点をやさしく案内します。
-              </p>
-            </div>
-          </div>
-          <div className="mt-4 grid gap-2 sm:grid-cols-3">
-            {["おすすめ商品", "行列ができやすい時間", "決済方法や注意点"].map((item) => (
-              <div key={item} className="rounded-2xl bg-amber-50 px-3 py-3 text-sm font-semibold text-amber-800">
-                {item}
-              </div>
-            ))}
+      <PageTitle title="にちよさんが覚えちゅうこと" />
+      <PageContainer className="space-y-5 pb-10">
+        <div className="flex items-center gap-3">
+          <GrandmaAvatar pose="idle" size="pinned" character={DEFAULT_CONSULT_CHARACTER} className="shrink-0" />
+          <div className="consult-greeting consult-greeting--left min-w-0 flex-1 rounded-card border border-amber-200 bg-amber-50/60 px-4 py-3">
+            <p className="text-base font-bold leading-relaxed text-amber-900">
+              相談で教えてもろうたことを覚えちゅうで。お客さんに聞かれたら、これで答えるき。違うところがあったら直してや。
+            </p>
           </div>
         </div>
 
-        {/* ヒント */}
-        <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
-          <div className="mb-2 flex items-center gap-2">
-            <Info size={14} className="text-slate-400" />
-            <p className="text-sm font-semibold text-slate-600">書くと効果的な内容</p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {HINTS.map((hint) => (
-              <span key={hint} className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-sm text-slate-600">
-                {hint}
-              </span>
-            ))}
-          </div>
-        </div>
+        {memories.status === "loading" && <CenteredLoading />}
 
-        {/* 入力フォーム */}
-        <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
-          <div className="mb-2 flex items-center justify-between">
-            <p className="text-base font-semibold text-slate-700">店舗説明</p>
-            {savedAt && (
-              <span className="flex items-center gap-1 text-xs text-slate-400">
-                <CheckCircle2 size={10} className="text-emerald-500" />
-                {new Date(savedAt).toLocaleDateString("ja-JP", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })} 保存済み
-                {hasEmbedding && <span className="ml-1 rounded-full bg-violet-100 px-2 py-0.5 text-[10px] text-violet-600">AI学習済み</span>}
-              </span>
-            )}
-          </div>
-
-          {isLoading ? (
-            <CenteredLoading size={24} padding="py-8" />
-          ) : (
-            <textarea
-              value={content}
-              onChange={(e) => setContent(e.target.value)}
-              placeholder={PLACEHOLDER}
-              rows={12}
-              className="w-full resize-none rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-base leading-relaxed text-slate-800 outline-none focus:ring-2 focus:ring-amber-300"
-            />
-          )}
-
-          <p className="mt-2 text-xs text-slate-400">
-            {content.length} 文字 ／ 自由な文章で入力できます
-          </p>
-        </div>
-
-        {error && (
-          <div className="rounded-2xl border border-rose-100 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-            {error}
-          </div>
+        {memories.status === "error" && (
+          <Surface className="text-center">
+            <p className="text-base font-bold text-amber-900">うまく開けんかった。もういっぺん開いてみてや。</p>
+            <Button className="mt-4" variant="secondary" onClick={memories.reload}>
+              もういっぺん
+            </Button>
+          </Surface>
         )}
 
-        {/* 保存ボタン */}
-        <button
-          type="button"
-          onClick={handleSave}
-          disabled={isSaving || !content.trim()}
-          className={`flex w-full items-center justify-center gap-2 rounded-3xl py-4 text-base font-bold shadow transition ${
-            isSaving
-              ? "cursor-not-allowed bg-slate-200 text-slate-400"
-              : "bg-amber-500 text-white hover:bg-amber-400 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400"
-          }`}
-        >
-          {isSaving
-            ? <><Loader2 size={18} className="animate-spin" />AIに学習させています...</>
-            : <><Sparkles size={18} />AIばあちゃんに教える</>
-          }
-        </button>
-
-        {/* 仕組み説明 */}
-        <div className="rounded-3xl border border-slate-100 bg-slate-50 p-4">
-          <div className="flex items-center gap-2 mb-2">
-            <Save size={13} className="text-slate-400" />
-            <p className="text-sm font-semibold text-slate-600">保存後の動き</p>
-          </div>
-          <ul className="space-y-1.5 text-sm text-slate-500">
-            <li>・書いた内容をAIばあちゃんが案内に使います</li>
-            <li>・あとから何度でも書き直せます</li>
-            <li>・短いメモでも問題ありません</li>
-          </ul>
-        </div>
-
+        {memories.status === "ready" && (
+          <section aria-labelledby="memories-heading">
+            <h2 id="memories-heading" className="mb-2.5 px-1 text-lg font-bold text-nicchyo-ink">
+              覚えちゅうこと<span className="ml-1 text-sm font-semibold text-nicchyo-ink/55">{memories.notes.length}こ</span>
+            </h2>
+            {memories.notes.length === 0 ? (
+              <EmptyState
+                icon={MessageCircle}
+                title="まだ覚えちゅうことはないで"
+                description="出店者トップでにちよさんと話しよったら、お客さんに伝えたいこと（混む時間・おすすめの食べ方など）を聞いて覚えていくきね。"
+                action={
+                  <Link href="/my-shop" className={buttonClass({ size: "lg" })}>
+                    にちよさんと話す
+                  </Link>
+                }
+              />
+            ) : (
+              <ul className="flex flex-col gap-2.5">
+                {memories.notes.map((note) => (
+                  <MemoryCard key={note.id} note={note} onOpen={() => memories.openNote(note)} />
+                ))}
+              </ul>
+            )}
+            <Button variant="quiet" size="md" className="mt-3 w-full" onClick={() => memories.openNote("new")}>
+              自分で書いて覚えさせる
+            </Button>
+          </section>
+        )}
       </PageContainer>
+
+      <AnimatePresence>
+        {memories.open && (
+          <NoteSheet
+            key={memories.open === "new" ? "new" : memories.open.id}
+            note={memories.open === "new" ? null : memories.open}
+            saving={memories.saving}
+            error={memories.error}
+            onClose={memories.close}
+            onSave={memories.save}
+            onDelete={memories.remove}
+          />
+        )}
+      </AnimatePresence>
     </PageShell>
   );
 }

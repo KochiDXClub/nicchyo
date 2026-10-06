@@ -17,10 +17,6 @@ export default function ContactPage() {
         <div className="mx-auto max-w-2xl">
           <p className="text-xs font-bold uppercase tracking-[0.2em] text-amber-600/80 mb-2">Support</p>
           <h1 className="text-3xl font-bold text-gray-900 sm:text-4xl">お問い合わせ</h1>
-          <p className="mt-4 text-sm font-medium text-gray-600 leading-relaxed max-w-lg mx-auto">
-            ご不明な点やご要望がございましたら、<br className="hidden sm:block"/>
-            お気軽にお問い合わせください。
-          </p>
         </div>
       </div>
 

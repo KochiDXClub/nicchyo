@@ -1,5 +1,12 @@
 # 💡 提案：「ニュース」を作り直し、日曜市の開催情報を発信する
 
+> **ステータス: 実装済み（フェーズ1、2026-08 / 2026-10-02 時点で確認）**
+> - 「ニュース」は **日曜市カレンダー `/calendar`** に作り直され、`/news` は存在しない（`app/(public)/calendar/page.tsx`）。
+> - 開催ステータスの1行バーは `app/components/market/MarketStatusBar.tsx`、近況ページ下部の「これからの日曜市」は `UpcomingSundays.tsx`（`story` / `map` から利用）。
+> - 開催ステータスは `market_events` ではなく **別テーブル `market_days`** に持たせた（議論点の結論。`supabase/migrations/20260807105105_create_market_days.sql`、API は `app/api/market-calendar/`・`app/api/admin/market-days/`）。管理画面は `app/(public)/admin/calendar/`。
+> - フェーズ2（運営の「いま」投稿を近況フィードに混ぜる案）は **未着手・未決定**（`vendor_contents.author_type` は存在しない）。
+> - 以下の本文は議論当時の記録。現行の仕様は [map-spec.md](./map-spec.md)、要件は [requirements/](./requirements/README.md) を参照。
+
 ## 背景：ニュース機能と近況機能の関係を整理したい
 
 現状、リアルタイムな情報発信に関わる機能が2つあります。

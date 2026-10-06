@@ -110,4 +110,45 @@ describe('buildGuidePathsFromMapRoute（複数の道）', () => {
       [MARKET_PATH_NAME, 'market'],
     ].sort());
   });
+  it('出店可の通りが2本あるとき（追手筋と大橋通り）、それぞれの道の名前で呼ぶ', () => {
+    const mapRoute = {
+      points: [
+        { id: 'a0', lat: 33.5614, lng: 133.53, order: 0, roadId: 'main' },
+        { id: 'a1', lat: 33.5614, lng: 133.533, order: 1, roadId: 'main' },
+        { id: 'b0', lat: 33.5600, lng: 133.536, order: 2, roadId: 'ohashi-dori' },
+        { id: 'b1', lat: 33.5611, lng: 133.5358, order: 3, roadId: 'ohashi-dori' },
+      ],
+      config: getDefaultMapRouteConfig(),
+    };
+    const roads = [
+      { id: 'main', name: '追手筋', kind: 'market' as const, widthMeters: 22 },
+      { id: 'ohashi-dori', name: '大橋通り', kind: 'market' as const, widthMeters: 20 },
+    ];
+    const names = buildGuidePathsFromMapRoute(mapRoute, roads).map((p) => p.name).sort();
+    expect(names).toEqual(['大橋通り', '追手筋']);
+  });
+
+  it('道の情報が mapRoute に付いていれば、roads を渡さなくても名前で呼ぶ（公開マップの呼び出し元は mapRoute だけを渡す）', () => {
+    const mapRoute = {
+      points: [
+        { id: 'b0', lat: 33.5600, lng: 133.536, order: 0, roadId: 'ohashi-dori' },
+        { id: 'b1', lat: 33.5611, lng: 133.5358, order: 1, roadId: 'ohashi-dori' },
+      ],
+      config: getDefaultMapRouteConfig(),
+      roads: [{ id: 'ohashi-dori', name: '大橋通り', kind: 'market' as const, widthMeters: 20 }],
+    };
+    expect(buildGuidePathsFromMapRoute(mapRoute).map((p) => p.name)).toEqual(['大橋通り']);
+    expect(buildGuideNetworkForMap(null, mapRoute)).not.toBeNull();
+  });
+
+  it('道の情報が無いとき（読み込めなかった・古いデータ）は、本線を追手筋とする', () => {
+    const mapRoute = {
+      points: [
+        { id: 'a0', lat: 33.5614, lng: 133.53, order: 0, roadId: 'main' },
+        { id: 'a1', lat: 33.5614, lng: 133.533, order: 1, roadId: 'main' },
+      ],
+      config: getDefaultMapRouteConfig(),
+    };
+    expect(buildGuidePathsFromMapRoute(mapRoute).map((p) => p.name)).toEqual([MARKET_PATH_NAME]);
+  });
 });

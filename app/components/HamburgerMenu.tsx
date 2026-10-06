@@ -225,16 +225,16 @@ export default function HamburgerMenu() {
                           </div>
                         </Link>
                       </MenuLi>
-                      <MenuLi href="/vendor/post/new">
+                      <MenuLi href="/vendor/posts">
                         <Link
-                          href="/vendor/post/new"
+                          href="/vendor/posts"
                           onClick={closeMenu}
-                          className={menuItemClass('/vendor/post/new', 'hover:bg-amber-50')}
+                          className={menuItemClass('/vendor/posts', 'hover:bg-amber-50')}
                         >
-                          <MenuIcon name="pencil" className={`h-5 w-5 ${isActive('/vendor/post/new') ? 'text-white' : 'text-amber-600'}`} />
+                          <MenuIcon name="pencil" className={`h-5 w-5 ${isActive('/vendor/posts') ? 'text-white' : 'text-amber-600'}`} />
                           <div className="flex-1">
-                            <p className="text-sm font-medium">最新情報の投稿</p>
-                            <p className={`text-xs ${isActive('/vendor/post/new') ? 'text-white/80' : 'text-gray-500'}`}>お知らせや出店情報を発信</p>
+                            <p className="text-sm font-medium">近況を出す</p>
+                            <p className={`text-xs ${isActive('/vendor/posts') ? 'text-white/80' : 'text-gray-500'}`}>写真1枚で今日のお店を伝える</p>
                           </div>
                         </Link>
                       </MenuLi>
@@ -260,7 +260,7 @@ export default function HamburgerMenu() {
                           <MenuIcon name="chart" className={`h-5 w-5 ${isActive('/vendor/analytics') ? 'text-white' : 'text-amber-600'}`} />
                           <div className="flex-1">
                             <p className="text-sm font-medium">お店の分析</p>
-                            <p className={`text-xs ${isActive('/vendor/analytics') ? 'text-white/80' : 'text-gray-500'}`}>閲覧数・商品・AI分析</p>
+                            <p className={`text-xs ${isActive('/vendor/analytics') ? 'text-white/80' : 'text-gray-500'}`}>見られた回数・お客さんの反応</p>
                           </div>
                         </Link>
                       </MenuLi>
@@ -272,8 +272,8 @@ export default function HamburgerMenu() {
                         >
                           <MenuIcon name="sparkles" className={`h-5 w-5 ${isActive('/vendor/ai-knowledge') ? 'text-white' : 'text-amber-600'}`} />
                           <div className="flex-1">
-                            <p className="text-sm font-medium">AIばあちゃんに教える</p>
-                            <p className={`text-xs ${isActive('/vendor/ai-knowledge') ? 'text-white/80' : 'text-gray-500'}`}>お店の情報を学習させる</p>
+                            <p className="text-sm font-medium">にちよさんが覚えちゅうこと</p>
+                            <p className={`text-xs ${isActive('/vendor/ai-knowledge') ? 'text-white/80' : 'text-gray-500'}`}>見る・直す・忘れさせる</p>
                           </div>
                         </Link>
                       </MenuLi>
@@ -298,7 +298,7 @@ export default function HamburgerMenu() {
                         >
                           <MenuIcon name="help" className={`h-5 w-5 ${isActive('/vendor/help') ? 'text-white' : 'text-amber-600'}`} />
                           <div className="flex-1">
-                            <p className="text-sm font-medium">使い方ガイド</p>
+                            <p className="text-sm font-medium">よくある質問</p>
                             <p className={`text-xs ${isActive('/vendor/help') ? 'text-white/80' : 'text-gray-500'}`}>各機能の説明</p>
                           </div>
                         </Link>

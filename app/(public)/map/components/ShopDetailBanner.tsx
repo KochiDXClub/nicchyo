@@ -1,6 +1,7 @@
 "use client";
 
 import { memo, useState, useCallback, useEffect, useMemo, useRef } from "react";
+import { recordShopView, sourceFromReferrer } from "@/lib/analytics/shopViews";
 import type { CSSProperties } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
@@ -170,6 +171,14 @@ const ShopDetailBanner = memo(function ShopDetailBanner({
   useEffect(() => {
     incrementBannerOpens();
   }, [shop.id, openNonce]);
+
+  // 出店者の「お店の分析」のために、お店が開かれたことを数える（同じタブでは1店1回）
+  useEffect(() => {
+    recordShopView(
+      shop.id,
+      layout === "inline" ? sourceFromReferrer(document.referrer, window.location.origin) : "map"
+    );
+  }, [shop.id, layout]);
 
   const handleProductTap = useCallback((product: string) => {
     const nextEntries = toggleFavoriteProduct(shop.id, product);

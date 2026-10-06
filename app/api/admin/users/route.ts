@@ -1,4 +1,7 @@
 import { NextResponse } from "next/server";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { resolveAvatarUrl } from "@/lib/auth/displayName";
+import { loadShopAccountLinks } from "@/lib/admin/shopAccounts.server";
 import { normalizeRole, ROLE_HIERARCHY } from "@/lib/auth/permissions";
 import { listAllAuthUsers } from "@/lib/auth/listAllUsers";
 import { requireAdminApi } from "@/lib/auth/requireAdminApi";
@@ -75,6 +78,15 @@ export async function GET() {
     const vendors = Array.isArray(vendorsData) ? (vendorsData as VendorRow[]) : [];
     const vendorById = new Map(vendors.map((vendor) => [vendor.id, vendor]));
 
+    // アカウントが入っている店舗は shop_members から引く（アカウントの ID と店舗の ID は別物。
+    // 招待で入ったメンバーには、自分の ID の店舗がない）
+    const { links, error: linkError } = await loadShopAccountLinks(serviceClient as unknown as SupabaseClient);
+    if (linkError) {
+      // 失敗したのに続けると、全店舗が「未紐づけ」と表示されてしまう
+      console.error("[admin/users] loadShopAccountLinks error:", linkError);
+      return NextResponse.json({ error: "店舗とアカウントの対応を取得できませんでした" }, { status: 500 });
+    }
+
     // 店主名は vendors から分離済み（service_role なので公開設定に関係なく取得できる）
     const { data: ownerProfilesData } = await serviceClient
       .from("vendor_owner_profiles")
@@ -86,13 +98,18 @@ export async function GET() {
     );
 
     const users: AdminUserRecord[] = allUsers.map((authUser) => {
-      const vendor = vendorById.get(authUser.id);
+      const vendorId = links.vendorByUser.get(authUser.id);
+      const vendor = vendorId ? vendorById.get(vendorId) : undefined;
+      // 店名で呼ぶのは代表者だけ。メンバーは本人の名前（同じ店舗に何人もいるため）
+      const isMemberOnly = !!vendorId && links.ownerByVendor.get(vendorId) !== authUser.id;
       const role = normalizeRole(authUser.app_metadata?.role ?? authUser.user_metadata?.role);
       const name =
-        vendor?.shop_name ??
+        (isMemberOnly ? undefined : vendor?.shop_name) ??
+        authUser.user_metadata?.display_name ??
         authUser.user_metadata?.name ??
         authUser.user_metadata?.full_name ??
-        ownerNameByVendorId.get(authUser.id) ??
+        (vendorId ? ownerNameByVendorId.get(vendorId) : undefined) ??
+        vendor?.shop_name ??
         authUser.email?.split("@")[0] ??
         "名称未設定";
       const bannedUntil = authUser.banned_until ? new Date(authUser.banned_until) : null;
@@ -104,7 +121,7 @@ export async function GET() {
         name,
         email: authUser.email ?? "",
         role,
-        avatarUrl: authUser.user_metadata?.avatarUrl ?? authUser.user_metadata?.avatar_url,
+        avatarUrl: resolveAvatarUrl(authUser),
         vendorId: vendor?.id,
         registeredDate: formatDate(authUser.created_at),
         lastLogin: formatDateTime(authUser.last_sign_in_at),

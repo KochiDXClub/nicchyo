@@ -3,10 +3,9 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/lib/auth/AuthContext";
-import { VENDOR_NAV_ITEMS } from "./vendorNavItems";
+import { visibleVendorNavItems } from "./vendorNavItems";
 
 // 下部バーのメニューシートと同一の権威ある導線リストを使う（食い違い防止）
-const navItems = VENDOR_NAV_ITEMS;
 
 export default function VendorSidebar({
   isOpen,
@@ -17,7 +16,8 @@ export default function VendorSidebar({
   onClose: () => void;
 }) {
   const pathname = usePathname();
-  const { user } = useAuth();
+  const { user, permissions } = useAuth();
+  const navItems = visibleVendorNavItems(permissions.canShop);
 
   return (
     <>
@@ -86,7 +86,7 @@ export default function VendorSidebar({
                   }`}
                   aria-current={isActive ? "page" : undefined}
                 >
-                  <span className="mt-0.5 text-xl" aria-hidden="true">{item.emoji}</span>
+                  <item.icon className="mt-0.5 h-5 w-5 shrink-0" strokeWidth={1.7} aria-hidden />
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-semibold">{item.label}</p>
                     <p className="mt-0.5 text-[11px] leading-relaxed text-slate-500">{item.description}</p>

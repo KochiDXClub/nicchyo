@@ -4,6 +4,13 @@ const getUser = vi.fn();
 const requestChatCompletion = vi.fn();
 const insertLog = vi.fn();
 
+const fetchShopMembership = vi.fn();
+// 店舗の ID（shop-1）はアカウントの ID（vendor-1）と別の値にして、user.id を店舗 ID に使っていないことも確かめる
+vi.mock("@/lib/vendor/shopMembership", () => ({
+  fetchShopMembership: (...args: unknown[]) => fetchShopMembership(...args),
+}));
+const OWNER_OF_SHOP = { vendorId: "shop-1", role: "owner", permissions: [], joinedAt: null };
+
 vi.mock("next/headers", () => ({ cookies: async () => ({}) }));
 vi.mock("@/lib/security/requestGuards", () => ({ requireSameOrigin: () => ({ ok: true }) }));
 vi.mock("@/lib/security/rateLimit", () => ({ enforceRateLimit: async () => null }));
@@ -15,8 +22,8 @@ vi.mock("@/lib/ai/openaiFetch", () => ({
 }));
 
 /** 本人の cookie のクライアント。お店の登録内容は「山田農園」を返す */
-vi.mock("@/utils/supabase/server", () => ({
-  createClientWithExtensions: () => ({
+vi.mock("@/utils/supabase/server", () => {
+  const client = () => ({
     auth: { getUser: () => getUser() },
     from: (table: string) => ({
       select: () => ({
@@ -25,22 +32,27 @@ vi.mock("@/utils/supabase/server", () => ({
             table === "vendors"
               ? { data: { shop_name: "山田農園", main_products: ["トマト"], payment_methods: ["cash"] } }
               : { data: null },
+          // にちよさんがもう覚えていること
+          limit: async () => (table === "store_knowledge" ? { data: [{ title: "混む時間" }] } : { data: [] }),
         }),
       }),
     }),
-  }),
-}));
-vi.mock("@/lib/vendor/helpChatStats.server", () => ({
-  loadVendorHelpShopStats: async () => ({
+  });
+  // 認証（requireVendorContext）は createClient、お店の読み込みは createClientWithExtensions を使う
+  return { createClient: client, createClientWithExtensions: client };
+});
+const loadShopStats = vi.fn();
+vi.mock("@/lib/vendor/helpChatStats.server", async (importOriginal) => ({
+  toDataWord: (await importOriginal<typeof import("@/lib/vendor/helpChatStats.server")>()).toDataWord,
+  loadVendorHelpShopStats: async (...args: unknown[]) => (loadShopStats(...args), {
     aiMentions: { total: 4, recommended: 2, topKeywords: ["トマト"] },
+    views: { thisWeek: 12, lastWeek: 8 },
     hearts: { thisWeek: 3, total: 10 },
-    topSales: [],
   }),
   loadVendorHelpMarketStats: async () => ({
     weeklyVisitors: 1200,
     monthlyVisitors: 5000,
     topSearchKeywords: ["いも天"],
-    topSellingProducts: [],
   }),
 }));
 vi.mock("@/lib/supabase/adminClient", () => ({
@@ -83,6 +95,9 @@ function sseResponse(chunks: string[]) {
 describe("POST /api/vendor/help-chat", () => {
   beforeEach(() => {
     getUser.mockReset();
+    fetchShopMembership.mockReset();
+    fetchShopMembership.mockResolvedValue(OWNER_OF_SHOP);
+    loadShopStats.mockClear();
     requestChatCompletion.mockReset();
     insertLog.mockReset();
     insertLog.mockResolvedValue({ error: null });
@@ -116,7 +131,7 @@ describe("POST /api/vendor/help-chat", () => {
     expect(requestChatCompletion).not.toHaveBeenCalled();
   });
 
-  it("お店の登録内容と使い方ガイドを渡し、答えを流して、質問と答えを記録する", async () => {
+  it("お店の登録内容とよくある質問を渡し、答えを流して、質問と答えを記録する", async () => {
     getUser.mockResolvedValue({ data: { user: VENDOR } });
     requestChatCompletion.mockResolvedValue(sseResponse(["投稿は", "ここからやで"]));
 
@@ -128,16 +143,46 @@ describe("POST /api/vendor/help-chat", () => {
     const [, , options] = requestChatCompletion.mock.calls[0];
     const system = (options as { messages: { role: string; content: string }[] }).messages[0].content;
     expect(system).toContain("・店名: 山田農園");
+    expect(system).toContain("【にちよさんがもう覚えていること（トピックタイトル）】\n混む時間");
     expect(system).toContain("・支払い方法: 現金");
-    expect(system).toContain("最新情報の投稿");
+    expect(system).toContain("近況はどうやって出しますか？");
     expect(system).toContain("話題になった回数: 4回（そのうち、おすすめされた回数: 2回）");
     expect(system).toContain("nicchyo の来訪者数: 今週（月曜から今日まで） 1,200人 / 今月 5,000人");
 
     expect(insertLog).toHaveBeenCalledWith({
-      vendor_id: "vendor-1",
+      vendor_id: "shop-1",
       question: "投稿のやり方は？",
       answer: "投稿はここからやで",
     });
+  });
+
+  it("お店の数字を見る権限がないメンバーには、数字を読まず、見る権限がないとにちよさんに伝える", async () => {
+    getUser.mockResolvedValue({ data: { user: VENDOR } });
+    fetchShopMembership.mockResolvedValue({ vendorId: "shop-1", role: "member", permissions: ["post"], joinedAt: null });
+    requestChatCompletion.mockResolvedValue(sseResponse(["ごめんよ"]));
+
+    await post({ text: "うちの店は何回見られた？" });
+
+    expect(loadShopStats).not.toHaveBeenCalled();
+    const [, , options] = requestChatCompletion.mock.calls[0];
+    const system = (options as { messages: { role: string; content: string }[] }).messages[0].content;
+    expect(system).toContain("お店の数字（見られた回数・ハート・AI相談で話題になった回数）を見る権限がありません");
+    expect(system).not.toContain("話題になった回数: 4回");
+    // 日曜市全体の数字は、これまでどおり渡る
+    expect(system).toContain("nicchyo の来訪者数: 今週（月曜から今日まで） 1,200人");
+  });
+
+  it("分析の権限があるメンバーには、お店の数字を渡す", async () => {
+    getUser.mockResolvedValue({ data: { user: VENDOR } });
+    fetchShopMembership.mockResolvedValue({ vendorId: "shop-1", role: "member", permissions: ["analytics"], joinedAt: null });
+    requestChatCompletion.mockResolvedValue(sseResponse(["はい"]));
+
+    await post({ text: "見られた回数は？" });
+
+    expect(loadShopStats).toHaveBeenCalledWith(expect.anything(), "shop-1");
+    const [, , options] = requestChatCompletion.mock.calls[0];
+    const system = (options as { messages: { role: string; content: string }[] }).messages[0].content;
+    expect(system).toContain("話題になった回数: 4回");
   });
 
   it("これまでのやりとりの合計が長すぎれば 400", async () => {
@@ -161,5 +206,50 @@ describe("POST /api/vendor/help-chat", () => {
 
     expect(res.status).toBe(502);
     expect(insertLog).not.toHaveBeenCalled();
+  });
+
+  it("AI が変更案の関数を呼んだら、検証した案だけを区切り文字のあとに付けて返し、記録にも残す", async () => {
+    getUser.mockResolvedValue({ data: { user: VENDOR } });
+    const encoder = new TextEncoder();
+    const events = [
+      { choices: [{ delta: { content: "こうでええかえ？" } }] },
+      {
+        choices: [
+          {
+            delta: {
+              tool_calls: [
+                { index: 0, function: { name: "propose_hours", arguments: '{"start_hour":7,"end_hour":13}' } },
+              ],
+            },
+          },
+        ],
+      },
+    ];
+    requestChatCompletion.mockResolvedValue(
+      new Response(
+        new ReadableStream({
+          start(controller) {
+            for (const event of events) controller.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`));
+            controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+            controller.close();
+          },
+        })
+      )
+    );
+
+    const res = await post({ text: "営業時間を7時から13時にしたい" });
+
+    const [, , options] = requestChatCompletion.mock.calls[0];
+    expect((options as { tools: { function: { name: string } }[] }).tools.map((t) => t.function.name)).toContain(
+      "propose_hours"
+    );
+    const [text, frame] = (await res.text()).split("\u001e");
+    expect(text).toBe("こうでええかえ？");
+    expect(JSON.parse(frame)).toEqual({
+      type: "proposal",
+      kind: "change",
+      answer: { id: "hours", start: "7:00", end: "13:00" },
+    });
+    expect(insertLog.mock.calls[0][0].answer).toContain("［変更案］");
   });
 });

@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef } from "react";
+import { useRef, type ReactNode } from "react";
 import Link from "next/link";
 import { motion, useReducedMotion } from "framer-motion";
 import { ChevronRight, MessageCircleQuestionMark, X } from "lucide-react";
@@ -10,6 +10,8 @@ import { resolveGrandmaPose } from "@/lib/grandma/pose";
 import { useVendorAskInbox } from "./useVendorAsk";
 import VendorHelpInput from "../help/VendorHelpInput";
 import HelpAnswerText from "../help/HelpAnswerText";
+import HelpProposalCard from "../help/HelpProposalCard";
+import HelpMemoryCard from "../help/HelpMemoryCard";
 import { CONTACT_HREF, contactMessageFor, useVendorHelpChat } from "../help/useVendorHelpChat";
 import { saveContactPrefill } from "@/lib/contact/prefill";
 import { countLabel, countUnit } from "./countLabel";
@@ -27,12 +29,16 @@ const IDLE_LINE = "今日もおつかれさま！";
  *
  * 話し手は既定のにちよさんに固定する。質問文がにちよさんの口調で書かれているため、
  * 相談ページで選んだ別のキャラに切り替えると言葉遣いが合わなくなる。
+ *
+ * 最後の答えは 10 分のあいだ覚えておき、ページを移って戻ってきても出し直す（lib/vendor/helpChatMemory.ts）。
+ * 覚える持ち主は accountId（ログイン中のアカウント）。無ければ店舗で分ける。
  */
-export default function VendorAskStage({ vendorId }: { vendorId: string }) {
-  const { status, pendingCount } = useVendorAskInbox(vendorId);
+export default function VendorAskStage({ vendorId, accountId }: { vendorId: string; accountId?: string }) {
+  const inbox = useVendorAskInbox(vendorId);
+  const { status, pendingCount } = inbox;
   const reduceMotion = useReducedMotion() ?? false;
   const showInbox = status === "ready" && pendingCount > 0;
-  const help = useVendorHelpChat();
+  const help = useVendorHelpChat(accountId ?? vendorId);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const pose = resolveGrandmaPose({
@@ -106,6 +112,29 @@ export default function VendorAskStage({ vendorId }: { vendorId: string }) {
             question={help.question}
             answer={help.answer}
             status={help.status}
+            proposal={
+              help.proposal?.kind === "change" || help.proposal?.kind === "edit" ? (
+                <HelpProposalCard
+                  vendorId={vendorId}
+                  weekDate={inbox.weekDate}
+                  proposal={help.proposal}
+                  snapshot={inbox.snapshot}
+                  snapshotFailed={status === "error"}
+                  onSaved={(line) => {
+                    help.settleProposal("saved", line);
+                    void inbox.refresh();
+                  }}
+                  onDismiss={(line) => help.settleProposal("dismissed", line)}
+                />
+              ) : help.proposal?.kind === "memory" ? (
+                <HelpMemoryCard
+                  key={JSON.stringify(help.proposal.note)}
+                  note={help.proposal.note}
+                  onSaved={(line) => help.settleProposal("remembered", line)}
+                  onDismiss={(line) => help.settleProposal("declined", line)}
+                />
+              ) : null
+            }
             onClose={() => {
               help.close();
               // 閉じるボタンが消えてフォーカスが迷子にならないよう、入力欄へ戻す
@@ -138,11 +167,14 @@ function HelpAnswer({
   question,
   answer,
   status,
+  proposal,
   onClose,
 }: {
   question: string;
   answer: string;
   status: ReturnType<typeof useVendorHelpChat>["status"];
+  /** にちよさんの変更案の確認。あるあいだは問い合わせ先を出さない */
+  proposal: ReactNode;
   onClose: () => void;
 }) {
   const finished = status === "done" || status === "error";
@@ -174,8 +206,10 @@ function HelpAnswer({
         <HelpAnswerText answer={answer} />
       )}
 
+      {proposal}
+
       {/* にちよさんで解決しないときの逃げ道。答えを読み終えてから出す */}
-      {finished && (
+      {finished && !proposal && (
         <Link
           href={CONTACT_HREF}
           onClick={() => saveContactPrefill(contactMessageFor(question, answer))}

@@ -20,6 +20,7 @@
 
 ```bash
 # 1. ローカルSupabase起動
+#    ※ リポジトリに supabase/config.toml が無いため、初回は先に `npx supabase init` が必要な可能性があります（未確認）
 npx supabase start
 
 # 2. 本番データをローカルに流し込む
@@ -39,7 +40,7 @@ npm run dev
 入手したファイルをプロジェクトルートに置いてください：
 
 ```
-nicchyo-platform/
+nicchyo/
 ├── .env.local              ← 自分で作る（cp .env.example .env.local）
 ├── .env.local.production   ← チームメンバーから入手する
 └── ...

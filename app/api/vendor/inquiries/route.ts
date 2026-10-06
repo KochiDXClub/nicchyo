@@ -4,7 +4,7 @@ import { z } from "zod";
 import { createClientWithExtensions } from "@/utils/supabase/server";
 import { requireSameOrigin } from "@/lib/security/requestGuards";
 import { enforceRateLimit } from "@/lib/security/rateLimit";
-import { requireVendorRole } from "@/lib/auth/permissions";
+import { requireVendorContext } from "@/lib/vendor/shopContext.server";
 import {
   VENDOR_INQUIRY_TOPICS,
   VENDOR_INQUIRY_CATEGORIES,
@@ -45,19 +45,16 @@ export async function GET(request: Request) {
   const originCheck = requireSameOrigin(request);
   if (!originCheck.ok) return originCheck.response;
 
-  const cookieStore = await cookies();
-  const supabase = createClientWithExtensions(cookieStore);
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const forbidden = requireVendorRole(user);
-  if (forbidden) return forbidden;
+  const auth = await requireVendorContext({ permission: "inquiries" });
+  if (!auth.ok) return auth.response;
+  const { vendorId } = auth;
+  // vendor_inquiries は生成済み型に無いので、拡張型のクライアントで読み書きする（認証は上で済み）
+  const supabase = createClientWithExtensions(await cookies());
 
   const { data, error } = await supabase
     .from("vendor_inquiries")
     .select("*")
-    .eq("vendor_id", user.id)
+    .eq("vendor_id", vendorId)
     .order("created_at", { ascending: false });
 
   if (error) {
@@ -83,14 +80,11 @@ export async function POST(request: Request) {
   });
   if (floodLimited) return floodLimited;
 
-  const cookieStore = await cookies();
-  const supabase = createClientWithExtensions(cookieStore);
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const forbidden = requireVendorRole(user);
-  if (forbidden) return forbidden;
+  const auth = await requireVendorContext({ permission: "inquiries" });
+  if (!auth.ok) return auth.response;
+  const { user, vendorId } = auth;
+  // vendor_inquiries は生成済み型に無いので、拡張型のクライアントで読み書きする（認証は上で済み）
+  const supabase = createClientWithExtensions(await cookies());
 
   const rateLimited = await enforceRateLimit(request, {
     bucket: "vendor-inquiries-post",
@@ -109,7 +103,7 @@ export async function POST(request: Request) {
   const { data, error } = await supabase
     .from("vendor_inquiries")
     .insert({
-      vendor_id: user.id,
+      vendor_id: vendorId,
       topic,
       category,
       urgency: urgency ?? "normal",

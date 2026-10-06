@@ -24,6 +24,7 @@ import {
   loadMapSettingsLimits,
   loadRouteConfig,
   loadVendorCategories,
+  selectRepositionedShops,
   validateVendorDrafts,
   type EditableRoad,
   type EditableShop,
@@ -258,8 +259,21 @@ export async function PUT(request: NextRequest) {
       if (existingResult.error) {
         return NextResponse.json({ error: "Failed to validate vendors" }, { status: 500 });
       }
+      const existingVendors = new Map<string, EditableVendor>(
+        (existingResult.data ?? []).map((row) => [
+          row.id as string,
+          {
+            id: row.id as string,
+            // 画面に出す名前（loadEditableVendors）と同じにそろえる。画面は空の店名を「名称未設定」で送ってくる
+            name: ((row.shop_name as string | null) || "名称未設定").trim(),
+            categoryId: (row.category_id as string | null) ?? null,
+            strength: (row.strength as string | null) ?? "",
+            mainProducts: Array.isArray(row.main_products) ? (row.main_products as string[]) : [],
+          },
+        ])
+      );
       const vendorError = validateVendorDrafts(vendorsToWrite, {
-        existingVendorIds: new Set((existingResult.data ?? []).map((row) => row.id)),
+        existingVendors,
         categoryIds: new Set(categories.map((c) => c.id)),
       });
       if (vendorError) {
@@ -333,11 +347,12 @@ export async function PUT(request: NextRequest) {
     const shopsToWrite = body.shops.updated.map((shop) => resolvedShopById.get(shop.locationId) ?? shop);
     // 送られてきていないが、乗っている道の形が変わったため位置が変わる区画（割り当ては触らない）
     const writtenLocationIds = new Set(body.shops.updated.map((shop) => shop.locationId));
-    const currentShopById = new Map(currentShops.map((shop) => [shop.locationId, shop]));
-    const repositionedShops = shopsAfterSave.filter((shop) => {
-      if (writtenLocationIds.has(shop.locationId) || !shop.roadId) return false;
-      const current = currentShopById.get(shop.locationId);
-      return !!current && (current.lat !== shop.lat || current.lng !== shop.lng);
+    const repositionedShops = selectRepositionedShops({
+      shopsAfterSave,
+      currentShops,
+      currentRoads,
+      roadsAfterSave,
+      writtenLocationIds,
     });
 
     // 区画が乗っている道は削除できない（クライアント側の制約とサーバー側でも二重に検証）

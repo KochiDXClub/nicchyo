@@ -65,6 +65,16 @@ describe("parseStoreCsv", () => {
     expect(errors[2].message).toContain("4 行目と重複");
   });
 
+  it("空行があっても、エラーの行番号はファイルの実際の行を指す", () => {
+    const { errors } = parseStoreCsv(csv(["1,,一丁目,北,A,,", ",,,,,,", "x,,一丁目,北,B,,"]));
+    expect(errors[0].line).toBe(4);
+  });
+
+  it("見出しが読めないときは、文字化けの対処を案内する", () => {
+    const { errors } = parseStoreCsv("譛ｬ逡ｪ蜿ｷ,荳∫岼,蛛ｴ\r\n1,2,3\r\n");
+    expect(errors[0].message).toContain("UTF-8");
+  });
+
   it("必要な見出しが無ければ知らせる", () => {
     expect(parseStoreCsv("番号,店名\n1,a\n").errors[0].message).toContain("本番号");
   });
@@ -145,6 +155,44 @@ describe("planStoreImport", () => {
     expect(result.next!.shops.map((s) => s.locationId)).not.toContain("dummy");
     expect(result.next!.shops[0].position).toBe(1); // 消した区画の店番を使い回す
     expect(result.next!.vendors.map((v) => v.id)).toContain("v-dummy");
+  });
+
+  describe("同じ店名の登録済みの出店者", () => {
+    const real: EditableVendor = { id: "v-real", name: "朝市の八百屋", categoryId: "c-veg", strength: "本人が書いた紹介", mainProducts: ["大根"] };
+    // 住所録の番号の列ができる前の区画（初めての取り込みでは、どの行とも番号が一致しない）
+    const oldShop: EditableShop = { locationId: "old", id: 9, position: 9, name: "朝市の八百屋", lat: 0, lng: 0, vendorId: "v-real" };
+
+    it("初めての取り込みで既存の区画を消しても、同じ店名の出店者を二重に作らず、新しい区画に割り当てる", () => {
+      const result = plan(csv(["1,,一丁目,北,朝市の八百屋,柚子,食材"]), { shops: [oldShop], vendors: [real], replace: true });
+      expect(result).toMatchObject({ createdVendorCount: 0, reusedVendorCount: 1, deletedSlotCount: 1 });
+      expect(result.next!.vendors).toHaveLength(1);
+      expect(result.next!.shops[0].vendorId).toBe("v-real");
+      // 本人が書いた情報は上書きしない
+      expect(result.next!.vendors[0]).toMatchObject({ strength: "本人が書いた紹介", mainProducts: ["大根"] });
+      expect(result.warnings.some((w) => w.message.includes("登録済みの出店者"))).toBe(true);
+    });
+
+    it("全角・半角や空白の違いは同じ店名として扱う", () => {
+      const result = plan(csv(["1,,一丁目,北,朝市の 八百屋,,"]), { vendors: [real] });
+      expect(result.reusedVendorCount).toBe(1);
+    });
+
+    it("同じ店名の出店者がほかの区画にいるときは、新しく作る", () => {
+      const keep: EditableShop = { ...oldShop, officialNumber: 5 };
+      const result = plan(csv(["1,,一丁目,北,朝市の八百屋,,"]), { shops: [keep], vendors: [real] });
+      expect(result).toMatchObject({ createdVendorCount: 1, reusedVendorCount: 0 });
+    });
+
+    it("同じ店名の出店者が複数いて、どれか決められないときは、新しく作る", () => {
+      const twin: EditableVendor = { ...real, id: "v-twin" };
+      const result = plan(csv(["1,,一丁目,北,朝市の八百屋,,"]), { vendors: [real, twin] });
+      expect(result).toMatchObject({ createdVendorCount: 1, reusedVendorCount: 0 });
+    });
+
+    it("CSV の同じ店名が2行あっても、1人の出店者を2つの区画に割り当てない", () => {
+      const result = plan(csv(["1,,一丁目,北,朝市の八百屋,,", "2,,一丁目,北,朝市の八百屋,,"]), { vendors: [real] });
+      expect(result).toMatchObject({ reusedVendorCount: 1, createdVendorCount: 1 });
+    });
   });
 
   it("見つからないジャンルは未設定にして知らせる", () => {

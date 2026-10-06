@@ -1,5 +1,5 @@
 import NavigationBar from "../../components/NavigationBar";
-import { PageContainer, PageShell, Surface } from "@/components/ui";
+import { PageContainer, PageShell } from "@/components/ui";
 import { siteText } from "@/lib/siteCopy";
 import FaqClient from "./FaqClient";
 
@@ -14,13 +14,7 @@ export default function FAQPage() {
       {/* 見出しの帯。地から中身に移る手前に主色を薄く敷いて、視線の入口を作る */}
       <div className="bg-gradient-to-b from-amber-100/50 to-transparent pb-6 pt-safe-top">
         <PageContainer width="narrow" className="pt-6">
-          <h1 className="mb-6 text-2xl font-bold tracking-tight">{siteText("faq.title")}</h1>
-
-          <Surface>
-            <p className="text-sm leading-relaxed text-nicchyo-ink/70">
-              {siteText("faq.lead")}
-            </p>
-          </Surface>
+          <h1 className="text-2xl font-bold tracking-tight">{siteText("faq.title")}</h1>
         </PageContainer>
       </div>
 
