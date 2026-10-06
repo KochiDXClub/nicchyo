@@ -18,9 +18,9 @@
 
 ### 2-2. Leaflet を import しているコード（削除対象）
 
-| ファイル | 行数 | MapLibre 側の対応 |
+| ファイル | 行数 | MapLibre 側の対応（`map/components/maplibre/` 配下） |
 |---|---|---|
-| `map/components/MapView.tsx` | 1321 | `maplibre/MapViewMapLibre.tsx`（1297） |
+| `map/components/MapView.tsx` | 1321 
 | `map/components/OptimizedShopLayerWithClustering.tsx` | 578 | シンボルレイヤー（`shopFeatures.ts` / `stallSprites.ts`） |
 | `map/components/RoadOverlay.tsx` | 531 | `MapViewMapLibre` 内の道レイヤー |
 | `map/components/MapOverlays.tsx` | 309 | ランドマーク画像・地名ラベルは移植済み |
@@ -80,7 +80,7 @@
 5. **React StrictMode**: `reactStrictMode: false` は Leaflet 都合。MapLibre は `map.remove()` のクリーンアップが正しければ
    StrictMode でも動く。外すかは任意だが、外す場合は開発時の二重 mount で WebGL コンテキストが漏れないことを確認。
 6. **WebGL 非対応端末のフォールバック**: Leaflet は WebGL 不要だった。非対応時の表示（エラー表示 or 簡易表示）を決める。
-   `maplibregl.supported` 相当（v6 の API を確認）で検知して案内を出す。
+   `maplibregl.supported()` は v2 以降で本体から外れているため、canvas で WebGL コンテキストを直接作って判定する方法を含め、着手時に v6 の API を確認する。
 7. **CSP / Worker**: `proxy.ts:152` に `blob:` Worker 許可は済み。`scripts/copy-maplibre-worker.mjs` と `lib/map/maplibreWorker.ts` は残す。
 8. **パフォーマンス・バッテリー**: 低スペック端末で `map-bench` を取り、Leaflet 比で悪化していないか確認（`npm run` ではなく `node scripts/map-bench.mjs`）。
 9. **背景ベクタータイル**: `basemap` は既定 `raster-carto`。`vector-openfreemap` に切り替えるかは別判断（外部サービス依存・ライセンス表記）。
