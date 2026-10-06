@@ -546,6 +546,39 @@ export async function createMapLayoutSnapshot(
   }
 }
 
+/** 現地で店舗を 1 件ずつ置くとき、スナップショットを作り直さない時間（分） */
+export const RECENT_SNAPSHOT_MINUTES = 10;
+
+/**
+ * 同じ運営が直近（既定は 10 分以内）に作ったスナップショットがあれば、新しく作らない。
+ * スナップショットは全店番の配置を丸ごと保存するので、300 店を 1 件ずつ現地で登録すると
+ * 300 個になり、データが膨らみ、/admin/map-edit の「戻す」の一覧も同じ内容で埋まる。
+ * 直近のものが残っていれば、その状態（＝今回の編集より前）へ戻せるので、戻せることは保てる。
+ * @returns 新しく作ったら true、直近のものを使ったら false
+ */
+export async function ensureRecentMapLayoutSnapshot(
+  supabase: ReturnType<typeof createServerClient>,
+  adminWriteClient: SupabaseClient,
+  createdBy: string,
+  summary: SnapshotSummary,
+  withinMinutes: number = RECENT_SNAPSHOT_MINUTES,
+  now: Date = new Date()
+): Promise<boolean> {
+  const since = new Date(now.getTime() - withinMinutes * 60 * 1000).toISOString();
+  const { data, error } = await adminWriteClient
+    .from("map_layout_snapshots")
+    .select("id")
+    .eq("created_by", createdBy)
+    .gte("created_at", since)
+    .limit(1);
+
+  // 調べられなかったときは、念のため作る（戻せないよりは、増えるほうがよい）
+  if (!error && data && data.length > 0) return false;
+
+  await createMapLayoutSnapshot(supabase, adminWriteClient, createdBy, summary);
+  return true;
+}
+
 /**
  * 送られてきていないが、道の形が変わったために緯度経度を計算し直して書く区画を選ぶ。
  *

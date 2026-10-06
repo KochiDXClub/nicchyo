@@ -1439,6 +1439,10 @@ export type Database = {
           closed_dates: string[]
           created_at: string | null
           id: string
+          listing_consent_note: string | null
+          listing_consented_on: string | null
+          listing_status: string
+          photo_use_allowed: boolean
           main_product_prices: Json | null
           main_products: string[] | null
           must_change_password: boolean | null
@@ -1463,6 +1467,10 @@ export type Database = {
           closed_dates?: string[]
           created_at?: string | null
           id: string
+          listing_consent_note?: string | null
+          listing_consented_on?: string | null
+          listing_status?: string
+          photo_use_allowed?: boolean
           main_product_prices?: Json | null
           main_products?: string[] | null
           must_change_password?: boolean | null
@@ -1487,6 +1495,10 @@ export type Database = {
           closed_dates?: string[]
           created_at?: string | null
           id?: string
+          listing_consent_note?: string | null
+          listing_consented_on?: string | null
+          listing_status?: string
+          photo_use_allowed?: boolean
           main_product_prices?: Json | null
           main_products?: string[] | null
           must_change_password?: boolean | null
@@ -1609,6 +1621,16 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      admin_place_shop: {
+        Args: {
+          p_force?: boolean
+          p_lat: number
+          p_lng: number
+          p_store_number: number
+          p_vendor_id: string
+        }
+        Returns: Json
+      }
       get_reaction_counts: {
         Args: { content_ids: string[] }
         Returns: {
