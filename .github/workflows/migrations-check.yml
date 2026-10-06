@@ -81,5 +81,10 @@ jobs:
       - name: Check no legacy vendor policies remain
         run: psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" -v ON_ERROR_STOP=1 -f supabase/checks/no_legacy_vendor_policies.sql
 
+      # 掲載許可の記録（許可のメモなど）が、来訪者・一般ユーザーから直接読めないことを確かめる。
+      # 詳しくは supabase/checks/vendor_listing_consent_columns.sql
+      - name: Check listing consent columns are not readable by anon / authenticated
+        run: psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" -v ON_ERROR_STOP=1 -f supabase/checks/vendor_listing_consent_columns.sql
+
       - name: Show applied migrations
         run: supabase migration list --local
