@@ -214,15 +214,28 @@ export async function PUT(request: NextRequest) {
       const existingIds = vendorsToWrite.map((v) => v.id).filter((id) => typeof id === "string" && !id.startsWith(NEW_VENDOR_ID_PREFIX));
       const [existingResult, categories] = await Promise.all([
         existingIds.length > 0
-          ? supabase.from("vendors").select("id").in("id", existingIds)
-          : Promise.resolve({ data: [] as { id: string }[], error: null }),
+          ? supabase.from("vendors").select("id, shop_name, category_id, strength, main_products").in("id", existingIds)
+          : Promise.resolve({ data: [], error: null }),
         loadVendorCategories(supabase),
       ]);
       if (existingResult.error) {
         return NextResponse.json({ error: "Failed to validate vendors" }, { status: 500 });
       }
+      const existingVendors = new Map<string, EditableVendor>(
+        (existingResult.data ?? []).map((row) => [
+          row.id as string,
+          {
+            id: row.id as string,
+            // 画面に出す名前（loadEditableVendors）と同じにそろえる。画面は空の店名を「名称未設定」で送ってくる
+            name: ((row.shop_name as string | null) || "名称未設定").trim(),
+            categoryId: (row.category_id as string | null) ?? null,
+            strength: (row.strength as string | null) ?? "",
+            mainProducts: Array.isArray(row.main_products) ? (row.main_products as string[]) : [],
+          },
+        ])
+      );
       const vendorError = validateVendorDrafts(vendorsToWrite, {
-        existingVendorIds: new Set((existingResult.data ?? []).map((row) => row.id)),
+        existingVendors,
         categoryIds: new Set(categories.map((c) => c.id)),
       });
       if (vendorError) {

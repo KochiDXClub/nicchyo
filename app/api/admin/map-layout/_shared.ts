@@ -156,37 +156,56 @@ export async function loadVendorCategories(supabase: ReturnType<typeof createSer
 /**
  * マップ編集画面から送られてきた出店者の追加・更新を検証する。問題があればその理由を返す。
  * 新しい出店者の id は NEW_VENDOR_ID_PREFIX で始まる仮 id、既存の出店者の id は DB にある id であること。
+ *
+ * 既存の出店者は、今の DB の値から変わった項目だけを検証する。編集画面は、1つの項目を直しても
+ * 出店者の全項目をまとめて送るので、すべてを検証すると、出店者本人が my-shop で登録した上限超えの
+ * 値（品目が 11 件以上など。上限は画面側にしかない）が残っているだけで、店名を直した保存全体が
+ * 400 になってしまう。新しい出店者は、すべての項目を検証する。
  */
 export function validateVendorDrafts(
   vendors: EditableVendor[],
-  context: { existingVendorIds: ReadonlySet<string>; categoryIds: ReadonlySet<string> }
+  context: { existingVendors: ReadonlyMap<string, EditableVendor>; categoryIds: ReadonlySet<string> }
 ): string | null {
   const seen = new Set<string>();
   for (const vendor of vendors) {
     if (!vendor || typeof vendor.id !== "string" || seen.has(vendor.id)) return "出店者のデータが正しくありません";
     seen.add(vendor.id);
-    if (!vendor.id.startsWith(NEW_VENDOR_ID_PREFIX) && !context.existingVendorIds.has(vendor.id)) {
-      return "存在しない出店者は更新できません";
-    }
+    const isNew = vendor.id.startsWith(NEW_VENDOR_ID_PREFIX);
+    const current = isNew ? undefined : context.existingVendors.get(vendor.id);
+    if (!isNew && !current) return "存在しない出店者は更新できません";
+
     const name = typeof vendor.name === "string" ? vendor.name.trim() : "";
-    if (!name) return "店名を入れてください";
-    if (name.length > VENDOR_FIELD_LIMITS.nameMaxLength) {
-      return `店名は ${VENDOR_FIELD_LIMITS.nameMaxLength} 文字以内にしてください（${name.slice(0, 20)}…）`;
+    if (!current || name !== current.name.trim()) {
+      if (!name) return "店名を入れてください";
+      if (name.length > VENDOR_FIELD_LIMITS.nameMaxLength) {
+        return `店名は ${VENDOR_FIELD_LIMITS.nameMaxLength} 文字以内にしてください（${name.slice(0, 20)}…）`;
+      }
     }
-    if (vendor.categoryId !== null && (typeof vendor.categoryId !== "string" || !context.categoryIds.has(vendor.categoryId))) {
-      return `${name} のジャンルが正しくありません`;
+    if (!current || vendor.categoryId !== current.categoryId) {
+      if (vendor.categoryId !== null && (typeof vendor.categoryId !== "string" || !context.categoryIds.has(vendor.categoryId))) {
+        return `${name} のジャンルが正しくありません`;
+      }
     }
-    if (typeof vendor.strength !== "string" || vendor.strength.length > VENDOR_FIELD_LIMITS.strengthMaxLength) {
-      return `${name} のこだわりは ${VENDOR_FIELD_LIMITS.strengthMaxLength} 文字以内にしてください`;
+    if (!current || vendor.strength !== current.strength) {
+      if (typeof vendor.strength !== "string" || vendor.strength.length > VENDOR_FIELD_LIMITS.strengthMaxLength) {
+        return `${name} のこだわりは ${VENDOR_FIELD_LIMITS.strengthMaxLength} 文字以内にしてください`;
+      }
     }
-    if (
+    const productsChanged =
+      !current ||
       !Array.isArray(vendor.mainProducts) ||
-      vendor.mainProducts.length > VENDOR_FIELD_LIMITS.mainProductsMaxCount ||
-      vendor.mainProducts.some(
-        (product) => typeof product !== "string" || !product.trim() || product.length > VENDOR_FIELD_LIMITS.mainProductMaxLength
-      )
-    ) {
-      return `${name} の主な商品は ${VENDOR_FIELD_LIMITS.mainProductsMaxCount} 件まで、1件 ${VENDOR_FIELD_LIMITS.mainProductMaxLength} 文字以内にしてください`;
+      vendor.mainProducts.length !== current.mainProducts.length ||
+      vendor.mainProducts.some((product, index) => product !== current.mainProducts[index]);
+    if (productsChanged) {
+      if (
+        !Array.isArray(vendor.mainProducts) ||
+        vendor.mainProducts.length > VENDOR_FIELD_LIMITS.mainProductsMaxCount ||
+        vendor.mainProducts.some(
+          (product) => typeof product !== "string" || !product.trim() || product.length > VENDOR_FIELD_LIMITS.mainProductMaxLength
+        )
+      ) {
+        return `${name} の主な商品は ${VENDOR_FIELD_LIMITS.mainProductsMaxCount} 件まで、1件 ${VENDOR_FIELD_LIMITS.mainProductMaxLength} 文字以内にしてください`;
+      }
     }
   }
   return null;
