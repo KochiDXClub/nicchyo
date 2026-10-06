@@ -127,6 +127,8 @@ async function syncVendorEmbeddings(): Promise<{ processed: number }> {
     supabase
       .from("vendors")
       .select("id, shop_name, strength, style, style_tags, schedule, main_products, categories(name)")
+      // service_role は RLS を通らない。掲載の許可がない店舗は、埋め込み（AI が検索に使う）にしない
+      .eq("listing_status", "allowed")
       .order("id", { ascending: true }),
     supabase.from("products").select("vendor_id, name"),
     supabase.from("market_locations").select("id, store_number, latitude, longitude, district"),
@@ -229,6 +231,19 @@ async function syncVendorEmbeddings(): Promise<{ processed: number }> {
 
     if (error) throw new Error(`Upsert error: ${error.message}`);
     totalProcessed += payload.length;
+  }
+
+  // 許可済みでなくなった店舗（許可を取り下げた・断られた）の埋め込みを消す。
+  // 残すと、vendor_embeddings.content を直接返す経路が増えたときに、許可のない店舗の情報が漏れる
+  const { data: unlisted, error: unlistedError } = await supabase
+    .from("vendors")
+    .select("id")
+    .neq("listing_status", "allowed");
+  if (unlistedError) throw new Error(`unlisted vendors: ${unlistedError.message}`);
+  const unlistedIds = (unlisted ?? []).map((row) => row.id);
+  if (unlistedIds.length > 0) {
+    const { error: deleteError } = await supabase.from("vendor_embeddings").delete().in("vendor_id", unlistedIds);
+    if (deleteError) throw new Error(`Delete unlisted embeddings error: ${deleteError.message}`);
   }
 
   return { processed: totalProcessed };
