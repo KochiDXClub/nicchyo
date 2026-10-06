@@ -417,3 +417,43 @@ export async function createMapLayoutSnapshot(
     throw new Error("Failed to create map layout snapshot");
   }
 }
+
+/**
+ * 送られてきていないが、道の形が変わったために緯度経度を計算し直して書く区画を選ぶ。
+ *
+ * 対象は、点が実際に変わった（または新しくできた）道に乗っている区画だけ。
+ * 移行（slot-road-positions）は緯度経度を変えずに道基準の位置だけを記録するので、
+ * 道から計算した位置は元の緯度経度と少しずれる。道が変わっていないのに全区画を計算し直すと、
+ * 関係のない保存のたびに公開マップ上で区画が動き、変更なしの保存でもスナップショットが増える。
+ */
+export function selectRepositionedShops({
+  shopsAfterSave,
+  currentShops,
+  currentRoads,
+  roadsAfterSave,
+  writtenLocationIds,
+}: {
+  shopsAfterSave: EditableShop[];
+  currentShops: EditableShop[];
+  currentRoads: EditableRoad[];
+  roadsAfterSave: EditableRoad[];
+  writtenLocationIds: ReadonlySet<string>;
+}): EditableShop[] {
+  const roadPointsKey = (points: MapRoutePoint[]) =>
+    points.map((point) => `${point.id}:${point.lat}:${point.lng}`).join("|");
+  const currentRoadById = new Map(currentRoads.map((road) => [road.id, road]));
+  const changedRoadIds = new Set(
+    roadsAfterSave
+      .filter((road) => {
+        const current = currentRoadById.get(road.id);
+        return !current || roadPointsKey(current.points) !== roadPointsKey(road.points);
+      })
+      .map((road) => road.id)
+  );
+  const currentShopById = new Map(currentShops.map((shop) => [shop.locationId, shop]));
+  return shopsAfterSave.filter((shop) => {
+    if (writtenLocationIds.has(shop.locationId) || !shop.roadId || !changedRoadIds.has(shop.roadId)) return false;
+    const current = currentShopById.get(shop.locationId);
+    return !!current && (current.lat !== shop.lat || current.lng !== shop.lng);
+  });
+}
