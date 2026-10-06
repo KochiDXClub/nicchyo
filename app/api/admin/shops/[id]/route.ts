@@ -62,19 +62,10 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     // 現地で何度も保存するので、バルク操作より緩め
-    const guard = await guardAdminShopWrite(request, { bucket: "admin-shop-edit", limit: 120 });
+    const guard = await guardAdminShopWrite(request, params, { bucket: "admin-shop-edit", limit: 120, json: true });
     if ("error" in guard) return guard.error;
-    const { user, role, adminClient, ip } = guard.ctx;
-
-    const { id } = await params;
-    if (!UUID_RE.test(id)) return NextResponse.json({ error: "Invalid id" }, { status: 400 });
-
-    let body: unknown;
-    try {
-      body = await request.json();
-    } catch {
-      return NextResponse.json({ error: "リクエストの形が正しくありません" }, { status: 400 });
-    }
+    const { user, role, adminClient, ip, id } = guard.ctx;
+    const body = guard.body;
 
     const parsed = parseShopEdit(body);
     if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 });

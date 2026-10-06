@@ -1601,6 +1601,16 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      admin_place_shop: {
+        Args: {
+          p_force?: boolean
+          p_lat: number
+          p_lng: number
+          p_store_number: number
+          p_vendor_id: string
+        }
+        Returns: Json
+      }
       get_reaction_counts: {
         Args: { content_ids: string[] }
         Returns: {

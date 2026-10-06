@@ -273,3 +273,4 @@ export function parseShopEdit(body: unknown): ShopEditResult {
 
   return { ok: true, value: { vendor, ownerName } };
 }
+

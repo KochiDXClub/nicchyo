@@ -17,6 +17,10 @@ export type AdminShop = {
   status: "active" | "suspended";
   /** 掲載許可（pending=未取得 / allowed=許可済み / declined=断られた） */
   listingStatus: ListingStatus;
+  /** 配置されている店番。位置が未登録なら null */
+  storeNumber: number | null;
+  /** 店舗写真があるか */
+  hasPhoto: boolean;
   registeredDate: string;
 };
 
@@ -40,7 +44,7 @@ export async function GET() {
     // vendors + categories を取得
     const { data: vendorsData, error: vendorsError } = await serviceClient
       .from("vendors")
-      .select("id, shop_name, created_at, listing_status, categories(name)");
+      .select("id, shop_name, created_at, listing_status, shop_image_url, categories(name)");
 
     if (vendorsError) {
       return NextResponse.json({ error: "Failed to fetch vendors" }, { status: 500 });
@@ -58,6 +62,18 @@ export async function GET() {
     );
 
     const vendors = Array.isArray(vendorsData) ? vendorsData : [];
+
+    // 店番（現地で位置を決めたかの目印）。取れなくても一覧は出す
+    const [{ data: assignmentRows }, { data: locationRows }] = await Promise.all([
+      serviceClient.from("location_assignments").select("vendor_id, location_id"),
+      serviceClient.from("market_locations").select("id, store_number"),
+    ]);
+    const storeNumberByLocation = new Map((locationRows ?? []).map((l) => [l.id, l.store_number]));
+    const storeNumberByVendor = new Map<string, number>();
+    for (const a of assignmentRows ?? []) {
+      const n = storeNumberByLocation.get(a.location_id);
+      if (n != null) storeNumberByVendor.set(a.vendor_id, n);
+    }
 
     // 全 auth ユーザーを取得（banned_until でsuspended判定）
     // ページ途中で取得に失敗しても、それまでに取れた分は使う（一部の店舗情報が
@@ -104,6 +120,8 @@ export async function GET() {
         email: authUser?.email ?? "-",
         status: isSuspended ? "suspended" : "active",
         listingStatus: vendor.listing_status as ListingStatus,
+        storeNumber: storeNumberByVendor.get(vendor.id) ?? null,
+        hasPhoto: !!vendor.shop_image_url,
         registeredDate: formatDate(authUser?.created_at ?? vendor.created_at),
       };
     });
