@@ -47,21 +47,42 @@ values
   ('W',  '追手門前（西端）',     33.560444, 133.533713, 'confirmed',    7)
 on conflict (id) do nothing;
 
--- 追手筋は 'main'、7丁目は 'ohashi-dori'（20261001120000 で作る道）。
--- 道がまだない環境（まっさらな DB など）では、その丁目の区間だけ作らない。
+-- 追手筋は 'main'。7丁目の道は、'ohashi-dori'（add_ohashi_road のマイグレーションで作る道）か、名前に「大橋通」を含む道
+-- （add_ohashi_road は、名前に「大橋通」を含む道がすでにあれば何もしないので、画面で先に作った道は id が違う）。
+-- 道がまだない環境（まっさらな DB など）では、その丁目の区間だけ作らず、作れなかった丁目を notice で知らせる。
+-- あとで道ができたら、このマイグレーションを流し直せば区間が足される（作った区間は上書きしない）。
 insert into public.chome_sections (chome_id, road_id, from_boundary_id, to_boundary_id)
 select v.chome_id, v.road_id, v.from_id, v.to_id
 from (values
-  (1::smallint, 'main',         'E',  'B1'),
-  (2::smallint, 'main',         'B1', 'B2'),
-  (3::smallint, 'main',         'B2', 'B3'),
-  (4::smallint, 'main',         'B3', 'B4'),
-  (5::smallint, 'main',         'B4', 'B5'),
-  (6::smallint, 'main',         'B5', 'W'),
-  (7::smallint, 'ohashi-dori',  'B5', null)
+  (1::smallint, 'main', 'E',  'B1'),
+  (2::smallint, 'main', 'B1', 'B2'),
+  (3::smallint, 'main', 'B2', 'B3'),
+  (4::smallint, 'main', 'B3', 'B4'),
+  (5::smallint, 'main', 'B4', 'B5'),
+  (6::smallint, 'main', 'B5', 'W'),
+  (7::smallint,
+   (select r.id from public.map_roads r
+     where r.id = 'ohashi-dori' or r.name like '%大橋通%'
+     order by (r.id = 'ohashi-dori') desc, r.id
+     limit 1),
+   'B5', null)
 ) as v(chome_id, road_id, from_id, to_id)
 where exists (select 1 from public.map_roads r where r.id = v.road_id)
 on conflict (chome_id) do nothing;
+
+do $$
+declare
+  r record;
+begin
+  for r in
+    select c.id from public.chomes c
+    where not exists (select 1 from public.chome_sections s where s.chome_id = c.id)
+    order by c.id
+  loop
+    raise notice '丁目の区間を作れませんでした: % 丁目（道が見つかりません。道を作ってから、このマイグレーションを流し直してください）', r.id;
+  end loop;
+end;
+$$;
 
 alter table public.chome_boundaries enable row level security;
 alter table public.chome_sections enable row level security;
