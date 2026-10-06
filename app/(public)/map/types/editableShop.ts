@@ -1,3 +1,5 @@
+import type { RoadSide } from "../utils/roadSlotPosition";
+
 /**
  * マップ編集画面（/admin/map-edit）で扱う区画の編集用データ型。
  * サーバー側（app/api/admin/map-layout/_shared.ts）とクライアント側
@@ -12,6 +14,15 @@ export type EditableShop = {
   lng: number;
   position: number;
   chome?: string;
+  /**
+   * 道基準の位置（market_locations.road_*）。4つとも入っているか、どれも無いかのどちらか。
+   * 入っている区画の lat/lng は道の形から計算した値で、道の形を直すとついてくる。
+   * 無い区画（移行前の区画）は lat/lng がそのまま位置になる。
+   */
+  roadId?: string;
+  roadDistanceM?: number;
+  roadSide?: RoadSide;
+  roadOffsetM?: number;
 };
 
 /**

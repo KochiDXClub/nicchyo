@@ -11,7 +11,8 @@ import {
   type MapRoutePoint,
   type RoadKind,
 } from "@/app/(public)/map/types/mapRoute";
-import { findNearestRoadId } from "@/app/(public)/map/utils/mapRouteGeometry";
+import { projectOntoRoad, roadIdOfSlot, type RoadSide } from "@/app/(public)/map/utils/roadSlotPosition";
+import { DEFAULT_MAX_LANDMARKS, DEFAULT_MAX_UNASSIGNED_SHOP_MARKERS } from "@/app/(public)/map/config/mapSettingsDefaults";
 
 export type { EditableShop };
 
@@ -37,7 +38,9 @@ export function createAdminWriteClient(): SupabaseClient {
 export async function loadEditableShops(supabase: ReturnType<typeof createServerClient>): Promise<EditableShop[]> {
   const [assignmentsResult, locationsResult, vendorsResult] = await Promise.all([
     supabase.from("location_assignments").select("vendor_id, location_id, market_date"),
-    supabase.from("market_locations").select("id, store_number, latitude, longitude, district"),
+    supabase
+      .from("market_locations")
+      .select("id, store_number, latitude, longitude, district, road_id, road_distance_m, road_side, road_offset_m"),
     supabase.from("vendors").select("id, shop_name"),
   ]);
 
@@ -89,6 +92,10 @@ export async function loadEditableShops(supabase: ReturnType<typeof createServer
         return [];
       }
 
+      const roadSide = row.road_side === "left" || row.road_side === "right" ? (row.road_side as RoadSide) : undefined;
+      const hasRoadPosition =
+        !!row.road_id && row.road_distance_m != null && !!roadSide && row.road_offset_m != null;
+
       const latestAssignment = latestAssignmentByLocation.get(locationId);
       const vendorId = latestAssignment?.vendor_id ?? undefined;
       const vendorName = vendorId ? vendorNameById.get(vendorId) ?? "" : "";
@@ -103,6 +110,14 @@ export async function loadEditableShops(supabase: ReturnType<typeof createServer
           lng,
           position: storeNumber,
           chome: normalizeChome((row.district as string | null) ?? null),
+          ...(hasRoadPosition
+            ? {
+                roadId: row.road_id as string,
+                roadDistanceM: Number(row.road_distance_m),
+                roadSide,
+                roadOffsetM: Number(row.road_offset_m),
+              }
+            : {}),
         },
       ];
     })
@@ -178,8 +193,8 @@ export type MapSettingsLimits = {
 };
 
 const DEFAULT_MAP_SETTINGS_LIMITS: MapSettingsLimits = {
-  maxLandmarks: 80,
-  maxUnassignedShopMarkers: 40,
+  maxLandmarks: DEFAULT_MAX_LANDMARKS,
+  maxUnassignedShopMarkers: DEFAULT_MAX_UNASSIGNED_SHOP_MARKERS,
 };
 
 /**
@@ -270,10 +285,83 @@ export function findRoadIdsWithShops(
 ): Set<string> {
   const roadIds = new Set<string>();
   for (const shop of shops) {
-    const roadId = findNearestRoadId({ lat: shop.lat, lng: shop.lng }, roads, snapDistanceMeters);
+    const roadId = roadIdOfSlot(shop, roads, snapDistanceMeters);
     if (roadId) roadIds.add(roadId);
   }
   return roadIds;
+}
+
+export type SlotRoadPositionPlan = {
+  /** 自動で道基準の位置を入れられる区画 */
+  matched: Array<{
+    locationId: string;
+    position: number;
+    roadId: string;
+    roadName: string;
+    roadDistanceM: number;
+    roadSide: RoadSide;
+    roadOffsetM: number;
+    /** 道基準の位置から計算し直した地点と、今の地点のずれ（m）。道の端より外にある区画で大きくなる */
+    driftM: number;
+  }>;
+  /** どの道にも近くないため自動では変換しない区画 */
+  unmatched: Array<{
+    locationId: string;
+    position: number;
+    name: string;
+    nearestRoadName: string | null;
+    /** 最も近い道の中心線までの距離（m）。道が無ければ null */
+    distanceToNearestRoadM: number | null;
+  }>;
+};
+
+/**
+ * 移行処理: 道基準の位置を持たない区画に、今の緯度経度から最も近い道の上の位置を求める。
+ * 道の中心線から snapDistanceMeters より離れている区画は unmatched として報告し、変換しない。
+ */
+export function planSlotRoadPositions(
+  shops: EditableShop[],
+  roads: EditableRoad[],
+  snapDistanceMeters: number
+): SlotRoadPositionPlan {
+  const plan: SlotRoadPositionPlan = { matched: [], unmatched: [] };
+  const usableRoads = roads.filter((road) => road.points.length >= 2);
+
+  for (const shop of shops) {
+    if (shop.roadId) continue;
+    let best: { road: EditableRoad; projection: NonNullable<ReturnType<typeof projectOntoRoad>> } | null = null;
+    for (const road of usableRoads) {
+      const projection = projectOntoRoad(road.points, shop);
+      if (projection && (!best || projection.lateralM < best.projection.lateralM)) {
+        best = { road, projection };
+      }
+    }
+
+    if (best && best.projection.lateralM <= snapDistanceMeters) {
+      plan.matched.push({
+        locationId: shop.locationId,
+        position: shop.position,
+        roadId: best.road.id,
+        roadName: best.road.name,
+        roadDistanceM: best.projection.distanceM,
+        roadSide: best.projection.side,
+        roadOffsetM: best.projection.offsetM,
+        driftM: best.projection.driftM,
+      });
+    } else {
+      plan.unmatched.push({
+        locationId: shop.locationId,
+        position: shop.position,
+        name: shop.name,
+        nearestRoadName: best?.road.name ?? null,
+        distanceToNearestRoadM: best ? best.projection.lateralM : null,
+      });
+    }
+  }
+
+  plan.matched.sort((a, b) => a.position - b.position);
+  plan.unmatched.sort((a, b) => a.position - b.position);
+  return plan;
 }
 
 export type SnapshotSummary = {
@@ -286,6 +374,10 @@ export type SnapshotSummary = {
   updatedRoadCount?: number;
   deletedRoadCount?: number;
   restoreSourceSnapshotId?: string;
+  /** 道の形が変わったために緯度経度を計算し直した区画の数 */
+  repositionedShopCount?: number;
+  /** 移行処理で道基準の位置を入れた区画の数 */
+  migratedSlotCount?: number;
 };
 
 /**
@@ -357,4 +449,44 @@ export async function ensureRecentMapLayoutSnapshot(
 
   await createMapLayoutSnapshot(supabase, adminWriteClient, createdBy, summary);
   return true;
+}
+
+/**
+ * 送られてきていないが、道の形が変わったために緯度経度を計算し直して書く区画を選ぶ。
+ *
+ * 対象は、点が実際に変わった（または新しくできた）道に乗っている区画だけ。
+ * 移行（slot-road-positions）は緯度経度を変えずに道基準の位置だけを記録するので、
+ * 道から計算した位置は元の緯度経度と少しずれる。道が変わっていないのに全区画を計算し直すと、
+ * 関係のない保存のたびに公開マップ上で区画が動き、変更なしの保存でもスナップショットが増える。
+ */
+export function selectRepositionedShops({
+  shopsAfterSave,
+  currentShops,
+  currentRoads,
+  roadsAfterSave,
+  writtenLocationIds,
+}: {
+  shopsAfterSave: EditableShop[];
+  currentShops: EditableShop[];
+  currentRoads: EditableRoad[];
+  roadsAfterSave: EditableRoad[];
+  writtenLocationIds: ReadonlySet<string>;
+}): EditableShop[] {
+  const roadPointsKey = (points: MapRoutePoint[]) =>
+    points.map((point) => `${point.id}:${point.lat}:${point.lng}`).join("|");
+  const currentRoadById = new Map(currentRoads.map((road) => [road.id, road]));
+  const changedRoadIds = new Set(
+    roadsAfterSave
+      .filter((road) => {
+        const current = currentRoadById.get(road.id);
+        return !current || roadPointsKey(current.points) !== roadPointsKey(road.points);
+      })
+      .map((road) => road.id)
+  );
+  const currentShopById = new Map(currentShops.map((shop) => [shop.locationId, shop]));
+  return shopsAfterSave.filter((shop) => {
+    if (writtenLocationIds.has(shop.locationId) || !shop.roadId || !changedRoadIds.has(shop.roadId)) return false;
+    const current = currentShopById.get(shop.locationId);
+    return !!current && (current.lat !== shop.lat || current.lng !== shop.lng);
+  });
 }
