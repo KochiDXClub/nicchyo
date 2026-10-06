@@ -1,7 +1,7 @@
 /**
  * 運営が現地で店舗の位置（店番と座標）を登録するときの入力の検証（PUT /api/admin/shops/[id]/location）。
  *
- * 店番は 1〜300（lib/shops/route.ts の MIN_SHOP_ID / MAX_SHOP_ID）。座標は日曜市のある高知市中心部の
+ * 店番は MIN_SHOP_ID〜MAX_SHOP_ID（lib/shops/route.ts。1〜999）。座標は日曜市のある高知市中心部の
  * 範囲に限る。スマホの現在地が大きくずれたとき（屋内・電波が悪いとき）に、遠くの座標を保存してしまわないため。
  */
 import { MAX_SHOP_ID, MIN_SHOP_ID } from "@/lib/shops/route";
