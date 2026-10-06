@@ -1723,8 +1723,9 @@ export type Database = {
           p_save_roads: boolean
           p_shop_positions: Json
           p_shops: Json
+          p_vendors?: Json
         }
-        Returns: undefined
+        Returns: Json
       }
       save_roads_and_points: {
         Args: { p_points: Json; p_removed_road_ids?: Json; p_roads: Json }

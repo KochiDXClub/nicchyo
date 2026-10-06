@@ -433,7 +433,14 @@ export default function MapEditClientV3() {
         isSaving={data.isSaving}
         pendingCount={history.past.length}
         onSave={() => void data.handleSave()}
+        saveBlocked={!data.schemaReady}
       />
+
+      {!data.schemaReady && (
+        <div role="alert" style={{ padding: "8px 20px", background: "#FFF7E6", color: "#92400E", fontSize: 12.5, borderBottom: "1px solid #EDE3CD" }}>
+          データベースの更新（マイグレーション）がまだ適用されていません。画面の確認はできますが、保存と区画の位置の移行はできません。
+        </div>
+      )}
 
       {data.message && (
         <div style={{ padding: "8px 20px", background: "#FFF7E6", color: "#92400E", fontSize: 12.5, borderBottom: "1px solid #EDE3CD" }}>
@@ -560,7 +567,7 @@ export default function MapEditClientV3() {
                   onCancel={backToSelect}
                 />
               )}
-              {!selection && unanchoredCount > 0 && (
+              {!selection && unanchoredCount > 0 && data.schemaReady && (
                 <SlotMigrationPanel
                   unanchoredCount={unanchoredCount}
                   hasUnsavedChanges={hasUnsavedChanges}

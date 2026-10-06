@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { DEFAULT_MAP_ROUTE_CONFIG } from "@/app/(public)/map/types/mapRoute";
 import {
+  hasRoadPositionSchema,
   isRouteConfigChanged,
   planSlotRoadPositions,
   selectRepositionedShops,
@@ -202,5 +203,24 @@ describe("selectRepositionedShops", () => {
         writtenLocationIds: new Set(),
       }).length
     ).toBe(1);
+  });
+});
+
+describe("hasRoadPositionSchema", () => {
+  const clientReturning = (error: { code: string } | null) =>
+    ({
+      from: () => ({ select: () => ({ limit: async () => ({ data: [], error }) }) }),
+    }) as unknown as Parameters<typeof hasRoadPositionSchema>[0];
+
+  it("道基準の位置の列があれば true", async () => {
+    await expect(hasRoadPositionSchema(clientReturning(null))).resolves.toBe(true);
+  });
+
+  it("列が無い（マイグレーション前）なら false", async () => {
+    await expect(hasRoadPositionSchema(clientReturning({ code: "42703" }))).resolves.toBe(false);
+  });
+
+  it("それ以外のエラーは握りつぶさずに投げる", async () => {
+    await expect(hasRoadPositionSchema(clientReturning({ code: "08006" }))).rejects.toThrow();
   });
 });

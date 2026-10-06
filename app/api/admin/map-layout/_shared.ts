@@ -42,12 +42,53 @@ export function createAdminWriteClient(): SupabaseClient {
   return client;
 }
 
+/** Postgres の「列が存在しない」エラー */
+const UNDEFINED_COLUMN = "42703";
+
+/**
+ * 区画の道基準の位置（20261004140000_add_road_position_to_market_locations.sql）が
+ * DB に入っているか。マイグレーションは main へのマージ後に承認を経て本番へ当たるため、
+ * Preview や、リリース直後でマイグレーションの承認待ちの間は、アプリだけが新しくなって
+ * 列がまだ無いことがある。その間も画面は開けるようにし、保存と移行処理だけを止める。
+ * 同じマイグレーションで save_map_layout 等の関数も作るので、列があれば関数もある。
+ */
+export async function hasRoadPositionSchema(supabase: ReturnType<typeof createServerClient>): Promise<boolean> {
+  const { error } = await supabase.from("market_locations").select("road_id").limit(1);
+  if (!error) return true;
+  if (error.code === UNDEFINED_COLUMN) return false;
+  throw new Error("Failed to check map layout schema");
+}
+
+export const ROAD_POSITION_SCHEMA_MISSING_MESSAGE =
+  "データベースの更新（マイグレーション）がまだ適用されていないため、保存できません。適用後にもう一度お試しください。";
+
+type MarketLocationRow = {
+  id: string | null;
+  store_number: number | null;
+  latitude: number | null;
+  longitude: number | null;
+  district: string | null;
+  road_id?: string | null;
+  road_distance_m?: number | null;
+  road_side?: string | null;
+  road_offset_m?: number | null;
+};
+
+/** 区画を読む。道基準の位置の列がまだ無い DB（マイグレーション前）では、その列なしで読む */
+async function loadMarketLocationRows(supabase: ReturnType<typeof createServerClient>) {
+  const withRoad = await supabase
+    .from("market_locations")
+    .select("id, store_number, latitude, longitude, district, road_id, road_distance_m, road_side, road_offset_m");
+  if (withRoad.error?.code !== UNDEFINED_COLUMN) return withRoad as { data: MarketLocationRow[] | null; error: typeof withRoad.error };
+  return (await supabase
+    .from("market_locations")
+    .select("id, store_number, latitude, longitude, district")) as { data: MarketLocationRow[] | null; error: typeof withRoad.error };
+}
+
 export async function loadEditableShops(supabase: ReturnType<typeof createServerClient>): Promise<EditableShop[]> {
   const [assignmentsResult, locationsResult, vendorsResult] = await Promise.all([
     supabase.from("location_assignments").select("vendor_id, location_id, market_date"),
-    supabase
-      .from("market_locations")
-      .select("id, store_number, latitude, longitude, district, road_id, road_distance_m, road_side, road_offset_m"),
+    loadMarketLocationRows(supabase),
     supabase.from("vendors").select("id, shop_name"),
   ]);
 

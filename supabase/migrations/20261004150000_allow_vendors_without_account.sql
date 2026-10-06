@@ -17,6 +17,12 @@
 --   - RLS の店舗の権限は shop_members で判定する。アカウントのない出店者の行は、
 --     誰のメンバーでもないので、見える範囲は広がらない
 --   - 既存の出店者の id は変えない
+--
+-- 今後「アカウントのない出店者に、出店者本人のアカウントを紐づける」機能を作るときの注意:
+--   vendors.id を書き換える・その id を指定してアカウントを作る（auth.admin.createUser({ id })）
+--   といった紐づけを、利用者が自分で起こせる形にすると、他人の出店者データを乗っ取れてしまう。
+--   紐づけは管理者専用の API（service_role）に限り、監査ログに残すこと
+--   （店舗とアカウントの紐づけは shop_members。QR・招待リンクで本人が参加する仕組みがすでにある）
 
 alter table vendors drop constraint if exists vendors_id_fkey;
 alter table vendors alter column id set default gen_random_uuid();

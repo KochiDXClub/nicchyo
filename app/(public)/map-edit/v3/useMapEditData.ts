@@ -36,6 +36,8 @@ async function fetchMapLayout() {
     roads?: EditableRoad[];
     vendors?: EditableVendor[];
     categories?: VendorCategory[];
+    /** DB に道基準の位置の列があるか（無ければマイグレーション前で、保存できない） */
+    schemaReady?: boolean;
     mapSettingsLimits?: MapSettingsLimits;
   }>;
 }
@@ -94,6 +96,8 @@ export function useMapEditData({
   const [routeConfig, setRouteConfig] = useState<MapRouteConfig>(getDefaultMapRouteConfig());
   const [vendors, setVendors] = useState<EditableVendor[]>([]);
   const [categories, setCategories] = useState<VendorCategory[]>([]);
+  // 古い API（schemaReady を返さない）では保存できる前提で扱う
+  const [schemaReady, setSchemaReady] = useState(true);
   const [mapSettingsLimits, setMapSettingsLimits] = useState<MapSettingsLimits>(DEFAULT_MAP_SETTINGS_LIMITS);
 
   const [snapshots, setSnapshots] = useState<SnapshotItem[]>([]);
@@ -134,6 +138,7 @@ export function useMapEditData({
         setRouteConfig(nextConfig);
         setVendors(nextVendors);
         setCategories(Array.isArray(data.categories) ? data.categories : []);
+        setSchemaReady(data.schemaReady !== false);
         if (data.mapSettingsLimits) setMapSettingsLimits(data.mapSettingsLimits);
 
         const allPoints = nextRoads.flatMap((road) => road.points);
@@ -257,6 +262,7 @@ export function useMapEditData({
     vendors,
     setVendors,
     categories,
+    schemaReady,
     mapSettingsLimits,
     hasUnsavedChanges,
     handleSave,
