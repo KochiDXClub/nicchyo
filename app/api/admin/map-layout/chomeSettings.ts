@@ -1,8 +1,11 @@
 import type { createClient as createServerClient } from "@/utils/supabase/server";
 import type { ChomeBoundary, ChomeSection } from "@/lib/map/chomeBoundaries";
 
-/** Postgres の「テーブルが存在しない」エラー */
-const UNDEFINED_TABLE = "42P01";
+/**
+ * 「テーブルが存在しない」エラーのコード。Postgres 自身は 42P01、PostgREST（Supabase の API）は、
+ * スキーマのキャッシュに無いテーブルを読むと PGRST205 を返す（古い版は 42P01 のまま）。
+ */
+const UNDEFINED_TABLE_CODES: ReadonlySet<string> = new Set(["42P01", "PGRST205"]);
 
 /**
  * 丁目の境目と区間（20261005110000）。マイグレーション前の DB ではテーブルが無いので、空で返す
@@ -20,7 +23,7 @@ export async function loadChomeSettings(supabase: ReturnType<typeof createServer
     supabase.from("chome_sections").select("chome_id, road_id, from_boundary_id, to_boundary_id"),
   ]);
   for (const result of [boundaries, sections]) {
-    if (result.error?.code === UNDEFINED_TABLE) return { boundaries: [], sections: [] };
+    if (result.error?.code && UNDEFINED_TABLE_CODES.has(result.error.code)) return { boundaries: [], sections: [] };
     if (result.error) throw new Error("Failed to load chome settings");
   }
   return {
