@@ -82,6 +82,14 @@ const APPEAR_MS = 420;
  */
 const CONSULT_BAR_SPACE = "calc(var(--safe-bottom, 0px) + var(--nav-bar-height) + 6rem)";
 
+/**
+ * lg 以上（PC・ノートPC）用。候補ボタンを入力欄のすぐ上まで下げたいので、
+ * スマホ用より 0.75rem 少なく取る（入力欄の上端はナビの 4.4rem 上にあるので、
+ * 5.25rem なら入力欄との間に約 0.85rem 残る）。
+ * 入力バーの高さ・位置を変えるときは CONSULT_BAR_SPACE と一緒に見直すこと
+ */
+const CONSULT_BAR_SPACE_LG = "calc(var(--safe-bottom, 0px) + var(--nav-bar-height) + 5.25rem)";
+
 export interface ConsultStageProps {
   onAskStream: (
     text: string,
@@ -726,16 +734,17 @@ export default function ConsultStage({
       // 幅は絞らず w-full のまま（PC で読みやすい行幅に絞るのは内側のラッパーで
       // 行う）。ここで max-w を付けてしまうと、スクロールする箱自体が狭くなり、
       // 縦スクロールバーが画面の右端ではなく箱の右端＝中途半端な位置に出てしまう
-      className="h-[calc(100dvh-var(--consult-bar-space))] w-full overflow-y-auto px-4"
+      className="h-[calc(100dvh-var(--consult-bar-space))] w-full overflow-y-auto px-4 pb-4 lg:h-[calc(100dvh-var(--consult-bar-space-lg))] lg:pb-0"
       style={
         {
           // 下端に固定した「話しかける」とナビゲーションバーの分は、上の
           // height 側で既に差し引いている（この箱自体がその高さぶん
           // 画面の下までは伸びない）。ここでさらに paddingBottom を
           // CONSULT_BAR_SPACE と同じ値にすると二重に空いてしまうので、
-          // 最後の要素がバーに張り付かない程度の小さい余白だけ持たせる
+          // 最後の要素がバーに張り付かない程度の小さい余白（className の pb-4）
+          // だけ持たせる。lg 以上は候補ボタンを入力欄のすぐ上へ寄せたいので 0 にする
           "--consult-bar-space": CONSULT_BAR_SPACE,
-          paddingBottom: "1rem",
+          "--consult-bar-space-lg": CONSULT_BAR_SPACE_LG,
         } as CSSProperties
       }
     >
@@ -854,7 +863,7 @@ export default function ConsultStage({
         本文を読み進めても同じ位置に残る）。-2rem は上の目印の余白と下の
         paddingBottom ぶん。これを引かないと、わずかにスクロールが発生する
       */}
-      <div className="flex flex-col items-center gap-2 lg:sticky lg:top-0 lg:col-start-1 lg:row-start-2 lg:h-[calc(100dvh-var(--consult-bar-space)-2rem)] lg:justify-center">
+      <div className="flex flex-col items-center gap-2 lg:sticky lg:top-0 lg:col-start-1 lg:row-start-2 lg:h-[calc(100dvh-var(--consult-bar-space-lg)-1.65rem)] lg:justify-center">
         {/*
           flex にして、囲んだだけで下に行間の隙間が出ないようにする（測る先がずれる）。
           開いたときはその場に現れ、現れきったら一度だけ会釈する。
@@ -905,7 +914,7 @@ export default function ConsultStage({
         スマホでは display: contents で枠を消し、従来どおり縦並びの子として扱う
         （見た目・間隔は変わらない）。
       */}
-      <div className="contents lg:col-start-2 lg:row-start-2 lg:flex lg:min-h-[calc(100dvh-var(--consult-bar-space)-2rem)] lg:min-w-0 lg:flex-col lg:gap-4">
+      <div className="contents lg:col-start-2 lg:row-start-2 lg:flex lg:min-h-[calc(100dvh-var(--consult-bar-space-lg)-1.65rem)] lg:min-w-0 lg:flex-col lg:gap-4">
       {/* 今の答え。1枚だけ */}
       {showAnswer && (
         <div
