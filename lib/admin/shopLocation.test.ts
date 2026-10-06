@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { MAX_SHOP_ID } from "@/lib/shops/route";
 import { parseShopLocation } from "./shopLocation";
 
 describe("parseShopLocation", () => {
@@ -13,11 +14,11 @@ describe("parseShopLocation", () => {
     expect(notBool.ok && notBool.value.force).toBe(false);
   });
 
-  it("店番は1〜300の整数", () => {
-    for (const storeNumber of [0, 301, 1.5, "12", null]) {
+  it("店番は 1〜MAX_SHOP_ID の整数", () => {
+    for (const storeNumber of [0, MAX_SHOP_ID + 1, 1.5, "12", null]) {
       expect(parseShopLocation({ storeNumber, lat: 33.5614, lng: 133.538 }).ok, String(storeNumber)).toBe(false);
     }
-    expect(parseShopLocation({ storeNumber: 300, lat: 33.5614, lng: 133.538 }).ok).toBe(true);
+    expect(parseShopLocation({ storeNumber: MAX_SHOP_ID, lat: 33.5614, lng: 133.538 }).ok).toBe(true);
   });
 
   it("日曜市の範囲の外の座標や数値でない座標は断る", () => {
