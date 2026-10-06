@@ -905,7 +905,7 @@ export default function ConsultStage({
         スマホでは display: contents で枠を消し、従来どおり縦並びの子として扱う
         （見た目・間隔は変わらない）。
       */}
-      <div className="contents lg:col-start-2 lg:row-start-2 lg:flex lg:min-w-0 lg:flex-col lg:gap-4">
+      <div className="contents lg:col-start-2 lg:row-start-2 lg:flex lg:min-h-[calc(100dvh-var(--consult-bar-space)-2rem)] lg:min-w-0 lg:flex-col lg:gap-4">
       {/* 今の答え。1枚だけ */}
       {showAnswer && (
         <div
@@ -969,7 +969,7 @@ export default function ConsultStage({
       {phase === "idle" && !isBusy && suggestions.length > 0 && (
         <div
           style={revealClass(140).style}
-          className={`flex flex-col gap-2 ${revealClass(140).className}`}
+          className={`flex flex-col gap-2 lg:mt-auto ${revealClass(140).className}`}
         >
           {suggestions.map((question) => (
             <button
