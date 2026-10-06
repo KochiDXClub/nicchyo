@@ -85,7 +85,8 @@ import {
   buildNameplateSprite,
   buildStallSprites,
   rasterizeImageUrl,
-  rasterizePhotoCircle,
+  rasterizeStallWithPhoto,
+  STALL_STATES,
 } from "./stallSprites";
 import { getShopPreviewImage, getShopThumbnailImage } from "../../../../../lib/shopImages";
 import { MAPLIBRE_MAP_KEY, type MapCamera, type MapCameraEvent } from "../../types/mapCamera";
@@ -101,8 +102,6 @@ import {
   type ShopStateMap,
 } from "./shopFeatures";
 import { ROAD_SNAP_DELAY_MS, ROAD_SNAP_MIN_DISTANCE_METERS } from "@/lib/constants";
-import { resolveStallColors } from "../../config/shopCategories";
-import { sanitizeCssColor } from "../../utils/markerHtmlGenerator";
 
 const ZOOM_BOUNDS = getRecommendedZoomBounds();
 /**
@@ -194,7 +193,8 @@ function buildLandmarkFeatures(
 }
 const IMG_NAMEPLATE = "nameplate-bg";
 const IMG_BADGE_FAVORITE = "badge:favorite";
-const PHOTO_SIZE_PX = 50;
+/** 写真入りの屋台の大きさ（通常の屋台は 60px。本体の写真が見えるよう一回り大きくする） */
+const PHOTO_STALL_PX = 84;
 const TEXT_FONT = ["Noto Sans Bold"];
 
 function buildRasterStyle(tileOpacityByZoom: boolean, minZoom: number): StyleSpecification {
@@ -892,32 +892,34 @@ function MapViewMapLibre({
         });
       }
 
-      // 屋根の上の丸窓（写真）は店舗ごとに違うので、必要になった時点で遅延生成する
+      // 写真入りの屋台は店舗×状態ごとに違うので、必要になった時点で遅延生成する
       const photoJobs = new Map<string, Promise<void>>();
       // v6 から styleimagemissing は「起きたことを知らせるだけ」になり、
       // リスナーの中で addImage しても要求は解決されない。画像を用意する側は resolver を使う
       map.setMissingStyleImageResolver((id) => {
         if (!id.startsWith("photo:") || photoJobs.has(id)) return;
-        const shopId = Number(id.slice("photo:".length));
+        const [, shopIdText, stateText] = id.split(":");
+        const state = STALL_STATES.find((s) => s === stateText);
+        const shopId = Number(shopIdText);
+        if (!state) return;
         const shop = shopsRef.current.find((s) => s.id === shopId);
         if (!shop) return;
         const url = getShopThumbnailImage(shop);
         const fallbackUrl = getShopPreviewImage(shop);
-        const border = resolveStallColors(shop.category, sanitizeCssColor(shop.illustration?.color)).dark;
         // 同じ大きさの透明な仮画像を同期で登録しておく（無いままだと MapLibre が警告を出す）。
         // 読み込めたら updateImage で中身だけ差し替える
-        const placeholderSize = Math.round((PHOTO_SIZE_PX + 8) * uiRatio);
+        const placeholderSize = Math.round(PHOTO_STALL_PX * uiRatio);
         if (!map.hasImage(id)) {
           map.addImage(id, new ImageData(placeholderSize, placeholderSize), { pixelRatio: uiRatio });
         }
         photoJobs.set(
           id,
-          rasterizePhotoCircle(url, PHOTO_SIZE_PX, border, uiRatio, fallbackUrl)
+          rasterizeStallWithPhoto(shop, state, url, PHOTO_STALL_PX, uiRatio, fallbackUrl)
             .then((data) => {
               if (!disposed && map.hasImage(id)) map.updateImage(id, data);
             })
             .catch(() => {
-              /* 読めない写真は窓を出さない（透明のまま） */
+              /* 読めない写真は通常の屋台のまま（透明のままにして下の屋台を見せる） */
             })
         );
       });
@@ -954,17 +956,16 @@ function MapViewMapLibre({
         },
       });
 
-      // 写真窓: photo LOD（maxZoom-1.4）以上。屋台の内側、木札と反対の側に寄せる
+      // 写真入りの屋台: photo LOD（maxZoom-1.4）以上で、通常の屋台に重ねて出す
       map.addLayer({
         id: LAYER_SHOP_PHOTOS,
         type: "symbol",
         source: SRC_SHOPS,
         minzoom: MAX_ZOOM + SHOP_MARKER_LOD_OFFSETS.photo,
         layout: {
-          "icon-image": ["concat", "photo:", ["get", "id"]],
+          "icon-image": ["concat", "photo:", ["get", "id"], ":", ["get", "state"]],
           "icon-size": stallScale,
-          "icon-anchor": "center",
-          "icon-offset": ["case", ["==", ["get", "side"], "north"], ["literal", [-24, -30]], ["literal", [24, -30]]],
+          "icon-anchor": "bottom",
           "icon-allow-overlap": true,
           "icon-ignore-placement": true,
           "icon-rotation-alignment": "viewport",
@@ -1015,7 +1016,7 @@ function MapViewMapLibre({
           "icon-image": IMG_BADGE_FAVORITE,
           "icon-size": stallScale,
           "icon-anchor": "center",
-          "icon-offset": ["case", ["==", ["get", "side"], "north"], ["literal", [-30, -66]], ["literal", [30, -66]]],
+          "icon-offset": ["case", ["==", ["get", "side"], "north"], ["literal", [-34, -78]], ["literal", [34, -78]]],
           "icon-allow-overlap": true,
           "icon-ignore-placement": true,
           "icon-rotation-alignment": "viewport",

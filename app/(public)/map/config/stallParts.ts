@@ -186,7 +186,15 @@ export interface StallSpriteColors {
   awningStripe: string;
   /** 選択などの縁取り。無ければ描かない */
   outline?: string;
+  /**
+   * 本体（白い箱）の中に写真をはめ込む。stroke は箱の輪郭の色（カテゴリ色）。
+   * href は data URL（画像として描き起こすとき外部 URL は読めない）。
+   */
+  photo?: { href: string; stroke: string };
 }
+
+/** 写真をはめ込む本体の矩形（BODY_PATH の外接矩形） */
+export const STALL_BODY_RECT = { x: 10, y: 40, width: 80, height: 42 } as const;
 
 /**
  * MapLibre のシンボルレイヤー用に、色を焼き込んだ単体 SVG を返す。
@@ -210,13 +218,22 @@ export function generateStallSpriteSvg(
     ? `<path d="${awning.accent}" fill="${colors.awningStripe}"/>`
     : "";
 
+  const r = STALL_BODY_RECT;
+  const bodyMarkup = colors.photo
+    ? `<clipPath id="stall-body-clip"><path d="${BODY_PATH}"/></clipPath>` +
+      `<path d="${BODY_PATH}" fill="#f1ede6"/>` +
+      `<image href="${colors.photo.href}" x="${r.x}" y="${r.y}" width="${r.width}" height="${r.height}" ` +
+      `preserveAspectRatio="xMidYMid slice" clip-path="url(#stall-body-clip)"/>` +
+      `<path d="${BODY_PATH}" fill="none" stroke="${colors.photo.stroke}" stroke-width="3.5" stroke-linejoin="round"/>`
+    : `<path d="${BODY_PATH}" fill="#f1ede6" stroke="${colors.outline ?? "rgba(90,80,70,0.4)"}" stroke-width="${colors.outline ? 3 : 2}" stroke-linejoin="round"/>` +
+      `<path d="${COUNTER_PATH}" fill="#ec9a0c"/>`;
+
   return (
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${STALL_VIEWBOX} ${STALL_VIEWBOX}" ` +
     `width="${size.width}" height="${size.height}">` +
     `<ellipse cx="50" cy="91" rx="42" ry="7" fill="rgba(0,0,0,0.16)"/>` +
     `<path d="${LEGS_PATH}" fill="#8b5e34"/>` +
-    `<path d="${BODY_PATH}" fill="#f1ede6" stroke="${colors.outline ?? "rgba(90,80,70,0.4)"}" stroke-width="${colors.outline ? 3 : 2}" stroke-linejoin="round"/>` +
-    `<path d="${COUNTER_PATH}" fill="#ec9a0c"/>` +
+    bodyMarkup +
     `<g${awningTransform}>` +
     `<path d="${awning.base}" fill="${colors.awningBase}"${outline}/>` +
     awningAccent +
