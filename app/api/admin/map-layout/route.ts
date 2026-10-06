@@ -20,6 +20,7 @@ import {
   loadEditableShops,
   loadMapSettingsLimits,
   loadRouteConfig,
+  selectRepositionedShops,
   type EditableRoad,
   type EditableShop,
 } from "./_shared";
@@ -256,11 +257,12 @@ export async function PUT(request: NextRequest) {
     const shopsToWrite = body.shops.updated.map((shop) => resolvedShopById.get(shop.locationId) ?? shop);
     // 送られてきていないが、乗っている道の形が変わったため位置が変わる区画（割り当ては触らない）
     const writtenLocationIds = new Set(body.shops.updated.map((shop) => shop.locationId));
-    const currentShopById = new Map(currentShops.map((shop) => [shop.locationId, shop]));
-    const repositionedShops = shopsAfterSave.filter((shop) => {
-      if (writtenLocationIds.has(shop.locationId) || !shop.roadId) return false;
-      const current = currentShopById.get(shop.locationId);
-      return !!current && (current.lat !== shop.lat || current.lng !== shop.lng);
+    const repositionedShops = selectRepositionedShops({
+      shopsAfterSave,
+      currentShops,
+      currentRoads,
+      roadsAfterSave,
+      writtenLocationIds,
     });
 
     // 区画が乗っている道は削除できない（クライアント側の制約とサーバー側でも二重に検証）
