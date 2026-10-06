@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { downloadCsvTemplate } from "@/lib/admin/exportUtils";
+import { decodeCsvBuffer } from "@/lib/csv/parseCsv";
 import {
   STORE_CSV_HEADERS,
   defaultImportRoads,
@@ -85,7 +86,7 @@ export default function StoreImportPanel({
 
   const readFile = async (file: File) => {
     setFileName(file.name);
-    setParsed(parseStoreCsv(await file.text()));
+    setParsed(parseStoreCsv(decodeCsvBuffer(await file.arrayBuffer())));
   };
 
 
@@ -140,7 +141,7 @@ export default function StoreImportPanel({
             <br />
             区画 新規 {plan.createdSlotCount}・更新 {plan.updatedSlotCount}・削除 {plan.deletedSlotCount}
             <br />
-            出店者 新規 {plan.createdVendorCount}・更新 {plan.updatedVendorCount}
+            出店者 新規 {plan.createdVendorCount}・更新 {plan.updatedVendorCount}・既存を割り当て {plan.reusedVendorCount}
           </p>
           {plan.errors.length > 0 && (
             <>
