@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { resolveAvatarUrl } from "@/lib/auth/displayName";
 import { loadShopAccountLinks } from "@/lib/admin/shopAccounts.server";
-import { normalizeRole, ROLE_HIERARCHY } from "@/lib/auth/permissions";
+import { getRole, normalizeRole, ROLE_HIERARCHY } from "@/lib/auth/permissions";
 import { listAllAuthUsers } from "@/lib/auth/listAllUsers";
 import { requireAdminApi } from "@/lib/auth/requireAdminApi";
 import { requireSameOrigin } from "@/lib/security/requestGuards";
@@ -102,7 +102,7 @@ export async function GET() {
       const vendor = vendorId ? vendorById.get(vendorId) : undefined;
       // 店名で呼ぶのは代表者だけ。メンバーは本人の名前（同じ店舗に何人もいるため）
       const isMemberOnly = !!vendorId && links.ownerByVendor.get(vendorId) !== authUser.id;
-      const role = normalizeRole(authUser.app_metadata?.role ?? authUser.user_metadata?.role);
+      const role = normalizeRole(getRole(authUser));
       const name =
         (isMemberOnly ? undefined : vendor?.shop_name) ??
         authUser.user_metadata?.display_name ??
