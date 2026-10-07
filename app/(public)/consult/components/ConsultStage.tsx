@@ -1011,6 +1011,7 @@ export default function ConsultStage({
             <input
               ref={textInputRef}
               type="text"
+              maxLength={1000}
               value={typed}
               onChange={(event) => setTyped(event.target.value)}
               onKeyDown={(event) => {
