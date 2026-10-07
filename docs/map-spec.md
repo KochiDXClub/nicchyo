@@ -35,7 +35,7 @@ nicchyo は、高知の日曜市のマップを基盤に、以下の要素をつ
 *   React + TypeScript
 *   Tailwind CSS
 *   Supabase（DB / Auth / RPC によるベクトル検索）
-*   Leaflet（`react-leaflet`）と MapLibre GL JS（`maplibre-gl`）の2系統でマップを描画。どちらを使うかは `lib/mapFeatureFlags.ts` の `renderer`（既定 `leaflet`。管理画面の設定か URL の `?mapFlags=renderer:maplibre` で切替。MapLibre 版は移行中の並走検証用）
+*   Leaflet（`react-leaflet`）と MapLibre GL JS（`maplibre-gl`）の2系統でマップを描画。どちらを使うかは `lib/mapFeatureFlags.ts` の `renderer`（既定 `maplibre`。管理画面の設定か URL の `?mapFlags=renderer:leaflet` で Leaflet に戻せる。Leaflet 版は撤去予定の保険として残している）
 *   OpenAI API（Embeddings + チャットモデル、AI相談のRAGバックエンド。使用モデルは `lib/ai/models.ts` と管理画面の設定で決まる。`openai` パッケージは未導入で `fetch` 直叩き）
 *   `@anthropic-ai/sdk`（週次セキュリティレポート生成用、マップ・相談機能とは無関係）
 
