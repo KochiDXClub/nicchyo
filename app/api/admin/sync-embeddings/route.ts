@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { requireAdminApi } from "@/lib/auth/requireAdminApi";
 import { requestEmbeddings } from "@/lib/ai/openaiFetch";
+import { verifyBearerSecret } from "@/lib/security/cronAuth";
 import { fetchAssignmentRows, fetchLocationRows, fetchProductRows } from "@/lib/shops/baseRowQueries";
 import { fetchAllRows } from "@/lib/supabase/fetchAllRows";
 
@@ -270,9 +271,7 @@ async function syncVendorEmbeddings(): Promise<{ processed: number }> {
 function checkCronAuth(req: NextRequest): boolean {
   const cronSecret = process.env.CRON_SECRET;
   if (!cronSecret) return false; // CRON_SECRET 未設定時は常に拒否
-  const authHeader = req.headers.get("authorization");
-  const token = authHeader?.replace("Bearer ", "");
-  return token === cronSecret;
+  return verifyBearerSecret(req.headers.get("authorization"), cronSecret);
 }
 
 // Vercel Cron は GET を送る

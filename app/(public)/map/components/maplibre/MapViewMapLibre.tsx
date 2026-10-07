@@ -528,6 +528,28 @@ function MapViewMapLibre({
     let disposed = false;
     let readyTimer: number | null = null;
 
+    // 屋台スプライトとランドマーク画像は地図（スタイル・タイル）に依存しない。
+    // `load` を待たずここで読み込みを始め、`load` 後の setupOverlays では待つだけにする
+    // （タイル取得とスプライト生成・画像取得が直列にならないようにする）
+    const stallSpritesPromise = buildStallSprites(
+      shopsRef.current,
+      Math.min(3, window.devicePixelRatio || 2)
+    );
+    const landmarkSpecs = landmarks ?? [];
+    const landmarkRatio = Math.min(3, window.devicePixelRatio || 2);
+    const landmarkImagesPromise = Promise.all(
+      landmarkSpecs.map(async (spec) => {
+        try {
+          return await rasterizeImageUrl(spec.url, spec.widthPx, landmarkRatio);
+        } catch (error) {
+          console.warn("[MapViewMapLibre] ランドマーク画像を読めませんでした", spec.key, error);
+          return null;
+        }
+      })
+    );
+    // load が来る前に破棄された場合の未処理の拒否を防ぐ（拒否は load 側の await で従来どおり扱う）
+    stallSpritesPromise.catch(() => {});
+
     // ローディングのゲージ用。スタイルを読み終えた時点を最初の節目として報告する
     map.once("styledata", () => {
       if (!disposed) onMapStage?.("style");
@@ -796,21 +818,14 @@ function MapViewMapLibre({
 
       // ランドマーク画像（ズームに応じて 1.22^(z-18) 倍、Leaflet 版と同じ式）。
       // SVG も混ざるので、表示幅 × pixelRatio で描き起こしてから登録する
-      const specs = landmarks ?? [];
-      const landmarkRatio = Math.min(3, window.devicePixelRatio || 2);
-      await Promise.all(
-        specs.map(async (spec) => {
-          try {
-            const data = await rasterizeImageUrl(spec.url, spec.widthPx, landmarkRatio);
-
-            if (!map.hasImage(`landmark:${spec.key}`)) {
-              map.addImage(`landmark:${spec.key}`, data, { pixelRatio: landmarkRatio });
-            }
-          } catch (error) {
-            console.warn("[MapViewMapLibre] ランドマーク画像を読めませんでした", spec.key, error);
-          }
-        })
-      );
+      const specs = landmarkSpecs;
+      const landmarkImages = await landmarkImagesPromise;
+      specs.forEach((spec, index) => {
+        const data = landmarkImages[index];
+        if (data && !map.hasImage(`landmark:${spec.key}`)) {
+          map.addImage(`landmark:${spec.key}`, data, { pixelRatio: landmarkRatio });
+        }
+      });
       if (disposed) return;
       // 選択中（スポットカード表示中）のランドマークは properties.selected を 1 にして
       // 拡大する。layout プロパティでは feature-state が使えないので、選択が変わるたびに
@@ -904,7 +919,7 @@ function MapViewMapLibre({
       });
 
       // 店舗スプライト
-      const sprites = await buildStallSprites(shopsRef.current, Math.min(3, window.devicePixelRatio || 2));
+      const sprites = await stallSpritesPromise;
       if (disposed) return;
       for (const sprite of sprites) {
         if (!map.hasImage(sprite.id)) map.addImage(sprite.id, sprite.image, { pixelRatio: sprite.pixelRatio });
@@ -1240,6 +1255,15 @@ function MapViewMapLibre({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focusShopRequest?.token]);
 
+  // 検証用バッジは開発時と ?perf=1 のときだけ出す（SSR と食い違わないよう effect で決める）
+  const [showDebugBadge, setShowDebugBadge] = useState(false);
+  useEffect(() => {
+    setShowDebugBadge(
+      process.env.NODE_ENV === "development" ||
+        new URLSearchParams(window.location.search).get("perf") === "1"
+    );
+  }, []);
+
   // ---- 計測の橋渡し（?perf=1 のときだけ） ----
   useEffect(() => {
     if (!mapLoaded) return;
@@ -1312,9 +1336,11 @@ function MapViewMapLibre({
         ref={containerRef}
         style={{ position: "absolute", inset: 0, width: "100%", height: "100%", background: "#FFFAF0" }}
       />
-      <div className="pointer-events-none absolute left-3 top-3 z-[500] rounded-full bg-white/85 px-3 py-1 text-xs font-semibold text-slate-600 shadow">
-        MapLibre 版（検証中） / 背景: {featureFlags.basemap === "vector-openfreemap" ? "ベクター" : "ラスター"}
-      </div>
+      {showDebugBadge && (
+        <div className="pointer-events-none absolute left-3 top-3 z-[500] rounded-full bg-white/85 px-3 py-1 text-xs font-semibold text-slate-600 shadow">
+          MapLibre 版（検証中） / 背景: {featureFlags.basemap === "vector-openfreemap" ? "ベクター" : "ラスター"}
+        </div>
+      )}
       {!hideMapUI && camera && (
         <LiveZoomMapControls
           map={camera}
