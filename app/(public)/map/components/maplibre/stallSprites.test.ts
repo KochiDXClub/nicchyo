@@ -17,6 +17,14 @@ describe("withSvgSize", () => {
     expect(withSvgSize("<svg><rect/></svg>", 60)).not.toContain("viewBox");
   });
 
+  it("単位が % の width / height からは viewBox を補わない", () => {
+    expect(withSvgSize('<svg width="100%" height="100%"><rect/></svg>', 60)).not.toContain("viewBox");
+  });
+
+  it("px 付きの width / height は数値として読む", () => {
+    expect(withSvgSize('<svg width="120px" height="80px"></svg>', 60)).toContain('viewBox="0 0 120 80"');
+  });
+
   it("既に xmlns があれば重ねない", () => {
     const out = withSvgSize('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1 1"></svg>', 60);
     expect(out.match(/xmlns=/g)).toHaveLength(1);
