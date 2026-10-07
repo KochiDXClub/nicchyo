@@ -857,7 +857,7 @@ export default function MapPageClient({
             {!nearbyState && !guideActive && (
               <div
                 ref={searchAreaRef}
-                className="absolute left-3 right-3 top-3 z-[1001] flex flex-col gap-2 lg:left-4 lg:right-auto lg:top-4 lg:w-[26rem]"
+                className="absolute left-3 right-3 top-3 z-[1001] flex flex-col gap-2 lg:left-4 lg:right-auto lg:top-4 lg:w-[22rem] lg:gap-3 lg:rounded-card lg:bg-white/95 lg:p-3 lg:shadow-card lg:ring-1 lg:ring-line lg:backdrop-blur"
                 onMouseDown={(e) => e.stopPropagation()}
                 onClick={(e) => e.stopPropagation()}
                 onTouchStart={(e) => e.stopPropagation()}
@@ -866,10 +866,10 @@ export default function MapPageClient({
                 <MarketStatusBar day={marketCalendar.day} placement="map" />
 
                 {/* 検索バー */}
-                <div className={`flex items-center gap-2 rounded-full px-4 py-2.5 shadow-lg ring-1 backdrop-blur-sm transition-all duration-200 ${
+                <div className={`flex items-center gap-2 rounded-full px-4 py-2.5 shadow-lg ring-1 backdrop-blur-sm transition-all duration-200 lg:rounded-btn lg:shadow-none ${
                   hasMapFilter
                     ? 'bg-gradient-to-r from-amber-100/95 to-orange-50/95 ring-amber-400/50'
-                    : 'bg-white/90 ring-slate-900/8'
+                    : 'bg-white/90 ring-slate-900/8 lg:bg-nicchyo-base lg:ring-line'
                 }`}>
                   <svg className="w-4 h-4 shrink-0 text-slate-400" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden>
                     <circle cx="11" cy="11" r="6.5" />

@@ -271,16 +271,19 @@ export function MenuToggleButton({
   open,
   onClick,
   buttonRef,
+  inlineOnLg = false,
 }: {
   open: boolean;
   onClick: () => void;
   buttonRef?: RefObject<HTMLButtonElement>;
+  /** lg 以上で、アイコンとラベルを縦ではなく横に並べる（PC の地図のツールバー用） */
+  inlineOnLg?: boolean;
 }) {
   const prefersReducedMotion = useReducedMotion();
   const fadeTransition = { duration: prefersReducedMotion ? 0 : 0.2 };
 
   return (
-    <div className="flex flex-1 items-center justify-center">
+    <div className={`flex flex-1 items-center justify-center ${inlineOnLg ? "lg:flex-none lg:px-1" : ""}`}>
       <button
         ref={buttonRef}
         type="button"
@@ -288,7 +291,7 @@ export function MenuToggleButton({
         aria-expanded={open}
         aria-haspopup="dialog"
         aria-label={open ? "メニューを閉じる" : "メニューを開く"}
-        className="flex flex-col items-center gap-1"
+        className={`flex flex-col items-center gap-1 ${inlineOnLg ? "lg:flex-row lg:gap-2" : ""}`}
       >
         <motion.span
           animate={{ scale: open ? 1.06 : 1 }}
@@ -298,7 +301,7 @@ export function MenuToggleButton({
               ? { duration: 0 }
               : { type: "spring", damping: 24, stiffness: 420 }
           }
-          className="relative flex h-11 w-11 items-center justify-center rounded-full bg-slate-900 text-white shadow-[0_6px_16px_-4px_rgba(15,23,42,0.5)]"
+          className={`relative flex h-11 w-11 items-center justify-center rounded-full bg-slate-900 text-white shadow-[0_6px_16px_-4px_rgba(15,23,42,0.5)] ${inlineOnLg ? "lg:h-9 lg:w-9" : ""}`}
         >
           {/* 回転だけだと格子も×も見た目が変わらないので、重ねて入れ替える */}
           <motion.span
@@ -316,7 +319,11 @@ export function MenuToggleButton({
             <X className="h-[21px] w-[21px]" strokeWidth={2.2} aria-hidden />
           </motion.span>
         </motion.span>
-        <span className="text-[10px] font-medium leading-none tracking-tight text-slate-500">
+        <span
+          className={`text-[10px] font-medium leading-none tracking-tight text-slate-500 ${
+            inlineOnLg ? "lg:text-sm lg:font-semibold lg:text-slate-700" : ""
+          }`}
+        >
           メニュー
         </span>
       </button>
@@ -325,10 +332,10 @@ export function MenuToggleButton({
 }
 
 /** 下部バー左右のタブの外枠のクラス。リンクのタブと、押すとメニューが開くタブ（近況の選択など）で共通 */
-export function bottomNavItemClass(isActive: boolean): string {
+export function bottomNavItemClass(isActive: boolean, inlineOnLg = false): string {
   return `group flex h-full flex-1 flex-col items-center justify-center gap-1 transition-colors duration-200 ${
     isActive ? "text-amber-600" : "text-slate-400 hover:text-slate-600"
-  }`;
+  } ${inlineOnLg ? "lg:flex-none lg:flex-row lg:gap-2 lg:rounded-full lg:px-4 lg:hover:bg-nicchyo-ink/5" : ""}`;
 }
 
 /** 下部バー左右のタブの中身（アイコン＋短いラベル） */
@@ -336,10 +343,13 @@ export function BottomNavItemContent({
   icon: Icon,
   label,
   isActive,
+  inlineOnLg = false,
 }: {
   icon: LucideIcon;
   label: string;
   isActive: boolean;
+  /** lg 以上で、ラベルを少し大きくする（横並びのとき読みやすいように） */
+  inlineOnLg?: boolean;
 }) {
   return (
     <>
@@ -350,7 +360,13 @@ export function BottomNavItemContent({
         strokeWidth={isActive ? 2 : 1.7}
         aria-hidden
       />
-      <span className="text-[10px] font-medium leading-none tracking-tight">{label}</span>
+      <span
+        className={`text-[10px] font-medium leading-none tracking-tight ${
+          inlineOnLg ? "lg:text-sm lg:font-semibold" : ""
+        }`}
+      >
+        {label}
+      </span>
     </>
   );
 }
@@ -361,15 +377,17 @@ export function BottomNavLink({
   label,
   icon,
   isActive = false,
+  inlineOnLg = false,
 }: {
   href: string;
   label: string;
   icon: LucideIcon;
   isActive?: boolean;
+  inlineOnLg?: boolean;
 }) {
   return (
-    <Link href={href} prefetch={false} className={bottomNavItemClass(isActive)}>
-      <BottomNavItemContent icon={icon} label={label} isActive={isActive} />
+    <Link href={href} prefetch={false} className={bottomNavItemClass(isActive, inlineOnLg)}>
+      <BottomNavItemContent icon={icon} label={label} isActive={isActive} inlineOnLg={inlineOnLg} />
     </Link>
   );
 }
