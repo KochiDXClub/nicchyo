@@ -4,7 +4,7 @@
 
 nicchyo 日曜市マップにおける店舗マーカーの描画構成をまとめる。
 
-地図の描画ライブラリは2系統ある（`lib/mapFeatureFlags.ts` の `renderer`、既定は `leaflet`）。このドキュメントは Leaflet 版（DOM マーカー）の構成。MapLibre 版（`components/maplibre/`）は WebGL で、屋台・建物・バッジを Canvas でビットマップに描き起こして `map.addImage` で登録し（`stallSprites.ts`）、店舗は GeoJSON のシンボルレイヤー（`shopFeatures.ts`）で描く。見た目の方針は [MAP_MARKER_DESIGN.md](./MAP_MARKER_DESIGN.md) を共通で参照する。
+地図の描画ライブラリは2系統ある（`lib/mapFeatureFlags.ts` の `renderer`、既定は `maplibre`）。このドキュメントは Leaflet 版（撤去予定）（DOM マーカー）の構成。MapLibre 版（`components/maplibre/`）は WebGL で、屋台・建物・バッジを Canvas でビットマップに描き起こして `map.addImage` で登録し（`stallSprites.ts`）、店舗は GeoJSON のシンボルレイヤー（`shopFeatures.ts`）で描く。見た目の方針は [MAP_MARKER_DESIGN.md](./MAP_MARKER_DESIGN.md) を共通で参照する。
 
 このドキュメントはかつて「店舗イラストと当たり判定のずれ」問題を解決した
 React コンポーネント3層構成（`ShopMarker` / `ShopIllustration` / `ShopBubble`）を
