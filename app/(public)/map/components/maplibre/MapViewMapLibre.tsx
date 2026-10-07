@@ -34,6 +34,8 @@ import type {
 } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import "@/lib/map/maplibreWorker";
+import { isWebGLAvailable } from "@/lib/map/webgl";
+import MapWebglUnsupported from "./MapWebglUnsupported";
 import type { MapViewProps } from "../../types/mapView";
 import type { Shop } from "../../data/shops";
 import type { Landmark } from "../../types/landmark";
@@ -314,6 +316,8 @@ function MapViewMapLibre({
 }: MapViewProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
+  // WebGL が使えない端末では地図を作らず、代わりの案内を出す
+  const [webglUnsupported, setWebglUnsupported] = useState(false);
   // ランドマークのクリックは map.on で一度だけ登録するので、最新のコールバックは ref で持つ
   const onSpotSelectRef = useRef(onSpotSelect);
   onSpotSelectRef.current = onSpotSelect;
@@ -478,23 +482,40 @@ function MapViewMapLibre({
       resolveMapViewBounds(viewSettings, bounds)
     );
 
+    // WebGL が無いと Map の生成で例外になり、ローディングが畳まれないまま固まる。
+    // 先に確かめ、使えなければ案内を出してローディングを畳む
+    if (!isWebGLAvailable()) {
+      setWebglUnsupported(true);
+      onMapReady?.();
+      return;
+    }
+
     const useVector = featureFlags.basemap === "vector-openfreemap";
-    const map = new maplibregl.Map({
-      container,
-      style: useVector ? OPENFREEMAP_STYLE_URL : buildRasterStyle(featureFlags.tileOpacityByZoom, minZoom),
-      center: initialCenter,
-      zoom: INITIAL_ZOOM,
-      minZoom,
-      maxZoom: MAX_ZOOM,
-      bearing: computeRoadBearing(routePoints, center),
-      pitch: 0,
-      maxBounds: maxBoundsLngLat,
-      attributionControl: { compact: true },
-      // 傾き（3D）は日曜市の案内には不要
-      touchPitch: false,
-      pitchWithRotate: false,
-      fadeDuration: 0,
-    });
+    // 判定を通っても、GPU の都合で生成に失敗することがある。その場合も同じ案内にする
+    let map: maplibregl.Map;
+    try {
+      map = new maplibregl.Map({
+        container,
+        style: useVector ? OPENFREEMAP_STYLE_URL : buildRasterStyle(featureFlags.tileOpacityByZoom, minZoom),
+        center: initialCenter,
+        zoom: INITIAL_ZOOM,
+        minZoom,
+        maxZoom: MAX_ZOOM,
+        bearing: computeRoadBearing(routePoints, center),
+        pitch: 0,
+        maxBounds: maxBoundsLngLat,
+        attributionControl: { compact: true },
+        // 傾き（3D）は日曜市の案内には不要
+        touchPitch: false,
+        pitchWithRotate: false,
+        fadeDuration: 0,
+      });
+    } catch (error) {
+      console.error("[MapViewMapLibre] 地図を作れませんでした", error);
+      setWebglUnsupported(true);
+      onMapReady?.();
+      return;
+    }
     map.touchZoomRotate.enableRotation();
     map.dragRotate.enable();
     // MapLibre 標準のズーム・コンパスボタンは出さない（ズームはスライダー、回転は 2 本指操作で行う）
@@ -1272,6 +1293,8 @@ function MapViewMapLibre({
   const resultsBadgeBottom = overlaySlot
     ? "calc(4.5rem + env(safe-area-inset-bottom,0px) + 5.5rem + 25px)"
     : "calc(4.5rem + env(safe-area-inset-bottom,0px) + 0.5rem + 25px)";
+
+  if (webglUnsupported) return <MapWebglUnsupported />;
 
   return (
     <div className="relative h-full w-full">
