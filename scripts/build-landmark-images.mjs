@@ -26,6 +26,7 @@ const TARGETS = [
   { file: "Ohtepia.png", displayWidthPx: 174.72 },
   { file: "Train.png", displayWidthPx: 172.032 },
   { file: "hirome-market.png", displayWidthPx: 127.68 },
+  { file: "ohtemae-school.png", displayWidthPx: 127.68 },
 ];
 // MapViewMapLibre の landmarkRatio（Math.min(3, devicePixelRatio)）の上限と同じ
 const MAX_PIXEL_RATIO = 3;

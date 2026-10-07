@@ -18,3 +18,14 @@ export const OPENFREEMAP_STYLE_URL = `${OPENFREEMAP_ORIGIN}/styles/positron`;
  * 定期的に切り替わるため、タイル URL 自体は直書きしない。
  */
 export const OPENFREEMAP_TILEJSON_URL = `${OPENFREEMAP_ORIGIN}/planet`;
+
+/**
+ * ラスター背景（CARTO）で先に接続しておく origin。
+ *
+ * タイルは a〜d の 4 サブドメインに分散して取りに行くが、接続ごとに DNS + TLS が要るので、
+ * 最初の画面で最も使われる 2 つだけ先に済ませる（MapViewMapLibre の CARTO_TILES と同じホスト）。
+ */
+export const CARTO_PRECONNECT_ORIGINS = [
+  "https://a.basemaps.cartocdn.com",
+  "https://b.basemaps.cartocdn.com",
+] as const;
