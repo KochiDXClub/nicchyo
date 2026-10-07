@@ -12,17 +12,15 @@
  * （毎回すべて消して描き直すと、地図を動かすたびに点滅して見える）。
  * 経路線は同じ id の線が残っていれば座標だけ更新する。
  *
- * Leaflet 版は L.marker / L.polyline、MapLibre 版は HTML マーカー（maplibregl.Marker）と
- * GeoJSON の line レイヤーで同じ見た目を作る。地図ライブラリ本体はどちらも SSR で
- * 評価しないよう、使うときに動的 import する。
+ * HTML マーカー（maplibregl.Marker）と GeoJSON の line レイヤーで描く。
+ * 地図ライブラリ本体は SSR で評価しないよう、使うときに動的 import する。
  */
 
 import { useEffect, useRef } from 'react';
-import type { Map as LeafletMapType, LayerGroup, Polyline } from 'leaflet';
 import type { Map as MapLibreMap, Marker as MapLibreMarker, GeoJSONSource } from 'maplibre-gl';
 import type { MapSpot } from '@/lib/spots';
 import type { LatLng } from '@/lib/facilities/geo';
-import { getMapLibreMap, isLeafletMap, type MapCamera } from '../types/mapCamera';
+import { getMapLibreMap, type MapCamera } from '../types/mapCamera';
 
 export type GuideRouteLine = {
   id: string;
@@ -70,88 +68,12 @@ export function buildFacilityMarkerHtml(spot: MapSpot, isSelected: boolean): str
   `;
 }
 
-/** ルート線の見た目（Leaflet / MapLibre 共通） */
+/** ルート線の見た目（IntroOdekakeDemo のデモとも共通） */
 export const ROUTE_CASING = { color: '#ffffff', weight: 9, opacity: 0.9 };
 export const ROUTE_STRONG = { weight: 5, opacity: 0.95, dash: [12, 9] as [number, number] };
 export const ROUTE_FAINT = { weight: 3, opacity: 0.45, dash: [6, 8] as [number, number] };
 
 const routeStyleKey = (route: GuideRouteLine) => `${route.color}:${route.emphasis}`;
-
-/* ───────────────────────── Leaflet ───────────────────────── */
-
-type LeafletModule = typeof import('leaflet');
-
-type LeafletState = {
-  L: LeafletModule;
-  map: LeafletMapType;
-  markerGroup: LayerGroup;
-  routeGroup: LayerGroup;
-  /** 経路 id → 線（色・強調が変わったら作り直す） */
-  routeLines: Map<string, { styleKey: string; casing: Polyline | null; line: Polyline }>;
-};
-
-function leafletSyncMarkers(state: LeafletState, spots: MapSpot[], selectedSpotId: string | null | undefined, onSelectSpot?: (spot: MapSpot) => void) {
-  const { L, markerGroup } = state;
-  markerGroup.clearLayers();
-  for (const spot of spots) {
-    // 店は地図の屋台マーカー（選択中の見た目）をそのまま目印にする
-    if (spot.kind === 'shop') continue;
-    const isSelected = spot.id === selectedSpotId;
-    const size = isSelected ? 52 : 40;
-    const marker = L.marker([spot.lat, spot.lng], {
-      icon: L.divIcon({
-        html: buildFacilityMarkerHtml(spot, isSelected),
-        className: 'facility-marker-container',
-        iconSize: [size, size],
-        iconAnchor: [size / 2, size / 2],
-      }),
-      // 店舗マーカー（zIndexOffset なし）より前面、現在地（1000）より背面
-      zIndexOffset: isSelected ? 800 : 600,
-      keyboard: false,
-    });
-    if (onSelectSpot) marker.on('click', () => onSelectSpot(spot));
-    marker.addTo(markerGroup);
-  }
-}
-
-function leafletSyncRoutes(state: LeafletState, routes: GuideRouteLine[]) {
-  const { L, routeGroup, routeLines } = state;
-  const wanted = new Set(routes.map((r) => r.id));
-  // 不要になった線を消す
-  for (const [id, entry] of routeLines) {
-    if (wanted.has(id)) continue;
-    entry.casing?.remove();
-    entry.line.remove();
-    routeLines.delete(id);
-  }
-  // 薄い線 → 濃い線の順（濃い線が上に来る）
-  for (const route of [...routes].sort((a, b) => Number(a.emphasis === 'strong') - Number(b.emphasis === 'strong'))) {
-    if (route.points.length < 2) continue;
-    const latLngs = route.points.map((p) => [p.lat, p.lng] as [number, number]);
-    const styleKey = routeStyleKey(route);
-    const existing = routeLines.get(route.id);
-    if (existing && existing.styleKey === styleKey) {
-      existing.casing?.setLatLngs(latLngs);
-      existing.line.setLatLngs(latLngs);
-      existing.casing?.bringToFront();
-      existing.line.bringToFront();
-      continue;
-    }
-    existing?.casing?.remove();
-    existing?.line.remove();
-    const style = route.emphasis === 'strong' ? ROUTE_STRONG : ROUTE_FAINT;
-    const casing =
-      route.emphasis === 'strong' ? L.polyline(latLngs, { ...ROUTE_CASING, interactive: false }).addTo(routeGroup) : null;
-    const line = L.polyline(latLngs, {
-      color: route.color,
-      weight: style.weight,
-      opacity: style.opacity,
-      dashArray: style.dash.join(' '),
-      interactive: false,
-    }).addTo(routeGroup);
-    routeLines.set(route.id, { styleKey, casing, line });
-  }
-}
 
 /* ───────────────────────── MapLibre ───────────────────────── */
 
@@ -268,7 +190,6 @@ function maplibreSyncRoutes(state: MapLibreState, routes: GuideRouteLine[]) {
 /* ───────────────────────── React ───────────────────────── */
 
 export default function GuideLayer({ map, spots, selectedSpotId, routes, onSelectSpot }: GuideLayerProps) {
-  const leafletRef = useRef<LeafletState | null>(null);
   const maplibreRef = useRef<MapLibreState | null>(null);
   // 最新の props（ライブラリ読み込み完了時にその時点の内容で描くため）
   const latestRef = useRef({ spots, selectedSpotId, routes, onSelectSpot });
@@ -278,35 +199,6 @@ export default function GuideLayer({ map, spots, selectedSpotId, routes, onSelec
   useEffect(() => {
     if (!map) return;
     let disposed = false;
-
-    if (isLeafletMap(map)) {
-      void import('leaflet').then((mod) => {
-        if (disposed) return;
-        const L = mod.default;
-        const leafletMap = map as unknown as LeafletMapType;
-        const state: LeafletState = {
-          L,
-          map: leafletMap,
-          markerGroup: L.layerGroup().addTo(leafletMap),
-          routeGroup: L.layerGroup().addTo(leafletMap),
-          routeLines: new Map(),
-        };
-        leafletRef.current = state;
-        const latest = latestRef.current;
-        leafletSyncRoutes(state, latest.routes);
-        leafletSyncMarkers(state, latest.spots, latest.selectedSpotId, latest.onSelectSpot);
-      });
-      return () => {
-        disposed = true;
-        const state = leafletRef.current;
-        leafletRef.current = null;
-        if (!state) return;
-        state.markerGroup.clearLayers();
-        state.routeGroup.clearLayers();
-        state.map.removeLayer(state.markerGroup);
-        state.map.removeLayer(state.routeGroup);
-      };
-    }
 
     const maplibreMap = getMapLibreMap(map);
     if (!maplibreMap) return;
@@ -335,13 +227,11 @@ export default function GuideLayer({ map, spots, selectedSpotId, routes, onSelec
 
   // ── マーカーは「スポット一覧・選択」が変わったときだけ ──
   useEffect(() => {
-    if (leafletRef.current) leafletSyncMarkers(leafletRef.current, spots, selectedSpotId, onSelectSpot);
     if (maplibreRef.current) maplibreSyncMarkers(maplibreRef.current, spots, selectedSpotId, onSelectSpot);
   }, [spots, selectedSpotId, onSelectSpot]);
 
   // ── 経路線は「経路」が変わったときだけ。同じ線は座標だけ更新する ──
   useEffect(() => {
-    if (leafletRef.current) leafletSyncRoutes(leafletRef.current, routes);
     if (maplibreRef.current) maplibreSyncRoutes(maplibreRef.current, routes);
   }, [routes]);
 

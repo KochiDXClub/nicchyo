@@ -1,28 +1,22 @@
 "use client";
 
 /**
- * MapLibre GL JS 版のマップ（移行の第 1 段階）
+ * マップ本体（MapLibre GL JS）
  *
- * Leaflet 版（../MapView.tsx）と並走させ、lib/mapFeatureFlags.ts の renderer=maplibre で
- * 切り替える。管理画面と計測ページから同じ条件で比較できるようにするのが目的。
- *
- * 【この段階で持っているもの】
+ * 【持っているもの】
  * - 背景地図（CARTO ラスター / OpenFreeMap ベクター）、市場の色かぶせ、道（ポリゴン・中心線）
  * - 店舗マーカー: シンボルレイヤーで GPU 描画。屋台パーツを Canvas で描き起こしたスプライトを使い、
  *   検索 / AI / 買い物袋 / 選択の状態は画像を差し替えて表現
  * - 木札（店名、text-field ＋ 伸縮する下地画像）、屋根の上の写真窓（styleimagemissing で遅延生成）、
- *   お気に入り・買い物袋バッジ。表示倍率は Leaflet 版の LOD（stall / photo / nameplate）と同じ境界
+ *   お気に入り・買い物袋バッジ。表示倍率は LOD（stall / photo / nameplate）の境界で切り替える
  * - ランドマーク画像と地名ラベル、丁目バッジ（HTML マーカー）、店舗タップで詳細バナー
  * - 回転・ピンチ・ドラッグは MapLibre 標準（自作ジェスチャー不要）
  * - ページ側の部品（「このへん」の出現判定、ズームスライダー、おでかけサポート、検索結果シート）は
- *   MapCamera アダプタ経由で Leaflet 版と共用
+ *   MapCamera アダプタ経由で使う
  * - 現在地と追従は MapLibre 標準の GeolocateControl（useMapLibreUserLocation）、道への吸着（after / integrated）
- * - 計測の橋渡し（?perf=1 で window.__nicchyoMapBench）
- *
  * - 出店者のカスタム SVG 屋台（サニタイズして店ごとに 1 枚描き起こし、全状態で共有）
- *
- * 【まだ無いもの（Leaflet 版にある）】
- * なし（Leaflet 版の削除は docs/LEAFLET_TO_MAPLIBRE_MIGRATION.md の手順で進める）。
+ * - WebGL が使えない端末では地図の代わりに案内を出す（MapWebglUnsupported）
+ * - 計測の橋渡し（?perf=1 で window.__nicchyoMapBench）
  */
 
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -1303,9 +1297,6 @@ function MapViewMapLibre({
         ref={containerRef}
         style={{ position: "absolute", inset: 0, width: "100%", height: "100%", background: "#FFFAF0" }}
       />
-      <div className="pointer-events-none absolute left-3 top-3 z-[500] rounded-full bg-white/85 px-3 py-1 text-xs font-semibold text-slate-600 shadow">
-        MapLibre 版（検証中） / 背景: {featureFlags.basemap === "vector-openfreemap" ? "ベクター" : "ラスター"}
-      </div>
       {!hideMapUI && camera && (
         <LiveZoomMapControls
           map={camera}

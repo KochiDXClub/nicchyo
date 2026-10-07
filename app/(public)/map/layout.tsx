@@ -18,8 +18,7 @@ import {
  */
 export default async function MapLayout({ children }: { children: React.ReactNode }) {
   const featureFlags = await fetchMapFeatureFlags();
-  const usesVectorBasemap =
-    featureFlags.renderer === 'maplibre' && featureFlags.basemap === 'vector-openfreemap';
+  const usesVectorBasemap = featureFlags.basemap === 'vector-openfreemap';
 
   return (
     <>
