@@ -13,6 +13,8 @@ import { resolveStallColors } from "../../config/shopCategories";
 import {
   generateStallSpriteSvg,
   resolveStallParts,
+  STALL_BODY_RECT,
+  STALL_PHOTO_HEIGHT_RATIO,
   type StallPartsSpec,
 } from "../../config/stallParts";
 import {
@@ -66,7 +68,13 @@ function recipeFor(shop: Shop): SpriteRecipe {
   };
 }
 
-function svgForState(recipe: SpriteRecipe, state: StallState, px: number): string {
+function svgForState(
+  recipe: SpriteRecipe,
+  state: StallState,
+  px: number,
+  photoHref?: string,
+  heightPx = px
+): string {
   const stall = resolveStallColors(undefined, recipe.baseColor);
   if (state === "normal" || state === "selected") {
     return generateStallSpriteSvg(
@@ -76,15 +84,22 @@ function svgForState(recipe: SpriteRecipe, state: StallState, px: number): strin
         awningBase: stall.light,
         awningStripe: stall.base,
         outline: state === "selected" ? "#fbbf24" : undefined,
+        // 写真の縁はカテゴリ色。選ぶと黄色に変わる
+        photo: photoHref ? { href: photoHref, stroke: state === "selected" ? "#fbbf24" : stall.dark } : undefined,
       },
-      { width: px, height: px }
+      { width: px, height: heightPx }
     );
   }
   const c = STATE_COLORS[state];
   return generateStallSpriteSvg(
     recipe.parts,
-    { roof: c.roof, awningBase: c.base, awningStripe: c.stripe },
-    { width: px, height: px }
+    {
+      roof: c.roof,
+      awningBase: c.base,
+      awningStripe: c.stripe,
+      photo: photoHref ? { href: photoHref, stroke: c.roof } : undefined,
+    },
+    { width: px, height: heightPx }
   );
 }
 
@@ -159,13 +174,15 @@ async function rasterizeImageUrlUncached(
 }
 
 /**
- * 屋根の上の丸窓（商品写真）。Leaflet 版 .shop-product-icon と同じ見立て:
- * 屋台色の枠、内側に写真、外側に落ちる影。styleimagemissing で店舗ごとに遅延生成する。
+ * 屋台の輪郭の中に商品写真をはめ込んだスプライト。
+ * 本体（白い箱）の部分が写真になり、縁はカテゴリ色。屋根とひさしは通常の屋台のまま。
+ * 店舗ごとに違うので、styleimagemissing で遅延生成する。
  */
-export async function rasterizePhotoCircle(
+export async function rasterizeStallWithPhoto(
+  shop: Shop,
+  state: StallState,
   url: string,
   sizePx: number,
-  borderColor: string,
   pixelRatio: number,
   fallbackUrl?: string
 ): Promise<ImageData> {
@@ -192,55 +209,25 @@ export async function rasterizePhotoCircle(
     }
   }
 
-  const pad = 4; // 影のぶん
-  const size = Math.round((sizePx + pad * 2) * pixelRatio);
-  const canvas = document.createElement("canvas");
-  canvas.width = size;
-  canvas.height = size;
-  const ctx = canvas.getContext("2d");
-  if (!ctx) throw new Error("canvas 2d context を取得できません");
-  ctx.scale(pixelRatio, pixelRatio);
-  const c = sizePx / 2 + pad;
-  const r = sizePx / 2;
-  // 影
-  ctx.save();
-  ctx.shadowColor = "rgba(34,22,10,0.45)";
-  ctx.shadowBlur = 7;
-  ctx.shadowOffsetY = 3;
-  ctx.fillStyle = "#f1f5f9";
-  ctx.beginPath();
-  ctx.arc(c, c, r, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.restore();
-  // 写真（cover でトリミング）
-  ctx.save();
-  ctx.beginPath();
-  ctx.arc(c, c, r - 3, 0, Math.PI * 2);
-  ctx.clip();
-  const scale = Math.max((r * 2) / img.naturalWidth, (r * 2) / img.naturalHeight);
+  // 写真は本体の矩形に cover でトリミングし、data URL にして SVG に埋め込む
+  // （画像として描き起こす SVG は外部 URL を読めない）
+  const rect = STALL_BODY_RECT;
+  const crop = document.createElement("canvas");
+  crop.width = rect.width * 4;
+  crop.height = rect.height * 4;
+  const cropCtx = crop.getContext("2d");
+  if (!cropCtx) throw new Error("canvas 2d context を取得できません");
+  // 透過のある写真が JPEG 化で黒くならないよう、白を敷いてから描く
+  cropCtx.fillStyle = "#ffffff";
+  cropCtx.fillRect(0, 0, crop.width, crop.height);
+  const scale = Math.max(crop.width / img.naturalWidth, crop.height / img.naturalHeight);
   const dw = img.naturalWidth * scale;
   const dh = img.naturalHeight * scale;
-  ctx.drawImage(img, c - dw / 2, c - dh / 2, dw, dh);
-  // ガラスの光沢
-  const gloss = ctx.createLinearGradient(c - r, c - r, c + r, c + r);
-  gloss.addColorStop(0, "rgba(255,255,255,0.26)");
-  gloss.addColorStop(0.3, "rgba(255,255,255,0.07)");
-  gloss.addColorStop(0.46, "rgba(255,255,255,0)");
-  ctx.fillStyle = gloss;
-  ctx.fillRect(c - r, c - r, r * 2, r * 2);
-  ctx.restore();
-  // 枠
-  ctx.lineWidth = 3;
-  ctx.strokeStyle = borderColor;
-  ctx.beginPath();
-  ctx.arc(c, c, r - 1.5, 0, Math.PI * 2);
-  ctx.stroke();
-  ctx.lineWidth = 1;
-  ctx.strokeStyle = "rgba(58,40,22,0.4)";
-  ctx.beginPath();
-  ctx.arc(c, c, r + 0.5, 0, Math.PI * 2);
-  ctx.stroke();
-  return ctx.getImageData(0, 0, size, size);
+  cropCtx.drawImage(img, (crop.width - dw) / 2, (crop.height - dh) / 2, dw, dh);
+  const href = crop.toDataURL("image/jpeg", 0.85);
+  // sizePx は高さの基準。屋根を削った分だけ同じ高さに対して幅が広がり、写真が大きく写る
+  const widthPx = sizePx / STALL_PHOTO_HEIGHT_RATIO;
+  return rasterizeSvg(svgForState(recipeFor(shop), state, widthPx, href, sizePx), widthPx, pixelRatio, sizePx);
 }
 
 /**
