@@ -92,5 +92,10 @@ jobs:
       - name: Check public read policies and closed inserts
         run: psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" -v ON_ERROR_STOP=1 -f supabase/checks/public_read_and_insert_closed.sql
 
+      # 運営向け通知テーブル（admin_notifications）が全適用後に存在し、運営だけが読めることを確かめる。
+      # 詳しくは supabase/checks/admin_notifications_restored.sql
+      - name: Check admin_notifications exists with expected columns and RLS
+        run: psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" -v ON_ERROR_STOP=1 -f supabase/checks/admin_notifications_restored.sql
+
       - name: Show applied migrations
         run: supabase migration list --local
