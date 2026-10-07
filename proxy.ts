@@ -19,7 +19,19 @@ const DEFAULT_SITE_SETTINGS: SiteSettings = {
   pageVisibility: EMPTY_PAGE_VISIBILITY_SETTINGS,
 };
 let siteSettingsCache: { value: SiteSettings; expiresAt: number } | null = null;
+// 直近に取得に成功した値（期限切れでも保持）。取得失敗時のフォールバックに使う
+let lastKnownSiteSettings: SiteSettings | null = null;
 const SITE_SETTINGS_CACHE_TTL = 60_000;
+// 取得失敗時は短TTLでフォールバック値をキャッシュし、障害中に毎リクエスト再試行する雪崩を防ぐ
+const SITE_SETTINGS_FAILURE_TTL = 10_000;
+const SITE_SETTINGS_FETCH_TIMEOUT_MS = 2_500;
+
+function fallbackSiteSettings(): SiteSettings {
+  // 初回から失敗した場合は従来どおり既定値（メンテ無効・全公開）
+  const value = lastKnownSiteSettings ?? DEFAULT_SITE_SETTINGS;
+  siteSettingsCache = { value, expiresAt: Date.now() + SITE_SETTINGS_FAILURE_TTL };
+  return value;
+}
 
 async function getSiteSettings(): Promise<SiteSettings> {
   if (siteSettingsCache && Date.now() < siteSettingsCache.expiresAt) {
@@ -38,9 +50,10 @@ async function getSiteSettings(): Promise<SiteSettings> {
       {
         headers: { apikey: anonKey, Authorization: `Bearer ${anonKey}` },
         cache: "no-store",
+        signal: AbortSignal.timeout(SITE_SETTINGS_FETCH_TIMEOUT_MS),
       }
     );
-    if (!res.ok) return DEFAULT_SITE_SETTINGS;
+    if (!res.ok) return fallbackSiteSettings();
     const rows = (await res.json()) as Array<{ key: string; value: Record<string, unknown> }>;
     const publicValue = rows.find((row) => row.key === "public")?.value;
     const visibilityValue = rows.find((row) => row.key === "page_visibility")?.value;
@@ -52,15 +65,30 @@ async function getSiteSettings(): Promise<SiteSettings> {
       },
       pageVisibility: parsePageVisibilitySettings(visibilityValue),
     };
+    lastKnownSiteSettings = value;
     siteSettingsCache = { value, expiresAt: Date.now() + SITE_SETTINGS_CACHE_TTL };
     return value;
   } catch {
-    return DEFAULT_SITE_SETTINGS;
+    return fallbackSiteSettings();
   }
 }
 
 const MAINTENANCE_SKIP_PREFIXES = ["/admin", "/api", "/_next", "/maintenance"];
 const MAINTENANCE_SKIP_EXACT = ["/robots.txt", "/sitemap.xml", "/favicon.ico"];
+// メンテ中でも管理者が再ログインしてメンテを解除できるよう、ログイン系はメンテ判定だけ免除する
+// （公開設定の判定は引き続き対象）
+const MAINTENANCE_ONLY_SKIP_PREFIXES = ["/login", "/oauth"];
+
+function matchesPrefix(pathname: string, prefix: string): boolean {
+  return pathname === prefix || pathname.startsWith(`${prefix}/`);
+}
+
+// Supabase がリフレッシュした Cookie を options（maxAge/path/sameSite/secure/httpOnly 等）ごと転写する
+function copyCookies(from: NextResponse, to: NextResponse) {
+  from.cookies.getAll().forEach((cookie) => {
+    to.cookies.set(cookie);
+  });
+}
 
 export async function proxy(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
@@ -70,10 +98,12 @@ export async function proxy(request: NextRequest) {
   const isPageRequest =
     !MAINTENANCE_SKIP_PREFIXES.some((p) => pathname.startsWith(p)) &&
     !MAINTENANCE_SKIP_EXACT.includes(pathname);
+  const isMaintenanceTarget =
+    isPageRequest && !MAINTENANCE_ONLY_SKIP_PREFIXES.some((p) => matchesPrefix(pathname, p));
   const siteSettings = isPageRequest ? await getSiteSettings() : DEFAULT_SITE_SETTINGS;
 
   // メンテナンスモードチェック
-  if (isPageRequest && siteSettings.maintenance.enabled) {
+  if (isMaintenanceTarget && siteSettings.maintenance.enabled) {
     const url = request.nextUrl.clone();
     url.pathname = "/maintenance";
     url.search = "";
@@ -95,9 +125,7 @@ export async function proxy(request: NextRequest) {
     const allowed = isModerator(appRole);
     if (!user || !allowed) {
       const redirectRes = NextResponse.redirect(new URL("/", request.url));
-      supabaseResponse.cookies.getAll().forEach(({ name, value }) => {
-        redirectRes.cookies.set(name, value);
-      });
+      copyCookies(supabaseResponse, redirectRes);
       return redirectRes;
     }
   }
@@ -105,9 +133,7 @@ export async function proxy(request: NextRequest) {
   if (pathname.startsWith("/my-shop") || pathname.startsWith("/vendor")) {
     if (!user || appRole !== "vendor") {
       const redirectRes = NextResponse.redirect(new URL("/", request.url));
-      supabaseResponse.cookies.getAll().forEach(({ name, value }) => {
-        redirectRes.cookies.set(name, value);
-      });
+      copyCookies(supabaseResponse, redirectRes);
       return redirectRes;
     }
   }
@@ -125,9 +151,7 @@ export async function proxy(request: NextRequest) {
         resolvePageVisibility(target, visibilityRole, siteSettings.pageVisibility).state !== "private";
       const destination = targetVisible && target !== visibilityPath ? target : "/map";
       const redirectRes = NextResponse.redirect(new URL(destination, request.url));
-      supabaseResponse.cookies.getAll().forEach(({ name, value }) => {
-        redirectRes.cookies.set(name, value);
-      });
+      copyCookies(supabaseResponse, redirectRes);
       return redirectRes;
     }
   }
@@ -168,15 +192,15 @@ export async function proxy(request: NextRequest) {
 
   // レスポンスにCSPヘッダーとSupabase Cookieを設定（リフレッシュ後の最新 Cookie を使用）
   res.headers.set("content-security-policy", csp);
-  supabaseResponse.cookies.getAll().forEach(({ name, value }) => {
-    res.cookies.set(name, value);
-  });
+  copyCookies(supabaseResponse, res);
 
   return res;
 }
 
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    // 静的アセット（public/images 等）と、セッション・CSP・公開設定が不要な公開POSTの
+    // /api/analytics/* は proxy（auth.getUser の往復）を通さない
+    "/((?!_next/static|_next/image|favicon.ico|images/|api/analytics/|.*\\.(?:svg|png|jpg|jpeg|gif|webp|avif|ico|woff|woff2)$).*)",
   ],
 };

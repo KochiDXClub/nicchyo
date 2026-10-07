@@ -1,8 +1,8 @@
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
+import landmarks from "../data/landmarks.json";
 import type { Landmark } from "../types/landmark";
-import optimizedLandmarkImages from "../data/optimizedLandmarkImages.json";
 import { withOptimizedLandmarkImage } from "./landmarkImages";
 
 const base: Landmark = {
@@ -18,7 +18,7 @@ const base: Landmark = {
 };
 
 describe("withOptimizedLandmarkImage", () => {
-  it("対応表にある PNG は WebP に差し替える", () => {
+  it("建物画像の PNG は WebP に差し替える", () => {
     expect(withOptimizedLandmarkImage(base).url).toBe("/images/maps/elements/buildings/KochiCastle.webp");
   });
 
@@ -28,14 +28,20 @@ describe("withOptimizedLandmarkImage", () => {
     expect(rest).toEqual(baseRest);
   });
 
-  it("対応表に無い URL はそのまま返す", () => {
+  it("建物画像でない URL はそのまま返す", () => {
     const svg = { ...base, url: "/images/maps/elements/transit/tram-stop.svg" };
     expect(withOptimizedLandmarkImage(svg)).toBe(svg);
   });
 
-  it("対応表の WebP はすべて public/ に存在する", () => {
-    for (const webp of Object.values(optimizedLandmarkImages)) {
-      expect(existsSync(resolve("public", `.${webp}`)), webp).toBe(true);
+  it("すでに WebP の URL はそのまま返す", () => {
+    const webp = { ...base, url: "/images/maps/elements/buildings/KochiCastle.webp" };
+    expect(withOptimizedLandmarkImage(webp)).toBe(webp);
+  });
+
+  it("DB の建物画像（landmarks.json）はすべて public/ に存在する", () => {
+    for (const { url } of landmarks as Array<{ url: string }>) {
+      const resolved = withOptimizedLandmarkImage({ ...base, url }).url;
+      expect(existsSync(resolve("public", `.${resolved}`)), resolved).toBe(true);
     }
   });
 });

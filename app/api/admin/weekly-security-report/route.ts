@@ -369,7 +369,7 @@ async function sendDiscordNotification(
       : process.env.VERCEL_URL
         ? `https://${process.env.VERCEL_URL}`
         : null);
-  const reportUrl = appUrl ? `${appUrl}/reports/${reportDate}` : null;
+  const reportUrl = appUrl ? `${appUrl}/admin/security-reports/${reportDate}` : null;
 
   const colorMap: Record<string, number> = {
     low: 0x22c55e,

@@ -4,20 +4,9 @@ import { enforceRateLimit } from "@/lib/security/rateLimit";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-type CspViolation = {
-  "csp-report"?: {
-    "document-uri"?: string;
-    "violated-directive"?: string;
-    "effective-directive"?: string;
-    "blocked-uri"?: string;
-    "source-file"?: string;
-    "line-number"?: number;
-    "column-number"?: number;
-    "original-policy"?: string;
-  };
-};
-
-const reportBucket: CspViolation[] = [];
+// ブラウザが送る違反レポートは数百バイト。これを超えるものは読まずに捨てる
+const MAX_REPORT_BYTES = 8 * 1024;
+const MAX_LOG_CHARS = 1000;
 
 export async function POST(request: NextRequest) {
   // ブラウザが自動送信するエンドポイントで認証も同一オリジン確認もできないため、
@@ -30,10 +19,14 @@ export async function POST(request: NextRequest) {
   });
   if (rateLimited) return rateLimited;
 
-  const payload = (await request.json().catch(() => null)) as CspViolation | null;
-  if (payload) {
-    reportBucket.push(payload);
-    if (reportBucket.length > 200) reportBucket.shift();
+  // 保存はしない（メモリに溜めても誰も読まない）。ログに残すだけにして、運営はログで確認する
+  const declared = Number(request.headers.get("content-length") ?? 0);
+  if (declared > MAX_REPORT_BYTES) {
+    return NextResponse.json({ ok: true, skipped: true });
+  }
+  const text = await request.text().catch(() => "");
+  if (text && text.length <= MAX_REPORT_BYTES) {
+    console.warn("[csp-report]", text.slice(0, MAX_LOG_CHARS));
   }
 
   return NextResponse.json({ ok: true });

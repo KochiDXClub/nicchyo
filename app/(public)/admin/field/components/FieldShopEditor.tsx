@@ -14,6 +14,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { showToast } from "@/lib/admin/toast";
 import { Surface } from "@/components/ui";
+import { MAX_SHOP_ID, MIN_SHOP_ID } from "@/lib/shops/route";
 import { createStoreImages, imageErrorMessage } from "@/lib/image/clientCompression";
 import { LISTING_STATUS_LABELS, LISTING_STATUSES, type AdminShopDetail, type ListingStatus } from "@/lib/admin/shopEdit";
 import { PAYMENT_OPTIONS, RAIN_OPTIONS, TIME_OPTIONS } from "@/lib/vendor/storeOptions";
@@ -141,6 +142,24 @@ export function FieldShopEditor({ shopId }: { shopId: string }) {
   const [locationBusy, setLocationBusy] = useState(false);
   const [gpsBusy, setGpsBusy] = useState(false);
 
+  const applyLocationResponse = useCallback((data: { locations?: FieldLocation[]; current?: FieldLocation | null }) => {
+    setLocations(data.locations ?? []);
+    if (data.current) {
+      setStoreNumber(String(data.current.storeNumber));
+      setPin({ lat: data.current.lat, lng: data.current.lng });
+    }
+  }, []);
+
+  /** 位置（店番・ピン・区画一覧）だけ読み直す。フォームと dirty には触らない */
+  const refreshLocations = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/admin/shops/${shopId}/location`);
+      if (res.ok) applyLocationResponse((await res.json()) as { locations: FieldLocation[]; current: FieldLocation | null });
+    } catch {
+      // 位置は保存済み。一覧の更新に失敗しても入力は保つ
+    }
+  }, [shopId, applyLocationResponse]);
+
   const load = useCallback(async () => {
     try {
       const [shopRes, categoriesRes, locationRes] = await Promise.all([
@@ -156,17 +175,12 @@ export function FieldShopEditor({ shopId }: { shopId: string }) {
       setDirty(false);
       if (categoriesRes.ok) setCategories(((await categoriesRes.json()) as { categories: Category[] }).categories ?? []);
       if (locationRes.ok) {
-        const data = (await locationRes.json()) as { locations: FieldLocation[]; current: FieldLocation | null };
-        setLocations(data.locations ?? []);
-        if (data.current) {
-          setStoreNumber(String(data.current.storeNumber));
-          setPin({ lat: data.current.lat, lng: data.current.lng });
-        }
+        applyLocationResponse((await locationRes.json()) as { locations: FieldLocation[]; current: FieldLocation | null });
       }
     } catch (e) {
       setLoadError(e instanceof Error ? e.message : "店舗の取得に失敗しました");
     }
-  }, [shopId]);
+  }, [shopId, applyLocationResponse]);
 
   useEffect(() => {
     void load();
@@ -224,9 +238,13 @@ export function FieldShopEditor({ shopId }: { shopId: string }) {
       body.append("thumb", thumbBlob, "thumb");
       const res = await fetch(`/api/admin/shops/${shopId}/image`, { method: "POST", body });
       if (!res.ok) throw new Error((await readError(res, "写真を保存できませんでした")).message);
-      const { url } = (await res.json()) as { url: string };
-      // 同じ URL に上書きされるので、キャッシュされた古い写真が出ないようにする
-      setShop((prev) => (prev ? { ...prev, shop_image_url: `${url}?v=${Date.now()}` } : prev));
+      const { url, updated_at } = (await res.json()) as { url: string; updated_at?: string };
+      // 同じ URL に上書きされるので、キャッシュされた古い写真が出ないようにする。
+      // 写真の保存で updated_at が進むので反映する（古いままだと、次の「内容を保存」が必ず 409 になる）。
+      // フォームには触れない（未保存の入力を消さない）
+      setShop((prev) =>
+        prev ? { ...prev, shop_image_url: `${url}?v=${Date.now()}`, updated_at: updated_at ?? prev.updated_at } : prev,
+      );
       showToast.success("写真を保存しました");
     } catch (e) {
       showToast.error(imageErrorMessage(e, e instanceof Error ? e.message : "写真を保存できませんでした"));
@@ -285,7 +303,9 @@ export function FieldShopEditor({ shopId }: { shopId: string }) {
       }
       if (!res.ok) throw new Error((await readError(res, "位置を保存できませんでした")).message);
       showToast.success("位置を保存しました");
-      await load();
+      // load() はフォームを作り直して未保存の入力を消すので、位置まわりだけ更新する
+      setShop((prev) => (prev ? { ...prev, store_number: n } : prev));
+      await refreshLocations();
     } catch (e) {
       showToast.error(e instanceof Error ? e.message : "位置を保存できませんでした");
     } finally {
@@ -508,7 +528,7 @@ export function FieldShopEditor({ shopId }: { shopId: string }) {
       </Card>
 
       <Card title="お店の位置" hint="店番を入れて、地図をタップ（またはピンをドラッグ）して位置を決めます。緑の点は配置済み、灰色は空きの区画です。点をタップするとその店番になります。">
-        <Field label="店番（1〜300）">
+        <Field label={`店番（${MIN_SHOP_ID}〜${MAX_SHOP_ID}）`}>
           <input value={storeNumber} inputMode="numeric" onChange={(e) => setStoreNumber(e.target.value.replace(/\D/g, ""))} className={inputClass} />
         </Field>
         <LocationPicker locations={locations} value={pin} onChange={setPin} onPickStoreNumber={pickStoreNumber} />
