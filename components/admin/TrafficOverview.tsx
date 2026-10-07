@@ -11,6 +11,7 @@ import { cookies } from "next/headers";
 import TrafficChartCard, { type TrafficGranularity, type TrafficPoint } from "@/components/admin/TrafficChartCard";
 import { createClient } from "@/utils/supabase/server";
 import { isAdmin } from "@/lib/auth/permissions";
+import { addDaysToDateString, monthStartJstString, todayJstString } from "@/lib/time/jstDate";
 
 type DurationPoint = {
   date: string;
@@ -225,16 +226,14 @@ export async function TrafficOverview() {
   const dataClient = adminReadClient ?? supabase;
 
   const now = new Date();
-  const todayIso = now.toISOString().slice(0, 10);
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
-  const weeklyStart = new Date(now);
-  weeklyStart.setDate(now.getDate() - 6);
-  const weeklyStartIso = weeklyStart.toISOString().slice(0, 10);
+  // visit_date は JST で記録されるため、集計の基準日も JST に揃える
+  const todayIso = todayJstString(now);
+  const monthStart = monthStartJstString(now);
+  const weeklyStartIso = addDaysToDateString(todayIso, -6);
+  const jstTodayUtcMidnight = new Date(`${todayIso}T00:00:00Z`);
   // 生ログ（web_page_analytics）は35日で削除されるため、訪問者単位の計算はこの窓の中だけで行う
   const rawWindowStart = weeklyStartIso < monthStart ? weeklyStartIso : monthStart;
-  const yearlyAnalyticsStart = new Date(Date.UTC(now.getFullYear() - 4, 0, 1))
-    .toISOString()
-    .slice(0, 10);
+  const yearlyAnalyticsStart = `${Number(todayIso.slice(0, 4)) - 4}-01-01`;
 
   const [dailySummariesResult, recentRawResult, pageAnalyticsResult, latestPageVisitDateResult] =
     await Promise.all([
@@ -317,11 +316,11 @@ export async function TrafficOverview() {
     Array.from(counts.entries()).map(([visit_date, count]) => ({ visit_date, count }));
   const trafficSeriesByGranularity = buildTrafficSeries(
     toDailyCountPoints(allDailyCounts),
-    new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()))
+    jstTodayUtcMidnight
   );
   const vendorTrafficSeriesByGranularity = buildTrafficSeries(
     toDailyCountPoints(vendorDailyCounts),
-    new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()))
+    jstTodayUtcMidnight
   );
 
   const weeklyDurationRows = recentRawRows.filter(
@@ -333,9 +332,7 @@ export async function TrafficOverview() {
   );
 
   const durationSeries: DurationPoint[] = Array.from({ length: 7 }, (_, index) => {
-    const date = new Date(weeklyStart);
-    date.setDate(weeklyStart.getDate() + index);
-    const iso = date.toISOString().slice(0, 10);
+    const iso = addDaysToDateString(weeklyStartIso, index);
     const visitorDurations = Array.from((visitorDailyDurationMap.get(iso) ?? new Map()).values());
     const totalDuration = visitorDurations.reduce((sum, value) => sum + value, 0);
     const vendorDurations = Array.from((vendorVisitorDailyDurationMap.get(iso) ?? new Map()).values());

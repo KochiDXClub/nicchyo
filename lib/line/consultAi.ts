@@ -2,6 +2,7 @@ import { requestChatCompletion } from "../ai/openaiFetch";
 import { resolveAiModelFor } from "../ai/modelStore.server";
 import type { LineTextOutgoingMessage, LineQuickReplyItem } from "./types";
 import { SITE_URL } from "../constants";
+import { maskPii } from "../privacy/maskPii";
 
 // LINEで送るリンクの基点。app/layout.tsx・sitemap と同じく lib/constants の SITE_URL
 // （NEXT_PUBLIC_SITE_URL を正規化し、未設定時は https://nicchyo.jp）を使う
@@ -163,6 +164,7 @@ export async function generateLineConsultReply(
 
   try {
     const aiModel = await resolveAiModelFor("consult");
+    // LINE の本文は電話・メールが混ざり得るので、OpenAI へ送る前にマスクする
 
     // タイムアウト用コントローラー（LINEの返信制限時間考慮）
     const controller = new AbortController();
@@ -171,7 +173,7 @@ export async function generateLineConsultReply(
     const response = await requestChatCompletion(apiKey, aiModel, {
       messages: [
         { role: "system", content: LINE_GRANDMA_SYSTEM_PROMPT },
-        { role: "user", content: trimmed },
+        { role: "user", content: maskPii(trimmed) },
       ],
       maxOutputTokens: 350,
       temperature: 0.7,

@@ -555,7 +555,7 @@ export function useMapEditOperations(params: Params) {
         key,
         name: "新しい建物",
         description: "",
-        url: "/images/maps/elements/buildings/KochiCastle.png",
+        url: "/images/maps/elements/buildings/KochiCastle.webp",
         lat,
         lng,
         widthPx: 120,

@@ -4,8 +4,8 @@
   <rect x='0' y='500' width='220' height='250' fill='#b45a3c' />
   <rect x='0' y='750' width='220' height='250' fill='#b45a3c' />
 
-  <image href='/images/maps/elements/decoration/yasinoki.png' xlink:href='/images/maps/elements/decoration/yasinoki.png' x='30' y='10' width='160' height='160' preserveAspectRatio='xMidYMid meet' />
-  <image href='/images/maps/elements/decoration/yasinoki.png' xlink:href='/images/maps/elements/decoration/yasinoki.png' x='30' y='260' width='160' height='160' preserveAspectRatio='xMidYMid meet' />
-  <image href='/images/maps/elements/decoration/yasinoki.png' xlink:href='/images/maps/elements/decoration/yasinoki.png' x='30' y='510' width='160' height='160' preserveAspectRatio='xMidYMid meet' />
-  <image href='/images/maps/elements/decoration/yasinoki.png' xlink:href='/images/maps/elements/decoration/yasinoki.png' x='30' y='760' width='160' height='160' preserveAspectRatio='xMidYMid meet' />
+  <image href='/images/maps/elements/decoration/yasinoki.webp' xlink:href='/images/maps/elements/decoration/yasinoki.webp' x='30' y='10' width='160' height='160' preserveAspectRatio='xMidYMid meet' />
+  <image href='/images/maps/elements/decoration/yasinoki.webp' xlink:href='/images/maps/elements/decoration/yasinoki.webp' x='30' y='260' width='160' height='160' preserveAspectRatio='xMidYMid meet' />
+  <image href='/images/maps/elements/decoration/yasinoki.webp' xlink:href='/images/maps/elements/decoration/yasinoki.webp' x='30' y='510' width='160' height='160' preserveAspectRatio='xMidYMid meet' />
+  <image href='/images/maps/elements/decoration/yasinoki.webp' xlink:href='/images/maps/elements/decoration/yasinoki.webp' x='30' y='760' width='160' height='160' preserveAspectRatio='xMidYMid meet' />
 </svg>

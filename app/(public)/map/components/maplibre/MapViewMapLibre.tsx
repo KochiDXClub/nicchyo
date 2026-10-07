@@ -309,6 +309,7 @@ function MapViewMapLibre({
   onClearSearch,
   overlaySlot,
   spotlightShopId,
+  onShopSelect,
   onSpotSelect,
   onNavigateToShop,
   guideTargetShopId,
@@ -321,6 +322,9 @@ function MapViewMapLibre({
   // ランドマークのクリックは map.on で一度だけ登録するので、最新のコールバックは ref で持つ
   const onSpotSelectRef = useRef(onSpotSelect);
   onSpotSelectRef.current = onSpotSelect;
+  // 店のタップも同じ。渡されていれば、地図の中のバナーは出さず親に任せる（検索ページが右の列に出す）
+  const onShopSelectRef = useRef(onShopSelect);
+  onShopSelectRef.current = onShopSelect;
   const landmarksRef = useRef(landmarks);
   landmarksRef.current = landmarks;
   // 画像の登録に成功したランドマーク（ソースに載せたもの）。選択の切り替え時に setData で使う
@@ -1093,6 +1097,11 @@ function MapViewMapLibre({
           const id = f?.properties?.id;
           if (typeof id !== "number") return;
           const shop = shopsRef.current.find((s) => s.id === id) ?? null;
+          if (shop && onShopSelectRef.current) {
+            onShopSelectRef.current(shop);
+            setSelectedShop(null);
+            return;
+          }
           setSelectedShop(shop);
         });
         map.on("mouseenter", layerId, () => {

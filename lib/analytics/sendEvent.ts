@@ -6,7 +6,6 @@ import type {
   AnalyticsParams,
   GuideEventParams,
   SendEventOptions,
-  ShopImpressionParams,
 } from "@/types/analytics";
 
 const GUIDE_EVENT_TYPES: Partial<Record<AnalyticsEventName, string>> = {
@@ -75,26 +74,6 @@ export function sendEvent(name: AnalyticsEventName, params: AnalyticsParams = {}
   // server-side reliable logging for specific events
   if (options.toServer) {
     const visitor_key = getVisitorKey();
-    if (name === "shop_impression") {
-      const p = params as ShopImpressionParams;
-      postJson("/api/analytics/shop-interaction", {
-        visitor_key,
-        shop_id: p.shop_id,
-        event_type: "impression",
-        meta: { list_position: p.list_position ?? null, context: p.context ?? null },
-      });
-    }
-
-    if (name === "shop_view") {
-      const p = params as Record<string, unknown>;
-      postJson("/api/analytics/shop-interaction", {
-        visitor_key,
-        shop_id: p.shop_id,
-        event_type: "view",
-        meta: { source: p.source ?? null, interaction_method: p.interaction_method ?? null },
-      });
-    }
-
     const guideEventType = GUIDE_EVENT_TYPES[name];
     if (guideEventType) {
       const p = params as GuideEventParams;

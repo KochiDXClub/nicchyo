@@ -121,6 +121,12 @@ describe("許可日（consentDateOnAllow）", () => {
     expect(consentDateOnAllow({}, null, now)).toBeUndefined();
     expect(consentDateOnAllow({ listing_status: "allowed" }, "2026-10-04", now)).toBeUndefined();
     expect(consentDateOnAllow({ listing_status: "allowed", listing_consented_on: "2026-10-01" }, null, now)).toBeUndefined();
-    expect(consentDateOnAllow({ listing_status: "allowed", listing_consented_on: null }, null, now)).toBeUndefined();
+  });
+
+  it("画面が日付を空（null）で送ってきても、許可済みなら日本時間の今日が入る", () => {
+    const now = new Date("2026-10-10T21:00:00Z");
+    expect(consentDateOnAllow({ listing_status: "allowed", listing_consented_on: null }, null, now)).toBe("2026-10-11");
+    // すでに記録済みなら、null（消す指定）はそのまま通す
+    expect(consentDateOnAllow({ listing_status: "allowed", listing_consented_on: null }, "2026-10-04", now)).toBeUndefined();
   });
 });

@@ -112,6 +112,19 @@ export function packChangelog(options = {}) {
 // CLI execution
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const args = process.argv.slice(2);
+
+  if (args.includes("--help") || args.includes("-h")) {
+    console.log(`Usage: node scripts/pack-changelog.mjs [--dry-run] [--keep] [--help]
+
+docs/changelog-unreleased/*.md の「- 」で始まる行を docs/CHANGELOG-unreleased.md の「## 一覧」直下へ集約する。
+引数なしで実行すると集約したフラグメントファイルを【削除】する。
+
+  --dry-run  ファイルを変更せず、集約される行だけを表示する
+  --keep     集約後もフラグメントファイルを削除しない
+  --help     このヘルプを表示する（何も変更しない）`);
+    process.exit(0);
+  }
+
   const dryRun = args.includes("--dry-run");
   const keep = args.includes("--keep");
 

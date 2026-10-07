@@ -49,10 +49,10 @@ export async function POST(request: Request) {
     );
     if (shouldSetVisitorCookie) {
       skippedResponse.cookies.set(VISITOR_COOKIE_NAME, visitorKey, {
-        httpOnly: true,
+        httpOnly: false,
         sameSite: "lax",
         secure: process.env.NODE_ENV === "production",
-        maxAge: 60 * 60 * 24 * 365 * 2,
+        maxAge: 60 * 60 * 24 * 365,
         path: "/",
       });
     }
@@ -83,10 +83,10 @@ export async function POST(request: Request) {
     );
     if (shouldSetVisitorCookie) {
       errorResponse.cookies.set(VISITOR_COOKIE_NAME, visitorKey, {
-        httpOnly: true,
+        httpOnly: false,
         sameSite: "lax",
         secure: process.env.NODE_ENV === "production",
-        maxAge: 60 * 60 * 24 * 365 * 2,
+        maxAge: 60 * 60 * 24 * 365,
         path: "/",
       });
     }
@@ -100,10 +100,10 @@ export async function POST(request: Request) {
   });
   if (shouldSetVisitorCookie) {
     successResponse.cookies.set(VISITOR_COOKIE_NAME, visitorKey, {
-      httpOnly: true,
+      httpOnly: false,
       sameSite: "lax",
       secure: process.env.NODE_ENV === "production",
-      maxAge: 60 * 60 * 24 * 365 * 2,
+      maxAge: 60 * 60 * 24 * 365,
       path: "/",
     });
   }

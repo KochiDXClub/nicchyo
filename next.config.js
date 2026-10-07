@@ -62,6 +62,12 @@ const nextConfig = {
         destination: '/calendar',
         permanent: true,
       },
+      // 週次セキュリティレポートの通知リンク（旧 /reports/:date）を管理画面へ誘導する
+      {
+        source: '/reports/:date',
+        destination: '/admin/security-reports/:date',
+        permanent: false,
+      },
       // 買い物リストはお気に入りに一本化した。配ったQRコードや外部リンクが
       // /bag を指していても迷子にしない
       {
