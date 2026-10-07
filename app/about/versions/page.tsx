@@ -3,7 +3,7 @@ import { ArrowLeft } from "lucide-react";
 import { versionHistory } from "../versions";
 
 export const metadata = {
-  title: "バージョン履歴 | nicchyo について",
+  title: "バージョン履歴",
   description: "nicchyo のこれまでのアップデート内容をまとめています。",
 };
 

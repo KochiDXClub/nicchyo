@@ -16,6 +16,7 @@ import {
 import { AdminLayout, AdminPageHeader, StatCard } from "@/components/admin";
 import { createClient } from "@/utils/supabase/server";
 import { getRole, isAdmin } from "@/lib/auth/permissions";
+import { nextSundayJstString } from "@/lib/time/jstDate";
 import type { DatabaseWithExtensions } from "@/types/database.extensions";
 
 export const dynamic = "force-dynamic";
@@ -68,14 +69,6 @@ function formatMonthDay(iso: string) {
   return new Intl.DateTimeFormat("ja-JP", { month: "numeric", day: "numeric" }).format(date);
 }
 
-/** 次に開催予定の日曜（当日が日曜ならその日）を返す */
-function getNextSundayIso(base: Date) {
-  const date = new Date(base.getFullYear(), base.getMonth(), base.getDate());
-  const daysUntilSunday = (7 - date.getDay()) % 7;
-  date.setDate(date.getDate() + daysUntilSunday);
-  return date.toISOString().slice(0, 10);
-}
-
 /** admin_notifications は生成済み型に含まれないため、拡張型のクライアントで扱う */
 function createNotificationReadClient() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -125,7 +118,7 @@ export default async function AdminDashboardPage() {
   const dataClient = adminReadClient ?? supabase;
 
   const now = new Date();
-  const nextSundayIso = getNextSundayIso(now);
+  const nextSundayIso = nextSundayJstString(now);
 
   const [
     vendorsCountResult,
