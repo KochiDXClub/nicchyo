@@ -97,5 +97,11 @@ jobs:
       - name: Check admin_notifications exists with expected columns and RLS
         run: psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" -v ON_ERROR_STOP=1 -f supabase/checks/admin_notifications_restored.sql
 
+      # RLS が vendors.role で運営判定していないこと（authenticated では permission denied になる）と、
+      # current_user_role() / is_operator() を使うポリシーが to authenticated に限定されていること。
+      # 詳しくは supabase/checks/no_vendors_role_in_policies.sql
+      - name: Check no vendors.role in RLS policies
+        run: psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" -v ON_ERROR_STOP=1 -f supabase/checks/no_vendors_role_in_policies.sql
+
       - name: Show applied migrations
         run: supabase migration list --local
