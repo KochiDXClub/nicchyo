@@ -74,6 +74,7 @@ import {
   checkAskImage,
   parseLocationField,
 } from "@/lib/grandma/askInput";
+import { getForwardedClientIp } from "@/lib/security/clientIp";
 
 const ConsultHistoryEntrySchema = z.object({
   role: z.enum(["user", "assistant"]),
@@ -692,12 +693,7 @@ export async function handleConsultAsk(
         supabaseUrl,
         serviceRoleKey,
       );
-      // x-real-ip はVercelが設定する信頼できるヘッダー（スプーフィング不可）
-      const forwardedIp =
-        request.headers.get("x-real-ip") ??
-        request.headers.get("x-forwarded-for")?.split(",").at(-1)?.trim() ??
-        null;
-      const ip = forwardedIp && forwardedIp !== "unknown" ? forwardedIp : null;
+      const ip = getForwardedClientIp(request);
       const abuseResult = await handleAbuseDetection(
         secClient,
         ip,

@@ -11,6 +11,7 @@ import {
 import { requestChatCompletion } from "@/lib/ai/openaiFetch";
 import { openAiSseToTextStream, TEXT_STREAM_HEADERS } from "@/lib/ai/textStream";
 import { resolveAiModelFor } from "@/lib/ai/modelStore.server";
+import { getForwardedClientIp } from "@/lib/security/clientIp";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -95,11 +96,7 @@ export async function POST(req: NextRequest) {
   // これが無いと、ask でブロック済みの利用者が shop-chat 経由で有料 LLM 呼び出しを続けられる
   const secClient = createAdminClient();
   if (secClient) {
-    const forwardedIp =
-      req.headers.get("x-real-ip") ??
-      req.headers.get("x-forwarded-for")?.split(",").at(-1)?.trim() ??
-      null;
-    const clientIp = forwardedIp && forwardedIp !== "unknown" ? forwardedIp : null;
+    const clientIp = getForwardedClientIp(req);
     const abuseResult = await handleAbuseDetection(
       secClient,
       clientIp,

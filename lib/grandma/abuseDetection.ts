@@ -61,7 +61,7 @@ export async function handleAbuseDetection(
           await supabase.from("admin_notifications").insert({
             type: "ai_abuse",
             title: `AI不正アクセスをブロック（${abuse.type}）`,
-            body: `IP: ${ip ?? "不明"} | visitor: ${visitorKey ?? "不明"} | ${abuse.reason} | 内容: ${text.slice(0, 80)}`,
+            body: `IP: ${ip ?? "不明"} | visitor: ${visitorKey ?? "不明"} | ${abuse.reason}`,
             link: "/admin/audit-logs",
           });
         }
