@@ -86,4 +86,3 @@ export type MapViewProps = {
   onGestureActiveChange?: (active: boolean) => void;
 };
 
-export type ShopBannerOrigin = { x: number; y: number; width: number; height: number };

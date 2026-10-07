@@ -63,29 +63,6 @@ export const ILLUSTRATION_SIZES: Record<
 };
 
 /**
- * デフォルトで使用するイラストサイズ
- * 【将来の変更】ここを変えるだけで全体のサイズが変わる
- * 実運用では shop.illustration.size が DB から供給されないため、
- * 全店舗がこの値（medium = 60px）で描画される。
- */
-export const DEFAULT_ILLUSTRATION_SIZE: 'small' | 'medium' | 'large' =
-  'medium';
-
-/**
- * DivIcon のアンカー（店舗座標に対してイラストのどこを合わせるか）。
- *
- * 屋台の足元中央を店舗座標に合わせる。これにより
- * transform-origin: center bottom の原点と店舗座標が一致し、
- * ズームでスケールが変わっても屋台の足が地面から動かない。
- */
-export function getIllustrationAnchor(
-  size: 'small' | 'medium' | 'large'
-): [number, number] {
-  const s = ILLUSTRATION_SIZES[size];
-  return [s.width / 2, s.height];
-}
-
-/**
  * 店舗マーカーの表示段階（LOD）
  *
  * - dot:       棒状の簡易アイコン。密集帯で「店がある」ことだけ伝える

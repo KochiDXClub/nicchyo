@@ -1,19 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import {
-  ILLUSTRATION_SIZES,
-  getIllustrationAnchor,
   getShopMarkerLod,
   getShopMarkerScale,
 } from './displayConfig';
-
-describe('getIllustrationAnchor', () => {
-  it('屋台の足元中央を指す', () => {
-    for (const size of ['small', 'medium', 'large'] as const) {
-      const { width, height } = ILLUSTRATION_SIZES[size];
-      expect(getIllustrationAnchor(size)).toEqual([width / 2, height]);
-    }
-  });
-});
 
 describe('getShopMarkerLod', () => {
   // メインマップ: maxZoom = 21

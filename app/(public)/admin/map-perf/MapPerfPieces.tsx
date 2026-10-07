@@ -45,13 +45,8 @@ export function flagsSummary(flags: Record<string, string | boolean> | null | un
   if (!flags) return "-";
   const short: Record<string, string> = {
     roadSnap: "snap",
-    zoomSkip: "skip",
-    zoomRenderIsolation: "iso",
-    landmarkCssScale: "lm",
-    stallRenderer: "stall",
     backgroundOverlay: "bg",
     tileOpacityByZoom: "tile",
-    shopLayerHiding: "hide",
     basemap: "basemap",
   };
   return Object.entries(flags)

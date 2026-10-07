@@ -49,18 +49,13 @@ export function toCssUrl(value: string | undefined | null): string | undefined {
   return `url("${cleaned}")`;
 }
 
-export type StallRendererOption = 'svg' | 'div';
-
 /**
- * 屋台イラスト。
- * - svg（既定）: config/stallParts.ts のカタログから 1 つの inline SVG として描く
- * - div: div を 6 個積んで CSS で形を作る従来方式（比較実験用。globals.css の .shop-illustration-3d）
- * 出店者のカスタム SVG がある場合はどちらでもそれを優先する。
+ * 屋台イラスト。config/stallParts.ts のカタログから 1 つの inline SVG として描く。
+ * 出店者のカスタム SVG がある場合はそれを優先する。
  */
 function generateShopIllustrationHtml(
   illustration: Shop['illustration'],
-  size: ShopIllustrationSize = 'medium',
-  renderer: StallRendererOption = 'svg'
+  size: ShopIllustrationSize = 'medium'
 ): string {
   const safeSvg = sanitizeInlineSvg(illustration?.customSvg);
   if (safeSvg) {
@@ -74,22 +69,6 @@ function generateShopIllustrationHtml(
   // DivIcon の iconSize と同じ値を使う（ILLUSTRATION_SIZES が唯一の正）。
   const { width, height } = ILLUSTRATION_SIZES[size];
 
-  if (renderer === 'div') {
-    return `
-    <div
-      class="shop-illustration shop-illustration-3d"
-      style="width:${width}px;height:${height}px;"
-    >
-      <div class="stall-shadow" aria-hidden="true"></div>
-      <div class="stall-roof" aria-hidden="true"></div>
-      <div class="stall-awning" aria-hidden="true"></div>
-      <div class="stall-body" aria-hidden="true"></div>
-      <div class="stall-counter" aria-hidden="true"></div>
-      <div class="stall-legs" aria-hidden="true"></div>
-    </div>
-  `;
-  }
-
   const parts = resolveStallParts({ roof: illustration?.roof, awning: illustration?.awning });
   return generateStallSvg(parts, { width, height });
 }
@@ -100,8 +79,6 @@ export interface ShopMarkerHtmlOptions {
   illustrationSize: ShopIllustrationSize;
   /** 木札（店名）の DOM を含めるか。LOD が nameplate のときだけ true */
   includeNameplate: boolean;
-  /** 屋台の描画方式（lib/mapFeatureFlags.ts の stallRenderer）。既定は svg */
-  stallRenderer?: StallRendererOption;
 }
 
 /**
@@ -118,7 +95,7 @@ export interface ShopMarkerHtmlOptions {
 /**
  * ハートの形（viewBox 24 × 24）
  *
- * Leaflet 版はこの文字列を SVG に埋め、MapLibre 版は Path2D に渡して
+ * 紹介パネルのデモ（HTML）はこの文字列を SVG に埋め、MapLibre は Path2D に渡して
  * Canvas に描く。形を直すときに片方だけ変わらないよう、出どころはここ 1 つにする。
  */
 export const SHOP_FAVORITE_HEART_PATH =
@@ -131,7 +108,7 @@ export const SHOP_FAVORITE_BADGE_HTML = `<div class="shop-favorite-badge" aria-h
 
 export function generateShopMarkerHtml(
   shop: Shop,
-  { bannerImage, illustrationSize, includeNameplate, stallRenderer = 'svg' }: ShopMarkerHtmlOptions
+  { bannerImage, illustrationSize, includeNameplate }: ShopMarkerHtmlOptions
 ): string {
   // 屋台の色はカテゴリで決まる。状態色（選択/AI/検索/買い物袋）は
   // CSS 側が上書きするので、ここではカテゴリ色だけを渡す。
@@ -150,7 +127,7 @@ export function generateShopMarkerHtml(
     ? `<div class="shop-nameplate"><span class="shop-nameplate-text">${escapeHtml(shop.name)}</span></div>`
     : '';
 
-  const illustrationHtml = generateShopIllustrationHtml(shop.illustration, illustrationSize, stallRenderer);
+  const illustrationHtml = generateShopIllustrationHtml(shop.illustration, illustrationSize);
 
   return `
     <div class="shop-marker-container" style="${colorStyle}">

@@ -8,7 +8,6 @@ import {
   hasCardCollision,
   type CardRect,
 } from "./ShopScanCards";
-import { quantizeRoadZoom } from "./RoadOverlay";
 
 describe("ShopScanCards logic", () => {
   describe("getCardHeight (ズームに応じたカード高さの計算と量子化)", () => {
@@ -112,18 +111,6 @@ describe("ShopScanCards logic", () => {
         y2: baseCard.y2,
       };
       expect(hasCardCollision(baseCard, collidesBy4px)).toBe(true);
-    });
-  });
-
-  describe("RoadOverlay quantizeRoadZoom (MapLibre の step 式に合わせた切り捨て量子化)", () => {
-    it("0.5 刻みで切り捨て（Math.floor）され、四捨五入による食い違いが起きない", () => {
-      // レビューで指摘・解消されたケース: ズーム 19.8 が 20.0 ではなく 19.5 になること
-      expect(quantizeRoadZoom(19.8)).toBe(19.5);
-      expect(quantizeRoadZoom(19.99)).toBe(19.5);
-      expect(quantizeRoadZoom(20.0)).toBe(20.0);
-      expect(quantizeRoadZoom(20.49)).toBe(20.0);
-      expect(quantizeRoadZoom(20.5)).toBe(20.5);
-      expect(quantizeRoadZoom(19.49)).toBe(19.0);
     });
   });
 });

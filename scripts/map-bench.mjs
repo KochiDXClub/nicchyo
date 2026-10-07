@@ -16,8 +16,8 @@
  *   --viewport  phone | tablet | desktop（既定: phone）
  *   --save      結果を map_perf_runs に保存する（.env.local の SUPABASE_SERVICE_ROLE_KEY が必要）
  *   --allow-remote  --url が localhost 以外でも --save を許可する（プレビュー環境の計測を保存したいとき）
- *   --flags     マップ動作フラグの上書き（例: roadSnap:after,zoomSkip:off）。lib/mapFeatureFlags.ts を参照
- *   --compare   1 つのフラグの全選択肢を順に計測して並べる（例: --compare stallRenderer）
+ *   --flags     マップ動作フラグの上書き（例: roadSnap:after,crowd:sprite）。lib/mapFeatureFlags.ts を参照
+ *   --compare   1 つのフラグの全選択肢を順に計測して並べる（例: --compare roadSnap）
  *   --json      生のレポートを標準出力に JSON で出す
  *
  * 前提:
@@ -120,17 +120,12 @@ const cdp = await context.newCDPSession(page);
 if (cpu > 1) await cdp.send("Emulation.setCPUThrottlingRate", { rate: cpu });
 
 const flags = opt("flags", "");
-// --compare <flagKey>: そのフラグの全選択肢を順に計測して並べる（例: --compare stallRenderer）
+// --compare <flagKey>: そのフラグの全選択肢を順に計測して並べる（例: --compare roadSnap）
 const compareKey = String(opt("compare", ""));
 const COMPARE_OPTIONS = {
-  stallRenderer: ["svg", "div"],
   roadSnap: ["off", "after", "integrated"],
-  zoomSkip: ["off", "after", "before"],
-  zoomRenderIsolation: ["on", "off"],
-  landmarkCssScale: ["on", "off"],
-  backgroundOverlay: ["webp", "svg", "off"],
+  backgroundOverlay: ["webp", "off"],
   tileOpacityByZoom: ["on", "off"],
-  shopLayerHiding: ["on", "off"],
   basemap: ["raster-carto", "vector-openfreemap"],
 };
 if (compareKey && !COMPARE_OPTIONS[compareKey]) {
@@ -152,12 +147,8 @@ for (const variant of variants) {
   for (let i = 0; i < runs; i++) {
     await page.goto(variantTarget, { waitUntil: "networkidle" });
     await page.waitForFunction(() => !!window.__nicchyoMapBench, null, { timeout: 60000 });
-    // Leaflet は DOM マーカーが出るまで、MapLibre（GPU 描画、DOM マーカー無し）は Map 本体の公開まで待つ
-    await page.waitForFunction(
-      () => document.querySelectorAll(".custom-shop-marker").length >= 5 || !!window.__nicchyoMapLibre,
-      null,
-      { timeout: 60000 }
-    );
+    // GPU 描画（DOM マーカー無し）なので、Map 本体の公開まで待つ
+    await page.waitForFunction(() => !!window.__nicchyoMapLibre, null, { timeout: 60000 });
     await page.waitForTimeout(4000);
     const report = await page.evaluate(() => window.__nicchyoMapBench.run());
     reports.push(report);

@@ -508,23 +508,6 @@ export function densifyPath(
   return dense;
 }
 
-export function smoothPath(path: Array<[number, number]>, radius: number): Array<[number, number]> {
-  if (path.length < 3 || radius <= 0) return path;
-  return path.map((_, idx) => {
-    const start = Math.max(0, idx - radius);
-    const end = Math.min(path.length - 1, idx + radius);
-    let sumLat = 0;
-    let sumLng = 0;
-    let count = 0;
-    for (let i = start; i <= end; i += 1) {
-      sumLat += path[i][0];
-      sumLng += path[i][1];
-      count += 1;
-    }
-    return [sumLat / count, sumLng / count];
-  });
-}
-
 /**
  * 中心線から左右へオフセットした2本の縁を返す。
  *

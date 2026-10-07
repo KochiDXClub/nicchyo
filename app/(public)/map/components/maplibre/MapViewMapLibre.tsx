@@ -38,7 +38,7 @@ import { landmarkToSpot } from "@/lib/spots";
 import ShopDetailBanner from "../ShopDetailBanner";
 import { useFavoriteShopIds } from "../../../../../lib/hooks/useFavorites";
 import { resolveMapFeatureFlags, type MapFeatureFlags } from "@/lib/mapFeatureFlags";
-import { runFullBenchmark, type BenchMapLike } from "@/lib/perf/mapBenchmark";
+import { collectDomStats, runFullBenchmark, type BenchMapLike } from "@/lib/perf/mapBenchmark";
 import { readPerfShopCount, synthesizeShops } from "@/lib/perf/syntheticShops";
 import {
   buildRoadEdges,
@@ -1259,13 +1259,7 @@ function MapViewMapLibre({
         const report = await runFullBenchmark(adapter, onProgress);
         return { ...report, flags: { ...featureFlags } };
       },
-      domStats: () => ({
-        markerPaneElements: 0,
-        markerCount: 0,
-        elementsPerMarker: 0,
-        documentElements: document.querySelectorAll("*").length,
-        jsHeapMb: null,
-      }),
+      domStats: collectDomStats,
       zoomTo: (zoom) => map.zoomTo(zoom, { duration: 250 }),
       getZoom: () => map.getZoom(),
     };

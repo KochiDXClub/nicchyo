@@ -4,7 +4,7 @@
  * パフォーマンス改善で入れた仕組みを、実験時にも本番でもオン・オフできるようにする。
  *
  * 優先順位（強い順）:
- *   1. URL の ?mapFlags=roadSnap:after,zoomSkip:off   … 計測ページや手元の実験用
+ *   1. URL の ?mapFlags=roadSnap:after,crowd:sprite  … 計測ページや手元の実験用
  *   2. 管理画面「設定」で保存した値（system_settings の key = "map_flags"）… 本番の切替用
  *   3. ここの既定値
  *
@@ -14,9 +14,7 @@
  */
 
 export type RoadSnapMode = "off" | "after" | "integrated";
-export type ZoomSkipMode = "off" | "after" | "before";
-export type StallRenderer = "svg" | "div";
-export type BackgroundOverlayMode = "webp" | "svg" | "off";
+export type BackgroundOverlayMode = "webp" | "off";
 export type BasemapMode = "raster-carto" | "vector-openfreemap";
 export type CrowdMode = "off" | "sprite";
 
@@ -30,36 +28,13 @@ export interface MapFeatureFlags {
    */
   roadSnap: RoadSnapMode;
   /**
-   * ズーム 18 ちょうど（丁目表示の切替境界）に止まらないための逃がし方。
-   * - off: 逃がさない
-   * - after: ズーム終了後にもう一度 setZoom で ±0.03 逃がす（従来。ズームが 2 回走る）
-   * - before: Leaflet がズーム先を確定する時点で逃がす（1 回で済む）
-   */
-  zoomSkip: ZoomSkipMode;
-  /** ズーム値ではなく「表示モードの真偽値」だけを state に持ち、モードが変わらないズームでは MapView を再描画しない */
-  zoomRenderIsolation: boolean;
-  /** ランドマーク画像の倍率をズームごとの DivIcon 再生成ではなく CSS 変数で追従させる */
-  landmarkCssScale: boolean;
-  /**
-   * 屋台イラストの描画方式。
-   * - svg: config/stallParts.ts のパスカタログから 1 つの inline SVG で描く
-   * - div: div を 6 個積んで CSS で形を作る（従来）
-   */
-  stallRenderer: StallRenderer;
-  /**
    * 市場エリア全体に色をかぶせる背景オーバーレイ。
    * - webp: ピクセル画像（既定。ズームは GPU の拡縮だけで済む）
-   * - svg: 以前の SVG データ URL（ズームのたびに CPU で描き起こされる。比較実験用）
    * - off: 出さない
    */
   backgroundOverlay: BackgroundOverlayMode;
   /** 背景タイルの不透明度をズームに応じて変える（off なら常に 0.22） */
   tileOpacityByZoom: boolean;
-  /**
-   * 店舗レイヤーをズーム 19 未満で付け外しせず、ペインごと非表示（visibility: hidden）で残す。
-   * off だと従来どおり境界をまたぐたびに 300 マーカーを作り直す。
-   */
-  shopLayerHiding: boolean;
   /**
    * 背景地図。
    * - raster-carto: 今と同じ CARTO のラスタータイル
@@ -81,13 +56,8 @@ export interface MapFeatureFlags {
  */
 export const DEFAULT_MAP_FEATURE_FLAGS: MapFeatureFlags = {
   roadSnap: "after",
-  zoomSkip: "before",
-  zoomRenderIsolation: true,
-  landmarkCssScale: true,
-  stallRenderer: "svg",
   backgroundOverlay: "webp",
   tileOpacityByZoom: true,
-  shopLayerHiding: true,
   basemap: "raster-carto",
   crowd: "off",
 };
@@ -95,11 +65,9 @@ export const DEFAULT_MAP_FEATURE_FLAGS: MapFeatureFlags = {
 export const BASEMAP_MODES: readonly BasemapMode[] = ["raster-carto", "vector-openfreemap"];
 export const CROWD_MODES: readonly CrowdMode[] = ["off", "sprite"];
 
-export const BACKGROUND_OVERLAY_MODES: readonly BackgroundOverlayMode[] = ["webp", "svg", "off"];
+export const BACKGROUND_OVERLAY_MODES: readonly BackgroundOverlayMode[] = ["webp", "off"];
 
 export const ROAD_SNAP_MODES: readonly RoadSnapMode[] = ["off", "after", "integrated"];
-export const ZOOM_SKIP_MODES: readonly ZoomSkipMode[] = ["off", "after", "before"];
-export const STALL_RENDERERS: readonly StallRenderer[] = ["svg", "div"];
 
 export type MapFeatureFlagKey = keyof MapFeatureFlags;
 
@@ -126,51 +94,21 @@ export const MAP_FEATURE_FLAG_DEFS: readonly MapFeatureFlagDef[] = [
     options: CROWD_MODES,
   },
   {
-    key: "stallRenderer",
-    label: "屋台イラストの描画方式",
-    description: "svg: パスカタログから 1 つの SVG で描く / div: div を 6 個積んで CSS で形を作る（従来）",
-    options: STALL_RENDERERS,
-  },
-  {
     key: "roadSnap",
     label: "ズーム後の道への吸着",
     description: "off: 寄せない / after: ズーム後にパンで寄せる（従来） / integrated: ズームと同時に寄せる",
     options: ROAD_SNAP_MODES,
   },
   {
-    key: "zoomSkip",
-    label: "ズーム 18 の回避",
-    description: "off: 回避しない / after: ズーム後にもう一度ズームして逃がす（従来） / before: ズーム先の確定時に逃がす",
-    options: ZOOM_SKIP_MODES,
-  },
-  {
-    key: "zoomRenderIsolation",
-    label: "ズーム時の再描画を抑える",
-    description: "表示モードが変わらないズームではマップ全体を再描画しない",
-    options: "boolean",
-  },
-  {
-    key: "landmarkCssScale",
-    label: "ランドマークを CSS で拡縮",
-    description: "ズームごとにアイコンを作り直さず、CSS の倍率で追従させる",
-    options: "boolean",
-  },
-  {
     key: "backgroundOverlay",
     label: "背景の色かぶせ画像",
-    description: "webp: ピクセル画像（既定） / svg: 以前の SVG（ズームのたびに再描画される） / off: 出さない",
+    description: "webp: ピクセル画像（既定） / off: 出さない",
     options: BACKGROUND_OVERLAY_MODES,
   },
   {
     key: "tileOpacityByZoom",
     label: "タイルの不透明度をズームで変える",
     description: "最小ズームで濃く、通常は薄く。off なら常に一定",
-    options: "boolean",
-  },
-  {
-    key: "shopLayerHiding",
-    label: "店舗レイヤーを隠して残す",
-    description: "ズーム 19 未満で店舗レイヤーを付け外しせず、非表示で残す。off だと境界をまたぐたびに 300 マーカーを作り直す（従来）",
     options: "boolean",
   },
 ];

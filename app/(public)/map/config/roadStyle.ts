@@ -112,7 +112,7 @@ export function getPixelsPerMeter(zoom: number): number {
 }
 
 /**
- * 中央線の破線を px で返す（Leaflet のズーム基準）。
+ * 中央線の破線を px で返す（Leaflet 時代のズーム基準。MapLibre 側で換算して使う）。
  *
  * 実寸どおりだと引いたときに 1px を割って破線が消えるので、
  * 下限を割る場合だけ線と空白を同じ比率で引き伸ばす。
@@ -123,13 +123,6 @@ export function getRoadLaneDashPx(zoom: number): [number, number] {
   const dashPx = dashMeters * pixelsPerMeter;
   const scale = Math.max(1, ROAD_LANE_DASH_MIN_PX / dashPx);
   return [dashPx * scale, gapMeters * pixelsPerMeter * scale];
-}
-
-/** Leaflet の dashArray（px 指定）に変換する */
-export function getRoadLaneDashArray(zoom: number): string {
-  return getRoadLaneDashPx(zoom)
-    .map((px) => px.toFixed(1))
-    .join(',');
 }
 
 /**

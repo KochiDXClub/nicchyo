@@ -11,8 +11,8 @@
  * - 同期コスト: クラス付替後に強制レイアウトさせたときの所要時間（スタイル再計算＋レイアウト）
  * - DOM 要素数: マーカーペイン配下の要素数
  *
- * Leaflet の Map インスタンスは呼び出し側（MapPerfBridge）から渡す。
- * ここでは Leaflet 型に依存させず、必要なメソッドだけを構造的に受け取る。
+ * 地図のインスタンスは呼び出し側（MapViewMapLibre の計測アダプタ）から渡す。
+ * ここでは地図ライブラリの型に依存させず、必要なメソッドだけを構造的に受け取る。
  */
 
 export interface BenchMapLike {
@@ -25,11 +25,9 @@ export interface BenchMapLike {
   off(event: string, handler: () => void): unknown;
   getContainer(): HTMLElement;
   /**
-   * 一斉ハイライトの切替。DOM マーカーを持たない描画方式（MapLibre のシンボルレイヤー）は
-   * これを実装し、feature-state などで全店舗の検索ハイライトを付け外しする。
-   * 無ければ .custom-shop-marker の DOM クラス付け替えで測る（Leaflet）。
+   * 一斉ハイライトの切替。全店舗の検索ハイライトを付け外しし、対象の店舗数を返す。
    */
-  setHighlightAll?(on: boolean): number;
+  setHighlightAll(on: boolean): number;
 }
 
 export interface FrameStats {
@@ -73,7 +71,7 @@ export interface HighlightToggleResult {
 export interface DomStats {
   /** マーカーペイン配下の要素数 */
   markerPaneElements: number;
-  /** マーカー（.leaflet-marker-icon）の数 */
+  /** マーカーの数（シンボルレイヤー描画では DOM マーカーが無いので 0） */
   markerCount: number;
   /** 1 マーカーあたりの平均要素数 */
   elementsPerMarker: number;
@@ -197,19 +195,17 @@ function waitForEvent(map: BenchMapLike, event: string, timeoutMs: number): Prom
   });
 }
 
-export function collectDomStats(map: BenchMapLike): DomStats {
-  const container = map.getContainer();
-  // 店舗は専用ペイン（leaflet-shop-pane）に置かれるので、標準の markerPane と合わせて数える
-  const panes = Array.from(
-    container.querySelectorAll(".leaflet-marker-pane, .leaflet-shop-pane")
-  );
-  const markerPaneElements = panes.reduce((n, p) => n + p.querySelectorAll("*").length, 0);
-  const markerCount = panes.reduce((n, p) => n + p.querySelectorAll(".leaflet-marker-icon").length, 0);
+/**
+ * ページ全体の要素数と JS ヒープを測る。
+ * シンボルレイヤーの描画には DOM マーカーが無いので、マーカー関連は 0 を返す
+ * （計測ページの列は互換のために残している）。
+ */
+export function collectDomStats(): DomStats {
   const memory = (performance as unknown as { memory?: { usedJSHeapSize: number } }).memory;
   return {
-    markerPaneElements,
-    markerCount,
-    elementsPerMarker: markerCount ? markerPaneElements / markerCount : 0,
+    markerPaneElements: 0,
+    markerCount: 0,
+    elementsPerMarker: 0,
     documentElements: document.querySelectorAll("*").length,
     jsHeapMb: memory ? memory.usedJSHeapSize / (1024 * 1024) : null,
   };
@@ -223,7 +219,7 @@ export async function benchZoomStep(map: BenchMapLike, toZoom: number): Promise<
   map.setZoom(toZoom, { animate: true });
   const stats = await recordFrames(3000, zoomEnd);
   const zoomEndMs = (await zoomEnd.then(() => performance.now())) - t0;
-  const dom = collectDomStats(map);
+  const dom = collectDomStats();
   return {
     ...stats,
     fromZoom,
@@ -251,23 +247,12 @@ export async function benchPan(map: BenchMapLike): Promise<FrameStats> {
  * 描画完了の目安として 2 フレーム後までの時間も記録する。
  */
 export async function benchHighlightToggle(map: BenchMapLike): Promise<HighlightToggleResult> {
-  const container = map.getContainer();
-  const markers = Array.from(container.querySelectorAll<HTMLElement>(".custom-shop-marker"));
-  let markerCount = markers.length;
+  let markerCount = 0;
 
   const toggle = async (add: boolean) => {
     const t0 = performance.now();
-    if (map.setHighlightAll) {
-      // GPU 描画方式: 描画側の一斉切替（対象数を返してもらう）
-      markerCount = map.setHighlightAll(add);
-    } else {
-      for (const el of markers) {
-        if (add) el.classList.add("shop-marker-search");
-        else el.classList.remove("shop-marker-search");
-      }
-      // 強制レイアウト（スタイル再計算＋レイアウトを同期で走らせる）
-      void container.offsetWidth;
-    }
+    // 描画側の一斉切替（対象数を返してもらう）
+    markerCount = map.setHighlightAll(add);
     const syncMs = performance.now() - t0;
     await nextFrame();
     await nextFrame();
@@ -305,7 +290,7 @@ export async function runFullBenchmark(
   const idle = await recordFrames(1000);
 
   onProgress?.("DOM を数えています");
-  const dom = collectDomStats(map);
+  const dom = collectDomStats();
 
   const path = [
     minZoom,
@@ -339,4 +324,19 @@ export async function runFullBenchmark(
     highlight,
     idle,
   };
+}
+
+/** 計測ページ（/admin/map-perf）が iframe 越しに呼ぶ、地図側の窓口（?perf=1 のときだけ公開） */
+export interface NicchyoMapBench {
+  run: (onProgress?: BenchmarkProgress) => Promise<BenchmarkReport>;
+  domStats: () => DomStats;
+  /** プロファイル取得などで個別にズームさせたいときに使う */
+  zoomTo: (zoom: number) => void;
+  getZoom: () => number;
+}
+
+declare global {
+  interface Window {
+    __nicchyoMapBench?: NicchyoMapBench;
+  }
 }

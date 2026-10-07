@@ -9,7 +9,7 @@ import {
   type MapFeatureFlagKey,
   type MapFeatureFlags,
 } from "@/lib/mapFeatureFlags";
-import type { NicchyoMapBench } from "@/app/(public)/map/components/MapPerfBridge";
+import type { NicchyoMapBench } from "@/lib/perf/mapBenchmark";
 import { envLabel, fmtDate, shortSha, type AbVariantResult, type RunRow } from "./MapPerfPieces";
 
 export const VIEWPORTS = [
