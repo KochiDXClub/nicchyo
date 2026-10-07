@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 
 /**
  * おでかけサポートの利用ログ（guide_events）を書き込む。
- * shop-interaction と同じく、書き込みは service role だけ（クライアントからの直接 INSERT は不可）。
+ * 書き込みは service role だけ（クライアントからの直接 INSERT は不可）。
  */
 
 const EVENT_TYPES = ["open", "navigation_start", "arrived", "navigation_stop"] as const;
