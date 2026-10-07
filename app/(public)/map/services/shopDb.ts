@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { fetchAssignmentRows, fetchLocationRows, fetchProductRows } from "@/lib/shops/baseRowQueries";
 import { fetchAllRows } from "@/lib/supabase/fetchAllRows";
 import type { Database } from "@/types/database.types";
 import type { Shop } from "../types/shopData";
@@ -135,35 +136,9 @@ export async function fetchVendorShopBaseRows(
         supabase.from("categories").select("id, name").order("id", { ascending: true }).range(from, to),
       { label: "categories" }
     ),
-    fetchAllRows<ProductRow>(
-      (from, to) =>
-        supabase
-          .from("products")
-          .select("vendor_id, name")
-          .order("id", { ascending: true })
-          .range(from, to),
-      { label: "products" }
-    ),
-    fetchAllRows<LocationRow>(
-      (from, to) =>
-        supabase
-          .from("market_locations")
-          .select("id, store_number, latitude, longitude, district")
-          .order("id", { ascending: true })
-          .range(from, to),
-      { label: "market_locations" }
-    ),
-    // 履歴が週ごとに溜まるテーブル。新しい週から読めば、万一打ち切られても古い行が落ちる
-    fetchAllRows<AssignmentRow>(
-      (from, to) =>
-        supabase
-          .from("location_assignments")
-          .select("vendor_id, location_id, market_date")
-          .order("market_date", { ascending: false })
-          .order("id", { ascending: true })
-          .range(from, to),
-      { label: "location_assignments" }
-    ),
+    fetchProductRows<ProductRow>(supabase),
+    fetchLocationRows<LocationRow>(supabase),
+    fetchAssignmentRows<AssignmentRow>(supabase),
   ]);
 
   // どれか1つでも失敗すると該当データが黙って空扱いになり店舗が減る/消えるため、

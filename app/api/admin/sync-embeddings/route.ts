@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { requireAdminApi } from "@/lib/auth/requireAdminApi";
 import { requestEmbeddings } from "@/lib/ai/openaiFetch";
+import { fetchAssignmentRows, fetchLocationRows, fetchProductRows } from "@/lib/shops/baseRowQueries";
 import { fetchAllRows } from "@/lib/supabase/fetchAllRows";
 
 export const runtime = "nodejs";
@@ -136,30 +137,9 @@ async function syncVendorEmbeddings(): Promise<{ processed: number }> {
           .range(from, to) as unknown as PromiseLike<{ data: VendorRow[] | null; error: { message: string } | null }>,
       { label: "vendors" }
     ),
-    // PostgREST の max_rows (1000) で黙って切り詰められないよう range ページングで全件取る
-    fetchAllRows<ProductRow>(
-      (from, to) => supabase.from("products").select("vendor_id, name").order("id", { ascending: true }).range(from, to),
-      { label: "products" }
-    ),
-    fetchAllRows<LocationRow>(
-      (from, to) =>
-        supabase
-          .from("market_locations")
-          .select("id, store_number, latitude, longitude, district")
-          .order("id", { ascending: true })
-          .range(from, to),
-      { label: "market_locations" }
-    ),
-    fetchAllRows<AssignmentRow>(
-      (from, to) =>
-        supabase
-          .from("location_assignments")
-          .select("vendor_id, location_id, market_date")
-          .order("market_date", { ascending: false })
-          .order("id", { ascending: true })
-          .range(from, to),
-      { label: "location_assignments" }
-    ),
+    fetchProductRows<ProductRow>(supabase),
+    fetchLocationRows<LocationRow>(supabase),
+    fetchAssignmentRows<AssignmentRow>(supabase),
     fetchAllRows<ContentRow>(
       (from, to) =>
         supabase
