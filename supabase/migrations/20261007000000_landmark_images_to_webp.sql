@@ -9,3 +9,8 @@
 update map_landmarks
 set image_url = regexp_replace(image_url, '\.png$', '.webp')
 where image_url like '/images/maps/elements/buildings/%.png';
+
+-- にちよさん（RAG）の知識データ（data/knowledge.csv → knowledge_embeddings）も同じ画像を指しているので、そろえる。
+update knowledge_embeddings
+set image_url = regexp_replace(image_url, '\.png$', '.webp')
+where image_url like '/images/maps/elements/buildings/%.png';
