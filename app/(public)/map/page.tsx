@@ -58,6 +58,12 @@ const sundayMarketJsonLd = {
 
 export default async function MapPage() {
   const cookieStore = await cookies();
+  // マップ動作フラグ（管理画面で切替可能。URL の ?mapFlags= はクライアント側で上書きする）と
+  // マップの可動範囲（管理画面「マップの表示範囲」で設定する。MapLibre 版でのみ効く）は、
+  // 店舗・建物・道の取得と独立しているので、先に開始して並列に待つ
+  const featureFlagsPromise = fetchMapFeatureFlags();
+  const mapViewSettingsPromise = fetchMapViewSettings();
+
   let shops: Shop[] = [];
   let landmarks: Landmark[] = [];
   let mapRoute: MapRoute = getFallbackMapRoute();
@@ -103,10 +109,10 @@ export default async function MapPage() {
     }
   }
 
-  // マップ動作フラグ（管理画面で切替可能。URL の ?mapFlags= はクライアント側で上書きする）
-  const featureFlags = await fetchMapFeatureFlags();
-  // マップの可動範囲（管理画面「マップの表示範囲」で設定する）
-  const mapViewSettings = await fetchMapViewSettings();
+  const [featureFlags, mapViewSettings] = await Promise.all([
+    featureFlagsPromise,
+    mapViewSettingsPromise,
+  ]);
 
   return (
     <>

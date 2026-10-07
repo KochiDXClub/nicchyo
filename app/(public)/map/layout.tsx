@@ -1,5 +1,6 @@
 import { fetchMapFeatureFlags } from '@/lib/mapFeatureFlags.server';
 import {
+  CARTO_PRECONNECT_ORIGINS,
   OPENFREEMAP_ORIGIN,
   OPENFREEMAP_STYLE_URL,
   OPENFREEMAP_TILEJSON_URL,
@@ -19,9 +20,21 @@ import {
 export default async function MapLayout({ children }: { children: React.ReactNode }) {
   const featureFlags = await fetchMapFeatureFlags();
   const usesVectorBasemap = featureFlags.basemap === 'vector-openfreemap';
+  const usesRasterBasemap = !usesVectorBasemap;
 
   return (
     <>
+      {/*
+        MapLibre の Worker と共有モジュール（約 500KB）。メインチャンクが実行され Map を作ってから
+        取りに行くと更に 2 往復かかるので、HTML の時点で取得を始める。
+        public/maplibre/ に置いた実ファイル（lib/map/maplibreWorker.ts が指す先）と同じパス
+      */}
+      <link rel="modulepreload" href="/maplibre/maplibre-gl-worker.mjs" />
+      <link rel="modulepreload" href="/maplibre/maplibre-gl-shared.mjs" />
+      {usesRasterBasemap &&
+        CARTO_PRECONNECT_ORIGINS.map((origin) => (
+          <link key={origin} rel="preconnect" href={origin} crossOrigin="anonymous" />
+        ))}
       {usesVectorBasemap && (
         <>
           {/* DNS + TLS を先に済ませる */}

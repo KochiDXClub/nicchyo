@@ -6,7 +6,6 @@ import { useEffect, useMemo, useState, useRef, useCallback, Suspense } from "rea
 import { useSearchParams, useRouter } from "next/navigation";
 import { AnimatePresence, motion, useDragControls } from "framer-motion";
 import { Navigation } from "lucide-react";
-import SearchClient from "../search/SearchClient";
 import type { MapCamera } from "./types/mapCamera";
 import { clearSearchMapPayload, loadAiMapPayload, loadSearchMapPayload } from "../../../lib/searchMapStorage";
 import { getShopPreviewImage } from "../../../lib/shopImages";
@@ -71,6 +70,8 @@ import type { MapViewSettings } from "@/lib/map/mapViewSettings";
 const MapView = dynamic(() => import("./components/maplibre/MapViewMapLibre"), {
   ssr: true,
 });
+// 検索パネル（?panel=search のオーバーレイだけで使う）。開くまで 557 行ぶんの JS を初期表示に載せない
+const SearchClient = dynamic(() => import("../search/SearchClient"), { ssr: false });
 // はじめての方への案内。初回か、メニューから開いたときにだけ要る。
 // 二度目以降の来訪者は一度も開かないので、その人たちに読み込ませない
 const MapIntroPanel = dynamic(() => import("./components/MapIntroPanel"), { ssr: false });
