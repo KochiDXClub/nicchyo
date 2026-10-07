@@ -86,5 +86,10 @@ jobs:
       - name: Check listing consent columns are not readable by anon / authenticated
         run: psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" -v ON_ERROR_STOP=1 -f supabase/checks/vendor_listing_consent_columns.sql
 
+      # 公開 SELECT が掲載許可のフィルタを迂回しないこと、reports / inquiries / track_home_visit が
+      # 直接書けないことを確かめる。詳しくは supabase/checks/public_read_and_insert_closed.sql
+      - name: Check public read policies and closed inserts
+        run: psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" -v ON_ERROR_STOP=1 -f supabase/checks/public_read_and_insert_closed.sql
+
       - name: Show applied migrations
         run: supabase migration list --local
