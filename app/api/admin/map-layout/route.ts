@@ -12,6 +12,7 @@ import { MAX_SHOP_ID, MIN_SHOP_ID } from "@/lib/shops/route";
 import { logAdminAudit } from "@/lib/audit/logAdminAudit";
 import { getRole } from "@/lib/auth/permissions";
 import { CHOME_ORDER, NEW_VENDOR_ID_PREFIX } from "@/app/(public)/map/types/editableShop";
+import { loadChomeSettings } from "./chomeSettings";
 import {
   createMapLayoutSnapshot,
   findRoadIdsWithShops,
@@ -100,6 +101,9 @@ function validateShopFields(shops: EditableShop[]) {
     if (shop.chome !== undefined && shop.chome !== null && !CHOME_VALUES.has(shop.chome)) {
       return `店番 ${shop.position} の丁目が正しくありません`;
     }
+    if (shop.chomeLocked !== undefined && shop.chomeLocked !== null && typeof shop.chomeLocked !== "boolean") {
+      return `店番 ${shop.position} の丁目の手動設定が正しくありません`;
+    }
     for (const [label, value] of [
       ["本番号", shop.officialNumber],
       ["枝番", shop.branchNumber],
@@ -169,7 +173,7 @@ export async function GET() {
     const cookieStore = await cookies();
     const supabase = createServerClient(cookieStore);
 
-    const [editableShops, landmarks, mapRoute, roads, vendors, categories, mapSettingsLimits, schemaReady] = await Promise.all([
+    const [editableShops, landmarks, mapRoute, roads, vendors, categories, mapSettingsLimits, schemaReady, chome] = await Promise.all([
       loadEditableShops(supabase),
       fetchLandmarksFromDb(supabase),
       fetchMapRouteFromDb(supabase),
@@ -178,6 +182,7 @@ export async function GET() {
       loadVendorCategories(supabase),
       loadMapSettingsLimits(supabase),
       hasRoadPositionSchema(supabase),
+      loadChomeSettings(supabase),
     ]);
 
     return NextResponse.json({
@@ -190,6 +195,8 @@ export async function GET() {
       vendors,
       categories,
       mapSettingsLimits,
+      // 丁目の境目と区間（マイグレーション前は空）。画面が区画の丁目を自動判定するのに使う
+      chome,
     });
   } catch {
     return NextResponse.json({ error: "Failed to load map layout" }, { status: 500 });
@@ -497,6 +504,8 @@ export async function PUT(request: NextRequest) {
         lat: shop.lat,
         lng: shop.lng,
         chome: shop.chome ?? null,
+        // 送られてきたときだけ DB を上書きする（無ければ今の値を残す）。画面は手動設定を外すとき false を送る
+        chomeLocked: shop.chomeLocked ?? null,
         vendorId: shop.vendorId?.trim() || null,
         roadId: shop.roadId ?? null,
         roadDistanceM: shop.roadDistanceM ?? null,
