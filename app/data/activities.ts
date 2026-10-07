@@ -60,7 +60,7 @@ export const ACTIVITIES: ActivityItem[] = [
     slug: "2025-07-31-re-kosen-adopted",
     date: "2025年7月31日",
     title: "AKATSUKI事業（re-KOSEN）採択",
-    image: "/images/activities/re-kosen-logo.png",
+    image: "/images/activities/re-kosen-logo.webp",
     category: "発表",
     externalLink: {
       label: "re-KOSEN 公式サイトを見る",
@@ -116,7 +116,7 @@ export const ACTIVITIES: ActivityItem[] = [
     date: "2025年10月19日",
     title: "日曜市での来訪者アンケートを実施",
     note: "133人に実施",
-    image: "/images/activities/2025-10-19-sunday-market-survey.png",
+    image: "/images/activities/2025-10-19-sunday-market-survey.webp",
     category: "現地調査",
     summary:
       "実際の来訪者の声を集め、迷いや不安がどこで生まれるかを現地で確認しました。",

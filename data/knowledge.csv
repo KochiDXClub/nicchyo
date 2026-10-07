@@ -12,10 +12,10 @@ kb-010,category,生活雑貨カテゴリーについて,"キッチン用品や�
 kb-011,category,植物・苗カテゴリーについて,"季節の花や苗木、鉢植えなどが並びます。朝は状態の良い苗が選びやすいです。",
 kb-012,category,アクセサリーカテゴリーについて,"手作りのアクセサリーや小物が多いです。プレゼント探しにも向いています。",
 kb-013,category,手作り・工芸カテゴリーについて,"木工や布製品など、作家さんの作品が並びます。気に入ったら作り手に話を聞くと楽しいです。",
-kb-014,place,高知城について,"高知城は市内中心部のシンボルです。マップ上でも右上にイラストで表示されています。",/images/maps/elements/buildings/KochiCastle.png
-kb-015,place,高知城歴史博物館について,"高知城歴史博物館は高知城の近くにある文化施設です。マップ上で道の左上に表示されています。",/images/maps/elements/buildings/KochiCastleMusium2.png
-kb-016,place,オーテピアについて,"オーテピアは高知市の図書館・文化複合施設です。歴史博物館の少し下に表示されています。",/images/maps/elements/buildings/Otepia2.png
-kb-017,place,チンチン電車について,"チンチン電車は高知の路面電車です。マップでは道の下側にイラストで表示しています。",/images/maps/elements/buildings/TinTinDensha2.png
+kb-014,place,高知城について,"高知城は市内中心部のシンボルです。マップ上でも右上にイラストで表示されています。",/images/maps/elements/buildings/KochiCastle.webp
+kb-015,place,高知城歴史博物館について,"高知城歴史博物館は高知城の近くにある文化施設です。マップ上で道の左上に表示されています。",/images/maps/elements/buildings/KochiCastleMusium2.webp
+kb-016,place,オーテピアについて,"オーテピアは高知市の図書館・文化複合施設です。歴史博物館の少し下に表示されています。",/images/maps/elements/buildings/Otepia2.webp
+kb-017,place,チンチン電車について,"チンチン電車は高知の路面電車です。マップでは道の下側にイラストで表示しています。",/images/maps/elements/buildings/TinTinDensha2.webp
 kb-018,howto,マップの使い方,"マップ上のアイコンをタップするとお店の詳細が見られます。お気に入りはハートで登録できます。",
 kb-019,howto,検索の使い方,"キーワードやカテゴリ、ブロック番号で店舗を絞り込めます。結果はマップに送ることもできます。",
 kb-021,howto,ことづての使い方,"ことづてはちょっとした伝言メモです。日曜市での発見を誰かに共有したり、他の人のことづてを見たりできます。",
