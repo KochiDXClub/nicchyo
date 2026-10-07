@@ -19,6 +19,8 @@ export const ShopChatRequestSchema = z.object({
   shopId: z.number().int().positive(),
   text: z.string().trim().min(1).max(SHOP_CHAT_MAX_QUESTION_CHARS),
   history: z.array(MessageSchema).max(SHOP_CHAT_MAX_HISTORY * 4).default([]),
+  /** 悪用ブロックの識別に使う（ask / itinerary と共通）。無くてもよい */
+  visitorKey: z.string().max(128).nullish(),
 });
 
 export type ShopChatRequest = z.infer<typeof ShopChatRequestSchema>;

@@ -3,9 +3,14 @@ import type { NextRequest } from "next/server";
 
 const requestChatCompletion = vi.fn();
 const loadShopChat = vi.fn();
+const handleAbuseDetection = vi.fn();
 
 vi.mock("@/lib/security/requestGuards", () => ({ requireSameOrigin: () => ({ ok: true }) }));
 vi.mock("@/lib/security/rateLimit", () => ({ enforceRateLimit: async () => null }));
+vi.mock("@/lib/grandma/abuseDetection", () => ({
+  handleAbuseDetection: (...a: unknown[]) => handleAbuseDetection(...a),
+}));
+vi.mock("@/lib/supabase/adminClient", () => ({ createAdminClient: () => ({}) }));
 vi.mock("@/lib/grandma/prompts/promptStore.server", async () => {
   const { DEFAULT_AI_PROMPTS } = await import("@/lib/grandma/prompts/promptKeys");
   return { fetchAiPrompts: async () => DEFAULT_AI_PROMPTS };
@@ -20,8 +25,8 @@ vi.mock("@/lib/ai/textStream", () => ({
 
 import { POST } from "./route";
 
-function request(body: unknown): NextRequest {
-  return { json: async () => body } as unknown as NextRequest;
+function request(body: unknown, headers: Record<string, string> = {}): NextRequest {
+  return { json: async () => body, headers: new Headers(headers) } as unknown as NextRequest;
 }
 
 const LOADED = {
@@ -37,6 +42,24 @@ describe("POST /api/grandma/shop-chat", () => {
     requestChatCompletion.mockResolvedValue({ ok: true, body: new ReadableStream() });
     loadShopChat.mockReset();
     loadShopChat.mockResolvedValue(LOADED);
+    handleAbuseDetection.mockReset();
+    handleAbuseDetection.mockResolvedValue("ok");
+  });
+
+  it("不正検知でブロックされたら 403 で、お店も読まず AI も呼ばない", async () => {
+    handleAbuseDetection.mockResolvedValue("blocked");
+    const res = await POST(
+      request({ shopId: 7, text: "こんにちは", visitorKey: "abcdef0123456789" }, { "x-real-ip": "203.0.113.5" })
+    );
+    expect(res.status).toBe(403);
+    expect(handleAbuseDetection).toHaveBeenCalledWith(expect.anything(), "203.0.113.5", "こんにちは", "abcdef0123456789");
+    expect(loadShopChat).not.toHaveBeenCalled();
+    expect(requestChatCompletion).not.toHaveBeenCalled();
+  });
+
+  it("質問が上限を超えると 400", async () => {
+    expect((await POST(request({ shopId: 7, text: "あ".repeat(301) }))).status).toBe(400);
+    expect(requestChatCompletion).not.toHaveBeenCalled();
   });
 
   it("お店の情報は shopId からサーバーが読み、送られてきた店名・商品は使わない", async () => {

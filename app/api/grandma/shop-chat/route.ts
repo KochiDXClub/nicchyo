@@ -1,4 +1,6 @@
 import { NextRequest } from "next/server";
+import { createAdminClient } from "@/lib/supabase/adminClient";
+import { handleAbuseDetection } from "@/lib/grandma/abuseDetection";
 import { requireSameOrigin } from "@/lib/security/requestGuards";
 import { enforceRateLimit } from "@/lib/security/rateLimit";
 import { buildShopChatSystemPrompt } from "@/lib/grandma/prompts/shopChatPrompt";
@@ -9,6 +11,7 @@ import { ShopChatRequestSchema, trimShopChatHistory } from "@/lib/grandma/shopCh
 import { requestChatCompletion } from "@/lib/ai/openaiFetch";
 import { openAiSseToTextStream, TEXT_STREAM_HEADERS } from "@/lib/ai/textStream";
 import { resolveAiModelFor } from "@/lib/ai/modelStore.server";
+import { getForwardedClientIp } from "@/lib/security/clientIp";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -33,7 +36,22 @@ export async function POST(req: NextRequest) {
   if (!parsed.success) {
     return new Response("Bad Request", { status: 400 });
   }
-  const { shopId, text, history } = parsed.data;
+  const { shopId, text, history, visitorKey } = parsed.data;
+
+  // ask / itinerary と同じ悪用ブロック（IP / visitorKey）を通す。
+  // これが無いと、ask でブロック済みの利用者が shop-chat 経由で有料 LLM 呼び出しを続けられる
+  const secClient = createAdminClient();
+  if (secClient) {
+    const abuseResult = await handleAbuseDetection(
+      secClient,
+      getForwardedClientIp(req),
+      text,
+      visitorKey?.trim() || undefined
+    );
+    if (abuseResult === "blocked") {
+      return new Response("Forbidden", { status: 403 });
+    }
+  }
 
   // お店の情報・メモ・キャラは、利用者から受け取らずサーバーが読む
   const loaded = await loadShopChat(shopId);

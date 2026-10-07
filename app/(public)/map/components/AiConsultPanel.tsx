@@ -12,6 +12,7 @@ import { DEFAULT_CONSULT_CHARACTER } from "@/app/(public)/consult/data/consultCh
 import { isImeComposing } from "@/lib/utils/isImeComposing";
 import { buildConsultGreeting } from "@/lib/grandma/consultGreeting";
 import { buildShopChatSuggestions } from "@/lib/grandma/shopChat/suggestions";
+import { SHOP_CHAT_MAX_QUESTION_CHARS } from "@/lib/grandma/shopChat/request";
 import type { ShopChatCharacterView } from "@/lib/grandma/shopChat/character";
 import { ConsultFeedback } from "@/components/consult/ConsultFeedback";
 
@@ -301,6 +302,7 @@ export function AiConsultPanel({
             aria-label="質問を入力"
             disabled={streaming}
             rows={1}
+            maxLength={SHOP_CHAT_MAX_QUESTION_CHARS}
             className="flex-1 resize-none bg-transparent text-sm text-nicchyo-ink placeholder:text-nicchyo-ink/40 focus:outline-none disabled:cursor-not-allowed disabled:opacity-40"
             style={{ lineHeight: "1.5", maxHeight: 120, overflowY: "auto" }}
           />
