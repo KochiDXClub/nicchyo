@@ -8,6 +8,8 @@ import { enforceRateLimit } from "@/lib/security/rateLimit";
 import { todayJstString } from "@/lib/time/jstDate";
 
 const VISITOR_COOKIE_NAME = "nicchyo_visitor_id";
+// 通常のパス＋クエリは収まる長さ。超えるものは記録せず捨てる（DB 肥大の防止）
+const MAX_PATH_LENGTH = 512;
 
 function isValidVisitorKey(value: string) {
   return value.length >= 16 && value.length <= 128;
@@ -57,7 +59,7 @@ export async function POST(request: NextRequest) {
     Math.min(86400, Math.round(typeof body?.durationSeconds === "number" ? body.durationSeconds : 0))
   );
 
-  if (!path.startsWith("/") || path.startsWith("/api") || isSecretTokenPath(path) || durationSeconds <= 0) {
+  if (path.length > MAX_PATH_LENGTH || !path.startsWith("/") || path.startsWith("/api") || isSecretTokenPath(path) || durationSeconds <= 0) {
     const skippedResponse = NextResponse.json({ ok: true, skipped: true });
     if (shouldSetVisitorCookie) {
       skippedResponse.cookies.set(VISITOR_COOKIE_NAME, visitorKey, {

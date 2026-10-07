@@ -20,7 +20,7 @@ describe("buildVendorHelpSystemPrompt", () => {
     for (const page of VENDOR_HELP_PAGES) {
       expect(prompt).toContain(`・${page.name}: ${page.href}`);
     }
-    expect(prompt).toContain("[近況投稿ページ](/vendor/post/new)");
+    expect(prompt).toContain("[近況投稿ページ](/vendor/posts)");
     expect(prompt).toContain("一覧にない画面へのリンクを作ったりしないでください");
   });
 

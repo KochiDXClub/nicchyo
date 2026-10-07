@@ -144,68 +144,6 @@ export function PostPeriodScene({ step }: SceneProps) {
   );
 }
 
-const TABS = ["すべて", "公開中", "期限切れ"] as const;
-const tab = (index: number): Rect => ({ x: 10 + index * 102, y: 10, w: 98, h: 30 });
-const ROWS = [
-  { id: "a", expired: false },
-  { id: "b", expired: true },
-  { id: "c", expired: false },
-  { id: "d", expired: true },
-] as const;
-const ROW_H = 30;
-
-/** 投稿履歴の絞り込み。工程: 0 すべて / 1 期限切れを押す / 2 期限切れだけ */
-export function PostsTabsScene({ step }: SceneProps) {
-  const filtered = step === 2;
-  const active = step === 0 ? 0 : 2;
-  let order = 0;
-  return (
-    <>
-      {TABS.map((label, index) => (
-        <Box
-          key={label}
-          rect={tab(index)}
-          className={cn(
-            "flex items-center justify-center rounded-chip text-[11px] font-bold transition-colors duration-300",
-            active === index ? "bg-amber-500 text-white shadow-pop" : "bg-white text-nicchyo-ink/70 shadow-chip ring-1 ring-line"
-          )}
-        >
-          {label}
-        </Box>
-      ))}
-      {ROWS.map((item) => {
-        const visible = !filtered || item.expired;
-        const slot = visible ? order++ : order;
-        return (
-          <Box
-            key={item.id}
-            rect={{ x: 10, y: 52, w: 300, h: ROW_H }}
-            initial={false}
-            animate={{ y: slot * (ROW_H + 4), opacity: visible ? 1 : 0, scale: visible ? 1 : 0.96 }}
-            transition={{ type: "spring", stiffness: 200, damping: 24 }}
-            className={cn(SURFACE, "flex items-center gap-2 px-2")}
-          >
-            <span className={cn("h-5 w-5 rounded-btn", item.expired ? "bg-nicchyo-ink/15" : "bg-amber-200")} />
-            <span className="space-y-1">
-              <span className="block h-1.5 w-24 rounded-full bg-nicchyo-ink/15" />
-              <span className="block h-1.5 w-14 rounded-full bg-nicchyo-ink/10" />
-            </span>
-            <span
-              className={cn(
-                "ml-auto rounded-chip px-2 py-0.5 text-[9px] font-bold",
-                item.expired ? "bg-nicchyo-ink/10 text-nicchyo-ink/55" : "bg-status-good-bg text-status-good-fg"
-              )}
-            >
-              {item.expired ? "期限切れ" : "公開中"}
-            </span>
-          </Box>
-        );
-      })}
-      <Finger target={step === 0 ? null : tab(2)} pressed={step === 1} />
-    </>
-  );
-}
-
 const OLD_ROW: Rect = { x: 10, y: 14, w: 300, h: 70 };
 const SAME: Rect = { x: 18, y: 54, w: 138, h: 26 };
 const EDIT: Rect = { x: 164, y: 54, w: 138, h: 26 };

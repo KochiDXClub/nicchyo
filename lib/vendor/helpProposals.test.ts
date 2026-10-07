@@ -16,12 +16,30 @@ const proposalFromToolCalls = (calls: { name: string; arguments: string }[], use
 const call = (name: string, args: unknown) => ({ name, arguments: JSON.stringify(args) });
 
 describe("proposalFromToolCalls", () => {
-  it("営業時間は何時ちょうどの選択肢の形にする", () => {
+  it("営業時間は10分刻みの選択肢の形にする。分を省くと0分", () => {
     expect(proposalFromToolCalls([call("propose_hours", { start_hour: 7, end_hour: 13 })])).toEqual({
       id: "hours",
       start: "7:00",
       end: "13:00",
     });
+  });
+
+  it("営業時間の分は、10分刻みで入る（7時半〜13時10分）", () => {
+    expect(
+      proposalFromToolCalls([call("propose_hours", { start_hour: 7, start_minute: 30, end_hour: 13, end_minute: 10 })]),
+    ).toEqual({ id: "hours", start: "7:30", end: "13:10" });
+    expect(proposalFromToolCalls([call("propose_hours", { start_hour: 7, end_hour: 24, end_minute: 0 })])).toEqual({
+      id: "hours",
+      start: "7:00",
+      end: "24:00",
+    });
+  });
+
+  it("10分刻みでない分・24時台の分・同じ時刻は案にしない", () => {
+    expect(proposalFromToolCalls([call("propose_hours", { start_hour: 7, start_minute: 35, end_hour: 13 })])).toBeNull();
+    expect(proposalFromToolCalls([call("propose_hours", { start_hour: 7, end_hour: 24, end_minute: 30 })])).toBeNull();
+    expect(proposalFromToolCalls([call("propose_hours", { start_hour: 7, start_minute: 30, end_hour: 7, end_minute: 30 })])).toBeNull();
+    expect(proposalFromToolCalls([call("propose_hours", { start_hour: 7, start_minute: 20, end_hour: 7, end_minute: 10 })])).toBeNull();
   });
 
   it("終わりが始まりより前、範囲外の時間は案にしない", () => {

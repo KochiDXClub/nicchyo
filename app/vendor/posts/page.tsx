@@ -2,18 +2,22 @@
 
 export const dynamic = "force-dynamic";
 
-import { useState, useEffect } from "react";
-import { CenteredLoading, EmptyMessage, PageContainer, PageShell, PageTitle, Surface, buttonClass } from "@/components/ui";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { AlertCircle } from "lucide-react";
+import { CenteredLoading, EmptyMessage, PageContainer, PageShell, PageTitle, Surface } from "@/components/ui";
 import { sumPostStats } from "@/lib/story/postStats";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth/AuthContext";
-import { fetchVendorPosts, repostContent } from "../_services/postsService";
-import type { Post, PostStatus } from "../_types";
+import { canDecodeImage, imageErrorMessage, IMAGE_DECODE_ERROR_MESSAGE } from "@/lib/image/clientCompression";
+import { createPost, fetchPostIdentity, fetchVendorPosts, repostContent } from "../_services/postsService";
+import type { ExpirationPreset, Post, PostStatus } from "../_types";
 import {
   RotateCcw, Pencil, Clock, CheckCircle2,
-  XCircle, PlusCircle, Image as ImageIcon, Heart, Eye,
+  XCircle, Image as ImageIcon, Heart, Eye,
 } from "lucide-react";
+import { calcExpiresAt, formatExpiresAt } from "./expiration";
+import PhotoPicker from "./components/PhotoPicker";
+import StoryComposer from "./components/StoryComposer";
+import PostDone from "./components/PostDone";
 
 type FilterTab = "all" | "active" | "expired";
 
@@ -135,9 +139,6 @@ function ActiveSummary({ posts }: { posts: Post[] }) {
           <dd className="mt-1 text-3xl font-bold tabular-nums text-rose-700">{total.hearts}</dd>
         </div>
       </dl>
-      <p className="mt-3 text-xs leading-relaxed text-nicchyo-ink/55">
-        見た人は、1人が何度見ても1人と数えます。自分で開いた分は数えません。
-      </p>
     </Surface>
   );
 }
@@ -154,15 +155,39 @@ function RepostSuccessToast({ onClose }: { onClose: () => void }) {
   );
 }
 
+/**
+ * 近況の出し方と履歴を1ページにまとめた画面。
+ * 先頭で写真を選んで出し、その下で出した近況を見返す・出し直す。
+ * 写真を選んだら書く画面（StoryComposer）に切り替わり、出し終えると一覧に戻る。
+ */
 export default function VendorPostsPage() {
   const { user } = useAuth();
+  // 店舗の ID はアカウントの ID（user.id）とは別。必ず所属店舗の ID を使う
   const vendorId = user?.vendorId;
-  const router = useRouter();
+
+  // ── 履歴 ──
   const [activeTab, setActiveTab] = useState<FilterTab>("all");
   const [posts, setPosts]         = useState<Post[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showToast, setShowToast] = useState(false);
   const [error, setError]         = useState<string | null>(null);
+
+  // ── 近況を出す ──
+  const [identity, setIdentity] = useState<{ shopName: string | null; shopImageUrl: string | null }>({
+    shopName: null,
+    shopImageUrl: null,
+  });
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  /** 前の投稿をもとに出し直すときの、すでに保存されている写真 */
+  const [existingImageUrl, setExistingImageUrl] = useState<string | null>(null);
+  const [text, setText] = useState("");
+  const [preset, setPreset] = useState<ExpirationPreset>("sunday");
+  const [customDateTime, setCustomDateTime] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [composeError, setComposeError] = useState<string | null>(null);
+  const [done, setDone] = useState<{ id: string; imageUrl: string; label: string } | null>(null);
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (!vendorId) return;
@@ -172,6 +197,34 @@ export default function VendorPostsPage() {
       .finally(() => setIsLoading(false));
   }, [vendorId]);
 
+  useEffect(() => {
+    if (!vendorId) return;
+    let cancelled = false;
+    fetchPostIdentity(vendorId)
+      .then((loaded) => {
+        if (!cancelled) setIdentity(loaded);
+      })
+      .catch((err: unknown) => {
+        // 名札が出せなくても投稿はできる。原因は追えるようにしておく
+        console.warn("[VendorPostsPage] お店の名札を読めませんでした", err);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [vendorId]);
+
+  // 端末の写真を見せるための一時 URL は、差し替えたら手放す
+  useEffect(() => {
+    if (!imagePreview?.startsWith("blob:")) return;
+    return () => URL.revokeObjectURL(imagePreview);
+  }, [imagePreview]);
+
+  useEffect(() => () => {
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+  }, []);
+
+  const expiresAt = useMemo(() => calcExpiresAt(preset, customDateTime), [preset, customDateTime]);
+
   const filtered = activeTab === "all" ? posts : posts.filter((p) => p.status === activeTab);
 
   const TABS: { key: FilterTab; label: string; count: number }[] = [
@@ -180,59 +233,160 @@ export default function VendorPostsPage() {
     { key: "expired", label: "期限切れ",count: posts.filter((p) => p.status === "expired").length },
   ];
 
+  async function handlePick(file: File) {
+    // 送るときの変換でつまずく前に、このブラウザで読める写真かを確かめる
+    if (!(await canDecodeImage(file))) {
+      setComposeError(IMAGE_DECODE_ERROR_MESSAGE);
+      return;
+    }
+    setComposeError(null);
+    setImageFile(file);
+    setExistingImageUrl(null);
+    setImagePreview(URL.createObjectURL(file));
+  }
+
+  function discardPhoto() {
+    setImageFile(null);
+    setImagePreview(null);
+    setExistingImageUrl(null);
+    setComposeError(null);
+  }
+
+  function resetComposer() {
+    discardPhoto();
+    setText("");
+    setPreset("sunday");
+    setCustomDateTime("");
+  }
+
+  async function handleSubmit() {
+    if (!vendorId || submitting) return;
+    if (!imageFile && !existingImageUrl) return;
+    const at = calcExpiresAt(preset, customDateTime);
+    if (!at) {
+      setComposeError("いつまで出すかを、これから先の日時で選んでください");
+      return;
+    }
+    setSubmitting(true);
+    setComposeError(null);
+    try {
+      const post = await createPost(vendorId, text.trim(), at, imageFile ?? undefined, existingImageUrl ?? undefined);
+      setDone({ id: post.id, imageUrl: post.image_url ?? imagePreview ?? "", label: formatExpiresAt(preset, at) });
+      // 出した近況を、戻ったときの一覧にすぐ出す
+      setPosts((prev) => [{ ...post, viewCount: 0, heartCount: 0 }, ...prev]);
+    } catch (err) {
+      setComposeError(imageErrorMessage(err, "うまく出せませんでした。もう一度お試しください。"));
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  function backToList() {
+    resetComposer();
+    setDone(null);
+  }
+
   async function handleRepost(post: Post) {
     if (!vendorId) return;
     try {
       const newPost = await repostContent(vendorId, post);
       setPosts((prev) => [newPost, ...prev]);
       setShowToast(true);
-      setTimeout(() => setShowToast(false), 3000);
+      if (toastTimer.current) clearTimeout(toastTimer.current);
+      toastTimer.current = setTimeout(() => setShowToast(false), 3000);
     } catch {
       setError("再投稿に失敗しました");
     }
   }
 
+  /** 前の投稿の写真とひとことで、書く画面を開く */
   function handleEditRepost(post: Post) {
-    router.push(`/vendor/post/new?repost=${post.id}`);
+    resetComposer();
+    setText(post.text);
+    if (post.image_url) {
+      setImagePreview(post.image_url);
+      setExistingImageUrl(post.image_url);
+    }
+    window.scrollTo({ top: 0 });
   }
+
+  const composing = imagePreview !== null;
+  const width = done || composing ? "narrow" : "reading";
 
   return (
     <PageShell bottomNav={false}>
-      <PageTitle
-        title="投稿履歴"
-        action={<Link href="/vendor/post/new" className={buttonClass({ size: "sm" })}><PlusCircle size={14} aria-hidden="true" />新規投稿</Link>}
-      />
+      <PageTitle title={done ? "出しました" : composing ? "近況を出す" : "近況"} width={width} />
 
-      <PageContainer>
-        {!isLoading && <ActiveSummary posts={posts} />}
-
-        {error && (
-          <div className="mb-4 rounded-2xl border border-rose-100 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</div>
-        )}
-
-        <div className="mb-4 flex gap-1.5 rounded-3xl border border-slate-200 bg-white p-1.5 shadow-sm">
-          {TABS.map((tab) => (
-            <button type="button" key={tab.key} onClick={() => setActiveTab(tab.key)}
-              className={`flex flex-1 items-center justify-center gap-1.5 rounded-2xl py-3 text-sm font-semibold transition ${activeTab === tab.key ? "bg-amber-500 text-white shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
-            >
-              {tab.label}
-              <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${activeTab === tab.key ? "bg-amber-400 text-white" : "bg-slate-100 text-slate-400"}`}>
-                {tab.count}
-              </span>
-            </button>
-          ))}
-        </div>
-
-        {isLoading ? (
-          <CenteredLoading />
-        ) : filtered.length === 0 ? (
-          <EmptyMessage message="投稿がありません" padding="py-12" />
+      <PageContainer width={width}>
+        {done ? (
+          <PostDone
+            postId={done.id}
+            imageUrl={done.imageUrl}
+            expiresLabel={done.label}
+            onAnother={backToList}
+            onBack={backToList}
+          />
+        ) : composing ? (
+          <StoryComposer
+            imageUrl={imagePreview}
+            shopName={identity.shopName ?? user?.name ?? "あなたのお店"}
+            shopImageUrl={identity.shopImageUrl}
+            text={text}
+            onTextChange={setText}
+            preset={preset}
+            onPresetChange={setPreset}
+            customDateTime={customDateTime}
+            onCustomDateTimeChange={setCustomDateTime}
+            expiresAt={expiresAt}
+            submitting={submitting}
+            error={composeError}
+            onDiscard={discardPhoto}
+            onSubmit={handleSubmit}
+          />
         ) : (
-          <div className="space-y-3">
-            {filtered.map((post) => (
-              <PostCard key={post.id} post={post} onRepost={handleRepost} onEditRepost={handleEditRepost} />
-            ))}
-          </div>
+          <>
+            {composeError && (
+              <p role="alert" className="mb-4 flex items-start gap-2 rounded-btn bg-rose-50 px-4 py-3 text-sm text-rose-700">
+                <AlertCircle size={16} className="mt-0.5 shrink-0" aria-hidden="true" />
+                {composeError}
+              </p>
+            )}
+            <div className="mb-8">
+              <PhotoPicker onPick={handlePick} />
+            </div>
+
+            {!isLoading && <ActiveSummary posts={posts} />}
+
+            {error && (
+              <div className="mb-4 rounded-2xl border border-rose-100 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</div>
+            )}
+
+            <h2 className="mb-3 text-sm font-bold text-nicchyo-ink/70">これまでの近況・もう一度出す</h2>
+            <div className="mb-4 flex gap-1.5 rounded-3xl border border-slate-200 bg-white p-1.5 shadow-sm">
+              {TABS.map((tab) => (
+                <button type="button" key={tab.key} onClick={() => setActiveTab(tab.key)}
+                  className={`flex flex-1 items-center justify-center gap-1.5 rounded-2xl py-3 text-sm font-semibold transition ${activeTab === tab.key ? "bg-amber-500 text-white shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+                >
+                  {tab.label}
+                  <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${activeTab === tab.key ? "bg-amber-400 text-white" : "bg-slate-100 text-slate-400"}`}>
+                    {tab.count}
+                  </span>
+                </button>
+              ))}
+            </div>
+
+            {isLoading ? (
+              <CenteredLoading />
+            ) : filtered.length === 0 ? (
+              <EmptyMessage message="投稿がありません" padding="py-12" />
+            ) : (
+              <div className="space-y-3">
+                {filtered.map((post) => (
+                  <PostCard key={post.id} post={post} onRepost={handleRepost} onEditRepost={handleEditRepost} />
+                ))}
+              </div>
+            )}
+          </>
         )}
       </PageContainer>
 

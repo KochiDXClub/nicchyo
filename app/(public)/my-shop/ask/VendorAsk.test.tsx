@@ -125,13 +125,14 @@ describe("VendorAskStage の相談からの変更案", () => {
     expect(screen.getByText("7時から13時にするがやね。")).toBeInTheDocument();
     // 区切りのあとのデータは本文に出さない
     expect(screen.queryByText(/"proposal"/)).not.toBeInTheDocument();
-    expect(screen.getByRole("combobox", { name: "開始時間" })).toHaveValue("7:00");
+    expect(screen.getByRole("combobox", { name: "開始時間（時）" })).toHaveValue("7");
+    expect(screen.getByRole("combobox", { name: "開始時間（分）" })).toHaveValue("0");
     // 何から変わるのか分かるよう、いまの登録内容も出す
     expect(card).toHaveTextContent("いまは：06:00〜14:00");
     // 確かめているあいだは、問い合わせ先を出さない
     expect(screen.queryByRole("link", { name: /運営に問い合わせる/ })).not.toBeInTheDocument();
 
-    fireEvent.change(screen.getByRole("combobox", { name: "終了時間" }), { target: { value: "14:00" } });
+    fireEvent.change(screen.getByRole("combobox", { name: "終了時間（時）" }), { target: { value: "14" } });
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "これでええ！" }));
     });
@@ -163,10 +164,10 @@ describe("VendorAskStage の相談からの変更案", () => {
     await screen.findByRole("group", { name: "営業時間の変更の確認" });
     expect(screen.getByText("ここで変えてや。")).toBeInTheDocument();
     expect(screen.getByText("営業時間、どう変えるかえ？")).toBeInTheDocument();
-    expect(screen.getByRole("combobox", { name: "開始時間" })).toHaveValue("6:00");
+    expect(screen.getByRole("combobox", { name: "開始時間（時）" })).toHaveValue("6");
 
-    fireEvent.change(screen.getByRole("combobox", { name: "開始時間" }), { target: { value: "7:00" } });
-    fireEvent.change(screen.getByRole("combobox", { name: "終了時間" }), { target: { value: "13:00" } });
+    fireEvent.change(screen.getByRole("combobox", { name: "開始時間（時）" }), { target: { value: "7" } });
+    fireEvent.change(screen.getByRole("combobox", { name: "終了時間（時）" }), { target: { value: "13" } });
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "これでええ！" }));
     });

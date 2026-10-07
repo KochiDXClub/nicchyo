@@ -19,6 +19,7 @@ const contactSchema = z.object({
   category: z.enum(["question", "feedback", "bug", "sponsor", "other"], {
     errorMap: () => ({ message: "カテゴリを選択してください" }),
   }),
+  website: z.string().optional(),
   message: z.string().min(10, "内容は10文字以上で入力してください").max(1000, "内容は1000文字以内で入力してください"),
 });
 
@@ -130,6 +131,15 @@ export default function ContactForm() {
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-6" noValidate>
+      {/* honeypot: 人間には見えない。ボットが埋めたら API 側で破棄する */}
+      <input
+        type="text"
+        tabIndex={-1}
+        autoComplete="off"
+        aria-hidden="true"
+        className="hidden"
+        {...register("website")}
+      />
       {/* Category Selection */}
       <div className="space-y-3">
         <label className="text-sm font-semibold text-gray-700">お問い合わせの種類</label>

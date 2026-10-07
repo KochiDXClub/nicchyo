@@ -37,6 +37,7 @@ import type { Shop } from "../data/shops";
 import { isLeafletMap, type MapCamera, type MapCameraEvent } from "../types/mapCamera";
 import { getShopPreviewImage, getShopThumbnailImage } from "@/lib/shopImages";
 import { getPixelsPerMeter } from "../config/roadStyle";
+import { SHOP_COLUMN_SPACING_METERS } from "../config/displayConfig";
 import { resolveStallColors } from "../config/shopCategories";
 import { sanitizeCssColor } from "../utils/markerHtmlGenerator";
 
@@ -49,12 +50,6 @@ const MIN_ZOOM = 20.5;
  * 動かしているあいだの検索性を足すだけに留めて、止まったらすぐ屋台の絵に戻す。
  */
 const HOLD_MS = 500;
-
-/**
- * 列の中の店舗間隔（メートル）。market_locations 300件の実測値。
- * 左右それぞれ 150 店が等間隔に並んでいる。
- */
-const SHOP_SPACING_METERS = 5.9;
 
 /** カードの幅。左右の列（最大ズームで中心から約121px）でも画面内に収まる値 */
 export const CARD_WIDTH = 108;
@@ -122,7 +117,7 @@ const PRELOAD_LIMIT = 24;
  *   甘くなる（カードが少し重なる）。自動回転で道は縦向きに保たれる前提の値。
  */
 export function getCardHeight(zoom: number): number {
-  const spacingPx = SHOP_SPACING_METERS * getPixelsPerMeter(zoom);
+  const spacingPx = SHOP_COLUMN_SPACING_METERS * getPixelsPerMeter(zoom);
   const room = spacingPx - CARD_GAP;
   const clamped = Math.min(MAX_CARD_HEIGHT, Math.max(MIN_CARD_HEIGHT, room));
   return Math.round(clamped / 4) * 4;

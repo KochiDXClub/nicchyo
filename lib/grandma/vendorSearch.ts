@@ -136,7 +136,12 @@ export async function fetchSeasonalProductContext(
   );
   const { data: vendorsData } =
     vendorIds.length > 0
-      ? await supabase.from("vendors").select("id, shop_name").in("id", vendorIds)
+      ? await supabase
+          .from("vendors")
+          .select("id, shop_name")
+          .in("id", vendorIds)
+          // service_role は RLS を通らないので、掲載の許可がない店舗を明示的に除く
+          .eq("listing_status", "allowed")
       : { data: [] as { id: string; shop_name: string | null }[] };
 
   const vendorNameById = new Map<string, string>();
@@ -149,7 +154,8 @@ export async function fetchSeasonalProductContext(
   const seasonName = getCurrentSeasonInfo().seasonName;
   return products
     .map((row) => {
-      if (!row.vendor_id || !row.name) return null;
+      // 許可済みの店舗の商品だけ（vendorNameById は許可済みの店舗だけを持つ）
+      if (!row.vendor_id || !row.name || !vendorNameById.has(row.vendor_id)) return null;
       return {
         vendorId: row.vendor_id,
         shopName: vendorNameById.get(row.vendor_id) ?? "",
@@ -178,7 +184,9 @@ export async function fetchShopsByVendorIds(
       .select(
         "id, shop_name, strength, style, style_tags, category_id, categories(name), main_products, main_product_prices, payment_methods, rain_policy, schedule"
       )
-      .in("id", vendorIds),
+      .in("id", vendorIds)
+      // このクライアントは service_role で RLS を通らない。掲載の許可がない店舗は、AI の回答にも出さない
+      .eq("listing_status", "allowed"),
     supabase.from("products").select("vendor_id, name").in("vendor_id", vendorIds),
     supabase
       .from("location_assignments")

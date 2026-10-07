@@ -29,9 +29,6 @@ export default function HeroStats({
         <span className="text-lg font-bold text-nicchyo-ink/70">回</span>
       </p>
       {views && <p className="mt-2 text-sm text-nicchyo-ink/70">{describeChange(views.thisWeek, views.lastWeek)}</p>}
-      <p className="mt-1 text-xs leading-relaxed text-nicchyo-ink/55">
-        お客さんが同じタブでお店を開き直した分は、1回と数えます。自分で開いた分は数えません。
-      </p>
 
       <dl className="mt-5 grid grid-cols-2 divide-x divide-line border-t border-line pt-4">
         <div className="pr-4">
@@ -59,7 +56,7 @@ export default function HeroStats({
           <p className="text-sm leading-relaxed text-amber-900">
             まだ数字がないき、日曜市のあとにまた見に来てや。写真や近況を整えておくと、見られやすうなるよ。
           </p>
-          <Link href="/vendor/post/new" className={buttonClass({ variant: "secondary", size: "sm", className: "mt-3" })}>
+          <Link href="/vendor/posts" className={buttonClass({ variant: "secondary", size: "sm", className: "mt-3" })}>
             近況を出す
           </Link>
         </div>

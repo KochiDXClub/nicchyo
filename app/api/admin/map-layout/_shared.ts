@@ -1,9 +1,21 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { NextResponse, type NextRequest } from "next/server";
+import { cookies } from "next/headers";
+import { requireSameOrigin } from "@/lib/security/requestGuards";
+import { enforceRateLimit } from "@/lib/security/rateLimit";
+import { authorizeAdmin } from "@/lib/auth/requireAdminApi";
 import { createClient as createServerClient } from "@/utils/supabase/server";
 import { createAdminClient } from "@/lib/supabase/adminClient";
 import { fetchLandmarksFromDb } from "@/app/(public)/map/services/landmarksDb";
 import { fetchMapRouteFromDb } from "@/app/(public)/map/services/mapRouteDb";
-import { CHOME_ORDER, type EditableShop } from "@/app/(public)/map/types/editableShop";
+import {
+  CHOME_ORDER,
+  NEW_VENDOR_ID_PREFIX,
+  VENDOR_FIELD_LIMITS,
+  type EditableShop,
+  type EditableVendor,
+  type VendorCategory,
+} from "@/app/(public)/map/types/editableShop";
 import {
   DEFAULT_MAP_ROUTE_CONFIG,
   type MapRoad,
@@ -11,9 +23,10 @@ import {
   type MapRoutePoint,
   type RoadKind,
 } from "@/app/(public)/map/types/mapRoute";
-import { findNearestRoadId } from "@/app/(public)/map/utils/mapRouteGeometry";
+import { projectOntoRoad, roadIdOfSlot, type RoadSide } from "@/lib/map/roadSlotPosition";
+import { DEFAULT_MAX_LANDMARKS, DEFAULT_MAX_UNASSIGNED_SHOP_MARKERS } from "@/lib/map/mapSettingsDefaults";
 
-export type { EditableShop };
+export type { EditableShop, EditableVendor, VendorCategory };
 
 export type EditableRoad = MapRoad & {
   points: MapRoutePoint[];
@@ -34,10 +47,94 @@ export function createAdminWriteClient(): SupabaseClient {
   return client;
 }
 
+/** Postgres の「列が存在しない」エラー */
+const UNDEFINED_COLUMN = "42703";
+
+/**
+ * 区画の道基準の位置・住所録の番号（20261004140000_add_road_position_and_numbers_to_market_locations.sql）が
+ * DB に入っているか。マイグレーションは main へのマージ後に承認を経て本番へ当たるため、
+ * Preview や、リリース直後でマイグレーションの承認待ちの間は、アプリだけが新しくなって
+ * 列がまだ無いことがある。その間も画面は開けるようにし、保存と移行処理だけを止める。
+ * 同じマイグレーションで save_map_layout 等の関数も作るので、列があれば関数もある。
+ */
+export async function hasRoadPositionSchema(supabase: ReturnType<typeof createServerClient>): Promise<boolean> {
+  const { error } = await supabase.from("market_locations").select("road_id, official_number").limit(1);
+  if (!error) return true;
+  if (error.code === UNDEFINED_COLUMN) return false;
+  throw new Error("Failed to check map layout schema");
+}
+
+export const ROAD_POSITION_SCHEMA_MISSING_MESSAGE =
+  "データベースの更新（マイグレーション）がまだ適用されていないため、保存できません。適用後にもう一度お試しください。";
+
+/**
+ * マップ配置を書き込む API（保存 PUT・区画の位置の移行 POST）の共通の前処理。
+ * 同一オリジンの確認 → 連続実行の制限 → 管理者の確認 → DB クライアントの用意 →
+ * マイグレーション前でないかの確認、の順に行う（順番は各ルートで揃える必要があるため1か所にまとめる）。
+ * 通らなければ返すべきレスポンスを、通ればユーザーとクライアントを返す。
+ */
+export async function prepareMapLayoutWrite(
+  request: NextRequest,
+  rateLimit: { bucket: string; limit: number }
+): Promise<
+  | { ok: false; response: Response }
+  | {
+      ok: true;
+      user: NonNullable<Awaited<ReturnType<typeof authorizeAdmin>>["user"]>;
+      supabase: ReturnType<typeof createServerClient>;
+      adminWriteClient: SupabaseClient;
+    }
+> {
+  const originCheck = requireSameOrigin(request);
+  if (!originCheck.ok) return { ok: false, response: originCheck.response };
+
+  const rateLimited = await enforceRateLimit(request, { ...rateLimit, windowMs: 10 * 60 * 1000 });
+  if (rateLimited) return { ok: false, response: rateLimited };
+
+  const { user, error: authError } = await authorizeAdmin();
+  if (authError || !user) return { ok: false, response: NextResponse.json({ error: authError }, { status: 403 }) };
+
+  const cookieStore = await cookies();
+  const supabase = createServerClient(cookieStore);
+  const adminWriteClient = createAdminWriteClient();
+
+  if (!(await hasRoadPositionSchema(supabase))) {
+    return { ok: false, response: NextResponse.json({ error: ROAD_POSITION_SCHEMA_MISSING_MESSAGE }, { status: 503 }) };
+  }
+  return { ok: true, user, supabase, adminWriteClient };
+}
+
+type MarketLocationRow = {
+  id: string | null;
+  store_number: number | null;
+  latitude: number | null;
+  longitude: number | null;
+  district: string | null;
+  road_id?: string | null;
+  road_distance_m?: number | null;
+  road_side?: string | null;
+  road_offset_m?: number | null;
+  official_number?: number | null;
+  branch_number?: number | null;
+};
+
+/** 区画を読む。道基準の位置の列がまだ無い DB（マイグレーション前）では、その列なしで読む */
+async function loadMarketLocationRows(supabase: ReturnType<typeof createServerClient>) {
+  const withRoad = await supabase
+    .from("market_locations")
+    .select(
+      "id, store_number, latitude, longitude, district, road_id, road_distance_m, road_side, road_offset_m, official_number, branch_number"
+    );
+  if (withRoad.error?.code !== UNDEFINED_COLUMN) return withRoad as { data: MarketLocationRow[] | null; error: typeof withRoad.error };
+  return (await supabase
+    .from("market_locations")
+    .select("id, store_number, latitude, longitude, district")) as { data: MarketLocationRow[] | null; error: typeof withRoad.error };
+}
+
 export async function loadEditableShops(supabase: ReturnType<typeof createServerClient>): Promise<EditableShop[]> {
   const [assignmentsResult, locationsResult, vendorsResult] = await Promise.all([
     supabase.from("location_assignments").select("vendor_id, location_id, market_date"),
-    supabase.from("market_locations").select("id, store_number, latitude, longitude, district"),
+    loadMarketLocationRows(supabase),
     supabase.from("vendors").select("id, shop_name"),
   ]);
 
@@ -89,6 +186,10 @@ export async function loadEditableShops(supabase: ReturnType<typeof createServer
         return [];
       }
 
+      const roadSide = row.road_side === "left" || row.road_side === "right" ? (row.road_side as RoadSide) : undefined;
+      const hasRoadPosition =
+        !!row.road_id && row.road_distance_m != null && !!roadSide && row.road_offset_m != null;
+
       const latestAssignment = latestAssignmentByLocation.get(locationId);
       const vendorId = latestAssignment?.vendor_id ?? undefined;
       const vendorName = vendorId ? vendorNameById.get(vendorId) ?? "" : "";
@@ -103,10 +204,100 @@ export async function loadEditableShops(supabase: ReturnType<typeof createServer
           lng,
           position: storeNumber,
           chome: normalizeChome((row.district as string | null) ?? null),
+          ...(row.official_number != null ? { officialNumber: Number(row.official_number) } : {}),
+          ...(row.branch_number != null ? { branchNumber: Number(row.branch_number) } : {}),
+          ...(hasRoadPosition
+            ? {
+                roadId: row.road_id as string,
+                roadDistanceM: Number(row.road_distance_m),
+                roadSide,
+                roadOffsetM: Number(row.road_offset_m),
+              }
+            : {}),
         },
       ];
     })
     .sort((a, b) => a.position - b.position);
+}
+
+/** マップ編集画面で扱う出店者の一覧（店名順） */
+export async function loadEditableVendors(supabase: ReturnType<typeof createServerClient>): Promise<EditableVendor[]> {
+  const { data, error } = await supabase
+    .from("vendors")
+    .select("id, shop_name, category_id, strength, main_products")
+    .order("shop_name", { ascending: true });
+  if (error) throw new Error("Failed to load vendors");
+  return (data ?? []).map((row) => ({
+    id: row.id,
+    name: (row.shop_name || "名称未設定").trim(),
+    categoryId: row.category_id ?? null,
+    strength: row.strength ?? "",
+    mainProducts: Array.isArray(row.main_products) ? row.main_products : [],
+  }));
+}
+
+export async function loadVendorCategories(supabase: ReturnType<typeof createServerClient>): Promise<VendorCategory[]> {
+  const { data, error } = await supabase.from("categories").select("id, name").order("name", { ascending: true });
+  if (error) throw new Error("Failed to load categories");
+  return (data ?? []).map((row) => ({ id: row.id, name: row.name }));
+}
+
+/**
+ * マップ編集画面から送られてきた出店者の追加・更新を検証する。問題があればその理由を返す。
+ * 新しい出店者の id は NEW_VENDOR_ID_PREFIX で始まる仮 id、既存の出店者の id は DB にある id であること。
+ *
+ * 既存の出店者は、今の DB の値から変わった項目だけを検証する。編集画面は、1つの項目を直しても
+ * 出店者の全項目をまとめて送るので、すべてを検証すると、出店者本人が my-shop で登録した上限超えの
+ * 値（品目が 11 件以上など。上限は画面側にしかない）が残っているだけで、店名を直した保存全体が
+ * 400 になってしまう。新しい出店者は、すべての項目を検証する。
+ */
+export function validateVendorDrafts(
+  vendors: EditableVendor[],
+  context: { existingVendors: ReadonlyMap<string, EditableVendor>; categoryIds: ReadonlySet<string> }
+): string | null {
+  const seen = new Set<string>();
+  for (const vendor of vendors) {
+    if (!vendor || typeof vendor.id !== "string" || seen.has(vendor.id)) return "出店者のデータが正しくありません";
+    seen.add(vendor.id);
+    const isNew = vendor.id.startsWith(NEW_VENDOR_ID_PREFIX);
+    const current = isNew ? undefined : context.existingVendors.get(vendor.id);
+    if (!isNew && !current) return "存在しない出店者は更新できません";
+
+    const name = typeof vendor.name === "string" ? vendor.name.trim() : "";
+    if (!current || name !== current.name.trim()) {
+      if (!name) return "店名を入れてください";
+      if (name.length > VENDOR_FIELD_LIMITS.nameMaxLength) {
+        return `店名は ${VENDOR_FIELD_LIMITS.nameMaxLength} 文字以内にしてください（${name.slice(0, 20)}…）`;
+      }
+    }
+    if (!current || vendor.categoryId !== current.categoryId) {
+      if (vendor.categoryId !== null && (typeof vendor.categoryId !== "string" || !context.categoryIds.has(vendor.categoryId))) {
+        return `${name} のジャンルが正しくありません`;
+      }
+    }
+    if (!current || vendor.strength !== current.strength) {
+      if (typeof vendor.strength !== "string" || vendor.strength.length > VENDOR_FIELD_LIMITS.strengthMaxLength) {
+        return `${name} のこだわりは ${VENDOR_FIELD_LIMITS.strengthMaxLength} 文字以内にしてください`;
+      }
+    }
+    const productsChanged =
+      !current ||
+      !Array.isArray(vendor.mainProducts) ||
+      vendor.mainProducts.length !== current.mainProducts.length ||
+      vendor.mainProducts.some((product, index) => product !== current.mainProducts[index]);
+    if (productsChanged) {
+      if (
+        !Array.isArray(vendor.mainProducts) ||
+        vendor.mainProducts.length > VENDOR_FIELD_LIMITS.mainProductsMaxCount ||
+        vendor.mainProducts.some(
+          (product) => typeof product !== "string" || !product.trim() || product.length > VENDOR_FIELD_LIMITS.mainProductMaxLength
+        )
+      ) {
+        return `${name} の主な商品は ${VENDOR_FIELD_LIMITS.mainProductsMaxCount} 件まで、1件 ${VENDOR_FIELD_LIMITS.mainProductMaxLength} 文字以内にしてください`;
+      }
+    }
+  }
+  return null;
 }
 
 /**
@@ -178,8 +369,8 @@ export type MapSettingsLimits = {
 };
 
 const DEFAULT_MAP_SETTINGS_LIMITS: MapSettingsLimits = {
-  maxLandmarks: 80,
-  maxUnassignedShopMarkers: 40,
+  maxLandmarks: DEFAULT_MAX_LANDMARKS,
+  maxUnassignedShopMarkers: DEFAULT_MAX_UNASSIGNED_SHOP_MARKERS,
 };
 
 /**
@@ -270,10 +461,83 @@ export function findRoadIdsWithShops(
 ): Set<string> {
   const roadIds = new Set<string>();
   for (const shop of shops) {
-    const roadId = findNearestRoadId({ lat: shop.lat, lng: shop.lng }, roads, snapDistanceMeters);
+    const roadId = roadIdOfSlot(shop, roads, snapDistanceMeters);
     if (roadId) roadIds.add(roadId);
   }
   return roadIds;
+}
+
+export type SlotRoadPositionPlan = {
+  /** 自動で道基準の位置を入れられる区画 */
+  matched: Array<{
+    locationId: string;
+    position: number;
+    roadId: string;
+    roadName: string;
+    roadDistanceM: number;
+    roadSide: RoadSide;
+    roadOffsetM: number;
+    /** 道基準の位置から計算し直した地点と、今の地点のずれ（m）。道の端より外にある区画で大きくなる */
+    driftM: number;
+  }>;
+  /** どの道にも近くないため自動では変換しない区画 */
+  unmatched: Array<{
+    locationId: string;
+    position: number;
+    name: string;
+    nearestRoadName: string | null;
+    /** 最も近い道の中心線までの距離（m）。道が無ければ null */
+    distanceToNearestRoadM: number | null;
+  }>;
+};
+
+/**
+ * 移行処理: 道基準の位置を持たない区画に、今の緯度経度から最も近い道の上の位置を求める。
+ * 道の中心線から snapDistanceMeters より離れている区画は unmatched として報告し、変換しない。
+ */
+export function planSlotRoadPositions(
+  shops: EditableShop[],
+  roads: EditableRoad[],
+  snapDistanceMeters: number
+): SlotRoadPositionPlan {
+  const plan: SlotRoadPositionPlan = { matched: [], unmatched: [] };
+  const usableRoads = roads.filter((road) => road.points.length >= 2);
+
+  for (const shop of shops) {
+    if (shop.roadId) continue;
+    let best: { road: EditableRoad; projection: NonNullable<ReturnType<typeof projectOntoRoad>> } | null = null;
+    for (const road of usableRoads) {
+      const projection = projectOntoRoad(road.points, shop);
+      if (projection && (!best || projection.lateralM < best.projection.lateralM)) {
+        best = { road, projection };
+      }
+    }
+
+    if (best && best.projection.lateralM <= snapDistanceMeters) {
+      plan.matched.push({
+        locationId: shop.locationId,
+        position: shop.position,
+        roadId: best.road.id,
+        roadName: best.road.name,
+        roadDistanceM: best.projection.distanceM,
+        roadSide: best.projection.side,
+        roadOffsetM: best.projection.offsetM,
+        driftM: best.projection.driftM,
+      });
+    } else {
+      plan.unmatched.push({
+        locationId: shop.locationId,
+        position: shop.position,
+        name: shop.name,
+        nearestRoadName: best?.road.name ?? null,
+        distanceToNearestRoadM: best ? best.projection.lateralM : null,
+      });
+    }
+  }
+
+  plan.matched.sort((a, b) => a.position - b.position);
+  plan.unmatched.sort((a, b) => a.position - b.position);
+  return plan;
 }
 
 export type SnapshotSummary = {
@@ -286,6 +550,10 @@ export type SnapshotSummary = {
   updatedRoadCount?: number;
   deletedRoadCount?: number;
   restoreSourceSnapshotId?: string;
+  /** 道の形が変わったために緯度経度を計算し直した区画の数 */
+  repositionedShopCount?: number;
+  /** 移行処理で道基準の位置を入れた区画の数 */
+  migratedSlotCount?: number;
 };
 
 /**
@@ -324,4 +592,77 @@ export async function createMapLayoutSnapshot(
   if (error) {
     throw new Error("Failed to create map layout snapshot");
   }
+}
+
+/** 現地で店舗を 1 件ずつ置くとき、スナップショットを作り直さない時間（分） */
+export const RECENT_SNAPSHOT_MINUTES = 10;
+
+/**
+ * 同じ運営が直近（既定は 10 分以内）に作ったスナップショットがあれば、新しく作らない。
+ * スナップショットは全店番の配置を丸ごと保存するので、300 店を 1 件ずつ現地で登録すると
+ * 300 個になり、データが膨らみ、/admin/map-edit の「戻す」の一覧も同じ内容で埋まる。
+ * 直近のものが残っていれば、その状態（＝今回の編集より前）へ戻せるので、戻せることは保てる。
+ * @returns 新しく作ったら true、直近のものを使ったら false
+ */
+export async function ensureRecentMapLayoutSnapshot(
+  supabase: ReturnType<typeof createServerClient>,
+  adminWriteClient: SupabaseClient,
+  createdBy: string,
+  summary: SnapshotSummary,
+  withinMinutes: number = RECENT_SNAPSHOT_MINUTES,
+  now: Date = new Date()
+): Promise<boolean> {
+  const since = new Date(now.getTime() - withinMinutes * 60 * 1000).toISOString();
+  const { data, error } = await adminWriteClient
+    .from("map_layout_snapshots")
+    .select("id")
+    .eq("created_by", createdBy)
+    .gte("created_at", since)
+    .limit(1);
+
+  // 調べられなかったときは、念のため作る（戻せないよりは、増えるほうがよい）
+  if (!error && data && data.length > 0) return false;
+
+  await createMapLayoutSnapshot(supabase, adminWriteClient, createdBy, summary);
+  return true;
+}
+
+/**
+ * 送られてきていないが、道の形が変わったために緯度経度を計算し直して書く区画を選ぶ。
+ *
+ * 対象は、点が実際に変わった（または新しくできた）道に乗っている区画だけ。
+ * 移行（slot-road-positions）は緯度経度を変えずに道基準の位置だけを記録するので、
+ * 道から計算した位置は元の緯度経度と少しずれる。道が変わっていないのに全区画を計算し直すと、
+ * 関係のない保存のたびに公開マップ上で区画が動き、変更なしの保存でもスナップショットが増える。
+ */
+export function selectRepositionedShops({
+  shopsAfterSave,
+  currentShops,
+  currentRoads,
+  roadsAfterSave,
+  writtenLocationIds,
+}: {
+  shopsAfterSave: EditableShop[];
+  currentShops: EditableShop[];
+  currentRoads: EditableRoad[];
+  roadsAfterSave: EditableRoad[];
+  writtenLocationIds: ReadonlySet<string>;
+}): EditableShop[] {
+  const roadPointsKey = (points: MapRoutePoint[]) =>
+    points.map((point) => `${point.id}:${point.lat}:${point.lng}`).join("|");
+  const currentRoadById = new Map(currentRoads.map((road) => [road.id, road]));
+  const changedRoadIds = new Set(
+    roadsAfterSave
+      .filter((road) => {
+        const current = currentRoadById.get(road.id);
+        return !current || roadPointsKey(current.points) !== roadPointsKey(road.points);
+      })
+      .map((road) => road.id)
+  );
+  const currentShopById = new Map(currentShops.map((shop) => [shop.locationId, shop]));
+  return shopsAfterSave.filter((shop) => {
+    if (writtenLocationIds.has(shop.locationId) || !shop.roadId || !changedRoadIds.has(shop.roadId)) return false;
+    const current = currentShopById.get(shop.locationId);
+    return !!current && (current.lat !== shop.lat || current.lng !== shop.lng);
+  });
 }

@@ -8,7 +8,6 @@
 import {
   BarChart3,
   CircleHelp,
-  History,
   Mail,
   Megaphone,
   Sparkles,
@@ -30,14 +29,15 @@ export type VendorNavItem = {
   group: "main" | "support";
   /** この導線を出すのに要る操作権限。無ければ店舗のメンバー全員に出す（代表者は常に全部出る） */
   permission?: ShopPermission;
+  /** スマホの下部バーに常設している導線。下部バーと重なるので、メニューシートには出さない（PCのサイドバーには出す） */
+  inBottomBar?: boolean;
 };
 
 export const VENDOR_NAV_ITEMS: VendorNavItem[] = [
-  { label: "運営・市役所との連絡", href: "/vendor/inquiries", icon: Mail, description: "お知らせを見る・質問や相談を送る", group: "main", permission: "inquiries" },
+  { label: "運営・市役所との連絡", href: "/vendor/inquiries", icon: Mail, description: "お知らせを見る・質問や相談を送る", group: "main", permission: "inquiries", inBottomBar: true },
   // 下部バーの「店舗情報」枠は「連絡」に差し替えたため、店舗情報への導線はここが主になる
   { label: "店舗情報を更新", href: "/vendor/store", icon: Store, description: "商品・写真・出店日をまとめて見直す", group: "main", permission: "store_edit" },
-  { label: "近況を出す", href: "/vendor/post/new", icon: Megaphone, description: "今日のおすすめや売り切れを伝える", group: "main", permission: "post" },
-  { label: "投稿履歴", href: "/vendor/posts", icon: History, description: "これまでの投稿を見返す", group: "main", permission: "post" },
+  { label: "近況を出す", href: "/vendor/posts", icon: Megaphone, description: "今日のおすすめを伝える・これまでの投稿を見返す", group: "main", permission: "post", inBottomBar: true },
   { label: "お店の分析", href: "/vendor/analytics", icon: BarChart3, description: "見られた回数とお客さんの反応", group: "main", permission: "analytics" },
   // メニューのカードは幅が狭いので短い名前にする。画面の見出しは「にちよさんが覚えちゅうこと」
   { label: "にちよさんの覚えごと", href: "/vendor/ai-knowledge", icon: Sparkles, description: "にちよさんが覚えちゅうことを見る・直す", group: "main", permission: "ai_notes" },

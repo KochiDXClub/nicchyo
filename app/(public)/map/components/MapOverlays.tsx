@@ -8,7 +8,7 @@ import L from "leaflet";
 import type { LatLngBoundsExpression } from "leaflet";
 import type { Landmark } from "../types/landmark";
 import type { Shop } from "../data/shops";
-import type { ShopBannerOrigin } from "./MapView";
+import type { ShopBannerOrigin } from "../types/mapView";
 import type { MapRouteConfig, MapRoutePoint } from "../types/mapRoute";
 import RoadOverlay from "./RoadOverlay";
 import ChomeAreaMarkers from "./ChomeAreaMarkers";

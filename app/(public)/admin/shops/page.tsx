@@ -15,6 +15,8 @@ import { SortableTableHeader, useSortableData } from "@/components/admin/desktop
 import { Tooltip } from "@/components/admin/desktop/Tooltip";
 import { DataDensityToggle, DENSITY_CONFIG, type DataDensity } from "@/components/admin/desktop/DataDensityToggle";
 import type { AdminShop } from "@/app/api/admin/shops/route";
+import { ListingStatusBadge } from "./ListingStatusBadge";
+import Link from "next/link";
 
 type ShopStatus = "active" | "suspended";
 
@@ -479,13 +481,18 @@ function AdminShopsContent() {
                                   />
                                 </td>
                                 <td className="px-4 py-3">
-                                  <div className="font-medium text-gray-900 text-sm">{shop.name}</div>
+                                  <Link href={`/admin/shops/${shop.id}`} className="font-medium text-blue-700 text-sm hover:underline">
+                                    {shop.name}
+                                  </Link>
                                   <div className="text-xs text-gray-400">{shop.email}</div>
                                 </td>
                                 <td className="px-4 py-3 text-sm text-gray-500">{shop.category}</td>
                                 <td className="px-4 py-3 text-sm text-gray-500">{shop.owner}</td>
                                 <td className="px-4 py-3">
                                   <StatusBadge status={shop.status} />
+                                  <div className="mt-1">
+                                    <ListingStatusBadge status={shop.listingStatus} />
+                                  </div>
                                 </td>
                                 <td className="px-4 py-3 text-sm text-gray-500">{shop.registeredDate}</td>
                                 <td className="px-4 py-3 text-right text-sm whitespace-nowrap">
@@ -540,8 +547,13 @@ function AdminShopsContent() {
                             className="h-4 w-4 rounded border-gray-300 text-blue-600 mt-0.5"
                           />
                           <div>
-                            <div className="font-medium text-gray-900">{shop.name}</div>
+                            <Link href={`/admin/shops/${shop.id}`} className="font-medium text-blue-700 hover:underline">
+                              {shop.name}
+                            </Link>
                             <div className="text-xs text-gray-500">{shop.category}</div>
+                            <div className="mt-1">
+                              <ListingStatusBadge status={shop.listingStatus} />
+                            </div>
                           </div>
                         </div>
                         <StatusBadge status={shop.status} />

@@ -3,6 +3,7 @@ import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/database.types";
 import { formatShopIdToCode } from "@/lib/shops/route";
 import { SITE_URL } from "@/lib/constants";
+import { fetchPublicShops } from "@/app/(public)/map/services/shopCache";
 import {
   EMPTY_PAGE_VISIBILITY_SETTINGS,
   isLinkVisible,
@@ -43,25 +44,11 @@ const STATIC_PAGES: MetadataRoute.Sitemap = [
   { url: `${SITE_URL}/privacy`, lastModified: new Date(), changeFrequency: "yearly", priority: 0.3 },
 ];
 
+/** 店舗ページ（/shops/NNN）に載せる店番。/map・/search・店舗詳細と同じ公開店舗の基準（fetchPublicShops）に揃える */
 async function fetchActiveShopNumbers(): Promise<number[]> {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY;
-
-  if (!supabaseUrl || !supabaseKey) return [];
-
   try {
-    const supabase = createSupabaseClient<Database>(supabaseUrl, supabaseKey);
-    const { data } = await supabase
-      .from("market_locations")
-      .select("store_number")
-      .not("store_number", "is", null)
-      .gte("store_number", 1)
-      .lte("store_number", 300);
-
-    if (!data) return [];
-    return data
-      .map((row: { store_number: number | null }) => row.store_number)
-      .filter((n): n is number => n !== null && Number.isFinite(n));
+    const shops = await fetchPublicShops();
+    return shops.map((shop) => shop.id).filter((id) => formatShopIdToCode(id) !== null);
   } catch {
     return [];
   }

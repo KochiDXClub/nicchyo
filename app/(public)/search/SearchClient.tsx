@@ -17,7 +17,7 @@ import { useShopFavoriteToggle } from '../../components/favorites/useShopFavorit
 import { saveSearchMapPayload } from '../../../lib/searchMapStorage';
 import ShopDetailBanner from '../map/components/ShopDetailBanner';
 
-const MapView = dynamic(() => import('../map/components/MapView'), {
+const MapView = dynamic(() => import('../map/components/maplibre/MapViewMapLibre'), {
   ssr: false,
 });
 

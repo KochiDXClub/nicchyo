@@ -23,6 +23,12 @@ const nextConfig = {
         hostname: '*.supabase.co',
         pathname: '/storage/v1/object/public/**',
       },
+      {
+        // Google アカウントの写真（出店者のアカウントの写真。lib/auth/displayName.ts の許可と同じ）
+        protocol: 'https',
+        hostname: 'lh3.googleusercontent.com',
+        pathname: '/**',
+      },
     ],
   },
 
@@ -45,10 +51,22 @@ const nextConfig = {
   // /news は「日曜市カレンダー」(/calendar) に作り替えたため、旧URLを転送する
   async redirects() {
     return [
+      // 近況を出す画面と投稿履歴は /vendor/posts の1ページにまとめた
+      {
+        source: '/vendor/post/new',
+        destination: '/vendor/posts',
+        permanent: true,
+      },
       {
         source: '/news',
         destination: '/calendar',
         permanent: true,
+      },
+      // 週次セキュリティレポートの通知リンク（旧 /reports/:date）を管理画面へ誘導する
+      {
+        source: '/reports/:date',
+        destination: '/admin/security-reports/:date',
+        permanent: false,
       },
       // 買い物リストはお気に入りに一本化した。配ったQRコードや外部リンクが
       // /bag を指していても迷子にしない

@@ -225,16 +225,16 @@ export default function HamburgerMenu() {
                           </div>
                         </Link>
                       </MenuLi>
-                      <MenuLi href="/vendor/post/new">
+                      <MenuLi href="/vendor/posts">
                         <Link
-                          href="/vendor/post/new"
+                          href="/vendor/posts"
                           onClick={closeMenu}
-                          className={menuItemClass('/vendor/post/new', 'hover:bg-amber-50')}
+                          className={menuItemClass('/vendor/posts', 'hover:bg-amber-50')}
                         >
-                          <MenuIcon name="pencil" className={`h-5 w-5 ${isActive('/vendor/post/new') ? 'text-white' : 'text-amber-600'}`} />
+                          <MenuIcon name="pencil" className={`h-5 w-5 ${isActive('/vendor/posts') ? 'text-white' : 'text-amber-600'}`} />
                           <div className="flex-1">
                             <p className="text-sm font-medium">近況を出す</p>
-                            <p className={`text-xs ${isActive('/vendor/post/new') ? 'text-white/80' : 'text-gray-500'}`}>写真1枚で今日のお店を伝える</p>
+                            <p className={`text-xs ${isActive('/vendor/posts') ? 'text-white/80' : 'text-gray-500'}`}>写真1枚で今日のお店を伝える</p>
                           </div>
                         </Link>
                       </MenuLi>

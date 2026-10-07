@@ -69,8 +69,7 @@ export const PAGE_REGISTRY: readonly PageRegistryEntry[] = [
   // ── 出店者向け ─────────────────────────────────────────────
   { path: "/my-shop", label: "マイショップ", group: "出店者向け", codeAllowed: VENDOR_ONLY },
   { path: "/vendor/dashboard", label: "出店者ダッシュボード", group: "出店者向け", codeAllowed: VENDOR_ONLY },
-  { path: "/vendor/post", label: "投稿作成", group: "出店者向け", codeAllowed: VENDOR_ONLY },
-  { path: "/vendor/posts", label: "投稿管理", group: "出店者向け", codeAllowed: VENDOR_ONLY },
+  { path: "/vendor/posts", label: "近況の投稿・履歴", group: "出店者向け", codeAllowed: VENDOR_ONLY },
   { path: "/vendor/store", label: "店舗情報編集", group: "出店者向け", codeAllowed: VENDOR_ONLY },
   { path: "/vendor/analytics", label: "出店者アナリティクス", group: "出店者向け", codeAllowed: VENDOR_ONLY },
   { path: "/vendor/ai-knowledge", label: "AIナレッジ", group: "出店者向け", codeAllowed: VENDOR_ONLY },
