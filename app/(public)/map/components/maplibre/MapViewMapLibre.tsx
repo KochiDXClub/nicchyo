@@ -19,8 +19,10 @@
  * - 現在地と追従は MapLibre 標準の GeolocateControl（useMapLibreUserLocation）、道への吸着（after / integrated）
  * - 計測の橋渡し（?perf=1 で window.__nicchyoMapBench）
  *
+ * - 出店者のカスタム SVG 屋台（サニタイズして店ごとに 1 枚描き起こし、全状態で共有）
+ *
  * 【まだ無いもの（Leaflet 版にある）】
- * 出店者のカスタム SVG 屋台。順に移す。
+ * なし（Leaflet 版の削除は docs/LEAFLET_TO_MAPLIBRE_MIGRATION.md の手順で進める）。
  */
 
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";

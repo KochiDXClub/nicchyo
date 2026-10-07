@@ -30,7 +30,6 @@ export type ShopFeature = GeoJSON.Feature<GeoJSON.Point, Record<string, unknown>
 /** 表示状態で変わらない部分だけの Feature。店舗リストごとに 1 回作る */
 export function buildShopFeatures(shops: Shop[]): ShopFeature[] {
   return shops
-    .filter((s) => !s.illustration?.customSvg)
     .map((s) => {
       const stall = resolveStallColors(s.category, sanitizeCssColor(s.illustration?.color));
       return {

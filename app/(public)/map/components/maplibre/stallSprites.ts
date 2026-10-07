@@ -5,7 +5,7 @@
  * Canvas で一度だけ描き起こして map.addImage に登録する。
  * 画像の枚数は「形 × 色 × 状態」の組み合わせ数だが、色はカテゴリ数（十数種）、
  * 状態は normal / search / ai / selected の 4 つなので、多くても数十枚に収まる。
- * 出店者のカスタム SVG は個別に描き起こす（色は変えられない）。
+ * 出店者のカスタム SVG は個別に描き起こす（色は変えられないので、状態によらず同じ画像）。
  */
 
 import { ILLUSTRATION_SIZES } from "../../config/displayConfig";
@@ -22,6 +22,7 @@ import {
   SHOP_FAVORITE_HEART_PATH,
   sanitizeCssColor,
 } from "../../utils/markerHtmlGenerator";
+import { sanitizeInlineSvg } from "../../utils/svgSanitizer";
 import type { Shop } from "../../data/shops";
 import { memoImage } from "./rasterCache";
 
@@ -45,8 +46,52 @@ const STATE_COLORS: Record<Exclude<StallState, "normal" | "selected">, { roof: s
   ai: { roof: "#ef4444", base: "#fca5a5", stripe: "#ef4444" },
 };
 
+/**
+ * 出店者のカスタム SVG（サニタイズ済み）。無い・不正なときは null で、その店は通常の屋台になる。
+ * Leaflet 版の generateShopIllustrationHtml と同じ入口（sanitizeInlineSvg）を通す。
+ */
+export function getSafeCustomSvg(shop: Shop): string | null {
+  return sanitizeInlineSvg(shop.illustration?.customSvg);
+}
+
+/** 内容が変わったら別の画像として扱うための短いハッシュ（FNV-1a） */
+function hashString(value: string): string {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < value.length; i++) {
+    h ^= value.charCodeAt(i);
+    h = Math.imul(h, 0x01000193);
+  }
+  return (h >>> 0).toString(36);
+}
+
+/**
+ * カスタム SVG を px 四方に描くため、ルート <svg> の width / height を差し替える。
+ * 指定が無い SVG は Firefox で Canvas に描けないことがある。
+ * viewBox が無く width / height だけの SVG は、差し替えると中身が拡縮されず左上に小さく描かれるので、
+ * 元の大きさから viewBox を補ってから差し替える。
+ */
+export function withSvgSize(svg: string, px: number): string {
+  return svg.replace(/^<svg\b([^>]*)>/, (_m, attrs: string) => {
+    const attr = (name: string) =>
+      new RegExp(`\\s${name}\\s*=\\s*(?:"([^"]*)"|'([^']*)')`).exec(attrs);
+    const size = (name: string) => {
+      const m = attr(name);
+      const n = m ? parseFloat(m[1] ?? m[2]) : NaN;
+      return Number.isFinite(n) && n > 0 ? n : null;
+    };
+    const w = size("width");
+    const h = size("height");
+    const rest = attrs.replace(/\s(width|height)\s*=\s*("[^"]*"|'[^']*')/g, "");
+    const viewBox = !attr("viewBox") && w && h ? ` viewBox="0 0 ${w} ${h}"` : "";
+    const ns = /\sxmlns\s*=/.test(rest) ? "" : ' xmlns="http://www.w3.org/2000/svg"';
+    return `<svg${ns}${rest}${viewBox} width="${px}" height="${px}">`;
+  });
+}
+
 /** 店舗ごとの「形＋色」のキー。同じキーの店舗は同じ画像を共有する */
 export function stallSpriteKey(shop: Shop): string {
+  const customSvg = getSafeCustomSvg(shop);
+  if (customSvg) return `custom-${shop.id}-${hashString(customSvg)}`;
   const parts = resolveStallParts({ roof: shop.illustration?.roof, awning: shop.illustration?.awning });
   const color = resolveStallColors(shop.category, sanitizeCssColor(shop.illustration?.color)).base;
   return `${parts.roof}-${parts.awning}-${color.replace("#", "")}`;
@@ -345,17 +390,37 @@ export interface StallSprite {
 
 /**
  * 店舗一覧から必要なスプライトをすべて作る。
- * 形×色の組ごとに 5 状態ぶん。カスタム SVG の店舗は個別に normal だけ描く。
+ * 形×色の組ごとに 5 状態ぶん。カスタム SVG の店舗は店ごとに 1 枚描き、全状態で共有する。
  */
 export async function buildStallSprites(shops: Shop[], pixelRatio = 2): Promise<StallSprite[]> {
   const px = ILLUSTRATION_SIZES.medium.width;
   const recipes = new Map<string, SpriteRecipe>();
   for (const shop of shops) {
-    if (shop.illustration?.customSvg) continue;
+    if (getSafeCustomSvg(shop)) continue;
     const key = stallSpriteKey(shop);
     if (!recipes.has(key)) recipes.set(key, recipeFor(shop));
   }
   const jobs: Promise<StallSprite | null>[] = [];
+  for (const shop of shops) {
+    const customSvg = getSafeCustomSvg(shop);
+    if (!customSvg) continue;
+    const key = stallSpriteKey(shop);
+    // 状態ごとの色替えはできないので、1 回だけ描いて全状態の ID に同じ画像を登録する
+    // （選択・検索などは木札・バッジ側で伝わる）
+    const image = memoImage(`stall:${key}@${pixelRatio}`, () =>
+      rasterizeSvg(withSvgSize(customSvg, px), px, pixelRatio)
+    );
+    jobs.push(
+      ...STALL_STATES.map((state) =>
+        image
+          .then((data) => ({ id: stallImageId(key, state), image: data, pixelRatio }))
+          .catch((error: unknown) => {
+            console.warn("[stallSprites]", key, state, error);
+            return null;
+          })
+      )
+    );
+  }
   for (const [key, recipe] of recipes) {
     for (const state of STALL_STATES) {
       jobs.push(
