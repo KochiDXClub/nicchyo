@@ -26,6 +26,8 @@ const reactCompilerRulesOff = {
 };
 
 const config = [
+  // 単体で動くツール群は Next.js 用ルールの対象外（独自の package.json と node:test を持つ）
+  { ignores: ["tools/**"] },
   ...coreWebVitals,
   ...typescript,
   {
