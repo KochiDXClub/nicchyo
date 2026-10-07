@@ -82,6 +82,14 @@ const APPEAR_MS = 420;
  */
 const CONSULT_BAR_SPACE = "calc(var(--safe-bottom, 0px) + var(--nav-bar-height) + 6rem)";
 
+/**
+ * lg 以上（PC・ノートPC）用。候補ボタンを入力欄のすぐ上まで下げたいので、
+ * スマホ用より 0.75rem 少なく取る（入力欄の上端はナビの 4.4rem 上にあるので、
+ * 5.25rem なら入力欄との間に約 0.85rem 残る）。
+ * 入力バーの高さ・位置を変えるときは CONSULT_BAR_SPACE と一緒に見直すこと
+ */
+const CONSULT_BAR_SPACE_LG = "calc(var(--safe-bottom, 0px) + var(--nav-bar-height) + 5.25rem)";
+
 export interface ConsultStageProps {
   onAskStream: (
     text: string,
@@ -726,16 +734,17 @@ export default function ConsultStage({
       // 幅は絞らず w-full のまま（PC で読みやすい行幅に絞るのは内側のラッパーで
       // 行う）。ここで max-w を付けてしまうと、スクロールする箱自体が狭くなり、
       // 縦スクロールバーが画面の右端ではなく箱の右端＝中途半端な位置に出てしまう
-      className="h-[calc(100dvh-var(--consult-bar-space))] w-full overflow-y-auto px-4"
+      className="h-[calc(100dvh-var(--consult-bar-space))] w-full overflow-y-auto px-4 pb-4 lg:h-[calc(100dvh-var(--consult-bar-space-lg))] lg:pb-0"
       style={
         {
           // 下端に固定した「話しかける」とナビゲーションバーの分は、上の
           // height 側で既に差し引いている（この箱自体がその高さぶん
           // 画面の下までは伸びない）。ここでさらに paddingBottom を
           // CONSULT_BAR_SPACE と同じ値にすると二重に空いてしまうので、
-          // 最後の要素がバーに張り付かない程度の小さい余白だけ持たせる
+          // 最後の要素がバーに張り付かない程度の小さい余白（className の pb-4）
+          // だけ持たせる。lg 以上は候補ボタンを入力欄のすぐ上へ寄せたいので 0 にする
           "--consult-bar-space": CONSULT_BAR_SPACE,
-          paddingBottom: "1rem",
+          "--consult-bar-space-lg": CONSULT_BAR_SPACE_LG,
         } as CSSProperties
       }
     >
@@ -748,7 +757,7 @@ export default function ConsultStage({
         これまで通り画面全体の中央に置く
       */}
       <div
-        className={`mx-auto flex w-full max-w-3xl flex-col gap-3 ${
+        className={`mx-auto flex w-full max-w-3xl flex-col gap-3 lg:grid lg:max-w-6xl lg:grid-cols-[30%_minmax(0,1fr)] lg:items-start lg:gap-x-8 ${
           isHistorySidebarOpen ? "lg:mx-0" : ""
         }`}
       >
@@ -763,7 +772,11 @@ export default function ConsultStage({
         上の余白（本来 padding-top で持たせたい分）を margin-top として
         ここに持たせている（理由はスクロールコンテナの className 側のコメント参照）
       */}
-      <div ref={topSentinelRef} aria-hidden="true" className="mt-3 h-px w-full shrink-0" />
+      <div
+        ref={topSentinelRef}
+        aria-hidden="true"
+        className="mt-3 h-px w-full shrink-0 lg:col-span-2"
+      />
 
       {/* 話し手の入れ替わり。前の人が右へ去り、新しい人が左から歩いてくる */}
       {swapFrom && (
@@ -784,7 +797,7 @@ export default function ConsultStage({
         大きいにちよさんは下の通常フローに置いて自然に流れさせ、
         ここには小さいにちよさんが出入りするだけにした。
       */}
-      <div className="sticky top-0 z-30 -mx-4 flex h-[76px] shrink-0 items-center gap-3 px-4">
+      <div className="sticky top-0 z-30 -mx-4 flex h-[76px] shrink-0 items-center gap-3 px-4 lg:hidden">
         <div
           aria-hidden="true"
           className={`pointer-events-none absolute inset-0 bg-[#FFFAF0]/85 backdrop-blur-md transition-opacity duration-200 ${
@@ -841,7 +854,16 @@ export default function ConsultStage({
         画面外へ流れ、上に戻ればまた現れる。大きさは一切変えないので
         スクロール中にレイアウトが動かない。
       */}
-      <div className="flex flex-col items-center gap-2">
+      {/*
+        lg 以上（PC・ノートPC）では左30%のカラムに置き、本文を読み進めても
+        画面に残り続けるよう sticky にする。スマホでは従来どおり通常フロー。
+      */}
+      {/*
+        高さを「スクロール領域いっぱい」にして中身を縦中央に置く（sticky なので
+        本文を読み進めても同じ位置に残る）。-2rem は上の目印の余白と下の
+        paddingBottom ぶん。これを引かないと、わずかにスクロールが発生する
+      */}
+      <div className="flex flex-col items-center gap-2 lg:sticky lg:top-0 lg:col-start-1 lg:row-start-2 lg:h-[calc(100dvh-var(--consult-bar-space-lg)-1.65rem)] lg:justify-center">
         {/*
           flex にして、囲んだだけで下に行間の隙間が出ないようにする（測る先がずれる）。
           開いたときはその場に現れ、現れきったら一度だけ会釈する。
@@ -887,6 +909,12 @@ export default function ConsultStage({
         )}
       </div>
 
+      {/*
+        答えと候補ボタンは右の70%カラムにまとめる。
+        スマホでは display: contents で枠を消し、従来どおり縦並びの子として扱う
+        （見た目・間隔は変わらない）。
+      */}
+      <div className="contents lg:col-start-2 lg:row-start-2 lg:flex lg:min-h-[calc(100dvh-var(--consult-bar-space-lg)-1.65rem)] lg:min-w-0 lg:flex-col lg:gap-4">
       {/* 今の答え。1枚だけ */}
       {showAnswer && (
         <div
@@ -950,7 +978,7 @@ export default function ConsultStage({
       {phase === "idle" && !isBusy && suggestions.length > 0 && (
         <div
           style={revealClass(140).style}
-          className={`flex flex-col gap-2 ${revealClass(140).className}`}
+          className={`flex flex-col gap-2 lg:mt-auto ${revealClass(140).className}`}
         >
           {suggestions.map((question) => (
             <button
@@ -964,6 +992,7 @@ export default function ConsultStage({
           ))}
         </div>
       )}
+      </div>
       </div>
 
       {/* 文字入力を大きく既定にし、音声は選べる小さいボタンにする。
@@ -1003,7 +1032,10 @@ export default function ConsultStage({
           }}
         />
 
-        <div className="flex w-full max-w-3xl items-center justify-center gap-3">
+        {/* lg 以上は本文と同じ「左30%・右70%」の格子にして、入力欄を右カラムの真下に置く。
+            スマホでは内側の枠を display: contents で消し、従来どおりの並びにする */}
+        <div className="flex w-full max-w-3xl items-center justify-center gap-3 lg:grid lg:max-w-6xl lg:grid-cols-[30%_minmax(0,1fr)] lg:gap-x-8">
+          <div className="contents lg:col-start-2 lg:flex lg:items-center lg:gap-3">
           {/* 文字入力を既定にする。タップして開く一段階を挟まず、
               最初から入力欄を出しておく。音声は騒がしい現地では速いが、
               静かな場所や周りに人がいるときは声を出しにくいため */}
@@ -1058,6 +1090,7 @@ export default function ConsultStage({
               <Mic className="h-5 w-5" aria-hidden="true" />
             </button>
           )}
+          </div>
         </div>
       </div>
 

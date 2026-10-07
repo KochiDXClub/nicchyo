@@ -181,7 +181,10 @@ export function MapControls({
 
       {/* 現在地追跡ボタン（検索エリアの高さに追従） */}
       <div
-        className="absolute right-4 z-[1000] transition-[top] duration-200"
+        // lg 以上は検索が左上のパネルになり、その高さに追従させる必要がない。
+        // 右上には相談・近況・メニューのツールバーが入るので、その真下（lg:top-20）に置く。
+        // top は inline style なので !important で上書きする
+        className="absolute right-4 z-[1000] transition-[top] duration-200 lg:!top-20"
         style={{ top: trackingButtonTop }}
         onMouseDown={(e) => e.stopPropagation()}
         onClick={(e) => e.stopPropagation()}

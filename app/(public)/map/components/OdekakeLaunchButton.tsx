@@ -13,7 +13,7 @@ import { Navigation } from 'lucide-react';
 export default function OdekakeLaunchButton({ top, onClick }: { top: number; onClick: () => void }) {
   return (
     <div
-      className="absolute left-3 z-[1001]"
+      className="absolute left-3 z-[1001] lg:left-4"
       style={{ top }}
       onMouseDown={(e) => e.stopPropagation()}
       onTouchStart={(e) => e.stopPropagation()}
