@@ -35,8 +35,7 @@
 
 `sendEvent` は次を処理できるが、アプリ内に発火している箇所は無い（再び使うときは呼び出しを足す）。
 
-- `shop_impression`（`context`: `map_cluster` / `list` / `search_result` / `banner` など）。`toServer` 付きで `POST /api/analytics/shop-interaction`（`shop_interactions`、`event_type: 'impression'`）
-- `shop_view`（`source` / `interaction_method`）。同じく `shop_interactions`（`event_type: 'view'`）
+- `shop_impression` / `shop_view`（型のみ。サーバー記録の API `shop-interaction` は呼び出し元が無く、入力無検証の公開書き込み口だったため削除した。再び使うときは `guide-event` と同じ方式で API を作り直す）
 - `shop_scroll`（`trackScrollDepth()` が 25/50/75/100% で発火）。呼び出し元なし
 - `add_to_bag`（型のみ。買い物リスト機能は廃止済み）
 
