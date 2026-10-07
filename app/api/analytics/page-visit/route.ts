@@ -6,6 +6,7 @@ import { createClient } from "@/utils/supabase/server";
 import { requireSameOrigin } from "@/lib/security/requestGuards";
 import { enforceRateLimit } from "@/lib/security/rateLimit";
 import { todayJstString } from "@/lib/time/jstDate";
+import { createAdminClient } from "@/lib/supabase/adminClient";
 
 const VISITOR_COOKIE_NAME = "nicchyo_visitor_id";
 // 通常のパス＋クエリは収まる長さ。超えるものは記録せず捨てる（DB 肥大の防止）
@@ -22,6 +23,18 @@ function normalizeRole(user: unknown) {
     user_metadata?: { role?: string };
   };
   return record.app_metadata?.role ?? record.user_metadata?.role ?? null;
+}
+
+const ADMIN_ROLES = new Set(["admin", "super_admin"]);
+
+async function countDailyVisitor(visitDate: string, visitorKey: string) {
+  const admin = createAdminClient();
+  if (!admin) return;
+  const { error } = await admin.rpc("track_home_visit", {
+    p_visit_date: visitDate,
+    p_visitor_key: visitorKey,
+  });
+  if (error) console.warn("[page-visit] 日次訪問者数の記録に失敗しました:", error.message);
 }
 
 export async function POST(request: NextRequest) {
@@ -85,6 +98,13 @@ export async function POST(request: NextRequest) {
     duration_seconds: durationSeconds,
     user_role: normalizeRole(user),
   });
+
+  // 「今週の訪問者」（web_visitor_stats）は来訪者全体のページ訪問から数える。
+  // 管理者の閲覧は web_page_daily_summaries と同じく数えない。
+  // track_home_visit は同じ日・同じ visitor を1回しか数えない（失敗しても記録は妨げない）
+  if (!error && !ADMIN_ROLES.has(normalizeRole(user) ?? "")) {
+    await countDailyVisitor(visitDate, visitorKey);
+  }
 
   const response = NextResponse.json({ ok: !error }, { status: error ? 500 : 200 });
   if (shouldSetVisitorCookie) {
