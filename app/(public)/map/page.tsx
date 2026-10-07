@@ -105,7 +105,7 @@ export default async function MapPage() {
 
   // マップ動作フラグ（管理画面で切替可能。URL の ?mapFlags= はクライアント側で上書きする）
   const featureFlags = await fetchMapFeatureFlags();
-  // マップの可動範囲（管理画面「マップの表示範囲」で設定する。MapLibre 版でのみ効く）
+  // マップの可動範囲（管理画面「マップの表示範囲」で設定する）
   const mapViewSettings = await fetchMapViewSettings();
 
   return (

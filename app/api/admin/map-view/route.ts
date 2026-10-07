@@ -4,9 +4,7 @@
  * map_view_settings は公開読み取り・書き込みなし（service role のみ）の
  * テーブルなので、保存はこのルートを通す。認可は requireAdminApi に寄せている。
  *
- * GET は設定に加えて、編集画面が下敷きに描くための道の形（route）と、
- * いまの描画ライブラリ（renderer）も返す。設定が効くのは MapLibre 版だけなので、
- * leaflet のままなら画面に注意書きを出せるようにするため。
+ * GET は設定に加えて、編集画面が下敷きに描くための道の形（route）も返す。
  */
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
@@ -22,8 +20,6 @@ import {
   normalizeMapRoutePoints,
 } from "@/app/(public)/map/utils/mapRouteGeometry";
 import type { MapRoutePoint } from "@/app/(public)/map/types/mapRoute";
-import { normalizeMapFeatureFlags } from "@/lib/mapFeatureFlags";
-import { MAP_FLAGS_SETTINGS_KEY } from "@/lib/mapFeatureFlags.server";
 import {
   containsRouteBounds,
   isSameMapViewSettings,
@@ -48,11 +44,10 @@ export async function GET() {
     const cookieStore = await cookies();
     const supabase = createServerClient(cookieStore);
 
-    const [settingsResult, route, flagsResult] = await Promise.all([
+    const [settingsResult, route] = await Promise.all([
       auth.adminClient.from(TABLE).select(COLUMNS).eq("key", MAP_VIEW_SETTINGS_KEY).maybeSingle(),
       // 道は公開読み取りなので、ログイン中の管理者のクライアントでそのまま読める
       fetchMapRouteFromDb(supabase),
-      auth.adminClient.from("system_settings").select("value").eq("key", MAP_FLAGS_SETTINGS_KEY).maybeSingle(),
     ]);
 
     if (settingsResult.error) {
@@ -63,7 +58,6 @@ export async function GET() {
       settings: mapViewSettingsFromRow(settingsResult.data),
       updatedAt: settingsResult.data?.updated_at ?? null,
       route,
-      renderer: normalizeMapFeatureFlags(flagsResult.data?.value).renderer,
     });
   } catch {
     return NextResponse.json({ error: "Failed to load map view settings" }, { status: 500 });
