@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { cookies } from "next/headers";
 import { createClient as createServerClient } from "@/utils/supabase/server";
 import { enforceRateLimit } from "@/lib/security/rateLimit";
+import { requireSameOrigin } from "@/lib/security/requestGuards";
 import { createAdminClient } from "@/lib/supabase/adminClient";
 
 export const runtime = "nodejs";
@@ -18,7 +20,20 @@ function isValidEmail(email: string): boolean {
   return local.length <= 64 && domain.length > 0 && domain.includes(".") && !domain.endsWith(".");
 }
 
+// 型と極端な長さをここで弾く。細かい文言の検証は下で従来どおり行う（欠けた項目は後段で個別のエラーにする）
+const contactSchema = z.object({
+  name: z.string().max(1000).optional(),
+  email: z.string().max(254).optional(),
+  category: z.string().max(32).optional(),
+  message: z.string().max(5000).optional(),
+  // honeypot: 人間には見えない欄。値が入っていたらボット
+  website: z.string().max(1000).optional(),
+});
+
 export async function POST(req: Request) {
+  const originCheck = requireSameOrigin(req);
+  if (!originCheck.ok) return originCheck.response;
+
   const rateLimited = await enforceRateLimit(req, {
     bucket: "contact-post",
     limit: 3,
@@ -26,16 +41,17 @@ export async function POST(req: Request) {
   });
   if (rateLimited) return rateLimited;
 
-  const cookieStore = await cookies();
-  const supabase = createServerClient(cookieStore);
-  const { data: { user } } = await supabase.auth.getUser();
+  const raw = await req.json().catch(() => null);
+  const parsed = contactSchema.safeParse(raw);
+  if (!parsed.success) {
+    return NextResponse.json({ error: "入力内容が正しくありません" }, { status: 400 });
+  }
+  const body = parsed.data;
 
-  const body = await req.json() as {
-    name?: string;
-    email?: string;
-    category?: string;
-    message?: string;
-  };
+  // ボットには成功を装い、何も保存・通知しない
+  if (body.website) {
+    return NextResponse.json({ ok: true });
+  }
 
   const name = (body.name ?? "").trim().slice(0, 100) || null;
   const email = (body.email ?? "").trim().toLowerCase();
@@ -54,6 +70,10 @@ export async function POST(req: Request) {
   if (message.length > 1000) {
     return NextResponse.json({ error: "内容は1000文字以内で入力してください" }, { status: 400 });
   }
+
+  const cookieStore = await cookies();
+  const supabase = createServerClient(cookieStore);
+  const { data: { user } } = await supabase.auth.getUser();
 
   const dc = createAdminClient();
   if (!dc) {
@@ -79,6 +99,7 @@ export async function POST(req: Request) {
     question: "ご質問",
     feedback: "ご意見",
     bug: "不具合・トラブル",
+    sponsor: "協賛・支援",
     other: "その他",
   };
   const { error: notifError } = await dc.from("admin_notifications").insert({

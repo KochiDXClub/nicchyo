@@ -62,7 +62,8 @@ export async function GET(request: NextRequest) {
     { data: locationsData, error: locationsError },
     { data: weeklyVisitorsData, error: weeklyVisitorsError },
   ] = await Promise.all([
-    supabase.from("vendors").select("category_id"),
+    // service_role は RLS を通らない。ホームに出す数は、掲載の許可がある店舗だけで数える
+    supabase.from("vendors").select("category_id").eq("listing_status", "allowed"),
     supabase.from("market_locations").select("district"),
     supabase
       .from("web_visitor_stats")

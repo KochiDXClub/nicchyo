@@ -40,6 +40,7 @@ vi.mock("@/lib/supabase/adminClient", () => ({
   },
 }));
 
+import { MAX_SHOP_ID } from "@/lib/shops/route";
 import { POST } from "./route";
 
 function post(body: unknown) {
@@ -63,7 +64,7 @@ describe("POST /api/analytics/shop-view", () => {
   });
 
   it("店番号が範囲外・整数でなければ 400 で、何も書かない", async () => {
-    for (const shopId of [0, 301, 1.5, "5"]) {
+    for (const shopId of [0, MAX_SHOP_ID + 1, 1.5, "5"]) {
       expect((await post({ shopId, source: "map" })).status).toBe(400);
     }
     expect(insertView).not.toHaveBeenCalled();

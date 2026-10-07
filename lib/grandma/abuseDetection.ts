@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { DatabaseWithExtensions } from "@/types/database.extensions";
 import { detectAbuse } from "@/lib/security/abuseDetector";
+import { maskPii } from "@/lib/privacy/maskPii";
 
 export async function handleAbuseDetection(
   supabase: SupabaseClient<DatabaseWithExtensions>,
@@ -31,7 +32,7 @@ export async function handleAbuseDetection(
       ip_address: ip,
       visitor_key: visitorKey ?? null,
       event_type: abuse.type,
-      message: text.slice(0, 200),
+      message: maskPii(text).slice(0, 200),
       severity: abuse.severity,
       blocked: shouldBlock,
     });
@@ -44,7 +45,7 @@ export async function handleAbuseDetection(
       await supabase.from("admin_notifications").insert({
         type: "ai_abuse",
         title: `AI不正アクセスをブロック（${abuse.type}）`,
-        body: `IP: ${ip ?? "不明"} | visitor: ${visitorKey ?? "不明"} | ${abuse.reason} | 内容: ${text.slice(0, 80)}`,
+        body: `IP: ${ip ?? "不明"} | visitor: ${visitorKey ?? "不明"} | ${abuse.reason}`,
         link: "/admin/audit-logs",
       });
       return "blocked";

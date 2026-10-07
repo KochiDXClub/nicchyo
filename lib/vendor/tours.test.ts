@@ -43,7 +43,7 @@ describe("VENDOR_TOUR_PAGES", () => {
 
 describe("findVendorTourPage", () => {
   it("画面の説明を返す（末尾の / は無視する）", () => {
-    expect(findVendorTourPage("/vendor/post/new")?.features[0].key).toBe("post-new");
+    expect(findVendorTourPage("/vendor/posts")?.features[0].key).toBe("post-new");
     expect(findVendorTourPage("/my-shop/schedule/")?.features[0].key).toBe("schedule");
   });
 

@@ -14,7 +14,8 @@ const ANONYMIZED_SUMMARY = "退会したメンバーに関する記録";
 /**
  * DELETE: 退会する（このアカウントを消す）。店舗のメンバーなら誰でも自分のぶんを退会できる。
  *
- * 消すもの: ログインアカウント／お店に残る自分の氏名（代表者のとき vendor_owner_profiles）／操作ログに載った自分の名前
+ * 消すもの: ログインアカウント／お店に残る自分の氏名（代表者のとき vendor_owner_profiles）／操作ログに載った自分の名前／
+ *          問い合わせ・通報に残る自分のメール・氏名
  * 残すもの: お店の掲載情報（店名・商品・写真・近況）。公開されている情報なので、消したいときは運営に伝えてもらう
  *
  * 代表者は、ほかにメンバーがいる間は退会できない（先に引き継ぎ・409）。メンバーが自分だけなら、
@@ -59,7 +60,22 @@ export async function DELETE(request: Request) {
     return NextResponse.json({ error: "退会できませんでした" }, { status: 500 });
   }
 
-  // 2. ログインアカウントを消す（shop_members の行は連動して消える）。失敗したら、1・2 はそのままで、もう一度退会できる
+  // 2. 問い合わせ・通報に残るこのアカウントの連絡先を消す（本文は運営の対応記録なので残す）。
+  //    アカウント削除で user_id が NULL になる前でないと、紐づく行を探せない
+  const { error: inquiryError } = await db
+    .from("inquiries")
+    .update({ email: null, name: null })
+    .eq("user_id", user.id);
+  const { error: reportError } = await db
+    .from("reports")
+    .update({ reporter_email: null })
+    .eq("reporter_id", user.id);
+  if (inquiryError || reportError) {
+    console.error("[vendor/account/delete] contact scrub error:", (inquiryError ?? reportError)?.message);
+    return NextResponse.json({ error: "退会できませんでした" }, { status: 500 });
+  }
+
+  // 3. ログインアカウントを消す（shop_members の行は連動して消える）。失敗したら、1・2 はそのままで、もう一度退会できる
   const { error: deleteError } = await db.auth.admin.deleteUser(user.id);
   if (deleteError) {
     console.error("[vendor/account/delete] deleteUser error:", deleteError.message);

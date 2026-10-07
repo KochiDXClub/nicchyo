@@ -63,8 +63,8 @@ export interface MapFeatureFlags {
   shopLayerHiding: boolean;
   /**
    * 地図の描画ライブラリ。
-   * - leaflet: 従来の Leaflet + DOM マーカー（既定）
-   * - maplibre: MapLibre GL JS（WebGL）。移行中の並走検証用。店舗はシンボルレイヤーで GPU 描画
+   * - leaflet: 従来の Leaflet + DOM マーカー。撤去予定で、管理画面の設定から戻すための保険として残している
+   * - maplibre: MapLibre GL JS（WebGL、既定）。店舗はシンボルレイヤーで GPU 描画
    */
   renderer: MapRenderer;
   /**
@@ -95,7 +95,7 @@ export const DEFAULT_MAP_FEATURE_FLAGS: MapFeatureFlags = {
   backgroundOverlay: "webp",
   tileOpacityByZoom: true,
   shopLayerHiding: true,
-  renderer: "leaflet",
+  renderer: "maplibre",
   basemap: "raster-carto",
   crowd: "off",
 };
@@ -125,7 +125,7 @@ export const MAP_FEATURE_FLAG_DEFS: readonly MapFeatureFlagDef[] = [
   {
     key: "renderer",
     label: "地図の描画ライブラリ",
-    description: "leaflet: 従来（DOM マーカー） / maplibre: MapLibre GL JS（WebGL、移行中の並走検証用）",
+    description: "maplibre: MapLibre GL JS（WebGL、既定） / leaflet: 従来（DOM マーカー。撤去予定の保険）",
     options: MAP_RENDERERS,
   },
   {

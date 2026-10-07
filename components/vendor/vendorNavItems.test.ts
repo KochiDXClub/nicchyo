@@ -5,7 +5,6 @@ describe("requiredPermissionForPath", () => {
   it("導線のある画面は、導線に付けた権限（下の階層も同じ）", () => {
     expect(requiredPermissionForPath("/vendor/inquiries")).toBe("inquiries");
     expect(requiredPermissionForPath("/vendor/inquiries/new")).toBe("inquiries");
-    expect(requiredPermissionForPath("/vendor/post/new")).toBe("post");
     expect(requiredPermissionForPath("/vendor/posts")).toBe("post");
     expect(requiredPermissionForPath("/vendor/analytics")).toBe("analytics");
     expect(requiredPermissionForPath("/vendor/store")).toBe("store_edit");

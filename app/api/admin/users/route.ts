@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { resolveAvatarUrl } from "@/lib/auth/displayName";
 import { loadShopAccountLinks } from "@/lib/admin/shopAccounts.server";
 import { normalizeRole, ROLE_HIERARCHY } from "@/lib/auth/permissions";
 import { listAllAuthUsers } from "@/lib/auth/listAllUsers";
@@ -104,6 +105,7 @@ export async function GET() {
       const role = normalizeRole(authUser.app_metadata?.role ?? authUser.user_metadata?.role);
       const name =
         (isMemberOnly ? undefined : vendor?.shop_name) ??
+        authUser.user_metadata?.display_name ??
         authUser.user_metadata?.name ??
         authUser.user_metadata?.full_name ??
         (vendorId ? ownerNameByVendorId.get(vendorId) : undefined) ??
@@ -119,7 +121,7 @@ export async function GET() {
         name,
         email: authUser.email ?? "",
         role,
-        avatarUrl: authUser.user_metadata?.avatarUrl ?? authUser.user_metadata?.avatar_url,
+        avatarUrl: resolveAvatarUrl(authUser),
         vendorId: vendor?.id,
         registeredDate: formatDate(authUser.created_at),
         lastLogin: formatDateTime(authUser.last_sign_in_at),

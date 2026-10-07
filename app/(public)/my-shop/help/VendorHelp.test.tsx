@@ -103,6 +103,81 @@ describe("出店者トップのにちよさんへの相談", () => {
     });
   });
 
+  describe("最後の答えを10分のあいだ覚えておく（ページを移って戻ってきたとき）", () => {
+    it("戻ってきたら、最後の質問と答えがそのまま出る。続けて聞くと、前のやりとりも送る", async () => {
+      fetchMock
+        .mockResolvedValueOnce(new Response(streamOf("写真は「お店の情報」から変えられるよ。")))
+        .mockResolvedValueOnce(new Response(streamOf("ふたつめの答え")));
+      const first = render(<VendorAskStage vendorId="v1" accountId="u1" />);
+      await askFromInput("写真を変えたい");
+      await waitFor(() => expect(screen.getByText("写真は「お店の情報」から変えられるよ。")).toBeInTheDocument());
+
+      // 別のページへ移る（画面を捨てる）→ 戻ってくる
+      first.unmount();
+      render(<VendorAskStage vendorId="v1" accountId="u1" />);
+
+      expect(await screen.findByText("写真は「お店の情報」から変えられるよ。")).toBeInTheDocument();
+      expect(screen.getByText("「写真を変えたい」")).toBeInTheDocument();
+      expect(screen.queryByText("今日もおつかれさま！")).not.toBeInTheDocument();
+
+      await askFromInput("ふたつめ");
+      await waitFor(() => expect(screen.getByText("ふたつめの答え")).toBeInTheDocument());
+      expect(JSON.parse(fetchMock.mock.calls[1][1].body).history).toEqual([
+        { role: "user", text: "写真を変えたい" },
+        { role: "assistant", text: "写真は「お店の情報」から変えられるよ。" },
+      ]);
+    });
+
+    it("10分たってから戻ってきたら、いつものひとことに戻る", async () => {
+      fetchMock.mockResolvedValue(new Response(streamOf("答えです")));
+      const now = vi.spyOn(Date, "now");
+      now.mockReturnValue(1_700_000_000_000);
+      const first = render(<VendorAskStage vendorId="v1" accountId="u1" />);
+      await askFromInput("聞きたい");
+      await waitFor(() => expect(screen.getByText("答えです")).toBeInTheDocument());
+
+      first.unmount();
+      now.mockReturnValue(1_700_000_000_000 + 10 * 60 * 1000 + 1);
+      render(<VendorAskStage vendorId="v1" accountId="u1" />);
+
+      expect(screen.getByText("今日もおつかれさま！")).toBeInTheDocument();
+      expect(screen.queryByText("答えです")).not.toBeInTheDocument();
+      now.mockRestore();
+    });
+
+    it("相談を閉じたら、戻ってきても出ない。別のアカウントにも出ない", async () => {
+      fetchMock.mockResolvedValue(new Response(streamOf("答えです")));
+      const first = render(<VendorAskStage vendorId="v1" accountId="u1" />);
+      await askFromInput("聞きたい");
+      await waitFor(() => expect(screen.getByText("答えです")).toBeInTheDocument());
+
+      // 同じタブで別のアカウントが開いても、前の人の相談は出ない
+      first.unmount();
+      const other = render(<VendorAskStage vendorId="v1" accountId="u2" />);
+      expect(screen.getByText("今日もおつかれさま！")).toBeInTheDocument();
+      other.unmount();
+
+      const again = render(<VendorAskStage vendorId="v1" accountId="u1" />);
+      expect(await screen.findByText("答えです")).toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: "相談を閉じる" }));
+      again.unmount();
+
+      render(<VendorAskStage vendorId="v1" accountId="u1" />);
+      expect(screen.getByText("今日もおつかれさま！")).toBeInTheDocument();
+    });
+
+    it("失敗した答えは覚えない", async () => {
+      fetchMock.mockResolvedValue(new Response("err", { status: 502 }));
+      const first = render(<VendorAskStage vendorId="v1" accountId="u1" />);
+      await askFromInput("聞きたい");
+      await waitFor(() => expect(screen.getByRole("link", { name: /運営に問い合わせる/ })).toBeInTheDocument());
+
+      first.unmount();
+      render(<VendorAskStage vendorId="v1" accountId="u1" />);
+      expect(screen.getByText("今日もおつかれさま！")).toBeInTheDocument();
+    });
+  });
+
   it("失敗したら謝って、運営への問い合わせ先を出す", async () => {
     fetchMock.mockResolvedValue(new Response("err", { status: 502 }));
     render(<VendorAskStage vendorId="v1" />);

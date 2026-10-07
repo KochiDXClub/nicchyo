@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { requireAdminApi } from "@/lib/auth/requireAdminApi";
 import { requestEmbeddings } from "@/lib/ai/openaiFetch";
+import { fetchAssignmentRows, fetchLocationRows, fetchProductRows } from "@/lib/shops/baseRowQueries";
+import { fetchAllRows } from "@/lib/supabase/fetchAllRows";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -124,14 +126,30 @@ async function syncVendorEmbeddings(): Promise<{ processed: number }> {
     { data: assignmentsData, error: assignmentsError },
     { data: contentsData, error: contentsError },
   ] = await Promise.all([
-    supabase
-      .from("vendors")
-      .select("id, shop_name, strength, style, style_tags, schedule, main_products, categories(name)")
-      .order("id", { ascending: true }),
-    supabase.from("products").select("vendor_id, name"),
-    supabase.from("market_locations").select("id, store_number, latitude, longitude, district"),
-    supabase.from("location_assignments").select("vendor_id, location_id, market_date"),
-    supabase.from("vendor_contents").select("vendor_id, body, created_at").order("created_at", { ascending: false }),
+    fetchAllRows<VendorRow>(
+      (from, to) =>
+        supabase
+          .from("vendors")
+          .select("id, shop_name, strength, style, style_tags, schedule, main_products, categories(name)")
+          // service_role は RLS を通らない。掲載の許可がない店舗は、埋め込み（AI が検索に使う）にしない
+          .eq("listing_status", "allowed")
+          .order("id", { ascending: true })
+          .range(from, to) as unknown as PromiseLike<{ data: VendorRow[] | null; error: { message: string } | null }>,
+      { label: "vendors" }
+    ),
+    fetchProductRows<ProductRow>(supabase),
+    fetchLocationRows<LocationRow>(supabase),
+    fetchAssignmentRows<AssignmentRow>(supabase),
+    fetchAllRows<ContentRow>(
+      (from, to) =>
+        supabase
+          .from("vendor_contents")
+          .select("vendor_id, body, created_at")
+          .order("created_at", { ascending: false })
+          .order("id", { ascending: true })
+          .range(from, to),
+      { label: "vendor_contents" }
+    ),
   ]);
 
   if (vendorsError) throw new Error(`vendors: ${vendorsError.message}`);
@@ -229,6 +247,19 @@ async function syncVendorEmbeddings(): Promise<{ processed: number }> {
 
     if (error) throw new Error(`Upsert error: ${error.message}`);
     totalProcessed += payload.length;
+  }
+
+  // 許可済みでなくなった店舗（許可を取り下げた・断られた）の埋め込みを消す。
+  // 残すと、vendor_embeddings.content を直接返す経路が増えたときに、許可のない店舗の情報が漏れる
+  const { data: unlisted, error: unlistedError } = await supabase
+    .from("vendors")
+    .select("id")
+    .neq("listing_status", "allowed");
+  if (unlistedError) throw new Error(`unlisted vendors: ${unlistedError.message}`);
+  const unlistedIds = (unlisted ?? []).map((row) => row.id);
+  if (unlistedIds.length > 0) {
+    const { error: deleteError } = await supabase.from("vendor_embeddings").delete().in("vendor_id", unlistedIds);
+    if (deleteError) throw new Error(`Delete unlisted embeddings error: ${deleteError.message}`);
   }
 
   return { processed: totalProcessed };

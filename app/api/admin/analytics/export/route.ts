@@ -2,6 +2,7 @@ import { cookies } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient as createServerClient } from "@/utils/supabase/server";
 import { getRole, isAdmin } from "@/lib/auth/permissions";
+import { addDaysToDateString, todayJstString } from "@/lib/time/jstDate";
 import { createAdminClient } from "@/lib/supabase/adminClient";
 
 export const runtime = "nodejs";
@@ -46,8 +47,9 @@ export async function GET(req: NextRequest) {
   const { searchParams } = req.nextUrl;
   const type = (searchParams.get("type") ?? "page_analytics") as ExportType;
   const days = Math.max(1, Math.min(Number(searchParams.get("days") ?? "30"), 365));
-  const since = new Date(Date.now() - days * 86400000).toISOString().slice(0, 10);
-  const today = new Date().toISOString().slice(0, 10);
+  // visit_date は JST で記録されるため、基準日も JST に揃える
+  const today = todayJstString();
+  const since = addDaysToDateString(today, -days);
 
   let rows: Record<string, unknown>[];
   let filename: string;

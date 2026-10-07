@@ -52,3 +52,18 @@ describe("parseMapFlagsFromSearch / resolveMapFeatureFlags", () => {
     expect(normalizeMapFeatureFlags(parsed)).toEqual(flags);
   });
 });
+
+describe("renderer の既定値", () => {
+  it("未保存なら maplibre", () => {
+    expect(DEFAULT_MAP_FEATURE_FLAGS.renderer).toBe("maplibre");
+    expect(normalizeMapFeatureFlags({}).renderer).toBe("maplibre");
+  });
+
+  it("管理画面で leaflet を保存していれば、それを使う（戻せる）", () => {
+    expect(normalizeMapFeatureFlags({ renderer: "leaflet" }).renderer).toBe("leaflet");
+  });
+
+  it("URL の ?mapFlags=renderer:leaflet で上書きできる", () => {
+    expect(resolveMapFeatureFlags(undefined, "?mapFlags=renderer:leaflet").renderer).toBe("leaflet");
+  });
+});

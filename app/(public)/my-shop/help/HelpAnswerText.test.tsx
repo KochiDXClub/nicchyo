@@ -12,8 +12,8 @@ describe("splitHelpAnswer", () => {
   });
 
   it("URL だけが書かれていても、画面の名前のリンクにする", () => {
-    expect(splitHelpAnswer("/vendor/post/new から投稿してね")).toEqual([
-      { type: "link", text: "近況投稿ページ", href: "/vendor/post/new" },
+    expect(splitHelpAnswer("/vendor/posts から投稿してね")).toEqual([
+      { type: "link", text: "近況投稿ページ", href: "/vendor/posts" },
       { type: "text", text: " から投稿してね" },
     ]);
     expect(splitHelpAnswer("[/my-shop/schedule](/my-shop/schedule)")).toEqual([
@@ -44,7 +44,7 @@ describe("splitHelpAnswer", () => {
 
 describe("HelpAnswerText", () => {
   it("画面の名前がリンクとして押せる", () => {
-    render(<HelpAnswerText answer="[近況投稿ページ](/vendor/post/new)から投稿してや。" />);
-    expect(screen.getByRole("link", { name: "近況投稿ページ" })).toHaveAttribute("href", "/vendor/post/new");
+    render(<HelpAnswerText answer="[近況投稿ページ](/vendor/posts)から投稿してや。" />);
+    expect(screen.getByRole("link", { name: "近況投稿ページ" })).toHaveAttribute("href", "/vendor/posts");
   });
 });

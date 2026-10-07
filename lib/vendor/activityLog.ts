@@ -3,6 +3,7 @@
 // 記録するのは「重要な操作の事実」だけ（誰が・何を・どの対象に）。メールアドレスや電話番号などの
 // 個人情報は入れない。ログの書き込みに失敗しても、本来の操作は巻き戻さない（admin の監査ログと同じ方針）。
 
+import { resolveDisplayName } from "@/lib/auth/displayName";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 export const VENDOR_ACTIVITY_LABELS = {
@@ -68,11 +69,6 @@ export async function logVendorActivity(db: SupabaseClient, entry: VendorActivit
 }
 
 /** 表示名。user_metadata は本人が書き換えられる文字なので、表示専用に使い、権限の判断には使わない */
-export function displayNameOf(user: {
-  email?: string | null;
-  user_metadata?: { name?: string; full_name?: string } | null;
-}): string {
-  const meta = user.user_metadata;
-  const name = meta?.name ?? meta?.full_name ?? (user.email ? user.email.split("@")[0] : "");
-  return name.trim().slice(0, 100) || "名前未設定";
+export function displayNameOf(user: Parameters<typeof resolveDisplayName>[0]): string {
+  return resolveDisplayName(user);
 }
