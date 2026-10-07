@@ -10,7 +10,8 @@
 //   AI_OFFICE_URL     サーバー URL（例 https://office.example.com）。未設定なら何もしない
 //   AI_OFFICE_TOKEN   送信用トークン
 //   AI_OFFICE_APP     表示名（既定: 作業ディレクトリ名）
-//   AI_OFFICE_DETAIL  full にすると Bash のコマンド先頭や検索語も送る（既定 minimal）
+//   AI_OFFICE_DETAIL  full にすると Bash のコマンド先頭 60 文字や検索語も送る（既定 minimal）。
+//                     先頭の NAME=value の値は伏せるが、それ以外の引数・検索語・URL に秘密が入っていても伏せられない
 //   AI_OFFICE_TASKS   off にすると「一言」（プロンプト 1 行目・Todo・依頼文）を一切送らない
 import path from 'node:path';
 
@@ -48,13 +49,27 @@ function readStdin() {
   });
 }
 
+// `FOO=secret cmd` のような、先頭の環境変数の代入（値は "..." / '...' / 空白なしの語）
+const ENV_PREFIX = /^(?:[A-Za-z_][A-Za-z0-9_]*=(?:"[^"]*"|'[^']*'|\S*)(?:\s+|$))+/;
+
+/** コマンド名だけを取り出す。先頭の `NAME=value` は読み飛ばす（値に秘密が入りうるため） */
+function commandName(command) {
+  const word = command.replace(ENV_PREFIX, '').split(/\s+/)[0];
+  return word ? path.basename(word) : undefined;
+}
+
+/** full モード用: 先頭の `NAME=value` の値を伏せる */
+function maskEnvPrefix(command) {
+  return command.replace(ENV_PREFIX, (prefix) => prefix.replace(/=(?:"[^"]*"|'[^']*'|\S*)/g, '=***'));
+}
+
 function describe(toolName, input) {
   if (!input || typeof input !== 'object') return undefined;
   const file = input.file_path ?? input.notebook_path ?? input.path;
   if (typeof file === 'string') return path.basename(file);
   if (toolName === 'Bash' && typeof input.command === 'string') {
     const trimmed = input.command.trim();
-    return DETAIL_FULL ? trimmed.slice(0, 60) : trimmed.split(/\s+/)[0];
+    return DETAIL_FULL ? maskEnvPrefix(trimmed).slice(0, 60) : commandName(trimmed);
   }
   if (DETAIL_FULL) {
     const text = input.pattern ?? input.query ?? input.url ?? input.description;
@@ -106,7 +121,7 @@ async function main() {
     hook_event_type: input.hook_event_name,
     tool_name: input.tool_name,
     detail: describe(input.tool_name, input.tool_input),
-    message: input.hook_event_name === 'Notification' ? input.message : undefined,
+    message: input.hook_event_name === 'Notification' ? oneLine(input.message, 80) : undefined,
     notification_type: input.notification_type,
     agent_id: input.agent_id,
     agent_type: input.agent_type,
