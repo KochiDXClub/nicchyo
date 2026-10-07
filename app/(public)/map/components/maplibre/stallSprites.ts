@@ -76,8 +76,11 @@ export function withSvgSize(svg: string, px: number): string {
       new RegExp(`\\s${name}\\s*=\\s*(?:"([^"]*)"|'([^']*)')`).exec(attrs);
     const size = (name: string) => {
       const m = attr(name);
-      const n = m ? parseFloat(m[1] ?? m[2]) : NaN;
-      return Number.isFinite(n) && n > 0 ? n : null;
+      const raw = m ? (m[1] ?? m[2]).trim() : "";
+      // 100% のような相対値は大きさとして読まない（viewBox を補うと誤った枠になる）
+      if (!/^\d+(\.\d+)?(px)?$/.test(raw)) return null;
+      const n = parseFloat(raw);
+      return n > 0 ? n : null;
     };
     const w = size("width");
     const h = size("height");
