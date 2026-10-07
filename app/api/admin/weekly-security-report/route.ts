@@ -2,6 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { createClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
 import { todayJstString } from "@/lib/time/jstDate";
+import { verifyBearerSecret } from "@/lib/security/cronAuth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -485,8 +486,7 @@ async function runWeeklyReport(): Promise<{
 function checkAuth(req: NextRequest): boolean {
   const cronSecret = process.env.CRON_SECRET;
   if (!cronSecret) return process.env.NODE_ENV !== "production";
-  const authHeader = req.headers.get("authorization");
-  return authHeader?.replace("Bearer ", "") === cronSecret;
+  return verifyBearerSecret(req.headers.get("authorization"), cronSecret);
 }
 
 export async function GET(req: NextRequest) {
