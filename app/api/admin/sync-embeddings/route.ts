@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { requireAdminApi } from "@/lib/auth/requireAdminApi";
 import { requestEmbeddings } from "@/lib/ai/openaiFetch";
+import { fetchAllRows } from "@/lib/supabase/fetchAllRows";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -124,16 +125,51 @@ async function syncVendorEmbeddings(): Promise<{ processed: number }> {
     { data: assignmentsData, error: assignmentsError },
     { data: contentsData, error: contentsError },
   ] = await Promise.all([
-    supabase
-      .from("vendors")
-      .select("id, shop_name, strength, style, style_tags, schedule, main_products, categories(name)")
-      // service_role は RLS を通らない。掲載の許可がない店舗は、埋め込み（AI が検索に使う）にしない
-      .eq("listing_status", "allowed")
-      .order("id", { ascending: true }),
-    supabase.from("products").select("vendor_id, name"),
-    supabase.from("market_locations").select("id, store_number, latitude, longitude, district"),
-    supabase.from("location_assignments").select("vendor_id, location_id, market_date"),
-    supabase.from("vendor_contents").select("vendor_id, body, created_at").order("created_at", { ascending: false }),
+    fetchAllRows<VendorRow>(
+      (from, to) =>
+        supabase
+          .from("vendors")
+          .select("id, shop_name, strength, style, style_tags, schedule, main_products, categories(name)")
+          // service_role は RLS を通らない。掲載の許可がない店舗は、埋め込み（AI が検索に使う）にしない
+          .eq("listing_status", "allowed")
+          .order("id", { ascending: true })
+          .range(from, to) as unknown as PromiseLike<{ data: VendorRow[] | null; error: { message: string } | null }>,
+      { label: "vendors" }
+    ),
+    // PostgREST の max_rows (1000) で黙って切り詰められないよう range ページングで全件取る
+    fetchAllRows<ProductRow>(
+      (from, to) => supabase.from("products").select("vendor_id, name").order("id", { ascending: true }).range(from, to),
+      { label: "products" }
+    ),
+    fetchAllRows<LocationRow>(
+      (from, to) =>
+        supabase
+          .from("market_locations")
+          .select("id, store_number, latitude, longitude, district")
+          .order("id", { ascending: true })
+          .range(from, to),
+      { label: "market_locations" }
+    ),
+    fetchAllRows<AssignmentRow>(
+      (from, to) =>
+        supabase
+          .from("location_assignments")
+          .select("vendor_id, location_id, market_date")
+          .order("market_date", { ascending: false })
+          .order("id", { ascending: true })
+          .range(from, to),
+      { label: "location_assignments" }
+    ),
+    fetchAllRows<ContentRow>(
+      (from, to) =>
+        supabase
+          .from("vendor_contents")
+          .select("vendor_id, body, created_at")
+          .order("created_at", { ascending: false })
+          .order("id", { ascending: true })
+          .range(from, to),
+      { label: "vendor_contents" }
+    ),
   ]);
 
   if (vendorsError) throw new Error(`vendors: ${vendorsError.message}`);

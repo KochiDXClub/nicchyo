@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { fetchAllRows } from "@/lib/supabase/fetchAllRows";
 import type { Database } from "@/types/database.types";
 import type { Shop } from "../types/shopData";
 
@@ -101,6 +102,8 @@ export type VendorShopBaseRows = {
 export async function fetchVendorShopBaseRows(
   supabase: SupabaseClient<Database>
 ): Promise<{ rows: VendorShopBaseRows; failedTables: string[] }> {
+  // PostgREST の max_rows (1000) で黙って切り詰められないよう、全テーブルを
+  // 決定的な order 付きの range ページングで読み切る（lib/supabase/fetchAllRows.ts）
   const [
     { data: vendorsData, error: vendorsError },
     { data: ownerProfilesData, error: ownerProfilesError },
@@ -109,16 +112,58 @@ export async function fetchVendorShopBaseRows(
     { data: locationsData, error: locationsError },
     { data: assignmentsData, error: assignmentsError },
   ] = await Promise.all([
-    supabase
-      .from("vendors")
-      .select("id, shop_name, strength, style, style_tags, category_id, categories(name), main_products, main_product_prices, payment_methods, rain_policy, schedule, shop_image_url, sns_instagram, sns_x, sns_hp, business_hours_start, business_hours_end"),
-    supabase.from("vendor_owner_profiles").select("vendor_id, owner_name"),
-    supabase.from("categories").select("id, name"),
-    supabase.from("products").select("vendor_id, name"),
-    supabase
-      .from("market_locations")
-      .select("id, store_number, latitude, longitude, district"),
-    supabase.from("location_assignments").select("vendor_id, location_id, market_date"),
+    fetchAllRows<VendorRow>(
+      (from, to) =>
+        supabase
+          .from("vendors")
+          .select("id, shop_name, strength, style, style_tags, category_id, categories(name), main_products, main_product_prices, payment_methods, rain_policy, schedule, shop_image_url, sns_instagram, sns_x, sns_hp, business_hours_start, business_hours_end")
+          .order("id", { ascending: true })
+          .range(from, to) as unknown as PromiseLike<{ data: VendorRow[] | null; error: { message: string } | null }>,
+      { label: "vendors" }
+    ),
+    fetchAllRows<OwnerProfileRow>(
+      (from, to) =>
+        supabase
+          .from("vendor_owner_profiles")
+          .select("vendor_id, owner_name")
+          .order("vendor_id", { ascending: true })
+          .range(from, to),
+      { label: "vendor_owner_profiles" }
+    ),
+    fetchAllRows<CategoryRow>(
+      (from, to) =>
+        supabase.from("categories").select("id, name").order("id", { ascending: true }).range(from, to),
+      { label: "categories" }
+    ),
+    fetchAllRows<ProductRow>(
+      (from, to) =>
+        supabase
+          .from("products")
+          .select("vendor_id, name")
+          .order("id", { ascending: true })
+          .range(from, to),
+      { label: "products" }
+    ),
+    fetchAllRows<LocationRow>(
+      (from, to) =>
+        supabase
+          .from("market_locations")
+          .select("id, store_number, latitude, longitude, district")
+          .order("id", { ascending: true })
+          .range(from, to),
+      { label: "market_locations" }
+    ),
+    // 履歴が週ごとに溜まるテーブル。新しい週から読めば、万一打ち切られても古い行が落ちる
+    fetchAllRows<AssignmentRow>(
+      (from, to) =>
+        supabase
+          .from("location_assignments")
+          .select("vendor_id, location_id, market_date")
+          .order("market_date", { ascending: false })
+          .order("id", { ascending: true })
+          .range(from, to),
+      { label: "location_assignments" }
+    ),
   ]);
 
   // どれか1つでも失敗すると該当データが黙って空扱いになり店舗が減る/消えるため、
