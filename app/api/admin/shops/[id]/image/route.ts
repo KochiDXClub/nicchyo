@@ -85,9 +85,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     }
 
     const url = storage.getPublicUrl(mainPath).data.publicUrl;
+    const updatedAt = new Date().toISOString();
     const { error: updateError } = await adminClient
       .from("vendors")
-      .update({ shop_image_url: url, updated_at: new Date().toISOString() })
+      .update({ shop_image_url: url, updated_at: updatedAt })
       .eq("id", id);
     if (updateError) return NextResponse.json({ error: "写真の URL を保存できませんでした" }, { status: 500 });
 
@@ -105,7 +106,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     );
 
     revalidatePublicShops();
-    return NextResponse.json({ ok: true, url });
+    // 画面が次の保存（updated_at による競合検知）で 409 にならないよう、新しい updated_at も返す
+    return NextResponse.json({ ok: true, url, updated_at: updatedAt });
   } catch {
     return NextResponse.json({ error: "写真を保存できませんでした" }, { status: 500 });
   }

@@ -1,16 +1,17 @@
 import type { Landmark } from "../types/landmark";
-import optimizedLandmarkImages from "../data/optimizedLandmarkImages.json";
 
-const OPTIMIZED: Readonly<Record<string, string>> = optimizedLandmarkImages;
+const BUILDINGS_DIR = "/images/maps/elements/buildings/";
 
 /**
- * 建物画像の URL を、表示サイズに合わせた軽量版（WebP）に差し替える。
+ * 建物画像の URL が古い PNG のままなら、WebP に差し替える。
  *
- * DB（map_landmarks.image_url）は元の PNG を指したまま。管理画面はその値を読んで
- * 保存し直すので、DB 側は書き換えず、地図に渡す直前でだけ差し替える。
- * 軽量版は scripts/build-landmark-images.mjs が作る。対応表に無い URL はそのまま返す。
+ * 建物の画像は WebP だけを置いている（PNG は削除済み）。DB（map_landmarks.image_url）は
+ * マイグレーションで .webp に更新するが、デプロイとマイグレーションの順番が前後しても
+ * 地図の建物が消えないよう、地図に渡す直前に .png を .webp に読み替える。
  */
 export function withOptimizedLandmarkImage(landmark: Landmark): Landmark {
-  const optimized = OPTIMIZED[landmark.url];
-  return optimized ? { ...landmark, url: optimized } : landmark;
+  if (!landmark.url.startsWith(BUILDINGS_DIR) || !landmark.url.endsWith(".png")) {
+    return landmark;
+  }
+  return { ...landmark, url: landmark.url.replace(/\.png$/, ".webp") };
 }

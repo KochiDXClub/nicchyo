@@ -123,7 +123,8 @@ export function isVendorImageUrl(value: string): boolean {
 
 /**
  * 「許可済み」にするとき、許可をもらった日が未記録なら今日（日本時間）にする。
- * 記録済みの日付は上書きしない。UTC の日付だと、日本時間の 0〜9 時（日曜市の朝）に前日になる。
+ * 記録済みの日付は上書きしない。画面が「日付が空」を null で送ってくる場合も未指定として扱う
+ * （null を明示と見なすと、現場登録画面では自動入力が一度も働かない）。UTC の日付だと、日本時間の 0〜9 時（日曜市の朝）に前日になる。
  */
 export function consentDateOnAllow(
   update: { listing_status?: ListingStatus; listing_consented_on?: string | null },
@@ -131,7 +132,7 @@ export function consentDateOnAllow(
   now: Date = new Date(),
 ): string | undefined {
   if (update.listing_status !== "allowed") return undefined;
-  if (update.listing_consented_on !== undefined || currentConsentedOn) return undefined;
+  if (update.listing_consented_on != null || currentConsentedOn) return undefined;
   return todayJstString(now);
 }
 

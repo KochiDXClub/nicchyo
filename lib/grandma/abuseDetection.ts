@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { DatabaseWithExtensions } from "@/types/database.extensions";
 import { detectAbuse } from "@/lib/security/abuseDetector";
+import { maskPii } from "@/lib/privacy/maskPii";
 
 /**
  * 自動ブロックの方針。
@@ -45,7 +46,7 @@ export async function handleAbuseDetection(
       ip_address: ip,
       visitor_key: visitorKey ?? null,
       event_type: abuse.type,
-      message: text.slice(0, 200),
+      message: maskPii(text).slice(0, 200),
       severity: abuse.severity,
       blocked: shouldBlock,
     });
