@@ -4,6 +4,9 @@
 #
 # 使い方: scripts/ci/pending-migrations.sh <dry-run 出力ファイル> <未適用一覧の出力先>
 # 標準出力: 一覧の sha256（0件のときは "none"）
+# 終了コード: 「最新です」と確認できたときだけ 0件(none)。ファイル名を1つも拾えず、最新とも読めない出力は
+#   失敗(1)にする。読み取れないまま 0件扱いにすると、apply が承認も求めず黙ってスキップされ、
+#   マイグレーション未適用のまま新しいアプリだけがデプロイされるため。
 set -euo pipefail
 
 dry_run_output="$1"
@@ -20,6 +23,9 @@ done
 
 if [ -s "$out" ]; then
   sha256sum "$out" | cut -d' ' -f1
-else
+elif grep -qi 'up to date' "$dry_run_output"; then
   echo "none"
+else
+  echo "::error::dry-run の出力から未適用マイグレーションを読み取れませんでした（'up to date' の表示も無し）。supabase CLI の出力形式が変わった可能性があります: $dry_run_output" >&2
+  exit 1
 fi
