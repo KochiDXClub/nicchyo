@@ -667,6 +667,7 @@ async function startDemo() {
     handleUpdate({ session, event });
     if (removed) setTimeout(() => removeSession(session.id), 4000);
   };
+  let agentSeq = 0;
   const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
   ids.forEach((who, i) => setTimeout(() => send(who, 'SessionStart'), 600 + i * 1400));
   setInterval(() => {
@@ -675,7 +676,7 @@ async function startDemo() {
     const roll = Math.random();
     if (roll < 0.5) { const [tool, detail] = pick(tools); send(who, 'PreToolUse', { tool_name: tool, ...(detail ? { detail } : {}) }); }
     else if (roll < 0.62) send(who, 'Notification', { message: 'ファイルの編集を許可しますか？' });
-    else if (roll < 0.74) send(who, 'SubagentStart', { agent_id: `a${Math.random()}` });
+    else if (roll < 0.74) send(who, 'SubagentStart', { agent_id: `demo-agent-${(agentSeq += 1)}` });
     else if (roll < 0.82) send(who, 'SubagentStop');
     else if (roll < 0.95) send(who, 'Stop');
     else send(who, 'UserPromptSubmit');
