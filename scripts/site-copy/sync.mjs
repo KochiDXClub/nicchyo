@@ -164,6 +164,8 @@ export function buildFaq(rows) {
     // 表示順・表示の列だけが埋まった行（入力欄の名残）は、質問の行として数えない
     if (r.id === "" && r.category === "" && r.q === "" && r.a === "") continue;
     const where = `「${sheet}」${r.row}行目（${r.id || "ID なし"}）`;
+    // 非表示で ID もまだない行は、書きかけの下書きとして飛ばす
+    if (r.id === "" && r.show.toUpperCase() === "FALSE") continue;
     if (!/^[a-z0-9]+(-[a-z0-9]+)*$/.test(r.id)) {
       errors.push(`${where}: ID は「map-free」のような 小文字英数字とハイフン にしてください。ID の列は書き換えないでください`);
       continue;

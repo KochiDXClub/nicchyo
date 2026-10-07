@@ -53,6 +53,19 @@ LP や静的ページの文言の一部は、コードを触らずに Google ス
 
 **どの文言も共通**：「リンクを知っている全員が閲覧可」のシートなので、外に出せないことは書かない。
 
+### シートの「サイト管理」メニュー（任意）
+
+シートを開いたときに出るメニュー「サイト管理 → 文言を取り込む（PR を作る）」で、GitHub を開かずに取り込みを始められる（Actions の「Run workflow」と同じ）。本番には出ない。PR のマージは今までどおり人が行う。
+
+コードは `scripts/site-copy/apps-script/Code.gs`。設定は1回だけ：
+
+1. GitHub で Fine-grained personal access token を作る（Repository access は `KochiDXClub/nicchyo` だけ、Permissions は Actions: Read and write だけ）
+2. シートの「拡張機能 → Apps Script」を開き、`Code.gs` の中身を貼り付けて保存する
+3. 「プロジェクトの設定 → スクリプト プロパティ」に `GITHUB_TOKEN` として 1 のトークンを入れる（コードには書かない）
+4. シートを開き直すと「サイト管理」メニューが出る。初回は Google の権限確認が出る
+
+トークンは、このシートの **編集者なら Apps Script から読める**。編集者はチームの人だけにする。期限が切れたら作り直して `GITHUB_TOKEN` を入れ替える。
+
 ### 取り込みが止まったとき
 
 Actions の「Sync site copy」の実行ログに、直すべきセルが「◯行目」の形で並ぶ。1件でも問題があると何も取り込まれない（サイトは今のまま）。

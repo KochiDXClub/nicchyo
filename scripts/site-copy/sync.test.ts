@@ -118,6 +118,12 @@ describe("buildFaq", () => {
     expect(out.map((f) => f.id)).toEqual(["x-one"]);
   });
 
+  it("非表示で ID もまだない下書き行は飛ばす", () => {
+    const { faq: out, errors } = buildFaq([header, ["1", "TRUE", "map", "Q1", "A1", "x-one"], ["", "FALSE", "", "書きかけ", "", ""]]);
+    expect(errors).toEqual([]);
+    expect(out.map((f) => f.id)).toEqual(["x-one"]);
+  });
+
   it("全部非表示なら止める", () => {
     const { errors } = buildFaq([header, ["1", "FALSE", "map", "Q", "A", "x-one"]]);
     expect(errors).toEqual([expect.stringContaining("1件もありません")]);
