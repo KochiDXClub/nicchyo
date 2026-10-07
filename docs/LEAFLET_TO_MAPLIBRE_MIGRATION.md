@@ -20,7 +20,7 @@
 
 | ファイル | 行数 | MapLibre 側の対応（`map/components/maplibre/` 配下） |
 |---|---|---|
-| `map/components/MapView.tsx` | 1321 
+| `map/components/MapView.tsx` | 1321 | `MapViewMapLibre.tsx`（1297） |
 | `map/components/OptimizedShopLayerWithClustering.tsx` | 578 | シンボルレイヤー（`shopFeatures.ts` / `stallSprites.ts`） |
 | `map/components/RoadOverlay.tsx` | 531 | `MapViewMapLibre` 内の道レイヤー |
 | `map/components/MapOverlays.tsx` | 309 | ランドマーク画像・地名ラベルは移植済み |
@@ -100,7 +100,7 @@
 
 ### Phase 1: MapLibre 版の不足を埋める
 - **PR 1**: カスタム SVG 屋台を MapLibre に対応（`shopFeatures.ts` / `stallSprites.ts` / テスト）
-- **PR 2**: `MapViewProps` を `MapView.tsx` から切り出して共有型にする（`types/mapViewProps.ts` など）。
+- **PR 2**: `MapViewProps` を `MapView.tsx` から切り出して共有型にする（`types/mapView.ts`。#814 で実施）。
   `MapViewMapLibre` が Leaflet 側ファイルを import しない状態にする（後続の削除を安全にする）
 - **PR 3**: 混雑時の欠け・重なり、WebGL 非対応時のフォールバック、StrictMode 対応（必要なら）
 - 各 PR で `shopFeatures.test.ts` 等にテスト追加
@@ -109,6 +109,11 @@
 - **PR 4**: `DEFAULT_MAP_FEATURE_FLAGS.renderer` を `"maplibre"` に変更（変更 1〜2 ファイル）
   → ステージングで確認後、管理画面の `map_flags` を `maplibre` に更新して段階公開。
   不具合時は管理画面から `leaflet` に戻せる（この間は Leaflet が保険）
+- 切替前に追加で確認する項目:
+  - 解析（`PageVisitTracker` の `page_view`）やエラー監視が、MapLibre 版でも同じイベントを送ること
+  - 店舗マーカーのタップ（お気に入り・買い物袋・「ここへ案内」）の導線
+  - 低スペック端末での初回表示時間（スプライト生成を含む）
+  - 本番の `customSvg` 件数（優先度の判断材料。Phase 0 で数える）
 - 1〜2 回の日曜市（実運用）を観察し、エラー・問い合わせ・パフォーマンス指標を確認。
   **Leaflet 削除はこの観察期間が終わってから**
 
