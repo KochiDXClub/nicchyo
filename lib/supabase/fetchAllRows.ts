@@ -5,6 +5,10 @@
  *
  * 呼び出し側は決定的な `.order()`（一意な列を最後に含める）を必ず付けること。
  * order が無い／重複があると、ページ境界で行が重複・欠落する。
+ *
+ * 次の取得位置は「受け取った件数」ぶんだけ進め、0 件のページが来たら終わる。
+ * 「件数が pageSize 未満なら終わり」にすると、サーバー側の max_rows が pageSize より小さい設定のとき
+ * 1 ページ目で終わってしまい、また黙って切り詰められる（そのぶん、最後に空ページを 1 回余分に取りに行く）。
  */
 
 export const FETCH_ALL_PAGE_SIZE = 1000;
@@ -35,18 +39,19 @@ export async function fetchAllRows<T>(
   { label, pageSize = FETCH_ALL_PAGE_SIZE, maxPages = DEFAULT_MAX_PAGES }: FetchAllRowsOptions
 ): Promise<FetchAllRowsResult<T>> {
   const all: T[] = [];
+  let from = 0;
   for (let page = 0; page < maxPages; page += 1) {
-    const from = page * pageSize;
     const { data, error } = await fetchPage(from, from + pageSize - 1);
     if (error) {
       // 途中までの行を成功扱いで返すと「古い/欠けた一覧」になるので、呼び出し側には空で失敗を伝える
       return { data: [], error, truncated: false };
     }
     const rows = Array.isArray(data) ? data : [];
-    all.push(...rows);
-    if (rows.length < pageSize) {
+    if (rows.length === 0) {
       return { data: all, error: null, truncated: false };
     }
+    all.push(...rows);
+    from += rows.length;
   }
   console.warn(
     `[fetchAllRows] ${label} が ${maxPages} ページ (${all.length} 件) に達したため取得を打ち切りました`

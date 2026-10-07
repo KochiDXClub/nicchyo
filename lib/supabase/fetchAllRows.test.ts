@@ -20,7 +20,7 @@ afterEach(() => {
 });
 
 describe("fetchAllRows", () => {
-  it("2500 行を 3 ページで順序どおりに全件取得する", async () => {
+  it("2500 行を順序どおりに全件取得する（最後に空ページを 1 回確認する）", async () => {
     const { rows, calls, fetchPage } = makeSource(2500);
     const result = await fetchAllRows<Row>(fetchPage, { label: "t" });
     expect(result.error).toBeNull();
@@ -30,7 +30,16 @@ describe("fetchAllRows", () => {
       [0, 999],
       [1000, 1999],
       [2000, 2999],
+      [2500, 3499],
     ]);
+  });
+
+  it("サーバーの max_rows が pageSize より小さくても、受け取った件数ぶん進めて取りこぼさない", async () => {
+    const { rows, calls, fetchPage } = makeSource(1200, 500);
+    const result = await fetchAllRows<Row>(fetchPage, { label: "t" });
+    expect(result.error).toBeNull();
+    expect(result.data).toEqual(rows);
+    expect(calls.map(([from]) => from)).toEqual([0, 500, 1000, 1200]);
   });
 
   it("ちょうどページ幅の件数なら空ページまで確認して終わる", async () => {
@@ -38,6 +47,7 @@ describe("fetchAllRows", () => {
     const result = await fetchAllRows<Row>(fetchPage, { label: "t" });
     expect(result.data).toHaveLength(2000);
     expect(calls).toHaveLength(3);
+    expect(calls[2]).toEqual([2000, 2999]);
   });
 
   it("0 件・data が null でも空配列を返す", async () => {
