@@ -78,6 +78,8 @@ const BLOCKED_PATTERNS = [
   /<\s*image\b/i,
 ];
 
+const INTERNAL_REF_PATTERN = /^#[A-Za-z_][\w.:-]*$/;
+
 export function sanitizeInlineSvg(input?: string | null): string | null {
   if (!input) return null;
 
@@ -106,6 +108,13 @@ export function sanitizeInlineSvg(input?: string | null): string | null {
     if (!ALLOWED_ATTRIBUTES.has(attrName) && !ALLOWED_ATTRIBUTES.has(attrName.toLowerCase())) {
       return null;
     }
+  }
+
+  // href / xlink:href は <use> の内部参照（#id）だけを許す。
+  // 外部URL・data: URL は属性値に `>` を混ぜてもすり抜けないよう、文字列全体から属性ごとに検査する。
+  if (/\bhref\s*=\s*[^"'\s]/i.test(candidate)) return null; // クォートなしの値は受け付けない
+  for (const match of candidate.matchAll(/\bhref\s*=\s*(["'])([\s\S]*?)\1/gi)) {
+    if (!INTERNAL_REF_PATTERN.test(match[2])) return null;
   }
 
   return candidate;

@@ -108,7 +108,8 @@ export function AiConsultPanel({
               products: shop.products,
               chome: shop.chome,
             },
-            history,
+            // サーバーの上限（10件）に合わせる。超えると 400 になる
+            history: history.slice(-10),
             text: trimmed,
           }),
         });
@@ -354,6 +355,7 @@ export function AiConsultPanel({
             placeholder={streaming ? "回答中…" : "質問を入力（Shift+Enterで改行）"}
             disabled={streaming}
             rows={1}
+            maxLength={500}
             className="flex-1 resize-none bg-transparent text-sm text-slate-800 placeholder-slate-400 focus:outline-none disabled:cursor-not-allowed disabled:opacity-40"
             style={{ lineHeight: "1.5", maxHeight: 120, overflowY: "auto" }}
           />
