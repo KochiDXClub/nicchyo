@@ -72,6 +72,10 @@ env:
   # main は本番、develop は開発。ジョブの `if` で main / develop 以外は走らせない。
   TARGET_LABEL: ${{ github.ref_name == 'main' && '本番' || '開発' }}
   TARGET_ENV: ${{ github.ref_name == 'main' && 'production' || 'development' }}
+  # 本番プロジェクトの Reference ID（docs/RELEASE.md §9 と同じ値。変えるときは両方を直す）。
+  # 開発（develop）は承認なしで適用されるので、Environment の Variable を入れ間違えて本番を指していたら
+  # DB に触る前に止める。本番（main）は逆に、この ID 以外を指していたら止める。
+  PRODUCTION_PROJECT_ID: yrypxygzqtkdwvasczsq
 
 jobs:
   dry-run:
@@ -113,6 +117,15 @@ jobs:
         run: |
           if ! [[ "$PROJECT_ID" =~ ^[a-z]{20}$ ]]; then
             echo "::error::Environment の Variable SUPABASE_PROJECT_ID が未設定、または形式が違います（20文字の Reference ID）。Variables に登録してください（Secrets ではない）。"
+            exit 1
+          fi
+          # 開発と本番の取り違えを止める（上の env: PRODUCTION_PROJECT_ID を参照）
+          if [ "$TARGET_ENV" = "production" ] && [ "$PROJECT_ID" != "$PRODUCTION_PROJECT_ID" ]; then
+            echo "::error::本番（main）の SUPABASE_PROJECT_ID が本番プロジェクト（${PRODUCTION_PROJECT_ID}）ではありません: ${PROJECT_ID}"
+            exit 1
+          fi
+          if [ "$TARGET_ENV" != "production" ] && [ "$PROJECT_ID" = "$PRODUCTION_PROJECT_ID" ]; then
+            echo "::error::開発（${GITHUB_REF_NAME}）の SUPABASE_PROJECT_ID が本番プロジェクトを指しています。開発は承認なしで適用されるため止めます。"
             exit 1
           fi
           {
@@ -227,6 +240,15 @@ jobs:
         run: |
           if ! [[ "$PROJECT_ID" =~ ^[a-z]{20}$ ]]; then
             echo "::error::Environment の Variable SUPABASE_PROJECT_ID が未設定、または形式が違います（20文字の Reference ID）。"
+            exit 1
+          fi
+          # 開発と本番の取り違えを止める（上の env: PRODUCTION_PROJECT_ID を参照）
+          if [ "$TARGET_ENV" = "production" ] && [ "$PROJECT_ID" != "$PRODUCTION_PROJECT_ID" ]; then
+            echo "::error::本番（main）の SUPABASE_PROJECT_ID が本番プロジェクト（${PRODUCTION_PROJECT_ID}）ではありません: ${PROJECT_ID}"
+            exit 1
+          fi
+          if [ "$TARGET_ENV" != "production" ] && [ "$PROJECT_ID" = "$PRODUCTION_PROJECT_ID" ]; then
+            echo "::error::開発（${GITHUB_REF_NAME}）の SUPABASE_PROJECT_ID が本番プロジェクトを指しています。開発は承認なしで適用されるため止めます。"
             exit 1
           fi
           {

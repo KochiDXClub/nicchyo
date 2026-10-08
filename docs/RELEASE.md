@@ -276,6 +276,7 @@ where schemaname = 'public' and (qual ilike '%user_metadata%' or with_check ilik
 - [ ] §4.2 の破壊的マイグレーション一覧を確認し、データを消してよいと運営が合意している
 - [ ] 本番データの事前確認 SQL（§4.2）を実行し、結果を記録した
 - [ ] `npx supabase migration list --linked` で本番と履歴が揃っている（Remote だけにある履歴・手で適用済みの履歴を解消済み）
+- [ ] 今回のリリースに入るマイグレーションが、開発（`develop` の `Migrations Deploy`）で dry-run と apply まで通っている
 - [ ] Vercel Production の環境変数（§4.3）を確認した。`NEXT_PUBLIC_SITE_URL` が不正でない
 - [ ] GitHub Environment `production` に Required reviewers がある。`production` と `production-dry-run` に Secrets と Variable（`SUPABASE_PROJECT_ID`）がある
 - [ ] `app/about/versions.ts` に新バージョンを追記した。`docs/changelog-unreleased/` の `#TBD` が残っていない
@@ -434,6 +435,18 @@ main にマージ（=リリース） Migrations Deploy  : 本番 Supabase が対
 - 承認の**前**に dry-run の差分を読める（承認待ちのジョブは `apply` で、dry-run は先に終わっている）。
 - dry-run と apply の Step Summary の先頭に「対象（開発/本番）」と「プロジェクトID」が出る。
   承認する前に、IDが想定のプロジェクトか（本番は `yrypxygzqtkdwvasczsq`）を必ず見る。
+- 取り違えはワークフローでも止める。`migrations-deploy.yml` の `PRODUCTION_PROJECT_ID`（本番の ID）と比べ、
+  `develop` の Variable が本番を指していたら、`main` の Variable が本番以外を指していたら、DB に触る前に失敗する。
+  本番の ID を変えるときは、このファイルとワークフローの両方を直す。
+
+| 名前 | Reference ID | 役割 |
+|---|---|---|
+| 本番 | `yrypxygzqtkdwvasczsq` | `main` の適用先（Environment `production` / `production-dry-run`） |
+| 開発（`nicchyo-development`） | `dbaufykimgzfgoeyyxwz` | `develop` の適用先（Environment `development`） |
+
+> **切り替えが済むまでの注意（2026-10-08 時点）**: Vercel の Production はまだ `dbaufykimgzfgoeyyxwz`（開発）を見ている。
+> この間は `develop` への push が、本番アプリの使う DB に承認なしで適用される。Vercel の Production / Preview の環境変数を
+> 本番プロジェクトへ切り替えるまで、Environment `development` にも Required reviewers を付けておくこと。切り替えたらこの注意を消す。
 - Supabase CLI は `migrations-deploy.yml` / `migrations-check.yml` の両方で**バージョン固定**（`supabase/setup-cli` もコミット SHA 固定）。
   上げるときは両方を同時に変え、dry-run で挙動を確かめる。
 - 適用後の `supabase/checks/*.sql` は本番に自動では流さない（Actions から本番DBへ psql を張っていない）。SQL Editor で手動実行する（§4.4 手順13）。
