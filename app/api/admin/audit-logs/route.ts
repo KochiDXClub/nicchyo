@@ -1,20 +1,13 @@
 import { NextResponse } from "next/server";
-import { createClient as createServiceClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 import { createClient as createServerClient } from "@/utils/supabase/server";
 import { requireSameOrigin } from "@/lib/security/requestGuards";
 import { enforceRateLimit } from "@/lib/security/rateLimit";
 import { getRole, isModerator } from "@/lib/auth/permissions";
+import { createAdminClient } from "@/lib/supabase/adminClient";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-function createAdminClient() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) return null;
-  return createServiceClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
-}
 
 export type AuditLogPayload = {
   action: string;
@@ -28,7 +21,7 @@ export async function POST(req: Request) {
   const originCheck = requireSameOrigin(req);
   if (!originCheck.ok) return originCheck.response;
 
-  const rateLimited = enforceRateLimit(req, {
+  const rateLimited = await enforceRateLimit(req, {
     bucket: "admin-audit-logs-post",
     limit: 60,
     windowMs: 10 * 60 * 1000,
@@ -90,9 +83,9 @@ export async function GET(req: Request) {
   const limit = Math.min(Number.isNaN(parsedLimit) ? 500 : parsedLimit, 1000);
 
   const dc = createAdminClient() ?? supabase;
-  const { data, error } = await dc
+  const { data, count, error } = await dc
     .from("admin_audit_logs")
-    .select("*")
+    .select("*", { count: "exact" })
     .order("created_at", { ascending: false })
     .limit(limit);
 
@@ -100,5 +93,5 @@ export async function GET(req: Request) {
     console.error("[admin/audit-logs] select failed:", error.message);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
-  return NextResponse.json({ logs: data });
+  return NextResponse.json({ logs: data, total: count ?? 0 });
 }

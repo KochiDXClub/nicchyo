@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   haversineKm,
   classifyLocationType,
+  describeLocationForPrompt,
   classifyIntent,
   extractKeywords,
   sanitizeLikeKeyword,
@@ -39,6 +40,26 @@ describe("classifyLocationType", () => {
 
   it("離れた場所は pre_visit", () => {
     expect(classifyLocationType({ lat: 34.0, lng: 134.0 })).toBe("pre_visit");
+  });
+});
+
+describe("describeLocationForPrompt", () => {
+  it("緯度・経度をそのまま含めない", () => {
+    const text = describeLocationForPrompt({ lat: 33.565, lng: 133.531 });
+    expect(text).not.toContain("33.5");
+    expect(text).not.toContain("133.5");
+  });
+
+  it("会場のあたりにいることを伝える", () => {
+    expect(describeLocationForPrompt({ lat: 33.565, lng: 133.531 })).toContain("会場のあたり");
+  });
+
+  it("離れているときは、向かう途中であることが分かる言い方にする", () => {
+    expect(describeLocationForPrompt({ lat: 34.0, lng: 134.0 })).toContain("会場から離れた");
+  });
+
+  it("取れていないときは不明", () => {
+    expect(describeLocationForPrompt(null)).toBe("不明");
   });
 });
 

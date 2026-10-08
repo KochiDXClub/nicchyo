@@ -46,6 +46,7 @@ export class ErrorBoundary extends React.Component<
               申し訳ございません。予期しないエラーが発生しました。
             </p>
             <button
+              type="button"
               onClick={() => window.location.reload()}
               className="rounded-lg bg-blue-600 px-6 py-2 text-white font-medium hover:bg-blue-700"
             >

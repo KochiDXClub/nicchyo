@@ -2,8 +2,8 @@ import { describe, it, expect } from 'vitest';
 import { getRoleTheme, ROLE_THEMES, DEFAULT_THEME } from '../../../lib/theme/roleTheme';
 
 describe('getRoleTheme', () => {
-  it('returns super_admin theme for super_admin role', () => {
-    expect(getRoleTheme('super_admin')).toEqual(ROLE_THEMES.super_admin);
+  it('returns admin theme for admin role', () => {
+    expect(getRoleTheme('admin')).toEqual(ROLE_THEMES.admin);
   });
 
   it('returns vendor theme for vendor role', () => {
@@ -27,7 +27,7 @@ describe('getRoleTheme', () => {
   });
 
   it('returns DEFAULT_THEME for unknown role', () => {
-    // @ts-ignore: Testing invalid input
+    // @ts-expect-error: Testing invalid input
     expect(getRoleTheme('unknown_role')).toEqual(DEFAULT_THEME);
   });
 });

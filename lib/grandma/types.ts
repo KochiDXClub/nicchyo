@@ -4,7 +4,6 @@ import type { ConsultHistoryEntry, ConsultTurn } from "@/app/(public)/consult/ty
 export type VendorRow = {
   id: string;
   shop_name: string | null;
-  owner_name: string | null;
   strength: string | null;
   style: string | null;
   style_tags: string[] | null;
@@ -86,10 +85,4 @@ export type StreamedConsultPayload = {
   shopIds: number[];
   imageUrl: string | null;
   followUpQuestion: string;
-};
-
-export type ConversationPattern = {
-  id: "pattern1" | "pattern2" | "pattern3" | "pattern4" | "all_cast";
-  instruction: string;
-  turnCount: number;
 };

@@ -65,11 +65,11 @@ export default function GrandmaGuide() {
       </div>
       <nav className="flex flex-col gap-1 px-2 pb-3 pt-2 text-sm font-semibold text-gray-800">
         <Link
-          href="/bag"
+          href="/favorites"
           onClick={handleMenuClose}
           className="rounded-lg px-3 py-2 transition hover:bg-amber-50"
         >
-          買い物リスト
+          お気に入り
         </Link>
         <Link
           href="/user"
@@ -103,6 +103,7 @@ export default function GrandmaGuide() {
         {menuButton}
         {menuPanel}
         <button
+          type="button"
         onClick={handleToggle}
         className="fixed top-20 right-4 z-[2000] group animate-slide-in-right"
         aria-label="ガイドを開く"
@@ -141,6 +142,7 @@ export default function GrandmaGuide() {
       <div className="relative bg-white rounded-2xl shadow-2xl max-w-sm border-4 border-amber-600 overflow-hidden">
         {/* 閉じるボタン */}
         <button
+          type="button"
           onClick={handleToggle}
           className="absolute top-3 right-3 z-10 bg-white hover:bg-gray-100 rounded-full p-1.5 shadow-md transition-all hover:scale-110"
           aria-label="折りたたむ"
@@ -217,6 +219,7 @@ export default function GrandmaGuide() {
 
           <div className="mt-4 pt-4 border-t border-amber-200">
             <button
+              type="button"
               onClick={handleToggle}
               className="w-full bg-gradient-to-r from-amber-500 to-orange-500 text-white py-3 rounded-lg font-bold text-sm hover:from-amber-600 hover:to-orange-600 transition-all shadow-md hover:shadow-lg active:scale-95"
             >

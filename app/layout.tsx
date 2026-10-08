@@ -1,19 +1,34 @@
 import { Suspense } from "react";
 import type { Metadata, Viewport } from "next";
-import Script from "next/script";
+import { headers } from "next/headers";
+import { Mochiy_Pop_One } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/lib/auth/AuthContext";
 import { MenuProvider } from "@/lib/ui/MenuContext";
-import { BagProvider } from "@/lib/storage/BagContext";
+import FavoritesBagMigration from "@/app/components/FavoritesBagMigration";
+import { PageVisibilityProvider } from "@/lib/pageVisibility/PageVisibilityContext";
 import AppHeader from "./components/AppHeader";
 import MapLoadingProvider from "./components/MapLoadingProvider";
 import PageVisitTracker from "./components/PageVisitTracker";
-import CookieConsent from "./components/CookieConsent";
 import ViewportHeightUpdater from "./components/ViewportHeightUpdater";
 import { Toaster } from "@/components/admin";
+import { safeJsonLd } from "@/lib/utils/jsonLd";
+import { SITE_URL } from "@/lib/constants";
+
+// 見出し用の丸文字。以前は globals.css の @import で Google Fonts から読んでいたが、
+// それだと「ページの CSS → Google の CSS（約110KB）」を読み終えるまで画面が描かれず、
+// 遅い回線では最初の表示が数秒遅れていた。next/font でビルド時に取り込み、自サイトから配信する。
+// 使う画面が限られるので先読み（preload）はしない（地図などの読み込みと回線を取り合わないため）
+const mochiyPopOne = Mochiy_Pop_One({
+  weight: "400",
+  subsets: ["latin"],
+  display: "swap",
+  preload: false,
+  variable: "--font-mochiy",
+});
 
 export const metadata: Metadata = {
-  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "https://nicchyo.jp"),
+  metadataBase: new URL(SITE_URL),
   title: {
     default: "nicchyo | 高知の日曜市を、未来へつなぐ",
     template: "%s | nicchyo",
@@ -53,10 +68,6 @@ export const viewport: Viewport = {
   viewportFit: "cover",
 };
 
-const GA_ID = process.env.NEXT_PUBLIC_GOOGLE_ANALYTICS_ID;
-
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://nicchyo.jp";
-
 const organizationJsonLd = {
   "@context": "https://schema.org",
   "@type": "Organization",
@@ -64,30 +75,39 @@ const organizationJsonLd = {
   url: SITE_URL,
   description:
     "高知の日曜市を舞台に、観光客・地元・市場がつながるデジタルプラットフォーム。",
-  logo: `${SITE_URL}/og-default.png`,
+  logo: `${SITE_URL}/icon.svg`,
   areaServed: {
     "@type": "Place",
     name: "高知県高知市",
   },
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  // proxy.ts が発行した CSP nonce を読む。
+  // headers() を呼ぶことで全ページがリクエスト時描画（dynamic）になり、Next.js が
+  // <script> に nonce を付与できる。静的生成された HTML には nonce が無く、
+  // script-src 'nonce-…' 'strict-dynamic' の CSP で全スクリプトがブロックされて
+  // ハイドレーションしない（近況ページが提灯ローディングで止まる等）ため必須。
+  // https://nextjs.org/docs/app/guides/content-security-policy#nonces
+  const nonce = (await headers()).get("x-nonce") ?? undefined;
+
   return (
-    <html lang="ja">
+    <html lang="ja" className={mochiyPopOne.variable}>
       <head>
         <script
+          nonce={nonce}
           type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationJsonLd) }}
+          dangerouslySetInnerHTML={{ __html: safeJsonLd(organizationJsonLd) }}
         />
       </head>
       <body className="bg-nicchyo-base text-nicchyo-ink">
-        <CookieConsent />
         <ViewportHeightUpdater />
         <AuthProvider>
-          <BagProvider>
+          <PageVisibilityProvider>
             <MenuProvider>
               <MapLoadingProvider>
                 <AppHeader />
+                <FavoritesBagMigration />
                 <Suspense fallback={null}>
                   <PageVisitTracker />
                 </Suspense>
@@ -95,7 +115,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 <Toaster />
               </MapLoadingProvider>
             </MenuProvider>
-          </BagProvider>
+          </PageVisibilityProvider>
         </AuthProvider>
       </body>
     </html>

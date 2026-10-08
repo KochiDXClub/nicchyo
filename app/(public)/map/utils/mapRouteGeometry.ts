@@ -94,6 +94,10 @@ export function getRouteTopology(points: MapRoutePoint[]): RouteTopology {
   const segments: RouteSegment[] = [];
 
   for (let index = 0; index < mainline.length - 1; index += 1) {
+    // 別々の道（road_id が違う点どうし）はつながない。道は保存時に道ごとにまとまった順番で
+    // 並ぶため、並びの上で隣り合っていても road_id が違えば別の道の終点と始点にすぎない。
+    // road_id を持たない点（古いデータ・既定の道）は、これまでどおり1本の道として扱う
+    if ((mainline[index].roadId ?? null) !== (mainline[index + 1].roadId ?? null)) continue;
     segments.push({
       key: `main-${mainline[index].id}-${mainline[index + 1].id}`,
       start: mainline[index],
@@ -521,14 +525,21 @@ export function smoothPath(path: Array<[number, number]>, radius: number): Array
   });
 }
 
-export function buildRoadPolygon(
+/**
+ * 中心線から左右へオフセットした2本の縁を返す。
+ *
+ * 道の輪郭を「閉じたポリゴンの stroke」で描くと、道の両端（始点・終点）にも
+ * 線が回り込んで長方形に閉じてしまい、現実には先へ続いている道が
+ * 切り取った紙のように見える。縁を左右2本の独立した線として描くために分けている。
+ */
+export function buildRoadEdges(
   centerline: Array<[number, number]>,
   halfWidthMeters: number
-): Array<[number, number]> {
-  if (centerline.length < 2) return [];
-
+): { left: Array<[number, number]>; right: Array<[number, number]> } {
   const left: Array<[number, number]> = [];
   const right: Array<[number, number]> = [];
+  if (centerline.length < 2) return { left, right };
+
   for (let i = 0; i < centerline.length; i += 1) {
     const prev = centerline[Math.max(0, i - 1)];
     const next = centerline[Math.min(centerline.length - 1, i + 1)];
@@ -544,6 +555,15 @@ export function buildRoadPolygon(
     right.push([curr[0] - dLat, curr[1] - dLng]);
   }
 
+  return { left, right };
+}
+
+export function buildRoadPolygon(
+  centerline: Array<[number, number]>,
+  halfWidthMeters: number
+): Array<[number, number]> {
+  if (centerline.length < 2) return [];
+  const { left, right } = buildRoadEdges(centerline, halfWidthMeters);
   return [...left, ...right.reverse()];
 }
 
@@ -553,6 +573,33 @@ export function projectPointOntoRoute(
 ): RouteProjection | null {
   const segments = getRouteSegments(routePoints);
   return projectPointOntoSegments(point, routePoints, segments);
+}
+
+/**
+ * 緯度経度から最も近い道の id を求める（区画は road_id を持たず、道の形状への
+ * 投影で都度導出するため）。どの道からも snapDistanceMeters 以上離れている
+ * 場合は null を返す。マップ編集のサーバー側・クライアント側の両方で同じ
+ * 判定ロジックを使うための共通実装（別々に実装すると、保存時にサーバーが
+ * 検証する道の割り当てと、エディタが画面に表示する割り当てがズレる恐れがある）。
+ */
+export function findNearestRoadId(
+  point: { lat: number; lng: number },
+  roads: { id: string; points: MapRoutePoint[] }[],
+  snapDistanceMeters: number
+): string | null {
+  let bestRoadId: string | null = null;
+  let bestDistance = Infinity;
+
+  for (const road of roads) {
+    if (road.points.length === 0) continue;
+    const projection = projectPointOntoRoute(point, road.points);
+    if (projection && projection.distanceMeters < bestDistance) {
+      bestDistance = projection.distanceMeters;
+      bestRoadId = road.id;
+    }
+  }
+
+  return bestDistance <= snapDistanceMeters ? bestRoadId : null;
 }
 
 export function projectPointOntoSegments(

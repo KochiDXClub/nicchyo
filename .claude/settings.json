@@ -1,12 +1,55 @@
 {
   "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$(git rev-parse --show-toplevel)/.claude/hooks/env-guard.js\""
+          }
+        ]
+      },
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "[ -z \"$AI_OFFICE_URL\" ] || node \"$(git rev-parse --show-toplevel)/.claude/hooks/ai-office-hook.mjs\"",
+            "timeout": 3
+          }
+        ]
+      }
+    ],
     "PostToolUse": [
       {
         "matcher": "Edit|Write",
         "hooks": [
           {
             "type": "command",
-            "command": "cd /c/Users/miyuk/nicchyo-platform && npx tsc --noEmit --skipLibCheck 2>&1 | grep -E 'error TS|Found [0-9]+ error' | head -10 || true"
+            "command": "node \"$(git rev-parse --show-toplevel)/.claude/hooks/tsc-check.js\""
+          },
+          {
+            "type": "command",
+            "command": "node \"$(git rev-parse --show-toplevel)/.claude/hooks/eslint-check.js\""
+          },
+          {
+            "type": "command",
+            "command": "node \"$(git rev-parse --show-toplevel)/.claude/hooks/sql-rls-warn.js\""
+          },
+          {
+            "type": "command",
+            "command": "node \"$(git rev-parse --show-toplevel)/.claude/hooks/img-tag-warn.js\""
+          }
+        ]
+      },
+      {
+        "matcher": "Task|Agent",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "[ -z \"$AI_OFFICE_URL\" ] || node \"$(git rev-parse --show-toplevel)/.claude/hooks/ai-office-hook.mjs\"",
+            "timeout": 3
           }
         ]
       }
@@ -16,13 +59,114 @@
         "hooks": [
           {
             "type": "command",
-            "command": "cd /c/Users/miyuk/nicchyo-platform && git diff --stat HEAD 2>/dev/null | tail -3 || true"
+            "command": "git diff --stat HEAD 2>/dev/null | tail -3 || true"
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "[ -z \"$AI_OFFICE_URL\" ] || node \"$(git rev-parse --show-toplevel)/.claude/hooks/ai-office-hook.mjs\"",
+            "timeout": 3
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "[ -z \"$AI_OFFICE_URL\" ] || node \"$(git rev-parse --show-toplevel)/.claude/hooks/ai-office-hook.mjs\"",
+            "timeout": 3
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "[ -z \"$AI_OFFICE_URL\" ] || node \"$(git rev-parse --show-toplevel)/.claude/hooks/ai-office-hook.mjs\"",
+            "timeout": 3
+          }
+        ]
+      }
+    ],
+    "PostToolUseFailure": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "[ -z \"$AI_OFFICE_URL\" ] || node \"$(git rev-parse --show-toplevel)/.claude/hooks/ai-office-hook.mjs\"",
+            "timeout": 3
+          }
+        ]
+      }
+    ],
+    "PermissionRequest": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "[ -z \"$AI_OFFICE_URL\" ] || node \"$(git rev-parse --show-toplevel)/.claude/hooks/ai-office-hook.mjs\"",
+            "timeout": 3
+          }
+        ]
+      }
+    ],
+    "Notification": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "[ -z \"$AI_OFFICE_URL\" ] || node \"$(git rev-parse --show-toplevel)/.claude/hooks/ai-office-hook.mjs\"",
+            "timeout": 3
+          }
+        ]
+      }
+    ],
+    "SubagentStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "[ -z \"$AI_OFFICE_URL\" ] || node \"$(git rev-parse --show-toplevel)/.claude/hooks/ai-office-hook.mjs\"",
+            "timeout": 3
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "[ -z \"$AI_OFFICE_URL\" ] || node \"$(git rev-parse --show-toplevel)/.claude/hooks/ai-office-hook.mjs\"",
+            "timeout": 3
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "[ -z \"$AI_OFFICE_URL\" ] || node \"$(git rev-parse --show-toplevel)/.claude/hooks/ai-office-hook.mjs\"",
+            "timeout": 3
           }
         ]
       }
     ]
   },
   "enabledPlugins": {
-    "everything-claude-code@everything-claude-code": true
+    "everything-claude-code@everything-claude-code": true,
+    "frontend-design@frontend-design": true,
+    "claude-code-setup@claude-plugins-official": true
   }
 }

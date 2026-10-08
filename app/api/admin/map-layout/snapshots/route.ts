@@ -1,157 +1,25 @@
 import { cookies } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
-import { createClient as createServiceClient, type SupabaseClient } from "@supabase/supabase-js";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient as createServerClient } from "@/utils/supabase/server";
-import { fetchLandmarksFromDb } from "@/app/(public)/map/services/landmarksDb";
-import { fetchMapRouteFromDb } from "@/app/(public)/map/services/mapRouteDb";
 import { requireSameOrigin } from "@/lib/security/requestGuards";
 import { enforceRateLimit } from "@/lib/security/rateLimit";
-import { getRole, isAdmin } from "@/lib/auth/permissions";
+import { authorizeAdmin } from "@/app/api/admin/categories/_helpers";
+import { revalidatePublicShops } from "@/app/(public)/map/services/shopCache";
 import type { Landmark as EditableLandmark } from "@/app/(public)/map/types/landmark";
-import type { MapRouteConfig, MapRoutePoint } from "@/app/(public)/map/types/mapRoute";
-
-type EditableShop = {
-  locationId: string;
-  id: number;
-  vendorId?: string;
-  name: string;
-  lat: number;
-  lng: number;
-  position: number;
-};
-
-type SnapshotSummary = {
-  updatedShopCount?: number;
-  deletedShopCount?: number;
-  upsertLandmarkCount?: number;
-  deletedLandmarkCount?: number;
-  updatedRoutePointCount?: number;
-  routeConfigChanged?: boolean;
-  restoreSourceSnapshotId?: string;
-};
-
-function createAdminWriteClient(): SupabaseClient {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-  if (!supabaseUrl || !serviceRoleKey) {
-    throw new Error("Supabase service role env vars are missing.");
-  }
-
-  return createServiceClient(supabaseUrl, serviceRoleKey, {
-    auth: {
-      persistSession: false,
-      autoRefreshToken: false,
-    },
-  });
-}
-
-async function loadEditableShops(supabase: ReturnType<typeof createServerClient>): Promise<EditableShop[]> {
-  const [assignmentsResult, locationsResult, vendorsResult] = await Promise.all([
-    supabase.from("location_assignments").select("vendor_id, location_id, market_date"),
-    supabase.from("market_locations").select("id, store_number, latitude, longitude"),
-    supabase.from("vendors").select("id, shop_name"),
-  ]);
-
-  if (assignmentsResult.error || locationsResult.error || vendorsResult.error) {
-    throw new Error("Failed to load shop location mappings");
-  }
-
-  const assignmentsData = assignmentsResult.data ?? [];
-  const locationsData = locationsResult.data ?? [];
-  const vendorsData = vendorsResult.data ?? [];
-
-  const vendorNameById = new Map<string, string>();
-  for (const row of vendorsData) {
-    if (row.id) {
-      vendorNameById.set(row.id as string, (row.shop_name as string | null) ?? "");
-    }
-  }
-
-  const latestAssignmentByLocation = new Map<string, { vendor_id: string | null; market_date: string | null }>();
-  for (const row of assignmentsData) {
-    const locationId = row.location_id as string | null;
-    if (!locationId) continue;
-    const current = latestAssignmentByLocation.get(locationId);
-    if (!current) {
-      latestAssignmentByLocation.set(locationId, {
-        vendor_id: (row.vendor_id as string | null) ?? null,
-        market_date: (row.market_date as string | null) ?? null,
-      });
-      continue;
-    }
-    const currentDate = current.market_date ? new Date(current.market_date) : null;
-    const nextDate = row.market_date ? new Date(row.market_date as string) : null;
-    if (!currentDate || (nextDate && nextDate > currentDate)) {
-      latestAssignmentByLocation.set(locationId, {
-        vendor_id: (row.vendor_id as string | null) ?? null,
-        market_date: (row.market_date as string | null) ?? null,
-      });
-    }
-  }
-
-  return locationsData
-    .flatMap((row) => {
-      const locationId = row.id as string | null;
-      const storeNumber = Number(row.store_number ?? 0);
-      const lat = Number(row.latitude ?? 0);
-      const lng = Number(row.longitude ?? 0);
-
-      if (!locationId || !Number.isFinite(storeNumber) || storeNumber <= 0) {
-        return [];
-      }
-
-      const latestAssignment = latestAssignmentByLocation.get(locationId);
-      const vendorId = latestAssignment?.vendor_id ?? undefined;
-      const vendorName = vendorId ? vendorNameById.get(vendorId) ?? "" : "";
-
-      return [
-        {
-          locationId,
-          id: storeNumber,
-          vendorId,
-          name: vendorName || `未設定店舗 ${storeNumber}`,
-          lat,
-          lng,
-          position: storeNumber,
-        },
-      ];
-    })
-    .sort((a, b) => a.position - b.position);
-}
-
-async function createMapLayoutSnapshot(
-  supabase: ReturnType<typeof createServerClient>,
-  adminWriteClient: SupabaseClient,
-  createdBy: string,
-  summary: SnapshotSummary
-) {
-  const [shops, landmarks] = await Promise.all([
-    loadEditableShops(supabase),
-    fetchLandmarksFromDb(supabase),
-  ]);
-  const mapRoute = await fetchMapRouteFromDb(supabase);
-
-  const { error } = await adminWriteClient.from("map_layout_snapshots").insert({
-    shops_json: shops,
-    landmarks_json: landmarks,
-    route_json: mapRoute.points,
-    route_config_json: mapRoute.config,
-    created_by: createdBy,
-    summary,
-  });
-
-  if (error) {
-    throw new Error("Failed to create map layout snapshot");
-  }
-}
+import type { MapRoad, MapRouteConfig, MapRoutePoint } from "@/app/(public)/map/types/mapRoute";
+import { createAdminWriteClient, createMapLayoutSnapshot, type EditableShop } from "../_shared";
 
 async function applySnapshot(
   adminWriteClient: SupabaseClient,
   snapshotShops: EditableShop[],
   snapshotLandmarks: EditableLandmark[],
   snapshotRoutePoints: MapRoutePoint[],
-  snapshotRouteConfig: MapRouteConfig | null
+  snapshotRouteConfig: MapRouteConfig | null,
+  // null = 「roads未対応の古いスナップショット」（roadsを変更しない）、
+  // 配列（空配列を含む）= 「保存時点のroads状態」を意味する。
+  // restore_map_layout_snapshot SQL関数側の扱いは該当マイグレーションのコメント参照
+  snapshotRoads: MapRoad[] | null
 ) {
   // restore_map_layout_snapshot SQL 関数で全テーブルの復元を1トランザクションに閉じる
   const { error } = await adminWriteClient.rpc("restore_map_layout_snapshot", {
@@ -159,6 +27,7 @@ async function applySnapshot(
     p_landmarks: snapshotLandmarks,
     p_route_points: snapshotRoutePoints,
     p_route_config: snapshotRouteConfig ?? null,
+    p_roads: snapshotRoads,
   });
 
   if (error) {
@@ -168,15 +37,8 @@ async function applySnapshot(
 
 export async function GET() {
   try {
-    const cookieStore = await cookies();
-    const supabase = createServerClient(cookieStore);
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user || !isAdmin(getRole(user))) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const { error: authError } = await authorizeAdmin();
+    if (authError) return NextResponse.json({ error: authError }, { status: 403 });
 
     const adminWriteClient = createAdminWriteClient();
     const { data, error } = await adminWriteClient
@@ -196,27 +58,26 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
+  // 復元で区画・割り当てを書き換え始めたら、途中で失敗しても公開マップの店舗キャッシュを捨てる
+  // （保存 PUT と同じ扱い。以前は復元後に作り直しておらず、公開マップに古い店舗が残っていた）
+  let shopWritesStarted = false;
   try {
     const originCheck = requireSameOrigin(request);
     if (!originCheck.ok) return originCheck.response;
 
-    const rateLimited = enforceRateLimit(request, {
+    const rateLimited = await enforceRateLimit(request, {
       bucket: "admin-map-layout-snapshots-post",
       limit: 12,
       windowMs: 10 * 60 * 1000,
     });
     if (rateLimited) return rateLimited;
 
+    const { user, error: authError } = await authorizeAdmin();
+    if (authError || !user) return NextResponse.json({ error: authError }, { status: 403 });
+
     const cookieStore = await cookies();
     const supabase = createServerClient(cookieStore);
     const adminWriteClient = createAdminWriteClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user || !isAdmin(getRole(user))) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
 
     const body = (await request.json()) as { snapshotId?: string };
     if (!body.snapshotId) {
@@ -225,7 +86,7 @@ export async function POST(request: NextRequest) {
 
     const { data, error } = await adminWriteClient
       .from("map_layout_snapshots")
-      .select("id, shops_json, landmarks_json, route_json, route_config_json")
+      .select("id, shops_json, landmarks_json, route_json, route_config_json, roads_json")
       .eq("id", body.snapshotId)
       .single();
 
@@ -244,20 +105,28 @@ export async function POST(request: NextRequest) {
       data.route_config_json && typeof data.route_config_json === "object"
         ? (data.route_config_json as MapRouteConfig)
         : null;
+    // roads_json は NULL 許容（「roads未対応の古いスナップショット」を表す）。
+    // ここでは配列以外（NULLを含む）をそのまま null として扱い、[] に丸め込まない
+    // （[]に丸め込むと「意図的な全削除」との区別がつかなくなる）
+    const snapshotRoads = Array.isArray(data.roads_json) ? (data.roads_json as MapRoad[]) : null;
 
     await createMapLayoutSnapshot(supabase, adminWriteClient, user.id, {
       restoreSourceSnapshotId: body.snapshotId,
     });
+    shopWritesStarted = true;
     await applySnapshot(
       adminWriteClient,
       snapshotShops,
       snapshotLandmarks,
       snapshotRoutePoints,
-      snapshotRouteConfig
+      snapshotRouteConfig,
+      snapshotRoads
     );
 
     return NextResponse.json({ ok: true });
   } catch {
     return NextResponse.json({ error: "Failed to restore snapshot" }, { status: 500 });
+  } finally {
+    if (shopWritesStarted) revalidatePublicShops();
   }
 }

@@ -56,7 +56,7 @@ export default function PostsClient() {
               rows={3}
             />
             <div className="mt-2 flex justify-end">
-              <button className="bg-amber-600 text-white px-6 py-2 rounded-full text-sm font-bold shadow-sm hover:bg-amber-500 transition-colors active:scale-95">
+              <button type="button" className="bg-amber-600 text-white px-6 py-2 rounded-full text-sm font-bold shadow-sm hover:bg-amber-500 transition-colors active:scale-95">
                 投稿する
               </button>
             </div>
@@ -97,6 +97,7 @@ export default function PostsClient() {
                   あなたの発見が、誰かの「行きたい！」につながります。
                 </p>
                 <button
+                  type="button"
                   onClick={handleFocus}
                   className="inline-flex items-center gap-2 rounded-full bg-amber-600 px-8 py-3 text-sm font-bold text-white shadow-lg shadow-amber-200/50 transition hover:bg-amber-500 hover:shadow-xl active:scale-95"
                 >

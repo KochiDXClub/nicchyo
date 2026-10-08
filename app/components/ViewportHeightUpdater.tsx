@@ -22,15 +22,13 @@ export default function ViewportHeightUpdater() {
     // リサイズ時に更新
     window.addEventListener('resize', updateVH);
 
-    // iOS Safari: orientationchange にも対応
-    window.addEventListener('orientationchange', () => {
-      // orientationchange後、少し遅延させて実行（iOS Safari対策）
-      setTimeout(updateVH, 100);
-    });
+    // iOS Safari: orientationchange後、少し遅延させて実行
+    const handleOrientationChange = () => setTimeout(updateVH, 100);
+    window.addEventListener('orientationchange', handleOrientationChange);
 
     return () => {
       window.removeEventListener('resize', updateVH);
-      window.removeEventListener('orientationchange', updateVH);
+      window.removeEventListener('orientationchange', handleOrientationChange);
     };
   }, []);
 

@@ -148,3 +148,11 @@ test-results/
 
 # Claude Code local settings (machine-specific, not for sharing)
 .claude/settings.local.json
+.claude/commands/
+.worktrees/
+
+# maplibre-gl のワーカー（scripts/copy-maplibre-worker.mjs が node_modules から複製する）
+/public/maplibre/
+
+# コード健康診断の出力（npm run code-health）
+.code-health/

@@ -2,8 +2,20 @@
 
 import type { ReactNode } from "react";
 import Image from "next/image";
-import { ArrowLeft, Clock, Pencil, X as XIcon } from "lucide-react";
+import { ArrowLeft, Clock, Heart, Pencil, X as XIcon } from "lucide-react";
 import type { Shop } from "../data/shops";
+import { toIsoDate } from "@/lib/market/calendar";
+
+/**
+ * 今日この店が出ているかを、割り当てられた出店日で判定する。
+ *
+ * 出店日が分からないときは false を返してバッジを出さない。
+ * 「出ていない」と断定はせず、単に何も言わない扱いにする。
+ */
+function isOpenToday(shop: Shop): boolean {
+  if (!shop.assignmentMarketDate) return false;
+  return shop.assignmentMarketDate === toIsoDate(new Date());
+}
 
 // ─── Shared types ─────────────────────────────────────────────────────────────
 export type BannerTheme = {
@@ -14,15 +26,31 @@ export type BannerTheme = {
   light: string;
 };
 
-export type CouponSetting = {
-  coupon_type_id: string;
-  coupon_type_name: string;
-  coupon_type_emoji: string;
-  coupon_type_amount: number;
-  min_purchase_amount: number;
-};
+/**
+ * バナーの配色。店舗の themeColor（出店者が選ぶプリセット）で決まる。
+ *
+ * BannerTheme を受け取る側（ShopDetailBanner・AiConsultPanel・はじめての方への
+ * 案内パネル内のデモ）が同じ色を使えるよう、型と同じ場所に置く。
+ */
+export const BANNER_THEME_PRESETS = {
+  amber:  { bg: "#FFFBEB", accent: "#F59E0B", text: "#92400E", border: "#FDE68A", light: "#FEF3C7" },
+  green:  { bg: "#F0FDF4", accent: "#7ED957", text: "#166534", border: "#BBF7D0", light: "#DCFCE7" },
+  orange: { bg: "#FFF7ED", accent: "#F97316", text: "#9A3412", border: "#FED7AA", light: "#FFEDD5" },
+  earth:  { bg: "#FDF6EE", accent: "#B45309", text: "#7C2D12", border: "#DDB898", light: "#FEF3E2" },
+  navy:   { bg: "#EFF6FF", accent: "#3B82F6", text: "#1E40AF", border: "#BFDBFE", light: "#DBEAFE" },
+  rose:   { bg: "#FFF1F2", accent: "#F43F5E", text: "#9F1239", border: "#FECDD3", light: "#FFE4E6" },
+} as const;
+
+export type BannerThemeKey = keyof typeof BANNER_THEME_PRESETS;
+
+/** 未設定・未知のキーは amber に倒す */
+export function resolveBannerTheme(themeColor?: string | null): BannerTheme {
+  return BANNER_THEME_PRESETS[themeColor as BannerThemeKey] ?? BANNER_THEME_PRESETS.amber;
+}
 
 export type ActivePostItem = {
+  /** vendor_contents の id（ハートリアクション連携用） */
+  id?: string;
   text: string;
   imageUrl?: string;
   expiresAt: string;
@@ -109,12 +137,10 @@ export function ShopBannerHero({
   heroImageError,
   onImageError,
   mode,
-  isKotodute,
   showProductPreview = false,
   onEdit,
-  couponBadge,
-  couponStatus,
-  primaryCouponSetting,
+  isFavorite = false,
+  onToggleFavorite,
 }: {
   shop: Shop;
   bannerImage: string;
@@ -122,49 +148,13 @@ export function ShopBannerHero({
   heroImageError: boolean;
   onImageError: () => void;
   mode: "compact" | "expanded";
-  isKotodute: boolean;
   showProductPreview?: boolean;
   onEdit?: () => void;
-  couponBadge?: React.ReactNode;
-  couponStatus?: "active" | "stamped" | "participating" | null;
-  primaryCouponSetting?: CouponSetting | null;
+  /** その店の行が1つでもあれば点灯する（商品だけ入れた場合も点灯） */
+  isFavorite?: boolean;
+  onToggleFavorite?: () => void;
 }) {
   if (mode === "compact") {
-    const couponCard =
-      couponStatus === "active" && primaryCouponSetting ? (
-        <div className="mr-10 flex h-[86px] w-[84px] shrink-0 flex-col items-center justify-center rounded-[18px] bg-green-500 text-white shadow-md">
-          <span className="text-[15px] leading-none">{primaryCouponSetting.coupon_type_emoji}</span>
-          <span className="mt-1 text-[22px] font-extrabold leading-none">
-            ¥{primaryCouponSetting.coupon_type_amount.toLocaleString()}
-          </span>
-          <span className="mt-0.5 text-[10px] font-bold opacity-90">引き</span>
-          <span className="mt-0.5 rounded-full bg-white/20 px-2 py-0.5 text-[9px] font-bold">
-            今すぐ使える
-          </span>
-        </div>
-      ) : couponStatus === "stamped" ? (
-        <div className="mr-10 flex h-[86px] w-[84px] shrink-0 flex-col items-center justify-center gap-0.5 rounded-[18px] border border-emerald-200 bg-emerald-50">
-          <span className="text-[22px]">✅</span>
-          <span className="text-center text-[10px] font-bold leading-tight text-emerald-700">
-            スタンプ
-            <br />
-            済み
-          </span>
-        </div>
-      ) : couponStatus === "participating" && primaryCouponSetting ? (
-        <div className="mr-10 flex h-[86px] w-[84px] shrink-0 flex-col items-center justify-center gap-0.5 rounded-[18px] border-[1.5px] border-dashed border-green-200 bg-green-50">
-          <span className="text-[18px]">🎟️</span>
-          <span className="text-center text-[10px] font-bold leading-tight text-green-700">
-            クーポン
-            <br />
-            使えます
-          </span>
-          <span className="mt-0.5 text-[9px] font-semibold text-green-500">
-            ¥{primaryCouponSetting.coupon_type_amount.toLocaleString()}引き
-          </span>
-        </div>
-      ) : null;
-
     return (
       <div className="flex items-center gap-3">
         <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-2xl border border-slate-200 bg-slate-100">
@@ -177,13 +167,15 @@ export function ShopBannerHero({
               src={bannerImage}
               alt={`${shop.name}の写真`}
               fill
+              // 枠は 64px 固定。sizes が無いと画面幅ぶんの大きさで取りに行く
+              sizes="64px"
               className="object-cover object-center"
               onError={onImageError}
             />
           )}
         </div>
 
-        <div className={`min-w-0 flex-1 ${!couponCard ? "pr-12" : ""}`}>
+        <div className="min-w-0 flex-1 pr-12">
           <div className="flex flex-wrap items-center gap-1">
             <span
               className="rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.12em]"
@@ -191,18 +183,19 @@ export function ShopBannerHero({
             >
               {shop.category || "ショップ"}
             </span>
-            <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700">
-              今日出店中
-            </span>
-            {!couponCard && couponBadge}
+            {isOpenToday(shop) && (
+              <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700">
+                今日出店中
+              </span>
+            )}
           </div>
           <h2 className="mt-1 line-clamp-2 text-[17px] font-extrabold leading-tight text-slate-900">
             {shop.name}
           </h2>
-          {!isKotodute && shop.catchphrase && (
+          {shop.catchphrase && (
             <p className="mt-0.5 line-clamp-1 text-xs text-slate-500">{shop.catchphrase}</p>
           )}
-          {!couponCard && showProductPreview && !isKotodute && shop.products.length > 0 && (
+          {showProductPreview && shop.products.length > 0 && (
             <div className="mt-1.5 flex gap-1.5 overflow-x-auto" style={{ scrollbarWidth: "none" }}>
               {shop.products.slice(0, 4).map((product) => (
                 <span
@@ -220,8 +213,6 @@ export function ShopBannerHero({
             </div>
           )}
         </div>
-
-        {couponCard}
       </div>
     );
   }
@@ -241,6 +232,8 @@ export function ShopBannerHero({
           src={bannerImage}
           alt={`${shop.name}の写真`}
           fill
+          // 画面幅いっぱい（PC では最大でもバナーの幅）。sizes が無いと 1920px 幅を取りに行く
+          sizes="(max-width: 768px) 100vw, 640px"
           className="object-cover object-center"
           priority
           onError={onImageError}
@@ -254,29 +247,48 @@ export function ShopBannerHero({
               <span className="rounded-full bg-white/18 px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.16em] text-white backdrop-blur-sm">
                 {shop.category || "ショップ"}
               </span>
-              <span className="rounded-full bg-emerald-400/20 px-2.5 py-1 text-[11px] font-bold text-white backdrop-blur-sm">
-                今日出店中
-              </span>
+              {isOpenToday(shop) && (
+                <span className="rounded-full bg-emerald-400/20 px-2.5 py-1 text-[11px] font-bold text-white backdrop-blur-sm">
+                  今日出店中
+                </span>
+              )}
             </div>
             <h2 className="text-3xl font-extrabold leading-tight text-white drop-shadow-md md:text-4xl">
               {shop.name}
             </h2>
-            {!isKotodute && shop.catchphrase && (
+            {shop.catchphrase && (
               <p className="mt-1 text-sm font-medium text-white/80 drop-shadow">
                 {shop.catchphrase}
               </p>
             )}
           </div>
-          {onEdit && !isKotodute && (
-            <button
-              type="button"
-              onClick={onEdit}
-              className="shrink-0 flex items-center gap-1.5 rounded-full bg-white/20 px-3 py-1.5 text-xs font-bold text-white backdrop-blur-sm transition hover:bg-white/30"
-            >
-              <Pencil className="h-3 w-3" />
-              編集
-            </button>
-          )}
+          <div className="flex shrink-0 items-center gap-2">
+            {onToggleFavorite && (
+              <button
+                type="button"
+                onClick={onToggleFavorite}
+                aria-pressed={isFavorite}
+                aria-label={isFavorite ? "お気に入りから外す" : "お気に入りに入れる"}
+                className={`flex h-10 w-10 items-center justify-center rounded-full backdrop-blur-sm transition active:scale-95 ${
+                  isFavorite
+                    ? "bg-favorite-fg text-white hover:opacity-90"
+                    : "bg-white/20 text-white hover:bg-white/30"
+                }`}
+              >
+                <Heart className="h-[18px] w-[18px]" fill={isFavorite ? "currentColor" : "none"} />
+              </button>
+            )}
+            {onEdit && (
+              <button
+                type="button"
+                onClick={onEdit}
+                className="flex items-center gap-1.5 rounded-full bg-white/20 px-3 py-1.5 text-xs font-bold text-white backdrop-blur-sm transition hover:bg-white/30"
+              >
+                <Pencil className="h-3 w-3" />
+                編集
+              </button>
+            )}
+          </div>
         </div>
       </div>
     </div>
@@ -371,9 +383,11 @@ export function ShopSubviewHeader({
               >
                 {shop.category || "ショップ"}
               </span>
-              <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700">
-                今日出店中
-              </span>
+              {isOpenToday(shop) && (
+                <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700">
+                  今日出店中
+                </span>
+              )}
             </div>
             <p className="mt-1 line-clamp-1 text-sm font-bold text-slate-900">{shop.name}</p>
             {shop.catchphrase && (

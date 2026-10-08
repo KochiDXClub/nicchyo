@@ -3,35 +3,27 @@ import { cookies } from "next/headers";
 import { createClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/database.types";
 import { requireSameOrigin } from "@/lib/security/requestGuards";
+import { enforceRateLimit } from "@/lib/security/rateLimit";
+import { todayJstString } from "@/lib/time/jstDate";
 
 const VISITOR_COOKIE_NAME = "nicchyo_visitor_id";
-
-function getTokyoTodayIso(baseDate = new Date()) {
-  const formatter = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Asia/Tokyo",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  });
-
-  const parts = formatter.formatToParts(baseDate);
-  const year = parts.find((p) => p.type === "year")?.value ?? "0000";
-  const month = parts.find((p) => p.type === "month")?.value ?? "01";
-  const day = parts.find((p) => p.type === "day")?.value ?? "01";
-  return `${year}-${month}-${day}`;
-}
 
 function isValidVisitorKey(value: string) {
   return /^[a-f0-9-]{16,64}$/i.test(value);
 }
 
-// 同一visitor_keyからの連続呼び出しを防ぐ（1分以内は無視）
-const homeVisitCooldown = new Map<string, number>();
-const HOME_VISIT_COOLDOWN_MS = 60 * 1000;
-
 export async function POST(request: Request) {
   const originCheck = requireSameOrigin(request);
   if (!originCheck.ok) return originCheck.response;
+
+  // DB側のON CONFLICT DO NOTHINGは同一visitor・同一日を防ぐだけで、
+  // 連打そのもの（RPC呼び出しの回数）は防がないため、IPあたりで上限を設ける（Issue #352）
+  const rateLimited = await enforceRateLimit(request, {
+    bucket: "analytics-home-visit-post",
+    limit: 30,
+    windowMs: 5 * 60 * 1000,
+  });
+  if (rateLimited) return rateLimited;
 
   const cookieStore = await cookies();
   let visitorKey = cookieStore.get(VISITOR_COOKIE_NAME)?.value ?? "";
@@ -41,21 +33,7 @@ export async function POST(request: Request) {
     shouldSetVisitorCookie = true;
   }
 
-  // クールダウンチェック
-  const now = Date.now();
-  const lastCall = homeVisitCooldown.get(visitorKey);
-  if (lastCall && now - lastCall < HOME_VISIT_COOLDOWN_MS) {
-    const skipped = NextResponse.json({ ok: true, skipped: true, reason: "cooldown" });
-    return skipped;
-  }
-  homeVisitCooldown.set(visitorKey, now);
-  // メモリリーク防止: 1000件超えたら古いものを削除
-  if (homeVisitCooldown.size > 1000) {
-    const oldest = Array.from(homeVisitCooldown.entries())
-      .sort((a, b) => a[1] - b[1])
-      .slice(0, 200);
-    oldest.forEach(([k]) => homeVisitCooldown.delete(k));
-  }
+  // クールダウンは track_home_visit RPC の ON CONFLICT DO NOTHING で担保（DB レベルで冪等）
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -67,14 +45,14 @@ export async function POST(request: Request) {
         skipped: true,
         reason: "supabase_env_missing",
       },
-      { status: 200 }
+      { status: 503 }
     );
     if (shouldSetVisitorCookie) {
       skippedResponse.cookies.set(VISITOR_COOKIE_NAME, visitorKey, {
-        httpOnly: true,
+        httpOnly: false,
         sameSite: "lax",
         secure: process.env.NODE_ENV === "production",
-        maxAge: 60 * 60 * 24 * 365 * 2,
+        maxAge: 60 * 60 * 24 * 365,
         path: "/",
       });
     }
@@ -88,7 +66,7 @@ export async function POST(request: Request) {
     },
   });
 
-  const visitDate = getTokyoTodayIso();
+  const visitDate = todayJstString();
 
   const { data, error } = await supabase.rpc("track_home_visit", {
     p_visit_date: visitDate,
@@ -105,10 +83,10 @@ export async function POST(request: Request) {
     );
     if (shouldSetVisitorCookie) {
       errorResponse.cookies.set(VISITOR_COOKIE_NAME, visitorKey, {
-        httpOnly: true,
+        httpOnly: false,
         sameSite: "lax",
         secure: process.env.NODE_ENV === "production",
-        maxAge: 60 * 60 * 24 * 365 * 2,
+        maxAge: 60 * 60 * 24 * 365,
         path: "/",
       });
     }
@@ -122,10 +100,10 @@ export async function POST(request: Request) {
   });
   if (shouldSetVisitorCookie) {
     successResponse.cookies.set(VISITOR_COOKIE_NAME, visitorKey, {
-      httpOnly: true,
+      httpOnly: false,
       sameSite: "lax",
       secure: process.env.NODE_ENV === "production",
-      maxAge: 60 * 60 * 24 * 365 * 2,
+      maxAge: 60 * 60 * 24 * 365,
       path: "/",
     });
   }

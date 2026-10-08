@@ -66,7 +66,6 @@ export default function SignupPage() {
     setIsSubmitting(false);
 
     if (signUpError || !data.user) {
-      setError(signUpError?.message ?? "登録に失敗しました。");
       setError(signUpError?.message ?? "アカウントを作成できませんでした。");
       return;
     }

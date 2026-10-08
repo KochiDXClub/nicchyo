@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120">
+  <rect width="120" height="120" fill="#DDF2D1"/>
+  <!-- 首と作業着 -->
+  <path d="M28 120c2-20 16-30 32-30s30 10 32 30z" fill="#5B8FB9"/>
+  <path d="M52 92l8 12 8-12" fill="#FFFAF0"/>
+  <!-- 顔 -->
+  <circle cx="60" cy="64" r="26" fill="#F6D2B0"/>
+  <circle cx="36" cy="66" r="5" fill="#F6D2B0"/>
+  <circle cx="84" cy="66" r="5" fill="#F6D2B0"/>
+  <!-- 麦わら帽子 -->
+  <ellipse cx="60" cy="44" rx="42" ry="9" fill="#E8C063"/>
+  <path d="M38 44c0-16 10-24 22-24s22 8 22 24z" fill="#F2D27A"/>
+  <rect x="38" y="36" width="44" height="6" fill="#C0513F"/>
+  <!-- 目・眉・口・ほほ -->
+  <path d="M46 60q4-4 8 0M66 60q4-4 8 0" stroke="#3A3A3A" stroke-width="2.6" fill="none" stroke-linecap="round"/>
+  <path d="M50 74q10 9 20 0" stroke="#3A3A3A" stroke-width="2.6" fill="none" stroke-linecap="round"/>
+  <circle cx="44" cy="70" r="4" fill="#F4A6A0" opacity=".7"/>
+  <circle cx="76" cy="70" r="4" fill="#F4A6A0" opacity=".7"/>
+  <!-- 白いひげ -->
+  <path d="M50 80q10 8 20 0q-2 10-10 10t-10-10z" fill="#FFFFFF"/>
+</svg>

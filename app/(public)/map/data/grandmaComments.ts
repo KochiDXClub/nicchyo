@@ -15,8 +15,8 @@ export const grandmaComments: GrandmaComment[] = [
   {
     id: 'notice-01',
     genre: 'notice',
-    text: 'bagに入れたもの、忘れてない？',
-    link: { href: '/bag', label: 'bagを開く' },
+    text: '気になったお店は、ハートを押しておくとあとで戻れるきね。',
+    link: { href: '/favorites', label: 'お気に入りを開く' },
   },
   {
     id: 'tutorial-01',
@@ -75,18 +75,18 @@ export const grandmaComments: GrandmaComment[] = [
 
 /**
  * マップ初回表示時のチュートリアルコメント（最大10個・繰り返しなし）
- * FirstVisitGuide の代替として GrandmaChatter 内で順に表示される
+ * FirstVisitGuide の代替として GrandmaChatter 内で順に表示していた。
+ * GrandmaChatter の廃止により、現在はどこからも使われていない
  */
 export const mapTutorialComments: import('../types/grandmaComment').GrandmaComment[] = [
   { id: 'tut-01', genre: 'tutorial', text: 'ようこそ、日曜市へ！マップのお店マーカーをタップすると詳細が見られるよ。' },
   { id: 'tut-02', genre: 'tutorial', text: 'ズームインすると、もっとたくさんのお店が見えてくるよ。指でピンチしてみてね。' },
-  { id: 'tut-03', genre: 'tutorial', text: '気になる商品は「バッグに入れる」で買い物リストに追加できるよ。', link: { href: '/bag', label: 'bagを見る' } },
+  { id: 'tut-03', genre: 'tutorial', text: '気になる商品はハートを押すと、お気に入りにためておけるよ。', link: { href: '/favorites', label: 'お気に入りを見る' } },
   { id: 'tut-04', genre: 'tutorial', text: 'にちよさんに「おすすめのランチは？」って気軽に聞いてみてね。' },
-  { id: 'tut-05', genre: 'tutorial', text: 'お店の詳細ページで⭐をタップするとお気に入りに追加できるよ。' },
-  { id: 'tut-06', genre: 'tutorial', text: '「ことづて」でお店への感想やおすすめをひとこと投稿できるよ。' },
+  { id: 'tut-05', genre: 'tutorial', text: 'お店の写真の右下にあるハートを押すと、そのお店ごとお気に入りにできるよ。' },
   { id: 'tut-07', genre: 'tutorial', text: '日曜市は毎週日曜日の早朝から夕方まで、約300軒が並ぶきね。' },
   { id: 'tut-08', genre: 'tutorial', text: 'AIに「野菜が安いお店は？」など聞くと、おすすめのお店を教えてくれるよ。' },
-  { id: 'tut-09', genre: 'tutorial', text: 'バッグに入れた商品は右上のアイコンからまとめて確認できるよ。', link: { href: '/bag', label: 'bagを開く' } },
+  { id: 'tut-09', genre: 'tutorial', text: 'ハートを押したお店は、あとからまとめて見られるよ。地図の上にも「お気に入り」の絞り込みが出てくるきね。', link: { href: '/favorites', label: 'お気に入りを開く' } },
   { id: 'tut-10', genre: 'tutorial', text: '準備は整ったね！お気に入りのお店をたくさん見つけてきてね。' },
 ];
 

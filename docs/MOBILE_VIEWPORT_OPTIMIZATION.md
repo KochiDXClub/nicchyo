@@ -1,396 +1,42 @@
-# モバイルViewport最適化ガイド
+# モバイル Viewport 対応
 
-**実装日**: 2025年12月28日
-**ブランチ**: `fix/mobile-viewport-ui`
+スマホブラウザのアドレスバーの出し入れや iOS の切り欠きに対して、地図を全画面に置いても崩れないようにする仕組み。
 
----
+## 仕組み
 
-## 📱 概要
+| 要素 | 場所 | 役割 |
+|---|---|---|
+| `100dvh` と `--vh` | `app/globals.css` | `body` の高さ。`100dvh` を優先し、非対応ブラウザ向けに `calc(var(--vh, 1vh) * 100)` を後ろに書いてフォールバック。Tailwind では `h-[100dvh]` を使う |
+| `ViewportHeightUpdater` | `app/components/ViewportHeightUpdater.tsx` | `window.innerHeight` から `--vh` を更新（`resize` と `orientationchange`。iOS Safari 向けに 100ms 遅らせる）。`app/layout.tsx` が配置 |
+| `--safe-top/bottom/left/right` | `app/globals.css` | `env(safe-area-inset-*)` を `@supports` で取り込む。非対応なら `0px` |
+| `--nav-bar-height` | `app/globals.css` | `NavigationBar` の内側の高さ（`3.5rem`）。下に固定する要素はこれと `--safe-bottom` を避ける |
+| `viewportFit: "cover"` | `app/layout.tsx` の `viewport` | iOS の Safe Area を有効にする。これが無いと `env()` が常に 0 |
 
-スマホブラウザ（Chrome/Safari）の**アドレスバー表示/非表示**に対応し、地図が主役の「アプリ的なWebUI」を実現しました。
+## レイアウト
 
----
+- `MapPageClient.tsx` のルートは `h-[100dvh]`。メイン領域の下余白は `calc(3.5rem + var(--safe-bottom, 0px))`（`NavigationBar` と Safe Area の分）
+- `NavigationBar`（`app/components/NavigationBar.tsx`）は `fixed bottom-0`、`z-[9997]`、半透明（`bg-white/90 backdrop-blur-md`）。下側の Safe Area はこの要素が避ける
+- メニューは `MenuContext`（`lib/ui/MenuContext.tsx`）が開閉を持ち、`HamburgerMenu`（`app/components/HamburgerMenu.tsx`）が右からスライドする。高さは `h-[100dvh]` に `--vh` のフォールバック。`AppHeader` は現在は何も描画しない（`null` を返すだけ）
 
-## 🎯 解決した問題
+## z-index（グローバルUI）
 
-| 問題 | 原因 | 解決策 |
-|------|------|--------|
-| UIが窮屈 | `height: 100vh` | `100dvh` + CSS変数 |
-| ヘッダが地図を圧迫 | 常時表示 | メニュー連動表示 |
-| ナビが地図を隠す | 不透明・固定高さ | 半透明・オーバーレイ |
-| iOS切り欠き問題 | safe-area未対応 | `env(safe-area-inset-*)` |
-| レイアウト崩れ | アドレスバー出没 | viewport動的更新 |
+| 要素 | z-index |
+|---|---|
+| ハンバーガーボタン | `10002` |
+| スライドメニュー | `9999` |
+| メニュー背面のオーバーレイ | `9998` |
+| ナビゲーションバー | `9997` |
 
----
+地図内（Leaflet のペイン）の z-index は [LAYER_ARCHITECTURE.md](./LAYER_ARCHITECTURE.md)。
 
-## 🏗️ 実装内容
+## 確認項目（実機）
 
-### 1. viewport高さシステム
+- アドレスバーの表示／非表示、画面回転のあとで高さが崩れない（iOS Safari / Android Chrome）
+- ホームインジケーター・ジェスチャーバーがナビゲーションを隠さない
+- メニューの開閉が正しく動く
+- 地図のズーム・パンでページ自体がスクロールしない（`overscroll-behavior: none`）
 
-#### globals.css
-```css
-/* モダンブラウザ */
-body {
-  height: 100dvh; /* Dynamic Viewport Height */
-}
+## 困ったとき
 
-/* フォールバック */
-:root {
-  --vh: 1vh; /* JavaScriptで動的更新 */
-}
-
-body {
-  height: calc(var(--vh, 1vh) * 100);
-}
-
-/* safe-area対応 */
-:root {
-  --safe-top: env(safe-area-inset-top);
-  --safe-bottom: env(safe-area-inset-bottom);
-  --safe-left: env(safe-area-inset-left);
-  --safe-right: env(safe-area-inset-right);
-}
-```
-
-#### ViewportHeightUpdater.tsx
-```typescript
-export default function ViewportHeightUpdater() {
-  useEffect(() => {
-    const updateVH = () => {
-      const vh = window.innerHeight * 0.01;
-      document.documentElement.style.setProperty('--vh', `${vh}px`);
-    };
-
-    updateVH();
-    window.addEventListener('resize', updateVH);
-    window.addEventListener('orientationchange', () => {
-      setTimeout(updateVH, 100); // iOS Safari対策
-    });
-
-    return () => {
-      window.removeEventListener('resize', updateVH);
-      window.removeEventListener('orientationchange', updateVH);
-    };
-  }, []);
-
-  return null;
-}
-```
-
-**効果**: アドレスバーの出現/消失に関わらず、常に正しい画面高さを取得
-
----
-
-### 2. オーバーレイUI構造
-
-#### レイアウト階層
-```
-<body> (height: 100dvh)
-├─ ViewportHeightUpdater
-├─ MenuProvider
-│  ├─ AppHeader (fixed, transform: translateY)
-│  ├─ children (全画面)
-│  └─ HamburgerButton (fixed)
-└─ NavigationBar (fixed, 半透明)
-```
-
-#### MapPageClient.tsx
-```typescript
-{% raw %}
-// ❌ Before
-<div className="h-screen pb-16">
-  <main className="flex-1">
-    <MapView />
-  </main>
-</div>
-
-// ✅ After
-<div style={{height: '100dvh', height: 'calc(var(--vh, 1vh) * 100)'}}>
-  <main className="absolute inset-0">
-    <MapView />
-  </main>
-  <GrandmaChatter /> {/* fixed position */}
-  <NavigationBar />  {/* fixed position */}
-</div>
-{% endraw %}
-```
-
-**効果**: 地図が全画面表示、UIはオーバーレイ（圧迫しない）
-
----
-
-### 3. メニュー連動ヘッダー
-
-#### MenuContext.tsx
-```typescript
-interface MenuContextType {
-  isMenuOpen: boolean;
-  openMenu: () => void;
-  closeMenu: () => void;
-  toggleMenu: () => void;
-}
-
-export function MenuProvider({ children }: { children: ReactNode }) {
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
-  // ...
-}
-```
-
-#### AppHeader.tsx
-```typescript
-{% raw %}
-export default function AppHeader() {
-  const { isMenuOpen } = useMenu();
-
-  return (
-    <header
-      className="fixed top-0 left-0 right-0 z-[9999]"
-      style={{
-        transform: isMenuOpen ? 'translateY(0)' : 'translateY(-100%)',
-        paddingTop: 'calc(0.75rem + var(--safe-top, 0px))',
-      }}
-    >
-      {/* ヘッダー内容 */}
-    </header>
-  );
-}
-{% endraw %}
-```
-
-#### HamburgerMenu.tsx
-```typescript
-export default function HamburgerMenu() {
-  const { isMenuOpen, toggleMenu, closeMenu } = useMenu();
-
-  return (
-    <>
-      <button onClick={toggleMenu} className="fixed top-3 right-4 z-[10000]">
-        {/* ハンバーガーアイコン */}
-      </button>
-
-      {isMenuOpen && <div className="fixed inset-0 z-[9998] bg-black/30" />}
-
-      <div className={`fixed right-0 top-0 z-[9999] ${isMenuOpen ? 'translate-x-0' : 'translate-x-full'}`}>
-        {/* メニュー内容 */}
-      </div>
-    </>
-  );
-}
-```
-
-**効果**: 通常時はヘッダ非表示、メニュー開くときのみ表示
-
----
-
-### 4. 半透明ナビゲーションバー
-
-#### NavigationBar.tsx
-```typescript
-{% raw %}
-export default function NavigationBar() {
-  return (
-    <nav
-      className="fixed bottom-0 left-0 right-0 z-[9997] bg-white/80 backdrop-blur-md"
-      style={{
-        paddingBottom: 'var(--safe-bottom, 0px)',
-      }}
-    >
-      <div className="h-14 flex items-center justify-around">
-        {/* ナビアイテム */}
-      </div>
-    </nav>
-  );
-}
-{% endraw %}
-```
-
-**効果**:
-- 地図が透けて見える（backdrop-blur）
-- iOSホームインジケーター対応
-- コンパクト（h-14）
-
----
-
-### 5. viewport meta設定
-
-#### layout.tsx
-```typescript
-export const viewport: Viewport = {
-  width: 'device-width',
-  initialScale: 1,
-  maximumScale: 5,
-  userScalable: true,
-  viewportFit: 'cover', // iOS Safe Area 対応
-};
-```
-
-**効果**: iOS Safe Areaが正しく機能
-
----
-
-## 📐 レイアウト構造図
-
-### 通常時（メニュー閉じている）
-```
-┌─────────────────────────────┐
-│ [ハンバーガー]              │ ← fixed (z-10000)
-│                             │
-│         地図（全画面）       │ ← absolute inset-0
-│                             │
-│                             │
-│   [おばあちゃん]           │ ← fixed (z-1400)
-│                             │
-├─────────────────────────────┤
-│ [🗺️][🔍][🍳][✉️]          │ ← fixed 半透明 (z-9997)
-└─────────────────────────────┘
-```
-
-### メニュー開いた時
-```
-┌─────────────────────────────┐
-│ nicchyo 日曜市マップ [×]   │ ← ヘッダ表示 (z-9999)
-├─────────────────────────────┤
-│         地図（全画面）       │
-│                             │
-│                ┌────────────┤
-│                │ メニュー   │ ← スライドイン (z-9999)
-│                │            │
-│                │ ・マップ   │
-│                │ ・検索     │
-│                └────────────┤
-├─────────────────────────────┤
-│ [🗺️][🔍][🍳][✉️]          │
-└─────────────────────────────┘
-```
-
----
-
-## 🎨 z-index 階層
-
-| 要素 | z-index | 用途 |
-|------|---------|------|
-| ハンバーガーボタン | 10000 | 最前面（常にアクセス可能） |
-| ヘッダー | 9999 | メニュー時に表示 |
-| スライドメニュー | 9999 | ヘッダーと同レベル |
-| メニューオーバーレイ | 9998 | スライドメニューの背景 |
-| ナビゲーションバー | 9997 | 常時表示 |
-| おばあちゃん | 1400 | 地図の上 |
-| レシピバナー | 1200 | 地図の上 |
-| 地図装飾コーナー | 1500 | 地図の枠 |
-| 地図コンテナ | 10 | 背景 |
-
----
-
-## 🔧 CSS変数一覧
-
-| 変数名 | デフォルト | 用途 |
-|--------|-----------|------|
-| `--vh` | `1vh` | viewport高さ（動的更新） |
-| `--safe-top` | `0px` | iOS上部切り欠き |
-| `--safe-bottom` | `0px` | iOSホームインジケーター |
-| `--safe-left` | `0px` | iOS左側Safe Area |
-| `--safe-right` | `0px` | iOS右側Safe Area |
-
----
-
-## ✅ ブラウザ対応
-
-| ブラウザ | viewport | safe-area | backdrop-blur |
-|----------|----------|-----------|---------------|
-| Chrome (Android) | ✅ 100dvh | ✅ | ✅ |
-| Safari (iOS) | ✅ 100dvh | ✅ | ✅ |
-| Firefox (Android) | ✅ フォールバック | ✅ | ✅ |
-
----
-
-## 🧪 動作確認項目
-
-### iOS Safari
-- [ ] アドレスバー表示/非表示でレイアウトが崩れない
-- [ ] ホームインジケーターがナビゲーションを隠さない
-- [ ] 切り欠き（ノッチ）がヘッダーと重ならない
-- [ ] orientationchange後も正しい高さ
-
-### Android Chrome
-- [ ] アドレスバー表示/非表示でレイアウトが崩れない
-- [ ] ジェスチャーバーがナビゲーションを隠さない
-- [ ] 画面回転後も正しい高さ
-
-### 両方
-- [ ] メニュー開閉時にヘッダーが正しく表示/非表示
-- [ ] ナビゲーションバーが半透明で地図が透ける
-- [ ] 地図操作（ズーム・パン）がスムーズ
-- [ ] スクロールが発生しない
-
----
-
-## 🚀 PWA 化への準備
-
-この実装は以下の理由で、将来的なアプリ化に対応しています：
-
-1. **viewport システム**: ネイティブアプリでも流用可能
-2. **safe-area 対応**: iOS/Android両対応
-3. **オーバーレイ構造**: ネイティブUIと統合しやすい
-4. **メニュー状態管理**: Contextで一元管理
-
-> **注記**: Capacitor パッケージ（`@capacitor/cli` / `@capacitor/core`）は未使用のため削除済み（#202）。ネイティブアプリ化を検討する場合は改めて導入する。
-
----
-
-## 📚 参考資料
-
-### viewport
-- [100vh in Safari](https://allthingssmitty.com/2020/05/11/css-fix-for-100vh-in-mobile-webkit/)
-- [CSS Values: dvh, svh, lvh](https://developer.mozilla.org/en-US/docs/Web/CSS/length#relative_length_units_based_on_viewport)
-
-### safe-area
-- [Designing Websites for iPhone X](https://webkit.org/blog/7929/designing-websites-for-iphone-x/)
-- [env() CSS Function](https://developer.mozilla.org/en-US/docs/Web/CSS/env)
-
-### backdrop-blur
-- [backdrop-filter](https://developer.mozilla.org/en-US/docs/Web/CSS/backdrop-filter)
-
----
-
-## 🔍 トラブルシューティング
-
-### Q: iOS Safariで切り欠きが表示される
-**A**: `viewport-fit=cover` が設定されているか確認
-```typescript
-export const viewport: Viewport = {
-  viewportFit: 'cover',
-};
-```
-
-### Q: アドレスバー消失時にレイアウトがずれる
-**A**: `ViewportHeightUpdater` が読み込まれているか確認
-```typescript
-// layout.tsx
-<ViewportHeightUpdater />
-```
-
-### Q: メニューを開いてもヘッダーが表示されない
-**A**: `MenuProvider` でラップされているか確認
-```typescript
-<MenuProvider>
-  <AppHeader />
-  {children}
-</MenuProvider>
-```
-
-### Q: ナビゲーションバーが不透明
-**A**: Tailwindのblurプラグインが有効か確認
-```javascript
-// tailwind.config.js
-module.exports = {
-  plugins: [
-    require('tailwindcss-animate'), // backdrop-blur有効化
-  ],
-};
-```
-
----
-
-**作成**: Claude Code
-**ブランチ**: `fix/mobile-viewport-ui`
-**コミット**: 97ed9c9
+- iOS で切り欠きに重なる → `viewportFit: "cover"` が `app/layout.tsx` にあるか
+- アドレスバーの出没で位置がずれる → `ViewportHeightUpdater` が `layout.tsx` に入っているか

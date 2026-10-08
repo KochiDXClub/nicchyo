@@ -1,0 +1,233 @@
+import { NextResponse } from "next/server";
+import { getRole } from "@/lib/auth/permissions";
+import { createAdminClient } from "@/lib/supabase/adminClient";
+import { requireSameOrigin } from "@/lib/security/requestGuards";
+import { enforceRateLimit } from "@/lib/security/rateLimit";
+import { authorizeAdmin, findHighlightConflict, validateHighlightDates, validateImageUrl } from "../_helpers";
+import { logAdminAudit } from "@/lib/audit/logAdminAudit";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+type Params = { params: Promise<{ id: string }> };
+
+const VALID_EVENT_CATEGORIES: readonly string[] = ["vendor", "event", "season", "notice"];
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
+export async function PATCH(req: Request, { params }: Params) {
+  const originCheck = requireSameOrigin(req);
+  if (!originCheck.ok) return originCheck.response;
+
+  const rateLimited = await enforceRateLimit(req, {
+    bucket: "admin-events-patch",
+    limit: 60,
+    windowMs: 10 * 60 * 1000,
+  });
+  if (rateLimited) return rateLimited;
+
+  const { user, error } = await authorizeAdmin();
+  if (error || !user) return NextResponse.json({ error }, { status: 403 });
+
+  const { id } = await params;
+  if (!UUID_PATTERN.test(id)) {
+    return NextResponse.json({ error: "IDが無効です" }, { status: 400 });
+  }
+
+  const dc = createAdminClient();
+  if (!dc) return NextResponse.json({ error: "Service unavailable" }, { status: 503 });
+
+  let body: Record<string, unknown>;
+  try {
+    body = (await req.json()) as Record<string, unknown>;
+  } catch {
+    return NextResponse.json({ error: "無効なリクエストです" }, { status: 400 });
+  }
+  const updates: Record<string, unknown> = {};
+
+  if (typeof body.title === "string") {
+    const title = body.title.trim();
+    if (!title || title.length > 100) return NextResponse.json({ error: "タイトルは1〜100文字で入力してください" }, { status: 400 });
+    updates.title = title;
+  }
+  if ("description" in body) {
+    updates.description = typeof body.description === "string" ? body.description.trim().slice(0, 1000) || null : null;
+  }
+  if (typeof body.event_date === "string") {
+    if (!DATE_PATTERN.test(body.event_date)) {
+      return NextResponse.json({ error: "開催日の形式が無効です" }, { status: 400 });
+    }
+    updates.event_date = body.event_date;
+  }
+  if ("end_date" in body) {
+    const v = body.end_date;
+    if (v === null || v === "") {
+      updates.end_date = null;
+    } else if (typeof v !== "string" || !DATE_PATTERN.test(v)) {
+      return NextResponse.json({ error: "終了日の形式が無効です（YYYY-MM-DD）" }, { status: 400 });
+    } else {
+      updates.end_date = v;
+    }
+  }
+  // 開始日・終了日が両方来た場合の前後関係だけはここで見る
+  // （片方だけの更新は DB の CHECK 制約が最終防衛線になる）
+  if (
+    typeof updates.event_date === "string" &&
+    typeof updates.end_date === "string" &&
+    updates.end_date < updates.event_date
+  ) {
+    return NextResponse.json({ error: "終了日は開催日以降にしてください" }, { status: 400 });
+  }
+
+  const timePattern = /^\d{2}:\d{2}$/;
+  // 非文字列を素通りさせると PostgREST まで届いて 500 になるため、ここで 400 にする
+  for (const key of ["start_time", "end_time"] as const) {
+    if (!(key in body)) continue;
+    const v = body[key];
+    if (v === null || v === "") {
+      updates[key] = null;
+      continue;
+    }
+    if (typeof v !== "string" || !timePattern.test(v)) {
+      const label = key === "start_time" ? "開始時刻" : "終了時刻";
+      return NextResponse.json({ error: `${label}の形式が無効です（HH:MM）` }, { status: 400 });
+    }
+    updates[key] = v;
+  }
+  if ("location" in body) {
+    updates.location = typeof body.location === "string" ? body.location.trim().slice(0, 200) || null : null;
+  }
+  if (typeof body.is_published === "boolean") {
+    updates.is_published = body.is_published;
+  }
+  if ("category" in body) {
+    if (!VALID_EVENT_CATEGORIES.includes(body.category as string)) {
+      return NextResponse.json({ error: "種別が無効です" }, { status: 400 });
+    }
+    updates.category = body.category;
+  }
+  if ("image_url" in body) {
+    const { url, error: imageError } = validateImageUrl(body.image_url);
+    if (imageError) return NextResponse.json({ error: imageError }, { status: 400 });
+    updates.image_url = url;
+  }
+  let pendingHighlightDates: string[] | undefined;
+  if ("highlight_dates" in body) {
+    // 見どころの範囲チェックには最終的な event_date/end_date が要る。
+    // このリクエストで更新される値があればそれを、無ければ現在の値を読みに行く。
+    const needsEventDate = typeof updates.event_date !== "string";
+    const needsEndDate = !("end_date" in updates);
+
+    let eventDateForRange: string;
+    let endDateForRange: string | null;
+
+    if (needsEventDate || needsEndDate) {
+      const { data: current } = await dc
+        .from("market_events")
+        .select("event_date, end_date")
+        .eq("id", id)
+        .maybeSingle();
+      if (!current) {
+        return NextResponse.json({ error: "イベントが見つかりません" }, { status: 404 });
+      }
+      eventDateForRange = needsEventDate ? current.event_date : (updates.event_date as string);
+      endDateForRange = needsEndDate ? current.end_date : (updates.end_date as string | null);
+    } else {
+      eventDateForRange = updates.event_date as string;
+      endDateForRange = updates.end_date as string | null;
+    }
+
+    const { dates, error: highlightError } = validateHighlightDates(
+      body.highlight_dates,
+      eventDateForRange,
+      endDateForRange
+    );
+    if (highlightError) return NextResponse.json({ error: highlightError }, { status: 400 });
+    pendingHighlightDates = dates;
+    updates.highlight_dates = dates;
+  }
+
+  if (Object.keys(updates).length === 0) {
+    return NextResponse.json({ error: "更新するフィールドがありません" }, { status: 400 });
+  }
+
+  if (pendingHighlightDates && pendingHighlightDates.length > 0) {
+    const conflict = await findHighlightConflict(dc, pendingHighlightDates, id);
+    if (conflict) {
+      return NextResponse.json(
+        {
+          error: `「${conflict.title}」とその週の見どころが重なっています（1週につき見どころは1件までです）`,
+        },
+        { status: 409 }
+      );
+    }
+  }
+
+  const { data, error: dbError } = await dc
+    .from("market_events")
+    .update(updates)
+    .eq("id", id)
+    .select("*")
+    .maybeSingle();
+
+  if (dbError) {
+    return NextResponse.json({ error: "更新に失敗しました" }, { status: 500 });
+  }
+  if (!data) {
+    return NextResponse.json({ error: "イベントが見つかりません" }, { status: 404 });
+  }
+
+  await logAdminAudit(
+    dc,
+    { id: user.id, email: user.email, role: getRole(user) },
+    { action: "event_updated", targetType: "market_event", targetId: id, details: JSON.stringify(updates) }
+  );
+
+  return NextResponse.json({ event: data });
+}
+
+export async function DELETE(req: Request, { params }: Params) {
+  const originCheck = requireSameOrigin(req);
+  if (!originCheck.ok) return originCheck.response;
+
+  const rateLimited = await enforceRateLimit(req, {
+    bucket: "admin-events-delete",
+    limit: 30,
+    windowMs: 10 * 60 * 1000,
+  });
+  if (rateLimited) return rateLimited;
+
+  const { user, error } = await authorizeAdmin();
+  if (error || !user) return NextResponse.json({ error }, { status: 403 });
+
+  const { id } = await params;
+  if (!UUID_PATTERN.test(id)) {
+    return NextResponse.json({ error: "IDが無効です" }, { status: 400 });
+  }
+
+  const dc = createAdminClient();
+  if (!dc) return NextResponse.json({ error: "Service unavailable" }, { status: 503 });
+
+  // 存在しない ID でも成功扱いにすると監査ログだけが積まれるため、削除結果を見る
+  const { data: deleted, error: dbError } = await dc
+    .from("market_events")
+    .delete()
+    .eq("id", id)
+    .select("id")
+    .maybeSingle();
+
+  if (dbError) {
+    return NextResponse.json({ error: "削除に失敗しました" }, { status: 500 });
+  }
+  if (!deleted) {
+    return NextResponse.json({ error: "イベントが見つかりません" }, { status: 404 });
+  }
+
+  await logAdminAudit(
+    dc,
+    { id: user.id, email: user.email, role: getRole(user) },
+    { action: "event_deleted", targetType: "market_event", targetId: id, details: JSON.stringify({}) }
+  );
+
+  return NextResponse.json({ ok: true });
+}

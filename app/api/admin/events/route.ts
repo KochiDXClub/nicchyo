@@ -1,0 +1,188 @@
+import { NextResponse } from "next/server";
+import { getRole } from "@/lib/auth/permissions";
+import { createAdminClient } from "@/lib/supabase/adminClient";
+import { requireSameOrigin } from "@/lib/security/requestGuards";
+import { enforceRateLimit } from "@/lib/security/rateLimit";
+import { normalizeCategory, type MarketEventCategory } from "@/lib/market/calendar";
+import { authorizeAdmin, findHighlightConflict, validateHighlightDates, validateImageUrl } from "./_helpers";
+import { logAdminAudit } from "@/lib/audit/logAdminAudit";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+const VALID_EVENT_CATEGORIES: readonly string[] = ["vendor", "event", "season", "notice"];
+
+export interface MarketEvent {
+  id: string;
+  title: string;
+  description: string | null;
+  event_date: string;
+  end_date: string | null;
+  start_time: string | null;
+  end_time: string | null;
+  location: string | null;
+  is_published: boolean;
+  category: MarketEventCategory;
+  image_url: string | null;
+  highlight_dates: string[];
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export async function GET(req: Request) {
+  const { error } = await authorizeAdmin();
+  if (error) return NextResponse.json({ error }, { status: 403 });
+
+  const dc = createAdminClient();
+  if (!dc) return NextResponse.json({ error: "Service unavailable" }, { status: 503 });
+
+  const { searchParams } = new URL(req.url);
+  const includeUnpublished = searchParams.get("all") === "1";
+
+  let query = dc
+    .from("market_events")
+    .select("*")
+    .order("event_date", { ascending: false })
+    .limit(200);
+
+  if (!includeUnpublished) {
+    query = query.eq("is_published", true);
+  }
+
+  const { data, error: dbError } = await query;
+  if (dbError) {
+    return NextResponse.json({ error: "データ取得に失敗しました" }, { status: 500 });
+  }
+
+  return NextResponse.json({ events: data as MarketEvent[] });
+}
+
+function validateEventBody(body: unknown): { data: Partial<MarketEvent>; error: string | null } {
+  if (!body || typeof body !== "object") return { data: {}, error: "無効なリクエストです" };
+  const b = body as Record<string, unknown>;
+
+  const title = typeof b.title === "string" ? b.title.trim() : "";
+  if (!title || title.length > 100) return { data: {}, error: "タイトルは1〜100文字で入力してください" };
+
+  const eventDate = typeof b.event_date === "string" ? b.event_date.trim() : "";
+  if (!eventDate || !/^\d{4}-\d{2}-\d{2}$/.test(eventDate)) {
+    return { data: {}, error: "開催日の形式が無効です（YYYY-MM-DD）" };
+  }
+
+  // 連続開催の最終日（任意）。開始日より前は DB の CHECK でも弾かれるが、
+  // 500 ではなく 400 で返すためここでも見る。
+  let endDate: string | null = null;
+  if (b.end_date !== undefined && b.end_date !== null && b.end_date !== "") {
+    if (typeof b.end_date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(b.end_date.trim())) {
+      return { data: {}, error: "終了日の形式が無効です（YYYY-MM-DD）" };
+    }
+    endDate = b.end_date.trim();
+    if (endDate < eventDate) {
+      return { data: {}, error: "終了日は開催日以降にしてください" };
+    }
+  }
+
+  const timePattern = /^\d{2}:\d{2}$/;
+  if (typeof b.start_time === "string" && b.start_time && !timePattern.test(b.start_time)) {
+    return { data: {}, error: "開始時刻の形式が無効です（HH:MM）" };
+  }
+  if (typeof b.end_time === "string" && b.end_time && !timePattern.test(b.end_time)) {
+    return { data: {}, error: "終了時刻の形式が無効です（HH:MM）" };
+  }
+
+  // 種別（出店予定 / イベント / 旬 / お知らせ）。未指定はイベント扱い。
+  if (b.category !== undefined && !VALID_EVENT_CATEGORIES.includes(b.category as string)) {
+    return { data: {}, error: "種別が無効です" };
+  }
+
+  const { url: imageUrl, error: imageError } = validateImageUrl(b.image_url);
+  if (imageError) return { data: {}, error: imageError };
+
+  const { dates: highlightDates, error: highlightError } = validateHighlightDates(
+    b.highlight_dates,
+    eventDate,
+    endDate
+  );
+  if (highlightError) return { data: {}, error: highlightError };
+
+  return {
+    data: {
+      title,
+      description: typeof b.description === "string" ? b.description.trim().slice(0, 1000) || null : null,
+      event_date: eventDate,
+      end_date: endDate,
+      start_time: typeof b.start_time === "string" && b.start_time ? b.start_time : null,
+      end_time: typeof b.end_time === "string" && b.end_time ? b.end_time : null,
+      location: typeof b.location === "string" ? b.location.trim().slice(0, 200) || null : null,
+      is_published: b.is_published === true,
+      category: normalizeCategory(b.category),
+      image_url: imageUrl,
+      highlight_dates: highlightDates,
+    },
+    error: null,
+  };
+}
+
+export async function POST(req: Request) {
+  const originCheck = requireSameOrigin(req);
+  if (!originCheck.ok) return originCheck.response;
+
+  const rateLimited = await enforceRateLimit(req, {
+    bucket: "admin-events-post",
+    limit: 30,
+    windowMs: 10 * 60 * 1000,
+  });
+  if (rateLimited) return rateLimited;
+
+  const { user, error } = await authorizeAdmin();
+  if (error || !user) return NextResponse.json({ error }, { status: 403 });
+
+  const dc = createAdminClient();
+  if (!dc) return NextResponse.json({ error: "Service unavailable" }, { status: 503 });
+
+  let body: unknown;
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: "無効なリクエストです" }, { status: 400 });
+  }
+
+  const { data, error: validError } = validateEventBody(body);
+  if (validError) return NextResponse.json({ error: validError }, { status: 400 });
+
+  if (data.highlight_dates && data.highlight_dates.length > 0) {
+    const conflict = await findHighlightConflict(dc, data.highlight_dates);
+    if (conflict) {
+      return NextResponse.json(
+        {
+          error: `「${conflict.title}」とその週の見どころが重なっています（1週につき見どころは1件までです）`,
+        },
+        { status: 409 }
+      );
+    }
+  }
+
+  const { data: event, error: dbError } = await dc
+    .from("market_events")
+    .insert({ ...data, created_by: user.id })
+    .select("*")
+    .single();
+
+  if (dbError) {
+    return NextResponse.json({ error: "作成に失敗しました" }, { status: 500 });
+  }
+
+  await logAdminAudit(
+    dc,
+    { id: user.id, email: user.email, role: getRole(user) },
+    {
+      action: "event_created",
+      targetType: "market_event",
+      targetId: (event as MarketEvent).id,
+      details: JSON.stringify({ title: data.title }),
+    }
+  );
+
+  return NextResponse.json({ event: event as MarketEvent }, { status: 201 });
+}

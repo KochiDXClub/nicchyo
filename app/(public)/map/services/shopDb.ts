@@ -1,11 +1,12 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { fetchAssignmentRows, fetchLocationRows, fetchProductRows } from "@/lib/shops/baseRowQueries";
+import { fetchAllRows } from "@/lib/supabase/fetchAllRows";
 import type { Database } from "@/types/database.types";
 import type { Shop } from "../types/shopData";
 
 type VendorRow = {
   id: string;
   shop_name: string | null;
-  owner_name: string | null;
   strength: string | null;
   style: string | null;
   style_tags: string[] | null;
@@ -24,7 +25,15 @@ type VendorRow = {
   business_hours_end: string | null;
 };
 
-type ActiveContentRow = {
+// 出店者本人の氏名は vendors から分離済み。
+// 公開設定 (is_public = true) の行だけが RLS を通って返る。
+type OwnerProfileRow = {
+  vendor_id: string;
+  owner_name: string | null;
+};
+
+export type ActiveContentRow = {
+  id: string;
   vendor_id: string | null;
   body: string | null;
   image_url: string | null;
@@ -77,48 +86,135 @@ function normalizeChome(value: string | null): Shop["chome"] {
   return undefined;
 }
 
+/**
+ * 店舗の基本データ（投稿以外）。
+ * 更新がまれで 1 回あたりの転送量が大きい（数百 KB）ため、/map と /api/shops では
+ * shopCache.ts 経由でキャッシュして使う。JSON にそのまま載る素の行だけを持たせる。
+ */
+export type VendorShopBaseRows = {
+  vendors: VendorRow[];
+  ownerProfiles: OwnerProfileRow[];
+  categories: CategoryRow[];
+  products: ProductRow[];
+  locations: LocationRow[];
+  assignments: AssignmentRow[];
+};
+
+export async function fetchVendorShopBaseRows(
+  supabase: SupabaseClient<Database>
+): Promise<{ rows: VendorShopBaseRows; failedTables: string[] }> {
+  // PostgREST の max_rows (1000) で黙って切り詰められないよう、全テーブルを
+  // 決定的な order 付きの range ページングで読み切る（lib/supabase/fetchAllRows.ts）
+  const [
+    { data: vendorsData, error: vendorsError },
+    { data: ownerProfilesData, error: ownerProfilesError },
+    { data: categoriesData, error: categoriesError },
+    { data: productsData, error: productsError },
+    { data: locationsData, error: locationsError },
+    { data: assignmentsData, error: assignmentsError },
+  ] = await Promise.all([
+    fetchAllRows<VendorRow>(
+      (from, to) =>
+        supabase
+          .from("vendors")
+          .select("id, shop_name, strength, style, style_tags, category_id, categories(name), main_products, main_product_prices, payment_methods, rain_policy, schedule, shop_image_url, sns_instagram, sns_x, sns_hp, business_hours_start, business_hours_end")
+          .order("id", { ascending: true })
+          .range(from, to) as unknown as PromiseLike<{ data: VendorRow[] | null; error: { message: string } | null }>,
+      { label: "vendors" }
+    ),
+    fetchAllRows<OwnerProfileRow>(
+      (from, to) =>
+        supabase
+          .from("vendor_owner_profiles")
+          .select("vendor_id, owner_name")
+          .order("vendor_id", { ascending: true })
+          .range(from, to),
+      { label: "vendor_owner_profiles" }
+    ),
+    fetchAllRows<CategoryRow>(
+      (from, to) =>
+        supabase.from("categories").select("id, name").order("id", { ascending: true }).range(from, to),
+      { label: "categories" }
+    ),
+    fetchProductRows<ProductRow>(supabase),
+    fetchLocationRows<LocationRow>(supabase),
+    fetchAssignmentRows<AssignmentRow>(supabase),
+  ]);
+
+  // どれか1つでも失敗すると該当データが黙って空扱いになり店舗が減る/消えるため、
+  // 原因追跡できるよう警告として残す（握りつぶし自体は既存の設計を踏襲）
+  const failedTables: string[] = [];
+  for (const [label, error] of [
+    ["vendors", vendorsError],
+    ["vendor_owner_profiles", ownerProfilesError],
+    ["categories", categoriesError],
+    ["products", productsError],
+    ["market_locations", locationsError],
+    ["location_assignments", assignmentsError],
+  ] as const) {
+    if (error) {
+      console.warn(`[fetchVendorShopsFromDb] ${label} の取得に失敗しました:`, error.message);
+      failedTables.push(label);
+    }
+  }
+
+  return {
+    rows: {
+      vendors: Array.isArray(vendorsData) ? (vendorsData as VendorRow[]) : [],
+      ownerProfiles: Array.isArray(ownerProfilesData)
+        ? (ownerProfilesData as OwnerProfileRow[])
+        : [],
+      categories: Array.isArray(categoriesData) ? (categoriesData as CategoryRow[]) : [],
+      products: Array.isArray(productsData) ? (productsData as ProductRow[]) : [],
+      locations: Array.isArray(locationsData) ? (locationsData as LocationRow[]) : [],
+      assignments: Array.isArray(assignmentsData) ? (assignmentsData as AssignmentRow[]) : [],
+    },
+    failedTables,
+  };
+}
+
+/** 有効期限内の投稿。期限切れがあるので基本データとは分けて毎回取る（数十 KB 程度） */
+export async function fetchActiveContentRows(
+  supabase: SupabaseClient<Database>
+): Promise<ActiveContentRow[]> {
+  const { data, error } = await supabase
+    .from("vendor_contents")
+    .select("id, vendor_id, body, image_url, expires_at, created_at")
+    // RLS の「vendors can read own contents」ポリシー（状態条件なし）が
+    // OR 結合されるため、認証済みベンダーのセッションで本人の hidden/deleted
+    // 投稿がマップバナーに紛れ込まないよう明示する（/api/stories と同じ対策）
+    .eq("status", "active")
+    .gt("expires_at", new Date().toISOString())
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    console.warn("[fetchActiveContentRows] vendor_contents の取得に失敗しました:", error.message);
+    return [];
+  }
+  return Array.isArray(data) ? (data as ActiveContentRow[]) : [];
+}
+
 export async function fetchVendorShopsFromDb(
   supabase: SupabaseClient<Database>
 ): Promise<Shop[]> {
-  const [
-    { data: vendorsData },
-    { data: categoriesData },
-    { data: productsData },
-    { data: locationsData },
-    { data: assignmentsData },
-    { data: activeContentsData },
-  ] = await Promise.all([
-    supabase
-      .from("vendors")
-      .select("id, shop_name, owner_name, strength, style, style_tags, category_id, categories(name), main_products, main_product_prices, payment_methods, rain_policy, schedule, shop_image_url, sns_instagram, sns_x, sns_hp, business_hours_start, business_hours_end"),
-    supabase.from("categories").select("id, name"),
-    supabase.from("products").select("vendor_id, name"),
-    supabase
-      .from("market_locations")
-      .select("id, store_number, latitude, longitude, district"),
-    supabase.from("location_assignments").select("vendor_id, location_id, market_date"),
-    supabase
-      .from("vendor_contents")
-      .select("vendor_id, body, image_url, expires_at, created_at")
-      .gt("expires_at", new Date().toISOString())
-      .order("created_at", { ascending: false }),
+  const [{ rows }, activeContents] = await Promise.all([
+    fetchVendorShopBaseRows(supabase),
+    fetchActiveContentRows(supabase),
   ]);
+  return buildVendorShops(rows, activeContents);
+}
 
-  const vendors = Array.isArray(vendorsData)
-    ? (vendorsData as VendorRow[])
-    : [];
-  const categories = Array.isArray(categoriesData)
-    ? (categoriesData as CategoryRow[])
-    : [];
-  const products = Array.isArray(productsData)
-    ? (productsData as ProductRow[])
-    : [];
-  const locations = Array.isArray(locationsData)
-    ? (locationsData as LocationRow[])
-    : [];
-  const assignments = Array.isArray(assignmentsData)
-    ? (assignmentsData as AssignmentRow[])
-    : [];
+export function buildVendorShops(
+  base: VendorShopBaseRows,
+  activeContents: ActiveContentRow[]
+): Shop[] {
+  const { vendors, categories, products, locations, assignments } = base;
+  const ownerNameByVendorId = new Map<string, string>();
+  base.ownerProfiles.forEach((row) => {
+    if (row.vendor_id && row.owner_name) {
+      ownerNameByVendorId.set(row.vendor_id, row.owner_name);
+    }
+  });
 
   const categoryNameById = new Map<string, string>();
   categories.forEach((row) => {
@@ -136,9 +232,6 @@ export async function fetchVendorShopsFromDb(
   });
 
   // 有効期限内の投稿を vendor_id ごとに時系列で保持
-  const activeContents = Array.isArray(activeContentsData)
-    ? (activeContentsData as ActiveContentRow[])
-    : [];
   const activeContentsByVendor = new Map<string, ActiveContentRow[]>();
   activeContents.forEach((row) => {
     if (!row.vendor_id) return;
@@ -203,6 +296,7 @@ export async function fetchVendorShopsFromDb(
       const activePosts =
         contents.length > 0
           ? contents.map((content) => ({
+              id: content.id,
               text: content.body ?? "",
               imageUrl: content.image_url ?? undefined,
               expiresAt: content.expires_at,
@@ -215,7 +309,7 @@ export async function fetchVendorShopsFromDb(
         id: storeNumber,
         vendorId: vendor.id,
         name: vendor.shop_name ?? "",
-        ownerName: vendor.owner_name ?? "",
+        ownerName: ownerNameByVendorId.get(vendor.id) ?? "",
         category: categoryName,
         products: displayProducts,
         productPrices: (vendor.main_product_prices ?? undefined) as Record<string, number | null> | undefined,
@@ -267,9 +361,9 @@ export async function fetchVendorShopsFromDb(
     }
   }
 
-  return Array.from(dedupedByStoreNumber.values())
-    .sort((a, b) => a.id - b.id)
-    .map(({ assignmentMarketDate: _assignmentMarketDate, ...shop }) => shop);
+  // assignmentMarketDate は「今日この店が出ているか」の判定に使うので、
+  // 落とさずに Shop へそのまま渡す
+  return Array.from(dedupedByStoreNumber.values()).sort((a, b) => a.id - b.id);
 }
 
 export const fetchShopsFromDb = fetchVendorShopsFromDb;

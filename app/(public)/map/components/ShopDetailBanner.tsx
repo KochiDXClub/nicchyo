@@ -1,14 +1,14 @@
 "use client";
 
-import { memo, useState, useCallback, useEffect, useLayoutEffect, useMemo, useRef } from "react";
-import { safeJsonParse } from "@/lib/utils/safeJsonParse";
-import type { CSSProperties, RefObject } from "react";
+import { memo, useState, useCallback, useEffect, useMemo, useRef } from "react";
+import { recordShopView, sourceFromReferrer } from "@/lib/analytics/shopViews";
+import type { CSSProperties } from "react";
 import Image from "next/image";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { motion, useReducedMotion } from "framer-motion";
 import {
   MapPin,
-  ShoppingBag,
+  Heart,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
@@ -16,50 +16,42 @@ import {
   Globe,
   X as XIcon,
   Sparkles,
-  MessageSquarePlus,
+  Share2,
+  Navigation,
 } from "lucide-react";
 import { Shop } from "../data/shops";
+import { formatShopIdToCode } from "@/lib/shops/route";
 import { useAuth } from "../../../../lib/auth/AuthContext";
-import { getShopBannerImage } from "../../../../lib/shopImages";
-import { useBag } from "../../../../lib/storage/BagContext";
+import { getShopPreviewImage } from "../../../../lib/shopImages";
+import {
+  isProductFavorited,
+  isShopFavorited,
+  toggleFavoriteProduct,
+} from "../../../../lib/favoriteShops";
+import { useFavoriteEntries } from "../../../../lib/hooks/useFavorites";
+import { useShopFavoriteToggle } from "../../../components/favorites/useShopFavoriteToggle";
 import { incrementBannerOpens } from "../../../../lib/storage/marketStats";
-import { ingredientCatalog, recipes } from "../../../../lib/recipes";
-import { loadKotodute, KOTODUTE_UPDATED_EVENT, type KotoduteNote } from "../../../../lib/kotoduteStorage";
+import { useCenterBounceTrigger } from "../../../../lib/hooks/useCenterBounceTrigger";
 import {
   ShopBannerHero,
   ShopBusinessInfoCard,
+  resolveBannerTheme,
   type ActivePostItem,
 } from "./ShopBannerHero";
 import { PostCarousel } from "./PostCarousel";
-import { CouponInfoCard } from "./CouponInfoCard";
 import { AiConsultPanel } from "./AiConsultPanel";
-import { KotodutePanel, KOTODUTE_TAG_REGEX } from "./KotodutePanel";
-
-// ─── Theme presets ────────────────────────────────────────────────────────────
-const THEME_PRESETS = {
-  amber:  { bg: "#FFFBEB", accent: "#F59E0B", text: "#92400E", border: "#FDE68A", light: "#FEF3C7" },
-  green:  { bg: "#F0FDF4", accent: "#7ED957", text: "#166534", border: "#BBF7D0", light: "#DCFCE7" },
-  orange: { bg: "#FFF7ED", accent: "#F97316", text: "#9A3412", border: "#FED7AA", light: "#FFEDD5" },
-  earth:  { bg: "#FDF6EE", accent: "#B45309", text: "#7C2D12", border: "#DDB898", light: "#FEF3E2" },
-  navy:   { bg: "#EFF6FF", accent: "#3B82F6", text: "#1E40AF", border: "#BFDBFE", light: "#DBEAFE" },
-  rose:   { bg: "#FFF1F2", accent: "#F43F5E", text: "#9F1239", border: "#FECDD3", light: "#FFE4E6" },
-} as const;
-
-type ThemeKey = keyof typeof THEME_PRESETS;
-type MainSurface = "summary" | "detail";
-type BannerSurface = MainSurface | "kotodute" | "ai";
-
-function isMainSurface(surface: BannerSurface): surface is MainSurface {
-  return surface === "summary" || surface === "detail";
-}
+import { ShopFavoriteToast } from "./ShopFavoriteToast";
+import {
+  useShopDetailDrawer,
+  isMainSurface,
+  type MainSurface,
+  type BannerSurface,
+} from "./useShopDetailDrawer";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type ShopDetailBannerProps = {
   shop: Shop;
-  bagCount?: number;
   onClose?: () => void;
-  onAddToBag?: (name: string, fromShopId?: number) => void;
-  variant?: "default" | "kotodute";
   originRect?: { x: number; y: number; width: number; height: number };
   layout?: "overlay" | "inline";
   openNonce?: number;
@@ -70,79 +62,15 @@ type ShopDetailBannerProps = {
   totalShopCount?: number;
   onSelectPreviousShop?: () => void;
   onSelectNextShop?: () => void;
-  activeCouponTypeId?: string;
-  stampedVendorIds?: string[];
   reserveBottomNavSpace?: boolean;
+  /** 「ここへ案内」。おでかけサポートでこの店への道案内を始める。無ければボタンを出さない */
+  onNavigate?: () => void;
 };
-
-type BagItem = {
-  name: string;
-  fromShopId?: number;
-};
-
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const STORAGE_KEY = "nicchyo-fridge-items";
-const KOTODUTE_PREVIEW_LIMIT = 3;
 const OSEKKAI_FALLBACK =
   "あら、ここのお店、最近行ってないねぇ。今日は何が出ちゅうか、ちょっと見てきてくれん？";
 const BOTTOM_NAV_HEIGHT = 56;
-const DRAWER_PEEK_HEIGHT = 150;
-const DRAWER_FULL_RATIO = 0.9;
-const COLLAPSED_SUMMARY_OFFSET_PX = 10;
-
-const buildBagKey = (name: string, shopId?: number) =>
-  `${name.trim().toLowerCase()}-${shopId ?? "any"}`;
-
-
-function findIngredientMatch(name: string) {
-  const lower = name.trim().toLowerCase();
-  return ingredientCatalog.find(
-    (ing) =>
-      ing.name.toLowerCase().includes(lower) ||
-      lower.includes(ing.name.toLowerCase()) ||
-      ing.id.toLowerCase() === lower ||
-      ing.id.toLowerCase().includes(lower) ||
-      ing.aliases?.some(
-        (alias) =>
-          alias.toLowerCase().includes(lower) ||
-          lower.includes(alias.toLowerCase())
-      )
-  );
-}
-
-function loadBagItems(): BagItem[] {
-  if (typeof window === "undefined") return [];
-  const raw = localStorage.getItem(STORAGE_KEY);
-  return safeJsonParse<BagItem[]>(raw, []);
-}
-
-function useCenterBounceTrigger(
-  rootRef: RefObject<HTMLElement | null>,
-  targetRef: RefObject<HTMLElement | null>
-) {
-  const [isActive, setIsActive] = useState(false);
-
-  useEffect(() => {
-    const root = rootRef.current;
-    const target = targetRef.current;
-    if (!root || !target || typeof IntersectionObserver === "undefined") {
-      return;
-    }
-    const observer = new IntersectionObserver(
-      ([entry]) => { setIsActive(entry.isIntersecting); },
-      { root, threshold: 0.55, rootMargin: "-28% 0px -28% 0px" }
-    );
-    observer.observe(target);
-    return () => observer.disconnect();
-  }, [rootRef, targetRef]);
-
-  return isActive;
-}
-
-
-
-
 
 
 // ─── Main Component ───────────────────────────────────────────────────────────
@@ -152,10 +80,6 @@ function areShopDetailBannerPropsEqual(
 ): boolean {
   // shop は DB 再フェッチで参照が変わることがあるため id で比較する
   if (prev.shop.id !== next.shop.id) return false;
-  // stampedVendorIds は配列なので内容で比較する
-  const ps = prev.stampedVendorIds ?? [];
-  const ns = next.stampedVendorIds ?? [];
-  if (ps.length !== ns.length || ps.some((id, i) => id !== ns[i])) return false;
   // originRect はオブジェクトなので各フィールドで比較する
   if (
     prev.originRect?.x !== next.originRect?.x ||
@@ -165,10 +89,8 @@ function areShopDetailBannerPropsEqual(
   ) return false;
   // 残りは primitive または useCallback / setState で安定した参照
   return (
-    prev.bagCount === next.bagCount &&
     prev.onClose === next.onClose &&
-    prev.onAddToBag === next.onAddToBag &&
-    prev.variant === next.variant &&
+    prev.onNavigate === next.onNavigate &&
     prev.layout === next.layout &&
     prev.openNonce === next.openNonce &&
     prev.initialMobileSurface === next.initialMobileSurface &&
@@ -178,7 +100,6 @@ function areShopDetailBannerPropsEqual(
     prev.totalShopCount === next.totalShopCount &&
     prev.onSelectPreviousShop === next.onSelectPreviousShop &&
     prev.onSelectNextShop === next.onSelectNextShop &&
-    prev.activeCouponTypeId === next.activeCouponTypeId &&
     prev.reserveBottomNavSpace === next.reserveBottomNavSpace
   );
 }
@@ -186,8 +107,7 @@ function areShopDetailBannerPropsEqual(
 const ShopDetailBanner = memo(function ShopDetailBanner({
   shop,
   onClose,
-  onAddToBag,
-  variant = "default",
+  onNavigate,
   originRect,
   layout = "overlay",
   openNonce = 0,
@@ -198,39 +118,16 @@ const ShopDetailBanner = memo(function ShopDetailBanner({
   totalShopCount = 0,
   onSelectPreviousShop,
   onSelectNextShop,
-  activeCouponTypeId,
-  stampedVendorIds,
   reserveBottomNavSpace = true,
 }: ShopDetailBannerProps) {
   const router = useRouter();
+  const prefersReducedMotion = useReducedMotion();
   const { permissions } = useAuth();
-  const { addItem, removeItem, items: bagContextItems } = useBag();
-  const [bagProductKeys, setBagProductKeys] = useState<Set<string>>(new Set());
-  const [kotoduteNotes, setKotoduteNotes] = useState<KotoduteNote[]>([]);
-  const [couponInfo, setCouponInfo] = useState<{
-    is_participating: boolean;
-    settings: Array<{
-      coupon_type_id: string;
-      coupon_type_name: string;
-      coupon_type_emoji: string;
-      coupon_type_amount: number;
-      min_purchase_amount: number;
-    }>;
-  } | null>(null);
+  const favoriteEntries = useFavoriteEntries();
+  const { toggleShopFavorite, confirmDialog: removeShopFavoriteDialog } =
+    useShopFavoriteToggle();
   const [currentPostIndex, setCurrentPostIndex] = useState(0);
   const [heroImageError, setHeroImageError] = useState(false);
-
-  // ─── クーポン派生状態 ─────────────────────────────────────────────────────────
-  const isStamped = !!shop.vendorId && (stampedVendorIds ?? []).includes(shop.vendorId);
-  const primaryCouponSetting = couponInfo?.settings?.find(
-    (s) => s.coupon_type_id === activeCouponTypeId
-  ) ?? couponInfo?.settings?.[0] ?? null;
-  const couponStatus: "active" | "stamped" | "participating" | null = (() => {
-    if (!couponInfo?.is_participating || !couponInfo.settings.length) return null;
-    if (isStamped) return "stamped";
-    if (activeCouponTypeId && couponInfo.settings.some((s) => s.coupon_type_id === activeCouponTypeId)) return "active";
-    return "participating";
-  })();
   const [toast, setToast] = useState<{ product: string } | null>(null);
   const [surface, setSurface] = useState<BannerSurface>(initialMobileSurface);
   const [contentInteractive, setContentInteractive] = useState(false);
@@ -239,29 +136,28 @@ const ShopDetailBanner = memo(function ShopDetailBanner({
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   const activePostRef = useRef<HTMLDivElement | null>(null);
   const activePostCarouselRef = useRef<HTMLDivElement | null>(null);
-  const sheetBodyRef = useRef<HTMLDivElement | null>(null);
   const mainScrollTopRef = useRef(0);
-  const lastMainSurfaceRef = useRef<MainSurface>(initialMobileSurface);
-  const drawerRafRef = useRef<number | null>(null);
-  const drawerTranslateRef = useRef(0);
-  const drawerDragRef = useRef({
-    active: false,
-    startY: 0,
-    startTranslate: 0,
-    lastY: 0,
-    lastTime: 0,
-    velocity: 0,
-  });
-  const [isDesktopViewport, setIsDesktopViewport] = useState(() => {
-    if (typeof window === "undefined") return true;
-    return window.innerWidth >= 768;
-  });
-  const [drawerSurface, setDrawerSurface] = useState<MainSurface>(initialMobileSurface);
-  const drawerSurfaceRef = useRef<MainSurface>(initialMobileSurface);
-  drawerSurfaceRef.current = drawerSurface;
-  const [drawerHeights, setDrawerHeights] = useState({
-    peek: DRAWER_PEEK_HEIGHT,
-    full: 620,
+  const bottomNavOffsetPx = reserveBottomNavSpace ? BOTTOM_NAV_HEIGHT : 0;
+
+  const {
+    isMobileOverlay,
+    sheetBodyRef,
+    drawerHeights,
+    lastMainSurfaceRef,
+    syncDrawerSurface,
+    handleDrawerTouchStart,
+    handleDrawerTouchMove,
+    handleDrawerTouchEnd,
+    handleDrawerHandleClick,
+  } = useShopDetailDrawer({
+    layout,
+    initialMobileSurface,
+    openNonce,
+    shopId: shop.id,
+    bottomNavOffsetPx,
+    surface,
+    setSurface,
+    onMobileMainSurfaceChange,
   });
 
   // body scroll lock
@@ -271,130 +167,47 @@ const ShopDetailBanner = memo(function ShopDetailBanner({
     return () => { document.body.classList.remove("shop-banner-open"); };
   }, [layout]);
 
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const handleResize = () => {
-      setIsDesktopViewport(window.innerWidth >= 768);
-    };
-    handleResize();
-    window.addEventListener("resize", handleResize);
-    return () => window.removeEventListener("resize", handleResize);
-  }, []);
-
-  // bag sync
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const updateBag = () => {
-      const items = loadBagItems();
-      const keys = new Set<string>();
-      items.forEach((item) => {
-        const key = buildBagKey(item.name, item.fromShopId);
-        keys.add(key);
-        if (item.fromShopId === undefined) {
-          keys.add(buildBagKey(item.name, undefined));
-        }
-      });
-      setBagProductKeys(keys);
-    };
-    updateBag();
-    const handler = (event: StorageEvent) => {
-      if (event.key === STORAGE_KEY) updateBag();
-    };
-    window.addEventListener("storage", handler);
-    return () => window.removeEventListener("storage", handler);
-  }, []);
-
   // バナー開封カウント
   useEffect(() => {
     incrementBannerOpens();
   }, [shop.id, openNonce]);
 
-  // クーポン参加情報を取得（vendorIdがある出店者のみ、セッション中キャッシュ付き）
+  // 出店者の「お店の分析」のために、お店が開かれたことを数える（同じタブでは1店1回）
   useEffect(() => {
-    const vendorId = shop.vendorId;
-    if (!vendorId) {
-      setCouponInfo(null);
-      return;
-    }
-    fetch(`/api/coupons/shop-info?vendor_id=${encodeURIComponent(vendorId)}`)
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => setCouponInfo(data ?? null))
-      .catch(() => {
-        // クーポン情報取得失敗は無視
-      });
-  }, [shop.vendorId]);
-
-  // kotodute sync
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const updateKotodute = () => {
-      const notes = loadKotodute().filter(
-        (note) => typeof note.shopId === "number" && note.shopId === shop.id
-      );
-      setKotoduteNotes(notes.slice().sort((a, b) => b.createdAt - a.createdAt));
-    };
-    updateKotodute();
-    const handleStorage = (event: StorageEvent) => {
-      if (event.key === "nicchyo-kotodute-notes") updateKotodute();
-    };
-    const handleUpdate = () => updateKotodute();
-    window.addEventListener("storage", handleStorage);
-    window.addEventListener(KOTODUTE_UPDATED_EVENT, handleUpdate);
-    return () => {
-      window.removeEventListener("storage", handleStorage);
-      window.removeEventListener(KOTODUTE_UPDATED_EVENT, handleUpdate);
-    };
-  }, [shop.id, openNonce]);
+    recordShopView(
+      shop.id,
+      layout === "inline" ? sourceFromReferrer(document.referrer, window.location.origin) : "map"
+    );
+  }, [shop.id, layout]);
 
   const handleProductTap = useCallback((product: string) => {
-    // 即追加 (Undo パターン)
-    if (onAddToBag) {
-      onAddToBag(product, shop.id);
-    } else {
-      addItem({ name: product, fromShopId: shop.id });
-    }
-    setBagProductKeys((prev) => {
-      const next = new Set(prev);
-      next.add(buildBagKey(product, shop.id));
-      return next;
-    });
+    const nextEntries = toggleFavoriteProduct(shop.id, product);
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
-    setToast({ product });
-    toastTimerRef.current = setTimeout(() => setToast(null), 3500);
-  }, [addItem, onAddToBag, shop.id]);
+    // 外したときは黙って消す。入れたときだけ、どこに入ったかを伝える
+    if (isProductFavorited(nextEntries, shop.id, product)) {
+      setToast({ product });
+      toastTimerRef.current = setTimeout(() => setToast(null), 3500);
+    } else {
+      setToast(null);
+    }
+  }, [shop.id]);
 
   const handleUndoAdd = useCallback((product: string) => {
-    const item = bagContextItems.slice().reverse().find(
-      (i) => i.name === product && i.fromShopId === shop.id
-    );
-    if (item) removeItem(item.id);
-    setBagProductKeys((prev) => {
-      const next = new Set(prev);
-      next.delete(buildBagKey(product, shop.id));
-      return next;
-    });
+    toggleFavoriteProduct(shop.id, product);
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
     setToast(null);
-  }, [bagContextItems, removeItem, shop.id]);
+  }, [shop.id]);
 
-  const handleBagClick = useCallback(() => { router.push("/bag"); }, [router]);
+  // 商品がぶら下がっているときの確認は useShopFavoriteToggle が持つ
+  const handleToggleShopFavorite = useCallback(() => {
+    toggleShopFavorite(shop.id);
+  }, [toggleShopFavorite, shop.id]);
 
-  const isKotodute = variant === "kotodute";
+  const handleFavoritesClick = useCallback(() => { router.push("/favorites"); }, [router]);
 
-  const matchedIngredientIds = useMemo(() => {
-    if (shop.category !== "食材") return [];
-    return shop.products.map((p) => findIngredientMatch(p)?.id).filter(Boolean) as string[];
-  }, [shop.category, shop.products]);
-
-  const suggestedRecipes = useMemo(() => {
-    if (matchedIngredientIds.length === 0) return [];
-    const ids = new Set(matchedIngredientIds);
-    return recipes.filter((r) => r.ingredientIds.some((id) => ids.has(id))).slice(0, 2);
-  }, [matchedIngredientIds]);
-
-  const canEditShop = permissions.canEditShop(shop.id);
-  const bannerSeed = shop.position ?? shop.id;
-  const bannerImage = shop.images?.main ?? getShopBannerImage(shop.category, bannerSeed);
+  const isShopFavorite = isShopFavorited(favoriteEntries, shop.id);
+  const canEditShop = permissions.canEditShop(shop.vendorId ?? "");
+  const bannerImage = getShopPreviewImage(shop);
 
   const handleEditShop = useCallback(() => { router.push("/my-shop"); }, [router]);
 
@@ -446,13 +259,14 @@ const ShopDetailBanner = memo(function ShopDetailBanner({
     setToast(null);
     setSurface(initialMobileSurface);
     lastMainSurfaceRef.current = initialMobileSurface;
-    setDrawerSurface(initialMobileSurface);
+    // モバイルのドロワー高さ自体のリセットは useShopDetailDrawer 内の
+    // useLayoutEffect（同じ initialMobileSurface / openNonce / shopId を見ている）が担う
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
     armInteractionLock();
     return () => {
       if (interactionLockTimerRef.current) clearTimeout(interactionLockTimerRef.current);
     };
-  }, [armInteractionLock, initialMobileSurface, shop.id, openNonce]);
+  }, [armInteractionLock, initialMobileSurface, lastMainSurfaceRef, shop.id, openNonce]);
 
   useEffect(() => {
     if (activePosts.length <= 1) return;
@@ -472,155 +286,9 @@ const ShopDetailBanner = memo(function ShopDetailBanner({
 
   const isActivePostCentered = useCenterBounceTrigger(scrollContainerRef, activePostRef);
   const isInline = layout === "inline";
-  const isMobileOverlay = layout === "overlay" && !isDesktopViewport;
   const isExpandedMobileMain = isMobileOverlay && surface === "detail";
   const showMobileSummaryHeader = isMobileOverlay && surface === "summary";
   const showMobileDetailControls = isMobileOverlay && surface === "detail";
-  const bottomNavOffsetPx = reserveBottomNavSpace ? BOTTOM_NAV_HEIGHT : 0;
-
-  const getDrawerHeights = useCallback(() => {
-    if (typeof window === "undefined") {
-      return { peek: DRAWER_PEEK_HEIGHT, full: 620 };
-    }
-    const rootStyle = getComputedStyle(document.documentElement);
-    const safeBottom = Number.parseFloat(rootStyle.getPropertyValue("--safe-bottom")) || 0;
-    const full = Math.max(
-      DRAWER_PEEK_HEIGHT + 220,
-      Math.min(
-        window.innerHeight - bottomNavOffsetPx - safeBottom,
-        Math.round(window.innerHeight * DRAWER_FULL_RATIO - bottomNavOffsetPx)
-      )
-    );
-    return {
-      peek: Math.min(DRAWER_PEEK_HEIGHT, full),
-      full,
-    };
-  }, [bottomNavOffsetPx]);
-
-  const getDrawerTranslateForSurface = useCallback((
-    nextSurface: MainSurface | BannerSurface,
-    heights: { peek: number; full: number }
-  ) => {
-    const visibleHeight = nextSurface === "summary" ? heights.peek : heights.full;
-    const baseTranslate = Math.max(0, heights.full - visibleHeight);
-    return nextSurface === "summary"
-      ? baseTranslate + COLLAPSED_SUMMARY_OFFSET_PX
-      : baseTranslate;
-  }, []);
-
-  const applyDrawerTranslate = useCallback((
-    nextTranslate: number,
-    options?: { immediate?: boolean }
-  ) => {
-    if (!isMobileOverlay) return;
-    const body = sheetBodyRef.current;
-    if (!body) return;
-    const maxTranslate = Math.max(
-      0,
-      drawerHeights.full - drawerHeights.peek + COLLAPSED_SUMMARY_OFFSET_PX
-    );
-    const clamped = Math.max(0, Math.min(maxTranslate, nextTranslate));
-    drawerTranslateRef.current = clamped;
-    if (options?.immediate) {
-      // 同期的にDOMを更新 → ブラウザの初回ペイント前に確実に反映
-      if (drawerRafRef.current !== null) {
-        cancelAnimationFrame(drawerRafRef.current);
-        drawerRafRef.current = null;
-      }
-      body.style.transition = "none";
-      body.style.transform = `translate3d(0, ${clamped}px, 0)`;
-    } else {
-      if (drawerRafRef.current !== null) {
-        cancelAnimationFrame(drawerRafRef.current);
-      }
-      drawerRafRef.current = requestAnimationFrame(() => {
-        const target = sheetBodyRef.current;
-        if (!target) return;
-        target.style.transition = "transform 280ms cubic-bezier(0.2, 0.8, 0.2, 1)";
-        target.style.transform = `translate3d(0, ${clamped}px, 0)`;
-      });
-    }
-  }, [drawerHeights.full, drawerHeights.peek, isMobileOverlay]);
-
-  const syncDrawerSurface = useCallback((
-    nextSurface: MainSurface,
-    options?: { immediate?: boolean }
-  ) => {
-    if (!isMobileOverlay) return;
-    lastMainSurfaceRef.current = nextSurface;
-    setDrawerSurface(nextSurface);
-    applyDrawerTranslate(getDrawerTranslateForSurface(nextSurface, drawerHeights), options);
-  }, [applyDrawerTranslate, drawerHeights, getDrawerTranslateForSurface, isMobileOverlay]);
-
-  const handleDrawerTouchStart = useCallback((e: React.TouchEvent) => {
-    if (!isMobileOverlay || !isMainSurface(surface)) return;
-    const touch = e.touches[0];
-    drawerDragRef.current = {
-      active: true,
-      startY: touch.clientY,
-      startTranslate: drawerTranslateRef.current,
-      lastY: touch.clientY,
-      lastTime: performance.now(),
-      velocity: 0,
-    };
-    const body = sheetBodyRef.current;
-    if (body) body.style.transition = "none";
-  }, [isMobileOverlay, surface]);
-
-  const handleDrawerTouchMove = useCallback((e: React.TouchEvent) => {
-    if (!isMobileOverlay || !drawerDragRef.current.active || !isMainSurface(surface)) return;
-    const touch = e.touches[0];
-    const now = performance.now();
-    const dySinceLast = touch.clientY - drawerDragRef.current.lastY;
-    const dt = now - drawerDragRef.current.lastTime;
-    if (dt > 0) {
-      drawerDragRef.current.velocity = (dySinceLast / dt) * 1000;
-    }
-    drawerDragRef.current.lastY = touch.clientY;
-    drawerDragRef.current.lastTime = now;
-    const nextTranslate =
-      drawerDragRef.current.startTranslate + (touch.clientY - drawerDragRef.current.startY);
-    if (e.cancelable) {
-      e.preventDefault();
-    }
-    applyDrawerTranslate(nextTranslate, { immediate: true });
-  }, [applyDrawerTranslate, isMobileOverlay, surface]);
-
-  const handleDrawerTouchEnd = useCallback(() => {
-    if (!isMobileOverlay || !drawerDragRef.current.active || !isMainSurface(surface)) return;
-    drawerDragRef.current.active = false;
-    const velocity = drawerDragRef.current.velocity;
-    const visibleHeight = drawerHeights.full - drawerTranslateRef.current;
-    const snapHeights = [drawerHeights.peek, drawerHeights.full] as const;
-
-    let nextSurface: MainSurface = snapHeights.reduce<MainSurface>((closest, height, index) => {
-      const currentDistance = Math.abs(height - visibleHeight);
-      const closestDistance = Math.abs(
-        (closest === "summary" ? snapHeights[0] : snapHeights[1]) - visibleHeight
-      );
-      return currentDistance < closestDistance
-        ? index === 0
-          ? "summary"
-          : "detail"
-        : closest;
-    }, drawerSurface);
-
-    if (velocity < -220) {
-      nextSurface = "detail";
-    } else if (velocity > 220) {
-      nextSurface = "summary";
-    }
-
-    setSurface(nextSurface);
-    syncDrawerSurface(nextSurface);
-  }, [drawerHeights.full, drawerHeights.peek, drawerSurface, isMobileOverlay, surface, syncDrawerSurface]);
-
-  const handleDrawerHandleClick = useCallback(() => {
-    if (!isMobileOverlay || !isMainSurface(surface)) return;
-    const nextSurface: MainSurface = drawerSurface === "summary" ? "detail" : "summary";
-    setSurface(nextSurface);
-    syncDrawerSurface(nextSurface);
-  }, [drawerSurface, isMobileOverlay, surface, syncDrawerSurface]);
 
   const handleBackToMain = useCallback(() => {
     const nextSurface = lastMainSurfaceRef.current;
@@ -635,19 +303,7 @@ const ShopDetailBanner = memo(function ShopDetailBanner({
       syncDrawerSurface(nextSurface, { immediate: false });
     }
     armInteractionLock(420);
-  }, [armInteractionLock, isMobileOverlay, syncDrawerSurface]);
-
-  const handleOpenKotodutePanel = useCallback(() => {
-    if (!contentInteractive) return;
-    mainScrollTopRef.current = scrollContainerRef.current?.scrollTop ?? 0;
-    if (isMainSurface(surface)) {
-      lastMainSurfaceRef.current = surface;
-    }
-    setSurface("kotodute");
-    if (isMobileOverlay) {
-      syncDrawerSurface("detail");
-    }
-  }, [contentInteractive, isMobileOverlay, surface, syncDrawerSurface]);
+  }, [armInteractionLock, isMobileOverlay, lastMainSurfaceRef, syncDrawerSurface]);
 
   const handleOpenAiPanel = useCallback(() => {
     if (!contentInteractive) return;
@@ -659,74 +315,38 @@ const ShopDetailBanner = memo(function ShopDetailBanner({
     if (isMobileOverlay) {
       syncDrawerSurface("detail");
     }
-  }, [contentInteractive, isMobileOverlay, surface, syncDrawerSurface]);
+  }, [contentInteractive, isMobileOverlay, lastMainSurfaceRef, surface, syncDrawerSurface]);
 
-  useEffect(() => {
-    if (!isMobileOverlay) return;
-    const updateDrawerHeights = () => {
-      const nextHeights = getDrawerHeights();
-      setDrawerHeights(nextHeights);
-      // ref から読むことで stale closure / 循環依存を回避
-      const nextSurface = drawerSurfaceRef.current;
-      drawerTranslateRef.current = getDrawerTranslateForSurface(nextSurface, nextHeights);
-      const body = sheetBodyRef.current;
-      if (body) {
-        body.style.transition = "none";
-        body.style.transform = `translate3d(0, ${drawerTranslateRef.current}px, 0)`;
+  // ─── 共有 ──────────────────────────────────────────────────────────────────
+  // 店舗ページ（/shops/001）の URL を送る。OGP があるので LINE では店名と写真のカードになる。
+  // 共有シートが使える端末はそれを出し、無い端末は LINE の共有画面へ（URL はクリップボードにも入れる）
+  const shareCode = formatShopIdToCode(shop.id) ?? String(shop.id);
+  const handleShare = useCallback(async () => {
+    if (typeof window === "undefined") return;
+    const url = `${window.location.origin}/shops/${shareCode}`;
+    const title = `${shop.name}｜高知・日曜市 ${shareCode}番`;
+    if (typeof navigator.share === "function") {
+      try {
+        await navigator.share({ title, text: title, url });
+      } catch {
+        // 利用者がキャンセルしたときも来る。何もしない
       }
-    };
-    updateDrawerHeights();
-    window.addEventListener("resize", updateDrawerHeights);
-    return () => window.removeEventListener("resize", updateDrawerHeights);
-  }, [getDrawerHeights, getDrawerTranslateForSurface, isMobileOverlay]);
-
-  useEffect(() => {
-    if (!isMobileOverlay || !isMainSurface(surface)) return;
-    onMobileMainSurfaceChange?.(surface);
-  }, [isMobileOverlay, onMobileMainSurfaceChange, surface]);
-
-  // useLayoutEffect で paint 前に同期的にDOMを更新 → 初回フラッシュを防ぐ
-  // applyDrawerTranslate / drawerHeights を deps に入れない → 循環依存を断ち切る
-  useLayoutEffect(() => {
-    if (!isMobileOverlay) return;
-    const nextSurface: MainSurface = initialMobileSurface;
-    lastMainSurfaceRef.current = nextSurface;
-    drawerSurfaceRef.current = nextSurface;
-    setDrawerSurface(nextSurface);
-    setSurface(nextSurface);
-    const heights = getDrawerHeights();
-    setDrawerHeights(heights);
-    const expandedTranslate = getDrawerTranslateForSurface(nextSurface, heights);
-    drawerTranslateRef.current = expandedTranslate;
-
-    const body = sheetBodyRef.current;
-    if (!body) return;
-
-    // ① ペイント前にパネルを完全に画面外（下）に配置
-    body.style.transition = "none";
-    body.style.transform = `translate3d(0, ${heights.full}px, 0)`;
-
-    // ② ペイント後、展開位置へスライドアップ（下から登場するアニメーション）
-    const rafId = requestAnimationFrame(() => {
-      body.style.transition = "transform 350ms cubic-bezier(0.2, 0.8, 0.2, 1)";
-      body.style.transform = `translate3d(0, ${expandedTranslate}px, 0)`;
-    });
-
-    return () => cancelAnimationFrame(rafId);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initialMobileSurface, isMobileOverlay, openNonce, shop.id]);
-
-  useEffect(() => {
-    return () => {
-      if (drawerRafRef.current !== null) {
-        cancelAnimationFrame(drawerRafRef.current);
-      }
-    };
-  }, []);
+      return;
+    }
+    try {
+      await navigator.clipboard?.writeText(url);
+    } catch {
+      // クリップボードが使えない環境。LINE の共有画面だけ開く
+    }
+    window.open(
+      `https://social-plugins.line.me/lineit/share?url=${encodeURIComponent(url)}`,
+      "_blank",
+      "noopener,noreferrer"
+    );
+  }, [shareCode, shop.name]);
 
   // ─── Theme ──────────────────────────────────────────────────────────────────
-  const themeKey: ThemeKey = (shop.themeColor as ThemeKey) ?? "amber";
-  const theme = THEME_PRESETS[themeKey] ?? THEME_PRESETS.amber;
+  const theme = resolveBannerTheme(shop.themeColor);
 
   // ─── Render ──────────────────────────────────────────────────────────────────
   return (
@@ -785,7 +405,7 @@ const ShopDetailBanner = memo(function ShopDetailBanner({
           {showMobileSummaryHeader && (
             <div
               className="relative shrink-0 overflow-hidden border-b border-slate-100 bg-white px-4 pb-3 pt-2 touch-none"
-              style={{ height: `${DRAWER_PEEK_HEIGHT}px` }}
+              style={{ height: `${drawerHeights.peek}px` }}
               onTouchStart={handleDrawerTouchStart}
               onTouchMove={handleDrawerTouchMove}
               onTouchEnd={handleDrawerTouchEnd}
@@ -816,10 +436,7 @@ const ShopDetailBanner = memo(function ShopDetailBanner({
                 heroImageError={heroImageError}
                 onImageError={() => setHeroImageError(true)}
                 mode="compact"
-                isKotodute={isKotodute}
                 showProductPreview
-                couponStatus={couponStatus}
-                primaryCouponSetting={primaryCouponSetting}
               />
             </div>
           )}
@@ -850,20 +467,15 @@ const ShopDetailBanner = memo(function ShopDetailBanner({
           )}
 
           <div className="relative flex-1 overflow-hidden">
-            {/* ── Slide rail (2 panels: main + kotodute) ─────────────────────── */}
             <div
-              className={`flex h-full transition-transform duration-300 ease-in-out ${
+              className={`flex h-full ${
                 contentInteractive ? "pointer-events-auto" : "pointer-events-none"
               }`}
-              style={{
-                width: "200%",
-                transform: surface === "kotodute" ? "translateX(-50%)" : "translateX(0)",
-              }}
             >
               {/* ── Main panel ─────────────────────────────────────────────── */}
               <div
                 ref={scrollContainerRef}
-                className={`h-full w-1/2 overflow-y-auto ${isInline ? "px-0 pb-16 pt-0" : isMobileOverlay ? "pb-10" : "pb-10 md:pb-16"}`}
+                className={`h-full w-full overflow-y-auto ${isInline ? "px-0 pb-16 pt-0" : isMobileOverlay ? "pb-10" : "pb-10 md:pb-16"}`}
               >
         {/* ══════════════════════════════════════════════════════════════════
             HERO — Full-bleed cover with gradient overlay
@@ -876,8 +488,9 @@ const ShopDetailBanner = memo(function ShopDetailBanner({
             heroImageError={heroImageError}
             onImageError={() => setHeroImageError(true)}
             mode="expanded"
-            isKotodute={isKotodute}
             onEdit={canEditShop ? handleEditShop : undefined}
+            isFavorite={isShopFavorite}
+            onToggleFavorite={handleToggleShopFavorite}
           />
         )}
 
@@ -890,7 +503,6 @@ const ShopDetailBanner = memo(function ShopDetailBanner({
               heroImageError={heroImageError}
               onImageError={() => setHeroImageError(true)}
               mode="expanded"
-              isKotodute={isKotodute}
             />
           </div>
         )}
@@ -898,7 +510,32 @@ const ShopDetailBanner = memo(function ShopDetailBanner({
         {/* ── Accent color bar ─────────────────────────────────────────────── */}
         <div className="h-1 w-full" style={{ backgroundColor: theme.accent }} />
 
-        {!isKotodute && isMobileOverlay && (
+        {/* ── 共有 / ここへ案内 ─────────────────────────────────────────── */}
+        <div className="flex items-center gap-2 px-5 pt-4">
+          {onNavigate && (
+            <motion.button
+              type="button"
+              onClick={onNavigate}
+              whileTap={{ scale: 0.96 }}
+              className="flex h-11 flex-1 items-center justify-center gap-2 rounded-full bg-nicchyo-accent text-[14px] font-black text-nicchyo-ink shadow-[0_6px_18px_rgba(58,58,58,0.18)]"
+            >
+              <Navigation className="h-4 w-4" aria-hidden />
+              ここへ案内
+            </motion.button>
+          )}
+          <motion.button
+            type="button"
+            onClick={handleShare}
+            whileTap={{ scale: 0.96 }}
+            aria-label="このお店を共有する"
+            className={`flex h-11 items-center justify-center gap-2 rounded-full border border-slate-200 bg-white px-4 text-[14px] font-bold text-slate-700 shadow-sm active:bg-slate-50 ${onNavigate ? "" : "flex-1"}`}
+          >
+            <Share2 className="h-4 w-4" aria-hidden />
+            共有
+          </motion.button>
+        </div>
+
+        {isMobileOverlay && (
           <div className="space-y-4 px-5 pt-6">
             {canNavigateBetweenShops && totalShopCount > 1 && (
               <div className="rounded-2xl border border-slate-200 bg-white/95 p-2 shadow-sm">
@@ -946,16 +583,6 @@ const ShopDetailBanner = memo(function ShopDetailBanner({
                   />
                 )}
 
-                {/* ── クーポンカード（モバイル detail） ─────────────── */}
-                {!isKotodute && primaryCouponSetting && couponStatus && (
-                  <CouponInfoCard
-                    setting={primaryCouponSetting}
-                    allSettings={couponInfo!.settings}
-                    couponStatus={couponStatus}
-                    activeCouponTypeId={activeCouponTypeId}
-                  />
-                )}
-
                 <div>
                   <div className="mb-3 flex items-center justify-between gap-3">
                     <div>
@@ -969,20 +596,18 @@ const ShopDetailBanner = memo(function ShopDetailBanner({
                     {shop.products.length > 0 && (
                       <button
                         type="button"
-                        onClick={handleBagClick}
+                        onClick={handleFavoritesClick}
                         className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 shadow-sm transition hover:bg-slate-100"
                       >
-                        <ShoppingBag className="h-3.5 w-3.5" />
-                        買い物リスト
+                        <Heart className="h-3.5 w-3.5" />
+                        お気に入り
                       </button>
                     )}
                   </div>
                   {shop.products.length > 0 ? (
                     <div className="space-y-2.5">
                       {shop.products.map((product) => {
-                        const specificKey = buildBagKey(product, shop.id);
-                        const anyKey = buildBagKey(product, undefined);
-                        const isInBag = bagProductKeys.has(specificKey) || bagProductKeys.has(anyKey);
+                        const isProductFavorite = isProductFavorited(favoriteEntries, shop.id, product);
                         const price = shop.productPrices?.[product] ?? null;
                         const productImage = productDetailsByName.get(product.trim().toLowerCase())?.imageUrl;
                         return (
@@ -1013,13 +638,22 @@ const ShopDetailBanner = memo(function ShopDetailBanner({
                             <button
                               type="button"
                               onClick={() => handleProductTap(product)}
-                              className={`shrink-0 rounded-full px-3 py-2 text-xs font-bold transition ${
-                                isInBag
-                                  ? "bg-emerald-50 text-emerald-700"
-                                  : "bg-slate-900 text-white"
+                              aria-pressed={isProductFavorite}
+                              aria-label={
+                                isProductFavorite
+                                  ? `${product}をお気に入りから外す`
+                                  : `${product}をお気に入りに入れる`
+                              }
+                              className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full border transition active:scale-95 ${
+                                isProductFavorite
+                                  ? "border-favorite-line bg-favorite-fg text-white"
+                                  : "border-favorite-line bg-white text-favorite-fg hover:bg-favorite-bg"
                               }`}
                             >
-                              {isInBag ? "もう一つ" : "追加"}
+                              <Heart
+                                className="h-[18px] w-[18px]"
+                                fill={isProductFavorite ? "currentColor" : "none"}
+                              />
                             </button>
                           </div>
                         );
@@ -1050,25 +684,6 @@ const ShopDetailBanner = memo(function ShopDetailBanner({
                       <p className="mt-0.5 text-[11px] text-slate-500">他のお店と迷った時も相談できます</p>
                     </div>
                   </button>
-                  <button
-                    type="button"
-                    onClick={handleOpenKotodutePanel}
-                    className="flex items-center gap-3 rounded-2xl border bg-white px-4 py-3.5 text-left transition hover:opacity-90 active:scale-[0.98]"
-                    style={{ borderColor: theme.border }}
-                  >
-                    <div
-                      className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full"
-                      style={{ backgroundColor: theme.bg }}
-                    >
-                      <MessageSquarePlus className="h-[18px] w-[18px]" style={{ color: theme.accent }} />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-sm font-bold" style={{ color: theme.text }}>ことづて</p>
-                      <p className="mt-0.5 text-[11px] text-slate-500">
-                        {kotoduteNotes.length > 0 ? `${kotoduteNotes.length}件のコメント` : "他の人の感想を見る"}
-                      </p>
-                    </div>
-                  </button>
                 </div>
               </div>
             </div>
@@ -1078,7 +693,7 @@ const ShopDetailBanner = memo(function ShopDetailBanner({
         {/* ══════════════════════════════════════════════════════════════════
             PRODUCTS — 商品と値段（ヒーロー直下に移動）
         ══════════════════════════════════════════════════════════════════ */}
-        {!isKotodute && !isMobileOverlay && shop.products.length > 0 && (
+        {!isMobileOverlay && shop.products.length > 0 && (
           <div className="px-5 pt-4 pb-2">
             <div className="mb-3 flex items-center justify-between">
               <p className="text-xs font-bold uppercase tracking-widest" style={{ color: theme.text }}>
@@ -1086,71 +701,50 @@ const ShopDetailBanner = memo(function ShopDetailBanner({
               </p>
               <button
                 type="button"
-                onClick={handleBagClick}
+                onClick={handleFavoritesClick}
                 className="flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 shadow-sm transition hover:bg-slate-50"
               >
-                <ShoppingBag className="h-3.5 w-3.5" />
-                買い物リスト
+                <Heart className="h-3.5 w-3.5" />
+                お気に入り
               </button>
             </div>
             <div className="flex flex-wrap gap-2">
               {shop.products.map((product) => {
-                const specificKey = buildBagKey(product, shop.id);
-                const anyKey = buildBagKey(product, undefined);
-                const isInBag = bagProductKeys.has(specificKey) || bagProductKeys.has(anyKey);
+                const isProductFavorite = isProductFavorited(favoriteEntries, shop.id, product);
                 const price = shop.productPrices?.[product] ?? null;
                 return (
                   <button
                     key={product}
                     type="button"
                     onClick={() => handleProductTap(product)}
+                    aria-pressed={isProductFavorite}
                     className={`flex items-center gap-1.5 rounded-2xl border px-3 py-2 text-sm font-semibold shadow-sm transition hover:shadow-md ${
-                      isInBag
-                        ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+                      isProductFavorite
+                        ? "border-favorite-line bg-favorite-bg text-favorite-fg"
                         : "border-slate-200 bg-white text-slate-700 hover:border-slate-300"
                     }`}
                   >
+                    <Heart
+                      className={`h-3.5 w-3.5 shrink-0 ${isProductFavorite ? "text-favorite-fg" : "text-slate-300"}`}
+                      fill={isProductFavorite ? "currentColor" : "none"}
+                    />
                     <span>{product}</span>
                     {price != null && (
-                      <span className={`rounded-full px-1.5 py-0.5 text-xs font-bold ${isInBag ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-500"}`}>
+                      <span className={`rounded-full px-1.5 py-0.5 text-xs font-bold ${isProductFavorite ? "bg-white text-favorite-fg" : "bg-slate-100 text-slate-500"}`}>
                         ¥{price.toLocaleString()}
                       </span>
                     )}
-                    {isInBag && <span className="text-emerald-500">✓</span>}
                   </button>
                 );
               })}
             </div>
-            {shop.category === "食材" && suggestedRecipes.length > 0 && (
-              <div className="mt-4 space-y-2">
-                <p className="text-xs font-semibold text-slate-400">この食材で作れるレシピ</p>
-                {suggestedRecipes.map((recipe) => (
-                  <Link
-                    key={recipe.id}
-                    href={`/recipes/${recipe.id}`}
-                    className="flex items-center gap-3 rounded-xl border border-slate-100 bg-white px-3 py-2.5 shadow-sm transition hover:bg-slate-50"
-                  >
-                    {recipe.heroImage && (
-                      <div className="h-12 w-14 shrink-0 overflow-hidden rounded-lg">
-                        <Image src={recipe.heroImage} alt={recipe.title} width={112} height={96} className="h-full w-full object-cover" />
-                      </div>
-                    )}
-                    <div className="min-w-0 flex-1">
-                      <p className="line-clamp-1 text-sm font-semibold text-slate-900">{recipe.title}</p>
-                      <p className="mt-0.5 line-clamp-1 text-xs text-slate-500">{recipe.description}</p>
-                    </div>
-                    <ChevronRight className="h-4 w-4 shrink-0 text-slate-300" />
-                  </Link>
-                ))}
-              </div>
-            )}
           </div>
         )}
 
         {/* ══════════════════════════════════════════════════════════════════
             IDENTITY — Owner, location, quick info
         ══════════════════════════════════════════════════════════════════ */}
-        {!isKotodute && !isMobileOverlay && (
+        {!isMobileOverlay && (
           <div className="px-5 pt-4 pb-2">
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-slate-500">
               <span className="flex items-center gap-1">
@@ -1205,21 +799,9 @@ const ShopDetailBanner = memo(function ShopDetailBanner({
         <div className={`px-5 ${isMobileOverlay ? "pb-8 pt-6 space-y-7" : "pb-6 space-y-6"}`}>
 
           {/* ════════════════════════════════════════════════════════════════
-              COUPON — 参加・使えるクーポン情報
-          ════════════════════════════════════════════════════════════════ */}
-          {!isKotodute && !isMobileOverlay && primaryCouponSetting && couponStatus && (
-            <CouponInfoCard
-              setting={primaryCouponSetting}
-              allSettings={couponInfo!.settings}
-              couponStatus={couponStatus}
-              activeCouponTypeId={activeCouponTypeId}
-            />
-          )}
-
-          {/* ════════════════════════════════════════════════════════════════
               TODAY'S ANNOUNCEMENT — Rich card
           ════════════════════════════════════════════════════════════════ */}
-          {!isKotodute && activePosts.length > 0 && !isMobileOverlay && (
+          {activePosts.length > 0 && !isMobileOverlay && (
             <PostCarousel
               activePosts={activePosts}
               theme={theme}
@@ -1233,15 +815,14 @@ const ShopDetailBanner = memo(function ShopDetailBanner({
           {/* ════════════════════════════════════════════════════════════════
               SHOP STORY — こだわり with grandma character
           ════════════════════════════════════════════════════════════════ */}
-          {!isKotodute && (
-            <div>
+          <div>
               <p className="mb-2 text-xs font-bold uppercase tracking-widest" style={{ color: theme.text }}>
                 お店のこだわり
               </p>
               <div className="flex items-start gap-3">
                 <div className="shrink-0">
                   <Image
-                    src="/images/obaasan_transparent.png"
+                    src="/images/obaasan_transparent.webp"
                     alt="おせっかいばあちゃん"
                     width={60}
                     height={60}
@@ -1257,13 +838,11 @@ const ShopDetailBanner = memo(function ShopDetailBanner({
                 </div>
               </div>
             </div>
-          )}
 
           {/* ════════════════════════════════════════════════════════════════
               STALL INFO — Style, payment, rain policy
           ════════════════════════════════════════════════════════════════ */}
-          {!isKotodute && (
-            <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4 space-y-4">
+          <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4 space-y-4">
               {/* Style tags */}
               {((shop.stallStyleTags ?? []).length > 0 || shop.stallStyle || (shop.rainPolicy && shop.rainPolicy !== "undecided")) && (
                 <div>
@@ -1299,12 +878,11 @@ const ShopDetailBanner = memo(function ShopDetailBanner({
                 </div>
               )}
             </div>
-          )}
 
           {/* ════════════════════════════════════════════════════════════════
               AI CONSULT — Dedicated card
           ════════════════════════════════════════════════════════════════ */}
-          {!isKotodute && !isMobileOverlay && (
+          {!isMobileOverlay && (
             <button
               type="button"
               onClick={handleOpenAiPanel}
@@ -1325,78 +903,11 @@ const ShopDetailBanner = memo(function ShopDetailBanner({
             </button>
           )}
 
-          {/* ════════════════════════════════════════════════════════════════
-              KOTODUTE — User comments
-          ════════════════════════════════════════════════════════════════ */}
-          <div>
-            <div className="mb-3 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <p className="text-xs font-bold uppercase tracking-widest" style={{ color: theme.text }}>ことづて</p>
-                {kotoduteNotes.length > 0 && (
-                  <span className="rounded-full px-1.5 py-0.5 text-[10px] font-bold" style={{ backgroundColor: theme.light, color: theme.text }}>
-                    {kotoduteNotes.length}
-                  </span>
-                )}
-              </div>
-              {kotoduteNotes.length > 0 && (
-                <button type="button" onClick={handleOpenKotodutePanel} className="flex items-center gap-1 text-xs font-semibold text-slate-500 transition hover:text-slate-700">
-                  もっと見る
-                  <ChevronRight className="h-3.5 w-3.5" />
-                </button>
-              )}
-            </div>
-
-            {kotoduteNotes.length === 0 ? (
-              <button
-                type="button"
-                onClick={handleOpenKotodutePanel}
-                className="flex w-full items-center gap-3 rounded-2xl border-2 border-dashed px-4 py-4 transition hover:opacity-80 active:scale-[0.98]"
-                style={{ borderColor: theme.border, backgroundColor: theme.bg }}
-              >
-                <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full" style={{ backgroundColor: theme.light }}>
-                  <MessageSquarePlus className="h-4 w-4" style={{ color: theme.accent }} />
-                </div>
-                <div className="min-w-0 flex-1 text-left">
-                  <p className="text-sm font-bold" style={{ color: theme.text }}>一番乗りでコメントしよう！</p>
-                  <p className="mt-0.5 text-xs text-slate-500">お店の感想やおすすめを教えてください</p>
-                </div>
-                <ChevronRight className="h-4 w-4 flex-shrink-0 text-slate-400" />
-              </button>
-            ) : (
-              <div className="space-y-2">
-                {kotoduteNotes.slice(0, KOTODUTE_PREVIEW_LIMIT).map((note) => (
-                  <div key={note.id} className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2.5 text-sm text-slate-700">
-                    {note.text.replace(KOTODUTE_TAG_REGEX, "").trim()}
-                  </div>
-                ))}
-                <button
-                  type="button"
-                  onClick={handleOpenKotodutePanel}
-                  className="mt-1 flex w-full items-center justify-center gap-1.5 rounded-xl border py-2.5 text-xs font-bold transition hover:opacity-80"
-                  style={{ borderColor: theme.border, color: theme.text, backgroundColor: theme.bg }}
-                >
-                  <MessageSquarePlus className="h-3.5 w-3.5" />
-                  コメントを投稿する
-                </button>
-              </div>
-            )}
-          </div>
           </div>{/* space-y-6 */}
           </div>{/* main panel */}
-          {/* ── Kotodute panel ─────────────────────────────────────────── */}
-          <div className="h-full w-1/2 overflow-y-auto">
-            <KotodutePanel
-              shop={shop}
-              bannerImage={bannerImage}
-              heroImageError={heroImageError}
-              theme={theme}
-              onBack={handleBackToMain}
-              onClose={isMobileOverlay ? onClose : undefined}
-            />
-          </div>
         </div>
 
-        {/* ── AI panel (absolute overlay, independent of slide rail) ─────── */}
+        {/* ── AI panel (absolute overlay) ─────── */}
         <div
           className="absolute inset-0 z-20 bg-white transition-transform duration-300 ease-in-out"
           style={{ transform: surface === "ai" ? "translateX(0)" : "translateX(100%)" }}
@@ -1414,23 +925,15 @@ const ShopDetailBanner = memo(function ShopDetailBanner({
           </div>
       </div>
 
-      {/* ── Undo toast ───────────────────────────────────────────────────────── */}
-      {toast && (
-        <div className="fixed bottom-6 left-1/2 z-[3100] flex -translate-x-1/2 items-center gap-3 rounded-2xl bg-slate-900 px-4 py-3 shadow-xl text-sm text-white">
-          <span>「{toast.product}」を追加しました</span>
-          <button
-            type="button"
-            onClick={() => handleUndoAdd(toast.product)}
-            className="rounded-full bg-white/20 px-3 py-1 text-xs font-bold transition hover:bg-white/30"
-          >
-            取り消す
-          </button>
-        </div>
-      )}
+      <ShopFavoriteToast
+        product={toast?.product ?? null}
+        onUndo={handleUndoAdd}
+        reduceMotion={!!prefersReducedMotion}
+      />
+
+      {removeShopFavoriteDialog}
     </div>
   );
 }, areShopDetailBannerPropsEqual);
 
 export default ShopDetailBanner;
-
-

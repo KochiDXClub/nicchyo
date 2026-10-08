@@ -1,9 +1,29 @@
-﻿"use client";
+"use client";
 
+import { resolveAvatarUrl, resolveDisplayName } from "./displayName";
 import React, { createContext, useContext, useEffect, useRef, useState, ReactNode } from "react";
 import type { User, UserRole, PermissionCheck } from "./types";
-import type { User as SupabaseUser } from "@supabase/supabase-js";
-import { createClient } from "@/utils/supabase/client";
+import type { SupabaseClient, User as SupabaseUser } from "@supabase/supabase-js";
+import { fetchShopMembership, ShopMembershipLookupError } from "@/lib/vendor/shopMembership";
+import { hasShopPermission, type ShopMembership, type ShopPermission } from "@/lib/vendor/shopPermissions";
+import { useRouter } from "next/navigation";
+
+type BrowserSupabase = ReturnType<(typeof import("@/utils/supabase/client"))["createClient"]>;
+
+// Supabase のライブラリ（圧縮後で約60KB）は、ログイン状態を確かめるまで要らない。
+// 静的に import すると全ページの最初の JS に入り、地図など表示に必要な JS と
+// 回線を取り合うため、使う直前に読み込む（読み込みは1回だけ）
+let supabasePromise: Promise<BrowserSupabase> | null = null;
+function loadSupabase(): Promise<BrowserSupabase> {
+  supabasePromise ??= import("@/utils/supabase/client")
+    .then((mod) => mod.createClient())
+    .catch((err: unknown) => {
+      // 読み込みに失敗したら次の呼び出しで取り直せるようにする
+      supabasePromise = null;
+      throw err;
+    });
+  return supabasePromise;
+}
 
 interface AuthContextType {
   isLoggedIn: boolean;
@@ -13,7 +33,8 @@ interface AuthContextType {
     password: string,
     captchaToken?: string
   ) => Promise<User | null>;
-  updateProfile: (updates: Pick<User, "name" | "email" | "phone" | "avatarUrl">) => Promise<void>;
+  /** 保存できたら true。失敗したら false（画面で知らせられるように） */
+  updateProfile: (updates: Pick<User, "name" | "email" | "phone" | "avatarUrl">) => Promise<boolean>;
   logout: () => Promise<void>;
   isLoading: boolean;
   permissions: PermissionCheck;
@@ -22,40 +43,43 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 function normalizeRole(value?: string | null): UserRole {
-  if (value === "admin") return "super_admin";
-  if (value === "super_admin") return "super_admin";
+  if (value === "admin") return "admin";
   if (value === "moderator") return "moderator";
   if (value === "vendor") return "vendor";
   return "general_user";
 }
 
-function getVendorId(value: unknown): number | undefined {
-  if (typeof value === "number" && Number.isFinite(value)) return value;
-  if (typeof value === "string") {
-    const parsed = Number(value);
-    return Number.isFinite(parsed) ? parsed : undefined;
-  }
-  return undefined;
-}
-
-function mapSupabaseUser(user: SupabaseUser): User {
+async function mapSupabaseUserWithVendorId(user: SupabaseUser, supabase: BrowserSupabase): Promise<User> {
   const appMeta = user.app_metadata as { role?: string; provider?: string } | undefined;
   const userMeta = user.user_metadata as {
     role?: string;
-    vendorId?: unknown;
-    name?: string;
-    full_name?: string;
-    avatarUrl?: string;
-    avatar_url?: string;
     phone?: string;
   } | undefined;
 
   const role = normalizeRole(appMeta?.role);
-  const vendorId = getVendorId(userMeta?.vendorId);
-  const name = userMeta?.name ?? userMeta?.full_name ?? (user.email ? user.email.split("@")[0] : "user");
-  const avatarUrl = userMeta?.avatarUrl ?? userMeta?.avatar_url;
+  const name = resolveDisplayName(user, "user");
+  const avatarUrl = resolveAvatarUrl(user);
   const provider = appMeta?.provider ?? "email";
   const phone = userMeta?.phone;
+
+  // 所属店舗は shop_members から取得する（user_metadata は改ざん可能なため使用しない）。
+  // 店舗の ID（vendors.id）はアカウントの ID と別なので、user.id を店舗 ID として使わないこと
+  let vendorId: string | undefined = undefined;
+  let shopMembership: ShopMembership | undefined = undefined;
+  let shopMembershipLookupFailed = false;
+  if (role === "vendor" && user.id) {
+    try {
+      const membership = await fetchShopMembership(supabase as unknown as SupabaseClient, user.id);
+      if (membership) {
+        vendorId = membership.vendorId;
+        shopMembership = { role: membership.role, permissions: membership.permissions };
+      }
+    } catch (err) {
+      // 通信などの一時的な失敗。「店舗に入っていない」と取り違えないよう印を付ける（権限は付けない）
+      if (!(err instanceof ShopMembershipLookupError)) throw err;
+      shopMembershipLookupFailed = true;
+    }
+  }
 
   return {
     id: user.id,
@@ -65,25 +89,29 @@ function mapSupabaseUser(user: SupabaseUser): User {
     avatarUrl,
     role,
     vendorId,
+    shopMembership,
+    shopMembershipLookupFailed: shopMembershipLookupFailed || undefined,
     provider,
   };
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const supabaseRef = useRef<ReturnType<typeof createClient> | null>(null);
+  const router = useRouter();
+  const supabaseRef = useRef<BrowserSupabase | null>(null);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     let active = true;
+    let unsubscribe: (() => void) | null = null;
 
     const init = async () => {
       if (!supabaseRef.current) {
         try {
-          supabaseRef.current = createClient();
+          supabaseRef.current = await loadSupabase();
         } catch {
-          setIsLoading(false);
+          if (active) setIsLoading(false);
           return;
         }
       }
@@ -91,56 +119,77 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const supabase = supabaseRef.current;
       if (!supabase) return;
 
-      const { data } = await supabase.auth.getSession();
-      if (!active) return;
-      if (data.session?.user) {
-        setUser(mapSupabaseUser(data.session.user));
-        setIsLoggedIn(true);
-      } else {
-        setUser(null);
-        setIsLoggedIn(false);
-      }
-      setIsLoading(false);
-
-      const { data: subscription } = supabase.auth.onAuthStateChange((_event, session) => {
+      try {
+        // getSession() はサーバー検証なし。getUser() でサーバーサイド検証を行う
+        const { data, error } = await supabase.auth.getUser();
+        // 未ログイン状態では "Auth session missing!" が返るが、これは異常系ではない
+        if (error && error.name !== "AuthSessionMissingError") {
+          console.error("[AuthContext] getUser failed:", error.message);
+        }
         if (!active) return;
-        if (session?.user) {
-          setUser(mapSupabaseUser(session.user));
+        if (data.user) {
+          const mapped = await mapSupabaseUserWithVendorId(data.user, supabase);
+          if (!active) return;
+          setUser(mapped);
           setIsLoggedIn(true);
+        } else {
+          setUser(null);
+          setIsLoggedIn(false);
+        }
+        setIsLoading(false);
+      } catch (err) {
+        console.error("[AuthContext] init failed:", err);
+        if (active) setIsLoading(false);
+        return;
+      }
+
+      const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
+        if (!active) return;
+        // INITIAL_SESSION は getUser() で処理済みのためスキップ（未検証ローカルトークンによる上書きを防ぐ）
+        if (event === "INITIAL_SESSION") return;
+        if (session?.user) {
+          mapSupabaseUserWithVendorId(session.user, supabase).then((mapped) => {
+            if (!active) return;
+            setUser(mapped);
+            setIsLoggedIn(true);
+          }).catch((err) => {
+            console.error("[AuthContext] mapSupabaseUserWithVendorId failed:", err);
+          });
         } else {
           setUser(null);
           setIsLoggedIn(false);
         }
       });
 
-      return () => {
-        subscription.subscription.unsubscribe();
-      };
+      unsubscribe = () => sub.subscription.unsubscribe();
+      // cleanup が先に走っていた場合は即座に解除する
+      if (!active) unsubscribe();
     };
 
-    const cleanupPromise = init();
+    init();
     return () => {
       active = false;
-      if (cleanupPromise && typeof cleanupPromise.then === "function") {
-        cleanupPromise.then((cleanup) => cleanup?.());
-      }
+      unsubscribe?.();
     };
   }, []);
 
   const permissions: PermissionCheck = {
-    isSuperAdmin: user?.role === "super_admin",
-    isModerator: user?.role === "moderator",
+    isAdmin: user?.role === "admin",
+    isModerator: user?.role === "admin" || user?.role === "moderator",
     isVendor: user?.role === "vendor",
     isGeneralUser: user?.role === "general_user",
 
-    canEditShop: (shopId: number) => {
-      if (user?.role === "super_admin") return true;
-      if (user?.role === "vendor" && user.vendorId === shopId) return true;
+    canEditShop: (shopVendorId: string) => {
+      if (user?.role === "admin") return true;
+      if (user?.role === "vendor" && user.vendorId === shopVendorId) return true;
       return false;
     },
 
-    canManageAllShops: user?.role === "super_admin",
-    canModerateContent: user?.role === "super_admin" || user?.role === "moderator",
+    canShop: (permission: ShopPermission) =>
+      user?.role === "vendor" && hasShopPermission(user.shopMembership, permission),
+
+    canManageAllShops: user?.role === "admin",
+    canModerateContent: user?.role === "admin" || user?.role === "moderator",
   };
 
   const loginWithCredentials = async (
@@ -149,24 +198,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     captchaToken?: string
   ) => {
     const email = identifier.trim();
-    const supabase = supabaseRef.current ?? createClient();
+    const supabase = supabaseRef.current ?? (await loadSupabase());
     const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
       options: captchaToken ? { captchaToken } : undefined,
     });
     if (error || !data.user) return null;
-    const mapped = mapSupabaseUser(data.user);
+    const mapped = await mapSupabaseUserWithVendorId(data.user, supabase);
     setUser(mapped);
     setIsLoggedIn(true);
     return mapped;
   };
 
-  const updateProfile = async (updates: Pick<User, "name" | "email" | "phone" | "avatarUrl">) => {
-    if (!user) return;
+  const updateProfile = async (updates: Pick<User, "name" | "email" | "phone" | "avatarUrl">): Promise<boolean> => {
+    if (!user) return false;
     const payload: { data?: Record<string, string>; email?: string } = {
       data: {
-        name: updates.name,
+        // name / avatar_url は Google ログインのたびに上書きされるので、本人が変えた値は専用のキーに入れる（lib/auth/displayName.ts）
+        display_name: updates.name,
         avatarUrl: updates.avatarUrl ?? "",
         phone: updates.phone ?? "",
       },
@@ -174,17 +224,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (updates.email && updates.email !== user.email) {
       payload.email = updates.email;
     }
-    const supabase = supabaseRef.current ?? createClient();
+    const supabase = supabaseRef.current ?? (await loadSupabase());
     const { data, error } = await supabase.auth.updateUser(payload);
-    if (error || !data.user) return;
-    setUser(mapSupabaseUser(data.user));
+    if (error || !data.user) return false;
+    setUser(await mapSupabaseUserWithVendorId(data.user, supabase));
+    return true;
   };
 
   const logout = async () => {
-    const supabase = supabaseRef.current ?? createClient();
+    const supabase = supabaseRef.current ?? (await loadSupabase());
     await supabase.auth.signOut();
     setUser(null);
     setIsLoggedIn(false);
+    // クライアントに残っているページ内容（next.config.js の staleTimes）を捨てる。
+    // これをしないと、ログイン中に描かれたサーバー側の内容が
+    // ログアウト後の画面移動でそのまま出てしまうことがある
+    router.refresh();
   };
 
   return (

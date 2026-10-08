@@ -8,7 +8,7 @@
  * クリックすると該当丁目へ flyTo（DETAIL モード相当の zoom 20）。
  */
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { useMap } from 'react-leaflet';
 import L from 'leaflet';
 import type { Shop } from '../data/shops';
@@ -101,13 +101,15 @@ function createChomeBadgeIcon(chome: string, count: number): L.DivIcon {
 // ── コンポーネント ─────────────────────────────────────
 type Props = {
   shops: Shop[];
+  onChomeClick?: (chome: string) => void;
 };
 
-export default function ChomeAreaMarkers({ shops }: Props) {
+export default function ChomeAreaMarkers({ shops, onChomeClick }: Props) {
   const map = useMap();
   const layerRef = useRef<L.LayerGroup | null>(null);
-  const [toastLabel, setToastLabel] = useState<string | null>(null);
-  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const onChomeClickRef = useRef(onChomeClick);
+
+  useEffect(() => { onChomeClickRef.current = onChomeClick; }, [onChomeClick]);
 
   const centroids = useMemo(() => computeChomeCentroids(shops), [shops]);
 
@@ -125,9 +127,7 @@ export default function ChomeAreaMarkers({ shops }: Props) {
           duration: 0.9,
           easeLinearity: 0.25,
         });
-        if (toastTimer.current) clearTimeout(toastTimer.current);
-        setToastLabel(chome);
-        toastTimer.current = setTimeout(() => setToastLabel(null), 2500);
+        onChomeClickRef.current?.(chome);
       });
 
       group.addLayer(marker);
@@ -141,14 +141,5 @@ export default function ChomeAreaMarkers({ shops }: Props) {
     };
   }, [map, centroids]);
 
-  if (!toastLabel) return null;
-
-  return (
-    <div className="fixed bottom-24 left-1/2 z-[2500] -translate-x-1/2 pointer-events-none animate-in fade-in slide-in-from-bottom-2 duration-200">
-      <div className="flex items-center gap-2 rounded-2xl bg-slate-900/88 px-4 py-2.5 shadow-xl backdrop-blur-sm">
-        <span className="text-base">🗺️</span>
-        <span className="text-sm font-semibold text-white">{toastLabel}のお店を表示します</span>
-      </div>
-    </div>
-  );
+  return null;
 }

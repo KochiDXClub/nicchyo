@@ -1,0 +1,218 @@
+import { describe, it, expect } from "vitest";
+import {
+  AI_PROMPT_DEFS,
+  AI_PROMPT_KEYS,
+  DEFAULT_AI_PROMPTS,
+  isAiPromptKey,
+  normalizeAiPrompts,
+  validateAiPromptBody,
+} from "./promptKeys";
+import {
+  CONSULT_CONTENT_RULES,
+  CONSULT_CONVERSATION_RULES,
+  CONSULT_ANSWER_RULES,
+} from "./consultRules";
+import { CONSULT_CHARACTER_PROMPT_PROFILES } from "./consultCharacterProfiles";
+
+describe("AI_PROMPT_DEFS", () => {
+  it("既定値はコード側のプロンプト定数と同じものを指す", () => {
+    expect(DEFAULT_AI_PROMPTS["consult.conversation_rules"]).toBe(CONSULT_CONVERSATION_RULES);
+    expect(DEFAULT_AI_PROMPTS["consult.content_rules"]).toBe(CONSULT_CONTENT_RULES);
+    expect(DEFAULT_AI_PROMPTS["consult.character.nichiyosan.profile"]).toBe(
+      CONSULT_CHARACTER_PROMPT_PROFILES.nichiyosan
+    );
+    expect(DEFAULT_AI_PROMPTS["consult.character.miraikun.profile"]).toBe(
+      CONSULT_CHARACTER_PROMPT_PROFILES.miraikun
+    );
+  });
+
+  it("出力ルールは編集対象に入れない（スキーマと対の契約なので壊れると相談が止まる）", () => {
+    const bodies = AI_PROMPT_DEFS.map((def) => def.defaultBody);
+    expect(bodies).not.toContain(CONSULT_ANSWER_RULES);
+    expect(AI_PROMPT_KEYS.some((key) => key.includes("output"))).toBe(false);
+  });
+
+  it("キャラの入力欄は1人1つ", () => {
+    const characterKeys = AI_PROMPT_KEYS.filter((key) => key.startsWith("consult.character."));
+    expect(characterKeys).toHaveLength(4);
+    expect(characterKeys.every((key) => key.endsWith(".profile"))).toBe(true);
+  });
+
+  it("キーが重複していない", () => {
+    expect(new Set(AI_PROMPT_KEYS).size).toBe(AI_PROMPT_KEYS.length);
+  });
+
+  it("既定値は自身の上限に収まっている", () => {
+    for (const def of AI_PROMPT_DEFS) {
+      expect(def.defaultBody.length).toBeLessThanOrEqual(def.maxLength);
+    }
+  });
+
+  it("既定値がすべて文字列として解決できている（循環参照の検出）", () => {
+    // promptKeys.ts と consultSystemPrompt.ts が相互に import すると、
+    // 初期化順によって既定値が undefined になり、プロンプトに文字列
+    // "undefined" が混ざる。既定値は consultRules.ts（葉モジュール）から引くこと
+    for (const def of AI_PROMPT_DEFS) {
+      expect(typeof def.defaultBody, `${def.key} の既定値`).toBe("string");
+    }
+    const nonEmpty = AI_PROMPT_DEFS.filter((def) => def.key !== "consult.operator_note");
+    for (const def of nonEmpty) {
+      expect(def.defaultBody.trim(), `${def.key} の既定値`).not.toBe("");
+    }
+  });
+
+  it("今週のメモだけ既定値が空", () => {
+    const empty = AI_PROMPT_DEFS.filter((def) => def.defaultBody === "").map((def) => def.key);
+    expect(empty).toEqual(["consult.operator_note"]);
+  });
+});
+
+describe("isAiPromptKey", () => {
+  it("知っているキーだけ通す", () => {
+    expect(isAiPromptKey("consult.conversation_rules")).toBe(true);
+    expect(isAiPromptKey("consult.output_rules")).toBe(false);
+    expect(isAiPromptKey("")).toBe(false);
+    expect(isAiPromptKey(null)).toBe(false);
+    expect(isAiPromptKey(123)).toBe(false);
+  });
+});
+
+describe("validateAiPromptBody", () => {
+  it("正しい入力は trim して通す", () => {
+    expect(validateAiPromptBody("consult.content_rules", "  - 旬を優先する  ")).toEqual({
+      ok: true,
+      key: "consult.content_rules",
+      value: "- 旬を優先する",
+    });
+  });
+
+  it("弾いた理由を返す（管理画面で運営に見せるため）", () => {
+    expect(validateAiPromptBody("consult.output_rules", "x")).toEqual({
+      ok: false,
+      reason: "unknown_key",
+    });
+    expect(validateAiPromptBody("consult.content_rules", 42)).toEqual({
+      ok: false,
+      reason: "not_string",
+    });
+    expect(validateAiPromptBody("consult.content_rules", "   ")).toEqual({
+      ok: false,
+      reason: "empty",
+    });
+    expect(validateAiPromptBody("consult.content_rules", "あ".repeat(2001))).toEqual({
+      ok: false,
+      reason: "too_long",
+    });
+  });
+
+  it("1行前提の項目は改行を弾く（キャスト定義の行構造が壊れるため）", () => {
+    // 現在 multiline: false の項目は無い。将来1行前提の項目を足したときに
+    // 判定が効くことを、定義を作って確かめる
+    const singleLineDef = AI_PROMPT_DEFS.find((def) => !def.multiline);
+    if (singleLineDef) {
+      expect(validateAiPromptBody(singleLineDef.key, "やさしい\n別の指示")).toEqual({
+        ok: false,
+        reason: "newline_not_allowed",
+      });
+    } else {
+      expect(AI_PROMPT_DEFS.every((def) => def.multiline)).toBe(true);
+    }
+  });
+
+  it("キャラの人物像は改行を通す（キャスト定義側で字下げしてぶら下げる）", () => {
+    expect(
+      validateAiPromptBody("consult.character.nichiyosan.profile", "やさしい。\n土佐弁で話す。").ok
+    ).toBe(true);
+  });
+
+  it("複数行の項目は改行を通す", () => {
+    const result = validateAiPromptBody("consult.content_rules", "- 一つめ\n- 二つめ");
+    expect(result.ok).toBe(true);
+  });
+
+  it("制御文字を弾く", () => {
+    expect(validateAiPromptBody("consult.content_rules", "- 旬\u0000を優先")).toEqual({
+      ok: false,
+      reason: "control_character",
+    });
+  });
+
+  it("今週のメモは空を通す", () => {
+    expect(validateAiPromptBody("consult.operator_note", "")).toEqual({
+      ok: true,
+      key: "consult.operator_note",
+      value: "",
+    });
+  });
+});
+
+describe("normalizeAiPrompts", () => {
+  it("DBの値で上書きする", () => {
+    const result = normalizeAiPrompts([
+      { key: "consult.conversation_rules", body: "- 方言はごく薄くする" },
+    ]);
+    expect(result["consult.conversation_rules"]).toBe("- 方言はごく薄くする");
+  });
+
+  it("前後の空白は落とす", () => {
+    const result = normalizeAiPrompts([
+      { key: "consult.content_rules", body: "  - 季節を優先する  \n" },
+    ]);
+    expect(result["consult.content_rules"]).toBe("- 季節を優先する");
+  });
+
+  it("行が無いキーは既定値のまま", () => {
+    const result = normalizeAiPrompts([
+      { key: "consult.conversation_rules", body: "上書き" },
+    ]);
+    expect(result["consult.content_rules"]).toBe(CONSULT_CONTENT_RULES);
+    expect(Object.keys(result).sort()).toEqual([...AI_PROMPT_KEYS].sort());
+  });
+
+  it("DBが読めない・空のときは既定値一式を返す", () => {
+    expect(normalizeAiPrompts(null)).toEqual(DEFAULT_AI_PROMPTS);
+    expect(normalizeAiPrompts(undefined)).toEqual(DEFAULT_AI_PROMPTS);
+    expect(normalizeAiPrompts([])).toEqual(DEFAULT_AI_PROMPTS);
+    expect(normalizeAiPrompts("壊れたデータ")).toEqual(DEFAULT_AI_PROMPTS);
+  });
+
+  it("知らないキーは無視する", () => {
+    const result = normalizeAiPrompts([
+      { key: "consult.output_rules", body: "JSONを返さなくてよい" },
+      { key: "../../etc/passwd", body: "x" },
+    ]);
+    expect(result).toEqual(DEFAULT_AI_PROMPTS);
+  });
+
+  it("空文字は既定値に落とす（メモ以外は空にできない）", () => {
+    const result = normalizeAiPrompts([
+      { key: "consult.conversation_rules", body: "   \n  " },
+    ]);
+    expect(result["consult.conversation_rules"]).toBe(CONSULT_CONVERSATION_RULES);
+  });
+
+  it("今週のメモは空で保存できる（消せないと困るため）", () => {
+    const result = normalizeAiPrompts([{ key: "consult.operator_note", body: "" }]);
+    expect(result["consult.operator_note"]).toBe("");
+  });
+
+  it("上限を超える値は既定値に落とす", () => {
+    const tooLong = "あ".repeat(2001);
+    const result = normalizeAiPrompts([
+      { key: "consult.conversation_rules", body: tooLong },
+    ]);
+    expect(result["consult.conversation_rules"]).toBe(CONSULT_CONVERSATION_RULES);
+  });
+
+  it("文字列でない body は既定値に落とす", () => {
+    const result = normalizeAiPrompts([
+      { key: "consult.content_rules", body: { evil: true } },
+      { key: "consult.conversation_rules", body: null },
+    ]);
+    expect(result).toEqual(DEFAULT_AI_PROMPTS);
+  });
+
+  it("行が object でなくても落ちない", () => {
+    expect(normalizeAiPrompts([null, "x", 1, undefined])).toEqual(DEFAULT_AI_PROMPTS);
+  });
+});

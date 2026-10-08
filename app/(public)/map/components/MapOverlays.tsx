@@ -3,15 +3,29 @@
 import { Fragment, memo, useCallback, useEffect, useState } from "react";
 import type { ComponentType } from "react";
 import type { OptimizedShopLayerWithClusteringProps } from "./OptimizedShopLayerWithClustering";
-import { CircleMarker, Marker, Pane, Popup, Rectangle, Tooltip, useMap } from "react-leaflet";
+import { CircleMarker, Marker, Pane, Rectangle, useMap } from "react-leaflet";
 import L from "leaflet";
 import type { LatLngBoundsExpression } from "leaflet";
 import type { Landmark } from "../types/landmark";
 import type { Shop } from "../data/shops";
-import type { ShopBannerOrigin } from "./MapView";
+import type { ShopBannerOrigin } from "../types/mapView";
 import type { MapRouteConfig, MapRoutePoint } from "../types/mapRoute";
 import RoadOverlay from "./RoadOverlay";
 import ChomeAreaMarkers from "./ChomeAreaMarkers";
+import { OVERVIEW_ZONE_MAX_ZOOM } from "../config/displayConfig";
+import { landmarkSpotId } from "@/lib/spots";
+
+/**
+ * 選択中のランドマークは、元の DivIcon と同じ HTML に is-selected を足して
+ * 少し大きく見せる（CSS: .map-landmark-visual.is-selected）。
+ */
+function buildSelectedLandmarkIcon(base: L.DivIcon): L.DivIcon {
+  const html = typeof base.options.html === "string" ? base.options.html : "";
+  return L.divIcon({
+    ...base.options,
+    html: html.replace('class="map-landmark-visual', 'class="map-landmark-visual is-selected'),
+  });
+}
 
 const MIN_ZOOM_LABEL_NAMES = new Set(["高知城", "高知駅", "チンチン電車"]);
 const MIN_ZOOM_ONLY_LABEL = { name: "日曜市", lat: 33.56145, lng: 133.5383 };
@@ -27,6 +41,8 @@ export const MapOverlays = memo(function MapOverlays({
   highlightEventTargets,
   visibleLandmarkSpecs,
   landmarkIcons,
+  onLandmarkClick,
+  selectedSpotId,
   isMinimumZoomMode,
   isOverviewZoneMode,
   shops,
@@ -37,15 +53,9 @@ export const MapOverlays = memo(function MapOverlays({
   searchShopIds,
   aiHighlightShopIds,
   commentHighlightShopIds,
-  kotoduteShopIds,
-  recipeIngredientIconsByShop,
-  attendanceLabelsByShop,
-  bagShopIds,
-  couponEligibleVendorIds,
-  shouldRenderRecipeOverlay,
-  shopsWithIngredients,
-  recipeIngredients,
-  onRecipeShopClick,
+  onChomeClick,
+  stallRenderer,
+  shopLayerHiding = false,
   OptimizedShopLayerWithClustering,
 }: {
   isLowZoomTintMode: boolean;
@@ -58,6 +68,8 @@ export const MapOverlays = memo(function MapOverlays({
   highlightEventTargets: boolean;
   visibleLandmarkSpecs: Landmark[];
   landmarkIcons: Map<string, L.DivIcon>;
+  onLandmarkClick?: (landmark: Landmark) => void;
+  selectedSpotId?: string;
   isMinimumZoomMode: boolean;
   isOverviewZoneMode: boolean;
   shops: Shop[];
@@ -68,18 +80,16 @@ export const MapOverlays = memo(function MapOverlays({
   searchShopIds?: number[];
   aiHighlightShopIds?: number[];
   commentHighlightShopIds?: number[];
-  kotoduteShopIds?: number[];
-  recipeIngredientIconsByShop: Record<number, string[]>;
-  attendanceLabelsByShop: Record<number, string>;
-  bagShopIds: number[];
-  couponEligibleVendorIds?: string[];
-  shouldRenderRecipeOverlay: boolean;
-  shopsWithIngredients: Shop[];
-  recipeIngredients: Array<{ name: string; icon: string }>;
-  onRecipeShopClick: (shop: Shop) => void;
+  onChomeClick?: (chome: string) => void;
+  /** 屋台の描画方式（lib/mapFeatureFlags.ts の stallRenderer） */
+  stallRenderer?: 'svg' | 'div';
+  /** 店舗レイヤーを付け外しせず非表示で残す（lib/mapFeatureFlags.ts の shopLayerHiding） */
+  shopLayerHiding?: boolean;
   OptimizedShopLayerWithClustering: ComponentType<OptimizedShopLayerWithClusteringProps>;
 }) {
   const map = useMap();
+  // 個別店舗マーカーが見える倍率（zoom ≥ 19）
+  const shopsVisible = !isMinimumZoomMode && !isOverviewZoneMode && !isLowZoomTintMode;
   const handleRoadTap = useCallback((latlng: import("leaflet").LatLng) => {
     map.setView(latlng, 17);
   }, [map]);
@@ -151,34 +161,41 @@ export const MapOverlays = memo(function MapOverlays({
       )}
 
       <Pane name="landmarks" style={{ zIndex: highlightEventTargets ? 3000 : 70 }}>
-        {visibleLandmarkSpecs.map((spec) => (
-          <Marker
-            key={`landmark-${spec.key}`}
-            position={[spec.lat, spec.lng]}
-            icon={landmarkIcons.get(spec.key) ?? L.divIcon({ className: "map-landmark-icon" })}
-            interactive
-            keyboard={false}
-            opacity={1}
-            zIndexOffset={highlightEventTargets ? 1800 : 0}
-          >
-            <Popup pane="landmark-popup" offset={[0, -18]} className="map-landmark-popup">
-              <div className="min-w-[180px] max-w-[220px]">
-                <p className="text-sm font-bold text-slate-900">{spec.name}</p>
-                <p className="mt-1 text-xs leading-relaxed text-slate-600">{spec.description}</p>
-              </div>
-            </Popup>
-          </Marker>
-        ))}
+        {visibleLandmarkSpecs.map((spec) => {
+          const baseIcon = landmarkIcons.get(spec.key) ?? L.divIcon({ className: "map-landmark-icon" });
+          const isSelected = selectedSpotId === landmarkSpotId(spec.key);
+          return (
+            <Marker
+              key={`landmark-${spec.key}`}
+              position={[spec.lat, spec.lng]}
+              icon={isSelected ? buildSelectedLandmarkIcon(baseIcon) : baseIcon}
+              interactive
+              keyboard={false}
+              opacity={1}
+              zIndexOffset={highlightEventTargets ? 1800 : isSelected ? 900 : 0}
+              eventHandlers={{
+                click: (event) => {
+                  // 地図側のクリック（バナーを閉じる等）に伝えない
+                  L.DomEvent.stopPropagation(event.originalEvent);
+                  onLandmarkClick?.(spec);
+                },
+              }}
+            />
+          );
+        })}
       </Pane>
-      <Pane name="landmark-popup" style={{ zIndex: 10000 }} />
 
       {/* 縮小時（zoom < 17）: 丁目エリアバッジ */}
       {!isMinimumZoomMode && isOverviewZoneMode && (
-        <ChomeAreaMarkers shops={shops} />
+        <ChomeAreaMarkers shops={shops} onChomeClick={onChomeClick} />
       )}
 
-      {/* 通常時（zoom ≥ 19）: 個別店舗マーカー */}
-      {!isMinimumZoomMode && !isOverviewZoneMode && !isLowZoomTintMode && (
+      {/*
+       * 通常時（zoom ≥ 19）: 個別店舗マーカー。
+       * shopLayerHiding が on のときはレイヤーを常に置いたまま、ズーム 19 未満では
+       * ペインごと非表示にする（付け外しの 300 マーカー再生成を避ける）。
+       */}
+      {(shopLayerHiding || shopsVisible) && (
         <OptimizedShopLayerWithClustering
           shops={shops}
           onShopClick={onShopClick}
@@ -188,53 +205,11 @@ export const MapOverlays = memo(function MapOverlays({
           searchShopIds={searchShopIds}
           aiHighlightShopIds={aiHighlightShopIds}
           commentHighlightShopIds={commentHighlightShopIds}
-          kotoduteShopIds={kotoduteShopIds}
-          recipeIngredientIconsByShop={recipeIngredientIconsByShop}
-          attendanceLabelsByShop={attendanceLabelsByShop}
-          bagShopIds={bagShopIds}
-          couponEligibleVendorIds={couponEligibleVendorIds}
+          stallRenderer={stallRenderer}
+          hidden={shopLayerHiding && !shopsVisible}
+          visibleMinZoom={shopLayerHiding ? OVERVIEW_ZONE_MAX_ZOOM : undefined}
         />
       )}
-
-      {!isMinimumZoomMode && shouldRenderRecipeOverlay && shopsWithIngredients.map((shop) => {
-        const matchingIngredients = recipeIngredients.filter((ing) =>
-          shop.products.some((product) =>
-            product.toLowerCase().includes(ing.name.toLowerCase()) ||
-            ing.name.toLowerCase().includes(product.toLowerCase())
-          )
-        );
-
-        return (
-          <CircleMarker
-            key={`recipe-${shop.id}`}
-            center={[shop.lat, shop.lng]}
-            radius={40}
-            pathOptions={{
-              fillColor: "#f59e0b",
-              fillOpacity: 0.2,
-              color: "#f59e0b",
-              weight: 3,
-              opacity: 0.8,
-            }}
-            eventHandlers={{
-              click: () => onRecipeShopClick(shop),
-            }}
-          >
-            <Tooltip direction="top" offset={[0, -10]} opacity={0.95}>
-              <div className="text-xs">
-                <div className="mb-1 font-bold">{shop.name}</div>
-                <div className="space-y-0.5 text-[10px]">
-                  {matchingIngredients.slice(0, 3).map((ing, i) => (
-                    <div key={i}>
-                      {ing.icon} {ing.name}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </Tooltip>
-          </CircleMarker>
-        );
-      })}
     </>
   );
 });

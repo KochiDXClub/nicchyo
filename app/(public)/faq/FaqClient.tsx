@@ -3,10 +3,10 @@
 import { useState, useMemo } from "react";
 import { Search, ChevronDown, ChevronUp, MessageCircle } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { FAQ_DATA, FAQ_CATEGORIES, type FaqCategory } from "./data";
+import { FAQ_DATA, FAQ_CATEGORIES } from "./data";
 import Link from "next/link";
-import { cn } from "@/lib/utils";
-import EmptyState from "@/components/EmptyState";
+import { cn } from "@/lib/utils/cn";
+import { Button, EmptyState, buttonClass } from "@/components/ui";
 
 export default function FaqClient() {
   const [searchQuery, setSearchQuery] = useState("");
@@ -58,6 +58,7 @@ export default function FaqClient() {
             const isSelected = selectedCategory === cat.id;
             return (
               <button
+                type="button"
                 key={cat.id}
                 onClick={() => setSelectedCategory(cat.id)}
                 className={cn(
@@ -89,6 +90,7 @@ export default function FaqClient() {
                 className="overflow-hidden rounded-2xl border border-orange-100 bg-white/90 shadow-sm transition-shadow hover:shadow-md"
               >
                 <button
+                  type="button"
                   onClick={() => toggleItem(item.id)}
                   className="flex w-full items-start justify-between gap-4 p-5 text-left"
                 >
@@ -130,21 +132,17 @@ export default function FaqClient() {
                 title="条件に一致する質問が見つかりませんでした"
                 description="キーワードを変更するか、AIチャットボットにお気軽にご相談ください。"
                 action={
-                  <button
+                  <Button
                     onClick={() => {
                       setSearchQuery("");
                       setSelectedCategory("all");
                     }}
-                    className="rounded-full bg-amber-600 px-6 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-amber-500"
                   >
                     すべての質問を表示
-                  </button>
+                  </Button>
                 }
                 secondaryAction={
-                  <Link
-                    href="/consult"
-                    className="rounded-full border border-amber-200 bg-white px-6 py-2.5 text-sm font-bold text-amber-600 shadow-sm transition hover:bg-amber-50"
-                  >
+                  <Link href="/consult" className={buttonClass({ variant: "secondary" })}>
                     AIチャットで相談する
                   </Link>
                 }

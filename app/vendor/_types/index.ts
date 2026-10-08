@@ -1,4 +1,4 @@
-export type ExpirationPreset = "1h" | "today" | "custom";
+export type ExpirationPreset = "1h" | "sunday" | "custom";
 
 export type PostStatus = "active" | "expired" | "scheduled";
 
@@ -10,6 +10,16 @@ export type Post = {
   created_at: string;
   expiration_time: string;
   status: PostStatus;
+  /** ハートリアクション数（content_reactions 集計。取得失敗時は undefined） */
+  heartCount?: number;
+  /** 見た人の数（content_views 集計。1人1回。取得失敗時は undefined） */
+  viewCount?: number;
+};
+
+/** 出店者アナリティクス用のハート集計 */
+export type HeartSummary = {
+  total: number;
+  thisWeek: number;
 };
 
 export type PaymentMethod = "cash" | "card" | "paypay" | "ic";
@@ -21,6 +31,8 @@ export type Store = {
   vendor_id: string;
   name: string;
   owner_name?: string;
+  /** 店主名を公開ページに表示するか。既定は非公開。 */
+  owner_name_public?: boolean;
   category_id: string;
   style: string;
   style_tags: string[];
@@ -41,39 +53,14 @@ export type Store = {
   catchphrase?: string;
 };
 
-export type VendorAnalytics = {
-  thisWeek: { views: number; clicks: number; searchImpressions: number };
-  lastWeek: { views: number; clicks: number; searchImpressions: number };
-  rank: number;
-  totalVendors: number;
-};
-
-export type ProductSale = {
-  id: string;
-  vendor_id: string;
-  product_name: string;
-  quantity: number;
-  sale_date: string;
-  created_at: string;
-  updated_at: string;
-};
-
-export type HourlyData = {
-  hour: string;
-  views: number;
-};
-
-export type MarketTrend = {
-  rank: number;
-  product_name: string;
-  total_quantity: number;
-  vendor_count: number;
-};
-
-export type SearchSourceRatio = {
-  preVisit: number;  // source = "search"（来訪前）
-  onSite: number;    // source = "map"（現地）
-  other: number;     // source = "direct" など
+/** お店が見られた数（過去7日・その前の7日）と、過去7日の時間帯・流入元 */
+export type ShopViewSummary = {
+  thisWeek: number;
+  lastWeek: number;
+  hourly: { hour: number; views: number }[];
+  sources: { map: number; search: number; direct: number };
+  /** 時間帯・流入元が、回数のうち一部（直近の行）だけから数えたものか */
+  sampled: boolean;
 };
 
 export type SearchKeywordTrend = {
@@ -96,6 +83,5 @@ export type AiConsultAnalytics = {
   topics: AiConsultTopic[];
   keywords: AiKeyword[];
   recommendationCount: number;
-  locationRatio: { preVisit: number; onSite: number };
   totalCount: number;
 };

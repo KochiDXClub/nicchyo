@@ -1,10 +1,11 @@
 # CLAUDE.md
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+全 AI コーディングエージェント共通のガイドラインは `AGENTS.md` を参照してください。
 
 ## Project Overview
 
-**nicchyo（ニッチョ）** は、高知・日曜市（毎週日曜開催の大規模路上市場）を初来訪者に案内するデジタルマッププラットフォームです。インタラクティブ地図・AI案内・店舗検索・クーポンが中心機能です。
+**nicchyo（ニッチョ）** は、高知・日曜市（毎週日曜開催の大規模路上市場）を初来訪者に案内するデジタルマッププラットフォームです。インタラクティブ地図・AI案内・店舗検索が中心機能です。
 
 ## Commands
 
@@ -18,7 +19,15 @@ npx vitest run lib/favoriteShops.test.ts  # 単一テストファイルの実行
 
 PRを出す前は必ず `npm run build` でビルドが通ることを確認する。
 
+**コードの健康診断でビフォーアフターを確認する**（詳細は `docs/CODE_HEALTH.md`）：
+- 実装を始める前に `npm run code-health` を実行し、触る場所に既存の共通部品・重複・ルール違反がないかを `.code-health/report.html` で確かめる
+- PR を出す前に `npm run code-health:diff` を実行する。⚠️（悪化）が出たら「悪化した箇所」を直す。出力された `.code-health/diff.md` は PR 本文の「共通基盤チェック」欄に貼る（悪化を直さない場合は、その欄の「悪化を残す理由・今後の対応」に理由を書く）
+
 **PRは小さく出す**：チーム開発のためレビューしやすさを優先する。1PRは1つの目的（機能追加・バグ修正・リファクタを混在させない）。目安は変更ファイル10件以内。大きな作業は事前にサブタスクに分割してからPRを作成する。
+
+**本番リリース（`develop` → `main`）の方針は `docs/RELEASE.md`** を参照する。日常のPRは `develop` へ出す。`main` への直接マージはリリース作業と hotfix のみ。
+
+来訪者から見て何かが変わるPRを出すときは、`docs/changelog-unreleased/<PR番号またはブランチ名>.md` を作成し、来訪者視点の一言を1行記述する（例: `- 日曜市カレンダーに出店予定と旬を表示するようにした (#444)`）。PRごとに個別ファイルを作成することでPR間のコンフリクトを完全に防ぐ。依存更新・テスト追加・リファクタ・ドキュメントのみの変更は作成しない。この記録がリリース時に集約され（`npm run changelog:pack`）、リリースノート（`app/about/versions.ts`）の元になる。
 
 ## 技術的負債解消時の必須確認事項
 
@@ -47,16 +56,19 @@ PRを出す前は必ず `npm run build` でビルドが通ることを確認す�
 - **Styling**: Tailwind CSS（カスタムパレット: `nicchyo-base/primary/accent/ink/soft-green`）
 - **DB**: Supabase（メイン）、Prismaスキーマも存在
 - **Map**: Leaflet + react-leaflet（`reactStrictMode: false` ← Leafletの二重初期化防止）
-- **AI**: OpenAI API（RAG構成、`app/api/grandma/` と `app/api/map-agent/`）
+- **AI**: OpenAI API（RAG構成、`app/api/grandma/`）
 - **Auth**: Supabase Auth（`lib/auth/AuthContext.tsx`）
 
 ## Required Environment Variables
 
 ```
 NEXT_PUBLIC_SUPABASE_URL=
-NEXT_PUBLIC_SUPABASE_ANON_KEY=
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY=
+# 互換用: NEXT_PUBLIC_SUPABASE_ANON_KEY=
 OPENAI_API_KEY=
 ```
+
+任意の変数を含む全体は `.env.example` を参照する。
 
 ## Architecture
 
@@ -67,19 +79,15 @@ app/
 ├── (public)/          # 一般ユーザー向けページ
 │   ├── map/           # メイン地図ページ（主機能）
 │   ├── search/        # 店舗検索
-│   ├── bag/           # 買い物リスト
-│   ├── coupons/       # クーポン一覧
 │   ├── consult/       # AI「にちよさん」チャット
-│   ├── shops/[code]/  # 店舗詳細（コードは3桁ゼロ埋め: 001〜300）
-│   ├── my-shop/       # 出店者向けページ（QRクーポン確認など）
+│   ├── shops/[code]/  # 店舗詳細（コードは3桁ゼロ埋め: 001〜999）
+│   ├── my-shop/       # 出店者向けページ
 │   └── ...
 ├── private/           # 要認証ページ
 ├── admin/             # 管理者ページ
 └── api/               # API Routes
     ├── shops/         # 店舗データ取得・編集
-    ├── coupons/       # クーポン発行・確認・換金
     ├── grandma/       # AI「にちよさん」バックエンド
-    ├── map-agent/     # マップAIアシスタント
     ├── analytics/     # アクセス解析
     └── vendor/        # 出店者向けAPI
 ```
@@ -89,7 +97,6 @@ app/
 | Context | ファイル | 役割 |
 |---------|---------|------|
 | `AuthProvider` | `lib/auth/AuthContext.tsx` | Supabase認証状態管理 |
-| `BagProvider` | `lib/storage/BagContext.tsx` | 買い物リスト（ローカルストレージ） |
 | `MenuProvider` | `lib/ui/MenuContext.tsx` | ナビゲーションメニュー開閉 |
 | `MapLoadingProvider` | `app/components/MapLoadingProvider` | マップ初期ローディング状態 |
 
@@ -99,7 +106,7 @@ app/
 
 ```
 Layer 4: UI（ボタン・バナー・ズームコントロール）
-Layer 3: 店舗層（ShopMarker, ShopBubble）
+Layer 3: 店舗層（OptimizedShopLayerWithClustering + markerHtmlGenerator）
 Layer 2: 道層（RoadOverlay, zIndex: 50）
 Layer 1: 背景層（BackgroundOverlay, 現在無効）
 Layer 0: Leafletベースマップ
@@ -107,20 +114,14 @@ Layer 0: Leafletベースマップ
 
 - **座標の基準**: `config/roadConfig.ts` がすべての基準（高知城前〜追手筋東端）
 - **店舗表示の間引き**: ズームレベルに応じて `utils/zoomCalculator.ts` が密度調整
-- **データ取得**: `fetch-map-data.ts` でサーバーサイド取得 → `MapPageClient.tsx` に渡す
+- **データ取得**: `page.tsx` + `services/shopCache.ts` でサーバーサイド取得 → `MapPageClient.tsx` に渡す
 - **店舗DBアクセス**: `services/shopDb.ts`, `services/shopDataService.ts`
 
 ### 店舗コード体系
 
-店舗IDは1〜300の整数。URLパラメータ・QRコードでは3桁ゼロ埋め文字列（`001`〜`300`）。変換は `lib/shops/route.ts` の `normalizeShopCodeToId` / `formatShopIdToCode` を使う。
+店舗IDは1〜999の整数（`MAX_SHOP_ID`）。URLパラメータ・QRコードでは3桁ゼロ埋め文字列（`001`〜`999`）。変換は `lib/shops/route.ts` の `normalizeShopCodeToId` / `formatShopIdToCode` を使う。
 
 `next.config.js` に `/shops001` → `/shops/001` のリライトルールあり。
-
-### クーポン機能 (feature/Coupon ブランチで開発中)
-
-- 市場開催日（日曜日）にのみクーポンフィルターが表示される
-- 開発中は `isMarketDay` を強制 `true` にする DEV フラグあり（コミット `c052209` 参照）
-- API: `app/api/coupons/`、出店者確認: `my-shop/coupon`（カメラ権限必要）
 
 ### テスト
 
@@ -138,15 +139,50 @@ nicchyo-soft-green: #A0D7A7  （淡い緑）
 
 ## Coding Conventions
 
+- **共通化できるところは共通化する**：同じロジック・同じUIパターンが複数箇所に現れたら、都度その場で個別実装せず、既存の共通化スポット（`lib/` 配下のユーティリティ・`components/ui/` 等）へ寄せられないか検討する。片方を直すときにもう片方の直し忘れが起きる「意味のある重複」（認可チェック・監査ログ・日付処理・APIレスポンス整形など）を優先的に共通化すること。逆に、見た目や行数がたまたま似ているだけで将来別々に変化しうるもの（3行程度の小さな処理、意図的に似せているだけのUIなど）まで無理に共通化しない
 - ルート名: kebab-case、コンポーネント: PascalCase、変数/関数: camelCase
 - クライアントコンポーネントには `"use client"` を明示
 - ページ固有のコンポーネントはそのページディレクトリ内の `components/` に置く
-- 共通UIコンポーネントは `components/ui/`（Radix UIベース）
+- **UIを書く前に `docs/DESIGN_SYSTEM.md` を読む**：色・角丸・影・余白・ボタン・ページの外枠はすべてトークンと共通部品にある。生の hex、`slate-*`/`gray-*` の新規追加、`rounded-2xl` などの直書きはしない
+- 共通UIコンポーネントは `components/ui/`（`@/components/ui` のバレルから読む）。同じものを2回目に書こうとしたら、ページ内に作らずここへ足す
 - 管理画面コンポーネントは `components/admin/`
 - ユーティリティ関数は `lib/utils/cn.ts`（`clsx` + `tailwind-merge` のラッパー）
+- **シートで編集する文言**（`content/site-copy/*.json`）はスプレッドシートから生成されるので直接編集しない。読むときは `siteText(key)`。手順は `docs/SITE_COPY.md`
 
 ## 重要な制約
 
 - `reactStrictMode: false` は意図的（Leaflet互換性のため変更しない）
 - Supabase Storageの画像URLは `*.supabase.co` ドメイン（`next.config.js` の `remotePatterns` に設定済み）
-- `/my-shop/coupon` ページのみカメラ権限を許可（Permissions-Policy設定あり）
+
+## スキルの積極活用（重要）
+
+`.claude/commands/` にプロジェクト固有のスキルが定義されている。
+**ユーザーが明示的に `/スキル名` と書かなくても**、タスクの意図がスキルの目的に合致する場合は自動的に起動すること。
+
+### 起動トリガー一覧
+
+| ユーザーの意図・キーワード | 起動するスキル |
+|---|---|
+| 「PRを出す」「PRを作る」「PRを提出」「マージしたい」 | `/ship` |
+| 「コミットして」「コミットしたい」「変更を保存」 | `/commit` |
+| 「デプロイ確認」「デプロイ状況」「本番に反映された？」 | `/deploy-check` |
+| テーブル追加・カラム追加・DB変更・マイグレーション | `/migration <説明>` |
+| 「ビルド確認」「型チェック」「lint確認」「エラー確認」 | `/check` |
+| 「テストして」「テストを実行」 | `/test` |
+| セキュリティ確認・RLSチェック・API認可レビュー | `security-reviewer` エージェント |
+| 「新しいブランチで」「並行して開発」「worktree作って」 | `/worktree <名前>` |
+| 「マップを確認」「マップ周辺のコード」 | `/map` |
+| worktreeの後片付け・削除 | `/worktree-clean` |
+
+### 判断手順
+
+1. ユーザーのメッセージから「やろうとしていること」を特定する
+2. 上の表と照合してスキルが使えるか判断する
+3. 合致するスキルがあれば、他のことをする前にそのスキルを起動する
+4. スキルの中に含まれる確認ステップはスキップしない
+
+### 特に重要な自動起動
+
+- コードを書き終えてPRを作ろうとしているなら、必ず `/ship` を先に通す
+- `supabase/migrations/` にSQLを書くときは `/migration` を使う
+- 新しいAPIルートやSupabaseテーブルを追加したら `security-reviewer` エージェントを呼ぶ

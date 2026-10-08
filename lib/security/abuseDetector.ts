@@ -9,13 +9,25 @@ export type AbuseEvent = {
 };
 
 // SQLインジェクションパターン
+// DB アクセスはパラメタライズ済みなので、ここは「明らかな攻撃文字列」だけを拾う。
+// select / create / drop 単体の英単語は通常の質問（"create a plan", "drop by"）にも
+// 現れるため対象にしない（誤検知で来訪者を恒久ブロックしないため）
 const SQL_PATTERNS = [
-  /\b(SELECT|INSERT|UPDATE|DELETE|DROP|CREATE|ALTER|TRUNCATE|EXEC|EXECUTE|UNION|CAST|CONVERT)\b/i,
-  /('|--|\/\*|\*\/|;)\s*(SELECT|DROP|INSERT|UPDATE|DELETE)/i,
-  /\bOR\b.+\b=\b/i,          // OR 1=1
-  /\bAND\b.+\b=\b/i,         // AND 1=1
-  /'\s*;\s*--/,               // '; --
-  /xp_\w+/i,                  // xp_cmdshell etc
+  /\bUNION\s+(ALL\s+)?SELECT\b/i,
+  /\bSELECT\s+\*\s+FROM\b/i,
+  /\bSELECT\s+[\w.]+(\s*,\s*[\w.]+)+\s+FROM\b/i,
+  /\bSELECT\s+(COUNT|SLEEP|VERSION|USER|DATABASE|CURRENT_USER)\s*\(/i,
+  /\bDROP\s+(TABLE|DATABASE|SCHEMA|VIEW|INDEX)\b/i,
+  /\bTRUNCATE\s+TABLE\b/i,
+  /\bINSERT\s+INTO\b/i,
+  /\bDELETE\s+FROM\b/i,
+  /\bUPDATE\s+[\w.]+\s+SET\b/i,
+  /\bALTER\s+(TABLE|DATABASE|USER)\b/i,
+  /('|--|\/\*|\*\/|;)\s*(SELECT|DROP|INSERT|UPDATE|DELETE)\b/i,
+  /'\s*(OR|AND)\s+['"]?\w+['"]?\s*=\s*['"]?\w+/i, // ' OR 1=1 / ' OR 'a'='a
+  /\b(OR|AND)\s+\d+\s*=\s*\d+/i,                  // OR 1=1
+  /'\s*;\s*--/,                                      // '; --
+  /\bxp_\w+/i,                                       // xp_cmdshell etc
 ];
 
 // プロンプトインジェクションパターン
@@ -26,7 +38,9 @@ const PROMPT_INJECTION_PATTERNS = [
   /act\s+as\s+(a|an|if)/i,
   /\bDAN\b/,                   // Do Anything Now
   /jailbreak/i,
-  /system\s+prompt/i,
+  // "system prompt" 単体は通常の話題にもなるので、引き出し・無視の動詞と組になったときだけ拾う
+  /(reveal|show|print|tell|repeat|display|leak|output|give|ignore|disregard|forget|override)\b.{0,40}\bsystem\s+prompt/i,
+  /\bsystem\s+prompt\s*[:：]/i,
   /new\s+instructions?:/i,
   /\{\{.{0,100}\}\}/,          // テンプレートインジェクション
   /\[INST\]|\[\/INST\]/,       // LLM制御トークン
@@ -91,6 +105,3 @@ export function detectAbuse(text: string): AbuseEvent | null {
 
   return null;
 }
-
-// レートリミット超過チェック（ai_consult_logsの件数で判定）
-export const RATE_LIMIT_PER_HOUR = 20;

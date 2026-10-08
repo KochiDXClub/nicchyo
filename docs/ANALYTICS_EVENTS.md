@@ -1,88 +1,48 @@
-# Analytics events spec (nicchyo-platform)
+# アクセス解析イベント仕様
 
-目的
-- クーポン／店舗接触／スクロール操作を含む主要ユーザー行動を一貫した形で収集し、クライアント（GA/GTM）とサーバ（Supabase）双方で信頼性の高いログを保つ。
+実装の正は `lib/analytics/`・`types/analytics.ts`・`app/api/analytics/`。この文書は全体像と守る約束だけを書く（イベントの個別パラメータは型定義を見る）。
 
-命名規約
-- イベント名: snake_case（例: shop_view, coupon_redeem）
-- パラメータキー: snake_case
-- 送信方法: sendEvent(name, params) を通すこと（lib/analytics/sendEvent.ts）
-- 同意: ユーザーが同意していない場合は送信しない（consentClient を使用）
+## 約束
 
-共通パラメータ
-- visitor_key?: string（クライアントが保持する匿名キー、送る場合は明示）
-- shop_id?: string
-- coupon_id?: string
-- page_path, page_location
+- イベント名・パラメータキーは snake_case
+- クライアントからのイベント送信は `sendEvent(name, params, options)`（`lib/analytics/sendEvent.ts`）を通す。イベント名の一覧は `types/analytics.ts` の `AnalyticsEventName`
+- **オプトアウト方式**。同意バナーは無く、既定では解析は動く。止めた端末（プライバシーポリシーのスイッチ。`localStorage` の `nicchyo_analytics_opt_out`）では `isAnalyticsOptedOut()`（`lib/analytics/consentClient.ts`）が真になり、何も送らない。新しい送信箇所でも必ずこの判定を通すこと
+- PII 禁止。メール・電話・生のユーザー ID は送らない
+- サーバー側の書き込みは service role のみ（クライアントからの直接 INSERT は RLS で禁止）。各 API は `requireSameOrigin` と `enforceRateLimit` を通す
 
-必須イベント（優先）
+## 送信経路
 
-1. page_view
-- 説明: ページ読み込み／SPA遷移時に発火
-- パラメータ: page_path (string), page_location (string), page_title? (string)
-- 送信先: gtag (GA)、dataLayer
+| 経路 | 使うもの | 送り先 |
+|---|---|---|
+| GA4 / GTM | `sendEvent`（`dataLayer.push` と `gtag("event")`） | GA。本番のみ `loadGA()` で遅延読み込み |
+| サーバー記録 | `sendEvent(..., { toServer: true })` | 下表の API |
+| ページ訪問 | `app/components/PageVisitTracker.tsx` | `POST /api/analytics/page-visit`（`web_page_analytics` ＋ 来訪者全体の日次ユニーク数 `web_visitor_stats`。「今週の訪問者」の集計元）、遷移ごとの GA4 `page_view`（`gtag()` を直接呼ぶ。`sendEvent` は経由しない） |
+| 店舗詳細の閲覧数 | `recordShopView()`（`lib/analytics/shopViews.ts`） | `POST /api/analytics/shop-view` |
+| マイページ訪問 | `app/(public)/my-shop/layout.tsx` | `POST /api/analytics/home-visit`（`web_visitor_stats` へは page-visit と同じ日次ユニークに合流するので二重には数えない） |
 
-2. shop_impression
-- 説明: 一覧やマップでショップが視認可能になった時
-- パラメータ:
-  - shop_id (string)
-  - shop_name? (string)
-  - list_position? (number)
-  - context (string) — 'map_cluster'|'list'|'search_result'|'banner'
-- 送信先: sendEvent → dataLayer/gtag + POST /api/analytics/shop-interaction (event_type: 'impression')
+`/api/analytics/home-summary` は出店者ホームの集計取得用（書き込みではない）。
 
-3. shop_view
-- 説明: ショップ詳細／バナーを開いたとき
-- パラメータ:
-  - shop_id (string)
-  - source (string) — 'banner'|'map'|'search'
-  - interaction_method (string) — 'tap'|'click'
-- 送信: dataLayer/gtag + server-side shop_interaction (event_type: 'view')
+## 現在送っているイベント
 
-4. shop_scroll
-- 説明: ショップ詳細ページでのスクロール深度
-- パラメータ:
-  - shop_id (string)
-  - scroll_area (string) — 'shop_detail'|'shop_list'|'map'
-  - scroll_depth (number) 0..100
-  - viewport_time (number) 秒
-- 実装: クライアントで閾値(25/50/75/100)を監視しイベント化。sendEvent を通して server にも必要時送る。
+| イベント | 発火元 | サーバー記録 |
+|---|---|---|
+| `page_view` | `PageVisitTracker.tsx` が `gtag()` を直接呼ぶ | `page-visit`（`web_page_analytics`） |
+| `guide_open` / `guide_navigation_start` / `guide_arrived` / `guide_navigation_stop` | `app/(public)/map/hooks/useOdekakeGuide.ts`（おでかけサポート） | `POST /api/analytics/guide-event` → `guide_events` |
 
-5. coupon_impression
-- 説明: クーポンがユーザーに見えた時（バナー/メニュー）
-- パラメータ:
-  - coupon_id (string)
-  - shop_id? (string)
-  - source (string) — 'shop_banner'|'menu'|'coupon_page'
-  - placement? (string)
-  - visible_duration? (number seconds)
-- 送信先: dataLayer/gtag + POST /api/analytics/coupon-impression
+店舗詳細が開かれた回数は `sendEvent` ではなく `recordShopView()`（`ShopDetailBanner.tsx` から呼ぶ）で記録する。流入元は `map` / `search` / `direct`、同じタブで同じ店を開き直しても 1 回だけ数え、出店者本人の閲覧は数えない。
 
-6. coupon_click / coupon_apply
-- coupon_click: クーポンの詳細を見た/タップ
-  - params: coupon_id, shop_id?, source, placement
-- coupon_apply: アプリ内適用アクション（カート等）
-  - params: coupon_id, shop_id, applied (boolean)
-- 送信先: dataLayer/gtag, server as needed
+## 定義はあるが、現在は呼び出し元が無いもの
 
-7. coupon_redeem
-- 説明: 実際に使用・会計で消費されたとき（サーバ確定）
-- パラメータ: coupon_id, shop_id, source, method ('qr'|'code'|'automatic'), value (number), currency (string), success (boolean), items_count (number)
-- 送信: サーバで coupon_redemption_logs を記録（既存）、GA イベントはオプションで送る
+`sendEvent` は次を処理できるが、アプリ内に発火している箇所は無い（再び使うときは呼び出しを足す）。
 
-運用と検証
-- DebugView: GA DebugView にて realtime イベントを確認
-- サーバ: supabase の coupon_impressions / shop_interactions テーブルに行が入ること
-- E2E: Playwright で「同意→表示→クリック→redeem」を自動検証
+- `shop_impression` / `shop_view`（型のみ。サーバー記録の API `shop-interaction` は呼び出し元が無く、入力無検証の公開書き込み口だったため削除した。再び使うときは `guide-event` と同じ方式で API を作り直す）
+- `shop_scroll`（`trackScrollDepth()` が 25/50/75/100% で発火）。呼び出し元なし
+- `add_to_bag`（型のみ。買い物リスト機能は廃止済み）
 
-実装注意点
-- 同意がない場合はどのイベントも送らない
-- PII 禁止: メール・電話・生ID は送らない
-- サーバ挿入は service role を使う（RLS で public INSERT を禁止）
+`shop_interactions` の `ip_address` は 8 日で NULL 化される（`supabase/migrations/20260817205614_add_personal_data_retention.sql`）。
 
-付録
-- 実装済み API: /api/analytics/coupon-impression, /api/analytics/shop-interaction
-- DB: supabase/migrations に coupon_impressions, shop_interactions が追加済
+## 検証
 
-次の作業
-- lib/analytics/sendEvent.ts を実装（wrapper） → UI へ差し込み → E2E
+- GA DebugView でイベントを確認する
+- サーバー記録は Supabase の該当テーブル（`guide_events` など）に行が入ることを見る
+- オプトアウトの E2E は `tests/e2e/analytics.spec.ts`

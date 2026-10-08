@@ -1,38 +1,59 @@
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
-import { createClient as createServiceClient, type SupabaseClient } from "@supabase/supabase-js";
 import { createClient as createServerClient } from "@/utils/supabase/server";
 import { fetchLandmarksFromDb } from "@/app/(public)/map/services/landmarksDb";
 import { fetchMapRouteFromDb } from "@/app/(public)/map/services/mapRouteDb";
-import { requireSameOrigin } from "@/lib/security/requestGuards";
-import { enforceRateLimit } from "@/lib/security/rateLimit";
-import { getRole, isAdmin } from "@/lib/auth/permissions";
+import { revalidatePublicShops } from "@/app/(public)/map/services/shopCache";
+import { authorizeAdmin } from "@/app/api/admin/categories/_helpers";
 import type { Landmark as EditableLandmark } from "@/app/(public)/map/types/landmark";
-import type { MapRouteConfig, MapRoutePoint } from "@/app/(public)/map/types/mapRoute";
+import type { MapRoad, MapRouteConfig, MapRoutePoint } from "@/app/(public)/map/types/mapRoute";
+import { resolveSlotPositions } from "@/lib/map/roadSlotPosition";
+import { MAX_SHOP_ID, MIN_SHOP_ID } from "@/lib/shops/route";
+import { logAdminAudit } from "@/lib/audit/logAdminAudit";
+import { getRole } from "@/lib/auth/permissions";
+import { CHOME_ORDER, NEW_VENDOR_ID_PREFIX } from "@/app/(public)/map/types/editableShop";
+import {
+  createMapLayoutSnapshot,
+  findRoadIdsWithShops,
+  hasRoadPositionSchema,
+  isRouteConfigChanged,
+  loadEditableRoads,
+  loadEditableShops,
+  loadEditableVendors,
+  prepareMapLayoutWrite,
+  loadMapSettingsLimits,
+  loadRouteConfig,
+  loadVendorCategories,
+  selectRepositionedShops,
+  validateVendorDrafts,
+  type EditableRoad,
+  type EditableShop,
+  type EditableVendor,
+} from "./_shared";
 
-type EditableShop = {
-  locationId: string;
-  id: number;
-  vendorId?: string;
-  name: string;
-  lat: number;
-  lng: number;
-  position: number;
-};
+/**
+ * 「このPUTリクエストの保存が完了した後に存在するはずの区画一覧」を作る。
+ * DBから読み直しただけの状態ではなく、同一リクエスト内の位置更新・新規登録・削除を
+ * 反映する必要がある箇所（道削除バリデーション／未割当マーカー数の上限チェック）で
+ * 共通して使う（別々に組み立てると、片方だけ修正漏れが起きて2つのチェックが
+ * 異なる「保存後の状態」を見てしまう恐れがあるため）。
+ */
+function computeShopsAfterRequest(
+  currentShops: EditableShop[],
+  shopsUpdate: { updated?: EditableShop[]; deletedLocationIds?: string[] }
+): EditableShop[] {
+  const updated = shopsUpdate.updated ?? [];
+  const deletedLocationIdSet = new Set(shopsUpdate.deletedLocationIds ?? []);
+  const updatedByLocationId = new Map(
+    updated.filter((shop) => !shop.locationId.startsWith("new-")).map((shop) => [shop.locationId, shop])
+  );
+  const newShops = updated.filter((shop) => shop.locationId.startsWith("new-"));
 
-type VendorOption = {
-  id: string;
-  name: string;
-};
-
-type SnapshotSummary = {
-  updatedShopCount: number;
-  deletedShopCount: number;
-  upsertLandmarkCount: number;
-  deletedLandmarkCount: number;
-  updatedRoutePointCount: number;
-  routeConfigChanged: boolean;
-};
+  return currentShops
+    .filter((shop) => !deletedLocationIdSet.has(shop.locationId))
+    .map((shop) => updatedByLocationId.get(shop.locationId) ?? shop)
+    .concat(newShops);
+}
 
 function validateShopAssignments(shops: EditableShop[]) {
   const vendorByPosition = new Map<number, string>();
@@ -58,178 +79,130 @@ function validateShopAssignments(shops: EditableShop[]) {
   return null;
 }
 
-async function loadEditableShops(supabase: ReturnType<typeof createServerClient>): Promise<EditableShop[]> {
-  const [assignmentsResult, locationsResult, vendorsResult] = await Promise.all([
-    supabase.from("location_assignments").select("vendor_id, location_id, market_date"),
-    supabase.from("market_locations").select("id, store_number, latitude, longitude"),
-    supabase.from("vendors").select("id, shop_name"),
-  ]);
+/** 道の始点からの距離の上限（m）。会場の道は最長でも数km なので、明らかにおかしい値だけを弾く */
+const MAX_ROAD_DISTANCE_M = 10_000;
+const CHOME_VALUES = new Set<string>(CHOME_ORDER);
 
-  if (assignmentsResult.error || locationsResult.error || vendorsResult.error) {
-    throw new Error("Failed to load shop location mappings");
-  }
-
-  const assignmentsData = assignmentsResult.data ?? [];
-  const locationsData = locationsResult.data ?? [];
-  const vendorsData = vendorsResult.data ?? [];
-
-  const vendorNameById = new Map<string, string>();
-  for (const row of vendorsData) {
-    if (row.id) {
-      vendorNameById.set(row.id as string, (row.shop_name as string | null) ?? "");
+/** 区画の店番・位置・丁目が正しい形か（DB の制約に当たる前に、分かる言葉で返すため） */
+function validateShopFields(shops: EditableShop[]) {
+  for (const shop of shops) {
+    if (!Number.isInteger(shop.position) || shop.position < MIN_SHOP_ID || shop.position > MAX_SHOP_ID) {
+      return `店番は ${MIN_SHOP_ID}〜${MAX_SHOP_ID} の整数にしてください（${shop.position}）`;
     }
-  }
-
-  const latestAssignmentByLocation = new Map<string, { vendor_id: string | null; market_date: string | null }>();
-  for (const row of assignmentsData) {
-    const locationId = row.location_id as string | null;
-    if (!locationId) continue;
-    const current = latestAssignmentByLocation.get(locationId);
-    if (!current) {
-      latestAssignmentByLocation.set(locationId, {
-        vendor_id: (row.vendor_id as string | null) ?? null,
-        market_date: (row.market_date as string | null) ?? null,
-      });
-      continue;
+    if (
+      !Number.isFinite(shop.lat) ||
+      !Number.isFinite(shop.lng) ||
+      Math.abs(shop.lat) > 90 ||
+      Math.abs(shop.lng) > 180
+    ) {
+      return `店番 ${shop.position} の位置（緯度経度）が正しくありません`;
     }
-    const currentDate = current.market_date ? new Date(current.market_date) : null;
-    const nextDate = row.market_date ? new Date(row.market_date as string) : null;
-    if (!currentDate || (nextDate && nextDate > currentDate)) {
-      latestAssignmentByLocation.set(locationId, {
-        vendor_id: (row.vendor_id as string | null) ?? null,
-        market_date: (row.market_date as string | null) ?? null,
-      });
+    if (shop.chome !== undefined && shop.chome !== null && !CHOME_VALUES.has(shop.chome)) {
+      return `店番 ${shop.position} の丁目が正しくありません`;
     }
-  }
-
-  return locationsData
-    .flatMap((row) => {
-      const locationId = row.id as string | null;
-      const storeNumber = Number(row.store_number ?? 0);
-      const lat = Number(row.latitude ?? 0);
-      const lng = Number(row.longitude ?? 0);
-
-      if (!locationId || !Number.isFinite(storeNumber) || storeNumber <= 0) {
-        return [];
+    for (const [label, value] of [
+      ["本番号", shop.officialNumber],
+      ["枝番", shop.branchNumber],
+    ] as const) {
+      if (value !== undefined && value !== null && (!Number.isInteger(value) || value < 1 || value > 99_999)) {
+        return `店番 ${shop.position} の${label}が正しくありません`;
       }
-
-      const latestAssignment = latestAssignmentByLocation.get(locationId);
-      const vendorId = latestAssignment?.vendor_id ?? undefined;
-      const vendorName = vendorId ? vendorNameById.get(vendorId) ?? "" : "";
-
-      return [
-        {
-          locationId,
-          id: storeNumber,
-          vendorId,
-          name: vendorName || `未設定店舗 ${storeNumber}`,
-          lat,
-          lng,
-          position: storeNumber,
-        },
-      ];
-    })
-    .sort((a, b) => a.position - b.position);
+    }
+    if (shop.branchNumber != null && shop.officialNumber == null) {
+      return `店番 ${shop.position} は枝番だけがあり、本番号がありません`;
+    }
+    const roadFields = [shop.roadId, shop.roadDistanceM, shop.roadSide, shop.roadOffsetM];
+    const filled = roadFields.filter((value) => value !== undefined && value !== null).length;
+    if (filled === 0) continue;
+    if (
+      filled !== roadFields.length ||
+      typeof shop.roadId !== "string" ||
+      !Number.isFinite(shop.roadDistanceM) ||
+      (shop.roadDistanceM as number) < 0 ||
+      (shop.roadDistanceM as number) > MAX_ROAD_DISTANCE_M ||
+      (shop.roadSide !== "left" && shop.roadSide !== "right") ||
+      !Number.isFinite(shop.roadOffsetM) ||
+      (shop.roadOffsetM as number) < 0 ||
+      (shop.roadOffsetM as number) > 100
+    ) {
+      return `店番 ${shop.position} の道の上の位置が正しくありません`;
+    }
+  }
+  return null;
 }
 
-function createAdminWriteClient(): SupabaseClient {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+type VendorRowBeforeSave = {
+  id: string;
+  shop_name?: string | null;
+  category_id?: string | null;
+  strength?: string | null;
+  main_products?: string[] | null;
+};
 
-  if (!supabaseUrl || !serviceRoleKey) {
-    throw new Error("Supabase service role env vars are missing.");
+/** 保存後の区画で、店番が重なっていないか */
+function findDuplicatePosition(shops: EditableShop[]): number | null {
+  const seen = new Set<number>();
+  for (const shop of shops) {
+    if (seen.has(shop.position)) return shop.position;
+    seen.add(shop.position);
   }
-
-  return createServiceClient(supabaseUrl, serviceRoleKey, {
-    auth: {
-      persistSession: false,
-      autoRefreshToken: false,
-    },
-  });
+  return null;
 }
 
-async function createMapLayoutSnapshot(
-  supabase: ReturnType<typeof createServerClient>,
-  adminWriteClient: SupabaseClient,
-  createdBy: string,
-  summary: SnapshotSummary
-) {
-  const [shops, landmarks] = await Promise.all([
-    loadEditableShops(supabase),
-    fetchLandmarksFromDb(supabase),
-  ]);
-  const mapRoute = await fetchMapRouteFromDb(supabase);
-
-  const { error } = await adminWriteClient.from("map_layout_snapshots").insert({
-    shops_json: shops,
-    landmarks_json: landmarks,
-    route_json: mapRoute.points,
-    route_config_json: mapRoute.config,
-    created_by: createdBy,
-    summary,
-  });
-
-  if (error) {
-    throw new Error("Failed to create map layout snapshot");
+/** 保存後の区画で、住所録の番号（本番号＋枝番）が重なっていないか */
+function findDuplicateOfficialNumber(shops: EditableShop[]): string | null {
+  const seen = new Set<string>();
+  for (const shop of shops) {
+    if (shop.officialNumber == null) continue;
+    const key = `${shop.officialNumber}-${shop.branchNumber ?? 0}`;
+    if (seen.has(key)) return shop.branchNumber != null ? `${shop.officialNumber}-${shop.branchNumber}` : String(shop.officialNumber);
+    seen.add(key);
   }
+  return null;
 }
 
 export async function GET() {
   try {
+    const { error: authError } = await authorizeAdmin();
+    if (authError) return NextResponse.json({ error: authError }, { status: 403 });
+
     const cookieStore = await cookies();
     const supabase = createServerClient(cookieStore);
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
 
-    if (!user || !isAdmin(getRole(user))) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const [editableShops, landmarks, mapRoute, vendorsResult] = await Promise.all([
+    const [editableShops, landmarks, mapRoute, roads, vendors, categories, mapSettingsLimits, schemaReady] = await Promise.all([
       loadEditableShops(supabase),
       fetchLandmarksFromDb(supabase),
       fetchMapRouteFromDb(supabase),
-      supabase.from("vendors").select("id, shop_name, owner_name").order("shop_name", { ascending: true }),
+      loadEditableRoads(supabase),
+      loadEditableVendors(supabase),
+      loadVendorCategories(supabase),
+      loadMapSettingsLimits(supabase),
+      hasRoadPositionSchema(supabase),
     ]);
 
-    if (vendorsResult.error) {
-      return NextResponse.json({ error: "Failed to load vendor options" }, { status: 500 });
-    }
-
-    const vendors: VendorOption[] = (vendorsResult.data ?? []).map((row) => ({
-      id: row.id as string,
-      name: ((row.shop_name as string | null) || (row.owner_name as string | null) || "名称未設定").trim(),
-    }));
-
-    return NextResponse.json({ shops: editableShops, landmarks, route: mapRoute, vendors });
+    return NextResponse.json({
+      // false のあいだ（マイグレーション前）は、画面は開けるが保存と移行処理はできない
+      schemaReady,
+      shops: editableShops,
+      landmarks,
+      route: mapRoute,
+      roads,
+      vendors,
+      categories,
+      mapSettingsLimits,
+    });
   } catch {
     return NextResponse.json({ error: "Failed to load map layout" }, { status: 500 });
   }
 }
 
 export async function PUT(request: NextRequest) {
+  // 区画・割り当てを書き換え始めたら、途中で失敗しても公開マップの店舗キャッシュを捨てる
+  let shopWritesStarted = false;
   try {
-    const originCheck = requireSameOrigin(request);
-    if (!originCheck.ok) return originCheck.response;
-
-    const rateLimited = enforceRateLimit(request, {
-      bucket: "admin-map-layout-put",
-      limit: 20,
-      windowMs: 10 * 60 * 1000,
-    });
-    if (rateLimited) return rateLimited;
-
-    const cookieStore = await cookies();
-    const supabase = createServerClient(cookieStore);
-    const adminWriteClient = createAdminWriteClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user || !isAdmin(getRole(user))) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const prepared = await prepareMapLayoutWrite(request, { bucket: "admin-map-layout-put", limit: 20 });
+    if (!prepared.ok) return prepared.response;
+    const { user, supabase, adminWriteClient } = prepared;
 
     const body = (await request.json()) as {
       shops?: {
@@ -244,6 +217,11 @@ export async function PUT(request: NextRequest) {
         points?: MapRoutePoint[];
         config?: MapRouteConfig;
       };
+      // 道の一覧全体（フル置換）。未指定の場合は道を一切変更しない
+      // （新エディタが導入されるまでの後方互換）
+      roads?: MapRoad[];
+      // 空き区画から新しく登録した出店者（仮 id）と、情報を直した既存の出店者
+      vendors?: { upsert?: EditableVendor[] };
     };
 
     if (
@@ -255,9 +233,61 @@ export async function PUT(request: NextRequest) {
       !Array.isArray(body.landmarks.upsert) ||
       !Array.isArray(body.landmarks.deletedKeys) ||
       !Array.isArray(body.route.points) ||
-      !body.route.config
+      !body.route.config ||
+      (body.roads !== undefined && !Array.isArray(body.roads)) ||
+      (body.vendors !== undefined && !Array.isArray(body.vendors?.upsert))
     ) {
       return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
+    }
+
+    const shopFieldError = validateShopFields(body.shops.updated);
+    if (shopFieldError) {
+      return NextResponse.json({ error: shopFieldError }, { status: 400 });
+    }
+
+    const vendorsToWrite = body.vendors?.upsert ?? [];
+    // 更新する既存の出店者の、保存前の値（監査ログに残す）
+    let vendorRowsBeforeSave: VendorRowBeforeSave[] = [];
+    if (vendorsToWrite.length > 0) {
+      const existingIds = vendorsToWrite.map((v) => v.id).filter((id) => typeof id === "string" && !id.startsWith(NEW_VENDOR_ID_PREFIX));
+      const [existingResult, categories] = await Promise.all([
+        existingIds.length > 0
+          ? supabase.from("vendors").select("id, shop_name, category_id, strength, main_products").in("id", existingIds)
+          : Promise.resolve({ data: [] as VendorRowBeforeSave[], error: null }),
+        loadVendorCategories(supabase),
+      ]);
+      if (existingResult.error) {
+        return NextResponse.json({ error: "Failed to validate vendors" }, { status: 500 });
+      }
+      const existingVendors = new Map<string, EditableVendor>(
+        (existingResult.data ?? []).map((row) => [
+          row.id as string,
+          {
+            id: row.id as string,
+            // 画面に出す名前（loadEditableVendors）と同じにそろえる。画面は空の店名を「名称未設定」で送ってくる
+            name: ((row.shop_name as string | null) || "名称未設定").trim(),
+            categoryId: (row.category_id as string | null) ?? null,
+            strength: (row.strength as string | null) ?? "",
+            mainProducts: Array.isArray(row.main_products) ? (row.main_products as string[]) : [],
+          },
+        ])
+      );
+      const vendorError = validateVendorDrafts(vendorsToWrite, {
+        existingVendors,
+        categoryIds: new Set(categories.map((c) => c.id)),
+      });
+      if (vendorError) {
+        return NextResponse.json({ error: vendorError }, { status: 400 });
+      }
+      vendorRowsBeforeSave = existingResult.data ?? [];
+    }
+    // 区画に割り当てる新しい出店者（仮 id）は、同じ保存で登録するものに限る
+    const newVendorIds = new Set(vendorsToWrite.map((v) => v.id).filter((id) => id.startsWith(NEW_VENDOR_ID_PREFIX)));
+    const unknownNewVendor = body.shops.updated.find(
+      (shop) => shop.vendorId?.startsWith(NEW_VENDOR_ID_PREFIX) && !newVendorIds.has(shop.vendorId)
+    );
+    if (unknownNewVendor) {
+      return NextResponse.json({ error: `店番 ${unknownNewVendor.position} の出店者が見つかりません` }, { status: 400 });
     }
 
     const assignmentValidationError = validateShopAssignments(body.shops.updated);
@@ -265,201 +295,268 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: assignmentValidationError }, { status: 400 });
     }
 
+    // save_roads_and_points RPCはpointsを常に全削除→再挿入するため、道が残るはずの保存で
+    // route.pointsが空配列だと道の形状が丸ごと消える。全道削除時（body.roads===[]）のみ許容し、
+    // それ以外で空配列が来た場合は不完全なリクエストとみなして拒否する
+    if (body.route.points.length === 0 && (body.roads === undefined || body.roads.length > 0)) {
+      return NextResponse.json({ error: "道の経路データが空です。保存を中止しました。" }, { status: 400 });
+    }
+
+    // 道削除バリデーション・hasChanges判定・スナップショット作成のすべてが
+    // 「保存前の状態」を必要とするため、1回だけ読み込んで使い回す
+    const [currentShops, currentRoads, mapSettingsLimits, currentRouteConfig] = await Promise.all([
+      loadEditableShops(supabase),
+      loadEditableRoads(supabase),
+      loadMapSettingsLimits(supabase),
+      loadRouteConfig(supabase),
+    ]);
+
+    // 保存後の道の形。道の一覧が送られてきたときは、送られてきた道の点で組み立てる
+    // （道基準の位置を持つ区画の緯度経度は、この形から計算し直す）
+    const bodyPointsByRoadId = new Map<string, MapRoutePoint[]>();
+    for (const point of body.route.points) {
+      if (!point.roadId) continue;
+      const list = bodyPointsByRoadId.get(point.roadId) ?? [];
+      list.push(point);
+      bodyPointsByRoadId.set(point.roadId, list);
+    }
+    const roadsAfterSave: EditableRoad[] = body.roads
+      ? body.roads.map((road) => ({ ...road, points: bodyPointsByRoadId.get(road.id) ?? [] }))
+      : currentRoads;
+    const roadIdsAfterSave = new Set(roadsAfterSave.map((road) => road.id));
+
+    const shopsAfterSave = resolveSlotPositions(computeShopsAfterRequest(currentShops, body.shops), roadsAfterSave);
+    const missingRoadShop = shopsAfterSave.find((shop) => shop.roadId && !roadIdsAfterSave.has(shop.roadId));
+    if (missingRoadShop) {
+      return NextResponse.json(
+        { error: `店番 ${missingRoadShop.position} が乗っている道が見つかりません。道を削除する前に区画を移すか削除してください。` },
+        { status: 400 }
+      );
+    }
+    const duplicatePosition = findDuplicatePosition(shopsAfterSave);
+    if (duplicatePosition != null) {
+      return NextResponse.json({ error: `店番 ${duplicatePosition} が重複しています` }, { status: 400 });
+    }
+    const duplicateOfficialNumber = findDuplicateOfficialNumber(shopsAfterSave);
+    if (duplicateOfficialNumber != null) {
+      return NextResponse.json({ error: `番号 ${duplicateOfficialNumber} の区画が重複しています` }, { status: 400 });
+    }
+
+    // 送られてきた区画は、緯度経度をクライアントの値ではなく道の形から計算し直した値で書き込む
+    const resolvedShopById = new Map(shopsAfterSave.map((shop) => [shop.locationId, shop]));
+    const shopsToWrite = body.shops.updated.map((shop) => resolvedShopById.get(shop.locationId) ?? shop);
+    // 送られてきていないが、乗っている道の形が変わったため位置が変わる区画（割り当ては触らない）
+    const writtenLocationIds = new Set(body.shops.updated.map((shop) => shop.locationId));
+    const repositionedShops = selectRepositionedShops({
+      shopsAfterSave,
+      currentShops,
+      currentRoads,
+      roadsAfterSave,
+      writtenLocationIds,
+    });
+
+    // 区画が乗っている道は削除できない（クライアント側の制約とサーバー側でも二重に検証）
+    let removedRoadIds: string[] = [];
+    if (body.roads) {
+      const nextRoadIds = new Set(body.roads.map((road) => road.id));
+      const roadsToRemove = currentRoads.filter((road) => !nextRoadIds.has(road.id));
+
+      if (roadsToRemove.length > 0) {
+        // DBから読み直しただけの状態ではなく、同一リクエスト内の位置更新・新規登録・削除を
+        // 反映した「この保存が完了した後に存在するはずの区画一覧」（shopsAfterSave）で検証する
+        // （そうしないと、直前に道へ移動した区画を見落としてその道の削除を誤って許可してしまう）。
+        //
+        // 道の形状も「保存前（DB）」ではなく「このリクエストで保存される形状」で判定する。
+        // 削除される道自体は body.roads に含まれないため保存前の形状のままでよいが、
+        // 残る道は body.route.points 側の新しい座標を使わないと、道の点をドラッグしつつ
+        // 同じ保存操作で別の道を削除しようとした際に、古い（移動前の）座標のまま
+        // 「区画が乗っている」と誤判定してしまう恐れがある
+        const roadsForDistanceCheck: EditableRoad[] = [...roadsToRemove, ...roadsAfterSave];
+
+        const snapDistanceMeters = body.route.config.snapDistanceMeters ?? 18;
+        const roadIdsWithShops = findRoadIdsWithShops(shopsAfterSave, roadsForDistanceCheck, snapDistanceMeters);
+
+        for (const road of roadsToRemove) {
+          if (roadIdsWithShops.has(road.id)) {
+            return NextResponse.json(
+              { error: `${road.name || "選択した道"} には区画があるため削除できません` },
+              { status: 400 }
+            );
+          }
+        }
+      }
+
+      removedRoadIds = roadsToRemove.map((road) => road.id);
+    }
+
+    // 建物・未割当区画マーカーの上限（/admin/settings で設定）をサーバー側でも検証する
+    // （旧エディタはクライアント側のみのチェックだったため、新エディタでは併せて強制する）
+    const currentLandmarks = await fetchLandmarksFromDb(supabase);
+    const currentLandmarkKeys = new Set(currentLandmarks.map((l) => l.key));
+    const deletedLandmarkKeySet = new Set(body.landmarks.deletedKeys);
+    const remainingLandmarkCount = currentLandmarks.filter((l) => !deletedLandmarkKeySet.has(l.key)).length;
+    // upsert のうちDBにまだ存在しないkeyだけを「新規追加」として数える
+    // （既存の建物の名称編集などを新規追加と誤って二重カウントしないため）
+    const newlyAddedLandmarkCount = body.landmarks.upsert.filter((l) => !currentLandmarkKeys.has(l.key)).length;
+    const nextLandmarkCount = remainingLandmarkCount + newlyAddedLandmarkCount;
+    if (nextLandmarkCount > mapSettingsLimits.maxLandmarks) {
+      return NextResponse.json(
+        { error: `建物オブジェクトは最大 ${mapSettingsLimits.maxLandmarks} 件までです。` },
+        { status: 400 }
+      );
+    }
+
+    const nextUnassignedCount = shopsAfterSave.filter((s) => !s.vendorId).length;
+    if (nextUnassignedCount > mapSettingsLimits.maxUnassignedShopMarkers) {
+      return NextResponse.json(
+        { error: `未割当マーカは最大 ${mapSettingsLimits.maxUnassignedShopMarkers} 件までです。` },
+        { status: 400 }
+      );
+    }
+
+    // hasChanges はクライアントが送ってきた配列の有無ではなく、実際にDBの現在値と
+    // 異なるかどうかで判定する（route.points/roadsは常に全件送られてくるため、
+    // 単に「配列が空でない」を条件にすると保存の度に必ずtrueになってしまう）
+    const normalizeRoadForCompare = (r: { id: string; name: string; kind: string; widthMeters: number }) =>
+      `${r.id}|${r.name}|${r.kind}|${r.widthMeters}`;
+    const roadsChanged = body.roads
+      ? JSON.stringify(currentRoads.map(({ points: _points, ...r }) => normalizeRoadForCompare(r)).sort()) !==
+        JSON.stringify(body.roads.map(normalizeRoadForCompare).sort())
+      : false;
+
+    const normalizePointForCompare = (p: {
+      id: string;
+      lat: number;
+      lng: number;
+      roadId?: string | null;
+      branchFromId?: string | null;
+    }) => `${p.id}|${p.lat}|${p.lng}|${p.roadId ?? ""}|${p.branchFromId ?? ""}`;
+    const routePointsChanged =
+      JSON.stringify(currentRoads.flatMap((r) => r.points).map(normalizePointForCompare).sort()) !==
+      JSON.stringify(body.route.points.map(normalizePointForCompare).sort());
+
+    // ルート config（幅・スナップ距離・可視距離）だけを変えた保存でもスナップショットを残す
+    const routeConfigChanged = isRouteConfigChanged(currentRouteConfig, body.route.config);
+
     const hasChanges =
       body.shops.updated.length > 0 ||
       body.shops.deletedLocationIds.length > 0 ||
       body.landmarks.upsert.length > 0 ||
       body.landmarks.deletedKeys.length > 0 ||
-      body.route.points.length > 0;
+      routePointsChanged ||
+      roadsChanged ||
+      routeConfigChanged ||
+      repositionedShops.length > 0 ||
+      vendorsToWrite.length > 0;
 
     if (hasChanges) {
-      await createMapLayoutSnapshot(supabase, adminWriteClient, user.id, {
-        updatedShopCount: body.shops.updated.length,
-        deletedShopCount: body.shops.deletedLocationIds.length,
-        upsertLandmarkCount: body.landmarks.upsert.length,
-        deletedLandmarkCount: body.landmarks.deletedKeys.length,
-        updatedRoutePointCount: body.route.points.length,
-        routeConfigChanged: Boolean(body.route.config),
-      });
-    }
-
-    if (body.shops.updated.length > 0) {
-      const createdShops = body.shops.updated.filter((shop) => shop.locationId.startsWith("new-"));
-      const existingShops = body.shops.updated.filter((shop) => !shop.locationId.startsWith("new-"));
-
-      if (existingShops.length > 0) {
-        const { error } = await adminWriteClient
-          .from("market_locations")
-          .upsert(
-            existingShops.map((shop) => ({
-              id: shop.locationId,
-              latitude: shop.lat,
-              longitude: shop.lng,
-              store_number: shop.position,
-            })),
-            { onConflict: "id" }
-          );
-
-        if (error) {
-          return NextResponse.json({ error: "Failed to update shop locations" }, { status: 500 });
-        }
-      }
-
-      const createdLocationIdByPosition = new Map<number, string>();
-      if (createdShops.length > 0) {
-        const { data, error } = await adminWriteClient
-          .from("market_locations")
-          .insert(
-            createdShops.map((shop) => ({
-              latitude: shop.lat,
-              longitude: shop.lng,
-              store_number: shop.position,
-            }))
-          )
-          .select("id, store_number");
-
-        if (error) {
-          return NextResponse.json({ error: "Failed to create shop locations" }, { status: 500 });
-        }
-
-        for (const row of data ?? []) {
-          if (row.id && row.store_number != null) {
-            createdLocationIdByPosition.set(Number(row.store_number), row.id as string);
-          }
-        }
-      }
-
-      const assignmentTargets = body.shops.updated.map((shop) => ({
-        ...shop,
-        locationId: shop.locationId.startsWith("new-")
-          ? createdLocationIdByPosition.get(shop.position) ?? shop.locationId
-          : shop.locationId,
-      }));
-
-      const affectedLocationIds = assignmentTargets
-        .map((shop) => shop.locationId)
-        .filter((locationId) => !locationId.startsWith("new-"));
-      const affectedVendorIds = assignmentTargets
-        .map((shop) => shop.vendorId)
-        .filter((vendorId): vendorId is string => Boolean(vendorId));
-
-      if (affectedLocationIds.length > 0) {
-        const { error } = await adminWriteClient
-          .from("location_assignments")
-          .delete()
-          .in("location_id", affectedLocationIds);
-
-        if (error) {
-          return NextResponse.json({ error: "Failed to clear location assignments" }, { status: 500 });
-        }
-      }
-
-      if (affectedVendorIds.length > 0) {
-        const { error } = await adminWriteClient
-          .from("location_assignments")
-          .delete()
-          .in("vendor_id", affectedVendorIds);
-
-        if (error) {
-          return NextResponse.json({ error: "Failed to clear vendor assignments" }, { status: 500 });
-        }
-      }
-
-      const assignmentsToInsert = assignmentTargets
-        .filter((shop) => shop.vendorId && !shop.locationId.startsWith("new-"))
-        .map((shop) => ({
-          location_id: shop.locationId,
-          vendor_id: shop.vendorId as string,
-          market_date: new Date().toISOString().slice(0, 10),
-        }));
-
-      if (assignmentsToInsert.length > 0) {
-        const { error } = await adminWriteClient.from("location_assignments").insert(assignmentsToInsert);
-
-        if (error) {
-          return NextResponse.json({ error: "Failed to save shop assignments" }, { status: 500 });
-        }
-      }
-    }
-
-    if (body.shops.deletedLocationIds.length > 0) {
-      const { error } = await adminWriteClient
-        .from("market_locations")
-        .delete()
-        .in("id", body.shops.deletedLocationIds);
-
-      if (error) {
-        return NextResponse.json({ error: "Failed to delete shop locations" }, { status: 500 });
-      }
-    }
-
-    if (body.landmarks.deletedKeys.length > 0) {
-      const { error } = await adminWriteClient
-        .from("map_landmarks")
-        .delete()
-        .in("key", body.landmarks.deletedKeys);
-
-      if (error) {
-        return NextResponse.json({ error: "Failed to delete landmarks" }, { status: 500 });
-      }
-    }
-
-    if (body.landmarks.upsert.length > 0) {
-      const { error: landmarksError } = await adminWriteClient.from("map_landmarks").upsert(
-        body.landmarks.upsert.map((landmark) => ({
-          key: landmark.key,
-          name: landmark.name,
-          description: landmark.description,
-          image_url: landmark.url,
-          latitude: landmark.lat,
-          longitude: landmark.lng,
-          width_px: landmark.widthPx,
-          height_px: landmark.heightPx,
-          show_at_min_zoom: landmark.showAtMinZoom,
-        })),
-        { onConflict: "key" }
+      await createMapLayoutSnapshot(
+        supabase,
+        adminWriteClient,
+        user.id,
+        {
+          updatedShopCount: body.shops.updated.length,
+          deletedShopCount: body.shops.deletedLocationIds.length,
+          upsertLandmarkCount: body.landmarks.upsert.length,
+          deletedLandmarkCount: body.landmarks.deletedKeys.length,
+          updatedRoutePointCount: body.route.points.length,
+          routeConfigChanged,
+          updatedRoadCount: body.roads?.length,
+          deletedRoadCount: removedRoadIds.length || undefined,
+          repositionedShopCount: repositionedShops.length || undefined,
+        },
+        { shops: currentShops, roads: currentRoads }
       );
-
-      if (landmarksError) {
-        return NextResponse.json({ error: "Failed to save landmarks" }, { status: 500 });
-      }
     }
 
-    // replace_map_route_points SQL 関数で全件削除→再挿入をアトミックに実行
-    // （別々の操作にすると削除後に insert が失敗した場合に route_points が消える）
-    const routePointsPayload = body.route.points.map((point, index) => ({
-      id: point.id,
-      latitude: point.lat,
-      longitude: point.lng,
-      sort_order: index,
-      branch_from_id: point.branchFromId ?? null,
-    }));
+    // 書き込みは save_map_layout RPC で1つのトランザクションにまとめる（途中で失敗したら全体が戻る）。
+    // 道・道の点は、どちらも変わっていないとき（例: 店舗の担当者変更のみの保存）は書き込まない。
+    // 道の点は全削除→全再挿入になるため、変更がない保存で毎回書き込むと無駄なDB書き込みになる
+    const saveRoads = routePointsChanged || roadsChanged;
+    shopWritesStarted = true;
+    const { data: saveResult, error: saveError } = await adminWriteClient.rpc("save_map_layout", {
+      p_save_roads: saveRoads,
+      p_roads: (body.roads ?? []).map((road) => ({
+        id: road.id,
+        name: road.name,
+        kind: road.kind,
+        widthMeters: road.widthMeters,
+      })),
+      p_points: body.route.points.map((point, index) => ({
+        id: point.id,
+        latitude: point.lat,
+        longitude: point.lng,
+        sort_order: index,
+        branch_from_id: point.branchFromId ?? null,
+        road_id: point.roadId ?? null,
+      })),
+      p_removed_road_ids: removedRoadIds,
+      p_shops: shopsToWrite.map((shop) => ({
+        locationId: shop.locationId,
+        position: shop.position,
+        lat: shop.lat,
+        lng: shop.lng,
+        chome: shop.chome ?? null,
+        vendorId: shop.vendorId?.trim() || null,
+        roadId: shop.roadId ?? null,
+        roadDistanceM: shop.roadDistanceM ?? null,
+        roadSide: shop.roadSide ?? null,
+        roadOffsetM: shop.roadOffsetM ?? null,
+        officialNumber: shop.officialNumber ?? null,
+        branchNumber: shop.branchNumber ?? null,
+      })),
+      p_shop_positions: repositionedShops.map((shop) => ({ locationId: shop.locationId, lat: shop.lat, lng: shop.lng })),
+      p_deleted_location_ids: body.shops.deletedLocationIds,
+      p_landmarks: body.landmarks.upsert,
+      p_deleted_landmark_keys: body.landmarks.deletedKeys,
+      p_route_config: body.route.config,
+      p_vendors: vendorsToWrite.map((vendor) => ({
+        id: vendor.id,
+        name: vendor.name.trim(),
+        categoryId: vendor.categoryId,
+        strength: vendor.strength.trim(),
+        mainProducts: vendor.mainProducts.map((product) => product.trim()),
+      })),
+    });
 
-    const { error: routePointsError } = await adminWriteClient.rpc(
-      "replace_map_route_points",
-      { p_points: routePointsPayload }
-    );
-
-    if (routePointsError) {
-      return NextResponse.json({ error: "Failed to save route points" }, { status: 500 });
+    if (saveError) {
+      console.error("[admin/map-layout] save_map_layout failed:", saveError.message);
+      return NextResponse.json({ error: "Failed to save map layout" }, { status: 500 });
     }
 
-    const { error: routeConfigError } = await adminWriteClient.from("map_route_configs").upsert(
-      {
-        key: body.route.config.key,
-        road_half_width_meters: body.route.config.roadHalfWidthMeters,
-        snap_distance_meters: body.route.config.snapDistanceMeters,
-        visible_distance_meters: body.route.config.visibleDistanceMeters,
-      },
-      { onConflict: "key" }
-    );
-
-    if (routeConfigError) {
-      return NextResponse.json({ error: "Failed to save route config" }, { status: 500 });
+    // 出店者の登録・更新は、配置（スナップショットで戻せる）と違って戻せないため監査ログに残す。
+    // 新規登録は採番された id、更新は保存前後の値を残し、どの行をどう変えたか後から追えるようにする
+    if (vendorsToWrite.length > 0) {
+      const createdIdByDraftId =
+        (saveResult as { createdVendors?: Record<string, string> } | null)?.createdVendors ?? {};
+      const beforeById = new Map(vendorRowsBeforeSave.map((row) => [row.id, row]));
+      const created = vendorsToWrite
+        .filter((v) => v.id.startsWith(NEW_VENDOR_ID_PREFIX))
+        .map((v) => ({ id: createdIdByDraftId[v.id] ?? null, name: v.name.trim() }));
+      const updated = vendorsToWrite
+        .filter((v) => !v.id.startsWith(NEW_VENDOR_ID_PREFIX))
+        .map((v) => ({
+          id: v.id,
+          before: beforeById.get(v.id) ?? null,
+          after: { shop_name: v.name.trim(), category_id: v.categoryId, strength: v.strength.trim(), main_products: v.mainProducts },
+        }));
+      await logAdminAudit(
+        adminWriteClient,
+        { id: user.id, email: user.email, role: getRole(user) },
+        {
+          action: "map_edit_save_vendors",
+          targetType: "vendor",
+          targetId: [...created.map((v) => v.id), ...updated.map((v) => v.id)].filter(Boolean).join(",").slice(0, 2000),
+          targetName: vendorsToWrite.map((v) => v.name.trim()).join(", ").slice(0, 500),
+          details: JSON.stringify({ created, updated }),
+        }
+      );
     }
 
     return NextResponse.json({ ok: true });
   } catch {
     return NextResponse.json({ error: "Failed to save map layout" }, { status: 500 });
+  } finally {
+    if (shopWritesStarted) revalidatePublicShops();
   }
 }

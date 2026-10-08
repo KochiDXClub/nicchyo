@@ -1,13 +1,14 @@
 import { NextResponse } from "next/server";
 import { createClient as createServiceClient } from "@supabase/supabase-js";
-import { cookies } from "next/headers";
 import { z } from "zod";
-import { createClient as createServerClient } from "@/utils/supabase/server";
 import { requireSameOrigin } from "@/lib/security/requestGuards";
 import { enforceRateLimit } from "@/lib/security/rateLimit";
-import { requireVendorRole } from "@/lib/auth/permissions";
+import { requireVendorContext } from "@/lib/vendor/shopContext.server";
+import { requestEmbeddings } from "@/lib/ai/openaiFetch";
 
 const MAX_CONTENT_LENGTH = 5000;
+/** 旧画面の自由メモ。20261001160000 で既存のメモに付けた題と同じ */
+const LEGACY_MEMO_TITLE = "お店のメモ";
 const KnowledgeBodySchema = z.object({
   content: z.string().trim().min(1, "content is required").max(MAX_CONTENT_LENGTH, `内容は${MAX_CONTENT_LENGTH}文字以内で入力してください`),
 });
@@ -18,17 +19,17 @@ export const dynamic = "force-dynamic";
 // ─── GET: 既存の知識を取得 ───────────────────────────────────
 export async function GET() {
   try {
-    const cookieStore = await cookies();
-    const supabase = createServerClient(cookieStore);
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    const forbidden = requireVendorRole(user);
-    if (forbidden) return forbidden;
+    const auth = await requireVendorContext({ permission: "ai_notes" });
+    if (!auth.ok) return auth.response;
+    const { vendorId, supabase } = auth;
 
+    // 旧画面（自由メモ1枚）は「お店のメモ」の1枚だけを読み書きする。
+    // ノートの束（/api/vendor/ai-notes）で足したほかのノートには触らない
     const { data } = await supabase
       .from("store_knowledge")
       .select("id, content, created_at, updated_at")
-      .eq("store_id", user.id)
+      .eq("store_id", vendorId)
+      .eq("title", LEGACY_MEMO_TITLE)
       .order("updated_at", { ascending: false })
       .limit(1)
       .single();
@@ -45,19 +46,16 @@ export async function POST(request: Request) {
     const originCheck = requireSameOrigin(request);
     if (!originCheck.ok) return originCheck.response;
 
-    const rateLimited = enforceRateLimit(request, {
+    const rateLimited = await enforceRateLimit(request, {
       bucket: "vendor-knowledge-post",
       limit: 12,
       windowMs: 10 * 60 * 1000,
     });
     if (rateLimited) return rateLimited;
 
-    const cookieStore = await cookies();
-    const supabase = createServerClient(cookieStore);
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    const forbidden = requireVendorRole(user);
-    if (forbidden) return forbidden;
+    const auth = await requireVendorContext({ permission: "ai_notes" });
+    if (!auth.ok) return auth.response;
+    const { vendorId } = auth;
 
     const parsed = KnowledgeBodySchema.safeParse(await request.json());
     if (!parsed.success) {
@@ -72,11 +70,7 @@ export async function POST(request: Request) {
     // embedding生成
     let embedding: number[] | null = null;
     if (openaiKey) {
-      const embeddingRes = await fetch("https://api.openai.com/v1/embeddings", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${openaiKey}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ model: "text-embedding-3-small", input: content.trim() }),
-      });
+      const embeddingRes = await requestEmbeddings(openaiKey, content.trim());
       if (embeddingRes.ok) {
         const payload = (await embeddingRes.json()) as { data?: { embedding: number[] }[] };
         embedding = payload.data?.[0]?.embedding ?? null;
@@ -90,7 +84,8 @@ export async function POST(request: Request) {
     const { data: existing } = await serviceClient
       .from("store_knowledge")
       .select("id")
-      .eq("store_id", user.id)
+      .eq("store_id", vendorId)
+      .eq("title", LEGACY_MEMO_TITLE)
       .limit(1)
       .single();
 
@@ -102,7 +97,7 @@ export async function POST(request: Request) {
     } else {
       await serviceClient
         .from("store_knowledge")
-        .insert({ store_id: user.id, content: content.trim(), embedding });
+        .insert({ store_id: vendorId, title: LEGACY_MEMO_TITLE, content: content.trim(), embedding });
     }
 
     return NextResponse.json({ ok: true, hasEmbedding: embedding !== null });

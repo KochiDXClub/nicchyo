@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/database.types";
 import { requireSameOrigin } from "@/lib/security/requestGuards";
 import { enforceRateLimit } from "@/lib/security/rateLimit";
+import { todayJstString } from "@/lib/time/jstDate";
 
 type VendorRow = {
   category_id: string | null;
@@ -17,20 +18,6 @@ type VisitorRow = {
   visitor_count: number | null;
 };
 
-function getTokyoTodayIso(baseDate = new Date()) {
-  const formatter = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Asia/Tokyo",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  });
-  const parts = formatter.formatToParts(baseDate);
-  const year = parts.find((p) => p.type === "year")?.value ?? "0000";
-  const month = parts.find((p) => p.type === "month")?.value ?? "01";
-  const day = parts.find((p) => p.type === "day")?.value ?? "01";
-  return `${year}-${month}-${day}`;
-}
-
 function getWeekStartIso(isoDate: string) {
   const date = new Date(`${isoDate}T00:00:00Z`);
   const day = date.getUTCDay();
@@ -43,7 +30,7 @@ export async function GET(request: NextRequest) {
   const originCheck = requireSameOrigin(request);
   if (!originCheck.ok) return originCheck.response;
 
-  const rateLimited = enforceRateLimit(request, {
+  const rateLimited = await enforceRateLimit(request, {
     bucket: "analytics-home-summary",
     limit: 60,
     windowMs: 60 * 1000,
@@ -67,7 +54,7 @@ export async function GET(request: NextRequest) {
     },
   });
 
-  const todayIso = getTokyoTodayIso();
+  const todayIso = todayJstString();
   const weekStartIso = getWeekStartIso(todayIso);
 
   const [
@@ -75,7 +62,8 @@ export async function GET(request: NextRequest) {
     { data: locationsData, error: locationsError },
     { data: weeklyVisitorsData, error: weeklyVisitorsError },
   ] = await Promise.all([
-    supabase.from("vendors").select("category_id"),
+    // service_role は RLS を通らない。ホームに出す数は、掲載の許可がある店舗だけで数える
+    supabase.from("vendors").select("category_id").eq("listing_status", "allowed"),
     supabase.from("market_locations").select("district"),
     supabase
       .from("web_visitor_stats")

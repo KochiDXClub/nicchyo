@@ -1,48 +1,122 @@
 "use client";
 
-import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { Home, Megaphone, Store, BarChart2, Settings } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { LogOut, Mail, Map as MapIcon, Megaphone } from "lucide-react";
+import { useAuth } from "@/lib/auth/AuthContext";
+import {
+  BottomNavBackBar,
+  BottomNavLink,
+  MenuDivider,
+  MenuRow,
+  MenuSheet,
+  MenuToggleButton,
+  MenuUserRow,
+} from "@/components/navigation/MenuSheet";
+import { visibleVendorNavItems } from "./vendorNavItems";
 
-const TABS = [
-  { href: "/my-shop",          label: "ホーム", icon: Home },
-  { href: "/vendor/posts",     label: "投稿履歴", icon: Megaphone },
-  { href: "/vendor/store",     label: "店舗情報", icon: Store },
-  { href: "/vendor/analytics", label: "分析",   icon: BarChart2 },
-  { href: "/vendor/account",   label: "設定",   icon: Settings },
-];
+const HOME_HREF = "/my-shop";
 
+
+/**
+ * 出店者向けの下部バーとメニューシート。
+ * 見た目と操作感は来訪者向けの NavigationBar と同じ部品（components/navigation/MenuSheet）で揃える。
+ */
 export default function VendorNavBar() {
   const pathname = usePathname();
+  const router = useRouter();
+  const { user, logout, permissions } = useAuth();
+  const navItems = visibleVendorNavItems(permissions.canShop);
+  // 下部バーに常設している「連絡」「投稿」は、メニューでは重ねて出さない
+  const mainItems = navItems.filter((item) => item.group === "main" && !item.inBottomBar);
+  const supportItems = navItems.filter((item) => item.group === "support");
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const menuButtonRef = useRef<HTMLButtonElement>(null);
+
+  const isHome = pathname === HOME_HREF;
+  // /vendor/* はPCでサイドバーが出るので下部バーはlg以上で隠す。
+  // /my-shop* はサイドバーが無いので全サイズで表示する。
+  const inVendorConsole = pathname?.startsWith("/vendor") ?? false;
+
+  // 背面スクロールの固定・Esc・フォーカスは MenuSheet が受け持つ
+  // ルート変更でシートを閉じる
+  useEffect(() => {
+    setSheetOpen(false);
+  }, [pathname]);
+
+  const closeSheet = useCallback(() => setSheetOpen(false), []);
+
+  const go = (href: string) => {
+    setSheetOpen(false);
+    router.push(href);
+  };
+
+  const handleLogout = async () => {
+    setSheetOpen(false);
+    await logout();
+    router.push("/login");
+  };
 
   return (
-    <nav
-      className="fixed bottom-0 left-0 right-0 z-[1000] border-t border-amber-100 bg-white/95 backdrop-blur-sm lg:hidden"
-      style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
-    >
-      <div className="flex items-stretch">
-        {TABS.map(({ href, label, icon: Icon }) => {
-          const isActive =
-            href === "/my-shop"
-              ? pathname === "/my-shop"
-              : pathname === href || pathname.startsWith(href + "/");
-          return (
-            <Link
-              key={href}
-              href={href}
-              className={`flex flex-1 flex-col items-center gap-1 py-3 text-xs font-semibold transition active:scale-95 ${
-                isActive ? "text-amber-600" : "text-slate-400"
-              }`}
-            >
-              <Icon
-                size={24}
-                strokeWidth={isActive ? 2.7 : 1.9}
-              />
-              <span>{label}</span>
-            </Link>
-          );
-        })}
-      </div>
-    </nav>
+    <>
+      {/* ── メニューシート ───────────────────────────────── */}
+      <MenuSheet
+        open={sheetOpen}
+        onClose={closeSheet}
+        label="出店者メニュー"
+        returnFocusRef={menuButtonRef}
+      >
+        {user?.name && (
+          <>
+            <MenuUserRow
+              name={user.name}
+              avatarUrl={user.avatarUrl}
+              roleLabel="出店者"
+              onClick={() => go("/vendor/account")}
+            />
+            <MenuDivider />
+          </>
+        )}
+
+        {/* ─ お店の運営で使うページ ─ */}
+        {mainItems.map((item) => (
+          <MenuRow key={item.href} icon={item.icon} label={item.label} onClick={() => go(item.href)} />
+        ))}
+
+        {/* ─ 使い方・設定・マップ ─ */}
+        <MenuDivider />
+        {supportItems.map((item) => (
+          <MenuRow key={item.href} icon={item.icon} label={item.label} muted onClick={() => go(item.href)} />
+        ))}
+        <MenuRow icon={MapIcon} label="マップを見る" muted onClick={() => go("/map")} />
+
+        {/* ─ ログアウト ─ */}
+        <MenuDivider />
+        <MenuRow icon={LogOut} label="ログアウト" muted onClick={handleLogout} />
+      </MenuSheet>
+
+      {/* ── 下部バー ─────────────────────────────────────── */}
+      <nav
+        className={`fixed bottom-0 left-0 right-0 z-[9997] border-t border-slate-200/60 bg-white/90 text-sm leading-none shadow-sm backdrop-blur-md ${
+          inVendorConsole ? "lg:hidden" : ""
+        }`}
+        style={{ paddingBottom: "var(--safe-bottom, 0px)" }}
+      >
+        {isHome ? (
+          <div className="mx-auto flex h-14 max-w-lg items-center">
+            {/* 店舗情報への導線はメニューシート（VENDOR_NAV_ITEMS）に残してある */}
+            <BottomNavLink href="/vendor/inquiries" label="連絡" icon={Mail} />
+            <MenuToggleButton
+              open={sheetOpen}
+              onClick={() => setSheetOpen((v) => !v)}
+              buttonRef={menuButtonRef}
+            />
+            <BottomNavLink href="/vendor/posts" label="投稿" icon={Megaphone} />
+          </div>
+        ) : (
+          <BottomNavBackBar label="マイ店舗へ戻る" onClick={() => router.push(HOME_HREF)} />
+        )}
+      </nav>
+    </>
   );
 }

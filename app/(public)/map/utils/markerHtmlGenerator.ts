@@ -1,13 +1,10 @@
 import { Shop } from '../data/shops';
+import { ILLUSTRATION_SIZES } from '../config/displayConfig';
+import { resolveStallColors } from '../config/shopCategories';
 import { sanitizeInlineSvg } from './svgSanitizer';
+import { generateStallSvg, resolveStallParts } from '../config/stallParts';
 
 type ShopIllustrationSize = 'small' | 'medium' | 'large';
-
-const ILLUSTRATION_SIZE_MAP = {
-  small: { width: 40, height: 40 },
-  medium: { width: 60, height: 60 },
-  large: { width: 80, height: 80 },
-};
 
 function escapeHtml(str: string): string {
   if (!str) return '';
@@ -19,40 +16,69 @@ function escapeHtml(str: string): string {
     .replace(/'/g, "&#039;");
 }
 
-function adjustColor(hex: string, amount: number): string {
-  const num = parseInt(hex.replace('#', ''), 16);
-  const r = Math.max(0, Math.min(255, (num >> 16) + amount));
-  const g = Math.max(0, Math.min(255, ((num >> 8) & 0x00ff) + amount));
-  const b = Math.max(0, Math.min(255, (num & 0x0000ff) + amount));
-  return `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, '0')}`;
+/**
+ * CSS の color 文脈に入れてよい値だけを通す（#RGB / #RRGGBB）。
+ * 出店者編集由来の値が `red; background:url(...)` のような CSS 断片になるのを防ぐ。
+ * #RGB は adjustColor が 6 桁前提なので 6 桁に展開する。
+ */
+export function sanitizeCssColor(value: string | undefined | null): string | undefined {
+  if (!value) return undefined;
+  const trimmed = value.trim();
+  if (/^#[0-9a-fA-F]{6}$/.test(trimmed)) return trimmed;
+  const short = /^#([0-9a-fA-F])([0-9a-fA-F])([0-9a-fA-F])$/.exec(trimmed);
+  if (short) {
+    const [, r, g, b] = short;
+    return `#${r}${r}${g}${g}${b}${b}`;
+  }
+  return undefined;
 }
 
+/**
+ * CSS の `url()` に入れてよい画像 URL だけを通し、引用符付きで返す。
+ * - 許可: サイト内の絶対パス（`/...`、`//` は除く）と https:// のみ
+ * - `"` `\` `(` `)` 改行など url() を脱出しうる文字は除去する
+ */
+export function toCssUrl(value: string | undefined | null): string | undefined {
+  if (!value) return undefined;
+  const trimmed = value.trim();
+  const isSitePath = trimmed.startsWith('/') && !trimmed.startsWith('//');
+  const isHttps = /^https:\/\//i.test(trimmed);
+  if (!isSitePath && !isHttps) return undefined;
+  const cleaned = trimmed.replace(/["'\\()\s]/g, '');
+  if (!cleaned) return undefined;
+  return `url("${cleaned}")`;
+}
+
+export type StallRendererOption = 'svg' | 'div';
+
+/**
+ * 屋台イラスト。
+ * - svg（既定）: config/stallParts.ts のカタログから 1 つの inline SVG として描く
+ * - div: div を 6 個積んで CSS で形を作る従来方式（比較実験用。globals.css の .shop-illustration-3d）
+ * 出店者のカスタム SVG がある場合はどちらでもそれを優先する。
+ */
 function generateShopIllustrationHtml(
-  type: 'tent' | 'stall' | 'custom' = 'tent',
+  illustration: Shop['illustration'],
   size: ShopIllustrationSize = 'medium',
-  color?: string,
-  customSvg?: string
+  renderer: StallRendererOption = 'svg'
 ): string {
-  const safeSvg = sanitizeInlineSvg(customSvg);
+  const safeSvg = sanitizeInlineSvg(illustration?.customSvg);
   if (safeSvg) {
     return `<div class="shop-illustration">${safeSvg}</div>`;
   }
 
-  if (type === 'custom') {
+  if (illustration?.type === 'custom') {
     return '';
   }
 
-  const { width, height } = ILLUSTRATION_SIZE_MAP[size];
-  const baseColor = color || '#22c55e';
-  const darkColor = adjustColor(baseColor, -25);
-  const lightColor = adjustColor(baseColor, 25);
+  // DivIcon の iconSize と同じ値を使う（ILLUSTRATION_SIZES が唯一の正）。
+  const { width, height } = ILLUSTRATION_SIZES[size];
 
-  const style = `width:${width}px;height:${height}px;--stall-color:${baseColor};--stall-color-dark:${darkColor};--stall-color-light:${lightColor};`;
-
-  return `
+  if (renderer === 'div') {
+    return `
     <div
       class="shop-illustration shop-illustration-3d"
-      style="${style}"
+      style="width:${width}px;height:${height}px;"
     >
       <div class="stall-shadow" aria-hidden="true"></div>
       <div class="stall-roof" aria-hidden="true"></div>
@@ -62,47 +88,76 @@ function generateShopIllustrationHtml(
       <div class="stall-legs" aria-hidden="true"></div>
     </div>
   `;
+  }
+
+  const parts = resolveStallParts({ roof: illustration?.roof, awning: illustration?.awning });
+  return generateStallSvg(parts, { width, height });
 }
+
+export interface ShopMarkerHtmlOptions {
+  /** 屋根の上に載せる写真。無ければアイコンごと出さない */
+  bannerImage?: string;
+  illustrationSize: ShopIllustrationSize;
+  /** 木札（店名）の DOM を含めるか。LOD が nameplate のときだけ true */
+  includeNameplate: boolean;
+  /** 屋台の描画方式（lib/mapFeatureFlags.ts の stallRenderer）。既定は svg */
+  stallRenderer?: StallRendererOption;
+}
+
+/**
+ * お気に入りの印。
+ *
+ * かつては ❤（U+2764）の文字をそのまま置いていたが、端末ごとに絵文字の
+ * 絵柄が変わって揃わない（`NavigationBar` と同じ理由）。線と塗りを自分で
+ * 持つ SVG に替えて、どの端末でも同じ形にする。
+ *
+ * 色は tailwind.config.js / globals.css に定義済みのお気に入り色
+ * （--favorite-fg）。枠と影は木札（.shop-nameplate）と同じ family にして、
+ * 日曜市の木の看板が並ぶ世界から浮かないようにしている。
+ */
+/**
+ * ハートの形（viewBox 24 × 24）
+ *
+ * Leaflet 版はこの文字列を SVG に埋め、MapLibre 版は Path2D に渡して
+ * Canvas に描く。形を直すときに片方だけ変わらないよう、出どころはここ 1 つにする。
+ */
+export const SHOP_FAVORITE_HEART_PATH =
+  "M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z";
+
+/** お気に入り色。CSS 変数 --favorite-fg を読めないときの控え（globals.css と同じ値） */
+export const SHOP_FAVORITE_COLOR_FALLBACK = "#be123c";
+
+export const SHOP_FAVORITE_BADGE_HTML = `<div class="shop-favorite-badge" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><path d="${SHOP_FAVORITE_HEART_PATH}"/></svg></div>`;
 
 export function generateShopMarkerHtml(
   shop: Shop,
-  mode: 'full' | 'mid',
-  bannerImage: string | undefined,
-  attendanceLabel: string,
-  illustrationSize: ShopIllustrationSize,
-  _mainProduct: string
+  { bannerImage, illustrationSize, includeNameplate, stallRenderer = 'svg' }: ShopMarkerHtmlOptions
 ): string {
-  const bannerHtml = mode === 'full' ? `
-    ${bannerImage ? `<span class="shop-product-icon" style="background-image: url(${escapeHtml(bannerImage)})" aria-hidden="true"></span>` : ''}
-    <div class="shop-simple-banner" aria-hidden="true">
-      <div class="shop-simple-banner-image">
-        <img src="${escapeHtml(bannerImage || '')}" alt="" />
-      </div>
-      <div class="shop-simple-banner-body">
-        <div class="shop-simple-banner-name">${escapeHtml(shop.name)}</div>
-      </div>
-    </div>
-  ` : '';
+  // 屋台の色はカテゴリで決まる。状態色（選択/AI/検索/買い物袋）は
+  // CSS 側が上書きするので、ここではカテゴリ色だけを渡す。
+  const stall = resolveStallColors(shop.category, sanitizeCssColor(shop.illustration?.color));
+  const colorStyle =
+    `--stall-color:${stall.base};` +
+    `--stall-color-dark:${stall.dark};` +
+    `--stall-color-light:${stall.light};`;
 
-  const illustrationHtml = generateShopIllustrationHtml(
-    shop.illustration?.type,
-    illustrationSize,
-    shop.illustration?.color,
-    shop.illustration?.customSvg
-  );
+  const bannerCssUrl = toCssUrl(bannerImage);
+  const productIconHtml = bannerCssUrl
+    ? `<span class="shop-product-icon" style="background-image: ${escapeHtml(bannerCssUrl)}" aria-hidden="true"></span>`
+    : '';
+
+  const nameplateHtml = includeNameplate
+    ? `<div class="shop-nameplate"><span class="shop-nameplate-text">${escapeHtml(shop.name)}</span></div>`
+    : '';
+
+  const illustrationHtml = generateShopIllustrationHtml(shop.illustration, illustrationSize, stallRenderer);
 
   return `
-    <div
-      class="shop-marker-container"
-      style="position: relative; cursor: pointer; transition: transform 0.2s ease;"
-    >
-      ${bannerHtml}
-      <div class="shop-recipe-icons" aria-hidden="true"></div>
-      <div class="shop-kotodute-badge" aria-hidden="true">i</div>
-      <div class="shop-favorite-badge" aria-hidden="true">&#10084;</div>
-      <div class="shop-coupon-badge" aria-hidden="true">🎟️</div>
-      <div class="shop-bag-badge" aria-hidden="true">🛍️</div>
+    <div class="shop-marker-container" style="${colorStyle}">
+      ${productIconHtml}
+      ${SHOP_FAVORITE_BADGE_HTML}
       ${illustrationHtml}
+      ${nameplateHtml}
     </div>
   `;
 }

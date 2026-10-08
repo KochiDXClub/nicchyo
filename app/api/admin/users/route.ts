@@ -1,9 +1,14 @@
 import { NextResponse } from "next/server";
-import { createClient as createServiceClient } from "@supabase/supabase-js";
-import { cookies } from "next/headers";
-import { createClient as createServerClient } from "@/utils/supabase/server";
-import { getRole, isAdmin } from "@/lib/auth/permissions";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { resolveAvatarUrl } from "@/lib/auth/displayName";
+import { loadShopAccountLinks } from "@/lib/admin/shopAccounts.server";
+import { getRole, normalizeRole, ROLE_HIERARCHY } from "@/lib/auth/permissions";
+import { listAllAuthUsers } from "@/lib/auth/listAllUsers";
+import { requireAdminApi } from "@/lib/auth/requireAdminApi";
+import { requireSameOrigin } from "@/lib/security/requestGuards";
+import { enforceRateLimit } from "@/lib/security/rateLimit";
 import type { UserRole } from "@/lib/auth/types";
+import { logAdminAudit } from "@/lib/audit/logAdminAudit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -11,7 +16,6 @@ export const dynamic = "force-dynamic";
 type VendorRow = {
   id: string;
   shop_name: string | null;
-  owner_name: string | null;
   updated_at?: string | null;
 };
 
@@ -26,13 +30,6 @@ type AdminUserRecord = {
   lastLogin: string;
   status: "active" | "suspended";
 };
-
-function normalizeRole(value?: string | null): UserRole {
-  if (value === "admin" || value === "super_admin") return "super_admin";
-  if (value === "moderator") return "moderator";
-  if (value === "vendor") return "vendor";
-  return "general_user";
-}
 
 function formatDate(value?: string | null) {
   if (!value) return "-";
@@ -60,77 +57,19 @@ function formatDateTime(value?: string | null) {
 
 export async function GET() {
   try {
-    const cookieStore = await cookies();
-    const supabase = createServerClient(cookieStore);
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const auth = await requireAdminApi();
+    if ("error" in auth) return auth.error;
+    const { adminClient: serviceClient } = auth;
 
-    if (!user || !isAdmin(getRole(user))) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const usersResult = await listAllAuthUsers(serviceClient);
+    if (usersResult.error) {
+      return NextResponse.json({ error: "Failed to fetch auth users" }, { status: 500 });
     }
-
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-    if (!supabaseUrl || !serviceRoleKey) {
-      return NextResponse.json({ error: "Supabase admin env missing" }, { status: 500 });
-    }
-
-    const serviceClient = createServiceClient(supabaseUrl, serviceRoleKey, {
-      auth: {
-        persistSession: false,
-        autoRefreshToken: false,
-      },
-    });
-
-    const allUsers: Array<{
-      id: string;
-      email?: string;
-      created_at?: string;
-      last_sign_in_at?: string;
-      banned_until?: string | null;
-      app_metadata?: { role?: string };
-      user_metadata?: {
-        role?: string;
-        name?: string;
-        full_name?: string;
-        avatar_url?: string;
-        avatarUrl?: string;
-      };
-    }> = [];
-
-    let page = 1;
-    const perPage = 200;
-
-    while (true) {
-      const { data, error } = await serviceClient.auth.admin.listUsers({ page, perPage });
-      if (error) {
-        return NextResponse.json({ error: "Failed to fetch auth users" }, { status: 500 });
-      }
-      const pageUsers = (data.users ?? []) as Array<{
-        id: string;
-        email?: string;
-        created_at?: string;
-        last_sign_in_at?: string;
-        banned_until?: string | null;
-        app_metadata?: { role?: string };
-        user_metadata?: {
-          role?: string;
-          name?: string;
-          full_name?: string;
-          avatar_url?: string;
-          avatarUrl?: string;
-        };
-      }>;
-      allUsers.push(...pageUsers);
-      if (pageUsers.length < perPage) break;
-      page += 1;
-    }
+    const allUsers = usersResult.users;
 
     const { data: vendorsData, error: vendorsError } = await serviceClient
       .from("vendors")
-      .select("id, shop_name, owner_name, updated_at");
+      .select("id, shop_name, updated_at");
 
     if (vendorsError) {
       return NextResponse.json({ error: "Failed to fetch vendors" }, { status: 500 });
@@ -139,14 +78,38 @@ export async function GET() {
     const vendors = Array.isArray(vendorsData) ? (vendorsData as VendorRow[]) : [];
     const vendorById = new Map(vendors.map((vendor) => [vendor.id, vendor]));
 
+    // アカウントが入っている店舗は shop_members から引く（アカウントの ID と店舗の ID は別物。
+    // 招待で入ったメンバーには、自分の ID の店舗がない）
+    const { links, error: linkError } = await loadShopAccountLinks(serviceClient as unknown as SupabaseClient);
+    if (linkError) {
+      // 失敗したのに続けると、全店舗が「未紐づけ」と表示されてしまう
+      console.error("[admin/users] loadShopAccountLinks error:", linkError);
+      return NextResponse.json({ error: "店舗とアカウントの対応を取得できませんでした" }, { status: 500 });
+    }
+
+    // 店主名は vendors から分離済み（service_role なので公開設定に関係なく取得できる）
+    const { data: ownerProfilesData } = await serviceClient
+      .from("vendor_owner_profiles")
+      .select("vendor_id, owner_name");
+    const ownerNameByVendorId = new Map<string, string>(
+      (ownerProfilesData ?? [])
+        .filter((row): row is { vendor_id: string; owner_name: string } => !!row.owner_name)
+        .map((row) => [row.vendor_id, row.owner_name])
+    );
+
     const users: AdminUserRecord[] = allUsers.map((authUser) => {
-      const vendor = vendorById.get(authUser.id);
-      const role = normalizeRole(authUser.app_metadata?.role ?? authUser.user_metadata?.role);
+      const vendorId = links.vendorByUser.get(authUser.id);
+      const vendor = vendorId ? vendorById.get(vendorId) : undefined;
+      // 店名で呼ぶのは代表者だけ。メンバーは本人の名前（同じ店舗に何人もいるため）
+      const isMemberOnly = !!vendorId && links.ownerByVendor.get(vendorId) !== authUser.id;
+      const role = normalizeRole(getRole(authUser));
       const name =
-        vendor?.shop_name ??
+        (isMemberOnly ? undefined : vendor?.shop_name) ??
+        authUser.user_metadata?.display_name ??
         authUser.user_metadata?.name ??
         authUser.user_metadata?.full_name ??
-        vendor?.owner_name ??
+        (vendorId ? ownerNameByVendorId.get(vendorId) : undefined) ??
+        vendor?.shop_name ??
         authUser.email?.split("@")[0] ??
         "名称未設定";
       const bannedUntil = authUser.banned_until ? new Date(authUser.banned_until) : null;
@@ -158,7 +121,7 @@ export async function GET() {
         name,
         email: authUser.email ?? "",
         role,
-        avatarUrl: authUser.user_metadata?.avatarUrl ?? authUser.user_metadata?.avatar_url,
+        avatarUrl: resolveAvatarUrl(authUser),
         vendorId: vendor?.id,
         registeredDate: formatDate(authUser.created_at),
         lastLogin: formatDateTime(authUser.last_sign_in_at),
@@ -170,4 +133,94 @@ export async function GET() {
   } catch {
     return NextResponse.json({ error: "Failed to load users" }, { status: 500 });
   }
+}
+
+// vendor / general_user への招待は admin が操作可。
+// moderator / admin への昇格は admin のみ可。
+const INVITABLE_ROLES = ROLE_HIERARCHY.filter((r) => r !== "admin");
+
+function isValidEmail(email: string): boolean {
+  if (!email || email.length > 254) return false;
+  const at = email.indexOf("@");
+  if (at <= 0 || at !== email.lastIndexOf("@")) return false;
+  const local = email.slice(0, at);
+  const domain = email.slice(at + 1);
+  return local.length <= 64 && domain.length > 0 && domain.includes(".") && !domain.endsWith(".");
+}
+
+export async function POST(req: Request) {
+  const originCheck = requireSameOrigin(req);
+  if (!originCheck.ok) return originCheck.response;
+
+  const rateLimited = await enforceRateLimit(req, {
+    bucket: "admin-users-invite",
+    limit: 10,
+    windowMs: 10 * 60 * 1000,
+  });
+  if (rateLimited) return rateLimited;
+
+  const auth = await requireAdminApi();
+  if ("error" in auth) return auth.error;
+  const { user, role: callerRole, adminClient: serviceClient } = auth;
+
+  const body = await req.json() as { email?: string; role?: string };
+  const email = (body.email ?? "").trim().toLowerCase();
+  const role = body.role ?? "general_user";
+
+  if (!isValidEmail(email)) {
+    return NextResponse.json({ error: "有効なメールアドレスを入力してください" }, { status: 400 });
+  }
+  if (!INVITABLE_ROLES.includes(role as typeof INVITABLE_ROLES[number])) {
+    return NextResponse.json({ error: "無効なロールです" }, { status: 400 });
+  }
+
+  if (role === "moderator" && callerRole !== "admin") {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  // 招待メール送信
+  const { data: invited, error: inviteError } = await serviceClient.auth.admin.inviteUserByEmail(email);
+  if (inviteError) {
+    console.error("[admin/users] invite failed:", inviteError.message);
+    const alreadyExists = inviteError.code === "email_exists";
+    return NextResponse.json(
+      { error: alreadyExists ? "このメールアドレスはすでに登録されています" : "招待メールの送信に失敗しました" },
+      { status: alreadyExists ? 409 : 500 }
+    );
+  }
+
+  // ロールを app_metadata に設定
+  const { error: roleError } = await serviceClient.auth.admin.updateUserById(invited.user.id, {
+    app_metadata: { role },
+  });
+  if (roleError) {
+    console.error("[admin/users] role set failed:", roleError.message);
+    await logAdminAudit(
+      serviceClient,
+      { id: user.id, email: user.email, role: callerRole },
+      {
+        action: "invite_user_role_set_failed",
+        targetType: "user",
+        targetId: invited.user.id,
+        targetName: email,
+        details: `ロール: ${role} の設定に失敗: ${roleError.message}`,
+      }
+    );
+    return NextResponse.json({ error: "招待は完了しましたがロールの設定に失敗しました" }, { status: 500 });
+  }
+
+  // 監査ログ
+  await logAdminAudit(
+    serviceClient,
+    { id: user.id, email: user.email, role: callerRole },
+    {
+      action: "invite_user",
+      targetType: "user",
+      targetId: invited.user.id,
+      targetName: email,
+      details: `ロール: ${role} で招待`,
+    }
+  );
+
+  return NextResponse.json({ ok: true, userId: invited.user.id });
 }

@@ -30,18 +30,26 @@ export async function fetchCandidateVendorIds(
   // Run all keyword searches in parallel to avoid N+1 sequential queries
   await Promise.all(
     searchWords.map(async (word) => {
-      const [vendorResult, productResult, categoryResult] = await Promise.all([
+      const [vendorResult, ownerResult, productResult, categoryResult] = await Promise.all([
         supabase
           .from("vendors")
           .select("id")
           .or(
             [
               `shop_name.ilike.%${word}%`,
-              `owner_name.ilike.%${word}%`,
               `strength.ilike.%${word}%`,
               `style.ilike.%${word}%`,
             ].join(",")
           )
+          .limit(8),
+        // 「〇〇さんのお店」のような聞き方に応えるため氏名でも候補を引くが、
+        // 公開設定された氏名だけを対象にする。
+        // このクライアントは service_role で RLS をバイパスするため is_public を明示する。
+        supabase
+          .from("vendor_owner_profiles")
+          .select("vendor_id")
+          .eq("is_public", true)
+          .ilike("owner_name", `%${word}%`)
           .limit(8),
         supabase
           .from("products")
@@ -57,6 +65,9 @@ export async function fetchCandidateVendorIds(
 
       (vendorResult.data ?? []).forEach((row) => {
         if (row.id) vendorIds.add(row.id);
+      });
+      (ownerResult.data ?? []).forEach((row) => {
+        if (row.vendor_id) vendorIds.add(row.vendor_id);
       });
       (productResult.data ?? []).forEach((row) => {
         if (row.vendor_id) vendorIds.add(row.vendor_id);
@@ -125,7 +136,12 @@ export async function fetchSeasonalProductContext(
   );
   const { data: vendorsData } =
     vendorIds.length > 0
-      ? await supabase.from("vendors").select("id, shop_name").in("id", vendorIds)
+      ? await supabase
+          .from("vendors")
+          .select("id, shop_name")
+          .in("id", vendorIds)
+          // service_role は RLS を通らないので、掲載の許可がない店舗を明示的に除く
+          .eq("listing_status", "allowed")
       : { data: [] as { id: string; shop_name: string | null }[] };
 
   const vendorNameById = new Map<string, string>();
@@ -138,7 +154,8 @@ export async function fetchSeasonalProductContext(
   const seasonName = getCurrentSeasonInfo().seasonName;
   return products
     .map((row) => {
-      if (!row.vendor_id || !row.name) return null;
+      // 許可済みの店舗の商品だけ（vendorNameById は許可済みの店舗だけを持つ）
+      if (!row.vendor_id || !row.name || !vendorNameById.has(row.vendor_id)) return null;
       return {
         vendorId: row.vendor_id,
         shopName: vendorNameById.get(row.vendor_id) ?? "",
@@ -165,9 +182,11 @@ export async function fetchShopsByVendorIds(
     supabase
       .from("vendors")
       .select(
-        "id, shop_name, owner_name, strength, style, style_tags, category_id, categories(name), main_products, main_product_prices, payment_methods, rain_policy, schedule"
+        "id, shop_name, strength, style, style_tags, category_id, categories(name), main_products, main_product_prices, payment_methods, rain_policy, schedule"
       )
-      .in("id", vendorIds),
+      .in("id", vendorIds)
+      // このクライアントは service_role で RLS を通らない。掲載の許可がない店舗は、AI の回答にも出さない
+      .eq("listing_status", "allowed"),
     supabase.from("products").select("vendor_id, name").in("vendor_id", vendorIds),
     supabase
       .from("location_assignments")
@@ -278,7 +297,8 @@ export async function fetchShopsByVendorIds(
         id: storeNumber,
         vendorId: vendor.id,
         name: vendor.shop_name ?? "",
-        ownerName: vendor.owner_name ?? "",
+        // AI の文脈に個人名は載せない（プロンプトにも埋め込みにも出さない）
+        ownerName: "",
         category: joinedCategoryName ?? "",
         products: displayProducts,
         productPrices: (vendor.main_product_prices ?? undefined) as
@@ -341,27 +361,53 @@ export async function fetchShopByName(
   const { data } = await supabase
     .from("vendors")
     .select("id")
-    .or(`shop_name.ilike.%${keyword}%,owner_name.ilike.%${keyword}%`)
+    .ilike("shop_name", `%${keyword}%`)
     .limit(1);
-  const vendorId = data?.[0]?.id;
+  let vendorId = data?.[0]?.id;
+
+  // 屋号で見つからなければ、公開設定された出店者名でも探す
+  if (!vendorId) {
+    const { data: ownerData } = await supabase
+      .from("vendor_owner_profiles")
+      .select("vendor_id")
+      .eq("is_public", true)
+      .ilike("owner_name", `%${keyword}%`)
+      .limit(1);
+    vendorId = ownerData?.[0]?.vendor_id;
+  }
   if (!vendorId) return null;
   const shops = await fetchShopsByVendorIds(supabase, [vendorId]);
   return shops[0] ?? null;
 }
 
-export function summarizeShops(shops: Shop[]) {
+export function summarizeShops(shops: Shop[], limit = 6) {
   if (shops.length === 0) return "該当なし";
   return shops
-    .slice(0, 6)
+    .slice(0, limit)
     .map((shop) => {
+      const priceEntries = Object.entries(shop.productPrices ?? {}).filter(
+        ([, price]) => price != null
+      );
       const parts = [
         `id:${shop.id}`,
         shop.name ? `name:${shop.name}` : null,
-        shop.ownerName ? `owner:${shop.ownerName}` : null,
         shop.category ? `category:${shop.category}` : null,
         shop.products.length > 0 ? `products:${shop.products.join(" / ")}` : null,
+        priceEntries.length > 0
+          ? `prices:${priceEntries.map(([name, price]) => `${name}=${price}円`).join(", ")}`
+          : null,
         shop.shopStrength ? `strength:${shop.shopStrength}` : null,
+        shop.stallStyle ? `style:${shop.stallStyle}` : null,
+        (shop.stallStyleTags?.length ?? 0) > 0
+          ? `style_tags:${shop.stallStyleTags!.join(" / ")}`
+          : null,
         shop.schedule ? `schedule:${shop.schedule}` : null,
+        (shop.paymentMethods?.length ?? 0) > 0
+          ? `payment:${shop.paymentMethods!.join(" / ")}`
+          : null,
+        shop.rainPolicy ? `rain_policy:${shop.rainPolicy}` : null,
+        // 出店者本人の最新投稿（有効期限内）。今この場での一番具体的な情報になりやすい。
+        shop.activePost?.text ? `latest_post:${shop.activePost.text}` : null,
       ].filter(Boolean);
       return parts.join(" | ");
     })

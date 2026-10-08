@@ -2,8 +2,8 @@
 
 export const dynamic = "force-dynamic";
 
-import MapEditClient from "../../map-edit/MapEditClient";
+import MapEditClientV3 from "../../map-edit/v3/MapEditClientV3";
 
 export default function AdminMapEditPage() {
-  return <MapEditClient />;
+  return <MapEditClientV3 />;
 }

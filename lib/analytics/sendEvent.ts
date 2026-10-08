@@ -1,13 +1,19 @@
 "use client";
 
-import { isAnalyticsAllowed, loadGA } from "@/lib/analytics/consentClient";
+import { isAnalyticsOptedOut, loadGA } from "@/lib/analytics/consentClient";
 import type {
   AnalyticsEventName,
   AnalyticsParams,
+  GuideEventParams,
   SendEventOptions,
-  ShopImpressionParams,
-  CouponImpressionParams,
 } from "@/types/analytics";
+
+const GUIDE_EVENT_TYPES: Partial<Record<AnalyticsEventName, string>> = {
+  guide_open: "open",
+  guide_navigation_start: "navigation_start",
+  guide_arrived: "arrived",
+  guide_navigation_stop: "navigation_stop",
+};
 
 function getVisitorKey(): string | null {
   if (typeof document === "undefined") return null;
@@ -37,19 +43,15 @@ async function postJson(url: string, body: unknown) {
 }
 
 export function sendEvent(name: AnalyticsEventName, params: AnalyticsParams = {}, options: SendEventOptions = {}) {
-  if (!isAnalyticsAllowed()) return;
+  if (isAnalyticsOptedOut()) return;
 
-  // Ensure GA loader present in production if not yet loaded
   interface GtagWindow {
-    __nicchyo_ga_loaded?: boolean;
     dataLayer?: unknown[];
     gtag?: (...args: unknown[]) => void;
   }
+  // GA がまだ読み込まれていなければ読み込む（二重読み込みは loadGA 側で防いでいる）
   try {
-    if (typeof window !== "undefined" && !(window as Window & GtagWindow).__nicchyo_ga_loaded) {
-      const gaId = process.env.NEXT_PUBLIC_GOOGLE_ANALYTICS_ID;
-      if (gaId && process.env.NODE_ENV === "production") loadGA(gaId);
-    }
+    if (typeof window !== "undefined" && process.env.NODE_ENV === "production") loadGA();
   } catch {}
 
   const payload = safeJson(params) ?? {};
@@ -72,35 +74,17 @@ export function sendEvent(name: AnalyticsEventName, params: AnalyticsParams = {}
   // server-side reliable logging for specific events
   if (options.toServer) {
     const visitor_key = getVisitorKey();
-    if (name === "shop_impression") {
-      const p = params as ShopImpressionParams;
-      postJson("/api/analytics/shop-interaction", {
+    const guideEventType = GUIDE_EVENT_TYPES[name];
+    if (guideEventType) {
+      const p = params as GuideEventParams;
+      postJson("/api/analytics/guide-event", {
         visitor_key,
-        shop_id: p.shop_id,
-        event_type: "impression",
-        meta: { list_position: p.list_position ?? null, context: p.context ?? null },
-      });
-    }
-
-    if (name === "shop_view") {
-      const p = params as Record<string, unknown>;
-      postJson("/api/analytics/shop-interaction", {
-        visitor_key,
-        shop_id: p.shop_id,
-        event_type: "view",
-        meta: { source: p.source ?? null, interaction_method: p.interaction_method ?? null },
-      });
-    }
-
-    if (name === "coupon_impression") {
-      const p = params as CouponImpressionParams;
-      postJson("/api/analytics/coupon-impression", {
-        coupon_id: p.coupon_id,
-        visitor_key: getVisitorKey(),
-        shop_id: p.shop_id ?? null,
-        source: p.source,
-        placement: p.placement ?? null,
-        visible_duration: typeof p.visible_duration === "number" ? Math.max(0, Math.round(p.visible_duration)) : null,
+        event_type: guideEventType,
+        kinds: p.kinds ?? [],
+        spot_key: p.spot_key ?? null,
+        origin_type: p.origin_type ?? null,
+        walk_minutes: p.walk_minutes ?? null,
+        distance_meters: p.distance_meters ?? null,
       });
     }
   }

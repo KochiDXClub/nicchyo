@@ -7,7 +7,7 @@ import { useAuth } from "@/lib/auth/AuthContext";
 import { useRouter } from "next/navigation";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useDebounce } from "use-debounce";
-import { exportToCSV, exportToJSON, formatDateForFilename } from "@/lib/admin/exportUtils";
+import { exportToCSV, exportToJSON, formatDateForFilename, excelText } from "@/lib/admin/exportUtils";
 import { showToast } from "@/lib/admin/toast";
 import { StatusBadge, LoadingButton, EmptyState, ErrorBoundary, AdminLayout } from "@/components/admin";
 import { useKeyboardShortcuts, ShortcutHelp } from "@/lib/hooks/useKeyboardShortcuts";
@@ -15,6 +15,8 @@ import { SortableTableHeader, useSortableData } from "@/components/admin/desktop
 import { Tooltip } from "@/components/admin/desktop/Tooltip";
 import { DataDensityToggle, DENSITY_CONFIG, type DataDensity } from "@/components/admin/desktop/DataDensityToggle";
 import type { AdminShop } from "@/app/api/admin/shops/route";
+import { ListingStatusBadge } from "./ListingStatusBadge";
+import Link from "next/link";
 
 type ShopStatus = "active" | "suspended";
 
@@ -40,10 +42,10 @@ function AdminShopsContent() {
 
   useEffect(() => {
     if (isLoading) return;
-    if (!permissions.isSuperAdmin) {
+    if (!permissions.isAdmin) {
       router.push("/");
     }
-  }, [isLoading, permissions.isSuperAdmin, router]);
+  }, [isLoading, permissions.isAdmin, router]);
 
   const loadShops = useCallback(async () => {
     setFetchLoading(true);
@@ -61,10 +63,10 @@ function AdminShopsContent() {
   }, []);
 
   useEffect(() => {
-    if (!isLoading && permissions.isSuperAdmin) {
+    if (!isLoading && permissions.isAdmin) {
       loadShops();
     }
-  }, [isLoading, permissions.isSuperAdmin, loadShops]);
+  }, [isLoading, permissions.isAdmin, loadShops]);
 
   // ユニークカテゴリー
   const uniqueCategories = useMemo(() => {
@@ -208,7 +210,7 @@ function AdminShopsContent() {
         店主: shop.owner,
         メール: shop.email,
         ステータス: shop.status === "active" ? "稼働中" : "停止中",
-        登録日: shop.registeredDate,
+        登録日: excelText(shop.registeredDate),
       }));
       const result = exportToCSV(dataToExport, `shops_${formatDateForFilename()}.csv`);
       if (result.success) showToast.success("CSVをエクスポートしました");
@@ -242,7 +244,7 @@ function AdminShopsContent() {
     { key: "?", description: "ショートカット一覧を表示", action: () => setShowShortcutHelp(true) },
   ]);
 
-  if (isLoading || !permissions.isSuperAdmin) {
+  if (isLoading || !permissions.isAdmin) {
     return null;
   }
 
@@ -296,6 +298,7 @@ function AdminShopsContent() {
           <div className="mb-4 rounded-lg bg-red-50 border border-red-200 p-4 flex items-center justify-between">
             <p className="text-sm text-red-700">{fetchError}</p>
             <button
+              type="button"
               onClick={loadShops}
               className="ml-4 rounded-lg bg-red-600 px-3 py-1.5 text-sm text-white hover:bg-red-700"
             >
@@ -319,18 +322,21 @@ function AdminShopsContent() {
                 <div className="flex flex-wrap gap-2 items-center">
                   <span className="text-xs font-medium text-gray-500 uppercase tracking-wider">ステータス:</span>
                   <button
+                    type="button"
                     onClick={() => setFilter("all")}
                     className={`rounded-lg px-3 py-1.5 text-sm font-medium ${filter === "all" ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-700 hover:bg-gray-200"}`}
                   >
                     すべて ({stats.total})
                   </button>
                   <button
+                    type="button"
                     onClick={() => setFilter("active")}
                     className={`rounded-lg px-3 py-1.5 text-sm font-medium ${filter === "active" ? "bg-green-600 text-white" : "bg-gray-100 text-gray-700 hover:bg-gray-200"}`}
                   >
                     稼働中 ({stats.active})
                   </button>
                   <button
+                    type="button"
                     onClick={() => setFilter("suspended")}
                     className={`rounded-lg px-3 py-1.5 text-sm font-medium ${filter === "suspended" ? "bg-red-600 text-white" : "bg-gray-100 text-gray-700 hover:bg-gray-200"}`}
                   >
@@ -355,6 +361,7 @@ function AdminShopsContent() {
                 <div className="flex flex-wrap gap-2 items-center pt-2 border-t border-gray-200">
                   <span className="text-xs font-medium text-gray-500 uppercase tracking-wider">カテゴリー:</span>
                   <button
+                    type="button"
                     onClick={() => setCategoryFilter("all")}
                     className={`rounded-lg px-2.5 py-1 text-xs font-medium ${categoryFilter === "all" ? "bg-purple-600 text-white" : "bg-gray-100 text-gray-700 hover:bg-gray-200"}`}
                   >
@@ -362,6 +369,7 @@ function AdminShopsContent() {
                   </button>
                   {uniqueCategories.map((cat) => (
                     <button
+                      type="button"
                       key={cat}
                       onClick={() => setCategoryFilter(cat)}
                       className={`rounded-lg px-2.5 py-1 text-xs font-medium ${categoryFilter === cat ? "bg-purple-600 text-white" : "bg-gray-100 text-gray-700 hover:bg-gray-200"}`}
@@ -379,7 +387,7 @@ function AdminShopsContent() {
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div className="flex items-center gap-3">
                     <span className="text-sm font-medium text-blue-900">{selectedShopIds.length}件選択中</span>
-                    <button onClick={() => setSelectedShopIds([])} className="text-sm text-blue-600 hover:text-blue-800">
+                    <button type="button" onClick={() => setSelectedShopIds([])} className="text-sm text-blue-600 hover:text-blue-800">
                       解除
                     </button>
                   </div>
@@ -473,18 +481,24 @@ function AdminShopsContent() {
                                   />
                                 </td>
                                 <td className="px-4 py-3">
-                                  <div className="font-medium text-gray-900 text-sm">{shop.name}</div>
+                                  <Link href={`/admin/shops/${shop.id}`} className="font-medium text-blue-700 text-sm hover:underline">
+                                    {shop.name}
+                                  </Link>
                                   <div className="text-xs text-gray-400">{shop.email}</div>
                                 </td>
                                 <td className="px-4 py-3 text-sm text-gray-500">{shop.category}</td>
                                 <td className="px-4 py-3 text-sm text-gray-500">{shop.owner}</td>
                                 <td className="px-4 py-3">
                                   <StatusBadge status={shop.status} />
+                                  <div className="mt-1">
+                                    <ListingStatusBadge status={shop.listingStatus} />
+                                  </div>
                                 </td>
                                 <td className="px-4 py-3 text-sm text-gray-500">{shop.registeredDate}</td>
                                 <td className="px-4 py-3 text-right text-sm whitespace-nowrap">
                                   {shop.status === "active" ? (
                                     <button
+                                      type="button"
                                       onClick={() => handleSingleAction(shop.id, "suspend")}
                                       className="text-orange-600 hover:text-orange-900 mr-3"
                                     >
@@ -492,6 +506,7 @@ function AdminShopsContent() {
                                     </button>
                                   ) : (
                                     <button
+                                      type="button"
                                       onClick={() => handleSingleAction(shop.id, "restore")}
                                       className="text-green-600 hover:text-green-900 mr-3"
                                     >
@@ -499,6 +514,7 @@ function AdminShopsContent() {
                                     </button>
                                   )}
                                   <button
+                                    type="button"
                                     onClick={() => handleSingleAction(shop.id, "delete")}
                                     className="text-red-600 hover:text-red-900"
                                   >
@@ -531,8 +547,13 @@ function AdminShopsContent() {
                             className="h-4 w-4 rounded border-gray-300 text-blue-600 mt-0.5"
                           />
                           <div>
-                            <div className="font-medium text-gray-900">{shop.name}</div>
+                            <Link href={`/admin/shops/${shop.id}`} className="font-medium text-blue-700 hover:underline">
+                              {shop.name}
+                            </Link>
                             <div className="text-xs text-gray-500">{shop.category}</div>
+                            <div className="mt-1">
+                              <ListingStatusBadge status={shop.listingStatus} />
+                            </div>
                           </div>
                         </div>
                         <StatusBadge status={shop.status} />
@@ -545,6 +566,7 @@ function AdminShopsContent() {
                       <div className="flex gap-2">
                         {shop.status === "active" ? (
                           <button
+                            type="button"
                             onClick={() => handleSingleAction(shop.id, "suspend")}
                             className="flex-1 rounded-lg border border-orange-300 py-1.5 text-sm text-orange-600 hover:bg-orange-50"
                           >
@@ -552,6 +574,7 @@ function AdminShopsContent() {
                           </button>
                         ) : (
                           <button
+                            type="button"
                             onClick={() => handleSingleAction(shop.id, "restore")}
                             className="flex-1 rounded-lg border border-green-300 py-1.5 text-sm text-green-600 hover:bg-green-50"
                           >
@@ -559,6 +582,7 @@ function AdminShopsContent() {
                           </button>
                         )}
                         <button
+                          type="button"
                           onClick={() => handleSingleAction(shop.id, "delete")}
                           className="flex-1 rounded-lg border border-red-300 py-1.5 text-sm text-red-600 hover:bg-red-50"
                         >
@@ -578,6 +602,7 @@ function AdminShopsContent() {
       <div className="hidden sm:block">
         <Tooltip content="キーボードショートカット (?)">
           <button
+            type="button"
             onClick={() => setShowShortcutHelp(true)}
             className="fixed bottom-8 right-8 w-12 h-12 bg-gray-800 hover:bg-gray-700 text-white rounded-full shadow-lg flex items-center justify-center z-40 transition"
             aria-label="ショートカット一覧"
@@ -595,7 +620,7 @@ function AdminShopsContent() {
           <div className="bg-white rounded-lg p-6 max-w-md w-full" onClick={(e) => e.stopPropagation()}>
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-lg font-bold text-gray-900">キーボードショートカット</h3>
-              <button onClick={() => setShowShortcutHelp(false)} className="text-gray-400 hover:text-gray-600">
+              <button type="button" onClick={() => setShowShortcutHelp(false)} className="text-gray-400 hover:text-gray-600">
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>

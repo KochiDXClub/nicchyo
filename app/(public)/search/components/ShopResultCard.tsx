@@ -6,13 +6,11 @@ import { memo } from "react";
 import type { MouseEvent } from "react";
 import type { Shop } from "../../map/data/shops";
 import { saveSearchMapPayload } from "../../../../lib/searchMapStorage";
-import { getShopBannerImage } from "../../../../lib/shopImages";
-import { Badge } from "@/components/ui/badge";
+import { getShopPreviewImage } from "../../../../lib/shopImages";
 
 interface ShopResultCardProps {
   shop: Shop;
   isFavorite: boolean;
-  hasCoupon?: boolean;
   onToggleFavorite?: (shopId: number) => void;
   onSelectShop?: (shop: Shop) => void;
   compact?: boolean;
@@ -27,18 +25,13 @@ interface ShopResultCardProps {
 function ShopResultCard({
   shop,
   isFavorite,
-  hasCoupon = false,
   onToggleFavorite,
   onSelectShop,
   compact = false,
   enableSearchMapHighlight = false,
   mapLabel: mapLabelProp,
 }: ShopResultCardProps) {
-  const previewImage =
-    shop.images?.main ||
-    shop.images?.thumbnail ||
-    shop.images?.additional?.[0] ||
-    getShopBannerImage(shop.category, shop.position ?? shop.id);
+  const previewImage = getShopPreviewImage(shop);
   const mapLabel = mapLabelProp ?? shop.name;
   const mapHref = enableSearchMapHighlight
     ? `/map?search=1&label=${encodeURIComponent(mapLabel)}&shop=${shop.id}`
@@ -78,11 +71,6 @@ function ShopResultCard({
           </div>
         </div>
         <div className="flex items-center gap-2">
-          {hasCoupon && (
-            <Badge variant="coupon" className={compact ? "text-[10px]" : "text-[11px]"}>
-              🎟️ クーポン対応
-            </Badge>
-          )}
           <button
             type="button"
             onClick={() => onToggleFavorite?.(shop.id)}

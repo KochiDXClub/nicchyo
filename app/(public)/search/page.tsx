@@ -5,8 +5,8 @@ import { createClient } from "@/utils/supabase/server";
 import SearchClient from "./SearchClient";
 import SearchLoading from "./loading";
 import type { Shop } from "../map/data/shops";
-import { fetchVendorShopsFromDb } from "../map/services/shopDb";
-import type { Landmark } from "../map/types/landmark";
+import { fetchPublicShops } from "../map/services/shopCache";
+import { filterMapVisibleLandmarks, type Landmark } from "../map/types/landmark";
 import { fetchLandmarksFromDb } from "../map/services/landmarksDb";
 
 export const metadata: Metadata = {
@@ -16,9 +16,8 @@ export const metadata: Metadata = {
 
 async function loadShops(): Promise<Shop[]> {
   try {
-    const cookieStore = await cookies();
-    const supabase = createClient(cookieStore);
-    return await fetchVendorShopsFromDb(supabase);
+    // 店舗は /map と同じ全員共通のキャッシュから読む
+    return await fetchPublicShops();
   } catch {
     return [];
   }
@@ -28,22 +27,31 @@ async function loadLandmarks(): Promise<Landmark[]> {
   try {
     const cookieStore = await cookies();
     const supabase = createClient(cookieStore);
-    return await fetchLandmarksFromDb(supabase);
+    // 検索ページのマップに描くのは常時表示のランドマークだけ（お手洗い等は除く）
+    return filterMapVisibleLandmarks(await fetchLandmarksFromDb(supabase));
   } catch {
     return [];
   }
 }
 
 // データ取得を分離することで Suspense のストリーミングが有効になる
-async function SearchContent() {
+async function SearchContent({ initialQuery }: { initialQuery?: string }) {
   const [shops, landmarks] = await Promise.all([loadShops(), loadLandmarks()]);
-  return <SearchClient shops={shops} landmarks={landmarks} />;
+  return <SearchClient shops={shops} landmarks={landmarks} initialQuery={initialQuery} />;
 }
 
-export default function SearchPage() {
+export default async function SearchPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ q?: string | string[] }>;
+}) {
+  const params = (await searchParams) ?? {};
+  const rawQuery = Array.isArray(params.q) ? params.q[0] : params.q;
+  const initialQuery = rawQuery?.trim() ?? '';
+
   return (
     <Suspense fallback={<SearchLoading />}>
-      <SearchContent />
+      <SearchContent initialQuery={initialQuery} />
     </Suspense>
   );
 }

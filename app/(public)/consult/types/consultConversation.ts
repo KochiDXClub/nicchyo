@@ -32,6 +32,12 @@ export type ConsultAskResponse = {
   helperQuestions?: string[];
   errorMessage?: string;
   retryable?: boolean;
+  consultId?: string;
+  /**
+   * OpenAI 側の失敗内容（例: `HTTP 400 model_not_found: ...`）。
+   * 管理画面の対話テストからの内部呼び出しにだけ付く。来訪者には返さない
+   */
+  debugError?: string;
 };
 
 export type ConsultAskStreamEvent =

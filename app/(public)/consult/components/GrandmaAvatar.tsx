@@ -1,0 +1,132 @@
+"use client";
+
+import Image from "next/image";
+import { useEffect, useState } from "react";
+import type { GrandmaPose } from "@/lib/grandma/pose";
+import {
+  DEFAULT_CONSULT_CHARACTER,
+  DEFAULT_CONSULT_CHARACTER_ID,
+  type ConsultCharacter,
+} from "../data/consultCharacters";
+
+/**
+ * 答え終わってすぐ待機に戻すと機械的に見えるので、少しだけ余韻を置く。
+ * この「間」は fps を上げるより体感に効く。
+ */
+const SPEAKING_LINGER_MS = 800;
+
+/**
+ * 返答が終わったときだけ、待機に戻るのを遅らせる。
+ * それ以外の遷移（マイクを押した瞬間など）は即時に反映する。
+ */
+function useLingeringPose(pose: GrandmaPose): GrandmaPose {
+  const [displayed, setDisplayed] = useState<GrandmaPose>(pose);
+
+  useEffect(() => {
+    if (pose === "idle" && displayed === "speaking") {
+      const timer = setTimeout(() => setDisplayed("idle"), SPEAKING_LINGER_MS);
+      return () => clearTimeout(timer);
+    }
+    setDisplayed(pose);
+  }, [pose, displayed]);
+
+  return displayed;
+}
+
+/**
+ * hero   … 既定。これ自体が音声入力ボタンになる
+ * pinned … 読むために利用者がスクロールしたときだけ、場所を空けるために縮む
+ *
+ * 大きさを決めてよいのは「利用者が読む場所を必要としているか」だけで、
+ * 「答えがあるかどうか」ではない。アプリの状態で勝手に縮むと、
+ * なぜ縮んだのかが利用者に分からず、話し相手が急に遠ざかったように見える。
+ */
+export type GrandmaAvatarSize = "hero" | "pinned";
+
+const SIZE_CLASS: Record<GrandmaAvatarSize, string> = {
+  // 縦の短い端末（iPhone SE など）では、候補ボタン3つが下端固定の
+  // 「話しかける」に隠れてしまうので、その分だけキャラを小さくする。
+  // 幅ではなく高さで切り替えるのは、足りなくなるのが縦だけのため。
+  // md:（幅のみ）で240pxへ上げると、幅は広いが高さの低いPCウィンドウ
+  // （1280x650など）で候補ボタンが下端固定バーに隠れて重なっていたので、
+  // 240pxへ上げる条件にも高さの十分さ（700px以上）を必須にする。
+  //
+  // 注意: この 700px は ConsultStage.tsx の下端バー分の余白
+  // （CONSULT_BAR_SPACE、6rem+固定要素ぶん）と、hero サイズ・挨拶吹き出し・
+  // 候補ボタン3つの実測で決めた値で、CSS の @media は
+  // var(--nav-bar-height) 等のカスタムプロパティを条件式に使えないため、
+  // 自動では追従しない。下端バーの実高さや候補ボタンの数・大きさを
+  // 変えるときは、この値も一緒に見直すこと。
+  hero: "h-[168px] w-[168px] [@media(min-height:700px)]:h-[200px] [@media(min-height:700px)]:w-[200px] [@media(min-width:768px)_and_(min-height:700px)]:h-[240px] [@media(min-width:768px)_and_(min-height:700px)]:w-[240px]",
+  // 固定バーに常駐する取っ手。大きさは変えず、出入りだけさせる
+  pinned: "h-[64px] w-[64px] md:h-[72px] md:w-[72px]",
+};
+
+export interface GrandmaAvatarProps {
+  pose: GrandmaPose;
+  size?: GrandmaAvatarSize;
+  /** 渡すとボタンになる。歩きながら片手で押せるよう、絵そのものを当たり判定にする */
+  onClick?: () => void;
+  label?: string;
+  className?: string;
+  /** 今の話し手。省略すると既定のにちよさん */
+  character?: ConsultCharacter;
+}
+
+/**
+ * 今の話し手。
+ *
+ * 会話の状態に合わせて姿勢が変わる（待機＝呼吸、聞いている＝前傾、
+ * 考えている＝首をかしげる、答えている＝うなずく）。
+ * 動きの定義は app/globals.css の .grandma-avatar 側にある。
+ *
+ * 絵はキャラ一覧と同じ画像を使う。にちよさんは絵をそのまま出し、
+ * 他のキャラは一覧用に寄せてあるので、拡大率と位置を行から引く。
+ */
+export default function GrandmaAvatar({
+  pose,
+  size = "hero",
+  onClick,
+  label,
+  className,
+  character = DEFAULT_CONSULT_CHARACTER,
+}: GrandmaAvatarProps) {
+  const displayedPose = useLingeringPose(pose);
+  const isDefaultCharacter = character.id === DEFAULT_CONSULT_CHARACTER_ID;
+
+  const picture = (
+    <div className="grandma-avatar__inner">
+      <Image
+        src={character.image}
+        alt={character.name}
+        width={240}
+        height={240}
+        priority
+        className={`${SIZE_CLASS[size]} object-contain drop-shadow-[0_8px_16px_rgba(146,64,14,0.25)] ${
+          isDefaultCharacter ? "" : character.imageScale
+        }`}
+        style={isDefaultCharacter ? undefined : { objectPosition: character.imagePosition }}
+      />
+    </div>
+  );
+
+  if (!onClick) {
+    return (
+      <div className={`grandma-avatar ${className ?? ""}`} data-pose={displayedPose}>
+        {picture}
+      </div>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={label}
+      className={`grandma-avatar grandma-avatar--tappable ${className ?? ""}`}
+      data-pose={displayedPose}
+    >
+      {picture}
+    </button>
+  );
+}

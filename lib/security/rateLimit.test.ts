@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { enforceRateLimit, getClientIp } from './rateLimit';
+import { enforceRateLimit, getClientIp, isUpstashConfigured } from './rateLimit';
 
 describe('rateLimit', () => {
   beforeEach(() => {
@@ -8,6 +8,46 @@ describe('rateLimit', () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
+  });
+
+  describe('isUpstashConfigured', () => {
+    it('reflects that Upstash env vars are not set in this test environment', () => {
+      // テスト環境では UPSTASH_REDIS_REST_URL/TOKEN を設定していない前提
+      expect(isUpstashConfigured).toBe(false);
+    });
+  });
+
+  describe('本番でUpstash未設定のときの起動時警告（Issue #352）', () => {
+    const ORIGINAL_ENV = { ...process.env };
+
+    afterEach(() => {
+      process.env = { ...ORIGINAL_ENV };
+      vi.resetModules();
+    });
+
+    it('VERCEL_ENV=production かつ Upstash未設定なら console.error で警告する', async () => {
+      vi.resetModules();
+      process.env.VERCEL_ENV = 'production';
+      delete process.env.UPSTASH_REDIS_REST_URL;
+      delete process.env.UPSTASH_REDIS_REST_TOKEN;
+      const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+      await import('./rateLimit');
+
+      expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('UPSTASH_REDIS_REST_URL/TOKEN'));
+    });
+
+    it('プレビュー環境（production以外）では警告しない', async () => {
+      vi.resetModules();
+      process.env.VERCEL_ENV = 'preview';
+      delete process.env.UPSTASH_REDIS_REST_URL;
+      delete process.env.UPSTASH_REDIS_REST_TOKEN;
+      const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+      await import('./rateLimit');
+
+      expect(errorSpy).not.toHaveBeenCalled();
+    });
   });
 
   describe('getClientIp', () => {
@@ -35,19 +75,16 @@ describe('rateLimit', () => {
     const defaultOptions = {
       bucket: 'test-bucket',
       limit: 2,
-      windowMs: 1000, // 1 second
+      windowMs: 1000,
     };
 
-    it('allows requests within limit', () => {
+    it('allows requests within limit', async () => {
       const req = new Request('http://localhost', {
         headers: { 'x-real-ip': '1.1.1.1' }
       });
 
-      const res1 = enforceRateLimit(req, defaultOptions);
-      expect(res1).toBeNull();
-
-      const res2 = enforceRateLimit(req, defaultOptions);
-      expect(res2).toBeNull();
+      expect(await enforceRateLimit(req, defaultOptions)).toBeNull();
+      expect(await enforceRateLimit(req, defaultOptions)).toBeNull();
     });
 
     it('blocks requests over limit and returns 429 response', async () => {
@@ -55,9 +92,9 @@ describe('rateLimit', () => {
         headers: { 'x-real-ip': '2.2.2.2' }
       });
 
-      enforceRateLimit(req, defaultOptions);
-      enforceRateLimit(req, defaultOptions);
-      const res = enforceRateLimit(req, defaultOptions);
+      await enforceRateLimit(req, defaultOptions);
+      await enforceRateLimit(req, defaultOptions);
+      const res = await enforceRateLimit(req, defaultOptions);
 
       expect(res).not.toBeNull();
       expect(res?.status).toBe(429);
@@ -67,22 +104,19 @@ describe('rateLimit', () => {
       expect(body.error).toBe('Too Many Requests');
     });
 
-    it('resets limit after windowMs', () => {
+    it('resets limit after windowMs', async () => {
       const req = new Request('http://localhost', {
         headers: { 'x-real-ip': '3.3.3.3' }
       });
 
-      enforceRateLimit(req, defaultOptions);
-      enforceRateLimit(req, defaultOptions);
+      await enforceRateLimit(req, defaultOptions);
+      await enforceRateLimit(req, defaultOptions);
 
-      const resBlocked = enforceRateLimit(req, defaultOptions);
-      expect(resBlocked).not.toBeNull();
+      expect(await enforceRateLimit(req, defaultOptions)).not.toBeNull();
 
-      // Advance time by 1.1 seconds
       vi.advanceTimersByTime(1100);
 
-      const resAllowed = enforceRateLimit(req, defaultOptions);
-      expect(resAllowed).toBeNull();
+      expect(await enforceRateLimit(req, defaultOptions)).toBeNull();
     });
 
     it('supports custom messages', async () => {
@@ -91,30 +125,28 @@ describe('rateLimit', () => {
       });
       const options = { ...defaultOptions, message: 'Custom error message' };
 
-      enforceRateLimit(req, options);
-      enforceRateLimit(req, options);
-      const res = enforceRateLimit(req, options);
+      await enforceRateLimit(req, options);
+      await enforceRateLimit(req, options);
+      const res = await enforceRateLimit(req, options);
 
       const body = await res?.json();
       expect(body.message).toBe('Custom error message');
     });
   });
-});
 
   describe('cleanupIfNeeded', () => {
-    it('cleans up old entries when MAX_BUCKETS is exceeded', () => {
+    it('cleans up old entries when MAX_BUCKETS is exceeded', async () => {
       const defaultOptions = {
         bucket: 'test-bucket-cleanup',
         limit: 10,
         windowMs: 1000,
       };
 
-      // Fill up to MAX_BUCKETS (20000)
       for (let i = 0; i < 20001; i++) {
         const req = new Request('http://localhost', {
           headers: { 'x-real-ip': `ip-${i}` }
         });
-        enforceRateLimit(req, defaultOptions);
+        await enforceRateLimit(req, defaultOptions);
       }
 
       // 20001 triggers cleanup, deleting 3000 oldest
@@ -122,9 +154,10 @@ describe('rateLimit', () => {
 
       // Unfortunately we can't easily assert on RATE_LIMIT_STORE size directly
       // since it's not exported. But we can verify it doesn't throw.
-      expect(() => {
+      await expect(async () => {
         const lastReq = new Request('http://localhost', { headers: { 'x-real-ip': 'ip-final' } });
-        enforceRateLimit(lastReq, defaultOptions);
+        await enforceRateLimit(lastReq, defaultOptions);
       }).not.toThrow();
     });
   });
+});

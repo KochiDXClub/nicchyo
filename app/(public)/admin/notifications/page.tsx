@@ -8,11 +8,12 @@ import Link from "next/link";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { AdminLayout, AdminPageHeader, EmptyState } from "@/components/admin";
 import { useAdminNotifications } from "@/lib/hooks/useAdminNotifications";
+import { BroadcastEmailSection } from "./components/BroadcastEmailSection";
+import { VendorNoticeSection } from "./components/VendorNoticeSection";
 import { Bell } from "lucide-react";
 
 const TYPE_ICONS: Record<string, string> = {
   new_application: "📝",
-  kotodute_reported: "⚠️",
   system: "⚙️",
 };
 
@@ -26,7 +27,7 @@ function formatDate(iso: string) {
 export default function NotificationsPage() {
   const { permissions, isLoading: authLoading } = useAuth();
   const router = useRouter();
-  const canAccess = permissions.isSuperAdmin || permissions.canModerateContent;
+  const canAccess = permissions.isAdmin || permissions.canModerateContent;
 
   const { notifications, unreadCount, markAllRead } = useAdminNotifications(canAccess);
 
@@ -48,19 +49,8 @@ export default function NotificationsPage() {
 
       <div className="mx-auto max-w-3xl px-4 py-8 pb-20">
 
-        {/* TODO: メール通知未実装バナー */}
-        <div className="mb-6 rounded-xl border border-yellow-300 bg-yellow-50 px-5 py-4">
-          <div className="flex items-start gap-3">
-            <span className="text-xl">⚠️</span>
-            <div>
-              <p className="text-sm font-semibold text-yellow-800">メール通知が未実装です</p>
-              <p className="mt-1 text-sm text-yellow-700">
-                現在、通知はこの画面内のみに表示されます。緊急時に管理者のメールアドレスへ自動送信する機能は未実装です。
-                実装には Resend などのメール送信サービスが必要です。
-              </p>
-            </div>
-          </div>
-        </div>
+        {permissions.isAdmin && <VendorNoticeSection />}
+        {permissions.isAdmin && <BroadcastEmailSection />}
 
         {/* ヘッダーアクション */}
         {unreadCount > 0 && (
@@ -70,6 +60,7 @@ export default function NotificationsPage() {
               未読通知が {unreadCount} 件あります
             </span>
             <button
+              type="button"
               onClick={handleMarkAllRead}
               className="rounded-lg bg-orange-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-orange-700"
             >

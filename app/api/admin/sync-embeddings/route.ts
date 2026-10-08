@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { requireAdminApi } from "@/lib/auth/requireAdminApi";
+import { requestEmbeddings } from "@/lib/ai/openaiFetch";
+import { verifyBearerSecret } from "@/lib/security/cronAuth";
+import { fetchAssignmentRows, fetchLocationRows, fetchProductRows } from "@/lib/shops/baseRowQueries";
+import { fetchAllRows } from "@/lib/supabase/fetchAllRows";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -10,7 +15,6 @@ export const maxDuration = 300; // 5分（大量店舗の処理に対応）
 interface VendorRow {
   id: string;
   shop_name: string | null;
-  owner_name: string | null;
   strength: string | null;
   style: string | null;
   style_tags: string[] | null;
@@ -52,9 +56,10 @@ interface EmbeddingRow {
 
 // ---- ヘルパー ----
 
+// 出店者本人の氏名（vendor_owner_profiles.owner_name）は個人情報のため
+// 埋め込みの入力に含めない。OpenAI へ送るのは店舗としての公開情報だけに限る。
 function buildContent(row: {
   shop_name: string;
-  owner_name: string;
   category: string;
   store_number: string | null;
   district: string;
@@ -70,7 +75,6 @@ function buildContent(row: {
 }): string {
   return [
     row.shop_name ? `shop: ${row.shop_name}` : "",
-    row.owner_name ? `owner: ${row.owner_name}` : "",
     row.category ? `category: ${row.category}` : "",
     row.store_number ? `store_number: ${row.store_number}` : "",
     row.district ? `district: ${row.district}` : "",
@@ -89,14 +93,7 @@ function buildContent(row: {
 }
 
 async function fetchEmbeddings(apiKey: string, inputs: string[]): Promise<number[][]> {
-  const response = await fetch("https://api.openai.com/v1/embeddings", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ model: "text-embedding-3-small", input: inputs }),
-  });
+  const response = await requestEmbeddings(apiKey, inputs);
 
   if (!response.ok) {
     const text = await response.text();
@@ -130,14 +127,30 @@ async function syncVendorEmbeddings(): Promise<{ processed: number }> {
     { data: assignmentsData, error: assignmentsError },
     { data: contentsData, error: contentsError },
   ] = await Promise.all([
-    supabase
-      .from("vendors")
-      .select("id, shop_name, owner_name, strength, style, style_tags, schedule, main_products, categories(name)")
-      .order("id", { ascending: true }),
-    supabase.from("products").select("vendor_id, name"),
-    supabase.from("market_locations").select("id, store_number, latitude, longitude, district"),
-    supabase.from("location_assignments").select("vendor_id, location_id, market_date"),
-    supabase.from("vendor_contents").select("vendor_id, body, created_at").order("created_at", { ascending: false }),
+    fetchAllRows<VendorRow>(
+      (from, to) =>
+        supabase
+          .from("vendors")
+          .select("id, shop_name, strength, style, style_tags, schedule, main_products, categories(name)")
+          // service_role は RLS を通らない。掲載の許可がない店舗は、埋め込み（AI が検索に使う）にしない
+          .eq("listing_status", "allowed")
+          .order("id", { ascending: true })
+          .range(from, to) as unknown as PromiseLike<{ data: VendorRow[] | null; error: { message: string } | null }>,
+      { label: "vendors" }
+    ),
+    fetchProductRows<ProductRow>(supabase),
+    fetchLocationRows<LocationRow>(supabase),
+    fetchAssignmentRows<AssignmentRow>(supabase),
+    fetchAllRows<ContentRow>(
+      (from, to) =>
+        supabase
+          .from("vendor_contents")
+          .select("vendor_id, body, created_at")
+          .order("created_at", { ascending: false })
+          .order("id", { ascending: true })
+          .range(from, to),
+      { label: "vendor_contents" }
+    ),
   ]);
 
   if (vendorsError) throw new Error(`vendors: ${vendorsError.message}`);
@@ -188,7 +201,6 @@ async function syncVendorEmbeddings(): Promise<{ processed: number }> {
     return {
       vendor_id: vendor.id,
       shop_name: vendor.shop_name ?? "",
-      owner_name: vendor.owner_name ?? "",
       category,
       strength: vendor.strength ?? "",
       style: vendor.style ?? "",
@@ -238,22 +250,33 @@ async function syncVendorEmbeddings(): Promise<{ processed: number }> {
     totalProcessed += payload.length;
   }
 
+  // 許可済みでなくなった店舗（許可を取り下げた・断られた）の埋め込みを消す。
+  // 残すと、vendor_embeddings.content を直接返す経路が増えたときに、許可のない店舗の情報が漏れる
+  const { data: unlisted, error: unlistedError } = await supabase
+    .from("vendors")
+    .select("id")
+    .neq("listing_status", "allowed");
+  if (unlistedError) throw new Error(`unlisted vendors: ${unlistedError.message}`);
+  const unlistedIds = (unlisted ?? []).map((row) => row.id);
+  if (unlistedIds.length > 0) {
+    const { error: deleteError } = await supabase.from("vendor_embeddings").delete().in("vendor_id", unlistedIds);
+    if (deleteError) throw new Error(`Delete unlisted embeddings error: ${deleteError.message}`);
+  }
+
   return { processed: totalProcessed };
 }
 
 // ---- ルートハンドラー ----
 
-function checkAuth(req: NextRequest): boolean {
+function checkCronAuth(req: NextRequest): boolean {
   const cronSecret = process.env.CRON_SECRET;
-  if (!cronSecret) return process.env.NODE_ENV !== "production";
-  const authHeader = req.headers.get("authorization");
-  const token = authHeader?.replace("Bearer ", "");
-  return token === cronSecret;
+  if (!cronSecret) return false; // CRON_SECRET 未設定時は常に拒否
+  return verifyBearerSecret(req.headers.get("authorization"), cronSecret);
 }
 
 // Vercel Cron は GET を送る
 export async function GET(req: NextRequest) {
-  if (!checkAuth(req)) {
+  if (!checkCronAuth(req)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -264,15 +287,14 @@ export async function GET(req: NextRequest) {
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
     console.error("[sync-embeddings]", message);
-    return NextResponse.json({ ok: false, error: message }, { status: 500 });
+    return NextResponse.json({ ok: false, error: "Internal server error" }, { status: 500 });
   }
 }
 
-// 手動実行用（管理画面等から POST で叩く場合）
-export async function POST(req: NextRequest) {
-  if (!checkAuth(req)) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+// 手動実行用（管理画面から POST で叩く場合）
+export async function POST(_req: NextRequest) {
+  const auth = await requireAdminApi();
+  if ("error" in auth) return auth.error;
 
   try {
     const startedAt = new Date().toISOString();
@@ -281,6 +303,6 @@ export async function POST(req: NextRequest) {
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
     console.error("[sync-embeddings]", message);
-    return NextResponse.json({ ok: false, error: message }, { status: 500 });
+    return NextResponse.json({ ok: false, error: "Internal server error" }, { status: 500 });
   }
 }

@@ -1,58 +1,55 @@
 import { NextResponse } from "next/server";
-import { createClient as createServiceClient } from "@supabase/supabase-js";
-import { cookies } from "next/headers";
-import { createClient as createServerClient } from "@/utils/supabase/server";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { requireSameOrigin } from "@/lib/security/requestGuards";
-import { enforceRateLimit } from "@/lib/security/rateLimit";
-import { getRole, isAdmin } from "@/lib/auth/permissions";
+import { enforceRateLimit, getClientIp } from "@/lib/security/rateLimit";
+import { requireAdminApi } from "@/lib/auth/requireAdminApi";
+import { MAX_BULK_OPERATION } from "@/lib/constants";
+import { logAdminAudit } from "@/lib/audit/logAdminAudit";
+import { revalidatePublicShops } from "@/app/(public)/map/services/shopCache";
+import { loadShopAccountLinks } from "@/lib/admin/shopAccounts.server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 type BulkAction = "suspend" | "restore" | "delete";
 
-
 export async function POST(request: Request) {
   try {
     const originCheck = requireSameOrigin(request);
     if (!originCheck.ok) return originCheck.response;
 
-    const rateLimited = enforceRateLimit(request, {
+    const rateLimited = await enforceRateLimit(request, {
       bucket: "admin-shops-bulk",
       limit: 10,
       windowMs: 10 * 60 * 1000,
     });
     if (rateLimited) return rateLimited;
 
-    const cookieStore = await cookies();
-    const supabase = createServerClient(cookieStore);
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const auth = await requireAdminApi();
+    if ("error" in auth) return auth.error;
+    const { user, role, adminClient: serviceClient } = auth;
 
-    if (!user || !isAdmin(getRole(user))) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-    if (!supabaseUrl || !serviceRoleKey) {
-      return NextResponse.json({ error: "Supabase env missing" }, { status: 500 });
-    }
-
-    const body = (await request.json()) as { action: BulkAction; ids: string[] };
-    const { action, ids } = body;
+    const body = (await request.json()) as {
+      action: BulkAction;
+      ids: string[];
+      confirmText?: string;
+    };
+    const { action, ids, confirmText } = body;
 
     if (!action || !Array.isArray(ids) || ids.length === 0) {
       return NextResponse.json({ error: "Invalid request" }, { status: 400 });
     }
-    if (ids.length > 200) {
-      return NextResponse.json({ error: "一度に操作できるのは200件までです" }, { status: 400 });
+    if (ids.length > MAX_BULK_OPERATION) {
+      return NextResponse.json({ error: `一度に操作できるのは${MAX_BULK_OPERATION}件までです` }, { status: 400 });
     }
 
-    const serviceClient = createServiceClient(supabaseUrl, serviceRoleKey, {
-      auth: { persistSession: false, autoRefreshToken: false },
-    });
+    // 削除は取り消し不可のため、明示的な確認テキストを必須とする
+    if (action === "delete" && confirmText !== "DELETE") {
+      return NextResponse.json(
+        { error: '削除を実行するには confirmText に "DELETE" を指定してください' },
+        { status: 400 }
+      );
+    }
 
     // 自分自身への操作を除外
     const withoutSelf = ids.filter((id) => id !== user.id);
@@ -63,7 +60,7 @@ export async function POST(request: Request) {
     // vendors テーブルに存在するIDのみに絞る（admin等を誤って操作しないため）
     const { data: validVendors, error: vendorFetchError } = await serviceClient
       .from("vendors")
-      .select("id")
+      .select("id, shop_name")
       .in("id", withoutSelf);
     if (vendorFetchError) {
       return NextResponse.json({ error: "Failed to validate vendor IDs" }, { status: 500 });
@@ -74,40 +71,63 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "対象の出店者が見つかりません" }, { status: 400 });
     }
 
+    const shopNames = validVendors?.map((v: { id: string; shop_name: string | null }) => v.shop_name ?? v.id).join(", ") ?? "";
+    const actionLabel = action === "delete" ? "削除" : action === "suspend" ? "停止" : "復活";
+    const ip = getClientIp(request);
+
+    // 監査ログを操作前に記録（削除後に失敗しても痕跡が残るよう）
+    await logAdminAudit(
+      serviceClient,
+      { id: user.id, email: user.email, role },
+      {
+        action: `bulk_${action}`,
+        targetType: "vendor",
+        targetId: safeIds.join(","),
+        targetName: shopNames.slice(0, 500),
+        details: `${safeIds.length}件の一括${actionLabel}を試みた`,
+        ipAddress: ip !== "unknown" ? ip : null,
+      }
+    );
+
     const errors: string[] = [];
+    /** 停止・復活の対象になるアカウントが無かった店舗（アカウントなしの店舗）。エラーではない */
+    const skipped: string[] = [];
 
     if (action === "delete") {
-      for (const id of safeIds) {
-        const { error } = await serviceClient.auth.admin.deleteUser(id);
-        if (error) errors.push(id);
+      // 店舗の行を直接消す（商品・投稿・メンバーなどの紐づく行は連動して消える）。
+      // 店舗は、アカウントがなくても存在する（運営が先に作り、出店者があとから紐づく）ので、
+      // 店舗の ID でログインアカウントを探して消すことはしない。メンバーのアカウント自体は残る
+      // （消したいときは、ユーザー管理から）
+      const { error } = await serviceClient.from("vendors").delete().in("id", safeIds);
+      if (error) errors.push(...safeIds);
+    } else if (action === "suspend" || action === "restore") {
+      // 停止・復活は、その店舗のメンバーのログインアカウントに対して行う。
+      // アカウントがない店舗は、対象がないだけなので、エラーにせず飛ばす
+      const { links, error: linkError } = await loadShopAccountLinks(serviceClient as unknown as SupabaseClient, safeIds);
+      if (linkError) {
+        return NextResponse.json({ error: "Failed to load shop members" }, { status: 500 });
       }
-    } else if (action === "suspend") {
       for (const id of safeIds) {
-        const { error } = await serviceClient.auth.admin.updateUserById(id, {
-          ban_duration: "876000h",
-        });
-        if (error) errors.push(id);
-      }
-    } else if (action === "restore") {
-      for (const id of safeIds) {
-        const { error } = await serviceClient.auth.admin.updateUserById(id, {
-          ban_duration: "none",
-        });
-        if (error) errors.push(id);
+        const accountIds = (links.membersByVendor.get(id) ?? []).filter((accountId) => accountId !== user.id);
+        if (accountIds.length === 0) {
+          skipped.push(id);
+          continue;
+        }
+        let failed = false;
+        for (const accountId of accountIds) {
+          const { error } = await serviceClient.auth.admin.updateUserById(accountId, {
+            ban_duration: action === "suspend" ? "876000h" : "none",
+          });
+          if (error) failed = true;
+        }
+        if (failed) errors.push(id);
       }
     } else {
       return NextResponse.json({ error: "Unknown action" }, { status: 400 });
     }
 
-    // 監査ログに記録
-    const actionLabel = action === "delete" ? "削除" : action === "suspend" ? "停止" : "復活";
-    await serviceClient.from("admin_audit_logs").insert({
-      actor_id: user.id,
-      action: `bulk_${action}`,
-      target_type: "vendor",
-      target_id: safeIds.join(","),
-      details: `${safeIds.length}件を一括${actionLabel}`,
-    });
+    // 削除した出店者をマップの店舗キャッシュから消す（一部失敗でも成功分は反映する）
+    if (action === "delete") revalidatePublicShops();
 
     if (errors.length > 0) {
       return NextResponse.json(
@@ -116,7 +136,7 @@ export async function POST(request: Request) {
       );
     }
 
-    return NextResponse.json({ ok: true, count: safeIds.length });
+    return NextResponse.json({ ok: true, count: safeIds.length - skipped.length, skippedIds: skipped });
   } catch {
     return NextResponse.json({ error: "Failed to process bulk action" }, { status: 500 });
   }

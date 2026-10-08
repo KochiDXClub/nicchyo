@@ -4,13 +4,11 @@ import { createClient as createServiceClient } from "@supabase/supabase-js";
 import { createClient } from "@/utils/supabase/server";
 import { AdminLayout, AdminPageHeader } from "@/components/admin";
 import { getRole, isAdmin } from "@/lib/auth/permissions";
+import { addDaysToDateString, monthStartJstString, todayJstString } from "@/lib/time/jstDate";
+import AnalyticsExportButton from "./AnalyticsExportButton";
+import { TrafficOverview } from "@/components/admin/TrafficOverview";
 
 export const dynamic = "force-dynamic";
-
-// ---- auth helpers ----
-function isAdminAnalyticsRole(role: string | null | undefined) {
-  return role === "admin" || role === "super_admin";
-}
 
 function createAdminReadClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -35,7 +33,6 @@ const PATH_LABELS: Record<string, string> = {
   "/my-shop": "マイショップ（出店者）",
   "/vendor/account": "出店者アカウント",
   "/vendor/menu": "出店者メニュー",
-  "/vendor/kotodute": "ことづて（出店者）",
   "/login": "ログイン",
 };
 
@@ -60,6 +57,9 @@ type ShopViewRow = { vendor_id: string; source: string | null; vendors: { shop_n
 type SearchLogRow = { keyword: string; searched_at: string };
 type ConsultLogRow = { intent_category: string | null; consulted_at: string };
 type VendorCatRow = { categories: { name: string } | null };
+type ConsultFeedbackRow = { question_text: string | null; comment: string | null; created_at: string; turn_text: string | null };
+type GuideEventRow = { event_type: string; kinds: string[] | null; spot_key: string | null; origin_type: string | null };
+type SpotNameRow = { key: string; name: string | null };
 
 export default async function AdminAnalyticsPage() {
   const cookieStore = await cookies();
@@ -71,11 +71,12 @@ export default async function AdminAnalyticsPage() {
   const dc = createAdminReadClient() ?? supabase;
 
   const now = new Date();
-  const todayIso = now.toISOString().slice(0, 10);
-  const weekStartIso = new Date(now.getTime() - 6 * 86400000).toISOString().slice(0, 10);
-  const monthStartIso = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
-  const thirtyDaysAgoIso = new Date(now.getTime() - 29 * 86400000).toISOString().slice(0, 10);
-  const monthStartTs = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+  // visit_date は JST で記録されるため、集計の基準日も JST に揃える
+  const todayIso = todayJstString(now);
+  const weekStartIso = addDaysToDateString(todayIso, -6);
+  const monthStartIso = monthStartJstString(now);
+  const thirtyDaysAgoIso = addDaysToDateString(todayIso, -29);
+  const monthStartTs = new Date(`${monthStartIso}T00:00:00+09:00`).toISOString();
 
   const [
     pageAnalyticsResult,
@@ -83,6 +84,9 @@ export default async function AdminAnalyticsPage() {
     searchLogsResult,
     consultLogsResult,
     vendorCatsResult,
+    lowRatingResult,
+    guideEventsResult,
+    spotNamesResult,
   ] = await Promise.all([
     // web_page_analytics: 過去30日分
     dc.from("web_page_analytics")
@@ -104,6 +108,19 @@ export default async function AdminAnalyticsPage() {
     // vendors + categories
     dc.from("vendors")
       .select("categories(name)"),
+    // ai_consult_feedback: 最近の低評価（型未生成のためキャスト）
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (dc as any).from("ai_consult_feedback")
+      .select("question_text, comment, created_at, turn_text")
+      .eq("rating", -1)
+      .order("created_at", { ascending: false })
+      .limit(20),
+    // guide_events: おでかけサポートの利用（今月）
+    dc.from("guide_events")
+      .select("event_type, kinds, spot_key, origin_type")
+      .gte("created_at", monthStartTs),
+    // スポット名（案内先の表示用）
+    dc.from("map_landmarks").select("key, name"),
   ]);
 
   const pageRows = (pageAnalyticsResult.data ?? []) as PageAnalyticsRow[];
@@ -111,9 +128,37 @@ export default async function AdminAnalyticsPage() {
   const searchLogs = (searchLogsResult.data ?? []) as SearchLogRow[];
   const consultLogs = (consultLogsResult.data ?? []) as ConsultLogRow[];
   const vendorCats = (vendorCatsResult.data ?? []) as unknown as VendorCatRow[];
+  const lowRatingFeedback = (lowRatingResult.data ?? []) as ConsultFeedbackRow[];
+  const guideEvents = (guideEventsResult.data ?? []) as unknown as GuideEventRow[];
+  const spotNameByKey = new Map(((spotNamesResult.data ?? []) as SpotNameRow[]).map((r) => [r.key, r.name ?? r.key]));
+
+  // ---- おでかけサポート（今月） ----
+  const guideCounts = { open: 0, navigation_start: 0, arrived: 0, navigation_stop: 0 } as Record<string, number>;
+  const guideSpotMap = new Map<string, number>();
+  const guidePresetMap = new Map<string, number>();
+  const guideOriginMap = new Map<string, number>();
+  for (const e of guideEvents) {
+    guideCounts[e.event_type] = (guideCounts[e.event_type] ?? 0) + 1;
+    if (e.event_type === "navigation_start" && e.spot_key) guideSpotMap.set(e.spot_key, (guideSpotMap.get(e.spot_key) ?? 0) + 1);
+    if (e.event_type === "open") {
+      const label = e.kinds && e.kinds.length > 0 ? e.kinds.join("+") : "menu";
+      guidePresetMap.set(label, (guidePresetMap.get(label) ?? 0) + 1);
+      if (e.origin_type) guideOriginMap.set(e.origin_type, (guideOriginMap.get(e.origin_type) ?? 0) + 1);
+    }
+  }
+  const guideTopSpots = Array.from(guideSpotMap.entries())
+    .map(([key, count]) => ({ key, name: spotNameByKey.get(key) ?? key, count }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 6);
+  const guideTopPresets = Array.from(guidePresetMap.entries())
+    .map(([label, count]) => ({ label, count }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 6);
+  const guideArrivalRate = guideCounts.navigation_start > 0 ? Math.round((guideCounts.arrived / guideCounts.navigation_start) * 100) : null;
+  const guideGeoRate = guideCounts.open > 0 ? Math.round(((guideOriginMap.get("geolocation") ?? 0) / guideCounts.open) * 100) : null;
 
   // 管理者アクセスを除外
-  const userRows = pageRows.filter((r) => !isAdminAnalyticsRole(r.user_role));
+  const userRows = pageRows.filter((r) => !isAdmin(r.user_role));
 
   // ---- アクセス統計 ----
   function uniqueVisitors(rows: typeof userRows, fromDate: string) {
@@ -201,9 +246,17 @@ export default async function AdminAnalyticsPage() {
 
   return (
     <AdminLayout>
-      <AdminPageHeader eyebrow="Analytics" title="統計・分析" />
+      <AdminPageHeader
+        eyebrow="Analytics"
+        title="アクセス分析"
+        description="訪問者の推移・滞在時間・人気ページをまとめて確認できます。"
+        actions={<AnalyticsExportButton />}
+      />
 
       <div className="mx-auto max-w-7xl px-4 py-8 pb-20">
+
+        {/* 訪問者の推移・滞在時間・URL別集計（旧ダッシュボードから集約） */}
+        <TrafficOverview />
 
         {/* アクセス概要 */}
         <section className="mb-8">
@@ -233,6 +286,65 @@ export default async function AdminAnalyticsPage() {
               </div>
             ))}
           </div>
+        </section>
+
+        {/* おでかけサポート（今月） */}
+        <section className="mb-8 rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+          <h2 className="mb-1 text-lg font-bold text-slate-800">おでかけサポート</h2>
+          <p className="mb-4 text-xs text-slate-400">今月の利用（お手洗い・休けい・のりものの案内）</p>
+          {guideEvents.length === 0 ? (
+            <p className="py-6 text-center text-sm text-slate-400">データがありません</p>
+          ) : (
+            <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
+              <div className="space-y-3">
+                {[
+                  { label: "案内を開いた", value: guideCounts.open },
+                  { label: "案内をはじめた", value: guideCounts.navigation_start },
+                  { label: "到着", value: guideCounts.arrived },
+                  { label: "途中でやめた", value: guideCounts.navigation_stop },
+                ].map((row) => (
+                  <div key={row.label} className="flex items-center justify-between">
+                    <p className="text-sm text-slate-500">{row.label}</p>
+                    <p className="text-xl font-bold text-slate-800">{row.value.toLocaleString()}</p>
+                  </div>
+                ))}
+                <div className="flex items-center justify-between border-t border-slate-100 pt-3">
+                  <p className="text-sm text-slate-500">到着率</p>
+                  <p className="text-base font-semibold text-slate-700">{guideArrivalRate === null ? "—" : `${guideArrivalRate}%`}</p>
+                </div>
+                <div className="flex items-center justify-between">
+                  <p className="text-sm text-slate-500">現在地から案内できた割合</p>
+                  <p className="text-base font-semibold text-slate-700">{guideGeoRate === null ? "—" : `${guideGeoRate}%`}</p>
+                </div>
+              </div>
+              <div>
+                <p className="mb-2 text-xs font-semibold text-slate-500">よく案内した場所</p>
+                {guideTopSpots.length === 0 ? (
+                  <p className="text-sm text-slate-400">まだありません</p>
+                ) : (
+                  <ul className="space-y-2">
+                    {guideTopSpots.map((s) => (
+                      <li key={s.key} className="flex items-center justify-between text-sm">
+                        <span className="truncate text-slate-800">{s.name}</span>
+                        <span className="shrink-0 text-slate-500">{s.count}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+              <div>
+                <p className="mb-2 text-xs font-semibold text-slate-500">入口（種類）</p>
+                <ul className="space-y-2">
+                  {guideTopPresets.map((p) => (
+                    <li key={p.label} className="flex items-center justify-between text-sm">
+                      <span className="truncate text-slate-800">{p.label}</span>
+                      <span className="shrink-0 text-slate-500">{p.count}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          )}
         </section>
 
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
@@ -381,6 +493,32 @@ export default async function AdminAnalyticsPage() {
                   </div>
                 );
               })}
+            </div>
+          )}
+        </section>
+
+        {/* 最近の低評価フィードバック */}
+        <section className="mt-6 rounded-xl border border-rose-100 bg-white p-6 shadow-sm">
+          <h2 className="mb-1 text-lg font-bold text-slate-800">最近の低評価（👎）</h2>
+          <p className="mb-4 text-xs text-slate-400">AIばあちゃんへの低評価フィードバック（直近20件）</p>
+          {lowRatingFeedback.length === 0 ? (
+            <p className="py-8 text-center text-sm text-slate-400">低評価はありません</p>
+          ) : (
+            <div className="space-y-3">
+              {lowRatingFeedback.map((row, i) => (
+                <div key={i} className="rounded-lg border border-slate-100 bg-slate-50 p-3 text-sm">
+                  <p className="mb-1 text-xs text-slate-400">{new Date(row.created_at).toLocaleString("ja-JP", { timeZone: "Asia/Tokyo" })}</p>
+                  {row.question_text && (
+                    <p className="mb-1 text-slate-700"><span className="font-semibold text-slate-500">質問: </span>{row.question_text}</p>
+                  )}
+                  {row.comment && (
+                    <p className="text-rose-700"><span className="font-semibold">コメント: </span>{row.comment}</p>
+                  )}
+                  {!row.comment && (
+                    <p className="text-slate-400 italic">コメントなし</p>
+                  )}
+                </div>
+              ))}
             </div>
           )}
         </section>

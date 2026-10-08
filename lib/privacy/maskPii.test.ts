@@ -1,0 +1,108 @@
+import { describe, it, expect } from "vitest";
+import { maskPii } from "./maskPii";
+
+describe("maskPii", () => {
+  it("メールアドレスをマスクする", () => {
+    expect(maskPii("連絡先は taro@example.com です")).toBe(
+      "連絡先は [メールアドレス] です"
+    );
+  });
+
+  it("ハイフン区切りの携帯番号をマスクする", () => {
+    expect(maskPii("090-1234-5678に電話して")).toBe("[電話番号]に電話して");
+  });
+
+  it("ハイフンなしの固定電話番号をマスクする", () => {
+    expect(maskPii("0881234567まで")).toBe("[電話番号]まで");
+  });
+
+  it("スペース区切りの番号をマスクする", () => {
+    expect(maskPii("080 1234 5678")).toBe("[電話番号]");
+  });
+
+  it("メールと電話が両方あれば両方マスクする", () => {
+    expect(maskPii("hana@example.jp / 090-0000-0000")).toBe(
+      "[メールアドレス] / [電話番号]"
+    );
+  });
+
+  it("金額や年号など桁数が合わない数字はマスクしない", () => {
+    expect(maskPii("0800円のトマト")).toBe("0800円のトマト");
+    expect(maskPii("創業は1970年")).toBe("創業は1970年");
+  });
+
+  it("店舗コードのような短い数字はマスクしない", () => {
+    expect(maskPii("012番のお店はどこ？")).toBe("012番のお店はどこ？");
+  });
+
+  it("全角で書かれたメールアドレスをマスクする", () => {
+    expect(maskPii("ｔａｒｏ＠ｅｘａｍｐｌｅ．ｃｏｍ に連絡")).toBe(
+      "[メールアドレス] に連絡"
+    );
+  });
+
+  it("全角数字と全角ハイフンの番号をマスクする", () => {
+    expect(maskPii("０９０－１２３４－５６７８に電話して")).toBe(
+      "[電話番号]に電話して"
+    );
+  });
+
+  it("長音記号やダッシュで区切った番号をマスクする", () => {
+    expect(maskPii("０９０ー１２３４ー５６７８")).toBe("[電話番号]");
+    expect(maskPii("088−123−4567")).toBe("[電話番号]");
+    expect(maskPii("090—1234—5678")).toBe("[電話番号]");
+  });
+
+  it("全角スペースと全角括弧の番号をマスクする", () => {
+    expect(maskPii("（０８８）１２３　４５６７")).toBe("[電話番号]");
+  });
+
+  it("国際表記の番号をマスクする", () => {
+    expect(maskPii("+81 90-1234-5678 まで")).toBe("[電話番号] まで");
+    expect(maskPii("+81-88-123-4567")).toBe("[電話番号]");
+    expect(maskPii("＋８１９０１２３４５６７８")).toBe("[電話番号]");
+  });
+
+  it("国際表記で国内番号の先頭の 0 を残した番号をマスクする", () => {
+    expect(maskPii("+81 090-1234-5678 まで")).toBe("[電話番号] まで");
+    expect(maskPii("+81 (0)90-1234-5678")).toBe("[電話番号]");
+    expect(maskPii("+810881234567")).toBe("[電話番号]");
+  });
+
+  it("+ だけを付けた国内番号もマスクする", () => {
+    expect(maskPii("+0901234567")).toBe("+[電話番号]");
+    expect(maskPii("+090-1234-5678")).toBe("+[電話番号]");
+  });
+
+  it("全角でも桁数が合わない数字はマスクしない", () => {
+    expect(maskPii("０８００円のトマト")).toBe("０８００円のトマト");
+    expect(maskPii("+81 は日本の国番号")).toBe("+81 は日本の国番号");
+  });
+
+  it("マスクしない部分の全角文字は書き換えない", () => {
+    expect(maskPii("０９０－１２３４－５６７８（夜は不可）？")).toBe(
+      "[電話番号]（夜は不可）？"
+    );
+  });
+
+  it("個人情報がなければ元の文字列を返す", () => {
+    const text = "おすすめの野菜を教えて";
+    expect(maskPii(text)).toBe(text);
+  });
+
+  it("空文字列はそのまま返す", () => {
+    expect(maskPii("")).toBe("");
+  });
+
+  it("「%」や「.」を大量に含む入力でも一瞬で終わる（ReDoS対策）", () => {
+    for (const text of ["%".repeat(50000), "a@" + "a.".repeat(50000), "a".repeat(50000)]) {
+      const t0 = performance.now();
+      maskPii(text);
+      expect(performance.now() - t0).toBeLessThan(500);
+    }
+  });
+
+  it("文章中のメールアドレスは従来どおりマスクする", () => {
+    expect(maskPii("連絡は taro.yamada+x@example.co.jp まで")).toBe("連絡は [メールアドレス] まで");
+  });
+});

@@ -1,22 +1,25 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { motion } from "framer-motion";
-import { Loader2, Send, CheckCircle2, AlertCircle, HelpCircle, Bug, MessageSquare, Mail, RefreshCw } from "lucide-react";
+import { Loader2, Send, CheckCircle2, AlertCircle, HelpCircle, Bug, MessageSquare, Mail, Handshake, RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
+import { takeContactPrefill } from "@/lib/contact/prefill";
 
 const contactSchema = z.object({
   name: z.string().optional(),
   email: z.string()
     .min(1, "メールアドレスは必須です")
     .email("返信先として使用しますので、正確なメールアドレスを半角で入力してください（例: user@example.com）"),
-  category: z.enum(["question", "feedback", "bug", "other"], {
+  category: z.enum(["question", "feedback", "bug", "sponsor", "other"], {
     errorMap: () => ({ message: "カテゴリを選択してください" }),
   }),
+  website: z.string().optional(),
   message: z.string().min(10, "内容は10文字以上で入力してください").max(1000, "内容は1000文字以内で入力してください"),
 });
 
@@ -26,11 +29,21 @@ const CATEGORIES = [
   { id: "question", label: "ご質問", icon: HelpCircle, desc: "使い方やサービスについて" },
   { id: "feedback", label: "ご意見", icon: MessageSquare, desc: "機能のご要望や感想" },
   { id: "bug", label: "不具合・トラブル", icon: Bug, desc: "アプリの調子が悪いとき" },
+  { id: "sponsor", label: "協賛・支援", icon: Handshake, desc: "運営費のご支援について" },
   { id: "other", label: "その他", icon: Mail, desc: "取材やその他のご連絡" },
 ] as const;
 
+type CategoryId = (typeof CATEGORIES)[number]["id"];
+
+function isCategoryId(value: string | null): value is CategoryId {
+  return CATEGORIES.some((category) => category.id === value);
+}
+
 export default function ContactForm() {
+  const searchParams = useSearchParams();
+  const initialCategory = searchParams?.get("category") ?? null;
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   const {
     register,
@@ -41,9 +54,17 @@ export default function ContactForm() {
   } = useForm<ContactFormData>({
     resolver: zodResolver(contactSchema),
     defaultValues: {
-      category: "question",
+      // /support の「協賛について問い合わせる」から ?category=sponsor で来る
+      category: isCategoryId(initialCategory) ? initialCategory : "question",
     },
   });
+
+  // 出店者トップの「運営に問い合わせる」から来たときは、相談の内容を本文に入れておく。
+  // URL に載せると解析や履歴に自由文が残るため、sessionStorage で受け取る（lib/contact/prefill.ts）
+  useEffect(() => {
+    const prefill = takeContactPrefill();
+    if (prefill) setValue("message", prefill);
+  }, [setValue]);
 
   const selectedCategory = watch("category");
   const emailValue = watch("email");
@@ -63,10 +84,23 @@ export default function ContactForm() {
     setValue("email", fixed, { shouldValidate: true });
   };
 
-  const onSubmit = async (_data: ContactFormData) => {
-    // TODO: バックエンドAPIルート実装後に差し替える
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-    setIsSubmitted(true);
+  const onSubmit = async (data: ContactFormData) => {
+    setSubmitError(null);
+    try {
+      const res = await fetch("/api/contact", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      if (!res.ok) {
+        const json = await res.json() as { error?: string };
+        setSubmitError(json.error ?? "送信に失敗しました。もう一度お試しください。");
+        return;
+      }
+      setIsSubmitted(true);
+    } catch {
+      setSubmitError("通信エラーが発生しました。しばらくしてから再度お試しください。");
+    }
   };
 
   if (isSubmitted) {
@@ -85,6 +119,7 @@ export default function ContactForm() {
           内容を確認の上、担当者よりご連絡させていただきます。
         </p>
         <button
+          type="button"
           onClick={() => setIsSubmitted(false)}
           className="mt-4 text-sm font-medium text-amber-600 hover:text-amber-700 underline underline-offset-4"
         >
@@ -96,10 +131,19 @@ export default function ContactForm() {
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-6" noValidate>
+      {/* honeypot: 人間には見えない。ボットが埋めたら API 側で破棄する */}
+      <input
+        type="text"
+        tabIndex={-1}
+        autoComplete="off"
+        aria-hidden="true"
+        className="hidden"
+        {...register("website")}
+      />
       {/* Category Selection */}
       <div className="space-y-3">
         <label className="text-sm font-semibold text-gray-700">お問い合わせの種類</label>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
           {CATEGORIES.map((cat) => {
             const Icon = cat.icon;
             const isSelected = selectedCategory === cat.id;
@@ -205,6 +249,14 @@ export default function ContactForm() {
           )}
         </div>
       </div>
+
+      {/* Submit Error */}
+      {submitError && (
+        <p className="flex items-center gap-1 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-600">
+          <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+          {submitError}
+        </p>
+      )}
 
       {/* Submit Button */}
       <button

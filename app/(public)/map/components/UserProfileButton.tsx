@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth/AuthContext";
 
@@ -25,9 +26,11 @@ export default function UserProfileButton() {
         aria-label="ユーザーメニューを開く"
       >
         {user?.avatarUrl ? (
-          <img
+          <Image
             src={user.avatarUrl}
             alt={user.name}
+            width={44}
+            height={44}
             className="h-full w-full object-cover"
           />
         ) : (
@@ -40,9 +43,11 @@ export default function UserProfileButton() {
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-full bg-amber-100 text-xl overflow-hidden">
               {user?.avatarUrl ? (
-                <img
+                <Image
                   src={user.avatarUrl}
                   alt={user.name}
+                  width={40}
+                  height={40}
                   className="h-full w-full object-cover"
                 />
               ) : (

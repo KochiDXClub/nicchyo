@@ -1,10 +1,10 @@
-﻿import { Metadata } from "next";
-import Link from "next/link";
+import { Metadata } from "next";
 import NavigationBar from "../../components/NavigationBar";
 import MapLink from "../../components/MapLink";
 
 export const metadata: Metadata = {
-  title: "午後のイベント | nicchyo 日曜市",
+  title: "午後のイベント",
+  robots: { index: false, follow: true },
   description:
     "日曜市が終わった後も楽しめる、地域イベントやワークショップの情報ページです。",
 };
@@ -30,13 +30,6 @@ export default function EventsPage() {
                 <span>🗺️</span>
                 マップを見る
               </MapLink>
-              <Link
-                href="/recipes"
-                className="inline-flex items-center gap-2 rounded-xl border-2 border-amber-600 bg-white px-6 py-3 text-sm font-semibold text-amber-600 transition hover:bg-amber-50"
-              >
-                <span>🍳</span>
-                レシピを見る
-              </Link>
             </div>
           </div>
 

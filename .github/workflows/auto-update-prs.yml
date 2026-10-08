@@ -1,0 +1,115 @@
+name: Auto-update PRs with develop
+
+# develop ブランチが更新された際に、develop を対象とするオープンな PR に
+# develop の最新変更を自動マージしてコンフリクトや遅れを未然に防止する。
+
+on:
+  push:
+    branches:
+      - develop
+  workflow_dispatch:
+
+concurrency:
+  group: auto-update-prs
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  update-prs:
+    name: Update open PRs
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure Git
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Update PR branches
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -uo pipefail
+
+          # 最新のブランチ情報を取得
+          git fetch origin --prune
+
+          REPO_OWNER="${{ github.repository_owner }}"
+          # 同一リポジトリ内の develop 向け open PR 一覧を取得
+          PRS_JSON="$(gh pr list --base develop --state open --json number,headRefName,headRepositoryOwner,isDraft,title)"
+
+          # 対象 PR の抽出（同一リポジトリかつ head が develop/main 以外）
+          CANDIDATES="$(echo "$PRS_JSON" | jq -c ".[] | select(.headRepositoryOwner.login == \"$REPO_OWNER\" and .headRefName != \"develop\" and .headRefName != \"main\")")"
+
+          if [ -z "$CANDIDATES" ]; then
+            echo "更新対象のプルリクエストはありません。"
+            echo "### 自動更新結果" >> "$GITHUB_STEP_SUMMARY"
+            echo "更新対象のオープンな PR はありませんでした。" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          echo "### PR 自動更新（develop 取り込み）結果" >> "$GITHUB_STEP_SUMMARY"
+          echo "| PR | ブランチ | タイトル | 結果 |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|---|---|---|---|" >> "$GITHUB_STEP_SUMMARY"
+
+          SUCCESS_COUNT=0
+          SKIPPED_COUNT=0
+          CONFLICT_COUNT=0
+
+          while IFS= read -r line; do
+            [ -z "$line" ] && continue
+            PR_NUM="$(echo "$line" | jq -r '.number')"
+            BRANCH="$(echo "$line" | jq -r '.headRefName')"
+            TITLE="$(echo "$line" | jq -r '.title' | sed 's/|/\\|/g')"
+
+            echo "=== PR #$PR_NUM ($BRANCH) の処理を開始 ==="
+
+            # リモートブランチの存在確認
+            if ! git rev-parse --verify "origin/$BRANCH" >/dev/null 2>&1; then
+              echo "ブランチ origin/$BRANCH が見つかりません。スキップします。"
+              echo "| #$PR_NUM | \`$BRANCH\` | $TITLE | ⚠️ ブランチ取得失敗 |" >> "$GITHUB_STEP_SUMMARY"
+              continue
+            fi
+
+            # 既に develop が祖先になっているか確認
+            if git merge-base --is-ancestor origin/develop "origin/$BRANCH"; then
+              echo "PR #$PR_NUM ($BRANCH) は既に最新の develop を取り込んでいます。"
+              echo "| #$PR_NUM | \`$BRANCH\` | $TITLE | ⏭️ 既に最新 |" >> "$GITHUB_STEP_SUMMARY"
+              SKIPPED_COUNT=$((SKIPPED_COUNT + 1))
+              continue
+            fi
+
+            # ブランチをチェックアウトしてマージ
+            git checkout -B "$BRANCH" "origin/$BRANCH"
+            if git merge origin/develop --no-edit -m "chore: merge develop into $BRANCH"; then
+              echo "PR #$PR_NUM ($BRANCH) へのマージに成功。プッシュします..."
+              if git push origin "$BRANCH"; then
+                echo "PR #$PR_NUM ($BRANCH) を正常に更新しました。"
+                echo "| #$PR_NUM | \`$BRANCH\` | $TITLE | ✅ 自動マージ成功 |" >> "$GITHUB_STEP_SUMMARY"
+                SUCCESS_COUNT=$((SUCCESS_COUNT + 1))
+              else
+                echo "PR #$PR_NUM ($BRANCH) のプッシュに失敗しました。"
+                echo "| #$PR_NUM | \`$BRANCH\` | $TITLE | ❌ プッシュ失敗 |" >> "$GITHUB_STEP_SUMMARY"
+              fi
+            else
+              echo "PR #$PR_NUM ($BRANCH) でコンフリクトが発生しました。マージを中止します。"
+              git merge --abort || true
+              echo "::warning title=Merge Conflict::PR #$PR_NUM ($BRANCH) could not be automatically updated due to merge conflicts."
+              echo "| #$PR_NUM | \`$BRANCH\` | $TITLE | ⚠️ コンフリクト（手動解決要） |" >> "$GITHUB_STEP_SUMMARY"
+              CONFLICT_COUNT=$((CONFLICT_COUNT + 1))
+            fi
+
+            echo "----------------------------------------"
+          done <<< "$CANDIDATES"
+
+          echo ""
+          echo "完了: 成功=$SUCCESS_COUNT, スキップ=$SKIPPED_COUNT, コンフリクト=$CONFLICT_COUNT"

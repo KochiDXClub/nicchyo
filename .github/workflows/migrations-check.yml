@@ -1,0 +1,107 @@
+name: Migrations Check
+
+# supabase/migrations/ に変更があるPRで、全マイグレーションを
+# まっさらなローカルPostgresに頭から適用できるかを検証する。
+# 本番Supabaseには一切触れない（Secrets不要）。
+#
+# ここで落ちる典型例:
+#   - SQL構文エラー
+#   - 2回目以降の適用で落ちる書き方（IF NOT EXISTS 漏れ）
+#   - ファイル順（タイムスタンプ順）の依存関係の破綻
+#
+# 本番への適用は .github/workflows/migrations-deploy.yml を参照。
+
+on:
+  pull_request:
+    paths:
+      - 'supabase/migrations/**'
+      - 'supabase/checks/**'
+      - '.github/workflows/migrations-check.yml'
+  push:
+    branches: [develop]
+    paths:
+      - 'supabase/migrations/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: ローカルDBへ全適用
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Supabase CLI
+        # supabase/setup-cli v1.7.3（コミット SHA で固定）。本番デプロイ（migrations-deploy.yml）と同じ CLI バージョンに揃える
+        uses: supabase/setup-cli@1dedf2c611547ede7232d26866dd3c56ab903bbb
+        with:
+          version: '2.120.0'
+
+      # リポジトリには config.toml を置いていないので、CI 内で生成する。
+      # 既に置かれていればそれを使う。
+      - name: Ensure supabase/config.toml
+        run: |
+          if [ ! -f supabase/config.toml ]; then
+            supabase init --force --yes >/dev/null
+            echo "generated supabase/config.toml"
+          fi
+
+      - name: Migration file naming check
+        run: |
+          bad=0
+          for f in supabase/migrations/*.sql; do
+            name=$(basename "$f")
+            if ! echo "$name" | grep -Eq '^[0-9]{14}_[a-z0-9_]+\.sql$'; then
+              echo "::error file=$f::マイグレーション名は YYYYMMDDHHMMSS_snake_case.sql の形式にしてください"
+              bad=1
+            fi
+          done
+
+          # タイムスタンプ（最初の14桁）の重複を検知
+          duplicates=$(for f in supabase/migrations/*.sql; do basename "$f" | cut -c 1-14; done | sort | uniq -d)
+          if [ -n "$duplicates" ]; then
+            echo "::error::マイグレーションのタイムスタンプが重複しています: $duplicates"
+            bad=1
+          fi
+
+          exit $bad
+
+      - name: Start local Postgres
+        run: supabase db start
+
+      - name: Apply all migrations from scratch
+        run: supabase db reset --local --no-seed
+
+      # 店舗のメンバー制に張り替えたあとに、旧い判定（auth.uid() だけで店舗の行を絞る RLS）が
+      # 残っていないかを確かめる。詳しくは supabase/checks/no_legacy_vendor_policies.sql
+      - name: Check no legacy vendor policies remain
+        run: psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" -v ON_ERROR_STOP=1 -f supabase/checks/no_legacy_vendor_policies.sql
+
+      # 掲載許可の記録（許可のメモなど）が、来訪者・一般ユーザーから直接読めないことを確かめる。
+      # 詳しくは supabase/checks/vendor_listing_consent_columns.sql
+      - name: Check listing consent columns are not readable by anon / authenticated
+        run: psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" -v ON_ERROR_STOP=1 -f supabase/checks/vendor_listing_consent_columns.sql
+
+      # 公開 SELECT が掲載許可のフィルタを迂回しないこと、reports / inquiries / track_home_visit が
+      # 直接書けないことを確かめる。詳しくは supabase/checks/public_read_and_insert_closed.sql
+      - name: Check public read policies and closed inserts
+        run: psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" -v ON_ERROR_STOP=1 -f supabase/checks/public_read_and_insert_closed.sql
+
+      # 運営向け通知テーブル（admin_notifications）が全適用後に存在し、運営だけが読めることを確かめる。
+      # 詳しくは supabase/checks/admin_notifications_restored.sql
+      - name: Check admin_notifications exists with expected columns and RLS
+        run: psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" -v ON_ERROR_STOP=1 -f supabase/checks/admin_notifications_restored.sql
+
+      # RLS が vendors.role で運営判定していないこと（authenticated では permission denied になる）と、
+      # current_user_role() / is_operator() を使うポリシーが to authenticated に限定されていること。
+      # 詳しくは supabase/checks/no_vendors_role_in_policies.sql
+      - name: Check no vendors.role in RLS policies
+        run: psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" -v ON_ERROR_STOP=1 -f supabase/checks/no_vendors_role_in_policies.sql
+
+      - name: Show applied migrations
+        run: supabase migration list --local

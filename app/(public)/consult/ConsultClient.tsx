@@ -1,13 +1,15 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import Image from "next/image";
 import { useSearchParams } from "next/navigation";
 import NavigationBar from "../../components/NavigationBar";
-import GrandmaChatter from "../map/components/GrandmaChatter";
 import ShopDetailBanner from "../map/components/ShopDetailBanner";
-import { grandmaComments } from "../map/data/grandmaComments";
-import type { ConsultCharacterId } from "./data/consultCharacters";
+import ConsultStage from "./components/ConsultStage";
+import {
+  CONSULT_CHARACTER_BY_ID,
+  DEFAULT_CONSULT_CHARACTER_ID,
+  type ConsultCharacterId,
+} from "./data/consultCharacters";
 import type {
   ConsultAskResponse,
   ConsultAskStreamEvent,
@@ -18,26 +20,34 @@ import { getOrCreateConsultVisitorKey } from "@/lib/consultVisitorKey";
 
 const PREFERRED_CHARACTER_STORAGE_KEY = "nicchyo-consult-preferred-character";
 
-export default function ConsultClient({ embedded = false }: { embedded?: boolean }) {
-  const [aiSuggestedShops, setAiSuggestedShops] = useState<Shop[]>([]);
+export default function ConsultClient() {
   const [knownShops, setKnownShops] = useState<Shop[]>([]);
   const [selectedShop, setSelectedShop] = useState<Shop | null>(null);
-  const [preferredCharacterId, setPreferredCharacterId] = useState<ConsultCharacterId | null>(null);
+  // 既定はにちよさん。null にすると話し手が毎回変わり、会話全体が掛け合いに見える
+  const [preferredCharacterId, setPreferredCharacterId] =
+    useState<ConsultCharacterId>(DEFAULT_CONSULT_CHARACTER_ID);
+  // PC版「これまでの相談」サイドバーの開閉。既定は閉じ、チャット欄を中央のまま保つ
+  const [isHistorySidebarOpen, setIsHistorySidebarOpen] = useState(false);
   const searchParams = useSearchParams();
+
+  const handleSelectShop = useCallback(
+    (shopId: number, shopFromCard?: Shop) => {
+      const shop = shopFromCard ?? knownShops.find((item) => item.id === shopId) ?? null;
+      if (shop) setSelectedShop(shop);
+    },
+    [knownShops]
+  );
 
   useEffect(() => {
     if (typeof window === "undefined") return;
     const saved = window.localStorage.getItem(PREFERRED_CHARACTER_STORAGE_KEY);
-    if (!saved) return;
+    // 消えたキャラのIDが残っていても既定に落ちるようにする
+    if (!saved || !CONSULT_CHARACTER_BY_ID.has(saved as ConsultCharacterId)) return;
     setPreferredCharacterId(saved as ConsultCharacterId);
   }, []);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    if (!preferredCharacterId) {
-      window.localStorage.removeItem(PREFERRED_CHARACTER_STORAGE_KEY);
-      return;
-    }
     window.localStorage.setItem(PREFERRED_CHARACTER_STORAGE_KEY, preferredCharacterId);
   }, [preferredCharacterId]);
 
@@ -113,15 +123,11 @@ export default function ConsultClient({ embedded = false }: { embedded?: boolean
       helperQuestions?: string[];
       errorMessage?: string;
       retryable?: boolean;
+      consultId?: string;
     },
     ok: boolean
   ): ConsultAskResponse => {
     mergeKnownShops(payload.shops);
-    if (payload.shops && payload.shops.length > 0) {
-      setAiSuggestedShops(payload.shops);
-    } else {
-      setAiSuggestedShops([]);
-    }
 
     return {
       reply:
@@ -143,41 +149,10 @@ export default function ConsultClient({ embedded = false }: { embedded?: boolean
       retryable: ok
         ? payload.retryable ?? false
         : payload.retryable ?? payload.errorCode === "system_error",
+      consultId: payload.consultId,
     };
   }, [mergeKnownShops]);
 
-  const handleGrandmaAsk = useCallback(async (
-    text: string,
-    imageFile?: File | null,
-    context?: { shopId?: number; shopName?: string; source?: "suggestion" | "input" },
-    history?: ConsultHistoryEntry[],
-    memorySummary?: string
-  ): Promise<ConsultAskResponse> => {
-    try {
-      const { body, headers } = buildAskRequest(
-        text,
-        imageFile,
-        context,
-        history,
-        memorySummary
-      );
-      const response = await fetch("/api/grandma/ask", {
-        method: "POST",
-        headers,
-        body,
-      });
-      const payload = (await response.json()) as Parameters<typeof normalizeAskResponse>[0];
-      return normalizeAskResponse(payload, response.ok);
-    } catch {
-      setAiSuggestedShops([]);
-      return {
-        reply: "ごめんね、今は答えを出せんかった。時間をおいて試してね。",
-        errorCode: "system_error",
-        errorMessage: "接続に失敗しました。少し時間をおいて、もう一度試してください。",
-        retryable: true,
-      };
-    }
-  }, [buildAskRequest, normalizeAskResponse]);
 
   const handleGrandmaAskStream = useCallback(async (
     text: string,
@@ -247,7 +222,6 @@ export default function ConsultClient({ embedded = false }: { embedded?: boolean
         }
       );
     } catch {
-      setAiSuggestedShops([]);
       return {
         reply: "ごめんね、今は答えを出せんかった。時間をおいて試してね。",
         errorCode: "system_error",
@@ -268,65 +242,53 @@ export default function ConsultClient({ embedded = false }: { embedded?: boolean
 
   return (
     <div
-      className={`relative min-h-screen ${embedded ? "bg-transparent" : "bg-[var(--consult-bg)]"}`}
+      // チャットのスクロールは ConsultStage 内側の overflow-y-auto だけで完結させたい。
+      // ここに overflow-hidden を付けておかないと、何かの拍子に中身が 100dvh を
+      // わずかに超えたときページ本体（html）側にもスクロールバーが出て、意図した
+      // チャット用スクロールバーの隣にもう1本（グローバル装飾で同じ緑色の）スクロール
+      // バーが並んで見えてしまう
+      className="relative min-h-screen overflow-hidden bg-[var(--consult-bg)]"
     >
-      {!embedded && <div className="pointer-events-none absolute inset-0 z-0 bg-[var(--consult-bg)]" aria-hidden="true" />}
-      <main className="relative z-10 flex w-full items-start justify-center px-3 pb-16 pt-2">
-        <div className="flex w-full max-w-5xl flex-col gap-2">
+      <div className="pointer-events-none absolute inset-0 z-0 bg-[var(--consult-bg)]" aria-hidden="true" />
+      {/*
+        「これまでの相談」サイドバー（lg 以上）を開いているときは、
+        サイドバーのすぐ右（固定ガター lg:pl-80）から本文を始める。
 
-          {/* ヘッダー：standalone のみ表示 */}
-          {!embedded && (
-            <section className="flex flex-col items-center gap-3 pb-1 pt-4 text-center">
-              <Image
-                src="/characters/obaasan.png"
-                alt="にちよさん"
-                width={180}
-                height={180}
-                className="h-[120px] w-[120px] object-contain drop-shadow-[0_8px_16px_rgba(146,64,14,0.25)] md:h-[180px] md:w-[180px]"
-              />
-              <div>
-                <p className="eyebrow">Nichiyo-san</p>
-                <h1 className="mt-1 font-display text-2xl text-amber-900 md:text-3xl">
-                  なんでも、聞いてください
-                </h1>
-              </div>
-              <div className="flex flex-wrap justify-center gap-1.5">
-                <span className="rounded-full border border-amber-200/70 bg-white/70 px-3 py-1 text-xs font-bold text-amber-800">🎤 音声入力OK</span>
-                <span className="rounded-full border border-amber-200/70 bg-white/70 px-3 py-1 text-xs font-bold text-amber-800">📷 写真相談OK</span>
-              </div>
-            </section>
-          )}
+        ここでは幅を max-w-3xl に絞らない（ConsultStage に w-full のまま渡す）。
+        絞ってしまうと、その狭い箱の内側でスクロールすることになり、縦スクロール
+        バーが画面の右端ではなく「箱の右端＝画面中央寄りの中途半端な位置」に
+        出てしまう（サイドバーを開いて本文が中央からずれるとなおさら目立つ）。
+        読みやすい行幅への制限と中央/左寄せの切り替えは、スクロール領域の
+        内側（ConsultStage 側の内側ラッパー）で行い、スクロールする箱自体は
+        画面の右端まで届く幅にしておく。
 
-          <GrandmaChatter
-            titleLabel="にちよさん"
-            fullWidth
-            variant="consult"
-            embedded={embedded}
-            comments={grandmaComments}
-            onAsk={handleGrandmaAsk}
+        同じ理由で左右の px も持たせない（横方向の余白は ConsultStage 側の
+        内側ラッパーが px-4 で持つ）。ここに px を付けると、スクロールする箱の
+        右端が画面の真の右端から px 分だけ内側にずれ、チャットのスクロールバーが
+        画面端にぴったり付かなくなる
+      */}
+      <main
+        className={`relative z-10 w-full pb-16 ${
+          isHistorySidebarOpen ? "lg:pl-80" : ""
+        }`}
+      >
+        <div className="w-full">
+          {/* 現地でスマホを片手に使う前提の画面。相談はこの形に一本化した */}
+          <ConsultStage
             onAskStream={handleGrandmaAskStream}
             allShops={knownShops}
-            aiSuggestedShops={aiSuggestedShops}
-            onSelectShop={(shopId, shopFromCard) => {
-              const shop =
-                shopFromCard ?? knownShops.find((item) => item.id === shopId) ?? null;
-              if (shop) {
-                setSelectedShop(shop);
-              }
-            }}
-            initialOpen
-            layout="page"
-            onClear={() => setAiSuggestedShops([])}
+            onSelectShop={handleSelectShop}
             autoAskText={autoAskText}
             autoAskContext={autoAskContext}
-            enableSpeechInput
             preferredCharacterId={preferredCharacterId}
             onPreferredCharacterChange={setPreferredCharacterId}
+            isHistorySidebarOpen={isHistorySidebarOpen}
+            onHistorySidebarOpenChange={setIsHistorySidebarOpen}
           />
         </div>
       </main>
       {selectedShop && <ShopDetailBanner shop={selectedShop} onClose={() => setSelectedShop(null)} />}
-      {!embedded && <NavigationBar activeHref="/consult" />}
+      <NavigationBar activeHref="/consult" />
     </div>
   );
 }

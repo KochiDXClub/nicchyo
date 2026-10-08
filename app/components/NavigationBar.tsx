@@ -1,46 +1,122 @@
 "use client";
 
-import Link from "next/link";
-import Image from "next/image";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useState, useEffect, useCallback, Suspense } from "react";
+import Link from "next/link";
+import { useEffect, useCallback, useId, useRef, useState, Suspense } from "react";
 import { AnimatePresence, motion } from "framer-motion";
+import {
+  BarChart3,
+  CalendarDays,
+  CircleHelp,
+  Compass,
+  FileText,
+  Heart,
+  HeartHandshake,
+  Info,
+  LayoutDashboard,
+  LogIn,
+  LogOut,
+  Mail,
+  Sparkles,
+  ShieldCheck,
+  MessageCircle,
+  Newspaper,
+  Settings,
+  Store,
+  Users,
+  X,
+  type LucideIcon,
+  Github,
+} from "lucide-react";
 import { useAuth } from "@/lib/auth/AuthContext";
-import { useBag } from "@/lib/storage/BagContext";
-import { getOrCreateConsultVisitorKey } from "@/lib/consultVisitorKey";
-import { todayJstString } from "@/lib/coupons/client";
-import type { MyCouponsResponse } from "@/lib/coupons/types";
+import { GITHUB_REPO_URL } from "@/lib/siteLinks";
+import { useMenu } from "@/lib/ui/MenuContext";
+import { usePageVisibility } from "@/lib/pageVisibility/PageVisibilityContext";
+import { ODEKAKE_VISIBILITY_PATH } from "@/lib/pageVisibility/registry";
+import { useMapLoading } from "./MapLoadingProvider";
+import MenuGrandma from "./MenuGrandma";
+import {
+  BottomNavBackBar,
+  BottomNavItemContent,
+  BottomNavLink,
+  bottomNavItemClass,
+  MenuDivider,
+  MenuRow,
+  MenuSheet,
+  MenuToggleButton,
+  MenuUserRow,
+} from "@/components/navigation/MenuSheet";
 
 // ─── ナビゲーション項目 ────────────────────────────────────────────────────────
 type NavItem = {
   name: string;
   href: string;
-  icon: "search" | "chat" | "admin" | "coupon";
+  /** 実際に遷移するページ（href と異なる場合）。ページ公開設定の判定に使う */
+  target?: string;
+  icon: LucideIcon;
 };
 
 const baseNavItems: NavItem[] = [
-  { name: "相談", href: "/map", icon: "chat" },
-  { name: "クーポン", href: "/coupons", icon: "coupon" },
+  // 相談ボタンはマップ上では onConsultClick 経由で /consult へ遷移する
+  { name: "相談", href: "/map", target: "/consult", icon: MessageCircle },
+  { name: "近況", href: "/story", icon: Newspaper },
 ];
 
-// ─── セカンダリメニュー項目（2列グリッド） ────────────────────────────────────
-const secondaryMenuItems = [
-  { label: "バッジ",      href: "/badges",     emoji: "🏆", color: "bg-yellow-50",  textColor: "text-yellow-800", border: "border-yellow-100" },
-  { label: "マイページ",  href: "/my-profile", emoji: "👤", color: "bg-violet-50",  textColor: "text-violet-800", border: "border-violet-100" },
-  { label: "nicchyoとは", href: "/about",      emoji: "ℹ️", color: "bg-sky-50",     textColor: "text-sky-800",    border: "border-sky-100"    },
+/** 近況のデモ。近況と両方公開しているときは、ナビの「近況」を押すとどちらへ行くか選べる */
+const STORY_DEMO_HREF = "/demo/story";
+
+/** 近況ボタンを押したときに出す行き先。上から順に並べる */
+const STORY_CHOICES = [
+  { href: "/story", label: "近況", description: "出店者の投稿" },
+  { href: STORY_DEMO_HREF, label: "近況（デモ）", description: "見本の投稿と店のAIキャラ" },
+] as const;
+
+// ─── メニューの項目 ───────────────────────────────────────────────────────────
+// 絵文字は端末ごとに絵柄が変わって揃わないので、線の太さを合わせたアイコンを使う。
+type SheetItem = {
+  label: string;
+  href: string;
+  icon: LucideIcon;
+  /** 開発中であることなど、開く前に伝えておきたい一言（例: デモ） */
+  badge?: string;
+  /** 公開設定を見るキー。省略時は href のパス部分 */
+  visibilityPath?: string;
+};
+
+/** 日曜市を歩くときに使うページ */
+const visitMenuItems: SheetItem[] = [
+  { label: "お気に入り", href: "/favorites", icon: Heart },
+  // 地図の上で種類を選ぶ画面を直接開く（/facilities のページは廃止し、ここへ送るだけにした）。
+  // 行き先は常に公開の /map なので、表示の可否は「おでかけサポート」の設定で決める
+  { label: "おでかけサポート", href: "/map?guide=menu", icon: Compass, visibilityPath: ODEKAKE_VISIBILITY_PATH },
+  { label: "日曜市カレンダー", href: "/calendar", icon: CalendarDays },
+  // 中身がまだサンプル値なので、開く前に分かるようにしておく
+  { label: "日曜市をデータで見る", href: "/analysis", icon: BarChart3, badge: "デモ" },
+];
+
+/** 地図の上に重なるだけで、ナビの状態を変えない ?panel= の値 */
+const HOME_PANEL_VALUES = new Set(["intro"]);
+
+/** nicchyo そのものについてのページ */
+const aboutMenuItems: SheetItem[] = [
+  // 初回だけ自動で出る案内パネルを、あとから読み直すための入口。
+  // ページではなく地図の上に開くので、行き先は /map のパラメータになる
+  { label: "はじめての方へ", href: "/map?panel=intro", icon: Sparkles },
+  { label: "nicchyoとは", href: "/about", icon: Info },
+  { label: "協賛・ご支援について", href: "/support", icon: HeartHandshake },
+  { label: "よくある質問", href: "/faq", icon: CircleHelp },
+  { label: "お問い合わせ", href: "/contact", icon: Mail },
+  { label: "プライバシーポリシー", href: "/privacy", icon: ShieldCheck },
 ];
 
 // ─── 出店者・管理者メニュー ────────────────────────────────────────────────────
-const vendorMenuItems = [
-  { label: "出店者ダッシュボード", href: "/vendor/dashboard", emoji: "🏪" },
-  { label: "商品管理",            href: "/vendor/products",  emoji: "📦" },
-  { label: "注文管理",            href: "/vendor/orders",    emoji: "📋" },
-];
+// 出店者の機能はすべて出店者ページ（/my-shop）からたどれるので、ここは入口の1つだけにする
+const vendorHomeItem: SheetItem = { label: "出店者ページ", href: "/my-shop", icon: Store };
 
-const adminMenuItems = [
-  { label: "管理ダッシュボード", href: "/admin/dashboard", emoji: "⚙️" },
-  { label: "ユーザー管理",       href: "/admin/users",     emoji: "👥" },
-  { label: "コンテンツ管理",     href: "/admin/content",   emoji: "📝" },
+const adminMenuItems: SheetItem[] = [
+  { label: "管理ダッシュボード", href: "/admin/dashboard", icon: LayoutDashboard },
+  { label: "ユーザー管理", href: "/admin/users", icon: Users },
+  { label: "コンテンツ管理", href: "/admin/content", icon: FileText },
 ];
 
 // ─── Props ────────────────────────────────────────────────────────────────────
@@ -62,50 +138,14 @@ function NavigationBarInner({
   onCloseMode,
   onConsultClick,
 }: NavigationBarProps) {
-  const isDevCouponOverride = process.env.NODE_ENV !== "production";
   const pathname = usePathname();
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user, isLoggedIn, permissions, logout } = useAuth();
-  const { items: bagItems } = useBag();
-  const [menuOpen, setMenuOpen] = useState(false);
-  // undefined = 未取得, null = 取得失敗/非対応, MyCouponsResponse = 取得済み
-  const [couponData, setCouponData] = useState<MyCouponsResponse | null | undefined>(undefined);
-  const [couponLoadError, setCouponLoadError] = useState(false);
-
-  // メニューを開いたときにクーポン情報を取得
-  useEffect(() => {
-    if (!menuOpen) {
-      setCouponData(undefined);
-      setCouponLoadError(false);
-      return;
-    }
-    const vk = getOrCreateConsultVisitorKey();
-    if (!vk) {
-      setCouponData(null);
-      setCouponLoadError(false);
-      return;
-    }
-
-    (async () => {
-      try {
-        const res = await fetch(
-          `/api/coupons/my?visitor_key=${encodeURIComponent(vk)}&market_date=${todayJstString()}`
-        );
-        if (!res.ok) {
-          setCouponData(null);
-          setCouponLoadError(true);
-          return;
-        }
-        const data = (await res.json()) as MyCouponsResponse;
-        setCouponData(data);
-        setCouponLoadError(false);
-      } catch {
-        setCouponData(null);
-        setCouponLoadError(true);
-      }
-    })();
-  }, [menuOpen]);
+  const { isMenuOpen: menuOpen, toggleMenu, closeMenu } = useMenu();
+  const { isLinkVisible } = usePageVisibility();
+  const { startMapLoading } = useMapLoading();
+  const menuButtonRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     onMenuOpenChange?.(menuOpen);
@@ -116,327 +156,196 @@ function NavigationBarInner({
     pathname?.startsWith("/admin") ||
     pathname?.startsWith("/vendor") ||
     pathname?.startsWith("/moderator");
-  const isPanelOpen = pathname === "/map" && !!panel;
+  // 画面を覆って「閉じる」が要るのは検索パネルだけ。
+  // ?panel=intro（はじめての方への案内）は地図の上に重なるだけで自前の閉じ方を持つので、
+  // ナビまで閉じるモードにしない
+  const isPanelOpen = pathname === "/map" && panel === "search";
   const isCloseUxActive = isPanelOpen || closeModeActive;
-  const isHome = (activeHref ?? pathname) === "/map" && !panel && !isCloseUxActive;
+  /*
+   * 地図に「居る」とみなす ?panel= の値の許可リスト。
+   * 案内（intro）は地図の上に重なるだけなので、ナビはふつうの地図の状態のまま。
+   * ここに無い値が付いているときは地図ではない扱いにして、新しいパネルを足したとき
+   * 黙ってフルナビ表示に倒れないようにする（検索は上の isCloseUxActive が閉じるモードにする）
+   */
+  const isHome =
+    (activeHref ?? pathname) === "/map" &&
+    !isCloseUxActive &&
+    (!panel || HOME_PANEL_VALUES.has(panel));
 
-  const navItems = permissions.isSuperAdmin
-    ? [...baseNavItems, { name: "管理", href: "/admin/dashboard", icon: "admin" as const }]
-    : baseNavItems;
+  // 「今いるページ」の判定は遷移先（target）で行う。
+  // 相談は href が /map（マップ上では onConsultClick で /consult へ送る）なので、
+  // href で比べるとマップにいるだけで相談が点いてしまう。
+  const currentHref = activeHref ?? pathname;
+  const isNavItemActive = (item: NavItem) => currentHref === (item.target ?? item.href);
+
+  // ページ公開設定で public でないリンクはナビに出さない
+  const consultItem = baseNavItems[0];
+  const isConsultVisible = isLinkVisible(consultItem.target ?? consultItem.href);
+  // 近況ボタンの行き先。近況と近況（デモ）の両方が公開のとき、モデレーター以上は押すと
+  // どちらへ行くかを選べる。公開設定で片方だけにすれば、誰が押してもすぐそちらへ行く
+  const storyItem = baseNavItems[1];
+  const storyHrefs = [storyItem.href, STORY_DEMO_HREF].filter((href) => isLinkVisible(href));
+  // 見比べるための選択メニューは開発メンバー（モデレーター以上）にだけ出す。来訪者には、
+  // 本番の公開設定を触り忘れても開発用のメニューが出ないよう、公開されている先頭（近況が
+  // 公開なら近況、そうでなければデモ）へ直接行かせる
+  const showStoryChooser = storyHrefs.length === 2 && permissions.isModerator;
+  const storyNavItem: NavItem | null =
+    storyHrefs.length > 0 && !showStoryChooser ? { ...storyItem, href: storyHrefs[0] } : null;
+  const adminNavItems: NavItem[] = permissions.isAdmin
+    ? [{ name: "管理", href: "/admin/dashboard", icon: Settings }]
+    : [];
+  const rightNavItems = [
+    ...(storyNavItem ? [storyNavItem] : []),
+    ...adminNavItems.filter((item) => isLinkVisible(item.href)),
+  ];
+  // 公開設定はパス単位なので、/map?guide=menu のようなクエリは外して判定する
+  const visibleVisitItems = visitMenuItems.filter((item) =>
+    isLinkVisible(item.visibilityPath ?? item.href.split("?")[0])
+  );
+  const visibleAboutItems = aboutMenuItems.filter((item) =>
+    isLinkVisible(item.visibilityPath ?? item.href.split("?")[0])
+  );
+  const showVendorHome = permissions.isVendor && isLinkVisible(vendorHomeItem.href);
+
+  // router.push はリンクと違って Provider のクリック監視に掛からないので、/map へ向かう前に自分で始める
+  const goToMap = useCallback(() => {
+    startMapLoading();
+    router.push("/map");
+  }, [router, startMapLoading]);
 
   const handleMenuItemClick = (href: string) => {
-    setMenuOpen(false);
+    closeMenu();
+    if (href === "/map") { goToMap(); return; }
+    // /map?guide=menu（おでかけサポート）のようにクエリ付きで地図へ向かう項目も、
+    // 地図の読み込み表示を先に始めてから移る
+    if (href.startsWith("/map?")) { startMapLoading(); }
     router.push(href);
   };
 
   const handleCloseMode = useCallback(() => {
     if (onCloseMode) { onCloseMode(); return; }
-    if (isPanelOpen) { router.push("/map"); }
-  }, [isPanelOpen, onCloseMode, router]);
+    if (isPanelOpen) { goToMap(); }
+  }, [isPanelOpen, onCloseMode, goToMap]);
 
   const handleLogout = async () => {
-    setMenuOpen(false);
+    closeMenu();
     await logout();
-    router.push("/map");
+    goToMap();
   };
 
-  const roleLabel = permissions.isSuperAdmin
-    ? { text: "管理者", color: "bg-red-100 text-red-700" }
+  const roleLabel = permissions.isAdmin
+    ? "管理者"
     : permissions.isModerator
-    ? { text: "モデレーター", color: "bg-purple-100 text-purple-700" }
+    ? "モデレーター"
     : permissions.isVendor
-    ? { text: "出店者", color: "bg-amber-100 text-amber-700" }
+    ? "出店者"
     : null;
-
-  const activeCoupon = couponData?.active_coupon ?? null;
-  const isMarketDay = isDevCouponOverride || (couponData?.is_market_day ?? false);
 
   if (isRoleConsoleArea) return null;
 
   return (
     <>
       {/* ── ボトムメニューシート ────────────────────────────────────────────── */}
-      <AnimatePresence>
-        {menuOpen && (
+      <MenuSheet open={menuOpen} onClose={closeMenu} label="メニュー" returnFocusRef={menuButtonRef}>
+        {/* ─ ユーザー ─ */}
+        {isLoggedIn && user ? (
+          <MenuUserRow
+            name={user.name}
+            avatarUrl={user.avatarUrl}
+            roleLabel={roleLabel}
+            onClick={() => handleMenuItemClick("/my-profile")}
+          />
+        ) : (
+          <MenuRow
+            icon={LogIn}
+            label="ログイン / 登録"
+            onClick={() => handleMenuItemClick("/login")}
+          />
+        )}
+
+        {/* ─ 出店者ページへの入口。出店者がいちばんよく使うので、来訪者向けの項目より上に置く ─ */}
+        {showVendorHome && (
           <>
-            {/* 背景オーバーレイ */}
-            <motion.div
-              key="backdrop"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.2 }}
-              className="fixed inset-0 z-[9995] bg-black/40 backdrop-blur-sm"
-              onClick={() => setMenuOpen(false)}
+            <MenuDivider label="出店者" />
+            <MenuRow
+              icon={vendorHomeItem.icon}
+              label={vendorHomeItem.label}
+              onClick={() => handleMenuItemClick(vendorHomeItem.href)}
             />
-
-            {/* シート本体 */}
-            <motion.div
-              key="sheet"
-              initial={{ y: "100%" }}
-              animate={{ y: 0 }}
-              exit={{ y: "100%" }}
-              transition={{ type: "spring", damping: 32, stiffness: 340 }}
-              className="fixed bottom-0 left-0 right-0 z-[9996] rounded-t-[2rem] bg-[#FFFCF7] shadow-2xl"
-              style={{ paddingBottom: "calc(var(--safe-bottom, 0px) + 5.5rem)" }}
-            >
-              {/* ドラッグハンドル */}
-              <div className="mx-auto mt-3.5 mb-0 h-[5px] w-12 rounded-full bg-gray-200/80" />
-
-              {/* スクロール領域 */}
-              <div className="max-h-[78dvh] overflow-y-auto overscroll-contain px-4 pb-3 pt-4">
-
-                {/* ─ ユーザーセクション ─ */}
-                {isLoggedIn && user ? (
-                  <div className="mb-4 flex items-center gap-3.5 rounded-2xl bg-gradient-to-r from-amber-50 to-orange-50 px-4 py-3.5 ring-1 ring-amber-100">
-                    {user.avatarUrl ? (
-                      <Image
-                        src={user.avatarUrl}
-                        alt={user.name}
-                        width={48}
-                        height={48}
-                        className="h-12 w-12 rounded-full object-cover ring-2 ring-white shadow-sm"
-                      />
-                    ) : (
-                      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-amber-400 to-orange-500 text-xl font-bold text-white shadow-sm ring-2 ring-white">
-                        {user.name.charAt(0).toUpperCase()}
-                      </div>
-                    )}
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-[15px] font-bold text-gray-900">{user.name}</p>
-                      {user.email && (
-                        <p className="truncate text-[12px] text-gray-500 mt-0.5">{user.email}</p>
-                      )}
-                    </div>
-                    {roleLabel && (
-                      <span className={`shrink-0 rounded-full px-3 py-1 text-[11px] font-bold ${roleLabel.color}`}>
-                        {roleLabel.text}
-                      </span>
-                    )}
-                  </div>
-                ) : (
-                  <button
-                    onClick={() => handleMenuItemClick("/login")}
-                    className="mb-4 flex w-full items-center gap-4 rounded-2xl border-2 border-dashed border-amber-200 bg-amber-50/50 px-4 py-4 text-left transition active:scale-[0.98] active:bg-amber-50"
-                  >
-                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-amber-100">
-                      <svg className="h-6 w-6 text-amber-500" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24" aria-hidden>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" />
-                      </svg>
-                    </div>
-                    <div>
-                      <p className="text-[15px] font-bold text-gray-800">ログイン / 登録</p>
-                      <p className="mt-0.5 text-[12px] text-gray-400">アカウントでもっと便利に</p>
-                    </div>
-                    <svg className="ml-auto h-5 w-5 text-gray-300" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-                    </svg>
-                  </button>
-                )}
-
-                {/* ─ プライマリ：クーポン ─ */}
-                {couponData === undefined ? (
-                  /* ローディングスケルトン */
-                  <div className="mb-3 h-[76px] animate-pulse rounded-2xl bg-gray-100" />
-                ) : couponLoadError ? (
-                  <button
-                    onClick={() => handleMenuItemClick("/coupons")}
-                    className="mb-3 flex w-full items-center gap-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-4 text-left transition active:scale-[0.98]"
-                  >
-                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-amber-100 text-2xl">
-                      🎟️
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-[13px] font-bold text-amber-800">クーポン</p>
-                      <p className="mt-0.5 text-[12px] text-amber-700">
-                        情報を取得できませんでした
-                      </p>
-                    </div>
-                    <svg className="h-5 w-5 shrink-0 text-amber-300" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-                    </svg>
-                  </button>
-                ) : activeCoupon && isMarketDay ? (
-                  /* 今すぐ使えるクーポン */
-                  <button
-                    onClick={() => handleMenuItemClick("/coupons")}
-                    className="mb-3 flex w-full items-center gap-4 rounded-2xl bg-green-500 px-4 py-4 text-left shadow-sm transition hover:bg-green-600 active:scale-[0.98]"
-                  >
-                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-white/20 text-2xl">
-                      🎟️
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <p className="text-[13px] font-bold text-white/90">
-                          {activeCoupon.coupon_type?.name ?? "クーポン"}
-                        </p>
-                        <span className="rounded-full bg-white/25 px-2 py-0.5 text-[10px] font-bold text-white">
-                          今すぐ使える
-                        </span>
-                      </div>
-                      <p className="mt-0.5 text-[22px] font-extrabold leading-tight text-white">
-                        {activeCoupon.amount.toLocaleString()}円引き
-                      </p>
-                    </div>
-                    <svg className="h-5 w-5 shrink-0 text-white/60" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-                    </svg>
-                  </button>
-                ) : isMarketDay ? (
-                  /* 開催日・クーポン未保有 */
-                  <button
-                    onClick={() => handleMenuItemClick("/coupons")}
-                    className="mb-3 flex w-full items-center gap-4 rounded-2xl border-2 border-dashed border-green-200 bg-green-50/50 px-4 py-4 text-left transition active:scale-[0.98]"
-                  >
-                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-green-100 text-2xl">
-                      🎟️
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-[13px] font-bold text-green-800">クーポン</p>
-                      <p className="mt-0.5 text-[12px] text-green-600">
-                        まだクーポンを持っていません
-                      </p>
-                    </div>
-                    <svg className="h-5 w-5 shrink-0 text-green-300" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-                    </svg>
-                  </button>
-                ) : (
-                  /* 非開催日・または取得失敗：通常メニュー項目 */
-                  <button
-                    onClick={() => handleMenuItemClick("/coupons")}
-                    className="mb-3 flex w-full items-center gap-3 rounded-2xl border border-green-100 bg-green-50 px-4 py-3.5 text-left transition active:scale-[0.98]"
-                  >
-                    <span className="text-xl">🎟️</span>
-                    <span className="flex-1 text-[14px] font-bold text-green-800">クーポン</span>
-                    <svg className="h-4 w-4 text-green-300" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-                    </svg>
-                  </button>
-                )}
-
-                {/* ─ プライマリ：バッグ ─ */}
-                <button
-                  onClick={() => handleMenuItemClick("/bag")}
-                  className={`mb-4 flex w-full items-center gap-3 rounded-2xl px-4 py-3.5 text-left transition active:scale-[0.98] ${
-                    bagItems.length > 0
-                      ? "border border-amber-200 bg-amber-50"
-                      : "border border-slate-100 bg-white shadow-sm"
-                  }`}
-                >
-                  <div className="relative shrink-0">
-                    <span className="text-xl">🛍️</span>
-                    {bagItems.length > 0 && (
-                      <span className="absolute -right-1.5 -top-1.5 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-amber-500 px-1 text-[10px] font-bold leading-none text-white">
-                        {bagItems.length}
-                      </span>
-                    )}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className={`text-[14px] font-bold ${bagItems.length > 0 ? "text-amber-800" : "text-gray-700"}`}>
-                      バッグ
-                    </p>
-                    {bagItems.length > 0 && (
-                      <p className="text-[12px] text-amber-600">{bagItems.length}品入っています</p>
-                    )}
-                  </div>
-                  <svg className="h-4 w-4 shrink-0 text-gray-300" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-                  </svg>
-                </button>
-
-                <hr className="mb-4 border-slate-100" />
-
-                {/* ─ セカンダリ：2列グリッド ─ */}
-                <div className="mb-4 grid grid-cols-2 gap-3">
-                  {secondaryMenuItems.map((item, i) => (
-                    <motion.button
-                      key={item.href}
-                      initial={{ opacity: 0, scale: 0.92 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      transition={{ delay: i * 0.05, type: "spring", damping: 18, stiffness: 280 }}
-                      onClick={() => handleMenuItemClick(item.href)}
-                      className={`flex items-center gap-3 rounded-2xl border ${item.border} ${item.color} px-4 py-3.5 transition active:scale-[0.97]`}
-                    >
-                      <span className="text-xl">{item.emoji}</span>
-                      <span className={`text-[13px] font-bold ${item.textColor}`}>{item.label}</span>
-                    </motion.button>
-                  ))}
-                </div>
-
-                {/* ─ 補足：テキストリンク ─ */}
-                <div className="mb-4 flex flex-wrap gap-x-5 gap-y-2 px-1">
-                  <button
-                    onClick={() => handleMenuItemClick("/recipes")}
-                    className="text-[13px] text-slate-400 transition hover:text-slate-600"
-                  >
-                    🍳 レシピ
-                  </button>
-                </div>
-
-                <hr className="mb-4 border-slate-100" />
-
-                {/* ─ 出店者メニュー ─ */}
-                {(permissions.isVendor || permissions.isSuperAdmin) && (
-                  <div className="mb-4">
-                    <p className="mb-2.5 text-[11px] font-bold uppercase tracking-[0.14em] text-amber-500">出店者</p>
-                    <div className="overflow-hidden rounded-2xl border border-amber-100 bg-white shadow-sm">
-                      {vendorMenuItems.map((item, i) => (
-                        <button
-                          key={item.href}
-                          onClick={() => handleMenuItemClick(item.href)}
-                          className={`flex w-full items-center gap-4 px-4 py-[14px] text-left transition active:bg-amber-50 ${i !== 0 ? "border-t border-gray-100" : ""}`}
-                        >
-                          <span className="text-xl">{item.emoji}</span>
-                          <span className="flex-1 text-[14px] font-semibold text-gray-800">{item.label}</span>
-                          <svg className="h-4 w-4 text-gray-300" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24" aria-hidden>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-                          </svg>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* ─ 管理メニュー ─ */}
-                {permissions.isSuperAdmin && (
-                  <div className="mb-4">
-                    <p className="mb-2.5 text-[11px] font-bold uppercase tracking-[0.14em] text-red-400">管理者</p>
-                    <div className="overflow-hidden rounded-2xl border border-red-100 bg-white shadow-sm">
-                      {adminMenuItems.map((item, i) => (
-                        <button
-                          key={item.href}
-                          onClick={() => handleMenuItemClick(item.href)}
-                          className={`flex w-full items-center gap-4 px-4 py-[14px] text-left transition active:bg-red-50 ${i !== 0 ? "border-t border-gray-100" : ""}`}
-                        >
-                          <span className="text-xl">{item.emoji}</span>
-                          <span className="flex-1 text-[14px] font-semibold text-gray-800">{item.label}</span>
-                          <svg className="h-4 w-4 text-gray-300" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24" aria-hidden>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-                          </svg>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* ─ ログアウト ─ */}
-                {isLoggedIn && (
-                  <button
-                    onClick={handleLogout}
-                    className="flex w-full items-center justify-center gap-2.5 rounded-2xl border border-gray-200 bg-white py-[14px] text-[14px] font-semibold text-gray-500 shadow-sm transition active:bg-gray-50 active:scale-[0.98]"
-                  >
-                    <svg className="h-[18px] w-[18px]" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0 0 13.5 3h-6a2.25 2.25 0 0 0-2.25 2.25v13.5A2.25 2.25 0 0 0 7.5 21h6a2.25 2.25 0 0 0 2.25-2.25V15m3 0 3-3m0 0-3-3m3 3H9" />
-                    </svg>
-                    ログアウト
-                  </button>
-                )}
-              </div>
-            </motion.div>
           </>
         )}
-      </AnimatePresence>
+
+        <MenuDivider />
+
+        {/* ─ 日曜市を歩くためのページ ─ */}
+        {visibleVisitItems.map((item) => (
+          <MenuRow
+            key={item.href}
+            icon={item.icon}
+            label={item.label}
+            badge={item.badge}
+            onClick={() => handleMenuItemClick(item.href)}
+          />
+        ))}
+
+        {/* ─ nicchyo について（右の余白ににちよさんが座る） ─ */}
+        {visibleAboutItems.length > 0 && (
+          <>
+            <MenuDivider />
+            <div className="flex items-end">
+              <div className="min-w-0 flex-1">
+                {visibleAboutItems.map((item) => (
+                  <MenuRow
+                    key={item.href}
+                    icon={item.icon}
+                    label={item.label}
+                    badge={item.badge}
+                    muted
+                    onClick={() => handleMenuItemClick(item.href)}
+                  />
+                ))}
+              </div>
+              <MenuGrandma />
+            </div>
+          </>
+        )}
+
+        {/* ─ 管理メニュー ─ */}
+        {permissions.isAdmin && (
+          <>
+            <MenuDivider label="管理者" />
+            {adminMenuItems.map((item) => (
+              <MenuRow
+                key={item.href}
+                icon={item.icon}
+                label={item.label}
+                badge={item.badge}
+                onClick={() => handleMenuItemClick(item.href)}
+              />
+            ))}
+          </>
+        )}
+
+        {/* ─ ログアウト ─ */}
+        {isLoggedIn && (
+          <>
+            <MenuDivider />
+            <MenuRow icon={LogOut} label="ログアウト" muted onClick={handleLogout} />
+          </>
+        )}
+
+        {/* ─ 末尾の小さなリンク。来訪者向けの項目と並べず、フッターとして置く ─ */}
+        <MenuDivider />
+        <a
+          href={GITHUB_REPO_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center gap-1.5 px-3 py-2 text-[11px] font-semibold tracking-wide text-nicchyo-ink/40 transition hover:text-nicchyo-ink/70"
+        >
+          <Github className="h-3.5 w-3.5" aria-hidden />
+          オープンソースで開発しています（GitHub）
+        </a>
+      </MenuSheet>
 
       {/* ── ナビゲーションバー ──────────────────────────────────────────────── */}
       <nav
@@ -444,71 +353,61 @@ function NavigationBarInner({
         className={`navigation-bar ${position} bottom-0 left-0 right-0 z-[9997] border-t text-sm leading-none shadow-sm transition-colors duration-300 ${
           isCloseUxActive
             ? "cursor-pointer border-green-500 bg-green-500"
-            : "border-gray-200/60 bg-white/90 backdrop-blur-md"
+            : "border-slate-200/60 bg-white/90 backdrop-blur-md"
         }`}
         style={{ paddingBottom: "var(--safe-bottom, 0px)" }}
       >
         {isHome ? (
           /* ── マップ：フルナビ ── */
           <div className="mx-auto flex h-14 max-w-lg items-center">
-            {/* 左：相談 */}
-            {onConsultClick ? (
+            {/* 左：相談（ページ公開設定で非表示のときはレイアウト維持のため空枠にする） */}
+            {!isConsultVisible ? (
+              <div className="flex-1" aria-hidden />
+            ) : onConsultClick ? (
               <button
                 type="button"
                 onClick={onConsultClick}
-                className="group flex h-full flex-1 flex-col items-center justify-center gap-1 text-gray-400 transition-all duration-200 hover:bg-gray-50/50 hover:text-gray-600"
+                className="group flex h-full flex-1 flex-col items-center justify-center gap-1 text-slate-400 transition-colors duration-200 hover:text-slate-600"
               >
-                <NavIcon
-                  name={navItems[0].icon}
-                  className="h-6 w-6 transition-transform duration-200 group-hover:scale-105"
+                <consultItem.icon
+                  className="h-[22px] w-[22px] transition-transform duration-200 group-hover:scale-105 group-active:scale-95"
+                  strokeWidth={1.7}
+                  aria-hidden
                 />
                 <span className="text-[10px] font-medium leading-none tracking-tight">
-                  {navItems[0].name}
+                  {consultItem.name}
                 </span>
               </button>
             ) : (
-              <NavLinkItem
-                item={navItems[0]}
-                isActive={(activeHref ?? pathname) === navItems[0].href}
-              />
+              <NavLinkItem item={consultItem} isActive={isNavItemActive(consultItem)} />
             )}
 
             {/* 中央：メニューボタン */}
-            <div className="flex flex-1 items-center justify-center">
-              <button
-                onClick={() => setMenuOpen((v) => !v)}
-                className="flex flex-col items-center gap-1 transition-all duration-200 active:scale-95"
-              >
-                <motion.div
-                  animate={menuOpen ? { rotate: 45, scale: 1.1 } : { rotate: 0, scale: 1 }}
-                  transition={{ type: "spring", damping: 20, stiffness: 300 }}
-                  className="flex h-11 w-11 items-center justify-center rounded-full bg-gray-900 text-white shadow-md"
-                >
-                  <MenuGridIcon className="h-5 w-5" />
-                </motion.div>
-                <span className="text-[10px] font-medium leading-none tracking-tight text-gray-500">
-                  メニュー
-                </span>
-              </button>
-            </div>
+            <MenuToggleButton open={menuOpen} onClick={toggleMenu} buttonRef={menuButtonRef} />
 
-            {/* 右：お店を探す（+ 管理タブがあれば追加） */}
-            {navItems.slice(1).map((item) => (
-              <NavLinkItem
-                key={item.href}
-                item={item}
-                isActive={(activeHref ?? pathname) === item.href}
-              />
-            ))}
+            {/* 右：近況（+ 管理タブがあれば追加）。全部非表示なら空枠で中央のメニュー位置を維持 */}
+            {rightNavItems.length === 0 && !showStoryChooser ? (
+              <div className="flex-1" aria-hidden />
+            ) : (
+              <>
+                {showStoryChooser && (
+                  <StoryNavChooser
+                    item={storyItem}
+                    isActive={currentHref === storyItem.href || currentHref === STORY_DEMO_HREF}
+                  />
+                )}
+                {rightNavItems.map((item) => (
+                  <NavLinkItem key={item.href} item={item} isActive={isNavItemActive(item)} />
+                ))}
+              </>
+            )}
           </div>
         ) : isCloseUxActive ? (
           /* ── パネル表示中：緑バー × ── */
           <div className="mx-auto flex h-14 max-w-lg items-center justify-center">
             <div className="flex flex-col items-center gap-1">
               <div className="flex h-9 w-9 items-center justify-center rounded-full bg-white/20">
-                <svg className="h-5 w-5 text-white" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24" aria-hidden>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                </svg>
+                <X className="h-5 w-5 text-white" strokeWidth={2.4} aria-hidden />
               </div>
               <span className="text-[10px] font-medium leading-none tracking-tight text-white/80">
                 閉じる
@@ -517,17 +416,7 @@ function NavigationBarInner({
           </div>
         ) : (
           /* ── サブページ：もどるバー ── */
-          <div className="mx-auto flex h-14 max-w-lg items-center px-4">
-            <button
-              onClick={() => router.push("/map")}
-              className="flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold text-gray-600 transition active:scale-95 hover:bg-gray-100"
-            >
-              <svg className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
-              </svg>
-              マップにもどる
-            </button>
-          </div>
+          <BottomNavBackBar label="マップにもどる" onClick={goToMap} />
         )}
       </nav>
     </>
@@ -536,26 +425,76 @@ function NavigationBarInner({
 
 // ─── NavLinkItem ──────────────────────────────────────────────────────────────
 function NavLinkItem({ item, isActive }: { item: NavItem; isActive: boolean }) {
+  return <BottomNavLink href={item.href} label={item.name} icon={item.icon} isActive={isActive} />;
+}
+
+/**
+ * 近況ボタン（開発中用）。押すと上に小さなメニューが開き、近況と近況（デモ）のどちらへ
+ * 行くかを選ぶ。外側を押すか Esc で閉じる。
+ */
+function StoryNavChooser({ item, isActive }: { item: NavItem; isActive: boolean }) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+  // 矢印キーで動く menu ではなく、ただのリンク2つなので、開閉ボタンと一覧を aria-controls でつなぐだけにする
+  const listId = useId();
+
+  useEffect(() => {
+    if (!open) return;
+    const onPointerDown = (event: PointerEvent) => {
+      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [open]);
+
   return (
-    <Link
-      href={item.href}
-      prefetch={false}
-      className={`group flex h-full flex-1 flex-col items-center justify-center gap-1 transition-all duration-200 ${
-        isActive
-          ? "text-amber-600"
-          : "text-gray-400 hover:bg-gray-50/50 hover:text-gray-600"
-      }`}
-    >
-      <NavIcon
-        name={item.icon}
-        className={`h-6 w-6 transition-transform duration-200 ${
-          isActive ? "scale-105" : "group-hover:scale-105"
-        }`}
-      />
-      <span className="text-[10px] font-medium leading-none tracking-tight">
-        {item.name}
-      </span>
-    </Link>
+    <div ref={rootRef} className="relative flex h-full flex-1">
+      <button
+        type="button"
+        onClick={() => setOpen((prev) => !prev)}
+        aria-expanded={open}
+        aria-controls={open ? listId : undefined}
+        className={bottomNavItemClass(isActive || open)}
+      >
+        <BottomNavItemContent icon={item.icon} label={item.name} isActive={isActive || open} />
+      </button>
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            id={listId}
+            role="group"
+            aria-label="近況の行き先"
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 6 }}
+            transition={{ duration: 0.15 }}
+            className="absolute bottom-full right-2 mb-2 w-56 rounded-panel bg-white p-1.5 shadow-float ring-1 ring-line"
+          >
+            {STORY_CHOICES.map((choice) => (
+              <Link
+                key={choice.href}
+                href={choice.href}
+                prefetch={false}
+                onClick={() => setOpen(false)}
+                className="block rounded-btn px-3 py-2.5 text-left transition hover:bg-nicchyo-ink/5 active:bg-nicchyo-ink/10"
+              >
+                <span className="block text-sm font-bold leading-tight text-nicchyo-ink">{choice.label}</span>
+                <span className="mt-0.5 block text-[11px] leading-tight text-nicchyo-ink/55">
+                  {choice.description}
+                </span>
+              </Link>
+            ))}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
   );
 }
 
@@ -565,72 +504,4 @@ export default function NavigationBar(props: NavigationBarProps) {
       <NavigationBarInner {...props} />
     </Suspense>
   );
-}
-
-// ─── Icons ────────────────────────────────────────────────────────────────────
-function MenuGridIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="currentColor" viewBox="0 0 24 24" aria-hidden>
-      <rect x="3"  y="3"  width="7" height="7" rx="1.5" />
-      <rect x="14" y="3"  width="7" height="7" rx="1.5" />
-      <rect x="3"  y="14" width="7" height="7" rx="1.5" />
-      <rect x="14" y="14" width="7" height="7" rx="1.5" />
-    </svg>
-  );
-}
-
-type NavIconProps = { name: NavItem["icon"]; className?: string };
-
-function NavIcon({ name, className }: NavIconProps) {
-  const props = {
-    className,
-    fill: "none",
-    stroke: "currentColor",
-    strokeWidth: 1.6,
-    viewBox: "0 0 24 24",
-    "aria-hidden": true,
-  } as const;
-
-  switch (name) {
-    case "search":
-      return (
-        <svg {...props}>
-          <circle cx="11" cy="11" r="6.5" />
-          <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 16.5 20 20" />
-        </svg>
-      );
-    case "chat":
-      return (
-        <svg {...props}>
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            d="M4.5 6.75A2.25 2.25 0 0 1 6.75 4.5h10.5A2.25 2.25 0 0 1 19.5 6.75v6A2.25 2.25 0 0 1 17.25 15H9l-3.75 3v-3H6.75A2.25 2.25 0 0 1 4.5 12.75v-6Z"
-          />
-        </svg>
-      );
-    case "admin":
-      return (
-        <svg {...props}>
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            d="M10.343 3.94c.09-.542.56-.94 1.11-.94h1.093c.55 0 1.02.398 1.11.94l.149.894c.07.424.384.764.78.93.398.164.855.142 1.205-.108l.737-.527a1.125 1.125 0 0 1 1.45.12l.773.774c.39.389.44 1.002.12 1.45l-.527.737c-.25.35-.272.806-.107 1.204.165.397.505.71.93.78l.893.15c.543.09.94.56.94 1.109v1.094c0 .55-.397 1.02-.94 1.11l-.893.149c-.425.07-.765.383-.93.78-.165.398-.143.854.107 1.204l.527.738c.32.447.269 1.06-.12 1.45l-.774.773a1.125 1.125 0 0 1-1.449.12l-.738-.527c-.35-.25-.806-.272-1.203-.107-.397.165-.71.505-.781.929l-.149.894c-.09.542-.56.94-1.11.94h-1.094c-.55 0-1.019-.398-1.11-.94l-.148-.894c-.071-.424-.384-.764-.781-.93-.398-.164-.854-.142-1.204.108l-.738.527c-.447.32-1.06.269-1.45-.12l-.773-.774a1.125 1.125 0 0 1-.12-1.45l.527-.737c.25-.35.273-.806.108-1.204-.165-.397-.505-.71-.93-.78l-.894-.15c-.542-.09-.94-.56-.94-1.109v-1.094c0-.55.398-1.02.94-1.11l.894-.149c.424-.07.765-.383.93-.78.165-.398.143-.854-.107-1.204l-.527-.738a1.125 1.125 0 0 1 .12-1.45l.773-.773a1.125 1.125 0 0 1 1.45-.12l.737.527c.35.25.807.272 1.204.107.397-.165.71-.505.78-.929l.15-.894Z"
-          />
-          <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
-        </svg>
-      );
-    case "coupon":
-      return (
-        <svg {...props}>
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            d="M16.5 6v.75m0 3v.75m0 3v.75m0 3V18m-9-5.25h5.25M7.5 15h3M3.375 6.75c-.621 0-1.125.504-1.125 1.125v3.026a2.999 2.999 0 0 1 0 5.198v3.031c0 .621.504 1.125 1.125 1.125h17.25c.621 0 1.125-.504 1.125-1.125v-3.026a3 3 0 0 1 0-5.198V7.875c0-.621-.504-1.125-1.125-1.125H3.375Z"
-          />
-        </svg>
-      );
-    default:
-      return null;
-  }
 }

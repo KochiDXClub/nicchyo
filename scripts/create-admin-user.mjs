@@ -20,11 +20,18 @@ function loadEnv(path) {
 const env = { ...loadEnv(".env.local"), ...process.env };
 const url = env.SUPABASE_URL || env.NEXT_PUBLIC_SUPABASE_URL;
 const serviceKey = env.SUPABASE_SERVICE_ROLE_KEY;
-const email = "admin@nicchyo.local";
-const password = "Admin1234!";
+const email = env.ADMIN_USER_EMAIL?.toLowerCase();
+const password = env.ADMIN_USER_PASSWORD;
 
 if (!url || !serviceKey) {
   console.error("Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY.");
+  process.exit(1);
+}
+
+if (!email || !password) {
+  console.error(
+    "Missing ADMIN_USER_EMAIL or ADMIN_USER_PASSWORD. Set them in .env.local or as environment variables before running this script."
+  );
   process.exit(1);
 }
 
@@ -65,7 +72,6 @@ async function main() {
     });
     if (error) throw error;
     console.log(`Updated existing admin user: ${email}`);
-    console.log(`Initial password: ${password}`);
     return;
   }
 
@@ -79,7 +85,6 @@ async function main() {
   if (error) throw error;
 
   console.log(`Created admin user: ${data.user?.email}`);
-  console.log(`Initial password: ${password}`);
 }
 
 main().catch((error) => {

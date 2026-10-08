@@ -50,6 +50,7 @@ export const DataDensityToggle = React.memo(function DataDensityToggle({
         {(Object.entries(DENSITY_CONFIG) as [DataDensity, typeof DENSITY_CONFIG[DataDensity]][]).map(
           ([key, config]) => (
             <button
+              type="button"
               key={key}
               onClick={() => onChange(key)}
               className={`px-3 py-1 text-xs font-medium rounded transition ${

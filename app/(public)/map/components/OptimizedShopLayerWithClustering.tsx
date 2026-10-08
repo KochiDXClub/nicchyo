@@ -11,9 +11,17 @@ import 'leaflet.markercluster';
 // MarkerCluster.Default.css は意図的に除外（青いデフォルトスタイルを排除）
 // MarkerCluster.css も除外（zoom≥17では clustering が発生しないため不要）
 import { Shop } from '../data/shops';
-import { ILLUSTRATION_SIZES, DEFAULT_ILLUSTRATION_SIZE } from '../config/displayConfig';
-import { getShopBannerImage } from '../../../../lib/shopImages';
-import { generateShopMarkerHtml } from '../utils/markerHtmlGenerator';
+import {
+  ILLUSTRATION_SIZES,
+  DEFAULT_ILLUSTRATION_SIZE,
+  getIllustrationAnchor,
+  getShopMarkerLod,
+  getShopMarkerScale,
+  type ShopMarkerLod,
+} from '../config/displayConfig';
+import { getRoadSide } from '../config/roadConfig';
+import { getShopThumbnailImage } from '../../../../lib/shopImages';
+import { generateShopMarkerHtml, SHOP_FAVORITE_BADGE_HTML } from '../utils/markerHtmlGenerator';
 
 type ShopBannerOrigin = { x: number; y: number; width: number; height: number };
 
@@ -26,47 +34,41 @@ export interface OptimizedShopLayerWithClusteringProps {
   searchShopIds?: number[];
   aiHighlightShopIds?: number[];
   commentHighlightShopIds?: number[];
-  kotoduteShopIds?: number[];
-  recipeIngredientIconsByShop?: Record<number, string[]>;
-  attendanceLabelsByShop?: Record<number, string>;
-  bagShopIds?: number[];
-  couponEligibleVendorIds?: string[];
+  /**
+   * true のとき、レイヤーは残したままペインごと非表示にする（visibility: hidden）。
+   * ズーム 19 未満でレイヤーを付け外しすると 300 マーカーの再生成で 1 秒以上止まるため、
+   * lib/mapFeatureFlags.ts の shopLayerHiding が on のときはこの方式を使う。
+   */
+  hidden?: boolean;
+  /**
+   * hidden モードで店舗が見える最小ズーム。ズームアニメーション開始時（zoomanim）に目標倍率が
+   * これ未満ならクラスタグループを先に外し、zoomend で markercluster が画面内の店舗を
+   * 一斉に DOM へ載せてから隠す、という無駄を避ける。
+   */
+  visibleMinZoom?: number;
+  /** 屋台の描画方式（lib/mapFeatureFlags.ts の stallRenderer）。既定は svg */
+  stallRenderer?: 'svg' | 'div';
 }
 
 const COMPACT_ICON_SIZE: [number, number] = [24, 36];
+
+/** 店舗マーカー専用の Leaflet ペイン名（要素には leaflet-shop-pane クラスが付く） */
+const SHOP_PANE = 'shop';
 const COMPACT_ICON_ANCHOR: [number, number] = [12, 18];
-const COMPACT_ICON_MAX_ZOOM = 19.0;
-const MID_ICON_MAX_ZOOM = 19.4;
-const FULL_ICON_MIN_ZOOM = 19.5;
-const FULL_ICON_NAME_MIN_ZOOM = 20.5;
 
-function getMarkerZoomScale(currentZoom: number, maxZoom: number): number {
-  if (currentZoom >= maxZoom - 0.001) {
-    return 1;
-  }
-  if (currentZoom >= maxZoom - 1.001) {
-    return 0.8;
-  }
-  if (currentZoom >= maxZoom - 2.001) {
-    return 0.6;
-  }
-  return 1;
-}
-
-function getShopMarkerDisplayScale(currentZoom: number, maxZoom: number): number {
-  const baseScale = getMarkerZoomScale(currentZoom, maxZoom);
-  if (currentZoom >= 19.7 && currentZoom < 19.8) {
-    return baseScale * 1.1;
-  }
-  return baseScale;
-}
-
-// Helper to get origin rect for animation
+/**
+ * ShopDetailBanner の開くアニメーションの起点となる矩形。
+ *
+ * 屋台イラストを起点にする。屋台は LOD に関係なく常に存在し、正方形に近いので
+ * 展開演出が素直になる。木札（横長で薄い）を起点にすると、潰れた矩形からの
+ * 展開になって不自然に見える。
+ * getBoundingClientRect() は transform: scale() 適用後の値を返すため、
+ * LOD ごとの実効サイズが自然に反映される。
+ */
 const getOriginRect = (marker: L.Marker): ShopBannerOrigin | undefined => {
   const element = marker.getElement();
   if (!element) return undefined;
-  const banner = element.querySelector<HTMLElement>(".shop-simple-banner");
-  const target = banner && banner.offsetParent ? banner : element;
+  const target = element.querySelector<HTMLElement>(".shop-illustration") ?? element;
   const rect = target.getBoundingClientRect();
   if (rect.width <= 0 || rect.height <= 0) return undefined;
   return {
@@ -86,18 +88,25 @@ function OptimizedShopLayerWithClustering({
   searchShopIds,
   aiHighlightShopIds,
   commentHighlightShopIds,
-  kotoduteShopIds,
-  recipeIngredientIconsByShop,
-  attendanceLabelsByShop,
-  bagShopIds,
-  couponEligibleVendorIds,
+  stallRenderer = 'svg',
+  hidden = false,
+  visibleMinZoom,
 }: OptimizedShopLayerWithClusteringProps) {
+  // 非表示中は LOD 更新を止め、表示に戻ったときに 1 回だけ更新する
+  const hiddenRef = useRef(hidden);
+  const updateDensityRef = useRef<(() => void) | null>(null);
+  const visibleMinZoomRef = useRef(visibleMinZoom);
+  useEffect(() => {
+    visibleMinZoomRef.current = visibleMinZoom;
+  }, [visibleMinZoom]);
   const map = useMap();
   const clusterGroupRef = useRef<L.MarkerClusterGroup | null>(null);
   const markersRef = useRef<Map<number, L.Marker>>(new Map());
-  const fullIconsRef = useRef<Map<number, L.DivIcon>>(new Map());
-  const midIconsRef = useRef<Map<number, L.DivIcon>>(new Map());
-  const compactIconsRef = useRef<Map<number, L.DivIcon>>(new Map());
+  // アイコンの DOM は2種類だけ。stall / photo / nameplate は同じ DOM を共有し、
+  // 何を見せるかは LOD クラスで切り替える。こうすることで setIcon（300件の
+  // DOM 作り直し）が dot ↔ stall の1境界でしか起きない。
+  const stallIconsRef = useRef<Map<number, L.DivIcon>>(new Map());
+  const dotIconsRef = useRef<Map<number, L.DivIcon>>(new Map());
   const favoriteSetRef = useRef<Set<number>>(new Set());
   const prevFavoriteSetRef = useRef<Set<number>>(new Set());
   const searchHighlightSetRef = useRef<Set<number>>(new Set());
@@ -106,17 +115,7 @@ function OptimizedShopLayerWithClustering({
   const prevAiHighlightSetRef = useRef<Set<number>>(new Set());
   const commentHighlightSetRef = useRef<Set<number>>(new Set());
   const prevCommentHighlightSetRef = useRef<Set<number>>(new Set());
-  const kotoduteSetRef = useRef<Set<number>>(new Set());
-  const prevKotoduteSetRef = useRef<Set<number>>(new Set());
-  const bagShopSetRef = useRef<Set<number>>(new Set());
-  const prevBagShopSetRef = useRef<Set<number>>(new Set());
-  const couponVendorSetRef = useRef<Set<string>>(new Set());
-  const recipeIconsRef = useRef<Record<number, string[]>>({});
-  const attendanceLabelsRef = useRef<Record<number, string>>(attendanceLabelsByShop ?? {});
-  const lastIconModeRef = useRef<'compact' | 'mid' | 'full' | null>(null);
-  const lastProductIconVisibleRef = useRef<boolean | null>(null);
-  const lastSimpleBannerVisibleRef = useRef<boolean | null>(null);
-  const lastSimpleBannerNameVisibleRef = useRef<boolean | null>(null);
+  const lastLodRef = useRef<ShopMarkerLod | null>(null);
   const lastMarkerZoomScaleRef = useRef<number | null>(null);
   const selectedShopIdRef = useRef<number | undefined>(undefined);
 
@@ -169,81 +168,20 @@ function OptimizedShopLayerWithClustering({
     }
   };
 
-  const setMarkerKotodute = (marker: L.Marker, isHighlighted: boolean) => {
+  /**
+   * 表示段階をルート要素のクラスで表す。
+   * 何を出すかは CSS 側が加算方式で決める（LOD が上がるほど要素が増える）。
+   */
+  const setMarkerLod = (marker: L.Marker, lod: ShopMarkerLod) => {
     const icon = marker.getElement();
     if (!icon) return;
-    if (isHighlighted) {
-      icon.classList.add('shop-marker-kotodute');
-    } else {
-      icon.classList.remove('shop-marker-kotodute');
-    }
-  };
-
-  const setMarkerBag = (marker: L.Marker, isHighlighted: boolean) => {
-    const icon = marker.getElement();
-    if (!icon) return;
-    if (isHighlighted) {
-      icon.classList.add('shop-marker-bag');
-    } else {
-      icon.classList.remove('shop-marker-bag');
-    }
-  };
-
-  const setMarkerCoupon = (marker: L.Marker, isHighlighted: boolean) => {
-    const icon = marker.getElement();
-    if (!icon) return;
-    if (isHighlighted) {
-      icon.classList.add('shop-marker-coupon');
-    } else {
-      icon.classList.remove('shop-marker-coupon');
-    }
-  };
-
-  const setMarkerRecipeIcons = (marker: L.Marker, icons?: string[]) => {
-    const icon = marker.getElement();
-    if (!icon) return;
-    const container = icon.querySelector('.shop-recipe-icons');
-    if (!container) return;
-    const hasIcons = !!icons && icons.length > 0;
-    if (hasIcons) {
-      container.innerHTML = icons
-        ?.map((recipeIcon) => `<span class="shop-recipe-icon">${recipeIcon}</span>`)
-        .join('') ?? '';
-      icon.classList.add('shop-marker-recipe');
-    } else {
-      container.innerHTML = '';
-      icon.classList.remove('shop-marker-recipe');
-    }
-  };
-
-  const setMarkerProductIconVisibility = (marker: L.Marker, isVisible: boolean) => {
-    const icon = marker.getElement();
-    if (!icon) return;
-    if (isVisible) {
-      icon.classList.add('shop-product-icon-visible');
-    } else {
-      icon.classList.remove('shop-product-icon-visible');
-    }
-  };
-
-  const setMarkerSimpleBannerVisibility = (marker: L.Marker, isVisible: boolean) => {
-    const icon = marker.getElement();
-    if (!icon) return;
-    if (isVisible) {
-      icon.classList.add('shop-simple-banner-visible');
-    } else {
-      icon.classList.remove('shop-simple-banner-visible');
-    }
-  };
-
-  const setMarkerSimpleBannerNameVisibility = (marker: L.Marker, isVisible: boolean) => {
-    const icon = marker.getElement();
-    if (!icon) return;
-    if (isVisible) {
-      icon.classList.remove('shop-simple-banner-name-hidden');
-    } else {
-      icon.classList.add('shop-simple-banner-name-hidden');
-    }
+    icon.classList.remove(
+      'shop-lod-dot',
+      'shop-lod-stall',
+      'shop-lod-photo',
+      'shop-lod-nameplate'
+    );
+    icon.classList.add(`shop-lod-${lod}`);
   };
 
   const setMarkerZoomScale = (marker: L.Marker, scale: number) => {
@@ -252,37 +190,43 @@ function OptimizedShopLayerWithClustering({
     icon.style.setProperty("--shop-marker-zoom-scale", String(scale));
   };
 
-  const setMarkerAttendanceLabel = (marker: L.Marker, label: string) => {
-    const icon = marker.getElement();
-    if (!icon) return;
-    const labelElement = icon.querySelector('.shop-simple-banner-status');
-    if (labelElement) {
-      labelElement.textContent = label;
-    }
-  };
-
   useEffect(() => {
     selectedShopIdRef.current = selectedShopId;
   }, [selectedShopId]);
 
+  // 店舗専用のペイン。丁目マーカーやランドマーク（markerPane）と分けることで、
+  // 店舗だけをペインごと非表示にできる。zIndex は markerPane(600) より上（店舗が最前面）
   useEffect(() => {
-    attendanceLabelsRef.current = attendanceLabelsByShop ?? {};
-    markersRef.current.forEach((marker, shopId) => {
-      const label = attendanceLabelsRef.current[shopId] ?? 'わからない';
-      setMarkerAttendanceLabel(marker, label);
-    });
-  }, [attendanceLabelsByShop]);
+    if (!map.getPane(SHOP_PANE)) {
+      const pane = map.createPane(SHOP_PANE);
+      pane.style.zIndex = '610';
+    }
+  }, [map]);
 
+  /**
+   * 非表示の切替。
+   * ペインを visibility:hidden にするだけでは、低倍率で markercluster が 300 マーカー全部を
+   * DOM に載せて毎ズーム再配置し続ける（クラスタリング無効のため画面内の全マーカーが DOM に入る）。
+   * そこで非表示中はクラスタグループごと地図から外す。マーカーとアイコンは保持するので、
+   * 再表示は 300 個の生成をやり直さずグループを戻すだけで済む。
+   */
   useEffect(() => {
-    couponVendorSetRef.current = new Set(couponEligibleVendorIds ?? []);
-    markersRef.current.forEach((marker, shopId) => {
-      const shop = shops.find((entry) => entry.id === shopId);
-      setMarkerCoupon(marker, !!shop?.vendorId && couponVendorSetRef.current.has(shop.vendorId));
-    });
-  }, [couponEligibleVendorIds, shops]);
+    hiddenRef.current = hidden;
+    const pane = map.getPane(SHOP_PANE);
+    if (pane) pane.classList.toggle('shop-layer-hidden', hidden);
+    const group = clusterGroupRef.current;
+    if (!group) return;
+    if (hidden) {
+      if (map.hasLayer(group)) map.removeLayer(group);
+    } else {
+      if (!map.hasLayer(group)) map.addLayer(group);
+      updateDensityRef.current?.();
+    }
+  }, [hidden, map]);
 
   useEffect(() => {
     const markers = L.markerClusterGroup({
+      clusterPane: SHOP_PANE,
       disableClusteringAtZoom: 1,
       spiderfyOnMaxZoom: false,
       showCoverageOnHover: false,
@@ -305,78 +249,59 @@ function OptimizedShopLayerWithClustering({
 
     clusterGroupRef.current = markers;
 
-    const createCompactIcon = (_shop: Shop) => {
+    // 道の南北で木札とバッジの向きを振り分ける。座標は不変なので生成時に一度だけ計算する。
+    const sideClass = (shop: Shop) => `shop-side-${getRoadSide(shop.lat, shop.lng)}`;
+
+    const createDotIcon = (shop: Shop) => {
       return L.divIcon({
         html: `
           <div class="shop-marker-compact-wrapper">
-            <div class="shop-recipe-icons" aria-hidden="true"></div>
-            <div class="shop-kotodute-badge" aria-hidden="true">i</div>
-            <div class="shop-favorite-badge" aria-hidden="true">&#10084;</div>
-            <div class="shop-coupon-badge" aria-hidden="true">🎟️</div>
+            ${SHOP_FAVORITE_BADGE_HTML}
             <div class="shop-marker-compact"></div>
           </div>
         `,
-        className: 'custom-shop-marker compact-shop-marker',
+        className: `custom-shop-marker compact-shop-marker ${sideClass(shop)}`,
         iconSize: COMPACT_ICON_SIZE,
         iconAnchor: COMPACT_ICON_ANCHOR,
       });
     };
 
-    const createMidIcon = (shop: Shop) => {
+    /**
+     * stall / photo / nameplate で共有するアイコン。
+     * 木札も写真アイコンも DOM としては常に含め、表示は LOD クラスで切り替える。
+     *
+     * iconSize には木札の分を足さない。足すとコンテナの高さが変わって
+     * transform-origin: center bottom の原点が屋台の足元からずれ、
+     * さらに 300店舗ぶんの不可視ヒット領域が地図のドラッグを妨げるため。
+     * 木札は pointer-events: auto を持ち、クリックは _icon にバブリングする。
+     */
+    const createStallIcon = (shop: Shop) => {
       const sizeKey = shop.illustration?.size ?? DEFAULT_ILLUSTRATION_SIZE;
       const sizeConfig = ILLUSTRATION_SIZES[sizeKey];
-      const mainProduct = shop.products?.[0] ?? shop.category ?? '-';
-      const attendanceLabel = attendanceLabelsRef.current[shop.id] ?? 'わからない';
-      const bannerSeed = shop.position ?? shop.id;
-      const bannerImage = shop.images?.main ?? getShopBannerImage(shop.category, bannerSeed);
-
-      const midIconMarkup = generateShopMarkerHtml(
-        shop,
-        'mid',
-        bannerImage,
-        attendanceLabel,
-        sizeKey,
-        mainProduct
-      );
+      const bannerImage = getShopThumbnailImage(shop);
 
       return L.divIcon({
-        html: midIconMarkup,
-        className: 'custom-shop-marker',
+        html: generateShopMarkerHtml(shop, {
+          bannerImage,
+          illustrationSize: sizeKey,
+          includeNameplate: true,
+          stallRenderer,
+        }),
+        className: `custom-shop-marker ${sideClass(shop)}`,
         iconSize: [sizeConfig.width, sizeConfig.height],
-        iconAnchor: [sizeConfig.anchor[0], sizeConfig.anchor[1]],
+        iconAnchor: getIllustrationAnchor(sizeKey),
       });
     };
 
-    const createFullIcon = (shop: Shop) => {
-      const sizeKey = shop.illustration?.size ?? DEFAULT_ILLUSTRATION_SIZE;
-      const sizeConfig = ILLUSTRATION_SIZES[sizeKey];
-      const mainProduct = shop.products?.[0] ?? shop.category ?? '-';
-      const attendanceLabel = attendanceLabelsRef.current[shop.id] ?? 'わからない';
-      const bannerSeed = shop.position ?? shop.id;
-      const bannerImage = shop.images?.main ?? getShopBannerImage(shop.category, bannerSeed);
-
-      const iconMarkup = generateShopMarkerHtml(
-        shop,
-        'full',
-        bannerImage,
-        attendanceLabel,
-        sizeKey,
-        mainProduct
-      );
-
-      return L.divIcon({
-        html: iconMarkup,
-        className: 'custom-shop-marker',
-        iconSize: [sizeConfig.width, sizeConfig.height],
-        iconAnchor: [sizeConfig.anchor[0], sizeConfig.anchor[1]],
-      });
-    };
-
-    // Lazy initialization: determine initial icon mode based on current zoom
-    const zoom = map.getZoom();
-    const useCompact = zoom <= COMPACT_ICON_MAX_ZOOM;
-    const useMid = zoom > COMPACT_ICON_MAX_ZOOM && zoom <= MID_ICON_MAX_ZOOM;
-    const initialMode = useCompact ? 'compact' : (useMid ? 'mid' : 'full');
+    // 現在のズームに必要なアイコンだけを先に作る。
+    // 作った LOD を記録しておかないと、直後の updateMarkerDensity() が
+    // 「まだ何も描いていない」と判断して全マーカーに setIcon をやり直してしまう。
+    // 非表示モードで生成されるときは、表示されるのはズーム 19 以上（点 LOD は使われない）なので
+    // 最初から屋台アイコンで作る。こうすると境界を越えて表示されるときに setIcon の一斉差し替えが起きない
+    const initialLod = hiddenRef.current
+      ? 'stall'
+      : getShopMarkerLod(map.getZoom(), map.getMaxZoom() ?? map.getZoom());
+    lastLodRef.current = initialLod;
 
     // Create a map for fast shop lookup during density updates
     const shopsMap = new Map<number, Shop>(shops.map(s => [s.id, s]));
@@ -384,20 +309,17 @@ function OptimizedShopLayerWithClustering({
     shops.forEach((shop) => {
       let initialIcon: L.DivIcon;
 
-      // Only generate the icon needed for the current view
-      if (initialMode === 'compact') {
-        initialIcon = createCompactIcon(shop);
-        compactIconsRef.current.set(shop.id, initialIcon);
-      } else if (initialMode === 'mid') {
-        initialIcon = createMidIcon(shop);
-        midIconsRef.current.set(shop.id, initialIcon);
+      if (initialLod === 'dot') {
+        initialIcon = createDotIcon(shop);
+        dotIconsRef.current.set(shop.id, initialIcon);
       } else {
-        initialIcon = createFullIcon(shop);
-        fullIconsRef.current.set(shop.id, initialIcon);
+        initialIcon = createStallIcon(shop);
+        stallIconsRef.current.set(shop.id, initialIcon);
       }
 
       const marker = L.marker([shop.lat, shop.lng], {
         icon: initialIcon,
+        pane: SHOP_PANE,
       });
 
       marker.on('click', () => {
@@ -409,22 +331,10 @@ function OptimizedShopLayerWithClustering({
         setMarkerHighlight(marker, shop.id, aiHighlightSetRef.current.has(shop.id));
         setMarkerSearchHighlight(marker, searchHighlightSetRef.current.has(shop.id));
         setMarkerCommentHighlight(marker, commentHighlightSetRef.current.has(shop.id));
-        setMarkerKotodute(marker, kotoduteSetRef.current.has(shop.id));
-        setMarkerBag(marker, bagShopSetRef.current.has(shop.id));
-        setMarkerCoupon(marker, !!shop.vendorId && couponVendorSetRef.current.has(shop.vendorId));
-        setMarkerRecipeIcons(marker, recipeIconsRef.current[shop.id]);
-        const maxZoom = map.getMaxZoom() ?? map.getZoom();
-        const showSimpleBanner = map.getZoom() >= FULL_ICON_MIN_ZOOM;
-        const showSimpleBannerName = map.getZoom() >= FULL_ICON_NAME_MIN_ZOOM;
-        const markerZoomScale = getShopMarkerDisplayScale(map.getZoom(), maxZoom);
-        setMarkerProductIconVisibility(marker, map.getZoom() >= FULL_ICON_MIN_ZOOM && map.getZoom() < FULL_ICON_NAME_MIN_ZOOM);
-        setMarkerSimpleBannerVisibility(marker, showSimpleBanner);
-        setMarkerSimpleBannerNameVisibility(marker, showSimpleBannerName);
-        setMarkerZoomScale(marker, markerZoomScale);
-        setMarkerAttendanceLabel(
-          marker,
-          attendanceLabelsRef.current[shop.id] ?? 'わからない'
-        );
+        const currentZoom = map.getZoom();
+        const maxZoom = map.getMaxZoom() ?? currentZoom;
+        setMarkerLod(marker, getShopMarkerLod(currentZoom, maxZoom));
+        setMarkerZoomScale(marker, getShopMarkerScale(currentZoom, maxZoom));
       });
 
       markers.addLayer(marker);
@@ -432,65 +342,40 @@ function OptimizedShopLayerWithClustering({
     });
 
     const updateMarkerDensity = () => {
+      // 非表示中は何もしない（表示に戻るときに hidden の effect が呼び直す）
+      if (hiddenRef.current) return;
       const zoom = map.getZoom();
       const maxZoom = map.getMaxZoom() ?? zoom;
-      const showProductIcon = zoom >= FULL_ICON_MIN_ZOOM && zoom < FULL_ICON_NAME_MIN_ZOOM;
-      const showSimpleBanner = zoom >= FULL_ICON_MIN_ZOOM;
-      const showSimpleBannerName = zoom >= FULL_ICON_NAME_MIN_ZOOM;
-      const markerZoomScale = getShopMarkerDisplayScale(zoom, maxZoom);
-      const useCompact = zoom <= COMPACT_ICON_MAX_ZOOM;
-      const useMid = zoom > COMPACT_ICON_MAX_ZOOM && zoom <= MID_ICON_MAX_ZOOM;
-      const nextMode: 'compact' | 'mid' | 'full' = useCompact
-        ? 'compact'
-        : useMid
-          ? 'mid'
-          : 'full';
+      const nextLod = getShopMarkerLod(zoom, maxZoom);
+      const markerZoomScale = getShopMarkerScale(zoom, maxZoom);
+
       if (
-        lastIconModeRef.current === nextMode &&
-        lastProductIconVisibleRef.current === showProductIcon &&
-        lastSimpleBannerVisibleRef.current === showSimpleBanner &&
-        lastSimpleBannerNameVisibleRef.current === showSimpleBannerName &&
+        lastLodRef.current === nextLod &&
         lastMarkerZoomScaleRef.current === markerZoomScale
       ) {
         return;
       }
-      const modeChanged = lastIconModeRef.current !== nextMode;
-      lastIconModeRef.current = nextMode;
-      lastProductIconVisibleRef.current = showProductIcon;
-      lastSimpleBannerVisibleRef.current = showSimpleBanner;
-      lastSimpleBannerNameVisibleRef.current = showSimpleBannerName;
+
+      // アイコンの DOM を作り直す必要があるのは dot ↔ それ以外の境界だけ。
+      // stall / photo / nameplate は同じ DOM をクラスで切り替える。
+      const wasDot = lastLodRef.current === 'dot';
+      const isDot = nextLod === 'dot';
+      const iconChanged = lastLodRef.current === null || wasDot !== isDot;
+
+      lastLodRef.current = nextLod;
       lastMarkerZoomScaleRef.current = markerZoomScale;
 
       markersRef.current.forEach((marker, shopId) => {
         let icon: L.DivIcon | undefined;
 
-        if (modeChanged) {
-          if (useCompact) {
-            icon = compactIconsRef.current.get(shopId);
-            if (!icon) {
-              const shop = shopsMap.get(shopId);
-              if (shop) {
-                icon = createCompactIcon(shop);
-                compactIconsRef.current.set(shopId, icon);
-              }
-            }
-          } else if (useMid) {
-            icon = midIconsRef.current.get(shopId);
-            if (!icon) {
-              const shop = shopsMap.get(shopId);
-              if (shop) {
-                icon = createMidIcon(shop);
-                midIconsRef.current.set(shopId, icon);
-              }
-            }
-          } else {
-            icon = fullIconsRef.current.get(shopId);
-            if (!icon) {
-              const shop = shopsMap.get(shopId);
-              if (shop) {
-                icon = createFullIcon(shop);
-                fullIconsRef.current.set(shopId, icon);
-              }
+        if (iconChanged) {
+          const cache = isDot ? dotIconsRef.current : stallIconsRef.current;
+          icon = cache.get(shopId);
+          if (!icon) {
+            const shop = shopsMap.get(shopId);
+            if (shop) {
+              icon = isDot ? createDotIcon(shop) : createStallIcon(shop);
+              cache.set(shopId, icon);
             }
           }
         }
@@ -500,16 +385,8 @@ function OptimizedShopLayerWithClustering({
         }
 
         setMarkerFavorite(marker, favoriteSetRef.current.has(shopId));
-        setMarkerRecipeIcons(marker, recipeIconsRef.current[shopId]);
-        setMarkerProductIconVisibility(marker, showProductIcon);
-        setMarkerSimpleBannerVisibility(marker, showSimpleBanner);
-        setMarkerSimpleBannerNameVisibility(marker, showSimpleBannerName);
+        setMarkerLod(marker, nextLod);
         setMarkerZoomScale(marker, markerZoomScale);
-        setMarkerAttendanceLabel(
-          marker,
-          attendanceLabelsRef.current[shopId] ?? 'わからない'
-        );
-        const shop = shopsMap.get(shopId);
         const markerElement = marker.getElement();
         if (markerElement) {
           if (shopId === selectedShopIdRef.current) {
@@ -537,44 +414,45 @@ function OptimizedShopLayerWithClustering({
           } else {
             markerElement.classList.remove('shop-marker-comment');
           }
-          if (kotoduteSetRef.current.has(shopId)) {
-            markerElement.classList.add('shop-marker-kotodute');
-          } else {
-            markerElement.classList.remove('shop-marker-kotodute');
-          }
-          if (bagShopSetRef.current.has(shopId)) {
-            markerElement.classList.add('shop-marker-bag');
-          } else {
-            markerElement.classList.remove('shop-marker-bag');
-          }
-          if (shop?.vendorId && couponVendorSetRef.current.has(shop.vendorId)) {
-            markerElement.classList.add('shop-marker-coupon');
-          } else {
-            markerElement.classList.remove('shop-marker-coupon');
-          }
         }
       });
     };
 
     map.on('zoomend', updateMarkerDensity);
+    updateDensityRef.current = updateMarkerDensity;
+
+    // ズーム先が「店舗の見えない倍率」なら、zoomend の前にグループを外す。
+    // zoomend まで待つと markercluster が画面内の店舗（低倍率ほど多い）を一度 DOM に載せてしまう
+    const handleZoomAnim = (event: L.ZoomAnimEvent) => {
+      const minZoom = visibleMinZoomRef.current;
+      if (minZoom === undefined) return;
+      if (event.zoom < minZoom && map.hasLayer(markers)) {
+        hiddenRef.current = true;
+        map.removeLayer(markers);
+      }
+    };
+    map.on('zoomanim', handleZoomAnim);
     updateMarkerDensity();
 
-    map.addLayer(markers);
+    // 非表示で生成されたときは地図に載せない（hidden の effect が表示時に載せる）
+    if (!hiddenRef.current) map.addLayer(markers);
 
     const markersMap = markersRef.current;
-    const fullIcons = fullIconsRef.current;
-    const midIcons = midIconsRef.current;
-    const compactIcons = compactIconsRef.current;
+    const stallIcons = stallIconsRef.current;
+    const dotIcons = dotIconsRef.current;
     return () => {
       map.off('zoomend', updateMarkerDensity);
-      map.removeLayer(markers);
+      updateDensityRef.current = null;
+      map.off('zoomanim', handleZoomAnim);
+      if (map.hasLayer(markers)) map.removeLayer(markers);
       clusterGroupRef.current = null;
       markersMap.clear();
-      fullIcons.clear();
-      midIcons.clear();
-      compactIcons.clear();
+      stallIcons.clear();
+      dotIcons.clear();
+      lastLodRef.current = null;
+      lastMarkerZoomScaleRef.current = null;
     };
-  }, [map, onChunkProgress, onShopClick, shops]);
+  }, [map, onChunkProgress, onShopClick, shops, stallRenderer]);
 
   useEffect(() => {
     favoriteSetRef.current = new Set(favoriteShopIds ?? []);
@@ -667,59 +545,6 @@ function OptimizedShopLayerWithClustering({
 
     prevCommentHighlightSetRef.current = nextHighlights;
   }, [commentHighlightShopIds]);
-
-  useEffect(() => {
-    kotoduteSetRef.current = new Set(kotoduteShopIds ?? []);
-    const nextHighlights = kotoduteSetRef.current;
-    const prevHighlights = prevKotoduteSetRef.current;
-    const changed = new Set<number>();
-
-    prevHighlights.forEach((id) => {
-      if (!nextHighlights.has(id)) changed.add(id);
-    });
-    nextHighlights.forEach((id) => {
-      if (!prevHighlights.has(id)) changed.add(id);
-    });
-
-    changed.forEach((id) => {
-      const marker = markersRef.current.get(id);
-      if (marker) {
-        setMarkerKotodute(marker, nextHighlights.has(id));
-      }
-    });
-
-    prevKotoduteSetRef.current = nextHighlights;
-  }, [kotoduteShopIds]);
-
-  useEffect(() => {
-    bagShopSetRef.current = new Set(bagShopIds ?? []);
-    const nextHighlights = bagShopSetRef.current;
-    const prevHighlights = prevBagShopSetRef.current;
-    const changed = new Set<number>();
-
-    prevHighlights.forEach((id) => {
-      if (!nextHighlights.has(id)) changed.add(id);
-    });
-    nextHighlights.forEach((id) => {
-      if (!prevHighlights.has(id)) changed.add(id);
-    });
-
-    changed.forEach((id) => {
-      const marker = markersRef.current.get(id);
-      if (marker) {
-        setMarkerBag(marker, nextHighlights.has(id));
-      }
-    });
-
-    prevBagShopSetRef.current = nextHighlights;
-  }, [bagShopIds]);
-
-  useEffect(() => {
-    recipeIconsRef.current = recipeIngredientIconsByShop ?? {};
-    markersRef.current.forEach((marker, shopId) => {
-      setMarkerRecipeIcons(marker, recipeIconsRef.current[shopId]);
-    });
-  }, [recipeIngredientIconsByShop]);
 
   useEffect(() => {
     markersRef.current.forEach((marker, shopId) => {

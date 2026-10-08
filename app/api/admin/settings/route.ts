@@ -1,10 +1,14 @@
 import { cookies } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
-import { createClient as createServiceClient } from "@supabase/supabase-js";
 import { createClient as createServerClient } from "@/utils/supabase/server";
 import { requireSameOrigin } from "@/lib/security/requestGuards";
 import { enforceRateLimit } from "@/lib/security/rateLimit";
 import { getRole, isAdmin } from "@/lib/auth/permissions";
+import { parsePageVisibilitySettings } from "@/lib/pageVisibility";
+import { normalizeMapFeatureFlags } from "@/lib/mapFeatureFlags";
+import { createClient as createServiceClient } from "@supabase/supabase-js";
+import { MAP_FLAGS_SETTINGS_KEY } from "@/lib/mapFeatureFlags.server";
+import { DEFAULT_MAX_LANDMARKS, DEFAULT_MAX_UNASSIGNED_SHOP_MARKERS } from "@/lib/map/mapSettingsDefaults";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -33,12 +37,16 @@ const DEFAULT_PUBLIC_SETTINGS: PublicSettings = {
 };
 
 const DEFAULT_MAP_SETTINGS: MapSettings = {
-  maxLandmarks: 80,
-  maxUnassignedShopMarkers: 40,
+  maxLandmarks: DEFAULT_MAX_LANDMARKS,
+  maxUnassignedShopMarkers: DEFAULT_MAX_UNASSIGNED_SHOP_MARKERS,
   maxMapSnapshots: 50,
   maxEditZoom: 20,
 };
 
+// 共通の createAdminServiceClient（DatabaseWithExtensions型）を使うと、
+// このファイルの一部の書き込みが Json 型との不整合で型エラーになる
+// （MapFeatureFlags が Json のインデックスシグネチャを満たさない、既存の別問題）。
+// dedup のためにそれを巻き込みたくないので、ここだけ未型付けのまま残す
 function createAdminClient() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -121,7 +129,7 @@ export async function GET() {
     const { data, error } = await auth.adminClient
       .from("system_settings")
       .select("key, value")
-      .in("key", ["public", "map"]);
+      .in("key", ["public", "map", "page_visibility", MAP_FLAGS_SETTINGS_KEY]);
 
     if (error) {
       return NextResponse.json({ error: "Failed to load settings" }, { status: 500 });
@@ -129,10 +137,14 @@ export async function GET() {
 
     const publicRow = (data ?? []).find((row) => row.key === "public");
     const mapRow = (data ?? []).find((row) => row.key === "map");
+    const visibilityRow = (data ?? []).find((row) => row.key === "page_visibility");
+    const mapFlagsRow = (data ?? []).find((row) => row.key === MAP_FLAGS_SETTINGS_KEY);
 
     return NextResponse.json({
       public: parsePublicSettings(publicRow?.value),
       map: parseMapSettings(mapRow?.value),
+      pageVisibility: parsePageVisibilitySettings(visibilityRow?.value),
+      mapFlags: normalizeMapFeatureFlags(mapFlagsRow?.value),
     });
   } catch {
     return NextResponse.json({ error: "Failed to load settings" }, { status: 500 });
@@ -144,7 +156,7 @@ export async function PUT(request: NextRequest) {
     const originCheck = requireSameOrigin(request);
     if (!originCheck.ok) return originCheck.response;
 
-    const rateLimited = enforceRateLimit(request, {
+    const rateLimited = await enforceRateLimit(request, {
       bucket: "admin-settings-put",
       limit: 20,
       windowMs: 10 * 60 * 1000,
@@ -157,15 +169,38 @@ export async function PUT(request: NextRequest) {
     const body = (await request.json().catch(() => null)) as {
       public?: unknown;
       map?: unknown;
+      pageVisibility?: unknown;
+      mapFlags?: unknown;
     } | null;
+
+    // pageVisibility だけを送ってきた場合（ページ公開設定画面）は他のキーを触らない
+    if (
+      body &&
+      body.pageVisibility !== undefined &&
+      body.public === undefined &&
+      body.map === undefined &&
+      body.mapFlags === undefined
+    ) {
+      const pageVisibility = parsePageVisibilitySettings(body.pageVisibility);
+      const { error } = await auth.adminClient.from("system_settings").upsert(
+        [{ key: "page_visibility", value: pageVisibility, updated_by: auth.user.id }],
+        { onConflict: "key" }
+      );
+      if (error) {
+        return NextResponse.json({ error: "Failed to save settings" }, { status: 500 });
+      }
+      return NextResponse.json({ ok: true, pageVisibility });
+    }
 
     const publicSettings = parsePublicSettings(body?.public);
     const mapSettings = parseMapSettings(body?.map);
+    const mapFlags = normalizeMapFeatureFlags(body?.mapFlags);
 
     const { error } = await auth.adminClient.from("system_settings").upsert(
       [
         { key: "public", value: publicSettings, updated_by: auth.user.id },
         { key: "map", value: mapSettings, updated_by: auth.user.id },
+        { key: MAP_FLAGS_SETTINGS_KEY, value: mapFlags, updated_by: auth.user.id },
       ],
       { onConflict: "key" }
     );
@@ -174,7 +209,7 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: "Failed to save settings" }, { status: 500 });
     }
 
-    return NextResponse.json({ ok: true, public: publicSettings, map: mapSettings });
+    return NextResponse.json({ ok: true, public: publicSettings, map: mapSettings, mapFlags });
   } catch {
     return NextResponse.json({ error: "Failed to save settings" }, { status: 500 });
   }

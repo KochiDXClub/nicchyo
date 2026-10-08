@@ -4,10 +4,10 @@ export type AnalyticsEventName =
   | "shop_view"
   | "shop_scroll"
   | "add_to_bag"
-  | "coupon_impression"
-  | "coupon_click"
-  | "coupon_apply"
-  | "coupon_redeem";
+  | "guide_open"
+  | "guide_navigation_start"
+  | "guide_arrived"
+  | "guide_navigation_stop";
 
 export type VisitorKey = string;
 
@@ -37,23 +37,13 @@ export interface ShopScrollParams {
   viewport_time?: number;
 }
 
-export interface CouponImpressionParams {
-  coupon_id: string;
-  shop_id?: string;
-  source: string;
-  placement?: string;
-  visible_duration?: number;
-}
-
-export interface CouponRedeemParams {
-  coupon_id: string;
-  shop_id?: string;
-  source?: string;
-  method?: string;
-  value?: number;
-  currency?: string;
-  success?: boolean;
-  items_count?: number;
+/** おでかけサポートの利用ログ（guide_events） */
+export interface GuideEventParams {
+  kinds?: string[];
+  spot_key?: string | null;
+  origin_type?: string | null;
+  walk_minutes?: number | null;
+  distance_meters?: number | null;
 }
 
 export type AnalyticsParams =
@@ -61,8 +51,7 @@ export type AnalyticsParams =
   | ShopImpressionParams
   | ShopViewParams
   | ShopScrollParams
-  | CouponImpressionParams
-  | CouponRedeemParams
+  | GuideEventParams
   | Record<string, unknown>;
 
 export interface SendEventOptions {
