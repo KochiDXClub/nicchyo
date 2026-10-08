@@ -59,6 +59,7 @@ import {
   normalizeMapRoutePoints,
   projectPointOntoRoute,
 } from "../utils/mapRouteGeometry";
+import { escapeHtml } from "../utils/markerHtmlGenerator";
 import { useMapGestures } from "../hooks/useMapGestures";
 import { useMapCameraController } from "../hooks/useMapCameraController";
 import SearchResultsSheet, { SpotlightCountdownBar } from "./SearchResultsSheet";
@@ -880,7 +881,7 @@ const MapView = memo(function MapView({
         spec.key,
         L.divIcon({
           className: "map-landmark-icon",
-          html: `<img class="map-landmark-visual${highlightClass}" src="${spec.url}" alt="" draggable="false" style="width:${width}px;height:${height}px;opacity:1;" />`,
+          html: `<img class="map-landmark-visual${highlightClass}" src="${escapeHtml(spec.url)}" alt="" draggable="false" style="width:${width}px;height:${height}px;opacity:1;" />`,
           iconSize: [width, height],
           iconAnchor: [width / 2, height / 2],
         })
