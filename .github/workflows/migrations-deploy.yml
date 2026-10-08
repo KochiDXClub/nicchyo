@@ -1,39 +1,48 @@
-name: Migrations Deploy (Production)
+name: Migrations Deploy
 
-# main にマージされたマイグレーションを本番 Supabase に適用する。
+# ブランチに応じて、対応する Supabase プロジェクトにマイグレーションを適用する。
+#   develop → 開発用プロジェクト（承認なし。push で自動適用）
+#   main    → 本番プロジェクト（Environment `production` の承認後に適用）
+# それ以外のブランチでは何もしない（手動実行も、実行したブランチの対象にしか向かない）。
 # docs/RELEASE.md §4.4（main マージ）と同時に走る。
 #
 # 2 ジョブ構成（承認の前に差分を読めるようにするため）:
 #   1. dry-run … 承認なしで走る。`migration list` と `db push --dry-run` の結果、
 #                未適用ファイルに含まれる破壊的 SQL（DROP / DELETE / TRUNCATE 等）を
-#                Step Summary に出す。本番には何も書き込まない。
-#   2. apply   … Environment `production`（Required reviewers）の承認後に走る。
+#                Step Summary に出す。DB には何も書き込まない。
+#                Summary の先頭に「対象（開発/本番）」と「プロジェクトID」を出すので、承認前に確認すること。
+#   2. apply   … 本番は Environment `production`（Required reviewers）の承認後に走る。
 #                承認者は dry-run の Summary を読んでから承認すること。
 #                dry-run 時点と未適用の集合が変わっていたら適用せずに止まる。
 #
 # - 未適用のマイグレーションだけが順に適用される（supabase_migrations.schema_migrations で管理）。
 # - ロールバックは自動化しない。DB の巻き戻しは本番バックアップ（PITR）からの復元のみ
-#   （docs/RELEASE.md §4.5）。適用前に必ずバックアップ時刻を記録すること（§4.4 手順4）。
-# - 適用後の回帰チェック（supabase/checks/*.sql）は本番に psql を張れないため自動化していない。
+#   （docs/RELEASE.md §4.5）。本番は適用前に必ずバックアップ時刻を記録すること（§4.4 手順4）。
+# - 適用後の回帰チェック（supabase/checks/*.sql）は DB に psql を張れないため自動化していない。
 #   Supabase の SQL Editor で手動実行する（docs/RELEASE.md §4.4 手順13）。
 #
-# 必要な Secrets（Environment に登録。Repository secrets には置かない）:
-#   SUPABASE_ACCESS_TOKEN  … https://supabase.com/dashboard/account/tokens
-#   SUPABASE_PROJECT_ID    … 本番プロジェクトの Reference ID
-#   SUPABASE_DB_PASSWORD   … 本番DBパスワード
-# 登録先の Environment:
-#   - `production`          … apply ジョブ用。Required reviewers を必ず設定する。
-#   - `production-dry-run`  … dry-run ジョブ用。上と同じ3つの Secrets を登録する。
-#                              Required reviewers は付けない（承認前に差分を出すため）。
-#                              Deployment branches は `main` のみに絞る。
-#   （Environment Secrets は、その Environment を指定したジョブにしか渡らない。
-#     dry-run を environment なしで走らせると Secrets が空になり link に失敗する。）
+# Environment（Settings → Environments）と、それぞれに登録するもの:
+#   development        … develop 用。dry-run と apply の両方がこれを使う。Required reviewers は付けない。
+#                         Deployment branches は `develop` のみに絞る。
+#   production         … main の apply 用。Required reviewers を必ず設定する。Deployment branches は `main` のみ。
+#   production-dry-run … main の dry-run 用。Required reviewers は付けない（承認前に差分を出すため）。
+#                         Deployment branches は `main` のみ。
+#   各 Environment に:
+#     Secrets   SUPABASE_ACCESS_TOKEN … https://supabase.com/dashboard/account/tokens
+#               SUPABASE_DB_PASSWORD  … そのプロジェクトの DB パスワード
+#     Variables SUPABASE_PROJECT_ID   … そのプロジェクトの Reference ID（20文字）
+#   プロジェクト ID は秘密ではないので Secrets ではなく Variables に置く。Secrets に置くと
+#   GitHub が同じ文字列を `***` に伏せ、Summary やログで接続先を確認できなくなる。
+#   （Environment の Secrets / Variables は、その Environment を指定したジョブにしか渡らない。
+#     dry-run を environment なしで走らせると空になり link に失敗する。）
 #
-# 前提: 本番の適用履歴とリポジトリが一致していること（docs/RELEASE.md §9）。
+# 前提: 各プロジェクトの適用履歴とリポジトリが一致していること（docs/RELEASE.md §9）。
+
+run-name: Migrations Deploy → ${{ github.ref_name == 'main' && '本番' || '開発' }}（${{ github.ref_name }}）
 
 on:
   push:
-    branches: [main]
+    branches: [main, develop]
     paths:
       - 'supabase/migrations/**'
   workflow_dispatch:
@@ -51,23 +60,28 @@ defaults:
   run:
     shell: bash
 
-# 同時に2本走らせない。後から来たものはキャンセルせず順番待ちにする。
+# 同じ対象には同時に2本走らせない。後から来たものはキャンセルせず順番待ちにする。
 concurrency:
-  group: supabase-migrations-production
+  group: supabase-migrations-${{ github.ref_name == 'main' && 'production' || 'development' }}
   cancel-in-progress: false
 
 env:
-  # 本番DDLを流す CLI なので latest にしない。上げるときは dry-run で挙動を確かめてから。
+  # DDL を流す CLI なので latest にしない。上げるときは dry-run で挙動を確かめてから。
   SUPABASE_CLI_VERSION: '2.120.0'
+  # main は本番、develop は開発。ジョブの `if` で main / develop 以外は走らせない。
+  TARGET_LABEL: ${{ github.ref_name == 'main' && '本番' || '開発' }}
+  TARGET_ENV: ${{ github.ref_name == 'main' && 'production' || 'development' }}
 
 jobs:
   dry-run:
-    name: ドライラン（承認前に差分を確認）
+    name: ドライラン（${{ github.ref_name == 'main' && '本番' || '開発' }}・承認前に差分を確認）
+    # main / develop 以外のブランチからの手動実行では何もしない（本番や開発に届かせない）。
+    if: ${{ github.ref_name == 'main' || github.ref_name == 'develop' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    # 承認なしで走らせるが、Secrets を受け取るために専用 Environment を使う（上記ヘッダ参照）。
+    # 承認なしで走らせるが、Secrets / Variables を受け取るために Environment を使う（上記ヘッダ参照）。
     environment:
-      name: production-dry-run
+      name: ${{ github.ref_name == 'main' && 'production-dry-run' || 'development' }}
     env:
       SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
       SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
@@ -91,14 +105,25 @@ jobs:
             supabase init --force --yes >/dev/null
           fi
 
-      - name: Link production project
-        run: supabase link --project-ref "${{ secrets.SUPABASE_PROJECT_ID }}"
-
-      - name: Dashboard link
+      # どのプロジェクトに向かうかを Summary の先頭に出す。承認者はここを読んでから承認する。
+      - name: Show target project
+        env:
+          PROJECT_ID: ${{ vars.SUPABASE_PROJECT_ID }}
         run: |
-          echo "[本番 Supabase ダッシュボード](https://supabase.com/dashboard/project/${{ secrets.SUPABASE_PROJECT_ID }})" >> "$GITHUB_STEP_SUMMARY"
+          if ! [[ "$PROJECT_ID" =~ ^[a-z]{20}$ ]]; then
+            echo "::error::Environment の Variable SUPABASE_PROJECT_ID が未設定、または形式が違います（20文字の Reference ID）。Variables に登録してください（Secrets ではない）。"
+            exit 1
+          fi
+          {
+            echo "## 対象: ${TARGET_LABEL}（ブランチ \`${GITHUB_REF_NAME}\`）"
+            echo "- プロジェクトID: \`${PROJECT_ID}\`"
+            echo "- [Supabase ダッシュボード](https://supabase.com/dashboard/project/${PROJECT_ID})"
+          } >> "$GITHUB_STEP_SUMMARY"
 
-      # 本番の履歴とリポジトリの差分を常にログに残す
+      - name: Link project
+        run: supabase link --project-ref "${{ vars.SUPABASE_PROJECT_ID }}"
+
+      # リモートの履歴とリポジトリの差分を常にログに残す
       - name: Migration status
         run: supabase migration list --linked
 
@@ -138,16 +163,18 @@ jobs:
           echo "pending_hash=$pending_hash" >> "$GITHUB_OUTPUT"
 
           {
-            echo "### ドライラン結果: 未適用 ${count} 件"
+            echo "### ドライラン結果（${TARGET_LABEL}）: 未適用 ${count} 件"
             if [ "$count" -eq 0 ]; then
-              echo "本番に未適用のマイグレーションはありません。"
+              echo "${TARGET_LABEL}に未適用のマイグレーションはありません。"
             else
               echo '```'
               cat "$RUNNER_TEMP/pending.txt"
               echo '```'
               echo '#### 破壊的・不可逆になりうる文（要確認）'
               echo "DROP / DELETE FROM / TRUNCATE / REVOKE を含む行（\`--\` コメント行は除外）。"
-              echo '該当があれば、バックアップ（PITR）時刻を記録済みか、日曜市の開催時間外かを確認してから承認すること（docs/RELEASE.md §4.4）。'
+              if [ "$TARGET_ENV" = "production" ]; then
+                echo '該当があれば、バックアップ（PITR）時刻を記録済みか、日曜市の開催時間外かを確認してから承認すること（docs/RELEASE.md §4.4）。'
+              fi
               echo '```'
               scripts/ci/destructive-statements.sh "$RUNNER_TEMP/pending.txt"
               echo '```'
@@ -159,10 +186,10 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
   apply:
-    name: 本番 Supabase へ適用（要承認）
+    name: ${{ github.ref_name == 'main' && '本番 Supabase へ適用（要承認）' || '開発 Supabase へ適用' }}
     needs: dry-run
     # push は常に適用。手動実行は dry_run=false のときだけ。未適用が0件なら承認を求めずに終える。
-    if: ${{ (github.event_name == 'push' || inputs.dry_run == false) && needs.dry-run.outputs.pending_count != '0' }}
+    if: ${{ (github.ref_name == 'main' || github.ref_name == 'develop') && (github.event_name == 'push' || inputs.dry_run == false) && needs.dry-run.outputs.pending_count != '0' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     # environment.url には secrets コンテキストを渡せない（許可されているのは
@@ -170,8 +197,9 @@ jobs:
     # ここに secrets を書くとワークフローの検証に失敗し、ジョブが1つも作られないまま
     # 全 push で失敗ランになる。ダッシュボードのリンクは dry-run ジョブで出す。
     # Required reviewers の承認待ちは、このジョブの開始前に入る（= dry-run の Summary を読んでから承認できる）。
+    # 本番（main）は Required reviewers の承認待ちが入る。開発（develop）は承認なしで進む。
     environment:
-      name: production
+      name: ${{ github.ref_name == 'main' && 'production' || 'development' }}
     env:
       SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
       SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
@@ -192,8 +220,21 @@ jobs:
             supabase init --force --yes >/dev/null
           fi
 
-      - name: Link production project
-        run: supabase link --project-ref "${{ secrets.SUPABASE_PROJECT_ID }}"
+      - name: Show target project
+        env:
+          PROJECT_ID: ${{ vars.SUPABASE_PROJECT_ID }}
+        run: |
+          if ! [[ "$PROJECT_ID" =~ ^[a-z]{20}$ ]]; then
+            echo "::error::Environment の Variable SUPABASE_PROJECT_ID が未設定、または形式が違います（20文字の Reference ID）。"
+            exit 1
+          fi
+          {
+            echo "## 適用先: ${TARGET_LABEL}（ブランチ \`${GITHUB_REF_NAME}\`）"
+            echo "- プロジェクトID: \`${PROJECT_ID}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Link project
+        run: supabase link --project-ref "${{ vars.SUPABASE_PROJECT_ID }}"
 
       # 承認待ちの間に未適用の集合が変わっていないか（承認した差分と同じものを適用するか）を確かめる
       - name: Verify pending set matches the approved dry run
@@ -220,5 +261,7 @@ jobs:
             echo "### 適用後に手動で確認すること"
             echo "1. Supabase ダッシュボードの SQL Editor で \`supabase/checks/*.sql\` を貼って実行する（どちらも読み取りのみ。エラーが出たら異常）。"
             echo "2. \`Migration status (after)\` で Local と Remote の履歴が揃っていることを確認する。"
-            echo "3. docs/RELEASE.md §4.4 の手順14（メンテナンス解除）と手順15（本番確認）を実施する。"
+            if [ "$TARGET_ENV" = "production" ]; then
+              echo "3. docs/RELEASE.md §4.4 の手順14（メンテナンス解除）と手順15（本番確認）を実施する。"
+            fi
           } >> "$GITHUB_STEP_SUMMARY"

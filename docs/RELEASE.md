@@ -197,7 +197,7 @@ where schemaname = 'public' and (qual ilike '%user_metadata%' or with_check ilik
 **GitHub Environment**（Settings → Environments）:
 
 - `production` に **Required reviewers が設定されている**こと。Environment が無い・保護ルールが空だと、ワークフローが Environment を自動作成して**承認なしで本番に適用される**。
-- `production` と `production-dry-run` の両方に Secrets（`SUPABASE_ACCESS_TOKEN` / `SUPABASE_PROJECT_ID` / `SUPABASE_DB_PASSWORD`）があること（§9）。
+- `production` と `production-dry-run` の両方に、Secrets（`SUPABASE_ACCESS_TOKEN` / `SUPABASE_DB_PASSWORD`）と Variable（`SUPABASE_PROJECT_ID`）があり、プロジェクトIDが**本番**のものであること（§9）。
 
 **cron**: `weekly-security-report` は `CRON_SECRET` 認証付きの API があるが、`vercel.json` の `crons` には `sync-embeddings` しか登録されていない。
 週次実行を想定しているなら、登録の要否をリリース前に決める（意図が不明なら登録しない現状のまま出す）。
@@ -223,7 +223,7 @@ where schemaname = 'public' and (qual ilike '%user_metadata%' or with_check ilik
    - 出店者ページ（`/my-shop`）
    - 管理画面（`/admin`）: 主要画面が開くか
 8. **マージする時間帯を決める** — 来訪者が少ない時間（金曜の日中〜夕方、日曜市開催時間外）。**日曜市の開催時間・前日は避ける**。
-9. **`main` へマージ** — Vercel が Production へ自動デプロイし、同時に `Migrations Deploy (Production)` の **dry-run ジョブ**が走る（承認不要・本番には書き込まない）。
+9. **`main` へマージ** — Vercel が Production へ自動デプロイし、同時に `Migrations Deploy` の **dry-run ジョブ**（本番）が走る（承認不要・本番には書き込まない）。
    この時点では**まだ本番DBは変わらない**。承認待ち（`apply` ジョブ）で止まっている。
 10. **dry-run の Step Summary を読む** — Actions の実行ページで次を確認する。
     - 未適用の件数とファイル一覧が §4.2 で把握した内容と一致しているか
@@ -277,7 +277,7 @@ where schemaname = 'public' and (qual ilike '%user_metadata%' or with_check ilik
 - [ ] 本番データの事前確認 SQL（§4.2）を実行し、結果を記録した
 - [ ] `npx supabase migration list --linked` で本番と履歴が揃っている（Remote だけにある履歴・手で適用済みの履歴を解消済み）
 - [ ] Vercel Production の環境変数（§4.3）を確認した。`NEXT_PUBLIC_SITE_URL` が不正でない
-- [ ] GitHub Environment `production` に Required reviewers がある。`production` と `production-dry-run` に Secrets がある
+- [ ] GitHub Environment `production` に Required reviewers がある。`production` と `production-dry-run` に Secrets と Variable（`SUPABASE_PROJECT_ID`）がある
 - [ ] `app/about/versions.ts` に新バージョンを追記した。`docs/changelog-unreleased/` の `#TBD` が残っていない
 - [ ] Preview で通し確認（マップ・検索・AI相談・近況・出店者・管理画面）を済ませた
 - [ ] 金曜（日曜市の前日・当日ではない）で、マージする時間帯が決まっている
@@ -421,22 +421,27 @@ where schemaname = 'public' and (qual ilike '%user_metadata%' or with_check ilik
 
 ```
 PR（全ブランチ対象）      Migrations Check   : まっさらなローカルPostgresに全マイグレーションを頭から適用。
-                                            本番には触らない。落ちたらマージしない。
-main にマージ（=リリース） Migrations Deploy  : 2ジョブ構成。
+                                            開発・本番には触らない。落ちたらマージしない。
+develop にマージ          Migrations Deploy  : 開発用 Supabase が対象。承認なしで dry-run → apply まで自動。
+main にマージ（=リリース） Migrations Deploy  : 本番 Supabase が対象。2ジョブ構成。
                             ① dry-run … 承認なし。未適用の一覧・破壊的な文を Step Summary に出す。本番は変えない。
                             ② apply   … Environment `production` の承認後に、未適用分だけを順に適用。
                                         承認した dry-run と未適用の集合が変わっていたら適用しない。
 ```
 
+- 適用先はブランチで決まる。**`develop` は開発用、`main` は本番用**のプロジェクトにだけ向かう。
+  手動実行（Run workflow）も、選んだブランチの対象にしか向かない（`main` / `develop` 以外では何も走らない）。
 - 承認の**前**に dry-run の差分を読める（承認待ちのジョブは `apply` で、dry-run は先に終わっている）。
+- dry-run と apply の Step Summary の先頭に「対象（開発/本番）」と「プロジェクトID」が出る。
+  承認する前に、IDが想定のプロジェクトか（本番は `yrypxygzqtkdwvasczsq`）を必ず見る。
 - Supabase CLI は `migrations-deploy.yml` / `migrations-check.yml` の両方で**バージョン固定**（`supabase/setup-cli` もコミット SHA 固定）。
   上げるときは両方を同時に変え、dry-run で挙動を確かめる。
 - 適用後の `supabase/checks/*.sql` は本番に自動では流さない（Actions から本番DBへ psql を張っていない）。SQL Editor で手動実行する（§4.4 手順13）。
 
 - 適用済みかどうかは Supabase 側の `supabase_migrations.schema_migrations` で管理される。
   同じファイルが二度適用されることはない。
-- `develop` やフィーチャーブランチへのマージでは本番に適用しない。本番DBは1つしかないため、未リリースのコードが前提の
-  スキーマ変更を先に本番へ入れないようにしている。
+- `develop` やフィーチャーブランチへのマージでは本番に適用しない。`develop` は開発用プロジェクトにだけ適用される。
+  未リリースのコードが前提のスキーマ変更を、先に本番へ入れないようにしている。
 - `migrations-deploy.yml` は事前検証でリモート履歴乖離（手動SQLや別ブランチ由来）を検知し、復旧用 repair コマンドを Step Summary に提示する。
 - ロールバックは自動化しない。失敗時は Actions のログを見て、修正マイグレーションを追加して対処する。
   DB を巻き戻せるのは**バックアップ（PITR）からの復元だけ**（Vercel の Instant Rollback はアプリのみ。§4.5）。
@@ -457,15 +462,28 @@ main にマージ（=リリース） Migrations Deploy  : 2ジョブ構成。
 
 ### 初回セットアップ（1回だけ・要 Supabase 管理者権限）
 
-1. **GitHub Environment `production` を作る** — Settings → Environments → New environment。
-   Deployment protection rules で **Required reviewers** を設定する（承認者はリリース担当者）。
-   **Environment が無い／保護ルールが空だと、ワークフローが自動作成して承認なしで本番に適用する**ので、必ず先に作る。
-   あわせて、ドライラン用に **`production-dry-run`** を作る（Required reviewers は付けない。Deployment branches は `main` のみ）。
-   Environment Secrets はその Environment を指定したジョブにしか渡らないため、承認なしで走る dry-run ジョブには専用の Environment が要る。
-2. **Environment secrets を登録する**（Repository secrets ではなく Environment 側に入れる。`production` と `production-dry-run` の両方に同じ3つ）
-   - `SUPABASE_ACCESS_TOKEN` — https://supabase.com/dashboard/account/tokens で発行
-   - `SUPABASE_PROJECT_ID` — 本番プロジェクトの Reference ID（Settings → General）
-   - `SUPABASE_DB_PASSWORD` — 本番DBパスワード（Settings → Database）
+1. **GitHub Environment を3つ作る** — Settings → Environments → New environment。
+
+   | Environment | 使うブランチ | Required reviewers | Deployment branches |
+   |---|---|---|---|
+   | `production` | `main`（apply） | **必須**（承認者はリリース担当者） | `main` のみ |
+   | `production-dry-run` | `main`（dry-run） | 付けない | `main` のみ |
+   | `development` | `develop`（dry-run と apply の両方） | 付けない | `develop` のみ |
+
+   **Environment が無い／保護ルールが空だと、ワークフローが自動作成して承認なしで適用する**ので、本番は必ず先に作る。
+   Environment の Secrets / Variables はその Environment を指定したジョブにしか渡らないため、承認なしで走る dry-run ジョブには専用の Environment が要る。
+   開発は承認なしで進める方針なので、dry-run と apply で同じ `development` を使う。
+2. **Environment の Secrets と Variables を登録する**（Repository 側ではなく Environment 側に入れる）。
+   各 Environment に、**そのプロジェクトの値**を入れる。本番用の2つ（`production` / `production-dry-run`）は同じ本番の値、`development` は開発用の値。
+
+   | 種類 | 名前 | 内容 |
+   |---|---|---|
+   | Secret | `SUPABASE_ACCESS_TOKEN` | https://supabase.com/dashboard/account/tokens で発行。環境ごとに別のトークンにすると、漏れたときの影響を絞れる |
+   | Secret | `SUPABASE_DB_PASSWORD` | そのプロジェクトの DB パスワード（Settings → Database） |
+   | **Variable** | `SUPABASE_PROJECT_ID` | そのプロジェクトの Reference ID（20文字。Settings → General） |
+
+   プロジェクトIDは秘密ではないので **Variables** に入れる。Secrets に入れると GitHub が同じ文字列を `***` に伏せてしまい、
+   Summary やログで接続先を確認できない。ワークフローは、形式（小文字20文字）が違う・未設定のときは止まる。
 3. **本番の適用履歴とリポジトリを揃える**（#425 の調査とセットで行う）
    ```bash
    npx supabase link --project-ref <本番 project ref>
@@ -476,7 +494,7 @@ main にマージ（=リリース） Migrations Deploy  : 2ジョブ構成。
    - 本番に存在しない変更（本当に未適用）はそのまま残す → 次のリリースで自動適用される
    - `20260414081611_remote_schema.sql` のように本番を直接いじった痕跡があるものは、
      内容を読んで「本番には反映済み」と判断できれば `applied` にする
-4. **dry run で確認する** — Actions → `Migrations Deploy (Production)` → Run workflow（`dry_run` = true）。
+4. **dry run で確認する** — Actions → `Migrations Deploy` → Run workflow（Use workflow from で `main` を選ぶ。`dry_run` = true）。
    `dry-run` ジョブの Step Summary（未適用の一覧・破壊的な文・`Dry run` の出力）が期待どおりか見る。
    `dry_run` = true のときは `apply` ジョブは走らない。
 5. 問題なければ以降は `main` マージごとに dry-run が自動で起動し、`apply` は承認待ちになる。
@@ -484,7 +502,7 @@ main にマージ（=リリース） Migrations Deploy  : 2ジョブ構成。
 
 ### うまくいかないとき
 
-**`Migrations Deploy (Production)` が一瞬で失敗する / `main` 以外のブランチでも走る**
+**`Migrations Deploy` が一瞬で失敗する / `main` `develop` 以外のブランチでも走る**
 
 Actions の一覧で、実行名がワークフロー名ではなく `.github/workflows/migrations-deploy.yml`
 とファイルパスで出ていて、ジョブが1つも無く、所要時間が0秒なら、ワークフロー定義の
