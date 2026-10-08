@@ -63,6 +63,46 @@ describe("toAnthropicParams", () => {
     expect(params.max_tokens).toBe(ANTHROPIC_DEFAULT_MAX_TOKENS);
   });
 
+  it("相談の写真（data URL）は画像ブロックにして渡す", () => {
+    const params = toAnthropicParams({
+      model: "m",
+      messages: [
+        {
+          role: "user",
+          content: [
+            { type: "text", text: "これは何？" },
+            { type: "image_url", image_url: { url: "data:image/jpeg;base64,QUJD" } },
+          ],
+        },
+      ],
+    });
+    expect(params.messages).toEqual([
+      {
+        role: "user",
+        content: [
+          { type: "text", text: "これは何？" },
+          { type: "image", source: { type: "base64", media_type: "image/jpeg", data: "QUJD" } },
+        ],
+      },
+    ]);
+  });
+
+  it("対応していない形式の画像は落とし、文字だけを送る", () => {
+    const params = toAnthropicParams({
+      model: "m",
+      messages: [
+        {
+          role: "user",
+          content: [
+            { type: "text", text: "見て" },
+            { type: "image_url", image_url: { url: "data:image/heic;base64,QUJD" } },
+          ],
+        },
+      ],
+    });
+    expect(params.messages).toEqual([{ role: "user", content: "見て" }]);
+  });
+
   it("空の発言は送らない", () => {
     const params = toAnthropicParams({
       model: "m",

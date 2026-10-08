@@ -43,13 +43,50 @@ function describeJsonSchema(responseFormat: unknown): string | null {
 
 function textOf(content: unknown): string {
   if (typeof content === "string") return content;
-  // 画像などの配列はまだ呼び出し側から来ない。来たら黙って落とさず、文字の部分だけ使う
   if (Array.isArray(content)) {
     return content
       .map((part) => (part && typeof part === "object" && "text" in part ? String((part as { text: unknown }).text) : ""))
       .join("");
   }
   return "";
+}
+
+type ImageMediaType = Anthropic.Base64ImageSource["media_type"];
+const IMAGE_MEDIA_TYPES: readonly ImageMediaType[] = ["image/jpeg", "image/png", "image/gif", "image/webp"];
+
+/** OpenAI の image_url（data URL か https の URL）を Messages API の画像ブロックにする。読めない形は null */
+function toImageBlock(part: unknown): Anthropic.ImageBlockParam | null {
+  const url = (part as { image_url?: { url?: unknown } } | null)?.image_url?.url;
+  if (typeof url !== "string") return null;
+  const dataUrl = url.match(/^data:([^;,]+);base64,(.+)$/);
+  if (dataUrl) {
+    const mediaType = dataUrl[1] as ImageMediaType;
+    if (!IMAGE_MEDIA_TYPES.includes(mediaType)) return null;
+    return { type: "image", source: { type: "base64", media_type: mediaType, data: dataUrl[2] } };
+  }
+  if (/^https:\/\//.test(url)) return { type: "image", source: { type: "url", url } };
+  return null;
+}
+
+/**
+ * user の発言の中身を Messages API の形にする。
+ * 相談の写真（OpenAI の image_url）は画像ブロックに直して渡す。画像が無ければ文字列のまま
+ */
+function userContentOf(content: unknown): string | Anthropic.ContentBlockParam[] {
+  if (!Array.isArray(content)) return textOf(content);
+  const blocks: Anthropic.ContentBlockParam[] = [];
+  for (const part of content) {
+    const type = (part as { type?: unknown } | null)?.type;
+    if (type === "image_url") {
+      const image = toImageBlock(part);
+      if (image) blocks.push(image);
+    } else {
+      const text = textOf([part]);
+      if (text) blocks.push({ type: "text", text });
+    }
+  }
+  if (!blocks.some((block) => block.type === "image")) return textOf(content);
+  return blocks;
 }
 
 /**
@@ -65,9 +102,12 @@ export function toAnthropicParams(body: Record<string, unknown>): Anthropic.Mess
     const text = textOf(message.content);
     if (message.role === "system") {
       if (text) systemParts.push(text);
-    } else if (message.role === "user" || message.role === "assistant") {
+    } else if (message.role === "user") {
+      const content = userContentOf(message.content);
       // 空の文字列は Messages API が 400 にする
-      if (text) turns.push({ role: message.role, content: text });
+      if (typeof content !== "string" || content) turns.push({ role: "user", content });
+    } else if (message.role === "assistant") {
+      if (text) turns.push({ role: "assistant", content: text });
     }
   }
   const schemaNote = describeJsonSchema(body.response_format);
