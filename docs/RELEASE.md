@@ -443,10 +443,6 @@ main にマージ（=リリース） Migrations Deploy  : 本番 Supabase が対
 |---|---|---|
 | 本番 | `yrypxygzqtkdwvasczsq` | `main` の適用先（Environment `production` / `production-dry-run`） |
 | 開発（`nicchyo-development`） | `dbaufykimgzfgoeyyxwz` | `develop` の適用先（Environment `development`） |
-
-> **切り替えが済むまでの注意（2026-10-08 時点）**: Vercel の Production はまだ `dbaufykimgzfgoeyyxwz`（開発）を見ている。
-> この間は `develop` への push が、本番アプリの使う DB に承認なしで適用される。Vercel の Production / Preview の環境変数を
-> 本番プロジェクトへ切り替えるまで、Environment `development` にも Required reviewers を付けておくこと。切り替えたらこの注意を消す。
 - Supabase CLI は `migrations-deploy.yml` / `migrations-check.yml` の両方で**バージョン固定**（`supabase/setup-cli` もコミット SHA 固定）。
   上げるときは両方を同時に変え、dry-run で挙動を確かめる。
 - 適用後の `supabase/checks/*.sql` は本番に自動では流さない（Actions から本番DBへ psql を張っていない）。SQL Editor で手動実行する（§4.4 手順13）。
