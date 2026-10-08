@@ -93,4 +93,16 @@ describe("maskPii", () => {
   it("空文字列はそのまま返す", () => {
     expect(maskPii("")).toBe("");
   });
+
+  it("「%」や「.」を大量に含む入力でも一瞬で終わる（ReDoS対策）", () => {
+    for (const text of ["%".repeat(50000), "a@" + "a.".repeat(50000), "a".repeat(50000)]) {
+      const t0 = performance.now();
+      maskPii(text);
+      expect(performance.now() - t0).toBeLessThan(500);
+    }
+  });
+
+  it("文章中のメールアドレスは従来どおりマスクする", () => {
+    expect(maskPii("連絡は taro.yamada+x@example.co.jp まで")).toBe("連絡は [メールアドレス] まで");
+  });
 });
