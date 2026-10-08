@@ -1,9 +1,8 @@
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
-import { createClient as createServerClient } from "@/utils/supabase/server";
 import { requireSameOrigin } from "@/lib/security/requestGuards";
 import { enforceRateLimit } from "@/lib/security/rateLimit";
-import { getRole, isAdmin } from "@/lib/auth/permissions";
+import { getRole } from "@/lib/auth/permissions";
+import { authorizeAdmin } from "@/lib/auth/requireAdminApi";
 import { createAdminClient } from "@/lib/supabase/adminClient";
 
 export const runtime = "nodejs";
@@ -28,15 +27,10 @@ export async function POST(req: Request) {
   });
   if (rateLimited) return rateLimited;
 
-  const cookieStore = await cookies();
-  const supabase = createServerClient(cookieStore);
-  const { data: { user } } = await supabase.auth.getUser();
-
   // 監査ログは admin だけが読み書きする（RLS の audit_logs_select_admin と同じ範囲）
+  const { user, error: authError } = await authorizeAdmin();
+  if (!user) return NextResponse.json({ error: authError }, { status: 403 });
   const role = getRole(user);
-  if (!user || !isAdmin(role)) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
 
   const body = (await req.json().catch(() => null)) as AuditLogPayload | null;
   if (!body || typeof body.action !== "string" || !body.action) {
@@ -71,19 +65,17 @@ export async function POST(req: Request) {
 }
 
 export async function GET(req: Request) {
-  const cookieStore = await cookies();
-  const supabase = createServerClient(cookieStore);
-  const { data: { user } } = await supabase.auth.getUser();
-
-  if (!user || !isAdmin(getRole(user))) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
+  const { user, error: authError } = await authorizeAdmin();
+  if (!user) return NextResponse.json({ error: authError }, { status: 403 });
 
   const url = new URL(req.url);
   const parsedLimit = parseInt(url.searchParams.get("limit") ?? "500", 10);
   const limit = Number.isNaN(parsedLimit) ? 500 : Math.min(Math.max(parsedLimit, 1), 1000);
 
-  const dc = createAdminClient() ?? supabase;
+  const dc = createAdminClient();
+  if (!dc) {
+    return NextResponse.json({ error: "Service unavailable" }, { status: 503 });
+  }
   const { data, count, error } = await dc
     .from("admin_audit_logs")
     .select("*", { count: "exact" })
