@@ -38,7 +38,8 @@ name: Migrations Deploy
 #
 # 前提: 各プロジェクトの適用履歴とリポジトリが一致していること（docs/RELEASE.md §9）。
 
-run-name: Migrations Deploy → ${{ github.ref_name == 'main' && '本番' || '開発' }}（${{ github.ref_name }}）
+# main / develop 以外は jobs の `if` でスキップされるので、一覧でも「対象外」と出す。
+run-name: Migrations Deploy → ${{ github.ref_name == 'main' && '本番' || github.ref_name == 'develop' && '開発' || '対象外' }}（${{ github.ref_name }}）
 
 on:
   push:
