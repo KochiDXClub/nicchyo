@@ -3,7 +3,7 @@ import { cookies } from "next/headers";
 import { createClient as createServerClient } from "@/utils/supabase/server";
 import { requireSameOrigin } from "@/lib/security/requestGuards";
 import { enforceRateLimit } from "@/lib/security/rateLimit";
-import { getRole, isModerator } from "@/lib/auth/permissions";
+import { getRole, isAdmin } from "@/lib/auth/permissions";
 import { createAdminClient } from "@/lib/supabase/adminClient";
 
 export const runtime = "nodejs";
@@ -32,13 +32,14 @@ export async function POST(req: Request) {
   const supabase = createServerClient(cookieStore);
   const { data: { user } } = await supabase.auth.getUser();
 
+  // 監査ログは admin だけが読み書きする（RLS の audit_logs_select_admin と同じ範囲）
   const role = getRole(user);
-  if (!user || !isModerator(role)) {
+  if (!user || !isAdmin(role)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const body = await req.json() as AuditLogPayload;
-  if (!body.action) {
+  const body = (await req.json().catch(() => null)) as AuditLogPayload | null;
+  if (!body || typeof body.action !== "string" || !body.action) {
     return NextResponse.json({ error: "action is required" }, { status: 400 });
   }
 
@@ -74,13 +75,13 @@ export async function GET(req: Request) {
   const supabase = createServerClient(cookieStore);
   const { data: { user } } = await supabase.auth.getUser();
 
-  if (!user || !isModerator(getRole(user))) {
+  if (!user || !isAdmin(getRole(user))) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
   const url = new URL(req.url);
   const parsedLimit = parseInt(url.searchParams.get("limit") ?? "500", 10);
-  const limit = Math.min(Number.isNaN(parsedLimit) ? 500 : parsedLimit, 1000);
+  const limit = Number.isNaN(parsedLimit) ? 500 : Math.min(Math.max(parsedLimit, 1), 1000);
 
   const dc = createAdminClient() ?? supabase;
   const { data, count, error } = await dc
