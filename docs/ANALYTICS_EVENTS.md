@@ -16,9 +16,9 @@
 |---|---|---|
 | GA4 / GTM | `sendEvent`（`dataLayer.push` と `gtag("event")`） | GA。本番のみ `loadGA()` で遅延読み込み |
 | サーバー記録 | `sendEvent(..., { toServer: true })` | 下表の API |
-| ページ訪問 | `app/components/PageVisitTracker.tsx` | `POST /api/analytics/page-visit`、遷移ごとの GA4 `page_view`（`gtag()` を直接呼ぶ。`sendEvent` は経由しない） |
+| ページ訪問 | `app/components/PageVisitTracker.tsx` | `POST /api/analytics/page-visit`（`web_page_analytics` ＋ 来訪者全体の日次ユニーク数 `web_visitor_stats`。「今週の訪問者」の集計元）、遷移ごとの GA4 `page_view`（`gtag()` を直接呼ぶ。`sendEvent` は経由しない） |
 | 店舗詳細の閲覧数 | `recordShopView()`（`lib/analytics/shopViews.ts`） | `POST /api/analytics/shop-view` |
-| マイページ訪問 | `app/(public)/my-shop/layout.tsx` | `POST /api/analytics/home-visit` |
+| マイページ訪問 | `app/(public)/my-shop/layout.tsx` | `POST /api/analytics/home-visit`（`web_visitor_stats` へは page-visit と同じ日次ユニークに合流するので二重には数えない） |
 
 `/api/analytics/home-summary` は出店者ホームの集計取得用（書き込みではない）。
 
