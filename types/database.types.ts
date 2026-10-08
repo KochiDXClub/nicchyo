@@ -755,44 +755,6 @@ export type Database = {
           },
         ]
       }
-      product_sales: {
-        Row: {
-          created_at: string
-          id: string
-          product_name: string
-          quantity: number
-          sale_date: string
-          updated_at: string
-          vendor_id: string
-        }
-        Insert: {
-          created_at?: string
-          id?: string
-          product_name: string
-          quantity: number
-          sale_date?: string
-          updated_at?: string
-          vendor_id: string
-        }
-        Update: {
-          created_at?: string
-          id?: string
-          product_name?: string
-          quantity?: number
-          sale_date?: string
-          updated_at?: string
-          vendor_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "product_sales_vendor_id_fkey"
-            columns: ["vendor_id"]
-            isOneToOne: false
-            referencedRelation: "vendors"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       product_search_logs: {
         Row: {
           id: string
@@ -890,27 +852,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
-      }
-      report_readers: {
-        Row: {
-          added_at: string
-          email: string
-          id: string
-          note: string | null
-        }
-        Insert: {
-          added_at?: string
-          email: string
-          id?: string
-          note?: string | null
-        }
-        Update: {
-          added_at?: string
-          email?: string
-          id?: string
-          note?: string | null
-        }
-        Relationships: []
       }
       reports: {
         Row: {
@@ -1023,72 +964,6 @@ export type Database = {
         }
         Relationships: []
       }
-      shop_attendance_vendor: {
-        Row: {
-          created_at: string
-          id: string
-          is_open: boolean
-          shop_id: string
-          updated_at: string
-          vendor_confirmed: boolean
-          vendor_id: string
-          vote_date: string
-        }
-        Insert: {
-          created_at?: string
-          id?: string
-          is_open: boolean
-          shop_id: string
-          updated_at?: string
-          vendor_confirmed?: boolean
-          vendor_id: string
-          vote_date: string
-        }
-        Update: {
-          created_at?: string
-          id?: string
-          is_open?: boolean
-          shop_id?: string
-          updated_at?: string
-          vendor_confirmed?: boolean
-          vendor_id?: string
-          vote_date?: string
-        }
-        Relationships: []
-      }
-      shop_attendance_votes: {
-        Row: {
-          created_at: string
-          id: string
-          shop_id: string
-          updated_at: string
-          user_id: string
-          vote_date: string
-          vote_yes: boolean
-          weight: number
-        }
-        Insert: {
-          created_at?: string
-          id?: string
-          shop_id: string
-          updated_at?: string
-          user_id: string
-          vote_date: string
-          vote_yes: boolean
-          weight?: number
-        }
-        Update: {
-          created_at?: string
-          id?: string
-          shop_id?: string
-          updated_at?: string
-          user_id?: string
-          vote_date?: string
-          vote_yes?: boolean
-          weight?: number
-        }
-        Relationships: []
-      }
       shop_page_views: {
         Row: {
           id: string
@@ -1117,69 +992,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
-      }
-      shops_import: {
-        Row: {
-          lat: number | null
-          legacy_id: number | null
-          lng: number | null
-        }
-        Insert: {
-          lat?: number | null
-          legacy_id?: number | null
-          lng?: number | null
-        }
-        Update: {
-          lat?: number | null
-          legacy_id?: number | null
-          lng?: number | null
-        }
-        Relationships: []
-      }
-      shops_name_staging: {
-        Row: {
-          id: string
-          name: string
-        }
-        Insert: {
-          id: string
-          name: string
-        }
-        Update: {
-          id?: string
-          name?: string
-        }
-        Relationships: []
-      }
-      shops_strong: {
-        Row: {
-          legacy_id: number | null
-          shop_strength: string | null
-        }
-        Insert: {
-          legacy_id?: number | null
-          shop_strength?: string | null
-        }
-        Update: {
-          legacy_id?: number | null
-          shop_strength?: string | null
-        }
-        Relationships: []
-      }
-      shops_topic_import: {
-        Row: {
-          id: string
-          topic: Json | null
-        }
-        Insert: {
-          id: string
-          topic?: Json | null
-        }
-        Update: {
-          id?: string
-          topic?: Json | null
-        }
-        Relationships: []
       }
       store_knowledge: {
         Row: {
@@ -1246,21 +1058,6 @@ export type Database = {
           updated_at?: string
           updated_by?: string | null
           value?: Json
-        }
-        Relationships: []
-      }
-      todos: {
-        Row: {
-          id: string
-          todo: string
-        }
-        Insert: {
-          id?: string
-          todo: string
-        }
-        Update: {
-          id?: string
-          todo?: string
         }
         Relationships: []
       }
@@ -1642,17 +1439,6 @@ export type Database = {
         Returns: {
           cnt: number
           vendor_content_id: string
-        }[]
-      }
-      get_shop_attendance_estimates: {
-        Args: { target_date: string }
-        Returns: {
-          evidence_summary: string
-          label: string
-          n_eff: number
-          p: number
-          shop_id: string
-          vendor_override: boolean
         }[]
       }
       match_knowledge_embeddings: {
