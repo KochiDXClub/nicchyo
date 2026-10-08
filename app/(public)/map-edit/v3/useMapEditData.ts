@@ -4,6 +4,7 @@ import {
   getRouteCenter,
 } from "../../map/utils/mapRouteGeometry";
 import type { MapRouteConfig, MapRoutePoint } from "../../map/types/mapRoute";
+import { NEW_VENDOR_ID_PREFIX } from "../../map/types/editableShop";
 import { createProjection } from "./geo";
 import type { EntityChange } from "./editHistory";
 import type {
@@ -62,9 +63,16 @@ export function buildSavePayloadDiff(changes: EntityChange[]) {
       upsert: landmarkChanges.flatMap((change) => (change.after ? [change.after as EditableLandmark] : [])),
       deletedKeys: landmarkChanges.filter((change) => change.before && !change.after).map((change) => change.id),
     },
-    // 出店者は画面から削除しない（「空きにする」は割り当てを外すだけ）ので、追加・更新だけを送る
+    // 「空きにする」は割り当てを外すだけで出店者は消えない。出店者が消えるのは、CSV の取り込みで
+    // 「削除する区画の出店者も削除」を選んだときだけ。画面で追加してまだ保存していない出店者（仮 id）は
+    // DB に無いので、削除対象に含めない
     vendors: {
       upsert: vendorChanges.flatMap((change) => (change.after ? [change.after as EditableVendor] : [])),
+      deletedIds: vendorChanges
+        .filter((change) => change.before && !change.after && !change.id.startsWith(NEW_VENDOR_ID_PREFIX))
+        .map((change) => change.id),
+      // サーバーは、削除する出店者があるのにこれが true でなければ拒否する（画面で確かめた印）
+      confirmDelete: true,
     },
   };
 }
