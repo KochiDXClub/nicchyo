@@ -16,9 +16,13 @@ export const EDITOR_COLORS = {
   surface: "#ffffff",
   /** 保存していない変更がある要素の印 */
   unsaved: "#2563EB",
-  /** 地図上の区画: 空き（グレー）と出店者あり（ピン） */
-  vacantSlot: "#CFC8B8",
-  vacantSlotStroke: "#8C8471",
+  /**
+   * 地図上の区画: 空き（赤）と出店者あり（ピン）。
+   * 出店者を割り当て忘れた区画を地図の上でひと目で探せるよう、空きは目立つ赤にする。
+   * 区画分けで「消す」プレビューの赤（previewDelete）とは別の、赤紫寄りの色にして混ざらないようにする
+   */
+  vacantSlot: "#E11D48",
+  vacantSlotStroke: "#9F1239",
   occupiedSlot: "#D97706",
   selectedSlot: "#B45309",
   /** 区画分けのプレビュー: 新しく作る区画・動く区画・消す区画 */
