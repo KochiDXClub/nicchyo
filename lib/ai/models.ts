@@ -29,9 +29,24 @@ export type AiUseCase = "consult" | "shopChat" | "itinerary" | "vendorHelp";
  */
 export type ReasoningEffort = "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
 
+/**
+ * モデルの提供元。呼び出し先のAPIが変わる。
+ * Anthropic のモデルも、呼び出し側（OpenAI の Chat Completions 形式）からは同じ形で扱えるよう
+ * lib/ai/anthropicAdapter.ts が変換する
+ */
+export type AiProvider = "openai" | "anthropic";
+
+export const AI_PROVIDERS: readonly AiProvider[] = ["openai", "anthropic"];
+
+export function isAiProvider(value: unknown): value is AiProvider {
+  return typeof value === "string" && AI_PROVIDERS.includes(value as AiProvider);
+}
+
 export type AiModelDef = {
-  /** OpenAI API に渡す model 名 */
+  /** 提供元のAPIに渡す model 名 */
   id: string;
+  /** どの提供元のAPIを呼ぶか */
+  provider: AiProvider;
   /** 管理画面の表示名 */
   label: string;
   /** 管理画面の説明。運営が「どれを選べばいいか」を判断できる言葉にする */
@@ -70,6 +85,7 @@ export type AiModelDef = {
 export const AI_MODEL_DEFS: readonly AiModelDef[] = [
   {
     id: "gpt-4o-mini",
+    provider: "openai",
     label: "GPT-4o mini（現行）",
     description:
       "長く使ってきた既定のモデル。速度・安定性ともに実績がある。ChatGPT と Azure では提供が終了しており、APIもいずれ終わる見込み。",
@@ -81,6 +97,7 @@ export const AI_MODEL_DEFS: readonly AiModelDef[] = [
   },
   {
     id: "gpt-5.4-nano",
+    provider: "openai",
     label: "GPT-5.4 nano（推奨）",
     description:
       "会話向けの軽量モデル。2026-07 の比較で最速だった。相談・店舗チャット・意図抽出のような、速さが体験を決める場面向け。",
@@ -95,6 +112,7 @@ export const AI_MODEL_DEFS: readonly AiModelDef[] = [
   },
   {
     id: "gpt-5.4-mini",
+    provider: "openai",
     label: "GPT-5.4 mini",
     description:
       "nano より賢いが約4倍高く、体感で2倍遅い。回り方プランのように、実際に順序を考える必要がある場面向け。",
@@ -108,6 +126,7 @@ export const AI_MODEL_DEFS: readonly AiModelDef[] = [
   },
   {
     id: "gpt-5-nano",
+    provider: "openai",
     label: "GPT-5 nano（最安）",
     description:
       "候補の中で最も安い。5.4 nano より前の世代なので品質は落ちる。コストを最優先する場面向け。",
@@ -119,6 +138,7 @@ export const AI_MODEL_DEFS: readonly AiModelDef[] = [
   },
   {
     id: "gpt-5.6-luna",
+    provider: "openai",
     label: "GPT-5.6 Luna",
     description:
       "5.6 世代の軽量モデル。価格は 5.4 nano とほぼ同じ。推論を切れば速いが、既定のままだと考えてから答えるぶん待ちが伸びる。",
@@ -130,6 +150,7 @@ export const AI_MODEL_DEFS: readonly AiModelDef[] = [
   },
   {
     id: "gpt-6-luna",
+    provider: "openai",
     label: "GPT-6 Luna",
     description:
       "6 世代の軽量モデル（5.6 Luna の後継）。候補の中で 5 nano の次に安く、推論なしなら最初の文字が出るのが速い。深さを上げると考えてから答えるぶん待ちが伸びる。",
@@ -143,6 +164,21 @@ export const AI_MODEL_DEFS: readonly AiModelDef[] = [
     reasoningEfforts: ["none", "low", "medium", "high", "xhigh", "max"],
     // 5.6 Luna より出力が長めになる傾向があるので、5.6 Luna と同じ余白を確保する
     reasoningHeadroomTokens: 6000,
+    pricing: { input: 0.1, output: 0.5 },
+  },
+  {
+    id: "claude-haiku-5-5",
+    provider: "anthropic",
+    label: "Claude Haiku 5.5",
+    description:
+      "Anthropic の軽量モデル（ANTHROPIC_API_KEY が必要）。価格は GPT-6 Luna と同じ水準。temperature は送らず、考え込まずに答える設定で呼ぶ。キーが無い・拒否されたときは既定のモデルに切り替わる。",
+    tokenParam: "max_tokens",
+    // Haiku 5.5 は既定値（1）以外の temperature を 400 で拒否する。送らない
+    supportsTemperature: false,
+    // 推論の深さはアダプタ側で「考え込まない」に固定する。台帳からは選ばせない
+    reasoningEfforts: [],
+    reasoningHeadroomTokens: 0,
+    // 100K トークンまでのプロンプトの価格
     pricing: { input: 0.1, output: 0.5 },
   },
 ];
@@ -304,6 +340,13 @@ export function parseAiModelRow(row: unknown): AiModelDef | null {
     ? r.reasoning_efforts.filter(isReasoningEffort)
     : [];
 
+  // 提供元が未知・未設定の行は OpenAI として扱う（provider 列を足す前の行と同じ）
+  const provider: AiProvider = r.provider === "anthropic" ? "anthropic" : "openai";
+
+  // Anthropic は出力上限が max_tokens で、推論の深さを台帳から指定する経路が無い。
+  // 合わない組み合わせはアダプタが正しいリクエストを組めないので捨てる
+  if (provider === "anthropic" && (tokenParam !== "max_tokens" || efforts.length > 0)) return null;
+
   // 推論モデルに max_tokens を送ると 400 で全リクエストが落ちる
   if (efforts.length > 0 && tokenParam !== "max_completion_tokens") return null;
 
@@ -321,6 +364,7 @@ export function parseAiModelRow(row: unknown): AiModelDef | null {
 
   return {
     id,
+    provider,
     label,
     description: typeof r.description === "string" ? r.description : "",
     tokenParam,
