@@ -28,6 +28,15 @@ function oneLine(value, max) {
   return chars.length > max ? `${chars.slice(0, max - 1).join('')}…` : chars.join('');
 }
 
+// `相談(security-reviewer→legal-counsel): 規約の確認` / `consult(a->b): …`。矢印は → > ＞ -> のどれでもよい
+function parseConsult(description) {
+  if (!description) return undefined;
+  const match = description.match(/^(?:相談|consult)\s*[(（]\s*([^→>＞)）]+?)\s*(?:→|->|＞|>)\s*[^)）]+?\s*[)）]\s*[:：]?\s*(.*)$/i);
+  if (!match) return undefined;
+  const from = match[1].trim();
+  return from ? { from: from.slice(0, 40), brief: match[2].trim() || undefined } : undefined;
+}
+
 function todoSummary(input) {
   const todos = Array.isArray(input?.todos) ? input.todos : [];
   if (!todos.length) return {};
@@ -109,7 +118,10 @@ async function main() {
   }
   if (DELEGATE_TOOLS.has(tool)) {
     extra.delegate_role = oneLine(toolInput.subagent_type, 40) ?? 'general-purpose';
-    if (TASKS_ON) extra.delegate_brief = oneLine(toolInput.description ?? toolInput.prompt, 40);
+    // 相談の取り決め: description を `相談(依頼元→相談先): 一言` の形で書くと、「◯◯に代わって専門家に聞きに行く」と表示される
+    const consult = parseConsult(oneLine(toolInput.description, 80));
+    if (consult) extra.consult_from = consult.from;
+    if (TASKS_ON) extra.delegate_brief = oneLine(consult ? consult.brief : (toolInput.description ?? toolInput.prompt), 40);
   }
   if (tool === 'SendMessage') {
     extra.talk_to = oneLine(toolInput.to ?? toolInput.recipient, 40);
