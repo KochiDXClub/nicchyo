@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { projectOntoRoad } from "@/lib/map/roadSlotPosition";
 import { EDITOR_COLORS } from "../editorTheme";
-import { CHOME_ORDER, type EditableRoad, type EditableShop } from "../types";
+import { CHOME_WEST_TO_EAST, type EditableRoad, type EditableShop } from "../types";
 import { slotLabel } from "../../../map/types/editableShop";
 
 export type Side = "north" | "south";
@@ -59,7 +59,7 @@ export function buildLaneRoadGroups(
         byChome.set(key, list);
       }
 
-      const orderedChomeKeys = [...CHOME_ORDER, "その他"].filter((key) => byChome.has(key));
+      const orderedChomeKeys = [...CHOME_WEST_TO_EAST, "その他"].filter((key) => byChome.has(key));
       const sections: LaneSection[] = orderedChomeKeys.map((chome) => {
         const withSide = byChome.get(chome)!.map((shop) => ({ shop, ...sideOfShop(shop, road) }));
         const north = withSide.filter((m) => m.side === "north").sort((a, b) => a.order - b.order);

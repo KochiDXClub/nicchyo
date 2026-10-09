@@ -82,6 +82,14 @@ describe("parseStoreCsv", () => {
 });
 
 describe("planStoreImport", () => {
+  it("丁目は西から七・六…一丁目の順に並ぶ", () => {
+    const result = plan(csv(["1,,一丁目,北,,,", "2,,六丁目,北,,,", "3,,七丁目,北,,,"]));
+    const shops = result.next!.shops;
+    const lng = (n: number) => shops.find((s) => s.officialNumber === n)!.lng;
+    expect(lng(3)).toBeLessThan(lng(2));
+    expect(lng(2)).toBeLessThan(lng(1));
+  });
+
   it("北は道の北側、南は南側に、一丁目（西）から番号順に並べ、出店者を作って割り当てる", () => {
     const result = plan(csv(["2,,一丁目,北,朝市の八百屋,野菜,食材", "1,,一丁目,北,,,", "3,,二丁目,南,,,"]));
     expect(result.errors).toEqual([]);
