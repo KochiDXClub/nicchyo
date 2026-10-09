@@ -7,10 +7,13 @@
  * 3秒ごとに次の写真へ重ねて切り替え、最後まで行ったら最初に戻って回り続ける。
  * 動きを減らす設定の人には、ふわっと重ねずにぱっと切り替える。
  *
+ * children は写真の上（左下）に重ねて出す。写真が変わっても読めるよう、
+ * 写真全体を少し暗くし、文字には影を付ける。
+ *
  * 写真を差し替えるときは INTRO_PHOTOS だけを直す。
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import Image from 'next/image';
 import { useReducedMotion } from 'framer-motion';
 import { cn } from '@/lib/utils/cn';
@@ -23,7 +26,7 @@ const INTRO_PHOTOS = [
 
 const INTERVAL_MS = 3000;
 
-export default function IntroPhotoCarousel() {
+export default function IntroPhotoCarousel({ children }: { children?: ReactNode }) {
   const reduceMotion = useReducedMotion();
   const [index, setIndex] = useState(0);
 
@@ -52,6 +55,9 @@ export default function IntroPhotoCarousel() {
           )}
         />
       ))}
+      {children && (
+        <div className="absolute inset-0 flex items-end bg-nicchyo-ink/25 p-4 md:p-6">{children}</div>
+      )}
     </div>
   );
 }

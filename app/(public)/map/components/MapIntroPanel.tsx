@@ -426,18 +426,14 @@ export default function MapIntroPanel({
               いちばん上には日曜市の写真を回して見せ、どんな場所かを先に目で伝える */}
           <div data-intro-stop={0} className="snap-start snap-always">
             <div className="relative z-[1] px-4 pt-3 md:px-6 md:pt-0">
-              <IntroPhotoCarousel />
-            </div>
-            <div className="relative z-[1] pl-[var(--intro-rail)] pr-12 pt-4 md:pr-16 md:pt-5">
-              <span className="inline-flex items-center rounded-full bg-nicchyo-accent/70 px-2.5 py-1 text-[11px] font-bold tracking-[0.14em] text-nicchyo-ink/80">
-                {siteText('mapIntro.badge')}
-              </span>
-              <h2
-                id="map-intro-title"
-                className="mt-3 text-[26px] font-extrabold leading-[1.15] tracking-tight text-nicchyo-ink md:text-[32px]"
-              >
-                {siteText('mapIntro.title')}
-              </h2>
+              <IntroPhotoCarousel>
+                <h2
+                  id="map-intro-title"
+                  className="text-[26px] font-extrabold leading-[1.15] tracking-tight text-white [text-shadow:0_2px_12px_rgba(0,0,0,0.55)] md:text-[32px]"
+                >
+                  {siteText('mapIntro.title')}
+                </h2>
+              </IntroPhotoCarousel>
             </div>
 
             {/* にちよさんの最初の停留点 */}
