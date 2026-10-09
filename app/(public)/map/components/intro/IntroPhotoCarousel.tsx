@@ -20,9 +20,9 @@ import { useReducedMotion } from 'framer-motion';
 import { cn } from '@/lib/utils/cn';
 
 const INTRO_PHOTOS = [
-  { src: '/images/home-hero.jpg', alt: '追手筋に屋台が並ぶ日曜市の通り' },
-  { src: '/images/activities/2025-10-19-sunday-market-survey.webp', alt: '日曜市の屋台の前でにぎわう人たち' },
-  { src: '/images/shops/kawazaiku.webp', alt: '日曜市の屋台に並ぶ革小物' },
+  { src: '/images/intro/sunday-market-otepia-overview.webp', alt: 'オーテピア前から高知城へ向かって屋台が並ぶ日曜市' },
+  { src: '/images/intro/sunday-market-street-crowd.webp', alt: '屋台のあいだを人が行き交う日曜市' },
+  { src: '/images/intro/sunday-market-street-stalls.webp', alt: '並木の下に屋台が続く日曜市の通り' },
 ] as const;
 
 const INTERVAL_MS = 3000;
