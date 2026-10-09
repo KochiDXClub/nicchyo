@@ -144,6 +144,8 @@ export type StoreImportPlan = {
   updatedVendorCount: number;
   /** 同じ店名の登録済みの出店者があったので、新しく作らずに区画へ割り当てた件数 */
   reusedVendorCount: number;
+  /** 削除する区画にいた出店者のうち、取り込み後にどの区画にもいなくなるので削除する件数 */
+  deletedVendorCount: number;
   /** 取り込めない理由（1つでもあれば適用しない） */
   errors: ImportIssue[];
   /** 取り込めるが確認してほしいこと */
@@ -170,6 +172,9 @@ function median(values: number[]): number | null {
  * - 無ければ道の上に区画を作る。北・南は追手筋（northSouth）の住所録の上側・下側に、
  *   丁目の順（一丁目が西）・番号の順で等間隔に並べる。大橋通りは ohashi の道に、番号の順で左右交互に並べる
  * - replace が true なら、CSV に無い区画を削除する（出店者の情報は消さず、割り当てだけ外れる）
+ * - replace と deleteVendors がどちらも true なら、削除する区画にいた出店者のうち、取り込み後に
+ *   どの区画にもいなくなるものを出店者ごと削除する（商品・投稿もまとめて消える）。
+ *   削除する区画にいなかった出店者（アカウントだけ作った出店者など）は、どの区画にもいなくても残す
  */
 export function planStoreImport(input: {
   rows: StoreCsvRow[];
@@ -179,9 +184,12 @@ export function planStoreImport(input: {
   categories: VendorCategory[];
   roads: StoreImportRoads;
   replace: boolean;
+  /** replace が true のときだけ効く。削除する区画の出店者を、出店者ごと削除する */
+  deleteVendors?: boolean;
   now?: number;
 }): StoreImportPlan {
   const { shops, vendors, categories, roads, replace } = input;
+  const deleteVendors = replace && input.deleteVendors === true;
   const errors: ImportIssue[] = [...input.parseErrors];
   const warnings: ImportIssue[] = [];
 
@@ -214,6 +222,7 @@ export function planStoreImport(input: {
     createdVendorCount: 0,
     updatedVendorCount: 0,
     reusedVendorCount: 0,
+    deletedVendorCount: 0,
   };
 
   if (input.rows.length === 0 && errors.length === 0) errors.push({ line: null, message: "取り込む行がありません。" });
@@ -393,6 +402,15 @@ export function planStoreImport(input: {
     });
   });
 
+  // 削除する区画にいた出店者のうち、取り込み後にどの区画にもいなくなったものを出店者ごと消す。
+  // 取り込みで同じ店名として区画に割り当て直した出店者（assignedVendorIds）は残す
+  const deletedVendorIds = new Set(
+    deleteVendors
+      ? deleted.flatMap((s) => (s.vendorId && !s.vendorId.startsWith(NEW_VENDOR_ID_PREFIX) && !assignedVendorIds.has(s.vendorId) ? [s.vendorId] : []))
+      : []
+  );
+  const vendorsAfterImport = deletedVendorIds.size > 0 ? nextVendors.filter((v) => !deletedVendorIds.has(v.id)) : nextVendors;
+
   return {
     rowCount: rows.length,
     skippedRowCount: skipped.length,
@@ -402,9 +420,10 @@ export function planStoreImport(input: {
     createdVendorCount,
     updatedVendorCount,
     reusedVendorCount,
+    deletedVendorCount: deletedVendorIds.size,
     errors,
     warnings,
-    next: { shops: nextShops, vendors: nextVendors },
+    next: { shops: nextShops, vendors: vendorsAfterImport },
   };
 }
 
