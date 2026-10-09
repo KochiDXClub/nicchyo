@@ -7,6 +7,7 @@ import { requireSameOrigin } from "@/lib/security/requestGuards";
 import { enforceRateLimit } from "@/lib/security/rateLimit";
 import { todayJstString } from "@/lib/time/jstDate";
 import { createAdminClient } from "@/lib/supabase/adminClient";
+import { getRole } from "@/lib/auth/permissions";
 
 const VISITOR_COOKIE_NAME = "nicchyo_visitor_id";
 // 通常のパス＋クエリは収まる長さ。超えるものは記録せず捨てる（DB 肥大の防止）
@@ -14,15 +15,6 @@ const MAX_PATH_LENGTH = 512;
 
 function isValidVisitorKey(value: string) {
   return value.length >= 16 && value.length <= 128;
-}
-
-function normalizeRole(user: unknown) {
-  if (!user || typeof user !== "object") return null;
-  const record = user as {
-    app_metadata?: { role?: string };
-    user_metadata?: { role?: string };
-  };
-  return record.app_metadata?.role ?? record.user_metadata?.role ?? null;
 }
 
 const ADMIN_ROLES = new Set(["admin", "super_admin"]);
@@ -96,13 +88,14 @@ export async function POST(request: NextRequest) {
     visitor_key: visitorKey,
     path,
     duration_seconds: durationSeconds,
-    user_role: normalizeRole(user),
+    // user_metadata は本人が書き換えられるので見ない（app_metadata だけを見る getRole）
+    user_role: getRole(user),
   });
 
   // 「今週の訪問者」（web_visitor_stats）は来訪者全体のページ訪問から数える。
   // 管理者の閲覧は web_page_daily_summaries と同じく数えない。
   // track_home_visit は同じ日・同じ visitor を1回しか数えない（失敗しても記録は妨げない）
-  if (!error && !ADMIN_ROLES.has(normalizeRole(user) ?? "")) {
+  if (!error && !ADMIN_ROLES.has(getRole(user) ?? "")) {
     await countDailyVisitor(visitDate, visitorKey);
   }
 
