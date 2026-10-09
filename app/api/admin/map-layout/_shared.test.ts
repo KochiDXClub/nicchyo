@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { DEFAULT_MAP_ROUTE_CONFIG } from "@/app/(public)/map/types/mapRoute";
 import {
   hasRoadPositionSchema,
+  describeVendors,
   isRouteConfigChanged,
   loadVendorDeletionTargets,
   planSlotRoadPositions,
@@ -305,5 +306,21 @@ describe("loadVendorDeletionTargets", () => {
   it("どれかの読み取りに失敗したら error にして、削除に進ませない", async () => {
     const { client } = fakeClient({ shop_members: { error: { message: "boom" } } });
     expect(await loadVendorDeletionTargets(client, [A], [])).toMatchObject({ error: true, withMembers: [] });
+  });
+});
+
+describe("describeVendors", () => {
+  const vendors = [
+    { id: "a1111111-0000-4000-8000-000000000000", name: "店A" },
+    { id: "b2222222-0000-4000-8000-000000000000", name: "" },
+  ];
+
+  it("店名を並べ、名前が空なら id の先頭を出す", () => {
+    expect(describeVendors(vendors.map((v) => v.id), vendors)).toBe("「店A」、「（名前なし b2222222）」");
+  });
+
+  it("多いときは先頭の数件と残りの件数にする", () => {
+    const many = Array.from({ length: 7 }, (_, i) => ({ id: `id-${i}`, name: `店${i}` }));
+    expect(describeVendors(many.map((v) => v.id), many)).toBe("「店0」、「店1」、「店2」、「店3」、「店4」 ほか 2 件");
   });
 });

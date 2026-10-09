@@ -334,6 +334,14 @@ export function validateVendorDeletionDraft(
   return null;
 }
 
+/** エラー文に出す出店者の名前（多いときは先頭の数件と残りの件数）。名前が空なら id の先頭だけ */
+export function describeVendors(ids: string[], vendors: { id: string; name: string }[], limit = 5): string {
+  const nameById = new Map(vendors.map((v) => [v.id, v.name]));
+  const labels = ids.map((id) => nameById.get(id) || `（名前なし ${id.slice(0, 8)}）`);
+  const shown = labels.slice(0, limit).map((label) => `「${label}」`).join("、");
+  return labels.length > limit ? `${shown} ほか ${labels.length - limit} 件` : shown;
+}
+
 /**
  * 削除しようとしている出店者について、DB に実在するもの・アカウント（店舗メンバー）に紐づくもの・
  * 削除する区画以外に割り当てが残っているものを調べる。

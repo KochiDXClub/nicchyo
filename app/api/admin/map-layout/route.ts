@@ -24,6 +24,7 @@ import {
   loadMapSettingsLimits,
   loadRouteConfig,
   loadVendorCategories,
+  describeVendors,
   loadVendorDeletionTargets,
   selectRepositionedShops,
   validateVendorDeletionDraft,
@@ -224,8 +225,7 @@ export async function PUT(request: NextRequest) {
       roads?: MapRoad[];
       // 空き区画から新しく登録した出店者（仮 id）と、情報を直した既存の出店者
       // deletedIds: CSV 取り込みで「削除する区画の出店者も削除」を選んだときの、削除する出店者
-      // confirmDelete: 画面で削除を確かめたことを示す。deletedIds があるのに true でなければ拒否する
-      vendors?: { upsert?: EditableVendor[]; deletedIds?: string[]; confirmDelete?: boolean };
+      vendors?: { upsert?: EditableVendor[]; deletedIds?: string[] };
     };
 
     if (
@@ -351,9 +351,6 @@ export async function PUT(request: NextRequest) {
     const vendorIdsToDelete = body.vendors?.deletedIds ?? [];
     let vendorsToDelete: { id: string; name: string }[] = [];
     if (vendorIdsToDelete.length > 0) {
-      if (body.vendors?.confirmDelete !== true) {
-        return NextResponse.json({ error: "出店者の削除には確認が必要です" }, { status: 400 });
-      }
       const deletionError = validateVendorDeletionDraft(vendorIdsToDelete, {
         assignedVendorIds: new Set(shopsAfterSave.flatMap((shop) => (shop.vendorId ? [shop.vendorId] : []))),
         upsertVendorIds: new Set(vendorsToWrite.map((v) => v.id)),
@@ -362,10 +359,16 @@ export async function PUT(request: NextRequest) {
       const targets = await loadVendorDeletionTargets(adminWriteClient, vendorIdsToDelete, body.shops.deletedLocationIds);
       if (targets.error) return NextResponse.json({ error: "Failed to validate vendors" }, { status: 500 });
       if (targets.withMembers.length > 0) {
-        return NextResponse.json({ error: "アカウントに紐づく出店者は削除できません" }, { status: 400 });
+        return NextResponse.json(
+          { error: `アカウントに紐づく出店者は削除できません：${describeVendors(targets.withMembers, targets.existing)}` },
+          { status: 400 }
+        );
       }
       if (targets.assignedElsewhere.length > 0) {
-        return NextResponse.json({ error: "ほかの区画に割り当てが残っている出店者は削除できません" }, { status: 400 });
+        return NextResponse.json(
+          { error: `ほかの区画に割り当てが残っている出店者は削除できません：${describeVendors(targets.assignedElsewhere, targets.existing)}` },
+          { status: 400 }
+        );
       }
       vendorsToDelete = targets.existing;
     }
@@ -605,7 +608,7 @@ export async function PUT(request: NextRequest) {
       );
       if (recheck.error || recheck.withMembers.length > 0 || recheck.assignedElsewhere.length > 0) {
         return NextResponse.json(
-          { error: "区画の保存はできましたが、出店者の状態が変わったため削除しませんでした。もう一度確認してください。" },
+          { error: "区画の保存はできましたが、出店者の状態が変わったため削除しませんでした。削除しようとした出店者は監査ログ（map_edit_delete_vendors_attempt）に残っています。" },
           { status: 409 }
         );
       }
@@ -617,7 +620,7 @@ export async function PUT(request: NextRequest) {
       if (deleteError) {
         console.error("[admin/map-layout] delete vendors failed:", deleteError.message);
         return NextResponse.json(
-          { error: "区画の保存はできましたが、出店者の削除に失敗しました。もう一度CSVを取り込み直してください。" },
+          { error: "区画の保存はできましたが、出店者の削除に失敗しました。区画はすでに保存済みで、CSVを取り込み直しても出店者は削除の対象になりません。削除しようとした出店者は監査ログ（map_edit_delete_vendors_attempt）に残っているので、そこから確認してください。" },
           { status: 500 }
         );
       }

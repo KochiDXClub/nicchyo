@@ -71,8 +71,6 @@ export function buildSavePayloadDiff(changes: EntityChange[]) {
       deletedIds: vendorChanges
         .filter((change) => change.before && !change.after && !change.id.startsWith(NEW_VENDOR_ID_PREFIX))
         .map((change) => change.id),
-      // サーバーは、削除する出店者があるのにこれが true でなければ拒否する（画面で確かめた印）
-      confirmDelete: true,
     },
   };
 }
