@@ -305,6 +305,84 @@ export function validateVendorDrafts(
  * スナップショット作成時、road_id が未設定のポイントも欠落させないために使う
  * （loadEditableRoads は road_id が付いた点しかバケツに入れないため代用できない）。
  */
+/** 1回の保存で削除できる出店者の上限（誤操作や不正なリクエストで大量に消えるのを防ぐ） */
+export const MAX_VENDOR_DELETIONS_PER_SAVE = 500;
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * 保存で削除する出店者の id を、DB を見る前に検査する。問題があればその理由、無ければ null。
+ * - 保存後も区画に割り当てられている出店者は消せない（保存後の区画 = assignedVendorIds）
+ * - 同じ保存で追加・更新する出店者は消せない（upsertVendorIds）
+ */
+export function validateVendorDeletionDraft(
+  ids: unknown,
+  context: { assignedVendorIds: Set<string>; upsertVendorIds: Set<string> }
+): string | null {
+  if (!Array.isArray(ids)) return "削除する出店者のデータが正しくありません";
+  if (ids.length > MAX_VENDOR_DELETIONS_PER_SAVE) {
+    return `1回の保存で削除できる出店者は ${MAX_VENDOR_DELETIONS_PER_SAVE} 件までです`;
+  }
+  const seen = new Set<string>();
+  for (const id of ids) {
+    if (typeof id !== "string" || !UUID_PATTERN.test(id) || seen.has(id)) {
+      return "削除する出店者のデータが正しくありません";
+    }
+    seen.add(id);
+    if (context.assignedVendorIds.has(id)) return "区画に割り当てられている出店者は削除できません";
+    if (context.upsertVendorIds.has(id)) return "同じ保存で更新する出店者は削除できません";
+  }
+  return null;
+}
+
+/** エラー文に出す出店者の名前（多いときは先頭の数件と残りの件数）。名前が空なら id の先頭だけ */
+export function describeVendors(ids: string[], vendors: { id: string; name: string }[], limit = 5): string {
+  const nameById = new Map(vendors.map((v) => [v.id, v.name]));
+  const labels = ids.map((id) => nameById.get(id) || `（名前なし ${id.slice(0, 8)}）`);
+  const shown = labels.slice(0, limit).map((label) => `「${label}」`).join("、");
+  return labels.length > limit ? `${shown} ほか ${labels.length - limit} 件` : shown;
+}
+
+/**
+ * 削除しようとしている出店者について、DB に実在するもの・アカウント（店舗メンバー）に紐づくもの・
+ * 削除する区画以外に割り当てが残っているものを調べる。
+ *
+ * 必ず管理用（service_role）のクライアントで呼ぶこと。ユーザーのセッションで読むと、shop_members の
+ * RLS（自分の店舗のメンバーだけ読める）のせいで、他人の店舗のメンバーが 0 件に見えて検査が働かない。
+ * アカウントに紐づく出店者は、ログインしている本人の店舗なので、マップ編集からは消さない
+ */
+export async function loadVendorDeletionTargets(
+  adminClient: SupabaseClient,
+  ids: string[],
+  deletedLocationIds: string[]
+): Promise<{ existing: { id: string; name: string }[]; withMembers: string[]; assignedElsewhere: string[]; error: boolean }> {
+  const empty = { existing: [], withMembers: [], assignedElsewhere: [] as string[] };
+  if (ids.length === 0) return { ...empty, error: false };
+  // shop_members は生成した型定義（types/database.types.ts）にまだ無いので、型を緩めて読む
+  const [vendorsResult, membersResult, assignmentsResult] = await Promise.all([
+    adminClient.from("vendors").select("id, shop_name").in("id", ids),
+    adminClient.from("shop_members").select("vendor_id").in("vendor_id", ids),
+    adminClient.from("location_assignments").select("vendor_id, location_id").in("vendor_id", ids),
+  ]);
+  if (vendorsResult.error || membersResult.error || assignmentsResult.error) return { ...empty, error: true };
+  const removedLocations = new Set(deletedLocationIds);
+  return {
+    existing: ((vendorsResult.data ?? []) as { id: string; shop_name: string | null }[]).map((row) => ({
+      id: row.id,
+      name: (row.shop_name ?? "").trim(),
+    })),
+    withMembers: Array.from(new Set(((membersResult.data ?? []) as { vendor_id: string }[]).map((row) => row.vendor_id))),
+    // 割り当ては日付ごとに持てる。この保存で消える区画への割り当て以外が残っている出店者は消さない
+    assignedElsewhere: Array.from(
+      new Set(
+        ((assignmentsResult.data ?? []) as { vendor_id: string; location_id: string | null }[])
+          .filter((row) => !row.location_id || !removedLocations.has(row.location_id))
+          .map((row) => row.vendor_id)
+      )
+    ),
+    error: false,
+  };
+}
+
 export async function loadAllRoutePoints(supabase: ReturnType<typeof createServerClient>): Promise<MapRoutePoint[]> {
   const { data, error } = await supabase
     .from("map_route_points")
