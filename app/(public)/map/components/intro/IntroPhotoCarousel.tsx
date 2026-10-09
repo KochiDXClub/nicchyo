@@ -5,7 +5,8 @@
  *
  * 「はじめての方へ」の先頭に置く、日曜市の写真のスライド。
  * 3秒ごとに次の写真へ重ねて切り替え、最後まで行ったら最初に戻って回り続ける。
- * 動きを減らす設定の人には、ふわっと重ねずにぱっと切り替える。
+ * 動きを減らす設定の人には自動で切り替えない（1枚目のまま。WCAG 2.2.2）。
+ * タブが裏にあるあいだは切り替えを止める。
  *
  * children は写真の上（左下）に重ねて出す。写真が変わっても読めるよう、
  * 写真全体を少し暗くし、文字には影を付ける。
@@ -31,11 +32,13 @@ export default function IntroPhotoCarousel({ children }: { children?: ReactNode 
   const [index, setIndex] = useState(0);
 
   useEffect(() => {
+    if (reduceMotion) return;
     const timer = window.setInterval(() => {
+      if (document.hidden) return;
       setIndex((i) => (i + 1) % INTRO_PHOTOS.length);
     }, INTERVAL_MS);
     return () => window.clearInterval(timer);
-  }, []);
+  }, [reduceMotion]);
 
   return (
     <div className="relative aspect-[2/1] w-full overflow-hidden rounded-card bg-nicchyo-ink/5">
