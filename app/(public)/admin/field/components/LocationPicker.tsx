@@ -15,7 +15,8 @@ import { OPENFREEMAP_STYLE_URL } from "@/app/(public)/map/config/basemap";
 import { PICKER_COLORS } from "./locationPickerStyle";
 
 export type FieldLocation = {
-  storeNumber: number;
+  /** 店番。住所録に無い新しい店舗で、まだ決まっていないときは null */
+  storeNumber: number | null;
   lat: number;
   lng: number;
   vendorId: string | null;

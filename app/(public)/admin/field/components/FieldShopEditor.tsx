@@ -149,7 +149,7 @@ export function FieldShopEditor({ shopId }: { shopId: string }) {
   const applyLocationResponse = useCallback((data: { locations?: FieldLocation[]; current?: FieldLocation | null }) => {
     setLocations(data.locations ?? []);
     if (data.current) {
-      setStoreNumber(String(data.current.storeNumber));
+      setStoreNumber(data.current.storeNumber != null ? String(data.current.storeNumber) : "");
       setPin({ lat: data.current.lat, lng: data.current.lng });
     }
   }, []);
@@ -290,9 +290,10 @@ export function FieldShopEditor({ shopId }: { shopId: string }) {
   };
 
   const saveLocation = async () => {
-    const n = Number(storeNumber);
-    if (!pin || !Number.isInteger(n)) {
-      showToast.error("店番を入れて、地図でピンを置いてください");
+    // 店番は、住所録に無い新しい店舗ではまだ決まっていないので、空でもよい
+    const n = storeNumber === "" ? null : Number(storeNumber);
+    if (!pin || (n !== null && !Number.isInteger(n))) {
+      showToast.error("地図でピンを置いてください（店番を入れるなら数字で）");
       return;
     }
     setLocationBusy(true);
@@ -306,7 +307,7 @@ export function FieldShopEditor({ shopId }: { shopId: string }) {
       if (!res.ok) throw new Error((await readError(res, "位置を保存できませんでした")).message);
       showToast.success("位置を記録しました");
       // load() はフォームを作り直して未保存の入力を消すので、位置まわりだけ更新する
-      setShop((prev) => (prev ? { ...prev, store_number: n } : prev));
+      setShop((prev) => (prev ? { ...prev, store_number: n, location_recorded: true } : prev));
       await refreshLocations();
     } catch (e) {
       showToast.error(e instanceof Error ? e.message : "位置を保存できませんでした");
@@ -558,7 +559,7 @@ export function FieldShopEditor({ shopId }: { shopId: string }) {
       </Card>
 
       <Card title="お店の位置" hint="店番を入れて、地図をタップ（またはピンをドラッグ）して位置を決めます。緑の点は地図で配置済み、灰色は空きの区画です。点をタップするとその店番になります。記録するだけで、地図は変わりません。">
-        <Field label={`店番（${MIN_SHOP_ID}〜${MAX_SHOP_ID}）`}>
+        <Field label={`店番（${MIN_SHOP_ID}〜${MAX_SHOP_ID}。住所録に無い新しい店は空のままでよい）`}>
           <input value={storeNumber} inputMode="numeric" onChange={(e) => setStoreNumber(e.target.value.replace(/\D/g, ""))} className={inputClass} />
         </Field>
         <LocationPicker locations={locations} value={pin} onChange={setPin} onPickStoreNumber={pickStoreNumber} />
@@ -566,12 +567,14 @@ export function FieldShopEditor({ shopId }: { shopId: string }) {
           <button type="button" onClick={useCurrentPosition} disabled={gpsBusy} className={`${buttonClass} border border-line bg-white text-nicchyo-ink`}>
             {gpsBusy ? "取得中…" : "現在地にする"}
           </button>
-          <button type="button" onClick={() => void saveLocation()} disabled={locationBusy || !pin || !storeNumber} className={`${buttonClass} bg-nicchyo-ink text-white`}>
+          <button type="button" onClick={() => void saveLocation()} disabled={locationBusy || !pin} className={`${buttonClass} bg-nicchyo-ink text-white`}>
             {locationBusy ? "保存中…" : "この位置を記録"}
           </button>
         </div>
         <p className="text-[13px] text-nicchyo-ink/55">
-          {shop.store_number != null ? `記録済み: 店番 ${shop.store_number}` : "位置は未記録です"}。ここで記録しても地図は変わりません。地図への反映は、地図編集で確かめてから行います。
+          {shop.location_recorded || shop.store_number != null
+            ? `記録済み: ${shop.store_number != null ? `店番 ${shop.store_number}` : "店番なし"}`
+            : "位置は未記録です"}。ここで記録しても地図は変わりません。地図への反映は、地図編集で確かめてから行います。
         </p>
       </Card>
 

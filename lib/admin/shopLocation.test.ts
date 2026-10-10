@@ -10,8 +10,17 @@ describe("parseShopLocation", () => {
     });
   });
 
+  it("店番は空でもよい（住所録に無い新しい店舗）。入れるなら範囲内の整数", () => {
+    for (const storeNumber of [undefined, null]) {
+      expect(parseShopLocation({ storeNumber, lat: 33.5614, lng: 133.538 })).toEqual({
+        ok: true,
+        value: { storeNumber: null, lat: 33.5614, lng: 133.538 },
+      });
+    }
+  });
+
   it("店番は 1〜MAX_SHOP_ID の整数", () => {
-    for (const storeNumber of [0, MAX_SHOP_ID + 1, 1.5, "12", null]) {
+    for (const storeNumber of [0, MAX_SHOP_ID + 1, 1.5, "12"]) {
       expect(parseShopLocation({ storeNumber, lat: 33.5614, lng: 133.538 }).ok, String(storeNumber)).toBe(false);
     }
     expect(parseShopLocation({ storeNumber: MAX_SHOP_ID, lat: 33.5614, lng: 133.538 }).ok).toBe(true);

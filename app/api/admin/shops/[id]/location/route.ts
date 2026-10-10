@@ -52,7 +52,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
 
   const record = field.data;
   const current =
-    record && record.store_number != null && record.latitude != null && record.longitude != null
+    record && record.latitude != null && record.longitude != null
       ? { storeNumber: record.store_number, lat: record.latitude, lng: record.longitude, vendorId: id, vendorName: nameById.get(id) ?? "" }
       : rows.find((r) => r.vendorId === id) ?? null;
 
@@ -93,7 +93,7 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
         targetType: "vendor",
         targetId: id,
         targetName: (vendor.shop_name ?? id).slice(0, 500),
-        details: `現場登録: 店番 ${storeNumber} の位置を記録（${lat.toFixed(6)}, ${lng.toFixed(6)}）。地図には反映していない`,
+        details: `現場登録: ${storeNumber !== null ? `店番 ${storeNumber}` : "店番なし"} の位置を記録（${lat.toFixed(6)}, ${lng.toFixed(6)}）。地図には反映していない`,
         ipAddress: ip,
       },
     );

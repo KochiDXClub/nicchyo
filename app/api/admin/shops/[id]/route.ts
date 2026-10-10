@@ -49,10 +49,10 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
 
   // 現場登録の記録（地図には反映していない）。あればそれを優先し、無ければ地図上の区画を見せる。
   // 記録のテーブルが無い DB（マイグレーション前）でも、店舗の取得は止めない
-  let fieldRecord: { store_number: number | null; chome_id: number | null } | null = null;
+  let fieldRecord: { store_number: number | null; chome_id: number | null; latitude: number | null } | null = null;
   const fieldResult = await adminClient
     .from("field_shop_locations")
-    .select("store_number, chome_id")
+    .select("store_number, chome_id, latitude")
     .eq("vendor_id", id)
     .maybeSingle();
   if (!fieldResult.error) fieldRecord = fieldResult.data;
@@ -75,6 +75,8 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
       category_name: (category as { name: string | null } | null | undefined)?.name ?? null,
       owner_name: owner?.owner_name ?? null,
       store_number: fieldRecord?.store_number ?? storeNumber ?? null,
+      // 現場で位置（座標）を記録済みか。店番が無い新しい店舗でも、記録したかが分かるように
+      location_recorded: fieldRecord?.latitude != null,
       chome: fieldRecord?.chome_id ?? mapChome,
     },
   });

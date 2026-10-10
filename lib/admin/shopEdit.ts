@@ -65,6 +65,8 @@ export type AdminShopDetail = Pick<ShopEditFields, "shop_name" | "listing_status
     category_name: string | null;
     owner_name: string | null;
     store_number: number | null;
+    /** 現場登録で位置（座標）を記録済みか */
+    location_recorded: boolean;
     /** 日曜市の丁目（1〜7）。現場登録の記録を優先し、無ければ地図上の区画の丁目。無ければ null */
     chome: number | null;
     updated_at: string | null;
