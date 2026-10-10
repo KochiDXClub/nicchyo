@@ -82,7 +82,22 @@ describe("parseStoreCsv", () => {
 });
 
 describe("planStoreImport", () => {
-  it("北は道の北側、南は南側に、一丁目（西）から番号順に並べ、出店者を作って割り当てる", () => {
+  it("丁目は西から六・七・五…一丁目の順に並ぶ", () => {
+    const result = plan(csv(["1,,一丁目,北,,,", "2,,六丁目,北,,,", "3,,七丁目,北,,,"]));
+    const shops = result.next!.shops;
+    const lng = (n: number) => shops.find((s) => s.officialNumber === n)!.lng;
+    expect(lng(2)).toBeLessThan(lng(3));
+    expect(lng(3)).toBeLessThan(lng(1));
+  });
+
+  it("同じ丁目の中は番号の大きい方が西になる", () => {
+    const result = plan(csv(["455,,六丁目,北,,,", "596,,六丁目,北,,,"]));
+    const shops = result.next!.shops;
+    const lng = (n: number) => shops.find((s) => s.officialNumber === n)!.lng;
+    expect(lng(596)).toBeLessThan(lng(455));
+  });
+
+  it("北は道の北側、南は南側に、西の丁目から、同じ丁目では番号の大きい順に並べ、出店者を作って割り当てる", () => {
     const result = plan(csv(["2,,一丁目,北,朝市の八百屋,野菜,食材", "1,,一丁目,北,,,", "3,,二丁目,南,,,"]));
     expect(result.errors).toEqual([]);
     expect(result).toMatchObject({ createdSlotCount: 3, createdVendorCount: 3, deletedSlotCount: 0 });
@@ -90,7 +105,7 @@ describe("planStoreImport", () => {
     const byNumber = (n: number) => shops.find((s) => s.officialNumber === n)!;
     expect(byNumber(1).lat).toBeGreaterThan(33.5614); // 北側
     expect(byNumber(3).lat).toBeLessThan(33.5614); // 南側
-    expect(byNumber(1).lng).toBeLessThan(byNumber(2).lng); // 番号順に西から
+    expect(byNumber(1).lng).toBeGreaterThan(byNumber(2).lng); // 番号の大きい方が西
     expect(byNumber(2).roadOffsetM).toBe(7.5);
     expect(latToMeters(byNumber(2).lat - 33.5614)).toBeCloseTo(7.5, 1);
     const vendor = result.next!.vendors.find((v) => v.id === byNumber(2).vendorId)!;

@@ -1,9 +1,9 @@
-import { CHOME_ORDER } from "../../map/types/editableShop";
+import { CHOME_ORDER, CHOME_WEST_TO_EAST } from "../../map/types/editableShop";
 import type { EditableShop, EditableVendor, VendorCategory } from "../../map/types/editableShop";
 import type { Landmark as EditableLandmark } from "../../map/types/landmark";
 import type { MapRoad, MapRoutePoint, RoadKind } from "../../map/types/mapRoute";
 
-export { CHOME_ORDER };
+export { CHOME_ORDER, CHOME_WEST_TO_EAST };
 
 
 export type EditableRoad = MapRoad & {

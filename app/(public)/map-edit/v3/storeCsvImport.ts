@@ -1,7 +1,7 @@
 import { parseCsvWithLines } from "@/lib/csv/parseCsv";
 import { MAX_SHOP_ID, MIN_SHOP_ID } from "@/lib/shops/route";
 import { pointAlongRoad, roadLengthMeters, roadSlotLatLng, type RoadSide } from "@/lib/map/roadSlotPosition";
-import { CHOME_ORDER, NEW_VENDOR_ID_PREFIX, VENDOR_FIELD_LIMITS } from "../../map/types/editableShop";
+import { CHOME_ORDER, CHOME_WEST_TO_EAST, NEW_VENDOR_ID_PREFIX, VENDOR_FIELD_LIMITS } from "../../map/types/editableShop";
 import type { EditableRoad, EditableShop, EditableVendor, VendorCategory } from "./types";
 
 /**
@@ -170,7 +170,7 @@ function median(values: number[]): number | null {
  *   同じ CSV を取り込み直せば、飛ばした行の区画だけが追加される
  * - 本番号＋枝番が同じ区画があれば、位置はそのままで出店者の情報を更新する（取り込み直しても重複しない）
  * - 無ければ道の上に区画を作る。北・南は追手筋（northSouth）の住所録の上側・下側に、
- *   丁目の順（一丁目が西）・番号の順で等間隔に並べる。大橋通りは ohashi の道に、番号の順で左右交互に並べる
+ *   丁目の順（六→七→五→…→一丁目が西から東）・番号の大きい順（住所録の番号は東の一丁目から西の六丁目へ増える）で等間隔に並べる。大橋通りは ohashi の道に、番号の順で左右交互に並べる
  * - replace が true なら、CSV に無い区画を削除する（出店者の情報は消さず、割り当てだけ外れる）
  * - replace と deleteVendors がどちらも true なら、削除する区画にいた出店者のうち、取り込み後に
  *   どの区画にもいなくなるものを出店者ごと削除する（商品・投稿もまとめて消える）。
@@ -257,14 +257,14 @@ export function planStoreImport(input: {
     // 住所録の「北（上側）」が道の進行方向の左右どちらか
     const mid = pointAlongRoad(road.points, length / 2);
     const northSide: RoadSide = mid.leftY >= 0 ? "left" : "right";
-    // 一丁目が西。道が東から西へ描かれていれば、始点からの距離を逆にする
+    // 六丁目が西（高知城前）、一丁目が東（はりまや橋側）。道が東から西へ描かれていれば、始点からの距離を逆にする
     const first = road.points[0];
     const last = road.points[road.points.length - 1];
     const westToEast = first.lng <= last.lng;
     for (const side of ["north", "south"] as const) {
       const list = newRows
         .filter((row) => row.side === side)
-        .sort((a, b) => CHOME_ORDER.indexOf(a.chome as never) - CHOME_ORDER.indexOf(b.chome as never) || byNumber(a, b));
+        .sort((a, b) => CHOME_WEST_TO_EAST.indexOf(a.chome as never) - CHOME_WEST_TO_EAST.indexOf(b.chome as never) || byNumber(b, a));
       list.forEach((row, i) => {
         const d = ((i + 0.5) * length) / list.length;
         placement.set(row, {
