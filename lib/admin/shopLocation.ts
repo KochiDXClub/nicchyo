@@ -9,13 +9,13 @@ import { MAX_SHOP_ID, MIN_SHOP_ID } from "@/lib/shops/route";
 /** 高知市中心部（日曜市の道の周り）。この外の座標は、取り違えとして断る */
 export const FIELD_BOUNDS = { minLat: 33.54, maxLat: 33.58, minLng: 133.52, maxLng: 133.56 } as const;
 
-export type ShopLocationInput = { storeNumber: number; lat: number; lng: number; force: boolean };
+export type ShopLocationInput = { storeNumber: number; lat: number; lng: number };
 
 export type ShopLocationResult = { ok: true; value: ShopLocationInput } | { ok: false; error: string };
 
 export function parseShopLocation(body: unknown): ShopLocationResult {
   if (typeof body !== "object" || body === null) return { ok: false, error: "リクエストの形が正しくありません" };
-  const { storeNumber, lat, lng, force } = body as Record<string, unknown>;
+  const { storeNumber, lat, lng } = body as Record<string, unknown>;
 
   if (!Number.isInteger(storeNumber) || (storeNumber as number) < MIN_SHOP_ID || (storeNumber as number) > MAX_SHOP_ID) {
     return { ok: false, error: `店番は${MIN_SHOP_ID}〜${MAX_SHOP_ID}の整数で入力してください` };
@@ -26,5 +26,5 @@ export function parseShopLocation(body: unknown): ShopLocationResult {
   if (lat < FIELD_BOUNDS.minLat || lat > FIELD_BOUNDS.maxLat || lng < FIELD_BOUNDS.minLng || lng > FIELD_BOUNDS.maxLng) {
     return { ok: false, error: "日曜市の範囲の外です。地図で位置を確かめてください" };
   }
-  return { ok: true, value: { storeNumber: storeNumber as number, lat, lng, force: force === true } };
+  return { ok: true, value: { storeNumber: storeNumber as number, lat, lng } };
 }

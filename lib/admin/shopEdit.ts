@@ -65,10 +65,8 @@ export type AdminShopDetail = Pick<ShopEditFields, "shop_name" | "listing_status
     category_name: string | null;
     owner_name: string | null;
     store_number: number | null;
-    /** 配置している区画の日曜市の丁目（1〜7）。区画が無い・読めないときは null */
+    /** 日曜市の丁目（1〜7）。現場登録の記録を優先し、無ければ地図上の区画の丁目。無ければ null */
     chome: number | null;
-    /** 丁目を手で設定した区画か（true なら位置からの自動判定で上書きされない） */
-    chome_locked: boolean;
     updated_at: string | null;
   };
 
@@ -76,7 +74,7 @@ export type ShopEditParsed = {
   vendor: ShopEditUpdate;
   /** vendor_owner_profiles に書く。undefined なら触らない */
   ownerName?: string | null;
-  /** 配置している区画の丁目を手で設定する（market_locations に書く）。undefined なら触らない */
+  /** 現場で聞いた丁目を記録する（field_shop_locations に書く。地図は変えない）。undefined なら触らない */
   chome?: ChomeId;
 };
 

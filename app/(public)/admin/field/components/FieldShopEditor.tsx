@@ -289,7 +289,7 @@ export function FieldShopEditor({ shopId }: { shopId: string }) {
     if (loc) setPin({ lat: loc.lat, lng: loc.lng });
   };
 
-  const saveLocation = async (force = false) => {
+  const saveLocation = async () => {
     const n = Number(storeNumber);
     if (!pin || !Number.isInteger(n)) {
       showToast.error("店番を入れて、地図でピンを置いてください");
@@ -297,21 +297,14 @@ export function FieldShopEditor({ shopId }: { shopId: string }) {
     }
     setLocationBusy(true);
     try {
+      // 記録として保存するだけで、地図のデータは変わらない
       const res = await fetch(`/api/admin/shops/${shopId}/location`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ storeNumber: n, lat: pin.lat, lng: pin.lng, force }),
+        body: JSON.stringify({ storeNumber: n, lat: pin.lat, lng: pin.lng }),
       });
-      if (res.status === 409) {
-        const { message } = await readError(res, "店番が使われています");
-        if (window.confirm(`${message}。この店舗に付け替えますか？（元の店舗は位置が未登録になります）`)) {
-          setLocationBusy(false);
-          await saveLocation(true);
-        }
-        return;
-      }
       if (!res.ok) throw new Error((await readError(res, "位置を保存できませんでした")).message);
-      showToast.success("位置を保存しました");
+      showToast.success("位置を記録しました");
       // load() はフォームを作り直して未保存の入力を消すので、位置まわりだけ更新する
       setShop((prev) => (prev ? { ...prev, store_number: n } : prev));
       await refreshLocations();
@@ -433,10 +426,9 @@ export function FieldShopEditor({ shopId }: { shopId: string }) {
           <select
             value={form.chome}
             onChange={(e) => update("chome", e.target.value)}
-            disabled={shop.store_number == null}
             className={inputClass}
           >
-            <option value="">{shop.store_number == null ? "位置を保存すると選べます" : "未設定"}</option>
+            <option value="">未設定</option>
             {CHOMES.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.name}
@@ -445,7 +437,7 @@ export function FieldShopEditor({ shopId }: { shopId: string }) {
           </select>
         </Field>
         <p className="text-[13px] text-nicchyo-ink/55">
-          {shop.chome_locked ? "手で設定した丁目です。地図編集の自動判定では変わりません。" : "選ぶと、手で設定した丁目になります。"}
+          現場で聞いた丁目として記録します。地図の区画の丁目は変わりません。
         </p>
         <Field label="店主のお名前">
           <input value={form.owner_name} onChange={(e) => update("owner_name", e.target.value)} maxLength={100} className={inputClass} />
@@ -565,7 +557,7 @@ export function FieldShopEditor({ shopId }: { shopId: string }) {
         </Field>
       </Card>
 
-      <Card title="お店の位置" hint="店番を入れて、地図をタップ（またはピンをドラッグ）して位置を決めます。緑の点は配置済み、灰色は空きの区画です。点をタップするとその店番になります。">
+      <Card title="お店の位置" hint="店番を入れて、地図をタップ（またはピンをドラッグ）して位置を決めます。緑の点は地図で配置済み、灰色は空きの区画です。点をタップするとその店番になります。記録するだけで、地図は変わりません。">
         <Field label={`店番（${MIN_SHOP_ID}〜${MAX_SHOP_ID}）`}>
           <input value={storeNumber} inputMode="numeric" onChange={(e) => setStoreNumber(e.target.value.replace(/\D/g, ""))} className={inputClass} />
         </Field>
@@ -575,11 +567,11 @@ export function FieldShopEditor({ shopId }: { shopId: string }) {
             {gpsBusy ? "取得中…" : "現在地にする"}
           </button>
           <button type="button" onClick={() => void saveLocation()} disabled={locationBusy || !pin || !storeNumber} className={`${buttonClass} bg-nicchyo-ink text-white`}>
-            {locationBusy ? "保存中…" : "この位置で保存"}
+            {locationBusy ? "保存中…" : "この位置を記録"}
           </button>
         </div>
         <p className="text-[13px] text-nicchyo-ink/55">
-          {shop.store_number != null ? `保存済み: 店番 ${shop.store_number}` : "位置は未登録です"}。保存すると、保存前の状態が地図編集の履歴に残ります。
+          {shop.store_number != null ? `記録済み: 店番 ${shop.store_number}` : "位置は未記録です"}。ここで記録しても地図は変わりません。地図への反映は、地図編集で確かめてから行います。
         </p>
       </Card>
 

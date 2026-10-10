@@ -3,15 +3,11 @@ import { MAX_SHOP_ID } from "@/lib/shops/route";
 import { parseShopLocation } from "./shopLocation";
 
 describe("parseShopLocation", () => {
-  it("店番と座標を受け取る。force は true のときだけ有効", () => {
+  it("店番と座標を受け取る", () => {
     expect(parseShopLocation({ storeNumber: 12, lat: 33.5614, lng: 133.538 })).toEqual({
       ok: true,
-      value: { storeNumber: 12, lat: 33.5614, lng: 133.538, force: false },
+      value: { storeNumber: 12, lat: 33.5614, lng: 133.538 },
     });
-    const forced = parseShopLocation({ storeNumber: 12, lat: 33.5614, lng: 133.538, force: true });
-    expect(forced.ok && forced.value.force).toBe(true);
-    const notBool = parseShopLocation({ storeNumber: 12, lat: 33.5614, lng: 133.538, force: "true" });
-    expect(notBool.ok && notBool.value.force).toBe(false);
   });
 
   it("店番は 1〜MAX_SHOP_ID の整数", () => {

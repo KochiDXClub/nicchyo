@@ -4,7 +4,7 @@ import { guardAdminShopWrite, UUID_RE } from "@/lib/admin/shopApiGuard";
 import { logAdminAudit } from "@/lib/audit/logAdminAudit";
 import { consentDateOnAllow, parseShopEdit } from "@/lib/admin/shopEdit";
 import { normalizeChomeId } from "@/lib/map/chomes";
-import { CHOME_ORDER } from "@/app/(public)/map/types/editableShop";
+import { isMissingTableError } from "@/lib/admin/fieldShopLocation";
 import { isEndAfterStart } from "@/lib/vendor/businessHours";
 import { revalidatePublicShops } from "@/app/(public)/map/services/shopCache";
 
@@ -47,22 +47,23 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   const location = assignment?.market_locations as { store_number: number } | { store_number: number }[] | null | undefined;
   const storeNumber = Array.isArray(location) ? location[0]?.store_number : location?.store_number;
 
-  // 丁目は区画の列。chome_locked の列が無い DB（マイグレーション前）でも店舗の取得は止めない
-  let chome: number | null = null;
-  let chomeLocked = false;
+  // 現場登録の記録（地図には反映していない）。あればそれを優先し、無ければ地図上の区画を見せる。
+  // 記録のテーブルが無い DB（マイグレーション前）でも、店舗の取得は止めない
+  let fieldRecord: { store_number: number | null; chome_id: number | null } | null = null;
+  const fieldResult = await adminClient
+    .from("field_shop_locations")
+    .select("store_number, chome_id")
+    .eq("vendor_id", id)
+    .maybeSingle();
+  if (!fieldResult.error) fieldRecord = fieldResult.data;
+  else if (!isMissingTableError(fieldResult.error)) {
+    return NextResponse.json({ error: "店舗を取得できませんでした" }, { status: 500 });
+  }
+
+  let mapChome: number | null = null;
   if (assignment?.location_id) {
-    const withLock = await adminClient
-      .from("market_locations")
-      .select("district, chome_locked")
-      .eq("id", assignment.location_id)
-      .maybeSingle();
-    if (!withLock.error) {
-      chome = normalizeChomeId(withLock.data?.district);
-      chomeLocked = withLock.data?.chome_locked === true;
-    } else {
-      const basic = await adminClient.from("market_locations").select("district").eq("id", assignment.location_id).maybeSingle();
-      chome = normalizeChomeId(basic.data?.district);
-    }
+    const mapLocation = await adminClient.from("market_locations").select("district").eq("id", assignment.location_id).maybeSingle();
+    mapChome = normalizeChomeId(mapLocation.data?.district);
   }
 
   const { categories, ...fields } = vendor;
@@ -73,9 +74,8 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
       ...fields,
       category_name: (category as { name: string | null } | null | undefined)?.name ?? null,
       owner_name: owner?.owner_name ?? null,
-      store_number: storeNumber ?? null,
-      chome,
-      chome_locked: chomeLocked,
+      store_number: fieldRecord?.store_number ?? storeNumber ?? null,
+      chome: fieldRecord?.chome_id ?? mapChome,
     },
   });
 }
@@ -92,21 +92,6 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     const parsed = parseShopEdit(body);
     if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 });
     const { vendor: update, ownerName, chome } = parsed.value;
-
-    // 丁目は配置している区画に書く。区画が無いなら、ほかの項目も保存せずに断る
-    let chomeLocationId: string | null = null;
-    if (chome !== undefined) {
-      const { data: assignment, error: assignmentError } = await adminClient
-        .from("location_assignments")
-        .select("location_id")
-        .eq("vendor_id", id)
-        .maybeSingle();
-      if (assignmentError) return NextResponse.json({ error: "店舗の位置を取得できませんでした" }, { status: 500 });
-      if (!assignment?.location_id) {
-        return NextResponse.json({ error: "丁目を選ぶには、先に「お店の位置」を保存してください" }, { status: 400 });
-      }
-      chomeLocationId = assignment.location_id;
-    }
 
     const { data: current, error: currentError } = await adminClient
       .from("vendors")
@@ -166,12 +151,11 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       if (error) return NextResponse.json({ error: "店主名を保存できませんでした" }, { status: 500 });
     }
 
-    if (chome !== undefined && chomeLocationId) {
-      // 手で決めた丁目は、位置からの自動判定で上書きしない（chome_locked）
+    if (chome !== undefined) {
+      // 現場で聞いた丁目は記録として残すだけで、地図の区画（market_locations）は変えない
       const { error } = await adminClient
-        .from("market_locations")
-        .update({ district: CHOME_ORDER[chome - 1], chome_locked: true })
-        .eq("id", chomeLocationId);
+        .from("field_shop_locations")
+        .upsert({ vendor_id: id, chome_id: chome, updated_by: user.id, updated_at: new Date().toISOString() }, { onConflict: "vendor_id" });
       if (error) return NextResponse.json({ error: "丁目を保存できませんでした" }, { status: 500 });
     }
 

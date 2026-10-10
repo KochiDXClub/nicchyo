@@ -482,6 +482,54 @@ export type Database = {
           },
         ]
       }
+      field_shop_locations: {
+        Row: {
+          chome_id: number | null
+          created_at: string
+          latitude: number | null
+          longitude: number | null
+          store_number: number | null
+          updated_at: string
+          updated_by: string | null
+          vendor_id: string
+        }
+        Insert: {
+          chome_id?: number | null
+          created_at?: string
+          latitude?: number | null
+          longitude?: number | null
+          store_number?: number | null
+          updated_at?: string
+          updated_by?: string | null
+          vendor_id: string
+        }
+        Update: {
+          chome_id?: number | null
+          created_at?: string
+          latitude?: number | null
+          longitude?: number | null
+          store_number?: number | null
+          updated_at?: string
+          updated_by?: string | null
+          vendor_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "field_shop_locations_chome_id_fkey"
+            columns: ["chome_id"]
+            isOneToOne: false
+            referencedRelation: "chomes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "field_shop_locations_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: true
+            referencedRelation: "vendors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       guide_events: {
         Row: {
           created_at: string

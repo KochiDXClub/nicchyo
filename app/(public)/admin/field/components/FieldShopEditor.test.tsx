@@ -34,7 +34,6 @@ const baseShop = {
   listing_consent_note: null,
   store_number: null as number | null,
   chome: null as number | null,
-  chome_locked: false,
   updated_at: "2026-10-04T00:00:00.000Z",
 };
 
@@ -87,10 +86,10 @@ describe("FieldShopEditor", () => {
     expect(inputs.map((i) => i.getAttribute("capture"))).toEqual(["environment", null]);
   });
 
-  it("丁目は、位置を保存するまで選べない", async () => {
+  it("丁目は、位置が未記録でも選べる", async () => {
     render(<FieldShopEditor shopId={baseShop.id} />);
     await screen.findByDisplayValue("はなや");
-    expect((screen.getByLabelText("日曜市の丁目") as HTMLSelectElement).disabled).toBe(true);
+    expect((screen.getByLabelText("日曜市の丁目") as HTMLSelectElement).disabled).toBe(false);
   });
 
   it("丁目は、変えたときだけ保存に送る（開いただけの保存では送らない）", async () => {
@@ -117,9 +116,9 @@ describe("FieldShopEditor", () => {
     await waitFor(() => expect(screen.getByDisplayValue("12")).toBeTruthy());
 
     fireEvent.change(nameInput, { target: { value: "はなや本店" } });
-    fireEvent.click(screen.getByRole("button", { name: "この位置で保存" }));
+    fireEvent.click(screen.getByRole("button", { name: "この位置を記録" }));
     await waitFor(() => expect(calls.some((c) => c.method === "PUT")).toBe(true));
-    await waitFor(() => expect(screen.getByText(/保存済み: 店番 12/)).toBeTruthy());
+    await waitFor(() => expect(screen.getByText(/記録済み: 店番 12/)).toBeTruthy());
 
     expect((screen.getByDisplayValue("はなや本店") as HTMLInputElement).value).toBe("はなや本店");
     expect(screen.getByRole("button", { name: "内容を保存" })).toBeTruthy();
