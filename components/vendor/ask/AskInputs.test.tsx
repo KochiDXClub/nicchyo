@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { ASK_QUESTION_BY_ID, type VendorAskSnapshot } from "@/lib/vendor/askQuestions";
 import AskInput from "./AskInputs";
@@ -56,5 +56,52 @@ describe("営業時間の入力（10分刻み）", () => {
     pick("終了時間（分）", "10");
     submit();
     expect(onSubmit).toHaveBeenCalledWith({ id: "hours", start: "7:00", end: "7:10" });
+  });
+});
+
+describe("主な商品の入力（名前・写真・値段）", () => {
+  const productsQuestion = ASK_QUESTION_BY_ID.get("products")!;
+  const renderProducts = (products: VendorAskSnapshot["products"]) => {
+    const onSubmit = vi.fn();
+    const { container } = render(
+      <AskInput question={productsQuestion} snapshot={{ products } as VendorAskSnapshot} saving={false} onSubmit={onSubmit} onSkip={() => {}} />,
+    );
+    return { onSubmit, container };
+  };
+
+  beforeEach(() => {
+    // jsdom には画像を読む仕組みが無いので、読めた扱いにする
+    vi.spyOn(globalThis, "Image").mockImplementation(function (this: HTMLImageElement) {
+      setTimeout(() => this.onload?.(new Event("load")));
+      return this;
+    } as unknown as typeof Image);
+    URL.createObjectURL = vi.fn(() => "blob:preview");
+    URL.revokeObjectURL = vi.fn();
+  });
+
+  it("写真を触らなければ、imageFile は渡さない（今の写真のまま）", () => {
+    const { onSubmit } = renderProducts([{ name: "トマト", price: 300, imageUrl: "https://example.supabase.co/t.webp" }]);
+    submit();
+    expect(onSubmit).toHaveBeenCalledWith({ id: "products", items: [{ name: "トマト", price: 300 }] });
+  });
+
+  it("保存済みの写真は、×で外すと imageFile: null で渡す", () => {
+    const { onSubmit } = renderProducts([{ name: "トマト", price: 300, imageUrl: "https://example.supabase.co/t.webp" }]);
+    fireEvent.click(screen.getByRole("button", { name: "トマトの写真を外す" }));
+    submit();
+    expect(onSubmit).toHaveBeenCalledWith({ id: "products", items: [{ name: "トマト", price: 300, imageFile: null }] });
+  });
+
+  it("新しい商品に写真をつけて足すと、名前・値段・写真をまとめて渡す", async () => {
+    const { onSubmit, container } = renderProducts([]);
+    const file = new File(["x"], "tomato.jpg", { type: "image/jpeg" });
+    fireEvent.change(screen.getByLabelText("商品名"), { target: { value: "トマト" } });
+    fireEvent.change(screen.getByLabelText("値段"), { target: { value: "300" } });
+    fireEvent.change(container.querySelector('input[type="file"]')!, { target: { files: [file] } });
+    await screen.findByRole("button", { name: "追加する商品の写真を変える" });
+
+    submit();
+
+    expect(onSubmit).toHaveBeenCalledWith({ id: "products", items: [{ name: "トマト", price: 300, imageFile: file }] });
   });
 });
