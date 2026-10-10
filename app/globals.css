@@ -1704,6 +1704,52 @@ body.home-poster-zoom-open .hamburger-button {
   }
 }
 
+/* 活動の様子のギャラリー（SupportGallery）。
+   同じ並びを2回続けて置いてあり、半分まで送ると最初に戻る。
+   止めるボタンか、写真にカーソルを乗せると止まる（WCAG 2.2.2）。
+   乗せて止めるのは写真の帯だけ。ボタンまで含めると、「流す」を押しても
+   カーソルが乗ったままなので動き出さない。流す長さは枚数から出して style で渡す */
+.support-gallery__track {
+  animation: support-gallery-scroll 56s linear infinite;
+}
+
+.support-gallery__viewport:hover .support-gallery__track,
+.support-gallery[data-paused] .support-gallery__track {
+  animation-play-state: paused;
+}
+
+@keyframes support-gallery-scroll {
+  to { transform: translateX(-50%); }
+}
+
+/* 動きを減らす設定では流さない。2回目の並びと止めるボタンを隠し、
+   横に送って見る一列にする */
+@media (prefers-reduced-motion: reduce) {
+  .support-gallery__track {
+    animation: none;
+  }
+
+  .support-gallery__viewport {
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+  }
+
+  /* 端に貼り付かないよう、本文と同じだけ左を空けて始める */
+  .support-gallery__track {
+    padding-left: 1.5rem;
+  }
+
+  .support-gallery__track > li {
+    scroll-snap-align: start;
+    scroll-margin-left: 1.5rem;
+  }
+
+  .support-gallery__copy,
+  .support-gallery__toggle {
+    display: none;
+  }
+}
+
 /* 右下のボタンとナビが下端をふさいでいるので、キーボードで選んだ要素が
    その裏に隠れないよう、スクロールで寄せるときに下を空けておく（WCAG 2.4.11） */
 html:has(.support-page) {

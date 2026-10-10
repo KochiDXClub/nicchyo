@@ -9,6 +9,7 @@ import SupportHero from "./components/SupportHero";
 import SupportFloatingCta from "./components/SupportFloatingCta";
 import FundUses from "./components/FundUses";
 import SupportWays from "./components/SupportWays";
+import SupportGallery from "./components/SupportGallery";
 import { CountUp, RiseHeading } from "@/components/ScrollMotion";
 import Reveal from "@/components/Reveal";
 import { Surface } from "@/components/ui";
@@ -80,32 +81,51 @@ const CONSULT_NOTES = [
  * 見出しは文節ごとに分けて渡す。日本語は語中でも折り返すので、素のままだと
  * 狭い画面で「その／まま」のように切れる。文節を折り返さない塊にしておけば、
  * 広い画面では1行に、狭い画面では文節の切れ目で折り返す。
+ *
+ * 本文の幅はふつう本文の枠（CONTAINER）に収める。写真の帯のように画面の端まで
+ * 使いたいものだけ bleed を付ける。見出しと区切りの線は、どちらでも枠の中に置く。
  */
+const CONTAINER = "mx-auto max-w-[64rem] px-6 sm:px-8";
+
 function Section({
   id,
   label,
   title,
+  bleed = false,
+  className = "",
   children,
 }: {
   id?: string;
   label: string;
   /** 文節ごとに区切った見出し。1つあたり12文字までにしておくと、どの幅でも収まる */
   title: string[];
+  /** 本文を画面の端まで広げる */
+  bleed?: boolean;
+  className?: string;
   children: React.ReactNode;
 }) {
+  const body = (
+    <Reveal className="mt-7 sm:mt-9" delay={0.1}>
+      {children}
+    </Reveal>
+  );
+
   return (
-    <section id={id} className="scroll-mt-24 border-t border-nicchyo-ink/[0.07] py-12 sm:py-16">
-      <p className="text-[11px] font-bold tracking-[0.2em] text-amber-700">{label}</p>
-      <RiseHeading className="mt-3 text-[1.4rem] font-bold leading-[1.55] tracking-tight sm:text-[1.75rem]">
-        {title.map((phrase) => (
-          <span key={phrase} className="inline-block">
-            {phrase}
-          </span>
-        ))}
-      </RiseHeading>
-      <Reveal className="mt-7 sm:mt-9" delay={0.1}>
-        {children}
-      </Reveal>
+    <section id={id} className={`scroll-mt-24 pb-12 sm:pb-16 ${className}`}>
+      <div className={CONTAINER}>
+        <div className="border-t border-nicchyo-ink/[0.07] pt-12 sm:pt-16">
+          <p className="text-[11px] font-bold tracking-[0.2em] text-amber-700">{label}</p>
+          <RiseHeading className="mt-3 text-[1.4rem] font-bold leading-[1.55] tracking-tight sm:text-[1.75rem]">
+            {title.map((phrase) => (
+              <span key={phrase} className="inline-block">
+                {phrase}
+              </span>
+            ))}
+          </RiseHeading>
+        </div>
+        {!bleed && body}
+      </div>
+      {bleed && body}
     </section>
   );
 }
@@ -145,91 +165,102 @@ export default async function SupportPage() {
     >
       <SupportHero usesId={USES_SECTION_ID} highlights={highlights} />
 
-      <div className="mx-auto max-w-[64rem] px-6 sm:px-8">
-        {/* ── ご支援の使い道 ──────────────────────────────────────────
-            運営にいくらかかるかは出さない（costs.ts の冒頭）。何に使うかを約束として出す */}
-        <Section
-          id={USES_SECTION_ID}
-          label="ご支援の使い道"
-          title={["いただいたご支援は、", "nicchyo を続けるために", "使わせていただきます"]}
-        >
-          <FundUses uses={FUND_USES} />
-        </Section>
+      {/* ── ご支援の使い道 ──────────────────────────────────────────
+          運営にいくらかかるかは出さない（costs.ts の冒頭）。何に使うかを約束として出す */}
+      <Section
+        id={USES_SECTION_ID}
+        label="ご支援の使い道"
+        title={["いただいたご支援は、", "nicchyo を続けるために", "使わせていただきます"]}
+      >
+        <FundUses uses={FUND_USES} />
+      </Section>
 
-        {/* ── 届いている範囲 ──────────────────────────────────────────── */}
-        <Section label="届いている範囲" title={["日曜市を訪れるみなさまを、", "ご案内しております"]}>
-          <dl className="flex flex-wrap gap-x-12 gap-y-6 sm:gap-x-16">
-            <Figure label="マップに載っている店舗" value={shopCount} />
-            <Figure
-              label="日曜市を訪れる方"
-              value={MARKET_VISITORS_PER_DAY}
-              note="1回あたりおよそ（高知市調べ）"
-            />
-          </dl>
-
-          <Link
-            href="/activities"
-            className="group mt-8 inline-flex items-center gap-1.5 text-[13px] font-bold text-amber-700 underline-offset-4 transition hover:text-amber-800 hover:underline"
-          >
-            これまでの取り組みを見る
-            <ArrowRight
-              className="h-3.5 w-3.5 transition group-hover:translate-x-0.5 motion-reduce:group-hover:translate-x-0"
-              aria-hidden
-            />
-          </Link>
-        </Section>
-
-        {/* ── ご協賛くださる皆さま ──────────────────────────────────────
-            まだ1件も無いあいだは節ごと出さない。空の枠が並ぶと「誰も支援していない」に
-            見えるため。空きの数は「ご支援の方法」の組織・企業のカードに添えてある */}
-        {SUPPORTERS.length > 0 && (
-          <Section
-            label="ご協賛くださる皆さま"
-            title={["ご協賛くださる皆さまに、", "支えていただいております"]}
-          >
-            <SupporterSlots />
-          </Section>
-        )}
-
-        {/* ── ご支援の方法 ────────────────────────────────────────────
-            個人と組織では、お返しできるものも決め方も違う。ひとつにまとめると
-            どちらの人も自分の話として読めなくなるので、最初から道を分ける */}
-        <Section label="ご支援の方法" title={["個人でも、", "組織・企業でも、", "お力添えいただけます"]}>
-          <SupportWays
-            sponsorUnitAnnualJpy={SPONSOR_UNIT_ANNUAL_JPY}
-            openSlotCount={openSlotCount}
-            individualSupporterCount={individualSupporterCount}
+      {/* ── 届いている範囲 ──────────────────────────────────────────── */}
+      <Section label="届いている範囲" title={["日曜市を訪れるみなさまを、", "ご案内しております"]}>
+        <dl className="flex flex-wrap gap-x-12 gap-y-6 sm:gap-x-16">
+          <Figure label="マップに載っている店舗" value={shopCount} />
+          <Figure
+            label="日曜市を訪れる方"
+            value={MARKET_VISITORS_PER_DAY}
+            note="1回あたりおよそ（高知市調べ）"
           />
-        </Section>
+        </dl>
 
-        {/* ── ご相談について ──────────────────────────────────────────── */}
-        <Section label="ご相談について" title={["ご相談の前に、", "お伝えしておきたいこと"]}>
-          {/*
-            税制の話も先に書いておく。経理の方が後から確認して話が止まるより、
-            最初にお伝えした方が誠実で、結果として早く進む
-          */}
-          <dl className="grid gap-3 sm:grid-cols-3">
-            {CONSULT_NOTES.map((note) => (
-              <Surface key={note.title} elevation="flat">
-                <dt className="text-[14px] font-bold">{note.title}</dt>
-                <dd className="mt-1.5 text-[12.5px] leading-[1.85] text-nicchyo-ink/70">{note.body}</dd>
-              </Surface>
-            ))}
-          </dl>
-        </Section>
+        <Link
+          href="/activities"
+          className="group mt-8 inline-flex items-center gap-1.5 text-[13px] font-bold text-amber-700 underline-offset-4 transition hover:text-amber-800 hover:underline"
+        >
+          これまでの取り組みを見る
+          <ArrowRight
+            className="h-3.5 w-3.5 transition group-hover:translate-x-0.5 motion-reduce:group-hover:translate-x-0"
+            aria-hidden
+          />
+        </Link>
+      </Section>
 
-        {/* 締め。お願いで終わらせず、いま支えてくださっている方への礼で閉じる */}
-        <Reveal>
-          {/* 出店者と市の担当課には、お金以外の面で支えていただいている。名前を挙げて礼を言う */}
-          <p className="border-t border-nicchyo-ink/[0.07] py-12 text-center text-[14px] font-bold leading-[2] text-nicchyo-ink/70 sm:py-16">
-            {CLOSING_LINES.map((line) => (
-              <span key={line} className="inline-block">
-                {line}
-              </span>
-            ))}
-          </p>
-        </Reveal>
-      </div>
+      {/* ── 活動の様子 ──────────────────────────────────────────────
+          学生のプロジェクトにお金を出してよいかを決める人に、実際に日曜市へ
+          通っている人がいることを写真で見せる。帯は画面の端まで流す。
+          紙には要らない（流れる帯は1枚の写真として読めない）ので印刷では外す */}
+      <Section
+        label="活動の様子"
+        title={["これまでの活動を、", "写真でご紹介いたします"]}
+        bleed
+        className="print:hidden"
+      >
+        <SupportGallery />
+      </Section>
+
+      {/* ── ご協賛くださる皆さま ──────────────────────────────────────
+          まだ1件も無いあいだは節ごと出さない。空の枠が並ぶと「誰も支援していない」に
+          見えるため。空きの数は「ご支援の方法」の組織・企業のカードに添えてある */}
+      {SUPPORTERS.length > 0 && (
+        <Section
+          label="ご協賛くださる皆さま"
+          title={["ご協賛くださる皆さまに、", "支えていただいております"]}
+        >
+          <SupporterSlots />
+        </Section>
+      )}
+
+      {/* ── ご支援の方法 ────────────────────────────────────────────
+          個人と組織では、お返しできるものも決め方も違う。ひとつにまとめると
+          どちらの人も自分の話として読めなくなるので、最初から道を分ける */}
+      <Section label="ご支援の方法" title={["個人でも、", "組織・企業でも、", "お力添えいただけます"]}>
+        <SupportWays
+          sponsorUnitAnnualJpy={SPONSOR_UNIT_ANNUAL_JPY}
+          openSlotCount={openSlotCount}
+          individualSupporterCount={individualSupporterCount}
+        />
+      </Section>
+
+      {/* ── ご相談について ──────────────────────────────────────────── */}
+      <Section label="ご相談について" title={["ご相談の前に、", "お伝えしておきたいこと"]}>
+        {/*
+          税制の話も先に書いておく。経理の方が後から確認して話が止まるより、
+          最初にお伝えした方が誠実で、結果として早く進む
+        */}
+        <dl className="grid gap-3 sm:grid-cols-3">
+          {CONSULT_NOTES.map((note) => (
+            <Surface key={note.title} elevation="flat">
+              <dt className="text-[14px] font-bold">{note.title}</dt>
+              <dd className="mt-1.5 text-[12.5px] leading-[1.85] text-nicchyo-ink/70">{note.body}</dd>
+            </Surface>
+          ))}
+        </dl>
+      </Section>
+
+      {/* 締め。お願いで終わらせず、いま支えてくださっている方への礼で閉じる */}
+      <Reveal className={CONTAINER}>
+        {/* 出店者と市の担当課には、お金以外の面で支えていただいている。名前を挙げて礼を言う */}
+        <p className="border-t border-nicchyo-ink/[0.07] py-12 text-center text-[14px] font-bold leading-[2] text-nicchyo-ink/70 sm:py-16">
+          {CLOSING_LINES.map((line) => (
+            <span key={line} className="inline-block">
+              {line}
+            </span>
+          ))}
+        </p>
+      </Reveal>
 
       <SupportFloatingCta />
       <NavigationBar />
