@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { AdminLayout, AdminPageHeader, EmptyState } from "@/components/admin";
+import { InboxTabs } from "@/components/admin/InboxTabs";
 import { showToast } from "@/lib/admin/toast";
 import type { Inquiry, InquiryStatus } from "@/app/api/admin/inquiries/route";
 
@@ -96,9 +97,10 @@ export default function AdminInquiriesPage() {
   return (
     <AdminLayout>
       <AdminPageHeader
-        eyebrow="サポート"
+        eyebrow="受信トレイ"
         title="問い合わせ管理"
       />
+      <InboxTabs />
 
       {/* フィルター */}
       <div className="mb-4 flex flex-wrap gap-2">

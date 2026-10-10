@@ -18,7 +18,6 @@
  */
 
 import {
-  AlertTriangle,
   BarChart3,
   Bot,
   CalendarDays,
@@ -31,7 +30,7 @@ import {
   Map as MapIcon,
   MapPin,
   MapPinned,
-  MessageSquare,
+  Megaphone,
   QrCode,
   ScrollText,
   Settings,
@@ -60,6 +59,11 @@ export interface AdminNavItem {
   access?: AdminNavAccess;
   /** 未対応件数などのバッジを出す項目か */
   badgeKey?: "notifications";
+  /**
+   * この項目の中の画面（タブで行き来するページ）。サイドバーでは同じ項目が選択状態になる。
+   * ナビには載せず、項目の中のタブから開く（例: 受信トレイの中の通報・問い合わせ）
+   */
+  relatedHrefs?: string[];
 }
 
 export interface AdminNavGroup {
@@ -114,21 +118,16 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
         label: "受信トレイ",
         href: "/admin/notifications",
         icon: Inbox,
-        description: "出店申請やことづて報告の通知を確認する",
+        description: "届いたもの（通知・通報・問い合わせ）をタブで切り替えて確認し、対応する",
         badgeKey: "notifications",
+        relatedHrefs: ["/admin/reports", "/admin/inquiries"],
       },
       {
-        label: "通報",
-        href: "/admin/reports",
-        icon: AlertTriangle,
-        description: "来訪者から届いた通報を確認して対応する",
-        access: "moderator",
-      },
-      {
-        label: "問い合わせ",
-        href: "/admin/inquiries",
-        icon: MessageSquare,
-        description: "問い合わせフォームからの相談に対応する",
+        label: "お知らせ",
+        href: "/admin/outbox",
+        icon: Megaphone,
+        description: "出店者へのお知らせや、登録ユーザーへのお知らせメールを送る",
+        access: "admin",
       },
       {
         label: "投稿の確認",
@@ -290,7 +289,17 @@ export function isAdminNavItemActive(href: string, pathname: string | null): boo
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
+/** 項目の中の画面（relatedHrefs）も含めて、現在のパスがその項目かを判定する */
+export function isAdminNavItemCurrent(item: AdminNavItem, pathname: string | null): boolean {
+  return [item.href, ...(item.relatedHrefs ?? [])].some((href) => isAdminNavItemActive(href, pathname));
+}
+
 /** 全項目をフラットに取り出す（検索や導線チェック用） */
 export function getAllAdminNavItems(): AdminNavItem[] {
   return ADMIN_NAV_GROUPS.flatMap((group) => group.items);
+}
+
+/** ナビから開ける全ページ（項目本体と、項目の中の画面）。導線チェック用 */
+export function getAllAdminNavHrefs(): string[] {
+  return getAllAdminNavItems().flatMap((item) => [item.href, ...(item.relatedHrefs ?? [])]);
 }

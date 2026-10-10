@@ -16,7 +16,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { LogOut, Map as MapIcon, Menu, PanelLeftClose, X } from "lucide-react";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { useAdminNotifications } from "@/lib/hooks/useAdminNotifications";
-import { getVisibleAdminNav, isAdminNavItemActive } from "@/lib/admin/adminNav";
+import { getVisibleAdminNav, isAdminNavItemCurrent } from "@/lib/admin/adminNav";
 
 /**
  * ロールごとのアクセント。
@@ -108,7 +108,7 @@ export const AdminSidebar = React.memo(function AdminSidebar({
               </p>
               <ul className="space-y-0.5">
                 {group.items.map((item) => {
-                  const isActive = isAdminNavItemActive(item.href, pathname);
+                  const isActive = isAdminNavItemCurrent(item, pathname);
                   const Icon = item.icon;
                   const badge = item.badgeKey === "notifications" && unreadCount > 0 ? unreadCount : undefined;
                   return (

@@ -7,9 +7,8 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { AdminLayout, AdminPageHeader, EmptyState } from "@/components/admin";
+import { InboxTabs } from "@/components/admin/InboxTabs";
 import { useAdminNotifications } from "@/lib/hooks/useAdminNotifications";
-import { BroadcastEmailSection } from "./components/BroadcastEmailSection";
-import { VendorNoticeSection } from "./components/VendorNoticeSection";
 import { Bell } from "lucide-react";
 
 const TYPE_ICONS: Record<string, string> = {
@@ -45,12 +44,10 @@ export default function NotificationsPage() {
 
   return (
     <AdminLayout>
-      <AdminPageHeader eyebrow="Notifications" title="通知" />
+      <AdminPageHeader eyebrow="受信トレイ" title="通知" description="出店申請やことづて報告などの通知を確認します。お知らせを送るのは「お知らせ」から行います。" />
+      <InboxTabs />
 
       <div className="mx-auto max-w-3xl px-4 py-8 pb-20">
-
-        {permissions.isAdmin && <VendorNoticeSection />}
-        {permissions.isAdmin && <BroadcastEmailSection />}
 
         {/* ヘッダーアクション */}
         {unreadCount > 0 && (
