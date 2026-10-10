@@ -141,6 +141,8 @@ export default function SupportWays({
           <div className="mt-auto pt-7">
             <Link
               href="/contact?category=sponsor"
+              // 見えているあいだ、右下の同じボタンは引っ込む（SupportFloatingCta）
+              data-support-cta
               className={buttonClass({ variant: "ink", size: "lg", className: "w-full" })}
             >
               ご支援のご相談
@@ -183,6 +185,8 @@ export default function SupportWays({
           <div className="mt-auto pt-7">
             <Link
               href="/contact?category=sponsor"
+              // 見えているあいだ、右下の同じボタンは引っ込む（SupportFloatingCta）
+              data-support-cta
               className={buttonClass({ variant: "ink", size: "lg", className: "w-full" })}
             >
               協賛のご相談

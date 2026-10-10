@@ -1667,14 +1667,18 @@ body.home-poster-zoom-open .hamburger-button {
   }
 }
 
-/* ===== 協賛・ご支援（/support）の常時の動き =====
+/* ===== 協賛・ご支援（/support）の動き =====
    右下の「協賛のご相談」と、メーターの伸びしろ。どちらも止まっていても意味は
-   通じる飾りなので、動きを減らす設定では止める。 */
+   通じる飾りなので、動きを減らす設定では止める。
+
+   右下のボタンの光と波紋は、出てきたときに3回だけ動いて止まる。読んでいる
+   あいだずっと目の端で動き続けると、表や数字を読む邪魔になる。引っ込んで
+   また出てきたときには、もう一度3回動く。 */
 
 /* ボタンを横切る光。5秒に一度、最初の1秒ほどで走り抜けて、あとは休む */
 .support-cta__shine {
   transform: translateX(0) skewX(-20deg);
-  animation: support-cta-shine 5s ease-in-out 1.2s infinite;
+  animation: support-cta-shine 5s ease-in-out 1.2s 3;
 }
 
 @keyframes support-cta-shine {
@@ -1684,7 +1688,8 @@ body.home-poster-zoom-open .hamburger-button {
 
 /* アイコンから広がる波紋 */
 .support-cta__ping {
-  animation: support-cta-ping 2.8s cubic-bezier(0, 0, 0.2, 1) infinite;
+  opacity: 0;
+  animation: support-cta-ping 2.8s cubic-bezier(0, 0, 0.2, 1) 3;
 }
 
 @keyframes support-cta-ping {

@@ -334,8 +334,10 @@ export default function SupportHero({
             {...fadeUp(0.58)}
             className="mt-8 flex flex-wrap items-center gap-x-6 gap-y-3"
           >
+            {/* data-support-cta: これが見えているあいだ、右下のボタンは引っ込む */}
             <Link
               href="/contact?category=sponsor"
+              data-support-cta
               className={buttonClass({ variant: "ink", size: "lg", className: "group shadow-pop" })}
             >
               協賛のご相談

@@ -41,8 +41,6 @@ export const metadata = {
   },
 };
 
-/** 入口を包む枠。これが画面の上へ抜けたら、右下のボタンを出す */
-const HERO_ID = "support-hero";
 
 /** お金以外のご支援の入口。リポジトリは公開しているので、そこへ素直につなぐ */
 const CODE_LINKS = [
@@ -152,15 +150,13 @@ export default async function SupportPage() {
       // 右下のボタンが最後の行に重ならないよう、そのぶんも空けておく
       style={{ paddingBottom: "calc(var(--nav-bar-height) + var(--safe-bottom, 0px) + 5.5rem)" }}
     >
-      <div id={HERO_ID}>
-        <SupportHero
-          monthlyJpy={monthly}
-          hasPending={hasPending}
-          totalReceivedJpy={TOTAL_RECEIVED_JPY}
-          runway={runway}
-          totalMonths={RUNWAY_MONTHS}
-        />
-      </div>
+      <SupportHero
+        monthlyJpy={monthly}
+        hasPending={hasPending}
+        totalReceivedJpy={TOTAL_RECEIVED_JPY}
+        runway={runway}
+        totalMonths={RUNWAY_MONTHS}
+      />
 
       <div className="mx-auto max-w-[64rem] px-6 sm:px-8">
         {/* ── 運営費 ────────────────────────────────────────────────── */}
@@ -260,7 +256,7 @@ export default async function SupportPage() {
         </Section>
 
         {/* ── 届いている範囲 ──────────────────────────────────────────── */}
-        <Section label="届いている範囲" title={["日曜市を歩く方に、", "届いております"]}>
+        <Section label="届いている範囲" title={["日曜市の地図として、", "使っていただいております"]}>
           <dl className="flex gap-10 border-b border-nicchyo-ink/[0.07] pb-7 sm:gap-16">
             <Figure label="マップに載っている店舗" value={shopCount} />
             <Figure label="今週の訪問者数" value={weeklyVisitors} />
@@ -275,19 +271,35 @@ export default async function SupportPage() {
         {/* ── 運営体制 ────────────────────────────────────────────────
             名前を並べた組織図ではなく、お金がどこに入って最後に誰へ届くのかを
             1枚で見せる。「卒業したら誰が続けるのか」がここでの主題 */}
-        <Section label="運営体制" title={["ご支援は、", "学生の手で", "日曜市へ届きます"]}>
+        <Section label="運営体制" title={["学生がつくり、", "顧問の教員が見守って、", "日曜市へ届けております"]}>
           <TeamStructure />
         </Section>
 
         {/* ── ご支援の方法 ────────────────────────────────────────────
             個人と組織では、お返しできるものも決め方も違う。ひとつにまとめると
             どちらの人も自分の話として読めなくなるので、最初から道を分ける */}
-        <Section label="ご支援の方法" title={["2つの形で、", "お力添えいただけます"]}>
+        <Section label="ご支援の方法" title={["個人でも、", "組織・企業でも、", "お力添えいただけます"]}>
           <SupportWays
             sponsorUnitAnnualJpy={SPONSOR_UNIT_ANNUAL_JPY}
             sponsorUnitMonths={unitMonths}
             individualSupporterCount={individualSupporterCount}
           />
+        </Section>
+
+        {/* ── ご相談について ──────────────────────────────────────────── */}
+        <Section label="ご相談について" title={["ご相談の前に、", "お伝えしておきたいこと"]}>
+          {/*
+            税制の話も先に書いておく。経理の方が後から確認して話が止まるより、
+            最初にお伝えした方が誠実で、結果として早く進む
+          */}
+          <dl className="grid gap-3 sm:grid-cols-3">
+            {CONSULT_NOTES.map((note) => (
+              <div key={note.title} className="rounded-card bg-white/70 p-5 ring-1 ring-nicchyo-ink/[0.07]">
+                <dt className="text-[14px] font-bold">{note.title}</dt>
+                <dd className="mt-1.5 text-[12.5px] leading-[1.85] text-nicchyo-ink/55">{note.body}</dd>
+              </div>
+            ))}
+          </dl>
         </Section>
 
         {/* ── コードでのご支援 ────────────────────────────────────────
@@ -318,22 +330,6 @@ export default async function SupportPage() {
           </div>
         </Section>
 
-        {/* ── ご相談について ──────────────────────────────────────────── */}
-        <Section label="ご相談について" title={["ご相談の前に、", "お伝えしておきたいこと"]}>
-          {/*
-            税制の話も先に書いておく。経理の方が後から確認して話が止まるより、
-            最初にお伝えした方が誠実で、結果として早く進む
-          */}
-          <dl className="grid gap-3 sm:grid-cols-3">
-            {CONSULT_NOTES.map((note) => (
-              <div key={note.title} className="rounded-card bg-white/70 p-5 ring-1 ring-nicchyo-ink/[0.07]">
-                <dt className="text-[14px] font-bold">{note.title}</dt>
-                <dd className="mt-1.5 text-[12.5px] leading-[1.85] text-nicchyo-ink/55">{note.body}</dd>
-              </div>
-            ))}
-          </dl>
-        </Section>
-
         {/* 締め。お願いで終わらせず、いま支えてくださっている方への礼で閉じる */}
         <Reveal>
           <p className="border-t border-nicchyo-ink/[0.07] py-12 text-center text-[14px] font-bold leading-[2] text-nicchyo-ink/60 [word-break:auto-phrase] sm:py-16">
@@ -344,7 +340,7 @@ export default async function SupportPage() {
         </Reveal>
       </div>
 
-      <SupportFloatingCta heroId={HERO_ID} />
+      <SupportFloatingCta />
       <NavigationBar />
     </main>
   );

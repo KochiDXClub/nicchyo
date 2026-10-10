@@ -9,47 +9,72 @@ import { ArrowRight, HandHeart } from "lucide-react";
  * 右下に常に出しておく「協賛のご相談」
  *
  * どこまで読んだところで決めても、その場から相談へ進めるようにする。
- * 入口には同じボタンが既にあるので、入口が見えているあいだは出さない。
+ * ページの中にも同じボタンがある（入口と、ご支援の方法の2枚のカード）。
+ * それが画面に見えているあいだは引っ込み、見えなくなったら出てくる。
+ * 二重に並ばず、カードのボタンの上に重なることもない。
+ *
+ * ページの中のボタンには data-support-cta を付けておくこと。付け忘れると、
+ * そのボタンの上にもこのボタンが重なる。
  *
  * 下端は NavigationBar（--nav-bar-height）が占めているので、その上に浮かせる。
- * 動きは「出てくるときに跳ねる」「ときどき光が走る」「アイコンから波紋が広がる」の3つ。
- * 光と波紋は目を引くための常時の動きなので、動きを減らす設定では globals.css が止める。
+ * 動きは「出てくるときに跳ねる」「光が走る」「アイコンから波紋が広がる」の3つ。
+ * 光と波紋は出てきたときに数回だけ動いて止まる（globals.css）。
  */
 
-type SupportFloatingCtaProps = {
-  /** 入口を包む要素の id。これが画面の上へ抜けたら出す */
-  heroId: string;
-};
+/** ページの中の「協賛のご相談」に付ける目印 */
+const INLINE_CTA_SELECTOR = "[data-support-cta]";
 
-export default function SupportFloatingCta({ heroId }: SupportFloatingCtaProps) {
-  const [isPastHero, setIsPastHero] = useState(false);
+/**
+ * 最初に出てくるまでの間（ミリ秒）。入口では見出しが落ち、人が歩いてくるので、
+ * それが落ち着いてから出す。狭い画面では入口のボタンがナビの裏に隠れていて、
+ * 読み込んだ直後からこのボタンが出る条件がそろっている。
+ */
+const FIRST_APPEAR_DELAY_MS = 1200;
+
+export default function SupportFloatingCta() {
+  // 見張りが始まるまでは「見えている」扱いにして、出さないでおく
+  const [hasVisibleInlineCta, setHasVisibleInlineCta] = useState(true);
+  const [isReady, setIsReady] = useState(false);
   const prefersReducedMotion = useReducedMotion();
 
   /**
-   * 高さの無い目印ではなく、入口そのものを見張る。
-   * 目印だと、ページ内リンク（「費用の内訳を見る」）や勢いのあるスクロールで
-   * 画面の下から上へ一気に飛び越えたとき、交差の前後どちらも「見えていない」の
-   * ままなので知らせが来ず、ボタンが出ない。入口は読み込んだ時点で画面に
-   * 入っているので、離れれば必ず知らせが来る。
+   * ページの中のボタンを1つずつ見張り、見えているものを数える。
+   *
+   * 見張るのは高さのある要素なので、ページ内リンク（「費用の内訳を見る」）で
+   * 一気に飛んでも、見え方が変わったものには必ず知らせが来る。
+   * 下端はナビの高さぶん削って判定する。ナビの裏に隠れたボタンは見えていない。
    */
   useEffect(() => {
-    const hero = document.getElementById(heroId);
-    if (!hero) return;
+    const targets = document.querySelectorAll(INLINE_CTA_SELECTOR);
+    if (targets.length === 0) {
+      setHasVisibleInlineCta(false);
+      return;
+    }
 
+    const navHeight = document.querySelector(".navigation-bar")?.getBoundingClientRect().height ?? 56;
+    const visible = new Set<Element>();
     const observer = new IntersectionObserver(
-      ([entry]) => {
-        // 上へ抜けたときだけ true にする
-        setIsPastHero(!entry.isIntersecting && entry.boundingClientRect.top < 0);
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) visible.add(entry.target);
+          else visible.delete(entry.target);
+        }
+        setHasVisibleInlineCta(visible.size > 0);
       },
-      { threshold: 0 }
+      { rootMargin: `0px 0px -${Math.round(navHeight)}px 0px`, threshold: 0 }
     );
-    observer.observe(hero);
+    targets.forEach((target) => observer.observe(target));
     return () => observer.disconnect();
-  }, [heroId]);
+  }, []);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setIsReady(true), FIRST_APPEAR_DELAY_MS);
+    return () => clearTimeout(timer);
+  }, []);
 
   return (
     <AnimatePresence>
-      {isPastHero && (
+      {isReady && !hasVisibleInlineCta && (
         <motion.div
           initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: 28, scale: 0.86 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -70,7 +95,7 @@ export default function SupportFloatingCta({ heroId }: SupportFloatingCtaProps) 
             href="/contact?category=sponsor"
             className="group relative flex items-center gap-2.5 overflow-hidden rounded-chip bg-nicchyo-ink py-2 pl-2 pr-5 text-white shadow-float ring-1 ring-white/10 transition duration-200 ease-out-soft hover:-translate-y-0.5 hover:bg-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/60 focus-visible:ring-offset-2 active:scale-95 motion-reduce:transition-none motion-reduce:hover:translate-y-0 motion-reduce:active:scale-100"
           >
-            {/* 光の帯。ボタンの左の外から右の外へ、ときどき横切る */}
+            {/* 光の帯。ボタンの左の外から右の外へ横切る */}
             <span
               className="support-cta__shine pointer-events-none absolute inset-y-0 -left-1/3 w-1/4 bg-white/25 blur-md"
               aria-hidden
