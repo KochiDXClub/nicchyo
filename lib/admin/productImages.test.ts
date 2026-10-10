@@ -1,10 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { purgeRemovedProducts } from "./productImages";
+import { isSupabaseStorageUrl, ownProductImagePath, purgeRemovedProducts } from "./productImages";
 
 const deletes: string[] = [];
 const storageRemove = vi.fn();
-let rows: { id: string; name: string }[];
+let rows: { id: string; name: string; image_url: string | null }[];
 let signature: string | null;
 
 const client = {
@@ -44,10 +44,10 @@ beforeEach(() => {
   storageRemove.mockResolvedValue({ error: null });
   signature = null;
   rows = [
-    { id: "p1", name: "トマト" },
-    { id: "p2", name: "なす" },
-    { id: "p3", name: "看板の柿" },
-    { id: "p4", name: "昔の商品" },
+    { id: "p1", name: "トマト", image_url: null },
+    { id: "p2", name: "なす", image_url: null },
+    { id: "p3", name: "看板の柿", image_url: null },
+    { id: "p4", name: "昔の商品", image_url: null },
   ];
 });
 
@@ -60,9 +60,11 @@ describe("purgeRemovedProducts", () => {
     expect(storageRemove).toHaveBeenCalledWith(["v1/product-p2.webp"]);
   });
 
-  it("主な商品が空だったときは、products の商品が画面に出ていたものとして扱う", async () => {
+  it("主な商品が空だったときは、画面には何も出ていなかったので、何も消さない（products にだけある商品の行を守る）", async () => {
+    await purgeRemovedProducts(client, "v1", [], []);
     await purgeRemovedProducts(client, "v1", [], ["トマト"]);
-    expect(deletes).toEqual(["id=p2,vendor_id=v1", "id=p3,vendor_id=v1", "id=p4,vendor_id=v1"]);
+    expect(deletes).toEqual([]);
+    expect(storageRemove).not.toHaveBeenCalled();
   });
 
   it("読めなくても投げない（一覧の保存は済んでいる）", async () => {
@@ -70,5 +72,33 @@ describe("purgeRemovedProducts", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     await expect(purgeRemovedProducts(broken, "v1", ["a"], [])).resolves.toBeUndefined();
     warn.mockRestore();
+  });
+});
+
+describe("ownProductImagePath", () => {
+  const base = "https://x.supabase.co/storage/v1/object/public/vendor-images";
+
+  it("自店舗のフォルダ直下の商品写真だけ、パスを取り出す（版のクエリは外す）", () => {
+    expect(ownProductImagePath(`${base}/v1/product-ab12-cd.webp?v=170`, "v1")).toBe("v1/product-ab12-cd.webp");
+  });
+
+  it("他店舗・深い階層・商品写真でないファイル・パスの細工・壊れた URL は null", () => {
+    expect(ownProductImagePath(`${base}/v2/product-ab12.webp`, "v1")).toBeNull();
+    expect(ownProductImagePath(`${base}/v1/sub/product-ab12.webp`, "v1")).toBeNull();
+    expect(ownProductImagePath(`${base}/v1/store-main.webp`, "v1")).toBeNull();
+    expect(ownProductImagePath(`${base}/v1%2F..%2Fv2%2Fproduct-ab12.webp`, "v1")).toBeNull();
+    expect(ownProductImagePath(`${base}/v1/%E0%A4%A`, "v1")).toBeNull();
+    expect(ownProductImagePath("https://example.com/a.webp", "v1")).toBeNull();
+    expect(ownProductImagePath(null, "v1")).toBeNull();
+  });
+});
+
+describe("isSupabaseStorageUrl", () => {
+  it("*.supabase.co の https の Storage URL だけ通す", () => {
+    expect(isSupabaseStorageUrl("https://x.supabase.co/storage/v1/object/public/vendor-images/a.webp")).toBe(true);
+    expect(isSupabaseStorageUrl("https://evil.example.com/storage/a.webp")).toBe(false);
+    expect(isSupabaseStorageUrl("http://x.supabase.co/storage/a.webp")).toBe(false);
+    expect(isSupabaseStorageUrl("https://x.supabase.co.evil.com/storage/a.webp")).toBe(false);
+    expect(isSupabaseStorageUrl("javascript:alert(1)")).toBe(false);
   });
 });

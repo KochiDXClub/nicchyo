@@ -5,6 +5,7 @@ import { guardAdminShopWrite } from "@/lib/admin/shopApiGuard";
 import { sniffImageType } from "@/lib/admin/imageSniff";
 import {
   PRODUCT_IMAGE_BUCKET,
+  ownProductImagePath,
   productImagePath,
   removeProductImageFiles,
 } from "@/lib/admin/productImages";
@@ -19,7 +20,7 @@ const MAX_REQUEST_BYTES = MAX_BYTES + 1024 * 1024;
 const MAX_DIMENSION = 1200;
 const WEBP_QUALITY = 82;
 /** 極端に大きな画像で、メモリを使い切られないようにする */
-const MAX_INPUT_PIXELS = 50_000_000;
+const MAX_INPUT_PIXELS = 24_000_000;
 const MAX_NAME_LENGTH = 60;
 
 /**
@@ -86,9 +87,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     // 同じ名前の商品の行（看板商品など、出店者本人が作ったものを含む）に写真を置く。無ければ作る
     const { data: existing, error: findError } = await adminClient
       .from("products")
-      .select("id")
+      .select("id, image_url")
       .eq("vendor_id", id)
       .eq("name", name)
+      .order("created_at", { ascending: true })
       .limit(1)
       .maybeSingle();
     if (findError) return NextResponse.json({ error: "写真を保存できませんでした" }, { status: 500 });
@@ -108,8 +110,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       .from(PRODUCT_IMAGE_BUCKET)
       .upload(path, webp, { contentType: "image/webp", upsert: true });
     if (upload.error) return NextResponse.json({ error: "写真を保存できませんでした" }, { status: 500 });
-    // 出店者本人が前に JPEG などで保存していた写真が残らないように
-    await removeProductImageFiles(adminClient, id, productId, path);
 
     // 同じ名前で上書きしても、ブラウザが古い写真を出し続けないよう版を付ける
     const url = `${adminClient.storage.from(PRODUCT_IMAGE_BUCKET).getPublicUrl(path).data.publicUrl}?v=${Date.now()}`;
@@ -118,7 +118,15 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       .update({ image_url: url, updated_at: new Date().toISOString() })
       .eq("id", productId)
       .eq("vendor_id", id);
-    if (updateError) return NextResponse.json({ error: "写真の URL を保存できませんでした" }, { status: 500 });
+    if (updateError) {
+      // URL を書けなかった。前の写真がこのファイルでなければ、参照されない写真を残さない（前の写真は消さない）
+      if (ownProductImagePath(existing?.image_url, id) !== path) {
+        await adminClient.storage.from(PRODUCT_IMAGE_BUCKET).remove([path]).catch(() => undefined);
+      }
+      return NextResponse.json({ error: "写真の URL を保存できませんでした" }, { status: 500 });
+    }
+    // URL を書けてから、前の写真（別の形式・前の商品 id のもの）を片付ける。先に消すと、書き損ねたときに壊れた URL が残る
+    await removeProductImageFiles(adminClient, id, productId, { keepPath: path, imageUrl: existing?.image_url });
 
     await logAdminAudit(
       adminClient,
@@ -158,24 +166,27 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
     const { data: vendor } = await adminClient.from("vendors").select("shop_name").eq("id", id).maybeSingle();
     if (!vendor) return NextResponse.json({ error: "店舗が見つかりません" }, { status: 404 });
 
-    const { data: product, error: findError } = await adminClient
+    // 同じ名前の行が複数あることがある（名前の一意制約は無い）。写真のある行を全部外す
+    const { data: found, error: findError } = await adminClient
       .from("products")
       .select("id, image_url")
       .eq("vendor_id", id)
-      .eq("name", name)
-      .limit(1)
-      .maybeSingle();
+      .eq("name", name);
     if (findError) return NextResponse.json({ error: "写真を外せませんでした" }, { status: 500 });
+    const withPhoto = (found ?? []).filter((row) => row.image_url);
     // 写真が無い（行が無い）なら、すでに外れている
-    if (!product?.image_url) return NextResponse.json({ ok: true, name });
+    if (withPhoto.length === 0) return NextResponse.json({ ok: true, name });
 
-    const { error: updateError } = await adminClient
-      .from("products")
-      .update({ image_url: null, updated_at: new Date().toISOString() })
-      .eq("id", product.id)
-      .eq("vendor_id", id);
-    if (updateError) return NextResponse.json({ error: "写真を外せませんでした" }, { status: 500 });
-    await removeProductImageFiles(adminClient, id, product.id);
+    let cleaned = true;
+    for (const product of withPhoto) {
+      const { error: updateError } = await adminClient
+        .from("products")
+        .update({ image_url: null, updated_at: new Date().toISOString() })
+        .eq("id", product.id)
+        .eq("vendor_id", id);
+      if (updateError) return NextResponse.json({ error: "写真を外せませんでした" }, { status: 500 });
+      if (!(await removeProductImageFiles(adminClient, id, product.id, { imageUrl: product.image_url }))) cleaned = false;
+    }
 
     await logAdminAudit(
       adminClient,
@@ -190,7 +201,8 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
       },
     );
 
-    return NextResponse.json({ ok: true, name });
+    // 写真ファイルを消し切れなかったときは、画面から外れていても公開 URL が残りうるので知らせる
+    return NextResponse.json({ ok: true, name, ...(cleaned ? {} : { cleanup: "partial" }) });
   } catch {
     return NextResponse.json({ error: "写真を外せませんでした" }, { status: 500 });
   }

@@ -32,7 +32,7 @@ export function FieldProductsCard({
   return (
       <Card
         title="売っているもの"
-        hint="主な商品と価格（価格は分からなければ空欄でよい）。写真は、商品を保存したあとで登録できます"
+        hint="主な商品と価格（価格は分からなければ空欄でよい）。写真は、商品を保存したあとで登録できます。商品名を変えると、前の名前の写真は外れます"
       >
         {products.map((p, i) => {
           const name = p.name.trim();

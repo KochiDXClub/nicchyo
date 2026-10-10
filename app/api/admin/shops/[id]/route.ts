@@ -3,7 +3,7 @@ import { requireAdminApi } from "@/lib/auth/requireAdminApi";
 import { guardAdminShopWrite, UUID_RE } from "@/lib/admin/shopApiGuard";
 import { logAdminAudit } from "@/lib/audit/logAdminAudit";
 import { consentDateOnAllow, parseShopEdit } from "@/lib/admin/shopEdit";
-import { purgeRemovedProducts } from "@/lib/admin/productImages";
+import { isSupabaseStorageUrl, purgeRemovedProducts } from "@/lib/admin/productImages";
 import { normalizeChomeId } from "@/lib/map/chomes";
 import { isMissingTableError } from "@/lib/admin/fieldShopLocation";
 import { isEndAfterStart } from "@/lib/vendor/businessHours";
@@ -47,7 +47,8 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     adminClient.from("products").select("name, image_url").eq("vendor_id", id).not("image_url", "is", null),
   ]);
   const productImages: Record<string, string> = {};
-  for (const row of productRows.data ?? []) if (row.image_url) productImages[row.name] = row.image_url;
+  // image_url は店舗側の権限でも書き換えられる列。管理画面の <img> に外部の URL を出さない（開いた管理者の IP などが漏れる）
+  for (const row of productRows.data ?? []) if (row.image_url && isSupabaseStorageUrl(row.image_url)) productImages[row.name] = row.image_url;
 
   const location = assignment?.market_locations as { store_number: number } | { store_number: number }[] | null | undefined;
   const storeNumber = Array.isArray(location) ? location[0]?.store_number : location?.store_number;
