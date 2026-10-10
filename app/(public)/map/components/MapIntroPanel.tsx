@@ -45,6 +45,7 @@ import IntroConsultDemo from './intro/IntroConsultDemo';
 import IntroOdekakeDemo from './intro/IntroOdekakeDemo';
 import { useIntroOdekakeGuide } from './intro/useIntroOdekakeGuide';
 import IntroShopSheet from './intro/IntroShopSheet';
+import IntroPhotoCarousel from './intro/IntroPhotoCarousel';
 import IntroGrandmaRail, {
   RAIL_STOP_HEIGHT,
   RAIL_STOP_HEIGHT_DESKTOP,
@@ -422,21 +423,17 @@ export default function MapIntroPanel({
           {/* ── 見出し ──
               いちばん上も止まる位置にしておく。ここが止まる位置でないと、
               一度下へ送ったあと先頭へ戻れなくなる（戻る先が無い）。
-              右上に差す黄色は、地図の上に「はじまり」があることの合図 */}
-          <div
-            data-intro-stop={0}
-            className="snap-start snap-always bg-[radial-gradient(120%_70%_at_100%_0%,rgba(255,222,89,0.32),transparent_60%)]"
-          >
-            <div className="relative z-[1] pl-[var(--intro-rail)] pr-12 pt-4 md:pr-16 md:pt-5">
-              <span className="inline-flex items-center rounded-full bg-nicchyo-accent/70 px-2.5 py-1 text-[11px] font-bold tracking-[0.14em] text-nicchyo-ink/80">
-                {siteText('mapIntro.badge')}
-              </span>
-              <h2
-                id="map-intro-title"
-                className="mt-3 text-[26px] font-extrabold leading-[1.15] tracking-tight text-nicchyo-ink md:text-[32px]"
-              >
-                {siteText('mapIntro.title')}
-              </h2>
+              いちばん上には日曜市の写真を回して見せ、どんな場所かを先に目で伝える */}
+          <div data-intro-stop={0} className="snap-start snap-always">
+            <div className="relative z-[1] px-4 pt-3 md:px-6 md:pt-0">
+              <IntroPhotoCarousel>
+                <h2
+                  id="map-intro-title"
+                  className="text-[26px] font-extrabold leading-[1.15] tracking-tight text-white [text-shadow:0_2px_12px_rgba(0,0,0,0.55)] md:text-[32px]"
+                >
+                  {siteText('mapIntro.title')}
+                </h2>
+              </IntroPhotoCarousel>
             </div>
 
             {/* にちよさんの最初の停留点 */}
