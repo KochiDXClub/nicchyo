@@ -32,17 +32,20 @@ const baseShop = {
   photo_use_allowed: true,
   listing_consented_on: "2026-10-04",
   listing_consent_note: null,
-  store_number: null,
+  store_number: null as number | null,
+  chome: null as number | null,
   updated_at: "2026-10-04T00:00:00.000Z",
 };
 
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status });
 
 describe("FieldShopEditor", () => {
+  let currentShop: typeof baseShop = baseShop;
   const calls: { url: string; method: string; body?: unknown }[] = [];
 
   beforeEach(() => {
     calls.length = 0;
+    currentShop = baseShop;
     vi.stubGlobal(
       "fetch",
       vi.fn(async (url: string, init?: RequestInit) => {
@@ -53,7 +56,7 @@ describe("FieldShopEditor", () => {
         if (url.endsWith("/location")) return json({ locations: [], current: { storeNumber: 12, lat: 33.5, lng: 133.5 } });
         if (url.includes("/categories")) return json({ categories: [] });
         if (method === "PATCH") return json({ ok: true });
-        return json({ shop: baseShop });
+        return json({ shop: currentShop });
       }),
     );
   });
@@ -74,15 +77,76 @@ describe("FieldShopEditor", () => {
     expect((patch.body as { updated_at: string }).updated_at).toBe("2026-10-05T00:00:00.000Z");
   });
 
+  it("写真は「撮る」（カメラ）と「選ぶ」（端末の写真）の別の入口にする", async () => {
+    const { container } = render(<FieldShopEditor shopId={baseShop.id} />);
+    await screen.findByDisplayValue("はなや");
+    expect(screen.getByText("写真を撮る")).toBeTruthy();
+    expect(screen.getByText("写真を選ぶ")).toBeTruthy();
+    const inputs = [...container.querySelectorAll('input[type="file"]')];
+    expect(inputs.map((i) => i.getAttribute("capture"))).toEqual(["environment", null]);
+  });
+
+  it("丁目は、位置が未記録でも選べる", async () => {
+    render(<FieldShopEditor shopId={baseShop.id} />);
+    await screen.findByDisplayValue("はなや");
+    expect((screen.getByLabelText("日曜市の丁目") as HTMLSelectElement).disabled).toBe(false);
+  });
+
+  it("丁目は、変えたときだけ保存に送る（開いただけの保存では送らない）", async () => {
+    currentShop = { ...baseShop, store_number: 12, chome: 3 };
+    render(<FieldShopEditor shopId={baseShop.id} />);
+    const nameInput = (await screen.findByDisplayValue("はなや")) as HTMLInputElement;
+    const select = screen.getByLabelText("日曜市の丁目") as HTMLSelectElement;
+    expect(select.value).toBe("3");
+
+    fireEvent.change(nameInput, { target: { value: "はなや本店" } });
+    fireEvent.click(await screen.findByRole("button", { name: "内容を保存" }));
+    await waitFor(() => expect(calls.filter((c) => c.method === "PATCH")).toHaveLength(1));
+    expect(calls.find((c) => c.method === "PATCH")!.body).not.toHaveProperty("chome");
+
+    fireEvent.change(screen.getByLabelText("日曜市の丁目"), { target: { value: "5" } });
+    fireEvent.click(await screen.findByRole("button", { name: "内容を保存" }));
+    await waitFor(() => expect(calls.filter((c) => c.method === "PATCH")).toHaveLength(2));
+    expect(calls.filter((c) => c.method === "PATCH")[1].body).toMatchObject({ chome: 5 });
+  });
+
+  it("「いまの場所を記録する」で、現在地をそのまま記録する（地図に指さなくてよい）", async () => {
+    const getCurrentPosition = vi.fn((ok: (p: unknown) => void) => ok({ coords: { latitude: 33.5614, longitude: 133.538, accuracy: 8.4 } }));
+    vi.stubGlobal("navigator", { ...navigator, geolocation: { getCurrentPosition } });
+    render(<FieldShopEditor shopId={baseShop.id} />);
+    await screen.findByDisplayValue("はなや");
+
+    fireEvent.click(screen.getByRole("button", { name: "いまの場所を記録する" }));
+    await waitFor(() => expect(calls.some((c) => c.method === "PUT")).toBe(true));
+    expect(calls.find((c) => c.method === "PUT")!.body).toMatchObject({ lat: 33.5614, lng: 133.538, source: "gps", accuracyM: 8 });
+    await waitFor(() => expect(screen.getByText(/現在地（誤差 約8m）/)).toBeTruthy());
+    // 地図は開かなくてよい
+    expect(screen.queryByRole("button", { name: "この位置を記録" })).toBeNull();
+  });
+
+  it("現在地の誤差が大きいときは、確かめて、断ったら記録しない", async () => {
+    const getCurrentPosition = vi.fn((ok: (p: unknown) => void) => ok({ coords: { latitude: 33.5614, longitude: 133.538, accuracy: 80 } }));
+    vi.stubGlobal("navigator", { ...navigator, geolocation: { getCurrentPosition } });
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+    render(<FieldShopEditor shopId={baseShop.id} />);
+    await screen.findByDisplayValue("はなや");
+
+    fireEvent.click(screen.getByRole("button", { name: "いまの場所を記録する" }));
+    await waitFor(() => expect(confirm).toHaveBeenCalled());
+    expect(calls.some((c) => c.method === "PUT")).toBe(false);
+    confirm.mockRestore();
+  });
+
   it("位置の保存に成功しても、未保存のフォーム入力は消えない", async () => {
     render(<FieldShopEditor shopId={baseShop.id} />);
     const nameInput = (await screen.findByDisplayValue("はなや")) as HTMLInputElement;
     await waitFor(() => expect(screen.getByDisplayValue("12")).toBeTruthy());
 
     fireEvent.change(nameInput, { target: { value: "はなや本店" } });
-    fireEvent.click(screen.getByRole("button", { name: "この位置で保存" }));
+    fireEvent.click(screen.getByRole("button", { name: "地図で位置を直す（任意）" }));
+    fireEvent.click(screen.getByRole("button", { name: "この位置を記録" }));
     await waitFor(() => expect(calls.some((c) => c.method === "PUT")).toBe(true));
-    await waitFor(() => expect(screen.getByText(/保存済み: 店番 12/)).toBeTruthy());
+    await waitFor(() => expect(screen.getByText(/記録済み: 店番 12/)).toBeTruthy());
 
     expect((screen.getByDisplayValue("はなや本店") as HTMLInputElement).value).toBe("はなや本店");
     expect(screen.getByRole("button", { name: "内容を保存" })).toBeTruthy();

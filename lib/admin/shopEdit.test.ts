@@ -14,6 +14,13 @@ describe("parseShopEdit", () => {
     expect(ownerName).toBeUndefined();
   });
 
+  it("丁目は1〜7の整数だけ受け付け、丁目だけの更新も通る", () => {
+    expect(ok({ chome: 5 }).chome).toBe(5);
+    expect(ok({ chome: 5 }).vendor).toEqual({});
+    expect(ok({ shop_name: "山田農園" }).chome).toBeUndefined();
+    for (const bad of [0, 8, 2.5, "3", null]) expect(parseShopEdit({ chome: bad }).ok).toBe(false);
+  });
+
   it("空文字は null（未入力）にそろえる。店主名も同じ", () => {
     const { vendor, ownerName } = ok({ style: "  ", sns_x: "", owner_name: "" });
     expect(vendor).toEqual({ style: null, sns_x: null });

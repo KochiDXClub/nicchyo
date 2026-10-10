@@ -1,9 +1,12 @@
 import { NextResponse } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { requireAdminApi } from "@/lib/auth/requireAdminApi";
+import { guardAdminWrite } from "@/lib/admin/shopApiGuard";
+import { logAdminAudit } from "@/lib/audit/logAdminAudit";
+import { isMissingTableError } from "@/lib/admin/fieldShopLocation";
 import { listAllAuthUsers } from "@/lib/auth/listAllUsers";
 import { loadShopAccountLinks } from "@/lib/admin/shopAccounts.server";
-import type { ListingStatus } from "@/lib/admin/shopEdit";
+import { parseShopEdit, type ListingStatus } from "@/lib/admin/shopEdit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -17,8 +20,10 @@ export type AdminShop = {
   status: "active" | "suspended";
   /** 掲載許可（pending=未取得 / allowed=許可済み / declined=断られた） */
   listingStatus: ListingStatus;
-  /** 配置されている店番。位置が未登録なら null */
+  /** 店番。現場登録の記録があればそれ、無ければ地図上の区画の店番。無ければ null */
   storeNumber: number | null;
+  /** 位置が決まっているか（現場で位置を記録した、または地図上の区画に置かれている） */
+  hasLocation: boolean;
   /** 店舗写真があるか */
   hasPhoto: boolean;
   registeredDate: string;
@@ -75,6 +80,14 @@ export async function GET() {
       if (n != null) storeNumberByVendor.set(a.vendor_id, n);
     }
 
+    // 現場登録の記録（地図には反映していない）。店番が決まっていない新しい店舗も、位置を記録していれば「位置あり」
+    const fieldRows = new Map<string, { store_number: number | null; latitude: number | null }>();
+    const fieldResult = await serviceClient.from("field_shop_locations").select("vendor_id, store_number, latitude");
+    if (fieldResult.error && !isMissingTableError(fieldResult.error)) {
+      console.error("[admin/shops] field_shop_locations error:", fieldResult.error);
+    }
+    for (const row of fieldResult.data ?? []) fieldRows.set(row.vendor_id, row);
+
     // 全 auth ユーザーを取得（banned_until でsuspended判定）
     // ページ途中で取得に失敗しても、それまでに取れた分は使う（一部の店舗情報が
     // 欠けるだけで、店舗一覧全体が空になるよりはましなため）
@@ -120,7 +133,11 @@ export async function GET() {
         email: authUser?.email ?? "-",
         status: isSuspended ? "suspended" : "active",
         listingStatus: vendor.listing_status as ListingStatus,
-        storeNumber: storeNumberByVendor.get(vendor.id) ?? null,
+        storeNumber: fieldRows.get(vendor.id)?.store_number ?? storeNumberByVendor.get(vendor.id) ?? null,
+        hasLocation:
+          fieldRows.get(vendor.id)?.latitude != null ||
+          fieldRows.get(vendor.id)?.store_number != null ||
+          storeNumberByVendor.has(vendor.id),
         hasPhoto: !!vendor.shop_image_url,
         registeredDate: formatDate(authUser?.created_at ?? vendor.created_at),
       };
@@ -129,5 +146,49 @@ export async function GET() {
     return NextResponse.json({ shops });
   } catch {
     return NextResponse.json({ error: "Failed to load shops" }, { status: 500 });
+  }
+}
+
+/**
+ * 店舗の新規登録（現場登録）。住所録（2024年版）に無い店舗を、運営が現地で作る。
+ * 作った店舗は掲載許可が「未取得」（pending）なので、許可を取って「許可済み」にするまで来訪者には出ない。
+ * 店番・位置・丁目は、作ったあとに現場登録の画面で記録する（地図には反映しない）。
+ */
+export async function POST(request: Request) {
+  try {
+    const guard = await guardAdminWrite(request, { bucket: "admin-shop-create", limit: 60, json: true });
+    if ("error" in guard) return guard.error;
+    const { user, role, adminClient, ip } = guard.ctx;
+
+    const body = guard.body as Record<string, unknown> | null;
+    // 店名・カテゴリの検証は、代理編集と同じ規則を使う
+    const parsed = parseShopEdit({ shop_name: body?.shop_name, category_id: body?.category_id ?? null });
+    if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 });
+    const { shop_name, category_id } = parsed.value.vendor;
+    if (!shop_name) return NextResponse.json({ error: "店名を入力してください" }, { status: 400 });
+
+    const { data: created, error } = await adminClient
+      .from("vendors")
+      .insert({ id: crypto.randomUUID(), shop_name, category_id: category_id ?? null, listing_status: "pending" })
+      .select("id")
+      .single();
+    if (error || !created) return NextResponse.json({ error: "店舗を作れませんでした" }, { status: 500 });
+
+    await logAdminAudit(
+      adminClient,
+      { id: user.id, email: user.email, role },
+      {
+        action: "shop_create",
+        targetType: "vendor",
+        targetId: created.id,
+        targetName: shop_name.slice(0, 500),
+        details: "現場登録で新規作成（掲載許可は未取得）",
+        ipAddress: ip,
+      },
+    );
+
+    return NextResponse.json({ ok: true, id: created.id }, { status: 201 });
+  } catch {
+    return NextResponse.json({ error: "店舗を作れませんでした" }, { status: 500 });
   }
 }

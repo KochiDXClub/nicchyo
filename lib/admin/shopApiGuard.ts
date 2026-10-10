@@ -18,13 +18,13 @@ export type AdminShopWriteContext = AdminApiContext & {
 };
 
 /**
- * @param json true のとき、本文を JSON として読んで body に入れる（読めなければ 400）。写真など JSON でないものは false
+ * 店舗を指定しない書き込み（新規登録など）の入口。同一オリジン → 管理者の認可 → レート制限、の順。
+ * 店舗を指定する書き込みは guardAdminShopWrite（中でこれを使う）。
  */
-export async function guardAdminShopWrite(
+export async function guardAdminWrite(
   request: Request,
-  params: Promise<{ id: string }>,
   rate: { bucket: string; limit: number; json?: boolean },
-): Promise<{ ctx: AdminShopWriteContext; body: unknown } | { error: NextResponse }> {
+): Promise<{ ctx: AdminApiContext & { ip: string | null }; body: unknown } | { error: NextResponse }> {
   const originCheck = requireSameOrigin(request);
   if (!originCheck.ok) return { error: originCheck.response };
 
@@ -41,9 +41,6 @@ export async function guardAdminShopWrite(
   });
   if (rateLimited) return { error: rateLimited };
 
-  const { id } = await params;
-  if (!UUID_RE.test(id)) return { error: NextResponse.json({ error: "Invalid id" }, { status: 400 }) };
-
   let body: unknown = null;
   if (rate.json) {
     try {
@@ -54,5 +51,21 @@ export async function guardAdminShopWrite(
   }
 
   const ip = getClientIp(request);
-  return { ctx: { ...auth, id, ip: ip !== "unknown" ? ip : null }, body };
+  return { ctx: { ...auth, ip: ip !== "unknown" ? ip : null }, body };
+}
+
+/**
+ * @param json true のとき、本文を JSON として読んで body に入れる（読めなければ 400）。写真など JSON でないものは false
+ */
+export async function guardAdminShopWrite(
+  request: Request,
+  params: Promise<{ id: string }>,
+  rate: { bucket: string; limit: number; json?: boolean },
+): Promise<{ ctx: AdminShopWriteContext; body: unknown } | { error: NextResponse }> {
+  // 店舗の ID の形は、本文を読む前に確かめる（認可・回数の確認は guardAdminWrite と同じ）
+  const guard = await guardAdminWrite(request, rate);
+  if ("error" in guard) return guard;
+  const { id } = await params;
+  if (!UUID_RE.test(id)) return { error: NextResponse.json({ error: "Invalid id" }, { status: 400 }) };
+  return { ctx: { ...guard.ctx, id }, body: guard.body };
 }
