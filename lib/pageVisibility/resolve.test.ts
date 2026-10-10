@@ -131,7 +131,8 @@ describe("isSafeRedirectPath", () => {
     expect(isSafeRedirectPath("/")).toBe(true);
     expect(isSafeRedirectPath("/map")).toBe(true);
     expect(isSafeRedirectPath("/shops/001")).toBe(true);
-    expect(isSafeRedirectPath("/news")).toBe(false);
+    expect(isSafeRedirectPath("/not-registered")).toBe(false);
+    expect(isSafeRedirectPath("/news")).toBe(true); // お知らせは登録済み
     expect(isSafeRedirectPath("//evil.example")).toBe(false);
     expect(isSafeRedirectPath("/\\evil.example")).toBe(false);
     expect(isSafeRedirectPath("/\t/evil.example")).toBe(false);

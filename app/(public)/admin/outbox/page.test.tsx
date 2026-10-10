@@ -14,6 +14,7 @@ vi.mock("@/components/admin", () => ({
   AdminLayout: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   AdminPageHeader: ({ title }: { title: string }) => <h1>{title}</h1>,
 }));
+vi.mock("./components/SiteAnnouncementSection", () => ({ SiteAnnouncementSection: () => <p>サイト内のお知らせのフォーム</p> }));
 vi.mock("./components/VendorNoticeSection", () => ({ VendorNoticeSection: () => <p>出店者へのお知らせのフォーム</p> }));
 vi.mock("./components/BroadcastEmailSection", () => ({ BroadcastEmailSection: () => <p>お知らせメールのフォーム</p> }));
 
@@ -26,10 +27,12 @@ beforeEach(() => {
 });
 
 describe("お知らせ（送信）のページ", () => {
-  it("フォームは縦に並べず、タブで1つずつ開く（最初は出店者へのお知らせ）", () => {
+  it("フォームは縦に並べず、タブで1つずつ開く（最初はサイト内のお知らせ）", () => {
     render(<OutboxPage />);
-    expect(screen.getByRole("tab", { name: "出店者へのお知らせ" }).getAttribute("aria-selected")).toBe("true");
-    expect(screen.getByText("出店者へのお知らせのフォーム")).toBeTruthy();
+    expect(screen.getAllByRole("tab").map((t) => t.textContent)).toEqual(["サイト内のお知らせ", "出店者へのお知らせ", "お知らせメール"]);
+    expect(screen.getByRole("tab", { name: "サイト内のお知らせ" }).getAttribute("aria-selected")).toBe("true");
+    expect(screen.getByText("サイト内のお知らせのフォーム")).toBeTruthy();
+    expect(screen.queryByText("出店者へのお知らせのフォーム")).toBeNull();
     expect(screen.queryByText("お知らせメールのフォーム")).toBeNull();
   });
 
@@ -37,7 +40,7 @@ describe("お知らせ（送信）のページ", () => {
     render(<OutboxPage />);
     fireEvent.click(screen.getByRole("tab", { name: "お知らせメール" }));
     expect(screen.getByText("お知らせメールのフォーム")).toBeTruthy();
-    expect(screen.queryByText("出店者へのお知らせのフォーム")).toBeNull();
+    expect(screen.queryByText("サイト内のお知らせのフォーム")).toBeNull();
     expect(replace).toHaveBeenCalledWith("/admin/outbox?tab=email", { scroll: false });
   });
 

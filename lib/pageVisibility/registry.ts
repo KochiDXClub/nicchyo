@@ -51,6 +51,7 @@ export const PAGE_REGISTRY: readonly PageRegistryEntry[] = [
   },
   { path: "/posts", label: "投稿一覧", group: "来訪者向け" },
   { path: "/events", label: "イベント", group: "来訪者向け" },
+  { path: "/news", label: "お知らせ", group: "来訪者向け", description: "運営からのサイト内のお知らせ" },
   { path: "/calendar", label: "日曜市カレンダー", group: "来訪者向け" },
   { path: "/favorites", label: "お気に入り", group: "来訪者向け" },
   { path: "/activities", label: "活動記録", group: "来訪者向け" },

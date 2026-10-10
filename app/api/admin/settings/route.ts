@@ -17,8 +17,6 @@ type PublicSettings = {
   siteName: string;
   maintenanceMode: boolean;
   maintenanceMessage: string;
-  publicAnnouncementEnabled: boolean;
-  publicAnnouncement: string;
 };
 
 type MapSettings = {
@@ -32,8 +30,6 @@ const DEFAULT_PUBLIC_SETTINGS: PublicSettings = {
   siteName: "nicchyo",
   maintenanceMode: false,
   maintenanceMessage: "",
-  publicAnnouncementEnabled: false,
-  publicAnnouncement: "",
 };
 
 const DEFAULT_MAP_SETTINGS: MapSettings = {
@@ -76,14 +72,6 @@ function parsePublicSettings(value: unknown): PublicSettings {
       typeof record.maintenanceMessage === "string"
         ? record.maintenanceMessage
         : DEFAULT_PUBLIC_SETTINGS.maintenanceMessage,
-    publicAnnouncementEnabled:
-      typeof record.publicAnnouncementEnabled === "boolean"
-        ? record.publicAnnouncementEnabled
-        : DEFAULT_PUBLIC_SETTINGS.publicAnnouncementEnabled,
-    publicAnnouncement:
-      typeof record.publicAnnouncement === "string"
-        ? record.publicAnnouncement
-        : DEFAULT_PUBLIC_SETTINGS.publicAnnouncement,
   };
 }
 

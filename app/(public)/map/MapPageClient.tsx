@@ -23,6 +23,7 @@ import { useMapSearchFilter } from "./hooks/useMapSearchFilter";
 import { GenreFilter } from "./components/GenreFilter";
 import { VendorShopPrompt } from "./components/VendorShopPrompt";
 import MarketStatusBar from "../../components/market/MarketStatusBar";
+import AnnouncementBanner from "@/components/announcements/AnnouncementBanner";
 import { useMarketCalendar } from "../../../lib/market/useMarketCalendar";
 import ShopScanCards from "./components/ShopScanCards";
 import NearbyExploreButton from "./components/NearbyExploreButton";
@@ -850,6 +851,9 @@ export default function MapPageClient({
                 onClick={(e) => e.stopPropagation()}
                 onTouchStart={(e) => e.stopPropagation()}
               >
+                {/* サイト内のお知らせ（公開中のものがあるときだけ。無ければ何も出さないので検索バーは動かない） */}
+                <AnnouncementBanner />
+
                 {/* 開催ステータス（例外時のみ表示。平常時は null を返すので検索バーは動かない） */}
                 <MarketStatusBar day={marketCalendar.day} placement="map" />
 
