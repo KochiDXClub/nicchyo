@@ -5,7 +5,7 @@ import {
   monthlyJpyOf,
   type RunningCost,
 } from "../costs";
-import { CountUp, GrowBar } from "./SupportMotion";
+import { CountUp, GrowBar } from "@/components/ScrollMotion";
 
 /**
  * 費目の台帳
@@ -62,16 +62,17 @@ export default function CostLedger({
               key={cost.label}
               className="relative flex items-baseline justify-between gap-6 border-b border-nicchyo-ink/[0.07] py-4"
             >
-              {share !== null && (
-                <span className="absolute inset-x-0 bottom-[-1px] h-[3px]" aria-hidden>
-                  <GrowBar
-                    ratio={share}
-                    className="rounded-chip bg-amber-500/70"
-                    delay={0.2 + index * 0.08}
-                  />
-                </span>
-              )}
               <dt className="min-w-0">
+                {/* 行の下端に敷く。位置の基準は行（relative）なので、dt の中に置いてよい */}
+                {share !== null && (
+                  <span className="absolute inset-x-0 bottom-[-1px] h-[3px]" aria-hidden>
+                    <GrowBar
+                      ratio={share}
+                      className="rounded-chip bg-amber-500/70"
+                      delay={0.2 + index * 0.08}
+                    />
+                  </span>
+                )}
                 <span className="block text-[15px] font-bold">{cost.label}</span>
                 <span className="mt-1 block text-[12.5px] leading-relaxed text-nicchyo-ink/45">
                   {cost.purpose}
@@ -104,7 +105,7 @@ export default function CostLedger({
         <span className="text-[12.5px] text-nicchyo-ink/50">合計</span>
         <span className="text-right">
           <span className="block text-[1.7rem] font-bold leading-none tabular-nums">
-            <CountUp value={monthlyTotalJpy} suffix="円" delay={0.3} />
+            <CountUp value={monthlyTotalJpy} suffix="円" delay={0.3} align="end" />
             {hasPending && <span className="ml-1 text-[15px] text-nicchyo-ink/40">以上</span>}
           </span>
           <span className="mt-1.5 block text-[12.5px] tabular-nums text-nicchyo-ink/45">

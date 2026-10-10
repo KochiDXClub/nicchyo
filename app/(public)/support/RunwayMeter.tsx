@@ -19,10 +19,13 @@
  *
  * 画面に入ったら、左の月から順に目盛りが立ち上がる。12ヶ月という長さを、
  * 1ヶ月ずつ数えるように見せるため。斜線の伸びしろは、まだ埋まっていない
- * ことが伝わるようにゆっくり流しておく（globals.css の support-ghost-flow）。
+ * ことが伝わるよう、目盛りが立ち上がったあとに2回だけ流す（globals.css の
+ * support-ghost-flow）。流し続けると、ほかを読んでいるあいだも目を引いてしまう。
  */
 
+import { useState } from "react";
 import { motion, useReducedMotion } from "framer-motion";
+import { MOTION_EASE, MOTION_VIEWPORT_MARGIN } from "@/components/ScrollMotion";
 import type { FundingSegment } from "@/lib/support/supporters";
 
 type RunwayMeterProps = {
@@ -42,6 +45,8 @@ const STAGGER = 0.045;
 
 export default function RunwayMeter({ segments, totalMonths, ghostMonths }: RunwayMeterProps) {
   const prefersReducedMotion = useReducedMotion();
+  // 画面に入ってから斜線を流す。読み込んだ時点で流しても、見ていないうちに終わる
+  const [hasEntered, setHasEntered] = useState(false);
 
   // 各区間の開始・終了を月単位で持つ。目盛りをはみ出したぶんは切る
   let cursor = 0;
@@ -70,7 +75,11 @@ export default function RunwayMeter({ segments, totalMonths, ghostMonths }: Runw
           : "")
       }
     >
-      <div className="flex gap-[3px]">
+      <motion.div
+        className="flex gap-[3px]"
+        viewport={{ once: true, margin: MOTION_VIEWPORT_MARGIN }}
+        onViewportEnter={() => setHasEntered(true)}
+      >
         {Array.from({ length: totalMonths }, (_, month) => (
           <motion.div
             key={month}
@@ -78,11 +87,11 @@ export default function RunwayMeter({ segments, totalMonths, ghostMonths }: Runw
             className="reveal relative h-12 flex-1 origin-bottom overflow-hidden rounded-[3px] bg-nicchyo-ink/[0.06]"
             initial={{ opacity: 0, scaleY: 0.2 }}
             whileInView={{ opacity: 1, scaleY: 1 }}
-            viewport={{ once: true, margin: "0px 0px -10% 0px" }}
+            viewport={{ once: true, margin: MOTION_VIEWPORT_MARGIN }}
             transition={
               prefersReducedMotion
                 ? { duration: 0 }
-                : { duration: 0.5, ease: [0.22, 1, 0.36, 1], delay: 0.15 + month * STAGGER }
+                : { duration: 0.5, ease: MOTION_EASE, delay: 0.15 + month * STAGGER }
             }
           >
             {/* 伸びしろ。塗りの下に敷くので、塗りが増えれば自然に隠れる */}
@@ -92,7 +101,7 @@ export default function RunwayMeter({ segments, totalMonths, ghostMonths }: Runw
               if (to <= from) return null;
               return (
                 <div
-                  className="support-ghost-flow absolute inset-y-0 bg-[repeating-linear-gradient(-45deg,rgba(217,119,6,0.22)_0_5px,rgba(217,119,6,0.06)_5px_10px)]"
+                  className={`${hasEntered ? "support-ghost-flow" : ""} absolute inset-y-0 bg-[repeating-linear-gradient(-45deg,rgba(217,119,6,0.22)_0_5px,rgba(217,119,6,0.06)_5px_10px)]`}
                   style={{
                     left: `${(from - month) * 100}%`,
                     width: `${(to - from) * 100}%`,
@@ -125,7 +134,7 @@ export default function RunwayMeter({ segments, totalMonths, ghostMonths }: Runw
             })}
           </motion.div>
         ))}
-      </div>
+      </motion.div>
 
       {/* 目盛り。四半期ごとにだけ数字を振る */}
       <div className="mt-2.5 flex text-[11px] tabular-nums text-nicchyo-ink/35">

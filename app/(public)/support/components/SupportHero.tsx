@@ -7,7 +7,7 @@ import { motion, useReducedMotion } from "framer-motion";
 import { ArrowRight } from "lucide-react";
 import { buttonClass } from "@/components/ui";
 import { CONSULT_CHARACTERS } from "@/app/(public)/consult/data/consultCharacters";
-import { CountUp } from "./SupportMotion";
+import { CountUp } from "@/components/ScrollMotion";
 
 /**
  * ページの入口
@@ -18,7 +18,7 @@ import { CountUp } from "./SupportMotion";
  * 必要な数字が揃っている状態にしておく。
  *
  * 見出しが1行ずつ上から落ちてきて、人が両脇から歩いてきて、数字が数え上がる。
- * このページでいちばん賑やかな瞬間はここ。後ろの暖色もゆっくり呼吸させておく。
+ * このページでいちばん賑やかな瞬間はここ。後ろの暖色も右上からふわっと広がる。
  */
 
 /**
@@ -232,13 +232,15 @@ export default function SupportHero({
     <section className="relative isolate overflow-hidden">
       {/*
         地の色から立ち上がる暖色。境目を作らないよう下端でベース色に溶かす。
-        右上を起点にゆっくり膨らんで縮む。動かすのは拡大だけにしてあり、
-        ずらすと端に色の無い帯が出る
+        開いたときに一度だけ、右上を起点に少し大きいところから落ち着く。
+        ずらすと端に色の無い帯が出るので、動かすのは縮むほうだけにしてある。
+        繰り返さない（読んでいるあいだ背景が動き続けると、酔う方がいる）
       */}
       <motion.div
         className="absolute inset-0 -z-10 origin-top-right bg-[radial-gradient(120%_90%_at_82%_0%,#FDECC8_0%,rgba(253,236,200,0)_58%)]"
-        animate={prefersReducedMotion ? undefined : { scale: [1, 1.12, 1], opacity: [1, 0.85, 1] }}
-        transition={{ duration: 9, ease: "easeInOut", repeat: Infinity }}
+        initial={{ scale: 1.15, opacity: 0.4 }}
+        animate={{ scale: 1, opacity: 1 }}
+        transition={prefersReducedMotion ? { duration: 0 } : { duration: 2.4, ease: [0.22, 1, 0.36, 1] }}
       />
       <div className="absolute inset-0 -z-10 bg-gradient-to-b from-amber-50/70 via-nicchyo-base/40 to-nicchyo-base" />
 

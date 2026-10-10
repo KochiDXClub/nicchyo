@@ -13,8 +13,9 @@ import CostLedger from "./components/CostLedger";
 import TrackRecord from "./components/TrackRecord";
 import TeamStructure from "./components/TeamStructure";
 import SupportWays from "./components/SupportWays";
-import { CountUp, RiseHeading } from "./components/SupportMotion";
+import { CountUp, RiseHeading } from "@/components/ScrollMotion";
 import Reveal from "@/components/Reveal";
+import { Surface } from "@/components/ui";
 import { totalIndividualSupporters } from "@/lib/support/individualSupporters";
 import {
   FUNDS_ON_HAND_JPY,
@@ -41,7 +42,6 @@ export const metadata = {
   },
 };
 
-
 /** お金以外のご支援の入口。リポジトリは公開しているので、そこへ素直につなぐ */
 const CODE_LINKS = [
   {
@@ -54,6 +54,15 @@ const CODE_LINKS = [
     title: "気づいたことを届ける",
     body: "不具合の報告や機能の提案は Issues へ。GitHub のアカウントがあればどなたでも書けます",
   },
+];
+
+/** 締めの礼。文節ごとに区切り、狭い画面では切れ目で折り返す */
+const CLOSING_LINES = [
+  "日曜市に出店されているみなさま、",
+  "高知市商業振興課のみなさまをはじめ、",
+  "日曜市に関わるみなさまのお力添えで、",
+  "この地図は続いております。",
+  "いつもありがとうございます。",
 ];
 
 /** ご相談の前にお伝えしておくこと */
@@ -96,7 +105,7 @@ function Section({
 }) {
   return (
     <section id={id} className="scroll-mt-24 border-t border-nicchyo-ink/[0.07] py-12 sm:py-16">
-      <p className="text-[11px] font-bold tracking-[0.2em] text-amber-700/80">{label}</p>
+      <p className="text-[11px] font-bold tracking-[0.2em] text-amber-700">{label}</p>
       <RiseHeading className="mt-3 text-[1.4rem] font-bold leading-[1.55] tracking-tight sm:text-[1.75rem]">
         {title.map((phrase) => (
           <span key={phrase} className="inline-block">
@@ -173,13 +182,17 @@ export default async function SupportPage() {
         <Section
           label="いまの状況"
           title={
-            FUNDS_ON_HAND_JPY > 0
-              ? ["1年のうち", `${runway.toFixed(1)}ヶ月ぶんを、`, "支えていただいております"]
+            runway > 0
+              ? [
+                  `${RUNWAY_MONTHS}ヶ月のうち`,
+                  `${Math.min(runway, RUNWAY_MONTHS).toFixed(1)}ヶ月ぶんを、`,
+                  "支えていただいております",
+                ]
               : ["続けていくための", "ご協賛を、", "探しております"]
           }
         >
           {/* このページで唯一、面として立てるところ。図の主役はここだけにする */}
-          <div className="rounded-card bg-white p-6 shadow-lift ring-1 ring-nicchyo-ink/[0.07] sm:p-8">
+          <Surface elevation="lifted" padding="lg">
             <p className="flex items-baseline gap-2.5">
               <span className="text-[3rem] font-bold leading-none tabular-nums sm:text-[3.5rem]">
                 <CountUp value={runway} decimals={1} delay={0.3} />
@@ -223,7 +236,7 @@ export default async function SupportPage() {
                 その他（助成金・賞金・匿名でのご支援） {formatJpy(otherSegment.amountJpy)}
               </p>
             )}
-          </div>
+          </Surface>
 
           {/* メーターの色がどの協賛かを、名前と金額で結びつける場所も兼ねる。
               個人のご支援は別のページなので、見出しでも「ご協賛」と区別する
@@ -294,10 +307,10 @@ export default async function SupportPage() {
           */}
           <dl className="grid gap-3 sm:grid-cols-3">
             {CONSULT_NOTES.map((note) => (
-              <div key={note.title} className="rounded-card bg-white/70 p-5 ring-1 ring-nicchyo-ink/[0.07]">
+              <Surface key={note.title} elevation="flat">
                 <dt className="text-[14px] font-bold">{note.title}</dt>
-                <dd className="mt-1.5 text-[12.5px] leading-[1.85] text-nicchyo-ink/55">{note.body}</dd>
-              </div>
+                <dd className="mt-1.5 text-[12.5px] leading-[1.85] text-nicchyo-ink/70">{note.body}</dd>
+              </Surface>
             ))}
           </dl>
         </Section>
@@ -313,11 +326,11 @@ export default async function SupportPage() {
                 href={link.href}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="group flex items-start justify-between gap-4 rounded-card bg-white p-5 ring-1 ring-nicchyo-ink/[0.08] transition duration-300 ease-out-soft hover:-translate-y-1 hover:shadow-lift motion-reduce:transition-none motion-reduce:hover:translate-y-0"
+                className="group flex items-start justify-between gap-4 rounded-card bg-white p-5 ring-1 ring-nicchyo-ink/[0.08] transition duration-300 ease-out-soft hover:-translate-y-1 hover:shadow-card motion-reduce:transition-none motion-reduce:hover:translate-y-0"
               >
                 <span>
                   <span className="block text-[14px] font-bold text-amber-700">{link.title}</span>
-                  <span className="mt-1 block text-[12.5px] leading-relaxed text-nicchyo-ink/50">
+                  <span className="mt-1 block text-[12.5px] leading-relaxed text-nicchyo-ink/70">
                     {link.body}
                   </span>
                 </span>
@@ -332,10 +345,13 @@ export default async function SupportPage() {
 
         {/* 締め。お願いで終わらせず、いま支えてくださっている方への礼で閉じる */}
         <Reveal>
-          <p className="border-t border-nicchyo-ink/[0.07] py-12 text-center text-[14px] font-bold leading-[2] text-nicchyo-ink/60 [word-break:auto-phrase] sm:py-16">
-            日曜市に関わるみなさまのお力添えで、この地図は続いております。
-            <br />
-            いつもありがとうございます。
+          {/* 出店者と市の担当課には、お金以外の面で支えていただいている。名前を挙げて礼を言う */}
+          <p className="border-t border-nicchyo-ink/[0.07] py-12 text-center text-[14px] font-bold leading-[2] text-nicchyo-ink/70 sm:py-16">
+            {CLOSING_LINES.map((line) => (
+              <span key={line} className="inline-block">
+                {line}
+              </span>
+            ))}
           </p>
         </Reveal>
       </div>

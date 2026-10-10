@@ -53,7 +53,7 @@ const SPONSOR_OFFERS: Offer[] = [
   },
   {
     title: "ご紹介の効果を、数字でご確認いただけます",
-    body: "専用のアカウントで、ご覧になった方とお越しになった方の数をいつでもご確認いただけます。個人が特定される情報は含みません。",
+    body: "専用のアカウントで、ご紹介した場所をご覧になった方と、実際にお越しになった方の数をいつでもご確認いただけます。個人が特定される情報は含みません。",
   },
   {
     title: "更新のご相談",
@@ -99,7 +99,7 @@ function OfferList({ offers, markClassName }: { offers: Offer[]; markClassName: 
           </span>
           <span>
             <strong className="block text-[14px] font-bold leading-snug">{offer.title}</strong>
-            <span className="mt-0.5 block text-[12.5px] leading-[1.8] text-nicchyo-ink/55">
+            <span className="mt-0.5 block text-[12.5px] leading-[1.8] text-nicchyo-ink/70">
               {offer.body}
             </span>
           </span>
@@ -109,9 +109,8 @@ function OfferList({ offers, markClassName }: { offers: Offer[]; markClassName: 
   );
 }
 
-/** 2枚に共通の形。持ち上がるのは、指やカーソルが乗ったときだけ */
-const CARD_CLASS =
-  "flex h-full flex-col rounded-card p-6 transition duration-300 ease-out-soft hover:-translate-y-1 hover:shadow-lift motion-reduce:transition-none motion-reduce:hover:translate-y-0 sm:p-7";
+/** 2枚に共通の形。カードそのものは押せないので、乗っても浮かせない */
+const CARD_CLASS = "flex h-full flex-col rounded-card p-6 sm:p-7";
 
 export default function SupportWays({
   sponsorUnitAnnualJpy,

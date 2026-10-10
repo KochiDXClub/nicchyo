@@ -11,11 +11,11 @@ import {
 } from "framer-motion";
 
 /**
- * 支援ページの動きの部品
+ * スクロールに合わせて一度だけ動く部品（Reveal の仲間）
  *
- * 節ごとに「見出しがせり上がる → 数字が数え上がる → 棒が伸びる」の順に動かして、
- * スクロールするたびに何かが起きるページにする。どれも一度きり（once）で、
- * 読み終えた場所が戻ってきてもう一度動くことはない。
+ * 協賛・ご支援のページで「見出しがせり上がる → 数字が数え上がる → 棒が伸びる」の
+ * 順に動かすために作った。どれも一度きり（once）で、読み終えた場所が戻ってきても
+ * もう一度動くことはない。
  *
  * Reveal と同じ決まりに従う。
  * - 動きを減らす設定でも initial は外さず、時間だけを 0 にする（サーバーでは設定が
@@ -24,12 +24,19 @@ import {
  *   opacity と transform を戻すので、スクロールしていない所も紙に出る
  */
 
-const EASE = [0.22, 1, 0.36, 1] as const;
+/** Reveal と同じ緩急 */
+export const MOTION_EASE = [0.22, 1, 0.36, 1] as const;
 /** Reveal と同じ。画面の下端から 1割入ったところで動き出す */
-const VIEWPORT_MARGIN = "0px 0px -10% 0px";
+export const MOTION_VIEWPORT_MARGIN = "0px 0px -10% 0px";
 
+/**
+ * 数字の書き方。toFixed で丸めてから桁区切りを付ける。
+ *
+ * toLocaleString だけで丸めると、0.35 が toFixed では 0.3、こちらでは 0.4 になる。
+ * 同じ数をほかの場所で toFixed で書いているので、丸め方をそちらにそろえる。
+ */
 function formatNumber(value: number, decimals: number): string {
-  return value.toLocaleString("ja-JP", {
+  return Number(value.toFixed(decimals)).toLocaleString("ja-JP", {
     minimumFractionDigits: decimals,
     maximumFractionDigits: decimals,
   });
@@ -43,14 +50,18 @@ function formatNumber(value: number, decimals: number): string {
  * 透明なので、最終の値から 0 へ跳ぶところは見えない。画面に入るのを待ってから
  * 戻すと、狭い画面で入口の下の方にある数字が、見えている状態から 0 に跳ぶ。
  *
- * 0 に戻したまま印刷されると数字が消えるので、印刷の直前に最終の値へ戻す。
- * 数えている途中の数は読み上げさせない。読み上げには最終の値だけを渡す。
+ * 最終の値を見えない形で重ねて置き、幅をはじめから確保しておく。数えるあいだに
+ * 桁が増えても、横に並ぶ単位や「以上」が押し出されない。
+ * 印刷ではこの見えない方を出す（globals.css の count-up）。0 のまま紙に出ない。
+ *
+ * 数えている途中の数は読み上げさせず、コピーもさせない。どちらも最終の値だけを渡す。
  */
 export function CountUp({
   value,
   decimals = 0,
   suffix = "",
   delay = 0,
+  align = "start",
 }: {
   value: number;
   /** 小数の桁数。月数は 1、金額と人数は 0 */
@@ -59,39 +70,42 @@ export function CountUp({
   suffix?: string;
   /** 外側の出現に合わせて、数え始めを遅らせる（秒） */
   delay?: number;
+  /** 数えている途中の短い数を、確保した幅のどちら側に寄せるか。右寄せの表なら end */
+  align?: "start" | "end";
 }) {
   const ref = useRef<HTMLSpanElement>(null);
-  const isInView = useInView(ref, { once: true, margin: VIEWPORT_MARGIN });
+  // 少しでも見えたら数え始める。下端で止めると「合計 0円」が見えたまま待つことになる
+  const isInView = useInView(ref, { once: true });
   const prefersReducedMotion = useReducedMotion();
   const count = useMotionValue(value);
   const text = useTransform(count, (current) => `${formatNumber(current, decimals)}${suffix}`);
+  const finalText = `${formatNumber(value, decimals)}${suffix}`;
 
   // 0 は数える意味がない。動きを減らす設定の方には、最初から最終の値を置いておく
   const shouldCount = !prefersReducedMotion && value !== 0;
-  const controlsRef = useRef<ReturnType<typeof animate> | null>(null);
 
   useEffect(() => {
-    if (!shouldCount) return;
-    count.set(0);
-    const showFinal = () => {
-      controlsRef.current?.stop();
-      count.set(value);
-    };
-    window.addEventListener("beforeprint", showFinal);
-    return () => window.removeEventListener("beforeprint", showFinal);
-  }, [shouldCount, value, count]);
+    if (shouldCount) count.set(0);
+  }, [shouldCount, count]);
 
   useEffect(() => {
     if (!isInView || !shouldCount) return;
-    const controls = animate(count, value, { duration: 1.4, ease: EASE, delay });
-    controlsRef.current = controls;
+    const controls = animate(count, value, { duration: 1.4, ease: MOTION_EASE, delay });
     return () => controls.stop();
   }, [isInView, shouldCount, value, delay, count]);
 
   return (
-    <span ref={ref}>
-      <motion.span aria-hidden>{text}</motion.span>
-      <span className="sr-only">{`${formatNumber(value, decimals)}${suffix}`}</span>
+    <span
+      ref={ref}
+      className={`count-up inline-grid ${align === "end" ? "justify-items-end" : "justify-items-start"}`}
+    >
+      <span className="count-up__final invisible col-start-1 row-start-1" aria-hidden>
+        {finalText}
+      </span>
+      <motion.span className="count-up__live col-start-1 row-start-1 select-none" aria-hidden>
+        {text}
+      </motion.span>
+      <span className="sr-only">{finalText}</span>
     </span>
   );
 }
@@ -115,7 +129,7 @@ export function GrowBar({
   delay?: number;
 }) {
   const ref = useRef<HTMLSpanElement>(null);
-  const isInView = useInView(ref, { once: true, margin: VIEWPORT_MARGIN });
+  const isInView = useInView(ref, { once: true, margin: MOTION_VIEWPORT_MARGIN });
   const prefersReducedMotion = useReducedMotion();
 
   return (
@@ -125,14 +139,16 @@ export function GrowBar({
         style={{ width: `${Math.min(Math.max(ratio, 0), 1) * 100}%` }}
         initial={{ scaleX: 0 }}
         animate={isInView ? { scaleX: 1 } : undefined}
-        transition={prefersReducedMotion ? { duration: 0 } : { duration: 0.9, ease: EASE, delay }}
+        transition={
+          prefersReducedMotion ? { duration: 0 } : { duration: 0.9, ease: MOTION_EASE, delay }
+        }
       />
     </span>
   );
 }
 
 /**
- * 窓の下からせり上がる見出し。入口の見出しが上から落ちてくるのと対にしてある。
+ * 窓の下からせり上がる見出し。
  *
  * 折り返す長さの見出しでも、かたまりごと持ち上げるので形は崩れない。
  * 下の余白は、はみ出す字（ら・す の下端）が窓で切れないぶんだけ。
@@ -143,7 +159,7 @@ export function GrowBar({
  */
 export function RiseHeading({ children, className }: { children: ReactNode; className?: string }) {
   const ref = useRef<HTMLHeadingElement>(null);
-  const isInView = useInView(ref, { once: true, margin: VIEWPORT_MARGIN });
+  const isInView = useInView(ref, { once: true, margin: MOTION_VIEWPORT_MARGIN });
   const prefersReducedMotion = useReducedMotion();
 
   return (
@@ -153,7 +169,7 @@ export function RiseHeading({ children, className }: { children: ReactNode; clas
           className="reveal inline-block"
           initial={{ y: "105%" }}
           animate={isInView ? { y: 0 } : undefined}
-          transition={prefersReducedMotion ? { duration: 0 } : { duration: 0.7, ease: EASE }}
+          transition={prefersReducedMotion ? { duration: 0 } : { duration: 0.7, ease: MOTION_EASE }}
         >
           {children}
         </motion.span>
