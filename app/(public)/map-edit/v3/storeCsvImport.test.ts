@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { latToMeters } from "../../map/utils/mapRouteGeometry";
 import { defaultImportRoads, normalizeChome, parseStoreCsv, planStoreImport, STORE_CSV_HEADERS } from "./storeCsvImport";
+import type { ChomeRange } from "@/lib/map/chomeBoundaries";
 import type { EditableRoad, EditableShop, EditableVendor } from "./types";
 
 // 西 → 東へ描いた追手筋と、北 → 南へ描いた大橋通り
@@ -28,7 +29,7 @@ const categories = [{ id: "c-veg", name: "食材" }];
 
 const csv = (lines: string[]) => "﻿" + [STORE_CSV_HEADERS.join(","), ...lines].join("\r\n") + "\r\n";
 
-function plan(text: string, extra: { shops?: EditableShop[]; vendors?: EditableVendor[]; replace?: boolean; deleteVendors?: boolean; roads?: Partial<{ northSouth: EditableRoad | null; ohashi: EditableRoad | null }> } = {}) {
+function plan(text: string, extra: { shops?: EditableShop[]; vendors?: EditableVendor[]; replace?: boolean; deleteVendors?: boolean; roads?: Partial<{ northSouth: EditableRoad | null; ohashi: EditableRoad | null }>; chomeRanges?: ChomeRange[] } = {}) {
   const parsed = parseStoreCsv(text);
   return planStoreImport({
     rows: parsed.rows,
@@ -37,6 +38,7 @@ function plan(text: string, extra: { shops?: EditableShop[]; vendors?: EditableV
     vendors: extra.vendors ?? [],
     categories,
     roads: { northSouth: otesuji, ohashi, ...extra.roads },
+    chomeRanges: extra.chomeRanges,
     replace: extra.replace ?? false,
     deleteVendors: extra.deleteVendors,
     now: 1,
@@ -82,7 +84,38 @@ describe("parseStoreCsv", () => {
 });
 
 describe("planStoreImport", () => {
-  it("北は道の北側、南は南側に、一丁目（西）から番号順に並べ、出店者を作って割り当てる", () => {
+  it("丁目は西から六・七・五…一丁目の順に並ぶ", () => {
+    const result = plan(csv(["1,,一丁目,北,,,", "2,,六丁目,北,,,", "3,,七丁目,北,,,"]));
+    const shops = result.next!.shops;
+    const lng = (n: number) => shops.find((s) => s.officialNumber === n)!.lng;
+    expect(lng(2)).toBeLessThan(lng(3));
+    expect(lng(3)).toBeLessThan(lng(1));
+  });
+
+  it("丁目の区間が分かれば、区画をその丁目の区間の中に西から並べる", () => {
+    // 道の長さは約930m。西端から 0〜200m が六丁目、600〜930m が一丁目
+    const chomeRanges: ChomeRange[] = [
+      { chomeId: 6, roadId: "main", startM: 0, endM: 200 },
+      { chomeId: 1, roadId: "main", startM: 600, endM: 930 },
+    ];
+    const result = plan(csv(["2,,一丁目,北,,,", "3,,一丁目,北,,,", "455,,六丁目,北,,,", "456,,六丁目,北,,,"]), { chomeRanges });
+    const shops = result.next!.shops;
+    const dist = (n: number) => shops.find((s) => s.officialNumber === n)!.roadDistanceM!;
+    expect(dist(456)).toBeGreaterThan(0);
+    expect(dist(455)).toBeLessThan(200);
+    expect(dist(456)).toBeLessThan(dist(455)); // 番号の大きい方が西
+    expect(dist(2)).toBeGreaterThan(600);
+    expect(dist(3)).toBeLessThan(dist(2));
+  });
+
+  it("同じ丁目の中は番号の大きい方が西になる", () => {
+    const result = plan(csv(["455,,六丁目,北,,,", "596,,六丁目,北,,,"]));
+    const shops = result.next!.shops;
+    const lng = (n: number) => shops.find((s) => s.officialNumber === n)!.lng;
+    expect(lng(596)).toBeLessThan(lng(455));
+  });
+
+  it("北は道の北側、南は南側に、西の丁目から、同じ丁目では番号の大きい順に並べ、出店者を作って割り当てる", () => {
     const result = plan(csv(["2,,一丁目,北,朝市の八百屋,野菜,食材", "1,,一丁目,北,,,", "3,,二丁目,南,,,"]));
     expect(result.errors).toEqual([]);
     expect(result).toMatchObject({ createdSlotCount: 3, createdVendorCount: 3, deletedSlotCount: 0 });
@@ -90,7 +123,7 @@ describe("planStoreImport", () => {
     const byNumber = (n: number) => shops.find((s) => s.officialNumber === n)!;
     expect(byNumber(1).lat).toBeGreaterThan(33.5614); // 北側
     expect(byNumber(3).lat).toBeLessThan(33.5614); // 南側
-    expect(byNumber(1).lng).toBeLessThan(byNumber(2).lng); // 番号順に西から
+    expect(byNumber(1).lng).toBeGreaterThan(byNumber(2).lng); // 番号の大きい方が西
     expect(byNumber(2).roadOffsetM).toBe(7.5);
     expect(latToMeters(byNumber(2).lat - 33.5614)).toBeCloseTo(7.5, 1);
     const vendor = result.next!.vendors.find((v) => v.id === byNumber(2).vendorId)!;
@@ -106,10 +139,14 @@ describe("planStoreImport", () => {
     expect(created).toMatchObject({ position: 2, branchNumber: 4, chome: "一丁目", roadId: "main" });
   });
 
-  it("大橋通りは大橋通りの道に左右交互に並べる。七丁目以外なら知らせる", () => {
+  it("大橋通りは大橋通りの道の東側に、番号の小さい方を北にして並べる。七丁目以外なら知らせる", () => {
     const result = plan(csv(["701,,七丁目,大橋通り,,,", "702,,7,大橋通り,,,", "703,,六丁目,大橋通り,,,"]));
     const sides = result.next!.shops.map((s) => [s.roadId, s.roadSide]);
-    expect(sides).toEqual([["ohashi", "left"], ["ohashi", "right"], ["ohashi", "left"]]);
+    expect(sides).toEqual([["ohashi", "left"], ["ohashi", "left"], ["ohashi", "left"]]); // 南向きに描いた道の左が東
+    const [a, b, c] = result.next!.shops;
+    expect(a.lng).toBeGreaterThan(133.545); // 東側
+    expect(a.lat).toBeGreaterThan(b.lat); // 番号の小さい方が北
+    expect(b.lat).toBeGreaterThan(c.lat);
     expect(result.warnings.some((w) => w.line === 4 && w.message.includes("六丁目"))).toBe(true);
   });
 

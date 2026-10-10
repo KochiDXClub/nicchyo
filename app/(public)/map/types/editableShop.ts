@@ -15,6 +15,11 @@ export type EditableShop = {
   position: number;
   chome?: string;
   /**
+   * 丁目を手で設定した区画（true）。道の位置からの自動判定で上書きしない。
+   * 144番のように、境目の上にあって自動では決まらない区画のため。無ければ自動判定に従う
+   */
+  chomeLocked?: boolean;
+  /**
    * 道基準の位置（market_locations.road_*）。4つとも入っているか、どれも無いかのどちらか。
    * 入っている区画の lat/lng は道の形から計算した値で、道の形を直すとついてくる。
    * 無い区画（移行前の区画）は lat/lng がそのまま位置になる。
@@ -44,6 +49,12 @@ export function slotLabel(shop: Pick<EditableShop, "position" | "officialNumber"
  * 更新し忘れ、区画情報が黙って落ちる恐れがあるため）。
  */
 export const CHOME_ORDER = ["一丁目", "二丁目", "三丁目", "四丁目", "五丁目", "六丁目", "七丁目"] as const;
+
+/**
+ * 西から東へたどる丁目の順（六→七→五→…→一）。六丁目が西（高知城前）、一丁目が東（はりまや橋側）。
+ * 七丁目は追手筋ではなく、六丁目と五丁目の間で交差する大橋通り沿いに並ぶ。
+ */
+export const CHOME_WEST_TO_EAST = ["六丁目", "七丁目", "五丁目", "四丁目", "三丁目", "二丁目", "一丁目"] as const;
 
 /**
  * マップ編集画面で扱う出店者（vendors の一部の列）。区画とは別に保存し、区画は
