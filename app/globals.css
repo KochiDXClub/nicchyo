@@ -1668,8 +1668,8 @@ body.home-poster-zoom-open .hamburger-button {
 }
 
 /* ===== 協賛・ご支援（/support）の動き =====
-   右下の「協賛のご相談」と、メーターの伸びしろ。どちらも止まっていても意味は
-   通じる飾りなので、動きを減らす設定では止める。
+   右下の「協賛のご相談」の光と波紋。止まっていても意味は通じる飾りなので、
+   動きを減らす設定では止める。
 
    どれも5秒以内に止まるようにしてある（WCAG 2.2.2）。止める手段を置かずに
    動き続けると、表や数字を読む邪魔になり、動きで酔う方もいる。
@@ -1697,25 +1697,10 @@ body.home-poster-zoom-open .hamburger-button {
   70%, 100% { transform: scale(1.75); opacity: 0; }
 }
 
-/* 斜線を流す。画面に入ってから2回だけ（RunwayMeter がこの名前を付ける）。
-   タイルの1辺（10px の縞 × √2）ぶん動かすと継ぎ目なく戻る */
-.support-ghost-flow {
-  background-size: 14.1421px 14.1421px;
-  animation: support-ghost-flow 2.4s linear 2;
-}
-
-@keyframes support-ghost-flow {
-  to { background-position: 14.1421px 0; }
-}
-
 @media (prefers-reduced-motion: reduce) {
   .support-cta__shine,
   .support-cta__ping {
     display: none;
-  }
-
-  .support-ghost-flow {
-    animation: none;
   }
 }
 

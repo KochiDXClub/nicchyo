@@ -7,18 +7,16 @@ import { motion, useReducedMotion } from "framer-motion";
 import { ArrowRight } from "lucide-react";
 import { buttonClass } from "@/components/ui";
 import { CONSULT_CHARACTERS } from "@/app/(public)/consult/data/consultCharacters";
-import { CountUp } from "@/components/ScrollMotion";
 
 /**
  * ページの入口
  *
- * 上半分をイラストと余白だけにすると絵は気持ちよく収まるが、このページの読者は
- * 協賛を検討する企業と助成金の審査員なので、結論（いくらかかっていて、いま
- * どこまで支えていただけているか）を最初に置く。スクロールしなくても判断に
- * 必要な数字が揃っている状態にしておく。
+ * 誰が運営していて、何を支えていただきたいのかを、見出しと1段落で言い切る。
+ * 運営にいくらかかっているかは出さない（costs.ts の冒頭）。読み手がすぐ動けるよう、
+ * 相談のボタンと、ご支援の使い道へのリンクを置く。
  *
- * 見出しが1行ずつ上から落ちてきて、人が両脇から歩いてきて、数字が数え上がる。
- * このページでいちばん賑やかな瞬間はここ。後ろの暖色も右上からふわっと広がる。
+ * 見出しが1行ずつ上から落ちてきて、人が両脇から歩いてくる。このページで
+ * いちばん賑やかな瞬間はここ。後ろの暖色も右上からふわっと広がる。
  */
 
 /**
@@ -160,27 +158,11 @@ function HeroCharacter({
 }
 
 type SupportHeroProps = {
-  /** 毎月の運営費（円） */
-  monthlyJpy: number;
-  /** 未確定の費目が残っているか。残っていれば「以上」を付ける */
-  hasPending: boolean;
-  /** これまでにいただいた総額（円） */
-  totalReceivedJpy: number;
-  /** ご支援でまかなえている月数 */
-  runway: number;
-  totalMonths: number;
+  /** ご支援の使い道の節の id。リンクの飛び先 */
+  usesId: string;
 };
 
-/** 3つの数字が出てくる時刻（秒）。数え始めをこれに合わせる */
-const FIGURES_DELAY = 0.5;
-
-export default function SupportHero({
-  monthlyJpy,
-  hasPending,
-  totalReceivedJpy,
-  runway,
-  totalMonths,
-}: SupportHeroProps) {
+export default function SupportHero({ usesId }: SupportHeroProps) {
   const prefersReducedMotion = useReducedMotion();
 
   /**
@@ -281,60 +263,9 @@ export default function SupportHero({
             高知・日曜市を案内する nicchyo は、高知高専の学生と顧問の教員が運営しております。広告は掲載せず、これまでいただいた賞金とご支援で続けてまいりました。
           </motion.p>
 
-          {/*
-            判断に要る3つの数字。囲まずに罫線でそろえる。
-            かかる額 → いただいた額 → あと何ヶ月もつか、の順に読ませる。
-
-            狭い画面では3つ横に並べると1つあたりが窮屈なので、
-            「支えていただいている期間」だけ下の行へ回して幅いっぱいに使う。
-            折り返す行があるぶん罫線は divide-x に任せられない（行頭に
-            余計な縦線が出る）ので、1つずつ指定する。
-          */}
-          <motion.dl
-            {...fadeUp(FIGURES_DELAY)}
-            className="mt-9 grid max-w-[34rem] grid-cols-2 border-y border-nicchyo-ink/10 sm:grid-cols-3"
-          >
-            <div className="border-r border-nicchyo-ink/10 py-4 pr-4 sm:pr-5">
-              <dt className="text-[11px] leading-snug tracking-[0.08em] text-nicchyo-ink/45">
-                毎月の運営費
-              </dt>
-              <dd className="mt-1.5 text-[1.35rem] font-bold leading-none tabular-nums sm:text-[1.45rem]">
-                <CountUp
-                  value={monthlyJpy}
-                  suffix={hasPending ? "円以上" : "円"}
-                  delay={FIGURES_DELAY}
-                />
-              </dd>
-            </div>
-            <div className="py-4 pl-4 sm:border-r sm:border-nicchyo-ink/10 sm:pl-5 sm:pr-5">
-              <dt className="text-[11px] leading-snug tracking-[0.08em] text-nicchyo-ink/45">
-                これまでのご支援
-              </dt>
-              <dd className="mt-1.5 text-[1.35rem] font-bold leading-none tabular-nums sm:text-[1.45rem]">
-                <CountUp value={totalReceivedJpy} suffix="円" delay={FIGURES_DELAY + 0.08} />
-              </dd>
-            </div>
-            <div className="col-span-2 border-t border-nicchyo-ink/10 py-4 sm:col-span-1 sm:border-t-0 sm:pl-5">
-              <dt className="text-[11px] leading-snug tracking-[0.08em] text-nicchyo-ink/45">
-                支えていただいている期間
-              </dt>
-              <dd className="mt-1.5 text-[1.35rem] font-bold leading-none tabular-nums sm:text-[1.45rem]">
-                <CountUp
-                  value={runway}
-                  decimals={1}
-                  suffix="ヶ月"
-                  delay={FIGURES_DELAY + 0.16}
-                />
-                <span className="ml-1.5 text-[12px] font-bold text-nicchyo-ink/35">
-                  / {totalMonths}ヶ月
-                </span>
-              </dd>
-            </div>
-          </motion.dl>
-
           <motion.div
-            {...fadeUp(0.58)}
-            className="mt-8 flex flex-wrap items-center gap-x-6 gap-y-3"
+            {...fadeUp(0.5)}
+            className="mt-9 flex flex-wrap items-center gap-x-6 gap-y-3"
           >
             {/* data-support-cta: これが見えているあいだ、右下のボタンは引っ込む */}
             <Link
@@ -349,10 +280,10 @@ export default function SupportHero({
               />
             </Link>
             <a
-              href="#costs"
-              className="text-[13px] font-bold text-nicchyo-ink/45 underline-offset-4 transition hover:text-nicchyo-ink/75 hover:underline"
+              href={`#${usesId}`}
+              className="text-[13px] font-bold text-nicchyo-ink/70 underline-offset-4 transition hover:text-nicchyo-ink hover:underline"
             >
-              費用の内訳を見る
+              ご支援の使い道を見る
             </a>
           </motion.div>
         </div>

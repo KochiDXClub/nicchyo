@@ -5,11 +5,10 @@ import NavigationBar from "../../components/NavigationBar";
 import { fetchWeeklyVisitors } from "@/lib/analytics/visitorStats.server";
 import { fetchPublishedShopCount } from "@/lib/support/shopCount.server";
 import SupporterSlots from "@/components/SupporterSlots";
-import { buildFundingSegments, OTHER_FUNDING_COLOR } from "@/lib/support/supporters";
-import RunwayMeter from "./RunwayMeter";
+import { SUPPORTER_SLOT_COUNT, SUPPORTERS } from "@/lib/support/supporters";
 import SupportHero from "./components/SupportHero";
 import SupportFloatingCta from "./components/SupportFloatingCta";
-import CostLedger from "./components/CostLedger";
+import FundUses from "./components/FundUses";
 import TrackRecord from "./components/TrackRecord";
 import TeamStructure from "./components/TeamStructure";
 import SupportWays from "./components/SupportWays";
@@ -17,30 +16,21 @@ import { CountUp, RiseHeading } from "@/components/ScrollMotion";
 import Reveal from "@/components/Reveal";
 import { Surface } from "@/components/ui";
 import { totalIndividualSupporters } from "@/lib/support/individualSupporters";
-import {
-  FUNDS_ON_HAND_JPY,
-  RUNNING_COSTS,
-  RUNWAY_MONTHS,
-  SPONSOR_UNIT_ANNUAL_JPY,
-  TOTAL_RECEIVED_JPY,
-  annualCostJpy,
-  formatJpy,
-  hasPendingCost,
-  monthlyCostJpy,
-  runwayMonths,
-  sponsorUnitMonths,
-} from "./costs";
+import { FUND_USES, SPONSOR_UNIT_ANNUAL_JPY } from "./costs";
 
 export const metadata = {
   title: "協賛・ご支援について",
   description:
-    "nicchyo の運営にかかる費用と、ご支援いただいている状況をご報告しております。協賛のご相談も承っております。",
+    "nicchyo へいただいたご支援の使い道と、ご支援いただいている状況をご案内しております。協賛のご相談も承っております。",
   openGraph: {
     title: "協賛・ご支援について | nicchyo",
     description:
-      "高知・日曜市の地図 nicchyo は、高知高専の学生と顧問の教員が運営しております。かかっている費用と、ご支援いただいている状況を公開しております。",
+      "高知・日曜市の地図 nicchyo は、高知高専の学生と顧問の教員が運営しております。いただいたご支援は、ドメイン代や開発・運用の費用、AIの利用料など、nicchyo を続けるために使わせていただきます。",
   },
 };
+
+/** ご支援の使い道の節。入口の「ご支援の使い道を見る」の飛び先 */
+const USES_SECTION_ID = "uses";
 
 /** お金以外のご支援の入口。リポジトリは公開しているので、そこへ素直につなぐ */
 const CODE_LINKS = [
@@ -77,7 +67,7 @@ const CONSULT_NOTES = [
   },
   {
     title: "会計について",
-    body: "お預かりした資金は、運営費以外には使用いたしません。会計は顧問の教員が確認しております。",
+    body: "お預かりした資金は、nicchyo を続けるため以外には使用いたしません。会計は顧問の教員が確認しております。",
   },
 ];
 
@@ -85,7 +75,7 @@ const CONSULT_NOTES = [
  * 1つの節。小さな見出し（何の話か）の下に、言い切りの見出し（何が言いたいか）を置く。
  *
  * 見出しだけを拾い読みしても、このページの話がひと通りつながるように書くこと。
- * 本文は見出しを裏づける図と数字に絞り、説明の文章はなるべく足さない。
+ * 本文は見出しを裏づける中身に絞り、説明の文章はなるべく足さない。
  *
  * 見出しは文節ごとに分けて渡す。日本語は語中でも折り返すので、素のままだと
  * 狭い画面で「その／まま」のように切れる。文節を折り返さない塊にしておけば、
@@ -142,16 +132,9 @@ export default async function SupportPage() {
     fetchPublishedShopCount(),
   ]);
 
-  const monthly = monthlyCostJpy();
-  const annual = annualCostJpy();
-  const hasPending = hasPendingCost();
-  // メーターの塗りを「誰が出した分か」で分ける
-  const segments = buildFundingSegments({ fundsJpy: FUNDS_ON_HAND_JPY, monthlyJpy: monthly });
-  const otherSegment = segments.find((segment) => segment.color === OTHER_FUNDING_COLOR);
-  const runway = runwayMonths();
-  const unitMonths = sponsorUnitMonths();
-
   const individualSupporterCount = totalIndividualSupporters();
+  // 掲載枠に空きがあるあいだは、探していることをそのまま見出しにする
+  const hasOpenSlot = SUPPORTERS.length < SUPPORTER_SLOT_COUNT;
 
   return (
     <main
@@ -159,89 +142,31 @@ export default async function SupportPage() {
       // 右下のボタンが最後の行に重ならないよう、そのぶんも空けておく
       style={{ paddingBottom: "calc(var(--nav-bar-height) + var(--safe-bottom, 0px) + 5.5rem)" }}
     >
-      <SupportHero
-        monthlyJpy={monthly}
-        hasPending={hasPending}
-        totalReceivedJpy={TOTAL_RECEIVED_JPY}
-        runway={runway}
-        totalMonths={RUNWAY_MONTHS}
-      />
+      <SupportHero usesId={USES_SECTION_ID} />
 
       <div className="mx-auto max-w-[64rem] px-6 sm:px-8">
-        {/* ── 運営費 ────────────────────────────────────────────────── */}
-        <Section id="costs" label="運営費" title={["かかっている費用を、", "そのまま公開しております"]}>
-          <CostLedger
-            costs={RUNNING_COSTS}
-            monthlyTotalJpy={monthly}
-            annualTotalJpy={annual}
-            hasPending={hasPending}
-          />
+        {/* ── ご支援の使い道 ──────────────────────────────────────────
+            運営にいくらかかるかは出さない（costs.ts の冒頭）。何に使うかを約束として出す */}
+        <Section
+          id={USES_SECTION_ID}
+          label="ご支援の使い道"
+          title={["いただいたご支援は、", "nicchyo を続けるために", "使わせていただきます"]}
+        >
+          <FundUses uses={FUND_USES} />
         </Section>
 
         {/* ── いまの状況 ─────────────────────────────────────────────── */}
         <Section
           label="いまの状況"
           title={
-            runway > 0
-              ? [
-                  `${RUNWAY_MONTHS}ヶ月のうち`,
-                  `${Math.min(runway, RUNWAY_MONTHS).toFixed(1)}ヶ月ぶんを、`,
-                  "支えていただいております",
-                ]
-              : ["続けていくための", "ご協賛を、", "探しております"]
+            hasOpenSlot
+              ? ["続けていくための", "ご協賛を、", "探しております"]
+              : ["ご協賛くださる皆さまに、", "支えていただいております"]
           }
         >
-          {/* このページで唯一、面として立てるところ。図の主役はここだけにする */}
-          <Surface elevation="lifted" padding="lg">
-            <p className="flex items-baseline gap-2.5">
-              <span className="text-[3rem] font-bold leading-none tabular-nums sm:text-[3.5rem]">
-                <CountUp value={runway} decimals={1} delay={0.3} />
-              </span>
-              <span className="text-[17px] font-bold text-nicchyo-ink/50">ヶ月</span>
-              <span className="ml-auto text-[13px] tabular-nums text-nicchyo-ink/40">
-                / {RUNWAY_MONTHS}ヶ月
-              </span>
-            </p>
-
-            <div className="mt-6">
-              <RunwayMeter
-                segments={segments}
-                totalMonths={RUNWAY_MONTHS}
-                ghostMonths={unitMonths ?? undefined}
-              />
-            </div>
-
-            {/*
-              斜線は「1口入るとここまで伸びる」という予告なので、何を指しているかを
-              必ず言葉で添える。図だけ出しても、塗り忘れにしか見えない
-            */}
-            {unitMonths !== null && (
-              <p className="mt-4 flex items-center gap-2 text-[12.5px] text-nicchyo-ink/50">
-                <span
-                  className="h-2.5 w-2.5 shrink-0 rounded-[2px] bg-[repeating-linear-gradient(-45deg,rgba(217,119,6,0.45)_0_3px,rgba(217,119,6,0.12)_3px_6px)]"
-                  aria-hidden
-                />
-                ご協賛1口で、ここまで伸びます
-              </p>
-            )}
-
-            {/* 「その他」は掲載枠に出ないので、色と金額をここで示す */}
-            {otherSegment && (
-              <p className="mt-3 flex items-center gap-2 text-[12.5px] tabular-nums text-nicchyo-ink/50">
-                <span
-                  className="h-2 w-2 shrink-0 rounded-[2px]"
-                  style={{ backgroundColor: otherSegment.color }}
-                  aria-hidden
-                />
-                その他（助成金・賞金・匿名でのご支援） {formatJpy(otherSegment.amountJpy)}
-              </p>
-            )}
-          </Surface>
-
-          {/* メーターの色がどの協賛かを、名前と金額で結びつける場所も兼ねる。
-              個人のご支援は別のページなので、見出しでも「ご協賛」と区別する
+          {/* 個人のご支援は別のページなので、見出しでも「ご協賛」と区別する
               （個人側は「ご支援くださった皆さま」で、名前が紛らわしい） */}
-          <h3 className="mt-12 text-[11px] font-bold tracking-[0.2em] text-nicchyo-ink/40">
+          <h3 className="text-[11px] font-bold tracking-[0.2em] text-nicchyo-ink/70">
             ご協賛くださる皆さま
           </h3>
           <SupporterSlots className="mt-5" />
@@ -255,7 +180,7 @@ export default async function SupportPage() {
               <span className="block text-[14px] font-bold text-amber-700 underline-offset-4 group-hover:underline">
                 個人でご支援くださった皆さま
               </span>
-              <span className="mt-1 block text-[12.5px] text-nicchyo-ink/45">
+              <span className="mt-1 block text-[12.5px] text-nicchyo-ink/70">
                 {individualSupporterCount > 0
                   ? `${individualSupporterCount.toLocaleString("ja-JP")}名のお名前を掲載しております`
                   : "これから、こちらにお名前を掲載してまいります"}
@@ -294,7 +219,6 @@ export default async function SupportPage() {
         <Section label="ご支援の方法" title={["個人でも、", "組織・企業でも、", "お力添えいただけます"]}>
           <SupportWays
             sponsorUnitAnnualJpy={SPONSOR_UNIT_ANNUAL_JPY}
-            sponsorUnitMonths={unitMonths}
             individualSupporterCount={individualSupporterCount}
           />
         </Section>

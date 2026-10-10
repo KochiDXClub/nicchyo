@@ -44,10 +44,6 @@ const SPONSOR_OFFERS: Offer[] = [
     body: "このページと「nicchyoとは」に掲載いたします。",
   },
   {
-    title: "支えていただいた分を、図でお示しします",
-    body: "ご希望に応じて、上の図にご協賛ぶんの色がつきます。",
-  },
-  {
     title: "マップへのご紹介",
     body: "ご希望に応じて、日曜市の周辺で立ち寄れる場所としてご紹介いたします。",
   },
@@ -80,8 +76,6 @@ const INDIVIDUAL_OFFERS: Offer[] = [
 type SupportWaysProps = {
   /** 協賛1口の年額。未定なら組織側の金額欄を出さない */
   sponsorUnitAnnualJpy: number | null;
-  /** 1口が何ヶ月ぶんにあたるか */
-  sponsorUnitMonths: number | null;
   /** これまでに個人でご支援くださった方の人数 */
   individualSupporterCount: number;
 };
@@ -114,7 +108,6 @@ const CARD_CLASS = "flex h-full flex-col rounded-card p-6 sm:p-7";
 
 export default function SupportWays({
   sponsorUnitAnnualJpy,
-  sponsorUnitMonths,
   individualSupporterCount,
 }: SupportWaysProps) {
   return (
@@ -175,8 +168,6 @@ export default function SupportWays({
           </p>
           <p className="mt-2 text-[12.5px] tabular-nums text-nicchyo-ink/45">
             掲載は1年間
-            {sponsorUnitMonths !== null &&
-              `・運営費のおよそ ${sponsorUnitMonths.toFixed(1)}ヶ月分にあたります`}
           </p>
 
           <OfferList offers={SPONSOR_OFFERS} markClassName="bg-amber-500 text-white" />

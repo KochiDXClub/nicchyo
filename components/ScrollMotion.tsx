@@ -13,8 +13,8 @@ import {
 /**
  * スクロールに合わせて一度だけ動く部品（Reveal の仲間）
  *
- * 協賛・ご支援のページで「見出しがせり上がる → 数字が数え上がる → 棒が伸びる」の
- * 順に動かすために作った。どれも一度きり（once）で、読み終えた場所が戻ってきても
+ * 協賛・ご支援のページで「見出しがせり上がる → 数字が数え上がる」の順に
+ * 動かすために作った。どれも一度きり（once）で、読み終えた場所が戻ってきても
  * もう一度動くことはない。
  *
  * Reveal と同じ決まりに従う。
@@ -106,43 +106,6 @@ export function CountUp({
         {text}
       </motion.span>
       <span className="sr-only">{finalText}</span>
-    </span>
-  );
-}
-
-/**
- * 左から伸びる棒。幅は ratio（0〜1）で決める。
- *
- * 伸ばすのは scaleX で、幅そのものは最初から決めておく。幅を動かすと、
- * 伸びているあいだ周りの行が組み直されてしまう。
- *
- * 画面に入ったかは、縮めていない外側で見る。幅 0 に潰した棒そのものを見ると、
- * ブラウザによっては「見えていない」のまま伸びない。
- */
-export function GrowBar({
-  ratio,
-  className = "",
-  delay = 0,
-}: {
-  ratio: number;
-  className?: string;
-  delay?: number;
-}) {
-  const ref = useRef<HTMLSpanElement>(null);
-  const isInView = useInView(ref, { once: true, margin: MOTION_VIEWPORT_MARGIN });
-  const prefersReducedMotion = useReducedMotion();
-
-  return (
-    <span ref={ref} className="block h-full">
-      <motion.span
-        className={`reveal block h-full origin-left ${className}`}
-        style={{ width: `${Math.min(Math.max(ratio, 0), 1) * 100}%` }}
-        initial={{ scaleX: 0 }}
-        animate={isInView ? { scaleX: 1 } : undefined}
-        transition={
-          prefersReducedMotion ? { duration: 0 } : { duration: 0.9, ease: MOTION_EASE, delay }
-        }
-      />
     </span>
   );
 }
