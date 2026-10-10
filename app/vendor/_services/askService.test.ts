@@ -7,6 +7,7 @@ const calls: Call[] = [];
 let respond: (call: Call) => Result = () => ({ data: null, error: null });
 const storageList = vi.fn();
 const storageRemove = vi.fn();
+const storageUpload = vi.fn();
 
 /** 呼ばれた操作を記録し、respond で返事を決める Supabase の代わり */
 function fakeClient() {
@@ -18,6 +19,7 @@ function fakeClient() {
         update: (payload: unknown) => Object.assign(call, { op: "update", payload }) && builder,
         insert: (payload: unknown) => Object.assign(call, { op: "insert", payload }) && builder,
         upsert: (payload: unknown) => Object.assign(call, { op: "upsert", payload }) && builder,
+        delete: () => Object.assign(call, { op: "delete" }) && builder,
         eq: (column: string, value: unknown) => {
           call.filters.push(`${column}=${String(value)}`);
           return builder;
@@ -33,12 +35,25 @@ function fakeClient() {
       };
       return builder;
     },
-    storage: { from: () => ({ list: storageList, remove: storageRemove }) },
+    storage: {
+      from: () => ({
+        list: storageList,
+        remove: storageRemove,
+        upload: storageUpload,
+        getPublicUrl: (path: string) => ({ data: { publicUrl: `https://example.supabase.co/${path}` } }),
+      }),
+    },
   };
 }
 
 vi.mock("@/utils/supabase/client", () => ({ createClient: () => fakeClient() }));
 vi.mock("./storeService", () => ({ uploadStoreImage: vi.fn() }));
+// 写真の WebP 変換はブラウザの Canvas を使うので、変換済みの Blob を返す代わりに差し替える
+vi.mock("@/lib/image/clientCompression", () => ({
+  STORE_IMAGE_CONFIG: { main: {} },
+  resizeImageToBlob: vi.fn(async () => new Blob(["webp"], { type: "image/webp" })),
+  imageUploadInfo: (blob: Blob) => ({ contentType: blob.type, ext: "webp" }),
+}));
 
 import { AskUserFacingError, fetchAskSnapshot, saveAskAnswer } from "./askService";
 
@@ -48,6 +63,8 @@ beforeEach(() => {
   calls.length = 0;
   storageList.mockReset();
   storageRemove.mockReset();
+  storageUpload.mockReset();
+  storageUpload.mockResolvedValue({ error: null });
   // vendors の更新は、更新できた行を返す
   respond = (call) =>
     call.table === "vendors" && call.op === "update" ? { data: [{ id: "v1" }], error: null } : { data: null, error: null };
@@ -128,6 +145,93 @@ describe("saveAskAnswer（どの列に書くか）", () => {
   });
 });
 
+describe("主な商品の写真", () => {
+  const photo = new File(["x"], "tomato.jpg", { type: "image/jpeg" });
+  const productRows = (rows: { id: string; name: string; image_url: string | null }[], vendor: object = {}) => {
+    respond = (call) => {
+      if (call.table === "vendors" && call.op === "select") return { data: { main_products: [], ...vendor }, error: null };
+      if (call.table === "vendors" && call.op === "update") return { data: [{ id: "v1" }], error: null };
+      if (call.table === "products" && call.op === "select") return { data: rows, error: null };
+      if (call.table === "products" && call.op === "insert") return { data: { id: "p-new" }, error: null };
+      return { data: null, error: null };
+    };
+  };
+
+  it("新しい商品に写真をつけると、商品の行を作り、WebP で保存して URL を書く", async () => {
+    productRows([]);
+    await saveAskAnswer("v1", "2026-10-04", {
+      id: "products",
+      items: [{ name: "トマト", price: 300, imageFile: photo }],
+    });
+
+    expect(storageUpload).toHaveBeenCalledWith("v1/product-p-new.webp", expect.any(Blob), {
+      contentType: "image/webp",
+      upsert: true,
+    });
+    const productWrites = writes().filter((call) => call.table === "products");
+    expect(productWrites[0]).toEqual(expect.objectContaining({ op: "insert", payload: { vendor_id: "v1", name: "トマト" } }));
+    expect(productWrites[1]).toEqual(
+      expect.objectContaining({
+        op: "update",
+        payload: expect.objectContaining({ image_url: expect.stringMatching(/^https:\/\/example\.supabase\.co\/v1\/product-p-new\.webp\?v=\d+$/) }),
+      })
+    );
+    // 名前と値段は、これまでどおり vendors に書く
+    expect(writes().at(-1)).toEqual(
+      expect.objectContaining({
+        table: "vendors",
+        payload: expect.objectContaining({ main_products: ["トマト"], main_product_prices: { トマト: 300 } }),
+      })
+    );
+  });
+
+  it("写真を触っていない商品は、products にも Storage にも何も書かない", async () => {
+    productRows([{ id: "p1", name: "トマト", image_url: "https://example.supabase.co/v1/product-p1.webp" }], {
+      main_products: ["トマト"],
+    });
+    await saveAskAnswer("v1", "2026-10-04", { id: "products", items: [{ name: "トマト", price: 350 }] });
+
+    expect(writes().map((call) => call.table)).toEqual(["vendors"]);
+    expect(storageUpload).not.toHaveBeenCalled();
+    expect(storageRemove).not.toHaveBeenCalled();
+  });
+
+  it("写真を外すと、商品の URL を null にして、Storage の写真も消す", async () => {
+    productRows([{ id: "p1", name: "トマト", image_url: "https://example.supabase.co/v1/product-p1.webp" }], {
+      main_products: ["トマト"],
+    });
+    storageList.mockResolvedValue({ data: [{ name: "product-p1.webp" }, { name: "product-p2.webp" }] });
+    storageRemove.mockResolvedValue({ error: null });
+
+    await saveAskAnswer("v1", "2026-10-04", { id: "products", items: [{ name: "トマト", price: null, imageFile: null }] });
+
+    expect(writes()[0]).toEqual(
+      expect.objectContaining({ table: "products", op: "update", payload: expect.objectContaining({ image_url: null }) })
+    );
+    expect(storageRemove).toHaveBeenCalledWith(["v1/product-p1.webp"]);
+  });
+
+  it("一覧から外した商品は、行も写真も消す（看板商品と、画面に出ていない行は残す）", async () => {
+    productRows(
+      [
+        { id: "p1", name: "トマト", image_url: null },
+        { id: "p2", name: "なす", image_url: "https://example.supabase.co/v1/product-p2.webp" },
+        { id: "p3", name: "看板の柿", image_url: null },
+        { id: "p4", name: "昔の商品", image_url: null },
+      ],
+      { main_products: ["トマト", "なす", "看板の柿"], signature_product_name: "看板の柿" }
+    );
+    storageList.mockResolvedValue({ data: [{ name: "product-p2.webp" }] });
+    storageRemove.mockResolvedValue({ error: null });
+
+    await saveAskAnswer("v1", "2026-10-04", { id: "products", items: [{ name: "トマト", price: null }] });
+
+    const deletes = calls.filter((call) => call.op === "delete");
+    expect(deletes).toEqual([expect.objectContaining({ table: "products", filters: ["id=p2", "vendor_id=v1"] })]);
+    expect(storageRemove).toHaveBeenCalledWith(["v1/product-p2.webp"]);
+  });
+});
+
 describe("fetchAskSnapshot", () => {
   it("どれか1つでも読めなければ、空として出さずに失敗にする", async () => {
     respond = (call) => {
@@ -137,5 +241,24 @@ describe("fetchAskSnapshot", () => {
     };
 
     await expect(fetchAskSnapshot("v1", "2026-10-04")).rejects.toBeInstanceOf(AskUserFacingError);
+  });
+
+  it("主な商品に、同じ名前の商品の写真をつけて返す", async () => {
+    respond = (call) => {
+      if (call.table === "vendors") {
+        return { data: { shop_name: "店", main_products: ["トマト", "なす"], main_product_prices: { トマト: 300 } }, error: null };
+      }
+      if (call.table === "products") {
+        return { data: [{ id: "p1", name: "トマト", image_url: "https://example.supabase.co/t.webp", description: null }], error: null };
+      }
+      return { data: call.table === "vendor_weekly_status" || call.table === "vendor_owner_profiles" ? null : [], error: null };
+    };
+
+    const snapshot = await fetchAskSnapshot("v1", "2026-10-04");
+
+    expect(snapshot.products).toEqual([
+      { name: "トマト", price: 300, imageUrl: "https://example.supabase.co/t.webp" },
+      { name: "なす", price: null, imageUrl: undefined },
+    ]);
   });
 });
