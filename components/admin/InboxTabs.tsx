@@ -24,7 +24,7 @@ export function InboxTabs() {
   const tabs = INBOX_TABS.filter((tab) => tab.visible(permissions));
 
   return (
-    <nav aria-label="受信トレイの種類" className="border-b border-slate-200 bg-white">
+    <nav aria-label="受信トレイの種類" className="border-b border-line bg-white">
       <div className="mx-auto flex max-w-7xl gap-1 overflow-x-auto px-4">
         {tabs.map((tab) => {
           const isActive = pathname === tab.href || pathname?.startsWith(`${tab.href}/`);
@@ -35,8 +35,8 @@ export function InboxTabs() {
               aria-current={isActive ? "page" : undefined}
               className={`shrink-0 border-b-2 px-3 py-2.5 text-[13px] font-medium transition-colors ${
                 isActive
-                  ? "border-slate-900 text-slate-900"
-                  : "border-transparent text-slate-500 hover:border-slate-200 hover:text-slate-800"
+                  ? "border-nicchyo-ink text-nicchyo-ink"
+                  : "border-transparent text-nicchyo-ink/55 hover:border-line hover:text-nicchyo-ink"
               }`}
             >
               {tab.label}
