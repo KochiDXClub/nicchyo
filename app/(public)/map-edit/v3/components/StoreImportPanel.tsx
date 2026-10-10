@@ -67,6 +67,8 @@ export default function StoreImportPanel({
   const [parsed, setParsed] = useState<{ rows: StoreCsvRow[]; errors: ImportIssue[] } | null>(null);
   // 今ある区画は仮のデータなので、最初の取り込みでは置き換える前提にする
   const [replace, setReplace] = useState(true);
+  // 出店者ごと消すと商品・投稿も戻せなくなるため、自分で選んだときだけ有効にする
+  const [deleteVendors, setDeleteVendors] = useState(false);
 
   const plan = useMemo(
     () =>
@@ -79,9 +81,10 @@ export default function StoreImportPanel({
             categories,
             roads: defaults,
             replace,
+            deleteVendors,
           })
         : null,
-    [parsed, shops, vendors, categories, defaults, replace]
+    [parsed, shops, vendors, categories, defaults, replace, deleteVendors]
   );
 
   const readFile = async (file: File) => {
@@ -132,6 +135,19 @@ export default function StoreImportPanel({
         <input type="checkbox" checked={replace} onChange={(e) => setReplace(e.target.checked)} />
         <span>CSV に無い区画を削除する（今の区画を置き換える。出店者の情報は消さず、割り当てだけ外れます）</span>
       </label>
+      <label
+        style={{ display: "flex", gap: 6, alignItems: "flex-start", fontSize: 12.5, marginBottom: 10, opacity: replace ? 1 : 0.45 }}
+      >
+        <input
+          type="checkbox"
+          checked={replace && deleteVendors}
+          disabled={!replace}
+          onChange={(e) => setDeleteVendors(e.target.checked)}
+        />
+        <span>
+          削除する区画にいた出店者のデータも削除する（商品・投稿もまとめて消え、元に戻せません。ほかの区画に残る出店者と、区画にいなかった出店者は消しません）
+        </span>
+      </label>
 
       {plan && (
         <>
@@ -141,8 +157,14 @@ export default function StoreImportPanel({
             <br />
             区画 新規 {plan.createdSlotCount}・更新 {plan.updatedSlotCount}・削除 {plan.deletedSlotCount}
             <br />
-            出店者 新規 {plan.createdVendorCount}・更新 {plan.updatedVendorCount}・既存を割り当て {plan.reusedVendorCount}
+            出店者 新規 {plan.createdVendorCount}・更新 {plan.updatedVendorCount}・既存を割り当て {plan.reusedVendorCount}・削除{" "}
+            {plan.deletedVendorCount}
           </p>
+          {plan.deletedVendorCount > 0 && (
+            <p role="alert" style={errorNoteStyle}>
+              出店者 {plan.deletedVendorCount} 件を、商品・投稿ごと削除します。「変更を保存」を押すと元に戻せません。
+            </p>
+          )}
           {plan.errors.length > 0 && (
             <>
               <p role="alert" style={errorNoteStyle}>
@@ -163,7 +185,15 @@ export default function StoreImportPanel({
           <button
             type="button"
             disabled={!plan.next}
-            onClick={() => onApply(plan)}
+            onClick={() => {
+              if (
+                plan.deletedVendorCount > 0 &&
+                !window.confirm(`出店者 ${plan.deletedVendorCount} 件を、商品・投稿ごと削除する取り込みです。よろしいですか？\n（保存するまでは、変更一覧から取り消せます）`)
+              ) {
+                return;
+              }
+              onApply(plan);
+            }}
             style={{ ...primaryButtonStyle, opacity: plan.next ? 1 : 0.45 }}
           >
             取り込む

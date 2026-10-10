@@ -54,6 +54,13 @@ describe("POST /api/analytics/page-visit の来訪者数カウント", () => {
     expect(rpc).not.toHaveBeenCalled();
   });
 
+  it("user_metadata の role（本人が書き換えられる）では管理者扱いにしない", async () => {
+    getUser.mockResolvedValue({ data: { user: { user_metadata: { role: "admin" } } } });
+    await post({ path: "/map", durationSeconds: 1 });
+    expect(insert).toHaveBeenCalledWith(expect.objectContaining({ user_role: null }));
+    expect(rpc).toHaveBeenCalled();
+  });
+
   it("記録対象外のパスや書き込み失敗では数えない", async () => {
     await post({ path: "/api/x", durationSeconds: 1 });
     insert.mockResolvedValue({ error: { message: "x" } });

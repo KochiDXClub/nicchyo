@@ -29,6 +29,16 @@ export type VersionEntry = {
 
 export const versionHistory: VersionEntry[] = [
   {
+    version: "v1.4",
+    date: "2026-10-08",
+    title: "地図の刷新・出店者向けAI相談の拡充",
+    highlights: [
+      "地図を新しい描画方式に刷新。屋台の中にお店の写真が入った見た目になり、表示も大幅に速くなりました",
+      "出店者のトップで「にちよさん」に使い方を相談したり、営業時間などの変更をお願いしたりできるようになりました",
+    ],
+    prNumber: 846,
+  },
+  {
     version: "v1.3",
     date: "2026-05-19",
     title: "セキュリティ強化・パフォーマンス改善・技術的負債解消",

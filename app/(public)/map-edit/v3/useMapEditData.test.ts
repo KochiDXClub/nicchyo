@@ -58,6 +58,16 @@ describe("buildSavePayloadDiff", () => {
     expect(diff.shops.updated.map((s) => s.vendorId)).toEqual(["new-vendor-1"]);
   });
 
+  it("消した出店者は id で送り、画面で追加してまだ保存していない出店者（仮 id）は送らない", () => {
+    const saved = { id: "11111111-1111-4111-8111-111111111111", name: "仮の店", categoryId: null, strength: "", mainProducts: [] };
+    const draft = { ...saved, id: "new-vendor-9", name: "追加しただけの店" };
+    const before: EditState = { ...base, vendors: [saved, draft] };
+    const after: EditState = { ...base, vendors: [] };
+    const diff = buildSavePayloadDiff(changesFrom([before, after]));
+    expect(diff.vendors.deletedIds).toEqual([saved.id]);
+    expect(diff.vendors.upsert).toEqual([]);
+  });
+
   it("画面で追加してから消した区画は送らない", () => {
     const added: EditState = { ...base, shops: [...base.shops, shop("new-1")] };
     const diff = buildSavePayloadDiff(changesFrom([base, added, base]));

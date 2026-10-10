@@ -199,7 +199,7 @@ function buildShopFeatureCollection(
         label: slotLabel(shop),
         opacity: match ? 1 : 0.15,
         hasVendor: !!shop.vendorId,
-        // 出店者のいる区画はオレンジのピン、空き区画はグレーで、ひと目で空きと分かるようにする
+        // 出店者のいる区画はオレンジのピン、空き区画は赤で、ひと目で空きと分かるようにする
         color: shop.vendorId
           ? isSelected
             ? EDITOR_COLORS.selectedSlot
