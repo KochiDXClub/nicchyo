@@ -21,6 +21,8 @@ function renderPanel(onUpdateVendor = vi.fn()) {
       onRegisterVendor={vi.fn()}
       onUpdateVendor={onUpdateVendor}
       onClearVendor={vi.fn()}
+      onChomeChange={vi.fn()}
+      autoChome={null}
       onDelete={vi.fn()}
     />
   );

@@ -1,7 +1,9 @@
 import { parseCsvWithLines } from "@/lib/csv/parseCsv";
 import { MAX_SHOP_ID, MIN_SHOP_ID } from "@/lib/shops/route";
 import { pointAlongRoad, roadLengthMeters, roadSlotLatLng, type RoadSide } from "@/lib/map/roadSlotPosition";
-import { CHOME_ORDER, NEW_VENDOR_ID_PREFIX, VENDOR_FIELD_LIMITS } from "../../map/types/editableShop";
+import type { ChomeRange } from "@/lib/map/chomeBoundaries";
+import { normalizeChomeId } from "@/lib/map/chomes";
+import { CHOME_ORDER, CHOME_WEST_TO_EAST, NEW_VENDOR_ID_PREFIX, VENDOR_FIELD_LIMITS } from "../../map/types/editableShop";
 import type { EditableRoad, EditableShop, EditableVendor, VendorCategory } from "./types";
 
 /**
@@ -170,7 +172,7 @@ function median(values: number[]): number | null {
  *   同じ CSV を取り込み直せば、飛ばした行の区画だけが追加される
  * - 本番号＋枝番が同じ区画があれば、位置はそのままで出店者の情報を更新する（取り込み直しても重複しない）
  * - 無ければ道の上に区画を作る。北・南は追手筋（northSouth）の住所録の上側・下側に、
- *   丁目の順（一丁目が西）・番号の順で等間隔に並べる。大橋通りは ohashi の道に、番号の順で左右交互に並べる
+ *   丁目の順（六→七→五→…→一丁目が西から東）・番号の大きい順（住所録の番号は東の一丁目から西の六丁目へ増える）で等間隔に並べる。大橋通りは ohashi の道の東側に、番号の小さい方を北にして等間隔に並べる
  * - replace が true なら、CSV に無い区画を削除する（出店者の情報は消さず、割り当てだけ外れる）
  * - replace と deleteVendors がどちらも true なら、削除する区画にいた出店者のうち、取り込み後に
  *   どの区画にもいなくなるものを出店者ごと削除する（商品・投稿もまとめて消える）。
@@ -183,6 +185,8 @@ export function planStoreImport(input: {
   vendors: EditableVendor[];
   categories: VendorCategory[];
   roads: StoreImportRoads;
+  /** 丁目ごとの区間（境目を道に投影した範囲）。あれば、北・南の区画を丁目の区間の中に置く */
+  chomeRanges?: ChomeRange[];
   replace: boolean;
   /** replace が true のときだけ効く。削除する区画の出店者を、出店者ごと削除する */
   deleteVendors?: boolean;
@@ -257,31 +261,50 @@ export function planStoreImport(input: {
     // 住所録の「北（上側）」が道の進行方向の左右どちらか
     const mid = pointAlongRoad(road.points, length / 2);
     const northSide: RoadSide = mid.leftY >= 0 ? "left" : "right";
-    // 一丁目が西。道が東から西へ描かれていれば、始点からの距離を逆にする
+    // 六丁目が西（高知城前）、一丁目が東（はりまや橋側）。道が東から西へ描かれていれば、始点からの距離を逆にする
     const first = road.points[0];
     const last = road.points[road.points.length - 1];
     const westToEast = first.lng <= last.lng;
+    const rangeOfChome = (chome: string) => {
+      const id = normalizeChomeId(chome);
+      return id == null ? undefined : (input.chomeRanges ?? []).find((r) => r.roadId === road.id && r.chomeId === id);
+    };
     for (const side of ["north", "south"] as const) {
       const list = newRows
         .filter((row) => row.side === side)
-        .sort((a, b) => CHOME_ORDER.indexOf(a.chome as never) - CHOME_ORDER.indexOf(b.chome as never) || byNumber(a, b));
-      list.forEach((row, i) => {
-        const d = ((i + 0.5) * length) / list.length;
-        placement.set(row, {
-          road,
-          distanceM: westToEast ? d : length - d,
-          side: side === "north" ? northSide : northSide === "left" ? "right" : "left",
+        .sort((a, b) => CHOME_WEST_TO_EAST.indexOf(a.chome as never) - CHOME_WEST_TO_EAST.indexOf(b.chome as never) || byNumber(b, a));
+      const placedSide: RoadSide = side === "north" ? northSide : northSide === "left" ? "right" : "left";
+      // 丁目の区間が分かる丁目は、その区間の中に西から等間隔で置く。分からない丁目の区画は、残りをまとめて道全体に並べる
+      const inRange = list.filter((row) => rangeOfChome(row.chome));
+      const rest = list.filter((row) => !rangeOfChome(row.chome));
+      for (const chome of new Set(inRange.map((row) => row.chome))) {
+        const range = rangeOfChome(chome)!;
+        const rows = inRange.filter((row) => row.chome === chome);
+        rows.forEach((row, i) => {
+          const t = (i + 0.5) / rows.length; // 西端からの割合
+          const d = westToEast ? range.startM + t * (range.endM - range.startM) : range.endM - t * (range.endM - range.startM);
+          placement.set(row, { road, distanceM: d, side: placedSide });
         });
+      }
+      rest.forEach((row, i) => {
+        const d = ((i + 0.5) * length) / rest.length;
+        placement.set(row, { road, distanceM: westToEast ? d : length - d, side: placedSide });
       });
     }
   }
   if (roads.ohashi) {
     const road = roads.ohashi;
     const length = roadLengthMeters(road.points);
+    // 7丁目は大橋通りの東側にだけ並ぶ。番号の小さい方が北、大きい方が南
     const list = newRows.filter((row) => row.side === "ohashi").sort(byNumber);
-    const pairs = Math.ceil(list.length / 2);
+    const mid = pointAlongRoad(road.points, length / 2);
+    const eastSide: RoadSide = mid.leftX >= 0 ? "left" : "right";
+    const first = road.points[0];
+    const last = road.points[road.points.length - 1];
+    const startsAtSouth = first.lat <= last.lat;
     list.forEach((row, i) => {
-      placement.set(row, { road, distanceM: ((Math.floor(i / 2) + 0.5) * length) / pairs, side: i % 2 === 0 ? "left" : "right" });
+      const d = ((i + 0.5) * length) / list.length;
+      placement.set(row, { road, distanceM: startsAtSouth ? length - d : d, side: eastSide });
     });
   }
 

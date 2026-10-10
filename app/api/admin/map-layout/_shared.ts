@@ -56,9 +56,11 @@ const UNDEFINED_COLUMN = "42703";
  * Preview や、リリース直後でマイグレーションの承認待ちの間は、アプリだけが新しくなって
  * 列がまだ無いことがある。その間も画面は開けるようにし、保存と移行処理だけを止める。
  * 同じマイグレーションで save_map_layout 等の関数も作るので、列があれば関数もある。
+ * 丁目の手動設定（chome_locked、20261010110000）も同じ確認に含める。保存の関数がその列を書くため
+ * （20261010120000）、列だけが無い状態で保存すると失敗する。
  */
 export async function hasRoadPositionSchema(supabase: ReturnType<typeof createServerClient>): Promise<boolean> {
-  const { error } = await supabase.from("market_locations").select("road_id, official_number").limit(1);
+  const { error } = await supabase.from("market_locations").select("road_id, official_number, chome_locked").limit(1);
   if (!error) return true;
   if (error.code === UNDEFINED_COLUMN) return false;
   throw new Error("Failed to check map layout schema");
@@ -110,6 +112,7 @@ type MarketLocationRow = {
   latitude: number | null;
   longitude: number | null;
   district: string | null;
+  chome_locked?: boolean | null;
   road_id?: string | null;
   road_distance_m?: number | null;
   road_side?: string | null;
@@ -118,13 +121,16 @@ type MarketLocationRow = {
   branch_number?: number | null;
 };
 
-/** 区画を読む。道基準の位置の列がまだ無い DB（マイグレーション前）では、その列なしで読む */
+/**
+ * 区画を読む。列がまだ無い DB（マイグレーション前）では、ある列だけで読む
+ * （丁目の手動設定 chome_locked → 道基準の位置・住所録の番号 → 基本の列、の順に減らす）
+ */
 async function loadMarketLocationRows(supabase: ReturnType<typeof createServerClient>) {
-  const withRoad = await supabase
-    .from("market_locations")
-    .select(
-      "id, store_number, latitude, longitude, district, road_id, road_distance_m, road_side, road_offset_m, official_number, branch_number"
-    );
+  const baseColumns =
+    "id, store_number, latitude, longitude, district, road_id, road_distance_m, road_side, road_offset_m, official_number, branch_number";
+  const withLock = await supabase.from("market_locations").select(`${baseColumns}, chome_locked`);
+  if (withLock.error?.code !== UNDEFINED_COLUMN) return withLock as { data: MarketLocationRow[] | null; error: typeof withLock.error };
+  const withRoad = await supabase.from("market_locations").select(baseColumns);
   if (withRoad.error?.code !== UNDEFINED_COLUMN) return withRoad as { data: MarketLocationRow[] | null; error: typeof withRoad.error };
   return (await supabase
     .from("market_locations")
@@ -204,6 +210,7 @@ export async function loadEditableShops(supabase: ReturnType<typeof createServer
           lng,
           position: storeNumber,
           chome: normalizeChome((row.district as string | null) ?? null),
+          ...(row.chome_locked ? { chomeLocked: true } : {}),
           ...(row.official_number != null ? { officialNumber: Number(row.official_number) } : {}),
           ...(row.branch_number != null ? { branchNumber: Number(row.branch_number) } : {}),
           ...(hasRoadPosition

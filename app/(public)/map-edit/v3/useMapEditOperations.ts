@@ -19,6 +19,8 @@ import {
 } from "./types";
 import { NEW_VENDOR_ID_PREFIX } from "../../map/types/editableShop";
 import type { MapSettingsLimits } from "./useMapEditData";
+import type { JudgeChome } from "./useChomeJudge";
+import { CHOME_LEGACY_LABELS, legacyChomeLabel, type ChomeId } from "@/lib/map/chomes";
 
 let operationIdCounter = 0;
 
@@ -39,6 +41,8 @@ type Params = {
   setVendors: React.Dispatch<React.SetStateAction<EditableVendor[]>>;
   routeConfig: MapRouteConfig;
   mapSettingsLimits: MapSettingsLimits;
+  /** 道の上の位置から丁目を決める（境目の設定が無いあいだは常に「対象外」を返す） */
+  judgeChome?: JudgeChome;
   setMessage: (message: string | null) => void;
 };
 
@@ -102,6 +106,7 @@ export function useMapEditOperations(params: Params) {
     setVendors,
     routeConfig,
     mapSettingsLimits,
+    judgeChome,
     setMessage,
   } = params;
 
@@ -345,7 +350,10 @@ export function useMapEditOperations(params: Params) {
       }
 
       const onRoad = shops.filter((s) => s.roadId === road.id && !deletedIds.has(s.locationId));
-      // 新しい区画の丁目は、同じ道の上でいちばん近い区画に合わせる（区画レーンで丁目ごとにまとめるため）
+      // 新しい区画の丁目は、道の上の位置から自動で決める。境目のすぐ上は決めずに空けておく
+      // （区画の詳細で選んでもらう）。境目の設定が無い道・環境では、従来どおり同じ道の上で
+      // いちばん近い区画に合わせる（区画レーンで丁目ごとにまとめるため）
+      let nearBoundaryCount = 0;
       const chomeNear = (distanceM: number) =>
         onRoad
           .filter((s) => s.chome)
@@ -356,6 +364,15 @@ export function useMapEditOperations(params: Params) {
             },
             { chome: undefined, d: Infinity }
           ).chome;
+      const chomeFor = (distanceM: number): string | undefined => {
+        const judged = judgeChome?.(road.id, distanceM);
+        if (judged?.status === "ok") return legacyChomeLabel(judged.chomeId);
+        if (judged?.status === "near_boundary") {
+          nearBoundaryCount += 1;
+          return undefined;
+        }
+        return chomeNear(distanceM);
+      };
 
       const moveTo = new Map(plan.moves.map((m) => [m.locationId, m.toM]));
       const nextShops = shops
@@ -375,7 +392,7 @@ export function useMapEditOperations(params: Params) {
           id: position,
           position,
           name: vacantShopName(position),
-          chome: chomeNear(create.distanceM),
+          chome: chomeFor(create.distanceM),
           roadId: road.id,
           roadDistanceM: create.distanceM,
           roadSide: create.side,
@@ -389,9 +406,42 @@ export function useMapEditOperations(params: Params) {
         "道",
         `${road.name} を区画分け（追加 ${plan.creates.length}・削除 ${plan.deletes.length}・移動 ${plan.moves.length}）`
       );
+      if (nearBoundaryCount > 0) {
+        setMessage(
+          `丁目の境目のすぐ上に置いた区画が ${nearBoundaryCount} 件あります。丁目は未設定なので、区画の詳細で選んでください。`
+        );
+      }
       return true;
     },
-    [shops, commit, setMessage, mapSettingsLimits.maxUnassignedShopMarkers]
+    [shops, commit, setMessage, mapSettingsLimits.maxUnassignedShopMarkers, judgeChome]
+  );
+
+  /**
+   * 区画の丁目を直す。丁目を選ぶと「手で設定」になり、自動判定で上書きしない。
+   * "auto" を選ぶと手動設定を外し、道の位置から決め直す（決まらなければ今の丁目のまま）。
+   */
+  const setSlotChome = useCallback(
+    (locationId: string, value: ChomeId | "auto") => {
+      const shop = shops.find((s) => s.locationId === locationId);
+      if (!shop) return;
+      if (value === "auto") {
+        const judged = shop.roadId && shop.roadDistanceM != null ? judgeChome?.(shop.roadId, shop.roadDistanceM) : undefined;
+        const chome = judged?.status === "ok" ? legacyChomeLabel(judged.chomeId) : shop.chome;
+        commit(
+          { shops: shops.map((s) => (s.locationId === locationId ? { ...s, chome, chomeLocked: false } : s)) },
+          String(shop.position),
+          `丁目を自動判定に戻す（${chome ?? "未設定"}）`
+        );
+        return;
+      }
+      const chome = CHOME_LEGACY_LABELS[value - 1];
+      commit(
+        { shops: shops.map((s) => (s.locationId === locationId ? { ...s, chome, chomeLocked: true } : s)) },
+        String(shop.position),
+        `丁目を ${chome} に設定（手動）`
+      );
+    },
+    [shops, commit, judgeChome]
   );
 
   /** CSV 取り込みの結果（storeCsvImport.ts の planStoreImport）を1件の操作として当てはめる */
@@ -602,6 +652,7 @@ export function useMapEditOperations(params: Params) {
     registerVendor,
     updateVendor,
     clearVendor,
+    setSlotChome,
     deleteSlot,
     applySlotPlan,
     applyStoreImport,
