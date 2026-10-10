@@ -145,12 +145,16 @@ export function FieldShopEditor({ shopId }: { shopId: string }) {
   const [pin, setPin] = useState<LatLng | null>(null);
   const [locationBusy, setLocationBusy] = useState(false);
   const [gpsBusy, setGpsBusy] = useState(false);
+  // 記録した位置の取り方（現在地か、地図で指したか）と、現在地の誤差。地図は直したいときだけ開く
+  const [recordedInfo, setRecordedInfo] = useState<{ source: "gps" | "pin" | null; accuracyM: number | null } | null>(null);
+  const [showMap, setShowMap] = useState(false);
 
   const applyLocationResponse = useCallback((data: { locations?: FieldLocation[]; current?: FieldLocation | null }) => {
     setLocations(data.locations ?? []);
     if (data.current) {
       setStoreNumber(data.current.storeNumber != null ? String(data.current.storeNumber) : "");
       setPin({ lat: data.current.lat, lng: data.current.lng });
+      if (data.current.recorded) setRecordedInfo({ source: data.current.source ?? null, accuracyM: data.current.accuracyM ?? null });
     }
   }, []);
 
@@ -262,26 +266,6 @@ export function FieldShopEditor({ shopId }: { shopId: string }) {
     }
   };
 
-  const useCurrentPosition = () => {
-    if (!navigator.geolocation) {
-      showToast.error("この端末では現在地を取得できません");
-      return;
-    }
-    setGpsBusy(true);
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        setPin({ lat: pos.coords.latitude, lng: pos.coords.longitude });
-        setGpsBusy(false);
-        if (pos.coords.accuracy > 30) showToast.error(`現在地の誤差が約${Math.round(pos.coords.accuracy)}mあります。ピンを動かして合わせてください`);
-      },
-      () => {
-        setGpsBusy(false);
-        showToast.error("現在地を取得できませんでした。地図をタップして位置を決めてください");
-      },
-      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 },
-    );
-  };
-
   const pickStoreNumber = (n: number) => {
     setStoreNumber(String(n));
     // 区画の位置がすでにあれば、ピンをそこへ。なければ今のピンのまま
@@ -289,11 +273,12 @@ export function FieldShopEditor({ shopId }: { shopId: string }) {
     if (loc) setPin({ lat: loc.lat, lng: loc.lng });
   };
 
-  const saveLocation = async () => {
+  /** 位置を記録として保存する。現在地（gps）でも地図で指した位置（pin）でも、同じ保存 */
+  const saveLocation = async (position: LatLng, meta: { source: "gps" | "pin"; accuracyM: number | null }) => {
     // 店番は、住所録に無い新しい店舗ではまだ決まっていないので、空でもよい
     const n = storeNumber === "" ? null : Number(storeNumber);
-    if (!pin || (n !== null && !Number.isInteger(n))) {
-      showToast.error("地図でピンを置いてください（店番を入れるなら数字で）");
+    if (n !== null && !Number.isInteger(n)) {
+      showToast.error("店番は数字で入れてください");
       return;
     }
     setLocationBusy(true);
@@ -302,10 +287,12 @@ export function FieldShopEditor({ shopId }: { shopId: string }) {
       const res = await fetch(`/api/admin/shops/${shopId}/location`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ storeNumber: n, lat: pin.lat, lng: pin.lng }),
+        body: JSON.stringify({ storeNumber: n, lat: position.lat, lng: position.lng, source: meta.source, accuracyM: meta.accuracyM }),
       });
       if (!res.ok) throw new Error((await readError(res, "位置を保存できませんでした")).message);
       showToast.success("位置を記録しました");
+      setPin(position);
+      setRecordedInfo(meta);
       // load() はフォームを作り直して未保存の入力を消すので、位置まわりだけ更新する
       setShop((prev) => (prev ? { ...prev, store_number: n, location_recorded: true } : prev));
       await refreshLocations();
@@ -314,6 +301,29 @@ export function FieldShopEditor({ shopId }: { shopId: string }) {
     } finally {
       setLocationBusy(false);
     }
+  };
+
+  /** いまいる場所（スマホの現在地）をそのまま記録する。この画面のメインの操作 */
+  const recordCurrentPosition = () => {
+    if (!navigator.geolocation) {
+      showToast.error("この端末では現在地を取得できません。「地図で位置を直す」から指してください");
+      return;
+    }
+    setGpsBusy(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setGpsBusy(false);
+        const accuracyM = Math.round(pos.coords.accuracy);
+        // 誤差が大きいとき（屋内・電波が悪いとき）は、そのまま記録してよいか確かめる
+        if (accuracyM > 30 && !window.confirm(`現在地の誤差が約${accuracyM}mあります。この位置で記録しますか？（電波の良いところでもう一度取る方が正確です）`)) return;
+        void saveLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude }, { source: "gps", accuracyM });
+      },
+      () => {
+        setGpsBusy(false);
+        showToast.error("現在地を取得できませんでした。位置情報の許可を確かめるか、「地図で位置を直す」から指してください");
+      },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 },
+    );
   };
 
   if (loadError) {
@@ -558,24 +568,54 @@ export function FieldShopEditor({ shopId }: { shopId: string }) {
         </Field>
       </Card>
 
-      <Card title="お店の位置" hint="店番を入れて、地図をタップ（またはピンをドラッグ）して位置を決めます。緑の点は地図で配置済み、灰色は空きの区画です。点をタップするとその店番になります。記録するだけで、地図は変わりません。">
+      <Card title="お店の位置" hint="お店の前で「いまの場所を記録する」を押すと、スマホの現在地をそのまま記録します。地図に指す必要はありません。記録するだけで、地図は変わりません。">
         <Field label={`店番（${MIN_SHOP_ID}〜${MAX_SHOP_ID}。住所録に無い新しい店は空のままでよい）`}>
           <input value={storeNumber} inputMode="numeric" onChange={(e) => setStoreNumber(e.target.value.replace(/\D/g, ""))} className={inputClass} />
         </Field>
-        <LocationPicker locations={locations} value={pin} onChange={setPin} onPickStoreNumber={pickStoreNumber} />
-        <div className="grid grid-cols-2 gap-2">
-          <button type="button" onClick={useCurrentPosition} disabled={gpsBusy} className={`${buttonClass} border border-line bg-white text-nicchyo-ink`}>
-            {gpsBusy ? "取得中…" : "現在地にする"}
-          </button>
-          <button type="button" onClick={() => void saveLocation()} disabled={locationBusy || !pin} className={`${buttonClass} bg-nicchyo-ink text-white`}>
-            {locationBusy ? "保存中…" : "この位置を記録"}
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={recordCurrentPosition}
+          disabled={gpsBusy || locationBusy}
+          className={`${buttonClass} w-full bg-nicchyo-ink text-white`}
+        >
+          {gpsBusy ? "現在地を取得中…" : locationBusy ? "記録しています…" : "いまの場所を記録する"}
+        </button>
         <p className="text-[13px] text-nicchyo-ink/55">
           {shop.location_recorded || shop.store_number != null
-            ? `記録済み: ${shop.store_number != null ? `店番 ${shop.store_number}` : "店番なし"}`
-            : "位置は未記録です"}。ここで記録しても地図は変わりません。地図への反映は、地図編集で確かめてから行います。
+            ? `記録済み: ${shop.store_number != null ? `店番 ${shop.store_number}` : "店番なし"}${
+                recordedInfo?.source === "gps"
+                  ? `・現在地${recordedInfo.accuracyM != null ? `（誤差 約${Math.round(recordedInfo.accuracyM)}m）` : ""}`
+                  : recordedInfo?.source === "pin"
+                    ? "・地図で指定"
+                    : ""
+              }`
+            : "位置は未記録です"}
+          。地図への反映は、地図編集で確かめてから行います。
         </p>
+        <button
+          type="button"
+          onClick={() => setShowMap((v) => !v)}
+          aria-expanded={showMap}
+          className={`${buttonClass} w-full border border-line bg-white text-nicchyo-ink/80`}
+        >
+          {showMap ? "地図を閉じる" : "地図で位置を直す（任意）"}
+        </button>
+        {showMap ? (
+          <>
+            <p className="text-[13px] text-nicchyo-ink/55">
+              地図をタップ（またはピンをドラッグ）して位置を決めます。緑の点は地図で配置済み、灰色は空きの区画です。点をタップするとその店番になります。
+            </p>
+            <LocationPicker locations={locations} value={pin} onChange={setPin} onPickStoreNumber={pickStoreNumber} />
+            <button
+              type="button"
+              onClick={() => pin && void saveLocation(pin, { source: "pin", accuracyM: null })}
+              disabled={locationBusy || !pin}
+              className={`${buttonClass} w-full border border-nicchyo-ink bg-white text-nicchyo-ink`}
+            >
+              {locationBusy ? "記録しています…" : "この位置を記録"}
+            </button>
+          </>
+        ) : null}
       </Card>
 
       <div className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-white/95 p-3 backdrop-blur lg:left-[248px]">

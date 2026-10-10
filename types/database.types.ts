@@ -484,30 +484,36 @@ export type Database = {
       }
       field_shop_locations: {
         Row: {
+          accuracy_m: number | null
           chome_id: number | null
           created_at: string
           latitude: number | null
           longitude: number | null
+          source: string | null
           store_number: number | null
           updated_at: string
           updated_by: string | null
           vendor_id: string
         }
         Insert: {
+          accuracy_m?: number | null
           chome_id?: number | null
           created_at?: string
           latitude?: number | null
           longitude?: number | null
+          source?: string | null
           store_number?: number | null
           updated_at?: string
           updated_by?: string | null
           vendor_id: string
         }
         Update: {
+          accuracy_m?: number | null
           chome_id?: number | null
           created_at?: string
           latitude?: number | null
           longitude?: number | null
+          source?: string | null
           store_number?: number | null
           updated_at?: string
           updated_by?: string | null

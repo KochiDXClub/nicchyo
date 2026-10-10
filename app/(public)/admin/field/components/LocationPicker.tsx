@@ -21,6 +21,10 @@ export type FieldLocation = {
   lng: number;
   vendorId: string | null;
   vendorName: string | null;
+  /** 現場登録で記録した位置（地図上の区画ではない）のときだけ付く */
+  recorded?: boolean;
+  accuracyM?: number | null;
+  source?: "gps" | "pin" | null;
 };
 
 export type LatLng = { lat: number; lng: number };

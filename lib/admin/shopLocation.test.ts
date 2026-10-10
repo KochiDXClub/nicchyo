@@ -6,7 +6,7 @@ describe("parseShopLocation", () => {
   it("店番と座標を受け取る", () => {
     expect(parseShopLocation({ storeNumber: 12, lat: 33.5614, lng: 133.538 })).toEqual({
       ok: true,
-      value: { storeNumber: 12, lat: 33.5614, lng: 133.538 },
+      value: { storeNumber: 12, lat: 33.5614, lng: 133.538, source: "pin", accuracyM: null },
     });
   });
 
@@ -14,8 +14,18 @@ describe("parseShopLocation", () => {
     for (const storeNumber of [undefined, null]) {
       expect(parseShopLocation({ storeNumber, lat: 33.5614, lng: 133.538 })).toEqual({
         ok: true,
-        value: { storeNumber: null, lat: 33.5614, lng: 133.538 },
+        value: { storeNumber: null, lat: 33.5614, lng: 133.538, source: "pin", accuracyM: null },
       });
+    }
+  });
+
+  it("現在地（GPS）なら誤差を残す。ピンのときは誤差を持たない", () => {
+    const gps = parseShopLocation({ storeNumber: null, lat: 33.5614, lng: 133.538, source: "gps", accuracyM: 8.26 });
+    expect(gps).toMatchObject({ ok: true, value: { source: "gps", accuracyM: 8.3 } });
+    const pin = parseShopLocation({ lat: 33.5614, lng: 133.538, source: "pin", accuracyM: 8 });
+    expect(pin).toMatchObject({ ok: true, value: { source: "pin", accuracyM: null } });
+    for (const bad of [{ source: "wifi" }, { source: "gps", accuracyM: -1 }, { source: "gps", accuracyM: "5" }]) {
+      expect(parseShopLocation({ lat: 33.5614, lng: 133.538, ...bad }).ok, JSON.stringify(bad)).toBe(false);
     }
   });
 

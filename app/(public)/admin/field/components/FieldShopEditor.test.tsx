@@ -110,12 +110,40 @@ describe("FieldShopEditor", () => {
     expect(calls.filter((c) => c.method === "PATCH")[1].body).toMatchObject({ chome: 5 });
   });
 
+  it("「いまの場所を記録する」で、現在地をそのまま記録する（地図に指さなくてよい）", async () => {
+    const getCurrentPosition = vi.fn((ok: (p: unknown) => void) => ok({ coords: { latitude: 33.5614, longitude: 133.538, accuracy: 8.4 } }));
+    vi.stubGlobal("navigator", { ...navigator, geolocation: { getCurrentPosition } });
+    render(<FieldShopEditor shopId={baseShop.id} />);
+    await screen.findByDisplayValue("はなや");
+
+    fireEvent.click(screen.getByRole("button", { name: "いまの場所を記録する" }));
+    await waitFor(() => expect(calls.some((c) => c.method === "PUT")).toBe(true));
+    expect(calls.find((c) => c.method === "PUT")!.body).toMatchObject({ lat: 33.5614, lng: 133.538, source: "gps", accuracyM: 8 });
+    await waitFor(() => expect(screen.getByText(/現在地（誤差 約8m）/)).toBeTruthy());
+    // 地図は開かなくてよい
+    expect(screen.queryByRole("button", { name: "この位置を記録" })).toBeNull();
+  });
+
+  it("現在地の誤差が大きいときは、確かめて、断ったら記録しない", async () => {
+    const getCurrentPosition = vi.fn((ok: (p: unknown) => void) => ok({ coords: { latitude: 33.5614, longitude: 133.538, accuracy: 80 } }));
+    vi.stubGlobal("navigator", { ...navigator, geolocation: { getCurrentPosition } });
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+    render(<FieldShopEditor shopId={baseShop.id} />);
+    await screen.findByDisplayValue("はなや");
+
+    fireEvent.click(screen.getByRole("button", { name: "いまの場所を記録する" }));
+    await waitFor(() => expect(confirm).toHaveBeenCalled());
+    expect(calls.some((c) => c.method === "PUT")).toBe(false);
+    confirm.mockRestore();
+  });
+
   it("位置の保存に成功しても、未保存のフォーム入力は消えない", async () => {
     render(<FieldShopEditor shopId={baseShop.id} />);
     const nameInput = (await screen.findByDisplayValue("はなや")) as HTMLInputElement;
     await waitFor(() => expect(screen.getByDisplayValue("12")).toBeTruthy());
 
     fireEvent.change(nameInput, { target: { value: "はなや本店" } });
+    fireEvent.click(screen.getByRole("button", { name: "地図で位置を直す（任意）" }));
     fireEvent.click(screen.getByRole("button", { name: "この位置を記録" }));
     await waitFor(() => expect(calls.some((c) => c.method === "PUT")).toBe(true));
     await waitFor(() => expect(screen.getByText(/記録済み: 店番 12/)).toBeTruthy());

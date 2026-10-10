@@ -27,7 +27,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     adminClient.from("market_locations").select("id, store_number, latitude, longitude"),
     adminClient.from("location_assignments").select("location_id, vendor_id"),
     adminClient.from("vendors").select("id, shop_name"),
-    adminClient.from("field_shop_locations").select("store_number, latitude, longitude").eq("vendor_id", id).maybeSingle(),
+    adminClient.from("field_shop_locations").select("store_number, latitude, longitude, accuracy_m, source").eq("vendor_id", id).maybeSingle(),
   ]);
   if (locations.error || assignments.error || vendors.error) {
     return NextResponse.json({ error: "位置を取得できませんでした" }, { status: 500 });
@@ -53,7 +53,17 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   const record = field.data;
   const current =
     record && record.latitude != null && record.longitude != null
-      ? { storeNumber: record.store_number, lat: record.latitude, lng: record.longitude, vendorId: id, vendorName: nameById.get(id) ?? "" }
+      ? {
+          storeNumber: record.store_number,
+          lat: record.latitude,
+          lng: record.longitude,
+          vendorId: id,
+          vendorName: nameById.get(id) ?? "",
+          // 現場で記録したもの（地図上の区画の位置ではない）。誤差と取り方
+          recorded: true,
+          accuracyM: record.accuracy_m,
+          source: record.source,
+        }
       : rows.find((r) => r.vendorId === id) ?? null;
 
   return NextResponse.json({ locations: rows, current });
@@ -72,7 +82,7 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
 
     const parsed = parseShopLocation(guard.body);
     if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 });
-    const { storeNumber, lat, lng } = parsed.value;
+    const { storeNumber, lat, lng, source, accuracyM } = parsed.value;
 
     const { data: vendor } = await adminClient.from("vendors").select("shop_name").eq("id", id).maybeSingle();
     if (!vendor) return NextResponse.json({ error: "店舗が見つかりません" }, { status: 404 });
@@ -80,7 +90,16 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
     const { error } = await adminClient
       .from("field_shop_locations")
       .upsert(
-        { vendor_id: id, store_number: storeNumber, latitude: lat, longitude: lng, updated_by: user.id, updated_at: new Date().toISOString() },
+        {
+          vendor_id: id,
+          store_number: storeNumber,
+          latitude: lat,
+          longitude: lng,
+          source,
+          accuracy_m: accuracyM,
+          updated_by: user.id,
+          updated_at: new Date().toISOString(),
+        },
         { onConflict: "vendor_id" },
       );
     if (error) return NextResponse.json({ error: "位置を保存できませんでした" }, { status: 500 });
@@ -93,7 +112,7 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
         targetType: "vendor",
         targetId: id,
         targetName: (vendor.shop_name ?? id).slice(0, 500),
-        details: `現場登録: ${storeNumber !== null ? `店番 ${storeNumber}` : "店番なし"} の位置を記録（${lat.toFixed(6)}, ${lng.toFixed(6)}）。地図には反映していない`,
+        details: `現場登録: ${storeNumber !== null ? `店番 ${storeNumber}` : "店番なし"} の位置を記録（${source === "gps" ? `現在地${accuracyM != null ? `・誤差約${Math.round(accuracyM)}m` : ""}` : "地図で指定"}: ${lat.toFixed(6)}, ${lng.toFixed(6)}）。地図には反映していない`,
         ipAddress: ip,
       },
     );
