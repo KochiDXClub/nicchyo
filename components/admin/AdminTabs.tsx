@@ -20,16 +20,19 @@ export function AdminTabs<T extends string>({
   tabs,
   value,
   onChange,
+  ariaLabel = "設定カテゴリ",
 }: {
   tabs: readonly AdminTab<T>[];
   value: T;
   onChange: (next: T) => void;
+  /** タブ全体の読み上げ名。設定画面以外で使うときは、その画面に合わせる */
+  ariaLabel?: string;
 }) {
   return (
     <div className="border-b border-slate-200 bg-white">
       <div
         role="tablist"
-        aria-label="設定カテゴリ"
+        aria-label={ariaLabel}
         className="mx-auto flex max-w-7xl gap-1 overflow-x-auto px-4"
       >
         {tabs.map((tab) => {
