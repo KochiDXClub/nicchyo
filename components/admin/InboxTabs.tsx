@@ -9,19 +9,24 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/lib/auth/AuthContext";
+import { useAdminInboxCounts } from "@/lib/hooks/useAdminInboxCounts";
+import type { InboxCounts } from "@/app/api/admin/inbox-counts/route";
+import { CountBadge } from "./CountBadge";
 
-type InboxTab = { href: string; label: string; visible: (p: ReturnType<typeof useAuth>["permissions"]) => boolean };
+type InboxTab = { href: string; label: string; countKey: keyof InboxCounts; visible: (p: ReturnType<typeof useAuth>["permissions"]) => boolean };
 
 export const INBOX_TABS: readonly InboxTab[] = [
-  { href: "/admin/notifications", label: "通知", visible: (p) => p.isAdmin || p.canModerateContent },
-  { href: "/admin/reports", label: "通報", visible: (p) => p.isModerator },
-  { href: "/admin/inquiries", label: "問い合わせ", visible: (p) => p.isAdmin || p.canModerateContent },
+  { href: "/admin/notifications", label: "通知", countKey: "notifications", visible: (p) => p.isAdmin || p.canModerateContent },
+  { href: "/admin/reports", label: "通報", countKey: "reports", visible: (p) => p.isModerator },
+  { href: "/admin/inquiries", label: "問い合わせ", countKey: "inquiries", visible: (p) => p.isAdmin || p.canModerateContent },
 ];
 
 export function InboxTabs() {
   const pathname = usePathname();
   const { permissions } = useAuth();
   const tabs = INBOX_TABS.filter((tab) => tab.visible(permissions));
+  // 新着（未読の通知・未対応の通報・未対応の問い合わせ）を、タブごとに赤い数字で示す
+  const { counts } = useAdminInboxCounts(permissions.isAdmin || permissions.canModerateContent, pathname);
 
   return (
     <nav aria-label="受信トレイの種類" className="border-b border-line bg-white">
@@ -33,13 +38,14 @@ export function InboxTabs() {
               key={tab.href}
               href={tab.href}
               aria-current={isActive ? "page" : undefined}
-              className={`shrink-0 border-b-2 px-3 py-2.5 text-[13px] font-medium transition-colors ${
+              className={`flex shrink-0 items-center gap-1.5 border-b-2 px-3 py-2.5 text-[13px] font-medium transition-colors ${
                 isActive
                   ? "border-nicchyo-ink text-nicchyo-ink"
                   : "border-transparent text-nicchyo-ink/55 hover:border-line hover:text-nicchyo-ink"
               }`}
             >
               {tab.label}
+              <CountBadge count={counts[tab.countKey]} label={tab.label} />
             </Link>
           );
         })}

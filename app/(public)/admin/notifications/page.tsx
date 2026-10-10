@@ -9,6 +9,7 @@ import { useAuth } from "@/lib/auth/AuthContext";
 import { AdminLayout, AdminPageHeader, EmptyState } from "@/components/admin";
 import { InboxTabs } from "@/components/admin/InboxTabs";
 import { useAdminNotifications } from "@/lib/hooks/useAdminNotifications";
+import { notifyInboxChanged } from "@/lib/hooks/useAdminInboxCounts";
 import { Bell } from "lucide-react";
 
 const TYPE_ICONS: Record<string, string> = {
@@ -38,6 +39,7 @@ export default function NotificationsPage() {
   // ページを開いたら全既読にする
   const handleMarkAllRead = useCallback(async () => {
     await markAllRead();
+    notifyInboxChanged();
   }, [markAllRead]);
 
   if (authLoading || !canAccess) return null;

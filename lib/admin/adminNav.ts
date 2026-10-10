@@ -57,8 +57,8 @@ export interface AdminNavItem {
   description: string;
   /** この項目を見られる権限。未指定はグループの権限を継承する */
   access?: AdminNavAccess;
-  /** 未対応件数などのバッジを出す項目か */
-  badgeKey?: "notifications";
+  /** 新着の件数の赤いバッジを出す項目か（inbox=受信トレイの新着の合計） */
+  badgeKey?: "inbox";
   /**
    * この項目の中の画面（タブで行き来するページ）。サイドバーでは同じ項目が選択状態になる。
    * ナビには載せず、項目の中のタブから開く（例: 受信トレイの中の通報・問い合わせ）
@@ -119,7 +119,7 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
         href: "/admin/notifications",
         icon: Inbox,
         description: "届いたもの（通知・通報・問い合わせ）をタブで切り替えて確認し、対応する",
-        badgeKey: "notifications",
+        badgeKey: "inbox",
         relatedHrefs: ["/admin/reports", "/admin/inquiries"],
       },
       {

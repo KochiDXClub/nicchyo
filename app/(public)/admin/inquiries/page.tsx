@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { AdminLayout, AdminPageHeader, EmptyState } from "@/components/admin";
 import { InboxTabs } from "@/components/admin/InboxTabs";
+import { notifyInboxChanged } from "@/lib/hooks/useAdminInboxCounts";
 import { showToast } from "@/lib/admin/toast";
 import type { Inquiry, InquiryStatus } from "@/app/api/admin/inquiries/route";
 
@@ -87,6 +88,7 @@ export default function AdminInquiriesPage() {
       setSelectedInquiry(null);
       setReplyNotes("");
       void fetchInquiries();
+      notifyInboxChanged();
     } catch {
       showToast.error("ステータス更新に失敗しました");
     } finally {
