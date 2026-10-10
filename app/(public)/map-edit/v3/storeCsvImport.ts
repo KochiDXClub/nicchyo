@@ -1,6 +1,8 @@
 import { parseCsvWithLines } from "@/lib/csv/parseCsv";
 import { MAX_SHOP_ID, MIN_SHOP_ID } from "@/lib/shops/route";
 import { pointAlongRoad, roadLengthMeters, roadSlotLatLng, type RoadSide } from "@/lib/map/roadSlotPosition";
+import type { ChomeRange } from "@/lib/map/chomeBoundaries";
+import { normalizeChomeId } from "@/lib/map/chomes";
 import { CHOME_ORDER, CHOME_WEST_TO_EAST, NEW_VENDOR_ID_PREFIX, VENDOR_FIELD_LIMITS } from "../../map/types/editableShop";
 import type { EditableRoad, EditableShop, EditableVendor, VendorCategory } from "./types";
 
@@ -183,6 +185,8 @@ export function planStoreImport(input: {
   vendors: EditableVendor[];
   categories: VendorCategory[];
   roads: StoreImportRoads;
+  /** 丁目ごとの区間（境目を道に投影した範囲）。あれば、北・南の区画を丁目の区間の中に置く */
+  chomeRanges?: ChomeRange[];
   replace: boolean;
   /** replace が true のときだけ効く。削除する区画の出店者を、出店者ごと削除する */
   deleteVendors?: boolean;
@@ -261,17 +265,30 @@ export function planStoreImport(input: {
     const first = road.points[0];
     const last = road.points[road.points.length - 1];
     const westToEast = first.lng <= last.lng;
+    const rangeOfChome = (chome: string) => {
+      const id = normalizeChomeId(chome);
+      return id == null ? undefined : (input.chomeRanges ?? []).find((r) => r.roadId === road.id && r.chomeId === id);
+    };
     for (const side of ["north", "south"] as const) {
       const list = newRows
         .filter((row) => row.side === side)
         .sort((a, b) => CHOME_WEST_TO_EAST.indexOf(a.chome as never) - CHOME_WEST_TO_EAST.indexOf(b.chome as never) || byNumber(b, a));
-      list.forEach((row, i) => {
-        const d = ((i + 0.5) * length) / list.length;
-        placement.set(row, {
-          road,
-          distanceM: westToEast ? d : length - d,
-          side: side === "north" ? northSide : northSide === "left" ? "right" : "left",
+      const placedSide: RoadSide = side === "north" ? northSide : northSide === "left" ? "right" : "left";
+      // 丁目の区間が分かる丁目は、その区間の中に西から等間隔で置く。分からない丁目の区画は、残りをまとめて道全体に並べる
+      const inRange = list.filter((row) => rangeOfChome(row.chome));
+      const rest = list.filter((row) => !rangeOfChome(row.chome));
+      for (const chome of new Set(inRange.map((row) => row.chome))) {
+        const range = rangeOfChome(chome)!;
+        const rows = inRange.filter((row) => row.chome === chome);
+        rows.forEach((row, i) => {
+          const t = (i + 0.5) / rows.length; // 西端からの割合
+          const d = westToEast ? range.startM + t * (range.endM - range.startM) : range.endM - t * (range.endM - range.startM);
+          placement.set(row, { road, distanceM: d, side: placedSide });
         });
+      }
+      rest.forEach((row, i) => {
+        const d = ((i + 0.5) * length) / rest.length;
+        placement.set(row, { road, distanceM: westToEast ? d : length - d, side: placedSide });
       });
     }
   }

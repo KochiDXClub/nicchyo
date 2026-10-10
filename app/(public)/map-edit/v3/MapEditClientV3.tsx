@@ -75,7 +75,7 @@ export default function MapEditClientV3() {
   });
   const { shops, roads, landmarks, projection, setMessage, hasUnsavedChanges } = data;
 
-  const { judge } = useChomeJudge(roads, data.chomeBoundaries, data.chomeSections);
+  const { judge, ranges: chomeRanges } = useChomeJudge(roads, data.chomeBoundaries, data.chomeSections);
 
   const ops = useMapEditOperations({
     history,
@@ -554,6 +554,7 @@ export default function MapEditClientV3() {
           {isImportOpen ? (
             <StoreImportPanel
               roads={roads}
+              chomeRanges={chomeRanges}
               shops={shops}
               vendors={data.vendors}
               categories={data.categories}
