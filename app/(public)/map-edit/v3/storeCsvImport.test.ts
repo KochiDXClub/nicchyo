@@ -121,10 +121,14 @@ describe("planStoreImport", () => {
     expect(created).toMatchObject({ position: 2, branchNumber: 4, chome: "一丁目", roadId: "main" });
   });
 
-  it("大橋通りは大橋通りの道に左右交互に並べる。七丁目以外なら知らせる", () => {
+  it("大橋通りは大橋通りの道の東側に、番号の小さい方を北にして並べる。七丁目以外なら知らせる", () => {
     const result = plan(csv(["701,,七丁目,大橋通り,,,", "702,,7,大橋通り,,,", "703,,六丁目,大橋通り,,,"]));
     const sides = result.next!.shops.map((s) => [s.roadId, s.roadSide]);
-    expect(sides).toEqual([["ohashi", "left"], ["ohashi", "right"], ["ohashi", "left"]]);
+    expect(sides).toEqual([["ohashi", "left"], ["ohashi", "left"], ["ohashi", "left"]]); // 南向きに描いた道の左が東
+    const [a, b, c] = result.next!.shops;
+    expect(a.lng).toBeGreaterThan(133.545); // 東側
+    expect(a.lat).toBeGreaterThan(b.lat); // 番号の小さい方が北
+    expect(b.lat).toBeGreaterThan(c.lat);
     expect(result.warnings.some((w) => w.line === 4 && w.message.includes("六丁目"))).toBe(true);
   });
 
