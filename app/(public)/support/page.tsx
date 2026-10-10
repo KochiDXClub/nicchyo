@@ -1,16 +1,13 @@
 import Link from "next/link";
-import { ArrowRight, ArrowUpRight } from "lucide-react";
-import { GITHUB_ISSUES_URL, GITHUB_REPO_URL } from "@/lib/siteLinks";
+import { ArrowRight } from "lucide-react";
 import NavigationBar from "../../components/NavigationBar";
-import { fetchWeeklyVisitors } from "@/lib/analytics/visitorStats.server";
 import { fetchPublishedShopCount } from "@/lib/support/shopCount.server";
 import SupporterSlots from "@/components/SupporterSlots";
 import { SUPPORTER_SLOT_COUNT, SUPPORTERS } from "@/lib/support/supporters";
+import { getActivityBySlug } from "@/app/data/activities";
 import SupportHero from "./components/SupportHero";
 import SupportFloatingCta from "./components/SupportFloatingCta";
 import FundUses from "./components/FundUses";
-import TrackRecord from "./components/TrackRecord";
-import TeamStructure from "./components/TeamStructure";
 import SupportWays from "./components/SupportWays";
 import { CountUp, RiseHeading } from "@/components/ScrollMotion";
 import Reveal from "@/components/Reveal";
@@ -21,7 +18,7 @@ import { FUND_USES, SPONSOR_UNIT_ANNUAL_JPY } from "./costs";
 export const metadata = {
   title: "協賛・ご支援について",
   description:
-    "nicchyo へいただいたご支援の使い道と、ご支援いただいている状況をご案内しております。協賛のご相談も承っております。",
+    "nicchyo へいただいたご支援の使い道と、ご支援の方法をご案内しております。個人の方からも、組織・企業の方からも承っております。",
   openGraph: {
     title: "協賛・ご支援について | nicchyo",
     description:
@@ -32,19 +29,17 @@ export const metadata = {
 /** ご支援の使い道の節。入口の「ご支援の使い道を見る」の飛び先 */
 const USES_SECTION_ID = "uses";
 
-/** お金以外のご支援の入口。リポジトリは公開しているので、そこへ素直につなぐ */
-const CODE_LINKS = [
-  {
-    href: GITHUB_REPO_URL,
-    title: "GitHub でコードを見る",
-    body: "KochiDXClub/nicchyo。オープンソースで開発しております",
-  },
-  {
-    href: GITHUB_ISSUES_URL,
-    title: "気づいたことを届ける",
-    body: "不具合の報告や機能の提案は Issues へ。GitHub のアカウントがあればどなたでも書けます",
-  },
-];
+/**
+ * 入口に札として出す実績。取り組みの記録（app/data/activities.ts）の slug で指す。
+ * 名前は記録の側から引くので、ここで書き写さない。見つからない slug は出さない
+ */
+const HIGHLIGHT_ACTIVITY_SLUGS = ["2026-02-28-kochi-npo-award", "2025-07-31-re-kosen-adopted"];
+
+/**
+ * 日曜市そのものの規模。nicchyo の利用者数ではなく、案内している市の大きさ。
+ * 協賛を考える側には、週ごとに 0 へ戻る訪問者数より、こちらの方が判断の材料になる
+ */
+const MARKET_VISITORS_PER_DAY = 17_000;
 
 /** 締めの礼。文節ごとに区切り、狭い画面では切れ目で折り返す */
 const CLOSING_LINES = [
@@ -55,19 +50,24 @@ const CLOSING_LINES = [
   "いつもありがとうございます。",
 ];
 
-/** ご相談の前にお伝えしておくこと */
+/**
+ * ご相談の前にお伝えしておくこと。
+ *
+ * 税制の扱いは、受け取り方（学校の寄附金の窓口を通すか）が決まるまで今の書き方の
+ * ままにしておく。決まったら、学校に確認した内容に合わせて書き換えること。
+ */
 const CONSULT_NOTES = [
   {
     title: "お支払いについて",
-    body: "サイト内での決済は承っておりません。お問い合わせ箱にてご相談を承ります。",
+    body: "サイト内での決済は承っておりません。お振込の方法は、ご相談のあとにご案内いたします。",
   },
   {
     title: "税制上の優遇について",
     body: "恐れ入りますが、寄附金控除などの税制上の優遇の対象にはなりません。あらかじめご了承いただけますと幸いです。",
   },
   {
-    title: "会計について",
-    body: "お預かりした資金は、nicchyo を続けるため以外には使用いたしません。会計は顧問の教員が確認しております。",
+    title: "運営と会計について",
+    body: "高知高専の学生が開発・運営し、会計は顧問の教員が確認しております。お預かりした資金は、nicchyo を続けるため以外には使用いたしません。",
   },
 ];
 
@@ -111,30 +111,31 @@ function Section({
 }
 
 /** 数字ひとつ。取れなかったときは「集計中」に落とす */
-function Figure({ label, value }: { label: string; value: number | null }) {
+function Figure({ label, value, note }: { label: string; value: number | null; note?: string }) {
   return (
     <div>
-      <dt className="text-[11px] tracking-[0.08em] text-nicchyo-ink/45">{label}</dt>
+      <dt className="text-[11px] tracking-[0.08em] text-nicchyo-ink/70">{label}</dt>
       <dd className="mt-2 text-[2.2rem] font-bold leading-none tabular-nums sm:text-[2.6rem]">
         {value === null ? (
-          <span className="text-[15px] font-bold text-nicchyo-ink/30">集計中</span>
+          <span className="text-[15px] font-bold text-nicchyo-ink/50">集計中</span>
         ) : (
           <CountUp value={value} delay={0.2} />
         )}
       </dd>
+      {note && <dd className="mt-2 text-[11.5px] text-nicchyo-ink/70">{note}</dd>}
     </div>
   );
 }
 
 export default async function SupportPage() {
-  const [weeklyVisitors, shopCount] = await Promise.all([
-    fetchWeeklyVisitors(),
-    fetchPublishedShopCount(),
-  ]);
+  const shopCount = await fetchPublishedShopCount();
 
   const individualSupporterCount = totalIndividualSupporters();
-  // 掲載枠に空きがあるあいだは、探していることをそのまま見出しにする
-  const hasOpenSlot = SUPPORTERS.length < SUPPORTER_SLOT_COUNT;
+  const openSlotCount = Math.max(SUPPORTER_SLOT_COUNT - SUPPORTERS.length, 0);
+  const highlights = HIGHLIGHT_ACTIVITY_SLUGS.flatMap((slug) => {
+    const activity = getActivityBySlug(slug);
+    return activity ? [activity.title] : [];
+  });
 
   return (
     <main
@@ -142,7 +143,7 @@ export default async function SupportPage() {
       // 右下のボタンが最後の行に重ならないよう、そのぶんも空けておく
       style={{ paddingBottom: "calc(var(--nav-bar-height) + var(--safe-bottom, 0px) + 5.5rem)" }}
     >
-      <SupportHero usesId={USES_SECTION_ID} />
+      <SupportHero usesId={USES_SECTION_ID} highlights={highlights} />
 
       <div className="mx-auto max-w-[64rem] px-6 sm:px-8">
         {/* ── ご支援の使い道 ──────────────────────────────────────────
@@ -155,63 +156,40 @@ export default async function SupportPage() {
           <FundUses uses={FUND_USES} />
         </Section>
 
-        {/* ── いまの状況 ─────────────────────────────────────────────── */}
-        <Section
-          label="いまの状況"
-          title={
-            hasOpenSlot
-              ? ["続けていくための", "ご協賛を、", "探しております"]
-              : ["ご協賛くださる皆さまに、", "支えていただいております"]
-          }
-        >
-          {/* 個人のご支援は別のページなので、見出しでも「ご協賛」と区別する
-              （個人側は「ご支援くださった皆さま」で、名前が紛らわしい） */}
-          <h3 className="text-[11px] font-bold tracking-[0.2em] text-nicchyo-ink/70">
-            ご協賛くださる皆さま
-          </h3>
-          <SupporterSlots className="mt-5" />
+        {/* ── 届いている範囲 ──────────────────────────────────────────── */}
+        <Section label="届いている範囲" title={["日曜市を訪れるみなさまを、", "ご案内しております"]}>
+          <dl className="flex flex-wrap gap-x-12 gap-y-6 sm:gap-x-16">
+            <Figure label="マップに載っている店舗" value={shopCount} />
+            <Figure
+              label="日曜市を訪れる方"
+              value={MARKET_VISITORS_PER_DAY}
+              note="1回あたりおよそ（高知市調べ）"
+            />
+          </dl>
 
-          {/* 個人の一覧への導線。掲載枠のすぐ下が、探している人がいちばん見る所 */}
           <Link
-            href="/support/supporters"
-            className="group mt-7 flex items-center justify-between gap-4 border-t border-nicchyo-ink/10 pt-5 transition-colors hover:text-amber-800"
+            href="/activities"
+            className="group mt-8 inline-flex items-center gap-1.5 text-[13px] font-bold text-amber-700 underline-offset-4 transition hover:text-amber-800 hover:underline"
           >
-            <span>
-              <span className="block text-[14px] font-bold text-amber-700 underline-offset-4 group-hover:underline">
-                個人でご支援くださった皆さま
-              </span>
-              <span className="mt-1 block text-[12.5px] text-nicchyo-ink/70">
-                {individualSupporterCount > 0
-                  ? `${individualSupporterCount.toLocaleString("ja-JP")}名のお名前を掲載しております`
-                  : "これから、こちらにお名前を掲載してまいります"}
-              </span>
-            </span>
+            これまでの取り組みを見る
             <ArrowRight
-              className="h-4 w-4 shrink-0 text-amber-700/60 transition group-hover:translate-x-0.5 group-hover:text-amber-700"
+              className="h-3.5 w-3.5 transition group-hover:translate-x-0.5 motion-reduce:group-hover:translate-x-0"
               aria-hidden
             />
           </Link>
         </Section>
 
-        {/* ── 届いている範囲 ──────────────────────────────────────────── */}
-        <Section label="届いている範囲" title={["日曜市の地図として、", "使っていただいております"]}>
-          <dl className="flex gap-10 border-b border-nicchyo-ink/[0.07] pb-7 sm:gap-16">
-            <Figure label="マップに載っている店舗" value={shopCount} />
-            <Figure label="今週の訪問者数" value={weeklyVisitors} />
-          </dl>
-
-          <div className="mt-8">
-            <TrackRecord />
-          </div>
-
-        </Section>
-
-        {/* ── 運営体制 ────────────────────────────────────────────────
-            名前を並べた組織図ではなく、お金がどこに入って最後に誰へ届くのかを
-            1枚で見せる。「卒業したら誰が続けるのか」がここでの主題 */}
-        <Section label="運営体制" title={["学生がつくり、", "顧問の教員が見守って、", "日曜市へ届けております"]}>
-          <TeamStructure />
-        </Section>
+        {/* ── ご協賛くださる皆さま ──────────────────────────────────────
+            まだ1件も無いあいだは節ごと出さない。空の枠が並ぶと「誰も支援していない」に
+            見えるため。空きの数は「ご支援の方法」の組織・企業のカードに添えてある */}
+        {SUPPORTERS.length > 0 && (
+          <Section
+            label="ご協賛くださる皆さま"
+            title={["ご協賛くださる皆さまに、", "支えていただいております"]}
+          >
+            <SupporterSlots />
+          </Section>
+        )}
 
         {/* ── ご支援の方法 ────────────────────────────────────────────
             個人と組織では、お返しできるものも決め方も違う。ひとつにまとめると
@@ -219,6 +197,7 @@ export default async function SupportPage() {
         <Section label="ご支援の方法" title={["個人でも、", "組織・企業でも、", "お力添えいただけます"]}>
           <SupportWays
             sponsorUnitAnnualJpy={SPONSOR_UNIT_ANNUAL_JPY}
+            openSlotCount={openSlotCount}
             individualSupporterCount={individualSupporterCount}
           />
         </Section>
@@ -237,34 +216,6 @@ export default async function SupportPage() {
               </Surface>
             ))}
           </dl>
-        </Section>
-
-        {/* ── コードでのご支援 ────────────────────────────────────────
-            お金以外の支え方。技術者や学生が「自分にもできることがある」と
-            気づける入口。リポジトリは公開しているので、そこへ素直につなぐ */}
-        <Section label="コードでのご支援" title={["コードやデザインでも、", "ご参加いただけます"]}>
-          <div className="grid gap-3 sm:grid-cols-2">
-            {CODE_LINKS.map((link) => (
-              <a
-                key={link.href}
-                href={link.href}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="group flex items-start justify-between gap-4 rounded-card bg-white p-5 ring-1 ring-nicchyo-ink/[0.08] transition duration-300 ease-out-soft hover:-translate-y-1 hover:shadow-card motion-reduce:transition-none motion-reduce:hover:translate-y-0"
-              >
-                <span>
-                  <span className="block text-[14px] font-bold text-amber-700">{link.title}</span>
-                  <span className="mt-1 block text-[12.5px] leading-relaxed text-nicchyo-ink/70">
-                    {link.body}
-                  </span>
-                </span>
-                <ArrowUpRight
-                  className="mt-0.5 h-4 w-4 shrink-0 text-amber-700/60 transition group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-amber-700 motion-reduce:group-hover:translate-x-0 motion-reduce:group-hover:translate-y-0"
-                  aria-hidden
-                />
-              </a>
-            ))}
-          </div>
         </Section>
 
         {/* 締め。お願いで終わらせず、いま支えてくださっている方への礼で閉じる */}

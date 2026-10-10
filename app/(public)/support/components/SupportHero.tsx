@@ -4,9 +4,10 @@ import { useEffect, useState, type CSSProperties } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { motion, useReducedMotion } from "framer-motion";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, Award } from "lucide-react";
 import { buttonClass } from "@/components/ui";
 import { CONSULT_CHARACTERS } from "@/app/(public)/consult/data/consultCharacters";
+import { supportContactHref } from "../costs";
 
 /**
  * ページの入口
@@ -14,6 +15,9 @@ import { CONSULT_CHARACTERS } from "@/app/(public)/consult/data/consultCharacter
  * 誰が運営していて、何を支えていただきたいのかを、見出しと1段落で言い切る。
  * 運営にいくらかかっているかは出さない（costs.ts の冒頭）。読み手がすぐ動けるよう、
  * 相談のボタンと、ご支援の使い道へのリンクを置く。
+ *
+ * 学生のプロジェクトにお金を出してよいかを判断する材料として、受賞・採択の実績を
+ * 札にして添える。記録の一覧は /activities に任せ、ここからは外へ送らない。
  *
  * 見出しが1行ずつ上から落ちてきて、人が両脇から歩いてくる。このページで
  * いちばん賑やかな瞬間はここ。後ろの暖色も右上からふわっと広がる。
@@ -160,9 +164,14 @@ function HeroCharacter({
 type SupportHeroProps = {
   /** ご支援の使い道の節の id。リンクの飛び先 */
   usesId: string;
+  /**
+   * 札にして見せる実績（受賞・採択など）の名前。
+   * 記録のデータは大きいので、ここ（クライアント）では読まずにページから名前だけを受け取る
+   */
+  highlights: string[];
 };
 
-export default function SupportHero({ usesId }: SupportHeroProps) {
+export default function SupportHero({ usesId, highlights }: SupportHeroProps) {
   const prefersReducedMotion = useReducedMotion();
 
   /**
@@ -260,20 +269,34 @@ export default function SupportHero({ usesId }: SupportHeroProps) {
             {...fadeUp(0.42)}
             className="mt-5 max-w-[33rem] text-[14.5px] leading-[2] text-nicchyo-ink/60 [text-wrap:pretty]"
           >
-            高知・日曜市を案内する nicchyo は、高知高専の学生と顧問の教員が運営しております。広告は掲載せず、これまでいただいた賞金とご支援で続けてまいりました。
+            高知・日曜市を案内する地図 nicchyo は、高知高専の学生と顧問の教員が運営しております。広告は掲載せず、これまでいただいた賞金とご支援で続けてまいりました。
           </motion.p>
 
+          {highlights.length > 0 && (
+            <motion.ul {...fadeUp(0.46)} className="mt-6 flex flex-wrap gap-2" aria-label="これまでの実績">
+              {highlights.map((highlight) => (
+                <li
+                  key={highlight}
+                  className="inline-flex items-center gap-1.5 rounded-chip bg-white/80 px-3 py-1.5 text-[12px] font-bold leading-snug text-nicchyo-ink/80 ring-1 ring-amber-600/20"
+                >
+                  <Award className="h-3.5 w-3.5 shrink-0 text-amber-700" aria-hidden />
+                  {highlight}
+                </li>
+              ))}
+            </motion.ul>
+          )}
+
           <motion.div
-            {...fadeUp(0.5)}
+            {...fadeUp(0.54)}
             className="mt-9 flex flex-wrap items-center gap-x-6 gap-y-3"
           >
             {/* data-support-cta: これが見えているあいだ、右下のボタンは引っ込む */}
             <Link
-              href="/contact?category=sponsor"
+              href={supportContactHref("hero")}
               data-support-cta
               className={buttonClass({ variant: "ink", size: "lg", className: "group shadow-pop" })}
             >
-              協賛のご相談
+              ご支援のご相談
               <ArrowRight
                 className="h-4 w-4 transition group-hover:translate-x-0.5 motion-reduce:group-hover:translate-x-0"
                 aria-hidden

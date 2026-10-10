@@ -5,9 +5,10 @@ import Link from "next/link";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { ArrowRight, HandHeart } from "lucide-react";
 import { buttonClass } from "@/components/ui";
+import { supportContactHref } from "../costs";
 
 /**
- * 右下に常に出しておく「協賛のご相談」
+ * 右下に常に出しておく「ご支援のご相談」
  *
  * どこまで読んだところで決めても、その場から相談へ進めるようにする。
  * ページの中にも同じボタンがある（入口と、ご支援の方法の2枚のカード）。
@@ -25,7 +26,7 @@ import { buttonClass } from "@/components/ui";
  * ナビとこのボタンで画面の下の方がふさがってしまう。ページの中のボタンは残る。
  */
 
-/** ページの中の「協賛のご相談」に付ける目印 */
+/** ページの中の「ご支援のご相談」に付ける目印 */
 const INLINE_CTA_SELECTOR = "[data-support-cta]";
 
 /**
@@ -100,7 +101,7 @@ export default function SupportFloatingCta() {
           onBlur={() => setHasFocus(false)}
         >
           <Link
-            href="/contact?category=sponsor"
+            href={supportContactHref("floating")}
             className={buttonClass({
               variant: "ink",
               size: "lg",
@@ -125,7 +126,7 @@ export default function SupportFloatingCta() {
               />
               <HandHeart className="h-[18px] w-[18px]" aria-hidden />
             </span>
-            <span className="relative">協賛のご相談</span>
+            <span className="relative">ご支援のご相談</span>
             <ArrowRight
               className="relative h-4 w-4 text-white/70 transition group-hover:translate-x-0.5 group-hover:text-white motion-reduce:group-hover:translate-x-0"
               aria-hidden

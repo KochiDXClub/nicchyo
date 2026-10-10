@@ -52,3 +52,16 @@ export const SPONSOR_UNIT_ANNUAL_JPY: number | null = 30_000;
 export function formatJpy(value: number): string {
   return `${Math.round(value).toLocaleString("ja-JP")}円`;
 }
+
+/** ご相談の入口のボタンがどこにあるか */
+export type SupportContactSource = "hero" | "floating" | "individual" | "organization";
+
+/**
+ * ご相談の入口へのリンク。
+ *
+ * どのボタンから来たかを from に付ける。ページの閲覧記録と GA4 は問い合わせ画面の
+ * URL をクエリごと残すので、どのボタンが相談につながっているかを後から見分けられる。
+ */
+export function supportContactHref(from: SupportContactSource): string {
+  return `/contact?category=sponsor&from=support-${from}`;
+}
