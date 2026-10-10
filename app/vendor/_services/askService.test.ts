@@ -25,6 +25,10 @@ function fakeClient() {
           return builder;
         },
         order: () => builder,
+        in: (column: string, values: unknown[]) => {
+          call.filters.push(`${column} in ${values.join(",")}`);
+          return builder;
+        },
         limit: () => builder,
         single: () => builder,
         maybeSingle: () => builder,
@@ -147,10 +151,15 @@ describe("saveAskAnswer（どの列に書くか）", () => {
 
 describe("主な商品の写真", () => {
   const photo = new File(["x"], "tomato.jpg", { type: "image/jpeg" });
-  const productRows = (rows: { id: string; name: string; image_url: string | null }[], vendor: object = {}) => {
+  const productRows = (
+    rows: { id: string; name: string; image_url: string | null; description?: string | null }[],
+    vendor: object = {},
+    seasons: { product_id: string }[] = []
+  ) => {
     respond = (call) => {
       if (call.table === "vendors" && call.op === "select") return { data: { main_products: [], ...vendor }, error: null };
       if (call.table === "vendors" && call.op === "update") return { data: [{ id: "v1" }], error: null };
+      if (call.table === "product_seasons") return { data: seasons, error: null };
       if (call.table === "products" && call.op === "select") return { data: rows, error: null };
       if (call.table === "products" && call.op === "insert") return { data: { id: "p-new" }, error: null };
       return { data: null, error: null };
@@ -211,7 +220,7 @@ describe("主な商品の写真", () => {
     expect(storageRemove).toHaveBeenCalledWith(["v1/product-p1.webp"]);
   });
 
-  it("一覧から外した商品は、行も写真も消す（看板商品と、画面に出ていない行は残す）", async () => {
+  it("一覧から外した商品のうち、説明も旬も持たない行は、行も写真も消す。看板商品と、画面に出ていない行は残す", async () => {
     productRows(
       [
         { id: "p1", name: "トマト", image_url: null },
@@ -229,6 +238,45 @@ describe("主な商品の写真", () => {
     const deletes = calls.filter((call) => call.op === "delete");
     expect(deletes).toEqual([expect.objectContaining({ table: "products", filters: ["id=p2", "vendor_id=v1"] })]);
     expect(storageRemove).toHaveBeenCalledWith(["v1/product-p2.webp"]);
+  });
+
+  it("一覧から外した商品でも、説明か旬を持つ行は消さない（マイショップで登録したものを巻き込まない）。写真だけ外す", async () => {
+    productRows(
+      [
+        { id: "p1", name: "説明つき", image_url: "https://example.supabase.co/v1/product-p1.webp", description: "朝採れ" },
+        { id: "p2", name: "旬つき", image_url: "https://example.supabase.co/v1/product-p2.webp", description: null },
+        { id: "p3", name: "旬つき・写真なし", image_url: null, description: null },
+      ] as never,
+      { main_products: ["説明つき", "旬つき", "旬つき・写真なし"] },
+      [{ product_id: "p2" }, { product_id: "p3" }]
+    );
+    storageList.mockResolvedValue({ data: [{ name: "product-p1.webp" }, { name: "product-p2.webp" }] });
+    storageRemove.mockResolvedValue({ error: null });
+
+    await saveAskAnswer("v1", "2026-10-04", { id: "products", items: [] });
+
+    expect(calls.filter((call) => call.op === "delete")).toEqual([]);
+    const imageClears = writes().filter((call) => call.table === "products" && call.op === "update");
+    expect(imageClears.map((call) => call.filters[0])).toEqual(["id=p1", "id=p2"]);
+    expect(imageClears.every((call) => (call.payload as { image_url: unknown }).image_url === null)).toBe(true);
+    expect(storageRemove).toHaveBeenCalledWith(["v1/product-p1.webp"]);
+    expect(storageRemove).toHaveBeenCalledWith(["v1/product-p2.webp"]);
+  });
+
+  it("一覧の保存に失敗したときは、商品の行も写真も消さない（掃除は一覧の保存のあと）", async () => {
+    productRows(
+      [{ id: "p2", name: "なす", image_url: null }],
+      { main_products: ["なす"] }
+    );
+    const base = respond;
+    respond = (call) => (call.table === "vendors" && call.op === "update" ? { data: [], error: null } : base(call));
+
+    await expect(
+      saveAskAnswer("v1", "2026-10-04", { id: "products", items: [] })
+    ).rejects.toBeInstanceOf(AskUserFacingError);
+
+    expect(calls.filter((call) => call.op === "delete")).toEqual([]);
+    expect(storageRemove).not.toHaveBeenCalled();
   });
 });
 

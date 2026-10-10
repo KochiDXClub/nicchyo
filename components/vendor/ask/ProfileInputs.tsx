@@ -399,7 +399,7 @@ export function ProductPricesInput({ snapshot, saving, onSubmit, onSkip }: Input
         </Button>
       </div>
       {photoError && <p className="text-sm text-rose-600">{photoError}</p>}
-      <p className="text-xs text-nicchyo-ink/55">写真と値段は、空のままでもええよ</p>
+      <p className="text-xs text-nicchyo-ink/55">写真と値段は、空のままでもええよ。商品の名前を変えるときは、外して入れ直してや（写真は付け直しになるきね）</p>
     </AskForm>
   );
 }

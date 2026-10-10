@@ -324,16 +324,16 @@ type ProductItem = Extract<AskAnswer, { id: "products" }>["items"][number];
 /**
  * 主な商品（名前・値段・写真）を保存する。名前と値段は vendors に、写真は products テーブルの
  * 同じ名前の商品に置く（看板商品と同じ決まり）。写真は WebP に変換して vendor-images に保存する。
- * 一覧から外した商品は、写真ごと products からも消す（そのままだと、全部外したあとに商品名だけ復活する）
+ * 一覧から外した商品は、写真を外し、説明や旬を持たない行は products からも消す（そのままだと、全部外したあとに商品名だけ復活する）
  */
 async function saveProducts(supabase: SupabaseClient, vendorId: string, items: ProductItem[]): Promise<void> {
   const [vendorResult, rowsResult] = await Promise.all([
     supabase.from("vendors").select("main_products, signature_product_name").eq("id", vendorId).single(),
-    supabase.from("products").select("id, name, image_url").eq("vendor_id", vendorId),
+    supabase.from("products").select("id, name, image_url, description").eq("vendor_id", vendorId),
   ]);
   if (vendorResult.error) throw vendorResult.error;
   if (rowsResult.error) throw rowsResult.error;
-  const rows = (rowsResult.data ?? []) as { id: string; name: string; image_url: string | null }[];
+  const rows = (rowsResult.data ?? []) as { id: string; name: string; image_url: string | null; description: string | null }[];
   const mainProducts = (vendorResult.data?.main_products as string[] | null) ?? [];
   const signatureName = (vendorResult.data?.signature_product_name as string | null)?.trim();
 
@@ -372,23 +372,46 @@ async function saveProducts(supabase: SupabaseClient, vendorId: string, items: P
     if (error) throw error;
   }
 
+  const prices: Record<string, number | null> = {};
+  for (const item of items) prices[item.name] = item.price;
+  // 一覧の保存を先にする。掃除はそのあとにするので、保存に失敗したときに、一覧に残る商品の行が消えていることがない
+  await updateVendor(supabase, vendorId, {
+    main_products: items.map((item) => item.name),
+    main_product_prices: prices,
+  });
+
   // 画面に出ていた商品（主な商品が空のときは products の商品）のうち、一覧から外したもの。
   // 看板商品は別の質問で決めたものなので残す。画面に出ていなかった行には触らない
   const kept = new Set(items.map((item) => item.name));
   const shown = new Set(mainProducts.length > 0 ? mainProducts : rows.map((row) => row.name));
-  for (const row of rows) {
-    if (!shown.has(row.name) || kept.has(row.name) || row.name === signatureName) continue;
-    const { error } = await supabase.from("products").delete().eq("id", row.id).eq("vendor_id", vendorId);
-    if (error) throw error;
+  const removed = rows.filter((row) => shown.has(row.name) && !kept.has(row.name) && row.name !== signatureName);
+  if (removed.length === 0) return;
+
+  // 説明や旬は「マイショップ」の画面で登録するもので、行を消すと一緒に消える（product_seasons は on delete cascade）。
+  // それらを持つ行は残して写真だけ外し、何も持たない行（写真のために作った行など）だけ消す
+  const { data: seasonRows, error: seasonError } = await supabase
+    .from("product_seasons")
+    .select("product_id")
+    .in("product_id", removed.map((row) => row.id));
+  if (seasonError) throw seasonError;
+  const withSeason = new Set(((seasonRows ?? []) as { product_id: string }[]).map((row) => row.product_id));
+
+  for (const row of removed) {
+    if (row.description?.trim() || withSeason.has(row.id)) {
+      if (row.image_url) {
+        const { error } = await supabase
+          .from("products")
+          .update({ image_url: null, updated_at: new Date().toISOString() })
+          .eq("id", row.id)
+          .eq("vendor_id", vendorId);
+        if (error) throw error;
+      }
+    } else {
+      const { error } = await supabase.from("products").delete().eq("id", row.id).eq("vendor_id", vendorId);
+      if (error) throw error;
+    }
     await removeProductImageFiles(supabase, vendorId, row.id);
   }
-
-  const prices: Record<string, number | null> = {};
-  for (const item of items) prices[item.name] = item.price;
-  return updateVendor(supabase, vendorId, {
-    main_products: items.map((item) => item.name),
-    main_product_prices: prices,
-  });
 }
 
 /** 1つの質問の回答を保存する。weekDate は「今週」の日曜（YYYY-MM-DD） */
