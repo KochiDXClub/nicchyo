@@ -124,8 +124,8 @@ describe("POST /api/admin/shops/[id]/product-image", () => {
     expect(upload).not.toHaveBeenCalled();
   });
 
-  it("5MB を超える写真は 413", async () => {
-    const res = await post({ name: "トマト", photo: new Blob([new Uint8Array(5 * 1024 * 1024 + 1)]) });
+  it("4MB を超える写真は 413", async () => {
+    const res = await post({ name: "トマト", photo: new Blob([new Uint8Array(4 * 1024 * 1024 + 1)]) });
     expect(res.status).toBe(413);
   });
 

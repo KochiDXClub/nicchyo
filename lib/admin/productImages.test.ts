@@ -4,7 +4,9 @@ import { isSupabaseStorageUrl, ownProductImagePath, purgeRemovedProducts } from 
 
 const deletes: string[] = [];
 const storageRemove = vi.fn();
-let rows: { id: string; name: string; image_url: string | null }[];
+let rows: { id: string; name: string; image_url: string | null; description?: string | null }[];
+let seasonProductIds: string[];
+const updates: { values: Record<string, unknown>; id: string }[] = [];
 let signature: string | null;
 
 const client = {
@@ -12,8 +14,16 @@ const client = {
     if (table === "vendors") {
       return { select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: { signature_product_name: signature }, error: null }) }) }) };
     }
+    if (table === "product_seasons") {
+      return { select: () => ({ in: async () => ({ data: seasonProductIds.map((id) => ({ product_id: id })), error: null }) }) };
+    }
     return {
       select: () => ({ eq: async () => ({ data: rows, error: null }) }),
+      update: (values: Record<string, unknown>) => ({
+        eq: (_c: string, id: string) => ({
+          eq: async () => (updates.push({ values, id }), { error: null }),
+        }),
+      }),
       delete: () => {
         const filters: string[] = [];
         const chain = {
@@ -40,6 +50,8 @@ const client = {
 
 beforeEach(() => {
   deletes.length = 0;
+  updates.length = 0;
+  seasonProductIds = [];
   storageRemove.mockReset();
   storageRemove.mockResolvedValue({ error: null });
   signature = null;
@@ -58,6 +70,21 @@ describe("purgeRemovedProducts", () => {
 
     expect(deletes).toEqual(["id=p2,vendor_id=v1"]);
     expect(storageRemove).toHaveBeenCalledWith(["v1/product-p2.webp"]);
+  });
+
+  it("説明か旬を持つ行は消さずに残し、写真だけ外す（マイショップで登録したものを巻き込まない）", async () => {
+    rows = [
+      { id: "p1", name: "説明つき", image_url: "https://x.supabase.co/storage/v1/object/public/vendor-images/v1/product-aa01.webp", description: "朝採れ" },
+      { id: "p2", name: "旬つき", image_url: null, description: null },
+      { id: "p3", name: "何もなし", image_url: null, description: "  " },
+    ];
+    seasonProductIds = ["p2"];
+
+    await purgeRemovedProducts(client, "v1", ["説明つき", "旬つき", "何もなし"], []);
+
+    expect(deletes).toEqual(["id=p3,vendor_id=v1"]);
+    expect(updates).toEqual([{ values: expect.objectContaining({ image_url: null }), id: "p1" }]);
+    expect(storageRemove).toHaveBeenCalledWith(["v1/product-aa01.webp"]);
   });
 
   it("主な商品が空だったときは、画面には何も出ていなかったので、何も消さない（products にだけある商品の行を守る）", async () => {

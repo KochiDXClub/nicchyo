@@ -75,11 +75,13 @@ export async function removeProductImageFiles(
 }
 
 /**
- * 主な商品の一覧から外した商品の行と写真を消す。
+ * 主な商品の一覧から外した商品の写真を外し、何も持たない行は消す。
  *   - 画面に出ていた商品（保存前の主な商品）のうち、新しい一覧に無いものだけ。
- *     現場登録の画面は主な商品しか出さないので、それが空だったなら、何も出ていなかった = 何も消さない
+ *     現場登録の画面は主な商品しか出さないので、それが空だったなら、何も出ていなかった = 何も触らない
  *     （出店者側の保存は主な商品が空でも products に商品の行を持つことがあり、その行は説明や旬を持つ）
  *   - 看板商品は別の質問で決めたものなので残す
+ *   - 説明（description）や旬（product_seasons）を持つ行は、出店者がマイショップで登録したもの。
+ *     行を消すと一緒に消える（on delete cascade）ので、行は残して写真だけ外す
  * 一覧の保存は済んでいるので、ここでの失敗は投げない（残った行は、次に商品を保存したときに片付く）
  */
 export async function purgeRemovedProducts(
@@ -91,19 +93,46 @@ export async function purgeRemovedProducts(
   if (previousNames.length === 0) return;
   try {
     const [rowsResult, vendorResult] = await Promise.all([
-      client.from("products").select("id, name, image_url").eq("vendor_id", vendorId),
+      client.from("products").select("id, name, image_url, description").eq("vendor_id", vendorId),
       client.from("vendors").select("signature_product_name").eq("id", vendorId).maybeSingle(),
     ]);
     if (rowsResult.error) throw rowsResult.error;
-    const rows = (rowsResult.data ?? []) as { id: string; name: string; image_url: string | null }[];
+    const rows = (rowsResult.data ?? []) as {
+      id: string;
+      name: string;
+      image_url: string | null;
+      description: string | null;
+    }[];
     const signatureName = (vendorResult.data?.signature_product_name as string | null | undefined)?.trim();
     const shown = new Set(previousNames);
     const kept = new Set(nextNames);
+    const removed = rows.filter((row) => shown.has(row.name) && !kept.has(row.name) && row.name !== signatureName);
+    if (removed.length === 0) return;
 
-    for (const row of rows) {
-      if (!shown.has(row.name) || kept.has(row.name) || row.name === signatureName) continue;
-      const { error } = await client.from("products").delete().eq("id", row.id).eq("vendor_id", vendorId);
-      if (error) throw error;
+    const seasonResult = await client
+      .from("product_seasons")
+      .select("product_id")
+      .in(
+        "product_id",
+        removed.map((row) => row.id),
+      );
+    if (seasonResult.error) throw seasonResult.error;
+    const withSeason = new Set(((seasonResult.data ?? []) as { product_id: string }[]).map((row) => row.product_id));
+
+    for (const row of removed) {
+      if (row.description?.trim() || withSeason.has(row.id)) {
+        if (row.image_url) {
+          const { error } = await client
+            .from("products")
+            .update({ image_url: null, updated_at: new Date().toISOString() })
+            .eq("id", row.id)
+            .eq("vendor_id", vendorId);
+          if (error) throw error;
+        }
+      } else {
+        const { error } = await client.from("products").delete().eq("id", row.id).eq("vendor_id", vendorId);
+        if (error) throw error;
+      }
       await removeProductImageFiles(client, vendorId, row.id, { imageUrl: row.image_url });
     }
   } catch (error) {

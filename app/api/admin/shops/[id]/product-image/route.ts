@@ -13,8 +13,8 @@ import {
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-/** 受け取る写真の上限（ブラウザで 1200px に縮めたものが届く前提。店舗写真の API と同じ 5MB） */
-const MAX_BYTES = 5 * 1024 * 1024;
+/** 受け取る写真の上限。ブラウザで 1200px に縮めたもの（数百KB）が届く前提。Vercel の本文の上限（4.5MB）に収まる値にして、エラーの文言と実際をそろえる */
+const MAX_BYTES = 4 * 1024 * 1024;
 const MAX_REQUEST_BYTES = MAX_BYTES + 1024 * 1024;
 /** 保存する写真の長辺（出店者本人の保存と同じ 1200px） */
 const MAX_DIMENSION = 1200;
@@ -65,7 +65,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       return NextResponse.json({ error: "商品名が正しくありません" }, { status: 400 });
     }
     if (!(photo instanceof Blob)) return NextResponse.json({ error: "写真が送られていません" }, { status: 400 });
-    if (photo.size > MAX_BYTES) return NextResponse.json({ error: "写真が大きすぎます（5MBまで）" }, { status: 413 });
+    if (photo.size > MAX_BYTES) return NextResponse.json({ error: "写真が大きすぎます（4MBまで）" }, { status: 413 });
     if (!(vendor.main_products ?? []).includes(name)) {
       return NextResponse.json({ error: "先に商品を保存してから、写真を登録してください" }, { status: 400 });
     }
