@@ -68,8 +68,7 @@ export async function fetchWeeklyVisitors(): Promise<number | null> {
 /**
  * 今月（1日〜今日）の訪問者数。取れなければ null。
  *
- * 月の途中では当然その時点までの数になる。運営費は月額なので、
- * 「1人あたりいくらか」を出すときの分母はこちらを使う。
+ * 月の途中では当然その時点までの数になる。
  */
 export async function fetchMonthlyVisitors(): Promise<number | null> {
   const todayIso = todayJstString();

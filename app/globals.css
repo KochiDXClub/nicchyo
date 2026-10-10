@@ -1667,6 +1667,95 @@ body.home-poster-zoom-open .hamburger-button {
   }
 }
 
+/* ===== 協賛・ご支援（/support）の動き =====
+   右下の「協賛のご相談」の光と波紋。止まっていても意味は通じる飾りなので、
+   動きを減らす設定では止める。
+
+   どれも5秒以内に止まるようにしてある（WCAG 2.2.2）。止める手段を置かずに
+   動き続けると、表や数字を読む邪魔になり、動きで酔う方もいる。
+   右下のボタンは、引っ込んでまた出てきたときにもう一度だけ動く。 */
+
+/* ボタンを横切る光。出てきて少ししてから、1秒ほどで一度だけ走り抜ける */
+.support-cta__shine {
+  transform: translateX(0) skewX(-20deg);
+  animation: support-cta-shine 5s ease-in-out 1.2s 1;
+}
+
+@keyframes support-cta-shine {
+  0%        { transform: translateX(0) skewX(-20deg); }
+  22%, 100% { transform: translateX(560%) skewX(-20deg); }
+}
+
+/* アイコンから広がる波紋。2回で終わる（見えている動きは5秒に収まる） */
+.support-cta__ping {
+  opacity: 0;
+  animation: support-cta-ping 2.8s cubic-bezier(0, 0, 0.2, 1) 2;
+}
+
+@keyframes support-cta-ping {
+  0%        { transform: scale(1); opacity: 0.75; }
+  70%, 100% { transform: scale(1.75); opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .support-cta__shine,
+  .support-cta__ping {
+    display: none;
+  }
+}
+
+/* 活動の様子のギャラリー（SupportGallery）。
+   同じ並びを2回続けて置いてあり、半分まで送ると最初に戻る。
+   止めるボタンか、写真にカーソルを乗せると止まる（WCAG 2.2.2）。
+   乗せて止めるのは写真の帯だけ。ボタンまで含めると、「流す」を押しても
+   カーソルが乗ったままなので動き出さない。流す長さは枚数から出して style で渡す */
+.support-gallery__track {
+  animation: support-gallery-scroll 56s linear infinite;
+}
+
+.support-gallery__viewport:hover .support-gallery__track,
+.support-gallery[data-paused] .support-gallery__track {
+  animation-play-state: paused;
+}
+
+@keyframes support-gallery-scroll {
+  to { transform: translateX(-50%); }
+}
+
+/* 動きを減らす設定では流さない。2回目の並びと止めるボタンを隠し、
+   横に送って見る一列にする */
+@media (prefers-reduced-motion: reduce) {
+  .support-gallery__track {
+    animation: none;
+  }
+
+  .support-gallery__viewport {
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+  }
+
+  /* 端に貼り付かないよう、本文と同じだけ左を空けて始める */
+  .support-gallery__track {
+    padding-left: 1.5rem;
+  }
+
+  .support-gallery__track > li {
+    scroll-snap-align: start;
+    scroll-margin-left: 1.5rem;
+  }
+
+  .support-gallery__copy,
+  .support-gallery__toggle {
+    display: none;
+  }
+}
+
+/* 右下のボタンとナビが下端をふさいでいるので、キーボードで選んだ要素が
+   その裏に隠れないよう、スクロールで寄せるときに下を空けておく（WCAG 2.4.11） */
+html:has(.support-page) {
+  scroll-padding-bottom: calc(var(--nav-bar-height) + var(--safe-bottom, 0px) + 5.5rem);
+}
+
 /* ===== 印刷 =====
    運営について（/support）は、助成金の申請に添えたり社内で回覧されたりする。
    紙にしたときに、画面用の固定要素と背景が邪魔をしないようにする。 */
@@ -1696,6 +1785,16 @@ body.home-poster-zoom-open .hamburger-button {
   .reveal {
     opacity: 1 !important;
     transform: none !important;
+  }
+
+  /* 数え上がる数字（components/ScrollMotion の CountUp）。スクロールしていない
+     ところは 0 のままなので、重ねて置いてある最終の値の方を出す */
+  .count-up__final {
+    visibility: visible !important;
+  }
+
+  .count-up__live {
+    visibility: hidden !important;
   }
 
   /* 見出しは行ごとに窓で覆って落としている。紙では窓を外す */

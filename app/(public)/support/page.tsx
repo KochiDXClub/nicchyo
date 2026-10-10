@@ -1,351 +1,268 @@
 import Link from "next/link";
-import { ArrowRight, ArrowUpRight } from "lucide-react";
-import { GITHUB_ISSUES_URL, GITHUB_REPO_URL } from "@/lib/siteLinks";
+import { ArrowRight } from "lucide-react";
 import NavigationBar from "../../components/NavigationBar";
-import MapLink from "../../components/MapLink";
-import { fetchMonthlyVisitors, fetchWeeklyVisitors } from "@/lib/analytics/visitorStats.server";
 import { fetchPublishedShopCount } from "@/lib/support/shopCount.server";
 import SupporterSlots from "@/components/SupporterSlots";
-import { buildFundingSegments, OTHER_FUNDING_COLOR } from "@/lib/support/supporters";
-import RunwayMeter from "./RunwayMeter";
+import { SUPPORTER_SLOT_COUNT, SUPPORTERS } from "@/lib/support/supporters";
+import { getActivityBySlug } from "@/app/data/activities";
 import SupportHero from "./components/SupportHero";
-import SupportSummaryBar from "./components/SupportSummaryBar";
-import CostLedger from "./components/CostLedger";
-import CostPerVisitor from "./components/CostPerVisitor";
-import TrackRecord from "./components/TrackRecord";
-import TeamStructure from "./components/TeamStructure";
+import SupportFloatingCta from "./components/SupportFloatingCta";
+import FundUses from "./components/FundUses";
 import SupportWays from "./components/SupportWays";
+import SupportGallery from "./components/SupportGallery";
+import { CountUp, RiseHeading } from "@/components/ScrollMotion";
 import Reveal from "@/components/Reveal";
+import { Surface } from "@/components/ui";
 import { totalIndividualSupporters } from "@/lib/support/individualSupporters";
-import {
-  FUNDS_ON_HAND_JPY,
-  RUNNING_COSTS,
-  RUNWAY_MONTHS,
-  SPONSOR_UNIT_ANNUAL_JPY,
-  TOTAL_RECEIVED_JPY,
-  annualCostJpy,
-  formatJpy,
-  hasPendingCost,
-  monthlyCostJpy,
-  runwayMonths,
-  sponsorUnitMonths,
-} from "./costs";
+import { FUND_USES, SPONSOR_UNIT_ANNUAL_JPY } from "./costs";
 
 export const metadata = {
   title: "協賛・ご支援について",
   description:
-    "nicchyo の運営にかかる費用と、ご支援いただいている状況をご報告しております。協賛のご相談も承っております。",
+    "nicchyo へいただいたご支援の使い道と、ご支援の方法をご案内しております。個人の方からも、組織・企業の方からも承っております。",
   openGraph: {
     title: "協賛・ご支援について | nicchyo",
     description:
-      "高知・日曜市の地図 nicchyo は、高知高専の学生と顧問の教員が運営しております。かかっている費用と、ご支援いただいている状況を公開しております。",
+      "高知・日曜市の地図 nicchyo は、高知高専の学生と顧問の教員が運営しております。いただいたご支援は、ドメイン代や開発・運用の費用、AIの利用料など、nicchyo を続けるために使わせていただきます。",
   },
 };
 
-/** 入口を過ぎたことを要約バーに知らせる目印 */
-const HERO_SENTINEL_ID = "support-hero-end";
+/** ご支援の使い道の節。入口の「ご支援の使い道を見る」の飛び先 */
+const USES_SECTION_ID = "uses";
 
 /**
- * 見出しと中身を左右に分ける。読み物ではなく報告なので、見出しは横に置いて
- * 本文の流れを切らない。デスクトップでは見出しがその節のあいだ貼り付く
+ * 入口に札として出す実績。取り組みの記録（app/data/activities.ts）の slug で指す。
+ * 名前は記録の側から引くので、ここで書き写さない。見つからない slug は出さない
  */
+const HIGHLIGHT_ACTIVITY_SLUGS = ["2026-02-28-kochi-npo-award", "2025-07-31-re-kosen-adopted"];
+
+/**
+ * 日曜市そのものの規模。nicchyo の利用者数ではなく、案内している市の大きさ。
+ * 協賛を考える側には、週ごとに 0 へ戻る訪問者数より、こちらの方が判断の材料になる
+ */
+const MARKET_VISITORS_PER_DAY = 17_000;
+
+/** 締めの礼。文節ごとに区切り、狭い画面では切れ目で折り返す */
+const CLOSING_LINES = [
+  "日曜市に出店されているみなさま、",
+  "高知市商業振興課のみなさまをはじめ、",
+  "日曜市に関わるみなさまのお力添えで、",
+  "この地図は続いております。",
+  "いつもありがとうございます。",
+];
+
+/**
+ * ご相談の前にお伝えしておくこと。
+ *
+ * 税制の扱いは、受け取り方（学校の寄附金の窓口を通すか）が決まるまで今の書き方の
+ * ままにしておく。決まったら、学校に確認した内容に合わせて書き換えること。
+ */
+const CONSULT_NOTES = [
+  {
+    title: "お支払いについて",
+    body: "サイト内での決済は承っておりません。お振込の方法は、ご相談のあとにご案内いたします。",
+  },
+  {
+    title: "税制上の優遇について",
+    body: "恐れ入りますが、寄附金控除などの税制上の優遇の対象にはなりません。あらかじめご了承いただけますと幸いです。",
+  },
+  {
+    title: "運営と会計について",
+    body: "高知高専の学生が開発・運営し、会計は顧問の教員が確認しております。お預かりした資金は、nicchyo を続けるため以外には使用いたしません。",
+  },
+];
+
+/**
+ * 1つの節。小さな見出し（何の話か）の下に、言い切りの見出し（何が言いたいか）を置く。
+ *
+ * 見出しだけを拾い読みしても、このページの話がひと通りつながるように書くこと。
+ * 本文は見出しを裏づける中身に絞り、説明の文章はなるべく足さない。
+ *
+ * 見出しは文節ごとに分けて渡す。日本語は語中でも折り返すので、素のままだと
+ * 狭い画面で「その／まま」のように切れる。文節を折り返さない塊にしておけば、
+ * 広い画面では1行に、狭い画面では文節の切れ目で折り返す。
+ *
+ * 本文の幅はふつう本文の枠（CONTAINER）に収める。写真の帯のように画面の端まで
+ * 使いたいものだけ bleed を付ける。見出しと区切りの線は、どちらでも枠の中に置く。
+ */
+const CONTAINER = "mx-auto max-w-[64rem] px-6 sm:px-8";
+
 function Section({
   id,
   label,
+  title,
+  bleed = false,
+  className = "",
   children,
 }: {
   id?: string;
   label: string;
+  /** 文節ごとに区切った見出し。1つあたり12文字までにしておくと、どの幅でも収まる */
+  title: string[];
+  /** 本文を画面の端まで広げる */
+  bleed?: boolean;
+  className?: string;
   children: React.ReactNode;
 }) {
+  const body = (
+    <Reveal className="mt-7 sm:mt-9" delay={0.1}>
+      {children}
+    </Reveal>
+  );
+
   return (
-    <section
-      id={id}
-      className="scroll-mt-24 border-t border-nicchyo-ink/10 pt-10 lg:grid lg:grid-cols-12 lg:gap-x-12 lg:pt-16"
-    >
-      <h2 className="text-[11px] font-bold tracking-[0.2em] text-nicchyo-ink/40 lg:col-span-3 lg:sticky lg:top-24 lg:self-start">
-        {label}
-      </h2>
-      {/* 貼り付く見出しは包まない。transform が効いているあいだ sticky の基準が変わる */}
-      <Reveal className="mt-6 lg:col-span-9 lg:mt-0">{children}</Reveal>
+    <section id={id} className={`scroll-mt-24 pb-12 sm:pb-16 ${className}`}>
+      <div className={CONTAINER}>
+        <div className="border-t border-nicchyo-ink/[0.07] pt-12 sm:pt-16">
+          <p className="text-[11px] font-bold tracking-[0.2em] text-amber-700">{label}</p>
+          <RiseHeading className="mt-3 text-[1.4rem] font-bold leading-[1.55] tracking-tight sm:text-[1.75rem]">
+            {title.map((phrase) => (
+              <span key={phrase} className="inline-block">
+                {phrase}
+              </span>
+            ))}
+          </RiseHeading>
+        </div>
+        {!bleed && body}
+      </div>
+      {bleed && body}
     </section>
   );
 }
 
 /** 数字ひとつ。取れなかったときは「集計中」に落とす */
-function Figure({ label, value }: { label: string; value: number | null; }) {
+function Figure({ label, value, note }: { label: string; value: number | null; note?: string }) {
   return (
     <div>
-      <dt className="text-[11px] tracking-[0.08em] text-nicchyo-ink/45">{label}</dt>
-      <dd className="mt-1.5 text-[1.7rem] font-bold leading-none tabular-nums">
+      <dt className="text-[11px] tracking-[0.08em] text-nicchyo-ink/70">{label}</dt>
+      <dd className="mt-2 text-[2.2rem] font-bold leading-none tabular-nums sm:text-[2.6rem]">
         {value === null ? (
-          <span className="text-[15px] font-bold text-nicchyo-ink/30">集計中</span>
+          <span className="text-[15px] font-bold text-nicchyo-ink/50">集計中</span>
         ) : (
-          value.toLocaleString("ja-JP")
+          <CountUp value={value} delay={0.2} />
         )}
       </dd>
+      {note && <dd className="mt-2 text-[11.5px] text-nicchyo-ink/70">{note}</dd>}
     </div>
   );
 }
 
 export default async function SupportPage() {
-  const [weeklyVisitors, monthlyVisitors, shopCount] = await Promise.all([
-    fetchWeeklyVisitors(),
-    fetchMonthlyVisitors(),
-    fetchPublishedShopCount(),
-  ]);
-
-  const monthly = monthlyCostJpy();
-  const annual = annualCostJpy();
-  const hasPending = hasPendingCost();
-  // メーターの塗りを「誰が出した分か」で分ける
-  const segments = buildFundingSegments({ fundsJpy: FUNDS_ON_HAND_JPY, monthlyJpy: monthly });
-  const otherSegment = segments.find((segment) => segment.color === OTHER_FUNDING_COLOR);
-  const runway = runwayMonths();
-  const unitMonths = sponsorUnitMonths();
+  const shopCount = await fetchPublishedShopCount();
 
   const individualSupporterCount = totalIndividualSupporters();
-
-  const monthlyLabel = `${formatJpy(monthly)}${hasPending ? "以上" : ""}`;
-  const totalReceivedLabel = formatJpy(TOTAL_RECEIVED_JPY);
-  const runwayLabel = `${runway.toFixed(1)}ヶ月`;
+  const openSlotCount = Math.max(SUPPORTER_SLOT_COUNT - SUPPORTERS.length, 0);
+  const highlights = HIGHLIGHT_ACTIVITY_SLUGS.flatMap((slug) => {
+    const activity = getActivityBySlug(slug);
+    return activity ? [activity.title] : [];
+  });
 
   return (
     <main
       className="support-page min-h-screen bg-nicchyo-base text-nicchyo-ink"
-      style={{ paddingBottom: "calc(var(--nav-bar-height) + var(--safe-bottom, 0px) + 2rem)" }}
+      // 右下のボタンが最後の行に重ならないよう、そのぶんも空けておく
+      style={{ paddingBottom: "calc(var(--nav-bar-height) + var(--safe-bottom, 0px) + 5.5rem)" }}
     >
-      <SupportSummaryBar
-        monthlyLabel={monthlyLabel}
-        runwayLabel={runwayLabel}
-        totalMonths={RUNWAY_MONTHS}
-        sentinelId={HERO_SENTINEL_ID}
-      />
+      <SupportHero usesId={USES_SECTION_ID} highlights={highlights} />
 
-      <SupportHero
-        monthlyLabel={monthlyLabel}
-        totalReceivedLabel={totalReceivedLabel}
-        runwayLabel={runwayLabel}
-        totalMonths={RUNWAY_MONTHS}
-      />
-      <div id={HERO_SENTINEL_ID} aria-hidden />
+      {/* ── ご支援の使い道 ──────────────────────────────────────────
+          運営にいくらかかるかは出さない（costs.ts の冒頭）。何に使うかを約束として出す */}
+      <Section
+        id={USES_SECTION_ID}
+        label="ご支援の使い道"
+        title={["いただいたご支援は、", "nicchyo を続けるために", "使わせていただきます"]}
+      >
+        <FundUses uses={FUND_USES} />
+      </Section>
 
-      <div className="mx-auto max-w-[64rem] px-6 sm:px-8">
-        {/* ── 運営費 ────────────────────────────────────────────────── */}
-        <Section id="costs" label="運営費">
-          <CostLedger
-            costs={RUNNING_COSTS}
-            monthlyTotalJpy={monthly}
-            annualTotalJpy={annual}
-            hasPending={hasPending}
+      {/* ── 届いている範囲 ──────────────────────────────────────────── */}
+      <Section label="届いている範囲" title={["日曜市を訪れるみなさまを、", "ご案内しております"]}>
+        <dl className="flex flex-wrap gap-x-12 gap-y-6 sm:gap-x-16">
+          <Figure label="マップに載っている店舗" value={shopCount} />
+          <Figure
+            label="日曜市を訪れる方"
+            value={MARKET_VISITORS_PER_DAY}
+            note="1回あたりおよそ（高知市調べ）"
           />
+        </dl>
+
+        <Link
+          href="/activities"
+          className="group mt-8 inline-flex items-center gap-1.5 text-[13px] font-bold text-amber-700 underline-offset-4 transition hover:text-amber-800 hover:underline"
+        >
+          これまでの取り組みを見る
+          <ArrowRight
+            className="h-3.5 w-3.5 transition group-hover:translate-x-0.5 motion-reduce:group-hover:translate-x-0"
+            aria-hidden
+          />
+        </Link>
+      </Section>
+
+      {/* ── 活動の様子 ──────────────────────────────────────────────
+          学生のプロジェクトにお金を出してよいかを決める人に、実際に日曜市へ
+          通っている人がいることを写真で見せる。帯は画面の端まで流す。
+          紙には要らない（流れる帯は1枚の写真として読めない）ので印刷では外す */}
+      <Section
+        label="活動の様子"
+        title={["これまでの活動を、", "写真でご紹介いたします"]}
+        bleed
+        className="print:hidden"
+      >
+        <SupportGallery />
+      </Section>
+
+      {/* ── ご協賛くださる皆さま ──────────────────────────────────────
+          まだ1件も無いあいだは節ごと出さない。空の枠が並ぶと「誰も支援していない」に
+          見えるため。空きの数は「ご支援の方法」の組織・企業のカードに添えてある */}
+      {SUPPORTERS.length > 0 && (
+        <Section
+          label="ご協賛くださる皆さま"
+          title={["ご協賛くださる皆さまに、", "支えていただいております"]}
+        >
+          <SupporterSlots />
         </Section>
+      )}
 
-        {/* ── ひとりあたり ───────────────────────────────────────────────
-            台帳は「いくらか」までしか言えない。人数で割って初めて、高いのか
-            安いのかを読み手が判断できる数になる */}
-        <Section label="ひとりあたり">
-          <CostPerVisitor monthlyCostJpy={monthly} actualMonthlyVisitors={monthlyVisitors} />
-        </Section>
+      {/* ── ご支援の方法 ────────────────────────────────────────────
+          個人と組織では、お返しできるものも決め方も違う。ひとつにまとめると
+          どちらの人も自分の話として読めなくなるので、最初から道を分ける */}
+      <Section label="ご支援の方法" title={["個人でも、", "組織・企業でも、", "お力添えいただけます"]}>
+        <SupportWays
+          sponsorUnitAnnualJpy={SPONSOR_UNIT_ANNUAL_JPY}
+          openSlotCount={openSlotCount}
+          individualSupporterCount={individualSupporterCount}
+        />
+      </Section>
 
-        {/* ── いまの状況 ─────────────────────────────────────────────── */}
-        <Section label="いまの状況">
-          {/* このページで唯一、面として立てるところ。図の主役はここだけにする */}
-          <div className="rounded-[22px] bg-white p-6 shadow-[0_1px_2px_rgba(58,58,58,0.04),0_18px_40px_-28px_rgba(146,64,14,0.5)] ring-1 ring-nicchyo-ink/[0.07] sm:p-8">
-            <p className="flex items-baseline gap-2.5">
-              <span className="text-[3rem] font-bold leading-none tabular-nums sm:text-[3.5rem]">
-                {runway.toFixed(1)}
-              </span>
-              <span className="text-[17px] font-bold text-nicchyo-ink/50">ヶ月</span>
-              <span className="ml-auto text-[13px] tabular-nums text-nicchyo-ink/40">
-                / {RUNWAY_MONTHS}ヶ月
-              </span>
-            </p>
+      {/* ── ご相談について ──────────────────────────────────────────── */}
+      <Section label="ご相談について" title={["ご相談の前に、", "お伝えしておきたいこと"]}>
+        {/*
+          税制の話も先に書いておく。経理の方が後から確認して話が止まるより、
+          最初にお伝えした方が誠実で、結果として早く進む
+        */}
+        <dl className="grid gap-3 sm:grid-cols-3">
+          {CONSULT_NOTES.map((note) => (
+            <Surface key={note.title} elevation="flat">
+              <dt className="text-[14px] font-bold">{note.title}</dt>
+              <dd className="mt-1.5 text-[12.5px] leading-[1.85] text-nicchyo-ink/70">{note.body}</dd>
+            </Surface>
+          ))}
+        </dl>
+      </Section>
 
-            <div className="mt-6">
-              <RunwayMeter
-                segments={segments}
-                totalMonths={RUNWAY_MONTHS}
-                ghostMonths={unitMonths ?? undefined}
-              />
-            </div>
-
-            {/*
-              斜線は「1口入るとここまで伸びる」という予告なので、何を指しているかを
-              必ず言葉で添える。図だけ出しても、塗り忘れにしか見えない
-            */}
-            {unitMonths !== null && (
-              <p className="mt-4 flex items-center gap-2 text-[12.5px] text-nicchyo-ink/50">
-                <span
-                  className="h-2.5 w-2.5 shrink-0 rounded-[2px] bg-[repeating-linear-gradient(-45deg,rgba(217,119,6,0.45)_0_3px,rgba(217,119,6,0.12)_3px_6px)]"
-                  aria-hidden
-                />
-                ご協賛1口で、ここまで伸びます
-              </p>
-            )}
-
-            {/* 「その他」は掲載枠に出ないので、色と金額をここで示す */}
-            {otherSegment && (
-              <p className="mt-5 flex items-center gap-2 text-[12.5px] tabular-nums text-nicchyo-ink/50">
-                <span
-                  className="h-2 w-2 shrink-0 rounded-[2px]"
-                  style={{ backgroundColor: otherSegment.color }}
-                  aria-hidden
-                />
-                その他（助成金・賞金・匿名でのご支援） {formatJpy(otherSegment.amountJpy)}
-              </p>
-            )}
-
-            <p className="mt-5 border-t border-nicchyo-ink/[0.07] pt-5 text-[13px] leading-[1.95] text-nicchyo-ink/55">
-              {FUNDS_ON_HAND_JPY > 0
-                ? `いただいた ${formatJpy(FUNDS_ON_HAND_JPY)} で、ここまで運営することができます。ありがとうございます。`
-                : "これまでは、いただいた賞金と学生の負担で運営してまいりました。続けていくためのご協賛を探しております。"}
-            </p>
-          </div>
-
-          {/* メーターの色がどの協賛かを、名前と金額で結びつける場所も兼ねる。
-              個人のご支援は別のページなので、見出しでも「ご協賛」と区別する
-              （個人側は「ご支援くださった皆さま」で、名前が紛らわしい） */}
-          <h3 className="mt-12 text-[11px] font-bold tracking-[0.2em] text-nicchyo-ink/40">
-            ご協賛くださる皆さま
-          </h3>
-          <SupporterSlots className="mt-5" />
-
-          {/* 個人の一覧への導線。掲載枠のすぐ下が、探している人がいちばん見る所 */}
-          <Link
-            href="/support/supporters"
-            className="group mt-7 flex items-center justify-between gap-4 border-t border-nicchyo-ink/10 pt-5 transition-colors hover:text-amber-800"
-          >
-            <span>
-              <span className="block text-[14px] font-bold text-amber-700 underline-offset-4 group-hover:underline">
-                個人でご支援くださった皆さま
-              </span>
-              <span className="mt-1 block text-[12.5px] text-nicchyo-ink/45">
-                {individualSupporterCount > 0
-                  ? `${individualSupporterCount.toLocaleString("ja-JP")}名のお名前を掲載しております`
-                  : "これから、こちらにお名前を掲載してまいります"}
-              </span>
+      {/* 締め。お願いで終わらせず、いま支えてくださっている方への礼で閉じる */}
+      <Reveal className={CONTAINER}>
+        {/* 出店者と市の担当課には、お金以外の面で支えていただいている。名前を挙げて礼を言う */}
+        <p className="border-t border-nicchyo-ink/[0.07] py-12 text-center text-[14px] font-bold leading-[2] text-nicchyo-ink/70 sm:py-16">
+          {CLOSING_LINES.map((line) => (
+            <span key={line} className="inline-block">
+              {line}
             </span>
-            <ArrowRight
-              className="h-4 w-4 shrink-0 text-amber-700/60 transition group-hover:translate-x-0.5 group-hover:text-amber-700"
-              aria-hidden
-            />
-          </Link>
-        </Section>
-
-        {/* ── 届いている範囲 ──────────────────────────────────────────── */}
-        <Section label="届いている範囲">
-          <dl className="flex gap-10 border-b border-nicchyo-ink/[0.07] pb-7 sm:gap-16">
-            <Figure label="マップに載っている店舗" value={shopCount} />
-            <Figure label="今週の訪問者数" value={weeklyVisitors} />
-          </dl>
-
-          <div className="mt-10">
-            <TrackRecord />
-          </div>
-
-          {/* 数字と実績は、お金以外のご協力の上に立っている。ここで名前を挙げておく */}
-          <p className="mt-8 text-[13px] leading-[1.95] text-nicchyo-ink/55">
-            日曜市に出店されているみなさま、高知市商業振興課のみなさまにご協力をいただき、ここまで続けてくることができました。
-          </p>
-        </Section>
-
-        {/* ── 運営体制 ────────────────────────────────────────────────
-            名前を並べた組織図ではなく、お金がどこに入って最後に誰へ届くのかを
-            1枚で見せる。「卒業したら誰が続けるのか」がここでの主題 */}
-        <Section label="運営体制">
-          <TeamStructure />
-        </Section>
-
-        {/* ── ご支援の方法 ────────────────────────────────────────────
-            個人と組織では、お返しできるものも決め方も違う。ひとつにまとめると
-            どちらの人も自分の話として読めなくなるので、最初から道を分ける */}
-        <Section label="ご支援の方法">
-          <SupportWays
-            sponsorUnitAnnualJpy={SPONSOR_UNIT_ANNUAL_JPY}
-            sponsorUnitMonths={unitMonths}
-            individualSupporterCount={individualSupporterCount}
-          />
-        </Section>
-
-        {/* ── コードでのご支援 ────────────────────────────────────────
-            お金以外の支え方。技術者や学生が「自分にもできることがある」と
-            気づける入口。リポジトリは公開しているので、そこへ素直につなぐ */}
-        <Section label="コードでのご支援">
-          <p className="text-[13px] leading-[1.95] text-nicchyo-ink/55">
-            nicchyo はオープンソースで開発しています。うまく動かないところの報告や、こんな機能がほしいという提案、コードやデザインでの参加も、大切なご支援です。
-          </p>
-          <div className="mt-5 border-t border-nicchyo-ink/10">
-            <a
-              href={GITHUB_REPO_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="group flex items-center justify-between gap-4 border-b border-nicchyo-ink/[0.07] py-4 transition-colors hover:text-amber-800"
-            >
-              <span>
-                <span className="block text-[14px] font-bold text-amber-700 underline-offset-4 group-hover:underline">GitHub でコードを見る</span>
-                <span className="mt-1 block text-[12.5px] text-nicchyo-ink/45">KochiDXClub/nicchyo</span>
-              </span>
-              <ArrowUpRight className="h-4 w-4 shrink-0 text-amber-700/60 transition group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-amber-700" aria-hidden />
-            </a>
-            <a
-              href={GITHUB_ISSUES_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="group flex items-center justify-between gap-4 border-b border-nicchyo-ink/[0.07] py-4 transition-colors hover:text-amber-800"
-            >
-              <span>
-                <span className="block text-[14px] font-bold text-amber-700 underline-offset-4 group-hover:underline">気づいたことを届ける</span>
-                <span className="mt-1 block text-[12.5px] text-nicchyo-ink/45">不具合の報告や機能の提案は Issues へ。GitHub のアカウントがあればどなたでも書けます</span>
-              </span>
-              <ArrowUpRight className="h-4 w-4 shrink-0 text-amber-700/60 transition group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-amber-700" aria-hidden />
-            </a>
-          </div>
-        </Section>
-
-        {/* ── ご相談について ──────────────────────────────────────────── */}
-        <Section label="ご相談について">
-          <dl className="border-t border-nicchyo-ink/10">
-            <div className="border-b border-nicchyo-ink/[0.07] py-4">
-              <dt className="text-[14px] font-bold">お支払いについて</dt>
-              <dd className="mt-1.5 text-[13px] leading-[1.95] text-nicchyo-ink/55">
-                サイト内での決済は承っておりません。お問い合わせ箱にてご相談を承ります。
-              </dd>
-            </div>
-            <div className="border-b border-nicchyo-ink/[0.07] py-4">
-              {/*
-                先に書いておく。経理の方が後から確認して話が止まるより、
-                最初にお伝えした方が誠実で、結果として早く進む
-              */}
-              <dt className="text-[14px] font-bold">税制上の優遇について</dt>
-              <dd className="mt-1.5 text-[13px] leading-[1.95] text-nicchyo-ink/55">
-                恐れ入りますが、寄附金控除などの税制上の優遇の対象にはなりません。あらかじめご了承いただけますと幸いです。
-              </dd>
-            </div>
-            <div className="border-b border-nicchyo-ink/[0.07] py-4">
-              <dt className="text-[14px] font-bold">会計について</dt>
-              <dd className="mt-1.5 text-[13px] leading-[1.95] text-nicchyo-ink/55">
-                お預かりした資金は、運営費以外には使用いたしません。会計は顧問の教員が確認しております。
-              </dd>
-            </div>
-          </dl>
-        </Section>
-
-        {/* 締め。お願いで終わらせず、いま支えてくださっている方への礼で閉じる */}
-        <p className="mt-16 border-t border-nicchyo-ink/10 pt-10 text-[13px] leading-[2] text-nicchyo-ink/50">
-          日曜市に関わるみなさまのお力添えで、この地図は続いております。いつもありがとうございます。
+          ))}
         </p>
+      </Reveal>
 
-        <div className="py-12 text-center">
-          <MapLink
-            href="/map"
-            className="text-[13px] font-bold text-nicchyo-ink/40 transition hover:text-nicchyo-ink/70"
-          >
-            マップに戻る
-          </MapLink>
-        </div>
-      </div>
-
+      <SupportFloatingCta />
       <NavigationBar />
     </main>
   );

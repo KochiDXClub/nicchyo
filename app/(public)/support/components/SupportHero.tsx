@@ -4,18 +4,23 @@ import { useEffect, useState, type CSSProperties } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { motion, useReducedMotion } from "framer-motion";
+import { ArrowRight, Award } from "lucide-react";
+import { buttonClass } from "@/components/ui";
 import { CONSULT_CHARACTERS } from "@/app/(public)/consult/data/consultCharacters";
+import { supportContactHref } from "../costs";
 
 /**
  * ページの入口
  *
- * 上半分をイラストと余白だけにすると絵は気持ちよく収まるが、このページの読者は
- * 協賛を検討する企業と助成金の審査員なので、結論（いくらかかっていて、いま
- * どこまで支えていただけているか）を最初に置く。スクロールしなくても判断に
- * 必要な数字が揃っている状態にしておく。
+ * 誰が運営していて、何を支えていただきたいのかを、見出しと1段落で言い切る。
+ * 運営にいくらかかっているかは出さない（costs.ts の冒頭）。読み手がすぐ動けるよう、
+ * 相談のボタンと、ご支援の使い道へのリンクを置く。
  *
- * 動きはここに集中させる。見出しが1行ずつ上から落ちてくるところがこのページで
- * いちばん派手な瞬間で、それ以外は Reveal の控えめな浮き上がりだけにする。
+ * 学生のプロジェクトにお金を出してよいかを判断する材料として、受賞・採択の実績を
+ * 札にして添える。記録の一覧は /activities に任せ、ここからは外へ送らない。
+ *
+ * 見出しが1行ずつ上から落ちてきて、人が両脇から歩いてくる。このページで
+ * いちばん賑やかな瞬間はここ。後ろの暖色も右上からふわっと広がる。
  */
 
 /**
@@ -157,19 +162,16 @@ function HeroCharacter({
 }
 
 type SupportHeroProps = {
-  monthlyLabel: string;
-  /** これまでにいただいた総額 */
-  totalReceivedLabel: string;
-  runwayLabel: string;
-  totalMonths: number;
+  /** ご支援の使い道の節の id。リンクの飛び先 */
+  usesId: string;
+  /**
+   * 札にして見せる実績（受賞・採択など）の名前。
+   * 記録のデータは大きいので、ここ（クライアント）では読まずにページから名前だけを受け取る
+   */
+  highlights: string[];
 };
 
-export default function SupportHero({
-  monthlyLabel,
-  totalReceivedLabel,
-  runwayLabel,
-  totalMonths,
-}: SupportHeroProps) {
+export default function SupportHero({ usesId, highlights }: SupportHeroProps) {
   const prefersReducedMotion = useReducedMotion();
 
   /**
@@ -219,8 +221,18 @@ export default function SupportHero({
 
   return (
     <section className="relative isolate overflow-hidden">
-      {/* 地の色から立ち上がる暖色。境目を作らないよう下端でベース色に溶かす */}
-      <div className="absolute inset-0 -z-10 bg-[radial-gradient(120%_90%_at_82%_0%,#FDECC8_0%,rgba(253,236,200,0)_58%)]" />
+      {/*
+        地の色から立ち上がる暖色。境目を作らないよう下端でベース色に溶かす。
+        開いたときに一度だけ、右上を起点に少し大きいところから落ち着く。
+        ずらすと端に色の無い帯が出るので、動かすのは縮むほうだけにしてある。
+        繰り返さない（読んでいるあいだ背景が動き続けると、酔う方がいる）
+      */}
+      <motion.div
+        className="absolute inset-0 -z-10 origin-top-right bg-[radial-gradient(120%_90%_at_82%_0%,#FDECC8_0%,rgba(253,236,200,0)_58%)]"
+        initial={{ scale: 1.15, opacity: 0.4 }}
+        animate={{ scale: 1, opacity: 1 }}
+        transition={prefersReducedMotion ? { duration: 0 } : { duration: 2.4, ease: [0.22, 1, 0.36, 1] }}
+      />
       <div className="absolute inset-0 -z-10 bg-gradient-to-b from-amber-50/70 via-nicchyo-base/40 to-nicchyo-base" />
 
       <div className="mx-auto grid max-w-[64rem] items-center gap-8 px-6 pb-14 pt-12 sm:px-8 lg:grid-cols-[1.25fr_0.75fr] lg:gap-12 lg:pb-20 lg:pt-16">
@@ -257,66 +269,44 @@ export default function SupportHero({
             {...fadeUp(0.42)}
             className="mt-5 max-w-[33rem] text-[14.5px] leading-[2] text-nicchyo-ink/60 [text-wrap:pretty]"
           >
-            高知・日曜市を案内する nicchyo は、高知高専の学生と顧問の教員が運営しております。広告は掲載せず、これまでいただいた賞金とご支援で続けてまいりました。
+            高知・日曜市を案内する地図 nicchyo は、高知高専の学生と顧問の教員が運営しております。広告は掲載せず、これまでいただいた賞金とご支援で続けてまいりました。
           </motion.p>
 
-          {/*
-            判断に要る3つの数字。囲まずに罫線でそろえる。
-            かかる額 → いただいた額 → あと何ヶ月もつか、の順に読ませる。
-
-            狭い画面では3つ横に並べると1つあたりが窮屈なので、
-            「支えていただいている期間」だけ下の行へ回して幅いっぱいに使う。
-            折り返す行があるぶん罫線は divide-x に任せられない（行頭に
-            余計な縦線が出る）ので、1つずつ指定する。
-          */}
-          <motion.dl
-            {...fadeUp(0.5)}
-            className="mt-9 grid max-w-[34rem] grid-cols-2 border-y border-nicchyo-ink/10 sm:grid-cols-3"
-          >
-            <div className="border-r border-nicchyo-ink/10 py-4 pr-4 sm:pr-5">
-              <dt className="text-[11px] leading-snug tracking-[0.08em] text-nicchyo-ink/45">
-                毎月の運営費
-              </dt>
-              <dd className="mt-1.5 text-[1.35rem] font-bold leading-none tabular-nums sm:text-[1.45rem]">
-                {monthlyLabel}
-              </dd>
-            </div>
-            <div className="py-4 pl-4 sm:border-r sm:border-nicchyo-ink/10 sm:pl-5 sm:pr-5">
-              <dt className="text-[11px] leading-snug tracking-[0.08em] text-nicchyo-ink/45">
-                これまでのご支援
-              </dt>
-              <dd className="mt-1.5 text-[1.35rem] font-bold leading-none tabular-nums sm:text-[1.45rem]">
-                {totalReceivedLabel}
-              </dd>
-            </div>
-            <div className="col-span-2 border-t border-nicchyo-ink/10 py-4 sm:col-span-1 sm:border-t-0 sm:pl-5">
-              <dt className="text-[11px] leading-snug tracking-[0.08em] text-nicchyo-ink/45">
-                支えていただいている期間
-              </dt>
-              <dd className="mt-1.5 text-[1.35rem] font-bold leading-none tabular-nums sm:text-[1.45rem]">
-                {runwayLabel}
-                <span className="ml-1.5 text-[12px] font-bold text-nicchyo-ink/35">
-                  / {totalMonths}ヶ月
-                </span>
-              </dd>
-            </div>
-          </motion.dl>
+          {highlights.length > 0 && (
+            <motion.ul {...fadeUp(0.46)} className="mt-6 flex flex-wrap gap-2" aria-label="これまでの実績">
+              {highlights.map((highlight) => (
+                <li
+                  key={highlight}
+                  className="inline-flex items-center gap-1.5 rounded-chip bg-white/80 px-3 py-1.5 text-[12px] font-bold leading-snug text-nicchyo-ink/80 ring-1 ring-amber-600/20"
+                >
+                  <Award className="h-3.5 w-3.5 shrink-0 text-amber-700" aria-hidden />
+                  {highlight}
+                </li>
+              ))}
+            </motion.ul>
+          )}
 
           <motion.div
-            {...fadeUp(0.58)}
-            className="mt-8 flex flex-wrap items-center gap-x-6 gap-y-3"
+            {...fadeUp(0.54)}
+            className="mt-9 flex flex-wrap items-center gap-x-6 gap-y-3"
           >
+            {/* data-support-cta: これが見えているあいだ、右下のボタンは引っ込む */}
             <Link
-              href="/contact?category=sponsor"
-              className="inline-flex items-center justify-center rounded-2xl bg-nicchyo-ink px-7 py-3.5 text-[14.5px] font-bold text-white shadow-[0_6px_16px_-6px_rgba(58,58,58,0.55)] transition hover:bg-nicchyo-ink/90 active:scale-[0.99]"
+              href={supportContactHref("hero")}
+              data-support-cta
+              className={buttonClass({ variant: "ink", size: "lg", className: "group shadow-pop" })}
             >
-              協賛のご相談
+              ご支援のご相談
+              <ArrowRight
+                className="h-4 w-4 transition group-hover:translate-x-0.5 motion-reduce:group-hover:translate-x-0"
+                aria-hidden
+              />
             </Link>
             <a
-              href="#costs"
-              className="text-[13px] font-bold text-nicchyo-ink/45 underline-offset-4 transition hover:text-nicchyo-ink/75 hover:underline"
+              href={`#${usesId}`}
+              className="text-[13px] font-bold text-nicchyo-ink/70 underline-offset-4 transition hover:text-nicchyo-ink hover:underline"
             >
-              費用の内訳を見る
+              ご支援の使い道を見る
             </a>
           </motion.div>
         </div>
