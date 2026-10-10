@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { VENDOR_FIELD_LIMITS, slotLabel } from "../../../map/types/editableShop";
+import type { ChomeJudgement } from "@/lib/map/chomeBoundaries";
+import { CHOMES, getChome, normalizeChomeId, type ChomeId } from "@/lib/map/chomes";
 import { EDITOR_COLORS } from "../editorTheme";
 import type { EditableShop, EditableVendor, VendorCategory } from "../types";
 import {
@@ -118,6 +120,18 @@ function VendorFields({
   );
 }
 
+/** 自動判定の結果を、パネルに出す一文にする */
+export function describeChomeJudgement(judged: ChomeJudgement | null): string {
+  if (!judged) return "";
+  if (judged.status === "ok") return `自動判定: ${getChome(judged.chomeId)?.name ?? ""}`;
+  if (judged.status === "near_boundary") {
+    const names = judged.candidates.map((id) => `${id}丁目`).join("・");
+    return `境目のすぐ上にあるため、自動では決められません${names ? `（候補: ${names}）` : ""}`;
+  }
+  if (judged.status === "ambiguous") return "丁目の区間が重なっていて、自動では決められません（設定の誤り）";
+  return "自動判定の対象外です（丁目の区間に入っていません）";
+}
+
 /**
  * 区画を選んだときの右パネル。区画は出店者の id だけを持ち、出店者の情報は別に保存する。
  * - 空き区画: 登録済みの出店者から選ぶか、新しい出店者を入力して登録する
@@ -133,6 +147,8 @@ export default function SlotVendorPanel({
   onRegisterVendor,
   onUpdateVendor,
   onClearVendor,
+  onChomeChange,
+  autoChome,
   onDelete,
 }: {
   shop: EditableShop;
@@ -146,6 +162,10 @@ export default function SlotVendorPanel({
   onRegisterVendor: (draft: VendorDraft) => void;
   onUpdateVendor: (patch: Partial<VendorDraft>, logText: string, coalesceKey?: string) => void;
   onClearVendor: () => void;
+  /** 丁目を選ぶ（手で設定）／"auto" で自動判定に戻す */
+  onChomeChange: (value: ChomeId | "auto") => void;
+  /** この区画の位置からの自動判定の結果（道の位置が無い区画は null） */
+  autoChome: ChomeJudgement | null;
   onDelete: () => void;
 }) {
   const [draft, setDraft] = useState<VendorDraft>(EMPTY_DRAFT);
@@ -167,6 +187,38 @@ export default function SlotVendorPanel({
           ? `${roadName ?? "道"} の${shop.roadSide === "left" ? "左" : "右"}側・始点から ${Math.round(shop.roadDistanceM)}m`
           : "道の上の位置はまだありません（移行前の区画）"}
       </p>
+
+      <label>
+        <span style={label}>日曜市の丁目</span>
+        <select
+          aria-label="日曜市の丁目"
+          value={shop.chomeLocked ? String(normalizeChomeId(shop.chome) ?? "auto") : "auto"}
+          onChange={(e) => onChomeChange(e.target.value === "auto" ? "auto" : (Number(e.target.value) as ChomeId))}
+          style={{ ...inputStyle, marginBottom: 4 }}
+        >
+          <option value="auto">自動（道の位置から決める）</option>
+          {CHOMES.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.name}
+            </option>
+          ))}
+        </select>
+      </label>
+      <p style={{ ...noteStyle, marginBottom: 12 }}>
+        いまの丁目: {shop.chome ?? "未設定"}
+        {shop.chomeLocked ? "（手で設定）" : ""}
+        {autoChome && <><br />{describeChomeJudgement(autoChome)}</>}
+        {!shop.chomeLocked && autoChome?.status === "ok" && normalizeChomeId(shop.chome) !== autoChome.chomeId && (
+          <><br />今の丁目と自動判定が違います。</>
+        )}
+      </p>
+      {/* 「自動」は、手で設定していない区画では選び直しても変わらず（同じ値の選択は onChange が呼ばれない）、
+          今の丁目と自動判定がずれた既存の区画を直せないので、ボタンで直接直せるようにする */}
+      {!shop.chomeLocked && autoChome?.status === "ok" && normalizeChomeId(shop.chome) !== autoChome.chomeId && (
+        <button type="button" onClick={() => onChomeChange("auto")} style={{ ...buttonStyle, marginBottom: 12 }}>
+          自動判定の値（{getChome(autoChome.chomeId)?.shortName}）にする
+        </button>
+      )}
 
       <label>
         <span style={label}>登録済みの出店者から選ぶ</span>
