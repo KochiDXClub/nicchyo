@@ -17,7 +17,7 @@ begin
     into bad
   from pg_policies
   where schemaname = 'public'
-    and tablename in ('vendor_contents', 'product_sales', 'vendor_weekly_status', 'products', 'location_assignments')
+    and tablename in ('vendor_contents', 'vendor_weekly_status', 'products', 'location_assignments')
     and cmd in ('SELECT', 'ALL')
     and permissive = 'PERMISSIVE'
     and (roles && array['public', 'anon', 'authenticated']::name[])
@@ -26,10 +26,10 @@ begin
     raise exception E'掲載許可のフィルタを迂回する公開 SELECT ポリシーが残っています:\n  %', bad;
   end if;
 
-  -- 掲載許可のフィルタ（vendors で読める店舗だけ）が、公開の 3 テーブルに掛かっている
+  -- 掲載許可のフィルタ（vendors で読める店舗だけ）が、公開の 2 テーブル（product_sales は 20261008110000 で削除）に掛かっている
   select string_agg(t.tablename, ', ')
     into bad
-  from (values ('vendor_contents'), ('vendor_weekly_status'), ('product_sales')) as t(tablename)
+  from (values ('vendor_contents'), ('vendor_weekly_status')) as t(tablename)
   where not exists (
     select 1 from pg_policies p
     where p.schemaname = 'public' and p.tablename = t.tablename

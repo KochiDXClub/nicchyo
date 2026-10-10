@@ -186,3 +186,31 @@ describe("openaiFetch", () => {
     });
   });
 });
+
+describe("requestChatCompletion（Anthropic のモデル）", () => {
+  const haiku = resolveAiModelChoice(CODE_AI_CATALOG, { modelId: "claude-haiku-5-5" }, "consult");
+  const messages = [{ role: "user", content: "こんにちは" }];
+
+  beforeEach(() => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("{}", { status: 200 })));
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
+  });
+
+  it("ANTHROPIC_API_KEY が無ければ OpenAI は呼ばず、既定のモデルに切り替わる", async () => {
+    vi.stubEnv("ANTHROPIC_API_KEY", "");
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    await requestChatCompletion("sk-test", haiku, { messages });
+    const calls = vi.mocked(globalThis.fetch).mock.calls;
+    expect(calls).toHaveLength(1);
+    const [url, init] = calls[0] as [string, RequestInit];
+    expect(url).toBe("https://api.openai.com/v1/chat/completions");
+    expect(JSON.parse(init.body as string).model).toBe("gpt-4o-mini");
+    errorSpy.mockRestore();
+    warnSpy.mockRestore();
+  });
+});

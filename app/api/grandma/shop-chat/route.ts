@@ -1,13 +1,13 @@
 import { NextRequest } from "next/server";
-import { z } from "zod";
 import { createAdminClient } from "@/lib/supabase/adminClient";
 import { handleAbuseDetection } from "@/lib/grandma/abuseDetection";
 import { requireSameOrigin } from "@/lib/security/requestGuards";
 import { enforceRateLimit } from "@/lib/security/rateLimit";
-import {
-  buildShopChatSystemPrompt,
-  type ShopChatContext,
-} from "@/lib/grandma/prompts/shopChatPrompt";
+import { buildShopChatSystemPrompt } from "@/lib/grandma/prompts/shopChatPrompt";
+import { fetchAiPrompts } from "@/lib/grandma/prompts/promptStore.server";
+import { resolveShopCharacter, resolveShopCharacterId } from "@/lib/grandma/shopChat/character";
+import { loadShopChat } from "@/lib/grandma/shopChat/context.server";
+import { ShopChatRequestSchema, trimShopChatHistory } from "@/lib/grandma/shopChat/request";
 import { requestChatCompletion } from "@/lib/ai/openaiFetch";
 import { openAiSseToTextStream, TEXT_STREAM_HEADERS } from "@/lib/ai/textStream";
 import { resolveAiModelFor } from "@/lib/ai/modelStore.server";
@@ -15,49 +15,6 @@ import { getForwardedClientIp } from "@/lib/security/clientIp";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-/** 直近何往復ぶんの履歴をプロンプトに含めるか。AiConsultPanel も同じ件数に切って送る */
-const SHOP_CHAT_HISTORY_LIMIT = 10;
-
-// system prompt に埋め込まれる値なので、長さと形式をここで縛る
-// （縛らないと、クライアントが任意の system prompt と無制限の入力を送れてしまう）
-const ShopChatBodySchema = z.object({
-  shopName: z.string().trim().min(1).max(100),
-  shopContext: z
-    .object({
-      category: z.string().max(100).nullish(),
-      catchphrase: z.string().max(300).nullish(),
-      shopStrength: z.string().max(1000).nullish(),
-      products: z.array(z.string().max(100)).max(30).nullish(),
-      chome: z.string().max(50).nullish(),
-    })
-    .nullish(),
-  history: z
-    .array(z.object({ role: z.enum(["user", "assistant"]), text: z.string().max(2000) }))
-    .max(SHOP_CHAT_HISTORY_LIMIT)
-    .optional(),
-  text: z.string().trim().min(1).max(500),
-  visitorKey: z.string().max(128).nullish(),
-});
-
-/** プロンプトの区切りに使われる括弧と改行を落とす（システムプロンプトへの偽ブロック混入防止） */
-function sanitizePromptField(value: string): string {
-  return value.replace(/[<>[\]【】\r\n]+/g, " ").trim();
-}
-
-function sanitizeShopContext(
-  ctx: z.infer<typeof ShopChatBodySchema>["shopContext"]
-): ShopChatContext {
-  if (!ctx) return {};
-  const clean = (v?: string | null) => (v ? sanitizePromptField(v) : undefined);
-  return {
-    category: clean(ctx.category),
-    catchphrase: clean(ctx.catchphrase),
-    shopStrength: clean(ctx.shopStrength),
-    products: ctx.products?.map(sanitizePromptField).filter(Boolean),
-    chome: clean(ctx.chome),
-  };
-}
 
 export async function POST(req: NextRequest) {
   const originCheck = requireSameOrigin(req);
@@ -75,43 +32,45 @@ export async function POST(req: NextRequest) {
     return new Response("Server configuration error", { status: 500 });
   }
 
-  let rawBody: unknown;
-  try {
-    rawBody = await req.json();
-  } catch {
-    return new Response("Bad Request", { status: 400 });
-  }
-
-  const parsed = ShopChatBodySchema.safeParse(rawBody);
+  const parsed = ShopChatRequestSchema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) {
     return new Response("Bad Request", { status: 400 });
   }
-  const { shopContext, history = [], text } = parsed.data;
-  const shopName = sanitizePromptField(parsed.data.shopName);
-  if (!shopName) {
-    return new Response("Bad Request", { status: 400 });
-  }
+  const { shopId, text, history, visitorKey } = parsed.data;
 
   // ask / itinerary と同じ悪用ブロック（IP / visitorKey）を通す。
   // これが無いと、ask でブロック済みの利用者が shop-chat 経由で有料 LLM 呼び出しを続けられる
   const secClient = createAdminClient();
   if (secClient) {
-    const clientIp = getForwardedClientIp(req);
     const abuseResult = await handleAbuseDetection(
       secClient,
-      clientIp,
+      getForwardedClientIp(req),
       text,
-      parsed.data.visitorKey?.trim() || undefined
+      visitorKey?.trim() || undefined
     );
     if (abuseResult === "blocked") {
       return new Response("Forbidden", { status: 403 });
     }
   }
 
-  const systemPrompt = buildShopChatSystemPrompt(shopName, sanitizeShopContext(shopContext));
+  // お店の情報・メモ・キャラは、利用者から受け取らずサーバーが読む
+  const loaded = await loadShopChat(shopId);
+  if (!loaded) {
+    return new Response("Shop not found", { status: 404 });
+  }
+
+  const prompts = await fetchAiPrompts();
+  const character = resolveShopCharacter(resolveShopCharacterId(loaded.shop.vendorId), prompts);
+
+  const systemPrompt = buildShopChatSystemPrompt({
+    character: { name: character.view.name, profile: character.profile },
+    shopName: loaded.shop.name,
+    shopContext: loaded.context,
+    notes: loaded.notes,
+  });
   const messages = [
     { role: "system", content: systemPrompt },
-    ...history.map((m) => ({ role: m.role, content: m.text })),
+    ...trimShopChatHistory(history).map((m) => ({ role: m.role, content: m.text })),
     { role: "user", content: text },
   ];
 

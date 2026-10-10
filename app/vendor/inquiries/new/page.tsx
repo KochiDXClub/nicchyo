@@ -2,12 +2,17 @@
 
 export const dynamic = "force-dynamic";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, ImagePlus, Loader2, Send, X } from "lucide-react";
 import { useAuth } from "@/lib/auth/AuthContext";
+import {
+  canDecodeImage,
+  imageErrorMessage,
+  IMAGE_DECODE_ERROR_MESSAGE,
+} from "@/lib/image/clientCompression";
 import {
   VENDOR_INQUIRY_BODY_MAX_LENGTH,
   VENDOR_INQUIRY_TOPICS,
@@ -23,7 +28,13 @@ import {
   buildReportBody,
   findReportPattern,
 } from "@/lib/vendorInquiries/labels";
-import { createInquiry, uploadInquiryImage } from "../../_services/inquiriesService";
+import {
+  createInquiry,
+  needsLogin as isLoginExpired,
+  removeInquiryImage,
+  uploadInquiryImage,
+} from "../../_services/inquiriesService";
+import InquiryErrorNotice from "../components/InquiryErrorNotice";
 
 // 質問・相談の宛先。報告・連絡は選んだ定型パターンごとに決まる（REPORT_PATTERNS.category）
 const CATEGORY_BY_TOPIC = {
@@ -44,6 +55,12 @@ export default function NewVendorInquiryPage() {
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [isSending, setIsSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [needsLogin, setNeedsLogin] = useState(false);
+
+  // 送信に失敗したあとの再送で、同じ画像を上げ直さないための控え。
+  // 上げ直すとパスが変わり、使われないファイルがバケットに残っていく。
+  // 画像を差し替え・取り消ししたときは、上げ済みのファイルごと破棄する
+  const uploadedImageRef = useRef<{ path: string; url: string } | null>(null);
 
   const pattern = patternId ? findReportPattern(patternId) : undefined;
 
@@ -75,7 +92,19 @@ export default function NewVendorInquiryPage() {
     (topic !== "report" || pattern !== undefined) &&
     (topic === "report" || freeText.trim().length > 0);
 
-  function handlePickImage(file: File | null) {
+  async function handlePickImage(file: File | null) {
+    // 送信時の変換でつまずく前に、このブラウザで読める写真かを確かめる（iPhone の HEIC 対策）
+    if (file && !(await canDecodeImage(file))) {
+      setError(IMAGE_DECODE_ERROR_MESSAGE);
+      setNeedsLogin(false);
+      return;
+    }
+    setError(null);
+    setNeedsLogin(false);
+    // 別の画像になったので、前の画像は使わない。上げ済みなら消しておく
+    const uploaded = uploadedImageRef.current;
+    uploadedImageRef.current = null;
+    if (uploaded) void removeInquiryImage(uploaded.path);
     setImageFile(file);
     setImagePreview((prev) => {
       if (prev) URL.revokeObjectURL(prev);
@@ -87,16 +116,20 @@ export default function NewVendorInquiryPage() {
     if (!canSubmit || !topic || !category) return;
     setIsSending(true);
     setError(null);
+    setNeedsLogin(false);
     try {
-      let imageUrl: string | undefined;
-      if (imageFile) {
+      let imageUrl: string | undefined = uploadedImageRef.current?.url;
+      if (imageFile && !imageUrl) {
         if (!user?.vendorId) throw new Error("ログイン情報を確認できませんでした");
-        imageUrl = await uploadInquiryImage(user.vendorId, imageFile);
+        const uploaded = await uploadInquiryImage(user.vendorId, imageFile);
+        uploadedImageRef.current = uploaded;
+        imageUrl = uploaded.url;
       }
       const created = await createInquiry({ topic, category, urgency, body: composedBody, imageUrl });
       router.push(`/vendor/inquiries/${created.id}`);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "送信できませんでした");
+      setError(imageErrorMessage(e, e instanceof Error ? e.message : "送信できませんでした"));
+      setNeedsLogin(isLoginExpired(e));
       setIsSending(false);
     }
   }
@@ -316,9 +349,7 @@ export default function NewVendorInquiryPage() {
           </p>
         )}
 
-        {error && (
-          <div className="rounded-2xl border border-rose-100 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</div>
-        )}
+        {error && <InquiryErrorNotice message={error} needsLogin={needsLogin} />}
 
         <button
           type="button"

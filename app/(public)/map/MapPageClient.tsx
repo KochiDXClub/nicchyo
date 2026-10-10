@@ -6,7 +6,7 @@ import { useEffect, useMemo, useState, useRef, useCallback, Suspense } from "rea
 import { useSearchParams, useRouter } from "next/navigation";
 import { AnimatePresence, motion, useDragControls } from "framer-motion";
 import { Navigation } from "lucide-react";
-import type { MapCamera as LeafletMap } from "./types/mapCamera";
+import type { MapCamera } from "./types/mapCamera";
 import { clearSearchMapPayload, loadAiMapPayload, loadSearchMapPayload } from "../../../lib/searchMapStorage";
 import { getShopPreviewImage } from "../../../lib/shopImages";
 import { useAuth } from "../../../lib/auth/AuthContext";
@@ -14,7 +14,7 @@ import { SHOP_CATEGORY_NAMES } from "./data/shops";
 import type { Shop } from "./data/shops";
 import type { Landmark } from "./types/landmark";
 import type { MapRoute } from "./types/mapRoute";
-import { resolveMapFeatureFlags, type MapFeatureFlags } from "@/lib/mapFeatureFlags";
+import type { MapFeatureFlags } from "@/lib/mapFeatureFlags";
 import { useMapLoading } from "../../components/MapLoadingProvider";
 import MapLoadingOverlay from "../../components/MapLoadingOverlay";
 import { grandmaEvents } from "./data/grandmaEvents";
@@ -64,14 +64,10 @@ import {
 
 import type { MapViewSettings } from "@/lib/map/mapViewSettings";
 
-const MapViewLeaflet = dynamic(() => import("./components/MapView"), {
-  ssr: false,
-});
-// MapLibre 版（移行中の並走検証用）。選ばれたときだけ読み込む。
 // ssr: false にすると Next がこのチャンクの preload を HTML に出さなくなり、
 // 268KB の maplibre チャンクがハイドレーション完了後にようやくダウンロードされる。
 // 地図の生成自体は useEffect の中なので、サーバーでは器の div だけが描かれる。
-const MapViewMapLibre = dynamic(() => import("./components/maplibre/MapViewMapLibre"), {
+const MapView = dynamic(() => import("./components/maplibre/MapViewMapLibre"), {
   ssr: true,
 });
 // 検索パネル（?panel=search のオーバーレイだけで使う）。開くまで 557 行ぶんの JS を初期表示に載せない
@@ -86,7 +82,7 @@ type MapPageClientProps = {
   mapRoute: MapRoute;
   /** 管理画面で保存したマップ動作フラグ（未指定なら既定値） */
   featureFlags?: MapFeatureFlags;
-  /** 管理画面で保存したマップの可動範囲（未指定なら既定値。MapLibre 版でのみ効く） */
+  /** 管理画面で保存したマップの可動範囲（未指定なら既定値） */
   mapViewSettings?: MapViewSettings;
 };
 
@@ -100,14 +96,6 @@ export default function MapPageClient({
   featureFlags,
   mapViewSettings,
 }: MapPageClientProps) {
-  // 描画ライブラリの選択（管理画面の設定に URL の ?mapFlags=renderer:maplibre を重ねる）
-  const MapView = useMemo(() => {
-    const resolved = resolveMapFeatureFlags(
-      featureFlags,
-      typeof window === "undefined" ? "" : window.location.search
-    );
-    return resolved.renderer === "maplibre" ? MapViewMapLibre : MapViewLeaflet;
-  }, [featureFlags]);
   const showGrandma = false;
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -309,14 +297,14 @@ export default function MapPageClient({
   }, []);
 
   const dragControls = useDragControls();
-  const [mapInstance, setMapInstance] = useState<LeafletMap | null>(null);
+  const [mapInstance, setMapInstance] = useState<MapCamera | null>(null);
   // ShopScanCards のカードがタップされたときに、詳細バナーを開くよう地図へ渡す要求。
   // 同じ店を続けてタップしても開き直せるよう token を進める
   const [focusShopRequest, setFocusShopRequest] = useState<{ shopId: number; token: number } | null>(null);
   const handleScanCardSelect = useCallback((shop: Shop) => {
     setFocusShopRequest((prev) => ({ shopId: shop.id, token: (prev?.token ?? 0) + 1 }));
   }, []);
-  const mapRef = useRef<LeafletMap | null>(null);
+  const mapRef = useRef<MapCamera | null>(null);
   const introFocusTimerRef = useRef<number | null>(null);
   const [searchMarkerPayload, setSearchMarkerPayload] = useState<{
     ids: number[];
@@ -432,7 +420,7 @@ export default function MapPageClient({
       lng: event.location.lng,
     }));
   }, [showGrandma]);
-  const handleMapInstance = useCallback((map: LeafletMap) => {
+  const handleMapInstance = useCallback((map: MapCamera) => {
     mapRef.current = map;
     setMapInstance(map);
   }, []);
@@ -696,7 +684,7 @@ export default function MapPageClient({
   // 他のモード（検索・AI相談・店舗バナー・パネル表示中）ではボタンを出さない
   const nearbySuppressed =
     !!nearbyState || hasSearchMode || hasAiMode || isShopBannerOpen || guideActive || introOpen;
-  // 回転のみのジェスチャーは Leaflet の move/zoom を発火させないため、
+  // 回転のみのジェスチャーは move/zoom を発火させないことがあるため、
   // MapView から素通しで受け取ってボタンの静止判定に反映する
   const [isMapGestureActive, setIsMapGestureActive] = useState(false);
   const nearbyButtonVisible = useNearbyPromptVisibility({
@@ -965,8 +953,7 @@ export default function MapPageClient({
 
             {/* 地図を動かしているあいだだけ、屋台マーカーの上に写真と名前を重ねる。
                 静止時は地図の絵を優先し、探しているときだけ情報を前に出す。
-                出るのは MapLibre 版だけ（Leaflet 版は回転シェルの中の座標が返るため。
-                ShopScanCards の先頭コメント参照）で、判定は中で行っている */}
+                出すかどうかの判定は中で行っている */}
             <ShopScanCards
               map={mapInstance}
               shops={shops}

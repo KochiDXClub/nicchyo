@@ -133,7 +133,6 @@ export default function MapViewRangeClient() {
 
   const [settings, setSettings] = useState<MapViewSettings>(DEFAULT_MAP_VIEW_SETTINGS);
   const [route, setRoute] = useState<MapRoute | null>(null);
-  const [renderer, setRenderer] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ kind: "ok" | "error"; text: string } | null>(null);
@@ -173,7 +172,6 @@ export default function MapViewRangeClient() {
         }
         setSettings(json.settings as MapViewSettings);
         setRoute(json.route as MapRoute);
-        setRenderer(typeof json.renderer === "string" ? json.renderer : null);
       } catch {
         if (!aborted) setMessage({ kind: "error", text: "設定を読み込めませんでした" });
       } finally {
@@ -377,14 +375,6 @@ export default function MapViewRangeClient() {
 
   return (
     <div className="space-y-4">
-      {renderer && renderer !== "maplibre" ? (
-        <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[13px] text-amber-900">
-          いまの描画ライブラリは <strong>{renderer}</strong> です。この表示範囲が効くのは MapLibre
-          版の描画だけなので、来訪者のマップに反映するには「設定」で描画ライブラリを maplibre
-          にしてください（?mapFlags=renderer:maplibre でも確かめられます）。
-        </p>
-      ) : null}
-
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
         {/* 地図 */}
         <div className="relative h-[520px] overflow-hidden rounded-xl border border-slate-200 bg-slate-50">

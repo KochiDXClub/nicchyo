@@ -2,10 +2,9 @@
  * 地図のカメラ操作の共通インターフェース
  *
  * ページ側の部品（「このへん、なにがある？」の出現判定、ズームスライダー、施設案内の
- * flyTo など）は、Leaflet の Map に直接依存せずこのインターフェースだけを使う。
- * - Leaflet 版: L.Map がそのまま構造的に満たす
- * - MapLibre 版: MapViewMapLibre がアダプタを作る。ズーム値は Leaflet 換算（MapLibre は
- *   512px タイル基準で 1 小さいので、アダプタ内で足し引きする）に揃える
+ * flyTo など）は、地図ライブラリに直接依存せずこのインターフェースだけを使う。
+ * MapViewMapLibre がアダプタを作る。ズーム値は Leaflet 時代の基準に換算する
+ * （MapLibre は 512px タイル基準で 1 小さいので、アダプタ内で足し引きする）
  */
 
 import type { Map as MapLibreMap } from "maplibre-gl";
@@ -41,11 +40,6 @@ export interface MapCamera {
   on(event: MapCameraEvent, handler: (...args: any[]) => void): unknown;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   off(event: MapCameraEvent, handler: (...args: any[]) => void): unknown;
-}
-
-/** Leaflet の Map 本体かどうか（Leaflet 専用レイヤーを載せてよいかの判定に使う） */
-export function isLeafletMap(camera: MapCamera | null | undefined): boolean {
-  return !!camera && typeof (camera as unknown as { addLayer?: unknown }).addLayer === "function";
 }
 
 /** MapLibre 版のアダプタが、生の maplibregl.Map を持ち回るためのキー */

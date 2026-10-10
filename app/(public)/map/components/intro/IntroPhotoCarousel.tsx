@@ -1,0 +1,66 @@
+'use client';
+
+/**
+ * IntroPhotoCarousel
+ *
+ * 「はじめての方へ」の先頭に置く、日曜市の写真のスライド。
+ * 3秒ごとに次の写真へ重ねて切り替え、最後まで行ったら最初に戻って回り続ける。
+ * 動きを減らす設定の人には自動で切り替えない（1枚目のまま。WCAG 2.2.2）。
+ * タブが裏にあるあいだは切り替えを止める。
+ *
+ * children は写真の上（左下）に重ねて出す。写真が変わっても読めるよう、
+ * 写真全体を少し暗くし、文字には影を付ける。
+ *
+ * 写真を差し替えるときは INTRO_PHOTOS だけを直す。
+ */
+
+import { useEffect, useState, type ReactNode } from 'react';
+import Image from 'next/image';
+import { useReducedMotion } from 'framer-motion';
+import { cn } from '@/lib/utils/cn';
+
+const INTRO_PHOTOS = [
+  { src: '/images/intro/sunday-market-otepia-overview.webp', alt: 'オーテピア前から高知城へ向かって屋台が並ぶ日曜市' },
+  { src: '/images/intro/sunday-market-street-crowd.webp', alt: '屋台のあいだを人が行き交う日曜市' },
+  { src: '/images/intro/sunday-market-street-stalls.webp', alt: '並木の下に屋台が続く日曜市の通り' },
+] as const;
+
+const INTERVAL_MS = 3000;
+
+export default function IntroPhotoCarousel({ children }: { children?: ReactNode }) {
+  const reduceMotion = useReducedMotion();
+  const [index, setIndex] = useState(0);
+
+  useEffect(() => {
+    if (reduceMotion) return;
+    const timer = window.setInterval(() => {
+      if (document.hidden) return;
+      setIndex((i) => (i + 1) % INTRO_PHOTOS.length);
+    }, INTERVAL_MS);
+    return () => window.clearInterval(timer);
+  }, [reduceMotion]);
+
+  return (
+    <div className="relative aspect-[2/1] w-full overflow-hidden rounded-card bg-nicchyo-ink/5">
+      {INTRO_PHOTOS.map((photo, i) => (
+        <Image
+          key={photo.src}
+          src={photo.src}
+          alt={photo.alt}
+          fill
+          priority={i === 0}
+          sizes="(min-width: 768px) 620px, 100vw"
+          aria-hidden={i !== index}
+          className={cn(
+            'object-cover',
+            !reduceMotion && 'transition-opacity duration-700 ease-in-out',
+            i === index ? 'opacity-100' : 'opacity-0'
+          )}
+        />
+      ))}
+      {children && (
+        <div className="absolute inset-0 flex items-end bg-nicchyo-ink/25 p-4 md:p-6">{children}</div>
+      )}
+    </div>
+  );
+}
