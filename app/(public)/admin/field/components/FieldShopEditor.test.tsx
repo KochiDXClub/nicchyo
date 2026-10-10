@@ -32,17 +32,21 @@ const baseShop = {
   photo_use_allowed: true,
   listing_consented_on: "2026-10-04",
   listing_consent_note: null,
-  store_number: null,
+  store_number: null as number | null,
+  chome: null as number | null,
+  chome_locked: false,
   updated_at: "2026-10-04T00:00:00.000Z",
 };
 
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status });
 
 describe("FieldShopEditor", () => {
+  let currentShop: typeof baseShop = baseShop;
   const calls: { url: string; method: string; body?: unknown }[] = [];
 
   beforeEach(() => {
     calls.length = 0;
+    currentShop = baseShop;
     vi.stubGlobal(
       "fetch",
       vi.fn(async (url: string, init?: RequestInit) => {
@@ -53,7 +57,7 @@ describe("FieldShopEditor", () => {
         if (url.endsWith("/location")) return json({ locations: [], current: { storeNumber: 12, lat: 33.5, lng: 133.5 } });
         if (url.includes("/categories")) return json({ categories: [] });
         if (method === "PATCH") return json({ ok: true });
-        return json({ shop: baseShop });
+        return json({ shop: currentShop });
       }),
     );
   });
@@ -72,6 +76,39 @@ describe("FieldShopEditor", () => {
     await waitFor(() => expect(calls.some((c) => c.method === "PATCH")).toBe(true));
     const patch = calls.find((c) => c.method === "PATCH")!;
     expect((patch.body as { updated_at: string }).updated_at).toBe("2026-10-05T00:00:00.000Z");
+  });
+
+  it("写真は「撮る」（カメラ）と「選ぶ」（端末の写真）の別の入口にする", async () => {
+    const { container } = render(<FieldShopEditor shopId={baseShop.id} />);
+    await screen.findByDisplayValue("はなや");
+    expect(screen.getByText("写真を撮る")).toBeTruthy();
+    expect(screen.getByText("写真を選ぶ")).toBeTruthy();
+    const inputs = [...container.querySelectorAll('input[type="file"]')];
+    expect(inputs.map((i) => i.getAttribute("capture"))).toEqual(["environment", null]);
+  });
+
+  it("丁目は、位置を保存するまで選べない", async () => {
+    render(<FieldShopEditor shopId={baseShop.id} />);
+    await screen.findByDisplayValue("はなや");
+    expect((screen.getByLabelText("日曜市の丁目") as HTMLSelectElement).disabled).toBe(true);
+  });
+
+  it("丁目は、変えたときだけ保存に送る（開いただけの保存では送らない）", async () => {
+    currentShop = { ...baseShop, store_number: 12, chome: 3 };
+    render(<FieldShopEditor shopId={baseShop.id} />);
+    const nameInput = (await screen.findByDisplayValue("はなや")) as HTMLInputElement;
+    const select = screen.getByLabelText("日曜市の丁目") as HTMLSelectElement;
+    expect(select.value).toBe("3");
+
+    fireEvent.change(nameInput, { target: { value: "はなや本店" } });
+    fireEvent.click(await screen.findByRole("button", { name: "内容を保存" }));
+    await waitFor(() => expect(calls.filter((c) => c.method === "PATCH")).toHaveLength(1));
+    expect(calls.find((c) => c.method === "PATCH")!.body).not.toHaveProperty("chome");
+
+    fireEvent.change(screen.getByLabelText("日曜市の丁目"), { target: { value: "5" } });
+    fireEvent.click(await screen.findByRole("button", { name: "内容を保存" }));
+    await waitFor(() => expect(calls.filter((c) => c.method === "PATCH")).toHaveLength(2));
+    expect(calls.filter((c) => c.method === "PATCH")[1].body).toMatchObject({ chome: 5 });
   });
 
   it("位置の保存に成功しても、未保存のフォーム入力は消えない", async () => {

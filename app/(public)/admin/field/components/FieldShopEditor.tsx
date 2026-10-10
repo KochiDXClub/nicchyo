@@ -19,6 +19,7 @@ import { createStoreImages, imageErrorMessage } from "@/lib/image/clientCompress
 import { LISTING_STATUS_LABELS, LISTING_STATUSES, type AdminShopDetail, type ListingStatus } from "@/lib/admin/shopEdit";
 import { PAYMENT_OPTIONS, RAIN_OPTIONS, TIME_OPTIONS } from "@/lib/vendor/storeOptions";
 import { isEndAfterStart } from "@/lib/vendor/businessHours";
+import { CHOMES, type ChomeId } from "@/lib/map/chomes";
 import { LocationPicker, type FieldLocation, type LatLng } from "./LocationPicker";
 
 type Category = { id: string; name: string };
@@ -42,6 +43,8 @@ type FormState = {
   photo_use_allowed: boolean;
   listing_consented_on: string;
   listing_consent_note: string;
+  /** 日曜市の丁目（"" は選んでいない）。区画に保存する */
+  chome: string;
 };
 
 function toForm(shop: AdminShopDetail): FormState {
@@ -64,6 +67,7 @@ function toForm(shop: AdminShopDetail): FormState {
     photo_use_allowed: shop.photo_use_allowed,
     listing_consented_on: shop.listing_consented_on ?? "",
     listing_consent_note: shop.listing_consent_note ?? "",
+    chome: shop.chome != null ? String(shop.chome) : "",
   };
 }
 
@@ -216,7 +220,12 @@ export function FieldShopEditor({ shopId }: { shopId: string }) {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         // 開いたあとにほかの人が更新していたら、サーバーが断る（上書きしない）
-        body: JSON.stringify({ ...toPayload(form), updated_at: shop?.updated_at ?? null }),
+        body: JSON.stringify({
+          ...toPayload(form),
+          // 丁目は変えたときだけ送る（送ると手で設定した扱いになるため、開いただけの保存では送らない）
+          ...(form.chome !== "" && Number(form.chome) !== shop.chome ? { chome: Number(form.chome) as ChomeId } : {}),
+          updated_at: shop?.updated_at ?? null,
+        }),
       });
       if (!res.ok) throw new Error((await readError(res, "保存できませんでした")).message);
       showToast.success("保存しました");
@@ -371,27 +380,38 @@ export function FieldShopEditor({ shopId }: { shopId: string }) {
         </Field>
       </Card>
 
-      <Card title="店舗の写真" hint={form.photo_use_allowed ? undefined : "写真を使う許可をもらってから撮影・登録します（上の「写真の掲載も許可をもらった」にチェック → 保存）。"}>
+      <Card title="店舗の写真" hint={form.photo_use_allowed ? undefined : "写真を使う許可をもらってから、撮影するか端末の写真から選んで登録します（上の「写真の掲載も許可をもらった」にチェック → 保存）。"}>
         {shop.shop_image_url ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={shop.shop_image_url} alt={`${shop.shop_name}の写真`} className="max-h-64 w-full rounded-lg border border-line object-contain" />
         ) : (
           <p className="text-sm text-nicchyo-ink/40">まだ写真がありません</p>
         )}
-        <label className={`${buttonClass} w-full cursor-pointer bg-amber-500 text-white ${!shop.photo_use_allowed || photoBusy ? "pointer-events-none opacity-50" : ""}`}>
-          {photoBusy ? "保存しています…" : "写真を撮る・選ぶ"}
-          <input
-            type="file"
-            accept="image/*"
-            capture="environment"
-            className="sr-only"
-            disabled={!shop.photo_use_allowed || photoBusy}
-            onChange={(e) => {
-              void uploadPhoto(e.target.files?.[0]);
-              e.target.value = "";
-            }}
-          />
-        </label>
+        {/* 撮る（カメラを起動）と、選ぶ（端末の写真から）は別の入口にする */}
+        <div className="grid grid-cols-2 gap-2">
+          {[
+            { key: "camera", label: "写真を撮る", capture: "environment" as const },
+            { key: "library", label: "写真を選ぶ", capture: undefined },
+          ].map((entry) => (
+            <label
+              key={entry.key}
+              className={`${buttonClass} cursor-pointer bg-amber-500 text-white ${!shop.photo_use_allowed || photoBusy ? "pointer-events-none opacity-50" : ""}`}
+            >
+              {photoBusy ? "保存しています…" : entry.label}
+              <input
+                type="file"
+                accept="image/*"
+                capture={entry.capture}
+                className="sr-only"
+                disabled={!shop.photo_use_allowed || photoBusy}
+                onChange={(e) => {
+                  void uploadPhoto(e.target.files?.[0]);
+                  e.target.value = "";
+                }}
+              />
+            </label>
+          ))}
+        </div>
         {!shop.photo_use_allowed ? <p className="text-[13px] text-amber-700">保存済みの設定で写真の許可がありません</p> : null}
       </Card>
 
@@ -409,6 +429,24 @@ export function FieldShopEditor({ shopId }: { shopId: string }) {
             ))}
           </select>
         </Field>
+        <Field label="日曜市の丁目">
+          <select
+            value={form.chome}
+            onChange={(e) => update("chome", e.target.value)}
+            disabled={shop.store_number == null}
+            className={inputClass}
+          >
+            <option value="">{shop.store_number == null ? "位置を保存すると選べます" : "未設定"}</option>
+            {CHOMES.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+        </Field>
+        <p className="text-[13px] text-nicchyo-ink/55">
+          {shop.chome_locked ? "手で設定した丁目です。地図編集の自動判定では変わりません。" : "選ぶと、手で設定した丁目になります。"}
+        </p>
         <Field label="店主のお名前">
           <input value={form.owner_name} onChange={(e) => update("owner_name", e.target.value)} maxLength={100} className={inputClass} />
         </Field>

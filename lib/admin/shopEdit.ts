@@ -8,6 +8,7 @@
 import { todayJstString } from "@/lib/time/jstDate";
 import { isEndAfterStart, parseTime } from "@/lib/vendor/businessHours";
 import { PAYMENT_OPTIONS, RAIN_OPTIONS } from "@/lib/vendor/storeOptions";
+import type { ChomeId } from "@/lib/map/chomes";
 
 export const LISTING_STATUSES = ["pending", "allowed", "declined"] as const;
 export type ListingStatus = (typeof LISTING_STATUSES)[number];
@@ -64,6 +65,10 @@ export type AdminShopDetail = Pick<ShopEditFields, "shop_name" | "listing_status
     category_name: string | null;
     owner_name: string | null;
     store_number: number | null;
+    /** 配置している区画の日曜市の丁目（1〜7）。区画が無い・読めないときは null */
+    chome: number | null;
+    /** 丁目を手で設定した区画か（true なら位置からの自動判定で上書きされない） */
+    chome_locked: boolean;
     updated_at: string | null;
   };
 
@@ -71,6 +76,8 @@ export type ShopEditParsed = {
   vendor: ShopEditUpdate;
   /** vendor_owner_profiles に書く。undefined なら触らない */
   ownerName?: string | null;
+  /** 配置している区画の丁目を手で設定する（market_locations に書く）。undefined なら触らない */
+  chome?: ChomeId;
 };
 
 export type ShopEditResult =
@@ -141,6 +148,7 @@ export function parseShopEdit(body: unknown): ShopEditResult {
 
   const vendor: ShopEditUpdate = {};
   let ownerName: string | null | undefined;
+  let chome: ChomeId | undefined;
 
   if ("shop_name" in body) {
     const name = textOrNull(body.shop_name, MAX_NAME);
@@ -270,8 +278,14 @@ export function parseShopEdit(body: unknown): ShopEditResult {
     ownerName = name;
   }
 
-  if (Object.keys(vendor).length === 0 && ownerName === undefined) return fail("更新する項目がありません");
+  if ("chome" in body) {
+    const value = body.chome;
+    if (typeof value !== "number" || !Number.isInteger(value) || value < 1 || value > 7) return fail("丁目は1〜7から選んでください");
+    chome = value as ChomeId;
+  }
 
-  return { ok: true, value: { vendor, ownerName } };
+  if (Object.keys(vendor).length === 0 && ownerName === undefined && chome === undefined) return fail("更新する項目がありません");
+
+  return { ok: true, value: { vendor, ownerName, chome } };
 }
 
