@@ -2,7 +2,7 @@
 
 /**
  * 右側の操作部品: 縦ズームスライダーと現在地追従ボタン。
- * 地図には MapCamera（types/mapCamera.ts）経由でだけ触るので、Leaflet 版と MapLibre 版で共用できる。
+ * 地図には MapCamera（types/mapCamera.ts）経由でだけ触るので、地図ライブラリに依存しない。
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";

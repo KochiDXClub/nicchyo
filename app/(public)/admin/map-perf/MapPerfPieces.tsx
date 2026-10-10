@@ -52,7 +52,6 @@ export function flagsSummary(flags: Record<string, string | boolean> | null | un
     backgroundOverlay: "bg",
     tileOpacityByZoom: "tile",
     shopLayerHiding: "hide",
-    renderer: "renderer",
     basemap: "basemap",
   };
   return Object.entries(flags)
