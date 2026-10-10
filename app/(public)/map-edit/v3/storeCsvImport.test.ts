@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { latToMeters } from "../../map/utils/mapRouteGeometry";
 import { defaultImportRoads, normalizeChome, parseStoreCsv, planStoreImport, STORE_CSV_HEADERS } from "./storeCsvImport";
+import type { ChomeRange } from "@/lib/map/chomeBoundaries";
 import type { EditableRoad, EditableShop, EditableVendor } from "./types";
 
 // 西 → 東へ描いた追手筋と、北 → 南へ描いた大橋通り
@@ -28,7 +29,7 @@ const categories = [{ id: "c-veg", name: "食材" }];
 
 const csv = (lines: string[]) => "﻿" + [STORE_CSV_HEADERS.join(","), ...lines].join("\r\n") + "\r\n";
 
-function plan(text: string, extra: { shops?: EditableShop[]; vendors?: EditableVendor[]; replace?: boolean; deleteVendors?: boolean; roads?: Partial<{ northSouth: EditableRoad | null; ohashi: EditableRoad | null }> } = {}) {
+function plan(text: string, extra: { shops?: EditableShop[]; vendors?: EditableVendor[]; replace?: boolean; deleteVendors?: boolean; roads?: Partial<{ northSouth: EditableRoad | null; ohashi: EditableRoad | null }>; chomeRanges?: ChomeRange[] } = {}) {
   const parsed = parseStoreCsv(text);
   return planStoreImport({
     rows: parsed.rows,
@@ -37,6 +38,7 @@ function plan(text: string, extra: { shops?: EditableShop[]; vendors?: EditableV
     vendors: extra.vendors ?? [],
     categories,
     roads: { northSouth: otesuji, ohashi, ...extra.roads },
+    chomeRanges: extra.chomeRanges,
     replace: extra.replace ?? false,
     deleteVendors: extra.deleteVendors,
     now: 1,
@@ -88,6 +90,22 @@ describe("planStoreImport", () => {
     const lng = (n: number) => shops.find((s) => s.officialNumber === n)!.lng;
     expect(lng(2)).toBeLessThan(lng(3));
     expect(lng(3)).toBeLessThan(lng(1));
+  });
+
+  it("丁目の区間が分かれば、区画をその丁目の区間の中に西から並べる", () => {
+    // 道の長さは約930m。西端から 0〜200m が六丁目、600〜930m が一丁目
+    const chomeRanges: ChomeRange[] = [
+      { chomeId: 6, roadId: "main", startM: 0, endM: 200 },
+      { chomeId: 1, roadId: "main", startM: 600, endM: 930 },
+    ];
+    const result = plan(csv(["2,,一丁目,北,,,", "3,,一丁目,北,,,", "455,,六丁目,北,,,", "456,,六丁目,北,,,"]), { chomeRanges });
+    const shops = result.next!.shops;
+    const dist = (n: number) => shops.find((s) => s.officialNumber === n)!.roadDistanceM!;
+    expect(dist(456)).toBeGreaterThan(0);
+    expect(dist(455)).toBeLessThan(200);
+    expect(dist(456)).toBeLessThan(dist(455)); // 番号の大きい方が西
+    expect(dist(2)).toBeGreaterThan(600);
+    expect(dist(3)).toBeLessThan(dist(2));
   });
 
   it("同じ丁目の中は番号の大きい方が西になる", () => {

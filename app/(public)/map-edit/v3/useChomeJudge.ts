@@ -3,6 +3,7 @@ import {
   buildChomeRanges,
   judgeChome,
   type ChomeBoundary,
+  type ChomeRange,
   type ChomeJudgement,
   type ChomeSection,
 } from "@/lib/map/chomeBoundaries";
@@ -19,12 +20,13 @@ export function useChomeJudge(
   roads: EditableRoad[],
   boundaries: ChomeBoundary[],
   sections: ChomeSection[]
-): { judge: JudgeChome; problems: string[] } {
+): { judge: JudgeChome; ranges: ChomeRange[]; problems: string[] } {
   return useMemo(() => {
     const roadPoints = new Map(roads.map((road) => [road.id, road.points.map((p) => ({ lat: p.lat, lng: p.lng }))]));
     const { ranges, projections, problems } = buildChomeRanges(roadPoints, boundaries, sections);
     return {
       judge: (roadId, distanceM) => judgeChome(ranges, projections, { roadId, distanceM }),
+      ranges,
       problems,
     };
   }, [roads, boundaries, sections]);
