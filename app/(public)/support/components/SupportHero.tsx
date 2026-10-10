@@ -4,7 +4,10 @@ import { useEffect, useState, type CSSProperties } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { motion, useReducedMotion } from "framer-motion";
+import { ArrowRight } from "lucide-react";
+import { buttonClass } from "@/components/ui";
 import { CONSULT_CHARACTERS } from "@/app/(public)/consult/data/consultCharacters";
+import { CountUp } from "./SupportMotion";
 
 /**
  * ページの入口
@@ -14,8 +17,8 @@ import { CONSULT_CHARACTERS } from "@/app/(public)/consult/data/consultCharacter
  * どこまで支えていただけているか）を最初に置く。スクロールしなくても判断に
  * 必要な数字が揃っている状態にしておく。
  *
- * 動きはここに集中させる。見出しが1行ずつ上から落ちてくるところがこのページで
- * いちばん派手な瞬間で、それ以外は Reveal の控えめな浮き上がりだけにする。
+ * 見出しが1行ずつ上から落ちてきて、人が両脇から歩いてきて、数字が数え上がる。
+ * このページでいちばん賑やかな瞬間はここ。後ろの暖色もゆっくり呼吸させておく。
  */
 
 /**
@@ -157,17 +160,25 @@ function HeroCharacter({
 }
 
 type SupportHeroProps = {
-  monthlyLabel: string;
-  /** これまでにいただいた総額 */
-  totalReceivedLabel: string;
-  runwayLabel: string;
+  /** 毎月の運営費（円） */
+  monthlyJpy: number;
+  /** 未確定の費目が残っているか。残っていれば「以上」を付ける */
+  hasPending: boolean;
+  /** これまでにいただいた総額（円） */
+  totalReceivedJpy: number;
+  /** ご支援でまかなえている月数 */
+  runway: number;
   totalMonths: number;
 };
 
+/** 3つの数字が出てくる時刻（秒）。数え始めをこれに合わせる */
+const FIGURES_DELAY = 0.5;
+
 export default function SupportHero({
-  monthlyLabel,
-  totalReceivedLabel,
-  runwayLabel,
+  monthlyJpy,
+  hasPending,
+  totalReceivedJpy,
+  runway,
   totalMonths,
 }: SupportHeroProps) {
   const prefersReducedMotion = useReducedMotion();
@@ -219,8 +230,16 @@ export default function SupportHero({
 
   return (
     <section className="relative isolate overflow-hidden">
-      {/* 地の色から立ち上がる暖色。境目を作らないよう下端でベース色に溶かす */}
-      <div className="absolute inset-0 -z-10 bg-[radial-gradient(120%_90%_at_82%_0%,#FDECC8_0%,rgba(253,236,200,0)_58%)]" />
+      {/*
+        地の色から立ち上がる暖色。境目を作らないよう下端でベース色に溶かす。
+        右上を起点にゆっくり膨らんで縮む。動かすのは拡大だけにしてあり、
+        ずらすと端に色の無い帯が出る
+      */}
+      <motion.div
+        className="absolute inset-0 -z-10 origin-top-right bg-[radial-gradient(120%_90%_at_82%_0%,#FDECC8_0%,rgba(253,236,200,0)_58%)]"
+        animate={prefersReducedMotion ? undefined : { scale: [1, 1.12, 1], opacity: [1, 0.85, 1] }}
+        transition={{ duration: 9, ease: "easeInOut", repeat: Infinity }}
+      />
       <div className="absolute inset-0 -z-10 bg-gradient-to-b from-amber-50/70 via-nicchyo-base/40 to-nicchyo-base" />
 
       <div className="mx-auto grid max-w-[64rem] items-center gap-8 px-6 pb-14 pt-12 sm:px-8 lg:grid-cols-[1.25fr_0.75fr] lg:gap-12 lg:pb-20 lg:pt-16">
@@ -270,7 +289,7 @@ export default function SupportHero({
             余計な縦線が出る）ので、1つずつ指定する。
           */}
           <motion.dl
-            {...fadeUp(0.5)}
+            {...fadeUp(FIGURES_DELAY)}
             className="mt-9 grid max-w-[34rem] grid-cols-2 border-y border-nicchyo-ink/10 sm:grid-cols-3"
           >
             <div className="border-r border-nicchyo-ink/10 py-4 pr-4 sm:pr-5">
@@ -278,7 +297,11 @@ export default function SupportHero({
                 毎月の運営費
               </dt>
               <dd className="mt-1.5 text-[1.35rem] font-bold leading-none tabular-nums sm:text-[1.45rem]">
-                {monthlyLabel}
+                <CountUp
+                  value={monthlyJpy}
+                  suffix={hasPending ? "円以上" : "円"}
+                  delay={FIGURES_DELAY}
+                />
               </dd>
             </div>
             <div className="py-4 pl-4 sm:border-r sm:border-nicchyo-ink/10 sm:pl-5 sm:pr-5">
@@ -286,7 +309,7 @@ export default function SupportHero({
                 これまでのご支援
               </dt>
               <dd className="mt-1.5 text-[1.35rem] font-bold leading-none tabular-nums sm:text-[1.45rem]">
-                {totalReceivedLabel}
+                <CountUp value={totalReceivedJpy} suffix="円" delay={FIGURES_DELAY + 0.08} />
               </dd>
             </div>
             <div className="col-span-2 border-t border-nicchyo-ink/10 py-4 sm:col-span-1 sm:border-t-0 sm:pl-5">
@@ -294,7 +317,12 @@ export default function SupportHero({
                 支えていただいている期間
               </dt>
               <dd className="mt-1.5 text-[1.35rem] font-bold leading-none tabular-nums sm:text-[1.45rem]">
-                {runwayLabel}
+                <CountUp
+                  value={runway}
+                  decimals={1}
+                  suffix="ヶ月"
+                  delay={FIGURES_DELAY + 0.16}
+                />
                 <span className="ml-1.5 text-[12px] font-bold text-nicchyo-ink/35">
                   / {totalMonths}ヶ月
                 </span>
@@ -308,9 +336,13 @@ export default function SupportHero({
           >
             <Link
               href="/contact?category=sponsor"
-              className="inline-flex items-center justify-center rounded-2xl bg-nicchyo-ink px-7 py-3.5 text-[14.5px] font-bold text-white shadow-[0_6px_16px_-6px_rgba(58,58,58,0.55)] transition hover:bg-nicchyo-ink/90 active:scale-[0.99]"
+              className={buttonClass({ variant: "ink", size: "lg", className: "group shadow-pop" })}
             >
               協賛のご相談
+              <ArrowRight
+                className="h-4 w-4 transition group-hover:translate-x-0.5 motion-reduce:group-hover:translate-x-0"
+                aria-hidden
+              />
             </Link>
             <a
               href="#costs"

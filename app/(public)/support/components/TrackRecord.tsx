@@ -11,7 +11,13 @@ import { ACTIVITY_CATEGORY_STYLES, getActivitiesSortedDesc } from "@/app/data/ac
  *
  * 要約はここには出さない。判断に要るのは「いつ・何を・どの種類か」までで、
  * 中身は記事側にある。
+ *
+ * 並べるのは新しい順に数件だけ。全部並べるとこの節だけで画面がいくつも埋まり、
+ * 支援の話が遠のく。残りは末尾のリンクから記録の一覧へ送る。
  */
+
+/** このページに並べる件数 */
+const VISIBLE_COUNT = 4;
 
 /** "2026年3月17日" → "2026.03"。読めない形なら空文字 */
 function toYearMonth(japaneseDate: string): string {
@@ -22,7 +28,7 @@ function toYearMonth(japaneseDate: string): string {
 }
 
 export default function TrackRecord() {
-  const activities = getActivitiesSortedDesc();
+  const activities = getActivitiesSortedDesc().slice(0, VISIBLE_COUNT);
 
   return (
     <div>
@@ -45,7 +51,7 @@ export default function TrackRecord() {
                 {activity.title}
               </span>
               <ArrowUpRight
-                className="mt-1 h-3.5 w-3.5 shrink-0 text-nicchyo-ink/20 transition group-hover:text-nicchyo-ink/50"
+                className="mt-1 h-3.5 w-3.5 shrink-0 text-nicchyo-ink/20 transition group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-nicchyo-ink/50 motion-reduce:group-hover:translate-x-0 motion-reduce:group-hover:translate-y-0"
                 aria-hidden
               />
             </Link>

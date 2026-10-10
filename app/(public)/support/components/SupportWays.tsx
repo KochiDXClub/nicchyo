@@ -1,5 +1,7 @@
 import Link from "next/link";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, Check } from "lucide-react";
+import Reveal from "@/components/Reveal";
+import { buttonClass } from "@/components/ui";
 import { formatJpy } from "../costs";
 
 /**
@@ -14,6 +16,8 @@ import { formatJpy } from "../costs";
  * 面の色を変えてあるのは、額の大小ではなく性質の違いを示すため。
  * 組織は掲載枠と期間のある取り決め、個人はお気持ちのご支援。
  * どちらが上ということはないので、大きさと構造は完全に同じにしている。
+ *
+ * 説明は1項目1文までに留める。ここは読み物ではなく、2つを見比べて選ぶ場所。
  */
 
 type Offer = {
@@ -41,15 +45,15 @@ const SPONSOR_OFFERS: Offer[] = [
   },
   {
     title: "支えていただいた分を、図でお示しします",
-    body: "ご希望に応じて、上の図にご協賛ぶんの色がつきます。何ヶ月ぶんを支えていただいているかが、そのまま見える形になります。",
+    body: "ご希望に応じて、上の図にご協賛ぶんの色がつきます。",
   },
   {
     title: "マップへのご紹介",
-    body: "ご希望に応じて、日曜市の周辺で立ち寄れる場所として、マップにご紹介いたします。",
+    body: "ご希望に応じて、日曜市の周辺で立ち寄れる場所としてご紹介いたします。",
   },
   {
     title: "ご紹介の効果を、数字でご確認いただけます",
-    body: "アカウントをお作りいたします。ご紹介した場所を何人がご覧になり、そのうち何人が実際にお越しになったかを、いつでもご確認いただけます。個人が特定される情報は含みません。",
+    body: "専用のアカウントで、ご覧になった方とお越しになった方の数をいつでもご確認いただけます。個人が特定される情報は含みません。",
   },
   {
     title: "更新のご相談",
@@ -61,15 +65,15 @@ const SPONSOR_OFFERS: Offer[] = [
 const INDIVIDUAL_OFFERS: Offer[] = [
   {
     title: "お名前の掲載",
-    body: "ご希望の方は「ご支援くださった皆さま」にお名前を掲載いたします。ニックネームでも構いません。",
+    body: "ご希望の方は「ご支援くださった皆さま」に掲載いたします。ニックネームでも構いません。",
   },
   {
     title: "金額は表に出しません",
-    body: "おいくらいただいたかは掲載いたしません。お名前は、金額の多少にかかわらず同じ大きさで並べております。",
+    body: "お名前は、金額の多少にかかわらず同じ大きさで並べております。",
   },
   {
     title: "掲載に期限はありません",
-    body: "一度いただいたお名前は、期限を切らずに掲載し続けます。取り下げをご希望の際は、いつでも承ります。",
+    body: "取り下げをご希望の際は、いつでも承ります。",
   },
 ];
 
@@ -82,15 +86,20 @@ type SupportWaysProps = {
   individualSupporterCount: number;
 };
 
-function OfferList({ offers, dotClassName }: { offers: Offer[]; dotClassName: string }) {
+function OfferList({ offers, markClassName }: { offers: Offer[]; markClassName: string }) {
   return (
-    <ul className="mt-6 space-y-4">
+    <ul className="mt-6 space-y-3.5">
       {offers.map((offer) => (
-        <li key={offer.title} className="flex gap-3.5">
-          <span className={`mt-[0.55rem] h-1.5 w-1.5 shrink-0 rounded-full ${dotClassName}`} aria-hidden />
+        <li key={offer.title} className="flex gap-3">
+          <span
+            className={`mt-[0.2rem] grid h-[18px] w-[18px] shrink-0 place-items-center rounded-chip ${markClassName}`}
+            aria-hidden
+          >
+            <Check className="h-3 w-3" strokeWidth={3} />
+          </span>
           <span>
-            <strong className="block text-[14.5px] font-bold">{offer.title}</strong>
-            <span className="mt-1 block text-[13px] leading-[1.95] text-nicchyo-ink/60">
+            <strong className="block text-[14px] font-bold leading-snug">{offer.title}</strong>
+            <span className="mt-0.5 block text-[12.5px] leading-[1.8] text-nicchyo-ink/55">
               {offer.body}
             </span>
           </span>
@@ -100,6 +109,10 @@ function OfferList({ offers, dotClassName }: { offers: Offer[]; dotClassName: st
   );
 }
 
+/** 2枚に共通の形。持ち上がるのは、指やカーソルが乗ったときだけ */
+const CARD_CLASS =
+  "flex h-full flex-col rounded-card p-6 transition duration-300 ease-out-soft hover:-translate-y-1 hover:shadow-lift motion-reduce:transition-none motion-reduce:hover:translate-y-0 sm:p-7";
+
 export default function SupportWays({
   sponsorUnitAnnualJpy,
   sponsorUnitMonths,
@@ -108,76 +121,80 @@ export default function SupportWays({
   return (
     <div className="grid gap-4 lg:grid-cols-2 lg:items-stretch">
       {/* ── 個人の方 ───────────────────────────────────────────── */}
-      <div className="flex flex-col rounded-[22px] bg-white p-6 ring-1 ring-nicchyo-ink/[0.08] sm:p-7">
-        <p className="text-[11px] font-bold tracking-[0.14em] text-nicchyo-ink/40">個人の方</p>
+      <Reveal className="h-full">
+        <div className={`${CARD_CLASS} bg-white ring-1 ring-nicchyo-ink/[0.08]`}>
+          <p className="text-[11px] font-bold tracking-[0.14em] text-nicchyo-ink/40">個人の方</p>
 
-        {/* 金額の位置を組織側とそろえる。ここが横に並ぶことで差が読める */}
-        <p className="mt-4 flex items-baseline gap-2">
-          <span className="text-[1.7rem] font-bold leading-none">お気持ちで</span>
-        </p>
-        <p className="mt-2 text-[12.5px] text-nicchyo-ink/45">
-          金額は問いません
-          {individualSupporterCount > 0 &&
-            `・これまでに ${individualSupporterCount.toLocaleString("ja-JP")}名`}
-        </p>
+          {/* 金額の位置を組織側とそろえる。ここが横に並ぶことで差が読める */}
+          <p className="mt-4 flex items-baseline gap-2">
+            <span className="text-[1.7rem] font-bold leading-none">お気持ちで</span>
+          </p>
+          <p className="mt-2 text-[12.5px] text-nicchyo-ink/45">
+            金額は問いません
+            {individualSupporterCount > 0 &&
+              `・これまでに ${individualSupporterCount.toLocaleString("ja-JP")}名`}
+          </p>
 
-        <OfferList offers={INDIVIDUAL_OFFERS} dotClassName="bg-nicchyo-ink/30" />
+          <OfferList offers={INDIVIDUAL_OFFERS} markClassName="bg-nicchyo-ink/[0.08] text-nicchyo-ink/60" />
 
-        {/* 枠の高さがそろうよう、ボタンは下に寄せる */}
-        <div className="mt-auto pt-7">
-          <Link
-            href="/contact?category=sponsor"
-            className="flex w-full items-center justify-center rounded-2xl bg-nicchyo-ink px-4 py-3.5 text-[14.5px] font-bold text-white shadow-[0_6px_16px_-6px_rgba(58,58,58,0.55)] transition hover:bg-nicchyo-ink/90 active:scale-[0.99]"
-          >
-            ご支援のご相談
-          </Link>
-          <Link
-            href="/support/supporters"
-            className="group mt-3 flex items-center justify-center gap-1.5 text-[12.5px] font-bold text-amber-700 underline-offset-4 transition hover:text-amber-800 hover:underline"
-          >
-            ご支援くださった皆さまを見る
-            <ArrowRight
-              className="h-3.5 w-3.5 transition group-hover:translate-x-0.5"
-              aria-hidden
-            />
-          </Link>
+          {/* 枠の高さがそろうよう、ボタンは下に寄せる */}
+          <div className="mt-auto pt-7">
+            <Link
+              href="/contact?category=sponsor"
+              className={buttonClass({ variant: "ink", size: "lg", className: "w-full" })}
+            >
+              ご支援のご相談
+            </Link>
+            <Link
+              href="/support/supporters"
+              className="group mt-3 flex items-center justify-center gap-1.5 text-[12.5px] font-bold text-amber-700 underline-offset-4 transition hover:text-amber-800 hover:underline"
+            >
+              ご支援くださった皆さまを見る
+              <ArrowRight
+                className="h-3.5 w-3.5 transition group-hover:translate-x-0.5 motion-reduce:group-hover:translate-x-0"
+                aria-hidden
+              />
+            </Link>
+          </div>
         </div>
-      </div>
+      </Reveal>
 
       {/* ── 組織・企業の方 ─────────────────────────────────────── */}
-      <div className="flex flex-col rounded-[22px] bg-amber-50/70 p-6 ring-1 ring-amber-600/15 sm:p-7">
-        <p className="text-[11px] font-bold tracking-[0.14em] text-amber-700">組織・企業の方</p>
+      <Reveal className="h-full" delay={0.12}>
+        <div className={`${CARD_CLASS} bg-amber-50/70 ring-1 ring-amber-600/15`}>
+          <p className="text-[11px] font-bold tracking-[0.14em] text-amber-700">組織・企業の方</p>
 
-        <p className="mt-4 flex items-baseline gap-2">
-          <span className="text-[1.7rem] font-bold leading-none tabular-nums">
-            {sponsorUnitAnnualJpy === null ? "ご相談のうえ" : `1口 ${formatJpy(sponsorUnitAnnualJpy)}`}
-          </span>
-          {sponsorUnitAnnualJpy !== null && (
-            <span className="text-[13px] font-bold text-nicchyo-ink/40">/ 年</span>
-          )}
-        </p>
-        <p className="mt-2 text-[12.5px] tabular-nums text-nicchyo-ink/45">
-          掲載は1年間
-          {sponsorUnitMonths !== null &&
-            `・運営費のおよそ ${sponsorUnitMonths.toFixed(1)}ヶ月分にあたります`}
-        </p>
+          <p className="mt-4 flex items-baseline gap-2">
+            <span className="text-[1.7rem] font-bold leading-none tabular-nums">
+              {sponsorUnitAnnualJpy === null ? "ご相談のうえ" : `1口 ${formatJpy(sponsorUnitAnnualJpy)}`}
+            </span>
+            {sponsorUnitAnnualJpy !== null && (
+              <span className="text-[13px] font-bold text-nicchyo-ink/40">/ 年</span>
+            )}
+          </p>
+          <p className="mt-2 text-[12.5px] tabular-nums text-nicchyo-ink/45">
+            掲載は1年間
+            {sponsorUnitMonths !== null &&
+              `・運営費のおよそ ${sponsorUnitMonths.toFixed(1)}ヶ月分にあたります`}
+          </p>
 
-        <OfferList offers={SPONSOR_OFFERS} dotClassName="bg-amber-600" />
+          <OfferList offers={SPONSOR_OFFERS} markClassName="bg-amber-500 text-white" />
 
-        <div className="mt-auto pt-7">
-          <Link
-            href="/contact?category=sponsor"
-            className="flex w-full items-center justify-center rounded-2xl bg-nicchyo-ink px-4 py-3.5 text-[14.5px] font-bold text-white shadow-[0_6px_16px_-6px_rgba(58,58,58,0.55)] transition hover:bg-nicchyo-ink/90 active:scale-[0.99]"
-          >
-            協賛のご相談
-          </Link>
-          {sponsorUnitAnnualJpy !== null && (
-            <p className="mt-3 text-center text-[12px] leading-relaxed text-nicchyo-ink/40">
-              1口の金額は年に一度見直させていただきます
-            </p>
-          )}
+          <div className="mt-auto pt-7">
+            <Link
+              href="/contact?category=sponsor"
+              className={buttonClass({ variant: "ink", size: "lg", className: "w-full" })}
+            >
+              協賛のご相談
+            </Link>
+            {sponsorUnitAnnualJpy !== null && (
+              <p className="mt-3 text-center text-[12px] leading-relaxed text-nicchyo-ink/40">
+                1口の金額は年に一度見直させていただきます
+              </p>
+            )}
+          </div>
         </div>
-      </div>
+      </Reveal>
     </div>
   );
 }

@@ -1,4 +1,5 @@
 import { ArrowDown, ArrowRight } from "lucide-react";
+import Reveal from "@/components/Reveal";
 import { HANDOVER_NOTE, TEAM_FLOW } from "@/lib/support/team";
 
 /**
@@ -10,7 +11,13 @@ import { HANDOVER_NOTE, TEAM_FLOW } from "@/lib/support/team";
  *
  * 真ん中（運営）だけ面を立てて、両側が外の人だと分かるようにする。
  * 狭い画面では縦に積み、矢印も下向きに差し替える。
+ *
+ * 画面に入ったら、左（上）の列から矢印をはさんで順に現れる。
+ * 流れの向きを、読む前に動きで見せておく。
  */
+
+/** 列と矢印が1つずつ現れる間隔（秒） */
+const STEP_DELAY = 0.12;
 
 export default function TeamStructure() {
   return (
@@ -18,7 +25,8 @@ export default function TeamStructure() {
       <div className="grid gap-3 lg:grid-cols-[1fr_auto_1fr_auto_1fr] lg:items-stretch lg:gap-4">
         {TEAM_FLOW.map((column, index) => (
           <div key={column.key} className="contents">
-            <div
+            <Reveal
+              delay={index * 2 * STEP_DELAY}
               className={
                 column.key === "operate"
                   ? "rounded-[18px] bg-white p-5 shadow-[0_1px_2px_rgba(58,58,58,0.04),0_14px_32px_-26px_rgba(146,64,14,0.5)] ring-1 ring-nicchyo-ink/[0.08]"
@@ -42,14 +50,19 @@ export default function TeamStructure() {
                   </li>
                 ))}
               </ul>
-            </div>
+            </Reveal>
 
             {/* 列と列のあいだ。横並びのときは右向き、縦積みのときは下向き */}
             {index < TEAM_FLOW.length - 1 && (
-              <div className="flex items-center justify-center py-1 lg:py-0" aria-hidden>
-                <ArrowDown className="h-4 w-4 text-nicchyo-ink/25 lg:hidden" />
-                <ArrowRight className="hidden h-4 w-4 text-nicchyo-ink/25 lg:block" />
-              </div>
+              <Reveal
+                delay={(index * 2 + 1) * STEP_DELAY}
+                className="flex items-center justify-center py-1 lg:py-0"
+              >
+                <span aria-hidden>
+                  <ArrowDown className="h-4 w-4 text-amber-600/50 lg:hidden" />
+                  <ArrowRight className="hidden h-4 w-4 text-amber-600/50 lg:block" />
+                </span>
+              </Reveal>
             )}
           </div>
         ))}

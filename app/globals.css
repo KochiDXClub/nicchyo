@@ -1667,6 +1667,52 @@ body.home-poster-zoom-open .hamburger-button {
   }
 }
 
+/* ===== 協賛・ご支援（/support）の常時の動き =====
+   右下の「協賛のご相談」と、メーターの伸びしろ。どちらも止まっていても意味は
+   通じる飾りなので、動きを減らす設定では止める。 */
+
+/* ボタンを横切る光。5秒に一度、最初の1秒ほどで走り抜けて、あとは休む */
+.support-cta__shine {
+  transform: translateX(0) skewX(-20deg);
+  animation: support-cta-shine 5s ease-in-out 1.2s infinite;
+}
+
+@keyframes support-cta-shine {
+  0%        { transform: translateX(0) skewX(-20deg); }
+  22%, 100% { transform: translateX(560%) skewX(-20deg); }
+}
+
+/* アイコンから広がる波紋 */
+.support-cta__ping {
+  animation: support-cta-ping 2.8s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+
+@keyframes support-cta-ping {
+  0%        { transform: scale(1); opacity: 0.75; }
+  70%, 100% { transform: scale(1.75); opacity: 0; }
+}
+
+/* 斜線をゆっくり流す。タイルの1辺（10px の縞 × √2）ぶん動かすと継ぎ目なく戻る */
+.support-ghost-flow {
+  background-size: 14.1421px 14.1421px;
+  animation: support-ghost-flow 2.4s linear infinite;
+}
+
+@keyframes support-ghost-flow {
+  to { background-position: 14.1421px 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .support-cta__shine,
+  .support-cta__ping {
+    display: none;
+  }
+
+  .support-ghost-flow {
+    animation: none;
+  }
+}
+
 /* ===== 印刷 =====
    運営について（/support）は、助成金の申請に添えたり社内で回覧されたりする。
    紙にしたときに、画面用の固定要素と背景が邪魔をしないようにする。 */

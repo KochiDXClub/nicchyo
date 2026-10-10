@@ -5,6 +5,7 @@ import {
   monthlyJpyOf,
   type RunningCost,
 } from "../costs";
+import { CountUp, GrowBar } from "./SupportMotion";
 
 /**
  * 費目の台帳
@@ -15,6 +16,9 @@ import {
  *
  * 主にする数字は月額（円）。円だけを出すと、ドル建ての請求まで固定額に見えるので、
  * 換算前の請求額（$20/月、7,000円/年）を必ず横に添える。レートと基準日は末尾に置く。
+ *
+ * 行の下の細い棒は、合計のうちその費目が占める割合。どこにお金がかかっているかを
+ * 数字を読み比べなくても掴めるようにする。画面に入ったら上の行から順に伸びる。
  */
 
 type CostLedgerProps = {
@@ -42,18 +46,31 @@ export default function CostLedger({
   hasPending,
 }: CostLedgerProps) {
   const usesUsd = costs.some((cost) => cost.currency === "USD" && cost.amount !== null);
+  // 合計に対する割合で伸ばす。未確定の費目しか無いときは棒を出さない
+  const shareOf = (monthly: number | null) =>
+    monthly === null || monthlyTotalJpy <= 0 ? null : monthly / monthlyTotalJpy;
 
   return (
     <div>
       <dl className="border-t border-nicchyo-ink/10">
-        {costs.map((cost) => {
+        {costs.map((cost, index) => {
           const monthly = monthlyJpyOf(cost);
           const source = sourceAmount(cost);
+          const share = shareOf(monthly);
           return (
             <div
               key={cost.label}
-              className="flex items-baseline justify-between gap-6 border-b border-nicchyo-ink/[0.07] py-4"
+              className="relative flex items-baseline justify-between gap-6 border-b border-nicchyo-ink/[0.07] py-4"
             >
+              {share !== null && (
+                <span className="absolute inset-x-0 bottom-[-1px] h-[3px]" aria-hidden>
+                  <GrowBar
+                    ratio={share}
+                    className="rounded-chip bg-amber-500/70"
+                    delay={0.2 + index * 0.08}
+                  />
+                </span>
+              )}
               <dt className="min-w-0">
                 <span className="block text-[15px] font-bold">{cost.label}</span>
                 <span className="mt-1 block text-[12.5px] leading-relaxed text-nicchyo-ink/45">
@@ -87,7 +104,7 @@ export default function CostLedger({
         <span className="text-[12.5px] text-nicchyo-ink/50">合計</span>
         <span className="text-right">
           <span className="block text-[1.7rem] font-bold leading-none tabular-nums">
-            {formatJpy(monthlyTotalJpy)}
+            <CountUp value={monthlyTotalJpy} suffix="円" delay={0.3} />
             {hasPending && <span className="ml-1 text-[15px] text-nicchyo-ink/40">以上</span>}
           </span>
           <span className="mt-1.5 block text-[12.5px] tabular-nums text-nicchyo-ink/45">

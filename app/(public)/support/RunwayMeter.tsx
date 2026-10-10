@@ -1,3 +1,5 @@
+"use client";
+
 /**
  * 1年ぶんの運営費のうち、支援でまかなえている月数を出すメーター
  *
@@ -14,8 +16,13 @@
  * 支援が 0 のあいだ図が空のままだと「動いていない」としか読めないため、
  * 協賛1口ぶんの伸びしろを ghostMonths として斜線で重ねられるようにしてある
  * （金額が決まるまでは呼び出し側が渡さないので、何も出ない）。
+ *
+ * 画面に入ったら、左の月から順に目盛りが立ち上がる。12ヶ月という長さを、
+ * 1ヶ月ずつ数えるように見せるため。斜線の伸びしろは、まだ埋まっていない
+ * ことが伝わるようにゆっくり流しておく（globals.css の support-ghost-flow）。
  */
 
+import { motion, useReducedMotion } from "framer-motion";
 import type { FundingSegment } from "@/lib/support/supporters";
 
 type RunwayMeterProps = {
@@ -30,7 +37,12 @@ type RunwayMeterProps = {
 /** 目盛りに数字を振る位置。全部の月に振ると図が読めなくなるので四半期だけ */
 const TICK_EVERY = 3;
 
+/** 1ヶ月ぶんの目盛りが立ち上がる間隔（秒） */
+const STAGGER = 0.045;
+
 export default function RunwayMeter({ segments, totalMonths, ghostMonths }: RunwayMeterProps) {
+  const prefersReducedMotion = useReducedMotion();
+
   // 各区間の開始・終了を月単位で持つ。目盛りをはみ出したぶんは切る
   let cursor = 0;
   const spans = segments.map((segment) => {
@@ -60,9 +72,18 @@ export default function RunwayMeter({ segments, totalMonths, ghostMonths }: Runw
     >
       <div className="flex gap-[3px]">
         {Array.from({ length: totalMonths }, (_, month) => (
-          <div
+          <motion.div
             key={month}
-            className="relative h-12 flex-1 overflow-hidden rounded-[3px] bg-nicchyo-ink/[0.06]"
+            // 印刷では globals.css が reveal を見て、立ち上がる前の形を戻す
+            className="reveal relative h-12 flex-1 origin-bottom overflow-hidden rounded-[3px] bg-nicchyo-ink/[0.06]"
+            initial={{ opacity: 0, scaleY: 0.2 }}
+            whileInView={{ opacity: 1, scaleY: 1 }}
+            viewport={{ once: true, margin: "0px 0px -10% 0px" }}
+            transition={
+              prefersReducedMotion
+                ? { duration: 0 }
+                : { duration: 0.5, ease: [0.22, 1, 0.36, 1], delay: 0.15 + month * STAGGER }
+            }
           >
             {/* 伸びしろ。塗りの下に敷くので、塗りが増えれば自然に隠れる */}
             {ghostEnd > covered && (() => {
@@ -71,7 +92,7 @@ export default function RunwayMeter({ segments, totalMonths, ghostMonths }: Runw
               if (to <= from) return null;
               return (
                 <div
-                  className="absolute inset-y-0 bg-[repeating-linear-gradient(-45deg,rgba(217,119,6,0.22)_0_5px,rgba(217,119,6,0.06)_5px_10px)]"
+                  className="support-ghost-flow absolute inset-y-0 bg-[repeating-linear-gradient(-45deg,rgba(217,119,6,0.22)_0_5px,rgba(217,119,6,0.06)_5px_10px)]"
                   style={{
                     left: `${(from - month) * 100}%`,
                     width: `${(to - from) * 100}%`,
@@ -102,7 +123,7 @@ export default function RunwayMeter({ segments, totalMonths, ghostMonths }: Runw
                 />
               );
             })}
-          </div>
+          </motion.div>
         ))}
       </div>
 
