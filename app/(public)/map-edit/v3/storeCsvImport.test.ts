@@ -28,7 +28,7 @@ const categories = [{ id: "c-veg", name: "食材" }];
 
 const csv = (lines: string[]) => "﻿" + [STORE_CSV_HEADERS.join(","), ...lines].join("\r\n") + "\r\n";
 
-function plan(text: string, extra: { shops?: EditableShop[]; vendors?: EditableVendor[]; replace?: boolean; roads?: Partial<{ northSouth: EditableRoad | null; ohashi: EditableRoad | null }> } = {}) {
+function plan(text: string, extra: { shops?: EditableShop[]; vendors?: EditableVendor[]; replace?: boolean; deleteVendors?: boolean; roads?: Partial<{ northSouth: EditableRoad | null; ohashi: EditableRoad | null }> } = {}) {
   const parsed = parseStoreCsv(text);
   return planStoreImport({
     rows: parsed.rows,
@@ -38,6 +38,7 @@ function plan(text: string, extra: { shops?: EditableShop[]; vendors?: EditableV
     categories,
     roads: { northSouth: otesuji, ohashi, ...extra.roads },
     replace: extra.replace ?? false,
+    deleteVendors: extra.deleteVendors,
     now: 1,
   });
 }
@@ -155,6 +156,51 @@ describe("planStoreImport", () => {
     expect(result.next!.shops.map((s) => s.locationId)).not.toContain("dummy");
     expect(result.next!.shops[0].position).toBe(1); // 消した区画の店番を使い回す
     expect(result.next!.vendors.map((v) => v.id)).toContain("v-dummy");
+  });
+
+  describe("削除する区画の出店者も削除", () => {
+    const dummyShop: EditableShop = { locationId: "dummy", id: 1, position: 1, name: "仮の店", lat: 0, lng: 0, vendorId: "v-dummy" };
+    const dummyVendor: EditableVendor = { id: "v-dummy", name: "仮の店", categoryId: null, strength: "", mainProducts: [] };
+
+    it("区画を置き換えるときだけ、削除する区画の出店者を出店者ごと消す", () => {
+      const result = plan(csv(["1,,一丁目,北,,,"]), { shops: [dummyShop], vendors: [dummyVendor], replace: true, deleteVendors: true });
+      expect(result).toMatchObject({ deletedSlotCount: 1, deletedVendorCount: 1 });
+      expect(result.next!.vendors.map((v) => v.id)).not.toContain("v-dummy");
+      // CSV から作った出店者は残る
+      expect(result.next!.vendors).toHaveLength(1);
+    });
+
+    it("区画を置き換えない（replace が false）なら、チェックが入っていても出店者を消さない", () => {
+      const result = plan(csv(["1,,一丁目,北,,,"]), { shops: [dummyShop], vendors: [dummyVendor], replace: false, deleteVendors: true });
+      expect(result.deletedVendorCount).toBe(0);
+      expect(result.next!.vendors.map((v) => v.id)).toContain("v-dummy");
+    });
+
+    it("チェックが入っていなければ、これまでどおり出店者は残す", () => {
+      const result = plan(csv(["1,,一丁目,北,,,"]), { shops: [dummyShop], vendors: [dummyVendor], replace: true });
+      expect(result.deletedVendorCount).toBe(0);
+      expect(result.next!.vendors.map((v) => v.id)).toContain("v-dummy");
+    });
+
+    it("同じ店名で新しい区画に割り当て直した出店者は消さない", () => {
+      const result = plan(csv(["1,,一丁目,北,仮の店,,"]), { shops: [dummyShop], vendors: [dummyVendor], replace: true, deleteVendors: true });
+      expect(result).toMatchObject({ reusedVendorCount: 1, deletedVendorCount: 0 });
+      expect(result.next!.vendors.map((v) => v.id)).toEqual(["v-dummy"]);
+    });
+
+    it("消さない区画にいる出店者と、区画にいなかった出店者は消さない", () => {
+      const keptShop: EditableShop = { locationId: "kept", id: 2, position: 2, name: "残る店", lat: 0, lng: 0, vendorId: "v-kept", officialNumber: 1 };
+      const keptVendor: EditableVendor = { id: "v-kept", name: "残る店", categoryId: null, strength: "", mainProducts: [] };
+      const noSlot: EditableVendor = { id: "v-no-slot", name: "区画なしの店", categoryId: null, strength: "", mainProducts: [] };
+      const result = plan(csv(["1,,一丁目,北,残る店,,"]), {
+        shops: [keptShop, dummyShop],
+        vendors: [keptVendor, dummyVendor, noSlot],
+        replace: true,
+        deleteVendors: true,
+      });
+      expect(result.deletedVendorCount).toBe(1);
+      expect(result.next!.vendors.map((v) => v.id).sort()).toEqual(["v-kept", "v-no-slot"]);
+    });
   });
 
   describe("同じ店名の登録済みの出店者", () => {

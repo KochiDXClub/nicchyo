@@ -2,9 +2,12 @@ import { describe, expect, it } from "vitest";
 import { DEFAULT_MAP_ROUTE_CONFIG } from "@/app/(public)/map/types/mapRoute";
 import {
   hasRoadPositionSchema,
+  describeVendors,
   isRouteConfigChanged,
+  loadVendorDeletionTargets,
   planSlotRoadPositions,
   selectRepositionedShops,
+  validateVendorDeletionDraft,
   validateVendorDrafts,
   type EditableShop,
   type EditableVendor,
@@ -222,5 +225,102 @@ describe("hasRoadPositionSchema", () => {
 
   it("それ以外のエラーは握りつぶさずに投げる", async () => {
     await expect(hasRoadPositionSchema(clientReturning({ code: "08006" }))).rejects.toThrow();
+  });
+});
+
+describe("validateVendorDeletionDraft", () => {
+  const A = "11111111-1111-4111-8111-111111111111";
+  const B = "22222222-2222-4222-8222-222222222222";
+  const none = { assignedVendorIds: new Set<string>(), upsertVendorIds: new Set<string>() };
+
+  it("区画に残らない出店者の id なら通る", () => {
+    expect(validateVendorDeletionDraft([A, B], none)).toBeNull();
+  });
+
+  it("配列でない・id が文字列でない・uuid でない・重複している場合は断る", () => {
+    expect(validateVendorDeletionDraft("x", none)).not.toBeNull();
+    expect(validateVendorDeletionDraft([1], none)).not.toBeNull();
+    expect(validateVendorDeletionDraft(["not-a-uuid"], none)).not.toBeNull();
+    expect(validateVendorDeletionDraft(["new-vendor-1"], none)).not.toBeNull();
+    expect(validateVendorDeletionDraft([A, A], none)).not.toBeNull();
+  });
+
+  it("保存後も区画に割り当てられている出店者は消せない", () => {
+    expect(validateVendorDeletionDraft([A], { ...none, assignedVendorIds: new Set([A]) })).toContain("区画に割り当てられている");
+  });
+
+  it("同じ保存で更新する出店者は消せない", () => {
+    expect(validateVendorDeletionDraft([A], { ...none, upsertVendorIds: new Set([A]) })).toContain("更新する出店者");
+  });
+
+  it("1回の保存で削除できる件数に上限がある", () => {
+    const many = Array.from({ length: 501 }, (_, i) => `00000000-0000-4000-8000-${String(i).padStart(12, "0")}`);
+    expect(validateVendorDeletionDraft(many, none)).toContain("500");
+  });
+});
+
+describe("loadVendorDeletionTargets", () => {
+  const A = "11111111-1111-4111-8111-111111111111";
+  const B = "22222222-2222-4222-8222-222222222222";
+  const C = "33333333-3333-4333-8333-333333333333";
+
+  // from(テーブル).select(...).in(...) に、テーブルごとの結果を返す管理用クライアントの代役
+  function fakeClient(tables: Record<string, { data?: unknown[]; error?: unknown }>) {
+    const queried: string[] = [];
+    const client = {
+      from: (table: string) => {
+        queried.push(table);
+        return { select: () => ({ in: async () => ({ data: tables[table]?.data ?? [], error: tables[table]?.error ?? null }) }) };
+      },
+    };
+    return { client: client as never, queried };
+  }
+
+  it("アカウントに紐づく出店者と、ほかの区画に割り当てが残る出店者を見つける", async () => {
+    const { client, queried } = fakeClient({
+      vendors: { data: [{ id: A, shop_name: " 店A " }, { id: B, shop_name: "店B" }, { id: C, shop_name: null }] },
+      shop_members: { data: [{ vendor_id: B }, { vendor_id: B }] },
+      location_assignments: {
+        data: [
+          { vendor_id: A, location_id: "gone" }, // この保存で消える区画への割り当て → 問題なし
+          { vendor_id: C, location_id: "other" }, // ほかの区画に残っている
+        ],
+      },
+    });
+    const result = await loadVendorDeletionTargets(client, [A, B, C], ["gone"]);
+    expect(result).toEqual({
+      existing: [{ id: A, name: "店A" }, { id: B, name: "店B" }, { id: C, name: "" }],
+      withMembers: [B],
+      assignedElsewhere: [C],
+      error: false,
+    });
+    expect(queried.sort()).toEqual(["location_assignments", "shop_members", "vendors"]);
+  });
+
+  it("id が空なら DB を見ない", async () => {
+    const { client, queried } = fakeClient({});
+    expect(await loadVendorDeletionTargets(client, [], [])).toMatchObject({ existing: [], error: false });
+    expect(queried).toEqual([]);
+  });
+
+  it("どれかの読み取りに失敗したら error にして、削除に進ませない", async () => {
+    const { client } = fakeClient({ shop_members: { error: { message: "boom" } } });
+    expect(await loadVendorDeletionTargets(client, [A], [])).toMatchObject({ error: true, withMembers: [] });
+  });
+});
+
+describe("describeVendors", () => {
+  const vendors = [
+    { id: "a1111111-0000-4000-8000-000000000000", name: "店A" },
+    { id: "b2222222-0000-4000-8000-000000000000", name: "" },
+  ];
+
+  it("店名を並べ、名前が空なら id の先頭を出す", () => {
+    expect(describeVendors(vendors.map((v) => v.id), vendors)).toBe("「店A」、「（名前なし b2222222）」");
+  });
+
+  it("多いときは先頭の数件と残りの件数にする", () => {
+    const many = Array.from({ length: 7 }, (_, i) => ({ id: `id-${i}`, name: `店${i}` }));
+    expect(describeVendors(many.map((v) => v.id), many)).toBe("「店0」、「店1」、「店2」、「店3」、「店4」 ほか 2 件");
   });
 });

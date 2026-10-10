@@ -21,6 +21,7 @@ import type { Map as MapLibreMap, Marker as MapLibreMarker, GeoJSONSource } from
 import type { MapSpot } from '@/lib/spots';
 import type { LatLng } from '@/lib/facilities/geo';
 import { getMapLibreMap, type MapCamera } from '../types/mapCamera';
+import { escapeHtml } from '../utils/markerHtmlGenerator';
 
 export type GuideRouteLine = {
   id: string;
@@ -37,13 +38,6 @@ type GuideLayerProps = {
   onSelectSpot?: (spot: MapSpot) => void;
 };
 
-const escapeHtml = (value: string) =>
-  value
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
-
 /** 施設の印の HTML。案内パネルのデモ（IntroOdekakeDemo）も同じものを使う */
 export function buildFacilityMarkerHtml(spot: MapSpot, isSelected: boolean): string {
   const size = isSelected ? 52 : 40;
@@ -54,7 +48,7 @@ export function buildFacilityMarkerHtml(spot: MapSpot, isSelected: boolean): str
     return `
       <div class="facility-marker ${stateClass}">
         <div class="facility-marker__pin facility-marker__pin--icon" style="width: ${size}px; height: ${size}px;">
-          <img src="${spot.iconUrl}" alt="" width="${size}" height="${size}" draggable="false" />
+          <img src="${escapeHtml(spot.iconUrl)}" alt="" width="${size}" height="${size}" draggable="false" />
         </div>
         <div class="facility-marker__label">${escapeHtml(spot.name)}</div>
       </div>

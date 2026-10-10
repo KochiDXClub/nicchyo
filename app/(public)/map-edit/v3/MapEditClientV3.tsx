@@ -558,7 +558,7 @@ export default function MapEditClientV3() {
                 if (!plan.next) return;
                 ops.applyStoreImport(
                   plan.next,
-                  `出店者CSVを取り込み（区画 新規${plan.createdSlotCount}・更新${plan.updatedSlotCount}・削除${plan.deletedSlotCount}）`
+                  `出店者CSVを取り込み（区画 新規${plan.createdSlotCount}・更新${plan.updatedSlotCount}・削除${plan.deletedSlotCount}${plan.deletedVendorCount > 0 ? `／出店者 削除${plan.deletedVendorCount}` : ""}）`
                 );
                 setIsImportOpen(false);
                 setSelection(null);

@@ -41,7 +41,7 @@ function useLingeringPose(pose: GrandmaPose): GrandmaPose {
  * 「答えがあるかどうか」ではない。アプリの状態で勝手に縮むと、
  * なぜ縮んだのかが利用者に分からず、話し相手が急に遠ざかったように見える。
  */
-export type GrandmaAvatarSize = "hero" | "pinned";
+export type GrandmaAvatarSize = "hero" | "compact" | "pinned";
 
 const SIZE_CLASS: Record<GrandmaAvatarSize, string> = {
   // 縦の短い端末（iPhone SE など）では、候補ボタン3つが下端固定の
@@ -58,6 +58,8 @@ const SIZE_CLASS: Record<GrandmaAvatarSize, string> = {
   // 自動では追従しない。下端バーの実高さや候補ボタンの数・大きさを
   // 変えるときは、この値も一緒に見直すこと。
   hero: "h-[168px] w-[168px] [@media(min-height:700px)]:h-[200px] [@media(min-height:700px)]:w-[200px] [@media(min-width:768px)_and_(min-height:700px)]:h-[240px] [@media(min-width:768px)_and_(min-height:700px)]:w-[240px]",
+  // 下から出るシートなど、高さに余裕のない場所の中で、画面の主役として置く大きさ
+  compact: "h-[128px] w-[128px]",
   // 固定バーに常駐する取っ手。大きさは変えず、出入りだけさせる
   pinned: "h-[64px] w-[64px] md:h-[72px] md:w-[72px]",
 };
