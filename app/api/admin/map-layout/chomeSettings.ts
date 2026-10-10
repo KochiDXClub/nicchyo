@@ -8,7 +8,7 @@ import type { ChomeBoundary, ChomeSection } from "@/lib/map/chomeBoundaries";
 const UNDEFINED_TABLE_CODES: ReadonlySet<string> = new Set(["42P01", "PGRST205"]);
 
 /**
- * 丁目の境目と区間（20261005110000）。マイグレーション前の DB ではテーブルが無いので、空で返す
+ * 丁目の境目と区間（20261010110000）。マイグレーション前の DB ではテーブルが無いので、空で返す
  * （そのあいだ、画面は丁目の自動判定をせず、従来どおり近くの区画に合わせる）。
  */
 export async function loadChomeSettings(supabase: ReturnType<typeof createServerClient>): Promise<{

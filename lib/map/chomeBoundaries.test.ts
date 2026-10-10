@@ -7,7 +7,7 @@ import {
   type ChomeSection,
 } from "./chomeBoundaries";
 
-// 20261005110000_create_chome_boundaries.sql の初期値と同じ
+// 20261010110000_create_chome_boundaries.sql の初期値と同じ
 const boundaries: ChomeBoundary[] = [
   { id: "E", name: "駅前電車通り", lat: 33.562196, lng: 133.543152, confidence: "confirmed" },
   { id: "B1", name: "廿代通り", lat: 33.562119, lng: 133.541219, confidence: "needs_review" },

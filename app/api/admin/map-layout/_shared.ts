@@ -56,8 +56,8 @@ const UNDEFINED_COLUMN = "42703";
  * Preview や、リリース直後でマイグレーションの承認待ちの間は、アプリだけが新しくなって
  * 列がまだ無いことがある。その間も画面は開けるようにし、保存と移行処理だけを止める。
  * 同じマイグレーションで save_map_layout 等の関数も作るので、列があれば関数もある。
- * 丁目の手動設定（chome_locked、20261005110000）も同じ確認に含める。保存の関数がその列を書くため
- * （20261005120000）、列だけが無い状態で保存すると失敗する。
+ * 丁目の手動設定（chome_locked、20261010110000）も同じ確認に含める。保存の関数がその列を書くため
+ * （20261010120000）、列だけが無い状態で保存すると失敗する。
  */
 export async function hasRoadPositionSchema(supabase: ReturnType<typeof createServerClient>): Promise<boolean> {
   const { error } = await supabase.from("market_locations").select("road_id, official_number, chome_locked").limit(1);

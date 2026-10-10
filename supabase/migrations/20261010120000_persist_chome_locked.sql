@@ -1,6 +1,6 @@
 -- 丁目の自動判定 (3/4): 手で設定した丁目（chome_locked）を、保存・復元で保てるようにする。
 --
--- 20261005110000 で market_locations.chome_locked を足した。保存（save_map_layout）と
+-- 20261010110000 で market_locations.chome_locked を足した。保存（save_map_layout）と
 -- スナップショットの復元（restore_map_layout_snapshot）が、その値を一緒に書き込む。
 -- 関数の中身は 20261001100000 のものに、chome_locked の書き込みだけを足したもの
 -- （区画の更新・追加・復元の3か所）。ほかの処理は変えていない。
