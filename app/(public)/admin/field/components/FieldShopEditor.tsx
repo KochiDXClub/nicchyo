@@ -13,9 +13,11 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { showToast } from "@/lib/admin/toast";
-import { Surface } from "@/components/ui";
 import { MAX_SHOP_ID, MIN_SHOP_ID } from "@/lib/shops/route";
 import { createStoreImages, imageErrorMessage } from "@/lib/image/clientCompression";
+import { Card, Field, buttonClass, inputClass } from "./fieldFormParts";
+import { FieldProductsCard, type ProductRow } from "./FieldProductsCard";
+import { useProductPhotos } from "./useProductPhotos";
 import { LISTING_STATUS_LABELS, LISTING_STATUSES, type AdminShopDetail, type ListingStatus } from "@/lib/admin/shopEdit";
 import { PAYMENT_OPTIONS, RAIN_OPTIONS, TIME_OPTIONS } from "@/lib/vendor/storeOptions";
 import { isEndAfterStart } from "@/lib/vendor/businessHours";
@@ -23,7 +25,6 @@ import { CHOMES, type ChomeId } from "@/lib/map/chomes";
 import { LocationPicker, type FieldLocation, type LatLng } from "./LocationPicker";
 
 type Category = { id: string; name: string };
-type ProductRow = { name: string; price: string };
 
 type FormState = {
   shop_name: string;
@@ -98,30 +99,6 @@ function toPayload(form: FormState) {
   };
 }
 
-const inputClass =
-  "w-full rounded-lg border border-line bg-white px-3 py-3 text-base text-nicchyo-ink placeholder:text-nicchyo-ink/40 focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-200";
-const buttonClass =
-  "inline-flex min-h-12 items-center justify-center rounded-lg px-4 py-3 text-base font-semibold disabled:opacity-50";
-
-function Card({ title, hint, children }: { title: string; hint?: string; children: React.ReactNode }) {
-  return (
-    <Surface as="section" padding="sm">
-      <h2 className="text-base font-bold text-nicchyo-ink">{title}</h2>
-      {hint ? <p className="mt-1 text-[13px] text-nicchyo-ink/55">{hint}</p> : null}
-      <div className="mt-3 space-y-3">{children}</div>
-    </Surface>
-  );
-}
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <label className="block">
-      <span className="mb-1 block text-[13px] font-medium text-nicchyo-ink/70">{label}</span>
-      {children}
-    </label>
-  );
-}
-
 async function readError(res: Response, fallback: string): Promise<{ message: string; code?: string }> {
   try {
     const data = (await res.json()) as { error?: string; code?: string };
@@ -140,6 +117,7 @@ export function FieldShopEditor({ shopId }: { shopId: string }) {
   const [dirty, setDirty] = useState(false);
 
   const [photoBusy, setPhotoBusy] = useState(false);
+  const { productPhotoBusy, uploadProductPhoto, removeProductPhoto } = useProductPhotos(shopId, setShop);
   const [locations, setLocations] = useState<FieldLocation[]>([]);
   const [storeNumber, setStoreNumber] = useState("");
   const [pin, setPin] = useState<LatLng | null>(null);
@@ -462,44 +440,16 @@ export function FieldShopEditor({ shopId }: { shopId: string }) {
         </Field>
       </Card>
 
-      <Card title="売っているもの" hint="主な商品と価格（価格は分からなければ空欄でよい）">
-        {form.products.map((p, i) => (
-          <div key={i} className="grid grid-cols-[1fr_6rem_auto] items-end gap-2">
-            <Field label={i === 0 ? "商品名" : ""}>
-              <input
-                value={p.name}
-                onChange={(e) => update("products", form.products.map((row, j) => (j === i ? { ...row, name: e.target.value } : row)))}
-                maxLength={60}
-                className={inputClass}
-              />
-            </Field>
-            <Field label={i === 0 ? "価格(円)" : ""}>
-              <input
-                value={p.price}
-                inputMode="numeric"
-                onChange={(e) => update("products", form.products.map((row, j) => (j === i ? { ...row, price: e.target.value } : row)))}
-                className={inputClass}
-              />
-            </Field>
-            <button
-              type="button"
-              aria-label={`${p.name || "この行"}を削除`}
-              onClick={() => update("products", form.products.filter((_, j) => j !== i))}
-              className={`${buttonClass} border border-line bg-white text-nicchyo-ink/70`}
-            >
-              ✕
-            </button>
-          </div>
-        ))}
-        <button
-          type="button"
-          disabled={form.products.length >= 50}
-          onClick={() => update("products", [...form.products, { name: "", price: "" }])}
-          className={`${buttonClass} w-full border border-dashed border-nicchyo-ink/40 bg-white text-nicchyo-ink/70`}
-        >
-          ＋ 商品を追加
-        </button>
-      </Card>
+      <FieldProductsCard
+        products={form.products}
+        onChange={(products) => update("products", products)}
+        savedNames={shop.main_products ?? []}
+        productImages={shop.product_images}
+        photoUseAllowed={shop.photo_use_allowed}
+        busyName={productPhotoBusy}
+        onUploadPhoto={(name, file) => void uploadProductPhoto(name, file)}
+        onRemovePhoto={(name) => void removeProductPhoto(name)}
+      />
 
       <Card title="出店の情報">
         <div className="grid grid-cols-2 gap-2">

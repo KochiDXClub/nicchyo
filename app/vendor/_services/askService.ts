@@ -105,9 +105,11 @@ export async function fetchAskSnapshot(
     ownerName: owner?.owner_name ?? undefined,
     ownerNamePublic: owner?.is_public ?? false,
     // 「商品」ページだけで登録した人にも、商品名を補って見せる
-    products: (mainProducts.length > 0 ? mainProducts : products.map((item) => item.name)).map(
-      (name) => ({ name, price: prices[name] ?? null })
-    ),
+    products: (mainProducts.length > 0 ? mainProducts : products.map((item) => item.name)).map((name) => ({
+      name,
+      price: prices[name] ?? null,
+      imageUrl: products.find((item) => item.name === name)?.image_url ?? undefined,
+    })),
     schedule: (vendor.schedule as string[] | null) ?? [],
     snsX: vendor.sns_x ?? undefined,
     businessHoursStart: vendor.business_hours_start ?? undefined,
@@ -206,6 +208,28 @@ async function findSignatureProductId(supabase: SupabaseClient, vendorId: string
   return (await findSignatureProduct(supabase, vendorId))?.id ?? null;
 }
 
+/**
+ * 商品の写真ファイル（product-<商品id>.*）を Storage から消す。keepPath は残すファイル。
+ * 消せなくても保存自体は成功させたいので、失敗は握りつぶす（容量が少し残るだけ）
+ */
+async function removeProductImageFiles(
+  supabase: SupabaseClient,
+  vendorId: string,
+  productId: string,
+  keepPath?: string
+): Promise<void> {
+  try {
+    const { data: files } = await supabase.storage.from("vendor-images").list(vendorId);
+    const stale = (files ?? [])
+      .filter((file) => file.name.startsWith(`product-${productId}.`))
+      .map((file) => `${vendorId}/${file.name}`)
+      .filter((existing) => existing !== keepPath);
+    if (stale.length > 0) await supabase.storage.from("vendor-images").remove(stale);
+  } catch {
+    // 消せなかった写真は残るが、商品の行から外れているので表には出ない
+  }
+}
+
 async function uploadProductImage(
   supabase: SupabaseClient,
   vendorId: string,
@@ -221,18 +245,8 @@ async function uploadProductImage(
     .upload(path, blob, { contentType, upsert: true });
   if (error) throw error;
 
-  // 形式が変わったとき（jpg → webp など）に前の写真が残らないよう、同じ商品の古いファイルを消す。
-  // 消せなくても保存自体は成功させたいので、失敗は握りつぶす
-  try {
-    const { data: files } = await supabase.storage.from("vendor-images").list(vendorId);
-    const stale = (files ?? [])
-      .filter((file) => file.name.startsWith(`product-${productId}.`))
-      .map((file) => `${vendorId}/${file.name}`)
-      .filter((existing) => existing !== path);
-    if (stale.length > 0) await supabase.storage.from("vendor-images").remove(stale);
-  } catch {
-    // 容量が少し残るだけ
-  }
+  // 形式が変わったとき（jpg → webp など）に前の写真が残らないよう、同じ商品の古いファイルを消す
+  await removeProductImageFiles(supabase, vendorId, productId, path);
 
   // 同じ名前で上書きしても、ブラウザが古い写真を出し続けないよう版を付ける
   const { data } = supabase.storage.from("vendor-images").getPublicUrl(path);
@@ -303,6 +317,101 @@ async function saveSignature(
     signature_product_name: trimmed,
     ...(mainProducts.includes(trimmed) ? {} : { main_products: [...mainProducts, trimmed] }),
   });
+}
+
+type ProductItem = Extract<AskAnswer, { id: "products" }>["items"][number];
+
+/**
+ * 主な商品（名前・値段・写真）を保存する。名前と値段は vendors に、写真は products テーブルの
+ * 同じ名前の商品に置く（看板商品と同じ決まり）。写真は WebP に変換して vendor-images に保存する。
+ * 一覧から外した商品は、写真を外し、説明や旬を持たない行は products からも消す（そのままだと、全部外したあとに商品名だけ復活する）
+ */
+async function saveProducts(supabase: SupabaseClient, vendorId: string, items: ProductItem[]): Promise<void> {
+  const [vendorResult, rowsResult] = await Promise.all([
+    supabase.from("vendors").select("main_products, signature_product_name").eq("id", vendorId).single(),
+    supabase.from("products").select("id, name, image_url, description").eq("vendor_id", vendorId),
+  ]);
+  if (vendorResult.error) throw vendorResult.error;
+  if (rowsResult.error) throw rowsResult.error;
+  const rows = (rowsResult.data ?? []) as { id: string; name: string; image_url: string | null; description: string | null }[];
+  const mainProducts = (vendorResult.data?.main_products as string[] | null) ?? [];
+  const signatureName = (vendorResult.data?.signature_product_name as string | null)?.trim();
+
+  for (const item of items) {
+    if (item.imageFile === undefined) continue;
+    const existing = rows.find((row) => row.name === item.name);
+
+    if (item.imageFile === null) {
+      if (!existing?.image_url) continue;
+      const { error } = await supabase
+        .from("products")
+        .update({ image_url: null, updated_at: new Date().toISOString() })
+        .eq("id", existing.id)
+        .eq("vendor_id", vendorId);
+      if (error) throw error;
+      await removeProductImageFiles(supabase, vendorId, existing.id);
+      continue;
+    }
+
+    let productId = existing?.id;
+    if (!productId) {
+      const { data, error } = await supabase
+        .from("products")
+        .insert({ vendor_id: vendorId, name: item.name })
+        .select("id")
+        .single();
+      if (error || !data) throw error ?? new Error("商品を登録できませんでした。");
+      productId = data.id as string;
+    }
+    const imageUrl = await uploadProductImage(supabase, vendorId, productId, item.imageFile);
+    const { error } = await supabase
+      .from("products")
+      .update({ image_url: imageUrl, updated_at: new Date().toISOString() })
+      .eq("id", productId)
+      .eq("vendor_id", vendorId);
+    if (error) throw error;
+  }
+
+  const prices: Record<string, number | null> = {};
+  for (const item of items) prices[item.name] = item.price;
+  // 一覧の保存を先にする。掃除はそのあとにするので、保存に失敗したときに、一覧に残る商品の行が消えていることがない
+  await updateVendor(supabase, vendorId, {
+    main_products: items.map((item) => item.name),
+    main_product_prices: prices,
+  });
+
+  // 画面に出ていた商品（主な商品が空のときは products の商品）のうち、一覧から外したもの。
+  // 看板商品は別の質問で決めたものなので残す。画面に出ていなかった行には触らない
+  const kept = new Set(items.map((item) => item.name));
+  const shown = new Set(mainProducts.length > 0 ? mainProducts : rows.map((row) => row.name));
+  const removed = rows.filter((row) => shown.has(row.name) && !kept.has(row.name) && row.name !== signatureName);
+  if (removed.length === 0) return;
+
+  // 説明や旬は「マイショップ」の画面で登録するもので、行を消すと一緒に消える（product_seasons は on delete cascade）。
+  // それらを持つ行は残して写真だけ外し、何も持たない行（写真のために作った行など）だけ消す
+  const { data: seasonRows, error: seasonError } = await supabase
+    .from("product_seasons")
+    .select("product_id")
+    .in("product_id", removed.map((row) => row.id));
+  if (seasonError) throw seasonError;
+  const withSeason = new Set(((seasonRows ?? []) as { product_id: string }[]).map((row) => row.product_id));
+
+  for (const row of removed) {
+    if (row.description?.trim() || withSeason.has(row.id)) {
+      if (row.image_url) {
+        const { error } = await supabase
+          .from("products")
+          .update({ image_url: null, updated_at: new Date().toISOString() })
+          .eq("id", row.id)
+          .eq("vendor_id", vendorId);
+        if (error) throw error;
+      }
+    } else {
+      const { error } = await supabase.from("products").delete().eq("id", row.id).eq("vendor_id", vendorId);
+      if (error) throw error;
+    }
+    await removeProductImageFiles(supabase, vendorId, row.id);
+  }
 }
 
 /** 1つの質問の回答を保存する。weekDate は「今週」の日曜（YYYY-MM-DD） */
@@ -389,14 +498,8 @@ export async function saveAskAnswer(
       if (error) throw error;
       return;
     }
-    case "products": {
-      const prices: Record<string, number | null> = {};
-      for (const item of answer.items) prices[item.name] = item.price;
-      return updateVendor(supabase, vendorId, {
-        main_products: answer.items.map((item) => item.name),
-        main_product_prices: prices,
-      });
-    }
+    case "products":
+      return saveProducts(supabase, vendorId, answer.items);
     case "schedule":
       return updateVendor(supabase, vendorId, { schedule: answer.items });
     case "rain":

@@ -7,6 +7,8 @@ vi.mock("next/link", () => ({ default: ({ children }: { children: React.ReactNod
 vi.mock("@/lib/admin/toast", () => ({ showToast: { success: vi.fn(), error: vi.fn() } }));
 vi.mock("@/lib/image/clientCompression", () => ({
   createStoreImages: async () => ({ mainBlob: new Blob(["m"]), thumbBlob: new Blob(["t"]) }),
+  resizeImageToBlob: async () => new Blob(["p"]),
+  STORE_IMAGE_CONFIG: { main: {} },
   imageErrorMessage: (_e: unknown, fallback: string) => fallback,
 }));
 
@@ -18,8 +20,9 @@ const baseShop = {
   owner_name: null,
   strength: null,
   style: null,
-  main_products: [],
-  main_product_prices: {},
+  main_products: [] as string[],
+  main_product_prices: {} as Record<string, number | null>,
+  product_images: {} as Record<string, string>,
   business_hours_start: null,
   business_hours_end: null,
   payment_methods: [],
@@ -51,6 +54,9 @@ describe("FieldShopEditor", () => {
       vi.fn(async (url: string, init?: RequestInit) => {
         const method = init?.method ?? "GET";
         calls.push({ url, method, body: typeof init?.body === "string" ? JSON.parse(init.body) : init?.body });
+        if (url.endsWith("/product-image")) {
+          return json(method === "DELETE" ? { ok: true } : { ok: true, name: "トマト", url: "https://x.supabase.co/tomato.webp" });
+        }
         if (url.endsWith("/image")) return json({ ok: true, url: "https://x.supabase.co/img.webp", updated_at: "2026-10-05T00:00:00.000Z" });
         if (url.endsWith("/location") && method === "PUT") return json({ ok: true });
         if (url.endsWith("/location")) return json({ locations: [], current: { storeNumber: 12, lat: 33.5, lng: 133.5 } });
@@ -84,6 +90,45 @@ describe("FieldShopEditor", () => {
     expect(screen.getByText("写真を選ぶ")).toBeTruthy();
     const inputs = [...container.querySelectorAll('input[type="file"]')];
     expect(inputs.map((i) => i.getAttribute("capture"))).toEqual(["environment", null]);
+  });
+
+  it("保存済みの商品には写真を登録できる。商品名と写真をサーバーに送る", async () => {
+    currentShop = { ...baseShop, main_products: ["トマト"], main_product_prices: { トマト: 300 } };
+    render(<FieldShopEditor shopId={baseShop.id} />);
+    const input = (await screen.findByLabelText("トマトの写真を選ぶ")) as HTMLInputElement;
+    expect(input.disabled).toBe(false);
+
+    fireEvent.change(input, { target: { files: [new File(["x"], "t.jpg", { type: "image/jpeg" })] } });
+
+    await waitFor(() => expect(calls.some((c) => c.url.endsWith("/product-image"))).toBe(true));
+    const post = calls.find((c) => c.url.endsWith("/product-image"))!;
+    expect(post.method).toBe("POST");
+    expect((post.body as FormData).get("name")).toBe("トマト");
+    expect(await screen.findByLabelText("トマトの写真を変える")).toBeTruthy();
+  });
+
+  it("まだ保存していない商品や、写真の許可がない店舗では、写真を登録できない", async () => {
+    currentShop = { ...baseShop, main_products: ["トマト"], main_product_prices: {} };
+    const { unmount } = render(<FieldShopEditor shopId={baseShop.id} />);
+    await screen.findByLabelText("トマトの写真を選ぶ");
+    fireEvent.click(screen.getByRole("button", { name: "＋ 商品を追加" }));
+    const inputs = [...document.querySelectorAll<HTMLInputElement>('input[type="file"][aria-label$="の写真を選ぶ"]')];
+    expect(inputs.map((i) => i.disabled)).toEqual([false, true]);
+    unmount();
+
+    currentShop = { ...baseShop, main_products: ["トマト"], photo_use_allowed: false };
+    render(<FieldShopEditor shopId={baseShop.id} />);
+    expect(((await screen.findByLabelText("トマトの写真を選ぶ")) as HTMLInputElement).disabled).toBe(true);
+  });
+
+  it("商品の写真を外すと、DELETE で商品名を送る", async () => {
+    currentShop = { ...baseShop, main_products: ["トマト"], product_images: { トマト: "https://x.supabase.co/tomato.webp" } };
+    render(<FieldShopEditor shopId={baseShop.id} />);
+    fireEvent.click(await screen.findByRole("button", { name: "トマトの写真を外す" }));
+
+    await waitFor(() => expect(calls.some((c) => c.method === "DELETE")).toBe(true));
+    expect(calls.find((c) => c.method === "DELETE")!.body).toEqual({ name: "トマト" });
+    await waitFor(() => expect(screen.queryByRole("button", { name: "トマトの写真を外す" })).toBeNull());
   });
 
   it("丁目は、位置が未記録でも選べる", async () => {
