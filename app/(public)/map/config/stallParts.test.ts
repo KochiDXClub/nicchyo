@@ -40,15 +40,17 @@ describe("generateStallSpriteSvg", () => {
       expect(without).toMatch(/d="M(8|12),28 /);
       expect(withPhoto).not.toMatch(/d="M(8|12),28 /);
       // 縁飾りはひさしの濃淡を交互に使う
-      const fringe = withPhoto.match(/<path d="M[\d.]+,27 H[\d.]+ V30 A[^"]*" fill="[^"]*"\/>/g) ?? [];
+      const fringe = withPhoto.match(/<path d="M[\d.]+,26\.5 H[\d.]+ V30 A[^"]*" fill="[^"]*"\/>/g) ?? [];
       expect(fringe).toHaveLength(7);
       expect(fringe[0]).toContain(`fill="${colors.awningStripe}"`);
       expect(fringe[1]).toContain(`fill="${colors.awningBase}"`);
-      expect(without).not.toMatch(/,27 H[\d.]+ V30 A/);
+      expect(without).not.toMatch(/,26\.5 H[\d.]+ V30 A/);
     }
     const svg = generateStallSpriteSvg(resolveStallParts(), { ...colors, photo }, size);
-    expect(svg).toContain('v6 h-7.7');
-    expect(svg).not.toContain('v12 h-7.7');
+    expect(svg).toContain("M18,88 h7.7 v6 h-7.7 Z");
+    expect(svg).not.toContain("v12 h-7.7");
+    // 写真の切り抜き（STALL_BODY_RECT）と本体の輪郭が同じ範囲
+    expect(svg).toContain('<clipPath id="stall-body-clip"><path d="M16,27 H84 A6,6 0 0 1 90,33 V82 A6,6 0 0 1 84,88 H16');
     const r = STALL_BODY_RECT;
     expect(svg).toContain(`x="${r.x}" y="${r.y}" width="${r.width}" height="${r.height}"`);
     // 縮めた屋根の下辺（y≈28〜29）の内側から、短い脚の付け根（y=88）まで写真にする

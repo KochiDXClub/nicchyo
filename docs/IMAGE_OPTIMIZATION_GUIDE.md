@@ -23,7 +23,7 @@
 
 ## 既存のサムネイルを作り直す
 
-サムネイルの大きさ（`STORE_IMAGE_CONFIG.thumbnail`）を変えたら、保存済みの店舗写真のサムネイルも作り直す。`store-main.webp` から作り直し、既に十分な大きさのものは飛ばすので、何度実行してもよい。`.env.local` に `NEXT_PUBLIC_SUPABASE_URL` と `SUPABASE_SERVICE_ROLE_KEY` が要る。
+サムネイルの大きさ（`STORE_IMAGE_CONFIG.thumbnail`）を変えたら、保存済みの店舗写真のサムネイルも作り直す。今の店舗写真（`store-main.*`）から `store-thumb.webp` だけを作り直し、メイン画像・DB・ほかのファイルには触らない（店舗写真が `store-main.*` でない未移行の店は飛ばす）。既に十分な大きさのものも飛ばすので、何度実行してもよい。`.env.local` に `NEXT_PUBLIC_SUPABASE_URL` と `SUPABASE_SERVICE_ROLE_KEY` が要る。
 
 ```bash
 npm run migrate:vendor-images -- --refresh-thumbs --dry-run   # 何が作り直されるかだけ見る

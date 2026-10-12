@@ -179,6 +179,9 @@ export default function SearchResultsSheet({
                       src={imageUrl}
                       alt=""
                       className="h-full w-full object-cover"
+                      // シートは閉じていても描かれているので、見えるまで読み込まない（サムネイルは長辺 400px）
+                      loading="lazy"
+                      decoding="async"
                       draggable={false}
                       onError={(e) => {
                         const fallback = getShopPreviewImage(shop);

@@ -136,31 +136,6 @@ const BODY_PATH =
 const COUNTER_PATH =
   "M16,54 H84 A4,4 0 0 1 88,58 V68 A4,4 0 0 1 84,72 H16 A4,4 0 0 1 12,68 V58 A4,4 0 0 1 16,54 Z";
 const LEGS_PATH = "M18,82 h7.7 v12 h-7.7 Z M46.2,82 h7.7 v12 h-7.7 Z M74.3,82 h7.7 v12 h-7.7 Z";
-/** 写真入りの屋台の本体（STALL_BODY_RECT と同じ範囲）・短い脚・薄い影 */
-const PHOTO_BODY_PATH =
-  "M16,27 H84 A6,6 0 0 1 90,33 V82 A6,6 0 0 1 84,88 H16 A6,6 0 0 1 10,82 V33 A6,6 0 0 1 16,27 Z";
-const PHOTO_LEGS_PATH = "M18,88 h7.7 v6 h-7.7 Z M46.2,88 h7.7 v6 h-7.7 Z M74.3,88 h7.7 v6 h-7.7 Z";
-const PHOTO_SHADOW = { cy: 94, ry: 4 } as const;
-
-/**
- * 写真入りの屋台の、屋根の下辺に垂らす縁飾り（のれんの裾のような波形）。
- * ひさしを外した代わりに、屋根の下を小さな半円で区切って屋台らしさを残す。
- * 濃淡を交互に塗るので、ひさしの縞（awningBase / awningStripe）の色がここに出る。
- * 上端は屋根に隠れ、見えるのは屋根の下辺（y≈29）から下の 4〜5 単位だけ。
- */
-function buildPhotoFringe(): string[] {
-  const count = 7;
-  const x0 = 9;
-  const width = (91 - x0) / count;
-  const parts: string[] = [];
-  for (let k = 0; k < count; k++) {
-    const a = (x0 + k * width).toFixed(2);
-    const b = (x0 + (k + 1) * width).toFixed(2);
-    parts.push(`M${a},27 H${b} V30 A${(width / 2).toFixed(2)},3.5 0 0 1 ${a},30 Z`);
-  }
-  return parts;
-}
-const PHOTO_FRINGE = buildPhotoFringe();
 
 export function resolveStallParts(spec?: Partial<StallPartsSpec> | null): StallPartsSpec {
   const roof = spec?.roof && ROOF_DEFS[spec.roof] ? spec.roof : DEFAULT_STALL_PARTS.roof;
@@ -242,6 +217,51 @@ export const STALL_PHOTO_HEIGHT_RATIO = (STALL_VIEWBOX - STALL_PHOTO_TOP_TRIM) /
  * 下端は短い脚（y=88〜94）の付け根。
  */
 export const STALL_BODY_RECT = { x: 10, y: 27, width: 80, height: 61 } as const;
+
+/** 角を丸めた矩形のパス */
+function roundedRectPath(
+  rect: { x: number; y: number; width: number; height: number },
+  radius: number
+): string {
+  const { x, y } = rect;
+  const right = x + rect.width;
+  const bottom = y + rect.height;
+  return (
+    `M${x + radius},${y} H${right - radius} A${radius},${radius} 0 0 1 ${right},${y + radius} ` +
+    `V${bottom - radius} A${radius},${radius} 0 0 1 ${right - radius},${bottom} ` +
+    `H${x + radius} A${radius},${radius} 0 0 1 ${x},${bottom - radius} ` +
+    `V${y + radius} A${radius},${radius} 0 0 1 ${x + radius},${y} Z`
+  );
+}
+
+/** 写真入りの屋台の本体（写真の切り抜きと同じ STALL_BODY_RECT から作る）・短い脚・薄い影 */
+const PHOTO_BODY_PATH = roundedRectPath(STALL_BODY_RECT, 6);
+const PHOTO_LEGS_TOP = STALL_BODY_RECT.y + STALL_BODY_RECT.height;
+const PHOTO_LEGS_PATH = [18, 46.2, 74.3]
+  .map((x) => `M${x},${PHOTO_LEGS_TOP} h7.7 v${94 - PHOTO_LEGS_TOP} h-7.7 Z`)
+  .join(" ");
+const PHOTO_SHADOW = { cy: 94, ry: 4 } as const;
+
+/**
+ * 写真入りの屋台の、屋根の下辺に垂らす縁飾り（のれんの裾のような波形）。
+ * ひさしを外した代わりに、屋根の下を小さな半円で区切って屋台らしさを残す。
+ * 濃淡を交互に塗るので、ひさしの縞（awningBase / awningStripe）の色がここに出る。
+ * 上端（y=26.5）は屋根に隠れ、見えるのは屋根の下辺（y≈27〜29）から下の 4〜5 単位だけ。
+ * 横は写真の枠（x=10〜90）の内側に収め、傾いた屋根や丸い屋根の端からはみ出さないようにする。
+ */
+function buildPhotoFringe(): string[] {
+  const count = 7;
+  const left = STALL_BODY_RECT.x;
+  const width = STALL_BODY_RECT.width / count;
+  const parts: string[] = [];
+  for (let k = 0; k < count; k++) {
+    const a = Number((left + k * width).toFixed(2));
+    const b = Number((left + (k + 1) * width).toFixed(2));
+    parts.push(`M${a},26.5 H${b} V30 A${Number((width / 2).toFixed(2))},3.5 0 0 1 ${a},30 Z`);
+  }
+  return parts;
+}
+const PHOTO_FRINGE = buildPhotoFringe();
 
 /**
  * MapLibre のシンボルレイヤー用に、色を焼き込んだ単体 SVG を返す。
