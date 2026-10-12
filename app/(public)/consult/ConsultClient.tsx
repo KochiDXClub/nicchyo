@@ -27,7 +27,7 @@ export default function ConsultClient() {
   // 既定はにちよさん。null にすると話し手が毎回変わり、会話全体が掛け合いに見える
   const [preferredCharacterId, setPreferredCharacterId] =
     useState<ConsultCharacterId>(DEFAULT_CONSULT_CHARACTER_ID);
-  // PC版「これまでの相談」サイドバーの開閉。既定は閉じ、チャット欄を中央のまま保つ
+  // 「これまでの相談」サイドバー（PC・モバイル共通）の開閉。既定は閉じ、チャット欄を中央のまま保つ
   const [isHistorySidebarOpen, setIsHistorySidebarOpen] = useState(false);
   const searchParams = useSearchParams();
 
