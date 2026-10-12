@@ -25,8 +25,9 @@ const FULL: Partial<Shop> = {
   rainPolicy: "tent",
   schedule: "毎週日曜",
   paymentMethods: ["cash", "paypay"],
+  stallStyleTags: ["対面販売"],
   ownerName: "高知高校 園芸部",
-  socialLinks: { instagram: "@koko_engei" },
+  socialLinks: { instagram: "@koko_engei", website: "https://example.com" },
 };
 
 const visible = (text: string) => {
@@ -43,21 +44,39 @@ describe("ShopInfoList", () => {
     expect(visible("雨でも出店（テント）")).toBe(true);
     expect(visible("毎週日曜")).toBe(false);
     expect(visible("PayPay")).toBe(false);
-    expect(visible("Instagram")).toBe(false);
     expect(screen.getByRole("button", { name: "もっと見る" }).getAttribute("aria-expanded")).toBe("false");
 
     openMore();
 
     expect(visible("毎週日曜")).toBe(true);
     expect(visible("PayPay")).toBe(true);
-    expect(visible("Instagram")).toBe(true);
     expect(screen.getByRole("button", { name: "閉じる" }).getAttribute("aria-expanded")).toBe("true");
   });
 
-  it("「もっと見る」で開く中身が無ければ、ボタンを出さない", () => {
-    render(<ShopInfoList shop={shop({ businessHoursStart: "6:00", businessHoursEnd: "14:00" })} />);
+  it("Instagram とサイトは「もっと見る」に入れず、いつも見せる", () => {
+    render(<ShopInfoList shop={shop(FULL)} />);
+
+    expect(visible("Instagram")).toBe(true);
+    expect(visible("サイト")).toBe(true);
+  });
+
+  it("出店時間や雨の日が無い店でも、ほかの情報を2つまで最初から見せる", () => {
+    render(<ShopInfoList shop={shop({ ...FULL, businessHoursStart: undefined, businessHoursEnd: undefined, rainPolicy: "undecided" })} />);
+
+    expect(visible("毎週日曜")).toBe(true);
+    expect(visible("PayPay")).toBe(true);
+    expect(visible("対面販売")).toBe(false);
+
+    openMore();
+
+    expect(visible("対面販売")).toBe(true);
+  });
+
+  it("書かれている項目が2つまでなら、「もっと見る」を出さない", () => {
+    render(<ShopInfoList shop={shop({ businessHoursStart: "6:00", businessHoursEnd: "14:00", schedule: "毎週日曜", socialLinks: { instagram: "@a" } })} />);
 
     expect(visible("6:00 〜 14:00")).toBe(true);
+    expect(visible("毎週日曜")).toBe(true);
     expect(screen.queryByRole("button")).toBeNull();
   });
 
@@ -77,7 +96,7 @@ describe("ShopInfoList", () => {
     expect(screen.queryByText("出店者")).toBeNull();
   });
 
-  it("出店者名が公開されていれば、開いた中に出す（高校の部活などの団体名）", () => {
+  it("出店者名が公開されていれば出す（高校の部活などの団体名）", () => {
     render(<ShopInfoList shop={shop(FULL)} />);
     openMore();
 
