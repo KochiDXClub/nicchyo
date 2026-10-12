@@ -31,7 +31,7 @@ async function ensureWebp(bytes: Uint8Array, type: SniffedImageType, options: Re
 }
 
 /**
- * 運営が現地で撮った店舗写真の保存。ブラウザで圧縮したメイン（1200px）とサムネイル（160px）を受け取り、
+ * 運営が現地で撮った店舗写真の保存。ブラウザで圧縮したメイン（1200px）とサムネイル（400px）を受け取り、
  * 出店者本人の保存（app/vendor/_services/storeService.ts の uploadStoreImage）と同じ名前で置く
  * （サムネイルの URL は lib/shopImages.ts がメインの URL から組み立てるため、名前を変えない）。
  * 出店者のアカウントと紐づく前の店舗でも、service_role で書ける。

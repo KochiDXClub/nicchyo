@@ -38,8 +38,71 @@ const supabase = createClient(supabaseUrl, serviceKey, {
 
 const BUCKET_NAME = 'vendor-images';
 const isDryRun = process.argv.includes('--dry-run');
+// 店舗写真（store-main.*）からサムネイル（store-thumb.webp）だけを今の大きさで作り直す。
+// このモードではメイン画像・DB・ほかのファイルには触らない（未移行の店は飛ばす）
+const refreshThumbs = process.argv.includes('--refresh-thumbs');
+// サムネイルの長辺と画質。lib/image/clientCompression.ts の STORE_IMAGE_CONFIG.thumbnail と揃える
+const THUMB_MAX = 400;
+const THUMB_QUALITY = 80;
 
-console.log(`[migrate-vendor-images] Mode: ${isDryRun ? 'DRY-RUN (変更なし)' : 'LIVE (実際に更新・削除)'}`);
+console.log(`[migrate-vendor-images] Mode: ${isDryRun ? 'DRY-RUN (変更なし)' : 'LIVE (実際に更新・削除)'}${refreshThumbs ? ' / サムネイル作り直し' : ''}`);
+
+async function downloadFromBucket(objectPath) {
+  const { data, error } = await supabase.storage.from(BUCKET_NAME).download(objectPath);
+  if (error || !data) return null;
+  return Buffer.from(await data.arrayBuffer());
+}
+
+/** 画像の長辺（px）。読めない・壊れているときは 0 */
+async function longSide(buffer) {
+  try {
+    const meta = await sharp(buffer).metadata();
+    return Math.max(meta.width ?? 0, meta.height ?? 0);
+  } catch {
+    return 0;
+  }
+}
+
+/**
+ * 店舗写真（store-main.*。形式は問わない）からサムネイルを作り直す。書き込むのは store-thumb.webp だけ。
+ * 今のサムネイルが既に十分な大きさなら何もしない（何度実行しても同じ結果になる）。
+ * @returns {Promise<boolean>} 作り直した（DRY-RUN では作り直す予定の）とき true
+ */
+async function refreshThumbnail(vendorId, mainFileName) {
+  const mainPath = `${vendorId}/${mainFileName}`;
+  const thumbPath = `${vendorId}/store-thumb.webp`;
+  const mainBuffer = await downloadFromBucket(mainPath);
+  if (!mainBuffer) throw new Error(`メイン画像を読めませんでした: ${mainPath}`);
+
+  // 元が小さい写真は拡大しないので、目標はメインの長辺までにとどめる
+  const target = Math.min(THUMB_MAX, await longSide(mainBuffer));
+  const currentThumb = await downloadFromBucket(thumbPath);
+  // 無い・壊れて読めないサムネイルは 0px として作り直す
+  const current = currentThumb ? await longSide(currentThumb) : 0;
+  if (current >= target) {
+    console.log(`  -> サムネイルは既に ${current}px あるのでスキップします。`);
+    return false;
+  }
+  console.log(`  サムネイル: ${current}px → ${target}px に作り直します`);
+
+  const thumbBuffer = await sharp(mainBuffer)
+    .rotate()
+    .resize(THUMB_MAX, THUMB_MAX, { fit: 'inside', withoutEnlargement: true })
+    .webp({ quality: THUMB_QUALITY })
+    .toBuffer();
+
+  if (isDryRun) {
+    console.log(`  [DRY-RUN] 作り直し予定: ${thumbPath}（${(thumbBuffer.length / 1024).toFixed(1)} KB）`);
+    return true;
+  }
+  // sharp の出力をそのまま渡すと、環境によって fetch が「SharedArrayBuffer is not allowed」で断るので写してから渡す
+  const { error } = await supabase.storage
+    .from(BUCKET_NAME)
+    .upload(thumbPath, new Uint8Array(thumbBuffer), { contentType: 'image/webp', upsert: true });
+  if (error) throw new Error(`サムネイルアップロード失敗: ${error.message}`);
+  console.log(`  -> サムネイルを作り直しました（${(thumbBuffer.length / 1024).toFixed(1)} KB）`);
+  return true;
+}
 
 async function main() {
   // 1. vendors テーブルから画像URLが設定されているレコードを取得
@@ -70,7 +133,8 @@ async function main() {
       // Storage 内の vendor フォルダ内のファイルを一覧取得
       const { data: files, error: listErr } = await supabase.storage
         .from(BUCKET_NAME)
-        .list(vendorId);
+        // 既定は 100 件まで。投稿画像などが多い店で store-* が一覧から漏れないよう広めに取る
+        .list(vendorId, { limit: 1000 });
 
       if (listErr) {
         console.warn(`  Storage list エラー: ${listErr.message}`);
@@ -83,6 +147,20 @@ async function main() {
       const hasThumbWebp = fileNames.includes('store-thumb.webp');
 
       // 既に store-main.webp と store-thumb.webp の両方があり、URLも store-main.webp になっている場合はスキップ
+      if (refreshThumbs) {
+        // 今の店舗写真（URL が指す store-main.*）があればそこから作る。無ければ未移行なので触らない
+        const currentFileName = currentUrl.split('?')[0].split('/').pop();
+        const mainFileName = fileNames.find((name) => name === currentFileName && name.startsWith('store-main.'));
+        if (!mainFileName) {
+          console.log(`  -> 店舗写真が store-main.* ではない（未移行）ので飛ばします。先に通常の移行を実行してください。`);
+          skippedCount++;
+          continue;
+        }
+        if (await refreshThumbnail(vendorId, mainFileName)) processedCount++;
+        else skippedCount++;
+        continue;
+      }
+
       if (hasMainWebp && hasThumbWebp && currentUrl.includes('store-main.webp')) {
         console.log(`  -> 既に WebP メイン・サムネイル両方が存在するためスキップします。`);
         skippedCount++;
@@ -108,11 +186,11 @@ async function main() {
         .webp({ quality: 82 })
         .toBuffer();
 
-      // サムネイル画像: 長辺 160px, quality 80
+      // サムネイル画像: 長辺 THUMB_MAX
       const thumbBuffer = await sharp(originalBuffer)
         .rotate()
-        .resize(160, 160, { fit: 'inside', withoutEnlargement: true })
-        .webp({ quality: 80 })
+        .resize(THUMB_MAX, THUMB_MAX, { fit: 'inside', withoutEnlargement: true })
+        .webp({ quality: THUMB_QUALITY })
         .toBuffer();
 
       console.log(`  変換後: メイン ${(mainBuffer.length / 1024).toFixed(1)} KB, サムネイル ${(thumbBuffer.length / 1024).toFixed(1)} KB`);
