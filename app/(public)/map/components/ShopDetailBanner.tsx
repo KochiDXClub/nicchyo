@@ -534,8 +534,9 @@ const ShopDetailBanner = memo(function ShopDetailBanner({
         </div>
 
         <div className="space-y-6 px-5 pb-8 pt-5">
-          {/* ── お店の情報（出店者・出店日・出店時間・雨の日・支払い・SNS） ── */}
-          <ShopInfoList shop={shop} />
+          {/* ── お店の情報（出店時間・雨の日。ほかは「もっと見る」で開く） ── */}
+          {/* 店が変わったら「もっと見る」を閉じた状態に戻す */}
+          <ShopInfoList key={shop.id} shop={shop} />
 
           {/* ── 今日のお知らせ ──────────────────────────────────────────── */}
           {activePosts.length > 0 && (

@@ -1,12 +1,13 @@
 "use client";
 
-import type { ReactNode, SVGProps } from "react";
+import { useId, useState, type ReactNode, type SVGProps } from "react";
 import Image from "next/image";
 import {
   ArrowLeft,
   Banknote,
   CalendarDays,
   Carrot,
+  ChevronDown,
   Clock,
   CreditCard,
   Expand,
@@ -166,10 +167,14 @@ function InfoRow({ icon: Icon, label, children }: { icon: LucideIcon; label: str
 }
 
 /**
- * 出店者・出店日・出店時間・雨の日・支払い・出店スタイルと、SNS・サイトへのリンク。
+ * 出店時間・雨の日と、「もっと見る」で開く出店日・支払い・出店スタイル・出店者・SNS／サイトへのリンク。
  * 出店者が書いていない項目は行ごと出さない（何も書いていなければ何も出さない）
  */
 export function ShopInfoList({ shop }: { shop: Shop }) {
+  // 最初は出店時間と雨の日だけを出し、ほかは「もっと見る」で開く。下の商品や AI相談まで指が届きやすいように
+  const [expanded, setExpanded] = useState(false);
+  const detailsId = useId();
+
   // 出店者名は個人情報なので、出店者が公開にしたときだけ届く（vendor_owner_profiles の is_public。既定は非公開）。
   // 高校の部活など団体名を出したい店のために表示は残し、空なら行ごと出さない
   const ownerName = shop.ownerName?.trim();
@@ -191,55 +196,84 @@ export function ShopInfoList({ shop }: { shop: Shop }) {
     links.push({ href: socialUrl(website, ""), label: "サイト", icon: <Globe className="h-4 w-4" aria-hidden /> });
   }
 
-  const hasRows = !!(ownerName || schedule || businessHours || rainPolicy || payments.length || styleTags.length || stallStyle);
-  if (!hasRows && links.length === 0) return null;
+  const hasPrimary = !!(businessHours || rainPolicy);
+  const hasDetailRows = !!(schedule || payments.length || styleTags.length || stallStyle || ownerName);
+  const hasDetails = hasDetailRows || links.length > 0;
+  if (!hasPrimary && !hasDetails) return null;
 
   return (
     <div className="rounded-card bg-white px-4 ring-1 ring-line">
-      {hasRows && (
+      {hasPrimary && (
         <dl className="divide-y divide-line">
-          {ownerName && <InfoRow icon={UserRound} label="出店者">{ownerName}</InfoRow>}
-          {schedule && <InfoRow icon={CalendarDays} label="出店日">{schedule}</InfoRow>}
           {businessHours && <InfoRow icon={Clock} label="出店時間">{businessHours}</InfoRow>}
           {rainPolicy && <InfoRow icon={Umbrella} label="雨の日">{rainPolicy}</InfoRow>}
-          {payments.length > 0 && (
-            <InfoRow icon={Wallet} label="支払い">
-              <span className="flex flex-wrap gap-x-3 gap-y-1">
-                {payments.map((method) => {
-                  const payment = PAYMENT_METHODS[method];
-                  const PaymentIcon = payment?.icon;
-                  return (
-                    <span key={method} className="inline-flex items-center gap-1">
-                      {PaymentIcon && <PaymentIcon className="h-3.5 w-3.5 text-nicchyo-ink/55" aria-hidden />}
-                      {payment?.label ?? method}
-                    </span>
-                  );
-                })}
-              </span>
-            </InfoRow>
-          )}
-          {(styleTags.length > 0 || stallStyle) && (
-            <InfoRow icon={Tag} label="スタイル">
-              {[...styleTags, ...(stallStyle ? [stallStyle] : [])].join("・")}
-            </InfoRow>
-          )}
         </dl>
       )}
-      {links.length > 0 && (
-        <div className={`flex flex-wrap gap-2 py-3 ${hasRows ? "border-t border-line" : ""}`}>
-          {links.map((link) => (
-            <a
-              key={link.label}
-              href={link.href}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex h-9 items-center gap-1.5 rounded-chip bg-white px-3.5 text-[13px] font-semibold text-nicchyo-ink shadow-chip ring-1 ring-line transition hover:bg-nicchyo-ink/[0.03] active:scale-95 motion-reduce:active:scale-100"
-            >
-              {link.icon}
-              {link.label}
-            </a>
-          ))}
-        </div>
+
+      {hasDetails && (
+        <>
+          <div id={detailsId} hidden={!expanded}>
+            {hasDetailRows && (
+              <dl className={`divide-y divide-line ${hasPrimary ? "border-t border-line" : ""}`}>
+                {schedule && <InfoRow icon={CalendarDays} label="出店日">{schedule}</InfoRow>}
+                {payments.length > 0 && (
+                  <InfoRow icon={Wallet} label="支払い">
+                    <span className="flex flex-wrap gap-x-3 gap-y-1">
+                      {payments.map((method) => {
+                        const payment = PAYMENT_METHODS[method];
+                        const PaymentIcon = payment?.icon;
+                        return (
+                          <span key={method} className="inline-flex items-center gap-1">
+                            {PaymentIcon && <PaymentIcon className="h-3.5 w-3.5 text-nicchyo-ink/55" aria-hidden />}
+                            {payment?.label ?? method}
+                          </span>
+                        );
+                      })}
+                    </span>
+                  </InfoRow>
+                )}
+                {(styleTags.length > 0 || stallStyle) && (
+                  <InfoRow icon={Tag} label="スタイル">
+                    {[...styleTags, ...(stallStyle ? [stallStyle] : [])].join("・")}
+                  </InfoRow>
+                )}
+                {ownerName && <InfoRow icon={UserRound} label="出店者">{ownerName}</InfoRow>}
+              </dl>
+            )}
+            {links.length > 0 && (
+              <div className={`flex flex-wrap gap-2 py-3 ${hasPrimary || hasDetailRows ? "border-t border-line" : ""}`}>
+                {links.map((link) => (
+                  <a
+                    key={link.label}
+                    href={link.href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex h-9 items-center gap-1.5 rounded-chip bg-white px-3.5 text-[13px] font-semibold text-nicchyo-ink shadow-chip ring-1 ring-line transition hover:bg-nicchyo-ink/[0.03] active:scale-95 motion-reduce:active:scale-100"
+                  >
+                    {link.icon}
+                    {link.label}
+                  </a>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setExpanded((open) => !open)}
+            aria-expanded={expanded}
+            aria-controls={detailsId}
+            className={`flex h-11 w-full items-center justify-center gap-1 text-[13px] font-semibold text-nicchyo-ink/70 transition hover:text-nicchyo-ink ${
+              hasPrimary || expanded ? "border-t border-line" : ""
+            }`}
+          >
+            {expanded ? "閉じる" : "もっと見る"}
+            <ChevronDown
+              className={`h-4 w-4 transition-transform duration-200 ease-out-soft motion-reduce:transition-none ${expanded ? "rotate-180" : ""}`}
+              aria-hidden
+            />
+          </button>
+        </>
       )}
     </div>
   );
