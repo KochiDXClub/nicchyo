@@ -17,6 +17,8 @@ export type ConsultAskReadResult = {
  * ふつうの JSON 1つで返ってくる（app/api/grandma/ask/handler.ts）。
  * これを行として読むと final が無いので、中身が届いていても「返答の取得に失敗しました」になってしまう。
  *
+ * 返す ok は HTTP の成否だけを表す。相談としての成否は payload の errorCode で決まり
+ * （ok: true でも no_result などが入る）、それを失敗として扱うのは呼び出し側（normalizeAskResponse）。
  * final が来なかったときは null を返す。
  */
 export async function readConsultAskResponse(
