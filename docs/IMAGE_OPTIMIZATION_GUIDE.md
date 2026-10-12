@@ -6,7 +6,7 @@
 
 | 種類 | 方針 | 場所 |
 |---|---|---|
-| 出店者がアップロードする店舗写真 | ブラウザ（Canvas）で縮小してから保存する。メイン用は最大 1200px、サムネイル用は最大 160px、どちらも WebP | `lib/image/clientCompression.ts`（`STORE_IMAGE_CONFIG`）、`app/vendor/_services/storeService.ts` |
+| 出店者がアップロードする店舗写真 | ブラウザ（Canvas）で縮小してから保存する。メイン用は最大 1200px、サムネイル用は最大 400px（地図の屋台の写真にも使うため）、どちらも WebP | `lib/image/clientCompression.ts`（`STORE_IMAGE_CONFIG`）、`app/vendor/_services/storeService.ts` |
 | 近況・お知らせの投稿画像 | 同じくブラウザで最大 1200px の WebP にする | `lib/image/clientCompression.ts`（`POST_IMAGE_CONFIG`） |
 | マップ・スキャンカード・検索結果の店舗画像 | サムネイルを優先して読み、無い・読めないときはメイン画像に戻す | `lib/shopImages.ts`（`getShopThumbnailImage` / `toStoreThumbUrl`） |
 | 地図の建物（ランドマーク）画像 | WebP だけを `public/` に置く（PNG は置かない）。DB の `map_landmarks.image_url` も `.webp`。古い `.png` が残っていても `map/utils/landmarkImages.ts` が `.webp` に読み替える | `public/images/maps/elements/buildings/*.webp` |
@@ -20,6 +20,17 @@
 - 表示サイズの 3 倍（pixelRatio の上限）より大きい画素は使われない。大きな元画像をそのまま載せない
 - Base64 の埋め込みは、HTML・JS のサイズが膨らむので避ける
 - Content-Type と拡張子は `imageUploadInfo()`（`lib/image/clientCompression.ts`）に合わせる。`image/webp` と決め打ちして保存すると、中身と食い違って表示できなくなることがある
+
+## 既存のサムネイルを作り直す
+
+サムネイルの大きさ（`STORE_IMAGE_CONFIG.thumbnail`）を変えたら、保存済みの店舗写真のサムネイルも作り直す。`store-main.webp` から作り直し、既に十分な大きさのものは飛ばすので、何度実行してもよい。`.env.local` に `NEXT_PUBLIC_SUPABASE_URL` と `SUPABASE_SERVICE_ROLE_KEY` が要る。
+
+```bash
+npm run migrate:vendor-images -- --refresh-thumbs --dry-run   # 何が作り直されるかだけ見る
+npm run migrate:vendor-images -- --refresh-thumbs             # 本番を書き換える
+```
+
+公開 URL は同じなので、端末・CDN に残った古いサムネイルはキャッシュの期限（既定 1 時間）で入れ替わる。
 
 ## 静的画像を WebP にする
 

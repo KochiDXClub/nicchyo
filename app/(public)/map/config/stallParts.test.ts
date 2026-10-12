@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  STALL_BODY_RECT,
   STALL_PHOTO_HEIGHT_RATIO,
   STALL_PHOTO_TOP_TRIM,
   generateStallSpriteSvg,
@@ -27,6 +28,32 @@ describe("generateStallSpriteSvg", () => {
     expect(svg).toContain('<image href="data:image/jpeg;base64,AAAA"');
     expect(svg).toContain('stroke="#0f766e"');
     expect(svg).not.toContain('fill="#ec9a0c"');
+  });
+
+  it("写真ありはひさしを描かず、屋根の下に縁飾りを垂らし、脚を短くして、そのぶん写真を上下に広げる", () => {
+    const photo = { href: "data:,", stroke: "#000" };
+    for (const awning of ["stripe", "plain", "scallop"] as const) {
+      const parts = resolveStallParts({ awning });
+      const withPhoto = generateStallSpriteSvg(parts, { ...colors, photo }, size);
+      const without = generateStallSpriteSvg(parts, colors, size);
+      // ひさしの帯（y=28 から始まる形）は写真なしにだけ出る
+      expect(without).toMatch(/d="M(8|12),28 /);
+      expect(withPhoto).not.toMatch(/d="M(8|12),28 /);
+      // 縁飾りはひさしの濃淡を交互に使う
+      const fringe = withPhoto.match(/<path d="M[\d.]+,27 H[\d.]+ V30 A[^"]*" fill="[^"]*"\/>/g) ?? [];
+      expect(fringe).toHaveLength(7);
+      expect(fringe[0]).toContain(`fill="${colors.awningStripe}"`);
+      expect(fringe[1]).toContain(`fill="${colors.awningBase}"`);
+      expect(without).not.toMatch(/,27 H[\d.]+ V30 A/);
+    }
+    const svg = generateStallSpriteSvg(resolveStallParts(), { ...colors, photo }, size);
+    expect(svg).toContain('v6 h-7.7');
+    expect(svg).not.toContain('v12 h-7.7');
+    const r = STALL_BODY_RECT;
+    expect(svg).toContain(`x="${r.x}" y="${r.y}" width="${r.width}" height="${r.height}"`);
+    // 縮めた屋根の下辺（y≈28〜29）の内側から、短い脚の付け根（y=88）まで写真にする
+    expect(r.y).toBeLessThanOrEqual(28);
+    expect(r.y + r.height).toBe(88);
   });
 
   it("写真ありは屋根を縮める。写真なしの屋根は変えない", () => {

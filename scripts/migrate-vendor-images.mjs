@@ -38,8 +38,63 @@ const supabase = createClient(supabaseUrl, serviceKey, {
 
 const BUCKET_NAME = 'vendor-images';
 const isDryRun = process.argv.includes('--dry-run');
+// 移行済み（store-main.webp と store-thumb.webp がある）店のサムネイルを、今の大きさで作り直す
+const refreshThumbs = process.argv.includes('--refresh-thumbs');
+// サムネイルの長辺と画質。lib/image/clientCompression.ts の STORE_IMAGE_CONFIG.thumbnail と揃える
+const THUMB_MAX = 400;
+const THUMB_QUALITY = 80;
 
-console.log(`[migrate-vendor-images] Mode: ${isDryRun ? 'DRY-RUN (変更なし)' : 'LIVE (実際に更新・削除)'}`);
+console.log(`[migrate-vendor-images] Mode: ${isDryRun ? 'DRY-RUN (変更なし)' : 'LIVE (実際に更新・削除)'}${refreshThumbs ? ' / サムネイル作り直し' : ''}`);
+
+async function downloadFromBucket(objectPath) {
+  const { data, error } = await supabase.storage.from(BUCKET_NAME).download(objectPath);
+  if (error || !data) return null;
+  return Buffer.from(await data.arrayBuffer());
+}
+
+/**
+ * 移行済みの店のサムネイルを store-main.webp から作り直す。
+ * 今のサムネイルが既に十分な大きさなら何もしない（何度実行しても同じ結果になる）。
+ * @returns {Promise<boolean>} 作り直した（DRY-RUN では作り直す予定の）とき true
+ */
+async function refreshThumbnail(vendorId) {
+  const mainPath = `${vendorId}/store-main.webp`;
+  const thumbPath = `${vendorId}/store-thumb.webp`;
+  const mainBuffer = await downloadFromBucket(mainPath);
+  if (!mainBuffer) throw new Error(`メイン画像を読めませんでした: ${mainPath}`);
+
+  const mainMeta = await sharp(mainBuffer).metadata();
+  // 元が小さい写真は拡大しないので、目標はメインの長辺までにとどめる
+  const target = Math.min(THUMB_MAX, Math.max(mainMeta.width ?? 0, mainMeta.height ?? 0));
+  const currentThumb = await downloadFromBucket(thumbPath);
+  if (currentThumb) {
+    const thumbMeta = await sharp(currentThumb).metadata();
+    const current = Math.max(thumbMeta.width ?? 0, thumbMeta.height ?? 0);
+    if (current >= target) {
+      console.log(`  -> サムネイルは既に ${current}px あるのでスキップします。`);
+      return false;
+    }
+    console.log(`  サムネイル: ${current}px → ${target}px に作り直します`);
+  }
+
+  const thumbBuffer = await sharp(mainBuffer)
+    .rotate()
+    .resize(THUMB_MAX, THUMB_MAX, { fit: 'inside', withoutEnlargement: true })
+    .webp({ quality: THUMB_QUALITY })
+    .toBuffer();
+
+  if (isDryRun) {
+    console.log(`  [DRY-RUN] 作り直し予定: ${thumbPath}（${(thumbBuffer.length / 1024).toFixed(1)} KB）`);
+    return true;
+  }
+  // sharp の出力をそのまま渡すと、環境によって fetch が「SharedArrayBuffer is not allowed」で断るので写してから渡す
+  const { error } = await supabase.storage
+    .from(BUCKET_NAME)
+    .upload(thumbPath, new Uint8Array(thumbBuffer), { contentType: 'image/webp', upsert: true });
+  if (error) throw new Error(`サムネイルアップロード失敗: ${error.message}`);
+  console.log(`  -> サムネイルを作り直しました（${(thumbBuffer.length / 1024).toFixed(1)} KB）`);
+  return true;
+}
 
 async function main() {
   // 1. vendors テーブルから画像URLが設定されているレコードを取得
@@ -84,7 +139,11 @@ async function main() {
 
       // 既に store-main.webp と store-thumb.webp の両方があり、URLも store-main.webp になっている場合はスキップ
       if (hasMainWebp && hasThumbWebp && currentUrl.includes('store-main.webp')) {
-        console.log(`  -> 既に WebP メイン・サムネイル両方が存在するためスキップします。`);
+        if (refreshThumbs && (await refreshThumbnail(vendorId))) {
+          processedCount++;
+          continue;
+        }
+        if (!refreshThumbs) console.log(`  -> 既に WebP メイン・サムネイル両方が存在するためスキップします。`);
         skippedCount++;
         continue;
       }
@@ -108,11 +167,11 @@ async function main() {
         .webp({ quality: 82 })
         .toBuffer();
 
-      // サムネイル画像: 長辺 160px, quality 80
+      // サムネイル画像: 長辺 THUMB_MAX
       const thumbBuffer = await sharp(originalBuffer)
         .rotate()
-        .resize(160, 160, { fit: 'inside', withoutEnlargement: true })
-        .webp({ quality: 80 })
+        .resize(THUMB_MAX, THUMB_MAX, { fit: 'inside', withoutEnlargement: true })
+        .webp({ quality: THUMB_QUALITY })
         .toBuffer();
 
       console.log(`  変換後: メイン ${(mainBuffer.length / 1024).toFixed(1)} KB, サムネイル ${(thumbBuffer.length / 1024).toFixed(1)} KB`);
