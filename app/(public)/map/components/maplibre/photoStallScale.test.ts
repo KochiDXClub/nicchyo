@@ -68,7 +68,7 @@ describe("最大ズームより先の一段（detail）", () => {
     expect(stallScaleAt(1.5, detail)).toBeCloseTo(2, 5);
   });
 
-  it("写真入りも一段先で 2 倍になり、途中も店舗間隔に収まる", () => {
+  it("写真入りも一段先で 2 倍になり、stops の値は店舗間隔の 92% に収まる", () => {
     expect(photoStallScaleAt(1, detail)).toBeCloseTo(2, 5);
     for (let offset = 0; offset <= 1; offset += 0.1) {
       const spacing = 95 * 2 ** offset;
@@ -90,5 +90,14 @@ describe("最大ズームより先の一段（detail）", () => {
     expect(expr[3]).toBeCloseTo(18.6, 5);
     expect(expr[expr.length - 2]).toBeCloseTo(21, 5);
     expect(expr[expr.length - 1]).toBeCloseTo(2, 5);
+  });
+
+  it("描画時の補間（整数ズームの値どうしを直線で結ぶ）でも、一段先までのあいだに店舗間隔を超えない", () => {
+    const at20 = photoStallScaleAt(0, detail);
+    const at21 = photoStallScaleAt(1, detail);
+    for (let t = 0; t <= 1; t += 0.1) {
+      const rendered = (at20 + (at21 - at20) * t) * 84;
+      expect(rendered).toBeLessThanOrEqual(95 * 2 ** t);
+    }
   });
 });

@@ -11,6 +11,10 @@
  *
  * MapLibre では ["zoom"] を interpolate / step の外では使えないので、
  * ズームごとの値を計算して折れ線の stops にする。
+ *
+ * なお、icon-size をズームだけの式で書くと、MapLibre は描画のたびに式を評価するのではなく、
+ * タイルのズーム（整数）を挟む 2 つの stop の値のあいだを直線で補間する。0.1 刻みの stops のうち
+ * 描画に効くのは整数ズームの値で、その途中は直線になる（それでも店舗間隔は超えない）。
  */
 import type { ExpressionSpecification } from "maplibre-gl";
 
