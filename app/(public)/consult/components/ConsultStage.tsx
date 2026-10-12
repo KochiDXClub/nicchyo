@@ -1,6 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type RefObject,
+} from "react";
 import {
   AlertCircle,
   Keyboard,
@@ -39,6 +47,7 @@ import {
 import ConsultShopCard from "./ConsultShopCard";
 import ConsultSheet from "./ConsultSheet";
 import { isImeComposing } from "@/lib/utils/isImeComposing";
+import { useDialogFocus } from "@/lib/ui/useDialogFocus";
 import type { Shop } from "../../map/data/shops";
 import type {
   ConsultAskResponse,
@@ -117,6 +126,22 @@ export interface ConsultStageProps {
 }
 
 type StagePhase = "idle" | "confirming" | "thinking";
+
+/**
+ * lg 未満で「これまでの相談」を引き出しとして開いている間だけ描く。
+ * フックは条件付きで呼べないので、開いている間だけ存在する子に持たせる
+ * （開いたら中へフォーカスを移し、Tab を中で回し、閉じたら開くボタンへ戻す）
+ */
+function HistoryDrawerFocus({
+  panelRef,
+  returnFocusRef,
+}: {
+  panelRef: RefObject<HTMLElement | null>;
+  returnFocusRef: RefObject<HTMLElement | null>;
+}) {
+  useDialogFocus(panelRef, undefined, { returnFocusRef });
+  return null;
+}
 
 /**
  * 現地・スマホ・片手を前提にした相談画面。
@@ -508,6 +533,33 @@ export default function ConsultStage({
       entries[0] ??
       null
     : null;
+
+  /**
+   * いまの画面幅で、「これまでの相談」サイドバーがチャット欄の横に並ぶか（lg 以上）。
+   * 並ばない幅では引き出しとしてチャット欄の上に重なるので、モーダルとして扱う
+   * （フォーカスを中に閉じ込め、Esc で閉じ、1件開いたら閉じる）
+   */
+  const [isHistorySidebarInline, setIsHistorySidebarInline] = useState(false);
+  useEffect(() => {
+    const media = window.matchMedia(HISTORY_SIDEBAR_INLINE_MEDIA);
+    const sync = () => setIsHistorySidebarInline(media.matches);
+    sync();
+    media.addEventListener("change", sync);
+    return () => media.removeEventListener("change", sync);
+  }, []);
+  const isHistoryDrawer = isHistorySidebarOpen && !isHistorySidebarInline;
+  const historyPanelRef = useRef<HTMLDivElement | null>(null);
+  /** 引き出しを閉じたとき、フォーカスを戻す先 */
+  const openHistoryButtonRef = useRef<HTMLButtonElement | null>(null);
+  useEffect(() => {
+    if (!isHistoryDrawer) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onHistorySidebarOpenChange?.(false);
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isHistoryDrawer, onHistorySidebarOpenChange]);
+
   // 「これまでの相談」の1件をタップして、大きい答えカードとして開き直す
   const viewHistoryEntry = useCallback(
     (id: string) => {
@@ -515,12 +567,10 @@ export default function ConsultStage({
       setShowsCurrentAnswer(true);
       // lg 未満のサイドバーは答えカードの上に重なってしまうので閉じる。
       // lg 以上はチャット欄を右へ逃がして隠さないので、開いたままでもよい
-      if (!window.matchMedia(HISTORY_SIDEBAR_INLINE_MEDIA).matches) {
-        onHistorySidebarOpenChange?.(false);
-      }
+      if (!isHistorySidebarInline) onHistorySidebarOpenChange?.(false);
       scrollContainerRef.current?.scrollTo({ top: 0, behavior: "smooth" });
     },
-    [onHistorySidebarOpenChange]
+    [isHistorySidebarInline, onHistorySidebarOpenChange]
   );
   const suggestions = useMemo(
     () => pickSuggestions({ entries, pool: QUESTION_POOL }),
@@ -694,6 +744,131 @@ export default function ConsultStage({
       }
     >
       {/*
+        これまでの相談（サイドバー）。Claude デスクトップ版を参考に、
+        ウィンドウ左端に張り付く帯にした。閉じているときは左上に開くアイコンだけを
+        浮かせ、開くとその場でサイドバーの見出しに変わる（Claude の開閉と同じ運び）。
+        既定は閉じておき、チャット欄は中央のまま保つ。
+
+        PC もモバイルも同じサイドバーを使う（以前のモバイルは下から出るシートで、
+        PC と見た目も操作も違っていた）。違うのは開いたときの置き方だけ:
+        - lg 以上: チャット欄を右へ逃がして横に並べる（ConsultClient 側の padding-left で処理）
+        - lg 未満: 横に並べる幅が無いので、チャット欄の上に重ねる引き出し（モーダル）にする。
+          暗幕を敷き、外側のタップか Esc で閉じる。フォーカスは中に閉じ込める
+
+        画面では左上にあるものなので、Tab や読み上げでも最初に来るよう、
+        position: fixed のまま DOM の先頭に置く。
+
+        履歴が0件でもサイドバー自体は出しておく（Claude デスクトップ版も会話が
+        無い状態で一覧欄を消さない）。ここでいきなり消えると「開いたのに開き先が
+        消えた」という体験になるうえ、そもそもサイドバーの存在に気づけない。
+        中身が空のときは一覧の代わりに案内文を出す
+      */}
+      <button
+        ref={openHistoryButtonRef}
+        type="button"
+        onClick={() => onHistorySidebarOpenChange?.(true)}
+        aria-label={
+          entries.length > 0
+            ? `これまでの相談を開く（${entries.length}件）`
+            : "これまでの相談を開く"
+        }
+        aria-expanded={isHistorySidebarOpen}
+        // 開いている間も外さずに隠すだけにする。外すと、閉じたときにフォーカスを戻す先が無くなる。
+        // lg 未満は指で押せる 44px にし、クリーム色の背景に埋もれないよう面と縁を付ける。
+        // lg 以上はこれまで通り面を持たない Claude 風のアイコンにする。
+        // 同じ z-30 の固定バーより DOM が前にあるので、z-40 にして固定バーの上に出す
+        className={`fixed left-4 top-[calc(var(--safe-top,0px)+1rem)] z-40 flex h-11 w-11 items-center justify-center rounded-lg border border-amber-200 bg-white/80 text-slate-500 shadow-sm transition hover:bg-black/5 lg:h-9 lg:w-9 lg:border-0 lg:bg-transparent lg:shadow-none ${
+          isHistorySidebarOpen ? "invisible" : ""
+        }`}
+      >
+        <PanelLeftOpen className="h-5 w-5" aria-hidden="true" />
+        {/*
+          以前のモバイルの「これまでの相談 N件 ▾」が担っていた、件数の見える化。
+          アイコンだけだと履歴が0件でも3件でも同じに見え、前の答えが「消えた」と
+          思われる。件数は aria-label で読み上げるので、札は飾りにする
+        */}
+        {entries.length > 0 && (
+          <Badge
+            variant="amber"
+            aria-hidden="true"
+            className="absolute -right-2 -top-2 px-1.5"
+          >
+            {entries.length}
+          </Badge>
+        )}
+      </button>
+      {isHistorySidebarOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-black/30 lg:hidden"
+          onClick={() => onHistorySidebarOpenChange?.(false)}
+          aria-hidden="true"
+        />
+      )}
+      {isHistorySidebarOpen && (
+        <div
+          ref={historyPanelRef}
+          // lg 以上は常設の帯（補足の領域）、lg 未満は背面を覆うモーダル
+          role={isHistoryDrawer ? "dialog" : "complementary"}
+          aria-modal={isHistoryDrawer || undefined}
+          aria-label="これまでの相談"
+          // lg 未満は暗幕（z-40）の上、話しかけるバー・固定バーより手前に出す。
+          // lg 以上は横に並ぶだけなので、これまで通り音声シートなどより奥に置く
+          className="fixed inset-y-0 left-0 z-40 flex w-72 max-w-[85vw] flex-col border-r border-amber-100 bg-white lg:z-20"
+          style={{
+            paddingTop: "var(--safe-top, 0px)",
+            paddingBottom: "calc(var(--safe-bottom, 0px) + var(--nav-bar-height))",
+          }}
+        >
+          {isHistoryDrawer && (
+            <HistoryDrawerFocus panelRef={historyPanelRef} returnFocusRef={openHistoryButtonRef} />
+          )}
+          <div className="flex shrink-0 items-center gap-2 px-3 py-3">
+            <button
+              type="button"
+              onClick={() => onHistorySidebarOpenChange?.(false)}
+              aria-label="これまでの相談を閉じる"
+              aria-expanded={true}
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-slate-500 transition hover:bg-black/5 lg:h-9 lg:w-9"
+            >
+              <PanelLeftClose className="h-5 w-5" aria-hidden="true" />
+            </button>
+            <p className="truncate text-sm font-bold text-slate-700">
+              これまでの相談{entries.length > 0 ? `（${entries.length}件）` : ""}
+            </p>
+          </div>
+          {/*
+            一覧が長いとここ自体がスクロールする。スクロールバーは要素の
+            border-box の右端にぴったり付く（padding では動かせない）ため、
+            mr-1 でこの箱自体をサイドバーと本文の境界線（border-r）から
+            少し離しておかないと、スクロールバーが境界線と重なって見えてしまう
+          */}
+          <div className="mr-1 flex-1 overflow-y-auto overscroll-contain px-2 pb-2">
+            {entries.length > 0 ? (
+              renderHistoryList()
+            ) : (
+              <p className="px-2 pt-3 text-sm leading-6 text-slate-400">
+                ここに相談の履歴を残していくよ。にちよさんに話しかけてみてね
+              </p>
+            )}
+          </div>
+          {entries.length > 0 && (
+            <div className="shrink-0 border-t border-amber-100 px-3 py-3">
+              <button
+                type="button"
+                onClick={() => {
+                  if (!window.confirm("これまでの相談をすべて消すよ。よろしい？")) return;
+                  setEntries(createEmptySession().entries);
+                }}
+                className="w-full rounded-lg px-3 py-3 text-left text-sm font-bold text-amber-800 transition hover:bg-amber-50 lg:py-2"
+              >
+                相談を最初からにする
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/*
         読みやすい行幅への制限（max-w-3xl）と、中央寄せ／左寄せの切り替えは
         ここで行う。サイドバーを開いている間は、チャット欄をサイドバーのすぐ右に
         寄せたいので mx-auto をやめて左詰めにする（付けたままだと「サイドバー分を
@@ -745,7 +920,7 @@ export default function ConsultStage({
         にちよさん（タップで話し手を選べる）を押せるよう、当たり判定を持たせない。
 
         左の pl-[4.5rem] は、画面左上に固定した「これまでの相談」を開くボタン
-        （left-4 / 幅 h-11）に、小さいにちよさんが重ならないようにする分。
+        （left-4 / 幅 w-11）に、小さいにちよさんが重ならないようにする分。
         lg 以上はチャット欄が中央に寄る（サイドバーを開くとボタン自体が消える）ので要らない
       */}
       <div
@@ -1113,117 +1288,6 @@ export default function ConsultStage({
             </>
           )}
         </ConsultSheet>
-      )}
-
-      {/*
-        これまでの相談（サイドバー）。Claude デスクトップ版を参考に、
-        ウィンドウ左端に張り付く帯にした。閉じているときは左上に開くアイコンだけを
-        浮かせ、開くとその場でサイドバーの見出しに変わる（Claude の開閉と同じ運び）。
-        既定は閉じておき、チャット欄は中央のまま保つ。
-
-        PC もモバイルも同じサイドバーを使う（以前のモバイルは下から出るシートで、
-        PC と見た目も操作も違っていた）。違うのは開いたときの置き方だけ:
-        - lg 以上: チャット欄を右へ逃がして横に並べる（ConsultClient 側の padding-left で処理）
-        - lg 未満: 横に並べる幅が無いので、チャット欄の上に重ねる引き出しにする。
-          暗幕を敷き、外側をタップすると閉じる
-
-        履歴が0件でもサイドバー自体は出しておく（Claude デスクトップ版も会話が
-        無い状態で一覧欄を消さない）。ここでいきなり消えると「開いたのに開き先が
-        消えた」という体験になるうえ、そもそもサイドバーの存在に気づけない。
-        中身が空のときは一覧の代わりに案内文を出す
-      */}
-      {!isHistorySidebarOpen && (
-        <button
-          type="button"
-          onClick={() => onHistorySidebarOpenChange?.(true)}
-          aria-label={
-            entries.length > 0
-              ? `これまでの相談を開く（${entries.length}件）`
-              : "これまでの相談を開く"
-          }
-          aria-expanded={false}
-          // lg 未満は指で押せる 44px にし、クリーム色の背景に埋もれないよう面と縁を付ける。
-          // lg 以上はこれまで通り面を持たない Claude 風のアイコンにする
-          className="fixed left-4 top-4 z-30 flex h-11 w-11 items-center justify-center rounded-lg border border-amber-200 bg-white/80 text-slate-500 shadow-sm transition hover:bg-black/5 lg:h-9 lg:w-9 lg:border-0 lg:bg-transparent lg:shadow-none"
-        >
-          <PanelLeftOpen className="h-5 w-5" aria-hidden="true" />
-          {/*
-            以前のモバイルの「これまでの相談 N件 ▾」が担っていた、件数の見える化。
-            アイコンだけだと履歴が0件でも3件でも同じに見え、前の答えが「消えた」と
-            思われる。件数は aria-label で読み上げるので、札は飾りにする
-          */}
-          {entries.length > 0 && (
-            <Badge
-              variant="amber"
-              aria-hidden="true"
-              className="absolute -right-2 -top-2 px-1.5"
-            >
-              {entries.length}
-            </Badge>
-          )}
-        </button>
-      )}
-      {isHistorySidebarOpen && (
-        <div
-          className="fixed inset-0 z-40 bg-black/30 lg:hidden"
-          onClick={() => onHistorySidebarOpenChange?.(false)}
-          aria-hidden="true"
-        />
-      )}
-      {isHistorySidebarOpen && (
-        <aside
-          aria-label="これまでの相談"
-          // lg 未満は暗幕（z-40）の上、話しかけるバー・固定バーより手前に出す。
-          // lg 以上は横に並ぶだけなので、これまで通り音声シートなどより奥に置く
-          className="fixed inset-y-0 left-0 z-40 flex w-72 max-w-[85vw] flex-col border-r border-amber-100 bg-white lg:z-20"
-          style={{
-            paddingBottom: "calc(var(--safe-bottom, 0px) + var(--nav-bar-height))",
-          }}
-        >
-          <div className="flex shrink-0 items-center gap-2 px-3 py-3">
-            <button
-              type="button"
-              onClick={() => onHistorySidebarOpenChange?.(false)}
-              aria-label="サイドバーを閉じる"
-              aria-expanded={true}
-              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-slate-500 transition hover:bg-black/5"
-            >
-              <PanelLeftClose className="h-5 w-5" aria-hidden="true" />
-            </button>
-            <p className="truncate text-sm font-bold text-slate-700">
-              これまでの相談{entries.length > 0 ? `（${entries.length}件）` : ""}
-            </p>
-          </div>
-          {/*
-            一覧が長いとここ自体がスクロールする。スクロールバーは要素の
-            border-box の右端にぴったり付く（padding では動かせない）ため、
-            mr-1 でこの箱自体をサイドバーと本文の境界線（border-r）から
-            少し離しておかないと、スクロールバーが境界線と重なって見えてしまう
-          */}
-          <div className="mr-1 flex-1 overflow-y-auto overscroll-contain px-2 pb-2">
-            {entries.length > 0 ? (
-              renderHistoryList()
-            ) : (
-              <p className="px-2 pt-3 text-sm leading-6 text-slate-400">
-                ここに相談の履歴を残していくよ。にちよさんに話しかけてみてね
-              </p>
-            )}
-          </div>
-          {entries.length > 0 && (
-            <div className="shrink-0 border-t border-amber-100 px-3 py-3">
-              <button
-                type="button"
-                onClick={() => {
-                  if (!window.confirm("これまでの相談をすべて消すよ。よろしい？")) return;
-                  setEntries(createEmptySession().entries);
-                }}
-                className="w-full rounded-lg px-3 py-2 text-left text-sm font-bold text-amber-800 transition hover:bg-amber-50"
-              >
-                相談を最初からにする
-              </button>
-            </div>
-          )}
-        </aside>
       )}
 
       {/*
