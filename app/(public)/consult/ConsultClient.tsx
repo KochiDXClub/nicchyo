@@ -235,7 +235,9 @@ export default function ConsultClient() {
         画面端にぴったり付かなくなる
       */}
       <main
-        className={`relative z-10 w-full pb-16 ${
+        // サイドバーの開け閉めに合わせて、本文の左の空きも滑らかに広げ・縮める
+        // （サイドバー側の動きと同じ速さ・緩急。ConsultStage の HISTORY_SIDEBAR_SLIDE_*）
+        className={`relative z-10 w-full pb-16 motion-safe:transition-[padding-left] motion-safe:duration-300 motion-safe:ease-out-soft ${
           isHistorySidebarOpen ? "lg:pl-80" : ""
         }`}
       >
