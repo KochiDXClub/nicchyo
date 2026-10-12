@@ -18,6 +18,7 @@ vi.mock("@/lib/audit/logAdminAudit", () => ({ logAdminAudit: (...args: unknown[]
 vi.mock("@/app/(public)/map/services/shopCache", () => ({ revalidatePublicShops: vi.fn() }));
 
 import { POST } from "./route";
+import { STORE_IMAGE_CONFIG } from "@/lib/image/clientCompression";
 
 const ID = "00000000-0000-4000-8000-00000000000b";
 
@@ -90,14 +91,16 @@ describe("POST /api/admin/shops/[id]/image", () => {
   });
 
   it("JPEG で届いた写真も WebP にして、ブラウザでの縮小と同じ大きさに収める", async () => {
-    const res = await post(await photo("jpeg", 2400, 1600), await photo("jpeg", 400, 300));
+    // サムネイルの長辺（STORE_IMAGE_CONFIG.thumbnail.maxDimension）より大きく届いたものも縮める
+    const thumbMax = STORE_IMAGE_CONFIG.thumbnail.maxDimension;
+    const res = await post(await photo("jpeg", 2400, 1600), await photo("jpeg", thumbMax * 2, thumbMax * 1.5));
 
     expect(res.status).toBe(200);
     const files = uploaded();
     const main = await sharp(files.get(`${ID}/store-main.webp`)!.bytes).metadata();
     const thumb = await sharp(files.get(`${ID}/store-thumb.webp`)!.bytes).metadata();
     expect([main.format, main.width, main.height]).toEqual(["webp", 1200, 800]);
-    expect([thumb.format, thumb.width, thumb.height]).toEqual(["webp", 160, 120]);
+    expect([thumb.format, thumb.width, thumb.height]).toEqual(["webp", thumbMax, thumbMax * 0.75]);
   });
 
   it("WebP で届いた写真は変換せず、そのまま置く", async () => {
