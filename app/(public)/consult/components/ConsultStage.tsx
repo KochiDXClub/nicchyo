@@ -21,6 +21,7 @@ import {
   X,
 } from "lucide-react";
 import toast from "react-hot-toast";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { useSpeechInput } from "@/lib/hooks/useSpeechInput";
 import { resolveGrandmaPose } from "@/lib/grandma/pose";
 import { buildConsultGreeting } from "@/lib/grandma/consultGreeting";
@@ -97,6 +98,15 @@ const CONSULT_BAR_SPACE = "calc(var(--safe-bottom, 0px) + var(--nav-bar-height) 
  * これより狭い画面では、サイドバーはチャット欄の上に重なる引き出しになる
  */
 const HISTORY_SIDEBAR_INLINE_MEDIA = "(min-width: 1024px)";
+
+/**
+ * 「これまでの相談」サイドバーを開け閉めするときの動き（左からすっと出て、左へ戻る）。
+ * PC では、横へずれるチャット欄・入力バー（CSS の transition。`duration-300` と
+ * `ease-out-soft`）とこの値を揃え、サイドバーが本文を押しのけていくように見せる。
+ * 緩急は tailwind.config の ease-out-soft と同じ
+ */
+const HISTORY_SIDEBAR_SLIDE_SECONDS = 0.3;
+const HISTORY_SIDEBAR_SLIDE_EASE: [number, number, number, number] = [0.22, 1, 0.36, 1];
 
 export interface ConsultStageProps {
   onAskStream: (
@@ -548,6 +558,11 @@ export default function ConsultStage({
     return () => media.removeEventListener("change", sync);
   }, []);
   const isHistoryDrawer = isHistorySidebarOpen && !isHistorySidebarInline;
+  // 動きを減らす設定の端末では、サイドバーも暗幕もその場で出し入れする
+  const prefersReducedMotion = useReducedMotion();
+  const historySlideTransition = prefersReducedMotion
+    ? { duration: 0 }
+    : { duration: HISTORY_SIDEBAR_SLIDE_SECONDS, ease: HISTORY_SIDEBAR_SLIDE_EASE };
   const historyPanelRef = useRef<HTMLDivElement | null>(null);
   /** 引き出しを閉じたとき、フォーカスを戻す先 */
   const openHistoryButtonRef = useRef<HTMLButtonElement | null>(null);
@@ -797,15 +812,33 @@ export default function ConsultStage({
           </Badge>
         )}
       </button>
+      {/*
+        開け閉めは、いきなり出し入れせずに動かす（PC・モバイル共通）。
+        サイドバーは左からすっと出て左へ戻り、モバイルの暗幕はふわっと濃くなる。
+        閉じる動きの間も描いておくため、AnimatePresence で外すのを待たせる
+      */}
+      <AnimatePresence>
+        {isHistorySidebarOpen && (
+          <motion.div
+            key="history-backdrop"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={historySlideTransition}
+            className="fixed inset-0 z-40 bg-black/30 lg:hidden"
+            onClick={() => onHistorySidebarOpenChange?.(false)}
+            aria-hidden="true"
+          />
+        )}
+      </AnimatePresence>
+      <AnimatePresence>
       {isHistorySidebarOpen && (
-        <div
-          className="fixed inset-0 z-40 bg-black/30 lg:hidden"
-          onClick={() => onHistorySidebarOpenChange?.(false)}
-          aria-hidden="true"
-        />
-      )}
-      {isHistorySidebarOpen && (
-        <div
+        <motion.div
+          key="history-panel"
+          initial={{ x: "-100%" }}
+          animate={{ x: 0 }}
+          exit={{ x: "-100%" }}
+          transition={historySlideTransition}
           ref={historyPanelRef}
           // lg 以上は常設の帯（補足の領域）、lg 未満は背面を覆うモーダル
           role={isHistoryDrawer ? "dialog" : "complementary"}
@@ -865,8 +898,9 @@ export default function ConsultStage({
               </button>
             </div>
           )}
-        </div>
+        </motion.div>
       )}
+      </AnimatePresence>
 
       {/*
         読みやすい行幅への制限（max-w-3xl）と、中央寄せ／左寄せの切り替えは
@@ -874,11 +908,21 @@ export default function ConsultStage({
         寄せたいので mx-auto をやめて左詰めにする（付けたままだと「サイドバー分を
         除いた幅の中でさらに中央寄せ」になり、サイドバーとの間に空白ができてしまう
         ——ConsultClient の <main> で一度直したのと同じ理由）。閉じている間は
-        これまで通り画面全体の中央に置く
+        これまで通り画面全体の中央に置く。
+
+        lg 以上の中央寄せは mx-auto ではなく margin-left の計算値で持つ。auto と 0 の
+        切り替えは動かせない（一瞬で飛ぶ）が、計算値と 0 の間なら transition で
+        滑らかに動かせるので、サイドバーの開け閉めに合わせて本文をずらせる。
+
+        計算は画面幅（100vw）を基準にする。% を基準にすると、同時に動く <main> の
+        padding-left で % の元の幅まで動きの途中で変わり、閉じる終わりぎわに本文が
+        数 px 行き過ぎて戻る揺れが出る。100vw なら左端の位置が padding と margin の
+        足し算で真っすぐ動く。下の入力バーも同じ式なので、本文と入力欄の左端が揃う。
+        lg 以上（1024px〜）では計算値が負になることはない
       */}
       <div
-        className={`mx-auto flex w-full max-w-3xl flex-col gap-3 ${
-          isHistorySidebarOpen ? "lg:mx-0" : ""
+        className={`mx-auto flex w-full max-w-3xl flex-col gap-3 motion-safe:transition-[margin-left] motion-safe:duration-300 motion-safe:ease-out-soft ${
+          isHistorySidebarOpen ? "lg:ml-0" : "lg:ml-[calc((100vw_-_2rem_-_48rem)/2)]"
         }`}
       >
       {/*
@@ -1104,16 +1148,16 @@ export default function ConsultStage({
           外側はビューポート全幅の flex にし、中身だけ max-w-3xl に絞る
           （ConsultClient の <main> と同じ組み方）。lg 以上でサイドバーを開いているときは
           この外側に左パディングを足してチャット欄と同じだけ右へ逃がし、さらに
-          justify-center のままだと「逃がした残りスペースの中でまた中央寄せ」になって
-          チャット本体とズレるため、lg:justify-start に切り替えて左詰めにする。
+          中央寄せのままだと「逃がした残りスペースの中でまた中央寄せ」になって
+          チャット本体とズレるため、中身を左詰め（margin-left: 0）に切り替える。
 
           パディングは lg:pl-80（main と同じ 20rem）だけでなく lg:pl-[21rem] にする。
           チャットのスクロール箱は main の 20rem に加えて自分自身の px-4（1rem）を
           持っているため、本文の左端は実際には 21rem 分空いている。ここを 20rem の
           ままにすると、入力欄だけ本文より 1rem 左にずれて見える */}
       <div
-        className={`fixed inset-x-0 z-20 flex justify-center px-4 ${
-          isHistorySidebarOpen ? "lg:justify-start lg:pl-[21rem]" : ""
+        className={`fixed inset-x-0 z-20 flex px-4 motion-safe:transition-[padding-left] motion-safe:duration-300 motion-safe:ease-out-soft ${
+          isHistorySidebarOpen ? "lg:pl-[21rem]" : ""
         } ${revealClass(280).className} ${
           speech.isListening || phase !== "idle" || isBusy ? "hidden" : ""
         }`}
@@ -1136,7 +1180,13 @@ export default function ConsultStage({
           }}
         />
 
-        <div className="flex w-full max-w-3xl items-center justify-center gap-3">
+        {/* 中央寄せ／左寄せの切り替えは、本文の内側ラッパーと同じく margin-left の計算値で
+            持ち、サイドバーの開け閉めに合わせて滑らかにずらす */}
+        <div
+          className={`mx-auto flex w-full max-w-3xl items-center justify-center gap-3 motion-safe:transition-[margin-left] motion-safe:duration-300 motion-safe:ease-out-soft ${
+            isHistorySidebarOpen ? "lg:ml-0" : "lg:ml-[calc((100vw_-_2rem_-_48rem)/2)]"
+          }`}
+        >
           {/* 文字入力を既定にする。タップして開く一段階を挟まず、
               最初から入力欄を出しておく。音声は騒がしい現地では速いが、
               静かな場所や周りに人がいるときは声を出しにくいため */}
