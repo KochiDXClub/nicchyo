@@ -965,11 +965,13 @@ function MapViewMapLibre({
         });
       }
 
-      // 写真入りの屋台は店舗×状態ごとに違うので、必要になった時点で遅延生成する。
+      // 写真入りの屋台は店舗×状態ごとに違うので、必要になった時点で遅延生成する（まず等倍で描く）。
       // 一段先（DETAIL_ZOOM）では屋台を 2 倍に描くので、等倍用の絵では粗くなる。全店ぶんを最初から
       // 細かく描くと端末の記憶を食うため、最大ズームを越えて寄っているときに画面に見えている店だけ
       // detailRatio で描き直す（同じ ID のまま pixelRatio を上げて差し替える。表示上の大きさは変わらない）。
-      // 細かい版は MAX_DETAIL_PHOTO_SPRITES 枚までにして、超えたら長く見ていないものから等倍に戻す
+      // 細かい版は MAX_DETAIL_PHOTO_SPRITES 枚までにして、超えたら長く見ていないものから等倍に戻す。
+      // 細かい版にするのは upgradeVisiblePhotoSprites だけで、画面の中心に近い店から上限の数までにする
+      // （見えている店が上限より多いときに、細かい版にしては等倍に戻すのを繰り返さないため）
       const isDetailZoom = () => map.getZoom() > MAX_ZOOM + DETAIL_SPRITE_ZOOM_OFFSET;
       const photoSprites = new PhotoSpriteRegistry({ baseRatio: uiRatio, maxDetail: MAX_DETAIL_PHOTO_SPRITES });
       const findShopForPhotoId = (id: string): { shop: Shop; state: StallState } | null => {
@@ -1023,20 +1025,30 @@ function MapViewMapLibre({
         if (!id.startsWith("photo:") || photoSprites.has(id)) return;
         const target = findShopForPhotoId(id);
         if (!target) return;
-        // 細かい版は画面に入っている店だけ。タイルに入っている画面外の店は等倍で描く
-        const visible = map.getBounds().contains([target.shop.lng, target.shop.lat]);
-        requestPhotoSprite(target.shop, target.state, isDetailZoom() && visible ? detailRatio : uiRatio);
+        // まず等倍で描く。一段先で見えている店は、落ち着いたときに upgradeVisiblePhotoSprites が細かい版にする
+        requestPhotoSprite(target.shop, target.state, uiRatio);
       });
       // 最大ズームを越えて寄ったら、画面に見えている写真入りの屋台を細かい版に描き直す。
       // 描き終わって落ち着いたとき（idle）だけ見る（ピンチやスライダーの途中は等倍版を拡大したまま）
       const upgradeVisiblePhotoSprites = () => {
         if (disposed || !isDetailZoom() || !map.getLayer(LAYER_SHOP_PHOTOS)) return;
+        const canvas = map.getCanvas();
+        const centerX = canvas.clientWidth / 2;
+        const centerY = canvas.clientHeight / 2;
+        const visible = new Map<string, { shop: Shop; state: StallState; distance: number }>();
         for (const feature of map.queryRenderedFeatures({ layers: [LAYER_SHOP_PHOTOS] })) {
-          const target = findShopForPhotoId(`photo:${feature.properties?.id}:${feature.properties?.state}`);
+          const id = `photo:${feature.properties?.id}:${feature.properties?.state}`;
+          const target = visible.has(id) ? null : findShopForPhotoId(id);
           if (!target) continue;
-          photoSprites.touch(`photo:${target.shop.id}:${target.state}`);
-          requestPhotoSprite(target.shop, target.state, detailRatio);
+          const point = map.project([target.shop.lng, target.shop.lat]);
+          visible.set(id, { ...target, distance: Math.hypot(point.x - centerX, point.y - centerY) });
         }
+        // 画面の中心に近い店から、上限の数まで（上限より多く見えている広い画面でも、描き直しが止まるように）
+        const nearest = Array.from(visible.entries())
+          .sort((a, b) => a[1].distance - b[1].distance)
+          .slice(0, MAX_DETAIL_PHOTO_SPRITES);
+        for (const [id] of nearest) photoSprites.touch(id);
+        for (const [, target] of nearest) requestPhotoSprite(target.shop, target.state, detailRatio);
       };
       map.on("idle", upgradeVisiblePhotoSprites);
 
