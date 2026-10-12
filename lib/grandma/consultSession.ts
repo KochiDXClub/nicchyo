@@ -10,12 +10,19 @@
  */
 
 import type { ConsultHistoryEntry } from "@/app/(public)/consult/types/consultConversation";
+import type { ConsultCharacterId } from "@/app/(public)/consult/data/consultCharacters";
 
 export interface ConsultEntry {
   id: string;
   question: string;
   answer: string;
   speakerName?: string;
+  /**
+   * 答えた話し手。開き直したときにその人へ替えるために持つ。
+   * これより前に保存された相談には無いので、そのときは speakerName で引く
+   * （findConsultCharacter）
+   */
+  speakerId?: ConsultCharacterId;
   shopIds?: number[];
   followUpQuestion?: string;
 }

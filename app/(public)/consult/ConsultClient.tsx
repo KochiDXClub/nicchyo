@@ -219,7 +219,7 @@ export default function ConsultClient() {
       <div className="pointer-events-none absolute inset-0 z-0 bg-[var(--consult-bg)]" aria-hidden="true" />
       {/*
         「これまでの相談」サイドバー（lg 以上）を開いているときは、
-        サイドバーのすぐ右（固定ガター lg:pl-80）から本文を始める。
+        サイドバー（幅 22rem）のすぐ右（固定ガター lg:pl-96）から本文を始める。
 
         ここでは幅を max-w-3xl に絞らない（ConsultStage に w-full のまま渡す）。
         絞ってしまうと、その狭い箱の内側でスクロールすることになり、縦スクロール
@@ -238,7 +238,7 @@ export default function ConsultClient() {
         // サイドバーの開け閉めに合わせて、本文の左の空きも滑らかに広げ・縮める
         // （サイドバー側の動きと同じ速さ・緩急。ConsultStage の HISTORY_SIDEBAR_SLIDE_*）
         className={`relative z-10 w-full pb-16 motion-safe:transition-[padding-left] motion-safe:duration-300 motion-safe:ease-out-soft ${
-          isHistorySidebarOpen ? "lg:pl-80" : ""
+          isHistorySidebarOpen ? "lg:pl-96" : ""
         }`}
       >
         <div className="w-full">
