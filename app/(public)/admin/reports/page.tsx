@@ -6,6 +6,8 @@ import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { AdminLayout, AdminPageHeader, EmptyState } from "@/components/admin";
+import { InboxTabs } from "@/components/admin/InboxTabs";
+import { notifyInboxChanged } from "@/lib/hooks/useAdminInboxCounts";
 import { showToast } from "@/lib/admin/toast";
 import type { Report, ReportStatus } from "@/app/api/admin/reports/route";
 
@@ -87,6 +89,7 @@ export default function AdminReportsPage() {
       setSelectedReport(null);
       setResolutionNotes("");
       void fetchReports();
+      notifyInboxChanged();
     } catch {
       showToast.error("ステータス更新に失敗しました");
     } finally {
@@ -102,9 +105,10 @@ export default function AdminReportsPage() {
   return (
     <AdminLayout>
       <AdminPageHeader
-        eyebrow="モデレーション"
+        eyebrow="受信トレイ"
         title="通報管理"
       />
+      <InboxTabs />
 
       {/* フィルター */}
       <div className="mb-4 flex flex-wrap gap-2">

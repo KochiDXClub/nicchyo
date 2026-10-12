@@ -482,6 +482,99 @@ export type Database = {
           },
         ]
       }
+      field_shop_locations: {
+        Row: {
+          accuracy_m: number | null
+          chome_id: number | null
+          created_at: string
+          latitude: number | null
+          longitude: number | null
+          source: string | null
+          store_number: number | null
+          updated_at: string
+          updated_by: string | null
+          vendor_id: string
+        }
+        Insert: {
+          accuracy_m?: number | null
+          chome_id?: number | null
+          created_at?: string
+          latitude?: number | null
+          longitude?: number | null
+          source?: string | null
+          store_number?: number | null
+          updated_at?: string
+          updated_by?: string | null
+          vendor_id: string
+        }
+        Update: {
+          accuracy_m?: number | null
+          chome_id?: number | null
+          created_at?: string
+          latitude?: number | null
+          longitude?: number | null
+          source?: string | null
+          store_number?: number | null
+          updated_at?: string
+          updated_by?: string | null
+          vendor_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "field_shop_locations_chome_id_fkey"
+            columns: ["chome_id"]
+            isOneToOne: false
+            referencedRelation: "chomes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "field_shop_locations_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: true
+            referencedRelation: "vendors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      site_announcements: {
+        Row: {
+          body: string
+          created_at: string
+          created_by: string | null
+          ends_at: string | null
+          id: string
+          important: boolean
+          published: boolean
+          starts_at: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          body: string
+          created_at?: string
+          created_by?: string | null
+          ends_at?: string | null
+          id?: string
+          important?: boolean
+          published?: boolean
+          starts_at?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          body?: string
+          created_at?: string
+          created_by?: string | null
+          ends_at?: string | null
+          id?: string
+          important?: boolean
+          published?: boolean
+          starts_at?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       guide_events: {
         Row: {
           created_at: string

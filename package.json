@@ -51,6 +51,7 @@
     "react-leaflet": "^4.2.1",
     "recharts": "^3.8.0",
     "resend": "^6.16.0",
+    "sharp": "^0.35.5",
     "tailwind-merge": "^2.6.1",
     "use-debounce": "^10.1.0",
     "zod": "^3.25.76"

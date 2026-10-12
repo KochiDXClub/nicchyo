@@ -35,8 +35,6 @@ type PublicSettings = {
   siteName: string;
   maintenanceMode: boolean;
   maintenanceMessage: string;
-  publicAnnouncementEnabled: boolean;
-  publicAnnouncement: string;
 };
 
 type MapSettings = {
@@ -50,8 +48,6 @@ const DEFAULT_PUBLIC_SETTINGS: PublicSettings = {
   siteName: "nicchyo",
   maintenanceMode: false,
   maintenanceMessage: "",
-  publicAnnouncementEnabled: false,
-  publicAnnouncement: "",
 };
 
 const DEFAULT_MAP_SETTINGS: MapSettings = {
@@ -340,7 +336,7 @@ export default function AdminSettingsPage() {
               </h2>
               <p className="mt-1 text-sm text-slate-500">
                 {tab === "general"
-                  ? "サイト名・メンテナンス表示・共通のお知らせを設定します。"
+                  ? "サイト名・メンテナンス表示を設定します。サイト内のお知らせは「お知らせ」から投稿します。"
                   : "描画方式の切替と、マップ編集で扱える件数の上限を設定します。変更は本番のマップに即時反映されます。"}
               </p>
             </div>
@@ -401,39 +397,6 @@ export default function AdminSettingsPage() {
                     setPublicSettings((prev) => ({
                       ...prev,
                       maintenanceMessage: event.target.value,
-                    }))
-                  }
-                  className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none transition focus:border-sky-400"
-                />
-              </label>
-
-              <label className="flex items-center justify-between rounded-xl border border-slate-200 px-4 py-3">
-                <div>
-                  <p className="text-sm font-medium text-slate-700">公開お知らせを有効化</p>
-                  <p className="text-xs text-slate-500">ホームなどで共通告知を出すための下準備です。</p>
-                </div>
-                <input
-                  type="checkbox"
-                  checked={publicSettings.publicAnnouncementEnabled}
-                  onChange={(event) =>
-                    setPublicSettings((prev) => ({
-                      ...prev,
-                      publicAnnouncementEnabled: event.target.checked,
-                    }))
-                  }
-                  className="h-5 w-5"
-                />
-              </label>
-
-              <label className="block">
-                <span className="mb-2 block text-sm font-medium text-slate-700">公開お知らせ文</span>
-                <textarea
-                  rows={4}
-                  value={publicSettings.publicAnnouncement}
-                  onChange={(event) =>
-                    setPublicSettings((prev) => ({
-                      ...prev,
-                      publicAnnouncement: event.target.value,
                     }))
                   }
                   className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none transition focus:border-sky-400"

@@ -1,13 +1,9 @@
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
-import type { SupabaseClient } from "@supabase/supabase-js";
-import { createClient as createServerClient } from "@/utils/supabase/server";
 import { requireAdminApi } from "@/lib/auth/requireAdminApi";
 import { guardAdminShopWrite, UUID_RE } from "@/lib/admin/shopApiGuard";
 import { logAdminAudit } from "@/lib/audit/logAdminAudit";
 import { parseShopLocation } from "@/lib/admin/shopLocation";
-import { ensureRecentMapLayoutSnapshot } from "@/app/api/admin/map-layout/_shared";
-import { revalidatePublicShops } from "@/app/(public)/map/services/shopCache";
+import { isMissingTableError } from "@/lib/admin/fieldShopLocation";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -15,8 +11,9 @@ export const dynamic = "force-dynamic";
 type LocationRow = { id: string; store_number: number; latitude: number; longitude: number };
 
 /**
- * 現地で位置を決めるための、全店番の位置と、この店舗の現在の位置。
+ * 現地で位置を決めるための、全店番の位置（地図のデータ）と、この店舗の現在の位置。
  * 地図に周りの区画を出して、どの店番がどこかを見ながら置けるようにする。
+ * 現在の位置は、この店舗の現場登録の記録があればそれ、無ければ地図上の区画の位置（見るだけ）。
  */
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const auth = await requireAdminApi();
@@ -26,12 +23,16 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   const { id } = await params;
   if (!UUID_RE.test(id)) return NextResponse.json({ error: "Invalid id" }, { status: 400 });
 
-  const [locations, assignments, vendors] = await Promise.all([
+  const [locations, assignments, vendors, field] = await Promise.all([
     adminClient.from("market_locations").select("id, store_number, latitude, longitude"),
     adminClient.from("location_assignments").select("location_id, vendor_id"),
     adminClient.from("vendors").select("id, shop_name"),
+    adminClient.from("field_shop_locations").select("store_number, latitude, longitude, accuracy_m, source").eq("vendor_id", id).maybeSingle(),
   ]);
   if (locations.error || assignments.error || vendors.error) {
+    return NextResponse.json({ error: "位置を取得できませんでした" }, { status: 500 });
+  }
+  if (field.error && !isMissingTableError(field.error)) {
     return NextResponse.json({ error: "位置を取得できませんでした" }, { status: 500 });
   }
 
@@ -49,15 +50,29 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     };
   });
 
-  return NextResponse.json({ locations: rows, current: rows.find((r) => r.vendorId === id) ?? null });
+  const record = field.data;
+  const current =
+    record && record.latitude != null && record.longitude != null
+      ? {
+          storeNumber: record.store_number,
+          lat: record.latitude,
+          lng: record.longitude,
+          vendorId: id,
+          vendorName: nameById.get(id) ?? "",
+          // 現場で記録したもの（地図上の区画の位置ではない）。誤差と取り方
+          recorded: true,
+          accuracyM: record.accuracy_m,
+          source: record.source,
+        }
+      : rows.find((r) => r.vendorId === id) ?? null;
+
+  return NextResponse.json({ locations: rows, current });
 }
 
 /**
- * 店舗を店番に置き、その店番の座標を決める。
- * - 店番の区画がなければ作る。あれば座標を更新する
- * - その店番を別の店舗が使っているときは、force: true がない限り 409 で断る（上書きの確認用）
- * - この店舗が別の店番に置かれていたときは、そちらを外す（1店舗1店番）
- * 保存の前に、既存の地図編集と同じ形でスナップショットを残す（誤操作を戻せるように。同じ運営が直近 10 分以内に残していれば、それを使う）。
+ * 現場で聞き取った店番と座標を、この店舗の記録として保存する。
+ * 地図のデータ（market_locations・location_assignments）は書き換えない。公開マップにも反映されない。
+ * 地図への反映は、運営が記録を確かめて地図編集で行う。1 店舗につき最新の 1 件だけ残す。
  */
 export async function PUT(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -67,65 +82,27 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
 
     const parsed = parseShopLocation(guard.body);
     if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 });
-    const { storeNumber, lat, lng, force } = parsed.value;
+    const { storeNumber, lat, lng, source, accuracyM } = parsed.value;
 
     const { data: vendor } = await adminClient.from("vendors").select("shop_name").eq("id", id).maybeSingle();
     if (!vendor) return NextResponse.json({ error: "店舗が見つかりません" }, { status: 404 });
 
-    const { data: existing, error: existingError } = await adminClient
-      .from("market_locations")
-      .select("id")
-      .eq("store_number", storeNumber)
-      .maybeSingle();
-    if (existingError) return NextResponse.json({ error: "位置を取得できませんでした" }, { status: 500 });
-
-    // 店番を別の店舗が使っていないか
-    if (existing) {
-      const { data: occupant } = await adminClient
-        .from("location_assignments")
-        .select("vendor_id")
-        .eq("location_id", existing.id)
-        .neq("vendor_id", id)
-        .limit(1)
-        .maybeSingle();
-      if (occupant && !force) {
-        const { data: occupantVendor } = await adminClient
-          .from("vendors")
-          .select("shop_name")
-          .eq("id", occupant.vendor_id)
-          .maybeSingle();
-        return NextResponse.json(
-          {
-            error: `店番 ${storeNumber} は「${occupantVendor?.shop_name ?? "別の店舗"}」が使っています`,
-            code: "STORE_NUMBER_TAKEN",
-            occupantName: occupantVendor?.shop_name ?? null,
-          },
-          { status: 409 },
-        );
-      }
-    }
-
-    // 戻せるように、書く前の状態を残す。残せなければ書かない。
-    // 同じ運営が直近 10 分以内に残していれば、それを使う（1 店ごとに全店番ぶんを保存し直さない）
-    const supabase = createServerClient(await cookies());
-    await ensureRecentMapLayoutSnapshot(supabase, adminClient as unknown as SupabaseClient, user.id, { updatedShopCount: 1 });
-
-    // 区画の作成・更新と割り当ての入れ替えは、DB 関数で 1 トランザクションにする
-    const { data: placed, error: placeError } = await adminClient.rpc("admin_place_shop", {
-      p_vendor_id: id,
-      p_store_number: storeNumber,
-      p_lat: lat,
-      p_lng: lng,
-      p_force: force,
-    });
-    if (placeError) return NextResponse.json({ error: "位置を保存できませんでした" }, { status: 500 });
-    // 確認のあとに、別の運営が先に置いたとき
-    if ((placed as { status?: string } | null)?.status === "taken") {
-      return NextResponse.json(
-        { error: `店番 ${storeNumber} は別の店舗が使っています`, code: "STORE_NUMBER_TAKEN", occupantName: null },
-        { status: 409 },
+    const { error } = await adminClient
+      .from("field_shop_locations")
+      .upsert(
+        {
+          vendor_id: id,
+          store_number: storeNumber,
+          latitude: lat,
+          longitude: lng,
+          source,
+          accuracy_m: accuracyM,
+          updated_by: user.id,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "vendor_id" },
       );
-    }
+    if (error) return NextResponse.json({ error: "位置を保存できませんでした" }, { status: 500 });
 
     await logAdminAudit(
       adminClient,
@@ -135,12 +112,11 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
         targetType: "vendor",
         targetId: id,
         targetName: (vendor.shop_name ?? id).slice(0, 500),
-        details: `店番 ${storeNumber} に配置（${lat.toFixed(6)}, ${lng.toFixed(6)}）${force ? " / 別の店舗の割り当てを上書き" : ""}`,
+        details: `現場登録: ${storeNumber !== null ? `店番 ${storeNumber}` : "店番なし"} の位置を記録（${source === "gps" ? `現在地${accuracyM != null ? `・誤差約${Math.round(accuracyM)}m` : ""}` : "地図で指定"}: ${lat.toFixed(6)}, ${lng.toFixed(6)}）。地図には反映していない`,
         ipAddress: ip,
       },
     );
 
-    revalidatePublicShops();
     return NextResponse.json({ ok: true, storeNumber });
   } catch {
     return NextResponse.json({ error: "位置を保存できませんでした" }, { status: 500 });

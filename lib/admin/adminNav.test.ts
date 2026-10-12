@@ -3,9 +3,11 @@ import fs from "node:fs";
 import path from "node:path";
 import {
   ADMIN_NAV_GROUPS,
+  getAllAdminNavHrefs,
   getAllAdminNavItems,
   getVisibleAdminNav,
   isAdminNavItemActive,
+  isAdminNavItemCurrent,
 } from "./adminNav";
 import type { PermissionCheck } from "@/lib/auth/types";
 
@@ -70,16 +72,15 @@ describe("adminNav", () => {
     const routes = listAdminRoutes(ADMIN_PAGES_DIR).filter(
       (route) => !PATHS_INTENTIONALLY_NOT_IN_NAV.has(route)
     );
-    const navHrefs = new Set(getAllAdminNavItems().map((item) => item.href));
+    // 項目の中のタブで開く画面（受信トレイの通報・問い合わせ）も、ナビから開けるものとして数える
+    const navHrefs = new Set(getAllAdminNavHrefs());
     const missing = routes.filter((route) => !navHrefs.has(route));
     expect(missing).toEqual([]);
   });
 
   it("ナビの項目はすべて実在するページを指している", () => {
     const routes = new Set(listAdminRoutes(ADMIN_PAGES_DIR));
-    const dangling = getAllAdminNavItems()
-      .map((item) => item.href)
-      .filter((href) => !routes.has(href));
+    const dangling = getAllAdminNavHrefs().filter((href) => !routes.has(href));
     expect(dangling).toEqual([]);
   });
 
@@ -100,6 +101,26 @@ describe("adminNav", () => {
     expect(isAdminNavItemActive("/admin/dashboard", "/admin")).toBe(true);
     expect(isAdminNavItemActive("/admin/dashboard", "/admin/dashboard")).toBe(true);
     expect(isAdminNavItemActive("/admin/dashboard", "/admin/settings")).toBe(false);
+  });
+
+  it("「対応する」は受信トレイ・お知らせ・投稿の確認の3つで、通報と問い合わせは受信トレイの中にある", () => {
+    const inbox = ADMIN_NAV_GROUPS.find((group) => group.id === "inbox")!;
+    expect(inbox.items.map((item) => item.label)).toEqual(["受信トレイ", "お知らせ", "投稿の確認"]);
+    expect(inbox.items[0].relatedHrefs).toEqual(["/admin/reports", "/admin/inquiries"]);
+    // 送信（お知らせ）は管理者だけ
+    expect(getVisibleAdminNav(moderatorPermissions).find((g) => g.id === "inbox")!.items.map((i) => i.label)).toEqual([
+      "受信トレイ",
+      "投稿の確認",
+    ]);
+  });
+
+  it("受信トレイの中の通報・問い合わせでも、サイドバーでは受信トレイが選択状態になる", () => {
+    const inboxItem = getAllAdminNavItems().find((item) => item.label === "受信トレイ")!;
+    for (const path of ["/admin/notifications", "/admin/reports", "/admin/inquiries"]) {
+      expect(isAdminNavItemCurrent(inboxItem, path), path).toBe(true);
+    }
+    expect(isAdminNavItemCurrent(inboxItem, "/admin/outbox")).toBe(false);
+    expect(isAdminNavItemCurrent(inboxItem, "/admin/security-reports")).toBe(false);
   });
 
   it("サブパスでも親項目が選択状態になる", () => {

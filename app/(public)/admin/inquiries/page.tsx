@@ -4,6 +4,8 @@ import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { AdminLayout, AdminPageHeader, EmptyState } from "@/components/admin";
+import { InboxTabs } from "@/components/admin/InboxTabs";
+import { notifyInboxChanged } from "@/lib/hooks/useAdminInboxCounts";
 import { showToast } from "@/lib/admin/toast";
 import type { Inquiry, InquiryStatus } from "@/app/api/admin/inquiries/route";
 
@@ -86,6 +88,7 @@ export default function AdminInquiriesPage() {
       setSelectedInquiry(null);
       setReplyNotes("");
       void fetchInquiries();
+      notifyInboxChanged();
     } catch {
       showToast.error("ステータス更新に失敗しました");
     } finally {
@@ -96,9 +99,10 @@ export default function AdminInquiriesPage() {
   return (
     <AdminLayout>
       <AdminPageHeader
-        eyebrow="サポート"
+        eyebrow="受信トレイ"
         title="問い合わせ管理"
       />
+      <InboxTabs />
 
       {/* フィルター */}
       <div className="mb-4 flex flex-wrap gap-2">

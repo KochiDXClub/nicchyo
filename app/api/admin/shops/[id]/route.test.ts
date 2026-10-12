@@ -14,6 +14,8 @@ vi.mock("@/lib/admin/shopApiGuard", async (importOriginal) => ({
 }));
 vi.mock("@/lib/auth/requireAdminApi", () => ({ requireAdminApi: vi.fn() }));
 vi.mock("@/lib/audit/logAdminAudit", () => ({ logAdminAudit: (...args: unknown[]) => logAdminAudit(...args) }));
+const purge = vi.fn();
+vi.mock("@/lib/admin/productImages", () => ({ purgeRemovedProducts: (...args: unknown[]) => purge(...args) }));
 vi.mock("@/app/(public)/map/services/shopCache", () => ({ revalidatePublicShops: () => revalidate() }));
 
 import { PATCH } from "./route";
@@ -123,5 +125,17 @@ describe("PATCH /api/admin/shops/[id]", () => {
     guard.mockResolvedValue({ error: new Response(null, { status: 401 }) });
     expect((await patch({ shop_name: "x", updated_at: LOADED_AT })).status).toBe(401);
     expect(updateCalls).toHaveLength(0);
+  });
+
+  it("主な商品の一覧を保存したら、外した商品の行と写真を掃除する（保存前の一覧と新しい一覧を渡す）", async () => {
+    current = { ...current, main_products: ["トマト", "なす"] };
+    const res = await patch({ main_products: ["トマト"], updated_at: LOADED_AT });
+    expect(res.status).toBe(200);
+    expect(purge).toHaveBeenCalledWith(expect.anything(), ID, ["トマト", "なす"], ["トマト"]);
+  });
+
+  it("主な商品を送っていない保存では、商品の掃除をしない", async () => {
+    await patch({ shop_name: "新しい名前", updated_at: LOADED_AT });
+    expect(purge).not.toHaveBeenCalled();
   });
 });

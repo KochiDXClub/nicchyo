@@ -49,7 +49,8 @@ const getCachedShopBaseRows = unstable_cache(
     }
     return rows;
   },
-  ["map-shop-base-rows-v1"],
+  // 行の形（取る列）を変えたら版を上げる。古い形のキャッシュを使い回さないため（v2: products.image_url）
+  ["map-shop-base-rows-v2"],
   { revalidate: SHOP_BASE_REVALIDATE_SECONDS, tags: [SHOP_BASE_CACHE_TAG] }
 );
 

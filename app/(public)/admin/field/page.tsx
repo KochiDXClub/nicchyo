@@ -9,13 +9,14 @@ import { useAuth } from "@/lib/auth/AuthContext";
 import { AdminLayout, AdminPageHeader, ErrorBoundary } from "@/components/admin";
 import type { AdminShop } from "@/app/api/admin/shops/route";
 import { ListingStatusBadge } from "../shops/ListingStatusBadge";
+import { NewShopForm } from "./components/NewShopForm";
 
 type Filter = "all" | "unlisted" | "noLocation" | "noPhoto";
 
 const FILTERS: { key: Filter; label: string; match: (s: AdminShop) => boolean }[] = [
   { key: "all", label: "すべて", match: () => true },
   { key: "unlisted", label: "許可が未取得", match: (s) => s.listingStatus === "pending" },
-  { key: "noLocation", label: "位置が未登録", match: (s) => s.storeNumber === null },
+  { key: "noLocation", label: "位置が未登録", match: (s) => !s.hasLocation },
   { key: "noPhoto", label: "写真なし", match: (s) => !s.hasPhoto },
 ];
 
@@ -27,6 +28,7 @@ function FieldListContent() {
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<Filter>("all");
+  const [isCreating, setIsCreating] = useState(false);
 
   useEffect(() => {
     if (isLoading) return;
@@ -67,6 +69,17 @@ function FieldListContent() {
     <AdminLayout>
       <AdminPageHeader eyebrow="Field" title="現場登録" description="日曜市の現地で、店舗の情報・掲載許可・写真・位置を登録します" />
       <div className="mx-auto max-w-2xl space-y-3 px-4 py-4">
+        {isCreating ? (
+          <NewShopForm shops={shops} onClose={() => setIsCreating(false)} />
+        ) : (
+          <button
+            type="button"
+            onClick={() => setIsCreating(true)}
+            className="inline-flex min-h-12 w-full items-center justify-center rounded-lg border border-amber-500 bg-white px-4 py-3 text-base font-semibold text-amber-700"
+          >
+            ＋ 新しい店舗を登録（住所録に無い店）
+          </button>
+        )}
         <input
           type="search"
           value={query}
@@ -109,9 +122,9 @@ function FieldListContent() {
                 >
                   <span
                     className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-lg text-lg font-bold ${
-                      shop.storeNumber !== null ? "bg-green-50 text-green-700" : "bg-nicchyo-base text-nicchyo-ink/40"
+                      shop.storeNumber !== null || shop.hasLocation ? "bg-green-50 text-green-700" : "bg-nicchyo-base text-nicchyo-ink/40"
                     }`}
-                    aria-label={shop.storeNumber !== null ? `店番 ${shop.storeNumber}` : "位置が未登録"}
+                    aria-label={shop.storeNumber !== null ? `店番 ${shop.storeNumber}` : shop.hasLocation ? "店番なし・位置は記録済み" : "位置が未登録"}
                   >
                     {shop.storeNumber ?? "–"}
                   </span>

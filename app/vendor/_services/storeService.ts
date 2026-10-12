@@ -66,7 +66,7 @@ export async function fetchVendorStore(vendorId: string): Promise<Store | null> 
 export async function uploadStoreImage(vendorId: string, file: File): Promise<string> {
   const supabase = createClient();
 
-  // クライアント側でメイン用(1200px)とサムネ用(160px)のWebP画像に圧縮・リサイズ
+  // クライアント側でメイン用(1200px)とサムネ用(400px)のWebP画像に圧縮・リサイズ
   const { mainBlob, thumbBlob } = await createStoreImages(file);
 
   // WebP を書き出せないブラウザでは JPEG/PNG になるので、実際の形式で保存する

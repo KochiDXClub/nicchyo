@@ -23,6 +23,7 @@ import { useMapSearchFilter } from "./hooks/useMapSearchFilter";
 import { GenreFilter } from "./components/GenreFilter";
 import { VendorShopPrompt } from "./components/VendorShopPrompt";
 import MarketStatusBar from "../../components/market/MarketStatusBar";
+import AnnouncementBanner from "@/components/announcements/AnnouncementBanner";
 import { useMarketCalendar } from "../../../lib/market/useMarketCalendar";
 import ShopScanCards from "./components/ShopScanCards";
 import NearbyExploreButton from "./components/NearbyExploreButton";
@@ -30,6 +31,8 @@ import NearbyExplorePanel, {
   type NearbyRecommendedShop,
 } from "./components/NearbyExplorePanel";
 import { useNearbyPromptVisibility } from "./hooks/useNearbyPromptVisibility";
+import { hideWhilePanningClass, useMapPanning } from "./hooks/useMapPanning";
+import { cn } from "@/lib/utils/cn";
 import { hasMapDeepLink, MAP_INTRO_PANEL_VALUE, useMapIntro } from "./hooks/useMapIntro";
 import GuideLayer from "./components/GuideLayer";
 import OdekakeGuidePanel from "./components/OdekakeGuidePanel";
@@ -275,8 +278,10 @@ export default function MapPageClient({
     }
     if (!el) return;
     const observer = new ResizeObserver(() => {
-      const rect = el.getBoundingClientRect();
-      setTrackingButtonTop(rect.bottom + 8);
+      // 上端は getBoundingClientRect ではなくレイアウト上の位置（offsetTop）で測る。パン中は
+      // 検索エリアを transform で上へずらして隠すので、そのあいだに高さが変わると 8px ずれて測れてしまう。
+      // 高さは translate の影響を受けないので、端数まで従来と同じ値になる rect.height を使う
+      setTrackingButtonTop(el.offsetTop + el.getBoundingClientRect().height + 8);
     });
     observer.observe(el);
     resizeObserverRef.current = observer;
@@ -298,6 +303,9 @@ export default function MapPageClient({
 
   const dragControls = useDragControls();
   const [mapInstance, setMapInstance] = useState<MapCamera | null>(null);
+  // 地図をドラッグしているあいだは、上に浮いている UI（検索バー・チップ・おでかけボタン・
+  // 案内中のバー）をふわっと隠して地図を広く見せる。現在地ボタンは MapControls 側で同じフックを使う
+  const isPanning = useMapPanning(mapInstance);
   // ShopScanCards のカードがタップされたときに、詳細バナーを開くよう地図へ渡す要求。
   // 同じ店を続けてタップしても開き直せるよう token を進める
   const [focusShopRequest, setFocusShopRequest] = useState<{ shopId: number; token: number } | null>(null);
@@ -806,7 +814,11 @@ export default function MapPageClient({
             {!nearbyState && (
               <div
                 aria-hidden
-                className="pointer-events-none absolute inset-x-0 top-0 z-[1000] h-[100px] backdrop-blur-[1.5px] [mask-image:linear-gradient(to_bottom,black,black_55%,transparent)] [-webkit-mask-image:linear-gradient(to_bottom,black,black_55%,transparent)]"
+                className={cn(
+                  "pointer-events-none absolute inset-x-0 top-0 z-[1000] h-[100px] backdrop-blur-[1.5px] [mask-image:linear-gradient(to_bottom,black,black_55%,transparent)] [-webkit-mask-image:linear-gradient(to_bottom,black,black_55%,transparent)]",
+                  // 上の UI を隠しているあいだは、ぼかしも外して地図をそのまま見せる
+                  hideWhilePanningClass(isPanning)
+                )}
               />
             )}
 
@@ -823,9 +835,15 @@ export default function MapPageClient({
                   arrived={guide.arrived}
                   progress={guide.progress}
                   onStop={guide.stopNavigation}
+                  className={hideWhilePanningClass(isPanning)}
                 />
               ) : (
-                <div className="absolute left-3 right-3 top-3 z-[1001] flex items-center gap-3 rounded-full bg-white py-2 pl-2 pr-2 shadow-[0_8px_24px_rgba(58,58,58,0.18)] ring-1 ring-black/5">
+                <div
+                  className={cn(
+                    "absolute left-3 right-3 top-3 z-[1001] flex items-center gap-3 rounded-full bg-white py-2 pl-2 pr-2 shadow-[0_8px_24px_rgba(58,58,58,0.18)] ring-1 ring-black/5",
+                    hideWhilePanningClass(isPanning)
+                  )}
+                >
                   <span className="flex h-8 w-8 items-center justify-center rounded-full bg-nicchyo-accent text-nicchyo-ink" aria-hidden="true">
                     <Navigation size={15} />
                   </span>
@@ -845,11 +863,14 @@ export default function MapPageClient({
             {!nearbyState && !guideActive && (
               <div
                 ref={searchAreaRef}
-                className="absolute left-3 right-3 top-3 z-[1001] flex flex-col gap-2"
+                className={cn("absolute left-3 right-3 top-3 z-[1001] flex flex-col gap-2", hideWhilePanningClass(isPanning))}
                 onMouseDown={(e) => e.stopPropagation()}
                 onClick={(e) => e.stopPropagation()}
                 onTouchStart={(e) => e.stopPropagation()}
               >
+                {/* サイト内のお知らせ（公開中のものがあるときだけ。無ければ何も出さないので検索バーは動かない） */}
+                <AnnouncementBanner />
+
                 {/* 開催ステータス（例外時のみ表示。平常時は null を返すので検索バーは動かない） */}
                 <MarketStatusBar day={marketCalendar.day} placement="map" />
 
@@ -987,7 +1008,11 @@ export default function MapPageClient({
 
             {/* おでかけサポートを開くボタン（現在地ボタンと同じ高さの左側） */}
             {odekakeEntryVisible && !guideActive && !nearbyState && !isShopBannerOpen && (
-              <OdekakeLaunchButton top={trackingButtonTop} onClick={openGuideMenu} />
+              <OdekakeLaunchButton
+                top={trackingButtonTop}
+                onClick={openGuideMenu}
+                className={hideWhilePanningClass(isPanning)}
+              />
             )}
 
             {/* おでかけサポート：表示中の種別のスポットと経路を描き、一覧・案内を出す */}
