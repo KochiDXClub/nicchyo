@@ -7,9 +7,9 @@
  * （ShopDetailBanner のモバイル drawer）。案内でも同じところまで見せたいので、
  * その並びをそのまま組む。
  *
- *   大きな写真（ShopBannerHero の expanded）→ テーマ色の帯 → 営業情報 → 商品
+ *   大きな写真（ShopBannerHero の expanded）→ お店の情報 → 商品
  *
- * 写真・見出し・営業情報は本番と同じ部品（ShopBannerHero / ShopBusinessInfoCard）を
+ * 写真・見出し・お店の情報は本番と同じ部品（ShopBannerHero / ShopInfoList）を
  * 呼んでいる。商品の欄だけは、本番が価格・季節・お気に入りまで扱う大きな作りなので、
  * 案内では品名の並びに留めている。
  *
@@ -21,7 +21,7 @@ import { motion } from 'framer-motion';
 import { Heart, X as XIcon } from 'lucide-react';
 import {
   ShopBannerHero,
-  ShopBusinessInfoCard,
+  ShopInfoList,
   resolveBannerTheme,
 } from '../ShopBannerHero';
 import { getShopBannerImage } from '@/lib/shopImages';
@@ -83,22 +83,11 @@ export default function IntroShopSheet({
           />
         </div>
 
-        {/* テーマ色の帯。本番はここで写真と本文を分けている */}
-        <div className="mt-4 h-1 w-full" style={{ backgroundColor: theme.accent }} />
+        <div className="space-y-6 px-5 pt-5">
+          <ShopInfoList shop={shop} />
 
-        <div className="space-y-4 px-5 pt-5">
-          <ShopBusinessInfoCard shop={shop} theme={theme} />
-
-          <div className="rounded-[30px] border border-slate-200 bg-white px-5 py-5 shadow-sm">
-            <p
-              className="text-xs font-bold uppercase tracking-[0.18em]"
-              style={{ color: theme.text }}
-            >
-              商品
-            </p>
-            <p className="mt-1 text-sm text-slate-500">
-              品ぞろえと価格を並びで見比べやすくしています
-            </p>
+          <div>
+            <h3 className="text-[15px] font-bold text-nicchyo-ink">商品</h3>
             {shop.products.length > 0 ? (
               <ul className="mt-3 flex flex-wrap gap-2">
                 {shop.products.map((product) => (

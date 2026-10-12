@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { RefObject } from "react";
 import { useRouter } from "next/navigation";
+import { Megaphone } from "lucide-react";
 import type { BannerTheme, ActivePostItem } from "./ShopBannerHero";
 import { fetchReactionCounts, toggleReaction, type ReactionState } from "@/lib/story/reactions";
 import { getOrCreateConsultVisitorKey } from "@/lib/consultVisitorKey";
@@ -136,7 +137,7 @@ export function PostCarousel({
       style={{ borderColor: theme.border }}
     >
       <div className="flex items-center gap-2 px-4 py-2.5" style={{ backgroundColor: theme.light }}>
-        <span className="text-base">📢</span>
+        <Megaphone className="h-4 w-4" style={{ color: theme.text }} aria-hidden />
         <span className="text-sm font-bold" style={{ color: theme.text }}>今日のお知らせ</span>
         {activePosts.length > 1 && (
           <div className="ml-auto flex gap-1">

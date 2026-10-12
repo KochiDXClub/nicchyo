@@ -1,8 +1,35 @@
 "use client";
 
-import type { ReactNode } from "react";
+import type { ReactNode, SVGProps } from "react";
 import Image from "next/image";
-import { ArrowLeft, Clock, Heart, Pencil, X as XIcon } from "lucide-react";
+import {
+  ArrowLeft,
+  Banknote,
+  CalendarDays,
+  Carrot,
+  Clock,
+  CreditCard,
+  Expand,
+  Gem,
+  Globe,
+  Heart,
+  Instagram,
+  MapPin,
+  Palette,
+  ShoppingBasket,
+  Smartphone,
+  Sprout,
+  Store,
+  Tag,
+  TrainFront,
+  UserRound,
+  Umbrella,
+  UtensilsCrossed,
+  Wallet,
+  Wrench,
+  X as XIcon,
+  type LucideIcon,
+} from "lucide-react";
 import type { Shop } from "../data/shops";
 import { toIsoDate } from "@/lib/market/calendar";
 
@@ -57,16 +84,41 @@ export type ActivePostItem = {
   createdAt?: string;
 };
 
-// ─── Category fallback ────────────────────────────────────────────────────────
-export const CATEGORY_FALLBACK: Record<string, { emoji: string; gradient: string }> = {
-  "食材":     { emoji: "🥦", gradient: "bg-gradient-to-br from-emerald-100 to-green-200" },
-  "加工食品": { emoji: "🍱", gradient: "bg-gradient-to-br from-amber-100 to-orange-200" },
-  "工芸品":   { emoji: "🎨", gradient: "bg-gradient-to-br from-purple-100 to-indigo-200" },
-  "植物":     { emoji: "🌿", gradient: "bg-gradient-to-br from-green-100 to-emerald-200" },
-  "飲食":     { emoji: "🍜", gradient: "bg-gradient-to-br from-orange-100 to-red-200" },
+// ─── Category icon ────────────────────────────────────────────────────────────
+// 写真が無い・読めないときの代わり。キーは categories テーブルの name
+const CATEGORY_ICONS: Record<string, LucideIcon> = {
+  "食べ物": UtensilsCrossed,
+  "食材": Carrot,
+  "植物・苗": Sprout,
+  "道具・工具": Wrench,
+  "生活雑貨": ShoppingBasket,
+  "手作り・工芸": Palette,
+  "アクセサリー": Gem,
 };
 
-// ─── Business info card ───────────────────────────────────────────────────────
+export function categoryIcon(category?: string | null): LucideIcon {
+  return CATEGORY_ICONS[category ?? ""] ?? Store;
+}
+
+/** 写真の代わりに、テーマの淡い色の地にカテゴリのアイコンを置く */
+export function CategoryPlaceholder({
+  category,
+  theme,
+  iconClassName,
+}: {
+  category?: string | null;
+  theme: BannerTheme;
+  iconClassName: string;
+}) {
+  const Icon = categoryIcon(category);
+  return (
+    <div className="flex h-full w-full items-center justify-center" style={{ backgroundColor: theme.light }}>
+      <Icon className={iconClassName} style={{ color: theme.text }} strokeWidth={1.5} aria-hidden />
+    </div>
+  );
+}
+
+// ─── Shop info list ───────────────────────────────────────────────────────────
 function formatBusinessHours(start?: string, end?: string) {
   const s = start?.trim();
   const e = end?.trim();
@@ -76,55 +128,121 @@ function formatBusinessHours(start?: string, end?: string) {
   return null;
 }
 
-export function ShopBusinessInfoCard({ shop, theme }: { shop: Shop; theme: BannerTheme }) {
+const RAIN_POLICY_LABELS: Record<string, string> = {
+  outdoor: "雨でも出店",
+  tent: "雨でも出店（テント）",
+  cancel: "雨天中止",
+};
+
+const PAYMENT_METHODS: Record<string, { label: string; icon: LucideIcon }> = {
+  cash: { label: "現金", icon: Banknote },
+  card: { label: "カード", icon: CreditCard },
+  paypay: { label: "PayPay", icon: Smartphone },
+  ic: { label: "交通系IC", icon: TrainFront },
+};
+
+/** X（旧 Twitter）のロゴ。lucide には今の X のロゴが無い */
+function XLogo(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden {...props}>
+      <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+    </svg>
+  );
+}
+
+/** @ 付きや ID だけの入力も、開ける URL にする */
+function socialUrl(value: string, base: string) {
+  if (value.startsWith("http")) return value;
+  return base ? `${base}${value.replace(/^@/, "")}` : `https://${value}`;
+}
+
+function InfoRow({ icon: Icon, label, children }: { icon: LucideIcon; label: string; children: ReactNode }) {
+  return (
+    <div className="flex items-start gap-3 py-3">
+      <Icon className="mt-0.5 h-4 w-4 shrink-0 text-nicchyo-ink/40" aria-hidden />
+      <dt className="w-16 shrink-0 pt-px text-xs font-semibold text-nicchyo-ink/55">{label}</dt>
+      <dd className="min-w-0 flex-1 text-sm font-semibold leading-relaxed text-nicchyo-ink">{children}</dd>
+    </div>
+  );
+}
+
+/**
+ * 場所・出店者・出店日・出店時間・雨の日・支払い・出店スタイルと、SNS・サイトへのリンク。
+ * 出店者が書いていない項目は行ごと出さない（何も書いていなければ何も出さない）
+ */
+export function ShopInfoList({ shop }: { shop: Shop }) {
+  const chome = shop.chome;
+  // 出店者が公開にした氏名だけが届く（vendor_owner_profiles の is_public）
+  const ownerName = shop.ownerName?.trim();
+  const schedule = shop.schedule?.trim();
   const businessHours = formatBusinessHours(shop.businessHoursStart, shop.businessHoursEnd);
-  const scheduleText = shop.schedule?.trim() || "出店予定は未設定です";
-  const rainPolicyLabel =
-    shop.rainPolicy && shop.rainPolicy !== "undecided"
-      ? shop.rainPolicy === "outdoor"
-        ? "雨でも出店"
-        : shop.rainPolicy === "tent"
-          ? "雨でも出店（テント）"
-          : "雨天中止"
-      : null;
+  const rainPolicy = shop.rainPolicy ? RAIN_POLICY_LABELS[shop.rainPolicy] : undefined;
+  const payments = shop.paymentMethods ?? [];
+  const styleTags = shop.stallStyleTags ?? [];
+  const stallStyle = shop.stallStyle?.trim();
+  const { instagram, twitter, website } = shop.socialLinks ?? {};
+  const links: { href: string; label: string; icon: ReactNode }[] = [];
+  if (instagram) {
+    links.push({ href: socialUrl(instagram, "https://instagram.com/"), label: "Instagram", icon: <Instagram className="h-4 w-4" aria-hidden /> });
+  }
+  if (twitter) {
+    links.push({ href: socialUrl(twitter, "https://x.com/"), label: "X", icon: <XLogo className="h-3.5 w-3.5" /> });
+  }
+  if (website) {
+    links.push({ href: socialUrl(website, ""), label: "サイト", icon: <Globe className="h-4 w-4" aria-hidden /> });
+  }
+
+  const hasRows = !!(chome || ownerName || schedule || businessHours || rainPolicy || payments.length || styleTags.length || stallStyle);
+  if (!hasRows && links.length === 0) return null;
 
   return (
-    <div
-      className="rounded-2xl border p-4 shadow-sm"
-      style={{ borderColor: theme.border, backgroundColor: theme.bg }}
-    >
-      <div className="flex items-center gap-3">
-        <div
-          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white shadow-sm"
-          aria-hidden
-        >
-          <Clock className="h-4 w-4" style={{ color: theme.text }} />
-        </div>
-        <div className="min-w-0">
-          <p className="text-[11px] font-bold uppercase tracking-[0.18em]" style={{ color: theme.text }}>
-            営業情報
-          </p>
-          <p className="mt-0.5 text-sm font-semibold text-slate-700">
-            今日行く前に、ここだけ確認できます
-          </p>
-        </div>
-      </div>
-
-      <div className="mt-4 grid gap-3 sm:grid-cols-2">
-        <div className="rounded-2xl border border-white/80 bg-white px-3 py-3 shadow-sm">
-          <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-400">出店予定</p>
-          <p className="mt-1 text-sm font-semibold leading-relaxed text-slate-800">{scheduleText}</p>
-        </div>
-        <div className="rounded-2xl border border-white/80 bg-white px-3 py-3 shadow-sm">
-          <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-400">営業時間</p>
-          <p className="mt-1 text-sm font-semibold text-slate-800">
-            {businessHours || "営業時間は未設定です"}
-          </p>
-          {rainPolicyLabel && (
-            <p className="mt-1 text-xs font-medium text-slate-500">{rainPolicyLabel}</p>
+    <div className="rounded-card bg-white px-4 ring-1 ring-line">
+      {hasRows && (
+        <dl className="divide-y divide-line">
+          {chome && <InfoRow icon={MapPin} label="場所">{chome}</InfoRow>}
+          {ownerName && <InfoRow icon={UserRound} label="出店者">{ownerName}</InfoRow>}
+          {schedule && <InfoRow icon={CalendarDays} label="出店日">{schedule}</InfoRow>}
+          {businessHours && <InfoRow icon={Clock} label="出店時間">{businessHours}</InfoRow>}
+          {rainPolicy && <InfoRow icon={Umbrella} label="雨の日">{rainPolicy}</InfoRow>}
+          {payments.length > 0 && (
+            <InfoRow icon={Wallet} label="支払い">
+              <span className="flex flex-wrap gap-x-3 gap-y-1">
+                {payments.map((method) => {
+                  const payment = PAYMENT_METHODS[method];
+                  const PaymentIcon = payment?.icon;
+                  return (
+                    <span key={method} className="inline-flex items-center gap-1">
+                      {PaymentIcon && <PaymentIcon className="h-3.5 w-3.5 text-nicchyo-ink/55" aria-hidden />}
+                      {payment?.label ?? method}
+                    </span>
+                  );
+                })}
+              </span>
+            </InfoRow>
           )}
+          {(styleTags.length > 0 || stallStyle) && (
+            <InfoRow icon={Tag} label="スタイル">
+              {[...styleTags, ...(stallStyle ? [stallStyle] : [])].join("・")}
+            </InfoRow>
+          )}
+        </dl>
+      )}
+      {links.length > 0 && (
+        <div className={`flex flex-wrap gap-2 py-3 ${hasRows ? "border-t border-line" : ""}`}>
+          {links.map((link) => (
+            <a
+              key={link.label}
+              href={link.href}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex h-9 items-center gap-1.5 rounded-chip bg-white px-3.5 text-[13px] font-semibold text-nicchyo-ink shadow-chip ring-1 ring-line transition hover:bg-nicchyo-ink/[0.03] active:scale-95 motion-reduce:active:scale-100"
+            >
+              {link.icon}
+              {link.label}
+            </a>
+          ))}
         </div>
-      </div>
+      )}
     </div>
   );
 }
@@ -138,9 +256,9 @@ export function ShopBannerHero({
   onImageError,
   mode,
   showProductPreview = false,
-  onEdit,
   isFavorite = false,
   onToggleFavorite,
+  onOpenPhoto,
 }: {
   shop: Shop;
   bannerImage: string;
@@ -149,19 +267,18 @@ export function ShopBannerHero({
   onImageError: () => void;
   mode: "compact" | "expanded";
   showProductPreview?: boolean;
-  onEdit?: () => void;
   /** その店の行が1つでもあれば点灯する（商品だけ入れた場合も点灯） */
   isFavorite?: boolean;
   onToggleFavorite?: () => void;
+  /** 写真を拡大表示で開く。無ければ（出店者が写真を出していない店など）写真は押せない */
+  onOpenPhoto?: () => void;
 }) {
   if (mode === "compact") {
     return (
       <div className="flex items-center gap-3">
         <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-2xl border border-slate-200 bg-slate-100">
           {heroImageError ? (
-            <div className="flex h-full w-full items-center justify-center bg-slate-100 text-xl">
-              {CATEGORY_FALLBACK[shop.category ?? ""]?.emoji ?? "🏪"}
-            </div>
+            <CategoryPlaceholder category={shop.category} theme={theme} iconClassName="h-7 w-7" />
           ) : (
             <Image
               src={bannerImage}
@@ -178,7 +295,7 @@ export function ShopBannerHero({
         <div className="min-w-0 flex-1 pr-12">
           <div className="flex flex-wrap items-center gap-1">
             <span
-              className="rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.12em]"
+              className="rounded-chip px-2 py-0.5 text-[11px] font-bold"
               style={{ backgroundColor: theme.light, color: theme.text }}
             >
               {shop.category || "ショップ"}
@@ -218,15 +335,10 @@ export function ShopBannerHero({
   }
 
   return (
-    <div className="relative h-56 overflow-hidden rounded-[28px] border border-slate-100 bg-slate-100 shadow-sm md:h-64 md:rounded-none md:border-0 md:shadow-none">
+    // 来訪者は写真を見て行くかを決めるので、写真を大きく取る
+    <div className="relative h-72 overflow-hidden rounded-sheet bg-nicchyo-ink/[0.06] shadow-card md:h-80 md:rounded-none md:shadow-none">
       {heroImageError ? (
-        <div
-          className={`flex h-full w-full items-center justify-center ${
-            CATEGORY_FALLBACK[shop.category ?? ""]?.gradient ?? "bg-gradient-to-br from-slate-100 to-slate-200"
-          }`}
-        >
-          <span className="text-7xl">{CATEGORY_FALLBACK[shop.category ?? ""]?.emoji ?? "🏪"}</span>
-        </div>
+        <CategoryPlaceholder category={shop.category} theme={theme} iconClassName="h-16 w-16 -translate-y-6" />
       ) : (
         <Image
           src={bannerImage}
@@ -239,12 +351,25 @@ export function ShopBannerHero({
           onError={onImageError}
         />
       )}
-      <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
-      <div className="absolute bottom-0 left-0 right-0 px-5 pb-4">
+      {onOpenPhoto && !heroImageError && (
+        <button
+          type="button"
+          onClick={onOpenPhoto}
+          aria-label={`${shop.name}の写真を大きく見る`}
+          className="absolute inset-0 z-[1]"
+        >
+          <span className="absolute left-3 top-3 flex h-8 items-center gap-1 rounded-chip bg-black/35 px-2.5 text-[11px] font-bold text-white backdrop-blur-sm">
+            <Expand className="h-3.5 w-3.5" aria-hidden />
+            拡大
+          </span>
+        </button>
+      )}
+      <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/70 via-black/15 to-transparent" />
+      <div className="pointer-events-none absolute bottom-0 left-0 right-0 z-[2] px-5 pb-4">
         <div className="flex items-end justify-between gap-3">
           <div className="min-w-0 flex-1">
             <div className="mb-2 flex flex-wrap items-center gap-2">
-              <span className="rounded-full bg-white/18 px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.16em] text-white backdrop-blur-sm">
+              <span className="rounded-chip bg-white/20 px-2.5 py-1 text-[11px] font-bold text-white backdrop-blur-sm">
                 {shop.category || "ショップ"}
               </span>
               {isOpenToday(shop) && (
@@ -262,7 +387,8 @@ export function ShopBannerHero({
               </p>
             )}
           </div>
-          <div className="flex shrink-0 items-center gap-2">
+          {/* 文字の上は写真の拡大に通すが、ここのボタンは押せるようにする */}
+          <div className="pointer-events-auto flex shrink-0 items-center gap-2">
             {onToggleFavorite && (
               <button
                 type="button"
@@ -276,16 +402,6 @@ export function ShopBannerHero({
                 }`}
               >
                 <Heart className="h-[18px] w-[18px]" fill={isFavorite ? "currentColor" : "none"} />
-              </button>
-            )}
-            {onEdit && (
-              <button
-                type="button"
-                onClick={onEdit}
-                className="flex items-center gap-1.5 rounded-full bg-white/20 px-3 py-1.5 text-xs font-bold text-white backdrop-blur-sm transition hover:bg-white/30"
-              >
-                <Pencil className="h-3 w-3" />
-                編集
               </button>
             )}
           </div>
@@ -362,14 +478,13 @@ export function ShopSubviewHeader({
         <div className="flex items-center gap-3">
           <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-2xl border border-slate-200 bg-slate-100">
             {heroImageError ? (
-              <div className="flex h-full w-full items-center justify-center bg-slate-100 text-base">
-                {CATEGORY_FALLBACK[shop.category ?? ""]?.emoji ?? "🏪"}
-              </div>
+              <CategoryPlaceholder category={shop.category} theme={theme} iconClassName="h-6 w-6" />
             ) : (
               <Image
                 src={bannerImage}
                 alt={`${shop.name}の写真`}
                 fill
+                sizes="48px"
                 className="object-cover object-center"
                 onError={onImageError}
               />
@@ -378,7 +493,7 @@ export function ShopSubviewHeader({
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-1.5">
               <span
-                className="rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.12em]"
+                className="rounded-chip px-2 py-0.5 text-[11px] font-bold"
                 style={{ backgroundColor: theme.light, color: theme.text }}
               >
                 {shop.category || "ショップ"}

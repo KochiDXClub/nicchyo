@@ -794,12 +794,6 @@ const MapView = memo(function MapView({
     });
   }, []);
 
-  const selectedShopIndex = useMemo(() => {
-    if (!selectedShop) return -1;
-    return shops.findIndex((shop) => shop.id === selectedShop.id);
-  }, [selectedShop, shops]);
-
-  const canNavigate = selectedShopIndex >= 0 && shops.length > 1;
   const {
     isMinimumZoomMode,
     isOverviewZoneMode,
@@ -829,14 +823,6 @@ const MapView = memo(function MapView({
     [routePoints]
   );
 
-  const handleSelectByOffset = useCallback((offset: number) => {
-    if (!canNavigate) return;
-    const nextIndex = (selectedShopIndex + offset + shops.length) % shops.length;
-    const nextShop = shops[nextIndex];
-    if (!nextShop) return;
-    handleShopClick(nextShop);
-  }, [canNavigate, selectedShopIndex, handleShopClick, shops]);
-
   const handleMapZoomChange = useCallback(
     (zoom: number) => {
       const next = computeZoomModes(zoom);
@@ -861,9 +847,6 @@ const MapView = memo(function MapView({
     setShopBannerInitialSurface("detail");
     setShopBannerMainSurface("detail");
   }, []);
-
-  const handleSelectPreviousShop = useCallback(() => handleSelectByOffset(-1), [handleSelectByOffset]);
-  const handleSelectNextShop = useCallback(() => handleSelectByOffset(1), [handleSelectByOffset]);
 
   // ランドマークの DivIcon は既定ではズームに依存させず、倍率は CSS 変数 --landmark-scale で追従する。
   // landmarkCssScale が off のときだけ従来どおりズームごとに px サイズを焼き込んで作り直す
@@ -1224,11 +1207,6 @@ const MapView = memo(function MapView({
             openNonce={shopBannerSession}
             initialMobileSurface={shopBannerInitialSurface}
             onMobileMainSurfaceChange={setShopBannerMainSurface}
-            canNavigateBetweenShops={canNavigate}
-            selectedShopPosition={selectedShopIndex + 1}
-            totalShopCount={shops.length}
-            onSelectPreviousShop={handleSelectPreviousShop}
-            onSelectNextShop={handleSelectNextShop}
             onClose={handleCloseBanner}
             originRect={shopBannerOrigin ?? undefined}
             reserveBottomNavSpace={false}
