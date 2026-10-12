@@ -140,13 +140,16 @@ async function main() {
         }
       } else {
         // アップロード
+        // sharp の出力をそのまま渡すと、環境によって（WSL から Windows 側のフォルダで動かしたときなど）
+        // fetch が「ArrayBuffer: SharedArrayBuffer is not allowed.」で断り、1件もアップロードできない。
+        // 新しい Uint8Array に写してから渡す
         const [mainUp, thumbUp] = await Promise.all([
           supabase.storage
             .from(BUCKET_NAME)
-            .upload(mainPath, mainBuffer, { contentType: 'image/webp', upsert: true }),
+            .upload(mainPath, new Uint8Array(mainBuffer), { contentType: 'image/webp', upsert: true }),
           supabase.storage
             .from(BUCKET_NAME)
-            .upload(thumbPath, thumbBuffer, { contentType: 'image/webp', upsert: true }),
+            .upload(thumbPath, new Uint8Array(thumbBuffer), { contentType: 'image/webp', upsert: true }),
         ]);
 
         if (mainUp.error) throw new Error(`メイン画像アップロード失敗: ${mainUp.error.message}`);
