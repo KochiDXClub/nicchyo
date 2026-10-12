@@ -17,6 +17,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { ChevronDown, MapPin, Navigation, X as XIcon } from 'lucide-react';
 import type { RankedSpot } from '@/lib/guide';
 import { formatDistance } from '@/lib/facilities/nearest';
+import { cn } from '@/lib/utils/cn';
 
 type GuideNavigationBarProps = {
   target: RankedSpot;
@@ -25,11 +26,13 @@ type GuideNavigationBarProps = {
   /** 0〜1。出発時の距離に対してどれだけ歩いたか */
   progress: number;
   onStop: () => void;
+  /** 外枠に足すクラス（地図をパンしているあいだ隠す、など） */
+  className?: string;
 };
 
 const FOCUS_RING = 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 focus-visible:ring-offset-2';
 
-export default function GuideNavigationBar({ target, originLabel, arrived, progress, onStop }: GuideNavigationBarProps) {
+export default function GuideNavigationBar({ target, originLabel, arrived, progress, onStop, className }: GuideNavigationBarProps) {
   const [expanded, setExpanded] = useState(false);
   const spot = target.spot;
   const route = target.route;
@@ -42,7 +45,10 @@ export default function GuideNavigationBar({ target, originLabel, arrived, progr
 
   return (
     <div
-      className="absolute left-3 right-3 top-3 z-[1001] overflow-hidden rounded-[22px] bg-white shadow-[0_8px_24px_rgba(58,58,58,0.18)] ring-1 ring-black/5"
+      className={cn(
+        'absolute left-3 right-3 top-3 z-[1001] overflow-hidden rounded-[22px] bg-white shadow-[0_8px_24px_rgba(58,58,58,0.18)] ring-1 ring-black/5',
+        className
+      )}
       onMouseDown={(e) => e.stopPropagation()}
       onTouchStart={(e) => e.stopPropagation()}
       onClick={(e) => e.stopPropagation()}
