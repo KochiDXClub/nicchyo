@@ -88,6 +88,7 @@ import {
   rasterizeImageUrl,
   rasterizeStallWithPhoto,
   STALL_STATES,
+  type StallState,
 } from "./stallSprites";
 import { STALL_PHOTO_HEIGHT_RATIO } from "../../config/stallParts";
 import { buildPhotoStallScale } from "./photoStallScale";
@@ -112,7 +113,18 @@ const ZOOM_BOUNDS = getRecommendedZoomBounds();
  * 表示境界（LOD・丁目バッジ・タイル不透明度など）は Leaflet 版の定数を 1 ずらして使う。
  */
 const ZOOM_OFFSET = -1;
+/**
+ * 屋台が本来の大きさ（等倍）になるズーム。LOD（stall / photo / nameplate）の境界と、
+ * 開いたとき・店へ寄るときの倍率の基準でもある（市場を歩いて見て回る倍率）。
+ */
 const MAX_ZOOM = ZOOM_BOUNDS.max + ZOOM_OFFSET;
+/**
+ * 写真を大きく見るための一段。地図はここまで寄れて、屋台（写真）は DETAIL_STALL_SCALE 倍になる。
+ * 縮尺は 1 段で 2 倍になるので店舗間隔も 2 倍に広がり、2 倍の屋台でも隣と重ならない。
+ * 開いたときや店へ寄るときはここまでは寄らない（写真を見たい人がさらにピンチで寄る）
+ */
+const DETAIL_ZOOM = MAX_ZOOM + 1;
+const DETAIL_STALL_SCALE = 2;
 const INITIAL_ZOOM = MAX_ZOOM;
 const OVERVIEW_MIN = OVERVIEW_ZONE_MIN_ZOOM + ZOOM_OFFSET;
 const OVERVIEW_MAX = OVERVIEW_ZONE_MAX_ZOOM + ZOOM_OFFSET;
@@ -498,7 +510,7 @@ function MapViewMapLibre({
         center: initialCenter,
         zoom: INITIAL_ZOOM,
         minZoom,
-        maxZoom: MAX_ZOOM,
+        maxZoom: DETAIL_ZOOM,
         bearing: computeRoadBearing(routePoints, center),
         pitch: 0,
         maxBounds: maxBoundsLngLat,
@@ -567,7 +579,9 @@ function MapViewMapLibre({
           return { lat: c.lat, lng: c.lng };
         },
         getZoom: () => map.getZoom() - ZOOM_OFFSET,
-        getMaxZoom: () => map.getMaxZoom() - ZOOM_OFFSET,
+        // ページ側の「店へ寄る」（検索結果のタップなど）の行き先。写真を大きく見る一段（DETAIL_ZOOM）ではなく、
+        // 屋台が等倍で並ぶ倍率に寄せる（寄りすぎると周りの店が見えず、どこにいるか分からなくなる）
+        getMaxZoom: () => MAX_ZOOM - ZOOM_OFFSET,
         setZoom: (zoom, options) => {
           const target = zoom + ZOOM_OFFSET;
           if (options?.animate === false) {
@@ -771,7 +785,8 @@ function MapViewMapLibre({
       // 店舗より下のレイヤーに置き、不透明度を落として背景に沈める。
       // クリックハンドラは付けない（触れるものが増えると「主役は屋台」の原則が崩れる）
       if (featureFlags.crowd === "sprite") {
-        const crowdRatio = Math.min(3, window.devicePixelRatio || 2);
+        // 一段先では 2 倍に拡大されるので、その倍率でも粗くならないよう細かく描いておく（32 枚・小さい絵なので軽い）
+        const crowdRatio = Math.min(3, window.devicePixelRatio || 2) * DETAIL_STALL_SCALE;
         const crowdSprites = await buildCrowdSprites(crowdRatio);
         if (disposed) return;
         for (const sprite of crowdSprites) {
@@ -799,6 +814,8 @@ function MapViewMapLibre({
               0.6,
               MAX_ZOOM,
               1,
+              DETAIL_ZOOM,
+              DETAIL_STALL_SCALE,
             ],
             "icon-anchor": "bottom",
             "icon-allow-overlap": true,
@@ -920,8 +937,11 @@ function MapViewMapLibre({
       }
       // バッジと木札の下地
       const uiRatio = Math.min(3, window.devicePixelRatio || 2);
+      // 写真入りの屋台を高精細に描き直すときの pixelRatio（一段先で DETAIL_STALL_SCALE 倍になる分）
+      const detailRatio = uiRatio * DETAIL_STALL_SCALE;
       if (!map.hasImage(IMG_BADGE_FAVORITE)) {
-        map.addImage(IMG_BADGE_FAVORITE, buildFavoriteBadgeSprite(uiRatio), { pixelRatio: uiRatio });
+        // お気に入りバッジは屋台と一緒に拡大されるので、最初から細かく描く（1 枚だけ・小さい）
+        map.addImage(IMG_BADGE_FAVORITE, buildFavoriteBadgeSprite(detailRatio), { pixelRatio: detailRatio });
       }
       if (!map.hasImage(IMG_NAMEPLATE)) {
         const plate = buildNameplateSprite(uiRatio);
@@ -933,48 +953,77 @@ function MapViewMapLibre({
         });
       }
 
-      // 写真入りの屋台は店舗×状態ごとに違うので、必要になった時点で遅延生成する
-      const photoJobs = new Map<string, Promise<void>>();
-      // v6 から styleimagemissing は「起きたことを知らせるだけ」になり、
-      // リスナーの中で addImage しても要求は解決されない。画像を用意する側は resolver を使う
-      map.setMissingStyleImageResolver((id) => {
-        if (!id.startsWith("photo:") || photoJobs.has(id)) return;
-        const [, shopIdText, stateText] = id.split(":");
-        const state = STALL_STATES.find((s) => s === stateText);
-        const shopId = Number(shopIdText);
-        if (!state) return;
-        const shop = shopsRef.current.find((s) => s.id === shopId);
-        if (!shop) return;
+      // 写真入りの屋台は店舗×状態ごとに違うので、必要になった時点で遅延生成する。
+      // 一段先（DETAIL_ZOOM）では屋台を 2 倍に描くので、等倍用の絵では粗くなる。全店ぶんを最初から
+      // 細かく描くと端末の記憶を食うため、最大ズームを越えて寄っているときに要る絵だけ detailRatio で描く
+      // （同じ ID のまま pixelRatio を上げて差し替える。表示上の大きさは変わらない）
+      const isDetailZoom = () => map.getZoom() > MAX_ZOOM + 0.01;
+      /** 写真入りの屋台の ID → 登録済み（または描き起こし中）の pixelRatio */
+      const photoSpriteRatios = new Map<string, number>();
+      const requestPhotoSprite = (shop: Shop, state: StallState, ratio: number) => {
+        const id = `photo:${shop.id}:${state}`;
+        if ((photoSpriteRatios.get(id) ?? 0) >= ratio) return;
+        photoSpriteRatios.set(id, ratio);
         const url = getShopThumbnailImage(shop);
         const fallbackUrl = getShopPreviewImage(shop);
         // 同じ大きさの透明な仮画像を同期で登録しておく（無いままだと MapLibre が警告を出す）。
-        // 読み込めたら updateImage で中身だけ差し替える
-        const placeholderW = Math.round((PHOTO_STALL_PX / STALL_PHOTO_HEIGHT_RATIO) * uiRatio);
-        const placeholderH = Math.round(PHOTO_STALL_PX * uiRatio);
+        // 読み込めたら中身を差し替える
         if (!map.hasImage(id)) {
+          const placeholderW = Math.round((PHOTO_STALL_PX / STALL_PHOTO_HEIGHT_RATIO) * ratio);
+          const placeholderH = Math.round(PHOTO_STALL_PX * ratio);
           // 状態が変わった店（選択・検索など）は、同じ写真の通常状態の絵を仮に使う。
           // 透明にすると、新しい絵ができるまで写真が一瞬消えて見える
-          const normalId = `photo:${shopId}:normal`;
+          const normalId = `photo:${shop.id}:normal`;
           const normal = state !== "normal" && map.hasImage(normalId) ? map.getImage(normalId) : null;
           map.addImage(
             id,
             normal && normal.data.width === placeholderW && normal.data.height === placeholderH
               ? normal.data
               : new ImageData(placeholderW, placeholderH),
-            { pixelRatio: uiRatio }
+            { pixelRatio: ratio }
           );
         }
-        photoJobs.set(
-          id,
-          rasterizeStallWithPhoto(shop, state, url, PHOTO_STALL_PX, uiRatio, fallbackUrl)
-            .then((data) => {
-              if (!disposed && map.hasImage(id)) map.updateImage(id, data);
-            })
-            .catch(() => {
-              /* 読めない写真は通常の屋台のまま（透明のままにして下の屋台を見せる） */
-            })
-        );
+        rasterizeStallWithPhoto(shop, state, url, PHOTO_STALL_PX, ratio, fallbackUrl)
+          .then((data) => {
+            // 後から細かい版を頼んでいたら、こちらは捨てる
+            if (disposed || photoSpriteRatios.get(id) !== ratio || !map.hasImage(id)) return;
+            const current = map.getImage(id);
+            if (current && current.data.width === data.width && current.data.height === data.height) {
+              map.updateImage(id, data);
+            } else {
+              // 画素数が違う（等倍版 → 高精細版）ときは updateImage が使えないので登録し直す
+              map.removeImage(id);
+              map.addImage(id, data, { pixelRatio: ratio });
+            }
+          })
+          .catch(() => {
+            /* 読めない写真は通常の屋台のまま（透明のままにして下の屋台を見せる） */
+          });
+      };
+      // v6 から styleimagemissing は「起きたことを知らせるだけ」になり、
+      // リスナーの中で addImage しても要求は解決されない。画像を用意する側は resolver を使う
+      map.setMissingStyleImageResolver((id) => {
+        if (!id.startsWith("photo:") || photoSpriteRatios.has(id)) return;
+        const [, shopIdText, stateText] = id.split(":");
+        const state = STALL_STATES.find((s) => s === stateText);
+        const shopId = Number(shopIdText);
+        if (!state) return;
+        const shop = shopsRef.current.find((s) => s.id === shopId);
+        if (!shop) return;
+        requestPhotoSprite(shop, state, isDetailZoom() ? detailRatio : uiRatio);
       });
+      // 最大ズームを越えて寄ったら、画面に見えている写真入りの屋台を高精細に描き直す。
+      // 動きが止まったときだけ見る（ピンチの途中は等倍版を拡大したまま）
+      const upgradeVisiblePhotoSprites = () => {
+        if (disposed || !isDetailZoom() || !map.getLayer(LAYER_SHOP_PHOTOS)) return;
+        for (const feature of map.queryRenderedFeatures({ layers: [LAYER_SHOP_PHOTOS] })) {
+          const shopId = feature.properties?.id;
+          const state = STALL_STATES.find((s) => s === feature.properties?.state);
+          const shop = shopsRef.current.find((s) => s.id === shopId);
+          if (shop && state) requestPhotoSprite(shop, state, detailRatio);
+        }
+      };
+      map.on("moveend", upgradeVisiblePhotoSprites);
 
       map.addSource(SRC_SHOPS, {
         type: "geojson",
@@ -991,6 +1040,8 @@ function MapViewMapLibre({
         0.6,
         MAX_ZOOM,
         1,
+        DETAIL_ZOOM,
+        DETAIL_STALL_SCALE,
       ];
       // 写真入りは通常の屋台より大きいので、引いたときに隣と重ならないよう倍率を絞る
       const photoStallScale = buildPhotoStallScale({
@@ -1000,6 +1051,8 @@ function MapViewMapLibre({
         spacingPxAtMax: SHOP_COLUMN_SPACING_METERS * getPixelsPerMeter(MAX_ZOOM - ZOOM_OFFSET),
         stallLodOffset: SHOP_MARKER_LOD_OFFSETS.stall,
         photoLodOffset: SHOP_MARKER_LOD_OFFSETS.photo,
+        detailOffset: DETAIL_ZOOM - MAX_ZOOM,
+        detailScale: DETAIL_STALL_SCALE,
       });
       map.addLayer({
         id: LAYER_SHOPS,
@@ -1054,7 +1107,21 @@ function MapViewMapLibre({
           "text-size": 11,
           "text-max-width": 9,
           "text-anchor": ["case", ["==", ["get", "side"], "north"], "left", "right"],
-          "text-offset": ["case", ["==", ["get", "side"], "north"], ["literal", [3.2, -2.4]], ["literal", [-3.2, -2.4]]],
+          // 屋台の横に添える。一段先では屋台が 2 倍になるので、離す量も同じだけ広げる（文字の大きさは変えない）
+          "text-offset": [
+            "interpolate",
+            ["linear"],
+            ["zoom"],
+            MAX_ZOOM,
+            ["case", ["==", ["get", "side"], "north"], ["literal", [3.2, -2.4]], ["literal", [-3.2, -2.4]]],
+            DETAIL_ZOOM,
+            [
+              "case",
+              ["==", ["get", "side"], "north"],
+              ["literal", [3.2 * DETAIL_STALL_SCALE, -2.4 * DETAIL_STALL_SCALE]],
+              ["literal", [-3.2 * DETAIL_STALL_SCALE, -2.4 * DETAIL_STALL_SCALE]],
+            ],
+          ],
           "text-rotation-alignment": "viewport",
           "text-pitch-alignment": "viewport",
           "icon-image": IMG_NAMEPLATE,
@@ -1341,7 +1408,7 @@ function MapViewMapLibre({
           isTracking={isTracking}
           onToggleTracking={toggleTracking}
           minZoom={minZoom - ZOOM_OFFSET}
-          maxZoom={MAX_ZOOM - ZOOM_OFFSET}
+          maxZoom={DETAIL_ZOOM - ZOOM_OFFSET}
           zoomSliderVisible={zoomSliderVisible}
           onZoomSliderInteract={keepZoomSliderAlive}
           trackingButtonTop={trackingButtonTop}
