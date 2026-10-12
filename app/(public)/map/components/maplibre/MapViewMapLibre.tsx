@@ -1011,6 +1011,8 @@ function MapViewMapLibre({
               map.removeImage(id);
               map.addImage(id, data, { pixelRatio: ratio });
             }
+            // 写真入りの絵ができた店は、下に重ねている通常の屋台を消す（下の屋台の脚や影がはみ出すため）
+            map.setFeatureState({ source: SRC_SHOPS, id: shop.id }, { photoReady: true });
             for (const evictedId of photoSprites.overflow()) {
               const evicted = findShopForPhotoId(evictedId);
               if (evicted) requestPhotoSprite(evicted.shop, evicted.state, uiRatio, true);
@@ -1088,6 +1090,18 @@ function MapViewMapLibre({
           "icon-ignore-placement": true,
           "icon-rotation-alignment": "viewport",
           "symbol-sort-key": ["case", ["==", ["get", "state"], "selected"], 0, 1],
+        },
+        paint: {
+          // photo LOD 以上では写真入りの屋台が上に重なる。写真入りの絵ができた店（photoReady）では
+          // 下の通常の屋台を消す（写真入りは脚が短いので、下の屋台の脚や影がはみ出して見えるため）。
+          // 写真を読めなかった店は通常の屋台のまま見せる
+          "icon-opacity": [
+            "step",
+            ["zoom"],
+            1,
+            MAX_ZOOM + SHOP_MARKER_LOD_OFFSETS.photo,
+            ["case", ["boolean", ["feature-state", "photoReady"], false], 0, 1],
+          ],
         },
       });
 

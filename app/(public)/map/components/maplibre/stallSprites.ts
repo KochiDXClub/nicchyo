@@ -224,7 +224,8 @@ async function rasterizeImageUrlUncached(
 
 /**
  * 屋台の輪郭の中に商品写真をはめ込んだスプライト。
- * 本体（白い箱）の部分が写真になり、縁はカテゴリ色。屋根とひさしは通常の屋台のまま。
+ * 本体（白い箱）の部分が写真になり、縁はカテゴリ色。屋根は通常の屋台と同じ形・色で、
+ * ひさしは描かず脚を短くして、そのぶん写真を大きく見せる（stallParts の STALL_BODY_RECT）。
  * 店舗ごとに違うので、styleimagemissing で遅延生成する。
  */
 export async function rasterizeStallWithPhoto(

@@ -17,6 +17,7 @@ import type {
 } from "./types/consultConversation";
 import type { Shop } from "../map/data/shops";
 import { getOrCreateConsultVisitorKey } from "@/lib/consultVisitorKey";
+import { readConsultAskResponse } from "./utils/readConsultAskResponse";
 
 const PREFERRED_CHARACTER_STORAGE_KEY = "nicchyo-consult-preferred-character";
 
@@ -176,51 +177,17 @@ export default function ConsultClient() {
         headers,
         body,
       });
-      if (!response.ok) {
-        const payload = (await response.json()) as Parameters<typeof normalizeAskResponse>[0];
-        return normalizeAskResponse(payload, false);
-      }
-      if (!response.body) {
-        throw new Error("stream body not found");
+      const result = await readConsultAskResponse(response, onEvent);
+      if (result) {
+        return normalizeAskResponse(result.payload, result.ok);
       }
 
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = "";
-      let finalResponse: ConsultAskResponse | null = null;
-
-      const handleLine = (line: string) => {
-        const trimmed = line.trim();
-        if (!trimmed) return;
-        const event = JSON.parse(trimmed) as ConsultAskStreamEvent;
-        onEvent?.(event);
-        if (event.type === "final") {
-          finalResponse = normalizeAskResponse(event.response, true);
-        }
+      return {
+        reply: "ごめんね、今は答えを出せんかった。時間をおいて試してね。",
+        errorCode: "system_error",
+        errorMessage: "返答の取得に失敗しました。もう一度お試しください。",
+        retryable: true,
       };
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split("\n");
-        buffer = lines.pop() ?? "";
-        lines.forEach(handleLine);
-      }
-
-      const trailing = buffer.trim();
-      if (trailing) {
-        handleLine(trailing);
-      }
-
-      return (
-        finalResponse ?? {
-          reply: "ごめんね、今は答えを出せんかった。時間をおいて試してね。",
-          errorCode: "system_error",
-          errorMessage: "返答の取得に失敗しました。もう一度お試しください。",
-          retryable: true,
-        }
-      );
     } catch {
       return {
         reply: "ごめんね、今は答えを出せんかった。時間をおいて試してね。",

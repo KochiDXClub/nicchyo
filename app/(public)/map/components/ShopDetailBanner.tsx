@@ -2,18 +2,14 @@
 
 import { memo, useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { recordShopView, sourceFromReferrer } from "@/lib/analytics/shopViews";
-import type { CSSProperties } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
 import {
-  MapPin,
   Heart,
   ChevronDown,
-  ChevronLeft,
   ChevronRight,
-  Instagram,
-  Globe,
   X as XIcon,
   Sparkles,
   Share2,
@@ -21,7 +17,6 @@ import {
 } from "lucide-react";
 import { Shop } from "../data/shops";
 import { formatShopIdToCode } from "@/lib/shops/route";
-import { useAuth } from "../../../../lib/auth/AuthContext";
 import { getShopPreviewImage } from "../../../../lib/shopImages";
 import {
   isProductFavorited,
@@ -34,11 +29,13 @@ import { incrementBannerOpens } from "../../../../lib/storage/marketStats";
 import { useCenterBounceTrigger } from "../../../../lib/hooks/useCenterBounceTrigger";
 import {
   ShopBannerHero,
-  ShopBusinessInfoCard,
+  ShopInfoList,
   resolveBannerTheme,
   type ActivePostItem,
 } from "./ShopBannerHero";
 import { PostCarousel } from "./PostCarousel";
+import { ShopPhotoViewer, type ShopPhoto } from "./ShopPhotoViewer";
+import { ShopProductGrid, formatProductPrice } from "./ShopProductGrid";
 import { AiConsultPanel } from "./AiConsultPanel";
 import { ShopFavoriteToast } from "./ShopFavoriteToast";
 import {
@@ -57,11 +54,6 @@ type ShopDetailBannerProps = {
   openNonce?: number;
   initialMobileSurface?: MainSurface;
   onMobileMainSurfaceChange?: (surface: MainSurface) => void;
-  canNavigateBetweenShops?: boolean;
-  selectedShopPosition?: number;
-  totalShopCount?: number;
-  onSelectPreviousShop?: () => void;
-  onSelectNextShop?: () => void;
   reserveBottomNavSpace?: boolean;
   /** 「ここへ案内」。おでかけサポートでこの店への道案内を始める。無ければボタンを出さない */
   onNavigate?: () => void;
@@ -72,6 +64,9 @@ const OSEKKAI_FALLBACK =
   "あら、ここのお店、最近行ってないねぇ。今日は何が出ちゅうか、ちょっと見てきてくれん？";
 const BOTTOM_NAV_HEIGHT = 56;
 
+function SectionTitle({ children }: { children: ReactNode }) {
+  return <h3 className="text-[15px] font-bold text-nicchyo-ink">{children}</h3>;
+}
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 function areShopDetailBannerPropsEqual(
@@ -95,11 +90,6 @@ function areShopDetailBannerPropsEqual(
     prev.openNonce === next.openNonce &&
     prev.initialMobileSurface === next.initialMobileSurface &&
     prev.onMobileMainSurfaceChange === next.onMobileMainSurfaceChange &&
-    prev.canNavigateBetweenShops === next.canNavigateBetweenShops &&
-    prev.selectedShopPosition === next.selectedShopPosition &&
-    prev.totalShopCount === next.totalShopCount &&
-    prev.onSelectPreviousShop === next.onSelectPreviousShop &&
-    prev.onSelectNextShop === next.onSelectNextShop &&
     prev.reserveBottomNavSpace === next.reserveBottomNavSpace
   );
 }
@@ -113,21 +103,17 @@ const ShopDetailBanner = memo(function ShopDetailBanner({
   openNonce = 0,
   initialMobileSurface = "detail",
   onMobileMainSurfaceChange,
-  canNavigateBetweenShops = false,
-  selectedShopPosition = 0,
-  totalShopCount = 0,
-  onSelectPreviousShop,
-  onSelectNextShop,
   reserveBottomNavSpace = true,
 }: ShopDetailBannerProps) {
   const router = useRouter();
   const prefersReducedMotion = useReducedMotion();
-  const { permissions } = useAuth();
   const favoriteEntries = useFavoriteEntries();
   const { toggleShopFavorite, confirmDialog: removeShopFavoriteDialog } =
     useShopFavoriteToggle();
   const [currentPostIndex, setCurrentPostIndex] = useState(0);
   const [heroImageError, setHeroImageError] = useState(false);
+  /** 写真の拡大表示で開いている写真の番号。閉じているときは null */
+  const [viewerIndex, setViewerIndex] = useState<number | null>(null);
   const [toast, setToast] = useState<{ product: string } | null>(null);
   const [surface, setSurface] = useState<BannerSurface>(initialMobileSurface);
   const [contentInteractive, setContentInteractive] = useState(false);
@@ -206,10 +192,8 @@ const ShopDetailBanner = memo(function ShopDetailBanner({
   const handleFavoritesClick = useCallback(() => { router.push("/favorites"); }, [router]);
 
   const isShopFavorite = isShopFavorited(favoriteEntries, shop.id);
-  const canEditShop = permissions.canEditShop(shop.vendorId ?? "");
   const bannerImage = getShopPreviewImage(shop);
 
-  const handleEditShop = useCallback(() => { router.push("/my-shop"); }, [router]);
 
   const bannerStyle = useMemo(() => {
     if (!originRect || typeof window === "undefined") return undefined;
@@ -244,6 +228,33 @@ const ShopDetailBanner = memo(function ShopDetailBanner({
     ] as const);
     return new Map(entries);
   }, [shop.productDetails]);
+  const productImageOf = useCallback(
+    (product: string) => productDetailsByName.get(product.trim().toLowerCase())?.imageUrl,
+    [productDetailsByName]
+  );
+
+  // 拡大表示で順に見られる写真。出店者が出した店の写真（既定のカテゴリ画像や小さいサムネイルは除く）と、商品の写真
+  const shopPhotoSources = useMemo(
+    () => Array.from(new Set([shop.images?.main, ...(shop.images?.additional ?? [])].filter((src): src is string => !!src))),
+    [shop.images]
+  );
+  const photos = useMemo<ShopPhoto[]>(() => [
+    ...(heroImageError ? [] : shopPhotoSources).map((src) => ({ src, alt: `${shop.name}の写真`, caption: shop.name })),
+    ...shop.products.flatMap((product) => {
+      const src = productImageOf(product);
+      const price = shop.productPrices?.[product];
+      return src ? [{ src, alt: `${product}の写真`, caption: price != null ? `${product}　${formatProductPrice(price)}` : product }] : [];
+    }),
+  ], [heroImageError, productImageOf, shop.name, shop.productPrices, shop.products, shopPhotoSources]);
+  const openPhoto = useCallback((src: string) => {
+    const index = photos.findIndex((photo) => photo.src === src);
+    if (index >= 0) setViewerIndex(index);
+  }, [photos]);
+  // 上の写真が出店者の写真のときだけ拡大できる（既定のカテゴリ画像は拡大しても仕方がない）
+  const handleOpenHeroPhoto = useMemo(
+    () => (shopPhotoSources.includes(bannerImage) ? () => openPhoto(bannerImage) : undefined),
+    [bannerImage, openPhoto, shopPhotoSources]
+  );
 
   const armInteractionLock = useCallback((delayMs: number = 650) => {
     if (interactionLockTimerRef.current) clearTimeout(interactionLockTimerRef.current);
@@ -256,6 +267,7 @@ const ShopDetailBanner = memo(function ShopDetailBanner({
   useEffect(() => {
     setCurrentPostIndex(0);
     setHeroImageError(false);
+    setViewerIndex(null);
     setToast(null);
     setSurface(initialMobileSurface);
     lastMainSurfaceRef.current = initialMobileSurface;
@@ -394,7 +406,7 @@ const ShopDetailBanner = memo(function ShopDetailBanner({
         {!isMobileOverlay && (
           <button
             onClick={onClose}
-            className="absolute right-4 top-4 z-40 flex h-9 w-9 items-center justify-center rounded-full bg-black/30 text-white shadow backdrop-blur-sm transition hover:bg-black/50"
+            className="absolute right-8 top-8 z-40 flex h-9 w-9 items-center justify-center rounded-full bg-black/35 text-white shadow backdrop-blur-sm transition hover:bg-black/50"
             type="button"
             aria-label="閉じる"
           >
@@ -457,7 +469,7 @@ const ShopDetailBanner = memo(function ShopDetailBanner({
               </button>
               <button
                 onClick={handleDrawerHandleClick}
-                className="pointer-events-auto absolute right-4 top-4 z-40 flex h-9 w-9 items-center justify-center rounded-full bg-black/30 text-white shadow backdrop-blur-sm transition hover:bg-black/50"
+                className="pointer-events-auto absolute right-8 top-8 z-40 flex h-9 w-9 items-center justify-center rounded-full bg-black/35 text-white shadow backdrop-blur-sm transition hover:bg-black/50"
                 type="button"
                 aria-label="展開をたたむ"
               >
@@ -477,24 +489,10 @@ const ShopDetailBanner = memo(function ShopDetailBanner({
                 ref={scrollContainerRef}
                 className={`h-full w-full overflow-y-auto ${isInline ? "px-0 pb-16 pt-0" : isMobileOverlay ? "pb-10" : "pb-10 md:pb-16"}`}
               >
-        {/* ══════════════════════════════════════════════════════════════════
-            HERO — Full-bleed cover with gradient overlay
-        ══════════════════════════════════════════════════════════════════ */}
-        {!isMobileOverlay && (
-          <ShopBannerHero
-            shop={shop}
-            bannerImage={bannerImage}
-            theme={theme}
-            heroImageError={heroImageError}
-            onImageError={() => setHeroImageError(true)}
-            mode="expanded"
-            onEdit={canEditShop ? handleEditShop : undefined}
-            isFavorite={isShopFavorite}
-            onToggleFavorite={handleToggleShopFavorite}
-          />
-        )}
+        {/* PC とモバイルで同じ中身を同じ順に出す。違うのは外枠（モバイルは下から出るシート、PC は横のパネル）だけ */}
 
-        {isExpandedMobileMain && (
+        {/* ── 写真 ─────────────────────────────────────────────────────────── */}
+        {(!isMobileOverlay || isExpandedMobileMain) && (
           <div className="px-5 pt-4">
             <ShopBannerHero
               shop={shop}
@@ -503,21 +501,21 @@ const ShopDetailBanner = memo(function ShopDetailBanner({
               heroImageError={heroImageError}
               onImageError={() => setHeroImageError(true)}
               mode="expanded"
+              isFavorite={isShopFavorite}
+              onToggleFavorite={handleToggleShopFavorite}
+              onOpenPhoto={handleOpenHeroPhoto}
             />
           </div>
         )}
 
-        {/* ── Accent color bar ─────────────────────────────────────────────── */}
-        <div className="h-1 w-full" style={{ backgroundColor: theme.accent }} />
-
-        {/* ── 共有 / ここへ案内 ─────────────────────────────────────────── */}
+        {/* ── ここへ案内 / 共有 ─────────────────────────────────────────── */}
         <div className="flex items-center gap-2 px-5 pt-4">
           {onNavigate && (
             <motion.button
               type="button"
               onClick={onNavigate}
               whileTap={{ scale: 0.96 }}
-              className="flex h-11 flex-1 items-center justify-center gap-2 rounded-full bg-nicchyo-accent text-[14px] font-black text-nicchyo-ink shadow-[0_6px_18px_rgba(58,58,58,0.18)]"
+              className="flex h-11 flex-1 items-center justify-center gap-2 rounded-chip bg-nicchyo-accent text-[14px] font-black text-nicchyo-ink shadow-pop"
             >
               <Navigation className="h-4 w-4" aria-hidden />
               ここへ案内
@@ -528,280 +526,20 @@ const ShopDetailBanner = memo(function ShopDetailBanner({
             onClick={handleShare}
             whileTap={{ scale: 0.96 }}
             aria-label="このお店を共有する"
-            className={`flex h-11 items-center justify-center gap-2 rounded-full border border-slate-200 bg-white px-4 text-[14px] font-bold text-slate-700 shadow-sm active:bg-slate-50 ${onNavigate ? "" : "flex-1"}`}
+            className={`flex h-11 items-center justify-center gap-2 rounded-chip bg-white px-4 text-[14px] font-bold text-nicchyo-ink shadow-chip ring-1 ring-line active:bg-nicchyo-ink/[0.04] ${onNavigate ? "" : "flex-1"}`}
           >
             <Share2 className="h-4 w-4" aria-hidden />
             共有
           </motion.button>
         </div>
 
-        {isMobileOverlay && (
-          <div className="space-y-4 px-5 pt-6">
-            {canNavigateBetweenShops && totalShopCount > 1 && (
-              <div className="rounded-2xl border border-slate-200 bg-white/95 p-2 shadow-sm">
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={onSelectPreviousShop}
-                    className="flex min-w-[92px] items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 transition hover:bg-slate-50"
-                  >
-                    <ChevronLeft className="h-3.5 w-3.5" />
-                    前の店
-                  </button>
-                  <div className="min-w-0 flex-1 text-center">
-                    <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400">
-                      他のお店に
-                    </p>
-                    <p className="mt-0.5 truncate text-sm font-bold text-slate-900">
-                      {selectedShopPosition} / {totalShopCount}
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={onSelectNextShop}
-                    className="flex min-w-[92px] items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 transition hover:bg-slate-50"
-                  >
-                    次の店
-                    <ChevronRight className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-              </div>
-            )}
+        <div className="space-y-6 px-5 pb-8 pt-5">
+          {/* ── お店の情報（先頭の2行と SNS・サイト。ほかは「もっと見る」で開く） ── */}
+          {/* 店が変わったら「もっと見る」を閉じた状態に戻す */}
+          <ShopInfoList key={shop.id} shop={shop} />
 
-            <ShopBusinessInfoCard shop={shop} theme={theme} />
-
-            <div className="rounded-[30px] border border-slate-200 bg-white px-5 py-5 shadow-sm">
-              <div className="space-y-5">
-                {activePosts.length > 0 && (
-                  <PostCarousel
-                    activePosts={activePosts}
-                    theme={theme}
-                    currentPostIndex={currentPostIndex}
-                    isActivePostCentered={isActivePostCentered}
-                    activePostRef={activePostRef}
-                    activePostCarouselRef={activePostCarouselRef}
-                  />
-                )}
-
-                <div>
-                  <div className="mb-3 flex items-center justify-between gap-3">
-                    <div>
-                      <p className="text-xs font-bold uppercase tracking-[0.18em]" style={{ color: theme.text }}>
-                        商品
-                      </p>
-                      <p className="mt-1 text-sm text-slate-500">
-                        品ぞろえと価格を並びで見比べやすくしています
-                      </p>
-                    </div>
-                    {shop.products.length > 0 && (
-                      <button
-                        type="button"
-                        onClick={handleFavoritesClick}
-                        className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 shadow-sm transition hover:bg-slate-100"
-                      >
-                        <Heart className="h-3.5 w-3.5" />
-                        お気に入り
-                      </button>
-                    )}
-                  </div>
-                  {shop.products.length > 0 ? (
-                    <div className="space-y-2.5">
-                      {shop.products.map((product) => {
-                        const isProductFavorite = isProductFavorited(favoriteEntries, shop.id, product);
-                        const price = shop.productPrices?.[product] ?? null;
-                        const productImage = productDetailsByName.get(product.trim().toLowerCase())?.imageUrl;
-                        return (
-                          <div
-                            key={product}
-                            className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3"
-                          >
-                            <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-2xl border border-slate-200 bg-slate-200">
-                              {productImage ? (
-                                <Image
-                                  src={productImage}
-                                  alt={`${product}の写真`}
-                                  fill
-                                  className="object-cover"
-                                />
-                              ) : (
-                                <div className="flex h-full w-full items-center justify-center bg-slate-200 text-[11px] font-semibold text-slate-400">
-                                  画像
-                                </div>
-                              )}
-                            </div>
-                            <div className="min-w-0 flex-1">
-                              <p className="truncate text-sm font-semibold text-slate-900">{product}</p>
-                              <p className="mt-1 text-xs text-slate-500">
-                                {price != null ? `¥${price.toLocaleString()}` : "価格は現地で確認"}
-                              </p>
-                            </div>
-                            <button
-                              type="button"
-                              onClick={() => handleProductTap(product)}
-                              aria-pressed={isProductFavorite}
-                              aria-label={
-                                isProductFavorite
-                                  ? `${product}をお気に入りから外す`
-                                  : `${product}をお気に入りに入れる`
-                              }
-                              className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full border transition active:scale-95 ${
-                                isProductFavorite
-                                  ? "border-favorite-line bg-favorite-fg text-white"
-                                  : "border-favorite-line bg-white text-favorite-fg hover:bg-favorite-bg"
-                              }`}
-                            >
-                              <Heart
-                                className="h-[18px] w-[18px]"
-                                fill={isProductFavorite ? "currentColor" : "none"}
-                              />
-                            </button>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  ) : (
-                    <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-5 text-sm text-slate-500">
-                      商品情報は準備中です
-                    </div>
-                  )}
-                </div>
-
-                <div className="grid gap-3">
-                  <button
-                    type="button"
-                    onClick={handleOpenAiPanel}
-                    className="flex items-center gap-3 rounded-2xl border px-4 py-3.5 text-left transition hover:opacity-90 active:scale-[0.98]"
-                    style={{ borderColor: theme.border, backgroundColor: theme.light }}
-                  >
-                    <div
-                      className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full"
-                      style={{ backgroundColor: theme.accent }}
-                    >
-                      <Sparkles className="h-[18px] w-[18px] text-white" />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-sm font-bold" style={{ color: theme.text }}>AI相談</p>
-                      <p className="mt-0.5 text-[11px] text-slate-500">他のお店と迷った時も相談できます</p>
-                    </div>
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ══════════════════════════════════════════════════════════════════
-            PRODUCTS — 商品と値段（ヒーロー直下に移動）
-        ══════════════════════════════════════════════════════════════════ */}
-        {!isMobileOverlay && shop.products.length > 0 && (
-          <div className="px-5 pt-4 pb-2">
-            <div className="mb-3 flex items-center justify-between">
-              <p className="text-xs font-bold uppercase tracking-widest" style={{ color: theme.text }}>
-                商品
-              </p>
-              <button
-                type="button"
-                onClick={handleFavoritesClick}
-                className="flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 shadow-sm transition hover:bg-slate-50"
-              >
-                <Heart className="h-3.5 w-3.5" />
-                お気に入り
-              </button>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {shop.products.map((product) => {
-                const isProductFavorite = isProductFavorited(favoriteEntries, shop.id, product);
-                const price = shop.productPrices?.[product] ?? null;
-                return (
-                  <button
-                    key={product}
-                    type="button"
-                    onClick={() => handleProductTap(product)}
-                    aria-pressed={isProductFavorite}
-                    className={`flex items-center gap-1.5 rounded-2xl border px-3 py-2 text-sm font-semibold shadow-sm transition hover:shadow-md ${
-                      isProductFavorite
-                        ? "border-favorite-line bg-favorite-bg text-favorite-fg"
-                        : "border-slate-200 bg-white text-slate-700 hover:border-slate-300"
-                    }`}
-                  >
-                    <Heart
-                      className={`h-3.5 w-3.5 shrink-0 ${isProductFavorite ? "text-favorite-fg" : "text-slate-300"}`}
-                      fill={isProductFavorite ? "currentColor" : "none"}
-                    />
-                    <span>{product}</span>
-                    {price != null && (
-                      <span className={`rounded-full px-1.5 py-0.5 text-xs font-bold ${isProductFavorite ? "bg-white text-favorite-fg" : "bg-slate-100 text-slate-500"}`}>
-                        ¥{price.toLocaleString()}
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        {/* ══════════════════════════════════════════════════════════════════
-            IDENTITY — Owner, location, quick info
-        ══════════════════════════════════════════════════════════════════ */}
-        {!isMobileOverlay && (
-          <div className="px-5 pt-4 pb-2">
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-slate-500">
-              <span className="flex items-center gap-1">
-                <MapPin className="h-3.5 w-3.5" />
-                {shop.chome ?? "丁目未設定"}
-              </span>
-              <span>{shop.ownerName}</span>
-            </div>
-
-            <div className="mt-3">
-              <ShopBusinessInfoCard shop={shop} theme={theme} />
-            </div>
-
-            {/* SNS links */}
-            <div className="mt-3 flex flex-wrap gap-2">
-              {shop.socialLinks?.instagram && (
-                <a
-                  href={shop.socialLinks.instagram.startsWith("http") ? shop.socialLinks.instagram : `https://instagram.com/${shop.socialLinks.instagram.replace(/^@/, "")}`}
-                  target="_blank" rel="noopener noreferrer"
-                  className="flex items-center gap-1.5 rounded-full border border-pink-200 bg-pink-50 px-3 py-1.5 text-xs font-medium text-pink-700 transition hover:bg-pink-100"
-                >
-                  <Instagram className="h-3.5 w-3.5" />
-                  Instagram
-                </a>
-              )}
-              {shop.socialLinks?.twitter && (
-                <a
-                  href={shop.socialLinks.twitter.startsWith("http") ? shop.socialLinks.twitter : `https://x.com/${shop.socialLinks.twitter.replace(/^@/, "")}`}
-                  target="_blank" rel="noopener noreferrer"
-                  className="flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-slate-100"
-                >
-                  𝕏
-                </a>
-              )}
-              {shop.socialLinks?.website && (
-                <a
-                  href={shop.socialLinks.website.startsWith("http") ? shop.socialLinks.website : `https://${shop.socialLinks.website}`}
-                  target="_blank" rel="noopener noreferrer"
-                  className="flex items-center gap-1.5 rounded-full border border-sky-200 bg-sky-50 px-3 py-1.5 text-xs font-medium text-sky-700 transition hover:bg-sky-100"
-                >
-                  <Globe className="h-3.5 w-3.5" />
-                  サイト
-                </a>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* ── Divider ──────────────────────────────────────────────────────── */}
-        {!isMobileOverlay && <div className="mx-5 my-3 border-t border-slate-100" />}
-
-        <div className={`px-5 ${isMobileOverlay ? "pb-8 pt-6 space-y-7" : "pb-6 space-y-6"}`}>
-
-          {/* ════════════════════════════════════════════════════════════════
-              TODAY'S ANNOUNCEMENT — Rich card
-          ════════════════════════════════════════════════════════════════ */}
-          {activePosts.length > 0 && !isMobileOverlay && (
+          {/* ── 今日のお知らせ ──────────────────────────────────────────── */}
+          {activePosts.length > 0 && (
             <PostCarousel
               activePosts={activePosts}
               theme={theme}
@@ -812,98 +550,75 @@ const ShopDetailBanner = memo(function ShopDetailBanner({
             />
           )}
 
-          {/* ════════════════════════════════════════════════════════════════
-              SHOP STORY — こだわり with grandma character
-          ════════════════════════════════════════════════════════════════ */}
-          <div>
-              <p className="mb-2 text-xs font-bold uppercase tracking-widest" style={{ color: theme.text }}>
-                お店のこだわり
-              </p>
-              <div className="flex items-start gap-3">
-                <div className="shrink-0">
-                  <Image
-                    src="/images/obaasan_transparent.webp"
-                    alt="おせっかいばあちゃん"
-                    width={60}
-                    height={60}
-                    className="h-14 w-14 opacity-80"
-                  />
-                </div>
-                <div
-                  className="relative w-full rounded-2xl border px-4 py-3 text-sm leading-relaxed text-slate-700"
-                  style={{ borderColor: theme.border, backgroundColor: theme.bg }}
+          {/* ── 商品（写真が主役） ──────────────────────────────────────── */}
+          <section>
+            <div className="mb-2.5 flex items-center justify-between gap-3">
+              <SectionTitle>商品</SectionTitle>
+              {shop.products.length > 0 && (
+                <button
+                  type="button"
+                  onClick={handleFavoritesClick}
+                  className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-chip px-3 text-xs font-semibold text-nicchyo-ink/70 ring-1 ring-line transition hover:bg-nicchyo-ink/[0.03]"
                 >
-                  <span className="absolute -left-2 top-4 h-3.5 w-3.5 rotate-45 border-b border-l" style={{ borderColor: theme.border, backgroundColor: theme.bg }} aria-hidden />
-                  <span className="font-semibold">{shop.shopStrength?.trim() || OSEKKAI_FALLBACK}</span>
-                </div>
+                  <Heart className="h-3.5 w-3.5" aria-hidden />
+                  お気に入り
+                </button>
+              )}
+            </div>
+            <ShopProductGrid
+              shop={shop}
+              imageOf={productImageOf}
+              isProductFavorite={(product) => isProductFavorited(favoriteEntries, shop.id, product)}
+              onToggleProduct={handleProductTap}
+              onOpenPhoto={openPhoto}
+            />
+          </section>
+
+          {/* ── お店のこだわり ──────────────────────────────────────────── */}
+          <section>
+            <div className="mb-2.5">
+              <SectionTitle>お店のこだわり</SectionTitle>
+            </div>
+            <div className="flex items-start gap-3">
+              <div className="shrink-0">
+                <Image
+                  src="/images/obaasan_transparent.webp"
+                  alt="おせっかいばあちゃん"
+                  width={60}
+                  height={60}
+                  className="h-14 w-14 opacity-80"
+                />
               </div>
-            </div>
-
-          {/* ════════════════════════════════════════════════════════════════
-              STALL INFO — Style, payment, rain policy
-          ════════════════════════════════════════════════════════════════ */}
-          <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4 space-y-4">
-              {/* Style tags */}
-              {((shop.stallStyleTags ?? []).length > 0 || shop.stallStyle || (shop.rainPolicy && shop.rainPolicy !== "undecided")) && (
-                <div>
-                  <p className="mb-2 text-xs font-bold text-slate-400 uppercase tracking-widest">出店スタイル</p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {(shop.stallStyleTags ?? []).map((tag) => (
-                      <span key={tag} className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs text-slate-600">{tag}</span>
-                    ))}
-                    {shop.stallStyle && <span className="text-sm text-slate-600">{shop.stallStyle}</span>}
-                  </div>
-                  {shop.rainPolicy && shop.rainPolicy !== "undecided" && (
-                    <p className="mt-1 text-xs text-slate-500">
-                      {shop.rainPolicy === "outdoor" && "🌧 雨でも出店"}
-                      {shop.rainPolicy === "tent" && "⛺ 雨でも出店（テント）"}
-                      {shop.rainPolicy === "cancel" && "❌ 雨天中止"}
-                    </p>
-                  )}
-                </div>
-              )}
-
-              {/* Payment methods */}
-              {(shop.paymentMethods ?? []).length > 0 && (
-                <div>
-                  <p className="mb-2 text-xs font-bold text-slate-400 uppercase tracking-widest">決済方法</p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {(shop.paymentMethods ?? []).map((method) => {
-                      const labels: Record<string, string> = { cash: "💴 現金", card: "💳 カード", paypay: "📱 PayPay", ic: "🚃 交通系IC" };
-                      return (
-                        <span key={method} className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs text-slate-600">{labels[method] ?? method}</span>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-            </div>
-
-          {/* ════════════════════════════════════════════════════════════════
-              AI CONSULT — Dedicated card
-          ════════════════════════════════════════════════════════════════ */}
-          {!isMobileOverlay && (
-            <button
-              type="button"
-              onClick={handleOpenAiPanel}
-              className="flex w-full items-center gap-3 rounded-2xl border px-4 py-3.5 text-left transition hover:opacity-90 active:scale-[0.98]"
-              style={{ borderColor: theme.border, backgroundColor: theme.light }}
-            >
               <div
-                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full"
-                style={{ backgroundColor: theme.accent }}
+                className="relative w-full rounded-card border px-4 py-3 text-sm leading-relaxed text-nicchyo-ink"
+                style={{ borderColor: theme.border, backgroundColor: theme.bg }}
               >
-                <Sparkles className="h-5 w-5 text-white" />
+                <span className="absolute -left-2 top-4 h-3.5 w-3.5 rotate-45 border-b border-l" style={{ borderColor: theme.border, backgroundColor: theme.bg }} aria-hidden />
+                <span className="font-semibold">{shop.shopStrength?.trim() || OSEKKAI_FALLBACK}</span>
               </div>
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-bold" style={{ color: theme.text }}>AIに相談する</p>
-                <p className="mt-0.5 text-xs text-slate-500">このお店について何でも聞いてみよう</p>
-              </div>
-              <ChevronRight className="h-4 w-4 shrink-0 text-slate-400" />
-            </button>
-          )}
+            </div>
+          </section>
 
-          </div>{/* space-y-6 */}
+          {/* ── AI に相談 ──────────────────────────────────────────────── */}
+          <button
+            type="button"
+            onClick={handleOpenAiPanel}
+            className="flex w-full items-center gap-3 rounded-card border px-4 py-3.5 text-left transition hover:opacity-90 active:scale-[0.98] motion-reduce:active:scale-100"
+            style={{ borderColor: theme.border, backgroundColor: theme.light }}
+          >
+            <div
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full"
+              style={{ backgroundColor: theme.accent }}
+            >
+              <Sparkles className="h-5 w-5 text-white" aria-hidden />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-bold" style={{ color: theme.text }}>AIに相談する</p>
+              <p className="mt-0.5 text-xs text-nicchyo-ink/55">このお店について何でも聞いてみよう</p>
+            </div>
+            <ChevronRight className="h-4 w-4 shrink-0 text-nicchyo-ink/40" aria-hidden />
+          </button>
+        </div>
           </div>{/* main panel */}
         </div>
 
@@ -932,6 +647,10 @@ const ShopDetailBanner = memo(function ShopDetailBanner({
       />
 
       {removeShopFavoriteDialog}
+
+      {viewerIndex !== null && (
+        <ShopPhotoViewer photos={photos} initialIndex={viewerIndex} onClose={() => setViewerIndex(null)} />
+      )}
     </div>
   );
 }, areShopDetailBannerPropsEqual);
