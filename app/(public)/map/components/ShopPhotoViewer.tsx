@@ -31,6 +31,7 @@ export function ShopPhotoViewer({
   onClose: () => void;
 }) {
   const [index, setIndex] = useState(initialIndex);
+  const dialogRef = useRef<HTMLDivElement | null>(null);
   const scrollerRef = useRef<HTMLDivElement | null>(null);
   const closeButtonRef = useRef<HTMLButtonElement | null>(null);
 
@@ -38,8 +39,14 @@ export function ShopPhotoViewer({
   useLayoutEffect(() => {
     const scroller = scrollerRef.current;
     if (scroller) scroller.scrollLeft = initialIndex * scroller.clientWidth;
-    closeButtonRef.current?.focus();
   }, [initialIndex]);
+
+  // 開いたら「閉じる」に focus を移し、閉じたら（この部品が外れたら）押した写真のボタンに戻す
+  useLayoutEffect(() => {
+    const previouslyFocused = document.activeElement as HTMLElement | null;
+    closeButtonRef.current?.focus();
+    return () => previouslyFocused?.focus?.();
+  }, []);
 
   const goTo = useCallback((next: number) => {
     const scroller = scrollerRef.current;
@@ -53,6 +60,20 @@ export function ShopPhotoViewer({
       if (event.key === "Escape") onClose();
       if (event.key === "ArrowLeft") goTo(index - 1);
       if (event.key === "ArrowRight") goTo(index + 1);
+      if (event.key === "Tab") {
+        // 裏のバナーに focus が抜けないよう、拡大表示の中のボタンだけを回す。
+        // 「前の写真」「次の写真」はモバイルでは隠れている（display: none）ので数えない
+        const buttons = Array.from(
+          dialogRef.current?.querySelectorAll<HTMLButtonElement>("button:not([disabled])") ?? []
+        ).filter((button) => window.getComputedStyle(button).display !== "none");
+        if (buttons.length === 0) return;
+        event.preventDefault();
+        const current = buttons.indexOf(document.activeElement as HTMLButtonElement);
+        const next = event.shiftKey
+          ? current <= 0 ? buttons.length - 1 : current - 1
+          : (current + 1) % buttons.length;
+        buttons[next].focus();
+      }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
@@ -69,6 +90,7 @@ export function ShopPhotoViewer({
 
   return createPortal(
     <div
+      ref={dialogRef}
       role="dialog"
       aria-modal="true"
       aria-label="写真の拡大表示"
