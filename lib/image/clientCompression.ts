@@ -150,15 +150,20 @@ export async function resizeImageToBlob(
   return new Promise<Blob>((resolve, reject) => {
     canvas.toBlob(
       (blob) => {
-        if (blob) {
+        // 指定した形式で書き出せたときだけそのまま使う。
+        // WebP を書き出せないブラウザ（iPhone の Safari など）は null ではなく PNG を返す（仕様上の既定）。
+        // 写真の PNG は 1200px でも 2MB を超え、地図の表示が重くなるので、JPEG で書き出し直す
+        if (blob && blob.type === mimeType) {
           resolve(blob);
           return;
         }
-        // WebP がサポートされていない環境の場合は JPEG にフォールバック
         canvas.toBlob(
           (fallbackBlob) => {
             if (fallbackBlob) {
               resolve(fallbackBlob);
+            } else if (blob) {
+              // JPEG も書き出せないなら、重くても書き出せた形式で保存する
+              resolve(blob);
             } else {
               reject(new Error("画像のBlob変換に失敗しました"));
             }
@@ -182,8 +187,8 @@ const EXTENSIONS: Record<string, string> = {
 /**
  * 変換後の Blob の実際の形式から、アップロード時の Content-Type と拡張子を決める。
  *
- * WebP を書き出せないブラウザでは、toBlob が JPEG（上のフォールバック）や
- * PNG（未対応の形式を指定したときの仕様上の既定）を返す。
+ * WebP を書き出せないブラウザでは、resizeImageToBlob が JPEG（上のフォールバック）を返す。
+ * JPEG も書き出せない環境では PNG のこともある。
  * image/webp と決め打ちで保存すると、中身と Content-Type が食い違ってどのブラウザでも表示できなくなる。
  */
 export function imageUploadInfo(blob: Blob): { contentType: string; ext: string } {
@@ -193,6 +198,7 @@ export function imageUploadInfo(blob: Blob): { contentType: string; ext: string 
 
 /**
  * 店舗画像 1 ファイルから「メイン用」と「サムネイル用」の 2 つの WebP Blob を生成する
+ * （WebP を書き出せないブラウザでは JPEG）
  */
 export async function createStoreImages(file: File): Promise<{
   mainBlob: Blob;

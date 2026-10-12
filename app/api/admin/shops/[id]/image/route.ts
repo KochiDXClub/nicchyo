@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
+import sharp from "sharp";
 import { logAdminAudit } from "@/lib/audit/logAdminAudit";
 import { guardAdminShopWrite } from "@/lib/admin/shopApiGuard";
-import { IMAGE_EXT, sniffImageType } from "@/lib/admin/imageSniff";
+import { sniffImageType, type SniffedImageType } from "@/lib/admin/imageSniff";
+import { STORE_IMAGE_CONFIG, type ResizeOptions } from "@/lib/image/clientCompression";
 import { revalidatePublicShops } from "@/app/(public)/map/services/shopCache";
 
 export const runtime = "nodejs";
@@ -11,6 +13,22 @@ const BUCKET = "vendor-images";
 /** バケットの上限（5MB）に合わせる。メインとサムネイルの 2 枚ぶん */
 const MAX_BYTES = 5 * 1024 * 1024;
 const MAX_REQUEST_BYTES = MAX_BYTES + 1024 * 1024;
+/** 極端に大きな画像で、メモリを使い切られないようにする（商品写真の保存と同じ） */
+const MAX_INPUT_PIXELS = 24_000_000;
+
+/**
+ * WebP でなければ、ブラウザでの縮小と同じ大きさ・画質の WebP にする。
+ * WebP を書き出せないブラウザ（iPhone の Safari など）からは JPEG や PNG で届く。
+ * そのまま置くと、サムネイルが store-thumb.webp の名前で置けず、地図の丸窓が重いメインの写真を読みに行く
+ */
+async function ensureWebp(bytes: Uint8Array, type: SniffedImageType, options: ResizeOptions): Promise<Uint8Array> {
+  if (type === "image/webp") return bytes;
+  return sharp(bytes, { limitInputPixels: MAX_INPUT_PIXELS })
+    .rotate()
+    .resize(options.maxDimension, options.maxDimension, { fit: "inside", withoutEnlargement: true })
+    .webp({ quality: Math.round(options.quality * 100) })
+    .toBuffer();
+}
 
 /**
  * 運営が現地で撮った店舗写真の保存。ブラウザで圧縮したメイン（1200px）とサムネイル（400px）を受け取り、
@@ -20,6 +38,7 @@ const MAX_REQUEST_BYTES = MAX_BYTES + 1024 * 1024;
  *
  * 写真は公開バケットに置かれ、保存すると来訪者に出る。写真の使用許可（photo_use_allowed）を記録していない
  * 店舗には保存しない。形式は Content-Type ではなく、中身から判定する。
+ * WebP でない写真は WebP に変換して保存する（商品写真の保存 ../product-image と同じ）。
  */
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -55,22 +74,29 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const thumbBytes = new Uint8Array(await thumb.arrayBuffer());
     const mainType = sniffImageType(mainBytes);
     if (!mainType) return NextResponse.json({ error: "写真の形式が正しくありません" }, { status: 400 });
-    // サムネイルは store-thumb.webp の名前で置くので、WebP だけを保存する。WebP を書き出せないブラウザでは
-    // JPEG / PNG が送られてくるが、名前と中身が食い違うと、あとで拡張子で判断する処理が誤動作するので、
-    // サムネイルは保存しない（メインの保存は成功させる。本人の保存 storeService と同じく、サムネイルの失敗は警告にとどめる）
-    const thumbIsWebp = sniffImageType(thumbBytes) === "image/webp";
+    let mainWebp: Uint8Array;
+    try {
+      mainWebp = await ensureWebp(mainBytes, mainType, STORE_IMAGE_CONFIG.main);
+    } catch {
+      return NextResponse.json({ error: "写真を読み込めませんでした" }, { status: 400 });
+    }
+    // サムネイルの失敗は警告にとどめ、メインの保存は成功させる（本人の保存 storeService と同じ）
+    const thumbType = sniffImageType(thumbBytes);
+    const thumbWebp = thumbType
+      ? await ensureWebp(thumbBytes, thumbType, STORE_IMAGE_CONFIG.thumbnail).catch(() => null)
+      : null;
 
-    const mainPath = `${id}/store-main.${IMAGE_EXT[mainType]}`;
+    const mainPath = `${id}/store-main.webp`;
     const thumbPath = `${id}/store-thumb.webp`;
     const storage = adminClient.storage.from(BUCKET);
 
-    const mainResult = await storage.upload(mainPath, mainBytes, { contentType: mainType, upsert: true });
+    const mainResult = await storage.upload(mainPath, mainWebp, { contentType: "image/webp", upsert: true });
     if (mainResult.error) return NextResponse.json({ error: "写真を保存できませんでした" }, { status: 500 });
-    if (thumbIsWebp) {
-      const thumbResult = await storage.upload(thumbPath, thumbBytes, { contentType: "image/webp", upsert: true });
+    if (thumbWebp) {
+      const thumbResult = await storage.upload(thumbPath, thumbWebp, { contentType: "image/webp", upsert: true });
       if (thumbResult.error) console.warn("[admin/shops/image] サムネイルの保存に失敗しました:", thumbResult.error.message);
     } else {
-      console.warn("[admin/shops/image] サムネイルが WebP ではないので保存しませんでした");
+      console.warn("[admin/shops/image] サムネイルを読み込めなかったので保存しませんでした");
     }
 
     // 今回のもの以外の store-main.*（形式が変わったときの前回分）を消す。消せなくても保存自体は成功
