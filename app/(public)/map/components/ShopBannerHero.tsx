@@ -14,7 +14,6 @@ import {
   Globe,
   Heart,
   Instagram,
-  MapPin,
   Palette,
   ShoppingBasket,
   Smartphone,
@@ -167,12 +166,12 @@ function InfoRow({ icon: Icon, label, children }: { icon: LucideIcon; label: str
 }
 
 /**
- * 場所・出店者・出店日・出店時間・雨の日・支払い・出店スタイルと、SNS・サイトへのリンク。
+ * 出店者・出店日・出店時間・雨の日・支払い・出店スタイルと、SNS・サイトへのリンク。
  * 出店者が書いていない項目は行ごと出さない（何も書いていなければ何も出さない）
  */
 export function ShopInfoList({ shop }: { shop: Shop }) {
-  const chome = shop.chome;
-  // 出店者が公開にした氏名だけが届く（vendor_owner_profiles の is_public）
+  // 出店者名は個人情報なので、出店者が公開にしたときだけ届く（vendor_owner_profiles の is_public。既定は非公開）。
+  // 高校の部活など団体名を出したい店のために表示は残し、空なら行ごと出さない
   const ownerName = shop.ownerName?.trim();
   const schedule = shop.schedule?.trim();
   const businessHours = formatBusinessHours(shop.businessHoursStart, shop.businessHoursEnd);
@@ -192,14 +191,13 @@ export function ShopInfoList({ shop }: { shop: Shop }) {
     links.push({ href: socialUrl(website, ""), label: "サイト", icon: <Globe className="h-4 w-4" aria-hidden /> });
   }
 
-  const hasRows = !!(chome || ownerName || schedule || businessHours || rainPolicy || payments.length || styleTags.length || stallStyle);
+  const hasRows = !!(ownerName || schedule || businessHours || rainPolicy || payments.length || styleTags.length || stallStyle);
   if (!hasRows && links.length === 0) return null;
 
   return (
     <div className="rounded-card bg-white px-4 ring-1 ring-line">
       {hasRows && (
         <dl className="divide-y divide-line">
-          {chome && <InfoRow icon={MapPin} label="場所">{chome}</InfoRow>}
           {ownerName && <InfoRow icon={UserRound} label="出店者">{ownerName}</InfoRow>}
           {schedule && <InfoRow icon={CalendarDays} label="出店日">{schedule}</InfoRow>}
           {businessHours && <InfoRow icon={Clock} label="出店時間">{businessHours}</InfoRow>}
