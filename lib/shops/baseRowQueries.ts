@@ -8,12 +8,13 @@ import type { Database } from "@/types/database.types";
  * どちらも PostgREST の max_rows (1000) で黙って切り詰められないよう range ページングで読み切る。
  */
 
+/** image_url は地図の店舗バナーで商品の写真を出すため（埋め込み同期では使わない） */
 export function fetchProductRows<T>(supabase: SupabaseClient<Database>) {
   return fetchAllRows<T>(
     (from, to) =>
       supabase
         .from("products")
-        .select("vendor_id, name")
+        .select("vendor_id, name, image_url")
         .order("id", { ascending: true })
         .range(from, to) as unknown as PromiseLike<{ data: T[] | null; error: { message: string } | null }>,
     { label: "products" }
