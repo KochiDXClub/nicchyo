@@ -72,6 +72,8 @@ import {
 } from "@/lib/map/mapViewSettings";
 import { OPENFREEMAP_STYLE_URL } from "../../config/basemap";
 import {
+  DETAIL_STALL_SCALE,
+  DETAIL_ZOOM_OFFSET,
   ILLUSTRATION_SIZES,
   OVERVIEW_ZONE_MAX_ZOOM,
   OVERVIEW_ZONE_MIN_ZOOM,
@@ -120,12 +122,12 @@ const ZOOM_OFFSET = -1;
  */
 const MAX_ZOOM = ZOOM_BOUNDS.max + ZOOM_OFFSET;
 /**
- * 写真を大きく見るための一段。地図はここまで寄れて、屋台（写真）は DETAIL_STALL_SCALE 倍になる。
+ * 写真を大きく見るための一段。地図はここまで寄れて、屋台（写真）は DETAIL_STALL_SCALE 倍になる
+ * （段数と倍率は displayConfig.ts。パン中の写真カードも同じ倍率で大きくする）。
  * 縮尺は 1 段で 2 倍になるので店舗間隔も 2 倍に広がり、2 倍の屋台でも隣と重ならない。
  * 開いたときや店へ寄るときはここまでは寄らない（写真を見たい人がさらにピンチで寄る）
  */
-const DETAIL_ZOOM = MAX_ZOOM + 1;
-const DETAIL_STALL_SCALE = 2;
+const DETAIL_ZOOM = MAX_ZOOM + DETAIL_ZOOM_OFFSET;
 /**
  * 写真入りの屋台を細かい版で描き直し始めるズーム（MAX_ZOOM からの差）。
  * ここまでは等倍版を少し拡大して見せる（1.25 倍程度ならほぼ粗さは分からない）
