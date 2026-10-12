@@ -639,16 +639,25 @@ export default function ConsultStage({
       setShowsCurrentAnswer(true);
       // その相談に答えた話し手に替える。答えカードの名前と、画面の話し手が
       // 食い違わないように（続けて聞けば、同じ人が続きを答える）。
-      // この画面で選び直したのと同じ扱いにして、入れ替わりの歩きも見せる
+      // この画面で選び直したのと同じ扱いにして、入れ替わりの歩きも見せる。
+      // 応答待ちの間は替えない（届く答えは、聞いたときの話し手のものなので）
       const entry = entriesRef.current.find((item) => item.id === id);
       const entrySpeaker = entry ? findConsultCharacter(entry) : undefined;
-      if (entrySpeaker && entrySpeaker.id !== speaker.id) handlePickSpeaker(entrySpeaker.id);
+      const switchesSpeaker =
+        !!entrySpeaker && entrySpeaker.id !== speaker.id && phase !== "thinking";
+      // 話し手を替えるときは、一番上まで一瞬で戻してから替える。入れ替わりの歩き
+      // （ConsultCharacterSwap）は描いた直後の話し手の位置を1回だけ測るので、
+      // なめらかに戻している途中だと、画面の外やずれた位置を歩いてしまう
+      scrollContainerRef.current?.scrollTo({
+        top: 0,
+        behavior: switchesSpeaker ? "auto" : "smooth",
+      });
+      if (switchesSpeaker && entrySpeaker) handlePickSpeaker(entrySpeaker.id);
       // lg 未満のサイドバーは答えカードの上に重なってしまうので閉じる。
       // lg 以上はチャット欄を右へ逃がして隠さないので、開いたままでもよい
       if (!isHistorySidebarInline) onHistorySidebarOpenChange?.(false);
-      scrollContainerRef.current?.scrollTo({ top: 0, behavior: "smooth" });
     },
-    [handlePickSpeaker, isHistorySidebarInline, onHistorySidebarOpenChange, speaker.id]
+    [handlePickSpeaker, isHistorySidebarInline, onHistorySidebarOpenChange, phase, speaker.id]
   );
   const suggestions = useMemo(
     () => pickSuggestions({ entries, pool: QUESTION_POOL }),
@@ -936,7 +945,7 @@ export default function ConsultStage({
           aria-label="これまでの相談"
           // lg 未満は暗幕（z-40）の上、話しかけるバー・固定バーより手前に出す。
           // lg 以上は横に並ぶだけなので、これまで通り音声シートなどより奥に置く
-          // 幅は立ち絵を置いても文字の幅が以前（w-72）と変わらないよう 22rem にする
+          // 幅は立ち絵を置いても文字の幅が以前（w-72）とほぼ変わらないよう 22rem にする
           className="fixed inset-y-0 left-0 z-40 flex w-[22rem] max-w-[85vw] flex-col border-r border-amber-100 bg-white lg:z-20"
           style={{
             paddingTop: "var(--safe-top, 0px)",
