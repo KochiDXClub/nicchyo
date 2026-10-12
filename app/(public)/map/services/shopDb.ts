@@ -49,6 +49,7 @@ type CategoryRow = {
 type ProductRow = {
   vendor_id: string | null;
   name: string | null;
+  image_url: string | null;
 };
 
 type LocationRow = {
@@ -224,11 +225,19 @@ export function buildVendorShops(
   });
 
   const productsByVendor = new Map<string, string[]>();
+  // 商品の写真は products テーブルの「同じ名前の商品」の行に置かれる（出店者の保存・現場登録とも）。
+  // バナーは商品名で引き当てるので、写真のある行だけを名前と組にして持たせる
+  const productDetailsByVendor = new Map<string, NonNullable<Shop["productDetails"]>>();
   products.forEach((row) => {
     if (!row.vendor_id || !row.name) return;
     const list = productsByVendor.get(row.vendor_id) ?? [];
     list.push(row.name);
     productsByVendor.set(row.vendor_id, list);
+    if (row.image_url) {
+      const details = productDetailsByVendor.get(row.vendor_id) ?? [];
+      details.push({ name: row.name, imageUrl: row.image_url });
+      productDetailsByVendor.set(row.vendor_id, details);
+    }
   });
 
   // 有効期限内の投稿を vendor_id ごとに時系列で保持
@@ -313,6 +322,7 @@ export function buildVendorShops(
         category: categoryName,
         products: displayProducts,
         productPrices: (vendor.main_product_prices ?? undefined) as Record<string, number | null> | undefined,
+        productDetails: productDetailsByVendor.get(vendor.id),
         description: "",
         stallStyle: vendor.style ?? undefined,
         stallStyleTags: (vendor.style_tags ?? []).length > 0 ? (vendor.style_tags as string[]) : undefined,
