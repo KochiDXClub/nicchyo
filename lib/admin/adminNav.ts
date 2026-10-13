@@ -31,7 +31,6 @@ import {
   MapPin,
   MapPinned,
   Megaphone,
-  QrCode,
   ScrollText,
   Settings,
   ShieldCheck,
@@ -153,12 +152,6 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
         href: "/admin/field",
         icon: MapPinned,
         description: "日曜市の現地で、店舗の情報・掲載許可・写真・位置をスマホで登録する",
-      },
-      {
-        label: "店舗のQRコード",
-        href: "/admin/shop-claims",
-        icon: QrCode,
-        description: "出店者に配るQRコードの発行と、アカウントとの紐づけの解除を行う",
       },
       {
         label: "ユーザー",
