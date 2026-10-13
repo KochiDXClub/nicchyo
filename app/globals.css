@@ -1782,16 +1782,6 @@ html:has(.support-page) {
     transform: none !important;
   }
 
-  /* 数え上がる数字（components/ScrollMotion の CountUp）。スクロールしていない
-     ところは 0 のままなので、重ねて置いてある最終の値の方を出す */
-  .count-up__final {
-    visibility: visible !important;
-  }
-
-  .count-up__live {
-    visibility: hidden !important;
-  }
-
   /* 見出しは行ごとに窓で覆って落としている。紙では窓を外す */
   .support-page h1 span {
     overflow: visible !important;

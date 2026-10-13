@@ -1,7 +1,4 @@
-import Link from "next/link";
-import { ArrowRight } from "lucide-react";
 import NavigationBar from "../../components/NavigationBar";
-import { fetchPublishedShopCount } from "@/lib/support/shopCount.server";
 import SupporterSlots from "@/components/SupporterSlots";
 import { SUPPORTER_SLOT_COUNT, SUPPORTERS } from "@/lib/support/supporters";
 import { getActivityBySlug } from "@/app/data/activities";
@@ -10,7 +7,7 @@ import SupportFloatingCta from "./components/SupportFloatingCta";
 import FundUses from "./components/FundUses";
 import SupportWays from "./components/SupportWays";
 import SupportGallery from "./components/SupportGallery";
-import { CountUp, RiseHeading } from "@/components/ScrollMotion";
+import { RiseHeading } from "@/components/ScrollMotion";
 import Reveal from "@/components/Reveal";
 import { Surface } from "@/components/ui";
 import { totalIndividualSupporters } from "@/lib/support/individualSupporters";
@@ -35,12 +32,6 @@ const USES_SECTION_ID = "uses";
  * 名前は記録の側から引くので、ここで書き写さない。見つからない slug は出さない
  */
 const HIGHLIGHT_ACTIVITY_SLUGS = ["2026-02-28-kochi-npo-award", "2025-07-31-re-kosen-adopted"];
-
-/**
- * 日曜市そのものの規模。nicchyo の利用者数ではなく、案内している市の大きさ。
- * 協賛を考える側には、週ごとに 0 へ戻る訪問者数より、こちらの方が判断の材料になる
- */
-const MARKET_VISITORS_PER_DAY = 17_000;
 
 /** 締めの礼。文節ごとに区切り、狭い画面では切れ目で折り返す */
 const CLOSING_LINES = [
@@ -141,26 +132,7 @@ function Section({
   );
 }
 
-/** 数字ひとつ。取れなかったときは「集計中」に落とす */
-function Figure({ label, value, note }: { label: string; value: number | null; note?: string }) {
-  return (
-    <div>
-      <dt className="text-[11px] tracking-[0.08em] text-nicchyo-ink/70">{label}</dt>
-      <dd className="mt-2 text-[2.2rem] font-bold leading-none tabular-nums sm:text-[2.6rem]">
-        {value === null ? (
-          <span className="text-[15px] font-bold text-nicchyo-ink/50">集計中</span>
-        ) : (
-          <CountUp value={value} delay={0.2} />
-        )}
-      </dd>
-      {note && <dd className="mt-2 text-[11.5px] text-nicchyo-ink/70">{note}</dd>}
-    </div>
-  );
-}
-
-export default async function SupportPage() {
-  const shopCount = await fetchPublishedShopCount();
-
+export default function SupportPage() {
   const individualSupporterCount = totalIndividualSupporters();
   const openSlotCount = Math.max(SUPPORTER_SLOT_COUNT - SUPPORTERS.length, 0);
   const highlights = HIGHLIGHT_ACTIVITY_SLUGS.flatMap((slug) => {
@@ -184,29 +156,6 @@ export default async function SupportPage() {
         title={["いただいたご支援は、", "nicchyo を続けるために", "使わせていただきます"]}
       >
         <FundUses uses={FUND_USES} />
-      </Section>
-
-      {/* ── 届いている範囲 ──────────────────────────────────────────── */}
-      <Section label="届いている範囲" title={["日曜市を訪れるみなさまを、", "ご案内しております"]}>
-        <dl className="flex flex-wrap gap-x-12 gap-y-6 sm:gap-x-16">
-          <Figure label="マップに載っている店舗" value={shopCount} />
-          <Figure
-            label="日曜市を訪れる方"
-            value={MARKET_VISITORS_PER_DAY}
-            note="1回あたりおよそ（高知市調べ）"
-          />
-        </dl>
-
-        <Link
-          href="/activities"
-          className="group mt-8 inline-flex items-center gap-1.5 text-[13px] font-bold text-amber-700 underline-offset-4 transition hover:text-amber-800 hover:underline"
-        >
-          これまでの取り組みを見る
-          <ArrowRight
-            className="h-3.5 w-3.5 transition group-hover:translate-x-0.5 motion-reduce:group-hover:translate-x-0"
-            aria-hidden
-          />
-        </Link>
       </Section>
 
       {/* ── 活動の様子 ──────────────────────────────────────────────
