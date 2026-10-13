@@ -24,16 +24,11 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
-import { Landmark as LandmarkIcon, X as XIcon } from 'lucide-react';
+import { X as XIcon } from 'lucide-react';
+import SpotKindIcon from './SpotKindIcon';
 import { GUIDE_KIND_OPTIONS } from '../hooks/useOdekakeGuide';
 import type { SpotKind } from '@/lib/spots';
 import { vibrate } from '@/lib/ui/haptics';
-
-/** /facilities と地図で使っているアイコン。専用画像が無い種類は線画で代える（大きなボタンはお手洗い・のりものだけなので、通常は画像側が使われる） */
-const KIND_ICON_URL: Partial<Record<SpotKind, string>> = {
-  restroom: '/images/maps/elements/facilities/restroom.svg',
-  transit: '/images/maps/elements/transit/tram-stop.svg',
-};
 
 /** 主役（大きく見せる）と控えめな候補 */
 const CTA_KINDS: SpotKind[] = ['restroom', 'transit'];
@@ -50,17 +45,6 @@ const PICK_HOLD_MS = 260;
 
 const ACCENT = '#FFDE59';
 const SOFT_GREEN_BORDER = 'rgba(160, 215, 167, 0.7)';
-
-function KindIcon({ kind }: { kind: SpotKind }) {
-  const url = KIND_ICON_URL[kind];
-  if (url) {
-    return (
-      // eslint-disable-next-line @next/next/no-img-element
-      <img src={url} alt="" className="h-9 w-9 object-contain drop-shadow-sm" draggable={false} />
-    );
-  }
-  return <LandmarkIcon size={30} strokeWidth={2.2} className="text-nicchyo-ink" aria-hidden />;
-}
 
 export default function OdekakeKindChooser({
   onSelect,
@@ -158,7 +142,7 @@ export default function OdekakeKindChooser({
         {isCta ? (
           <>
             <span className="flex h-14 w-14 items-center justify-center rounded-full bg-nicchyo-soft-green/30" aria-hidden>
-              <KindIcon kind={option.kind} />
+              <SpotKindIcon kind={option.kind} />
             </span>
             <span className="mt-0.5 text-[15px] font-black leading-none">{option.label}</span>
             {/* 件数が分かるだけで「探せそう」と思える。0件のときは出さず、無いことを強調しない */}
