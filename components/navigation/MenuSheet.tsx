@@ -89,7 +89,7 @@ export function MenuSheet({
             exit={{ opacity: 0 }}
             transition={fadeTransition}
             className={`fixed inset-0 z-[9995] ${
-              dropdown ? "bg-slate-900/15" : "bg-slate-900/40 backdrop-blur-[3px]"
+              dropdown ? "bg-nicchyo-ink/15" : "bg-slate-900/40 backdrop-blur-[3px]"
             }`}
             onClick={onClose}
             aria-hidden
