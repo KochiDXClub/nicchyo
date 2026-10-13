@@ -5,19 +5,15 @@ export const dynamic = "force-dynamic";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Printer } from "lucide-react";
-import { AdminLayout, AdminPageHeader, EmptyState, LoadingButton, Modal } from "@/components/admin";
+import { AdminLayout, AdminPageHeader, EmptyState, LoadingButton } from "@/components/admin";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { showToast } from "@/lib/admin/toast";
-import { fetchShopClaims, issueClaims, unlinkShop, type IssueResult, type ShopClaimRow } from "@/lib/admin/shopClaimsClient";
+import { fetchShopClaims, issueClaims, type IssueResult, type ShopClaimRow } from "@/lib/admin/shopClaimsClient";
 import type { ShopClaimState } from "@/lib/vendor/shopClaim";
 import QrSheet from "./components/QrSheet";
 import ShopActivityModal from "./components/ShopActivityModal";
-
-const STATE_LABEL: Record<ShopClaimState, { text: string; className: string }> = {
-  claimed: { text: "代表者あり", className: "bg-green-700 text-white" },
-  qr_issued: { text: "QR発行済み・未紐づけ", className: "bg-amber-600 text-white" },
-  unclaimed: { text: "未発行", className: "bg-nicchyo-ink/60 text-white" },
-};
+import { ClaimStateBadge } from "./components/ClaimStateBadge";
+import { UnlinkShopModal } from "./components/UnlinkShopModal";
 
 type Filter = "all" | ShopClaimState;
 const FILTERS: { key: Filter; label: string }[] = [
@@ -45,7 +41,6 @@ export default function AdminShopClaimsPage() {
   const [issuing, setIssuing] = useState(false);
   const [results, setResults] = useState<IssueResult[] | null>(null);
   const [unlinkTarget, setUnlinkTarget] = useState<ShopClaimRow | null>(null);
-  const [unlinking, setUnlinking] = useState(false);
   const [logTarget, setLogTarget] = useState<ShopClaimRow | null>(null);
 
   useEffect(() => {
@@ -115,21 +110,6 @@ export default function AdminShopClaimsPage() {
       showToast.error(e instanceof Error ? e.message : "QRコードを発行できませんでした");
     } finally {
       setIssuing(false);
-    }
-  };
-
-  const handleUnlink = async () => {
-    if (!unlinkTarget) return;
-    setUnlinking(true);
-    try {
-      const { removedMembers } = await unlinkShop(unlinkTarget.vendorId);
-      showToast.success(`${unlinkTarget.shopName}の紐づけを解除しました（${removedMembers}人が外れました）`);
-      setUnlinkTarget(null);
-      await load();
-    } catch (e) {
-      showToast.error(e instanceof Error ? e.message : "解除できませんでした");
-    } finally {
-      setUnlinking(false);
     }
   };
 
@@ -240,9 +220,7 @@ export default function AdminShopClaimsPage() {
                     </td>
                     <td className="px-3 py-2 font-medium text-nicchyo-ink">{shop.shopName}</td>
                     <td className="px-3 py-2">
-                      <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-bold ${STATE_LABEL[shop.state].className}`}>
-                        {STATE_LABEL[shop.state].text}
-                      </span>
+                      <ClaimStateBadge state={shop.state} />
                     </td>
                     <td className="px-3 py-2 text-nicchyo-ink/70">{shop.memberCount}人</td>
                     <td className="px-3 py-2 text-right">
@@ -272,25 +250,7 @@ export default function AdminShopClaimsPage() {
         )}
       </div>
 
-      <Modal open={unlinkTarget !== null} onClose={() => !unlinking && setUnlinkTarget(null)} title="紐づけの解除" widthClassName="max-w-md">
-        {unlinkTarget && (
-          <div className="space-y-4">
-            <p className="text-sm leading-relaxed text-nicchyo-ink/70">
-              「{unlinkTarget.shopName}」の紐づけを解除します。メンバー {unlinkTarget.memberCount}人（代表者を含む）がお店から外れ、出ている招待リンクとQRコードは使えなくなります。
-              店舗の掲載情報（商品・写真・投稿）はそのまま残ります。
-            </p>
-            <p className="text-xs text-nicchyo-ink/55">解除したあと、QRコードを出し直すと、新しい代表者が紐づけられます。</p>
-            <div className="flex justify-end gap-2">
-              <button type="button" onClick={() => setUnlinkTarget(null)} disabled={unlinking} className="rounded-lg px-4 py-2 text-sm text-nicchyo-ink/70 hover:bg-nicchyo-ink/[0.06]">
-                やめる
-              </button>
-              <LoadingButton isLoading={unlinking} loadingText="解除しています…" onClick={handleUnlink} className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-500">
-                解除する
-              </LoadingButton>
-            </div>
-          </div>
-        )}
-      </Modal>
+      <UnlinkShopModal shop={unlinkTarget} onClose={() => setUnlinkTarget(null)} onUnlinked={load} />
       <ShopActivityModal shop={logTarget} onClose={() => setLogTarget(null)} />
     </AdminLayout>
   );
