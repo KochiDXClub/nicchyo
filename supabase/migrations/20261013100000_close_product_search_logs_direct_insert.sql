@@ -25,7 +25,11 @@ revoke insert on public.product_search_logs from anon, authenticated;
 -- 2. API の入力検証に合わせた DB 側の上限（二重の守り）
 --    既存の行には不正な値が残っている可能性がある（これまで検証なしで書けた）。
 --    既存行の検証で失敗しないよう not valid で付け、これから入る行だけを確かめる。
---    件数の上限は API（MAX_SHOP_ID = 999）より少し余裕を持たせる。
+--    DB 側は API の検証より厳しくしない（API が通した値で INSERT が失敗し 500 にならないように）。
+--    - キーワードの下限は 1: JS の length は UTF-16 単位で、絵文字1つ（例: 🍊）を 2 と数える。
+--      char_length は 1 と数えるので、下限を API と同じ 2 にすると API が通した語を DB が拒む。
+--      上限は JS の length ≤ 100 なら char_length ≤ 100 なので API と同じでよい
+--    - 件数の上限は API（1000 以下）と同じ
 do $$
 begin
   if not exists (
@@ -35,7 +39,7 @@ begin
   ) then
     alter table public.product_search_logs
       add constraint product_search_logs_keyword_length
-      check (char_length(keyword) between 2 and 100) not valid;
+      check (char_length(keyword) between 1 and 100) not valid;
   end if;
 
   if not exists (
