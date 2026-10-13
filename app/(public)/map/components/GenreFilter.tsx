@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Heart } from "lucide-react";
+import { LG_MEDIA_QUERY, useMediaQuery } from "@/lib/hooks/useMediaQuery";
 
 // モバイル（375px基準）でチップ3件が収まり、残りは折りたたむUX判断
 const GENRE_PREVIEW_COUNT = 3;
@@ -26,6 +27,10 @@ export function GenreFilter({
 }) {
   const isSelectedHidden = selected !== null && categories.indexOf(selected) >= GENRE_PREVIEW_COUNT;
   const [expanded, setExpanded] = useState(isSelectedHidden);
+  // PC・ノートPC（lg 以上）は場所に余裕があるので、折りたたまずに全部のジャンルを出し、
+  // ＋ ボタンも出さない。スマホは従来どおり、3件＋「＋」で折りたたむ
+  const isDesktop = useMediaQuery(LG_MEDIA_QUERY);
+  const showHidden = isDesktop || expanded;
 
   useEffect(() => {
     if (isSelectedHidden) setExpanded(true);
@@ -79,7 +84,7 @@ export function GenreFilter({
 
       {/* 展開中の追加チップ（アニメ付き） */}
       <AnimatePresence initial={false}>
-        {expanded && hiddenCategories.map((cat, i) => (
+        {showHidden && hiddenCategories.map((cat, i) => (
           <motion.button
             key={cat}
             type="button"
@@ -95,20 +100,22 @@ export function GenreFilter({
         ))}
       </AnimatePresence>
 
-      {/* ＋ / × トグルボタン（チップと同列・オレンジ） */}
-      <motion.button
-        type="button"
-        onClick={() => setExpanded((v) => !v)}
-        aria-label={expanded ? 'ジャンルを閉じる' : 'ジャンルをもっと見る'}
-        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-amber-500 text-white shadow-md active:scale-90"
-        animate={{ rotate: expanded ? 45 : 0 }}
-        transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
-        whileTap={{ scale: 0.88 }}
-      >
-        <svg width="13" height="13" viewBox="0 0 10 10" fill="none" aria-hidden>
-          <path d="M5 1v8M1 5h8" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
-        </svg>
-      </motion.button>
+      {/* ＋ / × トグルボタン（チップと同列・オレンジ）。全部見えている PC では要らない */}
+      {!isDesktop && (
+        <motion.button
+          type="button"
+          onClick={() => setExpanded((v) => !v)}
+          aria-label={expanded ? 'ジャンルを閉じる' : 'ジャンルをもっと見る'}
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-amber-500 text-white shadow-md active:scale-90"
+          animate={{ rotate: expanded ? 45 : 0 }}
+          transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+          whileTap={{ scale: 0.88 }}
+        >
+          <svg width="13" height="13" viewBox="0 0 10 10" fill="none" aria-hidden>
+            <path d="M5 1v8M1 5h8" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
+          </svg>
+        </motion.button>
+      )}
     </div>
   );
 }

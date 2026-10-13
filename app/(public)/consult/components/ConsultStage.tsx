@@ -860,8 +860,9 @@ export default function ConsultStage({
       */}
       {/*
         高さを「スクロール領域いっぱい」にして中身を縦中央に置く（sticky なので
-        本文を読み進めても同じ位置に残る）。-2rem は上の目印の余白と下の
-        paddingBottom ぶん。これを引かないと、わずかにスクロールが発生する
+        本文を読み進めても同じ位置に残る）。高さは lg 用の --consult-bar-space-lg から、
+        上の目印の余白（0.75rem + 1px）と行の間隔（0.75rem）ぶんの 1.65rem を引いた値。
+        これを引かないと、わずかにスクロールが発生する（lg は下の余白 pb を 0 にしてある）
       */}
       <div className="flex flex-col items-center gap-2 lg:sticky lg:top-0 lg:col-start-1 lg:row-start-2 lg:h-[calc(100dvh-var(--consult-bar-space-lg)-1.65rem)] lg:justify-center">
         {/*

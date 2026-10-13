@@ -358,7 +358,7 @@ export function MenuToggleButton({
         </motion.span>
         <span
           className={`text-[10px] font-medium leading-none tracking-tight text-slate-500 ${
-            inlineOnLg ? "lg:text-sm lg:font-semibold lg:text-slate-700" : ""
+            inlineOnLg ? "lg:text-sm lg:font-semibold lg:text-nicchyo-ink" : ""
           }`}
         >
           メニュー

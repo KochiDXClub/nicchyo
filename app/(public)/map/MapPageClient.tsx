@@ -837,7 +837,7 @@ export default function MapPageClient({
                   onStop={guide.stopNavigation}
                 />
               ) : (
-                <div className="absolute left-3 right-3 top-3 z-[1001] flex items-center gap-3 rounded-full bg-white py-2 pl-2 pr-2 shadow-[0_8px_24px_rgba(58,58,58,0.18)] ring-1 ring-black/5">
+                <div className="absolute left-3 right-3 top-3 z-[1001] flex items-center gap-3 rounded-full bg-white py-2 pl-2 pr-2 shadow-[0_8px_24px_rgba(58,58,58,0.18)] ring-1 ring-black/5 lg:left-4 lg:right-auto lg:top-4 lg:w-[22rem]">
                   <span className="flex h-8 w-8 items-center justify-center rounded-full bg-nicchyo-accent text-nicchyo-ink" aria-hidden="true">
                     <Navigation size={15} />
                   </span>
