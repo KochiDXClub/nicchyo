@@ -15,7 +15,7 @@ import SearchDiscovery from './components/SearchDiscovery';
 import { useFavoriteShopIds } from '../../../lib/hooks/useFavorites';
 import { useShopFavoriteToggle } from '../../components/favorites/useShopFavoriteToggle';
 import { saveSearchMapPayload } from '../../../lib/searchMapStorage';
-import { MIN_SEARCH_KEYWORD_LENGTH, recordSearch } from '../../../lib/analytics/searchLogs';
+import { useSearchLog } from '../../../lib/hooks/useSearchLog';
 import ShopDetailBanner from '../map/components/ShopDetailBanner';
 
 const MapView = dynamic(() => import('../map/components/maplibre/MapViewMapLibre'), {
@@ -228,12 +228,7 @@ export default function SearchClient({
     [shops]
   );
   // 検索キーワードをDBにログ（1秒デバウンス、2文字以上）
-  useEffect(() => {
-    const kw = textQuery.trim();
-    if (kw.length < MIN_SEARCH_KEYWORD_LENGTH) return;
-    const timer = setTimeout(() => recordSearch(kw, filteredShops.length), 1000);
-    return () => clearTimeout(timer);
-  }, [textQuery, filteredShops.length]);
+  useSearchLog(textQuery, filteredShops.length);
 
   // 検索クエリが入力されているか
   const hasQuery = textQuery.trim() !== '' || category !== null;
