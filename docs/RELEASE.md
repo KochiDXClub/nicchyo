@@ -192,7 +192,8 @@ where schemaname = 'public' and (qual ilike '%user_metadata%' or with_check ilik
 | `ADMIN_USER_EMAIL` / `ADMIN_USER_PASSWORD` | **本番には設定しない** | 開発専用（`scripts/create-admin-user.mjs`） |
 
 - 古い `COUPON_QR_SECRET` / `NEXT_PUBLIC_DEV_MARKET_DAY` は不要になったので、本番にあっても害はないが消してよい。
-- `vercel.json` の `regions: ["icn1"]` は関数リージョンの固定。Supabase のリージョンと近いことを確認する。
+- `vercel.json` の `regions: ["hnd1"]`（東京）は関数リージョンの固定。本番 Supabase（`yrypxygzqtkdwvasczsq`）が東京（ap-northeast-1）にあるので合わせている。DB を別リージョンに移すときはここも変える。
+  開発 Supabase（`dbaufykimgzfgoeyyxwz`）はソウル（ap-northeast-2）なので、プレビューは DB まで少し遠い（本番を優先している）。
 
 **GitHub Environment**（Settings → Environments）:
 
