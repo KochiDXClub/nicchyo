@@ -11,6 +11,7 @@ import { PAYMENT_OPTIONS, RAIN_OPTIONS } from "@/lib/vendor/storeOptions";
 import type { AdminShopDetail } from "@/lib/admin/shopEdit";
 import { Surface, buttonClass } from "@/components/ui";
 import { ListingStatusBadge } from "../ListingStatusBadge";
+import { ShopClaimSection } from "./components/ShopClaimSection";
 
 
 const EMPTY = "未入力";
@@ -94,6 +95,8 @@ function AdminShopDetailContent() {
           <p className="text-sm text-nicchyo-ink/55">読み込み中…</p>
         ) : (
           <>
+            <ShopClaimSection vendorId={shop.id} />
+
             <Section title="掲載の許可">
               <Row label="掲載許可">
                 <ListingStatusBadge status={shop.listing_status} />
