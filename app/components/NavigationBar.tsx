@@ -127,6 +127,13 @@ type NavigationBarProps = {
   closeModeActive?: boolean;
   onCloseMode?: () => void;
   onConsultClick?: () => void;
+  /**
+   * サブページの「もどる」バーを、下端ではなく画面の上に置く。
+   * スマホは上端いっぱいの細い帯、lg 以上（PC・ノートPC）は地図のツールバーと同じ右上の小さなバー。
+   * 指定した画面は、下端にナビの分の余白を取らず、上に帯の分（--consult-top-space のような変数）を
+   * 空けること
+   */
+  backBarOnTop?: boolean;
 };
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -137,6 +144,7 @@ function NavigationBarInner({
   closeModeActive = false,
   onCloseMode,
   onConsultClick,
+  backBarOnTop = false,
 }: NavigationBarProps) {
   const pathname = usePathname();
   const router = useRouter();
@@ -177,6 +185,17 @@ function NavigationBarInner({
   // href で比べるとマップにいるだけで相談が点いてしまう。
   const currentHref = activeHref ?? pathname;
   const isNavItemActive = (item: NavItem) => currentHref === (item.target ?? item.href);
+
+  /*
+   * 地図の上にいる間（ふつうの地図・検索パネル表示中）のナビ。
+   * lg 以上（PC・ノートPC）では、画面の下端いっぱいの帯ではなく、右上に浮かぶ
+   * 小さなツールバーにする（Web サイトのヘッダーのように、アイコンとラベルを横に並べる）。
+   * 下端を空けて、広い地図をそのまま見せるため。
+   * スマホと、サブページのもどるバーは従来どおり全幅の帯のまま
+   */
+  const isMapNav = isHome || isCloseUxActive;
+  // 「もどる」バー（サブページ）を上に置くか。地図の上にいる間は、地図のナビが優先する
+  const topBackBar = backBarOnTop && !isMapNav;
 
   // ページ公開設定で public でないリンクはナビに出さない
   const consultItem = baseNavItems[0];
@@ -246,7 +265,14 @@ function NavigationBarInner({
   return (
     <>
       {/* ── ボトムメニューシート ────────────────────────────────────────────── */}
-      <MenuSheet open={menuOpen} onClose={closeMenu} label="メニュー" returnFocusRef={menuButtonRef}>
+      <MenuSheet
+        open={menuOpen}
+        onClose={closeMenu}
+        label="メニュー"
+        returnFocusRef={menuButtonRef}
+        // 地図ではメニューボタンが右上にあるので、PC・ノートPCではそのすぐ下に開く
+        desktopDropdown={isMapNav}
+      >
         {/* ─ ユーザー ─ */}
         {isLoggedIn && user ? (
           <MenuUserRow
@@ -350,16 +376,22 @@ function NavigationBarInner({
       {/* ── ナビゲーションバー ──────────────────────────────────────────────── */}
       <nav
         onClick={isCloseUxActive ? handleCloseMode : undefined}
-        className={`navigation-bar ${position} bottom-0 left-0 right-0 z-[9997] border-t text-sm leading-none shadow-sm transition-colors duration-300 ${
+        className={`navigation-bar ${position} ${
+          topBackBar ? "top-0 border-b pt-[var(--safe-top,0px)] lg:pt-0" : "bottom-0 border-t"
+        } left-0 right-0 z-[9997] text-sm leading-none shadow-sm transition-colors duration-300 ${
           isCloseUxActive
             ? "cursor-pointer border-green-500 bg-green-500"
             : "border-slate-200/60 bg-white/90 backdrop-blur-md"
+        } ${
+          isMapNav || topBackBar
+            ? "lg:bottom-auto lg:left-auto lg:right-4 lg:top-4 lg:w-auto lg:rounded-full lg:border lg:shadow-float"
+            : ""
         }`}
-        style={{ paddingBottom: "var(--safe-bottom, 0px)" }}
+        style={topBackBar ? undefined : { paddingBottom: "var(--safe-bottom, 0px)" }}
       >
         {isHome ? (
           /* ── マップ：フルナビ ── */
-          <div className="mx-auto flex h-14 max-w-lg items-center">
+          <div className="mx-auto flex h-14 max-w-lg items-center lg:h-12 lg:gap-1 lg:px-2">
             {/* 左：相談（ページ公開設定で非表示のときはレイアウト維持のため空枠にする） */}
             {!isConsultVisible ? (
               <div className="flex-1" aria-hidden />
@@ -367,14 +399,14 @@ function NavigationBarInner({
               <button
                 type="button"
                 onClick={onConsultClick}
-                className="group flex h-full flex-1 flex-col items-center justify-center gap-1 text-slate-400 transition-colors duration-200 hover:text-slate-600"
+                className="group flex h-full flex-1 flex-col items-center justify-center gap-1 text-slate-400 transition-colors duration-200 hover:text-slate-600 lg:flex-none lg:flex-row lg:gap-2 lg:rounded-full lg:px-4 lg:hover:bg-nicchyo-ink/5"
               >
                 <consultItem.icon
                   className="h-[22px] w-[22px] transition-transform duration-200 group-hover:scale-105 group-active:scale-95"
                   strokeWidth={1.7}
                   aria-hidden
                 />
-                <span className="text-[10px] font-medium leading-none tracking-tight">
+                <span className="text-[10px] font-medium leading-none tracking-tight lg:text-sm lg:font-semibold">
                   {consultItem.name}
                 </span>
               </button>
@@ -383,7 +415,7 @@ function NavigationBarInner({
             )}
 
             {/* 中央：メニューボタン */}
-            <MenuToggleButton open={menuOpen} onClick={toggleMenu} buttonRef={menuButtonRef} />
+            <MenuToggleButton open={menuOpen} onClick={toggleMenu} buttonRef={menuButtonRef} inlineOnLg />
 
             {/* 右：近況（+ 管理タブがあれば追加）。全部非表示なら空枠で中央のメニュー位置を維持 */}
             {rightNavItems.length === 0 && !showStoryChooser ? (
@@ -404,19 +436,19 @@ function NavigationBarInner({
           </div>
         ) : isCloseUxActive ? (
           /* ── パネル表示中：緑バー × ── */
-          <div className="mx-auto flex h-14 max-w-lg items-center justify-center">
-            <div className="flex flex-col items-center gap-1">
-              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-white/20">
+          <div className="mx-auto flex h-14 max-w-lg items-center justify-center lg:h-12 lg:px-5">
+            <div className="flex flex-col items-center gap-1 lg:flex-row lg:gap-2">
+              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-white/20 lg:h-8 lg:w-8">
                 <X className="h-5 w-5 text-white" strokeWidth={2.4} aria-hidden />
               </div>
-              <span className="text-[10px] font-medium leading-none tracking-tight text-white/80">
+              <span className="text-[10px] font-medium leading-none tracking-tight text-white/80 lg:text-sm lg:font-semibold lg:text-white">
                 閉じる
               </span>
             </div>
           </div>
         ) : (
           /* ── サブページ：もどるバー ── */
-          <BottomNavBackBar label="マップにもどる" onClick={goToMap} />
+          <BottomNavBackBar label="マップにもどる" onClick={goToMap} compact={topBackBar} />
         )}
       </nav>
     </>
@@ -425,7 +457,9 @@ function NavigationBarInner({
 
 // ─── NavLinkItem ──────────────────────────────────────────────────────────────
 function NavLinkItem({ item, isActive }: { item: NavItem; isActive: boolean }) {
-  return <BottomNavLink href={item.href} label={item.name} icon={item.icon} isActive={isActive} />;
+  return (
+    <BottomNavLink href={item.href} label={item.name} icon={item.icon} isActive={isActive} inlineOnLg />
+  );
 }
 
 /**
@@ -455,15 +489,15 @@ function StoryNavChooser({ item, isActive }: { item: NavItem; isActive: boolean 
   }, [open]);
 
   return (
-    <div ref={rootRef} className="relative flex h-full flex-1">
+    <div ref={rootRef} className="relative flex h-full flex-1 lg:flex-none">
       <button
         type="button"
         onClick={() => setOpen((prev) => !prev)}
         aria-expanded={open}
         aria-controls={open ? listId : undefined}
-        className={bottomNavItemClass(isActive || open)}
+        className={bottomNavItemClass(isActive || open, true)}
       >
-        <BottomNavItemContent icon={item.icon} label={item.name} isActive={isActive || open} />
+        <BottomNavItemContent icon={item.icon} label={item.name} isActive={isActive || open} inlineOnLg />
       </button>
       <AnimatePresence>
         {open && (
@@ -475,7 +509,7 @@ function StoryNavChooser({ item, isActive }: { item: NavItem; isActive: boolean 
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 6 }}
             transition={{ duration: 0.15 }}
-            className="absolute bottom-full right-2 mb-2 w-56 rounded-panel bg-white p-1.5 shadow-float ring-1 ring-line"
+            className="absolute bottom-full right-2 mb-2 w-56 rounded-panel bg-white p-1.5 shadow-float ring-1 ring-line lg:bottom-auto lg:top-full lg:mb-0 lg:mt-2"
           >
             {STORY_CHOICES.map((choice) => (
               <Link

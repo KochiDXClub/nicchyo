@@ -45,8 +45,9 @@ export default function GuideNavigationBar({ target, originLabel, arrived, progr
 
   return (
     <div
+      // lg 以上は右上にナビのツールバーが浮かぶので、その下に潜らないよう左上の幅いっぱいにはしない
       className={cn(
-        'absolute left-3 right-3 top-3 z-[1001] overflow-hidden rounded-[22px] bg-white shadow-[0_8px_24px_rgba(58,58,58,0.18)] ring-1 ring-black/5',
+        'absolute left-3 right-3 top-3 z-[1001] overflow-hidden rounded-[22px] bg-white shadow-[0_8px_24px_rgba(58,58,58,0.18)] ring-1 ring-black/5 lg:left-4 lg:right-auto lg:top-4 lg:w-[22rem]',
         className
       )}
       onMouseDown={(e) => e.stopPropagation()}
