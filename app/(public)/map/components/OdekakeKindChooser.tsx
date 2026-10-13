@@ -227,7 +227,7 @@ export default function OdekakeKindChooser({
         <div className="mt-4 grid grid-cols-2 gap-2.5">
           {CTA_OPTIONS.map((option, i) => renderOption(option, i, 'cta'))}
         </div>
-        <div className="mt-2.5 grid grid-cols-2 gap-2">
+        <div className="mt-2.5 grid grid-cols-1 gap-2">
           {QUIET_OPTIONS.map((option, i) => renderOption(option, i + CTA_OPTIONS.length, 'quiet'))}
         </div>
       </motion.div>
