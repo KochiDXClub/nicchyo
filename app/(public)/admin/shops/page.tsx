@@ -14,7 +14,6 @@ import { CenteredLoading } from "@/components/ui/loading-spinner";
 import { useKeyboardShortcuts, ShortcutHelp } from "@/lib/hooks/useKeyboardShortcuts";
 import { SortableColumnHeader, useSortableData } from "@/components/admin/desktop/SortableTableHeader";
 import { Tooltip } from "@/components/admin/desktop/Tooltip";
-import { DataDensityToggle, DENSITY_CONFIG, type DataDensity } from "@/components/admin/desktop/DataDensityToggle";
 import type { AdminShop } from "@/app/api/admin/shops/route";
 import { ListingStatusBadge } from "./ListingStatusBadge";
 import Link from "next/link";
@@ -36,7 +35,6 @@ function AdminShopsContent() {
   const [bulkLoading, setBulkLoading] = useState(false);
   const [showShortcutHelp, setShowShortcutHelp] = useState(false);
   const [lastSelectedIndex, setLastSelectedIndex] = useState<number | null>(null);
-  const [dataDensity, setDataDensity] = useState<DataDensity>("standard");
 
   const searchInputRef = useRef<HTMLInputElement>(null);
 
@@ -240,7 +238,6 @@ function AdminShopsContent() {
     return null;
   }
 
-  const cell = DENSITY_CONFIG[dataDensity];
   const allSelected = selectedShopIds.length === sortedData.length && sortedData.length > 0;
 
   return (
@@ -290,7 +287,6 @@ function AdminShopsContent() {
               value={filter}
               onChange={setFilter}
               search={{ value: searchQuery, onChange: setSearchQuery, placeholder: "店舗名・オーナーで検索..." }}
-              extra={<div className="hidden sm:block"><DataDensityToggle density={dataDensity} onChange={setDataDensity} /></div>}
             >
               {uniqueCategories.length > 0 && (
                 <div className="flex flex-wrap items-center gap-2 border-t border-line pt-3">
@@ -365,7 +361,7 @@ function AdminShopsContent() {
                       <tbody className="divide-y divide-line">
                         {sortedData.map((shop, index) => (
                           <tr key={shop.id} className="hover:bg-nicchyo-base/60">
-                            <td className={cell.padding}>
+                            <td className="px-4 py-3">
                               <input
                                 type="checkbox"
                                 aria-label={`${shop.name}を選択`}
@@ -374,22 +370,22 @@ function AdminShopsContent() {
                                 className="h-4 w-4 rounded border-line accent-amber-600"
                               />
                             </td>
-                            <td className={cell.padding}>
-                              <Link href={`/admin/shops/${shop.id}`} className={`font-medium text-nicchyo-ink hover:underline ${cell.fontSize}`}>
+                            <td className="px-4 py-3">
+                              <Link href={`/admin/shops/${shop.id}`} className={`font-medium text-nicchyo-ink hover:underline`}>
                                 {shop.name}
                               </Link>
                               <div className="text-xs text-nicchyo-ink/55">{shop.email}</div>
                             </td>
-                            <td className={`${cell.padding} ${cell.fontSize} text-nicchyo-ink/70`}>{shop.category}</td>
-                            <td className={`${cell.padding} ${cell.fontSize} text-nicchyo-ink/70`}>{shop.owner}</td>
-                            <td className={cell.padding}>
+                            <td className={`px-4 py-3 text-sm text-nicchyo-ink/70`}>{shop.category}</td>
+                            <td className={`px-4 py-3 text-sm text-nicchyo-ink/70`}>{shop.owner}</td>
+                            <td className="px-4 py-3">
                               <StatusBadge status={shop.status} />
                               <div className="mt-1">
                                 <ListingStatusBadge status={shop.listingStatus} />
                               </div>
                             </td>
-                            <td className={`${cell.padding} ${cell.fontSize} whitespace-nowrap text-nicchyo-ink/70`}>{shop.registeredDate}</td>
-                            <td className={`${cell.padding} whitespace-nowrap text-right`}>
+                            <td className={`px-4 py-3 text-sm whitespace-nowrap text-nicchyo-ink/70`}>{shop.registeredDate}</td>
+                            <td className={`px-4 py-3 whitespace-nowrap text-right`}>
                               <div className="flex justify-end gap-2">
                                 {shop.status === "active" ? (
                                   <Button variant="quiet" size="sm" onClick={() => handleSingleAction(shop.id, "suspend")}>停止</Button>
