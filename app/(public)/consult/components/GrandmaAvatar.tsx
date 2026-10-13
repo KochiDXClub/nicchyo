@@ -52,7 +52,7 @@ const SIZE_CLASS: Record<GrandmaAvatarSize, string> = {
   // 240pxへ上げる条件にも高さの十分さ（700px以上）を必須にする。
   //
   // 注意: この 700px は ConsultStage.tsx の下端バー分の余白
-  // （CONSULT_BAR_SPACE、6rem+固定要素ぶん）と、hero サイズ・挨拶吹き出し・
+  // （CONSULT_BAR_SPACE、5rem+固定要素ぶん）と、hero サイズ・挨拶吹き出し・
   // 候補ボタン3つの実測で決めた値で、CSS の @media は
   // var(--nav-bar-height) 等のカスタムプロパティを条件式に使えないため、
   // 自動では追従しない。下端バーの実高さや候補ボタンの数・大きさを
