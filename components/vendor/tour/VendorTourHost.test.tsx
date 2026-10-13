@@ -1,10 +1,14 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { MotionGlobalConfig } from "framer-motion";
+import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-// 閉じるときのフェードアウトを待つと、混んだ CI では waitFor の既定 1 秒を超えて落ちることがある。
-// 見たいのは開く・閉じるの判断なので、アニメーションは飛ばす。
-MotionGlobalConfig.skipAnimations = true;
+// 閉じるときの退場アニメーション（AnimatePresence）を待つと、混んだ CI では waitFor の既定 1 秒を超えて落ちる。
+// MotionGlobalConfig.skipAnimations でも退場の完了はフレーム待ちになり、落ちることがあった。
+// 見たいのは開く・閉じるの判断なので、AnimatePresence を「消したらすぐ外す」だけの入れ物に差し替える。
+vi.mock("framer-motion", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("framer-motion")>()),
+  AnimatePresence: ({ children }: { children?: ReactNode }) => <>{children}</>,
+}));
 
 let pathname = "/vendor/posts";
 vi.mock("next/navigation", () => ({ usePathname: () => pathname }));
