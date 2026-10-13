@@ -18,6 +18,41 @@ export function parseCreateInvite(value: unknown): CreateInviteInput | null {
   return { maxUses: parsed.data.maxUses, permissions: parseShopPermissions(parsed.data.permissions) ?? [] };
 }
 
+/** 運営が店舗の招待リンクを作る・取り消す入力。店舗は本文で指定する（運営は特定の店舗のメンバーではないため） */
+export const AdminInviteActionSchema = z.discriminatedUnion("action", [
+  CreateInviteSchema.extend({ action: z.literal("create"), vendorId: z.string().uuid() }),
+  z.object({ action: z.literal("revoke"), vendorId: z.string().uuid(), inviteId: z.string().uuid() }),
+]);
+
+export type InviteViewState = "active" | "expired" | "full" | "revoked";
+
+export type InviteViewRow = {
+  id: string;
+  permissions: unknown;
+  max_uses: number;
+  used_count: number;
+  expires_at: string;
+  created_at: string;
+  revoked_at: string | null;
+};
+
+/** 一覧に出す1件。店舗側 API と運営側 API で、状態の判定を揃える。画面は state だけ見て取り消しボタンなどを出し分ける */
+export function toInviteView(row: InviteViewRow, now: number = Date.now()) {
+  const expired = Date.parse(row.expires_at) <= now;
+  const revoked = row.revoked_at != null;
+  const full = row.used_count >= row.max_uses;
+  const state: InviteViewState = revoked ? "revoked" : expired ? "expired" : full ? "full" : "active";
+  return {
+    id: row.id,
+    permissions: parseShopPermissions(row.permissions) ?? [],
+    maxUses: row.max_uses,
+    usedCount: row.used_count,
+    expiresAt: row.expires_at,
+    createdAt: row.created_at,
+    state,
+  };
+}
+
 /** 招待リンクのトークン（URL の末尾）の形。ここで形を確かめてから DB に問い合わせる */
 export const InviteTokenSchema = z.string().regex(/^[A-Za-z0-9_-]{20,100}$/);
 

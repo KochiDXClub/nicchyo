@@ -23,6 +23,20 @@ describe("QrSheet", () => {
     expect(screen.getAllByText(/Googleアカウントでログインすると/)).toHaveLength(2);
   });
 
+  it("使い方の案内と一言を差し替えられる（招待リンクのQRなど）", () => {
+    render(
+      <QrSheet
+        results={[{ vendorId: "a", shopName: "山田農園", status: "ok", url: "https://nicchyo.example/join/aaaaaaaaaaaaaaaaaaaaaaaa" }]}
+        description="メンバーとして参加できます。"
+        caption="10月20日まで"
+      />,
+    );
+
+    expect(screen.getByText("メンバーとして参加できます。")).toBeInTheDocument();
+    expect(screen.getByText("10月20日まで")).toBeInTheDocument();
+    expect(screen.queryByText(/代表者として登録されます/)).not.toBeInTheDocument();
+  });
+
   it("印刷では、このシートだけを残す（それ以外を隠すスタイルを持つ）", () => {
     const { container } = render(
       <QrSheet results={[{ vendorId: "a", shopName: "山田農園", status: "ok", url: "https://nicchyo.example/claim/aaaaaaaaaaaaaaaaaaaaaaaa" }]} />,
