@@ -17,13 +17,31 @@ import { Tooltip } from "@/components/admin/desktop/Tooltip";
 import type { AdminShop } from "@/app/api/admin/shops/route";
 import { ListingStatusBadge } from "./ListingStatusBadge";
 import Link from "next/link";
+import { Printer } from "lucide-react";
+import { fetchShopClaims, issueClaims, type IssueResult } from "@/lib/admin/shopClaimsClient";
+import type { ShopClaimState } from "@/lib/vendor/shopClaim";
+import { ClaimStateBadge } from "./components/ClaimStateBadge";
+import QrSheet from "./components/QrSheet";
 
 type ShopStatus = "active" | "suspended";
+type ClaimFilter = "all" | ShopClaimState;
+
+const CLAIM_FILTERS: { key: ClaimFilter; label: string }[] = [
+  { key: "all", label: "すべて" },
+  { key: "unclaimed", label: "QR未発行" },
+  { key: "qr_issued", label: "QR発行済み" },
+  { key: "claimed", label: "代表者あり" },
+];
 
 function AdminShopsContent() {
   const { permissions, isLoading } = useAuth();
   const router = useRouter();
   const [shops, setShops] = useState<AdminShop[]>([]);
+  // 店舗ごとの代表者の紐づけ状態（vendorId → 状態）。取れなくても一覧は出す
+  const [claimStates, setClaimStates] = useState<Map<string, ShopClaimState>>(new Map());
+  const [claimFilter, setClaimFilter] = useState<ClaimFilter>("all");
+  const [issuing, setIssuing] = useState(false);
+  const [issueResults, setIssueResults] = useState<IssueResult[] | null>(null);
   const [fetchLoading, setFetchLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [filter, setFilter] = useState<"all" | ShopStatus>("all");
@@ -53,6 +71,11 @@ function AdminShopsContent() {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = (await res.json()) as { shops: AdminShop[] };
       setShops(Array.isArray(data.shops) ? data.shops : []);
+      try {
+        setClaimStates(new Map((await fetchShopClaims()).map((c) => [c.vendorId, c.state])));
+      } catch {
+        showToast.error("代表者・QRの状態を読み込めませんでした");
+      }
     } catch {
       setFetchError("店舗データの取得に失敗しました");
     } finally {
@@ -76,6 +99,7 @@ function AdminShopsContent() {
   const filteredShops = useMemo(() => {
     return shops.filter((shop) => {
       const matchesStatus = filter === "all" || shop.status === filter;
+      const matchesClaim = claimFilter === "all" || claimStates.get(shop.id) === claimFilter;
       const matchesCategory = categoryFilter === "all" || shop.category === categoryFilter;
       const q = debouncedSearchQuery.toLowerCase();
       const matchesSearch =
@@ -84,9 +108,9 @@ function AdminShopsContent() {
         shop.category.toLowerCase().includes(q) ||
         shop.owner.toLowerCase().includes(q) ||
         shop.email.toLowerCase().includes(q);
-      return matchesStatus && matchesCategory && matchesSearch;
+      return matchesStatus && matchesClaim && matchesCategory && matchesSearch;
     });
-  }, [shops, filter, categoryFilter, debouncedSearchQuery]);
+  }, [shops, filter, claimFilter, claimStates, categoryFilter, debouncedSearchQuery]);
 
   // ソート
   const { sortedData, sortKey, sortDirection, handleSort } = useSortableData(filteredShops, "name");
@@ -189,6 +213,30 @@ function AdminShopsContent() {
     [loadShops]
   );
 
+  // QRの発行（再発行）。代表者がいる店舗には発行できないので、選んだうちそれ以外だけに発行する
+  const handleIssueQr = useCallback(async () => {
+    const targets = selectedShopIds.filter((id) => claimStates.get(id) !== "claimed");
+    const skipped = selectedShopIds.length - targets.length;
+    if (targets.length === 0) {
+      showToast.error("代表者がいる店舗にはQRを発行できません。先に詳細で紐づけを解除してください");
+      return;
+    }
+    if (!confirm(`${targets.length}店舗のQRコードを発行しますか？（発行済みのQRは使えなくなります）`)) return;
+    setIssuing(true);
+    try {
+      const issued = await issueClaims(targets);
+      setIssueResults(issued);
+      setSelectedShopIds([]);
+      const ok = issued.filter((r) => r.status === "ok").length;
+      showToast.success(`${ok}店舗のQRコードを発行しました${skipped > 0 ? `（代表者がいる${skipped}店舗は対象外）` : ""}`);
+      await loadShops();
+    } catch (err) {
+      showToast.error(err instanceof Error ? err.message : "QRコードを発行できませんでした");
+    } finally {
+      setIssuing(false);
+    }
+  }, [selectedShopIds, claimStates, loadShops]);
+
   // エクスポート
   const handleExportCSV = useCallback(async () => {
     setIsExporting(true);
@@ -288,6 +336,24 @@ function AdminShopsContent() {
               onChange={setFilter}
               search={{ value: searchQuery, onChange: setSearchQuery, placeholder: "店舗名・オーナーで検索..." }}
             >
+              <div className="flex flex-wrap items-center gap-2 border-t border-line pt-3">
+                <span className="text-xs font-medium text-nicchyo-ink/55">代表者・QR</span>
+                {CLAIM_FILTERS.map((f) => (
+                  <button
+                    type="button"
+                    key={f.key}
+                    aria-pressed={claimFilter === f.key}
+                    onClick={() => setClaimFilter(f.key)}
+                    className={`rounded-chip px-3 py-1 text-xs font-medium transition-colors ${
+                      claimFilter === f.key
+                        ? "bg-nicchyo-ink text-white"
+                        : "bg-nicchyo-ink/[0.06] text-nicchyo-ink/70 hover:bg-nicchyo-ink/10"
+                    }`}
+                  >
+                    {f.label}
+                  </button>
+                ))}
+              </div>
               {uniqueCategories.length > 0 && (
                 <div className="flex flex-wrap items-center gap-2 border-t border-line pt-3">
                   <span className="text-xs font-medium text-nicchyo-ink/55">カテゴリー</span>
@@ -321,12 +387,35 @@ function AdminShopsContent() {
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <Button variant="quiet" size="sm" onClick={handleBulkRestore} disabled={bulkLoading}>一括復活</Button>
+                  <Button variant="quiet" size="sm" onClick={handleIssueQr} disabled={issuing || bulkLoading}>
+                    {issuing ? "発行しています…" : "QRを発行"}
+                  </Button>
                   <Button variant="quiet" size="sm" onClick={handleBulkSuspend} disabled={bulkLoading}>一括停止</Button>
                   <Button variant="quiet" size="sm" className="text-rose-700 hover:bg-rose-50" onClick={handleBulkDelete} disabled={bulkLoading}>
                     一括削除
                   </Button>
                 </div>
               </div>
+            )}
+
+            {issueResults && issueResults.some((r) => r.status === "ok") && (
+              <section className="mb-4 space-y-3 rounded-card border border-amber-300 bg-amber-50 p-4" aria-label="発行したQRコード">
+                <div className="flex flex-wrap items-center gap-3">
+                  <p className="text-sm font-semibold text-amber-900">
+                    発行したQRコードです。この画面を閉じる・読み込み直すと、二度と表示できません（出し直しはできます）。
+                  </p>
+                  <Button size="sm" className="ml-auto" onClick={() => window.print()}>
+                    <Printer size={14} aria-hidden /> 印刷する
+                  </Button>
+                  <Button variant="ghost" size="sm" onClick={() => setIssueResults(null)}>閉じる</Button>
+                </div>
+                {issueResults.some((r) => r.status !== "ok") && (
+                  <p className="text-xs text-amber-900">
+                    発行できなかった店舗: {issueResults.filter((r) => r.status !== "ok").map((r) => r.shopName ?? r.vendorId).join("、")}
+                  </p>
+                )}
+                <QrSheet results={issueResults} />
+              </section>
             )}
 
             {sortedData.length === 0 ? (
@@ -354,6 +443,7 @@ function AdminShopsContent() {
                           <SortableColumnHeader label="カテゴリー" sortKey="category" currentSortKey={sortKey} currentSortDirection={sortDirection} onSort={handleSort} />
                           <SortableColumnHeader label="オーナー" sortKey="owner" currentSortKey={sortKey} currentSortDirection={sortDirection} onSort={handleSort} />
                           <SortableColumnHeader label="ステータス" sortKey="status" currentSortKey={sortKey} currentSortDirection={sortDirection} onSort={handleSort} />
+                          <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-nicchyo-ink/55">代表者・QR</th>
                           <SortableColumnHeader label="登録日" sortKey="registeredDate" currentSortKey={sortKey} currentSortDirection={sortDirection} onSort={handleSort} />
                           <th scope="col" className="px-4 py-3 text-right text-xs font-medium text-nicchyo-ink/55">操作</th>
                         </tr>
@@ -371,21 +461,24 @@ function AdminShopsContent() {
                               />
                             </td>
                             <td className="px-4 py-3">
-                              <Link href={`/admin/shops/${shop.id}`} className={`font-medium text-nicchyo-ink hover:underline`}>
+                              <Link href={`/admin/shops/${shop.id}`} className="font-medium text-nicchyo-ink hover:underline">
                                 {shop.name}
                               </Link>
                               <div className="text-xs text-nicchyo-ink/55">{shop.email}</div>
                             </td>
-                            <td className={`px-4 py-3 text-sm text-nicchyo-ink/70`}>{shop.category}</td>
-                            <td className={`px-4 py-3 text-sm text-nicchyo-ink/70`}>{shop.owner}</td>
+                            <td className="px-4 py-3 text-sm text-nicchyo-ink/70">{shop.category}</td>
+                            <td className="px-4 py-3 text-sm text-nicchyo-ink/70">{shop.owner}</td>
                             <td className="px-4 py-3">
                               <StatusBadge status={shop.status} />
                               <div className="mt-1">
                                 <ListingStatusBadge status={shop.listingStatus} />
                               </div>
                             </td>
-                            <td className={`px-4 py-3 text-sm whitespace-nowrap text-nicchyo-ink/70`}>{shop.registeredDate}</td>
-                            <td className={`px-4 py-3 whitespace-nowrap text-right`}>
+                            <td className="px-4 py-3">
+                              {claimStates.has(shop.id) ? <ClaimStateBadge state={claimStates.get(shop.id)!} /> : <span className="text-xs text-nicchyo-ink/40">-</span>}
+                            </td>
+                            <td className="px-4 py-3 text-sm whitespace-nowrap text-nicchyo-ink/70">{shop.registeredDate}</td>
+                            <td className="px-4 py-3 whitespace-nowrap text-right">
                               <div className="flex justify-end gap-2">
                                 {shop.status === "active" ? (
                                   <Button variant="quiet" size="sm" onClick={() => handleSingleAction(shop.id, "suspend")}>停止</Button>
@@ -426,8 +519,9 @@ function AdminShopsContent() {
                               {shop.name}
                             </Link>
                             <div className="text-xs text-nicchyo-ink/55">{shop.category}</div>
-                            <div className="mt-1">
+                            <div className="mt-1 flex flex-wrap gap-1">
                               <ListingStatusBadge status={shop.listingStatus} />
+                              {claimStates.has(shop.id) && <ClaimStateBadge state={claimStates.get(shop.id)!} />}
                             </div>
                           </div>
                         </div>

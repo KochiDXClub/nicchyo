@@ -6,10 +6,10 @@ import { Button, Surface } from "@/components/ui";
 import { LoadingButton } from "@/components/admin";
 import { showToast } from "@/lib/admin/toast";
 import { fetchShopClaims, issueClaims, type IssueResult, type ShopClaimRow } from "@/lib/admin/shopClaimsClient";
-import { ClaimStateBadge } from "../../../shop-claims/components/ClaimStateBadge";
-import { UnlinkShopModal } from "../../../shop-claims/components/UnlinkShopModal";
-import ShopActivityModal from "../../../shop-claims/components/ShopActivityModal";
-import QrSheet from "../../../shop-claims/components/QrSheet";
+import { ClaimStateBadge } from "../../components/ClaimStateBadge";
+import { UnlinkShopModal } from "../../components/UnlinkShopModal";
+import ShopActivityModal from "../../components/ShopActivityModal";
+import QrSheet from "../../components/QrSheet";
 
 /**
  * 店舗の詳細に置く「代表者・QRコード」。出店者に配るQRの発行（再発行）、紐づけの解除、操作ログ。
