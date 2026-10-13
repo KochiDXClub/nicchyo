@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Copy } from "lucide-react";
+import { Copy, Send } from "lucide-react";
 import { Badge, Button, EmptyMessage, Surface } from "@/components/ui";
 import { formatJaDateTime } from "@/lib/utils/date";
 import { canGrantPermissions } from "@/lib/vendor/memberRules";
@@ -27,10 +27,16 @@ const MAX_USES_OPTIONS = Array.from(
   (_, i) => SHOP_INVITE_RULES.minUses + i,
 );
 
+/** 端末の共有（LINE などへ送る）が使えるか。PC のブラウザには無いことが多いので、そのときはコピーだけ出す */
+function canShare(): boolean {
+  return typeof navigator !== "undefined" && typeof navigator.share === "function";
+}
+
 /**
  * 招待リンクを作る・取り消す（メンバーの管理ができる人だけ）。
  * 有効期限は7日、1本のリンクで入れる人数は1〜5人。入った人にどんな権限をつけるかも、作るときに決める。
  * リンクの URL は、作った直後の1回しか出せない（サーバーにはハッシュしか残していない）。
+ * スマホでは、できたリンクをそのまま LINE などへ送れる（端末の共有）。
  */
 export default function InvitesSection({ membership, onChanged }: { membership: ShopMembership; onChanged: () => void }) {
   const [invites, setInvites] = useState<InviteView[] | null>(null);
@@ -79,6 +85,17 @@ export default function InvitesSection({ membership, onChanged }: { membership: 
     }
   };
 
+  const handleShare = async () => {
+    if (!created) return;
+    try {
+      await navigator.share({ title: "お店への招待", text: "nicchyo のお店のメンバーに招待します。このリンクから参加してください。", url: created.url });
+    } catch (e) {
+      // 共有の画面を閉じただけ（AbortError）のときは何も出さない
+      if (e instanceof Error && e.name === "AbortError") return;
+      setError("送れませんでした。「リンクをコピー」を押して、LINEなどに貼り付けてください。");
+    }
+  };
+
   const handleCopy = async () => {
     if (!created) return;
     try {
@@ -110,7 +127,7 @@ export default function InvitesSection({ membership, onChanged }: { membership: 
                 role="radio"
                 aria-checked={maxUses === n}
                 onClick={() => setMaxUses(n)}
-                className={`inline-flex h-10 min-w-10 items-center justify-center rounded-chip px-3 text-sm font-semibold transition ${
+                className={`inline-flex h-11 min-w-11 items-center justify-center rounded-chip px-3 text-sm font-semibold transition ${
                   maxUses === n ? "bg-amber-600 text-white shadow-sm" : "border border-amber-200 bg-white text-amber-800 hover:bg-amber-50"
                 }`}
               >
@@ -131,7 +148,8 @@ export default function InvitesSection({ membership, onChanged }: { membership: 
           />
         </div>
 
-        <Button size="lg" className="w-full" onClick={handleCreate} disabled={busy}>
+        {/* リンクができたら、次にしてほしいのは「送る」。主ボタンを1つにするため、作るほうは控えめにする */}
+        <Button size="lg" variant={created ? "secondary" : "primary"} className="w-full" onClick={handleCreate} disabled={busy}>
           {busy ? "作っています…" : "招待リンクを作る"}
         </Button>
 
@@ -145,9 +163,14 @@ export default function InvitesSection({ membership, onChanged }: { membership: 
               onFocus={(e) => e.currentTarget.select()}
               className="w-full rounded-btn bg-white px-3 py-2 text-xs text-nicchyo-ink ring-1 ring-line"
             />
-            <div className="flex flex-wrap items-center gap-2">
-              <Button size="sm" onClick={handleCopy}>
-                <Copy size={14} aria-hidden /> {copied ? "コピーしました" : "リンクをコピー"}
+            <div className="flex flex-col gap-2 sm:flex-row">
+              {canShare() && (
+                <Button className="sm:flex-1" onClick={handleShare}>
+                  <Send size={16} aria-hidden /> LINEなどで送る
+                </Button>
+              )}
+              <Button variant={canShare() ? "secondary" : "primary"} className="sm:flex-1" onClick={handleCopy}>
+                <Copy size={16} aria-hidden /> {copied ? "コピーしました" : "リンクをコピー"}
               </Button>
             </div>
             <p className="text-xs text-nicchyo-ink/70">このリンクは、いま見えている間しか表示できません。LINEなどで送ってください。</p>
@@ -183,8 +206,8 @@ export default function InvitesSection({ membership, onChanged }: { membership: 
                       : "お店の情報を見るだけ"}
                   </p>
                   {invite.state === "active" && (
-                    <Button size="sm" variant="quiet" onClick={() => handleRevoke(invite.id)}>
-                      取り消す
+                    <Button variant="quiet" className="w-full sm:w-auto" onClick={() => handleRevoke(invite.id)}>
+                      このリンクを取り消す
                     </Button>
                   )}
                 </Surface>

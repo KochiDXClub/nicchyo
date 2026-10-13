@@ -85,10 +85,10 @@ describe("InvitesSection", () => {
     expect(screen.getByText("使えます")).toBeInTheDocument();
     expect(screen.getByText("人数に達した")).toBeInTheDocument();
     expect(screen.getByText("取り消し済み")).toBeInTheDocument();
-    expect(screen.getAllByRole("button", { name: "取り消す" })).toHaveLength(1);
+    expect(screen.getAllByRole("button", { name: "このリンクを取り消す" })).toHaveLength(1);
 
     fetchInvites.mockResolvedValue([]);
-    fireEvent.click(screen.getByRole("button", { name: "取り消す" }));
+    fireEvent.click(screen.getByRole("button", { name: "このリンクを取り消す" }));
     await waitFor(() => expect(revokeInvite).toHaveBeenCalledWith("a"));
   });
 });

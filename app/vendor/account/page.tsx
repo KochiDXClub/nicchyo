@@ -3,36 +3,31 @@
 export const dynamic = "force-dynamic";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { CenteredLoading, PageContainer, PageShell, PageTitle } from "@/components/ui";
+import { buttonClass, CenteredLoading, PageContainer, PageShell, PageTitle, Surface } from "@/components/ui";
 import { useAuth } from "@/lib/auth/AuthContext";
-import { hasShopPermission } from "@/lib/vendor/shopPermissions";
+import { useMembers } from "../members/useMembers";
 import AccountSummary from "./components/AccountSummary";
-import ActivityLogSection from "./components/ActivityLogSection";
-import InvitesSection from "./components/InvitesSection";
 import LeaveShopSection from "./components/LeaveShopSection";
-import MembersSection from "./components/MembersSection";
 import ProfileSection from "./components/ProfileSection";
 import WithdrawSection from "./components/WithdrawSection";
-import { useMembers } from "./useMembers";
 
 /**
- * アカウント設定。あなたのアカウント → 名前と写真 → お店のメンバー → 招待 → 操作ログ → お店を抜ける → 退会、の順。
- * メンバーの管理（招待・権限の変更）と操作ログは、その権限がある人にだけ出す。
- * 権限の規則は lib/vendor/memberRules.ts で、API も同じ規則で守っている。
+ * アカウント設定。あなたのアカウント → 名前と写真 → お店のメンバー（メンバー管理への入口）→ お店を抜ける → 退会、の順。
+ * メンバーの一覧・招待・権限の変更・代表者の引き継ぎ・操作ログは「メンバー管理」（/vendor/members）にある。
+ * ここでも立場（代表者か）とメンバーの人数が要る（抜ける・退会の案内が変わる）ので、メンバーを読み込む。
  */
 export default function VendorAccountPage() {
   const { user, logout, updateProfile } = useAuth();
   const router = useRouter();
   const [loggingOut, setLoggingOut] = useState(false);
-  const { data, error, loading, reload } = useMembers();
+  const { data, error, loading } = useMembers();
 
   if (!user) return null;
   // 立場と権限は、読み込んだばかりの API の答え（data.me）を優先する。ログイン時に読んだ値（user.shopMembership）は、
   // 代表者を引き継いだあとなどに古くなる
   const membership = data?.me ?? user.shopMembership;
-  const canManageMembers = hasShopPermission(membership, "members_manage");
-  const canViewLogs = hasShopPermission(membership, "audit_view");
 
   const handleLogout = async () => {
     setLoggingOut(true);
@@ -56,14 +51,19 @@ export default function VendorAccountPage() {
           </p>
         ) : (
           <>
-            <MembersSection
-              data={data}
-              onChanged={reload}
-              // 引き継いだ直後は自分の権限が変わるので、メニューなども含めて画面を読み直す
-              onTransferred={() => window.location.reload()}
-            />
-            {canManageMembers && membership && <InvitesSection membership={membership} onChanged={reload} />}
-            {canViewLogs && <ActivityLogSection />}
+            <section aria-labelledby="members-link-heading" className="space-y-3">
+              <h2 id="members-link-heading" className="px-1 text-lg font-bold text-nicchyo-ink">
+                お店のメンバー
+              </h2>
+              <Surface padding="md" className="space-y-3">
+                <p className="text-sm leading-relaxed text-nicchyo-ink/70">
+                  いま{data.members.length}人がお店に入っています。メンバーの確認、家族やスタッフの招待、できることの変更、代表者の引き継ぎは「メンバー管理」でできます。
+                </p>
+                <Link href="/vendor/members" className={buttonClass({ variant: "secondary", className: "w-full" })}>
+                  メンバー管理を開く
+                </Link>
+              </Surface>
+            </section>
             <LeaveShopSection role={data.me.role} />
             <WithdrawSection role={data.me.role} hasOtherMembers={data.members.length > 1} />
           </>

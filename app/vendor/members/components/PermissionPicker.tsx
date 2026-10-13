@@ -61,7 +61,7 @@ export default function PermissionPicker({
               disabled={disabled}
               onClick={() => applyPreset(key)}
               title={SHOP_PERMISSION_PRESETS[key].description}
-              className="inline-flex h-9 items-center rounded-chip border border-amber-200 bg-white px-4 text-xs font-semibold text-amber-800 shadow-sm transition hover:bg-amber-50 disabled:pointer-events-none disabled:opacity-45"
+              className="inline-flex h-11 items-center rounded-chip border border-amber-200 bg-white px-4 text-sm font-semibold text-amber-800 shadow-sm transition hover:bg-amber-50 disabled:pointer-events-none disabled:opacity-45"
             >
               {SHOP_PERMISSION_PRESETS[key].label}
             </button>
