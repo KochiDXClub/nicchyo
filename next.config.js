@@ -51,6 +51,12 @@ const nextConfig = {
   // /news は「日曜市カレンダー」(/calendar) に作り替えたため、旧URLを転送する
   async redirects() {
     return [
+      // 店舗のQRコードは店舗管理（一覧と詳細）に統合した
+      {
+        source: '/admin/shop-claims',
+        destination: '/admin/shops',
+        permanent: true,
+      },
       // 近況を出す画面と投稿履歴は /vendor/posts の1ページにまとめた
       {
         source: '/vendor/post/new',
