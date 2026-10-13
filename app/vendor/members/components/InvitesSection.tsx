@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Copy, Send } from "lucide-react";
 import { Badge, Button, EmptyMessage, Surface } from "@/components/ui";
 import { formatJaDateTime } from "@/lib/utils/date";
@@ -27,9 +27,13 @@ const MAX_USES_OPTIONS = Array.from(
   (_, i) => SHOP_INVITE_RULES.minUses + i,
 );
 
-/** 端末の共有（LINE などへ送る）が使えるか。PC のブラウザには無いことが多いので、そのときはコピーだけ出す */
+/**
+ * 端末の共有（LINE などへ送る）を出すか。指で触る端末（スマホ・タブレット）で、共有が使えるときだけ。
+ * PC の Chrome / Edge / Safari にも共有はあるが、OS の共有パネルが開くだけで LINE は出ないことが多いので、コピーだけにする
+ */
 function canShare(): boolean {
-  return typeof navigator !== "undefined" && typeof navigator.share === "function";
+  if (typeof navigator === "undefined" || typeof navigator.share !== "function") return false;
+  return typeof window.matchMedia === "function" && window.matchMedia("(pointer: coarse)").matches;
 }
 
 /**
@@ -38,11 +42,21 @@ function canShare(): boolean {
  * リンクの URL は、作った直後の1回しか出せない（サーバーにはハッシュしか残していない）。
  * スマホでは、できたリンクをそのまま LINE などへ送れる（端末の共有）。
  */
-export default function InvitesSection({ membership, onChanged }: { membership: ShopMembership; onChanged: () => void }) {
+export default function InvitesSection({
+  membership,
+  inviterName,
+  onChanged,
+}: {
+  membership: ShopMembership;
+  /** 共有で送る文に入れる、送る人の名前（受け取った人が、誰からの招待か分かるように） */
+  inviterName: string;
+  onChanged: () => void;
+}) {
   const [invites, setInvites] = useState<InviteView[] | null>(null);
   const [maxUses, setMaxUses] = useState<number>(1);
   const [permissions, setPermissions] = useState<ShopPermission[]>([...SHOP_PERMISSION_PRESETS.helper.permissions].filter((p) => canGrantPermissions(membership, [p])));
-  const [created, setCreated] = useState<{ url: string; expiresAt: string } | null>(null);
+  const [created, setCreated] = useState<{ url: string; expiresAt: string; share: boolean } | null>(null);
+  const createdRef = useRef<HTMLParagraphElement>(null);
   const [copied, setCopied] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -59,13 +73,24 @@ export default function InvitesSection({ membership, onChanged }: { membership: 
     void load();
   }, [load]);
 
+  // できたリンクは作るボタンの下に出る。スマホでは画面の外（下のバーの裏）になりやすく、気づかずにもう一度押すと
+  // 2本目のリンクができるので、見える位置まで送り、「できました」にフォーカスを移す（読み上げられ、次の Tab がリンク → 送る になる）
+  useEffect(() => {
+    const done = createdRef.current;
+    if (!created || !done) return;
+    const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    done.scrollIntoView?.({ block: "center", behavior: reduceMotion ? "auto" : "smooth" });
+    done.focus({ preventScroll: true });
+  }, [created]);
+
   const handleCreate = async () => {
     setBusy(true);
     setError(null);
     setCopied(false);
     try {
       const result = await createInvite({ maxUses, permissions });
-      setCreated({ url: result.url, expiresAt: result.expiresAt });
+      // 共有を出すかは、作ったときに一度だけ決める（描くたびに変わらないように）
+      setCreated({ url: result.url, expiresAt: result.expiresAt, share: canShare() });
       await load();
       onChanged();
     } catch (e) {
@@ -88,10 +113,14 @@ export default function InvitesSection({ membership, onChanged }: { membership: 
   const handleShare = async () => {
     if (!created) return;
     try {
-      await navigator.share({ title: "お店への招待", text: "nicchyo のお店のメンバーに招待します。このリンクから参加してください。", url: created.url });
+      await navigator.share({
+        title: "お店への招待",
+        text: `${inviterName}さんから、日曜市のお店の出店者ページ（nicchyo）への招待です。${formatJaDateTime(created.expiresAt)}までにこのリンクを開いて、Googleアカウントで参加してください。`,
+        url: created.url,
+      });
     } catch (e) {
-      // 共有の画面を閉じただけ（AbortError）のときは何も出さない
-      if (e instanceof Error && e.name === "AbortError") return;
+      // 共有の画面を閉じただけ（AbortError）のときは何も出さない。古い Safari の DOMException は Error を継承しないので、名前だけで見る
+      if ((e as { name?: unknown } | null)?.name === "AbortError") return;
       setError("送れませんでした。「リンクをコピー」を押して、LINEなどに貼り付けてください。");
     }
   };
@@ -118,7 +147,7 @@ export default function InvitesSection({ membership, onChanged }: { membership: 
         </p>
 
         <div>
-          <p className="text-xs font-semibold text-nicchyo-ink/55">このリンクで入れる人数</p>
+          <p className="text-sm font-bold text-nicchyo-ink">このリンクで入れる人数</p>
           <div role="radiogroup" aria-label="入れる人数" className="mt-1.5 flex flex-wrap gap-1.5">
             {MAX_USES_OPTIONS.map((n) => (
               <button
@@ -138,7 +167,7 @@ export default function InvitesSection({ membership, onChanged }: { membership: 
         </div>
 
         <div>
-          <p className="mb-1.5 text-xs font-semibold text-nicchyo-ink/55">入った人ができること</p>
+          <p className="mb-1.5 text-sm font-bold text-nicchyo-ink">入った人ができること</p>
           <PermissionPicker
             value={permissions}
             onChange={setPermissions}
@@ -150,12 +179,14 @@ export default function InvitesSection({ membership, onChanged }: { membership: 
 
         {/* リンクができたら、次にしてほしいのは「送る」。主ボタンを1つにするため、作るほうは控えめにする */}
         <Button size="lg" variant={created ? "secondary" : "primary"} className="w-full" onClick={handleCreate} disabled={busy}>
-          {busy ? "作っています…" : "招待リンクを作る"}
+          {busy ? "作っています…" : created ? "もう1本作る" : "招待リンクを作る"}
         </Button>
 
         {created && (
           <div className="space-y-2 rounded-btn bg-status-good-bg p-3 ring-1 ring-status-good-line">
-            <p className="text-sm font-semibold text-status-good-fg">リンクができました（{formatJaDateTime(created.expiresAt)}まで）</p>
+            <p ref={createdRef} tabIndex={-1} className="text-sm font-semibold text-status-good-fg outline-none">
+              リンクができました（{formatJaDateTime(created.expiresAt)}まで）
+            </p>
             <input
               readOnly
               value={created.url}
@@ -164,16 +195,16 @@ export default function InvitesSection({ membership, onChanged }: { membership: 
               className="w-full rounded-btn bg-white px-3 py-2 text-xs text-nicchyo-ink ring-1 ring-line"
             />
             <div className="flex flex-col gap-2 sm:flex-row">
-              {canShare() && (
+              {created.share && (
                 <Button className="sm:flex-1" onClick={handleShare}>
                   <Send size={16} aria-hidden /> LINEなどで送る
                 </Button>
               )}
-              <Button variant={canShare() ? "secondary" : "primary"} className="sm:flex-1" onClick={handleCopy}>
+              <Button variant={created.share ? "secondary" : "primary"} className="sm:flex-1" onClick={handleCopy}>
                 <Copy size={16} aria-hidden /> {copied ? "コピーしました" : "リンクをコピー"}
               </Button>
             </div>
-            <p className="text-xs text-nicchyo-ink/70">このリンクは、いま見えている間しか表示できません。LINEなどで送ってください。</p>
+            <p className="text-xs text-nicchyo-ink/70">この画面を離れると、このリンクは二度と表示できません。いま送ってください（送りそびれたら、もう一度作れます）。</p>
           </div>
         )}
 
@@ -196,7 +227,7 @@ export default function InvitesSection({ membership, onChanged }: { membership: 
                   <div className="flex flex-wrap items-center gap-2">
                     <Badge variant={STATE_LABEL[invite.state].variant}>{STATE_LABEL[invite.state].text}</Badge>
                     <span className="text-sm text-nicchyo-ink">
-                      {invite.usedCount}/{invite.maxUses}人が参加
+                      {invite.maxUses}人中{invite.usedCount}人が参加
                     </span>
                     <span className="text-xs text-nicchyo-ink/55">{formatJaDateTime(invite.expiresAt)}まで</span>
                   </div>
@@ -206,8 +237,10 @@ export default function InvitesSection({ membership, onChanged }: { membership: 
                       : "お店の情報を見るだけ"}
                   </p>
                   {invite.state === "active" && (
-                    <Button variant="quiet" className="w-full sm:w-auto" onClick={() => handleRevoke(invite.id)}>
+                    <Button variant="quiet" onClick={() => handleRevoke(invite.id)}>
                       このリンクを取り消す
+                      {/* 同じ名前のボタンが並ぶので、読み上げではどのリンクかを足す */}
+                      <span className="sr-only">（{formatJaDateTime(invite.expiresAt)}まで）</span>
                     </Button>
                   )}
                 </Surface>

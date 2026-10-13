@@ -7,6 +7,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { buttonClass, CenteredLoading, PageContainer, PageShell, PageTitle, Surface } from "@/components/ui";
 import { useAuth } from "@/lib/auth/AuthContext";
+import { hasShopPermission } from "@/lib/vendor/shopPermissions";
 import { useMembers } from "../members/useMembers";
 import AccountSummary from "./components/AccountSummary";
 import LeaveShopSection from "./components/LeaveShopSection";
@@ -57,7 +58,10 @@ export default function VendorAccountPage() {
               </h2>
               <Surface padding="md" className="space-y-3">
                 <p className="text-sm leading-relaxed text-nicchyo-ink/70">
-                  いま{data.members.length}人がお店に入っています。メンバーの確認、家族やスタッフの招待、できることの変更、代表者の引き継ぎは「メンバー管理」でできます。
+                  いま{data.members.length}人がお店に入っています。
+                  {hasShopPermission(membership, "members_manage")
+                    ? "メンバーの確認、家族やスタッフの招待、できることの変更、代表者の引き継ぎは「メンバー管理」でできます。"
+                    : "誰がいて、それぞれ何ができるかは「メンバー管理」で見られます。"}
                 </p>
                 <Link href="/vendor/members" className={buttonClass({ variant: "secondary", className: "w-full" })}>
                   メンバー管理を開く

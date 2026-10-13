@@ -44,7 +44,7 @@ export const VENDOR_NAV_ITEMS: VendorNavItem[] = [
   { label: "にちよさんの覚えごと", href: "/vendor/ai-knowledge", icon: Sparkles, description: "にちよさんが覚えちゅうことを見る・直す", group: "main", permission: "ai_notes" },
   { label: "よくある質問", href: "/vendor/help", icon: CircleHelp, description: "困ったときに一覧から探す", group: "support" },
   // メンバー一覧はメンバーなら誰でも見られるので、権限を付けない（招待・権限の変更は、画面の中で権限のある人にだけ出る）
-  { label: "メンバー管理", href: "/vendor/members", icon: Users, description: "家族やスタッフを招待する・できることを決める", group: "support" },
+  { label: "メンバー管理", href: "/vendor/members", icon: Users, description: "お店のメンバーを見る・家族やスタッフを招待する", group: "support" },
   { label: "アカウント設定", href: "/vendor/account", icon: UserRound, description: "名前と写真・お店を抜ける・退会", group: "support" },
 ];
 

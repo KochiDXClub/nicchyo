@@ -49,30 +49,47 @@ export default function PermissionPicker({
     onChange(SHOP_PERMISSION_KEYS.filter((p) => next.has(p)));
   };
 
+  // いまのチェックがひな形とぴったり同じなら、そのひな形を選んでいる状態として見せ、中身の説明を出す
+  // （説明を title に入れても、スマホでは見えない）
+  const matched = presetKeys.find((key) => {
+    const preset: readonly ShopPermission[] = SHOP_PERMISSION_PRESETS[key].permissions;
+    return preset.length === value.length && preset.every((p) => value.includes(p));
+  });
+
   return (
     <div className="space-y-3">
-      <div>
-        <p className="text-xs font-semibold text-nicchyo-ink/55">かんたんに選ぶ</p>
+      <div role="group" aria-labelledby={`${idPrefix}-presets`}>
+        <p id={`${idPrefix}-presets`} className="text-xs font-semibold text-nicchyo-ink/70">
+          かんたんに選ぶ
+        </p>
         <div className="mt-1.5 flex flex-wrap gap-1.5">
           {presetKeys.map((key) => (
             <button
               key={key}
               type="button"
               disabled={disabled}
+              aria-pressed={matched === key}
               onClick={() => applyPreset(key)}
-              title={SHOP_PERMISSION_PRESETS[key].description}
-              className="inline-flex h-11 items-center rounded-chip border border-amber-200 bg-white px-4 text-sm font-semibold text-amber-800 shadow-sm transition hover:bg-amber-50 disabled:pointer-events-none disabled:opacity-45"
+              className={`inline-flex h-11 items-center rounded-chip px-4 text-sm font-semibold shadow-sm transition disabled:pointer-events-none disabled:opacity-45 ${
+                matched === key ? "bg-amber-600 text-white" : "border border-amber-200 bg-white text-amber-800 hover:bg-amber-50"
+              }`}
             >
               {SHOP_PERMISSION_PRESETS[key].label}
             </button>
           ))}
         </div>
+        <p className="mt-1.5 text-xs leading-relaxed text-nicchyo-ink/70">
+          {matched
+            ? `${SHOP_PERMISSION_PRESETS[matched].label}：${SHOP_PERMISSION_PRESETS[matched].description}`
+            : "押すと、下のチェックがまとめて変わります。1つずつ付け外しもできます。"}
+        </p>
       </div>
 
       <ul className="divide-y divide-line rounded-btn ring-1 ring-line">
         {SHOP_PERMISSION_KEYS.map((permission) => {
           const meta = SHOP_PERMISSION_META[permission];
-          const toggleable = canToggle(permission) && !disabled;
+          const allowed = canToggle(permission);
+          const toggleable = allowed && !disabled;
           const id = `${idPrefix}-${permission}`;
           return (
             <li key={permission}>
@@ -80,7 +97,8 @@ export default function PermissionPicker({
                 <input
                   id={id}
                   type="checkbox"
-                  className="mt-1 h-4 w-4 shrink-0 accent-amber-600"
+                  // シートの下に貼りつく保存バー（約 70px）の裏に、Tab で移ったチェックが隠れないようにする
+                  className="mt-1 h-4 w-4 shrink-0 scroll-mb-24 accent-amber-600"
                   checked={value.includes(permission)}
                   disabled={!toggleable}
                   onChange={() => toggle(permission)}
@@ -91,6 +109,8 @@ export default function PermissionPicker({
                     {meta.sensitive && <Badge variant="caution">管理者に近い権限</Badge>}
                   </span>
                   <span className="block text-xs leading-relaxed text-nicchyo-ink/70">{meta.description}</span>
+                  {/* 押せない理由（自分が持っていない権限・副代表からのメンバーの管理）。規則は lib/vendor/memberRules.ts */}
+                  {!allowed && <span className="block text-xs text-nicchyo-ink/70">あなたは付け外しできません（代表者に頼んでください）</span>}
                 </span>
               </label>
             </li>

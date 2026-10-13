@@ -46,7 +46,15 @@ export default function VendorMembersPage() {
             </Button>
           </div>
         ) : (
-          <div className={cn("grid gap-8", canManageMembers && "xl:grid-cols-[minmax(0,1fr)_22rem] xl:grid-rows-[auto_1fr] xl:items-start")}>
+          <div
+            className={cn(
+              "grid gap-8",
+              canManageMembers && "xl:grid-cols-[minmax(0,1fr)_22rem] xl:items-start",
+              // 操作ログがあるときだけ2行にする（無いのに2行にすると、空の行のぶん下に余白が出る）。
+              // 1行目はメンバーの高さ、招待の余りは 1fr の2行目だけが受けるので、操作ログはメンバーのすぐ下に付く
+              canManageMembers && canViewLogs && "xl:grid-rows-[auto_1fr]",
+            )}
+          >
             <div className="min-w-0 xl:col-start-1 xl:row-start-1">
               <MembersSection
                 data={data}
@@ -56,8 +64,8 @@ export default function VendorMembersPage() {
               />
             </div>
             {canManageMembers && membership && (
-              <div className="min-w-0 xl:col-start-2 xl:row-span-2 xl:row-start-1">
-                <InvitesSection membership={membership} onChanged={reload} />
+              <div className={cn("min-w-0 xl:col-start-2 xl:row-start-1", canViewLogs && "xl:row-span-2")}>
+                <InvitesSection membership={membership} inviterName={user.name} onChanged={reload} />
               </div>
             )}
             {canViewLogs && (

@@ -138,6 +138,73 @@ describe("MembersSection", () => {
     expect(onChanged).not.toHaveBeenCalled();
   });
 
+  it("全部の権限があるメンバーは、札を並べず一文で出す", () => {
+    const full = member({ userId: "f", name: "全部C", permissions: ["store_edit", "post", "ai_notes", "inquiries", "analytics", "audit_view", "members_manage"] });
+    render(<MembersSection data={data([owner, full])} onChanged={onChanged} onTransferred={onTransferred} />);
+
+    expect(within(row("全部C")).getByText("代表者以外のほぼすべての操作ができます。")).toBeInTheDocument();
+    expect(within(row("全部C")).queryByText("店舗情報の編集")).not.toBeInTheDocument();
+  });
+
+  it("副代表がシートを開くと、メンバーの管理と自分が持たない権限は押せず、理由が出る", () => {
+    const me = member({ userId: "m", name: "わたし", permissions: ["store_edit", "post", "members_manage"], isMe: true });
+    render(<MembersSection data={data([{ ...owner, isMe: false }, me, helper])} onChanged={onChanged} onTransferred={onTransferred} />);
+
+    const sheet = openSheet("家族A");
+    expect(sheet.getByLabelText(/メンバーの管理/)).toBeDisabled();
+    expect(sheet.getByLabelText(/お店の分析/)).toBeDisabled();
+    expect(sheet.getByLabelText(/店舗情報の編集/)).toBeEnabled();
+    expect(sheet.getAllByText(/あなたは付け外しできません/).length).toBeGreaterThan(0);
+  });
+
+  it("保存できたらシートを閉じ、何を変えたかを知らせる", async () => {
+    render(<MembersSection data={data([owner, helper])} onChanged={onChanged} onTransferred={onTransferred} />);
+
+    const sheet = openSheet("家族A");
+    fireEvent.click(sheet.getByLabelText(/店舗情報の編集/));
+    fireEvent.click(sheet.getByRole("button", { name: "保存する" }));
+
+    expect(await screen.findByRole("status")).toHaveTextContent("家族Aさんのできることを変えました");
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+  });
+
+  it("保存が断られたら、保存ボタンのそばに理由を出し、シートは閉じない", async () => {
+    updateMemberPermissions.mockRejectedValue(new Error("自分が持っていない権限は変えられません"));
+    render(<MembersSection data={data([owner, helper])} onChanged={onChanged} onTransferred={onTransferred} />);
+
+    const sheet = openSheet("家族A");
+    fireEvent.click(sheet.getByLabelText(/店舗情報の編集/));
+    fireEvent.click(sheet.getByRole("button", { name: "保存する" }));
+
+    expect(await sheet.findByRole("alert")).toHaveTextContent("自分が持っていない権限は変えられません");
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(onChanged).not.toHaveBeenCalled();
+  });
+
+  it("確かめる画面では、実行ボタンではなく説明の文にフォーカスが当たる。やめると、開いたボタンへ戻る", () => {
+    render(<MembersSection data={data([owner, helper])} onChanged={onChanged} onTransferred={onTransferred} />);
+
+    const sheet = openSheet("家族A");
+    fireEvent.click(sheet.getByRole("button", { name: "お店から外す" }));
+    expect(document.activeElement).toBe(sheet.getByText(/家族Aさんを、お店から外します/));
+    expect(sheet.getByRole("button", { name: "外す" })).toHaveAccessibleDescription(/お店から外します/);
+
+    fireEvent.click(sheet.getByRole("button", { name: "やめる" }));
+    expect(document.activeElement).toBe(sheet.getByRole("button", { name: "お店から外す" }));
+  });
+
+  it("外したら知らせを出し、読み直した一覧から消えたら、フォーカスを見出しへ移す（押したボタンが消えるため）", async () => {
+    const { rerender } = render(<MembersSection data={data([owner, helper])} onChanged={onChanged} onTransferred={onTransferred} />);
+
+    const sheet = openSheet("家族A");
+    fireEvent.click(sheet.getByRole("button", { name: "お店から外す" }));
+    fireEvent.click(sheet.getByRole("button", { name: "外す" }));
+    expect(await screen.findByRole("status")).toHaveTextContent("家族Aさんをお店から外しました");
+
+    rerender(<MembersSection data={data([owner])} onChanged={onChanged} onTransferred={onTransferred} />);
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole("heading", { name: "お店のメンバー（1人）" })));
+  });
+
   it("API が断ったら、シートの中にその理由を出す（一覧は読み直さない）", async () => {
     removeMember.mockRejectedValue(new Error("このメンバーは外せません"));
     render(<MembersSection data={data([owner, helper])} onChanged={onChanged} onTransferred={onTransferred} />);
