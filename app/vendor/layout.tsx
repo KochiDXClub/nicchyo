@@ -4,6 +4,7 @@ import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import VendorAccessGate from "@/components/vendor/VendorAccessGate";
 import VendorSidebar from "@/components/vendor/VendorSidebar";
+import { CONSOLE_SIDEBAR_OFFSET_CLASS } from "@/components/navigation/ConsoleSidebar";
 import VendorNavBar from "@/components/vendor/VendorNavBar";
 import VendorTourHost from "@/components/vendor/tour/VendorTourHost";
 import { findVendorTourPage } from "@/lib/vendor/tours";
@@ -25,7 +26,7 @@ export default function VendorLayout({ children }: { children: ReactNode }) {
 
   return (
     <VendorAccessGate kicker="Vendor Dashboard">
-      <div className="min-h-screen bg-[#FFFAF0] lg:pl-72" style={findVendorTourPage(pathname) ? TOUR_BUTTON_GAP : undefined}>
+      <div className={`min-h-screen bg-nicchyo-base ${CONSOLE_SIDEBAR_OFFSET_CLASS}`} style={findVendorTourPage(pathname) ? TOUR_BUTTON_GAP : undefined}>
         <VendorSidebar
           isOpen={isSidebarOpen}
           onToggle={() => setIsSidebarOpen((v) => !v)}
