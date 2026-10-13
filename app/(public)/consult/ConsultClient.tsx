@@ -218,7 +218,7 @@ export default function ConsultClient() {
       // 下端にナビの分の余白は要らないので --nav-bar-height を 0 にし、相談の下端まわりの計算
       // （入力欄の位置・スクロール領域の高さ）がそれに追従するようにする。
       // 上端の帯の分は --consult-top-space で空ける（lg 以上は帯ではないので 0）
-      className="relative min-h-screen overflow-hidden bg-[var(--consult-bg)] [--consult-top-space:3rem] [--nav-bar-height:0px] lg:[--consult-top-space:0px]"
+      className="relative min-h-screen overflow-hidden bg-[var(--consult-bg)] [--consult-top-space:calc(3rem_+_var(--safe-top,0px))] [--nav-bar-height:0px] lg:[--consult-top-space:0px]"
     >
       <div className="pointer-events-none absolute inset-0 z-0 bg-[var(--consult-bg)]" aria-hidden="true" />
       {/*

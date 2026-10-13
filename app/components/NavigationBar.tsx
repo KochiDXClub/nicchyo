@@ -377,7 +377,7 @@ function NavigationBarInner({
       <nav
         onClick={isCloseUxActive ? handleCloseMode : undefined}
         className={`navigation-bar ${position} ${
-          topBackBar ? "top-0 border-b" : "bottom-0 border-t"
+          topBackBar ? "top-0 border-b pt-[var(--safe-top,0px)] lg:pt-0" : "bottom-0 border-t"
         } left-0 right-0 z-[9997] text-sm leading-none shadow-sm transition-colors duration-300 ${
           isCloseUxActive
             ? "cursor-pointer border-green-500 bg-green-500"

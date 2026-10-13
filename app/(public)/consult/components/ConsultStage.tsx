@@ -858,7 +858,7 @@ export default function ConsultStage({
         // lg 以上はこれまで通り面を持たない Claude 風のアイコンにする。
         // 同じ z-30 の固定バーより DOM が前にあるので、z-40 にして固定バーの上に出す
         // lg 未満は上端に「マップにもどる」の帯（--consult-top-space）が出るので、その下に置く
-        className={`fixed left-4 top-[calc(var(--safe-top,0px)+var(--consult-top-space,0px)+0.75rem)] z-40 flex h-11 w-11 items-center justify-center rounded-lg border border-amber-200 bg-white/80 text-slate-500 shadow-sm transition hover:bg-black/5 lg:top-[calc(var(--safe-top,0px)+1rem)] lg:h-9 lg:w-9 lg:border-0 lg:bg-transparent lg:shadow-none ${
+        className={`fixed left-4 top-[calc(var(--consult-top-space,var(--safe-top,0px))+0.75rem)] z-40 flex h-11 w-11 items-center justify-center rounded-lg border border-amber-200 bg-white/80 text-slate-500 shadow-sm transition hover:bg-black/5 lg:top-[calc(var(--safe-top,0px)+1rem)] lg:h-9 lg:w-9 lg:border-0 lg:bg-transparent lg:shadow-none ${
           isHistorySidebarOpen ? "invisible" : ""
         }`}
       >
@@ -916,7 +916,7 @@ export default function ConsultStage({
           style={{
             // lg 未満は上端の「マップにもどる」の帯（z-[9997]）が手前に出るので、
             // 見出しの閉じるボタンが隠れないよう、帯の分だけ下げる（lg 以上は 0）
-            paddingTop: "calc(var(--safe-top, 0px) + var(--consult-top-space, 0px))",
+            paddingTop: "var(--consult-top-space, var(--safe-top, 0px))",
             paddingBottom: "calc(var(--safe-bottom, 0px) + var(--nav-bar-height))",
           }}
         >
