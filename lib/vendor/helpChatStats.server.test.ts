@@ -8,6 +8,10 @@ vi.mock("@/lib/analytics/visitorStats.server", () => ({
   },
 }));
 
+// 検索語は service role でだけ読む（#922）。テストごとに返すクライアントを差し替える
+const createAdminClient = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/supabase/adminClient", () => ({ createAdminClient }));
+
 import { loadVendorHelpMarketStats, loadVendorHelpShopStats, toDataWord } from "./helpChatStats.server";
 
 type Response = { data?: unknown; count?: number; error?: unknown };
@@ -80,17 +84,26 @@ describe("loadVendorHelpShopStats", () => {
 
 describe("loadVendorHelpMarketStats", () => {
   it("来訪者数・よく検索された言葉（1文字は数えない）をまとめる", async () => {
-    const supabase = fakeClient({
-      product_search_logs: {
-        data: [{ keyword: "いも天" }, { keyword: " いも天" }, { keyword: "あ" }, { keyword: "トマト" }],
-      },
-    });
+    createAdminClient.mockReturnValue(
+      fakeClient({
+        product_search_logs: {
+          data: [{ keyword: "いも天" }, { keyword: " いも天" }, { keyword: "あ" }, { keyword: "あ" }, { keyword: "「トマト」" }, { keyword: "トマト" }, { keyword: "山田" }],
+        },
+      })
+    );
 
-    expect(await loadVendorHelpMarketStats(supabase)).toEqual({
+    expect(await loadVendorHelpMarketStats()).toEqual({
       weeklyVisitors: 120,
       monthlyVisitors: null,
+      // 記号は toDataWord で落としてから数える。1文字・1回だけの語（山田）は出さない
       topSearchKeywords: ["いも天", "トマト"],
     });
+  });
+
+  it("service role が使えないときは、検索語を空にして相談は止めない", async () => {
+    createAdminClient.mockReturnValue(null);
+
+    expect((await loadVendorHelpMarketStats()).topSearchKeywords).toEqual([]);
   });
 });
 
