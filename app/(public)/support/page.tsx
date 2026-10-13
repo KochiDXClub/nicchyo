@@ -84,8 +84,13 @@ const CONSULT_NOTES = [
  *
  * 本文の幅はふつう本文の枠（CONTAINER）に収める。写真の帯のように画面の端まで
  * 使いたいものだけ bleed を付ける。見出しと区切りの線は、どちらでも枠の中に置く。
+ *
+ * 言い切りの見出しを置かない節もある（写真や注意書きのように、中身を見れば足りるもの）。
+ * そのときは小さな見出しをそのまま節の見出し（h2）にして、見出しの並びを切らさない。
  */
 const CONTAINER = "mx-auto max-w-[64rem] px-6 sm:px-8";
+/** 節の小さな見出し（何の話か） */
+const LABEL_CLASS = "text-[11px] font-bold tracking-[0.2em] text-amber-700";
 
 function Section({
   id,
@@ -97,8 +102,8 @@ function Section({
 }: {
   id?: string;
   label: string;
-  /** 文節ごとに区切った見出し。1つあたり12文字までにしておくと、どの幅でも収まる */
-  title: string[];
+  /** 文節ごとに区切った見出し。1つあたり12文字までにしておくと、どの幅でも収まる。無くてもよい */
+  title?: string[];
   /** 本文を画面の端まで広げる */
   bleed?: boolean;
   className?: string;
@@ -114,14 +119,20 @@ function Section({
     <section id={id} className={`scroll-mt-24 pb-12 sm:pb-16 ${className}`}>
       <div className={CONTAINER}>
         <div className="border-t border-nicchyo-ink/[0.07] pt-12 sm:pt-16">
-          <p className="text-[11px] font-bold tracking-[0.2em] text-amber-700">{label}</p>
-          <RiseHeading className="mt-3 text-[1.4rem] font-bold leading-[1.55] tracking-tight sm:text-[1.75rem]">
-            {title.map((phrase) => (
-              <span key={phrase} className="inline-block">
-                {phrase}
-              </span>
-            ))}
-          </RiseHeading>
+          {title ? (
+            <>
+              <p className={LABEL_CLASS}>{label}</p>
+              <RiseHeading className="mt-3 text-[1.4rem] font-bold leading-[1.55] tracking-tight sm:text-[1.75rem]">
+                {title.map((phrase) => (
+                  <span key={phrase} className="inline-block">
+                    {phrase}
+                  </span>
+                ))}
+              </RiseHeading>
+            </>
+          ) : (
+            <h2 className={LABEL_CLASS}>{label}</h2>
+          )}
         </div>
         {!bleed && body}
       </div>
@@ -202,12 +213,7 @@ export default async function SupportPage() {
           学生のプロジェクトにお金を出してよいかを決める人に、実際に日曜市へ
           通っている人がいることを写真で見せる。帯は画面の端まで流す。
           紙には要らない（流れる帯は1枚の写真として読めない）ので印刷では外す */}
-      <Section
-        label="活動の様子"
-        title={["これまでの活動を、", "写真でご紹介いたします"]}
-        bleed
-        className="print:hidden"
-      >
+      <Section label="活動の様子" bleed className="print:hidden">
         <SupportGallery />
       </Section>
 
@@ -235,7 +241,7 @@ export default async function SupportPage() {
       </Section>
 
       {/* ── ご相談について ──────────────────────────────────────────── */}
-      <Section label="ご相談について" title={["ご相談の前に、", "お伝えしておきたいこと"]}>
+      <Section label="ご相談について">
         {/*
           税制の話も先に書いておく。経理の方が後から確認して話が止まるより、
           最初にお伝えした方が誠実で、結果として早く進む
