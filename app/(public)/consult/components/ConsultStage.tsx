@@ -734,7 +734,7 @@ export default function ConsultStage({
       // 幅は絞らず w-full のまま（PC で読みやすい行幅に絞るのは内側のラッパーで
       // 行う）。ここで max-w を付けてしまうと、スクロールする箱自体が狭くなり、
       // 縦スクロールバーが画面の右端ではなく箱の右端＝中途半端な位置に出てしまう
-      className="h-[calc(100dvh-var(--consult-bar-space))] w-full overflow-y-auto px-4 pb-4 lg:h-[calc(100dvh-var(--consult-bar-space-lg))] lg:pb-0"
+      className="h-[calc(100dvh-var(--consult-bar-space)-var(--consult-top-space,0px))] w-full overflow-y-auto px-4 pb-4 lg:h-[calc(100dvh-var(--consult-bar-space-lg))] lg:pb-0"
       style={
         {
           // 下端に固定した「話しかける」とナビゲーションバーの分は、上の

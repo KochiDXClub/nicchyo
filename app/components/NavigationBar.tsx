@@ -128,11 +128,12 @@ type NavigationBarProps = {
   onCloseMode?: () => void;
   onConsultClick?: () => void;
   /**
-   * lg 以上（PC・ノートPC）で、サブページの「もどる」バーを下端の帯ではなく、
-   * 地図のツールバーと同じ右上の小さなバーにする。ページの下端を空けたい画面だけが指定する
-   * （指定した画面は、下端にナビの分の余白を取らないこと）
+   * サブページの「もどる」バーを、下端ではなく画面の上に置く。
+   * スマホは上端いっぱいの細い帯、lg 以上（PC・ノートPC）は地図のツールバーと同じ右上の小さなバー。
+   * 指定した画面は、下端にナビの分の余白を取らず、上に帯の分（--consult-top-space のような変数）を
+   * 空けること
    */
-  backBarTopOnLg?: boolean;
+  backBarOnTop?: boolean;
 };
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -143,7 +144,7 @@ function NavigationBarInner({
   closeModeActive = false,
   onCloseMode,
   onConsultClick,
-  backBarTopOnLg = false,
+  backBarOnTop = false,
 }: NavigationBarProps) {
   const pathname = usePathname();
   const router = useRouter();
@@ -193,6 +194,8 @@ function NavigationBarInner({
    * スマホと、サブページのもどるバーは従来どおり全幅の帯のまま
    */
   const isMapNav = isHome || isCloseUxActive;
+  // 「もどる」バー（サブページ）を上に置くか。地図の上にいる間は、地図のナビが優先する
+  const topBackBar = backBarOnTop && !isMapNav;
 
   // ページ公開設定で public でないリンクはナビに出さない
   const consultItem = baseNavItems[0];
@@ -373,16 +376,18 @@ function NavigationBarInner({
       {/* ── ナビゲーションバー ──────────────────────────────────────────────── */}
       <nav
         onClick={isCloseUxActive ? handleCloseMode : undefined}
-        className={`navigation-bar ${position} bottom-0 left-0 right-0 z-[9997] border-t text-sm leading-none shadow-sm transition-colors duration-300 ${
+        className={`navigation-bar ${position} ${
+          topBackBar ? "top-0 border-b" : "bottom-0 border-t"
+        } left-0 right-0 z-[9997] text-sm leading-none shadow-sm transition-colors duration-300 ${
           isCloseUxActive
             ? "cursor-pointer border-green-500 bg-green-500"
             : "border-slate-200/60 bg-white/90 backdrop-blur-md"
         } ${
-          isMapNav || backBarTopOnLg
+          isMapNav || topBackBar
             ? "lg:bottom-auto lg:left-auto lg:right-4 lg:top-4 lg:w-auto lg:rounded-full lg:border lg:shadow-float"
             : ""
         }`}
-        style={{ paddingBottom: "var(--safe-bottom, 0px)" }}
+        style={topBackBar ? undefined : { paddingBottom: "var(--safe-bottom, 0px)" }}
       >
         {isHome ? (
           /* ── マップ：フルナビ ── */
@@ -443,7 +448,7 @@ function NavigationBarInner({
           </div>
         ) : (
           /* ── サブページ：もどるバー ── */
-          <BottomNavBackBar label="マップにもどる" onClick={goToMap} compactOnLg={backBarTopOnLg} />
+          <BottomNavBackBar label="マップにもどる" onClick={goToMap} compact={topBackBar} />
         )}
       </nav>
     </>

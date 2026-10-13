@@ -247,10 +247,11 @@ export default function ConsultClient() {
       // わずかに超えたときページ本体（html）側にもスクロールバーが出て、意図した
       // チャット用スクロールバーの隣にもう1本（グローバル装飾で同じ緑色の）スクロール
       // バーが並んで見えてしまう
-      // lg 以上は「もどる」バーを右上へ移し（下の NavigationBar）、下端にナビの分の余白を取らない。
-      // 相談の下端まわりの計算は --nav-bar-height を使っているので、ここで 0 にすれば
-      // 入力欄・スクロール領域の高さが自動でそれに追従する
-      className="relative min-h-screen overflow-hidden bg-[var(--consult-bg)] lg:[--nav-bar-height:0px]"
+      // 「マップにもどる」バーは上に置く（スマホは上端の細い帯、lg 以上は右上の小さなバー）。
+      // 下端にナビの分の余白は要らないので --nav-bar-height を 0 にし、相談の下端まわりの計算
+      // （入力欄の位置・スクロール領域の高さ）がそれに追従するようにする。
+      // 上端の帯の分は --consult-top-space で空ける（lg 以上は帯ではないので 0）
+      className="relative min-h-screen overflow-hidden bg-[var(--consult-bg)] [--consult-top-space:3rem] [--nav-bar-height:0px] lg:[--consult-top-space:0px]"
     >
       <div className="pointer-events-none absolute inset-0 z-0 bg-[var(--consult-bg)]" aria-hidden="true" />
       {/*
@@ -271,7 +272,7 @@ export default function ConsultClient() {
         画面端にぴったり付かなくなる
       */}
       <main
-        className={`relative z-10 w-full pb-16 ${
+        className={`relative z-10 w-full pb-16 pt-[var(--consult-top-space)] ${
           isHistorySidebarOpen ? "lg:pl-80" : ""
         }`}
       >
@@ -291,7 +292,7 @@ export default function ConsultClient() {
         </div>
       </main>
       {selectedShop && <ShopDetailBanner shop={selectedShop} onClose={() => setSelectedShop(null)} />}
-      <NavigationBar activeHref="/consult" backBarTopOnLg />
+      <NavigationBar activeHref="/consult" backBarOnTop />
     </div>
   );
 }

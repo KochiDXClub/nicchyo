@@ -433,17 +433,17 @@ export function BottomNavLink({
 export function BottomNavBackBar({
   label,
   onClick,
-  compactOnLg = false,
+  compact = false,
 }: {
   label: string;
   onClick: () => void;
-  /** lg 以上で、帯ではなく右上に浮かぶ小さなバーとして置くとき、高さと左右の余白を詰める */
-  compactOnLg?: boolean;
+  /** 画面の上端に置くとき（帯でも右上の小さなバーでも）、高さを詰める。lg 以上は左右の余白も詰める */
+  compact?: boolean;
 }) {
   return (
     <div
-      className={`mx-auto flex h-14 max-w-lg items-center px-4 ${
-        compactOnLg ? "lg:h-12 lg:px-2" : ""
+      className={`mx-auto flex max-w-lg items-center px-4 ${
+        compact ? "h-12 lg:px-2" : "h-14"
       }`}
     >
       <button
