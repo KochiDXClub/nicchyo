@@ -791,14 +791,15 @@ export default function MapPageClient({
         <div className="absolute -bottom-20 -right-20 w-80 h-80 bg-gradient-to-tl from-yellow-200 to-amber-200 rounded-full blur-3xl opacity-20"></div>
       </div>
 
-      {/* メイン: NavigationBar(h-14=3.5rem) + safe-area-inset-bottom 分だけ下に余白 */}
+      {/*
+        メイン: NavigationBar(h-14=3.5rem) + safe-area-inset-bottom 分だけ下に余白。
+        lg 以上（PC・ノートPC）のナビは地図の上に浮かぶ小さな丸いバーなので、余白は取らず
+        地図を画面の下端まで広げる
+      */}
       <main
-        className="relative z-10 flex-1 overflow-hidden"
-        style={{
-          paddingBottom: shouldShowNavigationBar
-            ? 'calc(3.5rem + var(--safe-bottom, 0px))'
-            : '0px',
-        }}
+        className={`relative z-10 flex-1 overflow-hidden ${
+          shouldShowNavigationBar ? 'pb-[calc(3.5rem+var(--safe-bottom,0px))] lg:pb-0' : ''
+        }`}
       >
         <div className="relative h-full overflow-hidden">
             {showVendorPrompt && vendorShopName && (
@@ -840,7 +841,7 @@ export default function MapPageClient({
               ) : (
                 <div
                   className={cn(
-                    "absolute left-3 right-3 top-3 z-[1001] flex items-center gap-3 rounded-full bg-white py-2 pl-2 pr-2 shadow-[0_8px_24px_rgba(58,58,58,0.18)] ring-1 ring-black/5",
+                    "absolute left-3 right-3 top-3 z-[1001] flex items-center gap-3 rounded-full bg-white py-2 pl-2 pr-2 shadow-[0_8px_24px_rgba(58,58,58,0.18)] ring-1 ring-black/5 lg:left-4 lg:right-auto lg:top-4 lg:w-[22rem]",
                     hideWhilePanningClass(isPanning)
                   )}
                 >
@@ -863,7 +864,10 @@ export default function MapPageClient({
             {!nearbyState && !guideActive && (
               <div
                 ref={searchAreaRef}
-                className={cn("absolute left-3 right-3 top-3 z-[1001] flex flex-col gap-2", hideWhilePanningClass(isPanning))}
+                className={cn(
+                  "absolute left-3 right-3 top-3 z-[1001] flex flex-col gap-2 lg:left-4 lg:right-auto lg:top-4 lg:w-[22rem] lg:gap-3 lg:rounded-card lg:bg-white/95 lg:p-3 lg:shadow-card lg:ring-1 lg:ring-line lg:backdrop-blur",
+                  hideWhilePanningClass(isPanning)
+                )}
                 onMouseDown={(e) => e.stopPropagation()}
                 onClick={(e) => e.stopPropagation()}
                 onTouchStart={(e) => e.stopPropagation()}
@@ -875,10 +879,10 @@ export default function MapPageClient({
                 <MarketStatusBar day={marketCalendar.day} placement="map" />
 
                 {/* 検索バー */}
-                <div className={`flex items-center gap-2 rounded-full px-4 py-2.5 shadow-lg ring-1 backdrop-blur-sm transition-all duration-200 ${
+                <div className={`flex items-center gap-2 rounded-full px-4 py-2.5 shadow-lg ring-1 backdrop-blur-sm transition-all duration-200 lg:rounded-btn lg:shadow-none ${
                   hasMapFilter
                     ? 'bg-gradient-to-r from-amber-100/95 to-orange-50/95 ring-amber-400/50'
-                    : 'bg-white/90 ring-slate-900/8'
+                    : 'bg-white/90 ring-slate-900/8 lg:bg-nicchyo-base lg:ring-line'
                 }`}>
                   <svg className="w-4 h-4 shrink-0 text-slate-400" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden>
                     <circle cx="11" cy="11" r="6.5" />

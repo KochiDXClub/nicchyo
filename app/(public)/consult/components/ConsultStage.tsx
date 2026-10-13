@@ -100,6 +100,14 @@ const APPEAR_MS = 420;
 const CONSULT_BAR_SPACE = "calc(var(--safe-bottom, 0px) + var(--nav-bar-height) + 5rem)";
 
 /**
+ * lg 以上（PC・ノートPC）用。候補ボタンを入力欄のすぐ上まで下げたいので、
+ * スマホ用より 0.75rem 少なく取る（入力欄の上端はナビの 4.4rem 上にあるので、
+ * 5.25rem なら入力欄との間に約 0.85rem 残る）。
+ * 入力バーの高さ・位置を変えるときは CONSULT_BAR_SPACE と一緒に見直すこと
+ */
+const CONSULT_BAR_SPACE_LG = "calc(var(--safe-bottom, 0px) + var(--nav-bar-height) + 5.25rem)";
+
+/**
  * 「これまでの相談」サイドバーがチャット欄の横に並ぶ幅（Tailwind の lg と同じ）。
  * これより狭い画面では、サイドバーはチャット欄の上に重なる引き出しになる
  */
@@ -844,16 +852,17 @@ export default function ConsultStage({
       // 行う）。ここで max-w を付けてしまうと、スクロールする箱自体が狭くなり、
       // 縦スクロールバーが画面の右端ではなく箱の右端＝中途半端な位置に出てしまう
       // scroll-pb-10: Tab で下端の候補ボタンへ移ったとき、下端のぼかしに隠れない所まで送る
-      className="h-[calc(100dvh-var(--consult-bar-space))] w-full scroll-pb-10 overflow-y-auto px-4"
+      className="h-[calc(100dvh-var(--consult-bar-space)-var(--consult-top-space,0px))] w-full scroll-pb-10 overflow-y-auto px-4 pb-4 lg:h-[calc(100dvh-var(--consult-bar-space-lg))] lg:pb-0"
       style={
         {
           // 下端に固定した「話しかける」とナビゲーションバーの分は、上の
           // height 側で既に差し引いている（この箱自体がその高さぶん
           // 画面の下までは伸びない）。ここでさらに paddingBottom を
           // CONSULT_BAR_SPACE と同じ値にすると二重に空いてしまうので、
-          // 最後の要素がバーに張り付かない程度の小さい余白だけ持たせる
+          // 最後の要素がバーに張り付かない程度の小さい余白（className の pb-4）
+          // だけ持たせる。lg 以上は候補ボタンを入力欄のすぐ上へ寄せたいので 0 にする
           "--consult-bar-space": CONSULT_BAR_SPACE,
-          paddingBottom: "1rem",
+          "--consult-bar-space-lg": CONSULT_BAR_SPACE_LG,
         } as CSSProperties
       }
     >
@@ -891,7 +900,8 @@ export default function ConsultStage({
         // lg 未満は指で押せる 44px にし、クリーム色の背景に埋もれないよう面と縁を付ける。
         // lg 以上はこれまで通り面を持たない Claude 風のアイコンにする。
         // 同じ z-30 の固定バーより DOM が前にあるので、z-40 にして固定バーの上に出す
-        className={`fixed left-4 top-[calc(var(--safe-top,0px)+1rem)] z-40 flex h-11 w-11 items-center justify-center rounded-lg border border-amber-200 bg-white/80 text-slate-500 shadow-sm transition hover:bg-black/5 lg:h-9 lg:w-9 lg:border-0 lg:bg-transparent lg:shadow-none ${
+        // lg 未満は上端に「マップにもどる」の帯（--consult-top-space）が出るので、その下に置く
+        className={`fixed left-4 top-[calc(var(--consult-top-space,var(--safe-top,0px))+0.75rem)] z-40 flex h-11 w-11 items-center justify-center rounded-lg border border-amber-200 bg-white/80 text-slate-500 shadow-sm transition hover:bg-black/5 lg:top-[calc(var(--safe-top,0px)+1rem)] lg:h-9 lg:w-9 lg:border-0 lg:bg-transparent lg:shadow-none ${
           isHistorySidebarOpen ? "invisible" : ""
         }`}
       >
@@ -948,7 +958,9 @@ export default function ConsultStage({
           // 幅は立ち絵を置いても文字の幅が以前（w-72）とほぼ変わらないよう 22rem にする
           className="fixed inset-y-0 left-0 z-40 flex w-[22rem] max-w-[85vw] flex-col border-r border-amber-100 bg-white lg:z-20"
           style={{
-            paddingTop: "var(--safe-top, 0px)",
+            // lg 未満は上端の「マップにもどる」の帯（z-[9997]）が手前に出るので、
+            // 見出しの閉じるボタンが隠れないよう、帯の分だけ下げる（lg 以上は 0）
+            paddingTop: "var(--consult-top-space, var(--safe-top, 0px))",
             paddingBottom: "calc(var(--safe-bottom, 0px) + var(--nav-bar-height))",
           }}
         >
@@ -1021,8 +1033,8 @@ export default function ConsultStage({
         lg 以上（1024px〜）では計算値が負になることはない
       */}
       <div
-        className={`mx-auto flex w-full max-w-3xl flex-col gap-3 motion-safe:transition-[margin-left] motion-safe:duration-300 motion-safe:ease-out-soft ${
-          isHistorySidebarOpen ? "lg:ml-0" : "lg:ml-[calc((100vw_-_2rem_-_48rem)/2)]"
+        className={`mx-auto flex w-full max-w-3xl flex-col gap-3 motion-safe:transition-[margin-left] motion-safe:duration-300 motion-safe:ease-out-soft lg:grid lg:max-w-6xl lg:grid-cols-[30%_minmax(0,1fr)] lg:items-start lg:gap-x-8 ${
+          isHistorySidebarOpen ? "lg:ml-0" : "lg:ml-[max(0px,calc((100vw_-_2rem_-_72rem)/2))]"
         }`}
       >
       {/*
@@ -1036,7 +1048,11 @@ export default function ConsultStage({
         上の余白（本来 padding-top で持たせたい分）を margin-top として
         ここに持たせている（理由はスクロールコンテナの className 側のコメント参照）
       */}
-      <div ref={topSentinelRef} aria-hidden="true" className="mt-3 h-px w-full shrink-0" />
+      <div
+        ref={topSentinelRef}
+        aria-hidden="true"
+        className="mt-3 h-px w-full shrink-0 lg:col-span-2"
+      />
 
       {/* 話し手の入れ替わり。前の人が右へ去り、新しい人が左から歩いてくる */}
       {swapFrom && (
@@ -1068,7 +1084,7 @@ export default function ConsultStage({
         lg 以上はチャット欄が中央に寄る（サイドバーを開くとボタン自体が消える）ので要らない
       */}
       <div
-        className={`sticky top-0 z-30 -mx-4 -mb-[76px] flex h-[76px] shrink-0 items-center gap-3 pl-[4.5rem] pr-4 lg:pl-4 ${
+        className={`sticky top-0 z-30 -mx-4 -mb-[76px] flex h-[76px] shrink-0 items-center gap-3 pl-[4.5rem] pr-4 lg:hidden ${
           isScrolledDown ? "" : "pointer-events-none"
         }`}
       >
@@ -1118,7 +1134,17 @@ export default function ConsultStage({
         画面外へ流れ、上に戻ればまた現れる。大きさは一切変えないので
         スクロール中にレイアウトが動かない。
       */}
-      <div className="flex flex-col items-center gap-2">
+      {/*
+        lg 以上（PC・ノートPC）では左30%のカラムに置き、本文を読み進めても
+        画面に残り続けるよう sticky にする。スマホでは従来どおり通常フロー。
+      */}
+      {/*
+        高さを「スクロール領域いっぱい」にして中身を縦中央に置く（sticky なので
+        本文を読み進めても同じ位置に残る）。高さは lg 用の --consult-bar-space-lg から、
+        上の目印の余白（0.75rem + 1px）と行の間隔（0.75rem）ぶんの 1.65rem を引いた値。
+        これを引かないと、わずかにスクロールが発生する（lg は下の余白 pb を 0 にしてある）
+      */}
+      <div className="flex flex-col items-center gap-2 lg:sticky lg:top-0 lg:col-start-1 lg:row-start-2 lg:h-[calc(100dvh-var(--consult-bar-space-lg)-1.65rem)] lg:justify-center">
         {/*
           flex にして、囲んだだけで下に行間の隙間が出ないようにする（測る先がずれる）。
           開いたときはその場に現れ、現れきったら一度だけ会釈する。
@@ -1189,6 +1215,13 @@ export default function ConsultStage({
         )}
       </div>
 
+      {/*
+        答えと候補ボタンは右の70%カラムにまとめる。
+        スマホでは display: contents で枠を消し、従来どおり縦並びの子として扱う
+        （見た目・間隔は変わらない）。
+        lg の上の余白（pt）は、右上に浮かぶ「マップにもどる」バーの下から答えを始めるため
+      */}
+      <div className="contents lg:col-start-2 lg:row-start-2 lg:flex lg:min-h-[calc(100dvh-var(--consult-bar-space-lg)-1.65rem)] lg:min-w-0 lg:flex-col lg:gap-4 lg:pt-[3.75rem]">
       {/* 今の答え。1枚だけ */}
       {showAnswer && (
         <div
@@ -1259,7 +1292,7 @@ export default function ConsultStage({
       {phase === "idle" && !isBusy && suggestions.length > 0 && (
         <div
           style={revealClass(140).style}
-          className={`flex flex-col gap-2 ${revealClass(140).className}`}
+          className={`flex flex-col gap-2 lg:mt-auto ${revealClass(140).className}`}
         >
           {suggestions.map((question) => (
             <button
@@ -1273,6 +1306,7 @@ export default function ConsultStage({
           ))}
         </div>
       )}
+      </div>
       </div>
       {/* 本文の一番下。ここが見えているかで、下端のぼかしを出すかを決める */}
       <div ref={bottomSentinelRef} aria-hidden="true" className="h-px w-full" />
@@ -1293,14 +1327,16 @@ export default function ConsultStage({
         本文の一番下まで見えているときは出さない（isContentEndVisible 参照）。
         lg 以上でサイドバーを開いている間は、サイドバーに掛からないよう右へ逃がす
         （サイドバーの開け閉めと同じ速さ・緩急で動かす）。
-        lg 以上はスクロールバー（幅 8px）にも掛からないよう、右端を少し空ける
+        lg 以上はスクロールバー（幅 8px）にも掛からないよう、右端を少し空ける。
+        lg 以上はスクロール領域の下端が違う（--consult-bar-space-lg）ので、位置もそれに合わせる
       */}
       <div
         aria-hidden="true"
         className={`pointer-events-none fixed inset-x-0 z-20 h-16 bg-gradient-to-b from-transparent via-nicchyo-base/95 to-nicchyo-base motion-safe:transition-[opacity,left] motion-safe:duration-300 motion-safe:ease-out-soft ${
           isContentEndVisible ? "opacity-0" : "opacity-100"
-        } lg:right-2 ${isHistorySidebarOpen ? "lg:left-96" : ""}`}
-        style={{ bottom: "calc(var(--consult-bar-space) - 2rem)" }}
+        } bottom-[calc(var(--consult-bar-space)-2rem)] lg:bottom-[calc(var(--consult-bar-space-lg)-2rem)] lg:right-2 ${
+          isHistorySidebarOpen ? "lg:left-96" : ""
+        }`}
       />
 
       {/* 文字入力を大きく既定にし、音声は選べる小さいボタンにする。
@@ -1329,12 +1365,15 @@ export default function ConsultStage({
         }}
       >
         {/* 中央寄せ／左寄せの切り替えは、本文の内側ラッパーと同じく margin-left の計算値で
-            持ち、サイドバーの開け閉めに合わせて滑らかにずらす */}
+            持ち、サイドバーの開け閉めに合わせて滑らかにずらす。
+            lg 以上は本文と同じ「左30%・右70%」の格子にして、入力欄を右カラムの真下に置く
+            （内側の枠はスマホでは display: contents で消し、従来どおりの並びにする） */}
         <div
-          className={`mx-auto flex w-full max-w-3xl items-center justify-center gap-3 motion-safe:transition-[margin-left] motion-safe:duration-300 motion-safe:ease-out-soft ${
-            isHistorySidebarOpen ? "lg:ml-0" : "lg:ml-[calc((100vw_-_2rem_-_48rem)/2)]"
+          className={`mx-auto flex w-full max-w-3xl items-center justify-center gap-3 motion-safe:transition-[margin-left] motion-safe:duration-300 motion-safe:ease-out-soft lg:grid lg:max-w-6xl lg:grid-cols-[30%_minmax(0,1fr)] lg:gap-x-8 ${
+            isHistorySidebarOpen ? "lg:ml-0" : "lg:ml-[max(0px,calc((100vw_-_2rem_-_72rem)/2))]"
           }`}
         >
+          <div className="contents lg:col-start-2 lg:flex lg:items-center lg:gap-3">
           {/* 文字入力を既定にする。タップして開く一段階を挟まず、
               最初から入力欄を出しておく。音声は騒がしい現地では速いが、
               静かな場所や周りに人がいるときは声を出しにくいため */}
@@ -1394,6 +1433,7 @@ export default function ConsultStage({
               <Mic className="h-5 w-5" aria-hidden="true" />
             </button>
           )}
+          </div>
         </div>
       </div>
 

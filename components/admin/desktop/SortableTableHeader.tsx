@@ -66,6 +66,38 @@ export const SortableTableHeader = React.memo(function SortableTableHeader({
   );
 });
 
+/**
+ * 本物の <table> の <th> に置くソート見出し。
+ * SortableTableHeader は div + flex の表（UserTable）向けなので、<tr> の中には置けない。
+ */
+export const SortableColumnHeader = React.memo(function SortableColumnHeader({
+  label,
+  sortKey,
+  currentSortKey,
+  currentSortDirection,
+  onSort,
+  className = "",
+}: Omit<SortableTableHeaderProps, "flex">) {
+  const isActive = currentSortKey === sortKey;
+  const arrow = !isActive ? "" : currentSortDirection === "asc" ? "▲" : "▼";
+  return (
+    <th
+      scope="col"
+      className={`px-4 py-3 text-left text-xs font-medium text-nicchyo-ink/55 ${className}`}
+      aria-sort={isActive ? (currentSortDirection === "asc" ? "ascending" : "descending") : "none"}
+    >
+      <button
+        type="button"
+        onClick={() => onSort(sortKey)}
+        className="inline-flex items-center gap-1 hover:text-nicchyo-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/60"
+      >
+        {label}
+        <span aria-hidden="true" className="text-[10px] text-amber-700">{arrow}</span>
+      </button>
+    </th>
+  );
+});
+
 export function useSortableData<T>(data: T[], defaultSortKey?: keyof T) {
   const [sortKey, setSortKey] = React.useState<string | null>(defaultSortKey?.toString() || null);
   const [sortDirection, setSortDirection] = React.useState<SortDirection>("asc");
