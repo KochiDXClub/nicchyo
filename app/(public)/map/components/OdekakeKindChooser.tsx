@@ -29,7 +29,7 @@ import { GUIDE_KIND_OPTIONS } from '../hooks/useOdekakeGuide';
 import type { SpotKind } from '@/lib/spots';
 import { vibrate } from '@/lib/ui/haptics';
 
-/** /facilities と地図で使っているアイコン。目印だけは専用画像が無いので線画で代える */
+/** /facilities と地図で使っているアイコン。専用画像が無い種類は線画で代える（大きなボタンはお手洗い・のりものだけなので、通常は画像側が使われる） */
 const KIND_ICON_URL: Partial<Record<SpotKind, string>> = {
   restroom: '/images/maps/elements/facilities/restroom.svg',
   transit: '/images/maps/elements/transit/tram-stop.svg',

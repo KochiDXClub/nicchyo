@@ -12,7 +12,7 @@ export const JR_ACCENT_COLOR = '#1d4ed8';
 
 const KIND_META: Record<SpotKind, SpotKindMeta> = {
   transit: { label: 'のりもの', emoji: '🚋', accentColor: TRAM_ACCENT_COLOR },
-  landmark: { label: '目印', emoji: '🏯', accentColor: '#b45309' },
+  landmark: { label: '観光地', emoji: '🏯', accentColor: '#b45309' },
   restroom: { label: 'お手洗い', emoji: '🚻', accentColor: '#0284c7' },
   rest: { label: '休けい', emoji: '🌿', accentColor: '#059669' },
   shop: { label: 'お店', emoji: '🏪', accentColor: '#7ED957' },
