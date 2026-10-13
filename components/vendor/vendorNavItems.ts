@@ -58,6 +58,8 @@ const EXTRA_PAGE_PERMISSIONS: { prefix: string; permission: ShopPermission }[] =
   { prefix: "/my-shop/schedule", permission: "store_edit" },
   { prefix: "/my-shop/detail", permission: "store_edit" },
   { prefix: "/my-shop/ask", permission: "store_edit" },
+  // モック段階のため導線には出さない（URL を直接開いた人だけが見る）。権限は近い性質の ai_notes を仮で使う
+  { prefix: "/vendor/character", permission: "ai_notes" },
 ];
 
 function matchesPrefix(pathname: string, prefix: string): boolean {
