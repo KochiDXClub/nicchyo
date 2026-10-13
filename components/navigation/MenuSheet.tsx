@@ -11,6 +11,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useBodyScrollLock } from "@/lib/ui/bodyScrollLock";
+import { LG_MEDIA_QUERY, useMediaQuery } from "@/lib/hooks/useMediaQuery";
 import { useDialogFocus } from "@/lib/ui/useDialogFocus";
 import { useEffect, useRef, type ReactNode, type RefObject } from "react";
 import {
@@ -37,6 +38,7 @@ export function MenuSheet({
   onClose,
   label,
   returnFocusRef,
+  desktopDropdown = false,
   children,
 }: {
   open: boolean;
@@ -44,6 +46,12 @@ export function MenuSheet({
   /** 読み上げ用のシートの名前 */
   label: string;
   returnFocusRef?: RefObject<HTMLElement | null>;
+  /**
+   * lg 以上（PC・ノートPC）で、下から上がるシートではなく、右上のボタンの真下に開く
+   * 小さなカードにする。上のツールバーにメニューボタンを置く画面で、ボタンの近くに
+   * 開かせるために使う。スマホ（lg 未満）は指定にかかわらず、下から上がるシートのまま
+   */
+  desktopDropdown?: boolean;
   children: ReactNode;
 }) {
   const prefersReducedMotion = useReducedMotion();
@@ -66,6 +74,8 @@ export function MenuSheet({
   }, [open]);
 
   const fadeTransition = { duration: prefersReducedMotion ? 0 : 0.2 };
+  const isDesktop = useMediaQuery(LG_MEDIA_QUERY);
+  const dropdown = desktopDropdown && isDesktop;
 
   return (
     <AnimatePresence>
@@ -78,7 +88,9 @@ export function MenuSheet({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={fadeTransition}
-            className="fixed inset-0 z-[9995] bg-slate-900/40 backdrop-blur-[3px]"
+            className={`fixed inset-0 z-[9995] ${
+              dropdown ? "bg-slate-900/15" : "bg-slate-900/40 backdrop-blur-[3px]"
+            }`}
             onClick={onClose}
             aria-hidden
           />
@@ -88,6 +100,7 @@ export function MenuSheet({
             onClose={onClose}
             returnFocusRef={returnFocusRef}
             prefersReducedMotion={prefersReducedMotion ?? false}
+            dropdown={dropdown}
           >
             {children}
           </SheetPanel>
@@ -106,12 +119,15 @@ function SheetPanel({
   onClose,
   returnFocusRef,
   prefersReducedMotion,
+  dropdown,
   children,
 }: {
   label: string;
   onClose: () => void;
   returnFocusRef?: RefObject<HTMLElement | null>;
   prefersReducedMotion: boolean;
+  /** PC 向けの出方。ボタンの下に開くカードで、ドラッグでは閉じない */
+  dropdown: boolean;
   children: ReactNode;
 }) {
   const dragControls = useDragControls();
@@ -131,6 +147,27 @@ function SheetPanel({
   const sheetExitTransition = prefersReducedMotion
     ? { duration: 0 }
     : { duration: 0.24, ease: EASE_IN_SHEET };
+
+  if (dropdown) {
+    return (
+      <motion.div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label={label}
+        tabIndex={-1}
+        initial={{ opacity: 0, y: -8 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -8, transition: sheetExitTransition }}
+        transition={sheetTransition}
+        className="fixed right-4 top-[4.75rem] z-[9996] flex w-[24rem] flex-col rounded-card bg-nicchyo-base shadow-float ring-1 ring-nicchyo-ink/[0.07] outline-none"
+      >
+        <div className="max-h-[calc(100dvh-6.5rem)] overflow-y-auto overscroll-contain px-3 pb-3 pt-3">
+          {children}
+        </div>
+      </motion.div>
+    );
+  }
 
   return (
     <motion.div

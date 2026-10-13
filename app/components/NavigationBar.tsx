@@ -255,7 +255,14 @@ function NavigationBarInner({
   return (
     <>
       {/* ── ボトムメニューシート ────────────────────────────────────────────── */}
-      <MenuSheet open={menuOpen} onClose={closeMenu} label="メニュー" returnFocusRef={menuButtonRef}>
+      <MenuSheet
+        open={menuOpen}
+        onClose={closeMenu}
+        label="メニュー"
+        returnFocusRef={menuButtonRef}
+        // 地図ではメニューボタンが右上にあるので、PC・ノートPCではそのすぐ下に開く
+        desktopDropdown={isMapNav}
+      >
         {/* ─ ユーザー ─ */}
         {isLoggedIn && user ? (
           <MenuUserRow
