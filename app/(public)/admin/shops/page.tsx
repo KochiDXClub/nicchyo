@@ -17,11 +17,11 @@ import { Tooltip } from "@/components/admin/desktop/Tooltip";
 import type { AdminShop } from "@/app/api/admin/shops/route";
 import { ListingStatusBadge } from "./ListingStatusBadge";
 import Link from "next/link";
-import { Printer } from "lucide-react";
 import { fetchShopClaims, issueClaims, type IssueResult } from "@/lib/admin/shopClaimsClient";
 import type { ShopClaimState } from "@/lib/vendor/shopClaim";
 import { ClaimStateBadge } from "./components/ClaimStateBadge";
 import QrSheet from "./components/QrSheet";
+import { IssuedQrPanel } from "./components/IssuedQrPanel";
 
 type ShopStatus = "active" | "suspended";
 type ClaimFilter = "all" | ShopClaimState;
@@ -399,23 +399,18 @@ function AdminShopsContent() {
             )}
 
             {issueResults && issueResults.some((r) => r.status === "ok") && (
-              <section className="mb-4 space-y-3 rounded-card border border-amber-300 bg-amber-50 p-4" aria-label="発行したQRコード">
-                <div className="flex flex-wrap items-center gap-3">
-                  <p className="text-sm font-semibold text-amber-900">
-                    発行したQRコードです。この画面を閉じる・読み込み直すと、二度と表示できません（出し直しはできます）。
-                  </p>
-                  <Button size="sm" className="ml-auto" onClick={() => window.print()}>
-                    <Printer size={14} aria-hidden /> 印刷する
-                  </Button>
-                  <Button variant="ghost" size="sm" onClick={() => setIssueResults(null)}>閉じる</Button>
-                </div>
-                {issueResults.some((r) => r.status !== "ok") && (
-                  <p className="text-xs text-amber-900">
-                    発行できなかった店舗: {issueResults.filter((r) => r.status !== "ok").map((r) => r.shopName ?? r.vendorId).join("、")}
-                  </p>
-                )}
-                <QrSheet results={issueResults} />
-              </section>
+              <div className="mb-4">
+                <IssuedQrPanel
+                  onClose={() => setIssueResults(null)}
+                  notice={
+                    issueResults.some((r) => r.status !== "ok")
+                      ? `発行できなかった店舗: ${issueResults.filter((r) => r.status !== "ok").map((r) => r.shopName ?? r.vendorId).join("、")}`
+                      : undefined
+                  }
+                >
+                  <QrSheet results={issueResults} />
+                </IssuedQrPanel>
+              </div>
             )}
 
             {sortedData.length === 0 ? (
