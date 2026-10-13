@@ -430,9 +430,22 @@ export function BottomNavLink({
 }
 
 /** サブページの下部バー。起点のページへ戻るボタンだけを置く */
-export function BottomNavBackBar({ label, onClick }: { label: string; onClick: () => void }) {
+export function BottomNavBackBar({
+  label,
+  onClick,
+  compactOnLg = false,
+}: {
+  label: string;
+  onClick: () => void;
+  /** lg 以上で、帯ではなく右上に浮かぶ小さなバーとして置くとき、高さと左右の余白を詰める */
+  compactOnLg?: boolean;
+}) {
   return (
-    <div className="mx-auto flex h-14 max-w-lg items-center px-4">
+    <div
+      className={`mx-auto flex h-14 max-w-lg items-center px-4 ${
+        compactOnLg ? "lg:h-12 lg:px-2" : ""
+      }`}
+    >
       <button
         type="button"
         onClick={onClick}

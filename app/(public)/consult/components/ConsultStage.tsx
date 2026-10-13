@@ -914,8 +914,9 @@ export default function ConsultStage({
         答えと候補ボタンは右の70%カラムにまとめる。
         スマホでは display: contents で枠を消し、従来どおり縦並びの子として扱う
         （見た目・間隔は変わらない）。
+        lg の上の余白（pt）は、右上に浮かぶ「マップにもどる」バーの下から答えを始めるため
       */}
-      <div className="contents lg:col-start-2 lg:row-start-2 lg:flex lg:min-h-[calc(100dvh-var(--consult-bar-space-lg)-1.65rem)] lg:min-w-0 lg:flex-col lg:gap-4">
+      <div className="contents lg:col-start-2 lg:row-start-2 lg:flex lg:min-h-[calc(100dvh-var(--consult-bar-space-lg)-1.65rem)] lg:min-w-0 lg:flex-col lg:gap-4 lg:pt-[3.75rem]">
       {/* 今の答え。1枚だけ */}
       {showAnswer && (
         <div

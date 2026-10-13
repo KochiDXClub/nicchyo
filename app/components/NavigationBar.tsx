@@ -127,6 +127,12 @@ type NavigationBarProps = {
   closeModeActive?: boolean;
   onCloseMode?: () => void;
   onConsultClick?: () => void;
+  /**
+   * lg 以上（PC・ノートPC）で、サブページの「もどる」バーを下端の帯ではなく、
+   * 地図のツールバーと同じ右上の小さなバーにする。ページの下端を空けたい画面だけが指定する
+   * （指定した画面は、下端にナビの分の余白を取らないこと）
+   */
+  backBarTopOnLg?: boolean;
 };
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -137,6 +143,7 @@ function NavigationBarInner({
   closeModeActive = false,
   onCloseMode,
   onConsultClick,
+  backBarTopOnLg = false,
 }: NavigationBarProps) {
   const pathname = usePathname();
   const router = useRouter();
@@ -371,7 +378,7 @@ function NavigationBarInner({
             ? "cursor-pointer border-green-500 bg-green-500"
             : "border-slate-200/60 bg-white/90 backdrop-blur-md"
         } ${
-          isMapNav
+          isMapNav || backBarTopOnLg
             ? "lg:bottom-auto lg:left-auto lg:right-4 lg:top-4 lg:w-auto lg:rounded-full lg:border lg:shadow-float"
             : ""
         }`}
@@ -436,7 +443,7 @@ function NavigationBarInner({
           </div>
         ) : (
           /* ── サブページ：もどるバー ── */
-          <BottomNavBackBar label="マップにもどる" onClick={goToMap} />
+          <BottomNavBackBar label="マップにもどる" onClick={goToMap} compactOnLg={backBarTopOnLg} />
         )}
       </nav>
     </>
