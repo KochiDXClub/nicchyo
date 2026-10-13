@@ -2,26 +2,42 @@
 
 export const dynamic = "force-dynamic";
 
-import React, { useEffect, useState, useMemo, useCallback, useRef } from "react";
-import { useAuth } from "@/lib/auth/AuthContext";
+import { useEffect, useState, useMemo, useCallback, useRef } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useDebounce } from "use-debounce";
-import { exportToCSV, exportToJSON, formatDateForFilename, excelText } from "@/lib/admin/exportUtils";
+import { useAuth } from "@/lib/auth/AuthContext";
+import { excelText } from "@/lib/admin/exportUtils";
 import { showToast } from "@/lib/admin/toast";
-import { StatusBadge, EmptyState, ErrorBoundary, AdminLayout, AdminPageHeader, ReviewStats, ReviewToolbar } from "@/components/admin";
+import {
+  AdminDataTable,
+  AdminLayout,
+  AdminPageHeader,
+  BulkActionBar,
+  EmptyState,
+  ErrorBoundary,
+  ExportActions,
+  FilterChip,
+  ReviewStats,
+  ReviewToolbar,
+  ShortcutHelpLauncher,
+  StatusBadge,
+  useRowSelection,
+  type DataColumn,
+} from "@/components/admin";
+import { useBulkAction } from "@/components/admin/useBulkAction";
+import { useListExport } from "@/components/admin/useListExport";
 import { Button, Surface } from "@/components/ui";
 import { CenteredLoading } from "@/components/ui/loading-spinner";
-import { useKeyboardShortcuts, ShortcutHelp } from "@/lib/hooks/useKeyboardShortcuts";
-import { SortableColumnHeader, useSortableData } from "@/components/admin/desktop/SortableTableHeader";
-import { Tooltip } from "@/components/admin/desktop/Tooltip";
+import { useKeyboardShortcuts } from "@/lib/hooks/useKeyboardShortcuts";
+import { useSortableData } from "@/components/admin/desktop/SortableTableHeader";
 import type { AdminShop } from "@/app/api/admin/shops/route";
-import { ListingStatusBadge } from "./ListingStatusBadge";
-import Link from "next/link";
 import { fetchShopClaims, issueClaims, type IssueResult } from "@/lib/admin/shopClaimsClient";
 import type { ShopClaimState } from "@/lib/vendor/shopClaim";
+import { ListingStatusBadge } from "./ListingStatusBadge";
 import { ClaimStateBadge } from "./components/ClaimStateBadge";
-import QrSheet from "./components/QrSheet";
 import { IssuedQrPanel } from "./components/IssuedQrPanel";
+import QrSheet from "./components/QrSheet";
 
 type ShopStatus = "active" | "suspended";
 type ClaimFilter = "all" | ShopClaimState;
@@ -32,6 +48,8 @@ const CLAIM_FILTERS: { key: ClaimFilter; label: string }[] = [
   { key: "qr_issued", label: "QR発行済み" },
   { key: "claimed", label: "代表者あり" },
 ];
+
+const DANGER = "text-rose-700 hover:bg-rose-50";
 
 function AdminShopsContent() {
   const { permissions, isLoading } = useAuth();
@@ -48,11 +66,7 @@ function AdminShopsContent() {
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedSearchQuery] = useDebounce(searchQuery, 300);
-  const [selectedShopIds, setSelectedShopIds] = useState<string[]>([]);
-  const [isExporting, setIsExporting] = useState(false);
-  const [bulkLoading, setBulkLoading] = useState(false);
   const [showShortcutHelp, setShowShortcutHelp] = useState(false);
-  const [lastSelectedIndex, setLastSelectedIndex] = useState<number | null>(null);
 
   const searchInputRef = useRef<HTMLInputElement>(null);
 
@@ -89,19 +103,14 @@ function AdminShopsContent() {
     }
   }, [isLoading, permissions.isAdmin, loadShops]);
 
-  // ユニークカテゴリー
-  const uniqueCategories = useMemo(() => {
-    const categories = new Set(shops.map((s) => s.category));
-    return Array.from(categories).sort();
-  }, [shops]);
+  const uniqueCategories = useMemo(() => Array.from(new Set(shops.map((s) => s.category))).sort(), [shops]);
 
-  // フィルタリング
   const filteredShops = useMemo(() => {
+    const q = debouncedSearchQuery.toLowerCase();
     return shops.filter((shop) => {
       const matchesStatus = filter === "all" || shop.status === filter;
       const matchesClaim = claimFilter === "all" || claimStates.get(shop.id) === claimFilter;
       const matchesCategory = categoryFilter === "all" || shop.category === categoryFilter;
-      const q = debouncedSearchQuery.toLowerCase();
       const matchesSearch =
         q === "" ||
         shop.name.toLowerCase().includes(q) ||
@@ -112,10 +121,10 @@ function AdminShopsContent() {
     });
   }, [shops, filter, claimFilter, claimStates, categoryFilter, debouncedSearchQuery]);
 
-  // ソート
   const { sortedData, sortKey, sortDirection, handleSort } = useSortableData(filteredShops, "name");
+  const rowIds = useMemo(() => sortedData.map((s) => s.id), [sortedData]);
+  const selection = useRowSelection(rowIds);
 
-  // 統計
   const stats = useMemo(
     () => ({
       total: shops.length,
@@ -125,7 +134,6 @@ function AdminShopsContent() {
     [shops]
   );
 
-  // カテゴリー別統計
   const categoryStats = useMemo(() => {
     const s: Record<string, number> = {};
     shops.forEach((shop) => {
@@ -134,89 +142,24 @@ function AdminShopsContent() {
     return s;
   }, [shops]);
 
-  // チェックボックス操作
-  const handleSelectAll = useCallback(() => {
-    if (selectedShopIds.length === filteredShops.length) {
-      setSelectedShopIds([]);
-    } else {
-      setSelectedShopIds(filteredShops.map((s) => s.id));
-    }
-  }, [selectedShopIds.length, filteredShops]);
+  const { bulkLoading, runBulk, runSingle } = useBulkAction({
+    endpoint: "/api/admin/shops/bulk",
+    unit: "件",
+    subject: "店舗",
+    onDone: loadShops,
+  });
 
-  const handleSelectShop = useCallback(
-    (shopId: string, index: number, shiftKey: boolean) => {
-      if (shiftKey && lastSelectedIndex !== null) {
-        const start = Math.min(lastSelectedIndex, index);
-        const end = Math.max(lastSelectedIndex, index);
-        const rangeIds = sortedData.slice(start, end + 1).map((s) => s.id);
-        setSelectedShopIds((prev) => Array.from(new Set([...prev, ...rangeIds])));
-      } else {
-        setSelectedShopIds((prev) =>
-          prev.includes(shopId) ? prev.filter((id) => id !== shopId) : [...prev, shopId]
-        );
-        setLastSelectedIndex(index);
-      }
-    },
-    [lastSelectedIndex, sortedData]
-  );
-
-  // 一括操作（実API）
-  const executeBulk = useCallback(
+  const handleBulk = useCallback(
     async (action: "suspend" | "restore" | "delete", label: string) => {
-      if (selectedShopIds.length === 0) return;
-      if (!confirm(`${selectedShopIds.length}件の店舗を一括${label}しますか？`)) return;
-
-      setBulkLoading(true);
-      try {
-        const res = await fetch("/api/admin/shops/bulk", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action, ids: selectedShopIds }),
-        });
-        const data = (await res.json()) as { ok?: boolean; error?: string };
-        if (!res.ok || !data.ok) throw new Error(data.error ?? "エラー");
-        showToast.success(`${selectedShopIds.length}件を${label}しました`);
-        setSelectedShopIds([]);
-        await loadShops();
-      } catch (err) {
-        showToast.error(`一括${label}に失敗しました: ${err instanceof Error ? err.message : ""}`);
-      } finally {
-        setBulkLoading(false);
-      }
+      if (await runBulk(action, selection.selectedIds, label)) selection.clear();
     },
-    [selectedShopIds, loadShops]
-  );
-
-  const handleBulkSuspend = useCallback(() => executeBulk("suspend", "停止"), [executeBulk]);
-  const handleBulkRestore = useCallback(() => executeBulk("restore", "復活"), [executeBulk]);
-  const handleBulkDelete = useCallback(() => executeBulk("delete", "削除"), [executeBulk]);
-
-  // 個別操作
-  const handleSingleAction = useCallback(
-    async (id: string, action: "suspend" | "restore" | "delete") => {
-      const label = action === "suspend" ? "停止" : action === "restore" ? "復活" : "削除";
-      if (!confirm(`この店舗を${label}しますか？`)) return;
-      try {
-        const res = await fetch("/api/admin/shops/bulk", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action, ids: [id] }),
-        });
-        const data = (await res.json()) as { ok?: boolean; error?: string };
-        if (!res.ok || !data.ok) throw new Error(data.error ?? "エラー");
-        showToast.success(`${label}しました`);
-        await loadShops();
-      } catch {
-        showToast.error(`${label}に失敗しました`);
-      }
-    },
-    [loadShops]
+    [runBulk, selection]
   );
 
   // QRの発行（再発行）。代表者がいる店舗には発行できないので、選んだうちそれ以外だけに発行する
   const handleIssueQr = useCallback(async () => {
-    const targets = selectedShopIds.filter((id) => claimStates.get(id) !== "claimed");
-    const skipped = selectedShopIds.length - targets.length;
+    const targets = selection.selectedIds.filter((id) => claimStates.get(id) !== "claimed");
+    const skipped = selection.selectedIds.length - targets.length;
     if (targets.length === 0) {
       showToast.error("代表者がいる店舗にはQRを発行できません。先に詳細で紐づけを解除してください");
       return;
@@ -226,7 +169,7 @@ function AdminShopsContent() {
     try {
       const issued = await issueClaims(targets);
       setIssueResults(issued);
-      setSelectedShopIds([]);
+      selection.clear();
       const ok = issued.filter((r) => r.status === "ok").length;
       showToast.success(`${ok}店舗のQRコードを発行しました${skipped > 0 ? `（代表者がいる${skipped}店舗は対象外）` : ""}`);
       await loadShops();
@@ -235,74 +178,96 @@ function AdminShopsContent() {
     } finally {
       setIssuing(false);
     }
-  }, [selectedShopIds, claimStates, loadShops]);
+  }, [selection, claimStates, loadShops]);
 
-  // エクスポート
-  const handleExportCSV = useCallback(async () => {
-    setIsExporting(true);
-    try {
-      const dataToExport = filteredShops.map((shop) => ({
-        ID: shop.id,
-        店舗名: shop.name,
-        カテゴリー: shop.category,
-        店主: shop.owner,
-        メール: shop.email,
-        ステータス: shop.status === "active" ? "稼働中" : "停止中",
-        登録日: excelText(shop.registeredDate),
-      }));
-      const result = exportToCSV(dataToExport, `shops_${formatDateForFilename()}.csv`);
-      if (result.success) showToast.success("CSVをエクスポートしました");
-      else showToast.error(result.error ?? "エクスポートに失敗しました");
-    } catch {
-      showToast.error("エクスポートに失敗しました");
-    } finally {
-      setIsExporting(false);
-    }
-  }, [filteredShops]);
+  const { isExporting, exportCsv, exportJson } = useListExport({
+    prefix: "shops",
+    rows: filteredShops,
+    toCsvRow: (shop: AdminShop) => ({
+      ID: shop.id,
+      店舗名: shop.name,
+      カテゴリー: shop.category,
+      店主: shop.owner,
+      メール: shop.email,
+      ステータス: shop.status === "active" ? "稼働中" : "停止中",
+      登録日: excelText(shop.registeredDate),
+    }),
+  });
 
-  const handleExportJSON = useCallback(async () => {
-    setIsExporting(true);
-    try {
-      const result = exportToJSON(filteredShops, `shops_${formatDateForFilename()}.json`);
-      if (result.success) showToast.success("JSONをエクスポートしました");
-      else showToast.error(result.error ?? "エクスポートに失敗しました");
-    } catch {
-      showToast.error("エクスポートに失敗しました");
-    } finally {
-      setIsExporting(false);
-    }
-  }, [filteredShops]);
-
-  // キーボードショートカット
-  useKeyboardShortcuts([
-    { key: "a", ctrl: true, description: "全選択", action: handleSelectAll },
+  const shortcuts = [
+    { key: "a", ctrl: true, description: "全選択", action: selection.toggleAll },
     { key: "f", ctrl: true, description: "検索フォーカス", action: () => searchInputRef.current?.focus() },
     { key: "/", description: "検索フォーカス", action: () => searchInputRef.current?.focus() },
-    { key: "e", ctrl: true, description: "CSV出力", action: handleExportCSV },
+    { key: "e", ctrl: true, description: "CSV出力", action: exportCsv },
     { key: "?", description: "ショートカット一覧を表示", action: () => setShowShortcutHelp(true) },
-  ]);
+  ];
+  useKeyboardShortcuts(shortcuts);
+
+  const columns: DataColumn<AdminShop>[] = [
+    {
+      key: "name",
+      header: "店舗",
+      sortKey: "name",
+      render: (shop) => (
+        <>
+          <Link href={`/admin/shops/${shop.id}`} className="text-sm font-medium text-nicchyo-ink hover:underline">
+            {shop.name}
+          </Link>
+          <div className="text-xs text-nicchyo-ink/55">{shop.email}</div>
+        </>
+      ),
+    },
+    { key: "category", header: "カテゴリー", sortKey: "category", render: (shop) => shop.category },
+    { key: "owner", header: "オーナー", sortKey: "owner", render: (shop) => shop.owner },
+    {
+      key: "status",
+      header: "ステータス",
+      sortKey: "status",
+      render: (shop) => (
+        <>
+          <StatusBadge status={shop.status} />
+          <div className="mt-1">
+            <ListingStatusBadge status={shop.listingStatus} />
+          </div>
+        </>
+      ),
+    },
+    {
+      key: "claim",
+      header: "代表者・QR",
+      render: (shop) =>
+        claimStates.has(shop.id) ? (
+          <ClaimStateBadge state={claimStates.get(shop.id)!} />
+        ) : (
+          <span className="text-xs text-nicchyo-ink/40">-</span>
+        ),
+    },
+    { key: "registeredDate", header: "登録日", sortKey: "registeredDate", className: "whitespace-nowrap", render: (shop) => shop.registeredDate },
+  ];
+
+  const shopActions = (shop: AdminShop, className?: string) => (
+    <>
+      {shop.status === "active" ? (
+        <Button variant="quiet" size="sm" className={className} onClick={() => runSingle("suspend", shop.id, "停止")}>停止</Button>
+      ) : (
+        <Button variant="quiet" size="sm" className={className} onClick={() => runSingle("restore", shop.id, "復活")}>復活</Button>
+      )}
+      <Button variant="quiet" size="sm" className={`${DANGER} ${className ?? ""}`} onClick={() => runSingle("delete", shop.id, "削除")}>
+        削除
+      </Button>
+    </>
+  );
 
   if (isLoading || !permissions.isAdmin) {
     return null;
   }
-
-  const allSelected = selectedShopIds.length === sortedData.length && sortedData.length > 0;
 
   return (
     <AdminLayout>
       <AdminPageHeader
         eyebrow="Shops"
         title="店舗管理"
-        actions={
-          <>
-            <Button variant="quiet" size="sm" onClick={handleExportCSV} disabled={isExporting}>
-              CSV出力
-            </Button>
-            <Button variant="quiet" size="sm" onClick={handleExportJSON} disabled={isExporting}>
-              JSON出力
-            </Button>
-          </>
-        }
+        actions={<ExportActions onCsv={exportCsv} onJson={exportJson} loading={isExporting} />}
       />
 
       <div className="mx-auto max-w-7xl px-4 py-8 pb-20">
@@ -339,64 +304,33 @@ function AdminShopsContent() {
               <div className="flex flex-wrap items-center gap-2 border-t border-line pt-3">
                 <span className="text-xs font-medium text-nicchyo-ink/55">代表者・QR</span>
                 {CLAIM_FILTERS.map((f) => (
-                  <button
-                    type="button"
-                    key={f.key}
-                    aria-pressed={claimFilter === f.key}
-                    onClick={() => setClaimFilter(f.key)}
-                    className={`rounded-chip px-3 py-1 text-xs font-medium transition-colors ${
-                      claimFilter === f.key
-                        ? "bg-nicchyo-ink text-white"
-                        : "bg-nicchyo-ink/[0.06] text-nicchyo-ink/70 hover:bg-nicchyo-ink/10"
-                    }`}
-                  >
+                  <FilterChip size="sm" key={f.key} active={claimFilter === f.key} onClick={() => setClaimFilter(f.key)}>
                     {f.label}
-                  </button>
+                  </FilterChip>
                 ))}
               </div>
               {uniqueCategories.length > 0 && (
                 <div className="flex flex-wrap items-center gap-2 border-t border-line pt-3">
                   <span className="text-xs font-medium text-nicchyo-ink/55">カテゴリー</span>
                   {["all", ...uniqueCategories].map((cat) => (
-                    <button
-                      type="button"
-                      key={cat}
-                      aria-pressed={categoryFilter === cat}
-                      onClick={() => setCategoryFilter(cat)}
-                      className={`rounded-chip px-3 py-1 text-xs font-medium transition-colors ${
-                        categoryFilter === cat
-                          ? "bg-nicchyo-ink text-white"
-                          : "bg-nicchyo-ink/[0.06] text-nicchyo-ink/70 hover:bg-nicchyo-ink/10"
-                      }`}
-                    >
+                    <FilterChip size="sm" key={cat} active={categoryFilter === cat} onClick={() => setCategoryFilter(cat)}>
                       {cat === "all" ? "すべて" : `${cat} (${categoryStats[cat] ?? 0})`}
-                    </button>
+                    </FilterChip>
                   ))}
                 </div>
               )}
             </ReviewToolbar>
 
-            {/* 一括操作ツールバー */}
-            {selectedShopIds.length > 0 && (
-              <div className="mb-4 flex flex-col gap-3 rounded-card bg-amber-50 p-3 ring-1 ring-amber-200 sm:flex-row sm:items-center sm:justify-between sm:p-4">
-                <div className="flex items-center gap-3">
-                  <span className="text-sm font-medium text-nicchyo-ink">{selectedShopIds.length}件選択中</span>
-                  <button type="button" onClick={() => setSelectedShopIds([])} className="text-sm text-amber-800 underline hover:no-underline">
-                    解除
-                  </button>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  <Button variant="quiet" size="sm" onClick={handleBulkRestore} disabled={bulkLoading}>一括復活</Button>
-                  <Button variant="quiet" size="sm" onClick={handleIssueQr} disabled={issuing || bulkLoading}>
-                    {issuing ? "発行しています…" : "QRを発行"}
-                  </Button>
-                  <Button variant="quiet" size="sm" onClick={handleBulkSuspend} disabled={bulkLoading}>一括停止</Button>
-                  <Button variant="quiet" size="sm" className="text-rose-700 hover:bg-rose-50" onClick={handleBulkDelete} disabled={bulkLoading}>
-                    一括削除
-                  </Button>
-                </div>
-              </div>
-            )}
+            <BulkActionBar count={selection.selectedIds.length} onClear={selection.clear}>
+              <Button variant="quiet" size="sm" onClick={handleIssueQr} disabled={issuing || bulkLoading}>
+                {issuing ? "発行しています…" : "QRを発行"}
+              </Button>
+              <Button variant="quiet" size="sm" onClick={() => handleBulk("restore", "復活")} disabled={bulkLoading}>一括復活</Button>
+              <Button variant="quiet" size="sm" onClick={() => handleBulk("suspend", "停止")} disabled={bulkLoading}>一括停止</Button>
+              <Button variant="quiet" size="sm" className={DANGER} onClick={() => handleBulk("delete", "削除")} disabled={bulkLoading}>
+                一括削除
+              </Button>
+            </BulkActionBar>
 
             {issueResults && issueResults.some((r) => r.status === "ok") && (
               <div className="mb-4">
@@ -416,174 +350,52 @@ function AdminShopsContent() {
             {sortedData.length === 0 ? (
               <EmptyState icon="🏪" title="店舗が見つかりません" description="検索条件に一致する店舗がありません。" />
             ) : (
-              <>
-                {/* PC: テーブル */}
-                <div className="hidden overflow-hidden rounded-card bg-white shadow-card ring-1 ring-line sm:block">
-                  <div className="max-h-[70vh] overflow-auto">
-                    <table className="w-full min-w-[720px]">
-                      <thead className="sticky top-0 z-10 bg-nicchyo-base">
-                        <tr className="border-b border-line">
-                          <th scope="col" className="w-10 px-4 py-3 text-left">
-                            <Tooltip content="全選択/解除 (Ctrl+A)" position="top">
-                              <input
-                                type="checkbox"
-                                aria-label="表示中の店舗をすべて選択"
-                                checked={allSelected}
-                                onChange={handleSelectAll}
-                                className="h-4 w-4 rounded border-line accent-amber-600"
-                              />
-                            </Tooltip>
-                          </th>
-                          <SortableColumnHeader label="店舗" sortKey="name" currentSortKey={sortKey} currentSortDirection={sortDirection} onSort={handleSort} />
-                          <SortableColumnHeader label="カテゴリー" sortKey="category" currentSortKey={sortKey} currentSortDirection={sortDirection} onSort={handleSort} />
-                          <SortableColumnHeader label="オーナー" sortKey="owner" currentSortKey={sortKey} currentSortDirection={sortDirection} onSort={handleSort} />
-                          <SortableColumnHeader label="ステータス" sortKey="status" currentSortKey={sortKey} currentSortDirection={sortDirection} onSort={handleSort} />
-                          <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-nicchyo-ink/55">代表者・QR</th>
-                          <SortableColumnHeader label="登録日" sortKey="registeredDate" currentSortKey={sortKey} currentSortDirection={sortDirection} onSort={handleSort} />
-                          <th scope="col" className="px-4 py-3 text-right text-xs font-medium text-nicchyo-ink/55">操作</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-line">
-                        {sortedData.map((shop, index) => (
-                          <tr key={shop.id} className="hover:bg-nicchyo-base/60">
-                            <td className="px-4 py-3">
-                              <input
-                                type="checkbox"
-                                aria-label={`${shop.name}を選択`}
-                                checked={selectedShopIds.includes(shop.id)}
-                                onChange={(e) => handleSelectShop(shop.id, index, (e.nativeEvent as MouseEvent).shiftKey)}
-                                className="h-4 w-4 rounded border-line accent-amber-600"
-                              />
-                            </td>
-                            <td className="px-4 py-3">
-                              <Link href={`/admin/shops/${shop.id}`} className="font-medium text-nicchyo-ink hover:underline">
-                                {shop.name}
-                              </Link>
-                              <div className="text-xs text-nicchyo-ink/55">{shop.email}</div>
-                            </td>
-                            <td className="px-4 py-3 text-sm text-nicchyo-ink/70">{shop.category}</td>
-                            <td className="px-4 py-3 text-sm text-nicchyo-ink/70">{shop.owner}</td>
-                            <td className="px-4 py-3">
-                              <StatusBadge status={shop.status} />
-                              <div className="mt-1">
-                                <ListingStatusBadge status={shop.listingStatus} />
-                              </div>
-                            </td>
-                            <td className="px-4 py-3">
-                              {claimStates.has(shop.id) ? <ClaimStateBadge state={claimStates.get(shop.id)!} /> : <span className="text-xs text-nicchyo-ink/40">-</span>}
-                            </td>
-                            <td className="px-4 py-3 text-sm whitespace-nowrap text-nicchyo-ink/70">{shop.registeredDate}</td>
-                            <td className="px-4 py-3 whitespace-nowrap text-right">
-                              <div className="flex justify-end gap-2">
-                                {shop.status === "active" ? (
-                                  <Button variant="quiet" size="sm" onClick={() => handleSingleAction(shop.id, "suspend")}>停止</Button>
-                                ) : (
-                                  <Button variant="quiet" size="sm" onClick={() => handleSingleAction(shop.id, "restore")}>復活</Button>
-                                )}
-                                <Button variant="quiet" size="sm" className="text-rose-700 hover:bg-rose-50" onClick={() => handleSingleAction(shop.id, "delete")}>
-                                  削除
-                                </Button>
-                              </div>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-
-                {/* モバイル: カードリスト */}
-                <ul className="space-y-3 sm:hidden">
-                  {sortedData.map((shop) => (
-                    <Surface as="li" key={shop.id} padding="sm">
-                      <div className="mb-2 flex items-start justify-between gap-2">
-                        <div className="flex items-start gap-2">
-                          <input
-                            type="checkbox"
-                            aria-label={`${shop.name}を選択`}
-                            checked={selectedShopIds.includes(shop.id)}
-                            onChange={() =>
-                              setSelectedShopIds((prev) =>
-                                prev.includes(shop.id) ? prev.filter((id) => id !== shop.id) : [...prev, shop.id]
-                              )
-                            }
-                            className="mt-1 h-4 w-4 rounded border-line accent-amber-600"
-                          />
-                          <div>
-                            <Link href={`/admin/shops/${shop.id}`} className="font-medium text-nicchyo-ink hover:underline">
-                              {shop.name}
-                            </Link>
-                            <div className="text-xs text-nicchyo-ink/55">{shop.category}</div>
-                            <div className="mt-1 flex flex-wrap gap-1">
-                              <ListingStatusBadge status={shop.listingStatus} />
-                              {claimStates.has(shop.id) && <ClaimStateBadge state={claimStates.get(shop.id)!} />}
-                            </div>
+              <AdminDataTable
+                rows={sortedData}
+                getRowId={(shop) => shop.id}
+                columns={columns}
+                sort={{ key: sortKey, direction: sortDirection, onSort: handleSort }}
+                selection={selection}
+                selectionLabel={(shop) => `${shop.name}を選択`}
+                selectAllLabel="表示中の店舗をすべて選択"
+                actions={(shop) => shopActions(shop)}
+                mobileCard={(shop) => (
+                  <Surface padding="sm">
+                    <div className="mb-2 flex items-start justify-between gap-2">
+                      <div className="flex items-start gap-2">
+                        <input
+                          type="checkbox"
+                          aria-label={`${shop.name}を選択`}
+                          checked={selection.isSelected(shop.id)}
+                          onChange={() => selection.toggle(shop.id, 0)}
+                          className="mt-1 h-4 w-4 rounded border-line accent-amber-600"
+                        />
+                        <div>
+                          <Link href={`/admin/shops/${shop.id}`} className="font-medium text-nicchyo-ink hover:underline">
+                            {shop.name}
+                          </Link>
+                          <div className="text-xs text-nicchyo-ink/55">{shop.category}</div>
+                          <div className="mt-1 flex flex-wrap gap-1">
+                            <ListingStatusBadge status={shop.listingStatus} />
+                            {claimStates.has(shop.id) && <ClaimStateBadge state={claimStates.get(shop.id)!} />}
                           </div>
                         </div>
-                        <StatusBadge status={shop.status} />
                       </div>
-                      <div className="mb-3 text-xs text-nicchyo-ink/55">
-                        オーナー: {shop.owner}<span className="mx-2">·</span>登録: {shop.registeredDate}
-                      </div>
-                      <div className="flex gap-2">
-                        {shop.status === "active" ? (
-                          <Button variant="quiet" size="sm" className="flex-1" onClick={() => handleSingleAction(shop.id, "suspend")}>停止</Button>
-                        ) : (
-                          <Button variant="quiet" size="sm" className="flex-1" onClick={() => handleSingleAction(shop.id, "restore")}>復活</Button>
-                        )}
-                        <Button variant="quiet" size="sm" className="flex-1 text-rose-700 hover:bg-rose-50" onClick={() => handleSingleAction(shop.id, "delete")}>
-                          削除
-                        </Button>
-                      </div>
-                    </Surface>
-                  ))}
-                </ul>
-              </>
+                      <StatusBadge status={shop.status} />
+                    </div>
+                    <div className="mb-3 text-xs text-nicchyo-ink/55">
+                      オーナー: {shop.owner}<span className="mx-2">·</span>登録: {shop.registeredDate}
+                    </div>
+                    <div className="flex gap-2">{shopActions(shop, "flex-1")}</div>
+                  </Surface>
+                )}
+              />
             )}
           </>
         )}
       </div>
 
-      {/* ショートカットヘルプボタン（PCのみ） */}
-      <div className="hidden sm:block">
-        <Tooltip content="キーボードショートカット (?)">
-          <button
-            type="button"
-            onClick={() => setShowShortcutHelp(true)}
-            className="fixed bottom-8 right-8 w-12 h-12 bg-gray-800 hover:bg-gray-700 text-white rounded-full shadow-lg flex items-center justify-center z-40 transition"
-            aria-label="ショートカット一覧"
-          >
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-          </button>
-        </Tooltip>
-      </div>
-
-      {/* ショートカットヘルプモーダル */}
-      {showShortcutHelp && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={() => setShowShortcutHelp(false)}>
-          <div className="bg-white rounded-lg p-6 max-w-md w-full" onClick={(e) => e.stopPropagation()}>
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-bold text-gray-900">キーボードショートカット</h3>
-              <button type="button" onClick={() => setShowShortcutHelp(false)} className="text-gray-400 hover:text-gray-600">
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-            <ShortcutHelp
-              shortcuts={[
-                { key: "a", ctrl: true, description: "全選択", action: () => {} },
-                { key: "f", ctrl: true, description: "検索フォーカス", action: () => {} },
-                { key: "/", description: "検索フォーカス", action: () => {} },
-                { key: "e", ctrl: true, description: "CSV出力", action: () => {} },
-                { key: "?", description: "このヘルプを表示", action: () => {} },
-              ]}
-            />
-          </div>
-        </div>
-      )}
+      <ShortcutHelpLauncher shortcuts={shortcuts} open={showShortcutHelp} onOpenChange={setShowShortcutHelp} />
     </AdminLayout>
   );
 }

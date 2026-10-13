@@ -1,10 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { UserRole } from "@/lib/auth/types";
-import { exportToCSV, exportToJSON, formatDateForFilename, excelText } from "@/lib/admin/exportUtils";
+import { excelText } from "@/lib/admin/exportUtils";
 import { showToast } from "@/lib/admin/toast";
-import { useVirtualizer } from "@tanstack/react-virtual";
 import { useDebounce } from "use-debounce";
 import { useSortableData } from "@/components/admin/desktop/SortableTableHeader";
+import { useRowSelection } from "@/components/admin/useRowSelection";
+import { useBulkAction } from "@/components/admin/useBulkAction";
+import { useListExport } from "@/components/admin/useListExport";
+import { ROLE_LABEL } from "./roles";
 
 export interface AdminUser {
   id: string;
@@ -29,15 +32,11 @@ export function useAdminUsers({ isAdmin }: { isAdmin: boolean }) {
   const [filter, setFilter] = useState<"all" | UserRole | "suspended">("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedSearchQuery] = useDebounce(searchQuery, 300);
-  const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
   const [roleChangeUser, setRoleChangeUser] = useState<AdminUser | null>(null);
   const [newRole, setNewRole] = useState<UserRole>("general_user");
-  const [isExporting, setIsExporting] = useState(false);
-  const [bulkLoading, setBulkLoading] = useState(false);
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [isLoadingUsers, setIsLoadingUsers] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [lastSelectedIndex, setLastSelectedIndex] = useState<number | null>(null);
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<UserRole>("general_user");
@@ -109,75 +108,8 @@ export function useAdminUsers({ isAdmin }: { isAdmin: boolean }) {
     [users]
   );
 
-  // Virtual scrolling setup
-  const parentRef = useRef<HTMLDivElement>(null);
-  const rowVirtualizer = useVirtualizer({
-    count: sortedData.length,
-    getScrollElement: () => parentRef.current,
-    estimateSize: () => 56,
-    overscan: 5,
-  });
-
-  const getRoleBadge = useCallback((role: UserRole) => {
-    switch (role) {
-      case "admin":
-        return "bg-red-100 text-red-800";
-      case "vendor":
-        return "bg-blue-100 text-blue-800";
-      case "general_user":
-        return "bg-gray-100 text-gray-800";
-      case "moderator":
-        return "bg-purple-100 text-purple-800";
-    }
-  }, []);
-
-  const getRoleLabel = useCallback((role: UserRole) => {
-    switch (role) {
-      case "admin":
-        return "管理者";
-      case "vendor":
-        return "出店者";
-      case "general_user":
-        return "一般";
-      case "moderator":
-        return "モデレーター";
-    }
-  }, []);
-
-  // チェックボックス操作
-  const handleSelectAll = useCallback(() => {
-    if (selectedUserIds.length === filteredUsers.length) {
-      setSelectedUserIds([]);
-    } else {
-      setSelectedUserIds(filteredUsers.map((user) => user.id));
-    }
-  }, [selectedUserIds.length, filteredUsers]);
-
-  const handleSelectUser = useCallback(
-    (userId: string, index: number, shiftKey: boolean) => {
-      if (shiftKey && lastSelectedIndex !== null) {
-        // Shift+クリックで範囲選択
-        const start = Math.min(lastSelectedIndex, index);
-        const end = Math.max(lastSelectedIndex, index);
-        const rangeIds = sortedData.slice(start, end + 1).map((user) => user.id);
-
-        setSelectedUserIds((prev) => {
-          const newSet = new Set(prev);
-          rangeIds.forEach((id) => newSet.add(id));
-          return Array.from(newSet);
-        });
-      } else {
-        // 通常のクリックでトグル
-        if (selectedUserIds.includes(userId)) {
-          setSelectedUserIds(selectedUserIds.filter((id) => id !== userId));
-        } else {
-          setSelectedUserIds([...selectedUserIds, userId]);
-        }
-        setLastSelectedIndex(index);
-      }
-    },
-    [selectedUserIds, lastSelectedIndex, sortedData]
-  );
+  const rowIds = useMemo(() => sortedData.map((u) => u.id), [sortedData]);
+  const selection = useRowSelection(rowIds);
 
   const reloadUsers = useCallback(() => {
     setIsLoadingUsers(true);
@@ -198,120 +130,37 @@ export function useAdminUsers({ isAdmin }: { isAdmin: boolean }) {
       });
   }, []);
 
-  // 一括操作
-  const handleBulkActivate = useCallback(async () => {
-    if (selectedUserIds.length === 0) return;
-    if (!confirm(`${selectedUserIds.length}人のユーザーを一括アクティブ化しますか？`)) return;
+  // 一括操作（確認 → API → 通知 → 読み直しは共通）
+  const { bulkLoading, runBulk } = useBulkAction({
+    endpoint: "/api/admin/users/bulk",
+    unit: "人",
+    subject: "ユーザー",
+    deleteWarning: "この操作は取り消せません。",
+    onDone: reloadUsers,
+  });
 
-    setBulkLoading(true);
-    try {
-      const res = await fetch("/api/admin/users/bulk", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "restore", ids: selectedUserIds }),
-      });
-      if (!res.ok) throw new Error("failed");
-      showToast.success(`${selectedUserIds.length}人のユーザーをアクティブ化しました`);
-      setSelectedUserIds([]);
-      reloadUsers();
-    } catch {
-      showToast.error("一括アクティブ化に失敗しました");
-    } finally {
-      setBulkLoading(false);
-    }
-  }, [selectedUserIds, reloadUsers]);
-
-  const handleBulkSuspend = useCallback(async () => {
-    if (selectedUserIds.length === 0) return;
-    if (!confirm(`${selectedUserIds.length}人のユーザーを一括停止しますか？`)) return;
-
-    setBulkLoading(true);
-    try {
-      const res = await fetch("/api/admin/users/bulk", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "suspend", ids: selectedUserIds }),
-      });
-      if (!res.ok) throw new Error("failed");
-      showToast.success(`${selectedUserIds.length}人のユーザーを停止しました`);
-      setSelectedUserIds([]);
-      reloadUsers();
-    } catch {
-      showToast.error("一括停止に失敗しました");
-    } finally {
-      setBulkLoading(false);
-    }
-  }, [selectedUserIds, reloadUsers]);
-
-  const handleBulkDelete = useCallback(async () => {
-    if (selectedUserIds.length === 0) return;
-    if (
-      !confirm(`${selectedUserIds.length}人のユーザーを一括削除しますか？この操作は取り消せません。`)
-    )
-      return;
-
-    setBulkLoading(true);
-    try {
-      const res = await fetch("/api/admin/users/bulk", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "delete", ids: selectedUserIds }),
-      });
-      if (!res.ok) throw new Error("failed");
-      showToast.success(`${selectedUserIds.length}人のユーザーを削除しました`);
-      setSelectedUserIds([]);
-      reloadUsers();
-    } catch {
-      showToast.error("一括削除に失敗しました");
-    } finally {
-      setBulkLoading(false);
-    }
-  }, [selectedUserIds, reloadUsers]);
+  const handleBulk = useCallback(
+    async (action: "restore" | "suspend" | "delete", label: string) => {
+      if (await runBulk(action, selection.selectedIds, label)) selection.clear();
+    },
+    [runBulk, selection]
+  );
 
   // エクスポート
-  const handleExportCSV = useCallback(async () => {
-    setIsExporting(true);
-    try {
-      const dataToExport = filteredUsers.map((user) => ({
-        ID: user.id,
-        名前: user.name,
-        メールアドレス: user.email,
-        ロール: getRoleLabel(user.role),
-        店舗ID: user.vendorId?.toString() || "",
-        登録日: excelText(user.registeredDate),
-        最終ログイン: excelText(user.lastLogin),
-        ステータス: user.status === "active" ? "アクティブ" : "停止中",
-      }));
-      const filename = `users_${formatDateForFilename()}.csv`;
-      const result = exportToCSV(dataToExport, filename);
-      if (result.success) {
-        showToast.success("CSVファイルをエクスポートしました");
-      } else {
-        showToast.error(result.error || "エクスポートに失敗しました");
-      }
-    } catch (_error) {
-      showToast.error("エクスポートに失敗しました");
-    } finally {
-      setIsExporting(false);
-    }
-  }, [filteredUsers, getRoleLabel]);
-
-  const handleExportJSON = useCallback(async () => {
-    setIsExporting(true);
-    try {
-      const filename = `users_${formatDateForFilename()}.json`;
-      const result = exportToJSON(filteredUsers, filename);
-      if (result.success) {
-        showToast.success("JSONファイルをエクスポートしました");
-      } else {
-        showToast.error(result.error || "エクスポートに失敗しました");
-      }
-    } catch (_error) {
-      showToast.error("エクスポートに失敗しました");
-    } finally {
-      setIsExporting(false);
-    }
-  }, [filteredUsers]);
+  const { isExporting, exportCsv, exportJson } = useListExport({
+    prefix: "users",
+    rows: filteredUsers,
+    toCsvRow: (user: AdminUser) => ({
+      ID: user.id,
+      名前: user.name,
+      メールアドレス: user.email,
+      ロール: ROLE_LABEL[user.role],
+      店舗ID: user.vendorId?.toString() || "",
+      登録日: excelText(user.registeredDate),
+      最終ログイン: excelText(user.lastLogin),
+      ステータス: user.status === "active" ? "アクティブ" : "停止中",
+    }),
+  });
 
   const handleSuspendUser = useCallback(async (user: AdminUser) => {
     if (!confirm(`「${user.name}」を停止しますか？`)) return;
@@ -386,7 +235,7 @@ export function useAdminUsers({ isAdmin }: { isAdmin: boolean }) {
     }
     if (
       !confirm(
-        `${roleChangeUser.name}のロールを「${getRoleLabel(roleChangeUser.role)}」から「${getRoleLabel(newRole)}」に変更しますか？`
+        `${roleChangeUser.name}のロールを「${ROLE_LABEL[roleChangeUser.role]}」から「${ROLE_LABEL[newRole]}」に変更しますか？`
       )
     )
       return;
@@ -398,13 +247,13 @@ export function useAdminUsers({ isAdmin }: { isAdmin: boolean }) {
         body: JSON.stringify({ action: "change_role", role: newRole }),
       });
       if (!res.ok) throw new Error("failed");
-      showToast.success(`${roleChangeUser.name}のロールを「${getRoleLabel(newRole)}」に変更しました`);
+      showToast.success(`${roleChangeUser.name}のロールを「${ROLE_LABEL[newRole]}」に変更しました`);
       setRoleChangeUser(null);
       reloadUsers();
     } catch {
       showToast.error("ロール変更に失敗しました");
     }
-  }, [roleChangeUser, newRole, getRoleLabel, reloadUsers]);
+  }, [roleChangeUser, newRole, reloadUsers]);
 
   return {
     filter,
@@ -412,15 +261,13 @@ export function useAdminUsers({ isAdmin }: { isAdmin: boolean }) {
     searchQuery,
     setSearchQuery,
     debouncedSearchQuery,
-    selectedUserIds,
-    setSelectedUserIds,
+    selection,
     roleChangeUser,
     setRoleChangeUser,
     newRole,
     setNewRole,
     isExporting,
     bulkLoading,
-    users,
     isLoadingUsers,
     loadError,
     showInviteModal,
@@ -437,18 +284,9 @@ export function useAdminUsers({ isAdmin }: { isAdmin: boolean }) {
     sortDirection,
     handleSort,
     stats,
-    parentRef,
-    rowVirtualizer,
-    getRoleBadge,
-    getRoleLabel,
-    handleSelectAll,
-    handleSelectUser,
-    reloadUsers,
-    handleBulkActivate,
-    handleBulkSuspend,
-    handleBulkDelete,
-    handleExportCSV,
-    handleExportJSON,
+    handleBulk,
+    exportCsv,
+    exportJson,
     handleSuspendUser,
     handleRestoreUser,
     handleCreateUser,

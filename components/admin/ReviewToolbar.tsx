@@ -20,10 +20,37 @@ interface ReviewToolbarProps<T extends string> {
     onChange: (next: string) => void;
     placeholder: string;
   };
-  /** 検索欄の右隣など、フィルターと同じ行に置きたいもの（表示密度の切り替えなど） */
-  extra?: React.ReactNode;
   /** フィルターの下の段（カテゴリ絞り込みなど） */
   children?: React.ReactNode;
+}
+
+/** 絞り込みのピル。ReviewToolbar の状態の絞り込みと、その下に足す副フィルター（カテゴリなど）で共通 */
+export function FilterChip({
+  active,
+  onClick,
+  size = "md",
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  size?: "md" | "sm";
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      aria-pressed={active}
+      onClick={onClick}
+      className={cn(
+        "rounded-chip font-medium transition-colors",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/60",
+        size === "md" ? "px-3.5 py-1.5 text-sm" : "px-3 py-1 text-xs",
+        active ? "bg-nicchyo-ink text-white" : "bg-nicchyo-ink/[0.06] text-nicchyo-ink/70 hover:bg-nicchyo-ink/10"
+      )}
+    >
+      {children}
+    </button>
+  );
 }
 
 /**
@@ -31,37 +58,21 @@ interface ReviewToolbarProps<T extends string> {
  * 検索欄の ref は、キーボードショートカットでフォーカスを移したい画面のために受け渡せる。
  */
 function ReviewToolbarInner<T extends string>(
-  { filters, value, onChange, search, extra, children }: ReviewToolbarProps<T>,
+  { filters, value, onChange, search, children }: ReviewToolbarProps<T>,
   searchRef: React.ForwardedRef<HTMLInputElement>
 ) {
   return (
     <Surface padding="sm" className="mb-4 space-y-3">
       <div className="flex flex-wrap items-center gap-3">
         <div role="group" aria-label="状態で絞り込む" className="flex flex-wrap gap-2">
-          {filters.map((f) => {
-            const isActive = f.key === value;
-            return (
-              <button
-                key={f.key}
-                type="button"
-                aria-pressed={isActive}
-                onClick={() => onChange(f.key)}
-                className={cn(
-                  "rounded-chip px-3.5 py-1.5 text-sm font-medium transition-colors",
-                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/60",
-                  isActive
-                    ? "bg-nicchyo-ink text-white"
-                    : "bg-nicchyo-ink/[0.06] text-nicchyo-ink/70 hover:bg-nicchyo-ink/10"
-                )}
-              >
-                {f.label}
-                {f.count !== undefined && <span className="ml-1 tabular-nums">({f.count})</span>}
-              </button>
-            );
-          })}
+          {filters.map((f) => (
+            <FilterChip key={f.key} active={f.key === value} onClick={() => onChange(f.key)}>
+              {f.label}
+              {f.count !== undefined && <span className="ml-1 tabular-nums">({f.count})</span>}
+            </FilterChip>
+          ))}
         </div>
         <div className="ml-auto flex w-full items-center gap-2 sm:w-auto">
-          {extra}
           <div className="relative w-full sm:w-64">
             <Search
               size={14}

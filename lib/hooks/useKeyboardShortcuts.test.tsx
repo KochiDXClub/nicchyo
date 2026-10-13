@@ -135,7 +135,8 @@ describe("ShortcutHelp component", () => {
 
     render(<ShortcutHelp shortcuts={shortcuts} />);
 
-    expect(screen.getByText("キーボードショートカット")).toBeInTheDocument();
+    // 見出しは、開くモーダル側（ShortcutHelpLauncher）が持つ
+    expect(screen.queryByText("キーボードショートカット")).not.toBeInTheDocument();
 
     expect(screen.getByText("Save")).toBeInTheDocument();
     expect(screen.getByText("Ctrl + S")).toBeInTheDocument();
