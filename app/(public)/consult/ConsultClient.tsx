@@ -27,7 +27,7 @@ export default function ConsultClient() {
   // 既定はにちよさん。null にすると話し手が毎回変わり、会話全体が掛け合いに見える
   const [preferredCharacterId, setPreferredCharacterId] =
     useState<ConsultCharacterId>(DEFAULT_CONSULT_CHARACTER_ID);
-  // PC版「これまでの相談」サイドバーの開閉。既定は閉じ、チャット欄を中央のまま保つ
+  // 「これまでの相談」サイドバー（PC・モバイル共通）の開閉。既定は閉じ、チャット欄を中央のまま保つ
   const [isHistorySidebarOpen, setIsHistorySidebarOpen] = useState(false);
   const searchParams = useSearchParams();
 
@@ -235,7 +235,9 @@ export default function ConsultClient() {
         画面端にぴったり付かなくなる
       */}
       <main
-        className={`relative z-10 w-full pb-16 ${
+        // サイドバーの開け閉めに合わせて、本文の左の空きも滑らかに広げ・縮める
+        // （サイドバー側の動きと同じ速さ・緩急。ConsultStage の HISTORY_SIDEBAR_SLIDE_*）
+        className={`relative z-10 w-full pb-16 motion-safe:transition-[padding-left] motion-safe:duration-300 motion-safe:ease-out-soft ${
           isHistorySidebarOpen ? "lg:pl-80" : ""
         }`}
       >
