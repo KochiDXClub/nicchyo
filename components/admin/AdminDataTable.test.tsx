@@ -78,6 +78,23 @@ describe("useRowSelection", () => {
     expect(result.current.selectedIds).toEqual([]);
   });
 
+  it("絞り込みで見えなくなった行は、選択からも外れる", () => {
+    const { result, rerender } = renderHook(({ list }) => useRowSelection(list), { initialProps: { list: ids } });
+    act(() => result.current.toggleAll());
+    expect(result.current.selectedIds).toEqual(ids);
+    rerender({ list: ["b", "c"] });
+    expect(result.current.selectedIds).toEqual(["b", "c"]);
+    expect(result.current.allSelected).toBe(true);
+  });
+
+  it("並べ替えのあとでも、Shift は前に選んだ行（id）を基準にする", () => {
+    const { result, rerender } = renderHook(({ list }) => useRowSelection(list), { initialProps: { list: ids } });
+    act(() => result.current.toggle("a", 0));
+    rerender({ list: ["d", "c", "b", "a"] }); // a は末尾（3）へ
+    act(() => result.current.toggle("c", 1, true));
+    expect(result.current.selectedIds.sort()).toEqual(["a", "b", "c"]);
+  });
+
   it("Shift で、前に選んだ行との間をまとめて選ぶ", () => {
     const { result } = renderHook(() => useRowSelection(ids));
     act(() => result.current.toggle("a", 0));

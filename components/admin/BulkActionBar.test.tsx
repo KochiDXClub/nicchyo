@@ -47,4 +47,24 @@ describe("useBulkAction", () => {
     expect(confirmMock).toHaveBeenCalledWith("1人のユーザーを一括削除しますか？取り消せません。");
     expect(onDone).not.toHaveBeenCalled();
   });
+
+  it("一部だけ失敗（207）したときは、エラーを出したうえで、成功した分が消えるよう読み直す", async () => {
+    const onDone = vi.fn();
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ ok: false, error: "1件の処理に失敗しました" }), { status: 207 }),
+    );
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    const { result } = renderHook(() => useBulkAction({ endpoint: "/api/u/bulk", unit: "人", subject: "ユーザー", onDone }));
+    await act(async () => expect(await result.current.runBulk("suspend", ["a", "b"], "停止")).toBe(false));
+    expect(onDone).toHaveBeenCalledTimes(1);
+  });
+
+  it("ネットワークが失敗したら false を返し、読み直さない", async () => {
+    const onDone = vi.fn();
+    vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("network"));
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    const { result } = renderHook(() => useBulkAction({ endpoint: "/api/u/bulk", unit: "人", subject: "ユーザー", onDone }));
+    await act(async () => expect(await result.current.runSingle("suspend", "a", "停止")).toBe(false));
+    expect(onDone).not.toHaveBeenCalled();
+  });
 });

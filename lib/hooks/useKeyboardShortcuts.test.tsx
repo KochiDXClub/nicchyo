@@ -148,3 +148,20 @@ describe("ShortcutHelp component", () => {
     expect(screen.getByText("/")).toBeInTheDocument();
   });
 });
+
+describe("モーダルの中のキー操作", () => {
+  test("ダイアログの中で押したキーは、背後の画面のショートカットを動かさない", () => {
+    const actionMock = vi.fn();
+    renderHook(() => useKeyboardShortcuts([{ key: "Delete", description: "削除", action: actionMock }]));
+    const { container } = render(
+      <div role="dialog">
+        <select data-testid="role" />
+      </div>,
+    );
+    const select = container.querySelector("select")!;
+    select.dispatchEvent(new KeyboardEvent("keydown", { key: "Delete", bubbles: true }));
+    expect(actionMock).not.toHaveBeenCalled();
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "Delete" }));
+    expect(actionMock).toHaveBeenCalledTimes(1);
+  });
+});

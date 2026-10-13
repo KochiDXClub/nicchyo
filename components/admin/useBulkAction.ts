@@ -22,6 +22,27 @@ interface UseBulkActionOptions {
 export function useBulkAction({ endpoint, unit, subject, deleteWarning, onDone }: UseBulkActionOptions) {
   const [bulkLoading, setBulkLoading] = useState(false);
 
+  /** API を呼ぶ。一部だけ失敗した（ok:false）ときも、成功した分が画面に残らないよう読み直す */
+  const post = useCallback(
+    async (action: string, ids: readonly string[]): Promise<{ ok: boolean; error?: string }> => {
+      try {
+        const res = await fetch(endpoint, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action, ids }),
+        });
+        const data = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
+        const ok = res.ok && data.ok !== false;
+        // 207（一部だけ失敗）は、成功した分があるので読み直す。ネットワークや権限の失敗は読み直さない
+        if (ok || res.status === 207) await onDone();
+        return { ok, error: data.error };
+      } catch {
+        return { ok: false };
+      }
+    },
+    [endpoint, onDone],
+  );
+
   const runBulk = useCallback(
     async (action: string, ids: readonly string[], label: string): Promise<boolean> => {
       if (ids.length === 0) return false;
@@ -30,47 +51,27 @@ export function useBulkAction({ endpoint, unit, subject, deleteWarning, onDone }
 
       setBulkLoading(true);
       try {
-        const res = await fetch(endpoint, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action, ids }),
-        });
-        const data = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
-        if (!res.ok || data.ok === false) throw new Error(data.error ?? "エラー");
-        showToast.success(`${ids.length}${unit}を${label}しました`);
-        await onDone();
-        return true;
-      } catch (err) {
-        showToast.error(`一括${label}に失敗しました${err instanceof Error && err.message !== "エラー" ? `: ${err.message}` : ""}`);
-        return false;
+        const result = await post(action, ids);
+        if (result.ok) showToast.success(`${ids.length}${unit}を${label}しました`);
+        else showToast.error(`一括${label}に失敗しました${result.error ? `: ${result.error}` : ""}`);
+        return result.ok;
       } finally {
         setBulkLoading(false);
       }
     },
-    [endpoint, unit, subject, deleteWarning, onDone],
+    [post, unit, subject, deleteWarning],
   );
 
   /** 1行だけの操作（同じ API に ids を1件で送る） */
   const runSingle = useCallback(
     async (action: string, id: string, label: string): Promise<boolean> => {
       if (!confirm(`この${subject}を${label}しますか？`)) return false;
-      try {
-        const res = await fetch(endpoint, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action, ids: [id] }),
-        });
-        const data = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
-        if (!res.ok || data.ok === false) throw new Error(data.error ?? "エラー");
-        showToast.success(`${label}しました`);
-        await onDone();
-        return true;
-      } catch {
-        showToast.error(`${label}に失敗しました`);
-        return false;
-      }
+      const result = await post(action, [id]);
+      if (result.ok) showToast.success(`${label}しました`);
+      else showToast.error(`${label}に失敗しました`);
+      return result.ok;
     },
-    [endpoint, subject, onDone],
+    [post, subject],
   );
 
   return { bulkLoading, runBulk, runSingle };

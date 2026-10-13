@@ -69,7 +69,7 @@ function AdminUsersContent() {
       key: "name",
       header: "ユーザー",
       sortKey: "name",
-      className: "min-w-[16rem]",
+      className: "w-[30%]",
       render: (user) => (
         <div className="flex items-center gap-3">
           <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-nicchyo-ink/[0.06]">
@@ -93,6 +93,7 @@ function AdminUsersContent() {
       key: "role",
       header: "ロール",
       sortKey: "role",
+      className: "w-36",
       render: (user) => (
         <>
           <Badge variant={ROLE_BADGE_VARIANT[user.role]}>{ROLE_LABEL[user.role]}</Badge>
@@ -100,12 +101,13 @@ function AdminUsersContent() {
         </>
       ),
     },
-    { key: "registeredDate", header: "登録日", sortKey: "registeredDate", className: "whitespace-nowrap", render: (user) => user.registeredDate },
-    { key: "lastLogin", header: "最終ログイン", sortKey: "lastLogin", className: "whitespace-nowrap", render: (user) => user.lastLogin },
+    { key: "registeredDate", header: "登録日", sortKey: "registeredDate", className: "w-32 whitespace-nowrap", render: (user) => user.registeredDate },
+    { key: "lastLogin", header: "最終ログイン", sortKey: "lastLogin", className: "w-40 whitespace-nowrap", render: (user) => user.lastLogin },
     {
       key: "status",
       header: "ステータス",
       sortKey: "status",
+      className: "w-32",
       render: (user) => (
         <StatusBadge
           status={user.status === "active" ? "active" : "suspended"}

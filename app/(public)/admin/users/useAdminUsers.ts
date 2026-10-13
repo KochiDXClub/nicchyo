@@ -4,9 +4,7 @@ import { excelText } from "@/lib/admin/exportUtils";
 import { showToast } from "@/lib/admin/toast";
 import { useDebounce } from "use-debounce";
 import { useSortableData } from "@/components/admin/desktop/SortableTableHeader";
-import { useRowSelection } from "@/components/admin/useRowSelection";
-import { useBulkAction } from "@/components/admin/useBulkAction";
-import { useListExport } from "@/components/admin/useListExport";
+import { useBulkAction, useListExport, useRowSelection } from "@/components/admin";
 import { ROLE_LABEL } from "./roles";
 
 export interface AdminUser {

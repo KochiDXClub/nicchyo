@@ -31,8 +31,11 @@ interface AdminDataTableProps<T> {
   /** 最後の「操作」列に置くボタンなど */
   actions?: (row: T) => React.ReactNode;
   /** 付けると、スマホ幅では表の代わりにこのカードを縦に並べる。無ければスマホでも表（横にスクロール） */
-  mobileCard?: (row: T) => React.ReactNode;
-  /** 行が多いときだけ。表示している行だけ描く（上下の余白は空の行で埋めるので、表の構造は変わらない） */
+  mobileCard?: (row: T, index: number) => React.ReactNode;
+  /**
+   * 行が多いときだけ。表示している行だけ描く（上下の余白は空の行で埋めるので、表の構造は変わらない）。
+   * スクロールで列幅が揺れないよう table-fixed にするので、各列の className に幅（w-32 など）を付ける。
+   */
   virtualize?: boolean;
   /** 表の高さの上限（スクロールする） */
   maxHeightClass?: string;
@@ -85,7 +88,7 @@ export function AdminDataTable<T>({
         )}
       >
         <div ref={scrollRef} className={cn("overflow-auto", maxHeightClass)}>
-          <table className="w-full min-w-[720px]">
+          <table className={cn("w-full", virtualize ? "min-w-[960px] table-fixed" : "min-w-[720px]")}>
             <thead className="sticky top-0 z-10 bg-nicchyo-base">
               <tr className="border-b border-line">
                 {selection && (
@@ -119,7 +122,7 @@ export function AdminDataTable<T>({
                   )
                 )}
                 {actions && (
-                  <th scope="col" className="px-4 py-3 text-right text-xs font-medium text-nicchyo-ink/55">
+                  <th scope="col" className={cn("px-4 py-3 text-right text-xs font-medium text-nicchyo-ink/55", virtualize && "w-56")}>
                     操作
                   </th>
                 )}
@@ -171,8 +174,8 @@ export function AdminDataTable<T>({
 
       {mobileCard && (
         <ul className="space-y-3 sm:hidden">
-          {rows.map((row) => (
-            <li key={getRowId(row)}>{mobileCard(row)}</li>
+          {rows.map((row, index) => (
+            <li key={getRowId(row)}>{mobileCard(row, index)}</li>
           ))}
         </ul>
       )}

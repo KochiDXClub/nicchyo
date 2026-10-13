@@ -22,11 +22,11 @@ import {
   ReviewToolbar,
   ShortcutHelpLauncher,
   StatusBadge,
+  useBulkAction,
+  useListExport,
   useRowSelection,
   type DataColumn,
 } from "@/components/admin";
-import { useBulkAction } from "@/components/admin/useBulkAction";
-import { useListExport } from "@/components/admin/useListExport";
 import { Button, Surface } from "@/components/ui";
 import { CenteredLoading } from "@/components/ui/loading-spinner";
 import { useKeyboardShortcuts } from "@/lib/hooks/useKeyboardShortcuts";
@@ -359,7 +359,7 @@ function AdminShopsContent() {
                 selectionLabel={(shop) => `${shop.name}を選択`}
                 selectAllLabel="表示中の店舗をすべて選択"
                 actions={(shop) => shopActions(shop)}
-                mobileCard={(shop) => (
+                mobileCard={(shop, index) => (
                   <Surface padding="sm">
                     <div className="mb-2 flex items-start justify-between gap-2">
                       <div className="flex items-start gap-2">
@@ -367,7 +367,7 @@ function AdminShopsContent() {
                           type="checkbox"
                           aria-label={`${shop.name}を選択`}
                           checked={selection.isSelected(shop.id)}
-                          onChange={() => selection.toggle(shop.id, 0)}
+                          onChange={() => selection.toggle(shop.id, index)}
                           className="mt-1 h-4 w-4 rounded border-line accent-amber-600"
                         />
                         <div>

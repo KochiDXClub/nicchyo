@@ -29,6 +29,8 @@ export function useKeyboardShortcuts(shortcuts: KeyboardShortcut[]) {
     (event: KeyboardEvent) => {
       // 入力フィールド内では無効化
       const target = event.target as HTMLElement;
+      // モーダルが開いているあいだは、背後の画面のショートカットを効かせない（Delete で一括削除の確認が出るなど）
+      if (target.closest?.('[role="dialog"]')) return;
       const isInputField =
         target.tagName === "INPUT" ||
         target.tagName === "TEXTAREA" ||
