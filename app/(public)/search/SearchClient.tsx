@@ -15,6 +15,7 @@ import SearchDiscovery from './components/SearchDiscovery';
 import { useFavoriteShopIds } from '../../../lib/hooks/useFavorites';
 import { useShopFavoriteToggle } from '../../components/favorites/useShopFavoriteToggle';
 import { saveSearchMapPayload } from '../../../lib/searchMapStorage';
+import { MIN_SEARCH_KEYWORD_LENGTH, recordSearch } from '../../../lib/analytics/searchLogs';
 import ShopDetailBanner from '../map/components/ShopDetailBanner';
 
 const MapView = dynamic(() => import('../map/components/maplibre/MapViewMapLibre'), {
@@ -229,14 +230,8 @@ export default function SearchClient({
   // 検索キーワードをDBにログ（1秒デバウンス、2文字以上）
   useEffect(() => {
     const kw = textQuery.trim();
-    if (kw.length < 2) return;
-    const timer = setTimeout(() => {
-      // 記録には Supabase のライブラリが要る。静的に import すると検索画面と地図の
-      // 最初の JS に入ってしまうため、記録するときに読み込む
-      import('@/app/vendor/_services/analyticsService')
-        .then(({ recordProductSearch }) => recordProductSearch(kw, filteredShops.length))
-        .catch(() => {/* ignore */});
-    }, 1000);
+    if (kw.length < MIN_SEARCH_KEYWORD_LENGTH) return;
+    const timer = setTimeout(() => recordSearch(kw, filteredShops.length), 1000);
     return () => clearTimeout(timer);
   }, [textQuery, filteredShops.length]);
 
