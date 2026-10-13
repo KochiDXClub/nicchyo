@@ -11,6 +11,7 @@ import { PAYMENT_OPTIONS, RAIN_OPTIONS } from "@/lib/vendor/storeOptions";
 import type { AdminShopDetail } from "@/lib/admin/shopEdit";
 import { Surface, buttonClass } from "@/components/ui";
 import { ListingStatusBadge } from "../ListingStatusBadge";
+import { ShopAccountSection } from "./components/ShopAccountSection";
 
 
 const EMPTY = "未入力";
@@ -153,6 +154,8 @@ function AdminShopDetailContent() {
               <Row label="X">{orEmpty(shop.sns_x)}</Row>
               <Row label="ホームページ">{orEmpty(shop.sns_hp)}</Row>
             </Section>
+
+            <ShopAccountSection vendorId={shop.id} />
 
             <p className="text-right text-xs text-nicchyo-ink/40">
               最終更新: {shop.updated_at ? new Date(shop.updated_at).toLocaleString("ja-JP") : "-"}

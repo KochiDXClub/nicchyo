@@ -26,7 +26,7 @@
 | A-14 | 週次セキュリティレポート | B | ✅ | `/admin/security-reports` |
 | A-15 | マップ描画計測・コード健康診断 | C | ✅ | `/admin/map-perf` `/admin/code-health` |
 | A-16 | 危険な操作（一括・全体に影響する設定） | A | ✅ | `/admin/settings`（danger タブ）、`/api/admin/danger` |
-| A-17 | 店舗のQRコード（発行・再発行・紐づけの解除）・店舗の操作ログ | **S** | ✅ | `/admin/shop-claims` |
+| A-17 | 店舗のQRコード（発行・再発行・紐づけの解除）・店舗の操作ログ | **S** | ✅ | `/admin/shops`（一覧で一括発行、詳細で個別操作。旧 /admin/shop-claims はここへリダイレクト） |
 | A-18 | 現場登録（日曜市の現地で、スマホから店舗の情報・掲載許可・写真・位置を登録） | **S** | ✅ | `/admin/field` |
 
 ## 機能一覧（モデレーター）

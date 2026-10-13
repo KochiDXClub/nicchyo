@@ -26,6 +26,22 @@ describe("PageShell", () => {
     expect(style).toContain("--safe-bottom");
   });
 
+  it("topNav では、上端の帯の分だけ上を空け、下端のナビの余白は 0 にする", () => {
+    render(<PageShell data-testid="shell" topNav />);
+    const classes = screen.getByTestId("shell").className;
+    expect(classes).toContain("pt-[var(--page-top-space)]");
+    expect(classes).toContain("[--nav-bar-height:0px]");
+    // lg 以上は帯ではなく右上の小さなバーなので、上は空けない
+    expect(classes).toContain("lg:[--page-top-space:0px]");
+  });
+
+  it("topNav でなければ、上の余白も --nav-bar-height の上書きも足さない", () => {
+    render(<PageShell data-testid="shell" />);
+    const classes = screen.getByTestId("shell").className;
+    expect(classes).not.toContain("--page-top-space");
+    expect(classes).not.toContain("--nav-bar-height");
+  });
+
   it("呼び出し側の style を消さない", () => {
     render(<PageShell data-testid="shell" style={{ color: "red" }} />);
     const style = screen.getByTestId("shell").getAttribute("style") ?? "";

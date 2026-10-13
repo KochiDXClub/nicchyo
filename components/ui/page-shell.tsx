@@ -36,6 +36,13 @@ function bottomSpace(bottomNav: boolean): React.CSSProperties {
 type PageShellProps = React.HTMLAttributes<HTMLElement> & {
   /** NavigationBar を出す画面は true（既定）。出さない画面だけ false にする */
   bottomNav?: boolean;
+  /**
+   * 「もどる」バーを下端ではなく上に置く画面（NavigationBar の backBarOnTop と組で使う）。
+   * 下端にナビの余白を取らず（--nav-bar-height を 0 にする）、上端の帯の分だけ上を空ける。
+   * 帯の高さは --page-top-space で子にも渡す（上に貼りつく要素が帯の下に潜らないように）。
+   * lg 以上は帯ではなく右上に浮かぶ小さなバーなので、上は空けない
+   */
+  topNav?: boolean;
   as?: React.ElementType;
 };
 
@@ -43,13 +50,19 @@ type PageShellProps = React.HTMLAttributes<HTMLElement> & {
 export function PageShell({
   className,
   bottomNav = true,
+  topNav = false,
   as: Tag = "div",
   style,
   ...props
 }: PageShellProps) {
   return (
     <Tag
-      className={cn("min-h-screen bg-nicchyo-base text-nicchyo-ink", className)}
+      className={cn(
+        "min-h-screen bg-nicchyo-base text-nicchyo-ink",
+        topNav &&
+          "pt-[var(--page-top-space)] [--nav-bar-height:0px] [--page-top-space:calc(3rem_+_var(--safe-top,0px))] lg:[--page-top-space:0px]",
+        className
+      )}
       style={{ ...bottomSpace(bottomNav), ...style }}
       {...props}
     />

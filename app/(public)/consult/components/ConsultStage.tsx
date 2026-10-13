@@ -37,7 +37,7 @@ import {
 import GrandmaAvatar from "./GrandmaAvatar";
 import ConsultCharacterSwap from "./ConsultCharacterSwap";
 import { ConsultFeedback } from "@/components/consult/ConsultFeedback";
-import { Badge } from "@/components/ui";
+import { Badge, Button } from "@/components/ui";
 import {
   CONSULT_CHARACTERS,
   CONSULT_CHARACTER_BY_ID,
@@ -90,8 +90,21 @@ const APPEAR_MS = 420;
  * 使う必要がある。別々にハードコードすると、どちらか一方だけ変更したときに
  * 本 PR で直した「候補ボタンと入力バーの重なり」が再発するため、
  * ここ1箇所だけで定義し、CSS カスタムプロパティ経由で両方から参照する。
+ *
+ * 5rem の内訳: バーの下の隙間 0.75rem + バーの高さ 3.5rem（h-14）+ バーの上の隙間 0.75rem。
+ * 以前は 6rem で、バーとの間に何も描かれない帯が 1.75rem あり、そのぶん本文の
+ * 見える高さが削られていた（候補ボタンが見切れやすかった）。境目の上下には
+ * 下端のぼかしが掛かるので、隙間はこれで足りる
  */
-const CONSULT_BAR_SPACE = "calc(var(--safe-bottom, 0px) + var(--nav-bar-height) + 6rem)";
+const CONSULT_BAR_SPACE = "calc(var(--safe-bottom, 0px) + var(--nav-bar-height) + 5rem)";
+
+/**
+ * lg 以上（PC・ノートPC）用。候補ボタンを入力欄のすぐ上まで下げたいので、
+ * スマホ用より 0.75rem 少なく取る（入力欄の上端はナビの 4.4rem 上にあるので、
+ * 5.25rem なら入力欄との間に約 0.85rem 残る）。
+ * 入力バーの高さ・位置を変えるときは CONSULT_BAR_SPACE と一緒に見直すこと
+ */
+const CONSULT_BAR_SPACE_LG = "calc(var(--safe-bottom, 0px) + var(--nav-bar-height) + 5.25rem)";
 
 /**
  * 「これまでの相談」サイドバーがチャット欄の横に並ぶ幅（Tailwind の lg と同じ）。
@@ -212,6 +225,14 @@ export default function ConsultStage({
   const topSentinelRef = useRef<HTMLDivElement | null>(null);
   /** 「これまでの相談」から答えカードを開き直したとき、その場所までスクロールを戻す */
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
+  /** 「さっきの答えをもう一度見る」で開いたとき、フォーカスを移す先 */
+  const answerCardRef = useRef<HTMLDivElement | null>(null);
+  /**
+   * 読み上げ用の知らせ（「考えよるよ」「答えが出たよ」）。
+   * 骨組みや答えの本文は、出てくるのと同時に差し込まれるので読み上げられない。
+   * 常に置いてある1つの要素の中身だけを変えて、状態が変わったことを伝える
+   */
+  const [statusMessage, setStatusMessage] = useState("");
   /** 話し手の立ち位置。入れ替わりの歩きはここへ着く */
   const heroAvatarRef = useRef<HTMLDivElement | null>(null);
   /**
@@ -247,6 +268,27 @@ export default function ConsultStage({
     const observer = new IntersectionObserver(
       ([entry]) => setIsScrolledDown(!entry.isIntersecting),
       { threshold: 0 }
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, []);
+
+  /**
+   * 本文の一番下が見えているか。見えている間は、下端のぼかしを出さない
+   * （出すと、続きが無いのに最後の候補ボタンまで薄くなり、かえって見切れて見える）。
+   * 上の目印と同じく、スクロール量は毎フレーム見ずに IntersectionObserver で見る。
+   * 少しでも隠れていれば出す（隠れているのにぼかしが無いと、ボタンの縁が真横に
+   * 切れて見える）
+   */
+  const bottomSentinelRef = useRef<HTMLDivElement | null>(null);
+  const [isContentEndVisible, setIsContentEndVisible] = useState(true);
+  useEffect(() => {
+    const sentinel = bottomSentinelRef.current;
+    const root = scrollContainerRef.current;
+    if (!sentinel || !root || typeof IntersectionObserver === "undefined") return;
+    const observer = new IntersectionObserver(
+      ([entry]) => setIsContentEndVisible(entry.isIntersecting),
+      { root, threshold: 0 }
     );
     observer.observe(sentinel);
     return () => observer.disconnect();
@@ -400,6 +442,9 @@ export default function ConsultStage({
       toast.custom(
         (item) => (
           <div
+            // 自前の知らせ（toast.custom）には react-hot-toast が読み上げ用の役割を
+            // 付けないので、ここで付ける
+            role="alert"
             className={`pointer-events-auto flex w-[min(92vw,26rem)] items-start gap-2.5 rounded-2xl border border-red-200 bg-white px-4 py-3 shadow-lg transition duration-200 ${
               item.visible ? "translate-y-0 opacity-100" : "-translate-y-2 opacity-0"
             }`}
@@ -445,6 +490,17 @@ export default function ConsultStage({
       const text = question.trim();
       if (!text || phase === "thinking") return;
 
+      // 失敗したときは、打った（または話した）質問を入力欄に戻す。送る前に入力欄を
+      // 空にしているので、戻さないと知らせを閉じた時点で質問ごと消え、屋外で
+      // 打ち直すことになる。候補ボタンはまた押せるので戻さない。
+      // QR やリンク（?q=&shopId=）から自動で聞いた分も戻さない。入力欄から送り直すと
+      // 店の前提が付かないので、前提ごと聞き直せる知らせの「もう一度」に任せる
+      const restoresTyped = source === "input" && !withContext;
+      const restoreTyped = () => {
+        if (restoresTyped) setTyped((current) => current || text);
+      };
+      // 知らせの「もう一度」で聞き直すときは、戻しておいた質問を入力欄から消す
+      if (restoresTyped) setTyped((current) => (current.trim() === text ? "" : current));
       toast.dismiss("consult-error");
       // 過去の相談を開き直していても、新しく聞いたらまた最新の答えを見せる
       setViewedEntryId(null);
@@ -453,6 +509,7 @@ export default function ConsultStage({
       setPendingQuestion(text);
       setStreamingText(null);
       setStreamingSpeaker(null);
+      setStatusMessage("考えよるよ…");
 
       const history = buildHistoryForRequest(entriesRef.current);
 
@@ -478,6 +535,9 @@ export default function ConsultStage({
         // 失敗した回答を相談として残さない。残すと、お詫び文が答えとして保存され、
         // 次のリクエストの履歴に混ざり、その質問が候補ボタンから消えてしまう
         if (response.errorCode) {
+          restoreTyped();
+          // 失敗は知らせ（role="alert"）が読み上げるので、こちらは空にする
+          setStatusMessage("");
           notifyError(
             response.errorMessage ?? "うまく聞けんかった。もう一度試してみてね。",
             { label: "もう一度", run: () => void askRef.current?.(text, source, withContext) }
@@ -512,7 +572,10 @@ export default function ConsultStage({
           },
           ...prev,
         ]);
+        setStatusMessage("答えが出たよ");
       } catch {
+        restoreTyped();
+        setStatusMessage("");
         notifyError("つながらんかった。電波を確かめて、もう一度試してみてね。", {
           label: "もう一度",
           run: () => void askRef.current?.(text, source, withContext),
@@ -745,16 +808,18 @@ export default function ConsultStage({
       // 幅は絞らず w-full のまま（PC で読みやすい行幅に絞るのは内側のラッパーで
       // 行う）。ここで max-w を付けてしまうと、スクロールする箱自体が狭くなり、
       // 縦スクロールバーが画面の右端ではなく箱の右端＝中途半端な位置に出てしまう
-      className="h-[calc(100dvh-var(--consult-bar-space))] w-full overflow-y-auto px-4"
+      // scroll-pb-10: Tab で下端の候補ボタンへ移ったとき、下端のぼかしに隠れない所まで送る
+      className="h-[calc(100dvh-var(--consult-bar-space)-var(--consult-top-space,0px))] w-full scroll-pb-10 overflow-y-auto px-4 pb-4 lg:h-[calc(100dvh-var(--consult-bar-space-lg))] lg:pb-0"
       style={
         {
           // 下端に固定した「話しかける」とナビゲーションバーの分は、上の
           // height 側で既に差し引いている（この箱自体がその高さぶん
           // 画面の下までは伸びない）。ここでさらに paddingBottom を
           // CONSULT_BAR_SPACE と同じ値にすると二重に空いてしまうので、
-          // 最後の要素がバーに張り付かない程度の小さい余白だけ持たせる
+          // 最後の要素がバーに張り付かない程度の小さい余白（className の pb-4）
+          // だけ持たせる。lg 以上は候補ボタンを入力欄のすぐ上へ寄せたいので 0 にする
           "--consult-bar-space": CONSULT_BAR_SPACE,
-          paddingBottom: "1rem",
+          "--consult-bar-space-lg": CONSULT_BAR_SPACE_LG,
         } as CSSProperties
       }
     >
@@ -792,7 +857,8 @@ export default function ConsultStage({
         // lg 未満は指で押せる 44px にし、クリーム色の背景に埋もれないよう面と縁を付ける。
         // lg 以上はこれまで通り面を持たない Claude 風のアイコンにする。
         // 同じ z-30 の固定バーより DOM が前にあるので、z-40 にして固定バーの上に出す
-        className={`fixed left-4 top-[calc(var(--safe-top,0px)+1rem)] z-40 flex h-11 w-11 items-center justify-center rounded-lg border border-amber-200 bg-white/80 text-slate-500 shadow-sm transition hover:bg-black/5 lg:h-9 lg:w-9 lg:border-0 lg:bg-transparent lg:shadow-none ${
+        // lg 未満は上端に「マップにもどる」の帯（--consult-top-space）が出るので、その下に置く
+        className={`fixed left-4 top-[calc(var(--consult-top-space,var(--safe-top,0px))+0.75rem)] z-40 flex h-11 w-11 items-center justify-center rounded-lg border border-amber-200 bg-white/80 text-slate-500 shadow-sm transition hover:bg-black/5 lg:top-[calc(var(--safe-top,0px)+1rem)] lg:h-9 lg:w-9 lg:border-0 lg:bg-transparent lg:shadow-none ${
           isHistorySidebarOpen ? "invisible" : ""
         }`}
       >
@@ -848,7 +914,9 @@ export default function ConsultStage({
           // lg 以上は横に並ぶだけなので、これまで通り音声シートなどより奥に置く
           className="fixed inset-y-0 left-0 z-40 flex w-72 max-w-[85vw] flex-col border-r border-amber-100 bg-white lg:z-20"
           style={{
-            paddingTop: "var(--safe-top, 0px)",
+            // lg 未満は上端の「マップにもどる」の帯（z-[9997]）が手前に出るので、
+            // 見出しの閉じるボタンが隠れないよう、帯の分だけ下げる（lg 以上は 0）
+            paddingTop: "var(--consult-top-space, var(--safe-top, 0px))",
             paddingBottom: "calc(var(--safe-bottom, 0px) + var(--nav-bar-height))",
           }}
         >
@@ -880,7 +948,7 @@ export default function ConsultStage({
               renderHistoryList()
             ) : (
               <p className="px-2 pt-3 text-sm leading-6 text-slate-400">
-                ここに相談の履歴を残していくよ。にちよさんに話しかけてみてね
+                ここに相談の履歴を残していくよ。{speaker.name}に話しかけてみてね
               </p>
             )}
           </div>
@@ -921,8 +989,8 @@ export default function ConsultStage({
         lg 以上（1024px〜）では計算値が負になることはない
       */}
       <div
-        className={`mx-auto flex w-full max-w-3xl flex-col gap-3 motion-safe:transition-[margin-left] motion-safe:duration-300 motion-safe:ease-out-soft ${
-          isHistorySidebarOpen ? "lg:ml-0" : "lg:ml-[calc((100vw_-_2rem_-_48rem)/2)]"
+        className={`mx-auto flex w-full max-w-3xl flex-col gap-3 motion-safe:transition-[margin-left] motion-safe:duration-300 motion-safe:ease-out-soft lg:grid lg:max-w-6xl lg:grid-cols-[30%_minmax(0,1fr)] lg:items-start lg:gap-x-8 ${
+          isHistorySidebarOpen ? "lg:ml-0" : "lg:ml-[max(0px,calc((100vw_-_2rem_-_72rem)/2))]"
         }`}
       >
       {/*
@@ -936,7 +1004,11 @@ export default function ConsultStage({
         上の余白（本来 padding-top で持たせたい分）を margin-top として
         ここに持たせている（理由はスクロールコンテナの className 側のコメント参照）
       */}
-      <div ref={topSentinelRef} aria-hidden="true" className="mt-3 h-px w-full shrink-0" />
+      <div
+        ref={topSentinelRef}
+        aria-hidden="true"
+        className="mt-3 h-px w-full shrink-0 lg:col-span-2"
+      />
 
       {/* 話し手の入れ替わり。前の人が右へ去り、新しい人が左から歩いてくる */}
       {swapFrom && (
@@ -968,7 +1040,7 @@ export default function ConsultStage({
         lg 以上はチャット欄が中央に寄る（サイドバーを開くとボタン自体が消える）ので要らない
       */}
       <div
-        className={`sticky top-0 z-30 -mx-4 -mb-[76px] flex h-[76px] shrink-0 items-center gap-3 pl-[4.5rem] pr-4 lg:pl-4 ${
+        className={`sticky top-0 z-30 -mx-4 -mb-[76px] flex h-[76px] shrink-0 items-center gap-3 pl-[4.5rem] pr-4 lg:hidden ${
           isScrolledDown ? "" : "pointer-events-none"
         }`}
       >
@@ -1018,7 +1090,17 @@ export default function ConsultStage({
         画面外へ流れ、上に戻ればまた現れる。大きさは一切変えないので
         スクロール中にレイアウトが動かない。
       */}
-      <div className="flex flex-col items-center gap-2">
+      {/*
+        lg 以上（PC・ノートPC）では左30%のカラムに置き、本文を読み進めても
+        画面に残り続けるよう sticky にする。スマホでは従来どおり通常フロー。
+      */}
+      {/*
+        高さを「スクロール領域いっぱい」にして中身を縦中央に置く（sticky なので
+        本文を読み進めても同じ位置に残る）。高さは lg 用の --consult-bar-space-lg から、
+        上の目印の余白（0.75rem + 1px）と行の間隔（0.75rem）ぶんの 1.65rem を引いた値。
+        これを引かないと、わずかにスクロールが発生する（lg は下の余白 pb を 0 にしてある）
+      */}
+      <div className="flex flex-col items-center gap-2 lg:sticky lg:top-0 lg:col-start-1 lg:row-start-2 lg:h-[calc(100dvh-var(--consult-bar-space-lg)-1.65rem)] lg:justify-center">
         {/*
           flex にして、囲んだだけで下に行間の隙間が出ないようにする（測る先がずれる）。
           開いたときはその場に現れ、現れきったら一度だけ会釈する。
@@ -1054,24 +1136,62 @@ export default function ConsultStage({
               <p className="text-[15px] font-bold leading-6 text-amber-900">
                 {greeting ?? "なんでも聞いてや。"}
               </p>
-              <p className="mt-0.5 text-[11px] text-amber-700/80">
-                {speech.isSupported
-                  ? "下のボタンで話しかけてね。イラストをタップすると話し手を変えられるよ"
-                  : "聞きたいことを選んでね。イラストをタップすると話し手を変えられるよ"}
-              </p>
+              {/*
+                前に相談したことがある人には、使い方の案内の代わりに「さっきの答え」へ
+                戻る入口を出す。開き直したときは前の答えを畳んでおり（地図や店のページから
+                戻ってきたときも同じ）、戻る手段が左上のアイコンだけだと気づかれにくい。
+                使い方はもう知っている人なので、案内と入れ替えて画面の高さは増やさない
+              */}
+              {entries.length > 0 ? (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => {
+                    viewHistoryEntry(entries[0].id);
+                    // 押すとこのボタンごと吹き出しが消え、フォーカスの行き先が無くなる。
+                    // 開いた答えのカードへ移して、読み上げや Tab の続きをそこから始める
+                    requestAnimationFrame(() =>
+                      answerCardRef.current?.focus({ preventScroll: true })
+                    );
+                  }}
+                  className="mt-1.5"
+                >
+                  さっきの答えをもう一度見る
+                </Button>
+              ) : (
+                // 屋外の日差しの下でも読めるよう、11px・薄い色をやめて 12px・濃い色にする
+                <p className="mt-0.5 text-xs text-amber-700">
+                  {speech.isSupported
+                    ? "下のボタンで話しかけてね。イラストをタップすると話し手を変えられるよ"
+                    : "聞きたいことを選んでね。イラストをタップすると話し手を変えられるよ"}
+                </p>
+              )}
             </div>
           )
         )}
       </div>
 
+      {/*
+        答えと候補ボタンは右の70%カラムにまとめる。
+        スマホでは display: contents で枠を消し、従来どおり縦並びの子として扱う
+        （見た目・間隔は変わらない）。
+        lg の上の余白（pt）は、右上に浮かぶ「マップにもどる」バーの下から答えを始めるため
+      */}
+      <div className="contents lg:col-start-2 lg:row-start-2 lg:flex lg:min-h-[calc(100dvh-var(--consult-bar-space-lg)-1.65rem)] lg:min-w-0 lg:flex-col lg:gap-4 lg:pt-[3.75rem]">
       {/* 今の答え。1枚だけ */}
       {showAnswer && (
         <div
+          ref={answerCardRef}
+          tabIndex={-1}
           style={revealClass(0).style}
-          className={`rounded-3xl border border-amber-100 bg-white/90 p-4 shadow-sm ${revealClass(0).className}`}
+          className={`rounded-3xl border border-amber-100 bg-white/90 p-4 shadow-sm outline-none ${revealClass(0).className}`}
         >
-          {/* 質問は隠さず、明確に格下で置く。誤認識に気づける必要があるため */}
-          <p className="truncate text-xs text-slate-400">
+          {/*
+            質問は隠さず、明確に格下で置く。誤認識に気づける必要があるため。
+            1行で切ると長い質問の後半（聞き間違いが出やすい所）が見えず、薄い色
+            （slate-400、白地で約2.6:1）では屋外で読めないので、2行まで出して濃くする
+          */}
+          <p className="line-clamp-2 text-xs text-nicchyo-ink/70">
             {pendingQuestion ?? current?.question}
           </p>
           <p className="mt-1 text-[11px] font-bold text-amber-700">
@@ -1080,7 +1200,8 @@ export default function ConsultStage({
           {isBusy && !streamingText ? (
             // 応答待ち。前の答えを残すと「過去の会話が透けている」ように見えるので、
             // これから来る文章の骨組みだけを出す
-            <div className="mt-3 flex flex-col gap-2" aria-live="polite" aria-label="考え中">
+            // 読み上げは statusMessage が受け持つので、骨組み自体は読ませない
+            <div className="mt-3 flex flex-col gap-2" aria-hidden="true">
               <span className="consult-skeleton h-3.5 w-4/5 rounded-full" />
               <span className="consult-skeleton h-3.5 w-full rounded-full" style={{ animationDelay: "120ms" }} />
               <span className="consult-skeleton h-3.5 w-3/5 rounded-full" style={{ animationDelay: "240ms" }} />
@@ -1127,7 +1248,7 @@ export default function ConsultStage({
       {phase === "idle" && !isBusy && suggestions.length > 0 && (
         <div
           style={revealClass(140).style}
-          className={`flex flex-col gap-2 ${revealClass(140).className}`}
+          className={`flex flex-col gap-2 lg:mt-auto ${revealClass(140).className}`}
         >
           {suggestions.map((question) => (
             <button
@@ -1142,9 +1263,42 @@ export default function ConsultStage({
         </div>
       )}
       </div>
+      </div>
+      {/* 本文の一番下。ここが見えているかで、下端のぼかしを出すかを決める */}
+      <div ref={bottomSentinelRef} aria-hidden="true" className="h-px w-full" />
+      <p role="status" className="sr-only">
+        {statusMessage}
+      </p>
+
+      {/*
+        本文の下端のぼかし。
+
+        スクロール領域は「話しかける」バーの手前で終わる（height で絞っている）ため、
+        続きがあるときは、本文がその境目で真横にぶつ切りになっていた（文字の行や
+        お店の写真が途中で切れ、表示が壊れて「見切れている」ように見える）。
+        境目をまたいで背景色へ溶けるぼかしを敷き、続きが下にあると分かるようにする。
+
+        以前はバーの後ろに同じぼかしを敷いていたが、本文はバーの下まで流れてこない
+        （境目で切れる）ので効いていなかった。位置を境目（--consult-bar-space）に合わせた。
+        本文の一番下まで見えているときは出さない（isContentEndVisible 参照）。
+        lg 以上でサイドバーを開いている間は、サイドバーに掛からないよう右へ逃がす
+        （サイドバーの開け閉めと同じ速さ・緩急で動かす）。
+        lg 以上はスクロールバー（幅 8px）にも掛からないよう、右端を少し空ける。
+        lg 以上はスクロール領域の下端が違う（--consult-bar-space-lg）ので、位置もそれに合わせる
+      */}
+      <div
+        aria-hidden="true"
+        className={`pointer-events-none fixed inset-x-0 z-20 h-16 bg-gradient-to-b from-transparent via-nicchyo-base/95 to-nicchyo-base motion-safe:transition-[opacity,left] motion-safe:duration-300 motion-safe:ease-out-soft ${
+          isContentEndVisible ? "opacity-0" : "opacity-100"
+        } bottom-[calc(var(--consult-bar-space)-2rem)] lg:bottom-[calc(var(--consult-bar-space-lg)-2rem)] lg:right-2 ${
+          isHistorySidebarOpen ? "lg:left-80" : ""
+        }`}
+      />
 
       {/* 文字入力を大きく既定にし、音声は選べる小さいボタンにする。
-          音声シートが出ている間と応答待ちの間は、押すべきものが2つにならないよう隠す。
+          音声シートが出ている間は、押すべきものが2つにならないよう隠す。
+          応答待ちの間は隠さず、押せない状態で残す（以前は隠していたが、画面の下半分が
+          急に空になって固まったように見え、答えが出るたびにバーが出直して画面が揺れた）。
           外側はビューポート全幅の flex にし、中身だけ max-w-3xl に絞る
           （ConsultClient の <main> と同じ組み方）。lg 以上でサイドバーを開いているときは
           この外側に左パディングを足してチャット欄と同じだけ右へ逃がし、さらに
@@ -1159,38 +1313,29 @@ export default function ConsultStage({
         className={`fixed inset-x-0 z-20 flex px-4 motion-safe:transition-[padding-left] motion-safe:duration-300 motion-safe:ease-out-soft ${
           isHistorySidebarOpen ? "lg:pl-[21rem]" : ""
         } ${revealClass(280).className} ${
-          speech.isListening || phase !== "idle" || isBusy ? "hidden" : ""
+          speech.isListening || phase === "confirming" ? "hidden" : ""
         }`}
         style={{
           bottom: "calc(var(--safe-bottom, 0px) + var(--nav-bar-height) + 0.75rem)",
           ...revealClass(280).style,
         }}
       >
-        {/*
-          答えが長いとき、本文はこの固定ボタンの下を流れていく。
-          何も敷かないと文章が不透明なボタンでぶつ切りにされ、
-          読んでいる途中で1行が消えたように見える。
-          下に向かって背景色へ溶かし、「続きは下にある」と分かるようにする。
-        */}
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute inset-x-0 -top-10 -z-10 bg-gradient-to-b from-transparent via-[#FFFAF0]/95 to-[#FFFAF0]"
-          style={{
-            bottom: "calc(-1 * (var(--safe-bottom, 0px) + var(--nav-bar-height) + 0.75rem))",
-          }}
-        />
-
         {/* 中央寄せ／左寄せの切り替えは、本文の内側ラッパーと同じく margin-left の計算値で
-            持ち、サイドバーの開け閉めに合わせて滑らかにずらす */}
+            持ち、サイドバーの開け閉めに合わせて滑らかにずらす。
+            lg 以上は本文と同じ「左30%・右70%」の格子にして、入力欄を右カラムの真下に置く
+            （内側の枠はスマホでは display: contents で消し、従来どおりの並びにする） */}
         <div
-          className={`mx-auto flex w-full max-w-3xl items-center justify-center gap-3 motion-safe:transition-[margin-left] motion-safe:duration-300 motion-safe:ease-out-soft ${
-            isHistorySidebarOpen ? "lg:ml-0" : "lg:ml-[calc((100vw_-_2rem_-_48rem)/2)]"
+          className={`mx-auto flex w-full max-w-3xl items-center justify-center gap-3 motion-safe:transition-[margin-left] motion-safe:duration-300 motion-safe:ease-out-soft lg:grid lg:max-w-6xl lg:grid-cols-[30%_minmax(0,1fr)] lg:gap-x-8 ${
+            isHistorySidebarOpen ? "lg:ml-0" : "lg:ml-[max(0px,calc((100vw_-_2rem_-_72rem)/2))]"
           }`}
         >
+          <div className="contents lg:col-start-2 lg:flex lg:items-center lg:gap-3">
           {/* 文字入力を既定にする。タップして開く一段階を挟まず、
               最初から入力欄を出しておく。音声は騒がしい現地では速いが、
               静かな場所や周りに人がいるときは声を出しにくいため */}
-          <div className="flex flex-1 items-center gap-2 rounded-full border border-amber-200 bg-white/95 py-1.5 pl-5 pr-1.5 shadow-lg">
+          {/* min-w-0 が無いと入力欄の既定の幅が最小幅になり、幅 320px の端末で
+              バーが画面の横にはみ出してマイクのボタンが押せなくなる */}
+          <div className="flex min-w-0 flex-1 items-center gap-2 rounded-full border border-amber-200 bg-white/95 py-1.5 pl-5 pr-1.5 shadow-lg">
             <input
               ref={textInputRef}
               type="text"
@@ -1207,11 +1352,13 @@ export default function ConsultStage({
                 setTyped("");
                 void ask(question, "input");
               }}
-              placeholder="（例）今の旬の果物は？"
-              aria-label="にちよさんへの質問"
+              // 応答待ちの間は押せない状態で残す。押せないことは送信・マイクのボタンが
+              // 薄くなることで伝わるので、入力欄自体は薄くせず「考えよるよ…」を読める濃さで出す
+              placeholder={isBusy ? "考えよるよ…" : "（例）今の旬の果物は？"}
+              aria-label={`${speaker.name}への質問`}
               enterKeyHint="send"
               disabled={isBusy}
-              className="min-w-0 flex-1 bg-transparent py-2.5 text-base text-slate-800 outline-none placeholder:text-slate-400 disabled:opacity-50"
+              className="min-w-0 flex-1 bg-transparent py-2.5 text-base text-slate-800 outline-none placeholder:text-slate-400 disabled:placeholder:text-amber-700"
             />
             <button
               type="button"
@@ -1242,6 +1389,7 @@ export default function ConsultStage({
               <Mic className="h-5 w-5" aria-hidden="true" />
             </button>
           )}
+          </div>
         </div>
       </div>
 

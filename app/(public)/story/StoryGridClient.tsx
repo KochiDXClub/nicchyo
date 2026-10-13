@@ -136,10 +136,12 @@ export default function StoryGridClient({ demo }: Props = {}) {
   const withCover = !fetchError && (loading || latest !== null);
 
   return (
-    <PageShell as="main">
+    <PageShell as="main" topNav>
       <PageContainer
         width="wide"
-        className="md:pt-8"
+        // lg 以上は右上に「マップにもどる」の小さなバーが浮かぶ。幅 64rem の中身の右端と重ならないよう、
+        // その下から始める（padding は inline style が先に効くので !important で上書きする）
+        className="md:pt-8 lg:!pt-[4.75rem]"
         style={{ paddingTop: "calc(1rem + var(--safe-top, 0px))" }}
       >
         <div
@@ -149,7 +151,7 @@ export default function StoryGridClient({ demo }: Props = {}) {
           )}
         >
           {withCover && (
-            <aside className="hidden md:sticky md:top-8 md:block">
+            <aside className="hidden md:sticky md:top-[calc(2rem+var(--page-top-space,0px))] md:block">
               {latest ? (
                 <button
                   type="button"
@@ -255,7 +257,7 @@ export default function StoryGridClient({ demo }: Props = {}) {
         )}
       </AnimatePresence>
 
-      <NavigationBar />
+      <NavigationBar backBarOnTop />
     </PageShell>
   );
 }
