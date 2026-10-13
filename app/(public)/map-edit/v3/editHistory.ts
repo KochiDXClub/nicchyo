@@ -1,5 +1,5 @@
 import { getRouteCenter } from "../../map/utils/mapRouteGeometry";
-import type { EditableLandmark, EditableRoad, EditableShop } from "./types";
+import type { EditableLandmark, EditableRoad, EditableShop, EditableVendor } from "./types";
 
 /**
  * マップ編集の「操作」の記録。
@@ -16,6 +16,8 @@ export type EditState = {
   shops: EditableShop[];
   roads: EditableRoad[];
   landmarks: EditableLandmark[];
+  /** 出店者（区画とは別に保存する。区画は出店者の id だけを持つ） */
+  vendors: EditableVendor[];
 };
 
 export type EntityKind = keyof EditState;
@@ -59,11 +61,12 @@ export const EMPTY_HISTORY: EditHistory = { past: [], future: [] };
 /** 同じ coalesceKey の操作をまとめる時間（ミリ秒） */
 export const COALESCE_WINDOW_MS = 1500;
 
-const ENTITY_KINDS: EntityKind[] = ["shops", "roads", "landmarks"];
+const ENTITY_KINDS: EntityKind[] = ["shops", "roads", "landmarks", "vendors"];
 
 export function entityId(kind: EntityKind, entity: EntityOf<EntityKind>): string {
   if (kind === "shops") return (entity as EditableShop).locationId;
   if (kind === "roads") return (entity as EditableRoad).id;
+  if (kind === "vendors") return (entity as EditableVendor).id;
   return (entity as EditableLandmark).key;
 }
 
@@ -205,11 +208,11 @@ export function netChanges(history: EditHistory): EntityChange[] {
   return mergeChanges(history.past.flatMap((operation) => operation.changes));
 }
 
-/** 変更一覧の行をクリックしたときに地図を寄せる位置 */
+/** 変更一覧の行をクリックしたときに地図を寄せる位置（出店者だけの変更は位置を持たないので null） */
 export function focusOfOperation(operation: EditOperation): { lat: number; lng: number } | null {
   for (const change of operation.changes) {
     const entity = change.after ?? change.before;
-    if (!entity) continue;
+    if (!entity || change.kind === "vendors") continue;
     if (change.kind === "roads") {
       const road = entity as EditableRoad;
       if (road.points.length === 0) continue;

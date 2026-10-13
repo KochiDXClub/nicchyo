@@ -37,6 +37,7 @@ const base: EditState = {
   shops: [shop("a"), shop("b", { position: 2 })],
   roads: [road("r1", 3), road("r2", 2)],
   landmarks: [],
+  vendors: [],
 };
 
 function record(history: EditHistory, before: EditState, after: EditState, extra: { coalesceKey?: string; recordedAt?: number } = {}) {
@@ -162,6 +163,28 @@ describe("netChanges（保存時の差分）", () => {
     let history = record(EMPTY_HISTORY, base, moved);
     history = record(history, moved, base);
     expect(netChanges(history)).toHaveLength(0);
+  });
+});
+
+describe("出店者の記録", () => {
+  it("出店者の新規登録と区画への割り当てを1件の操作として記録し、取り消せる", () => {
+    const vendor = { id: "new-vendor-1", name: "新しい店", categoryId: null, strength: "", mainProducts: [] };
+    const after: EditState = {
+      ...base,
+      vendors: [vendor],
+      shops: [shop("a", { vendorId: vendor.id, name: vendor.name }), base.shops[1]],
+    };
+    const history = record(EMPTY_HISTORY, base, after);
+    expect(history.past[0].changes.map((c) => c.kind).sort()).toEqual(["shops", "vendors"]);
+    const undone = undoOperation(history, after)!;
+    expect(undone.state.vendors).toEqual([]);
+    expect(undone.state.shops[0].vendorId).toBeUndefined();
+  });
+
+  it("出店者だけの変更は地図を寄せる位置を持たない", () => {
+    const before: EditState = { ...base, vendors: [{ id: "v1", name: "店", categoryId: null, strength: "", mainProducts: [] }] };
+    const after: EditState = { ...base, vendors: [{ ...before.vendors[0], strength: "朝どれ野菜" }] };
+    expect(focusOfOperation(record(EMPTY_HISTORY, before, after).past[0])).toBeNull();
   });
 });
 

@@ -7,6 +7,7 @@ import { requireSameOrigin } from "@/lib/security/requestGuards";
 import { enforceRateLimit } from "@/lib/security/rateLimit";
 import { requireVendorContext } from "@/lib/vendor/shopContext.server";
 import { hasShopPermission } from "@/lib/vendor/shopPermissions";
+import { maskPii } from "@/lib/privacy/maskPii";
 import { requestChatCompletion } from "@/lib/ai/openaiFetch";
 import { openAiSseToTextStream, TEXT_STREAM_HEADERS } from "@/lib/ai/textStream";
 import { resolveAiModelFor } from "@/lib/ai/modelStore.server";
@@ -222,8 +223,9 @@ async function saveHelpLog(vendorId: string, question: string, answer: string) {
     if (!admin) return;
     const { error } = await admin.from("vendor_help_logs").insert({
       vendor_id: vendorId,
-      question,
-      answer: answer.slice(0, ANSWER_SAVE_MAX),
+      // 出店者が書いた連絡先が、期限まで残り続けないように保存前にマスクする（OpenAI へ送る分は変えない）
+      question: maskPii(question),
+      answer: maskPii(answer.slice(0, ANSWER_SAVE_MAX)),
     });
     if (error) console.error("[vendor/help-chat] log insert error:", error.message);
   } catch (err) {

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { requireSameOrigin } from "@/lib/security/requestGuards";
 import { enforceRateLimit } from "@/lib/security/rateLimit";
-import { normalizeRole } from "@/lib/auth/permissions";
+import { getRole, normalizeRole } from "@/lib/auth/permissions";
 import { requireAdminApi } from "@/lib/auth/requireAdminApi";
 import { listAllAuthUsers } from "@/lib/auth/listAllUsers";
 import { MAX_BULK_OPERATION } from "@/lib/constants";
@@ -66,7 +66,7 @@ async function resolveRecipients(
   const filtered = usersResult.users.filter((u) => {
     if (!u.email) return false;
     if (recipientMode === "all") return true;
-    const role = normalizeRole(u.app_metadata?.role ?? u.user_metadata?.role);
+    const role = normalizeRole(getRole(u));
     return role === recipientMode;
   });
 

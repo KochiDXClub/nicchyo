@@ -14,6 +14,13 @@
  */
 
 /**
+ * 列内の店舗間隔（メートル）。market_locations 300件の実測値。
+ * 左右それぞれ 150 店が等間隔に並んでいる。
+ * 屋台の大きさやカードの高さを「間隔に収まる」ように決める根拠。
+ */
+export const SHOP_COLUMN_SPACING_METERS = 5.9;
+
+/**
  * 店舗イラストのサイズ定義
  * 【重要】イラストを差し替える場合はここを変更
  */
@@ -100,6 +107,22 @@ export const SHOP_MARKER_LOD_OFFSETS = {
   photo: -1.4,
   nameplate: -0.8,
 } as const;
+
+/**
+ * 写真を大きく見るための一段（MapLibre 版）。
+ *
+ * 屋台が等倍になる最大ズーム（LOD の基準、map.getMaxZoom()）の先に、地図はもう
+ * DETAIL_ZOOM_OFFSET 段寄れて、屋台はそこで DETAIL_STALL_SCALE 倍まで大きくなる。
+ * 地図の屋台と、パン中に出る写真カード（ShopScanCards）が同じ倍率で大きくなるよう、ここで持つ。
+ */
+export const DETAIL_ZOOM_OFFSET = 1;
+export const DETAIL_STALL_SCALE = 2;
+
+/** 最大ズームより先での屋台の倍率。maxZoom 以下で 1、maxZoom + DETAIL_ZOOM_OFFSET で DETAIL_STALL_SCALE */
+export function getDetailStallScale(zoom: number, maxZoom: number): number {
+  const t = Math.min(1, Math.max(0, (zoom - maxZoom) / DETAIL_ZOOM_OFFSET));
+  return 1 + (DETAIL_STALL_SCALE - 1) * t;
+}
 
 /**
  * 境界判定の許容誤差。

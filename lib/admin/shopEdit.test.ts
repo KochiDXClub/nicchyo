@@ -14,6 +14,13 @@ describe("parseShopEdit", () => {
     expect(ownerName).toBeUndefined();
   });
 
+  it("丁目は1〜7の整数だけ受け付け、丁目だけの更新も通る", () => {
+    expect(ok({ chome: 5 }).chome).toBe(5);
+    expect(ok({ chome: 5 }).vendor).toEqual({});
+    expect(ok({ shop_name: "山田農園" }).chome).toBeUndefined();
+    for (const bad of [0, 8, 2.5, "3", null]) expect(parseShopEdit({ chome: bad }).ok).toBe(false);
+  });
+
   it("空文字は null（未入力）にそろえる。店主名も同じ", () => {
     const { vendor, ownerName } = ok({ style: "  ", sns_x: "", owner_name: "" });
     expect(vendor).toEqual({ style: null, sns_x: null });
@@ -121,6 +128,12 @@ describe("許可日（consentDateOnAllow）", () => {
     expect(consentDateOnAllow({}, null, now)).toBeUndefined();
     expect(consentDateOnAllow({ listing_status: "allowed" }, "2026-10-04", now)).toBeUndefined();
     expect(consentDateOnAllow({ listing_status: "allowed", listing_consented_on: "2026-10-01" }, null, now)).toBeUndefined();
-    expect(consentDateOnAllow({ listing_status: "allowed", listing_consented_on: null }, null, now)).toBeUndefined();
+  });
+
+  it("画面が日付を空（null）で送ってきても、許可済みなら日本時間の今日が入る", () => {
+    const now = new Date("2026-10-10T21:00:00Z");
+    expect(consentDateOnAllow({ listing_status: "allowed", listing_consented_on: null }, null, now)).toBe("2026-10-11");
+    // すでに記録済みなら、null（消す指定）はそのまま通す
+    expect(consentDateOnAllow({ listing_status: "allowed", listing_consented_on: null }, "2026-10-04", now)).toBeUndefined();
   });
 });

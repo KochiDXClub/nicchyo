@@ -45,7 +45,7 @@ export const grandmaEvents: GrandmaEvent[] = [
         id: 'm4',
         subtitle: 'おすすめの人',
         text: '歴史好きはもちろん、のんびり散歩しながら学びたい人にぴったりよ。',
-        image: '/images/maps/elements/buildings/KochiCastleMusium2.png',
+        image: '/images/maps/elements/buildings/KochiCastleMusium2.webp',
       },
       {
         id: 'm5',
@@ -82,7 +82,7 @@ export const grandmaEvents: GrandmaEvent[] = [
         id: 'o4',
         subtitle: 'おすすめの人',
         text: '勉強や調べものをしたい人、静かな時間が好きな人におすすめよ。',
-        image: '/images/maps/elements/buildings/Ohtepia.png',
+        image: '/images/maps/elements/buildings/Ohtepia.webp',
       },
       {
         id: 'o5',
@@ -119,7 +119,7 @@ export const grandmaEvents: GrandmaEvent[] = [
         id: 'c4',
         subtitle: 'おすすめの人',
         text: '歴史好きはもちろん、運動しながら景色も楽しみたい人におすすめよ。',
-        image: '/images/maps/elements/buildings/KochiCastle.png',
+        image: '/images/maps/elements/buildings/KochiCastle.webp',
       },
       {
         id: 'c5',
@@ -156,7 +156,7 @@ export const grandmaEvents: GrandmaEvent[] = [
         id: 't4',
         subtitle: 'おすすめの人',
         text: '歩き疲れた人や、街の雰囲気を楽しみたい人におすすめよ。',
-        image: '/images/maps/elements/buildings/Train.png',
+        image: '/images/maps/elements/buildings/Train.webp',
       },
       {
         id: 't5',

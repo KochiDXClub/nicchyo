@@ -94,6 +94,10 @@ export function getRouteTopology(points: MapRoutePoint[]): RouteTopology {
   const segments: RouteSegment[] = [];
 
   for (let index = 0; index < mainline.length - 1; index += 1) {
+    // 別々の道（road_id が違う点どうし）はつながない。道は保存時に道ごとにまとまった順番で
+    // 並ぶため、並びの上で隣り合っていても road_id が違えば別の道の終点と始点にすぎない。
+    // road_id を持たない点（古いデータ・既定の道）は、これまでどおり1本の道として扱う
+    if ((mainline[index].roadId ?? null) !== (mainline[index + 1].roadId ?? null)) continue;
     segments.push({
       key: `main-${mainline[index].id}-${mainline[index + 1].id}`,
       start: mainline[index],

@@ -131,7 +131,6 @@ const COMPARE_OPTIONS = {
   backgroundOverlay: ["webp", "svg", "off"],
   tileOpacityByZoom: ["on", "off"],
   shopLayerHiding: ["on", "off"],
-  renderer: ["leaflet", "maplibre"],
   basemap: ["raster-carto", "vector-openfreemap"],
 };
 if (compareKey && !COMPARE_OPTIONS[compareKey]) {

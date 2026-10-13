@@ -37,9 +37,10 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Setup Supabase CLI
-        uses: supabase/setup-cli@v1
+        # supabase/setup-cli v1.7.3（コミット SHA で固定）。本番デプロイ（migrations-deploy.yml）と同じ CLI バージョンに揃える
+        uses: supabase/setup-cli@1dedf2c611547ede7232d26866dd3c56ab903bbb
         with:
-          version: latest
+          version: '2.120.0'
 
       # リポジトリには config.toml を置いていないので、CI 内で生成する。
       # 既に置かれていればそれを使う。
@@ -85,6 +86,22 @@ jobs:
       # 詳しくは supabase/checks/vendor_listing_consent_columns.sql
       - name: Check listing consent columns are not readable by anon / authenticated
         run: psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" -v ON_ERROR_STOP=1 -f supabase/checks/vendor_listing_consent_columns.sql
+
+      # 公開 SELECT が掲載許可のフィルタを迂回しないこと、reports / inquiries / track_home_visit が
+      # 直接書けないことを確かめる。詳しくは supabase/checks/public_read_and_insert_closed.sql
+      - name: Check public read policies and closed inserts
+        run: psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" -v ON_ERROR_STOP=1 -f supabase/checks/public_read_and_insert_closed.sql
+
+      # 運営向け通知テーブル（admin_notifications）が全適用後に存在し、運営だけが読めることを確かめる。
+      # 詳しくは supabase/checks/admin_notifications_restored.sql
+      - name: Check admin_notifications exists with expected columns and RLS
+        run: psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" -v ON_ERROR_STOP=1 -f supabase/checks/admin_notifications_restored.sql
+
+      # RLS が vendors.role で運営判定していないこと（authenticated では permission denied になる）と、
+      # current_user_role() / is_operator() を使うポリシーが to authenticated に限定されていること。
+      # 詳しくは supabase/checks/no_vendors_role_in_policies.sql
+      - name: Check no vendors.role in RLS policies
+        run: psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" -v ON_ERROR_STOP=1 -f supabase/checks/no_vendors_role_in_policies.sql
 
       - name: Show applied migrations
         run: supabase migration list --local

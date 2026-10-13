@@ -63,6 +63,18 @@ import {
 } from "@/lib/grandma/prompts/consultConversation";
 import { handleAbuseDetection } from "@/lib/grandma/abuseDetection";
 import { z } from "zod";
+import {
+  ASK_IMAGE_MAX_BYTES,
+  ASK_MEMORY_SUMMARY_MAX,
+  AskLocationSchema,
+  AskMemorySummarySchema,
+  AskMultipartTextFieldsSchema,
+  AskShopNameSchema,
+  AskTextSchema,
+  checkAskImage,
+  parseLocationField,
+} from "@/lib/grandma/askInput";
+import { getForwardedClientIp } from "@/lib/security/clientIp";
 
 const ConsultHistoryEntrySchema = z.object({
   role: z.enum(["user", "assistant"]),
@@ -82,15 +94,12 @@ const ConsultHistoryEntrySchema = z.object({
 const ConsultHistoryArraySchema = z.array(ConsultHistoryEntrySchema).max(50);
 
 const AskJsonBodySchema = z.object({
-  text: z.string().optional(),
-  location: z
-    .object({ lat: z.number(), lng: z.number() })
-    .nullable()
-    .optional(),
+  text: AskTextSchema.optional(),
+  location: AskLocationSchema.nullable().optional(),
   shopId: z.number().int().nullable().optional(),
-  shopName: z.string().nullable().optional(),
+  shopName: AskShopNameSchema.nullable().optional(),
   history: ConsultHistoryArraySchema.optional(),
-  memorySummary: z.string().optional(),
+  memorySummary: AskMemorySummarySchema.optional(),
   preferredCharacterId: z.string().nullable().optional(),
   visitorKey: z.string().max(128).nullable().optional(),
   stream: z.boolean().optional(),
@@ -109,6 +118,12 @@ export type ConsultAskInternalOptions = {
   modelOverride: ResolvedAiModel;
 };
 
+function badRequest(message: string): Error {
+  const err = new Error(message);
+  (err as Error & { statusCode: number }).statusCode = 400;
+  return err;
+}
+
 async function parseRequest(request: Request): Promise<ParsedRequest> {
   const contentType = request.headers.get("content-type") ?? "";
   let text = "";
@@ -124,16 +139,25 @@ async function parseRequest(request: Request): Promise<ParsedRequest> {
 
   if (contentType.includes("multipart/form-data")) {
     const form = await request.formData();
-    text = typeof form.get("text") === "string" ? String(form.get("text")) : "";
+    const textFields = AskMultipartTextFieldsSchema.safeParse({
+      text: typeof form.get("text") === "string" ? String(form.get("text")) : "",
+      memorySummary:
+        typeof form.get("memorySummary") === "string"
+          ? String(form.get("memorySummary")).trim()
+          : "",
+      shopName:
+        typeof form.get("shopName") === "string"
+          ? String(form.get("shopName")).trim()
+          : "",
+    });
+    if (!textFields.success) {
+      throw badRequest(textFields.error.issues[0].message);
+    }
+    text = textFields.data.text;
+    memorySummary = textFields.data.memorySummary;
+    targetShopName = textFields.data.shopName || null;
     if (typeof form.get("location") === "string") {
-      try {
-        location = JSON.parse(String(form.get("location"))) as {
-          lat: number;
-          lng: number;
-        } | null;
-      } catch {
-        location = null;
-      }
+      location = parseLocationField(String(form.get("location")));
     }
     if (
       typeof form.get("shopId") === "string" &&
@@ -141,12 +165,6 @@ async function parseRequest(request: Request): Promise<ParsedRequest> {
     ) {
       const parsed = Number(form.get("shopId"));
       targetShopId = Number.isFinite(parsed) ? parsed : null;
-    }
-    if (
-      typeof form.get("shopName") === "string" &&
-      String(form.get("shopName")).trim()
-    ) {
-      targetShopName = String(form.get("shopName")).trim();
     }
     if (typeof form.get("history") === "string") {
       try {
@@ -159,9 +177,6 @@ async function parseRequest(request: Request): Promise<ParsedRequest> {
       } catch {
         history = [];
       }
-    }
-    if (typeof form.get("memorySummary") === "string") {
-      memorySummary = String(form.get("memorySummary")).trim();
     }
     if (typeof form.get("preferredCharacterId") === "string") {
       const value = String(
@@ -184,17 +199,25 @@ async function parseRequest(request: Request): Promise<ParsedRequest> {
       "arrayBuffer" in formImage
     ) {
       const imageFile = formImage as File;
-      const arrayBuffer = await imageFile.arrayBuffer();
-      const base64 = Buffer.from(arrayBuffer).toString("base64");
-      const mime = imageFile.type || "image/jpeg";
-      imageDataUrl = `data:${mime};base64,${base64}`;
+      // 空のファイル欄は「画像なし」として扱う
+      if (imageFile.size > 0) {
+        if (imageFile.size > ASK_IMAGE_MAX_BYTES) {
+          throw badRequest("画像は5MB以下にしてください");
+        }
+        const bytes = new Uint8Array(await imageFile.arrayBuffer());
+        const check = checkAskImage({
+          size: bytes.length,
+          declaredType: imageFile.type,
+          head: bytes.subarray(0, 16),
+        });
+        if (!check.ok) throw badRequest(check.error);
+        imageDataUrl = `data:${check.mime};base64,${Buffer.from(bytes).toString("base64")}`;
+      }
     }
   } else {
     const parsed = AskJsonBodySchema.safeParse(await request.json());
     if (!parsed.success) {
-      const err = new Error(parsed.error.issues[0].message);
-      (err as Error & { statusCode: number }).statusCode = 400;
-      throw err;
+      throw badRequest(parsed.error.issues[0].message);
     }
     const payload = parsed.data;
     text = payload.text ?? "";
@@ -366,7 +389,8 @@ async function finalizeConsultResponse(options: {
     shops: finalRecommendedShops,
     turns: normalizedTurns,
     followUpQuestion: safeFollowUpQuestion,
-    memorySummary: summary.trim() || memorySummary,
+    // 次のリクエストの memorySummary 上限（入力検証）を超えないように切る
+    memorySummary: (summary.trim() || memorySummary).slice(0, ASK_MEMORY_SUMMARY_MAX),
     retryable: false,
     consultId,
   };
@@ -669,12 +693,7 @@ export async function handleConsultAsk(
         supabaseUrl,
         serviceRoleKey,
       );
-      // x-real-ip はVercelが設定する信頼できるヘッダー（スプーフィング不可）
-      const forwardedIp =
-        request.headers.get("x-real-ip") ??
-        request.headers.get("x-forwarded-for")?.split(",").at(-1)?.trim() ??
-        null;
-      const ip = forwardedIp && forwardedIp !== "unknown" ? forwardedIp : null;
+      const ip = getForwardedClientIp(request);
       const abuseResult = await handleAbuseDetection(
         secClient,
         ip,

@@ -8,6 +8,7 @@
 import { todayJstString } from "@/lib/time/jstDate";
 import { isEndAfterStart, parseTime } from "@/lib/vendor/businessHours";
 import { PAYMENT_OPTIONS, RAIN_OPTIONS } from "@/lib/vendor/storeOptions";
+import type { ChomeId } from "@/lib/map/chomes";
 
 export const LISTING_STATUSES = ["pending", "allowed", "declined"] as const;
 export type ListingStatus = (typeof LISTING_STATUSES)[number];
@@ -64,6 +65,12 @@ export type AdminShopDetail = Pick<ShopEditFields, "shop_name" | "listing_status
     category_name: string | null;
     owner_name: string | null;
     store_number: number | null;
+    /** 現場登録で位置（座標）を記録済みか */
+    location_recorded: boolean;
+    /** 日曜市の丁目（1〜7）。現場登録の記録を優先し、無ければ地図上の区画の丁目。無ければ null */
+    chome: number | null;
+    /** 商品名 → 写真の URL（写真がある商品だけ）。出店者本人・運営のどちらが登録したものも含む */
+    product_images?: Record<string, string>;
     updated_at: string | null;
   };
 
@@ -71,6 +78,8 @@ export type ShopEditParsed = {
   vendor: ShopEditUpdate;
   /** vendor_owner_profiles に書く。undefined なら触らない */
   ownerName?: string | null;
+  /** 現場で聞いた丁目を記録する（field_shop_locations に書く。地図は変えない）。undefined なら触らない */
+  chome?: ChomeId;
 };
 
 export type ShopEditResult =
@@ -123,7 +132,8 @@ export function isVendorImageUrl(value: string): boolean {
 
 /**
  * 「許可済み」にするとき、許可をもらった日が未記録なら今日（日本時間）にする。
- * 記録済みの日付は上書きしない。UTC の日付だと、日本時間の 0〜9 時（日曜市の朝）に前日になる。
+ * 記録済みの日付は上書きしない。画面が「日付が空」を null で送ってくる場合も未指定として扱う
+ * （null を明示と見なすと、現場登録画面では自動入力が一度も働かない）。UTC の日付だと、日本時間の 0〜9 時（日曜市の朝）に前日になる。
  */
 export function consentDateOnAllow(
   update: { listing_status?: ListingStatus; listing_consented_on?: string | null },
@@ -131,7 +141,7 @@ export function consentDateOnAllow(
   now: Date = new Date(),
 ): string | undefined {
   if (update.listing_status !== "allowed") return undefined;
-  if (update.listing_consented_on !== undefined || currentConsentedOn) return undefined;
+  if (update.listing_consented_on != null || currentConsentedOn) return undefined;
   return todayJstString(now);
 }
 
@@ -140,6 +150,7 @@ export function parseShopEdit(body: unknown): ShopEditResult {
 
   const vendor: ShopEditUpdate = {};
   let ownerName: string | null | undefined;
+  let chome: ChomeId | undefined;
 
   if ("shop_name" in body) {
     const name = textOrNull(body.shop_name, MAX_NAME);
@@ -269,8 +280,14 @@ export function parseShopEdit(body: unknown): ShopEditResult {
     ownerName = name;
   }
 
-  if (Object.keys(vendor).length === 0 && ownerName === undefined) return fail("更新する項目がありません");
+  if ("chome" in body) {
+    const value = body.chome;
+    if (typeof value !== "number" || !Number.isInteger(value) || value < 1 || value > 7) return fail("丁目は1〜7から選んでください");
+    chome = value as ChomeId;
+  }
 
-  return { ok: true, value: { vendor, ownerName } };
+  if (Object.keys(vendor).length === 0 && ownerName === undefined && chome === undefined) return fail("更新する項目がありません");
+
+  return { ok: true, value: { vendor, ownerName, chome } };
 }
 

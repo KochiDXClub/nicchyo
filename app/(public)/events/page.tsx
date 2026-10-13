@@ -1,9 +1,10 @@
-﻿import { Metadata } from "next";
+import { Metadata } from "next";
 import NavigationBar from "../../components/NavigationBar";
 import MapLink from "../../components/MapLink";
 
 export const metadata: Metadata = {
-  title: "午後のイベント | nicchyo 日曜市",
+  title: "午後のイベント",
+  robots: { index: false, follow: true },
   description:
     "日曜市が終わった後も楽しめる、地域イベントやワークショップの情報ページです。",
 };

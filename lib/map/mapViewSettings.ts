@@ -12,9 +12,7 @@
  * - manual: 管理画面で四隅をドラッグして決めた長方形をそのまま使う
  *
  * 【効く範囲】
- * 適用先は MapLibre 版の描画（lib/mapFeatureFlags.ts の renderer=maplibre）。
- * Leaflet 版は従来どおり「道の範囲＋可視距離」の狭い枠のままにしてある。
- * 両方に効かせると、既定の描画（leaflet）の操作感まで黙って変わってしまうため。
+ * 適用先は MapLibre の描画（MapViewMapLibre）。
  */
 
 import { expandBoundsByMeters } from "@/app/(public)/map/utils/mapRouteGeometry";

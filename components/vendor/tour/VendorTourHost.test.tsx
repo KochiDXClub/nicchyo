@@ -1,5 +1,10 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { MotionGlobalConfig } from "framer-motion";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+
+// 閉じるときのフェードアウトを待つと、混んだ CI では waitFor の既定 1 秒を超えて落ちることがある。
+// 見たいのは開く・閉じるの判断なので、アニメーションは飛ばす。
+MotionGlobalConfig.skipAnimations = true;
 
 let pathname = "/vendor/posts";
 vi.mock("next/navigation", () => ({ usePathname: () => pathname }));

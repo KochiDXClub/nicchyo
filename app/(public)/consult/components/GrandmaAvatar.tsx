@@ -41,7 +41,7 @@ function useLingeringPose(pose: GrandmaPose): GrandmaPose {
  * 「答えがあるかどうか」ではない。アプリの状態で勝手に縮むと、
  * なぜ縮んだのかが利用者に分からず、話し相手が急に遠ざかったように見える。
  */
-export type GrandmaAvatarSize = "hero" | "pinned";
+export type GrandmaAvatarSize = "hero" | "compact" | "pinned";
 
 const SIZE_CLASS: Record<GrandmaAvatarSize, string> = {
   // 縦の短い端末（iPhone SE など）では、候補ボタン3つが下端固定の
@@ -61,6 +61,8 @@ const SIZE_CLASS: Record<GrandmaAvatarSize, string> = {
   // lg 以上（PC・ノートPC）は、左の30%カラムに収まる大きさにする。
   // 左カラムは縦に積まれる候補ボタンと競合しないので、上の高さ条件は使わない。
   // 画面幅に合わせて 190〜300px の範囲で伸び縮みさせ、大きくなりすぎないようにする
+  // 下から出るシートなど、高さに余裕のない場所の中で、画面の主役として置く大きさ
+  compact: "h-[128px] w-[128px]",
   // 固定バーに常駐する取っ手。大きさは変えず、出入りだけさせる
   pinned: "h-[64px] w-[64px] md:h-[72px] md:w-[72px]",
 };

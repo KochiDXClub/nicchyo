@@ -223,6 +223,122 @@ export type Database = {
         }
         Relationships: []
       }
+      chome_boundaries: {
+        Row: {
+          confidence: string
+          id: string
+          latitude: number
+          longitude: number
+          name: string
+          sort_order: number
+        }
+        Insert: {
+          confidence?: string
+          id: string
+          latitude: number
+          longitude: number
+          name: string
+          sort_order: number
+        }
+        Update: {
+          confidence?: string
+          id?: string
+          latitude?: number
+          longitude?: number
+          name?: string
+          sort_order?: number
+        }
+        Relationships: []
+      }
+      chome_sections: {
+        Row: {
+          chome_id: number
+          from_boundary_id: string | null
+          road_id: string
+          to_boundary_id: string | null
+        }
+        Insert: {
+          chome_id: number
+          from_boundary_id?: string | null
+          road_id: string
+          to_boundary_id?: string | null
+        }
+        Update: {
+          chome_id?: number
+          from_boundary_id?: string | null
+          road_id?: string
+          to_boundary_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chome_sections_chome_id_fkey"
+            columns: ["chome_id"]
+            isOneToOne: true
+            referencedRelation: "chomes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chome_sections_from_boundary_id_fkey"
+            columns: ["from_boundary_id"]
+            isOneToOne: false
+            referencedRelation: "chome_boundaries"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chome_sections_road_id_fkey"
+            columns: ["road_id"]
+            isOneToOne: false
+            referencedRelation: "map_roads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chome_sections_to_boundary_id_fkey"
+            columns: ["to_boundary_id"]
+            isOneToOne: false
+            referencedRelation: "chome_boundaries"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      chomes: {
+        Row: {
+          color: string
+          east_boundary: string | null
+          id: number
+          name: string
+          ref_number_max: number | null
+          ref_number_min: number | null
+          road_name: string
+          short_name: string
+          sort_order: number
+          west_boundary: string | null
+        }
+        Insert: {
+          color: string
+          east_boundary?: string | null
+          id: number
+          name: string
+          ref_number_max?: number | null
+          ref_number_min?: number | null
+          road_name: string
+          short_name: string
+          sort_order: number
+          west_boundary?: string | null
+        }
+        Update: {
+          color?: string
+          east_boundary?: string | null
+          id?: number
+          name?: string
+          ref_number_max?: number | null
+          ref_number_min?: number | null
+          road_name?: string
+          short_name?: string
+          sort_order?: number
+          west_boundary?: string | null
+        }
+        Relationships: []
+      }
       content_reactions: {
         Row: {
           created_at: string
@@ -365,6 +481,99 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      field_shop_locations: {
+        Row: {
+          accuracy_m: number | null
+          chome_id: number | null
+          created_at: string
+          latitude: number | null
+          longitude: number | null
+          source: string | null
+          store_number: number | null
+          updated_at: string
+          updated_by: string | null
+          vendor_id: string
+        }
+        Insert: {
+          accuracy_m?: number | null
+          chome_id?: number | null
+          created_at?: string
+          latitude?: number | null
+          longitude?: number | null
+          source?: string | null
+          store_number?: number | null
+          updated_at?: string
+          updated_by?: string | null
+          vendor_id: string
+        }
+        Update: {
+          accuracy_m?: number | null
+          chome_id?: number | null
+          created_at?: string
+          latitude?: number | null
+          longitude?: number | null
+          source?: string | null
+          store_number?: number | null
+          updated_at?: string
+          updated_by?: string | null
+          vendor_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "field_shop_locations_chome_id_fkey"
+            columns: ["chome_id"]
+            isOneToOne: false
+            referencedRelation: "chomes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "field_shop_locations_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: true
+            referencedRelation: "vendors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      site_announcements: {
+        Row: {
+          body: string
+          created_at: string
+          created_by: string | null
+          ends_at: string | null
+          id: string
+          important: boolean
+          published: boolean
+          starts_at: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          body: string
+          created_at?: string
+          created_by?: string | null
+          ends_at?: string | null
+          id?: string
+          important?: boolean
+          published?: boolean
+          starts_at?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          body?: string
+          created_at?: string
+          created_by?: string | null
+          ends_at?: string | null
+          id?: string
+          important?: boolean
+          published?: boolean
+          starts_at?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       guide_events: {
         Row: {
@@ -704,65 +913,66 @@ export type Database = {
       }
       market_locations: {
         Row: {
+          branch_number: number | null
+          chome_id: number | null
+          chome_locked: boolean
           created_at: string | null
           district: string | null
           id: string
           latitude: number
           longitude: number
+          official_number: number | null
+          road_distance_m: number | null
+          road_id: string | null
+          road_offset_m: number | null
+          road_side: string | null
           store_number: number
         }
         Insert: {
+          branch_number?: number | null
+          chome_id?: number | null
+          chome_locked?: boolean
           created_at?: string | null
           district?: string | null
           id?: string
           latitude: number
           longitude: number
+          official_number?: number | null
+          road_distance_m?: number | null
+          road_id?: string | null
+          road_offset_m?: number | null
+          road_side?: string | null
           store_number: number
         }
         Update: {
+          branch_number?: number | null
+          chome_id?: number | null
+          chome_locked?: boolean
           created_at?: string | null
           district?: string | null
           id?: string
           latitude?: number
           longitude?: number
+          official_number?: number | null
+          road_distance_m?: number | null
+          road_id?: string | null
+          road_offset_m?: number | null
+          road_side?: string | null
           store_number?: number
-        }
-        Relationships: []
-      }
-      product_sales: {
-        Row: {
-          created_at: string
-          id: string
-          product_name: string
-          quantity: number
-          sale_date: string
-          updated_at: string
-          vendor_id: string
-        }
-        Insert: {
-          created_at?: string
-          id?: string
-          product_name: string
-          quantity: number
-          sale_date?: string
-          updated_at?: string
-          vendor_id: string
-        }
-        Update: {
-          created_at?: string
-          id?: string
-          product_name?: string
-          quantity?: number
-          sale_date?: string
-          updated_at?: string
-          vendor_id?: string
         }
         Relationships: [
           {
-            foreignKeyName: "product_sales_vendor_id_fkey"
-            columns: ["vendor_id"]
+            foreignKeyName: "market_locations_chome_id_fkey"
+            columns: ["chome_id"]
             isOneToOne: false
-            referencedRelation: "vendors"
+            referencedRelation: "chomes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "market_locations_road_id_fkey"
+            columns: ["road_id"]
+            isOneToOne: false
+            referencedRelation: "map_roads"
             referencedColumns: ["id"]
           },
         ]
@@ -864,27 +1074,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
-      }
-      report_readers: {
-        Row: {
-          added_at: string
-          email: string
-          id: string
-          note: string | null
-        }
-        Insert: {
-          added_at?: string
-          email: string
-          id?: string
-          note?: string | null
-        }
-        Update: {
-          added_at?: string
-          email?: string
-          id?: string
-          note?: string | null
-        }
-        Relationships: []
       }
       reports: {
         Row: {
@@ -997,72 +1186,6 @@ export type Database = {
         }
         Relationships: []
       }
-      shop_attendance_vendor: {
-        Row: {
-          created_at: string
-          id: string
-          is_open: boolean
-          shop_id: string
-          updated_at: string
-          vendor_confirmed: boolean
-          vendor_id: string
-          vote_date: string
-        }
-        Insert: {
-          created_at?: string
-          id?: string
-          is_open: boolean
-          shop_id: string
-          updated_at?: string
-          vendor_confirmed?: boolean
-          vendor_id: string
-          vote_date: string
-        }
-        Update: {
-          created_at?: string
-          id?: string
-          is_open?: boolean
-          shop_id?: string
-          updated_at?: string
-          vendor_confirmed?: boolean
-          vendor_id?: string
-          vote_date?: string
-        }
-        Relationships: []
-      }
-      shop_attendance_votes: {
-        Row: {
-          created_at: string
-          id: string
-          shop_id: string
-          updated_at: string
-          user_id: string
-          vote_date: string
-          vote_yes: boolean
-          weight: number
-        }
-        Insert: {
-          created_at?: string
-          id?: string
-          shop_id: string
-          updated_at?: string
-          user_id: string
-          vote_date: string
-          vote_yes: boolean
-          weight?: number
-        }
-        Update: {
-          created_at?: string
-          id?: string
-          shop_id?: string
-          updated_at?: string
-          user_id?: string
-          vote_date?: string
-          vote_yes?: boolean
-          weight?: number
-        }
-        Relationships: []
-      }
       shop_page_views: {
         Row: {
           id: string
@@ -1091,69 +1214,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
-      }
-      shops_import: {
-        Row: {
-          lat: number | null
-          legacy_id: number | null
-          lng: number | null
-        }
-        Insert: {
-          lat?: number | null
-          legacy_id?: number | null
-          lng?: number | null
-        }
-        Update: {
-          lat?: number | null
-          legacy_id?: number | null
-          lng?: number | null
-        }
-        Relationships: []
-      }
-      shops_name_staging: {
-        Row: {
-          id: string
-          name: string
-        }
-        Insert: {
-          id: string
-          name: string
-        }
-        Update: {
-          id?: string
-          name?: string
-        }
-        Relationships: []
-      }
-      shops_strong: {
-        Row: {
-          legacy_id: number | null
-          shop_strength: string | null
-        }
-        Insert: {
-          legacy_id?: number | null
-          shop_strength?: string | null
-        }
-        Update: {
-          legacy_id?: number | null
-          shop_strength?: string | null
-        }
-        Relationships: []
-      }
-      shops_topic_import: {
-        Row: {
-          id: string
-          topic: Json | null
-        }
-        Insert: {
-          id: string
-          topic?: Json | null
-        }
-        Update: {
-          id?: string
-          topic?: Json | null
-        }
-        Relationships: []
       }
       store_knowledge: {
         Row: {
@@ -1220,21 +1280,6 @@ export type Database = {
           updated_at?: string
           updated_by?: string | null
           value?: Json
-        }
-        Relationships: []
-      }
-      todos: {
-        Row: {
-          id: string
-          todo: string
-        }
-        Insert: {
-          id?: string
-          todo: string
-        }
-        Update: {
-          id?: string
-          todo?: string
         }
         Relationships: []
       }
@@ -1618,17 +1663,6 @@ export type Database = {
           vendor_content_id: string
         }[]
       }
-      get_shop_attendance_estimates: {
-        Args: { target_date: string }
-        Returns: {
-          evidence_summary: string
-          label: string
-          n_eff: number
-          p: number
-          shop_id: string
-          vendor_override: boolean
-        }[]
-      }
       match_knowledge_embeddings: {
         Args: {
           match_count: number
@@ -1691,9 +1725,29 @@ export type Database = {
         }
         Returns: undefined
       }
+      save_map_layout: {
+        Args: {
+          p_deleted_landmark_keys: Json
+          p_deleted_location_ids: Json
+          p_landmarks: Json
+          p_points: Json
+          p_removed_road_ids: Json
+          p_roads: Json
+          p_route_config: Json
+          p_save_roads: boolean
+          p_shop_positions: Json
+          p_shops: Json
+          p_vendors?: Json
+        }
+        Returns: Json
+      }
       save_roads_and_points: {
         Args: { p_points: Json; p_removed_road_ids?: Json; p_roads: Json }
         Returns: undefined
+      }
+      set_market_location_road_positions: {
+        Args: { p_positions: Json }
+        Returns: number
       }
       track_home_visit: {
         Args: { p_visit_date: string; p_visitor_key: string }

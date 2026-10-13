@@ -22,6 +22,8 @@ export default function ReportButton({ shopCode, shopName }: Props) {
   const [open, setOpen] = useState(false);
   const [reason, setReason] = useState<Reason | "">("");
   const [details, setDetails] = useState("");
+  // honeypot: 人間には見えない欄。ボットが埋めたら API 側で破棄する
+  const [website, setWebsite] = useState("");
   const [loading, setLoading] = useState(false);
   const [done, setDone] = useState(false);
 
@@ -38,6 +40,7 @@ export default function ReportButton({ shopCode, shopName }: Props) {
           target_name: shopName,
           reason,
           details,
+          website,
         }),
       });
       if (!res.ok) {
@@ -90,6 +93,16 @@ export default function ReportButton({ shopCode, shopName }: Props) {
                 <p className="mt-1 text-xs text-slate-500">
                   「{shopName}」に関する問題を報告してください。
                 </p>
+
+                <input
+                  type="text"
+                  tabIndex={-1}
+                  autoComplete="off"
+                  aria-hidden="true"
+                  className="hidden"
+                  value={website}
+                  onChange={(e) => setWebsite(e.target.value)}
+                />
 
                 <div className="mt-4 space-y-2">
                   {REASONS.map((r) => (

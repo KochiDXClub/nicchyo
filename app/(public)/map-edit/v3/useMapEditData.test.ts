@@ -25,7 +25,7 @@ const landmark = (key: string): EditableLandmark => ({
   showAtMinZoom: false,
 });
 
-const base: EditState = { shops: [shop("a"), shop("b")], roads: [], landmarks: [landmark("castle")] };
+const base: EditState = { shops: [shop("a"), shop("b")], roads: [], landmarks: [landmark("castle")], vendors: [] };
 
 function changesFrom(steps: EditState[]) {
   let history = EMPTY_HISTORY;
@@ -41,12 +41,31 @@ describe("buildSavePayloadDiff", () => {
       shops: [shop("a", { vendorId: "v1", name: "店A" })],
       roads: [],
       landmarks: [],
+      vendors: [],
     };
     const diff = buildSavePayloadDiff(changesFrom([base, after]));
     expect(diff.shops.updated.map((s) => s.locationId)).toEqual(["a"]);
     expect(diff.shops.deletedLocationIds).toEqual(["b"]);
     expect(diff.landmarks.upsert).toEqual([]);
     expect(diff.landmarks.deletedKeys).toEqual(["castle"]);
+  });
+
+  it("登録・変更した出店者を送る", () => {
+    const vendor = { id: "new-vendor-1", name: "新しい店", categoryId: null, strength: "", mainProducts: ["柚子"] };
+    const after: EditState = { ...base, vendors: [vendor], shops: [shop("a", { vendorId: vendor.id }), base.shops[1]] };
+    const diff = buildSavePayloadDiff(changesFrom([base, after]));
+    expect(diff.vendors.upsert).toEqual([vendor]);
+    expect(diff.shops.updated.map((s) => s.vendorId)).toEqual(["new-vendor-1"]);
+  });
+
+  it("消した出店者は id で送り、画面で追加してまだ保存していない出店者（仮 id）は送らない", () => {
+    const saved = { id: "11111111-1111-4111-8111-111111111111", name: "仮の店", categoryId: null, strength: "", mainProducts: [] };
+    const draft = { ...saved, id: "new-vendor-9", name: "追加しただけの店" };
+    const before: EditState = { ...base, vendors: [saved, draft] };
+    const after: EditState = { ...base, vendors: [] };
+    const diff = buildSavePayloadDiff(changesFrom([before, after]));
+    expect(diff.vendors.deletedIds).toEqual([saved.id]);
+    expect(diff.vendors.upsert).toEqual([]);
   });
 
   it("画面で追加してから消した区画は送らない", () => {

@@ -4,15 +4,19 @@ import {
   getRouteCenter,
 } from "../../map/utils/mapRouteGeometry";
 import type { MapRouteConfig, MapRoutePoint } from "../../map/types/mapRoute";
+import { NEW_VENDOR_ID_PREFIX } from "../../map/types/editableShop";
+import type { ChomeBoundary, ChomeSection } from "@/lib/map/chomeBoundaries";
 import { createProjection } from "./geo";
 import type { EntityChange } from "./editHistory";
 import type {
   EditableLandmark,
   EditableRoad,
   EditableShop,
+  EditableVendor,
   SnapshotItem,
-  VendorOption,
+  VendorCategory,
 } from "./types";
+import { DEFAULT_MAX_LANDMARKS, DEFAULT_MAX_UNASSIGNED_SHOP_MARKERS } from "@/lib/map/mapSettingsDefaults";
 
 export type MapSettingsLimits = {
   maxLandmarks: number;
@@ -20,8 +24,8 @@ export type MapSettingsLimits = {
 };
 
 const DEFAULT_MAP_SETTINGS_LIMITS: MapSettingsLimits = {
-  maxLandmarks: 80,
-  maxUnassignedShopMarkers: 40,
+  maxLandmarks: DEFAULT_MAX_LANDMARKS,
+  maxUnassignedShopMarkers: DEFAULT_MAX_UNASSIGNED_SHOP_MARKERS,
 };
 
 async function fetchMapLayout() {
@@ -32,8 +36,13 @@ async function fetchMapLayout() {
     landmarks?: EditableLandmark[];
     route?: { points: MapRoutePoint[]; config: MapRouteConfig };
     roads?: EditableRoad[];
-    vendors?: VendorOption[];
+    vendors?: EditableVendor[];
+    categories?: VendorCategory[];
+    /** DB に道基準の位置の列があるか（無ければマイグレーション前で、保存できない） */
+    schemaReady?: boolean;
     mapSettingsLimits?: MapSettingsLimits;
+    /** 丁目の境目と区間（古い API・マイグレーション前は無い／空） */
+    chome?: { boundaries?: ChomeBoundary[]; sections?: ChomeSection[] };
   }>;
 }
 
@@ -44,6 +53,7 @@ async function fetchMapLayout() {
 export function buildSavePayloadDiff(changes: EntityChange[]) {
   const shopChanges = changes.filter((change) => change.kind === "shops");
   const landmarkChanges = changes.filter((change) => change.kind === "landmarks");
+  const vendorChanges = changes.filter((change) => change.kind === "vendors");
   return {
     shops: {
       updated: shopChanges.flatMap((change) => (change.after ? [change.after as EditableShop] : [])),
@@ -55,6 +65,15 @@ export function buildSavePayloadDiff(changes: EntityChange[]) {
     landmarks: {
       upsert: landmarkChanges.flatMap((change) => (change.after ? [change.after as EditableLandmark] : [])),
       deletedKeys: landmarkChanges.filter((change) => change.before && !change.after).map((change) => change.id),
+    },
+    // 「空きにする」は割り当てを外すだけで出店者は消えない。出店者が消えるのは、CSV の取り込みで
+    // 「削除する区画の出店者も削除」を選んだときだけ。画面で追加してまだ保存していない出店者（仮 id）は
+    // DB に無いので、削除対象に含めない
+    vendors: {
+      upsert: vendorChanges.flatMap((change) => (change.after ? [change.after as EditableVendor] : [])),
+      deletedIds: vendorChanges
+        .filter((change) => change.before && !change.after && !change.id.startsWith(NEW_VENDOR_ID_PREFIX))
+        .map((change) => change.id),
     },
   };
 }
@@ -84,8 +103,13 @@ export function useMapEditData({
   const [landmarks, setLandmarks] = useState<EditableLandmark[]>([]);
   const [roads, setRoads] = useState<EditableRoad[]>([]);
   const [routeConfig, setRouteConfig] = useState<MapRouteConfig>(getDefaultMapRouteConfig());
-  const [vendorOptions, setVendorOptions] = useState<VendorOption[]>([]);
+  const [vendors, setVendors] = useState<EditableVendor[]>([]);
+  const [categories, setCategories] = useState<VendorCategory[]>([]);
+  // 古い API（schemaReady を返さない）では保存できる前提で扱う
+  const [schemaReady, setSchemaReady] = useState(true);
   const [mapSettingsLimits, setMapSettingsLimits] = useState<MapSettingsLimits>(DEFAULT_MAP_SETTINGS_LIMITS);
+  const [chomeBoundaries, setChomeBoundaries] = useState<ChomeBoundary[]>([]);
+  const [chomeSections, setChomeSections] = useState<ChomeSection[]>([]);
 
   const [snapshots, setSnapshots] = useState<SnapshotItem[]>([]);
   const [isLoadingSnapshots, setIsLoadingSnapshots] = useState(false);
@@ -93,6 +117,21 @@ export function useMapEditData({
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
 
   const originRef = useRef<{ lat: number; lng: number } | null>(null);
+
+  /**
+   * 保存・復元・移行のあとに、サーバーの内容で画面を読み直す。
+   * 読み直した内容が新しい出発点になるので、操作の記録も空にする。
+   */
+  const reloadAfterWrite = useCallback(async () => {
+    const nextData = await fetchMapLayout();
+    setShops(Array.isArray(nextData.shops) ? nextData.shops : []);
+    setLandmarks(Array.isArray(nextData.landmarks) ? nextData.landmarks : []);
+    setRoads(Array.isArray(nextData.roads) ? nextData.roads : []);
+    setVendors(Array.isArray(nextData.vendors) ? nextData.vendors : []);
+    setChomeBoundaries(nextData.chome?.boundaries ?? []);
+    setChomeSections(nextData.chome?.sections ?? []);
+    clearPending?.();
+  }, [clearPending]);
 
   // ── データ取得 ──────────────────────────────────────────
   useEffect(() => {
@@ -110,8 +149,12 @@ export function useMapEditData({
         setLandmarks(nextLandmarks);
         setRoads(nextRoads);
         setRouteConfig(nextConfig);
-        setVendorOptions(nextVendors);
+        setVendors(nextVendors);
+        setCategories(Array.isArray(data.categories) ? data.categories : []);
+        setSchemaReady(data.schemaReady !== false);
         if (data.mapSettingsLimits) setMapSettingsLimits(data.mapSettingsLimits);
+        setChomeBoundaries(data.chome?.boundaries ?? []);
+        setChomeSections(data.chome?.sections ?? []);
 
         const allPoints = nextRoads.flatMap((road) => road.points);
         const center = getRouteCenter(allPoints);
@@ -154,6 +197,7 @@ export function useMapEditData({
         body: JSON.stringify({
           shops: diff.shops,
           landmarks: diff.landmarks,
+          vendors: diff.vendors,
           route: { points: routePoints, config: routeConfig },
           roads: roads.map(({ points: _points, ...road }) => road),
         }),
@@ -165,21 +209,14 @@ export function useMapEditData({
         return;
       }
 
-      const nextData = await fetchMapLayout();
-      const nextShops = Array.isArray(nextData.shops) ? nextData.shops : [];
-      const nextLandmarks = Array.isArray(nextData.landmarks) ? nextData.landmarks : [];
-      const nextRoads = Array.isArray(nextData.roads) ? nextData.roads : [];
-      setShops(nextShops);
-      setLandmarks(nextLandmarks);
-      setRoads(nextRoads);
-      clearPending?.();
+      await reloadAfterWrite();
       setMessage("保存しました。");
     } catch {
       setMessage("保存に失敗しました。通信環境を確認してください。");
     } finally {
       setIsSaving(false);
     }
-  }, [changes, roads, routeConfig, clearPending]);
+  }, [changes, roads, routeConfig, reloadAfterWrite]);
 
   // ── スナップショット ──────────────────────────────────────────
   const loadSnapshots = useCallback(async () => {
@@ -215,21 +252,14 @@ export function useMapEditData({
           setMessage("復元に失敗しました。");
           return;
         }
-        const nextData = await fetchMapLayout();
-        const nextShops = Array.isArray(nextData.shops) ? nextData.shops : [];
-        const nextLandmarks = Array.isArray(nextData.landmarks) ? nextData.landmarks : [];
-        const nextRoads = Array.isArray(nextData.roads) ? nextData.roads : [];
-        setShops(nextShops);
-        setLandmarks(nextLandmarks);
-        setRoads(nextRoads);
-        clearPending?.();
+        await reloadAfterWrite();
         setMessage("スナップショットを復元しました。");
         await loadSnapshots();
       } finally {
         setIsRestoring(null);
       }
     },
-    [hasUnsavedChanges, loadSnapshots, clearPending]
+    [hasUnsavedChanges, loadSnapshots, reloadAfterWrite]
   );
 
   return {
@@ -244,8 +274,13 @@ export function useMapEditData({
     roads,
     setRoads,
     routeConfig,
-    vendorOptions,
+    vendors,
+    setVendors,
+    categories,
+    schemaReady,
     mapSettingsLimits,
+    chomeBoundaries,
+    chomeSections,
     hasUnsavedChanges,
     handleSave,
     projection,
@@ -255,5 +290,6 @@ export function useMapEditData({
     isHistoryOpen,
     setIsHistoryOpen,
     handleRestoreSnapshot,
+    reloadAfterWrite,
   };
 }

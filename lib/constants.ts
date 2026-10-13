@@ -51,6 +51,8 @@ export function normalizeSiteUrl(value: string | undefined): string {
     if (url.protocol !== "http:" && url.protocol !== "https:") {
       return fallbackOrThrow("http/https ではない");
     }
+    // http/https では origin が空にならないため、右辺には実際には到達しない。
+    // 上の検証が将来ゆるめられても空文字を返さない（new URL("") で全ページ500にしない）ための防御
     return (url.origin + url.pathname).replace(/\/+$/, "") || fallbackOrThrow("空のURL");
   } catch {
     return fallbackOrThrow("URLとして解釈できない");

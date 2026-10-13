@@ -1,99 +1,8 @@
 "use client";
 
-import type {
-  EditableLandmark,
-  EditableRoad,
-  EditableShop,
-  RoadKind,
-  VendorOption,
-} from "../types";
+import type { EditableLandmark, EditableRoad, RoadKind } from "../types";
 import { ROAD_KIND_LABELS } from "../types";
-
-const panelWrap: React.CSSProperties = { padding: 16, borderBottom: "1px solid #F3EBD8" };
-const label: React.CSSProperties = { display: "block", fontSize: 11.5, fontWeight: 700, color: "#9A8A6A", marginBottom: 5 };
-const inputStyle: React.CSSProperties = {
-  width: "100%",
-  boxSizing: "border-box",
-  padding: "8px 11px",
-  borderRadius: 9,
-  border: "1px solid #E4D9BF",
-  background: "#FDFBF5",
-  fontSize: 13,
-  outline: "none",
-  marginBottom: 12,
-};
-const buttonStyle: React.CSSProperties = {
-  padding: "8px 13px",
-  borderRadius: 9,
-  fontSize: 12.5,
-  fontWeight: 700,
-  cursor: "pointer",
-  border: "1px solid #E4D9BF",
-  background: "#fff",
-  color: "#57503F",
-};
-const dangerButtonStyle: React.CSSProperties = {
-  ...buttonStyle,
-  border: "1px solid #F2C4B0",
-  color: "#B4472C",
-};
-
-export function SlotDetailPanel({
-  shop,
-  vendorOptions,
-  onVendorSelect,
-  onStartMove,
-  onClearVendor,
-}: {
-  shop: EditableShop | null;
-  vendorOptions: VendorOption[];
-  onVendorSelect: (vendorId: string) => void;
-  onStartMove: () => void;
-  onClearVendor: () => void;
-}) {
-  if (!shop) {
-    return (
-      <div style={panelWrap}>
-        <p style={{ fontSize: 12.5, color: "#9A8A6A", margin: 0 }}>区画を選択してください。</p>
-      </div>
-    );
-  }
-
-  return (
-    <div style={panelWrap}>
-      <p style={{ margin: "0 0 12px", fontSize: 15, fontWeight: 900 }}>区画 {shop.position}</p>
-
-      <span style={label}>出店者（登録済みから選択）</span>
-      <select
-        value={shop.vendorId ?? ""}
-        onChange={(e) => onVendorSelect(e.target.value)}
-        style={inputStyle}
-      >
-        <option value="">（空き）</option>
-        {vendorOptions.map((v) => (
-          <option key={v.id} value={v.id}>
-            {v.name}
-          </option>
-        ))}
-      </select>
-
-      {/* 表示名は出店者データの店名から決まる（区画側では保存されない）ため、ここでは表示だけにする */}
-      <span style={label}>表示名</span>
-      <p style={{ margin: "0 0 12px", fontSize: 13 }}>{shop.name}</p>
-
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-        <span onClick={onStartMove} style={buttonStyle}>
-          この出店者を移動
-        </span>
-        {shop.vendorId && (
-          <span onClick={onClearVendor} style={dangerButtonStyle}>
-            空きにする
-          </span>
-        )}
-      </div>
-    </div>
-  );
-}
+import { buttonStyle, dangerButtonStyle, inputStyle, label, panelWrap } from "./panelStyles";
 
 /** 道の一覧。何も選んでいないときと、道を選んでいるときに右パネルの上に出す */
 export function RoadListPanel({
@@ -143,7 +52,7 @@ export function RoadDetailPanel({
   onWiderClick,
   onNarrowerClick,
   onDelete,
-  onAddSlots,
+  onStartSplit,
   shopCountOnRoad,
 }: {
   road: EditableRoad;
@@ -152,7 +61,8 @@ export function RoadDetailPanel({
   onWiderClick: () => void;
   onNarrowerClick: () => void;
   onDelete: () => void;
-  onAddSlots: (count: number) => void;
+  /** 区画分けツールをこの道で始める */
+  onStartSplit: () => void;
   shopCountOnRoad: (roadId: string) => number;
 }) {
   return (
@@ -199,12 +109,9 @@ export function RoadDetailPanel({
         <>
           <span style={label}>区画（現在 {shopCountOnRoad(road.id)} 区画）</span>
           <div style={{ display: "flex", gap: 8 }}>
-            <span onClick={() => onAddSlots(2)} style={buttonStyle}>
-              ＋2 区画
-            </span>
-            <span onClick={() => onAddSlots(10)} style={buttonStyle}>
-              ＋10 区画
-            </span>
+            <button type="button" onClick={onStartSplit} style={buttonStyle}>
+              区画分け…
+            </button>
           </div>
         </>
       )}

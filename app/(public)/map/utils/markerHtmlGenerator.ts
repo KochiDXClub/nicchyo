@@ -6,7 +6,8 @@ import { generateStallSvg, resolveStallParts } from '../config/stallParts';
 
 type ShopIllustrationSize = 'small' | 'medium' | 'large';
 
-function escapeHtml(str: string): string {
+/** HTML 文字列に埋め込む値（本文・属性値）をエスケープする。地図の印は Leaflet / MapLibre に HTML 文字列で渡すため */
+export function escapeHtml(str: string): string {
   if (!str) return '';
   return str
     .replace(/&/g, "&amp;")

@@ -2,12 +2,14 @@
 
 /**
  * 右側の操作部品: 縦ズームスライダーと現在地追従ボタン。
- * 地図には MapCamera（types/mapCamera.ts）経由でだけ触るので、Leaflet 版と MapLibre 版で共用できる。
+ * 地図には MapCamera（types/mapCamera.ts）経由でだけ触るので、地図ライブラリに依存しない。
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Navigation } from "lucide-react";
 import type { MapCamera } from "../types/mapCamera";
+import { hideWhilePanningClass, useMapPanning } from "../hooks/useMapPanning";
+import { cn } from "@/lib/utils/cn";
 // ===== テーパー型縦ズームスライダー =====
 // 上端（拡大側）が太く、下端（縮小側）が細いくさび形のトラックで操作方向を直感的に伝える
 const VZ_PAD = 14;        // 上下パディング（サムがはみ出ないように）
@@ -129,6 +131,8 @@ export function MapControls({
 }) {
   const zoomFrameRef = useRef<number | null>(null);
   const pendingZoomRef = useRef<number | null>(null);
+  // 地図をドラッグしているあいだは、上に浮いている検索バーなどと一緒に現在地ボタンも隠す
+  const isPanning = useMapPanning(map);
 
   const flushZoom = useCallback(() => {
     zoomFrameRef.current = null;
@@ -184,27 +188,30 @@ export function MapControls({
         // lg 以上は検索が左上のパネルになり、その高さに追従させる必要がない。
         // 右上には相談・近況・メニューのツールバーが入るので、その真下（lg:top-20）に置く。
         // top は inline style なので !important で上書きする
-        className="absolute right-4 z-[1000] transition-[top] duration-200 lg:!top-20"
+        className={cn("absolute right-4 z-[1000] transition-[top] duration-200 lg:!top-20", isPanning && "pointer-events-none")}
         style={{ top: trackingButtonTop }}
         onMouseDown={(e) => e.stopPropagation()}
         onClick={(e) => e.stopPropagation()}
         onTouchStart={(e) => { e.stopPropagation(); }}
       >
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            onToggleTracking();
-          }}
-          className={`flex h-11 w-11 items-center justify-center rounded-full shadow-pop transition-all active:scale-95 ${
-            isTracking
-              ? "bg-amber-500 text-white hover:bg-amber-600"
-              : "border border-amber-100/60 bg-white/95 text-slate-600 shadow-card hover:bg-amber-50"
-          }`}
-          aria-label={isTracking ? "追従中" : "追従オフ"}
-        >
-          <Navigation className={`h-5 w-5 ${isTracking ? "fill-current" : ""}`} />
-        </button>
+        {/* 位置（top）の動きと、パン中に隠す動き（opacity・transform）は transition が別なので要素を分ける */}
+        <div className={hideWhilePanningClass(isPanning)}>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggleTracking();
+            }}
+            className={`flex h-11 w-11 items-center justify-center rounded-full shadow-pop transition-all active:scale-95 ${
+              isTracking
+                ? "bg-amber-500 text-white hover:bg-amber-600"
+                : "border border-amber-100/60 bg-white/95 text-slate-600 shadow-card hover:bg-amber-50"
+            }`}
+            aria-label={isTracking ? "追従中" : "追従オフ"}
+          >
+            <Navigation className={`h-5 w-5 ${isTracking ? "fill-current" : ""}`} />
+          </button>
+        </div>
       </div>
     </>
   );

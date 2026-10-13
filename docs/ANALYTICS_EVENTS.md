@@ -16,9 +16,9 @@
 |---|---|---|
 | GA4 / GTM | `sendEvent`（`dataLayer.push` と `gtag("event")`） | GA。本番のみ `loadGA()` で遅延読み込み |
 | サーバー記録 | `sendEvent(..., { toServer: true })` | 下表の API |
-| ページ訪問 | `app/components/PageVisitTracker.tsx` | `POST /api/analytics/page-visit`、遷移ごとの GA4 `page_view`（`gtag()` を直接呼ぶ。`sendEvent` は経由しない） |
+| ページ訪問 | `app/components/PageVisitTracker.tsx` | `POST /api/analytics/page-visit`（`web_page_analytics` ＋ 来訪者全体の日次ユニーク数 `web_visitor_stats`。「今週の訪問者」の集計元）、遷移ごとの GA4 `page_view`（`gtag()` を直接呼ぶ。`sendEvent` は経由しない） |
 | 店舗詳細の閲覧数 | `recordShopView()`（`lib/analytics/shopViews.ts`） | `POST /api/analytics/shop-view` |
-| マイページ訪問 | `app/(public)/my-shop/layout.tsx` | `POST /api/analytics/home-visit` |
+| マイページ訪問 | `app/(public)/my-shop/layout.tsx` | `POST /api/analytics/home-visit`（`web_visitor_stats` へは page-visit と同じ日次ユニークに合流するので二重には数えない） |
 
 `/api/analytics/home-summary` は出店者ホームの集計取得用（書き込みではない）。
 
@@ -35,8 +35,7 @@
 
 `sendEvent` は次を処理できるが、アプリ内に発火している箇所は無い（再び使うときは呼び出しを足す）。
 
-- `shop_impression`（`context`: `map_cluster` / `list` / `search_result` / `banner` など）。`toServer` 付きで `POST /api/analytics/shop-interaction`（`shop_interactions`、`event_type: 'impression'`）
-- `shop_view`（`source` / `interaction_method`）。同じく `shop_interactions`（`event_type: 'view'`）
+- `shop_impression` / `shop_view`（型のみ。サーバー記録の API `shop-interaction` は呼び出し元が無く、入力無検証の公開書き込み口だったため削除した。再び使うときは `guide-event` と同じ方式で API を作り直す）
 - `shop_scroll`（`trackScrollDepth()` が 25/50/75/100% で発火）。呼び出し元なし
 - `add_to_bag`（型のみ。買い物リスト機能は廃止済み）
 

@@ -1,14 +1,10 @@
-import { CHOME_ORDER } from "../../map/types/editableShop";
-import type { EditableShop } from "../../map/types/editableShop";
+import { CHOME_ORDER, CHOME_WEST_TO_EAST } from "../../map/types/editableShop";
+import type { EditableShop, EditableVendor, VendorCategory } from "../../map/types/editableShop";
 import type { Landmark as EditableLandmark } from "../../map/types/landmark";
 import type { MapRoad, MapRoutePoint, RoadKind } from "../../map/types/mapRoute";
 
-export { CHOME_ORDER };
+export { CHOME_ORDER, CHOME_WEST_TO_EAST };
 
-export type VendorOption = {
-  id: string;
-  name: string;
-};
 
 export type EditableRoad = MapRoad & {
   points: MapRoutePoint[];
@@ -44,6 +40,8 @@ export type Selection =
 /** キャンバス（MapEditCanvasMapLibre）から親（MapEditClientV3）へ通知する操作 */
 export type CanvasHandlers = {
   onSelectShop: (locationId: string) => void;
+  /** 出店者のピンを別の区画へドラッグしたとき（移動先に出店者がいれば入れ替え） */
+  onDropVendor: (fromLocationId: string, toLocationId: string) => void;
   onSelectRoad: (roadId: string) => void;
   onSelectLandmark: (key: string) => void;
   /** ドラッグ中の位置（記録しない） */
@@ -51,6 +49,8 @@ export type CanvasHandlers = {
   /** ドラッグを終えた位置（ここで1件の操作として記録する） */
   onMoveLandmarkEnd: (key: string, lat: number, lng: number) => void;
   onMapClick: (lat: number, lng: number) => void;
+  /** 地図のダブルクリック（道を描く道具では描いた道の確定） */
+  onMapDoubleClick: (lat: number, lng: number) => void;
   onVertexMove: (roadId: string, pointId: string, lat: number, lng: number) => void;
   onVertexMoveEnd: (roadId: string, pointId: string, lat: number, lng: number) => void;
   onVertexRemove: (roadId: string, pointId: string) => void;
@@ -69,4 +69,4 @@ export const ROAD_KIND_DEFAULT_WIDTH: Record<RoadKind, number> = {
   path: 14,
 };
 
-export type { EditableLandmark, EditableShop, MapRoad, MapRoutePoint, RoadKind };
+export type { EditableLandmark, EditableShop, EditableVendor, MapRoad, MapRoutePoint, RoadKind, VendorCategory };

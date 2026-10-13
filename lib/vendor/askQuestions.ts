@@ -76,8 +76,8 @@ export type VendorAskSnapshot = {
   styleTags: string[];
   ownerName?: string;
   ownerNamePublic: boolean;
-  /** 主な商品と値段（店舗情報の編集画面の「主な商品」） */
-  products: { name: string; price: number | null }[];
+  /** 主な商品・値段・写真（店舗情報の編集画面の「主な商品」）。写真は products テーブルの同じ名前の商品から読む */
+  products: { name: string; price: number | null; imageUrl?: string }[];
   schedule: string[];
   businessHoursStart?: string;
   businessHoursEnd?: string;
@@ -447,5 +447,6 @@ export type AskAnswer =
   | { id: "category"; categoryId: string }
   | { id: "style"; tags: string[]; note: string }
   | { id: "owner"; name: string; isPublic: boolean }
-  | { id: "products"; items: { name: string; price: number | null }[] }
+  // imageFile: 触っていなければ undefined（今の写真のまま）、外すなら null、選び直したなら新しい写真
+  | { id: "products"; items: { name: string; price: number | null; imageFile?: File | null }[] }
   | { id: "schedule"; items: string[] };

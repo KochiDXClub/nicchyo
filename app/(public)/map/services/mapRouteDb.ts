@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/database.types";
-import type { MapRoute, MapRoutePoint } from "../types/mapRoute";
+import type { MapRoad, MapRoute, MapRoutePoint } from "../types/mapRoute";
 import {
   getDefaultMapRouteConfig,
   getDefaultMapRoutePoints,
@@ -14,6 +14,7 @@ type MapRoutePointRow = {
   longitude: number | null;
   sort_order: number | null;
   branch_from_id: string | null;
+  road_id: string | null;
 };
 
 type MapRouteConfigRow = {
@@ -33,16 +34,19 @@ export function getFallbackMapRoute(): MapRoute {
 export async function fetchMapRouteFromDb(
   supabase: SupabaseClient<Database>
 ): Promise<MapRoute> {
-  const [pointsResult, configResult] = await Promise.all([
+  const [pointsResult, configResult, roadsResult] = await Promise.all([
     supabase
       .from("map_route_points")
-      .select("id, latitude, longitude, sort_order, branch_from_id")
+      // road_id: 道ごとに別の線として描くため（mapRouteGeometry.ts の getRouteTopology）
+      .select("id, latitude, longitude, sort_order, branch_from_id, road_id")
       .order("sort_order", { ascending: true }),
     supabase
       .from("map_route_configs")
       .select("key, road_half_width_meters, snap_distance_meters, visible_distance_meters")
       .eq("key", "default")
       .maybeSingle(),
+    // 道の名前・種類（案内の経路が使う）。読めなくても地図は描けるので、失敗は無視する
+    supabase.from("map_roads").select("id, name, kind, width_meters"),
   ]);
 
   if (pointsResult.error || configResult.error) {
@@ -61,6 +65,7 @@ export async function fetchMapRouteFromDb(
           lng: Number(row.longitude),
           order: Number(row.sort_order ?? 0),
           branchFromId: row.branch_from_id ?? null,
+          roadId: row.road_id ?? null,
         };
       })
       .filter((row): row is MapRoutePoint => row !== null)
@@ -84,6 +89,15 @@ export async function fetchMapRouteFromDb(
       : null
   );
 
+  const roads: MapRoad[] | undefined = roadsResult.error
+    ? undefined
+    : (roadsResult.data ?? []).map((row) => ({
+        id: row.id as string,
+        name: row.name as string,
+        kind: row.kind as MapRoad["kind"],
+        widthMeters: Number(row.width_meters),
+      }));
+
   if (points.length < 2) {
     return {
       points: getDefaultMapRoutePoints(),
@@ -94,5 +108,6 @@ export async function fetchMapRouteFromDb(
   return {
     points,
     config,
+    ...(roads ? { roads } : {}),
   };
 }

@@ -1,26 +1,22 @@
 "use client";
 
 /**
- * MapLibre GL JS 版のマップ（移行の第 1 段階）
+ * マップ本体（MapLibre GL JS）
  *
- * Leaflet 版（../MapView.tsx）と並走させ、lib/mapFeatureFlags.ts の renderer=maplibre で
- * 切り替える。管理画面と計測ページから同じ条件で比較できるようにするのが目的。
- *
- * 【この段階で持っているもの】
+ * 【持っているもの】
  * - 背景地図（CARTO ラスター / OpenFreeMap ベクター）、市場の色かぶせ、道（ポリゴン・中心線）
  * - 店舗マーカー: シンボルレイヤーで GPU 描画。屋台パーツを Canvas で描き起こしたスプライトを使い、
  *   検索 / AI / 買い物袋 / 選択の状態は画像を差し替えて表現
  * - 木札（店名、text-field ＋ 伸縮する下地画像）、屋根の上の写真窓（styleimagemissing で遅延生成）、
- *   お気に入り・買い物袋バッジ。表示倍率は Leaflet 版の LOD（stall / photo / nameplate）と同じ境界
+ *   お気に入り・買い物袋バッジ。表示倍率は LOD（stall / photo / nameplate）の境界で切り替える
  * - ランドマーク画像と地名ラベル、丁目バッジ（HTML マーカー）、店舗タップで詳細バナー
  * - 回転・ピンチ・ドラッグは MapLibre 標準（自作ジェスチャー不要）
  * - ページ側の部品（「このへん」の出現判定、ズームスライダー、おでかけサポート、検索結果シート）は
- *   MapCamera アダプタ経由で Leaflet 版と共用
+ *   MapCamera アダプタ経由で使う
  * - 現在地と追従は MapLibre 標準の GeolocateControl（useMapLibreUserLocation）、道への吸着（after / integrated）
+ * - 出店者のカスタム SVG 屋台（サニタイズして店ごとに 1 枚描き起こし、全状態で共有）
+ * - WebGL が使えない端末では地図の代わりに案内を出す（MapWebglUnsupported）
  * - 計測の橋渡し（?perf=1 で window.__nicchyoMapBench）
- *
- * 【まだ無いもの（Leaflet 版にある）】
- * 出店者のカスタム SVG 屋台。順に移す。
  */
 
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -32,7 +28,9 @@ import type {
 } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import "@/lib/map/maplibreWorker";
-import type { MapViewProps } from "../MapView";
+import { isWebGLAvailable } from "@/lib/map/webgl";
+import MapWebglUnsupported from "./MapWebglUnsupported";
+import type { MapViewProps } from "../../types/mapView";
 import type { Shop } from "../../data/shops";
 import type { Landmark } from "../../types/landmark";
 import type { MapRoutePoint } from "../../types/mapRoute";
@@ -63,6 +61,7 @@ import {
   ROAD_LANE_WEIGHT_STOPS,
   ROAD_STYLE,
   getRoadCorridorHalfWidthMeters,
+  getPixelsPerMeter,
   getRoadLaneDashUnits,
 } from "../../config/roadStyle";
 import {
@@ -73,8 +72,12 @@ import {
 } from "@/lib/map/mapViewSettings";
 import { OPENFREEMAP_STYLE_URL } from "../../config/basemap";
 import {
+  DETAIL_STALL_SCALE,
+  DETAIL_ZOOM_OFFSET,
+  ILLUSTRATION_SIZES,
   OVERVIEW_ZONE_MAX_ZOOM,
   OVERVIEW_ZONE_MIN_ZOOM,
+  SHOP_COLUMN_SPACING_METERS,
   SHOP_MARKER_LOD_OFFSETS,
 } from "../../config/displayConfig";
 import { buildCrowdSprites } from "./crowdSprites";
@@ -85,8 +88,13 @@ import {
   buildNameplateSprite,
   buildStallSprites,
   rasterizeImageUrl,
-  rasterizePhotoCircle,
+  rasterizeStallWithPhoto,
+  STALL_STATES,
+  type StallState,
 } from "./stallSprites";
+import { STALL_PHOTO_HEIGHT_RATIO } from "../../config/stallParts";
+import { buildPhotoStallScale } from "./photoStallScale";
+import { PhotoSpriteRegistry } from "./photoSpriteRegistry";
 import { getShopPreviewImage, getShopThumbnailImage } from "../../../../../lib/shopImages";
 import { MAPLIBRE_MAP_KEY, type MapCamera, type MapCameraEvent } from "../../types/mapCamera";
 import { LiveZoomMapControls } from "../MapControls";
@@ -101,8 +109,6 @@ import {
   type ShopStateMap,
 } from "./shopFeatures";
 import { ROAD_SNAP_DELAY_MS, ROAD_SNAP_MIN_DISTANCE_METERS } from "@/lib/constants";
-import { resolveStallColors } from "../../config/shopCategories";
-import { sanitizeCssColor } from "../../utils/markerHtmlGenerator";
 
 const ZOOM_BOUNDS = getRecommendedZoomBounds();
 /**
@@ -110,7 +116,28 @@ const ZOOM_BOUNDS = getRecommendedZoomBounds();
  * 表示境界（LOD・丁目バッジ・タイル不透明度など）は Leaflet 版の定数を 1 ずらして使う。
  */
 const ZOOM_OFFSET = -1;
+/**
+ * 屋台が本来の大きさ（等倍）になるズーム。LOD（stall / photo / nameplate）の境界と、
+ * 開いたとき・店へ寄るときの倍率の基準でもある（市場を歩いて見て回る倍率）。
+ */
 const MAX_ZOOM = ZOOM_BOUNDS.max + ZOOM_OFFSET;
+/**
+ * 写真を大きく見るための一段。地図はここまで寄れて、屋台（写真）は DETAIL_STALL_SCALE 倍になる
+ * （段数と倍率は displayConfig.ts。パン中の写真カードも同じ倍率で大きくする）。
+ * 縮尺は 1 段で 2 倍になるので店舗間隔も 2 倍に広がり、2 倍の屋台でも隣と重ならない。
+ * 開いたときや店へ寄るときはここまでは寄らない（写真を見たい人がさらにピンチで寄る）
+ */
+const DETAIL_ZOOM = MAX_ZOOM + DETAIL_ZOOM_OFFSET;
+/**
+ * 写真入りの屋台を細かい版で描き直し始めるズーム（MAX_ZOOM からの差）。
+ * ここまでは等倍版を少し拡大して見せる（1.25 倍程度ならほぼ粗さは分からない）
+ */
+const DETAIL_SPRITE_ZOOM_OFFSET = 0.25;
+/** 細かい版で持っておく写真入りの屋台の上限（dpr 3 で 1 枚約 1.1MB）。超えたら長く見ていないものから等倍に戻す */
+const MAX_DETAIL_PHOTO_SPRITES = 24;
+/** 木札の文字の大きさ（px）と、屋台からの離し方（em）。一段先では屋台と一緒に離す量を広げる */
+const NAMEPLATE_TEXT_SIZE = 11;
+const NAMEPLATE_OFFSET_EM: [number, number] = [3.2, -2.4];
 const INITIAL_ZOOM = MAX_ZOOM;
 const OVERVIEW_MIN = OVERVIEW_ZONE_MIN_ZOOM + ZOOM_OFFSET;
 const OVERVIEW_MAX = OVERVIEW_ZONE_MAX_ZOOM + ZOOM_OFFSET;
@@ -194,7 +221,8 @@ function buildLandmarkFeatures(
 }
 const IMG_NAMEPLATE = "nameplate-bg";
 const IMG_BADGE_FAVORITE = "badge:favorite";
-const PHOTO_SIZE_PX = 50;
+/** 写真入りの屋台の大きさ（通常の屋台は 60px。本体の写真が見えるよう一回り大きくする） */
+const PHOTO_STALL_PX = 84;
 const TEXT_FONT = ["Noto Sans Bold"];
 
 function buildRasterStyle(tileOpacityByZoom: boolean, minZoom: number): StyleSpecification {
@@ -300,6 +328,7 @@ function MapViewMapLibre({
   onClearSearch,
   overlaySlot,
   spotlightShopId,
+  onShopSelect,
   onSpotSelect,
   onNavigateToShop,
   guideTargetShopId,
@@ -307,9 +336,14 @@ function MapViewMapLibre({
 }: MapViewProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
+  // WebGL が使えない端末では地図を作らず、代わりの案内を出す
+  const [webglUnsupported, setWebglUnsupported] = useState(false);
   // ランドマークのクリックは map.on で一度だけ登録するので、最新のコールバックは ref で持つ
   const onSpotSelectRef = useRef(onSpotSelect);
   onSpotSelectRef.current = onSpotSelect;
+  // 店のタップも同じ。渡されていれば、地図の中のバナーは出さず親に任せる（検索ページが右の列に出す）
+  const onShopSelectRef = useRef(onShopSelect);
+  onShopSelectRef.current = onShopSelect;
   const landmarksRef = useRef(landmarks);
   landmarksRef.current = landmarks;
   // 画像の登録に成功したランドマーク（ソースに載せたもの）。選択の切り替え時に setData で使う
@@ -471,23 +505,40 @@ function MapViewMapLibre({
       resolveMapViewBounds(viewSettings, bounds)
     );
 
+    // WebGL が無いと Map の生成で例外になり、ローディングが畳まれないまま固まる。
+    // 先に確かめ、使えなければ案内を出してローディングを畳む
+    if (!isWebGLAvailable()) {
+      setWebglUnsupported(true);
+      onMapReady?.();
+      return;
+    }
+
     const useVector = featureFlags.basemap === "vector-openfreemap";
-    const map = new maplibregl.Map({
-      container,
-      style: useVector ? OPENFREEMAP_STYLE_URL : buildRasterStyle(featureFlags.tileOpacityByZoom, minZoom),
-      center: initialCenter,
-      zoom: INITIAL_ZOOM,
-      minZoom,
-      maxZoom: MAX_ZOOM,
-      bearing: computeRoadBearing(routePoints, center),
-      pitch: 0,
-      maxBounds: maxBoundsLngLat,
-      attributionControl: { compact: true },
-      // 傾き（3D）は日曜市の案内には不要
-      touchPitch: false,
-      pitchWithRotate: false,
-      fadeDuration: 0,
-    });
+    // 判定を通っても、GPU の都合で生成に失敗することがある。その場合も同じ案内にする
+    let map: maplibregl.Map;
+    try {
+      map = new maplibregl.Map({
+        container,
+        style: useVector ? OPENFREEMAP_STYLE_URL : buildRasterStyle(featureFlags.tileOpacityByZoom, minZoom),
+        center: initialCenter,
+        zoom: INITIAL_ZOOM,
+        minZoom,
+        maxZoom: DETAIL_ZOOM,
+        bearing: computeRoadBearing(routePoints, center),
+        pitch: 0,
+        maxBounds: maxBoundsLngLat,
+        attributionControl: { compact: true },
+        // 傾き（3D）は日曜市の案内には不要
+        touchPitch: false,
+        pitchWithRotate: false,
+        fadeDuration: 0,
+      });
+    } catch (error) {
+      console.error("[MapViewMapLibre] 地図を作れませんでした", error);
+      setWebglUnsupported(true);
+      onMapReady?.();
+      return;
+    }
     map.touchZoomRotate.enableRotation();
     map.dragRotate.enable();
     // MapLibre 標準のズーム・コンパスボタンは出さない（ズームはスライダー、回転は 2 本指操作で行う）
@@ -495,6 +546,28 @@ function MapViewMapLibre({
 
     let disposed = false;
     let readyTimer: number | null = null;
+
+    // 屋台スプライトとランドマーク画像は地図（スタイル・タイル）に依存しない。
+    // `load` を待たずここで読み込みを始め、`load` 後の setupOverlays では待つだけにする
+    // （タイル取得とスプライト生成・画像取得が直列にならないようにする）
+    const stallSpritesPromise = buildStallSprites(
+      shopsRef.current,
+      Math.min(3, window.devicePixelRatio || 2)
+    );
+    const landmarkSpecs = landmarks ?? [];
+    const landmarkRatio = Math.min(3, window.devicePixelRatio || 2);
+    const landmarkImagesPromise = Promise.all(
+      landmarkSpecs.map(async (spec) => {
+        try {
+          return await rasterizeImageUrl(spec.url, spec.widthPx, landmarkRatio);
+        } catch (error) {
+          console.warn("[MapViewMapLibre] ランドマーク画像を読めませんでした", spec.key, error);
+          return null;
+        }
+      })
+    );
+    // load が来る前に破棄された場合の未処理の拒否を防ぐ（拒否は load 側の await で従来どおり扱う）
+    stallSpritesPromise.catch(() => {});
 
     // ローディングのゲージ用。スタイルを読み終えた時点を最初の節目として報告する
     map.once("styledata", () => {
@@ -519,7 +592,9 @@ function MapViewMapLibre({
           return { lat: c.lat, lng: c.lng };
         },
         getZoom: () => map.getZoom() - ZOOM_OFFSET,
-        getMaxZoom: () => map.getMaxZoom() - ZOOM_OFFSET,
+        // ページ側の「店へ寄る」（検索結果のタップなど）の行き先。写真を大きく見る一段（DETAIL_ZOOM）ではなく、
+        // 屋台が等倍で並ぶ倍率に寄せる（寄りすぎると周りの店が見えず、どこにいるか分からなくなる）
+        getMaxZoom: () => MAX_ZOOM - ZOOM_OFFSET,
         setZoom: (zoom, options) => {
           const target = zoom + ZOOM_OFFSET;
           if (options?.animate === false) {
@@ -719,6 +794,19 @@ function MapViewMapLibre({
         },
       });
 
+      // 屋台（通常）と人影の倍率。stall LOD で 0.6、最大ズームで 1.0、一段先で DETAIL_STALL_SCALE 倍
+      const stallScale: ExpressionSpecification = [
+        "interpolate",
+        ["linear"],
+        ["zoom"],
+        MAX_ZOOM + SHOP_MARKER_LOD_OFFSETS.stall,
+        0.6,
+        MAX_ZOOM,
+        1,
+        DETAIL_ZOOM,
+        DETAIL_STALL_SCALE,
+      ];
+
       // お客さん（人影）。道の上にまばらに散らして「にぎわい」を出す。
       // 店舗より下のレイヤーに置き、不透明度を落として背景に沈める。
       // クリックハンドラは付けない（触れるものが増えると「主役は屋台」の原則が崩れる）
@@ -743,15 +831,7 @@ function MapViewMapLibre({
           minzoom: OVERVIEW_MAX,
           layout: {
             "icon-image": crowdIconImage(0),
-            "icon-size": [
-              "interpolate",
-              ["linear"],
-              ["zoom"],
-              MAX_ZOOM + SHOP_MARKER_LOD_OFFSETS.stall,
-              0.6,
-              MAX_ZOOM,
-              1,
-            ],
+            "icon-size": stallScale,
             "icon-anchor": "bottom",
             "icon-allow-overlap": true,
             "icon-ignore-placement": true,
@@ -764,21 +844,14 @@ function MapViewMapLibre({
 
       // ランドマーク画像（ズームに応じて 1.22^(z-18) 倍、Leaflet 版と同じ式）。
       // SVG も混ざるので、表示幅 × pixelRatio で描き起こしてから登録する
-      const specs = landmarks ?? [];
-      const landmarkRatio = Math.min(3, window.devicePixelRatio || 2);
-      await Promise.all(
-        specs.map(async (spec) => {
-          try {
-            const data = await rasterizeImageUrl(spec.url, spec.widthPx, landmarkRatio);
-
-            if (!map.hasImage(`landmark:${spec.key}`)) {
-              map.addImage(`landmark:${spec.key}`, data, { pixelRatio: landmarkRatio });
-            }
-          } catch (error) {
-            console.warn("[MapViewMapLibre] ランドマーク画像を読めませんでした", spec.key, error);
-          }
-        })
-      );
+      const specs = landmarkSpecs;
+      const landmarkImages = await landmarkImagesPromise;
+      specs.forEach((spec, index) => {
+        const data = landmarkImages[index];
+        if (data && !map.hasImage(`landmark:${spec.key}`)) {
+          map.addImage(`landmark:${spec.key}`, data, { pixelRatio: landmarkRatio });
+        }
+      });
       if (disposed) return;
       // 選択中（スポットカード表示中）のランドマークは properties.selected を 1 にして
       // 拡大する。layout プロパティでは feature-state が使えないので、選択が変わるたびに
@@ -872,13 +945,15 @@ function MapViewMapLibre({
       });
 
       // 店舗スプライト
-      const sprites = await buildStallSprites(shopsRef.current, Math.min(3, window.devicePixelRatio || 2));
+      const sprites = await stallSpritesPromise;
       if (disposed) return;
       for (const sprite of sprites) {
         if (!map.hasImage(sprite.id)) map.addImage(sprite.id, sprite.image, { pixelRatio: sprite.pixelRatio });
       }
       // バッジと木札の下地
       const uiRatio = Math.min(3, window.devicePixelRatio || 2);
+      // 写真入りの屋台を細かい版で描き直すときの pixelRatio（一段先で DETAIL_STALL_SCALE 倍になる分）
+      const detailRatio = uiRatio * DETAIL_STALL_SCALE;
       if (!map.hasImage(IMG_BADGE_FAVORITE)) {
         map.addImage(IMG_BADGE_FAVORITE, buildFavoriteBadgeSprite(uiRatio), { pixelRatio: uiRatio });
       }
@@ -892,52 +967,116 @@ function MapViewMapLibre({
         });
       }
 
-      // 屋根の上の丸窓（写真）は店舗ごとに違うので、必要になった時点で遅延生成する
-      const photoJobs = new Map<string, Promise<void>>();
+      // 写真入りの屋台は店舗×状態ごとに違うので、必要になった時点で遅延生成する（まず等倍で描く）。
+      // 一段先（DETAIL_ZOOM）では屋台を 2 倍に描くので、等倍用の絵では粗くなる。全店ぶんを最初から
+      // 細かく描くと端末の記憶を食うため、最大ズームを越えて寄っているときに画面に見えている店だけ
+      // detailRatio で描き直す（同じ ID のまま pixelRatio を上げて差し替える。表示上の大きさは変わらない）。
+      // 細かい版は MAX_DETAIL_PHOTO_SPRITES 枚までにして、超えたら長く見ていないものから等倍に戻す。
+      // 細かい版にするのは upgradeVisiblePhotoSprites だけで、画面の中心に近い店から上限の数までにする
+      // （見えている店が上限より多いときに、細かい版にしては等倍に戻すのを繰り返さないため）
+      const isDetailZoom = () => map.getZoom() > MAX_ZOOM + DETAIL_SPRITE_ZOOM_OFFSET;
+      const photoSprites = new PhotoSpriteRegistry({ baseRatio: uiRatio, maxDetail: MAX_DETAIL_PHOTO_SPRITES });
+      const findShopForPhotoId = (id: string): { shop: Shop; state: StallState } | null => {
+        const [, shopIdText, stateText] = id.split(":");
+        const state = STALL_STATES.find((s) => s === stateText);
+        const shop = shopsRef.current.find((s) => s.id === Number(shopIdText));
+        return shop && state ? { shop, state } : null;
+      };
+      const requestPhotoSprite = (shop: Shop, state: StallState, ratio: number, downgrade = false) => {
+        const id = `photo:${shop.id}:${state}`;
+        if (!photoSprites.want(id, ratio, downgrade)) return;
+        // 仮画像を同期で登録しておく（無いままだと MapLibre が警告を出す）。読み込めたら中身を差し替える。
+        // 状態が変わった店（選択・検索など）は、同じ写真の通常状態の絵を仮に使う。
+        // 透明にすると、新しい絵ができるまで写真が一瞬消えて見える（細かさが違っても表示上の大きさは同じ）
+        if (!map.hasImage(id)) {
+          const normalId = `photo:${shop.id}:normal`;
+          const normal = state !== "normal" && map.hasImage(normalId) ? map.getImage(normalId) : null;
+          if (normal) {
+            map.addImage(id, normal.data, { pixelRatio: normal.pixelRatio });
+          } else {
+            const width = Math.round((PHOTO_STALL_PX / STALL_PHOTO_HEIGHT_RATIO) * ratio);
+            const height = Math.round(PHOTO_STALL_PX * ratio);
+            map.addImage(id, new ImageData(width, height), { pixelRatio: ratio });
+          }
+        }
+        rasterizeStallWithPhoto(shop, state, getShopThumbnailImage(shop), PHOTO_STALL_PX, ratio, getShopPreviewImage(shop))
+          .then((data) => {
+            // 後から別の細かさを頼んでいたら、こちらは捨てる
+            if (disposed || !photoSprites.done(id, ratio) || !map.hasImage(id)) return;
+            const current = map.getImage(id);
+            if (current && current.pixelRatio === ratio && current.data.width === data.width && current.data.height === data.height) {
+              map.updateImage(id, data);
+            } else {
+              // 細かさが違う（等倍版 ⇄ 細かい版、通常状態の絵を借りた仮画像）ときは updateImage が使えないので登録し直す
+              map.removeImage(id);
+              map.addImage(id, data, { pixelRatio: ratio });
+            }
+            // 写真入りの絵ができた店は、下に重ねている通常の屋台を消す（下の屋台の脚や影がはみ出すため）
+            map.setFeatureState({ source: SRC_SHOPS, id: shop.id }, { photoReady: true });
+            for (const evictedId of photoSprites.overflow()) {
+              const evicted = findShopForPhotoId(evictedId);
+              if (evicted) requestPhotoSprite(evicted.shop, evicted.state, uiRatio, true);
+            }
+          })
+          .catch(() => {
+            // 読めない写真は通常の屋台のまま（透明のままにして下の屋台を見せる）。次の機会に頼み直せるようにする
+            photoSprites.failed(id, ratio);
+          });
+      };
       // v6 から styleimagemissing は「起きたことを知らせるだけ」になり、
       // リスナーの中で addImage しても要求は解決されない。画像を用意する側は resolver を使う
       map.setMissingStyleImageResolver((id) => {
-        if (!id.startsWith("photo:") || photoJobs.has(id)) return;
-        const shopId = Number(id.slice("photo:".length));
-        const shop = shopsRef.current.find((s) => s.id === shopId);
-        if (!shop) return;
-        const url = getShopThumbnailImage(shop);
-        const fallbackUrl = getShopPreviewImage(shop);
-        const border = resolveStallColors(shop.category, sanitizeCssColor(shop.illustration?.color)).dark;
-        // 同じ大きさの透明な仮画像を同期で登録しておく（無いままだと MapLibre が警告を出す）。
-        // 読み込めたら updateImage で中身だけ差し替える
-        const placeholderSize = Math.round((PHOTO_SIZE_PX + 8) * uiRatio);
-        if (!map.hasImage(id)) {
-          map.addImage(id, new ImageData(placeholderSize, placeholderSize), { pixelRatio: uiRatio });
-        }
-        photoJobs.set(
-          id,
-          rasterizePhotoCircle(url, PHOTO_SIZE_PX, border, uiRatio, fallbackUrl)
-            .then((data) => {
-              if (!disposed && map.hasImage(id)) map.updateImage(id, data);
-            })
-            .catch(() => {
-              /* 読めない写真は窓を出さない（透明のまま） */
-            })
-        );
+        if (!id.startsWith("photo:") || photoSprites.has(id)) return;
+        const target = findShopForPhotoId(id);
+        if (!target) return;
+        // まず等倍で描く。一段先で見えている店は、落ち着いたときに upgradeVisiblePhotoSprites が細かい版にする
+        requestPhotoSprite(target.shop, target.state, uiRatio);
       });
+      // 最大ズームを越えて寄ったら、画面に見えている写真入りの屋台を細かい版に描き直す。
+      // 描き終わって落ち着いたとき（idle）だけ見る（ピンチやスライダーの途中は等倍版を拡大したまま）
+      const upgradeVisiblePhotoSprites = () => {
+        if (disposed || !isDetailZoom() || !map.getLayer(LAYER_SHOP_PHOTOS)) return;
+        const canvas = map.getCanvas();
+        const centerX = canvas.clientWidth / 2;
+        const centerY = canvas.clientHeight / 2;
+        const visible = new Map<string, { shop: Shop; state: StallState; distance: number }>();
+        for (const feature of map.queryRenderedFeatures({ layers: [LAYER_SHOP_PHOTOS] })) {
+          const id = `photo:${feature.properties?.id}:${feature.properties?.state}`;
+          const target = visible.has(id) ? null : findShopForPhotoId(id);
+          if (!target) continue;
+          const point = map.project([target.shop.lng, target.shop.lat]);
+          visible.set(id, { ...target, distance: Math.hypot(point.x - centerX, point.y - centerY) });
+        }
+        // 画面の中心に近い店から、上限の数まで（上限より多く見えている広い画面でも、描き直しが止まるように）
+        const nearest = Array.from(visible.entries())
+          .sort((a, b) => a[1].distance - b[1].distance)
+          .slice(0, MAX_DETAIL_PHOTO_SPRITES);
+        for (const [id] of nearest) photoSprites.touch(id);
+        for (const [, target] of nearest) requestPhotoSprite(target.shop, target.state, detailRatio);
+      };
+      map.on("idle", upgradeVisiblePhotoSprites);
 
       map.addSource(SRC_SHOPS, {
         type: "geojson",
         data: shopsToGeoJSON(shopFeaturesRef.current, displayRef.current),
         // updateData の差分は店舗 ID で当てる
         promoteId: "id",
+        // 既定（18）のままだと、寄ったときも z18 のタイル（約 130m 四方）を拡大して使うので、
+        // 画面外の店の画像までまとめて要求される。寄る上限までタイルを作って、画面の近くの店だけにする
+        maxzoom: DETAIL_ZOOM,
       });
       appliedShopDataRef.current = { features: shopFeaturesRef.current, display: displayRef.current };
-      const stallScale: ExpressionSpecification = [
-        "interpolate",
-        ["linear"],
-        ["zoom"],
-        MAX_ZOOM + SHOP_MARKER_LOD_OFFSETS.stall,
-        0.6,
-        MAX_ZOOM,
-        1,
-      ];
+      // 写真入りは通常の屋台より大きいので、引いたときに隣と重ならないよう倍率を絞る
+      const photoStallScale = buildPhotoStallScale({
+        maxZoom: MAX_ZOOM,
+        photoStallPx: PHOTO_STALL_PX,
+        baseStallPx: ILLUSTRATION_SIZES.medium.height,
+        spacingPxAtMax: SHOP_COLUMN_SPACING_METERS * getPixelsPerMeter(MAX_ZOOM - ZOOM_OFFSET),
+        stallLodOffset: SHOP_MARKER_LOD_OFFSETS.stall,
+        photoLodOffset: SHOP_MARKER_LOD_OFFSETS.photo,
+        detailOffset: DETAIL_ZOOM - MAX_ZOOM,
+        detailScale: DETAIL_STALL_SCALE,
+      });
       map.addLayer({
         id: LAYER_SHOPS,
         type: "symbol",
@@ -952,19 +1091,30 @@ function MapViewMapLibre({
           "icon-rotation-alignment": "viewport",
           "symbol-sort-key": ["case", ["==", ["get", "state"], "selected"], 0, 1],
         },
+        paint: {
+          // photo LOD 以上では写真入りの屋台が上に重なる。写真入りの絵ができた店（photoReady）では
+          // 下の通常の屋台を消す（写真入りは脚が短いので、下の屋台の脚や影がはみ出して見えるため）。
+          // 写真を読めなかった店は通常の屋台のまま見せる
+          "icon-opacity": [
+            "step",
+            ["zoom"],
+            1,
+            MAX_ZOOM + SHOP_MARKER_LOD_OFFSETS.photo,
+            ["case", ["boolean", ["feature-state", "photoReady"], false], 0, 1],
+          ],
+        },
       });
 
-      // 写真窓: photo LOD（maxZoom-1.4）以上。屋台の内側、木札と反対の側に寄せる
+      // 写真入りの屋台: photo LOD（maxZoom-1.4）以上で、通常の屋台に重ねて出す
       map.addLayer({
         id: LAYER_SHOP_PHOTOS,
         type: "symbol",
         source: SRC_SHOPS,
         minzoom: MAX_ZOOM + SHOP_MARKER_LOD_OFFSETS.photo,
         layout: {
-          "icon-image": ["concat", "photo:", ["get", "id"]],
-          "icon-size": stallScale,
-          "icon-anchor": "center",
-          "icon-offset": ["case", ["==", ["get", "side"], "north"], ["literal", [-24, -30]], ["literal", [24, -30]]],
+          "icon-image": ["concat", "photo:", ["get", "id"], ":", ["get", "state"]],
+          "icon-size": photoStallScale,
+          "icon-anchor": "bottom",
           "icon-allow-overlap": true,
           "icon-ignore-placement": true,
           "icon-rotation-alignment": "viewport",
@@ -978,33 +1128,64 @@ function MapViewMapLibre({
       // 写真のほう。日曜市には店名を持たない店も多い。全店に出すと、道の外側へ伸びた札が
       // 画面端で切れる（390px 幅では中心から 238px 必要なのに 195px しかない）うえ、
       // 静止時の地図が文字で埋まる。探しているあいだは ShopScanCards が写真ごと前に出す。
-      map.addLayer({
-        id: LAYER_SHOP_NAMEPLATES,
-        type: "symbol",
-        source: SRC_SHOPS,
-        minzoom: MAX_ZOOM + SHOP_MARKER_LOD_OFFSETS.nameplate,
-        // 検索 / AI の結果は ShopScanCards がカードで名前ごと出すので、ここでは出さない
-        // （同じ店の名前が木札とカードで二重になる）
-        filter: ["match", ["get", "state"], ["selected"], true, false],
-        layout: {
-          "text-field": ["get", "name"],
-          "text-font": TEXT_FONT,
-          "text-size": 11,
-          "text-max-width": 9,
-          "text-anchor": ["case", ["==", ["get", "side"], "north"], "left", "right"],
-          "text-offset": ["case", ["==", ["get", "side"], "north"], ["literal", [3.2, -2.4]], ["literal", [-3.2, -2.4]]],
-          "text-rotation-alignment": "viewport",
-          "text-pitch-alignment": "viewport",
-          "icon-image": IMG_NAMEPLATE,
-          "icon-text-fit": "both",
-          "icon-text-fit-padding": [3, 8, 3, 8],
-          "icon-rotation-alignment": "viewport",
-          "symbol-sort-key": ["case", ["==", ["get", "state"], "selected"], 0, 1],
-        },
-        paint: { "text-color": "#4a3826" },
-      });
+      //
+      // 札は屋台の横（道の外側）に添える。一段先では屋台が大きくなるので、離す量も屋台と同じだけ広げる
+      // （文字の大きさは変えない）。text-offset は layout なのでタイルのズーム（整数）でしか変わらず、
+      // 寄る途中で札が写真にかぶる。描画のたびに計算される text-translate / icon-translate で広げる。
+      // translate は店ごとに変えられないので、北側・南側で層を分ける
+      for (const side of ["north", "south"] as const) {
+        const dir = side === "north" ? 1 : -1;
+        const extraPx: [number, number] = [
+          NAMEPLATE_OFFSET_EM[0] * NAMEPLATE_TEXT_SIZE * dir * (DETAIL_STALL_SCALE - 1),
+          NAMEPLATE_OFFSET_EM[1] * NAMEPLATE_TEXT_SIZE * (DETAIL_STALL_SCALE - 1),
+        ];
+        const translate: ExpressionSpecification = [
+          "interpolate",
+          ["linear"],
+          ["zoom"],
+          MAX_ZOOM,
+          ["literal", [0, 0]],
+          DETAIL_ZOOM,
+          ["literal", extraPx],
+        ];
+        map.addLayer({
+          id: side === "north" ? LAYER_SHOP_NAMEPLATES : `${LAYER_SHOP_NAMEPLATES}-south`,
+          type: "symbol",
+          source: SRC_SHOPS,
+          minzoom: MAX_ZOOM + SHOP_MARKER_LOD_OFFSETS.nameplate,
+          // 検索 / AI の結果は ShopScanCards がカードで名前ごと出すので、ここでは出さない
+          // （同じ店の名前が木札とカードで二重になる）
+          filter: [
+            "all",
+            ["match", ["get", "state"], ["selected"], true, false],
+            side === "north" ? ["==", ["get", "side"], "north"] : ["!=", ["get", "side"], "north"],
+          ],
+          layout: {
+            "text-field": ["get", "name"],
+            "text-font": TEXT_FONT,
+            "text-size": NAMEPLATE_TEXT_SIZE,
+            "text-max-width": 9,
+            "text-anchor": side === "north" ? "left" : "right",
+            "text-offset": [NAMEPLATE_OFFSET_EM[0] * dir, NAMEPLATE_OFFSET_EM[1]],
+            "text-rotation-alignment": "viewport",
+            "text-pitch-alignment": "viewport",
+            "icon-image": IMG_NAMEPLATE,
+            "icon-text-fit": "both",
+            "icon-text-fit-padding": [3, 8, 3, 8],
+            "icon-rotation-alignment": "viewport",
+            "symbol-sort-key": ["case", ["==", ["get", "state"], "selected"], 0, 1],
+          },
+          paint: {
+            "text-color": "#4a3826",
+            "text-translate": translate,
+            "text-translate-anchor": "viewport",
+            "icon-translate": translate,
+            "icon-translate-anchor": "viewport",
+          },
+        });
+      }
 
-      // お気に入りバッジ（Leaflet 版と同じく photo LOD 以上で右上に）
+      // お気に入りバッジ（photo LOD 以上で、写真入りの屋台の角に。屋台と同じ倍率で動かす）
       map.addLayer({
         id: LAYER_SHOP_BADGES_FAVORITE,
         type: "symbol",
@@ -1013,28 +1194,36 @@ function MapViewMapLibre({
         filter: ["==", ["get", "favorite"], true],
         layout: {
           "icon-image": IMG_BADGE_FAVORITE,
-          "icon-size": stallScale,
+          "icon-size": photoStallScale,
           "icon-anchor": "center",
-          "icon-offset": ["case", ["==", ["get", "side"], "north"], ["literal", [-30, -66]], ["literal", [30, -66]]],
+          "icon-offset": ["case", ["==", ["get", "side"], "north"], ["literal", [-34, -78]], ["literal", [34, -78]]],
           "icon-allow-overlap": true,
           "icon-ignore-placement": true,
           "icon-rotation-alignment": "viewport",
         },
       });
 
-      map.on("click", LAYER_SHOPS, (e) => {
-        const f = e.features?.[0];
-        const id = f?.properties?.id;
-        if (typeof id !== "number") return;
-        const shop = shopsRef.current.find((s) => s.id === id) ?? null;
-        setSelectedShop(shop);
-      });
-      map.on("mouseenter", LAYER_SHOPS, () => {
-        map.getCanvas().style.cursor = "pointer";
-      });
-      map.on("mouseleave", LAYER_SHOPS, () => {
-        map.getCanvas().style.cursor = "";
-      });
+      // 写真入りの屋台は通常の屋台より大きく、その上に重なるので、両方の層で受ける
+      for (const layerId of [LAYER_SHOPS, LAYER_SHOP_PHOTOS]) {
+        map.on("click", layerId, (e) => {
+          const f = e.features?.[0];
+          const id = f?.properties?.id;
+          if (typeof id !== "number") return;
+          const shop = shopsRef.current.find((s) => s.id === id) ?? null;
+          if (shop && onShopSelectRef.current) {
+            onShopSelectRef.current(shop);
+            setSelectedShop(null);
+            return;
+          }
+          setSelectedShop(shop);
+        });
+        map.on("mouseenter", layerId, () => {
+          map.getCanvas().style.cursor = "pointer";
+        });
+        map.on("mouseleave", layerId, () => {
+          map.getCanvas().style.cursor = "";
+        });
+      }
 
       // 丁目バッジ（HTML マーカー、17 ≤ zoom < 19 のときだけ表示）
       const chomeGroups = new Map<string, { lats: number[]; lngs: number[] }>();
@@ -1179,6 +1368,15 @@ function MapViewMapLibre({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focusShopRequest?.token]);
 
+  // 検証用バッジは開発時と ?perf=1 のときだけ出す（SSR と食い違わないよう effect で決める）
+  const [showDebugBadge, setShowDebugBadge] = useState(false);
+  useEffect(() => {
+    setShowDebugBadge(
+      process.env.NODE_ENV === "development" ||
+        new URLSearchParams(window.location.search).get("perf") === "1"
+    );
+  }, []);
+
   // ---- 計測の橋渡し（?perf=1 のときだけ） ----
   useEffect(() => {
     if (!mapLoaded) return;
@@ -1242,6 +1440,8 @@ function MapViewMapLibre({
     ? "calc(4.5rem + env(safe-area-inset-bottom,0px) + 5.5rem + 25px)"
     : "calc(4.5rem + env(safe-area-inset-bottom,0px) + 0.5rem + 25px)";
 
+  if (webglUnsupported) return <MapWebglUnsupported />;
+
   return (
     <div className="relative h-full w-full">
       {/* maplibre-gl.css が .maplibregl-map に position:relative を当てるので、サイズはインラインで明示する */}
@@ -1249,16 +1449,18 @@ function MapViewMapLibre({
         ref={containerRef}
         style={{ position: "absolute", inset: 0, width: "100%", height: "100%", background: "#FFFAF0" }}
       />
-      <div className="pointer-events-none absolute left-3 top-3 z-[500] rounded-full bg-white/85 px-3 py-1 text-xs font-semibold text-slate-600 shadow">
-        MapLibre 版（検証中） / 背景: {featureFlags.basemap === "vector-openfreemap" ? "ベクター" : "ラスター"}
-      </div>
+      {showDebugBadge && (
+        <div className="pointer-events-none absolute left-3 top-3 z-[500] rounded-full bg-white/85 px-3 py-1 text-xs font-semibold text-slate-600 shadow">
+          MapLibre 版（検証中） / 背景: {featureFlags.basemap === "vector-openfreemap" ? "ベクター" : "ラスター"}
+        </div>
+      )}
       {!hideMapUI && camera && (
         <LiveZoomMapControls
           map={camera}
           isTracking={isTracking}
           onToggleTracking={toggleTracking}
           minZoom={minZoom - ZOOM_OFFSET}
-          maxZoom={MAX_ZOOM - ZOOM_OFFSET}
+          maxZoom={DETAIL_ZOOM - ZOOM_OFFSET}
           zoomSliderVisible={zoomSliderVisible}
           onZoomSliderInteract={keepZoomSliderAlive}
           trackingButtonTop={trackingButtonTop}

@@ -19,6 +19,7 @@ import {
 } from "@/lib/grandma/prompts/itineraryPrompt";
 import { requestChatCompletion, requestEmbeddings } from "@/lib/ai/openaiFetch";
 import { resolveAiModelFor } from "@/lib/ai/modelStore.server";
+import { getForwardedClientIp } from "@/lib/security/clientIp";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -115,11 +116,7 @@ export async function POST(request: Request) {
     // 有料 LLM 呼び出し（embedding + chat）を継続できてしまう。
     const visitorKey = parsed.data.visitorKey?.trim() || undefined;
     const secClient = createClient<DatabaseWithExtensions>(supabaseUrl, serviceRoleKey);
-    const forwardedIp =
-      request.headers.get("x-real-ip") ??
-      request.headers.get("x-forwarded-for")?.split(",").at(-1)?.trim() ??
-      null;
-    const clientIp = forwardedIp && forwardedIp !== "unknown" ? forwardedIp : null;
+    const clientIp = getForwardedClientIp(request);
     const abuseResult = await handleAbuseDetection(secClient, clientIp, interest, visitorKey);
     if (abuseResult === "blocked") {
       return NextResponse.json(

@@ -181,6 +181,7 @@ describe("parseAiModelRow", () => {
   it("DBの行を定義に変換する", () => {
     expect(parseAiModelRow(modelRow())).toEqual({
       id: "gpt-test",
+      provider: "openai",
       label: "テスト用",
       description: "テスト",
       tokenParam: "max_completion_tokens",
@@ -189,6 +190,24 @@ describe("parseAiModelRow", () => {
       reasoningHeadroomTokens: 1000,
       pricing: { input: 0.1, output: 0.5 },
     });
+  });
+
+  it("provider が無い行は OpenAI として読み、anthropic はそのまま読む", () => {
+    expect(parseAiModelRow(modelRow())?.provider).toBe("openai");
+    expect(
+      parseAiModelRow(
+        modelRow({ provider: "anthropic", token_param: "max_tokens", reasoning_efforts: [], reasoning_headroom_tokens: 0 })
+      )?.provider
+    ).toBe("anthropic");
+  });
+
+  it("anthropic の行は max_tokens・推論なし以外を捨てる（アダプタが正しいリクエストを組めない）", () => {
+    expect(
+      parseAiModelRow(modelRow({ provider: "anthropic", reasoning_efforts: [], reasoning_headroom_tokens: 0 }))
+    ).toBeNull();
+    expect(
+      parseAiModelRow(modelRow({ provider: "anthropic", token_param: "max_tokens", reasoning_efforts: ["low"] }))
+    ).toBeNull();
   });
 
   it("能力の列が壊れている行は捨てる（壊れた能力でリクエストを組まない）", () => {

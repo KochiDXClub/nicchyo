@@ -66,6 +66,7 @@ export type AiPromptRow = {
 
 export type AiModelRow = {
   id: string;
+  provider: "openai" | "anthropic";
   label: string;
   description: string;
   token_param: "max_tokens" | "max_completion_tokens";

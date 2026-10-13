@@ -9,11 +9,21 @@
  */
 
 import { Navigation } from 'lucide-react';
+import { cn } from '@/lib/utils/cn';
 
-export default function OdekakeLaunchButton({ top, onClick }: { top: number; onClick: () => void }) {
+export default function OdekakeLaunchButton({
+  top,
+  onClick,
+  className,
+}: {
+  top: number;
+  onClick: () => void;
+  /** 外枠に足すクラス（地図をパンしているあいだ隠す、など） */
+  className?: string;
+}) {
   return (
     <div
-      className="absolute left-3 z-[1001] lg:left-4"
+      className={cn('absolute left-3 z-[1001] lg:left-4', className)}
       style={{ top }}
       onMouseDown={(e) => e.stopPropagation()}
       onTouchStart={(e) => e.stopPropagation()}

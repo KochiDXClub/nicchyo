@@ -75,7 +75,7 @@ const organizationJsonLd = {
   url: SITE_URL,
   description:
     "高知の日曜市を舞台に、観光客・地元・市場がつながるデジタルプラットフォーム。",
-  logo: `${SITE_URL}/og-default.png`,
+  logo: `${SITE_URL}/icon.svg`,
   areaServed: {
     "@type": "Place",
     name: "高知県高知市",

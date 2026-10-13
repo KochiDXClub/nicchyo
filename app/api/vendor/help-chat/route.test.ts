@@ -156,6 +156,18 @@ describe("POST /api/vendor/help-chat", () => {
     });
   });
 
+  it("質問に電話番号・メールが混ざっていたら、記録にはマスクして残す", async () => {
+    getUser.mockResolvedValue({ data: { user: VENDOR } });
+    requestChatCompletion.mockResolvedValue(sseResponse(["連絡先は", "090-1234-5678やで"]));
+
+    const res = await post({ text: "090-1234-5678 か yamada@example.com に連絡してほしい" });
+    await res.text();
+
+    const saved = insertLog.mock.calls[0][0] as { question: string; answer: string };
+    expect(saved.question).toBe("[電話番号] か [メールアドレス] に連絡してほしい");
+    expect(saved.answer).toBe("連絡先は[電話番号]やで");
+  });
+
   it("お店の数字を見る権限がないメンバーには、数字を読まず、見る権限がないとにちよさんに伝える", async () => {
     getUser.mockResolvedValue({ data: { user: VENDOR } });
     fetchShopMembership.mockResolvedValue({ vendorId: "shop-1", role: "member", permissions: ["post"], joinedAt: null });

@@ -18,7 +18,7 @@
  * center/zoom/bearingとの相互変換は mapEditCamera.ts に閉じ込めている。
  */
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import * as maplibregl from "maplibre-gl";
 import type { ExpressionSpecification } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
@@ -34,19 +34,20 @@ import {
   zoomIdxToMapLibreZoom,
 } from "../mapEditCamera";
 import { EDITOR_COLORS } from "../editorTheme";
+import { slotLabel } from "../../../map/types/editableShop";
 import type { CanvasHandlers, EditableLandmark, EditableRoad, EditableShop, Selection, Tool } from "../types";
 
 type Props = {
   tool: Tool;
   selection: Selection | null;
-  /** 出店者の移動先を選んでいる最中か（空き区画を移動先として強調する） */
-  isPickingTarget: boolean;
   /** 保存していない変更がある要素（"shops:<locationId>" / "roads:<id>" / "landmarks:<key>"） */
   unsavedKeys: ReadonlySet<string>;
   shops: EditableShop[];
   roads: EditableRoad[];
   landmarks: EditableLandmark[];
   draft: { lat: number; lng: number }[];
+  /** 区画分けツールのプレビュー（適用前の、新しく作る・動く・消す区画の位置） */
+  previewSlots: Array<{ lat: number; lng: number; status: "create" | "move" | "delete" }>;
   search: string;
   zoomIdx: number;
   setZoomIdx: React.Dispatch<React.SetStateAction<number>>;
@@ -73,15 +74,24 @@ const SRC_ROAD_FILL = "nicchyo-edit-road-fill";
 const SRC_ROAD_DASH = "nicchyo-edit-road-dash";
 const SRC_ROAD_UNSAVED = "nicchyo-edit-road-unsaved";
 const SRC_DRAFT = "nicchyo-edit-draft";
+const SRC_DRAFT_CURSOR = "nicchyo-edit-draft-cursor";
 const SRC_SHOPS = "nicchyo-edit-shops";
+const SRC_SLOT_PREVIEW = "nicchyo-edit-slot-preview";
+const SRC_VENDOR_DRAG = "nicchyo-edit-vendor-drag";
 
 const LAYER_ROAD_CASING = "nicchyo-edit-road-casing-layer";
 const LAYER_ROAD_FILL = "nicchyo-edit-road-fill-layer";
 const LAYER_ROAD_DASH = "nicchyo-edit-road-dash-layer";
 const LAYER_ROAD_UNSAVED = "nicchyo-edit-road-unsaved-layer";
 const LAYER_DRAFT = "nicchyo-edit-draft-layer";
+const LAYER_DRAFT_POINTS = "nicchyo-edit-draft-points-layer";
+const LAYER_DRAFT_CURSOR = "nicchyo-edit-draft-cursor-layer";
 const LAYER_SHOP_DOTS = "nicchyo-edit-shop-dots-layer";
 const LAYER_SHOP_NUMBERS = "nicchyo-edit-shop-numbers-layer";
+const LAYER_SLOT_PREVIEW = "nicchyo-edit-slot-preview-layer";
+const LAYER_VENDOR_DRAG = "nicchyo-edit-vendor-drag-layer";
+/** ピンを掴んだ・離した地点から、区画を探す範囲（px）。点が小さいので少し広めに取る */
+const SLOT_HIT_RADIUS_PX = 8;
 
 function emptyFC(): GeoJSON.FeatureCollection {
   return { type: "FeatureCollection", features: [] };
@@ -168,7 +178,6 @@ function buildShopFeatureCollection(
   shops: EditableShop[],
   opts: {
     selectedLocationId: string | null;
-    isPickingTarget: boolean;
     query: string;
     unsavedKeys: ReadonlySet<string>;
   }
@@ -176,23 +185,31 @@ function buildShopFeatureCollection(
   const features: GeoJSON.Feature[] = shops.map((shop) => {
     const isSelected = opts.selectedLocationId === shop.locationId;
     const match =
-      !opts.query || String(shop.position).includes(opts.query) || shop.name.toLowerCase().includes(opts.query);
-    const targetable = opts.isPickingTarget && !shop.vendorId;
+      !opts.query ||
+      String(shop.position).includes(opts.query) ||
+      slotLabel(shop).includes(opts.query) ||
+      shop.name.toLowerCase().includes(opts.query);
     const unsaved = opts.unsavedKeys.has(`shops:${shop.locationId}`);
     return {
       type: "Feature",
       properties: {
         locationId: shop.locationId,
         position: shop.position,
+        // 地図に出す番号。住所録の番号（123-4）があればそれ、無ければ店番
+        label: slotLabel(shop),
         opacity: match ? 1 : 0.15,
-        color: shop.vendorId ? (isSelected ? "#B45309" : "#D97706") : targetable ? "#FFF7E6" : "#FFFDF7",
+        hasVendor: !!shop.vendorId,
+        // 出店者のいる区画はオレンジのピン、空き区画は赤で、ひと目で空きと分かるようにする
+        color: shop.vendorId
+          ? isSelected
+            ? EDITOR_COLORS.selectedSlot
+            : EDITOR_COLORS.occupiedSlot
+          : EDITOR_COLORS.vacantSlot,
         strokeColor: unsaved
           ? EDITOR_COLORS.unsaved
           : shop.vendorId
-            ? "#ffffff"
-            : targetable
-              ? "#B45309"
-              : "#B5AA92",
+            ? EDITOR_COLORS.surface
+            : EDITOR_COLORS.vacantSlotStroke,
         // 出店者ありの区画は color 側で選択を表すが、空き区画は常に同じ色のため
         // 選択しても見分けられない。circle-radius/circle-stroke-width 側で使う
         selected: isSelected,
@@ -352,12 +369,12 @@ function RotationControl({
 export default function MapEditCanvasMapLibre({
   tool,
   selection,
-  isPickingTarget,
   unsavedKeys,
   shops,
   roads,
   landmarks,
   draft,
+  previewSlots,
   search,
   zoomIdx,
   setZoomIdx,
@@ -393,6 +410,14 @@ export default function MapEditCanvasMapLibre({
   // キーボード移動など。これらも originalEvent 付き）を同期的に止めて moveend を出すため、
   // その途中値をユーザー操作として書き戻さないための印
   const syncingCameraRef = useRef(false);
+  // 頂点の右クリックメニュー（地図の枠の中での位置と、対象の頂点）
+  const [vertexMenu, setVertexMenu] = useState<{ x: number; y: number; roadId: string; pointId: string } | null>(null);
+  const closeVertexMenu = useCallback(() => setVertexMenu(null), []);
+  // 描いている道の点。mousemove（初期化時に1回だけ登録）から最新の値を読むため ref にも持つ
+  const draftRef = useRef(draft);
+  draftRef.current = draft;
+  // 出店者のピンをドラッグしている最中の状態（移動元の区画・今重なっている移動先・動いたか）
+  const vendorDragRef = useRef<{ fromId: string; targetId: string | null; moved: boolean } | null>(null);
   // 道・区画レイヤーで選択が起きたクリックかどうか。立っている間は、地図全体の
   // click（空き地クリック＝新規描画の点追加・新規配置用）に流さない
   const consumedClickRef = useRef(false);
@@ -432,7 +457,11 @@ export default function MapEditCanvasMapLibre({
       map.addSource(SRC_ROAD_DASH, { type: "geojson", data: emptyFC() });
       map.addSource(SRC_ROAD_UNSAVED, { type: "geojson", data: emptyFC() });
       map.addSource(SRC_DRAFT, { type: "geojson", data: emptyFC() });
-      map.addSource(SRC_SHOPS, { type: "geojson", data: emptyFC() });
+      map.addSource(SRC_DRAFT_CURSOR, { type: "geojson", data: emptyFC() });
+      // promoteId: ドラッグ中の移動先の強調に feature-state（区画ごとの状態）を使うため
+      map.addSource(SRC_SHOPS, { type: "geojson", data: emptyFC(), promoteId: "locationId" });
+      map.addSource(SRC_VENDOR_DRAG, { type: "geojson", data: emptyFC() });
+      map.addSource(SRC_SLOT_PREVIEW, { type: "geojson", data: emptyFC() });
 
       // 道: 当たり判定を広めに取った下地（casing）の上に、実際の道幅の塗り（fill）を重ねる
       map.addLayer({
@@ -469,7 +498,27 @@ export default function MapEditCanvasMapLibre({
         id: LAYER_DRAFT,
         type: "line",
         source: SRC_DRAFT,
-        paint: { "line-color": "#92400E", "line-width": 4, "line-dasharray": [2, 2] },
+        filter: ["==", ["geometry-type"], "LineString"],
+        paint: { "line-color": EDITOR_COLORS.accent, "line-width": 4, "line-dasharray": [2, 2] },
+      });
+      // 描いている道の、最後の点からカーソルまでの線（次にクリックする位置の目安）
+      map.addLayer({
+        id: LAYER_DRAFT_CURSOR,
+        type: "line",
+        source: SRC_DRAFT_CURSOR,
+        paint: { "line-color": EDITOR_COLORS.accent, "line-width": 2, "line-opacity": 0.6, "line-dasharray": [1, 1.5] },
+      });
+      map.addLayer({
+        id: LAYER_DRAFT_POINTS,
+        type: "circle",
+        source: SRC_DRAFT,
+        filter: ["==", ["geometry-type"], "Point"],
+        paint: {
+          "circle-radius": 5,
+          "circle-color": EDITOR_COLORS.surface,
+          "circle-stroke-width": 3,
+          "circle-stroke-color": EDITOR_COLORS.accent,
+        },
       });
 
       map.addLayer({
@@ -498,11 +547,20 @@ export default function MapEditCanvasMapLibre({
           "circle-opacity": ["get", "opacity"],
           "circle-stroke-color": [
             "case",
+            ["boolean", ["feature-state", "dropTarget"], false],
+            EDITOR_COLORS.accent,
             ["get", "selected"],
             "rgba(180,83,9,0.55)",
             ["get", "strokeColor"],
           ] as unknown as ExpressionSpecification,
-          "circle-stroke-width": ["case", ["get", "selected"], 5, 2] as unknown as ExpressionSpecification,
+          "circle-stroke-width": [
+            "case",
+            ["boolean", ["feature-state", "dropTarget"], false],
+            6,
+            ["get", "selected"],
+            5,
+            2,
+          ] as unknown as ExpressionSpecification,
         },
       });
       map.addLayer({
@@ -511,13 +569,117 @@ export default function MapEditCanvasMapLibre({
         source: SRC_SHOPS,
         minzoom: MAPLIBRE_ZOOMS[2] - 0.2,
         layout: {
-          "text-field": ["get", "position"],
+          "text-field": ["get", "label"],
           "text-font": ["Noto Sans Bold"],
           "text-size": 10,
           "text-allow-overlap": true,
           "text-ignore-placement": true,
         },
         paint: { "text-color": "#ffffff", "text-opacity": ["get", "opacity"] },
+      });
+
+      // ドラッグ中のピン（カーソルについてくる）
+      map.addLayer({
+        id: LAYER_VENDOR_DRAG,
+        type: "circle",
+        source: SRC_VENDOR_DRAG,
+        paint: {
+          "circle-radius": 11,
+          "circle-color": EDITOR_COLORS.occupiedSlot,
+          "circle-opacity": 0.75,
+          "circle-stroke-width": 2,
+          "circle-stroke-color": EDITOR_COLORS.surface,
+        },
+      });
+
+      // ── 出店者のピンのドラッグ（別の区画へ移す・入れ替える） ──
+      // 出店者のいる区画の点を掴んだら地図のパンを止め、離した地点の区画へ移す。
+      // マウスとタッチの両方で同じ流れにする
+      const slotAt = (point: maplibregl.PointLike): string | null => {
+        const p = maplibregl.Point.convert(point);
+        const features = map.queryRenderedFeatures(
+          [
+            [p.x - SLOT_HIT_RADIUS_PX, p.y - SLOT_HIT_RADIUS_PX],
+            [p.x + SLOT_HIT_RADIUS_PX, p.y + SLOT_HIT_RADIUS_PX],
+          ],
+          { layers: [LAYER_SHOP_DOTS] }
+        );
+        const id = features[0]?.properties?.locationId;
+        return typeof id === "string" ? id : null;
+      };
+      const setDropTarget = (id: string | null) => {
+        const drag = vendorDragRef.current;
+        if (!drag || drag.targetId === id) return;
+        if (drag.targetId) map.setFeatureState({ source: SRC_SHOPS, id: drag.targetId }, { dropTarget: false });
+        if (id) map.setFeatureState({ source: SRC_SHOPS, id }, { dropTarget: true });
+        drag.targetId = id;
+      };
+      const startVendorDrag = (e: maplibregl.MapLayerMouseEvent | maplibregl.MapLayerTouchEvent) => {
+        if (toolRef.current !== "select") return;
+        if ("points" in e && e.points.length !== 1) return;
+        const feature = e.features?.[0];
+        const locationId = feature?.properties?.locationId;
+        if (!feature?.properties?.hasVendor || typeof locationId !== "string") return;
+        e.preventDefault(); // 地図のパンを止める
+        vendorDragRef.current = { fromId: locationId, targetId: null, moved: false };
+        map.getCanvas().style.cursor = "grabbing";
+      };
+      const moveVendorDrag = (e: maplibregl.MapMouseEvent | maplibregl.MapTouchEvent) => {
+        const drag = vendorDragRef.current;
+        if (!drag) return;
+        drag.moved = true;
+        (map.getSource(SRC_VENDOR_DRAG) as maplibregl.GeoJSONSource).setData({
+          type: "FeatureCollection",
+          features: [{ type: "Feature", properties: {}, geometry: { type: "Point", coordinates: [e.lngLat.lng, e.lngLat.lat] } }],
+        });
+        const target = slotAt(e.point);
+        setDropTarget(target && target !== drag.fromId ? target : null);
+      };
+      const endVendorDrag = () => {
+        const drag = vendorDragRef.current;
+        if (!drag) return;
+        const { fromId, targetId, moved } = drag;
+        setDropTarget(null);
+        vendorDragRef.current = null;
+        (map.getSource(SRC_VENDOR_DRAG) as maplibregl.GeoJSONSource).setData(emptyFC());
+        map.getCanvas().style.cursor = "";
+        // 動かしたときは地図の click は起きない（MapLibre はクリックとみなす移動量を超えた
+        // マウス操作で click を出さない）ので、ここで消費済みの印を立てる必要はない
+        if (moved && targetId) handlersRef.current.onDropVendor(fromId, targetId);
+      };
+      map.on("mousedown", LAYER_SHOP_DOTS, startVendorDrag);
+      map.on("touchstart", LAYER_SHOP_DOTS, startVendorDrag);
+      map.on("mousemove", moveVendorDrag);
+      map.on("touchmove", moveVendorDrag);
+      map.on("mouseup", endVendorDrag);
+      map.on("touchend", endVendorDrag);
+
+      // 区画分けのプレビュー。区画の上に重ね、作る・動く・消すを色で分ける
+      map.addLayer({
+        id: LAYER_SLOT_PREVIEW,
+        type: "circle",
+        source: SRC_SLOT_PREVIEW,
+        paint: {
+          "circle-radius": ["step", ["zoom"], 5, MAPLIBRE_ZOOMS[1], 7, MAPLIBRE_ZOOMS[2], 14] as unknown as ExpressionSpecification,
+          "circle-color": [
+            "match",
+            ["get", "status"],
+            "create",
+            EDITOR_COLORS.previewCreate,
+            "move",
+            EDITOR_COLORS.previewMove,
+            "rgba(0,0,0,0)",
+          ] as unknown as ExpressionSpecification,
+          "circle-opacity": 0.85,
+          "circle-stroke-width": 2.5,
+          "circle-stroke-color": [
+            "match",
+            ["get", "status"],
+            "delete",
+            EDITOR_COLORS.previewDelete,
+            EDITOR_COLORS.surface,
+          ] as unknown as ExpressionSpecification,
+        },
       });
 
       // 道具が実際にこのレイヤーで選択したときだけ消費したことにする（一律で立てると、
@@ -550,6 +712,33 @@ export default function MapEditCanvasMapLibre({
         }
         handlersRef.current.onMapClick(e.lngLat.lat, e.lngLat.lng);
       });
+      map.on("dblclick", (e) => {
+        // 道を描く道具では、ダブルクリックは地図の拡大ではなく道の確定に使う
+        if (toolRef.current !== "drawRoad") return;
+        e.preventDefault();
+        handlersRef.current.onMapDoubleClick(e.lngLat.lat, e.lngLat.lng);
+      });
+      map.on("mousemove", (e) => {
+        const last = draftRef.current[draftRef.current.length - 1];
+        const source = map.getSource(SRC_DRAFT_CURSOR) as maplibregl.GeoJSONSource | undefined;
+        if (!source) return;
+        source.setData(
+          toolRef.current === "drawRoad" && last
+            ? {
+                type: "FeatureCollection",
+                features: [
+                  {
+                    type: "Feature",
+                    properties: {},
+                    geometry: { type: "LineString", coordinates: [[last.lng, last.lat], [e.lngLat.lng, e.lngLat.lat]] },
+                  },
+                ],
+              }
+            : emptyFC()
+        );
+      });
+      // 地図を動かしたら頂点の右クリックメニューは閉じる
+      map.on("movestart", () => setVertexMenu(null));
 
       for (const layerId of [LAYER_ROAD_CASING, LAYER_SHOP_DOTS]) {
         map.on("mouseenter", layerId, () => {
@@ -653,9 +842,9 @@ export default function MapEditCanvasMapLibre({
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !ready) return;
-    const data = buildShopFeatureCollection(shops, { selectedLocationId, isPickingTarget, query, unsavedKeys });
+    const data = buildShopFeatureCollection(shops, { selectedLocationId, query, unsavedKeys });
     (map.getSource(SRC_SHOPS) as maplibregl.GeoJSONSource).setData(data);
-  }, [shops, selectedLocationId, isPickingTarget, query, unsavedKeys, ready]);
+  }, [shops, selectedLocationId, query, unsavedKeys, ready]);
 
   // ── 建物（Marker）。ドラッグ中も要素を作り直さないよう、key で使い回す ──────────
   useEffect(() => {
@@ -737,6 +926,18 @@ export default function MapEditCanvasMapLibre({
           event.stopPropagation();
           handlersRef.current.onVertexRemove(road.id, point.id);
         });
+        // 右クリックで「この点を削除」のメニューを出す（ダブルクリックでの削除に気づけない人向け）
+        el.addEventListener("contextmenu", (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          const rect = containerRef.current?.getBoundingClientRect();
+          setVertexMenu({
+            x: event.clientX - (rect?.left ?? 0),
+            y: event.clientY - (rect?.top ?? 0),
+            roadId: road.id,
+            pointId: point.id,
+          });
+        });
         marker = new maplibregl.Marker({ element: el, draggable: true, anchor: "center" });
         marker.on("drag", () => {
           const lngLat = marker!.getLngLat();
@@ -785,21 +986,55 @@ export default function MapEditCanvasMapLibre({
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !ready) return;
-    const data: GeoJSON.FeatureCollection =
-      draft.length >= 2
-        ? {
-            type: "FeatureCollection",
-            features: [
-              {
-                type: "Feature",
-                properties: {},
-                geometry: { type: "LineString", coordinates: draft.map((p) => [p.lng, p.lat]) },
-              },
-            ],
-          }
-        : emptyFC();
-    (map.getSource(SRC_DRAFT) as maplibregl.GeoJSONSource).setData(data);
+    (map.getSource(SRC_SLOT_PREVIEW) as maplibregl.GeoJSONSource).setData({
+      type: "FeatureCollection",
+      features: previewSlots.map((slot) => ({
+        type: "Feature",
+        properties: { status: slot.status },
+        geometry: { type: "Point", coordinates: [slot.lng, slot.lat] },
+      })),
+    });
+  }, [previewSlots, ready]);
+
+  // 描いている道（線と、打った点）
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !ready) return;
+    const features: GeoJSON.Feature[] = draft.map((p) => ({
+      type: "Feature",
+      properties: {},
+      geometry: { type: "Point", coordinates: [p.lng, p.lat] },
+    }));
+    if (draft.length >= 2) {
+      features.push({
+        type: "Feature",
+        properties: {},
+        geometry: { type: "LineString", coordinates: draft.map((p) => [p.lng, p.lat]) },
+      });
+    }
+    (map.getSource(SRC_DRAFT) as maplibregl.GeoJSONSource).setData({ type: "FeatureCollection", features });
+    if (draft.length === 0) (map.getSource(SRC_DRAFT_CURSOR) as maplibregl.GeoJSONSource).setData(emptyFC());
   }, [draft, ready]);
+
+  // 道を描く道具のあいだは、ダブルクリックでの拡大を止める（ダブルクリックは道の確定に使う）
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !ready) return;
+    if (tool === "drawRoad") map.doubleClickZoom.disable();
+    else map.doubleClickZoom.enable();
+    map.getCanvas().style.cursor = tool === "drawRoad" || tool === "placeLandmark" ? "crosshair" : "";
+  }, [tool, ready]);
+
+  // 頂点の右クリックメニューは、Esc か選んでいる道・道具が変わったら閉じる
+  useEffect(() => {
+    if (!vertexMenu) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") closeVertexMenu();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [vertexMenu, closeVertexMenu]);
+  useEffect(() => closeVertexMenu(), [selectedRoadId, tool, closeVertexMenu]);
 
   return (
     <div
@@ -814,6 +1049,55 @@ export default function MapEditCanvasMapLibre({
     >
       {/* maplibre-gl.css が .maplibregl-map に position:relative を当てるので、サイズはインラインで明示する */}
       <div ref={containerRef} style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }} />
+
+      {vertexMenu && (
+        <>
+          {/* メニューの外をクリックしたら閉じる */}
+          <div
+            style={{ position: "absolute", inset: 0 }}
+            onClick={closeVertexMenu}
+            onContextMenu={(e) => {
+              e.preventDefault();
+              closeVertexMenu();
+            }}
+          />
+          <div
+            role="menu"
+            style={{
+              position: "absolute",
+              left: vertexMenu.x,
+              top: vertexMenu.y,
+              background: EDITOR_COLORS.surface,
+              border: `1px solid ${EDITOR_COLORS.border}`,
+              borderRadius: 8,
+              boxShadow: "0 4px 12px rgba(15,23,42,.2)",
+              padding: 4,
+              zIndex: 10,
+            }}
+          >
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                handlersRef.current.onVertexRemove(vertexMenu.roadId, vertexMenu.pointId);
+                closeVertexMenu();
+              }}
+              style={{
+                display: "block",
+                padding: "6px 12px",
+                border: "none",
+                background: "transparent",
+                color: EDITOR_COLORS.ink,
+                fontSize: 12.5,
+                fontWeight: 700,
+                cursor: "pointer",
+              }}
+            >
+              この点を削除
+            </button>
+          </div>
+        </>
+      )}
 
       {isLoading && (
         <div

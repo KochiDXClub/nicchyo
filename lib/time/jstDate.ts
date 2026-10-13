@@ -22,3 +22,22 @@ export function todayJstString(baseDate: Date = new Date()): string {
   }
   return `${year}-${month}-${day}`;
 }
+
+/** YYYY-MM-DD に日数を足し引きした YYYY-MM-DD を返す（暦演算のみ。タイムゾーンの影響を受けない）。 */
+export function addDaysToDateString(dateString: string, days: number): string {
+  const date = new Date(`${dateString}T00:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
+/** JST 基準で、指定日時（省略時は現在）が属する月の1日を YYYY-MM-DD で返す。 */
+export function monthStartJstString(baseDate: Date = new Date()): string {
+  return `${todayJstString(baseDate).slice(0, 7)}-01`;
+}
+
+/** JST 基準で、次の日曜（当日が日曜ならその日）を YYYY-MM-DD で返す。 */
+export function nextSundayJstString(baseDate: Date = new Date()): string {
+  const today = todayJstString(baseDate);
+  const dayOfWeek = new Date(`${today}T00:00:00Z`).getUTCDay();
+  return addDaysToDateString(today, (7 - dayOfWeek) % 7);
+}

@@ -76,6 +76,8 @@ export async function generateMetadata({ params }: ShopPageProps): Promise<Metad
   return {
     title: pageTitle,
     description,
+    // 店番は 001〜999 だが、登録のない番号は空のページになるので検索に載せない
+    ...(shop ? {} : { robots: { index: false, follow: true } }),
     openGraph: {
       title: `${pageTitle} | nicchyo`,
       description,

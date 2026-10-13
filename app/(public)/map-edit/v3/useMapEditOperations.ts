@@ -1,6 +1,7 @@
 import { useCallback, useRef } from "react";
-import { findNearestRoadId as findNearestRoadIdShared } from "../../map/utils/mapRouteGeometry";
 import type { MapRouteConfig, MapRoutePoint } from "../../map/types/mapRoute";
+import { roadIdOfSlot, roadSlotLatLng } from "@/lib/map/roadSlotPosition";
+import { MAX_SHOP_ID, MIN_SHOP_ID } from "@/lib/shops/route";
 import {
   recordOperation,
   redoOperation,
@@ -8,15 +9,18 @@ import {
   type EditHistory,
   type EditState,
 } from "./editHistory";
-import { offsetLatLng, pointAtT } from "./roadPlacement";
+import type { SlotSplitPlan } from "./slotSplitPlan";
 import {
   ROAD_KIND_DEFAULT_WIDTH,
   type EditableLandmark,
   type EditableRoad,
   type EditableShop,
-  type VendorOption,
+  type EditableVendor,
 } from "./types";
+import { NEW_VENDOR_ID_PREFIX } from "../../map/types/editableShop";
 import type { MapSettingsLimits } from "./useMapEditData";
+import type { JudgeChome } from "./useChomeJudge";
+import { CHOME_LEGACY_LABELS, legacyChomeLabel, type ChomeId } from "@/lib/map/chomes";
 
 let operationIdCounter = 0;
 
@@ -33,15 +37,52 @@ type Params = {
   setRoads: React.Dispatch<React.SetStateAction<EditableRoad[]>>;
   landmarks: EditableLandmark[];
   setLandmarks: React.Dispatch<React.SetStateAction<EditableLandmark[]>>;
+  vendors: EditableVendor[];
+  setVendors: React.Dispatch<React.SetStateAction<EditableVendor[]>>;
   routeConfig: MapRouteConfig;
-  vendorOptions: VendorOption[];
   mapSettingsLimits: MapSettingsLimits;
+  /** 道の上の位置から丁目を決める（境目の設定が無いあいだは常に「対象外」を返す） */
+  judgeChome?: JudgeChome;
   setMessage: (message: string | null) => void;
 };
 
 /** 空き区画の表示名（出店者がいない区画は店番から名前を作る） */
 export function vacantShopName(position: number) {
   return `未設定店舗 ${position}`;
+}
+
+/**
+ * 新しい区画を置く、道の中心線からの距離（m）の既定値。その道に区画が無いときに使う。
+ * 実測（market_locations 300件）の店舗の中心線からの横距離の中央値（config/roadStyle.ts 参照）。
+ */
+export const DEFAULT_SLOT_OFFSET_M = 7.5;
+
+function median(values: number[]): number | null {
+  if (values.length === 0) return null;
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+}
+
+/**
+ * 道に新しく置く区画の、道の中心線からの距離（m）。同じ道・同じ側の区画の中央値に揃え、
+ * 無ければ同じ道の区画の中央値、それも無ければ既定値。区画分けのプレビューと適用の両方で使う。
+ */
+export function newSlotOffsetM(slotsOnRoad: EditableShop[], side: "left" | "right"): number {
+  return (
+    median(slotsOnRoad.filter((s) => s.roadSide === side).map((s) => s.roadOffsetM ?? 0)) ??
+    median(slotsOnRoad.map((s) => s.roadOffsetM ?? 0)) ??
+    DEFAULT_SLOT_OFFSET_M
+  );
+}
+
+/** 使われていない店番を小さい順に count 個。足りなければ null */
+function freePositions(used: Set<number>, count: number): number[] | null {
+  const result: number[] = [];
+  for (let n = MIN_SHOP_ID; n <= MAX_SHOP_ID && result.length < count; n += 1) {
+    if (!used.has(n)) result.push(n);
+  }
+  return result.length === count ? result : null;
 }
 
 /**
@@ -61,9 +102,11 @@ export function useMapEditOperations(params: Params) {
     setRoads,
     landmarks,
     setLandmarks,
+    vendors,
+    setVendors,
     routeConfig,
-    vendorOptions,
     mapSettingsLimits,
+    judgeChome,
     setMessage,
   } = params;
 
@@ -71,15 +114,19 @@ export function useMapEditOperations(params: Params) {
   // ドラッグを終えた時点で「開始時点 → 終了時点」を1件の操作として記録する
   const dragBeforeRef = useRef<EditState | null>(null);
 
-  const currentState = useCallback((): EditState => ({ shops, roads, landmarks }), [shops, roads, landmarks]);
+  const currentState = useCallback(
+    (): EditState => ({ shops, roads, landmarks, vendors }),
+    [shops, roads, landmarks, vendors]
+  );
 
   const applyState = useCallback(
     (next: EditState) => {
       if (next.shops !== shops) setShops(next.shops);
       if (next.roads !== roads) setRoads(next.roads);
       if (next.landmarks !== landmarks) setLandmarks(next.landmarks);
+      if (next.vendors !== vendors) setVendors(next.vendors);
     },
-    [shops, roads, landmarks, setShops, setRoads, setLandmarks]
+    [shops, roads, landmarks, vendors, setShops, setRoads, setLandmarks, setVendors]
   );
 
   /** 状態を before → after に変え、その変化を1件の操作として記録する */
@@ -117,63 +164,132 @@ export function useMapEditOperations(params: Params) {
     setHistory(result.history);
   }, [history, currentState, applyState, setHistory]);
 
-  // サーバー側（app/api/admin/map-layout/_shared.ts）と同じ判定ロジックを使うため、
-  // 共通実装（mapRouteGeometry.ts）をそのまま呼ぶ（別々に実装すると、保存時に
-  // サーバーが検証する道の割り当てとエディタの表示がズレる恐れがあるため）
-  const findNearestRoadId = useCallback(
-    (point: { lat: number; lng: number }): string | null =>
-      findNearestRoadIdShared(point, roads, routeConfig.snapDistanceMeters),
+  // 区画が乗っている道。サーバー側（app/api/admin/map-layout/_shared.ts）と同じ共通実装
+  // （roadSlotPosition.ts）を呼ぶ（別々に実装すると、保存時にサーバーが検証する道の割り当てと
+  // エディタの表示がズレる恐れがあるため）
+  const roadIdOf = useCallback(
+    (shop: EditableShop): string | null => roadIdOfSlot(shop, roads, routeConfig.snapDistanceMeters),
     [roads, routeConfig.snapDistanceMeters]
   );
 
   const shopCountOnRoad = useCallback(
-    (roadId: string) => shops.filter((s) => findNearestRoadId({ lat: s.lat, lng: s.lng }) === roadId).length,
-    [shops, findNearestRoadId]
+    (roadId: string) => shops.filter((s) => roadIdOf(s) === roadId).length,
+    [shops, roadIdOf]
   );
 
   // ── 区画・出店者 ──────────────────────────────
-  /** 出店者を別の空き区画へ移す。移せなかったら false */
+  const vendorName = useCallback(
+    (vendorId: string, list: EditableVendor[] = vendors) => list.find((v) => v.id === vendorId)?.name ?? "名称未設定",
+    [vendors]
+  );
+
+  /**
+   * 出店者を別の区画へ移す。移動先に別の出店者がいれば入れ替える。移動元は空きになる。
+   * 移せなかったら false
+   */
   const moveVendor = useCallback(
     (fromLocationId: string, toLocationId: string): boolean => {
       const from = shops.find((s) => s.locationId === fromLocationId);
       const to = shops.find((s) => s.locationId === toLocationId);
-      if (!from || !to || !from.vendorId || to.vendorId || from.locationId === to.locationId) return false;
+      if (!from || !to || !from.vendorId || from.locationId === to.locationId) return false;
+      const movingName = vendorName(from.vendorId);
+      const swapped = to.vendorId;
       commit(
         {
           shops: shops.map((s) => {
-            if (s.locationId === from.locationId) return { ...s, vendorId: undefined, name: vacantShopName(s.position) };
-            if (s.locationId === to.locationId) return { ...s, vendorId: from.vendorId, name: from.name };
+            if (s.locationId === from.locationId) {
+              return swapped
+                ? { ...s, vendorId: swapped, name: vendorName(swapped) }
+                : { ...s, vendorId: undefined, name: vacantShopName(s.position) };
+            }
+            if (s.locationId === to.locationId) return { ...s, vendorId: from.vendorId, name: movingName };
             return s;
           }),
         },
         String(to.position),
-        `${from.name} を ${from.position} から移動`
+        swapped
+          ? `${movingName}（${from.position}）と ${vendorName(swapped)}（${to.position}）を入れ替え`
+          : `${movingName} を ${from.position} から移動`
       );
       return true;
     },
-    [shops, commit]
+    [shops, commit, vendorName]
   );
 
+  /**
+   * 区画に登録済みの出店者を割り当てる（空文字なら空きにする）。
+   * その出店者が別の区画にいれば、そちらは空きにする（同じ出店者を2つの区画に置かないため）
+   */
   const assignVendor = useCallback(
     (locationId: string, vendorId: string) => {
       const shop = shops.find((s) => s.locationId === locationId);
       if (!shop) return;
-      const vendor = vendorOptions.find((v) => v.id === vendorId);
+      const previous = vendorId ? shops.find((s) => s.vendorId === vendorId && s.locationId !== locationId) : undefined;
       commit(
         {
-          shops: shops.map((s) =>
-            s.locationId === locationId
-              ? { ...s, vendorId: vendorId || undefined, name: vendor?.name ?? vacantShopName(s.position) }
-              : s
-          ),
+          shops: shops.map((s) => {
+            if (s.locationId === locationId) {
+              return { ...s, vendorId: vendorId || undefined, name: vendorId ? vendorName(vendorId) : vacantShopName(s.position) };
+            }
+            if (previous && s.locationId === previous.locationId) {
+              return { ...s, vendorId: undefined, name: vacantShopName(s.position) };
+            }
+            return s;
+          }),
         },
         String(shop.position),
-        vendor ? `${vendor.name} を割り当て` : "空きに変更"
+        !vendorId
+          ? "空きに変更"
+          : previous
+            ? `${vendorName(vendorId)} を ${previous.position} から移して割り当て`
+            : `${vendorName(vendorId)} を割り当て`
       );
     },
-    [shops, vendorOptions, commit]
+    [shops, commit, vendorName]
   );
 
+  /** 空き区画に新しい出店者を登録して割り当てる（1件の操作）。登録した出店者の仮 id を返す */
+  const registerVendor = useCallback(
+    (locationId: string, draft: Omit<EditableVendor, "id">): string | null => {
+      const shop = shops.find((s) => s.locationId === locationId);
+      if (!shop) return null;
+      const id = `${NEW_VENDOR_ID_PREFIX}${Date.now()}`;
+      const vendor: EditableVendor = { ...draft, id, name: draft.name.trim() };
+      commit(
+        {
+          vendors: [...vendors, vendor],
+          shops: shops.map((s) => (s.locationId === locationId ? { ...s, vendorId: id, name: vendor.name } : s)),
+        },
+        String(shop.position),
+        `${vendor.name} を新しく登録`
+      );
+      return id;
+    },
+    [shops, vendors, commit]
+  );
+
+  /** 出店者の情報を直す。店名を変えたら、その出店者の区画の表示名も揃える */
+  const updateVendor = useCallback(
+    (vendorId: string, patch: Partial<Omit<EditableVendor, "id">>, logText: string, options?: CommitOptions) => {
+      const vendor = vendors.find((v) => v.id === vendorId);
+      if (!vendor) return;
+      const nextVendor = { ...vendor, ...patch };
+      commit(
+        {
+          vendors: vendors.map((v) => (v.id === vendorId ? nextVendor : v)),
+          ...(patch.name !== undefined
+            ? { shops: shops.map((s) => (s.vendorId === vendorId ? { ...s, name: nextVendor.name } : s)) }
+            : {}),
+        },
+        "出店者",
+        `${vendor.name} ${logText}`,
+        options
+      );
+    },
+    [vendors, shops, commit]
+  );
+
+  /** 区画を空きにする。出店者の情報は消さず、割り当てだけを外す */
   const clearVendor = useCallback(
     (locationId: string) => {
       const shop = shops.find((s) => s.locationId === locationId);
@@ -191,36 +307,149 @@ export function useMapEditOperations(params: Params) {
     [shops, commit]
   );
 
-  const addSlotsToRoad = useCallback(
-    (road: EditableRoad, count: number) => {
-      const currentUnassignedCount = shops.filter((s) => !s.vendorId).length;
-      if (currentUnassignedCount + count > mapSettingsLimits.maxUnassignedShopMarkers) {
-        setMessage(`未割当マーカは最大 ${mapSettingsLimits.maxUnassignedShopMarkers} 件までです。`);
+  /** 区画を1つ削除する。出店者がいる区画は削除しない（先に空きにしてもらう）。削除できたら true */
+  const deleteSlot = useCallback(
+    (locationId: string): boolean => {
+      const shop = shops.find((s) => s.locationId === locationId);
+      if (!shop) return false;
+      if (shop.vendorId) {
+        setMessage(`区画 ${shop.position} には出店者がいます。先に「空きにする」で出店者を外してから削除してください。`);
+        return false;
+      }
+      commit({ shops: shops.filter((s) => s.locationId !== locationId) }, String(shop.position), "区画を削除");
+      return true;
+    },
+    [shops, commit, setMessage]
+  );
+
+  /**
+   * 区画分けツールの結果（slotSplitPlan.ts の planRoadSlots）を当てはめる。
+   * 残す区画は位置だけ動かし（店番・出店者はそのまま）、足りない分は空いている店番で新しく作り、
+   * 多すぎる空き区画は消す。当てはめられたら true
+   */
+  const applySlotPlan = useCallback(
+    (road: EditableRoad, plan: SlotSplitPlan): boolean => {
+      if (plan.error) {
+        setMessage(plan.error);
+        return false;
+      }
+      const unassignedAfter = shops.filter((s) => !s.vendorId).length - plan.deletes.length + plan.creates.length;
+      if (unassignedAfter > mapSettingsLimits.maxUnassignedShopMarkers) {
+        setMessage(
+          `空き区画が ${unassignedAfter} 件になり、上限（${mapSettingsLimits.maxUnassignedShopMarkers} 件）を超えます。上限は /admin/settings で変えられます。`
+        );
+        return false;
+      }
+
+      const deletedIds = new Set(plan.deletes.map((d) => d.locationId));
+      const used = new Set(shops.filter((s) => !deletedIds.has(s.locationId)).map((s) => s.position));
+      const positions = freePositions(used, plan.creates.length);
+      if (!positions) {
+        setMessage(`空いている店番（${MIN_SHOP_ID}〜${MAX_SHOP_ID}）が足りないため、区画を増やせません。`);
+        return false;
+      }
+
+      const onRoad = shops.filter((s) => s.roadId === road.id && !deletedIds.has(s.locationId));
+      // 新しい区画の丁目は、道の上の位置から自動で決める。境目のすぐ上は決めずに空けておく
+      // （区画の詳細で選んでもらう）。境目の設定が無い道・環境では、従来どおり同じ道の上で
+      // いちばん近い区画に合わせる（区画レーンで丁目ごとにまとめるため）
+      let nearBoundaryCount = 0;
+      const chomeNear = (distanceM: number) =>
+        onRoad
+          .filter((s) => s.chome)
+          .reduce<{ chome?: string; d: number }>(
+            (best, s) => {
+              const d = Math.abs((s.roadDistanceM ?? 0) - distanceM);
+              return d < best.d ? { chome: s.chome, d } : best;
+            },
+            { chome: undefined, d: Infinity }
+          ).chome;
+      const chomeFor = (distanceM: number): string | undefined => {
+        const judged = judgeChome?.(road.id, distanceM);
+        if (judged?.status === "ok") return legacyChomeLabel(judged.chomeId);
+        if (judged?.status === "near_boundary") {
+          nearBoundaryCount += 1;
+          return undefined;
+        }
+        return chomeNear(distanceM);
+      };
+
+      const moveTo = new Map(plan.moves.map((m) => [m.locationId, m.toM]));
+      const nextShops = shops
+        .filter((s) => !deletedIds.has(s.locationId))
+        .map((s) => {
+          const toM = moveTo.get(s.locationId);
+          if (toM === undefined || !s.roadSide) return s;
+          const latLng = roadSlotLatLng(road.points, { distanceM: toM, side: s.roadSide, offsetM: s.roadOffsetM ?? 0 });
+          return { ...s, roadDistanceM: toM, ...latLng };
+        });
+      const stamp = Date.now();
+      plan.creates.forEach((create, index) => {
+        const position = positions[index];
+        const offsetM = newSlotOffsetM(onRoad, create.side);
+        nextShops.push({
+          locationId: `new-${stamp}-${index}`,
+          id: position,
+          position,
+          name: vacantShopName(position),
+          chome: chomeFor(create.distanceM),
+          roadId: road.id,
+          roadDistanceM: create.distanceM,
+          roadSide: create.side,
+          roadOffsetM: offsetM,
+          ...roadSlotLatLng(road.points, { distanceM: create.distanceM, side: create.side, offsetM }),
+        });
+      });
+
+      commit(
+        { shops: nextShops },
+        "道",
+        `${road.name} を区画分け（追加 ${plan.creates.length}・削除 ${plan.deletes.length}・移動 ${plan.moves.length}）`
+      );
+      if (nearBoundaryCount > 0) {
+        setMessage(
+          `丁目の境目のすぐ上に置いた区画が ${nearBoundaryCount} 件あります。丁目は未設定なので、区画の詳細で選んでください。`
+        );
+      }
+      return true;
+    },
+    [shops, commit, setMessage, mapSettingsLimits.maxUnassignedShopMarkers, judgeChome]
+  );
+
+  /**
+   * 区画の丁目を直す。丁目を選ぶと「手で設定」になり、自動判定で上書きしない。
+   * "auto" を選ぶと手動設定を外し、道の位置から決め直す（決まらなければ今の丁目のまま）。
+   */
+  const setSlotChome = useCallback(
+    (locationId: string, value: ChomeId | "auto") => {
+      const shop = shops.find((s) => s.locationId === locationId);
+      if (!shop) return;
+      if (value === "auto") {
+        const judged = shop.roadId && shop.roadDistanceM != null ? judgeChome?.(shop.roadId, shop.roadDistanceM) : undefined;
+        const chome = judged?.status === "ok" ? legacyChomeLabel(judged.chomeId) : shop.chome;
+        commit(
+          { shops: shops.map((s) => (s.locationId === locationId ? { ...s, chome, chomeLocked: false } : s)) },
+          String(shop.position),
+          `丁目を自動判定に戻す（${chome ?? "未設定"}）`
+        );
         return;
       }
-      const existingOnRoad = shops.filter((s) => findNearestRoadId({ lat: s.lat, lng: s.lng }) === road.id);
-      const nextPosition = shops.reduce((max, s) => Math.max(max, s.position), 0) + 1;
-      const pairs = Math.max(1, Math.ceil((existingOnRoad.length + count) / 2));
-      const newShops: EditableShop[] = [];
-      for (let i = 0; i < count; i += 1) {
-        const index = existingOnRoad.length + i;
-        const t = (Math.floor(index / 2) + 0.5) / pairs;
-        const north = index % 2 === 0;
-        const at = pointAtT(road.points, t);
-        const halfWidth = road.widthMeters / 2 + 3;
-        const offset = offsetLatLng(at, at.nx, at.ny, north ? halfWidth : -halfWidth);
-        newShops.push({
-          locationId: `new-${Date.now()}-${index}`,
-          id: nextPosition + i,
-          position: nextPosition + i,
-          name: vacantShopName(nextPosition + i),
-          lat: offset.lat,
-          lng: offset.lng,
-        });
-      }
-      commit({ shops: [...shops, ...newShops] }, "道", `${road.name} に ${count} 区画を追加`);
+      const chome = CHOME_LEGACY_LABELS[value - 1];
+      commit(
+        { shops: shops.map((s) => (s.locationId === locationId ? { ...s, chome, chomeLocked: true } : s)) },
+        String(shop.position),
+        `丁目を ${chome} に設定（手動）`
+      );
     },
-    [shops, findNearestRoadId, commit, setMessage, mapSettingsLimits.maxUnassignedShopMarkers]
+    [shops, commit, judgeChome]
+  );
+
+  /** CSV 取り込みの結果（storeCsvImport.ts の planStoreImport）を1件の操作として当てはめる */
+  const applyStoreImport = useCallback(
+    (next: { shops: EditableShop[]; vendors: EditableVendor[] }, text: string) => {
+      commit({ shops: next.shops, vendors: next.vendors }, "CSV", text);
+    },
+    [commit]
   );
 
   // ── 道 ──────────────────────────────
@@ -376,7 +605,7 @@ export function useMapEditOperations(params: Params) {
         key,
         name: "新しい建物",
         description: "",
-        url: "/images/maps/elements/buildings/KochiCastle.png",
+        url: "/images/maps/elements/buildings/KochiCastle.webp",
         lat,
         lng,
         widthPx: 120,
@@ -416,12 +645,17 @@ export function useMapEditOperations(params: Params) {
   return {
     undo,
     redo,
-    findNearestRoadId,
+    roadIdOf,
     shopCountOnRoad,
     moveVendor,
     assignVendor,
+    registerVendor,
+    updateVendor,
     clearVendor,
-    addSlotsToRoad,
+    setSlotChome,
+    deleteSlot,
+    applySlotPlan,
+    applyStoreImport,
     patchRoad,
     deleteRoad,
     createRoad,

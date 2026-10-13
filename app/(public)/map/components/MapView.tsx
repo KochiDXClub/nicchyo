@@ -25,16 +25,14 @@ import BackgroundOverlay from "./BackgroundOverlay";
 import UserLocationMarker from "./UserLocationMarker";
 import OptimizedShopLayerWithClustering from "./OptimizedShopLayerWithClustering";
 import { LiveZoomMapControls } from "./MapControls";
-import type { MapCamera } from "../types/mapCamera";
+import type { MapViewProps, ShopBannerOrigin } from "../types/mapView";
 import MapPerfBridge from "./MapPerfBridge";
 import { readPerfShopCount, synthesizeShops } from "@/lib/perf/syntheticShops";
 import {
   resolveMapFeatureFlags,
-  type MapFeatureFlags,
   type RoadSnapMode,
   type ZoomSkipMode,
 } from "@/lib/mapFeatureFlags";
-import type { MapViewSettings } from "@/lib/map/mapViewSettings";
 import { MapOverlays, getVisibleMajorPlaceLabels } from "./MapOverlays";
 import {
   getRecommendedZoomBounds,
@@ -47,8 +45,7 @@ import {
   OVERVIEW_ZONE_MAX_ZOOM,
 } from '../config/displayConfig';
 import type { Landmark } from "../types/landmark";
-import { landmarkToSpot, type MapSpot } from "@/lib/spots";
-import type { MapRoute } from "../types/mapRoute";
+import { landmarkToSpot } from "@/lib/spots";
 import {
   getAutoRotationForVisibleRoad,
   normalizeRotationDeg,
@@ -62,6 +59,7 @@ import {
   normalizeMapRoutePoints,
   projectPointOntoRoute,
 } from "../utils/mapRouteGeometry";
+import { escapeHtml } from "../utils/markerHtmlGenerator";
 import { useMapGestures } from "../hooks/useMapGestures";
 import { useMapCameraController } from "../hooks/useMapCameraController";
 import SearchResultsSheet, { SpotlightCountdownBar } from "./SearchResultsSheet";
@@ -139,80 +137,6 @@ function MapZoomGuideToast({ message }: { message: string | null }) {
     </div>
   );
 }
-
-export type MapViewProps = {
-  shops?: Shop[];
-  landmarks?: Landmark[];
-  mapRoute?: MapRoute;
-  initialShopId?: number;
-  openInitialShopBanner?: boolean;
-  searchShopIds?: number[];
-  /** 地図が描き終えた（ローディングを畳んでよい） */
-  onMapReady?: () => void;
-  /** 読み込みの途中経過。ローディングのゲージに使う（MapLibre 版のみ報告する） */
-  onMapStage?: (stage: "style" | "loaded") => void;
-  eventTargets?: Array<{ id: string; lat: number; lng: number }>;
-  highlightEventTargets?: boolean;
-  /** 地図のカメラ操作（Leaflet 版は L.Map をそのまま渡す。MapLibre 版はアダプタ） */
-  onMapInstance?: (map: MapCamera) => void;
-  onUserLocationUpdate?: (coords: { lat: number; lng: number; inMarket: boolean }) => void;
-  aiShopIds?: number[];
-  commentShopId?: number;
-  onZoomChange?: (zoom: number) => void;
-  suppressInitialLocationFocus?: boolean;
-  /** 管理画面で保存したマップ動作フラグ。URL の ?mapFlags= がクライアント側で上書きする */
-  featureFlags?: MapFeatureFlags;
-  /**
-   * 管理画面「マップの表示範囲」で保存した可動範囲。
-   * 効くのは MapLibre 版だけ。Leaflet 版は従来どおり「道の範囲＋可視距離」の
-   * 狭い枠のままにしてある（既定の描画の操作感まで黙って変えないため）。
-   */
-  mapViewSettings?: MapViewSettings;
-  onShopSelect?: (shop: Shop) => void;
-  /**
-   * 電停・駅・建物などのランドマークがタップされたときに呼ばれる。
-   * 店舗以外のスポットは親（MapPageClient）が SpotCard で表示する。
-   */
-  onSpotSelect?: (spot: MapSpot) => void;
-  /** 店舗バナーの「ここへ案内」。おでかけサポートでその店への道案内を始める */
-  onNavigateToShop?: (shop: Shop) => void;
-  /** おでかけサポートで案内中の目的地の店。屋台マーカーを「選択中」の見た目にする */
-  guideTargetShopId?: number;
-  /** 選択中のスポットID（MapSpot.id）。該当するランドマークを少し大きく表示する */
-  selectedSpotId?: string;
-  spotlightShopId?: number;
-  onClearSearch?: () => void;
-  /** マップ座標系内にレンダリングするオーバーレイ（キャラクターなど） */
-  overlaySlot?: React.ReactNode;
-  /** trueのとき拡大縮小スライダーと検索バーを非表示にする */
-  hideMapUI?: boolean;
-  /**
-   * trueのとき、通常のランドマーク（駅・電停の常時表示分を含む）を
-   * 一切表示しない。おでかけサポートの案内中は FacilityLayer が
-   * 同じ電停・駅をカテゴリの目的に合わせて表示するため、両方出すと
-   * 二重に見えてしまう／無関係なカテゴリでも常に駅アイコンが写り込む
-   * ことになるのを避ける。
-   */
-  suppressLandmarks?: boolean;
-  /**
-   * 外から店舗の詳細バナーを開く要求。マーカーをタップしたときと同じ状態にする。
-   * 同じ店を続けてタップしても開き直せるよう、id ではなく token の変化で発火させる。
-   * ShopScanCards のカードをタップしたときに使う。
-   */
-  focusShopRequest?: { shopId: number; token: number } | null;
-  /** 現在地ボタンの top 位置（px）。検索エリアの実際の高さに合わせて親から渡す */
-  trackingButtonTop?: number;
-  /**
-   * 2本指の回転/ピンチジェスチャー中かどうかが変化したときに呼ばれる。
-   * 回転のみのジェスチャーは Leaflet の pan/zoom を伴わないため
-   * move/zoom イベントが発火せず、「このへん」ボタンの静止判定
-   * （useNearbyPromptVisibility）だけではジェスチャー中を検知できない。
-   * この通知を使って親側で表示状態を更新する。
-   */
-  onGestureActiveChange?: (active: boolean) => void;
-};
-
-export type ShopBannerOrigin = { x: number; y: number; width: number; height: number };
 
 function MapZoomListener({ onZoomChange }: { onZoomChange?: (zoom: number) => void }) {
   const map = useMap();
@@ -870,12 +794,6 @@ const MapView = memo(function MapView({
     });
   }, []);
 
-  const selectedShopIndex = useMemo(() => {
-    if (!selectedShop) return -1;
-    return shops.findIndex((shop) => shop.id === selectedShop.id);
-  }, [selectedShop, shops]);
-
-  const canNavigate = selectedShopIndex >= 0 && shops.length > 1;
   const {
     isMinimumZoomMode,
     isOverviewZoneMode,
@@ -905,14 +823,6 @@ const MapView = memo(function MapView({
     [routePoints]
   );
 
-  const handleSelectByOffset = useCallback((offset: number) => {
-    if (!canNavigate) return;
-    const nextIndex = (selectedShopIndex + offset + shops.length) % shops.length;
-    const nextShop = shops[nextIndex];
-    if (!nextShop) return;
-    handleShopClick(nextShop);
-  }, [canNavigate, selectedShopIndex, handleShopClick, shops]);
-
   const handleMapZoomChange = useCallback(
     (zoom: number) => {
       const next = computeZoomModes(zoom);
@@ -938,9 +848,6 @@ const MapView = memo(function MapView({
     setShopBannerMainSurface("detail");
   }, []);
 
-  const handleSelectPreviousShop = useCallback(() => handleSelectByOffset(-1), [handleSelectByOffset]);
-  const handleSelectNextShop = useCallback(() => handleSelectByOffset(1), [handleSelectByOffset]);
-
   // ランドマークの DivIcon は既定ではズームに依存させず、倍率は CSS 変数 --landmark-scale で追従する。
   // landmarkCssScale が off のときだけ従来どおりズームごとに px サイズを焼き込んで作り直す
   const landmarkIconScale =
@@ -957,7 +864,7 @@ const MapView = memo(function MapView({
         spec.key,
         L.divIcon({
           className: "map-landmark-icon",
-          html: `<img class="map-landmark-visual${highlightClass}" src="${spec.url}" alt="" draggable="false" style="width:${width}px;height:${height}px;opacity:1;" />`,
+          html: `<img class="map-landmark-visual${highlightClass}" src="${escapeHtml(spec.url)}" alt="" draggable="false" style="width:${width}px;height:${height}px;opacity:1;" />`,
           iconSize: [width, height],
           iconAnchor: [width / 2, height / 2],
         })
@@ -1300,11 +1207,6 @@ const MapView = memo(function MapView({
             openNonce={shopBannerSession}
             initialMobileSurface={shopBannerInitialSurface}
             onMobileMainSurfaceChange={setShopBannerMainSurface}
-            canNavigateBetweenShops={canNavigate}
-            selectedShopPosition={selectedShopIndex + 1}
-            totalShopCount={shops.length}
-            onSelectPreviousShop={handleSelectPreviousShop}
-            onSelectNextShop={handleSelectNextShop}
             onClose={handleCloseBanner}
             originRect={shopBannerOrigin ?? undefined}
             reserveBottomNavSpace={false}

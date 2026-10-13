@@ -49,6 +49,8 @@ vi.mock("@/lib/supabase/adminClient", () => ({
           },
         };
       }
+      if (table === "inquiries") return { update: () => op("scrub-inquiries") };
+      if (table === "reports") return { update: () => op("scrub-reports") };
       throw new Error(`unexpected table: ${table}`);
     },
   }),
@@ -93,7 +95,7 @@ describe("DELETE /api/vendor/account/delete（退会）", () => {
     const res = await withdraw();
 
     expect(res.status).toBe(200);
-    expect(calls).toEqual(["anonymize-logs", "deleteUser", "final-log"]);
+    expect(calls).toEqual(["anonymize-logs", "scrub-inquiries", "scrub-reports", "deleteUser", "final-log"]);
     expect(deleteUser).toHaveBeenCalledWith(user.id);
   });
 
@@ -114,7 +116,14 @@ describe("DELETE /api/vendor/account/delete（退会）", () => {
     const res = await withdraw();
 
     expect(res.status).toBe(200);
-    expect(calls).toEqual(["begin_owner_withdrawal", "anonymize-logs", "deleteUser", "final-log"]);
+    expect(calls).toEqual([
+      "begin_owner_withdrawal",
+      "anonymize-logs",
+      "scrub-inquiries",
+      "scrub-reports",
+      "deleteUser",
+      "final-log",
+    ]);
   });
 
   it("アカウントを消せなかったら 500 で、もう一度できる（最終のログは残さない）", async () => {
@@ -138,6 +147,13 @@ describe("DELETE /api/vendor/account/delete（退会）", () => {
 
     expect((await withdraw()).status).toBe(403);
     expect(calls).toEqual(["begin_owner_withdrawal"]);
+  });
+
+  it("問い合わせ・通報の連絡先を消せなかったら、アカウントは消さない（user_id が外れる前に消す）", async () => {
+    errors = { "scrub-reports": true };
+
+    expect((await withdraw()).status).toBe(500);
+    expect(calls).not.toContain("deleteUser");
   });
 
   it("操作ログの匿名化に失敗したら、アカウントは消さない", async () => {

@@ -24,12 +24,12 @@ export async function generateMetadata({
   const activity = getActivityBySlug(slug);
   if (!activity) {
     return {
-      title: "取り組み | nicchyo",
+      title: "取り組み",
     };
   }
 
   return {
-    title: `${activity.title} | nicchyo`,
+    title: activity.title,
     description: activity.summary,
   };
 }

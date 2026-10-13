@@ -15,8 +15,9 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { LogOut, Map as MapIcon, Menu, PanelLeftClose, X } from "lucide-react";
 import { useAuth } from "@/lib/auth/AuthContext";
-import { useAdminNotifications } from "@/lib/hooks/useAdminNotifications";
-import { getVisibleAdminNav, isAdminNavItemActive } from "@/lib/admin/adminNav";
+import { useAdminInboxCounts } from "@/lib/hooks/useAdminInboxCounts";
+import { CountBadge } from "./CountBadge";
+import { getVisibleAdminNav, isAdminNavItemCurrent } from "@/lib/admin/adminNav";
 
 /**
  * ロールごとのアクセント。
@@ -40,7 +41,8 @@ export const AdminSidebar = React.memo(function AdminSidebar({
   const { user, permissions, logout } = useAuth();
   const pathname = usePathname();
   const router = useRouter();
-  const { unreadCount } = useAdminNotifications(permissions.isAdmin || permissions.canModerateContent);
+  // 受信トレイの新着（未読の通知＋未対応の通報・問い合わせ）。ページを移るたびに取り直す
+  const { total: inboxCount } = useAdminInboxCounts(permissions.isAdmin || permissions.canModerateContent, pathname);
 
   const accent = ROLE_ACCENT[user?.role ?? ""] ?? DEFAULT_ACCENT;
   const groups = getVisibleAdminNav(permissions);
@@ -108,9 +110,9 @@ export const AdminSidebar = React.memo(function AdminSidebar({
               </p>
               <ul className="space-y-0.5">
                 {group.items.map((item) => {
-                  const isActive = isAdminNavItemActive(item.href, pathname);
+                  const isActive = isAdminNavItemCurrent(item, pathname);
                   const Icon = item.icon;
-                  const badge = item.badgeKey === "notifications" && unreadCount > 0 ? unreadCount : undefined;
+                  const badge = item.badgeKey === "inbox" ? inboxCount : 0;
                   return (
                     <li key={item.href}>
                       <Link
@@ -137,11 +139,7 @@ export const AdminSidebar = React.memo(function AdminSidebar({
                           aria-hidden="true"
                         />
                         <span className="min-w-0 flex-1 truncate">{item.label}</span>
-                        {badge !== undefined && (
-                          <span className="ml-auto grid h-[18px] min-w-[18px] shrink-0 place-items-center rounded-full bg-red-500 px-1 text-[10px] font-semibold tabular-nums text-white">
-                            {badge > 99 ? "99+" : badge}
-                          </span>
-                        )}
+                        <span className="ml-auto"><CountBadge count={badge} label={item.label} /></span>
                       </Link>
                     </li>
                   );

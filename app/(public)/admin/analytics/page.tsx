@@ -4,6 +4,7 @@ import { createClient as createServiceClient } from "@supabase/supabase-js";
 import { createClient } from "@/utils/supabase/server";
 import { AdminLayout, AdminPageHeader } from "@/components/admin";
 import { getRole, isAdmin } from "@/lib/auth/permissions";
+import { addDaysToDateString, monthStartJstString, todayJstString } from "@/lib/time/jstDate";
 import AnalyticsExportButton from "./AnalyticsExportButton";
 import { TrafficOverview } from "@/components/admin/TrafficOverview";
 
@@ -70,11 +71,12 @@ export default async function AdminAnalyticsPage() {
   const dc = createAdminReadClient() ?? supabase;
 
   const now = new Date();
-  const todayIso = now.toISOString().slice(0, 10);
-  const weekStartIso = new Date(now.getTime() - 6 * 86400000).toISOString().slice(0, 10);
-  const monthStartIso = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
-  const thirtyDaysAgoIso = new Date(now.getTime() - 29 * 86400000).toISOString().slice(0, 10);
-  const monthStartTs = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+  // visit_date は JST で記録されるため、集計の基準日も JST に揃える
+  const todayIso = todayJstString(now);
+  const weekStartIso = addDaysToDateString(todayIso, -6);
+  const monthStartIso = monthStartJstString(now);
+  const thirtyDaysAgoIso = addDaysToDateString(todayIso, -29);
+  const monthStartTs = new Date(`${monthStartIso}T00:00:00+09:00`).toISOString();
 
   const [
     pageAnalyticsResult,

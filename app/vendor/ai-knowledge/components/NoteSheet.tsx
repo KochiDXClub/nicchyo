@@ -133,7 +133,7 @@ export default function NoteSheet({
             <div className="space-y-2">
               <AudienceSwitch
                 label="お客さんへの案内"
-                hint="お客さんの相談や、お店のページのチャットで、にちよさんが答えに使う"
+                hint="お客さんの相談や、お店のページのチャットで、にちよさんが答えに使う。お客さんに見える答えになるき、電話番号やメールアドレスなどの個人情報は書かんでね"
                 checked={forVisitors}
                 onChange={setForVisitors}
               />

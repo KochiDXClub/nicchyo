@@ -38,12 +38,12 @@ describe("sendEvent wrapper", () => {
   });
 
   it("sends dataLayer/gtag and posts to server when toServer=true", async () => {
-    sendEvent("shop_impression" as any, { shop_id: "shop1", list_position: 2, context: "list" }, { toServer: true });
+    sendEvent("guide_open" as any, { shop_id: "shop1" }, { toServer: true });
 
     // dataLayer push
     expect((globalThis as any).dataLayer.length).toBeGreaterThan(0);
     const pushed = (globalThis as any).dataLayer[(globalThis as any).dataLayer.length - 1];
-    expect(pushed.event).toBe("shop_impression");
+    expect(pushed.event).toBe("guide_open");
     expect(pushed.shop_id).toBe("shop1");
 
     // gtag called
@@ -52,7 +52,7 @@ describe("sendEvent wrapper", () => {
     // fetch called to server API
     expect(globalThis.fetch).toHaveBeenCalled();
     const fetchCall = (globalThis.fetch as any).mock.calls[0];
-    expect(fetchCall[0]).toContain("/api/analytics/shop-interaction");
+    expect(fetchCall[0]).toContain("/api/analytics/guide-event");
   });
 
   it("toServer を指定しなければサーバーへは送らない", async () => {

@@ -7,6 +7,7 @@
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
+import { describeKey, TEXT_TABS } from "./layout.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CONTENT_DIR = path.resolve(__dirname, "..", "..", "content", "site-copy");
@@ -14,9 +15,10 @@ const CONTENT_DIR = path.resolve(__dirname, "..", "..", "content", "site-copy");
 /** app/(public)/faq/data.ts の FaqCategory と揃える（sync.test.ts で一致を確かめている） */
 export const FAQ_CATEGORIES = ["map", "favorites", "account", "general"];
 
-// シートの見出し。列の並び順は自由で、見出しの文字で列を探す
-const TEXT_COLUMNS = { key: "key", text: "文言", max: "最大文字数" };
-const FAQ_COLUMNS = { id: "id", category: "カテゴリ", q: "質問", a: "回答" };
+// シートの見出し。列の並び順は自由で、見出しの文字で列を探す。「場所」「項目」は人が読むための列で、取り込みでは読まない
+const ID_HEADER = "ID（変更不可）";
+const TEXT_COLUMNS = { key: ID_HEADER, text: "文言", max: "最大文字数" };
+const FAQ_COLUMNS = { order: "表示順", show: "表示", id: ID_HEADER, category: "カテゴリ", q: "質問", a: "回答" };
 
 const KEY_PATTERN = /^[a-z][a-zA-Z0-9]*(\.[a-zA-Z0-9]+)+$/;
 // 文言は React がそのまま文字として出すので害はないが、タグを書いても効かないので誤りとして止める
@@ -103,48 +105,51 @@ function checkText(value, where, errors) {
 }
 
 /**
- * 「文言」シートを texts.json の中身にする。
+ * 文言のタブ（FAQページ / LP / マップ案内）を texts.json の中身にする。
  * コードが使っているキー（currentKeys）がシートから消えていたら止める。キーの削除はコード側の変更と一緒に行う。
+ * @param {{ name: string, rows: string[][] }[]} sheets
  * @returns {{ texts: Record<string, string>, errors: string[] }}
  */
-export function buildTexts(rows, currentKeys = []) {
+export function buildTexts(sheets, currentKeys = []) {
   const errors = [];
-  const sheet = "文言";
-  requireColumns(rows, TEXT_COLUMNS, ["key", "text"], sheet, errors);
+  for (const { name, rows } of sheets) requireColumns(rows, TEXT_COLUMNS, ["key", "text"], name, errors);
   if (errors.length > 0) return { texts: {}, errors };
 
   const texts = {};
-  for (const r of toRecords(rows, TEXT_COLUMNS)) {
-    const where = `「${sheet}」${r.row}行目（${r.key || "key なし"}）`;
-    if (!KEY_PATTERN.test(r.key)) {
-      errors.push(`${where}: key は「faq.title」のような 英数字.英数字 の形にしてください`);
-      continue;
-    }
-    if (r.key in texts) {
-      errors.push(`${where}: key が重複しています`);
-      continue;
-    }
-    checkText(r.text, where, errors);
-    if (r.max !== "") {
-      const max = Number(r.max);
-      if (!Number.isInteger(max) || max <= 0) {
-        errors.push(`${where}: 最大文字数は正の整数で書いてください`);
-      } else if ([...r.text].length > max) {
-        errors.push(`${where}: ${[...r.text].length}文字あり、最大文字数 ${max} を超えています`);
+  for (const { name, rows } of sheets) {
+    for (const r of toRecords(rows, TEXT_COLUMNS)) {
+      const where = `「${name}」${r.row}行目（${r.key || "ID なし"}）`;
+      if (!KEY_PATTERN.test(r.key)) {
+        errors.push(`${where}: ID は「faq.title」のような 英数字.英数字 の形です。ID の列は書き換えないでください`);
+        continue;
       }
+      if (r.key in texts) {
+        errors.push(`${where}: ID が重複しています`);
+        continue;
+      }
+      checkText(r.text, where, errors);
+      if (r.max !== "") {
+        const max = Number(r.max);
+        if (!Number.isInteger(max) || max <= 0) {
+          errors.push(`${where}: 最大文字数は正の整数で書いてください`);
+        } else if ([...r.text].length > max) {
+          errors.push(`${where}: ${[...r.text].length}文字あり、最大文字数 ${max} を超えています`);
+        }
+      }
+      texts[r.key] = r.text;
     }
-    texts[r.key] = r.text;
   }
   for (const key of currentKeys) {
     if (!(key in texts)) {
-      errors.push(`「${sheet}」: key「${key}」がシートにありません（サイトで使っているので消せません）`);
+      errors.push(`ID「${key}」がシートにありません（サイトで使っているので消せません）`);
     }
   }
   return { texts, errors };
 }
 
 /**
- * 「FAQ」シートを faq.json の中身にする。並び順はシートの行順。
+ * 「FAQ」シートを faq.json の中身にする。
+ * 並びは「表示順」の小さい順（空欄は最後、同じ値と空欄は行の順）。「表示」が FALSE の行は載せない。
  * @returns {{ faq: { id: string, category: string, q: string, a: string }[], errors: string[] }}
  */
 export function buildFaq(rows) {
@@ -153,27 +158,44 @@ export function buildFaq(rows) {
   requireColumns(rows, FAQ_COLUMNS, ["id", "category", "q", "a"], sheet, errors);
   if (errors.length > 0) return { faq: [], errors };
 
-  const faq = [];
+  const items = [];
   const seen = new Set();
   for (const r of toRecords(rows, FAQ_COLUMNS)) {
-    const where = `「${sheet}」${r.row}行目（${r.id || "id なし"}）`;
+    // 表示順・表示の列だけが埋まった行（入力欄の名残）は、質問の行として数えない
+    if (r.id === "" && r.category === "" && r.q === "" && r.a === "") continue;
+    const where = `「${sheet}」${r.row}行目（${r.id || "ID なし"}）`;
+    // 非表示で ID もまだない行は、書きかけの下書きとして飛ばす
+    if (r.id === "" && r.show.toUpperCase() === "FALSE") continue;
     if (!/^[a-z0-9]+(-[a-z0-9]+)*$/.test(r.id)) {
-      errors.push(`${where}: id は「map-free」のような 小文字英数字とハイフン にしてください`);
+      errors.push(`${where}: ID は「map-free」のような 小文字英数字とハイフン にしてください。ID の列は書き換えないでください`);
       continue;
     }
     if (seen.has(r.id)) {
-      errors.push(`${where}: id が重複しています`);
+      errors.push(`${where}: ID が重複しています`);
       continue;
     }
     seen.add(r.id);
+    // 非表示の行は下書きとして置いておけるので、中身は検証しない
+    if (r.show.toUpperCase() === "FALSE") continue;
+
+    let order = Infinity;
+    if (r.order !== "") {
+      order = Number(r.order);
+      if (!Number.isFinite(order)) {
+        errors.push(`${where}: 表示順は数字で書いてください`);
+        continue;
+      }
+    }
     if (!FAQ_CATEGORIES.includes(r.category)) {
       errors.push(`${where}: カテゴリは ${FAQ_CATEGORIES.join(" / ")} のどれかにしてください`);
     }
     checkText(r.q, `${where} 質問`, errors);
     checkText(r.a, `${where} 回答`, errors);
-    faq.push({ id: r.id, category: r.category, q: r.q, a: r.a });
+    items.push({ id: r.id, category: r.category, q: r.q, a: r.a, order, row: r.row });
   }
-  if (faq.length === 0 && errors.length === 0) errors.push(`「${sheet}」: 質問が1件もありません`);
+  items.sort((x, y) => (x.order === y.order ? x.row - y.row : x.order - y.order));
+  const faq = items.map(({ id, category, q, a }) => ({ id, category, q, a }));
+  if (faq.length === 0 && errors.length === 0) errors.push(`「${sheet}」: 表示する質問が1件もありません`);
   return { faq, errors };
 }
 
@@ -212,25 +234,32 @@ function toCsv(rows) {
   return rows.map((r) => r.map((v) => escape(String(v))).join(",")).join("\r\n") + "\r\n";
 }
 
+/**
+ * 今の JSON を、シートの各タブの中身（見出し行つき）にする。シートを作り直すときの元データ
+ * @returns {Record<string, (string | number)[][]>}
+ */
+export function buildSheetRows(texts, faq) {
+  /** @type {Record<string, (string | number)[][]>} */
+  const tabs = {};
+  for (const { name } of TEXT_TABS) tabs[name] = [["場所", "項目", TEXT_COLUMNS.text, TEXT_COLUMNS.max, ID_HEADER]];
+  for (const [key, text] of Object.entries(texts)) {
+    const { tab, place, item } = describeKey(key);
+    tabs[tab].push([place, item, text, "", key]);
+  }
+  tabs.FAQ = [
+    [FAQ_COLUMNS.order, FAQ_COLUMNS.show, FAQ_COLUMNS.category, FAQ_COLUMNS.q, FAQ_COLUMNS.a, ID_HEADER],
+    ...faq.map((f, i) => [i + 1, "TRUE", f.category, f.q, f.a, f.id]),
+  ];
+  return tabs;
+}
+
 export function exportCsv(dir) {
   fs.mkdirSync(dir, { recursive: true });
-  const texts = readJson("texts.json");
-  const faq = readJson("faq.json");
-  fs.writeFileSync(
-    path.join(dir, "文言.csv"),
-    toCsv([
-      [TEXT_COLUMNS.key, TEXT_COLUMNS.text, TEXT_COLUMNS.max, "備考"],
-      ...Object.entries(texts).map(([k, v]) => [k, v, "", ""]),
-    ]),
-  );
-  fs.writeFileSync(
-    path.join(dir, "FAQ.csv"),
-    toCsv([
-      [FAQ_COLUMNS.id, FAQ_COLUMNS.category, FAQ_COLUMNS.q, FAQ_COLUMNS.a],
-      ...faq.map((f) => [f.id, f.category, f.q, f.a]),
-    ]),
-  );
-  console.log(`${dir} に 文言.csv と FAQ.csv を書き出しました`);
+  const tabs = buildSheetRows(readJson("texts.json"), readJson("faq.json"));
+  for (const [name, rows] of Object.entries(tabs)) {
+    fs.writeFileSync(path.join(dir, `${name}.csv`), toCsv(rows));
+  }
+  console.log(`${dir} に ${Object.keys(tabs).map((n) => `${n}.csv`).join("、")} を書き出しました`);
 }
 
 async function main() {
@@ -248,11 +277,12 @@ async function main() {
     return;
   }
 
-  const [textRows, faqRows] = await Promise.all([
-    fetchSheet(sheetId, "文言"),
+  const [faqRows, ...textRows] = await Promise.all([
     fetchSheet(sheetId, "FAQ"),
+    ...TEXT_TABS.map((t) => fetchSheet(sheetId, t.name)),
   ]);
-  const { texts, errors: textErrors } = buildTexts(textRows, Object.keys(readJson("texts.json")));
+  const textSheets = TEXT_TABS.map((t, i) => ({ name: t.name, rows: textRows[i] }));
+  const { texts, errors: textErrors } = buildTexts(textSheets, Object.keys(readJson("texts.json")));
   const { faq, errors: faqErrors } = buildFaq(faqRows);
   const errors = [...textErrors, ...faqErrors];
 

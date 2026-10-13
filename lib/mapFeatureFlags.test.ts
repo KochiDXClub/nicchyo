@@ -52,3 +52,15 @@ describe("parseMapFlagsFromSearch / resolveMapFeatureFlags", () => {
     expect(normalizeMapFeatureFlags(parsed)).toEqual(flags);
   });
 });
+
+describe("廃止した renderer キー", () => {
+  it("保存済みの設定に renderer が残っていても無視する（設定を壊さない）", () => {
+    const flags = normalizeMapFeatureFlags({ renderer: "leaflet", roadSnap: "off" });
+    expect(flags).not.toHaveProperty("renderer");
+    expect(flags.roadSnap).toBe("off");
+  });
+
+  it("URL の ?mapFlags=renderer:leaflet は無視する", () => {
+    expect(parseMapFlagsFromSearch("?mapFlags=renderer:leaflet")).toBeNull();
+  });
+});

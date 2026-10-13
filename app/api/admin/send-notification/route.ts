@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { createClient as createServerClient } from "@/utils/supabase/server";
 import { getRole, isAdmin } from "@/lib/auth/permissions";
+import { requireSameOrigin } from "@/lib/security/requestGuards";
 import { sendEmail, isEmailConfigured } from "@/lib/email/mailer";
 
 export const runtime = "nodejs";
@@ -23,6 +24,9 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
+  const originCheck = requireSameOrigin(req);
+  if (!originCheck.ok) return originCheck.response;
+
   const cookieStore = await cookies();
   const supabase = createServerClient(cookieStore);
   const { data: { user } } = await supabase.auth.getUser();

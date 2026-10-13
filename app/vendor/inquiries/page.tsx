@@ -6,9 +6,10 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Plus, ChevronRight, Inbox } from "lucide-react";
 import { CenteredLoading } from "@/components/ui/loading-spinner";
-import { fetchMyInquiries, type VendorInquiry } from "../_services/inquiriesService";
+import { fetchMyInquiries, needsLogin as isLoginExpired, type VendorInquiry } from "../_services/inquiriesService";
 import { fetchNotices, type VendorNotice } from "../_services/noticesService";
 import NoticeList from "./components/NoticeList";
+import InquiryErrorNotice from "./components/InquiryErrorNotice";
 import { CATEGORY_LABELS, TOPIC_LABELS, statusLabel } from "@/lib/vendorInquiries/labels";
 
 const TONE_CLASSES = {
@@ -36,6 +37,7 @@ export default function VendorInquiriesPage() {
   const [inquiries, setInquiries] = useState<VendorInquiry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [loginExpired, setLoginExpired] = useState(false);
   const [notices, setNotices] = useState<VendorNotice[]>([]);
 
   useEffect(() => {
@@ -57,7 +59,10 @@ export default function VendorInquiriesPage() {
   useEffect(() => {
     fetchMyInquiries()
       .then(setInquiries)
-      .catch((e: unknown) => setError(e instanceof Error ? e.message : "読み込みに失敗しました"))
+      .catch((e: unknown) => {
+        setError(e instanceof Error ? e.message : "読み込みに失敗しました");
+        setLoginExpired(isLoginExpired(e));
+      })
       .finally(() => setIsLoading(false));
   }, []);
 
@@ -81,9 +86,7 @@ export default function VendorInquiriesPage() {
           新しく連絡する
         </Link>
 
-        {error && (
-          <div className="rounded-2xl border border-rose-100 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</div>
-        )}
+        {error && <InquiryErrorNotice message={error} needsLogin={loginExpired} />}
 
         {isLoading ? (
           <CenteredLoading size={24} padding="py-10" />

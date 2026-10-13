@@ -5,7 +5,7 @@ import { ArrowUpRight, ChevronLeft } from "lucide-react";
 import { ACTIVITY_CATEGORY_STYLES, getActivitiesSortedDesc } from "../data/activities";
 
 export const metadata: Metadata = {
-  title: "取り組み | nicchyo",
+  title: "取り組み",
   description: "nicchyoの活動記録、行政連携、現地調査、受賞、発表の一覧です。",
 };
 

@@ -14,7 +14,7 @@ import { PageContainer, PageShell } from "@/components/ui";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "日曜市カレンダー | nicchyo 日曜市",
+  title: "日曜市カレンダー",
   description:
     "高知・日曜市の開催状況とこれからのイベント予定。荒天中止や特別開催のお知らせもここで確認できます。",
 };

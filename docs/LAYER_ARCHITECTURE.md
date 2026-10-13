@@ -4,7 +4,7 @@
 
 ## 描画ライブラリは2系統
 
-`lib/mapFeatureFlags.ts` の `renderer`（既定 `leaflet`。管理画面の設定、または URL の `?mapFlags=renderer:maplibre`）で切り替わる。`MapPageClient.tsx` がどちらの `MapView` を使うか決める。
+`lib/mapFeatureFlags.ts` の `renderer`（既定 `maplibre`。管理画面の設定、または URL の `?mapFlags=renderer:maplibre`）で切り替わる。`MapPageClient.tsx` がどちらの `MapView` を使うか決める。
 
 | | Leaflet 版（既定） | MapLibre 版（移行中の並走検証用） |
 |---|---|---|

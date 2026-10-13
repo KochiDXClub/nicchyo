@@ -20,7 +20,14 @@
  * （requestChatCompletion のコメントを参照）。
  */
 
-import { buildChatCompletionBody, type ChatCompletionParams, type ResolvedAiModel } from "./models";
+import { requestAnthropicChatCompletion } from "./anthropicAdapter";
+import {
+  buildChatCompletionBody,
+  type AiModelDef,
+  type ChatCompletionParams,
+  type ResolvedAiModel,
+  type ReasoningEffort,
+} from "./models";
 
 const CHAT_COMPLETIONS_URL = "https://api.openai.com/v1/chat/completions";
 const EMBEDDINGS_URL = "https://api.openai.com/v1/embeddings";
@@ -36,6 +43,34 @@ function jsonHeaders(apiKey: string): HeadersInit {
 }
 
 /**
+ * 提供元に合わせて1回呼ぶ。
+ *
+ * OpenAI のモデルは渡された `apiKey`（OPENAI_API_KEY）で Chat Completions を叩く。
+ * Anthropic のモデルは lib/ai/anthropicAdapter.ts が ANTHROPIC_API_KEY で呼び、
+ * 返りは OpenAI 形式の Response に直してあるので、呼び出し側は提供元を気にしない。
+ */
+function sendChatCompletion(
+  apiKey: string,
+  model: { def: AiModelDef; reasoningEffort?: ReasoningEffort },
+  params: ChatCompletionParams
+): Promise<Response> {
+  const body = buildChatCompletionBody(model, params);
+  if (model.def.provider === "anthropic") return requestAnthropicChatCompletion(body);
+  return fetch(CHAT_COMPLETIONS_URL, {
+    method: "POST",
+    headers: jsonHeaders(apiKey),
+    body: JSON.stringify(body),
+  });
+}
+
+/**
+ * 選んだモデルを提供元が使わせてくれなかったときの error.code。
+ * `model_not_found` は OpenAI のプロジェクトで使用許可が無い・Anthropic にモデルが無い場合。
+ * キーの未設定・無効（Anthropic のみ）も、その機能が丸ごと止まるので同じ扱いにする
+ */
+const FALLBACK_ERROR_CODES = new Set(["model_not_found", "missing_api_key", "invalid_api_key"]);
+
+/**
  * Chat Completions を叩く。
  *
  * `model` は resolveAiModelFor(useCase) で解決したものを渡す。
@@ -47,37 +82,29 @@ export async function requestChatCompletion(
   model: ResolvedAiModel,
   params: ChatCompletionParams
 ): Promise<Response> {
-  const res = await fetch(CHAT_COMPLETIONS_URL, {
-    method: "POST",
-    headers: jsonHeaders(apiKey),
-    body: JSON.stringify(buildChatCompletionBody(model, params)),
-  });
+  const res = await sendChatCompletion(apiKey, model, params);
   if (res.ok) return res;
 
   // 失敗の中身はここで必ずログに残す。呼び出し側は `.ok` しか見ないので、
   // ここで読まないと「相談の送信に失敗しました」としか分からない
   const detail = await readOpenAiError(res);
-  console.error(`[openai] chat completion failed: ${detail.summary}`, {
+  console.error(`[${model.def.provider}] chat completion failed: ${detail.summary}`, {
     model: model.def.id,
     reasoningEffort: model.reasoningEffort ?? null,
   });
 
-  // 台帳には載っているが、APIキーの OpenAI プロジェクトで使用許可が出ていない
+  // 台帳には載っているが、APIキーの属するプロジェクトで使用許可が出ていない
   // モデルは `model_not_found` で落ちる。管理画面で切り替えた直後に来訪者向けの
   // 機能が全部止まるより、既定モデルで答え続けるほうが被害が小さい
-  if (detail.code === "model_not_found" && model.fallbackDef) {
+  if (detail.code && FALLBACK_ERROR_CODES.has(detail.code) && model.fallbackDef) {
     console.warn(
-      `[openai] falling back to default model: ${model.def.id} -> ${model.fallbackDef.id}`
+      `[${model.def.provider}] falling back to default model: ${model.def.id} -> ${model.fallbackDef.id}`
     );
-    const retry = await fetch(CHAT_COMPLETIONS_URL, {
-      method: "POST",
-      headers: jsonHeaders(apiKey),
-      body: JSON.stringify(buildChatCompletionBody({ def: model.fallbackDef }, params)),
-    });
+    const retry = await sendChatCompletion(apiKey, { def: model.fallbackDef }, params);
     if (!retry.ok) {
       // 逃げ先まで落ちたときに原因が追えないと「切り替えたら全滅した」しか分からない
       const retryDetail = await readOpenAiError(retry);
-      console.error(`[openai] fallback also failed: ${retryDetail.summary}`, {
+      console.error(`[${model.fallbackDef.provider}] fallback also failed: ${retryDetail.summary}`, {
         model: model.fallbackDef.id,
       });
     }

@@ -1,4 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { fetchAssignmentRows, fetchLocationRows, fetchProductRows } from "@/lib/shops/baseRowQueries";
+import { fetchAllRows } from "@/lib/supabase/fetchAllRows";
 import type { Database } from "@/types/database.types";
 import type { Shop } from "../types/shopData";
 
@@ -47,6 +49,7 @@ type CategoryRow = {
 type ProductRow = {
   vendor_id: string | null;
   name: string | null;
+  image_url: string | null;
 };
 
 type LocationRow = {
@@ -101,6 +104,8 @@ export type VendorShopBaseRows = {
 export async function fetchVendorShopBaseRows(
   supabase: SupabaseClient<Database>
 ): Promise<{ rows: VendorShopBaseRows; failedTables: string[] }> {
+  // PostgREST の max_rows (1000) で黙って切り詰められないよう、全テーブルを
+  // 決定的な order 付きの range ページングで読み切る（lib/supabase/fetchAllRows.ts）
   const [
     { data: vendorsData, error: vendorsError },
     { data: ownerProfilesData, error: ownerProfilesError },
@@ -109,16 +114,32 @@ export async function fetchVendorShopBaseRows(
     { data: locationsData, error: locationsError },
     { data: assignmentsData, error: assignmentsError },
   ] = await Promise.all([
-    supabase
-      .from("vendors")
-      .select("id, shop_name, strength, style, style_tags, category_id, categories(name), main_products, main_product_prices, payment_methods, rain_policy, schedule, shop_image_url, sns_instagram, sns_x, sns_hp, business_hours_start, business_hours_end"),
-    supabase.from("vendor_owner_profiles").select("vendor_id, owner_name"),
-    supabase.from("categories").select("id, name"),
-    supabase.from("products").select("vendor_id, name"),
-    supabase
-      .from("market_locations")
-      .select("id, store_number, latitude, longitude, district"),
-    supabase.from("location_assignments").select("vendor_id, location_id, market_date"),
+    fetchAllRows<VendorRow>(
+      (from, to) =>
+        supabase
+          .from("vendors")
+          .select("id, shop_name, strength, style, style_tags, category_id, categories(name), main_products, main_product_prices, payment_methods, rain_policy, schedule, shop_image_url, sns_instagram, sns_x, sns_hp, business_hours_start, business_hours_end")
+          .order("id", { ascending: true })
+          .range(from, to) as unknown as PromiseLike<{ data: VendorRow[] | null; error: { message: string } | null }>,
+      { label: "vendors" }
+    ),
+    fetchAllRows<OwnerProfileRow>(
+      (from, to) =>
+        supabase
+          .from("vendor_owner_profiles")
+          .select("vendor_id, owner_name")
+          .order("vendor_id", { ascending: true })
+          .range(from, to),
+      { label: "vendor_owner_profiles" }
+    ),
+    fetchAllRows<CategoryRow>(
+      (from, to) =>
+        supabase.from("categories").select("id, name").order("id", { ascending: true }).range(from, to),
+      { label: "categories" }
+    ),
+    fetchProductRows<ProductRow>(supabase),
+    fetchLocationRows<LocationRow>(supabase),
+    fetchAssignmentRows<AssignmentRow>(supabase),
   ]);
 
   // どれか1つでも失敗すると該当データが黙って空扱いになり店舗が減る/消えるため、
@@ -204,11 +225,19 @@ export function buildVendorShops(
   });
 
   const productsByVendor = new Map<string, string[]>();
+  // 商品の写真は products テーブルの「同じ名前の商品」の行に置かれる（出店者の保存・現場登録とも）。
+  // バナーは商品名で引き当てるので、写真のある行だけを名前と組にして持たせる
+  const productDetailsByVendor = new Map<string, NonNullable<Shop["productDetails"]>>();
   products.forEach((row) => {
     if (!row.vendor_id || !row.name) return;
     const list = productsByVendor.get(row.vendor_id) ?? [];
     list.push(row.name);
     productsByVendor.set(row.vendor_id, list);
+    if (row.image_url) {
+      const details = productDetailsByVendor.get(row.vendor_id) ?? [];
+      details.push({ name: row.name, imageUrl: row.image_url });
+      productDetailsByVendor.set(row.vendor_id, details);
+    }
   });
 
   // 有効期限内の投稿を vendor_id ごとに時系列で保持
@@ -293,6 +322,7 @@ export function buildVendorShops(
         category: categoryName,
         products: displayProducts,
         productPrices: (vendor.main_product_prices ?? undefined) as Record<string, number | null> | undefined,
+        productDetails: productDetailsByVendor.get(vendor.id),
         description: "",
         stallStyle: vendor.style ?? undefined,
         stallStyleTags: (vendor.style_tags ?? []).length > 0 ? (vendor.style_tags as string[]) : undefined,

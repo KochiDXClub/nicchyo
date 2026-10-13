@@ -21,10 +21,12 @@ import {
 } from "@/lib/vendorInquiries/labels";
 import {
   fetchInquiryDetail,
+  needsLogin as isLoginExpired,
   replyToInquiry,
   type VendorInquiry,
   type VendorInquiryReply,
 } from "../../_services/inquiriesService";
+import InquiryErrorNotice from "../components/InquiryErrorNotice";
 
 const TONE_CLASSES = {
   waiting: "bg-slate-100 text-slate-600",
@@ -49,10 +51,12 @@ export default function VendorInquiryDetailPage() {
   const [replies, setReplies] = useState<VendorInquiryReply[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [loginExpired, setLoginExpired] = useState(false);
 
   const [replyBody, setReplyBody] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [replyError, setReplyError] = useState<string | null>(null);
+  const [replyLoginExpired, setReplyLoginExpired] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -61,7 +65,10 @@ export default function VendorInquiryDetailPage() {
         setInquiry(fetched);
         setReplies(fetchedReplies);
       })
-      .catch((e: unknown) => setError(e instanceof Error ? e.message : "読み込みに失敗しました"))
+      .catch((e: unknown) => {
+        setError(e instanceof Error ? e.message : "読み込みに失敗しました");
+        setLoginExpired(isLoginExpired(e));
+      })
       .finally(() => setIsLoading(false));
   }, [id]);
 
@@ -69,12 +76,14 @@ export default function VendorInquiryDetailPage() {
     if (!id || isSending || !replyBody.trim()) return;
     setIsSending(true);
     setReplyError(null);
+    setReplyLoginExpired(false);
     try {
       const reply = await replyToInquiry(id, replyBody.trim());
       setReplies((prev) => [...prev, reply]);
       setReplyBody("");
     } catch (e) {
       setReplyError(e instanceof Error ? e.message : "返信できませんでした");
+      setReplyLoginExpired(isLoginExpired(e));
     } finally {
       setIsSending(false);
     }
@@ -116,9 +125,7 @@ export default function VendorInquiryDetailPage() {
         {isLoading ? (
           <CenteredLoading size={24} padding="py-10" />
         ) : error || !inquiry ? (
-          <div className="rounded-2xl border border-rose-100 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-            {error ?? "連絡が見つかりませんでした"}
-          </div>
+          <InquiryErrorNotice message={error ?? "連絡が見つかりませんでした"} needsLogin={loginExpired} />
         ) : (
           <>
             {/* 送った内容 */}
@@ -191,8 +198,8 @@ export default function VendorInquiryDetailPage() {
                 />
 
                 {replyError && (
-                  <div className="mt-2 rounded-2xl border border-rose-100 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-                    {replyError}
+                  <div className="mt-2">
+                    <InquiryErrorNotice message={replyError} needsLogin={replyLoginExpired} />
                   </div>
                 )}
 

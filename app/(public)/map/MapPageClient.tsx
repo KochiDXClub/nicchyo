@@ -6,8 +6,7 @@ import { useEffect, useMemo, useState, useRef, useCallback, Suspense } from "rea
 import { useSearchParams, useRouter } from "next/navigation";
 import { AnimatePresence, motion, useDragControls } from "framer-motion";
 import { Navigation } from "lucide-react";
-import SearchClient from "../search/SearchClient";
-import type { MapCamera as LeafletMap } from "./types/mapCamera";
+import type { MapCamera } from "./types/mapCamera";
 import { clearSearchMapPayload, loadAiMapPayload, loadSearchMapPayload } from "../../../lib/searchMapStorage";
 import { getShopPreviewImage } from "../../../lib/shopImages";
 import { useAuth } from "../../../lib/auth/AuthContext";
@@ -15,7 +14,7 @@ import { SHOP_CATEGORY_NAMES } from "./data/shops";
 import type { Shop } from "./data/shops";
 import type { Landmark } from "./types/landmark";
 import type { MapRoute } from "./types/mapRoute";
-import { resolveMapFeatureFlags, type MapFeatureFlags } from "@/lib/mapFeatureFlags";
+import type { MapFeatureFlags } from "@/lib/mapFeatureFlags";
 import { useMapLoading } from "../../components/MapLoadingProvider";
 import MapLoadingOverlay from "../../components/MapLoadingOverlay";
 import { grandmaEvents } from "./data/grandmaEvents";
@@ -24,6 +23,7 @@ import { useMapSearchFilter } from "./hooks/useMapSearchFilter";
 import { GenreFilter } from "./components/GenreFilter";
 import { VendorShopPrompt } from "./components/VendorShopPrompt";
 import MarketStatusBar from "../../components/market/MarketStatusBar";
+import AnnouncementBanner from "@/components/announcements/AnnouncementBanner";
 import { useMarketCalendar } from "../../../lib/market/useMarketCalendar";
 import ShopScanCards from "./components/ShopScanCards";
 import NearbyExploreButton from "./components/NearbyExploreButton";
@@ -31,6 +31,8 @@ import NearbyExplorePanel, {
   type NearbyRecommendedShop,
 } from "./components/NearbyExplorePanel";
 import { useNearbyPromptVisibility } from "./hooks/useNearbyPromptVisibility";
+import { hideWhilePanningClass, useMapPanning } from "./hooks/useMapPanning";
+import { cn } from "@/lib/utils/cn";
 import { hasMapDeepLink, MAP_INTRO_PANEL_VALUE, useMapIntro } from "./hooks/useMapIntro";
 import GuideLayer from "./components/GuideLayer";
 import OdekakeGuidePanel from "./components/OdekakeGuidePanel";
@@ -65,16 +67,14 @@ import {
 
 import type { MapViewSettings } from "@/lib/map/mapViewSettings";
 
-const MapViewLeaflet = dynamic(() => import("./components/MapView"), {
-  ssr: false,
-});
-// MapLibre 版（移行中の並走検証用）。選ばれたときだけ読み込む。
 // ssr: false にすると Next がこのチャンクの preload を HTML に出さなくなり、
 // 268KB の maplibre チャンクがハイドレーション完了後にようやくダウンロードされる。
 // 地図の生成自体は useEffect の中なので、サーバーでは器の div だけが描かれる。
-const MapViewMapLibre = dynamic(() => import("./components/maplibre/MapViewMapLibre"), {
+const MapView = dynamic(() => import("./components/maplibre/MapViewMapLibre"), {
   ssr: true,
 });
+// 検索パネル（?panel=search のオーバーレイだけで使う）。開くまで 557 行ぶんの JS を初期表示に載せない
+const SearchClient = dynamic(() => import("../search/SearchClient"), { ssr: false });
 // はじめての方への案内。初回か、メニューから開いたときにだけ要る。
 // 二度目以降の来訪者は一度も開かないので、その人たちに読み込ませない
 const MapIntroPanel = dynamic(() => import("./components/MapIntroPanel"), { ssr: false });
@@ -85,7 +85,7 @@ type MapPageClientProps = {
   mapRoute: MapRoute;
   /** 管理画面で保存したマップ動作フラグ（未指定なら既定値） */
   featureFlags?: MapFeatureFlags;
-  /** 管理画面で保存したマップの可動範囲（未指定なら既定値。MapLibre 版でのみ効く） */
+  /** 管理画面で保存したマップの可動範囲（未指定なら既定値） */
   mapViewSettings?: MapViewSettings;
 };
 
@@ -99,14 +99,6 @@ export default function MapPageClient({
   featureFlags,
   mapViewSettings,
 }: MapPageClientProps) {
-  // 描画ライブラリの選択（管理画面の設定に URL の ?mapFlags=renderer:maplibre を重ねる）
-  const MapView = useMemo(() => {
-    const resolved = resolveMapFeatureFlags(
-      featureFlags,
-      typeof window === "undefined" ? "" : window.location.search
-    );
-    return resolved.renderer === "maplibre" ? MapViewMapLibre : MapViewLeaflet;
-  }, [featureFlags]);
   const showGrandma = false;
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -286,8 +278,10 @@ export default function MapPageClient({
     }
     if (!el) return;
     const observer = new ResizeObserver(() => {
-      const rect = el.getBoundingClientRect();
-      setTrackingButtonTop(rect.bottom + 8);
+      // 上端は getBoundingClientRect ではなくレイアウト上の位置（offsetTop）で測る。パン中は
+      // 検索エリアを transform で上へずらして隠すので、そのあいだに高さが変わると 8px ずれて測れてしまう。
+      // 高さは translate の影響を受けないので、端数まで従来と同じ値になる rect.height を使う
+      setTrackingButtonTop(el.offsetTop + el.getBoundingClientRect().height + 8);
     });
     observer.observe(el);
     resizeObserverRef.current = observer;
@@ -308,14 +302,17 @@ export default function MapPageClient({
   }, []);
 
   const dragControls = useDragControls();
-  const [mapInstance, setMapInstance] = useState<LeafletMap | null>(null);
+  const [mapInstance, setMapInstance] = useState<MapCamera | null>(null);
+  // 地図をドラッグしているあいだは、上に浮いている UI（検索バー・チップ・おでかけボタン・
+  // 案内中のバー）をふわっと隠して地図を広く見せる。現在地ボタンは MapControls 側で同じフックを使う
+  const isPanning = useMapPanning(mapInstance);
   // ShopScanCards のカードがタップされたときに、詳細バナーを開くよう地図へ渡す要求。
   // 同じ店を続けてタップしても開き直せるよう token を進める
   const [focusShopRequest, setFocusShopRequest] = useState<{ shopId: number; token: number } | null>(null);
   const handleScanCardSelect = useCallback((shop: Shop) => {
     setFocusShopRequest((prev) => ({ shopId: shop.id, token: (prev?.token ?? 0) + 1 }));
   }, []);
-  const mapRef = useRef<LeafletMap | null>(null);
+  const mapRef = useRef<MapCamera | null>(null);
   const introFocusTimerRef = useRef<number | null>(null);
   const [searchMarkerPayload, setSearchMarkerPayload] = useState<{
     ids: number[];
@@ -431,7 +428,7 @@ export default function MapPageClient({
       lng: event.location.lng,
     }));
   }, [showGrandma]);
-  const handleMapInstance = useCallback((map: LeafletMap) => {
+  const handleMapInstance = useCallback((map: MapCamera) => {
     mapRef.current = map;
     setMapInstance(map);
   }, []);
@@ -695,7 +692,7 @@ export default function MapPageClient({
   // 他のモード（検索・AI相談・店舗バナー・パネル表示中）ではボタンを出さない
   const nearbySuppressed =
     !!nearbyState || hasSearchMode || hasAiMode || isShopBannerOpen || guideActive || introOpen;
-  // 回転のみのジェスチャーは Leaflet の move/zoom を発火させないため、
+  // 回転のみのジェスチャーは move/zoom を発火させないことがあるため、
   // MapView から素通しで受け取ってボタンの静止判定に反映する
   const [isMapGestureActive, setIsMapGestureActive] = useState(false);
   const nearbyButtonVisible = useNearbyPromptVisibility({
@@ -818,7 +815,11 @@ export default function MapPageClient({
             {!nearbyState && (
               <div
                 aria-hidden
-                className="pointer-events-none absolute inset-x-0 top-0 z-[1000] h-[100px] backdrop-blur-[1.5px] [mask-image:linear-gradient(to_bottom,black,black_55%,transparent)] [-webkit-mask-image:linear-gradient(to_bottom,black,black_55%,transparent)]"
+                className={cn(
+                  "pointer-events-none absolute inset-x-0 top-0 z-[1000] h-[100px] backdrop-blur-[1.5px] [mask-image:linear-gradient(to_bottom,black,black_55%,transparent)] [-webkit-mask-image:linear-gradient(to_bottom,black,black_55%,transparent)]",
+                  // 上の UI を隠しているあいだは、ぼかしも外して地図をそのまま見せる
+                  hideWhilePanningClass(isPanning)
+                )}
               />
             )}
 
@@ -835,9 +836,15 @@ export default function MapPageClient({
                   arrived={guide.arrived}
                   progress={guide.progress}
                   onStop={guide.stopNavigation}
+                  className={hideWhilePanningClass(isPanning)}
                 />
               ) : (
-                <div className="absolute left-3 right-3 top-3 z-[1001] flex items-center gap-3 rounded-full bg-white py-2 pl-2 pr-2 shadow-[0_8px_24px_rgba(58,58,58,0.18)] ring-1 ring-black/5 lg:left-4 lg:right-auto lg:top-4 lg:w-[22rem]">
+                <div
+                  className={cn(
+                    "absolute left-3 right-3 top-3 z-[1001] flex items-center gap-3 rounded-full bg-white py-2 pl-2 pr-2 shadow-[0_8px_24px_rgba(58,58,58,0.18)] ring-1 ring-black/5 lg:left-4 lg:right-auto lg:top-4 lg:w-[22rem]",
+                    hideWhilePanningClass(isPanning)
+                  )}
+                >
                   <span className="flex h-8 w-8 items-center justify-center rounded-full bg-nicchyo-accent text-nicchyo-ink" aria-hidden="true">
                     <Navigation size={15} />
                   </span>
@@ -857,11 +864,17 @@ export default function MapPageClient({
             {!nearbyState && !guideActive && (
               <div
                 ref={searchAreaRef}
-                className="absolute left-3 right-3 top-3 z-[1001] flex flex-col gap-2 lg:left-4 lg:right-auto lg:top-4 lg:w-[22rem] lg:gap-3 lg:rounded-card lg:bg-white/95 lg:p-3 lg:shadow-card lg:ring-1 lg:ring-line lg:backdrop-blur"
+                className={cn(
+                  "absolute left-3 right-3 top-3 z-[1001] flex flex-col gap-2 lg:left-4 lg:right-auto lg:top-4 lg:w-[22rem] lg:gap-3 lg:rounded-card lg:bg-white/95 lg:p-3 lg:shadow-card lg:ring-1 lg:ring-line lg:backdrop-blur",
+                  hideWhilePanningClass(isPanning)
+                )}
                 onMouseDown={(e) => e.stopPropagation()}
                 onClick={(e) => e.stopPropagation()}
                 onTouchStart={(e) => e.stopPropagation()}
               >
+                {/* サイト内のお知らせ（公開中のものがあるときだけ。無ければ何も出さないので検索バーは動かない） */}
+                <AnnouncementBanner />
+
                 {/* 開催ステータス（例外時のみ表示。平常時は null を返すので検索バーは動かない） */}
                 <MarketStatusBar day={marketCalendar.day} placement="map" />
 
@@ -965,8 +978,7 @@ export default function MapPageClient({
 
             {/* 地図を動かしているあいだだけ、屋台マーカーの上に写真と名前を重ねる。
                 静止時は地図の絵を優先し、探しているときだけ情報を前に出す。
-                出るのは MapLibre 版だけ（Leaflet 版は回転シェルの中の座標が返るため。
-                ShopScanCards の先頭コメント参照）で、判定は中で行っている */}
+                出すかどうかの判定は中で行っている */}
             <ShopScanCards
               map={mapInstance}
               shops={shops}
@@ -1000,7 +1012,11 @@ export default function MapPageClient({
 
             {/* おでかけサポートを開くボタン（現在地ボタンと同じ高さの左側） */}
             {odekakeEntryVisible && !guideActive && !nearbyState && !isShopBannerOpen && (
-              <OdekakeLaunchButton top={trackingButtonTop} onClick={openGuideMenu} />
+              <OdekakeLaunchButton
+                top={trackingButtonTop}
+                onClick={openGuideMenu}
+                className={hideWhilePanningClass(isPanning)}
+              />
             )}
 
             {/* おでかけサポート：表示中の種別のスポットと経路を描き、一覧・案内を出す */}

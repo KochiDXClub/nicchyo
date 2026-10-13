@@ -35,7 +35,7 @@ const MODELS_TABLE = "ai_models";
 const USE_CASES_TABLE = "ai_use_cases";
 
 const MODEL_COLUMNS =
-  "id, label, description, token_param, supports_temperature, reasoning_efforts, reasoning_headroom_tokens, price_input_per_mtok, price_output_per_mtok, is_selectable, sort_order";
+  "id, provider, label, description, token_param, supports_temperature, reasoning_efforts, reasoning_headroom_tokens, price_input_per_mtok, price_output_per_mtok, is_selectable, sort_order";
 const USE_CASE_COLUMNS =
   "key, label, description, model_id, reasoning_effort, is_enabled, sort_order, updated_at";
 

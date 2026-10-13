@@ -54,7 +54,7 @@ PRを出す前は必ず `npm run build` でビルドが通ることを確認す�
 
 - **Frontend**: Next.js 16 (App Router), React 18, TypeScript 5.9
 - **Styling**: Tailwind CSS（カスタムパレット: `nicchyo-base/primary/accent/ink/soft-green`）
-- **DB**: Supabase（メイン）、Prismaスキーマも存在
+- **DB**: Supabase
 - **Map**: Leaflet + react-leaflet（`reactStrictMode: false` ← Leafletの二重初期化防止）
 - **AI**: OpenAI API（RAG構成、`app/api/grandma/`）
 - **Auth**: Supabase Auth（`lib/auth/AuthContext.tsx`）
@@ -80,7 +80,7 @@ app/
 │   ├── map/           # メイン地図ページ（主機能）
 │   ├── search/        # 店舗検索
 │   ├── consult/       # AI「にちよさん」チャット
-│   ├── shops/[code]/  # 店舗詳細（コードは3桁ゼロ埋め: 001〜300）
+│   ├── shops/[code]/  # 店舗詳細（コードは3桁ゼロ埋め: 001〜999）
 │   ├── my-shop/       # 出店者向けページ
 │   └── ...
 ├── private/           # 要認証ページ
@@ -119,7 +119,7 @@ Layer 0: Leafletベースマップ
 
 ### 店舗コード体系
 
-店舗IDは1〜300の整数。URLパラメータ・QRコードでは3桁ゼロ埋め文字列（`001`〜`300`）。変換は `lib/shops/route.ts` の `normalizeShopCodeToId` / `formatShopIdToCode` を使う。
+店舗IDは1〜999の整数（`MAX_SHOP_ID`）。URLパラメータ・QRコードでは3桁ゼロ埋め文字列（`001`〜`999`）。変換は `lib/shops/route.ts` の `normalizeShopCodeToId` / `formatShopIdToCode` を使う。
 
 `next.config.js` に `/shops001` → `/shops/001` のリライトルールあり。
 
@@ -153,6 +153,17 @@ nicchyo-soft-green: #A0D7A7  （淡い緑）
 
 - `reactStrictMode: false` は意図的（Leaflet互換性のため変更しない）
 - Supabase Storageの画像URLは `*.supabase.co` ドメイン（`next.config.js` の `remotePatterns` に設定済み）
+
+## AI チーム（役割別エージェント）の積極活用
+
+`.claude/agents/` に、専門家としての役割エージェントがある（エンジニア・コードレビュー・セキュリティ・パフォーマンス・UI/UX・QA・PM・法務・リスク・マーケ・ファイナンスなど）。**運用の詳細は `docs/AI_TEAM.md`**。
+
+- 中規模以上の作業（複数ファイル・新機能・DB/権限/公開仕様の変更など）では、メインの Claude が**統括（オーケストラ）**として振る舞い、`docs/AI_TEAM.md` の規模判定に従って役割を呼ぶ。実装後は関係するレビュー役を**並列**で呼ぶ。
+- 小さな変更（数行・軽微な文言や見た目）では、役割を呼ばない。呼びすぎない（各役割は別の文脈で動くため、時間とトークンを使う）。
+- レビュー・助言系の役割は読み取り専用。変更は実装担当（または統括）が行う。専門家には、目的・制約・決定済みの事項を**ブリーフ**として渡す。
+- 専門外の論点は、専門家の「相談したい相手」を統括が拾い、`description` を `相談(依頼元→相談先): 一言` にして相談先を呼ぶ（サブエージェントどうしは直接呼べない）。
+- 人の承認なしに、本番のデータベース・環境変数・デプロイを変えない。法務・財務の助言は一般的な情報で、最終判断は専門家に確認する。
+- 既存のスキルとの関係: PR前は `/ship`、DB変更は `/migration`、新API・テーブルは `security-reviewer`、は従来どおり。役割エージェントはそれを置き換えず、補う。
 
 ## スキルの積極活用（重要）
 

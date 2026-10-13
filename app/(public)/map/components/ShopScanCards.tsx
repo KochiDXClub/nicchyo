@@ -24,19 +24,15 @@
  * 3倍近く重なるため廃止された（app/globals.css の .shop-nameplate 参照）。
  * 今回は縦積みにして、間隔から逆算した高さに収めることで成立させている。
  *
- * 【いまは MapLibre 版だけ】
- * 座標の取得は MapCamera だけに頼っているが、Leaflet 版では出さない。
- * あちらの地図はビューポートより大きい正方形のシェルに入っていて CSS で
- * 回転させてあり、latLngToContainerPoint が返すのはその回転した箱の中の
- * 座標だから、ビューポート基準のこの層にそのまま書くとカードが画面外へ飛ぶ。
- * 対応するにはシェルの中に描いて1枚ずつ逆回転させる作りが要る。
+ * 座標の取得は MapCamera だけに頼っている。
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Shop } from "../data/shops";
-import { isLeafletMap, type MapCamera, type MapCameraEvent } from "../types/mapCamera";
+import type { MapCamera, MapCameraEvent } from "../types/mapCamera";
 import { getShopPreviewImage, getShopThumbnailImage } from "@/lib/shopImages";
 import { getPixelsPerMeter } from "../config/roadStyle";
+import { SHOP_COLUMN_SPACING_METERS, getDetailStallScale } from "../config/displayConfig";
 import { resolveStallColors } from "../config/shopCategories";
 import { sanitizeCssColor } from "../utils/markerHtmlGenerator";
 
@@ -51,12 +47,9 @@ const MIN_ZOOM = 20.5;
 const HOLD_MS = 500;
 
 /**
- * 列の中の店舗間隔（メートル）。market_locations 300件の実測値。
- * 左右それぞれ 150 店が等間隔に並んでいる。
+ * カードの幅。左右の列（最大ズームで中心から約121px）でも画面内に収まる値。
+ * 最大ズームより先の一段では、屋台と同じ倍率（getDetailStallScale）で大きくする
  */
-const SHOP_SPACING_METERS = 5.9;
-
-/** カードの幅。左右の列（最大ズームで中心から約121px）でも画面内に収まる値 */
 export const CARD_WIDTH = 108;
 /** カードの高さ＝写真の高さ。下限・上限 */
 export const MIN_CARD_HEIGHT = 56;
@@ -120,13 +113,30 @@ const PRELOAD_LIMIT = 24;
  *
  * ※ 地図を大きく回転させると店舗の並びが縦方向でなくなるため、この見積もりは
  *   甘くなる（カードが少し重なる）。自動回転で道は縦向きに保たれる前提の値。
+ *
+ * scale は最大ズームより先の一段での屋台の倍率。屋台が大きくなるぶん上限も上げる
+ * （上限のままだと、2 倍になった屋台の写真よりカードのほうが小さくなる）。
  */
-export function getCardHeight(zoom: number): number {
-  const spacingPx = SHOP_SPACING_METERS * getPixelsPerMeter(zoom);
+export function getCardHeight(zoom: number, scale = 1): number {
+  const spacingPx = SHOP_COLUMN_SPACING_METERS * getPixelsPerMeter(zoom);
   const room = spacingPx - CARD_GAP;
-  const clamped = Math.min(MAX_CARD_HEIGHT, Math.max(MIN_CARD_HEIGHT, room));
+  const clamped = Math.min(MAX_CARD_HEIGHT * scale, Math.max(MIN_CARD_HEIGHT, room));
   return Math.round(clamped / 4) * 4;
 }
+
+/** カードの幅。屋台の倍率に合わせて広げる（4px 刻み） */
+export function getCardWidth(scale = 1): number {
+  return Math.round((CARD_WIDTH * scale) / 4) * 4;
+}
+
+interface CardSize {
+  width: number;
+  height: number;
+  /** 屋台の倍率（名前の帯の文字や角丸もこれで大きくする） */
+  scale: number;
+}
+
+const INITIAL_CARD_SIZE: CardSize = { width: CARD_WIDTH, height: MIN_CARD_HEIGHT, scale: 1 };
 
 type Point = { x: number; y: number };
 
@@ -158,7 +168,7 @@ export default function ShopScanCards({
 }) {
   const [shown, setShown] = useState(false);
   const [visibleIds, setVisibleIds] = useState<number[]>([]);
-  const [cardHeight, setCardHeight] = useState(MIN_CARD_HEIGHT);
+  const [cardSize, setCardSize] = useState<CardSize>(INITIAL_CARD_SIZE);
 
   const isHighlightMode = (highlightShopIds?.length ?? 0) > 0;
 
@@ -236,7 +246,7 @@ export default function ShopScanCards({
   const pointsRef = useRef(new Map<number, Point>());
   const nodesRef = useRef(new Map<number, HTMLDivElement | null>());
   const visibleIdsRef = useRef<number[]>([]);
-  const cardHeightRef = useRef(MIN_CARD_HEIGHT);
+  const cardSizeRef = useRef<CardSize>(INITIAL_CARD_SIZE);
   const shownRef = useRef(false);
   shownRef.current = shown;
 
@@ -247,16 +257,7 @@ export default function ShopScanCards({
 
   // 動きの検知。move はズーム中にも飛ぶので、ズームで探しているときも出る
   useEffect(() => {
-    // Leaflet 版では出さない。
-    //
-    // Leaflet の地図はビューポートより大きい正方形のシェル（対角線ぶんの一辺）に
-    // 入っていて、道が縦になるよう CSS で回転させてある。latLngToContainerPoint が
-    // 返すのはその回転した箱の中の座標で、ビューポート基準のこの層にそのまま
-    // 書くとカードが画面外に飛ぶ（390x844 で x=1000 付近まで出る）。
-    // 正しく出すにはシェルの中に描いて1枚ずつ逆回転させる必要があり、
-    // 屋台マーカーが --map-rotation-inverse でやっているのと同じ作りになる。
-    // いまの描画は MapLibre 版なので、Leaflet 版を残しているあいだは出さない。
-    if (!map || !enabled || isLeafletMap(map)) {
+    if (!map || !enabled) {
       setShown(false);
       return;
     }
@@ -333,7 +334,7 @@ export default function ShopScanCards({
       const rect = container.getBoundingClientRect();
       const x = e.clientX - rect.left;
       const y = e.clientY - rect.top;
-      const height = cardHeightRef.current;
+      const { width, height } = cardSizeRef.current;
 
       let bestId: number | null = null;
       let bestDistance = Infinity;
@@ -341,7 +342,7 @@ export default function ShopScanCards({
         const point = pointsRef.current.get(id);
         if (!point) continue;
         // カードは店舗の座標を下端として、上に伸びている
-        if (Math.abs(x - point.x) > CARD_WIDTH / 2) continue;
+        if (Math.abs(x - point.x) > width / 2) continue;
         if (y < point.y - height || y > point.y) continue;
         // 隣のカードとわずかに重なる場合に備えて、中心が近いほうを採る
         const distance = Math.hypot(x - point.x, y - (point.y - height / 2));
@@ -389,7 +390,7 @@ export default function ShopScanCards({
 
     /** 表示中のカードの位置だけ書き直す。move の中で同期的に呼ぶ */
     const applyPositions = () => {
-      const height = cardHeightRef.current;
+      const { width, height } = cardSizeRef.current;
       for (const id of visibleIdsRef.current) {
         const shop = shopById.get(id);
         if (!shop) continue;
@@ -397,7 +398,7 @@ export default function ShopScanCards({
         pointsRef.current.set(id, point);
         const node = nodesRef.current.get(id);
         if (node) {
-          node.style.transform = `translate3d(${point.x - CARD_WIDTH / 2}px, ${point.y - height}px, 0)`;
+          node.style.transform = `translate3d(${point.x - width / 2}px, ${point.y - height}px, 0)`;
         }
       }
     };
@@ -410,12 +411,21 @@ export default function ShopScanCards({
       const centerX = width / 2;
       const centerY = height / 2;
 
-      const nextHeight = getCardHeight(map.getZoom());
-      if (nextHeight !== cardHeightRef.current) {
-        cardHeightRef.current = nextHeight;
-        setCardHeight(nextHeight);
+      // 最大ズームより先の一段では屋台が大きくなるので、カードも同じ倍率で大きくする
+      const zoom = map.getZoom();
+      // 0.05 刻みに丸めて、ズーム中の書き換え回数を抑える
+      const scale = Math.round(getDetailStallScale(zoom, map.getMaxZoom()) * 20) / 20;
+      const nextSize: CardSize = { width: getCardWidth(scale), height: getCardHeight(zoom, scale), scale };
+      const prevSize = cardSizeRef.current;
+      if (
+        nextSize.width !== prevSize.width ||
+        nextSize.height !== prevSize.height ||
+        nextSize.scale !== prevSize.scale
+      ) {
+        cardSizeRef.current = nextSize;
+        setCardSize(nextSize);
       }
-      const currentHeight = cardHeightRef.current;
+      const { width: cardWidth, height: currentHeight } = cardSizeRef.current;
 
       const inView: Array<{ id: number; point: Point; distance: number }> = [];
       for (const shop of candidates) {
@@ -440,9 +450,9 @@ export default function ShopScanCards({
       const next: number[] = [];
       for (const item of inView) {
         const rect = {
-          x1: item.point.x - CARD_WIDTH / 2,
+          x1: item.point.x - cardWidth / 2,
           y1: item.point.y - currentHeight,
-          x2: item.point.x + CARD_WIDTH / 2,
+          x2: item.point.x + cardWidth / 2,
           y2: item.point.y,
         };
         const collides = placed.some((other) => hasCardCollision(rect, other));
@@ -534,20 +544,22 @@ export default function ShopScanCards({
             ref={(el) => setNode(id, el)}
             className="absolute left-0 top-0 will-change-transform"
             style={{
-              width: CARD_WIDTH,
-              height: cardHeight,
+              width: cardSize.width,
+              height: cardSize.height,
               transform: point
-                ? `translate3d(${point.x - CARD_WIDTH / 2}px, ${point.y - cardHeight}px, 0)`
+                ? `translate3d(${point.x - cardSize.width / 2}px, ${point.y - cardSize.height}px, 0)`
                 : "translate3d(-9999px, -9999px, 0)",
             }}
           >
             {/* 位置は外側、出入りの見た目は内側。transform を取り合わないよう分ける。
                 出現は写真が読めてからクラスを付けて走らせる。消えるときは層ごとフェード */}
             <div
-              className={`relative h-full w-full overflow-hidden rounded-[14px] ${
+              className={`relative h-full w-full overflow-hidden ${
                 photoReady ? "nicchyo-scan-card" : "opacity-0"
               }`}
               style={{
+                // 角丸は屋台の倍率に合わせる（大きいカードで角だけ小さく見えないように）
+                borderRadius: 14 * cardSize.scale,
                 // 写真が読めなかったときに白い穴が空かないよう、屋根の淡い色を下敷きにする
                 backgroundColor: roof.light,
                 // 縁と影をひとつの box-shadow にまとめ、影の二重掛けを避ける
@@ -581,8 +593,14 @@ export default function ShopScanCards({
               />
               {shop.name ? (
                 <span
-                  className="absolute inset-x-0 bottom-0 block truncate px-[7px] py-[3px] text-[10.5px] font-bold leading-[13px] tracking-[0.01em] text-white"
-                  style={{ backgroundColor: roof.dark }}
+                  className="absolute inset-x-0 bottom-0 block truncate font-bold tracking-[0.01em] text-white"
+                  style={{
+                    backgroundColor: roof.dark,
+                    // 名前の帯もカードと同じ倍率で大きくする（等倍で 10.5px の文字）
+                    fontSize: 10.5 * cardSize.scale,
+                    lineHeight: `${13 * cardSize.scale}px`,
+                    padding: `${3 * cardSize.scale}px ${7 * cardSize.scale}px`,
+                  }}
                 >
                   {shop.name}
                 </span>

@@ -1,5 +1,6 @@
 export const MIN_SHOP_ID = 1;
-export const MAX_SHOP_ID = 300;
+// 店番は3桁（001〜999）。QRコード・URL（/shops/001）も3桁ゼロ埋めで扱う
+export const MAX_SHOP_ID = 999;
 
 const SHOP_CODE_PATTERN = /^\d{3}$/;
 

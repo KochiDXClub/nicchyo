@@ -16,12 +16,30 @@ const display = (states: [number, "search" | "ai" | "selected"][] = [], favorite
 });
 
 describe("buildShopFeatures", () => {
-  it("customSvg の店は屋台レイヤーに載せない", () => {
+  it("customSvg の店も屋台レイヤーに載せ、店ごとの専用スプライトを指す", () => {
+    const svg = '<svg viewBox="0 0 10 10"><rect width="10" height="10" fill="red"/></svg>';
     const features = buildShopFeatures([
       shop(1),
-      shop(2, { illustration: { type: "tent", customSvg: "<svg/>" } } as Partial<Shop>),
+      shop(2, { illustration: { type: "tent", customSvg: svg } } as Partial<Shop>),
     ]);
-    expect(features.map((f) => f.id)).toEqual([1]);
+    expect(features.map((f) => f.id)).toEqual([1, 2]);
+    expect(features[0].properties.spriteKey).not.toMatch(/^custom-/);
+    expect(features[1].properties.spriteKey).toMatch(/^custom-2-/);
+  });
+
+  it("不正な customSvg（許可外のタグ）は通常の屋台に戻す", () => {
+    const [f] = buildShopFeatures([
+      shop(3, { illustration: { type: "tent", customSvg: "<svg><script>alert(1)</script></svg>" } } as Partial<Shop>),
+    ]);
+    expect(f.properties.spriteKey).not.toMatch(/^custom-/);
+  });
+
+  it("customSvg の中身が変わると spriteKey も変わる（古い画像を使い回さない）", () => {
+    const a = '<svg viewBox="0 0 10 10"><rect width="10" height="10" fill="red"/></svg>';
+    const b = '<svg viewBox="0 0 10 10"><rect width="10" height="10" fill="blue"/></svg>';
+    const key = (svg: string) =>
+      buildShopFeatures([shop(2, { illustration: { type: "tent", customSvg: svg } } as Partial<Shop>)])[0].properties.spriteKey;
+    expect(key(a)).not.toBe(key(b));
   });
 
   it("表示状態（state / favorite）は含めない", () => {

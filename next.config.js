@@ -15,7 +15,7 @@ const nextConfig = {
     formats: ['image/webp', 'image/avif'],
     deviceSizes: [640, 750, 828, 1080, 1200, 1920],
     imageSizes: [16, 32, 48, 64, 96, 128, 256, 384],
-    minimumCacheTTL: 60,
+    minimumCacheTTL: 86400, // 店舗写真は出店者の更新時に ?v= 付きの新URLになる（管理者の差し替えは同URL。最大1日古い写真が残りうる）
     remotePatterns: [
       {
         // Supabase Storage（出店者がアップロードした店舗写真・投稿画像）
@@ -61,6 +61,12 @@ const nextConfig = {
         source: '/news',
         destination: '/calendar',
         permanent: true,
+      },
+      // 週次セキュリティレポートの通知リンク（旧 /reports/:date）を管理画面へ誘導する
+      {
+        source: '/reports/:date',
+        destination: '/admin/security-reports/:date',
+        permanent: false,
       },
       // 買い物リストはお気に入りに一本化した。配ったQRコードや外部リンクが
       // /bag を指していても迷子にしない
@@ -119,6 +125,26 @@ const nextConfig = {
           {
             key: 'Cross-Origin-Opener-Policy',
             value: 'same-origin'
+          },
+        ],
+      },
+      {
+        // 地図の Worker と建物・背景画像。ファイル名にハッシュが無く immutable にできないので、
+        // 1 日はそのまま使い、その後は裏で再取得しつつ古いものを返す
+        source: '/maplibre/:path*',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'public, max-age=86400, stale-while-revalidate=604800'
+          },
+        ],
+      },
+      {
+        source: '/images/maps/:path*',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'public, max-age=86400, stale-while-revalidate=604800'
           },
         ],
       },

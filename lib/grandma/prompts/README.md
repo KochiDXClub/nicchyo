@@ -21,7 +21,7 @@ AIに送るプロンプト文の置き場所。**プロンプトの文面を直�
 | `consultSystemPrompt.ts` | 相談のシステムプロンプトの組み立て |
 | `consultCharacterProfiles.ts` | キャラ4人の `personality` / `speechStyle`（AIに渡す人格設定） |
 | `consultConversation.ts` | 発話数の上限（`CONSULT_MAX_TURNS`）と、出力形式の指示（プレーンテキスト／JSON） |
-| `shopChatPrompt.ts` | 店舗詳細ページのチャット |
+| `shopChatPrompt.ts` | お店ごとの相談。キャラ人格 → お店情報 → お店の人のメモ → 答え方のルール の順に層を重ねる（ルールを最後に置く） |
 | `itineraryPrompt.ts` | 旅程プランナー |
 | `promptKeys.ts` | DBで上書きできるキーの定義と、既定値へのフォールバック |
 | `promptStore.server.ts` | `ai_prompts` からアクティブな文面を読む（サーバー専用） |

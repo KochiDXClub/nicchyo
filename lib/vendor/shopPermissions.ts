@@ -37,7 +37,7 @@ export const SHOP_PERMISSION_META: Record<ShopPermission, PermissionMeta> = {
   },
   ai_notes: {
     label: "にちよさんの覚えごと",
-    description: "にちよさんが覚えちゅうことを見る・直す・消す",
+    description: "にちよさんが覚えちゅうことを見る・直す・消す（お客さんへの答えにも出る）",
   },
   inquiries: {
     label: "運営・市役所との連絡",

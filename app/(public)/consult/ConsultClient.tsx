@@ -17,6 +17,7 @@ import type {
 } from "./types/consultConversation";
 import type { Shop } from "../map/data/shops";
 import { getOrCreateConsultVisitorKey } from "@/lib/consultVisitorKey";
+import { readConsultAskResponse } from "./utils/readConsultAskResponse";
 
 const PREFERRED_CHARACTER_STORAGE_KEY = "nicchyo-consult-preferred-character";
 
@@ -26,7 +27,7 @@ export default function ConsultClient() {
   // 既定はにちよさん。null にすると話し手が毎回変わり、会話全体が掛け合いに見える
   const [preferredCharacterId, setPreferredCharacterId] =
     useState<ConsultCharacterId>(DEFAULT_CONSULT_CHARACTER_ID);
-  // PC版「これまでの相談」サイドバーの開閉。既定は閉じ、チャット欄を中央のまま保つ
+  // 「これまでの相談」サイドバー（PC・モバイル共通）の開閉。既定は閉じ、チャット欄を中央のまま保つ
   const [isHistorySidebarOpen, setIsHistorySidebarOpen] = useState(false);
   const searchParams = useSearchParams();
 
@@ -176,51 +177,17 @@ export default function ConsultClient() {
         headers,
         body,
       });
-      if (!response.ok) {
-        const payload = (await response.json()) as Parameters<typeof normalizeAskResponse>[0];
-        return normalizeAskResponse(payload, false);
-      }
-      if (!response.body) {
-        throw new Error("stream body not found");
+      const result = await readConsultAskResponse(response, onEvent);
+      if (result) {
+        return normalizeAskResponse(result.payload, result.ok);
       }
 
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = "";
-      let finalResponse: ConsultAskResponse | null = null;
-
-      const handleLine = (line: string) => {
-        const trimmed = line.trim();
-        if (!trimmed) return;
-        const event = JSON.parse(trimmed) as ConsultAskStreamEvent;
-        onEvent?.(event);
-        if (event.type === "final") {
-          finalResponse = normalizeAskResponse(event.response, true);
-        }
+      return {
+        reply: "ごめんね、今は答えを出せんかった。時間をおいて試してね。",
+        errorCode: "system_error",
+        errorMessage: "返答の取得に失敗しました。もう一度お試しください。",
+        retryable: true,
       };
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split("\n");
-        buffer = lines.pop() ?? "";
-        lines.forEach(handleLine);
-      }
-
-      const trailing = buffer.trim();
-      if (trailing) {
-        handleLine(trailing);
-      }
-
-      return (
-        finalResponse ?? {
-          reply: "ごめんね、今は答えを出せんかった。時間をおいて試してね。",
-          errorCode: "system_error",
-          errorMessage: "返答の取得に失敗しました。もう一度お試しください。",
-          retryable: true,
-        }
-      );
     } catch {
       return {
         reply: "ごめんね、今は答えを出せんかった。時間をおいて試してね。",
@@ -272,7 +239,9 @@ export default function ConsultClient() {
         画面端にぴったり付かなくなる
       */}
       <main
-        className={`relative z-10 w-full pb-16 pt-[var(--consult-top-space)] ${
+        // サイドバーの開け閉めに合わせて、本文の左の空きも滑らかに広げ・縮める
+        // （サイドバー側の動きと同じ速さ・緩急。ConsultStage の HISTORY_SIDEBAR_SLIDE_*）
+        className={`relative z-10 w-full pb-16 pt-[var(--consult-top-space)] motion-safe:transition-[padding-left] motion-safe:duration-300 motion-safe:ease-out-soft ${
           isHistorySidebarOpen ? "lg:pl-80" : ""
         }`}
       >

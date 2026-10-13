@@ -24,10 +24,12 @@ export {
   buildJsonFormatPrompt,
 } from "./consultConversation";
 export {
-  SHOP_CHAT_PERSONA_RULES,
+  SHOP_CHAT_ANSWER_RULES,
   SHOP_CHAT_CLOSING_INSTRUCTION,
   buildShopChatSystemPrompt,
   type ShopChatContext,
+  type ShopChatNote,
+  type ShopChatPromptInput,
 } from "./shopChatPrompt";
 export {
   ITINERARY_SYSTEM_PROMPT,

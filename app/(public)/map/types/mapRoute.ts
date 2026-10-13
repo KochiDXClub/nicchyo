@@ -26,6 +26,11 @@ export type MapRouteConfig = {
 export type MapRoute = {
   points: MapRoutePoint[];
   config: MapRouteConfig;
+  /**
+   * 道の名前・種類・幅（map_roads）。案内の経路が道を名前で呼び分けるために使う。
+   * 読み込めなかったとき・古いデータでは無い
+   */
+  roads?: MapRoad[];
 };
 
 export const DEFAULT_MAP_ROUTE_CONFIG: MapRouteConfig = {

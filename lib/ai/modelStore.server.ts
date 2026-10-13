@@ -59,7 +59,7 @@ export const fetchAiRegistry = cache(async (): Promise<AiRegistry> => {
       client
         .from(AI_MODELS_TABLE)
         .select(
-          "id, label, description, token_param, supports_temperature, reasoning_efforts, reasoning_headroom_tokens, price_input_per_mtok, price_output_per_mtok, is_selectable, sort_order"
+          "id, provider, label, description, token_param, supports_temperature, reasoning_efforts, reasoning_headroom_tokens, price_input_per_mtok, price_output_per_mtok, is_selectable, sort_order"
         )
         .eq("is_selectable", true)
         .order("sort_order", { ascending: true }),
