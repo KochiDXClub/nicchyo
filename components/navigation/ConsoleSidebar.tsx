@@ -48,7 +48,10 @@ export type ConsoleSidebarGroup = {
   items: ConsoleSidebarItem[];
 };
 
-/** フッターに2つ並べる操作。href ならリンク、onClick ならボタンにする */
+/**
+ * フッターに2つ並べる操作。href ならリンク（押すとサイドバーを閉じる）、onClick ならボタンにする。
+ * ボタンのときは、サイドバーを閉じるかどうかを onClick の中で決める（ログアウトなど、閉じてから処理したいものがあるため）
+ */
 export type ConsoleSidebarAction = {
   label: string;
   icon: LucideIcon;

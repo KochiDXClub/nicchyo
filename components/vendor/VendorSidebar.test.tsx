@@ -39,7 +39,7 @@ describe("VendorSidebar（管理画面と同じ ConsoleSidebar で描く）", ()
     const nav = screen.getByRole("navigation", { name: "出店者メニュー" });
 
     expect(within(nav).getByText("ホーム")).toBeInTheDocument();
-    expect(within(nav).getByText("お店の運営")).toBeInTheDocument();
+    expect(within(nav).getByText("お店のこと")).toBeInTheDocument();
     expect(within(nav).getByText("使い方・設定")).toBeInTheDocument();
     expect(within(nav).getAllByRole("link")[0]).toHaveAttribute("href", "/my-shop");
     // 下部バーに常設している導線も、PC のサイドバーには出す
@@ -67,11 +67,11 @@ describe("VendorSidebar（管理画面と同じ ConsoleSidebar で描く）", ()
     expect(screen.getByRole("link", { name: "アカウント設定" })).toBeInTheDocument();
   });
 
-  it("お店の運営の権限が一つもないときは、空の見出しを出さない", () => {
+  it("お店のことの権限が一つもないときは、空の見出しを出さない", () => {
     testPermissions = [];
     renderSidebar();
 
-    expect(screen.queryByText("お店の運営")).not.toBeInTheDocument();
+    expect(screen.queryByText("お店のこと")).not.toBeInTheDocument();
     expect(screen.getByText("使い方・設定")).toBeInTheDocument();
   });
 
@@ -79,7 +79,7 @@ describe("VendorSidebar（管理画面と同じ ConsoleSidebar で描く）", ()
     renderSidebar();
 
     expect(screen.getByText("山田商店")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "マップ" })).toHaveAttribute("href", "/map");
+    expect(screen.getByRole("link", { name: "マップを見る" })).toHaveAttribute("href", "/map");
 
     fireEvent.click(screen.getByRole("button", { name: "ログアウト" }));
     await waitFor(() => expect(push).toHaveBeenCalledWith("/login"));

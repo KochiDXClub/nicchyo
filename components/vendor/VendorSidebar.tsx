@@ -8,17 +8,18 @@ import {
   type ConsoleSidebarAccent,
   type ConsoleSidebarGroup,
 } from "@/components/navigation/ConsoleSidebar";
-import { visibleVendorNavItems, type VendorNavItem } from "./vendorNavItems";
+import {
+  isVendorNavItemCurrent,
+  VENDOR_HOME_HREF,
+  VENDOR_NAV_GROUP_LABELS,
+  visibleVendorNavItems,
+  type VendorNavItem,
+} from "./vendorNavItems";
 
 // 下部バーのメニューシートと同一の権威ある導線リストを使う（食い違い防止）。
 // 見た目は管理画面と共通の ConsoleSidebar が受け持つ。色は出店者ページの主色（amber）を選択中の印にだけ使う
 
-const HOME_HREF = "/my-shop";
 const VENDOR_ACCENT: ConsoleSidebarAccent = { bar: "bg-amber-500", icon: "text-amber-600", dot: "bg-amber-500" };
-
-function isCurrent(pathname: string | null, href: string): boolean {
-  return pathname === href || (pathname?.startsWith(`${href}/`) ?? false);
-}
 
 export default function VendorSidebar({
   isOpen,
@@ -40,7 +41,7 @@ export default function VendorSidebar({
       href: item.href,
       icon: item.icon,
       description: item.description,
-      isActive: isCurrent(pathname, item.href),
+      isActive: isVendorNavItemCurrent(item.href, pathname),
     }));
 
   const groups: ConsoleSidebarGroup[] = [
@@ -50,15 +51,18 @@ export default function VendorSidebar({
       items: [
         {
           label: "マイ店舗",
-          href: HOME_HREF,
+          href: VENDOR_HOME_HREF,
           icon: House,
           description: "マイ店舗のホームにもどる",
-          isActive: pathname === HOME_HREF,
+          isActive: pathname === VENDOR_HOME_HREF,
         },
       ],
     },
-    { id: "main", label: "お店の運営", items: toItems(navItems.filter((item) => item.group === "main")) },
-    { id: "support", label: "使い方・設定", items: toItems(navItems.filter((item) => item.group === "support")) },
+    ...(Object.entries(VENDOR_NAV_GROUP_LABELS) as [VendorNavItem["group"], string][]).map(([group, label]) => ({
+      id: group,
+      label,
+      items: toItems(navItems.filter((item) => item.group === group)),
+    })),
   ].filter((group) => group.items.length > 0);
 
   const handleLogout = async () => {
@@ -84,7 +88,7 @@ export default function VendorSidebar({
       userName={user?.name || "出店者"}
       roleLabel="出店者"
       actions={[
-        { label: "マップ", icon: MapIcon, href: "/map" },
+        { label: "マップを見る", icon: MapIcon, href: "/map" },
         { label: "ログアウト", icon: LogOut, onClick: handleLogout },
       ]}
     />

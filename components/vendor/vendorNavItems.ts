@@ -33,6 +33,18 @@ export type VendorNavItem = {
   inBottomBar?: boolean;
 };
 
+/** 出店者ページのホーム（マイ店舗） */
+export const VENDOR_HOME_HREF = "/my-shop";
+
+/**
+ * グループの見出し（PCのサイドバーで使う）。group を足したら、ここにも足さないと型エラーになる。
+ * 「運営」はこのアプリでは主催側を指すので、main の見出しには使わない（「運営・市役所との連絡」と紛れる）
+ */
+export const VENDOR_NAV_GROUP_LABELS: Record<VendorNavItem["group"], string> = {
+  main: "お店のこと",
+  support: "使い方・設定",
+};
+
 export const VENDOR_NAV_ITEMS: VendorNavItem[] = [
   { label: "運営・市役所との連絡", href: "/vendor/inquiries", icon: Mail, description: "お知らせを見る・質問や相談を送る", group: "main", permission: "inquiries", inBottomBar: true },
   // 下部バーの「店舗情報」枠は「連絡」に差し替えたため、店舗情報への導線はここが主になる
@@ -62,6 +74,11 @@ const EXTRA_PAGE_PERMISSIONS: { prefix: string; permission: ShopPermission }[] =
 
 function matchesPrefix(pathname: string, prefix: string): boolean {
   return pathname === prefix || pathname.startsWith(`${prefix}/`);
+}
+
+/** いま開いている画面が、その導線（配下の画面を含む）か */
+export function isVendorNavItemCurrent(href: string, pathname: string | null): boolean {
+  return pathname != null && matchesPrefix(pathname, href);
 }
 
 /** その画面を使うのに要る権限。権限が要らない画面（マイ店舗のホーム・使い方・アカウント設定など）は undefined */
