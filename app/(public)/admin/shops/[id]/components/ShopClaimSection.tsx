@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { Printer } from "lucide-react";
 import { Button } from "@/components/ui";
 import { LoadingButton } from "@/components/admin";
 import { showToast } from "@/lib/admin/toast";
@@ -10,6 +9,7 @@ import { ClaimStateBadge } from "../../components/ClaimStateBadge";
 import { UnlinkShopModal } from "../../components/UnlinkShopModal";
 import ShopActivityModal from "../../components/ShopActivityModal";
 import QrSheet from "../../components/QrSheet";
+import { IssuedQrPanel } from "../../components/IssuedQrPanel";
 
 /**
  * 店舗の代表者を決める QR コード。出店者に配るQRの発行（再発行）、紐づけの解除、操作ログ。
@@ -66,18 +66,9 @@ export function ShopClaimSection({ claim, onChanged }: { claim: ShopClaimRow; on
       </p>
 
       {results && results.some((r) => r.status === "ok") && (
-        <div className="space-y-3 rounded-card border border-amber-300 bg-amber-50 p-4">
-          <div className="flex flex-wrap items-center gap-3">
-            <p className="text-sm font-semibold text-amber-900">
-              発行したQRコードです。閉じる・読み込み直すと、二度と表示できません（出し直しはできます）。
-            </p>
-            <Button size="sm" className="ml-auto" onClick={() => window.print()}>
-              <Printer size={14} aria-hidden /> 印刷する
-            </Button>
-            <Button variant="ghost" size="sm" onClick={() => setResults(null)}>閉じる</Button>
-          </div>
+        <IssuedQrPanel onClose={() => setResults(null)}>
           <QrSheet results={results} />
-        </div>
+        </IssuedQrPanel>
       )}
 
       <UnlinkShopModal shop={unlinkTarget} onClose={() => setUnlinkTarget(null)} onUnlinked={onChanged} />

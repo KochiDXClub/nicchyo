@@ -1,10 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Copy } from "lucide-react";
-import { QRCodeSVG } from "qrcode.react";
+import { Copy, Printer } from "lucide-react";
 import { Button, EmptyMessage } from "@/components/ui";
 import InviteSummary from "@/app/vendor/account/components/InviteSummary";
+import QrSheet from "../../components/QrSheet";
+import { formatJaDateTime } from "@/lib/utils/date";
 import CreatedInviteLink from "@/app/vendor/account/components/CreatedInviteLink";
 import MaxUsesPicker from "@/app/vendor/account/components/MaxUsesPicker";
 import PermissionPicker from "@/app/vendor/account/components/PermissionPicker";
@@ -24,7 +25,7 @@ export function ShopInviteSection({ claim }: { claim: ShopClaimRow }) {
   const [invites, setInvites] = useState<AdminInvite[] | null>(null);
   const [maxUses, setMaxUses] = useState<number>(1);
   const [permissions, setPermissions] = useState<ShopPermission[]>([...SHOP_PERMISSION_PRESETS.helper.permissions]);
-  const [created, setCreated] = useState<{ url: string; expiresAt: string } | null>(null);
+  const [created, setCreated] = useState<{ url: string; expiresAt: string; maxUses: number } | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -45,7 +46,7 @@ export function ShopInviteSection({ claim }: { claim: ShopClaimRow }) {
     setError(null);
     try {
       const result = await createShopInvite(vendorId, { maxUses, permissions });
-      setCreated({ url: result.url, expiresAt: result.expiresAt });
+      setCreated({ url: result.url, expiresAt: result.expiresAt, maxUses });
       await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : "招待リンクを作れませんでした");
@@ -102,14 +103,17 @@ export function ShopInviteSection({ claim }: { claim: ShopClaimRow }) {
                 <Button size="sm" onClick={handleCopy}>
                   <Copy size={14} aria-hidden /> リンクをコピー
                 </Button>
+                <Button size="sm" onClick={() => window.print()}>
+                  <Printer size={14} aria-hidden /> 印刷する
+                </Button>
                 <Button variant="ghost" size="sm" onClick={() => setCreated(null)}>閉じる</Button>
               </div>
-              <div className="flex items-center gap-3">
-                <QRCodeSVG value={created.url} size={128} level="M" marginSize={2} title="招待リンクのQRコード" />
-                <p className="text-xs text-nicchyo-ink/70">
-                  その場で読み取ってもらうときは、このQRコードを見せてください。リンクもQRコードも、いま見えている間しか表示できません。
-                </p>
-              </div>
+              <QrSheet
+                results={[{ vendorId, shopName: claim.shopName, status: "ok", url: created.url }]}
+                description="スマホのカメラでこのQRコードを読み取り、Googleアカウントでログインすると、このお店のメンバーとして参加できます。"
+                caption={`${formatJaDateTime(created.expiresAt)}まで・${created.maxUses}人まで`}
+              />
+              <p className="text-xs text-nicchyo-ink/70">リンクもQRコードも、いま見えている間しか表示できません。</p>
             </CreatedInviteLink>
           )}
         </div>

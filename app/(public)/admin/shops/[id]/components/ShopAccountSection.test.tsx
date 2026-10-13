@@ -56,7 +56,10 @@ describe("ShopAccountSection（店舗の詳細の出店者アカウント）", (
     fireEvent.click(screen.getByRole("button", { name: "招待リンクを作る" }));
     await waitFor(() => expect(createShopInvite).toHaveBeenCalledWith("v1", expect.objectContaining({ maxUses: 3 })));
     expect((await screen.findByLabelText("招待リンク") as HTMLInputElement).value).toBe("https://example.com/join/xyz");
+    // 印刷用のカードにも、同じリンクのQRと「メンバーとして参加」の案内が出る
     expect(screen.getByTestId("qr").getAttribute("data-value")).toBe("https://example.com/join/xyz");
+    expect(screen.getByText(/メンバーとして参加できます/)).toBeTruthy();
+    expect(screen.getByRole("button", { name: /印刷する/ })).toBeTruthy();
   });
 
   it("使えるリンクだけ取り消せる", async () => {
