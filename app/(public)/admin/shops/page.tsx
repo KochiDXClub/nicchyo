@@ -5,15 +5,15 @@ export const dynamic = "force-dynamic";
 import React, { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { useRouter } from "next/navigation";
-import { useVirtualizer } from "@tanstack/react-virtual";
 import { useDebounce } from "use-debounce";
 import { exportToCSV, exportToJSON, formatDateForFilename, excelText } from "@/lib/admin/exportUtils";
 import { showToast } from "@/lib/admin/toast";
-import { StatusBadge, LoadingButton, EmptyState, ErrorBoundary, AdminLayout } from "@/components/admin";
+import { StatusBadge, EmptyState, ErrorBoundary, AdminLayout, AdminPageHeader, ReviewStats, ReviewToolbar } from "@/components/admin";
+import { Button, Surface } from "@/components/ui";
+import { CenteredLoading } from "@/components/ui/loading-spinner";
 import { useKeyboardShortcuts, ShortcutHelp } from "@/lib/hooks/useKeyboardShortcuts";
-import { SortableTableHeader, useSortableData } from "@/components/admin/desktop/SortableTableHeader";
+import { SortableColumnHeader, useSortableData } from "@/components/admin/desktop/SortableTableHeader";
 import { Tooltip } from "@/components/admin/desktop/Tooltip";
-import { DataDensityToggle, DENSITY_CONFIG, type DataDensity } from "@/components/admin/desktop/DataDensityToggle";
 import type { AdminShop } from "@/app/api/admin/shops/route";
 import { ListingStatusBadge } from "./ListingStatusBadge";
 import Link from "next/link";
@@ -35,9 +35,7 @@ function AdminShopsContent() {
   const [bulkLoading, setBulkLoading] = useState(false);
   const [showShortcutHelp, setShowShortcutHelp] = useState(false);
   const [lastSelectedIndex, setLastSelectedIndex] = useState<number | null>(null);
-  const [dataDensity, setDataDensity] = useState<DataDensity>("standard");
 
-  const parentRef = useRef<HTMLTableSectionElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -111,14 +109,6 @@ function AdminShopsContent() {
     });
     return s;
   }, [shops]);
-
-  // 仮想化
-  const rowVirtualizer = useVirtualizer({
-    count: sortedData.length,
-    getScrollElement: () => parentRef.current,
-    estimateSize: () => DENSITY_CONFIG[dataDensity].rowHeight,
-    overscan: 5,
-  });
 
   // チェックボックス操作
   const handleSelectAll = useCallback(() => {
@@ -248,309 +238,194 @@ function AdminShopsContent() {
     return null;
   }
 
+  const allSelected = selectedShopIds.length === sortedData.length && sortedData.length > 0;
+
   return (
     <AdminLayout>
-      {/* ヘッダー */}
-      <div className="bg-white shadow-sm">
-        <div className="mx-auto max-w-7xl px-4 py-4 sm:py-6">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <h1 className="text-2xl font-bold text-gray-900 sm:text-3xl">店舗管理</h1>
-            <div className="flex flex-wrap gap-2">
-              <LoadingButton
-                onClick={handleExportCSV}
-                isLoading={isExporting}
-                className="rounded-lg bg-green-600 px-3 py-2 text-white hover:bg-green-700 text-sm"
-              >
-                CSV出力
-              </LoadingButton>
-              <LoadingButton
-                onClick={handleExportJSON}
-                isLoading={isExporting}
-                className="rounded-lg bg-purple-600 px-3 py-2 text-white hover:bg-purple-700 text-sm"
-              >
-                JSON出力
-              </LoadingButton>
-            </div>
-          </div>
-        </div>
-      </div>
+      <AdminPageHeader
+        eyebrow="Shops"
+        title="店舗管理"
+        actions={
+          <>
+            <Button variant="quiet" size="sm" onClick={handleExportCSV} disabled={isExporting}>
+              CSV出力
+            </Button>
+            <Button variant="quiet" size="sm" onClick={handleExportJSON} disabled={isExporting}>
+              JSON出力
+            </Button>
+          </>
+        }
+      />
 
-      {/* メインコンテンツ */}
-      <div className="mx-auto max-w-7xl px-4 py-4 sm:py-8">
-        {/* 統計カード */}
-        <div className="grid grid-cols-3 gap-3 mb-6">
-          <div className="rounded-lg bg-white p-3 shadow sm:p-4">
-            <p className="text-xs text-gray-600 sm:text-sm">総店舗数</p>
-            <p className="mt-1 text-xl font-bold text-gray-900 sm:text-2xl">{stats.total}</p>
-          </div>
-          <div className="rounded-lg bg-green-50 p-3 shadow sm:p-4">
-            <p className="text-xs text-green-600 sm:text-sm">稼働中</p>
-            <p className="mt-1 text-xl font-bold text-green-600 sm:text-2xl">{stats.active}</p>
-          </div>
-          <div className="rounded-lg bg-red-50 p-3 shadow sm:p-4">
-            <p className="text-xs text-red-600 sm:text-sm">停止中</p>
-            <p className="mt-1 text-xl font-bold text-red-600 sm:text-2xl">{stats.suspended}</p>
-          </div>
-        </div>
+      <div className="mx-auto max-w-7xl px-4 py-8 pb-20">
+        <ReviewStats
+          items={[
+            { label: "総店舗数", value: stats.total },
+            { label: "稼働中", value: stats.active, tone: "good" },
+            { label: "停止中", value: stats.suspended, tone: "warning" },
+          ]}
+        />
 
-        {/* エラー表示 */}
         {fetchError && (
-          <div className="mb-4 rounded-lg bg-red-50 border border-red-200 p-4 flex items-center justify-between">
-            <p className="text-sm text-red-700">{fetchError}</p>
-            <button
-              type="button"
-              onClick={loadShops}
-              className="ml-4 rounded-lg bg-red-600 px-3 py-1.5 text-sm text-white hover:bg-red-700"
-            >
-              再試行
-            </button>
+          <div role="alert" className="mb-4 flex items-center justify-between rounded-card bg-status-critical-bg p-4 text-status-critical-fg ring-1 ring-status-critical-line">
+            <p className="text-sm">{fetchError}</p>
+            <Button variant="quiet" size="sm" onClick={loadShops}>再試行</Button>
           </div>
         )}
 
-        {/* ローディング */}
-        {fetchLoading && (
-          <div className="flex justify-center py-12">
-            <div className="h-8 w-8 animate-spin rounded-full border-4 border-blue-600 border-t-transparent" />
-          </div>
-        )}
+        {fetchLoading && <CenteredLoading padding="py-16" className="text-nicchyo-ink/40" />}
 
         {!fetchLoading && !fetchError && (
           <>
-            {/* フィルター */}
-            <div className="mb-4 rounded-lg bg-white p-4 shadow space-y-3">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex flex-wrap gap-2 items-center">
-                  <span className="text-xs font-medium text-gray-500 uppercase tracking-wider">ステータス:</span>
-                  <button
-                    type="button"
-                    onClick={() => setFilter("all")}
-                    className={`rounded-lg px-3 py-1.5 text-sm font-medium ${filter === "all" ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-700 hover:bg-gray-200"}`}
-                  >
-                    すべて ({stats.total})
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setFilter("active")}
-                    className={`rounded-lg px-3 py-1.5 text-sm font-medium ${filter === "active" ? "bg-green-600 text-white" : "bg-gray-100 text-gray-700 hover:bg-gray-200"}`}
-                  >
-                    稼働中 ({stats.active})
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setFilter("suspended")}
-                    className={`rounded-lg px-3 py-1.5 text-sm font-medium ${filter === "suspended" ? "bg-red-600 text-white" : "bg-gray-100 text-gray-700 hover:bg-gray-200"}`}
-                  >
-                    停止中 ({stats.suspended})
-                  </button>
-                </div>
-                <div className="flex items-center gap-2">
-                  <DataDensityToggle density={dataDensity} onChange={setDataDensity} />
-                  <input
-                    ref={searchInputRef}
-                    type="text"
-                    placeholder="店舗名・オーナーで検索..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none w-full sm:w-64"
-                  />
-                </div>
-              </div>
-
-              {/* カテゴリーフィルター */}
+            <ReviewToolbar
+              ref={searchInputRef}
+              filters={[
+                { key: "all", label: "すべて", count: stats.total },
+                { key: "active", label: "稼働中", count: stats.active },
+                { key: "suspended", label: "停止中", count: stats.suspended },
+              ]}
+              value={filter}
+              onChange={setFilter}
+              search={{ value: searchQuery, onChange: setSearchQuery, placeholder: "店舗名・オーナーで検索..." }}
+            >
               {uniqueCategories.length > 0 && (
-                <div className="flex flex-wrap gap-2 items-center pt-2 border-t border-gray-200">
-                  <span className="text-xs font-medium text-gray-500 uppercase tracking-wider">カテゴリー:</span>
-                  <button
-                    type="button"
-                    onClick={() => setCategoryFilter("all")}
-                    className={`rounded-lg px-2.5 py-1 text-xs font-medium ${categoryFilter === "all" ? "bg-purple-600 text-white" : "bg-gray-100 text-gray-700 hover:bg-gray-200"}`}
-                  >
-                    すべて
-                  </button>
-                  {uniqueCategories.map((cat) => (
+                <div className="flex flex-wrap items-center gap-2 border-t border-line pt-3">
+                  <span className="text-xs font-medium text-nicchyo-ink/55">カテゴリー</span>
+                  {["all", ...uniqueCategories].map((cat) => (
                     <button
                       type="button"
                       key={cat}
+                      aria-pressed={categoryFilter === cat}
                       onClick={() => setCategoryFilter(cat)}
-                      className={`rounded-lg px-2.5 py-1 text-xs font-medium ${categoryFilter === cat ? "bg-purple-600 text-white" : "bg-gray-100 text-gray-700 hover:bg-gray-200"}`}
+                      className={`rounded-chip px-3 py-1 text-xs font-medium transition-colors ${
+                        categoryFilter === cat
+                          ? "bg-nicchyo-ink text-white"
+                          : "bg-nicchyo-ink/[0.06] text-nicchyo-ink/70 hover:bg-nicchyo-ink/10"
+                      }`}
                     >
-                      {cat} ({categoryStats[cat] ?? 0})
+                      {cat === "all" ? "すべて" : `${cat} (${categoryStats[cat] ?? 0})`}
                     </button>
                   ))}
                 </div>
               )}
-            </div>
+            </ReviewToolbar>
 
             {/* 一括操作ツールバー */}
             {selectedShopIds.length > 0 && (
-              <div className="mb-4 rounded-lg bg-blue-50 border border-blue-200 p-3 sm:p-4">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="flex items-center gap-3">
-                    <span className="text-sm font-medium text-blue-900">{selectedShopIds.length}件選択中</span>
-                    <button type="button" onClick={() => setSelectedShopIds([])} className="text-sm text-blue-600 hover:text-blue-800">
-                      解除
-                    </button>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    <LoadingButton
-                      onClick={handleBulkRestore}
-                      isLoading={bulkLoading}
-                      className="rounded-lg bg-green-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-green-700"
-                    >
-                      一括復活
-                    </LoadingButton>
-                    <LoadingButton
-                      onClick={handleBulkSuspend}
-                      isLoading={bulkLoading}
-                      className="rounded-lg bg-orange-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-orange-700"
-                    >
-                      一括停止
-                    </LoadingButton>
-                    <LoadingButton
-                      onClick={handleBulkDelete}
-                      isLoading={bulkLoading}
-                      className="rounded-lg bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-700"
-                    >
-                      一括削除
-                    </LoadingButton>
-                  </div>
+              <div className="mb-4 flex flex-col gap-3 rounded-card bg-amber-50 p-3 ring-1 ring-amber-200 sm:flex-row sm:items-center sm:justify-between sm:p-4">
+                <div className="flex items-center gap-3">
+                  <span className="text-sm font-medium text-nicchyo-ink">{selectedShopIds.length}件選択中</span>
+                  <button type="button" onClick={() => setSelectedShopIds([])} className="text-sm text-amber-800 underline hover:no-underline">
+                    解除
+                  </button>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button variant="quiet" size="sm" onClick={handleBulkRestore} disabled={bulkLoading}>一括復活</Button>
+                  <Button variant="quiet" size="sm" onClick={handleBulkSuspend} disabled={bulkLoading}>一括停止</Button>
+                  <Button variant="quiet" size="sm" className="text-rose-700 hover:bg-rose-50" onClick={handleBulkDelete} disabled={bulkLoading}>
+                    一括削除
+                  </Button>
                 </div>
               </div>
             )}
 
-            {/* 店舗リスト */}
-            {filteredShops.length === 0 ? (
-              <EmptyState
-                icon="🏪"
-                title="店舗が見つかりません"
-                description="検索条件に一致する店舗がありません。"
-              />
+            {sortedData.length === 0 ? (
+              <EmptyState icon="🏪" title="店舗が見つかりません" description="検索条件に一致する店舗がありません。" />
             ) : (
               <>
                 {/* PC: テーブル */}
-                <div className="hidden sm:block rounded-lg bg-white shadow">
-                  <div className="overflow-x-auto">
-                    <table className="w-full">
-                      <thead className="bg-gray-50">
-                        <tr>
-                          <th className="px-4 py-3 text-left">
+                <div className="hidden overflow-hidden rounded-card bg-white shadow-card ring-1 ring-line sm:block">
+                  <div className="max-h-[70vh] overflow-auto">
+                    <table className="w-full min-w-[720px]">
+                      <thead className="sticky top-0 z-10 bg-nicchyo-base">
+                        <tr className="border-b border-line">
+                          <th scope="col" className="w-10 px-4 py-3 text-left">
                             <Tooltip content="全選択/解除 (Ctrl+A)" position="top">
                               <input
                                 type="checkbox"
-                                checked={selectedShopIds.length === filteredShops.length && filteredShops.length > 0}
+                                aria-label="表示中の店舗をすべて選択"
+                                checked={allSelected}
                                 onChange={handleSelectAll}
-                                className="h-4 w-4 rounded border-gray-300 text-blue-600"
+                                className="h-4 w-4 rounded border-line accent-amber-600"
                               />
                             </Tooltip>
                           </th>
-                          <SortableTableHeader label="店舗" sortKey="name" currentSortKey={sortKey} currentSortDirection={sortDirection} onSort={handleSort} />
-                          <SortableTableHeader label="カテゴリー" sortKey="category" currentSortKey={sortKey} currentSortDirection={sortDirection} onSort={handleSort} />
-                          <SortableTableHeader label="オーナー" sortKey="owner" currentSortKey={sortKey} currentSortDirection={sortDirection} onSort={handleSort} />
-                          <SortableTableHeader label="ステータス" sortKey="status" currentSortKey={sortKey} currentSortDirection={sortDirection} onSort={handleSort} />
-                          <SortableTableHeader label="登録日" sortKey="registeredDate" currentSortKey={sortKey} currentSortDirection={sortDirection} onSort={handleSort} />
-                          <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">アクション</th>
+                          <SortableColumnHeader label="店舗" sortKey="name" currentSortKey={sortKey} currentSortDirection={sortDirection} onSort={handleSort} />
+                          <SortableColumnHeader label="カテゴリー" sortKey="category" currentSortKey={sortKey} currentSortDirection={sortDirection} onSort={handleSort} />
+                          <SortableColumnHeader label="オーナー" sortKey="owner" currentSortKey={sortKey} currentSortDirection={sortDirection} onSort={handleSort} />
+                          <SortableColumnHeader label="ステータス" sortKey="status" currentSortKey={sortKey} currentSortDirection={sortDirection} onSort={handleSort} />
+                          <SortableColumnHeader label="登録日" sortKey="registeredDate" currentSortKey={sortKey} currentSortDirection={sortDirection} onSort={handleSort} />
+                          <th scope="col" className="px-4 py-3 text-right text-xs font-medium text-nicchyo-ink/55">操作</th>
                         </tr>
                       </thead>
-                      <tbody
-                        ref={parentRef}
-                        className="divide-y divide-gray-200 bg-white"
-                        style={{ height: "560px", overflow: "auto" }}
-                      >
-                        <div style={{ height: `${rowVirtualizer.getTotalSize()}px`, position: "relative" }}>
-                          {rowVirtualizer.getVirtualItems().map((virtualRow) => {
-                            const shop = sortedData[virtualRow.index];
-                            return (
-                              <tr
-                                key={shop.id}
-                                className="hover:bg-gray-50"
-                                style={{
-                                  position: "absolute",
-                                  top: 0,
-                                  left: 0,
-                                  width: "100%",
-                                  height: `${virtualRow.size}px`,
-                                  transform: `translateY(${virtualRow.start}px)`,
-                                }}
-                              >
-                                <td className="px-4 py-3">
-                                  <input
-                                    type="checkbox"
-                                    checked={selectedShopIds.includes(shop.id)}
-                                    onChange={(e) => handleSelectShop(shop.id, virtualRow.index, (e.nativeEvent as MouseEvent).shiftKey)}
-                                    className="h-4 w-4 rounded border-gray-300 text-blue-600"
-                                  />
-                                </td>
-                                <td className="px-4 py-3">
-                                  <Link href={`/admin/shops/${shop.id}`} className="font-medium text-blue-700 text-sm hover:underline">
-                                    {shop.name}
-                                  </Link>
-                                  <div className="text-xs text-gray-400">{shop.email}</div>
-                                </td>
-                                <td className="px-4 py-3 text-sm text-gray-500">{shop.category}</td>
-                                <td className="px-4 py-3 text-sm text-gray-500">{shop.owner}</td>
-                                <td className="px-4 py-3">
-                                  <StatusBadge status={shop.status} />
-                                  <div className="mt-1">
-                                    <ListingStatusBadge status={shop.listingStatus} />
-                                  </div>
-                                </td>
-                                <td className="px-4 py-3 text-sm text-gray-500">{shop.registeredDate}</td>
-                                <td className="px-4 py-3 text-right text-sm whitespace-nowrap">
-                                  {shop.status === "active" ? (
-                                    <button
-                                      type="button"
-                                      onClick={() => handleSingleAction(shop.id, "suspend")}
-                                      className="text-orange-600 hover:text-orange-900 mr-3"
-                                    >
-                                      停止
-                                    </button>
-                                  ) : (
-                                    <button
-                                      type="button"
-                                      onClick={() => handleSingleAction(shop.id, "restore")}
-                                      className="text-green-600 hover:text-green-900 mr-3"
-                                    >
-                                      復活
-                                    </button>
-                                  )}
-                                  <button
-                                    type="button"
-                                    onClick={() => handleSingleAction(shop.id, "delete")}
-                                    className="text-red-600 hover:text-red-900"
-                                  >
-                                    削除
-                                  </button>
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </div>
+                      <tbody className="divide-y divide-line">
+                        {sortedData.map((shop, index) => (
+                          <tr key={shop.id} className="hover:bg-nicchyo-base/60">
+                            <td className="px-4 py-3">
+                              <input
+                                type="checkbox"
+                                aria-label={`${shop.name}を選択`}
+                                checked={selectedShopIds.includes(shop.id)}
+                                onChange={(e) => handleSelectShop(shop.id, index, (e.nativeEvent as MouseEvent).shiftKey)}
+                                className="h-4 w-4 rounded border-line accent-amber-600"
+                              />
+                            </td>
+                            <td className="px-4 py-3">
+                              <Link href={`/admin/shops/${shop.id}`} className={`font-medium text-nicchyo-ink hover:underline`}>
+                                {shop.name}
+                              </Link>
+                              <div className="text-xs text-nicchyo-ink/55">{shop.email}</div>
+                            </td>
+                            <td className={`px-4 py-3 text-sm text-nicchyo-ink/70`}>{shop.category}</td>
+                            <td className={`px-4 py-3 text-sm text-nicchyo-ink/70`}>{shop.owner}</td>
+                            <td className="px-4 py-3">
+                              <StatusBadge status={shop.status} />
+                              <div className="mt-1">
+                                <ListingStatusBadge status={shop.listingStatus} />
+                              </div>
+                            </td>
+                            <td className={`px-4 py-3 text-sm whitespace-nowrap text-nicchyo-ink/70`}>{shop.registeredDate}</td>
+                            <td className={`px-4 py-3 whitespace-nowrap text-right`}>
+                              <div className="flex justify-end gap-2">
+                                {shop.status === "active" ? (
+                                  <Button variant="quiet" size="sm" onClick={() => handleSingleAction(shop.id, "suspend")}>停止</Button>
+                                ) : (
+                                  <Button variant="quiet" size="sm" onClick={() => handleSingleAction(shop.id, "restore")}>復活</Button>
+                                )}
+                                <Button variant="quiet" size="sm" className="text-rose-700 hover:bg-rose-50" onClick={() => handleSingleAction(shop.id, "delete")}>
+                                  削除
+                                </Button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
                       </tbody>
                     </table>
                   </div>
                 </div>
 
                 {/* モバイル: カードリスト */}
-                <div className="sm:hidden space-y-3">
-                  {filteredShops.map((shop) => (
-                    <div key={shop.id} className="rounded-lg bg-white shadow p-4">
-                      <div className="flex items-start justify-between mb-2">
-                        <div className="flex items-center gap-2">
+                <ul className="space-y-3 sm:hidden">
+                  {sortedData.map((shop) => (
+                    <Surface as="li" key={shop.id} padding="sm">
+                      <div className="mb-2 flex items-start justify-between gap-2">
+                        <div className="flex items-start gap-2">
                           <input
                             type="checkbox"
+                            aria-label={`${shop.name}を選択`}
                             checked={selectedShopIds.includes(shop.id)}
                             onChange={() =>
                               setSelectedShopIds((prev) =>
                                 prev.includes(shop.id) ? prev.filter((id) => id !== shop.id) : [...prev, shop.id]
                               )
                             }
-                            className="h-4 w-4 rounded border-gray-300 text-blue-600 mt-0.5"
+                            className="mt-1 h-4 w-4 rounded border-line accent-amber-600"
                           />
                           <div>
-                            <Link href={`/admin/shops/${shop.id}`} className="font-medium text-blue-700 hover:underline">
+                            <Link href={`/admin/shops/${shop.id}`} className="font-medium text-nicchyo-ink hover:underline">
                               {shop.name}
                             </Link>
-                            <div className="text-xs text-gray-500">{shop.category}</div>
+                            <div className="text-xs text-nicchyo-ink/55">{shop.category}</div>
                             <div className="mt-1">
                               <ListingStatusBadge status={shop.listingStatus} />
                             </div>
@@ -558,40 +433,22 @@ function AdminShopsContent() {
                         </div>
                         <StatusBadge status={shop.status} />
                       </div>
-                      <div className="text-xs text-gray-500 mb-3">
-                        <span>オーナー: {shop.owner}</span>
-                        <span className="mx-2">·</span>
-                        <span>登録: {shop.registeredDate}</span>
+                      <div className="mb-3 text-xs text-nicchyo-ink/55">
+                        オーナー: {shop.owner}<span className="mx-2">·</span>登録: {shop.registeredDate}
                       </div>
                       <div className="flex gap-2">
                         {shop.status === "active" ? (
-                          <button
-                            type="button"
-                            onClick={() => handleSingleAction(shop.id, "suspend")}
-                            className="flex-1 rounded-lg border border-orange-300 py-1.5 text-sm text-orange-600 hover:bg-orange-50"
-                          >
-                            停止
-                          </button>
+                          <Button variant="quiet" size="sm" className="flex-1" onClick={() => handleSingleAction(shop.id, "suspend")}>停止</Button>
                         ) : (
-                          <button
-                            type="button"
-                            onClick={() => handleSingleAction(shop.id, "restore")}
-                            className="flex-1 rounded-lg border border-green-300 py-1.5 text-sm text-green-600 hover:bg-green-50"
-                          >
-                            復活
-                          </button>
+                          <Button variant="quiet" size="sm" className="flex-1" onClick={() => handleSingleAction(shop.id, "restore")}>復活</Button>
                         )}
-                        <button
-                          type="button"
-                          onClick={() => handleSingleAction(shop.id, "delete")}
-                          className="flex-1 rounded-lg border border-red-300 py-1.5 text-sm text-red-600 hover:bg-red-50"
-                        >
+                        <Button variant="quiet" size="sm" className="flex-1 text-rose-700 hover:bg-rose-50" onClick={() => handleSingleAction(shop.id, "delete")}>
                           削除
-                        </button>
+                        </Button>
                       </div>
-                    </div>
+                    </Surface>
                   ))}
-                </div>
+                </ul>
               </>
             )}
           </>
