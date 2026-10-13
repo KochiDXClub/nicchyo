@@ -15,6 +15,7 @@ import {
   resolveStallParts,
   STALL_BODY_RECT,
   STALL_PHOTO_HEIGHT_RATIO,
+  STALL_VIEWBOX,
   type StallPartsSpec,
 } from "../../config/stallParts";
 import {
@@ -260,10 +261,15 @@ export async function rasterizeStallWithPhoto(
 
   // 写真は本体の矩形に cover でトリミングし、data URL にして SVG に埋め込む
   // （画像として描き起こす SVG は外部 URL を読めない）
+  // sizePx は高さの基準。屋根を削った分だけ同じ高さに対して幅が広がり、写真が大きく写る
+  const widthPx = sizePx / STALL_PHOTO_HEIGHT_RATIO;
   const rect = STALL_BODY_RECT;
+  // 切り抜きの画素数は、描き起こし先の写真枠の画素数以上にする。
+  // 一段先まで寄ったときの高精細版（pixelRatio が大きい）で、写真だけ粗くならないように
+  const cropWidth = Math.max(rect.width * 4, Math.ceil((rect.width / STALL_VIEWBOX) * widthPx * pixelRatio));
   const crop = document.createElement("canvas");
-  crop.width = rect.width * 4;
-  crop.height = rect.height * 4;
+  crop.width = cropWidth;
+  crop.height = Math.round((cropWidth * rect.height) / rect.width);
   const cropCtx = crop.getContext("2d");
   if (!cropCtx) throw new Error("canvas 2d context を取得できません");
   // 透過のある写真が JPEG 化で黒くならないよう、白を敷いてから描く
@@ -274,8 +280,6 @@ export async function rasterizeStallWithPhoto(
   const dh = img.naturalHeight * scale;
   cropCtx.drawImage(img, (crop.width - dw) / 2, (crop.height - dh) / 2, dw, dh);
   const href = crop.toDataURL("image/jpeg", 0.85);
-  // sizePx は高さの基準。屋根を削った分だけ同じ高さに対して幅が広がり、写真が大きく写る
-  const widthPx = sizePx / STALL_PHOTO_HEIGHT_RATIO;
   return rasterizeSvg(svgForState(recipeFor(shop), state, widthPx, href, sizePx), widthPx, pixelRatio, sizePx);
 }
 

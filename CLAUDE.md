@@ -54,7 +54,7 @@ PRを出す前は必ず `npm run build` でビルドが通ることを確認す�
 
 - **Frontend**: Next.js 16 (App Router), React 18, TypeScript 5.9
 - **Styling**: Tailwind CSS（カスタムパレット: `nicchyo-base/primary/accent/ink/soft-green`）
-- **DB**: Supabase（メイン）、Prismaスキーマも存在
+- **DB**: Supabase
 - **Map**: Leaflet + react-leaflet（`reactStrictMode: false` ← Leafletの二重初期化防止）
 - **AI**: OpenAI API（RAG構成、`app/api/grandma/`）
 - **Auth**: Supabase Auth（`lib/auth/AuthContext.tsx`）

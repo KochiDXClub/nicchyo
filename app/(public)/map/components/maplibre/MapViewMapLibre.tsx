@@ -72,6 +72,8 @@ import {
 } from "@/lib/map/mapViewSettings";
 import { OPENFREEMAP_STYLE_URL } from "../../config/basemap";
 import {
+  DETAIL_STALL_SCALE,
+  DETAIL_ZOOM_OFFSET,
   ILLUSTRATION_SIZES,
   OVERVIEW_ZONE_MAX_ZOOM,
   OVERVIEW_ZONE_MIN_ZOOM,
@@ -88,9 +90,11 @@ import {
   rasterizeImageUrl,
   rasterizeStallWithPhoto,
   STALL_STATES,
+  type StallState,
 } from "./stallSprites";
 import { STALL_PHOTO_HEIGHT_RATIO } from "../../config/stallParts";
 import { buildPhotoStallScale } from "./photoStallScale";
+import { PhotoSpriteRegistry } from "./photoSpriteRegistry";
 import { getShopPreviewImage, getShopThumbnailImage } from "../../../../../lib/shopImages";
 import { MAPLIBRE_MAP_KEY, type MapCamera, type MapCameraEvent } from "../../types/mapCamera";
 import { LiveZoomMapControls } from "../MapControls";
@@ -112,7 +116,28 @@ const ZOOM_BOUNDS = getRecommendedZoomBounds();
  * 表示境界（LOD・丁目バッジ・タイル不透明度など）は Leaflet 版の定数を 1 ずらして使う。
  */
 const ZOOM_OFFSET = -1;
+/**
+ * 屋台が本来の大きさ（等倍）になるズーム。LOD（stall / photo / nameplate）の境界と、
+ * 開いたとき・店へ寄るときの倍率の基準でもある（市場を歩いて見て回る倍率）。
+ */
 const MAX_ZOOM = ZOOM_BOUNDS.max + ZOOM_OFFSET;
+/**
+ * 写真を大きく見るための一段。地図はここまで寄れて、屋台（写真）は DETAIL_STALL_SCALE 倍になる
+ * （段数と倍率は displayConfig.ts。パン中の写真カードも同じ倍率で大きくする）。
+ * 縮尺は 1 段で 2 倍になるので店舗間隔も 2 倍に広がり、2 倍の屋台でも隣と重ならない。
+ * 開いたときや店へ寄るときはここまでは寄らない（写真を見たい人がさらにピンチで寄る）
+ */
+const DETAIL_ZOOM = MAX_ZOOM + DETAIL_ZOOM_OFFSET;
+/**
+ * 写真入りの屋台を細かい版で描き直し始めるズーム（MAX_ZOOM からの差）。
+ * ここまでは等倍版を少し拡大して見せる（1.25 倍程度ならほぼ粗さは分からない）
+ */
+const DETAIL_SPRITE_ZOOM_OFFSET = 0.25;
+/** 細かい版で持っておく写真入りの屋台の上限（dpr 3 で 1 枚約 1.1MB）。超えたら長く見ていないものから等倍に戻す */
+const MAX_DETAIL_PHOTO_SPRITES = 24;
+/** 木札の文字の大きさ（px）と、屋台からの離し方（em）。一段先では屋台と一緒に離す量を広げる */
+const NAMEPLATE_TEXT_SIZE = 11;
+const NAMEPLATE_OFFSET_EM: [number, number] = [3.2, -2.4];
 const INITIAL_ZOOM = MAX_ZOOM;
 const OVERVIEW_MIN = OVERVIEW_ZONE_MIN_ZOOM + ZOOM_OFFSET;
 const OVERVIEW_MAX = OVERVIEW_ZONE_MAX_ZOOM + ZOOM_OFFSET;
@@ -498,7 +523,7 @@ function MapViewMapLibre({
         center: initialCenter,
         zoom: INITIAL_ZOOM,
         minZoom,
-        maxZoom: MAX_ZOOM,
+        maxZoom: DETAIL_ZOOM,
         bearing: computeRoadBearing(routePoints, center),
         pitch: 0,
         maxBounds: maxBoundsLngLat,
@@ -567,7 +592,9 @@ function MapViewMapLibre({
           return { lat: c.lat, lng: c.lng };
         },
         getZoom: () => map.getZoom() - ZOOM_OFFSET,
-        getMaxZoom: () => map.getMaxZoom() - ZOOM_OFFSET,
+        // ページ側の「店へ寄る」（検索結果のタップなど）の行き先。写真を大きく見る一段（DETAIL_ZOOM）ではなく、
+        // 屋台が等倍で並ぶ倍率に寄せる（寄りすぎると周りの店が見えず、どこにいるか分からなくなる）
+        getMaxZoom: () => MAX_ZOOM - ZOOM_OFFSET,
         setZoom: (zoom, options) => {
           const target = zoom + ZOOM_OFFSET;
           if (options?.animate === false) {
@@ -767,6 +794,19 @@ function MapViewMapLibre({
         },
       });
 
+      // 屋台（通常）と人影の倍率。stall LOD で 0.6、最大ズームで 1.0、一段先で DETAIL_STALL_SCALE 倍
+      const stallScale: ExpressionSpecification = [
+        "interpolate",
+        ["linear"],
+        ["zoom"],
+        MAX_ZOOM + SHOP_MARKER_LOD_OFFSETS.stall,
+        0.6,
+        MAX_ZOOM,
+        1,
+        DETAIL_ZOOM,
+        DETAIL_STALL_SCALE,
+      ];
+
       // お客さん（人影）。道の上にまばらに散らして「にぎわい」を出す。
       // 店舗より下のレイヤーに置き、不透明度を落として背景に沈める。
       // クリックハンドラは付けない（触れるものが増えると「主役は屋台」の原則が崩れる）
@@ -791,15 +831,7 @@ function MapViewMapLibre({
           minzoom: OVERVIEW_MAX,
           layout: {
             "icon-image": crowdIconImage(0),
-            "icon-size": [
-              "interpolate",
-              ["linear"],
-              ["zoom"],
-              MAX_ZOOM + SHOP_MARKER_LOD_OFFSETS.stall,
-              0.6,
-              MAX_ZOOM,
-              1,
-            ],
+            "icon-size": stallScale,
             "icon-anchor": "bottom",
             "icon-allow-overlap": true,
             "icon-ignore-placement": true,
@@ -920,6 +952,8 @@ function MapViewMapLibre({
       }
       // バッジと木札の下地
       const uiRatio = Math.min(3, window.devicePixelRatio || 2);
+      // 写真入りの屋台を細かい版で描き直すときの pixelRatio（一段先で DETAIL_STALL_SCALE 倍になる分）
+      const detailRatio = uiRatio * DETAIL_STALL_SCALE;
       if (!map.hasImage(IMG_BADGE_FAVORITE)) {
         map.addImage(IMG_BADGE_FAVORITE, buildFavoriteBadgeSprite(uiRatio), { pixelRatio: uiRatio });
       }
@@ -933,68 +967,105 @@ function MapViewMapLibre({
         });
       }
 
-      // 写真入りの屋台は店舗×状態ごとに違うので、必要になった時点で遅延生成する
-      const photoJobs = new Map<string, Promise<void>>();
+      // 写真入りの屋台は店舗×状態ごとに違うので、必要になった時点で遅延生成する（まず等倍で描く）。
+      // 一段先（DETAIL_ZOOM）では屋台を 2 倍に描くので、等倍用の絵では粗くなる。全店ぶんを最初から
+      // 細かく描くと端末の記憶を食うため、最大ズームを越えて寄っているときに画面に見えている店だけ
+      // detailRatio で描き直す（同じ ID のまま pixelRatio を上げて差し替える。表示上の大きさは変わらない）。
+      // 細かい版は MAX_DETAIL_PHOTO_SPRITES 枚までにして、超えたら長く見ていないものから等倍に戻す。
+      // 細かい版にするのは upgradeVisiblePhotoSprites だけで、画面の中心に近い店から上限の数までにする
+      // （見えている店が上限より多いときに、細かい版にしては等倍に戻すのを繰り返さないため）
+      const isDetailZoom = () => map.getZoom() > MAX_ZOOM + DETAIL_SPRITE_ZOOM_OFFSET;
+      const photoSprites = new PhotoSpriteRegistry({ baseRatio: uiRatio, maxDetail: MAX_DETAIL_PHOTO_SPRITES });
+      const findShopForPhotoId = (id: string): { shop: Shop; state: StallState } | null => {
+        const [, shopIdText, stateText] = id.split(":");
+        const state = STALL_STATES.find((s) => s === stateText);
+        const shop = shopsRef.current.find((s) => s.id === Number(shopIdText));
+        return shop && state ? { shop, state } : null;
+      };
+      const requestPhotoSprite = (shop: Shop, state: StallState, ratio: number, downgrade = false) => {
+        const id = `photo:${shop.id}:${state}`;
+        if (!photoSprites.want(id, ratio, downgrade)) return;
+        // 仮画像を同期で登録しておく（無いままだと MapLibre が警告を出す）。読み込めたら中身を差し替える。
+        // 状態が変わった店（選択・検索など）は、同じ写真の通常状態の絵を仮に使う。
+        // 透明にすると、新しい絵ができるまで写真が一瞬消えて見える（細かさが違っても表示上の大きさは同じ）
+        if (!map.hasImage(id)) {
+          const normalId = `photo:${shop.id}:normal`;
+          const normal = state !== "normal" && map.hasImage(normalId) ? map.getImage(normalId) : null;
+          if (normal) {
+            map.addImage(id, normal.data, { pixelRatio: normal.pixelRatio });
+          } else {
+            const width = Math.round((PHOTO_STALL_PX / STALL_PHOTO_HEIGHT_RATIO) * ratio);
+            const height = Math.round(PHOTO_STALL_PX * ratio);
+            map.addImage(id, new ImageData(width, height), { pixelRatio: ratio });
+          }
+        }
+        rasterizeStallWithPhoto(shop, state, getShopThumbnailImage(shop), PHOTO_STALL_PX, ratio, getShopPreviewImage(shop))
+          .then((data) => {
+            // 後から別の細かさを頼んでいたら、こちらは捨てる
+            if (disposed || !photoSprites.done(id, ratio) || !map.hasImage(id)) return;
+            const current = map.getImage(id);
+            if (current && current.pixelRatio === ratio && current.data.width === data.width && current.data.height === data.height) {
+              map.updateImage(id, data);
+            } else {
+              // 細かさが違う（等倍版 ⇄ 細かい版、通常状態の絵を借りた仮画像）ときは updateImage が使えないので登録し直す
+              map.removeImage(id);
+              map.addImage(id, data, { pixelRatio: ratio });
+            }
+            // 写真入りの絵ができた店は、下に重ねている通常の屋台を消す（下の屋台の脚や影がはみ出すため）
+            map.setFeatureState({ source: SRC_SHOPS, id: shop.id }, { photoReady: true });
+            for (const evictedId of photoSprites.overflow()) {
+              const evicted = findShopForPhotoId(evictedId);
+              if (evicted) requestPhotoSprite(evicted.shop, evicted.state, uiRatio, true);
+            }
+          })
+          .catch(() => {
+            // 読めない写真は通常の屋台のまま（透明のままにして下の屋台を見せる）。次の機会に頼み直せるようにする
+            photoSprites.failed(id, ratio);
+          });
+      };
       // v6 から styleimagemissing は「起きたことを知らせるだけ」になり、
       // リスナーの中で addImage しても要求は解決されない。画像を用意する側は resolver を使う
       map.setMissingStyleImageResolver((id) => {
-        if (!id.startsWith("photo:") || photoJobs.has(id)) return;
-        const [, shopIdText, stateText] = id.split(":");
-        const state = STALL_STATES.find((s) => s === stateText);
-        const shopId = Number(shopIdText);
-        if (!state) return;
-        const shop = shopsRef.current.find((s) => s.id === shopId);
-        if (!shop) return;
-        const url = getShopThumbnailImage(shop);
-        const fallbackUrl = getShopPreviewImage(shop);
-        // 同じ大きさの透明な仮画像を同期で登録しておく（無いままだと MapLibre が警告を出す）。
-        // 読み込めたら updateImage で中身だけ差し替える
-        const placeholderW = Math.round((PHOTO_STALL_PX / STALL_PHOTO_HEIGHT_RATIO) * uiRatio);
-        const placeholderH = Math.round(PHOTO_STALL_PX * uiRatio);
-        if (!map.hasImage(id)) {
-          // 状態が変わった店（選択・検索など）は、同じ写真の通常状態の絵を仮に使う。
-          // 透明にすると、新しい絵ができるまで写真が一瞬消えて見える
-          const normalId = `photo:${shopId}:normal`;
-          const normal = state !== "normal" && map.hasImage(normalId) ? map.getImage(normalId) : null;
-          map.addImage(
-            id,
-            normal && normal.data.width === placeholderW && normal.data.height === placeholderH
-              ? normal.data
-              : new ImageData(placeholderW, placeholderH),
-            { pixelRatio: uiRatio }
-          );
-        }
-        photoJobs.set(
-          id,
-          rasterizeStallWithPhoto(shop, state, url, PHOTO_STALL_PX, uiRatio, fallbackUrl)
-            .then((data) => {
-              if (disposed || !map.hasImage(id)) return;
-              map.updateImage(id, data);
-              // 写真入りの絵ができた店は、下に重ねている通常の屋台を消す（下の屋台の脚や影がはみ出すため）
-              map.setFeatureState({ source: SRC_SHOPS, id: shopId }, { photoReady: true });
-            })
-            .catch(() => {
-              /* 読めない写真は通常の屋台のまま（透明のままにして下の屋台を見せる） */
-            })
-        );
+        if (!id.startsWith("photo:") || photoSprites.has(id)) return;
+        const target = findShopForPhotoId(id);
+        if (!target) return;
+        // まず等倍で描く。一段先で見えている店は、落ち着いたときに upgradeVisiblePhotoSprites が細かい版にする
+        requestPhotoSprite(target.shop, target.state, uiRatio);
       });
+      // 最大ズームを越えて寄ったら、画面に見えている写真入りの屋台を細かい版に描き直す。
+      // 描き終わって落ち着いたとき（idle）だけ見る（ピンチやスライダーの途中は等倍版を拡大したまま）
+      const upgradeVisiblePhotoSprites = () => {
+        if (disposed || !isDetailZoom() || !map.getLayer(LAYER_SHOP_PHOTOS)) return;
+        const canvas = map.getCanvas();
+        const centerX = canvas.clientWidth / 2;
+        const centerY = canvas.clientHeight / 2;
+        const visible = new Map<string, { shop: Shop; state: StallState; distance: number }>();
+        for (const feature of map.queryRenderedFeatures({ layers: [LAYER_SHOP_PHOTOS] })) {
+          const id = `photo:${feature.properties?.id}:${feature.properties?.state}`;
+          const target = visible.has(id) ? null : findShopForPhotoId(id);
+          if (!target) continue;
+          const point = map.project([target.shop.lng, target.shop.lat]);
+          visible.set(id, { ...target, distance: Math.hypot(point.x - centerX, point.y - centerY) });
+        }
+        // 画面の中心に近い店から、上限の数まで（上限より多く見えている広い画面でも、描き直しが止まるように）
+        const nearest = Array.from(visible.entries())
+          .sort((a, b) => a[1].distance - b[1].distance)
+          .slice(0, MAX_DETAIL_PHOTO_SPRITES);
+        for (const [id] of nearest) photoSprites.touch(id);
+        for (const [, target] of nearest) requestPhotoSprite(target.shop, target.state, detailRatio);
+      };
+      map.on("idle", upgradeVisiblePhotoSprites);
 
       map.addSource(SRC_SHOPS, {
         type: "geojson",
         data: shopsToGeoJSON(shopFeaturesRef.current, displayRef.current),
         // updateData の差分は店舗 ID で当てる
         promoteId: "id",
+        // 既定（18）のままだと、寄ったときも z18 のタイル（約 130m 四方）を拡大して使うので、
+        // 画面外の店の画像までまとめて要求される。寄る上限までタイルを作って、画面の近くの店だけにする
+        maxzoom: DETAIL_ZOOM,
       });
       appliedShopDataRef.current = { features: shopFeaturesRef.current, display: displayRef.current };
-      const stallScale: ExpressionSpecification = [
-        "interpolate",
-        ["linear"],
-        ["zoom"],
-        MAX_ZOOM + SHOP_MARKER_LOD_OFFSETS.stall,
-        0.6,
-        MAX_ZOOM,
-        1,
-      ];
       // 写真入りは通常の屋台より大きいので、引いたときに隣と重ならないよう倍率を絞る
       const photoStallScale = buildPhotoStallScale({
         maxZoom: MAX_ZOOM,
@@ -1003,6 +1074,8 @@ function MapViewMapLibre({
         spacingPxAtMax: SHOP_COLUMN_SPACING_METERS * getPixelsPerMeter(MAX_ZOOM - ZOOM_OFFSET),
         stallLodOffset: SHOP_MARKER_LOD_OFFSETS.stall,
         photoLodOffset: SHOP_MARKER_LOD_OFFSETS.photo,
+        detailOffset: DETAIL_ZOOM - MAX_ZOOM,
+        detailScale: DETAIL_STALL_SCALE,
       });
       map.addLayer({
         id: LAYER_SHOPS,
@@ -1055,31 +1128,62 @@ function MapViewMapLibre({
       // 写真のほう。日曜市には店名を持たない店も多い。全店に出すと、道の外側へ伸びた札が
       // 画面端で切れる（390px 幅では中心から 238px 必要なのに 195px しかない）うえ、
       // 静止時の地図が文字で埋まる。探しているあいだは ShopScanCards が写真ごと前に出す。
-      map.addLayer({
-        id: LAYER_SHOP_NAMEPLATES,
-        type: "symbol",
-        source: SRC_SHOPS,
-        minzoom: MAX_ZOOM + SHOP_MARKER_LOD_OFFSETS.nameplate,
-        // 検索 / AI の結果は ShopScanCards がカードで名前ごと出すので、ここでは出さない
-        // （同じ店の名前が木札とカードで二重になる）
-        filter: ["match", ["get", "state"], ["selected"], true, false],
-        layout: {
-          "text-field": ["get", "name"],
-          "text-font": TEXT_FONT,
-          "text-size": 11,
-          "text-max-width": 9,
-          "text-anchor": ["case", ["==", ["get", "side"], "north"], "left", "right"],
-          "text-offset": ["case", ["==", ["get", "side"], "north"], ["literal", [3.2, -2.4]], ["literal", [-3.2, -2.4]]],
-          "text-rotation-alignment": "viewport",
-          "text-pitch-alignment": "viewport",
-          "icon-image": IMG_NAMEPLATE,
-          "icon-text-fit": "both",
-          "icon-text-fit-padding": [3, 8, 3, 8],
-          "icon-rotation-alignment": "viewport",
-          "symbol-sort-key": ["case", ["==", ["get", "state"], "selected"], 0, 1],
-        },
-        paint: { "text-color": "#4a3826" },
-      });
+      //
+      // 札は屋台の横（道の外側）に添える。一段先では屋台が大きくなるので、離す量も屋台と同じだけ広げる
+      // （文字の大きさは変えない）。text-offset は layout なのでタイルのズーム（整数）でしか変わらず、
+      // 寄る途中で札が写真にかぶる。描画のたびに計算される text-translate / icon-translate で広げる。
+      // translate は店ごとに変えられないので、北側・南側で層を分ける
+      for (const side of ["north", "south"] as const) {
+        const dir = side === "north" ? 1 : -1;
+        const extraPx: [number, number] = [
+          NAMEPLATE_OFFSET_EM[0] * NAMEPLATE_TEXT_SIZE * dir * (DETAIL_STALL_SCALE - 1),
+          NAMEPLATE_OFFSET_EM[1] * NAMEPLATE_TEXT_SIZE * (DETAIL_STALL_SCALE - 1),
+        ];
+        const translate: ExpressionSpecification = [
+          "interpolate",
+          ["linear"],
+          ["zoom"],
+          MAX_ZOOM,
+          ["literal", [0, 0]],
+          DETAIL_ZOOM,
+          ["literal", extraPx],
+        ];
+        map.addLayer({
+          id: side === "north" ? LAYER_SHOP_NAMEPLATES : `${LAYER_SHOP_NAMEPLATES}-south`,
+          type: "symbol",
+          source: SRC_SHOPS,
+          minzoom: MAX_ZOOM + SHOP_MARKER_LOD_OFFSETS.nameplate,
+          // 検索 / AI の結果は ShopScanCards がカードで名前ごと出すので、ここでは出さない
+          // （同じ店の名前が木札とカードで二重になる）
+          filter: [
+            "all",
+            ["match", ["get", "state"], ["selected"], true, false],
+            side === "north" ? ["==", ["get", "side"], "north"] : ["!=", ["get", "side"], "north"],
+          ],
+          layout: {
+            "text-field": ["get", "name"],
+            "text-font": TEXT_FONT,
+            "text-size": NAMEPLATE_TEXT_SIZE,
+            "text-max-width": 9,
+            "text-anchor": side === "north" ? "left" : "right",
+            "text-offset": [NAMEPLATE_OFFSET_EM[0] * dir, NAMEPLATE_OFFSET_EM[1]],
+            "text-rotation-alignment": "viewport",
+            "text-pitch-alignment": "viewport",
+            "icon-image": IMG_NAMEPLATE,
+            "icon-text-fit": "both",
+            "icon-text-fit-padding": [3, 8, 3, 8],
+            "icon-rotation-alignment": "viewport",
+            "symbol-sort-key": ["case", ["==", ["get", "state"], "selected"], 0, 1],
+          },
+          paint: {
+            "text-color": "#4a3826",
+            "text-translate": translate,
+            "text-translate-anchor": "viewport",
+            "icon-translate": translate,
+            "icon-translate-anchor": "viewport",
+          },
+        });
+      }
 
       // お気に入りバッジ（photo LOD 以上で、写真入りの屋台の角に。屋台と同じ倍率で動かす）
       map.addLayer({
@@ -1356,7 +1460,7 @@ function MapViewMapLibre({
           isTracking={isTracking}
           onToggleTracking={toggleTracking}
           minZoom={minZoom - ZOOM_OFFSET}
-          maxZoom={MAX_ZOOM - ZOOM_OFFSET}
+          maxZoom={DETAIL_ZOOM - ZOOM_OFFSET}
           zoomSliderVisible={zoomSliderVisible}
           onZoomSliderInteract={keepZoomSliderAlive}
           trackingButtonTop={trackingButtonTop}

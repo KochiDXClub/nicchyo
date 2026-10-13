@@ -5,12 +5,48 @@ import {
   MAX_CARD_HEIGHT,
   MIN_CARD_HEIGHT,
   getCardHeight,
+  getCardWidth,
   hasCardCollision,
   type CardRect,
 } from "./ShopScanCards";
 import { quantizeRoadZoom } from "./RoadOverlay";
+import { DETAIL_STALL_SCALE, SHOP_COLUMN_SPACING_METERS, getDetailStallScale } from "../config/displayConfig";
+import { getPixelsPerMeter } from "../config/roadStyle";
 
 describe("ShopScanCards logic", () => {
+  describe("最大ズームより先の一段では、屋台と同じ倍率で大きくする", () => {
+    // Leaflet 換算: 屋台が等倍になる最大ズームは 21、一段先は 22
+    const MAX = 21;
+
+    it("一段先では幅も高さの上限も屋台と同じ倍率になり、屋台の写真より小さくならない", () => {
+      const scale = getDetailStallScale(MAX + 1, MAX);
+      expect(scale).toBe(DETAIL_STALL_SCALE);
+      expect(getCardWidth(scale)).toBe(CARD_WIDTH * DETAIL_STALL_SCALE);
+      expect(getCardHeight(MAX + 1, scale)).toBe(MAX_CARD_HEIGHT * DETAIL_STALL_SCALE);
+      // 写真入りの屋台（等倍で高さ 84px）も一段先で 2 倍になる
+      expect(getCardHeight(MAX + 1, scale)).toBeGreaterThanOrEqual(84 * DETAIL_STALL_SCALE);
+    });
+
+    it("最大ズームまでは従来どおり（倍率 1）", () => {
+      for (const z of [20.5, 21]) {
+        const scale = getDetailStallScale(z, MAX);
+        expect(scale).toBe(1);
+        expect(getCardWidth(scale)).toBe(CARD_WIDTH);
+        expect(getCardHeight(z, scale)).toBe(getCardHeight(z));
+      }
+    });
+
+    it("途中のズームでも、隣の店のカードとは重ならない（店舗間隔から隙間を引いた高さ＋許容の範囲）", () => {
+      for (let z = MAX; z <= MAX + 1; z += 0.1) {
+        const scale = getDetailStallScale(z, MAX);
+        const spacing = SHOP_COLUMN_SPACING_METERS * getPixelsPerMeter(z);
+        // 4px 刻みの丸めで最大 2px はみ出す。それも重なりの許容（COLLISION_TOLERANCE_PX）の内に収まる
+        expect(getCardHeight(z, scale)).toBeLessThanOrEqual(spacing - 8 + 2);
+        expect(2).toBeLessThanOrEqual(COLLISION_TOLERANCE_PX);
+      }
+    });
+  });
+
   describe("getCardHeight (ズームに応じたカード高さの計算と量子化)", () => {
     it("下限 (MIN_CARD_HEIGHT: 56) と上限 (MAX_CARD_HEIGHT: 88) の範囲内に収まる", () => {
       // 遠景（引いたズーム）

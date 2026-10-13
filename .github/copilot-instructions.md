@@ -10,7 +10,6 @@
 - 起動（ビルド後）: npm run start
 - リント: npm run lint
 - テスト（プロジェクト既定）: npm run test  -> 実体は `vitest run --passWithNoTests`
-- Prisma: npm run prisma:generate / npm run prisma:migrate
 
 単一テストの実行方法（既存のテストがある場合）:
 - ファイル指定で実行: npx vitest run path/to/file.test.ts
@@ -39,7 +38,6 @@
 - PR 前: `npm run lint`、`npm test`、`npm run build` を実行する。
 - **コード健康診断（必須）**: PR 前に必ず `npm run code-health:diff` を実行し、出力された `.code-health/diff.md` を PR 本文の「## 共通基盤チェック」に貼る。悪化（⚠️）があれば修正する（詳細は `AGENTS.md` / `docs/CODE_HEALTH.md`）。
 - テスト追加時は vitest 慣例に従う（*.test.ts[x]）。
-- Prisma 関連コマンドは package.json に定義済み（generate / migrate）。
 
 ---
 
