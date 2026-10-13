@@ -93,11 +93,6 @@ export async function fetchMyProductNames(vendorId: string): Promise<string[]> {
 
 // ─── 商品検索ログ ────────────────────────────────────────────
 
-export async function recordProductSearch(keyword: string, resultCount: number): Promise<void> {
-  const supabase = createClient();
-  await supabase.from("product_search_logs").insert({ keyword, result_count: resultCount });
-}
-
 export async function fetchProductSearchTrends(
   myProductNames: string[]
 ): Promise<SearchKeywordTrend[]> {
