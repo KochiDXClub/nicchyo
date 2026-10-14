@@ -9,6 +9,7 @@ import LandingShop from "./_landing/LandingShop";
 import LandingNichiyosan from "./_landing/LandingNichiyosan";
 import LandingMessage from "./_landing/LandingMessage";
 import { pickLandingShops } from "./_landing/pickLandingShops";
+import LandingGrandma from "./_landing/LandingGrandma";
 
 const title = "nicchyo（ニッチョ）| 高知高専生が開発した日曜市のデジタルマップ";
 // 日曜市の数字（約1.3km・およそ300の店）はマップの案内と同じシートの文言から作る（太字の印は外す）
@@ -59,6 +60,8 @@ export default async function HomePage() {
         <LandingNichiyosan />
         <LandingMessage />
       </main>
+      {/* ページを一緒に歩くにちよさん。各セクションの着地点に降り、合間は右下でひとこと言う */}
+      <LandingGrandma farewell={siteText("mapIntro.end.comment")} />
     </PageShell>
   );
 }

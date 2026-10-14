@@ -4,6 +4,7 @@ import { PageContainer } from "@/components/ui";
 import { formatShopIdToCode } from "@/lib/shops/route";
 import type { Shop } from "../map/data/shops";
 import LandingShopReveal from "./LandingShopReveal";
+import GrandmaPerch from "./GrandmaPerch";
 import SectionHeading from "./SectionHeading";
 
 /**
@@ -15,7 +16,7 @@ export default function LandingShop({ shop }: { shop: Shop | null }) {
   const code = formatShopIdToCode(shop.id);
 
   return (
-    <section aria-labelledby="landing-shop" className="mt-24">
+    <section aria-labelledby="landing-shop" data-grandma-section="shop" className="mt-24">
       <PageContainer width="wide">
         <SectionHeading id="landing-shop" label="SHOPS">
           お店をのぞく
@@ -54,7 +55,8 @@ export default function LandingShop({ shop }: { shop: Shop | null }) {
               </Link>
             </div>
           </div>
-          <div>
+          <div className="relative">
+            <GrandmaPerch section="shop" className="absolute -top-20 right-2 z-[1]" />
             <LandingShopReveal shop={shop} />
           </div>
         </div>

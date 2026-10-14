@@ -5,6 +5,7 @@ import { PageContainer, Surface, buttonClass } from "@/components/ui";
 import { cn } from "@/lib/utils/cn";
 import { HIGHLIGHTS, MARKET_FACTS } from "./content";
 import type { LandingShopPhoto } from "./pickLandingShops";
+import GrandmaPerch from "./GrandmaPerch";
 import SectionHeading from "./SectionHeading";
 
 /**
@@ -15,7 +16,7 @@ import SectionHeading from "./SectionHeading";
  */
 export default function LandingHighlights({ shopPhotos }: { shopPhotos: LandingShopPhoto[] }) {
   return (
-    <section aria-labelledby="landing-highlights" className="mt-24">
+    <section aria-labelledby="landing-highlights" data-grandma-section="highlights" className="mt-24">
       <PageContainer width="wide">
         <SectionHeading id="landing-highlights" label="HIGHLIGHTS">
           日曜市のいいところ
@@ -43,6 +44,7 @@ export default function LandingHighlights({ shopPhotos }: { shopPhotos: LandingS
                     reverse ? "md:-mr-[6%]" : "md:-ml-[6%]"
                   )}
                 >
+                  {index === 0 && <GrandmaPerch section="highlights" className="absolute -top-[5.5rem] right-4" />}
                   <p className="text-[0.7rem] font-bold tracking-[0.3em] text-amber-700">{item.label}</p>
                   <h3 className="mt-2 font-display text-xl leading-snug text-nicchyo-ink">{item.title}</h3>
                   <p className="mt-3 text-sm leading-loose text-nicchyo-ink/70">{item.body}</p>

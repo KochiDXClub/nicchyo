@@ -3,6 +3,7 @@ import Link from "next/link";
 import { ArrowRight, Award } from "lucide-react";
 import { PageContainer } from "@/components/ui";
 import { PHOTOS } from "./content";
+import GrandmaPerch from "./GrandmaPerch";
 import SectionHeading from "./SectionHeading";
 
 /**
@@ -11,7 +12,7 @@ import SectionHeading from "./SectionHeading";
  */
 export default function LandingAbout() {
   return (
-    <section aria-labelledby="landing-about" className="mt-24">
+    <section aria-labelledby="landing-about" data-grandma-section="about" className="mt-24">
       <PageContainer width="wide">
         <SectionHeading id="landing-about" label="ABOUT">
           nicchyoとは
@@ -26,7 +27,8 @@ export default function LandingAbout() {
             sizes="(min-width: 768px) 34rem, 100vw"
             className="-mx-5 aspect-[4/3] w-[calc(100%+2.5rem)] max-w-none object-cover sm:mx-0 sm:w-full sm:rounded-card sm:shadow-card"
           />
-          <div>
+          <div className="relative">
+            <GrandmaPerch section="about" className="absolute -top-20 right-0" />
             <p className="font-display text-xl leading-relaxed text-nicchyo-ink sm:text-2xl">
               高知高専生がつくった、
               <br />

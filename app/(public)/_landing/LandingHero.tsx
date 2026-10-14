@@ -4,6 +4,7 @@ import { MapPin, MessageCircle } from "lucide-react";
 import { Surface, buttonClass } from "@/components/ui";
 import { siteTextWithEmphasis } from "@/lib/siteCopy";
 import { PHOTOS } from "./content";
+import GrandmaPerch from "./GrandmaPerch";
 
 /**
  * 最初の一画面。写真を画面いっぱいに置き、文字は写真に重ねず白い面に載せる
@@ -22,7 +23,7 @@ export default function LandingHero() {
   } = getImageProps({ ...common, src: PHOTOS.overview.src, width: PHOTOS.overview.width, height: PHOTOS.overview.height });
 
   return (
-    <section aria-labelledby="landing-title" className="relative">
+    <section aria-labelledby="landing-title" data-grandma-section="hero" className="relative">
       <div className="relative h-[calc(100svh-7rem)] min-h-[28rem] overflow-hidden bg-nicchyo-ink/10 md:h-[min(100svh,54rem)]">
         <picture>
           <source media="(min-width: 768px)" srcSet={wideSrcSet} />
@@ -45,6 +46,8 @@ export default function LandingHero() {
       </div>
 
       <div className="relative z-[1] mx-4 -mt-24 md:absolute md:bottom-10 md:right-10 md:mx-0 md:mt-0 md:w-[26rem]">
+        {/* にちよさんは、名前の面の上の端に腰かけて待っている */}
+        <GrandmaPerch section="hero" className="absolute -top-[5.5rem] right-4" />
         <Surface elevation="lifted" padding="lg">
           <h1 id="landing-title" className="text-nicchyo-ink">
             <span className="block text-sm font-bold tracking-wide text-amber-700">高知高専生が開発した</span>

@@ -3,12 +3,13 @@ import Link from "next/link";
 import { MapPin } from "lucide-react";
 import { PageContainer, Surface, buttonClass } from "@/components/ui";
 import { MESSAGE, PHOTOS } from "./content";
+import GrandmaPerch from "./GrandmaPerch";
 import SectionHeading from "./SectionHeading";
 
 /** メッセージ。開発チームのことばと、最後にもう一度だけ地図への入口を置く */
 export default function LandingMessage() {
   return (
-    <section aria-labelledby="landing-message" className="mt-24">
+    <section aria-labelledby="landing-message" data-grandma-section="message" className="mt-24">
       <PageContainer width="wide">
         <SectionHeading id="landing-message" label="MESSAGE">
           メッセージ
@@ -25,7 +26,8 @@ export default function LandingMessage() {
           className="h-72 w-full object-cover sm:h-96 md:h-[28rem]"
         />
         <PageContainer width="reading" className="relative -mt-20 sm:-mt-28">
-          <Surface padding="lg" className="sm:px-10 sm:py-10">
+          <Surface padding="lg" className="relative sm:px-10 sm:py-10">
+            <GrandmaPerch section="message" className="absolute -top-[5.5rem] right-6" />
             <p className="font-display text-2xl leading-relaxed text-nicchyo-ink sm:text-[1.75rem]">
               {MESSAGE.title.map((line) => (
                 <span key={line} className="block">
