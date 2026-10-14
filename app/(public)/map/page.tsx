@@ -11,8 +11,8 @@ import type { Landmark } from './types/landmark';
 import { withOptimizedLandmarkImage } from './utils/landmarkImages';
 import type { MapRoute } from './types/mapRoute';
 import { fetchMapRouteFromDb, getFallbackMapRoute } from './services/mapRouteDb';
-import { SITE_URL } from '@/lib/constants';
 import { safeJsonLd } from '@/lib/utils/jsonLd';
+import { SUNDAY_MARKET_JSON_LD } from '@/lib/seo/sundayMarketJsonLd';
 import { fetchMapFeatureFlags } from '@/lib/mapFeatureFlags.server';
 import { fetchMapViewSettings } from '@/lib/map/mapViewSettings.server';
 
@@ -28,33 +28,6 @@ export const metadata: Metadata = {
   },
 };
 
-const sundayMarketJsonLd = {
-  "@context": "https://schema.org",
-  "@type": "Event",
-  name: "高知日曜市",
-  description:
-    "高知市追手筋で毎週日曜日に開催される大規模な路上市場。約300店舗が農産物・工芸品・骨董など多彩な品を並べます。",
-  eventSchedule: {
-    "@type": "Schedule",
-    byDay: "https://schema.org/Sunday",
-  },
-  location: {
-    "@type": "Place",
-    name: "追手筋（高知城前〜追手筋東端）",
-    address: {
-      "@type": "PostalAddress",
-      streetAddress: "追手筋",
-      addressLocality: "高知市",
-      addressRegion: "高知県",
-      addressCountry: "JP",
-    },
-  },
-  organizer: {
-    "@type": "Organization",
-    name: "nicchyo（ニッチョ）",
-    url: SITE_URL,
-  },
-};
 
 export default async function MapPage() {
   const cookieStore = await cookies();
@@ -118,7 +91,7 @@ export default async function MapPage() {
     <>
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: safeJsonLd(sundayMarketJsonLd) }}
+        dangerouslySetInnerHTML={{ __html: safeJsonLd(SUNDAY_MARKET_JSON_LD) }}
       />
       {/* 地図チャンクの遅延読み込み中もローディング画面を切らさない */}
       <Suspense fallback={<MapLoadingOverlay minStage="page" />}>

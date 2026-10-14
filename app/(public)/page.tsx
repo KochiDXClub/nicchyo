@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { PageShell } from "@/components/ui";
 import { siteText } from "@/lib/siteCopy";
+import { SUNDAY_MARKET_JSON_LD } from "@/lib/seo/sundayMarketJsonLd";
+import { safeJsonLd } from "@/lib/utils/jsonLd";
 import { fetchPublicShops } from "./map/services/shopCache";
 import LandingHero from "./_landing/LandingHero";
 import LandingAbout from "./_landing/LandingAbout";
@@ -51,6 +53,8 @@ export default async function HomePage() {
   return (
     // 下のナビ（サブページでは「マップにもどる」の帯）は出さない。ここは入口なので「もどる」先が無い
     <PageShell bottomNav={false}>
+      {/* 日曜市の開催情報（/map と同じもの）。検索結果に開催日と場所を出してもらう */}
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: safeJsonLd(SUNDAY_MARKET_JSON_LD) }} />
       <main>
         <LandingHero />
         <LandingAbout />
