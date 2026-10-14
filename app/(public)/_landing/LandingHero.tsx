@@ -1,7 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { MapPin, MessageCircle } from "lucide-react";
-import { PageContainer, buttonClass } from "@/components/ui";
+import { PageContainer, Surface, buttonClass } from "@/components/ui";
 import { siteTextWithEmphasis } from "@/lib/siteCopy";
 
 /**
@@ -14,7 +14,7 @@ export default function LandingHero() {
       <PageContainer width="wide" className="grid items-center gap-8 md:grid-cols-[1fr_1.1fr] md:gap-10">
         <div className="md:order-2">
           <div className="relative mx-auto max-w-md md:max-w-none">
-            <div className="-rotate-2 rounded-card bg-white p-2 shadow-lift ring-1 ring-line">
+            <Surface elevation="lifted" padding="none" className="-rotate-2 p-2">
               <Image
                 src="/images/home-hero.jpg"
                 alt="野菜や品物が並ぶ、日曜市の屋台の通り"
@@ -24,7 +24,7 @@ export default function LandingHero() {
                 sizes="(min-width: 768px) 34rem, 100vw"
                 className="h-auto w-full rounded-btn object-cover"
               />
-            </div>
+            </Surface>
             <p className="absolute -left-2 -top-4 flex h-20 w-20 rotate-[-12deg] flex-col items-center justify-center rounded-chip bg-nicchyo-accent text-center font-display leading-tight text-nicchyo-ink shadow-pop sm:h-24 sm:w-24">
               <span className="text-[0.7rem] sm:text-xs">毎週</span>
               <span className="text-xl sm:text-2xl">日曜</span>

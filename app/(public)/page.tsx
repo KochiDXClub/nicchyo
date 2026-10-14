@@ -1,21 +1,35 @@
 import type { Metadata } from "next";
 import { PageShell } from "@/components/ui";
+import { siteText } from "@/lib/siteCopy";
 import LandingHero from "./_landing/LandingHero";
 import LandingNichiyosan from "./_landing/LandingNichiyosan";
 import LandingFeatures from "./_landing/LandingFeatures";
 import LandingMarketInfo from "./_landing/LandingMarketInfo";
 import LandingClosing from "./_landing/LandingClosing";
 
-const description =
-  "高知の日曜市（毎週日曜・追手筋）をはじめてでも楽しめるデジタルマップ。およそ300の店を地図で探せて、AIのにちよさんに食べ歩きや回り方を相談できます。";
+const title = "nicchyo（ニッチョ）| 高知・日曜市のマップとAI案内";
+// 日曜市の数字（約1.3km・およそ300の店）はマップの案内と同じシートの文言から作る（太字の印は外す）
+const description = `${siteText("mapIntro.lead").replaceAll("**", "")}はじめてでも地図で店を探せて、AIのにちよさんに食べ歩きや回り方を相談できるデジタルマップです。`;
+const ogImage = { url: "/og-default.png", width: 1200, height: 630, alt: "nicchyo – 高知の日曜市マップ" };
 
 export const metadata: Metadata = {
   // トップはサイト名を先頭に出す（各ページの「%s | nicchyo」ではなく、検索結果でいちばん目に入る形）
-  title: { absolute: "nicchyo（ニッチョ）| 高知・日曜市のマップとAI案内" },
+  title: { absolute: title },
   description,
+  // openGraph・twitter は丸ごと上書きになる（layout と深くは混ざらない）ので、画像なども書き直す
   openGraph: {
-    title: "nicchyo（ニッチョ）| 高知・日曜市のマップとAI案内",
+    type: "website",
+    locale: "ja_JP",
+    siteName: "nicchyo（ニッチョ）",
+    title,
     description,
+    images: [ogImage],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title,
+    description,
+    images: [ogImage.url],
   },
 };
 

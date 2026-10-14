@@ -27,7 +27,7 @@ const VENDOR_ONLY: readonly VisibilityRole[] = ["vendor"];
 
 export const PAGE_REGISTRY: readonly PageRegistryEntry[] = [
   // ── 来訪者向け ─────────────────────────────────────────────
-  { path: "/map", label: "マップ", group: "来訪者向け", description: "ホーム。常に公開", lockedPublic: true },
+  { path: "/map", label: "マップ", group: "来訪者向け", description: "常に公開", lockedPublic: true },
   {
     path: "/facilities",
     label: "おでかけサポート",

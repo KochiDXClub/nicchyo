@@ -9,7 +9,7 @@ export default function LandingClosing() {
   return (
     <section aria-labelledby="landing-closing" className="mt-20">
       <PageContainer width="wide">
-        <Surface elevation="lifted" padding="lg" className="flex flex-col items-center gap-5 text-center sm:flex-row sm:text-left">
+        <Surface padding="lg" className="flex flex-col items-center gap-5 text-center sm:flex-row sm:text-left">
           <Image
             src="/images/obaasan_transparent.webp"
             alt=""

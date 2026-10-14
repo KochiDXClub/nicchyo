@@ -3,6 +3,7 @@ import Link from "next/link";
 import { CalendarDays, CircleHelp } from "lucide-react";
 import { PageContainer, Surface, buttonClass } from "@/components/ui";
 import { MARKET_FACTS } from "./content";
+import SectionHeading from "./SectionHeading";
 
 /**
  * 日曜市そのものの紹介。検索から来た人が「日曜市とは」を読めるよう、文字で書いておく
@@ -32,12 +33,11 @@ export default function LandingMarketInfo() {
         </div>
 
         <div>
-          <p className="text-sm font-bold tracking-wide text-amber-700">はじめての方へ</p>
-          <h2 id="landing-market" className="mt-2 font-display text-2xl leading-snug text-nicchyo-ink sm:text-3xl">
+          <SectionHeading id="landing-market" eyebrow="はじめての方へ">
             日曜市って、
             <br />
             どんなところ？
-          </h2>
+          </SectionHeading>
           <Surface as="dl" elevation="flat" className="mt-5 divide-y divide-line">
             {MARKET_FACTS.map((fact) => (
               <div key={fact.term} className="flex gap-4 py-3 first:pt-0 last:pb-0">

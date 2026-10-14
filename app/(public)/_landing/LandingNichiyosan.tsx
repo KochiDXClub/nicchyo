@@ -3,6 +3,7 @@ import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { PageContainer, Surface } from "@/components/ui";
 import { siteText, type SiteTextKey } from "@/lib/siteCopy";
+import SectionHeading from "./SectionHeading";
 
 /**
  * 相談の見本。マップの案内（/map?panel=intro）と同じ受け答えをシートから読むので、
@@ -27,27 +28,26 @@ export default function LandingNichiyosan() {
             sizes="10rem"
             className="w-32 shrink-0 sm:w-40"
           />
-          <div className="relative mb-16 rounded-card bg-white px-4 py-3 shadow-card ring-1 ring-line">
+          <Surface padding="none" className="relative mb-16 px-4 py-3">
             <p className="font-display text-lg leading-snug text-nicchyo-ink">
               あんた、ちょっと
               <br />
               寄っていきや〜！
             </p>
-            {/* 吹き出しのしっぽ。にちよさんの口元へ向ける */}
+            {/* 吹き出しのしっぽ。にちよさんの口元へ向ける（縁は左と下の border で描く。ring は clip-path で消えるため） */}
             <span
               aria-hidden
-              className="absolute -left-1.5 bottom-4 h-3 w-3 rotate-45 bg-white ring-1 ring-line [clip-path:polygon(0_0,0_100%,100%_100%)]"
+              className="absolute -left-1.5 bottom-4 h-3 w-3 rotate-45 border-b border-l border-line bg-white"
             />
-          </div>
+          </Surface>
         </div>
 
         <div>
-          <p className="text-sm font-bold tracking-wide text-amber-700">高知発のおせっかいAI</p>
-          <h2 id="landing-nichiyosan" className="mt-2 font-display text-2xl leading-snug text-nicchyo-ink sm:text-3xl">
+          <SectionHeading id="landing-nichiyosan" eyebrow="高知発のおせっかいAI">
             案内するがは、
             <br />
             にちよさん。
-          </h2>
+          </SectionHeading>
           <p className="mt-4 text-base leading-relaxed text-nicchyo-ink/70">
             地図の上でも、相談の画面でも。日曜市の歩き方を、土佐ことばでおせっかいに教えてくれます。
             はじめての日曜市でも、にちよさんがいれば心強いはず。

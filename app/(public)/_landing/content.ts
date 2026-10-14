@@ -14,8 +14,6 @@ export type LandingFeature = {
   body: string;
   href: string;
   cta: string;
-  /** カードの上に出す告知ポスター。見出しと同じ内容なので alt は付けない */
-  poster: string;
 };
 
 export const LANDING_FEATURES: LandingFeature[] = [
@@ -26,7 +24,6 @@ export const LANDING_FEATURES: LandingFeature[] = [
     body: "写真つきの地図で、気になる店をひらいて中をのぞけます。現在地も出るので、歩きながら使えます。",
     href: "/map",
     cta: "マップをひらく",
-    poster: "/images/home/posters/HomePagePoster4.webp",
   },
   {
     id: "consult",
@@ -35,7 +32,6 @@ export const LANDING_FEATURES: LandingFeature[] = [
     body: "おすすめの食べ歩きや、はじめての回り方。日曜市のことなら、土佐ことばで答えてくれます。",
     href: "/consult",
     cta: "相談してみる",
-    poster: "/images/home/posters/HomePagePoster2.webp",
   },
   {
     id: "search",
@@ -44,7 +40,6 @@ export const LANDING_FEATURES: LandingFeature[] = [
     body: "野菜、刃物、植木、食べ歩き。見たい店だけを一覧にして、地図で場所を確かめられます。",
     href: "/search",
     cta: "お店をさがす",
-    poster: "/images/home/posters/HomePagePoster5.webp",
   },
 ];
 
