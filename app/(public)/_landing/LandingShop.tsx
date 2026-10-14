@@ -3,7 +3,6 @@ import { ArrowRight } from "lucide-react";
 import { Badge, PageContainer } from "@/components/ui";
 import { SAMPLE_SHOP } from "./content";
 import LandingShopReveal from "./LandingShopReveal";
-import GrandmaFigure from "./GrandmaFigure";
 import SectionHeading from "./SectionHeading";
 
 /**
@@ -44,7 +43,6 @@ export default function LandingShop() {
             </div>
           </div>
           <div className="relative">
-            <GrandmaFigure className="absolute -top-20 right-2 z-[1]" />
             <Badge variant="solid" className="absolute -top-3 left-4 z-[1]">
               見本
             </Badge>

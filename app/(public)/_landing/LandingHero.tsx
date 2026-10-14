@@ -4,7 +4,6 @@ import { MapPin, MessageCircle } from "lucide-react";
 import { buttonClass } from "@/components/ui";
 import { siteTextWithEmphasis } from "@/lib/siteCopy";
 import { PHOTOS } from "./content";
-import GrandmaFigure from "./GrandmaFigure";
 import RevealOnScroll from "./RevealOnScroll";
 
 /**
@@ -48,9 +47,7 @@ export default function LandingHero() {
       </div>
 
       <div className="absolute inset-x-0 bottom-0 px-5 pb-[calc(2rem+var(--safe-bottom,0px))] md:px-10 md:pb-12">
-        <div className="relative mx-auto max-w-[64rem]">
-          {/* にちよさんは、名前のすぐ上で待っている */}
-          <GrandmaFigure className="absolute -top-24 right-0" />
+        <div className="mx-auto max-w-[64rem]">
           <RevealOnScroll when="enter">
             <h1 id="landing-title" className="text-white">
               <span className="block text-sm font-bold tracking-wide text-white/85">高知高専生が開発した</span>

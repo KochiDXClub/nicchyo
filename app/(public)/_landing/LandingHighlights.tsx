@@ -3,7 +3,6 @@ import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { PageContainer } from "@/components/ui";
 import { HIGHLIGHTS, MARKET_FACTS } from "./content";
-import GrandmaFigure from "./GrandmaFigure";
 import type { LandingShopPhoto } from "./pickLandingShops";
 import RevealOnScroll from "./RevealOnScroll";
 import SectionHeading from "./SectionHeading";
@@ -25,7 +24,7 @@ export default function LandingHighlights({ shopPhotos }: { shopPhotos: LandingS
       </PageContainer>
 
       <PageContainer width="wide" className="mt-10 space-y-3 px-0 sm:space-y-6 sm:px-6">
-        {HIGHLIGHTS.map((item, index) => (
+        {HIGHLIGHTS.map((item) => (
           <article key={item.label} className="relative overflow-hidden sm:rounded-card">
             <Image
               src={item.photo.src}
@@ -36,7 +35,6 @@ export default function LandingHighlights({ shopPhotos }: { shopPhotos: LandingS
               className="aspect-[4/5] w-full object-cover sm:aspect-[16/10] md:aspect-[16/9]"
             />
             <div aria-hidden className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/15 to-transparent" />
-            {index === 0 && <GrandmaFigure className="absolute right-4 top-4" />}
             <div className="absolute inset-x-0 bottom-0 p-6 sm:p-10">
               <RevealOnScroll className="max-w-lg text-white">
                 <p className="text-[0.7rem] font-bold tracking-[0.3em] text-white/80">{item.label}</p>
