@@ -145,7 +145,7 @@ export async function proxy(request: NextRequest) {
     const visibilityPath = pathname.replace(/^\/shops(\d{3})$/, "/shops/$1");
     const visibility = resolvePageVisibility(visibilityPath, visibilityRole, siteSettings.pageVisibility);
     if (visibility.state === "private") {
-      // リダイレクト先自身が非公開ならループになるためホームへ逃がす
+      // リダイレクト先自身が非公開ならループになるためマップへ逃がす（常に公開）
       const target = visibility.redirectTo;
       const targetVisible =
         resolvePageVisibility(target, visibilityRole, siteSettings.pageVisibility).state !== "private";

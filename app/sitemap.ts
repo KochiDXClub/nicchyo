@@ -38,6 +38,7 @@ async function fetchPageVisibility(): Promise<PageVisibilitySettings> {
 // lastModified は載せない: 毎回「今」を入れると更新日として信用されなくなるため。
 // /news は /calendar へ恒久リダイレクトしているので載せない（リダイレクト先を載せる）
 const STATIC_PAGES: MetadataRoute.Sitemap = [
+  { url: `${SITE_URL}/`, changeFrequency: "monthly", priority: 1.0 },
   { url: `${SITE_URL}/map`, changeFrequency: "daily", priority: 1.0 },
   { url: `${SITE_URL}/search`, changeFrequency: "weekly", priority: 0.9 },
   { url: `${SITE_URL}/calendar`, changeFrequency: "weekly", priority: 0.7 },

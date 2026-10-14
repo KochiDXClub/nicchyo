@@ -36,6 +36,12 @@ describe("sitemap", () => {
     expect(urls.some((u) => u.includes("/shops/"))).toBe(false);
   });
 
+  it("トップページ（紹介ページ）を載せる", async () => {
+    fetchPublicShops.mockResolvedValue([]);
+    const urls = (await sitemap()).map((entry) => entry.url);
+    expect(urls.some((u) => /^https?:\/\/[^/]+\/$/.test(u))).toBe(true);
+  });
+
   it("リダイレクトされる /news は載せず、リダイレクト先や活動記録を載せる", async () => {
     fetchPublicShops.mockResolvedValue([]);
     const urls = (await sitemap()).map((entry) => entry.url);
