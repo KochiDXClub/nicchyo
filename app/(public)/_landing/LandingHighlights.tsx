@@ -1,16 +1,17 @@
 import Image from "next/image";
 import Link from "next/link";
-import { CalendarDays } from "lucide-react";
-import { PageContainer, Surface, buttonClass } from "@/components/ui";
-import { cn } from "@/lib/utils/cn";
+import { ArrowRight } from "lucide-react";
+import { PageContainer } from "@/components/ui";
 import { HIGHLIGHTS, MARKET_FACTS } from "./content";
-import type { LandingShopPhoto } from "./pickLandingShops";
 import GrandmaPerch from "./GrandmaPerch";
+import type { LandingShopPhoto } from "./pickLandingShops";
+import RevealOnScroll from "./RevealOnScroll";
 import SectionHeading from "./SectionHeading";
 
 /**
- * 日曜市の良いところ。写真が主役で、白い面の短い文を写真の端に重ねる。
- * 広い画面では写真の左右を交互にする。
+ * 日曜市のいいところ。写真が主役。文字は箱に入れず写真の下の方に重ね、
+ * 写真が画面の中央あたりまで来たところで出す（写真の下側だけ暗くして読めるようにする。
+ * 店のバナー ShopBannerHero と同じ幕）。
  *
  * その下に、出店者が登録した本物の店の写真を細長く並べる（3枚に満たなければ出さない）
  */
@@ -23,37 +24,29 @@ export default function LandingHighlights({ shopPhotos }: { shopPhotos: LandingS
         </SectionHeading>
       </PageContainer>
 
-      <div className="mt-10 space-y-14 md:space-y-20">
-        {HIGHLIGHTS.map((item, index) => {
-          const reverse = index % 2 === 1;
-          return (
-            <PageContainer key={item.label} width="wide" className="px-0 sm:px-6">
-              <article className={cn("relative md:flex md:items-center", reverse && "md:flex-row-reverse")}>
-                <Image
-                  src={item.photo.src}
-                  alt={item.photo.alt}
-                  width={item.photo.width}
-                  height={item.photo.height}
-                  sizes="(min-width: 768px) 40rem, 100vw"
-                  className="aspect-[4/3] w-full object-cover sm:rounded-card md:w-[64%] md:shadow-card"
-                />
-                <Surface
-                  padding="lg"
-                  className={cn(
-                    "relative mx-5 -mt-12 sm:mx-8 md:mx-0 md:mt-0 md:w-[42%] md:shrink-0",
-                    reverse ? "md:-mr-[6%]" : "md:-ml-[6%]"
-                  )}
-                >
-                  {index === 0 && <GrandmaPerch section="highlights" className="absolute -top-[5.5rem] right-4" />}
-                  <p className="text-[0.7rem] font-bold tracking-[0.3em] text-amber-700">{item.label}</p>
-                  <h3 className="mt-2 font-display text-xl leading-snug text-nicchyo-ink">{item.title}</h3>
-                  <p className="mt-3 text-sm leading-loose text-nicchyo-ink/70">{item.body}</p>
-                </Surface>
-              </article>
-            </PageContainer>
-          );
-        })}
-      </div>
+      <PageContainer width="wide" className="mt-10 space-y-3 px-0 sm:space-y-6 sm:px-6">
+        {HIGHLIGHTS.map((item, index) => (
+          <article key={item.label} className="relative overflow-hidden sm:rounded-card">
+            <Image
+              src={item.photo.src}
+              alt={item.photo.alt}
+              width={item.photo.width}
+              height={item.photo.height}
+              sizes="(min-width: 1024px) 64rem, 100vw"
+              className="aspect-[4/5] w-full object-cover sm:aspect-[16/10] md:aspect-[16/9]"
+            />
+            <div aria-hidden className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/15 to-transparent" />
+            {index === 0 && <GrandmaPerch section="highlights" className="absolute right-4 top-4" />}
+            <div className="absolute inset-x-0 bottom-0 p-6 sm:p-10">
+              <RevealOnScroll className="max-w-lg text-white">
+                <p className="text-[0.7rem] font-bold tracking-[0.3em] text-white/80">{item.label}</p>
+                <h3 className="mt-2 font-display text-2xl leading-snug sm:text-3xl">{item.title}</h3>
+                <p className="mt-3 text-sm leading-loose text-white/85 sm:text-base">{item.body}</p>
+              </RevealOnScroll>
+            </div>
+          </article>
+        ))}
+      </PageContainer>
 
       {shopPhotos.length >= 3 && (
         <div className="mt-16">
@@ -75,8 +68,8 @@ export default function LandingHighlights({ shopPhotos }: { shopPhotos: LandingS
                     sizes="11rem"
                     className="object-cover transition-transform duration-500 ease-out-soft group-hover:scale-105 motion-reduce:transition-none"
                   />
-                  {/* 名前は写真に重ねず、白い面に縦書きで載せる */}
-                  <span className="absolute bottom-2 right-2 bg-white px-1.5 py-2 text-xs font-bold tracking-[0.15em] text-nicchyo-ink shadow-card [writing-mode:vertical-rl]">
+                  <div aria-hidden className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/15 to-transparent" />
+                  <span className="absolute bottom-3 right-3 text-sm font-bold tracking-[0.15em] text-white [writing-mode:vertical-rl]">
                     {shop.name}
                   </span>
                 </Link>
@@ -86,23 +79,25 @@ export default function LandingHighlights({ shopPhotos }: { shopPhotos: LandingS
         </div>
       )}
 
+      {/* 開催の案内。箱に入れず、罫で区切るだけにする */}
       <PageContainer width="wide" className="mt-14">
-        <Surface elevation="flat" padding="lg" className="md:flex md:items-center md:gap-10">
-          <dl className="flex-1 divide-y divide-line">
-            {MARKET_FACTS.map((fact) => (
-              <div key={fact.term} className="flex gap-4 py-3 first:pt-0 last:pb-0">
-                <dt className="w-16 shrink-0 border-l-[3px] border-nicchyo-primary pl-2 text-sm font-bold text-nicchyo-ink">
-                  {fact.term}
-                </dt>
-                <dd className="text-sm leading-relaxed text-nicchyo-ink/70">{fact.detail}</dd>
-              </div>
-            ))}
-          </dl>
-          <Link href="/calendar" className={buttonClass({ variant: "quiet", className: "mt-5 w-full md:mt-0 md:w-auto" })}>
-            <CalendarDays aria-hidden className="h-4 w-4" />
-            開催カレンダー
-          </Link>
-        </Surface>
+        <dl className="divide-y divide-line-warm border-y border-line-warm">
+          {MARKET_FACTS.map((fact) => (
+            <div key={fact.term} className="flex gap-4 py-4">
+              <dt className="w-16 shrink-0 border-l-[3px] border-nicchyo-primary pl-2 text-sm font-bold text-nicchyo-ink">
+                {fact.term}
+              </dt>
+              <dd className="text-sm leading-relaxed text-nicchyo-ink/70">{fact.detail}</dd>
+            </div>
+          ))}
+        </dl>
+        <Link
+          href="/calendar"
+          className="mt-4 inline-flex items-center gap-1 text-sm font-bold text-amber-700 hover:text-amber-600"
+        >
+          開催カレンダーで、今週の開催を確かめる
+          <ArrowRight aria-hidden className="h-4 w-4" />
+        </Link>
       </PageContainer>
     </section>
   );

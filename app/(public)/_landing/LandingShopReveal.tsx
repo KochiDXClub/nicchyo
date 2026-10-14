@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils/cn";
 import type { Shop } from "../map/data/shops";
 
 /** 写真が見えてから情報が開きはじめるまで。写真を一度見てもらってから開く */
-const OPEN_DELAY_MS = 600;
+const OPEN_DELAY_MS = 300;
 /** 情報の行を順に出す間隔 */
 const ROW_STAGGER_MS = 140;
 
@@ -20,7 +20,8 @@ const ROW_STAGGER_MS = 140;
  * ShopDetailBanner そのものを使わないのは、開くと閲覧数を数えたり body にクラスを付けたりと、
  * ここで起こってほしくないことが走るため（はじめての方への案内の IntroShopSheet と同じ理由）。
  *
- * 動きを減らす設定のとき・IntersectionObserver が無いときは、最初から開いておく
+ * 動きを減らす設定のときも開くタイミングは同じで、動かさずに切り替える。
+ * IntersectionObserver が無いときは最初から開いておく
  */
 export default function LandingShopReveal({ shop }: { shop: Shop }) {
   const frameRef = useRef<HTMLDivElement>(null);
@@ -31,8 +32,7 @@ export default function LandingShopReveal({ shop }: { shop: Shop }) {
 
   useEffect(() => {
     const frame = frameRef.current;
-    const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
-    if (!frame || reduceMotion || typeof IntersectionObserver === "undefined") {
+    if (!frame || typeof IntersectionObserver === "undefined") {
       setOpen(true);
       return;
     }
@@ -43,8 +43,9 @@ export default function LandingShopReveal({ shop }: { shop: Shop }) {
         observer.disconnect();
         timer = window.setTimeout(() => setOpen(true), OPEN_DELAY_MS);
       },
-      // 写真が半分以上見えてから。スクロールの途中で開ききってしまわないように
-      { threshold: 0.5 }
+      // 写真が画面の中央あたり（上下 40% を除いた帯）まで来てから開く。
+      // 画面に入った直後に開くと、読む前に開ききってしまう
+      { rootMargin: "-40% 0px -40% 0px" }
     );
     observer.observe(frame);
     return () => {
