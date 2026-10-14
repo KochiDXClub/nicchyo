@@ -24,26 +24,13 @@ export function uploadedShopImage(shop: Shop): string | null {
 }
 
 /**
- * トップページで使う店を選ぶ。
- *
- * - showcase … 「お店の紹介」で開いて見せる1店。写真があり、商品も一言もそろっている店を優先する
- * - photos   … 写真の帯に並べる店（showcase とは重ねない）
- *
- * 並びは id 順に固定して、開くたびに変わらないようにする。
- * 写真のある店が無ければ showcase は null（作り物の店は出さない）
+ * 「出店しているお店から」の写真の帯に並べる店を選ぶ。
+ * 出店者が自分で写真を登録した店だけを、id 順（開くたびに変わらないように）で上限まで
  */
-export function pickLandingShops(shops: Shop[]): { showcase: Shop | null; photos: LandingShopPhoto[] } {
-  const withPhoto = shops
+export function pickLandingShopPhotos(shops: Shop[]): LandingShopPhoto[] {
+  return shops
     .filter((shop) => shop.name?.trim() && formatShopIdToCode(shop.id) !== null && uploadedShopImage(shop))
-    .sort((a, b) => a.id - b.id);
-
-  const completeness = (shop: Shop) =>
-    (shop.products.length > 0 ? 2 : 0) + (shop.catchphrase?.trim() ? 1 : 0) + (shop.shopStrength?.trim() ? 1 : 0);
-  // sort は安定なので、点数が同じなら id 順のまま
-  const showcase = [...withPhoto].sort((a, b) => completeness(b) - completeness(a))[0] ?? null;
-
-  const photos = withPhoto
-    .filter((shop) => shop.id !== showcase?.id)
+    .sort((a, b) => a.id - b.id)
     .slice(0, LANDING_SHOP_PHOTO_LIMIT)
     .map((shop) => ({
       id: shop.id,
@@ -51,6 +38,4 @@ export function pickLandingShops(shops: Shop[]): { showcase: Shop | null; photos
       name: shop.name.trim(),
       image: uploadedShopImage(shop) as string,
     }));
-
-  return { showcase, photos };
 }

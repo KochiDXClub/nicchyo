@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Shop } from "../map/data/shops";
-import { LANDING_SHOP_PHOTO_LIMIT, pickLandingShops, uploadedShopImage } from "./pickLandingShops";
+import { LANDING_SHOP_PHOTO_LIMIT, pickLandingShopPhotos, uploadedShopImage } from "./pickLandingShops";
 
 const SUPABASE_IMAGE = "https://abc.supabase.co/storage/v1/object/public/shops/1.webp";
 
@@ -21,29 +21,16 @@ describe("uploadedShopImage", () => {
   });
 });
 
-describe("pickLandingShops", () => {
-  it("写真のある店が無ければ、紹介する店も写真の帯も空", () => {
-    expect(pickLandingShops([shop({ id: 1 }), shop({ id: 2 })])).toEqual({ showcase: null, photos: [] });
+describe("pickLandingShopPhotos", () => {
+  it("写真のある店だけを、店番つきで並べる", () => {
+    const photos = pickLandingShopPhotos([shop({ id: 2 }), shop({ id: 1, images: { main: SUPABASE_IMAGE } })]);
+    expect(photos).toEqual([{ id: 1, code: "001", name: "店1", image: SUPABASE_IMAGE }]);
   });
 
-  it("紹介する店は、商品・一言がそろった店を優先し、写真の帯とは重ねない", () => {
-    const plain = shop({ id: 1, images: { main: SUPABASE_IMAGE } });
-    const complete = shop({
-      id: 5,
-      images: { main: SUPABASE_IMAGE },
-      products: ["芋天"],
-      catchphrase: "揚げたて",
-    });
-    const { showcase, photos } = pickLandingShops([complete, plain]);
-    expect(showcase?.id).toBe(5);
-    expect(photos.map((p) => p.id)).toEqual([1]);
-    expect(photos[0]).toMatchObject({ code: "001", name: "店1", image: SUPABASE_IMAGE });
-  });
-
-  it("写真の帯は id 順で、上限までに切る", () => {
+  it("id 順で、上限までに切る", () => {
     const shops = Array.from({ length: 12 }, (_, i) => shop({ id: 12 - i, images: { main: SUPABASE_IMAGE } }));
-    const { photos } = pickLandingShops(shops);
+    const photos = pickLandingShopPhotos(shops);
     expect(photos).toHaveLength(LANDING_SHOP_PHOTO_LIMIT);
-    expect(photos.map((p) => p.id)).toEqual([...photos.map((p) => p.id)].sort((a, b) => a - b));
+    expect(photos.map((p) => p.id)).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
   });
 });

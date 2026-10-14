@@ -81,6 +81,9 @@ export default function LandingShopReveal({ shop }: { shop: Shop }) {
                 className="rounded-chip bg-nicchyo-base px-3 py-1.5 text-[13px] font-semibold text-nicchyo-ink/80 ring-1 ring-line"
               >
                 {product}
+                {shop.productPrices?.[product] != null && (
+                  <span className="ml-1.5 font-normal text-nicchyo-ink/55">{shop.productPrices[product]}円</span>
+                )}
               </li>
             ))}
           </ul>

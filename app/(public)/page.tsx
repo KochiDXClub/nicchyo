@@ -8,7 +8,7 @@ import LandingHighlights from "./_landing/LandingHighlights";
 import LandingShop from "./_landing/LandingShop";
 import LandingNichiyosan from "./_landing/LandingNichiyosan";
 import LandingMessage from "./_landing/LandingMessage";
-import { pickLandingShops } from "./_landing/pickLandingShops";
+import { pickLandingShopPhotos } from "./_landing/pickLandingShops";
 import LandingGrandma from "./_landing/LandingGrandma";
 
 const title = "nicchyo（ニッチョ）| 高知高専生が開発した日曜市のデジタルマップ";
@@ -42,12 +42,12 @@ export const metadata: Metadata = {
  * 「何のサイトか」「日曜市とは」を読めるよう、写真が主役の紹介ページにした。
  * 地図へは最初の画面と最後のメッセージから1回で行ける。
  *
- * 店の写真と「お店の紹介」は、地図と同じ公開店舗（fetchPublicShops。キャッシュ済み）から選ぶ。
- * 取れなかったときは、そのセクションを出さないだけでページは表示する
+ * 「出店しているお店から」の写真は、地図と同じ公開店舗（fetchPublicShops。キャッシュ済み）から選ぶ。
+ * 取れなかったときは、その帯を出さないだけでページは表示する。「お店の紹介」は見本の店（SAMPLE_SHOP）
  */
 export default async function HomePage() {
   const shops = await fetchPublicShops().catch(() => []);
-  const { showcase, photos } = pickLandingShops(shops);
+  const photos = pickLandingShopPhotos(shops);
 
   return (
     // 下のナビ（サブページでは「マップにもどる」の帯）は出さない。ここは入口なので「もどる」先が無い
@@ -56,7 +56,7 @@ export default async function HomePage() {
         <LandingHero />
         <LandingAbout />
         <LandingHighlights shopPhotos={photos} />
-        <LandingShop shop={showcase} />
+        <LandingShop />
         <LandingNichiyosan />
         <LandingMessage />
       </main>

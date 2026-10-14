@@ -6,6 +6,8 @@
  * 写真を差し替えるときは、ここのパスと大きさ（width / height）だけを直す。
  */
 
+import type { Shop } from "../map/data/shops";
+
 export type LandingPhoto = { src: string; width: number; height: number; alt: string };
 
 export const PHOTOS = {
@@ -93,4 +95,34 @@ export const GRANDMA_COMMENTS: Record<Exclude<LandingSectionKey, "message">, str
   highlights: "朝早いほど品ぞろえがえいき、早めに来てね。",
   shop: "気になる店は、地図で押してみいや。中が見えるき。",
   consult: "わからんことは、わしに聞きや。押したら相談できるき。",
+};
+
+/**
+ * 「お店の紹介」で開いて見せる見本の店。写真は日曜市で撮ったキャンドルのお店。
+ *
+ * 地図で店を押すと何が分かるかを見せるための見本で、出店日・時間などの値は見本として置いている
+ * （画面にも「見本」と出す）。実在の店の情報として扱わない。id は 0（店番が無いので店舗ページへは繋がない）。
+ * 商品と値段は写真に写っている札（250円・900円）に合わせる
+ */
+export const SAMPLE_SHOP: Shop = {
+  id: 0,
+  // 地図の上の位置は使わない（バナーだけを見せる）
+  position: 0,
+  lat: 0,
+  lng: 0,
+  name: "キャンドルのお店",
+  ownerName: "",
+  category: "手作り・工芸",
+  catchphrase: "花や多肉植物をかたどった、小さなキャンドル",
+  products: ["花のキャンドル", "多肉植物のキャンドル", "キャンドルのセット"],
+  productPrices: { 花のキャンドル: 250, 多肉植物のキャンドル: 250, キャンドルのセット: 900 },
+  description: "",
+  schedule: "毎週日曜",
+  businessHoursStart: "7:00",
+  businessHoursEnd: "14:00",
+  rainPolicy: "cancel",
+  paymentMethods: ["cash"],
+  shopStrength: "ひとつずつ形をつくっています。色ちがいも並べているので、手に取って選んでみてください。",
+  themeColor: "rose",
+  images: { main: "/images/landing/candle-shop.webp" },
 };

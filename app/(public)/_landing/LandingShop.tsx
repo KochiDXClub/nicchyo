@@ -1,19 +1,16 @@
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
-import { PageContainer } from "@/components/ui";
-import { formatShopIdToCode } from "@/lib/shops/route";
-import type { Shop } from "../map/data/shops";
+import { Badge, PageContainer } from "@/components/ui";
+import { SAMPLE_SHOP } from "./content";
 import LandingShopReveal from "./LandingShopReveal";
 import GrandmaPerch from "./GrandmaPerch";
 import SectionHeading from "./SectionHeading";
 
 /**
- * お店の紹介。実際に出店している1店を、地図で店をタップしたときと同じバナーで見せる。
- * 写真のある店が無いときは、このセクションごと出さない（作り物の店は見せない）
+ * お店の紹介。地図で店をタップしたときと同じバナーで、日曜市で撮ったお店の写真を見せる。
+ * 中の情報は見本（content.ts の SAMPLE_SHOP）なので、画面にもそう書く
  */
-export default function LandingShop({ shop }: { shop: Shop | null }) {
-  if (!shop) return null;
-  const code = formatShopIdToCode(shop.id);
+export default function LandingShop() {
 
   return (
     <section aria-labelledby="landing-shop" data-grandma-section="shop" className="mt-24">
@@ -34,18 +31,9 @@ export default function LandingShop({ shop }: { shop: Shop | null }) {
               行く前に、どんなお店か分かります。
             </p>
             <p className="mt-3 text-xs leading-relaxed text-nicchyo-ink/55">
-              ※ 実際に出店しているお店の情報です
+              ※ 画面は見本です。写真は日曜市で撮影したお店です
             </p>
             <div className="mt-5 flex flex-col items-start gap-3">
-              {code && (
-                <Link
-                  href={`/shops/${code}`}
-                  className="inline-flex items-center gap-1 text-sm font-bold text-amber-700 hover:text-amber-600"
-                >
-                  {shop.name.trim()}のページを見る
-                  <ArrowRight aria-hidden className="h-4 w-4" />
-                </Link>
-              )}
               <Link
                 href="/search"
                 className="inline-flex items-center gap-1 text-sm font-bold text-amber-700 hover:text-amber-600"
@@ -57,7 +45,10 @@ export default function LandingShop({ shop }: { shop: Shop | null }) {
           </div>
           <div className="relative">
             <GrandmaPerch section="shop" className="absolute -top-20 right-2 z-[1]" />
-            <LandingShopReveal shop={shop} />
+            <Badge variant="solid" className="absolute -top-3 left-4 z-[1]">
+              見本
+            </Badge>
+            <LandingShopReveal shop={SAMPLE_SHOP} />
           </div>
         </div>
       </PageContainer>
