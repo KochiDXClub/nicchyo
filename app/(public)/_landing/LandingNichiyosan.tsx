@@ -1,94 +1,105 @@
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowRight } from "lucide-react";
-import { PageContainer, Surface } from "@/components/ui";
-import { siteText, type SiteTextKey } from "@/lib/siteCopy";
+import { ArrowRight, Mic, Send } from "lucide-react";
+import { PageContainer, buttonClass } from "@/components/ui";
+import { siteText } from "@/lib/siteCopy";
 import SectionHeading from "./SectionHeading";
 
-/**
- * 相談の見本。マップの案内（/map?panel=intro）と同じ受け答えをシートから読むので、
- * 文言を直すときはシートの「マップ案内」タブを直す（docs/SITE_COPY.md）
- */
-const SAMPLE_QUESTIONS: { q: SiteTextKey; a: SiteTextKey }[] = [
-  { q: "mapIntro.consultDemo.1.q", a: "mapIntro.consultDemo.1.a" },
-  { q: "mapIntro.consultDemo.2.q", a: "mapIntro.consultDemo.2.a" },
+/** できることの箇条書き。相談画面（app/(public)/consult/）に実際にある機能だけを書く */
+const CONSULT_POINTS = [
+  "候補をタップするか、文字や声で話しかけるだけ",
+  "その日に出ているお店の情報をもとに、土佐ことばで答えます",
+  "紹介されたお店は、そのまま写真と地図で確かめられます",
 ];
 
-/** にちよさんの紹介と、相談の見本 */
+/**
+ * にちよさんの紹介。相談画面（/consult）の「答えが出たところ」を、本番と同じ部品の形で見せる。
+ * 見本の受け答えはマップの案内（/map?panel=intro）と同じシートの文言を読む（docs/SITE_COPY.md）。
+ *
+ * 本番の見た目を変えたら、ここも合わせる:
+ * - 答えのカード・候補ボタン・入力バー … app/(public)/consult/components/ConsultStage.tsx
+ * - にちよさんの絵 … GrandmaAvatar.tsx
+ * 見本の中は押せる部品にしない（全体を1つのリンクにして、相談画面をひらく）
+ */
 export default function LandingNichiyosan() {
   return (
     <section aria-labelledby="landing-nichiyosan" className="mt-20">
-      <PageContainer width="wide" className="grid gap-8 md:grid-cols-2 md:items-center md:gap-12">
-        <div className="flex items-end gap-3">
-          <Image
-            src="/images/obaasan_transparent.webp"
-            alt="にちよさん（麦わら帽子にスカーフのおばあちゃん）"
-            width={768}
-            height={768}
-            sizes="10rem"
-            className="w-32 shrink-0 sm:w-40"
-          />
-          <Surface padding="none" className="relative mb-16 px-4 py-3">
-            <p className="font-display text-lg leading-snug text-nicchyo-ink">
-              あんた、ちょっと
-              <br />
-              寄っていきや〜！
-            </p>
-            {/* 吹き出しのしっぽ。にちよさんの口元へ向ける（縁は左と下の border で描く。ring は clip-path で消えるため） */}
-            <span
-              aria-hidden
-              className="absolute -left-1.5 bottom-4 h-3 w-3 rotate-45 border-b border-l border-line bg-white"
-            />
-          </Surface>
-        </div>
-
+      <PageContainer width="wide" className="grid gap-10 md:grid-cols-[1fr_22rem] md:items-center md:gap-12">
         <div>
           <SectionHeading id="landing-nichiyosan" eyebrow="高知発のおせっかいAI">
-            案内するがは、
+            わからんことは、
             <br />
-            にちよさん。
+            にちよさんに聞きや。
           </SectionHeading>
           <p className="mt-4 text-base leading-relaxed text-nicchyo-ink/70">
-            地図の上でも、相談の画面でも。日曜市の歩き方を、土佐ことばでおせっかいに教えてくれます。
-            はじめての日曜市でも、にちよさんがいれば心強いはず。
+            日曜市のことなら、なんでも知っちゅう大ベテラン。おすすめの食べ歩きから、はじめての回り方まで、聞いたら答えてくれます。
           </p>
-        </div>
-
-        <Surface padding="lg" className="md:col-span-2">
-          <p className="text-sm font-bold text-nicchyo-ink/55">たとえば、こんなことが聞けます</p>
-          <ul className="mt-4 grid gap-5 md:grid-cols-2">
-            {SAMPLE_QUESTIONS.map(({ q, a }) => (
-              <li key={q} className="space-y-2">
-                <p className="ml-auto w-fit max-w-[85%] rounded-card rounded-br-md bg-amber-100 px-4 py-2 text-sm text-nicchyo-ink">
-                  {siteText(q)}
-                </p>
-                <div className="flex items-start gap-2">
-                  <Image
-                    src="/images/obaasan_transparent.webp"
-                    alt=""
-                    width={768}
-                    height={768}
-                    sizes="2.5rem"
-                    className="h-10 w-10 shrink-0 rounded-chip bg-nicchyo-base ring-1 ring-line"
-                  />
-                  <p className="max-w-[85%] rounded-card rounded-tl-md bg-nicchyo-base px-4 py-2 text-sm leading-relaxed text-nicchyo-ink ring-1 ring-line-warm">
-                    {siteText(a)}
-                  </p>
-                </div>
+          <ul className="mt-5 space-y-2">
+            {CONSULT_POINTS.map((point) => (
+              <li key={point} className="flex gap-2.5 text-sm leading-relaxed text-nicchyo-ink">
+                <span aria-hidden className="mt-2 h-1.5 w-1.5 shrink-0 rounded-chip bg-nicchyo-primary" />
+                {point}
               </li>
             ))}
           </ul>
-          <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-line pt-4">
-            <p className="text-xs text-nicchyo-ink/70">{siteText("mapIntro.consultDemo.note")}</p>
-            <Link
-              href="/consult"
-              className="inline-flex items-center gap-1 text-sm font-bold text-amber-700 hover:text-amber-600"
-            >
-              にちよさんに相談する
-              <ArrowRight aria-hidden className="h-4 w-4" />
-            </Link>
-          </div>
-        </Surface>
+          <Link href="/consult" className={buttonClass({ variant: "secondary", size: "lg", className: "mt-6" })}>
+            にちよさんに相談する
+            <ArrowRight aria-hidden className="h-5 w-5" />
+          </Link>
+        </div>
+
+        <figure className="mx-auto w-full max-w-[22rem]">
+          <Link
+            href="/consult"
+            aria-label="にちよさんの相談画面をひらく"
+            className="group block rounded-sheet bg-nicchyo-base p-4 shadow-float ring-1 ring-line transition-transform duration-200 ease-out-soft hover:-translate-y-0.5 motion-reduce:transition-none motion-reduce:hover:translate-y-0"
+          >
+            {/* 中身は見本の絵。読み上げはリンクの名前で足りるので、中は読ませない */}
+            <div aria-hidden className="flex flex-col gap-3">
+              <Image
+                src="/images/obaasan_transparent.webp"
+                alt=""
+                width={768}
+                height={768}
+                sizes="7rem"
+                className="mx-auto h-28 w-28 object-contain drop-shadow-md"
+              />
+
+              {/* 今の答え（ConsultStage の答えのカード） */}
+              <div className="rounded-card border border-amber-100 bg-white/90 p-4 shadow-sm">
+                <p className="text-xs text-nicchyo-ink/70">{siteText("mapIntro.consultDemo.1.q")}</p>
+                <p className="mt-1 text-[11px] font-bold text-amber-700">にちよさん</p>
+                <p className="mt-2 text-[15px] leading-7 text-nicchyo-ink">{siteText("mapIntro.consultDemo.1.a")}</p>
+              </div>
+
+              {/* 候補ボタン */}
+              {(["mapIntro.consultDemo.2.q", "mapIntro.consultDemo.3.q"] as const).map((key) => (
+                <p
+                  key={key}
+                  className="rounded-btn border border-amber-200 bg-white px-4 py-3 text-sm font-bold text-amber-900 shadow-sm"
+                >
+                  {siteText(key)}
+                </p>
+              ))}
+
+              {/* 入力バー（文字入力＋送信、右に音声） */}
+              <div className="mt-1 flex items-center gap-2">
+                <div className="flex min-w-0 flex-1 items-center gap-2 rounded-chip border border-amber-200 bg-white/95 py-1 pl-4 pr-1 shadow-card">
+                  <span className="min-w-0 flex-1 truncate text-sm text-nicchyo-ink/40">（例）今の旬の果物は？</span>
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-chip bg-amber-500 text-white">
+                    <Send className="h-4 w-4" />
+                  </span>
+                </div>
+                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-chip border border-amber-200 bg-white/95 text-amber-800 shadow-card">
+                  <Mic className="h-5 w-5" />
+                </span>
+              </div>
+            </div>
+          </Link>
+          <figcaption className="mt-3 text-center text-xs leading-relaxed text-nicchyo-ink/70">
+            {siteText("mapIntro.consultDemo.note")}
+          </figcaption>
+        </figure>
       </PageContainer>
     </section>
   );
