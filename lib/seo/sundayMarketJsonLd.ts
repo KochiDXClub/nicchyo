@@ -1,5 +1,3 @@
-import { SITE_URL } from "@/lib/constants";
-
 /**
  * 日曜市の開催情報（schema.org の Event）。検索結果に「毎週日曜・追手筋」の開催情報を出してもらうためのもの。
  *
@@ -26,10 +24,5 @@ export const SUNDAY_MARKET_JSON_LD = {
       addressRegion: "高知県",
       addressCountry: "JP",
     },
-  },
-  organizer: {
-    "@type": "Organization",
-    name: "nicchyo（ニッチョ）",
-    url: SITE_URL,
   },
 };
