@@ -68,6 +68,13 @@ const nextConfig = {
         destination: '/calendar',
         permanent: true,
       },
+      // 旧店舗検索ページ（/search）は、地図の検索（/map?q= ・ /map?category=）に一本化した。
+      // 保存済みのリンクや検索エンジンに残る古いURLを、検索語（?q=）ごと地図へ転送する
+      {
+        source: '/search',
+        destination: '/map',
+        permanent: true,
+      },
       // 週次セキュリティレポートの通知リンク（旧 /reports/:date）を管理画面へ誘導する
       {
         source: '/reports/:date',

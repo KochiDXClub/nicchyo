@@ -218,7 +218,7 @@ where schemaname = 'public' and (qual ilike '%user_metadata%' or with_check ilik
 6. **リリースPRを作成** — `develop` → `main`。タイトルは `verX.Y: <概要> / Develop (#PR番号)`。本文に §4.2 の破壊的マイグレーション一覧とバックアップ時刻を書く。
 7. **Preview で通し確認** — リリースPRの Preview URL で以下を実機確認する。ビルドが通ることは動作の保証にならない。
    - マップ（`/map`）: 店舗マーカー表示・ズーム・道の描画・店舗詳細バナー。既定の描画が Leaflet → MapLibre（WebGL）に変わっているので、iOS Safari / Android Chrome で確認し、`public/maplibre/maplibre-gl-worker.mjs` が 200 で配信されること
-   - 検索（`/search`）
+   - 検索（`/map` の検索パネル）
    - AI相談（`/consult`）: 「にちよさん」が応答するか
    - 近況（story）
    - 出店者ページ（`/my-shop`）
@@ -302,7 +302,7 @@ where schemaname = 'public' and (qual ilike '%user_metadata%' or with_check ilik
 **適用後**
 
 - [ ] メンテナンスモードをオフにした
-- [ ] 本番確認（`/map`・`/search`・`/consult`・`/my-shop`・`/admin`）
+- [ ] 本番確認（`/map`・`/consult`・`/my-shop`・`/admin`）
 - [ ] Discord 通知のリンクなど、旧URLの 404 が無いか確認した（`/reports/<日付>` は develop で移動済み）
 - [ ] `git tag v1.x` を打って push した
 - [ ] `main` → `develop` を戻しマージした
