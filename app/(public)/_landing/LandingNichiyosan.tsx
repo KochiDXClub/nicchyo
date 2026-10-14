@@ -23,14 +23,19 @@ const CONSULT_POINTS = [
  */
 export default function LandingNichiyosan() {
   return (
-    <section aria-labelledby="landing-nichiyosan" className="mt-20">
-      <PageContainer width="wide" className="grid gap-10 md:grid-cols-[1fr_22rem] md:items-center md:gap-12">
+    <section aria-labelledby="landing-nichiyosan" className="mt-24">
+      <PageContainer width="wide">
+        <SectionHeading id="landing-nichiyosan" label="CONSULT">
+          にちよさんに相談
+        </SectionHeading>
+      </PageContainer>
+      <PageContainer width="wide" className="mt-10 grid gap-10 md:grid-cols-[1fr_22rem] md:items-center md:gap-12">
         <div>
-          <SectionHeading id="landing-nichiyosan" eyebrow="高知発のおせっかいAI">
+          <p className="font-display text-xl leading-relaxed text-nicchyo-ink sm:text-2xl">
             わからんことは、
             <br />
             にちよさんに聞きや。
-          </SectionHeading>
+          </p>
           <p className="mt-4 text-base leading-relaxed text-nicchyo-ink/70">
             日曜市のことなら、なんでも知っちゅう大ベテラン。おすすめの食べ歩きから、はじめての回り方まで、聞いたら答えてくれます。
           </p>

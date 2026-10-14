@@ -1,15 +1,18 @@
 import type { Metadata } from "next";
 import { PageShell } from "@/components/ui";
 import { siteText } from "@/lib/siteCopy";
+import { fetchPublicShops } from "./map/services/shopCache";
 import LandingHero from "./_landing/LandingHero";
+import LandingAbout from "./_landing/LandingAbout";
+import LandingHighlights from "./_landing/LandingHighlights";
+import LandingShop from "./_landing/LandingShop";
 import LandingNichiyosan from "./_landing/LandingNichiyosan";
-import LandingFeatures from "./_landing/LandingFeatures";
-import LandingMarketInfo from "./_landing/LandingMarketInfo";
-import LandingClosing from "./_landing/LandingClosing";
+import LandingMessage from "./_landing/LandingMessage";
+import { pickLandingShops } from "./_landing/pickLandingShops";
 
-const title = "nicchyo（ニッチョ）| 高知・日曜市のマップとAI案内";
+const title = "nicchyo（ニッチョ）| 高知高専生が開発した日曜市のデジタルマップ";
 // 日曜市の数字（約1.3km・およそ300の店）はマップの案内と同じシートの文言から作る（太字の印は外す）
-const description = `${siteText("mapIntro.lead").replaceAll("**", "")}はじめてでも地図で店を探せて、AIのにちよさんに食べ歩きや回り方を相談できるデジタルマップです。`;
+const description = `${siteText("mapIntro.lead").replaceAll("**", "")}高知高専の学生が開発した、地図で店を探せて AI のにちよさんに相談できる日曜市のデジタルマップです。`;
 const ogImage = { url: "/og-default.png", width: 1200, height: 630, alt: "nicchyo – 高知の日曜市マップ" };
 
 export const metadata: Metadata = {
@@ -35,20 +38,26 @@ export const metadata: Metadata = {
 
 /**
  * トップページ。以前は /map へリダイレクトしていたが、検索や口コミで来た人が
- * 「何のサイトか」「日曜市とは」を読めるよう、チラシのような紹介ページにした。
- * 地図へはここから1回で行ける（最初の画面と最後に入口を置いている）
+ * 「何のサイトか」「日曜市とは」を読めるよう、写真が主役の紹介ページにした。
+ * 地図へは最初の画面と最後のメッセージから1回で行ける。
+ *
+ * 店の写真と「お店の紹介」は、地図と同じ公開店舗（fetchPublicShops。キャッシュ済み）から選ぶ。
+ * 取れなかったときは、そのセクションを出さないだけでページは表示する
  */
-export default function HomePage() {
+export default async function HomePage() {
+  const shops = await fetchPublicShops().catch(() => []);
+  const { showcase, photos } = pickLandingShops(shops);
+
   return (
-    // 下のナビ（サブページでは「マップにもどる」の帯）は出さない。ここは入口なので「もどる」先が無く、
-    // 地図への入口は最初の画面と最後に置いている
+    // 下のナビ（サブページでは「マップにもどる」の帯）は出さない。ここは入口なので「もどる」先が無い
     <PageShell bottomNav={false}>
       <main>
         <LandingHero />
+        <LandingAbout />
+        <LandingHighlights shopPhotos={photos} />
+        <LandingShop shop={showcase} />
         <LandingNichiyosan />
-        <LandingFeatures />
-        <LandingMarketInfo />
-        <LandingClosing />
+        <LandingMessage />
       </main>
     </PageShell>
   );
