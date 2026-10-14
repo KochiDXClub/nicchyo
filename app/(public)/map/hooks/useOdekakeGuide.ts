@@ -47,7 +47,7 @@ export const GUIDE_KIND_OPTIONS: GuideKindOption[] = [
   { kind: 'restroom', label: 'お手洗い', emoji: '🚻' },
   { kind: 'rest', label: '休けい', emoji: '🌿' },
   { kind: 'transit', label: 'のりもの', emoji: '🚋' },
-  { kind: 'landmark', label: '目印', emoji: '🏯' },
+  { kind: 'landmark', label: '観光地', emoji: '🏯' },
 ];
 
 type Geolocation = { point: LatLng; accuracyMeters?: number };

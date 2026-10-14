@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { Button, Surface } from "@/components/ui";
 import { apiRequest } from "@/lib/utils/apiRequest";
 import type { ShopMemberRole } from "@/lib/vendor/shopPermissions";
@@ -60,7 +61,11 @@ export default function WithdrawSection({ role, hasOtherMembers }: { role: ShopM
 
         {blocked ? (
           <p className="rounded-btn bg-status-warning-bg p-3 text-sm text-status-warning-fg ring-1 ring-status-warning-line">
-            代表者は、ほかにメンバーがいる間は退会できません。先に、上のメンバー一覧から別のメンバーへ「代表者を引き継ぐ」を選んでください。
+            代表者は、ほかにメンバーがいる間は退会できません。先に、
+            <Link href="/vendor/members" className="font-semibold underline underline-offset-2">
+              メンバー管理
+            </Link>
+            で別のメンバーへ代表者を引き継いでください。
           </p>
         ) : !open ? (
           <Button variant="quiet" size="sm" onClick={() => setOpen(true)}>

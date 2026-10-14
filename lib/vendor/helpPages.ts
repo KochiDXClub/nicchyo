@@ -26,7 +26,12 @@ export const VENDOR_HELP_PAGES: readonly VendorHelpPage[] = [
   { name: "お店の分析ページ", href: "/vendor/analytics", about: "お店が何回見られたか、お客さんが何を聞いたかを見る" },
   { name: "にちよさんが覚えちゅうことページ", href: "/vendor/ai-knowledge", about: "にちよさんが相談で覚えたお店のことを見る・直す・忘れさせる" },
   { name: "よくある質問ページ", href: "/vendor/help", about: "出店者向けのよくある質問を一覧で読む" },
-  { name: "アカウント設定ページ", href: "/vendor/account", about: "お店のメンバー・招待リンク・操作ログを確かめる／退会する" },
+  {
+    name: "メンバー管理ページ",
+    href: "/vendor/members",
+    about: "お店のメンバーを確かめる・家族やスタッフを招待する・メンバーができることを変える・メンバーを外す・代表者を引き継ぐ・操作ログを見る",
+  },
+  { name: "アカウント設定ページ", href: "/vendor/account", about: "自分の名前と写真を変える・ログアウトする・お店を抜ける・退会する" },
 ];
 
 /** 案内してよい画面なら、その画面を返す（末尾の `/` は無視する） */

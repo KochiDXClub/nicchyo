@@ -25,6 +25,7 @@ import { formatDistance } from '@/lib/facilities/nearest';
 import type { MapCamera } from '../types/mapCamera';
 import { GUIDE_KIND_OPTIONS, type OdekakeGuide } from '../hooks/useOdekakeGuide';
 import OdekakeKindChooser from './OdekakeKindChooser';
+import SpotKindIcon from './SpotKindIcon';
 
 type OdekakeGuidePanelProps = {
   guide: OdekakeGuide;
@@ -45,11 +46,11 @@ function SpotIcon({ spot, size }: { spot: MapSpot; size: number }) {
   }
   return (
     <span
-      className="flex items-center justify-center rounded-full text-white"
-      style={{ width: size, height: size, backgroundColor: spot.accentColor, fontSize: size * 0.5 }}
+      className="flex items-center justify-center rounded-full bg-nicchyo-soft-green/30"
+      style={{ width: size, height: size }}
       aria-hidden
     >
-      {spot.emoji}
+      <SpotKindIcon kind={spot.kind} size={Math.round(size * 0.7)} />
     </span>
   );
 }
@@ -347,8 +348,8 @@ export default function OdekakeGuidePanel({ guide, map, onClose, onOpenSpot }: O
           <div className="flex gap-2 overflow-x-auto px-5 pb-2 pt-3 [scrollbar-width:none] lg:grid lg:grid-cols-2 lg:overflow-visible">
             {GUIDE_KIND_OPTIONS.map((option) => (
               <KindToggle key={option.kind} active={guide.kinds.includes(option.kind)} onClick={() => guide.toggleKind(option.kind)}>
-                <span aria-hidden className="mr-1">
-                  {option.emoji}
+                <span aria-hidden className="mr-1 inline-flex align-middle">
+                  <SpotKindIcon kind={option.kind} size={18} />
                 </span>
                 {option.label}
               </KindToggle>

@@ -3,6 +3,7 @@ import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/database.types";
 import { formatShopIdToCode } from "@/lib/shops/route";
 import { SITE_URL } from "@/lib/constants";
+import { ACTIVITIES } from "@/app/data/activities";
 import { fetchPublicShops } from "@/app/(public)/map/services/shopCache";
 import {
   EMPTY_PAGE_VISIBILITY_SETTINGS,
@@ -34,16 +35,26 @@ async function fetchPageVisibility(): Promise<PageVisibilitySettings> {
 }
 
 // 静的ページ一覧
+// lastModified は載せない: 毎回「今」を入れると更新日として信用されなくなるため。
+// /news は /calendar へ恒久リダイレクトしているので載せない（リダイレクト先を載せる）
 const STATIC_PAGES: MetadataRoute.Sitemap = [
   { url: `${SITE_URL}/`, changeFrequency: "monthly", priority: 1.0 },
-  { url: `${SITE_URL}/map`, lastModified: new Date(), changeFrequency: "daily", priority: 1.0 },
-  { url: `${SITE_URL}/search`, lastModified: new Date(), changeFrequency: "weekly", priority: 0.9 },
-  { url: `${SITE_URL}/news`, lastModified: new Date(), changeFrequency: "weekly", priority: 0.5 },
-  { url: `${SITE_URL}/consult`, lastModified: new Date(), changeFrequency: "weekly", priority: 0.7 },
-  { url: `${SITE_URL}/about`, lastModified: new Date(), changeFrequency: "monthly", priority: 0.5 },
-  { url: `${SITE_URL}/faq`, lastModified: new Date(), changeFrequency: "monthly", priority: 0.5 },
-  { url: `${SITE_URL}/contact`, lastModified: new Date(), changeFrequency: "monthly", priority: 0.4 },
-  { url: `${SITE_URL}/privacy`, lastModified: new Date(), changeFrequency: "yearly", priority: 0.3 },
+  { url: `${SITE_URL}/map`, changeFrequency: "daily", priority: 1.0 },
+  { url: `${SITE_URL}/search`, changeFrequency: "weekly", priority: 0.9 },
+  { url: `${SITE_URL}/calendar`, changeFrequency: "weekly", priority: 0.7 },
+  { url: `${SITE_URL}/consult`, changeFrequency: "weekly", priority: 0.7 },
+  { url: `${SITE_URL}/story`, changeFrequency: "weekly", priority: 0.6 },
+  { url: `${SITE_URL}/about`, changeFrequency: "monthly", priority: 0.5 },
+  { url: `${SITE_URL}/faq`, changeFrequency: "monthly", priority: 0.5 },
+  { url: `${SITE_URL}/activities`, changeFrequency: "monthly", priority: 0.4 },
+  ...ACTIVITIES.map((activity) => ({
+    url: `${SITE_URL}/activities/${activity.slug}`,
+    changeFrequency: "yearly" as const,
+    priority: 0.3,
+  })),
+  { url: `${SITE_URL}/support`, changeFrequency: "monthly", priority: 0.4 },
+  { url: `${SITE_URL}/contact`, changeFrequency: "monthly", priority: 0.4 },
+  { url: `${SITE_URL}/privacy`, changeFrequency: "yearly", priority: 0.3 },
 ];
 
 /** 店舗ページ（/shops/NNN）に載せる店番。/map・/search・店舗詳細と同じ公開店舗の基準（fetchPublicShops）に揃える */

@@ -28,7 +28,7 @@ export default function InviteSummary({
       <div className="flex flex-wrap items-center gap-2">
         <Badge variant={STATE_LABEL[invite.state].variant}>{STATE_LABEL[invite.state].text}</Badge>
         <span className="text-sm text-nicchyo-ink">
-          {invite.usedCount}/{invite.maxUses}人が参加
+          {invite.maxUses}人中{invite.usedCount}人が参加
         </span>
         <span className="text-xs text-nicchyo-ink/55">{formatJaDateTime(invite.expiresAt)}まで</span>
         {children}

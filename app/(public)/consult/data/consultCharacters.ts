@@ -135,6 +135,27 @@ export const DEFAULT_CONSULT_CHARACTER =
   CONSULT_CHARACTER_BY_ID.get(DEFAULT_CONSULT_CHARACTER_ID) ?? CONSULT_CHARACTERS[0];
 
 /**
+ * 相談1件に答えた話し手を引く（「これまでの相談」の立ち絵や、開き直したときの話し手に使う）。
+ *
+ * 答えた人の id を保存するようにしたのは後からなので、それより前に端末へ保存された
+ * 相談は名前（speakerName）しか持っていない。id で引けなければ名前で引く。
+ * どちらでも見つからなければ undefined（話し手を替えず、立ち絵も出さない）
+ */
+export function findConsultCharacter({
+  speakerId,
+  speakerName,
+}: {
+  speakerId?: string | null;
+  speakerName?: string | null;
+}): ConsultCharacter | undefined {
+  const byId = speakerId ? CONSULT_CHARACTER_BY_ID.get(speakerId as ConsultCharacterId) : undefined;
+  if (byId) return byId;
+  return speakerName
+    ? CONSULT_CHARACTERS.find((character) => character.name === speakerName)
+    : undefined;
+}
+
+/**
  * 今回の話し手を1人決める。
  *
  * 選んだキャラがいればその人、いなければ既定のにちよさん。

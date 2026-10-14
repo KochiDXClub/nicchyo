@@ -29,6 +29,9 @@ const mochiyPopOne = Mochiy_Pop_One({
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
+  // "./" は各ページ自身のパスに展開される（クエリは含まない）。
+  // www や ?utm_ 付きなど複数のURLで開けても、評価を https://nicchyo.jp/… に集約する
+  alternates: { canonical: "./" },
   title: {
     default: "nicchyo | 高知の日曜市を、未来へつなぐ",
     template: "%s | nicchyo",

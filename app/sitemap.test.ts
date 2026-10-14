@@ -41,4 +41,20 @@ describe("sitemap", () => {
     const urls = (await sitemap()).map((entry) => entry.url);
     expect(urls.some((u) => /^https?:\/\/[^/]+\/$/.test(u))).toBe(true);
   });
+
+  it("リダイレクトされる /news は載せず、リダイレクト先や活動記録を載せる", async () => {
+    fetchPublicShops.mockResolvedValue([]);
+    const urls = (await sitemap()).map((entry) => entry.url);
+    expect(urls.some((u) => u.endsWith("/news"))).toBe(false);
+    for (const path of ["/calendar", "/story", "/activities", "/support"]) {
+      expect(urls.some((u) => u.endsWith(path))).toBe(true);
+    }
+    expect(urls.some((u) => u.includes("/activities/"))).toBe(true);
+  });
+
+  it("静的ページに常に「今」の lastModified を入れない", async () => {
+    fetchPublicShops.mockResolvedValue([]);
+    const entries = await sitemap();
+    expect(entries.every((entry) => entry.lastModified === undefined)).toBe(true);
+  });
 });

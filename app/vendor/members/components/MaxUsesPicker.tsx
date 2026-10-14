@@ -9,7 +9,7 @@ const MAX_USES_OPTIONS = Array.from(
 export default function MaxUsesPicker({ value, onChange }: { value: number; onChange: (next: number) => void }) {
   return (
     <div>
-      <p className="text-xs font-semibold text-nicchyo-ink/55">このリンクで入れる人数</p>
+      <p className="text-sm font-bold text-nicchyo-ink">このリンクで入れる人数</p>
       <div role="radiogroup" aria-label="入れる人数" className="mt-1.5 flex flex-wrap gap-1.5">
         {MAX_USES_OPTIONS.map((n) => (
           <button
@@ -18,7 +18,7 @@ export default function MaxUsesPicker({ value, onChange }: { value: number; onCh
             role="radio"
             aria-checked={value === n}
             onClick={() => onChange(n)}
-            className={`inline-flex h-10 min-w-10 items-center justify-center rounded-chip px-3 text-sm font-semibold transition ${
+            className={`inline-flex h-11 min-w-11 items-center justify-center rounded-chip px-3 text-sm font-semibold transition ${
               value === n ? "bg-amber-600 text-white shadow-sm" : "border border-amber-200 bg-white text-amber-800 hover:bg-amber-50"
             }`}
           >

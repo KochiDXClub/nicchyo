@@ -158,7 +158,7 @@ function kindLabel(kind: SpotKind): string {
     case 'rest':
       return '休けい';
     case 'landmark':
-      return '目印';
+      return '観光地';
     default:
       return 'お店';
   }
