@@ -42,6 +42,7 @@ import {
   CONSULT_CHARACTERS,
   CONSULT_CHARACTER_BY_ID,
   DEFAULT_CONSULT_CHARACTER,
+  findConsultCharacter,
   type ConsultCharacter,
   type ConsultCharacterId,
 } from "../data/consultCharacters";
@@ -567,6 +568,7 @@ export default function ConsultStage({
             question: text,
             answer: answer || response.reply,
             speakerName: response.turns?.[0]?.speakerName,
+            speakerId: response.turns?.[0]?.speakerId,
             shopIds: response.shopIds,
             followUpQuestion: response.followUpQuestion,
           },
@@ -643,12 +645,27 @@ export default function ConsultStage({
     (id: string) => {
       setViewedEntryId(id);
       setShowsCurrentAnswer(true);
+      // その相談に答えた話し手に替える。答えカードの名前と、画面の話し手が
+      // 食い違わないように（続けて聞けば、同じ人が続きを答える）。
+      // この画面で選び直したのと同じ扱いにして、入れ替わりの歩きも見せる。
+      // 応答待ちの間は替えない（届く答えは、聞いたときの話し手のものなので）
+      const entry = entriesRef.current.find((item) => item.id === id);
+      const entrySpeaker = entry ? findConsultCharacter(entry) : undefined;
+      const switchesSpeaker =
+        !!entrySpeaker && entrySpeaker.id !== speaker.id && phase !== "thinking";
+      // 話し手を替えるときは、一番上まで一瞬で戻してから替える。入れ替わりの歩き
+      // （ConsultCharacterSwap）は描いた直後の話し手の位置を1回だけ測るので、
+      // なめらかに戻している途中だと、画面の外やずれた位置を歩いてしまう
+      scrollContainerRef.current?.scrollTo({
+        top: 0,
+        behavior: switchesSpeaker ? "auto" : "smooth",
+      });
+      if (switchesSpeaker && entrySpeaker) handlePickSpeaker(entrySpeaker.id);
       // lg 未満のサイドバーは答えカードの上に重なってしまうので閉じる。
       // lg 以上はチャット欄を右へ逃がして隠さないので、開いたままでもよい
       if (!isHistorySidebarInline) onHistorySidebarOpenChange?.(false);
-      scrollContainerRef.current?.scrollTo({ top: 0, behavior: "smooth" });
     },
-    [isHistorySidebarInline, onHistorySidebarOpenChange]
+    [handlePickSpeaker, isHistorySidebarInline, onHistorySidebarOpenChange, phase, speaker.id]
   );
   const suggestions = useMemo(
     () => pickSuggestions({ entries, pool: QUESTION_POOL }),
@@ -720,25 +737,51 @@ export default function ConsultStage({
    * 一覧が0件になってサイドバーごと消えてしまい、「展開したのに展開先が消える」
    * というおかしな体験になっていた（Claudeデスクトップ版でも、開いている
    * 会話は一覧から消えず選択中として残る）。
+   *
+   * 行の左には、その相談に答えた話し手の立ち絵を出し、答えの頭に名前を添える。
+   * 話し手を替えながら聞いていると、どれを誰に聞いたかが文字だけでは分からないため。
+   * 話し手の分からない相談（引き継いだ古い相談など）は、絵を出さずに同じ幅だけ空けて、
+   * 文字の左端をほかの行と揃える
    */
   const renderHistoryList = () => (
     <ul className="flex flex-col gap-0.5">
       {entries.map((item) => {
         const isActive = item.id === current?.id;
+        const itemSpeaker = findConsultCharacter(item);
         return (
           <li key={item.id}>
             <button
               type="button"
               onClick={() => viewHistoryEntry(item.id)}
               aria-current={isActive}
-              className={`w-full rounded-xl px-3 py-2.5 text-left transition ${
+              className={`flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left transition ${
                 isActive ? "bg-amber-100" : "hover:bg-amber-50"
               }`}
             >
-              <p className="line-clamp-1 text-sm font-bold text-slate-800">{item.question}</p>
-              <p className="mt-0.5 line-clamp-2 text-xs leading-5 text-slate-500">
-                {item.answer}
-              </p>
+              {itemSpeaker ? (
+                // 立ち絵は全身を見せたいので、切り抜かずに縮めて入れる（絵の左右の余白だけ詰める）。
+                // 誰が答えたかは名前の文字でも伝えるので、絵自体は読み上げない
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={itemSpeaker.image}
+                  alt=""
+                  className="h-16 w-14 shrink-0 object-cover"
+                  draggable={false}
+                />
+              ) : (
+                <span aria-hidden="true" className="h-16 w-14 shrink-0" />
+              )}
+              <span className="min-w-0 flex-1">
+                <span className="line-clamp-1 text-sm font-bold text-slate-800">
+                  {item.question}
+                </span>
+                <span className="mt-0.5 line-clamp-2 text-xs leading-5 text-slate-500">
+                  {itemSpeaker && (
+                    <span className="font-bold text-amber-700">{itemSpeaker.name}　</span>
+                  )}
+                  {item.answer}
+                </span>
+              </span>
             </button>
           </li>
         );
@@ -912,7 +955,8 @@ export default function ConsultStage({
           aria-label="これまでの相談"
           // lg 未満は暗幕（z-40）の上、話しかけるバー・固定バーより手前に出す。
           // lg 以上は横に並ぶだけなので、これまで通り音声シートなどより奥に置く
-          className="fixed inset-y-0 left-0 z-40 flex w-72 max-w-[85vw] flex-col border-r border-amber-100 bg-white lg:z-20"
+          // 幅は立ち絵を置いても文字の幅が以前（w-72）とほぼ変わらないよう 22rem にする
+          className="fixed inset-y-0 left-0 z-40 flex w-[22rem] max-w-[85vw] flex-col border-r border-amber-100 bg-white lg:z-20"
           style={{
             // lg 未満は上端の「マップにもどる」の帯（z-[9997]）が手前に出るので、
             // 見出しの閉じるボタンが隠れないよう、帯の分だけ下げる（lg 以上は 0）
@@ -1291,7 +1335,7 @@ export default function ConsultStage({
         className={`pointer-events-none fixed inset-x-0 z-20 h-16 bg-gradient-to-b from-transparent via-nicchyo-base/95 to-nicchyo-base motion-safe:transition-[opacity,left] motion-safe:duration-300 motion-safe:ease-out-soft ${
           isContentEndVisible ? "opacity-0" : "opacity-100"
         } bottom-[calc(var(--consult-bar-space)-2rem)] lg:bottom-[calc(var(--consult-bar-space-lg)-2rem)] lg:right-2 ${
-          isHistorySidebarOpen ? "lg:left-80" : ""
+          isHistorySidebarOpen ? "lg:left-96" : ""
         }`}
       />
 
@@ -1305,13 +1349,13 @@ export default function ConsultStage({
           中央寄せのままだと「逃がした残りスペースの中でまた中央寄せ」になって
           チャット本体とズレるため、中身を左詰め（margin-left: 0）に切り替える。
 
-          パディングは lg:pl-80（main と同じ 20rem）だけでなく lg:pl-[21rem] にする。
-          チャットのスクロール箱は main の 20rem に加えて自分自身の px-4（1rem）を
-          持っているため、本文の左端は実際には 21rem 分空いている。ここを 20rem の
+          パディングは lg:pl-96（main と同じ 24rem）だけでなく lg:pl-[25rem] にする。
+          チャットのスクロール箱は main の 24rem に加えて自分自身の px-4（1rem）を
+          持っているため、本文の左端は実際には 25rem 分空いている。ここを 24rem の
           ままにすると、入力欄だけ本文より 1rem 左にずれて見える */}
       <div
         className={`fixed inset-x-0 z-20 flex px-4 motion-safe:transition-[padding-left] motion-safe:duration-300 motion-safe:ease-out-soft ${
-          isHistorySidebarOpen ? "lg:pl-[21rem]" : ""
+          isHistorySidebarOpen ? "lg:pl-[25rem]" : ""
         } ${revealClass(280).className} ${
           speech.isListening || phase === "confirming" ? "hidden" : ""
         }`}
