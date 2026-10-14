@@ -13,9 +13,7 @@ import {
   MenuToggleButton,
   MenuUserRow,
 } from "@/components/navigation/MenuSheet";
-import { visibleVendorNavItems } from "./vendorNavItems";
-
-const HOME_HREF = "/my-shop";
+import { VENDOR_HOME_HREF, visibleVendorNavItems } from "./vendorNavItems";
 
 
 /**
@@ -33,7 +31,7 @@ export default function VendorNavBar() {
   const [sheetOpen, setSheetOpen] = useState(false);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
 
-  const isHome = pathname === HOME_HREF;
+  const isHome = pathname === VENDOR_HOME_HREF;
   // /vendor/* はPCでサイドバーが出るので下部バーはlg以上で隠す。
   // /my-shop* はサイドバーが無いので全サイズで表示する。
   const inVendorConsole = pathname?.startsWith("/vendor") ?? false;
@@ -114,7 +112,7 @@ export default function VendorNavBar() {
             <BottomNavLink href="/vendor/posts" label="投稿" icon={Megaphone} />
           </div>
         ) : (
-          <BottomNavBackBar label="マイ店舗へ戻る" onClick={() => router.push(HOME_HREF)} />
+          <BottomNavBackBar label="マイ店舗へ戻る" onClick={() => router.push(VENDOR_HOME_HREF)} />
         )}
       </nav>
     </>
