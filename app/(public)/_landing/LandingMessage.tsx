@@ -3,7 +3,7 @@ import Link from "next/link";
 import { MapPin } from "lucide-react";
 import { PageContainer, buttonClass } from "@/components/ui";
 import { MESSAGE, PHOTOS } from "./content";
-import GrandmaPerch from "./GrandmaPerch";
+import GrandmaFigure from "./GrandmaFigure";
 import RevealOnScroll from "./RevealOnScroll";
 import SectionHeading from "./SectionHeading";
 
@@ -13,7 +13,7 @@ import SectionHeading from "./SectionHeading";
  */
 export default function LandingMessage() {
   return (
-    <section aria-labelledby="landing-message" data-grandma-section="message" className="mt-24">
+    <section aria-labelledby="landing-message" className="mt-24">
       <PageContainer width="wide">
         <SectionHeading id="landing-message" label="MESSAGE">
           メッセージ
@@ -44,7 +44,7 @@ export default function LandingMessage() {
       </div>
 
       <PageContainer width="reading" className="relative mt-10">
-        <GrandmaPerch section="message" className="absolute -top-28 right-5 sm:right-6" />
+        <GrandmaFigure className="absolute -top-28 right-5 sm:right-6" />
         <RevealOnScroll className="space-y-4 text-base leading-loose text-nicchyo-ink/70">
           {MESSAGE.paragraphs.map((paragraph) => (
             <p key={paragraph}>{paragraph}</p>

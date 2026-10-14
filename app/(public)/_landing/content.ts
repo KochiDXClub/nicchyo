@@ -82,20 +82,6 @@ export const MESSAGE = {
   signature: "nicchyo 開発チーム（高知高専）",
 };
 
-/** にちよさんが着地するセクション。<section data-grandma-section> と着地点（GrandmaPerch）に付ける */
-export type LandingSectionKey = "hero" | "about" | "highlights" | "shop" | "consult" | "message";
-
-/**
- * 右下にいるときのにちよさんのひとこと。いま読んでいるセクションに合わせて変える。
- * 案内の口調（mapIntro.*）にそろえて土佐ことばで書く。最後は見送りの一言（シート）を使う
- */
-export const GRANDMA_COMMENTS: Record<Exclude<LandingSectionKey, "message">, string> = {
-  hero: "ようこそ、日曜市へ。下へ進んでみいや。",
-  about: "nicchyo はね、高知高専の学生さんがつくったがよ。",
-  highlights: "朝早いほど品ぞろえがえいき、早めに来てね。",
-  shop: "気になる店は、地図で押してみいや。中が見えるき。",
-  consult: "わからんことは、わしに聞きや。押したら相談できるき。",
-};
 
 /**
  * 「お店の紹介」で開いて見せる見本の店。写真は日曜市で撮ったキャンドルのお店。

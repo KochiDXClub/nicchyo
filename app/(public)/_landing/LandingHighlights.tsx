@@ -3,7 +3,7 @@ import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { PageContainer } from "@/components/ui";
 import { HIGHLIGHTS, MARKET_FACTS } from "./content";
-import GrandmaPerch from "./GrandmaPerch";
+import GrandmaFigure from "./GrandmaFigure";
 import type { LandingShopPhoto } from "./pickLandingShops";
 import RevealOnScroll from "./RevealOnScroll";
 import SectionHeading from "./SectionHeading";
@@ -17,7 +17,7 @@ import SectionHeading from "./SectionHeading";
  */
 export default function LandingHighlights({ shopPhotos }: { shopPhotos: LandingShopPhoto[] }) {
   return (
-    <section aria-labelledby="landing-highlights" data-grandma-section="highlights" className="mt-24">
+    <section aria-labelledby="landing-highlights" className="mt-24">
       <PageContainer width="wide">
         <SectionHeading id="landing-highlights" label="HIGHLIGHTS">
           日曜市のいいところ
@@ -36,7 +36,7 @@ export default function LandingHighlights({ shopPhotos }: { shopPhotos: LandingS
               className="aspect-[4/5] w-full object-cover sm:aspect-[16/10] md:aspect-[16/9]"
             />
             <div aria-hidden className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/15 to-transparent" />
-            {index === 0 && <GrandmaPerch section="highlights" className="absolute right-4 top-4" />}
+            {index === 0 && <GrandmaFigure className="absolute right-4 top-4" />}
             <div className="absolute inset-x-0 bottom-0 p-6 sm:p-10">
               <RevealOnScroll className="max-w-lg text-white">
                 <p className="text-[0.7rem] font-bold tracking-[0.3em] text-white/80">{item.label}</p>

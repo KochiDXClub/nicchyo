@@ -4,7 +4,7 @@ import { MapPin, MessageCircle } from "lucide-react";
 import { buttonClass } from "@/components/ui";
 import { siteTextWithEmphasis } from "@/lib/siteCopy";
 import { PHOTOS } from "./content";
-import GrandmaPerch from "./GrandmaPerch";
+import GrandmaFigure from "./GrandmaFigure";
 import RevealOnScroll from "./RevealOnScroll";
 
 /**
@@ -26,7 +26,7 @@ export default function LandingHero() {
   return (
     <section
       aria-labelledby="landing-title"
-      data-grandma-section="hero"
+     
       className="relative h-[100svh] min-h-[36rem] overflow-hidden bg-nicchyo-ink md:max-h-[56rem]"
     >
       <picture>
@@ -50,7 +50,7 @@ export default function LandingHero() {
       <div className="absolute inset-x-0 bottom-0 px-5 pb-[calc(2rem+var(--safe-bottom,0px))] md:px-10 md:pb-12">
         <div className="relative mx-auto max-w-[64rem]">
           {/* にちよさんは、名前のすぐ上で待っている */}
-          <GrandmaPerch section="hero" className="absolute -top-24 right-0" />
+          <GrandmaFigure className="absolute -top-24 right-0" />
           <RevealOnScroll when="enter">
             <h1 id="landing-title" className="text-white">
               <span className="block text-sm font-bold tracking-wide text-white/85">高知高専生が開発した</span>

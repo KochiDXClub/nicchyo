@@ -3,7 +3,7 @@ import { ArrowRight } from "lucide-react";
 import { Badge, PageContainer } from "@/components/ui";
 import { SAMPLE_SHOP } from "./content";
 import LandingShopReveal from "./LandingShopReveal";
-import GrandmaPerch from "./GrandmaPerch";
+import GrandmaFigure from "./GrandmaFigure";
 import SectionHeading from "./SectionHeading";
 
 /**
@@ -13,7 +13,7 @@ import SectionHeading from "./SectionHeading";
 export default function LandingShop() {
 
   return (
-    <section aria-labelledby="landing-shop" data-grandma-section="shop" className="mt-24">
+    <section aria-labelledby="landing-shop" className="mt-24">
       <PageContainer width="wide">
         <SectionHeading id="landing-shop" label="SHOPS">
           お店をのぞく
@@ -44,7 +44,7 @@ export default function LandingShop() {
             </div>
           </div>
           <div className="relative">
-            <GrandmaPerch section="shop" className="absolute -top-20 right-2 z-[1]" />
+            <GrandmaFigure className="absolute -top-20 right-2 z-[1]" />
             <Badge variant="solid" className="absolute -top-3 left-4 z-[1]">
               見本
             </Badge>

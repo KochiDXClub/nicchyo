@@ -2,7 +2,7 @@ import Link from "next/link";
 import { ArrowRight, Mic, Send } from "lucide-react";
 import { PageContainer, buttonClass } from "@/components/ui";
 import { siteText } from "@/lib/siteCopy";
-import GrandmaPerch from "./GrandmaPerch";
+import GrandmaFigure from "./GrandmaFigure";
 import SectionHeading from "./SectionHeading";
 
 /** できることの箇条書き。相談画面（app/(public)/consult/）に実際にある機能だけを書く */
@@ -18,12 +18,12 @@ const CONSULT_POINTS = [
  *
  * 本番の見た目を変えたら、ここも合わせる:
  * - 答えのカード・候補ボタン・入力バー … app/(public)/consult/components/ConsultStage.tsx
- * - にちよさんの絵 … GrandmaAvatar.tsx（ここでは着地点だけを置き、絵は LandingGrandma が運んでくる）
+ * - にちよさんの絵 … GrandmaAvatar.tsx
  * 見本の中は押せる部品にしない（全体を1つのリンクにして、相談画面をひらく）
  */
 export default function LandingNichiyosan() {
   return (
-    <section aria-labelledby="landing-nichiyosan" data-grandma-section="consult" className="mt-24">
+    <section aria-labelledby="landing-nichiyosan" className="mt-24">
       <PageContainer width="wide">
         <SectionHeading id="landing-nichiyosan" label="CONSULT">
           にちよさんに相談
@@ -61,8 +61,8 @@ export default function LandingNichiyosan() {
           >
             {/* 中身は見本の絵。読み上げはリンクの名前で足りるので、中は読ませない */}
             <div aria-hidden className="flex flex-col gap-3">
-              {/* 見本の中のにちよさん。ここが着地点で、飛んできたにちよさんがここに収まる */}
-              <GrandmaPerch section="consult" className="mx-auto h-28 w-28" />
+              {/* 見本の中のにちよさん */}
+              <GrandmaFigure className="mx-auto h-28 w-28" />
 
               {/* 今の答え（ConsultStage の答えのカード） */}
               <div className="rounded-card border border-amber-100 bg-white/90 p-4 shadow-sm">
