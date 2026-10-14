@@ -50,7 +50,7 @@ function SpotIcon({ spot, size }: { spot: MapSpot; size: number }) {
       style={{ width: size, height: size }}
       aria-hidden
     >
-      <SpotKindIcon kind={spot.kind} size={Math.round(size * 0.7)} />
+      <SpotKindIcon kind={spot.kind} transitMode={spot.transitMode} size={Math.round(size * 0.7)} />
     </span>
   );
 }
