@@ -16,7 +16,7 @@ const GENRE_ICONS: Record<ShopCategory, LucideIcon> = {
 };
 
 /**
- * ジャンルからさがす。押すとそのカテゴリで絞った検索をひらく。
+ * ジャンルからさがす。押すと地図をひらき、そのカテゴリで絞り込む（/map?category=）。
  * 色は地図の屋台と同じカテゴリ色（shopCategories）を薄く敷く。文字はジャンル名だけ
  */
 export default function LandingGenres() {
@@ -33,7 +33,7 @@ export default function LandingGenres() {
             return (
               <li key={category}>
                 <Link
-                  href={`/search?q=${encodeURIComponent(category)}`}
+                  href={`/map?category=${encodeURIComponent(category)}`}
                   className="flex flex-col items-center gap-2 rounded-card bg-white px-2 py-4 text-[13px] font-bold text-nicchyo-ink shadow-card ring-1 ring-line transition hover:-translate-y-0.5 motion-reduce:transition-none motion-reduce:hover:translate-y-0"
                 >
                   <span

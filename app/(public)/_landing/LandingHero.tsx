@@ -59,9 +59,9 @@ export default function LandingHero({ day }: { day: MarketDay | null }) {
             </h1>
           </RevealOnScroll>
           <RevealOnScroll when="enter" delayMs={150} className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center">
-            {/* お店さがし。検索ページ（/search?q=）をひらく */}
+            {/* お店さがし。地図をひらき、検索バーにこの語を入れて絞り込む（/map?q=） */}
             <form
-              action="/search"
+              action="/map"
               method="get"
               role="search"
               className="flex min-w-0 items-center gap-1.5 rounded-chip bg-white py-1.5 pl-5 pr-1.5 shadow-card sm:w-[26rem]"

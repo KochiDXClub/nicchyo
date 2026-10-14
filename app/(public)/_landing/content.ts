@@ -52,8 +52,7 @@ export const HIGHLIGHTS: { label: string; title: string; photo: LandingPhoto }[]
 ];
 
 /**
- * ジャンルの入口。押すと、その店舗カテゴリで絞った検索（/search?q=カテゴリ名）をひらく。
- * 検索はカテゴリ名でも当たる（search/lib/searchIndex.ts の categoryLower）。
+ * ジャンルの入口。押すと、地図をその店舗カテゴリで絞り込んでひらく（/map?category=カテゴリ名）。
  * 見出しは来訪者に伝わる言い方にし、カテゴリ名（map/config/shopCategories.ts）とは分けて持つ
  */
 export const GENRES: { label: string; category: ShopCategory }[] = [

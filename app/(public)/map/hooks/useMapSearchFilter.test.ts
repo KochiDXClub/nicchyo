@@ -25,6 +25,21 @@ function advance(ms: number) {
   });
 }
 
+describe("useMapSearchFilter の初期ジャンル", () => {
+  it("URL のジャンルで最初から絞り込む（トップページのジャンルから来たとき）", () => {
+    const { result } = renderHook(() =>
+      useMapSearchFilter({ shops: [], favoriteShopIds: [], initialCategory: "食材" })
+    );
+    expect(result.current.category).toBe("食材");
+    expect(result.current.hasFilter).toBe(true);
+  });
+
+  it("指定がなければ絞り込みなし", () => {
+    const { result } = renderHook(() => useMapSearchFilter({ shops: [], favoriteShopIds: [] }));
+    expect(result.current.category).toBeNull();
+  });
+});
+
 describe("useMapSearchFilter の検索ログ", () => {
   beforeEach(() => {
     vi.useFakeTimers();

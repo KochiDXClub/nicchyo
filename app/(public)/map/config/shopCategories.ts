@@ -17,6 +17,14 @@ export const SHOP_CATEGORY_NAMES = [
 export type ShopCategory = (typeof SHOP_CATEGORY_NAMES)[number];
 
 /**
+ * URL の ?category= などで渡ってきた文字列を、店舗カテゴリとして使えるか確かめる。
+ * 知らない値（打ち間違い・古いリンク）は null にして、絞り込みなしで開く
+ */
+export function parseShopCategory(value: string | null | undefined): ShopCategory | null {
+  return SHOP_CATEGORY_NAMES.find((name) => name === value) ?? null;
+}
+
+/**
  * 屋台イラストのカテゴリ別ベースカラー。
  *
  * サイトの amber / orange 基調に合わせ、彩度を抑えた暖色寄りで統一している。
