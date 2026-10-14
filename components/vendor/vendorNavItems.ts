@@ -13,6 +13,7 @@ import {
   Sparkles,
   Store,
   UserRound,
+  Users,
   type LucideIcon,
 } from "lucide-react";
 import type { ShopPermission } from "@/lib/vendor/shopPermissions";
@@ -54,7 +55,9 @@ export const VENDOR_NAV_ITEMS: VendorNavItem[] = [
   // メニューのカードは幅が狭いので短い名前にする。画面の見出しは「にちよさんが覚えちゅうこと」
   { label: "にちよさんの覚えごと", href: "/vendor/ai-knowledge", icon: Sparkles, description: "にちよさんが覚えちゅうことを見る・直す", group: "main", permission: "ai_notes" },
   { label: "よくある質問", href: "/vendor/help", icon: CircleHelp, description: "困ったときに一覧から探す", group: "support" },
-  { label: "アカウント設定", href: "/vendor/account", icon: UserRound, description: "メンバーの管理・招待・操作ログ", group: "support" },
+  // メンバー一覧はメンバーなら誰でも見られるので、権限を付けない（招待・権限の変更は、画面の中で権限のある人にだけ出る）
+  { label: "メンバー管理", href: "/vendor/members", icon: Users, description: "お店のメンバーを見る・家族やスタッフを招待する", group: "support" },
+  { label: "アカウント設定", href: "/vendor/account", icon: UserRound, description: "名前と写真・お店を抜ける・退会", group: "support" },
 ];
 
 /** 自分の権限で使える導線だけを返す（権限のない画面へ案内して、API で断られるのを避ける） */
@@ -81,7 +84,7 @@ export function isVendorNavItemCurrent(href: string, pathname: string | null): b
   return pathname != null && matchesPrefix(pathname, href);
 }
 
-/** その画面を使うのに要る権限。権限が要らない画面（マイ店舗のホーム・使い方・アカウント設定など）は undefined */
+/** その画面を使うのに要る権限。権限が要らない画面（マイ店舗のホーム・使い方・メンバー管理・アカウント設定など）は undefined */
 export function requiredPermissionForPath(pathname: string | null): ShopPermission | undefined {
   if (!pathname) return undefined;
   const nav = VENDOR_NAV_ITEMS.find((item) => item.permission && matchesPrefix(pathname, item.href));

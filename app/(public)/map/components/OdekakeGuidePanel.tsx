@@ -7,6 +7,8 @@
  *
  *   - 種類が決まるまでは画面中央の選択画面（OdekakeKindChooser）に任せる
  *   - たたむと小さなピルだけ。マップを隠さない
+ *   - lg 以上（PC・ノートPC）は、下から出るシートではなく、左上に浮かぶパネル（幅 24rem）にする。
+ *     画面の端から端まで広がると、名前と所要時間が左右に離れすぎて読みにくく、地図も暗幕で隠れるため
  *   - 開くと: 種類の切り替え / 条件 / 起点 / 行程表
  *   - 行程表は「起点 → 各スポット」を縦の破線でつないだ停留所リスト。
  *     マップに引く破線ルートと同じ表現で、どこからどこへ行くのかが一目で分かる
@@ -23,6 +25,7 @@ import { formatDistance } from '@/lib/facilities/nearest';
 import type { MapCamera } from '../types/mapCamera';
 import { GUIDE_KIND_OPTIONS, type OdekakeGuide } from '../hooks/useOdekakeGuide';
 import OdekakeKindChooser from './OdekakeKindChooser';
+import SpotKindIcon from './SpotKindIcon';
 
 type OdekakeGuidePanelProps = {
   guide: OdekakeGuide;
@@ -43,11 +46,11 @@ function SpotIcon({ spot, size }: { spot: MapSpot; size: number }) {
   }
   return (
     <span
-      className="flex items-center justify-center rounded-full text-white"
-      style={{ width: size, height: size, backgroundColor: spot.accentColor, fontSize: size * 0.5 }}
+      className="flex items-center justify-center rounded-full bg-nicchyo-soft-green/30"
+      style={{ width: size, height: size }}
       aria-hidden
     >
-      {spot.emoji}
+      <SpotKindIcon kind={spot.kind} size={Math.round(size * 0.7)} />
     </span>
   );
 }
@@ -69,7 +72,7 @@ function KindToggle({
         onClick();
       }}
       aria-pressed={active}
-      className={`${FOCUS_RING} shrink-0 rounded-full px-3.5 py-1.5 text-[13px] font-bold transition-colors ${
+      className={`${FOCUS_RING} shrink-0 rounded-full px-3.5 py-1.5 text-[13px] font-bold transition-colors lg:w-full ${
         active ? 'bg-nicchyo-ink text-white' : 'bg-white text-slate-600 ring-1 ring-slate-200 active:bg-slate-50'
       }`}
     >
@@ -240,8 +243,8 @@ export default function OdekakeGuidePanel({ guide, map, onClose, onOpenSpot }: O
       {/* ピル：たたんでいるときの表示 */}
       {!isOpen && !guide.navigating && (
         <div
-          className="pointer-events-auto absolute left-1/2 z-[1100] -translate-x-1/2"
-          style={{ bottom: 'calc(4.5rem + env(safe-area-inset-bottom,0px) + 0.5rem + 25px)' }}
+          // lg 以上は下端のナビが無いので、パネルと同じ左側の下に置く
+          className="pointer-events-auto absolute left-1/2 z-[1100] -translate-x-1/2 bottom-[calc(4.5rem+env(safe-area-inset-bottom,0px)+0.5rem+25px)] lg:bottom-6 lg:left-4 lg:translate-x-0"
         >
           <button
             type="button"
@@ -293,15 +296,15 @@ export default function OdekakeGuidePanel({ guide, map, onClose, onOpenSpot }: O
       )}
 
       {isOpen && (
-        <div className="pointer-events-auto absolute inset-0 z-[1620] bg-nicchyo-ink/25" onClick={() => setIsOpen(false)} />
+        // lg 以上は暗幕を敷かない（横に並ぶパネルなので、地図と経路を見ながら選べるようにする）
+        <div className="pointer-events-auto absolute inset-0 z-[1620] bg-nicchyo-ink/25 lg:hidden" onClick={() => setIsOpen(false)} />
       )}
 
       {/* シート本体 */}
       <div
-        className={`pointer-events-auto absolute left-0 right-0 z-[1650] flex flex-col rounded-t-[28px] bg-white shadow-[0_-12px_40px_rgba(58,58,58,0.22)] transition-transform duration-300 ease-out motion-reduce:transition-none ${
-          isOpen ? 'translate-y-0' : 'translate-y-full'
+        className={`pointer-events-auto absolute bottom-0 left-0 right-0 z-[1650] flex max-h-[66vh] flex-col rounded-t-[28px] bg-white shadow-[0_-12px_40px_rgba(58,58,58,0.22)] transition-transform duration-300 ease-out motion-reduce:transition-none lg:bottom-auto lg:left-4 lg:right-auto lg:top-20 lg:max-h-[calc(100dvh-6rem)] lg:w-[24rem] lg:rounded-card lg:shadow-float lg:ring-1 lg:ring-line ${
+          isOpen ? 'translate-y-0' : 'translate-y-full lg:-translate-x-[calc(100%+2rem)] lg:translate-y-0'
         }`}
-        style={{ bottom: 0, maxHeight: '66vh' }}
         onTouchStart={(e) => {
           e.stopPropagation();
           handleDragStart(e.touches[0].clientY);
@@ -317,11 +320,11 @@ export default function OdekakeGuidePanel({ guide, map, onClose, onOpenSpot }: O
         aria-hidden={!isOpen}
       >
         {/* ハンドル + 見出し */}
-        <div className="shrink-0 rounded-t-[28px] bg-nicchyo-base/70">
-          <div className="flex justify-center pb-2 pt-2.5">
+        <div className="shrink-0 rounded-t-[28px] bg-nicchyo-base/70 lg:rounded-t-card">
+          <div className="flex justify-center pb-2 pt-2.5 lg:hidden">
             <span className="h-1 w-9 rounded-full bg-slate-300" />
           </div>
-          <div className="flex items-start justify-between gap-3 px-5 pb-3">
+          <div className="flex items-start justify-between gap-3 px-5 pb-3 lg:pt-4">
             <div className="min-w-0">
               <h3 className="text-[18px] font-black leading-tight tracking-tight text-nicchyo-ink">{title}</h3>
               {!choosing && hasRoutes && <p className="mt-1 text-[11px] text-slate-500">{originLabel}から近い順</p>}
@@ -342,11 +345,11 @@ export default function OdekakeGuidePanel({ guide, map, onClose, onOpenSpot }: O
 
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pb-[calc(env(safe-area-inset-bottom,0px)+0.75rem)]">
           {/* 種類（複数選択） */}
-          <div className="flex gap-2 overflow-x-auto px-5 pb-2 pt-3 [scrollbar-width:none]">
+          <div className="flex gap-2 overflow-x-auto px-5 pb-2 pt-3 [scrollbar-width:none] lg:grid lg:grid-cols-2 lg:overflow-visible">
             {GUIDE_KIND_OPTIONS.map((option) => (
               <KindToggle key={option.kind} active={guide.kinds.includes(option.kind)} onClick={() => guide.toggleKind(option.kind)}>
-                <span aria-hidden className="mr-1">
-                  {option.emoji}
+                <span aria-hidden className="mr-1 inline-flex align-middle">
+                  <SpotKindIcon kind={option.kind} size={18} />
                 </span>
                 {option.label}
               </KindToggle>
@@ -355,7 +358,7 @@ export default function OdekakeGuidePanel({ guide, map, onClose, onOpenSpot }: O
 
           {/* 条件 */}
           {!choosing && guide.availableTags.length > 0 && (
-            <div className="flex items-center gap-2 overflow-x-auto px-5 pb-3 [scrollbar-width:none]">
+            <div className="flex items-center gap-2 overflow-x-auto px-5 pb-3 [scrollbar-width:none] lg:flex-wrap lg:overflow-visible">
               <span className="shrink-0 text-[11px] text-slate-400">条件</span>
               {guide.availableTags.map((tag) => (
                 <ConditionToggle key={tag} active={guide.anyTags.includes(tag)} onClick={() => guide.toggleAnyTag(tag)}>

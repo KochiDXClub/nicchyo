@@ -1,7 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { buildSearchIndex } from "../../search/lib/searchIndex";
 import { useShopSearch } from "../../search/hooks/useShopSearch";
+import { MIN_SEARCH_KEYWORD_LENGTH, recordSearch } from "@/lib/analytics/searchLogs";
 import type { Shop } from "../data/shops";
+
+/** 打ち終わってからこの時間で検索ログを送る（/search と同じ） */
+export const SEARCH_LOG_DEBOUNCE_MS = 1000;
 
 /**
  * 地図上の検索バー・ジャンルフィルター・お気に入り絞り込みの状態。
@@ -39,6 +43,20 @@ export function useMapSearchFilter({
     category,
     chome: null,
   });
+
+  // 検索バーに打った語を記録する（出店者の「検索トレンド」の元。/search と同じ条件）。
+  // URL の ?q= で渡ってきた語（共有リンク・再読み込み）は、この画面で打った検索ではないので数えない。
+  // 一度書き換えたら、同じ語を打ち直しても数える
+  const skipQueryRef = useRef<string | null>(initialQuery);
+  const resultCount = results.length;
+  useEffect(() => {
+    if (query === skipQueryRef.current) return;
+    skipQueryRef.current = null;
+    const keyword = query.trim();
+    if (keyword.length < MIN_SEARCH_KEYWORD_LENGTH) return;
+    const timer = setTimeout(() => recordSearch(keyword, resultCount), SEARCH_LOG_DEBOUNCE_MS);
+    return () => clearTimeout(timer);
+  }, [query, resultCount]);
 
   const shopIds = useMemo(() => {
     const hasTextOrCategory = !!query.trim() || !!category;

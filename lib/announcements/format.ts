@@ -1,8 +1,8 @@
-const jstDate = new Intl.DateTimeFormat("ja-JP", { timeZone: "Asia/Tokyo", year: "numeric", month: "long", day: "numeric" });
+import { formatJaDate } from "@/lib/utils/date";
 
-/** 「2026年10月12日」（日本時間） */
+/** 「2026年10月12日」（日本時間）。日付の形は lib/utils/date.ts の formatJaDate にそろえる */
 export function formatAnnouncementDate(iso: string): string {
-  return jstDate.format(new Date(iso));
+  return formatJaDate(iso);
 }
 
 /** datetime-local の入力欄に入れる「2026-10-12T09:00」（日本時間）。空・不正は "" */
