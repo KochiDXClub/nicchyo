@@ -35,7 +35,7 @@ async function fetchPageVisibility(): Promise<PageVisibilitySettings> {
 
 // 静的ページ一覧
 const STATIC_PAGES: MetadataRoute.Sitemap = [
-  { url: `${SITE_URL}/`, lastModified: new Date(), changeFrequency: "monthly", priority: 1.0 },
+  { url: `${SITE_URL}/`, changeFrequency: "monthly", priority: 1.0 },
   { url: `${SITE_URL}/map`, lastModified: new Date(), changeFrequency: "daily", priority: 1.0 },
   { url: `${SITE_URL}/search`, lastModified: new Date(), changeFrequency: "weekly", priority: 0.9 },
   { url: `${SITE_URL}/news`, lastModified: new Date(), changeFrequency: "weekly", priority: 0.5 },
