@@ -3,12 +3,12 @@
 import { useCallback, useEffect, useState } from "react";
 import { Copy, Printer } from "lucide-react";
 import { Button, EmptyMessage } from "@/components/ui";
-import InviteSummary from "@/app/vendor/account/components/InviteSummary";
+import InviteSummary from "@/app/vendor/members/components/InviteSummary";
 import QrSheet from "../../components/QrSheet";
 import { formatJaDateTime } from "@/lib/utils/date";
-import CreatedInviteLink from "@/app/vendor/account/components/CreatedInviteLink";
-import MaxUsesPicker from "@/app/vendor/account/components/MaxUsesPicker";
-import PermissionPicker from "@/app/vendor/account/components/PermissionPicker";
+import CreatedInviteLink from "@/app/vendor/members/components/CreatedInviteLink";
+import MaxUsesPicker from "@/app/vendor/members/components/MaxUsesPicker";
+import PermissionPicker from "@/app/vendor/members/components/PermissionPicker";
 import { showToast } from "@/lib/admin/toast";
 import { createShopInvite, fetchShopInvites, revokeShopInvite, type AdminInvite, type ShopClaimRow } from "@/lib/admin/shopClaimsClient";
 import { SHOP_INVITE_RULES, SHOP_PERMISSION_PRESETS, type ShopPermission } from "@/lib/vendor/shopPermissions";
