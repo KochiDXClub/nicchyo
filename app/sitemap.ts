@@ -36,11 +36,10 @@ async function fetchPageVisibility(): Promise<PageVisibilitySettings> {
 
 // 静的ページ一覧
 // lastModified は載せない: 毎回「今」を入れると更新日として信用されなくなるため。
-// /news は /calendar へ恒久リダイレクトしているので載せない（リダイレクト先を載せる）
+// /news は /calendar へ、/search は /map へ恒久リダイレクトしているので載せない（リダイレクト先を載せる）
 const STATIC_PAGES: MetadataRoute.Sitemap = [
   { url: `${SITE_URL}/`, changeFrequency: "monthly", priority: 1.0 },
   { url: `${SITE_URL}/map`, changeFrequency: "daily", priority: 1.0 },
-  { url: `${SITE_URL}/search`, changeFrequency: "weekly", priority: 0.9 },
   { url: `${SITE_URL}/calendar`, changeFrequency: "weekly", priority: 0.7 },
   { url: `${SITE_URL}/consult`, changeFrequency: "weekly", priority: 0.7 },
   { url: `${SITE_URL}/story`, changeFrequency: "weekly", priority: 0.6 },
@@ -57,7 +56,7 @@ const STATIC_PAGES: MetadataRoute.Sitemap = [
   { url: `${SITE_URL}/privacy`, changeFrequency: "yearly", priority: 0.3 },
 ];
 
-/** 店舗ページ（/shops/NNN）に載せる店番。/map・/search・店舗詳細と同じ公開店舗の基準（fetchPublicShops）に揃える */
+/** 店舗ページ（/shops/NNN）に載せる店番。/map・店舗詳細と同じ公開店舗の基準（fetchPublicShops）に揃える */
 async function fetchActiveShopNumbers(): Promise<number[]> {
   try {
     const shops = await fetchPublicShops();

@@ -95,7 +95,7 @@ export const aboutSlides: AboutSlide[] = [
     iconName: "spark",
     action: {
       label: siteText("about.search.action"),
-      href: "/search",
+      href: "/map",
     },
   },
   {
