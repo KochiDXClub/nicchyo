@@ -24,7 +24,7 @@ import {
   ShopInfoList,
   resolveBannerTheme,
 } from '../ShopBannerHero';
-import { getShopBannerImage } from '@/lib/shopImages';
+import { getShopPreviewImage } from '@/lib/shopImages';
 import type { Shop } from '../../types/shopData';
 
 /** 本番の drawer と同じ、枠に対する開き具合（DRAWER_FULL_RATIO） */
@@ -42,7 +42,7 @@ export default function IntroShopSheet({
   onClose: () => void;
 }) {
   const theme = resolveBannerTheme(shop.themeColor);
-  const bannerImage = getShopBannerImage(shop.category, shop.id);
+  const bannerImage = getShopPreviewImage(shop);
 
   return (
     <motion.div
