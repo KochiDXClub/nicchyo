@@ -15,7 +15,7 @@ import LandingInfo from "./_landing/LandingInfo";
 import LandingHighlights from "./_landing/LandingHighlights";
 import LandingAbout from "./_landing/LandingAbout";
 import LandingForShops from "./_landing/LandingForShops";
-import { pickGenrePhotos, pickLandingHeroShops, pickLandingShopPhotos } from "./_landing/pickLandingShops";
+import { pickGenrePhotos, pickLandingShopPhotos } from "./_landing/pickLandingShops";
 
 const title = "nicchyo（ニッチョ）| 高知高専生が開発した日曜市のデジタルマップ";
 // 日曜市の数字（約1.3km・およそ300の店）はマップの案内と同じシートの文言から作る（太字の印は外す）
@@ -67,9 +67,8 @@ async function fetchThisWeekMarketDay(): Promise<MarketDay | null> {
 export default async function HomePage() {
   const [shops, day] = await Promise.all([fetchPublicShops().catch(() => []), fetchThisWeekMarketDay()]);
   const photos = pickLandingShopPhotos(shops);
-  // 最初の写真の上に置く屋台マーカー。地図と同じ公開店舗から、色がばらけるよう4件
+  // ジャンルの入口には、そのカテゴリの店の写真を使う
   const genrePhotos = pickGenrePhotos(shops, GENRES.map((genre) => genre.category));
-  const heroShops = pickLandingHeroShops(shops, 4);
 
   return (
     // 下のナビ（サブページでは「マップにもどる」の帯）は出さない。ここは入口なので「もどる」先が無い
@@ -77,7 +76,7 @@ export default async function HomePage() {
       {/* 日曜市の開催情報（/map と同じもの）。検索結果に開催日と場所を出してもらう */}
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: safeJsonLd(SUNDAY_MARKET_JSON_LD) }} />
       <main>
-        <LandingHero day={day} shops={heroShops} />
+        <LandingHero day={day} />
         <LandingGenres photos={genrePhotos} />
         <LandingHowTo />
         <LandingInfo />

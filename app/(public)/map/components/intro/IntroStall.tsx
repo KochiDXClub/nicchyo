@@ -12,7 +12,7 @@
 
 import { useMemo } from 'react';
 import { ROAD_STYLE } from '../../config/roadStyle';
-import { getShopBannerImage, getShopThumbnailImage } from '@/lib/shopImages';
+import { getShopBannerImage } from '@/lib/shopImages';
 import { generateShopMarkerHtml, sanitizeCssColor } from '../../utils/markerHtmlGenerator';
 import { resolveStallColors } from '../../config/shopCategories';
 import { generateCrowdSvg, CROWD_KINDS } from '../../config/crowdParts';
@@ -58,7 +58,7 @@ export function IntroStallMarker({
   const html = useMemo(
     () =>
       generateShopMarkerHtml(shop, {
-        bannerImage: getShopThumbnailImage(shop),
+        bannerImage: getShopBannerImage(shop.category, shop.id),
         illustrationSize: 'medium',
         includeNameplate: lod === 'nameplate',
       }),

@@ -1,6 +1,5 @@
 import { formatShopIdToCode } from "@/lib/shops/route";
 import type { Shop } from "../map/data/shops";
-import { pickIntroDemoShops, type IntroDemoShop } from "../map/components/intro/introDemoShops";
 
 /** 「出店しているお店から」に並べる1枚 */
 export type LandingShopPhoto = { id: number; code: string; name: string; image: string };
@@ -39,19 +38,6 @@ export function pickLandingShopPhotos(shops: Shop[]): LandingShopPhoto[] {
       name: shop.name.trim(),
       image: uploadedShopImage(shop) as string,
     }));
-}
-
-/**
- * 最初の写真の上に置くマーカーの店。出店者が写真を登録している店を優先し（バナーを開いたとき本物の写真が出る）、
- * 足りなければ写真の無い店で補う。カテゴリがばらける選び方は案内（pickIntroDemoShops）と同じ
- */
-export function pickLandingHeroShops(shops: Shop[], count: number): IntroDemoShop[] {
-  const withPhoto = shops.filter((shop) => shop.name?.trim() && uploadedShopImage(shop));
-  if (withPhoto.length >= count) return pickIntroDemoShops(withPhoto, count);
-  const picked = pickIntroDemoShops(withPhoto, count);
-  const taken = new Set(picked.map((shop) => shop.id));
-  const rest = pickIntroDemoShops(shops, count).filter((shop) => !taken.has(shop.id));
-  return [...picked, ...rest].slice(0, count);
 }
 
 /** ジャンルの入口に出す、そのカテゴリの店の写真（出店者が登録した写真がある店のうち id が最小の1店）。無いカテゴリは含めない */

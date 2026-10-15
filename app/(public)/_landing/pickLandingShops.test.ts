@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Shop } from "../map/data/shops";
-import { LANDING_SHOP_PHOTO_LIMIT, pickGenrePhotos, pickLandingHeroShops, pickLandingShopPhotos, uploadedShopImage } from "./pickLandingShops";
+import { LANDING_SHOP_PHOTO_LIMIT, pickGenrePhotos, pickLandingShopPhotos, uploadedShopImage } from "./pickLandingShops";
 
 const SUPABASE_IMAGE = "https://abc.supabase.co/storage/v1/object/public/shops/1.webp";
 
@@ -48,19 +48,5 @@ describe("pickGenrePhotos", () => {
     expect(result["食材"]?.name).toBe("店5");
     expect(result["食べ物"]?.name).toBe("店3");
     expect(result["道具・工具"]).toBeUndefined();
-  });
-});
-
-describe("pickLandingHeroShops", () => {
-  it("写真のある店を優先し、足りなければ写真の無い店で補う", () => {
-    const shops = [
-      shop({ id: 1, category: "食材" }),
-      shop({ id: 2, category: "食べ物", images: { main: SUPABASE_IMAGE } }),
-      shop({ id: 3, category: "道具・工具" }),
-    ];
-    const ids = pickLandingHeroShops(shops, 3).map((s) => s.id);
-    expect(ids[0]).toBe(2);
-    expect(new Set(ids).size).toBe(ids.length);
-    expect(ids).toHaveLength(3);
   });
 });

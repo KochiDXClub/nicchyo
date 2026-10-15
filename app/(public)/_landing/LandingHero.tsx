@@ -5,8 +5,6 @@ import { buttonClass } from "@/components/ui";
 import type { MarketDay } from "@/lib/market/calendar";
 import MarketStatusBar from "../../components/market/MarketStatusBar";
 import { PHOTOS } from "./content";
-import type { IntroDemoShop } from "../map/components/intro/introDemoShops";
-import LandingHeroMarkers from "./LandingHeroMarkers";
 import PhotoScrim from "./PhotoScrim";
 import RevealOnScroll from "./RevealOnScroll";
 
@@ -18,7 +16,7 @@ import RevealOnScroll from "./RevealOnScroll";
  * 写真は画面の向きで出し分ける。スマートフォンは縦長の「上から見た通り」、
  * 広い画面は横長の「屋台の通り」。<picture> で、見ない方の写真は読み込まない
  */
-export default function LandingHero({ day, shops }: { day: MarketDay | null; shops: IntroDemoShop[] }) {
+export default function LandingHero({ day }: { day: MarketDay | null }) {
   const common = { alt: "屋台のテントが並ぶ、日曜市の通り", sizes: "100vw", priority: true } as const;
   const {
     props: { srcSet: wideSrcSet },
@@ -39,7 +37,6 @@ export default function LandingHero({ day, shops }: { day: MarketDay | null; sho
         <img {...imgProps} alt={common.alt} className="absolute inset-0 h-full w-full object-cover" />
       </picture>
       <PhotoScrim withTop />
-      <LandingHeroMarkers shops={shops} />
 
       {/* ロゴ */}
       <div className="pointer-events-none absolute left-4 top-[calc(1rem+var(--safe-top,0px))] rounded-card bg-white p-1.5 shadow-card md:left-10">
@@ -47,7 +44,7 @@ export default function LandingHero({ day, shops }: { day: MarketDay | null; sho
         <img src="/icon.svg" alt="" width={40} height={40} className="h-10 w-10 rounded-btn" />
       </div>
 
-      {/* 上：今週の開催と名前。写真の下の方（マーカー）をふさがないよう上にまとめる */}
+      {/* 上：今週の開催と名前 */}
       <div className="pointer-events-none absolute inset-x-0 top-[calc(5.5rem+var(--safe-top,0px))] px-5 md:px-10">
         <div className="mx-auto max-w-[64rem]">
           <RevealOnScroll when="enter">
