@@ -50,7 +50,7 @@ export default function LandingStreet() {
                   {STREET_CHIPS.map((chip) => (
                     <li
                       key={chip.id}
-                      className="landing-swing absolute inline-flex items-baseline gap-1 whitespace-nowrap rounded-chip bg-white px-4 py-2 shadow-chip ring-1 ring-line-warm"
+                      className="landing-swing absolute inline-flex -translate-x-1/2 items-baseline gap-1 whitespace-nowrap rounded-chip bg-white px-4 py-2 shadow-chip ring-1 ring-line-warm"
                       style={{ left: `${chip.left}%`, top: `${chip.top}%` }}
                     >
                       <span className="font-display text-lg text-nicchyo-ink">{chip.main}</span>
