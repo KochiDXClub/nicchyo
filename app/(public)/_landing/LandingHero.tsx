@@ -1,19 +1,22 @@
 import Link from "next/link";
 import { getImageProps } from "next/image";
-import { MapPin, MessageCircle } from "lucide-react";
+import { MapPin } from "lucide-react";
 import { buttonClass } from "@/components/ui";
-import { siteTextWithEmphasis } from "@/lib/siteCopy";
+import type { MarketDay } from "@/lib/market/calendar";
+import MarketStatusBar from "../../components/market/MarketStatusBar";
 import { PHOTOS } from "./content";
+import PhotoScrim from "./PhotoScrim";
 import RevealOnScroll from "./RevealOnScroll";
 
 /**
- * 最初の一画面。写真を画面いっぱいに置き、名前と入口を写真の下の方に重ねる。
+ * 最初の一画面。写真を画面いっぱいに置き、その上に「今週の開催」「名前」「さがす」「地図」だけを載せる。
+ * 現地にいる人がすぐ使えるよう、説明文は置かない（日曜市の説明は下の開催のご案内にある）。
  * 文字が読めるよう、写真の下側だけを暗くする（店のバナー ShopBannerHero と同じ幕）。
  *
  * 写真は画面の向きで出し分ける。スマートフォンは縦長の「上から見た通り」、
  * 広い画面は横長の「屋台の通り」。<picture> で、見ない方の写真は読み込まない
  */
-export default function LandingHero() {
+export default function LandingHero({ day }: { day: MarketDay | null }) {
   const common = { alt: "屋台のテントが並ぶ、日曜市の通り", sizes: "100vw", priority: true } as const;
   const {
     props: { srcSet: wideSrcSet },
@@ -25,8 +28,7 @@ export default function LandingHero() {
   return (
     <section
       aria-labelledby="landing-title"
-     
-      className="relative h-[100svh] min-h-[36rem] overflow-hidden bg-nicchyo-ink md:max-h-[56rem]"
+      className="relative h-[100svh] min-h-[36rem] overflow-hidden bg-nicchyo-ink md:max-h-[48rem]"
     >
       <picture>
         <source media="(min-width: 768px)" srcSet={wideSrcSet} />
@@ -34,40 +36,60 @@ export default function LandingHero() {
         {/* getImageProps で最適化済みの <img>（art direction のため next/image ではなく <picture> で組む） */}
         <img {...imgProps} alt={common.alt} className="absolute inset-0 h-full w-full object-cover" />
       </picture>
-      <div aria-hidden className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/15 to-transparent" />
+      <PhotoScrim withTop />
 
-      {/* 看板。縦書きで左上に置く */}
-      <div className="absolute left-4 top-[calc(1rem+var(--safe-top,0px))] flex w-16 flex-col items-center gap-3 bg-white px-2 py-4 shadow-card md:left-10 md:w-20">
+      {/* ロゴ */}
+      <div className="pointer-events-none absolute left-4 top-[calc(1rem+var(--safe-top,0px))] rounded-card bg-white p-1.5 shadow-card md:left-10">
         {/* eslint-disable-next-line @next/next/no-img-element -- 64px の SVG。最適化の対象外 */}
         <img src="/icon.svg" alt="" width={40} height={40} className="h-10 w-10 rounded-btn" />
-        <p className="font-display text-3xl tracking-[0.15em] text-nicchyo-ink [writing-mode:vertical-rl] md:text-4xl">
-          日曜市
-        </p>
-        <p className="text-xs font-bold tracking-[0.1em] text-nicchyo-ink/70 [writing-mode:vertical-rl]">高知・追手筋</p>
+      </div>
+
+      {/* 上：今週の開催と名前 */}
+      <div className="pointer-events-none absolute inset-x-0 top-[calc(5.5rem+var(--safe-top,0px))] px-5 md:px-10">
+        <div className="mx-auto max-w-[64rem]">
+          <RevealOnScroll when="enter">
+            <MarketStatusBar day={day} placement="page" className="pointer-events-auto w-fit max-w-full" />
+            <h1 id="landing-title" className="mt-3 text-white">
+              <span className="block text-xs font-bold tracking-wide text-white/90">高知高専生が開発した</span>
+              <span className="mt-1.5 block font-display text-xl leading-snug sm:text-2xl">
+                <span className="landing-hl">日曜市のデジタルマップ</span>
+              </span>
+              <span className="mt-1 block text-5xl font-black tracking-wide sm:text-6xl">
+                <span className="landing-hl landing-hl-delay">nicchyo</span>
+              </span>
+            </h1>
+          </RevealOnScroll>
+        </div>
       </div>
 
       <div className="absolute inset-x-0 bottom-0 px-5 pb-[calc(2rem+var(--safe-bottom,0px))] md:px-10 md:pb-12">
         <div className="mx-auto max-w-[64rem]">
-          <RevealOnScroll when="enter">
-            <h1 id="landing-title" className="text-white">
-              <span className="block text-sm font-bold tracking-wide text-white/85">高知高専生が開発した</span>
-              <span className="mt-1 block font-display text-[1.75rem] leading-snug sm:text-4xl">日曜市のデジタルマップ</span>
-              <span className="mt-1 block text-5xl font-black tracking-wide sm:text-6xl">nicchyo</span>
-            </h1>
-          </RevealOnScroll>
-          <RevealOnScroll when="enter" delayMs={150}>
-            <p className="mt-3 max-w-md text-sm leading-relaxed text-white/85 sm:text-base">
-              {siteTextWithEmphasis("mapIntro.lead", "font-bold text-white")}
-            </p>
-          </RevealOnScroll>
-          <RevealOnScroll when="enter" delayMs={300} className="mt-6 flex flex-col gap-3 sm:flex-row">
+          <RevealOnScroll when="enter" delayMs={150} className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            {/* お店さがし。地図をひらき、検索バーにこの語を入れて絞り込む（/map?q=） */}
+            <form
+              action="/map"
+              method="get"
+              role="search"
+              className="flex min-w-0 items-center gap-1.5 rounded-chip bg-white py-1.5 pl-5 pr-1.5 shadow-card sm:w-[26rem]"
+            >
+              <label htmlFor="landing-search" className="sr-only">
+                お店や品物をさがす
+              </label>
+              <input
+                id="landing-search"
+                name="q"
+                type="search"
+                enterKeyHint="search"
+                placeholder="なにを探す？　例：芋天"
+                className="h-9 min-w-0 flex-1 bg-transparent text-base text-nicchyo-ink outline-none placeholder:text-nicchyo-ink/40"
+              />
+              <button type="submit" className={buttonClass({ variant: "ink", size: "sm", className: "h-10" })}>
+                さがす
+              </button>
+            </form>
             <Link href="/map" className={buttonClass({ size: "lg" })}>
               <MapPin aria-hidden className="h-5 w-5" />
               マップをひらく
-            </Link>
-            <Link href="/consult" className={buttonClass({ variant: "secondary", size: "lg" })}>
-              <MessageCircle aria-hidden className="h-5 w-5" />
-              にちよさんに聞く
             </Link>
           </RevealOnScroll>
         </div>

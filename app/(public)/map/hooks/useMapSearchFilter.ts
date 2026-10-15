@@ -20,13 +20,16 @@ export function useMapSearchFilter({
   shops,
   favoriteShopIds,
   initialQuery = "",
+  initialCategory = null,
 }: {
   shops: Shop[];
   favoriteShopIds: number[];
   initialQuery?: string;
+  /** URL の ?category= で渡ってきたジャンル（トップページのジャンルなど）。無ければ絞り込みなし */
+  initialCategory?: string | null;
 }) {
   const [query, setQuery] = useState(initialQuery);
-  const [category, setCategory] = useState<string | null>(null);
+  const [category, setCategory] = useState<string | null>(initialCategory);
   // お気に入り絞り込み。歩きながら1タップで「あとで戻る店」だけの地図にできる
   const [favoritesOnly, setFavoritesOnly] = useState(false);
 

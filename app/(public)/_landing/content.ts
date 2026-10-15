@@ -7,6 +7,7 @@
  */
 
 import type { Shop } from "../map/data/shops";
+import type { ShopCategory } from "../map/config/shopCategories";
 
 export type LandingPhoto = { src: string; width: number; height: number; alt: string };
 
@@ -43,45 +44,43 @@ export const PHOTOS = {
   },
 } satisfies Record<string, LandingPhoto>;
 
-/** 日曜市の良いところ。写真が主役で、文章は短く添える */
-export const HIGHLIGHTS: { label: string; title: string; body: string; photo: LandingPhoto }[] = [
-  {
-    label: "HISTORY",
-    title: "300年以上続く、街なかの市",
-    body: "江戸時代から続く高知の日曜市。高知城のふもとの追手筋に、毎週日曜、およそ300の店が約1.3kmにわたって並びます。",
-    photo: PHOTOS.overview,
-  },
-  {
-    label: "PEOPLE",
-    title: "つくった人と話しながら、買える",
-    body: "朝どれの野菜や果物、田舎寿司。店先で食べ方を聞けば、つくった人がそのまま教えてくれます。",
-    photo: PHOTOS.produce,
-  },
-  {
-    label: "WALK",
-    title: "歩くだけで、出会いがある",
-    body: "芋天を片手に、刃物、植木、骨董、手しごとの品へ。のぞくたびに、ちがう店と人に出会えます。",
-    photo: PHOTOS.crowd,
-  },
+/** 日曜市のいいところ。写真が主役で、文字は写真に重ねる短い見出しだけにする */
+export const HIGHLIGHTS: { label: string; title: string; photo: LandingPhoto }[] = [
+  { label: "HISTORY", title: "300年以上続く市", photo: PHOTOS.overview },
+  { label: "PEOPLE", title: "つくった人から買える", photo: PHOTOS.produce },
+  { label: "WALK", title: "歩くだけで出会える", photo: PHOTOS.crowd },
 ];
 
-/** 開催の案内。休市日は高知市の案内による（1月1・2日と、よさこい祭りの8月10〜12日に日曜が重なる日は休み） */
+/**
+ * ジャンルの入口。押すと、地図をその店舗カテゴリで絞り込んでひらく（/map?category=カテゴリ名）。
+ * 見出しは来訪者に伝わる言い方にし、カテゴリ名（map/config/shopCategories.ts）とは分けて持つ
+ */
+export const GENRES: { label: string; category: ShopCategory }[] = [
+  { label: "野菜・果物", category: "食材" },
+  { label: "食べ歩き", category: "食べ物" },
+  { label: "刃物・道具", category: "道具・工具" },
+  { label: "植木・苗", category: "植物・苗" },
+  { label: "手しごと", category: "手作り・工芸" },
+  { label: "雑貨", category: "生活雑貨" },
+];
+
+/**
+ * 開催の案内。長さと店の数は見出しの mapIntro.lead（シート）が持つので、ここには書かない。
+ * 休市日は高知市の案内による（1月1・2日と、よさこい祭りの8月10〜12日に日曜が重なる日は休み）
+ */
 export const MARKET_FACTS: { term: string; detail: string }[] = [
-  { term: "いつ", detail: "毎週日曜。早朝から夕方まで（店によって違います）。品ぞろえが多いのは午前中" },
-  { term: "どこ", detail: "高知城のふもとから、追手筋（高知市）の東の端まで" },
-  { term: "お休み", detail: "1月1・2日と、8月10〜12日（よさこい祭り）に重なる日曜" },
+  { term: "いつ", detail: "毎週日曜　早朝〜夕方（店によって違います）" },
+  { term: "どこ", detail: "高知城のふもと〜追手筋（高知市）" },
+  { term: "お休み", detail: "1/1・2、8/10〜12 に重なる日曜" },
 ];
 
-/** メッセージ。開発チーム（高知高専）からのことば */
-export const MESSAGE = {
-  title: ["日曜市を、", "つぎの300年へ。"],
-  paragraphs: [
-    "わたしたちは、高知工業高等専門学校の学生です。日曜市に通い、出店者さんや来てくれた人の声を聞きながら、nicchyo をつくっています。",
-    "はじめての人が迷わず歩けて、出店者さんの思いがもっと伝わる。300年続いてきたこの市が、これからも続いていくように、デジタルの力で支えていきたいと考えています。",
-  ],
+/** nicchyo について。開発チーム（高知高専）からのことばは短く */
+export const ABOUT = {
+  body: "日曜市に通い、出店者さんや来た人の声を聞きながら開発しています。",
+  award: "こうちNPOアワード2025「ワカモノ未来賞」受賞",
+  message: ["日曜市を、", "つぎの300年へ。"],
   signature: "nicchyo 開発チーム（高知高専）",
 };
-
 
 /**
  * 「お店の紹介」で開いて見せる見本の店。写真は日曜市で撮ったキャンドルのお店。
