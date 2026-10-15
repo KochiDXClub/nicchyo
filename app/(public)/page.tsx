@@ -8,6 +8,7 @@ import { createClient } from "@/utils/supabase/server";
 import { fetchMarketCalendar, type MarketDay } from "@/lib/market/calendar";
 import { fetchPublicShops } from "./map/services/shopCache";
 import LandingHero from "./_landing/LandingHero";
+import LandingStreet from "./_landing/LandingStreet";
 import LandingGenres from "./_landing/LandingGenres";
 import LandingHowTo from "./_landing/LandingHowTo";
 import LandingInfo from "./_landing/LandingInfo";
@@ -74,6 +75,7 @@ export default async function HomePage() {
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: safeJsonLd(SUNDAY_MARKET_JSON_LD) }} />
       <main>
         <LandingHero day={day} />
+        <LandingStreet />
         <LandingGenres />
         <LandingHowTo />
         <LandingInfo />

@@ -1,0 +1,52 @@
+/*
+ * トップページ（/）の動き。色・余白は Tailwind のトークン側に置き、ここには keyframes と、
+ * Tailwind では書きにくい「流れ続ける層」「ぶら下がる札」の動きだけを置く。
+ * 画面の外では止める（data-visible="false"）。「動きを減らす」設定では、すべて止めて静止した形にする。
+ */
+
+/* 屋台通り：同じ絵を2枚つないで、1枚ぶん流れたら頭に戻す（つなぎ目が見えない） */
+.landing-marq {
+  display: flex;
+  width: 3200px;
+  animation: landing-marq 90s linear infinite;
+  will-change: transform;
+}
+@keyframes landing-marq {
+  to {
+    transform: translateX(-1600px);
+  }
+}
+.landing-street[data-visible="false"] .landing-marq,
+.landing-street[data-visible="false"] .landing-swing {
+  animation-play-state: paused;
+}
+
+/* 綱からぶら下がる札 */
+.landing-swing {
+  transform-origin: 50% -12px;
+  animation: landing-swing 4s ease-in-out infinite alternate;
+}
+@keyframes landing-swing {
+  from {
+    transform: translateX(-50%) rotate(-2deg);
+  }
+  to {
+    transform: translateX(-50%) rotate(2deg);
+  }
+}
+
+/* 左右のはしを、ぼかして消す */
+.landing-fade-x {
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .landing-marq,
+  .landing-swing {
+    animation: none;
+  }
+  .landing-marq {
+    transform: none;
+  }
+}
