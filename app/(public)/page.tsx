@@ -3,9 +3,7 @@ import { PageShell } from "@/components/ui";
 import { siteText } from "@/lib/siteCopy";
 import { SUNDAY_MARKET_JSON_LD } from "@/lib/seo/sundayMarketJsonLd";
 import { safeJsonLd } from "@/lib/utils/jsonLd";
-import { cookies } from "next/headers";
-import { createClient } from "@/utils/supabase/server";
-import { fetchMarketCalendar, type MarketCalendar } from "@/lib/market/calendar";
+import { fetchPublicMarketCalendar } from "@/lib/market/publicCalendar";
 import { fetchPublicShops } from "./map/services/shopCache";
 import LandingHero from "./_landing/LandingHero";
 import LandingStreet from "./_landing/LandingStreet";
@@ -45,16 +43,6 @@ export const metadata: Metadata = {
   },
 };
 
-/** 開催カレンダー（今週の開催状況と、これからの日曜の状態）。取れなかったときは null（バーは「開催」として出る。カレンダーと同じ扱い） */
-async function fetchCalendar(): Promise<MarketCalendar | null> {
-  try {
-    const supabase = createClient(await cookies());
-    return await fetchMarketCalendar(supabase);
-  } catch {
-    return null;
-  }
-}
-
 /**
  * トップページ。以前は /map へリダイレクトしていたが、検索や口コミで来た人が
  * 「何のサイトか」「日曜市とは」を分かり、そのまま使い始められる案内のページにした。
@@ -67,7 +55,7 @@ async function fetchCalendar(): Promise<MarketCalendar | null> {
  * 取れなかったときは、その帯を出さないだけでページは表示する
  */
 export default async function HomePage() {
-  const [shops, calendar] = await Promise.all([fetchPublicShops().catch(() => []), fetchCalendar()]);
+  const [shops, calendar] = await Promise.all([fetchPublicShops().catch(() => []), fetchPublicMarketCalendar()]);
   const day = calendar?.day ?? null;
   const sundays = buildLandingSundays(calendar?.days ?? []);
   const photos = pickLandingShopPhotos(shops);
