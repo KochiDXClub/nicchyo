@@ -5,7 +5,7 @@ import { SUNDAY_MARKET_JSON_LD } from "@/lib/seo/sundayMarketJsonLd";
 import { safeJsonLd } from "@/lib/utils/jsonLd";
 import { cookies } from "next/headers";
 import { createClient } from "@/utils/supabase/server";
-import { fetchMarketCalendar, type MarketDay } from "@/lib/market/calendar";
+import { fetchMarketCalendar, type MarketCalendar } from "@/lib/market/calendar";
 import { fetchPublicShops } from "./map/services/shopCache";
 import LandingHero from "./_landing/LandingHero";
 import LandingStreet from "./_landing/LandingStreet";
@@ -16,6 +16,7 @@ import LandingHighlights from "./_landing/LandingHighlights";
 import LandingAbout from "./_landing/LandingAbout";
 import LandingClosing from "./_landing/LandingClosing";
 import LandingForShops from "./_landing/LandingForShops";
+import { buildLandingSundays } from "./_landing/upcomingSundays";
 import { pickLandingShopPhotos } from "./_landing/pickLandingShops";
 
 const title = "nicchyo（ニッチョ）| 高知高専生が開発した日曜市のデジタルマップ";
@@ -44,11 +45,11 @@ export const metadata: Metadata = {
   },
 };
 
-/** 今週の日曜市の開催状況。取れなかったときは null（バーは「開催」として出る。カレンダーと同じ扱い） */
-async function fetchThisWeekMarketDay(): Promise<MarketDay | null> {
+/** 開催カレンダー（今週の開催状況と、これからの日曜の状態）。取れなかったときは null（バーは「開催」として出る。カレンダーと同じ扱い） */
+async function fetchCalendar(): Promise<MarketCalendar | null> {
   try {
     const supabase = createClient(await cookies());
-    return (await fetchMarketCalendar(supabase)).day;
+    return await fetchMarketCalendar(supabase);
   } catch {
     return null;
   }
@@ -66,7 +67,9 @@ async function fetchThisWeekMarketDay(): Promise<MarketDay | null> {
  * 取れなかったときは、その帯を出さないだけでページは表示する
  */
 export default async function HomePage() {
-  const [shops, day] = await Promise.all([fetchPublicShops().catch(() => []), fetchThisWeekMarketDay()]);
+  const [shops, calendar] = await Promise.all([fetchPublicShops().catch(() => []), fetchCalendar()]);
+  const day = calendar?.day ?? null;
+  const sundays = buildLandingSundays(calendar?.days ?? []);
   const photos = pickLandingShopPhotos(shops);
 
   return (
@@ -79,7 +82,7 @@ export default async function HomePage() {
         <LandingStreet />
         <LandingGenres />
         <LandingHowTo />
-        <LandingInfo />
+        <LandingInfo sundays={sundays} />
         <LandingHighlights shopPhotos={photos} />
         <LandingAbout />
         <LandingClosing />
