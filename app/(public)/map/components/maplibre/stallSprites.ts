@@ -42,7 +42,7 @@ export type StallState = "normal" | "search" | "ai" | "selected";
 export const STALL_STATES: readonly StallState[] = ["normal", "search", "ai", "selected"];
 
 /** 状態ごとの屋根・ひさし色（globals.css の状態上書きと同じ値） */
-const STATE_COLORS: Record<Exclude<StallState, "normal" | "selected">, { roof: string; base: string; stripe: string }> = {
+export const STATE_COLORS: Record<Exclude<StallState, "normal" | "selected">, { roof: string; base: string; stripe: string }> = {
   search: { roof: "#2563eb", base: "#93c5fd", stripe: "#2563eb" },
   ai: { roof: "#ef4444", base: "#fca5a5", stripe: "#ef4444" },
 };

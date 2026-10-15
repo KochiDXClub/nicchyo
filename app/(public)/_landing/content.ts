@@ -73,13 +73,13 @@ export const GENRES: { category: ShopCategory; art: string }[] = SHOP_CATEGORY_N
 }));
 
 /**
- * 開催の案内。長さと店の数は見出しの mapIntro.lead（シート）が持つので、ここには書かない。
- * 休市日は高知市の案内による（1月1・2日と、よさこい祭りの8月10〜12日に日曜が重なる日は休み）
+ * 開催の案内（いつ・どこ）。長さと店の数（約1.3km・およそ300店）は屋台通りの札（STREET_CHIPS）にある。
+ * 休市日は高知市の案内による（1月1・2日と、よさこい祭りの8月10〜12日に日曜が重なる日は休み）。
+ * 休みの日は、開催カレンダー（market_days）に登録された状態として「これからの日曜」に出る
  */
-export const MARKET_FACTS: { term: string; detail: string }[] = [
-  { term: "いつ", detail: "毎週日曜　早朝〜夕方（店によって違います）" },
-  { term: "どこ", detail: "高知城のふもと〜追手筋（高知市）" },
-  { term: "お休み", detail: "1/1・2、8/10〜12 に重なる日曜" },
+export const MARKET_FACTS: { term: "いつ" | "どこ"; detail: string }[] = [
+  { term: "いつ", detail: "毎週日曜　早朝〜夕方" },
+  { term: "どこ", detail: "高知城前〜追手筋" },
 ];
 
 /** nicchyo について。開発チーム（高知高専）からのことばは短く */
