@@ -39,15 +39,3 @@ export function pickLandingShopPhotos(shops: Shop[]): LandingShopPhoto[] {
       image: uploadedShopImage(shop) as string,
     }));
 }
-
-/** ジャンルの入口に出す、そのカテゴリの店の写真（出店者が登録した写真がある店のうち id が最小の1店）。無いカテゴリは含めない */
-export function pickGenrePhotos(shops: Shop[], categories: readonly string[]): Record<string, { image: string; name: string }> {
-  const result: Record<string, { image: string; name: string }> = {};
-  for (const category of categories) {
-    const shop = shops
-      .filter((s) => s.category === category && s.name?.trim() && uploadedShopImage(s))
-      .sort((a, b) => a.id - b.id)[0];
-    if (shop) result[category] = { image: uploadedShopImage(shop) as string, name: shop.name.trim() };
-  }
-  return result;
-}
