@@ -7,7 +7,18 @@
  */
 
 import type { Shop } from "../map/data/shops";
-import type { ShopCategory } from "../map/config/shopCategories";
+import { SHOP_CATEGORY_NAMES, type ShopCategory } from "../map/config/shopCategories";
+
+/** カテゴリごとのイラスト（public/images/landing/art/）。カテゴリを足したら、ここに絵を足す（型で漏れに気づける） */
+const GENRE_ART: Record<ShopCategory, string> = {
+  食材: "/images/landing/art/genre-shokuzai.svg",
+  食べ物: "/images/landing/art/genre-tabemono.svg",
+  "道具・工具": "/images/landing/art/genre-dougu.svg",
+  生活雑貨: "/images/landing/art/genre-zakka.svg",
+  "植物・苗": "/images/landing/art/genre-shokubutsu.svg",
+  アクセサリー: "/images/landing/art/genre-accessory.svg",
+  "手作り・工芸": "/images/landing/art/genre-tezukuri.svg",
+};
 
 export type LandingPhoto = { src: string; width: number; height: number; alt: string };
 
@@ -52,17 +63,14 @@ export const HIGHLIGHTS: { label: string; title: string; photo: LandingPhoto }[]
 ];
 
 /**
- * ジャンルの入口。押すと、地図をその店舗カテゴリで絞り込んでひらく（/map?category=カテゴリ名）。
- * 見出しは来訪者に伝わる言い方にし、カテゴリ名（map/config/shopCategories.ts）とは分けて持つ
+ * ジャンルの入口。店舗カテゴリ（map/config/shopCategories.ts の SHOP_CATEGORY_NAMES）7つそのまま。
+ * 押すと、地図をそのカテゴリで絞り込んでひらく（/map?category=カテゴリ名）。
+ * 絵は public/images/landing/art/ のイラスト（屋台のカテゴリ色は getShopCategoryColor から取る）
  */
-export const GENRES: { label: string; category: ShopCategory }[] = [
-  { label: "野菜・果物", category: "食材" },
-  { label: "食べ歩き", category: "食べ物" },
-  { label: "刃物・道具", category: "道具・工具" },
-  { label: "植木・苗", category: "植物・苗" },
-  { label: "手しごと", category: "手作り・工芸" },
-  { label: "雑貨", category: "生活雑貨" },
-];
+export const GENRES: { category: ShopCategory; art: string }[] = SHOP_CATEGORY_NAMES.map((category) => ({
+  category,
+  art: GENRE_ART[category],
+}));
 
 /**
  * 開催の案内。長さと店の数は見出しの mapIntro.lead（シート）が持つので、ここには書かない。
@@ -111,3 +119,13 @@ export const SAMPLE_SHOP: Shop = {
   themeColor: "rose",
   images: { main: "/images/landing/candle-shop.webp" },
 };
+
+/**
+ * 屋台通りの上にぶら下げる札。数字はマップの案内（mapIntro.lead）と同じ（毎週日曜・約1.3km・およそ300の店）。
+ * 位置は屋台通りの絵（street.svg、1600×300）の上の割合
+ */
+export const STREET_CHIPS: { id: string; main: string; unit: string; left: number; top: number }[] = [
+  { id: "weekly", main: "毎週", unit: "日曜", left: 36.1, top: 10 },
+  { id: "length", main: "約1.3", unit: "km", left: 46.3, top: 13.3 },
+  { id: "shops", main: "およそ300", unit: "店", left: 56.4, top: 10 },
+];
