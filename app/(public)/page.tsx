@@ -14,6 +14,7 @@ import LandingHowTo from "./_landing/LandingHowTo";
 import LandingInfo from "./_landing/LandingInfo";
 import LandingHighlights from "./_landing/LandingHighlights";
 import LandingAbout from "./_landing/LandingAbout";
+import LandingClosing from "./_landing/LandingClosing";
 import LandingForShops from "./_landing/LandingForShops";
 import { pickLandingShopPhotos } from "./_landing/pickLandingShops";
 
@@ -81,6 +82,7 @@ export default async function HomePage() {
         <LandingInfo />
         <LandingHighlights shopPhotos={photos} />
         <LandingAbout />
+        <LandingClosing />
         <LandingForShops />
       </main>
     </PageShell>

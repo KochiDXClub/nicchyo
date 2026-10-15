@@ -12,8 +12,8 @@ export default function LandingHowTo() {
   return (
     <section aria-labelledby="landing-howto" className="mt-20">
       <PageContainer width="wide">
-        <SectionHeading id="landing-howto" label="HOW TO">
-          見て、聞いて、歩く
+        <SectionHeading id="landing-howto">
+          nicchyoの使い方！
         </SectionHeading>
         <div className="mt-6 grid gap-12 md:grid-cols-2 md:gap-10">
           <figure className="mx-auto w-full max-w-[24rem]">

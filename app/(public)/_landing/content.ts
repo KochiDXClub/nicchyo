@@ -55,11 +55,11 @@ export const PHOTOS = {
   },
 } satisfies Record<string, LandingPhoto>;
 
-/** 日曜市のいいところ。写真が主役で、文字は写真に重ねる短い見出しだけにする */
-export const HIGHLIGHTS: { label: string; title: string; photo: LandingPhoto }[] = [
-  { label: "HISTORY", title: "300年以上続く市", photo: PHOTOS.overview },
-  { label: "PEOPLE", title: "つくった人から買える", photo: PHOTOS.produce },
-  { label: "WALK", title: "歩くだけで出会える", photo: PHOTOS.crowd },
+/** 日曜市のいいところ。写真が主役で、写真の上に書かれる短い手描きの一言（と、ひとつのシール）を重ねる */
+export const HIGHLIGHTS: { id: string; title: string; sticker: string; photo: LandingPhoto; delay: number }[] = [
+  { id: "history", title: "300年以上続く市", sticker: "/images/landing/art/sticker-year.svg", photo: PHOTOS.overview, delay: 0.15 },
+  { id: "people", title: "出店者との交流", sticker: "/images/landing/art/sticker-talk.svg", photo: PHOTOS.produce, delay: 0.45 },
+  { id: "walk", title: "楽しい", sticker: "/images/landing/art/sticker-face.svg", photo: PHOTOS.crowd, delay: 0.75 },
 ];
 
 /**
@@ -85,7 +85,9 @@ export const MARKET_FACTS: { term: string; detail: string }[] = [
 /** nicchyo について。開発チーム（高知高専）からのことばは短く */
 export const ABOUT = {
   body: "日曜市に通い、出店者さんや来た人の声を聞きながら開発しています。",
-  award: "こうちNPOアワード2025「ワカモノ未来賞」受賞",
+  /** 受賞（活動記録に載っている事実。受賞名と賞を分けて、カードに出す） */
+  awardName: "こうちNPOアワード2025",
+  awardTitle: "ワカモノ未来賞",
   message: ["日曜市を、", "つぎの300年へ。"],
   signature: "nicchyo 開発チーム（高知高専）",
 };

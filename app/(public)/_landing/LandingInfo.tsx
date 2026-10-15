@@ -10,8 +10,8 @@ export default function LandingInfo() {
   return (
     <section aria-labelledby="landing-info" className="mt-20">
       <PageContainer width="wide">
-        <SectionHeading id="landing-info" label="INFO">
-          開催のご案内
+        <SectionHeading id="landing-info">
+          次の日曜市は、いつ？
         </SectionHeading>
         <p className="mt-3 text-sm leading-relaxed text-nicchyo-ink/70">
           {siteTextWithEmphasis("mapIntro.lead", "font-bold text-nicchyo-ink")}
