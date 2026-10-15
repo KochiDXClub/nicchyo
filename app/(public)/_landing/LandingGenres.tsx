@@ -3,6 +3,7 @@ import { PageContainer } from "@/components/ui";
 import { cn } from "@/lib/utils/cn";
 import { getShopCategoryColor, resolveStallColors, type ShopCategory } from "../map/config/shopCategories";
 import { GENRES } from "./content";
+import SectionHeading from "./SectionHeading";
 
 const SCALLOP_COUNT = 6;
 
@@ -37,9 +38,7 @@ export default function LandingGenres() {
   return (
     <section aria-labelledby="landing-genres" className="mt-16 md:mt-20">
       <PageContainer width="wide">
-        <h2 id="landing-genres" className="font-display text-2xl leading-snug text-nicchyo-ink md:text-3xl">
-          何に興味ある？
-        </h2>
+        <SectionHeading id="landing-genres">何に興味ある？</SectionHeading>
         <ul className="mt-6 grid grid-cols-4 gap-3 md:grid-cols-7">
           {GENRES.map(({ category, art }, index) => (
             <li key={category} className={cn(index % 2 === 0 ? "md:-rotate-1" : "md:rotate-1", "transition-transform hover:rotate-0 motion-reduce:transition-none")}>

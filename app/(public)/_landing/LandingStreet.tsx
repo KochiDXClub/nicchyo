@@ -1,5 +1,6 @@
 import "./landing.css";
 import InView from "./InView";
+import SectionHeading from "./SectionHeading";
 import { STREET_CHIPS } from "./content";
 
 const GROUP_WIDTH = 1600;
@@ -17,9 +18,9 @@ const HEIGHT = 300;
 export default function LandingStreet() {
   return (
     <section aria-labelledby="landing-street" className="mt-12 overflow-hidden md:mt-16">
-      <h2 id="landing-street" className="px-5 text-center font-display text-2xl text-nicchyo-ink md:text-3xl">
+      <SectionHeading id="landing-street" align="center" className="px-5">
         日曜市にようこそ！
-      </h2>
+      </SectionHeading>
       <InView className="landing-street landing-fade-x relative mt-3 overflow-hidden" >
         <div className="relative mx-auto" style={{ height: HEIGHT }}>
           <div className="landing-marq absolute left-1/2 top-0 -ml-[800px]" style={{ height: HEIGHT }}>
