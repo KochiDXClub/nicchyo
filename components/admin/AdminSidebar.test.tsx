@@ -75,3 +75,36 @@ describe("AdminSidebar（ConsoleSidebar で描く管理画面のサイドバー�
     expect(logout).toHaveBeenCalledTimes(1);
   });
 });
+
+// 管理画面は各ページが自分で AdminLayout を描くので、ページを移るとサイドバーが作り直される
+describe("AdminSidebar のメニューのスクロール位置", () => {
+  // jsdom は scrollTop を持たないので、要素ごとの値をしまえるようにする
+  const scrollTops = new WeakMap<Element, number>();
+  const original = Object.getOwnPropertyDescriptor(Element.prototype, "scrollTop");
+  beforeAll(() => {
+    Object.defineProperty(Element.prototype, "scrollTop", {
+      configurable: true,
+      get() {
+        return scrollTops.get(this) ?? 0;
+      },
+      set(value: number) {
+        scrollTops.set(this, value);
+      },
+    });
+  });
+  afterAll(() => {
+    if (original) Object.defineProperty(Element.prototype, "scrollTop", original);
+  });
+
+  it("下の方へスクロールしてから別のページへ移っても、作り直したサイドバーは同じ位置のまま", () => {
+    const { unmount } = renderSidebar();
+    const nav = screen.getByRole("navigation", { name: "管理メニュー" });
+    nav.scrollTop = 240;
+    fireEvent.scroll(nav);
+    unmount();
+
+    currentPathname = "/admin/settings";
+    renderSidebar();
+    expect(screen.getByRole("navigation", { name: "管理メニュー" }).scrollTop).toBe(240);
+  });
+});
