@@ -6,6 +6,8 @@ import {
   LOCALE_COOKIE,
   LOCALE_HEADER,
   isLocale,
+  isLocalizablePath,
+  localizePath,
   stripLocalePrefix,
 } from "@/lib/i18n/config";
 import {
@@ -103,6 +105,19 @@ export async function proxy(request: NextRequest) {
   const { locale: prefixLocale, pathname } = stripLocalePrefix(request.nextUrl.pathname);
   const cookieLocale = request.cookies.get(LOCALE_COOKIE)?.value;
   const locale = prefixLocale ?? (isLocale(cookieLocale) ? cookieLocale : DEFAULT_LOCALE);
+
+  // 英語を選んだあとに /en の付いていないリンクをたどっても、URL が /en のまま保たれるようにする
+  // （アプリ内リンクはロケールを知らないため）。ページ表示（GET）だけが対象
+  if (
+    !prefixLocale &&
+    locale !== DEFAULT_LOCALE &&
+    request.method === "GET" &&
+    isLocalizablePath(pathname)
+  ) {
+    const url = request.nextUrl.clone();
+    url.pathname = localizePath(pathname, locale);
+    return NextResponse.redirect(url);
+  }
   // 管理者・API・静的ファイルはメンテナンス判定・公開設定判定の対象外
   // /_next 配下に全静的アセットが含まれるため、ドット有無による判定は不要
   // /private は一般ログインユーザー向けのため、メンテナンス中は他ページと同様にブロックする

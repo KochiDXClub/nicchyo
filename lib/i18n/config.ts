@@ -48,3 +48,10 @@ export function localizePath(pathname: string, locale: Locale): string {
   if (locale === DEFAULT_LOCALE) return base;
   return base === "/" ? `/${locale}` : `/${locale}${base}`;
 }
+
+/** 多言語化の対象外のパス（管理・出店者・API など）。ロケールのプレフィックスを付けない */
+const UNLOCALIZED_PREFIXES = ["/api", "/admin", "/moderator", "/vendor", "/my-shop", "/oauth", "/maintenance"];
+
+export function isLocalizablePath(pathname: string): boolean {
+  return !UNLOCALIZED_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`));
+}

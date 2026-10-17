@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { localizePath, stripLocalePrefix, toLocale } from "./config";
+import { isLocalizablePath, localizePath, stripLocalePrefix, toLocale } from "./config";
 
 describe("stripLocalePrefix", () => {
   test("/en を外してロケールを返す", () => {
@@ -36,5 +36,15 @@ describe("toLocale", () => {
     expect(toLocale("en")).toBe("en");
     expect(toLocale("fr")).toBe("ja");
     expect(toLocale(undefined)).toBe("ja");
+  });
+});
+
+describe("isLocalizablePath", () => {
+  test("管理・API などは対象外", () => {
+    expect(isLocalizablePath("/map")).toBe(true);
+    expect(isLocalizablePath("/shops/001")).toBe(true);
+    expect(isLocalizablePath("/admin/shops")).toBe(false);
+    expect(isLocalizablePath("/api/shops")).toBe(false);
+    expect(isLocalizablePath("/administrators")).toBe(true);
   });
 });
