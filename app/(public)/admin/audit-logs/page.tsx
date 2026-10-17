@@ -23,6 +23,7 @@ import { excelText } from "@/lib/admin/exportUtils";
 import { Badge } from "@/components/ui";
 import { CenteredLoading } from "@/components/ui/loading-spinner";
 import type { AuditLogPeriod, AuditLogRoleFilter } from "@/app/api/admin/audit-logs/route";
+import { describeAuditLog, roleLabel, type AuditFact, type AuditLogView } from "@/lib/audit/auditLogDisplay";
 
 type AuditLog = {
   id: number;
@@ -38,41 +39,17 @@ type AuditLog = {
   created_at: string;
 };
 
-const ACTION_LABELS: Record<string, string> = {
-  user_created: "ユーザー作成",
-  user_updated: "ユーザー更新",
-  user_deleted: "ユーザー削除",
-  user_role_changed: "権限変更",
-  shop_created: "店舗作成",
-  shop_updated: "店舗更新",
-  shop_deleted: "店舗削除",
-  shop_approved: "店舗承認",
-  shop_suspended: "店舗停止",
-  ai_model_updated: "AIモデル変更",
-  ai_conversation_setting_updated: "AI会話設定変更",
-  bulk_operation: "一括操作",
-  data_export: "データエクスポート",
-  login: "ログイン",
-  logout: "ログアウト",
-};
-
-function getActionLabel(action: string) {
-  return ACTION_LABELS[action] ?? action;
-}
+/** 画面に出す1行。読める形（view）と、並べ替え用の札の名前を添える */
+type AuditLogRow = AuditLog & { view: AuditLogView; actionLabel: string };
 
 /** 操作の札。消す・止める＝注意、作る・承認＝良い、変える＝情報、それ以外は無地 */
-function ActionBadge({ action }: { action: string }) {
-  const label = getActionLabel(action);
-  if (action.includes("deleted") || action === "shop_suspended") {
-    return <Badge variant="caution">{label}</Badge>;
+function ActionBadge({ view }: { view: AuditLogView }) {
+  if (view.tone === "caution") return <Badge variant="caution">{view.actionLabel}</Badge>;
+  if (view.tone === "good") {
+    return <Badge className="bg-status-good-bg text-status-good-fg ring-status-good-line">{view.actionLabel}</Badge>;
   }
-  if (action.includes("approved") || action.includes("created")) {
-    return <Badge className="bg-status-good-bg text-status-good-fg ring-status-good-line">{label}</Badge>;
-  }
-  if (action.includes("updated") || action.includes("changed") || action === "bulk_operation") {
-    return <Badge variant="info">{label}</Badge>;
-  }
-  return <Badge>{label}</Badge>;
+  if (view.tone === "info") return <Badge variant="info">{view.actionLabel}</Badge>;
+  return <Badge>{view.actionLabel}</Badge>;
 }
 
 type AuditLogStats = { total: number; today: number; admin: number; moderator: number };
@@ -85,70 +62,83 @@ const DATE_FILTERS: { key: AuditLogPeriod; label: string }[] = [
   { key: "month", label: "30日間" },
 ];
 
-const COLUMNS: DataColumn<AuditLog>[] = [
+function FactList({ facts }: { facts: AuditFact[] }) {
+  return (
+    <dl className="space-y-0.5 text-xs">
+      {facts.map((f) => (
+        <div key={f.label} className="flex gap-1.5">
+          <dt className="shrink-0 text-nicchyo-ink/55">{f.label}：</dt>
+          <dd className="min-w-0 break-words text-nicchyo-ink/80">{f.value}</dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
+const COLUMNS: DataColumn<AuditLogRow>[] = [
   {
     key: "created_at",
     header: "日時",
     sortKey: "created_at",
-    className: "w-40 whitespace-nowrap text-xs",
+    className: "w-36 whitespace-nowrap text-xs",
     render: (log) => formatDate(log.created_at),
   },
   {
     key: "actor",
-    header: "実行者",
+    header: "誰が",
     sortKey: "actor_email",
-    className: "whitespace-nowrap",
+    className: "w-56",
     render: (log) => (
       <>
-        <div className="font-medium text-nicchyo-ink">{log.actor_email ?? "—"}</div>
-        {log.actor_role && <div className="text-xs text-nicchyo-ink/40">{log.actor_role}</div>}
+        <div className="break-all font-medium text-nicchyo-ink">{log.actor_email ?? "—"}</div>
+        {log.actor_role && <div className="text-xs text-nicchyo-ink/55">{roleLabel(log.actor_role)}</div>}
       </>
     ),
   },
   {
     key: "action",
-    header: "アクション",
-    sortKey: "action",
-    className: "whitespace-nowrap",
-    render: (log) => <ActionBadge action={log.action} />,
-  },
-  {
-    key: "target",
-    header: "対象",
-    className: "whitespace-nowrap",
+    header: "何をした",
+    sortKey: "actionLabel",
+    className: "min-w-[280px]",
     render: (log) => (
-      <>
-        {log.target_type && <div className="text-nicchyo-ink/80">{log.target_type}</div>}
-        {log.target_name && <div className="text-xs text-nicchyo-ink/55">{log.target_name}</div>}
-        {log.target_id && <div className="text-xs text-nicchyo-ink/40">ID: {log.target_id}</div>}
-        {!log.target_type && !log.target_name && "—"}
-      </>
+      <div className="space-y-1">
+        <ActionBadge view={log.view} />
+        <p className="text-sm text-nicchyo-ink">{log.view.summary}</p>
+      </div>
     ),
   },
   {
     key: "details",
-    header: "詳細",
-    className: "max-w-xs truncate",
-    render: (log) => log.details || "—",
-  },
-  {
-    key: "ip",
-    header: "IP",
-    className: "whitespace-nowrap text-xs text-nicchyo-ink/40",
-    render: (log) => log.ip_address || "—",
+    header: "くわしく",
+    className: "min-w-[240px]",
+    render: (log) => (
+      <div className="space-y-1.5">
+        {log.view.facts.length > 0 ? <FactList facts={log.view.facts} /> : <span className="text-xs text-nicchyo-ink/40">—</span>}
+        {/* ID や元の値は、調べものをする人のためにしまっておく */}
+        <details className="text-xs">
+          <summary className="cursor-pointer text-nicchyo-ink/40 hover:text-nicchyo-ink/70">技術的な情報</summary>
+          <div className="mt-1 rounded-btn bg-nicchyo-ink/[0.04] p-2">
+            <FactList facts={log.view.technical} />
+          </div>
+        </details>
+      </div>
+    ),
   },
 ];
 
-function toCsvRow(l: AuditLog) {
+function toCsvRow(l: AuditLogRow) {
   return {
     日時: excelText(formatDate(l.created_at)),
     実行者: l.actor_email ?? "",
-    ロール: l.actor_role ?? "",
-    アクション: getActionLabel(l.action),
+    ロール: roleLabel(l.actor_role) ?? "",
+    操作: l.view.actionLabel,
+    内容: l.view.summary,
+    くわしく: l.view.facts.map((f) => `${f.label}: ${f.value}`).join(" / "),
+    操作の名前: l.action,
     対象種別: l.target_type ?? "",
     対象ID: l.target_id ?? "",
     対象名: l.target_name ?? "",
-    詳細: l.details ?? "",
+    記録された内容: l.details ?? "",
     IPアドレス: l.ip_address ?? "",
   };
 }
@@ -199,18 +189,30 @@ export default function AuditLogsPage() {
     if (!authLoading && permissions.isAdmin) load();
   }, [authLoading, permissions.isAdmin, load]);
 
-  // 検索だけは読み込んだ分の中で絞る
+  const rows = useMemo<AuditLogRow[]>(
+    () =>
+      logs.map((log) => {
+        const view = describeAuditLog(log);
+        return { ...log, view, actionLabel: view.actionLabel };
+      }),
+    [logs]
+  );
+
+  // 検索だけは読み込んだ分の中で絞る。画面に出ている言葉（内容・くわしく）でも、元の値でも引ける
   const filtered = useMemo(() => {
-    if (!search) return logs;
+    if (!search) return rows;
     const q = search.toLowerCase();
-    return logs.filter(
-      (log) =>
-        (log.actor_email ?? "").toLowerCase().includes(q) ||
-        (log.target_name ?? "").toLowerCase().includes(q) ||
-        (log.details ?? "").toLowerCase().includes(q) ||
-        getActionLabel(log.action).toLowerCase().includes(q)
+    return rows.filter((row) =>
+      [
+        row.actor_email,
+        row.target_name,
+        row.details,
+        row.view.actionLabel,
+        row.view.summary,
+        ...row.view.facts.map((f) => f.value),
+      ].some((text) => (text ?? "").toLowerCase().includes(q))
     );
-  }, [logs, search]);
+  }, [rows, search]);
 
   // 並べ替えは見出しを押したときだけ。押すまでは API の順（新しい順）のまま
   const { sortedData, sortKey, sortDirection, handleSort } = useSortableData(filtered);
@@ -245,7 +247,7 @@ export default function AuditLogsPage() {
           ]}
           value={roleFilter}
           onChange={setRoleFilter}
-          search={{ value: search, onChange: setSearch, placeholder: "実行者・対象・詳細で検索..." }}
+          search={{ value: search, onChange: setSearch, placeholder: "誰が・何を・内容で検索..." }}
         >
           <div className="flex flex-wrap items-center gap-2 border-t border-line pt-3">
             <span className="text-xs font-medium text-nicchyo-ink/55">期間</span>

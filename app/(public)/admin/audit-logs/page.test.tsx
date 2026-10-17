@@ -52,8 +52,8 @@ describe("監査ログ（共通基盤の一覧表で描く）", () => {
     expect(fetchMock).toHaveBeenCalledWith("/api/admin/audit-logs?period=all&role=all");
     expect(screen.getByText("総ログ数").nextSibling?.textContent).toBe("42");
     expect(screen.getByText("管理者操作").nextSibling?.textContent).toBe("30");
-    expect(actorsInTable()).toEqual(["admin@example.comadmin", "mod@example.commoderator", "old@example.comadmin"]);
-    expect(screen.getByText("店舗削除")).toBeTruthy();
+    expect(actorsInTable()).toEqual(["admin@example.com管理者", "mod@example.comモデレーター", "old@example.com管理者"]);
+    expect(screen.getByText("店舗を削除")).toBeTruthy();
     // 条件に合う件数が読み込んだ件数より多いときは、絞ると古い記録も出ることを添える
     expect(screen.getByText(/3 件表示 \/ 条件に合う 42 件（新しい順に 3 件まで読み込み/)).toBeTruthy();
   });
@@ -63,7 +63,7 @@ describe("監査ログ（共通基盤の一覧表で描く）", () => {
     await screen.findByRole("table");
 
     fireEvent.click(screen.getByRole("button", { name: /^モデレーター/ }));
-    await waitFor(() => expect(actorsInTable()).toEqual(["mod@example.commoderator"]));
+    await waitFor(() => expect(actorsInTable()).toEqual(["mod@example.comモデレーター"]));
     expect(fetchMock).toHaveBeenLastCalledWith("/api/admin/audit-logs?period=all&role=moderator");
 
     fireEvent.click(screen.getByRole("button", { name: /^全ロール/ }));
@@ -73,7 +73,7 @@ describe("監査ログ（共通基盤の一覧表で描く）", () => {
 
     const calls = fetchMock.mock.calls.length;
     fireEvent.change(screen.getByRole("searchbox"), { target: { value: "高知" } });
-    expect(actorsInTable()).toEqual(["admin@example.comadmin"]);
+    expect(actorsInTable()).toEqual(["admin@example.com管理者"]);
     expect(fetchMock.mock.calls.length).toBe(calls);
   });
 
@@ -82,7 +82,7 @@ describe("監査ログ（共通基盤の一覧表で描く）", () => {
     await screen.findByRole("table");
 
     fireEvent.click(screen.getByRole("button", { name: /日時/ }));
-    expect(actorsInTable()[0]).toBe("old@example.comadmin");
+    expect(actorsInTable()[0]).toBe("old@example.com管理者");
   });
 
   it("CSV / JSON の出力ボタンを見出しに出す", async () => {

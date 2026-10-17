@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/database.types";
+import type { AuditAction } from "./auditLogDisplay";
 
 type AdminAuditRow = {
   actor_id: string;
@@ -33,7 +34,8 @@ export type AdminAuditActor = {
 };
 
 export type AdminAuditEntry = {
-  action: string;
+  /** 操作の名前。lib/audit/auditLogDisplay.ts の AUDIT_ACTIONS にあるものだけ（監査ログの画面に日本語で出すため） */
+  action: AuditAction;
   targetType?: string | null;
   targetId?: string | null;
   targetName?: string | null;
