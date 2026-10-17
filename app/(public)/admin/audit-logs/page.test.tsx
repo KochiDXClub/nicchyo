@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
 vi.mock("@/lib/auth/AuthContext", () => ({ useAuth: () => ({ permissions: { isAdmin: true }, isLoading: false }) }));
@@ -20,11 +20,21 @@ const LOGS = [
   { id: 1, actor_email: "old@example.com", actor_role: "admin", action: "shop_created", target_type: "shop", target_id: "5", target_name: "古い店", details: null, ip_address: null, created_at: daysAgo(20) },
 ];
 
-beforeEach(() => {
-  vi.stubGlobal(
-    "fetch",
-    vi.fn().mockResolvedValue({ ok: true, json: async () => ({ logs: LOGS, total: 42 }) })
+const STATS = { total: 42, today: 5, admin: 30, moderator: 12 };
+
+/** API の代わり。period / role で絞った行を返す（本物は DB で絞る） */
+const fetchMock = vi.fn(async (input: string) => {
+  const params = new URL(input, "http://localhost").searchParams;
+  const role = params.get("role");
+  const logs = LOGS.filter((l) => role === "all" || l.actor_role === role).filter(
+    (l) => params.get("period") !== "week" || new Date(l.created_at) >= new Date(daysAgo(7))
   );
+  return { ok: true, json: async () => ({ logs, total: logs.length === LOGS.length ? 42 : logs.length, stats: STATS }) };
+});
+
+beforeEach(() => {
+  fetchMock.mockClear();
+  vi.stubGlobal("fetch", fetchMock);
 });
 afterEach(() => vi.unstubAllGlobals());
 
@@ -35,30 +45,36 @@ function actorsInTable() {
 }
 
 describe("監査ログ（共通基盤の一覧表で描く）", () => {
-  it("件数のまとめと、API の順（新しい順）の一覧を出す", async () => {
+  it("件数のまとめは API が全体から数えた値を出し、一覧は API の順（新しい順）のまま", async () => {
     render(<AuditLogsPage />);
     await screen.findByRole("table");
 
+    expect(fetchMock).toHaveBeenCalledWith("/api/admin/audit-logs?period=all&role=all");
     expect(screen.getByText("総ログ数").nextSibling?.textContent).toBe("42");
-    expect(screen.getByText("管理者操作").nextSibling?.textContent).toBe("2");
+    expect(screen.getByText("管理者操作").nextSibling?.textContent).toBe("30");
     expect(actorsInTable()).toEqual(["admin@example.comadmin", "mod@example.commoderator", "old@example.comadmin"]);
     expect(screen.getByText("店舗削除")).toBeTruthy();
-    expect(screen.getByText("3 件表示 / 全 42 件（直近 3 件ロード済み）")).toBeTruthy();
+    // 条件に合う件数が読み込んだ件数より多いときは、絞ると古い記録も出ることを添える
+    expect(screen.getByText(/3 件表示 \/ 条件に合う 42 件（新しい順に 3 件まで読み込み/)).toBeTruthy();
   });
 
-  it("ロール・期間・検索で絞り込める", async () => {
+  it("ロール・期間は API に渡して絞り直し、検索は読み込んだ分の中で絞る", async () => {
     render(<AuditLogsPage />);
     await screen.findByRole("table");
 
     fireEvent.click(screen.getByRole("button", { name: /^モデレーター/ }));
-    expect(actorsInTable()).toEqual(["mod@example.commoderator"]);
+    await waitFor(() => expect(actorsInTable()).toEqual(["mod@example.commoderator"]));
+    expect(fetchMock).toHaveBeenLastCalledWith("/api/admin/audit-logs?period=all&role=moderator");
 
     fireEvent.click(screen.getByRole("button", { name: /^全ロール/ }));
     fireEvent.click(screen.getByRole("button", { name: "7日間" }));
-    expect(actorsInTable()).toHaveLength(2);
+    await waitFor(() => expect(actorsInTable()).toHaveLength(2));
+    expect(fetchMock).toHaveBeenLastCalledWith("/api/admin/audit-logs?period=week&role=all");
 
+    const calls = fetchMock.mock.calls.length;
     fireEvent.change(screen.getByRole("searchbox"), { target: { value: "高知" } });
     expect(actorsInTable()).toEqual(["admin@example.comadmin"]);
+    expect(fetchMock.mock.calls.length).toBe(calls);
   });
 
   it("日時の見出しを押すと古い順に並べ替わる", async () => {

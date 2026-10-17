@@ -22,6 +22,7 @@ import { showToast } from "@/lib/admin/toast";
 import { excelText } from "@/lib/admin/exportUtils";
 import { Badge } from "@/components/ui";
 import { CenteredLoading } from "@/components/ui/loading-spinner";
+import type { AuditLogPeriod, AuditLogRoleFilter } from "@/app/api/admin/audit-logs/route";
 
 type AuditLog = {
   id: number;
@@ -74,10 +75,10 @@ function ActionBadge({ action }: { action: string }) {
   return <Badge>{label}</Badge>;
 }
 
-type DateFilter = "all" | "today" | "week" | "month";
-type RoleFilter = "all" | "admin" | "moderator";
+type AuditLogStats = { total: number; today: number; admin: number; moderator: number };
+const EMPTY_STATS: AuditLogStats = { total: 0, today: 0, admin: 0, moderator: 0 };
 
-const DATE_FILTERS: { key: DateFilter; label: string }[] = [
+const DATE_FILTERS: { key: AuditLogPeriod; label: string }[] = [
   { key: "all", label: "すべて" },
   { key: "today", label: "今日" },
   { key: "week", label: "7日間" },
@@ -165,10 +166,11 @@ export default function AuditLogsPage() {
 
   const [logs, setLogs] = useState<AuditLog[]>([]);
   const [totalCount, setTotalCount] = useState<number>(0);
+  const [stats, setStats] = useState<AuditLogStats>(EMPTY_STATS);
   const [isLoading, setIsLoading] = useState(true);
   const [search, setSearch] = useState("");
-  const [dateFilter, setDateFilter] = useState<DateFilter>("all");
-  const [roleFilter, setRoleFilter] = useState<RoleFilter>("all");
+  const [dateFilter, setDateFilter] = useState<AuditLogPeriod>("all");
+  const [roleFilter, setRoleFilter] = useState<AuditLogRoleFilter>("all");
 
   useEffect(() => {
     if (authLoading) return;
@@ -178,66 +180,37 @@ export default function AuditLogsPage() {
   const load = useCallback(async () => {
     setIsLoading(true);
     try {
-      const res = await fetch("/api/admin/audit-logs");
+      // 期間・ロールは API が DB で絞る。読み込む上限（新しい順に500件）より古い記録も、絞り込めば出てくる
+      const params = new URLSearchParams({ period: dateFilter, role: roleFilter });
+      const res = await fetch(`/api/admin/audit-logs?${params.toString()}`);
       if (!res.ok) throw new Error(res.statusText);
-      const json = await res.json() as { logs: AuditLog[]; total: number };
+      const json = await res.json() as { logs: AuditLog[]; total: number; stats?: AuditLogStats };
       setLogs(json.logs ?? []);
       setTotalCount(json.total ?? 0);
+      setStats(json.stats ?? EMPTY_STATS);
     } catch {
       showToast.error("ログの取得に失敗しました");
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [dateFilter, roleFilter]);
 
   useEffect(() => {
     if (!authLoading && permissions.isAdmin) load();
   }, [authLoading, permissions.isAdmin, load]);
 
+  // 検索だけは読み込んだ分の中で絞る
   const filtered = useMemo(() => {
-    const now = new Date();
-    return logs.filter((log) => {
-      // 日付フィルター
-      if (dateFilter !== "all") {
-        const d = new Date(log.created_at);
-        if (dateFilter === "today") {
-          if (d.toDateString() !== now.toDateString()) return false;
-        } else if (dateFilter === "week") {
-          const weekAgo = new Date(now); weekAgo.setDate(now.getDate() - 7);
-          if (d < weekAgo) return false;
-        } else if (dateFilter === "month") {
-          const monthAgo = new Date(now); monthAgo.setMonth(now.getMonth() - 1);
-          if (d < monthAgo) return false;
-        }
-      }
-      // ロールフィルター
-      if (roleFilter !== "all") {
-        const role = log.actor_role ?? "";
-        if (roleFilter === "admin" && !["admin", "super_admin"].includes(role)) return false;
-        if (roleFilter === "moderator" && role !== "moderator") return false;
-      }
-      // テキスト検索
-      if (search) {
-        const q = search.toLowerCase();
-        return (
-          (log.actor_email ?? "").toLowerCase().includes(q) ||
-          (log.target_name ?? "").toLowerCase().includes(q) ||
-          (log.details ?? "").toLowerCase().includes(q) ||
-          getActionLabel(log.action).toLowerCase().includes(q)
-        );
-      }
-      return true;
-    });
-  }, [logs, dateFilter, roleFilter, search]);
-
-  const stats = useMemo(() => {
-    const today = new Date().toDateString();
-    return {
-      todayCount: logs.filter((l) => new Date(l.created_at).toDateString() === today).length,
-      adminCount: logs.filter((l) => ["admin", "super_admin"].includes(l.actor_role ?? "")).length,
-      modCount: logs.filter((l) => l.actor_role === "moderator").length,
-    };
-  }, [logs]);
+    if (!search) return logs;
+    const q = search.toLowerCase();
+    return logs.filter(
+      (log) =>
+        (log.actor_email ?? "").toLowerCase().includes(q) ||
+        (log.target_name ?? "").toLowerCase().includes(q) ||
+        (log.details ?? "").toLowerCase().includes(q) ||
+        getActionLabel(log.action).toLowerCase().includes(q)
+    );
+  }, [logs, search]);
 
   // 並べ替えは見出しを押したときだけ。押すまでは API の順（新しい順）のまま
   const { sortedData, sortKey, sortDirection, handleSort } = useSortableData(filtered);
@@ -257,18 +230,18 @@ export default function AuditLogsPage() {
       <div className="mx-auto max-w-7xl px-4 py-8 pb-20">
         <ReviewStats
           items={[
-            { label: "総ログ数", value: totalCount },
-            { label: "本日のアクション", value: stats.todayCount, tone: "info" },
-            { label: "管理者操作", value: stats.adminCount, tone: "critical" },
-            { label: "モデレーター操作", value: stats.modCount, tone: "warning" },
+            { label: "総ログ数", value: stats.total },
+            { label: "本日のアクション", value: stats.today, tone: "info" },
+            { label: "管理者操作", value: stats.admin, tone: "critical" },
+            { label: "モデレーター操作", value: stats.moderator, tone: "warning" },
           ]}
         />
 
         <ReviewToolbar
           filters={[
-            { key: "all", label: "全ロール", count: logs.length },
-            { key: "admin", label: "管理者", count: stats.adminCount },
-            { key: "moderator", label: "モデレーター", count: stats.modCount },
+            { key: "all", label: "全ロール", count: stats.total },
+            { key: "admin", label: "管理者", count: stats.admin },
+            { key: "moderator", label: "モデレーター", count: stats.moderator },
           ]}
           value={roleFilter}
           onChange={setRoleFilter}
@@ -297,7 +270,8 @@ export default function AuditLogsPage() {
               sort={{ key: sortKey, direction: sortDirection, onSort: handleSort }}
             />
             <p className="mt-3 text-xs text-nicchyo-ink/40">
-              {filtered.length} 件表示 / 全 {totalCount} 件（直近 {logs.length} 件ロード済み）
+              {filtered.length} 件表示 / 条件に合う {totalCount} 件
+              {totalCount > logs.length && `（新しい順に ${logs.length} 件まで読み込み。期間やロールで絞ると古い記録も出ます）`}
             </p>
           </>
         )}
