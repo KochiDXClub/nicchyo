@@ -47,8 +47,9 @@ import GrandmaAvatar from '../../../consult/components/GrandmaAvatar';
 import { DEFAULT_CONSULT_CHARACTER } from '../../../consult/data/consultCharacters';
 import type { GrandmaPose } from '@/lib/grandma/pose';
 import { vibrate } from '@/lib/ui/haptics';
-import { siteText } from '@/lib/siteCopy';
+import { useSiteText } from '@/lib/i18n/LocaleContext';
 import { edgeScrollSpeed, passedStopIndex, scrubGain, scrubScrollTop } from './introScrub';
+import { useT } from '@/lib/i18n/LocaleContext';
 
 /** 左に空ける道の幅。停留点の行はこのぶんだけ右に寄せる */
 export const RAIL_WIDTH = 72;
@@ -93,8 +94,6 @@ const STOP_TICK_HAPTIC_MS = 4;
 const TAP_SLOP_PX = 6;
 /** 道の上端・下端から、にちよさんが行ける範囲までの余白 */
 const TRACK_MARGIN_PX = 8;
-/** 押しただけのときに教える一言 */
-const HINT_COMMENT = siteText('mapIntro.railHint');
 
 /**
  * スクロール位置から「いま居るべき道の位置」を引く。
@@ -164,6 +163,8 @@ export default function IntroGrandmaRail({
   /** 離したとき（親は近い節の先頭に寄せて scroll-snap を戻す） */
   onScrubEnd: () => void;
 }) {
+  const hintComment = useSiteText().text('mapIntro.railHint');
+  const t = useT();
   const reduceMotion = useReducedMotion();
   const [pose, setPose] = useState<GrandmaPose>('idle');
   const [walking, setWalking] = useState(false);
@@ -523,7 +524,7 @@ export default function IntroGrandmaRail({
           <motion.button
             type="button"
             data-intro-grab
-            aria-label="にちよさん。つまんで上下に引くと案内が進む"
+            aria-label={t('にちよさん。つまんで上下に引くと案内が進む')}
             onPointerDown={onPointerDown}
             onPointerMove={onPointerMove}
             onPointerUp={onPointerEnd}
@@ -573,7 +574,7 @@ export default function IntroGrandmaRail({
                 className="consult-greeting consult-greeting--left rounded-2xl border border-amber-200 bg-white px-4 py-2.5 shadow-sm"
               >
                 <p className="text-[14px] font-bold leading-6 text-amber-900">
-                  {hint ? HINT_COMMENT : comments[standing ?? 0] ?? comments[0]}
+                  {hint ? hintComment : comments[standing ?? 0] ?? comments[0]}
                 </p>
               </motion.div>
             )}
