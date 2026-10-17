@@ -31,7 +31,8 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion, useMotionValue, useReducedMotion } from 'framer-motion';
 import Link from 'next/link';
-import { siteText, siteTextWithEmphasis } from '@/lib/siteCopy';
+import { useSiteText, useT } from '@/lib/i18n/LocaleContext';
+import type { SiteTextKey } from '@/lib/siteCopy';
 import { ArrowUpRight, X } from 'lucide-react';
 import type { Shop } from '../types/shopData';
 import type { Landmark } from '../types/landmark';
@@ -107,14 +108,16 @@ type IntroStopKey = 'welcome' | 'map' | 'search' | 'consult' | 'odekake' | 'end'
  * 節ごとの説明はここに集約する。薄い字の説明文を別に置くと、案内している人の
  * 言葉と地の文が二重になるので、説明はにちよさんに言ってもらう。
  */
-const INTRO_STOPS: ReadonlyArray<{ key: IntroStopKey; label: string; comment: string }> = (
-  ['welcome', 'map', 'search', 'consult', 'odekake', 'end'] as const
-).map((key) => ({
-  key,
-  // 名前と一言はスプレッドシートで編集する（docs/SITE_COPY.md）
-  label: siteText(`mapIntro.${key}.label`),
-  comment: siteText(`mapIntro.${key}.comment`),
-}));
+function buildIntroStops(
+  text: (key: SiteTextKey) => string
+): ReadonlyArray<{ key: IntroStopKey; label: string; comment: string }> {
+  return (['welcome', 'map', 'search', 'consult', 'odekake', 'end'] as const).map((key) => ({
+    key,
+    // 名前と一言はスプレッドシートで編集する（docs/SITE_COPY.md）
+    label: text(`mapIntro.${key}.label`),
+    comment: text(`mapIntro.${key}.comment`),
+  }));
+}
 
 
 type OpenShop = { shop: IntroDemoShop; source: 'map' | 'search' };
@@ -164,9 +167,11 @@ export default function MapIntroPanel({
 
   // ── 停留点の並び ─────────────────────────────────────────────
   // おでかけサポートを隠しているときはその節ごと抜く。番号・点・一言もそれに合わせる
+  const { text: siteText, emphasis: siteTextWithEmphasis } = useSiteText();
+  const t = useT();
   const stops = useMemo(
-    () => INTRO_STOPS.filter((stop) => showOdekake || stop.key !== 'odekake'),
-    [showOdekake]
+    () => buildIntroStops(siteText).filter((stop) => showOdekake || stop.key !== 'odekake'),
+    [showOdekake, siteText]
   );
   const stopLabels = useMemo(() => stops.map((stop) => stop.label), [stops]);
   const stopComments = useMemo(() => stops.map((stop) => stop.comment), [stops]);
@@ -380,7 +385,7 @@ export default function MapIntroPanel({
       <button
         type="button"
         onClick={onClose}
-        aria-label="閉じる"
+        aria-label={t('閉じる')}
         className="absolute right-2 top-2 z-20 flex h-11 w-11 items-center justify-center rounded-full text-nicchyo-ink/45 transition hover:bg-nicchyo-ink/5 hover:text-nicchyo-ink/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-nicchyo-primary md:right-3 md:top-3"
       >
         <span className="flex h-8 w-8 items-center justify-center rounded-full bg-nicchyo-base/80 backdrop-blur-sm">
@@ -597,7 +602,7 @@ export default function MapIntroPanel({
             <button
               type="button"
               onClick={closeShop}
-              aria-label="バナーを閉じる"
+              aria-label={t('バナーを閉じる')}
               className="absolute inset-0 cursor-default bg-nicchyo-ink/30 backdrop-blur-[1px]"
             />
             <IntroShopSheet
@@ -628,7 +633,7 @@ export default function MapIntroPanel({
             <button
               type="button"
               onClick={closeSpotCard}
-              aria-label="スポットカードを閉じる"
+              aria-label={t('スポットカードを閉じる')}
               className="absolute inset-0 cursor-default bg-nicchyo-ink/30 backdrop-blur-[1px]"
             />
             {/* スマホはナビゲーションバーの上で止める。バーの裏に「ここへ案内」が隠れないように */}
@@ -679,7 +684,7 @@ export default function MapIntroPanel({
           <button
             type="button"
             onClick={onClose}
-            aria-label="案内を閉じて地図を見る"
+            aria-label={t('案内を閉じて地図を見る')}
             className="absolute inset-0 cursor-default bg-nicchyo-ink/35 backdrop-blur-[2px]"
           />
           <motion.div
@@ -709,7 +714,7 @@ export default function MapIntroPanel({
           <button
             type="button"
             onClick={onClose}
-            aria-label="案内を閉じて地図を見る"
+            aria-label={t('案内を閉じて地図を見る')}
             aria-hidden={expanded}
             className={`absolute inset-0 cursor-default bg-transparent ${
               expanded ? 'pointer-events-none' : 'pointer-events-auto'
@@ -747,7 +752,7 @@ export default function MapIntroPanel({
               <button
                 type="button"
                 onClick={toggleSheet}
-                aria-label={expanded ? '案内を半分にたたむ' : '案内を全画面に広げる'}
+                aria-label={expanded ? t('案内を半分にたたむ') : t('案内を全画面に広げる')}
                 className="flex h-7 w-full shrink-0 items-center justify-center focus-visible:outline-none"
               >
                 <span className="h-1 w-10 rounded-full bg-nicchyo-ink/15" />
