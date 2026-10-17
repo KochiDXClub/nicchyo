@@ -13,7 +13,7 @@
  * - 配色はニュートラルを基調にし、呼び出し側の色（accent）は選択中インジケーターだけに使う。
  */
 
-import React, { type ReactNode } from "react";
+import React, { useEffect, useLayoutEffect, useRef, type ReactNode } from "react";
 import Link from "next/link";
 import { Menu, PanelLeftClose, X, type LucideIcon } from "lucide-react";
 
@@ -57,6 +57,16 @@ export type ConsoleSidebarAction = {
   icon: LucideIcon;
 } & ({ href: string; onClick?: never } | { onClick: () => void; href?: never });
 
+/**
+ * メニューのスクロール位置（menuLabel ごと）。
+ * 管理画面は各ページが自分で AdminLayout を描くため、ページを移るとサイドバーが作り直され、
+ * 何もしないと下の方の項目を押すたびにメニューが一番上へ戻ってしまう。モジュールに持っておき、作り直したときに戻す
+ */
+const navScrollTopByMenu = new Map<string, number>();
+
+/** サーバー描画では useLayoutEffect が警告を出すので、ブラウザでだけ使う（描画前に戻して、一瞬上に戻るちらつきを出さない） */
+const useIsomorphicLayoutEffect = typeof window !== "undefined" ? useLayoutEffect : useEffect;
+
 const FOOTER_ACTION_CLASS =
   "flex h-9 items-center justify-center gap-1.5 rounded-lg border border-slate-200 text-[12px] font-medium text-slate-600 transition hover:bg-slate-50 hover:text-slate-900";
 
@@ -96,6 +106,22 @@ export const ConsoleSidebar = React.memo(function ConsoleSidebar({
   actions: [ConsoleSidebarAction, ConsoleSidebarAction];
 }) {
   const initial = userName.slice(0, 1);
+  const navRef = useRef<HTMLElement>(null);
+
+  // 作り直されたときにスクロール位置を戻す。覚えていない（読み込み直したとき）なら、選択中の項目が見えるところまで送る
+  useIsomorphicLayoutEffect(() => {
+    const nav = navRef.current;
+    if (!nav) return;
+    const saved = navScrollTopByMenu.get(menuLabel);
+    if (saved !== undefined) {
+      nav.scrollTop = saved;
+      return;
+    }
+    const active = nav.querySelector<HTMLElement>('[aria-current="page"]');
+    if (!active) return;
+    const overflow = active.getBoundingClientRect().bottom - nav.getBoundingClientRect().bottom;
+    if (overflow > 0) nav.scrollTop += overflow;
+  }, [menuLabel]);
 
   return (
     <>
@@ -145,7 +171,11 @@ export const ConsoleSidebar = React.memo(function ConsoleSidebar({
         </div>
 
         {/* ナビゲーション */}
-        <nav aria-label={menuLabel} className="flex-1 space-y-5 overflow-y-auto px-3 py-4">
+        <nav
+          ref={navRef}
+          aria-label={menuLabel}
+          onScroll={(e) => navScrollTopByMenu.set(menuLabel, e.currentTarget.scrollTop)}
+          className="flex-1 space-y-5 overflow-y-auto px-3 py-4">
           {groups.map((group) => (
             <div key={group.id}>
               <p className="px-2.5 pb-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-400">
