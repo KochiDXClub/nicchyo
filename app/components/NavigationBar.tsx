@@ -1,6 +1,7 @@
 "use client";
 
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useAppPathname } from "@/lib/i18n/useAppPathname";
 import Link from "next/link";
 import { useEffect, useCallback, useId, useRef, useState, Suspense } from "react";
 import { AnimatePresence, motion } from "framer-motion";
@@ -147,7 +148,7 @@ function NavigationBarInner({
   onConsultClick,
   backBarOnTop = false,
 }: NavigationBarProps) {
-  const pathname = usePathname();
+  const pathname = useAppPathname();
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user, isLoggedIn, permissions, logout } = useAuth();
