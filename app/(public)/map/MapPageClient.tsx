@@ -66,7 +66,12 @@ import {
   OVERVIEW_ZONE_MAX_ZOOM,
 } from "./config/displayConfig";
 
+import { distanceMeters } from "./utils/mapRouteGeometry";
+
 import type { MapViewSettings } from "@/lib/map/mapViewSettings";
+
+// 現在地の state を更新する最小の移動量（m）
+const USER_LOCATION_MIN_MOVE_METERS = 5;
 
 // ssr: false にすると Next がこのチャンクの preload を HTML に出さなくなり、
 // 268KB の maplibre チャンクがハイドレーション完了後にようやくダウンロードされる。
@@ -464,7 +469,12 @@ export default function MapPageClient({
   // 以下も地図に渡すコールバック。インラインで書くと毎回別の関数になり、地図の memo が効かない
   const handleUserLocationUpdate = useCallback(
     (coords: { lat: number; lng: number; inMarket: boolean }) => {
-      setUserLocation({ lat: coords.lat, lng: coords.lng });
+      // 位置は毎秒届くが、使い道は徒歩時間の目安だけ。数 m の揺れでページ全体を再描画しない
+      setUserLocation((prev) =>
+        prev && distanceMeters(prev, coords) < USER_LOCATION_MIN_MOVE_METERS
+          ? prev
+          : { lat: coords.lat, lng: coords.lng }
+      );
       setIsInMarket(coords.inMarket);
     },
     []
