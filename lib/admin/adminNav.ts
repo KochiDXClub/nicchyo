@@ -33,7 +33,6 @@ import {
   Megaphone,
   ScrollText,
   Settings,
-  ShieldCheck,
   Stethoscope,
   Store,
   Tags,
@@ -201,12 +200,6 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
         href: "/admin/map-perf",
         icon: Gauge,
         description: "マップの描画性能を計測して比較する",
-      },
-      {
-        label: "週次レポート",
-        href: "/admin/security-reports",
-        icon: ShieldCheck,
-        description: "週次のセキュリティレポートを閲覧する",
       },
       {
         label: "コード健康診断",
