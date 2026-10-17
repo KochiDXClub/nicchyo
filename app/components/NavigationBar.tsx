@@ -46,6 +46,7 @@ import {
   MenuToggleButton,
   MenuUserRow,
 } from "@/components/navigation/MenuSheet";
+import LanguageSwitcher from "@/components/navigation/LanguageSwitcher";
 
 // ─── ナビゲーション項目 ────────────────────────────────────────────────────────
 type NavItem = {
@@ -362,6 +363,9 @@ function NavigationBarInner({
 
         {/* ─ 末尾の小さなリンク。来訪者向けの項目と並べず、フッターとして置く ─ */}
         <MenuDivider />
+        <div className="px-3 py-2">
+          <LanguageSwitcher />
+        </div>
         <a
           href={GITHUB_REPO_URL}
           target="_blank"

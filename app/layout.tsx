@@ -14,6 +14,7 @@ import ViewportHeightUpdater from "./components/ViewportHeightUpdater";
 import { Toaster } from "@/components/admin";
 import { safeJsonLd } from "@/lib/utils/jsonLd";
 import { SITE_URL } from "@/lib/constants";
+import { LOCALE_HEADER, toLocale } from "@/lib/i18n/config";
 
 // 見出し用の丸文字。以前は globals.css の @import で Google Fonts から読んでいたが、
 // それだと「ページの CSS → Google の CSS（約110KB）」を読み終えるまで画面が描かれず、
@@ -92,10 +93,12 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   // script-src 'nonce-…' 'strict-dynamic' の CSP で全スクリプトがブロックされて
   // ハイドレーションしない（近況ページが提灯ローディングで止まる等）ため必須。
   // https://nextjs.org/docs/app/guides/content-security-policy#nonces
-  const nonce = (await headers()).get("x-nonce") ?? undefined;
+  const requestHeaders = await headers();
+  const nonce = requestHeaders.get("x-nonce") ?? undefined;
+  const locale = toLocale(requestHeaders.get(LOCALE_HEADER));
 
   return (
-    <html lang="ja" className={mochiyPopOne.variable}>
+    <html lang={locale} className={mochiyPopOne.variable}>
       <head>
         <script
           nonce={nonce}
