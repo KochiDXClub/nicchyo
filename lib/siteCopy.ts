@@ -30,7 +30,15 @@ export function siteTextFor(key: SiteTextKey, locale: Locale): string {
 }
 
 export function siteTextWithEmphasis(key: SiteTextKey, className?: string): ReactNode[] {
-  return siteText(key)
+  return emphasize(siteText(key), className);
+}
+
+export function siteTextWithEmphasisFor(key: SiteTextKey, locale: Locale, className?: string): ReactNode[] {
+  return emphasize(siteTextFor(key, locale), className);
+}
+
+function emphasize(text: string, className?: string): ReactNode[] {
+  return text
     .split("**")
     .map((part, i) => (i % 2 === 1 ? createElement("b", { key: i, className }, part) : part));
 }
