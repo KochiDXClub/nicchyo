@@ -1,16 +1,17 @@
 import Link from "next/link";
 import { getImageProps } from "next/image";
-import { MapPin } from "lucide-react";
 import { buttonClass } from "@/components/ui";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
 import type { MarketDay } from "@/lib/market/calendar";
 import MarketStatusBar from "../../components/market/MarketStatusBar";
 import { PHOTOS } from "./content";
+import MapFab from "./MapFab";
 import PhotoScrim from "./PhotoScrim";
 import RevealOnScroll from "./RevealOnScroll";
 
 /**
- * 最初の一画面。写真を地にして、上から「ヘッダー（nicchyo・言語）→ 見出し → マップをみる → 今週の開催予定 → 検索」の順に並べる。
+ * 最初の一画面。写真を地にして、上から「ヘッダー（nicchyo・言語）→ 見出し → 今週の開催予定 → 検索」の順に並べる。
+ * 「マップをみる」は右下に常駐する丸いボタン（MapFab）。
  * 飾り（旗・判子・キャラクター・柑橘・葉）は置かない。写真と白い文字だけで、落ち着いた入口にする。
  *
  * 内容は上から積む（下端には貼りつけない）。ブラウザの下のツールバーが重なっても、検索が隠れない。
@@ -52,8 +53,9 @@ export default function LandingHero({ day }: { day: MarketDay | null }) {
         <div aria-hidden className="mx-auto h-px max-w-[64rem] bg-white/25" />
       </header>
 
-      <div className="relative z-10 flex-1 px-5 pb-[calc(6rem+var(--safe-bottom,0px))] pt-10 md:px-10 md:pb-16 md:pt-16">
-        <div className="mx-auto max-w-[64rem]">
+      {/* 見出しは上、開催予定と検索は下（親指の届く側）に分けて置く。間は写真を見せる */}
+      <div className="relative z-10 flex flex-1 flex-col px-5 pb-[calc(7rem+var(--safe-bottom,0px))] pt-10 md:px-10 md:pb-16 md:pt-16">
+        <div className="mx-auto flex w-full max-w-[64rem] flex-1 flex-col justify-between gap-10">
           <RevealOnScroll when="enter" className="max-w-[28rem] md:max-w-[34rem]">
             <h1 id="landing-title" className="text-white drop-shadow-[0_2px_12px_rgba(0,0,0,0.45)]">
               <span className="block text-sm font-bold tracking-wide text-white/90">高知高専生が開発した</span>
@@ -63,15 +65,11 @@ export default function LandingHero({ day }: { day: MarketDay | null }) {
                 デジタルマップ
               </span>
             </h1>
+          </RevealOnScroll>
 
-            {/* いちばんしてほしいこと：地図をひらく */}
-            <Link href="/map" className={buttonClass({ size: "lg", className: "mt-7 h-14 w-full text-lg shadow-float" })}>
-              <MapPin aria-hidden className="h-5 w-5" />
-              マップをみる
-            </Link>
-
+          <RevealOnScroll when="enter" delayMs={150} className="max-w-[28rem] md:max-w-[34rem]">
             {/* 今週の開催予定 */}
-            <div className="mt-6">
+            <div>
               <p className="mb-2 text-xs font-bold tracking-wide text-white/85">今週の開催予定</p>
               <MarketStatusBar day={day} placement="page" className="w-full" />
             </div>
@@ -81,7 +79,7 @@ export default function LandingHero({ day }: { day: MarketDay | null }) {
               action="/map"
               method="get"
               role="search"
-              className="mt-6 flex min-w-0 items-center gap-1.5 rounded-chip bg-white py-1.5 pl-5 pr-1.5 shadow-float"
+              className="mt-4 flex min-w-0 items-center gap-1.5 rounded-chip bg-white py-1.5 pl-5 pr-1.5 shadow-float"
             >
               <label htmlFor="landing-search" className="sr-only">
                 お店や品物をさがす
@@ -101,6 +99,8 @@ export default function LandingHero({ day }: { day: MarketDay | null }) {
           </RevealOnScroll>
         </div>
       </div>
+
+      <MapFab />
     </section>
   );
 }
