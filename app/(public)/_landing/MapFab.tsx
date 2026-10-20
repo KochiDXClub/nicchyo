@@ -35,13 +35,13 @@ export default function MapFab({ afterId }: { afterId: string }) {
       aria-hidden={!shown}
       tabIndex={shown ? 0 : -1}
       className={cn(
-        "fixed right-4 z-30 flex h-[4.5rem] w-[4.5rem] flex-col items-center justify-center gap-0.5 rounded-full bg-amber-600 text-white shadow-float ring-4 ring-white/80 transition duration-300 hover:bg-amber-500 active:scale-95 focus-visible:outline-none focus-visible:ring-amber-300 motion-reduce:transition-none md:right-8 md:h-20 md:w-20",
+        "fixed right-4 z-30 flex h-32 w-32 flex-col items-center justify-center gap-1 rounded-full bg-amber-600 text-white shadow-float ring-[6px] ring-white/80 transition duration-300 hover:bg-amber-500 active:scale-95 focus-visible:outline-none focus-visible:ring-amber-300 motion-reduce:transition-none md:right-8 md:h-36 md:w-36",
         shown ? "translate-y-0 opacity-100" : "pointer-events-none translate-y-4 opacity-0"
       )}
       style={{ bottom: "calc(1.25rem + var(--safe-bottom, 0px))" }}
     >
-      <Map aria-hidden className="h-7 w-7" strokeWidth={2} />
-      <span aria-hidden className="text-[11px] font-bold leading-none">
+      <Map aria-hidden className="h-12 w-12 md:h-14 md:w-14" strokeWidth={2} />
+      <span aria-hidden className="text-base font-bold leading-none md:text-lg">
         マップ
       </span>
     </Link>
