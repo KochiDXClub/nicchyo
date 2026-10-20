@@ -21,7 +21,7 @@
  */
 
 /** モデルを使う場面。場面ごとに別のモデルを割り当てられる */
-export type AiUseCase = "consult" | "shopChat" | "itinerary" | "vendorHelp";
+export type AiUseCase = "consult" | "shopChat" | "itinerary" | "vendorHelp" | "translation";
 
 /**
  * 推論の深さ。
@@ -225,6 +225,13 @@ export const AI_USE_CASE_DEFS: readonly AiUseCaseDef[] = [
     label: "出店者の相談（にちよさん）",
     description:
       "出店者トップで、出店者がアプリの使い方を聞くヘルプデスク。よくある質問とその店の登録内容を元に、200文字程度で答える。",
+    defaultModelId: "gpt-4o-mini",
+  },
+  {
+    useCase: "translation",
+    label: "店舗情報の翻訳",
+    description:
+      "出店者が入れた店名・ひとこと・商品名などを、外国人来訪者向けに訳す（保存した訳を画面に出す）。短い文を正確に訳す処理なので、軽いモデルで足りる。",
     defaultModelId: "gpt-4o-mini",
   },
 ];
