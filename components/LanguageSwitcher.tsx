@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { Check, ChevronDown, Globe } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
+import { useDismissOnOutside } from "@/lib/ui/useDismissOnOutside";
 
 /**
  * 言語の切り替え。ヘッダーの右に置く。
@@ -30,21 +31,7 @@ export default function LanguageSwitcher({ tone = "page", className }: Props) {
   const rootRef = useRef<HTMLDivElement>(null);
   const current = "ja";
 
-  useEffect(() => {
-    if (!open) return;
-    const onPointerDown = (event: PointerEvent) => {
-      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
-    };
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setOpen(false);
-    };
-    document.addEventListener("pointerdown", onPointerDown);
-    document.addEventListener("keydown", onKeyDown);
-    return () => {
-      document.removeEventListener("pointerdown", onPointerDown);
-      document.removeEventListener("keydown", onKeyDown);
-    };
-  }, [open]);
+  useDismissOnOutside(open, rootRef, () => setOpen(false));
 
   return (
     <div ref={rootRef} className={cn("relative", className)}>
