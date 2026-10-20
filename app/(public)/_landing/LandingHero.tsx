@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { getImageProps } from "next/image";
+import { MapPin } from "lucide-react";
 import { buttonClass } from "@/components/ui";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
 import type { MarketDay } from "@/lib/market/calendar";
@@ -10,8 +11,8 @@ import PhotoScrim from "./PhotoScrim";
 import RevealOnScroll from "./RevealOnScroll";
 
 /**
- * 最初の一画面。写真を地にして、上から「ヘッダー（nicchyo・言語）→ 見出し → 今週の開催予定 → 検索」の順に並べる。
- * 「マップをみる」は右下に常駐する丸いボタン（MapFab）。
+ * 最初の一画面。写真を地にして、上から「ヘッダー（nicchyo・言語）→ 見出し →（下に）マップをみる → 今週の開催予定 → 検索」の順に並べる。
+ * 「マップをみる」は、この画面では大きなボタン。画面を過ぎてスクロールすると、右下の丸いボタン（MapFab）が出る。
  * 飾り（旗・判子・キャラクター・柑橘・葉）は置かない。写真と白い文字だけで、落ち着いた入口にする。
  *
  * 内容は上から積む（下端には貼りつけない）。ブラウザの下のツールバーが重なっても、検索が隠れない。
@@ -29,6 +30,7 @@ export default function LandingHero({ day }: { day: MarketDay | null }) {
 
   return (
     <section
+      id="landing-hero"
       aria-labelledby="landing-title"
       className="relative flex min-h-[100svh] flex-col overflow-hidden bg-nicchyo-ink md:min-h-[44rem]"
     >
@@ -68,8 +70,14 @@ export default function LandingHero({ day }: { day: MarketDay | null }) {
           </RevealOnScroll>
 
           <RevealOnScroll when="enter" delayMs={150} className="max-w-[28rem] md:max-w-[34rem]">
+            {/* いちばんしてほしいこと：地図をひらく（この画面を過ぎると、右下の丸いボタンに替わる） */}
+            <Link href="/map" className={buttonClass({ size: "lg", className: "h-14 w-full text-lg shadow-float" })}>
+              <MapPin aria-hidden className="h-5 w-5" />
+              マップをみる
+            </Link>
+
             {/* 今週の開催予定 */}
-            <div>
+            <div className="mt-5">
               <p className="mb-2 text-xs font-bold tracking-wide text-white/85">今週の開催予定</p>
               <MarketStatusBar day={day} placement="page" className="w-full" />
             </div>
@@ -100,7 +108,7 @@ export default function LandingHero({ day }: { day: MarketDay | null }) {
         </div>
       </div>
 
-      <MapFab />
+      <MapFab afterId="landing-hero" />
     </section>
   );
 }
