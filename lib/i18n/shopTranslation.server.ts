@@ -24,8 +24,11 @@ import {
 export const SHOP_TRANSLATIONS_CACHE_TAG = "shop-translations";
 // 訳の追加は管理者の操作・定期実行で起きるので、少し遅れて反映されれば足りる
 const SHOP_TRANSLATIONS_REVALIDATE_SECONDS = 15 * 60;
-/** 1回のAI呼び出しで訳す店の数。多いと返事が長くなり、途中で切れやすい */
-const BATCH_SIZE = 6;
+/**
+ * 1回のAI呼び出しで訳す店の数。1店ずつにして、出店者の文面（指示のような文）が
+ * 同じ呼び出しの別の店の訳に影響できないようにする。
+ */
+const BATCH_SIZE = 1;
 
 type TranslationRow = DatabaseWithExtensions["public"]["Tables"]["shop_translations"]["Row"];
 
@@ -54,20 +57,22 @@ function toTranslation(row: Pick<TranslationRow, "name" | "strength" | "style" |
  * 保存済みの訳（vendor_id → 訳）。全員で共有するキャッシュなので、Cookie を持たない anon クライアントで読む
  * （RLS により、一般に見える店の訳だけが返る）。取れなければ空にして日本語のまま表示する。
  */
+type StoredTranslation = { translation: ShopTranslation; sourceHash: string };
+
 const getCachedTranslations = unstable_cache(
-  async (locale: string): Promise<Record<string, ShopTranslation>> => {
+  async (locale: string): Promise<Record<string, StoredTranslation>> => {
     const supabase = createAnonClient();
     if (!supabase) return {};
     const { data, error } = await supabase
       .from("shop_translations")
-      .select("vendor_id, name, strength, style, rain_policy, products")
+      .select("vendor_id, name, strength, style, rain_policy, products, source_hash")
       .eq("locale", locale);
     if (error) {
       // 表が未作成（マイグレーション前）でも画面は止めない
       console.warn("[shop_translations] 取得に失敗しました:", error.message);
       return {};
     }
-    return Object.fromEntries((data ?? []).map((row) => [row.vendor_id, toTranslation(row)]));
+    return Object.fromEntries((data ?? []).map((row) => [row.vendor_id, { translation: toTranslation(row), sourceHash: row.source_hash }]));
   },
   ["shop-translations-v1"],
   { revalidate: SHOP_TRANSLATIONS_REVALIDATE_SECONDS, tags: [SHOP_TRANSLATIONS_CACHE_TAG] }
@@ -77,7 +82,13 @@ const getCachedTranslations = unstable_cache(
 export async function applyShopTranslations(shops: Shop[], locale: Locale): Promise<Shop[]> {
   if (locale === DEFAULT_LOCALE || shops.length === 0) return shops;
   const translations = await getCachedTranslations(locale);
-  return shops.map((shop) => (shop.vendorId ? applyShopTranslation(shop, translations[shop.vendorId]) : shop));
+  return shops.map((shop) => {
+    const stored = shop.vendorId ? translations[shop.vendorId] : undefined;
+    if (!stored) return shop;
+    // 日本語の原文が訳したときから変わっていたら、古い訳は出さず日本語のまま見せる（次の同期で訳し直す）
+    const currentHash = hashTranslationSource(locale, buildTranslationSource(shop));
+    return currentHash === stored.sourceHash ? applyShopTranslation(shop, stored.translation) : shop;
+  });
 }
 
 export function revalidateShopTranslations() {
