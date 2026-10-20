@@ -12,6 +12,7 @@ import { withOptimizedLandmarkImage } from './utils/landmarkImages';
 import type { MapRoute } from './types/mapRoute';
 import { fetchMapRouteFromDb, getFallbackMapRoute } from './services/mapRouteDb';
 import { safeJsonLd } from '@/lib/utils/jsonLd';
+import { getLocale } from '@/lib/i18n/server';
 import { SUNDAY_MARKET_JSON_LD } from '@/lib/seo/sundayMarketJsonLd';
 import { fetchMapFeatureFlags } from '@/lib/mapFeatureFlags.server';
 import { fetchMapViewSettings } from '@/lib/map/mapViewSettings.server';
@@ -41,6 +42,8 @@ export default async function MapPage() {
   let landmarks: Landmark[] = [];
   let mapRoute: MapRoute = getFallbackMapRoute();
 
+  const locale = await getLocale();
+
   const hasSupabaseEnv =
     !!process.env.NEXT_PUBLIC_SUPABASE_URL &&
     !!(
@@ -54,7 +57,7 @@ export default async function MapPage() {
       // 1つの取得が失敗しても他の取得結果を巻き込まないよう、allSettled で独立に扱う
       const [shopsResult, landmarksResult, mapRouteResult] = await Promise.allSettled([
         // 店舗は全員共通のキャッシュから読む（ログイン状態に関係なく同じ内容）
-        fetchPublicShops(),
+        fetchPublicShops(locale),
         fetchLandmarksFromDb(supabase),
         fetchMapRouteFromDb(supabase),
       ]);

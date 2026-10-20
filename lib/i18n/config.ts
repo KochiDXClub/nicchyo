@@ -49,6 +49,11 @@ export function localizePath(pathname: string, locale: Locale): string {
   return base === "/" ? `/${locale}` : `/${locale}${base}`;
 }
 
+/** 店舗一覧 API の URL。ロケールごとに内容が変わるので、CDN のキャッシュが混ざらないよう URL で分ける */
+export function shopsApiUrl(locale: Locale): string {
+  return locale === DEFAULT_LOCALE ? "/api/shops" : `/api/shops?locale=${locale}`;
+}
+
 /** 多言語化の対象外のパス（管理・出店者・API など）。ロケールのプレフィックスを付けない */
 const UNLOCALIZED_PREFIXES = ["/api", "/admin", "/moderator", "/vendor", "/my-shop", "/oauth", "/maintenance"];
 
