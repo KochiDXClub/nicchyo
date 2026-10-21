@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useId, useRef, useState } from "react";
 import { Check, ChevronDown, Globe } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { useDismissOnOutside } from "@/lib/ui/useDismissOnOutside";
@@ -30,6 +30,8 @@ export default function LanguageSwitcher({ tone = "page", className }: Props) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const current = "ja";
+  // 矢印キーで動く listbox ではなく、ただのボタンの一覧なので、開閉ボタンと一覧を aria-controls でつなぐだけにする
+  const listId = useId();
 
   useDismissOnOutside(open, rootRef, () => setOpen(false));
 
@@ -37,8 +39,8 @@ export default function LanguageSwitcher({ tone = "page", className }: Props) {
     <div ref={rootRef} className={cn("relative", className)}>
       <button
         type="button"
-        aria-haspopup="listbox"
         aria-expanded={open}
+        aria-controls={listId}
         aria-label="言語を選ぶ (Language)"
         onClick={() => setOpen((v) => !v)}
         className={cn(
@@ -55,15 +57,15 @@ export default function LanguageSwitcher({ tone = "page", className }: Props) {
       </button>
       {open ? (
         <ul
-          role="listbox"
-          aria-label="言語"
+          id={listId}
           className="absolute right-0 top-[calc(100%+0.5rem)] z-20 w-44 overflow-hidden rounded-card bg-white py-1.5 text-nicchyo-ink shadow-float ring-1 ring-line"
         >
           {LANGUAGES.map((lang) => (
-            <li key={lang.code} role="option" aria-selected={lang.code === current} aria-disabled={!lang.ready}>
+            <li key={lang.code}>
               <button
                 type="button"
                 disabled={!lang.ready}
+                aria-current={lang.code === current ? "true" : undefined}
                 onClick={() => setOpen(false)}
                 className={cn(
                   "flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm",

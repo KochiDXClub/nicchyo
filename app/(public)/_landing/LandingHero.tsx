@@ -6,6 +6,8 @@ import LanguageSwitcher from "@/components/LanguageSwitcher";
 import type { MarketDay } from "@/lib/market/calendar";
 import MarketStatusBar from "../../components/market/MarketStatusBar";
 import { PHOTOS } from "./content";
+// 使い方・開催のご案内など、下のセクションの見た目もこのCSSに頼っている（消さない）
+import "./landing.css";
 import MapFab from "./MapFab";
 import RevealOnScroll from "./RevealOnScroll";
 
