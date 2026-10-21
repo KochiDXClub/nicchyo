@@ -474,7 +474,14 @@ function MenuTopBar({ transition }: { transition: { duration: number } }) {
       className="fixed inset-x-0 top-0 z-[9997] border-b border-line-warm bg-nicchyo-base px-5 pt-[var(--safe-top,0px)] shadow-sm"
     >
       <div className="mx-auto flex h-14 max-w-[64rem] items-center justify-between">
-        <span className="text-xl font-black tracking-wide text-nicchyo-ink">nicchyo</span>
+        <Image
+          src="/images/nicchyo-logo.webp"
+          alt="nicchyo"
+          width={516}
+          height={240}
+          priority
+          className="h-10 w-auto"
+        />
         <LanguageSwitcher tone="page" className="-mr-3" />
       </div>
     </motion.header>
