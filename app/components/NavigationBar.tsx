@@ -375,9 +375,7 @@ function NavigationBarInner({
       {/* ── ナビゲーションバー ──────────────────────────────────────────────── */}
       <nav
         onClick={isCloseUxActive ? handleCloseMode : undefined}
-        className={`navigation-bar ${position} ${
-          "bottom-0 border-t"
-        } left-0 right-0 z-[9997] text-sm leading-none shadow-sm transition-colors duration-300 ${
+        className={`navigation-bar ${position} bottom-0 border-t left-0 right-0 z-[9997] text-sm leading-none shadow-sm transition-colors duration-300 ${
           isCloseUxActive
             ? "cursor-pointer border-green-500 bg-green-500"
             : "border-slate-200/60 bg-white/90 backdrop-blur-md"
