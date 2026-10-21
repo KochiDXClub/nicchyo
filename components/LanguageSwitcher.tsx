@@ -45,7 +45,7 @@ export default function LanguageSwitcher({ tone = "page", className }: Props) {
           "inline-flex h-10 items-center gap-1.5 rounded-chip px-3 text-sm font-semibold transition",
           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/60",
           tone === "photo"
-            ? "text-white hover:bg-white/15 focus-visible:ring-white/70"
+            ? "text-white [text-shadow:0_1px_3px_rgba(0,0,0,0.6),0_2px_18px_rgba(0,0,0,0.4)] hover:bg-white/15 focus-visible:ring-white/70"
             : "text-nicchyo-ink/80 hover:bg-nicchyo-ink/[0.06]"
         )}
       >

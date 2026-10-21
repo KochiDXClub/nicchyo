@@ -7,11 +7,10 @@ import type { MarketDay } from "@/lib/market/calendar";
 import MarketStatusBar from "../../components/market/MarketStatusBar";
 import { PHOTOS } from "./content";
 import MapFab from "./MapFab";
-import PhotoScrim from "./PhotoScrim";
 import RevealOnScroll from "./RevealOnScroll";
 
 /**
- * 最初の一画面。写真を地にして、上から「ヘッダー（nicchyo・言語）→ 見出し →（下に）マップをみる → 今週の開催予定 → 検索」の順に並べる。
+ * 最初の一画面。写真を地にして、上から「ヘッダー（nicchyo・言語）→ 見出し →（下に）マップをみる → 今週の開催日 → 検索」の順に並べる。
  * 「マップをみる」は、この画面では大きなボタン。画面を過ぎてスクロールすると、右下の丸いボタン（MapFab）が出る。
  * 飾り（旗・判子・キャラクター・柑橘・葉）は置かない。写真と白い文字だけで、落ち着いた入口にする。
  *
@@ -38,29 +37,28 @@ export default function LandingHero({ day }: { day: MarketDay | null }) {
         <source media="(min-width: 768px)" srcSet={wideSrcSet} />
         <source srcSet={tallSrcSet} />
         {/* getImageProps で最適化済みの <img>（art direction のため next/image ではなく <picture> で組む） */}
-        <img {...imgProps} alt={common.alt} className="absolute inset-0 h-full w-full object-cover" />
+        <img {...imgProps} alt={common.alt} className="absolute inset-0 h-full w-full object-cover brightness-105" />
       </picture>
-      {/* 文字を載せる上側と、検索を載せる下側を暗くする */}
-      <PhotoScrim withTop />
-      <div aria-hidden className="absolute inset-0 bg-black/20 md:bg-black/30" />
+      {/* 白い文字が読めるよう、見出しのある上側だけ、ほんの少し暗くする（写真の下側は元の明るさのまま） */}
+      <div aria-hidden className="absolute inset-x-0 top-0 h-[22rem] bg-gradient-to-b from-black/45 via-black/20 to-transparent md:h-[26rem]" />
 
       {/* ヘッダー：左にサイト名、右に言語 */}
       <header className="relative z-20 px-5 pt-[var(--safe-top,0px)] md:px-10">
         <div className="mx-auto flex h-14 max-w-[64rem] items-center justify-between md:h-16">
-          <Link href="/" className="text-xl font-black tracking-wide text-white">
+          <Link href="/" className="text-xl font-black tracking-wide text-white [text-shadow:0_1px_3px_rgba(0,0,0,0.6),0_2px_18px_rgba(0,0,0,0.4)]">
             nicchyo
           </Link>
           <LanguageSwitcher tone="photo" className="-mr-3" />
         </div>
-        <div aria-hidden className="mx-auto h-px max-w-[64rem] bg-white/25" />
+        <div aria-hidden className="mx-auto h-px max-w-[64rem] bg-white/60 shadow-[0_1px_2px_rgba(0,0,0,0.25)]" />
       </header>
 
       {/* 見出しは上、開催予定と検索は下（親指の届く側）に分けて置く。間は写真を見せる */}
       <div className="relative z-10 flex flex-1 flex-col px-5 pb-[calc(7rem+var(--safe-bottom,0px))] pt-10 md:px-10 md:pb-16 md:pt-16">
         <div className="mx-auto flex w-full max-w-[64rem] flex-1 flex-col justify-between gap-10">
           <RevealOnScroll when="enter" className="max-w-[28rem] md:max-w-[34rem]">
-            <h1 id="landing-title" className="text-white drop-shadow-[0_2px_12px_rgba(0,0,0,0.45)]">
-              <span className="block text-sm font-bold tracking-wide text-white/90">高知高専生が開発した</span>
+            <h1 id="landing-title" className="text-white [text-shadow:0_1px_3px_rgba(0,0,0,0.6),0_2px_18px_rgba(0,0,0,0.4)]">
+              <span className="block text-sm font-bold tracking-wide text-white">高知高専生が開発した</span>
               <span className="mt-2 block text-[2.5rem] font-black leading-[1.2] tracking-wide sm:text-5xl md:text-6xl">
                 日曜市の
                 <br />
@@ -76,9 +74,8 @@ export default function LandingHero({ day }: { day: MarketDay | null }) {
               マップをみる
             </Link>
 
-            {/* 今週の開催予定 */}
+            {/* 今週の開催日（見出しの文言は置かない。日付と「開催」で伝わる） */}
             <div className="mt-5">
-              <p className="mb-2 text-xs font-bold tracking-wide text-white/85">今週の開催予定</p>
               <MarketStatusBar day={day} placement="page" className="w-full" />
             </div>
 
