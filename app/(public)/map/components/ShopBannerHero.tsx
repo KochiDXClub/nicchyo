@@ -339,11 +339,11 @@ export function ShopBannerHero({
               </span>
             )}
           </div>
-          <h2 className="mt-1.5 line-clamp-2 text-[22px] font-extrabold leading-tight text-slate-900">
+          <h2 className="mt-1 line-clamp-2 text-xl font-extrabold leading-tight text-slate-900">
             {shop.name}
           </h2>
           {shop.catchphrase && (
-            <p className="mt-1 line-clamp-1 text-sm text-slate-500">{shop.catchphrase}</p>
+            <p className="mt-0.5 line-clamp-1 text-xs text-slate-500">{shop.catchphrase}</p>
           )}
         </div>
       </div>
