@@ -22,6 +22,7 @@ import {
   type PanInfo,
 } from "framer-motion";
 import { ArrowLeft, LayoutGrid, X, type LucideIcon } from "lucide-react";
+import LanguageSwitcher from "@/components/LanguageSwitcher";
 
 /** iOS のシートに近い、最後にすっと止まる曲線 */
 const EASE_OUT_SHEET: [number, number, number, number] = [0.32, 0.72, 0, 1];
@@ -94,6 +95,7 @@ export function MenuSheet({
             onClick={onClose}
             aria-hidden
           />
+          {!isDesktop && <MenuTopBar key="topbar" transition={fadeTransition} />}
           <SheetPanel
             key="sheet"
             label={label}
@@ -455,5 +457,26 @@ export function BottomNavBackBar({
         {label}
       </button>
     </div>
+  );
+}
+
+/**
+ * メニューを開いたときに画面の上へ出るヘッダー（トップページと同じ nicchyo ＋ 言語切り替え）。
+ * 背景のぼかしの上で読めるよう、クリーム地を敷く。PC 幅（右上にバーがある）では出さない。
+ */
+function MenuTopBar({ transition }: { transition: { duration: number } }) {
+  return (
+    <motion.header
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={transition}
+      className="fixed inset-x-0 top-0 z-[9997] border-b border-line-warm bg-nicchyo-base px-5 pt-[var(--safe-top,0px)] shadow-sm"
+    >
+      <div className="mx-auto flex h-14 max-w-[64rem] items-center justify-between">
+        <span className="text-xl font-black tracking-wide text-nicchyo-ink">nicchyo</span>
+        <LanguageSwitcher tone="page" className="-mr-3" />
+      </div>
+    </motion.header>
   );
 }
