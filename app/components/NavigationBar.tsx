@@ -1,6 +1,7 @@
 "use client";
 
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useAppPathname } from "@/lib/i18n/useAppPathname";
 import Link from "next/link";
 import { useEffect, useCallback, useId, useRef, useState, Suspense } from "react";
 import { AnimatePresence, motion } from "framer-motion";
@@ -46,6 +47,7 @@ import {
   MenuToggleButton,
   MenuUserRow,
 } from "@/components/navigation/MenuSheet";
+import LanguageSwitcher from "@/components/navigation/LanguageSwitcher";
 
 // ─── ナビゲーション項目 ────────────────────────────────────────────────────────
 type NavItem = {
@@ -146,7 +148,7 @@ function NavigationBarInner({
   onConsultClick,
   backBarOnTop = false,
 }: NavigationBarProps) {
-  const pathname = usePathname();
+  const pathname = useAppPathname();
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user, isLoggedIn, permissions, logout } = useAuth();
@@ -362,6 +364,9 @@ function NavigationBarInner({
 
         {/* ─ 末尾の小さなリンク。来訪者向けの項目と並べず、フッターとして置く ─ */}
         <MenuDivider />
+        <div className="px-3 py-2">
+          <LanguageSwitcher />
+        </div>
         <a
           href={GITHUB_REPO_URL}
           target="_blank"
