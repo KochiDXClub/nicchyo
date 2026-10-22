@@ -6,6 +6,7 @@ import LanguageSwitcher from "@/components/LanguageSwitcher";
 import type { MarketDay } from "@/lib/market/calendar";
 import MarketStatusBar from "../../components/market/MarketStatusBar";
 import { PHOTOS } from "./content";
+import { PHOTO_TEXT_SHADOW } from "@/lib/ui/photoText";
 // 使い方・開催のご案内など、下のセクションの見た目もこのCSSに頼っている（消さない）
 import "./landing.css";
 import MapFab from "./MapFab";
@@ -47,7 +48,7 @@ export default function LandingHero({ day }: { day: MarketDay | null }) {
       {/* ヘッダー：左にサイト名、右に言語 */}
       <header className="relative z-20 px-5 pt-[var(--safe-top,0px)] md:px-10">
         <div className="mx-auto flex h-14 max-w-[64rem] items-center justify-between md:h-16">
-          <Link href="/" className="text-xl font-black tracking-wide text-white [text-shadow:0_1px_3px_rgba(0,0,0,0.6),0_2px_18px_rgba(0,0,0,0.4)]">
+          <Link href="/" className={`text-xl font-black tracking-wide text-white ${PHOTO_TEXT_SHADOW}`}>
             nicchyo
           </Link>
           <LanguageSwitcher tone="photo" className="-mr-3" />
@@ -59,7 +60,8 @@ export default function LandingHero({ day }: { day: MarketDay | null }) {
       <div className="relative z-10 flex flex-1 flex-col px-5 pb-[calc(7rem+var(--safe-bottom,0px))] pt-10 md:px-10 md:pb-16 md:pt-16">
         <div className="mx-auto flex w-full max-w-[64rem] flex-1 flex-col justify-between gap-10">
           <RevealOnScroll when="enter" className="max-w-[28rem] md:max-w-[34rem]">
-            <h1 id="landing-title" className="text-white [text-shadow:0_1px_3px_rgba(0,0,0,0.6),0_2px_18px_rgba(0,0,0,0.4)]">
+            <h1 id="landing-title" className={`text-white ${PHOTO_TEXT_SHADOW}`}>
+              <span className="sr-only">nicchyo：</span>
               <span className="block text-sm font-bold tracking-wide text-white">高知高専生が開発した</span>
               <span className="mt-2 block text-[2.5rem] font-black leading-[1.2] tracking-wide sm:text-5xl md:text-6xl">
                 日曜市の
