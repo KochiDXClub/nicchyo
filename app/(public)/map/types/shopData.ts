@@ -47,6 +47,12 @@ export interface ShopEditableData {
   /** 取扱商品リスト */
   products: string[];
 
+  /**
+   * 商品名を翻訳して表示するとき（lib/i18n/shopTranslation.ts）の、翻訳後の名前 → 日本語の原文。
+   * お気に入りは日本語の原文で保存するので、言語を切り替えても同じ商品として扱える
+   */
+  productOriginalNames?: Record<string, string>;
+
   /** 商品ごとの価格（任意） */
   productPrices?: Record<string, number | null>;
 

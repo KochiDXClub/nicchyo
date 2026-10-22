@@ -56,6 +56,8 @@ import type {
   ConsultAskStreamEvent,
   ConsultHistoryEntry,
 } from "../types/consultConversation";
+import { shopsApiUrl } from "@/lib/i18n/config";
+import { useLocale } from "@/lib/i18n/LocaleContext";
 
 const SESSION_STORAGE_KEY = "nicchyo-consult-session";
 /**
@@ -692,6 +694,7 @@ export default function ConsultStage({
    * ただし全件取得は屋外の細い回線には重いので、
    * 「引けない ID が実際にあるとき」だけ、1回に限って取りに行く。
    */
+  const locale = useLocale();
   const shopFetchStartedRef = useRef(false);
   useEffect(() => {
     if (!hasRestored || shopFetchStartedRef.current) return;
@@ -706,7 +709,7 @@ export default function ConsultStage({
     let cancelled = false;
     void (async () => {
       try {
-        const response = await fetch("/api/shops");
+        const response = await fetch(shopsApiUrl(locale));
         if (!response.ok) return;
         const payload = (await response.json()) as { shops?: Shop[] };
         if (cancelled || !Array.isArray(payload.shops)) return;
@@ -722,7 +725,7 @@ export default function ConsultStage({
     return () => {
       cancelled = true;
     };
-  }, [allShops, entries, hasRestored, shopsById]);
+  }, [allShops, entries, hasRestored, locale, shopsById]);
 
   /**
    * 「これまでの相談」サイドバーの中身。PC もモバイルも同じ一覧を使う。
