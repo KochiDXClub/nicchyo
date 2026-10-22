@@ -48,3 +48,11 @@ describe("isLocalizablePath", () => {
     expect(isLocalizablePath("/administrators")).toBe(true);
   });
 });
+
+describe("isLocalizablePath", () => {
+  test("トークン付きの QR・招待リンクは /en へ飛ばさない", () => {
+    expect(isLocalizablePath("/claim/abc")).toBe(false);
+    expect(isLocalizablePath("/join/abc")).toBe(false);
+    expect(isLocalizablePath("/faq")).toBe(true);
+  });
+});

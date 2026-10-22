@@ -36,24 +36,37 @@ const MAX_TEXT_LENGTH = 300;
 const MAX_PRODUCTS = 100;
 const MAX_PRODUCT_LENGTH = 60;
 
-/** 出店者の自由記述は長さを抑える（費用と、出力が途中で切れて一括失敗するのを防ぐ） */
-const clip = (value: string) => value.slice(0, MAX_TEXT_LENGTH);
-
-/** 店舗から訳す原文を取り出す。商品名は、表示に使われる3か所（一覧・写真付き・価格表）の和集合 */
+/** 店舗から訳す原文を取り出す（切り詰めない全文。ハッシュもこれから作る）。商品名は、表示に使われる3か所（一覧・写真付き・価格表）の和集合 */
 export function buildTranslationSource(shop: Shop): TranslationSource {
   const products = new Set<string>();
   const add = (name: string | undefined) => {
-    if (name && name.length <= MAX_PRODUCT_LENGTH) products.add(name);
+    if (name) products.add(name);
   };
   for (const name of shop.products ?? []) add(name);
   for (const detail of shop.productDetails ?? []) add(detail.name);
   for (const name of Object.keys(shop.productPrices ?? {})) add(name);
   return {
-    name: clip(shop.name ?? ""),
-    strength: clip(shop.shopStrength ?? ""),
-    style: clip(shop.stallStyle ?? ""),
-    rainPolicy: clip(shop.rainPolicy ?? ""),
-    products: [...products].sort().slice(0, MAX_PRODUCTS),
+    name: shop.name ?? "",
+    strength: shop.shopStrength ?? "",
+    style: shop.stallStyle ?? "",
+    rainPolicy: shop.rainPolicy ?? "",
+    products: [...products].sort(),
+  };
+}
+
+/**
+ * AIに渡す原文。出店者の自由記述は費用と、出力が途中で切れて一括失敗するのを防ぐために長さを抑える。
+ * 上限を超える項目は切り詰めて訳さず、空にする（後半が消えた訳で全文を置き換えないため。画面には日本語が出る）。
+ * 商品も、長すぎる名前と上限を超える分は訳さない。
+ */
+export function limitSourceForTranslation(source: TranslationSource): TranslationSource {
+  const fit = (value: string) => (value.length <= MAX_TEXT_LENGTH ? value : "");
+  return {
+    name: fit(source.name),
+    strength: fit(source.strength),
+    style: fit(source.style),
+    rainPolicy: fit(source.rainPolicy),
+    products: source.products.filter((name) => name.length <= MAX_PRODUCT_LENGTH).slice(0, MAX_PRODUCTS),
   };
 }
 
@@ -187,7 +200,8 @@ export function parseTranslationOutput(
 /**
  * 店舗に訳を重ねる。訳が無い項目は日本語のまま。
  * 店名は「Romaji (日本語)」。商品名は、名前で引き当てる3か所（products / productDetails / productPrices）を
- * 同じ対応で置き換え、画面側の突き合わせがずれないようにする。
+ * 同じ対応で置き換え、画面側の突き合わせがずれないようにする。お気に入りのように日本語の原文で
+ * 保存するものは、productOriginalNames（訳 → 原文）で引き戻す。
  */
 export function applyShopTranslation(shop: Shop, translation: ShopTranslation | undefined): Shop {
   if (!translation) return shop;
@@ -201,6 +215,9 @@ export function applyShopTranslation(shop: Shop, translation: ShopTranslation | 
   if (translation.rainPolicy) translated.rainPolicy = translation.rainPolicy;
   if (hasProducts) {
     translated.products = (shop.products ?? []).map(rename);
+    translated.productOriginalNames = Object.fromEntries(
+      Object.entries(translation.products).map(([ja, name]) => [name, ja])
+    );
     if (shop.productDetails) {
       translated.productDetails = shop.productDetails.map((detail) => ({ ...detail, name: rename(detail.name) }));
     }

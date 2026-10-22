@@ -47,9 +47,8 @@ import GrandmaAvatar from '../../../consult/components/GrandmaAvatar';
 import { DEFAULT_CONSULT_CHARACTER } from '../../../consult/data/consultCharacters';
 import type { GrandmaPose } from '@/lib/grandma/pose';
 import { vibrate } from '@/lib/ui/haptics';
-import { useSiteText } from '@/lib/i18n/LocaleContext';
+import { useSiteText, useT } from '@/lib/i18n/LocaleContext';
 import { edgeScrollSpeed, passedStopIndex, scrubGain, scrubScrollTop } from './introScrub';
-import { useT } from '@/lib/i18n/LocaleContext';
 
 /** 左に空ける道の幅。停留点の行はこのぶんだけ右に寄せる */
 export const RAIL_WIDTH = 72;

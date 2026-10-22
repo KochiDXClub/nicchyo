@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { revalidateTag, unstable_cache } from "next/cache";
-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { createAnonClient } from "@/lib/supabase/anonClient";
 import { createAdminClient } from "@/lib/supabase/adminClient";
 import type { DatabaseWithExtensions } from "@/types/database.extensions";
 import type { Shop } from "@/app/(public)/map/types/shopData";
@@ -15,6 +16,7 @@ import {
   buildTranslationSource,
   buildTranslationUserPrompt,
   hasTranslatableText,
+  limitSourceForTranslation,
   parseTranslationOutput,
   serializeTranslationSource,
   type ShopTranslation,
@@ -31,17 +33,6 @@ const SHOP_TRANSLATIONS_REVALIDATE_SECONDS = 15 * 60;
 const BATCH_SIZE = 1;
 
 type TranslationRow = DatabaseWithExtensions["public"]["Tables"]["shop_translations"]["Row"];
-
-function createAnonClient() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key =
-    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY ??
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  if (!url || !key) return null;
-  return createClient<DatabaseWithExtensions>(url, key, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
-}
 
 function toTranslation(row: Pick<TranslationRow, "name" | "strength" | "style" | "rain_policy" | "products">): ShopTranslation {
   return {
@@ -61,8 +52,10 @@ type StoredTranslation = { translation: ShopTranslation; sourceHash: string };
 
 const getCachedTranslations = unstable_cache(
   async (locale: string): Promise<Record<string, StoredTranslation>> => {
-    const supabase = createAnonClient();
-    if (!supabase) return {};
+    const anon = createAnonClient();
+    if (!anon) return {};
+    // 生成型に shop_translations が無いので、拡張型に合わせる（anonClient は型なし）
+    const supabase = anon as unknown as SupabaseClient<DatabaseWithExtensions>;
     const { data, error } = await supabase
       .from("shop_translations")
       .select("vendor_id, name, strength, style, rain_policy, products, source_hash")
@@ -159,7 +152,7 @@ export async function syncShopTranslations(params: {
   for (let i = 0; i < targets.length; i += BATCH_SIZE) {
     const batch = targets.slice(i, i + BATCH_SIZE);
     // 出店者の文面に他店の識別子（UUID）を混ぜられないよう、プロンプトには連番だけを渡す
-    const items: TranslationBatchItem[] = batch.map((target, index) => ({ key: String(index + 1), source: target.source }));
+    const items: TranslationBatchItem[] = batch.map((target, index) => ({ key: String(index + 1), source: limitSourceForTranslation(target.source) }));
     try {
       const response = await requestChatCompletion(apiKey, aiModel, {
         messages: [

@@ -14,7 +14,7 @@ import ViewportHeightUpdater from "./components/ViewportHeightUpdater";
 import { Toaster } from "@/components/admin";
 import { safeJsonLd } from "@/lib/utils/jsonLd";
 import { SITE_URL } from "@/lib/constants";
-import { LOCALE_HEADER, toLocale } from "@/lib/i18n/config";
+import { DEFAULT_LOCALE, LOCALE_HEADER, toLocale } from "@/lib/i18n/config";
 import { LocaleProvider } from "@/lib/i18n/LocaleContext";
 
 // 見出し用の丸文字。以前は globals.css の @import で Google Fonts から読んでいたが、
@@ -29,7 +29,7 @@ const mochiyPopOne = Mochiy_Pop_One({
   variable: "--font-mochiy",
 });
 
-export const metadata: Metadata = {
+const baseMetadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   // "./" は各ページ自身のパスに展開される（クエリは含まない）。
   // www や ?utm_ 付きなど複数のURLで開けても、評価を https://nicchyo.jp/… に集約する
@@ -64,6 +64,16 @@ export const metadata: Metadata = {
     images: ["/og-default.png"],
   },
 };
+
+/**
+ * 英語のページ（/en/…）は、本文の翻訳がそろい hreflang・sitemap を整えるまで検索エンジンに出さない
+ * （ほぼ日本語のページが全ルート分、別URLとして索引に載るのを避けるため）。
+ */
+export async function generateMetadata(): Promise<Metadata> {
+  const locale = toLocale((await headers()).get(LOCALE_HEADER));
+  if (locale === DEFAULT_LOCALE) return baseMetadata;
+  return { ...baseMetadata, robots: { index: false, follow: true } };
+}
 
 export const viewport: Viewport = {
   width: "device-width",

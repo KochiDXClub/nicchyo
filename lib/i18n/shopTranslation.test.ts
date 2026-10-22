@@ -4,6 +4,7 @@ import {
   applyShopTranslation,
   buildTranslationSource,
   hasTranslatableText,
+  limitSourceForTranslation,
   parseTranslationOutput,
   serializeTranslationSource,
   type TranslationBatchItem,
@@ -124,5 +125,35 @@ describe("applyShopTranslation", () => {
       items
     );
     expect(parsed.get("1")?.strength).toBeNull();
+  });
+});
+
+describe("limitSourceForTranslation", () => {
+  test("上限を超える項目は切り詰めず空にする（後半が消えた訳で全文を置き換えない）", () => {
+    const long = "あ".repeat(301);
+    const source = buildTranslationSource({ ...baseShop, shopStrength: long } as Shop);
+    expect(source.strength).toBe(long);
+    const limited = limitSourceForTranslation(source);
+    expect(limited.strength).toBe("");
+    expect(limited.rainPolicy).toBe("雨でも出ます");
+  });
+
+  test("ハッシュの元は全文なので、301文字目以降を直すと訳し直しの対象になる", () => {
+    const a = buildTranslationSource({ ...baseShop, shopStrength: "あ".repeat(300) + "い" } as Shop);
+    const b = buildTranslationSource({ ...baseShop, shopStrength: "あ".repeat(300) + "う" } as Shop);
+    expect(serializeTranslationSource("en", a)).not.toBe(serializeTranslationSource("en", b));
+  });
+});
+
+describe("applyShopTranslation の productOriginalNames", () => {
+  test("訳した商品名から日本語の原文に引き戻せる（お気に入りのキー用）", () => {
+    const translated = applyShopTranslation(baseShop, {
+      name: "Nakamura Shoten",
+      strength: null,
+      style: null,
+      rainPolicy: null,
+      products: { 芋天: "imoten (sweet potato tempura)" },
+    });
+    expect(translated.productOriginalNames).toEqual({ "imoten (sweet potato tempura)": "芋天" });
   });
 });
