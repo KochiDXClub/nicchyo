@@ -1,30 +1,24 @@
 'use client';
 
-import { useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import {
-  DEFAULT_LOCALE,
   LOCALES,
   LOCALE_COOKIE,
   LOCALE_LABELS,
   localizePath,
-  toLocale,
-  type Locale,
 } from '@/lib/i18n/config';
+import { useLocale } from '@/lib/i18n/LocaleContext';
 
 /**
  * 表示言語の切り替え。選んだ言語は Cookie に保存し、URL は日本語が無印・英語が /en/… になる。
- * 現在の言語は <html lang>（proxy.ts が決めた値）から読む
+ * 現在の言語は LocaleProvider（proxy.ts が決めた値）から読む
  */
 export default function LanguageSwitcher() {
   const pathname = usePathname() ?? '/';
-  const [current, setCurrent] = useState<Locale>(DEFAULT_LOCALE);
+  // サーバーが決めたロケールをそのまま使う（最初の描画で「日本語」が一瞬選ばれるちらつきを避ける）
+  const current = useLocale();
 
-  useEffect(() => {
-    setCurrent(toLocale(document.documentElement.lang));
-  }, []);
-
-  const select = (locale: Locale) => {
+  const select = (locale: (typeof LOCALES)[number]) => {
     if (locale === current) return;
     document.cookie = `${LOCALE_COOKIE}=${locale}; path=/; max-age=${60 * 60 * 24 * 365}; samesite=lax`;
     // ページ全体を読み込み直し、<html lang> とサーバー描画の文言を切り替える
