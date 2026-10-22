@@ -40,7 +40,7 @@ export default function LanguageSwitcher() {
           lang={locale}
           onClick={() => select(locale)}
           aria-pressed={locale === current}
-          className={`rounded-full px-3 py-1 text-xs transition ${
+          className={`rounded-chip px-3 py-1 text-xs transition ${
             locale === current
               ? 'bg-nicchyo-primary font-semibold text-nicchyo-ink'
               : 'border border-nicchyo-ink/20 text-nicchyo-ink/70 hover:bg-nicchyo-ink/5'
