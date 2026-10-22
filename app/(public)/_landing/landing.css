@@ -42,33 +42,6 @@
 }
 
 
-/* 最初の画面の見出し：白文字の背面に、マーカーペンのような帯が左から引かれる（写真の上でも読めるように） */
-.landing-hl {
-  padding: 0.05em 0.35em;
-  margin-left: -0.35em;
-  background-image: linear-gradient(rgb(58 58 58 / 0.7), rgb(58 58 58 / 0.7));
-  background-repeat: no-repeat;
-  background-size: 100% 100%;
-  -webkit-box-decoration-break: clone;
-  box-decoration-break: clone;
-  animation: landing-hl-draw 700ms cubic-bezier(0.4, 0, 0.2, 1) 250ms both;
-}
-.landing-hl-delay {
-  animation-delay: 550ms;
-}
-.landing-hl-accent {
-  color: rgb(58 58 58);
-  background-image: linear-gradient(#ffde59, #ffde59);
-}
-@keyframes landing-hl-draw {
-  from {
-    background-size: 0% 100%;
-  }
-  to {
-    background-size: 100% 100%;
-  }
-}
-
 /* 見出しの下線（蛍光ペン）：画面に入ったら左から引かれる */
 .landing-scrib path {
   fill: none;
@@ -173,65 +146,6 @@
   animation-play-state: paused;
 }
 
-/* 最初の画面の飾り */
-.landing-sway {
-  transform-origin: 50% 0;
-  animation: landing-sway 6s ease-in-out infinite alternate;
-}
-@keyframes landing-sway {
-  from {
-    transform: rotate(-0.35deg);
-  }
-  to {
-    transform: rotate(0.35deg);
-  }
-}
-.landing-spin {
-  animation: landing-spin 30s linear infinite;
-}
-@keyframes landing-spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-.landing-float {
-  animation: landing-float 7s ease-in-out infinite alternate;
-  animation-delay: var(--d, 0s);
-}
-@keyframes landing-float {
-  from {
-    transform: translateY(0) rotate(0);
-  }
-  to {
-    transform: translateY(-16px) rotate(24deg);
-  }
-}
-.landing-pop {
-  animation: landing-pop 0.9s cubic-bezier(0.34, 1.56, 0.64, 1) 0.9s both;
-}
-@keyframes landing-pop {
-  from {
-    opacity: 0;
-    transform: rotate(-30deg) scale(0.3);
-  }
-  to {
-    opacity: 1;
-    transform: rotate(8deg) scale(1);
-  }
-}
-.landing-wave {
-  animation: landing-bob 3.2s ease-in-out infinite;
-  transform-origin: 50% 100%;
-}
-@keyframes landing-bob {
-  0%,
-  100% {
-    transform: translateY(0) rotate(0);
-  }
-  50% {
-    transform: translateY(-4px) rotate(-3deg);
-  }
-}
 /* にちよさんの絵に、シールのような白いふちを付ける */
 .landing-sticker {
   filter: drop-shadow(2.4px 0 0 #fff) drop-shadow(-2.4px 0 0 #fff) drop-shadow(0 2.4px 0 #fff) drop-shadow(0 -2.4px 0 #fff)
@@ -338,10 +252,6 @@
 @media (prefers-reduced-motion: reduce) {
   .landing-marq,
   .landing-swing,
-  .landing-sway,
-  .landing-spin,
-  .landing-float,
-  .landing-wave,
   .landing-blob,
   .landing-blob-back,
   .landing-medal,
@@ -353,10 +263,6 @@
   }
   .landing-marq {
     transform: none;
-  }
-  .landing-pop,
-  .landing-hl {
-    animation: none;
   }
   .landing-wr {
     clip-path: none;
