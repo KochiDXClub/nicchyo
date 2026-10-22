@@ -99,6 +99,17 @@ function copyCookies(from: NextResponse, to: NextResponse) {
   });
 }
 
+/**
+ * ブラウザがページそのものを開くリクエストか。<Link> の遷移・プリフェッチ（RSC）や、
+ * 地図の Worker などの静的ファイルは対象にしない（英語の人だけ余計な 307 を挟まないため）。
+ */
+function isDocumentNavigation(request: NextRequest): boolean {
+  if (request.headers.has("rsc") || request.headers.has("next-router-prefetch")) return false;
+  const dest = request.headers.get("sec-fetch-dest");
+  if (dest) return dest === "document";
+  return (request.headers.get("accept") ?? "").includes("text/html");
+}
+
 export async function proxy(request: NextRequest) {
   // /en/map のようなロケール付きURLは、ロケールを外した /map として以降の判定・描画を行う。
   // ロケールは URL のプレフィックス → Cookie → 日本語 の順で決める
@@ -112,6 +123,7 @@ export async function proxy(request: NextRequest) {
     !prefixLocale &&
     locale !== DEFAULT_LOCALE &&
     request.method === "GET" &&
+    isDocumentNavigation(request) &&
     isLocalizablePath(pathname)
   ) {
     const url = request.nextUrl.clone();

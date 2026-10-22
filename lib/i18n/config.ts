@@ -54,8 +54,8 @@ export function shopsApiUrl(locale: Locale): string {
   return locale === DEFAULT_LOCALE ? "/api/shops" : `/api/shops?locale=${locale}`;
 }
 
-/** 多言語化の対象外のパス（管理・出店者・API など）。ロケールのプレフィックスを付けない */
-const UNLOCALIZED_PREFIXES = ["/api", "/admin", "/moderator", "/vendor", "/my-shop", "/oauth", "/maintenance"];
+/** 多言語化の対象外のパス（管理・出店者・API・トークン付きの QR／招待リンクなど）。ロケールのプレフィックスを付けない */
+const UNLOCALIZED_PREFIXES = ["/api", "/admin", "/moderator", "/vendor", "/my-shop", "/oauth", "/maintenance", "/claim", "/join"];
 
 export function isLocalizablePath(pathname: string): boolean {
   return !UNLOCALIZED_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`));

@@ -17,9 +17,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import GrandmaAvatar from '../../../consult/components/GrandmaAvatar';
 import { DEFAULT_CONSULT_CHARACTER } from '../../../consult/data/consultCharacters';
 import type { GrandmaPose } from '@/lib/grandma/pose';
-import { useSiteText } from '@/lib/i18n/LocaleContext';
+import { useSiteText, useT } from '@/lib/i18n/LocaleContext';
 import type { SiteTextKey } from '@/lib/siteCopy';
-import { useT } from '@/lib/i18n/LocaleContext';
 
 type Exchange = { question: string; answer: string };
 
