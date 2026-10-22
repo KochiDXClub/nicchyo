@@ -2,6 +2,7 @@ import { PageContainer } from "@/components/ui";
 import { BannerScreen, ConsultScreen, MapScreen } from "./HowToScreens";
 import InView from "./InView";
 import SectionHeading from "./SectionHeading";
+import "./landing.css";
 
 const STEPS = [
   { no: "01", title: "地図でさがす", Screen: MapScreen, aria: "地図で「芋天」と入れると、その屋台だけが残り、下にお店のカードが出る" },

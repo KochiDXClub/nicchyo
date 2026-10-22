@@ -6,6 +6,7 @@ import { getStatusPresentation } from "@/lib/market/calendar";
 import { MARKET_FACTS } from "./content";
 import SectionHeading from "./SectionHeading";
 import type { LandingSunday } from "./upcomingSundays";
+import "./landing.css";
 
 const FACT_ICONS = { いつ: Clock, どこ: MapPin } as const;
 
