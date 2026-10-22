@@ -130,10 +130,9 @@ type NavigationBarProps = {
   onCloseMode?: () => void;
   onConsultClick?: () => void;
   /**
-   * サブページの「もどる」バーを、下端ではなく画面の上に置く。
-   * スマホは上端いっぱいの細い帯、lg 以上（PC・ノートPC）は地図のツールバーと同じ右上の小さなバー。
-   * 指定した画面は、下端にナビの分の余白を取らず、上に帯の分（--consult-top-space のような変数）を
-   * 空けること
+   * サブページの「もどる」バーを、lg 以上（PC・ノートPC）では地図のツールバーと同じ右上の小さなバーにする。
+   * スマホは指定の有無にかかわらず下端に置く。
+   * 指定した画面は、lg 以上で下端にナビの分の余白を取らないこと（--nav-bar-height を 0 にする）
    */
   backBarOnTop?: boolean;
 };
@@ -196,7 +195,7 @@ function NavigationBarInner({
    * スマホと、サブページのもどるバーは従来どおり全幅の帯のまま
    */
   const isMapNav = isHome || isCloseUxActive;
-  // 「もどる」バー（サブページ）を上に置くか。地図の上にいる間は、地図のナビが優先する
+  // 「もどる」バー（サブページ）を lg 以上で右上に浮かべるか。地図の上にいる間は、地図のナビが優先する
   const topBackBar = backBarOnTop && !isMapNav;
 
   // ページ公開設定で public でないリンクはナビに出さない
@@ -381,9 +380,7 @@ function NavigationBarInner({
       {/* ── ナビゲーションバー ──────────────────────────────────────────────── */}
       <nav
         onClick={isCloseUxActive ? handleCloseMode : undefined}
-        className={`navigation-bar ${position} ${
-          topBackBar ? "top-0 border-b pt-[var(--safe-top,0px)] lg:pt-0" : "bottom-0 border-t"
-        } left-0 right-0 z-[9997] text-sm leading-none shadow-sm transition-colors duration-300 ${
+        className={`navigation-bar ${position} bottom-0 border-t left-0 right-0 z-[9997] text-sm leading-none shadow-sm transition-colors duration-300 ${
           isCloseUxActive
             ? "cursor-pointer border-green-500 bg-green-500"
             : "border-slate-200/60 bg-white/90 backdrop-blur-md"
@@ -392,7 +389,7 @@ function NavigationBarInner({
             ? "lg:bottom-auto lg:left-auto lg:right-4 lg:top-4 lg:w-auto lg:rounded-full lg:border lg:shadow-float"
             : ""
         }`}
-        style={topBackBar ? undefined : { paddingBottom: "var(--safe-bottom, 0px)" }}
+        style={{ paddingBottom: "var(--safe-bottom, 0px)" }}
       >
         {isHome ? (
           /* ── マップ：フルナビ ── */
