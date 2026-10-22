@@ -31,7 +31,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion, useMotionValue, useReducedMotion } from 'framer-motion';
 import Link from 'next/link';
-import { useSiteText } from '@/lib/i18n/LocaleContext';
+import { useSiteText, useT } from '@/lib/i18n/LocaleContext';
 import type { SiteTextKey } from '@/lib/siteCopy';
 import { ArrowUpRight, X } from 'lucide-react';
 import type { Shop } from '../types/shopData';
@@ -61,7 +61,6 @@ import { useIsDesktop, useViewportHeight } from './intro/useIntroViewport';
 import { useIntroSheetGestures } from './intro/useIntroSheetGestures';
 import IntroProgress from './intro/IntroProgress';
 import IntroSection from './intro/IntroSection';
-import { useT } from '@/lib/i18n/LocaleContext';
 
 type MapIntroPanelProps = {
   /** 開いているか。閉じる動きはこの部品の中の AnimatePresence が受け持つ */
