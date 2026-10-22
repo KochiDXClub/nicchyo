@@ -271,6 +271,7 @@ function NavigationBarInner({
         onClose={closeMenu}
         label="メニュー"
         returnFocusRef={menuButtonRef}
+        showTopBar
         // 地図ではメニューボタンが右上にあるので、PC・ノートPCではそのすぐ下に開く
         desktopDropdown={isMapNav}
       >

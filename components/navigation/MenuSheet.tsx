@@ -40,6 +40,7 @@ export function MenuSheet({
   label,
   returnFocusRef,
   desktopDropdown = false,
+  showTopBar = false,
   children,
 }: {
   open: boolean;
@@ -53,6 +54,11 @@ export function MenuSheet({
    * 開かせるために使う。スマホ（lg 未満）は指定にかかわらず、下から上がるシートのまま
    */
   desktopDropdown?: boolean;
+  /**
+   * lg 未満（スマホ）で、画面の上に「nicchyo」と言語切り替えのヘッダーを出す。
+   * 来訪者向けのメニュー用。出店者などほかのナビでは指定しない
+   */
+  showTopBar?: boolean;
   children: ReactNode;
 }) {
   const prefersReducedMotion = useReducedMotion();
@@ -95,7 +101,6 @@ export function MenuSheet({
             onClick={onClose}
             aria-hidden
           />
-          {!isDesktop && <MenuTopBar key="topbar" transition={fadeTransition} />}
           <SheetPanel
             key="sheet"
             label={label}
@@ -103,6 +108,7 @@ export function MenuSheet({
             returnFocusRef={returnFocusRef}
             prefersReducedMotion={prefersReducedMotion ?? false}
             dropdown={dropdown}
+            topBar={showTopBar && !isDesktop ? <MenuTopBar transition={fadeTransition} /> : null}
           >
             {children}
           </SheetPanel>
@@ -122,6 +128,7 @@ function SheetPanel({
   returnFocusRef,
   prefersReducedMotion,
   dropdown,
+  topBar,
   children,
 }: {
   label: string;
@@ -130,6 +137,8 @@ function SheetPanel({
   prefersReducedMotion: boolean;
   /** PC 向けの出方。ボタンの下に開くカードで、ドラッグでは閉じない */
   dropdown: boolean;
+  /** シートの上に重ねるヘッダー。キーボード・読み上げから届くよう、シートと同じダイアログの中に置く */
+  topBar: ReactNode;
   children: ReactNode;
 }) {
   const dragControls = useDragControls();
@@ -172,12 +181,13 @@ function SheetPanel({
   }
 
   return (
+    <SheetDialog
+      panelRef={panelRef}
+      label={label}
+      topBar={topBar}
+      exitTransition={sheetExitTransition}
+    >
     <motion.div
-      ref={panelRef}
-      role="dialog"
-      aria-modal="true"
-      aria-label={label}
-      tabIndex={-1}
       initial={{ y: "100%" }}
       animate={{ y: 0 }}
       exit={{ y: "100%", transition: sheetExitTransition }}
@@ -189,8 +199,12 @@ function SheetPanel({
       dragElastic={{ top: 0, bottom: 0.55 }}
       dragMomentum={false}
       onDragEnd={handleDragEnd}
-      className="fixed bottom-0 left-0 right-0 z-[9996] mx-auto w-full max-w-lg rounded-t-[28px] bg-nicchyo-base shadow-[0_-16px_48px_-12px_rgba(58,58,58,0.3)] ring-1 ring-nicchyo-ink/[0.07] outline-none"
-      style={{ paddingBottom: "calc(var(--safe-bottom, 0px) + 5.5rem)" }}
+      className={`pointer-events-auto fixed bottom-0 left-0 right-0 mx-auto flex w-full max-w-lg flex-col rounded-t-[28px] bg-nicchyo-base shadow-[0_-16px_48px_-12px_rgba(58,58,58,0.3)] ring-1 ring-nicchyo-ink/[0.07] outline-none`}
+      style={{
+        paddingBottom: "calc(var(--safe-bottom, 0px) + 5.5rem)",
+        // ヘッダーを出すときは、シート全体がヘッダーの下に収まるようにする
+        ...(topBar ? { maxHeight: "calc(100dvh - 3.5rem - var(--safe-top, 0px))" } : null),
+      }}
     >
       {/* ドラッグハンドル（下に引くと閉じる） */}
       <div
@@ -201,7 +215,43 @@ function SheetPanel({
       </div>
 
       {/* スクロール領域 */}
-      <div className="max-h-[74dvh] overflow-y-auto overscroll-contain px-3 pb-2 pt-1">{children}</div>
+      <div className="min-h-0 max-h-[74dvh] overflow-y-auto overscroll-contain px-3 pb-2 pt-1">{children}</div>
+    </motion.div>
+    </SheetDialog>
+  );
+}
+
+/**
+ * スマホのシートを包むダイアログ。ヘッダー（topBar）とシートを同じ role="dialog" の中に入れて、
+ * Tab の巡回と読み上げの範囲にヘッダーも含める。全面を覆うが、シートとヘッダー以外は
+ * クリックを通して、背景タップで閉じる動きを変えない
+ */
+function SheetDialog({
+  panelRef,
+  label,
+  topBar,
+  exitTransition,
+  children,
+}: {
+  panelRef: RefObject<HTMLDivElement>;
+  label: string;
+  topBar: ReactNode;
+  exitTransition: { duration: number };
+  children: ReactNode;
+}) {
+  return (
+    <motion.div
+      ref={panelRef}
+      role="dialog"
+      aria-modal="true"
+      aria-label={label}
+      tabIndex={-1}
+      // 中のシートが下がりきるまで、ダイアログを残しておく
+      exit={{ opacity: 1, transition: exitTransition }}
+      className="pointer-events-none fixed inset-0 z-[9996] outline-none"
+    >
+      {topBar}
+      {children}
     </motion.div>
   );
 }
@@ -471,7 +521,7 @@ function MenuTopBar({ transition }: { transition: { duration: number } }) {
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       transition={transition}
-      className="fixed inset-x-0 top-0 z-[9997] border-b border-line-warm bg-nicchyo-base px-5 pt-[var(--safe-top,0px)] shadow-sm"
+      className="pointer-events-auto fixed inset-x-0 top-0 border-b border-line-warm bg-nicchyo-base px-5 pt-[var(--safe-top,0px)] shadow-chip"
     >
       <div className="mx-auto flex h-14 max-w-[64rem] items-center justify-between">
         <span className="text-xl font-black tracking-wide text-nicchyo-ink">nicchyo</span>
