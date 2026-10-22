@@ -49,7 +49,7 @@ export default function LandingAbout() {
 
             <Link
               href="/activities"
-              className="mt-5 inline-flex h-11 items-center rounded-chip border border-amber-200 bg-white px-5 text-sm font-bold text-amber-800 shadow-sm transition hover:bg-amber-50 motion-reduce:transition-none"
+              className="mt-5 inline-flex h-11 items-center rounded-chip border border-amber-200 bg-white px-5 text-sm font-bold text-amber-800 shadow-chip transition hover:bg-amber-50 motion-reduce:transition-none"
             >
               これまでの取り組み →
             </Link>
