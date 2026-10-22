@@ -6,6 +6,7 @@ import { getStatusPresentation } from "@/lib/market/calendar";
 import { MARKET_FACTS } from "./content";
 import SectionHeading from "./SectionHeading";
 import type { LandingSunday } from "./upcomingSundays";
+import "./landing.css";
 
 const FACT_ICONS = { いつ: Clock, どこ: MapPin } as const;
 
@@ -17,7 +18,7 @@ function isOff(status: LandingSunday["status"]) {
 /**
  * 次の日曜市は、いつ？ 次の日曜を日めくりカレンダーで大きく見せ、これからの日曜を、
  * 開催カレンダー（market_days）の状態つきで横に並べる（荒天中止・臨時休市は灰色）。
- * 「いつ」「どこ」は、綱からぶら下がる木の看板。日曜市の数字（約1.3km・およそ300店）は屋台通りに出している
+ * 「いつ」「どこ」は、綱からぶら下がる木の看板
  */
 export default function LandingInfo({ sundays }: { sundays: LandingSunday[] }) {
   const next = sundays[0];

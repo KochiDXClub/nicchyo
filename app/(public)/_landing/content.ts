@@ -73,7 +73,7 @@ export const GENRES: { category: ShopCategory; art: string }[] = SHOP_CATEGORY_N
 }));
 
 /**
- * 開催の案内（いつ・どこ）。長さと店の数（約1.3km・およそ300店）は屋台通りの札（STREET_CHIPS）にある。
+ * 開催の案内（いつ・どこ）。
  * 休市日は高知市の案内による（1月1・2日と、よさこい祭りの8月10〜12日に日曜が重なる日は休み）。
  * 休みの日は、開催カレンダー（market_days）に登録された状態として「これからの日曜」に出る
  */
@@ -121,13 +121,3 @@ export const SAMPLE_SHOP: Shop = {
   themeColor: "rose",
   images: { main: "/images/landing/candle-shop.webp" },
 };
-
-/**
- * 屋台通りの上にぶら下げる札。数字はマップの案内（mapIntro.lead）と同じ（毎週日曜・約1.3km・およそ300の店）。
- * 位置は屋台通りの絵（street.svg、1600×300）の上の割合
- */
-export const STREET_CHIPS: { id: string; main: string; unit: string; left: number; top: number }[] = [
-  { id: "weekly", main: "毎週", unit: "日曜", left: 36.1, top: 10 },
-  { id: "length", main: "約1.3", unit: "km", left: 46.3, top: 13.3 },
-  { id: "shops", main: "およそ300", unit: "店", left: 56.4, top: 10 },
-];
