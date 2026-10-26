@@ -11,12 +11,21 @@ import {
   toLocale,
   type Locale,
 } from '@/lib/i18n/config';
+import { PHOTO_TEXT_SHADOW } from '@/lib/ui/photoText';
+import { cn } from '@/lib/utils/cn';
+
+type Props = {
+  /** photo … 写真の上（白い文字）。page … クリーム地の上（濃い文字） */
+  tone?: 'photo' | 'page';
+  className?: string;
+};
 
 /**
  * 表示言語の切り替え。選んだ言語は Cookie に保存し、URL は日本語が無印・英語が /en/… になる。
- * 現在の言語は <html lang>（proxy.ts が決めた値）から読む
+ * 現在の言語は <html lang>（proxy.ts が決めた値）から読む。
+ * tone="photo" は写真の上（トップのヘッダー）で読める白い文字の見た目
  */
-export default function LanguageSwitcher() {
+export default function LanguageSwitcher({ tone = 'page', className }: Props) {
   const pathname = usePathname() ?? '/';
   const [current, setCurrent] = useState<Locale>(DEFAULT_LOCALE);
 
@@ -32,7 +41,7 @@ export default function LanguageSwitcher() {
   };
 
   return (
-    <div className="flex items-center gap-2" role="group" aria-label="Language / 言語">
+    <div className={cn('flex items-center gap-2', className)} role="group" aria-label="Language / 言語">
       {LOCALES.map((locale) => (
         <button
           key={locale}
@@ -40,11 +49,16 @@ export default function LanguageSwitcher() {
           lang={locale}
           onClick={() => select(locale)}
           aria-pressed={locale === current}
-          className={`rounded-chip px-3 py-1 text-xs transition ${
-            locale === current
-              ? 'bg-nicchyo-primary font-semibold text-nicchyo-ink'
-              : 'border border-nicchyo-ink/20 text-nicchyo-ink/70 hover:bg-nicchyo-ink/5'
-          }`}
+          className={cn(
+            'rounded-chip px-3 py-1 text-xs transition',
+            tone === 'photo'
+              ? locale === current
+                ? 'bg-white/90 font-semibold text-nicchyo-ink'
+                : `border border-white/70 text-white ${PHOTO_TEXT_SHADOW} hover:bg-white/15`
+              : locale === current
+                ? 'bg-nicchyo-primary font-semibold text-nicchyo-ink'
+                : 'border border-nicchyo-ink/20 text-nicchyo-ink/70 hover:bg-nicchyo-ink/5'
+          )}
         >
           {LOCALE_LABELS[locale]}
         </button>
