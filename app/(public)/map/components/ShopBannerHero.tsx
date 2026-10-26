@@ -290,7 +290,6 @@ export function ShopBannerHero({
   heroImageError,
   onImageError,
   mode,
-  showProductPreview = false,
   isFavorite = false,
   onToggleFavorite,
   onOpenPhoto,
@@ -301,7 +300,6 @@ export function ShopBannerHero({
   heroImageError: boolean;
   onImageError: () => void;
   mode: "compact" | "expanded";
-  showProductPreview?: boolean;
   /** その店の行が1つでもあれば点灯する（商品だけ入れた場合も点灯） */
   isFavorite?: boolean;
   onToggleFavorite?: () => void;
@@ -330,39 +328,22 @@ export function ShopBannerHero({
         <div className="min-w-0 flex-1 pr-12">
           <div className="flex flex-wrap items-center gap-1">
             <span
-              className="rounded-chip px-2 py-0.5 text-[11px] font-bold"
+              className="rounded-chip px-2.5 py-0.5 text-[13px] font-bold"
               style={{ backgroundColor: theme.light, color: theme.text }}
             >
               {shop.category || "ショップ"}
             </span>
             {isOpenToday(shop) && (
-              <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700">
+              <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[12px] font-bold text-emerald-700">
                 今日出店中
               </span>
             )}
           </div>
-          <h2 className="mt-1 line-clamp-2 text-[17px] font-extrabold leading-tight text-slate-900">
+          <h2 className="mt-1 line-clamp-2 text-xl font-extrabold leading-tight text-slate-900">
             {shop.name}
           </h2>
           {shop.catchphrase && (
             <p className="mt-0.5 line-clamp-1 text-xs text-slate-500">{shop.catchphrase}</p>
-          )}
-          {showProductPreview && shop.products.length > 0 && (
-            <div className="mt-1.5 flex gap-1.5 overflow-x-auto" style={{ scrollbarWidth: "none" }}>
-              {shop.products.slice(0, 4).map((product) => (
-                <span
-                  key={product}
-                  className="shrink-0 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-0.5 text-[10px] font-medium text-slate-600"
-                >
-                  {product}
-                </span>
-              ))}
-              {shop.products.length > 4 && (
-                <span className="shrink-0 rounded-full bg-slate-100 px-2.5 py-0.5 text-[10px] font-medium text-slate-400">
-                  +{shop.products.length - 4}
-                </span>
-              )}
-            </div>
           )}
         </div>
       </div>
