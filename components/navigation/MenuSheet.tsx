@@ -525,7 +525,7 @@ function MenuTopBar({ transition }: { transition: { duration: number } }) {
     >
       <div className="mx-auto flex h-14 max-w-[64rem] items-center justify-between">
         <span className="text-xl font-black tracking-wide text-nicchyo-ink">nicchyo</span>
-        <LanguageSwitcher tone="page" />
+        <LanguageSwitcher tone="page" reopenMenu />
       </div>
     </motion.header>
   );
