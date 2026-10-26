@@ -22,7 +22,7 @@ import {
   type PanInfo,
 } from "framer-motion";
 import { ArrowLeft, LayoutGrid, X, type LucideIcon } from "lucide-react";
-import LanguageSwitcher from "@/components/LanguageSwitcher";
+import LanguageSwitcher from "@/components/navigation/LanguageSwitcher";
 
 /** iOS のシートに近い、最後にすっと止まる曲線 */
 const EASE_OUT_SHEET: [number, number, number, number] = [0.32, 0.72, 0, 1];
@@ -187,36 +187,36 @@ function SheetPanel({
       topBar={topBar}
       exitTransition={sheetExitTransition}
     >
-    <motion.div
-      initial={{ y: "100%" }}
-      animate={{ y: 0 }}
-      exit={{ y: "100%", transition: sheetExitTransition }}
-      transition={sheetTransition}
-      drag="y"
-      dragListener={false}
-      dragControls={dragControls}
-      dragConstraints={{ top: 0, bottom: 0 }}
-      dragElastic={{ top: 0, bottom: 0.55 }}
-      dragMomentum={false}
-      onDragEnd={handleDragEnd}
-      className={`pointer-events-auto fixed bottom-0 left-0 right-0 mx-auto flex w-full max-w-lg flex-col rounded-t-[28px] bg-nicchyo-base shadow-[0_-16px_48px_-12px_rgba(58,58,58,0.3)] ring-1 ring-nicchyo-ink/[0.07] outline-none`}
-      style={{
-        paddingBottom: "calc(var(--safe-bottom, 0px) + 5.5rem)",
-        // ヘッダーを出すときは、シート全体がヘッダーの下に収まるようにする
-        ...(topBar ? { maxHeight: "calc(100dvh - 3.5rem - var(--safe-top, 0px))" } : null),
-      }}
-    >
-      {/* ドラッグハンドル（下に引くと閉じる） */}
-      <div
-        onPointerDown={(event) => dragControls.start(event)}
-        className="flex cursor-grab touch-none justify-center pb-1 pt-3 active:cursor-grabbing"
+      <motion.div
+        initial={{ y: "100%" }}
+        animate={{ y: 0 }}
+        exit={{ y: "100%", transition: sheetExitTransition }}
+        transition={sheetTransition}
+        drag="y"
+        dragListener={false}
+        dragControls={dragControls}
+        dragConstraints={{ top: 0, bottom: 0 }}
+        dragElastic={{ top: 0, bottom: 0.55 }}
+        dragMomentum={false}
+        onDragEnd={handleDragEnd}
+        className="pointer-events-auto fixed bottom-0 left-0 right-0 mx-auto flex w-full max-w-lg flex-col rounded-t-[28px] bg-nicchyo-base shadow-[0_-16px_48px_-12px_rgba(58,58,58,0.3)] ring-1 ring-nicchyo-ink/[0.07] outline-none"
+        style={{
+          paddingBottom: "calc(var(--safe-bottom, 0px) + 5.5rem)",
+          // ヘッダーを出すときは、シート全体がヘッダーの下に収まるようにする
+          ...(topBar ? { maxHeight: "calc(100dvh - 3.5rem - var(--safe-top, 0px))" } : null),
+        }}
       >
-        <span className="h-[5px] w-11 rounded-full bg-nicchyo-ink/15" aria-hidden />
-      </div>
+        {/* ドラッグハンドル（下に引くと閉じる） */}
+        <div
+          onPointerDown={(event) => dragControls.start(event)}
+          className="flex cursor-grab touch-none justify-center pb-1 pt-3 active:cursor-grabbing"
+        >
+          <span className="h-[5px] w-11 rounded-full bg-nicchyo-ink/15" aria-hidden />
+        </div>
 
-      {/* スクロール領域 */}
-      <div className="min-h-0 max-h-[74dvh] overflow-y-auto overscroll-contain px-3 pb-2 pt-1">{children}</div>
-    </motion.div>
+        {/* スクロール領域 */}
+        <div className="min-h-0 max-h-[74dvh] overflow-y-auto overscroll-contain px-3 pb-2 pt-1">{children}</div>
+      </motion.div>
     </SheetDialog>
   );
 }
@@ -525,7 +525,7 @@ function MenuTopBar({ transition }: { transition: { duration: number } }) {
     >
       <div className="mx-auto flex h-14 max-w-[64rem] items-center justify-between">
         <span className="text-xl font-black tracking-wide text-nicchyo-ink">nicchyo</span>
-        <LanguageSwitcher tone="page" className="-mr-3" />
+        <LanguageSwitcher tone="page" />
       </div>
     </motion.header>
   );

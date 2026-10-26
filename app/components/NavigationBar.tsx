@@ -365,7 +365,8 @@ function NavigationBarInner({
 
         {/* ─ 末尾の小さなリンク。来訪者向けの項目と並べず、フッターとして置く ─ */}
         <MenuDivider />
-        <div className="px-3 py-2">
+        {/* スマホ幅では、メニューの上のヘッダー（MenuTopBar）に言語切り替えがある */}
+        <div className="hidden px-3 py-2 lg:block">
           <LanguageSwitcher />
         </div>
         <a
