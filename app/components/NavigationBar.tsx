@@ -367,7 +367,7 @@ function NavigationBarInner({
         <MenuDivider />
         {/* スマホ幅では、メニューの上のヘッダー（MenuTopBar）に言語切り替えがある */}
         <div className="hidden px-3 py-2 lg:block">
-          <LanguageSwitcher />
+          <LanguageSwitcher reopenMenu />
         </div>
         <a
           href={GITHUB_REPO_URL}

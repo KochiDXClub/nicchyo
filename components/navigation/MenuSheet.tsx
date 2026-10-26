@@ -532,7 +532,7 @@ function MenuTopBar({ transition }: { transition: { duration: number } }) {
           priority
           className="h-10 w-auto"
         />
-        <LanguageSwitcher tone="page" />
+        <LanguageSwitcher tone="page" reopenMenu />
       </div>
     </motion.header>
   );
