@@ -151,7 +151,7 @@ export default function StoryGridClient({ demo }: Props = {}) {
           )}
         >
           {withCover && (
-            <aside className="hidden md:sticky md:top-[calc(2rem+var(--page-top-space,0px))] md:block">
+            <aside className="hidden md:sticky md:top-8 md:block">
               {latest ? (
                 <button
                   type="button"

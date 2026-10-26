@@ -14,6 +14,7 @@ import ViewportHeightUpdater from "./components/ViewportHeightUpdater";
 import { Toaster } from "@/components/admin";
 import { safeJsonLd } from "@/lib/utils/jsonLd";
 import { SITE_URL } from "@/lib/constants";
+import { DEFAULT_LOCALE, LOCALE_HEADER, toLocale } from "@/lib/i18n/config";
 
 // 見出し用の丸文字。以前は globals.css の @import で Google Fonts から読んでいたが、
 // それだと「ページの CSS → Google の CSS（約110KB）」を読み終えるまで画面が描かれず、
@@ -27,7 +28,7 @@ const mochiyPopOne = Mochiy_Pop_One({
   variable: "--font-mochiy",
 });
 
-export const metadata: Metadata = {
+const baseMetadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   // "./" は各ページ自身のパスに展開される（クエリは含まない）。
   // www や ?utm_ 付きなど複数のURLで開けても、評価を https://nicchyo.jp/… に集約する
@@ -63,6 +64,16 @@ export const metadata: Metadata = {
   },
 };
 
+/**
+ * 英語のページ（/en/…）は、本文の翻訳がそろい hreflang・sitemap を整えるまで検索エンジンに出さない
+ * （ほぼ日本語のページが全ルート分、別URLとして索引に載るのを避けるため）。
+ */
+export async function generateMetadata(): Promise<Metadata> {
+  const locale = toLocale((await headers()).get(LOCALE_HEADER));
+  if (locale === DEFAULT_LOCALE) return baseMetadata;
+  return { ...baseMetadata, robots: { index: false, follow: true } };
+}
+
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
@@ -78,7 +89,7 @@ const organizationJsonLd = {
   url: SITE_URL,
   description:
     "高知の日曜市を舞台に、観光客・地元・市場がつながるデジタルプラットフォーム。",
-  logo: `${SITE_URL}/icon.svg`,
+  logo: `${SITE_URL}/icon.png`,
   areaServed: {
     "@type": "Place",
     name: "高知県高知市",
@@ -92,10 +103,12 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   // script-src 'nonce-…' 'strict-dynamic' の CSP で全スクリプトがブロックされて
   // ハイドレーションしない（近況ページが提灯ローディングで止まる等）ため必須。
   // https://nextjs.org/docs/app/guides/content-security-policy#nonces
-  const nonce = (await headers()).get("x-nonce") ?? undefined;
+  const requestHeaders = await headers();
+  const nonce = requestHeaders.get("x-nonce") ?? undefined;
+  const locale = toLocale(requestHeaders.get(LOCALE_HEADER));
 
   return (
-    <html lang="ja" className={mochiyPopOne.variable}>
+    <html lang={locale} className={mochiyPopOne.variable}>
       <head>
         <script
           nonce={nonce}

@@ -852,7 +852,7 @@ export default function ConsultStage({
       // 行う）。ここで max-w を付けてしまうと、スクロールする箱自体が狭くなり、
       // 縦スクロールバーが画面の右端ではなく箱の右端＝中途半端な位置に出てしまう
       // scroll-pb-10: Tab で下端の候補ボタンへ移ったとき、下端のぼかしに隠れない所まで送る
-      className="h-[calc(100dvh-var(--consult-bar-space)-var(--consult-top-space,0px))] w-full scroll-pb-10 overflow-y-auto px-4 pb-4 lg:h-[calc(100dvh-var(--consult-bar-space-lg))] lg:pb-0"
+      className="h-[calc(100dvh-var(--consult-bar-space))] w-full scroll-pb-10 overflow-y-auto px-4 pb-4 lg:h-[calc(100dvh-var(--consult-bar-space-lg))] lg:pb-0"
       style={
         {
           // 下端に固定した「話しかける」とナビゲーションバーの分は、上の
@@ -900,8 +900,7 @@ export default function ConsultStage({
         // lg 未満は指で押せる 44px にし、クリーム色の背景に埋もれないよう面と縁を付ける。
         // lg 以上はこれまで通り面を持たない Claude 風のアイコンにする。
         // 同じ z-30 の固定バーより DOM が前にあるので、z-40 にして固定バーの上に出す
-        // lg 未満は上端に「マップにもどる」の帯（--consult-top-space）が出るので、その下に置く
-        className={`fixed left-4 top-[calc(var(--consult-top-space,var(--safe-top,0px))+0.75rem)] z-40 flex h-11 w-11 items-center justify-center rounded-lg border border-amber-200 bg-white/80 text-slate-500 shadow-sm transition hover:bg-black/5 lg:top-[calc(var(--safe-top,0px)+1rem)] lg:h-9 lg:w-9 lg:border-0 lg:bg-transparent lg:shadow-none ${
+        className={`fixed left-4 top-[calc(var(--safe-top,0px)+0.75rem)] z-40 flex h-11 w-11 items-center justify-center rounded-lg border border-amber-200 bg-white/80 text-slate-500 shadow-sm transition hover:bg-black/5 lg:top-[calc(var(--safe-top,0px)+1rem)] lg:h-9 lg:w-9 lg:border-0 lg:bg-transparent lg:shadow-none ${
           isHistorySidebarOpen ? "invisible" : ""
         }`}
       >
@@ -958,9 +957,7 @@ export default function ConsultStage({
           // 幅は立ち絵を置いても文字の幅が以前（w-72）とほぼ変わらないよう 22rem にする
           className="fixed inset-y-0 left-0 z-40 flex w-[22rem] max-w-[85vw] flex-col border-r border-amber-100 bg-white lg:z-20"
           style={{
-            // lg 未満は上端の「マップにもどる」の帯（z-[9997]）が手前に出るので、
-            // 見出しの閉じるボタンが隠れないよう、帯の分だけ下げる（lg 以上は 0）
-            paddingTop: "var(--consult-top-space, var(--safe-top, 0px))",
+            paddingTop: "var(--safe-top, 0px)",
             paddingBottom: "calc(var(--safe-bottom, 0px) + var(--nav-bar-height))",
           }}
         >
