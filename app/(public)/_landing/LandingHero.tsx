@@ -2,7 +2,7 @@ import Link from "next/link";
 import { getImageProps } from "next/image";
 import { MapPin } from "lucide-react";
 import { buttonClass } from "@/components/ui";
-import LanguageSwitcher from "@/components/LanguageSwitcher";
+import LanguageSwitcher from "@/components/navigation/LanguageSwitcher";
 import type { MarketDay } from "@/lib/market/calendar";
 import MarketStatusBar from "../../components/market/MarketStatusBar";
 import { PHOTOS } from "./content";
@@ -51,7 +51,7 @@ export default function LandingHero({ day }: { day: MarketDay | null }) {
           <Link href="/" className={`text-xl font-black tracking-wide text-white ${PHOTO_TEXT_SHADOW}`}>
             nicchyo
           </Link>
-          <LanguageSwitcher tone="photo" className="-mr-3" />
+          <LanguageSwitcher tone="photo" />
         </div>
         <div aria-hidden className="mx-auto h-px max-w-[64rem] bg-white/60 shadow-[0_1px_2px_rgba(0,0,0,0.25)]" />
       </header>
