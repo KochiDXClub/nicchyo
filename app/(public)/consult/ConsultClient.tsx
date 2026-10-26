@@ -214,11 +214,10 @@ export default function ConsultClient() {
       // わずかに超えたときページ本体（html）側にもスクロールバーが出て、意図した
       // チャット用スクロールバーの隣にもう1本（グローバル装飾で同じ緑色の）スクロール
       // バーが並んで見えてしまう
-      // 「マップにもどる」バーは上に置く（スマホは上端の細い帯、lg 以上は右上の小さなバー）。
-      // 下端にナビの分の余白は要らないので --nav-bar-height を 0 にし、相談の下端まわりの計算
-      // （入力欄の位置・スクロール領域の高さ）がそれに追従するようにする。
-      // 上端の帯の分は --consult-top-space で空ける（lg 以上は帯ではないので 0）
-      className="relative min-h-screen overflow-hidden bg-[var(--consult-bg)] [--consult-top-space:calc(3rem_+_var(--safe-top,0px))] [--nav-bar-height:0px] lg:[--consult-top-space:0px]"
+      // 「マップにもどる」バーは、スマホは下端、lg 以上は右上の小さなバー。
+      // lg 以上は下端にナビの分の余白は要らないので --nav-bar-height を 0 にし、相談の下端まわりの計算
+      // （入力欄の位置・スクロール領域の高さ）がそれに追従するようにする
+      className="relative min-h-screen overflow-hidden bg-[var(--consult-bg)] lg:[--nav-bar-height:0px]"
     >
       <div className="pointer-events-none absolute inset-0 z-0 bg-[var(--consult-bg)]" aria-hidden="true" />
       {/*
@@ -241,7 +240,7 @@ export default function ConsultClient() {
       <main
         // サイドバーの開け閉めに合わせて、本文の左の空きも滑らかに広げ・縮める
         // （サイドバー側の動きと同じ速さ・緩急。ConsultStage の HISTORY_SIDEBAR_SLIDE_*）
-        className={`relative z-10 w-full pb-16 pt-[var(--consult-top-space)] motion-safe:transition-[padding-left] motion-safe:duration-300 motion-safe:ease-out-soft ${
+        className={`relative z-10 w-full pb-16 motion-safe:transition-[padding-left] motion-safe:duration-300 motion-safe:ease-out-soft ${
           isHistorySidebarOpen ? "lg:pl-96" : ""
         }`}
       >

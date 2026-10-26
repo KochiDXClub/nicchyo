@@ -489,13 +489,13 @@ export function BottomNavBackBar({
 }: {
   label: string;
   onClick: () => void;
-  /** 画面の上端に置くとき（帯でも右上の小さなバーでも）、高さを詰める。lg 以上は左右の余白も詰める */
+  /** lg 以上で右上の小さなバーとして浮かべるとき、高さと左右の余白を詰める */
   compact?: boolean;
 }) {
   return (
     <div
       className={`mx-auto flex max-w-lg items-center px-4 ${
-        compact ? "h-12 lg:px-2" : "h-14"
+        compact ? "h-14 lg:h-12 lg:px-2" : "h-14"
       }`}
     >
       <button
