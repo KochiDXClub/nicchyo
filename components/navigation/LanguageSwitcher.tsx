@@ -11,6 +11,7 @@ import {
   toLocale,
   type Locale,
 } from '@/lib/i18n/config';
+import { rememberMenuReopen } from '@/lib/ui/MenuContext';
 import { PHOTO_TEXT_SHADOW } from '@/lib/ui/photoText';
 import { cn } from '@/lib/utils/cn';
 
@@ -18,6 +19,8 @@ type Props = {
   /** photo … 写真の上（白い文字）。page … クリーム地の上（濃い文字） */
   tone?: 'photo' | 'page';
   className?: string;
+  /** メニューの中に置くとき true。切り替えで読み込み直したあと、メニューを開き直す */
+  reopenMenu?: boolean;
 };
 
 /**
@@ -25,7 +28,7 @@ type Props = {
  * 現在の言語は <html lang>（proxy.ts が決めた値）から読む。
  * tone="photo" は写真の上（トップのヘッダー）で読める白い文字の見た目
  */
-export default function LanguageSwitcher({ tone = 'page', className }: Props) {
+export default function LanguageSwitcher({ tone = 'page', className, reopenMenu = false }: Props) {
   const pathname = usePathname() ?? '/';
   const [current, setCurrent] = useState<Locale>(DEFAULT_LOCALE);
 
@@ -35,6 +38,7 @@ export default function LanguageSwitcher({ tone = 'page', className }: Props) {
 
   const select = (locale: Locale) => {
     if (locale === current) return;
+    if (reopenMenu) rememberMenuReopen();
     document.cookie = `${LOCALE_COOKIE}=${locale}; path=/; max-age=${60 * 60 * 24 * 365}; samesite=lax`;
     // ページ全体を読み込み直し、<html lang> とサーバー描画の文言を切り替える
     window.location.assign(`${localizePath(pathname, locale)}${window.location.search}${window.location.hash}`);

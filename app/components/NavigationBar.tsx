@@ -365,7 +365,7 @@ function NavigationBarInner({
         {/* ─ 末尾の小さなリンク。来訪者向けの項目と並べず、フッターとして置く ─ */}
         <MenuDivider />
         <div className="px-3 py-2">
-          <LanguageSwitcher />
+          <LanguageSwitcher reopenMenu />
         </div>
         <a
           href={GITHUB_REPO_URL}
