@@ -15,7 +15,6 @@ import SearchDiscovery from './components/SearchDiscovery';
 import { useFavoriteShopIds } from '../../../lib/hooks/useFavorites';
 import { useShopFavoriteToggle } from '../../components/favorites/useShopFavoriteToggle';
 import { saveSearchMapPayload } from '../../../lib/searchMapStorage';
-import { useSearchLog } from '../../../lib/hooks/useSearchLog';
 import ShopDetailBanner from '../map/components/ShopDetailBanner';
 
 const MapView = dynamic(() => import('../map/components/maplibre/MapViewMapLibre'), {
@@ -227,8 +226,8 @@ export default function SearchClient({
         }),
     [shops]
   );
-  // 検索キーワードをDBにログ（1秒デバウンス、2文字以上）
-  useSearchLog(textQuery, filteredShops.length);
+  // 検索キーワードの記録は地図の検索バー側（useMapSearchFilter）で行う。
+  // ここで打った語は onQueryChange で検索バーに同期されるので、ここでも数えると二重になる
 
   // 検索クエリが入力されているか
   const hasQuery = textQuery.trim() !== '' || category !== null;
