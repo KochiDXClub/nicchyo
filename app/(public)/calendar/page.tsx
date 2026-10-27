@@ -26,7 +26,7 @@ export default async function MarketCalendarPage() {
   const sundays = groupEventsBySunday(events, days, UPCOMING_SUNDAYS_FULL_COUNT);
 
   return (
-    <PageShell as="main">
+    <PageShell as="main" topNav>
       <div className="bg-gradient-to-b from-nicchyo-soft-green/25 to-transparent pb-6 pt-safe-top">
         <PageContainer width="narrow" className="pt-6">
           <p className="text-[11px] font-bold uppercase tracking-[0.32em] text-nicchyo-primary">
@@ -56,7 +56,7 @@ export default async function MarketCalendarPage() {
         </p>
       </PageContainer>
 
-      <NavigationBar />
+      <NavigationBar backBarOnTop />
     </PageShell>
   );
 }

@@ -29,6 +29,8 @@ export function useKeyboardShortcuts(shortcuts: KeyboardShortcut[]) {
     (event: KeyboardEvent) => {
       // 入力フィールド内では無効化
       const target = event.target as HTMLElement;
+      // モーダルが開いているあいだは、背後の画面のショートカットを効かせない（Delete で一括削除の確認が出るなど）
+      if (target.closest?.('[role="dialog"]')) return;
       const isInputField =
         target.tagName === "INPUT" ||
         target.tagName === "TEXTAREA" ||
@@ -83,19 +85,18 @@ export function ShortcutHelp({ shortcuts }: { shortcuts: KeyboardShortcut[] }) {
 
   return (
     <div className="space-y-2">
-      <h3 className="text-lg font-bold text-gray-900 mb-4">キーボードショートカット</h3>
       <div className="space-y-1">
         {shortcuts.map((shortcut, index) => (
-          <div key={index} className="flex items-center justify-between py-2 border-b border-gray-100 last:border-0">
-            <span className="text-sm text-gray-700">{shortcut.description}</span>
-            <kbd className="px-2 py-1 text-xs font-semibold text-gray-800 bg-gray-100 border border-gray-200 rounded">
+          <div key={index} className="flex items-center justify-between py-2 border-b border-line last:border-0">
+            <span className="text-sm text-nicchyo-ink/70">{shortcut.description}</span>
+            <kbd className="px-2 py-1 text-xs font-semibold text-nicchyo-ink bg-nicchyo-base border border-line rounded">
               {formatShortcut(shortcut)}
             </kbd>
           </div>
         ))}
       </div>
-      <p className="text-xs text-gray-500 mt-4">
-        ヒント: <kbd className="px-1 py-0.5 text-xs bg-gray-100 border border-gray-200 rounded">?</kbd> でこのヘルプを表示
+      <p className="text-xs text-nicchyo-ink/55 mt-4">
+        ヒント: <kbd className="px-1 py-0.5 text-xs bg-nicchyo-base border border-line rounded">?</kbd> でこのヘルプを表示
       </p>
     </div>
   );

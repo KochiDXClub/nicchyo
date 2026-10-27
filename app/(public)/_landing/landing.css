@@ -1,0 +1,645 @@
+/*
+ * トップページ（/）の動き。色・余白は Tailwind のトークン側に置き、ここには keyframes と、
+ * Tailwind では書きにくい「流れ続ける層」「ぶら下がる札」の動きだけを置く。
+ * 画面の外では止める（data-visible="false"）。「動きを減らす」設定では、すべて止めて静止した形にする。
+ */
+
+/* 屋台通り：同じ絵を2枚つないで、1枚ぶん流れたら頭に戻す（つなぎ目が見えない） */
+.landing-marq {
+  display: flex;
+  width: 3200px;
+  animation: landing-marq 90s linear infinite;
+  will-change: transform;
+}
+@keyframes landing-marq {
+  to {
+    transform: translateX(-1600px);
+  }
+}
+.landing-street[data-visible="false"] .landing-marq,
+.landing-street[data-visible="false"] .landing-swing {
+  animation-play-state: paused;
+}
+
+/* 綱からぶら下がる札 */
+.landing-swing {
+  transform-origin: 50% -12px;
+  animation: landing-swing 4s ease-in-out infinite alternate;
+}
+@keyframes landing-swing {
+  from {
+    transform: translateX(-50%) rotate(-2deg);
+  }
+  to {
+    transform: translateX(-50%) rotate(2deg);
+  }
+}
+
+/* 左右のはしを、ぼかして消す */
+.landing-fade-x {
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent);
+}
+
+
+/* 最初の画面の見出し：白文字の背面に、マーカーペンのような帯が左から引かれる（写真の上でも読めるように） */
+.landing-hl {
+  padding: 0.05em 0.35em;
+  margin-left: -0.35em;
+  background-image: linear-gradient(rgb(58 58 58 / 0.7), rgb(58 58 58 / 0.7));
+  background-repeat: no-repeat;
+  background-size: 100% 100%;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+  animation: landing-hl-draw 700ms cubic-bezier(0.4, 0, 0.2, 1) 250ms both;
+}
+.landing-hl-delay {
+  animation-delay: 550ms;
+}
+.landing-hl-accent {
+  color: rgb(58 58 58);
+  background-image: linear-gradient(#ffde59, #ffde59);
+}
+@keyframes landing-hl-draw {
+  from {
+    background-size: 0% 100%;
+  }
+  to {
+    background-size: 100% 100%;
+  }
+}
+
+/* 見出しの下線（蛍光ペン）：画面に入ったら左から引かれる */
+.landing-scrib path {
+  fill: none;
+  stroke: #ffde59;
+  stroke-width: 5.5;
+  stroke-linecap: round;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: landing-draw 0.9s ease-out 0.3s forwards;
+}
+[data-visible="false"] .landing-scrib path {
+  animation-play-state: paused;
+}
+@keyframes landing-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+/* 写真の上に書かれる手描きのひとこと（HandNote） */
+.landing-hand-t {
+  display: inline-block;
+  font-size: var(--fs, 28px);
+  line-height: 1.25;
+  color: #fff;
+  white-space: nowrap;
+  text-shadow:
+    2px 0 rgb(58 58 58), -2px 0 rgb(58 58 58), 0 2px rgb(58 58 58), 0 -2px rgb(58 58 58),
+    1.5px 1.5px rgb(58 58 58), -1.5px 1.5px rgb(58 58 58), 1.5px -1.5px rgb(58 58 58), -1.5px -1.5px rgb(58 58 58),
+    0 4px 6px rgb(0 0 0 / 0.35);
+}
+.landing-wr {
+  position: relative;
+  display: inline-block;
+  clip-path: inset(-10px 100% -10px -10px);
+  animation: landing-wipe 1.05s cubic-bezier(0.4, 0, 0.2, 1) var(--d, 0s) 1 forwards;
+}
+.landing-wr::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: -4px;
+  width: 11px;
+  height: 11px;
+  margin-top: -6px;
+  border-radius: 50%;
+  background: #ffde59;
+  box-shadow: 0 0 0 2px rgb(58 58 58);
+  opacity: 0;
+  animation: landing-pen 1.05s cubic-bezier(0.4, 0, 0.2, 1) var(--d, 0s) 1 forwards;
+}
+@keyframes landing-wipe {
+  from {
+    clip-path: inset(-10px 100% -10px -10px);
+  }
+  to {
+    clip-path: inset(-10px -12px -10px -10px);
+  }
+}
+@keyframes landing-pen {
+  0% {
+    left: -4px;
+    opacity: 1;
+  }
+  92% {
+    left: calc(100% + 2px);
+    opacity: 1;
+  }
+  100% {
+    left: calc(100% + 2px);
+    opacity: 0;
+  }
+}
+.landing-hn-ul {
+  position: absolute;
+  left: 0;
+  bottom: -6px;
+  width: 78%;
+  height: 9px;
+  overflow: visible;
+}
+.landing-hn-arrow {
+  overflow: visible;
+}
+.landing-hn-p {
+  fill: none;
+  stroke: #fff;
+  stroke-width: 3.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: landing-draw 0.6s ease-out calc(var(--d, 0s) + 0.95s) 1 forwards;
+}
+.landing-hn-dark {
+  stroke: rgb(58 58 58);
+  stroke-width: 7;
+}
+[data-visible="false"] .landing-wr,
+[data-visible="false"] .landing-wr::after,
+[data-visible="false"] .landing-hn-p {
+  animation-play-state: paused;
+}
+
+/* 最初の画面の飾り */
+.landing-sway {
+  transform-origin: 50% 0;
+  animation: landing-sway 6s ease-in-out infinite alternate;
+}
+@keyframes landing-sway {
+  from {
+    transform: rotate(-0.35deg);
+  }
+  to {
+    transform: rotate(0.35deg);
+  }
+}
+.landing-spin {
+  animation: landing-spin 30s linear infinite;
+}
+@keyframes landing-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.landing-float {
+  animation: landing-float 7s ease-in-out infinite alternate;
+  animation-delay: var(--d, 0s);
+}
+@keyframes landing-float {
+  from {
+    transform: translateY(0) rotate(0);
+  }
+  to {
+    transform: translateY(-16px) rotate(24deg);
+  }
+}
+.landing-pop {
+  animation: landing-pop 0.9s cubic-bezier(0.34, 1.56, 0.64, 1) 0.9s both;
+}
+@keyframes landing-pop {
+  from {
+    opacity: 0;
+    transform: rotate(-30deg) scale(0.3);
+  }
+  to {
+    opacity: 1;
+    transform: rotate(8deg) scale(1);
+  }
+}
+.landing-wave {
+  animation: landing-bob 3.2s ease-in-out infinite;
+  transform-origin: 50% 100%;
+}
+@keyframes landing-bob {
+  0%,
+  100% {
+    transform: translateY(0) rotate(0);
+  }
+  50% {
+    transform: translateY(-4px) rotate(-3deg);
+  }
+}
+/* にちよさんの絵に、シールのような白いふちを付ける */
+.landing-sticker {
+  filter: drop-shadow(2.4px 0 0 #fff) drop-shadow(-2.4px 0 0 #fff) drop-shadow(0 2.4px 0 #fff) drop-shadow(0 -2.4px 0 #fff)
+    drop-shadow(0 8px 8px rgb(120 70 10 / 0.32));
+}
+
+/* 「つくっています」の写真：ゆらゆら形が変わる枠 */
+.landing-blob {
+  animation: landing-morph 11s ease-in-out infinite alternate;
+}
+.landing-blob-back {
+  animation: landing-morph 14s ease-in-out infinite alternate;
+}
+@keyframes landing-morph {
+  0% {
+    border-radius: 44% 56% 50% 50% / 50% 44% 56% 50%;
+  }
+  50% {
+    border-radius: 56% 44% 42% 58% / 44% 56% 44% 56%;
+  }
+  100% {
+    border-radius: 48% 52% 58% 42% / 56% 46% 54% 44%;
+  }
+}
+.landing-medal {
+  transform-origin: 50% 0;
+  animation: landing-medal 3.4s ease-in-out infinite alternate;
+}
+@keyframes landing-medal {
+  from {
+    transform: rotate(-5deg);
+  }
+  to {
+    transform: rotate(5deg);
+  }
+}
+.landing-dots > i {
+  position: absolute;
+  width: var(--s);
+  height: var(--s);
+  border-radius: 9999px;
+  background: #ffde59;
+  opacity: 0.7;
+  animation: landing-float 6s ease-in-out infinite alternate;
+  animation-delay: calc(var(--d) * -1s);
+}
+.landing-dots-white > i {
+  background: #fff;
+  opacity: 0.55;
+}
+
+/* 出店者の方へ：ピンが落ちて地図にのる */
+.landing-pindrop {
+  animation: landing-pindrop 3.4s ease-in infinite;
+}
+@keyframes landing-pindrop {
+  0% {
+    transform: translateY(-44px);
+    opacity: 0;
+  }
+  14% {
+    opacity: 1;
+  }
+  34% {
+    transform: translateY(8px);
+  }
+  44% {
+    transform: translateY(-6px);
+  }
+  54%,
+  88% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(0);
+    opacity: 0;
+  }
+}
+.landing-ripple {
+  opacity: 0;
+  animation: landing-ripple 3.4s infinite;
+}
+@keyframes landing-ripple {
+  0%,
+  34% {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+  42% {
+    opacity: 0.8;
+  }
+  75%,
+  100% {
+    opacity: 0;
+    transform: scale(2.3);
+  }
+}
+.landing-bounce-y {
+  animation: landing-bob 2.6s ease-in-out infinite;
+}
+
+/* 「動きを減らす」設定：流れ・揺れ・書く動きは止めて、書き終えた形で見せる */
+@media (prefers-reduced-motion: reduce) {
+  .landing-marq,
+  .landing-swing,
+  .landing-sway,
+  .landing-spin,
+  .landing-float,
+  .landing-wave,
+  .landing-blob,
+  .landing-blob-back,
+  .landing-medal,
+  .landing-dots > i,
+  .landing-pindrop,
+  .landing-ripple,
+  .landing-bounce-y {
+    animation: none;
+  }
+  .landing-marq {
+    transform: none;
+  }
+  .landing-pop,
+  .landing-hl {
+    animation: none;
+  }
+  .landing-wr {
+    clip-path: none;
+    animation: none;
+  }
+  .landing-wr::after {
+    display: none;
+  }
+  .landing-hn-p,
+  .landing-scrib path {
+    stroke-dashoffset: 0;
+    animation: none;
+  }
+}
+
+/* 次の日曜市は、いつ？：日めくり・看板 */
+.landing-cal-page {
+  transform-origin: 50% 0;
+  animation: landing-calsway 5s ease-in-out infinite alternate;
+}
+@keyframes landing-calsway {
+  from {
+    transform: rotate(-1.6deg);
+  }
+  to {
+    transform: rotate(1.6deg);
+  }
+}
+.landing-cal-page::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 36px;
+  height: 36px;
+  border-top-left-radius: 12px;
+  background: linear-gradient(135deg, #fff 50%, #eadfc6 50%);
+  box-shadow: -3px -3px 6px rgb(0 0 0 / 0.08);
+}
+.landing-cal-rings i {
+  width: 16px;
+  height: 24px;
+  border-radius: 8px;
+  background: #fff;
+  border: 3px solid #8b5e34;
+}
+.landing-week {
+  outline: 1.4px dashed rgb(224 169 44 / 0.7);
+  outline-offset: -5px;
+}
+.landing-sign {
+  background: linear-gradient(180deg, #ddb57a, #c99a5b);
+  border: 3px solid #8b5e34;
+  color: #2c1f0c;
+  box-shadow: 0 10px 14px -8px rgb(80 50 10 / 0.55), inset 0 2px 0 rgb(255 255 255 / 0.35);
+  transform-origin: 50% -14px;
+  animation: landing-sign 4.6s ease-in-out infinite alternate;
+}
+.landing-sign:nth-child(2) {
+  animation-delay: -2.2s;
+}
+@keyframes landing-sign {
+  from {
+    transform: rotate(-1deg);
+  }
+  to {
+    transform: rotate(1deg);
+  }
+}
+.landing-sign::before,
+.landing-sign::after {
+  content: "";
+  position: absolute;
+  top: -15px;
+  width: 2px;
+  height: 14px;
+  background: #8b5e34;
+}
+.landing-sign::before {
+  left: 26px;
+}
+.landing-sign::after {
+  right: 26px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .landing-cal-page,
+  .landing-sign {
+    animation: none;
+  }
+}
+
+/* 「nicchyoの使い方！」の動く3画面（HowToScreens）。10〜14秒で1周するループ。画面の外では止める */
+.landing-demo * {
+  animation-play-state: running;
+}
+.landing-demo[data-visible="false"] *,
+.landing-demo[data-visible="false"] *::before,
+.landing-demo[data-visible="false"] *::after {
+  animation-play-state: paused;
+}
+.landing-demo > div {
+  height: 100%;
+}
+.landing-phone{position:relative;width:248px;height:480px;margin-top:18px;border-radius:40px;background:#2f2f2f;padding:9px;box-sizing:border-box;box-shadow:0 34px 50px -22px rgba(88,58,10,.55),0 0 0 1.5px #555 inset;transition:transform .4s cubic-bezier(.22,1,.36,1)}
+.landing-phone::before{content:"";position:absolute;left:50%;top:15px;width:62px;height:16px;margin-left:-31px;border-radius:9999px;background:#2f2f2f;z-index:5}
+.landing-screen{position:relative;height:100%;border-radius:31px;overflow:hidden;background:#F3E9D3}
+.landing-fill{position:absolute;inset:0;width:100%;height:100%;display:block}
+.landing-dash{animation:landing-dashmove 2s linear infinite}
+@keyframes landing-dashmove{to{stroke-dashoffset:-48}}
+.landing-m-search{position:absolute;left:12px;right:12px;top:40px;display:flex;align-items:center;gap:7px;height:36px;padding:0 12px;border-radius:9999px;background:#fff;box-shadow:0 6px 16px rgba(58,58,58,.18);font-size:14px;font-weight:700;color:#3A3A3A}
+.landing-typed{display:inline-block;overflow:hidden;white-space:nowrap;width:0;animation:landing-type 10s steps(2,end) infinite}
+@keyframes landing-type{0%,6%{width:0}16%,92%{width:2.1em}98%,100%{width:0}}
+.landing-caret{width:2px;height:16px;margin-left:-4px;background:#3A3A3A;animation:landing-blink .8s steps(1) infinite}
+@keyframes landing-blink{50%{opacity:0}}
+.landing-m-chips{position:absolute;left:12px;top:82px;display:flex;gap:6px}
+.landing-m-chips span{padding:4px 10px;border-radius:9999px;background:#fff;border:1px solid #f1e4cc;font-size:10.5px;font-weight:700;color:#3A3A3A;box-shadow:0 2px 6px rgba(58,58,58,.1)}
+.landing-m-chips .landing-on{animation:landing-chip 10s infinite}
+@keyframes landing-chip{0%,16%{background:#fff;color:#3A3A3A}22%,92%{background:#F2B45A;color:#fff}100%{background:#fff;color:#3A3A3A}}
+.landing-m-dim{animation:landing-dim 10s infinite}
+.landing-m-blue{opacity:0;animation:landing-blue 10s infinite}
+@keyframes landing-blue{0%,16%{opacity:0}22%,90%{opacity:1}98%,100%{opacity:0}}
+@keyframes landing-dim{0%,16%{opacity:1}24%,90%{opacity:.18}98%,100%{opacity:1}}
+.landing-m-hit{transform-box:fill-box;transform-origin:50% 100%;animation:landing-hit 10s infinite}
+@keyframes landing-hit{0%,16%{transform:scale(1)}22%{transform:scale(1.3)}28%{transform:scale(1.14)}34%{transform:scale(1.22)}90%{transform:scale(1.2)}98%,100%{transform:scale(1)}}
+.landing-m-card{position:absolute;left:10px;right:10px;bottom:12px;display:flex;align-items:center;gap:10px;padding:9px;border-radius:18px;background:#fff;box-shadow:0 10px 24px rgba(58,58,58,.25);transform:translateY(130%);animation:landing-up 10s infinite}
+.landing-m-card b{display:block;font-size:13px;font-weight:900}
+.landing-m-card small{display:block;margin-top:2px;font-size:10px;color:rgba(58,58,58,.65)}
+.landing-m-ph{flex:none;width:46px;height:46px;border-radius:12px;overflow:hidden;border:2px solid #E08A3C;background:#fff}
+.landing-m-ph img{width:100%;height:100%;object-fit:cover;display:block}
+@keyframes landing-up{0%,32%{transform:translateY(130%)}42%,86%{transform:translateY(0)}96%,100%{transform:translateY(130%)}}
+.landing-dimmer{background:rgba(40,28,10,.22)}
+.landing-sheet{position:absolute;left:0;right:0;bottom:0;height:424px;border-radius:24px 24px 0 0;background:#fff;box-shadow:0 -10px 30px rgba(0,0,0,.28);overflow:hidden;transform:translateY(110%);animation:landing-shs 14s cubic-bezier(.22,1,.36,1) infinite}
+@keyframes landing-shs{0%,6%{transform:translateY(110%)}15%,30%{transform:translateY(270px)}41%,92%{transform:translateY(0)}98%,100%{transform:translateY(110%)}}
+.landing-peek{position:absolute;left:0;right:0;top:0;height:154px;background:#fff;animation:landing-peekv 14s infinite}
+@keyframes landing-peekv{0%,30%{opacity:1}36%,94%{opacity:0}98%,100%{opacity:1}}
+.landing-peek-x{position:absolute;right:10px;top:10px;display:flex;width:26px;height:26px;align-items:center;justify-content:center;border-radius:9999px;background:#f1f5f9;color:#475569}
+.landing-peek-row{display:flex;gap:10px;padding:6px 12px 0;text-align:left}
+.landing-peek-ph{flex:none;width:56px;height:56px;border-radius:14px;overflow:hidden;border:1px solid #e2e8f0}
+.landing-peek-ph img{width:100%;height:100%;object-fit:cover;display:block}
+.landing-peek-t{display:flex;flex-direction:column;gap:3px;min-width:0}
+.landing-chip{align-self:flex-start;padding:1px 8px;border-radius:9999px;background:#F5EAD3;font-size:9.5px;font-weight:700;color:#8a6324}
+.landing-peek-t b{font-size:13px;white-space:nowrap;font-weight:800;line-height:1.25;color:#0f172a}
+.landing-peek-t small{font-size:9.5px;color:#64748b}
+.landing-peek-c{display:flex;gap:4px}
+.landing-peek-c span{padding:1px 7px;border-radius:9999px;border:1px solid #e2e8f0;background:#f8fafc;font-size:8.5px;font-weight:500;color:#475569}
+.landing-detail{position:absolute;inset:0;overflow:hidden;background:#fff;opacity:0;animation:landing-detv 14s infinite}
+@keyframes landing-detv{0%,30%{opacity:0}38%,92%{opacity:1}97%,100%{opacity:0}}
+.landing-dscroll{padding:10px 10px 20px;text-align:left;animation:landing-dscr 14s ease-in-out infinite}
+@keyframes landing-dscr{0%,62%{transform:translateY(0)}74%,88%{transform:translateY(-170px)}94%,100%{transform:translateY(0)}}
+.landing-hero2{position:relative;height:156px;border-radius:22px;overflow:hidden;box-shadow:0 1px 3px rgba(58,58,58,.15)}
+.landing-hero2>img{width:100%;height:100%;object-fit:cover;display:block}
+.landing-h2-zoom{position:absolute;left:8px;top:8px;display:flex;align-items:center;gap:3px;height:20px;padding:0 8px;border-radius:9999px;background:rgba(0,0,0,.35);font-size:9px;font-weight:700;color:#fff}
+.landing-h2-down{position:absolute;right:8px;top:8px;display:flex;width:22px;height:22px;align-items:center;justify-content:center;border-radius:9999px;background:rgba(0,0,0,.35);color:#fff}
+.landing-h2-t{position:absolute;left:12px;right:46px;bottom:10px;display:flex;flex-direction:column;gap:2px;color:#fff}
+.landing-h2-t em{align-self:flex-start;padding:1px 8px;border-radius:9999px;background:rgba(255,255,255,.22);font-size:9px;font-style:normal;font-weight:700}
+.landing-h2-t b{font-size:16.5px;font-weight:800;line-height:1.2;text-shadow:0 1px 4px rgba(0,0,0,.4)}
+.landing-h2-t small{font-size:9.5px;color:rgba(255,255,255,.85)}
+.landing-heart{position:absolute;right:10px;bottom:10px;display:flex;width:30px;height:30px;align-items:center;justify-content:center;border-radius:9999px;background:rgba(255,255,255,.22);color:#fff;animation:landing-heartbg 14s infinite}
+@keyframes landing-heartbg{0%,52%{background:rgba(255,255,255,.22)}56%,90%{background:#be123c}96%,100%{background:rgba(255,255,255,.22)}}
+.landing-heart-on{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;opacity:0;animation:landing-heartpop 14s infinite}
+@keyframes landing-heartpop{0%,52%{opacity:0;transform:scale(.3)}56%{opacity:1;transform:scale(1.6)}60%,90%{opacity:1;transform:scale(1)}96%,100%{opacity:0}}
+.landing-share{display:flex;align-items:center;justify-content:center;gap:6px;height:32px;margin-top:10px;border-radius:9999px;background:#fff;box-shadow:0 1px 2px rgba(58,58,58,.1);border:1px solid #ece5d6;font-size:11px;font-weight:700;color:#3A3A3A}
+.landing-info{margin-top:12px;padding:0 12px;border-radius:16px;background:#fff;border:1px solid #ece5d6}
+.landing-info p{display:flex;align-items:center;gap:7px;margin:0;padding:9px 0;border-bottom:1px solid #f1ebdd;font-size:10.5px;color:#3A3A3A}
+.landing-info p svg{flex:none;color:rgba(58,58,58,.4)}
+.landing-info p span{flex:none;width:46px;font-weight:600;color:rgba(58,58,58,.55)}
+.landing-info p b{font-weight:600}
+.landing-info .landing-more{justify-content:center;gap:3px;font-weight:600;color:rgba(58,58,58,.7)}
+.landing-info .landing-ig{border-bottom:0}
+.landing-info .landing-ig span{display:inline-flex;align-items:center;gap:4px;width:auto;height:24px;padding:0 10px;border-radius:9999px;border:1px solid #ece5d6;font-size:10px;font-weight:600;color:#3A3A3A;box-shadow:0 1px 2px rgba(58,58,58,.08)}
+.landing-ph-head{display:flex;align-items:center;justify-content:space-between;margin-top:16px}
+.landing-ph-head b{font-size:13px;font-weight:700}
+.landing-ph-head span{display:inline-flex;align-items:center;gap:3px;height:22px;padding:0 9px;border-radius:9999px;border:1px solid #ece5d6;font-size:9.5px;font-weight:600;color:rgba(58,58,58,.7)}
+.landing-pgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:8px}
+.landing-pc{display:flex;flex-direction:column;overflow:hidden;border-radius:14px;background:#fff;border:1px solid #ece5d6;box-shadow:0 1px 3px rgba(58,58,58,.1)}
+.landing-pc-ph{position:relative;display:block;aspect-ratio:1/1;overflow:hidden}
+.landing-pc-ph img{width:100%;height:100%;object-fit:cover;display:block}
+.landing-pc-ph i{position:absolute;right:5px;top:5px;display:flex;width:22px;height:22px;align-items:center;justify-content:center;border-radius:9999px;background:rgba(255,255,255,.92);color:#be123c}
+.landing-pc b{padding:6px 8px 0;font-size:10.5px;font-weight:600;line-height:1.35}
+.landing-pc small{padding:1px 8px 8px;font-size:9px;color:rgba(58,58,58,.55)}
+.landing-consult{background:radial-gradient(120% 120% at 10% 0%,#ffedd5 0%,#fed7aa 50%,#fdba74 100%)}
+.landing-c-back{position:absolute;left:0;right:0;top:0;padding:30px 14px 6px;background:rgba(255,255,255,.55);font-size:9.5px;font-weight:700;color:#92400e;text-align:left}
+.landing-c-av{position:absolute;left:0;right:0;top:52px;display:flex;justify-content:center}
+.landing-c-av img{width:68px;height:68px;object-fit:contain;filter:drop-shadow(0 6px 10px rgba(146,64,14,.28));animation:landing-think 14s ease-in-out infinite}
+@keyframes landing-think{0%,26%{transform:translateY(0) rotate(0)}29%{transform:translateY(-2px) rotate(-6deg)}38%{transform:translateY(-2px) rotate(-6deg)}44%{transform:translateY(0) rotate(0)}48%{transform:translateY(-2px)}52%,100%{transform:translateY(0)}}
+.landing-cA,.landing-cB{position:absolute;left:10px;right:10px;top:126px}
+.landing-cA{animation:landing-sa 14s ease-in-out infinite}
+@keyframes landing-sa{0%,20%{opacity:1;transform:none}26%,94%{opacity:0;transform:translateY(-10px)}100%{opacity:1;transform:none}}
+.landing-c-greet{margin:0 auto;max-width:176px;padding:8px 12px;border-radius:16px;border:1px solid #fde68a;background:#fff;text-align:center;box-shadow:0 1px 3px rgba(58,58,58,.08)}
+.landing-c-greet b{display:block;font-size:13px;color:#78350f}
+.landing-c-greet small{display:block;margin-top:2px;font-size:9.5px;color:#b45309}
+.landing-c-sugs{display:flex;flex-direction:column;gap:6px;margin-top:12px}
+.landing-sug{position:relative;display:block;padding:11px 13px;border-radius:16px;border:1px solid #fde68a;background:#fff;font-size:12px;font-weight:900;color:#78350f;text-align:left;box-shadow:0 1px 3px rgba(58,58,58,.08)}
+.landing-sug1{animation:landing-press 14s infinite}
+@keyframes landing-press{0%,17%{transform:none;background:#fff}19%{transform:scale(.96);background:#fef3c7}22%,100%{transform:none;background:#fff}}
+.landing-tap{position:absolute;right:20px;top:50%;width:26px;height:26px;margin-top:-13px;border-radius:9999px;background:rgba(245,158,11,.5);opacity:0;animation:landing-ring2 14s infinite}
+@keyframes landing-ring2{0%,15%{opacity:0;transform:scale(.3)}18%{opacity:.8;transform:scale(1)}26%,100%{opacity:0;transform:scale(2.2)}}
+.landing-cB{padding:11px 11px 10px;border-radius:20px;border:1px solid #fef3c7;background:rgba(255,255,255,.92);box-shadow:0 1px 3px rgba(58,58,58,.1);text-align:left;box-sizing:border-box;animation:landing-sb 14s ease-in-out infinite}
+@keyframes landing-sb{0%,24%{opacity:0;transform:translateY(12px)}30%,92%{opacity:1;transform:none}98%,100%{opacity:0;transform:none}}
+.landing-q{margin:0;font-size:9.5px;color:rgba(58,58,58,.7)}
+.landing-who{margin:3px 0 0;font-size:9.5px;font-weight:700;color:#b45309}
+.landing-ans-wrap{position:relative;margin-top:4px;min-height:58px}
+.landing-ans{margin:0;font-size:12px;line-height:1.7;color:#1e293b;animation:landing-ans 14s infinite}
+@keyframes landing-ans{0%,40%{opacity:0;clip-path:inset(0 0 100% 0)}52%,100%{opacity:1;clip-path:inset(0 0 0 0)}}
+.landing-skel{position:absolute;left:0;right:0;top:4px;display:flex;flex-direction:column;gap:7px;animation:landing-skelv 14s infinite}
+.landing-skel i{display:block;height:9px;border-radius:9999px;background:linear-gradient(90deg,#fde68a55 0%,#fef3c7 50%,#fde68a55 100%);background-size:200% 100%;animation:consult-skeleton-sweep 1.4s ease-in-out infinite}
+.landing-skel i:nth-child(1){width:80%}.landing-skel i:nth-child(2){width:100%}.landing-skel i:nth-child(3){width:60%}
+@keyframes landing-skelv{0%,29%{opacity:0}31%,40%{opacity:1}44%,100%{opacity:0}}
+.landing-cards{margin-top:8px;animation:landing-cardsin 14s ease-out infinite}
+@keyframes landing-cardsin{0%,52%{opacity:0;transform:translateX(26px)}62%,100%{opacity:1;transform:none}}
+.landing-cl{margin:0 0 5px;font-size:9.5px;font-weight:700;color:#b45309}
+.landing-mcs{display:flex;gap:7px;margin:0 -11px;padding:0 11px;overflow:hidden}
+.landing-mc{flex:none;width:136px;display:flex;flex-direction:column;overflow:hidden;border-radius:14px;border:1px solid #fef3c7;background:#fff;box-shadow:0 1px 2px rgba(58,58,58,.08)}
+.landing-mc-ph{position:relative;display:block;height:54px;overflow:hidden}
+.landing-mc-ph img{width:100%;height:100%;object-fit:cover;display:block}
+.landing-mc-ph em{position:absolute;left:6px;top:6px;padding:2px 7px;border-radius:9999px;background:rgba(0,0,0,.55);font-size:8.5px;font-style:normal;font-weight:700;color:#fff}
+.landing-mc-b{display:flex;flex-direction:column;gap:3px;padding:7px 8px 8px}
+.landing-mc-b b{font-size:11.5px;line-height:1.35;color:#0f172a}
+.landing-mc-c{display:flex;flex-wrap:wrap;gap:3px}
+.landing-mc-c span{padding:1px 6px;border-radius:9999px;background:#fffbeb;font-size:8.5px;color:#92400e}
+.landing-mc-b small{font-size:9px;font-weight:700;color:#b45309}
+.landing-c-bar{position:absolute;left:10px;right:10px;bottom:12px;display:flex;align-items:center;gap:6px;padding:4px 4px 4px 14px;border-radius:9999px;border:1px solid #fde68a;background:rgba(255,255,255,.95);box-shadow:0 8px 18px rgba(146,64,14,.25)}
+.landing-c-bar span{flex:1;font-size:10.5px;color:#94a3b8;text-align:left}
+.landing-c-bar i{display:flex;width:30px;height:30px;align-items:center;justify-content:center;border-radius:9999px;background:linear-gradient(135deg,#f59e0b,#f97316)}
+
+/* 「動きを減らす」設定：3つの画面は、動かさずに結果の形で見せる */
+@media (prefers-reduced-motion: reduce) {
+  .landing-demo * {
+    animation: none !important;
+  }
+  .landing-typed {
+    width: 2.1em;
+  }
+  .landing-caret {
+    display: none;
+  }
+  .landing-m-dim {
+    opacity: 0.35;
+  }
+  .landing-m-blue {
+    opacity: 1;
+  }
+  .landing-m-card,
+  .landing-sheet {
+    transform: none;
+  }
+  .landing-peek {
+    opacity: 0;
+  }
+  .landing-detail {
+    opacity: 1;
+  }
+  .landing-heart-on {
+    opacity: 1;
+  }
+  .landing-heart {
+    background: #be123c;
+  }
+  .landing-cA,
+  .landing-skel,
+  .landing-tap {
+    display: none;
+  }
+  .landing-cB,
+  .landing-cards,
+  .landing-ans {
+    opacity: 1;
+    transform: none;
+    clip-path: none;
+  }
+}
+
+/* 地図の見本の背景（HowToScreens の MapScreen） */
+.landing-map-ground {
+  fill: #f3e9d3;
+}
+.landing-map-road {
+  fill: #dcd2bc;
+}
+.landing-map-edge {
+  fill: #fff;
+  opacity: 0.7;
+}
+.landing-map-dash {
+  stroke: #f0c64a;
+}

@@ -36,6 +36,7 @@ const DEEP_LINK_PARAMS = [
   'ai',
   'search',
   'q',
+  'category',
   'walkPlan',
   'panel',
 ] as const;

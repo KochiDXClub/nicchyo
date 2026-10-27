@@ -1,6 +1,7 @@
 "use client";
 
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useAppPathname } from "@/lib/i18n/useAppPathname";
 import Link from "next/link";
 import { useEffect, useCallback, useId, useRef, useState, Suspense } from "react";
 import { AnimatePresence, motion } from "framer-motion";
@@ -46,6 +47,8 @@ import {
   MenuToggleButton,
   MenuUserRow,
 } from "@/components/navigation/MenuSheet";
+import LanguageSwitcher from "@/components/navigation/LanguageSwitcher";
+import { useT } from "@/lib/i18n/LocaleContext";
 
 // ─── ナビゲーション項目 ────────────────────────────────────────────────────────
 type NavItem = {
@@ -127,6 +130,12 @@ type NavigationBarProps = {
   closeModeActive?: boolean;
   onCloseMode?: () => void;
   onConsultClick?: () => void;
+  /**
+   * サブページの「もどる」バーを、lg 以上（PC・ノートPC）では地図のツールバーと同じ右上の小さなバーにする。
+   * スマホは指定の有無にかかわらず下端に置く。
+   * 指定した画面は、lg 以上で下端にナビの分の余白を取らないこと（--nav-bar-height を 0 にする）
+   */
+  backBarOnTop?: boolean;
 };
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -137,8 +146,10 @@ function NavigationBarInner({
   closeModeActive = false,
   onCloseMode,
   onConsultClick,
+  backBarOnTop = false,
 }: NavigationBarProps) {
-  const pathname = usePathname();
+  const t = useT();
+  const pathname = useAppPathname();
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user, isLoggedIn, permissions, logout } = useAuth();
@@ -177,6 +188,17 @@ function NavigationBarInner({
   // href で比べるとマップにいるだけで相談が点いてしまう。
   const currentHref = activeHref ?? pathname;
   const isNavItemActive = (item: NavItem) => currentHref === (item.target ?? item.href);
+
+  /*
+   * 地図の上にいる間（ふつうの地図・検索パネル表示中）のナビ。
+   * lg 以上（PC・ノートPC）では、画面の下端いっぱいの帯ではなく、右上に浮かぶ
+   * 小さなツールバーにする（Web サイトのヘッダーのように、アイコンとラベルを横に並べる）。
+   * 下端を空けて、広い地図をそのまま見せるため。
+   * スマホと、サブページのもどるバーは従来どおり全幅の帯のまま
+   */
+  const isMapNav = isHome || isCloseUxActive;
+  // 「もどる」バー（サブページ）を lg 以上で右上に浮かべるか。地図の上にいる間は、地図のナビが優先する
+  const topBackBar = backBarOnTop && !isMapNav;
 
   // ページ公開設定で public でないリンクはナビに出さない
   const consultItem = baseNavItems[0];
@@ -234,11 +256,11 @@ function NavigationBarInner({
   };
 
   const roleLabel = permissions.isAdmin
-    ? "管理者"
+    ? t("管理者")
     : permissions.isModerator
-    ? "モデレーター"
+    ? t("モデレーター")
     : permissions.isVendor
-    ? "出店者"
+    ? t("出店者")
     : null;
 
   if (isRoleConsoleArea) return null;
@@ -246,7 +268,14 @@ function NavigationBarInner({
   return (
     <>
       {/* ── ボトムメニューシート ────────────────────────────────────────────── */}
-      <MenuSheet open={menuOpen} onClose={closeMenu} label="メニュー" returnFocusRef={menuButtonRef}>
+      <MenuSheet
+        open={menuOpen}
+        onClose={closeMenu}
+        label={t("メニュー")}
+        returnFocusRef={menuButtonRef}
+        // 地図ではメニューボタンが右上にあるので、PC・ノートPCではそのすぐ下に開く
+        desktopDropdown={isMapNav}
+      >
         {/* ─ ユーザー ─ */}
         {isLoggedIn && user ? (
           <MenuUserRow
@@ -258,7 +287,7 @@ function NavigationBarInner({
         ) : (
           <MenuRow
             icon={LogIn}
-            label="ログイン / 登録"
+            label={t("ログイン / 登録")}
             onClick={() => handleMenuItemClick("/login")}
           />
         )}
@@ -266,10 +295,10 @@ function NavigationBarInner({
         {/* ─ 出店者ページへの入口。出店者がいちばんよく使うので、来訪者向けの項目より上に置く ─ */}
         {showVendorHome && (
           <>
-            <MenuDivider label="出店者" />
+            <MenuDivider label={t("出店者")} />
             <MenuRow
               icon={vendorHomeItem.icon}
-              label={vendorHomeItem.label}
+              label={t(vendorHomeItem.label)}
               onClick={() => handleMenuItemClick(vendorHomeItem.href)}
             />
           </>
@@ -282,8 +311,8 @@ function NavigationBarInner({
           <MenuRow
             key={item.href}
             icon={item.icon}
-            label={item.label}
-            badge={item.badge}
+            label={t(item.label)}
+            badge={item.badge ? t(item.badge) : undefined}
             onClick={() => handleMenuItemClick(item.href)}
           />
         ))}
@@ -298,8 +327,8 @@ function NavigationBarInner({
                   <MenuRow
                     key={item.href}
                     icon={item.icon}
-                    label={item.label}
-                    badge={item.badge}
+                    label={t(item.label)}
+                    badge={item.badge ? t(item.badge) : undefined}
                     muted
                     onClick={() => handleMenuItemClick(item.href)}
                   />
@@ -313,7 +342,7 @@ function NavigationBarInner({
         {/* ─ 管理メニュー ─ */}
         {permissions.isAdmin && (
           <>
-            <MenuDivider label="管理者" />
+            <MenuDivider label={t("管理者")} />
             {adminMenuItems.map((item) => (
               <MenuRow
                 key={item.href}
@@ -330,12 +359,15 @@ function NavigationBarInner({
         {isLoggedIn && (
           <>
             <MenuDivider />
-            <MenuRow icon={LogOut} label="ログアウト" muted onClick={handleLogout} />
+            <MenuRow icon={LogOut} label={t("ログアウト")} muted onClick={handleLogout} />
           </>
         )}
 
         {/* ─ 末尾の小さなリンク。来訪者向けの項目と並べず、フッターとして置く ─ */}
         <MenuDivider />
+        <div className="px-3 py-2">
+          <LanguageSwitcher />
+        </div>
         <a
           href={GITHUB_REPO_URL}
           target="_blank"
@@ -343,23 +375,27 @@ function NavigationBarInner({
           className="flex items-center gap-1.5 px-3 py-2 text-[11px] font-semibold tracking-wide text-nicchyo-ink/40 transition hover:text-nicchyo-ink/70"
         >
           <Github className="h-3.5 w-3.5" aria-hidden />
-          オープンソースで開発しています（GitHub）
+          {t("オープンソースで開発しています（GitHub）")}
         </a>
       </MenuSheet>
 
       {/* ── ナビゲーションバー ──────────────────────────────────────────────── */}
       <nav
         onClick={isCloseUxActive ? handleCloseMode : undefined}
-        className={`navigation-bar ${position} bottom-0 left-0 right-0 z-[9997] border-t text-sm leading-none shadow-sm transition-colors duration-300 ${
+        className={`navigation-bar ${position} bottom-0 border-t left-0 right-0 z-[9997] text-sm leading-none shadow-sm transition-colors duration-300 ${
           isCloseUxActive
             ? "cursor-pointer border-green-500 bg-green-500"
             : "border-slate-200/60 bg-white/90 backdrop-blur-md"
+        } ${
+          isMapNav || topBackBar
+            ? "lg:bottom-auto lg:left-auto lg:right-4 lg:top-4 lg:w-auto lg:rounded-full lg:border lg:shadow-float"
+            : ""
         }`}
         style={{ paddingBottom: "var(--safe-bottom, 0px)" }}
       >
         {isHome ? (
           /* ── マップ：フルナビ ── */
-          <div className="mx-auto flex h-14 max-w-lg items-center">
+          <div className="mx-auto flex h-14 max-w-lg items-center lg:h-12 lg:gap-1 lg:px-2">
             {/* 左：相談（ページ公開設定で非表示のときはレイアウト維持のため空枠にする） */}
             {!isConsultVisible ? (
               <div className="flex-1" aria-hidden />
@@ -367,15 +403,15 @@ function NavigationBarInner({
               <button
                 type="button"
                 onClick={onConsultClick}
-                className="group flex h-full flex-1 flex-col items-center justify-center gap-1 text-slate-400 transition-colors duration-200 hover:text-slate-600"
+                className="group flex h-full flex-1 flex-col items-center justify-center gap-1 text-slate-400 transition-colors duration-200 hover:text-slate-600 lg:flex-none lg:flex-row lg:gap-2 lg:rounded-full lg:px-4 lg:hover:bg-nicchyo-ink/5"
               >
                 <consultItem.icon
                   className="h-[22px] w-[22px] transition-transform duration-200 group-hover:scale-105 group-active:scale-95"
                   strokeWidth={1.7}
                   aria-hidden
                 />
-                <span className="text-[10px] font-medium leading-none tracking-tight">
-                  {consultItem.name}
+                <span className="text-[10px] font-medium leading-none tracking-tight lg:text-sm lg:font-semibold">
+                  {t(consultItem.name)}
                 </span>
               </button>
             ) : (
@@ -383,7 +419,7 @@ function NavigationBarInner({
             )}
 
             {/* 中央：メニューボタン */}
-            <MenuToggleButton open={menuOpen} onClick={toggleMenu} buttonRef={menuButtonRef} />
+            <MenuToggleButton open={menuOpen} onClick={toggleMenu} buttonRef={menuButtonRef} inlineOnLg />
 
             {/* 右：近況（+ 管理タブがあれば追加）。全部非表示なら空枠で中央のメニュー位置を維持 */}
             {rightNavItems.length === 0 && !showStoryChooser ? (
@@ -404,19 +440,19 @@ function NavigationBarInner({
           </div>
         ) : isCloseUxActive ? (
           /* ── パネル表示中：緑バー × ── */
-          <div className="mx-auto flex h-14 max-w-lg items-center justify-center">
-            <div className="flex flex-col items-center gap-1">
-              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-white/20">
+          <div className="mx-auto flex h-14 max-w-lg items-center justify-center lg:h-12 lg:px-5">
+            <div className="flex flex-col items-center gap-1 lg:flex-row lg:gap-2">
+              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-white/20 lg:h-8 lg:w-8">
                 <X className="h-5 w-5 text-white" strokeWidth={2.4} aria-hidden />
               </div>
-              <span className="text-[10px] font-medium leading-none tracking-tight text-white/80">
-                閉じる
+              <span className="text-[10px] font-medium leading-none tracking-tight text-white/80 lg:text-sm lg:font-semibold lg:text-white">
+                {t("閉じる")}
               </span>
             </div>
           </div>
         ) : (
           /* ── サブページ：もどるバー ── */
-          <BottomNavBackBar label="マップにもどる" onClick={goToMap} />
+          <BottomNavBackBar label={t("マップにもどる")} onClick={goToMap} compact={topBackBar} />
         )}
       </nav>
     </>
@@ -425,7 +461,10 @@ function NavigationBarInner({
 
 // ─── NavLinkItem ──────────────────────────────────────────────────────────────
 function NavLinkItem({ item, isActive }: { item: NavItem; isActive: boolean }) {
-  return <BottomNavLink href={item.href} label={item.name} icon={item.icon} isActive={isActive} />;
+  const t = useT();
+  return (
+    <BottomNavLink href={item.href} label={t(item.name)} icon={item.icon} isActive={isActive} inlineOnLg />
+  );
 }
 
 /**
@@ -433,6 +472,7 @@ function NavLinkItem({ item, isActive }: { item: NavItem; isActive: boolean }) {
  * 行くかを選ぶ。外側を押すか Esc で閉じる。
  */
 function StoryNavChooser({ item, isActive }: { item: NavItem; isActive: boolean }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   // 矢印キーで動く menu ではなく、ただのリンク2つなので、開閉ボタンと一覧を aria-controls でつなぐだけにする
@@ -455,27 +495,27 @@ function StoryNavChooser({ item, isActive }: { item: NavItem; isActive: boolean 
   }, [open]);
 
   return (
-    <div ref={rootRef} className="relative flex h-full flex-1">
+    <div ref={rootRef} className="relative flex h-full flex-1 lg:flex-none">
       <button
         type="button"
         onClick={() => setOpen((prev) => !prev)}
         aria-expanded={open}
         aria-controls={open ? listId : undefined}
-        className={bottomNavItemClass(isActive || open)}
+        className={bottomNavItemClass(isActive || open, true)}
       >
-        <BottomNavItemContent icon={item.icon} label={item.name} isActive={isActive || open} />
+        <BottomNavItemContent icon={item.icon} label={t(item.name)} isActive={isActive || open} inlineOnLg />
       </button>
       <AnimatePresence>
         {open && (
           <motion.div
             id={listId}
             role="group"
-            aria-label="近況の行き先"
+            aria-label={t("近況の行き先")}
             initial={{ opacity: 0, y: 6 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 6 }}
             transition={{ duration: 0.15 }}
-            className="absolute bottom-full right-2 mb-2 w-56 rounded-panel bg-white p-1.5 shadow-float ring-1 ring-line"
+            className="absolute bottom-full right-2 mb-2 w-56 rounded-panel bg-white p-1.5 shadow-float ring-1 ring-line lg:bottom-auto lg:top-full lg:mb-0 lg:mt-2"
           >
             {STORY_CHOICES.map((choice) => (
               <Link
@@ -485,9 +525,9 @@ function StoryNavChooser({ item, isActive }: { item: NavItem; isActive: boolean 
                 onClick={() => setOpen(false)}
                 className="block rounded-btn px-3 py-2.5 text-left transition hover:bg-nicchyo-ink/5 active:bg-nicchyo-ink/10"
               >
-                <span className="block text-sm font-bold leading-tight text-nicchyo-ink">{choice.label}</span>
+                <span className="block text-sm font-bold leading-tight text-nicchyo-ink">{t(choice.label)}</span>
                 <span className="mt-0.5 block text-[11px] leading-tight text-nicchyo-ink/55">
-                  {choice.description}
+                  {t(choice.description)}
                 </span>
               </Link>
             ))}

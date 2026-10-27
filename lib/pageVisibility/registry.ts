@@ -27,14 +27,13 @@ const VENDOR_ONLY: readonly VisibilityRole[] = ["vendor"];
 
 export const PAGE_REGISTRY: readonly PageRegistryEntry[] = [
   // ── 来訪者向け ─────────────────────────────────────────────
-  { path: "/map", label: "マップ", group: "来訪者向け", description: "ホーム。常に公開", lockedPublic: true },
+  { path: "/map", label: "マップ", group: "来訪者向け", description: "常に公開", lockedPublic: true },
   {
     path: "/facilities",
     label: "おでかけサポート",
     group: "来訪者向け",
     description: "地図上の案内機能。限定公開で入口（メニュー・起動ボタン・「ここへ案内」）を隠し、非公開で機能ごと止める",
   },
-  { path: "/search", label: "店舗検索", group: "来訪者向け" },
   { path: "/shops", label: "店舗詳細", group: "来訪者向け", description: "/shops/001 など" },
   { path: "/consult", label: "にちよさん相談", group: "来訪者向け" },
   {
@@ -59,7 +58,7 @@ export const PAGE_REGISTRY: readonly PageRegistryEntry[] = [
   { path: "/about", label: "nicchyoとは", group: "来訪者向け" },
   { path: "/faq", label: "よくある質問", group: "来訪者向け" },
   { path: "/contact", label: "お問い合わせ", group: "来訪者向け" },
-  { path: "/support", label: "協賛・ご支援について", group: "来訪者向け", description: "運営費と協賛のお願い" },
+  { path: "/support", label: "協賛・ご支援について", group: "来訪者向け", description: "ご支援の使い道と協賛のお願い" },
   { path: "/support/supporters", label: "ご支援くださった皆さま", group: "来訪者向け", description: "個人でご支援くださった方のお名前" },
   { path: "/privacy", label: "プライバシーポリシー", group: "来訪者向け" },
   { path: "/user", label: "ユーザーページ", group: "来訪者向け" },
@@ -74,6 +73,7 @@ export const PAGE_REGISTRY: readonly PageRegistryEntry[] = [
   { path: "/vendor/store", label: "店舗情報編集", group: "出店者向け", codeAllowed: VENDOR_ONLY },
   { path: "/vendor/analytics", label: "出店者アナリティクス", group: "出店者向け", codeAllowed: VENDOR_ONLY },
   { path: "/vendor/ai-knowledge", label: "AIナレッジ", group: "出店者向け", codeAllowed: VENDOR_ONLY },
+  { path: "/vendor/members", label: "出店者メンバー管理", group: "出店者向け", codeAllowed: VENDOR_ONLY },
   { path: "/vendor/account", label: "出店者アカウント", group: "出店者向け", codeAllowed: VENDOR_ONLY },
   { path: "/vendor/help", label: "出店者ヘルプ", group: "出店者向け", codeAllowed: VENDOR_ONLY },
 

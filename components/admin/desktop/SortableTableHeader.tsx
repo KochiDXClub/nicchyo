@@ -2,67 +2,43 @@
 
 export type SortDirection = "asc" | "desc" | null;
 
-interface SortableTableHeaderProps {
+interface SortableColumnHeaderProps {
   label: string;
   sortKey: string;
   currentSortKey: string | null;
   currentSortDirection: SortDirection;
   onSort: (key: string) => void;
   className?: string;
-  flex?: string;
 }
 
-export const SortableTableHeader = React.memo(function SortableTableHeader({
+/**
+ * 本物の <table> の <th> に置くソート見出し。
+ */
+export const SortableColumnHeader = React.memo(function SortableColumnHeader({
   label,
   sortKey,
   currentSortKey,
   currentSortDirection,
   onSort,
   className = "",
-  flex = "0 0 150px",
-}: SortableTableHeaderProps) {
+}: SortableColumnHeaderProps) {
   const isActive = currentSortKey === sortKey;
-  const nextDirection = !isActive ? "asc" : currentSortDirection === "asc" ? "desc" : "asc";
-
+  const arrow = !isActive ? "" : currentSortDirection === "asc" ? "▲" : "▼";
   return (
-    <div
-      className={`px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition select-none ${className}`}
-      onClick={() => onSort(sortKey)}
-      title={`${label}で${nextDirection === "asc" ? "昇順" : "降順"}ソート`}
-      style={{ flex }}
-      role="columnheader"
-      aria-sort={
-        isActive
-          ? currentSortDirection === "asc"
-            ? "ascending"
-            : "descending"
-          : "none"
-      }
+    <th
+      scope="col"
+      className={`px-4 py-3 text-left text-xs font-medium text-nicchyo-ink/55 ${className}`}
+      aria-sort={isActive ? (currentSortDirection === "asc" ? "ascending" : "descending") : "none"}
     >
-      <div className="flex items-center gap-2">
-        <span>{label}</span>
-        <div className="flex flex-col">
-          <svg
-            className={`h-3 w-3 ${
-              isActive && currentSortDirection === "asc" ? "text-blue-600" : "text-gray-400"
-            }`}
-            fill="currentColor"
-            viewBox="0 0 12 12"
-          >
-            <path d="M6 3l4 4H2z" />
-          </svg>
-          <svg
-            className={`h-3 w-3 -mt-1 ${
-              isActive && currentSortDirection === "desc" ? "text-blue-600" : "text-gray-400"
-            }`}
-            fill="currentColor"
-            viewBox="0 0 12 12"
-          >
-            <path d="M6 9L2 5h8z" />
-          </svg>
-        </div>
-      </div>
-    </div>
+      <button
+        type="button"
+        onClick={() => onSort(sortKey)}
+        className="inline-flex items-center gap-1 hover:text-nicchyo-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/60"
+      >
+        {label}
+        <span aria-hidden="true" className="text-[10px] text-amber-700">{arrow}</span>
+      </button>
+    </th>
   );
 });
 

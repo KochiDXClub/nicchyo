@@ -13,6 +13,7 @@ import {
   Sparkles,
   Store,
   UserRound,
+  Users,
   type LucideIcon,
 } from "lucide-react";
 import type { ShopPermission } from "@/lib/vendor/shopPermissions";
@@ -33,6 +34,18 @@ export type VendorNavItem = {
   inBottomBar?: boolean;
 };
 
+/** 出店者ページのホーム（マイ店舗） */
+export const VENDOR_HOME_HREF = "/my-shop";
+
+/**
+ * グループの見出し（PCのサイドバーで使う）。group を足したら、ここにも足さないと型エラーになる。
+ * 「運営」はこのアプリでは主催側を指すので、main の見出しには使わない（「運営・市役所との連絡」と紛れる）
+ */
+export const VENDOR_NAV_GROUP_LABELS: Record<VendorNavItem["group"], string> = {
+  main: "お店のこと",
+  support: "使い方・設定",
+};
+
 export const VENDOR_NAV_ITEMS: VendorNavItem[] = [
   { label: "運営・市役所との連絡", href: "/vendor/inquiries", icon: Mail, description: "お知らせを見る・質問や相談を送る", group: "main", permission: "inquiries", inBottomBar: true },
   // 下部バーの「店舗情報」枠は「連絡」に差し替えたため、店舗情報への導線はここが主になる
@@ -42,7 +55,9 @@ export const VENDOR_NAV_ITEMS: VendorNavItem[] = [
   // メニューのカードは幅が狭いので短い名前にする。画面の見出しは「にちよさんが覚えちゅうこと」
   { label: "にちよさんの覚えごと", href: "/vendor/ai-knowledge", icon: Sparkles, description: "にちよさんが覚えちゅうことを見る・直す", group: "main", permission: "ai_notes" },
   { label: "よくある質問", href: "/vendor/help", icon: CircleHelp, description: "困ったときに一覧から探す", group: "support" },
-  { label: "アカウント設定", href: "/vendor/account", icon: UserRound, description: "メンバーの管理・招待・操作ログ", group: "support" },
+  // メンバー一覧はメンバーなら誰でも見られるので、権限を付けない（招待・権限の変更は、画面の中で権限のある人にだけ出る）
+  { label: "メンバー管理", href: "/vendor/members", icon: Users, description: "お店のメンバーを見る・家族やスタッフを招待する", group: "support" },
+  { label: "アカウント設定", href: "/vendor/account", icon: UserRound, description: "名前と写真・お店を抜ける・退会", group: "support" },
 ];
 
 /** 自分の権限で使える導線だけを返す（権限のない画面へ案内して、API で断られるのを避ける） */
@@ -64,7 +79,12 @@ function matchesPrefix(pathname: string, prefix: string): boolean {
   return pathname === prefix || pathname.startsWith(`${prefix}/`);
 }
 
-/** その画面を使うのに要る権限。権限が要らない画面（マイ店舗のホーム・使い方・アカウント設定など）は undefined */
+/** いま開いている画面が、その導線（配下の画面を含む）か */
+export function isVendorNavItemCurrent(href: string, pathname: string | null): boolean {
+  return pathname != null && matchesPrefix(pathname, href);
+}
+
+/** その画面を使うのに要る権限。権限が要らない画面（マイ店舗のホーム・使い方・メンバー管理・アカウント設定など）は undefined */
 export function requiredPermissionForPath(pathname: string | null): ShopPermission | undefined {
   if (!pathname) return undefined;
   const nav = VENDOR_NAV_ITEMS.find((item) => item.permission && matchesPrefix(pathname, item.href));

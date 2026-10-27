@@ -185,13 +185,13 @@ where schemaname = 'public' and (qual ilike '%user_metadata%' or with_check ilik
 | `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` | 必須 | `/api/health` が 503。レート制限が in-memory になり実効性を失う |
 | `CRON_SECRET` | 必須 | `sync-embeddings` などの cron が常に拒否される |
 | `NEXT_PUBLIC_SITE_URL` | 設定するなら正しい値 | **値が入っていて不正（http/https 以外・解釈不能）だと本番ビルドが失敗する**。未設定なら `https://nicchyo.jp` |
-| `ANTHROPIC_API_KEY` | 任意 | 週次セキュリティレポートが生成されない |
+| `ANTHROPIC_API_KEY` | 任意 | 管理画面で Claude のモデルを選んでも、既定のモデルに切り替わる |
 | `RESEND_API_KEY` / `NOTIFICATION_FROM_EMAIL` / `ADMIN_NOTIFICATION_EMAIL` | 任意 | メール送信をスキップ（ログのみ） |
 | `LINE_CHANNEL_SECRET` / `LINE_CHANNEL_ACCESS_TOKEN` | 任意 | LINE webhook は何も処理しない |
-| `DISCORD_WEBHOOK_URL` / `NEXT_PUBLIC_GOOGLE_ANALYTICS_ID` / `NEXT_PUBLIC_TURNSTILE_SITE_KEY` | 任意 | 通知・計測・スパム対策が無効 |
+| `NEXT_PUBLIC_GOOGLE_ANALYTICS_ID` / `NEXT_PUBLIC_TURNSTILE_SITE_KEY` | 任意 | 通知・計測・スパム対策が無効 |
 | `ADMIN_USER_EMAIL` / `ADMIN_USER_PASSWORD` | **本番には設定しない** | 開発専用（`scripts/create-admin-user.mjs`） |
 
-- 古い `COUPON_QR_SECRET` / `NEXT_PUBLIC_DEV_MARKET_DAY` は不要になったので、本番にあっても害はないが消してよい。
+- 古い `COUPON_QR_SECRET` / `NEXT_PUBLIC_DEV_MARKET_DAY`、週次セキュリティレポートの廃止で使わなくなった `DISCORD_WEBHOOK_URL` / `NEXT_PUBLIC_APP_URL` は不要なので、本番にあっても害はないが消してよい。
 - `vercel.json` の `regions: ["hnd1"]`（東京）は関数リージョンの固定。本番 Supabase（`yrypxygzqtkdwvasczsq`）が東京（ap-northeast-1）にあるので合わせている。DB を別リージョンに移すときはここも変える。
   開発 Supabase（`dbaufykimgzfgoeyyxwz`）はソウル（ap-northeast-2）なので、プレビューは DB まで少し遠い（本番を優先している）。
 
@@ -200,8 +200,7 @@ where schemaname = 'public' and (qual ilike '%user_metadata%' or with_check ilik
 - `production` に **Required reviewers が設定されている**こと。Environment が無い・保護ルールが空だと、ワークフローが Environment を自動作成して**承認なしで本番に適用される**。
 - `production` と `production-dry-run` の両方に、Secrets（`SUPABASE_ACCESS_TOKEN` / `SUPABASE_DB_PASSWORD`）と Variable（`SUPABASE_PROJECT_ID`）があり、プロジェクトIDが**本番**のものであること（§9）。
 
-**cron**: `weekly-security-report` は `CRON_SECRET` 認証付きの API があるが、`vercel.json` の `crons` には `sync-embeddings` しか登録されていない。
-週次実行を想定しているなら、登録の要否をリリース前に決める（意図が不明なら登録しない現状のまま出す）。
+**cron**: `vercel.json` の `crons` は `sync-embeddings` だけ。週次セキュリティレポート（`weekly-security-report`）は、アクセス分析と中身が重なるため廃止した。
 
 ### 4.4 リリース当日の手順
 
@@ -218,7 +217,7 @@ where schemaname = 'public' and (qual ilike '%user_metadata%' or with_check ilik
 6. **リリースPRを作成** — `develop` → `main`。タイトルは `verX.Y: <概要> / Develop (#PR番号)`。本文に §4.2 の破壊的マイグレーション一覧とバックアップ時刻を書く。
 7. **Preview で通し確認** — リリースPRの Preview URL で以下を実機確認する。ビルドが通ることは動作の保証にならない。
    - マップ（`/map`）: 店舗マーカー表示・ズーム・道の描画・店舗詳細バナー。既定の描画が Leaflet → MapLibre（WebGL）に変わっているので、iOS Safari / Android Chrome で確認し、`public/maplibre/maplibre-gl-worker.mjs` が 200 で配信されること
-   - 検索（`/search`）
+   - 検索（`/map` の検索パネル）
    - AI相談（`/consult`）: 「にちよさん」が応答するか
    - 近況（story）
    - 出店者ページ（`/my-shop`）
@@ -302,8 +301,8 @@ where schemaname = 'public' and (qual ilike '%user_metadata%' or with_check ilik
 **適用後**
 
 - [ ] メンテナンスモードをオフにした
-- [ ] 本番確認（`/map`・`/search`・`/consult`・`/my-shop`・`/admin`）
-- [ ] Discord 通知のリンクなど、旧URLの 404 が無いか確認した（`/reports/<日付>` は develop で移動済み）
+- [ ] 本番確認（`/map`・`/consult`・`/my-shop`・`/admin`）
+- [ ] 配ったQRコードや外部リンクなど、旧URLの 404 が無いか確認した
 - [ ] `git tag v1.x` を打って push した
 - [ ] `main` → `develop` を戻しマージした
 - [ ] バックアップは次のリリースまで消さない（保持期限を確認した）

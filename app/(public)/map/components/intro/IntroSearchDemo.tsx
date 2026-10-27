@@ -25,6 +25,7 @@ import {
   IntroStallMarker,
 } from './IntroStall';
 import type { IntroDemoShop } from './introDemoShops';
+import { useT } from '@/lib/i18n/LocaleContext';
 
 const DEFAULT_FRAME_HEIGHT = 320;
 
@@ -56,6 +57,7 @@ export default function IntroSearchDemo({
   selectedShopId: number | null;
   onSelectShop: (shop: IntroDemoShop) => void;
 }) {
+  const t = useT();
   const [selected, setSelected] = useState<string | null>(null);
 
   const placed = shops.slice(0, STALL_SLOTS.length);
@@ -141,8 +143,10 @@ export default function IntroSearchDemo({
 
       <p className="pt-1 text-center text-[11.5px] font-semibold text-nicchyo-ink/40">
         {selected
-          ? `「${selected}」のお店が ${matchCount}件。写真と名前で前に出ます`
-          : 'ジャンルを押すと、そのお店だけが地図に残ります'}
+          ? t('「{category}」のお店が {count}件。写真と名前で前に出ます')
+              .replace('{category}', selected)
+              .replace('{count}', String(matchCount))
+          : t('ジャンルを押すと、そのお店だけが地図に残ります')}
       </p>
     </div>
   );

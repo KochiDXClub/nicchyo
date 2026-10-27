@@ -45,11 +45,10 @@ const GENRE_COLORS: Record<string, string> = {
 };
 const FALLBACK_GENRE_COLOR = '#94A3B8';
 
-/** 選定理由の表示ラベル（なぜこの店が出ているかを説明する） */
-const REASON_LABELS: Record<NearbyRecommendationReason, string> = {
+/** 選定理由の表示ラベル（なぜこの店が出ているかを説明する。discovery は何も出さない） */
+const REASON_LABELS: Partial<Record<NearbyRecommendationReason, string>> = {
   favorite: '❤️ お気に入り',
   interest: '好みに合いそう',
-  discovery: 'あたらしい出会い',
 };
 
 const ASK_ERROR_MESSAGE =
@@ -388,7 +387,14 @@ export default function NearbyExplorePanel({
                     onClick={() => onSelectShop(entry.shopId)}
                     className="w-full text-left transition-transform active:scale-95"
                   >
-                    <div className="aspect-[4/3] w-full overflow-hidden rounded-xl bg-slate-100">
+                    <div
+                      className="aspect-[4/3] w-full overflow-hidden rounded-xl border-2 bg-slate-100"
+                      style={{
+                        borderColor:
+                          (entry.category && GENRE_COLORS[entry.category]) ||
+                          FALLBACK_GENRE_COLOR,
+                      }}
+                    >
                       {entry.imageUrl && (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img
@@ -403,9 +409,11 @@ export default function NearbyExplorePanel({
                     <p className="mt-1 truncate text-[11px] font-bold leading-tight text-slate-800">
                       {entry.name}
                     </p>
-                    <p className="truncate text-[10px] text-slate-400">
-                      {REASON_LABELS[entry.reason]}
-                    </p>
+                    {REASON_LABELS[entry.reason] && (
+                      <p className="truncate text-[10px] text-slate-400">
+                        {REASON_LABELS[entry.reason]}
+                      </p>
+                    )}
                   </button>
                 ))}
               </div>

@@ -2,6 +2,15 @@ import { type NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/utils/supabase/middleware";
 import { getRole, isModerator } from "@/lib/auth/permissions";
 import {
+  DEFAULT_LOCALE,
+  LOCALE_COOKIE,
+  LOCALE_HEADER,
+  isLocale,
+  isLocalizablePath,
+  localizePath,
+  stripLocalePrefix,
+} from "@/lib/i18n/config";
+import {
   EMPTY_PAGE_VISIBILITY_SETTINGS,
   parsePageVisibilitySettings,
   resolvePageVisibility,
@@ -90,8 +99,37 @@ function copyCookies(from: NextResponse, to: NextResponse) {
   });
 }
 
+/**
+ * ブラウザがページそのものを開くリクエストか。<Link> の遷移・プリフェッチ（RSC）や、
+ * 地図の Worker などの静的ファイルは対象にしない（英語の人だけ余計な 307 を挟まないため）。
+ */
+function isDocumentNavigation(request: NextRequest): boolean {
+  if (request.headers.has("rsc") || request.headers.has("next-router-prefetch")) return false;
+  const dest = request.headers.get("sec-fetch-dest");
+  if (dest) return dest === "document";
+  return (request.headers.get("accept") ?? "").includes("text/html");
+}
+
 export async function proxy(request: NextRequest) {
-  const pathname = request.nextUrl.pathname;
+  // /en/map のようなロケール付きURLは、ロケールを外した /map として以降の判定・描画を行う。
+  // ロケールは URL のプレフィックス → Cookie → 日本語 の順で決める
+  const { locale: prefixLocale, pathname } = stripLocalePrefix(request.nextUrl.pathname);
+  const cookieLocale = request.cookies.get(LOCALE_COOKIE)?.value;
+  const locale = prefixLocale ?? (isLocale(cookieLocale) ? cookieLocale : DEFAULT_LOCALE);
+
+  // 英語を選んだあとに /en の付いていないリンクをたどっても、URL が /en のまま保たれるようにする
+  // （アプリ内リンクはロケールを知らないため）。ページ表示（GET）だけが対象
+  if (
+    !prefixLocale &&
+    locale !== DEFAULT_LOCALE &&
+    request.method === "GET" &&
+    isDocumentNavigation(request) &&
+    isLocalizablePath(pathname)
+  ) {
+    const url = request.nextUrl.clone();
+    url.pathname = localizePath(pathname, locale);
+    return NextResponse.redirect(url);
+  }
   // 管理者・API・静的ファイルはメンテナンス判定・公開設定判定の対象外
   // /_next 配下に全静的アセットが含まれるため、ドット有無による判定は不要
   // /private は一般ログインユーザー向けのため、メンテナンス中は他ページと同様にブロックする
@@ -145,7 +183,7 @@ export async function proxy(request: NextRequest) {
     const visibilityPath = pathname.replace(/^\/shops(\d{3})$/, "/shops/$1");
     const visibility = resolvePageVisibility(visibilityPath, visibilityRole, siteSettings.pageVisibility);
     if (visibility.state === "private") {
-      // リダイレクト先自身が非公開ならループになるためホームへ逃がす
+      // リダイレクト先自身が非公開ならループになるためマップへ逃がす（常に公開）
       const target = visibility.redirectTo;
       const targetVisible =
         resolvePageVisibility(target, visibilityRole, siteSettings.pageVisibility).state !== "private";
@@ -185,10 +223,21 @@ export async function proxy(request: NextRequest) {
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set("x-nonce", nonce);
   requestHeaders.set("content-security-policy", csp);
+  requestHeaders.set(LOCALE_HEADER, locale);
 
-  const res = NextResponse.next({
-    request: { headers: requestHeaders },
-  });
+  // /en/… はロケールを外したパスへ書き換えて描画する（ブラウザのURLは /en/… のまま）
+  let res: NextResponse;
+  if (prefixLocale) {
+    const rewriteUrl = request.nextUrl.clone();
+    rewriteUrl.pathname = pathname;
+    res = NextResponse.rewrite(rewriteUrl, { request: { headers: requestHeaders } });
+  } else {
+    res = NextResponse.next({ request: { headers: requestHeaders } });
+  }
+  // 選んだ言語を覚える。/en が付いていないリンクをたどっても同じ言語で表示するため
+  if (prefixLocale && cookieLocale !== prefixLocale) {
+    res.cookies.set(LOCALE_COOKIE, prefixLocale, { path: "/", maxAge: 60 * 60 * 24 * 365, sameSite: "lax" });
+  }
 
   // レスポンスにCSPヘッダーとSupabase Cookieを設定（リフレッシュ後の最新 Cookie を使用）
   res.headers.set("content-security-policy", csp);

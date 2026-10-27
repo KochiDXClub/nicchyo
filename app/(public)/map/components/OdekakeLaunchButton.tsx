@@ -23,7 +23,7 @@ export default function OdekakeLaunchButton({
 }) {
   return (
     <div
-      className={cn('absolute left-3 z-[1001]', className)}
+      className={cn('absolute left-3 z-[1001] lg:left-4', className)}
       style={{ top }}
       onMouseDown={(e) => e.stopPropagation()}
       onTouchStart={(e) => e.stopPropagation()}
