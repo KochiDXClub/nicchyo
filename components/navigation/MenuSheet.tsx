@@ -13,6 +13,7 @@ import Link from "next/link";
 import { useBodyScrollLock } from "@/lib/ui/bodyScrollLock";
 import { LG_MEDIA_QUERY, useMediaQuery } from "@/lib/hooks/useMediaQuery";
 import { useDialogFocus } from "@/lib/ui/useDialogFocus";
+import { useT } from "@/lib/i18n/LocaleContext";
 import { useEffect, useRef, type ReactNode, type RefObject } from "react";
 import {
   AnimatePresence,
@@ -368,6 +369,7 @@ export function MenuToggleButton({
   /** lg 以上で、アイコンとラベルを縦ではなく横に並べる（PC の地図のツールバー用） */
   inlineOnLg?: boolean;
 }) {
+  const t = useT();
   const prefersReducedMotion = useReducedMotion();
   const fadeTransition = { duration: prefersReducedMotion ? 0 : 0.2 };
 
@@ -379,7 +381,7 @@ export function MenuToggleButton({
         onClick={onClick}
         aria-expanded={open}
         aria-haspopup="dialog"
-        aria-label={open ? "メニューを閉じる" : "メニューを開く"}
+        aria-label={open ? t("メニューを閉じる") : t("メニューを開く")}
         className={`flex flex-col items-center gap-1 ${inlineOnLg ? "lg:flex-row lg:gap-2" : ""}`}
       >
         <motion.span
@@ -413,7 +415,7 @@ export function MenuToggleButton({
             inlineOnLg ? "lg:text-sm lg:font-semibold lg:text-nicchyo-ink" : ""
           }`}
         >
-          メニュー
+          {t("メニュー")}
         </span>
       </button>
     </div>

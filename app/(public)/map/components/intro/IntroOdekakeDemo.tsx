@@ -29,6 +29,7 @@ import { buildFacilityMarkerHtml, ROUTE_CASING, ROUTE_FAINT, ROUTE_STRONG } from
 import { IntroDemoFrame } from './IntroStall';
 import { createMiniMapProjection, roadUpBearing } from './introMiniMap';
 import type { IntroOdekakeGuide } from './useIntroOdekakeGuide';
+import { useT } from '@/lib/i18n/LocaleContext';
 
 /** 地図デモと同じ、縦に長い枠 */
 const DEFAULT_FRAME_HEIGHT = 500;
@@ -109,12 +110,13 @@ const toPoints = (points: { x: number; y: number }[]) =>
 
 /** 本番の現在地の点（MapLibre 標準の GeolocateControl）に似せた青い点 */
 function CurrentLocationDot({ x, y }: { x: number; y: number }) {
+  const t = useT();
   return (
     <div
       className="pointer-events-none absolute z-[4] flex h-10 w-10 -translate-x-1/2 -translate-y-1/2 items-center justify-center"
       style={{ left: x, top: y }}
       role="img"
-      aria-label="現在地"
+      aria-label={t('現在地')}
     >
       <span
         className="block h-4 w-4 rounded-full border-[3px] border-white shadow-[0_2px_4px_rgba(0,0,0,0.2)]"
@@ -130,6 +132,7 @@ function CurrentLocationDot({ x, y }: { x: number; y: number }) {
  * 下に出すと、いちばん下の印の名札に重なる
  */
 function NearestPill({ nearest, onClick }: { nearest: NonNullable<IntroOdekakeGuide['nearest']>; onClick: () => void }) {
+  const t = useT();
   const { spot, route } = nearest;
   return (
     <div className="absolute left-1/2 z-[1001] -translate-x-1/2" style={{ top: NAV_BAR_TOP }}>
@@ -152,12 +155,12 @@ function NearestPill({ nearest, onClick }: { nearest: NonNullable<IntroOdekakeGu
         )}
         <span className="min-w-0 text-left">
           <span className="block truncate text-[14px] font-bold leading-tight text-nicchyo-ink">{spot.name}</span>
-          <span className="mt-0.5 block text-[11px] leading-none text-slate-500">いちばん近い</span>
+          <span className="mt-0.5 block text-[11px] leading-none text-slate-500">{t('いちばん近い')}</span>
         </span>
         {route && (
           <span className="ml-1 shrink-0 text-[20px] font-black leading-none text-nicchyo-ink tabular-nums">
             {route.walkMinutes}
-            <span className="text-[11px] font-bold">分</span>
+            <span className="text-[11px] font-bold">{t('分')}</span>
           </span>
         )}
       </button>

@@ -1,4 +1,5 @@
 import { isAnalyticsOptedOut } from "@/lib/analytics/consentClient";
+import { MAX_SHOP_ID } from "@/lib/shops/route";
 
 /**
  * 来訪者の検索キーワードを数える（出店者の「お店の分析」の検索トレンドの元になる）。
@@ -9,8 +10,8 @@ import { isAnalyticsOptedOut } from "@/lib/analytics/consentClient";
 export const MIN_SEARCH_KEYWORD_LENGTH = 2;
 /** これより長いキーワードは記録しない（商品名の検索には十分で、DB 肥大と貼り付けの混入を防ぐ） */
 export const MAX_SEARCH_KEYWORD_LENGTH = 100;
-/** 件数として受け付ける上限。店舗は最大300件なので、超える値は壊れたクライアントか偽装 */
-const MAX_RESULT_COUNT = 1000;
+/** 件数として受け付ける上限。検索結果は店舗の数を超えないので、超える値は壊れたクライアントか偽装 */
+const MAX_RESULT_COUNT = MAX_SHOP_ID;
 
 export type SearchLog = { keyword: string; resultCount: number };
 
