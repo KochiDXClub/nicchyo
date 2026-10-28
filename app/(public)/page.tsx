@@ -8,14 +8,11 @@ import { createClient } from "@/utils/supabase/server";
 import { fetchMarketCalendar, type MarketCalendar } from "@/lib/market/calendar";
 import { fetchPublicShops } from "./map/services/shopCache";
 import LandingHero from "./_landing/LandingHero";
-import LandingStreet from "./_landing/LandingStreet";
 import LandingGenres from "./_landing/LandingGenres";
 import LandingHowTo from "./_landing/LandingHowTo";
 import LandingInfo from "./_landing/LandingInfo";
 import LandingHighlights from "./_landing/LandingHighlights";
 import LandingAbout from "./_landing/LandingAbout";
-import LandingClosing from "./_landing/LandingClosing";
-import LandingForShops from "./_landing/LandingForShops";
 import { buildLandingSundays } from "./_landing/upcomingSundays";
 import { pickLandingShopPhotos } from "./_landing/pickLandingShops";
 
@@ -60,8 +57,8 @@ async function fetchCalendar(): Promise<MarketCalendar | null> {
  * 「何のサイトか」「日曜市とは」を分かり、そのまま使い始められる案内のページにした。
  *
  * 並びは「すぐ使う → 知る → 信頼する」の順（市場の公式サイトのような案内型）:
- * 開催状況・さがす・地図（最初の画面）→ ジャンル → できること → 開催のご案内 → いいところ → nicchyo について → 出店者の方へ。
- * 画面に文字を増やさない。説明は一言にして、実際の画面の形と写真で見せる。
+ * 開催状況・さがす・地図（最初の画面）→ ジャンル → 使い方 → 開催のご案内 → 日曜市のいいところ → nicchyo について。
+ * 装飾は足さず、情報の順番で見せる。説明は一言にして、実際の画面の形と写真で見せる。
  *
  * 「出店しているお店から」の写真は、地図と同じ公開店舗（fetchPublicShops。キャッシュ済み）から選ぶ。
  * 取れなかったときは、その帯を出さないだけでページは表示する
@@ -79,14 +76,11 @@ export default async function HomePage() {
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: safeJsonLd(SUNDAY_MARKET_JSON_LD) }} />
       <main>
         <LandingHero day={day} />
-        <LandingStreet />
         <LandingGenres />
         <LandingHowTo />
         <LandingInfo sundays={sundays} />
         <LandingHighlights shopPhotos={photos} />
         <LandingAbout />
-        <LandingClosing />
-        <LandingForShops />
       </main>
     </PageShell>
   );
