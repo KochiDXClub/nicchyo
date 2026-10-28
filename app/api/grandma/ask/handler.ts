@@ -3,6 +3,8 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/database.types";
 import type { DatabaseWithExtensions } from "@/types/database.extensions";
 import { buildGrandmaAiSystemPrompt } from "@/lib/grandma/prompts/consultSystemPrompt";
+import { buildLanguageInstruction } from "@/lib/grandma/prompts/languageRules";
+import { LOCALE_HEADER, toLocale, type Locale } from "@/lib/i18n/config";
 import { fetchAiPrompts } from "@/lib/grandma/prompts/promptStore.server";
 import {
   readOpenAiError,
@@ -416,6 +418,8 @@ async function createStreamingConsultResponse(options: {
   candidateShops: Shop[];
   shopIntent: boolean;
   memorySummary: string;
+  /** 来訪者の表示言語（proxy.ts が決める）。日本語以外なら、その言語で答える */
+  locale: Locale;
   internal?: ConsultAskInternalOptions;
 }): Promise<Response> {
   const {
@@ -433,6 +437,7 @@ async function createStreamingConsultResponse(options: {
     candidateShops,
     shopIntent,
     memorySummary,
+    locale,
     internal,
   } = options;
 
@@ -455,6 +460,7 @@ async function createStreamingConsultResponse(options: {
               conversationSettings["consult.max_turns"],
             ),
             spotSupport.prompt,
+            buildLanguageInstruction(locale),
           ]
             .filter(Boolean)
             .join("\n\n"),
@@ -637,6 +643,8 @@ export async function handleConsultAsk(
   request: Request,
   internal?: ConsultAskInternalOptions,
 ) {
+  // 来訪者の表示言語。proxy.ts が URL・Cookie から決めてヘッダーに入れる（クライアントの申告ではない）
+  const locale = toLocale(request.headers.get(LOCALE_HEADER));
   try {
     if (!internal) {
       const originCheck = requireSameOrigin(request);
@@ -991,6 +999,7 @@ export async function handleConsultAsk(
         candidateShops,
         shopIntent,
         memorySummary,
+        locale,
         internal,
       });
     }
@@ -1008,6 +1017,7 @@ export async function handleConsultAsk(
             [
               buildJsonFormatPrompt(conversationSettings["consult.max_turns"]),
               spotSupport.prompt,
+              buildLanguageInstruction(locale),
             ]
               .filter(Boolean)
               .join("\n\n"),

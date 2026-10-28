@@ -18,6 +18,8 @@ import {
   stripAngleBrackets,
 } from "@/lib/grandma/prompts/itineraryPrompt";
 import { requestChatCompletion, requestEmbeddings } from "@/lib/ai/openaiFetch";
+import { buildItineraryLanguageInstruction } from "@/lib/grandma/prompts/languageRules";
+import { LOCALE_HEADER, toLocale } from "@/lib/i18n/config";
 import { resolveAiModelFor } from "@/lib/ai/modelStore.server";
 import { getForwardedClientIp } from "@/lib/security/clientIp";
 
@@ -186,7 +188,16 @@ export async function POST(request: Request) {
 
     const chatResponse = await requestChatCompletion(openaiKey, aiModel, {
       messages: [
-        { role: "system", content: ITINERARY_SYSTEM_PROMPT },
+        {
+          role: "system",
+          content: [
+            ITINERARY_SYSTEM_PROMPT,
+            // 表示言語は proxy.ts が決めてヘッダーに入れる。日本語以外なら文章だけ訳し、id と name は変えない
+            buildItineraryLanguageInstruction(toLocale(request.headers.get(LOCALE_HEADER))),
+          ]
+            .filter(Boolean)
+            .join("\n"),
+        },
         { role: "user", content: prompt },
       ],
       maxOutputTokens: 900,
