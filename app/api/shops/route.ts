@@ -1,10 +1,13 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
+import { toLocale } from "@/lib/i18n/config";
 import { fetchPublicShops } from "@/app/(public)/map/services/shopCache";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  // 言語は URL の ?locale= で決める（CDN にキャッシュされるので、Cookie ではなく URL で分ける）
+  const locale = toLocale(request.nextUrl.searchParams.get("locale"));
   const hasSupabaseEnv =
     !!process.env.NEXT_PUBLIC_SUPABASE_URL &&
     !!(
@@ -16,7 +19,7 @@ export async function GET() {
   }
 
   try {
-    const shops = await fetchPublicShops();
+    const shops = await fetchPublicShops(locale);
     // 認可判定を含まない公開データなので CDN にもキャッシュさせる。
     // 投稿の出入りが最大 5 分遅れるが、この API はお気に入り・相談履歴の復元用で許容できる
     return NextResponse.json(

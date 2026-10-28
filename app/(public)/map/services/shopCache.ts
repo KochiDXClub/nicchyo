@@ -1,7 +1,8 @@
 import { revalidateTag, unstable_cache } from "next/cache";
-import { createClient } from "@supabase/supabase-js";
-import type { Database } from "@/types/database.types";
+import { createAnonClient } from "@/lib/supabase/anonClient";
 import type { Shop } from "../types/shopData";
+import { DEFAULT_LOCALE, type Locale } from "@/lib/i18n/config";
+import { applyShopTranslations } from "@/lib/i18n/shopTranslation.server";
 import {
   buildVendorShops,
   fetchActiveContentRows,
@@ -26,17 +27,6 @@ export const SHOP_BASE_CACHE_TAG = "map-shop-base";
 // そのぶん反映の遅れがこの秒数までに収まるよう短めにしておく（管理画面の API からは即時に捨てる）。
 const SHOP_BASE_REVALIDATE_SECONDS = 15 * 60;
 
-function createAnonClient() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key =
-    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY ??
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  if (!url || !key) return null;
-  return createClient<Database>(url, key, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
-}
-
 const getCachedShopBaseRows = unstable_cache(
   async (): Promise<VendorShopBaseRows> => {
     const supabase = createAnonClient();
@@ -54,7 +44,11 @@ const getCachedShopBaseRows = unstable_cache(
   { revalidate: SHOP_BASE_REVALIDATE_SECONDS, tags: [SHOP_BASE_CACHE_TAG] }
 );
 
-export async function fetchPublicShops(): Promise<Shop[]> {
+/**
+ * `locale` が日本語以外のときは、保存済みの訳（shop_translations）を重ねて返す。
+ * 訳の無い店・項目は日本語のまま。店の並びや位置は言語によらず同じ。
+ */
+export async function fetchPublicShops(locale: Locale = DEFAULT_LOCALE): Promise<Shop[]> {
   const supabase = createAnonClient();
   if (!supabase) return [];
 
@@ -67,7 +61,7 @@ export async function fetchPublicShops(): Promise<Shop[]> {
     fetchActiveContentRows(supabase),
   ]);
 
-  return buildVendorShops(baseRows, activeContents);
+  return applyShopTranslations(buildVendorShops(baseRows, activeContents), locale);
 }
 
 /** 管理画面の API で店舗・区画・カテゴリーを書き換えたあとに呼ぶ */

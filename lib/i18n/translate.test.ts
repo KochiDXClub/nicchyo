@@ -40,3 +40,12 @@ describe("英語の辞書", () => {
     expect(missing).toEqual([]);
   });
 });
+
+describe("店舗の選択肢の固定訳", () => {
+  test("運営が定義したすべての選択肢に英訳がある", async () => {
+    const { RAIN_OPTIONS, PAYMENT_OPTIONS, STYLE_PRESETS, WEEKDAY_OPTIONS } = await import("@/lib/vendor/storeOptions");
+    const labels = [...RAIN_OPTIONS.map(({ label }) => label), ...PAYMENT_OPTIONS.map(({ label }) => label), ...STYLE_PRESETS, ...WEEKDAY_OPTIONS];
+    expect(labels.filter((label) => !(label in enUi))).toEqual([]);
+    for (const label of labels) expect(translate("ja", label)).toBe(label);
+  });
+});
