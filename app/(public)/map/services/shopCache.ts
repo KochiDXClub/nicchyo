@@ -1,6 +1,5 @@
 import { revalidateTag, unstable_cache } from "next/cache";
-import { createClient } from "@supabase/supabase-js";
-import type { Database } from "@/types/database.types";
+import { createAnonClient } from "@/lib/supabase/anonClient";
 import type { Shop } from "../types/shopData";
 import { DEFAULT_LOCALE, type Locale } from "@/lib/i18n/config";
 import { applyShopTranslations } from "@/lib/i18n/shopTranslation.server";
@@ -27,17 +26,6 @@ export const SHOP_BASE_CACHE_TAG = "map-shop-base";
 // 出店者の編集はブラウザから Supabase へ直接書き込むため、キャッシュを捨てる合図が届かない。
 // そのぶん反映の遅れがこの秒数までに収まるよう短めにしておく（管理画面の API からは即時に捨てる）。
 const SHOP_BASE_REVALIDATE_SECONDS = 15 * 60;
-
-function createAnonClient() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key =
-    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY ??
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  if (!url || !key) return null;
-  return createClient<Database>(url, key, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
-}
 
 const getCachedShopBaseRows = unstable_cache(
   async (): Promise<VendorShopBaseRows> => {

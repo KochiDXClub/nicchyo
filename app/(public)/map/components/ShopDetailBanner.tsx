@@ -166,23 +166,30 @@ const ShopDetailBanner = memo(function ShopDetailBanner({
     );
   }, [shop.id, layout]);
 
+  // お気に入りは商品名の日本語の原文で保存する（英語表示で訳された名前でも、言語を切り替えてもずれない）
+  const productOriginalNames = shop.productOriginalNames;
+  const favoriteKeyOf = useCallback(
+    (product: string) => productOriginalNames?.[product] ?? product,
+    [productOriginalNames]
+  );
+
   const handleProductTap = useCallback((product: string) => {
-    const nextEntries = toggleFavoriteProduct(shop.id, product);
+    const nextEntries = toggleFavoriteProduct(shop.id, favoriteKeyOf(product));
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
     // 外したときは黙って消す。入れたときだけ、どこに入ったかを伝える
-    if (isProductFavorited(nextEntries, shop.id, product)) {
+    if (isProductFavorited(nextEntries, shop.id, favoriteKeyOf(product))) {
       setToast({ product });
       toastTimerRef.current = setTimeout(() => setToast(null), 3500);
     } else {
       setToast(null);
     }
-  }, [shop.id]);
+  }, [shop.id, favoriteKeyOf]);
 
   const handleUndoAdd = useCallback((product: string) => {
-    toggleFavoriteProduct(shop.id, product);
+    toggleFavoriteProduct(shop.id, favoriteKeyOf(product));
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
     setToast(null);
-  }, [shop.id]);
+  }, [shop.id, favoriteKeyOf]);
 
   // 商品がぶら下がっているときの確認は useShopFavoriteToggle が持つ
   const handleToggleShopFavorite = useCallback(() => {
@@ -567,7 +574,7 @@ const ShopDetailBanner = memo(function ShopDetailBanner({
             <ShopProductGrid
               shop={shop}
               imageOf={productImageOf}
-              isProductFavorite={(product) => isProductFavorited(favoriteEntries, shop.id, product)}
+              isProductFavorite={(product) => isProductFavorited(favoriteEntries, shop.id, favoriteKeyOf(product))}
               onToggleProduct={handleProductTap}
               onOpenPhoto={openPhoto}
             />
