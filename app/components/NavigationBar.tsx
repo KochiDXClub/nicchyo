@@ -34,6 +34,7 @@ import { GITHUB_REPO_URL } from "@/lib/siteLinks";
 import { useMenu } from "@/lib/ui/MenuContext";
 import { usePageVisibility } from "@/lib/pageVisibility/PageVisibilityContext";
 import { ODEKAKE_VISIBILITY_PATH } from "@/lib/pageVisibility/registry";
+import { useDismissOnOutside } from "@/lib/ui/useDismissOnOutside";
 import { useMapLoading } from "./MapLoadingProvider";
 import MenuGrandma from "./MenuGrandma";
 import {
@@ -366,7 +367,7 @@ function NavigationBarInner({
         {/* ─ 末尾の小さなリンク。来訪者向けの項目と並べず、フッターとして置く ─ */}
         <MenuDivider />
         <div className="px-3 py-2">
-          <LanguageSwitcher />
+          <LanguageSwitcher reopenMenu />
         </div>
         <a
           href={GITHUB_REPO_URL}
@@ -478,21 +479,7 @@ function StoryNavChooser({ item, isActive }: { item: NavItem; isActive: boolean 
   // 矢印キーで動く menu ではなく、ただのリンク2つなので、開閉ボタンと一覧を aria-controls でつなぐだけにする
   const listId = useId();
 
-  useEffect(() => {
-    if (!open) return;
-    const onPointerDown = (event: PointerEvent) => {
-      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
-    };
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setOpen(false);
-    };
-    document.addEventListener("pointerdown", onPointerDown);
-    document.addEventListener("keydown", onKeyDown);
-    return () => {
-      document.removeEventListener("pointerdown", onPointerDown);
-      document.removeEventListener("keydown", onKeyDown);
-    };
-  }, [open]);
+  useDismissOnOutside(open, rootRef, () => setOpen(false));
 
   return (
     <div ref={rootRef} className="relative flex h-full flex-1 lg:flex-none">
