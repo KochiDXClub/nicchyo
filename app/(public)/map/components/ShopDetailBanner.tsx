@@ -448,7 +448,6 @@ const ShopDetailBanner = memo(function ShopDetailBanner({
                 heroImageError={heroImageError}
                 onImageError={() => setHeroImageError(true)}
                 mode="compact"
-                showProductPreview
               />
             </div>
           )}

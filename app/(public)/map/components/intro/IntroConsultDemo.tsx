@@ -13,11 +13,12 @@
  * AI が動かないようにするため。見本であることは画面にも書いてある。
  */
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import GrandmaAvatar from '../../../consult/components/GrandmaAvatar';
 import { DEFAULT_CONSULT_CHARACTER } from '../../../consult/data/consultCharacters';
 import type { GrandmaPose } from '@/lib/grandma/pose';
-import { siteText } from '@/lib/siteCopy';
+import { useSiteText, useT } from '@/lib/i18n/LocaleContext';
+import type { SiteTextKey } from '@/lib/siteCopy';
 
 type Exchange = { question: string; answer: string };
 
@@ -25,15 +26,20 @@ type Exchange = { question: string; answer: string };
  * 実際によく聞かれる形に寄せた見本。答えは案内用の決め打ち。
  * 文言はスプレッドシートで編集する（docs/SITE_COPY.md）。組の数はここで決める
  */
-const EXCHANGES: Exchange[] = ([1, 2, 3] as const).map((n) => ({
-  question: siteText(`mapIntro.consultDemo.${n}.q`),
-  answer: siteText(`mapIntro.consultDemo.${n}.a`),
-}));
+function buildExchanges(text: (key: SiteTextKey) => string): Exchange[] {
+  return ([1, 2, 3] as const).map((n) => ({
+    question: text(`mapIntro.consultDemo.${n}.q`),
+    answer: text(`mapIntro.consultDemo.${n}.a`),
+  }));
+}
 
 /** 考えている時間。相談ページで実際に待つくらいの長さにする */
 const THINKING_MS = 900;
 
 export default function IntroConsultDemo() {
+  const { text: siteText } = useSiteText();
+  const t = useT();
+  const exchanges = useMemo(() => buildExchanges(siteText), [siteText]);
   const [asked, setAsked] = useState<Exchange | null>(null);
   const [thinking, setThinking] = useState(false);
   const timerRef = useRef<number | null>(null);
@@ -58,7 +64,7 @@ export default function IntroConsultDemo() {
   // 相談ページと同じ導き方（考えている → 答えている → 待機）
   const pose: GrandmaPose = thinking ? 'thinking' : asked ? 'speaking' : 'idle';
   const showAnswer = asked !== null;
-  const remaining = EXCHANGES.filter((e) => e.question !== asked?.question);
+  const remaining = exchanges.filter((e) => e.question !== asked?.question);
 
   return (
     <div className="flex flex-col gap-5 rounded-2xl bg-white/85 px-4 py-7 ring-1 ring-nicchyo-ink/10">
@@ -86,7 +92,7 @@ export default function IntroConsultDemo() {
             {DEFAULT_CONSULT_CHARACTER.name}
           </p>
           {thinking ? (
-            <div className="mt-3 flex flex-col gap-2" aria-live="polite" aria-label="考え中">
+            <div className="mt-3 flex flex-col gap-2" aria-live="polite" aria-label={t('考え中')}>
               <span className="consult-skeleton h-3.5 w-4/5 rounded-full" />
               <span
                 className="consult-skeleton h-3.5 w-full rounded-full"
