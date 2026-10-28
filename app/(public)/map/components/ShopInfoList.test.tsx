@@ -1,6 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import type { Shop } from "../data/shops";
+import { LocaleProvider } from "@/lib/i18n/LocaleContext";
 import { ShopInfoList } from "./ShopBannerHero";
 
 const shop = (overrides: Partial<Shop>): Shop =>
@@ -61,7 +62,7 @@ describe("ShopInfoList", () => {
   });
 
   it("出店時間や雨の日が無い店でも、ほかの情報を2つまで最初から見せる", () => {
-    render(<ShopInfoList shop={shop({ ...FULL, businessHoursStart: undefined, businessHoursEnd: undefined, rainPolicy: "undecided" })} />);
+    render(<ShopInfoList shop={shop({ ...FULL, businessHoursStart: undefined, businessHoursEnd: undefined, rainPolicy: undefined })} />);
 
     expect(visible("毎週日曜")).toBe(true);
     expect(visible("PayPay")).toBe(true);
@@ -108,5 +109,20 @@ describe("ShopInfoList", () => {
     const { container } = render(<ShopInfoList shop={shop({})} />);
 
     expect(container.innerHTML).toBe("");
+  });
+});
+
+
+describe("店舗の固定訳", () => {
+  it("AI訳が無くても選択肢を英語で表示し、自由記述や保存キーは変えない", () => {
+    const original = shop({ ...FULL, rainPolicy: "undecided", paymentMethods: ["cash", "card", "ic"], stallStyleTags: ["試食あり"], stallStyle: "店主の自由なひとこと", schedule: "毎週日曜日" });
+    render(<LocaleProvider locale="en"><ShopInfoList shop={original} /></LocaleProvider>);
+    expect(screen.getByText("Decided on the day (check social media)")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Show more" }));
+    for (const label of ["Cash", "Card", "Transit IC card", "Every Sunday", "Samples available・店主の自由なひとこと"]) {
+      expect(visible(label)).toBe(true);
+    }
+    expect(original.rainPolicy).toBe("undecided");
+    expect(original.paymentMethods).toEqual(["cash", "card", "ic"]);
   });
 });

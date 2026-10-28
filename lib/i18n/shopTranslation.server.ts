@@ -34,12 +34,11 @@ const BATCH_SIZE = 1;
 
 type TranslationRow = DatabaseWithExtensions["public"]["Tables"]["shop_translations"]["Row"];
 
-function toTranslation(row: Pick<TranslationRow, "name" | "strength" | "style" | "rain_policy" | "products">): ShopTranslation {
+function toTranslation(row: Pick<TranslationRow, "name" | "strength" | "style" | "products">): ShopTranslation {
   return {
     name: row.name,
     strength: row.strength,
     style: row.style,
-    rainPolicy: row.rain_policy,
     products: row.products ?? {},
   };
 }
@@ -58,7 +57,7 @@ const getCachedTranslations = unstable_cache(
     const supabase = anon as unknown as SupabaseClient<DatabaseWithExtensions>;
     const { data, error } = await supabase
       .from("shop_translations")
-      .select("vendor_id, name, strength, style, rain_policy, products, source_hash")
+      .select("vendor_id, name, strength, style, products, source_hash")
       .eq("locale", locale);
     if (error) {
       // 表が未作成（マイグレーション前）でも画面は止めない
@@ -178,7 +177,8 @@ export async function syncShopTranslations(params: {
             name: translation.name,
             strength: translation.strength,
             style: translation.style,
-            rain_policy: translation.rainPolicy,
+            // 旧バージョンのAI訳は使わない。雨天対応は保存キーから固定訳を表示する。
+            rain_policy: null,
             products: translation.products,
             source_hash: target.hash,
             status: "auto" as const,

@@ -31,6 +31,8 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import type { Shop } from "../data/shops";
+import { useT } from "@/lib/i18n/LocaleContext";
+import { RAIN_OPTIONS } from "@/lib/vendor/storeOptions";
 import { toIsoDate } from "@/lib/market/calendar";
 
 /**
@@ -129,9 +131,8 @@ function formatBusinessHours(start?: string, end?: string) {
 }
 
 const RAIN_POLICY_LABELS: Record<string, string> = {
-  outdoor: "雨でも出店",
+  ...Object.fromEntries(RAIN_OPTIONS.map(({ key, label }) => [key, label])),
   tent: "雨でも出店（テント）",
-  cancel: "雨天中止",
 };
 
 const PAYMENT_METHODS: Record<string, { label: string; icon: LucideIcon }> = {
@@ -174,6 +175,7 @@ function InfoRow({ icon: Icon, label, children }: { icon: LucideIcon; label: str
 const PRIMARY_ROW_COUNT = 2;
 
 export function ShopInfoList({ shop }: { shop: Shop }) {
+  const t = useT();
   // 最初は2行だけを出し、ほかは「もっと見る」で開く。下の商品や AI相談まで指が届きやすいように
   const [expanded, setExpanded] = useState(false);
   const detailsId = useId();
@@ -185,7 +187,7 @@ export function ShopInfoList({ shop }: { shop: Shop }) {
   const businessHours = formatBusinessHours(shop.businessHoursStart, shop.businessHoursEnd);
   const rainPolicy = shop.rainPolicy ? RAIN_POLICY_LABELS[shop.rainPolicy] : undefined;
   const payments = shop.paymentMethods ?? [];
-  const styles = [...(shop.stallStyleTags ?? []), ...(shop.stallStyle?.trim() ? [shop.stallStyle.trim()] : [])];
+  const styles = [...(shop.stallStyleTags ?? []).map(t), ...(shop.stallStyle?.trim() ? [shop.stallStyle.trim()] : [])];
   const { instagram, twitter, website } = shop.socialLinks ?? {};
   const links: { href: string; label: string; icon: ReactNode }[] = [];
   if (instagram) {
@@ -195,20 +197,20 @@ export function ShopInfoList({ shop }: { shop: Shop }) {
     links.push({ href: socialUrl(twitter, "https://x.com/"), label: "X", icon: <XLogo className="h-3.5 w-3.5" /> });
   }
   if (website) {
-    links.push({ href: socialUrl(website, ""), label: "サイト", icon: <Globe className="h-4 w-4" aria-hidden /> });
+    links.push({ href: socialUrl(website, ""), label: t("サイト"), icon: <Globe className="h-4 w-4" aria-hidden /> });
   }
 
   // 書かれている項目を、来訪者が知りたい順に並べる。先頭の2つを出し、残りを「もっと見る」に入れる
   // （出店時間や雨の日が無い店でも、ほかの情報が2つまで最初から見える）
   const rows: { key: string; node: ReactNode }[] = [];
-  if (businessHours) rows.push({ key: "hours", node: <InfoRow icon={Clock} label="出店時間">{businessHours}</InfoRow> });
-  if (rainPolicy) rows.push({ key: "rain", node: <InfoRow icon={Umbrella} label="雨の日">{rainPolicy}</InfoRow> });
-  if (schedule) rows.push({ key: "schedule", node: <InfoRow icon={CalendarDays} label="出店日">{schedule}</InfoRow> });
+  if (businessHours) rows.push({ key: "hours", node: <InfoRow icon={Clock} label={t("出店時間")}>{businessHours}</InfoRow> });
+  if (rainPolicy) rows.push({ key: "rain", node: <InfoRow icon={Umbrella} label={t("雨の日")}>{t(rainPolicy)}</InfoRow> });
+  if (schedule) rows.push({ key: "schedule", node: <InfoRow icon={CalendarDays} label={t("出店日")}>{t(schedule)}</InfoRow> });
   if (payments.length > 0) {
     rows.push({
       key: "payments",
       node: (
-        <InfoRow icon={Wallet} label="支払い">
+        <InfoRow icon={Wallet} label={t("支払い")}>
           <span className="flex flex-wrap gap-x-3 gap-y-1">
             {payments.map((method) => {
               const payment = PAYMENT_METHODS[method];
@@ -216,7 +218,7 @@ export function ShopInfoList({ shop }: { shop: Shop }) {
               return (
                 <span key={method} className="inline-flex items-center gap-1">
                   {PaymentIcon && <PaymentIcon className="h-3.5 w-3.5 text-nicchyo-ink/55" aria-hidden />}
-                  {payment?.label ?? method}
+                  {t(payment?.label ?? method)}
                 </span>
               );
             })}
@@ -225,8 +227,8 @@ export function ShopInfoList({ shop }: { shop: Shop }) {
       ),
     });
   }
-  if (styles.length > 0) rows.push({ key: "style", node: <InfoRow icon={Tag} label="スタイル">{styles.join("・")}</InfoRow> });
-  if (ownerName) rows.push({ key: "owner", node: <InfoRow icon={UserRound} label="出店者">{ownerName}</InfoRow> });
+  if (styles.length > 0) rows.push({ key: "style", node: <InfoRow icon={Tag} label={t("スタイル")}>{styles.join("・")}</InfoRow> });
+  if (ownerName) rows.push({ key: "owner", node: <InfoRow icon={UserRound} label={t("出店者")}>{ownerName}</InfoRow> });
 
   const primaryRows = rows.slice(0, PRIMARY_ROW_COUNT);
   const detailRows = rows.slice(PRIMARY_ROW_COUNT);
@@ -252,7 +254,7 @@ export function ShopInfoList({ shop }: { shop: Shop }) {
             aria-controls={detailsId}
             className="flex h-11 w-full items-center justify-center gap-1 border-t border-line text-[13px] font-semibold text-nicchyo-ink/70 transition hover:text-nicchyo-ink"
           >
-            {expanded ? "閉じる" : "もっと見る"}
+            {expanded ? t("閉じる") : t("もっと見る")}
             <ChevronDown
               className={`h-4 w-4 transition-transform duration-200 ease-out-soft motion-reduce:transition-none ${expanded ? "rotate-180" : ""}`}
               aria-hidden

@@ -85,7 +85,7 @@ describe("parseTranslationOutput", () => {
       { items: [{ key: "v-12", name: "N", strength: "s", style: "t", rainPolicy: "made up", products: [] }] },
       [{ key: "v-12", source }]
     );
-    expect(parsed.get("v-12")?.rainPolicy).toBeNull();
+    expect(parsed.get("v-12")).not.toHaveProperty("rainPolicy");
   });
 
   test("形が違う返事は空になる", () => {
@@ -100,7 +100,6 @@ describe("applyShopTranslation", () => {
       name: "Nakamura Shoten",
       strength: "Fresh from the fryer!",
       style: null,
-      rainPolicy: null,
       products: { 芋天: "imoten" },
     });
     expect(translated.name).toBe("Nakamura Shoten (中村商店)");
@@ -135,7 +134,7 @@ describe("limitSourceForTranslation", () => {
     expect(source.strength).toBe(long);
     const limited = limitSourceForTranslation(source);
     expect(limited.strength).toBe("");
-    expect(limited.rainPolicy).toBe("雨でも出ます");
+    expect(limited).not.toHaveProperty("rainPolicy");
   });
 
   test("ハッシュの元は全文なので、301文字目以降を直すと訳し直しの対象になる", () => {
@@ -151,9 +150,29 @@ describe("applyShopTranslation の productOriginalNames", () => {
       name: "Nakamura Shoten",
       strength: null,
       style: null,
-      rainPolicy: null,
       products: { 芋天: "imoten (sweet potato tempura)" },
     });
     expect(translated.productOriginalNames).toEqual({ "imoten (sweet potato tempura)": "芋天" });
+  });
+});
+
+describe("選択項目はAI翻訳から除外", () => {
+  test("選択肢だけの変更ではハッシュの入力が変わらない", () => {
+    const changed = { ...baseShop, rainPolicy: "cancel", paymentMethods: ["card"], stallStyleTags: ["試食あり"], schedule: "毎週土曜日" };
+    expect(serializeTranslationSource("en", buildTranslationSource(changed))).toBe(
+      serializeTranslationSource("en", buildTranslationSource(baseShop))
+    );
+    expect(buildTranslationSource(changed)).not.toHaveProperty("rainPolicy");
+  });
+
+  test("自由記述のスタイルを変えると再翻訳の対象になる", () => {
+    expect(serializeTranslationSource("en", buildTranslationSource({ ...baseShop, stallStyle: "焼きたてをお渡しします" }))).not.toBe(
+      serializeTranslationSource("en", buildTranslationSource(baseShop))
+    );
+  });
+
+  test("古いAI訳の雨天対応が混ざっても保存キーを上書きしない", () => {
+    const legacy = { name: null, strength: null, style: null, products: {}, rainPolicy: "Closed in the rain" };
+    expect(applyShopTranslation({ ...baseShop, rainPolicy: "outdoor" }, legacy).rainPolicy).toBe("outdoor");
   });
 });
