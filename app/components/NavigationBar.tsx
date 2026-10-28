@@ -274,6 +274,7 @@ function NavigationBarInner({
         onClose={closeMenu}
         label={t("メニュー")}
         returnFocusRef={menuButtonRef}
+        showTopBar
         // 地図ではメニューボタンが右上にあるので、PC・ノートPCではそのすぐ下に開く
         desktopDropdown={isMapNav}
       >
@@ -366,7 +367,8 @@ function NavigationBarInner({
 
         {/* ─ 末尾の小さなリンク。来訪者向けの項目と並べず、フッターとして置く ─ */}
         <MenuDivider />
-        <div className="px-3 py-2">
+        {/* スマホ幅では、メニューの上のヘッダー（MenuTopBar）に言語切り替えがある */}
+        <div className="hidden px-3 py-2 lg:block">
           <LanguageSwitcher reopenMenu />
         </div>
         <a
