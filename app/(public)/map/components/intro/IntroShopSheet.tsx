@@ -26,6 +26,7 @@ import {
 } from '../ShopBannerHero';
 import { getShopBannerImage } from '@/lib/shopImages';
 import type { Shop } from '../../types/shopData';
+import { useT } from '@/lib/i18n/LocaleContext';
 
 /** 本番の drawer と同じ、枠に対する開き具合（DRAWER_FULL_RATIO） */
 export const INTRO_SHEET_RATIO = 0.9;
@@ -41,6 +42,7 @@ export default function IntroShopSheet({
   onToggleFavorite: () => void;
   onClose: () => void;
 }) {
+  const t = useT();
   const theme = resolveBannerTheme(shop.themeColor);
   const bannerImage = getShopBannerImage(shop.category, shop.id);
 
@@ -62,7 +64,7 @@ export default function IntroShopSheet({
         <button
           type="button"
           onClick={onClose}
-          aria-label="閉じる"
+          aria-label={t('閉じる')}
           className="absolute right-3 top-2 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-slate-600 shadow-sm transition hover:bg-slate-200"
         >
           <XIcon className="h-4 w-4" />
@@ -87,7 +89,7 @@ export default function IntroShopSheet({
           <ShopInfoList shop={shop} />
 
           <div>
-            <h3 className="text-[15px] font-bold text-nicchyo-ink">商品</h3>
+            <h3 className="text-[15px] font-bold text-nicchyo-ink">{t('商品')}</h3>
             {shop.products.length > 0 ? (
               <ul className="mt-3 flex flex-wrap gap-2">
                 {shop.products.map((product) => (
@@ -100,15 +102,15 @@ export default function IntroShopSheet({
                 ))}
               </ul>
             ) : (
-              <p className="mt-3 text-sm text-slate-400">商品はまだ登録されていません</p>
+              <p className="mt-3 text-sm text-slate-400">{t('商品はまだ登録されていません')}</p>
             )}
           </div>
 
           <p className="flex items-center justify-center gap-1.5 text-center text-[11.5px] font-semibold text-slate-400">
             <Heart className="h-3.5 w-3.5" fill={isFavorite ? 'currentColor' : 'none'} />
             {isFavorite
-              ? 'お気に入りに入れました。屋根に印が付きます'
-              : 'ハートを押すと、あとからまとめて見られます'}
+              ? t('お気に入りに入れました。屋根に印が付きます')
+              : t('ハートを押すと、あとからまとめて見られます')}
           </p>
         </div>
       </div>

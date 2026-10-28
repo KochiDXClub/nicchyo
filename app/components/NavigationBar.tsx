@@ -49,6 +49,7 @@ import {
   MenuUserRow,
 } from "@/components/navigation/MenuSheet";
 import LanguageSwitcher from "@/components/navigation/LanguageSwitcher";
+import { useT } from "@/lib/i18n/LocaleContext";
 
 // ─── ナビゲーション項目 ────────────────────────────────────────────────────────
 type NavItem = {
@@ -148,6 +149,7 @@ function NavigationBarInner({
   onConsultClick,
   backBarOnTop = false,
 }: NavigationBarProps) {
+  const t = useT();
   const pathname = useAppPathname();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -255,11 +257,11 @@ function NavigationBarInner({
   };
 
   const roleLabel = permissions.isAdmin
-    ? "管理者"
+    ? t("管理者")
     : permissions.isModerator
-    ? "モデレーター"
+    ? t("モデレーター")
     : permissions.isVendor
-    ? "出店者"
+    ? t("出店者")
     : null;
 
   if (isRoleConsoleArea) return null;
@@ -270,7 +272,7 @@ function NavigationBarInner({
       <MenuSheet
         open={menuOpen}
         onClose={closeMenu}
-        label="メニュー"
+        label={t("メニュー")}
         returnFocusRef={menuButtonRef}
         // 地図ではメニューボタンが右上にあるので、PC・ノートPCではそのすぐ下に開く
         desktopDropdown={isMapNav}
@@ -286,7 +288,7 @@ function NavigationBarInner({
         ) : (
           <MenuRow
             icon={LogIn}
-            label="ログイン / 登録"
+            label={t("ログイン / 登録")}
             onClick={() => handleMenuItemClick("/login")}
           />
         )}
@@ -294,10 +296,10 @@ function NavigationBarInner({
         {/* ─ 出店者ページへの入口。出店者がいちばんよく使うので、来訪者向けの項目より上に置く ─ */}
         {showVendorHome && (
           <>
-            <MenuDivider label="出店者" />
+            <MenuDivider label={t("出店者")} />
             <MenuRow
               icon={vendorHomeItem.icon}
-              label={vendorHomeItem.label}
+              label={t(vendorHomeItem.label)}
               onClick={() => handleMenuItemClick(vendorHomeItem.href)}
             />
           </>
@@ -310,8 +312,8 @@ function NavigationBarInner({
           <MenuRow
             key={item.href}
             icon={item.icon}
-            label={item.label}
-            badge={item.badge}
+            label={t(item.label)}
+            badge={item.badge ? t(item.badge) : undefined}
             onClick={() => handleMenuItemClick(item.href)}
           />
         ))}
@@ -326,8 +328,8 @@ function NavigationBarInner({
                   <MenuRow
                     key={item.href}
                     icon={item.icon}
-                    label={item.label}
-                    badge={item.badge}
+                    label={t(item.label)}
+                    badge={item.badge ? t(item.badge) : undefined}
                     muted
                     onClick={() => handleMenuItemClick(item.href)}
                   />
@@ -341,7 +343,7 @@ function NavigationBarInner({
         {/* ─ 管理メニュー ─ */}
         {permissions.isAdmin && (
           <>
-            <MenuDivider label="管理者" />
+            <MenuDivider label={t("管理者")} />
             {adminMenuItems.map((item) => (
               <MenuRow
                 key={item.href}
@@ -358,7 +360,7 @@ function NavigationBarInner({
         {isLoggedIn && (
           <>
             <MenuDivider />
-            <MenuRow icon={LogOut} label="ログアウト" muted onClick={handleLogout} />
+            <MenuRow icon={LogOut} label={t("ログアウト")} muted onClick={handleLogout} />
           </>
         )}
 
@@ -374,7 +376,7 @@ function NavigationBarInner({
           className="flex items-center gap-1.5 px-3 py-2 text-[11px] font-semibold tracking-wide text-nicchyo-ink/40 transition hover:text-nicchyo-ink/70"
         >
           <Github className="h-3.5 w-3.5" aria-hidden />
-          オープンソースで開発しています（GitHub）
+          {t("オープンソースで開発しています（GitHub）")}
         </a>
       </MenuSheet>
 
@@ -410,7 +412,7 @@ function NavigationBarInner({
                   aria-hidden
                 />
                 <span className="text-[10px] font-medium leading-none tracking-tight lg:text-sm lg:font-semibold">
-                  {consultItem.name}
+                  {t(consultItem.name)}
                 </span>
               </button>
             ) : (
@@ -445,13 +447,13 @@ function NavigationBarInner({
                 <X className="h-5 w-5 text-white" strokeWidth={2.4} aria-hidden />
               </div>
               <span className="text-[10px] font-medium leading-none tracking-tight text-white/80 lg:text-sm lg:font-semibold lg:text-white">
-                閉じる
+                {t("閉じる")}
               </span>
             </div>
           </div>
         ) : (
           /* ── サブページ：もどるバー ── */
-          <BottomNavBackBar label="マップにもどる" onClick={goToMap} compact={topBackBar} />
+          <BottomNavBackBar label={t("マップにもどる")} onClick={goToMap} compact={topBackBar} />
         )}
       </nav>
     </>
@@ -460,8 +462,9 @@ function NavigationBarInner({
 
 // ─── NavLinkItem ──────────────────────────────────────────────────────────────
 function NavLinkItem({ item, isActive }: { item: NavItem; isActive: boolean }) {
+  const t = useT();
   return (
-    <BottomNavLink href={item.href} label={item.name} icon={item.icon} isActive={isActive} inlineOnLg />
+    <BottomNavLink href={item.href} label={t(item.name)} icon={item.icon} isActive={isActive} inlineOnLg />
   );
 }
 
@@ -470,6 +473,7 @@ function NavLinkItem({ item, isActive }: { item: NavItem; isActive: boolean }) {
  * 行くかを選ぶ。外側を押すか Esc で閉じる。
  */
 function StoryNavChooser({ item, isActive }: { item: NavItem; isActive: boolean }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   // 矢印キーで動く menu ではなく、ただのリンク2つなので、開閉ボタンと一覧を aria-controls でつなぐだけにする
@@ -486,14 +490,14 @@ function StoryNavChooser({ item, isActive }: { item: NavItem; isActive: boolean 
         aria-controls={open ? listId : undefined}
         className={bottomNavItemClass(isActive || open, true)}
       >
-        <BottomNavItemContent icon={item.icon} label={item.name} isActive={isActive || open} inlineOnLg />
+        <BottomNavItemContent icon={item.icon} label={t(item.name)} isActive={isActive || open} inlineOnLg />
       </button>
       <AnimatePresence>
         {open && (
           <motion.div
             id={listId}
             role="group"
-            aria-label="近況の行き先"
+            aria-label={t("近況の行き先")}
             initial={{ opacity: 0, y: 6 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 6 }}
@@ -508,9 +512,9 @@ function StoryNavChooser({ item, isActive }: { item: NavItem; isActive: boolean 
                 onClick={() => setOpen(false)}
                 className="block rounded-btn px-3 py-2.5 text-left transition hover:bg-nicchyo-ink/5 active:bg-nicchyo-ink/10"
               >
-                <span className="block text-sm font-bold leading-tight text-nicchyo-ink">{choice.label}</span>
+                <span className="block text-sm font-bold leading-tight text-nicchyo-ink">{t(choice.label)}</span>
                 <span className="mt-0.5 block text-[11px] leading-tight text-nicchyo-ink/55">
-                  {choice.description}
+                  {t(choice.description)}
                 </span>
               </Link>
             ))}

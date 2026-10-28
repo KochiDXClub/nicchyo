@@ -93,37 +93,31 @@ export async function fetchMyProductNames(vendorId: string): Promise<string[]> {
 
 // ─── 商品検索ログ ────────────────────────────────────────────
 
+/**
+ * 日曜市全体のよく検索された語（上位10件）に、自分の商品と重なるかの印を付ける。
+ * 生の検索語はブラウザで読まず、サーバーが数えた「語と回数」だけを受け取る（#922）
+ */
 export async function fetchProductSearchTrends(
   myProductNames: string[]
 ): Promise<SearchKeywordTrend[]> {
-  const supabase = createClient();
-  const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
-  const { data } = await supabase
-    .from("product_search_logs")
-    .select("keyword")
-    .gte("searched_at", weekAgo);
-
-  if (!data) return [];
-
-  const countMap = new Map<string, number>();
-  for (const row of data) {
-    const kw = row.keyword.trim().toLowerCase();
-    if (kw.length < 2) continue;
-    countMap.set(kw, (countMap.get(kw) ?? 0) + 1);
+  let keywords: { keyword: string; count: number }[];
+  try {
+    const res = await fetch("/api/vendor/search-trends");
+    if (!res.ok) return [];
+    keywords = ((await res.json()) as { keywords?: { keyword: string; count: number }[] }).keywords ?? [];
+  } catch {
+    return [];
   }
 
   const lowerProductNames = myProductNames.map((n) => n.toLowerCase());
 
-  return [...countMap.entries()]
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 10)
-    .map(([keyword, count]) => ({
-      keyword,
-      count,
-      matchesMyProducts: lowerProductNames.some(
-        (p) => p.includes(keyword) || keyword.includes(p)
-      ),
-    }));
+  return keywords.map(({ keyword, count }) => ({
+    keyword,
+    count,
+    matchesMyProducts: lowerProductNames.some(
+      (p) => p.includes(keyword) || keyword.includes(p)
+    ),
+  }));
 }
 
 // ─── AI相談アナリティクス ────────────────────────────────────
