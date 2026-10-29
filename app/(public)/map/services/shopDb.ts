@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { fetchAssignmentRows, fetchLocationRows, fetchProductRows } from "@/lib/shops/baseRowQueries";
 import { fetchAllRows } from "@/lib/supabase/fetchAllRows";
 import type { Database } from "@/types/database.types";
+import { normalizeShopImageKind } from "@/lib/shopImages";
 import type { Shop } from "../types/shopData";
 
 type VendorRow = {
@@ -18,6 +19,7 @@ type VendorRow = {
   rain_policy: string | null;
   schedule: string[] | null;
   shop_image_url: string | null;
+  shop_image_kind: string | null;
   sns_instagram: string | null;
   sns_x: string | null;
   sns_hp: string | null;
@@ -118,7 +120,7 @@ export async function fetchVendorShopBaseRows(
       (from, to) =>
         supabase
           .from("vendors")
-          .select("id, shop_name, strength, style, style_tags, category_id, categories(name), main_products, main_product_prices, payment_methods, rain_policy, schedule, shop_image_url, sns_instagram, sns_x, sns_hp, business_hours_start, business_hours_end")
+          .select("id, shop_name, strength, style, style_tags, category_id, categories(name), main_products, main_product_prices, payment_methods, rain_policy, schedule, shop_image_url, shop_image_kind, sns_instagram, sns_x, sns_hp, business_hours_start, business_hours_end")
           .order("id", { ascending: true })
           .range(from, to) as unknown as PromiseLike<{ data: VendorRow[] | null; error: { message: string } | null }>,
       { label: "vendors" }
@@ -333,7 +335,9 @@ export function buildVendorShops(
         rainPolicy: vendor.rain_policy ?? undefined,
         activePosts,
         activePost,
-        images: vendor.shop_image_url ? { main: vendor.shop_image_url } : undefined,
+        images: vendor.shop_image_url
+          ? { main: vendor.shop_image_url, mainKind: normalizeShopImageKind(vendor.shop_image_kind) }
+          : undefined,
         socialLinks: (vendor.sns_instagram || vendor.sns_x || vendor.sns_hp) ? {
           instagram: vendor.sns_instagram ?? undefined,
           twitter: vendor.sns_x ?? undefined,

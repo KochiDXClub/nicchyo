@@ -65,4 +65,16 @@ describe("ShopPhotoViewer", () => {
     expect(fireEvent.keyDown(window, { key: "Tab", shiftKey: true })).toBe(false);
     expect(document.activeElement).toBe(previous);
   });
+
+  it("全周写真（kind が panorama）はドラッグで見渡せる表示になり、スマホでも前後の矢印が出る。普通の写真は今までどおり", () => {
+    const photos: ShopPhoto[] = [
+      { src: "https://example.supabase.co/a.webp", alt: "普通の写真" },
+      { src: "https://example.supabase.co/p.webp", alt: "全周の写真", kind: "panorama" },
+    ];
+    render(<ShopPhotoViewer photos={photos} initialIndex={0} onClose={() => {}} />);
+    expect(screen.getAllByRole("application")).toHaveLength(1);
+    expect(screen.getByRole("application").getAttribute("aria-label")).toContain("全周の写真");
+    // 普通の写真が先に開いているときは、矢印はPCだけ（hidden md:flex）
+    expect(screen.getByRole("button", { name: "次の写真" }).className).toContain("hidden");
+  });
 });

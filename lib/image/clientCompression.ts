@@ -115,6 +115,19 @@ export async function canDecodeImage(source: Blob): Promise<boolean> {
 }
 
 /**
+ * 画像の幅と高さ（ピクセル）を読む。全周写真（2:1）の登録で、選んだ写真の比率を確かめるのに使う。
+ * 読めなかったときは null
+ */
+export async function readImageSize(source: Blob): Promise<{ width: number; height: number } | null> {
+  try {
+    const img = await loadImageElement(source);
+    return { width: img.naturalWidth, height: img.naturalHeight };
+  } catch {
+    return null;
+  }
+}
+
+/**
  * 画像を Canvas でリサイズし、指定形式の Blob に変換する
  */
 export async function resizeImageToBlob(

@@ -21,6 +21,8 @@
  * - API経由でのデータ取得・更新
  */
 
+import type { ShopImageKind } from "@/lib/shopImages";
+
 /**
  * 出店者が編集可能なデータ
  *
@@ -123,6 +125,8 @@ export interface ShopEditableData {
   images?: {
     /** メイン画像 */
     main?: string;
+    /** メイン画像の種類（登録時のラベル）。未設定は普通の写真 */
+    mainKind?: ShopImageKind;
     /** サムネイル画像 */
     thumbnail?: string;
     /** 追加画像（最大5枚） */

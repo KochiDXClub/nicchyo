@@ -14,7 +14,7 @@ export const dynamic = "force-dynamic";
 
 // select の列は文字列リテラルで渡す（連結すると、Supabase の型推論が効かなくなる）
 const DETAIL_COLUMNS =
-  "id, shop_name, category_id, categories(name), style, strength, main_products, main_product_prices, payment_methods, rain_policy, sns_instagram, sns_x, sns_hp, business_hours_start, business_hours_end, shop_image_url, listing_status, photo_use_allowed, listing_consented_on, listing_consent_note, updated_at" as const;
+  "id, shop_name, category_id, categories(name), style, strength, main_products, main_product_prices, payment_methods, rain_policy, sns_instagram, sns_x, sns_hp, business_hours_start, business_hours_end, shop_image_url, shop_image_kind, listing_status, photo_use_allowed, listing_consented_on, listing_consent_note, updated_at" as const;
 
 /**
  * 運営が現地で店舗を代理編集するための、店舗 1 件の取得。

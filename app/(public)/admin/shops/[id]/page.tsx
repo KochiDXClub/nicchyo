@@ -124,6 +124,9 @@ function AdminShopDetailContent() {
                 ) : (
                   <span className="text-nicchyo-ink/40">{EMPTY}</span>
                 )}
+                {shop.shop_image_url && shop.shop_image_kind === "panorama" ? (
+                  <span className="mt-1 block text-xs font-semibold text-nicchyo-ink/70">全周カメラ（360°）の写真</span>
+                ) : null}
               </Row>
             </Section>
 

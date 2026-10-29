@@ -17,8 +17,7 @@ import {
 } from "lucide-react";
 import { Shop } from "../data/shops";
 import { formatShopIdToCode } from "@/lib/shops/route";
-import { usePanoramaProbe } from "../../../../lib/image/usePanoramaProbe";
-import { getShopPreviewImage } from "../../../../lib/shopImages";
+import { getShopPreviewImage, getShopThumbnailImage } from "../../../../lib/shopImages";
 import {
   isProductFavorited,
   isShopFavorited,
@@ -200,13 +199,18 @@ const ShopDetailBanner = memo(function ShopDetailBanner({
   const handleFavoritesClick = useCallback(() => { router.push("/favorites"); }, [router]);
 
   const isShopFavorite = isShopFavorited(favoriteEntries, shop.id);
-  // 全周写真の店は、バナーには小さなサムネイルを出し、重い本体はタップして拡大表示を開いたときに読む。
-  // 全周かどうかは、サムネイルの縦横比（2:1）で見分ける
+  // 全周写真の店は、バナーにはサムネイルを出し、重い本体はタップして拡大表示を開いたときに読む。
+  // 全周かどうかは、登録のときに付けたラベル（images.mainKind）で決める
   const mainImage = shop.images?.main;
-  const thumbImage = shop.images?.thumbnail;
-  const hasPanoramaBanner = usePanoramaProbe(mainImage && thumbImage && thumbImage !== mainImage ? thumbImage : null);
-  const bannerImage = hasPanoramaBanner && thumbImage ? thumbImage : getShopPreviewImage(shop);
+  const hasPanoramaBanner = !!mainImage && shop.images?.mainKind === "panorama";
+  // サムネイルが読めないときは本体に戻す（全周写真の店でも写真が消えないように）
+  const [panoramaThumbFailed, setPanoramaThumbFailed] = useState(false);
+  const bannerImage = hasPanoramaBanner && !panoramaThumbFailed ? getShopThumbnailImage(shop) : getShopPreviewImage(shop);
   // 拡大表示で開く写真。全周写真の店は、バナーのサムネイルでなく本体
+  const handleHeroImageError = useCallback(() => {
+    if (hasPanoramaBanner && !panoramaThumbFailed && bannerImage !== mainImage) setPanoramaThumbFailed(true);
+    else setHeroImageError(true);
+  }, [bannerImage, hasPanoramaBanner, mainImage, panoramaThumbFailed]);
   const heroPhotoSrc = hasPanoramaBanner && mainImage ? mainImage : bannerImage;
 
 
@@ -255,13 +259,18 @@ const ShopDetailBanner = memo(function ShopDetailBanner({
     [shop.images]
   );
   const photos = useMemo<ShopPhoto[]>(() => [
-    ...(heroImageError ? [] : shopPhotoSources).map((src) => ({ src, alt: `${shop.name}の写真`, caption: shop.name })),
+    ...(heroImageError ? [] : shopPhotoSources).map((src) => ({
+      src,
+      alt: `${shop.name}の写真`,
+      caption: shop.name,
+      kind: src === mainImage ? shop.images?.mainKind : undefined,
+    })),
     ...shop.products.flatMap((product) => {
       const src = productImageOf(product);
       const price = shop.productPrices?.[product];
       return src ? [{ src, alt: `${product}の写真`, caption: price != null ? `${product}　${formatProductPrice(price)}` : product }] : [];
     }),
-  ], [heroImageError, productImageOf, shop.name, shop.productPrices, shop.products, shopPhotoSources]);
+  ], [heroImageError, mainImage, productImageOf, shop.images?.mainKind, shop.name, shop.productPrices, shop.products, shopPhotoSources]);
   const openPhoto = useCallback((src: string) => {
     const index = photos.findIndex((photo) => photo.src === src);
     if (index >= 0) setViewerIndex(index);
@@ -283,6 +292,7 @@ const ShopDetailBanner = memo(function ShopDetailBanner({
   useEffect(() => {
     setCurrentPostIndex(0);
     setHeroImageError(false);
+    setPanoramaThumbFailed(false);
     setViewerIndex(null);
     setToast(null);
     setSurface(initialMobileSurface);
@@ -462,7 +472,7 @@ const ShopDetailBanner = memo(function ShopDetailBanner({
                 bannerImage={bannerImage}
                 theme={theme}
                 heroImageError={heroImageError}
-                onImageError={() => setHeroImageError(true)}
+                onImageError={handleHeroImageError}
                 mode="compact"
                 onOpenPhoto={handleOpenHeroPhoto}
               />
@@ -515,7 +525,7 @@ const ShopDetailBanner = memo(function ShopDetailBanner({
               bannerImage={bannerImage}
               theme={theme}
               heroImageError={heroImageError}
-              onImageError={() => setHeroImageError(true)}
+              onImageError={handleHeroImageError}
               mode="expanded"
               isPanorama={hasPanoramaBanner}
               isFavorite={isShopFavorite}

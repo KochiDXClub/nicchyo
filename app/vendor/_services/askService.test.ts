@@ -117,7 +117,8 @@ describe("saveAskAnswer（どの列に書くか）", () => {
 
     await saveAskAnswer("v1", "2026-10-04", { id: "shop-photo", imageFile: null });
 
-    expect(writes()[0].payload).toEqual(expect.objectContaining({ shop_image_url: null }));
+    // 写真の種類も普通に戻す（次に入れる写真に全周のラベルを残さない）
+    expect(writes()[0].payload).toEqual(expect.objectContaining({ shop_image_url: null, shop_image_kind: "normal" }));
     expect(storageRemove).toHaveBeenCalledWith(["v1/store-main.webp", "v1/store-thumb.webp"]);
   });
 

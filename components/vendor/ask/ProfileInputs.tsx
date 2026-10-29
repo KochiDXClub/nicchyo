@@ -9,6 +9,8 @@ import { AskForm, DraftAddRow, RemovableChip, choiceClass, fieldClass, type Inpu
 import PhotoPickerField from "./PhotoPickerField";
 import ProductPhotoButton from "./ProductPhotoButton";
 import { usePhotoPicker } from "./usePhotoPicker";
+import { ShopImageKindField } from "../ShopImageKindField";
+import { useShopImageKind } from "../useShopImageKind";
 
 // 店舗情報の基本項目（編集画面の質問）の入力欄。トップの質問の入力欄は AskInputs にある。
 
@@ -37,14 +39,23 @@ export function LineTextInput({ snapshot, saving, onSubmit, onSkip, question }: 
 export function PhotoInput({ snapshot, saving, onSubmit, onSkip }: InputProps) {
   const picker = usePhotoPicker(snapshot.shopImageUrl);
   const { file } = picker;
+  const imageKind = useShopImageKind(file);
   return (
     <AskForm
-      canSubmit={!!file}
+      canSubmit={!!file && !imageKind.checking}
       saving={saving}
       onSkip={onSkip}
-      onSubmit={() => file && onSubmit({ id: "shop-photo", imageFile: file })}
+      onSubmit={() => file && onSubmit({ id: "shop-photo", imageFile: file, imageKind: imageKind.kind })}
     >
       <PhotoPickerField picker={picker} alt="お店の写真" className="h-52" />
+      {/* 新しく選んだ写真にだけ付ける。今の写真の種類は、選び直すときに決め直す */}
+      {file && (
+        <ShopImageKindField
+          value={imageKind.kind}
+          onChange={imageKind.setKind}
+          panoramaAvailable={imageKind.panoramaAvailable}
+        />
+      )}
       <p className="text-center text-xs text-nicchyo-ink/55">
         マップの吹き出しと、お店のページのバナーに出るきね
       </p>
