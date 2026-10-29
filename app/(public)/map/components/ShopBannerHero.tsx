@@ -365,77 +365,77 @@ export function ShopBannerHero({
   }
 
   return (
-    // 来訪者は写真を見て行くかを決めるので、写真を大きく取る
-    <div className="relative h-72 overflow-hidden rounded-sheet bg-nicchyo-ink/[0.06] shadow-card md:h-80 md:rounded-none md:shadow-none">
-      {heroImageError ? (
-        <CategoryPlaceholder category={shop.category} theme={theme} iconClassName="h-16 w-16 -translate-y-6" />
-      ) : (
-        <Image
-          src={bannerImage}
-          alt={`${shop.name}の写真`}
-          fill
-          // 画面幅いっぱい（PC では最大でもバナーの幅）。sizes が無いと 1920px 幅を取りに行く
-          sizes="(max-width: 768px) 100vw, 640px"
-          className="object-cover object-center"
-          priority
-          onError={onImageError}
-        />
-      )}
-      {onOpenPhoto && !heroImageError && (
-        <button
-          type="button"
-          onClick={onOpenPhoto}
-          aria-label={`${shop.name}の写真を大きく見る`}
-          className="absolute inset-0 z-[1]"
-        >
-          <span className="absolute left-3 top-3 flex h-8 items-center gap-1 rounded-chip bg-black/35 px-2.5 text-[11px] font-bold text-white backdrop-blur-sm">
-            {isPanorama ? <Rotate3d className="h-3.5 w-3.5" aria-hidden /> : <Expand className="h-3.5 w-3.5" aria-hidden />}
-            {isPanorama ? "360°" : "拡大"}
-          </span>
-        </button>
-      )}
-      <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/70 via-black/15 to-transparent" />
-      <div className="pointer-events-none absolute bottom-0 left-0 right-0 z-[2] px-5 pb-4">
-        <div className="flex items-end justify-between gap-3">
-          <div className="min-w-0 flex-1">
-            <div className="mb-2 flex flex-wrap items-center gap-2">
-              <span className="rounded-chip bg-white/20 px-2.5 py-1 text-[11px] font-bold text-white backdrop-blur-sm">
-                {shop.category || "ショップ"}
+    <div>
+      {/* 来訪者は写真を見て行くかを決めるので、写真を大きく取る。店名などは写真に重ねず、下に出す */}
+      <div className="relative h-72 overflow-hidden rounded-sheet bg-nicchyo-ink/[0.06] shadow-card md:h-80 md:rounded-none md:shadow-none">
+        {heroImageError ? (
+          <CategoryPlaceholder category={shop.category} theme={theme} iconClassName="h-16 w-16" />
+        ) : (
+          <Image
+            src={bannerImage}
+            alt={`${shop.name}の写真`}
+            fill
+            // 画面幅いっぱい（PC では最大でもバナーの幅）。sizes が無いと 1920px 幅を取りに行く
+            sizes="(max-width: 768px) 100vw, 640px"
+            className="object-cover object-center"
+            priority
+            onError={onImageError}
+          />
+        )}
+        {onOpenPhoto && !heroImageError && (
+          <button
+            type="button"
+            onClick={onOpenPhoto}
+            aria-label={isPanorama ? `${shop.name}の写真を360度見渡す` : `${shop.name}の写真を大きく見る`}
+            className="absolute inset-0 z-[1]"
+          >
+            <span className="absolute left-3 top-3 flex h-8 items-center gap-1 rounded-chip bg-black/35 px-2.5 text-[11px] font-bold text-white backdrop-blur-sm">
+              {isPanorama ? <Rotate3d className="h-3.5 w-3.5" aria-hidden /> : <Expand className="h-3.5 w-3.5" aria-hidden />}
+              {isPanorama ? "360°" : "拡大"}
+            </span>
+          </button>
+        )}
+      </div>
+
+      <div className="flex items-start justify-between gap-3 px-1 pt-3">
+        <div className="min-w-0 flex-1">
+          <div className="mb-1.5 flex flex-wrap items-center gap-2">
+            <span
+              className="rounded-chip px-2.5 py-1 text-[11px] font-bold"
+              style={{ backgroundColor: theme.light, color: theme.text }}
+            >
+              {shop.category || "ショップ"}
+            </span>
+            {isOpenToday(shop) && (
+              <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-bold text-emerald-700">
+                今日出店中
               </span>
-              {isOpenToday(shop) && (
-                <span className="rounded-full bg-emerald-400/20 px-2.5 py-1 text-[11px] font-bold text-white backdrop-blur-sm">
-                  今日出店中
-                </span>
-              )}
-            </div>
-            <h2 className="text-3xl font-extrabold leading-tight text-white drop-shadow-md md:text-4xl">
-              {shop.name}
-            </h2>
-            {shop.catchphrase && (
-              <p className="mt-1 text-sm font-medium text-white/80 drop-shadow">
-                {shop.catchphrase}
-              </p>
             )}
           </div>
-          {/* 文字の上は写真の拡大に通すが、ここのボタンは押せるようにする */}
-          <div className="pointer-events-auto flex shrink-0 items-center gap-2">
-            {onToggleFavorite && (
-              <button
-                type="button"
-                onClick={onToggleFavorite}
-                aria-pressed={isFavorite}
-                aria-label={isFavorite ? "お気に入りから外す" : "お気に入りに入れる"}
-                className={`flex h-10 w-10 items-center justify-center rounded-full backdrop-blur-sm transition active:scale-95 ${
-                  isFavorite
-                    ? "bg-favorite-fg text-white hover:opacity-90"
-                    : "bg-white/20 text-white hover:bg-white/30"
-                }`}
-              >
-                <Heart className="h-[18px] w-[18px]" fill={isFavorite ? "currentColor" : "none"} />
-              </button>
-            )}
-          </div>
+          <h2 className="text-3xl font-extrabold leading-tight text-nicchyo-ink md:text-4xl">
+            {shop.name}
+          </h2>
+          {shop.catchphrase && (
+            <p className="mt-1 text-sm font-medium text-nicchyo-ink/70">
+              {shop.catchphrase}
+            </p>
+          )}
         </div>
+        {onToggleFavorite && (
+          <button
+            type="button"
+            onClick={onToggleFavorite}
+            aria-pressed={isFavorite}
+            aria-label={isFavorite ? "お気に入りから外す" : "お気に入りに入れる"}
+            className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition active:scale-95 ${
+              isFavorite
+                ? "bg-favorite-fg text-white hover:opacity-90"
+                : "bg-nicchyo-ink/[0.06] text-nicchyo-ink/70 hover:bg-nicchyo-ink/10"
+            }`}
+          >
+            <Heart className="h-[18px] w-[18px]" fill={isFavorite ? "currentColor" : "none"} />
+          </button>
+        )}
       </div>
     </div>
   );
