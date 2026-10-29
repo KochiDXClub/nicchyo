@@ -5,7 +5,7 @@ import type { DatabaseWithExtensions } from "@/types/database.extensions";
 import { buildGrandmaAiSystemPrompt } from "@/lib/grandma/prompts/consultSystemPrompt";
 import { buildLanguageInstruction } from "@/lib/grandma/prompts/languageRules";
 import { translateQuestionForSearch } from "@/lib/grandma/searchQuestion";
-import { LOCALE_HEADER, toLocale, type Locale } from "@/lib/i18n/config";
+import { DEFAULT_LOCALE, LOCALE_HEADER, toLocale, type Locale } from "@/lib/i18n/config";
 import { fetchAiPrompts } from "@/lib/grandma/prompts/promptStore.server";
 import {
   readOpenAiError,
@@ -44,6 +44,8 @@ import {
   describeLocationForPrompt,
   classifyIntent,
   isValidFollowUpQuestion,
+  isShopRelatedQuestionEn,
+  isSeasonalQuestionEn,
   buildFallbackFollowUpQuestion,
 } from "@/lib/grandma/consultUtils";
 import {
@@ -777,8 +779,14 @@ export async function handleConsultAsk(
     const searchQuestion = await translateQuestionForSearch(openaiKey, question, locale);
     const searchNormalized = searchQuestion.replace(/\s+/g, "");
     const keywords = extractKeywords(searchQuestion);
-    const shopIntent = isShopRelatedQuestion(searchNormalized);
-    const seasonalQuestion = isSeasonalQuestion(searchNormalized);
+    // 日本語の判定は訳し方で外れることがあるので、日本語以外の画面では英語の原文でも見る
+    const isForeign = locale !== DEFAULT_LOCALE;
+    const shopIntent =
+      isShopRelatedQuestion(searchNormalized) ||
+      (isForeign && isShopRelatedQuestionEn(question));
+    const seasonalQuestion =
+      isSeasonalQuestion(searchNormalized) ||
+      (isForeign && isSeasonalQuestionEn(question));
     const currentSeason = getCurrentSeasonInfo();
 
     let targetShop: Shop | null = null;
@@ -855,6 +863,16 @@ export async function handleConsultAsk(
       supabase,
       Array.from(new Set(candidateVendorIds)).slice(0, 12),
     );
+    // 質問文は残さない方針（#629）なので、件数と真偽だけを残す。英語で候補が出ない原因の切り分け用
+    if (isForeign) {
+      console.info("[grandma/ask] search", {
+        locale,
+        translated: searchQuestion !== question,
+        shopIntent,
+        seasonalQuestion,
+        candidates: candidateShops.length,
+      });
+    }
     if (
       shopIntent &&
       !targetShop &&

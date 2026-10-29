@@ -100,6 +100,20 @@ export function isShopRelatedQuestion(normalized: string): boolean {
   );
 }
 
+/**
+ * 英語の質問のお店判定。日本語の判定（isShopRelatedQuestion）は訳した文でも言い回しによって外れるので、
+ * 日本語以外の画面では原文の英語でも見て、どちらかが当たればお店を探す。
+ */
+export function isShopRelatedQuestionEn(question: string): boolean {
+  return /\b(shops?|stalls?|stores?|vendors?|recommend\w*|suggest\w*|best|popular|buy|buying|sell\w*|eat|eating|food|foods|snacks?|lunch|breakfast|dessert|sweets?|drinks?|souvenirs?|gifts?|vegetables?|veggies|fruits?|produce|seafood|crafts?|handmade|accessor\w+|plants?|flowers?|tools?|knives|knife|local|specialt\w+)\b/i.test(
+    question
+  );
+}
+
+export function isSeasonalQuestionEn(question: string): boolean {
+  return /\b(season\w*|in season|spring|summer|autumn|fall|winter|this time of year)\b/i.test(question);
+}
+
 export function isSeasonalQuestion(normalized: string) {
   return /季節|旬|今の時期|今の季節|春|夏|秋|冬/.test(normalized);
 }
