@@ -329,6 +329,8 @@ export default function ConsultStage({
   const speech = useSpeechInput({
     onSettled: handleSpeechSettled,
     onError: handleSpeechError,
+    // 英語の画面で話しかけた声を、日本語として聞き取らない
+    lang: locale === DEFAULT_LOCALE ? "ja-JP" : "en-US",
   });
 
   // 今の話し手。選んでいなければ既定のにちよさんが出る
