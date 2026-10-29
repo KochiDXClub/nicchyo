@@ -110,18 +110,20 @@ export function ShopPhotoViewer({
       if (event.key === "ArrowLeft") goTo(index - 1);
       if (event.key === "ArrowRight") goTo(index + 1);
       if (event.key === "Tab") {
-        // 裏のバナーに focus が抜けないよう、拡大表示の中のボタンだけを回す。
+        // 裏のバナーに focus が抜けないよう、拡大表示の中のボタンと、今見ている全周写真（矢印キーで見渡せる）だけを回す。
         // 「前の写真」「次の写真」はモバイルでは隠れている（display: none）ので数えない
-        const buttons = Array.from(
-          dialogRef.current?.querySelectorAll<HTMLButtonElement>("button:not([disabled])") ?? []
-        ).filter((button) => window.getComputedStyle(button).display !== "none");
-        if (buttons.length === 0) return;
+        const focusable = Array.from(
+          dialogRef.current?.querySelectorAll<HTMLElement>(
+            `button:not([disabled]), [data-photo-index="${index}"] [role="application"]`
+          ) ?? []
+        ).filter((element) => window.getComputedStyle(element).display !== "none");
+        if (focusable.length === 0) return;
         event.preventDefault();
-        const current = buttons.indexOf(document.activeElement as HTMLButtonElement);
+        const current = focusable.indexOf(document.activeElement as HTMLElement);
         const next = event.shiftKey
-          ? current <= 0 ? buttons.length - 1 : current - 1
-          : (current + 1) % buttons.length;
-        buttons[next].focus();
+          ? current <= 0 ? focusable.length - 1 : current - 1
+          : (current + 1) % focusable.length;
+        focusable[next].focus();
       }
     };
     window.addEventListener("keydown", onKeyDown);
@@ -171,7 +173,7 @@ export function ShopPhotoViewer({
         >
           {photos.map((photo, i) => (
             // 写真を押しても閉じない（見ている途中に指が触れて閉じるのを防ぐ）。閉じるのは右上のボタンか Esc
-            <div key={`${photo.src}-${i}`} className="relative h-full w-full shrink-0 snap-center">
+            <div key={`${photo.src}-${i}`} data-photo-index={i} className="relative h-full w-full shrink-0 snap-center">
               <PhotoSlide
                 photo={photo}
                 priority={i === initialIndex}
