@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useRef } from "react";
 import { PANORAMA_THUMB_WIDTH_RATIO, normalizePanoramaCenter } from "@/lib/image/panoramaThumb";
 import { cn } from "@/lib/utils/cn";
@@ -84,9 +85,8 @@ export function PanoramaThumbPicker({
           disabled ? "opacity-60" : "cursor-ew-resize"
         )}
       >
-        {/* 選んだ写真の blob URL も出すので、next/image ではなく img を使う */}
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={src} alt="" draggable={false} className="pointer-events-none absolute inset-0 h-full w-full object-cover" />
+        {/* 選んだ写真の blob URL も出すので、最適化は通さない（登録済みの写真も、切り出し元の2400pxをそのまま見せる） */}
+        <Image src={src} alt="" fill unoptimized draggable={false} sizes="100vw" className="pointer-events-none object-cover" />
         {frameLefts.map((left, index) => (
           <div
             key={index}
