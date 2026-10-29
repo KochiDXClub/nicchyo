@@ -13,7 +13,7 @@ import MapFab from "./MapFab";
 import RevealOnScroll from "./RevealOnScroll";
 
 /**
- * 最初の一画面。写真を地にして、上から「ヘッダー（nicchyo・言語）→ 見出し →（下に）マップをみる → 今週の開催日 → 検索」の順に並べる。
+ * 最初の一画面。写真を地にして、上から「ヘッダー（nicchyoのロゴ・言語）→ 見出し →（下に）マップをみる → 今週の開催日 → 検索」の順に並べる。
  * 「マップをみる」は、この画面では大きなボタン。画面を過ぎてスクロールすると、右下の丸いボタン（MapFab）が出る。
  * 飾り（旗・判子・キャラクター・柑橘・葉）は置かない。写真と白い文字だけで、落ち着いた入口にする。
  *
@@ -45,23 +45,21 @@ export default function LandingHero({ day }: { day: MarketDay | null }) {
       {/* 白い文字が読めるよう、見出しのある上側だけ、ほんの少し暗くする（写真の下側は元の明るさのまま） */}
       <div aria-hidden className="absolute inset-x-0 top-0 h-[22rem] bg-gradient-to-b from-black/45 via-black/20 to-transparent md:h-[26rem]" />
 
-      {/* ヘッダー：左にサイト名、右に言語 */}
-      <header className="relative z-20 px-5 pt-[var(--safe-top,0px)] md:px-10">
+      {/* ヘッダー：メニューのヘッダーと同じ背景色。左にロゴ、右に言語 */}
+      <header className="relative z-20 border-b border-line-warm bg-nicchyo-base px-5 pt-[var(--safe-top,0px)] shadow-chip md:px-10">
         <div className="mx-auto flex h-14 max-w-[64rem] items-center justify-between md:h-16">
           <Link href="/" aria-label="nicchyo">
-            {/* 写真の上でも緑の文字が沈まないよう、白いふちどりを付ける */}
             <Image
               src="/images/nicchyo-logo.webp"
               alt="nicchyo"
               width={516}
               height={240}
               priority
-              className="h-11 w-auto drop-shadow-[0_0_3px_rgba(255,255,255,0.95)] drop-shadow-[0_1px_4px_rgba(0,0,0,0.3)] md:h-12"
+              className="h-11 w-auto md:h-12"
             />
           </Link>
-          <LanguageSwitcher tone="photo" />
+          <LanguageSwitcher tone="page" />
         </div>
-        <div aria-hidden className="mx-auto h-px max-w-[64rem] bg-white/60 shadow-[0_1px_2px_rgba(0,0,0,0.25)]" />
       </header>
 
       {/* 見出しは上、開催予定と検索は下（親指の届く側）に分けて置く。間は写真を見せる */}
