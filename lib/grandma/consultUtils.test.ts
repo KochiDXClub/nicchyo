@@ -246,3 +246,23 @@ describe("buildFallbackFollowUpQuestion", () => {
     expect(result).toContain("おすすめ");
   });
 });
+
+describe("英語の次の質問", () => {
+  it("英語は日本語より長くても有効（40文字超を落とさない）", () => {
+    const question = "Which stall should I visit first if it's my first time here?";
+    expect(question.length).toBeGreaterThan(40);
+    expect(isValidFollowUpQuestion(question, "en")).toBe(true);
+    expect(isValidFollowUpQuestion(question)).toBe(false);
+  });
+
+  it("英語でも疑問文でないものは無効", () => {
+    expect(isValidFollowUpQuestion("Try the Sunday market early", "en")).toBe(false);
+  });
+
+  it("代替の質問は英語の画面では英語で返す", () => {
+    expect(buildFallbackFollowUpQuestion("hi", null, 0, "en")).toMatch(/^[\x20-\x7e]+$/);
+    expect(buildFallbackFollowUpQuestion("hi", "Yamada Farm", 0, "en")).toContain("Yamada Farm");
+    expect(buildFallbackFollowUpQuestion("What is in season?", null, 0, "en")).toContain("season");
+    expect(buildFallbackFollowUpQuestion("おすすめは？", null, 2)).toBe("この中でいちばん人気のお店は？");
+  });
+});

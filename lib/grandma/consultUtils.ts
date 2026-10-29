@@ -1,3 +1,4 @@
+import { DEFAULT_LOCALE, type Locale } from "@/lib/i18n/config";
 import type { ConsultCharacter, ConsultCharacterId } from "@/app/(public)/consult/data/consultCharacters";
 import type {
   ConsultAskResponse,
@@ -224,12 +225,14 @@ export function buildHistoryContext(
   ].join("\n");
 }
 
-export function isValidFollowUpQuestion(value: string) {
+export function isValidFollowUpQuestion(value: string, locale: Locale = DEFAULT_LOCALE) {
   const trimmed = value.trim();
   if (!trimmed) return false;
-  if (trimmed.length < 8 || trimmed.length > 40) return false;
+  // 英語は同じ内容でも日本語より文字数が多い（「朝いちで回るならどの順番がいい？」→ 50 文字前後）
+  const [min, max] = locale === DEFAULT_LOCALE ? [8, 40] : [12, 90];
+  if (trimmed.length < min || trimmed.length > max) return false;
   if (!/[？?]$/.test(trimmed)) return false;
-  if (/(してみる|どうかな|どう？|気になる|行ってみる)/.test(trimmed)) return false;
+  if (locale === DEFAULT_LOCALE && /(してみる|どうかな|どう？|気になる|行ってみる)/.test(trimmed)) return false;
   return true;
 }
 
@@ -238,11 +241,25 @@ export function stripShopIdsDirective(text: string): string {
   return text.replace(/SHOP_IDS:\s*([0-9,\s]+)/i, "").trim();
 }
 
+const FALLBACK_FOLLOW_UP_EN = {
+  popularProduct: (shopName: string) => `What is the most popular item at ${shopName}?`,
+  season: "What should I look at first this season?",
+  popularShop: "Which of these shops is the most popular?",
+  firstVisit: "Where should I start if it's my first time?",
+};
+
 export function buildFallbackFollowUpQuestion(
   question: string,
   targetShopName: string | null,
-  shopCount: number
+  shopCount: number,
+  locale: Locale = DEFAULT_LOCALE
 ) {
+  if (locale !== DEFAULT_LOCALE) {
+    if (targetShopName) return FALLBACK_FOLLOW_UP_EN.popularProduct(targetShopName);
+    if (/season|in season|fruit|vegetable|produce/i.test(question)) return FALLBACK_FOLLOW_UP_EN.season;
+    if (shopCount > 0) return FALLBACK_FOLLOW_UP_EN.popularShop;
+    return FALLBACK_FOLLOW_UP_EN.firstVisit;
+  }
   if (targetShopName) {
     return `${targetShopName}でいちばん人気の商品は？`;
   }
