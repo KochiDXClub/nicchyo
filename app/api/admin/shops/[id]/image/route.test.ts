@@ -28,6 +28,9 @@ const photo = (format: "png" | "jpeg" | "webp", width: number, height: number) =
     .toFormat(format)
     .toBuffer();
 
+/** トリガーが付けた保存値。アプリの時計とは違う値にして、返り値がこちらであることを確かめる */
+const DB_UPDATED_AT = "2020-01-02T03:04:05.678+00:00";
+
 async function post(main: Buffer, thumb: Buffer) {
   const form = new FormData();
   form.append("main", new Blob([new Uint8Array(main)]), "main");
@@ -55,7 +58,11 @@ beforeEach(() => {
       select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: vendor, error: null }) }) }),
       update: (values: Record<string, unknown>) => {
         vendorUpdates.push(values);
-        return { eq: async () => ({ error: null }) };
+        return {
+          eq: () => ({
+            select: () => ({ single: async () => ({ data: { updated_at: DB_UPDATED_AT }, error: null }) }),
+          }),
+        };
       },
     }),
     storage: {
@@ -84,10 +91,17 @@ describe("POST /api/admin/shops/[id]/image", () => {
       expect((await sharp(bytes).metadata()).format).toBe("webp");
     }
     expect(vendorUpdates[0]).toEqual(
-      expect.objectContaining({ shop_image_url: `https://x.supabase.co/storage/${ID}/store-main.webp` }),
+      expect.objectContaining({ shop_image_url: expect.stringMatching(new RegExp(`/storage/${ID}/store-main\\.webp\\?v=\\d+$`)) }),
     );
     // 前に置いた PNG のメインは消す
     expect(storageRemove).toHaveBeenCalledWith([`${ID}/store-main.png`]);
+  });
+
+  it("返す updated_at は、アプリの時計ではなく DB に保存された値（次の保存が 409 にならない）", async () => {
+    const res = await post(await photo("png", 900, 1200), await photo("png", 120, 160));
+
+    expect((await res.json()).updated_at).toBe(DB_UPDATED_AT);
+    expect(vendorUpdates[0]).not.toHaveProperty("updated_at");
   });
 
   it("JPEG で届いた写真も WebP にして、ブラウザでの縮小と同じ大きさに収める", async () => {
