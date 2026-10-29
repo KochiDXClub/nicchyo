@@ -5,7 +5,7 @@ import { guardAdminShopWrite, type AdminShopWriteContext } from "@/lib/admin/sho
 import { sniffImageType, type SniffedImageType } from "@/lib/admin/imageSniff";
 import { STORE_IMAGE_CONFIG, type ResizeOptions } from "@/lib/image/clientCompression";
 import { isEquirectangularPhoto } from "@/lib/image/panorama";
-import { normalizeShopImageKind } from "@/lib/shopImages";
+import { normalizeShopImageKind, type ShopImageKind } from "@/lib/shopImages";
 import { revalidatePublicShops } from "@/app/(public)/map/services/shopCache";
 
 export const runtime = "nodejs";
@@ -30,6 +30,56 @@ async function ensureWebp(bytes: Uint8Array, type: SniffedImageType, options: Re
     .resize(options.maxDimension, options.maxDimension, { fit: "inside", withoutEnlargement: true })
     .webp({ quality: Math.round(options.quality * 100) })
     .toBuffer();
+}
+
+/**
+ * 写真の URL（と種類）を店舗に保存し、監査ログを残して、公開の地図データのキャッシュを更新する。
+ * 返す updated_at は DB の保存値。updated_at は DB のトリガーが付け直すので、アプリの時計で返すと、次の保存が 409 になる
+ */
+async function saveShopImage({
+  adminClient,
+  user,
+  role,
+  ip,
+  id,
+  shopName,
+  values,
+  details,
+}: {
+  adminClient: AdminShopWriteContext["adminClient"];
+  user: AdminShopWriteContext["user"];
+  role: AdminShopWriteContext["role"];
+  ip: AdminShopWriteContext["ip"];
+  id: string;
+  shopName: string | null;
+  values: { shop_image_url: string; shop_image_kind?: ShopImageKind };
+  details: string;
+}): Promise<{ updatedAt: string | null } | { error: NextResponse }> {
+  const { data: saved, error: updateError } = await adminClient
+    .from("vendors")
+    .update(values)
+    .eq("id", id)
+    .select("updated_at")
+    .single();
+  if (updateError || !saved) {
+    return { error: NextResponse.json({ error: "写真の URL を保存できませんでした" }, { status: 500 }) };
+  }
+
+  await logAdminAudit(
+    adminClient,
+    { id: user.id, email: user.email, role },
+    {
+      action: "shop_image_upload",
+      targetType: "vendor",
+      targetId: id,
+      targetName: (shopName ?? id).slice(0, 500),
+      details,
+      ipAddress: ip,
+    },
+  );
+
+  revalidatePublicShops();
+  return { updatedAt: saved.updated_at };
 }
 
 /** 登録済みの全周写真の、サムネイルだけを差し替える。メインの URL は版（?v=）だけ新しくして、古いサムネイルが出続けないようにする */
@@ -65,34 +115,22 @@ async function replacePanoramaThumb({
   }
 
   const storage = adminClient.storage.from(BUCKET);
-  const result = await storage.upload(`${id}/store-thumb.webp`, thumbWebp, { contentType: "image/webp", upsert: true });
-  if (result.error) return NextResponse.json({ error: "写真を保存できませんでした" }, { status: 500 });
+  const uploadResult = await storage.upload(`${id}/store-thumb.webp`, thumbWebp, { contentType: "image/webp", upsert: true });
+  if (uploadResult.error) return NextResponse.json({ error: "写真を保存できませんでした" }, { status: 500 });
 
   const url = `${vendor.shop_image_url.split("?")[0]}?v=${Date.now()}`;
-  // updated_at は DB のトリガーが付け直す。DB の値を返す
-  const { data: saved, error: updateError } = await adminClient
-    .from("vendors")
-    .update({ shop_image_url: url })
-    .eq("id", id)
-    .select("updated_at")
-    .single();
-  if (updateError || !saved) return NextResponse.json({ error: "写真の URL を保存できませんでした" }, { status: 500 });
-
-  await logAdminAudit(
+  const result = await saveShopImage({
     adminClient,
-    { id: user.id, email: user.email, role },
-    {
-      action: "shop_image_upload",
-      targetType: "vendor",
-      targetId: id,
-      targetName: (vendor.shop_name ?? id).slice(0, 500),
-      details: "全周写真のサムネイルを切り直し",
-      ipAddress: ip,
-    },
-  );
-
-  revalidatePublicShops();
-  return NextResponse.json({ ok: true, url, kind: "panorama", updated_at: saved.updated_at });
+    user,
+    role,
+    ip,
+    id,
+    shopName: vendor.shop_name,
+    values: { shop_image_url: url },
+    details: "全周写真のサムネイルを切り直し",
+  });
+  if ("error" in result) return result.error;
+  return NextResponse.json({ ok: true, url, kind: "panorama", updated_at: result.updatedAt });
 }
 
 /**
@@ -190,31 +228,20 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
     // 同じ名前で上書きするので、URL を変えないと CDN とブラウザが前の写真を返し続ける
     const url = `${storage.getPublicUrl(mainPath).data.publicUrl}?v=${Date.now()}`;
-    // updated_at は DB のトリガーが付け直す。アプリの時計で返すと保存値とずれて、次の保存が 409 になる
-    const { data: saved, error: updateError } = await adminClient
-      .from("vendors")
-      .update({ shop_image_url: url, shop_image_kind: kind })
-      .eq("id", id)
-      .select("updated_at")
-      .single();
-    if (updateError || !saved) return NextResponse.json({ error: "写真の URL を保存できませんでした" }, { status: 500 });
-
-    await logAdminAudit(
+    const result = await saveShopImage({
       adminClient,
-      { id: user.id, email: user.email, role },
-      {
-        action: "shop_image_upload",
-        targetType: "vendor",
-        targetId: id,
-        targetName: (vendor.shop_name ?? id).slice(0, 500),
-        details: kind === "panorama" ? "店舗写真（全周）を代理でアップロード" : "店舗写真を代理でアップロード",
-        ipAddress: ip,
-      },
-    );
+      user,
+      role,
+      ip,
+      id,
+      shopName: vendor.shop_name,
+      values: { shop_image_url: url, shop_image_kind: kind },
+      details: kind === "panorama" ? "店舗写真（全周）を代理でアップロード" : "店舗写真を代理でアップロード",
+    });
+    if ("error" in result) return result.error;
 
-    revalidatePublicShops();
     // 画面が次の保存（updated_at による競合検知）で 409 にならないよう、新しい updated_at も返す
-    return NextResponse.json({ ok: true, url, kind, updated_at: saved.updated_at });
+    return NextResponse.json({ ok: true, url, kind, updated_at: result.updatedAt });
   } catch {
     return NextResponse.json({ error: "写真を保存できませんでした" }, { status: 500 });
   }
