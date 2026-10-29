@@ -1,5 +1,6 @@
 "use client";
 
+import { getImageProps } from "next/image";
 import { useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
 
 /** 矢印キーで1回に回す量（px） */
@@ -14,6 +15,8 @@ const KEY_STEP = 60;
  * この部品の上では touch-action: none でブラウザのスクロールを止める。
  */
 export function PanoramaView({ src, alt }: { src: string; alt: string }) {
+  // 元の画像は数 MB になりやすいので、next/image が作る縮小版（WebP）を背景に使う
+  const { props: imageProps } = getImageProps({ src, alt: "", width: 1920, height: 960 });
   const [offset, setOffset] = useState(0);
   const [dragging, setDragging] = useState(false);
   const lastXRef = useRef<number | null>(null);
@@ -48,7 +51,7 @@ export function PanoramaView({ src, alt }: { src: string; alt: string }) {
 
   return (
     <div
-      role="img"
+      role="application"
       aria-label={`${alt}（360度。ドラッグして見渡せます）`}
       tabIndex={0}
       onPointerDown={handlePointerDown}
@@ -59,7 +62,7 @@ export function PanoramaView({ src, alt }: { src: string; alt: string }) {
       className={`absolute inset-0 select-none ${dragging ? "cursor-grabbing" : "cursor-grab"}`}
       style={{
         touchAction: "none",
-        backgroundImage: `url("${src}")`,
+        backgroundImage: `url("${imageProps.src}")`,
         backgroundRepeat: "repeat-x",
         backgroundSize: "auto 100%",
         backgroundPosition: `${offset}px center`,

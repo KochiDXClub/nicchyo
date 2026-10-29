@@ -18,7 +18,15 @@ export type ShopPhoto = {
  * 1枚ぶんの表示。全周カメラの写真（読み込んだ大きさが 2:1）は、ドラッグで見渡せる表示に切り替える。
  * 普通の写真はこれまでどおり、枠に収めて見せる。
  */
-function PhotoSlide({ photo, priority }: { photo: ShopPhoto; priority: boolean }) {
+function PhotoSlide({
+  photo,
+  priority,
+  onPanoramaChange,
+}: {
+  photo: ShopPhoto;
+  priority: boolean;
+  onPanoramaChange: (isPanorama: boolean) => void;
+}) {
   const [isPanorama, setIsPanorama] = useState(false);
   return (
     <>
@@ -29,9 +37,14 @@ function PhotoSlide({ photo, priority }: { photo: ShopPhoto; priority: boolean }
         sizes="100vw"
         className="object-contain"
         priority={priority}
+        // 全周表示が上に重なるときは、読み上げが二重にならないよう下の画像を隠す
+        aria-hidden={isPanorama || undefined}
         onLoad={(event) => {
+          // naturalWidth は next/image が縮小した画像の大きさ。比率は縮小しても変わらない
           const { naturalWidth, naturalHeight } = event.currentTarget;
-          setIsPanorama(isEquirectangularPhoto(naturalWidth, naturalHeight));
+          const next = isEquirectangularPhoto(naturalWidth, naturalHeight);
+          setIsPanorama(next);
+          onPanoramaChange(next);
         }}
       />
       {isPanorama && (
@@ -65,6 +78,8 @@ export function ShopPhotoViewer({
   onClose: () => void;
 }) {
   const [index, setIndex] = useState(initialIndex);
+  // 全周写真のスライド。その上では横スワイプで写真を切り替えられないので、スマホでも矢印ボタンを出す
+  const [panoramaIndexes, setPanoramaIndexes] = useState<Record<number, boolean>>({});
   const dialogRef = useRef<HTMLDivElement | null>(null);
   const scrollerRef = useRef<HTMLDivElement | null>(null);
   const closeButtonRef = useRef<HTMLButtonElement | null>(null);
@@ -121,6 +136,7 @@ export function ShopPhotoViewer({
 
   if (typeof document === "undefined" || photos.length === 0) return null;
   const current = photos[Math.min(index, photos.length - 1)];
+  const arrowVisibility = panoramaIndexes[index] ? "flex" : "hidden md:flex";
 
   return createPortal(
     <div
@@ -156,7 +172,11 @@ export function ShopPhotoViewer({
           {photos.map((photo, i) => (
             // 写真を押しても閉じない（見ている途中に指が触れて閉じるのを防ぐ）。閉じるのは右上のボタンか Esc
             <div key={`${photo.src}-${i}`} className="relative h-full w-full shrink-0 snap-center">
-              <PhotoSlide photo={photo} priority={i === initialIndex} />
+              <PhotoSlide
+                photo={photo}
+                priority={i === initialIndex}
+                onPanoramaChange={(isPanorama) => setPanoramaIndexes((prev) => ({ ...prev, [i]: isPanorama }))}
+              />
             </div>
           ))}
         </div>
@@ -168,7 +188,7 @@ export function ShopPhotoViewer({
               onClick={() => goTo(index - 1)}
               disabled={index === 0}
               aria-label="前の写真"
-              className="absolute left-3 top-1/2 hidden h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-white/10 transition hover:bg-white/20 disabled:opacity-0 md:flex"
+              className={`absolute left-3 top-1/2 ${arrowVisibility} z-10 h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-white/10 transition hover:bg-white/20 disabled:opacity-0`}
             >
               <ChevronLeft className="h-5 w-5" aria-hidden />
             </button>
@@ -177,7 +197,7 @@ export function ShopPhotoViewer({
               onClick={() => goTo(index + 1)}
               disabled={index === photos.length - 1}
               aria-label="次の写真"
-              className="absolute right-3 top-1/2 hidden h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-white/10 transition hover:bg-white/20 disabled:opacity-0 md:flex"
+              className={`absolute right-3 top-1/2 ${arrowVisibility} z-10 h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-white/10 transition hover:bg-white/20 disabled:opacity-0`}
             >
               <ChevronRight className="h-5 w-5" aria-hidden />
             </button>

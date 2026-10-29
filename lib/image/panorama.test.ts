@@ -17,8 +17,14 @@ describe("isEquirectangularPhoto", () => {
     expect(isEquirectangularPhoto(3000, 4000)).toBe(false);
   });
 
+  it("スマホで next/image が縮小した大きさ（828・1200px 幅）でも判定できる", () => {
+    expect(isEquirectangularPhoto(828, 414)).toBe(true);
+    expect(isEquirectangularPhoto(1200, 600)).toBe(true);
+    expect(isEquirectangularPhoto(640, 320)).toBe(true);
+  });
+
   it("小さい画像は 2:1 でも対象にしない", () => {
-    expect(isEquirectangularPhoto(800, 400)).toBe(false);
+    expect(isEquirectangularPhoto(400, 200)).toBe(false);
   });
 
   it("大きさが分からないときは false", () => {

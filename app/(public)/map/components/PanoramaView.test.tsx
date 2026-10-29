@@ -5,7 +5,7 @@ import { PanoramaView } from "./PanoramaView";
 describe("PanoramaView", () => {
   it("横にドラッグすると、ドラッグした分だけ画像の位置が動く", () => {
     render(<PanoramaView src="https://example.supabase.co/p.webp" alt="店の写真" />);
-    const view = screen.getByRole("img");
+    const view = screen.getByRole("application");
 
     fireEvent.pointerDown(view, { clientX: 100, pointerId: 1 });
     fireEvent.pointerMove(view, { clientX: 160, pointerId: 1 });
