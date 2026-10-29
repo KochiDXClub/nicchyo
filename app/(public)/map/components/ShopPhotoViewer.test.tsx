@@ -66,6 +66,23 @@ describe("ShopPhotoViewer", () => {
     expect(document.activeElement).toBe(previous);
   });
 
+  it("Tab は、今見ている全周写真（矢印キーで見渡せる）にも止まる。見ていない全周写真には止まらない", () => {
+    const panoramas: ShopPhoto[] = [
+      { src: "https://example.supabase.co/p1.webp", alt: "全周A", kind: "panorama" },
+      { src: "https://example.supabase.co/p2.webp", alt: "全周B", kind: "panorama" },
+    ];
+    render(<ShopPhotoViewer photos={panoramas} initialIndex={0} onClose={() => {}} />);
+
+    const stops = new Set<string | null>();
+    for (let i = 0; i < 6; i += 1) {
+      fireEvent.keyDown(window, { key: "Tab" });
+      stops.add(document.activeElement?.getAttribute("aria-label") ?? null);
+    }
+
+    expect([...stops].some((label) => label?.startsWith("全周A"))).toBe(true);
+    expect([...stops].some((label) => label?.startsWith("全周B"))).toBe(false);
+  });
+
   it("全周写真（kind が panorama）はドラッグで見渡せる表示になり、スマホでも前後の矢印が出る。普通の写真は今までどおり", () => {
     const photos: ShopPhoto[] = [
       { src: "https://example.supabase.co/a.webp", alt: "普通の写真" },
