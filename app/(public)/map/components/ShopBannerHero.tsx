@@ -325,6 +325,14 @@ export function ShopBannerHero({
               onError={onImageError}
             />
           )}
+          {onOpenPhoto && !heroImageError && (
+            <button
+              type="button"
+              onClick={onOpenPhoto}
+              aria-label={`${shop.name}の写真を大きく見る`}
+              className="absolute inset-0 z-[1]"
+            />
+          )}
         </div>
 
         <div className="min-w-0 flex-1 pr-12">

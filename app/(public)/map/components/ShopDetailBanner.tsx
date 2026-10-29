@@ -242,7 +242,8 @@ const ShopDetailBanner = memo(function ShopDetailBanner({
 
   // 拡大表示で順に見られる写真。出店者が出した店の写真（既定のカテゴリ画像や小さいサムネイルは除く）と、商品の写真
   const shopPhotoSources = useMemo(
-    () => Array.from(new Set([shop.images?.main, ...(shop.images?.additional ?? [])].filter((src): src is string => !!src))),
+    // バナーの写真は main が無いと thumbnail になる（getShopPreviewImage）。それも拡大できるよう、最後に加える
+    () => Array.from(new Set([shop.images?.main, ...(shop.images?.additional ?? []), shop.images?.thumbnail].filter((src): src is string => !!src))),
     [shop.images]
   );
   const photos = useMemo<ShopPhoto[]>(() => [
@@ -455,6 +456,7 @@ const ShopDetailBanner = memo(function ShopDetailBanner({
                 heroImageError={heroImageError}
                 onImageError={() => setHeroImageError(true)}
                 mode="compact"
+                onOpenPhoto={handleOpenHeroPhoto}
               />
             </div>
           )}
