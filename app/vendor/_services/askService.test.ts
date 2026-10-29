@@ -24,6 +24,10 @@ function fakeClient() {
           call.filters.push(`${column}=${String(value)}`);
           return builder;
         },
+        is: (column: string, value: unknown) => {
+          call.filters.push(`${column} is ${String(value)}`);
+          return builder;
+        },
         order: () => builder,
         in: (column: string, values: unknown[]) => {
           call.filters.push(`${column} in ${values.join(",")}`);
@@ -62,6 +66,9 @@ vi.mock("@/lib/image/clientCompression", () => ({
 import { AskUserFacingError, fetchAskSnapshot, saveAskAnswer } from "./askService";
 
 const writes = () => calls.filter((call) => call.op !== "select");
+// 商品の行の削除は、行を消さずに deleted_at を入れる（論理削除）
+const softDeletes = () =>
+  calls.filter((call) => call.table === "products" && call.op === "update" && "deleted_at" in (call.payload as object));
 
 beforeEach(() => {
   calls.length = 0;
@@ -235,8 +242,10 @@ describe("主な商品の写真", () => {
 
     await saveAskAnswer("v1", "2026-10-04", { id: "products", items: [{ name: "トマト", price: null }] });
 
-    const deletes = calls.filter((call) => call.op === "delete");
-    expect(deletes).toEqual([expect.objectContaining({ table: "products", filters: ["id=p2", "vendor_id=v1"] })]);
+    expect(softDeletes()).toEqual([
+      expect.objectContaining({ table: "products", filters: ["deleted_at is null", "id=p2", "vendor_id=v1"] }),
+    ]);
+    expect(calls.filter((call) => call.op === "delete")).toEqual([]);
     expect(storageRemove).toHaveBeenCalledWith(["v1/product-p2.webp"]);
   });
 
@@ -255,7 +264,7 @@ describe("主な商品の写真", () => {
 
     await saveAskAnswer("v1", "2026-10-04", { id: "products", items: [] });
 
-    expect(calls.filter((call) => call.op === "delete")).toEqual([]);
+    expect(softDeletes()).toEqual([]);
     const imageClears = writes().filter((call) => call.table === "products" && call.op === "update");
     expect(imageClears.map((call) => call.filters[0])).toEqual(["id=p1", "id=p2"]);
     expect(imageClears.every((call) => (call.payload as { image_url: unknown }).image_url === null)).toBe(true);
@@ -275,7 +284,7 @@ describe("主な商品の写真", () => {
       saveAskAnswer("v1", "2026-10-04", { id: "products", items: [] })
     ).rejects.toBeInstanceOf(AskUserFacingError);
 
-    expect(calls.filter((call) => call.op === "delete")).toEqual([]);
+    expect(softDeletes()).toEqual([]);
     expect(storageRemove).not.toHaveBeenCalled();
   });
 });

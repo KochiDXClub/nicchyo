@@ -15,6 +15,8 @@ export function fetchProductRows<T>(supabase: SupabaseClient<Database>) {
       supabase
         .from("products")
         .select("vendor_id, name, image_url")
+        // 論理削除した商品。RLS を通らない service_role の読み取り（埋め込み同期）でも除く
+        .is("deleted_at", null)
         .order("id", { ascending: true })
         .range(from, to) as unknown as PromiseLike<{ data: T[] | null; error: { message: string } | null }>,
     { label: "products" }

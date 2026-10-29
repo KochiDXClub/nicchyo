@@ -61,6 +61,7 @@ beforeEach(() => {
         select: () => {
           const chain = {
             eq: () => chain,
+            is: () => chain,
             order: () => chain,
             limit: () => chain,
             maybeSingle: async () => ({ data: productRow, error: null }),

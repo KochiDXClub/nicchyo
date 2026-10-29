@@ -87,7 +87,7 @@ export async function fetchVendorHeartSummary(): Promise<HeartSummary> {
 /** 自分の商品の名前（「探されているもの」が自分の商品に当たるかを見るため） */
 export async function fetchMyProductNames(vendorId: string): Promise<string[]> {
   const supabase = createClient();
-  const { data } = await supabase.from("products").select("name").eq("vendor_id", vendorId);
+  const { data } = await supabase.from("products").select("name").eq("vendor_id", vendorId).is("deleted_at", null);
   return (data ?? []).map((row) => row.name).filter((name): name is string => !!name);
 }
 

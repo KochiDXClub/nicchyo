@@ -56,7 +56,7 @@ async function fetchRows(supabase, from, to) {
       )
       .order("id", { ascending: true })
       .range(from, to),
-    supabase.from("products").select("vendor_id, name"),
+    supabase.from("products").select("vendor_id, name").is("deleted_at", null),
     supabase
       .from("market_locations")
       .select("id, store_number, latitude, longitude, district"),

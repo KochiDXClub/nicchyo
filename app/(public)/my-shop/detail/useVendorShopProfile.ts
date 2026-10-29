@@ -1,6 +1,7 @@
 import { useEffect, useState, type ChangeEvent, type FormEvent } from "react";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { createClient } from "@/utils/supabase/client";
+import { softDeleteProducts } from "@/lib/shops/softDeleteProducts";
 
 export type SeasonKey = "spring_summer" | "summer_autumn" | "autumn_winter" | "winter_spring";
 
@@ -128,6 +129,7 @@ export function useVendorShopProfile() {
         .from("products")
         .select("id, name, image_url, description")
         .eq("vendor_id", vendorId)
+        .is("deleted_at", null)
         .order("created_at", { ascending: true });
 
       const productIds = productsData?.map((item) => item.id) ?? [];
@@ -317,10 +319,7 @@ export function useVendorShopProfile() {
         throw ownerProfileError;
       }
 
-      const { error: deleteProductsError } = await supabase
-        .from("products")
-        .delete()
-        .eq("vendor_id", vendorId);
+      const { error: deleteProductsError } = await softDeleteProducts(supabase).eq("vendor_id", vendorId);
       if (deleteProductsError) {
         throw deleteProductsError;
       }

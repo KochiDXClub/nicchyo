@@ -4,14 +4,17 @@ import { fetchAllRows } from "@/lib/supabase/fetchAllRows";
 import type { Database } from "@/types/database.types";
 import type { Shop } from "../types/shopData";
 
-type VendorRow = {
+export type VendorRow = {
   id: string;
+  /** 差分更新の基準（地図のキャッシュが「前回から変わった行」だけを取るために使う） */
+  updated_at?: string | null;
   shop_name: string | null;
   strength: string | null;
   style: string | null;
   style_tags: string[] | null;
   category_id: string | null;
-  categories: { name: string | null }[] | { name: string | null } | null;
+  /** 地図用の取得ではカテゴリー名を JOIN せず、categories テーブル（別キャッシュ）から引く */
+  categories?: { name: string | null }[] | { name: string | null } | null;
   main_products: string[] | null;
   main_product_prices: Record<string, number | null> | null;
   payment_methods: string[] | null;
@@ -46,7 +49,10 @@ type CategoryRow = {
   name: string | null;
 };
 
-type ProductRow = {
+export type ProductRow = {
+  /** 差分更新で行を特定・更新するための列（全件取得の経路では持たない） */
+  id?: string;
+  updated_at?: string | null;
   vendor_id: string | null;
   name: string | null;
   image_url: string | null;
@@ -101,28 +107,46 @@ export type VendorShopBaseRows = {
   assignments: AssignmentRow[];
 };
 
-export async function fetchVendorShopBaseRows(
+/** 地図の店舗に使う vendors の列。差分更新用に updated_at を含める */
+export const MAP_VENDOR_COLUMNS =
+  "id, updated_at, shop_name, strength, style, style_tags, category_id, main_products, main_product_prices, payment_methods, rain_policy, schedule, shop_image_url, sns_instagram, sns_x, sns_hp, business_hours_start, business_hours_end";
+
+/** 地図の店舗に使う products の列（論理削除された行は RLS と deleted_at の条件で除く） */
+export const MAP_PRODUCT_COLUMNS = "id, vendor_id, name, image_url, updated_at";
+
+type FailableTable = readonly [label: string, error: { message: string } | null];
+
+function collectFailedTables(entries: readonly FailableTable[]): string[] {
+  // どれか1つでも失敗すると該当データが黙って空扱いになり店舗が減る/消えるため、
+  // 原因追跡できるよう警告として残す（握りつぶし自体は既存の設計を踏襲）
+  const failed: string[] = [];
+  for (const [label, error] of entries) {
+    if (error) {
+      console.warn(`[fetchVendorShopsFromDb] ${label} の取得に失敗しました:`, error.message);
+      failed.push(label);
+    }
+  }
+  return failed;
+}
+
+/**
+ * 更新が少なく小さいテーブル（店主名・カテゴリー・区画・出店履歴）。
+ * 変更を検知する列が無いので、差分更新の対象にせず、従来どおり丸ごと取ってキャッシュする
+ */
+export type VendorShopSupportRows = Pick<
+  VendorShopBaseRows,
+  "ownerProfiles" | "categories" | "locations" | "assignments"
+>;
+
+export async function fetchVendorShopSupportRows(
   supabase: SupabaseClient<Database>
-): Promise<{ rows: VendorShopBaseRows; failedTables: string[] }> {
-  // PostgREST の max_rows (1000) で黙って切り詰められないよう、全テーブルを
-  // 決定的な order 付きの range ページングで読み切る（lib/supabase/fetchAllRows.ts）
+): Promise<{ rows: VendorShopSupportRows; failedTables: string[] }> {
   const [
-    { data: vendorsData, error: vendorsError },
     { data: ownerProfilesData, error: ownerProfilesError },
     { data: categoriesData, error: categoriesError },
-    { data: productsData, error: productsError },
     { data: locationsData, error: locationsError },
     { data: assignmentsData, error: assignmentsError },
   ] = await Promise.all([
-    fetchAllRows<VendorRow>(
-      (from, to) =>
-        supabase
-          .from("vendors")
-          .select("id, shop_name, strength, style, style_tags, category_id, categories(name), main_products, main_product_prices, payment_methods, rain_policy, schedule, shop_image_url, sns_instagram, sns_x, sns_hp, business_hours_start, business_hours_end")
-          .order("id", { ascending: true })
-          .range(from, to) as unknown as PromiseLike<{ data: VendorRow[] | null; error: { message: string } | null }>,
-      { label: "vendors" }
-    ),
     fetchAllRows<OwnerProfileRow>(
       (from, to) =>
         supabase
@@ -137,38 +161,66 @@ export async function fetchVendorShopBaseRows(
         supabase.from("categories").select("id, name").order("id", { ascending: true }).range(from, to),
       { label: "categories" }
     ),
-    fetchProductRows<ProductRow>(supabase),
     fetchLocationRows<LocationRow>(supabase),
     fetchAssignmentRows<AssignmentRow>(supabase),
   ]);
 
-  // どれか1つでも失敗すると該当データが黙って空扱いになり店舗が減る/消えるため、
-  // 原因追跡できるよう警告として残す（握りつぶし自体は既存の設計を踏襲）
-  const failedTables: string[] = [];
-  for (const [label, error] of [
-    ["vendors", vendorsError],
+  const failedTables = collectFailedTables([
     ["vendor_owner_profiles", ownerProfilesError],
     ["categories", categoriesError],
-    ["products", productsError],
     ["market_locations", locationsError],
     ["location_assignments", assignmentsError],
-  ] as const) {
-    if (error) {
-      console.warn(`[fetchVendorShopsFromDb] ${label} の取得に失敗しました:`, error.message);
-      failedTables.push(label);
-    }
-  }
+  ]);
 
   return {
     rows: {
-      vendors: Array.isArray(vendorsData) ? (vendorsData as VendorRow[]) : [],
       ownerProfiles: Array.isArray(ownerProfilesData)
         ? (ownerProfilesData as OwnerProfileRow[])
         : [],
       categories: Array.isArray(categoriesData) ? (categoriesData as CategoryRow[]) : [],
-      products: Array.isArray(productsData) ? (productsData as ProductRow[]) : [],
       locations: Array.isArray(locationsData) ? (locationsData as LocationRow[]) : [],
       assignments: Array.isArray(assignmentsData) ? (assignmentsData as AssignmentRow[]) : [],
+    },
+    failedTables,
+  };
+}
+
+export async function fetchVendorShopBaseRows(
+  supabase: SupabaseClient<Database>
+): Promise<{ rows: VendorShopBaseRows; failedTables: string[] }> {
+  // PostgREST の max_rows (1000) で黙って切り詰められないよう、全テーブルを
+  // 決定的な order 付きの range ページングで読み切る（lib/supabase/fetchAllRows.ts）
+  const [
+    { data: vendorsData, error: vendorsError },
+    { data: productsData, error: productsError },
+    support,
+  ] = await Promise.all([
+    fetchAllRows<VendorRow>(
+      (from, to) =>
+        supabase
+          .from("vendors")
+          .select(MAP_VENDOR_COLUMNS)
+          .order("id", { ascending: true })
+          .range(from, to) as unknown as PromiseLike<{ data: VendorRow[] | null; error: { message: string } | null }>,
+      { label: "vendors" }
+    ),
+    fetchProductRows<ProductRow>(supabase),
+    fetchVendorShopSupportRows(supabase),
+  ]);
+
+  const failedTables = [
+    ...collectFailedTables([
+      ["vendors", vendorsError],
+      ["products", productsError],
+    ]),
+    ...support.failedTables,
+  ];
+
+  return {
+    rows: {
+      vendors: Array.isArray(vendorsData) ? (vendorsData as VendorRow[]) : [],
+      products: Array.isArray(productsData) ? (productsData as ProductRow[]) : [],
+      ...support.rows,
     },
     failedTables,
   };
