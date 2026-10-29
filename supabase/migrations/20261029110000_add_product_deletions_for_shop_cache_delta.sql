@@ -71,9 +71,21 @@ set search_path = public
 as $$
 begin
   insert into public.product_deletions (product_id, vendor_id) values (old.id, old.vendor_id);
-  -- 古い記録はここで掃除する(スケジューラーに頼らない)。キャッシュは15分ごとに全件を取り直すので、7日あれば足りる
-  delete from public.product_deletions where deleted_at < now() - interval '7 days';
   return old;
+end;
+$$;
+
+-- 古い記録の掃除。まとめて消したときも1回で済むよう、行ごとではなく文ごとに動かす
+-- (スケジューラーに頼らない。キャッシュは15分ごとに全件を取り直すので、7日あれば足りる)
+create or replace function public.purge_old_product_deletions()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  delete from public.product_deletions where deleted_at < now() - interval '7 days';
+  return null;
 end;
 $$;
 
@@ -82,6 +94,12 @@ create trigger record_product_deletion
   after delete on public.products
   for each row
   execute function public.record_product_deletion();
+
+drop trigger if exists purge_old_product_deletions on public.products;
+create trigger purge_old_product_deletions
+  after delete on public.products
+  for each statement
+  execute function public.purge_old_product_deletions();
 
 comment on table public.product_deletions is
   '商品の削除の記録。地図の店舗データのキャッシュが、消えた商品を差分で知るために使う。7日で掃除する。';
