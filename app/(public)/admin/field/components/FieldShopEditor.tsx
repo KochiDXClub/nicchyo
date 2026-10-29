@@ -243,12 +243,12 @@ export function FieldShopEditor({ shopId }: { shopId: string }) {
       const res = await fetch(`/api/admin/shops/${shopId}/image`, { method: "POST", body });
       if (!res.ok) throw new Error((await readError(res, "写真を保存できませんでした")).message);
       const { url, kind, updated_at } = (await res.json()) as { url: string; kind?: ShopImageKind; updated_at?: string };
-      // 同じ URL に上書きされるので、キャッシュされた古い写真が出ないようにする。
+      // 同じパスに上書きされるが、返る URL には版（?v=）がついているので、古い写真は出ない。
       // 写真の保存で updated_at が進むので反映する（古いままだと、次の「内容を保存」が必ず 409 になる）。
       // フォームには触れない（未保存の入力を消さない）
       setShop((prev) =>
         prev
-          ? { ...prev, shop_image_url: `${url}?v=${Date.now()}`, shop_image_kind: kind ?? "normal", updated_at: updated_at ?? prev.updated_at }
+          ? { ...prev, shop_image_url: url, shop_image_kind: kind ?? "normal", updated_at: updated_at ?? prev.updated_at }
           : prev,
       );
       setPendingPhoto(null);
