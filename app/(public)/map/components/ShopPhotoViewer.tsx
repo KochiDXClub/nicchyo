@@ -4,6 +4,8 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 import { createPortal } from "react-dom";
 import Image from "next/image";
 import { ChevronLeft, ChevronRight, X as XIcon } from "lucide-react";
+import { isEquirectangularPhoto } from "@/lib/image/panorama";
+import { PanoramaView } from "./PanoramaView";
 
 export type ShopPhoto = {
   src: string;
@@ -11,6 +13,38 @@ export type ShopPhoto = {
   /** 写真の下に出す一行（商品名と値段など） */
   caption?: string;
 };
+
+/**
+ * 1枚ぶんの表示。全周カメラの写真（読み込んだ大きさが 2:1）は、ドラッグで見渡せる表示に切り替える。
+ * 普通の写真はこれまでどおり、枠に収めて見せる。
+ */
+function PhotoSlide({ photo, priority }: { photo: ShopPhoto; priority: boolean }) {
+  const [isPanorama, setIsPanorama] = useState(false);
+  return (
+    <>
+      <Image
+        src={photo.src}
+        alt={photo.alt}
+        fill
+        sizes="100vw"
+        className="object-contain"
+        priority={priority}
+        onLoad={(event) => {
+          const { naturalWidth, naturalHeight } = event.currentTarget;
+          setIsPanorama(isEquirectangularPhoto(naturalWidth, naturalHeight));
+        }}
+      />
+      {isPanorama && (
+        <>
+          <PanoramaView src={photo.src} alt={photo.alt} />
+          <p className="pointer-events-none absolute bottom-3 left-1/2 -translate-x-1/2 rounded-chip bg-black/50 px-3 py-1 text-xs font-bold text-white backdrop-blur-sm">
+            360° ドラッグで見渡せます
+          </p>
+        </>
+      )}
+    </>
+  );
+}
 
 /**
  * 店の写真と商品の写真を、画面いっぱいに大きく見せる。
@@ -122,14 +156,7 @@ export function ShopPhotoViewer({
           {photos.map((photo, i) => (
             // 写真を押しても閉じない（見ている途中に指が触れて閉じるのを防ぐ）。閉じるのは右上のボタンか Esc
             <div key={`${photo.src}-${i}`} className="relative h-full w-full shrink-0 snap-center">
-              <Image
-                src={photo.src}
-                alt={photo.alt}
-                fill
-                sizes="100vw"
-                className="object-contain"
-                priority={i === initialIndex}
-              />
+              <PhotoSlide photo={photo} priority={i === initialIndex} />
             </div>
           ))}
         </div>
