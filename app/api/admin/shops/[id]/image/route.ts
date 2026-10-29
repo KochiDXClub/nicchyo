@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import sharp from "sharp";
 import { logAdminAudit } from "@/lib/audit/logAdminAudit";
-import { guardAdminShopWrite } from "@/lib/admin/shopApiGuard";
+import { guardAdminShopWrite, type AdminShopWriteContext } from "@/lib/admin/shopApiGuard";
 import { sniffImageType, type SniffedImageType } from "@/lib/admin/imageSniff";
 import { STORE_IMAGE_CONFIG, type ResizeOptions } from "@/lib/image/clientCompression";
 import { isEquirectangularPhoto } from "@/lib/image/panorama";
@@ -32,6 +32,69 @@ async function ensureWebp(bytes: Uint8Array, type: SniffedImageType, options: Re
     .toBuffer();
 }
 
+/** 登録済みの全周写真の、サムネイルだけを差し替える。メインの URL は版（?v=）だけ新しくして、古いサムネイルが出続けないようにする */
+async function replacePanoramaThumb({
+  adminClient,
+  vendor,
+  id,
+  thumb,
+  user,
+  role,
+  ip,
+}: {
+  adminClient: AdminShopWriteContext["adminClient"];
+  vendor: { shop_name: string | null; shop_image_url: string | null; shop_image_kind: string | null };
+  id: string;
+  thumb: Blob;
+  user: AdminShopWriteContext["user"];
+  role: AdminShopWriteContext["role"];
+  ip: AdminShopWriteContext["ip"];
+}) {
+  if (normalizeShopImageKind(vendor.shop_image_kind) !== "panorama" || !vendor.shop_image_url) {
+    return NextResponse.json({ error: "全周写真が登録されていません" }, { status: 400 });
+  }
+  if (thumb.size > MAX_BYTES) return NextResponse.json({ error: "写真が大きすぎます（5MBまで）" }, { status: 413 });
+  const thumbBytes = new Uint8Array(await thumb.arrayBuffer());
+  const thumbType = sniffImageType(thumbBytes);
+  if (!thumbType) return NextResponse.json({ error: "写真の形式が正しくありません" }, { status: 400 });
+  let thumbWebp: Uint8Array;
+  try {
+    thumbWebp = await ensureWebp(thumbBytes, thumbType, STORE_IMAGE_CONFIG.panoramaThumbnail);
+  } catch {
+    return NextResponse.json({ error: "写真を読み込めませんでした" }, { status: 400 });
+  }
+
+  const storage = adminClient.storage.from(BUCKET);
+  const result = await storage.upload(`${id}/store-thumb.webp`, thumbWebp, { contentType: "image/webp", upsert: true });
+  if (result.error) return NextResponse.json({ error: "写真を保存できませんでした" }, { status: 500 });
+
+  const url = `${vendor.shop_image_url.split("?")[0]}?v=${Date.now()}`;
+  // updated_at は DB のトリガーが付け直す。DB の値を返す
+  const { data: saved, error: updateError } = await adminClient
+    .from("vendors")
+    .update({ shop_image_url: url })
+    .eq("id", id)
+    .select("updated_at")
+    .single();
+  if (updateError || !saved) return NextResponse.json({ error: "写真の URL を保存できませんでした" }, { status: 500 });
+
+  await logAdminAudit(
+    adminClient,
+    { id: user.id, email: user.email, role },
+    {
+      action: "shop_image_upload",
+      targetType: "vendor",
+      targetId: id,
+      targetName: (vendor.shop_name ?? id).slice(0, 500),
+      details: "全周写真のサムネイルを切り直し",
+      ipAddress: ip,
+    },
+  );
+
+  revalidatePublicShops();
+  return NextResponse.json({ ok: true, url, kind: "panorama", updated_at: saved.updated_at });
+}
+
 /**
  * 運営が現地で撮った店舗写真の保存。ブラウザで圧縮したメイン（1200px）とサムネイル（400px）を受け取り、
  * 出店者本人の保存（app/vendor/_services/storeService.ts の uploadStoreImage）と同じ名前で置く
@@ -54,7 +117,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
     const { data: vendor } = await adminClient
       .from("vendors")
-      .select("shop_name, photo_use_allowed")
+      .select("shop_name, photo_use_allowed, shop_image_url, shop_image_kind")
       .eq("id", id)
       .maybeSingle();
     if (!vendor) return NextResponse.json({ error: "店舗が見つかりません" }, { status: 404 });
@@ -65,6 +128,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const form = await request.formData();
     const main = form.get("main");
     const thumb = form.get("thumb");
+    // サムネイルだけが届いたときは、全周写真の切り出し位置を直す保存（メインの写真は変えない）
+    if (!(main instanceof Blob) && thumb instanceof Blob) {
+      return replacePanoramaThumb({ adminClient, vendor, id, thumb, user, role, ip });
+    }
     if (!(main instanceof Blob) || !(thumb instanceof Blob)) {
       return NextResponse.json({ error: "写真が送られていません" }, { status: 400 });
     }
@@ -80,7 +147,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     if (!mainType) return NextResponse.json({ error: "写真の形式が正しくありません" }, { status: 400 });
     let mainWebp: Uint8Array;
     try {
-      mainWebp = await ensureWebp(mainBytes, mainType, STORE_IMAGE_CONFIG.main);
+      mainWebp = await ensureWebp(mainBytes, mainType, kind === "panorama" ? STORE_IMAGE_CONFIG.panoramaMain : STORE_IMAGE_CONFIG.main);
     } catch {
       return NextResponse.json({ error: "写真を読み込めませんでした" }, { status: 400 });
     }
@@ -94,7 +161,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     // サムネイルの失敗は警告にとどめ、メインの保存は成功させる（本人の保存 storeService と同じ）
     const thumbType = sniffImageType(thumbBytes);
     const thumbWebp = thumbType
-      ? await ensureWebp(thumbBytes, thumbType, STORE_IMAGE_CONFIG.thumbnail).catch(() => null)
+      ? await ensureWebp(thumbBytes, thumbType, kind === "panorama" ? STORE_IMAGE_CONFIG.panoramaThumbnail : STORE_IMAGE_CONFIG.thumbnail).catch(() => null)
       : null;
 
     const mainPath = `${id}/store-main.webp`;

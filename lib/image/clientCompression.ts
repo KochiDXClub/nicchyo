@@ -6,6 +6,9 @@
  * これにより、通信量と Supabase Storage 容量を大幅に削減し、マップでの高速描画を可能にします。
  */
 
+import type { ShopImageKind } from "@/lib/shopImages";
+import { PANORAMA_THUMB_MAX_WIDTH, panoramaThumbGeometry } from "./panoramaThumb";
+
 export type ResizeOptions = {
   /** 長辺の最大ピクセル数 */
   maxDimension: number;
@@ -18,6 +21,18 @@ export type ResizeOptions = {
 export const STORE_IMAGE_CONFIG = {
   main: {
     maxDimension: 1200,
+    quality: 0.82,
+    mimeType: "image/webp",
+  },
+  // 全周写真。見渡すとき画面に映るのは全体の約4分の1なので、普通の写真より大きく残す（WebP で数百KB〜1MB台）
+  panoramaMain: {
+    maxDimension: 2400,
+    quality: 0.82,
+    mimeType: "image/webp",
+  },
+  // 全周写真から切り出すサムネイル（lib/image/panoramaThumb.ts）。バナーの上でも使うので、通常のサムネイルより大きい
+  panoramaThumbnail: {
+    maxDimension: PANORAMA_THUMB_MAX_WIDTH,
     quality: 0.82,
     mimeType: "image/webp",
   },
@@ -158,6 +173,13 @@ export async function resizeImageToBlob(
   ctx.imageSmoothingQuality = "high";
   ctx.drawImage(img, 0, 0, width, height);
 
+  return canvasToBlob(canvas, options);
+}
+
+/**
+ * Canvas を指定形式の Blob にする。指定の形式で書き出せなければ JPEG にする
+ */
+function canvasToBlob(canvas: HTMLCanvasElement, options: ResizeOptions): Promise<Blob> {
   const mimeType = options.mimeType ?? "image/webp";
 
   return new Promise<Blob>((resolve, reject) => {
@@ -210,17 +232,63 @@ export function imageUploadInfo(blob: Blob): { contentType: string; ext: string 
 }
 
 /**
- * 店舗画像 1 ファイルから「メイン用」と「サムネイル用」の 2 つの WebP Blob を生成する
- * （WebP を書き出せないブラウザでは JPEG）
+ * 全周写真の中央の高さを、左右の好きな位置で切り出して、バナー用のサムネイルにする。
+ * @param center 切り出しの中心。写真の横幅に対する割合（0〜1）。端をまたいでもよい
  */
-export async function createStoreImages(file: File): Promise<{
+export async function createPanoramaThumbnail(source: Blob, center: number): Promise<Blob> {
+  const img = await loadImageElement(source);
+  const geometry = panoramaThumbGeometry(
+    img.naturalWidth || img.width,
+    img.naturalHeight || img.height,
+    center
+  );
+
+  const canvas = document.createElement("canvas");
+  canvas.width = geometry.outWidth;
+  canvas.height = geometry.outHeight;
+
+  const ctx = canvas.getContext("2d");
+  if (!ctx) {
+    throw new Error("Canvas 2D コンテキストの取得に失敗しました");
+  }
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";
+  for (const segment of geometry.segments) {
+    ctx.drawImage(img, segment.sx, geometry.sy, segment.sw, geometry.sh, segment.dx, 0, segment.dw, geometry.outHeight);
+  }
+
+  return canvasToBlob(canvas, STORE_IMAGE_CONFIG.panoramaThumbnail);
+}
+
+/**
+ * 登録済みの全周写真（メイン）を取り直して、サムネイルだけを切り直す。
+ * 写真は保存済みのものを使うので、切り直しのために写真を選び直す必要はない
+ */
+export async function createPanoramaThumbnailFromUrl(url: string, center: number): Promise<Blob> {
+  const response = await fetch(url, { cache: "no-store" });
+  if (!response.ok) throw new Error("登録済みの写真を読み込めませんでした");
+  return createPanoramaThumbnail(await response.blob(), center);
+}
+
+/**
+ * 店舗画像 1 ファイルから「メイン用」と「サムネイル用」の 2 つの WebP Blob を生成する
+ * （WebP を書き出せないブラウザでは JPEG）。
+ * 全周写真は、メインを大きめ（長辺2400px）に残し、サムネイルは中央の高さを thumbCenter の位置で切り出す
+ */
+export async function createStoreImages(
+  file: File,
+  options: { kind?: ShopImageKind; thumbCenter?: number } = {}
+): Promise<{
   mainBlob: Blob;
   thumbBlob: Blob;
 }> {
+  const panorama = options.kind === "panorama";
   // 並行してメイン画像とサムネイル画像をリサイズ・圧縮
   const [mainBlob, thumbBlob] = await Promise.all([
-    resizeImageToBlob(file, STORE_IMAGE_CONFIG.main),
-    resizeImageToBlob(file, STORE_IMAGE_CONFIG.thumbnail),
+    resizeImageToBlob(file, panorama ? STORE_IMAGE_CONFIG.panoramaMain : STORE_IMAGE_CONFIG.main),
+    panorama
+      ? createPanoramaThumbnail(file, options.thumbCenter ?? 0.5)
+      : resizeImageToBlob(file, STORE_IMAGE_CONFIG.thumbnail),
   ]);
 
   return { mainBlob, thumbBlob };

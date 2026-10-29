@@ -1,5 +1,10 @@
 import { createClient } from "@/utils/supabase/client";
-import { createStoreImages, imageUploadInfo } from "@/lib/image/clientCompression";
+import {
+  createPanoramaThumbnailFromUrl,
+  createStoreImages,
+  imageUploadInfo,
+} from "@/lib/image/clientCompression";
+import type { ShopImageKind } from "@/lib/shopImages";
 import type { Store, PaymentMethod, RainPolicy } from "../_types";
 
 export type Category = { id: string; name: string };
@@ -63,11 +68,16 @@ export async function fetchVendorStore(vendorId: string): Promise<Store | null> 
   };
 }
 
-export async function uploadStoreImage(vendorId: string, file: File): Promise<string> {
+export async function uploadStoreImage(
+  vendorId: string,
+  file: File,
+  options: { kind?: ShopImageKind; thumbCenter?: number } = {}
+): Promise<string> {
   const supabase = createClient();
 
-  // クライアント側でメイン用(1200px)とサムネ用(400px)のWebP画像に圧縮・リサイズ
-  const { mainBlob, thumbBlob } = await createStoreImages(file);
+  // クライアント側でメイン用(1200px。全周写真は2400px)とサムネ用のWebP画像に圧縮・リサイズ。
+  // 全周写真のサムネは、中央の高さを thumbCenter の位置で切り出す
+  const { mainBlob, thumbBlob } = await createStoreImages(file, options);
 
   // WebP を書き出せないブラウザでは JPEG/PNG になるので、実際の形式で保存する
   const main = imageUploadInfo(mainBlob);
@@ -118,6 +128,23 @@ export async function uploadStoreImage(vendorId: string, file: File): Promise<st
   const { data } = supabase.storage.from("vendor-images").getPublicUrl(mainPath);
   // 同じ名前で上書きするので、URL を変えないと CDN とブラウザが前の写真を返し続ける
   return `${data.publicUrl}?v=${Date.now()}`;
+}
+
+/**
+ * 登録済みの全周写真のサムネイルだけを、新しい切り取り位置で作り直す。メインの写真は変えない。
+ * 返す URL は、メインの URL の版（?v=）だけを新しくしたもの。呼び出し側が shop_image_url に保存する
+ */
+export async function recropStoreThumbnail(vendorId: string, sourceUrl: string, center: number): Promise<string> {
+  const supabase = createClient();
+  const thumbBlob = await createPanoramaThumbnailFromUrl(sourceUrl, center);
+  const { error } = await supabase.storage
+    .from("vendor-images")
+    .upload(`${vendorId}/store-thumb.webp`, thumbBlob, {
+      contentType: imageUploadInfo(thumbBlob).contentType,
+      upsert: true,
+    });
+  if (error) throw error;
+  return `${sourceUrl.split("?")[0]}?v=${Date.now()}`;
 }
 
 export async function saveVendorStore(

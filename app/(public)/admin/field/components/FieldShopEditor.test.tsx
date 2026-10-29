@@ -8,6 +8,7 @@ vi.mock("@/lib/admin/toast", () => ({ showToast: { success: vi.fn(), error: vi.f
 const readImageSize = vi.hoisted(() => vi.fn(async () => ({ width: 4000, height: 3000 })));
 vi.mock("@/lib/image/clientCompression", () => ({
   readImageSize,
+  createPanoramaThumbnailFromUrl: async () => new Blob(["t"]),
   createStoreImages: async () => ({ mainBlob: new Blob(["m"]), thumbBlob: new Blob(["t"]) }),
   resizeImageToBlob: async () => new Blob(["p"]),
   STORE_IMAGE_CONFIG: { main: {} },
@@ -111,6 +112,33 @@ describe("FieldShopEditor", () => {
 
     await waitFor(() => expect(calls.some((c) => c.url.endsWith("/image"))).toBe(true));
     expect((calls.find((c) => c.url.endsWith("/image"))!.body as FormData).get("kind")).toBe("panorama");
+  });
+
+  it("全周写真を選ぶと、サムネイルにする部分を選ぶ枠が出る。普通の写真では出ない", async () => {
+    readImageSize.mockResolvedValueOnce({ width: 4096, height: 2048 });
+    const { container } = render(<FieldShopEditor shopId={baseShop.id} />);
+    await screen.findByDisplayValue("はなや");
+
+    fireEvent.change(container.querySelector('input[type="file"]')!, { target: { files: [new File(["x"], "p.jpg", { type: "image/jpeg" })] } });
+
+    await screen.findByRole("slider", { name: "サムネイルにする部分" });
+    fireEvent.click(screen.getByRole("radio", { name: "普通の写真" }));
+    expect(screen.queryByRole("slider", { name: "サムネイルにする部分" })).toBeNull();
+  });
+
+  it("登録済みの全周写真は、サムネイルの切り取り位置だけを直して保存できる（メインは送らない）", async () => {
+    currentShop = { ...baseShop, shop_image_url: "https://x.supabase.co/storage/store-main.webp?v=1", shop_image_kind: "panorama" } as unknown as typeof baseShop;
+    render(<FieldShopEditor shopId={baseShop.id} />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "サムネイルの切り取り位置を変える" }));
+    fireEvent.keyDown(screen.getByRole("slider", { name: "サムネイルにする部分" }), { key: "ArrowRight" });
+    fireEvent.click(screen.getByRole("button", { name: "この位置で保存" }));
+
+    await waitFor(() => expect(calls.some((c) => c.url.endsWith("/image"))).toBe(true));
+    const form = calls.find((c) => c.url.endsWith("/image"))!.body as FormData;
+    expect(form.get("thumb")).toBeInstanceOf(Blob);
+    expect(form.has("main")).toBe(false);
+    await waitFor(() => expect(screen.queryByRole("slider")).toBeNull());
   });
 
   it("写真は「撮る」（カメラ）と「選ぶ」（端末の写真）の別の入口にする", async () => {

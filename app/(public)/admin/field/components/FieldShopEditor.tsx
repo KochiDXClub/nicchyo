@@ -14,9 +14,11 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { showToast } from "@/lib/admin/toast";
 import { MAX_SHOP_ID, MIN_SHOP_ID } from "@/lib/shops/route";
-import { createStoreImages, imageErrorMessage } from "@/lib/image/clientCompression";
+import { createPanoramaThumbnailFromUrl, createStoreImages, imageErrorMessage } from "@/lib/image/clientCompression";
 import type { ShopImageKind } from "@/lib/shopImages";
 import { ShopImageKindField } from "@/components/vendor/ShopImageKindField";
+import { PanoramaThumbPicker } from "@/components/vendor/PanoramaThumbPicker";
+import { useObjectUrl } from "@/components/vendor/useObjectUrl";
 import { useShopImageKind } from "@/components/vendor/useShopImageKind";
 import { Card, Field, buttonClass, inputClass } from "./fieldFormParts";
 import { FieldProductsCard, type ProductRow } from "./FieldProductsCard";
@@ -123,6 +125,10 @@ export function FieldShopEditor({ shopId }: { shopId: string }) {
   // 撮った・選んだ写真は、種類（普通／全周）を決めてから登録する
   const [pendingPhoto, setPendingPhoto] = useState<File | null>(null);
   const pendingPhotoKind = useShopImageKind(pendingPhoto);
+  const pendingPhotoUrl = useObjectUrl(pendingPhoto);
+  // 全周写真のサムネイルにする位置（写真の横幅に対する割合）。新しい写真の登録と、登録済みの写真の切り直しで使う
+  const [thumbCenter, setThumbCenter] = useState(0.5);
+  const [recropping, setRecropping] = useState(false);
   const { productPhotoBusy, uploadProductPhoto, removeProductPhoto } = useProductPhotos(shopId, setShop);
   const [locations, setLocations] = useState<FieldLocation[]>([]);
   const [storeNumber, setStoreNumber] = useState("");
@@ -229,7 +235,7 @@ export function FieldShopEditor({ shopId }: { shopId: string }) {
     if (!file) return;
     setPhotoBusy(true);
     try {
-      const { mainBlob, thumbBlob } = await createStoreImages(file);
+      const { mainBlob, thumbBlob } = await createStoreImages(file, { kind: pendingPhotoKind.kind, thumbCenter });
       const body = new FormData();
       body.append("main", mainBlob, "main");
       body.append("thumb", thumbBlob, "thumb");
@@ -246,9 +252,31 @@ export function FieldShopEditor({ shopId }: { shopId: string }) {
           : prev,
       );
       setPendingPhoto(null);
+      setThumbCenter(0.5);
       showToast.success("写真を保存しました");
     } catch (e) {
       showToast.error(imageErrorMessage(e, e instanceof Error ? e.message : "写真を保存できませんでした"));
+    } finally {
+      setPhotoBusy(false);
+    }
+  };
+
+  /** 登録済みの全周写真のサムネイルを、選んだ位置で切り直して保存する（メインの写真は変えない） */
+  const recropThumb = async () => {
+    if (!shop?.shop_image_url) return;
+    setPhotoBusy(true);
+    try {
+      const thumbBlob = await createPanoramaThumbnailFromUrl(shop.shop_image_url, thumbCenter);
+      const body = new FormData();
+      body.append("thumb", thumbBlob, "thumb");
+      const res = await fetch(`/api/admin/shops/${shopId}/image`, { method: "POST", body });
+      if (!res.ok) throw new Error((await readError(res, "サムネイルを保存できませんでした")).message);
+      const { url, updated_at } = (await res.json()) as { url: string; updated_at?: string };
+      setShop((prev) => (prev ? { ...prev, shop_image_url: url, updated_at: updated_at ?? prev.updated_at } : prev));
+      setRecropping(false);
+      showToast.success("サムネイルを保存しました");
+    } catch (e) {
+      showToast.error(imageErrorMessage(e, e instanceof Error ? e.message : "サムネイルを保存できませんでした"));
     } finally {
       setPhotoBusy(false);
     }
@@ -382,6 +410,33 @@ export function FieldShopEditor({ shopId }: { shopId: string }) {
         {shop.shop_image_url && shop.shop_image_kind === "panorama" ? (
           <p className="text-[13px] font-semibold text-nicchyo-ink/70">全周カメラ（360°）の写真として登録済み</p>
         ) : null}
+        {shop.shop_image_url && shop.shop_image_kind === "panorama" ? (
+          recropping ? (
+            <div className="space-y-2 rounded-lg border border-line p-3">
+              <PanoramaThumbPicker src={shop.shop_image_url} value={thumbCenter} onChange={setThumbCenter} disabled={photoBusy} />
+              <div className="grid grid-cols-2 gap-2">
+                <button type="button" disabled={photoBusy} onClick={() => setRecropping(false)} className={`${buttonClass} border border-line bg-white text-nicchyo-ink`}>
+                  やめる
+                </button>
+                <button type="button" disabled={photoBusy} onClick={() => void recropThumb()} className={`${buttonClass} bg-amber-500 text-white disabled:opacity-50`}>
+                  {photoBusy ? "保存しています…" : "この位置で保存"}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button
+              type="button"
+              disabled={photoBusy || !shop.photo_use_allowed}
+              onClick={() => {
+                setThumbCenter(0.5);
+                setRecropping(true);
+              }}
+              className={`${buttonClass} border border-line bg-white text-nicchyo-ink disabled:opacity-50`}
+            >
+              サムネイルの切り取り位置を変える
+            </button>
+          )
+        ) : null}
         {/* 撮る（カメラを起動）と、選ぶ（端末の写真から）は別の入口にする */}
         <div className="grid grid-cols-2 gap-2">
           {[
@@ -400,6 +455,7 @@ export function FieldShopEditor({ shopId }: { shopId: string }) {
                 className="sr-only"
                 disabled={!shop.photo_use_allowed || photoBusy}
                 onChange={(e) => {
+                  setThumbCenter(0.5);
                   setPendingPhoto(e.target.files?.[0] ?? null);
                   e.target.value = "";
                 }}
@@ -416,6 +472,9 @@ export function FieldShopEditor({ shopId }: { shopId: string }) {
               panoramaAvailable={pendingPhotoKind.panoramaAvailable}
               disabled={photoBusy}
             />
+            {pendingPhotoKind.kind === "panorama" && pendingPhotoUrl ? (
+              <PanoramaThumbPicker src={pendingPhotoUrl} value={thumbCenter} onChange={setThumbCenter} disabled={photoBusy} />
+            ) : null}
             <div className="grid grid-cols-2 gap-2">
               <button type="button" disabled={photoBusy} onClick={() => setPendingPhoto(null)} className={`${buttonClass} border border-line bg-white text-nicchyo-ink`}>
                 やめる

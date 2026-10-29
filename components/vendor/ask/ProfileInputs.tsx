@@ -10,6 +10,7 @@ import PhotoPickerField from "./PhotoPickerField";
 import ProductPhotoButton from "./ProductPhotoButton";
 import { usePhotoPicker } from "./usePhotoPicker";
 import { ShopImageKindField } from "../ShopImageKindField";
+import { PanoramaThumbPicker } from "../PanoramaThumbPicker";
 import { useShopImageKind } from "../useShopImageKind";
 
 // 店舗情報の基本項目（編集画面の質問）の入力欄。トップの質問の入力欄は AskInputs にある。
@@ -40,14 +41,33 @@ export function PhotoInput({ snapshot, saving, onSubmit, onSkip }: InputProps) {
   const picker = usePhotoPicker(snapshot.shopImageUrl);
   const { file } = picker;
   const imageKind = useShopImageKind(file);
+  // 全周写真のサムネイルにする位置。新しい写真の登録と、登録済みの写真の切り直しで使う
+  const [thumbCenter, setThumbCenter] = useState(0.5);
+  const [recropping, setRecropping] = useState(false);
+  const registeredPanorama = !file && snapshot.shopImageKind === "panorama" && !!snapshot.shopImageUrl;
+  const recrop = registeredPanorama && recropping ? snapshot.shopImageUrl : undefined;
   return (
     <AskForm
-      canSubmit={!!file && !imageKind.checking}
+      canSubmit={(!!file && !imageKind.checking) || !!recrop}
       saving={saving}
       onSkip={onSkip}
-      onSubmit={() => file && onSubmit({ id: "shop-photo", imageFile: file, imageKind: imageKind.kind })}
+      onSubmit={() => {
+        if (file) {
+          onSubmit({ id: "shop-photo", imageFile: file, imageKind: imageKind.kind, thumbCenter });
+        } else if (recrop) {
+          onSubmit({ id: "shop-photo", imageFile: null, recrop: { sourceUrl: recrop, center: thumbCenter } });
+        }
+      }}
     >
-      <PhotoPickerField picker={picker} alt="お店の写真" className="h-52" />
+      <PhotoPickerField
+        picker={picker}
+        alt="お店の写真"
+        className="h-52"
+        onPick={() => {
+          setThumbCenter(0.5);
+          setRecropping(false);
+        }}
+      />
       {/* 新しく選んだ写真にだけ付ける。今の写真の種類は、選び直すときに決め直す */}
       {file && (
         <ShopImageKindField
@@ -56,6 +76,22 @@ export function PhotoInput({ snapshot, saving, onSubmit, onSkip }: InputProps) {
           panoramaAvailable={imageKind.panoramaAvailable}
         />
       )}
+      {file && imageKind.kind === "panorama" && picker.preview && (
+        <PanoramaThumbPicker src={picker.preview} value={thumbCenter} onChange={setThumbCenter} />
+      )}
+      {/* 登録済みの全周写真は、写真を選び直さなくても、サムネイルの切り取り位置だけ直せる */}
+      {registeredPanorama &&
+        (recropping && snapshot.shopImageUrl ? (
+          <PanoramaThumbPicker src={snapshot.shopImageUrl} value={thumbCenter} onChange={setThumbCenter} />
+        ) : (
+          <button
+            type="button"
+            onClick={() => setRecropping(true)}
+            className="min-h-11 rounded-chip bg-white px-3 text-[13px] font-semibold text-nicchyo-ink ring-1 ring-line"
+          >
+            サムネイルの切り取り位置を変える
+          </button>
+        ))}
       <p className="text-center text-xs text-nicchyo-ink/55">
         マップの吹き出しと、お店のページのバナーに出るきね
       </p>

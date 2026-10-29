@@ -202,6 +202,8 @@ describe("答えを消す", () => {
       expect(isClearAnswer(empty!)).toBe(true);
     }
     expect(isClearAnswer({ id: "owner", name: "山田", isPublic: true })).toBe(false);
+    // サムネイルの切り直しは、写真を消す答えではない
+    expect(isClearAnswer({ id: "shop-photo", imageFile: null, recrop: { sourceUrl: "https://x/a.webp", center: 0.5 } })).toBe(false);
     expect(isClearAnswer({ id: "category", categoryId: "c1" })).toBe(false);
   });
 });

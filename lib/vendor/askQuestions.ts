@@ -420,7 +420,7 @@ export function isClearAnswer(answer: AskAnswer): boolean {
     case "website":
       return !answer.value.trim();
     case "shop-photo":
-      return !answer.imageFile;
+      return !answer.imageFile && !answer.recrop;
     case "owner":
       return !answer.name.trim();
     case "category":
@@ -445,7 +445,15 @@ export type AskAnswer =
   | { id: "motivation"; text: string }
   | { id: "years"; years: number }
   | { id: "sunday-love"; text: string }
-  | { id: "shop-photo"; imageFile: File | null; imageKind?: ShopImageKind }
+  | {
+      id: "shop-photo";
+      imageFile: File | null;
+      imageKind?: ShopImageKind;
+      /** 全周写真のサムネイルにする位置（写真の横幅に対する割合） */
+      thumbCenter?: number;
+      /** 登録済みの全周写真の、サムネイルだけを切り直す（imageFile は null のまま。写真を消す答えと区別する） */
+      recrop?: { sourceUrl: string; center: number };
+    }
   | { id: "shop-name"; text: string }
   | { id: "category"; categoryId: string }
   | { id: "style"; tags: string[]; note: string }
