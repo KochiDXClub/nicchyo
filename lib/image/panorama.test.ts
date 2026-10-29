@@ -23,8 +23,16 @@ describe("isEquirectangularPhoto", () => {
     expect(isEquirectangularPhoto(640, 320)).toBe(true);
   });
 
-  it("小さい画像は 2:1 でも対象にしない", () => {
-    expect(isEquirectangularPhoto(400, 200)).toBe(false);
+  it("軽量化した画像（1200px 幅の WebP）やサムネイル（400px 幅）でも判定できる", () => {
+    expect(isEquirectangularPhoto(1200, 600)).toBe(true);
+    expect(isEquirectangularPhoto(1200, 598)).toBe(true);
+    expect(isEquirectangularPhoto(400, 200)).toBe(true);
+    // 400px 幅に収めた普通の写真（4:3）は対象外
+    expect(isEquirectangularPhoto(400, 300)).toBe(false);
+  });
+
+  it("極端に小さい画像は 2:1 でも対象にしない", () => {
+    expect(isEquirectangularPhoto(32, 16)).toBe(false);
   });
 
   it("大きさが分からないときは false", () => {

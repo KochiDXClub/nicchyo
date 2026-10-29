@@ -11,6 +11,7 @@ import {
   Clock,
   CreditCard,
   Expand,
+  Rotate3d,
   Gem,
   Globe,
   Heart,
@@ -295,6 +296,7 @@ export function ShopBannerHero({
   isFavorite = false,
   onToggleFavorite,
   onOpenPhoto,
+  isPanorama = false,
 }: {
   shop: Shop;
   bannerImage: string;
@@ -307,6 +309,8 @@ export function ShopBannerHero({
   onToggleFavorite?: () => void;
   /** 写真を拡大表示で開く。無ければ（出店者が写真を出していない店など）写真は押せない */
   onOpenPhoto?: () => void;
+  /** 全周写真の店。バナーにはサムネイルを出し、タップするとドラッグで見渡せることを示す */
+  isPanorama?: boolean;
 }) {
   if (mode === "compact") {
     return (
@@ -385,8 +389,8 @@ export function ShopBannerHero({
           className="absolute inset-0 z-[1]"
         >
           <span className="absolute left-3 top-3 flex h-8 items-center gap-1 rounded-chip bg-black/35 px-2.5 text-[11px] font-bold text-white backdrop-blur-sm">
-            <Expand className="h-3.5 w-3.5" aria-hidden />
-            拡大
+            {isPanorama ? <Rotate3d className="h-3.5 w-3.5" aria-hidden /> : <Expand className="h-3.5 w-3.5" aria-hidden />}
+            {isPanorama ? "360°" : "拡大"}
           </span>
         </button>
       )}
