@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { getImageProps } from "next/image";
+import Image, { getImageProps } from "next/image";
 import { MapPin } from "lucide-react";
 import { buttonClass } from "@/components/ui";
 import LanguageSwitcher from "@/components/navigation/LanguageSwitcher";
@@ -48,8 +48,16 @@ export default function LandingHero({ day }: { day: MarketDay | null }) {
       {/* ヘッダー：左にサイト名、右に言語 */}
       <header className="relative z-20 px-5 pt-[var(--safe-top,0px)] md:px-10">
         <div className="mx-auto flex h-14 max-w-[64rem] items-center justify-between md:h-16">
-          <Link href="/" className={`text-xl font-black tracking-wide text-white ${PHOTO_TEXT_SHADOW}`}>
-            nicchyo
+          <Link href="/" aria-label="nicchyo">
+            {/* 写真の上でも緑の文字が沈まないよう、白いふちどりを付ける */}
+            <Image
+              src="/images/nicchyo-logo.webp"
+              alt="nicchyo"
+              width={516}
+              height={240}
+              priority
+              className="h-11 w-auto drop-shadow-[0_0_3px_rgba(255,255,255,0.95)] drop-shadow-[0_1px_4px_rgba(0,0,0,0.3)] md:h-12"
+            />
           </Link>
           <LanguageSwitcher tone="photo" />
         </div>
