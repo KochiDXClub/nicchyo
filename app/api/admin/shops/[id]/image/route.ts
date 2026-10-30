@@ -122,12 +122,14 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     }
 
     const url = storage.getPublicUrl(mainPath).data.publicUrl;
-    const updatedAt = new Date().toISOString();
-    const { error: updateError } = await adminClient
+    // updated_at は DB のトリガーが付け直す。アプリの時計で返すと保存値とずれて、次の保存が 409 になる
+    const { data: saved, error: updateError } = await adminClient
       .from("vendors")
-      .update({ shop_image_url: url, shop_image_kind: kind, updated_at: updatedAt })
-      .eq("id", id);
-    if (updateError) return NextResponse.json({ error: "写真の URL を保存できませんでした" }, { status: 500 });
+      .update({ shop_image_url: url, shop_image_kind: kind })
+      .eq("id", id)
+      .select("updated_at")
+      .single();
+    if (updateError || !saved) return NextResponse.json({ error: "写真の URL を保存できませんでした" }, { status: 500 });
 
     await logAdminAudit(
       adminClient,
@@ -144,7 +146,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
     revalidatePublicShops();
     // 画面が次の保存（updated_at による競合検知）で 409 にならないよう、新しい updated_at も返す
-    return NextResponse.json({ ok: true, url, kind, updated_at: updatedAt });
+    return NextResponse.json({ ok: true, url, kind, updated_at: saved.updated_at });
   } catch {
     return NextResponse.json({ error: "写真を保存できませんでした" }, { status: 500 });
   }
