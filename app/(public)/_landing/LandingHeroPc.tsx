@@ -4,12 +4,9 @@ import { ArrowRight, MapPin, Search } from "lucide-react";
 import { buttonClass } from "@/components/ui";
 import LanguageSwitcher from "@/components/navigation/LanguageSwitcher";
 import { PHOTOS } from "./content";
-import SundayCard from "./SundayCard";
+import NextSundayCalendar from "./NextSundayCalendar";
 import type { LandingSunday } from "./upcomingSundays";
 import "./landing.css";
-
-/** 写真の上に出す、これからの日曜の数 */
-const PHOTO_SUNDAY_COUNT = 4;
 
 const NAV = [
   { href: "#landing-howto", label: "使い方" },
@@ -19,11 +16,11 @@ const NAV = [
 
 /**
  * 広い画面（md以上）の最初の一画面。左に見出し・マップをみる・検索、右に日曜市の写真。
- * 写真の上には、開催カレンダーと同じ状態つきで、これからの日曜（直近の開催予定）を載せる。
+ * 写真の上には、「次の日曜市は、いつ？」と同じ日めくりカレンダーで、いちばん近い日曜の開催予定を載せる。
  * スマホは LandingHero の写真地の見た目を使う（この部品は md 未満では出ない）
  */
 export default function LandingHeroPc({ sundays }: { sundays: LandingSunday[] }) {
-  const upcoming = sundays.slice(0, PHOTO_SUNDAY_COUNT);
+  const next = sundays[0];
 
   return (
     <section aria-labelledby="landing-title-pc" className="hidden min-h-[100svh] flex-col bg-nicchyo-base md:flex">
@@ -113,20 +110,10 @@ export default function LandingHeroPc({ sundays }: { sundays: LandingSunday[] })
             className="object-cover"
           />
           <div aria-hidden className="absolute inset-x-0 bottom-0 h-2/5 bg-gradient-to-t from-black/45 to-transparent" />
-          {upcoming.length > 0 && (
-            <div className="absolute inset-x-5 bottom-5 rounded-card bg-nicchyo-base/95 px-5 pb-4 pt-3 shadow-float backdrop-blur-sm">
-              <div className="flex items-baseline justify-between gap-3">
-                <p className="text-[15px] font-black text-nicchyo-ink">これからの日曜</p>
-                <Link href="/calendar" className="text-[13px] font-bold text-amber-700 hover:text-amber-600">
-                  開催カレンダー →
-                </Link>
-              </div>
-              <ul className="mt-3 flex justify-between gap-2.5 pt-2">
-                {upcoming.map((sunday) => (
-                  <SundayCard key={sunday.dateIso} sunday={sunday} />
-                ))}
-              </ul>
-            </div>
+          {next && (
+            <Link href="/calendar" aria-label="開催カレンダーをひらく" className="absolute bottom-8 right-8 transition-transform hover:-translate-y-1 motion-reduce:transition-none">
+              <NextSundayCalendar sunday={next} />
+            </Link>
           )}
         </div>
       </div>
