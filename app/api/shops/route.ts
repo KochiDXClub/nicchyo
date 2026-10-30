@@ -1,10 +1,19 @@
 import { NextResponse } from "next/server";
 import { fetchPublicShops } from "@/app/(public)/map/services/shopCache";
+import { isPathVisibleToCurrentUser } from "@/lib/pageVisibility/server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET() {
+  // proxy.ts で止めたうえで、ここでも確認する（地図と同じ公開設定に従う）
+  if (!(await isPathVisibleToCurrentUser("/map"))) {
+    return NextResponse.json(
+      { error: "Not found" },
+      { status: 404, headers: { "Cache-Control": "private, no-store" } }
+    );
+  }
+
   const hasSupabaseEnv =
     !!process.env.NEXT_PUBLIC_SUPABASE_URL &&
     !!(

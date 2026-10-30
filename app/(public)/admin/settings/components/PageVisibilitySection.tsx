@@ -168,7 +168,9 @@ export function PageVisibilitySection() {
     setSettings((prev) => {
       const rule = prev.pages[path] ?? { roles: {} };
       const roles = { ...rule.roles };
-      if (state === "public") delete roles[role];
+      // 本番の既定が public でないロールは、public も上書き設定として残す
+      const keepsPublic = PAGE_REGISTRY.find((e) => e.path === path)?.productionDefault?.[role] !== undefined;
+      if (state === "public" && !keepsPublic) delete roles[role];
       else roles[role] = state;
       return { pages: { ...prev.pages, [path]: { ...rule, roles } } };
     });

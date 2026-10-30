@@ -2,6 +2,7 @@ import { type NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/utils/supabase/middleware";
 import { getRole, isModerator } from "@/lib/auth/permissions";
 import {
+  applyEnvironmentDefaults,
   EMPTY_PAGE_VISIBILITY_SETTINGS,
   parsePageVisibilitySettings,
   resolvePageVisibility,
@@ -33,7 +34,14 @@ function fallbackSiteSettings(): SiteSettings {
   return value;
 }
 
+// 本番の既定（管理者以外には本番マップを見せない）は、保存済み設定の取得に失敗したときも効かせる。
+// ここを通さないと、DB が落ちた瞬間に公開側へ倒れる
 async function getSiteSettings(): Promise<SiteSettings> {
+  const settings = await fetchSiteSettings();
+  return { ...settings, pageVisibility: applyEnvironmentDefaults(settings.pageVisibility) };
+}
+
+async function fetchSiteSettings(): Promise<SiteSettings> {
   if (siteSettingsCache && Date.now() < siteSettingsCache.expiresAt) {
     return siteSettingsCache.value;
   }
@@ -78,6 +86,9 @@ const MAINTENANCE_SKIP_EXACT = ["/robots.txt", "/sitemap.xml", "/favicon.ico"];
 // メンテ中でも管理者が再ログインしてメンテを解除できるよう、ログイン系はメンテ判定だけ免除する
 // （公開設定の判定は引き続き対象）
 const MAINTENANCE_ONLY_SKIP_PREFIXES = ["/login", "/oauth"];
+
+// 店舗データをそのまま返す API は、地図ページ（/map）と同じ公開設定で止める
+const MAP_DATA_API_PREFIXES = ["/api/shops", "/api/grandma"];
 
 function matchesPrefix(pathname: string, prefix: string): boolean {
   return pathname === prefix || pathname.startsWith(`${prefix}/`);
@@ -138,6 +149,18 @@ export async function proxy(request: NextRequest) {
     }
   }
 
+  // 地図の店舗データを返す API。ページの redirect ではなく 404 を返して存在を伝えない
+  if (MAP_DATA_API_PREFIXES.some((p) => matchesPrefix(pathname, p))) {
+    const settings = (await getSiteSettings()).pageVisibility;
+    const apiRole = toVisibilityRole(appRole, !!user);
+    if (resolvePageVisibility("/map", apiRole, settings).state === "private") {
+      const denied = NextResponse.json({ error: "Not found" }, { status: 404 });
+      denied.headers.set("cache-control", "private, no-store");
+      copyCookies(supabaseResponse, denied);
+      return denied;
+    }
+  }
+
   // ページ公開設定（管理画面で設定した「非公開」ページをロール別に遮断）
   if (isPageRequest) {
     const visibilityRole = toVisibilityRole(appRole, !!user);
@@ -149,7 +172,10 @@ export async function proxy(request: NextRequest) {
       const target = visibility.redirectTo;
       const targetVisible =
         resolvePageVisibility(target, visibilityRole, siteSettings.pageVisibility).state !== "private";
-      const destination = targetVisible && target !== visibilityPath ? target : "/map";
+      // マップ自身が見えないロール（本番の準備中など）を /map へ逃がすと二度転送になるので、トップへ戻す
+      const mapVisible =
+        resolvePageVisibility("/map", visibilityRole, siteSettings.pageVisibility).state !== "private";
+      const destination = targetVisible && target !== visibilityPath ? target : mapVisible ? "/map" : "/";
       const redirectRes = NextResponse.redirect(new URL(destination, request.url));
       copyCookies(supabaseResponse, redirectRes);
       return redirectRes;

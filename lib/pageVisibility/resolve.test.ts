@@ -70,8 +70,10 @@ describe("resolvePageVisibility", () => {
   });
 
   it("lockedPublic のページは private にできない", () => {
-    const locked: PageVisibilitySettings = { pages: { "/map": { roles: { anon: "private" } } } };
-    expect(resolvePageVisibility("/map", "anon", locked).state).toBe("public");
+    const locked: PageVisibilitySettings = { pages: { "/admin/settings": { roles: { anon: "private" } } } };
+    expect(resolvePageVisibility("/admin/settings", "general_user", locked).state).toBe("private");
+    const lockedAdmin: PageVisibilitySettings = { pages: { "/admin/settings": { roles: { admin: "private" } } } };
+    expect(resolvePageVisibility("/admin/settings", "admin", lockedAdmin).state).toBe("public");
   });
 
   it("おでかけサポートは地図（常に公開）とは別に止められ、保存した設定も読み戻せる", () => {
@@ -106,10 +108,17 @@ describe("parsePageVisibilitySettings", () => {
       pages: {
         "/nope": { roles: { anon: "private" } },
         "/shops/001": { roles: { anon: "private" } },
-        "/consult": { roles: { anon: "public", vendor: "weird", hacker: "private", general_user: "unlisted" } },
+        "/faq": { roles: { anon: "public", vendor: "weird", hacker: "private", general_user: "unlisted" } },
       },
     });
-    expect(parsed).toEqual({ pages: { "/consult": { roles: { general_user: "unlisted" } } } });
+    expect(parsed).toEqual({ pages: { "/faq": { roles: { general_user: "unlisted" } } } });
+  });
+
+  it("本番の既定が public でないロールの public は、上書き設定として残す", () => {
+    const parsed = parsePageVisibilitySettings({
+      pages: { "/map": { roles: { moderator: "public", admin: "public" } } },
+    });
+    expect(parsed.pages["/map"].roles).toEqual({ moderator: "public" });
   });
 
   it("redirectTo はサイト内パスのみ受け付け、デフォルトは省略する", () => {

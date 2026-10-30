@@ -7,6 +7,7 @@ import { fetchPublicShops } from "@/app/(public)/map/services/shopCache";
 import {
   EMPTY_PAGE_VISIBILITY_SETTINGS,
   isLinkVisible,
+  applyEnvironmentDefaults,
   parsePageVisibilitySettings,
   type PageVisibilitySettings,
 } from "@/lib/pageVisibility";
@@ -18,7 +19,7 @@ export const revalidate = 3600;
 async function fetchPageVisibility(): Promise<PageVisibilitySettings> {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY;
-  if (!supabaseUrl || !supabaseKey) return EMPTY_PAGE_VISIBILITY_SETTINGS;
+  if (!supabaseUrl || !supabaseKey) return applyEnvironmentDefaults(EMPTY_PAGE_VISIBILITY_SETTINGS);
 
   try {
     const supabase = createSupabaseClient<Database>(supabaseUrl, supabaseKey);
@@ -27,9 +28,9 @@ async function fetchPageVisibility(): Promise<PageVisibilitySettings> {
       .select("value")
       .eq("key", "page_visibility")
       .maybeSingle();
-    return parsePageVisibilitySettings(data?.value);
+    return applyEnvironmentDefaults(parsePageVisibilitySettings(data?.value));
   } catch {
-    return EMPTY_PAGE_VISIBILITY_SETTINGS;
+    return applyEnvironmentDefaults(EMPTY_PAGE_VISIBILITY_SETTINGS);
   }
 }
 
