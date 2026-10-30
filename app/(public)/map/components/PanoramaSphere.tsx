@@ -4,8 +4,12 @@ import { useEffect, useRef } from "react";
 import { Viewer } from "@photo-sphere-viewer/core";
 import "@photo-sphere-viewer/core/index.css";
 
-/** 最初に見える横の画角（度）。広すぎると遠近が薄れ、狭すぎると何が写っているか分からない */
-const DEFAULT_FOV = 80;
+/**
+ * 最初に見える縦の画角（度。Photo Sphere Viewer の fov は縦）。横の画角は画面の形で決まり、
+ * PC（横長）では約95°、スマホ（縦長）では約35°。広すぎると遠近が薄れ、狭すぎると何が写っているか分からない。
+ * ピンチ・ホイールで MIN_FOV〜MAX_FOV の間を拡大縮小できる
+ */
+const DEFAULT_FOV = 65;
 const MIN_FOV = 30;
 const MAX_FOV = 100;
 
