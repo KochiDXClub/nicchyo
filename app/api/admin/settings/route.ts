@@ -4,7 +4,7 @@ import { createClient as createServerClient } from "@/utils/supabase/server";
 import { requireSameOrigin } from "@/lib/security/requestGuards";
 import { enforceRateLimit } from "@/lib/security/rateLimit";
 import { getRole, isAdmin } from "@/lib/auth/permissions";
-import { parsePageVisibilitySettings } from "@/lib/pageVisibility";
+import { applyEnvironmentDefaults, normalizeForSave, parsePageVisibilitySettings } from "@/lib/pageVisibility";
 import { normalizeMapFeatureFlags } from "@/lib/mapFeatureFlags";
 import { createClient as createServiceClient } from "@supabase/supabase-js";
 import { MAP_FLAGS_SETTINGS_KEY } from "@/lib/mapFeatureFlags.server";
@@ -131,7 +131,8 @@ export async function GET() {
     return NextResponse.json({
       public: parsePublicSettings(publicRow?.value),
       map: parseMapSettings(mapRow?.value),
-      pageVisibility: parsePageVisibilitySettings(visibilityRow?.value),
+      // 本番では「管理者以外は非公開」の既定を重ねた、実際に効く状態を画面に見せる
+      pageVisibility: applyEnvironmentDefaults(parsePageVisibilitySettings(visibilityRow?.value)),
       mapFlags: normalizeMapFeatureFlags(mapFlagsRow?.value),
     });
   } catch {
@@ -169,7 +170,8 @@ export async function PUT(request: NextRequest) {
       body.map === undefined &&
       body.mapFlags === undefined
     ) {
-      const pageVisibility = parsePageVisibilitySettings(body.pageVisibility);
+      // 環境の既定と同じ値は DB に書かない（Preview と本番で DB を共有しても、互いの既定を動かさない）
+      const pageVisibility = normalizeForSave(parsePageVisibilitySettings(body.pageVisibility));
       const { error } = await auth.adminClient.from("system_settings").upsert(
         [{ key: "page_visibility", value: pageVisibility, updated_by: auth.user.id }],
         { onConflict: "key" }
@@ -177,7 +179,7 @@ export async function PUT(request: NextRequest) {
       if (error) {
         return NextResponse.json({ error: "Failed to save settings" }, { status: 500 });
       }
-      return NextResponse.json({ ok: true, pageVisibility });
+      return NextResponse.json({ ok: true, pageVisibility: applyEnvironmentDefaults(pageVisibility) });
     }
 
     const publicSettings = parsePublicSettings(body?.public);

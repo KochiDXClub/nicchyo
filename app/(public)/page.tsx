@@ -7,6 +7,8 @@ import { cookies } from "next/headers";
 import { createClient } from "@/utils/supabase/server";
 import { fetchMarketCalendar, type MarketCalendar } from "@/lib/market/calendar";
 import { fetchPublicShops } from "./map/services/shopCache";
+import { isPathVisibleToCurrentUser } from "@/lib/pageVisibility/server";
+import PreparingNotice from "../components/PreparingNotice";
 import LandingHero from "./_landing/LandingHero";
 import LandingGenres from "./_landing/LandingGenres";
 import LandingHowTo from "./_landing/LandingHowTo";
@@ -64,6 +66,9 @@ async function fetchCalendar(): Promise<MarketCalendar | null> {
  * 取れなかったときは、その帯を出さないだけでページは表示する
  */
 export default async function HomePage() {
+  // proxy.ts で「準備中」に差し替えたうえで、ここでも確認する（店舗の写真を読み込む前に必ず止める二重の守り）
+  if (!(await isPathVisibleToCurrentUser("/"))) return <PreparingNotice />;
+
   const [shops, calendar] = await Promise.all([fetchPublicShops().catch(() => []), fetchCalendar()]);
   const day = calendar?.day ?? null;
   const sundays = buildLandingSundays(calendar?.days ?? []);

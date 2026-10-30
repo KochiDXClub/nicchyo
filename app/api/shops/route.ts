@@ -1,11 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
 import { toLocale } from "@/lib/i18n/config";
 import { fetchPublicShops } from "@/app/(public)/map/services/shopCache";
+import { isPathVisibleToCurrentUser } from "@/lib/pageVisibility/server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
+  // proxy.ts で止めたうえで、ここでも確認する（地図と同じ公開設定に従う）
+  if (!(await isPathVisibleToCurrentUser("/map"))) {
+    return NextResponse.json(
+      { error: "Not found" },
+      { status: 404, headers: { "Cache-Control": "private, no-store" } }
+    );
+  }
+
   // 言語は URL の ?locale= で決める（CDN にキャッシュされるので、Cookie ではなく URL で分ける）
   const locale = toLocale(request.nextUrl.searchParams.get("locale"));
   const hasSupabaseEnv =
