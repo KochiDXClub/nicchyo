@@ -5,7 +5,11 @@ import type { Database } from "@/types/database.types";
 import { normalizeShopImageKind } from "@/lib/shopImages";
 import type { Shop } from "../types/shopData";
 
-type VendorRow = {
+// vendors から読む列。基本データの取得と差分の取得(fetchShopDelta)で同じ列を使う
+const VENDOR_COLUMNS =
+  "id, shop_name, strength, style, style_tags, category_id, categories(name), main_products, main_product_prices, payment_methods, rain_policy, schedule, shop_image_url, shop_image_kind, sns_instagram, sns_x, sns_hp, business_hours_start, business_hours_end" as const;
+
+export type VendorRow = {
   id: string;
   shop_name: string | null;
   strength: string | null;
@@ -48,7 +52,8 @@ type CategoryRow = {
   name: string | null;
 };
 
-type ProductRow = {
+export type ProductRow = {
+  id: string;
   vendor_id: string | null;
   name: string | null;
   image_url: string | null;
@@ -120,7 +125,7 @@ export async function fetchVendorShopBaseRows(
       (from, to) =>
         supabase
           .from("vendors")
-          .select("id, shop_name, strength, style, style_tags, category_id, categories(name), main_products, main_product_prices, payment_methods, rain_policy, schedule, shop_image_url, shop_image_kind, sns_instagram, sns_x, sns_hp, business_hours_start, business_hours_end")
+          .select(VENDOR_COLUMNS)
           .order("id", { ascending: true })
           .range(from, to) as unknown as PromiseLike<{ data: VendorRow[] | null; error: { message: string } | null }>,
       { label: "vendors" }
@@ -174,6 +179,88 @@ export async function fetchVendorShopBaseRows(
     },
     failedTables,
   };
+}
+
+/**
+ * 基本データの取得(キャッシュ)以降に変わった行。キャッシュの上に重ねて、反映を早くする。
+ *   vendors / products … updated_at が since より新しい行(DB のトリガーで必ず進む)
+ *   deletedProductIds  … since 以降に消えた商品(product_deletions)
+ * ログインしていない側のクライアントで読むこと(共有キャッシュに、ログイン中の人にだけ見える行が混ざらないように)。
+ * 取れなかったときは投げる(unstable_cache に欠けた結果を載せないため)。
+ */
+export type ShopDelta = {
+  vendors: VendorRow[];
+  products: ProductRow[];
+  deletedProductIds: string[];
+};
+
+export async function fetchShopDelta(supabase: SupabaseClient<Database>, since: string): Promise<ShopDelta> {
+  // product_deletions は生成された型にまだ無いので、型なしで扱う
+  const untyped = supabase as unknown as SupabaseClient;
+  const [vendors, products, deletions] = await Promise.all([
+    fetchAllRows<VendorRow>(
+      (from, to) =>
+        supabase
+          .from("vendors")
+          .select(VENDOR_COLUMNS)
+          .gt("updated_at", since)
+          .order("id", { ascending: true })
+          .range(from, to) as unknown as PromiseLike<{ data: VendorRow[] | null; error: { message: string } | null }>,
+      { label: "vendors(delta)" }
+    ),
+    fetchAllRows<ProductRow>(
+      (from, to) =>
+        supabase
+          .from("products")
+          .select("id, vendor_id, name, image_url")
+          .gt("updated_at", since)
+          .order("id", { ascending: true })
+          .range(from, to) as unknown as PromiseLike<{ data: ProductRow[] | null; error: { message: string } | null }>,
+      { label: "products(delta)" }
+    ),
+    fetchAllRows<{ product_id: string }>(
+      (from, to) =>
+        untyped
+          .from("product_deletions")
+          .select("product_id")
+          .gt("deleted_at", since)
+          .order("product_id", { ascending: true })
+          .range(from, to) as unknown as PromiseLike<{ data: { product_id: string }[] | null; error: { message: string } | null }>,
+      { label: "product_deletions" }
+    ),
+  ]);
+  const failed = [
+    ["vendors", vendors.error],
+    ["products", products.error],
+    ["product_deletions", deletions.error],
+  ].filter(([, error]) => error);
+  if (failed.length > 0) throw new Error(`差分の取得に失敗しました: ${failed.map(([label]) => label).join(", ")}`);
+
+  return {
+    vendors: vendors.data,
+    products: products.data,
+    deletedProductIds: deletions.data.map((row) => row.product_id),
+  };
+}
+
+/**
+ * キャッシュした基本データに、差分を重ねる(元は変えない)。
+ * 店舗・商品は id で置き換える(無ければ足す)。消えた商品は、変更より後に適用して確実に外す。
+ * 重ねられるのは店舗・商品の追加と変更だけ。来訪者に出さなくなった店舗(許可の取り消し等)や削除された店舗、
+ * 店主名の公開の取り消しは、差分では見えないので、15分ごとの全件の取り直しで外れる
+ * (運営の画面での変更は、今までどおり即時にキャッシュを捨てる)。
+ */
+export function applyShopDelta(base: VendorShopBaseRows, delta: ShopDelta): VendorShopBaseRows {
+  if (delta.vendors.length === 0 && delta.products.length === 0 && delta.deletedProductIds.length === 0) return base;
+
+  const vendors = new Map(base.vendors.map((row) => [row.id, row]));
+  delta.vendors.forEach((row) => vendors.set(row.id, row));
+
+  const products = new Map(base.products.map((row) => [row.id, row]));
+  delta.products.forEach((row) => products.set(row.id, row));
+  delta.deletedProductIds.forEach((id) => products.delete(id));
+
+  return { ...base, vendors: [...vendors.values()], products: [...products.values()] };
 }
 
 /** 有効期限内の投稿。期限切れがあるので基本データとは分けて毎回取る（数十 KB 程度） */

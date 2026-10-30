@@ -17,7 +17,7 @@ const contactSchema = z.object({
     .min(1, "メールアドレスは必須です")
     .email("返信先として使用しますので、正確なメールアドレスを半角で入力してください（例: user@example.com）"),
   category: z.enum(["question", "feedback", "bug", "sponsor", "other"], {
-    errorMap: () => ({ message: "カテゴリを選択してください" }),
+    error: "カテゴリを選択してください",
   }),
   website: z.string().optional(),
   message: z.string().min(10, "内容は10文字以上で入力してください").max(1000, "内容は1000文字以内で入力してください"),

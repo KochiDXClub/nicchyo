@@ -17,11 +17,13 @@ import type {
 } from "./types/consultConversation";
 import type { Shop } from "../map/data/shops";
 import { getOrCreateConsultVisitorKey } from "@/lib/consultVisitorKey";
+import { useT } from "@/lib/i18n/LocaleContext";
 import { readConsultAskResponse } from "./utils/readConsultAskResponse";
 
 const PREFERRED_CHARACTER_STORAGE_KEY = "nicchyo-consult-preferred-character";
 
 export default function ConsultClient() {
+  const t = useT();
   const [knownShops, setKnownShops] = useState<Shop[]>([]);
   const [selectedShop, setSelectedShop] = useState<Shop | null>(null);
   // 既定はにちよさん。null にすると話し手が毎回変わり、会話全体が掛け合いに見える
@@ -131,9 +133,8 @@ export default function ConsultClient() {
     mergeKnownShops(payload.shops);
 
     return {
-      reply:
-        payload.reply ??
-        "ごめんね、今は答えを出せんかった。時間をおいて試してね。",
+      // サーバーが固定の日本語で返す定型文も、辞書にあれば訳す（AI の返答は訳さない）
+      reply: t(payload.reply ?? "ごめんね、今は答えを出せんかった。時間をおいて試してね。"),
       imageUrl: payload.imageUrl,
       shopIds: payload.shopIds,
       shops: payload.shops,
@@ -146,13 +147,13 @@ export default function ConsultClient() {
         payload.errorMessage ??
         (ok
           ? undefined
-          : "相談の送信に失敗しました。通信状況を確認して、もう一度試してください。"),
+          : t("相談の送信に失敗しました。通信状況を確認して、もう一度試してください。")),
       retryable: ok
         ? payload.retryable ?? false
         : payload.retryable ?? payload.errorCode === "system_error",
       consultId: payload.consultId,
     };
-  }, [mergeKnownShops]);
+  }, [mergeKnownShops, t]);
 
 
   const handleGrandmaAskStream = useCallback(async (
@@ -183,20 +184,20 @@ export default function ConsultClient() {
       }
 
       return {
-        reply: "ごめんね、今は答えを出せんかった。時間をおいて試してね。",
+        reply: t("ごめんね、今は答えを出せんかった。時間をおいて試してね。"),
         errorCode: "system_error",
-        errorMessage: "返答の取得に失敗しました。もう一度お試しください。",
+        errorMessage: t("返答の取得に失敗しました。もう一度お試しください。"),
         retryable: true,
       };
     } catch {
       return {
-        reply: "ごめんね、今は答えを出せんかった。時間をおいて試してね。",
+        reply: t("ごめんね、今は答えを出せんかった。時間をおいて試してね。"),
         errorCode: "system_error",
-        errorMessage: "接続に失敗しました。少し時間をおいて、もう一度試してください。",
+        errorMessage: t("接続に失敗しました。少し時間をおいて、もう一度試してください。"),
         retryable: true,
       };
     }
-  }, [buildAskRequest, normalizeAskResponse]);
+  }, [buildAskRequest, normalizeAskResponse, t]);
 
   const autoAskText = searchParams?.get("q") || null;
   const autoAskShopIdRaw = searchParams?.get("shopId");
