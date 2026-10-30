@@ -10,6 +10,21 @@ import { Navigation } from "lucide-react";
 import type { MapCamera } from "../types/mapCamera";
 import { hideWhilePanningClass, useMapPanning } from "../hooks/useMapPanning";
 import { cn } from "@/lib/utils/cn";
+// PC（lg 以上）はマウスにピンチ操作がないので、スライダーを出しっぱなしにする
+const DESKTOP_QUERY = "(min-width: 1024px)";
+
+function useIsDesktop() {
+  const [isDesktop, setIsDesktop] = useState(false);
+  useEffect(() => {
+    const media = window.matchMedia(DESKTOP_QUERY);
+    const update = () => setIsDesktop(media.matches);
+    update();
+    media.addEventListener("change", update);
+    return () => media.removeEventListener("change", update);
+  }, []);
+  return isDesktop;
+}
+
 // ===== テーパー型縦ズームスライダー =====
 // 上端（拡大側）が太く、下端（縮小側）が細いくさび形のトラックで操作方向を直感的に伝える
 const VZ_PAD = 14;        // 上下パディング（サムがはみ出ないように）
@@ -133,6 +148,8 @@ export function MapControls({
   const pendingZoomRef = useRef<number | null>(null);
   // 地図をドラッグしているあいだは、上に浮いている検索バーなどと一緒に現在地ボタンも隠す
   const isPanning = useMapPanning(map);
+  const isDesktop = useIsDesktop();
+  const sliderShown = isDesktop || zoomSliderVisible;
 
   const flushZoom = useCallback(() => {
     zoomFrameRef.current = null;
@@ -163,12 +180,12 @@ export function MapControls({
 
   return (
     <>
-      {/* 縦ズームスライダー（ナビバー直上）— 2本指操作時のみ表示し、操作終了から数秒後にフェードアウト */}
+      {/* 縦ズームスライダー（ナビバー直上）— スマホは2本指操作時のみ表示し、操作終了から数秒後にフェードアウト。PC は常時表示 */}
       <div
         className={`absolute bottom-[calc(4.5rem+env(safe-area-inset-bottom,0px)-2rem)] right-4 z-[1000] flex flex-col items-center gap-1 rounded-2xl border border-amber-100/60 bg-white/95 px-2.5 py-3 shadow-card backdrop-blur transition-opacity duration-300 ${
-          zoomSliderVisible ? "opacity-100" : "pointer-events-none opacity-0"
+          sliderShown ? "opacity-100" : "pointer-events-none opacity-0"
         }`}
-        aria-hidden={!zoomSliderVisible}
+        aria-hidden={!sliderShown}
         onMouseDown={(e) => e.stopPropagation()}
         onClick={(e) => e.stopPropagation()}
         onTouchStart={(e) => { e.stopPropagation(); onZoomSliderInteract(); }}
