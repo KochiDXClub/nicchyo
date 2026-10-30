@@ -710,13 +710,14 @@ export default function MapIntroPanel({
           transition={{ duration: 0.2 }}
           className="pointer-events-none fixed inset-0 z-[9988]"
         >
-          {/* 上に見えている地図。暗幕は敷かず、タップで閉じられるようにする */}
+          {/* 上に見えている地図。暗くして案内に目が行くようにし、タップで閉じられるようにする。
+              外側の opacity で一緒に出入りするので、暗幕だけ残ることはない */}
           <button
             type="button"
             onClick={onClose}
             aria-label={t('案内を閉じて地図を見る')}
             aria-hidden={expanded}
-            className={`absolute inset-0 cursor-default bg-transparent ${
+            className={`absolute inset-0 cursor-default bg-black/40 ${
               expanded ? 'pointer-events-none' : 'pointer-events-auto'
             }`}
           />
