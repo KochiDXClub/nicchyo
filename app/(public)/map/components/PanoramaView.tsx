@@ -1,55 +1,51 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { getImageProps } from "next/image";
-import { useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
+import { useCallback, useRef, type KeyboardEvent } from "react";
+import type { Viewer } from "@photo-sphere-viewer/core";
 
-/** 矢印キーで1回に回す量（px） */
-const KEY_STEP = 60;
+/** 矢印キーで1回に回す量（ラジアン。約6°） */
+const KEY_STEP = 0.1;
 
 /**
- * 全周写真を、指（PC はマウス）のドラッグでぐるっと見渡す。
+ * 重い（three.js を含む）ので、全周写真を開いたときだけ読み込む。
+ * 読み込んでいるあいだは、黒い背景のまま。
+ */
+const PanoramaSphere = dynamic(() => import("./PanoramaSphere"), { ssr: false });
+
+/**
+ * 全周写真を、球の内側から見渡す（指・マウスのドラッグ、ピンチ・ホイールで拡大縮小）。
  *
- * 画像を表示の高さに合わせ、横に繰り返して並べる。左右にドラッグすると端がつながって
- * 何周でも回れる。縦は全周写真の高さがそのまま画面に収まるので動かさない。
+ * 見渡す表示は Photo Sphere Viewer（PanoramaSphere）が担う。この部品は、その外側の枠として
+ * 読み上げの名前と、キーボード操作（フォーカスして矢印キー）を受け持つ。
  * 横スワイプで写真を切り替える親（ShopPhotoViewer）と取り合わないよう、
  * この部品の上では touch-action: none でブラウザのスクロールを止める。
  */
 export function PanoramaView({ src, alt }: { src: string; alt: string }) {
-  // 元の画像は数 MB になりやすいので、next/image が作る縮小版（WebP）を背景に使う
+  // 元の画像は数 MB になりやすいので、next/image が作る縮小版（WebP）を読む。同じ配信元なので画像の読み込みに CORS も要らない
   const { props: imageProps } = getImageProps({ src, alt: "", width: 1920, height: 960 });
-  const [offset, setOffset] = useState(0);
-  const [dragging, setDragging] = useState(false);
-  const lastXRef = useRef<number | null>(null);
-
-  const handlePointerDown = (event: PointerEvent<HTMLDivElement>) => {
-    lastXRef.current = event.clientX;
-    event.currentTarget.setPointerCapture?.(event.pointerId);
-    setDragging(true);
-  };
-
-  const handlePointerMove = (event: PointerEvent<HTMLDivElement>) => {
-    if (lastXRef.current === null) return;
-    const dx = event.clientX - lastXRef.current;
-    lastXRef.current = event.clientX;
-    setOffset((current) => current + dx);
-  };
-
-  const endDrag = () => {
-    lastXRef.current = null;
-    setDragging(false);
-  };
+  const viewerRef = useRef<Viewer | null>(null);
+  const handleReady = useCallback((viewer: Viewer | null) => {
+    viewerRef.current = viewer;
+  }, []);
 
   const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    const viewer = viewerRef.current;
+    const move: Record<string, [number, number]> = {
+      ArrowLeft: [-KEY_STEP, 0],
+      ArrowRight: [KEY_STEP, 0],
+      ArrowUp: [0, KEY_STEP],
+      ArrowDown: [0, -KEY_STEP],
+    };
+    const delta = move[event.key];
+    if (!delta) return;
     // preventDefault で、外側の横スクロール（写真の切り替え）が矢印キーで動くのを止める。stopPropagation は、写真の切り替えのキー処理に渡さないため
-    if (event.key === "ArrowLeft") {
-      event.preventDefault();
-      event.stopPropagation();
-      setOffset((current) => current + KEY_STEP);
-    } else if (event.key === "ArrowRight") {
-      event.preventDefault();
-      event.stopPropagation();
-      setOffset((current) => current - KEY_STEP);
-    }
+    event.preventDefault();
+    event.stopPropagation();
+    if (!viewer) return;
+    const { yaw, pitch } = viewer.getPosition();
+    viewer.rotate({ yaw: yaw + delta[0], pitch: Math.max(-Math.PI / 2, Math.min(Math.PI / 2, pitch + delta[1])) });
   };
 
   return (
@@ -57,19 +53,11 @@ export function PanoramaView({ src, alt }: { src: string; alt: string }) {
       role="application"
       aria-label={`${alt}（360度。ドラッグして見渡せます）`}
       tabIndex={0}
-      onPointerDown={handlePointerDown}
-      onPointerMove={handlePointerMove}
-      onPointerUp={endDrag}
-      onPointerCancel={endDrag}
       onKeyDown={handleKeyDown}
-      className={`absolute inset-0 select-none ${dragging ? "cursor-grabbing" : "cursor-grab"}`}
-      style={{
-        touchAction: "none",
-        backgroundImage: `url("${imageProps.src}")`,
-        backgroundRepeat: "repeat-x",
-        backgroundSize: "auto 100%",
-        backgroundPosition: `${offset}px center`,
-      }}
-    />
+      className="absolute inset-0 select-none bg-black"
+      style={{ touchAction: "none" }}
+    >
+      <PanoramaSphere src={imageProps.src} onReady={handleReady} />
+    </div>
   );
 }
