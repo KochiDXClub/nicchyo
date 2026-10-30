@@ -427,7 +427,7 @@ const ShopDetailBanner = memo(function ShopDetailBanner({
             ? "h-[100vh] border-l border-slate-100 shadow-sm"
             : isMobileOverlay
               ? "rounded-t-3xl shadow-2xl"
-              : "w-[min(620px,94vw)] rounded-[28px] shadow-[0_32px_80px_-24px_rgba(58,58,58,0.55)] ring-1 ring-nicchyo-ink/[0.08]"
+              : "w-[min(620px,94vw)] rounded-sheet shadow-[0_32px_80px_-24px_rgba(58,58,58,0.55)] ring-1 ring-nicchyo-ink/[0.08]"
           }
         `}
         style={isInline ? undefined : isMobileOverlay
