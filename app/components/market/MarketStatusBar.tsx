@@ -7,7 +7,7 @@ import {
   type MarketDay,
 } from "@/lib/market/calendar";
 
-type Placement = "map" | "page" | "hero";
+type Placement = "map" | "page";
 
 type Props = {
   /** market_days の該当行。未登録なら null（＝通常どおり開催の想定） */
@@ -16,7 +16,6 @@ type Props = {
    * map … 例外（中止・臨時休市・特別開催）のときだけ出す。
    *        平常時まで常設すると検索バーを押し下げるだけのノイズになるため。
    * page … 常に出す（近況ページ・カレンダーページの最上部）。
-   * hero … 常に出す。トップの広い画面で右に置く、縦長のカード。
    */
   placement: Placement;
   className?: string;
@@ -40,33 +39,6 @@ export default function MarketStatusBar({ day, placement, className = "" }: Prop
 
   const { label, tone } = getStatusPresentation(status);
   const dateLabel = formatEventDate(day?.market_date ?? getUpcomingSundayIso());
-
-  if (placement === "hero") {
-    return (
-      <Link
-        href="/calendar"
-        prefetch={false}
-        className={`flex flex-col gap-3 rounded-card p-5 lg:gap-4 lg:p-7 shadow-float transition hover:-translate-y-0.5 ${TONE_CLASS[tone]} ${className}`}
-      >
-        <span className="text-xs font-bold opacity-60 lg:text-base">今週の日曜市</span>
-        <span className="text-3xl font-black leading-tight lg:text-5xl">{dateLabel}</span>
-        <span
-          className={`self-start rounded-full px-3 py-1 text-sm font-bold lg:px-4 lg:text-lg ${
-            tone === "neutral" ? "bg-nicchyo-primary/15 text-nicchyo-ink" : "bg-black/15"
-          }`}
-        >
-          {label}
-        </span>
-        {day?.note && <span className="text-sm opacity-90">{day.note}</span>}
-        <span className="mt-1 flex items-center gap-1 border-t border-black/10 pt-3 text-sm font-bold lg:text-lg">
-          開催カレンダーを見る
-          <svg className="h-4 w-4 opacity-60" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-          </svg>
-        </span>
-      </Link>
-    );
-  }
 
   return (
     <Link

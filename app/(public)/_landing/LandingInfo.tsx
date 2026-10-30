@@ -1,19 +1,15 @@
 import Link from "next/link";
-import { Clock, CloudRain, MapPin, Sun } from "lucide-react";
+import { Clock, MapPin } from "lucide-react";
 import { PageContainer } from "@/components/ui";
 import { cn } from "@/lib/utils/cn";
 import { getStatusPresentation } from "@/lib/market/calendar";
 import { MARKET_FACTS } from "./content";
 import SectionHeading from "./SectionHeading";
+import SundayCard, { isOff } from "./SundayCard";
 import type { LandingSunday } from "./upcomingSundays";
 import "./landing.css";
 
 const FACT_ICONS = { いつ: Clock, どこ: MapPin } as const;
-
-/** 開催しない日（荒天中止・臨時休市）か */
-function isOff(status: LandingSunday["status"]) {
-  return status === "cancelled" || status === "closed";
-}
 
 /**
  * 次の日曜市は、いつ？ 次の日曜を日めくりカレンダーで大きく見せ、これからの日曜を、
@@ -62,33 +58,9 @@ export default function LandingInfo({ sundays }: { sundays: LandingSunday[] }) {
               </Link>
             </div>
             <ul className="-mx-5 mt-3 flex gap-2.5 overflow-x-auto px-5 pb-3.5 pt-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-              {sundays.map((sunday) => {
-                const off = isOff(sunday.status);
-                return (
-                  <li
-                    key={sunday.dateIso}
-                    className={cn(
-                      "landing-week relative flex w-[4.75rem] shrink-0 flex-col items-center gap-px rounded-card border px-1.5 pb-2.5 pt-[18px] shadow-chip transition-transform hover:-translate-y-1 hover:-rotate-[1.5deg] motion-reduce:transition-none",
-                      off ? "border-line bg-nicchyo-ink/5 shadow-none" : "border-amber-200 bg-white"
-                    )}
-                  >
-                    <span aria-hidden className="absolute inset-x-0 -top-[7px] flex justify-center gap-[18px]">
-                      <i className="block h-[15px] w-[7px] rounded-sm bg-amber-900" />
-                      <i className="block h-[15px] w-[7px] rounded-sm bg-amber-900" />
-                    </span>
-                    <span className={cn("text-[11px] font-bold", off ? "text-nicchyo-ink/40" : "text-amber-800")}>{sunday.month}月</span>
-                    <span className={cn("font-display text-[1.75rem] leading-[1.1]", off ? "text-nicchyo-ink/40" : "text-nicchyo-ink")}>{sunday.day}</span>
-                    {off ? (
-                      <CloudRain aria-hidden className="my-0.5 h-[22px] w-[22px] text-nicchyo-ink/40" />
-                    ) : (
-                      <Sun aria-hidden className="my-0.5 h-[22px] w-[22px] text-amber-400" />
-                    )}
-                    <span className={cn("text-[11px] font-black", off ? "text-nicchyo-ink/55" : "text-green-800")}>
-                      {getStatusPresentation(sunday.status).label}
-                    </span>
-                  </li>
-                );
-              })}
+              {sundays.map((sunday) => (
+                <SundayCard key={sunday.dateIso} sunday={sunday} />
+              ))}
             </ul>
 
             {/* いつ・どこ：綱からぶら下がる木の看板 */}
