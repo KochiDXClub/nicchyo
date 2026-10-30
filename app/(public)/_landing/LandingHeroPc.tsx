@@ -100,7 +100,7 @@ export default function LandingHeroPc({ sundays }: { sundays: LandingSunday[] })
           </form>
         </div>
 
-        <div className="relative h-[30rem] self-center lg:h-[38rem]">
+        <div className="relative aspect-[4/3] w-full self-center">
           <div className="absolute inset-0 overflow-hidden rounded-card shadow-lift">
             <Image
               src={PHOTOS.stalls.src}
