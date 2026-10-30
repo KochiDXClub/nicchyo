@@ -1,4 +1,5 @@
 ﻿import { Metadata } from 'next';
+import { redirect } from 'next/navigation';
 import { Suspense } from 'react';
 import { cookies } from 'next/headers';
 import { createClient } from '@/utils/supabase/server';
@@ -16,6 +17,7 @@ import { getLocale } from '@/lib/i18n/server';
 import { SUNDAY_MARKET_JSON_LD } from '@/lib/seo/sundayMarketJsonLd';
 import { fetchMapFeatureFlags } from '@/lib/mapFeatureFlags.server';
 import { fetchMapViewSettings } from '@/lib/map/mapViewSettings.server';
+import { isPathVisibleToCurrentUser } from '@/lib/pageVisibility/server';
 
 export const metadata: Metadata = {
   title: "日曜市マップ",
@@ -31,6 +33,9 @@ export const metadata: Metadata = {
 
 
 export default async function MapPage() {
+  // proxy.ts で止めたうえで、ここでも確認する（店舗データを読み込む前に必ず弾く二重の守り）
+  if (!(await isPathVisibleToCurrentUser('/map'))) redirect('/');
+
   const cookieStore = await cookies();
   // マップ動作フラグ（管理画面で切替可能。URL の ?mapFlags= はクライアント側で上書きする）と
   // マップの可動範囲（管理画面「マップの表示範囲」で設定する。MapLibre 版でのみ効く）は、

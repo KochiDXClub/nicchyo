@@ -7,7 +7,7 @@ import {
   resolvePageVisibility,
   toVisibilityRole,
 } from "./resolve";
-import type { PageVisibilitySettings } from "./types";
+import { isBlockedState, type PageVisibilitySettings } from "./types";
 
 const settings: PageVisibilitySettings = {
   pages: {
@@ -70,8 +70,10 @@ describe("resolvePageVisibility", () => {
   });
 
   it("lockedPublic のページは private にできない", () => {
-    const locked: PageVisibilitySettings = { pages: { "/map": { roles: { anon: "private" } } } };
-    expect(resolvePageVisibility("/map", "anon", locked).state).toBe("public");
+    const locked: PageVisibilitySettings = { pages: { "/admin/settings": { roles: { anon: "private" } } } };
+    expect(resolvePageVisibility("/admin/settings", "general_user", locked).state).toBe("private");
+    const lockedAdmin: PageVisibilitySettings = { pages: { "/admin/settings": { roles: { admin: "private" } } } };
+    expect(resolvePageVisibility("/admin/settings", "admin", lockedAdmin).state).toBe("public");
   });
 
   it("おでかけサポートは地図（常に公開）とは別に止められ、保存した設定も読み戻せる", () => {
@@ -106,10 +108,17 @@ describe("parsePageVisibilitySettings", () => {
       pages: {
         "/nope": { roles: { anon: "private" } },
         "/shops/001": { roles: { anon: "private" } },
-        "/consult": { roles: { anon: "public", vendor: "weird", hacker: "private", general_user: "unlisted" } },
+        "/faq": { roles: { anon: "public", vendor: "weird", hacker: "private", general_user: "unlisted" } },
       },
     });
-    expect(parsed).toEqual({ pages: { "/consult": { roles: { general_user: "unlisted" } } } });
+    expect(parsed).toEqual({ pages: { "/faq": { roles: { general_user: "unlisted" } } } });
+  });
+
+  it("本番の既定が public でないロールの public は、上書き設定として残す", () => {
+    const parsed = parsePageVisibilitySettings({
+      pages: { "/map": { roles: { moderator: "public", admin: "public" } } },
+    });
+    expect(parsed.pages["/map"].roles).toEqual({ moderator: "public" });
   });
 
   it("redirectTo はサイト内パスのみ受け付け、デフォルトは省略する", () => {
@@ -148,5 +157,17 @@ describe("toVisibilityRole", () => {
     expect(toVisibilityRole("admin", false)).toBe("anon");
     expect(toVisibilityRole("vendor", true)).toBe("vendor");
     expect(toVisibilityRole("something", true)).toBe("general_user");
+  });
+});
+
+describe("準備中の状態", () => {
+  it("設定として読み書きでき、isBlockedState は準備中と非公開だけ true", () => {
+    const parsed = parsePageVisibilitySettings({ pages: { "/consult": { roles: { anon: "preparing" } } } });
+    expect(resolvePageVisibility("/consult", "anon", parsed).state).toBe("preparing");
+    expect(isLinkVisible("/consult", "anon", parsed)).toBe(false);
+    expect(isBlockedState("preparing")).toBe(true);
+    expect(isBlockedState("private")).toBe(true);
+    expect(isBlockedState("unlisted")).toBe(false);
+    expect(isBlockedState("public")).toBe(false);
   });
 });

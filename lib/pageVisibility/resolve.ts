@@ -58,7 +58,7 @@ function isVisibilityRole(value: string): value is VisibilityRole {
 
 /**
  * jsonb から読み込んだ値を検証して PageVisibilitySettings に整形する。
- * 不正な項目・レジストリに無いパス・デフォルトと同じ値は捨てる。
+ * 不正な項目・レジストリに無いパス・デフォルト（public）と同じ値は捨てる。
  */
 export function parsePageVisibilitySettings(value: unknown): PageVisibilitySettings {
   if (!value || typeof value !== "object") return EMPTY_PAGE_VISIBILITY_SETTINGS;
@@ -75,7 +75,9 @@ export function parsePageVisibilitySettings(value: unknown): PageVisibilitySetti
     const roles: PageVisibilityRule["roles"] = {};
     if (rawRoles && typeof rawRoles === "object") {
       for (const [role, state] of Object.entries(rawRoles as Record<string, unknown>)) {
-        if (isVisibilityRole(role) && isVisibilityState(state) && state !== "public") {
+        if (!isVisibilityRole(role) || !isVisibilityState(state)) continue;
+        // 既定が public でないロールでは、public も「既定を上書きする設定」なので捨てない
+        if (state !== "public" || entry.productionDefault?.[role] !== undefined) {
           roles[role] = state;
         }
       }

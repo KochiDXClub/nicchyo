@@ -29,15 +29,27 @@ export const VISIBILITY_ROLE_LABELS: Record<VisibilityRole, string> = {
 /**
  * - public:   通常公開。リンクも表示する
  * - unlisted: 限定公開。URL直打ちなら表示するがリンクは非表示
+ * - preparing: 準備中。URLは保ったまま「準備中」ページを見せる（リンクは非表示）
  * - private:  非公開。URL直打ちでも redirectTo へリダイレクト
  */
-export type VisibilityState = "public" | "unlisted" | "private";
+export type VisibilityState = "public" | "unlisted" | "preparing" | "private";
 
-export const VISIBILITY_STATES: readonly VisibilityState[] = ["public", "unlisted", "private"] as const;
+export const VISIBILITY_STATES: readonly VisibilityState[] = [
+  "public",
+  "unlisted",
+  "preparing",
+  "private",
+] as const;
+
+/** ページの中身を見せない状態か（準備中・非公開）。サーバー側の遮断はこれで判定する */
+export function isBlockedState(state: VisibilityState): boolean {
+  return state === "preparing" || state === "private";
+}
 
 export const VISIBILITY_STATE_LABELS: Record<VisibilityState, string> = {
   public: "公開",
   unlisted: "限定公開",
+  preparing: "準備中",
   private: "非公開",
 };
 

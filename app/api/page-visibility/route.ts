@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { createClient as createServiceClient } from "@supabase/supabase-js";
-import { EMPTY_PAGE_VISIBILITY_SETTINGS, parsePageVisibilitySettings } from "@/lib/pageVisibility";
+import {
+  applyEnvironmentDefaults,
+  EMPTY_PAGE_VISIBILITY_SETTINGS,
+  parsePageVisibilitySettings,
+} from "@/lib/pageVisibility";
 
 /**
  * ページ公開設定（公開API）
@@ -20,7 +24,7 @@ export async function GET() {
     process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
   if (!url || !key) {
-    return NextResponse.json(EMPTY_PAGE_VISIBILITY_SETTINGS);
+    return NextResponse.json(applyEnvironmentDefaults(EMPTY_PAGE_VISIBILITY_SETTINGS));
   }
 
   try {
@@ -33,8 +37,8 @@ export async function GET() {
       .eq("key", "page_visibility")
       .maybeSingle();
 
-    return NextResponse.json(parsePageVisibilitySettings(data?.value));
+    return NextResponse.json(applyEnvironmentDefaults(parsePageVisibilitySettings(data?.value)));
   } catch {
-    return NextResponse.json(EMPTY_PAGE_VISIBILITY_SETTINGS);
+    return NextResponse.json(applyEnvironmentDefaults(EMPTY_PAGE_VISIBILITY_SETTINGS));
   }
 }

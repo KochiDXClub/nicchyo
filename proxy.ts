@@ -11,7 +11,9 @@ import {
   stripLocalePrefix,
 } from "@/lib/i18n/config";
 import {
+  applyEnvironmentDefaults,
   EMPTY_PAGE_VISIBILITY_SETTINGS,
+  isBlockedState,
   parsePageVisibilitySettings,
   resolvePageVisibility,
   toVisibilityRole,
@@ -42,7 +44,14 @@ function fallbackSiteSettings(): SiteSettings {
   return value;
 }
 
+// 本番の既定（管理者以外には本番マップを見せない）は、保存済み設定の取得に失敗したときも効かせる。
+// ここを通さないと、DB が落ちた瞬間に公開側へ倒れる
 async function getSiteSettings(): Promise<SiteSettings> {
+  const settings = await fetchSiteSettings();
+  return { ...settings, pageVisibility: applyEnvironmentDefaults(settings.pageVisibility) };
+}
+
+async function fetchSiteSettings(): Promise<SiteSettings> {
   if (siteSettingsCache && Date.now() < siteSettingsCache.expiresAt) {
     return siteSettingsCache.value;
   }
@@ -87,6 +96,10 @@ const MAINTENANCE_SKIP_EXACT = ["/robots.txt", "/sitemap.xml", "/favicon.ico"];
 // メンテ中でも管理者が再ログインしてメンテを解除できるよう、ログイン系はメンテ判定だけ免除する
 // （公開設定の判定は引き続き対象）
 const MAINTENANCE_ONLY_SKIP_PREFIXES = ["/login", "/oauth"];
+
+// 店舗データをそのまま返す API は、地図ページ（/map）と同じ公開設定で止める
+const PREPARING_PATH = "/preparing";
+const MAP_DATA_API_PREFIXES = ["/api/shops", "/api/grandma"];
 
 function matchesPrefix(pathname: string, prefix: string): boolean {
   return pathname === prefix || pathname.startsWith(`${prefix}/`);
@@ -176,21 +189,44 @@ export async function proxy(request: NextRequest) {
     }
   }
 
-  // ページ公開設定（管理画面で設定した「非公開」ページをロール別に遮断）
+  // 地図の店舗データを返す API。ページの redirect ではなく 404 を返して存在を伝えない
+  if (MAP_DATA_API_PREFIXES.some((p) => matchesPrefix(pathname, p))) {
+    const settings = (await getSiteSettings()).pageVisibility;
+    const apiRole = toVisibilityRole(appRole, !!user);
+    if (isBlockedState(resolvePageVisibility("/map", apiRole, settings).state)) {
+      const denied = NextResponse.json({ error: "Not found" }, { status: 404 });
+      denied.headers.set("cache-control", "private, no-store");
+      copyCookies(supabaseResponse, denied);
+      return denied;
+    }
+  }
+
+  // ページ公開設定（管理画面で設定した「準備中」「非公開」ページをロール別に遮断）
+  // 準備中は URL を保ったまま、あとで「準備中」ページに差し替える（CSP などの共通処理を通すため）
+  let showPreparing = false;
   if (isPageRequest) {
     const visibilityRole = toVisibilityRole(appRole, !!user);
     // next.config の rewrite（/shops001 → /shops/001）は proxy より後に効くため、ここで正規化する
     const visibilityPath = pathname.replace(/^\/shops(\d{3})$/, "/shops/$1");
     const visibility = resolvePageVisibility(visibilityPath, visibilityRole, siteSettings.pageVisibility);
+    showPreparing = visibility.state === "preparing";
     if (visibility.state === "private") {
       // リダイレクト先自身が非公開ならループになるためマップへ逃がす（常に公開）
       const target = visibility.redirectTo;
       const targetVisible =
-        resolvePageVisibility(target, visibilityRole, siteSettings.pageVisibility).state !== "private";
-      const destination = targetVisible && target !== visibilityPath ? target : "/map";
-      const redirectRes = NextResponse.redirect(new URL(destination, request.url));
-      copyCookies(supabaseResponse, redirectRes);
-      return redirectRes;
+        !isBlockedState(resolvePageVisibility(target, visibilityRole, siteSettings.pageVisibility).state);
+      // マップ自身が見えないロール（本番の準備中など）を /map へ逃がすと二度転送になるので、トップへ戻す
+      const mapVisible =
+        !isBlockedState(resolvePageVisibility("/map", visibilityRole, siteSettings.pageVisibility).state);
+      const destination = targetVisible && target !== visibilityPath ? target : mapVisible ? "/map" : "/";
+      // トップ自身を非公開にした場合は逃がす先がない（転送するとループする）ので、準備中を見せる
+      if (destination === visibilityPath) {
+        showPreparing = true;
+      } else {
+        const redirectRes = NextResponse.redirect(new URL(destination, request.url));
+        copyCookies(supabaseResponse, redirectRes);
+        return redirectRes;
+      }
     }
   }
 
@@ -225,9 +261,15 @@ export async function proxy(request: NextRequest) {
   requestHeaders.set("content-security-policy", csp);
   requestHeaders.set(LOCALE_HEADER, locale);
 
+  // 準備中のページは、URL はそのまま中身だけ /preparing に差し替える。
   // /en/… はロケールを外したパスへ書き換えて描画する（ブラウザのURLは /en/… のまま）
   let res: NextResponse;
-  if (prefixLocale) {
+  if (showPreparing) {
+    const rewriteUrl = request.nextUrl.clone();
+    rewriteUrl.pathname = PREPARING_PATH;
+    rewriteUrl.search = "";
+    res = NextResponse.rewrite(rewriteUrl, { request: { headers: requestHeaders } });
+  } else if (prefixLocale) {
     const rewriteUrl = request.nextUrl.clone();
     rewriteUrl.pathname = pathname;
     res = NextResponse.rewrite(rewriteUrl, { request: { headers: requestHeaders } });
