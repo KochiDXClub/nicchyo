@@ -190,12 +190,14 @@ export type ShopDelta = {
   vendors: VendorRow[];
   products: ProductRow[];
   deletedProductIds: string[];
+  /** 来訪者に見える店舗の数。キャッシュの店舗数と合わなければ、見えなくなった店舗がある */
+  visibleVendorCount: number;
 };
 
 export async function fetchShopDelta(supabase: SupabaseClient<Database>, since: string): Promise<ShopDelta> {
   // product_deletions は生成された型にまだ無いので、型なしで扱う
   const untyped = supabase as unknown as SupabaseClient;
-  const [vendors, products, deletions] = await Promise.all([
+  const [vendors, products, deletions, vendorCount] = await Promise.all([
     fetchAllRows<VendorRow>(
       (from, to) =>
         supabase
@@ -226,11 +228,13 @@ export async function fetchShopDelta(supabase: SupabaseClient<Database>, since: 
           .range(from, to) as unknown as PromiseLike<{ data: { product_id: string }[] | null; error: { message: string } | null }>,
       { label: "product_deletions" }
     ),
+    supabase.from("vendors").select("id", { count: "exact", head: true }),
   ]);
   const failed = [
     ["vendors", vendors.error],
     ["products", products.error],
     ["product_deletions", deletions.error],
+    ["vendors(count)", vendorCount.error ?? (vendorCount.count === null ? { message: "count が返りません" } : null)],
   ].filter(([, error]) => error);
   if (failed.length > 0) throw new Error(`差分の取得に失敗しました: ${failed.map(([label]) => label).join(", ")}`);
 
@@ -238,15 +242,41 @@ export async function fetchShopDelta(supabase: SupabaseClient<Database>, since: 
     vendors: vendors.data,
     products: products.data,
     deletedProductIds: deletions.data.map((row) => row.product_id),
+    visibleVendorCount: vendorCount.count ?? 0,
   };
+}
+
+/** 来訪者に見える店舗の id 一覧（掲載の取り下げ・店舗の削除を知るため）。取れなかったときは投げる */
+export async function fetchVisibleVendorIds(supabase: SupabaseClient<Database>): Promise<string[]> {
+  const { data, error } = await fetchAllRows<{ id: string }>(
+    (from, to) =>
+      supabase.from("vendors").select("id").order("id", { ascending: true }).range(from, to) as unknown as PromiseLike<{
+        data: { id: string }[] | null;
+        error: { message: string } | null;
+      }>,
+    { label: "vendors(id)" }
+  );
+  if (error) throw new Error(`店舗の id の取得に失敗しました: ${error.message}`);
+  return data.map((row) => row.id);
+}
+
+/**
+ * 来訪者に見えなくなった店舗（許可の取り消し・削除）と、その商品を外す（元は変えない）。
+ * 差分（updated_at）には現れないので、店舗数が合わないときに id 一覧と突き合わせて使う。
+ */
+export function pruneInvisibleVendors(base: VendorShopBaseRows, visibleIds: ReadonlySet<string>): VendorShopBaseRows {
+  const vendors = base.vendors.filter((row) => visibleIds.has(row.id));
+  if (vendors.length === base.vendors.length) return base;
+  const kept = new Set(vendors.map((row) => row.id));
+  return { ...base, vendors, products: base.products.filter((row) => row.vendor_id && kept.has(row.vendor_id)) };
 }
 
 /**
  * キャッシュした基本データに、差分を重ねる(元は変えない)。
  * 店舗・商品は id で置き換える(無ければ足す)。消えた商品は、変更より後に適用して確実に外す。
- * 重ねられるのは店舗・商品の追加と変更だけ。来訪者に出さなくなった店舗(許可の取り消し等)や削除された店舗、
- * 店主名の公開の取り消しは、差分では見えないので、15分ごとの全件の取り直しで外れる
- * (運営の画面での変更は、今までどおり即時にキャッシュを捨てる)。
+ * 重ねられるのは店舗・商品の追加と変更だけ。来訪者に出さなくなった店舗(許可の取り消し等)や削除された店舗は、
+ * 差分では見えないので、店舗数の食い違いから pruneInvisibleVendors で外す。店主名の公開の取り消しは、
+ * 15分ごとの全件の取り直しで外れる(運営の画面での変更は、今までどおり即時にキャッシュを捨てる)。
  */
 export function applyShopDelta(base: VendorShopBaseRows, delta: ShopDelta): VendorShopBaseRows {
   if (delta.vendors.length === 0 && delta.products.length === 0 && delta.deletedProductIds.length === 0) return base;

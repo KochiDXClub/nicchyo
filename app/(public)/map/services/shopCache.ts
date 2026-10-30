@@ -9,6 +9,8 @@ import {
   fetchActiveContentRows,
   fetchShopDelta,
   fetchVendorShopBaseRows,
+  fetchVisibleVendorIds,
+  pruneInvisibleVendors,
   type VendorShopBaseRows,
 } from "./shopDb";
 
@@ -68,6 +70,17 @@ const getCachedShopDelta = unstable_cache(
   { revalidate: SHOP_DELTA_REVALIDATE_SECONDS, tags: [SHOP_BASE_CACHE_TAG] }
 );
 
+// 店舗数が合わないときだけ使う。店舗の id 一覧は差分より大きいので、短い間隔でも共有して取る回数を抑える
+const getCachedVisibleVendorIds = unstable_cache(
+  async () => {
+    const supabase = createAnonClient();
+    if (!supabase) throw new Error("Supabase の環境変数が未設定です");
+    return fetchVisibleVendorIds(supabase);
+  },
+  ["map-visible-vendor-ids-v1"],
+  { revalidate: SHOP_DELTA_REVALIDATE_SECONDS, tags: [SHOP_BASE_CACHE_TAG] }
+);
+
 /**
  * `locale` が日本語以外のときは、保存済みの訳（shop_translations）を重ねて返す。
  * 訳の無い店・項目は日本語のまま。店の並びや位置は言語によらず同じ。
@@ -89,7 +102,12 @@ export async function fetchPublicShops(locale: Locale = DEFAULT_LOCALE): Promise
   if (snapshot.snapshotAt) {
     try {
       const since = new Date(Date.parse(snapshot.snapshotAt) - SHOP_DELTA_MARGIN_MS).toISOString();
-      baseRows = applyShopDelta(baseRows, await getCachedShopDelta(since));
+      const delta = await getCachedShopDelta(since);
+      baseRows = applyShopDelta(baseRows, delta);
+      // 許可の取り消し・店舗の削除は差分に現れない。見える店舗の数が合わなければ、id で突き合わせて外す
+      if (delta.visibleVendorCount !== baseRows.vendors.length) {
+        baseRows = pruneInvisibleVendors(baseRows, new Set(await getCachedVisibleVendorIds()));
+      }
     } catch (error) {
       // 差分が取れなくても、キャッシュしたデータで表示を続ける(反映が遅れるだけ)
       console.warn("[fetchPublicShops] 変わった行の取得に失敗しました。キャッシュのまま表示します:", error);
