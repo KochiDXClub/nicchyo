@@ -324,6 +324,8 @@ const ShopDetailBanner = memo(function ShopDetailBanner({
 
   const isActivePostCentered = useCenterBounceTrigger(scrollContainerRef, activePostRef);
   const isInline = layout === "inline";
+  // PC は「はじめての方へ」パネルと同じ、暗幕つきの中央ダイアログで見せる
+  const isDesktopDialog = !isInline && !isMobileOverlay;
   const isExpandedMobileMain = isMobileOverlay && surface === "detail";
   const showMobileSummaryHeader = isMobileOverlay && surface === "summary";
   const showMobileDetailControls = isMobileOverlay && surface === "detail";
@@ -394,10 +396,10 @@ const ShopDetailBanner = memo(function ShopDetailBanner({
           ? "relative min-h-[calc(100vh-7.5rem)]"
           // Mobile: bottom sheet / Desktop: side panel
           // peek 状態ではバックドロップを透明＆pointer-events-none にしてマップを操作可能にする
-          : `fixed inset-0 z-[2000] flex flex-col items-end justify-end md:items-stretch md:justify-center md:!pb-0${
+          : `fixed inset-0 z-[2000] flex flex-col items-end justify-end md:items-center md:justify-center md:!pb-0${
               isMobileOverlay && surface === "summary"
                 ? " bg-transparent backdrop-blur-none pointer-events-none"
-                : " bg-black/40 backdrop-blur-[2px] md:bg-slate-900/20 md:backdrop-blur-none"
+                : " bg-black/40 backdrop-blur-[2px] md:bg-nicchyo-ink/35"
             }`
       }
       style={isInline ? undefined : {
@@ -405,29 +407,32 @@ const ShopDetailBanner = memo(function ShopDetailBanner({
         paddingBottom: `calc(${bottomNavOffsetPx}px + var(--safe-bottom, 0px))`,
       }}
     >
+      {isDesktopDialog && (
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="閉じる"
+          tabIndex={-1}
+          className="absolute inset-0 cursor-default"
+        />
+      )}
       {/* ── Panel container (overflow-hidden for slide rail) ───────────────── */}
       <div
         ref={sheetBodyRef}
         className={`
-          relative w-full overflow-hidden bg-white flex flex-col pointer-events-auto
+          relative overflow-hidden bg-white flex flex-col pointer-events-auto
+          ${isDesktopDialog ? "" : "w-full"}
           ${isMobileOverlay ? "will-change-transform" : ""}
           ${isInline
             ? "h-[100vh] border-l border-slate-100 shadow-sm"
             : isMobileOverlay
               ? "rounded-t-3xl shadow-2xl"
-              : `
-                h-[100vh] w-[520px] max-w-[520px]
-                rounded-none border-l border-slate-100
-              `
+              : "w-[min(620px,94vw)] rounded-[28px] shadow-[0_32px_80px_-24px_rgba(58,58,58,0.55)] ring-1 ring-nicchyo-ink/[0.08]"
           }
-          ${originRect && !isInline && !isMobileOverlay ? "shop-banner-animate" : ""}
         `}
-        style={isInline ? undefined : {
-          ...bannerStyle,
-          ...(isMobileOverlay
-            ? { height: `${drawerHeights.full}px`, maxHeight: `${drawerHeights.full}px` }
-            : { height: `calc(100vh - ${bottomNavOffsetPx}px)` }),
-        }}
+        style={isInline ? undefined : isMobileOverlay
+          ? { ...bannerStyle, height: `${drawerHeights.full}px`, maxHeight: `${drawerHeights.full}px` }
+          : { height: `min(88vh, calc(100vh - ${bottomNavOffsetPx}px))` }}
       >
         {!isMobileOverlay && (
           <button
