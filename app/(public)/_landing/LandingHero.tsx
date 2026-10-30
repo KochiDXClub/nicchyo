@@ -64,7 +64,11 @@ export default function LandingHero({ day }: { day: MarketDay | null }) {
 
       {/* 見出しは上、開催予定と検索は下（親指の届く側）に分けて置く。間は写真を見せる */}
       <div className="relative z-10 flex flex-1 flex-col px-5 pb-[calc(7rem+var(--safe-bottom,0px))] pt-10 md:px-10 md:pb-12 md:pt-12">
-        <div className="mx-auto flex w-full max-w-[64rem] flex-1 flex-col justify-between gap-10">
+        <div className="relative mx-auto flex w-full max-w-[64rem] flex-1 flex-col justify-between gap-10">
+          {/* 広い画面では開催予定を右に置く（スマホは下の帯のまま） */}
+          <div className="absolute right-0 top-0 hidden w-72 md:block">
+            <MarketStatusBar day={day} placement="hero" />
+          </div>
           <RevealOnScroll when="enter" className="max-w-[28rem] md:max-w-[34rem]">
             <h1 id="landing-title" className={`text-white ${PHOTO_TEXT_SHADOW}`}>
               <span className="sr-only">nicchyo：</span>
@@ -85,7 +89,7 @@ export default function LandingHero({ day }: { day: MarketDay | null }) {
             </Link>
 
             {/* 今週の開催日（見出しの文言は置かない。日付と「開催」で伝わる） */}
-            <div className="mt-5">
+            <div className="mt-5 md:hidden">
               <MarketStatusBar day={day} placement="page" className="w-full" />
             </div>
 
