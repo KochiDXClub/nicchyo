@@ -1,7 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@/utils/supabase/client";
 import { imageUploadInfo, resizeImageToBlob, STORE_IMAGE_CONFIG } from "@/lib/image/clientCompression";
-import { softDeleteProducts } from "@/lib/shops/softDeleteProducts";
 import { uploadStoreImage } from "./storeService";
 import type { AskAnswer, VendorAskSnapshot } from "@/lib/vendor/askQuestions";
 import type { PaymentMethod, RainPolicy } from "../_types";
@@ -50,7 +49,6 @@ export async function fetchAskSnapshot(
       .from("products")
       .select("id, name, image_url, description")
       .eq("vendor_id", vendorId)
-      .is("deleted_at", null)
       .order("created_at", { ascending: true }),
     supabase
       .from("vendor_weekly_status")
@@ -198,7 +196,6 @@ async function findSignatureProduct(
     .select("id, image_url")
     .eq("vendor_id", vendorId)
     .eq("name", name)
-    .is("deleted_at", null)
     .limit(1)
     .maybeSingle();
   if (error) throw error;
@@ -271,7 +268,6 @@ async function saveSignature(
     .select("id, image_url")
     .eq("vendor_id", vendorId)
     .eq("name", trimmed)
-    .is("deleted_at", null)
     .limit(1)
     .maybeSingle();
   if (findError) throw findError;
@@ -333,11 +329,7 @@ type ProductItem = Extract<AskAnswer, { id: "products" }>["items"][number];
 async function saveProducts(supabase: SupabaseClient, vendorId: string, items: ProductItem[]): Promise<void> {
   const [vendorResult, rowsResult] = await Promise.all([
     supabase.from("vendors").select("main_products, signature_product_name").eq("id", vendorId).single(),
-    supabase
-      .from("products")
-      .select("id, name, image_url, description")
-      .eq("vendor_id", vendorId)
-      .is("deleted_at", null),
+    supabase.from("products").select("id, name, image_url, description").eq("vendor_id", vendorId),
   ]);
   if (vendorResult.error) throw vendorResult.error;
   if (rowsResult.error) throw rowsResult.error;
@@ -415,7 +407,7 @@ async function saveProducts(supabase: SupabaseClient, vendorId: string, items: P
         if (error) throw error;
       }
     } else {
-      const { error } = await softDeleteProducts(supabase).eq("id", row.id).eq("vendor_id", vendorId);
+      const { error } = await supabase.from("products").delete().eq("id", row.id).eq("vendor_id", vendorId);
       if (error) throw error;
     }
     await removeProductImageFiles(supabase, vendorId, row.id);

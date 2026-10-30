@@ -1025,7 +1025,6 @@ export type Database = {
         Row: {
           category_id: string | null
           created_at: string | null
-          deleted_at: string | null
           description: string | null
           id: string
           image_url: string | null
@@ -1038,7 +1037,6 @@ export type Database = {
         Insert: {
           category_id?: string | null
           created_at?: string | null
-          deleted_at?: string | null
           description?: string | null
           id?: string
           image_url?: string | null
@@ -1051,7 +1049,6 @@ export type Database = {
         Update: {
           category_id?: string | null
           created_at?: string | null
-          deleted_at?: string | null
           description?: string | null
           id?: string
           image_url?: string | null
@@ -1706,10 +1703,6 @@ export type Database = {
           title: string
         }[]
       }
-      list_deleted_product_ids: {
-        Args: { p_since: string }
-        Returns: { id: string }[]
-      }
       match_vendor_embeddings: {
         Args: {
           match_count: number
@@ -1721,7 +1714,6 @@ export type Database = {
           vendor_id: string
         }[]
       }
-      purge_deleted_products: { Args: { p_retention?: string }; Returns: number }
       replace_map_route_points: { Args: { p_points: Json }; Returns: undefined }
       restore_map_layout_snapshot: {
         Args: {

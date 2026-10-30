@@ -54,7 +54,6 @@ export async function fetchCandidateVendorIds(
         supabase
           .from("products")
           .select("vendor_id")
-          .is("deleted_at", null)
           .ilike("name", `%${word}%`)
           .limit(10),
         supabase
@@ -124,7 +123,6 @@ export async function fetchSeasonalProductContext(
   const { data: productsData } = await supabase
     .from("products")
     .select("id, vendor_id, name")
-    .is("deleted_at", null)
     .in("id", productIds);
   const products = Array.isArray(productsData) ? productsData : [];
   if (products.length === 0) return [];
@@ -189,7 +187,7 @@ export async function fetchShopsByVendorIds(
       .in("id", vendorIds)
       // このクライアントは service_role で RLS を通らない。掲載の許可がない店舗は、AI の回答にも出さない
       .eq("listing_status", "allowed"),
-    supabase.from("products").select("vendor_id, name").is("deleted_at", null).in("vendor_id", vendorIds),
+    supabase.from("products").select("vendor_id, name").in("vendor_id", vendorIds),
     supabase
       .from("location_assignments")
       .select("vendor_id, location_id, market_date")

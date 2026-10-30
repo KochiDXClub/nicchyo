@@ -5,7 +5,6 @@
  * 出店者本人の保存と同じ置き方（vendor-images/<店舗id>/product-<商品id>.*）なので、名前の付け方を変えない。
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { softDeleteProducts } from "@/lib/shops/softDeleteProducts";
 
 export const PRODUCT_IMAGE_BUCKET = "vendor-images";
 
@@ -94,11 +93,7 @@ export async function purgeRemovedProducts(
   if (previousNames.length === 0) return;
   try {
     const [rowsResult, vendorResult] = await Promise.all([
-      client
-        .from("products")
-        .select("id, name, image_url, description")
-        .eq("vendor_id", vendorId)
-        .is("deleted_at", null),
+      client.from("products").select("id, name, image_url, description").eq("vendor_id", vendorId),
       client.from("vendors").select("signature_product_name").eq("id", vendorId).maybeSingle(),
     ]);
     if (rowsResult.error) throw rowsResult.error;
@@ -135,7 +130,7 @@ export async function purgeRemovedProducts(
           if (error) throw error;
         }
       } else {
-        const { error } = await softDeleteProducts(client).eq("id", row.id).eq("vendor_id", vendorId);
+        const { error } = await client.from("products").delete().eq("id", row.id).eq("vendor_id", vendorId);
         if (error) throw error;
       }
       await removeProductImageFiles(client, vendorId, row.id, { imageUrl: row.image_url });

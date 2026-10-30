@@ -18,18 +18,22 @@ const client = {
       return { select: () => ({ in: async () => ({ data: seasonProductIds.map((id) => ({ product_id: id })), error: null }) }) };
     }
     return {
-      select: () => ({ eq: () => ({ is: async () => ({ data: rows, error: null }) }) }),
-      // 商品の行は論理削除（deleted_at を入れる）。写真だけ外す更新と、値で見分ける
-      update: (values: Record<string, unknown>) => {
+      select: () => ({ eq: async () => ({ data: rows, error: null }) }),
+      update: (values: Record<string, unknown>) => ({
+        eq: (_c: string, id: string) => ({
+          eq: async () => (updates.push({ values, id }), { error: null }),
+        }),
+      }),
+      delete: () => {
         const filters: string[] = [];
         const chain = {
-          is: () => chain,
           eq: (column: string, value: string) => {
             filters.push(`${column}=${value}`);
-            if (column !== "vendor_id") return chain;
-            if ("deleted_at" in values) deletes.push(filters.join(","));
-            else updates.push({ values, id: filters[0].split("=")[1] });
-            return Promise.resolve({ error: null });
+            if (column === "vendor_id") {
+              deletes.push(filters.join(","));
+              return Promise.resolve({ error: null });
+            }
+            return chain;
           },
         };
         return chain;

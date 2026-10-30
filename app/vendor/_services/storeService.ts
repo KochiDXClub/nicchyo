@@ -34,8 +34,7 @@ export async function fetchVendorStore(vendorId: string): Promise<Store | null> 
     const { data: productsData } = await supabase
       .from("products")
       .select("name")
-      .eq("vendor_id", vendorId)
-      .is("deleted_at", null);
+      .eq("vendor_id", vendorId);
     if (productsData && productsData.length > 0) {
       mainProducts = productsData.map((p: { name: string }) => p.name).filter(Boolean);
     }

@@ -90,7 +90,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       .select("id, image_url")
       .eq("vendor_id", id)
       .eq("name", name)
-      .is("deleted_at", null)
       .order("created_at", { ascending: true })
       .limit(1)
       .maybeSingle();
@@ -172,8 +171,7 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
       .from("products")
       .select("id, image_url")
       .eq("vendor_id", id)
-      .eq("name", name)
-      .is("deleted_at", null);
+      .eq("name", name);
     if (findError) return NextResponse.json({ error: "写真を外せませんでした" }, { status: 500 });
     const withPhoto = (found ?? []).filter((row) => row.image_url);
     // 写真が無い（行が無い）なら、すでに外れている

@@ -44,12 +44,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
       .eq("vendor_id", id)
       .maybeSingle(),
     // 商品の写真（products の同じ名前の商品の行）。読めなくても店舗の取得は止めない
-    adminClient
-      .from("products")
-      .select("name, image_url")
-      .eq("vendor_id", id)
-      .is("deleted_at", null)
-      .not("image_url", "is", null),
+    adminClient.from("products").select("name, image_url").eq("vendor_id", id).not("image_url", "is", null),
   ]);
   const productImages: Record<string, string> = {};
   // image_url は店舗側の権限でも書き換えられる列。管理画面の <img> に外部の URL を出さない（開いた管理者の IP などが漏れる）
