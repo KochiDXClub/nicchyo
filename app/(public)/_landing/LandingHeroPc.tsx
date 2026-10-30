@@ -9,9 +9,9 @@ import type { LandingSunday } from "./upcomingSundays";
 import "./landing.css";
 
 const NAV = [
-  { href: "#landing-howto", label: "使い方" },
-  { href: "#landing-info", label: "開催のご案内" },
-  { href: "#landing-about", label: "nicchyoについて" },
+  { href: "/calendar", label: "開催のご案内" },
+  { href: "/map?guide=menu", label: "お手洗い・おでかけサポート" },
+  { href: "/about", label: "nicchyoについて" },
 ] as const;
 
 /**
@@ -40,9 +40,9 @@ export default function LandingHeroPc({ sundays }: { sundays: LandingSunday[] })
           <div className="flex items-center gap-8">
             <nav aria-label="トップページの案内" className="flex items-center gap-8 text-sm font-bold text-nicchyo-ink/70">
               {NAV.map((item) => (
-                <a key={item.href} href={item.href} className="transition hover:text-nicchyo-ink">
+                <Link key={item.href} href={item.href} prefetch={false} className="transition hover:text-nicchyo-ink">
                   {item.label}
-                </a>
+                </Link>
               ))}
             </nav>
             <LanguageSwitcher tone="page" />
