@@ -104,7 +104,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
     const { data: current, error: currentError } = await adminClient
       .from("vendors")
-      .select("shop_name, main_products, listing_status, listing_consented_on, business_hours_start, business_hours_end, updated_at")
+      .select("shop_name, main_products, listing_status, listing_consented_on, business_hours_start, business_hours_end, shop_image_url, updated_at")
       .eq("id", id)
       .maybeSingle();
     if (currentError) return NextResponse.json({ error: "店舗を取得できませんでした" }, { status: 500 });
@@ -122,6 +122,10 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
         return NextResponse.json({ error: "終了時刻は開始時刻より後にしてください" }, { status: 400 });
       }
     }
+
+    // 別の写真の URL に差し替えたときは、前の写真の種類（全周）を引き継がない。同じ URL のままなら、種類は変えない
+    // （URL を消すときの「普通に戻す」は parseShopEdit が行う）
+    if (update.shop_image_url && update.shop_image_url !== current.shop_image_url) update.shop_image_kind = "normal";
 
     const consentedOn = consentDateOnAllow(update, current.listing_consented_on);
     if (consentedOn) update.listing_consented_on = consentedOn;
