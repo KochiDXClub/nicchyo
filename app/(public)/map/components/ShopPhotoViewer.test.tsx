@@ -1,6 +1,9 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { useState } from "react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+// 全周の表示（Photo Sphere Viewer）は WebGL を使うので、jsdom では動かない。外側の枠（PanoramaView）だけを確かめる
+vi.mock("./PanoramaSphere", () => ({ default: () => null }));
+
 import { ShopPhotoViewer, type ShopPhoto } from "./ShopPhotoViewer";
 
 const PHOTOS: ShopPhoto[] = [
