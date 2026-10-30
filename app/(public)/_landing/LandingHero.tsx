@@ -81,7 +81,7 @@ export default function LandingHero({ day }: { day: MarketDay | null }) {
             </h1>
           </RevealOnScroll>
 
-          <RevealOnScroll when="enter" delayMs={150} className="max-w-[28rem] md:max-w-[34rem]">
+          <RevealOnScroll when="enter" delayMs={150} className="max-w-[28rem] md:max-w-[34rem] md:rounded-card md:bg-nicchyo-base/95 md:p-5 md:shadow-float">
             {/* いちばんしてほしいこと：地図をひらく（この画面を過ぎると、右下の丸いボタンに替わる） */}
             <Link href="/map" className={buttonClass({ size: "lg", className: "h-14 w-full text-lg shadow-float" })}>
               <MapPin aria-hidden className="h-5 w-5" />
@@ -98,7 +98,7 @@ export default function LandingHero({ day }: { day: MarketDay | null }) {
               action="/map"
               method="get"
               role="search"
-              className="mt-4 flex min-w-0 items-center gap-1.5 rounded-chip bg-white py-1.5 pl-5 pr-1.5 shadow-float"
+              className="mt-4 flex min-w-0 items-center gap-1.5 rounded-chip bg-white py-1.5 pl-5 pr-1.5 shadow-float md:shadow-none md:ring-1 md:ring-black/10"
             >
               <label htmlFor="landing-search" className="sr-only">
                 お店や品物をさがす
