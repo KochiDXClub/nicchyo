@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { Shop } from "../data/shops";
 import { formatShopIdToCode } from "@/lib/shops/route";
+import { usePanoramaProbe } from "../../../../lib/image/usePanoramaProbe";
 import { getShopPreviewImage } from "../../../../lib/shopImages";
 import {
   isProductFavorited,
@@ -199,7 +200,14 @@ const ShopDetailBanner = memo(function ShopDetailBanner({
   const handleFavoritesClick = useCallback(() => { router.push("/favorites"); }, [router]);
 
   const isShopFavorite = isShopFavorited(favoriteEntries, shop.id);
-  const bannerImage = getShopPreviewImage(shop);
+  // 全周写真の店は、バナーには小さなサムネイルを出し、重い本体はタップして拡大表示を開いたときに読む。
+  // 全周かどうかは、サムネイルの縦横比（2:1）で見分ける
+  const mainImage = shop.images?.main;
+  const thumbImage = shop.images?.thumbnail;
+  const hasPanoramaBanner = usePanoramaProbe(mainImage && thumbImage && thumbImage !== mainImage ? thumbImage : null);
+  const bannerImage = hasPanoramaBanner && thumbImage ? thumbImage : getShopPreviewImage(shop);
+  // 拡大表示で開く写真。全周写真の店は、バナーのサムネイルでなく本体
+  const heroPhotoSrc = hasPanoramaBanner && mainImage ? mainImage : bannerImage;
 
 
   const bannerStyle = useMemo(() => {
@@ -242,7 +250,8 @@ const ShopDetailBanner = memo(function ShopDetailBanner({
 
   // 拡大表示で順に見られる写真。出店者が出した店の写真（既定のカテゴリ画像や小さいサムネイルは除く）と、商品の写真
   const shopPhotoSources = useMemo(
-    () => Array.from(new Set([shop.images?.main, ...(shop.images?.additional ?? [])].filter((src): src is string => !!src))),
+    // バナーの写真は main が無いと thumbnail になる（getShopPreviewImage）。それも拡大できるよう、最後に加える
+    () => Array.from(new Set([shop.images?.main, ...(shop.images?.additional ?? []), shop.images?.thumbnail].filter((src): src is string => !!src))),
     [shop.images]
   );
   const photos = useMemo<ShopPhoto[]>(() => [
@@ -259,8 +268,8 @@ const ShopDetailBanner = memo(function ShopDetailBanner({
   }, [photos]);
   // 上の写真が出店者の写真のときだけ拡大できる（既定のカテゴリ画像は拡大しても仕方がない）
   const handleOpenHeroPhoto = useMemo(
-    () => (shopPhotoSources.includes(bannerImage) ? () => openPhoto(bannerImage) : undefined),
-    [bannerImage, openPhoto, shopPhotoSources]
+    () => (shopPhotoSources.includes(heroPhotoSrc) ? () => openPhoto(heroPhotoSrc) : undefined),
+    [heroPhotoSrc, openPhoto, shopPhotoSources]
   );
 
   const armInteractionLock = useCallback((delayMs: number = 650) => {
@@ -455,6 +464,7 @@ const ShopDetailBanner = memo(function ShopDetailBanner({
                 heroImageError={heroImageError}
                 onImageError={() => setHeroImageError(true)}
                 mode="compact"
+                onOpenPhoto={handleOpenHeroPhoto}
               />
             </div>
           )}
@@ -507,6 +517,7 @@ const ShopDetailBanner = memo(function ShopDetailBanner({
               heroImageError={heroImageError}
               onImageError={() => setHeroImageError(true)}
               mode="expanded"
+              isPanorama={hasPanoramaBanner}
               isFavorite={isShopFavorite}
               onToggleFavorite={handleToggleShopFavorite}
               onOpenPhoto={handleOpenHeroPhoto}
