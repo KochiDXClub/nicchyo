@@ -4,6 +4,8 @@ import { logAdminAudit } from "@/lib/audit/logAdminAudit";
 import { guardAdminShopWrite } from "@/lib/admin/shopApiGuard";
 import { sniffImageType, type SniffedImageType } from "@/lib/admin/imageSniff";
 import { STORE_IMAGE_CONFIG, type ResizeOptions } from "@/lib/image/clientCompression";
+import { isEquirectangularPhoto } from "@/lib/image/panorama";
+import { normalizeShopImageKind } from "@/lib/shopImages";
 import { revalidatePublicShops } from "@/app/(public)/map/services/shopCache";
 
 export const runtime = "nodejs";
@@ -70,6 +72,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       return NextResponse.json({ error: "写真が大きすぎます（5MBまで）" }, { status: 413 });
     }
 
+    // 写真の種類（普通／全周）。送られていなければ普通の写真
+    const kind = normalizeShopImageKind(form.get("kind"));
     const mainBytes = new Uint8Array(await main.arrayBuffer());
     const thumbBytes = new Uint8Array(await thumb.arrayBuffer());
     const mainType = sniffImageType(mainBytes);
@@ -79,6 +83,13 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       mainWebp = await ensureWebp(mainBytes, mainType, STORE_IMAGE_CONFIG.main);
     } catch {
       return NextResponse.json({ error: "写真を読み込めませんでした" }, { status: 400 });
+    }
+    // 全周写真は横:縦 = 2:1 の写真だけ。そうでない写真に全周のラベルが付くと、来訪者の画面で歪んで見える
+    if (kind === "panorama") {
+      const meta = await sharp(mainWebp).metadata().catch(() => null);
+      if (!meta?.width || !meta.height || !isEquirectangularPhoto(meta.width, meta.height)) {
+        return NextResponse.json({ error: "全周写真は、横:縦が 2:1 の写真だけ登録できます" }, { status: 400 });
+      }
     }
     // サムネイルの失敗は警告にとどめ、メインの保存は成功させる（本人の保存 storeService と同じ）
     const thumbType = sniffImageType(thumbBytes);
@@ -114,7 +125,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     // updated_at は DB のトリガーが付け直す。アプリの時計で返すと保存値とずれて、次の保存が 409 になる
     const { data: saved, error: updateError } = await adminClient
       .from("vendors")
-      .update({ shop_image_url: url })
+      .update({ shop_image_url: url, shop_image_kind: kind })
       .eq("id", id)
       .select("updated_at")
       .single();
@@ -128,14 +139,14 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         targetType: "vendor",
         targetId: id,
         targetName: (vendor.shop_name ?? id).slice(0, 500),
-        details: "店舗写真を代理でアップロード",
+        details: kind === "panorama" ? "店舗写真（全周）を代理でアップロード" : "店舗写真を代理でアップロード",
         ipAddress: ip,
       },
     );
 
     revalidatePublicShops();
     // 画面が次の保存（updated_at による競合検知）で 409 にならないよう、新しい updated_at も返す
-    return NextResponse.json({ ok: true, url, updated_at: saved.updated_at });
+    return NextResponse.json({ ok: true, url, kind, updated_at: saved.updated_at });
   } catch {
     return NextResponse.json({ error: "写真を保存できませんでした" }, { status: 500 });
   }

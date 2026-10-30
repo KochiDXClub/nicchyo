@@ -1,4 +1,4 @@
-import { useEffect, useState, type ChangeEvent, type FormEvent } from "react";
+import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from "react";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { createClient } from "@/utils/supabase/client";
 
@@ -84,6 +84,8 @@ export function useVendorShopProfile() {
   const [loadError, setLoadError] = useState("");
 
   const [products, setProducts] = useState<ProductItem[]>([]);
+  // 読み込んだときの写真の URL。URL を書き換えたら、写真の種類（全周／普通）のラベルを普通に戻す
+  const loadedImageMainRef = useRef("");
   const [productName, setProductName] = useState("");
   const [productImageUrl, setProductImageUrl] = useState("");
   const [productSeasons, setProductSeasons] = useState<Set<SeasonKey>>(new Set());
@@ -155,6 +157,7 @@ export function useVendorShopProfile() {
         seasonsByProduct.set(key, existing);
       });
 
+      loadedImageMainRef.current = vendor.shop_image_url ?? "";
       setForm({
         name: vendor.shop_name ?? "",
         ownerName: ownerProfile?.owner_name ?? "",
@@ -289,6 +292,8 @@ export function useVendorShopProfile() {
         style: form.stallStyle.trim() || null,
         category_id: categoryId,
         shop_image_url: form.imageMain.trim() || null,
+        // 別の写真の URL にしたときに、前の写真の「全周」のラベルが残らないようにする
+        ...(form.imageMain.trim() !== loadedImageMainRef.current.trim() ? { shop_image_kind: "normal" } : {}),
         sns_instagram: form.instagram.trim() || null,
         sns_x: form.twitter.trim() || null,
         sns_hp: form.website.trim() || null,

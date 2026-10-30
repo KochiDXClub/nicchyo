@@ -69,20 +69,12 @@ describe("ShopPhotoViewer", () => {
     expect(document.activeElement).toBe(previous);
   });
 
-  it("Tab は、今見ている全周写真（矢印キーで見渡せる）にも止まる。見ていない全周写真には止まらない", async () => {
+  it("Tab は、今見ている全周写真（矢印キーで見渡せる）にも止まる。見ていない全周写真には止まらない", () => {
     const panoramas: ShopPhoto[] = [
-      { src: "https://example.supabase.co/p1.webp", alt: "全周A" },
-      { src: "https://example.supabase.co/p2.webp", alt: "全周B" },
+      { src: "https://example.supabase.co/p1.webp", alt: "全周A", kind: "panorama" },
+      { src: "https://example.supabase.co/p2.webp", alt: "全周B", kind: "panorama" },
     ];
     render(<ShopPhotoViewer photos={panoramas} initialIndex={0} onClose={() => {}} />);
-    // 読み込んだ大きさが 2:1 の写真は、全周写真として見渡す表示になる
-    await act(async () => {
-      for (const image of screen.getAllByRole("img", { hidden: true })) {
-        Object.defineProperty(image, "naturalWidth", { value: 2000 });
-        Object.defineProperty(image, "naturalHeight", { value: 1000 });
-        fireEvent.load(image);
-      }
-    });
 
     const stops = new Set<string | null>();
     for (let i = 0; i < 6; i += 1) {
@@ -92,5 +84,17 @@ describe("ShopPhotoViewer", () => {
 
     expect([...stops].some((label) => label?.startsWith("全周A"))).toBe(true);
     expect([...stops].some((label) => label?.startsWith("全周B"))).toBe(false);
+  });
+
+  it("全周写真（kind が panorama）はドラッグで見渡せる表示になり、スマホでも前後の矢印が出る。普通の写真は今までどおり", () => {
+    const photos: ShopPhoto[] = [
+      { src: "https://example.supabase.co/a.webp", alt: "普通の写真" },
+      { src: "https://example.supabase.co/p.webp", alt: "全周の写真", kind: "panorama" },
+    ];
+    render(<ShopPhotoViewer photos={photos} initialIndex={0} onClose={() => {}} />);
+    expect(screen.getAllByRole("application")).toHaveLength(1);
+    expect(screen.getByRole("application").getAttribute("aria-label")).toContain("全周の写真");
+    // 普通の写真が先に開いているときは、矢印はPCだけ（hidden md:flex）
+    expect(screen.getByRole("button", { name: "次の写真" }).className).toContain("hidden");
   });
 });

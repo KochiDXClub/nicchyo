@@ -1,5 +1,6 @@
 import type { PaymentMethod, RainPolicy } from "@/app/vendor/_types";
 import { PAYMENT_OPTIONS, RAIN_OPTIONS } from "@/lib/vendor/storeOptions";
+import type { ShopImageKind } from "@/lib/shopImages";
 
 /**
  * 出店者に、にちよさんが聞く質問の一覧。
@@ -67,6 +68,8 @@ export type AskInputKind =
 export type VendorAskSnapshot = {
   shopName?: string;
   shopImageUrl?: string;
+  /** 店舗写真の種類。未設定は普通の写真 */
+  shopImageKind?: ShopImageKind;
   categoryId?: string;
   categoryName?: string;
   /** 選べるカテゴリ。出店者の状態ではなく、カテゴリの入力欄の選択肢 */
@@ -442,7 +445,7 @@ export type AskAnswer =
   | { id: "motivation"; text: string }
   | { id: "years"; years: number }
   | { id: "sunday-love"; text: string }
-  | { id: "shop-photo"; imageFile: File | null }
+  | { id: "shop-photo"; imageFile: File | null; imageKind?: ShopImageKind }
   | { id: "shop-name"; text: string }
   | { id: "category"; categoryId: string }
   | { id: "style"; tags: string[]; note: string }

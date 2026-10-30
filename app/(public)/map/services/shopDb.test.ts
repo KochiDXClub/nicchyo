@@ -21,6 +21,7 @@ function baseRows(overrides: Partial<VendorShopBaseRows> = {}): VendorShopBaseRo
         rain_policy: null,
         schedule: null,
         shop_image_url: null,
+        shop_image_kind: null,
         sns_instagram: null,
         sns_x: null,
         sns_hp: null,
@@ -38,6 +39,20 @@ function baseRows(overrides: Partial<VendorShopBaseRows> = {}): VendorShopBaseRo
 }
 
 describe("buildVendorShops", () => {
+  it("店舗写真の種類（普通／全周）を images.mainKind に渡し、未設定は普通の写真にする", () => {
+    const withKind = (kind: string | null) =>
+      buildVendorShops(
+        baseRows({
+          vendors: [{ ...baseRows().vendors[0], shop_image_url: IMAGE_URL, shop_image_kind: kind }],
+        }),
+        []
+      )[0].images;
+
+    expect(withKind("panorama")).toEqual({ main: IMAGE_URL, mainKind: "panorama" });
+    expect(withKind("normal")).toEqual({ main: IMAGE_URL, mainKind: "normal" });
+    expect(withKind(null)).toEqual({ main: IMAGE_URL, mainKind: "normal" });
+  });
+
   it("products テーブルの商品の写真を、商品名と組にしてバナーへ渡す", () => {
     const [shop] = buildVendorShops(
       baseRows({

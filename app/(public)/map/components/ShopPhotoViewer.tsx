@@ -4,7 +4,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 import { createPortal } from "react-dom";
 import Image from "next/image";
 import { ChevronLeft, ChevronRight, X as XIcon } from "lucide-react";
-import { isEquirectangularPhoto } from "@/lib/image/panorama";
+import type { ShopImageKind } from "@/lib/shopImages";
 import { PanoramaView } from "./PanoramaView";
 
 export type ShopPhoto = {
@@ -12,50 +12,34 @@ export type ShopPhoto = {
   alt: string;
   /** 写真の下に出す一行（商品名と値段など） */
   caption?: string;
+  /** 写真の種類。panorama（全周カメラの写真）はドラッグで見渡せる。未設定は普通の写真 */
+  kind?: ShopImageKind;
 };
 
 /**
- * 1枚ぶんの表示。全周カメラの写真（読み込んだ大きさが 2:1）は、ドラッグで見渡せる表示に切り替える。
- * 普通の写真はこれまでどおり、枠に収めて見せる。
+ * 1枚ぶんの表示。登録のときに全周写真（kind が panorama）とされた写真は、ドラッグで見渡せる表示にする。
+ * 普通の写真は、枠に収めて見せる。
  */
-function PhotoSlide({
-  photo,
-  priority,
-  onPanoramaChange,
-}: {
-  photo: ShopPhoto;
-  priority: boolean;
-  onPanoramaChange: (isPanorama: boolean) => void;
-}) {
-  const [isPanorama, setIsPanorama] = useState(false);
+function PhotoSlide({ photo, priority }: { photo: ShopPhoto; priority: boolean }) {
+  if (photo.kind === "panorama") {
+    return (
+      <>
+        <PanoramaView src={photo.src} alt={photo.alt} />
+        <p className="pointer-events-none absolute bottom-3 left-1/2 -translate-x-1/2 rounded-chip bg-black/50 px-3 py-1 text-xs font-bold text-white backdrop-blur-sm">
+          360° ドラッグで見渡せます
+        </p>
+      </>
+    );
+  }
   return (
-    <>
-      <Image
-        src={photo.src}
-        alt={photo.alt}
-        fill
-        sizes="100vw"
-        className="object-contain"
-        priority={priority}
-        // 全周表示が上に重なるときは、読み上げが二重にならないよう下の画像を隠す
-        aria-hidden={isPanorama || undefined}
-        onLoad={(event) => {
-          // naturalWidth は next/image が縮小した画像の大きさ。比率は縮小しても変わらない
-          const { naturalWidth, naturalHeight } = event.currentTarget;
-          const next = isEquirectangularPhoto(naturalWidth, naturalHeight);
-          setIsPanorama(next);
-          onPanoramaChange(next);
-        }}
-      />
-      {isPanorama && (
-        <>
-          <PanoramaView src={photo.src} alt={photo.alt} />
-          <p className="pointer-events-none absolute bottom-3 left-1/2 -translate-x-1/2 rounded-chip bg-black/50 px-3 py-1 text-xs font-bold text-white backdrop-blur-sm">
-            360° ドラッグで見渡せます
-          </p>
-        </>
-      )}
-    </>
+    <Image
+      src={photo.src}
+      alt={photo.alt}
+      fill
+      sizes="100vw"
+      className="object-contain"
+      priority={priority}
+    />
   );
 }
 
@@ -78,8 +62,6 @@ export function ShopPhotoViewer({
   onClose: () => void;
 }) {
   const [index, setIndex] = useState(initialIndex);
-  // 全周写真のスライド。その上では横スワイプで写真を切り替えられないので、スマホでも矢印ボタンを出す
-  const [panoramaIndexes, setPanoramaIndexes] = useState<Record<number, boolean>>({});
   const dialogRef = useRef<HTMLDivElement | null>(null);
   const scrollerRef = useRef<HTMLDivElement | null>(null);
   const closeButtonRef = useRef<HTMLButtonElement | null>(null);
@@ -138,7 +120,8 @@ export function ShopPhotoViewer({
 
   if (typeof document === "undefined" || photos.length === 0) return null;
   const current = photos[Math.min(index, photos.length - 1)];
-  const arrowVisibility = panoramaIndexes[index] ? "flex" : "hidden md:flex";
+  // 全周写真の上では横スワイプで写真を切り替えられないので、そのあいだはスマホでも矢印ボタンを出す
+  const arrowVisibility = current?.kind === "panorama" ? "flex" : "hidden md:flex";
 
   return createPortal(
     <div
@@ -174,11 +157,7 @@ export function ShopPhotoViewer({
           {photos.map((photo, i) => (
             // 写真を押しても閉じない（見ている途中に指が触れて閉じるのを防ぐ）。閉じるのは右上のボタンか Esc
             <div key={`${photo.src}-${i}`} data-photo-index={i} className="relative h-full w-full shrink-0 snap-center">
-              <PhotoSlide
-                photo={photo}
-                priority={i === initialIndex}
-                onPanoramaChange={(isPanorama) => setPanoramaIndexes((prev) => ({ ...prev, [i]: isPanorama }))}
-              />
+              <PhotoSlide photo={photo} priority={i === initialIndex} />
             </div>
           ))}
         </div>

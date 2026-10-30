@@ -5,7 +5,9 @@ import { FieldShopEditor } from "./FieldShopEditor";
 vi.mock("./LocationPicker", () => ({ LocationPicker: () => null }));
 vi.mock("next/link", () => ({ default: ({ children }: { children: React.ReactNode }) => <a>{children}</a> }));
 vi.mock("@/lib/admin/toast", () => ({ showToast: { success: vi.fn(), error: vi.fn() } }));
+const readImageSize = vi.hoisted(() => vi.fn(async () => ({ width: 4000, height: 3000 })));
 vi.mock("@/lib/image/clientCompression", () => ({
+  readImageSize,
   createStoreImages: async () => ({ mainBlob: new Blob(["m"]), thumbBlob: new Blob(["t"]) }),
   resizeImageToBlob: async () => new Blob(["p"]),
   STORE_IMAGE_CONFIG: { main: {} },
@@ -74,6 +76,7 @@ describe("FieldShopEditor", () => {
 
     const file = new File(["x"], "a.jpg", { type: "image/jpeg" });
     fireEvent.change(container.querySelector('input[type="file"]')!, { target: { files: [file] } });
+    fireEvent.click(await screen.findByRole("button", { name: "この写真を登録" }));
     await waitFor(() => expect(calls.some((c) => c.url.endsWith("/image"))).toBe(true));
 
     fireEvent.change(nameInput, { target: { value: "はなや本店" } });
@@ -81,6 +84,33 @@ describe("FieldShopEditor", () => {
     await waitFor(() => expect(calls.some((c) => c.method === "PATCH")).toBe(true));
     const patch = calls.find((c) => c.method === "PATCH")!;
     expect((patch.body as { updated_at: string }).updated_at).toBe("2026-10-05T00:00:00.000Z");
+  });
+
+  it("写真は、種類（普通／全周）を決めてから登録する。普通の写真は種類が「normal」で送られる", async () => {
+    const { container } = render(<FieldShopEditor shopId={baseShop.id} />);
+    await screen.findByDisplayValue("はなや");
+
+    fireEvent.change(container.querySelector('input[type="file"]')!, { target: { files: [new File(["x"], "a.jpg", { type: "image/jpeg" })] } });
+    await screen.findByRole("radiogroup", { name: "写真の種類" });
+    // 4:3 の写真は全周として登録できない
+    expect((screen.getByRole("radio", { name: "全周カメラ（360°）の写真" }) as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(screen.getByRole("button", { name: "この写真を登録" }));
+
+    await waitFor(() => expect(calls.some((c) => c.url.endsWith("/image"))).toBe(true));
+    expect((calls.find((c) => c.url.endsWith("/image"))!.body as FormData).get("kind")).toBe("normal");
+  });
+
+  it("横:縦が 2:1 の写真は全周写真が初期値になり、種類「panorama」で送られる", async () => {
+    readImageSize.mockResolvedValueOnce({ width: 4096, height: 2048 });
+    const { container } = render(<FieldShopEditor shopId={baseShop.id} />);
+    await screen.findByDisplayValue("はなや");
+
+    fireEvent.change(container.querySelector('input[type="file"]')!, { target: { files: [new File(["x"], "p.jpg", { type: "image/jpeg" })] } });
+    await waitFor(() => expect(screen.getByRole("radio", { name: "全周カメラ（360°）の写真" }).getAttribute("aria-checked")).toBe("true"));
+    fireEvent.click(screen.getByRole("button", { name: "この写真を登録" }));
+
+    await waitFor(() => expect(calls.some((c) => c.url.endsWith("/image"))).toBe(true));
+    expect((calls.find((c) => c.url.endsWith("/image"))!.body as FormData).get("kind")).toBe("panorama");
   });
 
   it("写真は「撮る」（カメラ）と「選ぶ」（端末の写真）の別の入口にする", async () => {

@@ -15,6 +15,9 @@ import Link from "next/link";
 import { showToast } from "@/lib/admin/toast";
 import { MAX_SHOP_ID, MIN_SHOP_ID } from "@/lib/shops/route";
 import { createStoreImages, imageErrorMessage } from "@/lib/image/clientCompression";
+import type { ShopImageKind } from "@/lib/shopImages";
+import { ShopImageKindField } from "@/components/ui";
+import { useShopImageKind } from "@/lib/image/useShopImageKind";
 import { Card, Field, buttonClass, inputClass } from "./fieldFormParts";
 import { FieldProductsCard, type ProductRow } from "./FieldProductsCard";
 import { useProductPhotos } from "./useProductPhotos";
@@ -117,6 +120,9 @@ export function FieldShopEditor({ shopId }: { shopId: string }) {
   const [dirty, setDirty] = useState(false);
 
   const [photoBusy, setPhotoBusy] = useState(false);
+  // 撮った・選んだ写真は、種類（普通／全周）を決めてから登録する
+  const [pendingPhoto, setPendingPhoto] = useState<File | null>(null);
+  const pendingPhotoKind = useShopImageKind(pendingPhoto);
   const { productPhotoBusy, uploadProductPhoto, removeProductPhoto } = useProductPhotos(shopId, setShop);
   const [locations, setLocations] = useState<FieldLocation[]>([]);
   const [storeNumber, setStoreNumber] = useState("");
@@ -219,7 +225,7 @@ export function FieldShopEditor({ shopId }: { shopId: string }) {
     }
   };
 
-  const uploadPhoto = async (file: File | undefined) => {
+  const uploadPhoto = async (file: File | null) => {
     if (!file) return;
     setPhotoBusy(true);
     try {
@@ -227,15 +233,19 @@ export function FieldShopEditor({ shopId }: { shopId: string }) {
       const body = new FormData();
       body.append("main", mainBlob, "main");
       body.append("thumb", thumbBlob, "thumb");
+      body.append("kind", pendingPhotoKind.kind);
       const res = await fetch(`/api/admin/shops/${shopId}/image`, { method: "POST", body });
       if (!res.ok) throw new Error((await readError(res, "写真を保存できませんでした")).message);
-      const { url, updated_at } = (await res.json()) as { url: string; updated_at?: string };
+      const { url, kind, updated_at } = (await res.json()) as { url: string; kind?: ShopImageKind; updated_at?: string };
       // 同じ URL に上書きされるので、キャッシュされた古い写真が出ないようにする。
       // 写真の保存で updated_at が進むので反映する（古いままだと、次の「内容を保存」が必ず 409 になる）。
       // フォームには触れない（未保存の入力を消さない）
       setShop((prev) =>
-        prev ? { ...prev, shop_image_url: `${url}?v=${Date.now()}`, updated_at: updated_at ?? prev.updated_at } : prev,
+        prev
+          ? { ...prev, shop_image_url: `${url}?v=${Date.now()}`, shop_image_kind: kind ?? "normal", updated_at: updated_at ?? prev.updated_at }
+          : prev,
       );
+      setPendingPhoto(null);
       showToast.success("写真を保存しました");
     } catch (e) {
       showToast.error(imageErrorMessage(e, e instanceof Error ? e.message : "写真を保存できませんでした"));
@@ -369,6 +379,9 @@ export function FieldShopEditor({ shopId }: { shopId: string }) {
         ) : (
           <p className="text-sm text-nicchyo-ink/40">まだ写真がありません</p>
         )}
+        {shop.shop_image_url && shop.shop_image_kind === "panorama" ? (
+          <p className="text-[13px] font-semibold text-nicchyo-ink/70">全周カメラ（360°）の写真として登録済み</p>
+        ) : null}
         {/* 撮る（カメラを起動）と、選ぶ（端末の写真から）は別の入口にする */}
         <div className="grid grid-cols-2 gap-2">
           {[
@@ -387,13 +400,37 @@ export function FieldShopEditor({ shopId }: { shopId: string }) {
                 className="sr-only"
                 disabled={!shop.photo_use_allowed || photoBusy}
                 onChange={(e) => {
-                  void uploadPhoto(e.target.files?.[0]);
+                  setPendingPhoto(e.target.files?.[0] ?? null);
                   e.target.value = "";
                 }}
               />
             </label>
           ))}
         </div>
+        {pendingPhoto ? (
+          <div className="space-y-2 rounded-lg border border-line p-3">
+            <p className="truncate text-[13px] font-semibold text-nicchyo-ink/70">選んだ写真: {pendingPhoto.name || "撮影した写真"}</p>
+            <ShopImageKindField
+              value={pendingPhotoKind.kind}
+              onChange={pendingPhotoKind.setKind}
+              panoramaAvailable={pendingPhotoKind.panoramaAvailable}
+              disabled={photoBusy}
+            />
+            <div className="grid grid-cols-2 gap-2">
+              <button type="button" disabled={photoBusy} onClick={() => setPendingPhoto(null)} className={`${buttonClass} border border-line bg-white text-nicchyo-ink`}>
+                やめる
+              </button>
+              <button
+                type="button"
+                disabled={photoBusy || pendingPhotoKind.checking}
+                onClick={() => void uploadPhoto(pendingPhoto)}
+                className={`${buttonClass} bg-amber-500 text-white disabled:opacity-50`}
+              >
+                {photoBusy ? "保存しています…" : "この写真を登録"}
+              </button>
+            </div>
+          </div>
+        ) : null}
         {!shop.photo_use_allowed ? <p className="text-[13px] text-amber-700">保存済みの設定で写真の許可がありません</p> : null}
       </Card>
 
