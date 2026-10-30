@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applyShopDelta, buildVendorShops, type VendorShopBaseRows } from "./shopDb";
+import { applyShopDelta, buildVendorShops, pruneInvisibleVendors, type VendorShopBaseRows } from "./shopDb";
 
 const IMAGE_URL =
   "https://example.supabase.co/storage/v1/object/public/vendor-images/v1/product-p1.webp?v=1";
@@ -96,7 +96,7 @@ describe("applyShopDelta", () => {
     name,
     image_url: imageUrl,
   });
-  const empty = { vendors: [], products: [], deletedProductIds: [] };
+  const empty = { vendors: [], products: [], deletedProductIds: [], visibleVendorCount: 0 };
 
   it("差分が空なら、元のデータをそのまま返す", () => {
     const base = baseRows();
@@ -134,5 +134,28 @@ describe("applyShopDelta", () => {
     const delta = { ...empty, products: [product("p1", "トマト", IMAGE_URL)], deletedProductIds: ["p9"] };
 
     expect(applyShopDelta(applyShopDelta(base, delta), delta)).toEqual(applyShopDelta(base, delta));
+  });
+});
+
+describe("pruneInvisibleVendors", () => {
+  const vendor = (id: string) => ({ ...baseRows().vendors[0], id });
+  const product = (id: string, vendorId: string) => ({ id, vendor_id: vendorId, name: id, image_url: null });
+
+  it("来訪者に見えなくなった店舗と、その商品を外す。元のデータは変えない", () => {
+    const base = baseRows({
+      vendors: [vendor("v1"), vendor("v2")],
+      products: [product("p1", "v1"), product("p2", "v2")],
+    });
+
+    const pruned = pruneInvisibleVendors(base, new Set(["v1"]));
+
+    expect(pruned.vendors.map((row) => row.id)).toEqual(["v1"]);
+    expect(pruned.products.map((row) => row.id)).toEqual(["p1"]);
+    expect(base.vendors).toHaveLength(2);
+  });
+
+  it("外す店舗が無ければ、元のデータをそのまま返す", () => {
+    const base = baseRows({ vendors: [vendor("v1")] });
+    expect(pruneInvisibleVendors(base, new Set(["v1", "v9"]))).toBe(base);
   });
 });
