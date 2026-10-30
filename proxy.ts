@@ -4,6 +4,7 @@ import { getRole, isModerator } from "@/lib/auth/permissions";
 import {
   applyEnvironmentDefaults,
   EMPTY_PAGE_VISIBILITY_SETTINGS,
+  isBlockedState,
   parsePageVisibilitySettings,
   resolvePageVisibility,
   toVisibilityRole,
@@ -88,6 +89,7 @@ const MAINTENANCE_SKIP_EXACT = ["/robots.txt", "/sitemap.xml", "/favicon.ico"];
 const MAINTENANCE_ONLY_SKIP_PREFIXES = ["/login", "/oauth"];
 
 // 店舗データをそのまま返す API は、地図ページ（/map）と同じ公開設定で止める
+const PREPARING_PATH = "/preparing";
 const MAP_DATA_API_PREFIXES = ["/api/shops", "/api/grandma"];
 
 function matchesPrefix(pathname: string, prefix: string): boolean {
@@ -153,7 +155,7 @@ export async function proxy(request: NextRequest) {
   if (MAP_DATA_API_PREFIXES.some((p) => matchesPrefix(pathname, p))) {
     const settings = (await getSiteSettings()).pageVisibility;
     const apiRole = toVisibilityRole(appRole, !!user);
-    if (resolvePageVisibility("/map", apiRole, settings).state === "private") {
+    if (isBlockedState(resolvePageVisibility("/map", apiRole, settings).state)) {
       const denied = NextResponse.json({ error: "Not found" }, { status: 404 });
       denied.headers.set("cache-control", "private, no-store");
       copyCookies(supabaseResponse, denied);
@@ -161,20 +163,23 @@ export async function proxy(request: NextRequest) {
     }
   }
 
-  // ページ公開設定（管理画面で設定した「非公開」ページをロール別に遮断）
+  // ページ公開設定（管理画面で設定した「準備中」「非公開」ページをロール別に遮断）
+  // 準備中は URL を保ったまま、あとで「準備中」ページに差し替える（CSP などの共通処理を通すため）
+  let showPreparing = false;
   if (isPageRequest) {
     const visibilityRole = toVisibilityRole(appRole, !!user);
     // next.config の rewrite（/shops001 → /shops/001）は proxy より後に効くため、ここで正規化する
     const visibilityPath = pathname.replace(/^\/shops(\d{3})$/, "/shops/$1");
     const visibility = resolvePageVisibility(visibilityPath, visibilityRole, siteSettings.pageVisibility);
+    showPreparing = visibility.state === "preparing";
     if (visibility.state === "private") {
       // リダイレクト先自身が非公開ならループになるためホームへ逃がす
       const target = visibility.redirectTo;
       const targetVisible =
-        resolvePageVisibility(target, visibilityRole, siteSettings.pageVisibility).state !== "private";
+        !isBlockedState(resolvePageVisibility(target, visibilityRole, siteSettings.pageVisibility).state);
       // マップ自身が見えないロール（本番の準備中など）を /map へ逃がすと二度転送になるので、トップへ戻す
       const mapVisible =
-        resolvePageVisibility("/map", visibilityRole, siteSettings.pageVisibility).state !== "private";
+        !isBlockedState(resolvePageVisibility("/map", visibilityRole, siteSettings.pageVisibility).state);
       const destination = targetVisible && target !== visibilityPath ? target : mapVisible ? "/map" : "/";
       const redirectRes = NextResponse.redirect(new URL(destination, request.url));
       copyCookies(supabaseResponse, redirectRes);
@@ -212,9 +217,16 @@ export async function proxy(request: NextRequest) {
   requestHeaders.set("x-nonce", nonce);
   requestHeaders.set("content-security-policy", csp);
 
-  const res = NextResponse.next({
-    request: { headers: requestHeaders },
-  });
+  // 準備中のページは、URL はそのまま中身だけ /preparing に差し替える
+  let res: NextResponse;
+  if (showPreparing) {
+    const rewriteUrl = request.nextUrl.clone();
+    rewriteUrl.pathname = PREPARING_PATH;
+    rewriteUrl.search = "";
+    res = NextResponse.rewrite(rewriteUrl, { request: { headers: requestHeaders } });
+  } else {
+    res = NextResponse.next({ request: { headers: requestHeaders } });
+  }
 
   // レスポンスにCSPヘッダーとSupabase Cookieを設定（リフレッシュ後の最新 Cookie を使用）
   res.headers.set("content-security-policy", csp);

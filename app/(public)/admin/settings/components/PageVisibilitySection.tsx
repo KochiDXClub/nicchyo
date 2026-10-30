@@ -31,6 +31,11 @@ const STATE_STYLE: Record<VisibilityState, { pill: string; dot: string; descript
     dot: "bg-amber-500",
     description: "URL直接アクセスのみ",
   },
+  preparing: {
+    pill: "bg-sky-50 text-sky-800 ring-sky-200 hover:bg-sky-100",
+    dot: "bg-sky-500",
+    description: "「準備中」ページを表示",
+  },
   private: {
     pill: "bg-rose-50 text-rose-800 ring-rose-200 hover:bg-rose-100",
     dot: "bg-rose-500",
@@ -227,6 +232,7 @@ export function PageVisibilitySection() {
               <p className="mt-1 text-sm text-slate-500">
                 <span className="font-semibold text-green-800">公開</span>: リンクも表示　/
                 <span className="font-semibold text-amber-800">限定公開</span>: リンク非表示・URL直接アクセスは可　/
+                <span className="font-semibold text-sky-800">準備中</span>: 「準備中」ページを表示（リンクは非表示）　/
                 <span className="font-semibold text-red-800">非公開</span>: URL直接アクセスもリダイレクト
               </p>
               <p className="mt-1 text-xs text-slate-400">

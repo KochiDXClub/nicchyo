@@ -7,7 +7,7 @@ import {
   resolvePageVisibility,
   toVisibilityRole,
 } from "./resolve";
-import type { PageVisibilitySettings } from "./types";
+import { isBlockedState, type PageVisibilitySettings } from "./types";
 
 const settings: PageVisibilitySettings = {
   pages: {
@@ -157,5 +157,17 @@ describe("toVisibilityRole", () => {
     expect(toVisibilityRole("admin", false)).toBe("anon");
     expect(toVisibilityRole("vendor", true)).toBe("vendor");
     expect(toVisibilityRole("something", true)).toBe("general_user");
+  });
+});
+
+describe("準備中の状態", () => {
+  it("設定として読み書きでき、isBlockedState は準備中と非公開だけ true", () => {
+    const parsed = parsePageVisibilitySettings({ pages: { "/consult": { roles: { anon: "preparing" } } } });
+    expect(resolvePageVisibility("/consult", "anon", parsed).state).toBe("preparing");
+    expect(isLinkVisible("/consult", "anon", parsed)).toBe(false);
+    expect(isBlockedState("preparing")).toBe(true);
+    expect(isBlockedState("private")).toBe(true);
+    expect(isBlockedState("unlisted")).toBe(false);
+    expect(isBlockedState("public")).toBe(false);
   });
 });

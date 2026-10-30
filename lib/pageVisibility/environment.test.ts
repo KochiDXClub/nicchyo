@@ -17,20 +17,19 @@ describe("本番マップの既定", () => {
 
   it("本番では管理者以外が /map を見られず、管理者は見られる", () => {
     for (const role of VISIBILITY_ROLES) {
-      const expected = role === "admin" ? "public" : "private";
+      const expected = role === "admin" ? "public" : "preparing";
       expect(resolvePageVisibility("/map", role, prod).state).toBe(expected);
     }
   });
 
   it("店舗データを返す他のページも同じ既定で止まる", () => {
     for (const path of ["/search", "/shops/001", "/consult", "/favorites"]) {
-      expect(resolvePageVisibility(path, "anon", prod).state).toBe("private");
+      expect(resolvePageVisibility(path, "anon", prod).state).toBe("preparing");
       expect(resolvePageVisibility(path, "admin", prod).state).toBe("public");
     }
   });
 
-  it("デモマップとトップは本番でも誰でも見られる", () => {
-    expect(resolvePageVisibility("/demo/map", "anon", prod).state).toBe("public");
+  it("トップは本番でも誰でも開ける（見られない人には準備中を出す）", () => {
     expect(resolvePageVisibility("/", "anon", prod).state).toBe("public");
   });
 
@@ -47,20 +46,20 @@ describe("本番マップの既定", () => {
     const effective = applyEnvironmentDefaults(stored, true);
     expect(resolvePageVisibility("/map", "moderator", effective).state).toBe("public");
     expect(resolvePageVisibility("/map", "vendor", effective).state).toBe("unlisted");
-    expect(resolvePageVisibility("/map", "anon", effective).state).toBe("private");
+    expect(resolvePageVisibility("/map", "anon", effective).state).toBe("preparing");
   });
 
   it("設定の取得に失敗して空の設定になっても、本番では閉じたまま", () => {
     const fallback = applyEnvironmentDefaults(parsePageVisibilitySettings(null), true);
-    expect(resolvePageVisibility("/map", "anon", fallback).state).toBe("private");
+    expect(resolvePageVisibility("/map", "anon", fallback).state).toBe("preparing");
   });
 });
 
 describe("normalizeForSave", () => {
-  it("本番では既定（private）と同じ値を書かず、public への上書きは残す", () => {
+  it("本番では既定（preparing）と同じ値を書かず、public への上書きは残す", () => {
     const saved = normalizeForSave(
       parsePageVisibilitySettings({
-        pages: { "/map": { roles: { anon: "private", moderator: "public", vendor: "unlisted" } } },
+        pages: { "/map": { roles: { anon: "preparing", moderator: "public", vendor: "unlisted" } } },
       }),
       true
     );

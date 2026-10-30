@@ -30,14 +30,14 @@ const ADMIN_ONLY: readonly VisibilityRole[] = ["admin"];
 const VENDOR_ONLY: readonly VisibilityRole[] = ["vendor"];
 
 /**
- * 本番マップを準備中にしている間の既定。管理者以外には店舗データを見せない
+ * 本番を準備中にしている間の既定。管理者以外には店舗データを見せない
  * （管理者は常に public 固定なので、ここには書かない）。
  */
 const PREPARING_IN_PRODUCTION: Partial<Record<VisibilityRole, VisibilityState>> = {
-  anon: "private",
-  general_user: "private",
-  vendor: "private",
-  moderator: "private",
+  anon: "preparing",
+  general_user: "preparing",
+  vendor: "preparing",
+  moderator: "preparing",
 };
 
 export const PAGE_REGISTRY: readonly PageRegistryEntry[] = [
@@ -47,14 +47,8 @@ export const PAGE_REGISTRY: readonly PageRegistryEntry[] = [
     label: "マップ（本番データ）",
     group: "来訪者向け",
     description:
-      "本番の店舗データを載せた地図。本番デプロイでは管理者以外は既定で非公開（トップは「準備中」表示になる）。/api/shops・にちよさんのAPIも同じ設定で止まる",
+      "本番の店舗データを載せた地図。本番デプロイでは管理者以外は既定で「準備中」。/api/shops・にちよさんのAPIも同じ設定で止まる",
     productionDefault: PREPARING_IN_PRODUCTION,
-  },
-  {
-    path: "/demo/map",
-    label: "マップ（デモ）",
-    group: "来訪者向け",
-    description: "架空の店舗データだけで動く地図。準備中のあいだ、トップのボタンからここへ案内する",
   },
   {
     path: "/facilities",

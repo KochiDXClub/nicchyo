@@ -4,7 +4,7 @@ import { createClient as createServerClient } from "@/utils/supabase/server";
 import { getRole } from "@/lib/auth/permissions";
 import { applyEnvironmentDefaults } from "./environment";
 import { parsePageVisibilitySettings, resolvePageVisibility, toVisibilityRole } from "./resolve";
-import { EMPTY_PAGE_VISIBILITY_SETTINGS, type PageVisibilitySettings } from "./types";
+import { EMPTY_PAGE_VISIBILITY_SETTINGS, isBlockedState, type PageVisibilitySettings } from "./types";
 
 const CACHE_TTL_MS = 60_000;
 let cache: { value: PageVisibilitySettings; expiresAt: number } | null = null;
@@ -54,5 +54,5 @@ export async function isPathVisibleToCurrentUser(path: string): Promise<boolean>
   } catch {
     // セッションが読めなければ未ログイン扱い
   }
-  return resolvePageVisibility(path, role, settings).state !== "private";
+  return !isBlockedState(resolvePageVisibility(path, role, settings).state);
 }
