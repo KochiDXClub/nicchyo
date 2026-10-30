@@ -51,8 +51,9 @@ function fakeClient() {
 }
 
 vi.mock("@/utils/supabase/client", () => ({ createClient: () => fakeClient() }));
+const recropStoreThumbnail = vi.hoisted(() => vi.fn());
 const uploadStoreImage = vi.hoisted(() => vi.fn());
-vi.mock("./storeService", () => ({ uploadStoreImage }));
+vi.mock("./storeService", () => ({ uploadStoreImage, recropStoreThumbnail }));
 // 写真の WebP 変換はブラウザの Canvas を使うので、変換済みの Blob を返す代わりに差し替える
 vi.mock("@/lib/image/clientCompression", () => ({
   STORE_IMAGE_CONFIG: { main: {} },
@@ -123,13 +124,30 @@ describe("saveAskAnswer（どの列に書くか）", () => {
     expect(storageRemove).toHaveBeenCalledWith(["v1/store-main.webp", "v1/store-thumb.webp"]);
   });
 
-  it("店舗写真を登録すると、アップロードが返した URL（版つき）をそのまま保存する（?v= を二重に付けない）", async () => {
+  it("全周写真のサムネイルだけを切り直すと、写真の URL の版だけ更新する（写真は消さず、種類も変えない）", async () => {
+    recropStoreThumbnail.mockResolvedValue("https://example.supabase.co/v1/store-main.webp?v=2");
+
+    await saveAskAnswer("v1", "2026-10-04", {
+      id: "shop-photo",
+      imageFile: null,
+      recrop: { sourceUrl: "https://example.supabase.co/v1/store-main.webp?v=1", center: 0.3 },
+    });
+
+    expect(recropStoreThumbnail).toHaveBeenCalledWith("v1", "https://example.supabase.co/v1/store-main.webp?v=1", 0.3);
+    expect(writes()[0].payload).toEqual(expect.objectContaining({ shop_image_url: "https://example.supabase.co/v1/store-main.webp?v=2" }));
+    expect(writes()[0].payload).not.toHaveProperty("shop_image_kind");
+    expect(storageRemove).not.toHaveBeenCalled();
+  });
+
+  it("全周写真を登録すると、種類と切り取り位置を渡し、返った URL をそのまま保存する", async () => {
     uploadStoreImage.mockResolvedValue("https://example.supabase.co/v1/store-main.webp?v=9");
+    const file = new File(["x"], "p.jpg");
 
-    await saveAskAnswer("v1", "2026-10-04", { id: "shop-photo", imageFile: new File(["x"], "a.jpg") });
+    await saveAskAnswer("v1", "2026-10-04", { id: "shop-photo", imageFile: file, imageKind: "panorama", thumbCenter: 0.7 });
 
+    expect(uploadStoreImage).toHaveBeenCalledWith("v1", file, { kind: "panorama", thumbCenter: 0.7 });
     expect(writes()[0].payload).toEqual(
-      expect.objectContaining({ shop_image_url: "https://example.supabase.co/v1/store-main.webp?v=9" })
+      expect.objectContaining({ shop_image_url: "https://example.supabase.co/v1/store-main.webp?v=9", shop_image_kind: "panorama" })
     );
   });
 

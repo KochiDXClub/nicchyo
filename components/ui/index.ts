@@ -13,3 +13,4 @@ export { EmptyMessage } from "./empty-message";
 export { PageShell, PageContainer, PageHeader, PageTitle, type PageWidth } from "./page-shell";
 export { LoadingSpinner, CenteredLoading } from "./loading-spinner";
 export { ShopImageKindField, PANORAMA_RATIO_MESSAGE } from "./shop-image-kind-field";
+export { PanoramaThumbPicker } from "./panorama-thumb-picker";

@@ -25,3 +25,13 @@ export function Field({ label, children }: { label: string; children: React.Reac
     </label>
   );
 }
+
+/** API のエラー応答から、画面に出す文とエラーコードを取り出す */
+export async function readError(res: Response, fallback: string): Promise<{ message: string; code?: string }> {
+  try {
+    const data = (await res.json()) as { error?: string; code?: string };
+    return { message: data.error ?? fallback, code: data.code };
+  } catch {
+    return { message: fallback };
+  }
+}

@@ -2,7 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@/utils/supabase/client";
 import { imageUploadInfo, resizeImageToBlob, STORE_IMAGE_CONFIG } from "@/lib/image/clientCompression";
 import { normalizeShopImageKind } from "@/lib/shopImages";
-import { uploadStoreImage } from "./storeService";
+import { recropStoreThumbnail, uploadStoreImage } from "./storeService";
 import type { AskAnswer, VendorAskSnapshot } from "@/lib/vendor/askQuestions";
 import type { PaymentMethod, RainPolicy } from "../_types";
 
@@ -468,6 +468,11 @@ export async function saveAskAnswer(
     case "x":
       return updateVendor(supabase, vendorId, { sns_x: orNull(answer.value) });
     case "shop-photo": {
+      if (!answer.imageFile && answer.recrop) {
+        // 全周写真のサムネイルだけの切り直し。メインの写真と種類はそのまま
+        const url = await recropStoreThumbnail(vendorId, answer.recrop.sourceUrl, answer.recrop.center);
+        return updateVendor(supabase, vendorId, { shop_image_url: url });
+      }
       if (!answer.imageFile) {
         // 写真を消すときは、種類も普通の写真に戻す（次に入れる写真に全周のラベルを残さない）
         await updateVendor(supabase, vendorId, { shop_image_url: null, shop_image_kind: "normal" });
@@ -475,12 +480,10 @@ export async function saveAskAnswer(
         await removeStoreImages(supabase, vendorId);
         return;
       }
-      // 毎回同じパスに上書きされるので、返る URL には版（?v=）がついている（ブラウザの古いキャッシュを避ける）
-      const imageUrl = await uploadStoreImage(vendorId, answer.imageFile);
-      return updateVendor(supabase, vendorId, {
-        shop_image_url: imageUrl,
-        shop_image_kind: normalizeShopImageKind(answer.imageKind),
-      });
+      const kind = normalizeShopImageKind(answer.imageKind);
+      // 毎回同じパスに上書きされるので、返る URL には版（?v=）がついている
+      const imageUrl = await uploadStoreImage(vendorId, answer.imageFile, { kind, thumbCenter: answer.thumbCenter });
+      return updateVendor(supabase, vendorId, { shop_image_url: imageUrl, shop_image_kind: kind });
     }
     case "shop-name":
       return updateVendor(supabase, vendorId, { shop_name: answer.text.trim() });

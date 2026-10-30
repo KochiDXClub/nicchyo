@@ -31,9 +31,10 @@ const photo = (format: "png" | "jpeg" | "webp", width: number, height: number) =
 /** トリガーが付けた保存値。アプリの時計とは違う値にして、返り値がこちらであることを確かめる */
 const DB_UPDATED_AT = "2020-01-02T03:04:05.678+00:00";
 
-async function post(main: Buffer, thumb: Buffer) {
+async function post(main: Buffer | null, thumb: Buffer, kind?: string) {
   const form = new FormData();
-  form.append("main", new Blob([new Uint8Array(main)]), "main");
+  if (main) form.append("main", new Blob([new Uint8Array(main)]), "main");
+  if (kind) form.append("kind", kind);
   form.append("thumb", new Blob([new Uint8Array(thumb)]), "thumb");
   return POST(new Request(`https://nicchyo.example/api/admin/shops/${ID}/image`, { method: "POST", body: form }), {
     params: Promise.resolve({ id: ID }),
@@ -152,5 +153,37 @@ describe("POST /api/admin/shops/[id]/image", () => {
 
     expect(res.status).toBe(403);
     expect(upload).not.toHaveBeenCalled();
+  });
+
+  it("全周写真は、PNG で届いても長辺2400pxのまま WebP にする（普通の写真の1200pxには縮めない）", async () => {
+    const res = await post(await photo("png", 3000, 1500), await photo("png", 600, 450), "panorama");
+
+    expect(res.status).toBe(200);
+    const main = await sharp(uploaded().get(`${ID}/store-main.webp`)!.bytes).metadata();
+    expect([main.format, main.width, main.height]).toEqual(["webp", 2400, 1200]);
+  });
+
+  describe("全周写真のサムネイルだけを差し替える（メインなし）", () => {
+    const registered = { shop_name: "山田農園", photo_use_allowed: true, shop_image_kind: "panorama", shop_image_url: `https://x.supabase.co/storage/${ID}/store-main.webp?v=1` };
+
+    it("サムネイルだけ置き直し、メインの URL は版だけ新しくする", async () => {
+      vendor = registered;
+
+      const res = await post(null, await photo("webp", 600, 450));
+
+      expect(res.status).toBe(200);
+      expect([...uploaded().keys()]).toEqual([`${ID}/store-thumb.webp`]);
+      expect(vendorUpdates[0]).toEqual({ shop_image_url: expect.stringMatching(new RegExp(`/store-main\\.webp\\?v=(?!1$)\\d+$`)) });
+      expect((await res.json()).updated_at).toBe(DB_UPDATED_AT);
+    });
+
+    it("全周写真が登録されていない店舗には、サムネイルだけ置けない", async () => {
+      vendor = { ...registered, shop_image_kind: "normal" };
+
+      const res = await post(null, await photo("webp", 600, 450));
+
+      expect(res.status).toBe(400);
+      expect(upload).not.toHaveBeenCalled();
+    });
   });
 });
