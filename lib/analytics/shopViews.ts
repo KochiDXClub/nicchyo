@@ -38,6 +38,8 @@ function markOnce(shopId: number): boolean {
 /** お店が開かれたことを記録する。結果は待たず、失敗は無視する */
 export function recordShopView(shopId: number, source: ShopViewSource): void {
   if (typeof window === "undefined" || isAnalyticsOptedOut() || !markOnce(shopId)) return;
+  // デモマップの架空の店は数えない（店番号が本番の店と重なると、本物の出店者の分析に混ざる）
+  if (window.location.pathname.startsWith("/demo/")) return;
   void fetch("/api/analytics/shop-view", {
     method: "POST",
     headers: { "Content-Type": "application/json" },

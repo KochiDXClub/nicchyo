@@ -3,7 +3,7 @@
 import NavigationBar from "../../components/NavigationBar";
 import dynamic from "next/dynamic";
 import { useEffect, useMemo, useState, useRef, useCallback, Suspense } from "react";
-import { useSearchParams, useRouter } from "next/navigation";
+import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { AnimatePresence, motion, useDragControls } from "framer-motion";
 import { Navigation } from "lucide-react";
 import type { MapCamera } from "./types/mapCamera";
@@ -100,6 +100,8 @@ export default function MapPageClient({
   const showGrandma = false;
   const searchParams = useSearchParams();
   const router = useRouter();
+  // /demo/map は同じ画面を架空データで動かす。URL を作り直すときに本番の /map へ出てしまわないようにする
+  const isDemo = usePathname()?.startsWith("/demo/map") ?? false;
   const activePanel = searchParams?.get("panel") === "search" ? "search" : null;
   const { user, permissions } = useAuth();
   const { status: mapLoadingStatus, takeOverMapLoading, reportMapStage, markMapReady } = useMapLoading();
@@ -158,13 +160,14 @@ export default function MapPageClient({
   const buildCurrentMapUrl = useCallback(
     (updates?: Record<string, string | null | undefined>) => {
       const currentSearch = typeof window !== "undefined" ? window.location.search : searchParamsKey;
-      return buildMapUrl({
+      const url = buildMapUrl({
         currentSearch,
         guideActive: isGuideActive,
         updates,
       });
+      return isDemo ? url.replace(/^\/map/, "/demo/map") : url;
     },
-    [isGuideActive, searchParamsKey]
+    [isDemo, isGuideActive, searchParamsKey]
   );
   const syncGuideUrl = useCallback(
     (value: string | null) => {
@@ -984,8 +987,9 @@ export default function MapPageClient({
             />
 
             {/* 「このへん、なにがある？」ボタン（対象ズーム帯で静止時にフェード表示） */}
+            {/* デモでは AI の API（本番データを使う）を止めているので、入口も出さない */}
             <NearbyExploreButton
-              visible={nearbyButtonVisible}
+              visible={nearbyButtonVisible && !isDemo}
               onClick={openNearbyPanel}
             />
 

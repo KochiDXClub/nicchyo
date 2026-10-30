@@ -10,6 +10,9 @@ import type { Shop } from "../../map/data/shops";
 import type { Landmark } from "../../map/types/landmark";
 import landmarksJson from "../../map/data/landmarks.json";
 
+/** 本番の店番号（1〜300 台）と重ならない番号にする。共有リンクや分析で本物の店と取り違えないため */
+const DEMO_SHOP_ID_BASE = 901;
+
 const DEMO_SHOPS = [
   { name: "デモ青果店", ownerName: "デモ 太郎", category: "食材", products: ["トマト", "ナス", "きゅうり"], description: "見本の八百屋です。季節の野菜が並びます。" },
   { name: "デモ屋台 いも天", ownerName: "デモ 花子", category: "食べ物", products: ["いも天", "田舎寿司"], description: "見本の屋台です。揚げたてを出します。" },
@@ -34,7 +37,7 @@ export function buildDemoShops(): Shop[] {
     const b = line[Math.min(i + 1, line.length - 1)];
     const f = t - i;
     return {
-      id: index + 1,
+      id: DEMO_SHOP_ID_BASE + index,
       position: index + 1,
       lat: a.lat + (b.lat - a.lat) * f + (index % 2 === 0 ? side : -side),
       lng: a.lng + (b.lng - a.lng) * f,
