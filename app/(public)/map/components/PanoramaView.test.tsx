@@ -16,4 +16,14 @@ describe("PanoramaView", () => {
     fireEvent.pointerMove(view, { clientX: 300, pointerId: 1 });
     expect(view.style.backgroundPosition).toContain("60px");
   });
+
+  it("矢印キーで見渡すとき、外側の横スクロール（写真の切り替え）は動かさない", () => {
+    render(<PanoramaView src="https://example.supabase.co/p.webp" alt="店の写真" />);
+    const view = screen.getByRole("application");
+
+    // fireEvent は、既定の動きが止められたとき false を返す
+    expect(fireEvent.keyDown(view, { key: "ArrowLeft" })).toBe(false);
+    expect(fireEvent.keyDown(view, { key: "ArrowRight" })).toBe(false);
+    expect(view.style.backgroundPosition).toContain("0px");
+  });
 });

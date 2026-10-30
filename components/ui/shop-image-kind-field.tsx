@@ -1,5 +1,3 @@
-"use client";
-
 import { cn } from "@/lib/utils/cn";
 import type { ShopImageKind } from "@/lib/shopImages";
 

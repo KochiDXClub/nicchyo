@@ -40,10 +40,13 @@ export function PanoramaView({ src, alt }: { src: string; alt: string }) {
   };
 
   const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    // preventDefault で、外側の横スクロール（写真の切り替え）が矢印キーで動くのを止める。stopPropagation は、写真の切り替えのキー処理に渡さないため
     if (event.key === "ArrowLeft") {
+      event.preventDefault();
       event.stopPropagation();
       setOffset((current) => current + KEY_STEP);
     } else if (event.key === "ArrowRight") {
+      event.preventDefault();
       event.stopPropagation();
       setOffset((current) => current - KEY_STEP);
     }
