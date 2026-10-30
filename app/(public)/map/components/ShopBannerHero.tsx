@@ -377,16 +377,29 @@ export function ShopBannerHero({
       {heroImageError ? (
         <CategoryPlaceholder category={shop.category} theme={theme} iconClassName="h-16 w-16" />
       ) : (
-        <Image
-          src={bannerImage}
-          alt={`${shop.name}の写真`}
-          fill
-          // 画面幅いっぱい（PC では最大でもバナーの幅）。sizes が無いと 1920px 幅を取りに行く
-          sizes={photoOnly ? "320px" : "(max-width: 768px) 100vw, 640px"}
-          className="object-cover object-center"
-          priority
-          onError={onImageError}
-        />
+        <>
+          {photoOnly && (
+            // 縦に細長い列で写真を切らないよう、全体を収め、余白は同じ写真のぼかしで埋める
+            <Image
+              src={bannerImage}
+              alt=""
+              aria-hidden
+              fill
+              sizes="64px"
+              className="scale-125 object-cover object-center opacity-60 blur-2xl"
+            />
+          )}
+          <Image
+            src={bannerImage}
+            alt={`${shop.name}の写真`}
+            fill
+            // 画面幅いっぱい（PC では最大でもバナーの幅）。sizes が無いと 1920px 幅を取りに行く
+            sizes={photoOnly ? "520px" : "(max-width: 768px) 100vw, 640px"}
+            className={photoOnly ? "object-contain object-center" : "object-cover object-center"}
+            priority
+            onError={onImageError}
+          />
+        </>
       )}
       {onOpenPhoto && !heroImageError && (
         <button

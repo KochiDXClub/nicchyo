@@ -427,7 +427,7 @@ const ShopDetailBanner = memo(function ShopDetailBanner({
             ? "h-[100vh] border-l border-slate-100 shadow-sm"
             : isMobileOverlay
               ? "rounded-t-3xl shadow-2xl"
-              : "w-[min(920px,94vw)] rounded-sheet shadow-[0_32px_80px_-24px_rgba(58,58,58,0.55)] ring-1 ring-nicchyo-ink/[0.08]"
+              : "w-[min(1040px,94vw)] rounded-sheet shadow-[0_32px_80px_-24px_rgba(58,58,58,0.55)] ring-1 ring-nicchyo-ink/[0.08]"
           }
         `}
         style={isInline ? undefined : isMobileOverlay
@@ -521,7 +521,7 @@ const ShopDetailBanner = memo(function ShopDetailBanner({
             >
               {/* PC のダイアログ: 写真だけを左に置き、それ以外は右の列で読む */}
               {isDesktopDialog && (
-                <div className="relative h-full w-[42%] shrink-0">
+                <div className="relative h-full w-1/2 shrink-0">
                   <ShopBannerHero
                     shop={shop}
                     bannerImage={bannerImage}
