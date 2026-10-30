@@ -121,6 +121,20 @@ describe("PATCH /api/admin/shops/[id]", () => {
     expect(updateCalls[0].values.listing_consented_on).toBeUndefined();
   });
 
+  it("別の写真の URL に差し替えると、種類は普通に戻す。同じ URL のままなら種類に触れない", async () => {
+    vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "https://abc.supabase.co");
+    const old = "https://abc.supabase.co/storage/v1/object/public/vendor-images/v1/store-main.webp?v=1";
+    current.shop_image_url = old;
+
+    await patch({ shop_image_url: "https://abc.supabase.co/storage/v1/object/public/vendor-images/v1/other.webp", updated_at: LOADED_AT });
+    expect(updateCalls[0].values.shop_image_kind).toBe("normal");
+
+    updateCalls.length = 0;
+    await patch({ shop_image_url: old, updated_at: LOADED_AT });
+    expect(updateCalls[0].values).not.toHaveProperty("shop_image_kind");
+    vi.unstubAllEnvs();
+  });
+
   it("管理者でなければ何もしない", async () => {
     guard.mockResolvedValue({ error: new Response(null, { status: 401 }) });
     expect((await patch({ shop_name: "x", updated_at: LOADED_AT })).status).toBe(401);
