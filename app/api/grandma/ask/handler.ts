@@ -4,7 +4,8 @@ import type { Database } from "@/types/database.types";
 import type { DatabaseWithExtensions } from "@/types/database.extensions";
 import { buildGrandmaAiSystemPrompt } from "@/lib/grandma/prompts/consultSystemPrompt";
 import { buildLanguageInstruction } from "@/lib/grandma/prompts/languageRules";
-import { LOCALE_HEADER, toLocale, type Locale } from "@/lib/i18n/config";
+import { translateQuestionForSearch } from "@/lib/grandma/searchQuestion";
+import { DEFAULT_LOCALE, LOCALE_HEADER, toLocale, type Locale } from "@/lib/i18n/config";
 import { fetchAiPrompts } from "@/lib/grandma/prompts/promptStore.server";
 import {
   readOpenAiError,
@@ -43,6 +44,8 @@ import {
   describeLocationForPrompt,
   classifyIntent,
   isValidFollowUpQuestion,
+  isShopRelatedQuestionEn,
+  isSeasonalQuestionEn,
   buildFallbackFollowUpQuestion,
 } from "@/lib/grandma/consultUtils";
 import {
@@ -272,6 +275,7 @@ async function finalizeConsultResponse(options: {
   summary: string;
   shopIntent: boolean;
   memorySummary: string;
+  locale: Locale;
   internal?: ConsultAskInternalOptions;
 }): Promise<ConsultAskResponse> {
   const {
@@ -291,6 +295,7 @@ async function finalizeConsultResponse(options: {
     summary,
     shopIntent,
     memorySummary,
+    locale,
     internal,
   } = options;
 
@@ -376,12 +381,13 @@ async function finalizeConsultResponse(options: {
       });
   }
 
-  const safeFollowUpQuestion = isValidFollowUpQuestion(followUpQuestion ?? "")
+  const safeFollowUpQuestion = isValidFollowUpQuestion(followUpQuestion ?? "", locale)
     ? followUpQuestion.trim()
     : buildFallbackFollowUpQuestion(
         text,
         targetShopName,
         finalRecommendedShops.length,
+        locale,
       );
 
   return {
@@ -600,6 +606,7 @@ async function createStreamingConsultResponse(options: {
           summary: streamedPayload.summary,
           shopIntent,
           memorySummary,
+          locale,
           internal,
         });
         enqueue({
@@ -767,9 +774,19 @@ export async function handleConsultAsk(
     }
 
     const supabase = createClient<Database>(supabaseUrl, serviceRoleKey);
-    const keywords = extractKeywords(question);
-    const shopIntent = isShopRelatedQuestion(normalized);
-    const seasonalQuestion = isSeasonalQuestion(normalized);
+    // お店の判定・キーワード・埋め込みは日本語が前提なので、日本語以外の画面では検索用に訳す。
+    // 回答を作るときは来訪者が書いた元の質問（question）を使う
+    const searchQuestion = await translateQuestionForSearch(openaiKey, question, locale);
+    const searchNormalized = searchQuestion.replace(/\s+/g, "");
+    const keywords = extractKeywords(searchQuestion);
+    // 日本語の判定は訳し方で外れることがあるので、日本語以外の画面では英語の原文でも見る
+    const isForeign = locale !== DEFAULT_LOCALE;
+    const shopIntent =
+      isShopRelatedQuestion(searchNormalized) ||
+      (isForeign && isShopRelatedQuestionEn(question));
+    const seasonalQuestion =
+      isSeasonalQuestion(searchNormalized) ||
+      (isForeign && isSeasonalQuestionEn(question));
     const currentSeason = getCurrentSeasonInfo();
 
     let targetShop: Shop | null = null;
@@ -780,7 +797,7 @@ export async function handleConsultAsk(
       targetShop = await fetchShopByName(supabase, targetShopName);
     }
 
-    const embeddingResponse = await requestEmbeddings(openaiKey, question);
+    const embeddingResponse = await requestEmbeddings(openaiKey, searchQuestion);
     if (!embeddingResponse.ok) {
       const detail = await readOpenAiError(embeddingResponse);
       console.error(`[grandma/ask] embeddings failed: ${detail.summary}`);
@@ -846,6 +863,16 @@ export async function handleConsultAsk(
       supabase,
       Array.from(new Set(candidateVendorIds)).slice(0, 12),
     );
+    // 質問文は残さない方針（#629）なので、件数と真偽だけを残す。英語で候補が出ない原因の切り分け用
+    if (isForeign) {
+      console.info("[grandma/ask] search", {
+        locale,
+        translated: searchQuestion !== question,
+        shopIntent,
+        seasonalQuestion,
+        candidates: candidateShops.length,
+      });
+    }
     if (
       shopIntent &&
       !targetShop &&
@@ -1122,6 +1149,7 @@ export async function handleConsultAsk(
       summary: structured.summary ?? "",
       shopIntent,
       memorySummary,
+      locale,
       internal,
     });
 

@@ -14,7 +14,7 @@ export function fetchProductRows<T>(supabase: SupabaseClient<Database>) {
     (from, to) =>
       supabase
         .from("products")
-        .select("vendor_id, name, image_url")
+        .select("id, vendor_id, name, image_url")
         .order("id", { ascending: true })
         .range(from, to) as unknown as PromiseLike<{ data: T[] | null; error: { message: string } | null }>,
     { label: "products" }

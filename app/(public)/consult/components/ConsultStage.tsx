@@ -56,8 +56,8 @@ import type {
   ConsultAskStreamEvent,
   ConsultHistoryEntry,
 } from "../types/consultConversation";
-import { shopsApiUrl } from "@/lib/i18n/config";
-import { useLocale } from "@/lib/i18n/LocaleContext";
+import { DEFAULT_LOCALE, shopsApiUrl } from "@/lib/i18n/config";
+import { useLocale, useT } from "@/lib/i18n/LocaleContext";
 
 const SESSION_STORAGE_KEY = "nicchyo-consult-session";
 /**
@@ -190,6 +190,8 @@ export default function ConsultStage({
   isHistorySidebarOpen = false,
   onHistorySidebarOpenChange,
 }: ConsultStageProps) {
+  const t = useT();
+  const locale = useLocale();
   const [entries, setEntries] = useState<ConsultEntry[]>([]);
   const [phase, setPhase] = useState<StagePhase>("idle");
   const [draft, setDraft] = useState("");
@@ -320,13 +322,15 @@ export default function ConsultStage({
     // 何も起きずにシートが消えると壊れたように見えるので、必ず理由を出す
     setPhase("idle");
     notifyErrorRef.current?.(
-      "声が聞き取れんかった。マイクの許可を確かめるか、文字で聞いてみてね。"
+      t("声が聞き取れんかった。マイクの許可を確かめるか、文字で聞いてみてね。")
     );
-  }, []);
+  }, [t]);
 
   const speech = useSpeechInput({
     onSettled: handleSpeechSettled,
     onError: handleSpeechError,
+    // 英語の画面で話しかけた声を、日本語として聞き取らない
+    lang: locale === DEFAULT_LOCALE ? "ja-JP" : "en-US",
   });
 
   // 今の話し手。選んでいなければ既定のにちよさんが出る
@@ -354,8 +358,22 @@ export default function ConsultStage({
         ? Math.floor(Math.random() * speaker.greeting.lines.length)
         : shown + 1;
     greetingIndexRef.current[speaker.id] = index;
-    setGreeting(buildConsultGreeting({ now: new Date(), script: speaker.greeting, index }));
-  }, [speaker]);
+    const { greeting: script } = speaker;
+    setGreeting(
+      buildConsultGreeting({
+        now: new Date(),
+        script: {
+          morning: t(script.morning),
+          afternoon: t(script.afternoon),
+          evening: t(script.evening),
+          lines: script.lines.map((line) => t(line)),
+        },
+        index,
+        separator: locale === DEFAULT_LOCALE ? "" : " ",
+        fallbackLine: t("なんでも聞いてね。"),
+      })
+    );
+  }, [speaker, t, locale]);
 
   /**
    * 話し手の入れ替わり。
@@ -469,7 +487,7 @@ export default function ConsultStage({
             <button
               type="button"
               onClick={() => toast.dismiss(item.id)}
-              aria-label="閉じる"
+              aria-label={t("閉じる")}
               className="shrink-0"
             >
               <X className="h-4 w-4 text-slate-400" aria-hidden="true" />
@@ -480,7 +498,7 @@ export default function ConsultStage({
         { id: "consult-error", duration: 7000, position: "top-center" }
       );
     },
-    []
+    [t]
   );
   notifyErrorRef.current = notifyError;
 
@@ -512,7 +530,7 @@ export default function ConsultStage({
       setPendingQuestion(text);
       setStreamingText(null);
       setStreamingSpeaker(null);
-      setStatusMessage("考えよるよ…");
+      setStatusMessage(t("考えよるよ…"));
 
       const history = buildHistoryForRequest(entriesRef.current);
 
@@ -542,8 +560,8 @@ export default function ConsultStage({
           // 失敗は知らせ（role="alert"）が読み上げるので、こちらは空にする
           setStatusMessage("");
           notifyError(
-            response.errorMessage ?? "うまく聞けんかった。もう一度試してみてね。",
-            { label: "もう一度", run: () => void askRef.current?.(text, source, withContext) }
+            response.errorMessage ?? t("うまく聞けんかった。もう一度試してみてね。"),
+            { label: t("もう一度"), run: () => void askRef.current?.(text, source, withContext) }
           );
           return;
         }
@@ -576,12 +594,12 @@ export default function ConsultStage({
           },
           ...prev,
         ]);
-        setStatusMessage("答えが出たよ");
+        setStatusMessage(t("答えが出たよ"));
       } catch {
         restoreTyped();
         setStatusMessage("");
-        notifyError("つながらんかった。電波を確かめて、もう一度試してみてね。", {
-          label: "もう一度",
+        notifyError(t("つながらんかった。電波を確かめて、もう一度試してみてね。"), {
+          label: t("もう一度"),
           run: () => void askRef.current?.(text, source, withContext),
         });
       } finally {
@@ -591,7 +609,7 @@ export default function ConsultStage({
         setPhase("idle");
       }
     },
-    [notifyError, onAskStream, phase]
+    [notifyError, onAskStream, phase, t]
   );
 
   const askRef = useRef<typeof ask | null>(null);
@@ -670,8 +688,8 @@ export default function ConsultStage({
     [handlePickSpeaker, isHistorySidebarInline, onHistorySidebarOpenChange, phase, speaker.id]
   );
   const suggestions = useMemo(
-    () => pickSuggestions({ entries, pool: QUESTION_POOL }),
-    [entries]
+    () => pickSuggestions({ entries, pool: QUESTION_POOL.map((question) => t(question)) }),
+    [entries, t]
   );
 
   const resolveShops = useCallback(
@@ -694,7 +712,6 @@ export default function ConsultStage({
    * ただし全件取得は屋外の細い回線には重いので、
    * 「引けない ID が実際にあるとき」だけ、1回に限って取りに行く。
    */
-  const locale = useLocale();
   const shopFetchStartedRef = useRef(false);
   useEffect(() => {
     if (!hasRestored || shopFetchStartedRef.current) return;
@@ -780,7 +797,7 @@ export default function ConsultStage({
                 </span>
                 <span className="mt-0.5 line-clamp-2 text-xs leading-5 text-slate-500">
                   {itemSpeaker && (
-                    <span className="font-bold text-amber-700">{itemSpeaker.name}　</span>
+                    <span className="font-bold text-amber-700">{t(itemSpeaker.name)}　</span>
                   )}
                   {item.answer}
                 </span>
@@ -895,8 +912,8 @@ export default function ConsultStage({
         onClick={() => onHistorySidebarOpenChange?.(true)}
         aria-label={
           entries.length > 0
-            ? `これまでの相談を開く（${entries.length}件）`
-            : "これまでの相談を開く"
+            ? t("これまでの相談を開く（{count}件）").replace("{count}", String(entries.length))
+            : t("これまでの相談を開く")
         }
         aria-expanded={isHistorySidebarOpen}
         // 開いている間も外さずに隠すだけにする。外すと、閉じたときにフォーカスを戻す先が無くなる。
@@ -954,7 +971,7 @@ export default function ConsultStage({
           // lg 以上は常設の帯（補足の領域）、lg 未満は背面を覆うモーダル
           role={isHistoryDrawer ? "dialog" : "complementary"}
           aria-modal={isHistoryDrawer || undefined}
-          aria-label="これまでの相談"
+          aria-label={t("これまでの相談")}
           // lg 未満は暗幕（z-40）の上、話しかけるバー・固定バーより手前に出す。
           // lg 以上は横に並ぶだけなので、これまで通り音声シートなどより奥に置く
           // 幅は立ち絵を置いても文字の幅が以前（w-72）とほぼ変わらないよう 22rem にする
@@ -971,14 +988,14 @@ export default function ConsultStage({
             <button
               type="button"
               onClick={() => onHistorySidebarOpenChange?.(false)}
-              aria-label="これまでの相談を閉じる"
+              aria-label={t("これまでの相談を閉じる")}
               aria-expanded={true}
               className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-slate-500 transition hover:bg-black/5 lg:h-9 lg:w-9"
             >
               <PanelLeftClose className="h-5 w-5" aria-hidden="true" />
             </button>
             <p className="truncate text-sm font-bold text-slate-700">
-              これまでの相談{entries.length > 0 ? `（${entries.length}件）` : ""}
+              {t("これまでの相談")}{entries.length > 0 ? t("（{count}件）").replace("{count}", String(entries.length)) : ""}
             </p>
           </div>
           {/*
@@ -992,7 +1009,7 @@ export default function ConsultStage({
               renderHistoryList()
             ) : (
               <p className="px-2 pt-3 text-sm leading-6 text-slate-400">
-                ここに相談の履歴を残していくよ。{speaker.name}に話しかけてみてね
+                {t("ここに相談の履歴を残していくよ。{name}に話しかけてみてね").replace("{name}", t(speaker.name))}
               </p>
             )}
           </div>
@@ -1001,12 +1018,12 @@ export default function ConsultStage({
               <button
                 type="button"
                 onClick={() => {
-                  if (!window.confirm("これまでの相談をすべて消すよ。よろしい？")) return;
+                  if (!window.confirm(t("これまでの相談をすべて消すよ。よろしい？"))) return;
                   setEntries(createEmptySession().entries);
                 }}
                 className="w-full rounded-lg px-3 py-3 text-left text-sm font-bold text-amber-800 transition hover:bg-amber-50 lg:py-2"
               >
-                相談を最初からにする
+                {t("相談を最初からにする")}
               </button>
             </div>
           )}
@@ -1115,7 +1132,7 @@ export default function ConsultStage({
             size="pinned"
             character={speaker}
             onClick={() => setIsSpeakerPickerOpen(true)}
-            label={`話し手を選ぶ（いまは${speaker.name}）`}
+            label={t("話し手を選ぶ（いまは{name}）").replace("{name}", t(speaker.name))}
           />
         </div>
 
@@ -1123,7 +1140,7 @@ export default function ConsultStage({
           {speech.isListening && (
             // 聞き取り中は、上まで戻らなくても分かるようにする
             <span className="rounded-full bg-red-500 px-3 py-1.5 text-xs font-bold text-white">
-              聞きよるよ…
+              {t("聞きよるよ…")}
             </span>
           )}
         </div>
@@ -1160,11 +1177,11 @@ export default function ConsultStage({
             size="hero"
             character={speaker}
             onClick={() => setIsSpeakerPickerOpen(true)}
-            label={`話し手を選ぶ（いまは${speaker.name}）`}
+            label={t("話し手を選ぶ（いまは{name}）").replace("{name}", t(speaker.name))}
           />
         </div>
         {speech.isListening ? (
-          <p className="text-center text-sm font-bold text-amber-900">聞きよるよ…</p>
+          <p className="text-center text-sm font-bold text-amber-900">{t("聞きよるよ…")}</p>
         ) : (
           !showAnswer &&
           !swapFrom && (
@@ -1178,7 +1195,7 @@ export default function ConsultStage({
               className={`consult-greeting max-w-[19rem] rounded-2xl border border-amber-200 bg-white px-4 py-2.5 text-center shadow-sm ${revealClass(0).className}`}
             >
               <p className="text-[15px] font-bold leading-6 text-amber-900">
-                {greeting ?? "なんでも聞いてや。"}
+                {greeting ?? t("なんでも聞いてや。")}
               </p>
               {/*
                 前に相談したことがある人には、使い方の案内の代わりに「さっきの答え」へ
@@ -1200,14 +1217,14 @@ export default function ConsultStage({
                   }}
                   className="mt-1.5"
                 >
-                  さっきの答えをもう一度見る
+                  {t("さっきの答えをもう一度見る")}
                 </Button>
               ) : (
                 // 屋外の日差しの下でも読めるよう、11px・薄い色をやめて 12px・濃い色にする
                 <p className="mt-0.5 text-xs text-amber-700">
                   {speech.isSupported
-                    ? "下のボタンで話しかけてね。イラストをタップすると話し手を変えられるよ"
-                    : "聞きたいことを選んでね。イラストをタップすると話し手を変えられるよ"}
+                    ? t("下のボタンで話しかけてね。イラストをタップすると話し手を変えられるよ")
+                    : t("聞きたいことを選んでね。イラストをタップすると話し手を変えられるよ")}
                 </p>
               )}
             </div>
@@ -1239,7 +1256,7 @@ export default function ConsultStage({
             {pendingQuestion ?? current?.question}
           </p>
           <p className="mt-1 text-[11px] font-bold text-amber-700">
-            {streamingSpeaker ?? current?.speakerName ?? speaker.name}
+            {t(streamingSpeaker ?? current?.speakerName ?? speaker.name)}
           </p>
           {isBusy && !streamingText ? (
             // 応答待ち。前の答えを残すと「過去の会話が透けている」ように見えるので、
@@ -1260,7 +1277,9 @@ export default function ConsultStage({
           {!isBusy && currentShops.length > 0 && onSelectShop && (
             <div className="mt-4">
               <p className="mb-2 text-[11px] font-bold text-amber-700">
-                {currentShops.length === 1 ? "このお店だよ" : `おすすめのお店 ${currentShops.length}件`}
+                {currentShops.length === 1
+                  ? t("このお店だよ")
+                  : t("おすすめのお店 {count}件").replace("{count}", String(currentShops.length))}
               </p>
               {currentShops.length === 1 ? (
                 <ConsultShopCard shop={currentShops[0]} onSelect={onSelectShop} variant="single" />
@@ -1398,8 +1417,8 @@ export default function ConsultStage({
               }}
               // 応答待ちの間は押せない状態で残す。押せないことは送信・マイクのボタンが
               // 薄くなることで伝わるので、入力欄自体は薄くせず「考えよるよ…」を読める濃さで出す
-              placeholder={isBusy ? "考えよるよ…" : "（例）今の旬の果物は？"}
-              aria-label={`${speaker.name}への質問`}
+              placeholder={isBusy ? t("考えよるよ…") : t("（例）今の旬の果物は？")}
+              aria-label={t("{name}への質問").replace("{name}", t(speaker.name))}
               enterKeyHint="send"
               disabled={isBusy}
               className="min-w-0 flex-1 bg-transparent py-2.5 text-base text-slate-800 outline-none placeholder:text-slate-400 disabled:placeholder:text-amber-700"
@@ -1412,7 +1431,7 @@ export default function ConsultStage({
                 setTyped("");
                 void ask(question, "input");
               }}
-              aria-label="聞く"
+              aria-label={t("聞く")}
               className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-amber-500 to-orange-500 text-white shadow-sm transition disabled:opacity-40"
             >
               <Send className="h-4 w-4" aria-hidden="true" />
@@ -1423,7 +1442,7 @@ export default function ConsultStage({
               type="button"
               onClick={handleMicTap}
               disabled={isBusy}
-              aria-label={speech.isListening ? "とめる" : "音声で聞く"}
+              aria-label={speech.isListening ? t("とめる") : t("音声で聞く")}
               className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-full shadow-lg transition disabled:opacity-50 ${
                 speech.isListening
                   ? "bg-red-500 text-white"
@@ -1459,13 +1478,13 @@ export default function ConsultStage({
               {speech.isListening ? (
                 <>
                   <span className="consult-mic-dot h-2.5 w-2.5 rounded-full bg-red-500" />
-                  聞きよるよ…
+                  {t("聞きよるよ…")}
                 </>
               ) : (
-                "これでよかった？"
+                t("これでよかった？")
               )}
             </p>
-            <button type="button" onClick={cancelVoice} aria-label="やめる">
+            <button type="button" onClick={cancelVoice} aria-label={t("やめる")}>
               <X className="h-5 w-5 text-slate-400" aria-hidden="true" />
             </button>
           </div>
@@ -1477,7 +1496,7 @@ export default function ConsultStage({
           >
             {speech.isListening ? (
               speech.interim || (
-                <span className="text-slate-400">聞きたいことを話してね</span>
+                <span className="text-slate-400">{t("聞きたいことを話してね")}</span>
               )
             ) : (
               draft
@@ -1491,7 +1510,7 @@ export default function ConsultStage({
               className="mt-4 flex w-full items-center justify-center gap-2 rounded-full bg-slate-800 px-6 py-4 text-lg font-bold text-white shadow-sm transition active:scale-[0.98]"
             >
               <Square className="h-4 w-4 shrink-0" aria-hidden="true" />
-              話し終わった
+              {t("話し終わった")}
             </button>
           ) : (
             <>
@@ -1502,7 +1521,7 @@ export default function ConsultStage({
                 className="mt-4 flex w-full items-center justify-center gap-2 rounded-full bg-gradient-to-br from-amber-500 to-orange-500 px-6 py-4 text-lg font-bold text-white shadow-sm transition active:scale-[0.98]"
               >
                 <Send className="h-5 w-5 shrink-0" aria-hidden="true" />
-                これで聞く
+                {t("これで聞く")}
               </button>
 
               {/* やり直し系は下段に並べ、主たる操作と強さを分ける */}
@@ -1516,7 +1535,7 @@ export default function ConsultStage({
                   className="flex items-center justify-center gap-1.5 rounded-full border border-amber-200 py-3 text-sm font-bold text-amber-800 transition active:scale-[0.98]"
                 >
                   <RotateCcw className="h-4 w-4 shrink-0" aria-hidden="true" />
-                  言い直す
+                  {t("言い直す")}
                 </button>
                 <button
                   type="button"
@@ -1524,7 +1543,7 @@ export default function ConsultStage({
                   className="flex items-center justify-center gap-1.5 rounded-full border border-amber-200 py-3 text-sm font-bold text-amber-800 transition active:scale-[0.98]"
                 >
                   <Keyboard className="h-4 w-4 shrink-0" aria-hidden="true" />
-                  文字で直す
+                  {t("文字で直す")}
                 </button>
               </div>
             </>
@@ -1552,11 +1571,11 @@ export default function ConsultStage({
         >
           <div className="w-full max-w-md rounded-3xl border border-amber-100 bg-white p-4 pb-5 shadow-xl">
             <div className="flex items-center justify-between">
-              <p className="text-sm font-bold text-amber-900">だれに聞く？</p>
+              <p className="text-sm font-bold text-amber-900">{t("だれに聞く？")}</p>
               <button
                 type="button"
                 onClick={() => setIsSpeakerPickerOpen(false)}
-                aria-label="閉じる"
+                aria-label={t("閉じる")}
                 className="flex h-9 w-9 items-center justify-center rounded-full border border-amber-200 text-amber-800"
               >
                 <X className="h-4 w-4" aria-hidden="true" />
@@ -1590,15 +1609,15 @@ export default function ConsultStage({
                       </span>
                       <span className="min-w-0 flex-1">
                         <span className="block text-sm font-bold text-slate-900">
-                          {character.name}
+                          {t(character.name)}
                         </span>
                         <span className="mt-0.5 block text-xs text-slate-500">
-                          {character.subtitle}
+                          {t(character.subtitle)}
                         </span>
                       </span>
                       {isCurrent && (
                         <span className="shrink-0 rounded-full bg-amber-500 px-2 py-1 text-[11px] font-bold text-white">
-                          いま
+                          {t("いま")}
                         </span>
                       )}
                     </button>
