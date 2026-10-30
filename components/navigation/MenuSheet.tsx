@@ -109,7 +109,7 @@ export function MenuSheet({
             returnFocusRef={returnFocusRef}
             prefersReducedMotion={prefersReducedMotion ?? false}
             dropdown={dropdown}
-            topBar={showTopBar && !isDesktop ? <MenuTopBar transition={fadeTransition} /> : null}
+            topBar={showTopBar && !isDesktop ? <MenuTopBar transition={fadeTransition} onClose={onClose} /> : null}
           >
             {children}
           </SheetPanel>
@@ -516,7 +516,7 @@ export function BottomNavBackBar({
  * メニューを開いたときに画面の上へ出るヘッダー（トップページと同じ nicchyo ＋ 言語切り替え）。
  * 背景のぼかしの上で読めるよう、クリーム地を敷く。PC 幅（右上にバーがある）では出さない。
  */
-function MenuTopBar({ transition }: { transition: { duration: number } }) {
+function MenuTopBar({ transition, onClose }: { transition: { duration: number }; onClose: () => void }) {
   return (
     <motion.header
       initial={{ opacity: 0 }}
@@ -526,14 +526,17 @@ function MenuTopBar({ transition }: { transition: { duration: number } }) {
       className="pointer-events-auto fixed inset-x-0 top-0 border-b border-line-warm bg-nicchyo-base px-5 pt-[var(--safe-top,0px)] shadow-chip"
     >
       <div className="mx-auto flex h-14 max-w-[64rem] items-center justify-between">
-        <Image
-          src="/images/nicchyo-logo.webp"
-          alt="nicchyo"
-          width={516}
-          height={240}
-          priority
-          className="h-10 w-auto"
-        />
+        {/* ロゴを押すとトップページへ。すでにトップにいるときもメニューは閉じる */}
+        <Link href="/" aria-label="nicchyo" onClick={onClose}>
+          <Image
+            src="/images/nicchyo-logo.webp"
+            alt="nicchyo"
+            width={516}
+            height={240}
+            priority
+            className="h-10 w-auto"
+          />
+        </Link>
         <LanguageSwitcher tone="page" reopenMenu />
       </div>
     </motion.header>
