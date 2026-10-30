@@ -303,7 +303,7 @@ export function ShopBannerHero({
   theme: BannerTheme;
   heroImageError: boolean;
   onImageError: () => void;
-  mode: "compact" | "expanded";
+  mode: "compact" | "expanded" | "photo" | "info";
   /** その店の行が1つでもあれば点灯する（商品だけ入れた場合も点灯） */
   isFavorite?: boolean;
   onToggleFavorite?: () => void;
@@ -364,38 +364,51 @@ export function ShopBannerHero({
     );
   }
 
+  // "photo" は写真だけ、"info" は店名まわりだけ。PC のダイアログは写真を左、残りを右に分けて置く
+  const photoOnly = mode === "photo";
+  const photoBlock = (
+    <div
+      className={
+        photoOnly
+          ? "relative h-full w-full overflow-hidden bg-nicchyo-ink/[0.06]"
+          : "relative h-72 overflow-hidden rounded-sheet bg-nicchyo-ink/[0.06] shadow-card md:h-80 md:rounded-none md:shadow-none"
+      }
+    >
+      {heroImageError ? (
+        <CategoryPlaceholder category={shop.category} theme={theme} iconClassName="h-16 w-16" />
+      ) : (
+        <Image
+          src={bannerImage}
+          alt={`${shop.name}の写真`}
+          fill
+          // 画面幅いっぱい（PC では最大でもバナーの幅）。sizes が無いと 1920px 幅を取りに行く
+          sizes={photoOnly ? "320px" : "(max-width: 768px) 100vw, 640px"}
+          className="object-cover object-center"
+          priority
+          onError={onImageError}
+        />
+      )}
+      {onOpenPhoto && !heroImageError && (
+        <button
+          type="button"
+          onClick={onOpenPhoto}
+          aria-label={isPanorama ? `${shop.name}の写真を360度見渡す` : `${shop.name}の写真を大きく見る`}
+          className="absolute inset-0 z-[1]"
+        >
+          <span className="absolute left-3 top-3 flex h-8 items-center gap-1 rounded-chip bg-black/35 px-2.5 text-[11px] font-bold text-white backdrop-blur-sm">
+            {isPanorama ? <Rotate3d className="h-3.5 w-3.5" aria-hidden /> : <Expand className="h-3.5 w-3.5" aria-hidden />}
+            {isPanorama ? "360°" : "拡大"}
+          </span>
+        </button>
+      )}
+    </div>
+  );
+  if (photoOnly) return photoBlock;
+
   return (
     <div>
       {/* 来訪者は写真を見て行くかを決めるので、写真を大きく取る。店名などは写真に重ねず、下に出す */}
-      <div className="relative h-72 overflow-hidden rounded-sheet bg-nicchyo-ink/[0.06] shadow-card md:h-80 md:rounded-none md:shadow-none">
-        {heroImageError ? (
-          <CategoryPlaceholder category={shop.category} theme={theme} iconClassName="h-16 w-16" />
-        ) : (
-          <Image
-            src={bannerImage}
-            alt={`${shop.name}の写真`}
-            fill
-            // 画面幅いっぱい（PC では最大でもバナーの幅）。sizes が無いと 1920px 幅を取りに行く
-            sizes="(max-width: 768px) 100vw, 640px"
-            className="object-cover object-center"
-            priority
-            onError={onImageError}
-          />
-        )}
-        {onOpenPhoto && !heroImageError && (
-          <button
-            type="button"
-            onClick={onOpenPhoto}
-            aria-label={isPanorama ? `${shop.name}の写真を360度見渡す` : `${shop.name}の写真を大きく見る`}
-            className="absolute inset-0 z-[1]"
-          >
-            <span className="absolute left-3 top-3 flex h-8 items-center gap-1 rounded-chip bg-black/35 px-2.5 text-[11px] font-bold text-white backdrop-blur-sm">
-              {isPanorama ? <Rotate3d className="h-3.5 w-3.5" aria-hidden /> : <Expand className="h-3.5 w-3.5" aria-hidden />}
-              {isPanorama ? "360°" : "拡大"}
-            </span>
-          </button>
-        )}
-      </div>
+      {mode === "expanded" && photoBlock}
 
       <div className="flex items-start justify-between gap-3 px-1 pt-3">
         <div className="min-w-0 flex-1">
