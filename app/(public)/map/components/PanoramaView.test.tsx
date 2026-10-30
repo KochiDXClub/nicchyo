@@ -6,16 +6,20 @@ const viewer = vi.hoisted(() => ({
   getPosition: vi.fn(() => ({ yaw: 0, pitch: 0 })),
   rotate: vi.fn(),
 }));
-const sphereProps = vi.hoisted(() => ({ src: "" }));
+const sphereProps = vi.hoisted(() => ({ src: "", fail: false }));
 vi.mock("./PanoramaSphere", async () => {
   const { useEffect } = await import("react");
   return {
-    default: function FakeSphere({ src, onReady }: { src: string; onReady: (v: unknown) => void }) {
+    default: function FakeSphere({ src, onReady, onError }: { src: string; onReady: (v: unknown) => void; onError: () => void }) {
       sphereProps.src = src;
       useEffect(() => {
+        if (sphereProps.fail) {
+          onError();
+          return;
+        }
         onReady(viewer);
         return () => onReady(null);
-      }, [onReady]);
+      }, [onReady, onError]);
       return <div data-testid="sphere" />;
     },
   };
@@ -30,7 +34,10 @@ async function renderView() {
 }
 
 describe("PanoramaView", () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    sphereProps.fail = false;
+  });
 
   it("読み上げの名前に、写真の説明と見渡せることを入れる", async () => {
     const view = await renderView();
@@ -71,5 +78,13 @@ describe("PanoramaView", () => {
 
     expect(fireEvent.keyDown(view, { key: "Tab" })).toBe(true);
     expect(viewer.rotate).not.toHaveBeenCalled();
+  });
+
+  it("球体の表示を始められない端末（WebGL が使えないなど）では、普通の写真として見せる", async () => {
+    sphereProps.fail = true;
+    render(<PanoramaView src="https://example.supabase.co/p.webp" alt="店の写真" />);
+
+    await waitFor(() => expect(screen.getByRole("img", { name: "店の写真" })).toBeTruthy());
+    expect(screen.queryByRole("application")).toBeNull();
   });
 });

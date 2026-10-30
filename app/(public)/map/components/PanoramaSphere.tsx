@@ -18,29 +18,47 @@ const MAX_FOV = 100;
  * 重い（three.js を含む）ので、拡大表示で全周写真を開いたときだけ読み込む（PanoramaView が dynamic import する）。
  * 見渡す操作（ドラッグ・ピンチ・ホイール）は Photo Sphere Viewer に任せ、キー操作は PanoramaView が受けて onReady の viewer を回す。
  */
-export default function PanoramaSphere({ src, onReady }: { src: string; onReady: (viewer: Viewer | null) => void }) {
+export default function PanoramaSphere({
+  src,
+  onReady,
+  onError,
+}: {
+  src: string;
+  onReady: (viewer: Viewer | null) => void;
+  /** 球体の表示を始められなかったとき（WebGL が使えない端末など）。呼び出し側が、普通の写真の表示に切り替える */
+  onError: () => void;
+}) {
   const containerRef = useRef<HTMLDivElement>(null);
   // onReady は最新のものを呼ぶが、変わったからといって viewer は作り直さない
   const onReadyRef = useRef(onReady);
   onReadyRef.current = onReady;
+  const onErrorRef = useRef(onError);
+  onErrorRef.current = onError;
 
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
-    const viewer = new Viewer({
-      container,
-      panorama: src,
-      // 操作は写真の上のドラッグだけで足りる。ボタンの列は出さない
-      navbar: false,
-      keyboard: false,
-      loadingTxt: "",
-      minFov: MIN_FOV,
-      maxFov: MAX_FOV,
-      // zoom レベル（0〜100）は maxFov から minFov へ直線で進む
-      defaultZoomLvl: ((MAX_FOV - DEFAULT_FOV) / (MAX_FOV - MIN_FOV)) * 100,
-      mousewheelCtrlKey: false,
-      touchmoveTwoFingers: false,
-    });
+    let viewer: Viewer;
+    try {
+      viewer = new Viewer({
+        container,
+        panorama: src,
+        // 操作は写真の上のドラッグだけで足りる。ボタンの列は出さない
+        navbar: false,
+        keyboard: false,
+        loadingTxt: "",
+        minFov: MIN_FOV,
+        maxFov: MAX_FOV,
+        // zoom レベル（0〜100）は maxFov から minFov へ直線で進む
+        defaultZoomLvl: ((MAX_FOV - DEFAULT_FOV) / (MAX_FOV - MIN_FOV)) * 100,
+        mousewheelCtrlKey: false,
+        touchmoveTwoFingers: false,
+      });
+    } catch {
+      // WebGL が使えない端末など。例外のままにすると拡大表示ごと壊れるので、普通の写真に切り替えてもらう
+      onErrorRef.current();
+      return;
+    }
     onReadyRef.current(viewer);
     return () => {
       onReadyRef.current(null);
