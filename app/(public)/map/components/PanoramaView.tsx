@@ -1,8 +1,8 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { getImageProps } from "next/image";
-import { useCallback, useRef, type KeyboardEvent } from "react";
+import Image, { getImageProps } from "next/image";
+import { useCallback, useRef, useState, type KeyboardEvent } from "react";
 import type { Viewer } from "@photo-sphere-viewer/core";
 
 /** 矢印キーで1回に回す量（ラジアン。約6°） */
@@ -26,6 +26,9 @@ export function PanoramaView({ src, alt }: { src: string; alt: string }) {
   // 元の画像は数 MB になりやすいので、next/image が作る縮小版（WebP）を読む。同じ配信元なので画像の読み込みに CORS も要らない
   const { props: imageProps } = getImageProps({ src, alt: "", width: 1920, height: 960 });
   const viewerRef = useRef<Viewer | null>(null);
+  // 球体の表示を始められない端末（WebGL が使えないなど）では、普通の写真として見せる
+  const [failed, setFailed] = useState(false);
+  const handleError = useCallback(() => setFailed(true), []);
   const handleReady = useCallback((viewer: Viewer | null) => {
     viewerRef.current = viewer;
   }, []);
@@ -48,6 +51,10 @@ export function PanoramaView({ src, alt }: { src: string; alt: string }) {
     viewer.rotate({ yaw: yaw + delta[0], pitch: Math.max(-Math.PI / 2, Math.min(Math.PI / 2, pitch + delta[1])) });
   };
 
+  if (failed) {
+    return <Image src={src} alt={alt} fill sizes="100vw" className="object-contain" />;
+  }
+
   return (
     <div
       role="application"
@@ -57,7 +64,7 @@ export function PanoramaView({ src, alt }: { src: string; alt: string }) {
       className="absolute inset-0 select-none bg-black"
       style={{ touchAction: "none" }}
     >
-      <PanoramaSphere src={imageProps.src} onReady={handleReady} />
+      <PanoramaSphere src={imageProps.src} onReady={handleReady} onError={handleError} />
     </div>
   );
 }
