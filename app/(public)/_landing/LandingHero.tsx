@@ -47,7 +47,7 @@ export default function LandingHero({ day }: { day: MarketDay | null }) {
 
       {/* ヘッダー：メニューのヘッダーと同じ背景色。左にロゴ、右に言語 */}
       <header className="relative z-20 border-b border-line-warm bg-nicchyo-base px-5 pt-[var(--safe-top,0px)] shadow-chip md:px-10">
-        <div className="mx-auto flex h-14 max-w-[64rem] items-center justify-between md:h-16">
+        <div className="mx-auto flex h-14 max-w-[64rem] items-center justify-between md:h-16 lg:max-w-[84rem]">
           <Link href="/" aria-label="nicchyo">
             <Image
               src="/images/nicchyo-logo.webp"
@@ -64,16 +64,16 @@ export default function LandingHero({ day }: { day: MarketDay | null }) {
 
       {/* 見出しは上、開催予定と検索は下（親指の届く側）に分けて置く。間は写真を見せる */}
       <div className="relative z-10 flex flex-1 flex-col px-5 pb-[calc(7rem+var(--safe-bottom,0px))] pt-10 md:px-10 md:pb-12 md:pt-12">
-        <div className="relative mx-auto flex w-full max-w-[64rem] flex-1 flex-col justify-between gap-10">
+        <div className="relative mx-auto flex w-full max-w-[64rem] flex-1 lg:max-w-[84rem] flex-col justify-between gap-10">
           {/* 広い画面では開催予定を右に置く（スマホは下の帯のまま） */}
-          <div className="absolute right-0 top-0 hidden w-72 md:block">
+          <div className="absolute right-0 top-0 hidden w-72 md:block lg:w-96">
             <MarketStatusBar day={day} placement="hero" />
           </div>
-          <RevealOnScroll when="enter" className="max-w-[28rem] md:max-w-[34rem]">
+          <RevealOnScroll when="enter" className="max-w-[28rem] md:max-w-[34rem] lg:max-w-[48rem]">
             <h1 id="landing-title" className={`text-white ${PHOTO_TEXT_SHADOW}`}>
               <span className="sr-only">nicchyo：</span>
-              <span className="block text-sm font-bold tracking-wide text-white">高知高専生が開発した</span>
-              <span className="mt-2 block text-[2.5rem] font-black leading-[1.2] tracking-wide sm:text-5xl md:text-6xl">
+              <span className="block text-sm font-bold tracking-wide text-white lg:text-xl">高知高専生が開発した</span>
+              <span className="mt-2 block text-[2.5rem] font-black leading-[1.2] tracking-wide sm:text-5xl md:text-6xl lg:text-8xl">
                 日曜市の
                 <br />
                 デジタルマップ
@@ -81,9 +81,9 @@ export default function LandingHero({ day }: { day: MarketDay | null }) {
             </h1>
           </RevealOnScroll>
 
-          <RevealOnScroll when="enter" delayMs={150} className="max-w-[28rem] md:max-w-[34rem] md:rounded-card md:bg-nicchyo-base/95 md:p-5 md:shadow-float">
+          <RevealOnScroll when="enter" delayMs={150} className="max-w-[28rem] md:max-w-[34rem] lg:max-w-[42rem] md:rounded-card md:bg-nicchyo-base/95 md:p-5 lg:p-7 md:shadow-float">
             {/* いちばんしてほしいこと：地図をひらく（この画面を過ぎると、右下の丸いボタンに替わる） */}
-            <Link href="/map" className={buttonClass({ size: "lg", className: "h-14 w-full text-lg shadow-float" })}>
+            <Link href="/map" className={buttonClass({ size: "lg", className: "h-14 w-full text-lg shadow-float lg:h-16 lg:text-xl" })}>
               <MapPin aria-hidden className="h-5 w-5" />
               マップをみる
             </Link>
@@ -98,7 +98,7 @@ export default function LandingHero({ day }: { day: MarketDay | null }) {
               action="/map"
               method="get"
               role="search"
-              className="mt-4 flex min-w-0 items-center gap-1.5 rounded-chip bg-white py-1.5 pl-5 pr-1.5 shadow-float md:shadow-none md:ring-1 md:ring-black/10"
+              className="mt-4 flex min-w-0 items-center gap-1.5 rounded-chip bg-white py-1.5 pl-5 pr-1.5 shadow-float md:shadow-none md:ring-1 md:ring-black/10 lg:py-2"
             >
               <label htmlFor="landing-search" className="sr-only">
                 お店や品物をさがす
@@ -109,9 +109,9 @@ export default function LandingHero({ day }: { day: MarketDay | null }) {
                 type="search"
                 enterKeyHint="search"
                 placeholder="なにを探す？　例：芋天"
-                className="h-10 min-w-0 flex-1 bg-transparent text-base text-nicchyo-ink outline-none placeholder:text-nicchyo-ink/40"
+                className="h-10 min-w-0 flex-1 bg-transparent text-base lg:h-12 lg:text-lg text-nicchyo-ink outline-none placeholder:text-nicchyo-ink/40"
               />
-              <button type="submit" className={buttonClass({ variant: "ink", size: "sm", className: "h-10" })}>
+              <button type="submit" className={buttonClass({ variant: "ink", size: "sm", className: "h-10 lg:h-12 lg:px-6 lg:text-base" })}>
                 さがす
               </button>
             </form>

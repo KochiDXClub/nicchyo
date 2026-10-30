@@ -46,19 +46,19 @@ export default function MarketStatusBar({ day, placement, className = "" }: Prop
       <Link
         href="/calendar"
         prefetch={false}
-        className={`flex flex-col gap-3 rounded-card p-5 shadow-float transition hover:-translate-y-0.5 ${TONE_CLASS[tone]} ${className}`}
+        className={`flex flex-col gap-3 rounded-card p-5 lg:gap-4 lg:p-7 shadow-float transition hover:-translate-y-0.5 ${TONE_CLASS[tone]} ${className}`}
       >
-        <span className="text-xs font-bold opacity-60">今週の日曜市</span>
-        <span className="text-3xl font-black leading-tight">{dateLabel}</span>
+        <span className="text-xs font-bold opacity-60 lg:text-base">今週の日曜市</span>
+        <span className="text-3xl font-black leading-tight lg:text-5xl">{dateLabel}</span>
         <span
-          className={`self-start rounded-full px-3 py-1 text-sm font-bold ${
+          className={`self-start rounded-full px-3 py-1 text-sm font-bold lg:px-4 lg:text-lg ${
             tone === "neutral" ? "bg-nicchyo-primary/15 text-nicchyo-ink" : "bg-black/15"
           }`}
         >
           {label}
         </span>
         {day?.note && <span className="text-sm opacity-90">{day.note}</span>}
-        <span className="mt-1 flex items-center gap-1 border-t border-black/10 pt-3 text-sm font-bold">
+        <span className="mt-1 flex items-center gap-1 border-t border-black/10 pt-3 text-sm font-bold lg:text-lg">
           開催カレンダーを見る
           <svg className="h-4 w-4 opacity-60" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden>
             <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
