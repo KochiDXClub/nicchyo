@@ -55,7 +55,7 @@ export default function LandingHeroPc({ sundays }: { sundays: LandingSunday[] })
           <h1 id="landing-title-pc" className="text-nicchyo-ink">
             <span className="sr-only">nicchyo：</span>
             <span className="block text-base font-bold tracking-wide text-nicchyo-ink/70 lg:text-lg">高知高専生が開発した</span>
-            <span className="mt-3 block text-6xl font-black leading-[1.2] tracking-wide lg:text-7xl">
+            <span className="mt-3 block text-5xl font-black leading-[1.2] tracking-wide lg:text-6xl">
               日曜市の
               <br />
               デジタルマップ
@@ -100,7 +100,7 @@ export default function LandingHeroPc({ sundays }: { sundays: LandingSunday[] })
           </form>
         </div>
 
-        <div className="relative min-h-[30rem] overflow-hidden rounded-card shadow-lift">
+        <div className="relative h-[30rem] self-center overflow-hidden lg:h-[38rem] rounded-card shadow-lift">
           <Image
             src={PHOTOS.stalls.src}
             alt="屋台のテントが並ぶ、日曜市の通り"
