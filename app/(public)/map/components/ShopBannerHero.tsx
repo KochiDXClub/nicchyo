@@ -366,6 +366,8 @@ export function ShopBannerHero({
 
   // "photo" は写真だけ、"info" は店名まわりだけ。PC のダイアログは写真を左、残りを右に分けて置く
   const photoOnly = mode === "photo";
+  // 全周写真は全体を出すと広角すぎるので、スマホ同様に中央を切り出したサムネイルにする
+  const containPhoto = photoOnly && !isPanorama;
   const photoBlock = (
     <div
       className={
@@ -378,7 +380,7 @@ export function ShopBannerHero({
         <CategoryPlaceholder category={shop.category} theme={theme} iconClassName="h-16 w-16" />
       ) : (
         <>
-          {photoOnly && (
+          {containPhoto && (
             // 縦に細長い列で写真を切らないよう、全体を収め、余白は同じ写真のぼかしで埋める
             <Image
               src={bannerImage}
@@ -395,7 +397,7 @@ export function ShopBannerHero({
             fill
             // 画面幅いっぱい（PC では最大でもバナーの幅）。sizes が無いと 1920px 幅を取りに行く
             sizes={photoOnly ? "520px" : "(max-width: 768px) 100vw, 640px"}
-            className={photoOnly ? "object-contain object-center" : "object-cover object-center"}
+            className={containPhoto ? "object-contain object-center" : "object-cover object-center"}
             priority
             onError={onImageError}
           />
