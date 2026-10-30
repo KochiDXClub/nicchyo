@@ -21,6 +21,7 @@ export function buildLanguageInstruction(locale: Locale): string {
     "Keep the warm, friendly personality of the character, but do not imitate the Tosa dialect or Japanese speech endings. Speak natural, simple, welcoming language that is easy for non-native speakers to read.",
     "When you mention a shop, a place, or a food, write its Japanese name exactly as given followed by the romaji or a short explanation in parentheses, so the visitor can match it with the signs on the street.",
     "The JSON keys, speakerId values, and shop IDs must stay exactly as specified. Only the visible text should be in the visitor's language.",
+    `The followUpQuestion is a button label the visitor will send next, so write it in ${language} as a short natural question (under 80 characters).`,
   ].join("\n");
 }
 
