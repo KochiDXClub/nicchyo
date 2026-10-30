@@ -4,17 +4,18 @@ import { fetchAllRows } from "@/lib/supabase/fetchAllRows";
 import type { Database } from "@/types/database.types";
 import type { Shop } from "../types/shopData";
 
+// vendors から読む列。基本データの取得と差分の取得(fetchShopDelta)で同じ列を使う
+const VENDOR_COLUMNS =
+  "id, shop_name, strength, style, style_tags, category_id, categories(name), main_products, main_product_prices, payment_methods, rain_policy, schedule, shop_image_url, sns_instagram, sns_x, sns_hp, business_hours_start, business_hours_end" as const;
+
 export type VendorRow = {
   id: string;
-  /** 差分更新の基準（地図のキャッシュが「前回から変わった行」だけを取るために使う） */
-  updated_at?: string | null;
   shop_name: string | null;
   strength: string | null;
   style: string | null;
   style_tags: string[] | null;
   category_id: string | null;
-  /** 地図用の取得ではカテゴリー名を JOIN せず、categories テーブル（別キャッシュ）から引く */
-  categories?: { name: string | null }[] | { name: string | null } | null;
+  categories: { name: string | null }[] | { name: string | null } | null;
   main_products: string[] | null;
   main_product_prices: Record<string, number | null> | null;
   payment_methods: string[] | null;
@@ -50,9 +51,7 @@ type CategoryRow = {
 };
 
 export type ProductRow = {
-  /** 差分更新で行を特定・更新するための列（全件取得の経路では持たない） */
-  id?: string;
-  updated_at?: string | null;
+  id: string;
   vendor_id: string | null;
   name: string | null;
   image_url: string | null;
@@ -107,46 +106,28 @@ export type VendorShopBaseRows = {
   assignments: AssignmentRow[];
 };
 
-/** 地図の店舗に使う vendors の列。差分更新用に updated_at を含める */
-export const MAP_VENDOR_COLUMNS =
-  "id, updated_at, shop_name, strength, style, style_tags, category_id, main_products, main_product_prices, payment_methods, rain_policy, schedule, shop_image_url, sns_instagram, sns_x, sns_hp, business_hours_start, business_hours_end";
-
-/** 地図の店舗に使う products の列（論理削除された行は RLS と deleted_at の条件で除く） */
-export const MAP_PRODUCT_COLUMNS = "id, vendor_id, name, image_url, updated_at";
-
-type FailableTable = readonly [label: string, error: { message: string } | null];
-
-function collectFailedTables(entries: readonly FailableTable[]): string[] {
-  // どれか1つでも失敗すると該当データが黙って空扱いになり店舗が減る/消えるため、
-  // 原因追跡できるよう警告として残す（握りつぶし自体は既存の設計を踏襲）
-  const failed: string[] = [];
-  for (const [label, error] of entries) {
-    if (error) {
-      console.warn(`[fetchVendorShopsFromDb] ${label} の取得に失敗しました:`, error.message);
-      failed.push(label);
-    }
-  }
-  return failed;
-}
-
-/**
- * 更新が少なく小さいテーブル（店主名・カテゴリー・区画・出店履歴）。
- * 変更を検知する列が無いので、差分更新の対象にせず、従来どおり丸ごと取ってキャッシュする
- */
-export type VendorShopSupportRows = Pick<
-  VendorShopBaseRows,
-  "ownerProfiles" | "categories" | "locations" | "assignments"
->;
-
-export async function fetchVendorShopSupportRows(
+export async function fetchVendorShopBaseRows(
   supabase: SupabaseClient<Database>
-): Promise<{ rows: VendorShopSupportRows; failedTables: string[] }> {
+): Promise<{ rows: VendorShopBaseRows; failedTables: string[] }> {
+  // PostgREST の max_rows (1000) で黙って切り詰められないよう、全テーブルを
+  // 決定的な order 付きの range ページングで読み切る（lib/supabase/fetchAllRows.ts）
   const [
+    { data: vendorsData, error: vendorsError },
     { data: ownerProfilesData, error: ownerProfilesError },
     { data: categoriesData, error: categoriesError },
+    { data: productsData, error: productsError },
     { data: locationsData, error: locationsError },
     { data: assignmentsData, error: assignmentsError },
   ] = await Promise.all([
+    fetchAllRows<VendorRow>(
+      (from, to) =>
+        supabase
+          .from("vendors")
+          .select(VENDOR_COLUMNS)
+          .order("id", { ascending: true })
+          .range(from, to) as unknown as PromiseLike<{ data: VendorRow[] | null; error: { message: string } | null }>,
+      { label: "vendors" }
+    ),
     fetchAllRows<OwnerProfileRow>(
       (from, to) =>
         supabase
@@ -161,23 +142,36 @@ export async function fetchVendorShopSupportRows(
         supabase.from("categories").select("id, name").order("id", { ascending: true }).range(from, to),
       { label: "categories" }
     ),
+    fetchProductRows<ProductRow>(supabase),
     fetchLocationRows<LocationRow>(supabase),
     fetchAssignmentRows<AssignmentRow>(supabase),
   ]);
 
-  const failedTables = collectFailedTables([
+  // どれか1つでも失敗すると該当データが黙って空扱いになり店舗が減る/消えるため、
+  // 原因追跡できるよう警告として残す（握りつぶし自体は既存の設計を踏襲）
+  const failedTables: string[] = [];
+  for (const [label, error] of [
+    ["vendors", vendorsError],
     ["vendor_owner_profiles", ownerProfilesError],
     ["categories", categoriesError],
+    ["products", productsError],
     ["market_locations", locationsError],
     ["location_assignments", assignmentsError],
-  ]);
+  ] as const) {
+    if (error) {
+      console.warn(`[fetchVendorShopsFromDb] ${label} の取得に失敗しました:`, error.message);
+      failedTables.push(label);
+    }
+  }
 
   return {
     rows: {
+      vendors: Array.isArray(vendorsData) ? (vendorsData as VendorRow[]) : [],
       ownerProfiles: Array.isArray(ownerProfilesData)
         ? (ownerProfilesData as OwnerProfileRow[])
         : [],
       categories: Array.isArray(categoriesData) ? (categoriesData as CategoryRow[]) : [],
+      products: Array.isArray(productsData) ? (productsData as ProductRow[]) : [],
       locations: Array.isArray(locationsData) ? (locationsData as LocationRow[]) : [],
       assignments: Array.isArray(assignmentsData) ? (assignmentsData as AssignmentRow[]) : [],
     },
@@ -185,45 +179,86 @@ export async function fetchVendorShopSupportRows(
   };
 }
 
-export async function fetchVendorShopBaseRows(
-  supabase: SupabaseClient<Database>
-): Promise<{ rows: VendorShopBaseRows; failedTables: string[] }> {
-  // PostgREST の max_rows (1000) で黙って切り詰められないよう、全テーブルを
-  // 決定的な order 付きの range ページングで読み切る（lib/supabase/fetchAllRows.ts）
-  const [
-    { data: vendorsData, error: vendorsError },
-    { data: productsData, error: productsError },
-    support,
-  ] = await Promise.all([
+/**
+ * 基本データの取得(キャッシュ)以降に変わった行。キャッシュの上に重ねて、反映を早くする。
+ *   vendors / products … updated_at が since より新しい行(DB のトリガーで必ず進む)
+ *   deletedProductIds  … since 以降に消えた商品(product_deletions)
+ * ログインしていない側のクライアントで読むこと(共有キャッシュに、ログイン中の人にだけ見える行が混ざらないように)。
+ * 取れなかったときは投げる(unstable_cache に欠けた結果を載せないため)。
+ */
+export type ShopDelta = {
+  vendors: VendorRow[];
+  products: ProductRow[];
+  deletedProductIds: string[];
+};
+
+export async function fetchShopDelta(supabase: SupabaseClient<Database>, since: string): Promise<ShopDelta> {
+  // product_deletions は生成された型にまだ無いので、型なしで扱う
+  const untyped = supabase as unknown as SupabaseClient;
+  const [vendors, products, deletions] = await Promise.all([
     fetchAllRows<VendorRow>(
       (from, to) =>
         supabase
           .from("vendors")
-          .select(MAP_VENDOR_COLUMNS)
+          .select(VENDOR_COLUMNS)
+          .gt("updated_at", since)
           .order("id", { ascending: true })
           .range(from, to) as unknown as PromiseLike<{ data: VendorRow[] | null; error: { message: string } | null }>,
-      { label: "vendors" }
+      { label: "vendors(delta)" }
     ),
-    fetchProductRows<ProductRow>(supabase),
-    fetchVendorShopSupportRows(supabase),
+    fetchAllRows<ProductRow>(
+      (from, to) =>
+        supabase
+          .from("products")
+          .select("id, vendor_id, name, image_url")
+          .gt("updated_at", since)
+          .order("id", { ascending: true })
+          .range(from, to) as unknown as PromiseLike<{ data: ProductRow[] | null; error: { message: string } | null }>,
+      { label: "products(delta)" }
+    ),
+    fetchAllRows<{ product_id: string }>(
+      (from, to) =>
+        untyped
+          .from("product_deletions")
+          .select("product_id")
+          .gt("deleted_at", since)
+          .order("product_id", { ascending: true })
+          .range(from, to) as unknown as PromiseLike<{ data: { product_id: string }[] | null; error: { message: string } | null }>,
+      { label: "product_deletions" }
+    ),
   ]);
-
-  const failedTables = [
-    ...collectFailedTables([
-      ["vendors", vendorsError],
-      ["products", productsError],
-    ]),
-    ...support.failedTables,
-  ];
+  const failed = [
+    ["vendors", vendors.error],
+    ["products", products.error],
+    ["product_deletions", deletions.error],
+  ].filter(([, error]) => error);
+  if (failed.length > 0) throw new Error(`差分の取得に失敗しました: ${failed.map(([label]) => label).join(", ")}`);
 
   return {
-    rows: {
-      vendors: Array.isArray(vendorsData) ? (vendorsData as VendorRow[]) : [],
-      products: Array.isArray(productsData) ? (productsData as ProductRow[]) : [],
-      ...support.rows,
-    },
-    failedTables,
+    vendors: vendors.data,
+    products: products.data,
+    deletedProductIds: deletions.data.map((row) => row.product_id),
   };
+}
+
+/**
+ * キャッシュした基本データに、差分を重ねる(元は変えない)。
+ * 店舗・商品は id で置き換える(無ければ足す)。消えた商品は、変更より後に適用して確実に外す。
+ * 重ねられるのは店舗・商品の追加と変更だけ。来訪者に出さなくなった店舗(許可の取り消し等)や削除された店舗、
+ * 店主名の公開の取り消しは、差分では見えないので、15分ごとの全件の取り直しで外れる
+ * (運営の画面での変更は、今までどおり即時にキャッシュを捨てる)。
+ */
+export function applyShopDelta(base: VendorShopBaseRows, delta: ShopDelta): VendorShopBaseRows {
+  if (delta.vendors.length === 0 && delta.products.length === 0 && delta.deletedProductIds.length === 0) return base;
+
+  const vendors = new Map(base.vendors.map((row) => [row.id, row]));
+  delta.vendors.forEach((row) => vendors.set(row.id, row));
+
+  const products = new Map(base.products.map((row) => [row.id, row]));
+  delta.products.forEach((row) => products.set(row.id, row));
+  delta.deletedProductIds.forEach((id) => products.delete(id));
+
+  return { ...base, vendors: [...vendors.values()], products: [...products.values()] };
 }
 
 /** 有効期限内の投稿。期限切れがあるので基本データとは分けて毎回取る（数十 KB 程度） */

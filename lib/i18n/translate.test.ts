@@ -49,3 +49,22 @@ describe("店舗の選択肢の固定訳", () => {
     for (const label of labels) expect(translate("ja", label)).toBe(label);
   });
 });
+
+describe("相談ページの固定文言", () => {
+  test("キャラクターの名前・紹介・あいさつ・候補の質問がすべて英訳されている", async () => {
+    const { CONSULT_CHARACTERS } = await import("@/app/(public)/consult/data/consultCharacters");
+    const texts = CONSULT_CHARACTERS.flatMap(({ name, subtitle, greeting }) => [
+      name,
+      subtitle,
+      greeting.morning,
+      greeting.afternoon,
+      greeting.evening,
+      ...greeting.lines,
+    ]);
+    const source = readFileSync(join(process.cwd(), "app/(public)/consult/components/ConsultStage.tsx"), "utf8");
+    const pool = source.match(/QUESTION_POOL = \[([\s\S]*?)\] as const/)?.[1] ?? "";
+    texts.push(...[...pool.matchAll(/"([^"]+)"/g)].map((match) => match[1]));
+    expect(texts.length).toBeGreaterThan(40);
+    expect(texts.filter((text) => !(text in enUi))).toEqual([]);
+  });
+});
