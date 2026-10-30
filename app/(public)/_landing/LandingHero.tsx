@@ -9,19 +9,23 @@ import { PHOTOS } from "./content";
 import { PHOTO_TEXT_SHADOW } from "@/lib/ui/photoText";
 // 使い方・開催のご案内など、下のセクションの見た目もこのCSSに頼っている（消さない）
 import "./landing.css";
+import LandingHeroPc from "./LandingHeroPc";
 import MapFab from "./MapFab";
 import RevealOnScroll from "./RevealOnScroll";
+import type { LandingSunday } from "./upcomingSundays";
 
 /**
  * 最初の一画面。写真を地にして、上から「ヘッダー（nicchyoのロゴ・言語）→ 見出し →（下に）マップをみる → 今週の開催日 → 検索」の順に並べる。
  * 「マップをみる」は、この画面では大きなボタン。画面を過ぎてスクロールすると、右下の丸いボタン（MapFab）が出る。
  * 飾り（旗・判子・キャラクター・柑橘・葉）は置かない。写真と白い文字だけで、落ち着いた入口にする。
  *
+ * 広い画面（md以上）は、左に文字・右に写真と開催予定の別の構成（LandingHeroPc）。この写真地の見た目はスマホ用。
+ *
  * 内容は上から積む（下端には貼りつけない）。ブラウザの下のツールバーが重なっても、検索が隠れない。
  * 写真は画面の向きで出し分ける。スマートフォンは縦長の「上から見た通り」、
  * 広い画面は横長の「屋台の通り」。<picture> で、見ない方の写真は読み込まない
  */
-export default function LandingHero({ day }: { day: MarketDay | null }) {
+export default function LandingHero({ day, sundays }: { day: MarketDay | null; sundays: LandingSunday[] }) {
   const common = { alt: "屋台のテントが並ぶ、日曜市の通り", sizes: "100vw", priority: true } as const;
   const {
     props: { srcSet: wideSrcSet },
@@ -31,11 +35,13 @@ export default function LandingHero({ day }: { day: MarketDay | null }) {
   } = getImageProps({ ...common, src: PHOTOS.overview.src, width: PHOTOS.overview.width, height: PHOTOS.overview.height });
 
   return (
-    <section
-      id="landing-hero"
-      aria-labelledby="landing-title"
-      className="relative flex min-h-[100svh] flex-col overflow-hidden bg-nicchyo-ink md:min-h-[44rem]"
-    >
+    // MapFab は、ここ全体（スマホ・PCどちらの最初の画面）が画面の上へ出たら出す
+    <div id="landing-hero">
+      <LandingHeroPc sundays={sundays} />
+      <section
+        aria-labelledby="landing-title"
+        className="relative flex min-h-[100svh] flex-col overflow-hidden bg-nicchyo-ink md:hidden"
+      >
       <picture>
         <source media="(min-width: 768px)" srcSet={wideSrcSet} />
         <source srcSet={tallSrcSet} />
@@ -115,7 +121,8 @@ export default function LandingHero({ day }: { day: MarketDay | null }) {
         </div>
       </div>
 
+      </section>
       <MapFab afterId="landing-hero" />
-    </section>
+    </div>
   );
 }

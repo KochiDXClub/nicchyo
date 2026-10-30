@@ -75,7 +75,7 @@ export default async function HomePage() {
       {/* 日曜市の開催情報（/map と同じもの）。検索結果に開催日と場所を出してもらう */}
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: safeJsonLd(SUNDAY_MARKET_JSON_LD) }} />
       <main>
-        <LandingHero day={day} />
+        <LandingHero day={day} sundays={sundays} />
         <LandingGenres />
         <LandingHowTo />
         <LandingInfo sundays={sundays} />
