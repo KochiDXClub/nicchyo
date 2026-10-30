@@ -121,7 +121,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       console.warn("[admin/shops/image] 古い写真の掃除に失敗しました:", error);
     }
 
-    const url = storage.getPublicUrl(mainPath).data.publicUrl;
+    // 同じ名前で上書きするので、URL を変えないと CDN とブラウザが前の写真を返し続ける
+    const url = `${storage.getPublicUrl(mainPath).data.publicUrl}?v=${Date.now()}`;
     // updated_at は DB のトリガーが付け直す。アプリの時計で返すと保存値とずれて、次の保存が 409 になる
     const { data: saved, error: updateError } = await adminClient
       .from("vendors")

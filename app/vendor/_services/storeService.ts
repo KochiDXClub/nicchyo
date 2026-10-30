@@ -116,7 +116,8 @@ export async function uploadStoreImage(vendorId: string, file: File): Promise<st
   }
 
   const { data } = supabase.storage.from("vendor-images").getPublicUrl(mainPath);
-  return data.publicUrl;
+  // 同じ名前で上書きするので、URL を変えないと CDN とブラウザが前の写真を返し続ける
+  return `${data.publicUrl}?v=${Date.now()}`;
 }
 
 export async function saveVendorStore(

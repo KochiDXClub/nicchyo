@@ -475,10 +475,10 @@ export async function saveAskAnswer(
         await removeStoreImages(supabase, vendorId);
         return;
       }
+      // 毎回同じパスに上書きされるので、返る URL には版（?v=）がついている（ブラウザの古いキャッシュを避ける）
       const imageUrl = await uploadStoreImage(vendorId, answer.imageFile);
-      // 毎回同じパスに上書きされるので、版をつけてブラウザの古いキャッシュを避ける
       return updateVendor(supabase, vendorId, {
-        shop_image_url: `${imageUrl}?v=${Date.now()}`,
+        shop_image_url: imageUrl,
         shop_image_kind: normalizeShopImageKind(answer.imageKind),
       });
     }

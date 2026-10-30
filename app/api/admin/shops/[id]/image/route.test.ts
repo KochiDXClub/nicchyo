@@ -91,7 +91,7 @@ describe("POST /api/admin/shops/[id]/image", () => {
       expect((await sharp(bytes).metadata()).format).toBe("webp");
     }
     expect(vendorUpdates[0]).toEqual(
-      expect.objectContaining({ shop_image_url: `https://x.supabase.co/storage/${ID}/store-main.webp` }),
+      expect.objectContaining({ shop_image_url: expect.stringMatching(new RegExp(`/storage/${ID}/store-main\\.webp\\?v=\\d+$`)) }),
     );
     // 前に置いた PNG のメインは消す
     expect(storageRemove).toHaveBeenCalledWith([`${ID}/store-main.png`]);

@@ -51,7 +51,8 @@ function fakeClient() {
 }
 
 vi.mock("@/utils/supabase/client", () => ({ createClient: () => fakeClient() }));
-vi.mock("./storeService", () => ({ uploadStoreImage: vi.fn() }));
+const uploadStoreImage = vi.hoisted(() => vi.fn());
+vi.mock("./storeService", () => ({ uploadStoreImage }));
 // 写真の WebP 変換はブラウザの Canvas を使うので、変換済みの Blob を返す代わりに差し替える
 vi.mock("@/lib/image/clientCompression", () => ({
   STORE_IMAGE_CONFIG: { main: {} },
@@ -120,6 +121,16 @@ describe("saveAskAnswer（どの列に書くか）", () => {
     // 写真の種類も普通に戻す（次に入れる写真に全周のラベルを残さない）
     expect(writes()[0].payload).toEqual(expect.objectContaining({ shop_image_url: null, shop_image_kind: "normal" }));
     expect(storageRemove).toHaveBeenCalledWith(["v1/store-main.webp", "v1/store-thumb.webp"]);
+  });
+
+  it("店舗写真を登録すると、アップロードが返した URL（版つき）をそのまま保存する（?v= を二重に付けない）", async () => {
+    uploadStoreImage.mockResolvedValue("https://example.supabase.co/v1/store-main.webp?v=9");
+
+    await saveAskAnswer("v1", "2026-10-04", { id: "shop-photo", imageFile: new File(["x"], "a.jpg") });
+
+    expect(writes()[0].payload).toEqual(
+      expect.objectContaining({ shop_image_url: "https://example.supabase.co/v1/store-main.webp?v=9" })
+    );
   });
 
   it("vendors の更新が0件なら、成功と取り違えない", async () => {
