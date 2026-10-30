@@ -2,16 +2,14 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Plus, X } from "lucide-react";
-import { Button } from "@/components/ui";
+import { Button, PanoramaThumbPicker, ShopImageKindField } from "@/components/ui";
 import { cn } from "@/lib/utils/cn";
 import { STYLE_PRESETS, WEEKDAY_OPTIONS } from "@/lib/vendor/storeOptions";
 import { AskForm, DraftAddRow, RemovableChip, choiceClass, fieldClass, type InputProps } from "./askFormParts";
 import PhotoPickerField from "./PhotoPickerField";
 import ProductPhotoButton from "./ProductPhotoButton";
 import { usePhotoPicker } from "./usePhotoPicker";
-import { ShopImageKindField } from "../ShopImageKindField";
-import { PanoramaThumbPicker } from "../PanoramaThumbPicker";
-import { useShopImageKind } from "../useShopImageKind";
+import { useShopImageKind } from "@/lib/image/useShopImageKind";
 
 // 店舗情報の基本項目（編集画面の質問）の入力欄。トップの質問の入力欄は AskInputs にある。
 

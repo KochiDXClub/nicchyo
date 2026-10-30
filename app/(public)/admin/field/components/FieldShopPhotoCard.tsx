@@ -5,10 +5,9 @@ import { showToast } from "@/lib/admin/toast";
 import { createPanoramaThumbnailFromUrl, createStoreImages, imageErrorMessage } from "@/lib/image/clientCompression";
 import type { ShopImageKind } from "@/lib/shopImages";
 import type { AdminShopDetail } from "@/lib/admin/shopEdit";
-import { PanoramaThumbPicker } from "@/components/vendor/PanoramaThumbPicker";
-import { ShopImageKindField } from "@/components/vendor/ShopImageKindField";
-import { useObjectUrl } from "@/components/vendor/useObjectUrl";
-import { useShopImageKind } from "@/components/vendor/useShopImageKind";
+import { PanoramaThumbPicker, ShopImageKindField } from "@/components/ui";
+import { useObjectUrl } from "@/lib/hooks/useObjectUrl";
+import { useShopImageKind } from "@/lib/image/useShopImageKind";
 import { Card, buttonClass, readError } from "./fieldFormParts";
 
 /**

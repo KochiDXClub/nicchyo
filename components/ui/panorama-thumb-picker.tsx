@@ -1,7 +1,4 @@
-"use client";
-
 import Image from "next/image";
-import { useRef } from "react";
 import { PANORAMA_THUMB_WIDTH_RATIO, normalizePanoramaCenter } from "@/lib/image/panoramaThumb";
 import { cn } from "@/lib/utils/cn";
 
@@ -29,13 +26,11 @@ export function PanoramaThumbPicker({
   disabled?: boolean;
   className?: string;
 }) {
-  const areaRef = useRef<HTMLDivElement>(null);
-  const draggingRef = useRef(false);
   const center = normalizePanoramaCenter(value);
 
-  const moveTo = (clientX: number) => {
-    const rect = areaRef.current?.getBoundingClientRect();
-    if (!rect || rect.width <= 0) return;
+  const moveTo = (area: HTMLElement, clientX: number) => {
+    const rect = area.getBoundingClientRect();
+    if (rect.width <= 0) return;
     onChange(Math.min(1, Math.max(0, (clientX - rect.left) / rect.width)));
   };
 
@@ -45,7 +40,6 @@ export function PanoramaThumbPicker({
   return (
     <div className={cn("flex flex-col gap-1.5", className)}>
       <div
-        ref={areaRef}
         role="slider"
         tabIndex={disabled ? -1 : 0}
         aria-label="サムネイルにする部分"
@@ -55,18 +49,12 @@ export function PanoramaThumbPicker({
         aria-disabled={disabled}
         onPointerDown={(event) => {
           if (disabled) return;
-          draggingRef.current = true;
           event.currentTarget.setPointerCapture?.(event.pointerId);
-          moveTo(event.clientX);
+          moveTo(event.currentTarget, event.clientX);
         }}
+        // 押している（指が触れている）あいだだけ動かす
         onPointerMove={(event) => {
-          if (draggingRef.current) moveTo(event.clientX);
-        }}
-        onPointerUp={() => {
-          draggingRef.current = false;
-        }}
-        onPointerCancel={() => {
-          draggingRef.current = false;
+          if (!disabled && event.buttons === 1) moveTo(event.currentTarget, event.clientX);
         }}
         onKeyDown={(event) => {
           if (disabled) return;
