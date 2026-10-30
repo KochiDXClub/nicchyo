@@ -100,18 +100,24 @@ export default function LandingHeroPc({ sundays }: { sundays: LandingSunday[] })
           </form>
         </div>
 
-        <div className="relative h-[30rem] self-center overflow-hidden lg:h-[38rem] rounded-card shadow-lift">
-          <Image
-            src={PHOTOS.stalls.src}
-            alt="屋台のテントが並ぶ、日曜市の通り"
-            fill
-            priority
-            sizes="(min-width: 1344px) 640px, 50vw"
-            className="object-cover"
-          />
-          <div aria-hidden className="absolute inset-x-0 bottom-0 h-2/5 bg-gradient-to-t from-black/45 to-transparent" />
+        <div className="relative h-[30rem] self-center lg:h-[38rem]">
+          <div className="absolute inset-0 overflow-hidden rounded-card shadow-lift">
+            <Image
+              src={PHOTOS.stalls.src}
+              alt="屋台のテントが並ぶ、日曜市の通り"
+              fill
+              priority
+              sizes="(min-width: 1344px) 640px, 50vw"
+              className="object-cover"
+            />
+          </div>
+          {/* 写真の右上に、ちょっとはみ出して重ねる */}
           {next && (
-            <Link href="/calendar" aria-label="開催カレンダーをひらく" className="absolute bottom-8 right-8 transition-transform hover:-translate-y-1 motion-reduce:transition-none">
+            <Link
+              href="/calendar"
+              aria-label="開催カレンダーをひらく"
+              className="absolute -right-7 -top-9 z-10 origin-top-right scale-[0.8] transition-transform hover:-translate-y-1 motion-reduce:transition-none"
+            >
               <NextSundayCalendar sunday={next} />
             </Link>
           )}
