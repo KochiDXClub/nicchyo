@@ -34,7 +34,7 @@ export default function LandingHero({ day }: { day: MarketDay | null }) {
     <section
       id="landing-hero"
       aria-labelledby="landing-title"
-      className="relative flex min-h-[100svh] flex-col overflow-hidden bg-nicchyo-ink md:min-h-[44rem]"
+      className="relative flex min-h-[100svh] flex-col overflow-hidden bg-nicchyo-ink md:min-h-[max(40rem,100svh)]"
     >
       <picture>
         <source media="(min-width: 768px)" srcSet={wideSrcSet} />
@@ -63,7 +63,7 @@ export default function LandingHero({ day }: { day: MarketDay | null }) {
       </header>
 
       {/* 見出しは上、開催予定と検索は下（親指の届く側）に分けて置く。間は写真を見せる */}
-      <div className="relative z-10 flex flex-1 flex-col px-5 pb-[calc(7rem+var(--safe-bottom,0px))] pt-10 md:px-10 md:pb-16 md:pt-16">
+      <div className="relative z-10 flex flex-1 flex-col px-5 pb-[calc(7rem+var(--safe-bottom,0px))] pt-10 md:px-10 md:pb-12 md:pt-12">
         <div className="mx-auto flex w-full max-w-[64rem] flex-1 flex-col justify-between gap-10">
           <RevealOnScroll when="enter" className="max-w-[28rem] md:max-w-[34rem]">
             <h1 id="landing-title" className={`text-white ${PHOTO_TEXT_SHADOW}`}>
