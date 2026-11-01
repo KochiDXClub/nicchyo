@@ -10,20 +10,7 @@ import { Navigation } from "lucide-react";
 import type { MapCamera } from "../types/mapCamera";
 import { hideWhilePanningClass, useMapPanning } from "../hooks/useMapPanning";
 import { cn } from "@/lib/utils/cn";
-// PC（lg 以上）はマウスにピンチ操作がないので、スライダーを出しっぱなしにする
-const DESKTOP_QUERY = "(min-width: 1024px)";
-
-function useIsDesktop() {
-  const [isDesktop, setIsDesktop] = useState(false);
-  useEffect(() => {
-    const media = window.matchMedia(DESKTOP_QUERY);
-    const update = () => setIsDesktop(media.matches);
-    update();
-    media.addEventListener("change", update);
-    return () => media.removeEventListener("change", update);
-  }, []);
-  return isDesktop;
-}
+import { useMediaQuery, LG_MEDIA_QUERY } from "@/lib/hooks/useMediaQuery";
 
 // ===== テーパー型縦ズームスライダー =====
 // 上端（拡大側）が太く、下端（縮小側）が細いくさび形のトラックで操作方向を直感的に伝える
@@ -148,7 +135,7 @@ export function MapControls({
   const pendingZoomRef = useRef<number | null>(null);
   // 地図をドラッグしているあいだは、上に浮いている検索バーなどと一緒に現在地ボタンも隠す
   const isPanning = useMapPanning(map);
-  const isDesktop = useIsDesktop();
+  const isDesktop = useMediaQuery(LG_MEDIA_QUERY);
   const sliderShown = isDesktop || zoomSliderVisible;
 
   const flushZoom = useCallback(() => {

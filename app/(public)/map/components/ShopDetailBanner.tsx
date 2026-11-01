@@ -326,6 +326,24 @@ const ShopDetailBanner = memo(function ShopDetailBanner({
   const isInline = layout === "inline";
   // PC は「はじめての方へ」パネルと同じ、暗幕つきの中央ダイアログで見せる
   const isDesktopDialog = !isInline && !isMobileOverlay;
+  useEffect(() => {
+    if (!isDesktopDialog || viewerIndex !== null) return;
+    const panel = sheetBodyRef.current;
+    const previous = document.activeElement as HTMLElement | null;
+    panel?.focus();
+    const handleKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") { event.preventDefault(); onClose?.(); }
+      if (event.key !== "Tab" || !panel) return;
+      const items = Array.from(panel.querySelectorAll<HTMLElement>('button:not([disabled]), a[href], input:not([disabled]), [tabindex="0"]')).filter(el => el.getClientRects().length > 0);
+      const first = items[0]; const last = items[items.length - 1];
+      if (!first) { event.preventDefault(); panel.focus(); }
+      else if (event.shiftKey && (document.activeElement === first || document.activeElement === panel)) { event.preventDefault(); last.focus(); }
+      else if (!event.shiftKey && (document.activeElement === last || document.activeElement === panel)) { event.preventDefault(); first.focus(); }
+    };
+    document.addEventListener("keydown", handleKey);
+    return () => { document.removeEventListener("keydown", handleKey); previous?.focus(); };
+  }, [isDesktopDialog, onClose, viewerIndex, sheetBodyRef]);
+
   const isExpandedMobileMain = isMobileOverlay && surface === "detail";
   const showMobileSummaryHeader = isMobileOverlay && surface === "summary";
   const showMobileDetailControls = isMobileOverlay && surface === "detail";
@@ -396,7 +414,7 @@ const ShopDetailBanner = memo(function ShopDetailBanner({
           ? "relative min-h-[calc(100vh-7.5rem)]"
           // Mobile: bottom sheet / Desktop: side panel
           // peek 状態ではバックドロップを透明＆pointer-events-none にしてマップを操作可能にする
-          : `fixed inset-0 z-[2000] flex flex-col items-end justify-end md:items-center md:justify-center md:!pb-0${
+          : `fixed inset-0 z-[2000] flex flex-col items-end justify-end lg:items-center lg:justify-center lg:!pb-0${
               isMobileOverlay && surface === "summary"
                 ? " bg-transparent backdrop-blur-none pointer-events-none"
                 : " bg-black/40 backdrop-blur-[2px] md:bg-nicchyo-ink/35"
@@ -419,6 +437,10 @@ const ShopDetailBanner = memo(function ShopDetailBanner({
       {/* ── Panel container (overflow-hidden for slide rail) ───────────────── */}
       <div
         ref={sheetBodyRef}
+        role={isDesktopDialog ? "dialog" : undefined}
+        aria-modal={isDesktopDialog || undefined}
+        aria-label={isDesktopDialog ? shop.name : undefined}
+        tabIndex={isDesktopDialog ? -1 : undefined}
         className={`
           relative overflow-hidden bg-white flex flex-col pointer-events-auto
           ${isDesktopDialog ? "" : "w-full"}
@@ -427,7 +449,7 @@ const ShopDetailBanner = memo(function ShopDetailBanner({
             ? "h-[100vh] border-l border-slate-100 shadow-sm"
             : isMobileOverlay
               ? "rounded-t-3xl shadow-2xl"
-              : "w-[min(1040px,94vw)] rounded-sheet shadow-[0_32px_80px_-24px_rgba(58,58,58,0.55)] ring-1 ring-nicchyo-ink/[0.08]"
+              : "w-[min(1040px,calc(100%-3rem))] rounded-sheet shadow-[0_32px_80px_-24px_rgba(58,58,58,0.55)] ring-1 ring-nicchyo-ink/[0.08]"
           }
         `}
         style={isInline ? undefined : isMobileOverlay
@@ -524,7 +546,7 @@ const ShopDetailBanner = memo(function ShopDetailBanner({
                 <div className="relative h-full w-1/2 shrink-0">
                   <ShopBannerHero
                     shop={shop}
-                    bannerImage={bannerImage}
+                    bannerImage={hasPanoramaBanner && mainImage ? mainImage : bannerImage}
                     theme={theme}
                     heroImageError={heroImageError}
                     onImageError={handleHeroImageError}
