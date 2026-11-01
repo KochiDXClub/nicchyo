@@ -14,7 +14,7 @@ describe("公開範囲の保存環境", () => {
     vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "https://example.supabase.co");
     vi.stubEnv("SUPABASE_SERVICE_ROLE_KEY", "test-only");
     const response = await PUT(new NextRequest("https://example.com/api/admin/settings", { method: "PUT", body: JSON.stringify({ pageVisibility: { pages: { "/map": { roles: { anon: "public" } } } } }) }));
-    expect(response.status).toBe(200);
+    expect(response?.status).toBe(200);
     expect(upsert).toHaveBeenCalledOnce();
   });
 });
