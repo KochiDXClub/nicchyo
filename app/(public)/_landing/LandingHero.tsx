@@ -25,11 +25,8 @@ import type { LandingSunday } from "./upcomingSundays";
  * 写真は画面の向きで出し分ける。スマートフォンは縦長の「上から見た通り」、
  * 広い画面は横長の「屋台の通り」。<picture> で、見ない方の写真は読み込まない
  */
-export default function LandingHero({ day, sundays }: { day: MarketDay | null; sundays: LandingSunday[] }) {
+export default function LandingHero({ day, sundays, showOutingSupport = false }: { day: MarketDay | null; sundays: LandingSunday[]; showOutingSupport?: boolean }) {
   const common = { alt: "屋台のテントが並ぶ、日曜市の通り", sizes: "100vw", priority: true } as const;
-  const {
-    props: { srcSet: wideSrcSet },
-  } = getImageProps({ ...common, src: PHOTOS.stalls.src, width: PHOTOS.stalls.width, height: PHOTOS.stalls.height });
   const {
     props: { srcSet: tallSrcSet, ...imgProps },
   } = getImageProps({ ...common, src: PHOTOS.overview.src, width: PHOTOS.overview.width, height: PHOTOS.overview.height });
@@ -37,13 +34,13 @@ export default function LandingHero({ day, sundays }: { day: MarketDay | null; s
   return (
     // MapFab は、ここ全体（スマホ・PCどちらの最初の画面）が画面の上へ出たら出す
     <div id="landing-hero">
-      <LandingHeroPc sundays={sundays} />
+      <LandingHeroPc sundays={sundays} showOutingSupport={showOutingSupport} />
       <section
         aria-labelledby="landing-title"
         className="relative flex min-h-[100svh] flex-col overflow-hidden bg-nicchyo-ink md:hidden"
       >
       <picture>
-        <source media="(min-width: 768px)" srcSet={wideSrcSet} />
+        <source media="(min-width: 768px)" srcSet="data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=" />
         <source srcSet={tallSrcSet} />
         {/* getImageProps で最適化済みの <img>（art direction のため next/image ではなく <picture> で組む） */}
         <img {...imgProps} alt={common.alt} className="absolute inset-0 h-full w-full object-cover brightness-105" />

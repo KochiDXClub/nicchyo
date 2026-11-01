@@ -1,5 +1,5 @@
 import Link from "next/link";
-import Image from "next/image";
+import Image, { getImageProps } from "next/image";
 import { ArrowRight, MapPin, Search } from "lucide-react";
 import { buttonClass } from "@/components/ui";
 import LanguageSwitcher from "@/components/navigation/LanguageSwitcher";
@@ -19,8 +19,9 @@ const NAV = [
  * 写真の上には、「次の日曜市は、いつ？」と同じ日めくりカレンダーで、いちばん近い日曜の開催予定を載せる。
  * スマホは LandingHero の写真地の見た目を使う（この部品は md 未満では出ない）
  */
-export default function LandingHeroPc({ sundays }: { sundays: LandingSunday[] }) {
+export default function LandingHeroPc({ sundays, showOutingSupport = false }: { sundays: LandingSunday[]; showOutingSupport?: boolean }) {
   const next = sundays[0];
+  const { props: photoProps } = getImageProps({ src: PHOTOS.stalls.src, alt: "屋台のテントが並ぶ、日曜市の通り", width: PHOTOS.stalls.width, height: PHOTOS.stalls.height, sizes: "(min-width: 1344px) 640px, 50vw", loading: "eager", fetchPriority: "high" });
 
   return (
     <section aria-labelledby="landing-title-pc" className="hidden min-h-[100svh] flex-col bg-nicchyo-base md:flex">
@@ -39,7 +40,7 @@ export default function LandingHeroPc({ sundays }: { sundays: LandingSunday[] })
           </div>
           <div className="flex items-center gap-8">
             <nav aria-label="トップページの案内" className="flex items-center gap-8 text-sm font-bold text-nicchyo-ink/70">
-              {NAV.map((item) => (
+              {NAV.filter(item => item.href !== "/map?guide=menu" || showOutingSupport).map((item) => (
                 <Link key={item.href} href={item.href} prefetch={false} className="transition hover:text-nicchyo-ink">
                   {item.label}
                 </Link>
@@ -102,14 +103,10 @@ export default function LandingHeroPc({ sundays }: { sundays: LandingSunday[] })
 
         <div className="relative aspect-[4/3] w-full self-center">
           <div className="absolute inset-0 overflow-hidden rounded-card shadow-lift">
-            <Image
-              src={PHOTOS.stalls.src}
-              alt="屋台のテントが並ぶ、日曜市の通り"
-              fill
-              priority
-              sizes="(min-width: 1344px) 640px, 50vw"
-              className="object-cover"
-            />
+            <picture>
+              <source media="(max-width: 767px)" srcSet="data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=" />
+              <img {...photoProps} alt={photoProps.alt} className="absolute inset-0 h-full w-full object-cover" />
+            </picture>
           </div>
           {/* 写真の右上に、ちょっとはみ出して重ねる */}
           {next && (
