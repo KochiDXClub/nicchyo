@@ -61,6 +61,7 @@ import {
 import { useFavoriteShopIds } from "../../../lib/hooks/useFavorites";
 import { usePageVisibility } from "@/lib/pageVisibility/PageVisibilityContext";
 import { ODEKAKE_VISIBILITY_PATH } from "@/lib/pageVisibility/registry";
+import { isBlockedState } from "@/lib/pageVisibility/types";
 import {
   OVERVIEW_ZONE_MIN_ZOOM,
   OVERVIEW_ZONE_MAX_ZOOM,
@@ -150,7 +151,7 @@ export default function MapPageClient({
   //   private  : 機能ごと止める。URL で指定されても開かない
   const { resolve: resolveVisibility } = usePageVisibility();
   const odekakeVisibility = resolveVisibility(ODEKAKE_VISIBILITY_PATH).state;
-  const odekakeEnabled = odekakeVisibility !== "private";
+  const odekakeEnabled = !isBlockedState(odekakeVisibility);
   const odekakeEntryVisible = odekakeVisibility === "public";
   // 画面で開閉したらそちらを優先し、まだ触っていなければ URL の指定に従う
   const guideQuery = !odekakeEnabled

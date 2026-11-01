@@ -580,3 +580,11 @@ Remote の version に合わせる**（そうすれば消さずに一致させ�
   必須チェックには入れない（走らないPRで pending のままになるため）。
 - リポジトリに `supabase/config.toml` は置いていない。CI 内で `supabase init` して生成している。
   ローカルで `npx supabase start` するときは各自の手元の config.toml が使われる。
+
+### 準備中ページの公開
+
+本番の管理画面の「公開範囲」で対象ページとロールを「公開」にして保存する。DBの上書きが `productionDefault` より優先される。モデレーターにも確認を許可するときは該当ロールを個別に公開する。Previewと本番は別DBを使用する。Previewから保存しても本番DBの設定は変わらない。
+
+マージ前に `NICCHYO_PRODUCTION_DEFAULTS=1` のPreviewで実際の管理者ログイン後に `/`・`/map`・`/api/shops` と公開範囲画面を確認する。保存確認はPreviewの検証DBで行う。`/story`・`/api/stories`・Supabase公開キーによる直接参照は別途アクセス制御が必要（この制限の対象外）。
+
+レビュー補足: 作成者により、管理者ログイン後にマップが準備中にならず通常表示されることを確認済み。Previewと本番のDBは分離済み。トップ・API・公開範囲の保存までの確認は別途行う。
