@@ -7,6 +7,7 @@ import { PHOTOS } from "./content";
 import NextSundayCalendar from "./NextSundayCalendar";
 import type { LandingSunday } from "./upcomingSundays";
 import "./landing.css";
+import RevealOnScroll from "./RevealOnScroll";
 
 const NAV = [
   { href: "/calendar", label: "開催のご案内" },
@@ -52,7 +53,7 @@ export default function LandingHeroPc({ sundays, showOutingSupport = false }: { 
       </header>
 
       <div className="mx-auto grid w-full max-w-[84rem] flex-1 grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)] items-stretch gap-12 px-10 py-8 lg:gap-16">
-        <div className="flex flex-col justify-center py-4">
+        <RevealOnScroll when="enter" className="flex flex-col justify-center py-4">
           <h1 id="landing-title-pc" className="text-nicchyo-ink">
             <span className="sr-only">nicchyo：</span>
             <span className="block text-base font-bold tracking-wide text-nicchyo-ink/70 lg:text-lg">高知高専生が開発した</span>
@@ -99,9 +100,9 @@ export default function LandingHeroPc({ sundays, showOutingSupport = false }: { 
               さがす
             </button>
           </form>
-        </div>
+        </RevealOnScroll>
 
-        <div className="relative aspect-[4/3] w-full self-center">
+        <RevealOnScroll when="enter" delayMs={120} className="relative aspect-[4/3] w-full self-center">
           <div className="absolute inset-0 overflow-hidden rounded-card shadow-lift">
             <picture>
               <source media="(max-width: 767px)" srcSet="data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=" />
@@ -118,7 +119,7 @@ export default function LandingHeroPc({ sundays, showOutingSupport = false }: { 
               <NextSundayCalendar sunday={next} />
             </Link>
           )}
-        </div>
+        </RevealOnScroll>
       </div>
     </section>
   );

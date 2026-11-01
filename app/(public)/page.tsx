@@ -66,7 +66,6 @@ async function fetchCalendar(): Promise<MarketCalendar | null> {
  */
 export default async function HomePage() {
   const [shops, calendar, showOutingSupport] = await Promise.all([fetchPublicShops().catch(() => []), fetchCalendar(), canShowOutingSupport()]);
-  const day = calendar?.day ?? null;
   const sundays = buildLandingSundays(calendar?.days ?? []);
   const photos = pickLandingShopPhotos(shops);
 
@@ -76,7 +75,7 @@ export default async function HomePage() {
       {/* 日曜市の開催情報（/map と同じもの）。検索結果に開催日と場所を出してもらう */}
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: safeJsonLd(SUNDAY_MARKET_JSON_LD) }} />
       <main>
-        <LandingHero day={day} sundays={sundays} showOutingSupport={showOutingSupport} />
+        <LandingHero sundays={sundays} showOutingSupport={showOutingSupport} />
         <LandingGenres />
         <LandingHowTo />
         <LandingInfo sundays={sundays} />
