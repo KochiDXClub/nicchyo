@@ -396,7 +396,7 @@ export function ShopBannerHero({
             alt={`${shop.name}の写真`}
             fill
             // 画面幅いっぱい（PC では最大でもバナーの幅）。sizes が無いと 1920px 幅を取りに行く
-            sizes={photoOnly ? "520px" : "(max-width: 768px) 100vw, 640px"}
+            sizes={photoOnly ? (isPanorama ? "1920px" : "520px") : "(max-width: 768px) 100vw, 640px"}
             className={containPhoto ? "object-contain object-center" : "object-cover object-center"}
             priority
             onError={onImageError}
