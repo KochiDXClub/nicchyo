@@ -1,5 +1,5 @@
 import { cookies } from "next/headers";
-import { createClient as createSupabaseClient } from "@supabase/supabase-js";
+import { createAnonClient } from "@/lib/supabase/anonClient";
 import { createClient as createServerClient } from "@/utils/supabase/server";
 import { getRole } from "@/lib/auth/permissions";
 import { applyEnvironmentDefaults } from "./environment";
@@ -14,23 +14,18 @@ export async function fetchEffectivePageVisibility(): Promise<PageVisibilitySett
   if (cache && Date.now() < cache.expiresAt) return cache.value;
 
   let stored = EMPTY_PAGE_VISIBILITY_SETTINGS;
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key =
-    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  if (url && key) {
-    try {
-      const client = createSupabaseClient(url, key, {
-        auth: { persistSession: false, autoRefreshToken: false },
-      });
+  try {
+    const client = createAnonClient();
+    if (client) {
       const { data } = await client
         .from("system_settings")
         .select("value")
         .eq("key", "page_visibility")
         .maybeSingle();
       stored = parsePageVisibilitySettings(data?.value);
-    } catch {
-      // 既定のまま続ける
     }
+  } catch {
+    // 既定のまま続ける
   }
   const value = applyEnvironmentDefaults(stored);
   cache = { value, expiresAt: Date.now() + CACHE_TTL_MS };

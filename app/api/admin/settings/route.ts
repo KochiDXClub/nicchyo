@@ -162,6 +162,11 @@ export async function PUT(request: NextRequest) {
       mapFlags?: unknown;
     } | null;
 
+    // Preview と本番でDBを共有していても、本番の公開上書きを削除しない。
+    if (process.env.VERCEL_ENV === "preview" && body?.pageVisibility !== undefined) {
+      return NextResponse.json({ error: "公開範囲の保存は本番環境で行ってください。Previewからは変更できません。" }, { status: 403 });
+    }
+
     // pageVisibility だけを送ってきた場合（ページ公開設定画面）は他のキーを触らない
     if (
       body &&

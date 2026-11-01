@@ -1,39 +1,16 @@
 import type { MetadataRoute } from "next";
-import { createClient as createSupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "@/types/database.types";
 import { formatShopIdToCode } from "@/lib/shops/route";
 import { SITE_URL } from "@/lib/constants";
 import { ACTIVITIES } from "@/app/data/activities";
 import { fetchPublicShops } from "@/app/(public)/map/services/shopCache";
 import {
-  EMPTY_PAGE_VISIBILITY_SETTINGS,
   isLinkVisible,
-  applyEnvironmentDefaults,
-  parsePageVisibilitySettings,
-  type PageVisibilitySettings,
 } from "@/lib/pageVisibility";
 
 // ページ公開設定・出店状況の変更を1時間以内に反映する
 export const revalidate = 3600;
 
-/** 未ログイン向けに public でないページは sitemap.xml に載せない */
-async function fetchPageVisibility(): Promise<PageVisibilitySettings> {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY;
-  if (!supabaseUrl || !supabaseKey) return applyEnvironmentDefaults(EMPTY_PAGE_VISIBILITY_SETTINGS);
-
-  try {
-    const supabase = createSupabaseClient<Database>(supabaseUrl, supabaseKey);
-    const { data } = await supabase
-      .from("system_settings")
-      .select("value")
-      .eq("key", "page_visibility")
-      .maybeSingle();
-    return applyEnvironmentDefaults(parsePageVisibilitySettings(data?.value));
-  } catch {
-    return applyEnvironmentDefaults(EMPTY_PAGE_VISIBILITY_SETTINGS);
-  }
-}
+import { fetchEffectivePageVisibility } from "@/lib/pageVisibility/server";
 
 // 静的ページ一覧
 // lastModified は載せない: 毎回「今」を入れると更新日として信用されなくなるため。
@@ -68,7 +45,7 @@ async function fetchActiveShopNumbers(): Promise<number[]> {
 }
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const [storeNumbers, visibility] = await Promise.all([fetchActiveShopNumbers(), fetchPageVisibility()]);
+  const [storeNumbers, visibility] = await Promise.all([fetchActiveShopNumbers(), fetchEffectivePageVisibility()]);
   const isPublic = (url: string) => isLinkVisible(url.slice(SITE_URL.length), "anon", visibility);
 
   const staticPages = STATIC_PAGES.filter((page) => isPublic(page.url));
