@@ -3,41 +3,43 @@ import Image, { getImageProps } from "next/image";
 import { MapPin } from "lucide-react";
 import { buttonClass } from "@/components/ui";
 import LanguageSwitcher from "@/components/navigation/LanguageSwitcher";
-import type { MarketDay } from "@/lib/market/calendar";
-import MarketStatusBar from "../../components/market/MarketStatusBar";
+import NextSundayCalendar from "./NextSundayCalendar";
 import { PHOTOS } from "./content";
 import { PHOTO_TEXT_SHADOW } from "@/lib/ui/photoText";
 // 使い方・開催のご案内など、下のセクションの見た目もこのCSSに頼っている（消さない）
 import "./landing.css";
+import LandingHeroPc from "./LandingHeroPc";
 import MapFab from "./MapFab";
 import RevealOnScroll from "./RevealOnScroll";
+import type { LandingSunday } from "./upcomingSundays";
 
 /**
  * 最初の一画面。写真を地にして、上から「ヘッダー（nicchyoのロゴ・言語）→ 見出し →（下に）マップをみる → 今週の開催日 → 検索」の順に並べる。
  * 「マップをみる」は、この画面では大きなボタン。画面を過ぎてスクロールすると、右下の丸いボタン（MapFab）が出る。
  * 飾り（旗・判子・キャラクター・柑橘・葉）は置かない。写真と白い文字だけで、落ち着いた入口にする。
  *
+ * 広い画面（md以上）は、左に文字・右に写真と開催予定の別の構成（LandingHeroPc）。この写真地の見た目はスマホ用。
+ *
  * 内容は上から積む（下端には貼りつけない）。ブラウザの下のツールバーが重なっても、検索が隠れない。
  * 写真は画面の向きで出し分ける。スマートフォンは縦長の「上から見た通り」、
  * 広い画面は横長の「屋台の通り」。<picture> で、見ない方の写真は読み込まない
  */
-export default function LandingHero({ day }: { day: MarketDay | null }) {
+export default function LandingHero({ sundays, showOutingSupport = false }: { sundays: LandingSunday[]; showOutingSupport?: boolean }) {
   const common = { alt: "屋台のテントが並ぶ、日曜市の通り", sizes: "100vw", priority: true } as const;
-  const {
-    props: { srcSet: wideSrcSet },
-  } = getImageProps({ ...common, src: PHOTOS.stalls.src, width: PHOTOS.stalls.width, height: PHOTOS.stalls.height });
   const {
     props: { srcSet: tallSrcSet, ...imgProps },
   } = getImageProps({ ...common, src: PHOTOS.overview.src, width: PHOTOS.overview.width, height: PHOTOS.overview.height });
 
   return (
-    <section
-      id="landing-hero"
-      aria-labelledby="landing-title"
-      className="relative flex min-h-[100svh] flex-col overflow-hidden bg-nicchyo-ink md:min-h-[44rem]"
-    >
+    // MapFab は、ここ全体（スマホ・PCどちらの最初の画面）が画面の上へ出たら出す
+    <div id="landing-hero">
+      <LandingHeroPc sundays={sundays} showOutingSupport={showOutingSupport} />
+      <section
+        aria-labelledby="landing-title"
+        className="relative flex min-h-[100svh] flex-col overflow-hidden bg-nicchyo-ink md:hidden"
+      >
       <picture>
-        <source media="(min-width: 768px)" srcSet={wideSrcSet} />
+        <source media="(min-width: 768px)" srcSet="data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=" />
         <source srcSet={tallSrcSet} />
         {/* getImageProps で最適化済みの <img>（art direction のため next/image ではなく <picture> で組む） */}
         <img {...imgProps} alt={common.alt} className="absolute inset-0 h-full w-full object-cover brightness-105" />
@@ -78,16 +80,16 @@ export default function LandingHero({ day }: { day: MarketDay | null }) {
           </RevealOnScroll>
 
           <RevealOnScroll when="enter" delayMs={150} className="max-w-[28rem] md:max-w-[34rem]">
+            {sundays[0] && (
+              <Link href="/calendar" aria-label="開催カレンダーをひらく" className="relative mx-auto mb-6 block h-[10.2rem] w-[9.4rem] focus-visible:outline focus-visible:outline-2 focus-visible:outline-amber-500">
+                <NextSundayCalendar sunday={sundays[0]} className="origin-top-left scale-[0.65]" />
+              </Link>
+            )}
             {/* いちばんしてほしいこと：地図をひらく（この画面を過ぎると、右下の丸いボタンに替わる） */}
             <Link href="/map" className={buttonClass({ size: "lg", className: "h-14 w-full text-lg shadow-float" })}>
               <MapPin aria-hidden className="h-5 w-5" />
               マップをみる
             </Link>
-
-            {/* 今週の開催日（見出しの文言は置かない。日付と「開催」で伝わる） */}
-            <div className="mt-5">
-              <MarketStatusBar day={day} placement="page" className="w-full" />
-            </div>
 
             {/* お店さがし。地図をひらき、検索バーにこの語を入れて絞り込む（/map?q=） */}
             <form
@@ -115,7 +117,8 @@ export default function LandingHero({ day }: { day: MarketDay | null }) {
         </div>
       </div>
 
+      </section>
       <MapFab afterId="landing-hero" />
-    </section>
+    </div>
   );
 }

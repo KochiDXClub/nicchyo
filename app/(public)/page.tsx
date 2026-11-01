@@ -1,3 +1,4 @@
+import { canShowOutingSupport } from "./_landing/landingNavigation.server";
 import type { Metadata } from "next";
 import { PageShell } from "@/components/ui";
 import { siteText } from "@/lib/siteCopy";
@@ -69,8 +70,7 @@ export default async function HomePage() {
   // proxy.ts で「準備中」に差し替えたうえで、ここでも確認する（店舗の写真を読み込む前に必ず止める二重の守り）
   if (!(await isPathVisibleToCurrentUser("/"))) return <PreparingNotice />;
 
-  const [shops, calendar] = await Promise.all([fetchPublicShops().catch(() => []), fetchCalendar()]);
-  const day = calendar?.day ?? null;
+  const [shops, calendar, showOutingSupport] = await Promise.all([fetchPublicShops().catch(() => []), fetchCalendar(), canShowOutingSupport()]);
   const sundays = buildLandingSundays(calendar?.days ?? []);
   const photos = pickLandingShopPhotos(shops);
 
@@ -80,7 +80,7 @@ export default async function HomePage() {
       {/* 日曜市の開催情報（/map と同じもの）。検索結果に開催日と場所を出してもらう */}
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: safeJsonLd(SUNDAY_MARKET_JSON_LD) }} />
       <main>
-        <LandingHero day={day} />
+        <LandingHero sundays={sundays} showOutingSupport={showOutingSupport} />
         <LandingGenres />
         <LandingHowTo />
         <LandingInfo sundays={sundays} />
