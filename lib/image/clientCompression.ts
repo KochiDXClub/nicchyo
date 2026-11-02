@@ -37,9 +37,10 @@ export const STORE_IMAGE_CONFIG = {
     mimeType: "image/webp",
   },
   // 地図の屋台にはめ込む写真・検索結果のカードで使う。
-  // 屋台の写真枠は最大ズームで横 約 73px（高精細画面では ×3 で約 220px）。拡大して見ても粗くならないよう 400px
+  // 屋台の写真枠は最大ズームで横 約 73px、一段先では屋台が 2 倍になって約 146px（高精細画面では ×3 で約 440px）。
+  // 拡大して見ても粗くならないよう 800px（WebP で 1 枚 数十KB）
   thumbnail: {
-    maxDimension: 400,
+    maxDimension: 800,
     quality: 0.8,
     mimeType: "image/webp",
   },
