@@ -9,3 +9,10 @@ describe("最初の画面のSSR", () => {
     expect(html).toContain("landing-enter");
   });
 });
+
+ it("enterの遅延はanimationDelayへ渡す", () => {
+   const html = renderToStaticMarkup(<RevealOnScroll when="enter" delayMs={150}>案内</RevealOnScroll>);
+   expect(html).toContain("animation-delay:150ms");
+   expect(html).not.toContain("transition-delay:");
+   expect(html).not.toContain("opacity-0");
+ });

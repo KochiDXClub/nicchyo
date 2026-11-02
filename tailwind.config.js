@@ -93,11 +93,44 @@ module.exports = {
 
         // ===== 面 =====
         'market-map': {
+          'calendar-dash': '#e0a92c',
+          'highlight': '#f1e4cc',
+          'active-chip': '#f2b45a',
+          'photo-frame': '#e08a3c',
+          'card-ground': '#f5ead3',
+
           ground: '#F3E9D3',
           road: '#DCD2BC',
           dash: '#F0C64A',
         },
+        wood: {
+          'shadow': '#78460a',
+          'edge': '#8b5e34',
+          'light': '#ddb57a',
+          'dark': '#c99a5b',
+          'ink': '#2c1f0c',
+          'rope-shadow': '#50320a',
+          'sign-shadow': '#583a0a',
+          'deep-shadow': '#281c0a',
+          'label': '#8a6324',
+        },
+        device: {
+          'frame': '#2f2f2f',
+          'edge': '#555555',
+          'control': '#f1f5f9',
+          'muted': '#475569',
+          'line': '#e2e8f0',
+          'ink': '#0f172a',
+          'caption': '#64748b',
+          'surface': '#f8fafc',
+          'text': '#1e293b',
+          'placeholder': '#94a3b8',
+        },
         surface: {
+          'parchment': '#eadfc6',
+          'paper': '#ece5d6',
+          'paper-line': '#f1ebdd',
+
           // 地より一段明るい面。カードが白のとき、その下に敷く帯に使う
           warmwhite: '#FEFCE8',
         },

@@ -53,7 +53,7 @@ export default function RevealOnScroll({
         shown ? "translate-y-0 opacity-100" : "translate-y-6 opacity-0",
         className
       )}
-      style={{ transitionDelay: shown ? `${delayMs}ms` : "0ms" }}
+      style={when === "enter" ? { animationDelay: `${delayMs}ms` } : { transitionDelay: shown ? `${delayMs}ms` : "0ms" }}
     >
       {children}
     </div>

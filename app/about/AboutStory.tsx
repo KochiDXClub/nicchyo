@@ -1,5 +1,7 @@
 "use client";
 
+import { VersionDate } from "@/components/ui";
+
 import React, { useState } from "react";
 import { motion, AnimatePresence, type PanInfo } from "framer-motion";
 import Link from "next/link";
@@ -152,7 +154,7 @@ function RichContent({
           >
             {entry.version}
           </span>
-          {entry.released === false ? <span className="text-xs font-medium text-nicchyo-ink/55">公開準備中</span> : <time className="text-xs font-medium text-nicchyo-ink/55">{entry.date}</time>}
+          <VersionDate released={entry.released} date={entry.date} />
         </div>
         {entry.highlights.map((highlight, i) => (
           <div
