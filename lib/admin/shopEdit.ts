@@ -9,6 +9,7 @@ import { todayJstString } from "@/lib/time/jstDate";
 import { isEndAfterStart, parseTime } from "@/lib/vendor/businessHours";
 import { PAYMENT_OPTIONS, RAIN_OPTIONS } from "@/lib/vendor/storeOptions";
 import type { ChomeId } from "@/lib/map/chomes";
+import type { ShopImageKind } from "@/lib/shopImages";
 
 export const LISTING_STATUSES = ["pending", "allowed", "declined"] as const;
 export type ListingStatus = (typeof LISTING_STATUSES)[number];
@@ -48,6 +49,8 @@ type ShopEditFields = {
   business_hours_start: string | null;
   business_hours_end: string | null;
   shop_image_url: string | null;
+  /** shop_image_url の写真の種類。写真を消す（shop_image_url を null にする）ときは、普通の写真に戻す */
+  shop_image_kind: ShopImageKind;
   listing_status: ListingStatus;
   photo_use_allowed: boolean;
   listing_consented_on: string | null;
@@ -248,6 +251,7 @@ export function parseShopEdit(body: unknown): ShopEditResult {
     // 外部のホストを指すと、閲覧者の通信が外へ出る
     if (url === undefined || (url !== null && !isVendorImageUrl(url))) return fail("写真の URL が正しくありません");
     vendor.shop_image_url = url;
+    if (url === null) vendor.shop_image_kind = "normal";
   }
 
   if ("listing_status" in body) {

@@ -26,6 +26,15 @@ function respondSeen(seen: string[] | null) {
 
 const posts = () => fetchMock.mock.calls.filter(([, init]) => init?.method === "POST");
 
+// 開いたシートの Esc は、シートの effect で付けるキー操作の受け口が拾う。
+// 混んだ CI では、ダイアログが DOM に出てから effect が走るまでに間があき、その間の Esc は届かない。
+// フォーカスがシートの中へ移る（同じ effect の並びで行う）まで待ってから操作する。
+async function findOpenedDialog() {
+  const dialog = await screen.findByRole("dialog");
+  await waitFor(() => expect(dialog.contains(document.activeElement)).toBe(true));
+  return dialog;
+}
+
 beforeEach(() => {
   vi.stubGlobal("fetch", fetchMock);
   fetchMock.mockReset();
@@ -67,7 +76,7 @@ describe("VendorTourHost", () => {
   it("途中で閉じたときは記録しない", async () => {
     respondSeen([]);
     render(<VendorTourHost />);
-    await screen.findByRole("dialog");
+    await findOpenedDialog();
 
     fireEvent.keyDown(window, { key: "Escape" });
 
@@ -104,7 +113,7 @@ describe("VendorTourHost", () => {
   it("途中で閉じた説明は、他の画面へ行って戻っても、同じセッションでは自動で出し直さない", async () => {
     respondSeen([]);
     const { rerender } = render(<VendorTourHost />);
-    await screen.findByRole("dialog");
+    await findOpenedDialog();
     fireEvent.keyDown(window, { key: "Escape" });
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
 

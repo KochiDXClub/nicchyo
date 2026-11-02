@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { buildSearchIndex } from "../../search/lib/searchIndex";
 import { useShopSearch } from "../../search/hooks/useShopSearch";
+import { useSearchLog } from "@/lib/hooks/useSearchLog";
 import type { Shop } from "../data/shops";
 
 /**
@@ -16,13 +17,16 @@ export function useMapSearchFilter({
   shops,
   favoriteShopIds,
   initialQuery = "",
+  initialCategory = null,
 }: {
   shops: Shop[];
   favoriteShopIds: number[];
   initialQuery?: string;
+  /** URL の ?category= で渡ってきたジャンル（トップページのジャンルなど）。無ければ絞り込みなし */
+  initialCategory?: string | null;
 }) {
   const [query, setQuery] = useState(initialQuery);
-  const [category, setCategory] = useState<string | null>(null);
+  const [category, setCategory] = useState<string | null>(initialCategory);
   // お気に入り絞り込み。歩きながら1タップで「あとで戻る店」だけの地図にできる
   const [favoritesOnly, setFavoritesOnly] = useState(false);
 
@@ -39,6 +43,10 @@ export function useMapSearchFilter({
     category,
     chome: null,
   });
+
+  // 検索バーに打った語を記録する（出店者の「検索トレンド」の元）。
+  // URL の ?q= で渡ってきた語（共有リンク・再読み込み）は、この画面で打った検索ではないので数えない
+  useSearchLog(query, results.length, initialQuery);
 
   const shopIds = useMemo(() => {
     const hasTextOrCategory = !!query.trim() || !!category;

@@ -76,3 +76,13 @@ describe("formatJaDateTime", () => {
     expect(formatJaDateTime("nope")).toBe("");
   });
 });
+
+describe("formatJaDate", () => {
+  it("日本時間の年月日で返す（UTC では前の日でも、日本では翌日）。日時として読めない文字は空にする", async () => {
+    const { formatJaDate } = await import("./date");
+
+    expect(formatJaDate("2026-10-01T00:00:00Z")).toBe("2026年10月1日");
+    expect(formatJaDate("2026-09-30T15:30:00Z")).toBe("2026年10月1日");
+    expect(formatJaDate("nope")).toBe("");
+  });
+});

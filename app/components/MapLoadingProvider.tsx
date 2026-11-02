@@ -1,7 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useMemo, useState, useEffect, useRef, useCallback } from "react";
-import { usePathname } from "next/navigation";
+import { useAppPathname } from "@/lib/i18n/useAppPathname";
 import MapLoadingOverlay from "./MapLoadingOverlay";
 
 /**
@@ -72,7 +72,7 @@ export function useMapLoading() {
 
 export default function MapLoadingProvider({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<MapLoadingState>(IDLE_STATE);
-  const pathname = usePathname();
+  const pathname = useAppPathname();
   const pathnameRef = useRef(pathname);
   pathnameRef.current = pathname;
   const statusRef = useRef<MapLoadingStatus>("idle");

@@ -2,9 +2,14 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { fetchAssignmentRows, fetchLocationRows, fetchProductRows } from "@/lib/shops/baseRowQueries";
 import { fetchAllRows } from "@/lib/supabase/fetchAllRows";
 import type { Database } from "@/types/database.types";
+import { normalizeShopImageKind } from "@/lib/shopImages";
 import type { Shop } from "../types/shopData";
 
-type VendorRow = {
+// vendors から読む列。基本データの取得と差分の取得(fetchShopDelta)で同じ列を使う
+const VENDOR_COLUMNS =
+  "id, shop_name, strength, style, style_tags, category_id, categories(name), main_products, main_product_prices, payment_methods, rain_policy, schedule, shop_image_url, shop_image_kind, sns_instagram, sns_x, sns_hp, business_hours_start, business_hours_end" as const;
+
+export type VendorRow = {
   id: string;
   shop_name: string | null;
   strength: string | null;
@@ -18,6 +23,7 @@ type VendorRow = {
   rain_policy: string | null;
   schedule: string[] | null;
   shop_image_url: string | null;
+  shop_image_kind: string | null;
   sns_instagram: string | null;
   sns_x: string | null;
   sns_hp: string | null;
@@ -46,9 +52,11 @@ type CategoryRow = {
   name: string | null;
 };
 
-type ProductRow = {
+export type ProductRow = {
+  id: string;
   vendor_id: string | null;
   name: string | null;
+  image_url: string | null;
 };
 
 type LocationRow = {
@@ -117,7 +125,7 @@ export async function fetchVendorShopBaseRows(
       (from, to) =>
         supabase
           .from("vendors")
-          .select("id, shop_name, strength, style, style_tags, category_id, categories(name), main_products, main_product_prices, payment_methods, rain_policy, schedule, shop_image_url, sns_instagram, sns_x, sns_hp, business_hours_start, business_hours_end")
+          .select(VENDOR_COLUMNS)
           .order("id", { ascending: true })
           .range(from, to) as unknown as PromiseLike<{ data: VendorRow[] | null; error: { message: string } | null }>,
       { label: "vendors" }
@@ -173,6 +181,118 @@ export async function fetchVendorShopBaseRows(
   };
 }
 
+/**
+ * 基本データの取得(キャッシュ)以降に変わった行。キャッシュの上に重ねて、反映を早くする。
+ *   vendors / products … updated_at が since より新しい行(DB のトリガーで必ず進む)
+ *   deletedProductIds  … since 以降に消えた商品(product_deletions)
+ * ログインしていない側のクライアントで読むこと(共有キャッシュに、ログイン中の人にだけ見える行が混ざらないように)。
+ * 取れなかったときは投げる(unstable_cache に欠けた結果を載せないため)。
+ */
+export type ShopDelta = {
+  vendors: VendorRow[];
+  products: ProductRow[];
+  deletedProductIds: string[];
+  /** 来訪者に見える店舗の数。キャッシュの店舗数と合わなければ、見えなくなった店舗がある */
+  visibleVendorCount: number;
+};
+
+export async function fetchShopDelta(supabase: SupabaseClient<Database>, since: string): Promise<ShopDelta> {
+  // product_deletions は生成された型にまだ無いので、型なしで扱う
+  const untyped = supabase as unknown as SupabaseClient;
+  const [vendors, products, deletions, vendorCount] = await Promise.all([
+    fetchAllRows<VendorRow>(
+      (from, to) =>
+        supabase
+          .from("vendors")
+          .select(VENDOR_COLUMNS)
+          .gt("updated_at", since)
+          .order("id", { ascending: true })
+          .range(from, to) as unknown as PromiseLike<{ data: VendorRow[] | null; error: { message: string } | null }>,
+      { label: "vendors(delta)" }
+    ),
+    fetchAllRows<ProductRow>(
+      (from, to) =>
+        supabase
+          .from("products")
+          .select("id, vendor_id, name, image_url")
+          .gt("updated_at", since)
+          .order("id", { ascending: true })
+          .range(from, to) as unknown as PromiseLike<{ data: ProductRow[] | null; error: { message: string } | null }>,
+      { label: "products(delta)" }
+    ),
+    fetchAllRows<{ product_id: string }>(
+      (from, to) =>
+        untyped
+          .from("product_deletions")
+          .select("product_id")
+          .gt("deleted_at", since)
+          .order("product_id", { ascending: true })
+          .range(from, to) as unknown as PromiseLike<{ data: { product_id: string }[] | null; error: { message: string } | null }>,
+      { label: "product_deletions" }
+    ),
+    supabase.from("vendors").select("id", { count: "exact", head: true }),
+  ]);
+  const failed = [
+    ["vendors", vendors.error],
+    ["products", products.error],
+    ["product_deletions", deletions.error],
+    ["vendors(count)", vendorCount.error ?? (vendorCount.count === null ? { message: "count が返りません" } : null)],
+  ].filter(([, error]) => error);
+  if (failed.length > 0) throw new Error(`差分の取得に失敗しました: ${failed.map(([label]) => label).join(", ")}`);
+
+  return {
+    vendors: vendors.data,
+    products: products.data,
+    deletedProductIds: deletions.data.map((row) => row.product_id),
+    visibleVendorCount: vendorCount.count ?? 0,
+  };
+}
+
+/** 来訪者に見える店舗の id 一覧（掲載の取り下げ・店舗の削除を知るため）。取れなかったときは投げる */
+export async function fetchVisibleVendorIds(supabase: SupabaseClient<Database>): Promise<string[]> {
+  const { data, error } = await fetchAllRows<{ id: string }>(
+    (from, to) =>
+      supabase.from("vendors").select("id").order("id", { ascending: true }).range(from, to) as unknown as PromiseLike<{
+        data: { id: string }[] | null;
+        error: { message: string } | null;
+      }>,
+    { label: "vendors(id)" }
+  );
+  if (error) throw new Error(`店舗の id の取得に失敗しました: ${error.message}`);
+  return data.map((row) => row.id);
+}
+
+/**
+ * 来訪者に見えなくなった店舗（許可の取り消し・削除）と、その商品を外す（元は変えない）。
+ * 差分（updated_at）には現れないので、店舗数が合わないときに id 一覧と突き合わせて使う。
+ */
+export function pruneInvisibleVendors(base: VendorShopBaseRows, visibleIds: ReadonlySet<string>): VendorShopBaseRows {
+  const vendors = base.vendors.filter((row) => visibleIds.has(row.id));
+  if (vendors.length === base.vendors.length) return base;
+  const kept = new Set(vendors.map((row) => row.id));
+  return { ...base, vendors, products: base.products.filter((row) => row.vendor_id && kept.has(row.vendor_id)) };
+}
+
+/**
+ * キャッシュした基本データに、差分を重ねる(元は変えない)。
+ * 店舗・商品は id で置き換える(無ければ足す)。消えた商品は、変更より後に適用して確実に外す。
+ * 重ねられるのは店舗・商品の追加と変更だけ。来訪者に出さなくなった店舗(許可の取り消し等)や削除された店舗は、
+ * 差分では見えないので、店舗数の食い違いから pruneInvisibleVendors で外す。店主名の公開の取り消しは、
+ * 15分ごとの全件の取り直しで外れる(運営の画面での変更は、今までどおり即時にキャッシュを捨てる)。
+ */
+export function applyShopDelta(base: VendorShopBaseRows, delta: ShopDelta): VendorShopBaseRows {
+  if (delta.vendors.length === 0 && delta.products.length === 0 && delta.deletedProductIds.length === 0) return base;
+
+  const vendors = new Map(base.vendors.map((row) => [row.id, row]));
+  delta.vendors.forEach((row) => vendors.set(row.id, row));
+
+  const products = new Map(base.products.map((row) => [row.id, row]));
+  delta.products.forEach((row) => products.set(row.id, row));
+  delta.deletedProductIds.forEach((id) => products.delete(id));
+
+  return { ...base, vendors: [...vendors.values()], products: [...products.values()] };
+}
+
 /** 有効期限内の投稿。期限切れがあるので基本データとは分けて毎回取る（数十 KB 程度） */
 export async function fetchActiveContentRows(
   supabase: SupabaseClient<Database>
@@ -224,11 +344,19 @@ export function buildVendorShops(
   });
 
   const productsByVendor = new Map<string, string[]>();
+  // 商品の写真は products テーブルの「同じ名前の商品」の行に置かれる（出店者の保存・現場登録とも）。
+  // バナーは商品名で引き当てるので、写真のある行だけを名前と組にして持たせる
+  const productDetailsByVendor = new Map<string, NonNullable<Shop["productDetails"]>>();
   products.forEach((row) => {
     if (!row.vendor_id || !row.name) return;
     const list = productsByVendor.get(row.vendor_id) ?? [];
     list.push(row.name);
     productsByVendor.set(row.vendor_id, list);
+    if (row.image_url) {
+      const details = productDetailsByVendor.get(row.vendor_id) ?? [];
+      details.push({ name: row.name, imageUrl: row.image_url });
+      productDetailsByVendor.set(row.vendor_id, details);
+    }
   });
 
   // 有効期限内の投稿を vendor_id ごとに時系列で保持
@@ -313,6 +441,7 @@ export function buildVendorShops(
         category: categoryName,
         products: displayProducts,
         productPrices: (vendor.main_product_prices ?? undefined) as Record<string, number | null> | undefined,
+        productDetails: productDetailsByVendor.get(vendor.id),
         description: "",
         stallStyle: vendor.style ?? undefined,
         stallStyleTags: (vendor.style_tags ?? []).length > 0 ? (vendor.style_tags as string[]) : undefined,
@@ -323,7 +452,9 @@ export function buildVendorShops(
         rainPolicy: vendor.rain_policy ?? undefined,
         activePosts,
         activePost,
-        images: vendor.shop_image_url ? { main: vendor.shop_image_url } : undefined,
+        images: vendor.shop_image_url
+          ? { main: vendor.shop_image_url, mainKind: normalizeShopImageKind(vendor.shop_image_kind) }
+          : undefined,
         socialLinks: (vendor.sns_instagram || vendor.sns_x || vendor.sns_hp) ? {
           instagram: vendor.sns_instagram ?? undefined,
           twitter: vendor.sns_x ?? undefined,

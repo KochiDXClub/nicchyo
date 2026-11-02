@@ -1476,6 +1476,7 @@ export type Database = {
           role: string | null
           schedule: string[] | null
           shop_image_url: string | null
+          shop_image_kind: string
           shop_name: string
           sns_hp: string | null
           sns_instagram: string | null
@@ -1504,6 +1505,7 @@ export type Database = {
           role?: string | null
           schedule?: string[] | null
           shop_image_url?: string | null
+          shop_image_kind?: string
           shop_name: string
           sns_hp?: string | null
           sns_instagram?: string | null
@@ -1532,6 +1534,7 @@ export type Database = {
           role?: string | null
           schedule?: string[] | null
           shop_image_url?: string | null
+          shop_image_kind?: string
           shop_name?: string
           sns_hp?: string | null
           sns_instagram?: string | null

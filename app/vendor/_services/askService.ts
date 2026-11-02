@@ -1,7 +1,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@/utils/supabase/client";
 import { imageUploadInfo, resizeImageToBlob, STORE_IMAGE_CONFIG } from "@/lib/image/clientCompression";
-import { uploadStoreImage } from "./storeService";
+import { normalizeShopImageKind } from "@/lib/shopImages";
+import { recropStoreThumbnail, uploadStoreImage } from "./storeService";
 import type { AskAnswer, VendorAskSnapshot } from "@/lib/vendor/askQuestions";
 import type { PaymentMethod, RainPolicy } from "../_types";
 
@@ -41,7 +42,7 @@ export async function fetchAskSnapshot(
     supabase
       .from("vendors")
       .select(
-        "shop_name, shop_image_url, category_id, style, style_tags, main_products, main_product_prices, schedule, sns_x, business_hours_start, business_hours_end, payment_methods, payment_note, sns_instagram, sns_hp, rain_policy, rain_note, rain_answered_at, signature_product_name, strength, motivation, years_running, sunday_love"
+        "shop_name, shop_image_url, shop_image_kind, category_id, style, style_tags, main_products, main_product_prices, schedule, sns_x, business_hours_start, business_hours_end, payment_methods, payment_note, sns_instagram, sns_hp, rain_policy, rain_note, rain_answered_at, signature_product_name, strength, motivation, years_running, sunday_love"
       )
       .eq("id", vendorId)
       .single(),
@@ -97,6 +98,7 @@ export async function fetchAskSnapshot(
   return {
     shopName: vendor.shop_name ?? undefined,
     shopImageUrl: vendor.shop_image_url ?? undefined,
+    shopImageKind: normalizeShopImageKind(vendor.shop_image_kind),
     categoryId,
     categoryName: categories.find((category) => category.id === categoryId)?.name,
     categoryOptions: categories,
@@ -466,15 +468,22 @@ export async function saveAskAnswer(
     case "x":
       return updateVendor(supabase, vendorId, { sns_x: orNull(answer.value) });
     case "shop-photo": {
+      if (!answer.imageFile && answer.recrop) {
+        // 全周写真のサムネイルだけの切り直し。メインの写真と種類はそのまま
+        const url = await recropStoreThumbnail(vendorId, answer.recrop.sourceUrl, answer.recrop.center);
+        return updateVendor(supabase, vendorId, { shop_image_url: url });
+      }
       if (!answer.imageFile) {
-        await updateVendor(supabase, vendorId, { shop_image_url: null });
+        // 写真を消すときは、種類も普通の写真に戻す（次に入れる写真に全周のラベルを残さない）
+        await updateVendor(supabase, vendorId, { shop_image_url: null, shop_image_kind: "normal" });
         // 消した写真を公開の URL のまま残さない。消せなくても、答えを消すことは止めない
         await removeStoreImages(supabase, vendorId);
         return;
       }
-      const imageUrl = await uploadStoreImage(vendorId, answer.imageFile);
-      // 毎回同じパスに上書きされるので、版をつけてブラウザの古いキャッシュを避ける
-      return updateVendor(supabase, vendorId, { shop_image_url: `${imageUrl}?v=${Date.now()}` });
+      const kind = normalizeShopImageKind(answer.imageKind);
+      // 毎回同じパスに上書きされるので、返る URL には版（?v=）がついている
+      const imageUrl = await uploadStoreImage(vendorId, answer.imageFile, { kind, thumbCenter: answer.thumbCenter });
+      return updateVendor(supabase, vendorId, { shop_image_url: imageUrl, shop_image_kind: kind });
     }
     case "shop-name":
       return updateVendor(supabase, vendorId, { shop_name: answer.text.trim() });

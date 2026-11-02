@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, type CSSProperties, type ReactNode } from "react";
-import { usePathname } from "next/navigation";
+import { useAppPathname } from "@/lib/i18n/useAppPathname";
 import VendorAccessGate from "@/components/vendor/VendorAccessGate";
 import VendorNavBar from "@/components/vendor/VendorNavBar";
 import VendorTourHost from "@/components/vendor/tour/VendorTourHost";
@@ -9,7 +9,7 @@ import { findVendorTourPage } from "@/lib/vendor/tours";
 import { isAnalyticsOptedOut } from "@/lib/analytics/consentClient";
 
 export default function MyShopLayout({ children }: { children: ReactNode }) {
-  const pathname = usePathname();
+  const pathname = useAppPathname();
 
   useEffect(() => {
     if (pathname !== "/my-shop") return;

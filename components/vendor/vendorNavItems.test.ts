@@ -16,8 +16,8 @@ describe("requiredPermissionForPath", () => {
     expect(requiredPermissionForPath("/my-shop/ask")).toBe("store_edit");
   });
 
-  it("権限の要らない画面（ホーム・使い方・アカウント設定）や、名前が似ているだけの画面は undefined", () => {
-    for (const path of ["/my-shop", "/vendor/help", "/vendor/account", "/vendor/storefront", "/vendor/postscript", null]) {
+  it("権限の要らない画面（ホーム・使い方・メンバー管理・アカウント設定）や、名前が似ているだけの画面は undefined", () => {
+    for (const path of ["/my-shop", "/vendor/help", "/vendor/members", "/vendor/account", "/vendor/storefront", "/vendor/postscript", null]) {
       expect(requiredPermissionForPath(path)).toBeUndefined();
     }
   });
@@ -28,6 +28,8 @@ describe("visibleVendorNavItems", () => {
     const labels = visibleVendorNavItems((key) => key === "analytics").map((item) => item.label);
     expect(labels).toContain("お店の分析");
     expect(labels).toContain("アカウント設定");
+    // メンバー一覧は誰でも見られるので、メンバーの管理の権限がなくても出す
+    expect(labels).toContain("メンバー管理");
     expect(labels).not.toContain("近況を出す");
   });
 });

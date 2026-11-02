@@ -17,16 +17,19 @@ import type {
 } from "./types/consultConversation";
 import type { Shop } from "../map/data/shops";
 import { getOrCreateConsultVisitorKey } from "@/lib/consultVisitorKey";
+import { useT } from "@/lib/i18n/LocaleContext";
+import { readConsultAskResponse } from "./utils/readConsultAskResponse";
 
 const PREFERRED_CHARACTER_STORAGE_KEY = "nicchyo-consult-preferred-character";
 
 export default function ConsultClient() {
+  const t = useT();
   const [knownShops, setKnownShops] = useState<Shop[]>([]);
   const [selectedShop, setSelectedShop] = useState<Shop | null>(null);
   // 既定はにちよさん。null にすると話し手が毎回変わり、会話全体が掛け合いに見える
   const [preferredCharacterId, setPreferredCharacterId] =
     useState<ConsultCharacterId>(DEFAULT_CONSULT_CHARACTER_ID);
-  // PC版「これまでの相談」サイドバーの開閉。既定は閉じ、チャット欄を中央のまま保つ
+  // 「これまでの相談」サイドバー（PC・モバイル共通）の開閉。既定は閉じ、チャット欄を中央のまま保つ
   const [isHistorySidebarOpen, setIsHistorySidebarOpen] = useState(false);
   const searchParams = useSearchParams();
 
@@ -130,9 +133,8 @@ export default function ConsultClient() {
     mergeKnownShops(payload.shops);
 
     return {
-      reply:
-        payload.reply ??
-        "ごめんね、今は答えを出せんかった。時間をおいて試してね。",
+      // サーバーが固定の日本語で返す定型文も、辞書にあれば訳す（AI の返答は訳さない）
+      reply: t(payload.reply ?? "ごめんね、今は答えを出せんかった。時間をおいて試してね。"),
       imageUrl: payload.imageUrl,
       shopIds: payload.shopIds,
       shops: payload.shops,
@@ -145,13 +147,13 @@ export default function ConsultClient() {
         payload.errorMessage ??
         (ok
           ? undefined
-          : "相談の送信に失敗しました。通信状況を確認して、もう一度試してください。"),
+          : t("相談の送信に失敗しました。通信状況を確認して、もう一度試してください。")),
       retryable: ok
         ? payload.retryable ?? false
         : payload.retryable ?? payload.errorCode === "system_error",
       consultId: payload.consultId,
     };
-  }, [mergeKnownShops]);
+  }, [mergeKnownShops, t]);
 
 
   const handleGrandmaAskStream = useCallback(async (
@@ -176,60 +178,26 @@ export default function ConsultClient() {
         headers,
         body,
       });
-      if (!response.ok) {
-        const payload = (await response.json()) as Parameters<typeof normalizeAskResponse>[0];
-        return normalizeAskResponse(payload, false);
-      }
-      if (!response.body) {
-        throw new Error("stream body not found");
+      const result = await readConsultAskResponse(response, onEvent);
+      if (result) {
+        return normalizeAskResponse(result.payload, result.ok);
       }
 
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = "";
-      let finalResponse: ConsultAskResponse | null = null;
-
-      const handleLine = (line: string) => {
-        const trimmed = line.trim();
-        if (!trimmed) return;
-        const event = JSON.parse(trimmed) as ConsultAskStreamEvent;
-        onEvent?.(event);
-        if (event.type === "final") {
-          finalResponse = normalizeAskResponse(event.response, true);
-        }
+      return {
+        reply: t("ごめんね、今は答えを出せんかった。時間をおいて試してね。"),
+        errorCode: "system_error",
+        errorMessage: t("返答の取得に失敗しました。もう一度お試しください。"),
+        retryable: true,
       };
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split("\n");
-        buffer = lines.pop() ?? "";
-        lines.forEach(handleLine);
-      }
-
-      const trailing = buffer.trim();
-      if (trailing) {
-        handleLine(trailing);
-      }
-
-      return (
-        finalResponse ?? {
-          reply: "ごめんね、今は答えを出せんかった。時間をおいて試してね。",
-          errorCode: "system_error",
-          errorMessage: "返答の取得に失敗しました。もう一度お試しください。",
-          retryable: true,
-        }
-      );
     } catch {
       return {
-        reply: "ごめんね、今は答えを出せんかった。時間をおいて試してね。",
+        reply: t("ごめんね、今は答えを出せんかった。時間をおいて試してね。"),
         errorCode: "system_error",
-        errorMessage: "接続に失敗しました。少し時間をおいて、もう一度試してください。",
+        errorMessage: t("接続に失敗しました。少し時間をおいて、もう一度試してください。"),
         retryable: true,
       };
     }
-  }, [buildAskRequest, normalizeAskResponse]);
+  }, [buildAskRequest, normalizeAskResponse, t]);
 
   const autoAskText = searchParams?.get("q") || null;
   const autoAskShopIdRaw = searchParams?.get("shopId");
@@ -247,12 +215,15 @@ export default function ConsultClient() {
       // わずかに超えたときページ本体（html）側にもスクロールバーが出て、意図した
       // チャット用スクロールバーの隣にもう1本（グローバル装飾で同じ緑色の）スクロール
       // バーが並んで見えてしまう
-      className="relative min-h-screen overflow-hidden bg-[var(--consult-bg)]"
+      // 「マップにもどる」バーは、スマホは下端、lg 以上は右上の小さなバー。
+      // lg 以上は下端にナビの分の余白は要らないので --nav-bar-height を 0 にし、相談の下端まわりの計算
+      // （入力欄の位置・スクロール領域の高さ）がそれに追従するようにする
+      className="relative min-h-screen overflow-hidden bg-[var(--consult-bg)] lg:[--nav-bar-height:0px]"
     >
       <div className="pointer-events-none absolute inset-0 z-0 bg-[var(--consult-bg)]" aria-hidden="true" />
       {/*
         「これまでの相談」サイドバー（lg 以上）を開いているときは、
-        サイドバーのすぐ右（固定ガター lg:pl-80）から本文を始める。
+        サイドバー（幅 22rem）のすぐ右（固定ガター lg:pl-96）から本文を始める。
 
         ここでは幅を max-w-3xl に絞らない（ConsultStage に w-full のまま渡す）。
         絞ってしまうと、その狭い箱の内側でスクロールすることになり、縦スクロール
@@ -268,8 +239,10 @@ export default function ConsultClient() {
         画面端にぴったり付かなくなる
       */}
       <main
-        className={`relative z-10 w-full pb-16 ${
-          isHistorySidebarOpen ? "lg:pl-80" : ""
+        // サイドバーの開け閉めに合わせて、本文の左の空きも滑らかに広げ・縮める
+        // （サイドバー側の動きと同じ速さ・緩急。ConsultStage の HISTORY_SIDEBAR_SLIDE_*）
+        className={`relative z-10 w-full pb-16 motion-safe:transition-[padding-left] motion-safe:duration-300 motion-safe:ease-out-soft ${
+          isHistorySidebarOpen ? "lg:pl-96" : ""
         }`}
       >
         <div className="w-full">
@@ -288,7 +261,7 @@ export default function ConsultClient() {
         </div>
       </main>
       {selectedShop && <ShopDetailBanner shop={selectedShop} onClose={() => setSelectedShop(null)} />}
-      <NavigationBar activeHref="/consult" />
+      <NavigationBar activeHref="/consult" backBarOnTop />
     </div>
   );
 }

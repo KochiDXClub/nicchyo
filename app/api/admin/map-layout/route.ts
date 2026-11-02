@@ -599,7 +599,7 @@ export async function PUT(request: NextRequest) {
     // 削除に失敗しても、何を消そうとしたかが残るようにする
     if (vendorsToDelete.length > 0) {
       const actor = { id: user.id, email: user.email, role: getRole(user) };
-      const audit = (action: string) =>
+      const audit = (action: "map_edit_delete_vendors_attempt" | "map_edit_delete_vendors") =>
         logAdminAudit(adminWriteClient, actor, {
           action,
           targetType: "vendor",

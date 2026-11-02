@@ -1,9 +1,10 @@
 /**
  * 出店者の相談（/api/vendor/help-chat）で、にちよさんに渡す数字を集める。
  *
- * どれも出店者本人の cookie のクライアントで読める範囲だけを使う（service role は使わない）。
+ * 出店者本人の cookie のクライアントで読める範囲を使う。例外は検索語だけで、生の検索語は
+ * 出店者に読ませないため service role で読み、語と回数の集計だけを使う（#922）。
  * - このお店の数字: RLS で自分の行だけが読める表（ai_consult_logs・shop_page_views・content_reactions）
- * - 日曜市全体の数字: 出店者の分析画面と同じく、ログインしていれば読める表の合計だけ
+ * - 日曜市全体の数字: 出店者の分析画面と同じ合計だけ
  *   （ほかのお店の個別の数字は作らない）
  *
  * 集計に失敗しても相談自体はできるよう、取れなかった項目は null / 空にする。
@@ -15,6 +16,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { countShopViews } from "@/lib/vendor/shopViewCounts";
 import { fetchMonthlyVisitors, fetchWeeklyVisitors } from "@/lib/analytics/visitorStats.server";
+import { loadSearchKeywordCounts } from "@/lib/analytics/searchTrends.server";
+import { createAdminClient } from "@/lib/supabase/adminClient";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 /**
@@ -108,23 +111,15 @@ async function loadHearts(supabase: SupabaseClient) {
   return { total: total.count ?? 0, thisWeek: week.count ?? 0 };
 }
 
-async function loadSearchKeywords(supabase: SupabaseClient) {
-  const { data, error } = await supabase
-    .from("product_search_logs")
-    .select("keyword")
-    .gte("searched_at", new Date(Date.now() - 7 * DAY_MS).toISOString())
-    .order("searched_at", { ascending: false })
-    .limit(ROW_LIMIT);
-  if (error || !data) return [];
-
-  const counts = new Map<string, number>();
-  for (const row of data as { keyword: string }[]) {
-    const keyword = toDataWord(row.keyword ?? "").toLowerCase();
-    // 1文字の検索は、入力途中のものが多いので数えない（出店者の分析画面と同じ）
-    if (keyword.length < 2) continue;
-    counts.set(keyword, (counts.get(keyword) ?? 0) + 1);
-  }
-  return topKeys(counts, 5);
+/**
+ * 日曜市全体のよく検索された語（上位5件）。生の検索語は出店者のクライアントでは読ませないので、
+ * ここだけ service role で読み、語と回数の集計だけを使う（#922）
+ */
+async function loadSearchKeywords() {
+  const admin = createAdminClient();
+  if (!admin) return [];
+  const counts = await loadSearchKeywordCounts(admin, { normalize: toDataWord });
+  return counts.slice(0, 5).map(({ keyword }) => keyword);
 }
 
 /** 失敗しても相談を止めない */
@@ -148,11 +143,11 @@ export async function loadVendorHelpShopStats(
   return { aiMentions, views, hearts };
 }
 
-export async function loadVendorHelpMarketStats(supabase: SupabaseClient): Promise<VendorHelpMarketStats> {
+export async function loadVendorHelpMarketStats(): Promise<VendorHelpMarketStats> {
   const [weeklyVisitors, monthlyVisitors, topSearchKeywords] = await Promise.all([
     orFallback(fetchWeeklyVisitors(), null),
     orFallback(fetchMonthlyVisitors(), null),
-    orFallback(loadSearchKeywords(supabase), []),
+    orFallback(loadSearchKeywords(), []),
   ]);
   return { weeklyVisitors, monthlyVisitors, topSearchKeywords };
 }

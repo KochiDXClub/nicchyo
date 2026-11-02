@@ -1,5 +1,15 @@
 import { describe, it, expect } from 'vitest';
-import { getShopBannerImage, getShopPreviewImage, getShopThumbnailImage } from './shopImages';
+import { getShopBannerImage, getShopPreviewImage, getShopThumbnailImage, normalizeShopImageKind } from './shopImages';
+
+describe('normalizeShopImageKind', () => {
+  it('panorama だけが全周写真。未設定・未知の値は普通の写真', () => {
+    expect(normalizeShopImageKind('panorama')).toBe('panorama');
+    expect(normalizeShopImageKind('normal')).toBe('normal');
+    expect(normalizeShopImageKind(null)).toBe('normal');
+    expect(normalizeShopImageKind(undefined)).toBe('normal');
+    expect(normalizeShopImageKind('360')).toBe('normal');
+  });
+});
 
 describe('getShopBannerImage', () => {
   // Constants from the source file for verification

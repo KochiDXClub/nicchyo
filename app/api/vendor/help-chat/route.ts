@@ -159,7 +159,7 @@ export async function POST(request: Request) {
     canSeeShopStats
       ? loadVendorHelpShopStats(supabase as unknown as SupabaseClient, vendorId)
       : Promise.resolve(undefined),
-    loadVendorHelpMarketStats(supabase as unknown as SupabaseClient),
+    loadVendorHelpMarketStats(),
   ]);
   const systemPrompt = buildVendorHelpSystemPrompt(VENDOR_FAQ, shop, {
     shop: shopStats,

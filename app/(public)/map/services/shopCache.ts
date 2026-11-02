@@ -1,11 +1,16 @@
 import { revalidateTag, unstable_cache } from "next/cache";
-import { createClient } from "@supabase/supabase-js";
-import type { Database } from "@/types/database.types";
+import { createAnonClient } from "@/lib/supabase/anonClient";
 import type { Shop } from "../types/shopData";
+import { DEFAULT_LOCALE, type Locale } from "@/lib/i18n/config";
+import { applyShopTranslations } from "@/lib/i18n/shopTranslation.server";
 import {
+  applyShopDelta,
   buildVendorShops,
   fetchActiveContentRows,
+  fetchShopDelta,
   fetchVendorShopBaseRows,
+  fetchVisibleVendorIds,
+  pruneInvisibleVendors,
   type VendorShopBaseRows,
 } from "./shopDb";
 
@@ -23,50 +28,93 @@ import {
 export const SHOP_BASE_CACHE_TAG = "map-shop-base";
 
 // 出店者の編集はブラウザから Supabase へ直接書き込むため、キャッシュを捨てる合図が届かない。
-// そのぶん反映の遅れがこの秒数までに収まるよう短めにしておく（管理画面の API からは即時に捨てる）。
+// そこで、キャッシュは全件を取り直す(この秒数ごと)のを基本にして、その上に「取得以降に変わった行」だけを
+// 短い間隔(SHOP_DELTA_REVALIDATE_SECONDS)で重ねる。出店者の保存はほぼすぐ地図に出る。
+// 全件の取り直しは、差分では見えない変更(店舗を出さなくなった・店主名を非公開にした等)を外すためにも要る
+// （管理画面の API からは今までどおり即時に捨てる）。
 const SHOP_BASE_REVALIDATE_SECONDS = 15 * 60;
+const SHOP_DELTA_REVALIDATE_SECONDS = 30;
+// 取得の開始と、行の updated_at(DB の時計)のずれや、取得中に確定した書き込みを取りこぼさないための余裕。
+// 同じ行を二度重ねても結果は変わらない(id で置き換える)
+const SHOP_DELTA_MARGIN_MS = 60 * 1000;
 
-function createAnonClient() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key =
-    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY ??
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  if (!url || !key) return null;
-  return createClient<Database>(url, key, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
-}
+type CachedShopBase = { rows: VendorShopBaseRows; snapshotAt: string };
 
 const getCachedShopBaseRows = unstable_cache(
-  async (): Promise<VendorShopBaseRows> => {
+  async (): Promise<CachedShopBase> => {
     const supabase = createAnonClient();
     if (!supabase) throw new Error("Supabase の環境変数が未設定です");
+    // 取得を始める前の時刻。差分はこの時刻以降に変わった行を取る
+    const snapshotAt = new Date().toISOString();
     const { rows, failedTables } = await fetchVendorShopBaseRows(supabase);
     // 一部だけ欠けたデータをキャッシュすると、その間ずっと店舗が減って見えるため、
     // 失敗したときは例外にしてキャッシュさせない
     if (failedTables.length > 0) {
       throw new Error(`店舗データの取得に失敗しました: ${failedTables.join(", ")}`);
     }
-    return rows;
+    return { rows, snapshotAt };
   },
-  ["map-shop-base-rows-v1"],
+  // 行の形（取る列）を変えたら版を上げる。古い形のキャッシュを使い回さないため（v3: products.id・取得時刻）
+  ["map-shop-base-rows-v3"],
   { revalidate: SHOP_BASE_REVALIDATE_SECONDS, tags: [SHOP_BASE_CACHE_TAG] }
 );
 
-export async function fetchPublicShops(): Promise<Shop[]> {
+// since ごとに別のキャッシュになる(基本データを取り直すと since が進み、前の差分は使われなくなる)
+const getCachedShopDelta = unstable_cache(
+  async (since: string) => {
+    const supabase = createAnonClient();
+    if (!supabase) throw new Error("Supabase の環境変数が未設定です");
+    return fetchShopDelta(supabase, since);
+  },
+  ["map-shop-delta-v1"],
+  { revalidate: SHOP_DELTA_REVALIDATE_SECONDS, tags: [SHOP_BASE_CACHE_TAG] }
+);
+
+// 店舗数が合わないときだけ使う。店舗の id 一覧は差分より大きいので、短い間隔でも共有して取る回数を抑える
+const getCachedVisibleVendorIds = unstable_cache(
+  async () => {
+    const supabase = createAnonClient();
+    if (!supabase) throw new Error("Supabase の環境変数が未設定です");
+    return fetchVisibleVendorIds(supabase);
+  },
+  ["map-visible-vendor-ids-v1"],
+  { revalidate: SHOP_DELTA_REVALIDATE_SECONDS, tags: [SHOP_BASE_CACHE_TAG] }
+);
+
+/**
+ * `locale` が日本語以外のときは、保存済みの訳（shop_translations）を重ねて返す。
+ * 訳の無い店・項目は日本語のまま。店の並びや位置は言語によらず同じ。
+ */
+export async function fetchPublicShops(locale: Locale = DEFAULT_LOCALE): Promise<Shop[]> {
   const supabase = createAnonClient();
   if (!supabase) return [];
 
-  const [baseRows, activeContents] = await Promise.all([
-    getCachedShopBaseRows().catch(async (error: unknown) => {
-      // キャッシュに載せられなかったときは、従来どおり取れた分だけで表示する
+  const [snapshot, activeContents] = await Promise.all([
+    getCachedShopBaseRows().catch(async (error: unknown): Promise<{ rows: VendorShopBaseRows; snapshotAt: string | null }> => {
+      // キャッシュに載せられなかったときは、従来どおり取れた分だけで表示する(取り立てなので差分は要らない)
       console.warn("[fetchPublicShops] キャッシュを使わずに取得します:", error);
-      return (await fetchVendorShopBaseRows(supabase)).rows;
+      return { rows: (await fetchVendorShopBaseRows(supabase)).rows, snapshotAt: null };
     }),
     fetchActiveContentRows(supabase),
   ]);
 
-  return buildVendorShops(baseRows, activeContents);
+  let baseRows = snapshot.rows;
+  if (snapshot.snapshotAt) {
+    try {
+      const since = new Date(Date.parse(snapshot.snapshotAt) - SHOP_DELTA_MARGIN_MS).toISOString();
+      const delta = await getCachedShopDelta(since);
+      baseRows = applyShopDelta(baseRows, delta);
+      // 許可の取り消し・店舗の削除は差分に現れない。見える店舗の数が合わなければ、id で突き合わせて外す
+      if (delta.visibleVendorCount !== baseRows.vendors.length) {
+        baseRows = pruneInvisibleVendors(baseRows, new Set(await getCachedVisibleVendorIds()));
+      }
+    } catch (error) {
+      // 差分が取れなくても、キャッシュしたデータで表示を続ける(反映が遅れるだけ)
+      console.warn("[fetchPublicShops] 変わった行の取得に失敗しました。キャッシュのまま表示します:", error);
+    }
+  }
+
+  return applyShopTranslations(buildVendorShops(baseRows, activeContents), locale);
 }
 
 /** 管理画面の API で店舗・区画・カテゴリーを書き換えたあとに呼ぶ */

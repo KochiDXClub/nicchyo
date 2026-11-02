@@ -220,6 +220,51 @@ describe("WebP を書き出せないブラウザ", () => {
     expect(toBlob.mock.calls.map((c) => c[1])).toEqual(["image/webp", "image/jpeg"]);
     expect(imageUploadInfo(result)).toEqual({ contentType: "image/jpeg", ext: "jpg" });
   });
+
+  // iPhone の Safari は WebP を指定されると null ではなく PNG を返す。写真の PNG は 2MB を超える
+  const pngInsteadOfWebp = (jpegBlob: Blob | null) => {
+    const pngBlob = new Blob(["png"], { type: "image/png" });
+    const toBlob = vi.fn((callback: (blob: Blob | null) => void, type: string) => {
+      callback(type === "image/jpeg" ? jpegBlob : pngBlob);
+    });
+    vi.spyOn(document, "createElement").mockImplementation((tag: string) => {
+      if (tag === "canvas") {
+        return {
+          width: 0,
+          height: 0,
+          getContext: vi.fn(() => ({
+            imageSmoothingEnabled: false,
+            imageSmoothingQuality: "low",
+            drawImage: vi.fn(),
+          })),
+          toBlob,
+        } as unknown as HTMLCanvasElement;
+      }
+      return document.createElement(tag);
+    });
+    return { pngBlob, toBlob };
+  };
+
+  it("WebP の代わりに PNG が返ってきたら JPEG で書き出し直す", async () => {
+    const jpegBlob = new Blob(["jpeg"], { type: "image/jpeg" });
+    const { toBlob } = pngInsteadOfWebp(jpegBlob);
+
+    const { mainBlob, thumbBlob } = await createStoreImages(new File(["x"], "photo.jpg", { type: "image/jpeg" }));
+
+    expect(mainBlob).toBe(jpegBlob);
+    expect(thumbBlob).toBe(jpegBlob);
+    // メインとサムネイルのそれぞれで WebP を試し、JPEG で書き出し直す
+    expect(toBlob.mock.calls.map((c) => c[1]).sort()).toEqual(["image/jpeg", "image/jpeg", "image/webp", "image/webp"]);
+  });
+
+  it("JPEG も書き出せなければ、書き出せた PNG を使う", async () => {
+    const { pngBlob } = pngInsteadOfWebp(null);
+
+    const result = await createPostImage(new File(["x"], "photo.jpg", { type: "image/jpeg" }));
+
+    expect(result).toBe(pngBlob);
+    expect(imageUploadInfo(result)).toEqual({ contentType: "image/png", ext: "png" });
+  });
 });
 
 describe("imageUploadInfo", () => {

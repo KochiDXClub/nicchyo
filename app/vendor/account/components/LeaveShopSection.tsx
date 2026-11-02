@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { Button, Surface } from "@/components/ui";
 import { canLeaveShop } from "@/lib/vendor/memberRules";
 import type { ShopMemberRole } from "@/lib/vendor/shopPermissions";
@@ -36,7 +37,11 @@ export default function LeaveShopSection({ role }: { role: ShopMemberRole }) {
       <Surface padding="sm" className="space-y-3">
         {!canLeaveShop({ role }) ? (
           <p className="text-sm leading-relaxed text-nicchyo-ink/70">
-            代表者は、先に別のメンバーへ代表者を引き継いでから、お店を抜けられます。上のメンバー一覧から「代表者を引き継ぐ」を選んでください。
+            代表者は、先に別のメンバーへ代表者を引き継いでから、お店を抜けられます。
+            <Link href="/vendor/members" className="font-semibold text-amber-800 underline underline-offset-2">
+              メンバー管理
+            </Link>
+            で、引き継ぐ相手の「設定を変える」から「代表者を引き継ぐ」を選んでください。
           </p>
         ) : !confirming ? (
           <>

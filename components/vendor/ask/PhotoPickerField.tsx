@@ -13,11 +13,14 @@ export default function PhotoPickerField({
   picker,
   alt,
   className,
+  onPick,
 }: {
   picker: ReturnType<typeof usePhotoPicker>;
   alt: string;
   /** 枠の高さなど。既定は h-44 */
   className?: string;
+  /** 新しい写真を選んだとき */
+  onPick?: () => void;
 }) {
   const { preview, error, inputRef, pick } = picker;
   return (
@@ -51,7 +54,10 @@ export default function PhotoPickerField({
         ref={inputRef}
         type="file"
         accept="image/*,.heic,.heif"
-        onChange={(event) => void pick(event.target.files?.[0])}
+        onChange={(event) => {
+          onPick?.();
+          void pick(event.target.files?.[0]);
+        }}
         className="hidden"
       />
       {error && <p className="text-sm text-rose-600">{error}</p>}

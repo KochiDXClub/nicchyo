@@ -1,4 +1,5 @@
 'use client';
+import { useT } from '@/lib/i18n/LocaleContext';
 
 /**
  * 進み具合。いまどの節にいるかを点の並びで示し、押せばその節へ飛ぶ。
@@ -15,8 +16,9 @@ export default function IntroProgress({
   labels: readonly string[];
   onSelect: (index: number) => void;
 }) {
+  const t = useT();
   return (
-    <nav aria-label="案内の進み具合" className="-ml-2 flex items-center">
+    <nav aria-label={t('案内の進み具合')} className="-ml-2 flex items-center">
       {labels.map((label, i) => {
         const state = i === active ? 'current' : i < active ? 'done' : 'todo';
         return (

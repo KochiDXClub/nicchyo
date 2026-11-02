@@ -7,9 +7,9 @@
  * （ShopDetailBanner のモバイル drawer）。案内でも同じところまで見せたいので、
  * その並びをそのまま組む。
  *
- *   大きな写真（ShopBannerHero の expanded）→ テーマ色の帯 → 営業情報 → 商品
+ *   大きな写真（ShopBannerHero の expanded）→ お店の情報 → 商品
  *
- * 写真・見出し・営業情報は本番と同じ部品（ShopBannerHero / ShopBusinessInfoCard）を
+ * 写真・見出し・お店の情報は本番と同じ部品（ShopBannerHero / ShopInfoList）を
  * 呼んでいる。商品の欄だけは、本番が価格・季節・お気に入りまで扱う大きな作りなので、
  * 案内では品名の並びに留めている。
  *
@@ -21,11 +21,12 @@ import { motion } from 'framer-motion';
 import { Heart, X as XIcon } from 'lucide-react';
 import {
   ShopBannerHero,
-  ShopBusinessInfoCard,
+  ShopInfoList,
   resolveBannerTheme,
 } from '../ShopBannerHero';
 import { getShopBannerImage } from '@/lib/shopImages';
 import type { Shop } from '../../types/shopData';
+import { useT } from '@/lib/i18n/LocaleContext';
 
 /** 本番の drawer と同じ、枠に対する開き具合（DRAWER_FULL_RATIO） */
 export const INTRO_SHEET_RATIO = 0.9;
@@ -41,6 +42,7 @@ export default function IntroShopSheet({
   onToggleFavorite: () => void;
   onClose: () => void;
 }) {
+  const t = useT();
   const theme = resolveBannerTheme(shop.themeColor);
   const bannerImage = getShopBannerImage(shop.category, shop.id);
 
@@ -62,7 +64,7 @@ export default function IntroShopSheet({
         <button
           type="button"
           onClick={onClose}
-          aria-label="閉じる"
+          aria-label={t('閉じる')}
           className="absolute right-3 top-2 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-slate-600 shadow-sm transition hover:bg-slate-200"
         >
           <XIcon className="h-4 w-4" />
@@ -83,22 +85,11 @@ export default function IntroShopSheet({
           />
         </div>
 
-        {/* テーマ色の帯。本番はここで写真と本文を分けている */}
-        <div className="mt-4 h-1 w-full" style={{ backgroundColor: theme.accent }} />
+        <div className="space-y-6 px-5 pt-5">
+          <ShopInfoList shop={shop} />
 
-        <div className="space-y-4 px-5 pt-5">
-          <ShopBusinessInfoCard shop={shop} theme={theme} />
-
-          <div className="rounded-[30px] border border-slate-200 bg-white px-5 py-5 shadow-sm">
-            <p
-              className="text-xs font-bold uppercase tracking-[0.18em]"
-              style={{ color: theme.text }}
-            >
-              商品
-            </p>
-            <p className="mt-1 text-sm text-slate-500">
-              品ぞろえと価格を並びで見比べやすくしています
-            </p>
+          <div>
+            <h3 className="text-[15px] font-bold text-nicchyo-ink">{t('商品')}</h3>
             {shop.products.length > 0 ? (
               <ul className="mt-3 flex flex-wrap gap-2">
                 {shop.products.map((product) => (
@@ -111,15 +102,15 @@ export default function IntroShopSheet({
                 ))}
               </ul>
             ) : (
-              <p className="mt-3 text-sm text-slate-400">商品はまだ登録されていません</p>
+              <p className="mt-3 text-sm text-slate-400">{t('商品はまだ登録されていません')}</p>
             )}
           </div>
 
           <p className="flex items-center justify-center gap-1.5 text-center text-[11.5px] font-semibold text-slate-400">
             <Heart className="h-3.5 w-3.5" fill={isFavorite ? 'currentColor' : 'none'} />
             {isFavorite
-              ? 'お気に入りに入れました。屋根に印が付きます'
-              : 'ハートを押すと、あとからまとめて見られます'}
+              ? t('お気に入りに入れました。屋根に印が付きます')
+              : t('ハートを押すと、あとからまとめて見られます')}
           </p>
         </div>
       </div>

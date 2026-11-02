@@ -6,7 +6,23 @@ import {
   getShopCategoryColor,
   adjustColor,
   resolveStallColors,
+  parseShopCategory,
 } from './shopCategories';
+
+describe('parseShopCategory', () => {
+  it('7カテゴリの名前はそのまま返す', () => {
+    for (const name of SHOP_CATEGORY_NAMES) {
+      expect(parseShopCategory(name)).toBe(name);
+    }
+  });
+
+  it('知らない値・空・無しは null（絞り込みなしで開く）', () => {
+    expect(parseShopCategory('存在しないカテゴリ')).toBeNull();
+    expect(parseShopCategory('')).toBeNull();
+    expect(parseShopCategory(null)).toBeNull();
+    expect(parseShopCategory(undefined)).toBeNull();
+  });
+});
 
 describe('getShopCategoryColor', () => {
   it('7カテゴリすべてが専用の色を返す', () => {

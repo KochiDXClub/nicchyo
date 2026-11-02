@@ -20,6 +20,8 @@ describe('hasMapDeepLink', () => {
     expect(hasMapDeepLink(params('q=%E9%87%8E%E8%8F%9C'))).toBe(true);
     expect(hasMapDeepLink(params('walkPlan=1'))).toBe(true);
     expect(hasMapDeepLink(params('panel=search'))).toBe(true);
+    // トップページのジャンルから来た人にも、案内は被せない
+    expect(hasMapDeepLink(params('category=%E9%A3%9F%E6%9D%90'))).toBe(true);
   });
 
   it('値が空のパラメータは指定なしとして扱う', () => {

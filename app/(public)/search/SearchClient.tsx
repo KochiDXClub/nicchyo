@@ -226,19 +226,8 @@ export default function SearchClient({
         }),
     [shops]
   );
-  // 検索キーワードをDBにログ（1秒デバウンス、2文字以上）
-  useEffect(() => {
-    const kw = textQuery.trim();
-    if (kw.length < 2) return;
-    const timer = setTimeout(() => {
-      // 記録には Supabase のライブラリが要る。静的に import すると検索画面と地図の
-      // 最初の JS に入ってしまうため、記録するときに読み込む
-      import('@/app/vendor/_services/analyticsService')
-        .then(({ recordProductSearch }) => recordProductSearch(kw, filteredShops.length))
-        .catch(() => {/* ignore */});
-    }, 1000);
-    return () => clearTimeout(timer);
-  }, [textQuery, filteredShops.length]);
+  // 検索キーワードの記録は地図の検索バー側（useMapSearchFilter）で行う。
+  // ここで打った語は onQueryChange で検索バーに同期されるので、ここでも数えると二重になる
 
   // 検索クエリが入力されているか
   const hasQuery = textQuery.trim() !== '' || category !== null;

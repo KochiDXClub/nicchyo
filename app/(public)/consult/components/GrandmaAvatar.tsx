@@ -52,12 +52,15 @@ const SIZE_CLASS: Record<GrandmaAvatarSize, string> = {
   // 240pxへ上げる条件にも高さの十分さ（700px以上）を必須にする。
   //
   // 注意: この 700px は ConsultStage.tsx の下端バー分の余白
-  // （CONSULT_BAR_SPACE、6rem+固定要素ぶん）と、hero サイズ・挨拶吹き出し・
+  // （CONSULT_BAR_SPACE、5rem+固定要素ぶん）と、hero サイズ・挨拶吹き出し・
   // 候補ボタン3つの実測で決めた値で、CSS の @media は
   // var(--nav-bar-height) 等のカスタムプロパティを条件式に使えないため、
   // 自動では追従しない。下端バーの実高さや候補ボタンの数・大きさを
   // 変えるときは、この値も一緒に見直すこと。
-  hero: "h-[168px] w-[168px] [@media(min-height:700px)]:h-[200px] [@media(min-height:700px)]:w-[200px] [@media(min-width:768px)_and_(min-height:700px)]:h-[240px] [@media(min-width:768px)_and_(min-height:700px)]:w-[240px]",
+  hero: "h-[168px] w-[168px] [@media(min-height:700px)]:h-[200px] [@media(min-height:700px)]:w-[200px] [@media(min-width:768px)_and_(min-height:700px)]:h-[240px] [@media(min-width:768px)_and_(min-height:700px)]:w-[240px] lg:!h-[clamp(190px,18vw,300px)] lg:!w-[clamp(190px,18vw,300px)]",
+  // lg 以上（PC・ノートPC）は、左の30%カラムに収まる大きさにする。
+  // 左カラムは縦に積まれる候補ボタンと競合しないので、上の高さ条件は使わない。
+  // 画面幅に合わせて 190〜300px の範囲で伸び縮みさせ、大きくなりすぎないようにする
   // 下から出るシートなど、高さに余裕のない場所の中で、画面の主役として置く大きさ
   compact: "h-[128px] w-[128px]",
   // 固定バーに常駐する取っ手。大きさは変えず、出入りだけさせる

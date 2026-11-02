@@ -14,8 +14,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { showToast } from "@/lib/admin/toast";
 import { MAX_SHOP_ID, MIN_SHOP_ID } from "@/lib/shops/route";
-import { createStoreImages, imageErrorMessage } from "@/lib/image/clientCompression";
-import { Card, Field, buttonClass, inputClass } from "./fieldFormParts";
+import { Card, Field, buttonClass, inputClass, readError } from "./fieldFormParts";
+import { FieldShopPhotoCard } from "./FieldShopPhotoCard";
 import { FieldProductsCard, type ProductRow } from "./FieldProductsCard";
 import { useProductPhotos } from "./useProductPhotos";
 import { LISTING_STATUS_LABELS, LISTING_STATUSES, type AdminShopDetail, type ListingStatus } from "@/lib/admin/shopEdit";
@@ -99,15 +99,6 @@ function toPayload(form: FormState) {
   };
 }
 
-async function readError(res: Response, fallback: string): Promise<{ message: string; code?: string }> {
-  try {
-    const data = (await res.json()) as { error?: string; code?: string };
-    return { message: data.error ?? fallback, code: data.code };
-  } catch {
-    return { message: fallback };
-  }
-}
-
 export function FieldShopEditor({ shopId }: { shopId: string }) {
   const [shop, setShop] = useState<AdminShopDetail | null>(null);
   const [form, setForm] = useState<FormState | null>(null);
@@ -116,7 +107,6 @@ export function FieldShopEditor({ shopId }: { shopId: string }) {
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
 
-  const [photoBusy, setPhotoBusy] = useState(false);
   const { productPhotoBusy, uploadProductPhoto, removeProductPhoto } = useProductPhotos(shopId, setShop);
   const [locations, setLocations] = useState<FieldLocation[]>([]);
   const [storeNumber, setStoreNumber] = useState("");
@@ -216,31 +206,6 @@ export function FieldShopEditor({ shopId }: { shopId: string }) {
       showToast.error(e instanceof Error ? e.message : "保存できませんでした");
     } finally {
       setSaving(false);
-    }
-  };
-
-  const uploadPhoto = async (file: File | undefined) => {
-    if (!file) return;
-    setPhotoBusy(true);
-    try {
-      const { mainBlob, thumbBlob } = await createStoreImages(file);
-      const body = new FormData();
-      body.append("main", mainBlob, "main");
-      body.append("thumb", thumbBlob, "thumb");
-      const res = await fetch(`/api/admin/shops/${shopId}/image`, { method: "POST", body });
-      if (!res.ok) throw new Error((await readError(res, "写真を保存できませんでした")).message);
-      const { url, updated_at } = (await res.json()) as { url: string; updated_at?: string };
-      // 同じ URL に上書きされるので、キャッシュされた古い写真が出ないようにする。
-      // 写真の保存で updated_at が進むので反映する（古いままだと、次の「内容を保存」が必ず 409 になる）。
-      // フォームには触れない（未保存の入力を消さない）
-      setShop((prev) =>
-        prev ? { ...prev, shop_image_url: `${url}?v=${Date.now()}`, updated_at: updated_at ?? prev.updated_at } : prev,
-      );
-      showToast.success("写真を保存しました");
-    } catch (e) {
-      showToast.error(imageErrorMessage(e, e instanceof Error ? e.message : "写真を保存できませんでした"));
-    } finally {
-      setPhotoBusy(false);
     }
   };
 
@@ -362,40 +327,7 @@ export function FieldShopEditor({ shopId }: { shopId: string }) {
         </Field>
       </Card>
 
-      <Card title="店舗の写真" hint={form.photo_use_allowed ? undefined : "写真を使う許可をもらってから、撮影するか端末の写真から選んで登録します（上の「写真の掲載も許可をもらった」にチェック → 保存）。"}>
-        {shop.shop_image_url ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={shop.shop_image_url} alt={`${shop.shop_name}の写真`} className="max-h-64 w-full rounded-lg border border-line object-contain" />
-        ) : (
-          <p className="text-sm text-nicchyo-ink/40">まだ写真がありません</p>
-        )}
-        {/* 撮る（カメラを起動）と、選ぶ（端末の写真から）は別の入口にする */}
-        <div className="grid grid-cols-2 gap-2">
-          {[
-            { key: "camera", label: "写真を撮る", capture: "environment" as const },
-            { key: "library", label: "写真を選ぶ", capture: undefined },
-          ].map((entry) => (
-            <label
-              key={entry.key}
-              className={`${buttonClass} cursor-pointer bg-amber-500 text-white ${!shop.photo_use_allowed || photoBusy ? "pointer-events-none opacity-50" : ""}`}
-            >
-              {photoBusy ? "保存しています…" : entry.label}
-              <input
-                type="file"
-                accept="image/*"
-                capture={entry.capture}
-                className="sr-only"
-                disabled={!shop.photo_use_allowed || photoBusy}
-                onChange={(e) => {
-                  void uploadPhoto(e.target.files?.[0]);
-                  e.target.value = "";
-                }}
-              />
-            </label>
-          ))}
-        </div>
-        {!shop.photo_use_allowed ? <p className="text-[13px] text-amber-700">保存済みの設定で写真の許可がありません</p> : null}
-      </Card>
+      <FieldShopPhotoCard shopId={shopId} shop={shop} setShop={setShop} photoUseAllowedInForm={form.photo_use_allowed} />
 
       <Card title="基本の情報">
         <Field label="店名">

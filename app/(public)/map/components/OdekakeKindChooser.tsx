@@ -24,25 +24,16 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
-import { Landmark as LandmarkIcon, X as XIcon } from 'lucide-react';
+import { X as XIcon } from 'lucide-react';
+import SpotKindIcon from './SpotKindIcon';
 import { GUIDE_KIND_OPTIONS } from '../hooks/useOdekakeGuide';
 import type { SpotKind } from '@/lib/spots';
 import { vibrate } from '@/lib/ui/haptics';
 
-/** /facilities と地図で使っているアイコン。目印だけは専用画像が無いので線画で代える */
-const KIND_ICON_URL: Partial<Record<SpotKind, string>> = {
-  restroom: '/images/maps/elements/facilities/restroom.svg',
-  rest: '/images/maps/elements/facilities/rest.svg',
-  transit: '/images/maps/elements/transit/tram-stop.svg',
-};
-
-/** 何のためのものかを一言で。ラベルだけでは伝わらないので添える */
-const KIND_NOTE: Partial<Record<SpotKind, string>> = {
-  restroom: 'お手洗いを探す',
-  rest: '座れる場所を探す',
-  transit: '電停・駅を探す',
-  landmark: '目印になる場所',
-};
+/** 主役（大きく見せる）と控えめな候補 */
+const CTA_KINDS: SpotKind[] = ['restroom', 'transit'];
+const CTA_OPTIONS = GUIDE_KIND_OPTIONS.filter((o) => CTA_KINDS.includes(o.kind));
+const QUIET_OPTIONS = GUIDE_KIND_OPTIONS.filter((o) => !CTA_KINDS.includes(o.kind));
 
 const FOCUS_RING =
   'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-nicchyo-primary focus-visible:ring-offset-2';
@@ -54,17 +45,6 @@ const PICK_HOLD_MS = 260;
 
 const ACCENT = '#FFDE59';
 const SOFT_GREEN_BORDER = 'rgba(160, 215, 167, 0.7)';
-
-function KindIcon({ kind }: { kind: SpotKind }) {
-  const url = KIND_ICON_URL[kind];
-  if (url) {
-    return (
-      // eslint-disable-next-line @next/next/no-img-element
-      <img src={url} alt="" className="h-9 w-9 object-contain drop-shadow-sm" draggable={false} />
-    );
-  }
-  return <LandmarkIcon size={30} strokeWidth={2.2} className="text-nicchyo-ink" aria-hidden />;
-}
 
 export default function OdekakeKindChooser({
   onSelect,
@@ -103,6 +83,85 @@ export default function OdekakeKindChooser({
     vibrate(12);
     const hold = reduceMotion ? 0 : PICK_HOLD_MS;
     timerRef.current = window.setTimeout(() => onSelect(kind), hold);
+  };
+
+  const renderOption = (option: (typeof GUIDE_KIND_OPTIONS)[number], i: number, variant: 'cta' | 'quiet') => {
+    const isPicked = picked === option.kind;
+    const isOther = picked !== null && !isPicked;
+    const isCta = variant === 'cta';
+    const count = counts?.[option.kind] ?? 0;
+    return (
+      <motion.button
+        key={option.kind}
+        type="button"
+        onClick={() => pick(option.kind)}
+        aria-pressed={isPicked}
+        disabled={isOther}
+        className={
+          isCta
+            ? `${FOCUS_RING} flex flex-col items-center justify-center gap-1.5 rounded-2xl border-2 bg-white px-3 py-4 text-nicchyo-ink disabled:cursor-default`
+            : `${FOCUS_RING} flex items-center justify-center gap-1.5 rounded-full border bg-white/60 px-3 py-2 text-nicchyo-ink/70 disabled:cursor-default`
+        }
+        style={{ borderColor: SOFT_GREEN_BORDER }}
+        initial={reduceMotion ? false : { opacity: 0, y: 10 }}
+        animate={
+          reduceMotion
+            ? { opacity: 1, y: 0 }
+            : isPicked
+              ? // 押した面：いったん沈んでから、ぽんと膨らんで黄色に光る
+                {
+                  opacity: 1,
+                  y: 0,
+                  scale: [1, 0.9, 1.06, 1.02],
+                  backgroundColor: ['#ffffff', ACCENT, ACCENT, ACCENT],
+                  borderColor: [SOFT_GREEN_BORDER, ACCENT, ACCENT, ACCENT],
+                  boxShadow: [
+                    '0 0 0 0 rgba(255,222,89,0)',
+                    '0 0 0 0 rgba(255,222,89,0.6)',
+                    '0 0 0 10px rgba(255,222,89,0)',
+                    '0 0 0 0 rgba(255,222,89,0)',
+                  ],
+                }
+              : isOther
+                ? // ほかの面：一歩引いて、選んだ面を立てる
+                  { opacity: 0.45, y: 0, scale: 0.96 }
+                : { opacity: 1, y: 0, scale: 1 }
+        }
+        transition={
+          isPicked && !reduceMotion
+            ? { duration: 0.32, times: [0, 0.3, 0.7, 1], ease: EASE_OUT }
+            : { duration: 0.28, ease: EASE_OUT, delay: reduceMotion || picked ? 0 : 0.08 + i * 0.06 }
+        }
+        // 指が触れている間の手応え。離すと上の animate に引き継ぐ
+        whileTap={
+          reduceMotion || picked
+            ? undefined
+            : { scale: 0.93, backgroundColor: ACCENT, borderColor: ACCENT }
+        }
+      >
+        {isCta ? (
+          <>
+            <span className="flex h-14 w-14 items-center justify-center rounded-full bg-nicchyo-soft-green/30" aria-hidden>
+              <SpotKindIcon kind={option.kind} />
+            </span>
+            <span className="mt-0.5 text-[15px] font-black leading-none">{option.label}</span>
+            {/* 件数が分かるだけで「探せそう」と思える。0件のときは出さず、無いことを強調しない */}
+            {count > 0 && (
+              <span className="mt-1 rounded-full bg-nicchyo-soft-green/30 px-2 py-0.5 text-[10.5px] font-bold leading-none text-nicchyo-ink/70 tabular-nums">
+                {count}か所
+              </span>
+            )}
+          </>
+        ) : (
+          <>
+            <span className="text-[13px] font-bold leading-none">{option.label}</span>
+            {count > 0 && (
+              <span className="text-[10.5px] leading-none text-nicchyo-ink/50 tabular-nums">{count}か所</span>
+            )}
+          </>
+        )}
+      </motion.button>
+    );
   };
 
   return (
@@ -146,75 +205,14 @@ export default function OdekakeKindChooser({
         </button>
 
         <p className="pr-10 text-[19px] font-black leading-tight tracking-tight text-nicchyo-ink">
-          なにかお探しですか？
-        </p>
-        <p className="mt-1.5 text-[12.5px] leading-relaxed text-nicchyo-ink/60">
-          いまいる場所から、近い順にご案内します。
+          おでかけサポート
         </p>
 
         <div className="mt-4 grid grid-cols-2 gap-2.5">
-          {GUIDE_KIND_OPTIONS.map((option, i) => {
-            const isPicked = picked === option.kind;
-            const isOther = picked !== null && !isPicked;
-            return (
-              <motion.button
-                key={option.kind}
-                type="button"
-                onClick={() => pick(option.kind)}
-                aria-pressed={isPicked}
-                disabled={isOther}
-                className={`${FOCUS_RING} flex flex-col items-center justify-center gap-1.5 rounded-2xl border-2 bg-white px-3 py-4 text-nicchyo-ink disabled:cursor-default`}
-                style={{ borderColor: SOFT_GREEN_BORDER }}
-                initial={reduceMotion ? false : { opacity: 0, y: 10 }}
-                animate={
-                  reduceMotion
-                    ? { opacity: 1, y: 0 }
-                    : isPicked
-                      ? // 押した面：いったん沈んでから、ぽんと膨らんで黄色に光る
-                        {
-                          opacity: 1,
-                          y: 0,
-                          scale: [1, 0.9, 1.06, 1.02],
-                          backgroundColor: ['#ffffff', ACCENT, ACCENT, ACCENT],
-                          borderColor: [SOFT_GREEN_BORDER, ACCENT, ACCENT, ACCENT],
-                          boxShadow: [
-                            '0 0 0 0 rgba(255,222,89,0)',
-                            '0 0 0 0 rgba(255,222,89,0.6)',
-                            '0 0 0 10px rgba(255,222,89,0)',
-                            '0 0 0 0 rgba(255,222,89,0)',
-                          ],
-                        }
-                      : isOther
-                        ? // ほかの面：一歩引いて、選んだ面を立てる
-                          { opacity: 0.45, y: 0, scale: 0.96 }
-                        : { opacity: 1, y: 0, scale: 1 }
-                }
-                transition={
-                  isPicked && !reduceMotion
-                    ? { duration: 0.32, times: [0, 0.3, 0.7, 1], ease: EASE_OUT }
-                    : { duration: 0.28, ease: EASE_OUT, delay: reduceMotion || picked ? 0 : 0.08 + i * 0.06 }
-                }
-                // 指が触れている間の手応え。離すと上の animate に引き継ぐ
-                whileTap={
-                  reduceMotion || picked
-                    ? undefined
-                    : { scale: 0.93, backgroundColor: ACCENT, borderColor: ACCENT }
-                }
-              >
-                <span className="flex h-14 w-14 items-center justify-center rounded-full bg-nicchyo-soft-green/30" aria-hidden>
-                  <KindIcon kind={option.kind} />
-                </span>
-                <span className="mt-0.5 text-[15px] font-black leading-none">{option.label}</span>
-                <span className="text-[11px] leading-none text-nicchyo-ink/55">{KIND_NOTE[option.kind] ?? ''}</span>
-                {/* 件数が分かるだけで「探せそう」と思える。0件のときは出さず、無いことを強調しない */}
-                {(counts?.[option.kind] ?? 0) > 0 && (
-                  <span className="mt-1 rounded-full bg-nicchyo-soft-green/30 px-2 py-0.5 text-[10.5px] font-bold leading-none text-nicchyo-ink/70 tabular-nums">
-                    {counts?.[option.kind]}か所
-                  </span>
-                )}
-              </motion.button>
-            );
-          })}
+          {CTA_OPTIONS.map((option, i) => renderOption(option, i, 'cta'))}
+        </div>
+        <div className="mt-2.5 grid grid-cols-1 gap-2">
+          {QUIET_OPTIONS.map((option, i) => renderOption(option, i + CTA_OPTIONS.length, 'quiet'))}
         </div>
       </motion.div>
     </div>

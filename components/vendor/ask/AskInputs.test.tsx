@@ -105,3 +105,33 @@ describe("主な商品の入力（名前・写真・値段）", () => {
     expect(onSubmit).toHaveBeenCalledWith({ id: "products", items: [{ name: "トマト", price: 300, imageFile: file }] });
   });
 });
+
+describe("店舗写真の入力（全周写真のサムネイルの切り直し）", () => {
+  const photoQuestion = ASK_QUESTION_BY_ID.get("shop-photo")!;
+  const renderPhoto = (snapshot: Partial<VendorAskSnapshot>) => {
+    const onSubmit = vi.fn();
+    render(
+      <AskInput question={photoQuestion} snapshot={snapshot as VendorAskSnapshot} saving={false} onSubmit={onSubmit} onSkip={() => {}} />,
+    );
+    return onSubmit;
+  };
+
+  it("登録済みの全周写真は、切り取り位置を選び直して、サムネイルだけの答えにできる", () => {
+    const onSubmit = renderPhoto({ shopImageUrl: "https://x.supabase.co/v1/store-main.webp?v=1", shopImageKind: "panorama" });
+
+    fireEvent.click(screen.getByRole("button", { name: "サムネイルの切り取り位置を変える" }));
+    fireEvent.keyDown(screen.getByRole("slider", { name: "サムネイルにする部分" }), { key: "ArrowRight" });
+    submit();
+
+    expect(onSubmit).toHaveBeenCalledWith({
+      id: "shop-photo",
+      imageFile: null,
+      recrop: { sourceUrl: "https://x.supabase.co/v1/store-main.webp?v=1", center: 0.52 },
+    });
+  });
+
+  it("普通の写真には、切り取り位置を変えるボタンを出さない", () => {
+    renderPhoto({ shopImageUrl: "https://x.supabase.co/v1/store-main.webp?v=1", shopImageKind: "normal" });
+    expect(screen.queryByRole("button", { name: "サムネイルの切り取り位置を変える" })).toBeNull();
+  });
+});

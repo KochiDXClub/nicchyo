@@ -1,9 +1,12 @@
 import { useEffect, useState } from "react";
 import type { Shop } from "@/app/(public)/map/data/shops";
+import { shopsApiUrl } from "@/lib/i18n/config";
+import { useLocale } from "@/lib/i18n/LocaleContext";
 
 type ShopsResponse = { shops?: Shop[] };
 
 export function useShops() {
+  const locale = useLocale();
   const [shops, setShops] = useState<Shop[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
@@ -13,7 +16,7 @@ export function useShops() {
     const load = async () => {
       try {
         setIsLoading(true);
-        const response = await fetch("/api/shops");
+        const response = await fetch(shopsApiUrl(locale));
         if (!response.ok) {
           throw new Error(`Failed to load shops: ${response.status}`);
         }
@@ -37,7 +40,7 @@ export function useShops() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [locale]);
 
   return { shops, isLoading, error };
 }

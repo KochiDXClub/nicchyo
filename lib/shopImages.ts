@@ -38,6 +38,20 @@ export function getShopBannerImage(category?: string | null, seed?: number | str
 }
 
 /**
+ * 店舗写真の種類。登録のとき（運営の現地登録・出店者の写真登録）に選んだラベルで決める。
+ *   normal   … 普通の写真
+ *   panorama … 全周カメラ（360度）の写真。横:縦 = 2:1
+ * 写真の比率からの自動判定はしない（普通の写真が 2:1 に切り抜かれていても、全周にはしないため）。
+ */
+export const SHOP_IMAGE_KINDS = ["normal", "panorama"] as const;
+export type ShopImageKind = (typeof SHOP_IMAGE_KINDS)[number];
+
+/** DB や API から来た値を ShopImageKind にそろえる。未設定・未知の値は普通の写真 */
+export function normalizeShopImageKind(value: unknown): ShopImageKind {
+  return value === "panorama" ? "panorama" : "normal";
+}
+
+/**
  * カードや一覧に出す「その店の1枚」を決める。
  *
  * これまで相談・検索・お気に入り・地図の検索シートがそれぞれ別に書いていて、
@@ -63,6 +77,8 @@ export type ShopPreviewSource = {
   images?: {
     main?: string | null;
     thumbnail?: string | null;
+    /** main の種類。未設定は普通の写真 */
+    mainKind?: ShopImageKind | null;
     additional?: (string | null | undefined)[] | null;
   } | null;
 };

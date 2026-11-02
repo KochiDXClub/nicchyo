@@ -29,6 +29,15 @@ export function getNextSundayLabel(): string {
   return `${sunday.getMonth() + 1}/${sunday.getDate()}（日）`;
 }
 
+const jstDate = new Intl.DateTimeFormat("ja-JP", { timeZone: "Asia/Tokyo", year: "numeric", month: "long", day: "numeric" });
+
+/** 「2026年10月3日」の形（日本時間）。端末のタイムゾーンによらず、日本の日付で出す。不正な値は "" */
+export function formatJaDate(iso: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return "";
+  return jstDate.format(date);
+}
+
 /** 「10月3日 14:05」の形。操作ログや招待リンクの期限など、いつ起きたかを短く出すとき用 */
 export function formatJaDateTime(iso: string): string {
   const date = new Date(iso);

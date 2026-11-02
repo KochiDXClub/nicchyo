@@ -40,7 +40,7 @@ describe("uploadStoreImage", () => {
     expect(upload).toHaveBeenCalledWith("v1/store-main.webp", expect.any(Blob), { contentType: "image/webp", upsert: true });
     expect(upload).toHaveBeenCalledWith("v1/store-thumb.webp", expect.any(Blob), { contentType: "image/webp", upsert: true });
     expect(remove).toHaveBeenCalledWith(["v1/store-main.jpg"]);
-    expect(url).toBe("https://example.supabase.co/v1/store-main.webp");
+    expect(url).toMatch(/^https:\/\/example\.supabase\.co\/v1\/store-main\.webp\?v=\d+$/);
   });
 
   it("WebP を書き出せず JPEG になったら、中身どおり image/jpeg で保存する", async () => {
@@ -57,6 +57,6 @@ describe("uploadStoreImage", () => {
     expect(upload).toHaveBeenCalledWith("v1/store-thumb.webp", expect.any(Blob), { contentType: "image/jpeg", upsert: true });
     // 今保存した store-main.jpg は消さず、前回の store-main.webp を消す
     expect(remove).toHaveBeenCalledWith(["v1/store-main.webp"]);
-    expect(url).toBe("https://example.supabase.co/v1/store-main.jpg");
+    expect(url).toMatch(/^https:\/\/example\.supabase\.co\/v1\/store-main\.jpg\?v=\d+$/);
   });
 });

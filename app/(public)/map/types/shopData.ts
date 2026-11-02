@@ -21,6 +21,8 @@
  * - API経由でのデータ取得・更新
  */
 
+import type { ShopImageKind } from "@/lib/shopImages";
+
 /**
  * 出店者が編集可能なデータ
  *
@@ -46,6 +48,12 @@ export interface ShopEditableData {
 
   /** 取扱商品リスト */
   products: string[];
+
+  /**
+   * 商品名を翻訳して表示するとき（lib/i18n/shopTranslation.ts）の、翻訳後の名前 → 日本語の原文。
+   * お気に入りは日本語の原文で保存するので、言語を切り替えても同じ商品として扱える
+   */
+  productOriginalNames?: Record<string, string>;
 
   /** 商品ごとの価格（任意） */
   productPrices?: Record<string, number | null>;
@@ -117,6 +125,8 @@ export interface ShopEditableData {
   images?: {
     /** メイン画像 */
     main?: string;
+    /** メイン画像の種類（登録時のラベル）。未設定は普通の写真 */
+    mainKind?: ShopImageKind;
     /** サムネイル画像 */
     thumbnail?: string;
     /** 追加画像（最大5枚） */

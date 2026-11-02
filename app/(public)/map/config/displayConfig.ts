@@ -109,6 +109,22 @@ export const SHOP_MARKER_LOD_OFFSETS = {
 } as const;
 
 /**
+ * 写真を大きく見るための一段（MapLibre 版）。
+ *
+ * 屋台が等倍になる最大ズーム（LOD の基準、map.getMaxZoom()）の先に、地図はもう
+ * DETAIL_ZOOM_OFFSET 段寄れて、屋台はそこで DETAIL_STALL_SCALE 倍まで大きくなる。
+ * 地図の屋台と、パン中に出る写真カード（ShopScanCards）が同じ倍率で大きくなるよう、ここで持つ。
+ */
+export const DETAIL_ZOOM_OFFSET = 1;
+export const DETAIL_STALL_SCALE = 2;
+
+/** 最大ズームより先での屋台の倍率。maxZoom 以下で 1、maxZoom + DETAIL_ZOOM_OFFSET で DETAIL_STALL_SCALE */
+export function getDetailStallScale(zoom: number, maxZoom: number): number {
+  const t = Math.min(1, Math.max(0, (zoom - maxZoom) / DETAIL_ZOOM_OFFSET));
+  return 1 + (DETAIL_STALL_SCALE - 1) * t;
+}
+
+/**
  * 境界判定の許容誤差。
  * zoom - maxZoom は浮動小数点演算なので、境界ちょうど（例 20.2 と 21）でも
  * -0.8000000000000007 のようにわずかに下振れする。zoomSnap 0.05 の刻みでは

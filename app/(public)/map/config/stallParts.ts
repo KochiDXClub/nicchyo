@@ -201,14 +201,67 @@ const ROOF_BOTTOM_Y = 34;
  * 屋根の下辺（ROOF_BOTTOM_Y）を基準に縦だけ縮めて少し持ち上げ、空いた上の余白は viewBox から切り落とす。
  */
 export const STALL_PHOTO_ROOF_SCALE = 0.6;
-/** 縮めた屋根を上へ持ち上げる量（ひさしに食い込まないように） */
+/** 縮めた屋根を上へ持ち上げる量。持ち上げて空いたぶん、写真を上へ伸ばす */
 export const STALL_PHOTO_ROOF_LIFT = 5;
 export const STALL_PHOTO_TOP_TRIM = 8;
 /** 写真入りスプライトの縦横比（高さ ÷ 幅）。高さを基準に幅を決めるので、屋根を削ったぶん写真が大きくなる */
 export const STALL_PHOTO_HEIGHT_RATIO = (STALL_VIEWBOX - STALL_PHOTO_TOP_TRIM) / STALL_VIEWBOX;
 
-/** 写真をはめ込む本体の矩形（BODY_PATH の外接矩形） */
-export const STALL_BODY_RECT = { x: 10, y: 40, width: 80, height: 42 } as const;
+/**
+ * 写真をはめ込む本体の矩形（PHOTO_BODY_PATH の外接矩形）。
+ *
+ * 写真入りの屋台は、ひさし（のれん）を描かず、脚を短くして、空いたところまで写真を広げる。
+ * 来訪者は地図の上の写真で店を選ぶので、屋台らしさは屋根・その下の縁飾り（PHOTO_FRINGE）・短い脚に任せ、
+ * 面積は写真に回す。
+ * 上端は縮めた屋根の下辺（y≈28〜29）の少し内側に潜らせて、屋根との間に隙間を作らない。
+ * 下端は短い脚（y=88〜94）の付け根。
+ */
+export const STALL_BODY_RECT = { x: 10, y: 27, width: 80, height: 61 } as const;
+
+/** 角を丸めた矩形のパス */
+function roundedRectPath(
+  rect: { x: number; y: number; width: number; height: number },
+  radius: number
+): string {
+  const { x, y } = rect;
+  const right = x + rect.width;
+  const bottom = y + rect.height;
+  return (
+    `M${x + radius},${y} H${right - radius} A${radius},${radius} 0 0 1 ${right},${y + radius} ` +
+    `V${bottom - radius} A${radius},${radius} 0 0 1 ${right - radius},${bottom} ` +
+    `H${x + radius} A${radius},${radius} 0 0 1 ${x},${bottom - radius} ` +
+    `V${y + radius} A${radius},${radius} 0 0 1 ${x + radius},${y} Z`
+  );
+}
+
+/** 写真入りの屋台の本体（写真の切り抜きと同じ STALL_BODY_RECT から作る）・短い脚・薄い影 */
+const PHOTO_BODY_PATH = roundedRectPath(STALL_BODY_RECT, 6);
+const PHOTO_LEGS_TOP = STALL_BODY_RECT.y + STALL_BODY_RECT.height;
+const PHOTO_LEGS_PATH = [18, 46.2, 74.3]
+  .map((x) => `M${x},${PHOTO_LEGS_TOP} h7.7 v${94 - PHOTO_LEGS_TOP} h-7.7 Z`)
+  .join(" ");
+const PHOTO_SHADOW = { cy: 94, ry: 4 } as const;
+
+/**
+ * 写真入りの屋台の、屋根の下辺に垂らす縁飾り（のれんの裾のような波形）。
+ * ひさしを外した代わりに、屋根の下を小さな半円で区切って屋台らしさを残す。
+ * 濃淡を交互に塗るので、ひさしの縞（awningBase / awningStripe）の色がここに出る。
+ * 上端（y=26.5）は屋根に隠れ、見えるのは屋根の下辺（y≈27〜29）から下の 4〜5 単位だけ。
+ * 横は写真の枠（x=10〜90）の内側に収め、傾いた屋根や丸い屋根の端からはみ出さないようにする。
+ */
+function buildPhotoFringe(): string[] {
+  const count = 7;
+  const left = STALL_BODY_RECT.x;
+  const width = STALL_BODY_RECT.width / count;
+  const parts: string[] = [];
+  for (let k = 0; k < count; k++) {
+    const a = Number((left + k * width).toFixed(2));
+    const b = Number((left + (k + 1) * width).toFixed(2));
+    parts.push(`M${a},26.5 H${b} V30 A${Number((width / 2).toFixed(2))},3.5 0 0 1 ${a},30 Z`);
+  }
+  return parts;
+}
+const PHOTO_FRINGE = buildPhotoFringe();
 
 /**
  * MapLibre のシンボルレイヤー用に、色を焼き込んだ単体 SVG を返す。
@@ -239,24 +292,32 @@ export function generateStallSpriteSvg(
 
   const r = STALL_BODY_RECT;
   const bodyMarkup = colors.photo
-    ? `<clipPath id="stall-body-clip"><path d="${BODY_PATH}"/></clipPath>` +
-      `<path d="${BODY_PATH}" fill="#f1ede6"/>` +
+    ? `<clipPath id="stall-body-clip"><path d="${PHOTO_BODY_PATH}"/></clipPath>` +
+      `<path d="${PHOTO_BODY_PATH}" fill="#f1ede6"/>` +
       `<image href="${colors.photo.href}" x="${r.x}" y="${r.y}" width="${r.width}" height="${r.height}" ` +
       `preserveAspectRatio="xMidYMid slice" clip-path="url(#stall-body-clip)"/>` +
-      `<path d="${BODY_PATH}" fill="none" stroke="${colors.photo.stroke}" stroke-width="3.5" stroke-linejoin="round"/>`
+      `<path d="${PHOTO_BODY_PATH}" fill="none" stroke="${colors.photo.stroke}" stroke-width="3.5" stroke-linejoin="round"/>`
     : `<path d="${BODY_PATH}" fill="#f1ede6" stroke="${colors.outline ?? "rgba(90,80,70,0.4)"}" stroke-width="${colors.outline ? 3 : 2}" stroke-linejoin="round"/>` +
       `<path d="${COUNTER_PATH}" fill="#ec9a0c"/>`;
+  // 写真入りはひさしを描かず（写真を上まで広げるため）、屋根の下に小さな縁飾りだけ垂らす。
+  // 色の違い（検索・AI・選択）は屋根・縁飾り・写真の縁で伝わる
+  const awningMarkup = colors.photo
+    ? PHOTO_FRINGE.map(
+        (d, k) => `<path d="${d}" fill="${k % 2 === 0 ? colors.awningStripe : colors.awningBase}"/>`
+      ).join("")
+    : `<g${awningTransform}>` +
+      `<path d="${awning.base}" fill="${colors.awningBase}"${outline}/>` +
+      awningAccent +
+      `</g>`;
+  const shadow = colors.photo ? PHOTO_SHADOW : { cy: 91, ry: 7 };
 
   return (
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 ${trim} ${STALL_VIEWBOX} ${STALL_VIEWBOX - trim}" ` +
     `width="${size.width}" height="${size.height}">` +
-    `<ellipse cx="50" cy="91" rx="42" ry="7" fill="rgba(0,0,0,0.16)"/>` +
-    `<path d="${LEGS_PATH}" fill="#8b5e34"/>` +
+    `<ellipse cx="50" cy="${shadow.cy}" rx="42" ry="${shadow.ry}" fill="rgba(0,0,0,0.16)"/>` +
+    `<path d="${colors.photo ? PHOTO_LEGS_PATH : LEGS_PATH}" fill="#8b5e34"/>` +
     bodyMarkup +
-    `<g${awningTransform}>` +
-    `<path d="${awning.base}" fill="${colors.awningBase}"${outline}/>` +
-    awningAccent +
-    `</g>` +
+    awningMarkup +
     `<g${roofTransform}>` +
     `<path d="${roof.d}" fill="${colors.roof}"${outline}/>` +
     // かまぼこ屋根のハイライトは本体の曲線からはみ出すので、屋根の形で切り抜く

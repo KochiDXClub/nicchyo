@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 import { canGrantPermissions } from "@/lib/vendor/memberRules";
 import { displayNameOf, logVendorActivity } from "@/lib/vendor/activityLog";
-import { inviteExpiresAt, parseCreateInvite } from "@/lib/vendor/shopInvites";
+import { inviteExpiresAt, parseCreateInvite, toInviteView, type InviteViewRow } from "@/lib/vendor/shopInvites";
 import { generateInviteToken, hashInviteToken } from "@/lib/vendor/shopInvites.server";
-import { parseShopPermissions, SHOP_PERMISSION_META } from "@/lib/vendor/shopPermissions";
+import { SHOP_PERMISSION_META } from "@/lib/vendor/shopPermissions";
 import { requireMembersApi } from "../members/shared";
 
 export const runtime = "nodejs";
@@ -29,22 +29,7 @@ export async function GET(request: Request) {
     .limit(LIST_LIMIT);
   if (error) return NextResponse.json({ error: "読み込めませんでした" }, { status: 500 });
 
-  const now = Date.now();
-  const invites = (data ?? []).map((row) => {
-    const expired = Date.parse(row.expires_at as string) <= now;
-    const revoked = row.revoked_at != null;
-    const full = (row.used_count as number) >= (row.max_uses as number);
-    return {
-      id: row.id as string,
-      permissions: parseShopPermissions(row.permissions) ?? [],
-      maxUses: row.max_uses as number,
-      usedCount: row.used_count as number,
-      expiresAt: row.expires_at as string,
-      createdAt: row.created_at as string,
-      // 画面ではこの状態だけ見て、取り消しボタンの出し分けなどに使う
-      state: revoked ? "revoked" : expired ? "expired" : full ? "full" : "active",
-    };
-  });
+  const invites = (data ?? []).map((row) => toInviteView(row as unknown as InviteViewRow));
 
   return NextResponse.json({ invites });
 }

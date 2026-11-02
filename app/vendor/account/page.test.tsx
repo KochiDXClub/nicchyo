@@ -14,15 +14,8 @@ vi.mock("@/lib/auth/AuthContext", () => ({
 }));
 
 let members: unknown;
-vi.mock("./useMembers", () => ({ useMembers: () => ({ data: members, error: null, loading: false, reload: vi.fn() }) }));
+vi.mock("../members/useMembers", () => ({ useMembers: () => ({ data: members, error: null, loading: false, reload: vi.fn() }) }));
 vi.mock("../_services/membersService", () => ({
-  fetchInvites: async () => [],
-  fetchActivityLogs: async () => ({ logs: [], hasMore: false }),
-  createInvite: vi.fn(),
-  revokeInvite: vi.fn(),
-  updateMemberPermissions: vi.fn(),
-  removeMember: vi.fn(),
-  transferOwnership: vi.fn(),
   leaveShop: vi.fn(),
 }));
 
@@ -36,31 +29,29 @@ function setup(me: ShopMembership) {
 }
 
 describe("アカウント設定", () => {
-  it("代表者には、メンバー・招待・操作ログが出る。お店を抜けるは、引き継ぎが先という案内になる", async () => {
+  it("代表者には、メンバー管理への入口が出る。お店を抜けるは、引き継ぎが先という案内になる", () => {
     setup({ role: "owner", permissions: [] });
 
     expect(screen.getByText("あなたのアカウント")).toBeInTheDocument();
-    expect(screen.getByText("お店のメンバー")).toBeInTheDocument();
-    expect(screen.getByText("家族やスタッフを招待する")).toBeInTheDocument();
-    expect(await screen.findByText("操作ログ")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "お店のメンバー" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "メンバー管理を開く" })).toHaveAttribute("href", "/vendor/members");
     expect(screen.getByText(/先に別のメンバーへ代表者を引き継いでから/)).toBeInTheDocument();
     // パスワードやメールの編集は、もう無い（Googleでログイン）
     expect(screen.queryByText("パスワード")).not.toBeInTheDocument();
   });
 
-  it("近況の投稿だけのメンバーには、メンバー一覧とお店を抜けるだけが出る（招待・操作ログは出ない）", () => {
-    setup({ role: "member", permissions: ["post"] });
+  it("メンバーの一覧・招待・操作ログは、メンバー管理へ移ったので、ここには出ない", () => {
+    setup({ role: "owner", permissions: [] });
 
-    expect(screen.getByText("お店のメンバー")).toBeInTheDocument();
     expect(screen.queryByText("家族やスタッフを招待する")).not.toBeInTheDocument();
     expect(screen.queryByText("操作ログ")).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "お店を抜ける" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /設定を変える/ })).not.toBeInTheDocument();
   });
 
-  it("操作ログの権限だけのメンバーには、操作ログが出る（招待は出ない）", async () => {
-    setup({ role: "member", permissions: ["audit_view"] });
+  it("メンバーには、メンバー管理への入口とお店を抜けるが出る", () => {
+    setup({ role: "member", permissions: ["post"] });
 
-    expect(await screen.findByText("操作ログ")).toBeInTheDocument();
-    expect(screen.queryByText("家族やスタッフを招待する")).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "メンバー管理を開く" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "お店を抜ける" })).toBeInTheDocument();
   });
 });

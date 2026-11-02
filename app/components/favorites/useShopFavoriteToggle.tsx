@@ -48,14 +48,18 @@ export function useShopFavoriteToggle({ zIndexClassName, onChange }: Options = {
           return;
         }
       }
-      onChange?.(toggleFavoriteShop(shopId));
+      // onChange?.(toggleFavoriteShop(shopId)) と書くと、onChange が無いとき引数ごと評価されず保存されない。
+      // 保存は必ず先に済ませてから知らせる
+      const next = toggleFavoriteShop(shopId);
+      onChange?.(next);
     },
     [onChange],
   );
 
   const handleConfirm = useCallback(() => {
     if (!pending) return;
-    onChange?.(removeFavoriteShop(pending.shopId));
+    const next = removeFavoriteShop(pending.shopId);
+    onChange?.(next);
     setPending(null);
   }, [pending, onChange]);
 

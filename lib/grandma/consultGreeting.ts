@@ -37,6 +37,10 @@ export interface ConsultGreetingInput {
    * 呼び出し側が人ごとに数えているので、行き来しても同じ台詞が続かない。
    */
   index: number;
+  /** 呼びかけとひとことの間。日本語は詰め、英語などは空白を入れる */
+  separator?: string;
+  /** 台本が空のときのひとこと（既定は日本語） */
+  fallbackLine?: string;
 }
 
 /**
@@ -44,12 +48,18 @@ export interface ConsultGreetingInput {
  *
  * 毎回同じだと2回目から読み飛ばされるので、後半は選ばれるたびに次へ進める。
  */
-export function buildConsultGreeting({ now, script, index }: ConsultGreetingInput): string {
+export function buildConsultGreeting({
+  now,
+  script,
+  index,
+  separator = "",
+  fallbackLine = FALLBACK_LINE,
+}: ConsultGreetingInput): string {
   const salutation = pickSalutation(script, now.getHours());
   const { lines } = script;
-  if (lines.length === 0) return `${salutation}${FALLBACK_LINE}`;
+  if (lines.length === 0) return `${salutation}${separator}${fallbackLine}`;
 
   // 負の値でも落ちないようにしておく（数え方を変えても壊れない）
   const position = ((Math.trunc(index) % lines.length) + lines.length) % lines.length;
-  return `${salutation}${lines[position]}`;
+  return `${salutation}${separator}${lines[position]}`;
 }

@@ -20,6 +20,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import * as maplibregl from "maplibre-gl";
 
+import { SmoothGeolocateControl } from "./smoothGeolocateControl";
 import { useLocationPermissionGate } from "../../hooks/useLocationPermissionGate";
 import type { MapRouteConfig, MapRoutePoint } from "../../types/mapRoute";
 import {
@@ -76,7 +77,7 @@ export function useMapLibreUserLocation({
   routePoints,
   routeConfig,
 }: UseMapLibreUserLocationOptions) {
-  const controlRef = useRef<maplibregl.GeolocateControl | null>(null);
+  const controlRef = useRef<SmoothGeolocateControl | null>(null);
   const retryTimerRef = useRef<number | null>(null);
   const autoTriggeredRef = useRef(false);
   const inMarketRef = useRef(false);
@@ -105,7 +106,7 @@ export function useMapLibreUserLocation({
   useEffect(() => {
     if (!map) return;
 
-    const control = new maplibregl.GeolocateControl({
+    const control = new SmoothGeolocateControl({
       positionOptions: { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 },
       // 精度の円が収まる範囲に寄せる。既定の maxZoom は 15 で市場には遠すぎる
       fitBoundsOptions: { maxZoom: INITIAL_ZOOM_LEVEL + zoomOffset, linear: true, duration: 500 },

@@ -146,6 +146,22 @@ export type AiConversationSettingRow = {
   updated_at: string;
 };
 
+// shop_translations
+// supabase/migrations/20261020100000_create_shop_translations.sql 参照。
+export type ShopTranslationRow = {
+  vendor_id: string;
+  locale: string;
+  name: string | null;
+  strength: string | null;
+  style: string | null;
+  rain_policy: string | null;
+  products: Record<string, string>;
+  source_hash: string;
+  status: "auto" | "reviewed";
+  model: string | null;
+  updated_at: string;
+};
+
 type ExtendedPublicSchema = Omit<Database["public"], "Tables"> & {
   Tables: Database["public"]["Tables"] & {
     admin_notifications: {
@@ -214,6 +230,13 @@ type ExtendedPublicSchema = Omit<Database["public"], "Tables"> & {
       Insert: Pick<MapViewSettingsRow, "key"> &
         Partial<Omit<MapViewSettingsRow, "key" | "created_at" | "updated_at">>;
       Update: Partial<Omit<MapViewSettingsRow, "key" | "created_at" | "updated_at">>;
+      Relationships: never[];
+    };
+    shop_translations: {
+      Row: ShopTranslationRow;
+      // 書き込みは service_role のサーバー処理（lib/i18n/shopTranslation.server.ts）だけ
+      Insert: Omit<ShopTranslationRow, "updated_at"> & { updated_at?: string };
+      Update: Partial<ShopTranslationRow>;
       Relationships: never[];
     };
     code_health_snapshots: {

@@ -1,3 +1,4 @@
+import { useMediaQuery, LG_MEDIA_QUERY } from "@/lib/hooks/useMediaQuery";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
 
@@ -41,10 +42,7 @@ export function useShopDetailDrawer({
   setSurface: Dispatch<SetStateAction<BannerSurface>>;
   onMobileMainSurfaceChange?: (surface: MainSurface) => void;
 }) {
-  const [isDesktopViewport, setIsDesktopViewport] = useState(() => {
-    if (typeof window === "undefined") return true;
-    return window.innerWidth >= 768;
-  });
+  const isDesktopViewport = useMediaQuery(LG_MEDIA_QUERY);
   const isMobileOverlay = layout === "overlay" && !isDesktopViewport;
 
   const [drawerSurface, setDrawerSurface] = useState<MainSurface>(initialMobileSurface);
@@ -66,16 +64,6 @@ export function useShopDetailDrawer({
     lastTime: 0,
     velocity: 0,
   });
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const handleResize = () => {
-      setIsDesktopViewport(window.innerWidth >= 768);
-    };
-    handleResize();
-    window.addEventListener("resize", handleResize);
-    return () => window.removeEventListener("resize", handleResize);
-  }, []);
 
   const getDrawerHeights = useCallback(() => {
     if (typeof window === "undefined") {

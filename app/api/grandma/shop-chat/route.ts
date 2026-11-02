@@ -4,6 +4,8 @@ import { handleAbuseDetection } from "@/lib/grandma/abuseDetection";
 import { requireSameOrigin } from "@/lib/security/requestGuards";
 import { enforceRateLimit } from "@/lib/security/rateLimit";
 import { buildShopChatSystemPrompt } from "@/lib/grandma/prompts/shopChatPrompt";
+import { buildLanguageInstruction } from "@/lib/grandma/prompts/languageRules";
+import { LOCALE_HEADER, toLocale } from "@/lib/i18n/config";
 import { fetchAiPrompts } from "@/lib/grandma/prompts/promptStore.server";
 import { resolveShopCharacter, resolveShopCharacterId } from "@/lib/grandma/shopChat/character";
 import { loadShopChat } from "@/lib/grandma/shopChat/context.server";
@@ -62,12 +64,19 @@ export async function POST(req: NextRequest) {
   const prompts = await fetchAiPrompts();
   const character = resolveShopCharacter(resolveShopCharacterId(loaded.shop.vendorId), prompts);
 
-  const systemPrompt = buildShopChatSystemPrompt({
-    character: { name: character.view.name, profile: character.profile },
-    shopName: loaded.shop.name,
-    shopContext: loaded.context,
-    notes: loaded.notes,
-  });
+  // 表示言語は proxy.ts が URL・Cookie から決めてヘッダーに入れる。日本語以外なら、その言語で答える
+  const languageInstruction = buildLanguageInstruction(toLocale(req.headers.get(LOCALE_HEADER)));
+  const systemPrompt = [
+    buildShopChatSystemPrompt({
+      character: { name: character.view.name, profile: character.profile },
+      shopName: loaded.shop.name,
+      shopContext: loaded.context,
+      notes: loaded.notes,
+    }),
+    languageInstruction,
+  ]
+    .filter(Boolean)
+    .join("\n\n");
   const messages = [
     { role: "system", content: systemPrompt },
     ...trimShopChatHistory(history).map((m) => ({ role: m.role, content: m.text })),

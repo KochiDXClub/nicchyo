@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import {
+  DETAIL_STALL_SCALE,
   ILLUSTRATION_SIZES,
+  getDetailStallScale,
   getIllustrationAnchor,
   getShopMarkerLod,
   getShopMarkerScale,
@@ -68,5 +70,15 @@ describe('getShopMarkerScale', () => {
       expect(scale).toBeGreaterThanOrEqual(prev);
       prev = scale;
     }
+  });
+});
+
+describe('getDetailStallScale', () => {
+  it('最大ズームまでは 1、一段先で DETAIL_STALL_SCALE、その間は直線', () => {
+    expect(getDetailStallScale(19, 21)).toBe(1);
+    expect(getDetailStallScale(21, 21)).toBe(1);
+    expect(getDetailStallScale(21.5, 21)).toBeCloseTo(1 + (DETAIL_STALL_SCALE - 1) / 2, 5);
+    expect(getDetailStallScale(22, 21)).toBe(DETAIL_STALL_SCALE);
+    expect(getDetailStallScale(23, 21)).toBe(DETAIL_STALL_SCALE);
   });
 });

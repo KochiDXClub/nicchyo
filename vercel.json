@@ -1,11 +1,15 @@
 {
   "regions": [
-    "icn1"
+    "hnd1"
   ],
   "crons": [
     {
       "path": "/api/admin/sync-embeddings",
       "schedule": "0 17 * * *"
+    },
+    {
+      "path": "/api/admin/shop-translations",
+      "schedule": "0 18 * * *"
     }
   ]
 }

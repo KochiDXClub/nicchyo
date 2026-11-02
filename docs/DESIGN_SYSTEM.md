@@ -219,7 +219,6 @@ import { PageShell, PageContainer, PageHeader } from "@/components/ui";
 | 店舗カードの見た目 | `ConsultShopCard`（写真が主役）と `ShopResultCard`（情報＋サムネイル）で角丸・枠・文字色が違う。お気に入りと地図の検索シートはさらに別の一覧行。**どの写真を出すかは `getShopPreviewImage()` に寄せ済み**（下記） |
 | モーダル・シート | `fixed inset-0` が25箇所に個別実装。共通部品が無い |
 | 中立色 | `slate-*` / `gray-*` が既存コードに約1,700箇所。新規で増やさず、触った画面から ink に寄せる |
-| `@radix-ui/react-scroll-area` | 唯一の利用箇所だった `ui/scroll-area.tsx` を削除したので未使用。次に依存を整理するときに落とす |
 
 新しい画面をこの表の状態に合わせない。**このファイルの 1〜4 に合わせる。**
 
@@ -238,3 +237,7 @@ import { PageShell, PageContainer, PageHeader } from "@/components/ui";
 
 > 補足: `SpotCard` は店舗のカードではない。電停・お手洗いなどの
 > `MapSpot` を扱うボトムシートで、ドメインが違うので寄せない。
+
+### ランディングの色
+
+`landing.css` も Tailwind の `theme("colors.…")` を使う。アクセント・ink・白・amber・orangeは共通パレットを参照する。地図見本の地面・道・破線は `market-map.ground`・`market-map.road`・`market-map.dash` を使用する。

@@ -1,6 +1,6 @@
 -- 来訪者（anon）・ログイン済みの一般ユーザーから、次のことができないことを確かめる。
 --   - 掲載許可のない店舗に紐づく行を、公開 SELECT ポリシー（using (true) など）で読む
---   - reports / inquiries に直接 INSERT する（書き込みは service_role の API 経由のみ）
+--   - reports / inquiries / product_search_logs に直接 INSERT する（書き込みは service_role の API 経由のみ）
 --   - track_home_visit を直接呼んで来訪者統計を書き換える
 -- location_assignments に直接書き込めないことも確かめる（ファイル末尾）。
 -- あわせて、vendor_contents が 31 日窓（期限切れの近況も読める）であることを確かめる。
@@ -51,25 +51,25 @@ begin
     raise exception 'vendor_contents の公開 SELECT が 31 日窓になっていません（expires_at で絞ると期限切れの近況が消える）';
   end if;
 
-  -- reports / inquiries は anon / authenticated から直接 INSERT できない
+  -- reports / inquiries / product_search_logs（20261013100000）は anon / authenticated から直接 INSERT できない
   select string_agg(format('%s.%s', r.role_name, t.tablename), ', ')
     into bad
   from (values ('anon'), ('authenticated')) as r(role_name)
-  cross join (values ('reports'), ('inquiries')) as t(tablename)
+  cross join (values ('reports'), ('inquiries'), ('product_search_logs')) as t(tablename)
   where has_table_privilege(r.role_name, format('public.%I', t.tablename), 'INSERT');
   if bad is not null then
-    raise exception 'reports / inquiries に直接 INSERT できる権限が残っています: %', bad;
+    raise exception 'reports / inquiries / product_search_logs に直接 INSERT できる権限が残っています: %', bad;
   end if;
 
   select string_agg(format('%s "%s"', tablename, policyname), ', ')
     into bad
   from pg_policies
   where schemaname = 'public'
-    and tablename in ('reports', 'inquiries')
+    and tablename in ('reports', 'inquiries', 'product_search_logs')
     and cmd in ('INSERT', 'ALL')
     and (roles && array['public', 'anon', 'authenticated']::name[]);
   if bad is not null then
-    raise exception 'reports / inquiries に誰でも INSERT できるポリシーが残っています: %', bad;
+    raise exception 'reports / inquiries / product_search_logs に誰でも INSERT できるポリシーが残っています: %', bad;
   end if;
 
   -- track_home_visit は anon / authenticated から実行できない

@@ -17,7 +17,9 @@
 export type VersionEntry = {
   /** 例: "v1.3" */
   version: string;
-  /** リリース日（YYYY-MM-DD） */
+  /** 一般公開済みか。省略時は公開済み */
+  released?: boolean;
+  /** リリース日（YYYY-MM-DD）。一般公開前は空文字 */
   date: string;
   /** マージコミットのタイトルにある概要 */
   title: string;
@@ -28,6 +30,17 @@ export type VersionEntry = {
 };
 
 export const versionHistory: VersionEntry[] = [
+  {
+    version: "v1.5",
+    released: false,
+    date: "",
+    title: "一般公開に向けて準備中",
+    highlights: [
+      "トップページ・地図・英語表示などの改善を準備しています。対象ページは現在、一般公開していません",
+      "公開時期と変更内容は、準備が整い次第このページでお知らせします",
+    ],
+    prNumber: 979,
+  },
   {
     version: "v1.4",
     date: "2026-10-08",

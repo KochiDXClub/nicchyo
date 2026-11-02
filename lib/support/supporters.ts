@@ -22,9 +22,8 @@ export type Supporter = {
   /** リンク先。無ければリンクにしない */
   url?: string;
   /**
-   * 年額。入れるとメーターがその色に塗り分かれ、金額も表に出る。
-   * 金額を出したくない協賛には入れない（掲載枠には載るが、メーターでは
-   * 「その他」にまとまる）。相手に確認してから入れること
+   * 年額。入れると掲載枠の下に、色の印と金額が出る。
+   * 金額を出したくない協賛には入れない。相手に確認してから入れること
    */
   amountJpy?: number;
 };
@@ -36,8 +35,7 @@ export const SUPPORTERS: Supporter[] = [];
  *
  * 募集している口数と一致させること。枠の数がそのまま「あと何社ぶん空いているか」に
  * なるので、口数と食い違うと図が嘘をつく。
- * SUPPORTER_COLORS の色数を超える数にもしないこと（超えたぶんは灰色にまとめられ、
- * 「ご協賛ぶんの色がつく」という掲載の案内が守れなくなる）。
+ * SUPPORTER_COLORS の色数を超える数にもしないこと（超えたぶんは灰色にまとめられる）。
  */
 export const SUPPORTER_SLOT_COUNT = 4;
 
@@ -50,18 +48,10 @@ export const SUPPORTER_SLOT_COUNT = 4;
 export const SUPPORTER_COLORS = ["#D97706", "#15803D", "#0369A1", "#7C3AED"] as const;
 
 /**
- * 名前が表に出ていない支援（助成金・賞金・匿名の寄付・色枠を使い切ったぶん）。
+ * 色枠を使い切ったぶんのまとめ先。
  * identity ではなくまとめ先なので、彩度を持たない中立色にする。
  */
 export const OTHER_FUNDING_COLOR = "#8A8177";
-
-export type FundingSegment = {
-  label: string;
-  color: string;
-  amountJpy: number;
-  /** この金額で何ヶ月動くか */
-  months: number;
-};
 
 /** 掲載枠に添える色。金額を出していない協賛には色を付けない */
 export function assignSupporterColors(supporters: Supporter[]): (string | null)[] {
@@ -72,55 +62,6 @@ export function assignSupporterColors(supporters: Supporter[]): (string | null)[
     slot += 1;
     return color;
   });
-}
-
-/**
- * メーターの塗りを、誰が出した分かで分ける。
- *
- * 金額を出していない協賛ぶんと、助成金など名前の出ていない支援は「その他」に
- * まとめる。手元の総額（fundsJpy）は口座の実額なので、内訳の合計がそれを
- * 超えないよう、はみ出したぶんは切る。
- */
-export function buildFundingSegments({
-  supporters = SUPPORTERS,
-  fundsJpy,
-  monthlyJpy,
-}: {
-  supporters?: Supporter[];
-  fundsJpy: number;
-  monthlyJpy: number;
-}): FundingSegment[] {
-  if (monthlyJpy <= 0 || fundsJpy <= 0) return [];
-
-  const colors = assignSupporterColors(supporters);
-  const segments: FundingSegment[] = [];
-  let used = 0;
-
-  supporters.forEach((supporter, index) => {
-    const color = colors[index];
-    if (supporter.amountJpy === undefined || color === null) return;
-    const amount = Math.min(supporter.amountJpy, Math.max(fundsJpy - used, 0));
-    if (amount <= 0) return;
-    used += amount;
-    segments.push({
-      label: supporter.name,
-      color,
-      amountJpy: amount,
-      months: amount / monthlyJpy,
-    });
-  });
-
-  const other = fundsJpy - used;
-  if (other > 0) {
-    segments.push({
-      label: "その他",
-      color: OTHER_FUNDING_COLOR,
-      amountJpy: other,
-      months: other / monthlyJpy,
-    });
-  }
-
-  return segments;
 }
 
 /** 実際に並べる枠。埋まっているものが先、残りは空き枠 */

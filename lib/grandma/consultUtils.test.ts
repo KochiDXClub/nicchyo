@@ -8,6 +8,8 @@ import {
   sanitizeLikeKeyword,
   isShopRelatedQuestion,
   isSeasonalQuestion,
+  isShopRelatedQuestionEn,
+  isSeasonalQuestionEn,
   getCurrentSeasonInfo,
   isUnsupportedQuestion,
   buildErrorResponse,
@@ -244,5 +246,48 @@ describe("buildFallbackFollowUpQuestion", () => {
   it("デフォルトは回り方の質問", () => {
     const result = buildFallbackFollowUpQuestion("何か教えて", null, 0);
     expect(result).toContain("おすすめ");
+  });
+});
+
+describe("英語の次の質問", () => {
+  it("英語は日本語より長くても有効（40文字超を落とさない）", () => {
+    const question = "Which stall should I visit first if it's my first time here?";
+    expect(question.length).toBeGreaterThan(40);
+    expect(isValidFollowUpQuestion(question, "en")).toBe(true);
+    expect(isValidFollowUpQuestion(question)).toBe(false);
+  });
+
+  it("英語でも疑問文でないものは無効", () => {
+    expect(isValidFollowUpQuestion("Try the Sunday market early", "en")).toBe(false);
+  });
+
+  it("代替の質問は英語の画面では英語で返す", () => {
+    expect(buildFallbackFollowUpQuestion("hi", null, 0, "en")).toMatch(/^[\x20-\x7e]+$/);
+    expect(buildFallbackFollowUpQuestion("hi", "Yamada Farm", 0, "en")).toContain("Yamada Farm");
+    expect(buildFallbackFollowUpQuestion("What is in season?", null, 0, "en")).toContain("season");
+    expect(buildFallbackFollowUpQuestion("おすすめは？", null, 2)).toBe("この中でいちばん人気のお店は？");
+  });
+});
+
+describe("英語のお店判定", () => {
+  it("お店を探す英語の質問は true", () => {
+    for (const q of [
+      "Can you recommend some good shops?",
+      "Where can I buy local specialties?",
+      "What food should I try?",
+      "Any souvenirs for my family?",
+    ]) {
+      expect(isShopRelatedQuestionEn(q)).toBe(true);
+    }
+  });
+
+  it("関係のない質問は false", () => {
+    expect(isShopRelatedQuestionEn("What time does it start?")).toBe(false);
+    expect(isShopRelatedQuestionEn("How do I get to Kochi Castle?")).toBe(false);
+  });
+
+  it("季節の質問", () => {
+    expect(isSeasonalQuestionEn("What is in season now?")).toBe(true);
+    expect(isSeasonalQuestionEn("Any shops?")).toBe(false);
   });
 });

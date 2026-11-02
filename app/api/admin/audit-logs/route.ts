@@ -4,6 +4,7 @@ import { enforceRateLimit } from "@/lib/security/rateLimit";
 import { getRole } from "@/lib/auth/permissions";
 import { authorizeAdmin } from "@/lib/auth/requireAdminApi";
 import { createAdminClient } from "@/lib/supabase/adminClient";
+import { todayJstString } from "@/lib/time/jstDate";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -15,6 +16,27 @@ export type AuditLogPayload = {
   target_name?: string;
   details?: string;
 };
+
+/** 期間の絞り込み。today は日本時間のきょう0時から、week / month は今から7日・30日さかのぼる */
+export const AUDIT_LOG_PERIODS = ["all", "today", "week", "month"] as const;
+export type AuditLogPeriod = (typeof AUDIT_LOG_PERIODS)[number];
+
+/** ロールの絞り込み。管理者には super_admin も含める */
+const ROLE_VALUES = {
+  admin: ["admin", "super_admin"],
+  moderator: ["moderator"],
+} as const;
+export const AUDIT_LOG_ROLE_FILTERS = ["all", "admin", "moderator"] as const;
+export type AuditLogRoleFilter = (typeof AUDIT_LOG_ROLE_FILTERS)[number];
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+function periodStart(period: AuditLogPeriod, now: Date): string | null {
+  if (period === "today") return `${todayJstString(now)}T00:00:00+09:00`;
+  if (period === "week") return new Date(now.getTime() - 7 * DAY_MS).toISOString();
+  if (period === "month") return new Date(now.getTime() - 30 * DAY_MS).toISOString();
+  return null;
+}
 
 export async function POST(req: Request) {
   const originCheck = requireSameOrigin(req);
@@ -72,19 +94,46 @@ export async function GET(req: Request) {
   const parsedLimit = parseInt(url.searchParams.get("limit") ?? "500", 10);
   const limit = Number.isNaN(parsedLimit) ? 500 : Math.min(Math.max(parsedLimit, 1), 1000);
 
+  const period = (url.searchParams.get("period") ?? "all") as AuditLogPeriod;
+  const role = (url.searchParams.get("role") ?? "all") as AuditLogRoleFilter;
+  if (!AUDIT_LOG_PERIODS.includes(period) || !AUDIT_LOG_ROLE_FILTERS.includes(role)) {
+    return NextResponse.json({ error: "Invalid filter" }, { status: 400 });
+  }
+
   const dc = createAdminClient();
   if (!dc) {
     return NextResponse.json({ error: "Service unavailable" }, { status: 503 });
   }
-  const { data, count, error } = await dc
-    .from("admin_audit_logs")
-    .select("*", { count: "exact" })
-    .order("created_at", { ascending: false })
-    .limit(limit);
 
+  // 期間・ロールは DB で絞る（読み込んだ分だけを画面で絞ると、上限より古い記録が出てこないため）
+  const since = periodStart(period, new Date());
+  let query = dc.from("admin_audit_logs").select("*", { count: "exact" });
+  if (since) query = query.gte("created_at", since);
+  if (role !== "all") query = query.in("actor_role", [...ROLE_VALUES[role]]);
+
+  // 件数のまとめは絞り込みに関係なく、全体から数える
+  const countAll = () => dc.from("admin_audit_logs").select("id", { count: "exact", head: true });
+  const [list, all, today, admins, moderators] = await Promise.all([
+    query.order("created_at", { ascending: false }).limit(limit),
+    countAll(),
+    countAll().gte("created_at", periodStart("today", new Date())!),
+    countAll().in("actor_role", [...ROLE_VALUES.admin]),
+    countAll().in("actor_role", [...ROLE_VALUES.moderator]),
+  ]);
+
+  const error = list.error ?? all.error ?? today.error ?? admins.error ?? moderators.error;
   if (error) {
     console.error("[admin/audit-logs] select failed:", error.message);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
-  return NextResponse.json({ logs: data, total: count ?? 0 });
+  return NextResponse.json({
+    logs: list.data,
+    total: list.count ?? 0,
+    stats: {
+      total: all.count ?? 0,
+      today: today.count ?? 0,
+      admin: admins.count ?? 0,
+      moderator: moderators.count ?? 0,
+    },
+  });
 }

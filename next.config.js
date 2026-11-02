@@ -51,6 +51,12 @@ const nextConfig = {
   // /news は「日曜市カレンダー」(/calendar) に作り替えたため、旧URLを転送する
   async redirects() {
     return [
+      // 店舗のQRコードは店舗管理（一覧と詳細）に統合した
+      {
+        source: '/admin/shop-claims',
+        destination: '/admin/shops',
+        permanent: true,
+      },
       // 近況を出す画面と投稿履歴は /vendor/posts の1ページにまとめた
       {
         source: '/vendor/post/new',
@@ -62,11 +68,12 @@ const nextConfig = {
         destination: '/calendar',
         permanent: true,
       },
-      // 週次セキュリティレポートの通知リンク（旧 /reports/:date）を管理画面へ誘導する
+      // 旧店舗検索ページ（/search）は、地図の検索（/map?q= ・ /map?category=）に一本化した。
+      // 保存済みのリンクや検索エンジンに残る古いURLを、検索語（?q=）ごと地図へ転送する
       {
-        source: '/reports/:date',
-        destination: '/admin/security-reports/:date',
-        permanent: false,
+        source: '/search',
+        destination: '/map',
+        permanent: true,
       },
       // 買い物リストはお気に入りに一本化した。配ったQRコードや外部リンクが
       // /bag を指していても迷子にしない

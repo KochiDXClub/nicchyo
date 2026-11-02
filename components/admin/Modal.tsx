@@ -21,6 +21,13 @@ export function Modal({ open, onClose, title, children, widthClassName = "max-w-
   const dialogRef = useRef<HTMLDivElement>(null);
   // 呼び出し側が毎回新しい onClose を渡しても、開いている間に effect を張り直さない
   // （張り直すとクリーンアップで元の要素にフォーカスが戻ってしまう）
+  // 開く直前にフォーカスがあった要素（閉じたら戻す）。autoFocus の入力欄が先にフォーカスを取るので、描画中に控える
+  const previouslyFocusedRef = useRef<HTMLElement | null>(null);
+  const wasOpenRef = useRef(false);
+  if (open && !wasOpenRef.current && typeof document !== "undefined") {
+    previouslyFocusedRef.current = document.activeElement as HTMLElement | null;
+  }
+  wasOpenRef.current = open;
   const onCloseRef = useRef(onClose);
   useEffect(() => {
     onCloseRef.current = onClose;
@@ -29,8 +36,9 @@ export function Modal({ open, onClose, title, children, widthClassName = "max-w-
   useEffect(() => {
     if (!open) return;
 
-    const previouslyFocused = document.activeElement as HTMLElement | null;
-    dialogRef.current?.focus();
+    const previouslyFocused = previouslyFocusedRef.current;
+    // 中の入力欄に autoFocus されているときは、フォーカスを奪わない
+    if (!dialogRef.current?.contains(document.activeElement)) dialogRef.current?.focus();
 
     function onKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") {

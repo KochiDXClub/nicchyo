@@ -3,6 +3,7 @@
 import Image from "next/image";
 import { useState } from "react";
 import { MapPin } from "lucide-react";
+import { useT } from "@/lib/i18n/LocaleContext";
 import { getShopPreviewImage } from "@/lib/shopImages";
 import type { ShopCategory } from "../../map/config/shopCategories";
 import type { Shop } from "../../map/data/shops";
@@ -48,6 +49,7 @@ export default function ConsultShopCard({
   onSelect,
   variant = "carousel",
 }: ConsultShopCardProps) {
+  const t = useT();
   const [imageFailed, setImageFailed] = useState(false);
 
   const imageUrl = getShopPreviewImage(shop);
@@ -123,7 +125,7 @@ export default function ConsultShopCard({
           <p className="line-clamp-2 text-xs leading-5 text-slate-600">{shop.description}</p>
         )}
 
-        <span className="mt-auto pt-1 text-[11px] font-bold text-amber-700">くわしく見る →</span>
+        <span className="mt-auto pt-1 text-[11px] font-bold text-amber-700">{t("くわしく見る →")}</span>
       </div>
     </button>
   );

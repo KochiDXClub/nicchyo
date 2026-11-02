@@ -34,6 +34,15 @@ describe("restoreSession", () => {
     expect(restoreSession(raw, now).entries).toHaveLength(1);
   });
 
+  it("答えた話し手（speakerId・speakerName）も残して復元する", () => {
+    const saved = entry("1", { speakerId: "yoichisan", speakerName: "よういちさん" });
+    const raw = JSON.stringify({ dateKey: "2026-09-06", entries: [saved] });
+    expect(restoreSession(raw, now).entries[0]).toMatchObject({
+      speakerId: "yoichisan",
+      speakerName: "よういちさん",
+    });
+  });
+
   it("日付が変わっていたら畳んで空にする", () => {
     const raw = JSON.stringify({ dateKey: "2026-08-30", entries: [entry("1")] });
     const restored = restoreSession(raw, now);

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useT } from "@/lib/i18n/LocaleContext";
 
 /**
  * 評価 API（/api/grandma/feedback）は consultId に UUID を求める。
@@ -40,6 +41,7 @@ export function ConsultFeedback({
   tone?: "amber" | "rose";
   className?: string;
 }) {
+  const t = useT();
   const [status, setStatus] = useState<SendStatus>("idle");
   const [open, setOpen] = useState(false);
   const [comment, setComment] = useState("");
@@ -83,7 +85,7 @@ export function ConsultFeedback({
   if (status === "sent") {
     return (
       <p className={`text-right text-[11px] text-slate-400 ${className}`}>
-        ありがとうございました
+        {t("ありがとうございました")}
       </p>
     );
   }
@@ -91,13 +93,13 @@ export function ConsultFeedback({
   return (
     <div className={className}>
       <div className="flex items-center justify-end gap-1">
-        <span className="mr-1 text-[11px] text-slate-400">この答えはどうでしたか？</span>
+        <span className="mr-1 text-[11px] text-slate-400">{t("この答えはどうでしたか？")}</span>
         <button
           type="button"
           onClick={() => void send(1, false)}
           disabled={isSending}
           className="rounded-full p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-nicchyo-primary disabled:opacity-50"
-          aria-label="役に立った"
+          aria-label={t("役に立った")}
         >
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
             <path d="M1 8.25a1.25 1.25 0 1 1 2.5 0v7.5a1.25 1.25 0 0 1-2.5 0v-7.5ZM11 3V1.7c0-.268.14-.526.395-.607A2 2 0 0 1 14 3c0 .995-.182 1.948-.514 2.826-.204.54.166 1.174.744 1.174h2.52c1.243 0 2.261 1.01 2.146 2.247a23.9 23.9 0 0 1-1.341 5.974C17.153 16.323 16.072 17 14.9 17h-3.192a3 3 0 0 1-1.341-.317l-2.734-1.366A3 3 0 0 0 6.292 15H5V8h.963c.685 0 1.258-.483 1.612-1.068a4.011 4.011 0 0 0 .166-.281l.531-1.06a2 2 0 0 1 .911-.93l1.55-.775A1 1 0 0 1 11 5v.818L10.036 8H11c.552 0 1 .448 1 1v-5.182L11 3Z" />
@@ -107,7 +109,7 @@ export function ConsultFeedback({
           type="button"
           onClick={() => setOpen((prev) => !prev)}
           className={`rounded-full p-1.5 transition hover:bg-slate-100 ${open ? accent.text : "text-slate-400 hover:text-rose-400"}`}
-          aria-label="改善が必要"
+          aria-label={t("改善が必要")}
           aria-expanded={open}
         >
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
@@ -118,7 +120,7 @@ export function ConsultFeedback({
 
       {status === "failed" && (
         <p role="alert" className="mt-1 text-right text-[11px] text-rose-500">
-          送れませんでした。時間をおいて、もう一度お試しください
+          {t("送れませんでした。時間をおいて、もう一度お試しください")}
         </p>
       )}
 
@@ -136,7 +138,7 @@ export function ConsultFeedback({
                 if (e.nativeEvent.isComposing || e.keyCode === 229) return;
                 if (e.key === "Enter") void send(-1, shareTranscript);
               }}
-              placeholder="改善点を教えてください（任意）"
+              placeholder={t("改善点を教えてください（任意）")}
               maxLength={200}
               className={`h-9 flex-1 rounded-full border ${accent.border} bg-white px-3 text-[12px] text-slate-700 placeholder:text-slate-300 outline-none focus:border-slate-300`}
             />
@@ -146,7 +148,7 @@ export function ConsultFeedback({
               disabled={isSending}
               className={`shrink-0 rounded-full border disabled:opacity-50 ${accent.border} ${accent.bg} px-3 py-1.5 text-[12px] font-bold ${accent.text} ${accent.hover}`}
             >
-              送信
+              {t("送信")}
             </button>
           </div>
           {/* やりとりの中身は既定で送らない。選んでいただいたときだけ添える（#629） */}
@@ -157,7 +159,7 @@ export function ConsultFeedback({
               onChange={(e) => setShareTranscript(e.target.checked)}
               className={`h-3.5 w-3.5 rounded border-slate-300 ${accent.check} ${accent.ring}`}
             />
-            このときのやりとりも送る（改善に使わせていただきます）
+            {t("このときのやりとりも送る（改善に使わせていただきます）")}
           </label>
         </div>
       )}

@@ -1,6 +1,7 @@
 "use client";
 
-import { usePathname, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
+import { useAppPathname } from "@/lib/i18n/useAppPathname";
 import { useEffect, useRef } from "react";
 
 import { isSecretTokenPath } from "@/lib/analytics/secretPaths";
@@ -29,7 +30,7 @@ function sendVisit(path: string, durationSeconds: number) {
 }
 
 export default function PageVisitTracker() {
-  const pathname = usePathname();
+  const pathname = useAppPathname();
   const searchParams = useSearchParams();
   const pathRef = useRef("");
   const startTimeRef = useRef<number>(Date.now());

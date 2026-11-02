@@ -36,6 +36,12 @@ function bottomSpace(bottomNav: boolean): React.CSSProperties {
 type PageShellProps = React.HTMLAttributes<HTMLElement> & {
   /** NavigationBar を出す画面は true（既定）。出さない画面だけ false にする */
   bottomNav?: boolean;
+  /**
+   * lg 以上で「もどる」バーを右上に浮かべる画面（NavigationBar の backBarOnTop と組で使う）。
+   * lg 以上では下端にナビの余白を取らない（--nav-bar-height を 0 にする）。
+   * スマホは下端のバーのままなので、余白は変えない
+   */
+  topNav?: boolean;
   as?: React.ElementType;
 };
 
@@ -43,13 +49,18 @@ type PageShellProps = React.HTMLAttributes<HTMLElement> & {
 export function PageShell({
   className,
   bottomNav = true,
+  topNav = false,
   as: Tag = "div",
   style,
   ...props
 }: PageShellProps) {
   return (
     <Tag
-      className={cn("min-h-screen bg-nicchyo-base text-nicchyo-ink", className)}
+      className={cn(
+        "min-h-screen bg-nicchyo-base text-nicchyo-ink",
+        topNav && "lg:[--nav-bar-height:0px]",
+        className
+      )}
       style={{ ...bottomSpace(bottomNav), ...style }}
       {...props}
     />

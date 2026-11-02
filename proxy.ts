@@ -2,7 +2,18 @@ import { type NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/utils/supabase/middleware";
 import { getRole, isModerator } from "@/lib/auth/permissions";
 import {
+  DEFAULT_LOCALE,
+  LOCALE_COOKIE,
+  LOCALE_HEADER,
+  isLocale,
+  isLocalizablePath,
+  localizePath,
+  stripLocalePrefix,
+} from "@/lib/i18n/config";
+import {
+  applyEnvironmentDefaults,
   EMPTY_PAGE_VISIBILITY_SETTINGS,
+  isBlockedState,
   parsePageVisibilitySettings,
   resolvePageVisibility,
   toVisibilityRole,
@@ -33,7 +44,14 @@ function fallbackSiteSettings(): SiteSettings {
   return value;
 }
 
+// 本番の既定（管理者以外には本番マップを見せない）は、保存済み設定の取得に失敗したときも効かせる。
+// ここを通さないと、DB が落ちた瞬間に公開側へ倒れる
 async function getSiteSettings(): Promise<SiteSettings> {
+  const settings = await fetchSiteSettings();
+  return { ...settings, pageVisibility: applyEnvironmentDefaults(settings.pageVisibility) };
+}
+
+async function fetchSiteSettings(): Promise<SiteSettings> {
   if (siteSettingsCache && Date.now() < siteSettingsCache.expiresAt) {
     return siteSettingsCache.value;
   }
@@ -79,6 +97,10 @@ const MAINTENANCE_SKIP_EXACT = ["/robots.txt", "/sitemap.xml", "/favicon.ico"];
 // （公開設定の判定は引き続き対象）
 const MAINTENANCE_ONLY_SKIP_PREFIXES = ["/login", "/oauth"];
 
+// 店舗データをそのまま返す API は、地図ページ（/map）と同じ公開設定で止める
+const PREPARING_PATH = "/preparing";
+const MAP_DATA_API_PREFIXES = ["/api/shops", "/api/grandma"];
+
 function matchesPrefix(pathname: string, prefix: string): boolean {
   return pathname === prefix || pathname.startsWith(`${prefix}/`);
 }
@@ -90,8 +112,37 @@ function copyCookies(from: NextResponse, to: NextResponse) {
   });
 }
 
+/**
+ * ブラウザがページそのものを開くリクエストか。<Link> の遷移・プリフェッチ（RSC）や、
+ * 地図の Worker などの静的ファイルは対象にしない（英語の人だけ余計な 307 を挟まないため）。
+ */
+function isDocumentNavigation(request: NextRequest): boolean {
+  if (request.headers.has("rsc") || request.headers.has("next-router-prefetch")) return false;
+  const dest = request.headers.get("sec-fetch-dest");
+  if (dest) return dest === "document";
+  return (request.headers.get("accept") ?? "").includes("text/html");
+}
+
 export async function proxy(request: NextRequest) {
-  const pathname = request.nextUrl.pathname;
+  // /en/map のようなロケール付きURLは、ロケールを外した /map として以降の判定・描画を行う。
+  // ロケールは URL のプレフィックス → Cookie → 日本語 の順で決める
+  const { locale: prefixLocale, pathname } = stripLocalePrefix(request.nextUrl.pathname);
+  const cookieLocale = request.cookies.get(LOCALE_COOKIE)?.value;
+  const locale = prefixLocale ?? (isLocale(cookieLocale) ? cookieLocale : DEFAULT_LOCALE);
+
+  // 英語を選んだあとに /en の付いていないリンクをたどっても、URL が /en のまま保たれるようにする
+  // （アプリ内リンクはロケールを知らないため）。ページ表示（GET）だけが対象
+  if (
+    !prefixLocale &&
+    locale !== DEFAULT_LOCALE &&
+    request.method === "GET" &&
+    isDocumentNavigation(request) &&
+    isLocalizablePath(pathname)
+  ) {
+    const url = request.nextUrl.clone();
+    url.pathname = localizePath(pathname, locale);
+    return NextResponse.redirect(url);
+  }
   // 管理者・API・静的ファイルはメンテナンス判定・公開設定判定の対象外
   // /_next 配下に全静的アセットが含まれるため、ドット有無による判定は不要
   // /private は一般ログインユーザー向けのため、メンテナンス中は他ページと同様にブロックする
@@ -138,21 +189,44 @@ export async function proxy(request: NextRequest) {
     }
   }
 
-  // ページ公開設定（管理画面で設定した「非公開」ページをロール別に遮断）
+  // 地図の店舗データを返す API。ページの redirect ではなく 404 を返して存在を伝えない
+  if (MAP_DATA_API_PREFIXES.some((p) => matchesPrefix(pathname, p))) {
+    const settings = (await getSiteSettings()).pageVisibility;
+    const apiRole = toVisibilityRole(appRole, !!user);
+    if (isBlockedState(resolvePageVisibility("/map", apiRole, settings).state)) {
+      const denied = NextResponse.json({ error: "Not found" }, { status: 404 });
+      denied.headers.set("cache-control", "private, no-store");
+      copyCookies(supabaseResponse, denied);
+      return denied;
+    }
+  }
+
+  // ページ公開設定（管理画面で設定した「準備中」「非公開」ページをロール別に遮断）
+  // 準備中は URL を保ったまま、あとで「準備中」ページに差し替える（CSP などの共通処理を通すため）
+  let showPreparing = false;
   if (isPageRequest) {
     const visibilityRole = toVisibilityRole(appRole, !!user);
     // next.config の rewrite（/shops001 → /shops/001）は proxy より後に効くため、ここで正規化する
     const visibilityPath = pathname.replace(/^\/shops(\d{3})$/, "/shops/$1");
     const visibility = resolvePageVisibility(visibilityPath, visibilityRole, siteSettings.pageVisibility);
+    showPreparing = visibility.state === "preparing";
     if (visibility.state === "private") {
-      // リダイレクト先自身が非公開ならループになるためホームへ逃がす
+      // リダイレクト先自身が非公開ならループになるためマップへ逃がす（常に公開）
       const target = visibility.redirectTo;
       const targetVisible =
-        resolvePageVisibility(target, visibilityRole, siteSettings.pageVisibility).state !== "private";
-      const destination = targetVisible && target !== visibilityPath ? target : "/map";
-      const redirectRes = NextResponse.redirect(new URL(destination, request.url));
-      copyCookies(supabaseResponse, redirectRes);
-      return redirectRes;
+        !isBlockedState(resolvePageVisibility(target, visibilityRole, siteSettings.pageVisibility).state);
+      // マップ自身が見えないロール（本番の準備中など）を /map へ逃がすと二度転送になるので、トップへ戻す
+      const mapVisible =
+        !isBlockedState(resolvePageVisibility("/map", visibilityRole, siteSettings.pageVisibility).state);
+      const destination = targetVisible && target !== visibilityPath ? target : mapVisible ? "/map" : "/";
+      // トップ自身を非公開にした場合は逃がす先がない（転送するとループする）ので、準備中を見せる
+      if (destination === visibilityPath) {
+        showPreparing = true;
+      } else {
+        const redirectRes = NextResponse.redirect(new URL(destination, request.url));
+        copyCookies(supabaseResponse, redirectRes);
+        return redirectRes;
+      }
     }
   }
 
@@ -185,10 +259,27 @@ export async function proxy(request: NextRequest) {
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set("x-nonce", nonce);
   requestHeaders.set("content-security-policy", csp);
+  requestHeaders.set(LOCALE_HEADER, locale);
 
-  const res = NextResponse.next({
-    request: { headers: requestHeaders },
-  });
+  // 準備中のページは、URL はそのまま中身だけ /preparing に差し替える。
+  // /en/… はロケールを外したパスへ書き換えて描画する（ブラウザのURLは /en/… のまま）
+  let res: NextResponse;
+  if (showPreparing) {
+    const rewriteUrl = request.nextUrl.clone();
+    rewriteUrl.pathname = PREPARING_PATH;
+    rewriteUrl.search = "";
+    res = NextResponse.rewrite(rewriteUrl, { request: { headers: requestHeaders } });
+  } else if (prefixLocale) {
+    const rewriteUrl = request.nextUrl.clone();
+    rewriteUrl.pathname = pathname;
+    res = NextResponse.rewrite(rewriteUrl, { request: { headers: requestHeaders } });
+  } else {
+    res = NextResponse.next({ request: { headers: requestHeaders } });
+  }
+  // 選んだ言語を覚える。/en が付いていないリンクをたどっても同じ言語で表示するため
+  if (prefixLocale && cookieLocale !== prefixLocale) {
+    res.cookies.set(LOCALE_COOKIE, prefixLocale, { path: "/", maxAge: 60 * 60 * 24 * 365, sameSite: "lax" });
+  }
 
   // レスポンスにCSPヘッダーとSupabase Cookieを設定（リフレッシュ後の最新 Cookie を使用）
   res.headers.set("content-security-policy", csp);

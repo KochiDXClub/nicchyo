@@ -99,6 +99,12 @@ describe("写真の URL（isVendorImageUrl）", () => {
     expect(ok({ shop_image_url: null }).vendor.shop_image_url).toBeNull();
   });
 
+  it("写真を消すと、写真の種類（全周／普通）も普通に戻す", () => {
+    expect(ok({ shop_image_url: null }).vendor.shop_image_kind).toBe("normal");
+    // 写真に触らないときは、種類にも触らない
+    expect(ok({ shop_name: "はなや" }).vendor.shop_image_kind).toBeUndefined();
+  });
+
   it("別のホストの同じパスは断る（来訪者の通信が外へ出るため）", () => {
     expect(isVendorImageUrl(`https://attacker.example${path}`)).toBe(false);
     expect(isVendorImageUrl(`https://abc.supabase.co.attacker.example${path}`)).toBe(false);

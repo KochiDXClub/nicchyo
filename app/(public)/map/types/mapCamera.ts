@@ -9,7 +9,19 @@
 
 import type { Map as MapLibreMap } from "maplibre-gl";
 
-export type MapCameraEvent = "move" | "zoom" | "movestart" | "zoomstart" | "moveend" | "zoomend";
+/**
+ * dragstart / dragend は人が地図をドラッグしたときにだけ飛ぶ（flyTo などのプログラムの移動では飛ばない）。
+ * MapLibre・Leaflet とも同じ名前のイベントがある
+ */
+export type MapCameraEvent =
+  | "move"
+  | "zoom"
+  | "movestart"
+  | "zoomstart"
+  | "moveend"
+  | "zoomend"
+  | "dragstart"
+  | "dragend";
 
 export interface MapCamera {
   getContainer(): HTMLElement;

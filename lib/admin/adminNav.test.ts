@@ -120,14 +120,12 @@ describe("adminNav", () => {
       expect(isAdminNavItemCurrent(inboxItem, path), path).toBe(true);
     }
     expect(isAdminNavItemCurrent(inboxItem, "/admin/outbox")).toBe(false);
-    expect(isAdminNavItemCurrent(inboxItem, "/admin/security-reports")).toBe(false);
+    expect(isAdminNavItemCurrent(inboxItem, "/admin/audit-logs")).toBe(false);
   });
 
   it("サブパスでも親項目が選択状態になる", () => {
-    expect(isAdminNavItemActive("/admin/security-reports", "/admin/security-reports/2026-09-01")).toBe(
-      true
-    );
+    expect(isAdminNavItemActive("/admin/shops", "/admin/shops/12")).toBe(true);
     // 前方一致だけで誤判定しない
-    expect(isAdminNavItemActive("/admin/reports", "/admin/security-reports")).toBe(false);
+    expect(isAdminNavItemActive("/admin/field", "/admin/field-notes")).toBe(false);
   });
 });
