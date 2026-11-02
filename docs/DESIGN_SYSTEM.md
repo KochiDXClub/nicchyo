@@ -237,3 +237,7 @@ import { PageShell, PageContainer, PageHeader } from "@/components/ui";
 
 > 補足: `SpotCard` は店舗のカードではない。電停・お手洗いなどの
 > `MapSpot` を扱うボトムシートで、ドメインが違うので寄せない。
+
+### ランディングの色
+
+`landing.css` も Tailwind の `theme("colors.…")` を使う。アクセント・ink・白・amber・orangeは共通パレットを参照する。地図見本の地面・道・破線は `market-map.ground`・`market-map.road`・`market-map.dash` を使用する。

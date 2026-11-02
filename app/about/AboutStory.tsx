@@ -152,7 +152,7 @@ function RichContent({
           >
             {entry.version}
           </span>
-          <time className="text-xs font-medium text-gray-400">{entry.date}</time>
+          {entry.released === false ? <span className="text-xs font-medium text-nicchyo-ink/55">公開準備中</span> : <time className="text-xs font-medium text-nicchyo-ink/55">{entry.date}</time>}
         </div>
         {entry.highlights.map((highlight, i) => (
           <div

@@ -92,6 +92,11 @@ module.exports = {
         },
 
         // ===== 面 =====
+        'market-map': {
+          ground: '#F3E9D3',
+          road: '#DCD2BC',
+          dash: '#F0C64A',
+        },
         surface: {
           // 地より一段明るい面。カードが白のとき、その下に敷く帯に使う
           warmwhite: '#FEFCE8',
