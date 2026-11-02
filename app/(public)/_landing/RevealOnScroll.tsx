@@ -24,9 +24,10 @@ export default function RevealOnScroll({
   delayMs?: number;
 }) {
   const ref = useRef<HTMLDivElement>(null);
-  const [shown, setShown] = useState(false);
+  const [shown, setShown] = useState(when === "enter");
 
   useEffect(() => {
+    if (when === "enter") return;
     const element = ref.current;
     if (!element || typeof IntersectionObserver === "undefined") {
       setShown(true);
@@ -48,11 +49,11 @@ export default function RevealOnScroll({
     <div
       ref={ref}
       className={cn(
-        "transition duration-700 ease-out-soft motion-reduce:transition-none",
+        when === "enter" ? "landing-enter" : "transition duration-700 ease-out-soft motion-reduce:transition-none",
         shown ? "translate-y-0 opacity-100" : "translate-y-6 opacity-0",
         className
       )}
-      style={{ transitionDelay: shown ? `${delayMs}ms` : "0ms" }}
+      style={when === "enter" ? { animationDelay: `${delayMs}ms` } : { transitionDelay: shown ? `${delayMs}ms` : "0ms" }}
     >
       {children}
     </div>

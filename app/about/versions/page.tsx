@@ -1,3 +1,4 @@
+import { VersionDate } from "@/components/ui";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { versionHistory } from "../versions";
@@ -34,7 +35,7 @@ export default function VersionHistoryPage() {
                 <span className="rounded-full bg-amber-500 px-2.5 py-0.5 text-sm font-bold text-white">
                   {entry.version}
                 </span>
-                <time className="text-xs font-medium text-gray-400">{entry.date}</time>
+                <VersionDate released={entry.released} date={entry.date} />
               </div>
               <h2 className="mb-3 text-base font-bold leading-snug text-gray-900">
                 {entry.title}

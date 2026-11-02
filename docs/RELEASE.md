@@ -587,4 +587,5 @@ Remote の version に合わせる**（そうすれば消さずに一致させ�
 
 マージ前に `NICCHYO_PRODUCTION_DEFAULTS=1` のPreviewで実際の管理者ログイン後に `/`・`/map`・`/api/shops` と公開範囲画面を確認する。保存確認はPreviewの検証DBで行う。`/story`・`/api/stories`・Supabase公開キーによる直接参照は別途アクセス制御が必要（この制限の対象外）。
 
-レビュー補足: 作成者により、管理者ログイン後にマップが準備中にならず通常表示されることを確認済み。Previewと本番のDBは分離済み。トップ・API・公開範囲の保存までの確認は別途行う。
+
+一般公開前の版は `app/about/versions.ts` で `released: false` とし、日付は空にする。一般公開時に `released: true` と実際の公開日・公開済み機能を記載する。

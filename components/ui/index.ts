@@ -14,3 +14,5 @@ export { PageShell, PageContainer, PageHeader, PageTitle, type PageWidth } from 
 export { LoadingSpinner, CenteredLoading } from "./loading-spinner";
 export { ShopImageKindField, PANORAMA_RATIO_MESSAGE } from "./shop-image-kind-field";
 export { PanoramaThumbPicker } from "./panorama-thumb-picker";
+
+export { VersionDate } from "./version-date";
