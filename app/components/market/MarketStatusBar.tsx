@@ -1,8 +1,11 @@
 import Link from "next/link";
+import NextSundayCalendar from "@/app/(public)/_landing/NextSundayCalendar";
+import type { LandingSunday } from "@/app/(public)/_landing/upcomingSundays";
 import {
   formatEventDate,
   getStatusPresentation,
   getUpcomingSundayIso,
+  normalizeStatus,
   shouldSurfaceOnMap,
   type MarketDay,
 } from "@/lib/market/calendar";
@@ -38,7 +41,33 @@ export default function MarketStatusBar({ day, placement, className = "" }: Prop
   if (placement === "map" && !shouldSurfaceOnMap(status)) return null;
 
   const { label, tone } = getStatusPresentation(status);
-  const dateLabel = formatEventDate(day?.market_date ?? getUpcomingSundayIso());
+  const dateIso = day?.market_date ?? getUpcomingSundayIso();
+  const dateLabel = formatEventDate(dateIso);
+
+  // ページ上部は、トップページ（LP）と同じ日めくりカレンダーを小さく出す
+  if (placement === "page") {
+    const [, month, dayOfMonth] = dateIso.split("-").map(Number);
+    const sunday: LandingSunday = { dateIso, month, day: dayOfMonth, status: normalizeStatus(status) };
+    return (
+      <div className={`flex items-center gap-4 ${className}`}>
+        <Link
+          href="/calendar"
+          prefetch={false}
+          aria-label="開催カレンダーをひらく"
+          className="relative block h-[8.2rem] w-[7.6rem] shrink-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-amber-500"
+        >
+          <NextSundayCalendar sunday={sunday} className="origin-top-left scale-[0.52]" />
+        </Link>
+        <div className="min-w-0">
+          <p className="text-xs font-bold text-nicchyo-ink/55">次の日曜市</p>
+          <p className="mt-0.5 text-base font-black text-nicchyo-ink">
+            {dateLabel} {label}
+          </p>
+          {day?.note && <p className="mt-1 text-xs leading-relaxed text-nicchyo-ink/70">{day.note}</p>}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <Link
