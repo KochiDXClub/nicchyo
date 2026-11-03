@@ -132,6 +132,32 @@ export async function previewShopTranslation(source: TranslationSource, locale: 
   return translation ? { translation, model: aiModel.def.id } : null;
 }
 
+/**
+ * 自動訳を1行書く。すでに reviewed の行は書かない（同期の途中で運営が確認した訳を守る）。
+ * 既存行は「reviewed でない場合だけ」更新し、行が無ければ作る（同時に作られていたら何もしない）。書いたら true
+ */
+async function writeAutoTranslation(
+  supabase: SupabaseClient<DatabaseWithExtensions>,
+  row: { vendor_id: string; locale: Locale } & Record<string, unknown>
+): Promise<boolean> {
+  const { vendor_id, locale, ...rest } = row;
+  const { data: updated, error: updateError } = await supabase
+    .from("shop_translations")
+    .update(rest as never)
+    .eq("vendor_id", vendor_id)
+    .eq("locale", locale)
+    .neq("status", "reviewed")
+    .select("vendor_id");
+  if (updateError) throw new Error(updateError.message);
+  if (updated && updated.length > 0) return true;
+  const { data: inserted, error: insertError } = await supabase
+    .from("shop_translations")
+    .upsert(row as never, { onConflict: "vendor_id,locale", ignoreDuplicates: true })
+    .select("vendor_id");
+  if (insertError) throw new Error(insertError.message);
+  return !!inserted && inserted.length > 0;
+}
+
 export type SyncShopTranslationsResult = {
   locale: Locale;
   /** 訳す必要があった店の数（原文が変わった・まだ無い） */
@@ -216,11 +242,12 @@ export async function syncShopTranslations(params: {
           },
         ];
       });
-      if (rows.length > 0) {
-        const { error } = await supabase.from("shop_translations").upsert(rows, { onConflict: "vendor_id,locale" });
-        if (error) throw new Error(error.message);
+      // AIを待つ間に運営が確認した訳（reviewed）に変わった行は、上書きしない
+      let written = 0;
+      for (const row of rows) {
+        if (await writeAutoTranslation(supabase, row)) written += 1;
       }
-      result.translated += rows.length;
+      result.translated += written;
       result.failed += batch.length - rows.length;
     } catch (error) {
       console.error("[syncShopTranslations] 訳せませんでした:", error);
@@ -243,11 +270,11 @@ function getAdminSupabase(): AdminSupabase {
 }
 
 /** 店舗 1 件の、いま保存されている日本語から訳す原文を作る（公開の可否に関わらず読む）。店が無ければ null */
-async function loadVendorSource(supabase: AdminSupabase, vendorId: string): Promise<TranslationSource | null> {
+async function loadVendorSource(supabase: AdminSupabase, vendorId: string): Promise<{ source: TranslationSource; updatedAt: string | null } | null> {
   const [{ data: vendor, error }, { data: productRows, error: productsError }] = await Promise.all([
     supabase
       .from("vendors")
-      .select("shop_name, strength, style, main_products, main_product_prices")
+      .select("shop_name, strength, style, main_products, main_product_prices, updated_at")
       .eq("id", vendorId)
       .maybeSingle(),
     supabase.from("products").select("name, image_url").eq("vendor_id", vendorId),
@@ -255,7 +282,7 @@ async function loadVendorSource(supabase: AdminSupabase, vendorId: string): Prom
   if (error) throw new Error(`vendors の読み込みに失敗しました: ${error.message}`);
   if (productsError) throw new Error(`products の読み込みに失敗しました: ${productsError.message}`);
   if (!vendor) return null;
-  return buildVendorTranslationSource(
+  const source = buildVendorTranslationSource(
     {
       shop_name: vendor.shop_name,
       strength: vendor.strength,
@@ -265,6 +292,7 @@ async function loadVendorSource(supabase: AdminSupabase, vendorId: string): Prom
     },
     (productRows ?? []) as { name: string | null; image_url: string | null }[]
   );
+  return { source, updatedAt: (vendor as { updated_at?: string | null }).updated_at ?? null };
 }
 
 export type StoredVendorTranslation = {
@@ -284,7 +312,8 @@ export async function getVendorTranslation(vendorId: string, locale: Locale): Pr
     .eq("locale", locale)
     .maybeSingle();
   if (error || !data) return null;
-  const source = await loadVendorSource(supabase, vendorId);
+  const loaded = await loadVendorSource(supabase, vendorId);
+  const source = loaded?.source;
   const stale = !source || hashTranslationSource(locale, source) !== data.source_hash;
   return { translation: toTranslation(data), status: data.status, stale };
 }
@@ -303,11 +332,17 @@ export async function saveReviewedShopTranslation(params: {
   translation: ShopTranslation;
   /** 日本語を直したあと、英語版を確認していない。どの日本語にも合わない印で保存し、来訪者には日本語を出す */
   stale?: boolean;
+  /** 日本語を保存したときの updated_at。いまの店舗と違えば、ほかの人が日本語を変えている */
+  expectedUpdatedAt?: string | null;
 }): Promise<SaveReviewedResult> {
   const { vendorId, locale } = params;
   const supabase = getAdminSupabase();
-  const source = await loadVendorSource(supabase, vendorId);
-  if (!source) return "not_found";
+  const loaded = await loadVendorSource(supabase, vendorId);
+  if (!loaded) return "not_found";
+  const { source } = loaded;
+  // 画面が日本語を保存した時点から、ほかの人が日本語を変えていたら、この英語は今の日本語に合うと言えない
+  const changedSince =
+    params.expectedUpdatedAt != null && (!loaded.updatedAt || new Date(loaded.updatedAt).getTime() !== new Date(params.expectedUpdatedAt).getTime());
 
   const clean = (value: string | null) => (value?.trim() ? value.trim() : null);
   const known = new Set(source.products);
@@ -339,7 +374,7 @@ export async function saveReviewedShopTranslation(params: {
       style: translation.style,
       rain_policy: null,
       products,
-      source_hash: params.stale ? `stale:${hashTranslationSource(locale, source)}` : hashTranslationSource(locale, source),
+      source_hash: params.stale || changedSince ? `stale:${hashTranslationSource(locale, source)}` : hashTranslationSource(locale, source),
       status: "reviewed" as const,
       model: null,
       updated_at: new Date().toISOString(),

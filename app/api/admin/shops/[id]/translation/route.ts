@@ -33,10 +33,11 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
     if ("error" in guard) return guard.error;
     const { user, role, adminClient, ip, id } = guard.ctx;
 
+    const body = guard.body as { stale?: unknown; sourceUpdatedAt?: unknown } | null;
     const parsed = parseShopTranslationInput(guard.body);
     if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 });
 
-    const result = await saveReviewedShopTranslation({ vendorId: id, locale: "en", translation: parsed.value, stale: (guard.body as { stale?: unknown } | null)?.stale === true });
+    const result = await saveReviewedShopTranslation({ vendorId: id, locale: "en", translation: parsed.value, stale: body?.stale === true, expectedUpdatedAt: typeof body?.sourceUpdatedAt === "string" ? body.sourceUpdatedAt : null });
     if (result === "not_found") return NextResponse.json({ error: "店舗が見つかりません" }, { status: 404 });
 
     const { data: vendor } = await adminClient.from("vendors").select("shop_name").eq("id", id).maybeSingle();

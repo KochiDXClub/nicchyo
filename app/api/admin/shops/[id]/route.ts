@@ -147,9 +147,10 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     if (!sameInstant(current.updated_at, expectedUpdatedAt as string | null)) return conflict;
 
     // 項目の更新がなく店主名だけのときも、updated_at を進めて同じ確認を通す
+    const writtenAt = new Date().toISOString();
     let query = adminClient
       .from("vendors")
-      .update({ ...update, updated_at: new Date().toISOString() })
+      .update({ ...update, updated_at: writtenAt })
       .eq("id", id);
     query = current.updated_at ? query.eq("updated_at", current.updated_at) : query.is("updated_at", null);
     const { data: updated, error: updateError } = await query.select("id");
@@ -203,7 +204,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     // 来訪者のマップ・検索のキャッシュに反映する
     revalidatePublicShops();
 
-    return NextResponse.json({ ok: true });
+    return NextResponse.json({ ok: true, updated_at: writtenAt });
   } catch {
     return NextResponse.json({ error: "保存できませんでした" }, { status: 500 });
   }

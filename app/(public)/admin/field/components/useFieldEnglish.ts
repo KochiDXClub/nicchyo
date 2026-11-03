@@ -146,7 +146,7 @@ export function useFieldEnglish(shopId: string, form: TranslationForm | null, ma
   };
 
   /** 日本語を保存したあとに、英語版を保存する。失敗したときはメッセージを返す（日本語は保存済み） */
-  const saveToServer = async (s: EnglishSnapshot): Promise<string | null> => {
+  const saveToServer = async (s: EnglishSnapshot, sourceUpdatedAt: string | null): Promise<string | null> => {
     try {
       const res = await fetch(`/api/admin/shops/${shopId}/translation`, {
         method: "PUT",
@@ -154,6 +154,8 @@ export function useFieldEnglish(shopId: string, form: TranslationForm | null, ma
         body: JSON.stringify({
           // 日本語を直したあと確認していない英語は、日本語に合うものとして保存しない
           stale: s.stale,
+          // 日本語を保存した時点の印。そのあとほかの人が日本語を変えていたら、サーバーが「確認していない英語」として保存する
+          sourceUpdatedAt,
           name: s.english?.name ?? "",
           strength: s.english?.strength ?? "",
           style: s.english?.style ?? "",

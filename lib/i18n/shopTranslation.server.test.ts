@@ -9,6 +9,7 @@ vi.mock("@/lib/ai/modelStore.server", () => ({ resolveAiModelFor: vi.fn() }));
 
 import { createAdminClient } from "@/lib/supabase/adminClient";
 import { requestChatCompletion } from "@/lib/ai/openaiFetch";
+import { resolveAiModelFor } from "@/lib/ai/modelStore.server";
 import { buildTranslationSource } from "./shopTranslation";
 import { hashTranslationSource, saveReviewedShopTranslation, syncShopTranslations } from "./shopTranslation.server";
 
@@ -42,5 +43,52 @@ describe("saveReviewedShopTranslation", () => {
     vi.mocked(createAdminClient).mockReturnValue({ from } as unknown as ReturnType<typeof createAdminClient>);
     await expect(saveReviewedShopTranslation({ vendorId: "v1", locale: "en", translation: { name: "Test", strength: null, style: null, products: {} } })).rejects.toThrow(/products/);
     expect(upsert).not.toHaveBeenCalled();
+  });
+});
+
+describe("競合の保護", () => {
+  beforeEach(() => vi.resetAllMocks());
+
+  const vendorTables = (upsert: ReturnType<typeof vi.fn>, updatedAt: string) => (table: string) => {
+    if (table === "vendors") {
+      return { select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: { shop_name: "テスト店", strength: null, style: null, main_products: [], main_product_prices: {}, updated_at: updatedAt }, error: null }) }) }) };
+    }
+    if (table === "products") return { select: () => ({ eq: async () => ({ data: [], error: null }) }) };
+    return { upsert };
+  };
+
+  it("日本語を保存したあとにほかの人が日本語を変えていたら、一致しない印（stale:）で保存する", async () => {
+    const upsert = vi.fn().mockResolvedValue({ error: null });
+    vi.mocked(createAdminClient).mockReturnValue({ from: vendorTables(upsert, "2026-10-06T00:00:01.000Z") } as unknown as ReturnType<typeof createAdminClient>);
+    await saveReviewedShopTranslation({ vendorId: "v1", locale: "en", translation: { name: "Test", strength: null, style: null, products: {} }, expectedUpdatedAt: "2026-10-06T00:00:00.000Z" });
+    expect(upsert.mock.calls[0][0].source_hash).toMatch(/^stale:/);
+  });
+
+  it("日本語が変わっていなければ、通常のハッシュで保存する", async () => {
+    const upsert = vi.fn().mockResolvedValue({ error: null });
+    vi.mocked(createAdminClient).mockReturnValue({ from: vendorTables(upsert, "2026-10-06T00:00:00.000Z") } as unknown as ReturnType<typeof createAdminClient>);
+    await saveReviewedShopTranslation({ vendorId: "v1", locale: "en", translation: { name: "Test", strength: null, style: null, products: {} }, expectedUpdatedAt: "2026-10-06T00:00:00.000Z" });
+    expect(upsert.mock.calls[0][0].source_hash).not.toMatch(/^stale:/);
+  });
+
+  it("同期の途中で reviewed になった行は、自動訳で上書きしない", async () => {
+    vi.stubEnv("OPENAI_API_KEY", "k");
+    vi.mocked(resolveAiModelFor).mockResolvedValue({ def: { id: "m" } } as never);
+    vi.mocked(requestChatCompletion).mockResolvedValue({
+      ok: true,
+      json: async () => ({ choices: [{ message: { content: JSON.stringify({ items: [{ key: "1", name: "Test", strength: null, style: null, products: [] }] }) } }] }),
+    } as never);
+    const neq = vi.fn().mockReturnValue({ select: async () => ({ data: [], error: null }) });
+    const upsertSelect = vi.fn().mockResolvedValue({ data: [], error: null });
+    const update = vi.fn().mockReturnValue({ eq: () => ({ eq: () => ({ neq }) }) });
+    const upsert = vi.fn().mockReturnValue({ select: upsertSelect });
+    const client = {
+      from: vi.fn(() => ({ select: () => ({ eq: async () => ({ data: [], error: null }) }), update, upsert })),
+    };
+    vi.mocked(createAdminClient).mockReturnValue(client as unknown as ReturnType<typeof createAdminClient>);
+    const result = await syncShopTranslations({ shops: [shop], locale: "en", limit: 30 });
+    expect(neq).toHaveBeenCalledWith("status", "reviewed");
+    expect(upsert).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ ignoreDuplicates: true }));
+    expect(result.translated).toBe(0);
   });
 });

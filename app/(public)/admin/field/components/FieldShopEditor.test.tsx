@@ -71,7 +71,7 @@ describe("FieldShopEditor", () => {
         if (url.endsWith("/location") && method === "PUT") return json({ ok: true });
         if (url.endsWith("/location")) return json({ locations: [], current: { storeNumber: 12, lat: 33.5, lng: 133.5 } });
         if (url.includes("/categories")) return json({ categories: [] });
-        if (method === "PATCH") return json({ ok: true });
+        if (method === "PATCH") return json({ ok: true, updated_at: "2026-10-06T00:00:00.000Z" });
         return json({ shop: currentShop });
       }),
     );
@@ -276,7 +276,7 @@ describe("FieldShopEditor", () => {
 
       const order = calls.filter((c) => (c.method === "PATCH" || c.method === "PUT") && !c.url.endsWith("/location")).map((c) => c.method);
       expect(order).toEqual(["PATCH", "PUT"]);
-      expect(calls.find((c) => c.method === "PUT" && c.url.endsWith("/translation"))?.body).toMatchObject({ name: "Hana-ya", stale: false });
+      expect(calls.find((c) => c.method === "PUT" && c.url.endsWith("/translation"))?.body).toMatchObject({ name: "Hana-ya", stale: false, sourceUpdatedAt: "2026-10-06T00:00:00.000Z" });
     });
 
     it("訳したあとに日本語を直し、警告を承知で保存しても、英語版は「確認していない」印つき（stale: true）で保存する", async () => {

@@ -217,7 +217,10 @@ export function FieldShopEditor({ shopId }: { shopId: string }) {
       if (!res.ok) throw new Error((await readError(res, "保存できませんでした")).message);
       // 英語版は、日本語の保存のあとで保存する（原文のハッシュを、保存済みの日本語から作るため）
       let englishError: string | null = null;
-      if (englishSnapshot.dirty) englishError = await en.saveToServer(englishSnapshot);
+      if (englishSnapshot.dirty) {
+        const saved = (await res.json().catch(() => null)) as { updated_at?: string } | null;
+        englishError = await en.saveToServer(englishSnapshot, saved?.updated_at ?? null);
+      }
       await load();
       if (englishError) {
         // 日本語は保存済み。英語版だけ、画面に残して、もう一度保存できるようにする
