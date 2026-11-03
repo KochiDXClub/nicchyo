@@ -202,6 +202,9 @@ const LAYER_LANDMARK_LABELS = "nicchyo-landmark-labels";
 const LAYER_MARKET_HIGHLIGHT_CASING = "nicchyo-market-highlight-casing";
 const LAYER_MARKET_HIGHLIGHT = "nicchyo-market-highlight";
 const LAYER_MARKET_HIGHLIGHT_LABEL = "nicchyo-market-highlight-label";
+const LAYER_MARKET_HIGHLIGHT_POINT_LABEL = "nicchyo-market-highlight-point-label";
+/** 「日曜市」の文字を、点から通りに沿う形へ切り替えるズーム（MapLibre 基準）。それより縮小すると線が短くて文字が収まらない */
+const MARKET_LABEL_ALONG_LINE_MIN_ZOOM = 12.5;
 /** 縮小時の日曜市の強調が薄れ始める／消えるズーム（MapLibre 基準）。丁目バッジ（OVERVIEW_MIN）より手前で消す */
 const MARKET_HIGHLIGHT_FADE_ZOOMS = [OVERVIEW_MIN - 1.5, OVERVIEW_MIN + 0.5] as const;
 const LAYER_LANDMARK_MINOR_LABELS = "nicchyo-landmark-minor-labels";
@@ -694,7 +697,8 @@ function MapViewMapLibre({
       // ベクター背景は施設名などのラベルが自前の丁目バッジと重なるので、POI を消す
       if (useVector) {
         for (const layer of map.getStyle().layers ?? []) {
-          if (layer.type === "symbol" && /poi|place|housenumber/.test(layer.id)) {
+          // label_city は「高知市」が日曜市の文字と同じ場所に出て主役を奪うので、これも消す
+          if (layer.type === "symbol" && /poi|place|housenumber|label_city/.test(layer.id)) {
             map.setLayoutProperty(layer.id, "visibility", "none");
           }
         }
@@ -722,6 +726,9 @@ function MapViewMapLibre({
         properties: {},
         geometry: { type: "LineString", coordinates: line.map(([lat, lng]) => [lng, lat]) },
       });
+      // 縮小しすぎて通りの線が短いと、線に沿う文字が収まらず消える。点の文字用に、いちばん長い通りの中ほどを持っておく
+      let marketLabelPoint: [number, number] | null = null;
+      let marketLabelChainLength = 0;
       // 先に全チェーンの形を作り、交差・分岐する他の道の面の内側では縁を引かない
       const built = chains
         .map((chain) => {
@@ -754,6 +761,11 @@ function MapViewMapLibre({
         }
 
         laneLines.push(toLineFeature(smoothed));
+        if (smoothed.length > marketLabelChainLength) {
+          marketLabelChainLength = smoothed.length;
+          const mid = smoothed[Math.floor(smoothed.length / 2)];
+          marketLabelPoint = [mid[1], mid[0]];
+        }
       }
       map.addSource(SRC_ROAD, { type: "geojson", data: { type: "FeatureCollection", features: polygons } });
       map.addSource(`${SRC_ROAD}-corridor`, { type: "geojson", data: { type: "FeatureCollection", features: corridors } });
@@ -842,26 +854,54 @@ function MapViewMapLibre({
           "line-width": ["interpolate", ["linear"], ["zoom"], 9, 5, highlightFadeStart, 12] as ExpressionSpecification,
         },
       });
-      // 通りの名前。縮小時はランドマークより「日曜市」が先に目に入るようにする
+      // 通りの名前。縮小時はランドマークより「日曜市」が先に目に入るようにする。
+      // 最大縮小付近は線が短く、線に沿う文字が収まらないので、通りの中ほどに点の文字を置く
+      const marketLabelTextLayout = {
+        "text-field": "日曜市",
+        "text-font": TEXT_FONT,
+        "text-letter-spacing": 0.2,
+      };
+      const marketLabelPaint = {
+        "text-color": "#2f6b1c",
+        "text-halo-color": "rgba(255,255,255,0.95)",
+        "text-halo-width": 2,
+      };
+      if (marketLabelPoint) {
+        map.addSource(`${SRC_ROAD}-label`, {
+          type: "geojson",
+          data: { type: "Feature", properties: {}, geometry: { type: "Point", coordinates: marketLabelPoint } },
+        });
+        map.addLayer({
+          id: LAYER_MARKET_HIGHLIGHT_POINT_LABEL,
+          type: "symbol",
+          source: `${SRC_ROAD}-label`,
+          maxzoom: MARKET_LABEL_ALONG_LINE_MIN_ZOOM,
+          layout: {
+            ...marketLabelTextLayout,
+            "text-size": 20,
+            "text-anchor": "bottom",
+            "text-offset": [0, -0.9],
+            // 背景の地名（「高知市」など）と重なっても、日曜市の文字は消さない
+            "text-allow-overlap": true,
+            "text-ignore-placement": true,
+          },
+          paint: marketLabelPaint,
+        });
+      }
       map.addLayer({
         id: LAYER_MARKET_HIGHLIGHT_LABEL,
         type: "symbol",
         source: `${SRC_ROAD}-lane`,
+        minzoom: MARKET_LABEL_ALONG_LINE_MIN_ZOOM,
         maxzoom: highlightFadeStart,
         layout: {
           "symbol-placement": "line",
           "symbol-spacing": 280,
-          "text-field": "日曜市",
-          "text-font": TEXT_FONT,
+          ...marketLabelTextLayout,
           "text-size": ["interpolate", ["linear"], ["zoom"], 9, 20, highlightFadeStart, 18] as ExpressionSpecification,
-          "text-letter-spacing": 0.2,
           "text-keep-upright": true,
         },
-        paint: {
-          "text-color": "#2f6b1c",
-          "text-halo-color": "rgba(255,255,255,0.95)",
-          "text-halo-width": 2,
-        },
+        paint: marketLabelPaint,
       });
       map.addLayer({
         id: "nicchyo-road-edges",
