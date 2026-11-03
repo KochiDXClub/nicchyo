@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import NavigationBar from "../../components/NavigationBar";
-import MarketStatusBar from "../../components/market/MarketStatusBar";
+import MarketStatusCalendar from "../../components/market/MarketStatusCalendar";
 import UpcomingSundays from "../../components/market/UpcomingSundays";
 import { createClient } from "@/utils/supabase/server";
 import {
@@ -39,7 +39,7 @@ export default async function MarketCalendarPage() {
             開催状況とこれからの予定をお届けします
           </p>
 
-          <MarketStatusBar day={day} placement="page" className="mt-5" />
+          <MarketStatusCalendar day={day} className="mt-5" link={false} />
         </PageContainer>
       </div>
 

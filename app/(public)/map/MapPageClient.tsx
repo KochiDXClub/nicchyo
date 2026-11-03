@@ -890,7 +890,7 @@ export default function MapPageClient({
                 <AnnouncementBanner />
 
                 {/* 開催ステータス（例外時のみ表示。平常時は null を返すので検索バーは動かない） */}
-                <MarketStatusBar day={marketCalendar.day} placement="map" />
+                <MarketStatusBar day={marketCalendar.day} />
 
                 {/* 検索バー */}
                 <div className={`flex items-center gap-2 rounded-full px-4 py-2.5 shadow-lg ring-1 backdrop-blur-sm transition-all duration-200 lg:rounded-btn lg:shadow-none ${
