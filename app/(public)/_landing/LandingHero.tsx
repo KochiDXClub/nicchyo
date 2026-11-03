@@ -2,6 +2,7 @@ import Link from "next/link";
 import Image, { getImageProps } from "next/image";
 import { MapPin } from "lucide-react";
 import { buttonClass } from "@/components/ui";
+import { getT } from "@/lib/i18n/server";
 import LanguageSwitcher from "@/components/navigation/LanguageSwitcher";
 import NextSundayCalendar from "./NextSundayCalendar";
 import { PHOTOS } from "./content";
@@ -24,8 +25,9 @@ import type { LandingSunday } from "./upcomingSundays";
  * 写真は画面の向きで出し分ける。スマートフォンは縦長の「上から見た通り」、
  * 広い画面は横長の「屋台の通り」。<picture> で、見ない方の写真は読み込まない
  */
-export default function LandingHero({ sundays, showOutingSupport = false }: { sundays: LandingSunday[]; showOutingSupport?: boolean }) {
-  const common = { alt: "屋台のテントが並ぶ、日曜市の通り", sizes: "100vw", priority: true } as const;
+export default async function LandingHero({ sundays, showOutingSupport = false }: { sundays: LandingSunday[]; showOutingSupport?: boolean }) {
+  const t = await getT();
+  const common = { alt: t("屋台のテントが並ぶ、日曜市の通り"), sizes: "100vw", priority: true } as const;
   const {
     props: { srcSet: tallSrcSet, ...imgProps },
   } = getImageProps({ ...common, src: PHOTOS.overview.src, width: PHOTOS.overview.width, height: PHOTOS.overview.height });
@@ -70,25 +72,25 @@ export default function LandingHero({ sundays, showOutingSupport = false }: { su
           <RevealOnScroll when="enter" className="max-w-[28rem] md:max-w-[34rem]">
             <h1 id="landing-title" className={`text-white ${PHOTO_TEXT_SHADOW}`}>
               <span className="sr-only">nicchyo：</span>
-              <span className="block text-sm font-bold tracking-wide text-white">高知高専生が開発した</span>
+              <span className="block text-sm font-bold tracking-wide text-white">{t("高知高専生が開発した")}</span>
               <span className="mt-2 block text-[2.5rem] font-black leading-[1.2] tracking-wide sm:text-5xl md:text-6xl">
-                日曜市の
+                {t("日曜市の")}
                 <br />
-                デジタルマップ
+                {t("デジタルマップ")}
               </span>
             </h1>
           </RevealOnScroll>
 
           <RevealOnScroll when="enter" delayMs={150} className="max-w-[28rem] md:max-w-[34rem]">
             {sundays[0] && (
-              <Link href="/calendar" aria-label="開催カレンダーをひらく" className="relative mx-auto mb-6 block h-[10.2rem] w-[9.4rem] focus-visible:outline focus-visible:outline-2 focus-visible:outline-amber-500">
+              <Link href="/calendar" aria-label={t("開催カレンダーをひらく")} className="relative mx-auto mb-6 block h-[10.2rem] w-[9.4rem] focus-visible:outline focus-visible:outline-2 focus-visible:outline-amber-500">
                 <NextSundayCalendar sunday={sundays[0]} className="origin-top-left scale-[0.65]" />
               </Link>
             )}
             {/* いちばんしてほしいこと：地図をひらく（この画面を過ぎると、右下の丸いボタンに替わる） */}
             <Link href="/map" className={buttonClass({ size: "lg", className: "h-14 w-full text-lg shadow-float" })}>
               <MapPin aria-hidden className="h-5 w-5" />
-              マップをみる
+              {t("マップをみる")}
             </Link>
 
             {/* お店さがし。地図をひらき、検索バーにこの語を入れて絞り込む（/map?q=） */}
@@ -99,18 +101,18 @@ export default function LandingHero({ sundays, showOutingSupport = false }: { su
               className="mt-4 flex min-w-0 items-center gap-1.5 rounded-chip bg-white py-1.5 pl-5 pr-1.5 shadow-float"
             >
               <label htmlFor="landing-search" className="sr-only">
-                お店や品物をさがす
+                {t("お店や品物をさがす")}
               </label>
               <input
                 id="landing-search"
                 name="q"
                 type="search"
                 enterKeyHint="search"
-                placeholder="なにを探す？　例：芋天"
+                placeholder={t("なにを探す？　例：芋天")}
                 className="h-10 min-w-0 flex-1 bg-transparent text-base text-nicchyo-ink outline-none placeholder:text-nicchyo-ink/40"
               />
               <button type="submit" className={buttonClass({ variant: "ink", size: "sm", className: "h-10" })}>
-                さがす
+                {t("さがす")}
               </button>
             </form>
           </RevealOnScroll>

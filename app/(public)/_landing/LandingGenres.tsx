@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { PageContainer } from "@/components/ui";
+import { getT } from "@/lib/i18n/server";
 import { getShopCategoryColor } from "../map/config/shopCategories";
 import { GENRES } from "./content";
 import SectionHeading from "./SectionHeading";
@@ -8,11 +9,12 @@ import SectionHeading from "./SectionHeading";
  * 「何に興味ある？」。店舗カテゴリ7つを、白いタイルで並べる。
  * 押すと地図をひらき、そのカテゴリで絞り込む（/map?category=）。絵は public/images/landing/art/
  */
-export default function LandingGenres() {
+export default async function LandingGenres() {
+  const t = await getT();
   return (
     <section aria-labelledby="landing-genres" className="mt-16 md:mt-20">
       <PageContainer width="wide">
-        <SectionHeading id="landing-genres">何に興味ある？</SectionHeading>
+        <SectionHeading id="landing-genres">{t("何に興味ある？")}</SectionHeading>
         <ul className="mt-6 grid grid-cols-4 gap-3 md:grid-cols-7">
           {GENRES.map(({ category, art }) => (
             <li key={category}>
@@ -24,7 +26,7 @@ export default function LandingGenres() {
               >
                 {/* eslint-disable-next-line @next/next/no-img-element -- 手描きの SVG（最適化の対象外） */}
                 <img src={art} alt="" width={64} height={64} className="h-12 w-12 md:h-14 md:w-14" />
-                {category}
+                {t(category)}
               </Link>
             </li>
           ))}
