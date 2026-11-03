@@ -96,8 +96,9 @@ type MapPageClientProps = {
   mapViewSettings?: MapViewSettings;
 };
 
-// 「このへん、なにがある？」の対象範囲＝画面に見えているマップの80%の長方形
-const NEARBY_AREA_RATIO = 0.8;
+// 「このへん、なにがある？」の対象範囲＝画面に見えているマップの長方形（幅80%、高さは幅の0.6倍=48%）
+const NEARBY_AREA_WIDTH_RATIO = 0.8;
+const NEARBY_AREA_HEIGHT_RATIO = NEARBY_AREA_WIDTH_RATIO * 0.6;
 
 export default function MapPageClient({
   shops,
@@ -728,8 +729,8 @@ export default function MapPageClient({
     if (!shell || !viewportEl) return;
     const rect = {
       center: { x: container.clientWidth / 2, y: container.clientHeight / 2 },
-      halfWidth: (viewportEl.clientWidth * NEARBY_AREA_RATIO) / 2,
-      halfHeight: (viewportEl.clientHeight * NEARBY_AREA_RATIO) / 2,
+      halfWidth: (viewportEl.clientWidth * NEARBY_AREA_WIDTH_RATIO) / 2,
+      halfHeight: (viewportEl.clientHeight * NEARBY_AREA_HEIGHT_RATIO) / 2,
       rotationRad: parseCssRotationRad(getComputedStyle(shell).transform),
     };
     const center = map.getCenter();
@@ -1004,15 +1005,15 @@ export default function MapPageClient({
               }
             />
 
-            {/* 「このへん」の対象範囲（画面中央80%）を示すオレンジ枠。
+            {/* 「このへん」の対象範囲（画面中央・幅80%×高さ48%）を示すオレンジ枠。
                 ボタンと同時にフェードで浮き出て、パネル表示中も残る */}
             <div
               className={`pointer-events-none absolute left-1/2 top-1/2 z-[1140] -translate-x-1/2 -translate-y-1/2 rounded-[28px] border-4 border-orange-400/80 bg-orange-300/10 transition-opacity duration-500 ease-out ${
                 nearbyButtonVisible || nearbyState ? 'opacity-100' : 'opacity-0'
               }`}
               style={{
-                width: `${NEARBY_AREA_RATIO * 100}%`,
-                height: `${NEARBY_AREA_RATIO * 100}%`,
+                width: `${NEARBY_AREA_WIDTH_RATIO * 100}%`,
+                height: `${NEARBY_AREA_HEIGHT_RATIO * 100}%`,
               }}
               aria-hidden
             />
