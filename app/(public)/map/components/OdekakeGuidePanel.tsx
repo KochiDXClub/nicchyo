@@ -9,7 +9,7 @@
  *   - たたむと小さなピルだけ。マップを隠さない
  *   - lg 以上（PC・ノートPC）は、下から出るシートではなく、左上に浮かぶパネル（幅 24rem）にする。
  *     画面の端から端まで広がると、名前と所要時間が左右に離れすぎて読みにくく、地図も隠れるため
- *   - 開くと: 種類の切り替え / 条件 / 起点 / 行程表
+ *   - 開くと: 種類の切り替え / 起点 / 行程表
  *   - 行程表は「起点 → 各スポット」を縦の破線でつないだ停留所リスト。
  *     マップに引く破線ルートと同じ表現で、どこからどこへ行くのかが一目で分かる
  *   - 行をタップするとすぐ場所のカード（SpotCard）が開く。暗幕は敷かず、背後の地図はそのまま触れる。写真があれば行に添える
@@ -78,24 +78,6 @@ function KindToggle({
       aria-pressed={active}
       className={`${FOCUS_RING} shrink-0 rounded-full px-3.5 py-1.5 text-[13px] font-bold transition-colors lg:w-full ${
         active ? 'bg-nicchyo-ink text-white' : 'bg-white text-slate-600 ring-1 ring-slate-200 active:bg-slate-50'
-      }`}
-    >
-      {children}
-    </button>
-  );
-}
-
-function ConditionToggle({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
-  return (
-    <button
-      type="button"
-      onClick={(e) => {
-        e.stopPropagation();
-        onClick();
-      }}
-      aria-pressed={active}
-      className={`${FOCUS_RING} shrink-0 rounded-full px-3 py-1 text-[12px] font-semibold transition-colors ${
-        active ? 'bg-emerald-600 text-white' : 'bg-emerald-50 text-emerald-800 ring-1 ring-emerald-100 active:bg-emerald-100'
       }`}
     >
       {children}
@@ -325,12 +307,12 @@ export default function OdekakeGuidePanel({ guide, map, onClose, hidden = false,
           onTouchEnd={(e) => handleDragEnd(e.changedTouches[0].clientX, e.changedTouches[0].clientY)}
           onTouchCancel={() => (dragStart.current = null)}
         >
-          <div className="flex justify-center pb-2 pt-2.5 lg:hidden">
+          <div className="flex justify-center pb-1 pt-2 lg:hidden">
             <span className="h-1 w-9 rounded-full bg-slate-300" />
           </div>
-          <div className="flex items-start justify-between gap-3 px-5 pb-3 lg:pt-4">
+          <div className="flex items-center justify-between gap-3 px-5 pb-2 lg:pt-3">
             <div className="min-w-0">
-              <h3 className="text-[18px] font-black leading-tight tracking-tight text-nicchyo-ink">{title}</h3>
+              <h3 className="text-[17px] font-black leading-tight tracking-tight text-nicchyo-ink">{title}</h3>
             </div>
             <button
               type="button"
@@ -339,7 +321,7 @@ export default function OdekakeGuidePanel({ guide, map, onClose, hidden = false,
                 onClose();
               }}
               aria-label="おでかけサポートをとじる"
-              className={`${FOCUS_RING} flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white text-slate-500 ring-1 ring-slate-200 active:bg-slate-100`}
+              className={`${FOCUS_RING} flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white text-slate-500 ring-1 ring-slate-200 active:bg-slate-100`}
             >
               <XIcon size={16} />
             </button>
@@ -348,7 +330,7 @@ export default function OdekakeGuidePanel({ guide, map, onClose, hidden = false,
 
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pb-[calc(env(safe-area-inset-bottom,0px)+0.75rem)]">
           {/* 種類（複数選択） */}
-          <div className="flex gap-2 overflow-x-auto px-5 pb-2 pt-3 [scrollbar-width:none] lg:grid lg:grid-cols-2 lg:overflow-visible">
+          <div className="flex gap-2 overflow-x-auto px-5 pb-2 pt-2 [scrollbar-width:none] lg:grid lg:grid-cols-2 lg:overflow-visible">
             {GUIDE_KIND_OPTIONS.map((option) => (
               <KindToggle key={option.kind} active={guide.kinds.includes(option.kind)} onClick={() => guide.toggleKind(option.kind)}>
                 <span aria-hidden className="mr-1 inline-flex align-middle">
@@ -358,18 +340,6 @@ export default function OdekakeGuidePanel({ guide, map, onClose, hidden = false,
               </KindToggle>
             ))}
           </div>
-
-          {/* 条件 */}
-          {!choosing && guide.availableTags.length > 0 && (
-            <div className="flex items-center gap-2 overflow-x-auto px-5 pb-3 [scrollbar-width:none] lg:flex-wrap lg:overflow-visible">
-              <span className="shrink-0 text-[11px] text-slate-400">条件</span>
-              {guide.availableTags.map((tag) => (
-                <ConditionToggle key={tag} active={guide.anyTags.includes(tag)} onClick={() => guide.toggleAnyTag(tag)}>
-                  {tag}
-                </ConditionToggle>
-              ))}
-            </div>
-          )}
 
           {/* 行程表 */}
           {!choosing && guide.ranked.length === 0 && (
