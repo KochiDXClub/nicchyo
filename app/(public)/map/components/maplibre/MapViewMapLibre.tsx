@@ -198,6 +198,7 @@ const LAYER_SHOP_PHOTOS = "nicchyo-shop-photos";
 const LAYER_SHOP_NAMEPLATES = "nicchyo-shop-nameplates";
 const LAYER_SHOP_BADGES_FAVORITE = "nicchyo-shop-badge-favorite";
 const LAYER_LANDMARK_LABELS = "nicchyo-landmark-labels";
+const LAYER_LANDMARK_MINOR_LABELS = "nicchyo-landmark-minor-labels";
 const LANDMARK_ICON_LAYERS = ["nicchyo-landmarks-min", "nicchyo-landmarks", "nicchyo-landmarks-minor"];
 
 /** 縮小しすぎたときは出さない小さなランドマーク（停留場・電車）。高知城などの大きな絵と重なって崩れるため */
@@ -947,29 +948,42 @@ function MapViewMapLibre({
         });
       }
       // 地名ラベル（俯瞰時 zoom ≤ MIN+2.5 だけ。Leaflet 版の主要地名ラベルに相当）
-      map.addLayer({
-        id: LAYER_LANDMARK_LABELS,
-        type: "symbol",
+      const landmarkLabelLayer = {
+        type: "symbol" as const,
         source: SRC_LANDMARKS,
-        maxzoom: minZoom + 2.5,
-        // 小さなランドマークの名前は縮小時に出さない（大きな建物のラベルと重なる）
-        filter: ["==", ["get", "minor"], 0],
         layout: {
-          "text-field": ["get", "name"],
+          "text-field": ["get", "name"] as ExpressionSpecification,
           "text-font": TEXT_FONT,
           // 縮小するほど少し小さくして、背景の地名・道路番号との競合を減らす
-          "text-size": ["interpolate", ["linear"], ["zoom"], 9, 10, 13.5, 12],
-          "text-anchor": "top",
-          "text-offset": [0, 1.6],
-          "text-rotation-alignment": "viewport",
-          "text-pitch-alignment": "viewport",
+          "text-size": ["interpolate", ["linear"], ["zoom"], 9, 10, 13.5, 12] as ExpressionSpecification,
+          "text-anchor": "top" as const,
+          "text-offset": [0, 1.6] as [number, number],
+          "text-rotation-alignment": "viewport" as const,
+          "text-pitch-alignment": "viewport" as const,
         },
         paint: {
           "text-color": "#3a3a3a",
           "text-halo-color": "rgba(255,255,255,0.92)",
           "text-halo-width": 1.6,
         },
+      };
+      map.addLayer({
+        ...landmarkLabelLayer,
+        id: LAYER_LANDMARK_LABELS,
+        maxzoom: minZoom + 2.5,
+        filter: ["==", ["get", "minor"], 0],
       });
+      // 小さなランドマークの名前は、絵が出ている間だけ出す（縮小時は大きな建物のラベルと重なるため）
+      const minorLabelMinZoom = Math.max(MINOR_LANDMARK_MIN_ZOOM, minZoom + 0.8);
+      if (minorLabelMinZoom < minZoom + 2.5) {
+        map.addLayer({
+          ...landmarkLabelLayer,
+          id: LAYER_LANDMARK_MINOR_LABELS,
+          minzoom: minorLabelMinZoom,
+          maxzoom: minZoom + 2.5,
+          filter: ["==", ["get", "minor"], 1],
+        });
+      }
 
       // 店舗スプライト
       const sprites = await stallSpritesPromise;
@@ -1381,7 +1395,7 @@ function MapViewMapLibre({
     const map = mapRef.current;
     if (!map || !mapLoaded) return;
     const visibility = suppressLandmarks ? "none" : "visible";
-    for (const id of [...LANDMARK_ICON_LAYERS, LAYER_LANDMARK_LABELS]) {
+    for (const id of [...LANDMARK_ICON_LAYERS, LAYER_LANDMARK_LABELS, LAYER_LANDMARK_MINOR_LABELS]) {
       if (map.getLayer(id)) map.setLayoutProperty(id, "visibility", visibility);
     }
   }, [mapLoaded, suppressLandmarks]);
