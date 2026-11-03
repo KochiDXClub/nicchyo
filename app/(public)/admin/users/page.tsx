@@ -19,7 +19,8 @@ import {
   StatusBadge,
   type DataColumn,
 } from "@/components/admin";
-import { Badge, Button } from "@/components/ui";
+import { Plus } from "lucide-react";
+import { Badge, Button, Surface } from "@/components/ui";
 import { CenteredLoading } from "@/components/ui/loading-spinner";
 import { useKeyboardShortcuts } from "@/lib/hooks/useKeyboardShortcuts";
 import { useAdminUsers, type AdminUser } from "./useAdminUsers";
@@ -117,23 +118,43 @@ function AdminUsersContent() {
     },
   ];
 
+  const renderUserActions = (user: AdminUser) => (
+    <>
+      <Button variant="quiet" size="md" onClick={() => u.handleOpenRoleChange(user)} aria-label={`${user.name}の権限を変更`}>
+        権限変更
+      </Button>
+      {user.status === "active" ? (
+        <Button variant="quiet" size="md" className={DANGER} onClick={() => u.handleSuspendUser(user)} aria-label={`${user.name}を停止`}>
+          停止
+        </Button>
+      ) : (
+        <Button variant="quiet" size="md" onClick={() => u.handleRestoreUser(user)} aria-label={`${user.name}を復帰`}>
+          復帰
+        </Button>
+      )}
+    </>
+  );
+
   return (
     <AdminLayout>
       <AdminPageHeader
         eyebrow="User Admin"
         title="ユーザー管理"
+        description="アカウントの検索・招待・権限の管理"
         actions={
           <>
-            <ExportActions onCsv={u.exportCsv} onJson={u.exportJson} loading={u.isExporting} />
-            <Button size="sm" onClick={u.handleCreateUser} aria-label="新規ユーザーを追加">
-              + 新規ユーザー追加
+            <Button className="flex-1 px-4 sm:flex-none" onClick={u.handleCreateUser} aria-label="新規ユーザーを追加">
+              <Plus size={18} aria-hidden="true" />
+              ユーザーを追加
             </Button>
+            <ExportActions compact onCsv={u.exportCsv} onJson={u.exportJson} loading={u.isExporting} />
           </>
         }
       />
 
-      <div className="mx-auto max-w-7xl px-4 py-8 pb-20">
+      <div className="mx-auto max-w-7xl px-4 py-5 pb-20 sm:py-8">
         <ReviewStats
+          compact
           items={[
             { label: "総ユーザー数", value: u.stats.total },
             { label: "管理者", value: u.stats.admins, tone: "critical" },
@@ -154,8 +175,25 @@ function AdminUsersContent() {
           ]}
           value={u.filter}
           onChange={u.setFilter}
-          search={{ value: u.searchQuery, onChange: u.setSearchQuery, placeholder: "名前・メールアドレスで検索... (/)" }}
+          search={{ value: u.searchQuery, onChange: u.setSearchQuery, placeholder: "名前・メールアドレスで検索" }}
         />
+
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2 text-sm text-nicchyo-ink/70 sm:hidden">
+          <label className="flex min-h-11 items-center gap-2">
+            <input type="checkbox" checked={u.selection.allSelected} onChange={u.selection.toggleAll} disabled={u.sortedData.length === 0} className="h-5 w-5 accent-amber-600" />
+            表示中をすべて選択
+          </label>
+          <span aria-live="polite">{u.filteredUsers.length}人</span>
+          <div className="flex w-full items-center gap-2">
+            <label htmlFor="mobile-user-sort" className="shrink-0">並び順</label>
+            <select id="mobile-user-sort" value={u.sortKey ?? "name"} onChange={(event) => u.handleSort(event.target.value)} className="h-11 min-w-0 flex-1 rounded-btn border border-line bg-white px-3 text-sm text-nicchyo-ink">
+              {columns.filter((column) => column.sortKey).map((column) => <option key={column.key} value={column.sortKey}>{column.header}</option>)}
+            </select>
+            <Button variant="quiet" className="shrink-0 px-3" onClick={() => u.handleSort(u.sortKey ?? "name")} aria-label="並び順を反転">
+              {u.sortDirection === "asc" ? "昇順 ↑" : "降順 ↓"}
+            </Button>
+          </div>
+        </div>
 
         <BulkActionBar count={u.selection.selectedIds.length} unit="人" onClear={u.selection.clear}>
           <Button variant="quiet" size="sm" onClick={() => u.handleBulk("restore", "アクティブ化")} disabled={u.bulkLoading}>
@@ -199,21 +237,28 @@ function AdminUsersContent() {
             selectionLabel={(user) => `ユーザー「${user.name}」を選択`}
             selectAllLabel="表示中のユーザーをすべて選択"
             virtualize
-            actions={(user) => (
-              <>
-                <Button variant="quiet" size="sm" onClick={() => u.handleOpenRoleChange(user)} aria-label={`${user.name}の権限を変更`}>
-                  権限変更
-                </Button>
-                {user.status === "active" ? (
-                  <Button variant="quiet" size="sm" className={DANGER} onClick={() => u.handleSuspendUser(user)} aria-label={`${user.name}を停止`}>
-                    停止
-                  </Button>
-                ) : (
-                  <Button variant="quiet" size="sm" onClick={() => u.handleRestoreUser(user)} aria-label={`${user.name}を復帰`}>
-                    復帰
-                  </Button>
-                )}
-              </>
+            actions={renderUserActions}
+            mobileCard={(user, index) => (
+              <Surface padding="sm">
+                <div className="flex items-start gap-2">
+                  <label className="flex h-11 w-11 shrink-0 items-center justify-center">
+                    <input type="checkbox" aria-label={`ユーザー「${user.name}」を選択`} checked={u.selection.isSelected(user.id)} onChange={() => u.selection.toggle(user.id, index)} className="h-5 w-5 accent-amber-600" />
+                  </label>
+                  <div className="min-w-0 flex-1 py-1">
+                    <p className="break-words font-semibold text-nicchyo-ink">{user.name}</p>
+                    <p className="break-all text-sm text-nicchyo-ink/55">{user.email}</p>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      <Badge variant={ROLE_BADGE_VARIANT[user.role]}>{ROLE_LABEL[user.role]}</Badge>
+                      {user.status === "suspended" && <StatusBadge status="suspended" customLabel="停止中" />}
+                    </div>
+                  </div>
+                </div>
+                <dl className="mt-3 grid grid-cols-2 gap-3 border-t border-line pt-3 text-xs">
+                  <div><dt className="text-nicchyo-ink/55">登録日</dt><dd className="mt-1 break-words text-nicchyo-ink">{user.registeredDate}</dd></div>
+                  <div><dt className="text-nicchyo-ink/55">最終ログイン</dt><dd className="mt-1 break-words text-nicchyo-ink">{user.lastLogin}</dd></div>
+                </dl>
+                <div className="mt-3 flex flex-wrap gap-2">{renderUserActions(user)}</div>
+              </Surface>
             )}
           />
         )}
