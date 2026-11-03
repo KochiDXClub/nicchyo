@@ -203,9 +203,6 @@ const LAYER_LANDMARK_DETAIL_LABELS = "nicchyo-landmark-detail-labels";
 const LAYER_MARKET_HIGHLIGHT_CASING = "nicchyo-market-highlight-casing";
 const LAYER_MARKET_HIGHLIGHT = "nicchyo-market-highlight";
 const LAYER_MARKET_HIGHLIGHT_LABEL = "nicchyo-market-highlight-label";
-const LAYER_MARKET_HIGHLIGHT_POINT_LABEL = "nicchyo-market-highlight-point-label";
-/** 「日曜市」の文字を、点から通りに沿う形へ切り替えるズーム（MapLibre 基準）。それより縮小すると線が短くて文字が収まらない */
-const MARKET_LABEL_ALONG_LINE_MIN_ZOOM = 12.5;
 /** 縮小時の日曜市の強調が薄れ始める／消えるズーム（MapLibre 基準）。丁目バッジ（OVERVIEW_MIN）より手前で消す */
 const MARKET_HIGHLIGHT_FADE_ZOOMS = [OVERVIEW_MIN - 1.5, OVERVIEW_MIN + 0.5] as const;
 const LANDMARK_ICON_LAYERS = ["nicchyo-landmarks-min", "nicchyo-landmarks", "nicchyo-landmarks-minor"];
@@ -842,54 +839,46 @@ function MapViewMapLibre({
         },
       });
       // 通りの名前。縮小時はランドマークより「日曜市」が先に目に入るようにする。
-      // 最大縮小付近は線が短く、線に沿う文字が収まらないので、通りの中ほどに点の文字を置く
-      const marketLabelTextLayout = {
-        "text-field": locale === "en" ? "Sunday Market" : "日曜市",
-        "text-font": TEXT_FONT,
-        "text-letter-spacing": 0.2,
-      };
-      const marketLabelPaint = {
-        "text-color": ROAD_STYLE.highlightLabelColor,
-        "text-halo-color": ROAD_STYLE.highlightLabelHaloColor,
-        "text-halo-width": 2,
-      };
+      // 倍率で置き場所が変わらないよう、通りの中ほどの 1 点に、通りの右側へ横書きで置く
+      // （線に沿わせると、最大縮小付近は線が短くて文字が収まらず消え、置き場所も縦書きに変わってしまう）
       if (marketLabelPoint) {
         map.addSource(`${SRC_ROAD}-label`, {
           type: "geojson",
           data: { type: "Feature", properties: {}, geometry: { type: "Point", coordinates: marketLabelPoint } },
         });
         map.addLayer({
-          id: LAYER_MARKET_HIGHLIGHT_POINT_LABEL,
+          id: LAYER_MARKET_HIGHLIGHT_LABEL,
           type: "symbol",
           source: `${SRC_ROAD}-label`,
-          maxzoom: MARKET_LABEL_ALONG_LINE_MIN_ZOOM,
+          // 文字は丁目バッジが出る（OVERVIEW_MIN）までに消す。線より先に消えないと、バッジの裏に文字が透けて見える
+          maxzoom: OVERVIEW_MIN,
           layout: {
-            ...marketLabelTextLayout,
-            "text-size": 20,
-            "text-anchor": "bottom",
-            "text-offset": [0, -0.9],
-            // 背景の地名（「高知市」など）と重なっても、日曜市の文字は消さない
+            "text-field": locale === "en" ? "Sunday Market" : "日曜市",
+            "text-font": TEXT_FONT,
+            "text-letter-spacing": 0.2,
+            "text-size": ["interpolate", ["linear"], ["zoom"], 9, 20, highlightFadeStart, 18] as ExpressionSpecification,
+            "text-anchor": "left",
+            "text-offset": [1.1, 0],
+            // 背景の地名や建物の名前と重なっても、日曜市の文字は消さない
             "text-allow-overlap": true,
             "text-ignore-placement": true,
           },
-          paint: marketLabelPaint,
+          paint: {
+            "text-color": ROAD_STYLE.highlightLabelColor,
+            "text-halo-color": ROAD_STYLE.highlightLabelHaloColor,
+            "text-halo-width": 2,
+            "text-opacity": [
+              "interpolate",
+              ["linear"],
+              ["zoom"],
+              highlightFadeStart,
+              1,
+              OVERVIEW_MIN,
+              0,
+            ] as ExpressionSpecification,
+          },
         });
       }
-      map.addLayer({
-        id: LAYER_MARKET_HIGHLIGHT_LABEL,
-        type: "symbol",
-        source: `${SRC_ROAD}-lane`,
-        minzoom: MARKET_LABEL_ALONG_LINE_MIN_ZOOM,
-        maxzoom: highlightFadeStart,
-        layout: {
-          "symbol-placement": "line",
-          "symbol-spacing": 280,
-          ...marketLabelTextLayout,
-          "text-size": ["interpolate", ["linear"], ["zoom"], 9, 20, highlightFadeStart, 18] as ExpressionSpecification,
-          "text-keep-upright": true,
-        },
-        paint: marketLabelPaint,
-      });
       map.addLayer({
         id: "nicchyo-road-edges",
         type: "line",
