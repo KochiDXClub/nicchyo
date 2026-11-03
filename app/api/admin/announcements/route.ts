@@ -7,7 +7,7 @@ import { parseAnnouncementInput, toAnnouncement, type AnnouncementRow } from "@/
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const COLUMNS = "id, title, body, important, published, starts_at, ends_at, created_at, updated_at" as const;
+const COLUMNS = "id, title, body, important, published, starts_at, ends_at, created_at, updated_at, title_en, body_en, translation_status" as const;
 
 /** 運営向け: サイト内のお知らせの一覧（公開前・終了・非公開も含めて新しい順） */
 export async function GET() {
@@ -33,11 +33,22 @@ export async function POST(request: Request) {
 
     const parsed = parseAnnouncementInput(guard.body);
     if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 });
-    const { title, body, important, published, startsAt, endsAt } = parsed.value;
+    const { title, body, important, published, startsAt, endsAt, titleEn, bodyEn, translationStatus } = parsed.value;
 
     const { data, error } = await adminClient
       .from("site_announcements")
-      .insert({ title, body, important, published, starts_at: startsAt, ends_at: endsAt, created_by: user.id })
+      .insert({
+        title,
+        body,
+        important,
+        published,
+        starts_at: startsAt,
+        ends_at: endsAt,
+        title_en: titleEn,
+        body_en: bodyEn,
+        translation_status: translationStatus,
+        created_by: user.id,
+      })
       .select(COLUMNS)
       .single();
     if (error || !data) return NextResponse.json({ error: "お知らせを投稿できませんでした" }, { status: 500 });
@@ -50,7 +61,7 @@ export async function POST(request: Request) {
         targetType: "announcement",
         targetId: data.id,
         targetName: title.slice(0, 500),
-        details: `サイト内のお知らせを投稿（${published ? "公開" : "下書き"}${important ? "・重要" : ""}）`,
+        details: `サイト内のお知らせを投稿（${published ? "公開" : "下書き"}${important ? "・重要" : ""}${titleEn ? "・英語版あり" : ""}）`,
         ipAddress: ip,
       },
     );

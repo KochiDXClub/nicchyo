@@ -6,7 +6,7 @@ import { parseAnnouncementInput, toAnnouncement, type AnnouncementRow } from "@/
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const COLUMNS = "id, title, body, important, published, starts_at, ends_at, created_at, updated_at" as const;
+const COLUMNS = "id, title, body, important, published, starts_at, ends_at, created_at, updated_at, title_en, body_en, translation_status" as const;
 
 // guardAdminShopWrite は、URL の ID（UUID）の確認・同一オリジン・管理者の認可・レート制限をまとめた入口。
 // 名前は店舗用だが、[id] を持つ管理者の書き込みに共通で使える
@@ -20,7 +20,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
     const parsed = parseAnnouncementInput(guard.body);
     if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 });
-    const { title, body, important, published, startsAt, endsAt } = parsed.value;
+    const { title, body, important, published, startsAt, endsAt, titleEn, bodyEn, translationStatus } = parsed.value;
 
     const { data, error } = await adminClient
       .from("site_announcements")
@@ -31,6 +31,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
         published,
         starts_at: startsAt,
         ends_at: endsAt,
+        title_en: titleEn,
+        body_en: bodyEn,
+        translation_status: translationStatus,
         updated_at: new Date().toISOString(),
       })
       .eq("id", id)
@@ -47,7 +50,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
         targetType: "announcement",
         targetId: id,
         targetName: title.slice(0, 500),
-        details: `サイト内のお知らせを更新（${published ? "公開" : "非公開"}${important ? "・重要" : ""}）`,
+        details: `サイト内のお知らせを更新（${published ? "公開" : "非公開"}${important ? "・重要" : ""}${titleEn ? "・英語版あり" : ""}）`,
         ipAddress: ip,
       },
     );
