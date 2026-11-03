@@ -9,6 +9,16 @@ export type MarketDayRow = {
   updated_at: string;
 };
 
+/** 開催ステータスの更新履歴の1件（高知市向け API だけが返す） */
+export type MarketDayHistoryItem = {
+  at: string;
+  by: string;
+  marketDate: string | null;
+  from: string | null;
+  to: string | null;
+  note: string | null;
+};
+
 /**
  * 開催ステータス（/admin/calendar の一部）の状態一式。
  *
@@ -21,8 +31,17 @@ export type MarketDayRow = {
  * 誤操作がそのまま来訪者に見えてしまうため）。「保存する」を押すまでは
  * statusDrafts / noteDrafts が確定値（days）と食い違ったままの「下書き」状態になる。
  */
-export function useAdminMarketDays({ isAdmin }: { isAdmin: boolean }) {
+export function useAdminMarketDays({
+  isAdmin,
+  endpoint = "/api/admin/market-days",
+}: {
+  /** 取得してよいか。運営画面は admin、/city は city_official / admin のとき true */
+  isAdmin: boolean;
+  /** 読み書きする API。運営は /api/admin/market-days、高知市は /api/city/market-days */
+  endpoint?: string;
+}) {
   const [days, setDays] = useState<MarketDayRow[]>([]);
+  const [history, setHistory] = useState<MarketDayHistoryItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [savingDate, setSavingDate] = useState<string | null>(null);
   const [noteDrafts, setNoteDrafts] = useState<Record<string, string>>({});
@@ -31,16 +50,17 @@ export function useAdminMarketDays({ isAdmin }: { isAdmin: boolean }) {
   const fetchDays = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/admin/market-days");
+      const res = await fetch(endpoint);
       if (!res.ok) throw new Error("failed");
-      const data = (await res.json()) as { days: MarketDayRow[] };
+      const data = (await res.json()) as { days: MarketDayRow[]; history?: MarketDayHistoryItem[] };
       setDays(data.days);
+      setHistory(data.history ?? []);
     } catch {
       showToast.error("開催ステータスの取得に失敗しました");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [endpoint]);
 
   useEffect(() => {
     if (!isAdmin) return;
@@ -66,7 +86,7 @@ export function useAdminMarketDays({ isAdmin }: { isAdmin: boolean }) {
   const save = async (dateIso: string, status: MarketDayStatus, note: string) => {
     setSavingDate(dateIso);
     try {
-      const res = await fetch("/api/admin/market-days", {
+      const res = await fetch(endpoint, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ market_date: dateIso, status, note: note || null }),
@@ -120,6 +140,7 @@ export function useAdminMarketDays({ isAdmin }: { isAdmin: boolean }) {
 
   return {
     loading,
+    history,
     savingDate,
     recentNotes,
     committedStatusFor,

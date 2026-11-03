@@ -130,6 +130,7 @@ export const ROLE_LABELS: Record<string, string> = {
   super_admin: "最高管理者",
   admin: "管理者",
   moderator: "モデレーター",
+  city_official: "高知市",
   vendor: "出店者",
   general_user: "一般ユーザー",
   user: "一般ユーザー",
