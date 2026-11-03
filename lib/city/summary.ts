@@ -33,16 +33,20 @@ export function summariseVisitors(
 
 export type MarketDaySummary = Record<"open" | "cancelled" | "special" | "closed", number>;
 
-/** その年の開催実績（ステータスごとの回数） */
+/**
+ * その年の開催実績（ステータスごとの回数）。今日までの日付だけ数える。
+ * 来週の日曜に入れた「中止」などの予定は、まだ起きていないので実績に入れない。
+ */
 export function summariseMarketDays(
   rows: { market_date?: unknown; status?: unknown }[],
-  year: number
+  year: number,
+  todayIso: string
 ): MarketDaySummary {
   const result: MarketDaySummary = { open: 0, cancelled: 0, special: 0, closed: 0 };
   for (const row of rows) {
     const date = typeof row.market_date === "string" ? row.market_date : "";
     const status = typeof row.status === "string" ? row.status : "";
-    if (!date.startsWith(`${year}-`)) continue;
+    if (!date.startsWith(`${year}-`) || date > todayIso) continue;
     if (status in result) result[status as keyof MarketDaySummary] += 1;
   }
   return result;

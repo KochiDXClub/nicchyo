@@ -46,7 +46,7 @@ export async function CitySummary() {
 
   const visitorSummary = visitors.status === "fulfilled" ? summariseVisitors(visitors.value.rows, today) : null;
   const marketSummary =
-    marketDays.status === "fulfilled" ? summariseMarketDays(marketDays.value.rows, year) : null;
+    marketDays.status === "fulfilled" ? summariseMarketDays(marketDays.value.rows, year, today) : null;
   const categoryRows =
     categories.status === "fulfilled"
       ? (categories.value.rows as { category: string; count: number }[])

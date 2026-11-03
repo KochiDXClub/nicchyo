@@ -29,6 +29,20 @@ describe("summariseVisitors", () => {
 });
 
 describe("summariseMarketDays", () => {
+  it("今日より先の日付（予定）は実績に数えない。今日は含む", () => {
+    const rows = [
+      { market_date: "2026-11-01", status: "open" },
+      { market_date: "2026-11-03", status: "cancelled" },
+      { market_date: "2026-11-08", status: "cancelled" },
+    ];
+    expect(summariseMarketDays(rows, 2026, "2026-11-03")).toEqual({
+      open: 1,
+      cancelled: 1,
+      special: 0,
+      closed: 0,
+    });
+  });
+
   it("その年のステータスごとの回数を数える（未知のステータスは無視）", () => {
     const rows = [
       { market_date: "2026-01-04", status: "open" },
@@ -37,6 +51,6 @@ describe("summariseMarketDays", () => {
       { market_date: "2026-01-25", status: "mystery" },
       { market_date: "2025-12-28", status: "closed" },
     ];
-    expect(summariseMarketDays(rows, 2026)).toEqual({ open: 2, cancelled: 1, special: 0, closed: 0 });
+    expect(summariseMarketDays(rows, 2026, "2026-12-31")).toEqual({ open: 2, cancelled: 1, special: 0, closed: 0 });
   });
 });

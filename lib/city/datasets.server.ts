@@ -53,11 +53,13 @@ async function fetchMarketDays(supabase: Client): Promise<CityDataset> {
   };
 }
 
-/** カテゴリ別の出店数（公開されている店舗） */
+/** カテゴリ別の出店数（掲載が許可された店舗） */
 async function fetchCategories(supabase: Client): Promise<CityDataset> {
   const [categories, vendors] = await Promise.all([
     supabase.from("categories").select("id, name"),
-    supabase.from("vendors").select("category_id"),
+    // 掲載を許可された店舗だけ。RLS は運営（全件）や店舗メンバー（自店）に広く見せるので、
+    // 誰が開いても同じ数字になるよう、来訪者向け（/analysis）と同じ範囲をここで明示する
+    supabase.from("vendors").select("category_id").eq("listing_status", "allowed"),
   ]);
   if (categories.error || vendors.error) throw new Error("categories");
 
