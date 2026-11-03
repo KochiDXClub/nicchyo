@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getRouteChains, getRouteSegments, projectPointOntoRoute } from "./mapRouteGeometry";
+import { clipLineOutsideRings, getRouteChains, getRouteSegments, projectPointOntoRoute } from "./mapRouteGeometry";
 import type { MapRoutePoint } from "../types/mapRoute";
 
 const point = (id: string, lat: number, lng: number, order: number, roadId?: string | null): MapRoutePoint => ({
@@ -40,5 +40,30 @@ describe("複数の道", () => {
     const legacy = points.map((p) => ({ ...p, roadId: null }));
     expect(getRouteSegments(legacy)).toHaveLength(3);
     expect(getRouteChains(legacy)).toHaveLength(1);
+  });
+});
+
+describe('clipLineOutsideRings', () => {
+  const ring: Array<[number, number]> = [
+    [-1, -1],
+    [-1, 1],
+    [1, 1],
+    [1, -1],
+  ];
+
+  it('他の道の面の内側を取り除き、境界で区切った区間を返す', () => {
+    const line: Array<[number, number]> = [-4, -3, -2, 0, 2, 3, 4].map((lat) => [lat, 0]);
+    const runs = clipLineOutsideRings(line, [ring]);
+    expect(runs).toHaveLength(2);
+    expect(runs[0][runs[0].length - 1][0]).toBeCloseTo(-1, 1);
+    expect(runs[1][0][0]).toBeCloseTo(1, 1);
+  });
+
+  it('交差する道がなければ線をそのまま返す', () => {
+    const line: Array<[number, number]> = [
+      [5, 0],
+      [6, 0],
+    ];
+    expect(clipLineOutsideRings(line, [ring])).toEqual([line]);
   });
 });

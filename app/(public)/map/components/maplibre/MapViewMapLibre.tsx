@@ -42,6 +42,7 @@ import { runFullBenchmark, type BenchMapLike } from "@/lib/perf/mapBenchmark";
 import { readPerfShopCount, synthesizeShops } from "@/lib/perf/syntheticShops";
 import {
   buildRoadEdges,
+  clipLineOutsideRings,
   buildRoadPolygon,
   densifyPath,
   getDefaultMapRoutePoints,
@@ -701,12 +702,19 @@ function MapViewMapLibre({
         properties: {},
         geometry: { type: "LineString", coordinates: line.map(([lat, lng]) => [lng, lat]) },
       });
-      for (const chain of chains) {
-        const anchor = chain.points.map((p) => ({ lat: p.lat, lng: p.lng }));
-        const centerline = densifyPath(anchor, 6);
-        const smoothed = chain.points.length >= 3 ? smoothRoutePath(centerline, 2) : centerline;
-        const polygon = buildRoadPolygon(smoothed, routeConfig.roadHalfWidthMeters);
-        if (polygon.length < 3 || smoothed.length < 2) continue;
+      // 先に全チェーンの形を作り、交差・分岐する他の道の面の内側では縁を引かない
+      const built = chains
+        .map((chain) => {
+          const anchor = chain.points.map((p) => ({ lat: p.lat, lng: p.lng }));
+          const centerline = densifyPath(anchor, 6);
+          const smoothed = chain.points.length >= 3 ? smoothRoutePath(centerline, 2) : centerline;
+          const polygon = buildRoadPolygon(smoothed, routeConfig.roadHalfWidthMeters);
+          if (polygon.length < 3 || smoothed.length < 2) return null;
+          return { key: chain.key, smoothed, polygon };
+        })
+        .filter((item): item is NonNullable<typeof item> => item !== null);
+      for (const road of built) {
+        const { smoothed, polygon } = road;
         polygons.push(toPolygonFeature(polygon));
 
         const corridor = buildRoadPolygon(
@@ -718,7 +726,12 @@ function MapViewMapLibre({
         // 縁は左右2本の独立した線。閉じたポリゴンの stroke だと道の両端にも
         // 線が回り込み、先へ続いている道が切り取った紙のように見えるため
         const edges = buildRoadEdges(smoothed, routeConfig.roadHalfWidthMeters);
-        edgeLines.push(toLineFeature(edges.left), toLineFeature(edges.right));
+        const otherRings = built.filter((o) => o.key !== road.key).map((o) => o.polygon);
+        for (const side of [edges.left, edges.right]) {
+          for (const run of clipLineOutsideRings(side, otherRings)) {
+            edgeLines.push(toLineFeature(run));
+          }
+        }
 
         laneLines.push(toLineFeature(smoothed));
       }
