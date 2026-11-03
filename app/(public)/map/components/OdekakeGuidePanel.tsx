@@ -76,8 +76,10 @@ function KindToggle({
         onClick();
       }}
       aria-pressed={active}
-      className={`${FOCUS_RING} shrink-0 rounded-full px-3.5 py-1.5 text-[13px] font-bold transition-colors ${
-        active ? 'bg-nicchyo-ink text-white' : 'bg-white text-slate-600 ring-1 ring-slate-200 active:bg-slate-50'
+      className={`${FOCUS_RING} flex h-9 shrink-0 items-center gap-1.5 rounded-full pl-2.5 pr-3.5 text-[13px] font-bold transition-all active:scale-[0.97] ${
+        active
+          ? 'bg-nicchyo-ink text-white shadow-[0_2px_8px_rgba(58,58,58,0.28)]'
+          : 'bg-white text-nicchyo-ink shadow-[0_1px_3px_rgba(58,58,58,0.12)] active:bg-slate-50'
       }`}
     >
       {children}
@@ -326,10 +328,10 @@ export default function OdekakeGuidePanel({ guide, map, onClose, hidden = false,
           </div>
           {/* 見出し = 種類の切り替え（複数選択）。選んだ種類がそのままタイトルになる */}
           <div className="flex items-center gap-2 pb-2 pl-5 pr-4 lg:pt-3">
-            <div className="flex min-w-0 flex-1 gap-2 overflow-x-auto [scrollbar-width:none] lg:flex-wrap lg:overflow-visible">
+            <div className="flex min-w-0 flex-1 gap-2 overflow-x-auto py-1 [scrollbar-width:none] lg:flex-wrap lg:overflow-visible">
               {GUIDE_KIND_OPTIONS.map((option) => (
                 <KindToggle key={option.kind} active={guide.kinds.includes(option.kind)} onClick={() => guide.toggleKind(option.kind)}>
-                  <span aria-hidden className="mr-1 inline-flex align-middle">
+                  <span aria-hidden className="inline-flex">
                     <SpotKindIcon kind={option.kind} size={18} />
                   </span>
                   {option.label}
@@ -343,7 +345,7 @@ export default function OdekakeGuidePanel({ guide, map, onClose, hidden = false,
                 onClose();
               }}
               aria-label="おでかけサポートをとじる"
-              className={`${FOCUS_RING} flex h-8 w-8 shrink-0 items-center justify-center self-start rounded-full bg-white text-slate-500 ring-1 ring-slate-200 active:bg-slate-100`}
+              className={`${FOCUS_RING} flex h-9 w-9 shrink-0 items-center justify-center self-start rounded-full bg-nicchyo-ink/[0.07] text-nicchyo-ink/70 active:bg-nicchyo-ink/[0.14]`}
             >
               <XIcon size={16} />
             </button>
