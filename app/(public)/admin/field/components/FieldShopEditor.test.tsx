@@ -318,6 +318,27 @@ describe("FieldShopEditor", () => {
       await waitFor(() => expect((screen.getByRole("button", { name: "内容を保存" }) as HTMLButtonElement).disabled).toBe(false));
     });
 
+    it("保存している間は、英語の入力欄を操作できない（保存後の読み直しで入力が消えないように）", async () => {
+      storedTranslation = { translation: { name: "Hanaya", strength: null, style: null, products: {} }, status: "reviewed", stale: false };
+      let release!: () => void;
+      const gate = new Promise<void>((resolve) => (release = resolve));
+      const base = globalThis.fetch;
+      const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
+      render(<FieldShopEditor shopId={baseShop.id} />);
+      const nameInput = await screen.findByDisplayValue("はなや");
+      const nameEn = (await screen.findByDisplayValue("Hanaya")) as HTMLInputElement;
+      fireEvent.change(nameInput, { target: { value: "はなや本店" } });
+      vi.stubGlobal("fetch", vi.fn(async (url: string, init?: RequestInit) => {
+        if ((init?.method ?? "GET") === "PATCH") await gate;
+        return (base as typeof fetch)(url, init);
+      }));
+      fireEvent.click(screen.getByRole("button", { name: "内容を保存" }));
+      await waitFor(() => expect(nameEn.disabled).toBe(true));
+      release();
+      await waitFor(() => expect(nameEn.disabled).toBe(false));
+      confirm.mockRestore();
+    });
+
     it("保存済みの英語版は読み込んで表示する。日本語が変わっていたら（stale）知らせる", async () => {
       storedTranslation = { translation: { name: "Hanaya", strength: null, style: null, products: {} }, status: "reviewed", stale: true };
       render(<FieldShopEditor shopId={baseShop.id} />);

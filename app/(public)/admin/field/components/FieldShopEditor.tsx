@@ -418,6 +418,7 @@ export function FieldShopEditor({ shopId }: { shopId: string }) {
         status={en.status}
         state={en.state}
         translating={en.translating}
+        saving={saving}
         canTranslate={en.canTranslate && !saving}
         onTranslate={() => void en.translate()}
         onChange={en.edit}

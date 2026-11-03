@@ -30,6 +30,8 @@ type Props = {
   /** none = 英語版なし、fresh = 日本語に合っている、stale = 訳したあとに日本語を変えた */
   state: "none" | "fresh" | "stale";
   translating: boolean;
+  /** 日本語を保存中。英語の入力・操作を止める */
+  saving?: boolean;
   canTranslate: boolean;
   onTranslate: () => void;
   onChange: (draft: EnglishDraft) => void;
@@ -41,7 +43,9 @@ type Props = {
  * 現場登録の「英語版」。日本語を入れたあと、AI の訳を見て、直してから、日本語と一緒に保存する。
  * 保存するまで、来訪者には何も出ない。保存した英語版は「確認済み」として扱い、自動の翻訳で上書きしない。
  */
-export function FieldEnglishCard({ source, productNames, draft, status, state, translating, canTranslate, onTranslate, onChange, onClear, onConfirmFresh }: Props) {
+export function FieldEnglishCard({ saving = false, source, productNames, draft, status, state, translating, canTranslate, onTranslate, onChange, onClear, onConfirmFresh }: Props) {
+  // 翻訳中・保存中は、英語の入力と操作を止める（保存の読み直しで、途中の入力が消えないように）
+  const locked = translating || saving;
   const current = draft ?? EMPTY_ENGLISH;
   const set = (patch: Partial<EnglishDraft>) => onChange({ ...current, ...patch });
 
@@ -53,7 +57,7 @@ export function FieldEnglishCard({ source, productNames, draft, status, state, t
       {state === "none" ? (
         <div className="space-y-2 rounded-lg bg-amber-50/60 p-3 text-[13px] leading-relaxed text-nicchyo-ink/70">
           <p>英語版を作らずに保存すると、あとで自動の翻訳が（確認なしで）英語版を作ります。ここで確認して保存すると、その英語版が使われ、自動では上書きされません。</p>
-          <button type="button" onClick={onTranslate} disabled={!canTranslate || translating} className={`${buttonClass} w-full border border-amber-500 bg-white text-amber-700`}>
+          <button type="button" onClick={onTranslate} disabled={!canTranslate || locked} className={`${buttonClass} w-full border border-amber-500 bg-white text-amber-700`}>
             {translating ? "翻訳しています…" : "AIで英語に翻訳する"}
           </button>
           {!canTranslate ? <p className="text-[12px] text-nicchyo-ink/55">店名などの日本語を入れると押せます。</p> : null}
@@ -65,14 +69,14 @@ export function FieldEnglishCard({ source, productNames, draft, status, state, t
             {state === "fresh" && status === "auto" ? <span className="text-[13px] text-nicchyo-ink/70">AIが訳した下書きです。内容を確かめてから保存してください。</span> : null}
           </div>
           {state === "fresh" && status === "auto" ? (
-            <button type="button" onClick={onConfirmFresh} disabled={translating} className={`${buttonClass} w-full border border-line bg-white text-nicchyo-ink/80`}>
+            <button type="button" onClick={onConfirmFresh} disabled={locked} className={`${buttonClass} w-full border border-line bg-white text-nicchyo-ink/80`}>
               この英語でよい（確認済みにする）
             </button>
           ) : null}
           {state === "stale" ? (
             <div role="alert" className="space-y-2 rounded-lg bg-rose-50 p-3 text-[13px] leading-relaxed text-rose-700">
               <p>日本語を変更しました。英語版は変更前の内容のままです（来訪者には、日本語に合っていない英語は出ません）。「もう一度翻訳」で作り直すか、英語を直して「日本語に合っています」を押してください。</p>
-              <button type="button" onClick={onConfirmFresh} disabled={translating} className={`${buttonClass} w-full border border-rose-300 bg-white text-rose-700`}>
+              <button type="button" onClick={onConfirmFresh} disabled={locked} className={`${buttonClass} w-full border border-rose-300 bg-white text-rose-700`}>
                 英語版は日本語に合っています
               </button>
             </div>
@@ -80,19 +84,19 @@ export function FieldEnglishCard({ source, productNames, draft, status, state, t
 
           <label className="block">
             <span className="mb-1 block text-[13px] font-medium text-nicchyo-ink/70">店名の読み（ローマ字）　<span lang="ja" className="font-normal">{source.name}</span></span>
-            <input lang="en" value={current.name} onChange={(e) => set({ name: e.target.value })} maxLength={300} disabled={translating} className={inputClass} />
+            <input lang="en" value={current.name} onChange={(e) => set({ name: e.target.value })} maxLength={300} disabled={locked} className={inputClass} />
           </label>
           <p className="-mt-2 text-[12px] text-nicchyo-ink/55">店名は訳さず、読みを足して「Romaji (日本語)」で出します。看板と見比べられるようにするためです。</p>
           {source.strength.trim() ? (
             <label className="block">
               <span className="mb-1 block text-[13px] font-medium text-nicchyo-ink/70">こだわり・ひとこと　<span lang="ja" className="font-normal">{source.strength.slice(0, 30)}{source.strength.length > 30 ? "…" : ""}</span></span>
-              <textarea lang="en" value={current.strength} onChange={(e) => set({ strength: e.target.value })} rows={3} maxLength={600} disabled={translating} className={inputClass} />
+              <textarea lang="en" value={current.strength} onChange={(e) => set({ strength: e.target.value })} rows={3} maxLength={600} disabled={locked} className={inputClass} />
             </label>
           ) : null}
           {source.style.trim() ? (
             <label className="block">
               <span className="mb-1 block text-[13px] font-medium text-nicchyo-ink/70">出店スタイル　<span lang="ja" className="font-normal">{source.style.slice(0, 30)}{source.style.length > 30 ? "…" : ""}</span></span>
-              <input lang="en" value={current.style} onChange={(e) => set({ style: e.target.value })} maxLength={600} disabled={translating} className={inputClass} />
+              <input lang="en" value={current.style} onChange={(e) => set({ style: e.target.value })} maxLength={600} disabled={locked} className={inputClass} />
             </label>
           ) : null}
           {productNames.length > 0 ? (
@@ -107,7 +111,7 @@ export function FieldEnglishCard({ source, productNames, draft, status, state, t
                     value={current.products[name] ?? ""}
                     onChange={(e) => set({ products: { ...current.products, [name]: e.target.value } })}
                     maxLength={200}
-                    disabled={translating}
+                    disabled={locked}
                     className={inputClass}
                   />
                 </div>
@@ -116,10 +120,10 @@ export function FieldEnglishCard({ source, productNames, draft, status, state, t
           ) : null}
 
           <div className="grid grid-cols-2 gap-2">
-            <button type="button" onClick={onTranslate} disabled={!canTranslate || translating} className={`${buttonClass} border border-amber-500 bg-white text-amber-700`}>
+            <button type="button" onClick={onTranslate} disabled={!canTranslate || locked} className={`${buttonClass} border border-amber-500 bg-white text-amber-700`}>
               {translating ? "翻訳しています…" : "もう一度翻訳"}
             </button>
-            <button type="button" onClick={onClear} disabled={translating} className={`${buttonClass} border border-line bg-white text-nicchyo-ink/70`}>
+            <button type="button" onClick={onClear} disabled={locked} className={`${buttonClass} border border-line bg-white text-nicchyo-ink/70`}>
               英語版を消す
             </button>
           </div>
