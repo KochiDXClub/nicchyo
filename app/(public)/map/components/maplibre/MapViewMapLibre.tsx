@@ -594,13 +594,6 @@ function MapViewMapLibre({
         }
       })
     );
-    // 最大縮小付近で「日曜市」の下に出すロゴ。読めなくても地図は動くので、失敗は null にして握りつぶす
-    const marketLogoPromise = rasterizeImageUrl(NICCHYO_LOGO_URL, MARKET_LOGO_WIDTH_PX, landmarkRatio).catch(
-      (error) => {
-        console.warn("[MapViewMapLibre] ロゴ画像を読めませんでした", error);
-        return null;
-      }
-    );
     // load が来る前に破棄された場合の未処理の拒否を防ぐ（拒否は load 側の await で従来どおり扱う）
     stallSpritesPromise.catch(() => {});
 
@@ -886,28 +879,46 @@ function MapViewMapLibre({
           },
           paint: marketLabelPaint,
         });
-        // 「日曜市」のすぐ下にニッチョのロゴ。文字と同じ縮小帯だけ出す
-        const marketLogo = await marketLogoPromise;
-        if (disposed) return;
-        if (marketLogo) {
-          if (!map.hasImage(IMG_MARKET_LOGO)) {
-            map.addImage(IMG_MARKET_LOGO, marketLogo, { pixelRatio: landmarkRatio });
-          }
-          map.addLayer({
-            id: LAYER_MARKET_HIGHLIGHT_LOGO,
-            type: "symbol",
-            source: `${SRC_ROAD}-label`,
-            maxzoom: MARKET_LABEL_ALONG_LINE_MIN_ZOOM,
-            layout: {
-              "icon-image": IMG_MARKET_LOGO,
-              "icon-anchor": "top",
-              "icon-offset": [0, 8],
-              "icon-allow-overlap": true,
-              "icon-ignore-placement": true,
-              "icon-rotation-alignment": "viewport",
-            },
-          });
-        }
+        // 「日曜市」のすぐ下にニッチョのロゴ。文字と同じ縮小帯だけ出す。
+        // 縮小しない人には要らない画像なので、縮小帯に入ったときに初めて読み、届いたときに足す
+        // （待たないので、ロゴが遅れても屋台などの表示は止まらない。読めなくても地図は動く）
+        let marketLogoRequested = false;
+        const requestMarketLogo = () => {
+          if (marketLogoRequested) return;
+          marketLogoRequested = true;
+          rasterizeImageUrl(NICCHYO_LOGO_URL, MARKET_LOGO_WIDTH_PX, landmarkRatio)
+            .then((logo) => {
+              if (disposed) return;
+              if (!map.hasImage(IMG_MARKET_LOGO)) {
+                map.addImage(IMG_MARKET_LOGO, logo, { pixelRatio: landmarkRatio });
+              }
+              if (map.getLayer(LAYER_MARKET_HIGHLIGHT_LOGO)) return;
+              map.addLayer({
+                id: LAYER_MARKET_HIGHLIGHT_LOGO,
+                type: "symbol",
+                source: `${SRC_ROAD}-label`,
+                maxzoom: MARKET_LABEL_ALONG_LINE_MIN_ZOOM,
+                layout: {
+                  "icon-image": IMG_MARKET_LOGO,
+                  "icon-anchor": "top",
+                  "icon-offset": [0, 8],
+                  "icon-allow-overlap": true,
+                  "icon-ignore-placement": true,
+                  "icon-rotation-alignment": "viewport",
+                },
+              });
+            })
+            .catch((error) => {
+              console.warn("[MapViewMapLibre] ロゴ画像を読めませんでした", error);
+            });
+        };
+        const requestMarketLogoWhenZoomedOut = () => {
+          if (map.getZoom() >= MARKET_LABEL_ALONG_LINE_MIN_ZOOM) return;
+          map.off("zoom", requestMarketLogoWhenZoomedOut);
+          requestMarketLogo();
+        };
+        map.on("zoom", requestMarketLogoWhenZoomedOut);
+        requestMarketLogoWhenZoomedOut();
       }
       map.addLayer({
         id: LAYER_MARKET_HIGHLIGHT_LABEL,
