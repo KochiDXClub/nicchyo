@@ -43,6 +43,17 @@ export interface RoleTheme {
   description: string;
 }
 
+const GENERAL_USER_THEME: RoleTheme = {
+  headerBg: 'bg-gradient-to-r from-amber-600 via-orange-500 to-amber-600',
+  headerText: 'text-white',
+  accent: {
+    bg: 'bg-amber-600',
+    text: 'text-white',
+    hoverBg: 'hover:bg-amber-700',
+  },
+  description: '一般ユーザーテーマ（アンバー系・デフォルト）',
+};
+
 /**
  * Role ごとのテーマ定義
  *
@@ -92,16 +103,7 @@ export const ROLE_THEMES: Record<UserRole, RoleTheme> = {
    * - プロジェクトの標準カラーを維持
    * - 日曜市の暖かい雰囲気を表現
    */
-  general_user: {
-    headerBg: 'bg-gradient-to-r from-amber-600 via-orange-500 to-amber-600',
-    headerText: 'text-white',
-    accent: {
-      bg: 'bg-amber-600',
-      text: 'text-white',
-      hoverBg: 'hover:bg-amber-700',
-    },
-    description: '一般ユーザーテーマ（アンバー系・デフォルト）',
-  },
+  general_user: GENERAL_USER_THEME,
 
   /**
    * モデレーターテーマ
@@ -119,6 +121,12 @@ export const ROLE_THEMES: Record<UserRole, RoleTheme> = {
     },
     description: 'モデレーターテーマ（パープル系・コンテンツ管理）',
   },
+
+  /**
+   * 高知市（市役所）テーマ
+   * - 追加時点では一般ユーザーと同じ配色。/city の導入時に見直す
+   */
+  city_official: GENERAL_USER_THEME,
 };
 
 /**

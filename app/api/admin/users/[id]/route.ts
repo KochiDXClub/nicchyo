@@ -66,7 +66,7 @@ export async function PATCH(
       );
     } else if (body.action === "change_role") {
       const newRole = body.role;
-      const validRoles = ["general_user", "vendor", "moderator", "admin"];
+      const validRoles = ["general_user", "vendor", "city_official", "moderator", "admin"];
       if (!validRoles.includes(newRole)) {
         return NextResponse.json({ error: "Invalid role" }, { status: 400 });
       }

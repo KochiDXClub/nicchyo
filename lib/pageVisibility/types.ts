@@ -14,6 +14,7 @@ export const VISIBILITY_ROLES: readonly VisibilityRole[] = [
   "anon",
   "general_user",
   "vendor",
+  "city_official",
   "moderator",
   "admin",
 ] as const;
@@ -22,6 +23,7 @@ export const VISIBILITY_ROLE_LABELS: Record<VisibilityRole, string> = {
   anon: "未ログイン",
   general_user: "一般ユーザー",
   vendor: "出店者",
+  city_official: "高知市",
   moderator: "モデレーター",
   admin: "管理者",
 };

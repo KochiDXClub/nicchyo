@@ -6,6 +6,7 @@ export const ROLE_LABEL: Record<UserRole, string> = {
   vendor: "出店者",
   general_user: "一般",
   moderator: "モデレーター",
+  city_official: "高知市",
 };
 
 export const ROLE_BADGE_VARIANT: Record<UserRole, NonNullable<BadgeProps["variant"]>> = {
@@ -13,4 +14,5 @@ export const ROLE_BADGE_VARIANT: Record<UserRole, NonNullable<BadgeProps["varian
   vendor: "info",
   general_user: "neutral",
   moderator: "ai",
+  city_official: "amber",
 };

@@ -45,6 +45,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 function normalizeRole(value?: string | null): UserRole {
   if (value === "admin") return "admin";
   if (value === "moderator") return "moderator";
+  if (value === "city_official") return "city_official";
   if (value === "vendor") return "vendor";
   return "general_user";
 }
@@ -176,6 +177,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const permissions: PermissionCheck = {
     isAdmin: user?.role === "admin",
     isModerator: user?.role === "admin" || user?.role === "moderator",
+    isCityOfficial: user?.role === "city_official",
     isVendor: user?.role === "vendor",
     isGeneralUser: user?.role === "general_user",
 
