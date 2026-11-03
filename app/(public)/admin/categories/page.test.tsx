@@ -73,4 +73,18 @@ describe("カテゴリ管理（英語名）", () => {
     await new Promise((r) => setTimeout(r, 20));
     expect((screen.getAllByLabelText(/English name/)[1] as HTMLInputElement).value).toBe("");
   });
+
+  it("翻訳中に追加を押したら、翻訳の結果は追加フォームに入れない", async () => {
+    let resolveTranslate: (res: Response) => void = () => {};
+    translateImpl = () => new Promise<Response>((resolve) => (resolveTranslate = resolve));
+    render(<AdminCategoriesPage />);
+    await screen.findByText("Vegetables");
+    fireEvent.change(screen.getByLabelText("日本語名"), { target: { value: "食べ物" } });
+    fireEvent.click(screen.getByRole("button", { name: "AIで英訳" }));
+    fireEvent.click(screen.getByRole("button", { name: "追加" }));
+    await waitFor(() => expect(calls.some((c) => c.method === "POST" && c.url === "/api/admin/categories")).toBe(true));
+    resolveTranslate(json({ ok: true, nameEn: "WRONG" }));
+    await new Promise((r) => setTimeout(r, 20));
+    expect((screen.getByLabelText(/English name/) as HTMLInputElement).value).toBe("");
+  });
 });

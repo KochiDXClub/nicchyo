@@ -24,6 +24,8 @@ export default function AdminCategoriesPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   /** 編集の切り替え（別のカテゴリを開く・やめる・保存する）のたびに進める。翻訳の結果が別の編集に紛れ込むのを防ぐ */
   const editSessionRef = useRef(0);
+  /** 追加フォームの世代。追加を押す・日本語名を書き換えるたびに進め、古い翻訳の結果が追加フォームに入らないようにする */
+  const newSessionRef = useRef(0);
   const [editName, setEditName] = useState("");
   const [editNameEn, setEditNameEn] = useState("");
   const [saving, setSaving] = useState(false);
@@ -59,7 +61,8 @@ export default function AdminCategoriesPage() {
   /** 日本語名を英語名にする（サーバーで AI を呼ぶ）。結果は入力欄に入れるだけで、保存は「追加」「保存」を押したとき */
   const translateName = async (target: "new" | "edit", name: string, apply: (nameEn: string) => void) => {
     if (!name.trim()) return;
-    const session = editSessionRef.current;
+    const sessionRef = target === "new" ? newSessionRef : editSessionRef;
+    const session = sessionRef.current;
     setTranslating(target);
     try {
       const res = await fetch("/api/admin/categories/translate", {
@@ -70,20 +73,22 @@ export default function AdminCategoriesPage() {
       const data = await res.json().catch(() => null) as { nameEn?: string; error?: string } | null;
       if (!res.ok || !data?.nameEn) throw new Error(data?.error ?? "翻訳できませんでした");
       // 翻訳中に別のカテゴリを開いた・編集をやめたときは、結果を捨てる（別のカテゴリに英語名が入らないように）
-      if (target === "edit" && session !== editSessionRef.current) return;
+      if (session !== sessionRef.current) return;
       apply(data.nameEn);
       showToast.success("英語名の案を入れました。確認してから保存してください");
     } catch (e) {
-      if (target === "new" || session === editSessionRef.current) showToast.error(e instanceof Error ? e.message : "翻訳できませんでした");
+      if (session === sessionRef.current) showToast.error(e instanceof Error ? e.message : "翻訳できませんでした");
     } finally {
       // 別の編集に切り替わっていたら、その編集のボタン状態は触らない
-      if (target === "new" || session === editSessionRef.current) setTranslating(null);
+      if (session === sessionRef.current) setTranslating(null);
     }
   };
 
   const handleAdd = async () => {
     const name = newName.trim();
     if (!name) return;
+    newSessionRef.current += 1;
+    setTranslating((current) => (current === "new" ? null : current));
     setAdding(true);
     try {
       const res = await fetch("/api/admin/categories", {
@@ -179,7 +184,11 @@ export default function AdminCategoriesPage() {
               type="text"
               lang="ja"
               value={newName}
-              onChange={(e) => setNewName(e.target.value)}
+              onChange={(e) => {
+                newSessionRef.current += 1;
+                setTranslating((current) => (current === "new" ? null : current));
+                setNewName(e.target.value);
+              }}
               onKeyDown={(e) => e.key === "Enter" && void handleAdd()}
               placeholder="新しいカテゴリ名"
               maxLength={50}
