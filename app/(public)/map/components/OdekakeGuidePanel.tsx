@@ -37,6 +37,8 @@ type OdekakeGuidePanelProps = {
 };
 
 const FOCUS_ZOOM = 17;
+/** シートをたたむのに必要な、下方向のドラッグ量（px） */
+const DRAG_CLOSE_PX = 100;
 const FOCUS_RING = 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 focus-visible:ring-offset-2';
 
 function SpotIcon({ spot, size }: { spot: MapSpot; size: number }) {
@@ -155,7 +157,7 @@ function countSpotsByKind(spots: MapSpot[]): Partial<Record<SpotKind, number>> {
 
 export default function OdekakeGuidePanel({ guide, map, onClose, hidden = false, onOpenSpot }: OdekakeGuidePanelProps) {
   const [isOpen, setIsOpen] = useState(guide.kinds.length === 0);
-  const dragStartY = useRef<number | null>(null);
+  const dragStart = useRef<{ x: number; y: number } | null>(null);
 
   // 種類が未選択なら、えらぶために開く
   useEffect(() => {
@@ -217,12 +219,16 @@ export default function OdekakeGuidePanel({ guide, map, onClose, hidden = false,
     [focusEntry, guide]
   );
 
-  const handleDragStart = (clientY: number) => {
-    dragStartY.current = clientY;
+  const handleDragStart = (clientX: number, clientY: number) => {
+    dragStart.current = { x: clientX, y: clientY };
   };
-  const handleDragEnd = (clientY: number) => {
-    if (dragStartY.current !== null && clientY - dragStartY.current > 60) setIsOpen(false);
-    dragStartY.current = null;
+  // 少し下へ払っただけでは閉じない。縦方向に大きく、ほぼまっすぐ下へ引いたときだけたたむ
+  const handleDragEnd = (clientX: number, clientY: number) => {
+    const start = dragStart.current;
+    dragStart.current = null;
+    if (!start) return;
+    const dy = clientY - start.y;
+    if (dy > DRAG_CLOSE_PX && dy > Math.abs(clientX - start.x) * 2) setIsOpen(false);
   };
 
   const choosing = guide.kinds.length === 0;
@@ -303,14 +309,8 @@ export default function OdekakeGuidePanel({ guide, map, onClose, hidden = false,
         className={`pointer-events-auto absolute bottom-0 left-0 right-0 z-[1650] flex max-h-[55dvh] flex-col rounded-t-[28px] bg-white shadow-[0_-12px_40px_rgba(58,58,58,0.22)] transition-transform duration-300 ease-out motion-reduce:transition-none lg:bottom-auto lg:left-4 lg:right-auto lg:top-20 lg:max-h-[calc(100dvh-6rem)] lg:w-[24rem] lg:rounded-card lg:shadow-float lg:ring-1 lg:ring-line ${
           isOpen ? 'translate-y-0' : 'translate-y-full lg:-translate-x-[calc(100%+2rem)] lg:translate-y-0'
         }`}
-        onTouchStart={(e) => {
-          e.stopPropagation();
-          handleDragStart(e.touches[0].clientY);
-        }}
-        onTouchEnd={(e) => {
-          e.stopPropagation();
-          handleDragEnd(e.changedTouches[0].clientY);
-        }}
+        onTouchStart={(e) => e.stopPropagation()}
+        onTouchEnd={(e) => e.stopPropagation()}
         onMouseDown={(e) => e.stopPropagation()}
         onClick={(e) => e.stopPropagation()}
         role="dialog"
@@ -318,7 +318,13 @@ export default function OdekakeGuidePanel({ guide, map, onClose, hidden = false,
         aria-hidden={!isOpen}
       >
         {/* ハンドル + 見出し */}
-        <div className="shrink-0 rounded-t-[28px] bg-nicchyo-base/70 lg:rounded-t-card">
+        {/* たたむドラッグはここ（ハンドル・見出し）だけ。一覧のスクロールでは反応させない */}
+        <div
+          className="shrink-0 rounded-t-[28px] bg-nicchyo-base/70 lg:rounded-t-card"
+          onTouchStart={(e) => handleDragStart(e.touches[0].clientX, e.touches[0].clientY)}
+          onTouchEnd={(e) => handleDragEnd(e.changedTouches[0].clientX, e.changedTouches[0].clientY)}
+          onTouchCancel={() => (dragStart.current = null)}
+        >
           <div className="flex justify-center pb-2 pt-2.5 lg:hidden">
             <span className="h-1 w-9 rounded-full bg-slate-300" />
           </div>
