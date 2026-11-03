@@ -21,7 +21,7 @@ export type StoredTranslation = {
 
 type EnglishStatus = "auto" | "reviewed" | null;
 
-export type EnglishSnapshot = { english: EnglishDraft | null; status: EnglishStatus; translatedFrom: string | null; dirty: boolean };
+export type EnglishSnapshot = { english: EnglishDraft | null; status: EnglishStatus; translatedFrom: string | null; dirty: boolean; stale: boolean };
 
 /** 訳す原文（日本語）の印。英語版を作ったときの日本語から変わったかを見分ける。商品は名前の集合で見る */
 function sourceKey(form: TranslationForm): string {
@@ -71,7 +71,7 @@ export function useFieldEnglish(shopId: string, form: TranslationForm | null, ma
     sourceVersionRef.current += 1;
   }, []);
 
-  const snapshot = (): EnglishSnapshot => ({ english, status, translatedFrom, dirty });
+  const snapshot = (): EnglishSnapshot => ({ english, status, translatedFrom, dirty, stale: state === "stale" });
 
   const restore = (s: EnglishSnapshot) => {
     setEnglish(s.english);
@@ -151,6 +151,8 @@ export function useFieldEnglish(shopId: string, form: TranslationForm | null, ma
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          // 日本語を直したあと確認していない英語は、日本語に合うものとして保存しない
+          stale: s.stale,
           name: s.english?.name ?? "",
           strength: s.english?.strength ?? "",
           style: s.english?.style ?? "",

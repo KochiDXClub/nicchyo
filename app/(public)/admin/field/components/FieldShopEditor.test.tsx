@@ -276,7 +276,20 @@ describe("FieldShopEditor", () => {
 
       const order = calls.filter((c) => (c.method === "PATCH" || c.method === "PUT") && !c.url.endsWith("/location")).map((c) => c.method);
       expect(order).toEqual(["PATCH", "PUT"]);
-      expect(calls.find((c) => c.method === "PUT" && c.url.endsWith("/translation"))?.body).toMatchObject({ name: "Hana-ya" });
+      expect(calls.find((c) => c.method === "PUT" && c.url.endsWith("/translation"))?.body).toMatchObject({ name: "Hana-ya", stale: false });
+    });
+
+    it("訳したあとに日本語を直し、警告を承知で保存しても、英語版は「確認していない」印つき（stale: true）で保存する", async () => {
+      const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
+      render(<FieldShopEditor shopId={baseShop.id} />);
+      const nameInput = await screen.findByDisplayValue("はなや");
+      fireEvent.click(screen.getByRole("button", { name: "AIで英語に翻訳する" }));
+      await screen.findByDisplayValue("Hanaya");
+      fireEvent.change(nameInput, { target: { value: "はなや本店" } });
+      fireEvent.click(screen.getByRole("button", { name: "内容を保存" }));
+      await waitFor(() => expect(calls.some((c) => c.method === "PUT" && c.url.endsWith("/translation"))).toBe(true));
+      expect(calls.find((c) => c.method === "PUT" && c.url.endsWith("/translation"))?.body).toMatchObject({ stale: true });
+      confirm.mockRestore();
     });
 
     it("保存済みの英語版は読み込んで表示する。日本語が変わっていたら（stale）知らせる", async () => {

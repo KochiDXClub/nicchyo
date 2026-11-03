@@ -300,6 +300,8 @@ export async function saveReviewedShopTranslation(params: {
   vendorId: string;
   locale: Locale;
   translation: ShopTranslation;
+  /** 日本語を直したあと、英語版を確認していない。どの日本語にも合わない印で保存し、来訪者には日本語を出す */
+  stale?: boolean;
 }): Promise<SaveReviewedResult> {
   const { vendorId, locale } = params;
   const supabase = getAdminSupabase();
@@ -336,7 +338,7 @@ export async function saveReviewedShopTranslation(params: {
       style: translation.style,
       rain_policy: null,
       products,
-      source_hash: hashTranslationSource(locale, source),
+      source_hash: params.stale ? `stale:${hashTranslationSource(locale, source)}` : hashTranslationSource(locale, source),
       status: "reviewed" as const,
       model: null,
       updated_at: new Date().toISOString(),
