@@ -158,6 +158,20 @@ export default function OdekakeGuidePanel({ guide, map, onClose, hidden = false,
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [guide.geoStatus]);
 
+  // パネルの外（地図）をなぞる・タップしたら、シートをたたんで地図を探索できるようにする（Googleマップと同じ）。
+  // dragstart は人が動かしたときだけ飛ぶので、案内が自動で地図を動かしてもたたまれない
+  useEffect(() => {
+    if (!map || hidden) return;
+    const collapse = () => setIsOpen(false);
+    const container = map.getContainer();
+    map.on('dragstart', collapse);
+    container.addEventListener('click', collapse);
+    return () => {
+      map.off('dragstart', collapse);
+      container.removeEventListener('click', collapse);
+    };
+  }, [map, hidden]);
+
   const focusEntry = useCallback(
     (entry: RankedSpot) => {
       if (!map) return;
