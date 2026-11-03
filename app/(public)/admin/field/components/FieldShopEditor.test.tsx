@@ -48,18 +48,21 @@ const json = (body: unknown, status = 200) => new Response(JSON.stringify(body),
 describe("FieldShopEditor", () => {
   let currentShop: typeof baseShop = baseShop;
   let storedTranslation: unknown = null;
+  let previewGate: Promise<void> | null = null;
   const calls: { url: string; method: string; body?: unknown }[] = [];
 
   beforeEach(() => {
     calls.length = 0;
     currentShop = baseShop;
     storedTranslation = null;
+    previewGate = null;
     vi.stubGlobal(
       "fetch",
       vi.fn(async (url: string, init?: RequestInit) => {
         const method = init?.method ?? "GET";
         calls.push({ url, method, body: typeof init?.body === "string" ? JSON.parse(init.body) : init?.body });
         if (url.endsWith("/api/admin/shop-translations/preview")) {
+          if (previewGate) await previewGate;
           return json({ ok: true, name: "Hanaya", strength: null, style: null, products: {} });
         }
         if (url.endsWith("/translation") && method === "PUT") return json({ ok: true, result: "saved" });
@@ -300,6 +303,19 @@ describe("FieldShopEditor", () => {
       fireEvent.click(screen.getByRole("button", { name: "内容を保存" }));
       await waitFor(() => expect(calls.some((c) => c.method === "PUT" && c.url.endsWith("/translation"))).toBe(true));
       expect(calls.find((c) => c.method === "PUT" && c.url.endsWith("/translation"))?.body).toMatchObject({ name: "Hanaya", stale: false });
+    });
+
+    it("翻訳している間は「内容を保存」を押せない（翻訳の結果が保存後の読み直しで消えないように）", async () => {
+      let release!: () => void;
+      previewGate = new Promise<void>((resolve) => (release = resolve));
+      render(<FieldShopEditor shopId={baseShop.id} />);
+      const nameInput = await screen.findByDisplayValue("はなや");
+      fireEvent.change(nameInput, { target: { value: "はなや本店" } });
+      fireEvent.click(screen.getByRole("button", { name: "AIで英語に翻訳する" }));
+      await waitFor(() => expect((screen.getByRole("button", { name: "内容を保存" }) as HTMLButtonElement).disabled).toBe(true));
+      release();
+      await screen.findByDisplayValue("Hanaya");
+      await waitFor(() => expect((screen.getByRole("button", { name: "内容を保存" }) as HTMLButtonElement).disabled).toBe(false));
     });
 
     it("保存済みの英語版は読み込んで表示する。日本語が変わっていたら（stale）知らせる", async () => {

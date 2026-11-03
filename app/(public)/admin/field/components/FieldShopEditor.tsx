@@ -192,7 +192,8 @@ export function FieldShopEditor({ shopId }: { shopId: string }) {
   }, [form?.business_hours_start, form?.business_hours_end]);
 
   const save = async () => {
-    if (!form || !shop || hoursError) return;
+    // 翻訳中は保存しない（翻訳の結果が、保存後の読み直しで消えるため）
+    if (!form || !shop || hoursError || en.translating) return;
     if (form.products.some((p) => p.price.trim() !== "" && !/^\d+$/.test(p.price.trim()))) {
       showToast.error("価格は数字だけで入力してください");
       return;
@@ -417,7 +418,7 @@ export function FieldShopEditor({ shopId }: { shopId: string }) {
         status={en.status}
         state={en.state}
         translating={en.translating}
-        canTranslate={en.canTranslate}
+        canTranslate={en.canTranslate && !saving}
         onTranslate={() => void en.translate()}
         onChange={en.edit}
         onClear={en.clear}
@@ -546,7 +547,7 @@ export function FieldShopEditor({ shopId }: { shopId: string }) {
           <Link href="/admin/field" className={`${buttonClass} border border-line bg-white text-nicchyo-ink/70`}>
             一覧へ
           </Link>
-          <button type="button" onClick={() => void save()} disabled={saving || !dirty || !!hoursError} className={`${buttonClass} flex-1 bg-green-600 text-white`}>
+          <button type="button" onClick={() => void save()} disabled={saving || en.translating || !dirty || !!hoursError} className={`${buttonClass} flex-1 bg-green-600 text-white`}>
             {saving ? "保存しています…" : dirty ? "内容を保存" : "変更なし"}
           </button>
         </div>
