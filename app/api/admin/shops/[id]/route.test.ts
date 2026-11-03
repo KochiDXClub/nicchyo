@@ -6,7 +6,7 @@ const revalidate = vi.fn();
 const updateCalls: { values: Record<string, unknown>; filters: [string, unknown][] }[] = [];
 const upsertOwner = vi.fn();
 let current: Record<string, unknown>;
-let updateRows: { id: string }[];
+let updateRows: { id: string; updated_at?: string }[];
 
 vi.mock("@/lib/admin/shopApiGuard", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/admin/shopApiGuard")>()),
@@ -90,6 +90,12 @@ describe("PATCH /api/admin/shops/[id]", () => {
     expect(updateCalls[0].filters).toContainEqual(["updated_at", LOADED_AT]);
     expect(updateCalls[0].values.shop_name).toBe("新しい名前");
     expect(revalidate).toHaveBeenCalled();
+  });
+
+  it("保存後の updated_at は、DBに実際に保存された値を返す（トリガーが付け替えても合う）", async () => {
+    updateRows = [{ id: ID, updated_at: "2026-10-10T21:00:00.123456+00:00" }];
+    const res = await patch({ shop_name: "新しい名前", updated_at: "2026-10-04T01:00:00Z" });
+    expect((await res.json()).updated_at).toBe("2026-10-10T21:00:00.123456+00:00");
   });
 
   it("確認のあと更新までの間に別の人が書いたら（0 行）409", async () => {

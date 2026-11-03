@@ -153,7 +153,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       .update({ ...update, updated_at: writtenAt })
       .eq("id", id);
     query = current.updated_at ? query.eq("updated_at", current.updated_at) : query.is("updated_at", null);
-    const { data: updated, error: updateError } = await query.select("id");
+    const { data: updated, error: updateError } = await query.select("id, updated_at");
     if (updateError) return NextResponse.json({ error: "保存できませんでした" }, { status: 500 });
     if (!updated || updated.length === 0) return conflict;
 
@@ -204,7 +204,8 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     // 来訪者のマップ・検索のキャッシュに反映する
     revalidatePublicShops();
 
-    return NextResponse.json({ ok: true, updated_at: writtenAt });
+    // DBのトリガーが updated_at を付け替えることがあるので、実際に保存された値を返す
+    return NextResponse.json({ ok: true, updated_at: updated[0]?.updated_at ?? writtenAt });
   } catch {
     return NextResponse.json({ error: "保存できませんでした" }, { status: 500 });
   }
