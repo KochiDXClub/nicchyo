@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Badge, Button, Surface } from "@/components/ui";
 import { showToast } from "@/lib/admin/toast";
 import {
@@ -61,6 +61,9 @@ const EMPTY_FORM: FormState = {
 
 type SourceText = { title: string; body: string };
 
+/** 「訳したときの日本語」が分からない（下書き保存した古い英語版）ことを表す。どの日本語とも一致しないので、必ず stale になる */
+const STALE_SNAPSHOT: SourceText = { title: "\u0000", body: "\u0000" };
+
 function toForm(a: Announcement): FormState {
   return {
     title: a.title,
@@ -113,6 +116,8 @@ export function SiteAnnouncementSection() {
   const [translating, setTranslating] = useState(false);
   /** 英語版を作った（または保存済みを読み込んだ）時点の日本語。あとで日本語を直したかの判定に使う */
   const [translatedFrom, setTranslatedFrom] = useState<SourceText | null>(null);
+  /** 編集の切り替え（別のお知らせを開く・やめる）のたびに進める。翻訳の結果が、別の編集に紛れ込むのを防ぐ */
+  const sessionRef = useRef(0);
 
   const load = useCallback(async () => {
     const res = await fetch("/api/admin/announcements");
@@ -131,13 +136,18 @@ export function SiteAnnouncementSection() {
   const set = <K extends keyof FormState>(key: K, value: FormState[K]) => setForm((prev) => ({ ...prev, [key]: value }));
 
   const startEdit = (a: Announcement) => {
+    sessionRef.current += 1;
+    setTranslating(false);
     setEditingId(a.id);
     setForm(toForm(a));
-    setTranslatedFrom({ title: a.title, body: a.body });
+    // 日本語を直したまま下書き保存した英語版（stale）は、読み込み直しても「日本語と合っていない」ままにする
+    setTranslatedFrom(a.translationStatus === "stale" ? STALE_SNAPSHOT : { title: a.title, body: a.body });
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   const reset = () => {
+    sessionRef.current += 1;
+    setTranslating(false);
     setEditingId(null);
     setForm(EMPTY_FORM);
     setTranslatedFrom(null);
@@ -153,6 +163,7 @@ export function SiteAnnouncementSection() {
       return;
     }
     if (english !== "none" && form.translationStatus === "reviewed" && !window.confirm("手直しした英語版は、新しい翻訳で置き換わります。よろしいですか？")) return;
+    const session = sessionRef.current;
     setTranslating(true);
     try {
       const res = await fetch("/api/admin/announcements/translate", {
@@ -162,14 +173,23 @@ export function SiteAnnouncementSection() {
       });
       if (!res.ok) throw new Error(await readError(res, "翻訳できませんでした"));
       const data = (await res.json()) as { titleEn: string; bodyEn: string };
+      // 翻訳中に別のお知らせを開いた・編集をやめたときは、結果を捨てる（別の編集に英語が入らないように）
+      if (session !== sessionRef.current) return;
       setForm((prev) => ({ ...prev, titleEn: data.titleEn, bodyEn: data.bodyEn, translationStatus: "auto" }));
       setTranslatedFrom({ title: form.title, body: form.body });
       showToast.success("英語に翻訳しました。内容を確認してください");
     } catch (e) {
-      showToast.error(e instanceof Error ? e.message : "翻訳できませんでした");
+      if (session === sessionRef.current) showToast.error(e instanceof Error ? e.message : "翻訳できませんでした");
     } finally {
-      setTranslating(false);
+      // 別の編集に切り替わっていたら、その編集の状態（translating）は触らない
+      if (session === sessionRef.current) setTranslating(false);
     }
+  };
+
+  /** 日本語を直したあとの英語版を、運営が確認して「日本語に合っている」とする */
+  const confirmEnglish = () => {
+    setTranslatedFrom({ title: form.title, body: form.body });
+    setForm((prev) => ({ ...prev, translationStatus: "reviewed" }));
   };
 
   const editEnglish = (key: "titleEn" | "bodyEn", value: string) =>
@@ -201,14 +221,16 @@ export function SiteAnnouncementSection() {
     // 公開するときは、英語の来訪者にどう見えるかを確かめてもらう（英語が無い・日本語を直したのに古いまま）
     if (form.published) {
       if (english === "none" && !window.confirm("英語版がありません。英語で見ている来訪者には日本語のまま表示されます。このまま公開しますか？")) return;
-      if (english === "stale" && !window.confirm("日本語を直したあと、英語版を更新していません。古い英語のまま公開しますか？\n（「やり直す」で、もう一度翻訳できます）")) return;
+      if (english === "stale" && !window.confirm("日本語を直したあと、英語版を更新していません。古い英語のまま公開しますか？\n（キャンセルして、「もう一度翻訳」で作り直せます）")) return;
     }
     setSaving(true);
     try {
+      // 日本語を直したのに英語が古いままなら、その印も一緒に保存する（開き直したときに警告が消えないように）
+      const payload = { ...toPayload(form), ...(english === "stale" ? { translationStatus: "stale" as const } : {}) };
       const res = await fetch(editingId ? `/api/admin/announcements/${editingId}` : "/api/admin/announcements", {
         method: editingId ? "PATCH" : "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(toPayload(form)),
+        body: JSON.stringify(payload),
       });
       if (!res.ok) throw new Error(await readError(res, "保存できませんでした"));
       showToast.success(editingId ? "お知らせを更新しました" : form.published ? (form.titleEn.trim() ? "日本語と英語で投稿しました" : "お知らせを投稿しました") : "下書きとして保存しました");
@@ -300,7 +322,7 @@ export function SiteAnnouncementSection() {
               <Badge variant="neutral">2</Badge>英語版（AI翻訳 → 確認）
             </h3>
             {english !== "none" && form.translationStatus && (
-              <Badge variant={form.translationStatus === "auto" ? "info" : "amber"}>{TRANSLATION_STATUS_LABEL[form.translationStatus]}</Badge>
+              <Badge variant={form.translationStatus === "auto" ? "info" : form.translationStatus === "stale" ? "caution" : "amber"}>{TRANSLATION_STATUS_LABEL[form.translationStatus]}</Badge>
             )}
           </div>
 
@@ -320,9 +342,12 @@ export function SiteAnnouncementSection() {
           ) : (
             <>
               {english === "stale" && (
-                <p role="alert" className="mt-3 rounded-btn bg-rose-50 p-3 text-xs leading-relaxed text-rose-700">
-                  日本語を変更しました。英語版は変更前の内容のままです。「もう一度翻訳」で作り直すか、英語を直接直してください。
-                </p>
+                <div role="alert" className="mt-3 rounded-btn bg-rose-50 p-3 text-xs leading-relaxed text-rose-700">
+                  日本語を変更しました。英語版は変更前の内容のままです。「もう一度翻訳」で作り直すか、英語を直して「英語版は日本語に合っています」を押してください。
+                  <Button className="mt-2" variant="quiet" size="sm" onClick={confirmEnglish} disabled={translating}>
+                    英語版は日本語に合っています
+                  </Button>
+                </div>
               )}
               {english === "fresh" && form.translationStatus === "auto" && (
                 <p className="mt-3 rounded-btn bg-info-bg p-3 text-xs leading-relaxed text-info-fg">

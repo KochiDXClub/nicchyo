@@ -36,6 +36,7 @@ describe("parseAnnouncementInput", () => {
       translationStatus: "auto",
     });
     expect(ok({ title: "a", body: "b", titleEn: "T", bodyEn: "B" }).translationStatus).toBe("reviewed");
+    expect(ok({ title: "a", body: "b", titleEn: "T", bodyEn: "B", translationStatus: "stale" }).translationStatus).toBe("stale");
     expect(ok({ title: "a", body: "b", titleEn: "", bodyEn: " ", translationStatus: "auto" })).toMatchObject({
       titleEn: null,
       bodyEn: null,

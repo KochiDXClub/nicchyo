@@ -8,14 +8,33 @@ import { SiteAnnouncementSection } from "./SiteAnnouncementSection";
 type Call = { url: string; method: string; body: Record<string, unknown> | null };
 let calls: Call[];
 
-function stubFetch(translate: () => Response = () => json({ ok: true, titleEn: "Cancelled due to rain", bodyEn: "The market is cancelled." })) {
+const savedAnnouncement = (o: Record<string, unknown>) => ({
+  id: "a1",
+  title: "別のお知らせ",
+  body: "本文",
+  important: false,
+  published: false,
+  startsAt: "2026-10-12T00:00:00Z",
+  endsAt: null,
+  createdAt: "",
+  updatedAt: "",
+  titleEn: null,
+  bodyEn: null,
+  translationStatus: null,
+  ...o,
+});
+
+function stubFetch(
+  translate: () => Response | Promise<Response> = () => json({ ok: true, titleEn: "Cancelled due to rain", bodyEn: "The market is cancelled." }),
+  list: unknown[] = []
+) {
   calls = [];
   vi.stubGlobal(
     "fetch",
     vi.fn(async (url: string, init?: RequestInit) => {
       calls.push({ url, method: init?.method ?? "GET", body: init?.body ? JSON.parse(String(init.body)) : null });
       if (url === "/api/admin/announcements/translate") return translate();
-      if (url === "/api/admin/announcements" && !init?.method) return json({ announcements: [] });
+      if (url === "/api/admin/announcements" && !init?.method) return json({ announcements: list });
       return json({ ok: true }, 201);
     })
   );
@@ -105,5 +124,40 @@ describe("SiteAnnouncementSection（英語版）", () => {
     await screen.findByLabelText("Title");
     fireEvent.click(screen.getByRole("button", { name: "英語版を使わない" }));
     expect(await screen.findByRole("button", { name: "日本語のみで投稿する" })).toBeTruthy();
+  });
+
+  it("翻訳中に別のお知らせを開いたら、翻訳の結果は捨てる（別の編集に英語が入らない）", async () => {
+    let resolveTranslate: (res: Response) => void = () => {};
+    stubFetch(() => new Promise<Response>((resolve) => (resolveTranslate = resolve)), [savedAnnouncement({ titleEn: "Saved EN", bodyEn: "Saved body", translationStatus: "reviewed" })]);
+    render(<SiteAnnouncementSection />);
+    await fillJapanese();
+    fireEvent.click(screen.getByRole("button", { name: "AIで英語に翻訳する" }));
+    fireEvent.click(await screen.findByRole("button", { name: "編集" }));
+    resolveTranslate(json({ ok: true, titleEn: "WRONG", bodyEn: "WRONG" }));
+    await waitFor(() => expect((screen.getByLabelText("タイトル") as HTMLInputElement).value).toBe("別のお知らせ"));
+    await new Promise((r) => setTimeout(r, 20));
+    expect((screen.getByLabelText("Title") as HTMLInputElement).value).toBe("Saved EN");
+  });
+
+  it("日本語を直したまま下書き保存すると stale を保存し、開き直しても警告が残る", async () => {
+    render(<SiteAnnouncementSection />);
+    await fillJapanese();
+    fireEvent.click(screen.getByRole("button", { name: "AIで英語に翻訳する" }));
+    await screen.findByLabelText("Title");
+    fireEvent.change(screen.getByLabelText("本文"), { target: { value: "雨天のため中止です。時間も変わります" } });
+    fireEvent.click(screen.getByLabelText(/公開する/));
+    fireEvent.click(screen.getByRole("button", { name: "下書きを保存" }));
+    await waitFor(() => expect(posted()).toBeTruthy());
+    expect(posted()?.body).toMatchObject({ translationStatus: "stale", published: false });
+  });
+
+  it("stale で保存された英語版は、開くと警告が出て、確認すると消える", async () => {
+    stubFetch(undefined, [savedAnnouncement({ titleEn: "Old EN", bodyEn: "Old body", translationStatus: "stale" })]);
+    render(<SiteAnnouncementSection />);
+    fireEvent.click(await screen.findByRole("button", { name: "編集" }));
+    expect(screen.getByRole("alert").textContent).toContain("英語版は変更前");
+    fireEvent.click(screen.getByRole("button", { name: "英語版は日本語に合っています" }));
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.getByText("手直し済み")).toBeTruthy();
   });
 });

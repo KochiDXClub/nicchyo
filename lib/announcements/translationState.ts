@@ -24,4 +24,5 @@ export function englishState(params: {
 export const TRANSLATION_STATUS_LABEL: Record<TranslationStatus, string> = {
   auto: "AI翻訳のまま",
   reviewed: "手直し済み",
+  stale: "日本語と差があります",
 };
