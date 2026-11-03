@@ -43,6 +43,16 @@ describe("summariseMarketDays", () => {
     });
   });
 
+  it("記録が1件も無ければ null（0回と区別する）", () => {
+    expect(summariseMarketDays([], 2026, "2026-12-31")).toBeNull();
+    expect(
+      summariseMarketDays([{ market_date: "2026-11-08", status: "open" }], 2026, "2026-11-03")
+    ).toBeNull();
+    expect(
+      summariseMarketDays([{ market_date: "2025-11-02", status: "open" }], 2026, "2026-12-31")
+    ).toBeNull();
+  });
+
   it("その年のステータスごとの回数を数える（未知のステータスは無視）", () => {
     const rows = [
       { market_date: "2026-01-04", status: "open" },

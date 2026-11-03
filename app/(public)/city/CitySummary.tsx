@@ -89,7 +89,7 @@ export async function CitySummary() {
       </Surface>
 
       <Surface padding="md">
-        <h3 className="mb-3 text-sm font-bold text-nicchyo-ink">{year}年の開催実績</h3>
+        <h3 className="mb-3 text-sm font-bold text-nicchyo-ink">{year}年の開催実績（記録のある回）</h3>
         {marketSummary ? (
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
             {STATUS_ORDER.map((status) => (
@@ -101,8 +101,15 @@ export async function CitySummary() {
             ))}
           </div>
         ) : (
-          <p className="text-sm text-nicchyo-ink/60">表示できる記録がありません。</p>
+          <p className="text-sm text-nicchyo-ink/60">
+            {year}年の開催状況は、まだ記録がありません。
+          </p>
         )}
+        {marketSummary ? (
+          <p className="mt-3 text-xs text-nicchyo-ink/50">
+            ※記録のある回だけの数です。記録のない回は含みません。
+          </p>
+        ) : null}
         <div className="mt-3">
           <CsvLink type="market-days" label="開催実績（CSV）" />
         </div>

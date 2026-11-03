@@ -36,12 +36,15 @@ export type MarketDaySummary = Record<"open" | "cancelled" | "special" | "closed
 /**
  * その年の開催実績（ステータスごとの回数）。今日までの日付だけ数える。
  * 来週の日曜に入れた「中止」などの予定は、まだ起きていないので実績に入れない。
+ *
+ * 記録が1件も無いときは null。過去の開催状況が未入力のとき「開催 0回」と出すと、
+ * 開催されなかったように見えてしまう。数えるのは記録のある回だけ（年間の全回数ではない）。
  */
 export function summariseMarketDays(
   rows: { market_date?: unknown; status?: unknown }[],
   year: number,
   todayIso: string
-): MarketDaySummary {
+): MarketDaySummary | null {
   const result: MarketDaySummary = { open: 0, cancelled: 0, special: 0, closed: 0 };
   for (const row of rows) {
     const date = typeof row.market_date === "string" ? row.market_date : "";
@@ -49,5 +52,6 @@ export function summariseMarketDays(
     if (!date.startsWith(`${year}-`) || date > todayIso) continue;
     if (status in result) result[status as keyof MarketDaySummary] += 1;
   }
-  return result;
+  const recorded = result.open + result.cancelled + result.special + result.closed;
+  return recorded === 0 ? null : result;
 }
