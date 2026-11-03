@@ -64,6 +64,11 @@ export function FieldEnglishCard({ source, productNames, draft, status, state, t
             {status ? <Badge variant={status === "auto" ? "info" : "amber"}>{status === "auto" ? "AI翻訳のまま（未確認）" : "手直し済み"}</Badge> : null}
             {state === "fresh" && status === "auto" ? <span className="text-[13px] text-nicchyo-ink/70">AIが訳した下書きです。内容を確かめてから保存してください。</span> : null}
           </div>
+          {state === "fresh" && status === "auto" ? (
+            <button type="button" onClick={onConfirmFresh} disabled={translating} className={`${buttonClass} w-full border border-line bg-white text-nicchyo-ink/80`}>
+              この英語でよい（確認済みにする）
+            </button>
+          ) : null}
           {state === "stale" ? (
             <div role="alert" className="space-y-2 rounded-lg bg-rose-50 p-3 text-[13px] leading-relaxed text-rose-700">
               <p>日本語を変更しました。英語版は変更前の内容のままです（来訪者には、日本語に合っていない英語は出ません）。「もう一度翻訳」で作り直すか、英語を直して「日本語に合っています」を押してください。</p>

@@ -292,6 +292,16 @@ describe("FieldShopEditor", () => {
       confirm.mockRestore();
     });
 
+    it("自動翻訳のままの英語版は、「この英語でよい」で確認済みにして保存できる（編集しなくてよい）", async () => {
+      storedTranslation = { translation: { name: "Hanaya", strength: null, style: null, products: {} }, status: "auto", stale: false };
+      render(<FieldShopEditor shopId={baseShop.id} />);
+      await screen.findByDisplayValue("Hanaya");
+      fireEvent.click(screen.getByRole("button", { name: "この英語でよい（確認済みにする）" }));
+      fireEvent.click(screen.getByRole("button", { name: "内容を保存" }));
+      await waitFor(() => expect(calls.some((c) => c.method === "PUT" && c.url.endsWith("/translation"))).toBe(true));
+      expect(calls.find((c) => c.method === "PUT" && c.url.endsWith("/translation"))?.body).toMatchObject({ name: "Hanaya", stale: false });
+    });
+
     it("保存済みの英語版は読み込んで表示する。日本語が変わっていたら（stale）知らせる", async () => {
       storedTranslation = { translation: { name: "Hanaya", strength: null, style: null, products: {} }, status: "reviewed", stale: true };
       render(<FieldShopEditor shopId={baseShop.id} />);
