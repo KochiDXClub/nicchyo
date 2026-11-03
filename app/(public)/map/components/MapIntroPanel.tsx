@@ -39,7 +39,7 @@ import type { Landmark } from '../types/landmark';
 import type { MapRoute } from '../types/mapRoute';
 import type { MapSpot } from '@/lib/spots';
 import SpotCard from './SpotCard';
-import { SHOP_CATEGORY_NAMES } from '../config/shopCategories';
+import { useCategories } from '@/lib/categories/CategoryContext';
 import IntroMapDemo from './intro/IntroMapDemo';
 import IntroSearchDemo from './intro/IntroSearchDemo';
 import IntroConsultDemo from './intro/IntroConsultDemo';
@@ -130,6 +130,8 @@ export default function MapIntroPanel({
   showOdekake = true,
   onClose,
 }: MapIntroPanelProps) {
+  const categories = useCategories();
+  const categoryNames = useMemo(() => categories.map(c => c.name), [categories]);
   const isDesktop = useIsDesktop();
   const viewportHeight = useViewportHeight();
   const reduceMotion = useReducedMotion() ?? false;
@@ -156,10 +158,10 @@ export default function MapIntroPanel({
       const key = shop.category || '';
       counts.set(key, (counts.get(key) ?? 0) + 1);
     }
-    const usable = SHOP_CATEGORY_NAMES.filter((name) => (counts.get(name) ?? 0) >= 2);
+    const usable = categoryNames.filter((name) => (counts.get(name) ?? 0) >= 2);
     // 店舗が読めていないときは、控えのデモ店舗が持つカテゴリで見せる
-    return (usable.length >= 3 ? usable : SHOP_CATEGORY_NAMES).slice(0, 3);
-  }, [shops]);
+    return (usable.length >= 3 ? usable : categoryNames).slice(0, 3);
+  }, [shops, categoryNames]);
   const searchDemoShops = useMemo(
     () => pickIntroSearchShops(shops, searchCategories),
     [shops, searchCategories]

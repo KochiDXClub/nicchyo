@@ -317,7 +317,7 @@ export function ShopBannerHero({
       <div className="flex items-center gap-3">
         <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-2xl border border-slate-200 bg-slate-100">
           {heroImageError ? (
-            <CategoryPlaceholder category={shop.category} theme={theme} iconClassName="h-7 w-7" />
+            <CategoryPlaceholder category={shop.categoryKey ?? shop.category} theme={theme} iconClassName="h-7 w-7" />
           ) : (
             <Image
               src={bannerImage}
@@ -377,7 +377,7 @@ export function ShopBannerHero({
       }
     >
       {heroImageError ? (
-        <CategoryPlaceholder category={shop.category} theme={theme} iconClassName="h-16 w-16" />
+        <CategoryPlaceholder category={shop.categoryKey ?? shop.category} theme={theme} iconClassName="h-16 w-16" />
       ) : (
         <>
           {containPhoto && (
@@ -536,7 +536,7 @@ export function ShopSubviewHeader({
         <div className="flex items-center gap-3">
           <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-2xl border border-slate-200 bg-slate-100">
             {heroImageError ? (
-              <CategoryPlaceholder category={shop.category} theme={theme} iconClassName="h-6 w-6" />
+              <CategoryPlaceholder category={shop.categoryKey ?? shop.category} theme={theme} iconClassName="h-6 w-6" />
             ) : (
               <Image
                 src={bannerImage}

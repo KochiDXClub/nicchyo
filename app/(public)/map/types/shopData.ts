@@ -45,6 +45,8 @@ export interface ShopEditableData {
 
   /** カテゴリー（選択式、運営が用意した選択肢から選ぶ） */
   category: string;
+  categoryId?: string;
+  categoryKey?: string;
 
   /** 取扱商品リスト */
   products: string[];

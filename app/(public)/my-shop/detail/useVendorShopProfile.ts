@@ -18,6 +18,7 @@ export type FormState = {
   /** 店主名を地図・検索の公開画面に表示するか。既定は非公開。 */
   ownerNamePublic: boolean;
   category: string;
+  categoryId: string;
   stallStyle: string;
   highlight: string;
   imageMain: string;
@@ -57,6 +58,7 @@ const EMPTY_FORM: FormState = {
   ownerName: "",
   ownerNamePublic: false,
   category: "",
+  categoryId: "",
   stallStyle: "",
   highlight: "",
   imageMain: "",
@@ -163,6 +165,7 @@ export function useVendorShopProfile() {
         ownerName: ownerProfile?.owner_name ?? "",
         ownerNamePublic: ownerProfile?.is_public ?? false,
         category: categoryName,
+        categoryId: vendor.category_id ?? "",
         stallStyle: vendor.style ?? "",
         highlight: vendor.strength ?? "",
         imageMain: vendor.shop_image_url ?? "",
@@ -260,30 +263,13 @@ export function useVendorShopProfile() {
 
     const supabase = createClient();
     try {
-      const categoryValue = form.category.trim();
-      let categoryId: string | null = null;
-      if (categoryValue) {
-        const { data: categoryRow, error: categoryError } = await supabase
-          .from("categories")
-          .select("id")
-          .eq("name", categoryValue)
-          .maybeSingle();
-        if (categoryError) {
-          throw categoryError;
-        }
-        if (categoryRow) {
-          categoryId = categoryRow.id;
-        } else {
-          const { data: insertedCategory, error: insertCategoryError } = await supabase
-            .from("categories")
-            .insert({ name: categoryValue })
-            .select("id")
-            .maybeSingle();
-          if (insertCategoryError) {
-            throw insertCategoryError;
-          }
-          categoryId = insertedCategory?.id ?? null;
-        }
+      let categoryId: string | null = form.categoryId || null;
+      if (categoryId || form.category.trim()) {
+        const { data: categoryRow, error: categoryError } = await supabase.from("categories").select("id")
+          .eq(categoryId ? "id" : "name", categoryId || form.category.trim()).maybeSingle();
+        if (categoryError) throw categoryError;
+        if (!categoryRow) throw new Error("カテゴリを選び直してください");
+        categoryId = categoryRow.id;
       }
 
       const vendorPayload = {

@@ -1,3 +1,4 @@
+import { useCategorizedShops } from "@/lib/categories/CategoryContext";
 import { useEffect, useState } from "react";
 import type { Shop } from "@/app/(public)/map/data/shops";
 import { shopsApiUrl } from "@/lib/i18n/config";
@@ -42,5 +43,5 @@ export function useShops() {
     };
   }, [locale]);
 
-  return { shops, isLoading, error };
+  return { shops: useCategorizedShops(shops), isLoading, error };
 }

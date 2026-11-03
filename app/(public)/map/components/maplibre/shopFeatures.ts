@@ -31,7 +31,7 @@ export type ShopFeature = GeoJSON.Feature<GeoJSON.Point, Record<string, unknown>
 export function buildShopFeatures(shops: Shop[]): ShopFeature[] {
   return shops
     .map((s) => {
-      const stall = resolveStallColors(s.category, sanitizeCssColor(s.illustration?.color));
+      const stall = resolveStallColors(s.categoryKey ?? s.category, sanitizeCssColor(s.illustration?.color));
       return {
         type: "Feature",
         id: s.id,

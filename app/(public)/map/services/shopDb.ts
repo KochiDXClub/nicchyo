@@ -400,14 +400,14 @@ export function buildVendorShops(
       const storeNumber = Number(location.store_number ?? 0);
       if (!Number.isFinite(storeNumber) || storeNumber <= 0) return null;
 
-      // JOIN で取得したカテゴリー名を優先、なければ Map フォールバック
+      // 最新のカテゴリ一覧を優先し、店舗JOINの古いスナップショットを上書きする
       const catRaw = vendor.categories;
       const joinedCategoryName = Array.isArray(catRaw)
         ? (catRaw[0]?.name ?? null)
         : ((catRaw as { name: string | null } | null)?.name ?? null);
       const categoryName =
-        joinedCategoryName ||
         (vendor.category_id && categoryNameById.get(vendor.category_id)) ||
+        joinedCategoryName ||
         "";
 
       // main_products が設定されていればそちらを優先、なければ products テーブルから
@@ -439,6 +439,7 @@ export function buildVendorShops(
         name: vendor.shop_name ?? "",
         ownerName: ownerNameByVendorId.get(vendor.id) ?? "",
         category: categoryName,
+        categoryId: vendor.category_id ?? undefined,
         products: displayProducts,
         productPrices: (vendor.main_product_prices ?? undefined) as Record<string, number | null> | undefined,
         productDetails: productDetailsByVendor.get(vendor.id),

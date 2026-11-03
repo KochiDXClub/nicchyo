@@ -1,3 +1,4 @@
+import { revalidateCategories } from "@/lib/categories/server";
 import { NextResponse } from "next/server";
 import { getRole } from "@/lib/auth/permissions";
 import { createAdminClient, authorizeAdmin } from "../_helpers";
@@ -53,6 +54,7 @@ export async function PATCH(req: Request, { params }: Params) {
   );
 
   // カテゴリー名はマップの店舗情報に載るため、キャッシュを捨てる
+  revalidateCategories();
   revalidatePublicShops();
   return NextResponse.json({ category: data });
 }
@@ -90,6 +92,7 @@ export async function DELETE(_req: Request, { params }: Params) {
     { action: "category_deleted", targetType: "category", targetId: id, details: JSON.stringify({}) }
   );
 
+  revalidateCategories();
   revalidatePublicShops();
   return NextResponse.json({ ok: true });
 }

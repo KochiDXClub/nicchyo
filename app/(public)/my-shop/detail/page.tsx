@@ -1,5 +1,7 @@
 "use client";
 
+import { resolveCategory, categoryKey } from "@/lib/categories/catalog";
+import { useCategories } from "@/lib/categories/CategoryContext";
 import { useState } from "react";
 import Image from "next/image";
 import { PageContainer, PageShell, PageTitle } from "@/components/ui";
@@ -8,17 +10,10 @@ import { useVendorShopProfile, type FormState } from "./useVendorShopProfile";
 import { ProductsSection } from "./ProductsSection";
 import { HighlightSection } from "./HighlightSection";
 
-const CATEGORIES = [
-  "食材",
-  "食べ物",
-  "道具・工具",
-  "生活雑貨",
-  "植物・苗",
-  "アクセサリー",
-  "手作り・工芸",
-];
+
 
 export default function MyShopDetailPage() {
+  const categories = useCategories();
   const {
     vendorId,
     form,
@@ -57,8 +52,10 @@ export default function MyShopDetailPage() {
         : "border-orange-200 focus:border-amber-400"
     }`;
 
+  const selectedCategory = resolveCategory(form.categoryId || form.category, categories);
+  const categoryLabel = selectedCategory?.name ?? form.category;
   const bannerImageUrl =
-    form.imageMain.trim() || getShopBannerImage(form.category, vendorId ?? "default");
+    form.imageMain.trim() || getShopBannerImage(selectedCategory ? categoryKey(selectedCategory) : form.category, vendorId ?? "default");
 
   return (
     <PageShell bottomNav={false}>
@@ -105,7 +102,7 @@ export default function MyShopDetailPage() {
                   <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-slate-500">
                     <span className="font-semibold text-slate-500">商品ジャンル</span>
                     <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-800">
-                      {form.category || "商品ジャンル未選択"}
+                      {categoryLabel || "商品ジャンル未選択"}
                     </span>
                   </div>
                 </div>
@@ -177,15 +174,15 @@ export default function MyShopDetailPage() {
                   <label className="block text-sm text-slate-700">
                     商品ジャンル{requiredMark}
                     <select
-                      value={form.category}
-                      onChange={handleChange("category")}
+                      value={selectedCategory?.id ?? ""}
+                      onChange={(event) => { const category = categories.find(c => c.id === event.target.value); setForm(prev => ({ ...prev, category: category?.name ?? "", categoryId: category?.id ?? "" })); }}
                       className={fieldClass("category")}
                       aria-invalid={!!errors.category}
                       required
                     >
                       <option value="">選択してください</option>
-                      {CATEGORIES.map((category) => (
-                        <option key={category} value={category}>
+                      {categories.map(({ id, name: category }) => (
+                        <option key={id} value={id}>
                           {category}
                         </option>
                       ))}

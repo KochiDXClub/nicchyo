@@ -30,20 +30,14 @@ import { stripShopIdsDirective } from '@/lib/grandma/consultUtils';
 import type { NearbyViewportSummary } from '../utils/viewportSummary';
 import type { NearbyRecommendationReason } from '../utils/nearbyRecommendations';
 
+import { useCategories } from "@/lib/categories/CategoryContext";
+import { resolveCategory, categoryKey } from "@/lib/categories/catalog";
+import { getShopCategoryColor } from "../config/shopCategories";
+
 /** "AIの一言" がフェードインするまでの時間（考えている感の演出） */
 const NOTE_REVEAL_DELAY_MS = 1400;
 
 /** ジャンル内訳バーの色（積み上げバーと凡例で共通） */
-const GENRE_COLORS: Record<string, string> = {
-  '食材': '#7ED957',
-  '食べ物': '#F59E0B',
-  '道具・工具': '#64748B',
-  '生活雑貨': '#38BDF8',
-  '植物・苗': '#14B8A6',
-  'アクセサリー': '#F472B6',
-  '手作り・工芸': '#A78BFA',
-};
-const FALLBACK_GENRE_COLOR = '#94A3B8';
 
 /** 選定理由の表示ラベル（なぜこの店が出ているかを説明する。discovery は何も出さない） */
 const REASON_LABELS: Partial<Record<NearbyRecommendationReason, string>> = {
@@ -142,6 +136,8 @@ export default function NearbyExplorePanel({
   /** ハンドルを下にスワイプしたときに閉じる */
   onClose: () => void;
 }) {
+  const categories = useCategories();
+  const genreColor = (name?: string) => { const category = resolveCategory(name, categories); return getShopCategoryColor(category ? categoryKey(category) : name); };
   const [question, setQuestion] = useState('');
   const [noteVisible, setNoteVisible] = useState(false);
   const [thread, setThread] = useState<NearbyChatMessage[]>([]);
@@ -327,7 +323,7 @@ export default function NearbyExplorePanel({
                       style={{
                         width: `${(genre.count / summary.totalCount) * 100}%`,
                         backgroundColor:
-                          GENRE_COLORS[genre.category] ?? FALLBACK_GENRE_COLOR,
+                          genreColor(genre.category),
                       }}
                     />
                   ))}
@@ -343,7 +339,7 @@ export default function NearbyExplorePanel({
                         className="h-2 w-2 rounded-full"
                         style={{
                           backgroundColor:
-                            GENRE_COLORS[genre.category] ?? FALLBACK_GENRE_COLOR,
+                            genreColor(genre.category),
                         }}
                       />
                       {genre.category} {genre.count}
@@ -391,8 +387,7 @@ export default function NearbyExplorePanel({
                       className="aspect-[4/3] w-full overflow-hidden rounded-xl border-2 bg-slate-100"
                       style={{
                         borderColor:
-                          (entry.category && GENRE_COLORS[entry.category]) ||
-                          FALLBACK_GENRE_COLOR,
+                          genreColor(entry.category),
                       }}
                     >
                       {entry.imageUrl && (

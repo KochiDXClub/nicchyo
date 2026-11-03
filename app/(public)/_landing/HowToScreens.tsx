@@ -1,8 +1,11 @@
+"use client";
+import { useCategories } from "@/lib/categories/CategoryContext";
+import { categoryKey } from "@/lib/categories/catalog";
 import Image from "next/image";
 import { ChevronDown, Clock, Expand, Heart, Instagram, Search, Send, Share2, Umbrella, X } from "lucide-react";
 import { getShopBannerImage } from "@/lib/shopImages";
 import { DEFAULT_CONSULT_CHARACTER } from "../consult/data/consultCharacters";
-import { SHOP_CATEGORY_NAMES, getShopCategoryColor, resolveStallColors, type ShopCategory } from "../map/config/shopCategories";
+import { getShopCategoryColor, resolveStallColors, type ShopCategory } from "../map/config/shopCategories";
 import {
   STALL_AWNING_PATTERNS,
   STALL_PHOTO_HEIGHT_RATIO,
@@ -48,6 +51,7 @@ const HIT_INDEX = 1;
 const SEARCH_WORD = "芋天";
 
 export function MapScreen() {
+  const categories = useCategories();
   return (
     <div className="landing-screen">
       <svg className="absolute inset-0 h-full w-full" viewBox="0 0 230 452" preserveAspectRatio="xMidYMid slice" aria-hidden>
@@ -83,9 +87,9 @@ export function MapScreen() {
         <i className="landing-caret" />
       </div>
       <div className="landing-m-chips">
-        {SHOP_CATEGORY_NAMES.slice(0, 3).map((name) => (
-          <span key={name} className={name === "食べ物" ? "landing-on" : undefined}>
-            {name}
+        {categories.slice(0, 3).map((category) => (
+          <span key={category.id} className={categoryKey(category) === "食べ物" ? "landing-on" : undefined}>
+            {category.name}
           </span>
         ))}
       </div>

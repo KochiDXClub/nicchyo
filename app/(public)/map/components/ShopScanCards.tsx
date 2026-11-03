@@ -534,7 +534,7 @@ export default function ShopScanCards({
         const shop = shopById.get(id);
         if (!shop) return null;
         const point = pointsRef.current.get(id);
-        const roof = resolveStallColors(shop.category, sanitizeCssColor(shop.illustration?.color));
+        const roof = resolveStallColors(shop.categoryKey ?? shop.category, sanitizeCssColor(shop.illustration?.color));
         const photo = resolvePhoto(shop);
         // 写真が描けるようになったカードだけ出す
         const photoReady = loadedPhotos.has(photo);
