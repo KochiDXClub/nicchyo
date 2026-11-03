@@ -5,6 +5,12 @@
 
 export const ANNOUNCEMENT_TITLE_MAX = 80;
 export const ANNOUNCEMENT_BODY_MAX = 2000;
+/** 英語は日本語より長くなりやすいので、少し余裕を持たせる（DB の check と同じ） */
+export const ANNOUNCEMENT_TITLE_EN_MAX = 240;
+export const ANNOUNCEMENT_BODY_EN_MAX = 8000;
+
+/** 英語版の状態。auto = AI 訳のまま、reviewed = 運営が確認・手直し済み。英語版なしは null */
+export type TranslationStatus = "auto" | "reviewed";
 
 export type Announcement = {
   id: string;
@@ -17,10 +23,19 @@ export type Announcement = {
   endsAt: string | null;
   createdAt: string;
   updatedAt: string;
+  /** 英語版（タイトルと本文は両方あるか、両方ない） */
+  titleEn: string | null;
+  bodyEn: string | null;
+  translationStatus: TranslationStatus | null;
 };
 
-/** 来訪者に見せる分（下書きかどうか・更新日時は持たない） */
-export type PublicAnnouncement = Pick<Announcement, "id" | "title" | "body" | "important" | "startsAt" | "endsAt">;
+/**
+ * 来訪者に見せる分（下書きかどうか・更新日時は持たない）。
+ * title / body は、来訪者の言語に合わせた文面。`lang` はその文面の言語（英語版が無ければ日本語のまま）
+ */
+export type PublicAnnouncement = Pick<Announcement, "id" | "title" | "body" | "important" | "startsAt" | "endsAt"> & {
+  lang: "ja" | "en";
+};
 
 export type AnnouncementRow = {
   id: string;
@@ -32,6 +47,9 @@ export type AnnouncementRow = {
   ends_at: string | null;
   created_at: string;
   updated_at: string;
+  title_en?: string | null;
+  body_en?: string | null;
+  translation_status?: TranslationStatus | null;
 };
 
 export function toAnnouncement(row: AnnouncementRow): Announcement {
@@ -45,7 +63,19 @@ export function toAnnouncement(row: AnnouncementRow): Announcement {
     endsAt: row.ends_at,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    titleEn: row.title_en ?? null,
+    bodyEn: row.body_en ?? null,
+    translationStatus: row.translation_status ?? null,
   };
+}
+
+/** 英語の来訪者に出す文面。英語版が（タイトルも本文も）そろっていなければ日本語のまま */
+export function localizeAnnouncement(
+  a: Pick<Announcement, "title" | "body" | "titleEn" | "bodyEn">,
+  locale: string
+): { title: string; body: string; lang: "ja" | "en" } {
+  if (locale === "en" && a.titleEn && a.bodyEn) return { title: a.titleEn, body: a.bodyEn, lang: "en" };
+  return { title: a.title, body: a.body, lang: "ja" };
 }
 
 /** 公開中か（公開にしてあって、公開期間の中） */
@@ -89,6 +119,9 @@ export type AnnouncementInput = {
   /** ISO 8601 */
   startsAt: string;
   endsAt: string | null;
+  titleEn: string | null;
+  bodyEn: string | null;
+  translationStatus: TranslationStatus | null;
 };
 
 export type AnnouncementParseResult = { ok: true; value: AnnouncementInput } | { ok: false; error: string };
@@ -137,9 +170,34 @@ export function parseAnnouncementInput(body: unknown, now: Date = new Date()): A
     return { ok: false, error: "公開終了は、公開開始より後にしてください" };
   }
 
+  // 英語版: タイトルと本文は両方入れるか、両方空にする（片方だけだと英語の来訪者に中途半端に出るため）
+  const titleEn = typeof record.titleEn === "string" ? record.titleEn.trim() : "";
+  const bodyEn = typeof record.bodyEn === "string" ? record.bodyEn.trim() : "";
+  if (titleEn.length > ANNOUNCEMENT_TITLE_EN_MAX) {
+    return { ok: false, error: `英語のタイトルは${ANNOUNCEMENT_TITLE_EN_MAX}文字以内にしてください` };
+  }
+  if (bodyEn.length > ANNOUNCEMENT_BODY_EN_MAX) {
+    return { ok: false, error: `英語の本文は${ANNOUNCEMENT_BODY_EN_MAX}文字以内にしてください` };
+  }
+  if ((titleEn === "") !== (bodyEn === "")) {
+    return { ok: false, error: "英語のタイトルと本文は、両方入れるか両方空にしてください" };
+  }
+  const hasEnglish = titleEn !== "";
+  if (
+    record.translationStatus !== undefined &&
+    record.translationStatus !== null &&
+    record.translationStatus !== "auto" &&
+    record.translationStatus !== "reviewed"
+  ) {
+    return { ok: false, error: "翻訳の状態の指定が正しくありません" };
+  }
+
   return {
     ok: true,
     value: {
+      titleEn: hasEnglish ? titleEn : null,
+      bodyEn: hasEnglish ? bodyEn : null,
+      translationStatus: hasEnglish ? (record.translationStatus === "auto" ? "auto" : "reviewed") : null,
       title,
       body: text,
       important: record.important === true,

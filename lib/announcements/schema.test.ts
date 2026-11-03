@@ -3,6 +3,7 @@ import {
   announcementStatus,
   isAnnouncementActive,
   parseAnnouncementInput,
+  localizeAnnouncement,
   sortAnnouncements,
 } from "./schema";
 
@@ -22,7 +23,36 @@ describe("parseAnnouncementInput", () => {
       published: true,
       startsAt: NOW.toISOString(),
       endsAt: null,
+      titleEn: null,
+      bodyEn: null,
+      translationStatus: null,
     });
+  });
+
+  it("英語版: 両方あれば受け取り（状態の既定は手直し済み）、両方空なら null にする", () => {
+    expect(ok({ title: "a", body: "b", titleEn: " Cancelled ", bodyEn: " Rain ", translationStatus: "auto" })).toMatchObject({
+      titleEn: "Cancelled",
+      bodyEn: "Rain",
+      translationStatus: "auto",
+    });
+    expect(ok({ title: "a", body: "b", titleEn: "T", bodyEn: "B" }).translationStatus).toBe("reviewed");
+    expect(ok({ title: "a", body: "b", titleEn: "", bodyEn: " ", translationStatus: "auto" })).toMatchObject({
+      titleEn: null,
+      bodyEn: null,
+      translationStatus: null,
+    });
+  });
+
+  it("英語版: 片方だけ・長すぎる・状態が不正なものは受け付けない", () => {
+    for (const bad of [
+      { titleEn: "T" },
+      { bodyEn: "B" },
+      { titleEn: "T".repeat(241), bodyEn: "B" },
+      { titleEn: "T", bodyEn: "B".repeat(8001) },
+      { titleEn: "T", bodyEn: "B", translationStatus: "weird" },
+    ]) {
+      expect(parseAnnouncementInput({ title: "a", body: "b", ...bad }, NOW).ok).toBe(false);
+    }
   });
 
   it("公開期間・重要・下書きを受け取る", () => {
@@ -78,5 +108,14 @@ describe("sortAnnouncements", () => {
       { id: "imp-old", important: true, startsAt: "2026-09-01T00:00:00Z" },
     ];
     expect(sortAnnouncements(list).map((a) => a.id)).toEqual(["imp-old", "new", "old"]);
+  });
+});
+
+describe("localizeAnnouncement", () => {
+  const a = { title: "雨天中止", body: "中止です", titleEn: "Cancelled", bodyEn: "Rain" };
+  it("英語で、英語版がそろっているときだけ英語にする", () => {
+    expect(localizeAnnouncement(a, "en")).toEqual({ title: "Cancelled", body: "Rain", lang: "en" });
+    expect(localizeAnnouncement({ ...a, bodyEn: null }, "en")).toMatchObject({ title: "雨天中止", lang: "ja" });
+    expect(localizeAnnouncement(a, "ja")).toMatchObject({ title: "雨天中止", lang: "ja" });
   });
 });
