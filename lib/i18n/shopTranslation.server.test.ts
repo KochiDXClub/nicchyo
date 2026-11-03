@@ -10,7 +10,7 @@ vi.mock("@/lib/ai/modelStore.server", () => ({ resolveAiModelFor: vi.fn() }));
 import { createAdminClient } from "@/lib/supabase/adminClient";
 import { requestChatCompletion } from "@/lib/ai/openaiFetch";
 import { buildTranslationSource } from "./shopTranslation";
-import { hashTranslationSource, syncShopTranslations } from "./shopTranslation.server";
+import { hashTranslationSource, saveReviewedShopTranslation, syncShopTranslations } from "./shopTranslation.server";
 
 const shop = { id: 1, vendorId: "vendor-1", name: "テスト店", products: [], rainPolicy: "outdoor", stallStyle: "手作りです" } as unknown as Shop;
 
@@ -24,5 +24,23 @@ describe("固定の選択肢と翻訳同期", () => {
     const result = await syncShopTranslations({ shops: [{ ...shop, rainPolicy: "cancel", paymentMethods: ["card"], stallStyleTags: ["試食あり"], schedule: "毎週日曜日" }], locale: "en", limit: 30 });
     expect(result).toEqual({ locale: "en", pending: 0, translated: 0, failed: 0 });
     expect(requestChatCompletion).not.toHaveBeenCalled();
+  });
+});
+
+describe("saveReviewedShopTranslation", () => {
+  beforeEach(() => vi.resetAllMocks());
+
+  it("商品の読み込みに失敗したら、保存せずエラーにする（不完全な原文でハッシュを作らない）", async () => {
+    const upsert = vi.fn();
+    const from = vi.fn((table: string) => {
+      if (table === "vendors") {
+        return { select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: { shop_name: "テスト店", strength: null, style: null, main_products: [], main_product_prices: {} }, error: null }) }) }) };
+      }
+      if (table === "products") return { select: () => ({ eq: async () => ({ data: null, error: { message: "boom" } }) }) };
+      return { upsert };
+    });
+    vi.mocked(createAdminClient).mockReturnValue({ from } as unknown as ReturnType<typeof createAdminClient>);
+    await expect(saveReviewedShopTranslation({ vendorId: "v1", locale: "en", translation: { name: "Test", strength: null, style: null, products: {} } })).rejects.toThrow(/products/);
+    expect(upsert).not.toHaveBeenCalled();
   });
 });

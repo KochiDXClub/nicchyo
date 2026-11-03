@@ -244,7 +244,7 @@ function getAdminSupabase(): AdminSupabase {
 
 /** 店舗 1 件の、いま保存されている日本語から訳す原文を作る（公開の可否に関わらず読む）。店が無ければ null */
 async function loadVendorSource(supabase: AdminSupabase, vendorId: string): Promise<TranslationSource | null> {
-  const [{ data: vendor, error }, { data: productRows }] = await Promise.all([
+  const [{ data: vendor, error }, { data: productRows, error: productsError }] = await Promise.all([
     supabase
       .from("vendors")
       .select("shop_name, strength, style, main_products, main_product_prices")
@@ -253,6 +253,7 @@ async function loadVendorSource(supabase: AdminSupabase, vendorId: string): Prom
     supabase.from("products").select("name, image_url").eq("vendor_id", vendorId),
   ]);
   if (error) throw new Error(`vendors の読み込みに失敗しました: ${error.message}`);
+  if (productsError) throw new Error(`products の読み込みに失敗しました: ${productsError.message}`);
   if (!vendor) return null;
   return buildVendorTranslationSource(
     {
