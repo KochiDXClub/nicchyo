@@ -2,9 +2,9 @@ import Link from "next/link";
 import Image, { getImageProps } from "next/image";
 import { MapPin } from "lucide-react";
 import { buttonClass } from "@/components/ui";
-import { getT } from "@/lib/i18n/server";
+import { getLocale, getT } from "@/lib/i18n/server";
 import LanguageSwitcher from "@/components/navigation/LanguageSwitcher";
-import NextSundayCalendar from "./NextSundayCalendar";
+import NextSundayCalendar, { nextSundayCalendarText } from "./NextSundayCalendar";
 import { PHOTOS } from "./content";
 import { PHOTO_TEXT_SHADOW } from "@/lib/ui/photoText";
 // 使い方・開催のご案内など、下のセクションの見た目もこのCSSに頼っている（消さない）
@@ -26,7 +26,8 @@ import type { LandingSunday } from "./upcomingSundays";
  * 広い画面は横長の「屋台の通り」。<picture> で、見ない方の写真は読み込まない
  */
 export default async function LandingHero({ sundays, showOutingSupport = false }: { sundays: LandingSunday[]; showOutingSupport?: boolean }) {
-  const t = await getT();
+  const [locale, t] = await Promise.all([getLocale(), getT()]);
+  const nextText = sundays[0] ? nextSundayCalendarText(sundays[0], t, locale) : null;
   const common = { alt: t("屋台のテントが並ぶ、日曜市の通り"), sizes: "100vw", priority: true } as const;
   const {
     props: { srcSet: tallSrcSet, ...imgProps },
@@ -84,7 +85,7 @@ export default async function LandingHero({ sundays, showOutingSupport = false }
           <RevealOnScroll when="enter" delayMs={150} className="max-w-[28rem] md:max-w-[34rem]">
             {sundays[0] && (
               <Link href="/calendar" aria-label={t("開催カレンダーをひらく")} className="relative mx-auto mb-6 block h-[10.2rem] w-[9.4rem] focus-visible:outline focus-visible:outline-2 focus-visible:outline-amber-500">
-                <NextSundayCalendar sunday={sundays[0]} className="origin-top-left scale-[0.65]" />
+                {nextText && <NextSundayCalendar sunday={sundays[0]} text={nextText} className="origin-top-left scale-[0.65]" />}
               </Link>
             )}
             {/* いちばんしてほしいこと：地図をひらく（この画面を過ぎると、右下の丸いボタンに替わる） */}

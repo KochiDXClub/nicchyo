@@ -2,10 +2,10 @@ import Link from "next/link";
 import Image, { getImageProps } from "next/image";
 import { ArrowRight, MapPin, Search } from "lucide-react";
 import { buttonClass } from "@/components/ui";
-import { getT } from "@/lib/i18n/server";
+import { getLocale, getT } from "@/lib/i18n/server";
 import LanguageSwitcher from "@/components/navigation/LanguageSwitcher";
 import { PHOTOS } from "./content";
-import NextSundayCalendar from "./NextSundayCalendar";
+import NextSundayCalendar, { nextSundayCalendarText } from "./NextSundayCalendar";
 import type { LandingSunday } from "./upcomingSundays";
 import "./landing.css";
 import RevealOnScroll from "./RevealOnScroll";
@@ -16,13 +16,14 @@ import RevealOnScroll from "./RevealOnScroll";
  * スマホは LandingHero の写真地の見た目を使う（この部品は md 未満では出ない）
  */
 export default async function LandingHeroPc({ sundays, showOutingSupport = false }: { sundays: LandingSunday[]; showOutingSupport?: boolean }) {
-  const t = await getT();
+  const [locale, t] = await Promise.all([getLocale(), getT()]);
   const nav = [
     { href: "/calendar", label: t("開催のご案内") },
     { href: "/map?guide=menu", label: t("お手洗い・おでかけサポート") },
     { href: "/about", label: t("nicchyoについて") },
   ];
   const next = sundays[0];
+  const nextText = next ? nextSundayCalendarText(next, t, locale) : null;
   const { props: photoProps } = getImageProps({ src: PHOTOS.stalls.src, alt: t("屋台のテントが並ぶ、日曜市の通り"), width: PHOTOS.stalls.width, height: PHOTOS.stalls.height, sizes: "(min-width: 1344px) 640px, 50vw", loading: "eager", fetchPriority: "high" });
 
   return (
@@ -117,7 +118,7 @@ export default async function LandingHeroPc({ sundays, showOutingSupport = false
               aria-label={t("開催カレンダーをひらく")}
               className="absolute -right-7 -top-9 z-10 origin-top-right scale-[0.8] transition-transform hover:-translate-y-1 motion-reduce:transition-none"
             >
-              <NextSundayCalendar sunday={next} />
+              {nextText && <NextSundayCalendar sunday={next} text={nextText} />}
             </Link>
           )}
         </RevealOnScroll>
