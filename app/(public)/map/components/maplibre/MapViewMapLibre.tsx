@@ -199,6 +199,11 @@ const LAYER_SHOP_PHOTOS = "nicchyo-shop-photos";
 const LAYER_SHOP_NAMEPLATES = "nicchyo-shop-nameplates";
 const LAYER_SHOP_BADGES_FAVORITE = "nicchyo-shop-badge-favorite";
 const LAYER_LANDMARK_LABELS = "nicchyo-landmark-labels";
+const LAYER_MARKET_HIGHLIGHT_CASING = "nicchyo-market-highlight-casing";
+const LAYER_MARKET_HIGHLIGHT = "nicchyo-market-highlight";
+const LAYER_MARKET_HIGHLIGHT_LABEL = "nicchyo-market-highlight-label";
+/** 縮小時の日曜市の強調が薄れ始める／消えるズーム（MapLibre 基準）。丁目バッジ（OVERVIEW_MIN）より手前で消す */
+const MARKET_HIGHLIGHT_FADE_ZOOMS = [OVERVIEW_MIN - 1.5, OVERVIEW_MIN + 0.5] as const;
 const LAYER_LANDMARK_MINOR_LABELS = "nicchyo-landmark-minor-labels";
 const LANDMARK_ICON_LAYERS = ["nicchyo-landmarks-min", "nicchyo-landmarks", "nicchyo-landmarks-minor"];
 
@@ -793,6 +798,64 @@ function MapViewMapLibre({
         paint: {
           "fill-color": ROAD_STYLE.overviewTintColor,
           "fill-opacity": ROAD_STYLE.overviewTintOpacity,
+        },
+      });
+      // 縮小時の日曜市の強調。実寸の道幅は縮小すると 1px 未満になって地図に埋もれるので、
+      // 中心線を画面上の太さで描く（寄るにつれて細くなり、実寸の道に引き継ぐ）。
+      // 道の絵は MARKET_HIGHLIGHT_FADE_END で消える
+      const [highlightFadeStart, highlightFadeEnd] = MARKET_HIGHLIGHT_FADE_ZOOMS;
+      const highlightOpacity: ExpressionSpecification = [
+        "interpolate",
+        ["linear"],
+        ["zoom"],
+        highlightFadeStart,
+        1,
+        highlightFadeEnd,
+        0,
+      ];
+      map.addLayer({
+        id: LAYER_MARKET_HIGHLIGHT_CASING,
+        type: "line",
+        source: `${SRC_ROAD}-lane`,
+        maxzoom: highlightFadeEnd,
+        layout: { "line-cap": "round", "line-join": "round" },
+        paint: {
+          "line-color": "#ffffff",
+          "line-opacity": highlightOpacity,
+          "line-width": ["interpolate", ["linear"], ["zoom"], 9, 9, highlightFadeStart, 16] as ExpressionSpecification,
+        },
+      });
+      map.addLayer({
+        id: LAYER_MARKET_HIGHLIGHT,
+        type: "line",
+        source: `${SRC_ROAD}-lane`,
+        maxzoom: highlightFadeEnd,
+        layout: { "line-cap": "round", "line-join": "round" },
+        paint: {
+          "line-color": ROAD_STYLE.overviewTintColor,
+          "line-opacity": highlightOpacity,
+          "line-width": ["interpolate", ["linear"], ["zoom"], 9, 5, highlightFadeStart, 12] as ExpressionSpecification,
+        },
+      });
+      // 通りの名前。縮小時はランドマークより「日曜市」が先に目に入るようにする
+      map.addLayer({
+        id: LAYER_MARKET_HIGHLIGHT_LABEL,
+        type: "symbol",
+        source: `${SRC_ROAD}-lane`,
+        maxzoom: highlightFadeStart,
+        layout: {
+          "symbol-placement": "line",
+          "symbol-spacing": 280,
+          "text-field": "日曜市",
+          "text-font": TEXT_FONT,
+          "text-size": ["interpolate", ["linear"], ["zoom"], 9, 13, highlightFadeStart, 16] as ExpressionSpecification,
+          "text-letter-spacing": 0.15,
+          "text-keep-upright": true,
+        },
+        paint: {
+          "text-color": "#2f6b1c",
+          "text-halo-color": "rgba(255,255,255,0.95)",
+          "text-halo-width": 2,
         },
       });
       map.addLayer({
