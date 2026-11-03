@@ -442,7 +442,7 @@ export default function OdekakeGuidePanel({ guide, map, onClose, hidden = false,
                         )}
                         {spot.photoUrl && (
                           // eslint-disable-next-line @next/next/no-img-element
-                          <img src={spot.photoUrl} alt="" loading="lazy" draggable={false} className="h-14 w-14 shrink-0 rounded-xl bg-slate-100 object-cover" />
+                          <img src={spot.photoUrl} alt="" loading="lazy" draggable={false} className="h-14 w-14 shrink-0 rounded-btn bg-slate-100 object-cover" />
                         )}
                       </button>
                       <button
