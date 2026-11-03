@@ -13,15 +13,17 @@ import AdminCategoriesPage from "./page";
 
 type Call = { url: string; method: string; body: Record<string, unknown> | null };
 let calls: Call[];
+let translateImpl: () => Response | Promise<Response>;
 const json = (data: unknown, status = 200) => new Response(JSON.stringify(data), { status });
 
 beforeEach(() => {
   calls = [];
+  translateImpl = () => json({ ok: true, nameEn: "Food" });
   vi.stubGlobal(
     "fetch",
     vi.fn(async (url: string, init?: RequestInit) => {
       calls.push({ url, method: init?.method ?? "GET", body: init?.body ? JSON.parse(String(init.body)) : null });
-      if (url === "/api/admin/categories/translate") return json({ ok: true, nameEn: "Food" });
+      if (url === "/api/admin/categories/translate") return translateImpl();
       if (!init?.method) return json({ categories: [{ id: "c1", name: "野菜", name_en: "Vegetables", created_at: null }, { id: "c2", name: "工芸", name_en: null, created_at: null }] });
       return json({ ok: true }, 201);
     })
@@ -57,5 +59,18 @@ describe("カテゴリ管理（英語名）", () => {
     fireEvent.click(screen.getByRole("button", { name: "保存" }));
     await waitFor(() => expect(calls.find((c) => c.method === "PATCH")).toBeTruthy());
     expect(calls.find((c) => c.method === "PATCH")).toMatchObject({ url: "/api/admin/categories/c1", body: { name: "野菜", nameEn: "Veggies" } });
+  });
+
+  it("翻訳中に別のカテゴリを開いたら、翻訳の結果は捨てる", async () => {
+    let resolveTranslate: (res: Response) => void = () => {};
+    translateImpl = () => new Promise<Response>((resolve) => (resolveTranslate = resolve));
+    render(<AdminCategoriesPage />);
+    await screen.findByText("Vegetables");
+    fireEvent.click(screen.getAllByRole("button", { name: "編集" })[0]);
+    fireEvent.click(screen.getAllByRole("button", { name: "AIで英訳" })[1]);
+    fireEvent.click(screen.getAllByRole("button", { name: "編集" })[0]);
+    resolveTranslate(json({ ok: true, nameEn: "WRONG" }));
+    await new Promise((r) => setTimeout(r, 20));
+    expect((screen.getAllByLabelText(/English name/)[1] as HTMLInputElement).value).toBe("");
   });
 });

@@ -3,7 +3,7 @@ import { notifyCategoriesUpdated } from "@/lib/categories/CategoryContext";
 
 export const dynamic = "force-dynamic";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { AdminLayout, AdminPageHeader } from "@/components/admin";
@@ -22,6 +22,8 @@ export default function AdminCategoriesPage() {
   const [translating, setTranslating] = useState<"new" | "edit" | null>(null);
   const [adding, setAdding] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  /** 編集の切り替え（別のカテゴリを開く・やめる・保存する）のたびに進める。翻訳の結果が別の編集に紛れ込むのを防ぐ */
+  const editSessionRef = useRef(0);
   const [editName, setEditName] = useState("");
   const [editNameEn, setEditNameEn] = useState("");
   const [saving, setSaving] = useState(false);
@@ -57,6 +59,7 @@ export default function AdminCategoriesPage() {
   /** 日本語名を英語名にする（サーバーで AI を呼ぶ）。結果は入力欄に入れるだけで、保存は「追加」「保存」を押したとき */
   const translateName = async (target: "new" | "edit", name: string, apply: (nameEn: string) => void) => {
     if (!name.trim()) return;
+    const session = editSessionRef.current;
     setTranslating(target);
     try {
       const res = await fetch("/api/admin/categories/translate", {
@@ -66,12 +69,15 @@ export default function AdminCategoriesPage() {
       });
       const data = await res.json().catch(() => null) as { nameEn?: string; error?: string } | null;
       if (!res.ok || !data?.nameEn) throw new Error(data?.error ?? "翻訳できませんでした");
+      // 翻訳中に別のカテゴリを開いた・編集をやめたときは、結果を捨てる（別のカテゴリに英語名が入らないように）
+      if (target === "edit" && session !== editSessionRef.current) return;
       apply(data.nameEn);
       showToast.success("英語名の案を入れました。確認してから保存してください");
     } catch (e) {
-      showToast.error(e instanceof Error ? e.message : "翻訳できませんでした");
+      if (target === "new" || session === editSessionRef.current) showToast.error(e instanceof Error ? e.message : "翻訳できませんでした");
     } finally {
-      setTranslating(null);
+      // 別の編集に切り替わっていたら、その編集のボタン状態は触らない
+      if (target === "new" || session === editSessionRef.current) setTranslating(null);
     }
   };
 
@@ -102,9 +108,17 @@ export default function AdminCategoriesPage() {
   };
 
   const handleEdit = (cat: Category) => {
+    editSessionRef.current += 1;
+    setTranslating((current) => (current === "edit" ? null : current));
     setEditingId(cat.id);
     setEditName(cat.name);
     setEditNameEn(cat.name_en ?? "");
+  };
+
+  const cancelEdit = () => {
+    editSessionRef.current += 1;
+    setTranslating((current) => (current === "edit" ? null : current));
+    setEditingId(null);
   };
 
   const handleSave = async (id: string) => {
@@ -122,7 +136,7 @@ export default function AdminCategoriesPage() {
         throw new Error(data.error ?? "failed");
       }
       showToast.success("カテゴリ名を更新しました");
-      setEditingId(null);
+      cancelEdit();
       notifyCategoriesUpdated();
       void fetchCategories();
     } catch (e) {
@@ -228,7 +242,7 @@ export default function AdminCategoriesPage() {
                       onChange={(e) => setEditName(e.target.value)}
                       onKeyDown={(e) => {
                         if (e.key === "Enter") void handleSave(cat.id);
-                        if (e.key === "Escape") setEditingId(null);
+                        if (e.key === "Escape") cancelEdit();
                       }}
                       maxLength={50}
                       autoFocus
@@ -244,7 +258,7 @@ export default function AdminCategoriesPage() {
                         onChange={(e) => setEditNameEn(e.target.value)}
                         onKeyDown={(e) => {
                           if (e.key === "Enter") void handleSave(cat.id);
-                          if (e.key === "Escape") setEditingId(null);
+                          if (e.key === "Escape") cancelEdit();
                         }}
                         maxLength={100}
                         className="min-w-0 flex-1 rounded-btn border border-amber-300 px-3 py-1.5 text-sm focus:outline-none"
@@ -269,7 +283,7 @@ export default function AdminCategoriesPage() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => setEditingId(null)}
+                    onClick={() => cancelEdit()}
                     className="rounded-lg bg-slate-100 px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-200"
                   >
                     キャンセル
