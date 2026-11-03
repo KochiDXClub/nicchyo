@@ -50,6 +50,7 @@ export function InviteUserModal({
           <select id="invite-role" value={role} onChange={(e) => onRoleChange(e.target.value as UserRole)} className={FIELD}>
             <option value="general_user">一般ユーザー</option>
             <option value="vendor">出店者</option>
+            <option value="city_official">高知市</option>
             <option value="moderator">モデレーター</option>
           </select>
         </div>
