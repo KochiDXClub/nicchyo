@@ -9,8 +9,11 @@ export const ANNOUNCEMENT_BODY_MAX = 2000;
 export const ANNOUNCEMENT_TITLE_EN_MAX = 240;
 export const ANNOUNCEMENT_BODY_EN_MAX = 8000;
 
-/** 英語版の状態。auto = AI 訳のまま、reviewed = 運営が確認・手直し済み。英語版なしは null */
-export type TranslationStatus = "auto" | "reviewed";
+/**
+ * 英語版の状態。auto = AI 訳のまま、reviewed = 運営が確認・手直し済み、
+ * stale = 日本語を直したあとで英語を更新していない（下書き保存しても、開き直したとき警告を出すための印）。英語版なしは null
+ */
+export type TranslationStatus = "auto" | "reviewed" | "stale";
 
 export type Announcement = {
   id: string;
@@ -187,7 +190,8 @@ export function parseAnnouncementInput(body: unknown, now: Date = new Date()): A
     record.translationStatus !== undefined &&
     record.translationStatus !== null &&
     record.translationStatus !== "auto" &&
-    record.translationStatus !== "reviewed"
+    record.translationStatus !== "reviewed" &&
+    record.translationStatus !== "stale"
   ) {
     return { ok: false, error: "翻訳の状態の指定が正しくありません" };
   }
@@ -197,7 +201,7 @@ export function parseAnnouncementInput(body: unknown, now: Date = new Date()): A
     value: {
       titleEn: hasEnglish ? titleEn : null,
       bodyEn: hasEnglish ? bodyEn : null,
-      translationStatus: hasEnglish ? (record.translationStatus === "auto" ? "auto" : "reviewed") : null,
+      translationStatus: hasEnglish ? (record.translationStatus === "auto" || record.translationStatus === "stale" ? record.translationStatus : "reviewed") : null,
       title,
       body: text,
       important: record.important === true,
