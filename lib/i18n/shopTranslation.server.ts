@@ -15,12 +15,14 @@ import {
   applyShopTranslation,
   buildTranslationSource,
   buildTranslationUserPrompt,
+  buildVendorTranslationSource,
   hasTranslatableText,
   limitSourceForTranslation,
   parseTranslationOutput,
   serializeTranslationSource,
   type ShopTranslation,
   type TranslationBatchItem,
+  type TranslationSource,
 } from "./shopTranslation";
 
 export const SHOP_TRANSLATIONS_CACHE_TAG = "shop-translations";
@@ -91,6 +93,45 @@ export function hashTranslationSource(locale: Locale, source: ReturnType<typeof 
   return createHash("sha256").update(serializeTranslationSource(locale, source)).digest("hex");
 }
 
+/**
+ * AI に原文を訳させて、key ごとの訳を返す（同期と、運営の現場登録の「訳を見る」で共通）。
+ * 失敗したら例外を投げる。返事に無い key は結果に入らない。
+ */
+async function requestTranslations(
+  apiKey: string,
+  aiModel: Awaited<ReturnType<typeof resolveAiModelFor>>,
+  locale: Locale,
+  items: TranslationBatchItem[]
+): Promise<Map<string, ShopTranslation>> {
+  const response = await requestChatCompletion(apiKey, aiModel, {
+    messages: [
+      { role: "system", content: TRANSLATION_SYSTEM_PROMPT },
+      { role: "user", content: buildTranslationUserPrompt(locale, items) },
+    ],
+    maxOutputTokens: 3000,
+    temperature: 0.2,
+    responseFormat: TRANSLATION_RESPONSE_FORMAT,
+  });
+  if (!response.ok) throw new Error(`chat completion failed (${response.status})`);
+  const payload = (await response.json()) as { choices?: { message?: { content?: string } }[] };
+  const content = payload.choices?.[0]?.message?.content ?? "";
+  return parseTranslationOutput(parseFirstJsonObject(content), items);
+}
+
+/**
+ * 運営の現場登録: まだ保存していない日本語の原文を、その場で訳して見せる（保存はしない）。
+ * 運営が確認・手直ししてから、saveReviewedShopTranslation で保存する。
+ */
+export async function previewShopTranslation(source: TranslationSource, locale: Locale): Promise<{ translation: ShopTranslation; model: string } | null> {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) throw new Error("OPENAI_API_KEY is missing.");
+  const aiModel = await resolveAiModelFor("translation");
+  const limited = limitSourceForTranslation(source);
+  const parsed = await requestTranslations(apiKey, aiModel, locale, [{ key: "1", source: limited }]);
+  const translation = parsed.get("1");
+  return translation ? { translation, model: aiModel.def.id } : null;
+}
+
 export type SyncShopTranslationsResult = {
   locale: Locale;
   /** 訳す必要があった店の数（原文が変わった・まだ無い） */
@@ -150,22 +191,10 @@ export async function syncShopTranslations(params: {
 
   for (let i = 0; i < targets.length; i += BATCH_SIZE) {
     const batch = targets.slice(i, i + BATCH_SIZE);
-    // 出店者の文面に他店の識別子（UUID）を混ぜられないよう、プロンプトには連番だけを渡す
-    const items: TranslationBatchItem[] = batch.map((target, index) => ({ key: String(index + 1), source: limitSourceForTranslation(target.source) }));
     try {
-      const response = await requestChatCompletion(apiKey, aiModel, {
-        messages: [
-          { role: "system", content: TRANSLATION_SYSTEM_PROMPT },
-          { role: "user", content: buildTranslationUserPrompt(locale, items) },
-        ],
-        maxOutputTokens: 3000,
-        temperature: 0.2,
-        responseFormat: TRANSLATION_RESPONSE_FORMAT,
-      });
-      if (!response.ok) throw new Error(`chat completion failed (${response.status})`);
-      const payload = (await response.json()) as { choices?: { message?: { content?: string } }[] };
-      const content = payload.choices?.[0]?.message?.content ?? "";
-      const parsed = parseTranslationOutput(parseFirstJsonObject(content), items);
+      // 出店者の文面に他店の識別子（UUID）を混ぜられないよう、プロンプトには連番だけを渡す
+      const items: TranslationBatchItem[] = batch.map((target, index) => ({ key: String(index + 1), source: limitSourceForTranslation(target.source) }));
+      const parsed = await requestTranslations(apiKey, aiModel, locale, items);
 
       const rows = batch.flatMap((target) => {
         const translation = parsed.get(String(batch.indexOf(target) + 1));
@@ -203,3 +232,118 @@ export async function syncShopTranslations(params: {
   return result;
 }
 
+
+type AdminSupabase = SupabaseClient<DatabaseWithExtensions>;
+
+function getAdminSupabase(): AdminSupabase {
+  const admin = createAdminClient();
+  if (!admin) throw new Error("Supabase service role env vars are missing.");
+  // 生成型に shop_translations が無いので、拡張型に合わせる（lib/supabase/adminClient.ts は型なし）
+  return admin as unknown as AdminSupabase;
+}
+
+/** 店舗 1 件の、いま保存されている日本語から訳す原文を作る（公開の可否に関わらず読む）。店が無ければ null */
+async function loadVendorSource(supabase: AdminSupabase, vendorId: string): Promise<TranslationSource | null> {
+  const [{ data: vendor, error }, { data: productRows }] = await Promise.all([
+    supabase
+      .from("vendors")
+      .select("shop_name, strength, style, main_products, main_product_prices")
+      .eq("id", vendorId)
+      .maybeSingle(),
+    supabase.from("products").select("name, image_url").eq("vendor_id", vendorId),
+  ]);
+  if (error) throw new Error(`vendors の読み込みに失敗しました: ${error.message}`);
+  if (!vendor) return null;
+  return buildVendorTranslationSource(
+    {
+      shop_name: vendor.shop_name,
+      strength: vendor.strength,
+      style: vendor.style,
+      main_products: vendor.main_products,
+      main_product_prices: vendor.main_product_prices as Record<string, number | null> | null,
+    },
+    (productRows ?? []) as { name: string | null; image_url: string | null }[]
+  );
+}
+
+export type StoredVendorTranslation = {
+  translation: ShopTranslation;
+  status: "auto" | "reviewed";
+  /** 訳したあとに日本語が変わった（来訪者には、この訳は出ない） */
+  stale: boolean;
+};
+
+/** 運営の現場登録: その店の保存済みの訳。無ければ null。表の無い DB（マイグレーション前）でも null */
+export async function getVendorTranslation(vendorId: string, locale: Locale): Promise<StoredVendorTranslation | null> {
+  const supabase = getAdminSupabase();
+  const { data, error } = await supabase
+    .from("shop_translations")
+    .select("name, strength, style, products, source_hash, status")
+    .eq("vendor_id", vendorId)
+    .eq("locale", locale)
+    .maybeSingle();
+  if (error || !data) return null;
+  const source = await loadVendorSource(supabase, vendorId);
+  const stale = !source || hashTranslationSource(locale, source) !== data.source_hash;
+  return { translation: toTranslation(data), status: data.status, stale };
+}
+
+export type SaveReviewedResult = "saved" | "deleted" | "not_found";
+
+/**
+ * 運営が確認・手直しした訳を保存する（status = reviewed。以後、自動の同期で上書きしない）。
+ * 原文のハッシュは、いま保存されている日本語から作る。保存の前に日本語を保存しておくこと。
+ * 項目がすべて空なら訳を消す（その店は、また自動の同期の対象に戻る）。
+ * 商品は、いまの商品名に無いものは捨てる。
+ */
+export async function saveReviewedShopTranslation(params: {
+  vendorId: string;
+  locale: Locale;
+  translation: ShopTranslation;
+}): Promise<SaveReviewedResult> {
+  const { vendorId, locale } = params;
+  const supabase = getAdminSupabase();
+  const source = await loadVendorSource(supabase, vendorId);
+  if (!source) return "not_found";
+
+  const clean = (value: string | null) => (value?.trim() ? value.trim() : null);
+  const known = new Set(source.products);
+  const products = Object.fromEntries(
+    Object.entries(params.translation.products)
+      .map(([ja, en]) => [ja, en.trim()] as const)
+      .filter(([ja, en]) => known.has(ja) && en !== "")
+  );
+  const translation: ShopTranslation = {
+    name: clean(params.translation.name),
+    strength: clean(params.translation.strength),
+    style: clean(params.translation.style),
+    products,
+  };
+
+  if (!translation.name && !translation.strength && !translation.style && Object.keys(products).length === 0) {
+    const { error } = await supabase.from("shop_translations").delete().eq("vendor_id", vendorId).eq("locale", locale);
+    if (error) throw new Error(error.message);
+    revalidateShopTranslations();
+    return "deleted";
+  }
+
+  const { error } = await supabase.from("shop_translations").upsert(
+    {
+      vendor_id: vendorId,
+      locale,
+      name: translation.name,
+      strength: translation.strength,
+      style: translation.style,
+      rain_policy: null,
+      products,
+      source_hash: hashTranslationSource(locale, source),
+      status: "reviewed" as const,
+      model: null,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "vendor_id,locale" }
+  );
+  if (error) throw new Error(error.message);
+  revalidateShopTranslations();
+  return "saved";
+}
