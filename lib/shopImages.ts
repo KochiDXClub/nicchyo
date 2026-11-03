@@ -128,3 +128,19 @@ export function getShopThumbnailImage(shop: ShopPreviewSource): string {
 
   return getShopPreviewImage(shop);
 }
+
+/**
+ * 地図の写真入り屋台に使う写真 URL。
+ *
+ * 通常は軽いサムネイルを使う。最大ズームより先まで寄ったとき（highRes）は、屋台が 2 倍に大きくなり
+ * サムネイル（store-thumb.webp）の画素数では足りないので、元の main 画像（長辺 1200px）を使う。
+ * 全周写真の main は横長の全景で、サムネイルが中央を切り出したものなので、main には替えない。
+ * main が読めないときの控えは呼び出し側が getShopThumbnailImage を渡す。
+ */
+export function getShopMapPhotoImage(shop: ShopPreviewSource, highRes: boolean): string {
+  const mainUrl = shop.images?.main;
+  if (highRes && mainUrl && isStoreMainImage(mainUrl) && shop.images?.mainKind !== "panorama") {
+    return mainUrl;
+  }
+  return getShopThumbnailImage(shop);
+}

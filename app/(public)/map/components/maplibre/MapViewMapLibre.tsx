@@ -95,7 +95,7 @@ import {
 import { STALL_PHOTO_HEIGHT_RATIO } from "../../config/stallParts";
 import { buildPhotoStallScale } from "./photoStallScale";
 import { PhotoSpriteRegistry } from "./photoSpriteRegistry";
-import { getShopPreviewImage, getShopThumbnailImage } from "../../../../../lib/shopImages";
+import { getShopMapPhotoImage, getShopPreviewImage, getShopThumbnailImage } from "../../../../../lib/shopImages";
 import { MAPLIBRE_MAP_KEY, type MapCamera, type MapCameraEvent } from "../../types/mapCamera";
 import { LiveZoomMapControls } from "../MapControls";
 import SearchResultsSheet, { SpotlightCountdownBar } from "../SearchResultsSheet";
@@ -999,7 +999,12 @@ function MapViewMapLibre({
             map.addImage(id, new ImageData(width, height), { pixelRatio: ratio });
           }
         }
-        rasterizeStallWithPhoto(shop, state, getShopThumbnailImage(shop), PHOTO_STALL_PX, ratio, getShopPreviewImage(shop))
+        // 細かい版（一段先）は軽いサムネイルでは画素が足りないので、元の写真から切り出す。
+        // 読めなかったときはサムネイル、それもだめなら元の写真へ控えを回す
+        const highRes = ratio > uiRatio;
+        const photoUrl = getShopMapPhotoImage(shop, highRes);
+        const thumbUrl = getShopThumbnailImage(shop);
+        rasterizeStallWithPhoto(shop, state, photoUrl, PHOTO_STALL_PX, ratio, photoUrl !== thumbUrl ? thumbUrl : getShopPreviewImage(shop))
           .then((data) => {
             // 後から別の細かさを頼んでいたら、こちらは捨てる
             if (disposed || !photoSprites.done(id, ratio) || !map.hasImage(id)) return;

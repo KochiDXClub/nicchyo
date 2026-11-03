@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { getShopBannerImage, getShopPreviewImage, getShopThumbnailImage, normalizeShopImageKind } from './shopImages';
+import { getShopBannerImage, getShopMapPhotoImage, getShopPreviewImage, getShopThumbnailImage, normalizeShopImageKind } from './shopImages';
 
 describe('normalizeShopImageKind', () => {
   it('panorama だけが全周写真。未設定・未知の値は普通の写真', () => {
@@ -222,3 +222,25 @@ describe('getShopThumbnailImage', () => {
   });
 });
 
+
+describe('getShopMapPhotoImage', () => {
+  const main = 'https://x.supabase.co/storage/v1/object/public/store-images/1/store-main.webp';
+  const thumb = 'https://x.supabase.co/storage/v1/object/public/store-images/1/store-thumb.webp';
+
+  it('通常はサムネイルを返す', () => {
+    expect(getShopMapPhotoImage({ images: { main } }, false)).toBe(thumb);
+  });
+
+  it('一段先まで寄ったとき（highRes）は元の写真を返す', () => {
+    expect(getShopMapPhotoImage({ images: { main } }, true)).toBe(main);
+  });
+
+  it('全周写真は highRes でもサムネイル（中央の切り出し）を返す', () => {
+    expect(getShopMapPhotoImage({ images: { main, mainKind: 'panorama' } }, true)).toBe(thumb);
+  });
+
+  it('store-main でない画像は highRes でも通常の解決結果を返す', () => {
+    const url = 'https://example.com/a.jpg';
+    expect(getShopMapPhotoImage({ images: { main: url } }, true)).toBe(url);
+  });
+});
