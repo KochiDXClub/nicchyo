@@ -11,7 +11,7 @@ import { formatEventDate, getRelativeSundayLabel } from "@/lib/market/calendar";
 import { useAdminEvents, SUNDAY_COUNT } from "./useAdminEvents";
 import type { MarketEvent } from "@/app/api/admin/events/route";
 import { useAdminMarketDays } from "./useAdminMarketDays";
-import { MarketDayStatusEditor, MarketDayStatusChip } from "./MarketDayStatusEditor";
+import { MarketDayStatusEditorForDate, MarketDayStatusChip } from "./MarketDayStatusEditor";
 import { EventRow } from "./EventRow";
 import { EventForm } from "./EventForm";
 
@@ -110,19 +110,7 @@ export default function AdminCalendarPage() {
                 {isExpanded && (
                   <>
                     <div className="border-b border-slate-100 px-4 py-3">
-                      <MarketDayStatusEditor
-                        committedStatus={d.committedStatusFor(dateIso)}
-                        draftStatus={d.draftStatusFor(dateIso)}
-                        noteDraft={d.noteFor(dateIso)}
-                        isDirty={d.isDirty(dateIso)}
-                        isSaving={d.savingDate === dateIso}
-                        recentNotes={d.recentNotes}
-                        onSelectStatus={(status) => d.setStatusDraft(dateIso, status)}
-                        onSetNoteDraft={(note) => d.setNoteDraft(dateIso, note)}
-                        onSave={() =>
-                          void d.save(dateIso, d.draftStatusFor(dateIso) ?? "open", d.noteFor(dateIso))
-                        }
-                      />
+                      <MarketDayStatusEditorForDate days={d} dateIso={dateIso} />
                     </div>
 
                     <div className="flex items-center justify-between px-4 py-2.5">

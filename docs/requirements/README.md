@@ -7,6 +7,7 @@ nicchyo の機能を **ロール（誰が使うか）** ごとに整理し、各
 | 来訪者（未ログイン含む `general_user`） | [visitor.md](./visitor.md) | `/map` `/consult` `/story` ほか |
 | 出店者（`vendor`） | [vendor.md](./vendor.md) | `/my-shop` `/vendor/*` |
 | 管理者（`admin`）・モデレーター（`moderator`） | [admin.md](./admin.md) | `/admin/*` `/moderator` |
+| 高知市（`city_official`） | [city.md](./city.md) | `/city` |
 
 ## このドキュメントの位置づけ
 
