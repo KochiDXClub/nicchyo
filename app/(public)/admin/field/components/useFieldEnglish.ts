@@ -105,7 +105,8 @@ export function useFieldEnglish(shopId: string, form: TranslationForm | null, ma
         name: data.name ?? "",
         strength: data.strength ?? "",
         style: data.style ?? "",
-        products: Object.fromEntries(productNames.map((n) => [n, data.products?.[n] ?? ""])),
+        // 商品名の欄に無い商品（写真つきなど）の訳は、そのまま残す
+        products: { ...english?.products, ...Object.fromEntries(productNames.map((n) => [n, data.products?.[n] ?? ""])) },
       });
       setStatus("auto");
       setTranslatedFrom(requestedKey);
@@ -156,7 +157,8 @@ export function useFieldEnglish(shopId: string, form: TranslationForm | null, ma
           name: s.english?.name ?? "",
           strength: s.english?.strength ?? "",
           style: s.english?.style ?? "",
-          products: Object.fromEntries(Object.entries(s.english?.products ?? {}).filter(([ja]) => productNames.includes(ja))),
+          // 写真つきの商品など、商品名の欄に無くても公開されている名前の訳は残す。無くなった商品はサーバーが捨てる
+          products: s.english?.products ?? {},
         }),
       });
       return res.ok ? null : (await readError(res, "英語版を保存できませんでした")).message;
