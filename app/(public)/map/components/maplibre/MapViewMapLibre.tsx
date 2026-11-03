@@ -199,6 +199,14 @@ const LAYER_SHOP_PHOTOS = "nicchyo-shop-photos";
 const LAYER_SHOP_NAMEPLATES = "nicchyo-shop-nameplates";
 const LAYER_SHOP_BADGES_FAVORITE = "nicchyo-shop-badge-favorite";
 const LAYER_LANDMARK_LABELS = "nicchyo-landmark-labels";
+const LANDMARK_ICON_LAYERS = ["nicchyo-landmarks-min", "nicchyo-landmarks", "nicchyo-landmarks-minor"];
+
+/** 縮小しすぎたときは出さない小さなランドマーク（停留場・電車）。高知城などの大きな絵と重なって崩れるため */
+function isMinorLandmark(key: string): boolean {
+  return key.startsWith("tram-") || key === "densha";
+}
+/** 小さなランドマークを出し始めるズーム（MapLibre 基準）。これより縮小すると大きな建物だけ残す */
+const MINOR_LANDMARK_MIN_ZOOM = 13.5;
 
 /** ランドマークの GeoJSON。selectedKey に一致するものは properties.selected = 1（拡大表示） */
 function buildLandmarkFeatures(
@@ -214,6 +222,7 @@ function buildLandmarkFeatures(
         image: `landmark:${spec.key}`,
         name: spec.name,
         showAtMinZoom: spec.showAtMinZoom ? 1 : 0,
+        minor: isMinorLandmark(spec.key) ? 1 : 0,
         selected: spec.key === selectedKey ? 1 : 0,
       },
       geometry: { type: "Point", coordinates: [spec.lng, spec.lat] },
@@ -887,6 +896,11 @@ function MapViewMapLibre({
         "interpolate",
         ["exponential", 1.22],
         ["zoom"],
+        // 縮小しすぎると絵が地図に比べて巨大になり重なるので、13.5 より下も縮め続ける
+        9,
+        ["*", 0.12, selectedScale],
+        11,
+        ["*", 0.2, selectedScale],
         13.5,
         ["*", 0.5, selectedScale],
         17,
@@ -901,13 +915,14 @@ function MapViewMapLibre({
         "icon-ignore-placement": true,
         "icon-rotation-alignment": "viewport" as const,
       };
-      // 最小ズーム付近は showAtMinZoom の建物だけ、それ以上は全部
+      // 最小ズーム付近は showAtMinZoom の建物だけ、それ以上は全部。
+      // 停留場・電車（minor）は絵が小さく大きな建物に重なるので、MINOR_LANDMARK_MIN_ZOOM まで寄ってから出す
       map.addLayer({
         id: "nicchyo-landmarks-min",
         type: "symbol",
         source: SRC_LANDMARKS,
         maxzoom: minZoom + 0.8,
-        filter: ["==", ["get", "showAtMinZoom"], 1],
+        filter: ["all", ["==", ["get", "showAtMinZoom"], 1], ["==", ["get", "minor"], 0]],
         layout: landmarkLayout,
       });
       map.addLayer({
@@ -915,6 +930,15 @@ function MapViewMapLibre({
         type: "symbol",
         source: SRC_LANDMARKS,
         minzoom: minZoom + 0.8,
+        filter: ["==", ["get", "minor"], 0],
+        layout: landmarkLayout,
+      });
+      map.addLayer({
+        id: "nicchyo-landmarks-minor",
+        type: "symbol",
+        source: SRC_LANDMARKS,
+        minzoom: Math.max(MINOR_LANDMARK_MIN_ZOOM, minZoom + 0.8),
+        filter: ["==", ["get", "minor"], 1],
         layout: landmarkLayout,
       });
       // ランドマークのタップ → スポットカード（店舗バナーは閉じる）
@@ -926,7 +950,7 @@ function MapViewMapLibre({
         setSelectedShop(null);
         onSpotSelectRef.current?.(landmarkToSpot(landmark));
       };
-      for (const layerId of ["nicchyo-landmarks-min", "nicchyo-landmarks"]) {
+      for (const layerId of LANDMARK_ICON_LAYERS) {
         map.on("click", layerId, handleLandmarkClick);
         map.on("mouseenter", layerId, () => {
           map.getCanvas().style.cursor = "pointer";
@@ -941,10 +965,13 @@ function MapViewMapLibre({
         type: "symbol",
         source: SRC_LANDMARKS,
         maxzoom: minZoom + 2.5,
+        // 小さなランドマークの名前は縮小時に出さない（大きな建物のラベルと重なる）
+        filter: ["==", ["get", "minor"], 0],
         layout: {
           "text-field": ["get", "name"],
           "text-font": TEXT_FONT,
-          "text-size": 12,
+          // 縮小するほど少し小さくして、背景の地名・道路番号との競合を減らす
+          "text-size": ["interpolate", ["linear"], ["zoom"], 9, 10, 13.5, 12],
           "text-anchor": "top",
           "text-offset": [0, 1.6],
           "text-rotation-alignment": "viewport",
@@ -1372,7 +1399,7 @@ function MapViewMapLibre({
     const map = mapRef.current;
     if (!map || !mapLoaded) return;
     const visibility = suppressLandmarks ? "none" : "visible";
-    for (const id of ["nicchyo-landmarks-min", "nicchyo-landmarks", LAYER_LANDMARK_LABELS]) {
+    for (const id of [...LANDMARK_ICON_LAYERS, LAYER_LANDMARK_LABELS]) {
       if (map.getLayer(id)) map.setLayoutProperty(id, "visibility", visibility);
     }
   }, [mapLoaded, suppressLandmarks]);
