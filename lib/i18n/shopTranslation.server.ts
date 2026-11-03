@@ -351,10 +351,11 @@ export async function saveReviewedShopTranslation(params: {
       .map(([ja, en]) => [ja, en.trim()] as const)
       .filter(([ja, en]) => known.has(ja) && en !== "")
   );
+  // 日本語が空の項目の英語は残さない（日本語から消した内容を、英語の画面にだけ出さないため）
   const translation: ShopTranslation = {
-    name: clean(params.translation.name),
-    strength: clean(params.translation.strength),
-    style: clean(params.translation.style),
+    name: source.name.trim() ? clean(params.translation.name) : null,
+    strength: source.strength.trim() ? clean(params.translation.strength) : null,
+    style: source.style.trim() ? clean(params.translation.style) : null,
     products,
   };
 

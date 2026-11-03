@@ -92,3 +92,21 @@ describe("競合の保護", () => {
     expect(result.translated).toBe(0);
   });
 });
+
+describe("日本語が空の項目の英語", () => {
+  beforeEach(() => vi.resetAllMocks());
+
+  it("ひとこと・出店スタイルの日本語が空なら、その英語は保存しない", async () => {
+    const upsert = vi.fn().mockResolvedValue({ error: null });
+    const from = (table: string) => {
+      if (table === "vendors") {
+        return { select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: { shop_name: "テスト店", strength: "", style: null, main_products: [], main_product_prices: {}, updated_at: null }, error: null }) }) }) };
+      }
+      if (table === "products") return { select: () => ({ eq: async () => ({ data: [], error: null }) }) };
+      return { upsert };
+    };
+    vi.mocked(createAdminClient).mockReturnValue({ from } as unknown as ReturnType<typeof createAdminClient>);
+    await saveReviewedShopTranslation({ vendorId: "v1", locale: "en", translation: { name: "Test", strength: "old comment", style: "old style", products: {} } });
+    expect(upsert.mock.calls[0][0]).toMatchObject({ name: "Test", strength: null, style: null });
+  });
+});
