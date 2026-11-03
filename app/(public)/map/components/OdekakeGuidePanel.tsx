@@ -398,11 +398,8 @@ export default function OdekakeGuidePanel({ guide, map, onClose, hidden = false,
                 const isNearest = index === 0 && Boolean(route);
                 return (
                   <li key={spot.id} className="relative">
-                    <div
-                      className={`-mx-2 flex items-center gap-3 rounded-2xl px-2 py-2.5 transition-colors ${
-                        isSelected ? 'bg-nicchyo-base' : ''
-                      }`}
-                    >
+                    <div className={`-mx-2 rounded-2xl px-2 py-2.5 transition-colors ${isSelected ? 'bg-nicchyo-base' : ''}`}>
+                    <div className="flex items-center gap-3">
                       <button
                         type="button"
                         onClick={(e) => {
@@ -416,7 +413,7 @@ export default function OdekakeGuidePanel({ guide, map, onClose, hidden = false,
                         </span>
                         <span className="min-w-0 flex-1">
                           <span className="flex items-center gap-1.5">
-                            <span className={`truncate leading-tight text-nicchyo-ink ${isNearest ? 'text-[15px] font-black' : 'text-[14px] font-bold'}`}>
+                            <span className={`line-clamp-2 leading-tight text-nicchyo-ink ${isNearest ? 'text-[15px] font-black' : 'text-[14px] font-bold'}`}>
                               {spot.name}
                             </span>
                             {isNearest && (
@@ -440,10 +437,6 @@ export default function OdekakeGuidePanel({ guide, map, onClose, hidden = false,
                             <span className="ml-0.5 text-[11px] font-bold">分</span>
                           </span>
                         )}
-                        {spot.photoUrl && (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img src={spot.photoUrl} alt="" loading="lazy" draggable={false} className="h-14 w-14 shrink-0 rounded-btn bg-slate-100 object-cover" />
-                        )}
                       </button>
                       <button
                         type="button"
@@ -457,6 +450,22 @@ export default function OdekakeGuidePanel({ guide, map, onClose, hidden = false,
                       >
                         <Navigation size={15} />
                       </button>
+                    </div>
+                    {/* Googleマップのように、名前の下に写真を大きく置く */}
+                    {spot.photoUrl && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleRowTap(entry);
+                        }}
+                        aria-label={`${spot.name}の詳細を開く`}
+                        className={`${FOCUS_RING} mt-2.5 block w-full overflow-hidden rounded-card`}
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={spot.photoUrl} alt="" loading="lazy" draggable={false} className="h-44 w-full bg-slate-100 object-cover" />
+                      </button>
+                    )}
                     </div>
 
                   </li>
