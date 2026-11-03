@@ -76,7 +76,7 @@ function KindToggle({
         onClick();
       }}
       aria-pressed={active}
-      className={`${FOCUS_RING} shrink-0 rounded-full px-3.5 py-1.5 text-[13px] font-bold transition-colors lg:w-full ${
+      className={`${FOCUS_RING} shrink-0 rounded-full px-3.5 py-1.5 text-[13px] font-bold transition-colors ${
         active ? 'bg-nicchyo-ink text-white' : 'bg-white text-slate-600 ring-1 ring-slate-200 active:bg-slate-50'
       }`}
     >
@@ -310,9 +310,17 @@ export default function OdekakeGuidePanel({ guide, map, onClose, hidden = false,
           <div className="flex justify-center pb-1 pt-2 lg:hidden">
             <span className="h-1 w-9 rounded-full bg-slate-300" />
           </div>
-          <div className="flex items-center justify-between gap-3 px-5 pb-2 lg:pt-3">
-            <div className="min-w-0">
-              <h3 className="text-[17px] font-black leading-tight tracking-tight text-nicchyo-ink">{title}</h3>
+          {/* 見出し = 種類の切り替え（複数選択）。選んだ種類がそのままタイトルになる */}
+          <div className="flex items-center gap-2 pb-2 pl-5 pr-4 lg:pt-3">
+            <div className="flex min-w-0 flex-1 gap-2 overflow-x-auto [scrollbar-width:none] lg:flex-wrap lg:overflow-visible">
+              {GUIDE_KIND_OPTIONS.map((option) => (
+                <KindToggle key={option.kind} active={guide.kinds.includes(option.kind)} onClick={() => guide.toggleKind(option.kind)}>
+                  <span aria-hidden className="mr-1 inline-flex align-middle">
+                    <SpotKindIcon kind={option.kind} size={18} />
+                  </span>
+                  {option.label}
+                </KindToggle>
+              ))}
             </div>
             <button
               type="button"
@@ -321,7 +329,7 @@ export default function OdekakeGuidePanel({ guide, map, onClose, hidden = false,
                 onClose();
               }}
               aria-label="おでかけサポートをとじる"
-              className={`${FOCUS_RING} flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white text-slate-500 ring-1 ring-slate-200 active:bg-slate-100`}
+              className={`${FOCUS_RING} flex h-8 w-8 shrink-0 items-center justify-center self-start rounded-full bg-white text-slate-500 ring-1 ring-slate-200 active:bg-slate-100`}
             >
               <XIcon size={16} />
             </button>
@@ -329,18 +337,6 @@ export default function OdekakeGuidePanel({ guide, map, onClose, hidden = false,
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pb-[calc(env(safe-area-inset-bottom,0px)+0.75rem)]">
-          {/* 種類（複数選択） */}
-          <div className="flex gap-2 overflow-x-auto px-5 pb-2 pt-2 [scrollbar-width:none] lg:grid lg:grid-cols-2 lg:overflow-visible">
-            {GUIDE_KIND_OPTIONS.map((option) => (
-              <KindToggle key={option.kind} active={guide.kinds.includes(option.kind)} onClick={() => guide.toggleKind(option.kind)}>
-                <span aria-hidden className="mr-1 inline-flex align-middle">
-                  <SpotKindIcon kind={option.kind} size={18} />
-                </span>
-                {option.label}
-              </KindToggle>
-            ))}
-          </div>
-
           {/* 行程表 */}
           {!choosing && guide.ranked.length === 0 && (
             <div className="mx-5 my-4 rounded-2xl bg-slate-50 px-4 py-6 text-center">
