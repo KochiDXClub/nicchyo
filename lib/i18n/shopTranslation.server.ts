@@ -73,11 +73,37 @@ const getCachedTranslations = unstable_cache(
   { revalidate: SHOP_TRANSLATIONS_REVALIDATE_SECONDS, tags: [SHOP_TRANSLATIONS_CACHE_TAG] }
 );
 
+/**
+ * カテゴリーの英語名（日本語名 → 英語名）。運営が管理画面で入れた categories.name_en。
+ * 英語名の列を足すマイグレーションの前でも画面は止めず、空にして日本語名のまま出す。
+ */
+const getCachedCategoryNamesEn = unstable_cache(
+  async (): Promise<Record<string, string>> => {
+    const anon = createAnonClient();
+    if (!anon) return {};
+    const { data, error } = await anon.from("categories").select("name, name_en").not("name_en", "is", null);
+    if (error) {
+      console.warn("[categories.name_en] 取得に失敗しました:", error.message);
+      return {};
+    }
+    const rows = (data ?? []) as { name: string | null; name_en: string | null }[];
+    return Object.fromEntries(rows.flatMap((row) => (row.name && row.name_en ? [[row.name, row.name_en]] : [])));
+  },
+  ["category-names-en-v1"],
+  { revalidate: SHOP_TRANSLATIONS_REVALIDATE_SECONDS, tags: [SHOP_TRANSLATIONS_CACHE_TAG] }
+);
+
 /** 店舗一覧に、そのロケールの訳を重ねる。日本語・訳が無い店はそのまま */
 export async function applyShopTranslations(shops: Shop[], locale: Locale): Promise<Shop[]> {
   if (locale === DEFAULT_LOCALE || shops.length === 0) return shops;
-  const translations = await getCachedTranslations(locale);
-  return shops.map((shop) => {
+  const [translations, categoryNamesEn] = await Promise.all([
+    getCachedTranslations(locale),
+    // 英語名は英語だけ（他言語を足すときは、言語ごとの列か表にする）
+    locale === "en" ? getCachedCategoryNamesEn() : Promise.resolve({} as Record<string, string>),
+  ]);
+  return shops.map((original) => {
+    const categoryEn = categoryNamesEn[original.category];
+    const shop = categoryEn ? { ...original, categoryEn } : original;
     const stored = shop.vendorId ? translations[shop.vendorId] : undefined;
     if (!stored) return shop;
     // 日本語の原文が訳したときから変わっていたら、古い訳は出さず日本語のまま見せる（次の同期で訳し直す）

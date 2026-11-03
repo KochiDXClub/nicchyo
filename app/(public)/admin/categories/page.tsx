@@ -8,6 +8,7 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { AdminLayout, AdminPageHeader } from "@/components/admin";
 import { showToast } from "@/lib/admin/toast";
+import { Button, Badge } from "@/components/ui";
 import type { Category } from "@/app/api/admin/categories/route";
 
 export default function AdminCategoriesPage() {
@@ -17,9 +18,12 @@ export default function AdminCategoriesPage() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [newName, setNewName] = useState("");
+  const [newNameEn, setNewNameEn] = useState("");
+  const [translating, setTranslating] = useState<"new" | "edit" | null>(null);
   const [adding, setAdding] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
+  const [editNameEn, setEditNameEn] = useState("");
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
@@ -50,6 +54,27 @@ export default function AdminCategoriesPage() {
     void fetchCategories();
   }, [fetchCategories, permissions.isAdmin]);
 
+  /** 日本語名を英語名にする（サーバーで AI を呼ぶ）。結果は入力欄に入れるだけで、保存は「追加」「保存」を押したとき */
+  const translateName = async (target: "new" | "edit", name: string, apply: (nameEn: string) => void) => {
+    if (!name.trim()) return;
+    setTranslating(target);
+    try {
+      const res = await fetch("/api/admin/categories/translate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name }),
+      });
+      const data = await res.json().catch(() => null) as { nameEn?: string; error?: string } | null;
+      if (!res.ok || !data?.nameEn) throw new Error(data?.error ?? "翻訳できませんでした");
+      apply(data.nameEn);
+      showToast.success("英語名の案を入れました。確認してから保存してください");
+    } catch (e) {
+      showToast.error(e instanceof Error ? e.message : "翻訳できませんでした");
+    } finally {
+      setTranslating(null);
+    }
+  };
+
   const handleAdd = async () => {
     const name = newName.trim();
     if (!name) return;
@@ -58,7 +83,7 @@ export default function AdminCategoriesPage() {
       const res = await fetch("/api/admin/categories", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name }),
+        body: JSON.stringify({ name, nameEn: newNameEn }),
       });
       if (!res.ok) {
         const data = await res.json() as { error?: string };
@@ -67,6 +92,7 @@ export default function AdminCategoriesPage() {
       showToast.success(`「${name}」を追加しました`);
       setNewName("");
       notifyCategoriesUpdated();
+      setNewNameEn("");
       void fetchCategories();
     } catch (e) {
       showToast.error(e instanceof Error ? e.message : "追加に失敗しました");
@@ -78,6 +104,7 @@ export default function AdminCategoriesPage() {
   const handleEdit = (cat: Category) => {
     setEditingId(cat.id);
     setEditName(cat.name);
+    setEditNameEn(cat.name_en ?? "");
   };
 
   const handleSave = async (id: string) => {
@@ -88,7 +115,7 @@ export default function AdminCategoriesPage() {
       const res = await fetch(`/api/admin/categories/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name }),
+        body: JSON.stringify({ name, nameEn: editNameEn }),
       });
       if (!res.ok) {
         const data = await res.json() as { error?: string };
@@ -128,25 +155,54 @@ export default function AdminCategoriesPage() {
     <AdminLayout>
       <AdminPageHeader eyebrow="マスタ管理" title="カテゴリ管理" />
 
-      {/* カテゴリ追加 */}
-      <div className="mb-6 flex gap-2">
-        <input
-          type="text"
-          value={newName}
-          onChange={(e) => setNewName(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && void handleAdd()}
-          placeholder="新しいカテゴリ名"
-          maxLength={50}
-          className="flex-1 rounded-xl border border-slate-200 px-4 py-2 text-sm focus:border-amber-400 focus:outline-none"
-        />
-        <button
-          type="button"
-          onClick={() => void handleAdd()}
-          disabled={!newName.trim() || adding}
-          className="rounded-xl bg-amber-500 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-600 disabled:opacity-40"
-        >
-          {adding ? "追加中..." : "追加"}
-        </button>
+      {/* カテゴリ追加（日本語名と英語名を同時に入れる） */}
+      <div className="mb-6 rounded-card border border-line bg-white p-4">
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div>
+            <label htmlFor="catNameJa" className="mb-1 block text-xs font-medium text-nicchyo-ink/70">日本語名</label>
+            <input
+              id="catNameJa"
+              type="text"
+              lang="ja"
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && void handleAdd()}
+              placeholder="新しいカテゴリ名"
+              maxLength={50}
+              className="w-full rounded-btn border border-line px-4 py-2 text-sm focus:border-amber-400 focus:outline-none"
+            />
+          </div>
+          <div>
+            <label htmlFor="catNameEn" className="mb-1 block text-xs font-medium text-nicchyo-ink/70">English name（英語名）</label>
+            <div className="flex gap-2">
+              <input
+                id="catNameEn"
+                type="text"
+                lang="en"
+                value={newNameEn}
+                onChange={(e) => setNewNameEn(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && void handleAdd()}
+                placeholder="例: Food"
+                maxLength={100}
+                className="min-w-0 flex-1 rounded-btn border border-line px-4 py-2 text-sm focus:border-amber-400 focus:outline-none"
+              />
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => void translateName("new", newName, setNewNameEn)}
+                disabled={!newName.trim() || translating !== null}
+              >
+                {translating === "new" ? "翻訳中..." : "AIで英訳"}
+              </Button>
+            </div>
+          </div>
+        </div>
+        <div className="mt-3 flex items-center justify-between gap-3">
+          <p className="text-[11px] text-nicchyo-ink/55">英語名は空でも追加できます。空のあいだは、英語の画面でも日本語名のまま出ます。</p>
+          <Button className="shrink-0" onClick={() => void handleAdd()} disabled={!newName.trim() || adding}>
+            {adding ? "追加中..." : "追加"}
+          </Button>
+        </div>
       </div>
 
       {/* カテゴリ一覧 */}
@@ -163,22 +219,50 @@ export default function AdminCategoriesPage() {
             >
               {editingId === cat.id ? (
                 <>
-                  <input
-                    type="text"
-                    value={editName}
-                    onChange={(e) => setEditName(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") void handleSave(cat.id);
-                      if (e.key === "Escape") setEditingId(null);
-                    }}
-                    maxLength={50}
-                    autoFocus
-                    className="flex-1 rounded-lg border border-amber-300 px-3 py-1.5 text-sm focus:outline-none"
-                  />
+                  <div className="grid min-w-0 flex-1 gap-2 sm:grid-cols-2">
+                    <input
+                      type="text"
+                      lang="ja"
+                      aria-label="日本語名"
+                      value={editName}
+                      onChange={(e) => setEditName(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") void handleSave(cat.id);
+                        if (e.key === "Escape") setEditingId(null);
+                      }}
+                      maxLength={50}
+                      autoFocus
+                      className="min-w-0 rounded-btn border border-amber-300 px-3 py-1.5 text-sm focus:outline-none"
+                    />
+                    <div className="flex min-w-0 gap-2">
+                      <input
+                        type="text"
+                        lang="en"
+                        aria-label="English name（英語名）"
+                        placeholder="English name"
+                        value={editNameEn}
+                        onChange={(e) => setEditNameEn(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") void handleSave(cat.id);
+                          if (e.key === "Escape") setEditingId(null);
+                        }}
+                        maxLength={100}
+                        className="min-w-0 flex-1 rounded-btn border border-amber-300 px-3 py-1.5 text-sm focus:outline-none"
+                      />
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => void translateName("edit", editName, setEditNameEn)}
+                        disabled={!editName.trim() || translating !== null}
+                      >
+                        {translating === "edit" ? "翻訳中..." : "AIで英訳"}
+                      </Button>
+                    </div>
+                  </div>
                   <button
                     type="button"
                     onClick={() => void handleSave(cat.id)}
-                    disabled={!editName.trim() || saving}
+                    disabled={!editName.trim() || saving || translating !== null}
                     className="rounded-lg bg-green-100 px-3 py-1.5 text-xs font-semibold text-green-800 hover:bg-green-200 disabled:opacity-40"
                   >
                     {saving ? "保存中..." : "保存"}
@@ -193,7 +277,14 @@ export default function AdminCategoriesPage() {
                 </>
               ) : (
                 <>
-                  <span className="flex-1 text-sm font-medium text-slate-800">{cat.name}</span>
+                  <span className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-1 text-sm font-medium text-nicchyo-ink">
+                    <span lang="ja">{cat.name}</span>
+                    {cat.name_en ? (
+                      <span lang="en" className="font-normal text-nicchyo-ink/70">{cat.name_en}</span>
+                    ) : (
+                      <Badge variant="neutral">英語名なし</Badge>
+                    )}
+                  </span>
                   <button
                     type="button"
                     onClick={() => handleEdit(cat)}

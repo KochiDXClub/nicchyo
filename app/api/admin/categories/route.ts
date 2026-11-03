@@ -4,6 +4,8 @@ import { getRole } from "@/lib/auth/permissions";
 import { createAdminClient, authorizeAdmin } from "./_helpers";
 import { logAdminAudit } from "@/lib/audit/logAdminAudit";
 import { revalidatePublicShops } from "@/app/(public)/map/services/shopCache";
+import { revalidateShopTranslations } from "@/lib/i18n/shopTranslation.server";
+import { parseCategoryInput } from "@/lib/categories/input";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -20,7 +22,7 @@ export async function GET() {
 
   const { data, error: dbError } = await dc
     .from("categories")
-    .select("id, name, created_at")
+    .select("id, name, name_en, created_at")
     .order("name", { ascending: true });
 
   if (dbError) {
@@ -37,12 +39,10 @@ export async function POST(req: Request) {
   const dc = createAdminClient();
   if (!dc) return NextResponse.json({ error: "Service unavailable" }, { status: 503 });
 
-  const body = await req.json() as { name?: string };
-  const name = (body.name ?? "").trim();
-
-  if (!name || name.length > 50) {
-    return NextResponse.json({ error: "カテゴリ名は1〜50文字で入力してください" }, { status: 400 });
-  }
+  const body = await req.json() as { name?: string; nameEn?: unknown };
+  const parsed = parseCategoryInput(body);
+  if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 });
+  const { name, nameEn } = parsed;
 
   // 重複チェック
   const { data: existing } = await dc
@@ -57,8 +57,8 @@ export async function POST(req: Request) {
 
   const { data, error: dbError } = await dc
     .from("categories")
-    .insert({ name })
-    .select("id, name, created_at")
+    .insert({ name, name_en: nameEn })
+    .select("id, name, name_en, created_at")
     .single();
 
   if (dbError) {
@@ -72,11 +72,12 @@ export async function POST(req: Request) {
       action: "category_created",
       targetType: "category",
       targetId: (data as Category).id,
-      details: JSON.stringify({ name }),
+      details: JSON.stringify({ name, nameEn }),
     }
   );
 
   revalidateCategories();
   revalidatePublicShops();
+  revalidateShopTranslations();
   return NextResponse.json({ category: data as Category }, { status: 201 });
 }
