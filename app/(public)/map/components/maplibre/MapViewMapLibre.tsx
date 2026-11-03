@@ -198,14 +198,6 @@ const LAYER_SHOP_PHOTOS = "nicchyo-shop-photos";
 const LAYER_SHOP_NAMEPLATES = "nicchyo-shop-nameplates";
 const LAYER_SHOP_BADGES_FAVORITE = "nicchyo-shop-badge-favorite";
 const LAYER_LANDMARK_LABELS = "nicchyo-landmark-labels";
-const LAYER_MARKET_HIGHLIGHT_CASING = "nicchyo-market-highlight-casing";
-const LAYER_MARKET_HIGHLIGHT = "nicchyo-market-highlight";
-const LAYER_MARKET_HIGHLIGHT_LABEL = "nicchyo-market-highlight-label";
-const LAYER_MARKET_HIGHLIGHT_POINT_LABEL = "nicchyo-market-highlight-point-label";
-/** 「日曜市」の文字を、点から通りに沿う形へ切り替えるズーム（MapLibre 基準）。それより縮小すると線が短くて文字が収まらない */
-const MARKET_LABEL_ALONG_LINE_MIN_ZOOM = 12.5;
-/** 縮小時の日曜市の強調が薄れ始める／消えるズーム（MapLibre 基準）。丁目バッジ（OVERVIEW_MIN）より手前で消す */
-const MARKET_HIGHLIGHT_FADE_ZOOMS = [OVERVIEW_MIN - 1.5, OVERVIEW_MIN + 0.5] as const;
 const LAYER_LANDMARK_MINOR_LABELS = "nicchyo-landmark-minor-labels";
 const LAYER_LANDMARK_SECONDARY_LABELS = "nicchyo-landmark-secondary-labels";
 const LANDMARK_ICON_LAYERS = ["nicchyo-landmarks-min", "nicchyo-landmarks", "nicchyo-landmarks-minor"];
@@ -696,8 +688,7 @@ function MapViewMapLibre({
       // ベクター背景は施設名などのラベルが自前の丁目バッジと重なるので、POI を消す
       if (useVector) {
         for (const layer of map.getStyle().layers ?? []) {
-          // label_city は「高知市」が日曜市の文字と同じ場所に出て主役を奪うので、これも消す
-          if (layer.type === "symbol" && /poi|place|housenumber|label_city/.test(layer.id)) {
+          if (layer.type === "symbol" && /poi|place|housenumber/.test(layer.id)) {
             map.setLayoutProperty(layer.id, "visibility", "none");
           }
         }
@@ -725,9 +716,6 @@ function MapViewMapLibre({
         properties: {},
         geometry: { type: "LineString", coordinates: line.map(([lat, lng]) => [lng, lat]) },
       });
-      // 縮小しすぎて通りの線が短いと、線に沿う文字が収まらず消える。点の文字用に、いちばん長い通りの中ほどを持っておく
-      let marketLabelPoint: [number, number] | null = null;
-      let marketLabelChainLength = 0;
       for (const chain of chains) {
         const anchor = chain.points.map((p) => ({ lat: p.lat, lng: p.lng }));
         const centerline = densifyPath(anchor, 6);
@@ -748,11 +736,6 @@ function MapViewMapLibre({
         edgeLines.push(toLineFeature(edges.left), toLineFeature(edges.right));
 
         laneLines.push(toLineFeature(smoothed));
-        if (smoothed.length > marketLabelChainLength) {
-          marketLabelChainLength = smoothed.length;
-          const mid = smoothed[Math.floor(smoothed.length / 2)];
-          marketLabelPoint = [mid[1], mid[0]];
-        }
       }
       map.addSource(SRC_ROAD, { type: "geojson", data: { type: "FeatureCollection", features: polygons } });
       map.addSource(`${SRC_ROAD}-corridor`, { type: "geojson", data: { type: "FeatureCollection", features: corridors } });
@@ -803,92 +786,6 @@ function MapViewMapLibre({
           "fill-color": ROAD_STYLE.overviewTintColor,
           "fill-opacity": ROAD_STYLE.overviewTintOpacity,
         },
-      });
-      // 縮小時の日曜市の強調。実寸の道幅は縮小すると 1px 未満になって地図に埋もれるので、
-      // 中心線を画面上の太さで描く（寄るにつれて細くなり、実寸の道に引き継ぐ）。
-      // 道の絵は MARKET_HIGHLIGHT_FADE_END で消える
-      const [highlightFadeStart, highlightFadeEnd] = MARKET_HIGHLIGHT_FADE_ZOOMS;
-      const highlightOpacity: ExpressionSpecification = [
-        "interpolate",
-        ["linear"],
-        ["zoom"],
-        highlightFadeStart,
-        1,
-        highlightFadeEnd,
-        0,
-      ];
-      map.addLayer({
-        id: LAYER_MARKET_HIGHLIGHT_CASING,
-        type: "line",
-        source: `${SRC_ROAD}-lane`,
-        maxzoom: highlightFadeEnd,
-        layout: { "line-cap": "round", "line-join": "round" },
-        paint: {
-          "line-color": "#ffffff",
-          "line-opacity": highlightOpacity,
-          "line-width": ["interpolate", ["linear"], ["zoom"], 9, 9, highlightFadeStart, 16] as ExpressionSpecification,
-        },
-      });
-      map.addLayer({
-        id: LAYER_MARKET_HIGHLIGHT,
-        type: "line",
-        source: `${SRC_ROAD}-lane`,
-        maxzoom: highlightFadeEnd,
-        layout: { "line-cap": "round", "line-join": "round" },
-        paint: {
-          "line-color": ROAD_STYLE.overviewTintColor,
-          "line-opacity": highlightOpacity,
-          "line-width": ["interpolate", ["linear"], ["zoom"], 9, 5, highlightFadeStart, 12] as ExpressionSpecification,
-        },
-      });
-      // 通りの名前。縮小時はランドマークより「日曜市」が先に目に入るようにする。
-      // 最大縮小付近は線が短く、線に沿う文字が収まらないので、通りの中ほどに点の文字を置く
-      const marketLabelTextLayout = {
-        "text-field": "日曜市",
-        "text-font": TEXT_FONT,
-        "text-letter-spacing": 0.2,
-      };
-      const marketLabelPaint = {
-        "text-color": "#2f6b1c",
-        "text-halo-color": "rgba(255,255,255,0.95)",
-        "text-halo-width": 2,
-      };
-      if (marketLabelPoint) {
-        map.addSource(`${SRC_ROAD}-label`, {
-          type: "geojson",
-          data: { type: "Feature", properties: {}, geometry: { type: "Point", coordinates: marketLabelPoint } },
-        });
-        map.addLayer({
-          id: LAYER_MARKET_HIGHLIGHT_POINT_LABEL,
-          type: "symbol",
-          source: `${SRC_ROAD}-label`,
-          maxzoom: MARKET_LABEL_ALONG_LINE_MIN_ZOOM,
-          layout: {
-            ...marketLabelTextLayout,
-            "text-size": 20,
-            "text-anchor": "bottom",
-            "text-offset": [0, -0.9],
-            // 背景の地名（「高知市」など）と重なっても、日曜市の文字は消さない
-            "text-allow-overlap": true,
-            "text-ignore-placement": true,
-          },
-          paint: marketLabelPaint,
-        });
-      }
-      map.addLayer({
-        id: LAYER_MARKET_HIGHLIGHT_LABEL,
-        type: "symbol",
-        source: `${SRC_ROAD}-lane`,
-        minzoom: MARKET_LABEL_ALONG_LINE_MIN_ZOOM,
-        maxzoom: highlightFadeStart,
-        layout: {
-          "symbol-placement": "line",
-          "symbol-spacing": 280,
-          ...marketLabelTextLayout,
-          "text-size": ["interpolate", ["linear"], ["zoom"], 9, 20, highlightFadeStart, 18] as ExpressionSpecification,
-          "text-keep-upright": true,
-        },
-        paint: marketLabelPaint,
       });
       map.addLayer({
         id: "nicchyo-road-edges",
