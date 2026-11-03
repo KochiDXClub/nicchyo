@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/utils/supabase/middleware";
-import { getRole, isModerator } from "@/lib/auth/permissions";
+import { canAccessCity, getRole, isModerator } from "@/lib/auth/permissions";
 import {
   DEFAULT_LOCALE,
   LOCALE_COOKIE,
@@ -175,6 +175,15 @@ export async function proxy(request: NextRequest) {
   if (pathname.startsWith("/admin") || pathname.startsWith("/moderator")) {
     const allowed = isModerator(appRole);
     if (!user || !allowed) {
+      const redirectRes = NextResponse.redirect(new URL("/", request.url));
+      copyCookies(supabaseResponse, redirectRes);
+      return redirectRes;
+    }
+  }
+
+  // 高知市（市役所）向け。city_official と admin だけ。moderator は入れない
+  if (pathname === "/city" || pathname.startsWith("/city/")) {
+    if (!user || !canAccessCity(appRole)) {
       const redirectRes = NextResponse.redirect(new URL("/", request.url));
       copyCookies(supabaseResponse, redirectRes);
       return redirectRes;
