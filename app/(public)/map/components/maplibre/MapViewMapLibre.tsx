@@ -216,6 +216,8 @@ function isMinorLandmark(key: string): boolean {
 const MINOR_LANDMARK_MIN_ZOOM = 13.5;
 /** 副次的な建物（博物館・オーテピアなど）を出し始めるズーム（MapLibre 基準）。縮小時は高知城と駅だけ残す */
 const SECONDARY_LANDMARK_MIN_ZOOM = 15;
+/** 建物の名前を出し始めるズーム（MapLibre 基準）。これより縮小すると絵だけにして、「日曜市」の文字を主役にする */
+const LANDMARK_LABEL_MIN_ZOOM = 13;
 
 /** ランドマークの GeoJSON。selectedKey に一致するものは properties.selected = 1（拡大表示） */
 function buildLandmarkFeatures(
@@ -851,8 +853,8 @@ function MapViewMapLibre({
           "symbol-spacing": 280,
           "text-field": "日曜市",
           "text-font": TEXT_FONT,
-          "text-size": ["interpolate", ["linear"], ["zoom"], 9, 13, highlightFadeStart, 16] as ExpressionSpecification,
-          "text-letter-spacing": 0.15,
+          "text-size": ["interpolate", ["linear"], ["zoom"], 9, 20, highlightFadeStart, 18] as ExpressionSpecification,
+          "text-letter-spacing": 0.2,
           "text-keep-upright": true,
         },
         paint: {
@@ -1055,12 +1057,17 @@ function MapViewMapLibre({
           "text-halo-width": 1.6,
         },
       };
-      map.addLayer({
-        ...landmarkLabelLayer,
-        id: LAYER_LANDMARK_LABELS,
-        maxzoom: minZoom + 2.5,
-        filter: ["all", ["==", ["get", "showAtMinZoom"], 1], ["==", ["get", "minor"], 0]],
-      });
+      // 最大縮小付近は「日曜市」の文字だけを目立たせたいので、建物の名前は LANDMARK_LABEL_MIN_ZOOM まで寄ってから出す
+      const landmarkLabelMinZoom = Math.max(LANDMARK_LABEL_MIN_ZOOM, minZoom + 0.8);
+      if (landmarkLabelMinZoom < minZoom + 2.5) {
+        map.addLayer({
+          ...landmarkLabelLayer,
+          id: LAYER_LANDMARK_LABELS,
+          minzoom: landmarkLabelMinZoom,
+          maxzoom: minZoom + 2.5,
+          filter: ["all", ["==", ["get", "showAtMinZoom"], 1], ["==", ["get", "minor"], 0]],
+        });
+      }
       // 副次的な建物の名前も、絵が出ている間だけ出す
       const secondaryLabelMinZoom = Math.max(SECONDARY_LANDMARK_MIN_ZOOM, minZoom + 0.8);
       if (secondaryLabelMinZoom < minZoom + 2.5) {
