@@ -11,7 +11,7 @@ import { createAdminClient } from "@/lib/supabase/adminClient";
 import { requestChatCompletion } from "@/lib/ai/openaiFetch";
 import { resolveAiModelFor } from "@/lib/ai/modelStore.server";
 import { buildTranslationSource } from "./shopTranslation";
-import { hashTranslationSource, saveReviewedShopTranslation, syncShopTranslations } from "./shopTranslation.server";
+import { getVendorTranslation, hashTranslationSource, saveReviewedShopTranslation, syncShopTranslations } from "./shopTranslation.server";
 
 const shop = { id: 1, vendorId: "vendor-1", name: "テスト店", products: [], rainPolicy: "outdoor", stallStyle: "手作りです" } as unknown as Shop;
 
@@ -122,5 +122,27 @@ describe("日本語が空の項目の英語", () => {
     vi.mocked(createAdminClient).mockReturnValue({ from } as unknown as ReturnType<typeof createAdminClient>);
     await saveReviewedShopTranslation({ vendorId: "v1", locale: "en", translation: { name: "Test", strength: "old comment", style: "old style", products: {} } });
     expect(upsert.mock.calls[0][0]).toMatchObject({ name: "Test", strength: null, style: null });
+  });
+});
+
+describe("getVendorTranslation の取得エラー", () => {
+  beforeEach(() => vi.resetAllMocks());
+
+  function clientReturning(error: { code?: string; message: string }) {
+    const maybeSingle = vi.fn().mockResolvedValue({ data: null, error });
+    const chain = { select: vi.fn(), eq: vi.fn(), maybeSingle };
+    chain.select.mockReturnValue(chain);
+    chain.eq.mockReturnValue(chain);
+    vi.mocked(createAdminClient).mockReturnValue({ from: vi.fn().mockReturnValue(chain) } as unknown as ReturnType<typeof createAdminClient>);
+  }
+
+  it("DBの一時的なエラーは「英語版なし」にせず、例外にする", async () => {
+    clientReturning({ code: "57014", message: "timeout" });
+    await expect(getVendorTranslation("vendor-1", "en")).rejects.toThrow();
+  });
+
+  it("表が無いだけなら「英語版なし」", async () => {
+    clientReturning({ code: "42P01", message: "missing" });
+    await expect(getVendorTranslation("vendor-1", "en")).resolves.toBeNull();
   });
 });

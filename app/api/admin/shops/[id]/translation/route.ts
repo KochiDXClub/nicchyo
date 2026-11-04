@@ -49,7 +49,12 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
         targetType: "vendor",
         targetId: id,
         targetName: (vendor?.shop_name ?? id).slice(0, 500),
-        details: result === "deleted" ? "英語版を消した（自動翻訳の対象に戻る）" : "英語版を確認・手直しして保存（英語）",
+        details:
+          result === "deleted"
+            ? "英語版を消した（自動翻訳の対象に戻る）"
+            : body?.stale === true
+              ? "日本語を直したあと、英語版を確認せずに保存（来訪者には日本語を出す。次の自動翻訳で作り直す）"
+              : "英語版を確認・手直しして保存（英語）",
         ipAddress: ip,
       },
     );

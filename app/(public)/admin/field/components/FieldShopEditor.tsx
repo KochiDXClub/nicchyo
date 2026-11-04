@@ -106,6 +106,7 @@ export function FieldShopEditor({ shopId }: { shopId: string }) {
   const [form, setForm] = useState<FormState | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [englishLoadFailed, setEnglishLoadFailed] = useState(false);
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
   const markDirty = useCallback(() => setDirty(true), []);
@@ -157,6 +158,7 @@ export function FieldShopEditor({ shopId }: { shopId: string }) {
       const loadedForm = toForm(loaded);
       setForm(loadedForm);
       setDirty(false);
+      setEnglishLoadFailed(!translationRes?.ok);
       const stored = translationRes?.ok ? ((await translationRes.json().catch(() => null)) as { translation?: StoredTranslation | null } | null)?.translation : null;
       applyEnglish(stored ?? null, loadedForm);
       if (categoriesRes.ok) setCategories(((await categoriesRes.json()) as { categories: Category[] }).categories ?? []);
@@ -411,6 +413,11 @@ export function FieldShopEditor({ shopId }: { shopId: string }) {
         onRemovePhoto={(name) => void removeProductPhoto(name)}
       />
 
+      {englishLoadFailed ? (
+        <Card title="英語版">
+          <p className="text-sm text-nicchyo-ink" role="alert">英語版を読み込めませんでした。確認済みの英語を上書きしないよう、ここでは操作できません。ページを開き直してください。</p>
+        </Card>
+      ) : (
       <FieldEnglishCard
         source={{ name: form.shop_name, strength: form.strength, style: form.style }}
         productNames={en.productNames}
@@ -425,6 +432,7 @@ export function FieldShopEditor({ shopId }: { shopId: string }) {
         onClear={en.clear}
         onConfirmFresh={en.confirmFresh}
       />
+      )}
 
       <Card title="出店の情報">
         <div className="grid grid-cols-2 gap-2">

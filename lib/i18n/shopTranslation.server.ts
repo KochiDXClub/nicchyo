@@ -8,6 +8,7 @@ import type { Shop } from "@/app/(public)/map/types/shopData";
 import { requestChatCompletion } from "@/lib/ai/openaiFetch";
 import { resolveAiModelFor } from "@/lib/ai/modelStore.server";
 import { parseFirstJsonObject } from "@/lib/ai/structuredOutput";
+import { isMissingTableError } from "@/lib/admin/fieldShopLocation";
 import { DEFAULT_LOCALE, type Locale } from "./config";
 import {
   TRANSLATION_RESPONSE_FORMAT,
@@ -317,6 +318,8 @@ export async function getVendorTranslation(vendorId: string, locale: Locale): Pr
     .eq("vendor_id", vendorId)
     .eq("locale", locale)
     .maybeSingle();
+  // 表が無いだけなら「英語版なし」。それ以外のエラーを「なし」と見せると、確認済みの英語を気付かず置き換えてしまう
+  if (error && !isMissingTableError(error)) throw new Error(`shop_translations の取得に失敗: ${error.message}`);
   if (error || !data) return null;
   const loaded = await loadVendorSource(supabase, vendorId);
   const source = loaded?.source;
