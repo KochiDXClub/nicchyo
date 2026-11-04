@@ -38,7 +38,7 @@ import { landmarkToSpot } from "@/lib/spots";
 import ShopDetailBanner from "../ShopDetailBanner";
 import { useFavoriteShopIds } from "../../../../../lib/hooks/useFavorites";
 import { resolveMapFeatureFlags, type MapFeatureFlags } from "@/lib/mapFeatureFlags";
-import { useLocale } from "@/lib/i18n/LocaleContext";
+import { useT } from "@/lib/i18n/LocaleContext";
 import { runFullBenchmark, type BenchMapLike } from "@/lib/perf/mapBenchmark";
 import { readPerfShopCount, synthesizeShops } from "@/lib/perf/syntheticShops";
 import {
@@ -356,7 +356,7 @@ function MapViewMapLibre({
   selectedSpotId,
 }: MapViewProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const locale = useLocale();
+  const t = useT();
   const mapRef = useRef<maplibregl.Map | null>(null);
   // WebGL が使えない端末では地図を作らず、代わりの案内を出す
   const [webglUnsupported, setWebglUnsupported] = useState(false);
@@ -724,7 +724,7 @@ function MapViewMapLibre({
         properties: {},
         geometry: { type: "LineString", coordinates: line.map(([lat, lng]) => [lng, lat]) },
       });
-      // 縮小しすぎて通りの線が短いと、線に沿う文字が収まらず消える。点の文字用に、いちばん長い通りの中ほどを持っておく
+      // 縮小しすぎて通りの線が短いと、線に沿う文字が収まらず消える。点の文字用に、点の数がいちばん多い通りの中ほどを持っておく
       let marketLabelPoint: [number, number] | null = null;
       let marketLabelChainLength = 0;
       for (const chain of chains) {
@@ -804,8 +804,8 @@ function MapViewMapLibre({
         },
       });
       // 縮小時の日曜市の強調。実寸の道幅は縮小すると 1px 未満になって地図に埋もれるので、
-      // 中心線を画面上の太さで描く（寄るにつれて細くなり、実寸の道に引き継ぐ）。
-      // 道の絵は MARKET_HIGHLIGHT_FADE_END で消える
+      // 中心線を画面上の太さで描く（寄るほど太くなり、薄れて実寸の道に引き継ぐ）。
+      // 道の絵は highlightFadeEnd で消える
       const [highlightFadeStart, highlightFadeEnd] = MARKET_HIGHLIGHT_FADE_ZOOMS;
       const highlightOpacity: ExpressionSpecification = [
         "interpolate",
@@ -855,7 +855,7 @@ function MapViewMapLibre({
           // 文字は丁目バッジが出る（OVERVIEW_MIN）までに消す。線より先に消えないと、バッジの裏に文字が透けて見える
           maxzoom: OVERVIEW_MIN,
           layout: {
-            "text-field": locale === "en" ? "Sunday Market" : "日曜市",
+            "text-field": t("日曜市"),
             "text-font": TEXT_FONT,
             "text-letter-spacing": 0.2,
             "text-size": ["interpolate", ["linear"], ["zoom"], 9, 20, highlightFadeStart, 18] as ExpressionSpecification,
