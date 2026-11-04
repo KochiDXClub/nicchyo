@@ -1,6 +1,10 @@
 -- 新しい非公開バケットの境界を、実際のanon/authenticatedロールで検証する。
 -- すべてテスト用の行。成功時も失敗時もセッションを閉じれば実データに残さない。
 begin;
+-- Storage APIと同じトランザクション設定でDELETEのRLSを検証する。
+-- Storageの直接SQL削除ガードによる拒否を、RLSの成功と誤認しない。
+-- この設定はrollbackで破棄され、権限・ポリシー自体は変更しない。
+set local storage.allow_delete_query = 'true';
 insert into auth.users (id, email) values
  ('ee000001-0000-4000-8000-000000000001', 'security-owner@example.invalid'),
  ('ee000001-0000-4000-8000-000000000002', 'security-outsider@example.invalid'),
@@ -39,7 +43,7 @@ reset role;
 
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"ee000001-0000-4000-8000-000000000001","app_metadata":{"role":"vendor"}}', true);
-do $$ begin
+do $$ declare affected integer; begin
   if not exists (select 1 from storage.objects where bucket_id = 'vendor-inquiry-images') then
     raise exception 'Owner cannot read own attachment';
   end if;
@@ -55,6 +59,10 @@ do $$ begin
     values ('vendor-inquiry-images', 'ee000002-0000-4000-8000-000000000001/inquiries/nested/file.webp');
     raise exception 'Nested attachment path accepted';
   exception when insufficient_privilege then null; end;
+  delete from storage.objects where bucket_id = 'vendor-inquiry-images'
+    and name = 'ee000002-0000-4000-8000-000000000001/inquiries/new.webp';
+  get diagnostics affected = row_count;
+  if affected <> 1 then raise exception 'Owner cannot delete own attachment'; end if;
 end $$;
 select set_config('request.jwt.claims', '{"sub":"ee000001-0000-4000-8000-000000000002","user_metadata":{"role":"admin"}}', true);
 do $$ begin
