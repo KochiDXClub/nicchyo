@@ -96,9 +96,9 @@ type MapPageClientProps = {
   mapViewSettings?: MapViewSettings;
 };
 
-// 「このへん、なにがある？」の対象範囲＝画面に見えているマップの長方形（幅80%、高さは幅の0.6倍=48%）
+// 「このへん、なにがある？」の対象範囲＝画面に見えているマップの長方形（幅は画面の80%、高さは画面の48%。高さは以前の80%の0.6倍）
 const NEARBY_AREA_WIDTH_RATIO = 0.8;
-const NEARBY_AREA_HEIGHT_RATIO = NEARBY_AREA_WIDTH_RATIO * 0.6;
+const NEARBY_AREA_HEIGHT_RATIO = 0.48;
 
 export default function MapPageClient({
   shops,
@@ -722,7 +722,7 @@ export default function MapPageClient({
     if (!map) return;
     // マップコンテナは画面より大きい回転シェルいっぱいに広がっているため、
     // 「画面に見えているマップ領域」はシェルの親要素からサイズを取り、
-    // シェルの CSS 回転角を打ち消して画面中央80%の長方形で店舗を判定する
+    // シェルの CSS 回転角を打ち消して画面中央（幅80%×高さ48%）の長方形で店舗を判定する
     const container = map.getContainer();
     const shell = container.parentElement;
     const viewportEl = shell?.parentElement;
