@@ -3,6 +3,8 @@ import { requireCityApi } from "@/lib/auth/requireCityApi";
 import { requireSameOrigin } from "@/lib/security/requestGuards";
 import { enforceRateLimit } from "@/lib/security/rateLimit";
 import { parseMarketDayRequest } from "@/lib/market/marketDayRequest.server";
+import { validateCityMarketDate } from "@/lib/market/marketDayInput";
+import { todayJstString } from "@/lib/time/jstDate";
 import { saveMarketDay } from "@/lib/market/saveMarketDay.server";
 import { roleLabel } from "@/lib/audit/auditLogDisplay";
 
@@ -101,6 +103,10 @@ export async function PUT(req: Request) {
   const parsed = await parseMarketDayRequest(req);
   if ("response" in parsed) return parsed.response;
   const { data } = parsed;
+
+  // 市が書けるのは、今日から先の日曜だけ（過去の開催実績は書き換えさせない）
+  const dateError = validateCityMarketDate(data.market_date, todayJstString());
+  if (dateError) return NextResponse.json({ error: dateError }, { status: 400 });
 
   const result = await saveMarketDay(dc, { id: user.id, email: user.email, role }, data);
   if ("error" in result) {

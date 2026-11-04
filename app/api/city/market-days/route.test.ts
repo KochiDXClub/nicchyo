@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const requireCityApi = vi.fn();
 const saveMarketDay = vi.fn();
@@ -24,8 +24,15 @@ const put = (body: unknown) =>
   PUT(new Request("http://localhost/api/city/market-days", { method: "PUT", body: JSON.stringify(body) }));
 
 beforeEach(() => {
+  // 「今日」を固定する（JST の 2026-11-03 火曜）。日付の範囲チェックが実時間に依存しないように
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date("2026-11-03T03:00:00Z"));
   requireCityApi.mockReset();
   saveMarketDay.mockReset();
+});
+
+afterEach(() => {
+  vi.useRealTimers();
 });
 
 describe("PUT /api/city/market-days", () => {
@@ -40,6 +47,15 @@ describe("PUT /api/city/market-days", () => {
     requireCityApi.mockResolvedValue(ctx);
     const res = await put({ market_date: "2026-02-31", status: "cancelled" });
     expect(res.status).toBe(400);
+    expect(saveMarketDay).not.toHaveBeenCalled();
+  });
+
+  it("過去・日曜以外・遠い先の日付は 400 で保存しない", async () => {
+    requireCityApi.mockResolvedValue(ctx);
+    for (const market_date of ["2026-11-01", "2026-11-09", "2027-03-07"]) {
+      const res = await put({ market_date, status: "cancelled" });
+      expect(res.status).toBe(400);
+    }
     expect(saveMarketDay).not.toHaveBeenCalled();
   });
 

@@ -39,7 +39,7 @@ function formatDateTime(iso: string): string {
  * 「保存する」で公開）で、読み書きする API だけが /api/city/market-days。
  */
 export function CityMarketDays() {
-  const d = useAdminMarketDays({ isAdmin: true, endpoint: "/api/city/market-days" });
+  const d = useAdminMarketDays({ enabled: true, endpoint: "/api/city/market-days" });
 
   const sundays = useMemo(() => {
     const first = getUpcomingSundayIso();

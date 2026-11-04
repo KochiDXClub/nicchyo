@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { validateMarketDayInput } from "./marketDayInput";
+import { validateCityMarketDate, validateMarketDayInput } from "./marketDayInput";
 
 describe("validateMarketDayInput", () => {
   it("正しい入力を整形して返す（note は前後の空白を除き、空なら null）", () => {
@@ -40,5 +40,22 @@ describe("validateMarketDayInput", () => {
     for (const body of [null, undefined, "x", 1]) {
       expect(validateMarketDayInput(body).data).toBeNull();
     }
+  });
+});
+
+describe("validateCityMarketDate", () => {
+  const today = "2026-11-03"; // 火曜日
+
+  it("今日から8週先までの日曜は通す（今日が日曜なら今日も）", () => {
+    expect(validateCityMarketDate("2026-11-08", today)).toBeNull();
+    expect(validateCityMarketDate("2026-12-27", today)).toBeNull(); // 8週先
+    expect(validateCityMarketDate("2026-11-08", "2026-11-08")).toBeNull();
+  });
+
+  it("日曜以外・過去・遠い先は弾く", () => {
+    expect(validateCityMarketDate("2026-11-09", today)).toMatch(/日曜/);
+    expect(validateCityMarketDate("2026-11-01", today)).toMatch(/過去/);
+    expect(validateCityMarketDate("2020-01-05", today)).toMatch(/過去/);
+    expect(validateCityMarketDate("2027-01-03", today)).toMatch(/先すぎる/);
   });
 });
