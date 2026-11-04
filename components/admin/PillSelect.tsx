@@ -73,7 +73,7 @@ export function PillSelect({
           <DropdownMenu.Content
             align="start"
             sideOffset={6}
-            className={`z-[10020] max-h-[60vh] min-w-[200px] overflow-y-auto rounded-2xl border border-line bg-white p-1.5 shadow-float ${menuClassName}`}
+            className={`z-[10020] max-h-[60vh] min-w-[200px] overflow-y-auto rounded-panel border border-line bg-white p-1.5 shadow-float ${menuClassName}`}
           >
             <DropdownMenu.RadioGroup value={value} onValueChange={onChange}>
               {resolved.map((o) => (

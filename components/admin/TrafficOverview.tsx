@@ -395,7 +395,7 @@ export async function TrafficOverview() {
             title="サイト全体の訪問者推移"
             legendLabel="全体"
             dotClassName="bg-indigo-600"
-            panelClassName="bg-slate-50"
+            panelClassName="bg-nicchyo-ink/5"
             barClassName="bg-indigo-600"
             seriesByGranularity={trafficSeriesByGranularity}
           />
@@ -405,15 +405,15 @@ export async function TrafficOverview() {
             title="出店者ロールの訪問者推移"
             legendLabel="出店者のみ"
             dotClassName="bg-emerald-600"
-            panelClassName="bg-slate-50"
+            panelClassName="bg-nicchyo-ink/5"
             barClassName="bg-emerald-600"
             seriesByGranularity={vendorTrafficSeriesByGranularity}
           />
 
-          <section className="rounded-2xl bg-white p-6 shadow" aria-labelledby="duration-chart">
+          <section className="rounded-card bg-white p-6 shadow-card" aria-labelledby="duration-chart">
             <div className="flex items-end justify-between gap-4">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">
+                <p className="text-xs font-semibold uppercase tracking-[0.25em] text-nicchyo-ink/55">
                   Stay Time
                 </p>
                 <h2 id="duration-chart" className="mt-2 text-xl font-bold text-gray-900">
@@ -422,7 +422,7 @@ export async function TrafficOverview() {
               </div>
               <div className="text-right">
                 <p className="text-sm text-gray-500">平均 {formatMinutes(webAverageStayMinutes)}</p>
-                <div className="mt-2 flex items-center justify-end gap-4 text-xs text-slate-500">
+                <div className="mt-2 flex items-center justify-end gap-4 text-xs text-nicchyo-ink/55">
                   <span className="inline-flex items-center gap-2">
                     <span className="h-2.5 w-2.5 rounded-full bg-indigo-600" />
                     全体
@@ -442,7 +442,7 @@ export async function TrafficOverview() {
                 style={{ height: 180 + 24 }}
               >
                 {Array.from(new Set([0, Math.ceil(durationMax / 2), Math.ceil(durationMax)])).map((tick) => (
-                  <span key={tick} className="text-[10px] leading-none text-slate-400">
+                  <span key={tick} className="text-[10px] leading-none text-nicchyo-ink/40">
                     {tick > 0 ? `${tick}分` : "0"}
                   </span>
                 ))}
@@ -451,7 +451,7 @@ export async function TrafficOverview() {
               {/* グラフ本体 */}
               <div className="min-w-0 flex-1">
                 <div
-                  className="flex items-end gap-2 border-b border-slate-200"
+                  className="flex items-end gap-2 border-b border-line"
                   style={{ height: 180 }}
                 >
                   {durationSeries.map((item) => (
@@ -478,7 +478,7 @@ export async function TrafficOverview() {
                 {/* X軸ラベル */}
                 <div className="mt-1.5 flex gap-2">
                   {durationSeries.map((item) => (
-                    <div key={item.date} className="flex-1 text-center text-[10px] text-slate-400">
+                    <div key={item.date} className="flex-1 text-center text-[10px] text-nicchyo-ink/40">
                       {formatShortDate(item.date)}
                     </div>
                   ))}
@@ -489,10 +489,10 @@ export async function TrafficOverview() {
         </div>
 
         <div className="mt-8">
-          <section className="rounded-2xl bg-white p-6 shadow" aria-labelledby="url-summary">
+          <section className="rounded-card bg-white p-6 shadow-card" aria-labelledby="url-summary">
             <div className="flex items-end justify-between gap-4">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">
+                <p className="text-xs font-semibold uppercase tracking-[0.25em] text-nicchyo-ink/55">
                   URL Analytics
                 </p>
                 <h2 id="url-summary" className="mt-2 text-xl font-bold text-gray-900">
@@ -503,23 +503,23 @@ export async function TrafficOverview() {
                 対象日: {formatShortDate(latestDayPageAnalytics[0]?.visit_date ?? todayIso)}
               </p>
             </div>
-            <div className="mt-6 overflow-hidden rounded-2xl border border-slate-100">
-              <div className="grid grid-cols-[1.8fr_0.6fr_0.8fr_0.8fr] bg-slate-50 px-4 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+            <div className="mt-6 overflow-hidden rounded-card border border-line">
+              <div className="grid grid-cols-[1.8fr_0.6fr_0.8fr_0.8fr] bg-nicchyo-ink/5 px-4 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-nicchyo-ink/55">
                 <span>URL</span>
                 <span className="text-right">来訪者数</span>
                 <span className="text-right">平均滞在</span>
                 <span className="text-right">合計滞在</span>
               </div>
               {urlSummaries.length === 0 ? (
-                <div className="px-4 py-8 text-sm text-slate-500">まだ URL 別の滞在データはありません。</div>
+                <div className="px-4 py-8 text-sm text-nicchyo-ink/55">まだ URL 別の滞在データはありません。</div>
               ) : (
-                <div className="divide-y divide-slate-100">
+                <div className="divide-y divide-line">
                   {urlSummaries.map((item) => (
                     <div
                       key={item.path}
-                      className="grid grid-cols-[1.8fr_0.6fr_0.8fr_0.8fr] items-center gap-3 px-4 py-3 text-sm text-slate-700"
+                      className="grid grid-cols-[1.8fr_0.6fr_0.8fr_0.8fr] items-center gap-3 px-4 py-3 text-sm text-nicchyo-ink/70"
                     >
-                      <span className="truncate font-medium text-slate-900">{item.path}</span>
+                      <span className="truncate font-medium text-nicchyo-ink">{item.path}</span>
                       <span className="text-right">{item.visitors}</span>
                       <span className="text-right">{formatMinutes(item.averageMinutes)}</span>
                       <span className="text-right">{formatMinutes(item.totalMinutes)}</span>
@@ -531,7 +531,7 @@ export async function TrafficOverview() {
           </section>
         </div>
 
-        <p className="mt-4 text-xs text-slate-400">
+        <p className="mt-4 text-xs text-nicchyo-ink/40">
           滞在時間と URL 別集計は、ページ離脱時に記録されるアクセスログをもとに集計しています。
         </p>
     </>
