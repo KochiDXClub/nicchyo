@@ -160,4 +160,22 @@ describe("SiteAnnouncementSection（英語版）", () => {
     expect(screen.queryByRole("alert")).toBeNull();
     expect(screen.getByText("手直し済み")).toBeTruthy();
   });
+
+  it("一覧から「公開する」を押すときも、英語版なし・stale なら確認し、断ったら公開しない", async () => {
+    stubFetch(undefined, [
+      savedAnnouncement({ id: "none", title: "英語なし" }),
+      savedAnnouncement({ id: "old", title: "古い英語", titleEn: "Old", bodyEn: "Old body", translationStatus: "stale" }),
+      savedAnnouncement({ id: "ok", title: "英語あり", titleEn: "OK", bodyEn: "OK body", translationStatus: "reviewed" }),
+    ]);
+    vi.stubGlobal("confirm", vi.fn(() => false));
+    render(<SiteAnnouncementSection />);
+    const buttons = await screen.findAllByRole("button", { name: "公開する" });
+    fireEvent.click(buttons[0]);
+    fireEvent.click(buttons[1]);
+    expect(confirm).toHaveBeenCalledTimes(2);
+    expect(calls.some((c) => c.method === "PATCH")).toBe(false);
+    fireEvent.click(buttons[2]);
+    await waitFor(() => expect(calls.some((c) => c.method === "PATCH" && c.url.endsWith("/ok"))).toBe(true));
+    expect(confirm).toHaveBeenCalledTimes(2);
+  });
 });

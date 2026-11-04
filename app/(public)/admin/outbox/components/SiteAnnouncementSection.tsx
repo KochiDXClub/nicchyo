@@ -245,6 +245,11 @@ export function SiteAnnouncementSection() {
 
   /** 公開・非公開の切り替え（ほかの項目はそのまま送る） */
   const togglePublished = async (a: Announcement) => {
+    // 公開するときは、投稿フォームと同じ確認をする（英語版なし・日本語を直したあとで英語が古いまま）
+    if (!a.published) {
+      if (!a.titleEn && !window.confirm("英語版がありません。英語で見ている来訪者には日本語のまま表示されます。このまま公開しますか？")) return;
+      if (a.titleEn && a.translationStatus === "stale" && !window.confirm("日本語を直したあと、英語版を更新していません。古い英語のまま公開しますか？\n（キャンセルして、「編集」から英語版を直せます）")) return;
+    }
     const res = await fetch(`/api/admin/announcements/${a.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
