@@ -56,14 +56,14 @@ export function PillSelect({
 
   return (
     <label className={`inline-flex items-center gap-2 ${className}`}>
-      {label && <span className="text-sm font-medium text-slate-700">{label}</span>}
+      {label && <span className="text-sm font-medium text-nicchyo-ink/70">{label}</span>}
       <DropdownMenu.Root modal={false}>
         <DropdownMenu.Trigger asChild disabled={disabled}>
           <button
             type="button"
-            className={`inline-flex max-w-[22rem] items-center bg-white font-medium text-slate-800 ring-1 ring-inset ring-slate-200 shadow-sm transition hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-nicchyo-primary data-[state=open]:ring-2 data-[state=open]:ring-nicchyo-primary disabled:cursor-not-allowed disabled:opacity-50 ${trigger}`}
+            className={`inline-flex max-w-[22rem] items-center bg-white font-medium text-nicchyo-ink ring-1 ring-inset ring-line shadow-chip transition hover:bg-nicchyo-ink/5 focus:outline-none focus-visible:ring-2 focus-visible:ring-nicchyo-primary data-[state=open]:ring-2 data-[state=open]:ring-nicchyo-primary disabled:cursor-not-allowed disabled:opacity-50 ${trigger}`}
           >
-            <span className="truncate">{current ? current.label : <span className="text-slate-400">{placeholder}</span>}</span>
+            <span className="truncate">{current ? current.label : <span className="text-nicchyo-ink/40">{placeholder}</span>}</span>
             <svg className="h-3.5 w-3.5 shrink-0 opacity-60" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24" aria-hidden>
               <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
             </svg>
@@ -73,18 +73,18 @@ export function PillSelect({
           <DropdownMenu.Content
             align="start"
             sideOffset={6}
-            className={`z-[10020] max-h-[60vh] min-w-[200px] overflow-y-auto rounded-2xl border border-slate-100 bg-white p-1.5 shadow-xl shadow-slate-900/10 ${menuClassName}`}
+            className={`z-[10020] max-h-[60vh] min-w-[200px] overflow-y-auto rounded-2xl border border-line bg-white p-1.5 shadow-float ${menuClassName}`}
           >
             <DropdownMenu.RadioGroup value={value} onValueChange={onChange}>
               {resolved.map((o) => (
                 <DropdownMenu.RadioItem
                   key={o.value}
                   value={o.value}
-                  className="flex cursor-pointer select-none items-center gap-3 rounded-xl px-3 py-2 text-sm text-slate-700 outline-none transition data-[highlighted]:bg-slate-50"
+                  className="flex cursor-pointer select-none items-center gap-3 rounded-xl px-3 py-2 text-sm text-nicchyo-ink/70 outline-none transition data-[highlighted]:bg-nicchyo-ink/5"
                 >
                   <span className="flex-1">
                     <span className="block">{o.label}</span>
-                    {o.description && <span className="block text-xs text-slate-400">{o.description}</span>}
+                    {o.description && <span className="block text-xs text-nicchyo-ink/55">{o.description}</span>}
                   </span>
                   <DropdownMenu.ItemIndicator>
                     <svg className="h-4 w-4 text-nicchyo-primary" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24" aria-hidden>

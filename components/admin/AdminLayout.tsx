@@ -31,7 +31,7 @@ export const AdminLayout = React.memo(function AdminLayout({
   useBodyScrollLock(isSidebarOpen);
 
   return (
-    <div className={`min-h-screen bg-slate-50 ${CONSOLE_SIDEBAR_OFFSET_CLASS}`}>
+    <div className={`min-h-screen bg-nicchyo-base ${CONSOLE_SIDEBAR_OFFSET_CLASS}`}>
       <AdminSidebar
         isOpen={isSidebarOpen}
         onToggle={() => setIsSidebarOpen((v) => !v)}

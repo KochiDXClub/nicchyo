@@ -68,7 +68,7 @@ const navScrollTopByMenu = new Map<string, number>();
 const useIsomorphicLayoutEffect = typeof window !== "undefined" ? useLayoutEffect : useEffect;
 
 const FOOTER_ACTION_CLASS =
-  "flex h-9 items-center justify-center gap-1.5 rounded-lg border border-slate-200 text-[12px] font-medium text-slate-600 transition hover:bg-slate-50 hover:text-slate-900";
+  "flex h-9 items-center justify-center gap-1.5 rounded-lg border border-line text-[12px] font-medium text-nicchyo-ink/70 transition hover:bg-nicchyo-ink/5 hover:text-nicchyo-ink";
 
 export const ConsoleSidebar = React.memo(function ConsoleSidebar({
   isOpen,
@@ -130,7 +130,7 @@ export const ConsoleSidebar = React.memo(function ConsoleSidebar({
         <button
           type="button"
           onClick={onToggle ?? onClose}
-          className="fixed left-4 top-4 z-[10010] flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white/90 text-slate-700 shadow-sm backdrop-blur transition hover:bg-white active:scale-95 lg:hidden"
+          className="fixed left-4 top-4 z-[10010] flex h-10 w-10 items-center justify-center rounded-xl border border-line bg-white/90 text-nicchyo-ink/70 shadow-chip backdrop-blur transition hover:bg-white active:scale-95 lg:hidden"
           aria-label={isOpen ? `${menuLabel}を閉じる` : `${menuLabel}を開く`}
         >
           {isOpen ? <X className="h-[18px] w-[18px]" /> : <Menu className="h-[18px] w-[18px]" />}
@@ -141,29 +141,29 @@ export const ConsoleSidebar = React.memo(function ConsoleSidebar({
         <button
           type="button"
           onClick={onClose}
-          className="fixed inset-0 z-[9998] bg-slate-950/40 backdrop-blur-[2px] lg:hidden"
+          className="fixed inset-0 z-[9998] bg-nicchyo-ink/40 backdrop-blur-[2px] lg:hidden"
           aria-label="サイドバーを閉じる"
         />
       )}
 
       <aside
-        className={`fixed inset-y-0 left-0 z-[9999] flex w-[248px] flex-col border-r border-slate-200 bg-white transition-transform duration-200 ease-out lg:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-[9999] flex w-[248px] flex-col border-r border-line bg-white transition-transform duration-200 ease-out lg:translate-x-0 ${
           isOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
         {/* ヘッダー */}
-        <div className="flex h-14 shrink-0 items-center gap-2.5 border-b border-slate-100 px-4">
+        <div className="flex h-14 shrink-0 items-center gap-2.5 border-b border-line px-4">
           <span className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg text-white ${brandClassName}`}>
             <BrandIcon className="h-[16px] w-[16px]" aria-hidden="true" />
           </span>
           <span className="min-w-0 flex-1 leading-tight">
-            <span className="block truncate text-[13px] font-semibold text-slate-900">{title}</span>
-            <span className="block truncate text-[11px] text-slate-400">{subtitle}</span>
+            <span className="block truncate text-[13px] font-semibold text-nicchyo-ink">{title}</span>
+            <span className="block truncate text-[11px] text-nicchyo-ink/55">{subtitle}</span>
           </span>
           <button
             type="button"
             onClick={onClose}
-            className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 lg:hidden"
+            className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-nicchyo-ink/55 transition hover:bg-nicchyo-ink/5 hover:text-nicchyo-ink/70 lg:hidden"
             aria-label="サイドバーを閉じる"
           >
             <PanelLeftClose className="h-[16px] w-[16px]" />
@@ -178,7 +178,7 @@ export const ConsoleSidebar = React.memo(function ConsoleSidebar({
           className="flex-1 space-y-5 overflow-y-auto px-3 py-4">
           {groups.map((group) => (
             <div key={group.id}>
-              <p className="px-2.5 pb-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-400">
+              <p className="px-2.5 pb-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-nicchyo-ink/55">
                 {group.label}
               </p>
               <ul className="space-y-0.5">
@@ -193,8 +193,8 @@ export const ConsoleSidebar = React.memo(function ConsoleSidebar({
                         aria-current={item.isActive ? "page" : undefined}
                         className={`group relative flex h-9 items-center gap-2.5 rounded-lg px-2.5 text-[13px] font-medium transition-colors ${
                           item.isActive
-                            ? "bg-slate-100 text-slate-900"
-                            : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                            ? "bg-nicchyo-ink/5 text-nicchyo-ink"
+                            : "text-nicchyo-ink/70 hover:bg-nicchyo-ink/5 hover:text-nicchyo-ink"
                         }`}
                       >
                         {item.isActive && (
@@ -205,7 +205,7 @@ export const ConsoleSidebar = React.memo(function ConsoleSidebar({
                         )}
                         <Icon
                           className={`h-[16px] w-[16px] shrink-0 transition-colors ${
-                            item.isActive ? accent.icon : "text-slate-400 group-hover:text-slate-500"
+                            item.isActive ? accent.icon : "text-nicchyo-ink/40 group-hover:text-nicchyo-ink/55"
                           }`}
                           aria-hidden="true"
                         />
@@ -221,14 +221,14 @@ export const ConsoleSidebar = React.memo(function ConsoleSidebar({
         </nav>
 
         {/* フッター：ユーザー情報と操作 */}
-        <div className="shrink-0 border-t border-slate-100 p-3">
+        <div className="shrink-0 border-t border-line p-3">
           <div className="flex items-center gap-2.5 rounded-lg px-2 py-2">
-            <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-slate-100 text-[13px] font-semibold uppercase text-slate-600">
+            <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-nicchyo-ink/5 text-[13px] font-semibold uppercase text-nicchyo-ink/70">
               {initial}
             </span>
             <span className="min-w-0 flex-1 leading-tight">
-              <span className="block truncate text-[13px] font-medium text-slate-900">{userName}</span>
-              <span className="flex items-center gap-1.5 text-[11px] text-slate-400">
+              <span className="block truncate text-[13px] font-medium text-nicchyo-ink">{userName}</span>
+              <span className="flex items-center gap-1.5 text-[11px] text-nicchyo-ink/55">
                 <span className={`h-1.5 w-1.5 rounded-full ${accent.dot}`} aria-hidden="true" />
                 {roleLabel}
               </span>
