@@ -118,17 +118,17 @@ function AdminUsersContent() {
     },
   ];
 
-  const renderUserActions = (user: AdminUser) => (
+  const renderUserActions = (user: AdminUser, size: "sm" | "md" = "sm") => (
     <>
-      <Button variant="quiet" size="md" onClick={() => u.handleOpenRoleChange(user)} aria-label={`${user.name}の権限を変更`}>
+      <Button variant="quiet" size={size} onClick={() => u.handleOpenRoleChange(user)} aria-label={`${user.name}の権限を変更`}>
         権限変更
       </Button>
       {user.status === "active" ? (
-        <Button variant="quiet" size="md" className={DANGER} onClick={() => u.handleSuspendUser(user)} aria-label={`${user.name}を停止`}>
+        <Button variant="quiet" size={size} className={DANGER} onClick={() => u.handleSuspendUser(user)} aria-label={`${user.name}を停止`}>
           停止
         </Button>
       ) : (
-        <Button variant="quiet" size="md" onClick={() => u.handleRestoreUser(user)} aria-label={`${user.name}を復帰`}>
+        <Button variant="quiet" size={size} onClick={() => u.handleRestoreUser(user)} aria-label={`${user.name}を復帰`}>
           復帰
         </Button>
       )}
@@ -175,7 +175,7 @@ function AdminUsersContent() {
           ]}
           value={u.filter}
           onChange={u.setFilter}
-          search={{ value: u.searchQuery, onChange: u.setSearchQuery, placeholder: "名前・メールアドレスで検索" }}
+          search={{ value: u.searchQuery, onChange: u.setSearchQuery, placeholder: "名前・メールアドレスで検索... (/)" }}
         />
 
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2 text-sm text-nicchyo-ink/70 sm:hidden">
@@ -237,7 +237,7 @@ function AdminUsersContent() {
             selectionLabel={(user) => `ユーザー「${user.name}」を選択`}
             selectAllLabel="表示中のユーザーをすべて選択"
             virtualize
-            actions={renderUserActions}
+            actions={(user) => renderUserActions(user)}
             mobileCard={(user, index) => (
               <Surface padding="sm">
                 <div className="flex items-start gap-2">
@@ -251,13 +251,14 @@ function AdminUsersContent() {
                       <Badge variant={ROLE_BADGE_VARIANT[user.role]}>{ROLE_LABEL[user.role]}</Badge>
                       {user.status === "suspended" && <StatusBadge status="suspended" customLabel="停止中" />}
                     </div>
+                    {user.vendorId && <p className="mt-1 text-xs text-nicchyo-ink/55">店舗ID: {user.vendorId}</p>}
                   </div>
                 </div>
                 <dl className="mt-3 grid grid-cols-2 gap-3 border-t border-line pt-3 text-xs">
                   <div><dt className="text-nicchyo-ink/55">登録日</dt><dd className="mt-1 break-words text-nicchyo-ink">{user.registeredDate}</dd></div>
                   <div><dt className="text-nicchyo-ink/55">最終ログイン</dt><dd className="mt-1 break-words text-nicchyo-ink">{user.lastLogin}</dd></div>
                 </dl>
-                <div className="mt-3 flex flex-wrap gap-2">{renderUserActions(user)}</div>
+                <div className="mt-3 flex flex-wrap gap-2">{renderUserActions(user, "md")}</div>
               </Surface>
             )}
           />

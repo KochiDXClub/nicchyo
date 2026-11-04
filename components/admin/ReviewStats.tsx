@@ -30,7 +30,7 @@ export function ReviewStats({ items, compact = false }: { items: readonly Review
       {items.map((item, index) => (
         <Surface key={item.label} padding="sm" className={cn(compact && "flex items-center justify-between gap-2 sm:block", compact && items.length === 5 && index === 0 && "col-span-2 sm:col-span-1")}>
           <p className="text-xs text-nicchyo-ink/55 sm:text-sm">{item.label}</p>
-          <p className={cn("mt-1 text-xl font-bold tabular-nums sm:text-2xl", toneClass[item.tone ?? "default"])}>
+          <p className={cn(!compact && "mt-1", compact && "sm:mt-1", "text-xl font-bold tabular-nums sm:text-2xl", toneClass[item.tone ?? "default"])}>
             {item.value}
           </p>
         </Surface>
