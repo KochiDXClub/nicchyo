@@ -2,7 +2,7 @@
 
 export const dynamic = "force-dynamic";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { AdminLayout, AdminPageHeader, EmptyState } from "@/components/admin";
@@ -64,6 +64,8 @@ export default function AdminVendorInquiriesPage() {
   const [topicFilter, setTopicFilter] = useState<VendorInquiryTopic | "all">("all");
   const [hasMore, setHasMore] = useState(false);
   const [openId, setOpenId] = useState<string | null>(null);
+  // 新しい取得を始めるたびに進める。古い取得の応答（絞り込みを変える前のもの）は捨てる
+  const requestSeq = useRef(0);
 
   useEffect(() => {
     if (isLoading) return;
@@ -73,6 +75,7 @@ export default function AdminVendorInquiriesPage() {
   // before を渡すと、その日時より前の続きを足す。渡さなければ先頭から取り直す
   const fetchInquiries = useCallback(
     async (before?: string) => {
+      const seq = ++requestSeq.current;
       setLoading(true);
       try {
         const params = new URLSearchParams();
@@ -82,12 +85,14 @@ export default function AdminVendorInquiriesPage() {
         const res = await fetch(`/api/admin/vendor-inquiries?${params.toString()}`);
         if (!res.ok) throw new Error("failed");
         const data = (await res.json()) as { inquiries: AdminVendorInquiry[] };
+        if (seq !== requestSeq.current) return;
         setInquiries((prev) => (before ? [...prev, ...data.inquiries] : data.inquiries));
         setHasMore(data.inquiries.length >= PAGE_SIZE);
       } catch {
+        if (seq !== requestSeq.current) return;
         showToast.error("出店者からの連絡の取得に失敗しました");
       } finally {
-        setLoading(false);
+        if (seq === requestSeq.current) setLoading(false);
       }
     },
     [topicFilter, statusFilter]
