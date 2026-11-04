@@ -1,9 +1,10 @@
 import Link from "next/link";
 import { Clock, MapPin } from "lucide-react";
 import { PageContainer } from "@/components/ui";
+import { getLocale, getT } from "@/lib/i18n/server";
 import { MARKET_FACTS } from "./content";
 import SectionHeading from "./SectionHeading";
-import NextSundayCalendar from "./NextSundayCalendar";
+import NextSundayCalendar, { nextSundayCalendarText } from "./NextSundayCalendar";
 import SundayCard from "./SundayCard";
 import type { LandingSunday } from "./upcomingSundays";
 import "./landing.css";
@@ -15,9 +16,11 @@ const FACT_ICONS = { いつ: Clock, どこ: MapPin } as const;
  * 開催カレンダー（market_days）の状態つきで横に並べる（荒天中止・臨時休市は灰色）。
  * 「いつ」「どこ」は、綱からぶら下がる木の看板
  */
-export default function LandingInfo({ sundays }: { sundays: LandingSunday[] }) {
+export default async function LandingInfo({ sundays }: { sundays: LandingSunday[] }) {
   const next = sundays[0];
   if (!next) return null;
+  const [locale, t] = await Promise.all([getLocale(), getT()]);
+  const nextText = nextSundayCalendarText(next, t, locale);
 
   return (
     <section aria-labelledby="landing-info" className="mt-20 md:mt-28">
@@ -25,7 +28,7 @@ export default function LandingInfo({ sundays }: { sundays: LandingSunday[] }) {
         <SectionHeading id="landing-info">次の日曜市は、いつ？</SectionHeading>
 
         <div className="mt-8 grid items-center gap-8 md:grid-cols-[15.5rem_minmax(0,1fr)] md:gap-11">
-          <NextSundayCalendar sunday={next} />
+          <NextSundayCalendar sunday={next} text={nextText} />
 
           <div className="min-w-0">
             <div className="flex items-baseline justify-between gap-3">

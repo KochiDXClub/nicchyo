@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildLandingSundays } from "./upcomingSundays";
+import { buildLandingSundays, monthLabel } from "./upcomingSundays";
 
 // 2026-10-14（水）の昼。今週の日曜は 2026-10-18
 const NOW = new Date("2026-10-14T03:00:00Z");
@@ -26,6 +26,12 @@ describe("buildLandingSundays", () => {
   it("想定外の状態は開催として扱う", () => {
     const [first] = buildLandingSundays([{ market_date: "2026-10-18", status: "??" as never, note: null }], NOW, 1);
     expect(first.status).toBe("open");
+  });
+
+  it("月はロケールで出す（日本語は「11月」、英語は「Nov」）", () => {
+    expect(monthLabel(11, "ja")).toBe("11月");
+    expect(monthLabel(11, "en")).toBe("Nov");
+    expect(monthLabel(1, "en")).toBe("Jan");
   });
 
   it("日曜の当日は、その日を先頭にする（JST）", () => {
