@@ -33,8 +33,7 @@ export default function MarketStatusBar({ day, className = "" }: Props) {
   if (!shouldSurfaceOnMap(status)) return null;
 
   const { label, tone } = getStatusPresentation(status);
-  const dateIso = day?.market_date ?? getUpcomingSundayIso();
-  const dateLabel = formatEventDate(dateIso);
+  const dateLabel = formatEventDate(day?.market_date ?? getUpcomingSundayIso());
 
   return (
     <Link

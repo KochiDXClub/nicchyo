@@ -27,7 +27,7 @@ type Props = {
  *
  * 以前は MarketStatusBar の placement="page" が担っていたが、日めくりカレンダーは
  * 文字列を props で受け取る形になり、ここで useT()/useLocale() から渡す。
- * 中止・休市のときは、状態を赤い帯で目立たせる（以前のページ版と同じ扱い）。
+ * 中止・休市は赤い帯、特別開催は黄色の地で目立たせる（以前のページ版と同じ扱い）。
  */
 export default function MarketStatusCalendar({ day, className = "", link = true }: Props) {
   const t = useT();
@@ -64,8 +64,12 @@ export default function MarketStatusCalendar({ day, className = "", link = true 
       )}
       <div className="min-w-0">
         <p className="text-xs font-bold text-nicchyo-ink/55">{t("次の日曜市")}</p>
-        {tone === "alert" ? (
-          <p className="mt-1 inline-block rounded-md bg-rose-500 px-3 py-1.5 text-base font-black text-white">
+        {tone === "alert" || tone === "highlight" ? (
+          <p
+            className={`mt-1 inline-block rounded-btn px-3 py-1.5 text-base font-black ${
+              tone === "alert" ? "bg-rose-500 text-white" : "bg-nicchyo-accent text-nicchyo-ink"
+            }`}
+          >
             {dateLabel} {t(label)}
           </p>
         ) : (
