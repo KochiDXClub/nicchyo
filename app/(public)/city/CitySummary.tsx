@@ -29,6 +29,8 @@ function CsvLink({ type, label }: { type: CityDatasetKind; label: string }) {
   );
 }
 
+const FETCH_FAILED = "読み込めませんでした。時間をおいて再度お試しください。";
+
 /**
  * 高知市向けの閲覧用まとめ。数字は来訪者が /analysis で見られるものと同じ範囲の集計だけ
  * （本人のセッションで取得するので、RLS が許す範囲を超えない）。
@@ -80,7 +82,9 @@ export async function CitySummary() {
             />
           </div>
         ) : (
-          <p className="text-sm text-nicchyo-ink/60">表示できる記録がありません。</p>
+          <p className="text-sm text-nicchyo-ink/60">
+            {visitors.status === "rejected" ? FETCH_FAILED : "表示できる記録がありません。"}
+          </p>
         )}
         <p className="mt-3 text-xs text-nicchyo-ink/50">※現地の来場者数ではなく、Web を開いた人数です。</p>
         <div className="mt-3">
@@ -102,7 +106,7 @@ export async function CitySummary() {
           </div>
         ) : (
           <p className="text-sm text-nicchyo-ink/60">
-            {year}年の開催状況は、まだ記録がありません。
+            {marketDays.status === "rejected" ? FETCH_FAILED : `${year}年の開催状況は、まだ記録がありません。`}
           </p>
         )}
         {marketSummary ? (
@@ -111,7 +115,7 @@ export async function CitySummary() {
           </p>
         ) : null}
         <div className="mt-3">
-          <CsvLink type="market-days" label="開催実績（CSV）" />
+          <CsvLink type="market-days" label="開催状況（CSV・今後の予定を含む）" />
         </div>
       </Surface>
 
@@ -129,7 +133,9 @@ export async function CitySummary() {
             ))}
           </ul>
         ) : (
-          <p className="text-sm text-nicchyo-ink/60">表示できる記録がありません。</p>
+          <p className="text-sm text-nicchyo-ink/60">
+            {categories.status === "rejected" ? FETCH_FAILED : "表示できる記録がありません。"}
+          </p>
         )}
         <div className="mt-3">
           <CsvLink type="categories" label="カテゴリ別の出店数（CSV）" />

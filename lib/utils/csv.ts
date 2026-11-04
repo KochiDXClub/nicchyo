@@ -7,7 +7,7 @@
 export function toCsv(rows: Record<string, unknown>[], columns: string[]): string {
   const escape = (v: unknown): string => {
     const s = v === null || v === undefined ? "" : String(v);
-    const safe = /^[=+\-@\t\r]/.test(s) ? `'${s}` : s;
+    const safe = /^[=+\-@\t\r\n]/.test(s) ? `'${s}` : s;
     return `"${safe.replace(/"/g, '""')}"`;
   };
 
