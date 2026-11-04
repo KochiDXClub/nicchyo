@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireSameOrigin } from "@/lib/security/requestGuards";
 import { authorizeRequest, createAdminClient } from "./_shared";
 import {
+  VENDOR_INQUIRY_OPEN_STATUSES,
   isUuid,
   isVendorInquiryCategory,
   isVendorInquiryStatus,
@@ -32,6 +33,11 @@ export async function GET(req: Request) {
   const urgency = searchParams.get("urgency");
   const status = searchParams.get("status");
   const vendorId = searchParams.get("vendor_id");
+  // open=1: 運営がまだ対応していないもの（バッジ・ダッシュボードの数え方と同じ）だけ。
+  // 件数の上限（limit）より前に絞らないと、新しい対応済みで枠が埋まり古い未対応に届かなくなる
+  const openOnly = searchParams.get("open") === "1";
+  // before: この日時より前のものを返す（「さらに読み込む」用のカーソル）
+  const before = searchParams.get("before");
   // ?limit=-5 のような負値・非数値でPostgRESTがエラーにならないよう 1〜MAX_LIMIT に丸める
   const limit = Math.min(
     Math.max(1, Math.floor(Number(searchParams.get("limit") ?? String(DEFAULT_LIMIT)) || DEFAULT_LIMIT)),
@@ -57,6 +63,11 @@ export async function GET(req: Request) {
   if (urgency !== null) {
     if (!isVendorInquiryUrgency(urgency)) return invalidFilter("urgency");
     query = query.eq("urgency", urgency);
+  }
+  if (openOnly) query = query.in("status", [...VENDOR_INQUIRY_OPEN_STATUSES]);
+  if (before !== null) {
+    if (Number.isNaN(Date.parse(before))) return invalidFilter("before");
+    query = query.lt("created_at", before);
   }
   if (status !== null) {
     if (!isVendorInquiryStatus(status)) return invalidFilter("status");

@@ -2,7 +2,7 @@
 
 export const dynamic = "force-dynamic";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { AdminLayout, AdminPageHeader, EmptyState } from "@/components/admin";
@@ -10,7 +10,6 @@ import { InboxTabs } from "@/components/admin/InboxTabs";
 import { notifyInboxChanged } from "@/lib/hooks/useAdminInboxCounts";
 import { showToast } from "@/lib/admin/toast";
 import {
-  VENDOR_INQUIRY_OPEN_STATUSES,
   VENDOR_INQUIRY_REPLY_BODY_MAX_LENGTH,
   isAllowedVendorInquiryImageUrl,
   type VendorInquiryTopic,
@@ -21,7 +20,8 @@ import type { VendorInquiryReplyRow, VendorInquiryRow } from "@/types/database.e
 /** 一覧API（/api/admin/vendor-inquiries）は店名を添えて返す */
 type AdminVendorInquiry = VendorInquiryRow & { shop_name: string | null };
 
-const OPEN_STATUSES: readonly string[] = VENDOR_INQUIRY_OPEN_STATUSES;
+/** 一覧APIの1回の取得件数の既定値（app/api/admin/vendor-inquiries/route.ts の DEFAULT_LIMIT）。これ未満なら最後まで読み込めている */
+const PAGE_SIZE = 100;
 
 /** 運営がステータスを進める操作。topic ごとに許される status が違う（lib/vendorInquiries/constants.ts） */
 const STATUS_ACTIONS: Record<VendorInquiryTopic, { status: string; label: string }[]> = {
@@ -62,6 +62,7 @@ export default function AdminVendorInquiriesPage() {
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<"open" | "all">("open");
   const [topicFilter, setTopicFilter] = useState<VendorInquiryTopic | "all">("all");
+  const [hasMore, setHasMore] = useState(false);
   const [openId, setOpenId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -69,31 +70,33 @@ export default function AdminVendorInquiriesPage() {
     if (!permissions.isModerator) router.push("/");
   }, [isLoading, permissions.isModerator, router]);
 
-  const fetchInquiries = useCallback(async () => {
-    setLoading(true);
-    try {
-      const params = new URLSearchParams();
-      if (topicFilter !== "all") params.set("topic", topicFilter);
-      const res = await fetch(`/api/admin/vendor-inquiries?${params.toString()}`);
-      if (!res.ok) throw new Error("failed");
-      const data = (await res.json()) as { inquiries: AdminVendorInquiry[] };
-      setInquiries(data.inquiries);
-    } catch {
-      showToast.error("出店者からの連絡の取得に失敗しました");
-    } finally {
-      setLoading(false);
-    }
-  }, [topicFilter]);
+  // before を渡すと、その日時より前の続きを足す。渡さなければ先頭から取り直す
+  const fetchInquiries = useCallback(
+    async (before?: string) => {
+      setLoading(true);
+      try {
+        const params = new URLSearchParams();
+        if (topicFilter !== "all") params.set("topic", topicFilter);
+        if (statusFilter === "open") params.set("open", "1");
+        if (before) params.set("before", before);
+        const res = await fetch(`/api/admin/vendor-inquiries?${params.toString()}`);
+        if (!res.ok) throw new Error("failed");
+        const data = (await res.json()) as { inquiries: AdminVendorInquiry[] };
+        setInquiries((prev) => (before ? [...prev, ...data.inquiries] : data.inquiries));
+        setHasMore(data.inquiries.length >= PAGE_SIZE);
+      } catch {
+        showToast.error("出店者からの連絡の取得に失敗しました");
+      } finally {
+        setLoading(false);
+      }
+    },
+    [topicFilter, statusFilter]
+  );
 
   useEffect(() => {
     if (!permissions.isModerator) return;
     void fetchInquiries();
   }, [fetchInquiries, permissions.isModerator]);
-
-  const visible = useMemo(
-    () => (statusFilter === "open" ? inquiries.filter((i) => OPEN_STATUSES.includes(i.status)) : inquiries),
-    [inquiries, statusFilter]
-  );
 
   const handleChanged = () => {
     void fetchInquiries();
@@ -135,13 +138,13 @@ export default function AdminVendorInquiriesPage() {
           </select>
         </div>
 
-        {loading ? (
+        {loading && inquiries.length === 0 ? (
           <div className="flex items-center justify-center py-16 text-nicchyo-ink/40">読み込み中...</div>
-        ) : visible.length === 0 ? (
+        ) : inquiries.length === 0 ? (
           <EmptyState title="該当する連絡はありません" />
         ) : (
           <ul className="space-y-3">
-            {visible.map((inquiry) => (
+            {inquiries.map((inquiry) => (
               <InquiryCard
                 key={inquiry.id}
                 inquiry={inquiry}
@@ -152,6 +155,15 @@ export default function AdminVendorInquiriesPage() {
             ))}
           </ul>
         )}
+        {hasMore && !loading ? (
+          <button
+            type="button"
+            onClick={() => void fetchInquiries(inquiries[inquiries.length - 1]?.created_at)}
+            className="mt-4 w-full rounded-btn bg-white py-2 text-sm font-medium text-nicchyo-ink ring-1 ring-line"
+          >
+            さらに読み込む
+          </button>
+        ) : null}
       </div>
     </AdminLayout>
   );
