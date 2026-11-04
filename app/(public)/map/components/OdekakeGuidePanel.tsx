@@ -79,7 +79,7 @@ function KindToggle({
       className={`${FOCUS_RING} flex h-9 shrink-0 items-center gap-1.5 rounded-full pl-2.5 pr-3.5 text-[13px] font-bold transition-all active:scale-[0.97] ${
         active
           ? 'bg-nicchyo-ink text-white shadow-pop'
-          : 'bg-white text-nicchyo-ink shadow-chip active:bg-slate-50'
+          : 'bg-white text-nicchyo-ink shadow-chip active:bg-nicchyo-base'
       }`}
     >
       {children}
@@ -161,6 +161,7 @@ export default function OdekakeGuidePanel({ guide, map, onClose, hidden = false,
   }, [guide.geoStatus]);
 
   // パネルの外（地図）をなぞる・タップしたら、シートをたたんで地図を探索できるようにする（Googleマップと同じ）。
+  // 地図の印からカードを開いた場合もたたむ。カードを閉じた後はピルから一覧を開き直せる。
   // dragstart は人が動かしたときだけ飛ぶので、案内が自動で地図を動かしてもたたまれない
   useEffect(() => {
     if (!map || hidden) return;
@@ -204,6 +205,7 @@ export default function OdekakeGuidePanel({ guide, map, onClose, hidden = false,
   // Googleマップと同じく、行をタップしたらすぐその場所のカードを開く（経路は選択でマップに引かれる）
   const handleRowTap = useCallback(
     (entry: RankedSpot) => {
+      // カードを閉じた後も目的地と経路を保持する。種類の切り替えで選択をリセットする。
       guide.select(entry.spot.id);
       onOpenSpot(entry.spot);
     },
@@ -313,6 +315,7 @@ export default function OdekakeGuidePanel({ guide, map, onClose, hidden = false,
         onMouseDown={(e) => e.stopPropagation()}
         onClick={(e) => e.stopPropagation()}
         role="dialog"
+        aria-modal="false"
         aria-label="おでかけサポート"
         aria-hidden={!isOpen}
       >
@@ -388,73 +391,73 @@ export default function OdekakeGuidePanel({ guide, map, onClose, hidden = false,
                 return (
                   <li key={spot.id} className="relative">
                     <div className={`-mx-2 rounded-2xl px-2 py-2.5 transition-colors ${isSelected ? 'bg-nicchyo-base' : ''}`}>
-                    <div className="flex items-center gap-3">
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleRowTap(entry);
-                        }}
-                        className={`${FOCUS_RING} flex min-w-0 flex-1 items-center gap-3 rounded-xl text-left`}
-                      >
-                        <span className="relative z-10 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white">
-                          <SpotIcon spot={spot} size={36} />
-                        </span>
-                        <span className="min-w-0 flex-1">
-                          <span className="flex items-center gap-1.5">
-                            <span className={`line-clamp-2 leading-tight text-nicchyo-ink ${isNearest ? 'text-[15px] font-black' : 'text-[14px] font-bold'}`}>
-                              {spot.name}
+                      <div className="flex items-center gap-3">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleRowTap(entry);
+                          }}
+                          className={`${FOCUS_RING} flex min-w-0 flex-1 items-center gap-3 rounded-xl text-left`}
+                        >
+                          <span className="relative z-10 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white">
+                            <SpotIcon spot={spot} size={36} />
+                          </span>
+                          <span className="min-w-0 flex-1">
+                            <span className="flex items-center gap-1.5">
+                              <span className={`line-clamp-2 leading-tight text-nicchyo-ink ${isNearest ? 'text-[15px] font-black' : 'text-[14px] font-bold'}`}>
+                                {spot.name}
+                              </span>
+                              {isNearest && (
+                                <span className="shrink-0 rounded-full px-1.5 py-[2px] text-[10px] font-bold leading-none text-white" style={{ backgroundColor: spot.accentColor }}>
+                                  いちばん近い
+                                </span>
+                              )}
                             </span>
-                            {isNearest && (
-                              <span className="shrink-0 rounded-full px-1.5 py-[2px] text-[10px] font-bold leading-none text-white" style={{ backgroundColor: spot.accentColor }}>
-                                いちばん近い
-                              </span>
-                            )}
+                            <span className="mt-0.5 block truncate text-[11px] text-slate-500">
+                              {route ? formatDistance(route.distanceMeters) : spot.description}
+                              {entry.reasons.map((reason) => (
+                                <span key={reason} className="ml-1.5 rounded bg-slate-100 px-1 py-[1px] text-[10px] text-slate-600">
+                                  {reason}
+                                </span>
+                              ))}
+                            </span>
                           </span>
-                          <span className="mt-0.5 block truncate text-[11px] text-slate-500">
-                            {route ? formatDistance(route.distanceMeters) : spot.description}
-                            {entry.reasons.map((reason) => (
-                              <span key={reason} className="ml-1.5 rounded bg-slate-100 px-1 py-[1px] text-[10px] text-slate-600">
-                                {reason}
-                              </span>
-                            ))}
-                          </span>
-                        </span>
-                        {route && (
-                          <span className="shrink-0 text-right text-nicchyo-ink tabular-nums">
-                            <span className="text-[20px] font-black leading-none">{route.walkMinutes}</span>
-                            <span className="ml-0.5 text-[11px] font-bold">分</span>
-                          </span>
-                        )}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleNavigate(entry);
-                        }}
-                        aria-label={guide.origin ? `${spot.name}へ案内をはじめる` : '位置情報を許可して案内をはじめる'}
-                        className={`${FOCUS_RING} flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-white shadow-sm transition-transform active:scale-95`}
-                        style={{ backgroundColor: spot.accentColor }}
-                      >
-                        <Navigation size={15} />
-                      </button>
-                    </div>
-                    {/* Googleマップのように、名前の下に写真を大きく置く */}
-                    {spot.photoUrl && (
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleRowTap(entry);
-                        }}
-                        aria-label={`${spot.name}の詳細を開く`}
-                        className={`${FOCUS_RING} mt-2.5 block w-full overflow-hidden rounded-card`}
-                      >
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={spot.photoUrl} alt="" loading="lazy" draggable={false} className="h-44 w-full bg-nicchyo-base object-cover" />
-                      </button>
-                    )}
+                          {route && (
+                            <span className="shrink-0 text-right text-nicchyo-ink tabular-nums">
+                              <span className="text-[20px] font-black leading-none">{route.walkMinutes}</span>
+                              <span className="ml-0.5 text-[11px] font-bold">分</span>
+                            </span>
+                          )}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleNavigate(entry);
+                          }}
+                          aria-label={guide.origin ? `${spot.name}へ案内をはじめる` : '位置情報を許可して案内をはじめる'}
+                          className={`${FOCUS_RING} flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-white shadow-sm transition-transform active:scale-95`}
+                          style={{ backgroundColor: spot.accentColor }}
+                        >
+                          <Navigation size={15} />
+                        </button>
+                      </div>
+                      {/* Googleマップのように、名前の下に写真を大きく置く */}
+                      {spot.photoUrl && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleRowTap(entry);
+                          }}
+                          aria-label={`${spot.name}の詳細を開く`}
+                          className={`${FOCUS_RING} mt-2.5 block w-full overflow-hidden rounded-card`}
+                        >
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={spot.photoUrl} alt="" loading="lazy" draggable={false} className="h-44 w-full bg-nicchyo-base object-cover" />
+                        </button>
+                      )}
                     </div>
 
                   </li>
