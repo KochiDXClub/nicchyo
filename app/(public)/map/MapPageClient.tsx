@@ -1043,8 +1043,14 @@ export default function MapPageClient({
                   routes={guide.routes}
                   onSelectSpot={setSelectedSpot}
                 />
-                {!nearbyState && !selectedSpot && (
-                  <OdekakeGuidePanel guide={guide} map={mapInstance} onClose={closeGuide} onOpenSpot={setSelectedSpot} />
+                {!nearbyState && (
+                  <OdekakeGuidePanel
+                    guide={guide}
+                    map={mapInstance}
+                    onClose={closeGuide}
+                    hidden={Boolean(selectedSpot)}
+                    onOpenSpot={setSelectedSpot}
+                  />
                 )}
               </>
             )}
