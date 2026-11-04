@@ -8,8 +8,9 @@ describe("parseShopTranslationInput", () => {
   });
 
   it("長すぎる項目・形が違う入力は弾く", () => {
-    expect(parseShopTranslationInput({ name: "a".repeat(601) }).ok).toBe(false);
-    expect(parseShopTranslationInput({ products: { 大根: "a".repeat(201) } }).ok).toBe(false);
+    expect(parseShopTranslationInput({ name: "a".repeat(1281) }).ok).toBe(false);
+    expect(parseShopTranslationInput({ products: { 大根: "a".repeat(321) } }).ok).toBe(false);
+    expect(parseShopTranslationInput({ strength: "a".repeat(1280), products: { 大根: "a".repeat(320) } }).ok).toBe(true);
     expect(parseShopTranslationInput({ products: ["x"] }).ok).toBe(false);
     expect(parseShopTranslationInput({ products: { 大根: 1 } }).ok).toBe(false);
     expect(parseShopTranslationInput({ name: 1 }).ok).toBe(false);

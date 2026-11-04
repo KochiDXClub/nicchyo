@@ -4,8 +4,9 @@
  */
 import type { ShopTranslation, TranslationSource } from "@/lib/i18n/shopTranslation";
 
-export const SHOP_TRANSLATION_FIELD_MAX = 600;
-export const SHOP_TRANSLATION_PRODUCT_MAX = 200;
+/** AI の訳として受け入れる上限（原文300文字×4+80、商品名は60文字×4+80）に合わせる。下書きに出たものは必ず保存できる */
+export const SHOP_TRANSLATION_FIELD_MAX = 1280;
+export const SHOP_TRANSLATION_PRODUCT_MAX = 320;
 const MAX_PRODUCTS = 100;
 
 type Result<T> = { ok: true; value: T } | { ok: false; error: string };
