@@ -66,4 +66,18 @@ describe('clipLineOutsideRings', () => {
     ];
     expect(clipLineOutsideRings(line, [ring])).toEqual([line]);
   });
+
+  it('線の始まりが面の中にあっても、出たところから返す（T字路の枝道）', () => {
+    const line: Array<[number, number]> = [0, 0.5, 2, 3].map((lat) => [lat, 0]);
+    const runs = clipLineOutsideRings(line, [ring]);
+    expect(runs).toHaveLength(1);
+    expect(runs[0][0][0]).toBeCloseTo(1, 1);
+    expect(runs[0][runs[0].length - 1][0]).toBe(3);
+  });
+
+  it('面を2回出入りする線は3区間に分かれる', () => {
+    const second: Array<[number, number]> = ring.map(([lat, lng]) => [lat + 6, lng]);
+    const line: Array<[number, number]> = [-3, -2, 0, 2, 3, 4, 6, 8, 9].map((lat) => [lat, 0]);
+    expect(clipLineOutsideRings(line, [ring, second])).toHaveLength(3);
+  });
 });

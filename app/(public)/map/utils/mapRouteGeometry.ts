@@ -558,7 +558,7 @@ export function buildRoadEdges(
   return { left, right };
 }
 
-function isPointInRing(point: [number, number], ring: Array<[number, number]>): boolean {
+export function isPointInRing(point: [number, number], ring: Array<[number, number]>): boolean {
   let inside = false;
   for (let i = 0, j = ring.length - 1; i < ring.length; j = i, i += 1) {
     const [yi, xi] = ring[i];
@@ -583,7 +583,18 @@ export function clipLineOutsideRings(
 ): Array<Array<[number, number]>> {
   if (rings.length === 0) return line.length >= 2 ? [line] : [];
 
-  const isInside = (p: [number, number]) => rings.some((ring) => isPointInRing(p, ring));
+  // 外接する長方形の外にある点は、頂点を数えるまでもなく外側と分かる
+  const prepared = rings.map((ring) => {
+    const lats = ring.map((p) => p[0]);
+    const lngs = ring.map((p) => p[1]);
+    return { ring, minLat: Math.min(...lats), maxLat: Math.max(...lats), minLng: Math.min(...lngs), maxLng: Math.max(...lngs) };
+  });
+  const isInside = (p: [number, number]) =>
+    prepared.some(
+      (r) =>
+        p[0] >= r.minLat && p[0] <= r.maxLat && p[1] >= r.minLng && p[1] <= r.maxLng &&
+        isPointInRing(p, r.ring)
+    );
   const boundary = (outside: [number, number], inside: [number, number]): [number, number] => {
     let a = outside;
     let b = inside;

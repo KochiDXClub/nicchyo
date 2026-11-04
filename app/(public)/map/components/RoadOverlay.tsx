@@ -24,6 +24,7 @@ import {
   clipLineOutsideRings,
   densifyPath,
   getEffectiveMapRouteConfig,
+  isPointInRing,
   getRouteChains,
   normalizeMapRoutePoints,
   smoothRoutePath,
@@ -261,6 +262,7 @@ function RoadSurface({
   onTap,
   chainKey,
   otherRoadPolygons,
+  roadPolygon,
 }: {
   centerline: Array<[number, number]>;
   halfWidthMeters: number;
@@ -269,13 +271,15 @@ function RoadSurface({
   chainKey: string;
   /** 交差・分岐する他の道の面。この内側では縁を引かない */
   otherRoadPolygons?: Array<Array<[number, number]>>;
+  /** 呼び出し側で作ってある道の面（なければここで作る） */
+  roadPolygon?: Array<[number, number]>;
 }) {
   const zoom = useQuantizedRoadZoom();
   const edgeWeight = getRoadEdgeWeight(zoom);
   const laneWeight = getRoadLaneWeight(zoom);
 
   const geometry = useMemo(() => {
-    const roadPolygon = buildRoadPolygon(centerline, halfWidthMeters);
+    const ownRoadPolygon = roadPolygon ?? buildRoadPolygon(centerline, halfWidthMeters);
     const corridorPolygon = buildRoadPolygon(
       centerline,
       getRoadCorridorHalfWidthMeters(halfWidthMeters)
@@ -286,8 +290,8 @@ function RoadSurface({
       left: clipLineOutsideRings(edges.left, rings),
       right: clipLineOutsideRings(edges.right, rings),
     };
-    return { roadPolygon, corridorPolygon, edges, edgeRuns };
-  }, [centerline, halfWidthMeters, otherRoadPolygons]);
+    return { roadPolygon: ownRoadPolygon, corridorPolygon, edges, edgeRuns };
+  }, [centerline, halfWidthMeters, otherRoadPolygons, roadPolygon]);
 
   if (geometry.roadPolygon.length < 3) {
     return null;
@@ -362,6 +366,7 @@ function RoadSurface({
         left={geometry.edges.left}
         right={geometry.edges.right}
         chainKey={chainKey}
+        otherRoadPolygons={otherRoadPolygons}
       />
     </>
   );
@@ -463,6 +468,7 @@ function DynamicRoad({
               onTap={onTap}
               chainKey={chain.key}
               otherRoadPolygons={chain.otherRoadPolygons}
+              roadPolygon={chain.roadPolygon}
             />
           </Fragment>
         );
@@ -503,10 +509,12 @@ const NoboriMarkersForRoadEdges = memo(function NoboriMarkersForRoadEdges({
   left,
   right,
   chainKey,
+  otherRoadPolygons,
 }: {
   left: Array<[number, number]>;
   right: Array<[number, number]>;
   chainKey: string;
+  otherRoadPolygons?: Array<Array<[number, number]>>;
 }) {
   const map = useMap();
   const [zoom, setZoom] = useState(() => map.getZoom());
@@ -524,10 +532,13 @@ const NoboriMarkersForRoadEdges = memo(function NoboriMarkersForRoadEdges({
     const points: Array<[number, number]> = [];
     for (let i = 0; i < count; i += step) {
       // 片側に寄らないよう、サンプリングのたびに左右を入れ替える
-      points.push(Math.floor(i / step) % 2 === 0 ? left[i] : right[i]);
+      const point = Math.floor(i / step) % 2 === 0 ? left[i] : right[i];
+      // 縁を引かない交差点の中には旗も立てない
+      if (otherRoadPolygons?.some((ring) => isPointInRing(point, ring))) continue;
+      points.push(point);
     }
     return points;
-  }, [zoom, left, right]);
+  }, [zoom, left, right, otherRoadPolygons]);
 
   const icon = useMemo(() => createNoboriIcon(), []);
 
