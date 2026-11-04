@@ -46,6 +46,16 @@ beforeEach(() => {
 });
 
 describe("POST /api/vendor/claim", () => {
+  it("高知市のアカウントは、紐づけの処理に入る前に 403 で断る（QR は使用済みにならない）", async () => {
+    getUser.mockResolvedValue({ data: { user: { id: "city-1", app_metadata: { role: "city_official" }, user_metadata: {} } } });
+    const res = await claim();
+    expect(res.status).toBe(403);
+    expect(((await res.json()) as { code: string }).code).toBe("city_official");
+    expect(rpc).not.toHaveBeenCalled();
+    expect(updateUserById).not.toHaveBeenCalled();
+  });
+
+
   it("QRで紐づけたら、出店者ロールを付けて操作ログを残す。DB にはトークンのハッシュだけを渡す", async () => {
     const res = await claim();
 
