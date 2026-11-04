@@ -37,6 +37,7 @@ const PREPARING_IN_PRODUCTION: Partial<Record<VisibilityRole, VisibilityState>> 
   anon: "preparing",
   general_user: "preparing",
   vendor: "preparing",
+  city_official: "preparing",
   moderator: "preparing",
 };
 

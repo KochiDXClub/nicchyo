@@ -4,6 +4,7 @@ import type { User } from "@supabase/supabase-js";
 import {
   getRole,
   isAdmin,
+  isCityOfficial,
   isModerator,
   isVendor,
   normalizeRole,
@@ -54,11 +55,31 @@ describe("isAdmin / isModerator / isVendor", () => {
   });
 });
 
+describe("city_official（高知市）", () => {
+  it("isCityOfficial は city_official だけ（admin / moderator は含まない）", () => {
+    expect(isCityOfficial("city_official")).toBe(true);
+    expect(isCityOfficial("admin")).toBe(false);
+    expect(isCityOfficial("moderator")).toBe(false);
+    expect(isCityOfficial(null)).toBe(false);
+  });
+
+  it("運営（admin / moderator）にはならない", () => {
+    expect(isAdmin("city_official")).toBe(false);
+    expect(isModerator("city_official")).toBe(false);
+    expect(isVendor("city_official")).toBe(false);
+  });
+
+  it("user_metadata に書いても city_official にならない", () => {
+    expect(getRole({ user_metadata: { role: "city_official" } })).toBeNull();
+  });
+});
+
 describe("normalizeRole", () => {
   it("既知のロールはそのまま返す", () => {
     expect(normalizeRole("admin")).toBe("admin");
     expect(normalizeRole("moderator")).toBe("moderator");
     expect(normalizeRole("vendor")).toBe("vendor");
+    expect(normalizeRole("city_official")).toBe("city_official");
   });
 
   it("未知・空・大文字違いは general_user に落とす", () => {
@@ -83,7 +104,7 @@ describe("requireVendorRole", () => {
   });
 
   it("vendor 以外は 403", async () => {
-    for (const role of ["admin", "moderator", "general_user", undefined]) {
+    for (const role of ["admin", "moderator", "city_official", "general_user", undefined]) {
       const res = requireVendorRole(userWith(role));
       expect(res?.status).toBe(403);
       expect(await res?.json()).toEqual({ error: "Forbidden" });
