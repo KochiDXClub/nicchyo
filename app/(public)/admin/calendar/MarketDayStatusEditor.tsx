@@ -1,4 +1,5 @@
 import { getStatusPresentation, type MarketDayStatus } from "@/lib/market/calendar";
+import type { useAdminMarketDays } from "./useAdminMarketDays";
 
 const STATUS_OPTIONS: { value: MarketDayStatus; hint: string }[] = [
   { value: "open", hint: "通常どおり開催" },
@@ -138,5 +139,33 @@ export function MarketDayStatusEditor({
         {isSaving ? "保存中..." : "保存する（公開されます）"}
       </button>
     </div>
+  );
+}
+
+/**
+ * useAdminMarketDays の状態を、ある日曜1日ぶんの MarketDayStatusEditor につなぐ。
+ * 運営の /admin/calendar と高知市の /city が同じつなぎ方をするので、ここに1つだけ置く。
+ */
+export function MarketDayStatusEditorForDate({
+  days,
+  dateIso,
+}: {
+  days: ReturnType<typeof useAdminMarketDays>;
+  dateIso: string;
+}) {
+  return (
+    <MarketDayStatusEditor
+      committedStatus={days.committedStatusFor(dateIso)}
+      draftStatus={days.draftStatusFor(dateIso)}
+      noteDraft={days.noteFor(dateIso)}
+      isDirty={days.isDirty(dateIso)}
+      isSaving={days.savingDate === dateIso}
+      recentNotes={days.recentNotes}
+      onSelectStatus={(status) => days.setStatusDraft(dateIso, status)}
+      onSetNoteDraft={(note) => days.setNoteDraft(dateIso, note)}
+      onSave={() =>
+        void days.save(dateIso, days.draftStatusFor(dateIso) ?? "open", days.noteFor(dateIso))
+      }
+    />
   );
 }
