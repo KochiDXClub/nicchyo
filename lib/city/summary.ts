@@ -1,0 +1,57 @@
+/**
+ * 高知市のページに出す数字を、取得済みの集計データから作る（純粋関数）。
+ */
+
+import { addDaysToDateString } from "@/lib/time/jstDate";
+
+export type VisitorSummary = {
+  /** 直近28日の合計 */
+  total28: number;
+  /** 直近28日の1日あたり（四捨五入） */
+  average28: number;
+  /** 記録のある日数（欠けている日があれば28より小さい） */
+  recordedDays: number;
+};
+
+/** 直近28日（今日を含む）の Web 来訪者数。記録が無ければ null */
+export function summariseVisitors(
+  rows: { visit_date?: unknown; visitor_count?: unknown }[],
+  todayIso: string
+): VisitorSummary | null {
+  const since = addDaysToDateString(todayIso, -27);
+  let total = 0;
+  let days = 0;
+  for (const row of rows) {
+    const date = typeof row.visit_date === "string" ? row.visit_date : "";
+    if (date < since || date > todayIso) continue;
+    total += Number(row.visitor_count ?? 0) || 0;
+    days += 1;
+  }
+  if (days === 0) return null;
+  return { total28: total, average28: Math.round(total / days), recordedDays: days };
+}
+
+export type MarketDaySummary = Record<"open" | "cancelled" | "special" | "closed", number>;
+
+/**
+ * その年の開催実績（ステータスごとの回数）。今日までの日付だけ数える。
+ * 来週の日曜に入れた「中止」などの予定は、まだ起きていないので実績に入れない。
+ *
+ * 記録が1件も無いときは null。過去の開催状況が未入力のとき「開催 0回」と出すと、
+ * 開催されなかったように見えてしまう。数えるのは記録のある回だけ（年間の全回数ではない）。
+ */
+export function summariseMarketDays(
+  rows: { market_date?: unknown; status?: unknown }[],
+  year: number,
+  todayIso: string
+): MarketDaySummary | null {
+  const result: MarketDaySummary = { open: 0, cancelled: 0, special: 0, closed: 0 };
+  for (const row of rows) {
+    const date = typeof row.market_date === "string" ? row.market_date : "";
+    const status = typeof row.status === "string" ? row.status : "";
+    if (!date.startsWith(`${year}-`) || date > todayIso) continue;
+    if (status in result) result[status as keyof MarketDaySummary] += 1;
+  }
+  const recorded = result.open + result.cancelled + result.special + result.closed;
+  return recorded === 0 ? null : result;
+}
