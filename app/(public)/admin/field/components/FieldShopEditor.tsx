@@ -199,7 +199,7 @@ export function FieldShopEditor({ shopId }: { shopId: string }) {
       return;
     }
     // 日本語を直したのに英語版が古いまま保存すると、来訪者には日本語で出る（合っていない英語は出さない）
-    if (en.state === "stale" && !window.confirm("日本語を直したあと、英語版を更新していません。このまま保存すると、来訪者にはこの店の英語版が出ず、日本語で表示されます。保存しますか？")) return;
+    if (en.state === "stale" && !window.confirm("日本語を直したあと、英語版を更新していません。このまま保存すると、来訪者にはこの店の英語版が出ず、日本語で表示されます（次の自動翻訳で、英語版は作り直されます）。保存しますか？")) return;
     setSaving(true);
     // 保存に失敗しても、画面の英語版を失わないよう控えておく
     const englishSnapshot = en.snapshot();

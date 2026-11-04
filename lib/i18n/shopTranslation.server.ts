@@ -133,28 +133,32 @@ export async function previewShopTranslation(source: TranslationSource, locale: 
 }
 
 /**
- * 自動訳を1行書く。すでに reviewed の行は書かない（同期の途中で運営が確認した訳を守る）。
- * 既存行は「reviewed でない場合だけ」更新し、行が無ければ作る（同時に作られていたら何もしない）。書いたら true
+ * 自動訳を1行書く。同期が読み取った時の原文のハッシュ（previousHash）のままの行だけ更新する。
+ * 待っている間に運営が保存して変わった行は書かない。行が無かったとき（previousHash が null）は作る
+ * （同時に作られていたら何もしない）。書いたら true
  */
 async function writeAutoTranslation(
   supabase: SupabaseClient<DatabaseWithExtensions>,
-  row: { vendor_id: string; locale: Locale } & Record<string, unknown>
+  row: { vendor_id: string; locale: Locale } & Record<string, unknown>,
+  previousHash: string | null
 ): Promise<boolean> {
-  const { vendor_id, locale, ...rest } = row;
-  const { data: updated, error: updateError } = await supabase
-    .from("shop_translations")
-    .update(rest as never)
-    .eq("vendor_id", vendor_id)
-    .eq("locale", locale)
-    .neq("status", "reviewed")
-    .select("vendor_id");
-  if (updateError) throw new Error(updateError.message);
-  if (updated && updated.length > 0) return true;
-  const { data: inserted, error: insertError } = await supabase
+  if (previousHash !== null) {
+    const { vendor_id, locale, ...rest } = row;
+    const { data: updated, error } = await supabase
+      .from("shop_translations")
+      .update(rest as never)
+      .eq("vendor_id", vendor_id)
+      .eq("locale", locale)
+      .eq("source_hash", previousHash)
+      .select("vendor_id");
+    if (error) throw new Error(error.message);
+    return !!updated && updated.length > 0;
+  }
+  const { data: inserted, error } = await supabase
     .from("shop_translations")
     .upsert(row as never, { onConflict: "vendor_id,locale", ignoreDuplicates: true })
     .select("vendor_id");
-  if (insertError) throw new Error(insertError.message);
+  if (error) throw new Error(error.message);
   return !!inserted && inserted.length > 0;
 }
 
@@ -195,16 +199,17 @@ export async function syncShopTranslations(params: {
   if (existingError) throw new Error(`shop_translations の読み込みに失敗しました: ${existingError.message}`);
   const existingByVendor = new Map((existing ?? []).map((row) => [row.vendor_id, row]));
 
-  const pending: { vendorId: string; hash: string; source: TranslationBatchItem["source"] }[] = [];
+  const pending: { vendorId: string; hash: string; previousHash: string | null; source: TranslationBatchItem["source"] }[] = [];
   for (const shop of shops) {
     if (!shop.vendorId) continue;
     const source = buildTranslationSource(shop);
     if (!hasTranslatableText(source)) continue;
     const hash = hashTranslationSource(locale, source);
     const current = existingByVendor.get(shop.vendorId);
-    if (current?.status === "reviewed") continue;
+    // 訳が今の日本語に合っていれば（確認済みでも自動でも）そのまま使う。
+    // 確認済みでも、日本語が変わって合わなくなった訳は来訪者に出ていないので、自動で訳し直す
     if (current?.source_hash === hash) continue;
-    pending.push({ vendorId: shop.vendorId, hash, source });
+    pending.push({ vendorId: shop.vendorId, hash, previousHash: current?.source_hash ?? null, source });
   }
   result.pending = pending.length;
 
@@ -239,13 +244,14 @@ export async function syncShopTranslations(params: {
             status: "auto" as const,
             model: aiModel.def.id,
             updated_at: new Date().toISOString(),
+            previousHash: target.previousHash,
           },
         ];
       });
-      // AIを待つ間に運営が確認した訳（reviewed）に変わった行は、上書きしない
+      // AIを待つ間に、運営が保存した訳（読み取った時から変わった行）は上書きしない
       let written = 0;
-      for (const row of rows) {
-        if (await writeAutoTranslation(supabase, row)) written += 1;
+      for (const { previousHash, ...row } of rows) {
+        if (await writeAutoTranslation(supabase, row, previousHash)) written += 1;
       }
       result.translated += written;
       result.failed += batch.length - rows.length;

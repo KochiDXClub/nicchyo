@@ -71,25 +71,39 @@ describe("競合の保護", () => {
     expect(upsert.mock.calls[0][0].source_hash).not.toMatch(/^stale:/);
   });
 
-  it("同期の途中で reviewed になった行は、自動訳で上書きしない", async () => {
+  const arrangeSync = (existingRows: unknown[], updatedRows: unknown[]) => {
     vi.stubEnv("OPENAI_API_KEY", "k");
     vi.mocked(resolveAiModelFor).mockResolvedValue({ def: { id: "m" } } as never);
     vi.mocked(requestChatCompletion).mockResolvedValue({
       ok: true,
       json: async () => ({ choices: [{ message: { content: JSON.stringify({ items: [{ key: "1", name: "Test", strength: null, style: null, products: [] }] }) } }] }),
     } as never);
-    const neq = vi.fn().mockReturnValue({ select: async () => ({ data: [], error: null }) });
-    const upsertSelect = vi.fn().mockResolvedValue({ data: [], error: null });
-    const update = vi.fn().mockReturnValue({ eq: () => ({ eq: () => ({ neq }) }) });
-    const upsert = vi.fn().mockReturnValue({ select: upsertSelect });
-    const client = {
-      from: vi.fn(() => ({ select: () => ({ eq: async () => ({ data: [], error: null }) }), update, upsert })),
-    };
+    const eqHash = vi.fn().mockReturnValue({ select: async () => ({ data: updatedRows, error: null }) });
+    const update = vi.fn().mockReturnValue({ eq: () => ({ eq: () => ({ eq: eqHash }) }) });
+    const upsert = vi.fn().mockReturnValue({ select: vi.fn().mockResolvedValue({ data: [], error: null }) });
+    const client = { from: vi.fn(() => ({ select: () => ({ eq: async () => ({ data: existingRows, error: null }) }), update, upsert })) };
     vi.mocked(createAdminClient).mockReturnValue(client as unknown as ReturnType<typeof createAdminClient>);
+    return { eqHash, update, upsert };
+  };
+
+  it("確認済みでも、日本語が変わって合わなくなった訳は、自動で訳し直す（読み取った時のハッシュの行だけ更新）", async () => {
+    const { eqHash } = arrangeSync([{ vendor_id: shop.vendorId, source_hash: "old-hash", status: "reviewed" }], [{ vendor_id: shop.vendorId }]);
     const result = await syncShopTranslations({ shops: [shop], locale: "en", limit: 30 });
-    expect(neq).toHaveBeenCalledWith("status", "reviewed");
-    expect(upsert).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ ignoreDuplicates: true }));
+    expect(eqHash).toHaveBeenCalledWith("source_hash", "old-hash");
+    expect(result.translated).toBe(1);
+  });
+
+  it("同期の途中で運営が保存して行が変わっていたら（更新が0行）、上書きしない", async () => {
+    const { upsert } = arrangeSync([{ vendor_id: shop.vendorId, source_hash: "old-hash", status: "auto" }], []);
+    const result = await syncShopTranslations({ shops: [shop], locale: "en", limit: 30 });
+    expect(upsert).not.toHaveBeenCalled();
     expect(result.translated).toBe(0);
+  });
+
+  it("まだ訳が無い店は、重複なら何もしない形で作る", async () => {
+    const { upsert } = arrangeSync([], []);
+    await syncShopTranslations({ shops: [shop], locale: "en", limit: 30 });
+    expect(upsert).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ ignoreDuplicates: true }));
   });
 });
 
