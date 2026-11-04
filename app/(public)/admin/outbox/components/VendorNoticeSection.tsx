@@ -32,16 +32,24 @@ async function readError(res: Response, fallback: string): Promise<string> {
  * 出店者へのお知らせ。出店者ページ（連絡）に届き、出店者が「確認しました」を押すと数が増える。
  * メールと違ってアドレスの無い出店者にも届く。
  */
-export function VendorNoticeSection() {
+export function VendorNoticeSection({
+  apiBase = "/api/admin",
+  fixedSender,
+}: {
+  /** 読み書きする API の入口。高知市のページでは "/api/city" */
+  apiBase?: string;
+  /** 差出人を固定するとき（高知市のページは「高知市から」）。選択欄は出さない */
+  fixedSender?: NoticeSender;
+}) {
   const [notices, setNotices] = useState<AdminNotice[] | null>(null);
-  const [sender, setSender] = useState<NoticeSender>("city");
+  const [sender, setSender] = useState<NoticeSender>(fixedSender ?? "city");
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
   const [important, setImportant] = useState(false);
   const [posting, setPosting] = useState(false);
 
   const load = useCallback(async () => {
-    const res = await fetch("/api/admin/vendor-notices");
+    const res = await fetch(`${apiBase}/vendor-notices`);
     if (!res.ok) {
       showToast.error(await readError(res, "お知らせを読み込めませんでした"));
       setNotices([]);
@@ -49,7 +57,7 @@ export function VendorNoticeSection() {
     }
     const data = (await res.json()) as { notices: AdminNotice[] };
     setNotices(data.notices);
-  }, []);
+  }, [apiBase]);
 
   useEffect(() => {
     void load();
@@ -64,7 +72,7 @@ export function VendorNoticeSection() {
 
     setPosting(true);
     try {
-      const res = await fetch("/api/admin/vendor-notices", {
+      const res = await fetch(`${apiBase}/vendor-notices`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ sender, title, body, important }),
@@ -88,7 +96,7 @@ export function VendorNoticeSection() {
 
   const withdraw = async (notice: AdminNotice) => {
     if (!window.confirm(`「${notice.title}」を取り下げます。出店者の画面から消えます。よろしいですか？`)) return;
-    const res = await fetch(`/api/admin/vendor-notices/${notice.id}`, { method: "DELETE" }).catch(() => null);
+    const res = await fetch(`${apiBase}/vendor-notices/${notice.id}`, { method: "DELETE" }).catch(() => null);
     if (!res?.ok) {
       showToast.error(res ? await readError(res, "取り下げられませんでした") : "通信エラーが発生しました");
       return;
@@ -104,6 +112,11 @@ export function VendorNoticeSection() {
         全出店者の「連絡」画面に届き、出店者ページでも知らせます。出店者が「確認しました」を押すと数が増えます。
       </p>
 
+      {fixedSender ? (
+        <p className="mt-4 text-sm text-nicchyo-ink">
+          差出人：<strong>{NOTICE_SENDER_LABELS[fixedSender]}</strong>
+        </p>
+      ) : (
       <fieldset className="mt-4">
         <legend className="mb-2 text-sm font-medium text-nicchyo-ink">差出人</legend>
         <div className="flex gap-2">
@@ -127,6 +140,7 @@ export function VendorNoticeSection() {
           ))}
         </div>
       </fieldset>
+      )}
 
       <div className="mt-4">
         <label htmlFor="noticeTitle" className="mb-2 block text-sm font-medium text-nicchyo-ink">
