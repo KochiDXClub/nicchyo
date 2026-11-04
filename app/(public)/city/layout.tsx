@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { createClient } from "@/utils/supabase/server";
 import { canAccessCity, getRole } from "@/lib/auth/permissions";
 import type { ReactNode } from "react";
+import { CityConsole } from "@/components/city/CityConsole";
 
 /**
  * 高知市（市役所）向けページの入口。city_official と admin だけ入れる。
@@ -19,5 +20,5 @@ export default async function CityLayout({ children }: { children: ReactNode }) 
     redirect("/");
   }
 
-  return <>{children}</>;
+  return <CityConsole>{children}</CityConsole>;
 }
