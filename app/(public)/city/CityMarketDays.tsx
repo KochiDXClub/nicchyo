@@ -1,7 +1,6 @@
 "use client";
 
 import { useMemo } from "react";
-import { Badge, Surface } from "@/components/ui";
 import {
   addDaysToIso,
   formatEventDate,
@@ -50,55 +49,62 @@ export function CityMarketDays() {
   }, []);
 
   if (d.loading) {
-    return <p className="py-12 text-center text-sm text-nicchyo-ink/50">読み込み中...</p>;
+    return <p className="py-12 text-center text-sm text-slate-400">読み込み中...</p>;
   }
 
   return (
     <div className="space-y-6">
-      <section aria-labelledby="city-status-heading" className="space-y-3">
+      <section id="status" aria-labelledby="city-status-heading" className="scroll-mt-4 space-y-3">
         <div>
-          <h2 id="city-status-heading" className="text-base font-bold text-nicchyo-ink">
+          <h2 id="city-status-heading" className="text-base font-bold text-slate-900">
             開催ステータス
           </h2>
-          <p className="mt-1 text-sm text-nicchyo-ink/70">
+          <p className="mt-1 text-sm text-slate-500">
             「保存する」を押した時点で、マップと近況ページの最上部に表示されます。
             更新の内容は、いつ誰が変えたかを含めて記録されます。
           </p>
         </div>
 
         {sundays.map(({ dateIso, weeksAhead }) => (
-          <Surface key={dateIso} padding="md" elevation={weeksAhead === 0 ? "lifted" : "raised"}>
-            <div className="mb-3 flex flex-wrap items-center gap-2">
-              <span className="font-semibold text-nicchyo-ink">{formatEventDate(dateIso)}</span>
-              <span className="text-xs text-nicchyo-ink/50">{getRelativeSundayLabel(weeksAhead)}</span>
+          <div
+            key={dateIso}
+            className={`rounded-xl border bg-white shadow-sm ${weeksAhead === 0 ? "border-amber-300" : "border-slate-200"}`}
+          >
+            <div
+              className={`flex flex-wrap items-center gap-2 rounded-t-xl px-4 py-2.5 ${weeksAhead === 0 ? "bg-amber-50" : "bg-slate-50"}`}
+            >
+              <span className="font-semibold text-slate-900">{formatEventDate(dateIso)}</span>
+              <span className="text-xs text-slate-400">{getRelativeSundayLabel(weeksAhead)}</span>
               <MarketDayStatusChip status={d.committedStatusFor(dateIso)} />
             </div>
-            <MarketDayStatusEditorForDate days={d} dateIso={dateIso} />
-          </Surface>
+            <div className="px-4 py-3">
+              <MarketDayStatusEditorForDate days={d} dateIso={dateIso} />
+            </div>
+          </div>
         ))}
       </section>
 
       <section aria-labelledby="city-history-heading" className="space-y-3">
-        <h2 id="city-history-heading" className="text-base font-bold text-nicchyo-ink">
+        <h2 id="city-history-heading" className="text-base font-bold text-slate-900">
           更新履歴
         </h2>
         {d.history.length === 0 ? (
-          <Surface padding="md">
-            <p className="text-sm text-nicchyo-ink/60">まだ更新はありません。</p>
-          </Surface>
+          <div className="rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-400 shadow-sm">
+            まだ更新はありません。
+          </div>
         ) : (
-          <Surface padding="none">
-            <ul className="divide-y divide-line">
+          <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
+            <ul className="divide-y divide-slate-100">
               {d.history.map((item, index) => (
                 <li key={`${item.at}-${index}`} className="px-4 py-3 text-sm">
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="font-semibold text-nicchyo-ink">
+                    <span className="font-semibold text-slate-900">
                       {item.marketDate ? formatEventDate(item.marketDate) : "—"}
                     </span>
-                    <Badge variant="neutral">{item.by}</Badge>
-                    <span className="ml-auto text-xs text-nicchyo-ink/50">{formatDateTime(item.at)}</span>
+                    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600">{item.by}</span>
+                    <span className="ml-auto text-xs text-slate-400">{formatDateTime(item.at)}</span>
                   </div>
-                  <p className="mt-1 text-nicchyo-ink/70">
+                  <p className="mt-1 text-slate-600">
                     {statusLabel(item.from) && statusLabel(item.from) !== statusLabel(item.to)
                       ? `${statusLabel(item.from)} → ${statusLabel(item.to) ?? "—"}`
                       : (statusLabel(item.to) ?? "—")}
@@ -107,7 +113,7 @@ export function CityMarketDays() {
                 </li>
               ))}
             </ul>
-          </Surface>
+          </div>
         )}
       </section>
     </div>
