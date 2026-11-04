@@ -91,7 +91,8 @@ async function fetchSiteSettings(): Promise<SiteSettings> {
   }
 }
 
-const MAINTENANCE_SKIP_PREFIXES = ["/admin", "/api", "/_next", "/maintenance"];
+// /city はメンテナンス中でも開ける（市の担当者が荒天中止などを出せるように。/admin と同じ扱い）
+const MAINTENANCE_SKIP_PREFIXES = ["/admin", "/city", "/api", "/_next", "/maintenance"];
 const MAINTENANCE_SKIP_EXACT = ["/robots.txt", "/sitemap.xml", "/favicon.ico"];
 // メンテ中でも管理者が再ログインしてメンテを解除できるよう、ログイン系はメンテ判定だけ免除する
 // （公開設定の判定は引き続き対象）
