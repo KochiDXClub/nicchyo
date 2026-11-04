@@ -1,4 +1,5 @@
 import { getUpcomingSundayIso, normalizeStatus, type MarketDay, type MarketDayStatus } from "@/lib/market/calendar";
+import type { Locale } from "@/lib/i18n/config";
 
 /** 「これからの日曜」の1枚分 */
 export type LandingSunday = {
@@ -8,6 +9,13 @@ export type LandingSunday = {
   /** 開催カレンダーに登録された状態。未登録の日曜は「開催」として出す（カレンダーと同じ扱い） */
   status: MarketDayStatus;
 };
+
+const EN_MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"] as const;
+
+/** 月の表示。日本語は「11月」、英語は「Nov」のように短く出す（カレンダーの札に収まる形） */
+export function monthLabel(month: number, locale: Locale): string {
+  return locale === "en" ? (EN_MONTHS[month - 1] ?? String(month)) : `${month}月`;
+}
 
 /** 日曜を何週ぶん出すか */
 export const LANDING_SUNDAY_COUNT = 8;

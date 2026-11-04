@@ -1,7 +1,8 @@
 import { canShowOutingSupport } from "./_landing/landingNavigation.server";
 import type { Metadata } from "next";
 import { PageShell } from "@/components/ui";
-import { siteText } from "@/lib/siteCopy";
+import { siteTextFor } from "@/lib/siteCopy";
+import { getLocale, getT } from "@/lib/i18n/server";
 import { SUNDAY_MARKET_JSON_LD } from "@/lib/seo/sundayMarketJsonLd";
 import { safeJsonLd } from "@/lib/utils/jsonLd";
 import { cookies } from "next/headers";
@@ -19,31 +20,36 @@ import LandingAbout from "./_landing/LandingAbout";
 import { buildLandingSundays } from "./_landing/upcomingSundays";
 import { pickLandingShopPhotos } from "./_landing/pickLandingShops";
 
-const title = "nicchyo（ニッチョ）| 高知高専生が開発した日曜市のデジタルマップ";
-// 日曜市の数字（約1.3km・およそ300の店）はマップの案内と同じシートの文言から作る（太字の印は外す）
-const description = `${siteText("mapIntro.lead").replaceAll("**", "")}高知高専の学生が開発した、地図で店を探せて AI のにちよさんに相談できる日曜市のデジタルマップです。`;
-const ogImage = { url: "/og-default.png", width: 1200, height: 630, alt: "nicchyo – 高知の日曜市マップ" };
+export async function generateMetadata(): Promise<Metadata> {
+  const [locale, t] = await Promise.all([getLocale(), getT()]);
+  const title = t("nicchyo（ニッチョ）| 高知高専生が開発した日曜市のデジタルマップ");
+  // 日曜市の数字（約1.3km・およそ300の店）はマップの案内と同じシートの文言から作る（太字の印は外す）
+  const lead = siteTextFor("mapIntro.lead", locale).replaceAll("**", "");
+  // 英語では文と文の間に空白が要る（日本語はそのままつなげる）
+  const description = `${lead}${locale === "en" ? " " : ""}${t("高知高専の学生が開発した、地図で店を探せて AI のにちよさんに相談できる日曜市のデジタルマップです。")}`;
+  const ogImage = { url: "/og-default.png", width: 1200, height: 630, alt: t("nicchyo – 高知の日曜市マップ") };
 
-export const metadata: Metadata = {
-  // トップはサイト名を先頭に出す（各ページの「%s | nicchyo」ではなく、検索結果でいちばん目に入る形）
-  title: { absolute: title },
-  description,
-  // openGraph・twitter は丸ごと上書きになる（layout と深くは混ざらない）ので、画像なども書き直す
-  openGraph: {
-    type: "website",
-    locale: "ja_JP",
-    siteName: "nicchyo（ニッチョ）",
-    title,
+  return {
+    // トップはサイト名を先頭に出す（各ページの「%s | nicchyo」ではなく、検索結果でいちばん目に入る形）
+    title: { absolute: title },
     description,
-    images: [ogImage],
-  },
-  twitter: {
-    card: "summary_large_image",
-    title,
-    description,
-    images: [ogImage.url],
-  },
-};
+    // openGraph・twitter は丸ごと上書きになる（layout と深くは混ざらない）ので、画像なども書き直す
+    openGraph: {
+      type: "website",
+      locale: locale === "en" ? "en_US" : "ja_JP",
+      siteName: "nicchyo（ニッチョ）",
+      title,
+      description,
+      images: [ogImage],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title,
+      description,
+      images: [ogImage.url],
+    },
+  };
+}
 
 /** 開催カレンダー（今週の開催状況と、これからの日曜の状態）。取れなかったときは null（バーは「開催」として出る。カレンダーと同じ扱い） */
 async function fetchCalendar(): Promise<MarketCalendar | null> {

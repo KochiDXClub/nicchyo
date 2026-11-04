@@ -15,7 +15,7 @@ import StoryGridSections from "./components/StoryGridSections";
 import { getNextSundayLabel } from "@/lib/utils/date";
 import { getStoryAgeBucket } from "./age";
 import { fetchReactionCounts } from "@/lib/story/reactions";
-import MarketStatusBar from "@/app/components/market/MarketStatusBar";
+import MarketStatusCalendar from "@/app/components/market/MarketStatusCalendar";
 import UpcomingSundays from "@/app/components/market/UpcomingSundays";
 import { useMarketCalendar } from "@/lib/market/useMarketCalendar";
 import { groupEventsBySunday, UPCOMING_SUNDAYS_PREVIEW_COUNT } from "@/lib/market/calendar";
@@ -174,7 +174,7 @@ export default function StoryGridClient({ demo }: Props = {}) {
 
           <div className="min-w-0 space-y-6">
             {/* 開催ステータス：中止の連絡が下にあっては意味がないので最上部に置く */}
-            <MarketStatusBar day={calendar.day} placement="page" />
+            <MarketStatusCalendar day={calendar.day} />
 
             {isDemo && (
               <p className="flex items-start gap-2 rounded-card bg-white px-4 py-3 text-xs leading-relaxed text-nicchyo-ink/70 ring-1 ring-line">

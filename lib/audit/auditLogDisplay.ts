@@ -22,6 +22,7 @@ export const AUDIT_ACTIONS = {
   // 店舗（現場登録・代理編集）
   shop_create: { label: "店舗を登録", tone: "good" },
   shop_edit: { label: "店舗情報を編集", tone: "info" },
+  shop_translation_save: { label: "店舗の英語版を保存", tone: "info" },
   shop_location_edit: { label: "店舗の位置を記録", tone: "info" },
   shop_image_upload: { label: "店舗写真を登録", tone: "info" },
   product_image_upload: { label: "商品写真を登録", tone: "info" },
@@ -342,6 +343,8 @@ function describeByAction(log: AuditLogRecord, json: Json | null): Described | n
       return { summary: `店舗${quote(name)}を現場で新しく登録しました`, facts: text ? [{ label: "メモ", value: text }] : [] };
     case "shop_edit":
       return { summary: `店舗${quote(name)}の情報を代わりに編集しました`, facts: shopEditFacts(log.details) };
+    case "shop_translation_save":
+      return { summary: `店舗${quote(name)}の英語版を確認して保存しました`, facts: text ? [{ label: "内容", value: text }] : [] };
     case "shop_location_edit":
       return { summary: `店舗${quote(name)}の位置を記録しました`, facts: text ? [{ label: "内容", value: text }] : [] };
     case "shop_image_upload":

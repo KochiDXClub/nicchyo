@@ -7,17 +7,9 @@ import {
   type MarketDay,
 } from "@/lib/market/calendar";
 
-type Placement = "map" | "page";
-
 type Props = {
   /** market_days の該当行。未登録なら null（＝通常どおり開催の想定） */
   day: MarketDay | null;
-  /**
-   * map … 例外（中止・臨時休市・特別開催）のときだけ出す。
-   *        平常時まで常設すると検索バーを押し下げるだけのノイズになるため。
-   * page … 常に出す（近況ページ・カレンダーページの最上部）。
-   */
-  placement: Placement;
   className?: string;
 };
 
@@ -28,14 +20,17 @@ const TONE_CLASS = {
 } as const;
 
 /**
- * 「今週の日曜市：開催 / 荒天中止」を1行で伝えるバー。
+ * 「今週の日曜市：開催 / 荒天中止」を1行で伝えるバー（マップ用）。
  * 日曜市カレンダー（docs/discussion-market-calendar.md）で最も重要な導線。
+ * ページ最上部に出す日めくりカレンダー版は MarketStatusCalendar。
+ * 例外（中止・臨時休市・特別開催）のときだけ出す。平常時まで常設すると
+ * 検索バーを押し下げるだけのノイズになるため。
  */
-export default function MarketStatusBar({ day, placement, className = "" }: Props) {
+export default function MarketStatusBar({ day, className = "" }: Props) {
   const status = day?.status ?? "open";
 
-  // マップでは平常時に出さない。ステータス未登録（null）も平常扱い。
-  if (placement === "map" && !shouldSurfaceOnMap(status)) return null;
+  // 平常時に出さない。ステータス未登録（null）も平常扱い。
+  if (!shouldSurfaceOnMap(status)) return null;
 
   const { label, tone } = getStatusPresentation(status);
   const dateLabel = formatEventDate(day?.market_date ?? getUpcomingSundayIso());

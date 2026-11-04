@@ -47,16 +47,26 @@ const json = (body: unknown, status = 200) => new Response(JSON.stringify(body),
 
 describe("FieldShopEditor", () => {
   let currentShop: typeof baseShop = baseShop;
+  let storedTranslation: unknown = null;
+  let previewGate: Promise<void> | null = null;
   const calls: { url: string; method: string; body?: unknown }[] = [];
 
   beforeEach(() => {
     calls.length = 0;
     currentShop = baseShop;
+    storedTranslation = null;
+    previewGate = null;
     vi.stubGlobal(
       "fetch",
       vi.fn(async (url: string, init?: RequestInit) => {
         const method = init?.method ?? "GET";
         calls.push({ url, method, body: typeof init?.body === "string" ? JSON.parse(init.body) : init?.body });
+        if (url.endsWith("/api/admin/shop-translations/preview")) {
+          if (previewGate) await previewGate;
+          return json({ ok: true, name: "Hanaya", strength: null, style: null, products: {} });
+        }
+        if (url.endsWith("/translation") && method === "PUT") return json({ ok: true, result: "saved" });
+        if (url.endsWith("/translation")) return json({ translation: storedTranslation });
         if (url.endsWith("/product-image")) {
           return json(method === "DELETE" ? { ok: true } : { ok: true, name: "トマト", url: "https://x.supabase.co/tomato.webp" });
         }
@@ -64,7 +74,7 @@ describe("FieldShopEditor", () => {
         if (url.endsWith("/location") && method === "PUT") return json({ ok: true });
         if (url.endsWith("/location")) return json({ locations: [], current: { storeNumber: 12, lat: 33.5, lng: 133.5 } });
         if (url.includes("/categories")) return json({ categories: [] });
-        if (method === "PATCH") return json({ ok: true });
+        if (method === "PATCH") return json({ ok: true, updated_at: "2026-10-06T00:00:00.000Z" });
         return json({ shop: currentShop });
       }),
     );
@@ -253,5 +263,96 @@ describe("FieldShopEditor", () => {
 
     expect((screen.getByDisplayValue("はなや本店") as HTMLInputElement).value).toBe("はなや本店");
     expect(screen.getByRole("button", { name: "内容を保存" })).toBeTruthy();
+  });
+  describe("英語版", () => {
+    it("AIの訳を見て直し、「内容を保存」で日本語（PATCH）のあとに英語版（PUT）を保存する", async () => {
+      render(<FieldShopEditor shopId={baseShop.id} />);
+      await screen.findByDisplayValue("はなや");
+      fireEvent.click(screen.getByRole("button", { name: "AIで英語に翻訳する" }));
+      const nameEn = (await screen.findByDisplayValue("Hanaya")) as HTMLInputElement;
+      expect(calls.find((c) => c.url.endsWith("/preview"))?.body).toMatchObject({ name: "はなや" });
+      expect(calls.some((c) => c.method === "PUT" && c.url.endsWith("/translation"))).toBe(false);
+
+      fireEvent.change(nameEn, { target: { value: "Hana-ya" } });
+      fireEvent.click(screen.getByRole("button", { name: "内容を保存" }));
+      await waitFor(() => expect(calls.some((c) => c.method === "PUT" && c.url.endsWith("/translation"))).toBe(true));
+
+      const order = calls.filter((c) => (c.method === "PATCH" || c.method === "PUT") && !c.url.endsWith("/location")).map((c) => c.method);
+      expect(order).toEqual(["PATCH", "PUT"]);
+      expect(calls.find((c) => c.method === "PUT" && c.url.endsWith("/translation"))?.body).toMatchObject({ name: "Hana-ya", stale: false, sourceUpdatedAt: "2026-10-06T00:00:00.000Z" });
+    });
+
+    it("訳したあとに日本語を直し、警告を承知で保存しても、英語版は「確認していない」印つき（stale: true）で保存する", async () => {
+      const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
+      render(<FieldShopEditor shopId={baseShop.id} />);
+      const nameInput = await screen.findByDisplayValue("はなや");
+      fireEvent.click(screen.getByRole("button", { name: "AIで英語に翻訳する" }));
+      await screen.findByDisplayValue("Hanaya");
+      fireEvent.change(nameInput, { target: { value: "はなや本店" } });
+      fireEvent.click(screen.getByRole("button", { name: "内容を保存" }));
+      await waitFor(() => expect(calls.some((c) => c.method === "PUT" && c.url.endsWith("/translation"))).toBe(true));
+      expect(calls.find((c) => c.method === "PUT" && c.url.endsWith("/translation"))?.body).toMatchObject({ stale: true });
+      confirm.mockRestore();
+    });
+
+    it("自動翻訳のままの英語版は、「この英語でよい」で確認済みにして保存できる（編集しなくてよい）", async () => {
+      storedTranslation = { translation: { name: "Hanaya", strength: null, style: null, products: {} }, status: "auto", stale: false };
+      render(<FieldShopEditor shopId={baseShop.id} />);
+      await screen.findByDisplayValue("Hanaya");
+      fireEvent.click(screen.getByRole("button", { name: "この英語でよい（確認済みにする）" }));
+      fireEvent.click(screen.getByRole("button", { name: "内容を保存" }));
+      await waitFor(() => expect(calls.some((c) => c.method === "PUT" && c.url.endsWith("/translation"))).toBe(true));
+      expect(calls.find((c) => c.method === "PUT" && c.url.endsWith("/translation"))?.body).toMatchObject({ name: "Hanaya", stale: false });
+    });
+
+    it("翻訳している間は「内容を保存」を押せない（翻訳の結果が保存後の読み直しで消えないように）", async () => {
+      let release!: () => void;
+      previewGate = new Promise<void>((resolve) => (release = resolve));
+      render(<FieldShopEditor shopId={baseShop.id} />);
+      const nameInput = await screen.findByDisplayValue("はなや");
+      fireEvent.change(nameInput, { target: { value: "はなや本店" } });
+      fireEvent.click(screen.getByRole("button", { name: "AIで英語に翻訳する" }));
+      await waitFor(() => expect((screen.getByRole("button", { name: "内容を保存" }) as HTMLButtonElement).disabled).toBe(true));
+      release();
+      await screen.findByDisplayValue("Hanaya");
+      await waitFor(() => expect((screen.getByRole("button", { name: "内容を保存" }) as HTMLButtonElement).disabled).toBe(false));
+    });
+
+    it("保存している間は、英語の入力欄を操作できない（保存後の読み直しで入力が消えないように）", async () => {
+      storedTranslation = { translation: { name: "Hanaya", strength: null, style: null, products: {} }, status: "reviewed", stale: false };
+      let release!: () => void;
+      const gate = new Promise<void>((resolve) => (release = resolve));
+      const base = globalThis.fetch;
+      const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
+      render(<FieldShopEditor shopId={baseShop.id} />);
+      const nameInput = await screen.findByDisplayValue("はなや");
+      const nameEn = (await screen.findByDisplayValue("Hanaya")) as HTMLInputElement;
+      fireEvent.change(nameInput, { target: { value: "はなや本店" } });
+      vi.stubGlobal("fetch", vi.fn(async (url: string, init?: RequestInit) => {
+        if ((init?.method ?? "GET") === "PATCH") await gate;
+        return (base as typeof fetch)(url, init);
+      }));
+      fireEvent.click(screen.getByRole("button", { name: "内容を保存" }));
+      await waitFor(() => expect(nameEn.disabled).toBe(true));
+      release();
+      await waitFor(() => expect(nameEn.disabled).toBe(false));
+      confirm.mockRestore();
+    });
+
+    it("保存済みの英語版は読み込んで表示する。日本語が変わっていたら（stale）知らせる", async () => {
+      storedTranslation = { translation: { name: "Hanaya", strength: null, style: null, products: {} }, status: "reviewed", stale: true };
+      render(<FieldShopEditor shopId={baseShop.id} />);
+      expect(await screen.findByDisplayValue("Hanaya")).toBeTruthy();
+      expect(screen.getByRole("alert").textContent).toContain("日本語を変更しました");
+    });
+
+    it("英語版を作らなければ、英語版は保存しない（PUT しない）", async () => {
+      render(<FieldShopEditor shopId={baseShop.id} />);
+      const nameInput = await screen.findByDisplayValue("はなや");
+      fireEvent.change(nameInput, { target: { value: "はなや本店" } });
+      fireEvent.click(screen.getByRole("button", { name: "内容を保存" }));
+      await waitFor(() => expect(calls.some((c) => c.method === "PATCH")).toBe(true));
+      expect(calls.some((c) => c.method === "PUT" && c.url.endsWith("/translation"))).toBe(false);
+    });
   });
 });

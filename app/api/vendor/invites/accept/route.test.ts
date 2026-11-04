@@ -54,6 +54,15 @@ beforeEach(() => {
 });
 
 describe("POST /api/vendor/invites/accept", () => {
+  it("高知市のアカウントは、参加の処理に入る前に 403 で断る（招待は使用済みにならない）", async () => {
+    getUser.mockResolvedValue({ data: { user: { id: "city-1", app_metadata: { role: "city_official" }, user_metadata: {} } } });
+    const res = await accept();
+    expect(res.status).toBe(403);
+    expect(((await res.json()) as { code: string }).code).toBe("city_official");
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
+
   it("参加できたら出店者ロールを付け、操作ログを残す。DB にはトークンのハッシュを渡す", async () => {
     const res = await accept();
 

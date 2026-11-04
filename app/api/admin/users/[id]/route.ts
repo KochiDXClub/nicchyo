@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireSameOrigin } from "@/lib/security/requestGuards";
 import { enforceRateLimit } from "@/lib/security/rateLimit";
 import { requireAdminApi } from "@/lib/auth/requireAdminApi";
+import { ROLE_HIERARCHY } from "@/lib/auth/permissions";
 import { logAdminAudit } from "@/lib/audit/logAdminAudit";
 
 export const runtime = "nodejs";
@@ -66,7 +67,7 @@ export async function PATCH(
       );
     } else if (body.action === "change_role") {
       const newRole = body.role;
-      const validRoles = ["general_user", "vendor", "city_official", "moderator", "admin"];
+      const validRoles: readonly string[] = ROLE_HIERARCHY;
       if (!validRoles.includes(newRole)) {
         return NextResponse.json({ error: "Invalid role" }, { status: 400 });
       }
