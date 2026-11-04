@@ -17,6 +17,7 @@ import { AdminLayout, AdminPageHeader, StatCard } from "@/components/admin";
 import { createClient } from "@/utils/supabase/server";
 import { getRole, isAdmin } from "@/lib/auth/permissions";
 import { nextSundayJstString } from "@/lib/time/jstDate";
+import { VENDOR_INQUIRY_OPEN_STATUSES } from "@/lib/vendorInquiries/constants";
 import type { DatabaseWithExtensions } from "@/types/database.extensions";
 
 export const dynamic = "force-dynamic";
@@ -126,6 +127,7 @@ export default async function AdminDashboardPage() {
     landmarksCountResult,
     openReportsResult,
     openInquiriesResult,
+    openVendorInquiriesResult,
     nextMarketDayResult,
     latestVendorsResult,
     latestContentsResult,
@@ -145,6 +147,10 @@ export default async function AdminDashboardPage() {
       .from("inquiries")
       .select("*", { count: "exact", head: true })
       .in("status", ["open", "in_progress"]),
+    dataClient
+      .from("vendor_inquiries")
+      .select("*", { count: "exact", head: true })
+      .in("status", [...VENDOR_INQUIRY_OPEN_STATUSES]),
     dataClient.from("market_days").select("market_date, status").eq("market_date", nextSundayIso),
     dataClient
       .from("vendors")
@@ -189,6 +195,13 @@ export default async function AdminDashboardPage() {
       label: "未対応の問い合わせ",
       count: openInquiriesResult.count ?? 0,
       href: "/admin/inquiries",
+      icon: MessageSquare,
+    },
+    {
+      key: "vendor-inquiries",
+      label: "未対応の出店者連絡",
+      count: openVendorInquiriesResult.count ?? 0,
+      href: "/admin/vendor-inquiries",
       icon: MessageSquare,
     },
     {

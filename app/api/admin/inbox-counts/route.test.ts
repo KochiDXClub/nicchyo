@@ -26,13 +26,14 @@ beforeEach(() => {
   counts.admin_notifications = { count: 2, error: null };
   counts.reports = { count: 1, error: null };
   counts.inquiries = { count: 3, error: null };
+  counts.vendor_inquiries = { count: 4, error: null };
 });
 
 describe("GET /api/admin/inbox-counts", () => {
   it("未読の通知・未対応の通報・未対応の問い合わせの件数を返す", async () => {
     const res = await GET();
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ notifications: 2, reports: 1, inquiries: 3 });
+    expect(await res.json()).toEqual({ notifications: 2, reports: 1, inquiries: 3, vendorInquiries: 4 });
   });
 
   it("moderator 以上でなければ 403", async () => {
@@ -44,6 +45,6 @@ describe("GET /api/admin/inbox-counts", () => {
 
   it("数えられなかった種類は 0 にする（ほかの件数は返す）", async () => {
     counts.reports = { count: null, error: { message: "x" } };
-    expect(await (await GET()).json()).toEqual({ notifications: 2, reports: 0, inquiries: 3 });
+    expect(await (await GET()).json()).toEqual({ notifications: 2, reports: 0, inquiries: 3, vendorInquiries: 4 });
   });
 });

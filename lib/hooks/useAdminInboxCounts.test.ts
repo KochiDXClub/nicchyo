@@ -5,15 +5,15 @@ import { notifyInboxChanged, useAdminInboxCounts } from "./useAdminInboxCounts";
 const respond = (body: unknown, ok = true) => ({ ok, json: async () => body }) as Response;
 
 beforeEach(() => {
-  vi.stubGlobal("fetch", vi.fn(async () => respond({ notifications: 2, reports: 1, inquiries: 3 })));
+  vi.stubGlobal("fetch", vi.fn(async () => respond({ notifications: 2, reports: 1, inquiries: 3, vendorInquiries: 4 })));
 });
 afterEach(() => vi.unstubAllGlobals());
 
 describe("useAdminInboxCounts", () => {
-  it("未読の通知・未対応の通報・未対応の問い合わせを取り、合計を返す", async () => {
+  it("未読の通知・未対応の通報・未対応の問い合わせ・出店者からの連絡を取り、合計を返す", async () => {
     const { result } = renderHook(() => useAdminInboxCounts(true));
-    await waitFor(() => expect(result.current.total).toBe(6));
-    expect(result.current.counts).toEqual({ notifications: 2, reports: 1, inquiries: 3 });
+    await waitFor(() => expect(result.current.total).toBe(10));
+    expect(result.current.counts).toEqual({ notifications: 2, reports: 1, inquiries: 3, vendorInquiries: 4 });
     expect(fetch).toHaveBeenCalledWith("/api/admin/inbox-counts");
   });
 
@@ -25,18 +25,18 @@ describe("useAdminInboxCounts", () => {
 
   it("取れなかったときは前の値のまま（バッジが消えない）", async () => {
     const { result } = renderHook(() => useAdminInboxCounts(true));
-    await waitFor(() => expect(result.current.total).toBe(6));
+    await waitFor(() => expect(result.current.total).toBe(10));
     vi.mocked(fetch).mockResolvedValueOnce(respond({}, false));
     await act(async () => {
       await result.current.refresh();
     });
-    expect(result.current.total).toBe(6);
+    expect(result.current.total).toBe(10);
   });
 
   it("対応したあと（notifyInboxChanged）は、すぐ取り直す", async () => {
     const { result } = renderHook(() => useAdminInboxCounts(true));
-    await waitFor(() => expect(result.current.total).toBe(6));
-    vi.mocked(fetch).mockResolvedValue(respond({ notifications: 0, reports: 0, inquiries: 3 }));
+    await waitFor(() => expect(result.current.total).toBe(10));
+    vi.mocked(fetch).mockResolvedValue(respond({ notifications: 0, reports: 0, inquiries: 3, vendorInquiries: 0 }));
     act(() => notifyInboxChanged());
     await waitFor(() => expect(result.current.total).toBe(3));
   });

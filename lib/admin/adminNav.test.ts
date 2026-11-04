@@ -106,7 +106,7 @@ describe("adminNav", () => {
   it("「対応する」は受信トレイ・お知らせ・投稿の確認の3つで、通報と問い合わせは受信トレイの中にある", () => {
     const inbox = ADMIN_NAV_GROUPS.find((group) => group.id === "inbox")!;
     expect(inbox.items.map((item) => item.label)).toEqual(["受信トレイ", "お知らせ", "投稿の確認"]);
-    expect(inbox.items[0].relatedHrefs).toEqual(["/admin/reports", "/admin/inquiries"]);
+    expect(inbox.items[0].relatedHrefs).toEqual(["/admin/reports", "/admin/inquiries", "/admin/vendor-inquiries"]);
     // 送信（お知らせ）は管理者だけ
     expect(getVisibleAdminNav(moderatorPermissions).find((g) => g.id === "inbox")!.items.map((i) => i.label)).toEqual([
       "受信トレイ",
@@ -116,7 +116,7 @@ describe("adminNav", () => {
 
   it("受信トレイの中の通報・問い合わせでも、サイドバーでは受信トレイが選択状態になる", () => {
     const inboxItem = getAllAdminNavItems().find((item) => item.label === "受信トレイ")!;
-    for (const path of ["/admin/notifications", "/admin/reports", "/admin/inquiries"]) {
+    for (const path of ["/admin/notifications", "/admin/reports", "/admin/inquiries", "/admin/vendor-inquiries"]) {
       expect(isAdminNavItemCurrent(inboxItem, path), path).toBe(true);
     }
     expect(isAdminNavItemCurrent(inboxItem, "/admin/outbox")).toBe(false);
