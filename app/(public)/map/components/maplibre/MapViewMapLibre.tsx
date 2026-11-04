@@ -205,6 +205,8 @@ const LAYER_MARKET_HIGHLIGHT = "nicchyo-market-highlight";
 const LAYER_MARKET_HIGHLIGHT_LABEL = "nicchyo-market-highlight-label";
 /** 縮小時の日曜市の強調が薄れ始める／消えるズーム（MapLibre 基準）。丁目バッジ（OVERVIEW_MIN）より手前で消す */
 const MARKET_HIGHLIGHT_FADE_ZOOMS = [OVERVIEW_MIN - 1.5, OVERVIEW_MIN + 0.5] as const;
+/** 建物の名前を出し始めるズーム（MapLibre 基準）。下限ズームを下げて最大縮小付近まで引いたときは、「日曜市」の文字だけを主役にする */
+const LANDMARK_NAME_MIN_ZOOM = 13;
 const LANDMARK_ICON_LAYERS = ["nicchyo-landmarks-min", "nicchyo-landmarks", "nicchyo-landmarks-minor"];
 
 /** 停留場・電車。絵が小さく、縮小すると高知城などの大きな絵に重なって崩れる */
@@ -1072,12 +1074,18 @@ function MapViewMapLibre({
         },
       };
       // 主要な建物の名前は従来どおり、縮小側の端から出す
-      map.addLayer({
-        ...landmarkLabelLayer,
-        id: LAYER_LANDMARK_LABELS,
-        maxzoom: minZoom + 2.5,
-        filter: ["all", ["==", ["get", "showAtMinZoom"], 1], ["==", ["get", "minor"], 0]],
-      });
+      // 最大縮小付近は「日曜市」の文字が主役なので、建物の名前は LANDMARK_NAME_MIN_ZOOM まで寄ってから出す
+      // （ふだんの下限ズームでは minZoom の方が大きいので従来どおり）
+      const landmarkNameMinZoom = Math.max(LANDMARK_NAME_MIN_ZOOM, minZoom);
+      if (landmarkNameMinZoom < minZoom + 2.5) {
+        map.addLayer({
+          ...landmarkLabelLayer,
+          id: LAYER_LANDMARK_LABELS,
+          minzoom: landmarkNameMinZoom,
+          maxzoom: minZoom + 2.5,
+          filter: ["all", ["==", ["get", "showAtMinZoom"], 1], ["==", ["get", "minor"], 0]],
+        });
+      }
       // 副次的な建物・停留場・電車の名前は、LANDMARK_DETAIL_MIN_ZOOM より縮小したときは出さない
       // （ふだんの下限ズームでは従来どおり、縮小側の端から出る）
       const detailLabelMinZoom = Math.max(LANDMARK_DETAIL_MIN_ZOOM, minZoom);
