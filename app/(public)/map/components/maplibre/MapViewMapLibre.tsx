@@ -198,20 +198,18 @@ const LAYER_SHOP_PHOTOS = "nicchyo-shop-photos";
 const LAYER_SHOP_NAMEPLATES = "nicchyo-shop-nameplates";
 const LAYER_SHOP_BADGES_FAVORITE = "nicchyo-shop-badge-favorite";
 const LAYER_LANDMARK_LABELS = "nicchyo-landmark-labels";
-const LAYER_LANDMARK_MINOR_LABELS = "nicchyo-landmark-minor-labels";
-const LAYER_LANDMARK_SECONDARY_LABELS = "nicchyo-landmark-secondary-labels";
+const LAYER_LANDMARK_DETAIL_LABELS = "nicchyo-landmark-detail-labels";
 const LANDMARK_ICON_LAYERS = ["nicchyo-landmarks-min", "nicchyo-landmarks", "nicchyo-landmarks-minor"];
 
-/** 縮小しすぎたときは出さない小さなランドマーク（停留場・電車）。高知城などの大きな絵と重なって崩れるため */
+/** 停留場・電車。絵が小さく、縮小すると高知城などの大きな絵に重なって崩れる */
 function isMinorLandmark(key: string): boolean {
   return key.startsWith("tram-") || key === "densha";
 }
-/** 小さなランドマークを出し始めるズーム（MapLibre 基準）。これより縮小すると大きな建物だけ残す */
-const MINOR_LANDMARK_MIN_ZOOM = 13.5;
-/** 副次的な建物（博物館・オーテピアなど）を出し始めるズーム（MapLibre 基準）。縮小時は高知城と駅だけ残す */
-const SECONDARY_LANDMARK_MIN_ZOOM = 15;
-/** 建物の名前を出し始めるズーム（MapLibre 基準）。これより縮小すると絵だけにして、「日曜市」の文字を主役にする */
-const LANDMARK_LABEL_MIN_ZOOM = 13;
+/**
+ * 副次的な建物・停留場・電車を出さない縮小側の境目（MapLibre 基準）。
+ * ふだんの下限ズームより下げたときだけ効く（下限ズーム 15 なら MapLibre で 14 なので、この境目より上で今までどおり）。
+ */
+const LANDMARK_DETAIL_MIN_ZOOM = 13.5;
 
 /** ランドマークの GeoJSON。selectedKey に一致するものは properties.selected = 1（拡大表示） */
 function buildLandmarkFeatures(
@@ -889,16 +887,14 @@ function MapViewMapLibre({
         "interpolate",
         ["exponential", 1.22],
         ["zoom"],
-        // 縮小時は日曜市の通りが主役なので、ランドマークは小さな目印にとどめる。
-        // 絵が地図に比べて巨大にならないよう、13.5 より下も縮め続ける
+        // 下限ズームを下げて大きく縮小したとき、絵が地図に比べて巨大にならないよう、
+        // 13.5 より下も縮め続ける（13.5 以上は従来どおり）
         9,
         ["*", 0.07, selectedScale],
         11,
         ["*", 0.11, selectedScale],
         13.5,
-        ["*", 0.26, selectedScale],
-        16,
-        ["*", 0.6, selectedScale],
+        ["*", 0.5, selectedScale],
         17,
         selectedScale,
         20,
@@ -911,12 +907,12 @@ function MapViewMapLibre({
         "icon-ignore-placement": true,
         "icon-rotation-alignment": "viewport" as const,
       };
-      // 縮小時は薄くして背景に退け、寄るほど濃くする
+      // 大きく縮小したときだけ薄くして背景に退ける（13.5 以上は従来どおり不透明）
       const landmarkPaint = {
-        "icon-opacity": ["interpolate", ["linear"], ["zoom"], 9, 0.7, 15, 0.85, 16.5, 1] as ExpressionSpecification,
+        "icon-opacity": ["interpolate", ["linear"], ["zoom"], 9, 0.7, LANDMARK_DETAIL_MIN_ZOOM, 1] as ExpressionSpecification,
       };
-      // 3 段階で出す: 主要な建物（showAtMinZoom）は常に、副次的な建物は SECONDARY_LANDMARK_MIN_ZOOM から、
-      // 停留場・電車（minor）は絵が小さく重なるので MINOR_LANDMARK_MIN_ZOOM から
+      // 主要な建物（showAtMinZoom）は常に出す。副次的な建物は従来どおり minZoom + 0.8 から、
+      // 停留場・電車（minor）は従来どおり minZoom から。どちらも LANDMARK_DETAIL_MIN_ZOOM より縮小したときは出さない
       map.addLayer({
         id: "nicchyo-landmarks-min",
         type: "symbol",
@@ -929,7 +925,7 @@ function MapViewMapLibre({
         id: "nicchyo-landmarks",
         type: "symbol",
         source: SRC_LANDMARKS,
-        minzoom: Math.max(SECONDARY_LANDMARK_MIN_ZOOM, minZoom + 0.8),
+        minzoom: Math.max(LANDMARK_DETAIL_MIN_ZOOM, minZoom + 0.8),
         filter: ["all", ["==", ["get", "showAtMinZoom"], 0], ["==", ["get", "minor"], 0]],
         layout: landmarkLayout,
         paint: landmarkPaint,
@@ -938,7 +934,7 @@ function MapViewMapLibre({
         id: "nicchyo-landmarks-minor",
         type: "symbol",
         source: SRC_LANDMARKS,
-        minzoom: Math.max(MINOR_LANDMARK_MIN_ZOOM, minZoom + 0.8),
+        minzoom: Math.max(LANDMARK_DETAIL_MIN_ZOOM, minZoom),
         filter: ["==", ["get", "minor"], 1],
         layout: landmarkLayout,
         paint: landmarkPaint,
@@ -981,37 +977,23 @@ function MapViewMapLibre({
           "text-halo-width": 1.6,
         },
       };
-      // 最大縮小付近は「日曜市」の文字だけを目立たせたいので、建物の名前は LANDMARK_LABEL_MIN_ZOOM まで寄ってから出す
-      const landmarkLabelMinZoom = Math.max(LANDMARK_LABEL_MIN_ZOOM, minZoom + 0.8);
-      if (landmarkLabelMinZoom < minZoom + 2.5) {
+      // 主要な建物の名前は従来どおり、縮小側の端から出す
+      map.addLayer({
+        ...landmarkLabelLayer,
+        id: LAYER_LANDMARK_LABELS,
+        maxzoom: minZoom + 2.5,
+        filter: ["all", ["==", ["get", "showAtMinZoom"], 1], ["==", ["get", "minor"], 0]],
+      });
+      // 副次的な建物・停留場・電車の名前は、LANDMARK_DETAIL_MIN_ZOOM より縮小したときは出さない
+      // （ふだんの下限ズームでは従来どおり、縮小側の端から出る）
+      const detailLabelMinZoom = Math.max(LANDMARK_DETAIL_MIN_ZOOM, minZoom);
+      if (detailLabelMinZoom < minZoom + 2.5) {
         map.addLayer({
           ...landmarkLabelLayer,
-          id: LAYER_LANDMARK_LABELS,
-          minzoom: landmarkLabelMinZoom,
+          id: LAYER_LANDMARK_DETAIL_LABELS,
+          minzoom: detailLabelMinZoom,
           maxzoom: minZoom + 2.5,
-          filter: ["all", ["==", ["get", "showAtMinZoom"], 1], ["==", ["get", "minor"], 0]],
-        });
-      }
-      // 副次的な建物の名前も、絵が出ている間だけ出す
-      const secondaryLabelMinZoom = Math.max(SECONDARY_LANDMARK_MIN_ZOOM, minZoom + 0.8);
-      if (secondaryLabelMinZoom < minZoom + 2.5) {
-        map.addLayer({
-          ...landmarkLabelLayer,
-          id: LAYER_LANDMARK_SECONDARY_LABELS,
-          minzoom: secondaryLabelMinZoom,
-          maxzoom: minZoom + 2.5,
-          filter: ["all", ["==", ["get", "showAtMinZoom"], 0], ["==", ["get", "minor"], 0]],
-        });
-      }
-      // 小さなランドマークの名前は、絵が出ている間だけ出す（縮小時は大きな建物のラベルと重なるため）
-      const minorLabelMinZoom = Math.max(MINOR_LANDMARK_MIN_ZOOM, minZoom + 0.8);
-      if (minorLabelMinZoom < minZoom + 2.5) {
-        map.addLayer({
-          ...landmarkLabelLayer,
-          id: LAYER_LANDMARK_MINOR_LABELS,
-          minzoom: minorLabelMinZoom,
-          maxzoom: minZoom + 2.5,
-          filter: ["==", ["get", "minor"], 1],
+          filter: ["any", ["==", ["get", "showAtMinZoom"], 0], ["==", ["get", "minor"], 1]],
         });
       }
 
@@ -1430,7 +1412,7 @@ function MapViewMapLibre({
     const map = mapRef.current;
     if (!map || !mapLoaded) return;
     const visibility = suppressLandmarks ? "none" : "visible";
-    for (const id of [...LANDMARK_ICON_LAYERS, LAYER_LANDMARK_LABELS, LAYER_LANDMARK_SECONDARY_LABELS, LAYER_LANDMARK_MINOR_LABELS]) {
+    for (const id of [...LANDMARK_ICON_LAYERS, LAYER_LANDMARK_LABELS, LAYER_LANDMARK_DETAIL_LABELS]) {
       if (map.getLayer(id)) map.setLayoutProperty(id, "visibility", visibility);
     }
   }, [mapLoaded, suppressLandmarks]);
