@@ -78,8 +78,8 @@ function KindToggle({
       aria-pressed={active}
       className={`${FOCUS_RING} flex h-9 shrink-0 items-center gap-1.5 rounded-full pl-2.5 pr-3.5 text-[13px] font-bold transition-all active:scale-[0.97] ${
         active
-          ? 'bg-nicchyo-ink text-white shadow-[0_2px_8px_rgba(58,58,58,0.28)]'
-          : 'bg-white text-nicchyo-ink shadow-[0_1px_3px_rgba(58,58,58,0.12)] active:bg-slate-50'
+          ? 'bg-nicchyo-ink text-white shadow-pop'
+          : 'bg-white text-nicchyo-ink shadow-chip active:bg-slate-50'
       }`}
     >
       {children}
@@ -193,7 +193,8 @@ export default function OdekakeGuidePanel({ guide, map, onClose, hidden = false,
   // いちばん近い場所が決まったら（種類の切り替え・現在地の取得）、起点と一緒に映す
   const nearestId = guide.nearest?.spot.id ?? null;
   useEffect(() => {
-    if (!nearestId || guide.navigating || guide.selectedId) return;
+    // カード（SpotCard）を見ている間（hidden）は、地図を勝手に動かさない
+    if (!nearestId || hidden || guide.navigating || guide.selectedId) return;
     const entry = guide.ranked.find((e) => e.spot.id === nearestId);
     if (entry) focusEntry(entry);
     // 起点の細かな更新のたびには動かさない
@@ -451,7 +452,7 @@ export default function OdekakeGuidePanel({ guide, map, onClose, hidden = false,
                         className={`${FOCUS_RING} mt-2.5 block w-full overflow-hidden rounded-card`}
                       >
                         {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={spot.photoUrl} alt="" loading="lazy" draggable={false} className="h-44 w-full bg-slate-100 object-cover" />
+                        <img src={spot.photoUrl} alt="" loading="lazy" draggable={false} className="h-44 w-full bg-nicchyo-base object-cover" />
                       </button>
                     )}
                     </div>
