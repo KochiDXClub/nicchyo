@@ -39,6 +39,14 @@ export function isCityOfficial(role: string | null): boolean {
   return role === "city_official";
 }
 
+/**
+ * /city と /api/city/* に入ってよいロールか（city_official / admin）。
+ * moderator は入れない。proxy.ts・layout・API ガードで同じ判定を使う
+ */
+export function canAccessCity(role: string | null): boolean {
+  return isCityOfficial(role) || isAdmin(role);
+}
+
 /** vendor ロールかどうかを判定する */
 export function isVendor(role: string | null): boolean {
   return role === "vendor";

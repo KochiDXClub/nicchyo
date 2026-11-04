@@ -43,6 +43,8 @@ describe("isLocalizablePath", () => {
   test("管理・API などは対象外", () => {
     expect(isLocalizablePath("/map")).toBe(true);
     expect(isLocalizablePath("/shops/001")).toBe(true);
+    expect(isLocalizablePath("/city")).toBe(false);
+    expect(isLocalizablePath("/city/export")).toBe(false);
     expect(isLocalizablePath("/admin/shops")).toBe(false);
     expect(isLocalizablePath("/api/shops")).toBe(false);
     expect(isLocalizablePath("/administrators")).toBe(true);
