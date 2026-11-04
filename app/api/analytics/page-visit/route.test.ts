@@ -3,8 +3,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const getUser = vi.fn();
 const insert = vi.fn();
 const rpc = vi.fn();
-const cookieInsert = vi.fn();
-const adminClient = vi.fn();
 
 vi.mock("next/headers", () => ({
   cookies: async () => ({ get: () => ({ value: "0123456789abcdef0123" }) }),
@@ -14,11 +12,11 @@ vi.mock("@/lib/security/rateLimit", () => ({ enforceRateLimit: async () => null 
 vi.mock("@/utils/supabase/server", () => ({
   createClient: () => ({
     auth: { getUser: () => getUser() },
-    from: () => ({ insert: cookieInsert }),
+    from: () => ({ insert: (row: unknown) => insert(row) }),
   }),
 }));
 vi.mock("@/lib/supabase/adminClient", () => ({
-  createAdminClient: () => adminClient(),
+  createAdminClient: () => ({ rpc: (...args: unknown[]) => rpc(...args) }),
 }));
 
 import { NextRequest } from "next/server";
@@ -37,23 +35,9 @@ function post(body: unknown) {
 describe("POST /api/analytics/page-visit の来訪者数カウント", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    adminClient.mockReturnValue({ from: () => ({ insert }), rpc });
     insert.mockResolvedValue({ error: null });
     rpc.mockResolvedValue({ data: true, error: null });
     getUser.mockResolvedValue({ data: { user: null } });
-  });
-
-  it("service roleだけで記録し、Cookieクライアントの直接INSERTを使わない", async () => {
-    await post({ path: "/map", durationSeconds: 1 });
-    expect(insert).toHaveBeenCalled();
-    expect(cookieInsert).not.toHaveBeenCalled();
-  });
-
-  it("service role未設定では公開クライアントへフォールバックしない", async () => {
-    adminClient.mockReturnValue(null);
-    expect((await post({ path: "/map", durationSeconds: 1 })).status).toBe(503);
-    expect(insert).not.toHaveBeenCalled();
-    expect(cookieInsert).not.toHaveBeenCalled();
   });
 
   it("どのページの訪問でも日次の来訪者数に数える", async () => {

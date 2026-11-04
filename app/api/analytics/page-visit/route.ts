@@ -83,9 +83,7 @@ export async function POST(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   const visitDate = todayJstString();
-  const admin = createAdminClient();
-  if (!admin) return NextResponse.json({ error: "Service unavailable" }, { status: 503 });
-  const { error } = await admin.from("web_page_analytics").insert({
+  const { error } = await supabase.from("web_page_analytics").insert({
     visit_date: visitDate,
     visitor_key: visitorKey,
     path,

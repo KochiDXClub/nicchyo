@@ -28,8 +28,12 @@ describe("非公開の連絡画像", () => {
     await withSignedInquiryImage(client, { vendor_id: vendor, image_url: "https://project.supabase.co/storage/v1/object/public/vendor-images/a.webp" });
     expect(createSignedUrl).toHaveBeenCalledTimes(1);
   });
-  it("署名に失敗しても公開URLへフォールバックしない", async () => {
-    const client = { storage: { from: () => ({ createSignedUrl: async () => ({ data: null, error: { message: "denied" } }) }) } } as unknown as SupabaseClient;
+  it("署名に失敗しても公開URLへ戻さず、秘密を含まない診断だけを記録する", async () => {
+    const warning = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const client = { storage: { from: () => ({ createSignedUrl: async () => ({ data: null, error: { message: "secret-path?token=secret" } }) }) } } as unknown as SupabaseClient;
     expect((await withSignedInquiryImage(client, { vendor_id: vendor, image_url: ref })).image_url).toBeNull();
+    expect(warning).toHaveBeenCalledWith("[inquiry-image] signing failed");
+    expect(JSON.stringify(warning.mock.calls)).not.toContain("secret");
+    warning.mockRestore();
   });
 });

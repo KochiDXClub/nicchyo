@@ -213,6 +213,25 @@ function InquiryCard({
     if (expanded) void loadReplies();
   }, [expanded, loadReplies]);
 
+  // 期限切れの署名URLを再利用せず、クリック時に認可と署名を取り直す。
+  const openAttachment = async () => {
+    const tab = window.open("about:blank", "_blank");
+    if (!tab) { showToast.error("画像を開くにはポップアップを許可してください"); return; }
+    tab.opener = null;
+    try {
+      const res = await fetch(`/api/admin/vendor-inquiries/${inquiry.id}`, { cache: "no-store" });
+      if (!res.ok) throw new Error("添付画像を取得できませんでした");
+      const data = (await res.json()) as { inquiry: { image_url: string | null } };
+      const url = data.inquiry.image_url;
+      if (!url || !isAllowedVendorInquiryImageUrl(url)) throw new Error("添付画像を取得できませんでした");
+      setDetailImageUrl(url);
+      tab.location.replace(url);
+    } catch (e) {
+      tab.close();
+      showToast.error(e instanceof Error ? e.message : "添付画像を取得できませんでした");
+    }
+  };
+
   const changeStatus = async (next: string) => {
     setBusy(true);
     try {
@@ -288,14 +307,13 @@ function InquiryCard({
       {expanded ? (
         <div className="mt-3 space-y-3 border-t border-line pt-3">
           {safeImageUrl ? (
-            <a
-              href={safeImageUrl}
-              target="_blank"
-              rel="noopener noreferrer"
+            <button
+              type="button"
+              onClick={() => void openAttachment()}
               className="inline-block text-xs text-amber-700 underline"
             >
               添付された画像を開く
-            </a>
+            </button>
           ) : null}
 
           {detailLoading ? (

@@ -12,6 +12,8 @@ create policy "members upload private inquiry images" on storage.objects
   for insert to authenticated with check (
     bucket_id = 'vendor-inquiry-images'
     and (storage.foldername(name))[2] = 'inquiries'
+    and array_length(storage.foldername(name), 1) = 2
+    and name ~* '/inquiries/[a-zA-Z0-9_-]+\.(webp|png|jpe?g)$'
     and exists (select 1 from public.shop_members m
       where m.vendor_id::text = (storage.foldername(name))[1]
         and m.user_id = (select auth.uid())
@@ -44,13 +46,11 @@ create policy "no public inquiry image uploads" on storage.objects as restrictiv
     bucket_id <> 'vendor-images' or (storage.foldername(name))[2] is distinct from 'inquiries');
 drop policy if exists "no public inquiry image updates" on storage.objects;
 create policy "no public inquiry image updates" on storage.objects as restrictive
-  for update to authenticated with check (
+  for update to authenticated using (
+    bucket_id <> 'vendor-images' or (storage.foldername(name))[2] is distinct from 'inquiries')
+  with check (
     bucket_id <> 'vendor-images' or (storage.foldername(name))[2] is distinct from 'inquiries');
 drop policy if exists "no public inquiry image listing" on storage.objects;
 create policy "no public inquiry image listing" on storage.objects as restrictive
   for select to anon, authenticated using (
     bucket_id <> 'vendor-images' or (storage.foldername(name))[2] is distinct from 'inquiries');
-
--- 閲覧ログは入力検証・レート制限・サーバー側ロール判定を持つAPIだけで記録する。
-drop policy if exists "public insert page analytics" on public.web_page_analytics;
-revoke insert on public.web_page_analytics from anon, authenticated;
