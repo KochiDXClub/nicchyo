@@ -1,6 +1,7 @@
 "use client";
 
 import { Badge } from "@/components/ui";
+import { SHOP_TRANSLATION_FIELD_MAX, SHOP_TRANSLATION_PRODUCT_MAX } from "@/lib/admin/shopTranslationInput";
 import { Card, buttonClass, inputClass } from "./fieldFormParts";
 
 /** 画面で編集する英語版。店名は「読み（ローマ字）」。空文字は「その項目は訳さない」 */
@@ -84,19 +85,19 @@ export function FieldEnglishCard({ saving = false, source, productNames, draft, 
 
           <label className="block">
             <span className="mb-1 block text-[13px] font-medium text-nicchyo-ink/70">店名の読み（ローマ字）　<span lang="ja" className="font-normal">{source.name}</span></span>
-            <input lang="en" value={current.name} onChange={(e) => set({ name: e.target.value })} maxLength={300} disabled={locked} className={inputClass} />
+            <input lang="en" value={current.name} onChange={(e) => set({ name: e.target.value })} maxLength={SHOP_TRANSLATION_FIELD_MAX} disabled={locked} className={inputClass} />
           </label>
           <p className="-mt-2 text-[12px] text-nicchyo-ink/55">店名は訳さず、読みを足して「Romaji (日本語)」で出します。看板と見比べられるようにするためです。</p>
           {source.strength.trim() ? (
             <label className="block">
               <span className="mb-1 block text-[13px] font-medium text-nicchyo-ink/70">こだわり・ひとこと　<span lang="ja" className="font-normal">{source.strength.slice(0, 30)}{source.strength.length > 30 ? "…" : ""}</span></span>
-              <textarea lang="en" value={current.strength} onChange={(e) => set({ strength: e.target.value })} rows={3} maxLength={600} disabled={locked} className={inputClass} />
+              <textarea lang="en" value={current.strength} onChange={(e) => set({ strength: e.target.value })} rows={3} maxLength={SHOP_TRANSLATION_FIELD_MAX} disabled={locked} className={inputClass} />
             </label>
           ) : null}
           {source.style.trim() ? (
             <label className="block">
               <span className="mb-1 block text-[13px] font-medium text-nicchyo-ink/70">出店スタイル　<span lang="ja" className="font-normal">{source.style.slice(0, 30)}{source.style.length > 30 ? "…" : ""}</span></span>
-              <input lang="en" value={current.style} onChange={(e) => set({ style: e.target.value })} maxLength={600} disabled={locked} className={inputClass} />
+              <input lang="en" value={current.style} onChange={(e) => set({ style: e.target.value })} maxLength={SHOP_TRANSLATION_FIELD_MAX} disabled={locked} className={inputClass} />
             </label>
           ) : null}
           {productNames.length > 0 ? (
@@ -110,7 +111,7 @@ export function FieldEnglishCard({ saving = false, source, productNames, draft, 
                     aria-label={`${name}の英語名`}
                     value={current.products[name] ?? ""}
                     onChange={(e) => set({ products: { ...current.products, [name]: e.target.value } })}
-                    maxLength={200}
+                    maxLength={SHOP_TRANSLATION_PRODUCT_MAX}
                     disabled={locked}
                     className={inputClass}
                   />
