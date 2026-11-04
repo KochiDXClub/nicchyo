@@ -73,5 +73,26 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "データ取得に失敗しました" }, { status: 500 });
   }
 
-  return NextResponse.json({ inquiries: data });
+  // 運営が「どの店からか」をすぐ分かるよう、店名を添える（取れなくても一覧は返す）
+  const vendorIds = [...new Set(data.map((row) => row.vendor_id).filter((v): v is string => !!v))];
+  const shopNames = new Map<string, string>();
+  if (vendorIds.length > 0) {
+    const { data: vendors, error: vendorsError } = await dc
+      .from("vendors")
+      .select("id, shop_name")
+      .in("id", vendorIds);
+    if (vendorsError) {
+      console.error("[admin/vendor-inquiries] vendors fetch error:", vendorsError.message);
+    }
+    for (const v of vendors ?? []) {
+      if (v.shop_name) shopNames.set(v.id, v.shop_name);
+    }
+  }
+
+  return NextResponse.json({
+    inquiries: data.map((row) => ({
+      ...row,
+      shop_name: row.vendor_id ? (shopNames.get(row.vendor_id) ?? null) : null,
+    })),
+  });
 }

@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * 受信トレイの中のタブ（通知・通報・問い合わせ）。
+ * 受信トレイの中のタブ（通知・通報・問い合わせ・出店者連絡）。
  * 届いたものをまとめて「受信トレイ」として扱い、種類で切り替える。ページ（URL）はそれぞれ別なので、
  * ブックマークやダッシュボードからのリンクはそのまま使える。権限のないタブは出さない。
  */
@@ -19,6 +19,8 @@ export const INBOX_TABS: readonly InboxTab[] = [
   { href: "/admin/notifications", label: "通知", countKey: "notifications", visible: (p) => p.isAdmin || p.canModerateContent },
   { href: "/admin/reports", label: "通報", countKey: "reports", visible: (p) => p.isModerator },
   { href: "/admin/inquiries", label: "問い合わせ", countKey: "inquiries", visible: (p) => p.isAdmin || p.canModerateContent },
+  // 出店者からの連絡（vendor_inquiries）。API は moderator 以上なので、タブも同じ権限で出す
+  { href: "/admin/vendor-inquiries", label: "出店者連絡", countKey: "vendorInquiries", visible: (p) => p.isModerator },
 ];
 
 export function InboxTabs() {
