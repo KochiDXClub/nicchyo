@@ -1,6 +1,7 @@
 import Image from "next/image";
 import { ChevronDown, Clock, Expand, Heart, Instagram, Search, Send, Share2, Umbrella, X } from "lucide-react";
 import { getShopBannerImage } from "@/lib/shopImages";
+import type { Translate } from "@/lib/i18n/translate";
 import { DEFAULT_CONSULT_CHARACTER } from "../consult/data/consultCharacters";
 import { SHOP_CATEGORY_NAMES, getShopCategoryColor, resolveStallColors, type ShopCategory } from "../map/config/shopCategories";
 import {
@@ -45,9 +46,8 @@ function stallSvg(category: ShopCategory, index: number, search = false, photoSe
 /** 道の左右に並べる屋台（1行2軒）。2番目（右上）が「芋天」で残る屋台 */
 const MAP_ROWS: ShopCategory[] = ["食材", "食べ物", "道具・工具", "手作り・工芸", "植物・苗", "アクセサリー", "生活雑貨", "食材", "アクセサリー", "道具・工具", "手作り・工芸", "植物・苗"];
 const HIT_INDEX = 1;
-const SEARCH_WORD = "芋天";
 
-export function MapScreen() {
+export function MapScreen({ t }: { t: Translate }) {
   return (
     <div className="landing-screen">
       <svg className="absolute inset-0 h-full w-full" viewBox="0 0 230 452" preserveAspectRatio="xMidYMid slice" aria-hidden>
@@ -79,13 +79,13 @@ export function MapScreen() {
       </svg>
       <div className="landing-m-search">
         <Search aria-hidden className="h-3.5 w-3.5 shrink-0" />
-        <span className="landing-typed">{SEARCH_WORD}</span>
+        <span className="landing-typed">{t("芋天")}</span>
         <i className="landing-caret" />
       </div>
       <div className="landing-m-chips">
         {SHOP_CATEGORY_NAMES.slice(0, 3).map((name) => (
           <span key={name} className={name === "食べ物" ? "landing-on" : undefined}>
-            {name}
+            {t(name)}
           </span>
         ))}
       </div>
@@ -94,8 +94,8 @@ export function MapScreen() {
           <Image src={getShopBannerImage("食べ物", 0)} alt="" width={64} height={64} className="h-full w-full object-cover" />
         </span>
         <span>
-          <b>{SEARCH_WORD}のお店</b>
-          <small>食べ物・8:00〜14:00</small>
+          <b>{t("芋天のお店")}</b>
+          <small>{t("食べ物・8:00〜14:00")}</small>
         </span>
       </div>
     </div>
@@ -104,11 +104,11 @@ export function MapScreen() {
 
 // ── 2. お店をひらく ───────────────────────────────────────────
 
-function formatPrice(price: number | null | undefined) {
-  return price == null ? "価格は現地で確認" : `¥${price.toLocaleString()}`;
+function formatPrice(price: number | null | undefined, t: Translate) {
+  return price == null ? t("価格は現地で確認") : `¥${price.toLocaleString()}`;
 }
 
-export function BannerScreen() {
+export function BannerScreen({ t }: { t: Translate }) {
   const shop = SAMPLE_SHOP;
   const hours = `${shop.businessHoursStart} 〜 ${shop.businessHoursEnd}`;
   const products = [shop.products[0], shop.products[2]].filter((name): name is string => Boolean(name));
@@ -130,12 +130,12 @@ export function BannerScreen() {
               <Image src={photo} alt="" width={112} height={112} className="h-full w-full object-cover" />
             </span>
             <span className="landing-peek-t">
-              <span className="landing-chip">{shop.category}</span>
-              <b>{shop.name}</b>
-              <small>手づくりの灯り</small>
+              <span className="landing-chip">{t(shop.category)}</span>
+              <b>{t(shop.name)}</b>
+              <small>{t("手づくりの灯り")}</small>
               <span className="landing-peek-c">
                 {products.map((name) => (
-                  <span key={name}>{name}</span>
+                  <span key={name}>{t(name)}</span>
                 ))}
               </span>
             </span>
@@ -149,15 +149,15 @@ export function BannerScreen() {
               <PhotoScrim />
               <span className="landing-h2-zoom">
                 <Expand aria-hidden className="h-2.5 w-2.5" />
-                拡大
+                {t("拡大")}
               </span>
               <span className="landing-h2-down">
                 <ChevronDown aria-hidden className="h-3.5 w-3.5" />
               </span>
               <span className="landing-h2-t">
-                <em>{shop.category}</em>
-                <b>{shop.name}</b>
-                <small>手づくりの灯り</small>
+                <em>{t(shop.category)}</em>
+                <b>{t(shop.name)}</b>
+                <small>{t("手づくりの灯り")}</small>
               </span>
               <span className="landing-heart">
                 <Heart aria-hidden className="h-3.5 w-3.5" />
@@ -168,21 +168,21 @@ export function BannerScreen() {
             </div>
             <span className="landing-share">
               <Share2 aria-hidden className="h-3 w-3" />
-              共有
+              {t("共有")}
             </span>
             <div className="landing-info">
               <p>
                 <Clock aria-hidden className="h-3 w-3" />
-                <span>出店時間</span>
+                <span>{t("出店時間")}</span>
                 <b>{hours}</b>
               </p>
               <p>
                 <Umbrella aria-hidden className="h-3 w-3" />
-                <span>雨の日</span>
-                <b>{shop.rainPolicy === "cancel" ? "雨天中止" : "雨でも出店"}</b>
+                <span>{t("雨の日")}</span>
+                <b>{shop.rainPolicy === "cancel" ? t("雨天中止") : t("雨でも出店")}</b>
               </p>
               <p className="landing-more">
-                もっと見る <ChevronDown aria-hidden className="h-3 w-3" />
+                {t("もっと見る")} <ChevronDown aria-hidden className="h-3 w-3" />
               </p>
               <p className="landing-ig">
                 <span>
@@ -192,10 +192,10 @@ export function BannerScreen() {
               </p>
             </div>
             <div className="landing-ph-head">
-              <b>商品</b>
+              <b>{t("商品")}</b>
               <span>
                 <Heart aria-hidden className="h-2.5 w-2.5" />
-                お気に入り
+                {t("お気に入り")}
               </span>
             </div>
             <div className="landing-pgrid">
@@ -207,8 +207,8 @@ export function BannerScreen() {
                       <Heart aria-hidden className="h-[11px] w-[11px]" />
                     </i>
                   </span>
-                  <b>{name}</b>
-                  <small>{formatPrice(shop.productPrices?.[name])}</small>
+                  <b>{t(name)}</b>
+                  <small>{formatPrice(shop.productPrices?.[name], t)}</small>
                 </span>
               ))}
             </div>
@@ -234,59 +234,59 @@ const ASK_SHOPS: { name: string; category: ShopCategory; chips: string[]; seed: 
   { name: "アイスのお店", category: "食べ物", chips: ["アイス"], seed: 1 },
 ];
 
-export function ConsultScreen() {
+export function ConsultScreen({ t }: { t: Translate }) {
   const speaker = DEFAULT_CONSULT_CHARACTER;
   return (
     <div className="landing-screen landing-consult">
-      <div className="landing-c-back">‹ マップにもどる</div>
+      <div className="landing-c-back">‹ {t("マップにもどる")}</div>
       <div className="landing-c-av">
         <Image src={speaker.image} alt="" width={68} height={68} className="h-[68px] w-[68px] object-contain" />
       </div>
       <div className="landing-cA">
         <p className="landing-c-greet">
-          <b>なんでも聞いてや。</b>
-          <small>聞きたいことを選んでね。</small>
+          <b>{t("なんでも聞いてや。")}</b>
+          <small>{t("聞きたいことを選んでね。")}</small>
         </p>
         <div className="landing-c-sugs">
           <span className="landing-sug landing-sug1">
-            {ASK.suggestion}
+            {t(ASK.suggestion)}
             <i className="landing-tap" />
           </span>
           {ASK.other.map((text) => (
             <span key={text} className="landing-sug">
-              {text}
+              {t(text)}
             </span>
           ))}
         </div>
       </div>
       <div className="landing-cB">
-        <p className="landing-q">{ASK.suggestion}</p>
-        <p className="landing-who">{speaker.name}</p>
+        <p className="landing-q">{t(ASK.suggestion)}</p>
+        <p className="landing-who">{t(speaker.name)}</p>
         <div className="landing-ans-wrap">
           <div className="landing-skel">
             <i />
             <i />
             <i />
           </div>
-          <p className="landing-ans">{ASK.answer}</p>
+          <p className="landing-ans">{t(ASK.answer)}</p>
         </div>
         <div className="landing-cards">
-          <p className="landing-cl">おすすめのお店 {ASK_SHOPS.length}件</p>
+          <p className="landing-cl">{t("おすすめのお店 {count}件").replace("{count}", String(ASK_SHOPS.length))}</p>
           <div className="landing-mcs">
             {ASK_SHOPS.map((shop) => (
               <span key={shop.name} className="landing-mc">
                 <span className="landing-mc-ph">
                   <Image src={getShopBannerImage(shop.category, shop.seed)} alt="" width={160} height={80} className="h-full w-full object-cover" />
-                  <em>{shop.category}</em>
+                  <em>{t(shop.category)}</em>
                 </span>
                 <span className="landing-mc-b">
-                  <b>{shop.name}</b>
+                  <b>{t(shop.name)}</b>
                   <span className="landing-mc-c">
                     {shop.chips.map((chip) => (
-                      <span key={chip}>{chip}</span>
+                      <span key={chip}>{t(chip)}</span>
                     ))}
                   </span>
-                  <small>くわしく見る →</small>
+                  <small>{t("くわしく見る →")}</small>
                 </span>
               </span>
             ))}
@@ -294,7 +294,7 @@ export function ConsultScreen() {
         </div>
       </div>
       <div className="landing-c-bar">
-        <span>{ASK.placeholder}</span>
+        <span>{t(ASK.placeholder)}</span>
         <i>
           <Send aria-hidden className="h-[13px] w-[13px] text-white" />
         </i>
