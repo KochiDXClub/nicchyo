@@ -1,3 +1,4 @@
+import { inquiryImagePath } from "@/lib/vendorInquiries/imageStorage";
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { z } from "zod";
@@ -11,7 +12,6 @@ import {
   VENDOR_INQUIRY_URGENCIES,
   VENDOR_INQUIRY_BODY_MAX_LENGTH,
   VENDOR_INQUIRY_IMAGE_URL_MAX_LENGTH,
-  isAllowedVendorInquiryImageUrl,
 } from "@/lib/vendorInquiries/constants";
 
 export const runtime = "nodejs";
@@ -33,9 +33,8 @@ const CreateInquirySchema = z.object({
       VENDOR_INQUIRY_IMAGE_URL_MAX_LENGTH,
       `画像URLは${VENDOR_INQUIRY_IMAGE_URL_MAX_LENGTH}文字以内にしてください`
     )
-    // 関数参照をそのまま渡すと zod が第2引数に RefinementCtx を入れてしまい、
-    // isAllowedVendorInquiryImageUrl の allowedStorageHost と衝突する
-    .refine((v) => isAllowedVendorInquiryImageUrl(v), { message: "許可されていない画像URLです" })
+    // 公開URL・外部URL・署名URLは保存しない。店舗との対応は認証後に検証する。
+    .refine((v) => inquiryImagePath(v) !== null, { message: "許可されていない画像です" })
     .optional(),
 });
 
@@ -99,6 +98,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 });
   }
   const { topic, category, urgency, body, image_url } = parsed.data;
+  if (image_url && !inquiryImagePath(image_url, vendorId)) {
+    return NextResponse.json({ error: "この店舗の添付画像ではありません" }, { status: 400 });
+  }
 
   const { data, error } = await supabase
     .from("vendor_inquiries")

@@ -1,3 +1,5 @@
+import { withSignedInquiryImage } from "@/lib/vendorInquiries/imageStorage.server";
+import { privateNoStoreHeaders } from "@/lib/http/cacheHeaders";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getRole } from "@/lib/auth/permissions";
@@ -52,7 +54,7 @@ export async function GET(req: Request, { params }: RouteParams) {
     return NextResponse.json({ error: "データ取得に失敗しました" }, { status: 500 });
   }
 
-  return NextResponse.json({ inquiry, replies });
+  return NextResponse.json({ inquiry: await withSignedInquiryImage(dc, inquiry), replies }, { headers: privateNoStoreHeaders() });
 }
 
 const UpdateStatusSchema = z.object({

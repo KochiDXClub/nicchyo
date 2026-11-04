@@ -188,16 +188,19 @@ function InquiryCard({
   const status = statusLabel(inquiry.status);
   const [replies, setReplies] = useState<VendorInquiryReplyRow[]>([]);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [detailImageUrl, setDetailImageUrl] = useState<string | null>(null);
   const [replyBody, setReplyBody] = useState("");
   const [replyAs, setReplyAs] = useState<"operator" | "city">("operator");
   const [busy, setBusy] = useState(false);
 
   const loadReplies = useCallback(async () => {
     setDetailLoading(true);
+    setDetailImageUrl(null);
     try {
       const res = await fetch(`/api/admin/vendor-inquiries/${inquiry.id}`);
       if (!res.ok) throw new Error(await readError(res, "取得に失敗しました"));
-      const data = (await res.json()) as { replies: VendorInquiryReplyRow[] };
+      const data = (await res.json()) as { inquiry: { image_url: string | null }; replies: VendorInquiryReplyRow[] };
+      setDetailImageUrl(data.inquiry.image_url);
       setReplies(data.replies);
     } catch (e) {
       showToast.error(e instanceof Error ? e.message : "やり取りの取得に失敗しました");
@@ -251,7 +254,7 @@ function InquiryCard({
 
   // 出店者がAPIを通さず直接入れた値の可能性があるので、表示の直前に検証し直す
   const safeImageUrl =
-    inquiry.image_url && isAllowedVendorInquiryImageUrl(inquiry.image_url) ? inquiry.image_url.trim() : null;
+    detailImageUrl && isAllowedVendorInquiryImageUrl(detailImageUrl) ? detailImageUrl.trim() : null;
   const actions = STATUS_ACTIONS[inquiry.topic].filter((a) => a.status !== inquiry.status);
 
   return (
