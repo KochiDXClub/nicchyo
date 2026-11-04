@@ -11,7 +11,7 @@ vi.mock("@/lib/market/saveMarketDay.server", () => ({
 vi.mock("@/lib/security/requestGuards", () => ({ requireSameOrigin: () => ({ ok: true }) }));
 vi.mock("@/lib/security/rateLimit", () => ({ enforceRateLimit: async () => null }));
 
-import { PUT } from "./route";
+import { GET, PUT } from "./route";
 
 const unauthorized = { error: new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 }) };
 const ctx = {
@@ -93,5 +93,31 @@ describe("PUT /api/city/market-days", () => {
     saveMarketDay.mockResolvedValue({ error: "保存に失敗しました" });
     const res = await put({ market_date: "2026-11-08", status: "open" });
     expect(res.status).toBe(500);
+  });
+});
+
+describe("GET /api/city/market-days", () => {
+  it("更新履歴の「誰が」は、あなた・高知市・運営の3つだけ（運営の細かいロール名は出さない）", async () => {
+    const row = (actor_id: string, actor_role: string) => ({
+      created_at: "2026-11-03T00:00:00Z",
+      actor_id,
+      actor_role,
+      target_id: "2026-11-08",
+      details: JSON.stringify({ before: { status: "open" }, after: { status: "cancelled", note: "雨" } }),
+    });
+    const rows: Record<string, unknown[]> = {
+      market_days: [],
+      admin_audit_logs: [row("u1", "city_official"), row("u2", "city_official"), row("a1", "admin"), row("a2", "super_admin")],
+    };
+    const from = (table: string) => {
+      const q: Record<string, unknown> = {};
+      for (const m of ["select", "eq", "order"]) q[m] = () => q;
+      q.limit = async () => ({ data: rows[table], error: null });
+      return q;
+    };
+    requireCityApi.mockResolvedValue({ ...ctx, adminClient: { from } });
+    const res = await GET();
+    const { history } = (await res.json()) as { history: { by: string }[] };
+    expect(history.map((h) => h.by)).toEqual(["あなた", "高知市", "運営", "運営"]);
   });
 });

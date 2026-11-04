@@ -6,7 +6,6 @@ import { parseMarketDayRequest } from "@/lib/market/marketDayRequest.server";
 import { validateCityMarketDate } from "@/lib/market/marketDayInput";
 import { todayJstString } from "@/lib/time/jstDate";
 import { saveMarketDay } from "@/lib/market/saveMarketDay.server";
-import { roleLabel } from "@/lib/audit/auditLogDisplay";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -16,7 +15,7 @@ const HISTORY_LIMIT = 20;
 
 type HistoryItem = {
   at: string;
-  /** 「あなた」または更新した人のロール名（メールアドレスや ID は返さない） */
+  /** 「あなた」「高知市」「運営」のどれか（運営の細かいロール名・メールアドレス・ID は返さない） */
   by: string;
   marketDate: string | null;
   from: string | null;
@@ -70,7 +69,7 @@ export async function GET() {
     const { before, after } = parseDetails(row.details);
     return {
       at: row.created_at,
-      by: row.actor_id === user.id ? "あなた" : (roleLabel(row.actor_role) ?? "運営"),
+      by: row.actor_id === user.id ? "あなた" : row.actor_role === "city_official" ? "高知市" : "運営",
       marketDate: row.target_id,
       from: before?.status ?? null,
       to: after?.status ?? null,

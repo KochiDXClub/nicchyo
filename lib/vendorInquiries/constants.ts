@@ -26,6 +26,17 @@ export const VENDOR_INQUIRY_STATUS_BY_TOPIC: Record<VendorInquiryTopic, readonly
   question: ["ai_pending", "ai_resolved", "escalated", "human_answered"],
 };
 
+// 運営がまだ対応していない（受信トレイのバッジ・ダッシュボードの「未対応」に数える）status。
+// 出店者から連絡が来て、運営が確認・回答するまでの状態をtopicをまたいで集めたもの。
+// report: 未確認 / consultation: 未対応・検討中 / question: 確認待ち・担当者に取次ぎ中
+export const VENDOR_INQUIRY_OPEN_STATUSES = [
+  "unconfirmed",
+  "unhandled",
+  "in_progress",
+  "ai_pending",
+  "escalated",
+] as const;
+
 export const VENDOR_INQUIRY_BODY_MAX_LENGTH = 4000;
 export const VENDOR_INQUIRY_REPLY_BODY_MAX_LENGTH = 4000;
 export const VENDOR_INQUIRY_IMAGE_URL_MAX_LENGTH = 2048;

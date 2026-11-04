@@ -17,6 +17,8 @@ import { MAX_SHOP_ID, MIN_SHOP_ID } from "@/lib/shops/route";
 import { Card, Field, buttonClass, inputClass, readError } from "./fieldFormParts";
 import { FieldShopPhotoCard } from "./FieldShopPhotoCard";
 import { FieldProductsCard, type ProductRow } from "./FieldProductsCard";
+import { FieldEnglishCard } from "./FieldEnglishCard";
+import { useFieldEnglish, type StoredTranslation } from "./useFieldEnglish";
 import { useProductPhotos } from "./useProductPhotos";
 import { LISTING_STATUS_LABELS, LISTING_STATUSES, type AdminShopDetail, type ListingStatus } from "@/lib/admin/shopEdit";
 import { PAYMENT_OPTIONS, RAIN_OPTIONS, TIME_OPTIONS } from "@/lib/vendor/storeOptions";
@@ -104,8 +106,12 @@ export function FieldShopEditor({ shopId }: { shopId: string }) {
   const [form, setForm] = useState<FormState | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [englishLoadFailed, setEnglishLoadFailed] = useState(false);
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
+  const markDirty = useCallback(() => setDirty(true), []);
+  const en = useFieldEnglish(shopId, form, markDirty);
+  const { applyLoaded: applyEnglish, bumpSource: bumpEnglishSource } = en;
 
   const { productPhotoBusy, uploadProductPhoto, removeProductPhoto } = useProductPhotos(shopId, setShop);
   const [locations, setLocations] = useState<FieldLocation[]>([]);
@@ -138,17 +144,23 @@ export function FieldShopEditor({ shopId }: { shopId: string }) {
 
   const load = useCallback(async () => {
     try {
-      const [shopRes, categoriesRes, locationRes] = await Promise.all([
+      const [shopRes, categoriesRes, locationRes, translationRes] = await Promise.all([
         fetch(`/api/admin/shops/${shopId}`),
         fetch("/api/admin/categories"),
         fetch(`/api/admin/shops/${shopId}/location`),
+        // 英語版が読めなくても、店舗の編集は止めない
+        fetch(`/api/admin/shops/${shopId}/translation`).catch(() => null),
       ]);
       if (shopRes.status === 404) throw new Error("店舗が見つかりません");
       if (!shopRes.ok) throw new Error("店舗の取得に失敗しました");
       const { shop: loaded } = (await shopRes.json()) as { shop: AdminShopDetail };
       setShop(loaded);
-      setForm(toForm(loaded));
+      const loadedForm = toForm(loaded);
+      setForm(loadedForm);
       setDirty(false);
+      setEnglishLoadFailed(!translationRes?.ok);
+      const stored = translationRes?.ok ? ((await translationRes.json().catch(() => null)) as { translation?: StoredTranslation | null } | null)?.translation : null;
+      applyEnglish(stored ?? null, loadedForm);
       if (categoriesRes.ok) setCategories(((await categoriesRes.json()) as { categories: Category[] }).categories ?? []);
       if (locationRes.ok) {
         applyLocationResponse((await locationRes.json()) as { locations: FieldLocation[]; current: FieldLocation | null });
@@ -156,7 +168,7 @@ export function FieldShopEditor({ shopId }: { shopId: string }) {
     } catch (e) {
       setLoadError(e instanceof Error ? e.message : "店舗の取得に失敗しました");
     }
-  }, [shopId, applyLocationResponse]);
+  }, [shopId, applyLocationResponse, applyEnglish]);
 
   useEffect(() => {
     void load();
@@ -171,9 +183,10 @@ export function FieldShopEditor({ shopId }: { shopId: string }) {
   }, [dirty]);
 
   const update = useCallback(<K extends keyof FormState>(key: K, value: FormState[K]) => {
+    if (key === "shop_name" || key === "strength" || key === "style" || key === "products") bumpEnglishSource();
     setForm((prev) => (prev ? { ...prev, [key]: value } : prev));
     setDirty(true);
-  }, []);
+  }, [bumpEnglishSource]);
 
   const hoursError = useMemo(() => {
     if (!form?.business_hours_start || !form.business_hours_end) return null;
@@ -181,12 +194,17 @@ export function FieldShopEditor({ shopId }: { shopId: string }) {
   }, [form?.business_hours_start, form?.business_hours_end]);
 
   const save = async () => {
-    if (!form || !shop || hoursError) return;
+    // 翻訳中は保存しない（翻訳の結果が、保存後の読み直しで消えるため）
+    if (!form || !shop || hoursError || en.translating) return;
     if (form.products.some((p) => p.price.trim() !== "" && !/^\d+$/.test(p.price.trim()))) {
       showToast.error("価格は数字だけで入力してください");
       return;
     }
+    // 日本語を直したのに英語版が古いまま保存すると、来訪者には日本語で出る（合っていない英語は出さない）
+    if (en.state === "stale" && !window.confirm("日本語を直したあと、英語版を更新していません。このまま保存すると、来訪者にはこの店の英語版が出ず、日本語で表示されます（次の自動翻訳で、英語版は作り直されます）。保存しますか？")) return;
     setSaving(true);
+    // 保存に失敗しても、画面の英語版を失わないよう控えておく
+    const englishSnapshot = en.snapshot();
     try {
       const res = await fetch(`/api/admin/shops/${shopId}`, {
         method: "PATCH",
@@ -200,8 +218,20 @@ export function FieldShopEditor({ shopId }: { shopId: string }) {
         }),
       });
       if (!res.ok) throw new Error((await readError(res, "保存できませんでした")).message);
-      showToast.success("保存しました");
+      // 英語版は、日本語の保存のあとで保存する（原文のハッシュを、保存済みの日本語から作るため）
+      let englishError: string | null = null;
+      if (englishSnapshot.dirty) {
+        const saved = (await res.json().catch(() => null)) as { updated_at?: string } | null;
+        englishError = await en.saveToServer(englishSnapshot, saved?.updated_at ?? null);
+      }
       await load();
+      if (englishError) {
+        // 日本語は保存済み。英語版だけ、画面に残して、もう一度保存できるようにする
+        en.restore(englishSnapshot);
+        showToast.error(`内容は保存しました。${englishError}。もう一度「内容を保存」を押してください`);
+      } else {
+        showToast.success(englishSnapshot.dirty ? "日本語と英語版を保存しました" : "保存しました");
+      }
     } catch (e) {
       showToast.error(e instanceof Error ? e.message : "保存できませんでした");
     } finally {
@@ -383,6 +413,27 @@ export function FieldShopEditor({ shopId }: { shopId: string }) {
         onRemovePhoto={(name) => void removeProductPhoto(name)}
       />
 
+      {englishLoadFailed ? (
+        <Card title="英語版">
+          <p className="text-sm text-nicchyo-ink" role="alert">英語版を読み込めませんでした。確認済みの英語を上書きしないよう、ここでは操作できません。ページを開き直してください。</p>
+        </Card>
+      ) : (
+      <FieldEnglishCard
+        source={{ name: form.shop_name, strength: form.strength, style: form.style }}
+        productNames={en.productNames}
+        draft={en.english}
+        status={en.status}
+        state={en.state}
+        translating={en.translating}
+        saving={saving}
+        canTranslate={en.canTranslate && !saving}
+        onTranslate={() => void en.translate()}
+        onChange={en.edit}
+        onClear={en.clear}
+        onConfirmFresh={en.confirmFresh}
+      />
+      )}
+
       <Card title="出店の情報">
         <div className="grid grid-cols-2 gap-2">
           <Field label="開店">
@@ -505,7 +556,7 @@ export function FieldShopEditor({ shopId }: { shopId: string }) {
           <Link href="/admin/field" className={`${buttonClass} border border-line bg-white text-nicchyo-ink/70`}>
             一覧へ
           </Link>
-          <button type="button" onClick={() => void save()} disabled={saving || !dirty || !!hoursError} className={`${buttonClass} flex-1 bg-green-600 text-white`}>
+          <button type="button" onClick={() => void save()} disabled={saving || en.translating || !dirty || !!hoursError} className={`${buttonClass} flex-1 bg-green-600 text-white`}>
             {saving ? "保存しています…" : dirty ? "内容を保存" : "変更なし"}
           </button>
         </div>
