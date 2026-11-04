@@ -32,11 +32,11 @@ export type MarketDayHistoryItem = {
  * statusDrafts / noteDrafts が確定値（days）と食い違ったままの「下書き」状態になる。
  */
 export function useAdminMarketDays({
-  isAdmin,
+  enabled,
   endpoint = "/api/admin/market-days",
 }: {
   /** 取得してよいか。運営画面は admin、/city は city_official / admin のとき true */
-  isAdmin: boolean;
+  enabled: boolean;
   /** 読み書きする API。運営は /api/admin/market-days、高知市は /api/city/market-days */
   endpoint?: string;
 }) {
@@ -63,9 +63,9 @@ export function useAdminMarketDays({
   }, [endpoint]);
 
   useEffect(() => {
-    if (!isAdmin) return;
+    if (!enabled) return;
     void fetchDays();
-  }, [fetchDays, isAdmin]);
+  }, [fetchDays, enabled]);
 
   // 過去に使った一言（重複除去・新しい順）。雨天中止のように同じ文言を
   // 繰り返し使うことが多いため、毎回タイプし直さなくて済むようにする。

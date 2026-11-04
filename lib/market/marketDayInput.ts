@@ -1,3 +1,4 @@
+import { addDaysToDateString } from "@/lib/time/jstDate";
 import { normalizeStatus, toIsoDate, type MarketDayStatus } from "./calendar";
 
 /**
@@ -61,4 +62,23 @@ export function validateMarketDayInput(
     },
     error: null,
   };
+}
+
+/** 高知市が更新できるのは、今日から何週先の日曜までか */
+export const CITY_MARKET_DAY_WEEKS_AHEAD = 8;
+
+/**
+ * 高知市が更新してよい日付か。今日から8週先までの日曜だけ。
+ * 画面で選べるのは今後4回の日曜だけだが、API に直接送られても、過去の開催実績や
+ * 遠い先の日付を書き換えられないようにする（運営は従来どおり広い範囲を扱える）。
+ * 問題なければ null、だめなら画面に出せるエラー文を返す。
+ */
+export function validateCityMarketDate(marketDate: string, todayIso: string): string | null {
+  const isSunday = new Date(`${marketDate}T00:00:00Z`).getUTCDay() === 0;
+  if (!isSunday) return "日曜日の日付を指定してください";
+  if (marketDate < todayIso) return "過去の日付は変更できません";
+  if (marketDate > addDaysToDateString(todayIso, CITY_MARKET_DAY_WEEKS_AHEAD * 7)) {
+    return "先すぎる日付は変更できません";
+  }
+  return null;
 }

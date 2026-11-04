@@ -25,7 +25,7 @@ export default function AdminCalendarPage() {
   }, [isLoading, permissions.isAdmin, router]);
 
   const e = useAdminEvents({ isAdmin: permissions.isAdmin });
-  const d = useAdminMarketDays({ isAdmin: permissions.isAdmin });
+  const d = useAdminMarketDays({ enabled: permissions.isAdmin });
 
   // 各カードは既定で畳んでおく。ステータス編集の常時表示は縦に長くなりすぎるため、
   // 触りたい週だけタップで開く（events/market-days 統合時のフィードバックで追加）
