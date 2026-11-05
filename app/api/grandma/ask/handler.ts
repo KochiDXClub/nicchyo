@@ -743,16 +743,6 @@ export async function handleConsultAsk(
         ),
       );
     }
-    if (text && text.length < 4 && !imageDataUrl) {
-      return NextResponse.json(
-        buildErrorResponse(
-          "insufficient_context",
-          selectedCharacters,
-          "もう少し詳しく聞かせてくれたら案内しやすいよ。食べたいものや気になるお店があると分かりやすいきね。",
-        ),
-      );
-    }
-
     const consultId = crypto.randomUUID();
 
     const openaiKey = process.env.OPENAI_API_KEY;
