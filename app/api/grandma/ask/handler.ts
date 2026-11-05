@@ -506,13 +506,17 @@ async function createStreamingConsultResponse(options: {
   const encoder = new TextEncoder();
   const decoder = new TextDecoder();
 
+  const reader = upstream.body.getReader();
+  // 利用者が離れた（cancel が呼ばれた）後は、OpenAI からの受信も enqueue も止める
+  let clientClosed = false;
+
   const readable = new ReadableStream({
     async start(controller) {
       const enqueue = (payload: unknown) => {
+        if (clientClosed) return;
         controller.enqueue(encoder.encode(`${JSON.stringify(payload)}\n`));
       };
 
-      const reader = upstream.body!.getReader();
       let sseBuffer = "";
       let modelOutput = "";
       let firstTurnStarted = false;
@@ -559,7 +563,7 @@ async function createStreamingConsultResponse(options: {
       };
 
       try {
-        while (true) {
+        while (!clientClosed) {
           const { done, value } = await reader.read();
           if (done) break;
           sseBuffer += decoder.decode(value, { stream: true });
@@ -584,6 +588,9 @@ async function createStreamingConsultResponse(options: {
             }
           }
         }
+
+        // 離脱後は答えを組み立てても誰にも届かないので、保存も含めて打ち切る
+        if (clientClosed) return;
 
         const streamedPayload = parseStreamingConsultOutput(
           modelOutput,
@@ -629,8 +636,13 @@ async function createStreamingConsultResponse(options: {
           ),
         });
       } finally {
-        controller.close();
+        if (!clientClosed) controller.close();
       }
+    },
+    cancel() {
+      clientClosed = true;
+      // 読むのをやめるだけでなく上流を閉じて、OpenAI からの受信とトークン消費を止める
+      return reader.cancel().catch(() => {});
     },
   });
 
