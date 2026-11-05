@@ -9,6 +9,9 @@ export type EditableShop = {
   locationId: string;
   id: number;
   vendorId?: string;
+  /** 区画の共通出店場所名と、そこを登録した店舗（公開配置とは別） */
+  placeName?: string;
+  placeVendors?: { id: string; name: string }[];
   name: string;
   lat: number;
   lng: number;

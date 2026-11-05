@@ -112,7 +112,7 @@ export default function RoadLaneView({
     const isSelected = selectedLocationId === shop.locationId;
     const match =
       !q || String(shop.position).includes(q) || slotLabel(shop).includes(q) || shop.name.toLowerCase().includes(q);
-    const targetable = !!dragFromId && dragFromId !== shop.locationId;
+    const targetable = !!dragFromId && dragFromId !== shop.locationId && !shop.placeName;
     const isDropTarget = targetable && dropTargetId === shop.locationId;
 
     return (
@@ -123,8 +123,8 @@ export default function RoadLaneView({
           else cellRefs.current.delete(shop.locationId);
         }}
         onClick={() => onSelectShop(shop.locationId)}
-        draggable={!!shop.vendorId}
-        title={shop.vendorId ? "ドラッグして別の区画へ移せます（出店者がいれば入れ替え）" : undefined}
+        draggable={!!shop.vendorId && !shop.placeName}
+        title={shop.vendorId && !shop.placeName ? "ドラッグして別の区画へ移せます（出店者がいれば入れ替え）" : undefined}
         onDragStart={(e) => {
           e.dataTransfer.setData("text/plain", shop.locationId);
           e.dataTransfer.effectAllowed = "move";
@@ -135,7 +135,7 @@ export default function RoadLaneView({
           setDropTargetId(null);
         }}
         onDragOver={(e) => {
-          if (!dragFromId || dragFromId === shop.locationId) return;
+          if (!dragFromId || dragFromId === shop.locationId || shop.placeName) return;
           e.preventDefault();
           e.dataTransfer.dropEffect = "move";
           if (dropTargetId !== shop.locationId) setDropTargetId(shop.locationId);
@@ -160,7 +160,7 @@ export default function RoadLaneView({
           alignItems: "center",
           justifyContent: "center",
           gap: 1,
-          cursor: shop.vendorId ? "grab" : "pointer",
+          cursor: shop.vendorId && !shop.placeName ? "grab" : "pointer",
           opacity: match || targetable ? 1 : 0.25,
           outline: isDropTarget ? `3px solid ${EDITOR_COLORS.accentBorder}` : undefined,
           background: isSelected ? "#92400E" : shop.vendorId ? "#FFF3DA" : targetable ? "#FFFDF7" : "#F5F1E6",
@@ -182,7 +182,7 @@ export default function RoadLaneView({
             whiteSpace: "nowrap",
           }}
         >
-          {shop.vendorId ? shop.name : "空き"}
+          {shop.vendorId ? shop.name : shop.placeName ? `${shop.placeName}（登録）` : "空き"}
         </span>
       </div>
     );

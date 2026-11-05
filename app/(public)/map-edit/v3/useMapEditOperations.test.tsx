@@ -88,6 +88,14 @@ describe("useMapEditOperations.applySlotPlan", () => {
     expect(hook.result.current.history.past).toHaveLength(1);
   });
 
+  it("区画分けで名前付きの出店場所を削除しない", () => {
+    const { hook, setMessage } = setup([slot(1, 5, { placeName: "一丁目 南 2" })]);
+    const plan = { moves: [], keeps: [], creates: [], deletes: [{ locationId: "loc-1", side: "left" as const, distanceM: 5 }], error: null };
+    act(() => { expect(hook.result.current.ops.applySlotPlan(road, plan)).toBe(false); });
+    expect(hook.result.current.shops).toHaveLength(1);
+    expect(setMessage).toHaveBeenCalledWith(expect.stringContaining("出店場所"));
+  });
+
   it("取り消すと区画分けの前に戻る", () => {
     const { hook } = setup([]);
     const plan = planRoadSlots(250, settings, []);
@@ -112,6 +120,13 @@ describe("useMapEditOperations.applySlotPlan", () => {
 });
 
 describe("useMapEditOperations.deleteSlot", () => {
+  it("名前付きの出店場所は出店者が表示されていなくても削除しない", () => {
+    const { hook, setMessage } = setup([slot(1, 5, { placeName: "一丁目 南 2", placeVendors: [] })]);
+    act(() => { expect(hook.result.current.ops.deleteSlot("loc-1")).toBe(false); });
+    expect(hook.result.current.shops).toHaveLength(1);
+    expect(setMessage).toHaveBeenCalledWith(expect.stringContaining("出店場所"));
+  });
+
   it("出店者のいる区画は削除せず、先に空きにするよう知らせる", () => {
     const { hook, setMessage } = setup([slot(1, 5, { vendorId: "v1", name: "店A" }), slot(2, 15)]);
     act(() => {
@@ -128,6 +143,13 @@ describe("useMapEditOperations.deleteSlot", () => {
 const vendor = (id: string, name: string): EditableVendor => ({ id, name, categoryId: null, strength: "", mainProducts: [] });
 
 describe("useMapEditOperations の出店者操作", () => {
+  it("名前付きの出店場所へはドラッグで店舗を移さない", () => {
+    const { hook, setMessage } = setup([slot(1, 5, { vendorId: "va", name: "店A" }), slot(2, 15, { placeName: "一丁目 南 2", placeVendors: [] })], 300, [vendor("va", "店A")]);
+    act(() => { expect(hook.result.current.ops.moveVendor("loc-1", "loc-2")).toBe(false); });
+    expect(hook.result.current.shops[0].vendorId).toBe("va");
+    expect(setMessage).toHaveBeenCalledWith(expect.stringContaining("現場登録"));
+  });
+
   it("出店者のいる区画へ移すと入れ替わり、1回の取り消しで元に戻る", () => {
     const { hook } = setup(
       [slot(1, 5, { vendorId: "va", name: "店A" }), slot(2, 15, { vendorId: "vb", name: "店B" })],

@@ -9,10 +9,10 @@ const shop: EditableShop = { locationId: "loc-1", id: 1, position: 1, name: "朝
 const manyProducts = Array.from({ length: 12 }, (_, i) => `品${i + 1}`);
 const vendor: EditableVendor = { id: "v1", name: "朝市の店", categoryId: null, strength: "", mainProducts: manyProducts };
 
-function renderPanel(onUpdateVendor = vi.fn()) {
+function renderPanel(onUpdateVendor = vi.fn(), shared?: Pick<EditableShop, "placeName" | "placeVendors">) {
   render(
     <SlotVendorPanel
-      shop={{ ...shop, vendorId: "v1" }}
+      shop={{ ...shop, ...shared, vendorId: "v1" }}
       roadName={null}
       vendor={vendor}
       vendors={[vendor]}
@@ -30,6 +30,28 @@ function renderPanel(onUpdateVendor = vi.fn()) {
 }
 
 describe("SlotVendorPanel の主な商品", () => {
+  it("同じ出店場所に登録された複数店舗を表示する", () => {
+    renderPanel(vi.fn(), { placeName: "一丁目 南 2", placeVendors: [{ id: "a", name: "店A" }, { id: "b", name: "店B" }] });
+    expect(screen.getByText("出店場所: 一丁目 南 2")).toBeTruthy();
+    expect(screen.getByRole("link", { name: "店A（詳細を開く）" })).toHaveAttribute("href", "/admin/field/a");
+    expect(screen.getByRole("link", { name: "店B（詳細を開く）" })).toHaveAttribute("href", "/admin/field/b");
+    expect(screen.getByRole("button", { name: "この区画を削除" })).toBeDisabled();
+  });
+
+  it("既に別の店舗が場所に登録されていれば配置前に確認する", () => {
+    const onSelectVendor = vi.fn();
+    const confirm = vi.spyOn(window, "confirm").mockReturnValueOnce(false).mockReturnValueOnce(true);
+    const second = { ...vendor, id: "v2", name: "別の店" };
+    render(<SlotVendorPanel shop={{ ...shop, placeName: "一丁目 南 2", placeVendors: [{ id: "v1", name: "朝市の店" }, { id: "v2", name: "別の店" }] }} roadName={null} vendor={null} vendors={[vendor, second]} categories={[]} onSelectVendor={onSelectVendor} onRegisterVendor={vi.fn()} onUpdateVendor={vi.fn()} onClearVendor={vi.fn()} onChomeChange={vi.fn()} autoChome={null} onDelete={vi.fn()} />);
+    const select = screen.getByLabelText("登録済みの出店者から選ぶ");
+    fireEvent.change(select, { target: { value: "v2" } });
+    expect(onSelectVendor).not.toHaveBeenCalled();
+    fireEvent.change(select, { target: { value: "v2" } });
+    expect(onSelectVendor).toHaveBeenCalledWith("v2");
+    expect(confirm).toHaveBeenCalledTimes(2);
+    confirm.mockRestore();
+  });
+
   it("上限を超えた既存の品目は、欄にフォーカスして離れただけでは切り捨てない", () => {
     const { onUpdateVendor, input } = renderPanel();
     fireEvent.focus(input);

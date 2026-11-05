@@ -24,6 +24,7 @@ import { LISTING_STATUS_LABELS, LISTING_STATUSES, type AdminShopDetail, type Lis
 import { PAYMENT_OPTIONS, RAIN_OPTIONS, TIME_OPTIONS } from "@/lib/vendor/storeOptions";
 import { isEndAfterStart } from "@/lib/vendor/businessHours";
 import { CHOMES, type ChomeId } from "@/lib/map/chomes";
+import { FieldMarketPlaceCard } from "./FieldMarketPlaceCard";
 import { LocationPicker, type FieldLocation, type LatLng } from "./LocationPicker";
 
 type Category = { id: string; name: string };
@@ -122,9 +123,11 @@ export function FieldShopEditor({ shopId }: { shopId: string }) {
   // 記録した位置の取り方（現在地か、地図で指したか）と、現在地の誤差。地図は直したいときだけ開く
   const [recordedInfo, setRecordedInfo] = useState<{ source: "gps" | "pin" | null; accuracyM: number | null } | null>(null);
   const [showMap, setShowMap] = useState(false);
+  const [hasSharedPlace, setHasSharedPlace] = useState(false);
 
   const applyLocationResponse = useCallback((data: { locations?: FieldLocation[]; current?: FieldLocation | null }) => {
     setLocations(data.locations ?? []);
+    setHasSharedPlace(!!data.current?.sharedPlace);
     if (data.current) {
       setStoreNumber(data.current.storeNumber != null ? String(data.current.storeNumber) : "");
       setPin({ lat: data.current.lat, lng: data.current.lng });
@@ -213,7 +216,7 @@ export function FieldShopEditor({ shopId }: { shopId: string }) {
         body: JSON.stringify({
           ...toPayload(form),
           // 丁目は変えたときだけ送る（送ると手で設定した扱いになるため、開いただけの保存では送らない）
-          ...(form.chome !== "" && Number(form.chome) !== shop.chome ? { chome: Number(form.chome) as ChomeId } : {}),
+          ...(!hasSharedPlace && form.chome !== "" && Number(form.chome) !== shop.chome ? { chome: Number(form.chome) as ChomeId } : {}),
           updated_at: shop?.updated_at ?? null,
         }),
       });
@@ -359,6 +362,11 @@ export function FieldShopEditor({ shopId }: { shopId: string }) {
 
       <FieldShopPhotoCard shopId={shopId} shop={shop} setShop={setShop} photoUseAllowedInForm={form.photo_use_allowed} />
 
+      <FieldMarketPlaceCard shopId={shopId} updatedAt={shop.updated_at} onSaved={async (updatedAt) => {
+        setShop((prev) => prev ? { ...prev, updated_at: updatedAt } : prev);
+        await refreshLocations();
+      }} />
+
       <Card title="基本の情報">
         <Field label="店名">
           <input value={form.shop_name} onChange={(e) => update("shop_name", e.target.value)} maxLength={100} className={inputClass} />
@@ -373,6 +381,7 @@ export function FieldShopEditor({ shopId }: { shopId: string }) {
             ))}
           </select>
         </Field>
+        {hasSharedPlace ? <p className="text-sm text-nicchyo-ink/70">丁目は出店場所の共通区画に従います。マップ編集で変更できます。</p> : <>
         <Field label="日曜市の丁目">
           <select
             value={form.chome}
@@ -390,6 +399,7 @@ export function FieldShopEditor({ shopId }: { shopId: string }) {
         <p className="text-[13px] text-nicchyo-ink/55">
           現場で聞いた丁目として記録します。地図の区画の丁目は変わりません。
         </p>
+        </>}
         <Field label="店主のお名前">
           <input value={form.owner_name} onChange={(e) => update("owner_name", e.target.value)} maxLength={100} className={inputClass} />
         </Field>
@@ -501,7 +511,8 @@ export function FieldShopEditor({ shopId }: { shopId: string }) {
         </Field>
       </Card>
 
-      <Card title="お店の位置" hint="お店の前で「いまの場所を記録する」を押すと、スマホの現在地をそのまま記録します。地図に指す必要はありません。記録するだけで、地図は変わりません。">
+      <Card title="お店の位置" hint={hasSharedPlace ? "出店場所に紐づく区画の位置です。変更はマップ編集で行います。" : "お店の前で現在地を記録できます。記録はマップへ自動反映されません。"}>
+        {hasSharedPlace ? <p className="text-sm">店番 {storeNumber} の区画を使用しています。</p> : <>
         <Field label={`店番（${MIN_SHOP_ID}〜${MAX_SHOP_ID}。住所録に無い新しい店は空のままでよい）`}>
           <input value={storeNumber} inputMode="numeric" onChange={(e) => setStoreNumber(e.target.value.replace(/\D/g, ""))} className={inputClass} />
         </Field>
@@ -549,6 +560,7 @@ export function FieldShopEditor({ shopId }: { shopId: string }) {
             </button>
           </>
         ) : null}
+        </>}
       </Card>
 
       <div className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-white/95 p-3 backdrop-blur lg:left-[248px]">
