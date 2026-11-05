@@ -1,6 +1,8 @@
 // @vitest-environment node
 // multipart の File/FormData は Node 標準のものを使う（jsdom の File は arrayBuffer を持たず、本番の挙動と食い違う）
 import { describe, it, expect, beforeEach, vi } from "vitest";
+
+vi.mock("@/lib/analytics/collectionSettings.server", () => ({ isAnalyticsCollectionEnabled: async () => true }));
 import { NextResponse } from "next/server";
 
 const requireSameOrigin = vi.fn();
