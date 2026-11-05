@@ -1,20 +1,18 @@
 import { CloudRain, Sun } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { getStatusPresentation } from "@/lib/market/calendar";
-import type { LandingSunday } from "./upcomingSundays";
+import { getLocale, getT } from "@/lib/i18n/server";
+import { isOff, monthLabel, type LandingSunday } from "./upcomingSundays";
 import "./landing.css";
-
-/** 開催しない日（荒天中止・臨時休市）か */
-export function isOff(status: LandingSunday["status"]) {
-  return status === "cancelled" || status === "closed";
-}
 
 /**
  * これからの日曜の1枚（カレンダーから吊るした札）。開催カレンダー（market_days）の状態つき。
  * 荒天中止・臨時休市は灰色。「次の日曜市は、いつ？」とトップの写真の上で同じ見た目を使う
  */
-export default function SundayCard({ sunday }: { sunday: LandingSunday }) {
+export default async function SundayCard({ sunday }: { sunday: LandingSunday }) {
+  const [locale, t] = await Promise.all([getLocale(), getT()]);
   const off = isOff(sunday.status);
+  const statusLabel = t(getStatusPresentation(sunday.status).label);
   return (
     <li
       className={cn(
@@ -26,7 +24,7 @@ export default function SundayCard({ sunday }: { sunday: LandingSunday }) {
         <i className="block h-[15px] w-[7px] rounded-sm bg-amber-900" />
         <i className="block h-[15px] w-[7px] rounded-sm bg-amber-900" />
       </span>
-      <span className={cn("text-[11px] font-bold", off ? "text-nicchyo-ink/40" : "text-amber-800")}>{sunday.month}月</span>
+      <span className={cn("text-[11px] font-bold", off ? "text-nicchyo-ink/40" : "text-amber-800")}>{monthLabel(sunday.month, locale)}</span>
       <span className={cn("font-display text-[1.75rem] leading-[1.1]", off ? "text-nicchyo-ink/40" : "text-nicchyo-ink")}>{sunday.day}</span>
       {off ? (
         <CloudRain aria-hidden className="my-0.5 h-[22px] w-[22px] text-nicchyo-ink/40" />
@@ -34,7 +32,7 @@ export default function SundayCard({ sunday }: { sunday: LandingSunday }) {
         <Sun aria-hidden className="my-0.5 h-[22px] w-[22px] text-amber-400" />
       )}
       <span className={cn("text-[11px] font-black", off ? "text-nicchyo-ink/55" : "text-green-800")}>
-        {getStatusPresentation(sunday.status).label}
+        {statusLabel}
       </span>
     </li>
   );

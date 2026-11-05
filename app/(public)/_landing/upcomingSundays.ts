@@ -17,6 +17,11 @@ export function monthLabel(month: number, locale: Locale): string {
   return locale === "en" ? (EN_MONTHS[month - 1] ?? String(month)) : `${month}月`;
 }
 
+/** 開催しない日（荒天中止・臨時休市）か。クライアントの部品からも読まれるので、サーバー専用の処理を持つファイルには置かない */
+export function isOff(status: LandingSunday["status"]) {
+  return status === "cancelled" || status === "closed";
+}
+
 /** 日曜を何週ぶん出すか */
 export const LANDING_SUNDAY_COUNT = 8;
 
