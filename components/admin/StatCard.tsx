@@ -1,5 +1,6 @@
 import React from "react";
 import type { LucideIcon } from "lucide-react";
+import { Surface } from "@/components/ui";
 
 interface StatCardProps {
   title: string;
@@ -14,21 +15,21 @@ export const StatCard = React.memo(function StatCard({
   title,
   value,
   icon,
-  bgColor = "bg-white border border-slate-200",
-  textColor = "text-slate-900",
+  bgColor,
+  textColor = "text-nicchyo-ink",
 }: StatCardProps) {
   const isComponentIcon = typeof icon !== "string";
   const Icon = isComponentIcon ? (icon as LucideIcon) : null;
 
   return (
-    <div className={`${bgColor} rounded-xl p-5 shadow-sm`}>
+    <Surface padding="none" className={`p-5 ${bgColor ?? ""}`}>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-[13px] font-medium text-slate-500">{title}</p>
+          <p className="text-[13px] font-medium text-nicchyo-ink/55">{title}</p>
           <p className={`mt-1.5 text-2xl font-bold tabular-nums ${textColor}`}>{value}</p>
         </div>
         {Icon ? (
-          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-slate-100 text-slate-500">
+          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-nicchyo-ink/5 text-nicchyo-ink/55">
             <Icon className="h-[18px] w-[18px]" aria-hidden="true" />
           </span>
         ) : (
@@ -37,6 +38,6 @@ export const StatCard = React.memo(function StatCard({
           </span>
         )}
       </div>
-    </div>
+    </Surface>
   );
 });
