@@ -108,12 +108,11 @@ type ListProps = {
   items: Entry[];
   heartCounts: Record<string, number>;
   onOpen: (index: number) => void;
-
 };
 
 function StoryList({ items, heartCounts, onOpen }: ListProps) {
   return (
-    <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+    <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
       {items.map(({ story, index }) => {
         const shopName = story.vendor?.shop_name ?? "出店者";
         const hearts = heartCounts[story.id] ?? 0;
@@ -122,7 +121,7 @@ function StoryList({ items, heartCounts, onOpen }: ListProps) {
             <button
               type="button"
               onClick={() => onOpen(index)}
-              className="group relative block aspect-video w-full overflow-hidden rounded-card bg-nicchyo-ink/5 text-left transition active:scale-[0.97] motion-reduce:active:scale-100 sm:aspect-square"
+              className="group flex h-full w-full flex-col overflow-hidden rounded-card bg-white text-left shadow-card ring-1 ring-line transition active:scale-[0.99] motion-reduce:active:scale-100"
               aria-label={`${shopName}の投稿を見る`}
             >
               <StoryTileBody story={story} shopName={shopName} hearts={hearts} />
@@ -139,23 +138,31 @@ type BodyProps = { story: StoryItem; shopName: string; hearts: number };
 function StoryTileBody({ story, shopName, hearts }: BodyProps) {
   return (
     <>
-      <Image
-        src={story.image_url}
-        alt=""
-        fill
-        className="object-cover transition duration-300 md:group-hover:scale-[1.03]"
-        sizes="(min-width: 1024px) 25vw, (min-width: 640px) 50vw, 100vw"
-      />
-      <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/60 to-transparent px-1.5 pb-1.5 pt-6">
-        <p className="truncate text-sm font-bold leading-tight text-white">{shopName}</p>
-        <p className="mt-1 text-xs text-white">{formatRelativeTime(new Date(story.created_at))}</p>
+      <div className="flex w-full items-center gap-3 px-3 py-3">
+        <span className="relative h-10 w-10 shrink-0 overflow-hidden rounded-full bg-nicchyo-ink/5">
+          <Image src={story.vendor?.shop_image_url ?? story.image_url} alt="" fill sizes="40px" className="object-cover" />
+        </span>
+        <span className="min-w-0">
+          <span className="block truncate text-sm font-bold text-nicchyo-ink">{shopName}</span>
+          <span className="block text-xs text-nicchyo-ink/55">{formatRelativeTime(new Date(story.created_at))}</span>
+        </span>
       </div>
-      {hearts > 0 && (
-        <div className="absolute right-1 top-1 flex items-center gap-0.5 rounded-full bg-black/45 px-1.5 py-0.5 backdrop-blur-sm">
-          <Heart className="h-2.5 w-2.5 fill-current text-rose-400" aria-hidden />
-          <span className="text-[9px] font-bold tabular-nums text-white">{hearts}</span>
-        </div>
-      )}
+      <div className="relative aspect-video w-full overflow-hidden bg-nicchyo-ink/5">
+        <Image
+          src={story.image_url}
+          alt=""
+          fill
+          className="object-cover transition duration-300 md:group-hover:scale-[1.03] motion-reduce:transition-none"
+          sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
+        />
+      </div>
+      <div className="flex w-full flex-1 items-start gap-3 px-3 py-3">
+        {story.body && <p className="min-w-0 flex-1 whitespace-pre-line line-clamp-3 text-sm leading-relaxed text-nicchyo-ink">{story.body}</p>}
+        <span className="ml-auto flex shrink-0 items-center gap-1 text-xs font-semibold tabular-nums text-nicchyo-ink/70" aria-label={`ハート ${hearts}件`}>
+          <Heart className="h-4 w-4" aria-hidden />
+          {hearts}
+        </span>
+      </div>
     </>
   );
 }

@@ -22,7 +22,7 @@ describe("StoryGridSections", () => {
     const onOpen = vi.fn();
     render(<StoryGridSections stories={[makeStory("a", 0, "朝どれの人参です")]} heartCounts={{ a: 3 }} onOpen={onOpen} />);
 
-    expect(screen.queryByText("朝どれの人参です")).not.toBeInTheDocument();
+    expect(screen.getByText("朝どれの人参です")).toBeInTheDocument();
     expect(screen.getByText("店a")).toBeInTheDocument();
     expect(screen.getByText("3")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "店aの投稿を見る" }));
@@ -33,7 +33,7 @@ describe("StoryGridSections", () => {
     const stories = Array.from({ length: 7 }, (_, i) => makeStory(String(i), 0, `本文${i}`));
     render(<StoryGridSections stories={stories} heartCounts={{}} onOpen={vi.fn()} />);
 
-    expect(screen.queryByText("本文0")).not.toBeInTheDocument();
+    expect(screen.getByText("本文0")).toBeInTheDocument();
     expect(screen.getAllByRole("button", { name: /の投稿を見る$/ })).toHaveLength(stories.length);
   });
 

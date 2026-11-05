@@ -8,7 +8,6 @@ import NavigationBar from "@/app/components/NavigationBar";
 import { EmptyState, PageContainer, PageShell } from "@/components/ui";
 import StoryViewer from "./StoryViewer";
 import { StoryDemoBadge } from "./components/StoryChrome";
-import StoryVendorTray from "./components/StoryVendorTray";
 import StoryGridSections from "./components/StoryGridSections";
 import { getNextSundayLabel } from "@/lib/utils/date";
 import { fetchReactionCounts } from "@/lib/story/reactions";
@@ -20,7 +19,7 @@ import { useMarketCalendar } from "@/lib/market/useMarketCalendar";
 import { groupEventsBySunday, UPCOMING_SUNDAYS_PREVIEW_COUNT } from "@/lib/market/calendar";
 import type { StoryItem } from "./types";
 
-/** 出店者の近況を、開催情報・出店者・投稿の順に見せる。 */
+/** 出店者の近況を、開催情報・投稿の順に見せる。 */
 type Props = {
   demo?: {
     /** 新しい順の見本の投稿 */
@@ -145,14 +144,9 @@ export default function StoryGridClient({ demo }: Props = {}) {
 
             {loading ? (
               <div className="space-y-6" aria-busy>
-                <div className="flex gap-3">
-                  {Array.from({ length: 5 }).map((_, i) => (
-                    <div key={i} className="h-[3.75rem] w-[3.75rem] shrink-0 animate-pulse rounded-full bg-nicchyo-ink/5" />
-                  ))}
-                </div>
-                <div className="grid grid-cols-1 gap-3 overflow-hidden rounded-card sm:grid-cols-2 lg:grid-cols-4">
+                <div className="grid grid-cols-1 gap-3 overflow-hidden rounded-card sm:grid-cols-2 lg:grid-cols-3">
                   {Array.from({ length: 9 }).map((_, i) => (
-                    <div key={i} className="aspect-video animate-pulse rounded-card bg-nicchyo-ink/5 sm:aspect-square" />
+                    <div key={i} className="aspect-[4/3] animate-pulse rounded-card bg-nicchyo-ink/5" />
                   ))}
                 </div>
               </div>
@@ -174,13 +168,7 @@ export default function StoryGridClient({ demo }: Props = {}) {
                 description={`次の日曜市は ${nextSunday}`}
               />
             ) : (
-              <>
-                <section aria-labelledby="story-vendors-heading" className="space-y-3">
-                  <h2 id="story-vendors-heading" className="text-lg font-bold text-nicchyo-ink">出店者の近況</h2>
-                  <StoryVendorTray stories={stories} onOpen={openViewer} />
-                </section>
-                <StoryGridSections stories={stories} heartCounts={heartCounts} onOpen={openViewer} />
-              </>
+              <StoryGridSections stories={stories} heartCounts={heartCounts} onOpen={openViewer} />
             )}
 
             <div className="border-t border-line-warm pt-6">

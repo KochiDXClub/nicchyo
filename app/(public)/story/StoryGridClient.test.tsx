@@ -106,14 +106,12 @@ describe("StoryGridClient", () => {
     expect(screen.getByRole("link", { name: "八百屋Bをマップで見る" })).toBeInTheDocument();
   });
 
-  it("店の列から選ぶと、その店のいちばん新しい投稿から開く", async () => {
-    mockViewport({ desktop: true });
+  it("出店者のアイコン列は表示しない", async () => {
     await renderPage();
-
-    fireEvent.click(screen.getByRole("button", { name: "八百屋Bの近況を見る" }));
-
-    expect(await screen.findByRole("link", { name: "八百屋Bをマップで見る" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "出店者の近況" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "八百屋Bの近況を見る" })).not.toBeInTheDocument();
   });
+
 });
 
 describe("StoryGridClient（デモ）", () => {
