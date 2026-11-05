@@ -18,6 +18,9 @@ import {
  * 画面が訳を見せ、運営が直してから、投稿・更新の API で日本語と一緒に保存する。
  * AI の呼び出しはサーバーだけで行い、キーはブラウザに出さない。費用がかかるので回数を絞る。
  */
+// 関数の上限（maxDuration = 60 秒）より前に、AI の待ちを切る
+const TRANSLATE_TIMEOUT_MS = 50_000;
+
 export async function translateAnnouncement(request: Request, city = false) {
   try {
     const guard = await guardAdminWrite(request, { bucket: city ? "city-announcement-translate" : "admin-announcement-translate", limit: 30, json: true, ...(city ? { authorize: requireCityApi } : {}) });
@@ -42,7 +45,7 @@ export async function translateAnnouncement(request: Request, city = false) {
       maxOutputTokens: 3000,
       temperature: 0.2,
       responseFormat: ANNOUNCEMENT_TRANSLATION_RESPONSE_FORMAT,
-    });
+    }, AbortSignal.timeout(TRANSLATE_TIMEOUT_MS));
     if (!response.ok) return NextResponse.json({ error: "翻訳できませんでした。少し待ってもう一度お試しください" }, { status: 502 });
 
     const payload = (await response.json()) as { choices?: { message?: { content?: string } }[] };
