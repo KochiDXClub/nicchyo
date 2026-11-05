@@ -2,8 +2,7 @@ import { cn } from "@/lib/utils/cn";
 import type { Locale } from "@/lib/i18n/config";
 import type { Translate } from "@/lib/i18n/translate";
 import { getStatusPresentation } from "@/lib/market/calendar";
-import { isOff } from "./SundayCard";
-import { monthLabel, type LandingSunday } from "./upcomingSundays";
+import { isOff, monthLabel, type LandingSunday } from "./upcomingSundays";
 import "./landing.css";
 
 /** 日めくりカレンダーに出す、言語に合わせた文字列（呼び出し側で作って渡す） */

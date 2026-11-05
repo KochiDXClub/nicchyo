@@ -84,6 +84,9 @@ jobs:
 
       # 掲載許可の記録（許可のメモなど）が、来訪者・一般ユーザーから直接読めないことを確かめる。
       # 詳しくは supabase/checks/vendor_listing_consent_columns.sql
+      - name: Check web analytics direct writes are closed
+        run: psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" -v ON_ERROR_STOP=1 -f supabase/checks/web_analytics_writes.sql
+
       - name: Check listing consent columns are not readable by anon / authenticated
         run: psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" -v ON_ERROR_STOP=1 -f supabase/checks/vendor_listing_consent_columns.sql
 
@@ -102,6 +105,9 @@ jobs:
       # 詳しくは supabase/checks/no_vendors_role_in_policies.sql
       - name: Check no vendors.role in RLS policies
         run: psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" -v ON_ERROR_STOP=1 -f supabase/checks/no_vendors_role_in_policies.sql
+
+      - name: Check private inquiry attachments
+        run: psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" -v ON_ERROR_STOP=1 -f supabase/checks/private_inquiry_images.sql
 
       - name: Show applied migrations
         run: supabase migration list --local

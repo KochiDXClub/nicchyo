@@ -319,7 +319,8 @@ export function missingAnthropicKeyResponse(): Response {
  * （requestChatCompletion が `.ok` を見て既定モデルへ切り替えられるように）。
  */
 export async function requestAnthropicChatCompletion(
-  body: Record<string, unknown>
+  body: Record<string, unknown>,
+  signal?: AbortSignal
 ): Promise<Response> {
   const apiKey = process.env[ANTHROPIC_API_KEY_ENV];
   if (!apiKey) return missingAnthropicKeyResponse();
@@ -332,14 +333,14 @@ export async function requestAnthropicChatCompletion(
 
     if (body.stream === true) {
       // stream: true の create は HTTP の応答が返るまで待つので、4xx はここで例外になる
-      const stream = await client.messages.create({ ...params, stream: true });
+      const stream = await client.messages.create({ ...params, stream: true }, { signal });
       return new Response(toOpenAiSseStream(stream, () => stream.controller.abort()), {
         status: 200,
         headers: SSE_HEADERS,
       });
     }
 
-    const message = await client.messages.create({ ...params, stream: false });
+    const message = await client.messages.create({ ...params, stream: false }, { signal });
     return new Response(JSON.stringify(toOpenAiCompletion(message, expectJson)), {
       status: 200,
       headers: { "Content-Type": "application/json" },
