@@ -11,7 +11,7 @@ import { formatRelativeTime } from "./StoryChrome";
 type Props = {
   /** 新しい順の全投稿 */
   stories: StoryItem[];
-  heartCounts: Record<string, number>;
+  heartCounts: Record<string, number> | null;
   /** stories の index で全画面ビューアを開く */
   onOpen: (index: number) => void;
 };
@@ -106,7 +106,7 @@ function SectionHeading({ label, count }: { label: string; count: number }) {
 
 type ListProps = {
   items: Entry[];
-  heartCounts: Record<string, number>;
+  heartCounts: Record<string, number> | null;
   onOpen: (index: number) => void;
 };
 
@@ -115,7 +115,7 @@ function StoryList({ items, heartCounts, onOpen }: ListProps) {
     <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
       {items.map(({ story, index }) => {
         const shopName = story.vendor?.shop_name ?? "出店者";
-        const hearts = heartCounts[story.id] ?? 0;
+        const hearts = heartCounts ? heartCounts[story.id] ?? 0 : null;
         return (
           <li key={story.id}>
             <button
@@ -123,6 +123,7 @@ function StoryList({ items, heartCounts, onOpen }: ListProps) {
               onClick={() => onOpen(index)}
               className="group flex h-full w-full flex-col overflow-hidden rounded-card bg-white text-left shadow-card ring-1 ring-line transition active:scale-[0.99] motion-reduce:active:scale-100"
               aria-label={`${shopName}の投稿を見る`}
+              aria-describedby={`story-summary-${story.id}`}
             >
               <StoryTileBody story={story} shopName={shopName} hearts={hearts} />
             </button>
@@ -133,7 +134,7 @@ function StoryList({ items, heartCounts, onOpen }: ListProps) {
   );
 }
 
-type BodyProps = { story: StoryItem; shopName: string; hearts: number };
+type BodyProps = { story: StoryItem; shopName: string; hearts: number | null };
 
 function StoryTileBody({ story, shopName, hearts }: BodyProps) {
   return (
@@ -156,12 +157,14 @@ function StoryTileBody({ story, shopName, hearts }: BodyProps) {
           sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
         />
       </div>
-      <div className="flex w-full flex-1 items-start gap-3 px-3 py-3">
+      <div id={`story-summary-${story.id}`} className="flex w-full flex-1 items-start gap-3 px-3 py-3">
         {story.body && <p className="min-w-0 flex-1 whitespace-pre-line line-clamp-3 text-sm leading-relaxed text-nicchyo-ink">{story.body}</p>}
-        <span className="ml-auto flex shrink-0 items-center gap-1 text-xs font-semibold tabular-nums text-nicchyo-ink/70" aria-label={`ハート ${hearts}件`}>
-          <Heart className="h-4 w-4" aria-hidden />
-          {hearts}
-        </span>
+        {hearts !== null && (
+          <span className="ml-auto flex shrink-0 items-center gap-1 text-xs font-semibold tabular-nums text-nicchyo-ink/70" aria-label={`ハート ${hearts}件`}>
+            <Heart className="h-4 w-4" aria-hidden />
+            {hearts}
+          </span>
+        )}
       </div>
     </>
   );

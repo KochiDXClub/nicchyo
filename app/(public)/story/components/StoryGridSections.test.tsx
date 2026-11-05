@@ -22,7 +22,7 @@ describe("StoryGridSections", () => {
     const onOpen = vi.fn();
     render(<StoryGridSections stories={[makeStory("a", 0, "朝どれの人参です")]} heartCounts={{ a: 3 }} onOpen={onOpen} />);
 
-    expect(screen.getByText("朝どれの人参です")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "店aの投稿を見る" })).toHaveAccessibleDescription(/朝どれの人参です/);
     expect(screen.getByText("店a")).toBeInTheDocument();
     expect(screen.getByText("3")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "店aの投稿を見る" }));
@@ -35,6 +35,11 @@ describe("StoryGridSections", () => {
 
     expect(screen.getByText("本文0")).toBeInTheDocument();
     expect(screen.getAllByRole("button", { name: /の投稿を見る$/ })).toHaveLength(stories.length);
+  });
+
+  it("ハート数が取得できないときは0件と表示しない", () => {
+    render(<StoryGridSections stories={[makeStory("a", 0)]} heartCounts={null} onOpen={vi.fn()} />);
+    expect(screen.queryByLabelText(/ハート .*件/)).not.toBeInTheDocument();
   });
 
   it("今週・先週の投稿があれば「それより前」はたたんでおき、押すと開く", () => {

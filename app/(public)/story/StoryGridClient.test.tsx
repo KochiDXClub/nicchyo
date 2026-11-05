@@ -1,8 +1,9 @@
 import React from "react";
-import { render, screen, act, fireEvent } from "@testing-library/react";
+import { render, screen, act, fireEvent, waitFor } from "@testing-library/react";
 import { vi } from "vitest";
 import StoryGridClient from "./StoryGridClient";
 import type { StoryItem } from "./types";
+import { fetchReactionCounts } from "@/lib/story/reactions";
 
 // ナビゲーションバーは Auth/Bag/Menu の各 Context に依存するため、
 // このテストの対象外としてスタブに差し替える
@@ -104,6 +105,16 @@ describe("StoryGridClient", () => {
     expect(screen.queryByTestId("story-peek-sheet")).not.toBeInTheDocument();
     expect(await screen.findByLabelText("ハートを送る")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "八百屋Bをマップで見る" })).toBeInTheDocument();
+  });
+
+  it("投稿を閉じたら一覧のハート数を更新する", async () => {
+    vi.mocked(fetchReactionCounts).mockResolvedValueOnce({ counts: { a: 2 }, reactedIds: [] })
+      .mockResolvedValueOnce({ counts: { a: 3 }, reactedIds: [] });
+    await renderPage();
+    expect(await screen.findByLabelText("ハート 2件")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "八百屋Aの投稿を見る" }));
+    fireEvent.click(await screen.findByRole("button", { name: "閉じる" }));
+    await waitFor(() => expect(screen.getByLabelText("ハート 3件")).toBeInTheDocument());
   });
 
   it("出店者のアイコン列は表示しない", async () => {

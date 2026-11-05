@@ -34,7 +34,7 @@ export default function StoryGridClient({ demo }: Props = {}) {
   const [loading, setLoading] = useState(!demo);
   const [fetchError, setFetchError] = useState(false);
   const [viewerIndex, setViewerIndex] = useState<number | null>(null);
-  const [heartCounts, setHeartCounts] = useState<Record<string, number>>(() => demo?.heartCounts ?? {});
+  const [heartCounts, setHeartCounts] = useState<Record<string, number> | null>(() => demo?.heartCounts ?? null);
   const nextSunday = useMemo(() => getNextSundayLabel(), []);
   const { calendar } = useMarketCalendar();
   const isDemo = demo !== undefined;
@@ -68,9 +68,9 @@ export default function StoryGridClient({ demo }: Props = {}) {
     }
   }, [stories]);
 
-  // サムネイル用のハート数をバッチ取得（失敗しても一覧の表示には影響させない）
+  // 一覧のハート数を取得し、ビューアで操作した後は閉じた時に更新する。
   useEffect(() => {
-    if (isDemo || stories.length === 0) return;
+    if (isDemo || stories.length === 0 || viewerIndex !== null) return;
     let cancelled = false;
     fetchReactionCounts(stories.map((story) => story.id))
       .then(({ counts }) => {
@@ -80,7 +80,7 @@ export default function StoryGridClient({ demo }: Props = {}) {
     return () => {
       cancelled = true;
     };
-  }, [isDemo, stories]);
+  }, [isDemo, stories, viewerIndex]);
 
   const openViewer = (index: number) => {
     setViewerIndex(index);

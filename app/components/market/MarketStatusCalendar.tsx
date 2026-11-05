@@ -64,7 +64,7 @@ export default function MarketStatusCalendar({ day, className = "", link = true,
       ) : (
         calendar
       )}
-      {(showSummary || day?.note) && (
+      {(showSummary || tone !== "neutral" || day?.note) && (
         <div className="min-w-0">
           {showSummary && (
             <>
@@ -83,6 +83,13 @@ export default function MarketStatusCalendar({ day, className = "", link = true,
                 </p>
               )}
             </>
+          )}
+          {!showSummary && tone !== "neutral" && (
+            <p className={`inline-block rounded-btn px-3 py-1.5 text-sm font-black ${
+              tone === "alert" ? "bg-rose-500 text-white" : "bg-nicchyo-accent text-nicchyo-ink"
+            }`}>
+              {t(label)}
+            </p>
           )}
           {day?.note && <p className="mt-1 text-xs leading-relaxed text-nicchyo-ink/70">{day.note}</p>}
         </div>
