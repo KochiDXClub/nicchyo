@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/utils/supabase/middleware";
-import { getRole, isModerator } from "@/lib/auth/permissions";
+import { canAccessCity, getRole, isModerator } from "@/lib/auth/permissions";
 import {
   DEFAULT_LOCALE,
   LOCALE_COOKIE,
@@ -95,7 +95,9 @@ const MAINTENANCE_SKIP_PREFIXES = ["/admin", "/api", "/_next", "/maintenance"];
 const MAINTENANCE_SKIP_EXACT = ["/robots.txt", "/sitemap.xml", "/favicon.ico"];
 // メンテ中でも管理者が再ログインしてメンテを解除できるよう、ログイン系はメンテ判定だけ免除する
 // （公開設定の判定は引き続き対象）
-const MAINTENANCE_ONLY_SKIP_PREFIXES = ["/login", "/oauth"];
+// /city も同じ扱い：メンテナンス中でも市の担当者が荒天中止などを出せるようにしつつ、
+// 管理画面の「ページ公開設定」で閉じたときは効くようにする
+const MAINTENANCE_ONLY_SKIP_PREFIXES = ["/login", "/oauth", "/city"];
 
 // 店舗データをそのまま返す API は、地図ページ（/map）と同じ公開設定で止める
 const PREPARING_PATH = "/preparing";
@@ -175,6 +177,15 @@ export async function proxy(request: NextRequest) {
   if (pathname.startsWith("/admin") || pathname.startsWith("/moderator")) {
     const allowed = isModerator(appRole);
     if (!user || !allowed) {
+      const redirectRes = NextResponse.redirect(new URL("/", request.url));
+      copyCookies(supabaseResponse, redirectRes);
+      return redirectRes;
+    }
+  }
+
+  // 高知市（市役所）向け。city_official と admin だけ。moderator は入れない
+  if (pathname === "/city" || pathname.startsWith("/city/")) {
+    if (!user || !canAccessCity(appRole)) {
       const redirectRes = NextResponse.redirect(new URL("/", request.url));
       copyCookies(supabaseResponse, redirectRes);
       return redirectRes;

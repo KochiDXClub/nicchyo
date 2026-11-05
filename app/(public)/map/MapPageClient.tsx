@@ -10,8 +10,7 @@ import type { MapCamera } from "./types/mapCamera";
 import { clearSearchMapPayload, loadAiMapPayload, loadSearchMapPayload } from "../../../lib/searchMapStorage";
 import { getShopPreviewImage } from "../../../lib/shopImages";
 import { useAuth } from "../../../lib/auth/AuthContext";
-import { SHOP_CATEGORY_NAMES } from "./data/shops";
-import { parseShopCategory } from "./config/shopCategories";
+import { useCategories, useCategorizedShops } from "@/lib/categories/CategoryContext";
 import type { Shop } from "./data/shops";
 import type { Landmark } from "./types/landmark";
 import type { MapRoute } from "./types/mapRoute";
@@ -101,12 +100,14 @@ const NEARBY_AREA_WIDTH_RATIO = 0.8;
 const NEARBY_AREA_HEIGHT_RATIO = 0.48;
 
 export default function MapPageClient({
-  shops,
+  shops: sourceShops,
   landmarks,
   mapRoute,
   featureFlags,
   mapViewSettings,
 }: MapPageClientProps) {
+  const shops = useCategorizedShops(sourceShops);
+  const categories = useCategories();
   const showGrandma = false;
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -341,7 +342,7 @@ export default function MapPageClient({
     shops,
     favoriteShopIds,
     initialQuery: searchParams?.get("q") ?? "",
-    initialCategory: parseShopCategory(searchParams?.get("category")),
+    initialCategory: searchParams?.get("category") ?? null,
   });
   const [aiMarkerPayload, setAiMarkerPayload] = useState<{
     ids: number[];
@@ -934,7 +935,7 @@ export default function MapPageClient({
 
                 {/* ジャンルフィルター */}
                 <GenreFilter
-                  categories={SHOP_CATEGORY_NAMES}
+                  categories={categories.map(category => category.name)}
                   selected={mapSearchCategory}
                   onSelect={(cat) => setMapSearchCategory(mapSearchCategory === cat ? null : cat)}
                   favoritesActive={favoritesOnly}
@@ -1043,8 +1044,14 @@ export default function MapPageClient({
                   routes={guide.routes}
                   onSelectSpot={setSelectedSpot}
                 />
-                {!nearbyState && !selectedSpot && (
-                  <OdekakeGuidePanel guide={guide} map={mapInstance} onClose={closeGuide} onOpenSpot={setSelectedSpot} />
+                {!nearbyState && (
+                  <OdekakeGuidePanel
+                    guide={guide}
+                    map={mapInstance}
+                    onClose={closeGuide}
+                    hidden={Boolean(selectedSpot)}
+                    onOpenSpot={setSelectedSpot}
+                  />
                 )}
               </>
             )}

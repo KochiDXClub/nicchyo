@@ -11,9 +11,18 @@ export function getRole(user: unknown): string | null {
 
 /**
  * ロール階層（高い順）。新しいロールを追加する場合はここに追記する。
- *   admin > moderator > vendor > general_user
+ *   admin > moderator > city_official > vendor > general_user
+ *
+ * city_official（高知市）は運営（admin / moderator）とは別系統のロール。
+ * 追加時点では権限を持たない。許可する操作は /city 側で個別に通す。
  */
-export const ROLE_HIERARCHY = ["admin", "moderator", "vendor", "general_user"] as const;
+export const ROLE_HIERARCHY = [
+  "admin",
+  "moderator",
+  "city_official",
+  "vendor",
+  "general_user",
+] as const;
 
 /** admin ロールかどうかを判定する */
 export function isAdmin(role: string | null): boolean {
@@ -25,6 +34,19 @@ export function isModerator(role: string | null): boolean {
   return role === "moderator" || isAdmin(role);
 }
 
+/** city_official（高知市）ロールかどうかを判定する。admin は含まない */
+export function isCityOfficial(role: string | null): boolean {
+  return role === "city_official";
+}
+
+/**
+ * /city と /api/city/* に入ってよいロールか（city_official / admin）。
+ * moderator は入れない。proxy.ts・layout・API ガードで同じ判定を使う
+ */
+export function canAccessCity(role: string | null): boolean {
+  return isCityOfficial(role) || isAdmin(role);
+}
+
 /** vendor ロールかどうかを判定する */
 export function isVendor(role: string | null): boolean {
   return role === "vendor";
@@ -34,6 +56,7 @@ export function isVendor(role: string | null): boolean {
 export function normalizeRole(value?: string | null): UserRole {
   if (value === "admin") return "admin";
   if (value === "moderator") return "moderator";
+  if (value === "city_official") return "city_official";
   if (value === "vendor") return "vendor";
   return "general_user";
 }

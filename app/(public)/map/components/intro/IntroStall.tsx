@@ -58,7 +58,7 @@ export function IntroStallMarker({
   const html = useMemo(
     () =>
       generateShopMarkerHtml(shop, {
-        bannerImage: getShopBannerImage(shop.category, shop.id),
+        bannerImage: getShopBannerImage(shop.categoryKey ?? shop.category, shop.id),
         illustrationSize: 'medium',
         includeNameplate: lod === 'nameplate',
       }),
@@ -104,8 +104,8 @@ export const INTRO_CARD_HEIGHT = 72;
  * （ShopScanCards）。寸法・角丸・縁と影・店名の帯まで同じにしてある。
  */
 export function IntroScanCard({ shop, onClick }: { shop: Shop; onClick?: () => void }) {
-  const roof = resolveStallColors(shop.category, sanitizeCssColor(shop.illustration?.color));
-  const photo = shop.images?.main ?? getShopBannerImage(shop.category, shop.position ?? shop.id);
+  const roof = resolveStallColors(shop.categoryKey ?? shop.category, sanitizeCssColor(shop.illustration?.color));
+  const photo = shop.images?.main ?? getShopBannerImage(shop.categoryKey ?? shop.category, shop.position ?? shop.id);
 
   return (
     <button

@@ -3,9 +3,9 @@ name: CI
 on:
   push:
     branches: [develop, main]
+  # スタックPR（親の機能ブランチ宛て）でも必須チェックを実行する。
   pull_request:
     types: [opened, synchronize, reopened, edited]
-    branches: [develop, main]
   merge_group:
   workflow_dispatch:
 

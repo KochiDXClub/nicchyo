@@ -57,7 +57,7 @@ export function pickIntroDemoShops(
   const picked: Shop[] = [];
   const seen = new Set<number>();
   // まずカテゴリを1周して、色がばらけるようにする
-  for (const category of SHOP_CATEGORY_NAMES) {
+  for (const category of (shops?.length ? Array.from(new Set(shops.map(shop => shop.category).filter(Boolean))) : SHOP_CATEGORY_NAMES)) {
     if (picked.length >= count) break;
     const first = byCategory.get(category)?.[0];
     if (first && !seen.has(first.id)) {

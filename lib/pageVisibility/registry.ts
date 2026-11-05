@@ -28,6 +28,7 @@ export type PageRegistryEntry = {
 const MODERATOR_UP: readonly VisibilityRole[] = ["moderator", "admin"];
 const ADMIN_ONLY: readonly VisibilityRole[] = ["admin"];
 const VENDOR_ONLY: readonly VisibilityRole[] = ["vendor"];
+const CITY_ONLY: readonly VisibilityRole[] = ["city_official"];
 
 /**
  * 本番を準備中にしている間の既定。管理者以外には店舗データを見せない
@@ -37,6 +38,7 @@ const PREPARING_IN_PRODUCTION: Partial<Record<VisibilityRole, VisibilityState>> 
   anon: "preparing",
   general_user: "preparing",
   vendor: "preparing",
+  city_official: "preparing",
   moderator: "preparing",
 };
 
@@ -113,6 +115,9 @@ export const PAGE_REGISTRY: readonly PageRegistryEntry[] = [
   { path: "/vendor/members", label: "出店者メンバー管理", group: "出店者向け", codeAllowed: VENDOR_ONLY },
   { path: "/vendor/account", label: "出店者アカウント", group: "出店者向け", codeAllowed: VENDOR_ONLY },
   { path: "/vendor/help", label: "出店者ヘルプ", group: "出店者向け", codeAllowed: VENDOR_ONLY },
+
+  // ── 高知市向け ─────────────────────────────────────────────
+  { path: "/city", label: "高知市のページ", group: "高知市向け", codeAllowed: CITY_ONLY },
 
   // ── モデレーター向け ───────────────────────────────────────
   { path: "/moderator", label: "モデレーター", group: "モデレーター向け", codeAllowed: MODERATOR_UP },

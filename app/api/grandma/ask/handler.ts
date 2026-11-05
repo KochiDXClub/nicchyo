@@ -98,6 +98,13 @@ const ConsultHistoryEntrySchema = z.object({
  */
 const ConsultHistoryArraySchema = z.array(ConsultHistoryEntrySchema).max(50);
 
+/**
+ * OpenAI を待つ上限。クライアント（ConsultClient の 60 秒）より短くして、
+ * 先にサーバーが「失敗」を返せるようにする。signal は本文の受信にも効くので、
+ * ストリーミング中に止まった場合も同じ失敗として返る
+ */
+export const ASK_UPSTREAM_TIMEOUT_MS = 50_000;
+
 const AskJsonBodySchema = z.object({
   text: AskTextSchema.optional(),
   location: AskLocationSchema.nullable().optional(),
@@ -404,7 +411,7 @@ async function finalizeConsultResponse(options: {
   };
 }
 
-async function createStreamingConsultResponse(options: {
+export async function createStreamingConsultResponse(options: {
   openaiKey: string;
   selectedCharacters: ConsultCharacter[];
   userContent:
@@ -481,7 +488,7 @@ async function createStreamingConsultResponse(options: {
     maxOutputTokens: conversationSettings["consult.max_output_tokens"],
     temperature: 0.7,
     stream: true,
-  });
+  }, AbortSignal.timeout(ASK_UPSTREAM_TIMEOUT_MS));
 
   if (!upstream.ok || !upstream.body) {
     return NextResponse.json(
@@ -506,13 +513,17 @@ async function createStreamingConsultResponse(options: {
   const encoder = new TextEncoder();
   const decoder = new TextDecoder();
 
+  const reader = upstream.body.getReader();
+  // 利用者が離れた（cancel が呼ばれた）後は、OpenAI からの受信も enqueue も止める
+  let clientClosed = false;
+
   const readable = new ReadableStream({
     async start(controller) {
       const enqueue = (payload: unknown) => {
+        if (clientClosed) return;
         controller.enqueue(encoder.encode(`${JSON.stringify(payload)}\n`));
       };
 
-      const reader = upstream.body!.getReader();
       let sseBuffer = "";
       let modelOutput = "";
       let firstTurnStarted = false;
@@ -559,7 +570,7 @@ async function createStreamingConsultResponse(options: {
       };
 
       try {
-        while (true) {
+        while (!clientClosed) {
           const { done, value } = await reader.read();
           if (done) break;
           sseBuffer += decoder.decode(value, { stream: true });
@@ -584,6 +595,9 @@ async function createStreamingConsultResponse(options: {
             }
           }
         }
+
+        // 離脱後は答えを組み立てても誰にも届かないので、保存も含めて打ち切る
+        if (clientClosed) return;
 
         const streamedPayload = parseStreamingConsultOutput(
           modelOutput,
@@ -629,8 +643,13 @@ async function createStreamingConsultResponse(options: {
           ),
         });
       } finally {
-        controller.close();
+        if (!clientClosed) controller.close();
       }
+    },
+    cancel() {
+      clientClosed = true;
+      // 読むのをやめるだけでなく上流を閉じて、OpenAI からの受信とトークン消費を止める
+      return reader.cancel().catch(() => {});
     },
   });
 
@@ -743,16 +762,6 @@ export async function handleConsultAsk(
         ),
       );
     }
-    if (text && text.length < 4 && !imageDataUrl) {
-      return NextResponse.json(
-        buildErrorResponse(
-          "insufficient_context",
-          selectedCharacters,
-          "もう少し詳しく聞かせてくれたら案内しやすいよ。食べたいものや気になるお店があると分かりやすいきね。",
-        ),
-      );
-    }
-
     const consultId = crypto.randomUUID();
 
     const openaiKey = process.env.OPENAI_API_KEY;
@@ -1011,7 +1020,7 @@ export async function handleConsultAsk(
       : userContextText;
 
     if (stream) {
-      return createStreamingConsultResponse({
+      return await createStreamingConsultResponse({
         openaiKey,
         selectedCharacters,
         userContent,
@@ -1062,7 +1071,7 @@ export async function handleConsultAsk(
         selectedCharacters,
         conversationSettings["consult.max_turns"],
       ),
-    });
+    }, AbortSignal.timeout(ASK_UPSTREAM_TIMEOUT_MS));
     if (!chatResponse.ok) {
       return NextResponse.json(
         {

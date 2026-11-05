@@ -29,7 +29,7 @@ export function AdminTabs<T extends string>({
   ariaLabel?: string;
 }) {
   return (
-    <div className="border-b border-slate-200 bg-white">
+    <div className="border-b border-line bg-white">
       <div
         role="tablist"
         aria-label={ariaLabel}
@@ -38,7 +38,7 @@ export function AdminTabs<T extends string>({
         {tabs.map((tab) => {
           const isActive = tab.key === value;
           const activeColor =
-            tab.tone === "danger" ? "border-rose-500 text-rose-700" : "border-slate-900 text-slate-900";
+            tab.tone === "danger" ? "border-status-critical-fg text-status-critical-fg" : "border-nicchyo-ink text-nicchyo-ink";
           return (
             <button
               key={tab.key}
@@ -49,7 +49,7 @@ export function AdminTabs<T extends string>({
               className={`shrink-0 border-b-2 px-3 py-2.5 text-[13px] font-medium transition-colors ${
                 isActive
                   ? activeColor
-                  : "border-transparent text-slate-500 hover:border-slate-200 hover:text-slate-800"
+                  : "border-transparent text-nicchyo-ink/55 hover:border-line hover:text-nicchyo-ink"
               }`}
             >
               {tab.label}

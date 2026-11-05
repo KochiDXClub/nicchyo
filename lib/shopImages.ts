@@ -74,6 +74,7 @@ export type ShopPreviewSource = {
   /** 道路上の位置。運営管理で変わらないので、既定画像の種にはこちらを優先する */
   position?: number | null;
   category?: string | null;
+  categoryKey?: string | null;
   images?: {
     main?: string | null;
     thumbnail?: string | null;
@@ -89,7 +90,7 @@ export function getShopPreviewImage(shop: ShopPreviewSource): string {
     images?.main || images?.thumbnail || images?.additional?.find(Boolean) || null;
   if (uploaded) return uploaded;
 
-  return getShopBannerImage(shop.category, shop.position ?? shop.id ?? undefined);
+  return getShopBannerImage(shop.categoryKey ?? shop.category, shop.position ?? shop.id ?? undefined);
 }
 
 /** その店を表す写真（後方互換エイリアス）。 */

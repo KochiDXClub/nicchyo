@@ -3,7 +3,6 @@
 ビルド・型・Lintをまとめて確認する。
 
 ```bash
-cd /c/Users/miyuk/nicchyo-platform
 npx tsc --noEmit --skipLibCheck && npm run lint
 ```
 

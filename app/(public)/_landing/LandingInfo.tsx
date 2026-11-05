@@ -25,16 +25,16 @@ export default async function LandingInfo({ sundays }: { sundays: LandingSunday[
   return (
     <section aria-labelledby="landing-info" className="mt-20 md:mt-28">
       <PageContainer width="wide">
-        <SectionHeading id="landing-info">次の日曜市は、いつ？</SectionHeading>
+        <SectionHeading id="landing-info">{t("次の日曜市は、いつ？")}</SectionHeading>
 
         <div className="mt-8 grid items-center gap-8 md:grid-cols-[15.5rem_minmax(0,1fr)] md:gap-11">
           <NextSundayCalendar sunday={next} text={nextText} />
 
           <div className="min-w-0">
             <div className="flex items-baseline justify-between gap-3">
-              <p className="text-[15px] font-black text-nicchyo-ink">これからの日曜</p>
+              <p className="text-[15px] font-black text-nicchyo-ink">{t("これからの日曜")}</p>
               <Link href="/calendar" className="text-[13px] font-bold text-amber-700 hover:text-amber-600">
-                開催カレンダー →
+                {t("開催カレンダー")} →
               </Link>
             </div>
             <ul className="-mx-5 mt-3 flex gap-2.5 overflow-x-auto px-5 pb-3.5 pt-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
@@ -53,8 +53,8 @@ export default async function LandingInfo({ sundays }: { sundays: LandingSunday[
                       <Icon aria-hidden className="h-5 w-5" />
                     </span>
                     <span>
-                      <dt className="text-[11px] font-bold opacity-75">{fact.term}</dt>
-                      <dd className="text-base font-black md:text-[17px]">{fact.detail}</dd>
+                      <dt className="text-[11px] font-bold opacity-75">{t(fact.term)}</dt>
+                      <dd className="text-base font-black md:text-[17px]">{t(fact.detail)}</dd>
                     </span>
                   </div>
                 );

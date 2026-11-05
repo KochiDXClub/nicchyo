@@ -4,7 +4,7 @@
 
 import type { ShopMembership, ShopPermission } from "@/lib/vendor/shopPermissions";
 
-export type UserRole = "admin" | "moderator" | "vendor" | "general_user";
+export type UserRole = "admin" | "moderator" | "city_official" | "vendor" | "general_user";
 
 export interface User {
   id: string;
@@ -28,6 +28,8 @@ export interface PermissionCheck {
   isAdmin: boolean;
   /** moderator 以上（moderator / admin）。API 側の isModerator() と対応 */
   isModerator: boolean;
+  /** 高知市（市役所）ロール。admin は含まない。API 側の isCityOfficial() と対応 */
+  isCityOfficial: boolean;
   isVendor: boolean;
   isGeneralUser: boolean;
   canEditShop: (shopVendorId: string) => boolean;

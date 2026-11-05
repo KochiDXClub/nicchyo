@@ -249,3 +249,8 @@ export function applyShopTranslation(shop: Shop, translation: ShopTranslation | 
   }
   return translated;
 }
+
+/** 画面に出すカテゴリー名。英語名があれば英語、無ければ日本語名。フィルタや色の判定には、これではなく shop.category（日本語名）を使う */
+export function shopCategoryLabel(shop: Pick<Shop, "category" | "categoryEn">): string {
+  return shop.categoryEn || shop.category;
+}

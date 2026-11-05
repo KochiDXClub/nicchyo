@@ -1,3 +1,5 @@
+import { fetchCategories } from "@/lib/categories/server";
+import { withCategory } from "@/lib/categories/catalog";
 import { revalidateTag, unstable_cache } from "next/cache";
 import { createAnonClient } from "@/lib/supabase/anonClient";
 import type { Shop } from "../types/shopData";
@@ -114,7 +116,9 @@ export async function fetchPublicShops(locale: Locale = DEFAULT_LOCALE): Promise
     }
   }
 
-  return applyShopTranslations(buildVendorShops(baseRows, activeContents), locale);
+  const categories = await fetchCategories().catch(() => []);
+  const shops = buildVendorShops(baseRows, activeContents).map(shop => withCategory(shop, categories));
+  return applyShopTranslations(shops, locale);
 }
 
 /** 管理画面の API で店舗・区画・カテゴリーを書き換えたあとに呼ぶ */

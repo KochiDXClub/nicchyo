@@ -1086,7 +1086,6 @@ function MapViewMapLibre({
           "text-halo-width": 1.6,
         },
       };
-      // 主要な建物の名前は従来どおり、縮小側の端から出す
       // 最大縮小付近は「日曜市」の文字が主役なので、建物の名前は LANDMARK_NAME_MIN_ZOOM まで寄ってから出す
       // （ふだんの下限ズームでは minZoom の方が大きいので従来どおり）
       const landmarkNameMinZoom = Math.max(LANDMARK_NAME_MIN_ZOOM, minZoom);

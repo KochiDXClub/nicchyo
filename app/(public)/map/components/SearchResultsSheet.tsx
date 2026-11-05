@@ -8,6 +8,7 @@
  * Leaflet 版・MapLibre 版で共用するため、地図は MapCamera だけを使う。
  */
 
+import { shopCategoryLabel } from "@/lib/i18n/shopTranslation";
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Shop } from '../data/shops';
 import type { MapCamera } from '../types/mapCamera';
@@ -196,7 +197,7 @@ export default function SearchResultsSheet({
                   <p className="truncate text-[13px] font-bold leading-tight text-slate-900">{shop.name}</p>
                   <div className="mt-0.5 flex items-center gap-1.5">
                     {shop.category && (
-                      <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-700">{shop.category}</span>
+                      <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-700">{shopCategoryLabel(shop)}</span>
                     )}
                     {shop.position && (
                       <span className="text-[11px] text-slate-400">{shop.position}番</span>

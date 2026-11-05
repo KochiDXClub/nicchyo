@@ -1,3 +1,5 @@
+import { fetchCategories } from "@/lib/categories/server";
+import { CategoryProvider } from "@/lib/categories/CategoryContext";
 import { Suspense } from "react";
 import type { Metadata, Viewport } from "next";
 import { headers } from "next/headers";
@@ -104,7 +106,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   // script-src 'nonce-…' 'strict-dynamic' の CSP で全スクリプトがブロックされて
   // ハイドレーションしない（近況ページが提灯ローディングで止まる等）ため必須。
   // https://nextjs.org/docs/app/guides/content-security-policy#nonces
-  const requestHeaders = await headers();
+  const [categories, requestHeaders] = await Promise.all([fetchCategories().catch(() => []), headers()]);
   const nonce = requestHeaders.get("x-nonce") ?? undefined;
   const locale = toLocale(requestHeaders.get(LOCALE_HEADER));
 
@@ -120,6 +122,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       <body className="bg-nicchyo-base text-nicchyo-ink">
         <ViewportHeightUpdater />
         <LocaleProvider locale={locale}>
+        <CategoryProvider initial={categories}>
         <AuthProvider>
           <PageVisibilityProvider>
             <MenuProvider>
@@ -135,6 +138,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             </MenuProvider>
           </PageVisibilityProvider>
         </AuthProvider>
+        </CategoryProvider>
         </LocaleProvider>
       </body>
     </html>

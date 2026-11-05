@@ -27,7 +27,7 @@ const ROLE_ACCENT: Record<string, ConsoleSidebarAccent> = {
   admin: { bar: "bg-red-500", icon: "text-red-600", dot: "bg-red-500" },
   moderator: { bar: "bg-purple-500", icon: "text-purple-600", dot: "bg-purple-500" },
 };
-const DEFAULT_ACCENT: ConsoleSidebarAccent = { bar: "bg-slate-900", icon: "text-slate-900", dot: "bg-slate-400" };
+const DEFAULT_ACCENT: ConsoleSidebarAccent = { bar: "bg-nicchyo-ink", icon: "text-nicchyo-ink", dot: "bg-nicchyo-ink/40" };
 
 export const AdminSidebar = React.memo(function AdminSidebar({
   isOpen,
@@ -72,7 +72,7 @@ export const AdminSidebar = React.memo(function AdminSidebar({
       onClose={onClose}
       menuLabel="管理メニュー"
       brandIcon={MapIcon}
-      brandClassName="bg-slate-900"
+      brandClassName="bg-nicchyo-ink"
       title="nicchyo"
       subtitle="管理コンソール"
       groups={groups}

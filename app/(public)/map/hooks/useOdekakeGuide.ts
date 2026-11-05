@@ -6,7 +6,7 @@
  * おでかけサポートの状態をまとめて持つフック。
  *
  *   URL（?guide=menu / ?facility=）→ 初期の種類
- *   種類・条件チップ / 選択中スポット / 案内中 … は画面側の状態
+ *   種類チップ / 選択中スポット / 案内中 … は画面側の状態
  *   経路・順位の計算は lib/guide（案内エンジン）に委ねる
  *
  * 起点は端末の現在地だけ。会場の外にいてもそこから道なりの経路・距離・時間を出す。
@@ -91,9 +91,8 @@ export function useOdekakeGuide({
 }) {
   const active = query !== null;
 
-  // ── 種類・条件（URL から初期化し、画面のチップで変える） ──
+  // ── 種類（URL から初期化し、画面のチップで変える） ──
   const [kinds, setKinds] = useState<SpotKind[]>(query?.kinds ?? []);
-  const [anyTags, setAnyTags] = useState<string[]>([]);
   // 閉じているとき（null）と ?guide=menu（種類なし）を区別し、閉じて開き直したときも
   // 選択・案内中の状態をリセットする。
   //
@@ -112,7 +111,6 @@ export function useOdekakeGuide({
       return;
     }
     setKinds(query?.kinds ?? []);
-    setAnyTags([]);
     setSelectedId(null);
     setNavigating(false);
     setPinnedSpot(null);
@@ -121,9 +119,6 @@ export function useOdekakeGuide({
   const toggleKind = useCallback((kind: SpotKind) => {
     setKinds((prev) => (prev.includes(kind) ? prev.filter((k) => k !== kind) : [...prev, kind]));
     setSelectedId(null);
-  }, []);
-  const toggleAnyTag = useCallback((tag: string) => {
-    setAnyTags((prev) => (prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]));
   }, []);
 
   // ── 選択・案内中 ──
@@ -300,18 +295,8 @@ export function useOdekakeGuide({
       origin,
       network,
       kinds,
-      requiredAnyTags: anyTags,
     });
-  }, [active, anyTags, kinds, network, origin, spots]);
-
-  /** いま選べる条件タグ（表示中の種別のスポットが持つタグの和集合） */
-  const availableTags = useMemo(() => {
-    const tags = new Set<string>();
-    for (const spot of spots) {
-      if (kinds.includes(spot.kind)) for (const tag of spot.tags ?? []) tags.add(tag);
-    }
-    return Array.from(tags);
-  }, [kinds, spots]);
+  }, [active, kinds, network, origin, spots]);
 
   const selected = useMemo(() => ranked.find((entry) => entry.spot.id === selectedId) ?? null, [ranked, selectedId]);
   const nearest = ranked[0] ?? null;
@@ -461,9 +446,6 @@ export function useOdekakeGuide({
     active,
     kinds,
     toggleKind,
-    anyTags,
-    toggleAnyTag,
-    availableTags,
     origin,
     hasGeolocation,
     geoStatus,

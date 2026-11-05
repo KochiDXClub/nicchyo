@@ -5,6 +5,7 @@ import { createClient as createServerClient } from "@/utils/supabase/server";
 import { createAdminClient } from "@/lib/supabase/adminClient";
 import { requireSameOrigin } from "@/lib/security/requestGuards";
 import { enforceRateLimit } from "@/lib/security/rateLimit";
+import { getRole, isCityOfficial } from "@/lib/auth/permissions";
 
 export type JoinGuardResult =
   | { ok: true; user: User; db: SupabaseClient }
@@ -12,7 +13,7 @@ export type JoinGuardResult =
 
 /**
  * 店舗に参加する API（招待リンク・QR コード）の入口。
- * 同じオリジンからか → ログインしているか → 回数（アカウントごと）→ service_role のクライアント、の順に確かめる。
+ * 同じオリジンからか → ログインしているか → 高知市のアカウントでないか → 回数（アカウントごと）→ service_role のクライアント、の順に確かめる。
  * まだ店舗に入っていない人が呼ぶので、requireVendorContext（所属店舗が要る）は使えない。
  */
 export async function requireJoinRequest(request: Request, bucket: string): Promise<JoinGuardResult> {
@@ -24,6 +25,18 @@ export async function requireJoinRequest(request: Request, bucket: string): Prom
     data: { user },
   } = await createServerClient(cookieStore).auth.getUser();
   if (!user) return { ok: false, response: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) };
+
+  // 高知市のアカウントは出店者になれない（ロールを書き換えると /city に入れなくなる）。
+  // 参加の処理（招待の使用済み化・QR の紐づけ）が先に済んでしまわないよう、その前に断る
+  if (isCityOfficial(getRole(user))) {
+    return {
+      ok: false,
+      response: NextResponse.json(
+        { error: "高知市のアカウントでは、店舗に参加できません", code: "city_official" },
+        { status: 403 },
+      ),
+    };
+  }
 
   const limited = await enforceRateLimit(request, {
     bucket,
