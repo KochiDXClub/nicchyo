@@ -40,10 +40,10 @@
 
 ### 🔴 優先度：高（セキュリティ）
 
-#### アナリティクスのINSERTをAPIルート経由に限定する
-- **問題**: `web_page_analytics`・`shop_page_views` テーブルのRLSが緩く、Supabaseクライアントから直接偽データを投入できる
-- **対応方針**: APIルートをサービスロール経由のINSERTに変更し、パブリックなINSERTポリシーを削除する
-- **作業内容**: コード変更（`page-visit` / `home-visit` APIルート）+ SQL変更（RLSポリシー削除）
+#### アナリティクスの直接INSERT閉鎖（コード対応済み・適用確認待ち）
+- `shop_page_views` は `20261002100000_lock_shop_page_views_writes.sql` で対応済み。
+- `web_page_analytics` は閲覧ログAPIのservice role保存と `20261104110000_close_web_analytics_direct_insert.sql` で対応。
+- 新しいSQLとアプリの適用後に、`supabase/checks/web_analytics_writes.sql` と実画面の記録を確認する。未適用の本番まで解消済みとは扱わない。
 
 ---
 

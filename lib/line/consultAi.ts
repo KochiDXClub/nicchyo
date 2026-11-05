@@ -166,20 +166,21 @@ export async function generateLineConsultReply(
     const aiModel = await resolveAiModelFor("consult");
     // LINE の本文は電話・メールが混ざり得るので、OpenAI へ送る前にマスクする
 
-    // タイムアウト用コントローラー（LINEの返信制限時間考慮）
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 9000);
-
-    const response = await requestChatCompletion(apiKey, aiModel, {
-      messages: [
-        { role: "system", content: LINE_GRANDMA_SYSTEM_PROMPT },
-        { role: "user", content: maskPii(trimmed) },
-      ],
-      maxOutputTokens: 350,
-      temperature: 0.7,
-    });
-
-    clearTimeout(timeoutId);
+    // LINE の返信期限に間に合わせるため、9秒で打ち切る。signal は本文の読み出しまで効くので
+    // 後ろの response.json() が止まる場合も同じ catch に落ちる
+    const response = await requestChatCompletion(
+      apiKey,
+      aiModel,
+      {
+        messages: [
+          { role: "system", content: LINE_GRANDMA_SYSTEM_PROMPT },
+          { role: "user", content: maskPii(trimmed) },
+        ],
+        maxOutputTokens: 350,
+        temperature: 0.7,
+      },
+      AbortSignal.timeout(9000)
+    );
 
     if (!response.ok) {
       console.error(

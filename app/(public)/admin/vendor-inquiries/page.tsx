@@ -188,16 +188,19 @@ function InquiryCard({
   const status = statusLabel(inquiry.status);
   const [replies, setReplies] = useState<VendorInquiryReplyRow[]>([]);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [detailImageUrl, setDetailImageUrl] = useState<string | null>(null);
   const [replyBody, setReplyBody] = useState("");
   const [replyAs, setReplyAs] = useState<"operator" | "city">("operator");
   const [busy, setBusy] = useState(false);
 
   const loadReplies = useCallback(async () => {
     setDetailLoading(true);
+    setDetailImageUrl(null);
     try {
       const res = await fetch(`/api/admin/vendor-inquiries/${inquiry.id}`);
       if (!res.ok) throw new Error(await readError(res, "取得に失敗しました"));
-      const data = (await res.json()) as { replies: VendorInquiryReplyRow[] };
+      const data = (await res.json()) as { inquiry: { image_url: string | null }; replies: VendorInquiryReplyRow[] };
+      setDetailImageUrl(data.inquiry.image_url);
       setReplies(data.replies);
     } catch (e) {
       showToast.error(e instanceof Error ? e.message : "やり取りの取得に失敗しました");
@@ -209,6 +212,25 @@ function InquiryCard({
   useEffect(() => {
     if (expanded) void loadReplies();
   }, [expanded, loadReplies]);
+
+  // 期限切れの署名URLを再利用せず、クリック時に認可と署名を取り直す。
+  const openAttachment = async () => {
+    const tab = window.open("about:blank", "_blank");
+    if (!tab) { showToast.error("画像を開くにはポップアップを許可してください"); return; }
+    tab.opener = null;
+    try {
+      const res = await fetch(`/api/admin/vendor-inquiries/${inquiry.id}`, { cache: "no-store" });
+      if (!res.ok) throw new Error("添付画像を取得できませんでした");
+      const data = (await res.json()) as { inquiry: { image_url: string | null } };
+      const url = data.inquiry.image_url;
+      if (!url || !isAllowedVendorInquiryImageUrl(url)) throw new Error("添付画像を取得できませんでした");
+      setDetailImageUrl(url);
+      tab.location.replace(url);
+    } catch (e) {
+      tab.close();
+      showToast.error(e instanceof Error ? e.message : "添付画像を取得できませんでした");
+    }
+  };
 
   const changeStatus = async (next: string) => {
     setBusy(true);
@@ -251,7 +273,7 @@ function InquiryCard({
 
   // 出店者がAPIを通さず直接入れた値の可能性があるので、表示の直前に検証し直す
   const safeImageUrl =
-    inquiry.image_url && isAllowedVendorInquiryImageUrl(inquiry.image_url) ? inquiry.image_url.trim() : null;
+    detailImageUrl && isAllowedVendorInquiryImageUrl(detailImageUrl) ? detailImageUrl.trim() : null;
   const actions = STATUS_ACTIONS[inquiry.topic].filter((a) => a.status !== inquiry.status);
 
   return (
@@ -285,14 +307,13 @@ function InquiryCard({
       {expanded ? (
         <div className="mt-3 space-y-3 border-t border-line pt-3">
           {safeImageUrl ? (
-            <a
-              href={safeImageUrl}
-              target="_blank"
-              rel="noopener noreferrer"
+            <button
+              type="button"
+              onClick={() => void openAttachment()}
               className="inline-block text-xs text-amber-700 underline"
             >
               添付された画像を開く
-            </a>
+            </button>
           ) : null}
 
           {detailLoading ? (

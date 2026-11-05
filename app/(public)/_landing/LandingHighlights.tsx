@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { PageContainer } from "@/components/ui";
+import { getT } from "@/lib/i18n/server";
 import { cn } from "@/lib/utils/cn";
 import { HIGHLIGHTS } from "./content";
 import HandNote from "./HandNote";
@@ -15,11 +16,12 @@ import SectionHeading from "./SectionHeading";
  *
  * その下に、出店者が登録した本物の店の写真を細長く並べる（3枚に満たなければ出さない）
  */
-export default function LandingHighlights({ shopPhotos }: { shopPhotos: LandingShopPhoto[] }) {
+export default async function LandingHighlights({ shopPhotos }: { shopPhotos: LandingShopPhoto[] }) {
+  const t = await getT();
   return (
     <section aria-labelledby="landing-highlights" className="mt-20 md:mt-28">
       <PageContainer width="wide">
-        <SectionHeading id="landing-highlights">日曜市って、こんなところ！</SectionHeading>
+        <SectionHeading id="landing-highlights">{t("日曜市って、こんなところ！")}</SectionHeading>
         <InView once>
           <ul className="mt-8 grid gap-6 md:grid-cols-3 md:gap-5">
             {HIGHLIGHTS.map((item, index) => (
@@ -37,7 +39,7 @@ export default function LandingHighlights({ shopPhotos }: { shopPhotos: LandingS
                 <div className="relative overflow-hidden rounded-sm">
                   <Image
                     src={item.photo.src}
-                    alt={item.photo.alt}
+                    alt={t(item.photo.alt)}
                     width={item.photo.width}
                     height={item.photo.height}
                     sizes="(min-width: 768px) 21rem, 100vw"
@@ -45,7 +47,7 @@ export default function LandingHighlights({ shopPhotos }: { shopPhotos: LandingS
                   />
                   <PhotoScrim />
                   <HandNote size={27} delay={item.delay} className="bottom-5 left-5 -rotate-3">
-                    {item.title}
+                    {t(item.title)}
                   </HandNote>
                 </div>
                 {/* 写真のはしに貼るシール */}
@@ -61,7 +63,7 @@ export default function LandingHighlights({ shopPhotos }: { shopPhotos: LandingS
         <>
           {/* 出店者が登録した店の写真。細長く横に並べ、はみ出した分は横に送る */}
           <ul
-            aria-label="出店しているお店から"
+            aria-label={t("出店しているお店から")}
             className="mt-3 flex snap-x snap-mandatory scroll-px-5 gap-2 overflow-x-auto px-5 pb-2 md:mx-auto md:max-w-[64rem] md:px-6"
           >
             {shopPhotos.map((shop) => (

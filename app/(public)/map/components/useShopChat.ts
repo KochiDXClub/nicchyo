@@ -8,6 +8,8 @@ import { SHOP_CHAT_MAX_HISTORY } from "@/lib/grandma/shopChat/request";
 export type ChatMsg = { role: "user" | "assistant"; text: string };
 
 const ERROR_TEXT = "うまく答えられませんでした。もう一度試してみてください。";
+/** 途中まで出た答えが切れたとき、その末尾に足す。足さないと切れた答えが完結して見える */
+const TRUNCATED_NOTE = "\n\n（途中で切れてしまいました。もう一度試してみてください。）";
 
 /**
  * お店ごとの相談の会話。
@@ -72,7 +74,9 @@ export function useShopChat(shopId: number) {
           setMessages((prev) => {
             const copy = [...prev];
             const last = copy[copy.length - 1];
-            if (last?.role === "assistant" && !last.text) copy[copy.length - 1] = { ...last, text: ERROR_TEXT };
+            if (last?.role === "assistant") {
+              copy[copy.length - 1] = { ...last, text: last.text ? last.text + TRUNCATED_NOTE : ERROR_TEXT };
+            }
             return copy;
           });
         }

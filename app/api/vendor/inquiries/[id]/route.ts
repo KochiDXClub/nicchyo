@@ -1,3 +1,5 @@
+import { withSignedInquiryImage } from "@/lib/vendorInquiries/imageStorage.server";
+import { privateNoStoreHeaders } from "@/lib/http/cacheHeaders";
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { createClientWithExtensions } from "@/utils/supabase/server";
@@ -52,5 +54,5 @@ export async function GET(request: Request, { params }: RouteParams) {
     return NextResponse.json({ error: "データ取得に失敗しました" }, { status: 500 });
   }
 
-  return NextResponse.json({ inquiry, replies });
+  return NextResponse.json({ inquiry: await withSignedInquiryImage(supabase, inquiry), replies }, { headers: privateNoStoreHeaders() });
 }

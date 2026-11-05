@@ -559,9 +559,12 @@ export default function ConsultStage({
           restoreTyped();
           // 失敗は知らせ（role="alert"）が読み上げるので、こちらは空にする
           setStatusMessage("");
+          // 送り直しても同じ答えになるもの（unsupported・no_result など）には「もう一度」を付けない
           notifyError(
             response.errorMessage ?? t("うまく聞けんかった。もう一度試してみてね。"),
-            { label: t("もう一度"), run: () => void askRef.current?.(text, source, withContext) }
+            response.retryable
+              ? { label: t("もう一度"), run: () => void askRef.current?.(text, source, withContext) }
+              : undefined
           );
           return;
         }
