@@ -129,6 +129,9 @@ export default function AdminCategoriesPage() {
   const handleSave = async (id: string) => {
     const name = editName.trim();
     if (!name) return;
+    const original = categories.find((category) => category.id === id);
+    if (original && original.name !== name && original.name_en && original.name_en === editNameEn.trim() &&
+      !window.confirm("日本語名が変わりましたが、英語名は変更されていません。このまま保存しますか？")) return;
     setSaving(true);
     try {
       const res = await fetch(`/api/admin/categories/${id}`, {
@@ -248,7 +251,11 @@ export default function AdminCategoriesPage() {
                       lang="ja"
                       aria-label="日本語名"
                       value={editName}
-                      onChange={(e) => setEditName(e.target.value)}
+                      onChange={(e) => {
+                        editSessionRef.current += 1;
+                        setTranslating((current) => (current === "edit" ? null : current));
+                        setEditName(e.target.value);
+                      }}
                       onKeyDown={(e) => {
                         if (e.key === "Enter") void handleSave(cat.id);
                         if (e.key === "Escape") cancelEdit();

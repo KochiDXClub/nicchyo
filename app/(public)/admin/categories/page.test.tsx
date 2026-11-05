@@ -87,4 +87,17 @@ describe("カテゴリ管理（英語名）", () => {
     await new Promise((r) => setTimeout(r, 20));
     expect((screen.getByLabelText(/English name/) as HTMLInputElement).value).toBe("");
   });
+
+  it("編集中に日本語名を書き換えたら、書き換え前の名前の翻訳結果は捨てる", async () => {
+    let resolveTranslate: (res: Response) => void = () => {};
+    translateImpl = () => new Promise<Response>((resolve) => (resolveTranslate = resolve));
+    render(<AdminCategoriesPage />);
+    await screen.findByText("Vegetables");
+    fireEvent.click(screen.getAllByRole("button", { name: "編集" })[1]);
+    fireEvent.click(screen.getAllByRole("button", { name: "AIで英訳" })[1]);
+    fireEvent.change(screen.getAllByLabelText("日本語名")[1], { target: { value: "手工芸" } });
+    resolveTranslate(json({ ok: true, nameEn: "OLD NAME TRANSLATION" }));
+    await new Promise((r) => setTimeout(r, 20));
+    expect((screen.getAllByLabelText(/English name/)[1] as HTMLInputElement).value).toBe("");
+  });
 });

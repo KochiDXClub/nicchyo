@@ -8,7 +8,7 @@ export const fetchCategories = unstable_cache(async (): Promise<Category[]> => {
   if (!client) return [];
   const { data, error } = await client.from("categories").select("*").order("created_at").order("id");
   if (error) throw new Error("カテゴリの取得に失敗しました");
-  return ((data ?? []) as Category[]).map(({ id, name, presentation_key }) => ({ id, name, presentation_key }))
+  return ((data ?? []) as Category[]).map(({ id, name, name_en, presentation_key }) => ({ id, name, name_en: name_en ?? null, presentation_key }))
     .sort((a, b) => {
       const rank = (c: Category) => { const i = (SHOP_CATEGORY_NAMES as readonly string[]).indexOf(c.presentation_key || c.name); return i < 0 ? SHOP_CATEGORY_NAMES.length : i; };
       return rank(a) - rank(b);
