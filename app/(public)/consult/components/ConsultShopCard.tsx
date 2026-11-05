@@ -1,5 +1,7 @@
 "use client";
+import { useCategorizedShop } from "@/lib/categories/CategoryContext";
 
+import { shopCategoryLabel } from "@/lib/i18n/shopTranslation";
 import Image from "next/image";
 import { useState } from "react";
 import { MapPin } from "lucide-react";
@@ -45,15 +47,16 @@ export interface ConsultShopCardProps {
 }
 
 export default function ConsultShopCard({
-  shop,
+  shop: sourceShop,
   onSelect,
   variant = "carousel",
 }: ConsultShopCardProps) {
+  const shop = useCategorizedShop(sourceShop);
   const t = useT();
   const [imageFailed, setImageFailed] = useState(false);
 
   const imageUrl = getShopPreviewImage(shop);
-  const fallback = CATEGORY_FALLBACK[shop.category as ShopCategory] ?? DEFAULT_FALLBACK;
+  const fallback = CATEGORY_FALLBACK[(shop.categoryKey ?? shop.category) as ShopCategory] ?? DEFAULT_FALLBACK;
   const products = (shop.products ?? []).filter(Boolean).slice(0, 3);
   const isSingle = variant === "single";
 
@@ -87,7 +90,7 @@ export default function ConsultShopCard({
 
         {shop.category && (
           <span className="absolute left-2 top-2 rounded-full bg-black/55 px-2.5 py-1 text-[11px] font-bold text-white backdrop-blur-sm">
-            {shop.category}
+            {shopCategoryLabel(shop)}
           </span>
         )}
       </div>

@@ -1,3 +1,4 @@
+import { useCategoryFilter } from "@/lib/categories/CategoryContext";
 import { useEffect, useMemo, useState } from "react";
 import { buildSearchIndex } from "../../search/lib/searchIndex";
 import { useShopSearch } from "../../search/hooks/useShopSearch";
@@ -26,7 +27,7 @@ export function useMapSearchFilter({
   initialCategory?: string | null;
 }) {
   const [query, setQuery] = useState(initialQuery);
-  const [category, setCategory] = useState<string | null>(initialCategory);
+  const [category, setCategory] = useCategoryFilter(initialCategory);
   // お気に入り絞り込み。歩きながら1タップで「あとで戻る店」だけの地図にできる
   const [favoritesOnly, setFavoritesOnly] = useState(false);
 

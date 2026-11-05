@@ -18,7 +18,7 @@ interface EmptyMessageProps {
 export function EmptyMessage({ message, padding = "py-8", action, className }: EmptyMessageProps) {
   return (
     <div className={cn(padding, "text-center", className)}>
-      <p className="text-sm text-slate-400">{message}</p>
+      <p className="text-sm text-nicchyo-ink/55">{message}</p>
       {action}
     </div>
   );

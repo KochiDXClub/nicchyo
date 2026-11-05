@@ -159,3 +159,11 @@ describe("pruneInvisibleVendors", () => {
     expect(pruneInvisibleVendors(base, new Set(["v1", "v9"]))).toBe(base);
   });
 });
+
+ it("カテゴリ一覧の最新名を古い店舗JOINより優先する", () => {
+  const base = baseRows();
+  base.vendors[0].category_id = "c1";
+  base.vendors[0].categories = { name: "食材" };
+  base.categories = [{ id: "c1", name: "野菜・果物" }];
+  expect(buildVendorShops(base, [])[0]).toMatchObject({ category: "野菜・果物", categoryId: "c1" });
+ });

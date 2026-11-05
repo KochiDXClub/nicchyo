@@ -1,4 +1,5 @@
 "use client";
+import { useCategorizedShop } from "@/lib/categories/CategoryContext";
 
 import { memo, useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { recordShopView, sourceFromReferrer } from "@/lib/analytics/shopViews";
@@ -73,8 +74,8 @@ function areShopDetailBannerPropsEqual(
   prev: ShopDetailBannerProps,
   next: ShopDetailBannerProps
 ): boolean {
-  // shop は DB 再フェッチで参照が変わることがあるため id で比較する
-  if (prev.shop.id !== next.shop.id) return false;
+  // 同じ店舗IDでも名前・カテゴリ・商品が更新されたら再描画する。
+  if (prev.shop !== next.shop) return false;
   // originRect はオブジェクトなので各フィールドで比較する
   if (
     prev.originRect?.x !== next.originRect?.x ||
@@ -95,7 +96,7 @@ function areShopDetailBannerPropsEqual(
 }
 
 const ShopDetailBanner = memo(function ShopDetailBanner({
-  shop,
+  shop: sourceShop,
   onClose,
   onNavigate,
   originRect,
@@ -105,6 +106,7 @@ const ShopDetailBanner = memo(function ShopDetailBanner({
   onMobileMainSurfaceChange,
   reserveBottomNavSpace = true,
 }: ShopDetailBannerProps) {
+  const shop = useCategorizedShop(sourceShop);
   const router = useRouter();
   const prefersReducedMotion = useReducedMotion();
   const favoriteEntries = useFavoriteEntries();

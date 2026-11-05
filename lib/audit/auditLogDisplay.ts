@@ -379,9 +379,9 @@ function describeByAction(log: AuditLogRecord, json: Json | null): Described | n
       };
     }
     case "category_created":
-      return { summary: `カテゴリー${quote(str(json?.name))}を作りました`, facts: [] };
+      return { summary: `カテゴリー${quote(str(json?.name))}を作りました${json?.nameEn ? `（英語名: ${quote(str(json?.nameEn))}）` : ""}`, facts: [] };
     case "category_updated":
-      return { summary: `カテゴリーの名前を${quote(str(json?.name))}に変えました`, facts: [] };
+      return { summary: `カテゴリーの名前を${quote(str(json?.name))}に変えました${json?.nameEn ? `（英語名: ${quote(str(json?.nameEn))}）` : ""}`, facts: [] };
     case "category_deleted":
       return { summary: `カテゴリー${quote(str(json?.name))}を削除しました`, facts: [] };
     case "market_day_updated": {

@@ -1,5 +1,6 @@
 ﻿"use client";
 
+import { shopCategoryLabel } from "@/lib/i18n/shopTranslation";
 import Link from "next/link";
 import Image from "next/image";
 import { memo } from "react";
@@ -106,7 +107,7 @@ function ShopResultCard({
         />
         <div className="min-w-0 flex-1">
           <p className={`${compact ? "text-[10px]" : "text-xs"} text-amber-700`}>
-            {shop.category}
+            {shopCategoryLabel(shop)}
           </p>
           <p className={`${compact ? "mt-1 text-[11px]" : "mt-1.5 text-sm leading-5"} line-clamp-2 text-gray-700`}>
             取り扱い: {shop.products.slice(0, 4).join("・")}

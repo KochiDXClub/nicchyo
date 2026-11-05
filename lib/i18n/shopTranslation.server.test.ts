@@ -8,10 +8,11 @@ vi.mock("@/lib/ai/openaiFetch", () => ({ requestChatCompletion: vi.fn() }));
 vi.mock("@/lib/ai/modelStore.server", () => ({ resolveAiModelFor: vi.fn() }));
 
 import { createAdminClient } from "@/lib/supabase/adminClient";
+import { createAnonClient } from "@/lib/supabase/anonClient";
 import { requestChatCompletion } from "@/lib/ai/openaiFetch";
 import { resolveAiModelFor } from "@/lib/ai/modelStore.server";
 import { buildTranslationSource } from "./shopTranslation";
-import { getVendorTranslation, hashTranslationSource, saveReviewedShopTranslation, syncShopTranslations } from "./shopTranslation.server";
+import { applyShopTranslations, getVendorTranslation, hashTranslationSource, saveReviewedShopTranslation, syncShopTranslations } from "./shopTranslation.server";
 
 const shop = { id: 1, vendorId: "vendor-1", name: "テスト店", products: [], rainPolicy: "outdoor", stallStyle: "手作りです" } as unknown as Shop;
 
@@ -144,5 +145,34 @@ describe("getVendorTranslation の取得エラー", () => {
   it("表が無いだけなら「英語版なし」", async () => {
     clientReturning({ code: "42P01", message: "missing" });
     await expect(getVendorTranslation("vendor-1", "en")).resolves.toBeNull();
+  });
+});
+
+describe("カテゴリーの英語名", () => {
+  beforeEach(() => vi.resetAllMocks());
+
+  const withCategory = { ...shop, category: "食べ物" } as Shop;
+  function stubAnon(categories: { data: unknown; error: unknown }) {
+    const from = vi.fn((table: string) =>
+      table === "categories"
+        ? { select: () => ({ not: async () => categories }) }
+        : { select: () => ({ eq: async () => ({ data: [], error: null }) }) }
+    );
+    vi.mocked(createAnonClient).mockReturnValue({ from } as unknown as ReturnType<typeof createAnonClient>);
+  }
+
+  it("英語では categoryEn を付け、日本語の category はそのまま残す", async () => {
+    stubAnon({ data: [{ name: "食べ物", name_en: "Food" }], error: null });
+    const [result] = await applyShopTranslations([withCategory, { ...withCategory, category: "工芸" } as Shop], "en");
+    expect(result).toMatchObject({ category: "食べ物", categoryEn: "Food" });
+    const [other] = (await applyShopTranslations([{ ...withCategory, category: "工芸" } as Shop], "en"));
+    expect(other.categoryEn).toBeUndefined();
+  });
+
+  it("日本語では何も足さない。英語名の列が無い（42703）ときも日本語名のまま", async () => {
+    stubAnon({ data: [{ name: "食べ物", name_en: "Food" }], error: null });
+    expect((await applyShopTranslations([withCategory], "ja"))[0].categoryEn).toBeUndefined();
+    stubAnon({ data: null, error: { code: "42703", message: "column does not exist" } });
+    expect((await applyShopTranslations([withCategory], "en"))[0]).toMatchObject({ category: "食べ物" });
   });
 });

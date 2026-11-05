@@ -300,6 +300,7 @@ export async function fetchShopsByVendorIds(
         // AI の文脈に個人名は載せない（プロンプトにも埋め込みにも出さない）
         ownerName: "",
         category: joinedCategoryName ?? "",
+        categoryId: vendor.category_id ?? undefined,
         products: displayProducts,
         productPrices: (vendor.main_product_prices ?? undefined) as
           | Record<string, number | null>
