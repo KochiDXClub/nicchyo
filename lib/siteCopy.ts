@@ -1,6 +1,7 @@
 import { createElement, type ReactNode } from "react";
 import texts from "@/content/site-copy/texts.json";
 import enTexts from "@/content/i18n/en.json";
+import type { SiteCopy } from "@/lib/site-copy/content";
 import type { Locale } from "@/lib/i18n/config";
 
 /**
@@ -21,8 +22,9 @@ const translations: Partial<Record<Locale, Partial<Record<SiteTextKey, string>>>
   en: enTexts,
 };
 
-export function siteTextFor(key: SiteTextKey, locale: Locale): string {
-  return translations[locale]?.[key] ?? texts[key];
+export function siteTextFor(key: SiteTextKey, locale: Locale, copy?: SiteCopy): string {
+  const original = copy?.texts[key] ?? texts[key];
+  return original === texts[key] ? translations[locale]?.[key] ?? original : original;
 }
 
 /**
@@ -37,7 +39,7 @@ export function siteTextWithEmphasisFor(key: SiteTextKey, locale: Locale, classN
   return emphasize(siteTextFor(key, locale), className);
 }
 
-function emphasize(text: string, className?: string): ReactNode[] {
+export function emphasize(text: string, className?: string): ReactNode[] {
   return text
     .split("**")
     .map((part, i) => (i % 2 === 1 ? createElement("b", { key: i, className }, part) : part));

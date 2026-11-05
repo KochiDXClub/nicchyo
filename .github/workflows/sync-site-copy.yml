@@ -1,13 +1,10 @@
 name: Sync site copy
 
-# スプレッドシートで編集した文言を content/site-copy/ に取り込み、develop 向けの PR を作る（docs/SITE_COPY.md）。
+# 旧シートからの手動取り込み。通常の文言編集は管理画面で行う（docs/SITE_COPY.md）。
 # シートの ID はリポジトリの Variables の SITE_COPY_SHEET_ID に置く。未設定なら何もしない。
 
 on:
   workflow_dispatch:
-  schedule:
-    # 毎朝 6:00（JST）
-    - cron: '0 21 * * *'
 
 concurrency:
   group: sync-site-copy

@@ -17,6 +17,8 @@ import { Toaster } from "@/components/admin";
 import { safeJsonLd } from "@/lib/utils/jsonLd";
 import { SITE_URL } from "@/lib/constants";
 import { DEFAULT_LOCALE, LOCALE_HEADER, toLocale } from "@/lib/i18n/config";
+import { SiteCopyProvider } from "@/lib/site-copy/Context";
+import { getPublishedSiteCopy } from "@/lib/site-copy/server";
 import { LocaleProvider } from "@/lib/i18n/LocaleContext";
 
 // 見出し用の丸文字。以前は globals.css の @import で Google Fonts から読んでいたが、
@@ -106,7 +108,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   // script-src 'nonce-…' 'strict-dynamic' の CSP で全スクリプトがブロックされて
   // ハイドレーションしない（近況ページが提灯ローディングで止まる等）ため必須。
   // https://nextjs.org/docs/app/guides/content-security-policy#nonces
-  const [categories, requestHeaders] = await Promise.all([fetchCategories().catch(() => []), headers()]);
+  const [categories, requestHeaders, siteCopy] = await Promise.all([fetchCategories().catch(() => []), headers(), getPublishedSiteCopy()]);
   const nonce = requestHeaders.get("x-nonce") ?? undefined;
   const locale = toLocale(requestHeaders.get(LOCALE_HEADER));
 
@@ -121,6 +123,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       </head>
       <body className="bg-nicchyo-base text-nicchyo-ink">
         <ViewportHeightUpdater />
+        <SiteCopyProvider initial={siteCopy}>
         <LocaleProvider locale={locale}>
         <CategoryProvider initial={categories}>
         <AuthProvider>
@@ -140,6 +143,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         </AuthProvider>
         </CategoryProvider>
         </LocaleProvider>
+        </SiteCopyProvider>
       </body>
     </html>
   );

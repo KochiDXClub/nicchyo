@@ -3,12 +3,14 @@
 import { useState, useMemo } from "react";
 import { Search, ChevronDown, ChevronUp, MessageCircle } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { FAQ_DATA, FAQ_CATEGORIES } from "./data";
+import { FAQ_CATEGORIES } from "./data";
 import Link from "next/link";
+import { useSiteCopy } from "@/lib/site-copy/Context";
 import { cn } from "@/lib/utils/cn";
 import { Button, EmptyState, buttonClass } from "@/components/ui";
 
 export default function FaqClient() {
+  const { faq } = useSiteCopy();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [openItems, setOpenItems] = useState<Set<string>>(new Set());
@@ -24,7 +26,7 @@ export default function FaqClient() {
   };
 
   const filteredFaqs = useMemo(() => {
-    return FAQ_DATA.filter((item) => {
+    return faq.filter((item) => {
       const matchesCategory =
         selectedCategory === "all" || item.category === selectedCategory;
       const matchesSearch =
@@ -32,7 +34,7 @@ export default function FaqClient() {
         item.a.toLowerCase().includes(searchQuery.toLowerCase());
       return matchesCategory && matchesSearch;
     });
-  }, [selectedCategory, searchQuery]);
+  }, [selectedCategory, searchQuery, faq]);
 
   return (
     <div className="flex flex-col gap-8 pb-8">
