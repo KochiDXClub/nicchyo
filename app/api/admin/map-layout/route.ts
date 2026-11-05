@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/adminClient";
-import { attachSharedMarketPlaces, findDuplicatePosition, findDuplicateOfficialNumber } from "@/lib/admin/marketPlaces.server";
+import { attachSharedMarketPlaces, attachFieldObservations, findDuplicatePosition, findDuplicateOfficialNumber } from "@/lib/admin/marketPlaces.server";
 import { cookies } from "next/headers";
 import { createClient as createServerClient } from "@/utils/supabase/server";
 import { fetchLandmarksFromDb } from "@/app/(public)/map/services/landmarksDb";
@@ -179,7 +179,7 @@ export async function GET() {
       landmarks,
       route: mapRoute,
       roads,
-      vendors,
+      vendors: await attachFieldObservations(adminClient, vendors),
       categories,
       mapSettingsLimits,
       // 丁目の境目と区間（マイグレーション前は空）。画面が区画の丁目を自動判定するのに使う

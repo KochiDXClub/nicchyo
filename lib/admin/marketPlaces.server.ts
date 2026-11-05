@@ -1,4 +1,5 @@
-import type { EditableShop } from "@/app/(public)/map/types/editableShop";
+import { FIELD_BOUNDS } from "@/lib/admin/shopLocation";
+import type { EditableShop, EditableVendor } from "@/app/(public)/map/types/editableShop";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 export type SharedMarketPlace = {
@@ -9,11 +10,11 @@ export type SharedMarketPlace = {
 };
 
 /** PostgREST の行数上限で、後半の店舗や区画を取りこぼさない。 */
-export async function readAllMarketRows(client: SupabaseClient, table: string, columns: string, nonNullColumn: string) {
+export async function readAllMarketRows(client: SupabaseClient, table: string, columns: string, nonNullColumn: string, orderColumn = "id") {
   const rows: Record<string, unknown>[] = [];
   const pageSize = 500;
   for (let offset = 0; ; offset += pageSize) {
-    const { data, error } = await client.from(table).select(columns).not(nonNullColumn, "is", null).order("id").range(offset, offset + pageSize - 1);
+    const { data, error } = await client.from(table).select(columns).not(nonNullColumn, "is", null).order(orderColumn).range(offset, offset + pageSize - 1);
     if (error) return { data: null, error };
     const page = (data ?? []) as unknown as Record<string, unknown>[];
     rows.push(...page);
@@ -77,4 +78,18 @@ export function findDuplicateOfficialNumber(shops: EditableShop[]): string | nul
     seen.add(key);
   }
   return null;
+}
+
+/** 現場記録は確認用として読み、地図の区画には自動で反映しない。 */
+export async function attachFieldObservations(client: SupabaseClient, vendors: EditableVendor[]): Promise<EditableVendor[]> {
+  const result = await readAllMarketRows(client, "field_shop_locations", "vendor_id, store_number, latitude, longitude, accuracy_m, source, updated_at", "latitude", "vendor_id");
+  if (result.error?.code === "42P01" || result.error?.code === "PGRST205") return vendors;
+  if (result.error) throw new Error("Failed to load field location observations");
+  const observations = new Map<string, NonNullable<EditableVendor["fieldObservation"]>>();
+  for (const row of result.data ?? []) {
+    const lat = row.latitude, lng = row.longitude;
+    if (typeof lat !== "number" || typeof lng !== "number" || !Number.isFinite(lat) || !Number.isFinite(lng) || lat < FIELD_BOUNDS.minLat || lat > FIELD_BOUNDS.maxLat || lng < FIELD_BOUNDS.minLng || lng > FIELD_BOUNDS.maxLng || typeof row.updated_at !== "string") continue;
+    observations.set(row.vendor_id as string, { lat, lng, storeNumber: typeof row.store_number === "number" ? row.store_number : null, accuracyM: typeof row.accuracy_m === "number" ? row.accuracy_m : null, source: typeof row.source === "string" ? row.source : null, updatedAt: row.updated_at });
+  }
+  return vendors.map((vendor) => observations.has(vendor.id) ? { ...vendor, fieldObservation: observations.get(vendor.id) } : vendor);
 }

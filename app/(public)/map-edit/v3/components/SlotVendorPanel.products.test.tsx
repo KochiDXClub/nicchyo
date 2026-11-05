@@ -30,6 +30,19 @@ function renderPanel(onUpdateVendor = vi.fn(), shared?: Pick<EditableShop, "plac
 }
 
 describe("SlotVendorPanel の主な商品", () => {
+  it("現場記録の店番違いを警告し、確認した場合だけ編集内容に追加する", () => {
+    const observed = { ...vendor, fieldObservation: { lat: 33.56, lng: 133.53, storeNumber: 2, accuracyM: 30, source: "gps", updatedAt: "2026-11-01T00:00:00Z" } };
+    const apply = vi.fn();
+    const confirm = vi.spyOn(window, "confirm").mockReturnValueOnce(false).mockReturnValueOnce(true);
+    render(<SlotVendorPanel shop={{ ...shop, vendorId: "v1" }} roadName={null} vendor={observed} vendors={[observed]} categories={[]} onSelectVendor={vi.fn()} onApplyFieldObservation={apply} onRegisterVendor={vi.fn()} onUpdateVendor={vi.fn()} onClearVendor={vi.fn()} onChomeChange={vi.fn()} autoChome={null} onDelete={vi.fn()} />);
+    expect(screen.getByText(/記録した店番と、この区画の店番が異なります/)).toBeTruthy();
+    const button = screen.getByRole("button", { name: "現場の位置を編集内容に追加" });
+    fireEvent.click(button);
+    expect(apply).not.toHaveBeenCalled();
+    fireEvent.click(button);
+    expect(apply).toHaveBeenCalledTimes(1);
+    confirm.mockRestore();
+  });
   it("同じ出店場所に登録された複数店舗を表示する", () => {
     renderPanel(vi.fn(), { placeName: "一丁目 南 2", placeVendors: [{ id: "a", name: "店A" }, { id: "b", name: "店B" }] });
     expect(screen.getByText("出店場所: 一丁目 南 2")).toBeTruthy();

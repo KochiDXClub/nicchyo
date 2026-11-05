@@ -144,6 +144,7 @@ export default function SlotVendorPanel({
   vendors,
   categories,
   onSelectVendor,
+  onApplyFieldObservation,
   onRegisterVendor,
   onUpdateVendor,
   onClearVendor,
@@ -159,6 +160,7 @@ export default function SlotVendorPanel({
   vendors: EditableVendor[];
   categories: VendorCategory[];
   onSelectVendor: (vendorId: string) => void;
+  onApplyFieldObservation?: () => void;
   onRegisterVendor: (draft: VendorDraft) => void;
   onUpdateVendor: (patch: Partial<VendorDraft>, logText: string, coalesceKey?: string) => void;
   onClearVendor: () => void;
@@ -234,7 +236,10 @@ export default function SlotVendorPanel({
             window.alert("先に現場登録でこの店舗の出店場所を設定してください。");
             return;
           }
-          if (next && next !== shop.vendorId && others.length > 0 && !window.confirm(`この出店場所には別の店舗が ${others.length} 件登録されています。同じ場所に配置しますか？`)) return;
+          if (next && next !== shop.vendorId) {
+            const warnings = [shop.vendorId ? "現在配置されている店舗を入れ替えます。" : "", others.length > 0 ? `この出店場所には別の店舗が ${others.length} 件登録されています。` : ""].filter(Boolean);
+            if (warnings.length && !window.confirm(`${warnings.join("\n")}\n続けますか？`)) return;
+          }
           onSelectVendor(next);
         }} style={inputStyle}>
           <option value="">（空き）</option>
@@ -248,6 +253,18 @@ export default function SlotVendorPanel({
 
       {vendor ? (
         <>
+          {!shop.placeName && vendor.fieldObservation && <div style={{ ...noteStyle, marginBottom: 12 }}>
+            <p style={label}>現場で記録した位置（確認用）</p>
+            <p>記録日時: {new Date(vendor.fieldObservation.updatedAt).toLocaleString("ja-JP", { timeZone: "Asia/Tokyo" })}<br />
+              緯度・経度: {vendor.fieldObservation.lat.toFixed(6)}, {vendor.fieldObservation.lng.toFixed(6)}<br />
+              記録した店番: {vendor.fieldObservation.storeNumber ?? "未設定"}<br />
+              記録方法: {vendor.fieldObservation.source === "gps" ? "GPS" : vendor.fieldObservation.source === "pin" ? "地図のピン" : "不明"}{vendor.fieldObservation.accuracyM != null ? `（誤差 約${vendor.fieldObservation.accuracyM}m）` : ""}</p>
+            {vendor.fieldObservation.storeNumber != null && vendor.fieldObservation.storeNumber !== shop.position && <p style={errorNoteStyle}>記録した店番と、この区画の店番が異なります。位置をよく確認してください。</p>}
+            <p>位置を確認して編集内容に追加し、「変更を保存」するとマップへ反映されます。道との紐づけは解除されます。</p>
+            <button type="button" style={buttonStyle} onClick={() => {
+              if (window.confirm("この区画を現場で記録した位置に移しますか？ 保存するまでマップには反映されません。")) onApplyFieldObservation?.();
+            }}>現場の位置を編集内容に追加</button>
+          </div>}
           <p style={{ ...label, marginTop: 4 }}>出店者の情報</p>
           <VendorFields
             value={vendor}

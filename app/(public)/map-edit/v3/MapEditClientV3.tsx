@@ -44,7 +44,7 @@ const isRoadCreationDisabled = true;
 function slotsOnRoad(shops: EditableShop[], roadId: string): SlotOnRoad[] {
   return shops.flatMap((s) =>
     s.roadId === roadId && s.roadSide && s.roadDistanceM != null
-      ? [{ locationId: s.locationId, side: s.roadSide, distanceM: s.roadDistanceM, hasVendor: !!s.vendorId }]
+      ? [{ locationId: s.locationId, side: s.roadSide, distanceM: s.roadDistanceM, hasVendor: !!s.vendorId || !!s.placeName }]
       : []
   );
 }
@@ -629,6 +629,7 @@ export default function MapEditClientV3() {
                   vendors={data.vendors}
                   categories={data.categories}
                   onSelectVendor={(vendorId) => ops.assignVendor(selectedShop.locationId, vendorId)}
+                  onApplyFieldObservation={() => ops.applyFieldObservation(selectedShop.locationId)}
                   onRegisterVendor={(draft) => ops.registerVendor(selectedShop.locationId, draft)}
                   onUpdateVendor={(patch, logText, coalesceKey) =>
                     selectedShop.vendorId && ops.updateVendor(selectedShop.vendorId, patch, logText, { coalesceKey })

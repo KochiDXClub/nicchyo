@@ -70,6 +70,23 @@ function setup(
 
 const settings = { mode: "count" as const, count: 3, intervalM: 10, sides: "left" as const, startM: 0, endM: 30 };
 
+describe("現場位置の確認", () => {
+  const vendor: EditableVendor = { id: "v1", name: "店", categoryId: null, strength: "", mainProducts: [], fieldObservation: { lat: 33.56, lng: 133.53, storeNumber: 1, accuracyM: 10, source: "gps", updatedAt: "2026-11-01T00:00:00Z" } };
+  it("確認した位置を編集履歴に追加し、道との紐づけを外して取り消せる", () => {
+    const { hook } = setup([slot(1, 5, { vendorId: "v1" })], 300, [vendor]);
+    act(() => hook.result.current.ops.applyFieldObservation("loc-1"));
+    expect(hook.result.current.shops[0]).toMatchObject({ lat: 33.56, lng: 133.53, roadId: undefined, roadDistanceM: undefined });
+    expect(hook.result.current.history.past).toHaveLength(1);
+    act(() => hook.result.current.ops.undo());
+    expect(hook.result.current.shops[0]).toMatchObject({ roadId: "r1", roadDistanceM: 5 });
+  });
+  it("名前付きの共通場所には過去の個別記録を適用しない", () => {
+    const { hook } = setup([slot(1, 5, { vendorId: "v1", placeName: "一丁目 南 2" })], 300, [vendor]);
+    act(() => hook.result.current.ops.applyFieldObservation("loc-1"));
+    expect(hook.result.current.history.past).toHaveLength(0);
+  });
+});
+
 describe("useMapEditOperations.applySlotPlan", () => {
   it("足りない区画を空いている店番で作り、同じ道の区画に合わせた位置・丁目にする", () => {
     const existing = [slot(1, 5), slot(3, 15, { roadOffsetM: 10 })];

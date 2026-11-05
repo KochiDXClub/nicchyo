@@ -75,6 +75,8 @@ export type EditableVendor = {
   strength: string;
   /** 主な商品（vendors.main_products） */
   mainProducts: string[];
+  /** 現場で記録された、公開前の位置。管理者が確認してから区画へ反映する。 */
+  fieldObservation?: { lat: number; lng: number; storeNumber: number | null; accuracyM: number | null; source: string | null; updatedAt: string };
 };
 
 export const NEW_VENDOR_ID_PREFIX = "new-vendor-";

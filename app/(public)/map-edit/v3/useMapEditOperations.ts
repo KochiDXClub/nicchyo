@@ -260,6 +260,16 @@ export function useMapEditOperations(params: Params) {
     [shops, commit, vendorName, setMessage]
   );
 
+  const applyFieldObservation = useCallback((locationId: string) => {
+    const shop = shops.find((item) => item.locationId === locationId);
+    const observation = vendors.find((item) => item.id === shop?.vendorId)?.fieldObservation;
+    if (!shop || shop.placeName || !observation) return;
+    commit({ shops: shops.map((item) => item.locationId === locationId
+      ? { ...item, lat: observation.lat, lng: observation.lng, roadId: undefined, roadDistanceM: undefined, roadSide: undefined, roadOffsetM: undefined }
+      : item) }, String(shop.position), "確認した現場の位置を反映");
+    setMessage("現場の位置を編集内容に追加しました。マップへ反映するには「変更を保存」を押してください。");
+  }, [shops, vendors, commit, setMessage]);
+
   /** 空き区画に新しい出店者を登録して割り当てる（1件の操作）。登録した出店者の仮 id を返す */
   const registerVendor = useCallback(
     (locationId: string, draft: Omit<EditableVendor, "id">): string | null => {
@@ -674,6 +684,7 @@ export function useMapEditOperations(params: Params) {
     shopCountOnRoad,
     moveVendor,
     assignVendor,
+    applyFieldObservation,
     registerVendor,
     updateVendor,
     clearVendor,
