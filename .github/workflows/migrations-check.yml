@@ -103,5 +103,8 @@ jobs:
       - name: Check no vendors.role in RLS policies
         run: psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" -v ON_ERROR_STOP=1 -f supabase/checks/no_vendors_role_in_policies.sql
 
+      - name: Check private inquiry attachments
+        run: psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" -v ON_ERROR_STOP=1 -f supabase/checks/private_inquiry_images.sql
+
       - name: Show applied migrations
         run: supabase migration list --local

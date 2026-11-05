@@ -1,3 +1,4 @@
+import { INQUIRY_IMAGE_BUCKET, inquiryImageReference } from "@/lib/vendorInquiries/imageStorage";
 import { createClient } from "@/utils/supabase/client";
 import { createPostImage, imageUploadInfo } from "@/lib/image/clientCompression";
 import type {
@@ -93,10 +94,8 @@ export async function fetchInquiryDetail(
 }
 
 /**
- * 添付画像を vendor-images バケットへ上げ、公開URLを返す。
- * postsService.savePost と同じ置き場・命名・変換処理にそろえている。
- * 返すURLは https://<project>.supabase.co/... の形になり、
- * API側の isAllowedVendorInquiryImageUrl の許可条件を満たす。
+ * 添付画像を非公開バケットへ上げ、DB保存用の参照を返す。
+ * 公開の近況投稿と保存先を分離する。表示時に認可済みAPIが短期署名URLへ変換する。
  *
  * 近況投稿と同じく createPostImage で WebP に縮小してから上げる。
  * バケットは jpeg/png/webp/gif かつ5MBまでなので、スマホの原寸写真（3MB〜10MB）や
@@ -110,15 +109,14 @@ export async function uploadInquiryImage(
   const blob = await createPostImage(file);
   // WebP を書き出せないブラウザでは JPEG/PNG になるので、実際の形式で保存する
   const { contentType, ext } = imageUploadInfo(blob);
-  const path = `${vendorId}/inquiries/${Date.now()}.${ext}`;
+  const path = `${vendorId}/inquiries/${crypto.randomUUID()}.${ext}`;
 
   const { error } = await supabase.storage
-    .from("vendor-images")
-    .upload(path, blob, { contentType, upsert: false });
+    .from(INQUIRY_IMAGE_BUCKET)
+    .upload(path, blob, { contentType, upsert: false, cacheControl: "0" });
   if (error) throw new Error("画像をアップロードできませんでした");
 
-  const { data } = supabase.storage.from("vendor-images").getPublicUrl(path);
-  return { path, url: data.publicUrl };
+  return { path, url: inquiryImageReference(path) };
 }
 
 /**
@@ -128,7 +126,7 @@ export async function uploadInquiryImage(
  */
 export async function removeInquiryImage(path: string): Promise<void> {
   const supabase = createClient();
-  const { error } = await supabase.storage.from("vendor-images").remove([path]);
+  const { error } = await supabase.storage.from(INQUIRY_IMAGE_BUCKET).remove([path]);
   if (error) console.warn("[removeInquiryImage] 画像を削除できませんでした:", error.message);
 }
 
