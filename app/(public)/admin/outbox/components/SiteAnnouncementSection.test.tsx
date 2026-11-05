@@ -55,6 +55,15 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe("SiteAnnouncementSection（英語版）", () => {
+  it("AI訳の公開確認を取り消すと下書きは公開されない", async () => {
+    stubFetch(undefined, [savedAnnouncement({ titleEn: "Old", bodyEn: "Body", translationStatus: "auto" })]);
+    vi.stubGlobal("confirm", vi.fn(() => false));
+    render(<SiteAnnouncementSection />);
+    fireEvent.click(await screen.findByRole("button", { name: "公開する" }));
+    expect(confirm).toHaveBeenCalledOnce();
+    expect(calls.some((call) => call.method === "PATCH")).toBe(false);
+  });
+
   it("日本語が空のうちは翻訳できない", async () => {
     render(<SiteAnnouncementSection />);
     expect(((await screen.findByRole("button", { name: "AIで英語に翻訳する" })) as HTMLButtonElement).disabled).toBe(true);
