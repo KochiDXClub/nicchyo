@@ -12,7 +12,7 @@ import SectionHeading from "./SectionHeading";
  */
 export default async function LandingGenres() {
   const categories = await fetchCategories().catch(() => []);
-  const genres = categories.map(c => ({ category: c.name, id: c.id, art: GENRES.find(g => g.category === categoryKey(c))?.art ?? "/images/landing/art/genre-zakka.svg", color: getShopCategoryColor(categoryKey(c)) }));
+  const genres = categories.length ? categories.map(c => ({ category: c.name, id: c.id, art: GENRES.find(g => g.category === categoryKey(c))?.art ?? "/images/landing/art/genre-zakka.svg", color: getShopCategoryColor(categoryKey(c)) })) : GENRES.map(g => ({ ...g, id: g.category, color: getShopCategoryColor(g.category) }));
   return (
     <section aria-labelledby="landing-genres" className="mt-16 md:mt-20">
       <PageContainer width="wide">

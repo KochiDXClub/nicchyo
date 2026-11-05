@@ -4,6 +4,10 @@ import { getShopCategoryColor } from "./presentation";
 import { getShopPreviewImage } from "@/lib/shopImages";
 const renamed = { id: "c1", name: "野菜・果物", presentation_key: "食材" };
 describe("カテゴリの改名", () => {
+  it("未選択を独自カテゴリに一致させない", () => {
+    const categories = [{ id: "custom", name: "独自", presentation_key: null }];
+    for (const value of [null, undefined, ""]) expect(resolveCategory(value, categories)).toBeUndefined();
+  });
   it("古い店舗スナップショットもIDで最新名へ更新し、色と画像を維持する", () => {
     const old = { id: 1, categoryId: "c1", category: "食材" };
     const current = withCategory(old, [renamed]);

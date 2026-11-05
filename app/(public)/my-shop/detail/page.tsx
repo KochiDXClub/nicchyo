@@ -173,6 +173,7 @@ export default function MyShopDetailPage() {
                   </label>
                   <label className="block text-sm text-slate-700">
                     商品ジャンル{requiredMark}
+                    {categories.length === 0 && <span role="alert" className="block text-rose-600">カテゴリを読み込めませんでした。再読み込みしてください。</span>}
                     <select
                       value={selectedCategory?.id ?? ""}
                       onChange={(event) => { const category = categories.find(c => c.id === event.target.value); setForm(prev => ({ ...prev, category: category?.name ?? "", categoryId: category?.id ?? "" })); }}

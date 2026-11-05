@@ -106,8 +106,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   // script-src 'nonce-…' 'strict-dynamic' の CSP で全スクリプトがブロックされて
   // ハイドレーションしない（近況ページが提灯ローディングで止まる等）ため必須。
   // https://nextjs.org/docs/app/guides/content-security-policy#nonces
-  const categories = await fetchCategories().catch(() => []);
-  const requestHeaders = await headers();
+  const [categories, requestHeaders] = await Promise.all([fetchCategories().catch(() => []), headers()]);
   const nonce = requestHeaders.get("x-nonce") ?? undefined;
   const locale = toLocale(requestHeaders.get(LOCALE_HEADER));
 

@@ -11,7 +11,6 @@ import { clearSearchMapPayload, loadAiMapPayload, loadSearchMapPayload } from ".
 import { getShopPreviewImage } from "../../../lib/shopImages";
 import { useAuth } from "../../../lib/auth/AuthContext";
 import { useCategories, useCategorizedShops } from "@/lib/categories/CategoryContext";
-import { resolveCategory } from "@/lib/categories/catalog";
 import type { Shop } from "./data/shops";
 import type { Landmark } from "./types/landmark";
 import type { MapRoute } from "./types/mapRoute";
@@ -342,7 +341,7 @@ export default function MapPageClient({
     shops,
     favoriteShopIds,
     initialQuery: searchParams?.get("q") ?? "",
-    initialCategory: resolveCategory(searchParams?.get("category"), categories)?.id ?? null,
+    initialCategory: searchParams?.get("category") ?? null,
   });
   const [aiMarkerPayload, setAiMarkerPayload] = useState<{
     ids: number[];

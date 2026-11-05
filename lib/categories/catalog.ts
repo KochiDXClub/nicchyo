@@ -4,6 +4,7 @@ export function categoryKey(category: Category): string {
   return category.presentation_key || category.name;
 }
 export function resolveCategory(value: string | null | undefined, categories: Category[]): Category | undefined {
+  if (!value) return undefined;
   return categories.find(c => c.id === value) ?? categories.find(c => c.name === value) ?? categories.find(c => c.presentation_key === value);
 }
 export function withCategory<T extends { category: string; categoryId?: string; categoryKey?: string }>(shop: T, categories: Category[]): T & { categoryId?: string; categoryKey?: string } {

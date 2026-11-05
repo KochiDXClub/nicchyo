@@ -30,7 +30,7 @@ export function CategoryProvider({ initial, children }: { initial: Category[]; c
       } catch { /* 一時的な通信失敗では最後の正常な一覧を維持 */ }
     };
     void refresh();
-    const timer = setInterval(refresh, 30_000);
+    const timer = setInterval(refresh, 300_000);
     const onStorage = (event: StorageEvent) => { if (event.key === UPDATE_EVENT) void refresh(); };
     window.addEventListener("storage", onStorage);
     window.addEventListener(UPDATE_EVENT, refresh);
@@ -51,8 +51,13 @@ export function useCategoryFilter(initial: string | null) {
   const categoriesRef = useRef(categories);
   categoriesRef.current = categories;
   const [value, setValue] = useState<string | null>(() => resolveCategory(initial, categories)?.id ?? initial);
+  useEffect(() => {
+    if (!value || categories.length === 0) return;
+    const resolved = resolveCategory(value, categories);
+    if (resolved && resolved.id !== value) setValue(resolved.id);
+  }, [value, categories]);
   const setCategory = useCallback((next: string | null) => setValue(resolveCategory(next, categoriesRef.current)?.id ?? next), []);
-  return [resolveCategory(value, categories)?.name ?? value, setCategory] as const;
+  return [resolveCategory(value, categories)?.name ?? (categories.length ? null : value), setCategory] as const;
 }
 
 export function useCategorizedShop<T extends { category: string; categoryId?: string; categoryKey?: string }>(shop: T): T {

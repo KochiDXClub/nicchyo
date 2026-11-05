@@ -28,6 +28,11 @@ describe("表示中のマップ・バナーと絞り込み", () => {
     render(<CategoryProvider initial={[{ id: "c1", name: "野菜・果物", presentation_key: "食材" }]}><Consumer /></CategoryProvider>);
     expect(screen.getByTestId("banner").textContent).toBe("野菜・果物");
   });
+  it("初回一覧が空でもURLのカテゴリを保持し、再取得後に名前を解決する", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: async () => ({ categories: [{ id: "c1", name: "野菜・果物", presentation_key: "食材" }] }) }));
+    render(<CategoryProvider initial={[]}><Consumer /></CategoryProvider>);
+    await waitFor(() => expect(screen.getByTestId("filter").textContent).toBe("野菜・果物"));
+  });
 });
 
 it("改名前から選択しているカテゴリで、改名後も同じ店舗を絞り込める", async () => {
