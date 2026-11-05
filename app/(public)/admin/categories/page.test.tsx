@@ -61,6 +61,18 @@ describe("カテゴリ管理（英語名）", () => {
     expect(calls.find((c) => c.method === "PATCH")).toMatchObject({ url: "/api/admin/categories/c1", body: { name: "野菜", nameEn: "Veggies" } });
   });
 
+  it("日本語名だけを変えた場合、確認を拒否すると保存しない", async () => {
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+    render(<AdminCategoriesPage />);
+    await screen.findByText("Vegetables");
+    fireEvent.click(screen.getAllByRole("button", { name: "編集" })[0]);
+    fireEvent.change(screen.getAllByLabelText("日本語名")[1], { target: { value: "果物" } });
+    fireEvent.click(screen.getByRole("button", { name: "保存" }));
+    expect(confirm).toHaveBeenCalled();
+    expect(calls.some((call) => call.method === "PATCH")).toBe(false);
+    confirm.mockRestore();
+  });
+
   it("翻訳中に別のカテゴリを開いたら、翻訳の結果は捨てる", async () => {
     let resolveTranslate: (res: Response) => void = () => {};
     translateImpl = () => new Promise<Response>((resolve) => (resolveTranslate = resolve));
