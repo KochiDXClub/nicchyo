@@ -82,9 +82,29 @@ describe("classifyIntent", () => {
 describe("extractKeywords", () => {
   it("ストップワードを除外してスペース区切りのトークンを返す", () => {
     const keywords = extractKeywords("おすすめ 野菜 教え");
-    expect(keywords).toContain("おすすめ");
     expect(keywords).toContain("野菜");
     expect(keywords).not.toContain("教え");
+  });
+
+  // 空白のない日本語の質問が文全体で1トークンになり、キーワード検索が当たらなかった（#862）
+  it.each([
+    ["おすすめの野菜を教えて", ["野菜"]],
+    ["刃物を買いたい", ["刃物"]],
+    ["生姜を売っているお店", ["生姜"]],
+    ["包丁を研いでくれる店はある？", ["包丁"]],
+    ["トマトはどこで売ってる？", ["トマト"]],
+  ])("空白のない質問「%s」を分かち書きして品物の語を取り出す", (question, expected) => {
+    expect(extractKeywords(question)).toEqual(expected);
+  });
+
+  it("品物を表す漢字1文字（鎌・苗など）は残す", () => {
+    expect(extractKeywords("鎌を探してる")).toEqual(["鎌"]);
+    expect(extractKeywords("花の苗を探しています")).toEqual(["花", "苗"]);
+  });
+
+  // 「店」は300店中238店、「おすすめ」は31店に当たり、意味のある候補を押し出す
+  it("どの店にも当たる語（おすすめ・店）は使わない", () => {
+    expect(extractKeywords("お土産におすすめのお店は？")).toEqual(["土産"]);
   });
 
   it("重複を除去する", () => {

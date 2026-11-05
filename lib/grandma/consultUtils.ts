@@ -80,13 +80,17 @@ export function classifyIntent(question: string): string {
 }
 
 export function extractKeywords(question: string): string[] {
+  // このファイルは地図のクライアント部品からも読まれる。Intl.Segmenter の無い古いブラウザで
+  // 読み込み時に落ちないよう、モジュールの外側ではなくここで作る（呼ぶのはサーバーだけ）
+  const segmenter = new Intl.Segmenter("ja", { granularity: "word" });
+  // 分かち書きで出る助詞・活用の切れ端と、どの店にも当たる語（「店」は300店中238店に当たる）を除く
   const stopwords =
-    /^(は|が|を|に|で|と|も|の|て|だ|な|や|か|から|まで|より|けど|ので|って|ね|よ|し|ている|てる|です|ます|ない|ある|いる|する|した|して|できる|ください|教え|知り|たい)$/;
-  const tokens = question
-    .replace(/[、。！？,\s]/g, " ")
-    .split(" ")
-    .map((token) => token.trim())
-    .filter((token) => token.length >= 2 && !stopwords.test(token));
+    /^(は|が|を|に|で|と|も|の|て|だ|な|や|か|から|まで|より|けど|ので|って|ね|よ|し|ている|てる|てい|です|ます|ない|ある|いる|する|した|して|できる|ください|教え|知り|たい|くれる|られる|べた|欲しい|ほしい|どこ|何|なに|もの|こと|ところ|いい|良い|おすすめ|オススメ|お店|店|食|食べ|売|売っ|買|買い|探|探し|研|飲|飲み|見|行)$/;
+  const tokens = [...segmenter.segment(question)]
+    .filter((segment) => segment.isWordLike)
+    .map((segment) => segment.segment.trim())
+    // 2文字以上か、漢字1文字（鎌・苗・竹など品物そのものを表す）を残す
+    .filter((token) => (token.length >= 2 || /^\p{Script=Han}$/u.test(token)) && !stopwords.test(token));
   return [...new Set(tokens)].slice(0, 6);
 }
 
