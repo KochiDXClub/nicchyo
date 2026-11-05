@@ -15,10 +15,10 @@ export function CategoryProvider({ initial, children }: { initial: Category[]; c
   current.current = categories;
   useEffect(() => {
     let active = true;
-    const refresh = async () => {
+    const refresh = async (bypassCache = false) => {
       if (document.visibilityState === "hidden") return;
       try {
-        const response = await fetch("/api/categories", { cache: "no-store" });
+        const response = await fetch(bypassCache ? `/api/categories?updated=${Date.now()}` : "/api/categories");
         if (!response.ok) return;
         const payload = await response.json();
         if (active && Array.isArray(payload.categories) && JSON.stringify(current.current) !== JSON.stringify(payload.categories)) {
@@ -30,12 +30,14 @@ export function CategoryProvider({ initial, children }: { initial: Category[]; c
       } catch { /* 一時的な通信失敗では最後の正常な一覧を維持 */ }
     };
     void refresh();
-    const timer = setInterval(refresh, 300_000);
-    const onStorage = (event: StorageEvent) => { if (event.key === UPDATE_EVENT) void refresh(); };
+    const timer = setInterval(() => void refresh(), 300_000);
+    const onStorage = (event: StorageEvent) => { if (event.key === UPDATE_EVENT) void refresh(true); };
+    const onUpdate = () => { void refresh(true); };
+    const onFocus = () => { void refresh(); };
     window.addEventListener("storage", onStorage);
-    window.addEventListener(UPDATE_EVENT, refresh);
-    window.addEventListener("focus", refresh);
-    return () => { active = false; clearInterval(timer); window.removeEventListener("focus", refresh); window.removeEventListener(UPDATE_EVENT, refresh); window.removeEventListener("storage", onStorage); };
+    window.addEventListener(UPDATE_EVENT, onUpdate);
+    window.addEventListener("focus", onFocus);
+    return () => { active = false; clearInterval(timer); window.removeEventListener("focus", onFocus); window.removeEventListener(UPDATE_EVENT, onUpdate); window.removeEventListener("storage", onStorage); };
   }, [router]);
   return <Context.Provider value={categories}>{children}</Context.Provider>;
 }

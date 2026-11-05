@@ -4,6 +4,7 @@ import { createClient as createServerClient } from "@/utils/supabase/server";
 import { getRole, isAdmin } from "@/lib/auth/permissions";
 import { addDaysToDateString, todayJstString } from "@/lib/time/jstDate";
 import { createAdminClient } from "@/lib/supabase/adminClient";
+import { toCsv } from "@/lib/utils/csv";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -16,22 +17,6 @@ const COLUMNS: Record<ExportType, string[]> = {
   search_logs: ["searched_at", "keyword"],
   consult_logs: ["consulted_at", "intent_category"],
 };
-
-function toCSV(rows: Record<string, unknown>[], columns: string[]): string {
-  const escape = (v: unknown): string => {
-    const s = v === null || v === undefined ? "" : String(v);
-    // CSVインジェクション防止
-    const safe = /^[=+\-@\t\r]/.test(s) ? `'${s}` : s;
-    return `"${safe.replace(/"/g, '""')}"`;
-  };
-
-  const csvLines = [
-    columns.map(escape).join(","),
-    ...rows.map((row) => columns.map((h) => escape(row[h])).join(",")),
-  ];
-  // BOM付きUTF-8でExcelが正しく開けるようにする
-  return "﻿" + csvLines.join("\r\n");
-}
 
 export async function GET(req: NextRequest) {
   const cookieStore = await cookies();
@@ -104,7 +89,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "データ取得に失敗しました" }, { status: 500 });
   }
 
-  const csv = toCSV(rows, COLUMNS[type]);
+  const csv = toCsv(rows, COLUMNS[type]);
   return new NextResponse(csv, {
     status: 200,
     headers: {

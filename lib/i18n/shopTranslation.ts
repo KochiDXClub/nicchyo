@@ -52,6 +52,34 @@ export function buildTranslationSource(shop: Shop): TranslationSource {
 }
 
 /**
+ * 店舗の行（vendors と、その店の products の行）から訳す原文を作る。
+ * 地図の店舗（buildVendorShops）から作った buildTranslationSource と同じ原文・同じハッシュになること
+ * （shopTranslation.test.ts が確かめる）。運営が現場登録で訳を保存するとき、画面に出る訳の
+ * 「原文のハッシュ」と食い違うと、保存した訳が古い扱いで隠れてしまうので、同じ組み立てに揃える。
+ */
+export function buildVendorTranslationSource(
+  vendor: {
+    shop_name: string | null;
+    strength: string | null;
+    style: string | null;
+    main_products: string[] | null;
+    main_product_prices: Record<string, number | null> | null;
+  },
+  productRows: { name: string | null; image_url: string | null }[]
+): TranslationSource {
+  const named = productRows.filter((row): row is { name: string; image_url: string | null } => Boolean(row.name));
+  const products = (vendor.main_products ?? []).length > 0 ? (vendor.main_products as string[]) : named.map((row) => row.name);
+  return buildTranslationSource({
+    name: vendor.shop_name ?? "",
+    products,
+    productPrices: (vendor.main_product_prices ?? undefined) as Record<string, number | null> | undefined,
+    productDetails: named.filter((row) => row.image_url).map((row) => ({ name: row.name, imageUrl: row.image_url as string })),
+    stallStyle: vendor.style ?? undefined,
+    shopStrength: vendor.strength ?? undefined,
+  } as unknown as Shop);
+}
+
+/**
  * AIに渡す原文。出店者の自由記述は費用と、出力が途中で切れて一括失敗するのを防ぐために長さを抑える。
  * 上限を超える項目は切り詰めて訳さず、空にする（後半が消えた訳で全文を置き換えないため。画面には日本語が出る）。
  * 商品も、長すぎる名前と上限を超える分は訳さない。

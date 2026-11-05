@@ -1,8 +1,10 @@
 import { describe, expect, test } from "vitest";
 import type { Shop } from "@/app/(public)/map/types/shopData";
+import { buildVendorShops } from "@/app/(public)/map/services/shopDb";
 import {
   applyShopTranslation,
   buildTranslationSource,
+  buildVendorTranslationSource,
   hasTranslatableText,
   limitSourceForTranslation,
   parseTranslationOutput,
@@ -174,5 +176,54 @@ describe("選択項目はAI翻訳から除外", () => {
   test("古いAI訳の雨天対応が混ざっても保存キーを上書きしない", () => {
     const legacy = { name: null, strength: null, style: null, products: {}, rainPolicy: "Closed in the rain" };
     expect(applyShopTranslation({ ...baseShop, rainPolicy: "outdoor" }, legacy).rainPolicy).toBe("outdoor");
+  });
+});
+
+describe("buildVendorTranslationSource", () => {
+  const vendor = {
+    id: "v1",
+    shop_name: "山田農園",
+    strength: "朝採れです",
+    style: "テント",
+    style_tags: null,
+    category_id: null,
+    categories: null,
+    main_products: ["トマト", "きゅうり"] as string[] | null,
+    main_product_prices: { トマト: 300, きゅうり: null, なす: 100 } as Record<string, number | null> | null,
+    payment_methods: null,
+    rain_policy: null,
+    schedule: null,
+    shop_image_url: null,
+    shop_image_kind: null,
+    sns_instagram: null,
+    sns_x: null,
+    sns_hp: null,
+    business_hours_start: null,
+    business_hours_end: null,
+  };
+  const products = [
+    { id: "p1", vendor_id: "v1", name: "トマト", image_url: "https://example.supabase.co/a.webp" },
+    { id: "p2", vendor_id: "v1", name: "ししとう", image_url: "https://example.supabase.co/b.webp" },
+    { id: "p3", vendor_id: "v1", name: "ゴーヤ", image_url: null },
+  ];
+
+  // 地図の店舗から作った原文と、行から作った原文が同じ（＝ハッシュも同じ）でなければ、保存した訳が古い扱いで隠れる
+  test.each([
+    ["main_products がある", vendor],
+    ["main_products が空で、products テーブルの商品を使う", { ...vendor, main_products: [] as string[] }],
+    ["main_products が null", { ...vendor, main_products: null, main_product_prices: null }],
+  ])("%s とき、地図の店舗から作った原文と一致する", (_label, v) => {
+    const [shop] = buildVendorShops(
+      {
+        vendors: [v],
+        ownerProfiles: [],
+        categories: [],
+        products,
+        locations: [{ id: "l1", store_number: 12, latitude: 33.5, longitude: 133.5, district: "三丁目" }],
+        assignments: [{ vendor_id: "v1", location_id: "l1", market_date: "2026-10-11" }],
+      },
+      []
+    );
+    expect(buildVendorTranslationSource(v, products)).toEqual(buildTranslationSource(shop));
   });
 });

@@ -558,6 +558,75 @@ export function buildRoadEdges(
   return { left, right };
 }
 
+export function isPointInRing(point: [number, number], ring: Array<[number, number]>): boolean {
+  let inside = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i, i += 1) {
+    const [yi, xi] = ring[i];
+    const [yj, xj] = ring[j];
+    if (yi > point[0] !== yj > point[0] && point[1] < ((xj - xi) * (point[0] - yi)) / (yj - yi) + xi) {
+      inside = !inside;
+    }
+  }
+  return inside;
+}
+
+/**
+ * 縁の線から「他の道の面の内側」にあたる部分を取り除き、残った区間の配列を返す。
+ *
+ * 道が交差・分岐する場所では、片方の道の縁がもう片方の道の面の上を横切ってしまい、
+ * 交差点の真ん中に縁取りの線が残って見栄えが悪い。交差点では縁を引かないようにする。
+ * 内外が切り替わる点は二分探索で境界に合わせ、縁が手前で途切れて隙間が空かないようにする。
+ */
+export function clipLineOutsideRings(
+  line: Array<[number, number]>,
+  rings: Array<Array<[number, number]>>
+): Array<Array<[number, number]>> {
+  if (rings.length === 0) return line.length >= 2 ? [line] : [];
+
+  // 外接する長方形の外にある点は、頂点を数えるまでもなく外側と分かる
+  const prepared = rings.map((ring) => {
+    const lats = ring.map((p) => p[0]);
+    const lngs = ring.map((p) => p[1]);
+    return { ring, minLat: Math.min(...lats), maxLat: Math.max(...lats), minLng: Math.min(...lngs), maxLng: Math.max(...lngs) };
+  });
+  const isInside = (p: [number, number]) =>
+    prepared.some(
+      (r) =>
+        p[0] >= r.minLat && p[0] <= r.maxLat && p[1] >= r.minLng && p[1] <= r.maxLng &&
+        isPointInRing(p, r.ring)
+    );
+  const boundary = (outside: [number, number], inside: [number, number]): [number, number] => {
+    let a = outside;
+    let b = inside;
+    for (let k = 0; k < 8; k += 1) {
+      const mid: [number, number] = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+      if (isInside(mid)) b = mid;
+      else a = mid;
+    }
+    return a;
+  };
+
+  const runs: Array<Array<[number, number]>> = [];
+  let current: Array<[number, number]> = [];
+  let prev: [number, number] | null = null;
+  let prevInside = false;
+  for (const point of line) {
+    const inside = isInside(point);
+    if (!inside) {
+      if (prev && prevInside) current.push(boundary(point, prev));
+      current.push(point);
+    } else if (prev && !prevInside) {
+      current.push(boundary(prev, point));
+      if (current.length >= 2) runs.push(current);
+      current = [];
+    }
+    prev = point;
+    prevInside = inside;
+  }
+  if (current.length >= 2) runs.push(current);
+  return runs;
+}
+
 export function buildRoadPolygon(
   centerline: Array<[number, number]>,
   halfWidthMeters: number

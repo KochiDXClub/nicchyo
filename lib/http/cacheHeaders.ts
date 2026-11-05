@@ -23,3 +23,11 @@ export function publicCacheHeaders(options: {
 export function noStoreHeaders(): { "Cache-Control": string } {
   return { "Cache-Control": "no-store" };
 }
+
+/**
+ * 本人にだけ返す API レスポンス（ログインが要るデータ・CSV など）の Cache-Control。
+ * CDN や共有キャッシュに残さない。
+ */
+export function privateNoStoreHeaders(): { "Cache-Control": string } {
+  return { "Cache-Control": "private, no-store" };
+}

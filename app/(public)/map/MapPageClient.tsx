@@ -95,8 +95,9 @@ type MapPageClientProps = {
   mapViewSettings?: MapViewSettings;
 };
 
-// 「このへん、なにがある？」の対象範囲＝画面に見えているマップの80%の長方形
-const NEARBY_AREA_RATIO = 0.8;
+// 「このへん、なにがある？」の対象範囲＝画面に見えているマップの長方形（幅は画面の80%、高さは画面の48%。高さは以前の80%の0.6倍）
+const NEARBY_AREA_WIDTH_RATIO = 0.8;
+const NEARBY_AREA_HEIGHT_RATIO = 0.48;
 
 export default function MapPageClient({
   shops: sourceShops,
@@ -722,15 +723,15 @@ export default function MapPageClient({
     if (!map) return;
     // マップコンテナは画面より大きい回転シェルいっぱいに広がっているため、
     // 「画面に見えているマップ領域」はシェルの親要素からサイズを取り、
-    // シェルの CSS 回転角を打ち消して画面中央80%の長方形で店舗を判定する
+    // シェルの CSS 回転角を打ち消して画面中央（幅80%×高さ48%）の長方形で店舗を判定する
     const container = map.getContainer();
     const shell = container.parentElement;
     const viewportEl = shell?.parentElement;
     if (!shell || !viewportEl) return;
     const rect = {
       center: { x: container.clientWidth / 2, y: container.clientHeight / 2 },
-      halfWidth: (viewportEl.clientWidth * NEARBY_AREA_RATIO) / 2,
-      halfHeight: (viewportEl.clientHeight * NEARBY_AREA_RATIO) / 2,
+      halfWidth: (viewportEl.clientWidth * NEARBY_AREA_WIDTH_RATIO) / 2,
+      halfHeight: (viewportEl.clientHeight * NEARBY_AREA_HEIGHT_RATIO) / 2,
       rotationRad: parseCssRotationRad(getComputedStyle(shell).transform),
     };
     const center = map.getCenter();
@@ -890,7 +891,7 @@ export default function MapPageClient({
                 <AnnouncementBanner />
 
                 {/* 開催ステータス（例外時のみ表示。平常時は null を返すので検索バーは動かない） */}
-                <MarketStatusBar day={marketCalendar.day} placement="map" />
+                <MarketStatusBar day={marketCalendar.day} />
 
                 {/* 検索バー */}
                 <div className={`flex items-center gap-2 rounded-full px-4 py-2.5 shadow-lg ring-1 backdrop-blur-sm transition-all duration-200 lg:rounded-btn lg:shadow-none ${
@@ -1005,15 +1006,15 @@ export default function MapPageClient({
               }
             />
 
-            {/* 「このへん」の対象範囲（画面中央80%）を示すオレンジ枠。
+            {/* 「このへん」の対象範囲（画面中央・幅80%×高さ48%）を示すオレンジ枠。
                 ボタンと同時にフェードで浮き出て、パネル表示中も残る */}
             <div
               className={`pointer-events-none absolute left-1/2 top-1/2 z-[1140] -translate-x-1/2 -translate-y-1/2 rounded-[28px] border-4 border-orange-400/80 bg-orange-300/10 transition-opacity duration-500 ease-out ${
                 nearbyButtonVisible || nearbyState ? 'opacity-100' : 'opacity-0'
               }`}
               style={{
-                width: `${NEARBY_AREA_RATIO * 100}%`,
-                height: `${NEARBY_AREA_RATIO * 100}%`,
+                width: `${NEARBY_AREA_WIDTH_RATIO * 100}%`,
+                height: `${NEARBY_AREA_HEIGHT_RATIO * 100}%`,
               }}
               aria-hidden
             />
@@ -1043,8 +1044,14 @@ export default function MapPageClient({
                   routes={guide.routes}
                   onSelectSpot={setSelectedSpot}
                 />
-                {!nearbyState && !selectedSpot && (
-                  <OdekakeGuidePanel guide={guide} map={mapInstance} onClose={closeGuide} onOpenSpot={setSelectedSpot} />
+                {!nearbyState && (
+                  <OdekakeGuidePanel
+                    guide={guide}
+                    map={mapInstance}
+                    onClose={closeGuide}
+                    hidden={Boolean(selectedSpot)}
+                    onOpenSpot={setSelectedSpot}
+                  />
                 )}
               </>
             )}

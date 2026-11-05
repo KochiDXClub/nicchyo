@@ -28,6 +28,7 @@ export type PageRegistryEntry = {
 const MODERATOR_UP: readonly VisibilityRole[] = ["moderator", "admin"];
 const ADMIN_ONLY: readonly VisibilityRole[] = ["admin"];
 const VENDOR_ONLY: readonly VisibilityRole[] = ["vendor"];
+const CITY_ONLY: readonly VisibilityRole[] = ["city_official"];
 
 /**
  * 本番を準備中にしている間の既定。管理者以外には店舗データを見せない
@@ -37,6 +38,7 @@ const PREPARING_IN_PRODUCTION: Partial<Record<VisibilityRole, VisibilityState>> 
   anon: "preparing",
   general_user: "preparing",
   vendor: "preparing",
+  city_official: "preparing",
   moderator: "preparing",
 };
 
@@ -114,6 +116,9 @@ export const PAGE_REGISTRY: readonly PageRegistryEntry[] = [
   { path: "/vendor/account", label: "出店者アカウント", group: "出店者向け", codeAllowed: VENDOR_ONLY },
   { path: "/vendor/help", label: "出店者ヘルプ", group: "出店者向け", codeAllowed: VENDOR_ONLY },
 
+  // ── 高知市向け ─────────────────────────────────────────────
+  { path: "/city", label: "高知市のページ", group: "高知市向け", codeAllowed: CITY_ONLY },
+
   // ── モデレーター向け ───────────────────────────────────────
   { path: "/moderator", label: "モデレーター", group: "モデレーター向け", codeAllowed: MODERATOR_UP },
 
@@ -126,6 +131,7 @@ export const PAGE_REGISTRY: readonly PageRegistryEntry[] = [
   { path: "/admin/calendar", label: "日曜市カレンダー", group: "管理者向け", codeAllowed: ADMIN_ONLY },
   { path: "/admin/reports", label: "通報管理", group: "管理者向け", codeAllowed: ADMIN_ONLY },
   { path: "/admin/inquiries", label: "問い合わせ管理", group: "管理者向け", codeAllowed: ADMIN_ONLY },
+  { path: "/admin/vendor-inquiries", label: "出店者からの連絡", group: "管理者向け", codeAllowed: ADMIN_ONLY },
   { path: "/admin/categories", label: "カテゴリ管理", group: "管理者向け", codeAllowed: ADMIN_ONLY },
   { path: "/admin/audit-logs", label: "監査ログ", group: "管理者向け", codeAllowed: ADMIN_ONLY },
   { path: "/admin/notifications", label: "通知", group: "管理者向け", codeAllowed: ADMIN_ONLY },

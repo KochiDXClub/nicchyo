@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireSameOrigin } from "@/lib/security/requestGuards";
 import { authorizeRequest, createAdminClient } from "./_shared";
 import {
+  VENDOR_INQUIRY_OPEN_STATUSES,
   isUuid,
   isVendorInquiryCategory,
   isVendorInquiryStatus,
@@ -32,6 +33,11 @@ export async function GET(req: Request) {
   const urgency = searchParams.get("urgency");
   const status = searchParams.get("status");
   const vendorId = searchParams.get("vendor_id");
+  // open=1: 運営がまだ対応していないもの（バッジ・ダッシュボードの数え方と同じ）だけ。
+  // 件数の上限（limit）より前に絞らないと、新しい対応済みで枠が埋まり古い未対応に届かなくなる
+  const openOnly = searchParams.get("open") === "1";
+  // before: この日時より前のものを返す（「さらに読み込む」用のカーソル）
+  const before = searchParams.get("before");
   // ?limit=-5 のような負値・非数値でPostgRESTがエラーにならないよう 1〜MAX_LIMIT に丸める
   const limit = Math.min(
     Math.max(1, Math.floor(Number(searchParams.get("limit") ?? String(DEFAULT_LIMIT)) || DEFAULT_LIMIT)),
@@ -58,6 +64,11 @@ export async function GET(req: Request) {
     if (!isVendorInquiryUrgency(urgency)) return invalidFilter("urgency");
     query = query.eq("urgency", urgency);
   }
+  if (openOnly) query = query.in("status", [...VENDOR_INQUIRY_OPEN_STATUSES]);
+  if (before !== null) {
+    if (Number.isNaN(Date.parse(before))) return invalidFilter("before");
+    query = query.lt("created_at", before);
+  }
   if (status !== null) {
     if (!isVendorInquiryStatus(status)) return invalidFilter("status");
     query = query.eq("status", status);
@@ -73,5 +84,26 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "データ取得に失敗しました" }, { status: 500 });
   }
 
-  return NextResponse.json({ inquiries: data });
+  // 運営が「どの店からか」をすぐ分かるよう、店名を添える（取れなくても一覧は返す）
+  const vendorIds = [...new Set(data.map((row) => row.vendor_id).filter((v): v is string => !!v))];
+  const shopNames = new Map<string, string>();
+  if (vendorIds.length > 0) {
+    const { data: vendors, error: vendorsError } = await dc
+      .from("vendors")
+      .select("id, shop_name")
+      .in("id", vendorIds);
+    if (vendorsError) {
+      console.error("[admin/vendor-inquiries] vendors fetch error:", vendorsError.message);
+    }
+    for (const v of vendors ?? []) {
+      if (v.shop_name) shopNames.set(v.id, v.shop_name);
+    }
+  }
+
+  return NextResponse.json({
+    inquiries: data.map((row) => ({
+      ...row,
+      shop_name: row.vendor_id ? (shopNames.get(row.vendor_id) ?? null) : null,
+    })),
+  });
 }

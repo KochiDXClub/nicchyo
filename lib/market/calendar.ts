@@ -211,7 +211,7 @@ function isoToDate(iso: string): Date {
   return new Date(`${iso}T00:00:00Z`);
 }
 
-function addDaysToIso(iso: string, days: number): string {
+export function addDaysToIso(iso: string, days: number): string {
   const d = isoToDate(iso);
   d.setUTCDate(d.getUTCDate() + days);
   return formatUtcFields(d);

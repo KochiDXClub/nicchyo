@@ -2,6 +2,7 @@ import { fetchCategories } from "@/lib/categories/server";
 import { categoryKey } from "@/lib/categories/catalog";
 import Link from "next/link";
 import { PageContainer } from "@/components/ui";
+import { getT } from "@/lib/i18n/server";
 import { getShopCategoryColor } from "../map/config/shopCategories";
 import { GENRES } from "./content";
 import SectionHeading from "./SectionHeading";
@@ -13,10 +14,11 @@ import SectionHeading from "./SectionHeading";
 export default async function LandingGenres() {
   const categories = await fetchCategories().catch(() => []);
   const genres = categories.length ? categories.map(c => ({ category: c.name, id: c.id, art: GENRES.find(g => g.category === categoryKey(c))?.art ?? "/images/landing/art/genre-zakka.svg", color: getShopCategoryColor(categoryKey(c)) })) : GENRES.map(g => ({ ...g, id: g.category, color: getShopCategoryColor(g.category) }));
+  const t = await getT();
   return (
     <section aria-labelledby="landing-genres" className="mt-16 md:mt-20">
       <PageContainer width="wide">
-        <SectionHeading id="landing-genres">何に興味ある？</SectionHeading>
+        <SectionHeading id="landing-genres">{t("何に興味ある？")}</SectionHeading>
         <ul className="mt-6 grid grid-cols-4 gap-3 md:grid-cols-7">
           {genres.map(({ category, id, art, color }) => (
             <li key={id}>
@@ -28,7 +30,7 @@ export default async function LandingGenres() {
               >
                 {/* eslint-disable-next-line @next/next/no-img-element -- 手描きの SVG（最適化の対象外） */}
                 <img src={art} alt="" width={64} height={64} className="h-12 w-12 md:h-14 md:w-14" />
-                {category}
+                {t(category)}
               </Link>
             </li>
           ))}

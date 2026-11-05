@@ -116,9 +116,9 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
         label: "受信トレイ",
         href: "/admin/notifications",
         icon: Inbox,
-        description: "届いたもの（通知・通報・問い合わせ）をタブで切り替えて確認し、対応する",
+        description: "届いたもの（通知・通報・問い合わせ・出店者連絡）をタブで切り替えて確認し、対応する",
         badgeKey: "inbox",
-        relatedHrefs: ["/admin/reports", "/admin/inquiries"],
+        relatedHrefs: ["/admin/reports", "/admin/inquiries", "/admin/vendor-inquiries"],
       },
       {
         label: "お知らせ",

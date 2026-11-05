@@ -78,7 +78,12 @@ function periodLabel(a: Announcement): string {
  * サイト内のお知らせ（来訪者向け）。投稿すると、地図ページの上部のバナーと /news に、公開期間のあいだ出る。
  * メールと違い、読みに来た人全員に見える。重要にすると、バナーで目立たせる。
  */
-export function SiteAnnouncementSection() {
+export function SiteAnnouncementSection({
+  apiBase = "/api/admin",
+}: {
+  /** 読み書きする API の入口。高知市のページでは "/api/city" */
+  apiBase?: string;
+}) {
   const [announcements, setAnnouncements] = useState<Announcement[] | null>(null);
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   /** 編集中のお知らせの ID。null なら新しく投稿する */
@@ -86,14 +91,14 @@ export function SiteAnnouncementSection() {
   const [saving, setSaving] = useState(false);
 
   const load = useCallback(async () => {
-    const res = await fetch("/api/admin/announcements");
+    const res = await fetch(`${apiBase}/announcements`);
     if (!res.ok) {
       showToast.error(await readError(res, "お知らせを読み込めませんでした"));
       setAnnouncements([]);
       return;
     }
     setAnnouncements(((await res.json()) as { announcements: Announcement[] }).announcements);
-  }, []);
+  }, [apiBase]);
 
   useEffect(() => {
     void load();
@@ -127,7 +132,7 @@ export function SiteAnnouncementSection() {
     }
     setSaving(true);
     try {
-      const res = await fetch(editingId ? `/api/admin/announcements/${editingId}` : "/api/admin/announcements", {
+      const res = await fetch(editingId ? `${apiBase}/announcements/${editingId}` : `${apiBase}/announcements`, {
         method: editingId ? "PATCH" : "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(toPayload(form)),
@@ -145,7 +150,7 @@ export function SiteAnnouncementSection() {
 
   /** 公開・非公開の切り替え（ほかの項目はそのまま送る） */
   const togglePublished = async (a: Announcement) => {
-    const res = await fetch(`/api/admin/announcements/${a.id}`, {
+    const res = await fetch(`${apiBase}/announcements/${a.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ ...toPayload(toForm(a)), published: !a.published }),
@@ -160,7 +165,7 @@ export function SiteAnnouncementSection() {
 
   const remove = async (a: Announcement) => {
     if (!window.confirm(`「${a.title}」を削除します。元に戻せません。よろしいですか？`)) return;
-    const res = await fetch(`/api/admin/announcements/${a.id}`, { method: "DELETE" });
+    const res = await fetch(`${apiBase}/announcements/${a.id}`, { method: "DELETE" });
     if (!res.ok) {
       showToast.error(await readError(res, "削除できませんでした"));
       return;

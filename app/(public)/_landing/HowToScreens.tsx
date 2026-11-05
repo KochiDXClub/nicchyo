@@ -1,6 +1,4 @@
-"use client";
-import { useCategories } from "@/lib/categories/CategoryContext";
-import { categoryKey } from "@/lib/categories/catalog";
+import CategoryDemoChips from "./CategoryDemoChips";
 import Image from "next/image";
 import { ChevronDown, Clock, Expand, Heart, Instagram, Search, Send, Share2, Umbrella, X } from "lucide-react";
 import { getShopBannerImage } from "@/lib/shopImages";
@@ -51,7 +49,6 @@ const HIT_INDEX = 1;
 const SEARCH_WORD = "芋天";
 
 export function MapScreen() {
-  const categories = useCategories();
   return (
     <div className="landing-screen">
       <svg className="absolute inset-0 h-full w-full" viewBox="0 0 230 452" preserveAspectRatio="xMidYMid slice" aria-hidden>
@@ -86,13 +83,7 @@ export function MapScreen() {
         <span className="landing-typed">{SEARCH_WORD}</span>
         <i className="landing-caret" />
       </div>
-      <div className="landing-m-chips">
-        {categories.slice(0, 3).map((category) => (
-          <span key={category.id} className={categoryKey(category) === "食べ物" ? "landing-on" : undefined}>
-            {category.name}
-          </span>
-        ))}
-      </div>
+      <CategoryDemoChips />
       <div className="landing-m-card">
         <span className="landing-m-ph" style={{ borderColor: getShopCategoryColor("食べ物") }}>
           <Image src={getShopBannerImage("食べ物", 0)} alt="" width={64} height={64} className="h-full w-full object-cover" />
