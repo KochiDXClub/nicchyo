@@ -1,5 +1,5 @@
 import React from "react";
-import { render, screen, act, fireEvent, within } from "@testing-library/react";
+import { render, screen, act, fireEvent } from "@testing-library/react";
 import { vi } from "vitest";
 import StoryGridClient from "./StoryGridClient";
 import type { StoryItem } from "./types";
@@ -76,47 +76,24 @@ describe("StoryGridClient", () => {
     window.history.replaceState(null, "", "/");
   });
 
-  it("スマホでは最新の投稿が半開きのシートで出て、タップすると全画面で再生が始まる", async () => {
+  it("スマホでは一覧を先に表示し、投稿を選ぶと全画面で再生する", async () => {
     mockViewport({ desktop: false });
     await renderPage();
-
-    fireEvent.click(screen.getByTestId("story-peek-sheet"));
-
-    // 全画面ビューア（ハートの操作を持つ）が先頭の投稿で開く
-    expect(await screen.findByLabelText("ハートを送る")).toBeInTheDocument();
-  });
-
-  it("シートは名前付きの領域として読み上げられ、中の再生ボタンからも全画面で再生できる", async () => {
-    mockViewport({ desktop: false });
-    await renderPage();
-
-    const sheet = screen.getByRole("region", { name: "八百屋Aの最新の近況" });
-    // ボタンの中にボタンを入れないよう、再生と閉じるは別々のボタンとしてシートの中に並ぶ
-    const launchButton = within(sheet).getByRole("button", { name: "八百屋Aの近況を再生" });
-    expect(within(sheet).getByRole("button", { name: "閉じる" })).toBeInTheDocument();
-    fireEvent.click(launchButton);
-
-    expect(await screen.findByLabelText("ハートを送る")).toBeInTheDocument();
-  });
-
-  it("シートの閉じるを押すと、シートが消えて一覧だけになる", async () => {
-    mockViewport({ desktop: false });
-    await renderPage();
-
-    const sheet = screen.getByTestId("story-peek-sheet");
-    fireEvent.click(sheet.querySelector('[aria-label="閉じる"]') as HTMLElement);
 
     expect(screen.queryByTestId("story-peek-sheet")).not.toBeInTheDocument();
-    expect(screen.queryByLabelText("ハートを送る")).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "八百屋Bの投稿を見る" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "近況", level: 1 })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "八百屋Aの投稿を見る" }));
+    expect(await screen.findByLabelText("ハートを送る")).toBeInTheDocument();
   });
 
-  it("PC の幅ではシートを出さない（一覧の横に表紙が出る）", async () => {
+  it("PC の幅では表紙やシートを出さず、一覧から投稿を開ける", async () => {
     mockViewport({ desktop: true });
     await renderPage();
 
     expect(screen.queryByTestId("story-peek-sheet")).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "八百屋Aの近況を再生" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "八百屋Aの近況を再生" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "八百屋Bの投稿を見る" }));
+    expect(await screen.findByRole("link", { name: "八百屋Bをマップで見る" })).toBeInTheDocument();
   });
 
   it("?content= 付きで開いたときは、シートを出さずにその投稿を全画面で開く", async () => {
@@ -164,8 +141,9 @@ describe("StoryGridClient（デモ）", () => {
 
     expect(fetchSpy.mock.calls.some(([url]) => String(url).includes("/api/stories"))).toBe(false);
     expect(screen.getByText("近況のデモです。お店・投稿・AIキャラのひとことは、すべて見本です。")).toBeInTheDocument();
-    // 半開きのシートにキャラの吹き出しが出る
-    expect(screen.getByTestId("story-peek-sheet")).toHaveTextContent("葉っぱも食べてみいや");
+    expect(screen.queryByTestId("story-peek-sheet")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "見本の農園の投稿を見る" }));
+    expect(await screen.findByLabelText("ハートを送る")).toBeInTheDocument();
   });
 
   it("デモのハートはサーバーに送らず、その場で数える", async () => {
@@ -174,7 +152,7 @@ describe("StoryGridClient（デモ）", () => {
     const { toggleReaction } = await import("@/lib/story/reactions");
     render(<StoryGridClient demo={{ stories: DEMO_STORIES, heartCounts: { d1: 7 } }} />);
 
-    fireEvent.click(screen.getByRole("button", { name: "見本の農園の近況を再生" }));
+    fireEvent.click(screen.getByRole("button", { name: "見本の農園の投稿を見る" }));
     const heart = await screen.findByLabelText("ハートを送る");
     // ハートのボタンの下に数が出る
     const heartArea = heart.parentElement as HTMLElement;

@@ -120,14 +120,14 @@ type ListProps = {
   onOpen: (index: number) => void;
   /**
    * true … 写真＋店名・投稿時刻・本文の冒頭が読めるカード（件数が少ないとき）
-   * false … 写真のタイルを3列（PC は4列）で並べる（件数が多いとき）
+   * false … 写真をスマホでは縦に、PCでは4列に並べる（件数が多いとき）
    */
   asCards: boolean;
 };
 
 function StoryList({ items, heartCounts, onOpen, asCards }: ListProps) {
   return (
-    <ul className={asCards ? "grid gap-2 md:grid-cols-2 md:gap-3" : "grid grid-cols-3 gap-1 md:grid-cols-4 md:gap-1.5"}>
+    <ul className={asCards ? "grid gap-2 md:grid-cols-2 md:gap-3" : "grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4"}>
       {items.map(({ story, index }) => {
         const shopName = story.vendor?.shop_name ?? "出店者";
         const hearts = heartCounts[story.id] ?? 0;
@@ -140,7 +140,7 @@ function StoryList({ items, heartCounts, onOpen, asCards }: ListProps) {
                 "transition motion-reduce:active:scale-100",
                 asCards
                   ? "flex w-full items-stretch gap-3 rounded-card bg-white p-2 text-left shadow-card ring-1 ring-line active:scale-[0.99]"
-                  : "group relative block aspect-[3/4] w-full overflow-hidden rounded-btn bg-nicchyo-ink/5 active:scale-[0.97]"
+                  : "group relative block aspect-video w-full overflow-hidden rounded-card bg-nicchyo-ink/5 active:scale-[0.97] sm:aspect-square"
               )}
               aria-label={`${shopName}の投稿を見る`}
             >
@@ -194,7 +194,7 @@ function StoryTileBody({ story, shopName, hearts }: BodyProps) {
         alt=""
         fill
         className="object-cover transition duration-300 md:group-hover:scale-[1.03]"
-        sizes="(min-width: 768px) 180px, 33vw"
+        sizes="(min-width: 1024px) 25vw, (min-width: 640px) 50vw, 100vw"
       />
       <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/60 to-transparent px-1.5 pb-1.5 pt-6">
         <p className="truncate text-[11px] font-semibold leading-tight text-white">{shopName}</p>
