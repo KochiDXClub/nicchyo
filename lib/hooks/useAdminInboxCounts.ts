@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import type { InboxCounts } from "@/app/api/admin/inbox-counts/route";
 
-const EMPTY: InboxCounts = { notifications: 0, reports: 0, inquiries: 0 };
+const EMPTY: InboxCounts = { notifications: 0, reports: 0, inquiries: 0, vendorInquiries: 0 };
 
 const CHANGED_EVENT = "admin:inbox-changed";
 
@@ -11,7 +11,7 @@ export function notifyInboxChanged(): void {
 }
 
 /**
- * 受信トレイの新着の件数（未読の通知・未対応の通報・未対応の問い合わせ）。
+ * 受信トレイの新着の件数（未読の通知・未対応の通報・未対応の問い合わせ・未対応の出店者からの連絡）。
  * 60秒ごと、と refreshKey（開いているページなど）が変わったときに取り直す。
  * 取れなかったときは前の値のまま（バッジが急に消えたり出たりしない）。
  */
@@ -28,6 +28,7 @@ export function useAdminInboxCounts(enabled: boolean, refreshKey?: string | null
         notifications: json.notifications ?? 0,
         reports: json.reports ?? 0,
         inquiries: json.inquiries ?? 0,
+        vendorInquiries: json.vendorInquiries ?? 0,
       });
     } catch {
       // 取れなければ前の値のまま
@@ -45,6 +46,6 @@ export function useAdminInboxCounts(enabled: boolean, refreshKey?: string | null
     // refreshKey が変わったら取り直す
   }, [load, refreshKey]);
 
-  const total = counts.notifications + counts.reports + counts.inquiries;
+  const total = counts.notifications + counts.reports + counts.inquiries + counts.vendorInquiries;
   return { counts, total, refresh: load };
 }

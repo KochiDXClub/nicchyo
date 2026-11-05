@@ -126,6 +126,7 @@ export const PAGE_REGISTRY: readonly PageRegistryEntry[] = [
   { path: "/admin/calendar", label: "日曜市カレンダー", group: "管理者向け", codeAllowed: ADMIN_ONLY },
   { path: "/admin/reports", label: "通報管理", group: "管理者向け", codeAllowed: ADMIN_ONLY },
   { path: "/admin/inquiries", label: "問い合わせ管理", group: "管理者向け", codeAllowed: ADMIN_ONLY },
+  { path: "/admin/vendor-inquiries", label: "出店者からの連絡", group: "管理者向け", codeAllowed: ADMIN_ONLY },
   { path: "/admin/categories", label: "カテゴリ管理", group: "管理者向け", codeAllowed: ADMIN_ONLY },
   { path: "/admin/audit-logs", label: "監査ログ", group: "管理者向け", codeAllowed: ADMIN_ONLY },
   { path: "/admin/notifications", label: "通知", group: "管理者向け", codeAllowed: ADMIN_ONLY },
