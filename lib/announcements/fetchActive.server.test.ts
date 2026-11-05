@@ -101,6 +101,14 @@ describe("fetchActiveAnnouncements", () => {
     expect(selectCalls[1]).not.toContain("title_en");
   });
 
+  it("古くなった英訳は公開せず、日本語を返す", async () => {
+    selectCalls.length = 0;
+    result = { data: [row({ title: "中止", body: "雨のため", title_en: "Open", body_en: "Open today", translation_status: "stale" })], error: null };
+    const list = await fetchActiveAnnouncements(NOW, "en");
+    expect(selectCalls[0]).toContain("translation_status");
+    expect(list[0]).toMatchObject({ title: "中止", body: "雨のため", lang: "ja" });
+  });
+
   it("読めなかったとき・管理用クライアントが作れないときは空（ページは止めない）", async () => {
     result = { data: null, error: { code: "42P01" } };
     expect(await fetchActiveAnnouncements(NOW)).toEqual([]);
