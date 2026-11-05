@@ -8,16 +8,10 @@ import { getStoryAgeBucket, STORY_AGE_LABEL, STORY_AGE_ORDER } from "../age";
 import type { StoryItem } from "../types";
 import { formatRelativeTime } from "./StoryChrome";
 
-/**
- * 開いてすぐ見える投稿がこれ以下の件数なら、写真だけのグリッドではなく、本文の冒頭まで読めるカードで並べる。
- * 投稿が少ないうちは、タイルが店名だけになって中身がわからず、右側も空いてしまうため。
- */
-export const STORY_CARD_LAYOUT_MAX = 6;
-
 type Props = {
   /** 新しい順の全投稿 */
   stories: StoryItem[];
-  heartCounts: Record<string, number>;
+  heartCounts: Record<string, number> | null;
   /** stories の index で全画面ビューアを開く */
   onOpen: (index: number) => void;
 };
@@ -50,10 +44,6 @@ export default function StoryGridSections({ stories, heartCounts, onOpen }: Prop
   // StoryGridClient は読み込みが終わってからこの一覧を描くので、ここに来た時点で投稿はそろっている
   // （読み込み中も一覧を出す・投稿を読み直す形に変えるなら、開き方の決め直しが要る）
   const [olderOpen, setOlderOpen] = useState(!hasRecent);
-  // カードかタイルかは、開いてすぐ見える件数で決める。たたんだ「それより前」は数えない
-  // （今週2件＋それより前10件なら、見えているのは2件なのでカード）。
-  // 開け閉めで並べ方が変わらないよう、「それより前」を開いたかどうかでは切り替えない
-  const asCards = (hasRecent ? recentCount : stories.length) <= STORY_CARD_LAYOUT_MAX;
 
   return (
     <div className="space-y-6">
@@ -61,7 +51,7 @@ export default function StoryGridSections({ stories, heartCounts, onOpen }: Prop
         const isOlder = section.bucket === "older";
         const label = STORY_AGE_LABEL[section.bucket];
         const list = (
-          <StoryList items={section.items} heartCounts={heartCounts} onOpen={onOpen} asCards={asCards} />
+          <StoryList items={section.items} heartCounts={heartCounts} onOpen={onOpen} />
         );
 
         if (!isOlder) {
@@ -116,39 +106,26 @@ function SectionHeading({ label, count }: { label: string; count: number }) {
 
 type ListProps = {
   items: Entry[];
-  heartCounts: Record<string, number>;
+  heartCounts: Record<string, number> | null;
   onOpen: (index: number) => void;
-  /**
-   * true … 写真＋店名・投稿時刻・本文の冒頭が読めるカード（件数が少ないとき）
-   * false … 写真のタイルを3列（PC は4列）で並べる（件数が多いとき）
-   */
-  asCards: boolean;
 };
 
-function StoryList({ items, heartCounts, onOpen, asCards }: ListProps) {
+function StoryList({ items, heartCounts, onOpen }: ListProps) {
   return (
-    <ul className={asCards ? "grid gap-2 md:grid-cols-2 md:gap-3" : "grid grid-cols-3 gap-1 md:grid-cols-4 md:gap-1.5"}>
+    <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
       {items.map(({ story, index }) => {
         const shopName = story.vendor?.shop_name ?? "出店者";
-        const hearts = heartCounts[story.id] ?? 0;
+        const hearts = heartCounts ? heartCounts[story.id] ?? 0 : null;
         return (
           <li key={story.id}>
             <button
               type="button"
               onClick={() => onOpen(index)}
-              className={cn(
-                "transition motion-reduce:active:scale-100",
-                asCards
-                  ? "flex w-full items-stretch gap-3 rounded-card bg-white p-2 text-left shadow-card ring-1 ring-line active:scale-[0.99]"
-                  : "group relative block aspect-[3/4] w-full overflow-hidden rounded-btn bg-nicchyo-ink/5 active:scale-[0.97]"
-              )}
+              className="group flex h-full w-full flex-col overflow-hidden rounded-card bg-white text-left shadow-card ring-1 ring-line transition active:scale-[0.99] motion-reduce:active:scale-100"
               aria-label={`${shopName}の投稿を見る`}
+              aria-describedby={`story-summary-${story.id}`}
             >
-              {asCards ? (
-                <StoryCardBody story={story} shopName={shopName} hearts={hearts} />
-              ) : (
-                <StoryTileBody story={story} shopName={shopName} hearts={hearts} />
-              )}
+              <StoryTileBody story={story} shopName={shopName} hearts={hearts} />
             </button>
           </li>
         );
@@ -157,54 +134,38 @@ function StoryList({ items, heartCounts, onOpen, asCards }: ListProps) {
   );
 }
 
-type BodyProps = { story: StoryItem; shopName: string; hearts: number };
-
-function StoryCardBody({ story, shopName, hearts }: BodyProps) {
-  return (
-    <>
-      <div className="relative aspect-[3/4] w-20 flex-shrink-0 overflow-hidden rounded-btn bg-nicchyo-ink/5">
-        <Image src={story.image_url} alt="" fill className="object-cover" sizes="80px" />
-      </div>
-      <div className="flex min-w-0 flex-1 flex-col py-1 pr-1">
-        <div className="flex items-baseline justify-between gap-2">
-          <p className="truncate text-sm font-bold text-nicchyo-ink">{shopName}</p>
-          <span className="flex-shrink-0 text-[11px] text-nicchyo-ink/55">
-            {formatRelativeTime(new Date(story.created_at))}
-          </span>
-        </div>
-        {story.body && (
-          <p className="mt-1 line-clamp-2 text-[13px] leading-snug text-nicchyo-ink/70">{story.body}</p>
-        )}
-        {hearts > 0 && (
-          <span className="mt-auto flex items-center gap-1 pt-1 text-[11px] font-semibold tabular-nums text-nicchyo-ink/55">
-            <Heart className="h-3 w-3 fill-current text-rose-400" aria-hidden />
-            {hearts}
-          </span>
-        )}
-      </div>
-    </>
-  );
-}
+type BodyProps = { story: StoryItem; shopName: string; hearts: number | null };
 
 function StoryTileBody({ story, shopName, hearts }: BodyProps) {
   return (
     <>
-      <Image
-        src={story.image_url}
-        alt=""
-        fill
-        className="object-cover transition duration-300 md:group-hover:scale-[1.03]"
-        sizes="(min-width: 768px) 180px, 33vw"
-      />
-      <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/60 to-transparent px-1.5 pb-1.5 pt-6">
-        <p className="truncate text-[11px] font-semibold leading-tight text-white">{shopName}</p>
+      <div className="flex w-full items-center gap-3 px-3 py-3">
+        <span className="relative h-10 w-10 shrink-0 overflow-hidden rounded-full bg-nicchyo-ink/5">
+          <Image src={story.vendor?.shop_image_url ?? story.image_url} alt="" fill sizes="40px" className="object-cover" />
+        </span>
+        <span className="min-w-0">
+          <span className="block truncate text-sm font-bold text-nicchyo-ink">{shopName}</span>
+          <span className="block text-xs text-nicchyo-ink/55">{formatRelativeTime(new Date(story.created_at))}</span>
+        </span>
       </div>
-      {hearts > 0 && (
-        <div className="absolute right-1 top-1 flex items-center gap-0.5 rounded-full bg-black/45 px-1.5 py-0.5 backdrop-blur-sm">
-          <Heart className="h-2.5 w-2.5 fill-current text-rose-400" aria-hidden />
-          <span className="text-[9px] font-bold tabular-nums text-white">{hearts}</span>
-        </div>
-      )}
+      <div className="relative aspect-video w-full overflow-hidden bg-nicchyo-ink/5">
+        <Image
+          src={story.image_url}
+          alt=""
+          fill
+          className="object-cover transition duration-300 md:group-hover:scale-[1.03] motion-reduce:transition-none"
+          sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
+        />
+      </div>
+      <div id={`story-summary-${story.id}`} className="flex w-full flex-1 items-start gap-3 px-3 py-3">
+        {story.body && <p className="min-w-0 flex-1 whitespace-pre-line line-clamp-3 text-sm leading-relaxed text-nicchyo-ink">{story.body}</p>}
+        {hearts !== null && (
+          <span className="ml-auto flex shrink-0 items-center gap-1 text-xs font-semibold tabular-nums text-nicchyo-ink/70" aria-label={`ハート ${hearts}件`}>
+            <Heart className="h-4 w-4" aria-hidden />
+            {hearts}
+          </span>
+        )}
+      </div>
     </>
   );
 }
