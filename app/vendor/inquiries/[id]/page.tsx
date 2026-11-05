@@ -144,6 +144,7 @@ export default function VendorInquiryDetailPage() {
                 <div className="mt-3 overflow-hidden rounded-2xl border border-slate-200">
                   <Image
                     src={safeImageUrl}
+                    unoptimized
                     alt="添付画像"
                     width={640}
                     height={360}

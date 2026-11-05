@@ -76,7 +76,8 @@ export default async function HomePage() {
   // proxy.ts で「準備中」に差し替えたうえで、ここでも確認する（店舗の写真を読み込む前に必ず止める二重の守り）
   if (!(await isPathVisibleToCurrentUser("/"))) return <PreparingNotice />;
 
-  const [shops, calendar, showOutingSupport] = await Promise.all([fetchPublicShops().catch(() => []), fetchCalendar(), canShowOutingSupport()]);
+  const locale = await getLocale();
+  const [shops, calendar, showOutingSupport] = await Promise.all([fetchPublicShops(locale).catch(() => []), fetchCalendar(), canShowOutingSupport()]);
   const sundays = buildLandingSundays(calendar?.days ?? []);
   const photos = pickLandingShopPhotos(shops);
 

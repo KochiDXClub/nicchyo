@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import NavigationBar from "../../components/NavigationBar";
 import ShopDetailBanner from "../map/components/ShopDetailBanner";
@@ -22,6 +22,12 @@ import { readConsultAskResponse } from "./utils/readConsultAskResponse";
 
 const PREFERRED_CHARACTER_STORAGE_KEY = "nicchyo-consult-preferred-character";
 
+/**
+ * 1回の相談を待つ上限。OpenAI や回線が詰まったときに「考え中」のまま固まらないよう、
+ * ここで打ち切って失敗として返す（入力欄が再び使える）。回答は数秒〜数十秒で終わる
+ */
+const ASK_TIMEOUT_MS = 60_000;
+
 export default function ConsultClient() {
   const t = useT();
   const [knownShops, setKnownShops] = useState<Shop[]>([]);
@@ -31,6 +37,13 @@ export default function ConsultClient() {
     useState<ConsultCharacterId>(DEFAULT_CONSULT_CHARACTER_ID);
   // 「これまでの相談」サイドバー（PC・モバイル共通）の開閉。既定は閉じ、チャット欄を中央のまま保つ
   const [isHistorySidebarOpen, setIsHistorySidebarOpen] = useState(false);
+  // 送信中の相談。画面を離れるときに止めて、サーバー側の OpenAI 受信も止める
+  const inFlightAsksRef = useRef(new Set<AbortController>());
+
+  useEffect(() => {
+    const inFlight = inFlightAsksRef.current;
+    return () => inFlight.forEach((controller) => controller.abort());
+  }, []);
   const searchParams = useSearchParams();
 
   const handleSelectShop = useCallback(
@@ -164,6 +177,9 @@ export default function ConsultClient() {
     memorySummary?: string,
     onEvent?: (event: ConsultAskStreamEvent) => void
   ): Promise<ConsultAskResponse> => {
+    const controller = new AbortController();
+    inFlightAsksRef.current.add(controller);
+    const timeoutId = setTimeout(() => controller.abort(), ASK_TIMEOUT_MS);
     try {
       const { body, headers } = buildAskRequest(
         text,
@@ -177,6 +193,7 @@ export default function ConsultClient() {
         method: "POST",
         headers,
         body,
+        signal: controller.signal,
       });
       const result = await readConsultAskResponse(response, onEvent);
       if (result) {
@@ -196,6 +213,9 @@ export default function ConsultClient() {
         errorMessage: t("接続に失敗しました。少し時間をおいて、もう一度試してください。"),
         retryable: true,
       };
+    } finally {
+      clearTimeout(timeoutId);
+      inFlightAsksRef.current.delete(controller);
     }
   }, [buildAskRequest, normalizeAskResponse, t]);
 
