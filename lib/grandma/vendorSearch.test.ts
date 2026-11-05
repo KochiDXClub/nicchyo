@@ -1,6 +1,33 @@
 import { describe, it, expect } from "vitest";
-import { summarizeShops, sortShopIdsByDistance } from "./vendorSearch";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Database } from "@/types/database.types";
+import {
+  summarizeShops,
+  sortShopIdsByDistance,
+  fetchCandidateVendorIds,
+  fetchShopsByVendorIds,
+} from "./vendorSearch";
 import type { Shop } from "@/app/(public)/map/data/shops";
+
+/** テーブル名・RPC名ごとに決まった行を返す supabase の代役。絞り込み条件は見ない */
+function fakeSupabase(
+  tables: Record<string, unknown[]>,
+  rpcs: Record<string, unknown[]> = {}
+) {
+  const query = (data: unknown[]) => {
+    const q: Record<string, unknown> = {};
+    for (const method of ["select", "in", "eq", "gt", "order", "ilike", "or", "limit", "returns"]) {
+      q[method] = () => q;
+    }
+    q.then = (resolve: (value: { data: unknown[]; error: null }) => unknown) =>
+      resolve({ data, error: null });
+    return q;
+  };
+  return {
+    from: (table: string) => query(tables[table] ?? []),
+    rpc: (name: string) => query(rpcs[name] ?? []),
+  } as unknown as SupabaseClient<Database>;
+}
 
 const makeShop = (overrides: Partial<Shop> & { id: number }): Shop => ({
   vendorId: `vendor-${overrides.id}`,
@@ -82,5 +109,62 @@ describe("sortShopIdsByDistance", () => {
 
   it("空配列は空配列を返す", () => {
     expect(sortShopIdsByDistance([], shops, { lat: 33.565, lng: 133.531 })).toEqual([]);
+  });
+});
+
+// 店の候補が関連度順でなく店番順になっていた（#862）
+describe("fetchCandidateVendorIds", () => {
+  it("季節の候補で上限が埋まっても、ベクトル検索で意味の近い店を先頭に残す", async () => {
+    const seasonalVendorIds = Array.from({ length: 12 }, (_, i) => `seasonal-${i}`);
+    const supabase = fakeSupabase(
+      {},
+      {
+        match_vendor_embeddings: [
+          { vendor_id: "vector-best", similarity: 0.8 },
+          { vendor_id: "vector-second", similarity: 0.6 },
+        ],
+      }
+    );
+
+    const ids = await fetchCandidateVendorIds(supabase, [], null, [0.1], seasonalVendorIds);
+
+    expect(ids.slice(0, 2)).toEqual(["vector-best", "vector-second"]);
+    expect(ids).toHaveLength(12);
+  });
+
+  it("ベクトル検索と重なる季節・キーワードの店は二重に数えない", async () => {
+    const supabase = fakeSupabase(
+      { vendors: [{ id: "keyword-1" }, { id: "vector-best" }] },
+      { match_vendor_embeddings: [{ vendor_id: "vector-best", similarity: 0.8 }] }
+    );
+
+    const ids = await fetchCandidateVendorIds(supabase, ["野菜"], null, [0.1], ["vector-best", "seasonal-1"]);
+
+    expect(ids[0]).toBe("vector-best");
+    expect(ids.filter((id) => id === "vector-best")).toHaveLength(1);
+    expect(ids).toEqual(expect.arrayContaining(["seasonal-1", "keyword-1"]));
+  });
+});
+
+describe("fetchShopsByVendorIds", () => {
+  it("店番順に並べ替えず、渡された vendorIds の順（関連度順）で返す", async () => {
+    const supabase = fakeSupabase({
+      vendors: [
+        { id: "v-small", shop_name: "店番の小さい店" },
+        { id: "v-large", shop_name: "意味の近い店" },
+      ],
+      location_assignments: [
+        { vendor_id: "v-small", location_id: "loc-5", market_date: "2026-11-01" },
+        { vendor_id: "v-large", location_id: "loc-300", market_date: "2026-11-01" },
+      ],
+      market_locations: [
+        { id: "loc-5", store_number: 5, latitude: 33.56, longitude: 133.53, district: "1丁目" },
+        { id: "loc-300", store_number: 300, latitude: 33.56, longitude: 133.53, district: "5丁目" },
+      ],
+    });
+
+    const shops = await fetchShopsByVendorIds(supabase, ["v-large", "v-small"]);
+
+    expect(shops.map((shop) => shop.id)).toEqual([300, 5]);
   });
 });

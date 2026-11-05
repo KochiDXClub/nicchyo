@@ -329,9 +329,10 @@ async function finalizeConsultResponse(options: {
     location,
   );
 
-  const recommendedShops = shopPool.filter((shop) =>
-    recommendedIds.includes(shop.id),
-  );
+  // shopPool.filter だと shopPool の順に戻り、距離順が崩れる（#862）
+  const recommendedShops = recommendedIds
+    .map((id) => shopPool.find((shop) => shop.id === id))
+    .filter((shop): shop is Shop => !!shop);
   const finalRecommendedShops =
     recommendedShops.length > 0 || !shopIntent
       ? recommendedShops

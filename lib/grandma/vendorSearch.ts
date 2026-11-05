@@ -87,6 +87,9 @@ export async function fetchCandidateVendorIds(
     })
   );
 
+  // ベクトル一致（類似度の高い順）を先頭に置く。季節・キーワードの一致を先に積むと、
+  // 季節の質問では上限12件がそれで埋まり、意味の近い店が丸ごと切られる（#862）
+  const embeddingVendorIds: string[] = [];
   if (embedding) {
     const { data: embeddingMatches } = await supabase
       .rpc("match_vendor_embeddings", {
@@ -97,12 +100,12 @@ export async function fetchCandidateVendorIds(
       .returns<{ vendor_id: string; similarity: number }[]>();
     if (Array.isArray(embeddingMatches)) {
       embeddingMatches.forEach((row) => {
-        if (row.vendor_id) vendorIds.add(row.vendor_id);
+        if (row.vendor_id) embeddingVendorIds.push(row.vendor_id);
       });
     }
   }
 
-  return Array.from(vendorIds).slice(0, 12);
+  return Array.from(new Set([...embeddingVendorIds, ...vendorIds])).slice(0, 12);
 }
 
 export async function fetchSeasonalProductContext(
@@ -324,7 +327,9 @@ export async function fetchShopsByVendorIds(
       };
     })
     .filter((shop): shop is Shop => shop !== null)
-    .sort((a, b) => a.id - b.id);
+    // 呼び出し側は関連度の高い順に vendorIds を渡すので、その順を保つ（店番順にすると
+    // 先頭N件が「店番の小さい店」になる #862）
+    .sort((a, b) => vendorIds.indexOf(a.vendorId ?? "") - vendorIds.indexOf(b.vendorId ?? ""));
 }
 
 export async function fetchShopByStoreNumber(
