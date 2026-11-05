@@ -266,7 +266,10 @@ export interface Shop
   extends ShopEditableData,
     ShopSystemData,
     ShopDisplaySettings {
-  // すべてのフィールドは親インターフェースから継承
+  // 基本のフィールドは親インターフェースから継承
+
+  /** カテゴリーの英語名（英語表示のときだけ付く。無ければ category を出す。運営が categories.name_en に入れる） */
+  categoryEn?: string;
   // 後方互換性のため、新しいフィールドはすべてオプション（?付き）
 }
 

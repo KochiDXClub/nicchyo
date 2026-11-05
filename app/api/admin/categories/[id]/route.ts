@@ -4,6 +4,8 @@ import { getRole } from "@/lib/auth/permissions";
 import { createAdminClient, authorizeAdmin } from "../_helpers";
 import { logAdminAudit } from "@/lib/audit/logAdminAudit";
 import { revalidatePublicShops } from "@/app/(public)/map/services/shopCache";
+import { revalidateShopTranslations } from "@/lib/i18n/shopTranslation.server";
+import { parseCategoryInput } from "@/lib/categories/input";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -18,12 +20,10 @@ export async function PATCH(req: Request, { params }: Params) {
   const dc = createAdminClient();
   if (!dc) return NextResponse.json({ error: "Service unavailable" }, { status: 503 });
 
-  const body = await req.json() as { name?: string };
-  const name = (body.name ?? "").trim();
-
-  if (!name || name.length > 50) {
-    return NextResponse.json({ error: "カテゴリ名は1〜50文字で入力してください" }, { status: 400 });
-  }
+  const body = await req.json() as { name?: string; nameEn?: unknown };
+  const parsed = parseCategoryInput(body);
+  if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 });
+  const { name, nameEn } = parsed;
 
   const { data: existing } = await dc
     .from("categories")
@@ -38,9 +38,9 @@ export async function PATCH(req: Request, { params }: Params) {
 
   const { data, error: dbError } = await dc
     .from("categories")
-    .update({ name })
+    .update({ name, name_en: nameEn })
     .eq("id", id)
-    .select("id, name, created_at")
+    .select("id, name, name_en, created_at")
     .maybeSingle();
 
   if (dbError || !data) {
@@ -50,12 +50,13 @@ export async function PATCH(req: Request, { params }: Params) {
   await logAdminAudit(
     dc,
     { id: user.id, email: user.email, role: getRole(user) },
-    { action: "category_updated", targetType: "category", targetId: id, details: JSON.stringify({ name }) }
+    { action: "category_updated", targetType: "category", targetId: id, details: JSON.stringify({ name, nameEn }) }
   );
 
   // カテゴリー名はマップの店舗情報に載るため、キャッシュを捨てる
   revalidateCategories();
   revalidatePublicShops();
+  revalidateShopTranslations();
   return NextResponse.json({ category: data });
 }
 
@@ -94,5 +95,6 @@ export async function DELETE(_req: Request, { params }: Params) {
 
   revalidateCategories();
   revalidatePublicShops();
+  revalidateShopTranslations();
   return NextResponse.json({ ok: true });
 }

@@ -1,6 +1,7 @@
 "use client";
 import { useCategorizedShop } from "@/lib/categories/CategoryContext";
 
+import { shopCategoryLabel } from "@/lib/i18n/shopTranslation";
 import Image from "next/image";
 import { useState } from "react";
 import { MapPin } from "lucide-react";
@@ -89,7 +90,7 @@ export default function ConsultShopCard({
 
         {shop.category && (
           <span className="absolute left-2 top-2 rounded-full bg-black/55 px-2.5 py-1 text-[11px] font-bold text-white backdrop-blur-sm">
-            {shop.category}
+            {shopCategoryLabel(shop)}
           </span>
         )}
       </div>

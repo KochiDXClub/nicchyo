@@ -1,5 +1,5 @@
 /** 表示名はDBを正とし、色・絵のキーは名前の変更から独立させる。 */
-export type Category = { id: string; name: string; presentation_key?: string | null; created_at?: string | null };
+export type Category = { id: string; name: string; /** 英語名（管理画面で編集）。英語の画面の店舗カテゴリ表示に使う */ name_en?: string | null; presentation_key?: string | null; created_at?: string | null };
 export function categoryKey(category: Category): string {
   return category.presentation_key || category.name;
 }
