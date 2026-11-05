@@ -63,6 +63,30 @@ describe("openaiFetch", () => {
       });
     });
 
+    it("signal を渡すと fetch にそのまま載せる（未指定なら undefined）", async () => {
+      await requestChatCompletion("sk-test", model, { messages });
+      expect(lastCall().init.signal).toBeUndefined();
+
+      const controller = new AbortController();
+      await requestChatCompletion("sk-test", model, { messages }, controller.signal);
+      expect(lastCall().init.signal).toBe(controller.signal);
+    });
+
+    it("打ち切られた呼び出しは例外で落ちる（呼び出し側の catch に任せる）", async () => {
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async (_url: string, init: RequestInit) => {
+          if (init.signal?.aborted) throw init.signal.reason;
+          return new Response("{}", { status: 200 });
+        })
+      );
+      const controller = new AbortController();
+      controller.abort(new DOMException("timeout", "TimeoutError"));
+      await expect(
+        requestChatCompletion("sk-test", model, { messages }, controller.signal)
+      ).rejects.toThrow("timeout");
+    });
+
     it("ストリーミング指定をそのまま渡す", async () => {
       await requestChatCompletion("sk-test", model, { messages, stream: true });
       expect(lastCall().body.stream).toBe(true);
