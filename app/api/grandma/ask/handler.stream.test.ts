@@ -2,6 +2,8 @@
 // ask のストリーム（createStreamingConsultResponse）の、離脱・上流の失敗・タイムアウトの扱い
 import { describe, it, expect, beforeEach, vi } from "vitest";
 
+vi.mock("@/lib/analytics/collectionSettings.server", () => ({ isAnalyticsCollectionEnabled: async () => true }));
+
 const requestChatCompletion = vi.fn();
 
 vi.mock("@/lib/ai/openaiFetch", () => ({
