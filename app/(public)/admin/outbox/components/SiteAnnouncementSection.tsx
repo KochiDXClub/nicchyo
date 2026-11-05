@@ -171,7 +171,7 @@ export function SiteAnnouncementSection({
     const session = sessionRef.current;
     setTranslating(true);
     try {
-      const res = await fetch("/api/admin/announcements/translate", {
+      const res = await fetch(`${apiBase}/announcements/translate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ title: form.title, body: form.body }),
@@ -226,7 +226,8 @@ export function SiteAnnouncementSection({
     // 公開するときは、英語の来訪者にどう見えるかを確かめてもらう（英語が無い・日本語を直したのに古いまま）
     if (form.published) {
       if (english === "none" && !window.confirm("英語版がありません。英語で見ている来訪者には日本語のまま表示されます。このまま公開しますか？")) return;
-      if (english === "stale" && !window.confirm("日本語を直したあと、英語版を更新していません。古い英語のまま公開しますか？\n（キャンセルして、「もう一度翻訳」で作り直せます）")) return;
+      if (english === "stale" && !window.confirm("英語版が古いため、英語画面にも日本語を表示します。このまま公開しますか？")) return;
+      if (english === "fresh" && form.translationStatus === "auto" && !window.confirm("AI翻訳の内容を確認しましたか？この英語版を公開しますか？")) return;
     }
     setSaving(true);
     try {
@@ -238,7 +239,7 @@ export function SiteAnnouncementSection({
         body: JSON.stringify(payload),
       });
       if (!res.ok) throw new Error(await readError(res, "保存できませんでした"));
-      showToast.success(editingId ? "お知らせを更新しました" : form.published ? (form.titleEn.trim() ? "日本語と英語で投稿しました" : "お知らせを投稿しました") : "下書きとして保存しました");
+      showToast.success(editingId ? "お知らせを更新しました" : form.published ? (form.titleEn.trim() && english !== "stale" ? "日本語と英語で投稿しました" : "お知らせを投稿しました") : "下書きとして保存しました");
       reset();
       await load();
     } catch (e) {
@@ -250,6 +251,11 @@ export function SiteAnnouncementSection({
 
   /** 公開・非公開の切り替え（ほかの項目はそのまま送る） */
   const togglePublished = async (a: Announcement) => {
+    if (!a.published) {
+      if (!a.titleEn && !window.confirm("英語版がありません。英語画面にも日本語を表示します。このまま公開しますか？")) return;
+      if (a.titleEn && a.translationStatus === "stale" && !window.confirm("英語版が古いため、英語画面にも日本語を表示します。このまま公開しますか？")) return;
+      if (a.titleEn && a.translationStatus === "auto" && !window.confirm("AI翻訳の内容を確認しましたか？この英語版を公開しますか？")) return;
+    }
     const res = await fetch(`${apiBase}/announcements/${a.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },

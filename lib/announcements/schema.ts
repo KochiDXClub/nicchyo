@@ -74,10 +74,10 @@ export function toAnnouncement(row: AnnouncementRow): Announcement {
 
 /** 英語の来訪者に出す文面。英語版が（タイトルも本文も）そろっていなければ日本語のまま */
 export function localizeAnnouncement(
-  a: Pick<Announcement, "title" | "body" | "titleEn" | "bodyEn">,
+  a: Pick<Announcement, "title" | "body" | "titleEn" | "bodyEn" | "translationStatus">,
   locale: string
 ): { title: string; body: string; lang: "ja" | "en" } {
-  if (locale === "en" && a.titleEn && a.bodyEn) return { title: a.titleEn, body: a.bodyEn, lang: "en" };
+  if (locale === "en" && a.translationStatus !== "stale" && a.titleEn && a.bodyEn) return { title: a.titleEn, body: a.bodyEn, lang: "en" };
   return { title: a.title, body: a.body, lang: "ja" };
 }
 
@@ -201,7 +201,7 @@ export function parseAnnouncementInput(body: unknown, now: Date = new Date()): A
     value: {
       titleEn: hasEnglish ? titleEn : null,
       bodyEn: hasEnglish ? bodyEn : null,
-      translationStatus: hasEnglish ? (record.translationStatus === "auto" || record.translationStatus === "stale" ? record.translationStatus : "reviewed") : null,
+      translationStatus: hasEnglish ? (record.translationStatus === "reviewed" || record.translationStatus === "stale" ? record.translationStatus : "auto") : null,
       title,
       body: text,
       important: record.important === true,

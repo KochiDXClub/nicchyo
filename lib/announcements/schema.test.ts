@@ -35,7 +35,7 @@ describe("parseAnnouncementInput", () => {
       bodyEn: "Rain",
       translationStatus: "auto",
     });
-    expect(ok({ title: "a", body: "b", titleEn: "T", bodyEn: "B" }).translationStatus).toBe("reviewed");
+    expect(ok({ title: "a", body: "b", titleEn: "T", bodyEn: "B" }).translationStatus).toBe("auto");
     expect(ok({ title: "a", body: "b", titleEn: "T", bodyEn: "B", translationStatus: "stale" }).translationStatus).toBe("stale");
     expect(ok({ title: "a", body: "b", titleEn: "", bodyEn: " ", translationStatus: "auto" })).toMatchObject({
       titleEn: null,
@@ -113,10 +113,11 @@ describe("sortAnnouncements", () => {
 });
 
 describe("localizeAnnouncement", () => {
-  const a = { title: "雨天中止", body: "中止です", titleEn: "Cancelled", bodyEn: "Rain" };
+  const a = { title: "雨天中止", body: "中止です", titleEn: "Cancelled", bodyEn: "Rain", translationStatus: "reviewed" as const };
   it("英語で、英語版がそろっているときだけ英語にする", () => {
     expect(localizeAnnouncement(a, "en")).toEqual({ title: "Cancelled", body: "Rain", lang: "en" });
     expect(localizeAnnouncement({ ...a, bodyEn: null }, "en")).toMatchObject({ title: "雨天中止", lang: "ja" });
+    expect(localizeAnnouncement({ ...a, translationStatus: "stale" }, "en")).toMatchObject({ title: "雨天中止", lang: "ja" });
     expect(localizeAnnouncement(a, "ja")).toMatchObject({ title: "雨天中止", lang: "ja" });
   });
 });

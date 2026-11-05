@@ -15,7 +15,7 @@ import { parseAnnouncementInput, toAnnouncement, type AnnouncementRow } from "@/
 
 export type AnnouncementScope = "admin" | "city";
 
-const COLUMNS = "id, title, body, important, published, starts_at, ends_at, created_at, updated_at" as const;
+const COLUMNS = "id, title, body, important, published, starts_at, ends_at, created_at, updated_at, title_en, body_en, translation_status" as const;
 
 const SCOPES: Record<AnnouncementScope, { authorize: AuthorizeFn; bucket: string }> = {
   admin: { authorize: requireAdminApi, bucket: "admin-announcement" },
@@ -47,11 +47,11 @@ export async function createAnnouncement(request: Request, scope: AnnouncementSc
 
     const parsed = parseAnnouncementInput(guard.body);
     if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 });
-    const { title, body, important, published, startsAt, endsAt } = parsed.value;
+    const { title, body, important, published, startsAt, endsAt, titleEn, bodyEn, translationStatus } = parsed.value;
 
     const { data, error } = await adminClient
       .from("site_announcements")
-      .insert({ title, body, important, published, starts_at: startsAt, ends_at: endsAt, created_by: user.id })
+      .insert({ title, body, important, published, starts_at: startsAt, ends_at: endsAt, title_en: titleEn, body_en: bodyEn, translation_status: translationStatus, created_by: user.id })
       .select(COLUMNS)
       .single();
     if (error || !data) return NextResponse.json({ error: "お知らせを投稿できませんでした" }, { status: 500 });
@@ -87,7 +87,7 @@ export async function updateAnnouncement(
 
     const parsed = parseAnnouncementInput(guard.body);
     if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 });
-    const { title, body, important, published, startsAt, endsAt } = parsed.value;
+    const { title, body, important, published, startsAt, endsAt, titleEn, bodyEn, translationStatus } = parsed.value;
 
     let query = adminClient
       .from("site_announcements")
@@ -98,6 +98,9 @@ export async function updateAnnouncement(
         published,
         starts_at: startsAt,
         ends_at: endsAt,
+        title_en: titleEn,
+        body_en: bodyEn,
+        translation_status: translationStatus,
         updated_at: new Date().toISOString(),
       })
       .eq("id", id);

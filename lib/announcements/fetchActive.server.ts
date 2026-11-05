@@ -13,7 +13,7 @@ import {
 export const BANNER_MAX = 3;
 
 const BASE_COLUMNS = "id, title, body, important, published, starts_at, ends_at, created_at, updated_at";
-const COLUMNS = `${BASE_COLUMNS}, title_en, body_en`;
+const COLUMNS = `${BASE_COLUMNS}, title_en, body_en, translation_status`;
 
 /**
  * 来訪者に見せるお知らせ（公開にしてあって、公開期間内のもの）。重要なものを先に、新しい順。
