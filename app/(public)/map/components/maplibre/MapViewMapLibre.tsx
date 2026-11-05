@@ -38,6 +38,7 @@ import { landmarkToSpot } from "@/lib/spots";
 import ShopDetailBanner from "../ShopDetailBanner";
 import { useFavoriteShopIds } from "../../../../../lib/hooks/useFavorites";
 import { resolveMapFeatureFlags, type MapFeatureFlags } from "@/lib/mapFeatureFlags";
+import { useT } from "@/lib/i18n/LocaleContext";
 import { runFullBenchmark, type BenchMapLike } from "@/lib/perf/mapBenchmark";
 import { readPerfShopCount, synthesizeShops } from "@/lib/perf/syntheticShops";
 import {
@@ -200,6 +201,13 @@ const LAYER_SHOP_NAMEPLATES = "nicchyo-shop-nameplates";
 const LAYER_SHOP_BADGES_FAVORITE = "nicchyo-shop-badge-favorite";
 const LAYER_LANDMARK_LABELS = "nicchyo-landmark-labels";
 const LAYER_LANDMARK_DETAIL_LABELS = "nicchyo-landmark-detail-labels";
+const LAYER_MARKET_HIGHLIGHT_CASING = "nicchyo-market-highlight-casing";
+const LAYER_MARKET_HIGHLIGHT = "nicchyo-market-highlight";
+const LAYER_MARKET_HIGHLIGHT_LABEL = "nicchyo-market-highlight-label";
+/** 縮小時の日曜市の強調が薄れ始める／消えるズーム（MapLibre 基準）。丁目バッジ（OVERVIEW_MIN）より手前で消す */
+const MARKET_HIGHLIGHT_FADE_ZOOMS = [OVERVIEW_MIN - 1.5, OVERVIEW_MIN + 0.5] as const;
+/** 建物の名前を出し始めるズーム（MapLibre 基準）。下限ズームを下げて最大縮小付近まで引いたときは、「日曜市」の文字だけを主役にする */
+const LANDMARK_NAME_MIN_ZOOM = 13;
 const LANDMARK_ICON_LAYERS = ["nicchyo-landmarks-min", "nicchyo-landmarks", "nicchyo-landmarks-minor"];
 
 /** 停留場・電車。絵が小さく、縮小すると高知城などの大きな絵に重なって崩れる */
@@ -349,6 +357,7 @@ function MapViewMapLibre({
   selectedSpotId,
 }: MapViewProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const t = useT();
   const mapRef = useRef<maplibregl.Map | null>(null);
   // WebGL が使えない端末では地図を作らず、代わりの案内を出す
   const [webglUnsupported, setWebglUnsupported] = useState(false);
@@ -687,7 +696,8 @@ function MapViewMapLibre({
       // ベクター背景は施設名などのラベルが自前の丁目バッジと重なるので、POI を消す
       if (useVector) {
         for (const layer of map.getStyle().layers ?? []) {
-          if (layer.type === "symbol" && /poi|place|housenumber/.test(layer.id)) {
+          // label_city は「高知市」が日曜市の文字と同じ場所に出て主役を奪うので、これも消す
+          if (layer.type === "symbol" && /poi|place|housenumber|label_city/.test(layer.id)) {
             map.setLayoutProperty(layer.id, "visibility", "none");
           }
         }
@@ -715,6 +725,9 @@ function MapViewMapLibre({
         properties: {},
         geometry: { type: "LineString", coordinates: line.map(([lat, lng]) => [lng, lat]) },
       });
+      // 文字は点の数が最も多い通りの中ほどに置く。
+      let marketLabelPoint: [number, number] | null = null;
+      let marketLabelChainLength = 0;
       // 先に全チェーンの形を作り、交差・分岐する他の道の面の内側では縁を引かない
       const built = chains
         .map((chain) => {
@@ -747,6 +760,11 @@ function MapViewMapLibre({
         }
 
         laneLines.push(toLineFeature(smoothed));
+        if (smoothed.length > marketLabelChainLength) {
+          marketLabelChainLength = smoothed.length;
+          const mid = smoothed[Math.floor(smoothed.length / 2)];
+          marketLabelPoint = [mid[1], mid[0]];
+        }
       }
       map.addSource(SRC_ROAD, { type: "geojson", data: { type: "FeatureCollection", features: polygons } });
       map.addSource(`${SRC_ROAD}-corridor`, { type: "geojson", data: { type: "FeatureCollection", features: corridors } });
@@ -798,6 +816,84 @@ function MapViewMapLibre({
           "fill-opacity": ROAD_STYLE.overviewTintOpacity,
         },
       });
+      // 縮小時の日曜市の強調。実寸の道幅は縮小すると 1px 未満になって地図に埋もれるので、
+      // 中心線を画面上の太さで描く（寄るほど太くなり、薄れて実寸の道に引き継ぐ）。
+      // 道の絵は highlightFadeEnd で消える
+      const [highlightFadeStart, highlightFadeEnd] = MARKET_HIGHLIGHT_FADE_ZOOMS;
+      const highlightOpacity: ExpressionSpecification = [
+        "interpolate",
+        ["linear"],
+        ["zoom"],
+        highlightFadeStart,
+        1,
+        highlightFadeEnd,
+        0,
+      ];
+      map.addLayer({
+        id: LAYER_MARKET_HIGHLIGHT_CASING,
+        type: "line",
+        source: `${SRC_ROAD}-lane`,
+        maxzoom: highlightFadeEnd,
+        layout: { "line-cap": "round", "line-join": "round" },
+        paint: {
+          "line-color": ROAD_STYLE.highlightCasingColor,
+          "line-opacity": highlightOpacity,
+          "line-width": ["interpolate", ["linear"], ["zoom"], 9, 9, highlightFadeStart, 16] as ExpressionSpecification,
+        },
+      });
+      map.addLayer({
+        id: LAYER_MARKET_HIGHLIGHT,
+        type: "line",
+        source: `${SRC_ROAD}-lane`,
+        maxzoom: highlightFadeEnd,
+        layout: { "line-cap": "round", "line-join": "round" },
+        paint: {
+          "line-color": ROAD_STYLE.overviewTintColor,
+          "line-opacity": highlightOpacity,
+          "line-width": ["interpolate", ["linear"], ["zoom"], 9, 5, highlightFadeStart, 12] as ExpressionSpecification,
+        },
+      });
+      // 通りの名前。縮小時はランドマークより「日曜市」が先に目に入るようにする。
+      // 倍率で置き場所が変わらないよう、通りの中ほどの 1 点に、通りの右側へ横書きで置く
+      // （線に沿わせると、最大縮小付近は線が短くて文字が収まらず消え、置き場所も縦書きに変わってしまう）
+      if (marketLabelPoint) {
+        map.addSource(`${SRC_ROAD}-label`, {
+          type: "geojson",
+          data: { type: "Feature", properties: {}, geometry: { type: "Point", coordinates: marketLabelPoint } },
+        });
+        map.addLayer({
+          id: LAYER_MARKET_HIGHLIGHT_LABEL,
+          type: "symbol",
+          source: `${SRC_ROAD}-label`,
+          // 文字は丁目バッジが出る（OVERVIEW_MIN）までに消す。線より先に消えないと、バッジの裏に文字が透けて見える
+          maxzoom: OVERVIEW_MIN,
+          layout: {
+            "text-field": t("日曜市"),
+            "text-font": TEXT_FONT,
+            "text-letter-spacing": 0.2,
+            "text-size": ["interpolate", ["linear"], ["zoom"], 9, 20, highlightFadeStart, 18] as ExpressionSpecification,
+            "text-anchor": "left",
+            "text-offset": [1.1, 0],
+            // 背景の地名や建物の名前と重なっても、日曜市の文字は消さない
+            "text-allow-overlap": true,
+            "text-ignore-placement": true,
+          },
+          paint: {
+            "text-color": ROAD_STYLE.highlightLabelColor,
+            "text-halo-color": ROAD_STYLE.highlightLabelHaloColor,
+            "text-halo-width": 2,
+            "text-opacity": [
+              "interpolate",
+              ["linear"],
+              ["zoom"],
+              highlightFadeStart,
+              1,
+              OVERVIEW_MIN,
+              0,
+            ] as ExpressionSpecification,
+          },
+        });
+      }
       map.addLayer({
         id: "nicchyo-road-edges",
         type: "line",
@@ -990,13 +1086,18 @@ function MapViewMapLibre({
           "text-halo-width": 1.6,
         },
       };
-      // 主要な建物の名前は従来どおり、縮小側の端から出す
-      map.addLayer({
-        ...landmarkLabelLayer,
-        id: LAYER_LANDMARK_LABELS,
-        maxzoom: minZoom + 2.5,
-        filter: ["all", ["==", ["get", "showAtMinZoom"], 1], ["==", ["get", "minor"], 0]],
-      });
+      // 最大縮小付近は「日曜市」の文字が主役なので、建物の名前は LANDMARK_NAME_MIN_ZOOM まで寄ってから出す
+      // （ふだんの下限ズームでは minZoom の方が大きいので従来どおり）
+      const landmarkNameMinZoom = Math.max(LANDMARK_NAME_MIN_ZOOM, minZoom);
+      if (landmarkNameMinZoom < minZoom + 2.5) {
+        map.addLayer({
+          ...landmarkLabelLayer,
+          id: LAYER_LANDMARK_LABELS,
+          minzoom: landmarkNameMinZoom,
+          maxzoom: minZoom + 2.5,
+          filter: ["all", ["==", ["get", "showAtMinZoom"], 1], ["==", ["get", "minor"], 0]],
+        });
+      }
       // 副次的な建物・停留場・電車の名前は、LANDMARK_DETAIL_MIN_ZOOM より縮小したときは出さない
       // （ふだんの下限ズームでは従来どおり、縮小側の端から出る）
       const detailLabelMinZoom = Math.max(LANDMARK_DETAIL_MIN_ZOOM, minZoom);

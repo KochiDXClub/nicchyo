@@ -28,6 +28,12 @@ export const ROAD_STYLE = {
   /** 俯瞰時に道全体へかぶせる色 */
   overviewTintColor: '#7ED957',
   overviewTintOpacity: 0.34,
+  /** 縮小時の日曜市ハイライト（中心線）の縁取り。道の白い縁と同じ白 */
+  highlightCasingColor: '#ffffff',
+  /** 縮小時の「日曜市」ラベルの文字色。通りの緑に合わせた濃い緑 */
+  highlightLabelColor: '#2f6b1c',
+  /** 縮小時の「日曜市」ラベルのふち取り */
+  highlightLabelHaloColor: 'rgba(255,255,255,0.95)',
 } as const;
 
 /**
