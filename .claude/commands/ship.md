@@ -48,9 +48,10 @@ git diff --stat $(git merge-base HEAD origin/develop) HEAD
 git log --oneline $(git merge-base HEAD origin/develop)..HEAD
 ```
 
-### 8. 未リリース変更の記録（docs/CHANGELOG-unreleased.md）
+### 8. 未リリース変更の記録（docs/changelog-unreleased/）
 
-来訪者から見て何かが変わるPRの場合、`docs/CHANGELOG-unreleased.md` の「## 一覧」直下に1行追記する。
+来訪者から見て何かが変わるPRの場合、`docs/changelog-unreleased/<PR番号またはブランチ名>.md` を新しく作り、1行だけ書く。
+`docs/CHANGELOG-unreleased.md` は直接編集しない（PRどうしでコンフリクトする。リリース時に `npm run changelog:pack` が集約する）。
 
 ```markdown
 - 日曜市カレンダーに出店予定と旬を表示するようにした (#PR番号)
@@ -58,7 +59,7 @@ git log --oneline $(git merge-base HEAD origin/develop)..HEAD
 
 - 書くのは**来訪者視点の一言**。実装の詳細は書かない（コミットに残る）。
 - 来訪者に見えない変更（依存更新・テスト追加・リファクタ・ドキュメント）は追記しない。
-- PR番号が未確定なら `(#TBD)` で入れて、PR作成後に差し替える。
+- PR番号が未確定なら、ファイル名はブランチ名にし、本文は `(#TBD)` で入れて、PR作成後に差し替える。
 
 この記録はリリース時に `app/about/versions.ts` へ転記される。詳細は `docs/RELEASE.md` §6。
 
@@ -74,7 +75,7 @@ git log --oneline $(git merge-base HEAD origin/develop)..HEAD
 - ✅/❌ ビルド
 - ✅/⚠️ コード健康診断（悪化なし / 悪化あり・理由を記載）
 - 変更ファイル数（10 件超えなら分割を提案）
-- ✅/➖ CHANGELOG-unreleased.md への追記（来訪者に見えない変更なら ➖）
+- ✅/➖ `docs/changelog-unreleased/` へのファイル追加（来訪者に見えない変更なら ➖）
 
 **PR 説明草案（.github/pull_request_template.md の形式で）:**
 
