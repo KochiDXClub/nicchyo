@@ -50,14 +50,14 @@ export default function TrafficChartCard({
   }, [max]);
 
   return (
-    <section className="rounded-2xl bg-white p-6 shadow">
+    <section className="rounded-card bg-white p-6 shadow-card">
       <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">{eyebrow}</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.25em] text-nicchyo-ink/55">{eyebrow}</p>
           <h2 className="mt-2 text-xl font-bold text-gray-900">{title}</h2>
         </div>
         <div className="flex flex-col gap-3 md:items-end">
-          <div className="inline-flex rounded-2xl bg-slate-100 p-1">
+          <div className="inline-flex rounded-chip bg-nicchyo-ink/5 p-1">
             {(Object.keys(GRANULARITY_LABELS) as TrafficGranularity[]).map((key) => (
               <button
                 key={key}
@@ -65,15 +65,15 @@ export default function TrafficChartCard({
                 onClick={() => setGranularity(key)}
                 className={`rounded-xl px-3 py-2 text-xs font-semibold transition ${
                   granularity === key
-                    ? "bg-white text-slate-900 shadow-sm"
-                    : "text-slate-500 hover:text-slate-700"
+                    ? "bg-white text-nicchyo-ink shadow-chip"
+                    : "text-nicchyo-ink/55 hover:text-nicchyo-ink/70"
                 }`}
               >
                 {GRANULARITY_LABELS[key]}
               </button>
             ))}
           </div>
-          <div className="flex items-center justify-end gap-2 text-xs text-slate-500">
+          <div className="flex items-center justify-end gap-2 text-xs text-nicchyo-ink/55">
             <span className={`h-2.5 w-2.5 rounded-full ${dotClassName}`} />
             {legendLabel}
           </div>
@@ -87,7 +87,7 @@ export default function TrafficChartCard({
           style={{ height: CHART_HEIGHT + 24 }}
         >
           {yTicks.map((tick) => (
-            <span key={tick} className="text-[10px] leading-none text-slate-400">
+            <span key={tick} className="text-[10px] leading-none text-nicchyo-ink/40">
               {tick}
             </span>
           ))}
@@ -96,13 +96,13 @@ export default function TrafficChartCard({
         {/* グラフ本体 */}
         <div className="min-w-0 flex-1">
           <div
-            className="flex items-end gap-1 border-b border-slate-200"
+            className="flex items-end gap-1 border-b border-line"
             style={{ height: CHART_HEIGHT }}
           >
             {points.map((point) => (
               <div key={point.key} className="flex h-full flex-1 flex-col justify-end">
                 {point.value > 0 && (
-                  <p className="mb-0.5 text-center text-[10px] font-semibold text-slate-500">
+                  <p className="mb-0.5 text-center text-[10px] font-semibold text-nicchyo-ink/55">
                     {point.value}
                   </p>
                 )}
@@ -120,7 +120,7 @@ export default function TrafficChartCard({
             {points.map((point) => (
               <div
                 key={point.key}
-                className="flex-1 overflow-hidden text-center text-[10px] text-slate-400"
+                className="flex-1 overflow-hidden text-center text-[10px] text-nicchyo-ink/40"
               >
                 {point.label}
               </div>
