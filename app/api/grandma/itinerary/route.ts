@@ -152,9 +152,8 @@ export async function POST(request: Request) {
     const vendorIds = safeMatches.map((m) => m.vendor_id).filter(Boolean);
     const shops = await fetchShopsByVendorIds(supabase, vendorIds);
     const matchByVendor = new Map(safeMatches.map((m) => [m.vendor_id, m.similarity]));
-    // fetchShopsByVendorIds は店番順で返す（vendorSearch.ts 末尾で
-    // .sort((a, b) => a.id - b.id) している）ため、そのまま先頭N件を候補にすると
-    // 「類似度上位」ではなく「店番の小さい店」がAIに渡ってしまう。類似度順に並べ直す
+    // fetchShopsByVendorIds は渡した vendorIds の順で返すが、ここで先頭N件を候補にする以上、
+    // 「類似度上位」が確実に先頭に来るよう類似度で並べ直しておく
     const similarityOf = (shop: (typeof shops)[number]) =>
       (shop.vendorId ? matchByVendor.get(shop.vendorId) : undefined) ?? 0;
     const rankedShops = [...shops].sort((a, b) => similarityOf(b) - similarityOf(a));
