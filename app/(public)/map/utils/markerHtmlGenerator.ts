@@ -136,7 +136,7 @@ export function generateShopMarkerHtml(
 ): string {
   // 屋台の色はカテゴリで決まる。状態色（選択/AI/検索/買い物袋）は
   // CSS 側が上書きするので、ここではカテゴリ色だけを渡す。
-  const stall = resolveStallColors(shop.category, sanitizeCssColor(shop.illustration?.color));
+  const stall = resolveStallColors(shop.categoryKey ?? shop.category, sanitizeCssColor(shop.illustration?.color));
   const colorStyle =
     `--stall-color:${stall.base};` +
     `--stall-color-dark:${stall.dark};` +

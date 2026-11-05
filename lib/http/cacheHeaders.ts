@@ -19,6 +19,11 @@ export function publicCacheHeaders(options: {
   return { "Cache-Control": parts.join(", ") };
 }
 
+/** 更新検知用など、ブラウザ・CDNで再利用しないレスポンス。 */
+export function noStoreHeaders(): { "Cache-Control": string } {
+  return { "Cache-Control": "no-store" };
+}
+
 /**
  * 本人にだけ返す API レスポンス（ログインが要るデータ・CSV など）の Cache-Control。
  * CDN や共有キャッシュに残さない。

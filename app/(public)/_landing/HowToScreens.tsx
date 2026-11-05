@@ -1,9 +1,10 @@
+import CategoryDemoChips from "./CategoryDemoChips";
 import Image from "next/image";
 import { ChevronDown, Clock, Expand, Heart, Instagram, Search, Send, Share2, Umbrella, X } from "lucide-react";
 import { getShopBannerImage } from "@/lib/shopImages";
 import type { Translate } from "@/lib/i18n/translate";
 import { DEFAULT_CONSULT_CHARACTER } from "../consult/data/consultCharacters";
-import { SHOP_CATEGORY_NAMES, getShopCategoryColor, resolveStallColors, type ShopCategory } from "../map/config/shopCategories";
+import { getShopCategoryColor, resolveStallColors, type ShopCategory } from "../map/config/shopCategories";
 import {
   STALL_AWNING_PATTERNS,
   STALL_PHOTO_HEIGHT_RATIO,
@@ -82,13 +83,7 @@ export function MapScreen({ t }: { t: Translate }) {
         <span className="landing-typed">{t("芋天")}</span>
         <i className="landing-caret" />
       </div>
-      <div className="landing-m-chips">
-        {SHOP_CATEGORY_NAMES.slice(0, 3).map((name) => (
-          <span key={name} className={name === "食べ物" ? "landing-on" : undefined}>
-            {t(name)}
-          </span>
-        ))}
-      </div>
+      <CategoryDemoChips />
       <div className="landing-m-card">
         <span className="landing-m-ph" style={{ borderColor: getShopCategoryColor("食べ物") }}>
           <Image src={getShopBannerImage("食べ物", 0)} alt="" width={64} height={64} className="h-full w-full object-cover" />

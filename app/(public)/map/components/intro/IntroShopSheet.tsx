@@ -44,7 +44,7 @@ export default function IntroShopSheet({
 }) {
   const t = useT();
   const theme = resolveBannerTheme(shop.themeColor);
-  const bannerImage = getShopBannerImage(shop.category, shop.id);
+  const bannerImage = getShopBannerImage(shop.categoryKey ?? shop.category, shop.id);
 
   return (
     <motion.div

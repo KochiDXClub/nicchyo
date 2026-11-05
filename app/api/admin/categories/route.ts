@@ -1,3 +1,4 @@
+import { revalidateCategories } from "@/lib/categories/server";
 import { NextResponse } from "next/server";
 import { getRole } from "@/lib/auth/permissions";
 import { createAdminClient, authorizeAdmin } from "./_helpers";
@@ -7,11 +8,8 @@ import { revalidatePublicShops } from "@/app/(public)/map/services/shopCache";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-export interface Category {
-  id: string;
-  name: string;
-  created_at: string | null;
-}
+import type { Category } from "@/lib/categories/catalog";
+export type { Category } from "@/lib/categories/catalog";
 
 export async function GET() {
   const { error } = await authorizeAdmin();
@@ -78,6 +76,7 @@ export async function POST(req: Request) {
     }
   );
 
+  revalidateCategories();
   revalidatePublicShops();
   return NextResponse.json({ category: data as Category }, { status: 201 });
 }

@@ -1,4 +1,5 @@
 'use client';
+import { useCategories, useCategorizedShops, useCategoryFilter } from '@/lib/categories/CategoryContext';
 
 import dynamic from 'next/dynamic';
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
@@ -122,7 +123,7 @@ function formatPostCreatedAt(createdAt?: string): string {
 }
 
 export default function SearchClient({
-  shops,
+  shops: sourceShops,
   landmarks,
   embedded = false,
   initialQuery = '',
@@ -134,10 +135,11 @@ export default function SearchClient({
   initialCategory?: string | null;
   onQueryChange?: (query: string, category: string | null) => void;
 }) {
+  const shops = useCategorizedShops(sourceShops);
   const router = useRouter();
   const itemsPerPage = 10;
   const [textQuery, setTextQuery] = useState(initialQuery);
-  const [category, setCategory] = useState<string | null>(initialCategory);
+  const [category, setCategory] = useCategoryFilter(initialCategory);
   // 購読つきで読む。同じ画面に出す店舗バナーでハートを押しても一覧が追従する
   const favoriteShopIds = useFavoriteShopIds();
   const { toggleShopFavorite, confirmDialog: removeShopFavoriteDialog } =
@@ -183,7 +185,7 @@ export default function SearchClient({
     skipNextEmbeddedSyncRef.current = true;
     setTextQuery(initialQuery);
     setCategory(initialCategory);
-  }, [initialCategory, initialQuery]);
+  }, [initialCategory, initialQuery, setCategory]);
 
   // 商品がぶら下がっている店を外すときの確認は useShopFavoriteToggle が持つ。
   // 以前はここで黙って商品ごと消していた
@@ -209,7 +211,7 @@ export default function SearchClient({
   }, [currentPage, filteredShops, itemsPerPage]);
 
   // カテゴリー一覧
-  const categories = ['食材', '食べ物', '道具・工具', '生活雑貨', '植物・苗', 'アクセサリー', '手作り・工芸'];
+  const categories = useCategories().map(c => c.name);
 
   const latestPosts = useMemo<LatestPostItem[]>(
     () =>
@@ -317,7 +319,7 @@ export default function SearchClient({
   const handleSuggestionClick = useCallback((cat: string) => {
     setCategory(cat);
     setTextQuery('');
-  }, []);
+  }, [setCategory]);
 
   const handleTextQueryChange = useCallback((nextQuery: string) => {
     setTextQuery(nextQuery);
@@ -327,7 +329,7 @@ export default function SearchClient({
   const handleCategoryChange = useCallback((nextCategory: string | null) => {
     setCategory(nextCategory);
     syncEmbeddedSearch(textQuery, nextCategory);
-  }, [syncEmbeddedSearch, textQuery]);
+  }, [syncEmbeddedSearch, textQuery, setCategory]);
 
   const handleFocusShop = useCallback((shop: Shop) => {
     if (isDesktop) {

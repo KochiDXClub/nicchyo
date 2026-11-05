@@ -97,7 +97,7 @@ export function stallSpriteKey(shop: Shop): string {
   const customSvg = getSafeCustomSvg(shop);
   if (customSvg) return `custom-${shop.id}-${hashString(customSvg)}`;
   const parts = resolveStallParts({ roof: shop.illustration?.roof, awning: shop.illustration?.awning });
-  const color = resolveStallColors(shop.category, sanitizeCssColor(shop.illustration?.color)).base;
+  const color = resolveStallColors(shop.categoryKey ?? shop.category, sanitizeCssColor(shop.illustration?.color)).base;
   return `${parts.roof}-${parts.awning}-${color.replace("#", "")}`;
 }
 
@@ -113,7 +113,7 @@ interface SpriteRecipe {
 function recipeFor(shop: Shop): SpriteRecipe {
   return {
     parts: resolveStallParts({ roof: shop.illustration?.roof, awning: shop.illustration?.awning }),
-    baseColor: resolveStallColors(shop.category, sanitizeCssColor(shop.illustration?.color)).base,
+    baseColor: resolveStallColors(shop.categoryKey ?? shop.category, sanitizeCssColor(shop.illustration?.color)).base,
   };
 }
 

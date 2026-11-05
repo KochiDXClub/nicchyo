@@ -1,4 +1,5 @@
 "use client";
+import { notifyCategoriesUpdated } from "@/lib/categories/CategoryContext";
 
 export const dynamic = "force-dynamic";
 
@@ -65,6 +66,7 @@ export default function AdminCategoriesPage() {
       }
       showToast.success(`「${name}」を追加しました`);
       setNewName("");
+      notifyCategoriesUpdated();
       void fetchCategories();
     } catch (e) {
       showToast.error(e instanceof Error ? e.message : "追加に失敗しました");
@@ -94,6 +96,7 @@ export default function AdminCategoriesPage() {
       }
       showToast.success("カテゴリ名を更新しました");
       setEditingId(null);
+      notifyCategoriesUpdated();
       void fetchCategories();
     } catch (e) {
       showToast.error(e instanceof Error ? e.message : "更新に失敗しました");
@@ -112,6 +115,7 @@ export default function AdminCategoriesPage() {
         throw new Error(data.error ?? "failed");
       }
       showToast.success(`「${cat.name}」を削除しました`);
+      notifyCategoriesUpdated();
       void fetchCategories();
     } catch (e) {
       showToast.error(e instanceof Error ? e.message : "削除に失敗しました");
