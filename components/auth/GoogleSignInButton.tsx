@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { createClient } from "@/utils/supabase/client";
+import { invitationReturnPath, OAUTH_RETURN_COOKIE } from "@/lib/auth/oauthRedirect";
 import { cn } from "@/lib/utils/cn";
 
 /**
@@ -9,17 +10,14 @@ import { cn } from "@/lib/utils/cn";
  *
  * ロゴの4色（#FFC107・#FF3D00・#4CAF50・#1976D2）は Google の規定色なので、トークンではなく直接書く（デザインシステムの「生の hex」の例外）。
  *
- * ログイン後に戻る場所（redirectPath）は、サイトの中のパス。省くと今開いているページに戻る
- * （参加ページで、ログインのあとそのまま参加の確認に続けるため）。
- * Supabase の Redirect URLs に、戻り先のパス（/join/**・/claim/** など）が許可されている必要がある。
+ * 招待・QRのパスだけ短時間Cookieに保持し、認証完了後に参加画面へ戻す。
+ * Supabase の Redirect URLs には /auth/callback の登録が必要。
  */
 export default function GoogleSignInButton({
-  redirectPath,
   onStart,
   onError,
   className,
 }: {
-  redirectPath?: string;
   /** 押した直後（前の失敗の表示を消すときなどに使う） */
   onStart?: () => void;
   /** 失敗したとき、画面に出す文言を受け取る */
@@ -32,10 +30,12 @@ export default function GoogleSignInButton({
     onStart?.();
     setPending(true);
     const origin = window.location.origin;
-    const path = redirectPath ?? `${window.location.pathname}${window.location.search}`;
+    const path = invitationReturnPath(window.location.pathname);
+    const secure = window.location.protocol === "https:" ? "; Secure" : "";
+    document.cookie = `${OAUTH_RETURN_COOKIE}=${path ? encodeURIComponent(path) : ""}; Path=/auth/callback; Max-Age=${path ? 600 : 0}; SameSite=Lax${secure}`;
     const { error } = await createClient().auth.signInWithOAuth({
       provider: "google",
-      options: { redirectTo: `${origin}${path}` },
+      options: { redirectTo: `${origin}/auth/callback` },
     });
     // 成功すると Google の画面へ移るので、戻ってくるのは失敗したときだけ
     if (error) {

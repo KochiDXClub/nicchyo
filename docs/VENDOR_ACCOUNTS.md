@@ -45,12 +45,11 @@ vendor_activity_logs  操作ログ（追記専用）
 
 > **デプロイ前チェック（必ず）**
 > 1. 表のマイグレーションを、日付の順にすべて適用する。
-> 2. 下の Redirect URLs に `/join/**` と `/claim/**` を足す（なければ、ログイン後に Site URL へ戻され、参加が続かない）。
+> 2. 下の Redirect URLs に `/auth/callback` を足す（なければ、ログイン後に Site URL へ戻され、参加が続かない）。
 > 3. **`/claim/*` と `/join/*` の URL は秘密**（QR は期限なし。最初に使った人が代表者になる）。解析（`web_page_analytics`）と GA には送らない作りになっている（`lib/analytics/secretPaths.ts`）。この除外が入ったコードをデプロイしてから QR・招待を発行すること。GA の「拡張計測」の履歴変更イベントは GA 側で切っておく。
 
-- **Authentication → URL Configuration → Redirect URLs** に、招待リンクとQRの参加ページが戻れるよう、次を許可する（Google ログイン後に、いま開いているページへ戻すため）:
-  - `https://<本番ドメイン>/join/**`
-  - `https://<本番ドメイン>/claim/**`
+- **Authentication → URL Configuration → Redirect URLs** に、Google ログインのコールバックを許可する（参加ページには認証後に戻る）:
+  - `https://<本番ドメイン>/auth/callback`
   - プレビュー環境でも試すなら、そのドメインも。許可がないと、ログイン後に Site URL へ戻され、参加の続きができない。
 - Google プロバイダが有効で、メール/パスワードのログインを使わない運用でも、この仕組みは動く（参加は Google アカウントのログインだけで完結する）。
 

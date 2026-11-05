@@ -127,6 +127,22 @@ describe("proxy", () => {
   });
 
   describe("メンテナンスモード", () => {
+    it("OAuth コールバックはメンテナンス時もコードを保持して通す", async () => {
+      fetchMock.mockResolvedValue(settingsResponse(true));
+      const { proxy } = await loadProxy();
+      const res = await proxy(req("/auth/callback?code=example"));
+      expect(res.headers.get("x-middleware-rewrite")).toBeNull();
+      expect(res.headers.get("location")).toBeNull();
+    });
+    it("英語設定でも OAuth コールバックを別のURLに転送しない", async () => {
+      const { proxy } = await loadProxy();
+      const request = req("/auth/callback?code=example");
+      request.cookies.set("nicchyo-locale", "en");
+      request.headers.set("accept", "text/html");
+      const res = await proxy(request);
+      expect(res.headers.get("location")).toBeNull();
+      expect(res.headers.get("x-middleware-rewrite")).toBeNull();
+    });
     it("通常ページは /maintenance に rewrite される", async () => {
       fetchMock.mockResolvedValue(settingsResponse(true));
       const { proxy } = await loadProxy();
