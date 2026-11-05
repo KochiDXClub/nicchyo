@@ -199,6 +199,18 @@ const LAYER_SHOP_PHOTOS = "nicchyo-shop-photos";
 const LAYER_SHOP_NAMEPLATES = "nicchyo-shop-nameplates";
 const LAYER_SHOP_BADGES_FAVORITE = "nicchyo-shop-badge-favorite";
 const LAYER_LANDMARK_LABELS = "nicchyo-landmark-labels";
+const LAYER_LANDMARK_DETAIL_LABELS = "nicchyo-landmark-detail-labels";
+const LANDMARK_ICON_LAYERS = ["nicchyo-landmarks-min", "nicchyo-landmarks", "nicchyo-landmarks-minor"];
+
+/** 停留場・電車。絵が小さく、縮小すると高知城などの大きな絵に重なって崩れる */
+function isMinorLandmark(key: string): boolean {
+  return key.startsWith("tram-") || key === "densha";
+}
+/**
+ * 副次的な建物・停留場・電車を出さない縮小側の境目（MapLibre 基準）。
+ * ふだんの下限ズームより下げたときだけ効く（下限ズーム 15 なら MapLibre で 14 なので、この境目より上で今までどおり）。
+ */
+const LANDMARK_DETAIL_MIN_ZOOM = 13.5;
 
 /** ランドマークの GeoJSON。selectedKey に一致するものは properties.selected = 1（拡大表示） */
 function buildLandmarkFeatures(
@@ -214,6 +226,7 @@ function buildLandmarkFeatures(
         image: `landmark:${spec.key}`,
         name: spec.name,
         showAtMinZoom: spec.showAtMinZoom ? 1 : 0,
+        minor: isMinorLandmark(spec.key) ? 1 : 0,
         selected: spec.key === selectedKey ? 1 : 0,
       },
       geometry: { type: "Point", coordinates: [spec.lng, spec.lat] },
@@ -887,6 +900,12 @@ function MapViewMapLibre({
         "interpolate",
         ["exponential", 1.22],
         ["zoom"],
+        // 下限ズームを下げて大きく縮小したとき、絵が地図に比べて巨大にならないよう、
+        // 13.5 より下も縮め続ける（13.5 以上は従来どおり）
+        9,
+        ["*", 0.07, selectedScale],
+        11,
+        ["*", 0.11, selectedScale],
         13.5,
         ["*", 0.5, selectedScale],
         17,
@@ -901,21 +920,37 @@ function MapViewMapLibre({
         "icon-ignore-placement": true,
         "icon-rotation-alignment": "viewport" as const,
       };
-      // 最小ズーム付近は showAtMinZoom の建物だけ、それ以上は全部
+      // 大きく縮小したときだけ薄くして背景に退ける（13.5 以上は従来どおり不透明）
+      const landmarkPaint = {
+        "icon-opacity": ["interpolate", ["linear"], ["zoom"], 9, 0.7, LANDMARK_DETAIL_MIN_ZOOM, 1] as ExpressionSpecification,
+      };
+      // 主要な建物（showAtMinZoom）は常に出す。副次的な建物は従来どおり minZoom + 0.8 から、
+      // 停留場・電車（minor）は従来どおり minZoom から。どちらも LANDMARK_DETAIL_MIN_ZOOM より縮小したときは出さない
       map.addLayer({
         id: "nicchyo-landmarks-min",
         type: "symbol",
         source: SRC_LANDMARKS,
-        maxzoom: minZoom + 0.8,
-        filter: ["==", ["get", "showAtMinZoom"], 1],
+        filter: ["all", ["==", ["get", "showAtMinZoom"], 1], ["==", ["get", "minor"], 0]],
         layout: landmarkLayout,
+        paint: landmarkPaint,
       });
       map.addLayer({
         id: "nicchyo-landmarks",
         type: "symbol",
         source: SRC_LANDMARKS,
-        minzoom: minZoom + 0.8,
+        minzoom: Math.max(LANDMARK_DETAIL_MIN_ZOOM, minZoom + 0.8),
+        filter: ["all", ["==", ["get", "showAtMinZoom"], 0], ["==", ["get", "minor"], 0]],
         layout: landmarkLayout,
+        paint: landmarkPaint,
+      });
+      map.addLayer({
+        id: "nicchyo-landmarks-minor",
+        type: "symbol",
+        source: SRC_LANDMARKS,
+        minzoom: Math.max(LANDMARK_DETAIL_MIN_ZOOM, minZoom),
+        filter: ["==", ["get", "minor"], 1],
+        layout: landmarkLayout,
+        paint: landmarkPaint,
       });
       // ランドマークのタップ → スポットカード（店舗バナーは閉じる）
       const handleLandmarkClick = (e: maplibregl.MapLayerMouseEvent) => {
@@ -926,7 +961,7 @@ function MapViewMapLibre({
         setSelectedShop(null);
         onSpotSelectRef.current?.(landmarkToSpot(landmark));
       };
-      for (const layerId of ["nicchyo-landmarks-min", "nicchyo-landmarks"]) {
+      for (const layerId of LANDMARK_ICON_LAYERS) {
         map.on("click", layerId, handleLandmarkClick);
         map.on("mouseenter", layerId, () => {
           map.getCanvas().style.cursor = "pointer";
@@ -936,26 +971,44 @@ function MapViewMapLibre({
         });
       }
       // 地名ラベル（俯瞰時 zoom ≤ MIN+2.5 だけ。Leaflet 版の主要地名ラベルに相当）
-      map.addLayer({
-        id: LAYER_LANDMARK_LABELS,
-        type: "symbol",
+      const landmarkLabelLayer = {
+        type: "symbol" as const,
         source: SRC_LANDMARKS,
-        maxzoom: minZoom + 2.5,
         layout: {
-          "text-field": ["get", "name"],
+          "text-field": ["get", "name"] as ExpressionSpecification,
           "text-font": TEXT_FONT,
-          "text-size": 12,
-          "text-anchor": "top",
-          "text-offset": [0, 1.6],
-          "text-rotation-alignment": "viewport",
-          "text-pitch-alignment": "viewport",
+          // 縮小するほど少し小さくして、背景の地名・道路番号との競合を減らす
+          "text-size": ["interpolate", ["linear"], ["zoom"], 9, 10, 13.5, 12] as ExpressionSpecification,
+          "text-anchor": "top" as const,
+          "text-offset": [0, 1.6] as [number, number],
+          "text-rotation-alignment": "viewport" as const,
+          "text-pitch-alignment": "viewport" as const,
         },
         paint: {
           "text-color": "#3a3a3a",
           "text-halo-color": "rgba(255,255,255,0.92)",
           "text-halo-width": 1.6,
         },
+      };
+      // 主要な建物の名前は従来どおり、縮小側の端から出す
+      map.addLayer({
+        ...landmarkLabelLayer,
+        id: LAYER_LANDMARK_LABELS,
+        maxzoom: minZoom + 2.5,
+        filter: ["all", ["==", ["get", "showAtMinZoom"], 1], ["==", ["get", "minor"], 0]],
       });
+      // 副次的な建物・停留場・電車の名前は、LANDMARK_DETAIL_MIN_ZOOM より縮小したときは出さない
+      // （ふだんの下限ズームでは従来どおり、縮小側の端から出る）
+      const detailLabelMinZoom = Math.max(LANDMARK_DETAIL_MIN_ZOOM, minZoom);
+      if (detailLabelMinZoom < minZoom + 2.5) {
+        map.addLayer({
+          ...landmarkLabelLayer,
+          id: LAYER_LANDMARK_DETAIL_LABELS,
+          minzoom: detailLabelMinZoom,
+          maxzoom: minZoom + 2.5,
+          filter: ["any", ["==", ["get", "showAtMinZoom"], 0], ["==", ["get", "minor"], 1]],
+        });
+      }
 
       // 店舗スプライト
       const sprites = await stallSpritesPromise;
@@ -1372,7 +1425,7 @@ function MapViewMapLibre({
     const map = mapRef.current;
     if (!map || !mapLoaded) return;
     const visibility = suppressLandmarks ? "none" : "visible";
-    for (const id of ["nicchyo-landmarks-min", "nicchyo-landmarks", LAYER_LANDMARK_LABELS]) {
+    for (const id of [...LANDMARK_ICON_LAYERS, LAYER_LANDMARK_LABELS, LAYER_LANDMARK_DETAIL_LABELS]) {
       if (map.getLayer(id)) map.setLayoutProperty(id, "visibility", visibility);
     }
   }, [mapLoaded, suppressLandmarks]);
