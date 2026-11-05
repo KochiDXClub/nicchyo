@@ -98,6 +98,13 @@ const ConsultHistoryEntrySchema = z.object({
  */
 const ConsultHistoryArraySchema = z.array(ConsultHistoryEntrySchema).max(50);
 
+/**
+ * OpenAI を待つ上限。クライアント（ConsultClient の 60 秒）より短くして、
+ * 先にサーバーが「失敗」を返せるようにする。signal は本文の受信にも効くので、
+ * ストリーミング中に止まった場合も同じ失敗として返る
+ */
+export const ASK_UPSTREAM_TIMEOUT_MS = 50_000;
+
 const AskJsonBodySchema = z.object({
   text: AskTextSchema.optional(),
   location: AskLocationSchema.nullable().optional(),
@@ -404,7 +411,7 @@ async function finalizeConsultResponse(options: {
   };
 }
 
-async function createStreamingConsultResponse(options: {
+export async function createStreamingConsultResponse(options: {
   openaiKey: string;
   selectedCharacters: ConsultCharacter[];
   userContent:
@@ -481,7 +488,7 @@ async function createStreamingConsultResponse(options: {
     maxOutputTokens: conversationSettings["consult.max_output_tokens"],
     temperature: 0.7,
     stream: true,
-  });
+  }, AbortSignal.timeout(ASK_UPSTREAM_TIMEOUT_MS));
 
   if (!upstream.ok || !upstream.body) {
     return NextResponse.json(
@@ -1013,7 +1020,7 @@ export async function handleConsultAsk(
       : userContextText;
 
     if (stream) {
-      return createStreamingConsultResponse({
+      return await createStreamingConsultResponse({
         openaiKey,
         selectedCharacters,
         userContent,
@@ -1064,7 +1071,7 @@ export async function handleConsultAsk(
         selectedCharacters,
         conversationSettings["consult.max_turns"],
       ),
-    });
+    }, AbortSignal.timeout(ASK_UPSTREAM_TIMEOUT_MS));
     if (!chatResponse.ok) {
       return NextResponse.json(
         {
