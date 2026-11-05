@@ -19,6 +19,7 @@ export type AuditTone = "caution" | "good" | "info" | "neutral";
 
 /** 操作の名前 → 札に出す短い名前と色。消す・止める＝注意、作る・承認＝良い、変える＝情報 */
 export const AUDIT_ACTIONS = {
+  analytics_export: { label: "解析データを書き出し", tone: "info" },
   analytics_collection_updated: { label: "解析の取得設定を変更", tone: "info" },
   // 店舗（現場登録・代理編集）
   shop_create: { label: "店舗を登録", tone: "good" },

@@ -1,100 +1,51 @@
-import { cookies } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
-import { createClient as createServerClient } from "@/utils/supabase/server";
-import { getRole, isAdmin } from "@/lib/auth/permissions";
+import { requireAdminApi } from "@/lib/auth/requireAdminApi";
+import { logAdminAudit } from "@/lib/audit/logAdminAudit";
 import { addDaysToDateString, todayJstString } from "@/lib/time/jstDate";
-import { createAdminClient } from "@/lib/supabase/adminClient";
+import { privateNoStoreHeaders } from "@/lib/http/cacheHeaders";
 import { toCsv } from "@/lib/utils/csv";
+import { aggregateExportRows, readAllExportRows } from "@/lib/analytics/exportRows";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-type ExportType = "page_analytics" | "shop_views" | "search_logs" | "consult_logs";
-
-const COLUMNS: Record<ExportType, string[]> = {
-  page_analytics: ["visit_date", "visitor_key", "path", "duration_seconds", "user_role"],
-  shop_views: ["viewed_at", "vendor_id", "source"],
-  search_logs: ["searched_at", "keyword"],
-  consult_logs: ["consulted_at", "intent_category"],
-};
+const TYPES = {
+  page_analytics: { table: "web_page_analytics", date: "visit_date", columns: ["visit_date", "visitor_key", "path", "duration_seconds", "user_role"], dimension: "path", dateOnly: true },
+  shop_views: { table: "shop_page_views", date: "viewed_at", columns: ["viewed_at", "vendor_id", "source"], dimension: "source", dateOnly: false },
+  search_logs: { table: "product_search_logs", date: "searched_at", columns: ["searched_at", "keyword", "result_count"], dimension: undefined, dateOnly: false },
+  consult_logs: { table: "ai_consult_logs", date: "consulted_at", columns: ["consulted_at", "intent_category", "location_type", "is_recommendation", "store_id"], dimension: "intent_category", dateOnly: false },
+  guide_events: { table: "guide_events", date: "created_at", columns: ["created_at", "event_type", "kinds", "spot_key", "origin_type", "walk_minutes", "distance_meters"], dimension: "event_type", dateOnly: false },
+} as const;
+type ExportType = keyof typeof TYPES;
 
 export async function GET(req: NextRequest) {
-  const cookieStore = await cookies();
-  const supabase = createServerClient(cookieStore);
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user || !isAdmin(getRole(user))) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const auth = await requireAdminApi();
+  if ("error" in auth) return auth.error;
+  const params = req.nextUrl.searchParams;
+  const type = params.get("type") ?? "page_analytics";
+  const mode = params.get("mode") ?? "summary";
+  const days = Number(params.get("days") ?? "30");
+  if (!Object.hasOwn(TYPES, type) || !["summary", "raw"].includes(mode) || !Number.isInteger(days) || days < 1 || days > 365) {
+    return NextResponse.json({ error: "出力条件が不正です" }, { status: 400 });
   }
-
-  const dc = createAdminClient();
-  if (!dc) return NextResponse.json({ error: "Service unavailable" }, { status: 503 });
-
-  const { searchParams } = req.nextUrl;
-  const type = (searchParams.get("type") ?? "page_analytics") as ExportType;
-  const days = Math.max(1, Math.min(Number(searchParams.get("days") ?? "30"), 365));
-  // visit_date は JST で記録されるため、基準日も JST に揃える
+  const spec = TYPES[type as ExportType];
   const today = todayJstString();
-  const since = addDaysToDateString(today, -days);
-
-  let rows: Record<string, unknown>[];
-  let filename: string;
-  let dbError: { message: string } | null;
-
-  if (type === "page_analytics") {
-    const res = await dc
-      .from("web_page_analytics")
-      .select("visit_date, visitor_key, path, duration_seconds, user_role")
-      .gte("visit_date", since)
-      .order("visit_date", { ascending: false })
-      .limit(50000);
-    rows = (res.data ?? []) as Record<string, unknown>[];
-    dbError = res.error;
-    filename = `page_analytics_${since}_to_${today}.csv`;
-  } else if (type === "shop_views") {
-    const res = await dc
-      .from("shop_page_views")
-      .select("viewed_at, vendor_id, source")
-      .gte("viewed_at", `${since}T00:00:00Z`)
-      .order("viewed_at", { ascending: false })
-      .limit(50000);
-    rows = (res.data ?? []) as Record<string, unknown>[];
-    dbError = res.error;
-    filename = `shop_views_${since}_to_${today}.csv`;
-  } else if (type === "search_logs") {
-    const res = await dc
-      .from("product_search_logs")
-      .select("searched_at, keyword")
-      .gte("searched_at", `${since}T00:00:00Z`)
-      .order("searched_at", { ascending: false })
-      .limit(50000);
-    rows = (res.data ?? []) as Record<string, unknown>[];
-    dbError = res.error;
-    filename = `search_logs_${since}_to_${today}.csv`;
-  } else if (type === "consult_logs") {
-    const res = await dc
-      .from("ai_consult_logs")
-      .select("consulted_at, intent_category")
-      .gte("consulted_at", `${since}T00:00:00Z`)
-      .order("consulted_at", { ascending: false })
-      .limit(50000);
-    rows = (res.data ?? []) as Record<string, unknown>[];
-    dbError = res.error;
-    filename = `consult_logs_${since}_to_${today}.csv`;
-  } else {
-    return NextResponse.json({ error: "無効なエクスポート種別です" }, { status: 400 });
+  const since = addDaysToDateString(today, 1 - days);
+  const until = addDaysToDateString(today, 1);
+  const lower = spec.dateOnly ? since : new Date(`${since}T00:00:00+09:00`).toISOString();
+  const upper = spec.dateOnly ? until : new Date(`${until}T00:00:00+09:00`).toISOString();
+  try {
+    const rows = await readAllExportRows<Record<string, unknown>>(async (from, to) => {
+      const result = await auth.adminClient.from(spec.table).select([...spec.columns, "id"].join(","))
+        .gte(spec.date, lower).lt(spec.date, upper).order(spec.date, { ascending: false }).order("id", { ascending: false }).range(from, to);
+      return { data: result.data as unknown as Record<string, unknown>[] | null, error: result.error };
+    });
+    const output = mode === "raw" ? rows : aggregateExportRows(rows, spec.date, spec.dimension);
+    const columns = mode === "raw" ? [...spec.columns] : ["date", "category", "count"];
+    await logAdminAudit(auth.adminClient, { id: auth.user.id, email: auth.user.email, role: auth.role }, { action: "analytics_export", targetType: "analytics", details: JSON.stringify({ type, mode, since, until: today, rows: output.length }) });
+    return new NextResponse(toCsv(output, columns), { headers: { ...privateNoStoreHeaders(), "Content-Type": "text/csv; charset=utf-8", "Content-Disposition": `attachment; filename="${type}_${mode}_${since}_to_${today}.csv"` } });
+  } catch (error) {
+    const message = error instanceof Error && error.message.includes("上限") ? error.message : "データ取得に失敗しました";
+    return NextResponse.json({ error: message }, { status: 500, headers: privateNoStoreHeaders() });
   }
-
-  if (dbError) {
-    console.error("[analytics/export] fetch error:", dbError.message);
-    return NextResponse.json({ error: "データ取得に失敗しました" }, { status: 500 });
-  }
-
-  const csv = toCsv(rows, COLUMNS[type]);
-  return new NextResponse(csv, {
-    status: 200,
-    headers: {
-      "Content-Type": "text/csv; charset=utf-8",
-      "Content-Disposition": `attachment; filename="${filename}"`,
-    },
-  });
 }
