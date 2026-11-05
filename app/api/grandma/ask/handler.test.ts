@@ -110,4 +110,10 @@ describe("handleConsultAsk の入力検証", () => {
     form.append("image", new File([big], "a.jpg", { type: "image/jpeg" }));
     expect((await postForm(form)).status).toBe(400);
   });
+
+  // 「トイレ」「駐車場」のような短くても答えられる質問を、文字数だけで断らない（#853）
+  it.each(["トイレ", "駐車場", "ランチ"])("短い質問「%s」も断らずに先へ進む", async (text) => {
+    const body = (await (await postJson({ text })).json()) as { errorCode?: string };
+    expect(body.errorCode).not.toBe("insufficient_context");
+  });
 });
