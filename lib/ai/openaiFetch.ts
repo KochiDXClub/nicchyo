@@ -52,14 +52,16 @@ function jsonHeaders(apiKey: string): HeadersInit {
 function sendChatCompletion(
   apiKey: string,
   model: { def: AiModelDef; reasoningEffort?: ReasoningEffort },
-  params: ChatCompletionParams
+  params: ChatCompletionParams,
+  signal?: AbortSignal
 ): Promise<Response> {
   const body = buildChatCompletionBody(model, params);
-  if (model.def.provider === "anthropic") return requestAnthropicChatCompletion(body);
+  if (model.def.provider === "anthropic") return requestAnthropicChatCompletion(body, signal);
   return fetch(CHAT_COMPLETIONS_URL, {
     method: "POST",
     headers: jsonHeaders(apiKey),
     body: JSON.stringify(body),
+    signal,
   });
 }
 
@@ -76,13 +78,18 @@ const FALLBACK_ERROR_CODES = new Set(["model_not_found", "missing_api_key", "inv
  * `model` は resolveAiModelFor(useCase) で解決したものを渡す。
  * ボディの組み立てはここで行うので、呼び出し側が `model` や `max_tokens` を
  * 直接書くことはない。
+ *
+ * `signal` を渡すと、タイムアウトや利用者の離脱で呼び出しを打ち切れる
+ * （例: `AbortSignal.timeout(9000)`）。受信中の本文の読み出しも止まる。
+ * 既定モデルでのやり直しにも同じ signal を使う。
  */
 export async function requestChatCompletion(
   apiKey: string,
   model: ResolvedAiModel,
-  params: ChatCompletionParams
+  params: ChatCompletionParams,
+  signal?: AbortSignal
 ): Promise<Response> {
-  const res = await sendChatCompletion(apiKey, model, params);
+  const res = await sendChatCompletion(apiKey, model, params, signal);
   if (res.ok) return res;
 
   // 失敗の中身はここで必ずログに残す。呼び出し側は `.ok` しか見ないので、
@@ -100,7 +107,7 @@ export async function requestChatCompletion(
     console.warn(
       `[${model.def.provider}] falling back to default model: ${model.def.id} -> ${model.fallbackDef.id}`
     );
-    const retry = await sendChatCompletion(apiKey, { def: model.fallbackDef }, params);
+    const retry = await sendChatCompletion(apiKey, { def: model.fallbackDef }, params, signal);
     if (!retry.ok) {
       // 逃げ先まで落ちたときに原因が追えないと「切り替えたら全滅した」しか分からない
       const retryDetail = await readOpenAiError(retry);
