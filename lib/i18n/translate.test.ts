@@ -68,3 +68,16 @@ describe("相談ページの固定文言", () => {
     expect(texts.filter((text) => !(text in enUi))).toEqual([]);
   });
 });
+
+
+describe("LPのデータから組み立てる文言", () => {
+  test("ハイライト・紹介・開催案内・見本店舗の英訳が揃う", async () => {
+    const { ABOUT, HIGHLIGHTS, MARKET_FACTS, SAMPLE_SHOP } = await import("@/app/(public)/_landing/content");
+    const labels = [ABOUT.body, ABOUT.awardName, `${ABOUT.awardTitle} 受賞`, ...ABOUT.message, ABOUT.signature,
+      ...HIGHLIGHTS.flatMap(({ title, photo }) => [title, photo.alt]),
+      ...MARKET_FACTS.flatMap(({ term, detail }) => [term, detail]),
+      SAMPLE_SHOP.name, SAMPLE_SHOP.category, ...SAMPLE_SHOP.products];
+    expect(labels.filter((label) => !(label in enUi))).toEqual([]);
+    for (const label of labels) expect(translate("ja", label)).toBe(label);
+  });
+});
