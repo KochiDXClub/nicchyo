@@ -16,7 +16,7 @@ on:
     paths:
       - 'supabase/migrations/**'
       - 'supabase/checks/**'
-      - 'supabase/tests/atomic_admin_shop_edit.sql'
+      - 'supabase/tests/**'
       - '.github/workflows/migrations-check.yml'
   push:
     branches: [develop]
@@ -109,6 +109,15 @@ jobs:
 
       - name: Check private inquiry attachments
         run: psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" -v ON_ERROR_STOP=1 -f supabase/checks/private_inquiry_images.sql
+
+      # Each test rolls back its fixtures. Run only the files present in this branch.
+      - name: Check market schedule and map history
+        run: |
+          for file in supabase/tests/market_schedule_constraints.sql supabase/tests/map_layout_preserves_assignments.sql supabase/tests/market_schedule_write_operations.sql supabase/tests/public_vendor_identity.sql; do
+            if [ -f "$file" ]; then
+              psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" -v ON_ERROR_STOP=1 -f "$file"
+            fi
+          done
 
       - name: Check atomic admin shop edit
         run: |
