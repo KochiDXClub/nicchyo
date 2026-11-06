@@ -123,8 +123,15 @@ export default function RoadLaneView({
           else cellRefs.current.delete(shop.locationId);
         }}
         onClick={() => onSelectShop(shop.locationId)}
-        draggable={!!shop.vendorId && !shop.placeName}
-        title={shop.vendorId && !shop.placeName ? "ドラッグして別の区画へ移せます（出店者がいれば入れ替え）" : undefined}
+        role="button"
+        tabIndex={0}
+        aria-label={`区画 ${slotLabel(shop)} ${shop.name}`}
+        aria-pressed={isSelected}
+        onKeyDown={(event) => {
+          if (event.key === "Enter" || event.key === " ") { event.preventDefault(); onSelectShop(shop.locationId); }
+        }}
+        draggable={false}
+        title={undefined}
         onDragStart={(e) => {
           e.dataTransfer.setData("text/plain", shop.locationId);
           e.dataTransfer.effectAllowed = "move";

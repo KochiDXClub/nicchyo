@@ -198,7 +198,7 @@ function buildShopFeatureCollection(
         // 地図に出す番号。住所録の番号（123-4）があればそれ、無ければ店番
         label: slotLabel(shop),
         opacity: match ? 1 : 0.15,
-        hasVendor: !!shop.vendorId && !shop.placeName,
+        hasVendor: false,
         // 出店者のいる区画はオレンジのピン、空き区画は赤で、ひと目で空きと分かるようにする
         color: shop.vendorId
           ? isSelected
@@ -594,7 +594,7 @@ export default function MapEditCanvasMapLibre({
 
       // ── 出店者のピンのドラッグ（別の区画へ移す・入れ替える） ──
       // 出店者のいる区画の点を掴んだら地図のパンを止め、離した地点の区画へ移す。
-      // マウスとタッチの両方で同じ流れにする
+      // タッチでは地図のパンを優先し、詳細パネルから移動先を選べるようにする。
       const slotAt = (point: maplibregl.PointLike): string | null => {
         const p = maplibregl.Point.convert(point);
         const features = map.queryRenderedFeatures(
@@ -648,11 +648,8 @@ export default function MapEditCanvasMapLibre({
         if (moved && targetId) handlersRef.current.onDropVendor(fromId, targetId);
       };
       map.on("mousedown", LAYER_SHOP_DOTS, startVendorDrag);
-      map.on("touchstart", LAYER_SHOP_DOTS, startVendorDrag);
       map.on("mousemove", moveVendorDrag);
-      map.on("touchmove", moveVendorDrag);
       map.on("mouseup", endVendorDrag);
-      map.on("touchend", endVendorDrag);
 
       // 区画分けのプレビュー。区画の上に重ね、作る・動く・消すを色で分ける
       map.addLayer({
@@ -695,6 +692,12 @@ export default function MapEditCanvasMapLibre({
         // 道を描く道具・建物を置く道具では、空き地クリック（onMapClick）へ流す
         if (toolRef.current !== "select" && toolRef.current !== "splitSlots") return;
         if (consumedClickRef.current) return;
+        const nearbySlot = toolRef.current === "select" ? slotAt(e.point) : null;
+        if (nearbySlot) {
+          consumedClickRef.current = true;
+          handlersRef.current.onSelectShop(nearbySlot);
+          return;
+        }
         consumedClickRef.current = true;
         const roadId = e.features?.[0]?.properties?.roadId;
         if (typeof roadId === "string") handlersRef.current.onSelectRoad(roadId);
@@ -710,6 +713,8 @@ export default function MapEditCanvasMapLibre({
           consumedClickRef.current = false;
           return;
         }
+        const nearbySlot = toolRef.current === "select" ? slotAt(e.point) : null;
+        if (nearbySlot) { handlersRef.current.onSelectShop(nearbySlot); return; }
         handlersRef.current.onMapClick(e.lngLat.lat, e.lngLat.lng);
       });
       map.on("dblclick", (e) => {
@@ -920,8 +925,16 @@ export default function MapEditCanvasMapLibre({
       let marker = vertexExisting.get(point.id);
       if (!marker) {
         const el = createVertexElement();
-        // 頂点のクリックが下の道レイヤーの click に伝わり、選択が別の道へ飛ぶのを防ぐ
-        el.addEventListener("click", (event) => event.stopPropagation());
+        let touchPointer = false;
+        let dragged = false;
+        el.addEventListener("pointerdown", (event) => { touchPointer = event.pointerType === "touch"; dragged = false; });
+        // PC はダブルクリックを優先し、タッチ時だけメニューを開く。
+        el.addEventListener("click", (event) => {
+          event.stopPropagation();
+          if (!touchPointer || dragged) return;
+          const rect = containerRef.current?.getBoundingClientRect();
+          setVertexMenu({ x: event.clientX - (rect?.left ?? 0), y: event.clientY - (rect?.top ?? 0), roadId: road.id, pointId: point.id });
+        });
         el.addEventListener("dblclick", (event) => {
           event.stopPropagation();
           handlersRef.current.onVertexRemove(road.id, point.id);
@@ -940,6 +953,7 @@ export default function MapEditCanvasMapLibre({
         });
         marker = new maplibregl.Marker({ element: el, draggable: true, anchor: "center" });
         marker.on("drag", () => {
+          dragged = true;
           const lngLat = marker!.getLngLat();
           handlersRef.current.onVertexMove(road.id, point.id, lngLat.lat, lngLat.lng);
         });
@@ -1116,7 +1130,7 @@ export default function MapEditCanvasMapLibre({
         </div>
       )}
 
-      <div
+      <div className="map-editor-zoom"
         style={{
           position: "absolute",
           bottom: 12,
@@ -1129,21 +1143,21 @@ export default function MapEditCanvasMapLibre({
           overflow: "hidden",
         }}
       >
-        <span
+        <button type="button" aria-label="地図を拡大"
           onClick={onZoomIn}
-          style={{ padding: "9px 13px", fontSize: 16, fontWeight: 700, cursor: "pointer", color: "#92400E", textAlign: "center" }}
+          style={{ padding: "9px 13px", fontSize: 16, fontWeight: 700, cursor: "pointer", color: "#92400E", textAlign: "center", border: 0, background: "white" }}
         >
           ＋
-        </span>
-        <span
+        </button>
+        <button type="button" aria-label="地図を縮小"
           onClick={onZoomOut}
-          style={{ padding: "9px 13px", fontSize: 16, fontWeight: 700, cursor: "pointer", color: "#92400E", textAlign: "center" }}
+          style={{ padding: "9px 13px", fontSize: 16, fontWeight: 700, cursor: "pointer", color: "#92400E", textAlign: "center", border: 0, background: "white" }}
         >
           －
-        </span>
+        </button>
       </div>
 
-      <div
+      <div className="map-editor-rotation"
         style={{
           position: "absolute",
           bottom: 12,
