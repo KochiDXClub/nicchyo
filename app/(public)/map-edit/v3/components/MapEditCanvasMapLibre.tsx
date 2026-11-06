@@ -925,9 +925,13 @@ export default function MapEditCanvasMapLibre({
       let marker = vertexExisting.get(point.id);
       if (!marker) {
         const el = createVertexElement();
-        // 頂点のクリックが下の道レイヤーの click に伝わり、選択が別の道へ飛ぶのを防ぐ
+        let touchPointer = false;
+        let dragged = false;
+        el.addEventListener("pointerdown", (event) => { touchPointer = event.pointerType === "touch"; dragged = false; });
+        // PC はダブルクリックを優先し、タッチ時だけメニューを開く。
         el.addEventListener("click", (event) => {
           event.stopPropagation();
+          if (!touchPointer || dragged) return;
           const rect = containerRef.current?.getBoundingClientRect();
           setVertexMenu({ x: event.clientX - (rect?.left ?? 0), y: event.clientY - (rect?.top ?? 0), roadId: road.id, pointId: point.id });
         });
@@ -949,6 +953,7 @@ export default function MapEditCanvasMapLibre({
         });
         marker = new maplibregl.Marker({ element: el, draggable: true, anchor: "center" });
         marker.on("drag", () => {
+          dragged = true;
           const lngLat = marker!.getLngLat();
           handlersRef.current.onVertexMove(road.id, point.id, lngLat.lat, lngLat.lng);
         });
