@@ -10,6 +10,8 @@ export const FAVORITE_SHOPS_UPDATED_EVENT = "nicchyo-favorite-shops-updated";
  */
 export type FavoriteEntry = {
   shopId: number;
+  /** 確認済み旧番号から変換した場合の元番号。取り消し・非公開時に再評価する。 */
+  legacyShopId?: number;
   /** 商品名。null なら「店ごと」のお気に入り */
   product: string | null;
   /** 追加した時刻（epoch ミリ秒）。並び順に使う */
@@ -79,6 +81,7 @@ function normalizeEntries(value: unknown): FavoriteEntry[] {
     const addedAt = Number(record.addedAt);
     entries.push({
       shopId,
+      ...(Number.isInteger(record.legacyShopId) && (record.legacyShopId as number) >= 1 && (record.legacyShopId as number) <= 999 && shopId >= 1000 ? { legacyShopId: record.legacyShopId as number } : {}),
       product,
       addedAt: Number.isFinite(addedAt) ? addedAt : UNKNOWN_ADDED_AT,
     });
@@ -298,4 +301,51 @@ export function saveFavoriteShopIds(ids: number[]): void {
 export function toggleFavoriteShopId(id: number): number[] {
   toggleFavoriteShop(id);
   return loadFavoriteShopIds();
+}
+
+/** 旧番号は確認済みの対応だけ変換し、未解決の行は失わずに残す。 */
+export function migrateFavoriteShopIdentities(aliases: Readonly<Record<string, number>>): number {
+  const current = loadFavoriteEntries();
+  const combined = new Map<string, FavoriteEntry>();
+  let changed = 0;
+  for (const entry of current) {
+    const legacyId = entry.legacyShopId ?? (entry.shopId >= 1 && entry.shopId <= 999 ? entry.shopId : undefined);
+    const target = legacyId ? aliases[String(legacyId)] : undefined;
+    const validTarget = Number.isSafeInteger(target) && (target as number) >= 1000 && (target as number) <= 2147483647 ? target as number : undefined;
+    let next = entry;
+    if (legacyId && validTarget) next = { ...entry, shopId: validTarget, legacyShopId: legacyId };
+    else if (legacyId && entry.legacyShopId) {
+      const { legacyShopId: _previous, ...rest } = entry;
+      next = { ...rest, shopId: legacyId };
+    }
+    if (next.shopId !== entry.shopId || next.legacyShopId !== entry.legacyShopId) changed += 1;
+    const key = favoriteEntryKey(next.shopId, next.product);
+    const prior = combined.get(key);
+    if (!prior) combined.set(key, next);
+    else {
+      // 新しいIDで明示的に追加した行があれば、旧番号の取り消しで消えないよう優先する。
+      const preferred = prior.legacyShopId && !next.legacyShopId ? next : !prior.legacyShopId && next.legacyShopId ? prior : prior.addedAt <= next.addedAt ? prior : next;
+      combined.set(key, { ...preferred, addedAt: Math.min(prior.addedAt, next.addedAt) });
+    }
+  }
+  if (changed) saveFavoriteEntries([...combined.values()]);
+  return changed;
+}
+
+let favoriteIdentityMigration: Promise<void> | null = null;
+/** 認証不要の公開済み対応だけを取得し、取得失敗時は後で再試行する。 */
+export function tryMigrateFavoriteShopIdentities(): Promise<void> {
+  if (typeof window === "undefined" || !loadFavoriteEntries().some((entry) => (entry.shopId >= 1 && entry.shopId <= 999) || entry.legacyShopId !== undefined)) return Promise.resolve();
+  if (favoriteIdentityMigration) return favoriteIdentityMigration;
+  favoriteIdentityMigration = (async () => {
+    try {
+      const response = await fetch("/api/shops/legacy-identities", { cache: "no-store" });
+      if (!response.ok) return;
+      const data = await response.json() as { enabled?: boolean; aliases?: unknown };
+      if (data.enabled && data.aliases && typeof data.aliases === "object" && !Array.isArray(data.aliases)) migrateFavoriteShopIdentities(data.aliases as Record<string, number>);
+    } catch {
+      // 古いデータはそのまま残し、次の表示時に再試行する。
+    }
+  })().finally(() => { favoriteIdentityMigration = null; });
+  return favoriteIdentityMigration;
 }

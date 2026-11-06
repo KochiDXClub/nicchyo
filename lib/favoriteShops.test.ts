@@ -433,3 +433,21 @@ describe('favoriteShops', () => {
     });
   });
 });
+
+describe("旧店舗番号のお気に入り移行", () => {
+  it("確認済みの番号だけ変換し、未確定と商品・登録時刻を残す", async () => {
+    const { migrateFavoriteShopIdentities, saveFavoriteEntries, loadFavoriteEntries } = await import("./favoriteShops");
+    saveFavoriteEntries([{ shopId: 12, product: "みかん", addedAt: 10 }, { shopId: 13, product: null, addedAt: 20 }, { shopId: 1001, product: "みかん", addedAt: 30 }]);
+    expect(migrateFavoriteShopIdentities({ "12": 1001 })).toBe(1);
+    expect(loadFavoriteEntries()).toEqual([{ shopId: 1001, product: "みかん", addedAt: 10 }, { shopId: 13, product: null, addedAt: 20 }]);
+  });
+  it("取り消された対応は元の旧番号に戻し、別店舗へ割り当てない", async () => {
+    const { migrateFavoriteShopIdentities, saveFavoriteEntries, loadFavoriteEntries } = await import("./favoriteShops");
+    saveFavoriteEntries([{ shopId: 12, product: null, addedAt: 10 }]);
+    migrateFavoriteShopIdentities({ "12": 1001 });
+    expect(loadFavoriteEntries()).toEqual([{ shopId: 1001, legacyShopId: 12, product: null, addedAt: 10 }]);
+    migrateFavoriteShopIdentities({});
+    expect(loadFavoriteEntries()).toEqual([{ shopId: 12, product: null, addedAt: 10 }]);
+  });
+
+});

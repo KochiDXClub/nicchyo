@@ -88,6 +88,24 @@ describe("buildVendorShops", () => {
   });
 });
 
+describe("公開店舗の固定ID", () => {
+  it("場所を移動しても店舗のIDは変わらず、場所番号は変わる", () => {
+    const first = baseRows(); first.vendors[0].public_shop_id = 1001;
+    const moved = { ...first, locations: [{ ...first.locations[0], store_number: 13 }] };
+    expect(buildVendorShops(first, [], { stableIds: true })[0]).toMatchObject({ id: 1001, position: 12 });
+    expect(buildVendorShops(moved, [], { stableIds: true })[0]).toMatchObject({ id: 1001, position: 13 });
+  });
+  it("固定IDを持たない店舗を旧場所番号で代用しない", () => {
+    expect(buildVendorShops(baseRows(), [], { stableIds: true })).toEqual([]);
+  });
+  it("同じ場所には最新の店舗だけを表示する", () => {
+    const base = baseRows();
+    base.vendors = [{ ...base.vendors[0], public_shop_id: 1001 }, { ...base.vendors[0], id: "v2", public_shop_id: 1002 }];
+    base.assignments.push({ vendor_id: "v2", location_id: "l1", market_date: "2026-11-01" });
+    expect(buildVendorShops(base, [], { stableIds: true }).map((shop) => shop.id)).toEqual([1002]);
+  });
+});
+
 describe("applyShopDelta", () => {
   const vendor = (id: string, shopName: string) => ({ ...baseRows().vendors[0], id, shop_name: shopName });
   const product = (id: string, name: string, imageUrl: string | null = null) => ({

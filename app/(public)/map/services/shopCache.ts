@@ -2,6 +2,13 @@ import { fetchCategories } from "@/lib/categories/server";
 import { withCategory } from "@/lib/categories/catalog";
 import { revalidateTag, unstable_cache } from "next/cache";
 import { createAnonClient } from "@/lib/supabase/anonClient";
+import { createAdminClient } from "@/lib/supabase/adminClient";
+import { fetchAllRows } from "@/lib/supabase/fetchAllRows";
+import { readPublicScheduleRollout } from "@/lib/market-schedule/rollout.server";
+import { readScheduleData } from "@/lib/market-schedule/read.server";
+import { publicAssignmentsForDate } from "@/lib/market-schedule/publicAssignments";
+import { nextSundayJstString } from "@/lib/time/jstDate";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Shop } from "../types/shopData";
 import { DEFAULT_LOCALE, type Locale } from "@/lib/i18n/config";
 import { applyShopTranslations } from "@/lib/i18n/shopTranslation.server";
@@ -91,13 +98,14 @@ export async function fetchPublicShops(locale: Locale = DEFAULT_LOCALE): Promise
   const supabase = createAnonClient();
   if (!supabase) return [];
 
-  const [snapshot, activeContents] = await Promise.all([
+  const [snapshot, activeContents, scheduleEnabled] = await Promise.all([
     getCachedShopBaseRows().catch(async (error: unknown): Promise<{ rows: VendorShopBaseRows; snapshotAt: string | null }> => {
       // キャッシュに載せられなかったときは、従来どおり取れた分だけで表示する(取り立てなので差分は要らない)
       console.warn("[fetchPublicShops] キャッシュを使わずに取得します:", error);
       return { rows: (await fetchVendorShopBaseRows(supabase)).rows, snapshotAt: null };
     }),
     fetchActiveContentRows(supabase),
+    readPublicScheduleRollout(),
   ]);
 
   let baseRows = snapshot.rows;
@@ -116,8 +124,30 @@ export async function fetchPublicShops(locale: Locale = DEFAULT_LOCALE): Promise
     }
   }
 
+  if (scheduleEnabled) {
+    const admin = createAdminClient() as unknown as SupabaseClient | null;
+    if (!admin) throw new Error("公開予定を取得できません");
+    const [schedule, identities] = await Promise.all([
+      readScheduleData(admin),
+      fetchAllRows<{ id: string; public_shop_id: number }>(
+        (from, to) => supabase.from("vendors").select("id,public_shop_id").order("id").range(from, to),
+        { label: "public vendor identities" }
+      ),
+    ]);
+    if (identities.error) throw new Error("公開店舗の識別子を取得できません");
+    const ids = new Map((identities.data ?? []).map((row) => [row.id, row.public_shop_id]));
+    const visible = new Set(ids.keys());
+    baseRows = {
+      ...baseRows,
+      vendors: baseRows.vendors.flatMap((vendor) => {
+        const publicId = ids.get(vendor.id);
+        return typeof publicId === "number" ? [{ ...vendor, public_shop_id: publicId }] : [];
+      }),
+      assignments: publicAssignmentsForDate(schedule, nextSundayJstString(), baseRows.assignments, visible),
+    };
+  }
   const categories = await fetchCategories().catch(() => []);
-  const shops = buildVendorShops(baseRows, activeContents).map(shop => withCategory(shop, categories));
+  const shops = (scheduleEnabled ? buildVendorShops(baseRows, activeContents, { stableIds: true }) : buildVendorShops(baseRows, activeContents)).map(shop => withCategory(shop, categories));
   return applyShopTranslations(shops, locale);
 }
 

@@ -17,6 +17,16 @@ describe("SlotVendorPanel の店舗表示", () => {
     expect(screen.queryByDisplayValue("朝市の店")).toBeNull();
     expect(screen.getByRole("button", { name: "この区画を削除" })).toBeDisabled();
   });
+  it("場所名が未設定でも登録店舗を表示する", () => {
+    panel({ placeName: undefined, placeVendors: [{ id: "a", name: "店A" }] });
+    expect(screen.getByRole("button", { name: "店A" })).toBeTruthy();
+  });
+  it("複数店舗の場所には一店舗の現場位置を直接適用しない", () => {
+    const observed = { ...vendor, fieldObservation: { lat: 33.56, lng: 133.53, storeNumber: 1, accuracyM: 10, source: "gps", updatedAt: "2026-11-01T00:00:00Z" } };
+    panel({ placeVendors: [{ id: "v1", name: "店1" }, { id: "v2", name: "店2" }] }, observed);
+    expect(screen.queryByRole("button", { name: "現場の位置を編集内容に追加" })).toBeNull();
+    expect(screen.getByText(/複数の店舗が利用する場所/)).toBeTruthy();
+  });
   it("現場記録の店番違いを警告し、確認した場合だけ編集内容に追加する", () => {
     const observed = { ...vendor, fieldObservation: { lat: 33.56, lng: 133.53, storeNumber: 2, accuracyM: 30, source: "gps", updatedAt: "2026-11-01T00:00:00Z" } };
     const confirm = vi.spyOn(window, "confirm").mockReturnValueOnce(false).mockReturnValueOnce(true);

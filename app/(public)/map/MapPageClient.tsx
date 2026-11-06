@@ -87,6 +87,7 @@ const MapIntroPanel = dynamic(() => import("./components/MapIntroPanel"), { ssr:
 
 type MapPageClientProps = {
   shops: Shop[];
+  legacyIdentities?: { enabled: boolean; aliases: Record<string, number> };
   landmarks: Landmark[];
   mapRoute: MapRoute;
   /** 管理画面で保存したマップ動作フラグ（未指定なら既定値） */
@@ -101,6 +102,7 @@ const NEARBY_AREA_HEIGHT_RATIO = 0.48;
 
 export default function MapPageClient({
   shops: sourceShops,
+  legacyIdentities,
   landmarks,
   mapRoute,
   featureFlags,
@@ -126,7 +128,10 @@ export default function MapPageClient({
   const initialShopIdParam = searchParams?.get("shop");
   const isAiFocusMode = searchParams?.get("ai") === "1";
   const searchParamsKey = searchParams?.toString() ?? "";
-  const initialShopId = initialShopIdParam ? Number(initialShopIdParam) : undefined;
+  const requestedShopId = initialShopIdParam ? Number(initialShopIdParam) : undefined;
+  const initialShopId = requestedShopId && requestedShopId <= 999 && legacyIdentities?.enabled
+    ? legacyIdentities.aliases[String(requestedShopId)]
+    : requestedShopId;
   // /map?shop=001&navigate=1: 店舗ページの「ここへ案内」から来た。着いたらその店への道案内を始める
   const navigateParam = searchParams?.get("navigate") === "1";
   // おでかけサポート: ?guide=<プリセット|menu> または旧 ?facility=<カテゴリ> で開く

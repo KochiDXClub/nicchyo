@@ -17,6 +17,7 @@ import {
   FAVORITE_SHOPS_KEY,
   FAVORITE_SHOPS_UPDATED_EVENT,
   loadFavoriteEntries,
+  tryMigrateFavoriteShopIdentities,
   type FavoriteEntry,
 } from "../favoriteShops";
 
@@ -31,16 +32,21 @@ export function useFavoriteEntries(): FavoriteEntry[] {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const sync = () => setEntries(loadFavoriteEntries());
+    const sync = () => {
+      setEntries(loadFavoriteEntries());
+      void tryMigrateFavoriteShopIdentities();
+    };
     sync();
     const handleStorage = (event: StorageEvent) => {
       if (event.key === FAVORITE_SHOPS_KEY) sync();
     };
     window.addEventListener(FAVORITE_SHOPS_UPDATED_EVENT, sync);
     window.addEventListener("storage", handleStorage);
+    window.addEventListener("focus", sync);
     return () => {
       window.removeEventListener(FAVORITE_SHOPS_UPDATED_EVENT, sync);
       window.removeEventListener("storage", handleStorage);
+      window.removeEventListener("focus", sync);
     };
   }, []);
 

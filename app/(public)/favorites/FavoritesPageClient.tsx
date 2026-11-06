@@ -368,10 +368,10 @@ function FavoriteRow({
   const previewImage = shop ? getShopPreviewImage(shop) : null;
 
   const place = shop
-    ? [showChome ? shop.chome : null, `${shop.position + 1}番あたり`].filter(Boolean).join(" ・ ")
+    ? [showChome ? shop.chome : null, "マップで場所を確認"].filter(Boolean).join(" ・ ")
     : isLoadingShops
       ? "読み込み中"
-      : "出店情報が見つかりません";
+      : row.shopId <= 999 ? "以前の店舗番号を確認中です" : "出店情報が見つかりません";
 
   return (
     <li className="px-3 py-2.5">

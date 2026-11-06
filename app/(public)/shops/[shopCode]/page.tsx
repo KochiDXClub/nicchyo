@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { cache } from "react";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
+import { readPublicLegacyIdentities } from "@/lib/shops/publicIdentity.server";
 import { headers } from "next/headers";
 import { formatShopIdToCode, normalizeShopCodeToId } from "@/lib/shops/route";
 import { safeJsonLd } from "@/lib/utils/jsonLd";
@@ -33,6 +34,14 @@ const fetchShop = cache(async (shopId: number): Promise<Shop | null> => {
   }
 });
 
+const resolvePublicId = cache(async (shopId: number): Promise<number | null> => {
+  if (shopId > 999) return shopId;
+  try {
+    const { enabled, aliases } = await readPublicLegacyIdentities();
+    return enabled ? aliases[String(shopId)] ?? null : shopId;
+  } catch { return null; }
+});
+
 /**
  * OGP 画像や canonical URL のためのオリジンを解決する。
  * NEXT_PUBLIC_SITE_URL が設定されていればその値を優先し、
@@ -57,12 +66,13 @@ export async function generateMetadata({ params }: ShopPageProps): Promise<Metad
   const code = formatShopIdToCode(shopId);
   if (!code) return {};
 
-  const shop = await fetchShop(shopId);
+  const resolvedId = await resolvePublicId(shopId);
+  const shop = resolvedId === null ? null : await fetchShop(resolvedId);
   const shopName = shop?.name?.trim() || `店舗 ${code}`;
   const products = shop?.products?.slice(0, 3).join("・") ?? "";
   const description = products
-    ? `${shopName}（高知・日曜市 ${code}番）の出店情報。取扱商品: ${products}。`
-    : `${shopName}（高知・日曜市 ${code}番）の出店情報。インタラクティブ地図で場所を確認できます。`;
+    ? `${shopName}（高知・日曜市）の出店情報。取扱商品: ${products}。`
+    : `${shopName}（高知・日曜市）の出店情報。インタラクティブ地図で場所を確認できます。`;
 
   // 共有カードの写真はバナーと同じ（登録写真 → カテゴリの既定写真）。
   // 相対パス（既定写真）は今のホストで絶対 URL にする
@@ -72,7 +82,7 @@ export async function generateMetadata({ params }: ShopPageProps): Promise<Metad
   const images = shop
     ? [{ url: imageUrl, width: 800, height: 600, alt: shopName }]
     : [{ url: imageUrl, width: 1200, height: 630, alt: shopName }];
-  const pageTitle = `${shopName} – 日曜市 ${code}番`;
+  const pageTitle = `${shopName} – 高知・日曜市`;
 
   return {
     title: pageTitle,
@@ -108,14 +118,16 @@ export default async function ShopPage({ params }: ShopPageProps) {
     notFound();
   }
 
-  const shop = await fetchShop(shopId);
+  const resolvedId = await resolvePublicId(shopId);
+  if (resolvedId !== null && resolvedId !== shopId) redirect(`/shops/${resolvedId}`);
+  const shop = resolvedId === null ? null : await fetchShop(resolvedId);
   const shopName = shop?.name?.trim() || `店舗 ${normalizedCode}`;
 
   const localBusinessJsonLd = {
     "@context": "https://schema.org",
     "@type": "LocalBusiness",
     name: shopName,
-    description: shop?.shopStrength ?? `高知・日曜市 ${normalizedCode}番の出店者`,
+    description: shop?.shopStrength ?? "高知・日曜市の出店者",
     image: shop?.images?.main ?? undefined,
     address: {
       "@type": "PostalAddress",
@@ -129,20 +141,20 @@ export default async function ShopPage({ params }: ShopPageProps) {
 
   return (
     <>
-      <script
+      {shop && <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: safeJsonLd(localBusinessJsonLd) }}
-      />
+      />}
       <main className="mx-auto w-full max-w-2xl bg-nicchyo-base">
         {shop ? (
           // 地図で屋台をタップしたときと同じバナーを、そのまま1ページとして出す
           <ShopPageBanner shop={shop} shopCode={normalizedCode} />
         ) : (
           <section className="mx-4 my-10 rounded-2xl border border-amber-100 bg-white p-6 shadow-card">
-            <p className="text-xs font-semibold tracking-[0.12em] text-amber-700">日曜市 {normalizedCode}番</p>
+            <p className="text-xs font-semibold tracking-[0.12em] text-amber-700">日曜市の店舗情報</p>
             <h1 className="mt-1 text-2xl font-bold text-slate-900">{shopName}</h1>
             <p className="mt-3 text-sm leading-relaxed text-slate-600">
-              このお店の情報はまだ登録されていません。地図で場所だけ確認できます。
+              {resolvedId === null ? "以前の店舗番号に対応するお店を確認できません。番号が別のお店を指さないよう、対応を確認しています。" : "このお店の情報はまだ登録されていません。地図で場所を確認できます。"}
             </p>
             <a
               href={`/map?shop=${normalizedCode}`}

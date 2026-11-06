@@ -11,6 +11,7 @@ const VENDOR_COLUMNS =
 
 export type VendorRow = {
   id: string;
+  public_shop_id?: number;
   shop_name: string | null;
   strength: string | null;
   style: string | null;
@@ -326,7 +327,8 @@ export async function fetchVendorShopsFromDb(
 
 export function buildVendorShops(
   base: VendorShopBaseRows,
-  activeContents: ActiveContentRow[]
+  activeContents: ActiveContentRow[],
+  options?: { stableIds?: boolean }
 ): Shop[] {
   const { vendors, categories, products, locations, assignments } = base;
   const ownerNameByVendorId = new Map<string, string>();
@@ -399,6 +401,8 @@ export function buildVendorShops(
 
       const storeNumber = Number(location.store_number ?? 0);
       if (!Number.isFinite(storeNumber) || storeNumber <= 0) return null;
+      const publicId = options?.stableIds ? vendor.public_shop_id : storeNumber;
+      if (!Number.isSafeInteger(publicId) || (publicId as number) < (options?.stableIds ? 1000 : 1)) return null;
 
       // 最新のカテゴリ一覧を優先し、店舗JOINの古いスナップショットを上書きする
       const catRaw = vendor.categories;
@@ -434,7 +438,7 @@ export function buildVendorShops(
       const activePost = activePosts?.[0];
 
       return {
-        id: storeNumber,
+        id: publicId as number,
         vendorId: vendor.id,
         name: vendor.shop_name ?? "",
         ownerName: ownerNameByVendorId.get(vendor.id) ?? "",
@@ -474,9 +478,9 @@ export function buildVendorShops(
 
   const dedupedByStoreNumber = new Map<number, VisibleShopRow>();
   for (const shop of shops) {
-    const current = dedupedByStoreNumber.get(shop.id);
+    const current = dedupedByStoreNumber.get(shop.position);
     if (!current) {
-      dedupedByStoreNumber.set(shop.id, shop);
+      dedupedByStoreNumber.set(shop.position, shop);
       continue;
     }
 
@@ -485,11 +489,11 @@ export function buildVendorShops(
     const shouldReplace = !currentDate || (nextDate && nextDate > currentDate);
 
     console.warn(
-      `[fetchVendorShopsFromDb] duplicate store_number detected: ${shop.id} (${current.name} / ${shop.name})`
+      `[fetchVendorShopsFromDb] duplicate store_number detected: ${shop.position} (${current.name} / ${shop.name})`
     );
 
     if (shouldReplace) {
-      dedupedByStoreNumber.set(shop.id, shop);
+      dedupedByStoreNumber.set(shop.position, shop);
     }
   }
 

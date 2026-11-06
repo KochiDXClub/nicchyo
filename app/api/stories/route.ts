@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { createClient } from "@/utils/supabase/server";
+import { readPublicScheduleRollout } from "@/lib/market-schedule/rollout.server";
+import { fetchPublicShops } from "@/app/(public)/map/services/shopCache";
 
 export const dynamic = "force-dynamic";
 
@@ -66,7 +68,13 @@ export async function GET() {
     new Set(stories.map((s) => s.vendor?.id).filter((v): v is string => !!v))
   );
   const storeNumberByVendor = new Map<string, number>();
-  if (vendorIds.length > 0) {
+  let rollout: boolean | null = null;
+  try { rollout = await readPublicScheduleRollout(); } catch { /* 参照できないときは古い場所番号へ戻さない */ }
+  if (rollout === true) {
+    try {
+      for (const shop of await fetchPublicShops()) if (shop.vendorId) storeNumberByVendor.set(shop.vendorId, shop.id);
+    } catch { /* 投稿は返し、店舗へのリンクだけ非表示にする */ }
+  } else if (rollout === false && vendorIds.length > 0) {
     const { data: assignments } = await supabase
       .from("location_assignments")
       .select("vendor_id, market_date, market_locations(store_number)")

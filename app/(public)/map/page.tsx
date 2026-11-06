@@ -1,4 +1,4 @@
-﻿import { Metadata } from 'next';
+import { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import { Suspense } from 'react';
 import { cookies } from 'next/headers';
@@ -7,6 +7,7 @@ import MapPageClient from './MapPageClient';
 import MapLoadingOverlay from '../../components/MapLoadingOverlay';
 import type { Shop } from './data/shops';
 import { fetchPublicShops } from './services/shopCache';
+import { readPublicLegacyIdentities } from '@/lib/shops/publicIdentity.server';
 import { fetchLandmarksFromDb } from './services/landmarksDb';
 import type { Landmark } from './types/landmark';
 import { withOptimizedLandmarkImage } from './utils/landmarkImages';
@@ -90,9 +91,10 @@ export default async function MapPage() {
     }
   }
 
-  const [featureFlags, mapViewSettings] = await Promise.all([
+  const [featureFlags, mapViewSettings, legacyIdentities] = await Promise.all([
     featureFlagsPromise,
     mapViewSettingsPromise,
+    readPublicLegacyIdentities().catch(() => ({ enabled: true, aliases: {} })),
   ]);
 
   return (
@@ -105,6 +107,7 @@ export default async function MapPage() {
       <Suspense fallback={<MapLoadingOverlay minStage="page" />}>
         <MapPageClient
         shops={shops}
+        legacyIdentities={legacyIdentities}
         landmarks={landmarks}
         mapRoute={mapRoute}
         featureFlags={featureFlags}

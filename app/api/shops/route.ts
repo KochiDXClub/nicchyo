@@ -29,13 +29,12 @@ export async function GET(request: NextRequest) {
 
   try {
     const shops = await fetchPublicShops(locale);
-    // 認可判定を含まない公開データなので CDN にもキャッシュさせる。
-    // 投稿の出入りが最大 5 分遅れるが、この API はお気に入り・相談履歴の復元用で許容できる
+    // 出店予定と識別子の切替後に古い場所番号の一覧が残らないよう、CDN に保存しない。
     return NextResponse.json(
       { shops },
       {
         status: 200,
-        headers: { "Cache-Control": "public, s-maxage=300, stale-while-revalidate=3600" },
+        headers: { "Cache-Control": "private, no-store" },
       }
     );
   } catch (error) {

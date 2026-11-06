@@ -22,11 +22,12 @@ describe("sitemap", () => {
     expect(urls.some((u) => u.endsWith("/shops/999"))).toBe(true);
   });
 
-  it("MAX_SHOP_ID を超える・不正な店番は載せない", async () => {
+  it("公開店舗IDを載せ、不正な番号は載せない", async () => {
     fetchPublicShops.mockResolvedValue([{ id: 0 }, { id: 1000 }, { id: 1.5 }, { id: 2 }]);
     const urls = (await sitemap()).map((entry) => entry.url).filter((u) => u.includes("/shops/"));
-    expect(urls).toHaveLength(1);
-    expect(urls[0]).toMatch(/\/shops\/002$/);
+    expect(urls).toHaveLength(2);
+    expect(urls).toContainEqual(expect.stringMatching(/\/shops\/002$/));
+    expect(urls).toContainEqual(expect.stringMatching(/\/shops\/1000$/));
   });
 
   it("店舗の取得に失敗しても静的ページは返す", async () => {
