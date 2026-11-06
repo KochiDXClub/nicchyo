@@ -429,7 +429,7 @@ export default function MapEditClientV3() {
         limits={data.mapSettingsLimits}
         onToggleHistory={() => {
           setSheetOpen(true);
-          data.setIsHistoryOpen((v) => !v);
+          data.setIsHistoryOpen((v) => sheetOpen ? !v : true);
         }}
         hasUnsavedChanges={hasUnsavedChanges}
         isSaving={data.isSaving}
@@ -512,10 +512,11 @@ export default function MapEditClientV3() {
                 </div>
               </div>
             )}
+            {selection?.kind === "slot" && <button type="button" className="map-editor-lane-toggle" aria-expanded={laneOpen} aria-controls="map-editor-lane" onClick={() => setLaneOpen((v) => !v)}>{laneOpen ? "区画一覧を閉じる" : "区画一覧"}</button>}
+            <button type="button" className="map-editor-sheet-toggle" aria-expanded={sheetOpen} aria-controls="map-editor-aside" onClick={() => setSheetOpen(true)}>詳細・操作を開く</button>
           </div>
-          {selection?.kind === "slot" && <button type="button" className="map-editor-lane-toggle" onClick={() => setLaneOpen((v) => !v)}>{laneOpen ? "区画一覧を閉じる" : "区画一覧"}</button>}
           {selection?.kind === "slot" && (
-            <div className={`map-editor-lane ${laneOpen ? "" : "is-closed"}`}><RoadLaneView
+            <div id="map-editor-lane" className={`map-editor-lane ${laneOpen ? "" : "is-closed"}`}><RoadLaneView
               groups={laneGroups}
               selectedLocationId={selection.id}
               search={search}
@@ -528,9 +529,8 @@ export default function MapEditClientV3() {
           )}
         </div>
 
-        <button type="button" className="map-editor-sheet-toggle" onClick={() => setSheetOpen(true)}>詳細・操作を開く</button>
-        <aside className={`map-editor-aside ${sheetOpen ? "" : "is-closed"}`} aria-label="地図の詳細と操作">
-          <div className="map-editor-aside-header"><div><p>MAP EDITOR</p><h2>{data.isHistoryOpen ? "保存履歴" : selectedShop ? "区画の詳細" : selectedRoad ? "道の詳細" : selectedLandmark ? "建物の詳細" : "地図の詳細と操作"}</h2></div><button type="button" className="map-editor-sheet-close" onClick={() => setSheetOpen(false)}>地図に戻る</button></div>
+        <aside id="map-editor-aside" className={`map-editor-aside ${sheetOpen ? "" : "is-closed"}`} aria-label="地図の詳細と操作">
+          <div className="map-editor-aside-header"><div><p>MAP EDITOR</p><h2>{data.isHistoryOpen ? "保存履歴" : selectedShop ? "区画の詳細" : selectedRoad ? "道の詳細" : selectedLandmark ? "建物の詳細" : "地図の詳細と操作"}</h2></div><button type="button" className="map-editor-sheet-close" onClick={() => { setSheetOpen(false); data.setIsHistoryOpen(false); }}>地図に戻る</button></div>
           {data.isHistoryOpen ? (
             <SnapshotHistoryPanel
               snapshots={data.snapshots}
