@@ -63,7 +63,6 @@ function computeShopsAfterRequest(
 
 function validateShopAssignments(shops: EditableShop[]) {
   const vendorByPosition = new Map<number, string>();
-  const positionByVendor = new Map<string, number>();
 
   for (const shop of shops) {
     const vendorId = shop.vendorId?.trim();
@@ -75,11 +74,7 @@ function validateShopAssignments(shops: EditableShop[]) {
     }
     vendorByPosition.set(shop.position, vendorId);
 
-    const existingPosition = positionByVendor.get(vendorId);
-    if (existingPosition != null && existingPosition !== shop.position) {
-      return "同じ店舗を複数の店番に配置できません";
-    }
-    positionByVendor.set(vendorId, shop.position);
+    // それぞれ異なる日の配置履歴かもしれない。同じ店舗が複数の場所を持つこと自体は問題ない。
   }
 
   return null;
@@ -242,6 +237,9 @@ export async function PUT(request: NextRequest) {
     }
 
     const vendorsToWrite = body.vendors?.upsert ?? [];
+    if (vendorsToWrite.length > 0 || (body.vendors?.deletedIds?.length ?? 0) > 0) {
+      return NextResponse.json({ error: "店舗情報はマップ編集では変更できません。現場登録をご利用ください。" }, { status: 409 });
+    }
     // 更新する既存の出店者の、保存前の値（監査ログに残す）
     let vendorRowsBeforeSave: VendorRowBeforeSave[] = [];
     if (vendorsToWrite.length > 0) {
@@ -545,6 +543,9 @@ export async function PUT(request: NextRequest) {
     });
 
     if (saveError) {
+      if (saveError.message.includes("market_place_has_assignment_history")) return NextResponse.json({ error: "出店履歴のある場所は削除できません。履歴を保護するため保存を中止しました。" }, { status: 409 });
+      if (saveError.message.includes("market_place_memberships_location_id_fkey") || saveError.message.includes("market_place_schedule_overrides_location_id_fkey")) return NextResponse.json({ error: "店舗や予定が登録された場所は削除できません。" }, { status: 409 });
+      if (saveError.message.includes("map_assignment_edit_not_supported") || saveError.message.includes("map_vendor_edit_not_supported")) return NextResponse.json({ error: "店舗情報や出店配置はマップ編集では変更できません。画面を再読み込みしてください。" }, { status: 409 });
       if (saveError.message.includes("vendor_market_place_unregistered")) return NextResponse.json({ error: "先に現場登録でこの店舗の出店場所を設定してください。" }, { status: 409 });
       if (saveError.message.includes("vendor_market_place_mismatch")) return NextResponse.json({ error: "出店場所が登録されている店舗は、別の区画には配置できません。現場登録で出店場所を確認してください。" }, { status: 409 });
       if (saveError.message.includes("vendors_market_place_id_fkey") || saveError.message.includes("market_place_has_vendors")) return NextResponse.json({ error: "名前付きの出店場所は削除できません。出店場所と公開配置を確認してください。" }, { status: 409 });

@@ -249,12 +249,15 @@ export function useMapEditData({
           body: JSON.stringify({ snapshotId }),
         });
         if (!response.ok) {
-          setMessage("復元に失敗しました。");
+          const data = (await response.json().catch(() => null)) as { error?: string } | null;
+          setMessage(data?.error ?? "復元に失敗しました。");
           return;
         }
         await reloadAfterWrite();
         setMessage("スナップショットを復元しました。");
         await loadSnapshots();
+      } catch {
+        setMessage("復元に失敗しました。通信環境を確認してください。");
       } finally {
         setIsRestoring(null);
       }
