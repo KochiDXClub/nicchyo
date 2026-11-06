@@ -24,7 +24,7 @@ create table public.legacy_shop_identity_aliases (
   legacy_shop_id integer primary key check (legacy_shop_id between 1 and 999),
   vendor_id uuid references public.vendors(id) on delete set null,
   confirmed_at timestamptz not null default now(),
-  confirmed_by uuid not null,
+  confirmed_by uuid not null, -- auth.users.id。退会後も確認者の記録を残す。
   evidence text not null check (length(btrim(evidence)) between 1 and 1000)
 );
 alter table public.legacy_shop_identity_aliases enable row level security;
@@ -34,6 +34,10 @@ grant select, insert on public.legacy_shop_identity_aliases to service_role;
 create function public.protect_legacy_shop_identity_alias() returns trigger
 language plpgsql set search_path = '' as $$
 begin
+  if tg_op = 'INSERT' then
+    if new.vendor_id is null then raise exception 'legacy_shop_identity_requires_vendor'; end if;
+    return new;
+  end if;
   if tg_op = 'DELETE' then raise exception 'legacy_shop_identity_alias_is_immutable'; end if;
   -- FK の ON DELETE SET NULL のみ許可し、一度決めた参照先の変更を防ぐ。
   if new.legacy_shop_id is distinct from old.legacy_shop_id
@@ -44,11 +48,11 @@ begin
   then raise exception 'legacy_shop_identity_alias_is_immutable'; end if;
   return new;
 end $$;
-create trigger legacy_shop_identity_alias_immutable before update or delete on public.legacy_shop_identity_aliases
+create trigger legacy_shop_identity_alias_immutable before insert or update or delete on public.legacy_shop_identity_aliases
   for each row execute function public.protect_legacy_shop_identity_alias();
 
 -- 履歴は確認材料であって自動確定の根拠ではない（欠落・削除済みの履歴があり得る）。
-create view public.legacy_shop_identity_candidates as
+create view public.legacy_shop_identity_candidates with (security_invoker = true) as
   select location.store_number as legacy_shop_id,
     array_agg(distinct candidate.vendor_id order by candidate.vendor_id) as vendor_ids,
     count(distinct candidate.vendor_id) as candidate_count
