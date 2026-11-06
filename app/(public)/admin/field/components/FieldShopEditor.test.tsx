@@ -92,8 +92,8 @@ describe("FieldShopEditor", () => {
     expect(await screen.findByText("旧公開マップの配置記録（最新）")).toBeInTheDocument();
     expect(screen.getByText("店番 183・三丁目（記録日 2026-11-01）")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "いまの場所を記録する" })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "この場所を地図で確認" }));
-    expect(screen.getByRole("button", { name: "この位置を記録" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "公開マップを確認（新しいタブ）" })).toHaveAttribute("href", "/map?shop=183");
+    expect(screen.queryByRole("button", { name: "この位置を記録" })).not.toBeInTheDocument();
   });
 
   it("共通の出店場所がある場合は個別の位置を書き換えない", async () => {

@@ -511,7 +511,7 @@ export function FieldShopEditor({ shopId }: { shopId: string }) {
       </Card>
 
       <Card title="お店の位置" hint={hasSharedPlace ? "出店場所に紐づく区画の位置です。変更はマップ編集で行います。" : "お店の前で現在地を記録できます。記録はマップへ自動反映されません。"}>
-        {legacyPlacement && <div className="rounded-card border border-line bg-nicchyo-base p-3 text-sm"><strong>旧公開マップの配置記録（最新）</strong><p className="mt-1">店番 {legacyPlacement.storeNumber}{legacyPlacement.district ? `・${legacyPlacement.district}` : ""}（記録日 {legacyPlacement.marketDate}）</p><p className="mt-1 text-nicchyo-ink/70">現場で記録した位置とは別の履歴です。現在の公開状態はマップでも確認してください。</p><button type="button" className="mt-2 underline" onClick={() => { setPin({ lat: legacyPlacement.lat, lng: legacyPlacement.lng }); setShowMap(true); }}>この場所を地図で確認</button></div>}
+        {legacyPlacement && <div className="rounded-card border border-line bg-nicchyo-base p-3 text-sm"><strong>旧公開マップの配置記録（最新）</strong><p className="mt-1">店番 {legacyPlacement.storeNumber}{legacyPlacement.district ? `・${legacyPlacement.district}` : ""}（記録日 {legacyPlacement.marketDate}）</p><p className="mt-1 text-nicchyo-ink/70">現場で記録した位置とは別の履歴です。現在の公開状態はマップでも確認してください。</p><a className="mt-2 inline-block underline" href={`/map?shop=${legacyPlacement.storeNumber}`} target="_blank" rel="noopener noreferrer">公開マップを確認（新しいタブ）</a></div>}
         {hasSharedPlace ? <p className="text-sm">店番 {storeNumber} の区画を使用しています。</p> : <>
         <Field label={`店番（${MIN_SHOP_ID}〜${MAX_SHOP_ID}。住所録に無い新しい店は空のままでよい）`}>
           <input value={storeNumber} inputMode="numeric" onChange={(e) => setStoreNumber(e.target.value.replace(/\D/g, ""))} className={inputClass} />
