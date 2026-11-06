@@ -25,7 +25,6 @@ import ToolPalette from "./components/ToolPalette";
 import ToolHint from "./components/ToolHint";
 import SlotSplitPanel from "./components/SlotSplitPanel";
 import SlotMigrationPanel from "./components/SlotMigrationPanel";
-import StoreImportPanel from "./components/StoreImportPanel";
 
 const MAX_ZOOM_IDX = 2;
 // 道を描いている途中、既存の点からこの距離（メートル）以内をクリックしたら
@@ -61,9 +60,7 @@ export default function MapEditClientV3() {
 
   const [sheetOpen, setSheetOpen] = useState(false);
   const [laneOpen, setLaneOpen] = useState(false);
-  const [moveFrom, setMoveFrom] = useState<string | null>(null);
   const [search, setSearch] = useState("");
-  const [isImportOpen, setIsImportOpen] = useState(false);
   const [history, setHistory] = useState<EditHistory>(EMPTY_HISTORY);
   const changes = useMemo(() => netChanges(history), [history]);
   const unsavedKeys = useMemo(() => new Set(changes.map((change) => `${change.kind}:${change.id}`)), [changes]);
@@ -203,7 +200,6 @@ export default function MapEditClientV3() {
 
   const changeTool = useCallback(
     (next: Tool) => {
-      setMoveFrom(null);
       setDraft([]);
       setSplitRoadId(null);
       setSplitSettings(null);
@@ -217,26 +213,13 @@ export default function MapEditClientV3() {
 
   // ── 選択 ──────────────────────────────
   const selectShop = useCallback((locationId: string) => {
-    if (moveFrom) {
-      if (moveFrom === locationId) { setMessage("別の区画を選んでください。"); return; }
-      const target = shops.find((shop) => shop.locationId === locationId);
-      if (!target || !window.confirm(target.vendorId ? "移動先にも店舗があります。店舗を入れ替えますか？" : "この区画に店舗を移動しますか？")) return;
-      if (ops.moveVendor(moveFrom, locationId)) { setMoveFrom(null); setSelection({ kind: "slot", id: locationId }); setSheetOpen(true); }
-      return;
-    }
-    setIsImportOpen(false);
     setIsHistoryOpen(false);
     setSelection({ kind: "slot", id: locationId });
     setSheetOpen(true);
-  }, [moveFrom, shops, ops, setMessage, setIsHistoryOpen]);
+  }, [setIsHistoryOpen]);
 
-  // 出店者のピン（地図）・セル（区画レーン）を別の区画へドラッグしたら、移動先を選び直す
-  const dropVendor = useCallback(
-    (fromLocationId: string, toLocationId: string) => {
-      if (ops.moveVendor(fromLocationId, toLocationId)) setSelection({ kind: "slot", id: toLocationId });
-    },
-    [ops]
-  );
+  // 日付のない店舗移動は行わない。配置は開催日ごとの予定で管理する。
+  const dropVendor = useCallback(() => {}, []);
 
   // 下部の区画レーンで店舗名をタップした時・キーボードで移動した時は、選択に加えて
   // 地図側もその区画の位置へ移動する
@@ -250,17 +233,15 @@ export default function MapEditClientV3() {
 
   const selectRoad = useCallback(
     (roadId: string) => {
-      if (moveFrom) { setMessage("移動先の区画を選んでください。"); return; }
       if (tool === "splitSlots") {
         startSplit(roadId);
         return;
       }
       setSelection({ kind: "road", id: roadId });
-      setIsImportOpen(false);
-      setIsHistoryOpen(false);
+        setIsHistoryOpen(false);
       setSheetOpen(true);
     },
-    [tool, startSplit, setIsHistoryOpen, moveFrom, setMessage]
+    [tool, startSplit, setIsHistoryOpen]
   );
 
   // 道の一覧で名前をタップした時は、選択に加えて地図側もその道の位置へ移動する
@@ -355,7 +336,6 @@ export default function MapEditClientV3() {
         return;
       }
       if (e.key !== "Escape") return;
-      if (moveFrom) { setMoveFrom(null); return; }
       if (tool !== "select") backToSelect();
       else {
         // 名前や検索の入力欄で Esc を押しても、詳細パネルごと閉じない（入力の取り消しに使われるため）
@@ -371,7 +351,7 @@ export default function MapEditClientV3() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [tool, backToSelect, finishDraw, moveFrom]);
+  }, [tool, backToSelect, finishDraw]);
 
   useLaneKeyboardNavigation({
     enabled: tool === "select",
@@ -400,7 +380,7 @@ export default function MapEditClientV3() {
     onSelectShop: selectShop,
     onDropVendor: dropVendor,
     onSelectRoad: selectRoad,
-    onSelectLandmark: (key) => { setMoveFrom(null); setIsImportOpen(false); data.setIsHistoryOpen(false); setSelection({ kind: "landmark", id: key }); setSheetOpen(true); },
+    onSelectLandmark: (key) => { data.setIsHistoryOpen(false); setSelection({ kind: "landmark", id: key }); setSheetOpen(true); },
     onMoveLandmark: ops.moveLandmarkLive,
     onMoveLandmarkEnd: ops.moveLandmarkEnd,
     // 地図の空白部分クリック時の挙動は、今の道具によって変わる
@@ -448,16 +428,8 @@ export default function MapEditClientV3() {
         landmarkCount={landmarks.length}
         limits={data.mapSettingsLimits}
         onToggleHistory={() => {
-          setMoveFrom(null);
-          setIsImportOpen(false);
           setSheetOpen(true);
           data.setIsHistoryOpen((v) => !v);
-        }}
-        onToggleImport={() => {
-          setMoveFrom(null);
-          data.setIsHistoryOpen(false);
-          setSheetOpen(true);
-          setIsImportOpen((v) => !v);
         }}
         hasUnsavedChanges={hasUnsavedChanges}
         isSaving={data.isSaving}
@@ -514,8 +486,7 @@ export default function MapEditClientV3() {
                 }
               />
             </div>
-            {moveFrom && <div className="map-editor-hint"><div><ToolHint message="移動先の区画をタップしてください。店舗がいる場合は入れ替えます。" onCancel={() => setMoveFrom(null)} /></div></div>}
-            {toolHintMessage && !moveFrom && (
+            {toolHintMessage && (
               <div className="map-editor-hint">
                 {/* maxWidth: 案内が長いときも左上の道具パレットに重ならず、枠の中で折り返すように */}
                 <div style={{ pointerEvents: "auto", maxWidth: "100%", minWidth: 0 }}>
@@ -559,27 +530,8 @@ export default function MapEditClientV3() {
 
         <button type="button" className="map-editor-sheet-toggle" onClick={() => setSheetOpen(true)}>詳細・操作を開く</button>
         <aside className={`map-editor-aside ${sheetOpen ? "" : "is-closed"}`} aria-label="地図の詳細と操作">
-          <div className="map-editor-aside-header"><div><p>MAP EDITOR</p><h2>{isImportOpen ? "CSV取り込み" : data.isHistoryOpen ? "保存履歴" : selectedShop ? "区画の詳細" : selectedRoad ? "道の詳細" : selectedLandmark ? "建物の詳細" : "地図の詳細と操作"}</h2></div><button type="button" className="map-editor-sheet-close" onClick={() => setSheetOpen(false)}>地図に戻る</button></div>
-          {isImportOpen ? (
-            <StoreImportPanel
-              roads={roads}
-              chomeRanges={chomeRanges}
-              shops={shops}
-              vendors={data.vendors}
-              categories={data.categories}
-              onClose={() => setIsImportOpen(false)}
-              onApply={(plan) => {
-                if (!plan.next) return;
-                ops.applyStoreImport(
-                  plan.next,
-                  `出店者CSVを取り込み（区画 新規${plan.createdSlotCount}・更新${plan.updatedSlotCount}・削除${plan.deletedSlotCount}${plan.deletedVendorCount > 0 ? `／出店者 削除${plan.deletedVendorCount}` : ""}）`
-                );
-                setIsImportOpen(false);
-                setSelection(null);
-                setMessage("CSV を取り込みました。地図で内容を確かめてから「変更を保存」を押してください。");
-              }}
-            />
-          ) : data.isHistoryOpen ? (
+          <div className="map-editor-aside-header"><div><p>MAP EDITOR</p><h2>{data.isHistoryOpen ? "保存履歴" : selectedShop ? "区画の詳細" : selectedRoad ? "道の詳細" : selectedLandmark ? "建物の詳細" : "地図の詳細と操作"}</h2></div><button type="button" className="map-editor-sheet-close" onClick={() => setSheetOpen(false)}>地図に戻る</button></div>
+          {data.isHistoryOpen ? (
             <SnapshotHistoryPanel
               snapshots={data.snapshots}
               isLoadingSnapshots={data.isLoadingSnapshots}
@@ -639,7 +591,6 @@ export default function MapEditClientV3() {
                   categories={data.categories}
                   onSelectVendor={(vendorId) => ops.assignVendor(selectedShop.locationId, vendorId)}
                   onApplyFieldObservation={() => ops.applyFieldObservation(selectedShop.locationId)}
-                  onMoveVendor={() => { setMoveFrom(selectedShop.locationId); setSheetOpen(false); setTool("select"); }}
                   onRegisterVendor={(draft) => ops.registerVendor(selectedShop.locationId, draft)}
                   onUpdateVendor={(patch, logText, coalesceKey) =>
                     selectedShop.vendorId && ops.updateVendor(selectedShop.vendorId, patch, logText, { coalesceKey })

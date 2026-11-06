@@ -198,7 +198,7 @@ function buildShopFeatureCollection(
         // 地図に出す番号。住所録の番号（123-4）があればそれ、無ければ店番
         label: slotLabel(shop),
         opacity: match ? 1 : 0.15,
-        hasVendor: !!shop.vendorId && !shop.placeName,
+        hasVendor: false,
         // 出店者のいる区画はオレンジのピン、空き区画は赤で、ひと目で空きと分かるようにする
         color: shop.vendorId
           ? isSelected

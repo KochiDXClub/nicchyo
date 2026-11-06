@@ -1,6 +1,5 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { VENDOR_FIELD_LIMITS, slotLabel } from "../../../map/types/editableShop";
 import type { ChomeJudgement } from "@/lib/map/chomeBoundaries";
 import { CHOMES, getChome, normalizeChomeId, type ChomeId } from "@/lib/map/chomes";
@@ -14,12 +13,9 @@ import {
   label,
   noteStyle,
   panelWrap,
-  primaryButtonStyle,
 } from "./panelStyles";
 
 type VendorDraft = Omit<EditableVendor, "id">;
-
-const EMPTY_DRAFT: VendorDraft = { name: "", categoryId: null, strength: "", mainProducts: [] };
 
 /** 「柚子、文旦, 生姜」のような入力を、区切って空の項目を除く（件数は切らない） */
 function splitMainProducts(text: string): string[] {
@@ -32,92 +28,6 @@ function splitMainProducts(text: string): string[] {
 /** 「柚子、文旦, 生姜」のような入力を、主な商品の一覧に分ける（上限の件数まで） */
 export function parseMainProducts(text: string): string[] {
   return splitMainProducts(text).slice(0, VENDOR_FIELD_LIMITS.mainProductsMaxCount);
-}
-
-/**
- * 出店者の入力欄（店名・ジャンル・こだわり・主な商品）。
- * 主な商品は区切り文字を打っている途中で消えないよう、欄を離れたときに一覧へ直す。
- */
-function VendorFields({
-  value,
-  categories,
-  onChange,
-  onProductsCommit,
-}: {
-  value: VendorDraft;
-  categories: VendorCategory[];
-  onChange: (patch: Partial<VendorDraft>, field: "name" | "categoryId" | "strength") => void;
-  onProductsCommit: (products: string[]) => void;
-}) {
-  const [productsText, setProductsText] = useState(value.mainProducts.join("、"));
-  const [overLimit, setOverLimit] = useState(false);
-  const joined = value.mainProducts.join("、");
-  // 取り消し・やり直しや別の出店者への切り替えで一覧が変わったら、入力欄も合わせる
-  useEffect(() => setProductsText(joined), [joined]);
-
-  return (
-    <>
-      <label>
-        <span style={label}>店名（必須）</span>
-        <input
-          value={value.name}
-          maxLength={VENDOR_FIELD_LIMITS.nameMaxLength}
-          onChange={(e) => onChange({ name: e.target.value }, "name")}
-          style={inputStyle}
-        />
-      </label>
-      <label>
-        <span style={label}>ジャンル</span>
-        <select
-          value={value.categoryId ?? ""}
-          onChange={(e) => onChange({ categoryId: e.target.value || null }, "categoryId")}
-          style={inputStyle}
-        >
-          <option value="">（未設定）</option>
-          {categories.map((category) => (
-            <option key={category.id} value={category.id}>
-              {category.name}
-            </option>
-          ))}
-        </select>
-      </label>
-      <label>
-        <span style={label}>こだわり・説明</span>
-        <textarea
-          value={value.strength}
-          maxLength={VENDOR_FIELD_LIMITS.strengthMaxLength}
-          rows={3}
-          onChange={(e) => onChange({ strength: e.target.value }, "strength")}
-          style={{ ...inputStyle, resize: "vertical" }}
-        />
-      </label>
-      <label>
-        <span style={label}>主な商品（「、」で区切る・{VENDOR_FIELD_LIMITS.mainProductsMaxCount}件まで）</span>
-        <input
-          value={productsText}
-          onChange={(e) => {
-            setProductsText(e.target.value);
-            setOverLimit(false);
-          }}
-          onBlur={() => {
-            // 触っていない欄は、そのまま残す（上限を超えた既存の品目を、欄を離れただけで切り捨てない）
-            if (productsText === joined) return;
-            const items = splitMainProducts(productsText);
-            const products = parseMainProducts(productsText);
-            setOverLimit(items.length > products.length);
-            if (products.join("、") !== joined) onProductsCommit(products);
-            else setProductsText(joined);
-          }}
-          style={{ ...inputStyle, marginBottom: overLimit ? 4 : inputStyle.marginBottom }}
-        />
-        {overLimit && (
-          <span style={{ ...errorNoteStyle, display: "block", marginBottom: 12 }}>
-            主な商品は {VENDOR_FIELD_LIMITS.mainProductsMaxCount} 件までです。{VENDOR_FIELD_LIMITS.mainProductsMaxCount + 1} 件目以降は入れていません。
-          </span>
-        )}
-      </label>
-    </>
-  );
 }
 
 /** 自動判定の結果を、パネルに出す一文にする */
@@ -141,14 +51,7 @@ export default function SlotVendorPanel({
   shop,
   roadName,
   vendor,
-  vendors,
-  categories,
-  onSelectVendor,
   onApplyFieldObservation,
-  onMoveVendor,
-  onRegisterVendor,
-  onUpdateVendor,
-  onClearVendor,
   onChomeChange,
   autoChome,
   onDelete,
@@ -172,12 +75,6 @@ export default function SlotVendorPanel({
   autoChome: ChomeJudgement | null;
   onDelete: () => void;
 }) {
-  const [draft, setDraft] = useState<VendorDraft>(EMPTY_DRAFT);
-  // 別の区画を選んだら、入力途中の新しい出店者は捨てる
-  useEffect(() => setDraft(EMPTY_DRAFT), [shop.locationId]);
-
-  const fieldLog = { name: "の店名を変更", categoryId: "のジャンルを変更", strength: "のこだわりを変更" } as const;
-
   return (
     <div style={panelWrap}>
       <p style={{ margin: "0 0 4px", fontSize: 15, fontWeight: 900 }}>
@@ -229,33 +126,10 @@ export default function SlotVendorPanel({
         <p>この場所に登録されている店舗（公開配置とは別）:</p>
         {shop.placeVendors?.length ? <ul>{shop.placeVendors.map((item) => <li key={item.id}><a href={`/admin/field/${item.id}`} target="_blank" rel="noopener noreferrer">{item.name}（詳細を開く）</a></li>)}</ul> : <p>なし</p>}
       </div>}
-      <label>
-        <span style={label}>登録済みの出店者から選ぶ</span>
-        <select value={shop.vendorId ?? ""} onChange={(e) => {
-          const next = e.target.value;
-          const others = shop.placeVendors?.filter((item) => item.id !== next) ?? [];
-          if (next && shop.placeName && !shop.placeVendors?.some((item) => item.id === next)) {
-            window.alert("先に現場登録でこの店舗の出店場所を設定してください。");
-            return;
-          }
-          if (next && next !== shop.vendorId) {
-            const warnings = [shop.vendorId ? "現在配置されている店舗を入れ替えます。" : "", others.length > 0 ? `この出店場所には別の店舗が ${others.length} 件登録されています。` : ""].filter(Boolean);
-            if (warnings.length && !window.confirm(`${warnings.join("\n")}\n続けますか？`)) return;
-          }
-          onSelectVendor(next);
-        }} style={inputStyle}>
-          <option value="">（空き）</option>
-          {vendors.map((v) => (
-            <option key={v.id} value={v.id}>
-              {v.name}
-            </option>
-          ))}
-        </select>
-      </label>
-
       {vendor ? (
         <>
-          {!shop.placeName && onMoveVendor && <button type="button" onClick={onMoveVendor} style={{ ...buttonStyle, width: "100%", minHeight: 44, marginBottom: 14 }}>移動先の区画を選ぶ</button>}
+          <p style={{ ...label, marginTop: 4 }}>現在の公開配置</p>
+          <p><strong>{vendor.name}</strong> <a href={`/admin/field/${vendor.id}`} target="_blank" rel="noopener noreferrer">現場登録で店舗情報を確認</a></p>
           {!shop.placeName && vendor.fieldObservation && <div style={{ ...noteStyle, marginBottom: 12 }}>
             <p style={label}>現場で記録した位置（確認用）</p>
             <p>記録日時: {new Date(vendor.fieldObservation.updatedAt).toLocaleString("ja-JP", { timeZone: "Asia/Tokyo" })}<br />
@@ -268,50 +142,10 @@ export default function SlotVendorPanel({
               if (window.confirm("この区画を現場で記録した位置に移しますか？ 保存するまでマップには反映されません。")) onApplyFieldObservation?.();
             }}>現場の位置を編集内容に追加</button>
           </div>}
-          <p style={{ ...label, marginTop: 4 }}>出店者の情報</p>
-          <VendorFields
-            value={vendor}
-            categories={categories}
-            onChange={(patch, field) =>
-              onUpdateVendor(patch, fieldLog[field], field === "categoryId" ? undefined : `vendor-${field}:${vendor.id}`)
-            }
-            onProductsCommit={(mainProducts) => onUpdateVendor({ mainProducts }, "の主な商品を変更")}
-          />
-          {!vendor.name.trim() && <p style={errorNoteStyle}>店名が空のままでは保存できません。</p>}
-          <p style={noteStyle}>{shop.placeName ? "出店場所が登録された店舗は別の区画へ移せません。現場登録で場所を確認してください。" : "移動先の区画を選ぶか、地図のピンや区画一覧をドラッグして移動できます。出店者がいれば入れ替えます。"}</p>
         </>
-      ) : shop.placeName ? (
-        <p style={noteStyle}>新しい店舗は<a href="/admin/field" target="_blank" rel="noopener noreferrer">現場登録</a>で作成し、この場所を登録してから配置してください。</p>
-      ) : (
-        <>
-          <p style={{ ...label, marginTop: 4 }}>または、新しい出店者を登録</p>
-          <VendorFields
-            value={draft}
-            categories={categories}
-            onChange={(patch) => setDraft((prev) => ({ ...prev, ...patch }))}
-            onProductsCommit={(mainProducts) => setDraft((prev) => ({ ...prev, mainProducts }))}
-          />
-          <button
-            type="button"
-            disabled={!draft.name.trim()}
-            onClick={() => {
-              onRegisterVendor(draft);
-              setDraft(EMPTY_DRAFT);
-            }}
-            style={{ ...primaryButtonStyle, opacity: draft.name.trim() ? 1 : 0.45, marginBottom: 12 }}
-          >
-            この区画に登録
-          </button>
-          <p style={noteStyle}>登録した出店者は、あとから出店者本人のアカウントに紐づけられます。</p>
-        </>
-      )}
+      ) : <p style={noteStyle}>現在の公開配置はありません。</p>}
 
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-        {vendor && (
-          <button type="button" onClick={onClearVendor} style={buttonStyle} title={shop.placeName ? "公開配置だけを外し、出店場所の登録は残します" : "出店者の情報は消さず、この区画から外します"}>
-            {shop.placeName ? "公開配置を解除" : "空きにする"}
-          </button>
-        )}
         <button
           type="button"
           onClick={onDelete}
