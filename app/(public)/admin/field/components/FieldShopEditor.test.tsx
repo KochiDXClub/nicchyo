@@ -73,7 +73,7 @@ describe("FieldShopEditor", () => {
           return json(method === "DELETE" ? { ok: true } : { ok: true, name: "トマト", url: "https://x.supabase.co/tomato.webp" });
         }
         if (url.endsWith("/image")) return json({ ok: true, url: "https://x.supabase.co/img.webp", updated_at: "2026-10-05T00:00:00.000Z" });
-        if (url.endsWith("/market-place")) return json({ currentLocationId: null, places: [] });
+        if (url.endsWith("/api/admin/market-schedule")) return json({ places: [], memberships: [], periods: [], vendors: [], rules: [], overrides: [] });
         if (url.endsWith("/location") && method === "PUT") return json({ ok: true });
         if (url.endsWith("/location")) return json({ locations: [], current: { storeNumber: 12, lat: 33.5, lng: 133.5, sharedPlace } });
         if (url.includes("/categories")) return json({ categories: [] });

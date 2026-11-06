@@ -70,6 +70,22 @@ function setup(
 
 const settings = { mode: "count" as const, count: 3, intervalM: 10, sides: "left" as const, startM: 0, endM: 30 };
 
+describe("住所番号", () => {
+  it("枝番付き住所を別の場所として設定し、取り消せる", () => {
+    const { hook } = setup([slot(1, 5, { officialNumber: 183, branchNumber: 1 }), slot(2, 15)]);
+    act(() => { expect(hook.result.current.ops.setSlotAddress("loc-2", { main: 183, branch: 2 })).toBe(true); });
+    expect(hook.result.current.shops[1]).toMatchObject({ officialNumber: 183, branchNumber: 2 });
+    act(() => hook.result.current.ops.undo());
+    expect(hook.result.current.shops[1].officialNumber).toBeUndefined();
+  });
+  it("同じ住所の別のピンを作らない", () => {
+    const { hook, setMessage } = setup([slot(1, 5, { officialNumber: 183, branchNumber: 1 }), slot(2, 15)]);
+    act(() => { expect(hook.result.current.ops.setSlotAddress("loc-2", { main: 183, branch: 1 })).toBe(false); });
+    expect(setMessage).toHaveBeenCalledWith(expect.stringContaining("すでにあります"));
+    expect(hook.result.current.history.past).toHaveLength(0);
+  });
+});
+
 describe("現場位置の確認", () => {
   const vendor: EditableVendor = { id: "v1", name: "店", categoryId: null, strength: "", mainProducts: [], fieldObservation: { lat: 33.56, lng: 133.53, storeNumber: 1, accuracyM: 10, source: "gps", updatedAt: "2026-11-01T00:00:00Z" } };
   it("確認した位置を編集履歴に追加し、道との紐づけを外して取り消せる", () => {

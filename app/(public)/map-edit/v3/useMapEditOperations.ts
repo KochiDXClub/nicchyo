@@ -455,6 +455,17 @@ export function useMapEditOperations(params: Params) {
    * 区画の丁目を直す。丁目を選ぶと「手で設定」になり、自動判定で上書きしない。
    * "auto" を選ぶと手動設定を外し、道の位置から決め直す（決まらなければ今の丁目のまま）。
    */
+  const setSlotAddress = useCallback((locationId: string, address: { main: number; branch: number | null } | null) => {
+    const shop = shops.find((item) => item.locationId === locationId);
+    if (!shop) return false;
+    if (address && shops.some((item) => item.locationId !== locationId && item.officialNumber === address.main && (item.branchNumber ?? null) === address.branch)) {
+      setMessage("同じ住所の場所がすでにあります。登録済みの場所を選んでください。");
+      return false;
+    }
+    commit({ shops: shops.map((item) => item.locationId === locationId ? { ...item, officialNumber: address?.main, branchNumber: address?.branch ?? undefined } : item) }, String(shop.position), "場所の住所を変更");
+    return true;
+  }, [shops, commit, setMessage]);
+
   const setSlotChome = useCallback(
     (locationId: string, value: ChomeId | "auto") => {
       const shop = shops.find((s) => s.locationId === locationId);
@@ -689,6 +700,7 @@ export function useMapEditOperations(params: Params) {
     updateVendor,
     clearVendor,
     setSlotChome,
+    setSlotAddress,
     deleteSlot,
     applySlotPlan,
     applyStoreImport,

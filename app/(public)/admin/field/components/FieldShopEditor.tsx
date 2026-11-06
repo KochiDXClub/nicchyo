@@ -362,10 +362,7 @@ export function FieldShopEditor({ shopId }: { shopId: string }) {
 
       <FieldShopPhotoCard shopId={shopId} shop={shop} setShop={setShop} photoUseAllowedInForm={form.photo_use_allowed} />
 
-      <FieldMarketPlaceCard shopId={shopId} updatedAt={shop.updated_at} onSaved={async (updatedAt) => {
-        setShop((prev) => prev ? { ...prev, updated_at: updatedAt } : prev);
-        await refreshLocations();
-      }} />
+      <FieldMarketPlaceCard shopId={shopId} />
 
       <Card title="基本の情報">
         <Field label="店名">

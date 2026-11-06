@@ -6,13 +6,14 @@ afterEach(cleanup);
 const shop: EditableShop = { locationId: "loc-1", id: 1, position: 1, name: "朝市の店", lat: 0, lng: 0, vendorId: "v1" };
 const vendor: EditableVendor = { id: "v1", name: "朝市の店", categoryId: null, strength: "", mainProducts: ["野菜"] };
 function panel(place?: Partial<EditableShop>, observed = vendor, apply = vi.fn()) {
-  render(<SlotVendorPanel shop={{ ...shop, ...place }} roadName={null} vendor={observed} vendors={[observed]} categories={[]} onSelectVendor={vi.fn()} onApplyFieldObservation={apply} onRegisterVendor={vi.fn()} onUpdateVendor={vi.fn()} onClearVendor={vi.fn()} onChomeChange={vi.fn()} autoChome={null} onDelete={vi.fn()} />);
+  render(<SlotVendorPanel shop={{ ...shop, ...place }} roadName={null} vendor={observed} onApplyFieldObservation={apply} onChomeChange={vi.fn()} autoChome={null} onDelete={vi.fn()} />);
   return apply;
 }
 describe("SlotVendorPanel の店舗表示", () => {
   it("同じ出店場所に登録された店舗を表示し、店舗情報を編集できない", () => {
     panel({ placeName: "一丁目 南 2", placeVendors: [{ id: "a", name: "店A" }, { id: "b", name: "店B" }] });
-    expect(screen.getByRole("link", { name: "店A（詳細を開く）" })).toHaveAttribute("href", "/admin/field/a");
+    expect(screen.getByRole("button", { name: "店A" })).toBeTruthy();
+    expect(screen.getAllByRole("link", { name: "詳細を開く" })[0]).toHaveAttribute("href", "/admin/field/a");
     expect(screen.queryByDisplayValue("朝市の店")).toBeNull();
     expect(screen.getByRole("button", { name: "この区画を削除" })).toBeDisabled();
   });

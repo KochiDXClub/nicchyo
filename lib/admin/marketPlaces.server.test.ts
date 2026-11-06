@@ -2,11 +2,17 @@ import { describe, expect, it, vi } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { attachFieldObservations, attachSharedMarketPlaces, loadSharedMarketPlaces, readAllMarketRows } from "./marketPlaces.server";
 
-function db(places: unknown, vendors: unknown, assignments: unknown = { data: [], error: null }) {
-  return { from: vi.fn((table: string) => ({ select: () => ({ not: () => ({ order: () => ({ range: async () => table === "market_locations" ? places : table === "vendors" ? vendors : assignments }) }) }) })) } as unknown as SupabaseClient;
+function db(places: unknown, vendors: unknown, assignments: unknown = { data: [], error: null }, memberships: unknown = { data: [], error: null }) {
+  return { from: vi.fn((table: string) => ({ select: () => ({ not: () => ({ order: () => ({ range: async () => table === "market_locations" ? places : table === "vendors" ? vendors : table === "market_place_memberships" ? memberships : assignments }) }) }) })) } as unknown as SupabaseClient;
 }
 
 describe("共通出店場所", () => {
+  it("同じ店舗が複数の場所に登録されていれば、各場所に表示する", async () => {
+    const client = db({ data: [{ id: "x", place_name: "183-1", store_number: 1 }, { id: "y", place_name: "183-2", store_number: 2 }], error: null }, { data: [{ id: "a", shop_name: "店A", market_place_id: null }], error: null }, { data: [], error: null }, { data: [{ id: "m1", location_id: "x", vendor_id: "a" }, { id: "m2", location_id: "y", vendor_id: "a" }], error: null });
+    const result = await loadSharedMarketPlaces(client);
+    expect(result.get("x")?.vendors).toEqual([{ id: "a", name: "店A" }]);
+    expect(result.get("y")?.vendors).toEqual([{ id: "a", name: "店A" }]);
+  });
   it("範囲内の現場記録を確認用に添え、範囲外の記録は渡さない", async () => {
     const vendors = [{ id: "a", name: "店A", categoryId: null, strength: "", mainProducts: [] }, { id: "b", name: "店B", categoryId: null, strength: "", mainProducts: [] }];
     const client = db(null, null, { data: [{ vendor_id: "a", latitude: 33.56, longitude: 133.53, store_number: 1, accuracy_m: 10, source: "gps", updated_at: "2026-11-01T00:00:00Z" }, { vendor_id: "b", latitude: 0, longitude: 0, updated_at: "2026-11-01T00:00:00Z" }], error: null });

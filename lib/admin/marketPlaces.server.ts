@@ -24,12 +24,13 @@ export async function readAllMarketRows(client: SupabaseClient, table: string, c
 
 /** 管理者の画面に出す、名前付き区画とそこに登録された店舗。 */
 export async function loadSharedMarketPlaces(client: SupabaseClient): Promise<Map<string, SharedMarketPlace>> {
-  const [places, vendors, assignments] = await Promise.all([
+  const [places, vendors, assignments, memberships] = await Promise.all([
     readAllMarketRows(client, "market_locations", "id, store_number, place_name", "place_name"),
     readAllMarketRows(client, "vendors", "id, shop_name, market_place_id", "id"),
     readAllMarketRows(client, "location_assignments", "id, vendor_id, location_id, market_date, created_at", "vendor_id"),
+    readAllMarketRows(client, "market_place_memberships", "id, vendor_id, location_id", "id"),
   ]);
-  const errors = [places.error, vendors.error, assignments.error].filter(Boolean);
+  const errors = [places.error, vendors.error, assignments.error, memberships.error].filter(Boolean);
   if (errors.length && errors.every((error) => error?.code === "42703")) return new Map();
   if (errors.length) throw new Error("Failed to load shared market places");
   const result = new Map<string, SharedMarketPlace>();
@@ -43,9 +44,17 @@ export async function loadSharedMarketPlaces(client: SupabaseClient): Promise<Ma
     const previous = latest.get(id);
     if (!previous || date > previous.date || (date === previous.date && (created > previous.created || (created === previous.created && rowId > previous.id)))) latest.set(id, { locationId: row.location_id as string, date, created, id: rowId });
   }
+  const vendorById = new Map((vendors.data ?? []).map((vendor) => [vendor.id as string, vendor]));
+  const linkedPairs = new Set<string>();
+  for (const membership of memberships.data ?? []) {
+    const vendor = vendorById.get(membership.vendor_id as string);
+    if (!vendor) continue;
+    linkedPairs.add(`${String(vendor.id)}:${String(membership.location_id)}`);
+    result.get(membership.location_id as string)?.vendors.push({ id: vendor.id as string, name: vendor.shop_name as string });
+  }
   for (const vendor of vendors.data ?? []) {
     const locationId = (vendor.market_place_id as string | null) ?? latest.get(vendor.id as string)?.locationId;
-    if (locationId) result.get(locationId)?.vendors.push({ id: vendor.id as string, name: vendor.shop_name as string });
+    if (locationId && !linkedPairs.has(`${String(vendor.id)}:${locationId}`)) result.get(locationId)?.vendors.push({ id: vendor.id as string, name: vendor.shop_name as string });
   }
   return result;
 }
