@@ -1,6 +1,6 @@
 begin;
-insert into public.market_locations(id) values ('00000000-0000-0000-0000-000000000101');
-insert into public.vendors(id) values ('10000000-0000-0000-0000-000000000101'), ('10000000-0000-0000-0000-000000000102');
+insert into public.market_locations(id,store_number,latitude,longitude) values ('00000000-0000-0000-0000-000000000101',99003,33.56,133.53);
+insert into public.vendors(id,shop_name) values ('10000000-0000-0000-0000-000000000101','テスト店1'), ('10000000-0000-0000-0000-000000000102','テスト店2');
 do $$
 declare loc uuid := '00000000-0000-0000-0000-000000000101'; a uuid := '10000000-0000-0000-0000-000000000101'; b uuid := '10000000-0000-0000-0000-000000000102'; result jsonb; ma uuid; mb uuid; rule_id uuid; rev bigint;
 begin
@@ -37,6 +37,8 @@ begin
   if result->>'status' <> 'ok' then raise exception 'end failed %', result; end if;
   result := public.set_market_place_override(loc,'2026-11-15',ma,'set',null);
   if result->>'status' <> 'membership_inactive' then raise exception 'inactive override accepted %', result; end if;
+  result := public.add_market_place_membership(loc,a,'2026-11-29',false);
+  if result->>'status' <> 'confirmation_required' then raise exception 'reactivation must confirm other vendor %', result; end if;
   result := public.add_market_place_membership(loc,a,'2026-11-29',true,1);
   if result->>'status' <> 'ok' or (result->>'vendorNumber')::int <> 1 then raise exception 'reactivation changed number %',result; end if;
   if (select count(*) from public.market_place_membership_periods where membership_id=ma) <> 2 then raise exception 'period history not retained'; end if;

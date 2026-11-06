@@ -26,7 +26,6 @@ begin
   -- 引き継ぎや臨時出店も含め、終了済みの店舗がある場所でも登録前に知らせる。
   select count(*) into v_count from public.market_place_memberships m
     where m.location_id = p_location and m.vendor_id <> p_vendor;
-  if v_id is not null then v_count := 0; end if;
   if v_count > 0 and not coalesce(p_confirm, false) then
     return jsonb_build_object('status','confirmation_required','count',v_count);
   end if;
