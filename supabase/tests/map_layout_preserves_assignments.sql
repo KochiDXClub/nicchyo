@@ -1,4 +1,10 @@
 begin;
+-- 復元はスナップショットに含まれない区画を全域から扱うため、隔離した空のDBでのみ実行する。
+do $$ begin
+  if exists (select 1 from public.market_locations) or exists (select 1 from public.location_assignments) then
+    raise exception 'map layout test requires an empty isolated database';
+  end if;
+end $$;
 insert into public.vendors(id, shop_name) values ('11111111-1111-1111-1111-111111111111', '店A'), ('22222222-2222-2222-2222-222222222222', '店B');
 insert into public.market_locations(id,store_number,latitude,longitude) values ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 11, 33.56, 133.53), ('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 12, 33.56, 133.54);
 insert into public.location_assignments(location_id,vendor_id,market_date) values
@@ -12,7 +18,7 @@ declare
   other_item jsonb := jsonb_build_object('locationId',other,'position',12,'lat',33.56,'lng',133.54);
 begin
   perform public.save_map_layout(false, '[]', '[]', '[]', jsonb_build_array(item), '[]', '[]', '[]', '[]', null, '[]');
-  if (select count(*) from public.location_assignments where location_id = loc) <> 2 then raise exception 'save deleted assignment history'; end if;
+  if (select jsonb_agg(jsonb_build_array(vendor_id, market_date) order by market_date) from public.location_assignments where location_id = loc) is distinct from '[ ["11111111-1111-1111-1111-111111111111", "2026-11-01"], ["22222222-2222-2222-2222-222222222222", "2026-11-15"] ]'::jsonb then raise exception 'save changed assignment history'; end if;
   if (select latitude from public.market_locations where id = loc) <> 33.562 then raise exception 'location was not updated'; end if;
   -- 保存時に意図しない店舗変更を拒否し、区画の更新もロールバックする。
   begin
@@ -31,12 +37,14 @@ begin
   exception when check_violation then null; end;
   -- スナップショット上の古い店舗を復元しても現行の配置履歴は変更しない。
   perform public.restore_map_layout_snapshot(jsonb_build_array(item || '{"lat":33.56,"vendorId":"11111111-1111-1111-1111-111111111111"}'::jsonb, other_item), '[]', '[]', null, null);
-  if (select count(*) from public.location_assignments where location_id = loc) <> 2 then raise exception 'restore deleted assignment history'; end if;
+  if (select jsonb_agg(jsonb_build_array(vendor_id, market_date) order by market_date) from public.location_assignments where location_id = loc) is distinct from '[ ["11111111-1111-1111-1111-111111111111", "2026-11-01"], ["22222222-2222-2222-2222-222222222222", "2026-11-15"] ]'::jsonb then raise exception 'restore changed assignment history'; end if;
   if (select latitude from public.market_locations where id = loc) <> 33.56 then raise exception 'location was not restored'; end if;
   begin
     perform public.restore_map_layout_snapshot(jsonb_build_array(other_item), '[]', '[]', null, null);
     raise exception 'restore deleted a location with history';
-  exception when check_violation then null; end;
+  exception when check_violation then
+    if sqlerrm <> 'market_place_has_assignment_history' then raise; end if;
+  end;
   if (select count(*) from public.location_assignments where location_id = loc) <> 2 then raise exception 'failed restore deleted history'; end if;
 end $$;
 rollback;
