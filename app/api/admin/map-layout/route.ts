@@ -167,14 +167,21 @@ export async function GET() {
     const adminClient = createAdminClient();
     if (!adminClient) return NextResponse.json({ error: "管理者のデータベース接続が設定されていません" }, { status: 503 });
 
+    let fieldObservationsUnavailable = false;
+    const observedVendors = await attachFieldObservations(adminClient, vendors).catch((error: unknown) => {
+      fieldObservationsUnavailable = true;
+      console.error("[admin/map-layout] 現場位置の取得に失敗しました", error);
+      return vendors;
+    });
     return NextResponse.json({
+      fieldObservationsUnavailable,
       // false のあいだ（マイグレーション前）は、画面は開けるが保存と移行処理はできない
       schemaReady,
       shops: await attachSharedMarketPlaces(adminClient, editableShops),
       landmarks,
       route: mapRoute,
       roads,
-      vendors: await attachFieldObservations(adminClient, vendors),
+      vendors: observedVendors,
       categories,
       mapSettingsLimits,
       // 丁目の境目と区間（マイグレーション前は空）。画面が区画の丁目を自動判定するのに使う
