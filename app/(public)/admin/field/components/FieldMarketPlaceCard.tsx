@@ -10,7 +10,7 @@ export function FieldMarketPlaceCard({ shopId }: { shopId: string }) {
   const [error, setError] = useState("");
   useEffect(() => {
     let active = true;
-    void fetch("/api/admin/market-schedule", { cache: "no-store" }).then(async (response) => {
+    void fetch(`/api/admin/market-schedule?vendor=${encodeURIComponent(shopId)}`, { cache: "no-store" }).then(async (response) => {
       if (!response.ok) throw new Error("出店場所を取得できませんでした");
       const result = await response.json() as ScheduleAdminData;
       if (active) setData(result);

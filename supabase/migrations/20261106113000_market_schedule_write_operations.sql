@@ -60,6 +60,10 @@ begin
     where location_id = p_location and market_date = p_date for update;
   if v_current is distinct from p_expected then return jsonb_build_object('status','stale'); end if;
   if p_action = 'clear' and p_membership is not null then return jsonb_build_object('status','invalid'); end if;
+  -- 登録終了の更新と直列化し、確認後に終了日が変わる競合を防ぐ。
+  if p_action = 'set' and p_membership is not null then
+    perform 1 from public.market_place_memberships where id = p_membership for share;
+  end if;
   if p_action = 'set' and p_membership is not null and not exists (
     select 1 from public.market_place_memberships m
       join public.market_place_membership_periods p on p.membership_id = m.id

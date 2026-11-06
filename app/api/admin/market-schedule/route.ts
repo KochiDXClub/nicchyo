@@ -5,25 +5,24 @@ import { guardAdminWrite, UUID_RE } from "@/lib/admin/shopApiGuard";
 import { logAdminAudit } from "@/lib/audit/logAdminAudit";
 import { revalidatePublicShops } from "@/app/(public)/map/services/shopCache";
 import { readScheduleData } from "@/lib/market-schedule/read.server";
+import { isMarketDate } from "@/lib/market-schedule/calendar";
 import { privateNoStoreHeaders } from "@/lib/http/cacheHeaders";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const auth = await requireAdminApi();
     if ("error" in auth) return auth.error;
     const db = auth.adminClient as unknown as SupabaseClient;
-    const data = await readScheduleData(db);
+    const vendorId = new URL(request.url).searchParams.get("vendor");
+    if (vendorId !== null && !UUID_RE.test(vendorId)) return NextResponse.json({ error: "店舗IDを確認してください" }, { status: 400 });
+    const data = await readScheduleData(db, vendorId ?? undefined);
     return NextResponse.json(data, { headers: privateNoStoreHeaders() });
   } catch { return NextResponse.json({ error: "出店予定を取得できませんでした" }, { status: 500 }); }
 }
 
-function date(value: unknown): value is string {
-  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
-  const time = Date.parse(`${value}T00:00:00Z`);
-  return Number.isFinite(time) && new Date(time).toISOString().slice(0, 10) === value;
-}
+const date = isMarketDate;
 const uuid = (value: unknown): value is string => typeof value === "string" && UUID_RE.test(value);
 const optionalDate = (value: unknown): value is string | null => value === null || date(value);
 
@@ -54,7 +53,7 @@ export async function POST(request: Request) {
     const result = data as { status: string; count?: number };
     if (result.status === "confirmation_required") return NextResponse.json({ error: "この場所には別の店舗も登録されています。同じ場所に登録しますか？", needsConfirmation: true, count: result.count }, { status: 409 });
     if (result.status !== "ok") return NextResponse.json({ error: result.status === "stale" || result.status === "stale_confirmation" ? "別の画面で更新されました。読み直してから操作してください。" : result.status === "period_overlap" ? "この店舗はその期間にすでに登録されています。" : result.status === "membership_inactive" ? "その日はこの場所に登録されていません。" : "入力内容または登録期間を確認してください。" }, { status: 409 });
-    await logAdminAudit(guard.ctx.adminClient, { id: guard.ctx.user.id, email: guard.ctx.user.email, role: guard.ctx.role }, { action: "market_schedule_edit", targetType: "market_schedule", details: JSON.stringify({ action: body.action, ...args }), ipAddress: guard.ctx.ip });
+    await logAdminAudit(guard.ctx.adminClient, { id: guard.ctx.user.id, email: guard.ctx.user.email, role: guard.ctx.role }, { action: "market_schedule_edit", targetType: "market_schedule", targetId: typeof body.locationId === "string" ? body.locationId : typeof body.membershipId === "string" ? body.membershipId : null, details: JSON.stringify({ action: body.action, ...args }), ipAddress: guard.ctx.ip });
     revalidatePublicShops();
     return NextResponse.json({ ok: true, ...result });
   } catch { return NextResponse.json({ error: "出店予定を保存できませんでした" }, { status: 500 }); }
