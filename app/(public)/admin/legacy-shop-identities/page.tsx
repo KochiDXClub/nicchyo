@@ -34,11 +34,12 @@ export default function LegacyShopIdentitiesPage() {
   const candidate = data?.candidates.find((entry) => entry.legacy_shop_id === number);
   const alias = data?.aliases.find((entry) => entry.legacy_shop_id === number);
   const revocation = data?.revocations.find((entry) => entry.legacy_shop_id === number);
+  const aliasHistoryConflict = Boolean(alias && candidate && (candidate.candidate_count > 1 || (alias.vendor_id && !candidate.vendor_ids.includes(alias.vendor_id))));
   const name = useCallback((id: string) => data?.vendors.find((item) => item.id === id)?.shop_name || "名称未設定", [data]);
   const vendors = useMemo(() => [...(data?.vendors ?? [])].sort((a, b) => (a.shop_name ?? "").localeCompare(b.shop_name ?? "", "ja")), [data]);
 
   async function confirm() {
-    if (!number || !vendor || evidence.trim().length < 10 || alias) return;
+    if (!number || !vendor || evidence.trim().length < 10 || alias || (candidate?.candidate_count ?? 0) > 1 || (candidate && !candidate.vendor_ids.includes(vendor))) return;
     const code = String(number).padStart(3, "0");
     if (!window.confirm(`旧番号 ${code} を「${name(vendor)}」に確定します。確定後は別の店舗に変更できません。根拠を確認しましたか？`)) return;
     setBusy(true); setError(""); setNotice("");
@@ -98,14 +99,15 @@ export default function LegacyShopIdentitiesPage() {
         <section className="space-y-4 rounded-lg border border-line bg-white p-4">
           <h2 className="text-lg font-bold">旧番号を確認する</h2>
           <label className="block text-sm font-bold">旧番号（001〜999）<input className={`${input} mt-1`} inputMode="numeric" value={legacy} onChange={(e) => { setLegacy(e.target.value.replace(/\D/g, "").slice(0, 3)); setVendor(""); setEvidence(""); }} /></label>
-          {number > 0 && (alias ? <div className="space-y-2 rounded-lg bg-nicchyo-base p-3 text-sm"><strong>{revocation ? "取消済み" : "確定済み"}</strong><p>{alias.vendor_id ? name(alias.vendor_id) : "店舗は削除されています"}</p><p>確認根拠：{alias.evidence}</p>{revocation ? <p>取消理由：{revocation.reason}</p> : <><label className="block font-bold">取消理由（10文字以上）<textarea className={`${input} mt-1`} rows={2} maxLength={1000} value={evidence} onChange={(e) => setEvidence(e.target.value)} /></label><button type="button" className="min-h-11 underline disabled:opacity-50" disabled={busy || evidence.trim().length < 10} onClick={() => void revoke()}>この対応を取り消す</button><p>取り消した番号を別の店舗には付け直せません。</p></>}</div> : <>
+          {number > 0 && (alias ? <div className="space-y-2 rounded-lg bg-nicchyo-base p-3 text-sm"><strong>{revocation ? "取消済み" : "確定済み"}</strong>{!revocation && aliasHistoryConflict && <p role="alert" className="font-bold text-amber-800">配置履歴が確定内容と一致しないため、公開側ではこの対応を使用しません。</p>}<p>{alias.vendor_id ? name(alias.vendor_id) : "店舗は削除されています"}</p><p>確認根拠：{alias.evidence}</p>{revocation ? <p>取消理由：{revocation.reason}</p> : <><label className="block font-bold">取消理由（10文字以上）<textarea className={`${input} mt-1`} rows={2} maxLength={1000} value={evidence} onChange={(e) => setEvidence(e.target.value)} /></label><button type="button" className="min-h-11 underline disabled:opacity-50" disabled={busy || evidence.trim().length < 10} onClick={() => void revoke()}>この対応を取り消す</button><p>取り消した番号を別の店舗には付け直せません。</p></>}</div> : <>
             <div className="rounded-lg bg-nicchyo-base p-3 text-sm"><strong>配置履歴の候補</strong>{candidate?.vendor_ids.length ? <ul className="mt-1 list-inside list-disc">{candidate.vendor_ids.map((id) => <li key={id}>{name(id)}</li>)}</ul> : <p>履歴から候補は見つかりませんでした。</p>}<p className="mt-2 text-nicchyo-ink/70">候補が１店舗でも、古い履歴が残っていない可能性があります。</p></div>
+            {(candidate?.candidate_count ?? 0) > 1 && <p role="alert" className="text-sm font-bold text-amber-800">複数の店舗に使われた番号は、過去のお気に入りの店舗を一つに決められないため確定できません。</p>}
             <label className="block text-sm font-bold">対応する店舗<select className={`${input} mt-1`} value={vendor} onChange={(e) => setVendor(e.target.value)}><option value="">店舗を選択</option>{vendors.map((item) => <option key={item.id} value={item.id}>{item.shop_name || "名称未設定"}（店舗 ID {item.public_shop_id}）</option>)}</select></label>
             <label className="block text-sm font-bold">確認した根拠（10文字以上）<textarea className={`${input} mt-1`} rows={3} maxLength={1000} value={evidence} onChange={(e) => setEvidence(e.target.value)} /></label>
-            <button type="button" className="min-h-11 rounded-lg bg-amber-800 px-4 py-2 font-bold text-white disabled:opacity-50" disabled={busy || !vendor || evidence.trim().length < 10} onClick={() => void confirm()}>この対応を確定</button>
+            <button type="button" className="min-h-11 rounded-lg bg-amber-800 px-4 py-2 font-bold text-white disabled:opacity-50" disabled={busy || !vendor || evidence.trim().length < 10 || (candidate?.candidate_count ?? 0) > 1 || Boolean(candidate && vendor && !candidate.vendor_ids.includes(vendor))} onClick={() => void confirm()}>この対応を確定</button>
           </>)}
         </section>
-        <section className="rounded-lg border border-line bg-white p-4"><h2 className="text-lg font-bold">履歴に候補がある番号</h2><p className="mt-1 text-sm text-nicchyo-ink/70">番号を押すと内容を確認できます。未確定の番号は自動で変更されません。</p><div className="mt-3 flex flex-wrap gap-2">{data.candidates.map((item) => <button type="button" key={item.legacy_shop_id} className="min-h-11 rounded-lg border border-line px-3 text-sm" onClick={() => { setLegacy(String(item.legacy_shop_id)); setVendor(""); setEvidence(""); }}>{String(item.legacy_shop_id).padStart(3, "0")} {data.revocations.some((entry) => entry.legacy_shop_id === item.legacy_shop_id) ? "取消済" : data.aliases.some((entry) => entry.legacy_shop_id === item.legacy_shop_id) ? "確定済" : item.candidate_count > 1 ? "複数候補" : "未確認"}</button>)}</div></section>
+        <section className="rounded-lg border border-line bg-white p-4"><h2 className="text-lg font-bold">履歴に候補がある番号</h2><p className="mt-1 text-sm text-nicchyo-ink/70">番号を押すと内容を確認できます。未確定の番号は自動で変更されません。</p><div className="mt-3 flex flex-wrap gap-2">{data.candidates.map((item) => <button type="button" key={item.legacy_shop_id} className="min-h-11 rounded-lg border border-line px-3 text-sm" onClick={() => { setLegacy(String(item.legacy_shop_id)); setVendor(""); setEvidence(""); }}>{String(item.legacy_shop_id).padStart(3, "0")} {data.revocations.some((entry) => entry.legacy_shop_id === item.legacy_shop_id) ? "取消済" : item.candidate_count > 1 ? "複数候補" : data.aliases.some((entry) => entry.legacy_shop_id === item.legacy_shop_id) ? "確定済" : "未確認"}</button>)}</div></section>
       </>}
     </main></AdminLayout>;
 }

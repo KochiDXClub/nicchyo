@@ -46,6 +46,9 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "番号、店舗と確認した根拠を入力してください" }, { status: 400 });
     }
     const db = guard.ctx.adminClient as unknown as SupabaseClient;
+    const { data: candidate, error: candidateError } = await db.from("legacy_shop_identity_candidates").select("vendor_ids,candidate_count").eq("legacy_shop_id", legacyId).maybeSingle();
+    if (candidateError) return NextResponse.json({ error: "配置履歴を確認できませんでした" }, { status: 503 });
+    if (candidate && (Number(candidate.candidate_count) > 1 || !Array.isArray(candidate.vendor_ids) || !candidate.vendor_ids.includes(vendorId))) return NextResponse.json({ error: "履歴が複数あるか、選択した店舗と一致しません。自動移行の対象にはできません。" }, { status: 409 });
     const { error } = await db.from("legacy_shop_identity_aliases").insert({ legacy_shop_id: legacyId, vendor_id: vendorId, confirmed_by: guard.ctx.user.id, evidence });
     if (error?.code === "23505") return NextResponse.json({ error: "この番号はすでに確定しています。画面を再読み込みしてください。" }, { status: 409 });
     if (error?.code === "23503") return NextResponse.json({ error: "店舗が見つかりません。画面を再読み込みしてください。" }, { status: 409 });

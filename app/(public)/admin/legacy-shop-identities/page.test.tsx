@@ -24,6 +24,16 @@ describe("旧番号の確認画面", () => {
     fireEvent.click(screen.getByRole("button", { name: "この対応を確定" }));
     await waitFor(() => expect(fetcher.mock.calls.some(([, init]) => init?.method === "POST")).toBe(true));
   });
+  it("複数店舗の履歴がある番号は確定できない", async () => {
+    const ambiguous = { ...data, candidates: [{ legacy_shop_id: 12, vendor_ids: [vendor, "another"], candidate_count: 2 }] };
+    vi.stubGlobal("fetch", vi.fn(async (url: string) => new Response(JSON.stringify(url.includes("public-schedule") ? settings : ambiguous), { status: 200 })));
+    render(<Page />);
+    fireEvent.change(await screen.findByLabelText("旧番号（001〜999）"), { target: { value: "012" } });
+    fireEvent.change(screen.getByLabelText("対応する店舗"), { target: { value: vendor } });
+    fireEvent.change(screen.getByLabelText("確認した根拠（10文字以上）"), { target: { value: "紙の住所録を確認しました" } });
+    expect(screen.getByText(/複数の店舗に使われた番号/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "この対応を確定" })).toBeDisabled();
+  });
   it("今後の予定に競合がある間は公開できない", async () => {
     vi.stubGlobal("fetch", vi.fn(async (url: string) => new Response(JSON.stringify(url.includes("public-schedule") ? { ...settings, summary: { ...settings.summary, conflicts: 1 } } : data), { status: 200 })));
     render(<Page />);

@@ -332,19 +332,22 @@ export function migrateFavoriteShopIdentities(aliases: Readonly<Record<string, n
   return changed;
 }
 
-let favoriteIdentityMigration: Promise<void> | null = null;
+let favoriteIdentityMigration: Promise<boolean> | null = null;
 /** 認証不要の公開済み対応だけを取得し、取得失敗時は後で再試行する。 */
-export function tryMigrateFavoriteShopIdentities(): Promise<void> {
-  if (typeof window === "undefined" || !loadFavoriteEntries().some((entry) => (entry.shopId >= 1 && entry.shopId <= 999) || entry.legacyShopId !== undefined)) return Promise.resolve();
+export function tryMigrateFavoriteShopIdentities(): Promise<boolean> {
+  if (typeof window === "undefined" || !loadFavoriteEntries().some((entry) => (entry.shopId >= 1 && entry.shopId <= 999) || entry.legacyShopId !== undefined)) return Promise.resolve(true);
   if (favoriteIdentityMigration) return favoriteIdentityMigration;
   favoriteIdentityMigration = (async () => {
     try {
       const response = await fetch("/api/shops/legacy-identities", { cache: "no-store" });
-      if (!response.ok) return;
+      if (!response.ok) return false;
       const data = await response.json() as { enabled?: boolean; aliases?: unknown };
-      if (data.enabled && data.aliases && typeof data.aliases === "object" && !Array.isArray(data.aliases)) migrateFavoriteShopIdentities(data.aliases as Record<string, number>);
+      if (!data.enabled || !data.aliases || typeof data.aliases !== "object" || Array.isArray(data.aliases)) return false;
+      migrateFavoriteShopIdentities(data.aliases as Record<string, number>);
+      return true;
     } catch {
       // 古いデータはそのまま残し、次の表示時に再試行する。
+      return false;
     }
   })().finally(() => { favoriteIdentityMigration = null; });
   return favoriteIdentityMigration;
