@@ -2,10 +2,11 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { ScheduleAdminData } from "./adminTypes";
 
 /** 管理者用データ。PostgRESTの上限を超えても後半を黙って欠落させない。 */
-export async function readScheduleRows(client: SupabaseClient, table: string, fields: string, order: string[]) {
+export async function readScheduleRows(client: SupabaseClient, table: string, fields: string, order: string[], vendorId?: string) {
   const result: Record<string, unknown>[] = [];
   for (let start = 0; ; start += 500) {
     let query = client.from(table).select(fields);
+    if (vendorId) query = query.eq("vendor_id", vendorId);
     for (const key of order) query = query.order(key);
     const { data, error } = await query.range(start, start + 499);
     if (error) throw new Error(`Failed to load ${table}`);
@@ -14,7 +15,7 @@ export async function readScheduleRows(client: SupabaseClient, table: string, fi
     if (page.length < 500) return result;
   }
 }
-export async function readScheduleData(db: SupabaseClient): Promise<ScheduleAdminData> {
+export async function readScheduleData(db: SupabaseClient, vendorId?: string): Promise<ScheduleAdminData> {
   const [places, vendors, memberships, periods, rules, overrides, marketDays, legacyAssignments] = await Promise.all([
     readScheduleRows(db, "market_locations", "id,store_number,official_number,branch_number,district,place_name", ["id"]),
     readScheduleRows(db, "vendors", "id,shop_name,market_place_id", ["id"]),
@@ -23,7 +24,7 @@ export async function readScheduleData(db: SupabaseClient): Promise<ScheduleAdmi
     readScheduleRows(db, "market_place_schedule_rules", "id,membership_id,period_id,cadence,starts_on,ends_on,anchor_on,month_weeks,voided_at", ["id"]),
     readScheduleRows(db, "market_place_schedule_overrides", "location_id,market_date,membership_id,updated_at,revision,is_cleared", ["location_id", "market_date"]),
     readScheduleRows(db, "market_days", "market_date,status", ["market_date"]),
-    readScheduleRows(db, "location_assignments", "id,vendor_id,location_id,market_date", ["id"]),
+    readScheduleRows(db, "location_assignments", "id,vendor_id,location_id,market_date", ["id"], vendorId),
   ]);
   return { places, vendors, memberships, periods, rules, overrides, marketDays, legacyAssignments } as unknown as ScheduleAdminData;
 }
