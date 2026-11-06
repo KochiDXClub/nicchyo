@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { AdminLayout, AdminPageHeader } from "@/components/admin";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { ShopPreview } from "@/components/admin/ShopPreview";
+import { SchedulePlaceMap } from "./components/SchedulePlaceMap";
 import { formatMarketAddress } from "@/lib/market-schedule/address";
 import { sundaysBetween } from "@/lib/market-schedule/calendar";
 import { resolveSchedule } from "@/lib/market-schedule/resolve";
@@ -80,6 +81,8 @@ export default function MarketSchedulePage() {
     return [...latest.entries()];
   }, [data, vendor]);
 
+  const selectLocation = useCallback((id: string) => { setLocation(id); setMembership(""); setPreviewVendor(null); }, []);
+
   async function mutate(body: Record<string, unknown>, allowConfirmation = false) {
     setBusy(true); setError(""); setNotice("");
     try {
@@ -107,16 +110,21 @@ export default function MarketSchedulePage() {
       {!data ? <p>読み込み中…</p> : <>
         <section className="space-y-3 rounded-lg border border-nicchyo-ink/10 bg-white p-4">
           <h2 className="text-lg font-bold">出店場所</h2>
-          <label className="block text-sm font-bold">場所を選ぶ<select className={`${control} mt-1`} value={location} onChange={(e) => { setLocation(e.target.value); setMembership(""); }}><option value="">場所を選択</option>{locations.map((place) => <option key={place.id} value={place.id}>{placeLabel(place)}</option>)}</select></label>
-          <p className="text-sm text-nicchyo-ink/70">店舗情報の編集は現場登録、住所や地図上の位置はマップ編集で行います。</p>
-          <a className="text-sm font-bold text-nicchyo-primary underline" href="/admin/map-edit">マップ編集を開く</a>
+          <div className="grid gap-4 md:grid-cols-[minmax(0,2fr)_minmax(220px,1fr)]">
+            <SchedulePlaceMap places={locations} selected={location} onSelect={selectLocation} />
+            <div className="space-y-3">
+              <label className="block text-sm font-bold">場所を選ぶ<select className={`${control} mt-1`} value={location} onChange={(e) => selectLocation(e.target.value)}><option value="">場所を選択</option>{locations.map((place) => <option key={place.id} value={place.id}>{placeLabel(place)}</option>)}</select></label>
+              <p className="text-sm text-nicchyo-ink/70">店舗情報の編集は現場登録、住所や地図上の位置はマップ編集で行います。</p>
+              <a className="text-sm font-bold text-nicchyo-primary underline" href="/admin/map-edit">マップ編集を開く</a>
+            </div>
+          </div>
         </section>
         <section className="space-y-3 rounded-lg border border-nicchyo-ink/10 bg-white p-4">
           <h2 className="text-lg font-bold">この場所に店舗を登録</h2>
           <div className="grid gap-3 sm:grid-cols-2"><label className="block text-sm font-bold">店舗<select className={`${control} mt-1`} value={vendor} onChange={(e) => setVendor(e.target.value)}><option value="">店舗を選択</option>{[...data.vendors].sort((a,b) => (a.shop_name ?? "").localeCompare(b.shop_name ?? "", "ja")).map((item) => <option key={item.id} value={item.id}>{item.shop_name || "名称未設定"}</option>)}</select></label>
             <label className="block text-sm font-bold">登録開始日<input type="date" className={`${control} mt-1`} value={start} onChange={(e) => setStart(e.target.value)} /></label></div>
           <button type="button" className={button} disabled={busy || !location || !vendor || !start} onClick={() => void mutate({ action: "addMembership", locationId: location, vendorId: vendor, start, confirmed: false, seenCount: null }, true)}>場所に登録</button>
-          {legacyPlaces.length > 0 && <div className="rounded-lg bg-amber-50 p-3 text-sm"><p>旧データに未移行の場所があります。日付や場所を確認してから登録してください。旧データだけで予定は自動作成しません。</p><ul>{legacyPlaces.map(([id, date]) => { const place = locations.find((item) => item.id === id); return <li key={id}><button type="button" className="underline" onClick={() => setLocation(id)}>{place ? placeLabel(place) : "場所不明"}</button>{date ? `（記録日 ${date}）` : "（旧形式の登録）"}</li>; })}</ul></div>}
+          {legacyPlaces.length > 0 && <div className="rounded-lg bg-amber-50 p-3 text-sm"><p>旧データに未移行の場所があります。日付や場所を確認してから登録してください。旧データだけで予定は自動作成しません。</p><ul>{legacyPlaces.map(([id, date]) => { const place = locations.find((item) => item.id === id); return <li key={id}><button type="button" className="underline" onClick={() => selectLocation(id)}>{place ? placeLabel(place) : "場所不明"}</button>{date ? `（記録日 ${date}）` : "（旧形式の登録）"}</li>; })}</ul></div>}
           <ul className="space-y-2 text-sm">{locationMembers.map((item) => { const open = data.periods.find((period) => period.membership_id === item.id && period.ends_on === null); return <li key={item.id} className="flex flex-wrap items-center gap-3 border-t border-nicchyo-ink/10 pt-2"><button type="button" className="font-bold underline" onClick={() => setPreviewVendor(item.vendor_id)}>店舗{item.vendor_number}：{vendorName(item.vendor_id)}</button><span>{data.periods.filter((period) => period.membership_id === item.id).map((period) => `${period.starts_on}〜${period.ends_on ?? "継続中"}`).join("、") || "期間未設定"}</span><a className="text-nicchyo-primary underline" href={`/admin/field/${item.vendor_id}`}>店舗情報</a>{open && <span className="flex flex-wrap items-center gap-2"><label>終了日<input type="date" aria-label={`${vendorName(item.vendor_id)}の登録終了日`} className={control} value={endDates[`member:${item.id}`] ?? ""} onChange={(event) => setEndDates((current) => ({ ...current, [`member:${item.id}`]: event.target.value }))} /></label><button type="button" className="underline" disabled={busy || !endDates[`member:${item.id}`]} onClick={() => { if (window.confirm("この日で場所への登録を終了しますか？ 過去の履歴と店舗番号は残ります。")) void mutate({ action: "endMembership", membershipId: item.id, end: endDates[`member:${item.id}`], expectedStart: open.starts_on }); }}>出店終了</button></span>}</li>; })}</ul>
           {previewVendor && <ShopPreview vendorId={previewVendor} position={locations.find((item) => item.id === location)?.store_number ?? 1} onClose={() => setPreviewVendor(null)} />}
         </section>
@@ -137,7 +145,7 @@ export default function MarketSchedulePage() {
           <p className="text-sm">店舗を基準に、同じ日付の全場所を確認できます。場所名を押すと、その場所の予定を編集できます。</p>
           {vendorPlan.map((day) => <div key={day.date} className="flex flex-wrap gap-2 border-t border-nicchyo-ink/10 py-2 text-sm"><strong>{day.date}</strong>{day.places.length ? day.places.map((item) => {
             const place = locations.find((entry) => entry.id === item.locationId);
-            return <button type="button" key={item.locationId} className="text-nicchyo-primary underline" onClick={() => setLocation(item.locationId)}>{place ? placeLabel(place) : "場所不明"}{item.state === "conflict" ? "（競合）" : ""}</button>;
+            return <button type="button" key={item.locationId} className="text-nicchyo-primary underline" onClick={() => selectLocation(item.locationId)}>{place ? placeLabel(place) : "場所不明"}{item.state === "conflict" ? "（競合）" : ""}</button>;
           }) : <span>{day.marketClosed ? "日曜市は中止・休み" : "予定なし・未設定"}</span>}</div>)}
         </section>}
       </>}
