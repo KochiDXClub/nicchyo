@@ -16,6 +16,10 @@ begin
   insert into public.location_assignments(location_id, vendor_id, market_date) values (loc, v1, '2026-11-01'), (loc, v2, '2026-11-08'), (loc, v2, '2026-11-15');
   assert (select candidate_count = 2 from public.legacy_shop_identity_candidates where legacy_shop_id = test_number), 'candidate history must retain ambiguity';
   assert not has_table_privilege('anon', 'public.legacy_shop_identity_candidates', 'select'), 'candidate history is private';
+  changed := false;
+  begin insert into public.legacy_shop_identity_aliases(legacy_shop_id, vendor_id, confirmed_by, evidence) values (test_number, null, gen_random_uuid(), 'invalid');
+  exception when raise_exception then changed := true; end;
+  assert changed, 'null vendor must not reserve a legacy number';
   insert into public.legacy_shop_identity_aliases(legacy_shop_id, vendor_id, confirmed_by, evidence)
     values (test_number, v1, gen_random_uuid(), 'operator verified');
   changed := false;
