@@ -87,6 +87,16 @@ describe("現場位置の確認", () => {
   });
 });
 
+describe("場所に登録済みの店舗", () => {
+  it("公開配置がなくても別の区画に割り当てない", () => {
+    const { hook, setMessage } = setup([slot(1, 5, { placeName: "一丁目", placeVendors: [{ id: "va", name: "店A" }] }), slot(2, 15)], 300, [vendor("va", "店A")]);
+    act(() => hook.result.current.ops.assignVendor("loc-2", "va"));
+    expect(hook.result.current.shops[1].vendorId).toBeUndefined();
+    expect(hook.result.current.history.past).toHaveLength(0);
+    expect(setMessage).toHaveBeenCalledWith(expect.stringContaining("現場登録"));
+  });
+});
+
 describe("useMapEditOperations.applySlotPlan", () => {
   it("足りない区画を空いている店番で作り、同じ道の区画に合わせた位置・丁目にする", () => {
     const existing = [slot(1, 5), slot(3, 15, { roadOffsetM: 10 })];
