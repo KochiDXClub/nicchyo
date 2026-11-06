@@ -1,9 +1,9 @@
 .map-editor {
-  --editor-green: #123e2d;
-  --editor-bg: #fbf7ee;
-  --editor-line: #e4d9bf;
-  --editor-ink: #33302b;
-  --editor-muted: #7a7264;
+  --editor-green: theme('colors.amber.800');
+  --editor-bg: theme('colors.nicchyo-base');
+  --editor-line: theme('colors.line.warm');
+  --editor-ink: theme('colors.nicchyo-ink');
+  --editor-muted: color-mix(in srgb, theme('colors.nicchyo-ink') 70%, transparent);
   height: 100vh;
   height: 100dvh;
   width: 100%;
@@ -211,7 +211,7 @@
   padding:6px;
   background:white;
   border-radius:12px;
-  box-shadow:0 2px 8px rgba(15,23,42,.18);
+  box-shadow:theme('boxShadow.card');
 }
 .map-editor-palette button {
   display:flex;
@@ -315,7 +315,7 @@
     height:min(60%, 540px);
     border:1px solid var(--editor-line);
     border-radius:18px 18px 0 0;
-    box-shadow:0 -6px 24px rgba(15,23,42,.18);
+    box-shadow:theme('boxShadow.card');
     padding-bottom:env(safe-area-inset-bottom);
   }
   .map-editor-aside.is-closed {
@@ -334,7 +334,7 @@
     z-index:3;
     bottom:calc(12px + env(safe-area-inset-bottom));
     left:12px;
-    box-shadow:0 2px 8px rgba(15,23,42,.18);
+    box-shadow:theme('boxShadow.card');
     background:var(--editor-green);
     color:white;
     border-color:var(--editor-green);
@@ -345,7 +345,7 @@
     z-index:3;
     bottom:calc(64px + env(safe-area-inset-bottom));
     left:12px;
-    box-shadow:0 2px 8px rgba(15,23,42,.18);
+    box-shadow:theme('boxShadow.card');
   }
   .map-editor-lane.is-closed {
     display:none;
