@@ -16,6 +16,7 @@ on:
     paths:
       - 'supabase/migrations/**'
       - 'supabase/checks/**'
+      - 'supabase/tests/atomic_admin_shop_edit.sql'
       - '.github/workflows/migrations-check.yml'
   push:
     branches: [develop]
@@ -108,6 +109,12 @@ jobs:
 
       - name: Check private inquiry attachments
         run: psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" -v ON_ERROR_STOP=1 -f supabase/checks/private_inquiry_images.sql
+
+      - name: Check atomic admin shop edit
+        run: |
+          if [ -f supabase/tests/atomic_admin_shop_edit.sql ]; then
+            psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" -v ON_ERROR_STOP=1 -f supabase/tests/atomic_admin_shop_edit.sql
+          fi
 
       - name: Show applied migrations
         run: supabase migration list --local
