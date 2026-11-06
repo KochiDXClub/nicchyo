@@ -5,7 +5,6 @@ import { guardAdminShopWrite, UUID_RE } from "@/lib/admin/shopApiGuard";
 import { logAdminAudit } from "@/lib/audit/logAdminAudit";
 import { consentDateOnAllow, parseShopEdit } from "@/lib/admin/shopEdit";
 import { isSupabaseStorageUrl, purgeRemovedProducts } from "@/lib/admin/productImages";
-import { normalizeChomeId } from "@/lib/map/chomes";
 import { isMissingTableError } from "@/lib/admin/fieldShopLocation";
 import { isEndAfterStart } from "@/lib/vendor/businessHours";
 import { revalidatePublicShops } from "@/app/(public)/map/services/shopCache";
@@ -37,13 +36,8 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   if (error) return NextResponse.json({ error: "店舗を取得できませんでした" }, { status: 500 });
   if (!vendor) return NextResponse.json({ error: "店舗が見つかりません" }, { status: 404 });
 
-  const [{ data: owner }, { data: assignment }, productRows] = await Promise.all([
+  const [{ data: owner }, productRows] = await Promise.all([
     adminClient.from("vendor_owner_profiles").select("owner_name").eq("vendor_id", id).maybeSingle(),
-    adminClient
-      .from("location_assignments")
-      .select("location_id, market_locations(store_number)")
-      .eq("vendor_id", id)
-      .maybeSingle(),
     // 商品の写真（products の同じ名前の商品の行）。読めなくても店舗の取得は止めない
     adminClient.from("products").select("name, image_url").eq("vendor_id", id).not("image_url", "is", null),
   ]);
@@ -51,10 +45,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   // image_url は店舗側の権限でも書き換えられる列。管理画面の <img> に外部の URL を出さない（開いた管理者の IP などが漏れる）
   for (const row of productRows.data ?? []) if (row.image_url && isSupabaseStorageUrl(row.image_url)) productImages[row.name] = row.image_url;
 
-  const location = assignment?.market_locations as { store_number: number } | { store_number: number }[] | null | undefined;
-  const storeNumber = Array.isArray(location) ? location[0]?.store_number : location?.store_number;
-
-  // 現場登録の記録（地図には反映していない）。あればそれを優先し、無ければ地図上の区画を見せる。
+  // 現場登録の記録（地図には反映していない）。複数の出店先から一つを推測しない。
   // 記録のテーブルが無い DB（マイグレーション前）でも、店舗の取得は止めない
   let fieldRecord: { store_number: number | null; chome_id: number | null; latitude: number | null } | null = null;
   const fieldResult = await adminClient
@@ -67,12 +58,6 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: "店舗を取得できませんでした" }, { status: 500 });
   }
 
-  let mapChome: number | null = null;
-  if (assignment?.location_id) {
-    const mapLocation = await adminClient.from("market_locations").select("district").eq("id", assignment.location_id).maybeSingle();
-    mapChome = normalizeChomeId(mapLocation.data?.district);
-  }
-
   const { categories, ...fields } = vendor;
   const category = Array.isArray(categories) ? categories[0] : categories;
 
@@ -81,10 +66,10 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
       ...fields,
       category_name: (category as { name: string | null } | null | undefined)?.name ?? null,
       owner_name: owner?.owner_name ?? null,
-      store_number: fieldRecord?.store_number ?? storeNumber ?? null,
+      store_number: fieldRecord?.store_number ?? null,
       // 現場で位置（座標）を記録済みか。店番が無い新しい店舗でも、記録したかが分かるように
       location_recorded: fieldRecord?.latitude != null,
-      chome: fieldRecord?.chome_id ?? mapChome,
+      chome: fieldRecord?.chome_id ?? null,
       product_images: productImages,
     },
   });

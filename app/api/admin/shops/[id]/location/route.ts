@@ -3,14 +3,12 @@ import { requireAdminApi } from "@/lib/auth/requireAdminApi";
 import { guardAdminShopWrite, UUID_RE } from "@/lib/admin/shopApiGuard";
 import { logAdminAudit } from "@/lib/audit/logAdminAudit";
 import { parseShopLocation } from "@/lib/admin/shopLocation";
-import { loadSharedMarketPlaces } from "@/lib/admin/marketPlaces.server";
-import { createAdminClient } from "@/lib/supabase/adminClient";
 import { isMissingTableError } from "@/lib/admin/fieldShopLocation";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-type LocationRow = { id: string; store_number: number; latitude: number; longitude: number };
+type LocationRow = { id: string; store_number: number; latitude: number; longitude: number; district: string | null };
 
 /**
  * 現地で位置を決めるための、全店番の位置（地図のデータ）と、この店舗の現在の位置。
@@ -25,25 +23,19 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   const { id } = await params;
   if (!UUID_RE.test(id)) return NextResponse.json({ error: "Invalid id" }, { status: 400 });
 
-  const [locations, assignments, vendors, field] = await Promise.all([
-    adminClient.from("market_locations").select("id, store_number, latitude, longitude"),
+  const [locations, assignments, vendors, field, legacy] = await Promise.all([
+    adminClient.from("market_locations").select("id, store_number, latitude, longitude, district"),
     adminClient.from("location_assignments").select("location_id, vendor_id"),
     adminClient.from("vendors").select("id, shop_name"),
     adminClient.from("field_shop_locations").select("store_number, latitude, longitude, accuracy_m, source").eq("vendor_id", id).maybeSingle(),
+    adminClient.from("location_assignments").select("location_id, market_date").eq("vendor_id", id).order("market_date", { ascending: false }).order("created_at", { ascending: false, nullsFirst: false }).order("id", { ascending: false }).limit(1).maybeSingle(),
   ]);
-  if (locations.error || assignments.error || vendors.error) {
+  if (locations.error || assignments.error || vendors.error || legacy.error) {
     return NextResponse.json({ error: "位置を取得できませんでした" }, { status: 500 });
   }
   if (field.error && !isMissingTableError(field.error)) {
     return NextResponse.json({ error: "位置を取得できませんでした" }, { status: 500 });
   }
-
-  const db = adminClient as unknown as NonNullable<ReturnType<typeof createAdminClient>>;
-  let linkedLocationId: string | undefined;
-  try {
-    const shared = await loadSharedMarketPlaces(db);
-    linkedLocationId = [...shared.values()].find((place) => place.vendors.some((vendor) => vendor.id === id))?.id;
-  } catch { return NextResponse.json({ error: "出店場所を確認できませんでした" }, { status: 500 }); }
 
   const nameById = new Map((vendors.data ?? []).map((v) => [v.id, v.shop_name ?? ""]));
   const vendorByLocation = new Map((assignments.data ?? []).map((a) => [a.location_id, a.vendor_id]));
@@ -60,29 +52,21 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   });
 
   const record = field.data;
-  // 一覧には PostgREST の件数上限があるため、共通区画はIDで直接読む。
-  const linkedResult = linkedLocationId ? await adminClient.from("market_locations").select("id, store_number, latitude, longitude").eq("id", linkedLocationId).maybeSingle() : null;
-  if (linkedLocationId && (linkedResult?.error || !linkedResult?.data)) return NextResponse.json({ error: "出店場所の位置を取得できませんでした" }, { status: 500 });
-  const linkedRow = linkedResult?.data ?? null;
-  const current = linkedRow ? {
-      storeNumber: linkedRow.store_number, lat: linkedRow.latitude, lng: linkedRow.longitude,
-      vendorId: id, vendorName: nameById.get(id) ?? "", sharedPlace: true,
-    } :
-    record && record.latitude != null && record.longitude != null
-      ? {
-          storeNumber: record.store_number,
-          lat: record.latitude,
-          lng: record.longitude,
-          vendorId: id,
-          vendorName: nameById.get(id) ?? "",
-          // 現場で記録したもの（地図上の区画の位置ではない）。誤差と取り方
-          recorded: true,
-          accuracyM: record.accuracy_m,
-          source: record.source,
-        }
-      : rows.find((r) => r.vendorId === id) ?? null;
+  // 現場の観測は確認用。複数の出店場所から勝手に一つを「現在地」にしない。
+  const current = record && record.latitude != null && record.longitude != null
+    ? { storeNumber: record.store_number, lat: record.latitude, lng: record.longitude,
+        vendorId: id, vendorName: nameById.get(id) ?? "", recorded: true,
+        accuracyM: record.accuracy_m, source: record.source }
+    : null;
 
-  return NextResponse.json({ locations: rows, current });
+  // 旧公開マップの参照元に残る最新の配置履歴を、現場観測とは別に示す。
+  // 履歴がそのまま現在の公開状態を保証するものではない。
+  const legacyLocation = (locations.data as LocationRow[] | null)?.find((location) => location.id === legacy.data?.location_id);
+  const legacyPlacement = legacyLocation && legacy.data ? {
+    storeNumber: legacyLocation.store_number, lat: legacyLocation.latitude, lng: legacyLocation.longitude,
+    district: legacyLocation.district, marketDate: legacy.data.market_date,
+  } : null;
+  return NextResponse.json({ locations: rows, current, legacyPlacement });
 }
 
 /**
@@ -103,11 +87,6 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
     const { data: vendor } = await adminClient.from("vendors").select("shop_name").eq("id", id).maybeSingle();
     if (!vendor) return NextResponse.json({ error: "店舗が見つかりません" }, { status: 404 });
 
-    const db = adminClient as unknown as NonNullable<ReturnType<typeof createAdminClient>>;
-    const shared = await loadSharedMarketPlaces(db);
-    if ([...shared.values()].some((place) => place.vendors.some((vendor) => vendor.id === id))) {
-      return NextResponse.json({ error: "出店場所が登録されています。共通の区画の位置はマップ編集で変更してください。" }, { status: 409 });
-    }
     const { error } = await adminClient
       .from("field_shop_locations")
       .upsert(
@@ -123,7 +102,6 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
         },
         { onConflict: "vendor_id" },
       );
-    if (error?.message?.includes("vendor_has_shared_market_place")) return NextResponse.json({ error: "出店場所が登録されています。共通の区画はマップ編集で変更してください。" }, { status: 409 });
     if (error) return NextResponse.json({ error: "位置を保存できませんでした" }, { status: 500 });
 
     await logAdminAudit(

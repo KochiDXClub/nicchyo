@@ -1,10 +1,13 @@
 "use client";
 
-import { VENDOR_FIELD_LIMITS, slotLabel } from "../../../map/types/editableShop";
+import { useEffect, useState } from "react";
+import { ShopPreview } from "@/components/admin/ShopPreview";
+import { formatMarketAddress, parseMarketAddress } from "@/lib/market-schedule/address";
+import { slotLabel } from "../../../map/types/editableShop";
 import type { ChomeJudgement } from "@/lib/map/chomeBoundaries";
 import { CHOMES, getChome, normalizeChomeId, type ChomeId } from "@/lib/map/chomes";
 import { EDITOR_COLORS } from "../editorTheme";
-import type { EditableShop, EditableVendor, VendorCategory } from "../types";
+import type { EditableShop, EditableVendor } from "../types";
 import {
   buttonStyle,
   dangerButtonStyle,
@@ -14,21 +17,6 @@ import {
   noteStyle,
   panelWrap,
 } from "./panelStyles";
-
-type VendorDraft = Omit<EditableVendor, "id">;
-
-/** 「柚子、文旦, 生姜」のような入力を、区切って空の項目を除く（件数は切らない） */
-function splitMainProducts(text: string): string[] {
-  return text
-    .split(/[,、，\n]/)
-    .map((item) => item.trim())
-    .filter(Boolean);
-}
-
-/** 「柚子、文旦, 生姜」のような入力を、主な商品の一覧に分ける（上限の件数まで） */
-export function parseMainProducts(text: string): string[] {
-  return splitMainProducts(text).slice(0, VENDOR_FIELD_LIMITS.mainProductsMaxCount);
-}
 
 /** 自動判定の結果を、パネルに出す一文にする */
 export function describeChomeJudgement(judged: ChomeJudgement | null): string {
@@ -44,14 +32,14 @@ export function describeChomeJudgement(judged: ChomeJudgement | null): string {
 
 /**
  * 区画を選んだときの右パネル。区画は出店者の id だけを持ち、出店者の情報は別に保存する。
- * - 空き区画: 登録済みの出店者から選ぶか、新しい出店者を入力して登録する
- * - 出店者のいる区画: その出店者の情報をその場で直す（直した内容は変更一覧に載り、取り消せる）
+ * 店舗情報は参照のみ。住所・丁目の編集と、出店予定画面への導線を提供する。
  */
 export default function SlotVendorPanel({
   shop,
   roadName,
   vendor,
   onApplyFieldObservation,
+  onAddressChange,
   onChomeChange,
   autoChome,
   onDelete,
@@ -61,20 +49,22 @@ export default function SlotVendorPanel({
   roadName: string | null;
   /** この区画の出店者 */
   vendor: EditableVendor | null;
-  vendors: EditableVendor[];
-  categories: VendorCategory[];
-  onSelectVendor: (vendorId: string) => void;
   onApplyFieldObservation?: () => void;
-  onMoveVendor?: () => void;
-  onRegisterVendor: (draft: VendorDraft) => void;
-  onUpdateVendor: (patch: Partial<VendorDraft>, logText: string, coalesceKey?: string) => void;
-  onClearVendor: () => void;
+  onAddressChange?: (address: { main: number; branch: number | null } | null) => void;
   /** 丁目を選ぶ（手で設定）／"auto" で自動判定に戻す */
   onChomeChange: (value: ChomeId | "auto") => void;
   /** この区画の位置からの自動判定の結果（道の位置が無い区画は null） */
   autoChome: ChomeJudgement | null;
   onDelete: () => void;
 }) {
+  const [previewVendor, setPreviewVendor] = useState<string | null>(null);
+  const [addressText, setAddressText] = useState("");
+  const [addressError, setAddressError] = useState("");
+  useEffect(() => {
+    setAddressText(shop.officialNumber == null ? "" : formatMarketAddress({ main: shop.officialNumber, branch: shop.branchNumber ?? null }));
+    setAddressError("");
+    setPreviewVendor(null);
+  }, [shop.locationId, shop.officialNumber, shop.branchNumber]);
   return (
     <div style={panelWrap}>
       <p style={{ margin: "0 0 4px", fontSize: 15, fontWeight: 900 }}>
@@ -88,6 +78,18 @@ export default function SlotVendorPanel({
           ? `${roadName ?? "道"} の${shop.roadSide === "left" ? "左" : "右"}側・始点から ${Math.round(shop.roadDistanceM)}m`
           : "道の上の位置はまだありません（移行前の区画）"}
       </p>
+      <p style={{ margin: "0 0 12px", fontSize: 13 }}><a href={`/admin/market-schedule?location=${encodeURIComponent(shop.locationId)}`} target="_blank" rel="noopener noreferrer">この場所の出店予定を管理</a></p>
+      {onAddressChange && <div style={{ marginBottom: 16 }}>
+        <label><span style={label}>住所番号</span><input value={addressText} onChange={(event) => { setAddressText(event.target.value); setAddressError(""); }} placeholder="例：183-1" style={inputStyle} /></label>
+        <p style={noteStyle}>住所の枝番と、この場所の店舗番号は別です。住所は未設定のままでも保存できます。</p>
+        {addressError && <p role="alert" style={errorNoteStyle}>{addressError}</p>}
+        <button type="button" style={buttonStyle} onClick={() => {
+          const value = addressText.trim() ? parseMarketAddress(addressText) : null;
+          if (addressText.trim() && !value) { setAddressError("住所番号を「183」または「183-1」の形で入力してください。"); return; }
+          if (shop.officialNumber != null && !window.confirm("この場所の住所を変更します。登録された全店舗に反映されます。続けますか？")) return;
+          onAddressChange(value);
+        }}>住所を編集内容に追加</button>
+      </div>}
 
       <label>
         <span style={label}>日曜市の丁目</span>
@@ -124,12 +126,12 @@ export default function SlotVendorPanel({
       {shop.placeName && <div style={{ ...noteStyle, marginBottom: 12 }}>
         <p>出店場所: {shop.placeName}</p>
         <p>この場所に登録されている店舗（公開配置とは別）:</p>
-        {shop.placeVendors?.length ? <ul>{shop.placeVendors.map((item) => <li key={item.id}><a href={`/admin/field/${item.id}`} target="_blank" rel="noopener noreferrer">{item.name}（詳細を開く）</a></li>)}</ul> : <p>なし</p>}
+        {shop.placeVendors?.length ? <ul>{shop.placeVendors.map((item) => <li key={item.id}><button type="button" onClick={() => setPreviewVendor(item.id)}>{item.name}</button>（<a href={`/admin/field/${item.id}`} target="_blank" rel="noopener noreferrer">詳細を開く</a>）</li>)}</ul> : <p>なし</p>}
       </div>}
       {vendor ? (
         <>
           <p style={{ ...label, marginTop: 4 }}>現在の公開配置</p>
-          <p><strong>{vendor.name}</strong> <a href={`/admin/field/${vendor.id}`} target="_blank" rel="noopener noreferrer">現場登録で店舗情報を確認</a></p>
+          <p><button type="button" onClick={() => setPreviewVendor(vendor.id)}><strong>{vendor.name}</strong></button> <a href={`/admin/field/${vendor.id}`} target="_blank" rel="noopener noreferrer">現場登録で店舗情報を確認</a></p>
           {!shop.placeName && vendor.fieldObservation && <div style={{ ...noteStyle, marginBottom: 12 }}>
             <p style={label}>現場で記録した位置（確認用）</p>
             <p>記録日時: {new Date(vendor.fieldObservation.updatedAt).toLocaleString("ja-JP", { timeZone: "Asia/Tokyo" })}<br />
@@ -144,6 +146,8 @@ export default function SlotVendorPanel({
           </div>}
         </>
       ) : <p style={noteStyle}>現在の公開配置はありません。</p>}
+
+      {previewVendor && <ShopPreview vendorId={previewVendor} position={shop.position} onClose={() => setPreviewVendor(null)} />}
 
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
         <button

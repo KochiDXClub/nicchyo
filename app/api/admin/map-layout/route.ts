@@ -550,6 +550,7 @@ export async function PUT(request: NextRequest) {
     });
 
     if (saveError) {
+      if (saveError.code === "23505" && saveError.message.includes("market_locations_official_number_uidx")) return NextResponse.json({ error: "同じ住所の場所が別の画面で登録されました。再読み込みして確認してください。" }, { status: 409 });
       if (saveError.message.includes("market_place_has_assignment_history")) return NextResponse.json({ error: "出店履歴のある場所は削除できません。履歴を保護するため保存を中止しました。" }, { status: 409 });
       if (saveError.message.includes("market_place_memberships_location_id_fkey") || saveError.message.includes("market_place_schedule_overrides_location_id_fkey")) return NextResponse.json({ error: "店舗や予定が登録された場所は削除できません。" }, { status: 409 });
       if (saveError.message.includes("map_assignment_edit_not_supported") || saveError.message.includes("map_vendor_edit_not_supported")) return NextResponse.json({ error: "店舗情報や出店配置はマップ編集では変更できません。画面を再読み込みしてください。" }, { status: 409 });

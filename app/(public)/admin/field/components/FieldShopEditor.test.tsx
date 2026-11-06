@@ -50,6 +50,7 @@ describe("FieldShopEditor", () => {
   let storedTranslation: unknown = null;
   let previewGate: Promise<void> | null = null;
   let sharedPlace = false;
+  let legacyPlacement: { storeNumber: number; lat: number; lng: number; district: string | null; marketDate: string } | null = null;
   const calls: { url: string; method: string; body?: unknown }[] = [];
 
   beforeEach(() => {
@@ -58,6 +59,7 @@ describe("FieldShopEditor", () => {
     storedTranslation = null;
     previewGate = null;
     sharedPlace = false;
+    legacyPlacement = null;
     vi.stubGlobal(
       "fetch",
       vi.fn(async (url: string, init?: RequestInit) => {
@@ -73,9 +75,9 @@ describe("FieldShopEditor", () => {
           return json(method === "DELETE" ? { ok: true } : { ok: true, name: "トマト", url: "https://x.supabase.co/tomato.webp" });
         }
         if (url.endsWith("/image")) return json({ ok: true, url: "https://x.supabase.co/img.webp", updated_at: "2026-10-05T00:00:00.000Z" });
-        if (url.endsWith("/market-place")) return json({ currentLocationId: null, places: [] });
+        if (url.includes("/api/admin/market-schedule")) return json({ places: [], memberships: [], periods: [], vendors: [], rules: [], overrides: [] });
         if (url.endsWith("/location") && method === "PUT") return json({ ok: true });
-        if (url.endsWith("/location")) return json({ locations: [], current: { storeNumber: 12, lat: 33.5, lng: 133.5, sharedPlace } });
+        if (url.endsWith("/location")) return json({ locations: [], current: { storeNumber: 12, lat: 33.5, lng: 133.5, sharedPlace }, legacyPlacement });
         if (url.includes("/categories")) return json({ categories: [] });
         if (method === "PATCH") return json({ ok: true, updated_at: "2026-10-06T00:00:00.000Z" });
         return json({ shop: currentShop });
@@ -83,6 +85,16 @@ describe("FieldShopEditor", () => {
     );
   });
   afterEach(() => vi.unstubAllGlobals());
+
+  it("旧配置の記録を現場での記録と分けて確認できる", async () => {
+    legacyPlacement = { storeNumber: 183, lat: 33.56, lng: 133.53, district: "三丁目", marketDate: "2026-11-01" };
+    render(<FieldShopEditor shopId={baseShop.id} />);
+    expect(await screen.findByText("旧公開マップの配置記録（最新）")).toBeInTheDocument();
+    expect(screen.getByText("店番 183・三丁目（記録日 2026-11-01）")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "いまの場所を記録する" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "公開マップを確認（新しいタブ）" })).toHaveAttribute("href", "/map?shop=183");
+    expect(screen.queryByRole("button", { name: "この位置を記録" })).not.toBeInTheDocument();
+  });
 
   it("共通の出店場所がある場合は個別の位置を書き換えない", async () => {
     sharedPlace = true;

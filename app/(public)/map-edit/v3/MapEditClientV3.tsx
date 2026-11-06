@@ -76,7 +76,7 @@ export default function MapEditClientV3() {
   });
   const { shops, roads, landmarks, projection, setMessage, hasUnsavedChanges, setIsHistoryOpen } = data;
 
-  const { judge, ranges: chomeRanges } = useChomeJudge(roads, data.chomeBoundaries, data.chomeSections);
+  const { judge } = useChomeJudge(roads, data.chomeBoundaries, data.chomeSections);
 
   const ops = useMapEditOperations({
     history,
@@ -591,15 +591,8 @@ export default function MapEditClientV3() {
                   shop={selectedShop}
                   roadName={roads.find((r) => r.id === selectedShop.roadId)?.name ?? null}
                   vendor={data.vendors.find((v) => v.id === selectedShop.vendorId) ?? null}
-                  vendors={data.vendors}
-                  categories={data.categories}
-                  onSelectVendor={(vendorId) => ops.assignVendor(selectedShop.locationId, vendorId)}
                   onApplyFieldObservation={() => ops.applyFieldObservation(selectedShop.locationId)}
-                  onRegisterVendor={(draft) => ops.registerVendor(selectedShop.locationId, draft)}
-                  onUpdateVendor={(patch, logText, coalesceKey) =>
-                    selectedShop.vendorId && ops.updateVendor(selectedShop.vendorId, patch, logText, { coalesceKey })
-                  }
-                  onClearVendor={() => ops.clearVendor(selectedShop.locationId)}
+                  onAddressChange={(address) => { ops.setSlotAddress(selectedShop.locationId, address); }}
                   onChomeChange={(value) => ops.setSlotChome(selectedShop.locationId, value)}
                   autoChome={
                     selectedShop.roadId && selectedShop.roadDistanceM != null
