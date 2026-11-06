@@ -364,7 +364,7 @@
 }
 @media (max-width: 760px) {
   .map-editor-rotation {
-    bottom: 112px !important;
+    display: none !important;
   }
   .map-editor-zoom button {
     min-height: 44px;
