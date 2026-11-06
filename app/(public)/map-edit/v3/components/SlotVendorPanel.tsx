@@ -145,6 +145,7 @@ export default function SlotVendorPanel({
   categories,
   onSelectVendor,
   onApplyFieldObservation,
+  onMoveVendor,
   onRegisterVendor,
   onUpdateVendor,
   onClearVendor,
@@ -161,6 +162,7 @@ export default function SlotVendorPanel({
   categories: VendorCategory[];
   onSelectVendor: (vendorId: string) => void;
   onApplyFieldObservation?: () => void;
+  onMoveVendor?: () => void;
   onRegisterVendor: (draft: VendorDraft) => void;
   onUpdateVendor: (patch: Partial<VendorDraft>, logText: string, coalesceKey?: string) => void;
   onClearVendor: () => void;
@@ -253,6 +255,7 @@ export default function SlotVendorPanel({
 
       {vendor ? (
         <>
+          {!shop.placeName && onMoveVendor && <button type="button" onClick={onMoveVendor} style={{ ...buttonStyle, width: "100%", minHeight: 44, marginBottom: 14 }}>移動先の区画を選ぶ</button>}
           {!shop.placeName && vendor.fieldObservation && <div style={{ ...noteStyle, marginBottom: 12 }}>
             <p style={label}>現場で記録した位置（確認用）</p>
             <p>記録日時: {new Date(vendor.fieldObservation.updatedAt).toLocaleString("ja-JP", { timeZone: "Asia/Tokyo" })}<br />
@@ -275,7 +278,7 @@ export default function SlotVendorPanel({
             onProductsCommit={(mainProducts) => onUpdateVendor({ mainProducts }, "の主な商品を変更")}
           />
           {!vendor.name.trim() && <p style={errorNoteStyle}>店名が空のままでは保存できません。</p>}
-          <p style={noteStyle}>{shop.placeName ? "出店場所が登録された店舗はドラッグで別の区画へ移せません。現場登録で場所を確認してください。" : "地図のピンや下の区画レーンをドラッグすると、別の区画へ移せます（出店者がいれば入れ替え）。"}</p>
+          <p style={noteStyle}>{shop.placeName ? "出店場所が登録された店舗は別の区画へ移せません。現場登録で場所を確認してください。" : "移動先の区画を選ぶか、地図のピンや区画一覧をドラッグして移動できます。出店者がいれば入れ替えます。"}</p>
         </>
       ) : shop.placeName ? (
         <p style={noteStyle}>新しい店舗は<a href="/admin/field" target="_blank" rel="noopener noreferrer">現場登録</a>で作成し、この場所を登録してから配置してください。</p>
