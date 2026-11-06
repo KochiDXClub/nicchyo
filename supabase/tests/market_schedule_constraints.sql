@@ -24,7 +24,8 @@ do $$ begin
   begin update market_place_memberships set vendor_number = 9 where id = '20000000-0000-0000-0000-000000000001'; raise exception 'number change allowed'; exception when check_violation then null; end;
   begin insert into market_place_schedule_overrides(location_id,market_date,membership_id) values ('00000000-0000-0000-0000-000000000002','2026-11-08','20000000-0000-0000-0000-000000000001'); raise exception 'cross-place override allowed'; exception when foreign_key_violation then null; end;
   begin insert into market_place_schedule_rules(membership_id,period_id,cadence,starts_on,month_weeks) values ('20000000-0000-0000-0000-000000000001','30000000-0000-0000-0000-000000000002','monthly','2026-11-01',array[6]::smallint[]); raise exception 'invalid week allowed'; exception when check_violation then null; end;
-  if has_table_privilege('anon','public.market_place_schedule_rules','select') then raise exception 'anon can read'; end if;
+  if has_table_privilege('anon','public.market_place_schedule_rules','select') or has_table_privilege('authenticated','public.market_place_schedule_rules','select') then raise exception 'public role can read'; end if;
+  if has_table_privilege('anon','public.market_place_number_counters','select,insert,update,delete') or has_table_privilege('authenticated','public.market_place_number_counters','select,insert,update,delete') or has_table_privilege('service_role','public.market_place_number_counters','select,insert,update,delete') then raise exception 'counter privileges too broad'; end if;
   if not has_table_privilege('service_role','public.market_place_schedule_rules','insert') then raise exception 'service_role cannot write'; end if;
 end $$;
 rollback;
