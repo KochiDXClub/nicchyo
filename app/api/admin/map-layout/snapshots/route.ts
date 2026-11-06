@@ -124,7 +124,11 @@ export async function POST(request: NextRequest) {
     );
 
     return NextResponse.json({ ok: true });
-  } catch {
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "";
+    if (message.includes("market_place_has_vendors") || message.includes("vendor_market_place_mismatch") || message.includes("vendor_market_place_unregistered") || message.includes("vendors_market_place_id_fkey")) {
+      return NextResponse.json({ error: "出店場所の登録と復元内容が一致しないため復元できません。現場登録とマップの配置を確認してください。" }, { status: 409 });
+    }
     return NextResponse.json({ error: "Failed to restore snapshot" }, { status: 500 });
   } finally {
     if (shopWritesStarted) revalidatePublicShops();

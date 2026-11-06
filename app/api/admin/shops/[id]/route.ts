@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { requireAdminApi } from "@/lib/auth/requireAdminApi";
 import { guardAdminShopWrite, UUID_RE } from "@/lib/admin/shopApiGuard";
 import { logAdminAudit } from "@/lib/audit/logAdminAudit";
@@ -146,36 +147,39 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       a === b || (a !== null && b !== null && new Date(a).getTime() === new Date(b).getTime());
     if (!sameInstant(current.updated_at, expectedUpdatedAt as string | null)) return conflict;
 
-    // 項目の更新がなく店主名だけのときも、updated_at を進めて同じ確認を通す
     const writtenAt = new Date().toISOString();
-    let query = adminClient
-      .from("vendors")
-      .update({ ...update, updated_at: writtenAt })
-      .eq("id", id);
-    query = current.updated_at ? query.eq("updated_at", current.updated_at) : query.is("updated_at", null);
-    const { data: updated, error: updateError } = await query.select("id, updated_at");
-    if (updateError) return NextResponse.json({ error: "保存できませんでした" }, { status: 500 });
-    if (!updated || updated.length === 0) return conflict;
-
-    // 主な商品の一覧から外した商品は、写真ごと消す（残すと、全部外したあとに商品名だけ復活する）
+    let updatedAt: string;
+    if (chome !== undefined) {
+      // 場所の登録と同時に丁目を保存した場合も、店舗情報との部分保存を防ぐ。
+      const db = adminClient as unknown as SupabaseClient;
+      const { data, error } = await db.rpc("admin_edit_shop_with_chome", {
+        p_vendor_id: id, p_expected_updated_at: current.updated_at, p_patch: update,
+        p_owner_set: ownerName !== undefined, p_owner_name: ownerName ?? null,
+        p_chome: chome, p_actor: user.id,
+      });
+      if (error) return NextResponse.json({ error: "保存できませんでした" }, { status: 500 });
+      const result = data as { status?: string; updated_at?: string } | null;
+      if (result?.status === "stale") return conflict;
+      if (result?.status === "missing") return NextResponse.json({ error: "店舗が見つかりません" }, { status: 404 });
+      if (result?.status === "shared_place") return NextResponse.json({ error: "この店舗は共通の出店場所に登録されています。再読み込みして場所を確認してください。", code: "SHARED_PLACE" }, { status: 409 });
+      if (result?.status !== "ok" || !result.updated_at) return NextResponse.json({ error: "保存できませんでした" }, { status: 500 });
+      updatedAt = result.updated_at;
+    } else {
+      // 項目の更新がなく店主名だけのときも、updated_at を進めて同じ確認を通す。
+      let query = adminClient.from("vendors").update({ ...update, updated_at: writtenAt }).eq("id", id);
+      query = current.updated_at ? query.eq("updated_at", current.updated_at) : query.is("updated_at", null);
+      const { data: updated, error: updateError } = await query.select("id, updated_at");
+      if (updateError) return NextResponse.json({ error: "保存できませんでした" }, { status: 500 });
+      if (!updated || updated.length === 0) return conflict;
+      updatedAt = updated[0]?.updated_at ?? writtenAt;
+      if (ownerName !== undefined) {
+        const { error } = await adminClient.from("vendor_owner_profiles").upsert({ vendor_id: id, owner_name: ownerName }, { onConflict: "vendor_id" });
+        if (error) return NextResponse.json({ error: "店主名を保存できませんでした" }, { status: 500 });
+      }
+    }
+    // 主な商品の一覧から外した商品は、写真ごと消す。
     if (update.main_products !== undefined) {
       await purgeRemovedProducts(adminClient, id, current.main_products ?? [], update.main_products);
-    }
-
-    if (ownerName !== undefined) {
-      // 店主名の公開可否（is_public）は出店者本人が決める。ここでは触らず、行がなければ非公開で作る
-      const { error } = await adminClient
-        .from("vendor_owner_profiles")
-        .upsert({ vendor_id: id, owner_name: ownerName }, { onConflict: "vendor_id" });
-      if (error) return NextResponse.json({ error: "店主名を保存できませんでした" }, { status: 500 });
-    }
-
-    if (chome !== undefined) {
-      // 現場で聞いた丁目は記録として残すだけで、地図の区画（market_locations）は変えない
-      const { error } = await adminClient
-        .from("field_shop_locations")
-        .upsert({ vendor_id: id, chome_id: chome, updated_by: user.id, updated_at: new Date().toISOString() }, { onConflict: "vendor_id" });
-      if (error) return NextResponse.json({ error: "丁目を保存できませんでした" }, { status: 500 });
     }
 
     const changed = [
@@ -205,7 +209,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     revalidatePublicShops();
 
     // DBのトリガーが updated_at を付け替えることがあるので、実際に保存された値を返す
-    return NextResponse.json({ ok: true, updated_at: updated[0]?.updated_at ?? writtenAt });
+    return NextResponse.json({ ok: true, updated_at: updatedAt });
   } catch {
     return NextResponse.json({ error: "保存できませんでした" }, { status: 500 });
   }

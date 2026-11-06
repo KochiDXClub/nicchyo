@@ -425,6 +425,13 @@ export function planStoreImport(input: {
     });
   });
 
+  // 名前付きの出店場所は、CSVの置換で店舗の紐付けや区画を黙って変えない。
+  const changedPlace = shops.find((shop) => shop.placeName && !nextShops.some((next) => next.locationId === shop.locationId && next.vendorId === shop.vendorId));
+  if (changedPlace) {
+    errors.push({ line: null, message: `出店場所「${changedPlace.placeName}」の区画・店舗はCSVで変更できません。現場登録で場所を確認してください。` });
+    return { ...empty, errors, warnings, next: null };
+  }
+
   // 削除する区画にいた出店者のうち、取り込み後にどの区画にもいなくなったものを出店者ごと消す。
   // 取り込みで同じ店名として区画に割り当て直した出店者（assignedVendorIds）は残す
   const deletedVendorIds = new Set(

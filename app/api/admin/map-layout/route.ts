@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
+import { createAdminClient } from "@/lib/supabase/adminClient";
+import { attachSharedMarketPlaces, attachFieldObservations, findDuplicatePosition, findDuplicateOfficialNumber } from "@/lib/admin/marketPlaces.server";
 import { cookies } from "next/headers";
 import { createClient as createServerClient } from "@/utils/supabase/server";
 import { fetchLandmarksFromDb } from "@/app/(public)/map/services/landmarksDb";
@@ -146,27 +148,6 @@ type VendorRowBeforeSave = {
   main_products?: string[] | null;
 };
 
-/** 保存後の区画で、店番が重なっていないか */
-function findDuplicatePosition(shops: EditableShop[]): number | null {
-  const seen = new Set<number>();
-  for (const shop of shops) {
-    if (seen.has(shop.position)) return shop.position;
-    seen.add(shop.position);
-  }
-  return null;
-}
-
-/** 保存後の区画で、住所録の番号（本番号＋枝番）が重なっていないか */
-function findDuplicateOfficialNumber(shops: EditableShop[]): string | null {
-  const seen = new Set<string>();
-  for (const shop of shops) {
-    if (shop.officialNumber == null) continue;
-    const key = `${shop.officialNumber}-${shop.branchNumber ?? 0}`;
-    if (seen.has(key)) return shop.branchNumber != null ? `${shop.officialNumber}-${shop.branchNumber}` : String(shop.officialNumber);
-    seen.add(key);
-  }
-  return null;
-}
 
 export async function GET() {
   try {
@@ -188,14 +169,24 @@ export async function GET() {
       loadChomeSettings(supabase),
     ]);
 
+    const adminClient = createAdminClient();
+    if (!adminClient) return NextResponse.json({ error: "管理者のデータベース接続が設定されていません" }, { status: 503 });
+
+    let fieldObservationsUnavailable = false;
+    const observedVendors = await attachFieldObservations(adminClient, vendors).catch((error: unknown) => {
+      fieldObservationsUnavailable = true;
+      console.error("[admin/map-layout] 現場位置の取得に失敗しました", error);
+      return vendors;
+    });
     return NextResponse.json({
+      fieldObservationsUnavailable,
       // false のあいだ（マイグレーション前）は、画面は開けるが保存と移行処理はできない
       schemaReady,
-      shops: editableShops,
+      shops: await attachSharedMarketPlaces(adminClient, editableShops),
       landmarks,
       route: mapRoute,
       roads,
-      vendors,
+      vendors: observedVendors,
       categories,
       mapSettingsLimits,
       // 丁目の境目と区間（マイグレーション前は空）。画面が区画の丁目を自動判定するのに使う
@@ -561,6 +552,9 @@ export async function PUT(request: NextRequest) {
     });
 
     if (saveError) {
+      if (saveError.message.includes("vendor_market_place_unregistered")) return NextResponse.json({ error: "先に現場登録でこの店舗の出店場所を設定してください。" }, { status: 409 });
+      if (saveError.message.includes("vendor_market_place_mismatch")) return NextResponse.json({ error: "出店場所が登録されている店舗は、別の区画には配置できません。現場登録で出店場所を確認してください。" }, { status: 409 });
+      if (saveError.message.includes("vendors_market_place_id_fkey") || saveError.message.includes("market_place_has_vendors")) return NextResponse.json({ error: "名前付きの出店場所は削除できません。出店場所と公開配置を確認してください。" }, { status: 409 });
       console.error("[admin/map-layout] save_map_layout failed:", saveError.message);
       return NextResponse.json({ error: "Failed to save map layout" }, { status: 500 });
     }
