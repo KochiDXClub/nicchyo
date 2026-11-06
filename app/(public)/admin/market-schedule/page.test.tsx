@@ -3,6 +3,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import type { ReactNode } from "react";
 vi.mock("@/lib/auth/AuthContext", () => ({ useAuth: () => ({ permissions: { isAdmin: true }, isLoading: false }) }));
 vi.mock("@/components/admin", () => ({ AdminLayout: ({ children }: { children: ReactNode }) => <div>{children}</div>, AdminPageHeader: ({ title }: { title: string }) => <h1>{title}</h1> }));
+vi.mock("./components/SchedulePlaceMap", () => ({ SchedulePlaceMap: ({ selected, onSelect }: { selected: string; onSelect: (id: string) => void }) => <button type="button" onClick={() => onSelect("p2")}>地図から場所を選ぶ {selected}</button> }));
 vi.mock("@/components/admin/ShopPreview", () => ({ ShopPreview: () => <div>店舗バナー</div> }));
 import MarketSchedulePage from "./page";
 afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
@@ -16,6 +17,18 @@ describe("出店予定管理", () => {
     expect(screen.getAllByText("店A").length).toBeGreaterThan(0);
     fireEvent.click(screen.getByRole("button", { name: "店舗1：店A" }));
     expect(screen.getByText("店舗バナー")).toBeTruthy();
+  });
+  it("地図と一覧の選択が連動し、別の場所の店舗を表示する", async () => {
+    const places = [...payload.places, { id: "p2", store_number: 2, official_number: 184, branch_number: null, district: "三丁目", place_name: null }];
+    const memberships = [...payload.memberships, { id: "m2", location_id: "p2", vendor_id: "v2", vendor_number: 1 }];
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({ ...payload, places, memberships }), { status: 200 })));
+    render(<MarketSchedulePage />);
+    fireEvent.click(await screen.findByRole("button", { name: "地図から場所を選ぶ p" }));
+    expect((screen.getByLabelText("場所を選ぶ") as HTMLSelectElement).value).toBe("p2");
+    expect(screen.getByRole("button", { name: "店舗1：店B" })).toBeTruthy();
+    fireEvent.change(screen.getByLabelText("場所を選ぶ"), { target: { value: "p" } });
+    expect(screen.getByRole("button", { name: "地図から場所を選ぶ p" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "店舗1：店A" })).toBeTruthy();
   });
   it("同じ場所の別店舗登録は確認を取り、確認後の件数を送る", async () => {
     const calls: Record<string, unknown>[] = [];
