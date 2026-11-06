@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import * as maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import "@/lib/map/maplibreWorker";
@@ -30,6 +30,8 @@ export function SchedulePlaceMap({ places, selected, onSelect }: Props) {
   const onSelectRef = useRef(onSelect);
   const dataRef = useRef(placeMapFeatures(places, selected));
   const [failed, setFailed] = useState(false);
+  const descriptionId = useId();
+  const previousSelection = useRef<string | null>(null);
   onSelectRef.current = onSelect;
   dataRef.current = placeMapFeatures(places, selected);
 
@@ -43,8 +45,12 @@ export function SchedulePlaceMap({ places, selected, onSelect }: Props) {
       return;
     }
     mapRef.current = map;
+    const timer = window.setTimeout(() => setFailed(true), 15000);
+    map.on("error", () => { if (!map.isStyleLoaded()) setFailed(true); });
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
     map.on("load", () => {
+      window.clearTimeout(timer);
+      setFailed(false);
       map.addSource(SOURCE, { type: "geojson", data: dataRef.current });
       map.addLayer({ id: POINTS, type: "circle", source: SOURCE, paint: { "circle-radius": ["case", ["get", "selected"], 12, 9], "circle-color": ["case", ["get", "selected"], EDITOR_COLORS.selectedSlot, EDITOR_COLORS.previewCreate], "circle-stroke-width": 2, "circle-stroke-color": EDITOR_COLORS.surface } });
       map.addLayer({ id: "schedule-place-labels", type: "symbol", source: SOURCE, layout: { "text-field": ["get", "label"], "text-size": 11, "text-offset": [0, 1.5], "text-anchor": "top", "text-allow-overlap": false }, paint: { "text-color": EDITOR_COLORS.ink, "text-halo-color": EDITOR_COLORS.surface, "text-halo-width": 2 } });
@@ -52,7 +58,7 @@ export function SchedulePlaceMap({ places, selected, onSelect }: Props) {
       map.on("mouseenter", POINTS, () => { map.getCanvas().style.cursor = "pointer"; });
       map.on("mouseleave", POINTS, () => { map.getCanvas().style.cursor = ""; });
     });
-    return () => { mapRef.current = null; map.remove(); };
+    return () => { window.clearTimeout(timer); mapRef.current = null; map.remove(); };
   }, []);
 
   useEffect(() => {
@@ -60,12 +66,13 @@ export function SchedulePlaceMap({ places, selected, onSelect }: Props) {
     if (!map) return;
     (map.getSource(SOURCE) as maplibregl.GeoJSONSource | undefined)?.setData(dataRef.current);
     const point = dataRef.current.features.find((feature) => feature.properties?.id === selected);
-    if (point) map.easeTo({ center: point.geometry.coordinates as [number, number], duration: 300 });
+    if (point && previousSelection.current !== selected) map.easeTo({ center: point.geometry.coordinates as [number, number], duration: 300 });
+    previousSelection.current = selected;
   }, [places, selected]);
 
   return <div>
     {failed && <p role="status" className="p-3 text-sm">地図を表示できません。場所の一覧から選んでください。</p>}
-    <div ref={container} aria-label="出店場所の地図" className="h-72 w-full overflow-hidden rounded-lg" />
-    <p className="mt-2 text-xs text-nicchyo-ink/70">点を選ぶと場所の予定を表示します。スマートフォンでは指２本で地図を動かせます。位置未設定の場所は一覧から選べます。</p>
+    <div ref={container} aria-label="出店場所の地図" aria-describedby={descriptionId} className="h-72 w-full overflow-hidden rounded-lg" />
+    <p id={descriptionId} className="mt-2 text-xs text-nicchyo-ink/70">点を選ぶと場所の予定を表示します。スマートフォンでは指２本で地図を動かせます。位置未設定の場所は一覧から選べます。</p>
   </div>;
 }
