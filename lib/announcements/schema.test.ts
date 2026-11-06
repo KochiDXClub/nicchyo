@@ -26,6 +26,7 @@ describe("parseAnnouncementInput", () => {
       titleEn: null,
       bodyEn: null,
       translationStatus: null,
+      englishProvided: false,
     });
   });
 

@@ -125,6 +125,8 @@ export type AnnouncementInput = {
   titleEn: string | null;
   bodyEn: string | null;
   translationStatus: TranslationStatus | null;
+  /** 英語版（titleEn / bodyEn）が送られてきたか。送られていない更新では、保存済みの英語版を変えない */
+  englishProvided: boolean;
 };
 
 export type AnnouncementParseResult = { ok: true; value: AnnouncementInput } | { ok: false; error: string };
@@ -202,6 +204,7 @@ export function parseAnnouncementInput(body: unknown, now: Date = new Date()): A
       titleEn: hasEnglish ? titleEn : null,
       bodyEn: hasEnglish ? bodyEn : null,
       translationStatus: hasEnglish ? (record.translationStatus === "reviewed" || record.translationStatus === "stale" ? record.translationStatus : "auto") : null,
+      englishProvided: "titleEn" in record || "bodyEn" in record,
       title,
       body: text,
       important: record.important === true,

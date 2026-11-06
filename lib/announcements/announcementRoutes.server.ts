@@ -87,20 +87,19 @@ export async function updateAnnouncement(
 
     const parsed = parseAnnouncementInput(guard.body);
     if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 });
-    const { title, body, important, published, startsAt, endsAt, titleEn, bodyEn, translationStatus } = parsed.value;
+    const { title, body, important, published, startsAt, endsAt, titleEn, bodyEn, translationStatus, englishProvided } = parsed.value;
 
     let query = adminClient
       .from("site_announcements")
       .update({
+        // 英語版が送られていない更新（古い画面のタブなど）では、保存済みの英語版を消さない
+        ...(englishProvided ? { title_en: titleEn, body_en: bodyEn, translation_status: translationStatus } : {}),
         title,
         body,
         important,
         published,
         starts_at: startsAt,
         ends_at: endsAt,
-        title_en: titleEn,
-        body_en: bodyEn,
-        translation_status: translationStatus,
         updated_at: new Date().toISOString(),
       })
       .eq("id", id);
