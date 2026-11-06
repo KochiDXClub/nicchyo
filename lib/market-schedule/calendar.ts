@@ -17,6 +17,10 @@ function parseDate(value: string): number {
   if (!Number.isFinite(result) || new Date(result).toISOString().slice(0, 10) !== value) throw new Error("存在しない日付です");
   return result;
 }
+export function isMarketDate(value: unknown): value is MarketDate {
+  if (typeof value !== "string") return false;
+  try { parseDate(value); return true; } catch { return false; }
+}
 function assertSunday(value: MarketDate): number {
   const time = parseDate(value);
   if (new Date(time).getUTCDay() !== 0) throw new Error("開催日には日曜日を指定してください");
