@@ -8,6 +8,7 @@ import { useRouter } from "next/navigation";
 import { ArrowRight, CalendarDays, MapPin, Plus, Search } from "lucide-react";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { AdminLayout, AdminPageHeader, ErrorBoundary } from "@/components/admin";
+import { Button, EmptyState } from "@/components/ui";
 import type { AdminShop } from "@/app/api/admin/shops/route";
 import { ListingStatusBadge } from "../shops/ListingStatusBadge";
 import { NewShopForm } from "./components/NewShopForm";
@@ -116,7 +117,13 @@ function FieldListContent() {
         ) : loading ? (
           <p className="text-sm text-nicchyo-ink/55">読み込み中…</p>
         ) : visible.length === 0 ? (
-          <div className="rounded-card bg-white px-4 py-10 text-center ring-1 ring-line"><Search size={24} aria-hidden className="mx-auto text-nicchyo-ink/40" /><p className="mt-3 font-bold">該当する店舗がありません</p><p className="mt-1 text-sm text-nicchyo-ink/70">店名や場所番号、絞り込み条件を確認してください。</p><button type="button" onClick={() => { setQuery(""); setFilter("all"); }} className="mt-3 inline-flex min-h-11 items-center text-sm font-bold text-amber-800 underline underline-offset-4">検索条件をクリア</button></div>
+          <EmptyState
+            icon={Search}
+            tone="neutral"
+            title="該当する店舗がありません"
+            description="店名や場所番号、絞り込み条件を確認してください。"
+            action={<Button variant="quiet" onClick={() => { setQuery(""); setFilter("all"); }}>検索条件をクリア</Button>}
+          />
         ) : (
           <><p className="text-sm text-nicchyo-ink/70">{visible.length} 件の店舗を表示</p><ul className="space-y-2">
             {visible.map((shop) => (
