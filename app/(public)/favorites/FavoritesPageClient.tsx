@@ -26,9 +26,7 @@ import RemoveShopFavoriteDialog from "../../components/favorites/RemoveShopFavor
 import {
   groupFavoritesByShop,
   loadFavoriteEntries,
-  removeFavoriteShop,
   saveFavoriteEntries,
-  toggleFavoriteProduct,
   type FavoriteEntry,
   type FavoriteShopGroup,
 } from "../../../lib/favoriteShops";
@@ -44,6 +42,11 @@ type SortKey = "place" | "added";
 const UNDO_DURATION_MS = 6000;
 
 type UndoItem = { id: number; label: string; entries: FavoriteEntry[] };
+
+/** 未確認の旧番号で表示中でも、保存時の変換元から対象を特定する。 */
+function matchesDisplayedShop(entry: FavoriteEntry, shopId: number): boolean {
+  return entry.shopId === shopId || (shopId <= 999 && entry.legacyShopId === shopId);
+}
 
 /** 並びの好みは端末に覚えさせる。毎回選び直させない */
 function loadSort(): SortKey {
@@ -170,8 +173,9 @@ export default function FavoritesPageClient() {
 
   const removeShop = useCallback(
     (shopId: number, label: string) => {
-      const removed = loadFavoriteEntries().filter((entry) => entry.shopId === shopId);
-      removeFavoriteShop(shopId);
+      const current = loadFavoriteEntries();
+      const removed = current.filter((entry) => matchesDisplayedShop(entry, shopId));
+      saveFavoriteEntries(current.filter((entry) => !matchesDisplayedShop(entry, shopId)));
       offerUndo(label, removed);
     },
     [offerUndo],
@@ -198,10 +202,10 @@ export default function FavoritesPageClient() {
 
   const handleRemoveProduct = useCallback(
     (shopId: number, product: string) => {
-      const removed = loadFavoriteEntries().filter(
-        (entry) => entry.shopId === shopId && entry.product === product,
-      );
-      toggleFavoriteProduct(shopId, product);
+      const current = loadFavoriteEntries();
+      const matches = (entry: FavoriteEntry) => matchesDisplayedShop(entry, shopId) && entry.product === product;
+      const removed = current.filter(matches);
+      saveFavoriteEntries(current.filter((entry) => !matches(entry)));
       offerUndo(product, removed);
     },
     [offerUndo],
