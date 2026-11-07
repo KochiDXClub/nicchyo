@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { createClient } from "@/utils/supabase/server";
 import { readPublicScheduleRollout } from "@/lib/market-schedule/rollout.server";
-import { fetchPublicShops } from "@/app/(public)/map/services/shopCache";
+import { fetchPublicShopProfiles } from "@/app/(public)/map/services/shopCache";
 
 export const dynamic = "force-dynamic";
 
@@ -61,9 +61,8 @@ export async function GET() {
 
   const stories = (data ?? []) as unknown as StoryRecord[];
 
-  // vendor_id → store_number（店舗詳細ページへのリンク用）を、地図と同じ
-  // 権威ソース（location_assignments → market_locations）から解決する。
-  // 同一出店者に複数の出店日がある場合は最新の market_date を採用する。
+  // 公開切替後は店舗プロフィールの固定 ID を使用し、出店しない週も近況から店へ移動できる。
+  // 旧表示中だけ location_assignments の最新の場所番号を使用する。
   const vendorIds = Array.from(
     new Set(stories.map((s) => s.vendor?.id).filter((v): v is string => !!v))
   );
@@ -72,7 +71,7 @@ export async function GET() {
   try { rollout = await readPublicScheduleRollout(); } catch { /* 参照できないときは古い場所番号へ戻さない */ }
   if (rollout === true) {
     try {
-      for (const shop of await fetchPublicShops()) if (shop.vendorId) storeNumberByVendor.set(shop.vendorId, shop.id);
+      for (const shop of await fetchPublicShopProfiles()) if (shop.vendorId) storeNumberByVendor.set(shop.vendorId, shop.id);
     } catch { /* 投稿は返し、店舗へのリンクだけ非表示にする */ }
   } else if (rollout === false && vendorIds.length > 0) {
     const { data: assignments } = await supabase

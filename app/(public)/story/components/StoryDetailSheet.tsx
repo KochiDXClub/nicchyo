@@ -125,11 +125,11 @@ export default function StoryDetailSheet({ open, story, onClose }: Props) {
 
               {storeNumber != null && (
                 <Link
-                  href={`/map?shop=${storeNumber}`}
+                  href={storeNumber >= 1000 ? `/shops/${storeNumber}` : `/map?shop=${storeNumber}`}
                   className={buttonClass({ variant: "secondary", className: "mt-6 w-full gap-2" })}
                 >
                   <MapPin className="h-4 w-4" aria-hidden />
-                  マップでお店を見る
+                  {storeNumber >= 1000 ? "店舗情報を見る" : "マップでお店を見る"}
                 </Link>
               )}
             </div>

@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   applyShopDelta: vi.fn(),
   fetchActiveContentRows: vi.fn(),
   buildVendorShops: vi.fn(),
+  buildVendorProfiles: vi.fn(),
   readPublicScheduleRollout: vi.fn(),
   readPublicScheduleData: vi.fn(),
   fetchAllRows: vi.fn(),
@@ -33,9 +34,10 @@ vi.mock("./shopDb", () => ({
   applyShopDelta: mocks.applyShopDelta,
   fetchActiveContentRows: mocks.fetchActiveContentRows,
   buildVendorShops: mocks.buildVendorShops,
+  buildVendorProfiles: mocks.buildVendorProfiles,
 }));
 
-import { fetchPublicShops, revalidatePublicShops, SHOP_BASE_CACHE_TAG } from "./shopCache";
+import { fetchPublicShopData, fetchPublicShops, revalidatePublicShops, SHOP_BASE_CACHE_TAG } from "./shopCache";
 
 const baseRows = {
   vendors: [],
@@ -55,6 +57,7 @@ describe("fetchPublicShops", () => {
     mocks.readPublicScheduleRollout.mockResolvedValue(false);
     mocks.marketDay.mockResolvedValue({ data: null, error: null });
     mocks.buildVendorShops.mockReturnValue([{ id: 1 }]);
+    mocks.buildVendorProfiles.mockReturnValue([]);
     mocks.fetchShopDelta.mockResolvedValue({ vendors: [], products: [], deletedProductIds: [], visibleVendorCount: 0 });
     // 既定では差分を重ねない(渡された基本データをそのまま返す)
     mocks.applyShopDelta.mockImplementation((base: unknown) => base);
@@ -69,6 +72,45 @@ describe("fetchPublicShops", () => {
     mocks.readPublicScheduleData.mockResolvedValue({ places: [{ id: "place" }], vendors: [], memberships: [{ id: "m", vendor_id: "v1", location_id: "place" }], periods: [{ id: "p", membership_id: "m", starts_on: "2020-01-01", ends_on: null }], rules: [{ id: "r", membership_id: "m", period_id: "p", cadence: "weekly", starts_on: "2020-01-05", ends_on: null }], overrides: [] });
     await fetchPublicShops();
     expect(mocks.buildVendorShops).toHaveBeenCalledWith(expect.objectContaining({ vendors: [{ id: "v1", shop_name: "公開", public_shop_id: 1001 }], assignments: [expect.objectContaining({ vendor_id: "v1", location_id: "place" })] }), [], { stableIds: true });
+  });
+  it("非出店・休市でも公開店舗プロフィールを残し、非公開店舗や地図座標を返さない", async () => {
+    const rows = { ...baseRows, vendors: [{ id: "v1", shop_name: "公開" }, { id: "hidden", shop_name: "非公開" }], assignments: [] };
+    mocks.fetchVendorShopBaseRows.mockResolvedValue({ rows, failedTables: [] });
+    mocks.fetchShopDelta.mockResolvedValue({ vendors: [], products: [], deletedProductIds: [], visibleVendorCount: 2 });
+    mocks.readPublicScheduleRollout.mockResolvedValue(true);
+    mocks.fetchAllRows.mockResolvedValue({ data: [{ id: "v1", public_shop_id: 1001 }], error: null });
+    mocks.readPublicScheduleData.mockResolvedValue({ places: [], vendors: [], memberships: [], periods: [], rules: [], overrides: [] });
+    mocks.marketDay.mockImplementation(async () => ({ data: { market_date: (await import("@/lib/time/jstDate")).nextSundayJstString(), status: "cancelled" }, error: null }));
+    mocks.buildVendorShops.mockReturnValue([]);
+    mocks.buildVendorProfiles.mockImplementation((base: typeof rows) => base.vendors.map((vendor) => ({ id: 1001, vendorId: vendor.id, name: vendor.shop_name, category: "", products: [] })));
+    const result = await fetchPublicShopData();
+    expect(result.shops).toEqual([]);
+    expect(result.profiles).toEqual([expect.objectContaining({ id: 1001, vendorId: "v1", nextMarketStatus: "market_closed", hasMapLocation: false })]);
+    expect(result.profiles[0]).not.toHaveProperty("lat");
+  });
+  it("予定・未設定・休市でプロフィールを保ち、公開済みで配置された店舗だけを地図に返す", async () => {
+    const actual = await vi.importActual<typeof import("./shopDb")>("./shopDb");
+    mocks.buildVendorProfiles.mockImplementation(actual.buildVendorProfiles);
+    mocks.buildVendorShops.mockImplementation(actual.buildVendorShops);
+    const rows = { ...baseRows, vendors: [{ id: "v1", shop_name: "出店する店" }, { id: "v2", shop_name: "未設定の店" }, { id: "private", shop_name: "非公開" }], locations: [{ id: "p", store_number: 1, latitude: 33.56, longitude: 133.53, district: null }] };
+    mocks.fetchVendorShopBaseRows.mockResolvedValue({ rows, failedTables: [] });
+    mocks.fetchShopDelta.mockResolvedValue({ vendors: [], products: [], deletedProductIds: [], visibleVendorCount: 3 });
+    mocks.readPublicScheduleRollout.mockResolvedValue(true);
+    mocks.fetchAllRows.mockResolvedValue({ data: [{ id: "v1", public_shop_id: 1001 }, { id: "v2", public_shop_id: 1002 }], error: null });
+    mocks.readPublicScheduleData.mockResolvedValue({ places: [{ id: "p" }], vendors: [], memberships: [{ id: "m", vendor_id: "v1", location_id: "p" }], periods: [{ id: "period", membership_id: "m", starts_on: "2020-01-01", ends_on: null }], rules: [{ id: "r", membership_id: "m", period_id: "period", cadence: "weekly", starts_on: "2020-01-05", ends_on: null }], overrides: [] });
+    const active = await fetchPublicShopData();
+    expect(active.shops.map((shop) => shop.id)).toEqual([1001]);
+    expect(active.profiles).toEqual([expect.objectContaining({ id: 1001, nextMarketStatus: "scheduled", hasMapLocation: true }), expect.objectContaining({ id: 1002, nextMarketStatus: "unknown", hasMapLocation: false })]);
+    const { addDaysToDateString, nextSundayJstString } = await import("@/lib/time/jstDate");
+    const previousSunday = addDaysToDateString(nextSundayJstString(), -7);
+    mocks.readPublicScheduleData.mockResolvedValue({ places: [{ id: "p" }], vendors: [], memberships: [{ id: "m", vendor_id: "v1", location_id: "p" }], periods: [{ id: "period", membership_id: "m", starts_on: "2020-01-01", ends_on: null }], rules: [{ id: "r", membership_id: "m", period_id: "period", cadence: "fortnightly", starts_on: previousSunday, ends_on: null, anchor_on: previousSunday }], overrides: [] });
+    const offWeek = await fetchPublicShopData();
+    expect(offWeek.shops).toEqual([]);
+    expect(offWeek.profiles[0]).toMatchObject({ id: 1001, nextMarketStatus: "not_scheduled", hasMapLocation: false });
+    mocks.marketDay.mockImplementation(async () => ({ data: { market_date: (await import("@/lib/time/jstDate")).nextSundayJstString(), status: "cancelled" }, error: null }));
+    const closed = await fetchPublicShopData();
+    expect(closed.shops).toEqual([]);
+    expect(closed.profiles.map((profile) => [profile.id, profile.nextMarketStatus, profile.hasMapLocation])).toEqual([[1001, "market_closed", false], [1002, "market_closed", false]]);
   });
   it("公開設定の取得失敗時は古い識別子に戻さない", async () => {
     mocks.fetchVendorShopBaseRows.mockResolvedValue({ rows: baseRows, failedTables: [] });

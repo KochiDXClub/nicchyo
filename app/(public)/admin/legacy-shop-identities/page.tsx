@@ -92,7 +92,7 @@ export default function LegacyShopIdentitiesPage() {
           <div className="flex flex-wrap items-center justify-between gap-2"><div><p className="text-xs font-bold tracking-wider text-amber-800">PUBLISH STATUS</p><h2 className="mt-1 text-xl font-bold">出店予定の公開</h2></div><span className={`rounded-chip px-3 py-1.5 text-sm font-bold ${rollout?.enabled ? "bg-status-good-bg text-status-good-fg" : "bg-status-warning-bg text-status-warning-fg"}`}>{!rollout ? "確認できません" : rollout.enabled ? "公開中" : "公開前"}</span></div>
           {rollout && <p className="text-sm">次の日曜日 {rollout.summary.date}：{rollout.summary.closed ? "日曜市は中止・休み" : `出店予定 ${rollout.summary.scheduled} 場所・移行済みで未設定 ${rollout.summary.unplanned} 場所`}</p>}
           {rollout && rollout.summary.conflicts > 0 && <p role="alert" className="text-sm font-bold text-amber-800">今後６週間に予定の競合が {rollout.summary.conflicts} 件あります。出店予定管理で解消してから公開してください。</p>}
-          <p className="text-sm text-nicchyo-ink/70">未移行の場所は旧配置を維持します。予定を管理し始めた場所は、予定がない日や競合した日に旧配置へ戻しません。</p>
+          <p className="text-sm text-nicchyo-ink/70">公開後は次の日曜日の配置だけを地図に表示します。未設定・競合中の場所や、別の日の旧配置は表示しません。店舗情報は検索やお気に入りから確認できます。</p>
           {rollout?.enabled ? <p className="text-sm text-nicchyo-ink/70">店舗 ID を保護するため、旧番号の表示には戻せません。公開停止が必要な場合はマップの公開設定を変更してください。</p> : <button type="button" className="min-h-11 rounded-lg border border-line px-4 py-2 text-sm font-bold" disabled={busy || !rollout || rollout.summary.conflicts > 0} onClick={() => void toggleRollout()}>出店予定を公開</button>}
         </section>
         <section className="space-y-4 rounded-card bg-white p-4 shadow-card ring-1 ring-line sm:p-6">

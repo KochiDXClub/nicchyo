@@ -1,8 +1,27 @@
 import { describe, expect, it } from "vitest";
-import { applyShopDelta, buildVendorShops, pruneInvisibleVendors, type VendorShopBaseRows } from "./shopDb";
+import { applyShopDelta, buildVendorProfiles, buildVendorShops, pruneInvisibleVendors, type VendorShopBaseRows } from "./shopDb";
 
 const IMAGE_URL =
   "https://example.supabase.co/storage/v1/object/public/vendor-images/v1/product-p1.webp?v=1";
+
+it("配置がなくても店舗プロフィールを返し、座標を捏造しない", () => {
+  const base = baseRows({ assignments: [], locations: [] });
+  const profiles = buildVendorProfiles(base, [], new Map([["v1", 1001]]));
+  expect(profiles).toHaveLength(1);
+  expect(profiles[0]).toMatchObject({ id: 1001, name: "山田農園", products: ["トマト", "きゅうり"] });
+  expect(profiles[0]).not.toHaveProperty("lat");
+  expect(profiles[0]).not.toHaveProperty("lng");
+  expect(profiles[0]).not.toHaveProperty("position");
+  expect(buildVendorShops(base, [], { stableIds: true })).toEqual([]);
+});
+
+it("固定 ID の店舗は座標が未登録なら地図に出さない", () => {
+  const base = baseRows();
+  base.vendors[0].public_shop_id = 1001;
+  base.locations[0].latitude = null;
+  expect(buildVendorProfiles(base, [], new Map([["v1", 1001]]))).toHaveLength(1);
+  expect(buildVendorShops(base, [], { stableIds: true })).toEqual([]);
+});
 
 function baseRows(overrides: Partial<VendorShopBaseRows> = {}): VendorShopBaseRows {
   return {

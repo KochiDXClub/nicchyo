@@ -6,15 +6,16 @@ import { createAdminClient } from "@/lib/supabase/adminClient";
 import { fetchAllRows } from "@/lib/supabase/fetchAllRows";
 import { readPublicScheduleRollout } from "@/lib/market-schedule/rollout.server";
 import { readPublicScheduleData } from "@/lib/market-schedule/read.server";
-import { publicAssignmentsForDate } from "@/lib/market-schedule/publicAssignments";
+import { publicAssignmentsForDate, publicVendorStatuses } from "@/lib/market-schedule/publicAssignments";
 import { nextSundayJstString } from "@/lib/time/jstDate";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Shop } from "../types/shopData";
+import type { Shop, ShopProfile } from "../types/shopData";
 import { DEFAULT_LOCALE, type Locale } from "@/lib/i18n/config";
 import { applyShopTranslations } from "@/lib/i18n/shopTranslation.server";
 import {
   applyShopDelta,
   buildVendorShops,
+  buildVendorProfiles,
   fetchActiveContentRows,
   fetchShopDelta,
   fetchVendorShopBaseRows,
@@ -105,9 +106,9 @@ const getCachedPublicSchedule = unstable_cache(
  * `locale` が日本語以外のときは、保存済みの訳（shop_translations）を重ねて返す。
  * 訳の無い店・項目は日本語のまま。店の並びや位置は言語によらず同じ。
  */
-export async function fetchPublicShops(locale: Locale = DEFAULT_LOCALE): Promise<Shop[]> {
+export async function fetchPublicShopData(locale: Locale = DEFAULT_LOCALE): Promise<{ shops: Shop[]; profiles: ShopProfile[] }> {
   const supabase = createAnonClient();
-  if (!supabase) return [];
+  if (!supabase) return { shops: [], profiles: [] };
 
   const [snapshot, activeContents, scheduleEnabled] = await Promise.all([
     getCachedShopBaseRows().catch(async (error: unknown): Promise<{ rows: VendorShopBaseRows; snapshotAt: string | null }> => {
@@ -135,10 +136,14 @@ export async function fetchPublicShops(locale: Locale = DEFAULT_LOCALE): Promise
     }
   }
 
+  let ids = new Map<string, number>();
+  let statuses = new Map<string, NonNullable<ShopProfile["nextMarketStatus"]>>();
+  let marketDate: string | null = null;
   if (scheduleEnabled) {
     const admin = createAdminClient() as unknown as SupabaseClient | null;
     if (!admin) throw new Error("公開予定を取得できません");
     const date = nextSundayJstString();
+    marketDate = date;
     const [schedule, identities, marketDay] = await Promise.all([
       getCachedPublicSchedule(),
       fetchAllRows<{ id: string; public_shop_id: number }>(
@@ -149,20 +154,46 @@ export async function fetchPublicShops(locale: Locale = DEFAULT_LOCALE): Promise
     ]);
     if (identities.error) throw new Error("公開店舗の識別子を取得できません");
     if (marketDay.error) throw new Error("日曜市の開催状況を取得できません");
-    const ids = new Map((identities.data ?? []).map((row) => [row.id, row.public_shop_id]));
+    ids = new Map((identities.data ?? []).filter((row) => Number.isSafeInteger(row.public_shop_id) && row.public_shop_id >= 1000 && row.public_shop_id <= 2147483647).map((row) => [row.id, row.public_shop_id]));
     const visible = new Set(ids.keys());
+    const scheduleWithDay = { ...schedule, marketDays: marketDay.data ? [marketDay.data] : [] };
+    statuses = publicVendorStatuses(scheduleWithDay, date, [...visible]);
+    const members = new Set(schedule.memberships.map((member) => member.vendor_id));
     baseRows = {
       ...baseRows,
       vendors: baseRows.vendors.flatMap((vendor) => {
         const publicId = ids.get(vendor.id);
         return typeof publicId === "number" ? [{ ...vendor, public_shop_id: publicId }] : [];
       }),
-      assignments: publicAssignmentsForDate({ ...schedule, marketDays: marketDay.data ? [marketDay.data] : [] }, date, baseRows.assignments, visible),
+      assignments: publicAssignmentsForDate(scheduleWithDay, date, baseRows.assignments, visible).filter((row) => row.vendor_id !== null && (statuses.get(row.vendor_id) === "scheduled" || (!members.has(row.vendor_id) && row.market_date === date))),
     };
   }
   const categories = await fetchCategories().catch(() => []);
-  const shops = (scheduleEnabled ? buildVendorShops(baseRows, activeContents, { stableIds: true }) : buildVendorShops(baseRows, activeContents)).map(shop => withCategory(shop, categories));
-  return applyShopTranslations(shops, locale);
+  const positioned = (scheduleEnabled ? buildVendorShops(baseRows, activeContents, { stableIds: true }) : buildVendorShops(baseRows, activeContents)).map(shop => withCategory(shop, categories));
+  if (!scheduleEnabled) {
+    const shops = await applyShopTranslations(positioned, locale);
+    return { shops, profiles: shops };
+  }
+  const mappedIds = new Set(positioned.map((shop) => shop.id));
+  const profiles = buildVendorProfiles(baseRows, activeContents, ids).map((profile) => {
+    const status = mappedIds.has(profile.id) ? "scheduled" : statuses.get(profile.vendorId ?? "") ?? "unknown";
+    return withCategory({ ...profile, nextMarketStatus: status, hasMapLocation: mappedIds.has(profile.id), assignmentMarketDate: status === "scheduled" ? marketDate : null }, categories);
+  });
+  const translated = await applyShopTranslations(profiles, locale);
+  const byId = new Map(translated.map((profile) => [profile.id, profile]));
+  const shops = positioned.flatMap((shop) => {
+    const profile = byId.get(shop.id);
+    return profile ? [{ ...shop, ...profile }] : [];
+  });
+  return { shops, profiles: translated };
+}
+
+export async function fetchPublicShops(locale: Locale = DEFAULT_LOCALE): Promise<Shop[]> {
+  return (await fetchPublicShopData(locale)).shops;
+}
+
+export async function fetchPublicShopProfiles(locale: Locale = DEFAULT_LOCALE): Promise<ShopProfile[]> {
+  return (await fetchPublicShopData(locale)).profiles;
 }
 
 /** 管理画面の API で店舗・区画・カテゴリーを書き換えたあとに呼ぶ */
