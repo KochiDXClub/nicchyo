@@ -40,4 +40,13 @@ describe("旧番号の確認画面", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("競合");
     expect(screen.getByRole("button", { name: "出店予定を公開" })).toBeDisabled();
   });
+  it("公開設定を取得できない場合は状態を未確認と表示する", async () => {
+    vi.stubGlobal("fetch", vi.fn(async (url: string) => url.includes("public-schedule")
+      ? new Response("", { status: 500 })
+      : new Response(JSON.stringify(data), { status: 200 })));
+    render(<Page />);
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
+    expect(screen.getByText("確認できません")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "出店予定を公開" })).toBeDisabled();
+  });
 });
