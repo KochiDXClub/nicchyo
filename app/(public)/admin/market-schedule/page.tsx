@@ -126,7 +126,7 @@ export default function MarketSchedulePage() {
             <div className="order-2 lg:order-1"><SchedulePlaceMap places={locations} selected={location} onSelect={selectLocation} /></div>
             <div className="order-1 space-y-4 rounded-btn bg-nicchyo-base p-4 lg:order-2">
               <label className="block text-sm font-bold">場所を選ぶ<select className={`${control} mt-1`} value={location} onChange={(e) => selectLocation(e.target.value)}><option value="">場所を選択</option>{locations.map((place) => <option key={place.id} value={place.id}>{placeLabel(place)}</option>)}</select></label>
-              <div className="border-t border-line-warm pt-4"><p className="text-xs font-bold text-nicchyo-ink/55">選択中の場所</p><p className="mt-1 break-words text-base font-bold">{selectedPlace ? placeLabel(selectedPlace) : "場所を選択してください"}</p><p className="mt-2 text-sm text-nicchyo-ink/70">登録店舗 {locationMembers.length} 件</p></div><p className="text-sm leading-relaxed text-nicchyo-ink/70">店舗情報の編集は現場登録、住所や地図上の位置はマップ編集で行います。</p>
+              <div className="border-t border-line-warm pt-4"><p className="text-xs font-bold text-nicchyo-ink/55">選択中の場所</p><p className="mt-1 break-words text-base font-bold">{selectedPlace ? placeLabel(selectedPlace) : "場所を選択してください"}</p><p className="mt-2 text-sm text-nicchyo-ink/70">登録履歴のある店舗 {locationMembers.length} 件</p></div><p className="text-sm leading-relaxed text-nicchyo-ink/70">店舗情報の編集は現場登録、住所や地図上の位置はマップ編集で行います。</p>
               <a className="inline-flex min-h-11 items-center gap-1 text-sm font-bold text-amber-800 underline underline-offset-4" href="/admin/map-edit">マップ編集を開く <ArrowRight size={15} aria-hidden /></a>
             </div>
           </div>
