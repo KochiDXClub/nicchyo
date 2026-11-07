@@ -13,10 +13,18 @@ describe("出店予定管理", () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify(payload), { status: 200 })));
     render(<MarketSchedulePage />);
     expect(await screen.findByRole("option", { name: /住所 183-1/ })).toBeTruthy();
-    expect(await screen.findByText("直近の予定")).toBeTruthy();
+    expect(await screen.findByRole("heading", { name: "直近の予定" })).toBeTruthy();
+    expect(screen.getByRole("navigation", { name: "出店予定管理の操作" })).toBeTruthy();
+    expect(screen.getByText("登録店舗 1 件")).toBeTruthy();
     expect(screen.getAllByText("店A").length).toBeGreaterThan(0);
     fireEvent.click(screen.getByRole("button", { name: "店舗1：店A" }));
     expect(screen.getByText("店舗バナー")).toBeTruthy();
+  });
+  it("読み込みに失敗した場合、読み込み中のままにしない", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("", { status: 500 })));
+    render(<MarketSchedulePage />);
+    expect(await screen.findByRole("alert")).toHaveTextContent("出店予定を取得できませんでした");
+    expect(screen.queryByText("出店予定を読み込んでいます…")).toBeNull();
   });
   it("地図と一覧の選択が連動し、別の場所の店舗を表示する", async () => {
     const places = [...payload.places, { id: "p2", store_number: 2, official_number: 184, branch_number: null, district: "三丁目", place_name: null }];

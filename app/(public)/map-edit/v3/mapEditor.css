@@ -82,7 +82,7 @@
   justify-content:flex-end;
   gap:8px;
 }
-.map-editor-header-actions button, .map-editor-sheet-toggle, .map-editor-sheet-close, .map-editor-lane-toggle {
+.map-editor-header-actions button, .map-editor-header-actions a, .map-editor-sheet-toggle, .map-editor-sheet-close, .map-editor-lane-toggle {
   min-height:42px;
   display:inline-flex;
   align-items:center;
@@ -268,11 +268,11 @@
   .map-editor-header-actions {
     gap:5px;
   }
-  .map-editor-header-actions button {
+  .map-editor-header-actions button, .map-editor-header-actions a {
     min-height:36px;
     padding:0 9px;
   }
-  .map-editor-header-actions button:not(.map-editor-save) span {
+  .map-editor-header-actions button:not(.map-editor-save) span, .map-editor-header-actions a span {
     display:none;
   }
   .map-editor-stats {

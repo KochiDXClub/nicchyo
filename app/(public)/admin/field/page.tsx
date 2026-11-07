@@ -5,6 +5,7 @@ export const dynamic = "force-dynamic";
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { ArrowRight, CalendarDays, MapPin, Plus, Search } from "lucide-react";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { AdminLayout, AdminPageHeader, ErrorBoundary } from "@/components/admin";
 import type { AdminShop } from "@/app/api/admin/shops/route";
@@ -68,26 +69,30 @@ function FieldListContent() {
   return (
     <AdminLayout>
       <AdminPageHeader eyebrow="Field" title="現場登録" description="日曜市の現地で、店舗の情報・掲載許可・写真・位置を登録します" />
-      <div className="mx-auto max-w-2xl space-y-3 px-4 py-4">
+      <div className="mx-auto max-w-3xl space-y-5 px-4 py-5 sm:py-7">
+        <div className="flex flex-wrap items-center justify-between gap-4 rounded-card bg-white p-4 shadow-card ring-1 ring-line sm:p-5">
+          <div><p className="text-xs font-bold tracking-wider text-amber-800">FIELD WORK</p><h2 className="mt-1 text-lg font-bold">店舗を探して、現地の情報を記録</h2><p className="mt-1 text-sm text-nicchyo-ink/70">店舗情報・掲載許可・写真を確認できます。</p></div>
+          <Link href="/admin/market-schedule" className="inline-flex min-h-11 items-center gap-2 rounded-btn bg-nicchyo-base px-4 text-sm font-bold text-nicchyo-ink"><CalendarDays size={17} aria-hidden />出店予定を管理<ArrowRight size={15} aria-hidden /></Link>
+        </div>
         {isCreating ? (
           <NewShopForm shops={shops} onClose={() => setIsCreating(false)} />
         ) : (
           <button
             type="button"
             onClick={() => setIsCreating(true)}
-            className="inline-flex min-h-12 w-full items-center justify-center rounded-lg border border-amber-500 bg-white px-4 py-3 text-base font-semibold text-amber-700"
+            className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-btn border border-nicchyo-primary/30 bg-white px-4 py-3 text-base font-bold text-amber-800 transition hover:bg-nicchyo-base"
           >
-            ＋ 新しい店舗を登録（住所録に無い店）
+            <Plus size={19} aria-hidden /> 新しい店舗を登録（住所録に無い店）
           </button>
         )}
-        <input
+        <div className="relative"><Search size={20} aria-hidden className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-nicchyo-ink/55" /><input
           type="search"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="店名、または店番の数字"
           aria-label="店舗を探す"
-          className="w-full rounded-lg border border-line bg-white px-3 py-3 text-base focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-200"
-        />
+          className="min-h-12 w-full rounded-btn border border-line bg-white py-3 pl-12 pr-4 text-base focus:border-nicchyo-primary focus:outline-none focus:ring-2 focus:ring-nicchyo-primary/20"
+        /></div>
         <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1">
           {FILTERS.map((f) => (
             <button
@@ -111,9 +116,9 @@ function FieldListContent() {
         ) : loading ? (
           <p className="text-sm text-nicchyo-ink/55">読み込み中…</p>
         ) : visible.length === 0 ? (
-          <p className="py-8 text-center text-sm text-nicchyo-ink/55">該当する店舗がありません</p>
+          <div className="rounded-card bg-white px-4 py-10 text-center ring-1 ring-line"><Search size={24} aria-hidden className="mx-auto text-nicchyo-ink/40" /><p className="mt-3 font-bold">該当する店舗がありません</p><p className="mt-1 text-sm text-nicchyo-ink/70">店名や場所番号、絞り込み条件を確認してください。</p><button type="button" onClick={() => { setQuery(""); setFilter("all"); }} className="mt-3 inline-flex min-h-11 items-center text-sm font-bold text-amber-800 underline underline-offset-4">検索条件をクリア</button></div>
         ) : (
-          <ul className="space-y-2">
+          <><p className="text-sm text-nicchyo-ink/70">{visible.length} 件の店舗を表示</p><ul className="space-y-2">
             {visible.map((shop) => (
               <li key={shop.id}>
                 <Link
@@ -130,7 +135,7 @@ function FieldListContent() {
                   </span>
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-base font-semibold text-nicchyo-ink">{shop.name}</span>
-                    {shop.placeName && <span className="mt-1 block truncate text-xs text-nicchyo-ink/70">出店場所：{shop.placeName}</span>}
+                    {shop.placeName && <span className="mt-1 flex items-center gap-1 text-xs text-nicchyo-ink/70"><MapPin size={13} aria-hidden /><span className="truncate">{shop.placeName}</span></span>}
                     {(shop.places?.length ?? 0) > 1 && <span className="mt-1 block text-xs text-nicchyo-ink/70">登録場所（旧配置を含む）：{shop.places?.map((place) => place.name || String(place.storeNumber)).join("、")}</span>}
                     <span className="mt-1 flex flex-wrap items-center gap-1.5">
                       <ListingStatusBadge status={shop.listingStatus} />
@@ -142,7 +147,7 @@ function FieldListContent() {
                 </Link>
               </li>
             ))}
-          </ul>
+          </ul></>
         )}
       </div>
     </AdminLayout>

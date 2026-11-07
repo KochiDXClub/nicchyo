@@ -72,7 +72,7 @@ export function SchedulePlaceMap({ places, selected, onSelect }: Props) {
 
   return <div>
     {failed && <p role="status" className="p-3 text-sm">地図を表示できません。場所の一覧から選んでください。</p>}
-    <div ref={container} aria-label="出店場所の地図" aria-describedby={descriptionId} className="h-72 w-full overflow-hidden rounded-lg" />
+    <div ref={container} aria-label="出店場所の地図" aria-describedby={descriptionId} className="h-56 w-full overflow-hidden rounded-btn sm:h-72" />
     <p id={descriptionId} className="mt-2 text-xs text-nicchyo-ink/70">点を選ぶと場所の予定を表示します。スマートフォンでは指２本で地図を動かせます。位置未設定の場所は一覧から選べます。</p>
   </div>;
 }

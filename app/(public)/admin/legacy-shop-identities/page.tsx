@@ -9,7 +9,7 @@ type Alias = { legacy_shop_id: number; vendor_id: string | null; confirmed_at: s
 type Vendor = { id: string; shop_name: string | null; public_shop_id: number };
 type Revocation = { legacy_shop_id: number; reason: string; revoked_at: string };
 type Data = { candidates: Candidate[]; aliases: Alias[]; revocations: Revocation[]; vendors: Vendor[] };
-const input = "w-full rounded-lg border border-line bg-white px-3 py-2 text-base text-nicchyo-ink";
+const input = "min-h-11 w-full rounded-btn border border-line bg-white px-3 py-2 text-base text-nicchyo-ink focus:border-amber-800 focus:outline-none focus:ring-2 focus:ring-amber-800/20";
 
 export default function LegacyShopIdentitiesPage() {
   const { permissions, isLoading } = useAuth();
@@ -83,20 +83,19 @@ export default function LegacyShopIdentitiesPage() {
 
   if (isLoading || !permissions.isAdmin) return null;
   return <AdminLayout><AdminPageHeader eyebrow="Migration" title="旧店舗番号の確認" description="以前の店舗 URL と、店舗の対応を確認します" />
-    <main className="mx-auto max-w-4xl space-y-5 px-4 py-5">
-      <p className="rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm">旧番号は場所を示していたため、履歴だけでは元のお気に入りの店舗を特定できない場合があります。確実な根拠がない番号は未確定のままにしてください。確定した対応は変更できません。</p>
+    <main className="mx-auto max-w-4xl space-y-5 px-4 py-5 sm:px-6 sm:py-7">
+      <div className="rounded-btn bg-status-warning-bg p-4 text-sm leading-relaxed text-status-warning-fg ring-1 ring-status-warning-line"><strong className="block">確実な根拠がない番号は、未確定のままにしてください</strong><p className="mt-1">旧番号は場所を示していたため、履歴だけでは元のお気に入りの店舗を特定できない場合があります。確定した対応は変更できません。</p></div>
       {error && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm">{error}</p>}
       {notice && <p role="status" className="rounded-lg bg-green-50 p-3 text-sm">{notice}</p>}
-      {!data ? <p>読み込み中…</p> : <>
-        <section className="space-y-3 rounded-lg border border-line bg-white p-4">
-          <h2 className="text-lg font-bold">出店予定の公開</h2>
-          <p className="text-sm">現在：<strong>{rollout?.enabled ? "公開中" : "準備中"}</strong></p>
+      {!data ? !error && <p role="status" className="py-8 text-center text-sm text-nicchyo-ink/70">確認情報を読み込んでいます…</p> : <>
+        <section className="space-y-4 rounded-card bg-white p-4 shadow-card ring-1 ring-line sm:p-6">
+          <div className="flex flex-wrap items-center justify-between gap-2"><div><p className="text-xs font-bold tracking-wider text-amber-800">PUBLISH STATUS</p><h2 className="mt-1 text-xl font-bold">出店予定の公開</h2></div><span className={`rounded-chip px-3 py-1.5 text-sm font-bold ${rollout?.enabled ? "bg-status-good-bg text-status-good-fg" : "bg-status-warning-bg text-status-warning-fg"}`}>{!rollout ? "確認できません" : rollout.enabled ? "公開中" : "公開前"}</span></div>
           {rollout && <p className="text-sm">次の日曜日 {rollout.summary.date}：{rollout.summary.closed ? "日曜市は中止・休み" : `出店予定 ${rollout.summary.scheduled} 場所・移行済みで未設定 ${rollout.summary.unplanned} 場所`}</p>}
           {rollout && rollout.summary.conflicts > 0 && <p role="alert" className="text-sm font-bold text-amber-800">今後６週間に予定の競合が {rollout.summary.conflicts} 件あります。出店予定管理で解消してから公開してください。</p>}
           <p className="text-sm text-nicchyo-ink/70">未移行の場所は旧配置を維持します。予定を管理し始めた場所は、予定がない日や競合した日に旧配置へ戻しません。</p>
           {rollout?.enabled ? <p className="text-sm text-nicchyo-ink/70">店舗 ID を保護するため、旧番号の表示には戻せません。公開停止が必要な場合はマップの公開設定を変更してください。</p> : <button type="button" className="min-h-11 rounded-lg border border-line px-4 py-2 text-sm font-bold" disabled={busy || !rollout || rollout.summary.conflicts > 0} onClick={() => void toggleRollout()}>出店予定を公開</button>}
         </section>
-        <section className="space-y-4 rounded-lg border border-line bg-white p-4">
+        <section className="space-y-4 rounded-card bg-white p-4 shadow-card ring-1 ring-line sm:p-6">
           <h2 className="text-lg font-bold">旧番号を確認する</h2>
           <label className="block text-sm font-bold">旧番号（001〜999）<input className={`${input} mt-1`} inputMode="numeric" value={legacy} onChange={(e) => { setLegacy(e.target.value.replace(/\D/g, "").slice(0, 3)); setVendor(""); setEvidence(""); }} /></label>
           {number > 0 && (alias ? <div className="space-y-2 rounded-lg bg-nicchyo-base p-3 text-sm"><strong>{revocation ? "取消済み" : "確定済み"}</strong>{!revocation && aliasHistoryConflict && <p role="alert" className="font-bold text-amber-800">配置履歴が確定内容と一致しないため、公開側ではこの対応を使用しません。</p>}<p>{alias.vendor_id ? name(alias.vendor_id) : "店舗は削除されています"}</p><p>確認根拠：{alias.evidence}</p>{revocation ? <p>取消理由：{revocation.reason}</p> : <><label className="block font-bold">取消理由（10文字以上）<textarea className={`${input} mt-1`} rows={2} maxLength={1000} value={evidence} onChange={(e) => setEvidence(e.target.value)} /></label><button type="button" className="min-h-11 underline disabled:opacity-50" disabled={busy || evidence.trim().length < 10} onClick={() => void revoke()}>この対応を取り消す</button><p>取り消した番号を別の店舗には付け直せません。</p></>}</div> : <>
@@ -107,7 +106,7 @@ export default function LegacyShopIdentitiesPage() {
             <button type="button" className="min-h-11 rounded-lg bg-amber-800 px-4 py-2 font-bold text-white disabled:opacity-50" disabled={busy || !vendor || evidence.trim().length < 10 || (candidate?.candidate_count ?? 0) > 1 || Boolean(candidate && vendor && !candidate.vendor_ids.includes(vendor))} onClick={() => void confirm()}>この対応を確定</button>
           </>)}
         </section>
-        <section className="rounded-lg border border-line bg-white p-4"><h2 className="text-lg font-bold">履歴に候補がある番号</h2><p className="mt-1 text-sm text-nicchyo-ink/70">番号を押すと内容を確認できます。未確定の番号は自動で変更されません。</p><div className="mt-3 flex flex-wrap gap-2">{data.candidates.map((item) => <button type="button" key={item.legacy_shop_id} className="min-h-11 rounded-lg border border-line px-3 text-sm" onClick={() => { setLegacy(String(item.legacy_shop_id)); setVendor(""); setEvidence(""); }}>{String(item.legacy_shop_id).padStart(3, "0")} {data.revocations.some((entry) => entry.legacy_shop_id === item.legacy_shop_id) ? "取消済" : item.candidate_count > 1 ? "複数候補" : data.aliases.some((entry) => entry.legacy_shop_id === item.legacy_shop_id) ? "確定済" : "未確認"}</button>)}</div></section>
+        <section className="rounded-card bg-white p-4 shadow-card ring-1 ring-line sm:p-6"><h2 className="text-lg font-bold">履歴に候補がある番号</h2><p className="mt-1 text-sm text-nicchyo-ink/70">番号を押すと内容を確認できます。未確定の番号は自動で変更されません。</p><div className="mt-3 flex flex-wrap gap-2">{data.candidates.map((item) => <button type="button" key={item.legacy_shop_id} className="min-h-11 rounded-btn border border-line px-3 text-sm" onClick={() => { setLegacy(String(item.legacy_shop_id)); setVendor(""); setEvidence(""); }}>{String(item.legacy_shop_id).padStart(3, "0")} {data.revocations.some((entry) => entry.legacy_shop_id === item.legacy_shop_id) ? "取消済" : item.candidate_count > 1 ? "複数候補" : data.aliases.some((entry) => entry.legacy_shop_id === item.legacy_shop_id) ? "確定済" : "未確認"}</button>)}</div></section>
       </>}
     </main></AdminLayout>;
 }
