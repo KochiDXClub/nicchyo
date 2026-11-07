@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const fetchPublicShops = vi.fn();
 
 vi.mock("@/app/(public)/map/services/shopCache", () => ({
-  fetchPublicShops: () => fetchPublicShops(),
+  fetchPublicShopProfiles: () => fetchPublicShops(),
 }));
 
 import sitemap from "./sitemap";
@@ -20,6 +20,11 @@ describe("sitemap", () => {
     // 旧実装は store_number 300 までで切っていた
     expect(urls.some((u) => u.endsWith("/shops/350"))).toBe(true);
     expect(urls.some((u) => u.endsWith("/shops/999"))).toBe(true);
+  });
+  it("次の日曜に出店しない公開店舗もサイトマップに残す", async () => {
+    fetchPublicShops.mockResolvedValue([{ id: 1001, hasMapLocation: false, nextMarketStatus: "not_scheduled" }]);
+    const entries = await sitemap();
+    expect(entries.some((entry) => entry.url.endsWith("/shops/1001"))).toBe(true);
   });
 
   it("公開店舗IDを載せ、不正な番号は載せない", async () => {

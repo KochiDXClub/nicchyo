@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { toLocale } from "@/lib/i18n/config";
-import { fetchPublicShops } from "@/app/(public)/map/services/shopCache";
+import { fetchPublicShopData } from "@/app/(public)/map/services/shopCache";
 import { isPathVisibleToCurrentUser } from "@/lib/pageVisibility/server";
 
 export const runtime = "nodejs";
@@ -28,10 +28,10 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const shops = await fetchPublicShops(locale);
+    const { shops, profiles } = await fetchPublicShopData(locale);
     // 出店予定と識別子の切替後に古い場所番号の一覧が残らないよう、CDN に保存しない。
     return NextResponse.json(
-      { shops },
+      { shops, profiles },
       {
         status: 200,
         headers: { "Cache-Control": "private, no-store" },

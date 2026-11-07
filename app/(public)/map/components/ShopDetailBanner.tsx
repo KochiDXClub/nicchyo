@@ -16,8 +16,10 @@ import {
   Share2,
   Navigation,
 } from "lucide-react";
-import { Shop } from "../data/shops";
+import type { ShopProfile as Shop } from "../types/shopData";
 import { formatShopIdToCode } from "@/lib/shops/route";
+import { nextMarketStatusLabel } from "@/lib/shops/marketStatus";
+import { useLocale } from "@/lib/i18n/LocaleContext";
 import { getShopPreviewImage, getShopThumbnailImage } from "../../../../lib/shopImages";
 import {
   isProductFavorited,
@@ -107,6 +109,7 @@ const ShopDetailBanner = memo(function ShopDetailBanner({
   reserveBottomNavSpace = true,
 }: ShopDetailBannerProps) {
   const shop = useCategorizedShop(sourceShop);
+  const locale = useLocale();
   const router = useRouter();
   const prefersReducedMotion = useReducedMotion();
   const favoriteEntries = useFavoriteEntries();
@@ -583,9 +586,10 @@ const ShopDetailBanner = memo(function ShopDetailBanner({
           </div>
         )}
 
+        {nextMarketStatusLabel(shop, locale) && <p className="mx-5 mt-4 rounded-btn bg-nicchyo-base px-4 py-3 text-sm font-bold text-nicchyo-ink" role="status">{nextMarketStatusLabel(shop, locale)}</p>}
         {/* ── ここへ案内 / 共有 ─────────────────────────────────────────── */}
         <div className="flex items-center gap-2 px-5 pt-4">
-          {onNavigate && (
+          {onNavigate && shop.hasMapLocation !== false && (
             <motion.button
               type="button"
               onClick={onNavigate}
@@ -601,7 +605,7 @@ const ShopDetailBanner = memo(function ShopDetailBanner({
             onClick={handleShare}
             whileTap={{ scale: 0.96 }}
             aria-label="このお店を共有する"
-            className={`flex h-11 items-center justify-center gap-2 rounded-chip bg-white px-4 text-[14px] font-bold text-nicchyo-ink shadow-chip ring-1 ring-line active:bg-nicchyo-ink/[0.04] ${onNavigate ? "" : "flex-1"}`}
+            className={`flex h-11 items-center justify-center gap-2 rounded-chip bg-white px-4 text-[14px] font-bold text-nicchyo-ink shadow-chip ring-1 ring-line active:bg-nicchyo-ink/[0.04] ${onNavigate && shop.hasMapLocation !== false ? "" : "flex-1"}`}
           >
             <Share2 className="h-4 w-4" aria-hidden />
             共有

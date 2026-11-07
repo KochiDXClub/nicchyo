@@ -31,10 +31,13 @@ import {
   type FavoriteShopGroup,
 } from "../../../lib/favoriteShops";
 import type { Shop } from "../map/data/shops";
+import type { ShopProfile } from "../map/types/shopData";
+import { nextMarketStatusLabel } from "@/lib/shops/marketStatus";
+import { useLocale } from "@/lib/i18n/LocaleContext";
 
 const MAP_LABEL = "お気に入りのお店";
 const SORT_STORAGE_KEY = "nicchyo-favorites-sort";
-const NO_CHOME_LABEL = "丁目がまだ分からないお店";
+const NO_CHOME_LABEL = "地図に表示されていないお店";
 
 type SortKey = "place" | "added";
 
@@ -58,7 +61,7 @@ function loadSort(): SortKey {
   }
 }
 
-type Row = FavoriteShopGroup & { shop: Shop | undefined };
+type Row = FavoriteShopGroup & { shop: ShopProfile | undefined; location: Shop | undefined };
 type Section = { key: string; label: string | null; rows: Row[] };
 
 /**
@@ -73,7 +76,7 @@ function buildSections(rows: Row[], sort: SortKey): Section[] {
 
   const byChome = new Map<string, Row[]>();
   for (const row of rows) {
-    const key = row.shop?.chome ?? NO_CHOME_LABEL;
+    const key = row.location?.chome ?? NO_CHOME_LABEL;
     const list = byChome.get(key);
     if (list) list.push(row);
     else byChome.set(key, [row]);
@@ -84,14 +87,14 @@ function buildSections(rows: Row[], sort: SortKey): Section[] {
       key: label,
       label,
       rows: groupRows.sort(
-        (a, b) => (a.shop?.position ?? Infinity) - (b.shop?.position ?? Infinity),
+        (a, b) => (a.location?.position ?? Infinity) - (b.location?.position ?? Infinity),
       ),
     }))
     // 丁目そのものの並びも道沿いの順にする。丁目が分からないものは最後
     .sort((a, b) => {
       if (a.label === NO_CHOME_LABEL) return 1;
       if (b.label === NO_CHOME_LABEL) return -1;
-      return (a.rows[0]?.shop?.position ?? Infinity) - (b.rows[0]?.shop?.position ?? Infinity);
+      return (a.rows[0]?.location?.position ?? Infinity) - (b.rows[0]?.location?.position ?? Infinity);
     });
 }
 
@@ -99,10 +102,10 @@ export default function FavoritesPageClient() {
   const router = useRouter();
   const prefersReducedMotion = useReducedMotion();
   const entries = useFavoriteEntries();
-  const { shops, isLoading } = useShops();
+  const { shops, profiles, isLoading } = useShops();
   const [pendingRemoval, setPendingRemoval] = useState<FavoriteShopGroup | null>(null);
   // 店をタップしたらこのページの上でバナーを開く（/consult と同じ形）
-  const [selectedShop, setSelectedShop] = useState<Shop | null>(null);
+  const [selectedShop, setSelectedShop] = useState<ShopProfile | null>(null);
   const [sort, setSort] = useState<SortKey>("place");
   // 外したものを戻せるようにする。1タップで消せる代わりに、必ず戻せる。
   // ハート1つで消せる以上、続けて何件も外すのは普通に起きるので、
@@ -159,14 +162,15 @@ export default function FavoritesPageClient() {
   }, []);
 
   const shopById = useMemo(() => {
-    const map = new Map<number, Shop>();
-    shops.forEach((shop) => map.set(shop.id, shop));
+    const map = new Map<number, ShopProfile>();
+    (profiles ?? shops).forEach((shop) => map.set(shop.id, shop));
     return map;
-  }, [shops]);
+  }, [profiles, shops]);
+  const locationsById = useMemo(() => new Map(shops.map((shop) => [shop.id, shop])), [shops]);
 
   const rows = useMemo<Row[]>(
-    () => groupFavoritesByShop(entries).map((group) => ({ ...group, shop: shopById.get(group.shopId) })),
-    [entries, shopById],
+    () => groupFavoritesByShop(entries).map((group) => ({ ...group, shop: shopById.get(group.shopId), location: locationsById.get(group.shopId) })),
+    [entries, shopById, locationsById],
   );
   const sections = useMemo(() => buildSections(rows, sort), [rows, sort]);
   const productCount = entries.filter((entry) => entry.product !== null).length;
@@ -212,7 +216,7 @@ export default function FavoritesPageClient() {
   );
 
   const handleOpenMap = useCallback(() => {
-    const ids = rows.map((row) => row.shopId);
+    const ids = rows.filter((row) => row.location).map((row) => row.shopId);
     if (ids.length === 0) {
       router.push("/map");
       return;
@@ -246,7 +250,7 @@ export default function FavoritesPageClient() {
             )}
           </h1>
 
-          {!isEmpty && (
+          {rows.some((row) => row.location) && (
             <button
               type="button"
               onClick={handleOpenMap}
@@ -369,10 +373,11 @@ function FavoriteRow({
   onRemoveProduct: (shopId: number, product: string) => void;
 }) {
   const { shop } = row;
+  const locale = useLocale();
   const previewImage = shop ? getShopPreviewImage(shop) : null;
 
   const place = shop
-    ? [showChome ? shop.chome : null, "マップで場所を確認"].filter(Boolean).join(" ・ ")
+    ? nextMarketStatusLabel(shop, locale) ?? [showChome ? row.location?.chome : null, "マップで場所を確認"].filter(Boolean).join(" ・ ")
     : isLoadingShops
       ? "読み込み中"
       : row.shopId <= 999 ? "以前の店舗番号を確認中です" : "出店情報が見つかりません";
