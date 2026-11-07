@@ -15,6 +15,7 @@ describe("出店予定管理", () => {
     expect(await screen.findByRole("option", { name: /住所 183-1/ })).toBeTruthy();
     expect(await screen.findByRole("heading", { name: "直近の予定" })).toBeTruthy();
     expect(screen.getByRole("navigation", { name: "出店予定管理の操作" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "繰り返し予定" })).toHaveAttribute("href", "#recurrence");
     expect(screen.getByText("登録履歴のある店舗 1 件")).toBeTruthy();
     expect(screen.getAllByText("店A").length).toBeGreaterThan(0);
     fireEvent.click(screen.getByRole("button", { name: "店舗1：店A" }));
