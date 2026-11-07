@@ -79,11 +79,22 @@ describe("fetchPublicShops", () => {
   it("休市情報を取得できない場合は古い予定を公開しない", async () => {
     mocks.fetchVendorShopBaseRows.mockResolvedValue({ rows: baseRows, failedTables: [] });
     mocks.readPublicScheduleRollout.mockResolvedValue(true);
-    mocks.fetchAllRows.mockResolvedValue({ data: [], error: null });
+    mocks.fetchAllRows.mockResolvedValue({ data: [{ id: "v1", public_shop_id: 1001 }], error: null });
     mocks.readPublicScheduleData.mockResolvedValue({ places: [], vendors: [], memberships: [], periods: [], rules: [], overrides: [] });
     mocks.marketDay.mockResolvedValue({ data: null, error: { message: "offline" } });
     await expect(fetchPublicShops()).rejects.toThrow("開催状況");
     expect(mocks.buildVendorShops).not.toHaveBeenCalled();
+  });
+  it("キャッシュされた予定があっても、最新の休市情報を優先する", async () => {
+    const rows = { ...baseRows, vendors: [{ id: "v1", shop_name: "公開" }], assignments: [{ vendor_id: "v1", location_id: "p1", market_date: "2026-11-01" }] };
+    mocks.fetchVendorShopBaseRows.mockResolvedValue({ rows, failedTables: [] });
+    mocks.fetchShopDelta.mockResolvedValue({ vendors: [], products: [], deletedProductIds: [], visibleVendorCount: 1 });
+    mocks.readPublicScheduleRollout.mockResolvedValue(true);
+    mocks.fetchAllRows.mockResolvedValue({ data: [{ id: "v1", public_shop_id: 1001 }], error: null });
+    mocks.readPublicScheduleData.mockResolvedValue({ places: [], vendors: [], memberships: [], periods: [], rules: [], overrides: [] });
+    mocks.marketDay.mockImplementation(async () => ({ data: { market_date: (await import("@/lib/time/jstDate")).nextSundayJstString(), status: "cancelled" }, error: null }));
+    await fetchPublicShops();
+    expect(mocks.buildVendorShops).toHaveBeenCalledWith(expect.objectContaining({ assignments: [] }), [], { stableIds: true });
   });
   it("基本データと投稿を組み立てて返す", async () => {
     mocks.fetchVendorShopBaseRows.mockResolvedValue({ rows: baseRows, failedTables: [] });
