@@ -1,20 +1,20 @@
 import { useMemo } from 'react';
-import type { Shop } from '../../map/data/shops';
+import type { ShopProfile as Shop } from '../../map/types/shopData';
 import { ShopSearchIndex } from '../lib/searchIndex';
 
 /**
  * 検索フックのパラメータ
  */
-interface UseShopSearchParams {
-  shops: Shop[];
+interface UseShopSearchParams<T extends Shop> {
+  shops: T[];
   searchIndex: ShopSearchIndex[];
   textQuery: string;
   category: string | null;
   chome: string | null;
 }
 
-type RankedShop = {
-  shop: Shop;
+type RankedShop<T extends Shop> = {
+  shop: T;
   score: number;
   originalIndex: number;
 };
@@ -83,17 +83,17 @@ function scoreSearchIndex(idx: ShopSearchIndex, query: string, category: string 
  * @param params - 検索パラメータ
  * @returns フィルタリングされた店舗配列
  */
-export function useShopSearch({
+export function useShopSearch<T extends Shop>({
   shops,
   searchIndex,
   textQuery,
   category,
   chome,
-}: UseShopSearchParams): Shop[] {
+}: UseShopSearchParams<T>): T[] {
   return useMemo(() => {
     const normalizedQuery = textQuery.trim().toLowerCase();
     const shopsById = new Map(shops.map((shop) => [shop.id, shop]));
-    const ranked: RankedShop[] = searchIndex.map((idx, originalIndex) => ({
+    const ranked: RankedShop<T>[] = searchIndex.map((idx, originalIndex) => ({
       shop: shopsById.get(idx.id) ?? shops[originalIndex],
       score: 0,
       originalIndex,

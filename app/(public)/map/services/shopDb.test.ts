@@ -1,8 +1,27 @@
 import { describe, expect, it } from "vitest";
-import { applyShopDelta, buildVendorShops, pruneInvisibleVendors, type VendorShopBaseRows } from "./shopDb";
+import { applyShopDelta, buildVendorProfiles, buildVendorShops, pruneInvisibleVendors, type VendorShopBaseRows } from "./shopDb";
 
 const IMAGE_URL =
   "https://example.supabase.co/storage/v1/object/public/vendor-images/v1/product-p1.webp?v=1";
+
+it("配置がなくても店舗プロフィールを返し、座標を捏造しない", () => {
+  const base = baseRows({ assignments: [], locations: [] });
+  const profiles = buildVendorProfiles(base, [], new Map([["v1", 1001]]));
+  expect(profiles).toHaveLength(1);
+  expect(profiles[0]).toMatchObject({ id: 1001, name: "山田農園", products: ["トマト", "きゅうり"] });
+  expect(profiles[0]).not.toHaveProperty("lat");
+  expect(profiles[0]).not.toHaveProperty("lng");
+  expect(profiles[0]).not.toHaveProperty("position");
+  expect(buildVendorShops(base, [], { stableIds: true })).toEqual([]);
+});
+
+it("固定 ID の店舗は座標が未登録なら地図に出さない", () => {
+  const base = baseRows();
+  base.vendors[0].public_shop_id = 1001;
+  base.locations[0].latitude = null;
+  expect(buildVendorProfiles(base, [], new Map([["v1", 1001]]))).toHaveLength(1);
+  expect(buildVendorShops(base, [], { stableIds: true })).toEqual([]);
+});
 
 function baseRows(overrides: Partial<VendorShopBaseRows> = {}): VendorShopBaseRows {
   return {
@@ -85,6 +104,24 @@ describe("buildVendorShops", () => {
     );
 
     expect(shop.productDetails).toBeUndefined();
+  });
+});
+
+describe("公開店舗の固定ID", () => {
+  it("場所を移動しても店舗のIDは変わらず、場所番号は変わる", () => {
+    const first = baseRows(); first.vendors[0].public_shop_id = 1001;
+    const moved = { ...first, locations: [{ ...first.locations[0], store_number: 13 }] };
+    expect(buildVendorShops(first, [], { stableIds: true })[0]).toMatchObject({ id: 1001, position: 12 });
+    expect(buildVendorShops(moved, [], { stableIds: true })[0]).toMatchObject({ id: 1001, position: 13 });
+  });
+  it("固定IDを持たない店舗を旧場所番号で代用しない", () => {
+    expect(buildVendorShops(baseRows(), [], { stableIds: true })).toEqual([]);
+  });
+  it("同じ場所には最新の店舗だけを表示する", () => {
+    const base = baseRows();
+    base.vendors = [{ ...base.vendors[0], public_shop_id: 1001 }, { ...base.vendors[0], id: "v2", public_shop_id: 1002 }];
+    base.assignments.push({ vendor_id: "v2", location_id: "l1", market_date: "2026-11-01" });
+    expect(buildVendorShops(base, [], { stableIds: true }).map((shop) => shop.id)).toEqual([1002]);
   });
 });
 

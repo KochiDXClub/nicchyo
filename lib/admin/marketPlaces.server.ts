@@ -4,7 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 export type SharedMarketPlace = {
   id: string;
-  name: string;
+  name: string | null;
   storeNumber: number;
   vendors: { id: string; name: string }[];
 };
@@ -22,10 +22,10 @@ export async function readAllMarketRows(client: SupabaseClient, table: string, c
   }
 }
 
-/** 管理者の画面に出す、名前付き区画とそこに登録された店舗。 */
+/** 管理者の画面に出す、すべての区画とそこに登録された店舗。 */
 export async function loadSharedMarketPlaces(client: SupabaseClient): Promise<Map<string, SharedMarketPlace>> {
   const [places, vendors, assignments, memberships] = await Promise.all([
-    readAllMarketRows(client, "market_locations", "id, store_number, place_name", "place_name"),
+    readAllMarketRows(client, "market_locations", "id, store_number, place_name", "id"),
     readAllMarketRows(client, "vendors", "id, shop_name, market_place_id", "id"),
     readAllMarketRows(client, "location_assignments", "id, vendor_id, location_id, market_date, created_at", "vendor_id"),
     readAllMarketRows(client, "market_place_memberships", "id, vendor_id, location_id", "id"),
@@ -34,7 +34,7 @@ export async function loadSharedMarketPlaces(client: SupabaseClient): Promise<Ma
   if (errors.length && errors.every((error) => error?.code === "42703")) return new Map();
   if (errors.length) throw new Error("Failed to load shared market places");
   const result = new Map<string, SharedMarketPlace>();
-  for (const place of places.data ?? []) result.set(place.id as string, { id: place.id as string, name: place.place_name as string, storeNumber: place.store_number as number, vendors: [] });
+  for (const place of places.data ?? []) result.set(place.id as string, { id: place.id as string, name: (place.place_name as string | null) ?? null, storeNumber: place.store_number as number, vendors: [] });
   const latest = new Map<string, { locationId: string; date: string; created: string; id: string }>();
   for (const row of assignments.data ?? []) {
     const id = row.vendor_id as string;
@@ -63,7 +63,7 @@ export async function attachSharedMarketPlaces(client: SupabaseClient, shops: Ed
   const places = await loadSharedMarketPlaces(client);
   return shops.map((shop) => {
     const place = places.get(shop.locationId);
-    return place ? { ...shop, placeName: place.name, placeVendors: place.vendors } : shop;
+    return place ? { ...shop, placeName: place.name ?? undefined, placeVendors: place.vendors } : shop;
   });
 }
 

@@ -273,6 +273,13 @@ export interface Shop
   // 後方互換性のため、新しいフィールドはすべてオプション（?付き）
 }
 
+/** 位置が決まっていなくても公開できる店舗情報。地図座標は含まない。 */
+export type ShopProfile = Omit<Shop, "position" | "lat" | "lng"> & {
+  nextMarketStatus?: "scheduled" | "not_scheduled" | "unknown" | "market_closed";
+  /** 次の日曜の出店場所が地図で確認できる。 */
+  hasMapLocation?: boolean;
+};
+
 /**
  * 承認待ちの編集データ（将来の実装用）
  *
