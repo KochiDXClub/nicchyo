@@ -141,6 +141,12 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
     access: "admin",
     items: [
       {
+        label: "サイト文言",
+        href: "/admin/site-copy",
+        icon: FileText,
+        description: "FAQ・紹介ページ・マップ案内の文言を編集して公開する",
+      },
+      {
         label: "店舗",
         href: "/admin/shops",
         icon: Store,

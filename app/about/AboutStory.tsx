@@ -9,8 +9,8 @@ import Image from "next/image";
 import { ArrowLeft, ArrowRight, Bug, Code2, Lightbulb, X, type LucideIcon } from "lucide-react";
 import SupporterSlots from "@/components/SupporterSlots";
 import { AboutIcon } from "./AboutIcon";
-import { aboutSlides, type PainPointIconName, type SlideRichContent } from "./slides";
-import { siteText } from "@/lib/siteCopy";
+import { buildAboutSlides, type PainPointIconName, type SlideRichContent } from "./slides";
+import { useSiteText } from "@/lib/i18n/LocaleContext";
 
 // painPoints の項目に置く線画アイコン。メニューやおでかけと同じ lucide で揃える
 const PAIN_POINT_ICONS: Record<PainPointIconName, LucideIcon> = {
@@ -177,6 +177,8 @@ const SWIPE_DISTANCE_THRESHOLD = 60;
 const SWIPE_VELOCITY_THRESHOLD = 300;
 
 export default function AboutStory({ weeklyVisitors }: { weeklyVisitors?: number | null }) {
+  const { text: siteText } = useSiteText();
+  const aboutSlides = buildAboutSlides(siteText);
   const [currentIndex, setCurrentIndex] = useState(0);
 
   const goToSlide = (index: number) => {
