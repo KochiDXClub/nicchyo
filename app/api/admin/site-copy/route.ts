@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
+import { guardAdminWrite } from "@/lib/admin/shopApiGuard";
+import { logAdminAudit } from "@/lib/audit/logAdminAudit";
 import { requireAdminApi } from "@/lib/auth/requireAdminApi";
 import { noStoreHeaders } from "@/lib/http/cacheHeaders";
-import { requireSameOrigin } from "@/lib/security/requestGuards";
-import { enforceRateLimit } from "@/lib/security/rateLimit";
 import { createAdminClient } from "@/lib/supabase/adminClient";
 import { DEFAULT_SITE_COPY, parseSiteCopy, resolveSiteCopy } from "@/lib/site-copy/content";
+import { revalidateSiteCopy } from "@/lib/site-copy/server";
 
 export const dynamic = "force-dynamic";
 
@@ -34,12 +35,10 @@ export async function GET() {
 
 export async function PUT(request: NextRequest) {
   try {
-    const origin = requireSameOrigin(request);
-    if (!origin.ok) return origin.response;
-    const auth = await requireAdminApi();
-    if ("error" in auth) return auth.error;
-    const limit = await enforceRateLimit(request, { bucket: "admin-site-copy", limit: 30, windowMs: 10 * 60 * 1000 });
-    if (limit) return limit;
+    // 同一オリジン → 管理者 → 回数制限（管理者ごと）の順。運営の書き込み API と同じ入口を使う
+    const guard = await guardAdminWrite(request, { bucket: "admin-site-copy", limit: 30 });
+    if ("error" in guard) return guard.error;
+    const { user, role, adminClient } = guard.ctx;
     if (Number(request.headers.get("content-length") ?? 0) > 1_000_000) return NextResponse.json({ error: "内容が大きすぎます" }, { status: 413 });
     const raw = await request.text();
     if (raw.length > 1_000_000) return NextResponse.json({ error: "内容が大きすぎます" }, { status: 413 });
@@ -48,10 +47,20 @@ export async function PUT(request: NextRequest) {
     if (!content || !Number.isSafeInteger(body.revision) || (body.revision as number) < 0 || typeof body.publish !== "boolean") {
       return NextResponse.json({ error: "文言を確認してください。空欄・HTML・長すぎる文章は保存できません。" }, { status: 400 });
     }
-    const db = auth.adminClient as unknown as NonNullable<ReturnType<typeof createAdminClient>>;
-    const { data, error } = await db.rpc("save_site_copy", { p_content: content, p_expected_revision: body.revision, p_publish: body.publish, p_actor: auth.user.id });
+    const db = adminClient as unknown as NonNullable<ReturnType<typeof createAdminClient>>;
+    const { data, error } = await db.rpc("save_site_copy", { p_content: content, p_expected_revision: body.revision, p_publish: body.publish, p_actor: user.id });
     if (error?.message?.includes("site_copy_conflict")) return NextResponse.json({ error: "別の管理者が更新しました。再読み込みしてから編集してください。" }, { status: 409 });
     if (error) return NextResponse.json({ error: "保存できませんでした" }, { status: 500 });
+
+    // 下書き保存も公開も、誰がいつ何をしたか監査ログに残す（ほかの管理 API と同じ）
+    await logAdminAudit(db as unknown as Parameters<typeof logAdminAudit>[0], { id: user.id, email: user.email, role }, {
+      action: body.publish ? "site_copy_publish" : "site_copy_draft_save",
+      targetType: "site_copy",
+      targetId: "1",
+      details: JSON.stringify({ revision: data }),
+    });
+    // 公開したときだけ、共通の文言キャッシュを捨てる（下書き保存は来訪者の表示を変えない）
+    if (body.publish) revalidateSiteCopy();
     return NextResponse.json({ revision: data });
   } catch (error) {
     return NextResponse.json({ error: error instanceof SyntaxError ? "入力を読み取れませんでした" : "保存できませんでした" }, { status: error instanceof SyntaxError ? 400 : 500 });

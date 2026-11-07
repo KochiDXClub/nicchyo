@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { AdminLayout } from "@/components/admin";
 import labels from "@/content/site-copy/labels.json";
 import { DEFAULT_SITE_COPY } from "@/lib/site-copy/content";
@@ -10,6 +11,7 @@ type History = { id: number; content: SiteCopy; published_at: string; published_
 type Data = { draft: SiteCopy; published: SiteCopy; revision: number; history: History[] };
 
 export default function SiteCopyAdminPage() {
+  const router = useRouter();
   const [data, setData] = useState<Data | null>(null);
   const [copy, setCopy] = useState<SiteCopy | null>(null);
   const [section, setSection] = useState("faq.");
@@ -35,6 +37,8 @@ export default function SiteCopyAdminPage() {
       const result = await res.json();
       if (!res.ok) throw new Error(result.error ?? "保存できませんでした");
       await load(); setMessage(publish ? "公開しました。" : "下書きを保存しました。"); setPreview(false);
+      // 公開後は、この画面から遷移した先でも新しい版が出るよう、レイアウトの文言を読み直す（遷移で文言が古いまま残るのを防ぐ）
+      if (publish) router.refresh();
     } catch (e) { setError(e instanceof Error ? e.message : "保存できませんでした"); }
     finally { setBusy(false); }
   }

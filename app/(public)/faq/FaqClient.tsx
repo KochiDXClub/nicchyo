@@ -5,12 +5,11 @@ import { Search, ChevronDown, ChevronUp, MessageCircle } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { FAQ_CATEGORIES } from "./data";
 import Link from "next/link";
-import { useSiteCopy } from "@/lib/site-copy/Context";
+import type { SiteCopy } from "@/lib/site-copy/content";
 import { cn } from "@/lib/utils/cn";
 import { Button, EmptyState, buttonClass } from "@/components/ui";
 
-export default function FaqClient() {
-  const { faq } = useSiteCopy();
+export default function FaqClient({ faq }: { faq: SiteCopy["faq"] }) {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [openItems, setOpenItems] = useState<Set<string>>(new Set());

@@ -1,5 +1,5 @@
 -- 公開・下書きは単一行にまとめ、版番号で同時編集を検出する。
-create table public.site_copy_state (
+create table if not exists public.site_copy_state (
   id integer primary key default 1 check (id = 1),
   draft jsonb,
   published jsonb,
@@ -7,8 +7,8 @@ create table public.site_copy_state (
   updated_at timestamptz not null default now(),
   updated_by uuid references auth.users(id) on delete set null
 );
-insert into public.site_copy_state (id) values (1);
-create table public.site_copy_history (
+insert into public.site_copy_state (id) values (1) on conflict (id) do nothing;
+create table if not exists public.site_copy_history (
   id bigint generated always as identity primary key,
   content jsonb not null,
   published_at timestamptz not null default now(),
@@ -21,7 +21,7 @@ grant select, insert, update on public.site_copy_state to service_role;
 grant select, insert on public.site_copy_history to service_role;
 grant usage, select on sequence public.site_copy_history_id_seq to service_role;
 
-create function public.save_site_copy(p_content jsonb, p_expected_revision bigint, p_publish boolean, p_actor uuid)
+create or replace function public.save_site_copy(p_content jsonb, p_expected_revision bigint, p_publish boolean, p_actor uuid)
 returns bigint language plpgsql security definer set search_path = '' as $$
 declare current_revision bigint; next_revision bigint;
 begin

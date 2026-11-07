@@ -5,8 +5,8 @@ import { getPublishedSiteCopy } from "@/lib/site-copy/server";
 import AboutStory from "./AboutStory";
 
 export async function generateMetadata() {
-  const copy = await getPublishedSiteCopy();
-  return { title: siteTextFor("about.meta.title", "ja", copy), description: siteTextFor("about.meta.description", "ja", copy) };
+  const { texts } = await getPublishedSiteCopy();
+  return { title: siteTextFor("about.meta.title", "ja", texts), description: siteTextFor("about.meta.description", "ja", texts) };
 }
 
 export default async function AboutPage() {

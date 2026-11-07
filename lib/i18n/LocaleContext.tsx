@@ -1,7 +1,7 @@
 'use client';
 
 import { createContext, useContext, useMemo, type ReactNode } from 'react';
-import { useSiteCopy } from '@/lib/site-copy/Context';
+import { useSiteTexts } from '@/lib/site-copy/Context';
 import { DEFAULT_LOCALE, type Locale } from './config';
 import { createTranslator, type Translate } from './translate';
 import { siteTextFor, emphasize, type SiteTextKey } from '@/lib/siteCopy';
@@ -26,7 +26,7 @@ export function useT(): Translate {
 /** シートで編集する文言（siteText）の、今のロケール版。訳が無いキーは日本語の原文になる */
 export function useSiteText() {
   const locale = useLocale();
-  const copy = useSiteCopy();
+  const copy = useSiteTexts();
   return useMemo(
     () => ({
       text: (key: SiteTextKey) => siteTextFor(key, locale, copy),

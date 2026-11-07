@@ -123,7 +123,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       </head>
       <body className="bg-nicchyo-base text-nicchyo-ink">
         <ViewportHeightUpdater />
-        <SiteCopyProvider initial={siteCopy}>
+        <SiteCopyProvider initial={siteCopy.texts}>
         <LocaleProvider locale={locale}>
         <CategoryProvider initial={categories}>
         <AuthProvider>

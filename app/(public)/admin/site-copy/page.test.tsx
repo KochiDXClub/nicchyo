@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
 import { DEFAULT_SITE_COPY } from "@/lib/site-copy/content";
 import SiteCopyAdminPage from "./page";
+vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
 vi.mock("@/components/admin", () => ({ AdminLayout: ({ children }: { children: React.ReactNode }) => <div>{children}</div> }));
 
 afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); });

@@ -44,6 +44,8 @@ export const AUDIT_ACTIONS = {
   spot_deleted: { label: "地図の目印を削除", tone: "caution" },
   // カテゴリー
   category_created: { label: "カテゴリーを作成", tone: "good" },
+  site_copy_draft_save: { label: "サイト文言の下書きを保存", tone: "info" },
+  site_copy_publish: { label: "サイト文言を公開", tone: "good" },
   category_updated: { label: "カテゴリーを変更", tone: "info" },
   category_deleted: { label: "カテゴリーを削除", tone: "caution" },
   // 日曜市カレンダー
@@ -378,6 +380,10 @@ function describeByAction(log: AuditLogRecord, json: Json | null): Described | n
         facts: vendors.length > 0 ? [{ label: "対象の出店者", value: listNames(vendors) }] : [],
       };
     }
+    case "site_copy_draft_save":
+      return { summary: "サイト文言の下書きを保存しました", facts: [] };
+    case "site_copy_publish":
+      return { summary: "サイト文言を公開しました", facts: [] };
     case "category_created":
       return { summary: `カテゴリー${quote(str(json?.name))}を作りました${json?.nameEn ? `（英語名: ${quote(str(json?.nameEn))}）` : ""}`, facts: [] };
     case "category_updated":
