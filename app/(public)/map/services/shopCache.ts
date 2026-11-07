@@ -5,7 +5,7 @@ import { createAnonClient } from "@/lib/supabase/anonClient";
 import { createAdminClient } from "@/lib/supabase/adminClient";
 import { fetchAllRows } from "@/lib/supabase/fetchAllRows";
 import { readPublicScheduleRollout } from "@/lib/market-schedule/rollout.server";
-import { readScheduleData } from "@/lib/market-schedule/read.server";
+import { readPublicScheduleData } from "@/lib/market-schedule/read.server";
 import { publicAssignmentsForDate } from "@/lib/market-schedule/publicAssignments";
 import { nextSundayJstString } from "@/lib/time/jstDate";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -90,6 +90,17 @@ const getCachedVisibleVendorIds = unstable_cache(
   { revalidate: SHOP_DELTA_REVALIDATE_SECONDS, tags: [SHOP_BASE_CACHE_TAG] }
 );
 
+// 予定は管理者の保存時に無効化する。休市情報は別途最新のものを取得する。
+const getCachedPublicSchedule = unstable_cache(
+  async () => {
+    const admin = createAdminClient() as unknown as SupabaseClient | null;
+    if (!admin) throw new Error("公開予定を取得できません");
+    return readPublicScheduleData(admin);
+  },
+  ["public-schedule-input-v1"],
+  { revalidate: SHOP_DELTA_REVALIDATE_SECONDS, tags: [SHOP_BASE_CACHE_TAG] },
+);
+
 /**
  * `locale` が日本語以外のときは、保存済みの訳（shop_translations）を重ねて返す。
  * 訳の無い店・項目は日本語のまま。店の並びや位置は言語によらず同じ。
@@ -127,14 +138,17 @@ export async function fetchPublicShops(locale: Locale = DEFAULT_LOCALE): Promise
   if (scheduleEnabled) {
     const admin = createAdminClient() as unknown as SupabaseClient | null;
     if (!admin) throw new Error("公開予定を取得できません");
-    const [schedule, identities] = await Promise.all([
-      readScheduleData(admin),
+    const date = nextSundayJstString();
+    const [schedule, identities, marketDay] = await Promise.all([
+      getCachedPublicSchedule(),
       fetchAllRows<{ id: string; public_shop_id: number }>(
         (from, to) => supabase.from("vendors").select("id,public_shop_id").order("id").range(from, to),
         { label: "public vendor identities" }
       ),
+      admin.from("market_days").select("market_date,status").eq("market_date", date).maybeSingle(),
     ]);
     if (identities.error) throw new Error("公開店舗の識別子を取得できません");
+    if (marketDay.error) throw new Error("日曜市の開催状況を取得できません");
     const ids = new Map((identities.data ?? []).map((row) => [row.id, row.public_shop_id]));
     const visible = new Set(ids.keys());
     baseRows = {
@@ -143,7 +157,7 @@ export async function fetchPublicShops(locale: Locale = DEFAULT_LOCALE): Promise
         const publicId = ids.get(vendor.id);
         return typeof publicId === "number" ? [{ ...vendor, public_shop_id: publicId }] : [];
       }),
-      assignments: publicAssignmentsForDate(schedule, nextSundayJstString(), baseRows.assignments, visible),
+      assignments: publicAssignmentsForDate({ ...schedule, marketDays: marketDay.data ? [marketDay.data] : [] }, date, baseRows.assignments, visible),
     };
   }
   const categories = await fetchCategories().catch(() => []);

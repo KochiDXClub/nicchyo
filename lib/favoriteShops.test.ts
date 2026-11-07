@@ -449,5 +449,14 @@ describe("旧店舗番号のお気に入り移行", () => {
     migrateFavoriteShopIdentities({});
     expect(loadFavoriteEntries()).toEqual([{ shopId: 12, product: null, addedAt: 10 }]);
   });
+  it("同じ店に対応する複数の旧番号を保持し、一方の取消後も他方を移行できる", async () => {
+    const { migrateFavoriteShopIdentities, saveFavoriteEntries, loadFavoriteEntries } = await import("./favoriteShops");
+    saveFavoriteEntries([{ shopId: 12, product: "みかん", addedAt: 10 }, { shopId: 13, product: "みかん", addedAt: 20 }]);
+    migrateFavoriteShopIdentities({ "12": 1001, "13": 1001 });
+    expect(loadFavoriteEntries()).toEqual([{ shopId: 1001, legacyShopId: 12, product: "みかん", addedAt: 10 }, { shopId: 13, product: "みかん", addedAt: 20 }]);
+    expect(migrateFavoriteShopIdentities({ "12": 1001, "13": 1001 })).toBe(0);
+    migrateFavoriteShopIdentities({ "13": 1001 });
+    expect(loadFavoriteEntries()).toEqual([{ shopId: 12, product: "みかん", addedAt: 10 }, { shopId: 1001, legacyShopId: 13, product: "みかん", addedAt: 20 }]);
+  });
 
 });
