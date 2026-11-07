@@ -318,11 +318,22 @@ export function migrateFavoriteShopIdentities(aliases: Readonly<Record<string, n
       const { legacyShopId: _previous, ...rest } = entry;
       next = { ...rest, shopId: legacyId };
     }
-    if (next.shopId !== entry.shopId || next.legacyShopId !== entry.legacyShopId) changed += 1;
+    const counted = next.shopId !== entry.shopId || next.legacyShopId !== entry.legacyShopId;
+    if (counted) changed += 1;
     const key = favoriteEntryKey(next.shopId, next.product);
     const prior = combined.get(key);
     if (!prior) combined.set(key, next);
     else {
+      if (prior.legacyShopId && next.legacyShopId && prior.legacyShopId !== next.legacyShopId) {
+        // 別の旧番号から同じ店舗・商品に移行した行は、片方の取消に備えて残す。
+        // 確認できるまで一方を旧番号として表示し、対応を再評価できるようにする。
+        const { legacyShopId, ...rest } = next;
+        const unresolved = { ...rest, shopId: legacyShopId };
+        combined.set(favoriteEntryKey(unresolved.shopId, unresolved.product), unresolved);
+        if (counted) changed -= 1;
+        if (entry.shopId !== unresolved.shopId || entry.legacyShopId !== undefined) changed += 1;
+        continue;
+      }
       // 新しいIDで明示的に追加した行があれば、旧番号の取り消しで消えないよう優先する。
       const preferred = prior.legacyShopId && !next.legacyShopId ? next : !prior.legacyShopId && next.legacyShopId ? prior : prior.addedAt <= next.addedAt ? prior : next;
       combined.set(key, { ...preferred, addedAt: Math.min(prior.addedAt, next.addedAt) });

@@ -10,8 +10,9 @@ const mocks = vi.hoisted(() => ({
   fetchActiveContentRows: vi.fn(),
   buildVendorShops: vi.fn(),
   readPublicScheduleRollout: vi.fn(),
-  readScheduleData: vi.fn(),
+  readPublicScheduleData: vi.fn(),
   fetchAllRows: vi.fn(),
+  marketDay: vi.fn(),
 }));
 
 // unstable_cache は Next.js のサーバー外では動かないので、素通しにして中身だけを確かめる
@@ -20,8 +21,8 @@ vi.mock("next/cache", () => ({
   revalidateTag: mocks.revalidateTag,
 }));
 vi.mock("@supabase/supabase-js", () => ({ createClient: vi.fn(() => ({})) }));
-vi.mock("@/lib/supabase/adminClient", () => ({ createAdminClient: () => ({}) }));
-vi.mock("@/lib/market-schedule/read.server", () => ({ readScheduleData: mocks.readScheduleData }));
+vi.mock("@/lib/supabase/adminClient", () => ({ createAdminClient: () => ({ from: () => ({ select: () => ({ eq: () => ({ maybeSingle: mocks.marketDay }) }) }) }) }));
+vi.mock("@/lib/market-schedule/read.server", () => ({ readPublicScheduleData: mocks.readPublicScheduleData }));
 vi.mock("@/lib/supabase/fetchAllRows", () => ({ fetchAllRows: mocks.fetchAllRows }));
 vi.mock("@/lib/market-schedule/rollout.server", () => ({ readPublicScheduleRollout: mocks.readPublicScheduleRollout }));
 vi.mock("./shopDb", () => ({
@@ -52,6 +53,7 @@ describe("fetchPublicShops", () => {
     vi.stubEnv("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY", "anon-key");
     mocks.fetchActiveContentRows.mockResolvedValue([]);
     mocks.readPublicScheduleRollout.mockResolvedValue(false);
+    mocks.marketDay.mockResolvedValue({ data: null, error: null });
     mocks.buildVendorShops.mockReturnValue([{ id: 1 }]);
     mocks.fetchShopDelta.mockResolvedValue({ vendors: [], products: [], deletedProductIds: [], visibleVendorCount: 0 });
     // 既定では差分を重ねない(渡された基本データをそのまま返す)
@@ -64,7 +66,7 @@ describe("fetchPublicShops", () => {
     mocks.fetchShopDelta.mockResolvedValue({ vendors: [], products: [], deletedProductIds: [], visibleVendorCount: 2 });
     mocks.readPublicScheduleRollout.mockResolvedValue(true);
     mocks.fetchAllRows.mockResolvedValue({ data: [{ id: "v1", public_shop_id: 1001 }], error: null });
-    mocks.readScheduleData.mockResolvedValue({ places: [{ id: "place" }], vendors: [], memberships: [{ id: "m", vendor_id: "v1", location_id: "place" }], periods: [{ id: "p", membership_id: "m", starts_on: "2020-01-01", ends_on: null }], rules: [{ id: "r", membership_id: "m", period_id: "p", cadence: "weekly", starts_on: "2020-01-05", ends_on: null }], overrides: [] });
+    mocks.readPublicScheduleData.mockResolvedValue({ places: [{ id: "place" }], vendors: [], memberships: [{ id: "m", vendor_id: "v1", location_id: "place" }], periods: [{ id: "p", membership_id: "m", starts_on: "2020-01-01", ends_on: null }], rules: [{ id: "r", membership_id: "m", period_id: "p", cadence: "weekly", starts_on: "2020-01-05", ends_on: null }], overrides: [] });
     await fetchPublicShops();
     expect(mocks.buildVendorShops).toHaveBeenCalledWith(expect.objectContaining({ vendors: [{ id: "v1", shop_name: "公開", public_shop_id: 1001 }], assignments: [expect.objectContaining({ vendor_id: "v1", location_id: "place" })] }), [], { stableIds: true });
   });
@@ -72,6 +74,15 @@ describe("fetchPublicShops", () => {
     mocks.fetchVendorShopBaseRows.mockResolvedValue({ rows: baseRows, failedTables: [] });
     mocks.readPublicScheduleRollout.mockRejectedValue(new Error("unavailable"));
     await expect(fetchPublicShops()).rejects.toThrow("unavailable");
+    expect(mocks.buildVendorShops).not.toHaveBeenCalled();
+  });
+  it("休市情報を取得できない場合は古い予定を公開しない", async () => {
+    mocks.fetchVendorShopBaseRows.mockResolvedValue({ rows: baseRows, failedTables: [] });
+    mocks.readPublicScheduleRollout.mockResolvedValue(true);
+    mocks.fetchAllRows.mockResolvedValue({ data: [], error: null });
+    mocks.readPublicScheduleData.mockResolvedValue({ places: [], vendors: [], memberships: [], periods: [], rules: [], overrides: [] });
+    mocks.marketDay.mockResolvedValue({ data: null, error: { message: "offline" } });
+    await expect(fetchPublicShops()).rejects.toThrow("開催状況");
     expect(mocks.buildVendorShops).not.toHaveBeenCalled();
   });
   it("基本データと投稿を組み立てて返す", async () => {

@@ -384,7 +384,7 @@ const ShopDetailBanner = memo(function ShopDetailBanner({
   const handleShare = useCallback(async () => {
     if (typeof window === "undefined") return;
     const url = `${window.location.origin}/shops/${shareCode}`;
-    const title = `${shop.name}｜高知・日曜市 ${shareCode}番`;
+    const title = shop.id >= 1000 ? `${shop.name}｜高知・日曜市` : `${shop.name}｜高知・日曜市 ${shareCode}番`;
     if (typeof navigator.share === "function") {
       try {
         await navigator.share({ title, text: title, url });
@@ -403,7 +403,7 @@ const ShopDetailBanner = memo(function ShopDetailBanner({
       "_blank",
       "noopener,noreferrer"
     );
-  }, [shareCode, shop.name]);
+  }, [shareCode, shop.id, shop.name]);
 
   // ─── Theme ──────────────────────────────────────────────────────────────────
   const theme = resolveBannerTheme(shop.themeColor);
