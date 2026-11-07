@@ -1,3 +1,4 @@
+import { isAnalyticsCollectionEnabled } from "@/lib/analytics/collectionSettings.server";
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { z } from "zod";
@@ -28,6 +29,8 @@ export async function POST(request: Request) {
     windowMs: 10 * 60 * 1000,
   });
   if (rateLimited) return rateLimited;
+
+  if (!(await isAnalyticsCollectionEnabled("consultFeedback"))) return NextResponse.json({ ok: true, skipped: true });
 
   const parsed = FeedbackBodySchema.safeParse(await request.json());
   if (!parsed.success) {

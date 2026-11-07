@@ -1,3 +1,4 @@
+import { isAnalyticsCollectionEnabled } from "@/lib/analytics/collectionSettings.server";
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/adminClient";
 import { requireSameOrigin } from "@/lib/security/requestGuards";
@@ -25,6 +26,8 @@ export async function POST(request: Request) {
     windowMs: 10 * 60 * 1000,
   });
   if (rateLimited) return rateLimited;
+
+  if (!(await isAnalyticsCollectionEnabled("searchLogs"))) return NextResponse.json({ ok: true, skipped: true });
 
   const log = parseSearchLog(await request.json().catch(() => null));
   if (!log) return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
