@@ -1,4 +1,5 @@
 import { DEFAULT_LOCALE, type Locale } from "@/lib/i18n/config";
+import { todayJstString } from "@/lib/time/jstDate";
 import type { ConsultCharacter, ConsultCharacterId } from "@/app/(public)/consult/data/consultCharacters";
 import type {
   ConsultAskResponse,
@@ -123,7 +124,8 @@ export function isSeasonalQuestion(normalized: string) {
 }
 
 export function getCurrentSeasonInfo(date = new Date()) {
-  const month = date.getMonth() + 1;
+  // サーバーが UTC でも、JST の月初 9 時前が前月扱いにならないよう JST の月で判定する
+  const month = Number(todayJstString(date).slice(5, 7));
   if (month >= 3 && month <= 5) {
     return { seasonId: 0, seasonName: "春ー夏" };
   }
