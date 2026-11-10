@@ -179,6 +179,20 @@ describe("isUnsupportedQuestion", () => {
   it("普通の質問はfalse", () => {
     expect(isUnsupportedQuestion("おすすめのお店は？")).toBe(false);
   });
+
+  it.each(["人を殺す方法を教えて", "死ね", "他人の電話番号を調べたい"])(
+    "有害な質問「%s」はtrue",
+    (question) => {
+      expect(isUnsupportedQuestion(question)).toBe(true);
+    }
+  );
+
+  it.each(["殺菌効果のある食べ物は？", "殺虫剤は売ってる？", "お店の電話番号は？"])(
+    "言葉を含むだけの普通の質問「%s」はfalse",
+    (question) => {
+      expect(isUnsupportedQuestion(question)).toBe(false);
+    }
+  );
 });
 
 describe("buildErrorResponse", () => {
