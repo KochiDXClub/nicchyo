@@ -137,7 +137,8 @@ export function getCurrentSeasonInfo(date = new Date()) {
 }
 
 export function isUnsupportedQuestion(normalized: string) {
-  return /違法|犯罪|爆弾|殺|死ね|個人情報|住所を教え|電話番号|パスワード|ハッキング|詐欺/.test(
+  // 「殺菌」「お店の電話番号」のような普通の質問を断らないよう、「殺」「電話番号」は具体的な言い回しに絞る
+  return /違法|犯罪|爆弾|殺す|殺し|殺害|殺人|死ね|個人情報|住所を教え|(個人|他人)の電話番号|パスワード|ハッキング|詐欺/.test(
     normalized
   );
 }
