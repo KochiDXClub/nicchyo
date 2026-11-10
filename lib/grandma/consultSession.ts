@@ -11,6 +11,7 @@
 
 import type { ConsultHistoryEntry } from "@/app/(public)/consult/types/consultConversation";
 import type { ConsultCharacterId } from "@/app/(public)/consult/data/consultCharacters";
+import { ASK_MEMORY_SUMMARY_MAX } from "@/lib/grandma/askInput";
 
 export interface ConsultEntry {
   id: string;
@@ -33,6 +34,11 @@ export interface ConsultSession {
   dateKey: string;
   /** 新しいものが先頭 */
   entries: ConsultEntry[];
+  /**
+   * サーバーが返す「会話メモ」（120文字ほどの要約）。次の質問と一緒に送り返す。
+   * 画面に出た履歴（直近の往復）より前の流れを引き継ぐためのもので、日付が変われば entries と一緒に消える
+   */
+  memorySummary?: string;
 }
 
 /** API へ渡す履歴の往復数。現地の質問は短いので、遡りすぎても効かない */
@@ -66,7 +72,12 @@ export function restoreSession(raw: string | null, now: Date = new Date()): Cons
       (entry): entry is ConsultEntry =>
         !!entry && typeof entry.id === "string" && typeof entry.question === "string"
     );
-    return { dateKey: parsed.dateKey, entries };
+    // 端末の保存は検証されていないので、API の上限を超えた値は送れない（400 になる）よう切る
+    const memorySummary =
+      typeof parsed.memorySummary === "string"
+        ? parsed.memorySummary.slice(0, ASK_MEMORY_SUMMARY_MAX)
+        : "";
+    return { dateKey: parsed.dateKey, entries, ...(memorySummary ? { memorySummary } : {}) };
   } catch {
     return createEmptySession(now);
   }

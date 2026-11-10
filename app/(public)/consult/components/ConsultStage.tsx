@@ -226,6 +226,13 @@ export default function ConsultStage({
 
   const entriesRef = useRef<ConsultEntry[]>([]);
   entriesRef.current = entries;
+  /**
+   * サーバーが返す会話メモ。次の質問と一緒に送り返し、直近の履歴より前の流れを引き継ぐ。
+   * 履歴と同じく端末に保存し、日付が変われば消える（consultSession.ts）
+   */
+  const [memorySummary, setMemorySummary] = useState("");
+  const memorySummaryRef = useRef("");
+  memorySummaryRef.current = memorySummary;
   const textInputRef = useRef<HTMLInputElement | null>(null);
   const topSentinelRef = useRef<HTMLDivElement | null>(null);
   /** 「これまでの相談」から答えカードを開き直したとき、その場所までスクロールを戻す */
@@ -421,7 +428,9 @@ export default function ConsultStage({
   useEffect(() => {
     if (typeof window === "undefined") return;
     try {
-      const restored = restoreSession(window.localStorage.getItem(SESSION_STORAGE_KEY)).entries;
+      const restoredSession = restoreSession(window.localStorage.getItem(SESSION_STORAGE_KEY));
+      const restored = restoredSession.entries;
+      setMemorySummary(restoredSession.memorySummary ?? "");
       // マップ上の相談から遷移してきた分を引き継ぐ（取り込んだら消す）
       const handed = importHandoffEntries(window.localStorage.getItem(HANDOFF_STORAGE_KEY));
       if (handed.length > 0) {
@@ -442,12 +451,16 @@ export default function ConsultStage({
     try {
       window.localStorage.setItem(
         SESSION_STORAGE_KEY,
-        JSON.stringify({ dateKey: toDateKey(), entries })
+        JSON.stringify({
+          dateKey: toDateKey(),
+          entries,
+          ...(memorySummary ? { memorySummary } : {}),
+        })
       );
     } catch {
       // 保存できなくても相談自体は続けられるので握りつぶす
     }
-  }, [entries, hasRestored]);
+  }, [entries, memorySummary, hasRestored]);
 
   /**
    * エラーの知らせ。
@@ -549,7 +562,7 @@ export default function ConsultStage({
           null,
           { source, ...(withContext ? autoAskContextRef.current : undefined) },
           history,
-          undefined,
+          memorySummaryRef.current || undefined,
           handleEvent
         );
 
@@ -597,6 +610,8 @@ export default function ConsultStage({
           },
           ...prev,
         ]);
+        // 答えが出たときだけ更新する（失敗した回答のメモで上書きしない）
+        if (response.memorySummary) setMemorySummary(response.memorySummary);
         setStatusMessage(t("答えが出たよ"));
       } catch {
         restoreTyped();
@@ -1023,6 +1038,7 @@ export default function ConsultStage({
                 onClick={() => {
                   if (!window.confirm(t("これまでの相談をすべて消すよ。よろしい？"))) return;
                   setEntries(createEmptySession().entries);
+                  setMemorySummary("");
                 }}
                 className="w-full rounded-lg px-3 py-3 text-left text-sm font-bold text-amber-800 transition hover:bg-amber-50 lg:py-2"
               >
