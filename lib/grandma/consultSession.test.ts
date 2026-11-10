@@ -8,6 +8,7 @@ import {
   importHandoffEntries,
   type ConsultEntry,
 } from "./consultSession";
+import { ASK_MEMORY_SUMMARY_MAX } from "./askInput";
 
 const entry = (id: string, over: Partial<ConsultEntry> = {}): ConsultEntry => ({
   id,
@@ -65,6 +66,37 @@ describe("restoreSession", () => {
       entries: [entry("1"), { id: 2 }, null],
     });
     expect(restoreSession(raw, now).entries).toHaveLength(1);
+  });
+
+  describe("会話メモ（memorySummary）", () => {
+    it("同じ日の保存なら会話メモを復元する", () => {
+      const raw = JSON.stringify({ dateKey: "2026-09-06", entries: [entry("1")], memorySummary: "野菜が好き" });
+      expect(restoreSession(raw, now).memorySummary).toBe("野菜が好き");
+    });
+
+    it("保存に無ければ付けない", () => {
+      const raw = JSON.stringify({ dateKey: "2026-09-06", entries: [entry("1")] });
+      expect(restoreSession(raw, now)).not.toHaveProperty("memorySummary");
+    });
+
+    it("文字列でなければ捨てる", () => {
+      const raw = JSON.stringify({ dateKey: "2026-09-06", entries: [entry("1")], memorySummary: { a: 1 } });
+      expect(restoreSession(raw, now)).not.toHaveProperty("memorySummary");
+    });
+
+    it("API の上限を超える長さは切る（そのまま送ると 400 になるため）", () => {
+      const raw = JSON.stringify({
+        dateKey: "2026-09-06",
+        entries: [entry("1")],
+        memorySummary: "あ".repeat(ASK_MEMORY_SUMMARY_MAX + 50),
+      });
+      expect(restoreSession(raw, now).memorySummary).toHaveLength(ASK_MEMORY_SUMMARY_MAX);
+    });
+
+    it("日付が変わっていたら会話メモも持ち越さない", () => {
+      const raw = JSON.stringify({ dateKey: "2026-09-05", entries: [entry("1")], memorySummary: "昨日のメモ" });
+      expect(restoreSession(raw, now)).not.toHaveProperty("memorySummary");
+    });
   });
 });
 
