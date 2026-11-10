@@ -227,7 +227,7 @@ async function parseRequest(request: Request): Promise<ParsedRequest> {
       }
     }
   } else {
-    const parsed = AskJsonBodySchema.safeParse(await request.json());
+    const parsed = AskJsonBodySchema.safeParse(await request.json().catch(() => null));
     if (!parsed.success) {
       throw badRequest(parsed.error.issues[0].message);
     }
