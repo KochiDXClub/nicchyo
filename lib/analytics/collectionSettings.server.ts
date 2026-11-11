@@ -1,4 +1,3 @@
-import "server-only";
 import { createAdminClient } from "@/lib/supabase/adminClient";
 import { parseAnalyticsCollectionSettings, type AnalyticsCollectionKey, type AnalyticsCollectionSettings } from "./collectionSettings";
 
