@@ -4,7 +4,7 @@ import type { EditOperation } from "../editHistory";
 
 // 見出し・「やり直す」・各行の見出し語で同じ色を使う
 const INK = "#57503F";
-const actionStyle: React.CSSProperties = { fontSize: 11.5, fontWeight: 700, cursor: "pointer" };
+const actionStyle: React.CSSProperties = { fontSize: 11.5, fontWeight: 700, cursor: "pointer", border: 0, background: "transparent", padding: "8px 0" };
 
 export default function PendingChangeLog({
   operations,
@@ -29,14 +29,14 @@ export default function PendingChangeLog({
         <span style={{ fontSize: 12.5, fontWeight: 900, color: INK }}>変更履歴（未保存 {operations.length}）</span>
         <div style={{ display: "flex", gap: 10 }}>
           {operations.length > 0 && (
-            <span onClick={onUndo} title="Ctrl+Z（Mac は ⌘Z）" style={{ ...actionStyle, color: "#B4472C" }}>
+            <button type="button" onClick={onUndo} title="Ctrl+Z（Mac は ⌘Z）" style={{ ...actionStyle, color: "#B4472C" }}>
               直前を取り消す
-            </span>
+            </button>
           )}
           {canRedo && (
-            <span onClick={onRedo} title="Ctrl+Shift+Z（Mac は ⌘⇧Z）" style={{ ...actionStyle, color: INK }}>
+            <button type="button" onClick={onRedo} title="Ctrl+Shift+Z（Mac は ⌘⇧Z）" style={{ ...actionStyle, color: INK }}>
               やり直す
-            </span>
+            </button>
           )}
         </div>
       </div>
@@ -45,14 +45,15 @@ export default function PendingChangeLog({
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 2, maxHeight: 220, overflowY: "auto" }}>
           {newestFirst.map((operation) => (
-            <div
+            <button
               key={operation.id}
+              type="button"
               onClick={() => onSelect(operation)}
               title="地図でこの場所を表示"
-              style={{ fontSize: 11.5, color: "#7A7264", lineHeight: 1.5, cursor: "pointer", padding: "2px 4px", borderRadius: 6 }}
+              style={{ fontSize: 11.5, color: "#7A7264", lineHeight: 1.5, cursor: "pointer", padding: "6px 4px", borderRadius: 6, border: 0, background: "transparent", textAlign: "left" }}
             >
               <b style={{ color: INK }}>{operation.label}</b> {operation.text}
-            </div>
+            </button>
           ))}
         </div>
       )}
