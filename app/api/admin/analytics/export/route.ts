@@ -47,8 +47,12 @@ export async function GET(req: NextRequest) {
         .gte(spec.date, lower).lt(spec.date, upper).lte("id", snapshotMaxId).order(spec.date, { ascending: false }).order("id", { ascending: false }).range(from, to);
       return { data: result.data as unknown as Record<string, unknown>[] | null, error: result.error };
     });
-    const output = mode === "raw" ? rows : aggregateExportRows(rows, spec.date, spec.dimension);
-    const columns = mode === "raw" ? [...spec.columns] : ["date", "category", "count"];
+    // 生データからは閲覧者識別子を外す（CSV は共有されやすく、日別の分析には不要）
+    const rawColumns = spec.columns.filter((column) => column !== "visitor_key");
+    const output = mode === "raw"
+      ? rows.map((row) => Object.fromEntries(rawColumns.map((column) => [column, row[column]])))
+      : aggregateExportRows(rows, spec.date, spec.dimension);
+    const columns = mode === "raw" ? rawColumns : ["date", "category", "count"];
     await logAdminAudit(auth.adminClient, { id: auth.user.id, email: auth.user.email, role: auth.role }, { action: "analytics_export", targetType: "analytics", details: JSON.stringify({ type, mode, since, until: today, rows: output.length }) });
     return new NextResponse(toCsv(output, columns), { headers: { ...privateNoStoreHeaders(), "Content-Type": "text/csv; charset=utf-8", "Content-Disposition": `attachment; filename="${type}_${mode}_${since}_to_${today}.csv"` } });
   } catch (error) {
