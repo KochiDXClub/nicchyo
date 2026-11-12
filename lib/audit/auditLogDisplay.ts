@@ -36,6 +36,9 @@ export const AUDIT_ACTIONS = {
   shop_claim_unlink: { label: "店舗との紐づけを解除", tone: "caution" },
   shop_invite_create: { label: "店舗への招待を作成", tone: "good" },
   shop_invite_revoke: { label: "店舗への招待を取り消し", tone: "caution" },
+  public_schedule_rollout: { label: "出店予定の公開設定を変更", tone: "caution" },
+  legacy_shop_identity_revoke: { label: "旧店舗番号の対応を取消", tone: "caution" },
+  legacy_shop_identity_confirm: { label: "旧店舗番号の対応を確定", tone: "caution" },
   market_schedule_edit: { label: "出店予定を編集", tone: "info" },
   // マップ編集
   map_edit_save_vendors: { label: "マップ編集で出店者を保存", tone: "info" },
