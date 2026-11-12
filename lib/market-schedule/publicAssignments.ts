@@ -33,6 +33,21 @@ export function publicVendorStatuses(data: ScheduleAdminData, date: string, vend
 }
 
 /**
+ * 指定日時点で予定の管理が始まっている店舗（開始日が指定日以前の期間を持つ店舗）。
+ * 公開マップの配置と店舗一覧の判定は、どちらもこの関数を使う。
+ */
+export function managedVendorIdsForDate(data: ScheduleAdminData, date: string): Set<string> {
+  const members = new Map(data.memberships.map((item) => [item.id, item]));
+  const managed = new Set<string>();
+  for (const period of data.periods) {
+    if (period.starts_on > date) continue;
+    const member = members.get(period.membership_id);
+    if (member) managed.add(member.vendor_id);
+  }
+  return managed;
+}
+
+/**
  * 新しい予定の管理が始まった場所・店舗には、古い配置を復活させない。
  * 指定日に一致する旧配置だけを残し、古い日の記録を現在の出店予定として表示しない。
  */
@@ -41,11 +56,11 @@ export function publicAssignmentsForDate(data: ScheduleAdminData, date: string, 
   const plan = resolveSchedule(data, date);
   const members = new Map(data.memberships.map((item) => [item.id, item]));
   const managedLocations = new Set<string>();
-  const managedVendors = new Set<string>();
+  const managedVendors = managedVendorIdsForDate(data, date);
   for (const period of data.periods) {
     if (period.starts_on > date) continue;
     const member = members.get(period.membership_id);
-    if (member) { managedLocations.add(member.location_id); managedVendors.add(member.vendor_id); }
+    if (member) managedLocations.add(member.location_id);
   }
   for (const override of data.overrides) {
     if (override.market_date === date && !override.is_cleared) managedLocations.add(override.location_id);

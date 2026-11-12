@@ -6,7 +6,7 @@ import { createAdminClient } from "@/lib/supabase/adminClient";
 import { fetchAllRows } from "@/lib/supabase/fetchAllRows";
 import { readPublicScheduleRollout } from "@/lib/market-schedule/rollout.server";
 import { readPublicScheduleData } from "@/lib/market-schedule/read.server";
-import { publicAssignmentsForDate, publicVendorStatuses } from "@/lib/market-schedule/publicAssignments";
+import { managedVendorIdsForDate, publicAssignmentsForDate, publicVendorStatuses } from "@/lib/market-schedule/publicAssignments";
 import { nextSundayJstString } from "@/lib/time/jstDate";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Shop, ShopProfile } from "../types/shopData";
@@ -158,14 +158,15 @@ export async function fetchPublicShopData(locale: Locale = DEFAULT_LOCALE): Prom
     const visible = new Set(ids.keys());
     const scheduleWithDay = { ...schedule, marketDays: marketDay.data ? [marketDay.data] : [] };
     statuses = publicVendorStatuses(scheduleWithDay, date, [...visible]);
-    const members = new Set(schedule.memberships.map((member) => member.vendor_id));
+    // 開始日が来ていない所属は、旧配置を残す判定に使う（公開マップの配置と同じ基準）
+    const managed = managedVendorIdsForDate(scheduleWithDay, date);
     baseRows = {
       ...baseRows,
       vendors: baseRows.vendors.flatMap((vendor) => {
         const publicId = ids.get(vendor.id);
         return typeof publicId === "number" ? [{ ...vendor, public_shop_id: publicId }] : [];
       }),
-      assignments: publicAssignmentsForDate(scheduleWithDay, date, baseRows.assignments, visible).filter((row) => row.vendor_id !== null && (statuses.get(row.vendor_id) === "scheduled" || (!members.has(row.vendor_id) && row.market_date === date))),
+      assignments: publicAssignmentsForDate(scheduleWithDay, date, baseRows.assignments, visible).filter((row) => row.vendor_id !== null && (statuses.get(row.vendor_id) === "scheduled" || (!managed.has(row.vendor_id) && row.market_date === date))),
     };
   }
   const categories = await fetchCategories().catch(() => []);

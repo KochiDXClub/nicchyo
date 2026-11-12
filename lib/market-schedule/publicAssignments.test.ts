@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { publicAssignmentsForDate, publicVendorStatuses } from "./publicAssignments";
+import { managedVendorIdsForDate, publicAssignmentsForDate, publicVendorStatuses } from "./publicAssignments";
 import type { ScheduleAdminData } from "./adminTypes";
 const data: ScheduleAdminData = {
   places: [{ id: "a", store_number: 1, official_number: 1, branch_number: null, district: null, place_name: null }, { id: "b", store_number: 2, official_number: 2, branch_number: null, district: null, place_name: null }],
@@ -29,6 +29,17 @@ describe("公開予定への移行", () => {
     expect(publicAssignmentsForDate(data, "2026-10-25", legacy, visible)).toEqual([]);
     const current = { vendor_id: "v2", location_id: "b", market_date: "2026-10-25" };
     expect(publicAssignmentsForDate(data, "2026-10-25", [...legacy, current], visible)).toEqual([current]);
+  });
+  it("開始日前の所属は管理中とせず、その日の旧配置を残す", () => {
+    const future: ScheduleAdminData = {
+      ...data,
+      memberships: [...data.memberships, { id: "m2", location_id: "b", vendor_id: "v2", vendor_number: 2 }],
+      periods: [...data.periods, { id: "p2", membership_id: "m2", starts_on: "2026-12-01", ends_on: null }],
+    };
+    expect([...managedVendorIdsForDate(future, "2026-11-08")]).toEqual(["v1"]);
+    expect([...managedVendorIdsForDate(future, "2026-12-06")].sort()).toEqual(["v1", "v2"]);
+    const kept = { vendor_id: "v2", location_id: "b", market_date: "2026-11-08" };
+    expect(publicAssignmentsForDate(future, "2026-11-08", [kept], visible)).toEqual([kept]);
   });
   it("隔週の休み・未設定・休市を区別する", () => {
     expect([...publicVendorStatuses(data, "2026-11-01", ["v1", "v2"]).entries()]).toEqual([["v1", "scheduled"], ["v2", "unknown"]]);
