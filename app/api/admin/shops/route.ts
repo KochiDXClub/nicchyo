@@ -25,6 +25,8 @@ export type AdminShop = {
   storeNumber: number | null;
   /** 名前付きの共通出店場所。未登録なら null */
   placeName?: string | null;
+  /** 登録済み・旧配置の場所。複数の場所を持つ店舗では一つに決めつけない。 */
+  places?: { storeNumber: number; name: string | null }[];
   /** 位置が決まっているか（現場で位置を記録した、または地図上の区画に置かれている） */
   hasLocation: boolean;
   /** 店舗写真があるか */
@@ -84,7 +86,14 @@ export async function GET() {
     }
 
     const sharedPlaces = await loadSharedMarketPlaces(serviceClient as unknown as SupabaseClient);
-    const placeByVendor = new Map([...sharedPlaces.values()].flatMap((place) => place.vendors.map((vendor) => [vendor.id, place] as const)));
+    const placesByVendor = new Map<string, { storeNumber: number; name: string | null }[]>();
+    for (const place of sharedPlaces.values()) {
+      for (const vendor of place.vendors) {
+        const places = placesByVendor.get(vendor.id) ?? [];
+        places.push({ storeNumber: place.storeNumber, name: place.name });
+        placesByVendor.set(vendor.id, places);
+      }
+    }
 
     // 現場登録の記録（地図には反映していない）。店番が決まっていない新しい店舗も、位置を記録していれば「位置あり」
     const fieldRows = new Map<string, { store_number: number | null; latitude: number | null }>();
@@ -115,6 +124,7 @@ export async function GET() {
     }
 
     const shops: AdminShop[] = vendors.map((vendor) => {
+      const places = placesByVendor.get(vendor.id) ?? [];
       const ownerAccountId = links.ownerByVendor.get(vendor.id);
       const authUser = ownerAccountId ? authById.get(ownerAccountId) : undefined;
       const bannedUntil = authUser?.banned_until ? new Date(authUser.banned_until) : null;
@@ -139,10 +149,11 @@ export async function GET() {
         email: authUser?.email ?? "-",
         status: isSuspended ? "suspended" : "active",
         listingStatus: vendor.listing_status as ListingStatus,
-        storeNumber: placeByVendor.get(vendor.id)?.storeNumber ?? fieldRows.get(vendor.id)?.store_number ?? storeNumberByVendor.get(vendor.id) ?? null,
-        placeName: placeByVendor.get(vendor.id)?.name ?? null,
+        storeNumber: places.length > 1 ? null : places[0]?.storeNumber ?? fieldRows.get(vendor.id)?.store_number ?? storeNumberByVendor.get(vendor.id) ?? null,
+        placeName: places.length === 1 ? places[0].name : null,
+        places,
         hasLocation:
-          placeByVendor.has(vendor.id) ||
+          places.length > 0 ||
           fieldRows.get(vendor.id)?.latitude != null ||
           fieldRows.get(vendor.id)?.store_number != null ||
           storeNumberByVendor.has(vendor.id),

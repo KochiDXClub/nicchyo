@@ -58,6 +58,8 @@ export default function SlotVendorPanel({
   onDelete: () => void;
 }) {
   const [previewVendor, setPreviewVendor] = useState<string | null>(null);
+  const hasRegisteredVendors = (shop.placeVendors?.length ?? 0) > 0;
+  const hasMultipleVendors = (shop.placeVendors?.length ?? 0) > 1;
   const [addressText, setAddressText] = useState("");
   const [addressError, setAddressError] = useState("");
   useEffect(() => {
@@ -123,16 +125,16 @@ export default function SlotVendorPanel({
         </button>
       )}
 
-      {shop.placeName && <div style={{ ...noteStyle, marginBottom: 12 }}>
-        <p>出店場所: {shop.placeName}</p>
+      {(shop.placeName || shop.placeVendors?.length) ? <div style={{ ...noteStyle, marginBottom: 12 }}>
+        {shop.placeName && <p>出店場所: {shop.placeName}</p>}
         <p>この場所に登録されている店舗（公開配置とは別）:</p>
         {shop.placeVendors?.length ? <ul>{shop.placeVendors.map((item) => <li key={item.id}><button type="button" onClick={() => setPreviewVendor(item.id)}>{item.name}</button>（<a href={`/admin/field/${item.id}`} target="_blank" rel="noopener noreferrer">詳細を開く</a>）</li>)}</ul> : <p>なし</p>}
-      </div>}
+      </div> : null}
       {vendor ? (
         <>
-          <p style={{ ...label, marginTop: 4 }}>現在の公開配置</p>
+          <p style={{ ...label, marginTop: 4 }}>旧公開配置の記録</p><p style={noteStyle}>現在の出店予定は出店予定管理で確認してください。</p>
           <p><button type="button" onClick={() => setPreviewVendor(vendor.id)}><strong>{vendor.name}</strong></button> <a href={`/admin/field/${vendor.id}`} target="_blank" rel="noopener noreferrer">現場登録で店舗情報を確認</a></p>
-          {!shop.placeName && vendor.fieldObservation && <div style={{ ...noteStyle, marginBottom: 12 }}>
+          {!shop.placeName && !hasMultipleVendors && vendor.fieldObservation && <div style={{ ...noteStyle, marginBottom: 12 }}>
             <p style={label}>現場で記録した位置（確認用）</p>
             <p>記録日時: {new Date(vendor.fieldObservation.updatedAt).toLocaleString("ja-JP", { timeZone: "Asia/Tokyo" })}<br />
               緯度・経度: {vendor.fieldObservation.lat.toFixed(6)}, {vendor.fieldObservation.lng.toFixed(6)}<br />
@@ -144,8 +146,9 @@ export default function SlotVendorPanel({
               if (window.confirm("この区画を現場で記録した位置に移しますか？ 保存するまでマップには反映されません。")) onApplyFieldObservation?.();
             }}>現場の位置を編集内容に追加</button>
           </div>}
+          {hasMultipleVendors && vendor.fieldObservation && <p style={noteStyle}>複数の店舗が利用する場所です。個別の現場記録をそのまま場所全体には反映できません。</p>}
         </>
-      ) : <p style={noteStyle}>現在の公開配置はありません。</p>}
+      ) : <p style={noteStyle}>旧公開配置の記録はありません。</p>}
 
       {previewVendor && <ShopPreview vendorId={previewVendor} position={shop.position} onClose={() => setPreviewVendor(null)} />}
 
@@ -153,14 +156,14 @@ export default function SlotVendorPanel({
         <button
           type="button"
           onClick={onDelete}
-          disabled={!!shop.vendorId || !!shop.placeName}
-          title={shop.vendorId ? "出店者がいる区画は削除できません。先に「空きにする」で出店者を外してください" : shop.placeName ? "名前付きの出店場所は削除できません" : undefined}
-          style={{ ...dangerButtonStyle, opacity: shop.vendorId || shop.placeName ? 0.45 : 1, cursor: shop.vendorId || shop.placeName ? "not-allowed" : "pointer" }}
+          disabled={!!shop.vendorId || !!shop.placeName || hasRegisteredVendors}
+          title={shop.vendorId || hasRegisteredVendors ? "出店履歴がある区画は削除できません" : shop.placeName ? "名前付きの出店場所は削除できません" : undefined}
+          style={{ ...dangerButtonStyle, opacity: shop.vendorId || shop.placeName || hasRegisteredVendors ? 0.45 : 1, cursor: shop.vendorId || shop.placeName || hasRegisteredVendors ? "not-allowed" : "pointer" }}
         >
           この区画を削除
         </button>
       </div>
-      {shop.vendorId && <p style={{ ...noteStyle, marginTop: 8 }}>区画を削除するには、先に「空きにする」で出店者を外してください。</p>}
+      {(shop.vendorId || hasRegisteredVendors) && <p style={{ ...noteStyle, marginTop: 8 }}>出店履歴のある区画は削除できません。</p>}
       {shop.placeName && <p style={{ ...noteStyle, marginTop: 8 }}>名前付きの出店場所は削除できません。</p>}
     </div>
   );

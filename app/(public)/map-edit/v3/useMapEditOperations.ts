@@ -263,7 +263,7 @@ export function useMapEditOperations(params: Params) {
   const applyFieldObservation = useCallback((locationId: string) => {
     const shop = shops.find((item) => item.locationId === locationId);
     const observation = vendors.find((item) => item.id === shop?.vendorId)?.fieldObservation;
-    if (!shop || shop.placeName || !observation) return;
+    if (!shop || shop.placeName || (shop.placeVendors?.length ?? 0) > 1 || !observation) return;
     commit({ shops: shops.map((item) => item.locationId === locationId
       ? { ...item, lat: observation.lat, lng: observation.lng, roadId: undefined, roadDistanceM: undefined, roadSide: undefined, roadOffsetM: undefined }
       : item) }, String(shop.position), "確認した現場の位置を反映");

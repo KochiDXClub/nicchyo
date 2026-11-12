@@ -58,7 +58,7 @@ function FieldListContent() {
     const q = query.trim().toLowerCase();
     return shops
       .filter(active.match)
-      .filter((s) => q === "" || s.name.toLowerCase().includes(q) || (s.placeName?.toLowerCase().includes(q) ?? false) || (s.storeNumber !== null && String(s.storeNumber) === q))
+      .filter((s) => q === "" || s.name.toLowerCase().includes(q) || (s.placeName?.toLowerCase().includes(q) ?? false) || (s.storeNumber !== null && String(s.storeNumber) === q) || (s.places?.some((place) => place.name?.toLowerCase().includes(q) || String(place.storeNumber) === q) ?? false))
       // 店番の順（位置が未登録の店舗は後ろ）
       .sort((a, b) => (a.storeNumber ?? Infinity) - (b.storeNumber ?? Infinity) || a.name.localeCompare(b.name, "ja"));
   }, [shops, filter, query]);
@@ -124,13 +124,14 @@ function FieldListContent() {
                     className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-lg text-lg font-bold ${
                       shop.storeNumber !== null || shop.hasLocation ? "bg-green-50 text-green-700" : "bg-nicchyo-base text-nicchyo-ink/40"
                     }`}
-                    aria-label={shop.storeNumber !== null ? `店番 ${shop.storeNumber}` : shop.hasLocation ? "店番なし・位置は記録済み" : "位置が未登録"}
+                    aria-label={(shop.places?.length ?? 0) > 1 ? "出店場所が複数" : shop.storeNumber !== null ? `店番 ${shop.storeNumber}` : shop.hasLocation ? "店番なし・位置は記録済み" : "位置が未登録"}
                   >
-                    {shop.storeNumber ?? "–"}
+                    {(shop.places?.length ?? 0) > 1 ? "複数" : shop.storeNumber ?? "–"}
                   </span>
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-base font-semibold text-nicchyo-ink">{shop.name}</span>
                     {shop.placeName && <span className="mt-1 block truncate text-xs text-nicchyo-ink/70">出店場所：{shop.placeName}</span>}
+                    {(shop.places?.length ?? 0) > 1 && <span className="mt-1 block text-xs text-nicchyo-ink/70">登録場所（旧配置を含む）：{shop.places?.map((place) => place.name || String(place.storeNumber)).join("、")}</span>}
                     <span className="mt-1 flex flex-wrap items-center gap-1.5">
                       <ListingStatusBadge status={shop.listingStatus} />
                       {!shop.hasPhoto ? <span className="text-[11px] text-nicchyo-ink/55">写真なし</span> : null}
