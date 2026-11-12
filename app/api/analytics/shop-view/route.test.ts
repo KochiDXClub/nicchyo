@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+const publicIdentity = vi.hoisted(() => vi.fn());
+const publicVendor = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/analytics/collectionSettings.server", () => ({ isAnalyticsCollectionEnabled: async () => true }));
 
 const getUser = vi.fn();
@@ -42,7 +44,9 @@ vi.mock("@/lib/supabase/adminClient", () => ({
   },
 }));
 
-import { MAX_SHOP_ID } from "@/lib/shops/route";
+vi.mock("@/lib/shops/publicIdentity.server", () => ({ readPublicLegacyIdentities: publicIdentity }));
+vi.mock("@/lib/supabase/anonClient", () => ({ createAnonClient: () => ({ from: () => ({ select: () => ({ eq: () => ({ maybeSingle: publicVendor }) }) }) }) }));
+import { MAX_PUBLIC_VENDOR_ID } from "@/lib/shops/identity";
 import { POST } from "./route";
 
 function post(body: unknown) {
@@ -57,6 +61,8 @@ function post(body: unknown) {
 
 describe("POST /api/analytics/shop-view", () => {
   beforeEach(() => {
+    publicIdentity.mockReset().mockResolvedValue({ enabled: false, aliases: {} });
+    publicVendor.mockReset().mockResolvedValue({ data: { id: "vendor-1" } });
     getUser.mockReset().mockResolvedValue({ data: { user: null } });
     insertView.mockReset().mockResolvedValue({ error: null });
     isMember = false;
@@ -66,12 +72,24 @@ describe("POST /api/analytics/shop-view", () => {
   });
 
   it("店番号が範囲外・整数でなければ 400 で、何も書かない", async () => {
-    for (const shopId of [0, MAX_SHOP_ID + 1, 1.5, "5"]) {
+    for (const shopId of [0, MAX_PUBLIC_VENDOR_ID + 1, 1.5, "5"]) {
       expect((await post({ shopId, source: "map" })).status).toBe(400);
     }
     expect(insertView).not.toHaveBeenCalled();
   });
 
+  it("固定IDは公開ポリシーを通る店舗だけに記録する", async () => {
+    await post({ shopId: 1001, source: "map" });
+    expect(insertView).toHaveBeenCalledWith({ vendor_id: "vendor-1", source: "map" });
+    insertView.mockClear(); publicVendor.mockResolvedValue({ data: null });
+    await post({ shopId: 1002, source: "map" });
+    expect(insertView).not.toHaveBeenCalled();
+  });
+  it("公開切替後の未確認旧番号を場所の店舗に記録しない", async () => {
+    publicIdentity.mockResolvedValue({ enabled: true, aliases: {} });
+    await post({ shopId: 5, source: "map" });
+    expect(insertView).not.toHaveBeenCalled();
+  });
   it("出店者が決まれば、流入元つきで1行書く", async () => {
     const res = await post({ shopId: 5, source: "search" });
     expect(await res.json()).toEqual({ ok: true });
