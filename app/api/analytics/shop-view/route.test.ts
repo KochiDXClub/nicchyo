@@ -2,6 +2,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const publicIdentity = vi.hoisted(() => vi.fn());
 const publicVendor = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/analytics/collectionSettings.server", () => ({ isAnalyticsCollectionEnabled: async () => true }));
+
 const getUser = vi.fn();
 const insertView = vi.fn();
 /** 店番号 → 屋台、屋台に入った出店者、その出店者の配置。表ごとの返り値 */

@@ -1,3 +1,4 @@
+import { isAnalyticsCollectionEnabled } from "@/lib/analytics/collectionSettings.server";
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -33,6 +34,8 @@ export async function POST(request: Request) {
     windowMs: 10 * 60 * 1000,
   });
   if (rateLimited) return rateLimited;
+
+  if (!(await isAnalyticsCollectionEnabled("shopViews"))) return NextResponse.json({ ok: true, skipped: true });
 
   const body = (await request.json().catch(() => null)) as { shopId?: unknown; source?: unknown } | null;
   const shopId = body?.shopId;
