@@ -178,9 +178,8 @@ export async function fetchShopsByVendorIds(
   if (vendorIds.length === 0) return [];
 
   // 公開切り替え後は、地図と同じ固定の店舗 ID を返す（店番を ID にすると、お気に入り・共有で別店を指す）。
-  // 参照できないときは従来の店番のまま返す。
-  let publicRollout = false;
-  try { publicRollout = await readPublicScheduleRollout(); } catch { publicRollout = false; }
+  // 公開設定を確認できないときは、旧番号へ戻さず失敗させる（一時的な失敗で別店舗の ID を返さないため）。
+  const publicRollout = await readPublicScheduleRollout();
 
   const [
     { data: vendorsData },
