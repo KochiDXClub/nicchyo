@@ -48,7 +48,7 @@ const nextConfig = {
     ];
   },
 
-  // /news は「日曜市カレンダー」(/calendar) に作り替えたため、旧URLを転送する
+  // /news は「お知らせ」一覧ページ。以前の /news → /calendar の恒久転送は外した（#1014）
   async redirects() {
     return [
       // 店舗のQRコードは店舗管理（一覧と詳細）に統合した
@@ -61,11 +61,6 @@ const nextConfig = {
       {
         source: '/vendor/post/new',
         destination: '/vendor/posts',
-        permanent: true,
-      },
-      {
-        source: '/news',
-        destination: '/calendar',
         permanent: true,
       },
       // 旧店舗検索ページ（/search）は、地図の検索（/map?q= ・ /map?category=）に一本化した。

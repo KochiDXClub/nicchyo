@@ -36,10 +36,10 @@ describe("sitemap", () => {
     expect(urls.some((u) => u.includes("/shops/"))).toBe(false);
   });
 
-  it("リダイレクトされる /news・/search は載せない", async () => {
+  it("リダイレクトされる /search は載せない（/news はお知らせ一覧として載せる）", async () => {
     fetchPublicShops.mockResolvedValue([]);
     const urls = (await sitemap()).map((entry) => entry.url);
-    expect(urls.some((u) => u.endsWith("/news"))).toBe(false);
+    expect(urls.some((u) => u.endsWith("/news"))).toBe(true);
     expect(urls.some((u) => u.endsWith("/search"))).toBe(false);
   });
 
@@ -49,10 +49,9 @@ describe("sitemap", () => {
     expect(urls.some((u) => /^https?:\/\/[^/]+\/$/.test(u))).toBe(true);
   });
 
-  it("リダイレクトされる /news は載せず、リダイレクト先や活動記録を載せる", async () => {
+  it("カレンダー・活動記録などの静的ページを載せる", async () => {
     fetchPublicShops.mockResolvedValue([]);
     const urls = (await sitemap()).map((entry) => entry.url);
-    expect(urls.some((u) => u.endsWith("/news"))).toBe(false);
     for (const path of ["/calendar", "/story", "/activities", "/support"]) {
       expect(urls.some((u) => u.endsWith(path))).toBe(true);
     }
