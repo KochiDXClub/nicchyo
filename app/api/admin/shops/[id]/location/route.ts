@@ -3,6 +3,8 @@ import { requireAdminApi } from "@/lib/auth/requireAdminApi";
 import { guardAdminShopWrite, UUID_RE } from "@/lib/admin/shopApiGuard";
 import { logAdminAudit } from "@/lib/audit/logAdminAudit";
 import { parseShopLocation } from "@/lib/admin/shopLocation";
+import { loadSharedMarketPlaces } from "@/lib/admin/marketPlaces.server";
+import { createAdminClient } from "@/lib/supabase/adminClient";
 import { isMissingTableError } from "@/lib/admin/fieldShopLocation";
 
 export const runtime = "nodejs";
@@ -36,6 +38,13 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: "位置を取得できませんでした" }, { status: 500 });
   }
 
+  const db = adminClient as unknown as NonNullable<ReturnType<typeof createAdminClient>>;
+  let linkedLocationId: string | undefined;
+  try {
+    const shared = await loadSharedMarketPlaces(db);
+    linkedLocationId = [...shared.values()].find((place) => place.vendors.some((vendor) => vendor.id === id))?.id;
+  } catch { return NextResponse.json({ error: "出店場所を確認できませんでした" }, { status: 500 }); }
+
   const nameById = new Map((vendors.data ?? []).map((v) => [v.id, v.shop_name ?? ""]));
   const vendorByLocation = new Map((assignments.data ?? []).map((a) => [a.location_id, a.vendor_id]));
 
@@ -51,7 +60,14 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   });
 
   const record = field.data;
-  const current =
+  // 一覧には PostgREST の件数上限があるため、共通区画はIDで直接読む。
+  const linkedResult = linkedLocationId ? await adminClient.from("market_locations").select("id, store_number, latitude, longitude").eq("id", linkedLocationId).maybeSingle() : null;
+  if (linkedLocationId && (linkedResult?.error || !linkedResult?.data)) return NextResponse.json({ error: "出店場所の位置を取得できませんでした" }, { status: 500 });
+  const linkedRow = linkedResult?.data ?? null;
+  const current = linkedRow ? {
+      storeNumber: linkedRow.store_number, lat: linkedRow.latitude, lng: linkedRow.longitude,
+      vendorId: id, vendorName: nameById.get(id) ?? "", sharedPlace: true,
+    } :
     record && record.latitude != null && record.longitude != null
       ? {
           storeNumber: record.store_number,
@@ -87,6 +103,11 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
     const { data: vendor } = await adminClient.from("vendors").select("shop_name").eq("id", id).maybeSingle();
     if (!vendor) return NextResponse.json({ error: "店舗が見つかりません" }, { status: 404 });
 
+    const db = adminClient as unknown as NonNullable<ReturnType<typeof createAdminClient>>;
+    const shared = await loadSharedMarketPlaces(db);
+    if ([...shared.values()].some((place) => place.vendors.some((vendor) => vendor.id === id))) {
+      return NextResponse.json({ error: "出店場所が登録されています。共通の区画の位置はマップ編集で変更してください。" }, { status: 409 });
+    }
     const { error } = await adminClient
       .from("field_shop_locations")
       .upsert(
@@ -102,6 +123,7 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
         },
         { onConflict: "vendor_id" },
       );
+    if (error?.message?.includes("vendor_has_shared_market_place")) return NextResponse.json({ error: "出店場所が登録されています。共通の区画はマップ編集で変更してください。" }, { status: 409 });
     if (error) return NextResponse.json({ error: "位置を保存できませんでした" }, { status: 500 });
 
     await logAdminAudit(

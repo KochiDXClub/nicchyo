@@ -144,6 +144,7 @@ export default function SlotVendorPanel({
   vendors,
   categories,
   onSelectVendor,
+  onApplyFieldObservation,
   onRegisterVendor,
   onUpdateVendor,
   onClearVendor,
@@ -159,6 +160,7 @@ export default function SlotVendorPanel({
   vendors: EditableVendor[];
   categories: VendorCategory[];
   onSelectVendor: (vendorId: string) => void;
+  onApplyFieldObservation?: () => void;
   onRegisterVendor: (draft: VendorDraft) => void;
   onUpdateVendor: (patch: Partial<VendorDraft>, logText: string, coalesceKey?: string) => void;
   onClearVendor: () => void;
@@ -220,9 +222,26 @@ export default function SlotVendorPanel({
         </button>
       )}
 
+      {shop.placeName && <div style={{ ...noteStyle, marginBottom: 12 }}>
+        <p>出店場所: {shop.placeName}</p>
+        <p>この場所に登録されている店舗（公開配置とは別）:</p>
+        {shop.placeVendors?.length ? <ul>{shop.placeVendors.map((item) => <li key={item.id}><a href={`/admin/field/${item.id}`} target="_blank" rel="noopener noreferrer">{item.name}（詳細を開く）</a></li>)}</ul> : <p>なし</p>}
+      </div>}
       <label>
         <span style={label}>登録済みの出店者から選ぶ</span>
-        <select value={shop.vendorId ?? ""} onChange={(e) => onSelectVendor(e.target.value)} style={inputStyle}>
+        <select value={shop.vendorId ?? ""} onChange={(e) => {
+          const next = e.target.value;
+          const others = shop.placeVendors?.filter((item) => item.id !== next) ?? [];
+          if (next && shop.placeName && !shop.placeVendors?.some((item) => item.id === next)) {
+            window.alert("先に現場登録でこの店舗の出店場所を設定してください。");
+            return;
+          }
+          if (next && next !== shop.vendorId) {
+            const warnings = [shop.vendorId ? "現在配置されている店舗を入れ替えます。" : "", others.length > 0 ? `この出店場所には別の店舗が ${others.length} 件登録されています。` : ""].filter(Boolean);
+            if (warnings.length && !window.confirm(`${warnings.join("\n")}\n続けますか？`)) return;
+          }
+          onSelectVendor(next);
+        }} style={inputStyle}>
           <option value="">（空き）</option>
           {vendors.map((v) => (
             <option key={v.id} value={v.id}>
@@ -234,6 +253,18 @@ export default function SlotVendorPanel({
 
       {vendor ? (
         <>
+          {!shop.placeName && vendor.fieldObservation && <div style={{ ...noteStyle, marginBottom: 12 }}>
+            <p style={label}>現場で記録した位置（確認用）</p>
+            <p>記録日時: {new Date(vendor.fieldObservation.updatedAt).toLocaleString("ja-JP", { timeZone: "Asia/Tokyo" })}<br />
+              緯度・経度: {vendor.fieldObservation.lat.toFixed(6)}, {vendor.fieldObservation.lng.toFixed(6)}<br />
+              記録した店番: {vendor.fieldObservation.storeNumber ?? "未設定"}<br />
+              記録方法: {vendor.fieldObservation.source === "gps" ? "GPS" : vendor.fieldObservation.source === "pin" ? "地図のピン" : "不明"}{vendor.fieldObservation.accuracyM != null ? `（誤差 約${vendor.fieldObservation.accuracyM}m）` : ""}</p>
+            {vendor.fieldObservation.storeNumber != null && vendor.fieldObservation.storeNumber !== shop.position && <p style={errorNoteStyle}>記録した店番と、この区画の店番が異なります。位置をよく確認してください。</p>}
+            <p>位置を確認して編集内容に追加し、「変更を保存」するとマップへ反映されます。道との紐づけは解除されます。</p>
+            <button type="button" style={buttonStyle} onClick={() => {
+              if (window.confirm("この区画を現場で記録した位置に移しますか？ 保存するまでマップには反映されません。")) onApplyFieldObservation?.();
+            }}>現場の位置を編集内容に追加</button>
+          </div>}
           <p style={{ ...label, marginTop: 4 }}>出店者の情報</p>
           <VendorFields
             value={vendor}
@@ -244,8 +275,10 @@ export default function SlotVendorPanel({
             onProductsCommit={(mainProducts) => onUpdateVendor({ mainProducts }, "の主な商品を変更")}
           />
           {!vendor.name.trim() && <p style={errorNoteStyle}>店名が空のままでは保存できません。</p>}
-          <p style={noteStyle}>地図のピンや下の区画レーンをドラッグすると、別の区画へ移せます（出店者がいれば入れ替え）。</p>
+          <p style={noteStyle}>{shop.placeName ? "出店場所が登録された店舗はドラッグで別の区画へ移せません。現場登録で場所を確認してください。" : "地図のピンや下の区画レーンをドラッグすると、別の区画へ移せます（出店者がいれば入れ替え）。"}</p>
         </>
+      ) : shop.placeName ? (
+        <p style={noteStyle}>新しい店舗は<a href="/admin/field" target="_blank" rel="noopener noreferrer">現場登録</a>で作成し、この場所を登録してから配置してください。</p>
       ) : (
         <>
           <p style={{ ...label, marginTop: 4 }}>または、新しい出店者を登録</p>
@@ -272,21 +305,22 @@ export default function SlotVendorPanel({
 
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
         {vendor && (
-          <button type="button" onClick={onClearVendor} style={buttonStyle} title="出店者の情報は消さず、この区画から外します">
-            空きにする
+          <button type="button" onClick={onClearVendor} style={buttonStyle} title={shop.placeName ? "公開配置だけを外し、出店場所の登録は残します" : "出店者の情報は消さず、この区画から外します"}>
+            {shop.placeName ? "公開配置を解除" : "空きにする"}
           </button>
         )}
         <button
           type="button"
           onClick={onDelete}
-          disabled={!!shop.vendorId}
-          title={shop.vendorId ? "出店者がいる区画は削除できません。先に「空きにする」で出店者を外してください" : undefined}
-          style={{ ...dangerButtonStyle, opacity: shop.vendorId ? 0.45 : 1, cursor: shop.vendorId ? "not-allowed" : "pointer" }}
+          disabled={!!shop.vendorId || !!shop.placeName}
+          title={shop.vendorId ? "出店者がいる区画は削除できません。先に「空きにする」で出店者を外してください" : shop.placeName ? "名前付きの出店場所は削除できません" : undefined}
+          style={{ ...dangerButtonStyle, opacity: shop.vendorId || shop.placeName ? 0.45 : 1, cursor: shop.vendorId || shop.placeName ? "not-allowed" : "pointer" }}
         >
           この区画を削除
         </button>
       </div>
       {shop.vendorId && <p style={{ ...noteStyle, marginTop: 8 }}>区画を削除するには、先に「空きにする」で出店者を外してください。</p>}
+      {shop.placeName && <p style={{ ...noteStyle, marginTop: 8 }}>名前付きの出店場所は削除できません。</p>}
     </div>
   );
 }

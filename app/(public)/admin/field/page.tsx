@@ -58,7 +58,7 @@ function FieldListContent() {
     const q = query.trim().toLowerCase();
     return shops
       .filter(active.match)
-      .filter((s) => q === "" || s.name.toLowerCase().includes(q) || (s.storeNumber !== null && String(s.storeNumber) === q))
+      .filter((s) => q === "" || s.name.toLowerCase().includes(q) || (s.placeName?.toLowerCase().includes(q) ?? false) || (s.storeNumber !== null && String(s.storeNumber) === q))
       // 店番の順（位置が未登録の店舗は後ろ）
       .sort((a, b) => (a.storeNumber ?? Infinity) - (b.storeNumber ?? Infinity) || a.name.localeCompare(b.name, "ja"));
   }, [shops, filter, query]);
@@ -130,6 +130,7 @@ function FieldListContent() {
                   </span>
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-base font-semibold text-nicchyo-ink">{shop.name}</span>
+                    {shop.placeName && <span className="mt-1 block truncate text-xs text-nicchyo-ink/70">出店場所：{shop.placeName}</span>}
                     <span className="mt-1 flex flex-wrap items-center gap-1.5">
                       <ListingStatusBadge status={shop.listingStatus} />
                       {!shop.hasPhoto ? <span className="text-[11px] text-nicchyo-ink/55">写真なし</span> : null}

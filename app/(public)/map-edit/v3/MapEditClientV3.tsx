@@ -44,7 +44,7 @@ const isRoadCreationDisabled = true;
 function slotsOnRoad(shops: EditableShop[], roadId: string): SlotOnRoad[] {
   return shops.flatMap((s) =>
     s.roadId === roadId && s.roadSide && s.roadDistanceM != null
-      ? [{ locationId: s.locationId, side: s.roadSide, distanceM: s.roadDistanceM, hasVendor: !!s.vendorId }]
+      ? [{ locationId: s.locationId, side: s.roadSide, distanceM: s.roadDistanceM, hasVendor: !!s.vendorId || !!s.placeName }]
       : []
   );
 }
@@ -455,6 +455,10 @@ export default function MapEditClientV3() {
         </div>
       )}
 
+      {data.fieldObservationsUnavailable && (
+        <div role="alert" className="bg-amber-50 px-5 py-2 text-sm text-amber-800">現場で記録した位置を読み込めませんでした。地図の編集はできますが、現場の位置を反映するには再読み込みしてください。</div>
+      )}
+
       {data.message && (
         <div style={{ padding: "8px 20px", background: "#FFF7E6", color: "#92400E", fontSize: 12.5, borderBottom: "1px solid #EDE3CD" }}>
           {data.message}
@@ -629,6 +633,7 @@ export default function MapEditClientV3() {
                   vendors={data.vendors}
                   categories={data.categories}
                   onSelectVendor={(vendorId) => ops.assignVendor(selectedShop.locationId, vendorId)}
+                  onApplyFieldObservation={() => ops.applyFieldObservation(selectedShop.locationId)}
                   onRegisterVendor={(draft) => ops.registerVendor(selectedShop.locationId, draft)}
                   onUpdateVendor={(patch, logText, coalesceKey) =>
                     selectedShop.vendorId && ops.updateVendor(selectedShop.vendorId, patch, logText, { coalesceKey })
