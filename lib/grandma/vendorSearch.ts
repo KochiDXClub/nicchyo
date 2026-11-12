@@ -11,6 +11,7 @@ import type {
 } from "./types";
 import { normalizeChome, sanitizeLikeKeyword, getCurrentSeasonInfo, haversineKm } from "./consultUtils";
 import { readPublicScheduleRollout } from "@/lib/market-schedule/rollout.server";
+import { fetchPublicShopData } from "@/app/(public)/map/services/shopCache";
 
 export async function fetchCandidateVendorIds(
   supabase: SupabaseClient<Database>,
@@ -180,6 +181,10 @@ export async function fetchShopsByVendorIds(
   // 公開切り替え後は、地図と同じ固定の店舗 ID を返す（店番を ID にすると、お気に入り・共有で別店を指す）。
   // 公開設定を確認できないときは、旧番号へ戻さず失敗させる（一時的な失敗で別店舗の ID を返さないため）。
   const publicRollout = await readPublicScheduleRollout();
+  // 公開切り替え後は、地図に次の日曜の配置として出ている店舗だけを使う（地図と同じ解決）。旧配置は見ない。
+  const placedByVendor = publicRollout
+    ? new Map((await fetchPublicShopData()).shops.flatMap((shop) => (shop.vendorId ? [[shop.vendorId, shop] as const] : [])))
+    : null;
 
   const [
     { data: vendorsData },
@@ -273,12 +278,29 @@ export async function fetchShopsByVendorIds(
 
   return vendors
     .map((vendor): Shop | null => {
-      const assignment = latestAssignmentByVendor.get(vendor.id);
-      if (!assignment?.location_id) return null;
-      const location = locationById.get(assignment.location_id);
-      if (!location) return null;
-      const storeNumber = Number(location.store_number ?? 0);
-      if (!Number.isFinite(storeNumber) || storeNumber <= 0) return null;
+      const placed = placedByVendor?.get(vendor.id);
+      let storeNumber: number;
+      let lat: number;
+      let lng: number;
+      let chome: Shop["chome"];
+      if (placedByVendor) {
+        // 次の日曜に地図で配置されていない店舗は、AI の候補にしない（位置を推測しない）
+        if (!placed) return null;
+        storeNumber = placed.position;
+        lat = placed.lat;
+        lng = placed.lng;
+        chome = placed.chome;
+      } else {
+        const assignment = latestAssignmentByVendor.get(vendor.id);
+        if (!assignment?.location_id) return null;
+        const location = locationById.get(assignment.location_id);
+        if (!location) return null;
+        storeNumber = Number(location.store_number ?? 0);
+        if (!Number.isFinite(storeNumber) || storeNumber <= 0) return null;
+        lat = Number(location.latitude ?? 0);
+        lng = Number(location.longitude ?? 0);
+        chome = normalizeChome(location.district);
+      }
 
       const catRaw = vendor.categories;
       const joinedCategoryName = Array.isArray(catRaw)
@@ -301,9 +323,11 @@ export async function fetchShopsByVendorIds(
           : undefined;
       const activePost = activePosts?.[0];
 
-      const publicId = publicRollout && Number.isSafeInteger(vendor.public_shop_id) && (vendor.public_shop_id ?? 0) >= 1000
-        ? (vendor.public_shop_id as number)
-        : storeNumber;
+      const publicId = placed
+        ? placed.id
+        : publicRollout && Number.isSafeInteger(vendor.public_shop_id) && (vendor.public_shop_id ?? 0) >= 1000
+          ? (vendor.public_shop_id as number)
+          : storeNumber;
       return {
         id: publicId,
         vendorId: vendor.id,
@@ -330,9 +354,9 @@ export async function fetchShopsByVendorIds(
         activePosts,
         activePost,
         position: storeNumber,
-        lat: Number(location.latitude ?? 0),
-        lng: Number(location.longitude ?? 0),
-        chome: normalizeChome(location.district),
+        lat,
+        lng,
+        chome,
       };
     })
     .filter((shop): shop is Shop => shop !== null)

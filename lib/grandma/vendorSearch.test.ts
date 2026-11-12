@@ -9,8 +9,15 @@ import {
 } from "./vendorSearch";
 import type { Shop } from "@/app/(public)/map/data/shops";
 
-// 公開設定は別テストで確認する。ここでは旧番号（店番）の経路を見る
-vi.mock("@/lib/market-schedule/rollout.server", () => ({ readPublicScheduleRollout: async () => false }));
+// 公開設定と地図の配置は、テストごとに切り替える。既定は旧番号（店番）の経路
+const publicState = vi.hoisted(() => ({
+  enabled: false,
+  placed: [] as Array<{ id: number; vendorId: string; position: number; lat: number; lng: number; chome: string | null }>,
+}));
+vi.mock("@/lib/market-schedule/rollout.server", () => ({ readPublicScheduleRollout: async () => publicState.enabled }));
+vi.mock("@/app/(public)/map/services/shopCache", () => ({
+  fetchPublicShopData: async () => ({ shops: publicState.placed, profiles: [] }),
+}));
 
 /** テーブル名・RPC名ごとに決まった行を返す supabase の代役。絞り込み条件は見ない */
 function fakeSupabase(
@@ -169,5 +176,35 @@ describe("fetchShopsByVendorIds", () => {
     const shops = await fetchShopsByVendorIds(supabase, ["v-large", "v-small"]);
 
     expect(shops.map((shop) => shop.id)).toEqual([300, 5]);
+  });
+});
+
+describe("fetchShopsByVendorIds（公開切り替え後）", () => {
+  it("地図に配置されている店舗だけを、地図と同じ固定 ID・位置で返す", async () => {
+    publicState.enabled = true;
+    publicState.placed = [
+      { id: 1001, vendorId: "v-placed", position: 7, lat: 33.6, lng: 133.6, chome: "1丁目" },
+    ];
+    try {
+      const supabase = fakeSupabase({
+        vendors: [
+          { id: "v-placed", shop_name: "配置済み", public_shop_id: 1001 },
+          { id: "v-unplaced", shop_name: "配置なし", public_shop_id: 1002 },
+        ],
+        // 旧配置が残っていても、地図に出ていない店舗は候補にしない
+        location_assignments: [
+          { vendor_id: "v-unplaced", location_id: "loc-9", market_date: "2026-11-01" },
+        ],
+        market_locations: [
+          { id: "loc-9", store_number: 9, latitude: 33.5, longitude: 133.5, district: "2丁目" },
+        ],
+      });
+      const shops = await fetchShopsByVendorIds(supabase, ["v-unplaced", "v-placed"]);
+      expect(shops.map((shop) => shop.id)).toEqual([1001]);
+      expect(shops[0]).toMatchObject({ lat: 33.6, lng: 133.6, position: 7 });
+    } finally {
+      publicState.enabled = false;
+      publicState.placed = [];
+    }
   });
 });
