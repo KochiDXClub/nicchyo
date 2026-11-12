@@ -122,6 +122,66 @@ describe("createStreamingConsultResponse", () => {
     });
   });
 
+  describe("1人目の発話の途中経過（first_turn_delta）", () => {
+    /** モデルの出力を SSE の data 行として 1 つずつ流し、届いた first_turn_delta をつなげて返す */
+    async function streamedText(chunks: string[]) {
+      const encoder = new TextEncoder();
+      const body = new ReadableStream<Uint8Array>({
+        start(controller) {
+          for (const content of chunks) {
+            controller.enqueue(
+              encoder.encode(`data: ${JSON.stringify({ choices: [{ delta: { content } }] })}\n\n`)
+            );
+          }
+          controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+          controller.close();
+        },
+      });
+      requestChatCompletion.mockResolvedValue(new Response(body, { status: 200 }));
+      const res = await startStream();
+      const text = await new Response(res.body!).text();
+      return text
+        .split("\n")
+        .filter(Boolean)
+        .map((line) => JSON.parse(line) as { type: string; delta?: string })
+        .filter((event) => event.type === "first_turn_delta")
+        .map((event) => event.delta)
+        .join("");
+    }
+
+    it("通常の形式（TURN 行のあとに別の行）では、本文だけを流す", async () => {
+      const text = await streamedText([
+        "TURN|nichiyosan|にちよさん|いも天は",
+        "三丁目にあるよ。\nSHOP_IDS|12,34\nFOLLOW_UP|ほかには？",
+      ]);
+      expect(text).toBe("いも天は三丁目にあるよ。");
+    });
+
+    it("区切りが2つの chunk にまたがっても、途中の `|FOLL` を見せない", async () => {
+      const text = await streamedText([
+        "TURN|nichiyosan|にちよさん|いも天は三丁目にあるよ。|FOLL",
+        "OW_UP|ほかには？\n",
+      ]);
+      expect(text).toBe("いも天は三丁目にあるよ。");
+    });
+
+    it("本文に `|` があっても、区切りでなければそのまま流す", async () => {
+      const text = await streamedText(["TURN|nichiyosan|にちよさん|AとB|Cだよ。\n"]);
+      expect(text).toBe("AとB|Cだよ。");
+    });
+
+    it.each(["|FOLLOW_UP|", "|SHOP_IDS|"])(
+      "同じ行の後ろに %s が続いても、その手前で止める",
+      async (marker) => {
+        const text = await streamedText([
+          "TURN|nichiyosan|にちよさん|いも天は三丁目にあるよ。",
+          `${marker}ほかには？\n`,
+        ]);
+        expect(text).toBe("いも天は三丁目にあるよ。");
+      }
+    );
+  });
+
   it("開始前にタイムアウトして上流が投げた例外は、呼び出し側（handleConsultAsk の catch）へ伝える", async () => {
     requestChatCompletion.mockRejectedValue(new DOMException("timeout", "TimeoutError"));
     await expect(startStream()).rejects.toThrow("timeout");

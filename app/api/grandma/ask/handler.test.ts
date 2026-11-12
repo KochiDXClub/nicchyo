@@ -48,6 +48,18 @@ describe("handleConsultAsk の入力検証", () => {
     enforceRateLimit.mockResolvedValue(null);
   });
 
+  it("壊れた JSON は 500 でなく 400", async () => {
+    const res = await handleConsultAsk(
+      new Request("http://localhost/api/grandma/ask", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: "{broken",
+      })
+    );
+    expect(res.status).toBe(400);
+    expect(createClient).not.toHaveBeenCalled();
+  });
+
   it("別オリジンは 403", async () => {
     requireSameOrigin.mockReturnValue({
       ok: false,

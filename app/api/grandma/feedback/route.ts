@@ -29,7 +29,7 @@ export async function POST(request: Request) {
   });
   if (rateLimited) return rateLimited;
 
-  const parsed = FeedbackBodySchema.safeParse(await request.json());
+  const parsed = FeedbackBodySchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {
     return NextResponse.json({ message: "Invalid request body" }, { status: 400 });
   }

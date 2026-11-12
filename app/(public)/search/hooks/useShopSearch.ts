@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { normalizeSearchText } from '@/lib/search/normalizeSearchText';
 import type { ShopProfile as Shop } from '../../map/types/shopData';
 import { ShopSearchIndex } from '../lib/searchIndex';
 
@@ -30,7 +31,7 @@ function scoreSearchIndex(idx: ShopSearchIndex, query: string, category: string 
   let score = 0;
 
   if (category) {
-    const catLower = category.toLowerCase();
+    const catLower = normalizeSearchText(category);
     if (idx.categoryLower === catLower) {
       score += 80;
     }
@@ -91,7 +92,7 @@ export function useShopSearch<T extends Shop>({
   chome,
 }: UseShopSearchParams<T>): T[] {
   return useMemo(() => {
-    const normalizedQuery = textQuery.trim().toLowerCase();
+    const normalizedQuery = normalizeSearchText(textQuery.trim());
     const shopsById = new Map(shops.map((shop) => [shop.id, shop]));
     const ranked: RankedShop<T>[] = searchIndex.map((idx, originalIndex) => ({
       shop: shopsById.get(idx.id) ?? shops[originalIndex],
@@ -101,7 +102,7 @@ export function useShopSearch<T extends Shop>({
 
     // カテゴリーフィルター（完全一致）
     if (category) {
-      const catLower = category.toLowerCase();
+      const catLower = normalizeSearchText(category);
       ranked.forEach((item) => {
         const idx = searchIndex[item.originalIndex];
         if (idx.categoryLower !== catLower) {

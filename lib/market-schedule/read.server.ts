@@ -17,7 +17,7 @@ export async function readScheduleRows(client: SupabaseClient, table: string, fi
 }
 export async function readScheduleData(db: SupabaseClient, vendorId?: string): Promise<ScheduleAdminData> {
   const [places, vendors, memberships, periods, rules, overrides, marketDays, legacyAssignments] = await Promise.all([
-    readScheduleRows(db, "market_locations", "id,store_number,official_number,branch_number,district,place_name", ["id"]),
+    readScheduleRows(db, "market_locations", "id,store_number,official_number,branch_number,district,place_name,latitude,longitude", ["id"]),
     readScheduleRows(db, "vendors", "id,shop_name,market_place_id", ["id"]),
     readScheduleRows(db, "market_place_memberships", "id,location_id,vendor_id,vendor_number", ["id"]),
     readScheduleRows(db, "market_place_membership_periods", "id,membership_id,starts_on,ends_on", ["id"]),

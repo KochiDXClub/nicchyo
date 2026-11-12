@@ -1,4 +1,4 @@
-export type PlaceRow = { id: string; store_number: number; official_number: number | null; branch_number: number | null; district: string | null; place_name: string | null };
+export type PlaceRow = { id: string; store_number: number; official_number: number | null; branch_number: number | null; district: string | null; place_name: string | null; latitude?: number | null; longitude?: number | null };
 export type VendorRow = { id: string; shop_name: string | null; market_place_id?: string | null };
 export type MembershipRow = { id: string; location_id: string; vendor_id: string; vendor_number: number };
 export type PeriodRow = { id: string; membership_id: string; starts_on: string; ends_on: string | null };
