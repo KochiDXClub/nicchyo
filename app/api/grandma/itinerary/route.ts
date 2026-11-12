@@ -57,7 +57,7 @@ export async function POST(request: Request) {
     });
     if (rateLimited) return rateLimited;
 
-    const parsed = BodySchema.safeParse(await request.json());
+    const parsed = BodySchema.safeParse(await request.json().catch(() => null));
     if (!parsed.success) {
       return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "invalid body" }, { status: 400 });
     }

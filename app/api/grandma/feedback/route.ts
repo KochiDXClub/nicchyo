@@ -32,7 +32,7 @@ export async function POST(request: Request) {
 
   if (!(await isAnalyticsCollectionEnabled("consultFeedback"))) return NextResponse.json({ ok: true, skipped: true });
 
-  const parsed = FeedbackBodySchema.safeParse(await request.json());
+  const parsed = FeedbackBodySchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {
     return NextResponse.json({ message: "Invalid request body" }, { status: 400 });
   }

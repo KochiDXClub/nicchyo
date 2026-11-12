@@ -228,7 +228,7 @@ async function parseRequest(request: Request): Promise<ParsedRequest> {
       }
     }
   } else {
-    const parsed = AskJsonBodySchema.safeParse(await request.json());
+    const parsed = AskJsonBodySchema.safeParse(await request.json().catch(() => null));
     if (!parsed.success) {
       throw badRequest(parsed.error.issues[0].message);
     }
@@ -413,6 +413,26 @@ async function finalizeConsultResponse(options: {
   };
 }
 
+const TURN_TRAILING_MARKERS = ["|FOLLOW_UP|", "|SHOP_IDS|"];
+
+/**
+ * 1人目の発話として流してよい本文だけを返す。
+ * モデルが TURN 行と同じ行に `|FOLLOW_UP|…` や `|SHOP_IDS|…` を続けても、吹き出しに出さない。
+ * まだ届いていない区切りの途中（`|FOLL` など）も、確定するまで見せない（出したあとは取り消せないため）。
+ */
+function visibleFirstTurnText(text: string): string {
+  const markerAt = text.search(/\|(?:FOLLOW_UP|SHOP_IDS)\|/);
+  if (markerAt >= 0) return text.slice(0, markerAt);
+  const longest = Math.max(...TURN_TRAILING_MARKERS.map((marker) => marker.length)) - 1;
+  for (let len = Math.min(text.length, longest); len > 0; len--) {
+    const tail = text.slice(-len);
+    if (TURN_TRAILING_MARKERS.some((marker) => marker.startsWith(tail))) {
+      return text.slice(0, -len);
+    }
+  }
+  return text;
+}
+
 export async function createStreamingConsultResponse(options: {
   openaiKey: string;
   selectedCharacters: ConsultCharacter[];
@@ -560,8 +580,8 @@ export async function createStreamingConsultResponse(options: {
               (hasName ? parts[2].trim() : "") || matchedCharacter.name,
           });
         }
-        const currentText = (hasName ? parts.slice(3) : parts.slice(2)).join(
-          "|",
+        const currentText = visibleFirstTurnText(
+          (hasName ? parts.slice(3) : parts.slice(2)).join("|"),
         );
         if (currentText.length <= firstTurnTextLength) return;
         enqueue({
