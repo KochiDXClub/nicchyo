@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/database.types";
 import {
@@ -8,6 +8,9 @@ import {
   fetchShopsByVendorIds,
 } from "./vendorSearch";
 import type { Shop } from "@/app/(public)/map/data/shops";
+
+// 公開設定は別テストで確認する。ここでは旧番号（店番）の経路を見る
+vi.mock("@/lib/market-schedule/rollout.server", () => ({ readPublicScheduleRollout: async () => false }));
 
 /** テーブル名・RPC名ごとに決まった行を返す supabase の代役。絞り込み条件は見ない */
 function fakeSupabase(

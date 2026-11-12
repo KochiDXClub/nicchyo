@@ -19,10 +19,10 @@ export async function GET() {
       db.from("public_schedule_rollout").select("enabled,revision").eq("id", true).single(),
       readScheduleData(db),
     ]);
-    if (error || !data) return NextResponse.json({ error: "公開設定を取得できませんでした" }, { status: 500 });
+    if (error || !data) return NextResponse.json({ error: "公開設定を取得できませんでした" }, { status: 500, headers: privateNoStoreHeaders() });
     const summary = publicScheduleReadiness(schedule, nextSundayJstString());
     return NextResponse.json({ ...data, summary }, { headers: privateNoStoreHeaders() });
-  } catch { return NextResponse.json({ error: "公開設定を取得できませんでした" }, { status: 500 }); }
+  } catch { return NextResponse.json({ error: "公開設定を取得できませんでした" }, { status: 500, headers: privateNoStoreHeaders() }); }
 }
 export async function POST(request: Request) {
   const guard = await guardAdminWrite(request, { bucket: "admin-public-schedule", limit: 20, json: true });
