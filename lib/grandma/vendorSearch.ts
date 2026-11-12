@@ -209,7 +209,7 @@ export async function fetchShopsByVendorIds(
       .order("created_at", { ascending: false }),
   ]);
 
-  const vendors = Array.isArray(vendorsData) ? (vendorsData as VendorRow[]) : [];
+  const vendors = Array.isArray(vendorsData) ? (vendorsData as unknown as VendorRow[]) : [];
   const products = Array.isArray(productsData) ? (productsData as ProductRow[]) : [];
   const assignments = Array.isArray(assignmentsData)
     ? (assignmentsData as AssignmentRow[])
