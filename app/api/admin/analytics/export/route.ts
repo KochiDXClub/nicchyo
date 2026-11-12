@@ -5,6 +5,7 @@ import { addDaysToDateString, todayJstString } from "@/lib/time/jstDate";
 import { privateNoStoreHeaders } from "@/lib/http/cacheHeaders";
 import { toCsv } from "@/lib/utils/csv";
 import { aggregateExportRows, readAllExportRows } from "@/lib/analytics/exportRows";
+import { enforceRateLimit } from "@/lib/security/rateLimit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -21,6 +22,8 @@ type ExportType = keyof typeof TYPES;
 export async function GET(req: NextRequest) {
   const auth = await requireAdminApi();
   if ("error" in auth) return auth.error;
+  const rateLimited = await enforceRateLimit(req, { bucket: "analytics-export", limit: 10, windowMs: 600000 });
+  if (rateLimited) return rateLimited;
   const params = req.nextUrl.searchParams;
   const type = params.get("type") ?? "page_analytics";
   const mode = params.get("mode") ?? "summary";
@@ -35,9 +38,13 @@ export async function GET(req: NextRequest) {
   const lower = spec.dateOnly ? since : new Date(`${since}T00:00:00+09:00`).toISOString();
   const upper = spec.dateOnly ? until : new Date(`${until}T00:00:00+09:00`).toISOString();
   try {
+    // 出力の途中で追加された行がページの境界をずらさないよう、開始時点の最大 id で打ち切る。
+    const latest = await auth.adminClient.from(spec.table).select("id").order("id", { ascending: false }).limit(1).maybeSingle();
+    if (latest.error) throw new Error("データ取得に失敗しました");
+    const snapshotMaxId = Number((latest.data as { id?: number } | null)?.id ?? 0);
     const rows = await readAllExportRows<Record<string, unknown>>(async (from, to) => {
       const result = await auth.adminClient.from(spec.table).select([...spec.columns, "id"].join(","))
-        .gte(spec.date, lower).lt(spec.date, upper).order(spec.date, { ascending: false }).order("id", { ascending: false }).range(from, to);
+        .gte(spec.date, lower).lt(spec.date, upper).lte("id", snapshotMaxId).order(spec.date, { ascending: false }).order("id", { ascending: false }).range(from, to);
       return { data: result.data as unknown as Record<string, unknown>[] | null, error: result.error };
     });
     const output = mode === "raw" ? rows : aggregateExportRows(rows, spec.date, spec.dimension);
@@ -45,7 +52,8 @@ export async function GET(req: NextRequest) {
     await logAdminAudit(auth.adminClient, { id: auth.user.id, email: auth.user.email, role: auth.role }, { action: "analytics_export", targetType: "analytics", details: JSON.stringify({ type, mode, since, until: today, rows: output.length }) });
     return new NextResponse(toCsv(output, columns), { headers: { ...privateNoStoreHeaders(), "Content-Type": "text/csv; charset=utf-8", "Content-Disposition": `attachment; filename="${type}_${mode}_${since}_to_${today}.csv"` } });
   } catch (error) {
-    const message = error instanceof Error && error.message.includes("上限") ? error.message : "データ取得に失敗しました";
-    return NextResponse.json({ error: message }, { status: 500, headers: privateNoStoreHeaders() });
+    const overLimit = error instanceof Error && error.message.includes("上限");
+    const message = overLimit ? (error as Error).message : "データ取得に失敗しました";
+    return NextResponse.json({ error: message }, { status: overLimit ? 413 : 500, headers: privateNoStoreHeaders() });
   }
 }

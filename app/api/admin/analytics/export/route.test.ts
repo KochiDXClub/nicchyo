@@ -8,8 +8,9 @@ import { GET } from "./route";
 
 beforeEach(() => {
   vi.clearAllMocks();
-  const query = { select: vi.fn(), gte: vi.fn(), lt: vi.fn(), order: vi.fn(), range: mocks.range };
-  query.select.mockReturnValue(query); query.gte.mockReturnValue(query); query.lt.mockReturnValue(query); query.order.mockReturnValue(query);
+  const query = { select: vi.fn(), gte: vi.fn(), lt: vi.fn(), lte: vi.fn(), order: vi.fn(), limit: vi.fn(), maybeSingle: vi.fn(), range: mocks.range };
+  query.select.mockReturnValue(query); query.gte.mockReturnValue(query); query.lt.mockReturnValue(query); query.lte.mockReturnValue(query); query.order.mockReturnValue(query); query.limit.mockReturnValue(query);
+  query.maybeSingle.mockResolvedValue({ data: { id: 100 }, error: null });
   mocks.requireAdminApi.mockResolvedValue({ user: { id: "admin" }, role: "admin", adminClient: { from: () => query } });
   mocks.range.mockResolvedValue({ data: [{ id: 1, visit_date: "2026-10-10", path: "/map?q=secret", visitor_key: "secret" }], error: null });
 });
