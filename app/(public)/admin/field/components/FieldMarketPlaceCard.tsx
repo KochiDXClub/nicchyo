@@ -1,64 +1,37 @@
 "use client";
-import { useCallback, useEffect, useState } from "react";
-import { showToast } from "@/lib/admin/toast";
-import { Card, Field, buttonClass, inputClass } from "./fieldFormParts";
+import { useEffect, useState } from "react";
+import type { ScheduleAdminData } from "@/lib/market-schedule/adminTypes";
+import { formatMarketAddress } from "@/lib/market-schedule/address";
+import { Card } from "./fieldFormParts";
 
-type Place = { id: string; store_number: number; place_name: string | null; vendors: { id: string; name: string }[] };
-type Response = { currentLocationId: string | null; places: Place[] };
-
-export function FieldMarketPlaceCard({ shopId, updatedAt, onSaved }: { shopId: string; updatedAt: string | null; onSaved: (updatedAt: string | null) => Promise<void> }) {
-  const [places, setPlaces] = useState<Place[]>([]);
-  const [locationId, setLocationId] = useState("");
-  const [name, setName] = useState("");
-  const [query, setQuery] = useState("");
+/** 店舗ごとの出店先。場所の位置と予定の編集は、それぞれの管理画面へ移動する。 */
+export function FieldMarketPlaceCard({ shopId }: { shopId: string }) {
+  const [data, setData] = useState<ScheduleAdminData | null>(null);
   const [error, setError] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [loaded, setLoaded] = useState(false);
-  const load = useCallback(async () => {
-    const res = await fetch(`/api/admin/shops/${shopId}/market-place`, { cache: "no-store" });
-    if (!res.ok) throw new Error("出店場所を読み込めませんでした");
-    const result: Response = await res.json();
-    setPlaces(result.places);
-    setLocationId(result.currentLocationId ?? "");
-    setName(result.places.find((p) => p.id === result.currentLocationId)?.place_name ?? "");
-    setLoaded(true);
+  useEffect(() => {
+    let active = true;
+    void fetch(`/api/admin/market-schedule?vendor=${encodeURIComponent(shopId)}`, { cache: "no-store" }).then(async (response) => {
+      if (!response.ok) throw new Error("出店場所を取得できませんでした");
+      const result = await response.json() as ScheduleAdminData;
+      if (active) setData(result);
+    }).catch((e: unknown) => { if (active) setError(e instanceof Error ? e.message : "取得できませんでした"); });
+    return () => { active = false; };
   }, [shopId]);
-  useEffect(() => { void load().catch((e) => setError(e instanceof Error ? e.message : "読み込めませんでした")); }, [load]);
-
-  async function save() {
-    if (locationId && !name.trim()) { setError("出店場所名を入力してください"); return; }
-    setBusy(true); setError("");
-    try {
-      const send = (confirmed: boolean) => fetch(`/api/admin/shops/${shopId}/market-place`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ locationId: locationId || null, name: name.trim(), confirmed, updatedAt, expectedName: places.find((place) => place.id === locationId)?.place_name ?? null }) });
-      let res = await send(false);
-      let result = await res.json();
-      if (result.needsConfirmation) {
-        if (!window.confirm(`${result.error}\n（ほかに ${result.count} 店舗）`)) return;
-        res = await send(true);
-        result = await res.json();
-      }
-      if (!res.ok) throw new Error(result.error ?? "出店場所を保存できませんでした");
-      await load();
-      await onSaved(result.updatedAt ?? null);
-      showToast.success("出店場所を保存しました");
-    } catch (e) { setError(e instanceof Error ? e.message : "保存できませんでした"); }
-    finally { setBusy(false); }
-  }
-
-  return <Card title="出店場所">
-    <p className="text-sm text-nicchyo-ink/70">日曜市の区画と場所名を登録します。同じ区画に複数の店舗を登録できます。区画がない場合は、先にマップ編集で追加してください。既存の場所は検索して選んでください。異なる表記は同じ場所と自動判定できない場合があります。公開マップの出店中の配置もマップ編集で確認できます。</p>
+  const memberships = data?.memberships.filter((item) => item.vendor_id === shopId) ?? [];
+  const oldPlaceId = data?.vendors.find((item) => item.id === shopId)?.market_place_id;
+  const oldPlace = oldPlaceId && !memberships.some((item) => item.location_id === oldPlaceId) ? data?.places.find((item) => item.id === oldPlaceId) : null;
+  const legacyLocations = [...new Set((data?.legacyAssignments ?? []).filter((item) => item.vendor_id === shopId && item.location_id !== oldPlaceId && !memberships.some((member) => member.location_id === item.location_id)).map((item) => item.location_id))];
+  return <Card title="出店場所・予定">
+    <p className="text-sm text-nicchyo-ink/70">同じ店舗の複数の出店先と、各場所での登録期間を確認できます。出店日・繰り返し・休みは出店予定管理で編集します。</p>
     {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
-    {loaded && <>
-      <Field label="区画を検索"><input className={inputClass} value={query} onChange={(e) => setQuery(e.target.value)} placeholder="場所名または店番" /></Field>
-      <Field label="地図の区画">
-        <select className={inputClass} value={locationId} onChange={(e) => { const id = e.target.value; setLocationId(id); setName(places.find((p) => p.id === id)?.place_name ?? ""); }}>
-          <option value="">未設定</option>
-          {places.filter((place) => place.id === locationId || !query.trim() || String(place.store_number).includes(query.trim()) || (place.place_name ?? "").normalize("NFKC").includes(query.trim().normalize("NFKC"))).map((place) => <option key={place.id} value={place.id}>{place.place_name ? `${place.place_name}（店番 ${place.store_number}・登録 ${place.vendors.length} 店）` : `店番 ${place.store_number}（場所名なし）`}</option>)}
-        </select>
-      </Field>
-      {locationId && <Field label="出店場所名"><input className={inputClass} value={name} maxLength={100} onChange={(e) => setName(e.target.value)} placeholder="例：一丁目 南 2" /></Field>}
-      {locationId && <p className="text-sm text-nicchyo-ink/70">位置は選んだ区画と共通です。名前や位置を変更すると、この場所に登録された全店舗に反映されます。</p>}
-      <button type="button" disabled={busy} onClick={() => void save()} className={`${buttonClass} bg-nicchyo-primary text-white`}>{busy ? "保存中…" : "出店場所を保存"}</button>
-    </>}
+    {oldPlace && <p className="text-sm text-amber-800">旧形式の登録「{oldPlace.place_name || `区画 ${oldPlace.store_number}`}」はまだ予定管理に移行されていません。開始日を確認して登録してください。</p>}
+    {legacyLocations.length > 0 && <p className="text-sm text-amber-800">旧データに未移行の配置が {legacyLocations.length} 件あります。出店予定管理で場所と日付を確認してください。</p>}
+    {data && (memberships.length ? <ul className="space-y-2 text-sm">{memberships.map((member) => {
+      const place = data.places.find((item) => item.id === member.location_id);
+      const address = place?.official_number != null ? formatMarketAddress({ main: place.official_number, branch: place.branch_number }) : null;
+      const periods = data.periods.filter((item) => item.membership_id === member.id).sort((a,b) => b.starts_on.localeCompare(a.starts_on));
+      return <li key={member.id} className="rounded-lg border border-nicchyo-ink/10 p-3"><strong>{place?.place_name || (address ? `住所 ${address}` : `住所未設定（区画 ${place?.store_number ?? "不明"}）`)} ／ 店舗{member.vendor_number}</strong>{address && place?.place_name && <span>（住所 {address}）</span>}<ul>{periods.map((period) => <li key={period.id}>{period.starts_on}〜{period.ends_on ?? "継続中"}</li>)}</ul></li>;
+    })}</ul> : <p className="text-sm">出店場所はまだ登録されていません。</p>)}
+    <a className="text-sm font-bold text-nicchyo-primary underline" href={`/admin/market-schedule?vendor=${encodeURIComponent(shopId)}`}>この店舗の出店予定を管理</a>
   </Card>;
 }

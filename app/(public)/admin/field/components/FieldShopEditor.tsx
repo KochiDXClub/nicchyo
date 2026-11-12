@@ -123,9 +123,11 @@ export function FieldShopEditor({ shopId }: { shopId: string }) {
   // 記録した位置の取り方（現在地か、地図で指したか）と、現在地の誤差。地図は直したいときだけ開く
   const [recordedInfo, setRecordedInfo] = useState<{ source: "gps" | "pin" | null; accuracyM: number | null } | null>(null);
   const [showMap, setShowMap] = useState(false);
+  const [legacyPlacement, setLegacyPlacement] = useState<{ storeNumber: number; lat: number; lng: number; district: string | null; marketDate: string } | null>(null);
   const [hasSharedPlace, setHasSharedPlace] = useState(false);
 
-  const applyLocationResponse = useCallback((data: { locations?: FieldLocation[]; current?: FieldLocation | null }) => {
+  const applyLocationResponse = useCallback((data: { locations?: FieldLocation[]; current?: FieldLocation | null; legacyPlacement?: { storeNumber: number; lat: number; lng: number; district: string | null; marketDate: string } | null }) => {
+    setLegacyPlacement(data.legacyPlacement ?? null);
     setLocations(data.locations ?? []);
     setHasSharedPlace(!!data.current?.sharedPlace);
     if (data.current) {
@@ -362,10 +364,7 @@ export function FieldShopEditor({ shopId }: { shopId: string }) {
 
       <FieldShopPhotoCard shopId={shopId} shop={shop} setShop={setShop} photoUseAllowedInForm={form.photo_use_allowed} />
 
-      <FieldMarketPlaceCard shopId={shopId} updatedAt={shop.updated_at} onSaved={async (updatedAt) => {
-        setShop((prev) => prev ? { ...prev, updated_at: updatedAt } : prev);
-        await refreshLocations();
-      }} />
+      <FieldMarketPlaceCard shopId={shopId} />
 
       <Card title="基本の情報">
         <Field label="店名">
@@ -512,6 +511,7 @@ export function FieldShopEditor({ shopId }: { shopId: string }) {
       </Card>
 
       <Card title="お店の位置" hint={hasSharedPlace ? "出店場所に紐づく区画の位置です。変更はマップ編集で行います。" : "お店の前で現在地を記録できます。記録はマップへ自動反映されません。"}>
+        {legacyPlacement && <div className="rounded-card border border-line bg-nicchyo-base p-3 text-sm"><strong>旧公開マップの配置記録（最新）</strong><p className="mt-1">店番 {legacyPlacement.storeNumber}{legacyPlacement.district ? `・${legacyPlacement.district}` : ""}（記録日 {legacyPlacement.marketDate}）</p><p className="mt-1 text-nicchyo-ink/70">現場で記録した位置とは別の履歴です。現在の公開状態はマップでも確認してください。</p><a className="mt-2 inline-block underline" href={`/map?shop=${legacyPlacement.storeNumber}`} target="_blank" rel="noopener noreferrer">公開マップを確認（新しいタブ）</a></div>}
         {hasSharedPlace ? <p className="text-sm">店番 {storeNumber} の区画を使用しています。</p> : <>
         <Field label={`店番（${MIN_SHOP_ID}〜${MAX_SHOP_ID}。住所録に無い新しい店は空のままでよい）`}>
           <input value={storeNumber} inputMode="numeric" onChange={(e) => setStoreNumber(e.target.value.replace(/\D/g, ""))} className={inputClass} />

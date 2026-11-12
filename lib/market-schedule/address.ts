@@ -4,7 +4,7 @@ export type MarketAddress = { main: number; branch: number | null };
 /** 全角数字・ハイフンと前後の空白を受け付け、住所の枝番を店舗番号と混同しない。 */
 export function parseMarketAddress(input: string): MarketAddress | null {
   const normalized = input.normalize("NFKC").trim();
-  const match = /^(\d{1,6})(?:\s*-\s*(\d{1,6}))?$/.exec(normalized);
+  const match = /^(\d{1,5})(?:\s*-\s*(\d{1,5}))?$/.exec(normalized);
   if (!match) return null;
   const main = Number(match[1]);
   const branch = match[2] === undefined ? null : Number(match[2]);

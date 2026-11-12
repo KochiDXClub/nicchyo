@@ -1,21 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 const guard = vi.hoisted(() => vi.fn());
-const rpc = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/admin/shopApiGuard", () => ({ guardAdminShopWrite: guard, UUID_RE: /^[0-9a-f-]{36}$/i }));
-vi.mock("@/lib/audit/logAdminAudit", () => ({ logAdminAudit: vi.fn().mockResolvedValue(undefined) }));
 import { PUT } from "./route";
 const id = "11111111-1111-4111-8111-111111111111";
-const locationId = "22222222-2222-4222-8222-222222222222";
-const params = { params: Promise.resolve({ id }) };
 const req = () => new Request("https://example.test", { method: "PUT" });
-beforeEach(() => { vi.clearAllMocks(); guard.mockResolvedValue({ ctx: { id, user: { id: "admin" }, role: "admin", adminClient: { rpc }, ip: null }, body: { locationId, name: "一丁目 南 2", confirmed: false, updatedAt: null, expectedName: null } }); });
-describe("出店場所の登録", () => {
-  it("認可エラーを返し、更新しない", async () => { guard.mockResolvedValue({ error: new Response(null, { status: 401 }) }); expect((await PUT(req(), params)).status).toBe(401); expect(rpc).not.toHaveBeenCalled(); });
-  it("他店が同じ場所にいる場合は確認を要求する", async () => { rpc.mockResolvedValue({ data: { status: "confirmation_required", count: 1 }, error: null }); const res = await PUT(req(), params); expect(res.status).toBe(409); expect(await res.json()).toMatchObject({ needsConfirmation: true, count: 1 }); });
-  it("別の区画に同じ名前を使うことを拒否する", async () => { rpc.mockResolvedValue({ data: { status: "name_in_use" }, error: null }); const res = await PUT(req(), params); expect(res.status).toBe(409); expect((await res.json()).error).toContain("同じ名前"); });
-  it("場所名の修正は全店舗への影響を確認する", async () => { rpc.mockResolvedValue({ data: { status: "rename_confirmation_required", currentName: "旧名称", count: 1 }, error: null }); const res = await PUT(req(), params); expect(res.status).toBe(409); expect(await res.json()).toMatchObject({ needsConfirmation: true, error: expect.stringContaining("全店舗") }); });
-  it("場所名が他の画面で変更済みなら拒否する", async () => { rpc.mockResolvedValue({ data: { status: "place_name_changed" }, error: null }); const res = await PUT(req(), params); expect(res.status).toBe(409); expect((await res.json()).error).toContain("名前が別の画面"); });
-  it("別画面の変更後は古い内容で上書きしない", async () => { rpc.mockResolvedValue({ data: { status: "stale_vendor" }, error: null }); const res = await PUT(req(), params); expect(res.status).toBe(409); expect((await res.json()).error).toContain("別の画面"); });
-  it("地図配置から決まった場所を片方だけ消さない", async () => { rpc.mockResolvedValue({ data: { status: "map_assignment_exists" }, error: null }); const res = await PUT(req(), params); expect(res.status).toBe(409); expect((await res.json()).error).toContain("マップ編集"); });
-  it("確認後、管理者APIから一意の区画を紐付ける", async () => { guard.mockResolvedValue({ ctx: { id, user: { id: "admin" }, role: "admin", adminClient: { rpc }, ip: null }, body: { locationId, name: "一丁目 南 2", confirmed: true, updatedAt: null, expectedName: null } }); rpc.mockResolvedValue({ data: { status: "ok" }, error: null }); expect((await PUT(req(), params)).status).toBe(200); expect(rpc).toHaveBeenCalledWith("set_vendor_market_place", expect.objectContaining({ p_location: locationId, p_confirm: true })); });
+beforeEach(() => { vi.clearAllMocks(); guard.mockResolvedValue({ ctx: { id }, body: {} }); });
+describe("旧単一出店場所API", () => {
+  it("認可エラーをそのまま返す", async () => { guard.mockResolvedValue({ error: new Response(null, { status: 401 }) }); expect((await PUT(req(), { params: Promise.resolve({ id }) })).status).toBe(401); });
+  it("旧画面による単一場所の上書きを拒否する", async () => { const res = await PUT(req(), { params: Promise.resolve({ id }) }); expect(res.status).toBe(409); expect((await res.json()).error).toContain("出店予定管理"); });
 });
