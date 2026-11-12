@@ -36,7 +36,7 @@ describe("sitemap", () => {
     expect(urls.some((u) => u.includes("/shops/"))).toBe(false);
   });
 
-  it("リダイレクトされる /news・/search は載せない", async () => {
+  it("リダイレクトされる /search と、中身が変わる /news は載せない", async () => {
     fetchPublicShops.mockResolvedValue([]);
     const urls = (await sitemap()).map((entry) => entry.url);
     expect(urls.some((u) => u.endsWith("/news"))).toBe(false);
@@ -49,7 +49,7 @@ describe("sitemap", () => {
     expect(urls.some((u) => /^https?:\/\/[^/]+\/$/.test(u))).toBe(true);
   });
 
-  it("リダイレクトされる /news は載せず、リダイレクト先や活動記録を載せる", async () => {
+  it("/news は載せず、カレンダーや活動記録を載せる", async () => {
     fetchPublicShops.mockResolvedValue([]);
     const urls = (await sitemap()).map((entry) => entry.url);
     expect(urls.some((u) => u.endsWith("/news"))).toBe(false);

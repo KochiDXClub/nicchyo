@@ -14,7 +14,7 @@ import { fetchEffectivePageVisibility } from "@/lib/pageVisibility/server";
 
 // 静的ページ一覧
 // lastModified は載せない: 毎回「今」を入れると更新日として信用されなくなるため。
-// /news は /calendar へ、/search は /map へ恒久リダイレクトしているので載せない（リダイレクト先を載せる）
+// /news はお知らせ一覧（掲載期間で中身が変わるため）、/search は /map へ恒久リダイレクトしているので載せない
 const STATIC_PAGES: MetadataRoute.Sitemap = [
   { url: `${SITE_URL}/`, changeFrequency: "monthly", priority: 1.0 },
   { url: `${SITE_URL}/map`, changeFrequency: "daily", priority: 1.0 },
