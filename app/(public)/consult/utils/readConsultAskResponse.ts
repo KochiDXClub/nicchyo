@@ -7,6 +7,8 @@ export type ConsultAskReadResult = {
   payload: ConsultAskPayload;
   /** HTTP として成功したか。失敗なら errorCode が無くても system_error として扱う */
   ok: boolean;
+  /** 回数制限（HTTP 429）に当たったか。待てば通るので、通信の失敗とは別の案内を出す */
+  rateLimited?: boolean;
 };
 
 /**
@@ -25,6 +27,10 @@ export async function readConsultAskResponse(
   response: Response,
   onEvent?: (event: ConsultAskStreamEvent) => void
 ): Promise<ConsultAskReadResult | null> {
+  if (response.status === 429) {
+    // 本文は読まない（手前のプロキシが JSON でない 429 を返しても壊れないように）
+    return { payload: {}, ok: false, rateLimited: true };
+  }
   if (!response.ok) {
     return { payload: (await response.json()) as ConsultAskPayload, ok: false };
   }
