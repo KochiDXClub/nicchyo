@@ -23,6 +23,7 @@ export function SnapshotHistoryPanel({
           閉じる
         </span>
       </div>
+      <p style={{ fontSize: 12, lineHeight: 1.6 }}>場所や道の状態を復元します。出店予定・店舗の配置は復元せず、そのまま保持します。出店履歴のある場所が消える復元はできません。</p>
       {isLoadingSnapshots ? (
         <p style={{ fontSize: 12, color: "#9A8A6A" }}>読み込み中...</p>
       ) : snapshots.length === 0 ? (

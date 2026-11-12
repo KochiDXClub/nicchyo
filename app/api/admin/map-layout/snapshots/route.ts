@@ -126,6 +126,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: true });
   } catch (error) {
     const message = error instanceof Error ? error.message : "";
+    if (message.includes("market_place_has_assignment_history")) return NextResponse.json({ error: "出店履歴のある場所がこの履歴に含まれないため復元できません。出店履歴は削除されていません。" }, { status: 409 });
+    if (message.includes("market_place_memberships_location_id_fkey") || message.includes("market_place_schedule_overrides_location_id_fkey")) return NextResponse.json({ error: "店舗や予定が登録された場所がこの履歴に含まれないため復元できません。" }, { status: 409 });
     if (message.includes("market_place_has_vendors") || message.includes("vendor_market_place_mismatch") || message.includes("vendor_market_place_unregistered") || message.includes("vendors_market_place_id_fkey")) {
       return NextResponse.json({ error: "出店場所の登録と復元内容が一致しないため復元できません。現場登録とマップの配置を確認してください。" }, { status: 409 });
     }
