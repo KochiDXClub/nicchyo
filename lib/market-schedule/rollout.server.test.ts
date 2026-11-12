@@ -2,6 +2,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({ admin: vi.fn(), single: vi.fn() }));
 vi.mock("@/lib/supabase/adminClient", () => ({ createAdminClient: mocks.admin }));
+// キャッシュの仕組みは Next に任せ、ここでは読み取りの判定だけを見る
+vi.mock("next/cache", () => ({ unstable_cache: <T extends (...args: never[]) => unknown>(fn: T) => fn, revalidateTag: vi.fn() }));
 import { readPublicScheduleRollout } from "./rollout.server";
 
 describe("公開予定の設定", () => {

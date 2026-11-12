@@ -7,6 +7,7 @@ vi.mock("@/lib/market-schedule/read.server", () => ({ readScheduleData: readSche
 vi.mock("@/lib/admin/shopApiGuard", () => ({ guardAdminWrite: guard }));
 vi.mock("@/lib/audit/logAdminAudit", () => ({ logAdminAudit: audit }));
 vi.mock("@/app/(public)/map/services/shopCache", () => ({ revalidatePublicShops: vi.fn() }));
+vi.mock("@/lib/market-schedule/rollout.server", () => ({ readPublicScheduleRollout: vi.fn(async () => false), revalidatePublicScheduleRollout: vi.fn() }));
 import { POST } from "./route";
 const request = () => new Request("https://example.test", { method: "POST" });
 beforeEach(() => { vi.clearAllMocks(); readSchedule.mockResolvedValue({ places: [], vendors: [], memberships: [], periods: [], rules: [], overrides: [] }); guard.mockResolvedValue({ ctx: { adminClient: { rpc }, user: { id: "admin" }, role: "admin", ip: null }, body: { enabled: true, revision: 1, confirmed: true } }); });
