@@ -207,7 +207,7 @@ export type SyncShopTranslationsResult = {
  * - `limit` までで止める（1回の実行時間とAIの費用を抑える）。残りは次の実行で処理される
  */
 export async function syncShopTranslations(params: {
-  shops: Shop[];
+  shops: ShopProfile[];
   locale: Locale;
   limit: number;
 }): Promise<SyncShopTranslationsResult> {
