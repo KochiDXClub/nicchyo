@@ -291,10 +291,10 @@ export default function StoryViewer({ stories, initialIndex, onClose, demo }: Pr
         <div className="flex items-center gap-2.5">
           {storeNumber != null ? (
             <Link
-              href={`/map?shop=${storeNumber}`}
+              href={storeNumber >= 1000 ? `/shops/${storeNumber}` : `/map?shop=${storeNumber}`}
               onPointerDown={(e) => e.stopPropagation()}
               className="flex items-center gap-2.5 flex-1 min-w-0 rounded-full transition active:opacity-80"
-              aria-label={`${shopName}をマップで見る`}
+              aria-label={storeNumber >= 1000 ? `${shopName}の店舗情報を見る` : `${shopName}をマップで見る`}
             >
               {shopInfo}
             </Link>

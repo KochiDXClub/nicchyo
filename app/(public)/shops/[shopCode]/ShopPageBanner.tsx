@@ -13,17 +13,17 @@
 
 import { useRouter } from 'next/navigation';
 import ShopDetailBanner from '../../map/components/ShopDetailBanner';
-import type { Shop } from '../../map/data/shops';
+import type { ShopProfile } from '../../map/types/shopData';
 
-export default function ShopPageBanner({ shop, shopCode }: { shop: Shop; shopCode: string }) {
+export default function ShopPageBanner({ shop, shopCode }: { shop: ShopProfile; shopCode: string }) {
   const router = useRouter();
   return (
     <ShopDetailBanner
       shop={shop}
       layout="inline"
-      onClose={() => router.push(`/map?shop=${shopCode}`)}
+      onClose={() => router.push(shop.hasMapLocation === false ? "/map" : `/map?shop=${shopCode}`)}
       // 「ここへ案内」：地図へ移り、着いたらこの店への道案内を始める
-      onNavigate={() => router.push(`/map?shop=${shopCode}&navigate=1`)}
+      onNavigate={shop.hasMapLocation === false ? undefined : () => router.push(`/map?shop=${shopCode}&navigate=1`)}
     />
   );
 }

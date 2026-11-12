@@ -2,7 +2,7 @@ import type { MetadataRoute } from "next";
 import { formatShopIdToCode } from "@/lib/shops/route";
 import { SITE_URL } from "@/lib/constants";
 import { ACTIVITIES } from "@/app/data/activities";
-import { fetchPublicShops } from "@/app/(public)/map/services/shopCache";
+import { fetchPublicShopProfiles } from "@/app/(public)/map/services/shopCache";
 import {
   isLinkVisible,
 } from "@/lib/pageVisibility";
@@ -34,10 +34,10 @@ const STATIC_PAGES: MetadataRoute.Sitemap = [
   { url: `${SITE_URL}/privacy`, changeFrequency: "yearly", priority: 0.3 },
 ];
 
-/** 店舗ページ（/shops/NNN）に載せる店番。/map・店舗詳細と同じ公開店舗の基準（fetchPublicShops）に揃える */
+/** 出店予定の有無にかかわらず、公開中の店舗プロフィールを掲載する。 */
 async function fetchActiveShopNumbers(): Promise<number[]> {
   try {
-    const shops = await fetchPublicShops();
+    const shops = await fetchPublicShopProfiles();
     return shops.map((shop) => shop.id).filter((id) => formatShopIdToCode(id) !== null);
   } catch {
     return [];

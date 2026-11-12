@@ -28,3 +28,15 @@ export async function readScheduleData(db: SupabaseClient, vendorId?: string): P
   ]);
   return { places, vendors, memberships, periods, rules, overrides, marketDays, legacyAssignments } as unknown as ScheduleAdminData;
 }
+
+/** 公開判定に必要な予定だけ。店舗名・旧配置の全履歴は取得しない。 */
+export async function readPublicScheduleData(db: SupabaseClient): Promise<ScheduleAdminData> {
+  const [places, memberships, periods, rules, overrides] = await Promise.all([
+    readScheduleRows(db, "market_locations", "id", ["id"]),
+    readScheduleRows(db, "market_place_memberships", "id,location_id,vendor_id,vendor_number", ["id"]),
+    readScheduleRows(db, "market_place_membership_periods", "id,membership_id,starts_on,ends_on", ["id"]),
+    readScheduleRows(db, "market_place_schedule_rules", "id,membership_id,period_id,cadence,starts_on,ends_on,anchor_on,month_weeks,voided_at", ["id"]),
+    readScheduleRows(db, "market_place_schedule_overrides", "location_id,market_date,membership_id,updated_at,revision,is_cleared", ["location_id", "market_date"]),
+  ]);
+  return { places, vendors: [], memberships, periods, rules, overrides, marketDays: [], legacyAssignments: [] } as unknown as ScheduleAdminData;
+}

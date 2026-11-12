@@ -1,13 +1,14 @@
 import type { Metadata } from "next";
 import { cache } from "react";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
+import { readPublicLegacyIdentities } from "@/lib/shops/publicIdentity.server";
 import { headers } from "next/headers";
 import { formatShopIdToCode, normalizeShopCodeToId } from "@/lib/shops/route";
 import { safeJsonLd } from "@/lib/utils/jsonLd";
 import { SITE_URL } from "@/lib/constants";
 import { resolveShopImage } from "@/lib/shopImages";
-import { fetchPublicShops } from "../../map/services/shopCache";
-import type { Shop } from "../../map/data/shops";
+import { fetchPublicShopProfiles } from "../../map/services/shopCache";
+import type { ShopProfile } from "../../map/types/shopData";
 import { getLocale } from "@/lib/i18n/server";
 import ReportButton from "./ReportButton";
 import ShopPageBanner from "./ShopPageBanner";
@@ -19,18 +20,25 @@ type ShopPageProps = {
 };
 
 /**
- * 地図と同じ Shop を取る。
- * /map や /search と共通のキャッシュ（fetchPublicShops）を通すことで、
- * Supabase への不要な再クエリを防ぎつつ同一の店舗データを表示する。
+ * 地図の配置とは独立した公開店舗プロフィールを取る。
+ * 出店しない週も店舗情報を表示し、公開許可は来訪者向けの RLS で判定する。
  * generateMetadata と本文の両方から呼ぶので cache() で1リクエスト1回にする。
  */
-const fetchShop = cache(async (shopId: number): Promise<Shop | null> => {
+const fetchShop = cache(async (shopId: number): Promise<ShopProfile | null> => {
   try {
-    const shops = await fetchPublicShops(await getLocale());
+    const shops = await fetchPublicShopProfiles(await getLocale());
     return shops.find((shop) => shop.id === shopId) ?? null;
   } catch {
     return null;
   }
+});
+
+const resolvePublicId = cache(async (shopId: number): Promise<number | null> => {
+  if (shopId > 999) return shopId;
+  try {
+    const { enabled, aliases } = await readPublicLegacyIdentities();
+    return enabled ? aliases[String(shopId)] ?? null : shopId;
+  } catch { return null; }
 });
 
 /**
@@ -57,12 +65,13 @@ export async function generateMetadata({ params }: ShopPageProps): Promise<Metad
   const code = formatShopIdToCode(shopId);
   if (!code) return {};
 
-  const shop = await fetchShop(shopId);
+  const resolvedId = await resolvePublicId(shopId);
+  const shop = resolvedId === null ? null : await fetchShop(resolvedId);
   const shopName = shop?.name?.trim() || `店舗 ${code}`;
   const products = shop?.products?.slice(0, 3).join("・") ?? "";
   const description = products
-    ? `${shopName}（高知・日曜市 ${code}番）の出店情報。取扱商品: ${products}。`
-    : `${shopName}（高知・日曜市 ${code}番）の出店情報。インタラクティブ地図で場所を確認できます。`;
+    ? `${shopName}（高知・日曜市）の出店情報。取扱商品: ${products}。`
+    : shop?.hasMapLocation === false ? `${shopName}（高知・日曜市）の店舗情報。次の日曜の出店予定を確認できます。` : `${shopName}（高知・日曜市）の出店情報。インタラクティブ地図で場所を確認できます。`;
 
   // 共有カードの写真はバナーと同じ（登録写真 → カテゴリの既定写真）。
   // 相対パス（既定写真）は今のホストで絶対 URL にする
@@ -72,7 +81,7 @@ export async function generateMetadata({ params }: ShopPageProps): Promise<Metad
   const images = shop
     ? [{ url: imageUrl, width: 800, height: 600, alt: shopName }]
     : [{ url: imageUrl, width: 1200, height: 630, alt: shopName }];
-  const pageTitle = `${shopName} – 日曜市 ${code}番`;
+  const pageTitle = `${shopName} – 高知・日曜市`;
 
   return {
     title: pageTitle,
@@ -108,14 +117,16 @@ export default async function ShopPage({ params }: ShopPageProps) {
     notFound();
   }
 
-  const shop = await fetchShop(shopId);
+  const resolvedId = await resolvePublicId(shopId);
+  if (resolvedId !== null && resolvedId !== shopId) redirect(`/shops/${resolvedId}`);
+  const shop = resolvedId === null ? null : await fetchShop(resolvedId);
   const shopName = shop?.name?.trim() || `店舗 ${normalizedCode}`;
 
   const localBusinessJsonLd = {
     "@context": "https://schema.org",
     "@type": "LocalBusiness",
     name: shopName,
-    description: shop?.shopStrength ?? `高知・日曜市 ${normalizedCode}番の出店者`,
+    description: shop?.shopStrength ?? "高知・日曜市の出店者",
     image: shop?.images?.main ?? undefined,
     address: {
       "@type": "PostalAddress",
@@ -129,20 +140,20 @@ export default async function ShopPage({ params }: ShopPageProps) {
 
   return (
     <>
-      <script
+      {shop && <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: safeJsonLd(localBusinessJsonLd) }}
-      />
+      />}
       <main className="mx-auto w-full max-w-2xl bg-nicchyo-base">
         {shop ? (
           // 地図で屋台をタップしたときと同じバナーを、そのまま1ページとして出す
           <ShopPageBanner shop={shop} shopCode={normalizedCode} />
         ) : (
           <section className="mx-4 my-10 rounded-2xl border border-amber-100 bg-white p-6 shadow-card">
-            <p className="text-xs font-semibold tracking-[0.12em] text-amber-700">日曜市 {normalizedCode}番</p>
+            <p className="text-xs font-semibold tracking-[0.12em] text-amber-700">日曜市の店舗情報</p>
             <h1 className="mt-1 text-2xl font-bold text-slate-900">{shopName}</h1>
             <p className="mt-3 text-sm leading-relaxed text-slate-600">
-              このお店の情報はまだ登録されていません。地図で場所だけ確認できます。
+              {resolvedId === null ? "以前の店舗番号に対応するお店を確認できません。番号が別のお店を指さないよう、対応を確認しています。" : "このお店の情報はまだ登録されていません。地図で場所を確認できます。"}
             </p>
             <a
               href={`/map?shop=${normalizedCode}`}

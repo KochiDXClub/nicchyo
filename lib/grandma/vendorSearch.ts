@@ -10,6 +10,7 @@ import type {
   SeasonalProductRow,
 } from "./types";
 import { normalizeChome, sanitizeLikeKeyword, getCurrentSeasonInfo, haversineKm } from "./consultUtils";
+import { readPublicScheduleRollout } from "@/lib/market-schedule/rollout.server";
 
 export async function fetchCandidateVendorIds(
   supabase: SupabaseClient<Database>,
@@ -176,6 +177,11 @@ export async function fetchShopsByVendorIds(
 ): Promise<Shop[]> {
   if (vendorIds.length === 0) return [];
 
+  // 公開切り替え後は、地図と同じ固定の店舗 ID を返す（店番を ID にすると、お気に入り・共有で別店を指す）。
+  // 参照できないときは従来の店番のまま返す。
+  let publicRollout = false;
+  try { publicRollout = await readPublicScheduleRollout(); } catch { publicRollout = false; }
+
   const [
     { data: vendorsData },
     { data: productsData },
@@ -185,7 +191,7 @@ export async function fetchShopsByVendorIds(
     supabase
       .from("vendors")
       .select(
-        "id, shop_name, strength, style, style_tags, category_id, categories(name), main_products, main_product_prices, payment_methods, rain_policy, schedule"
+        "id, public_shop_id, shop_name, strength, style, style_tags, category_id, categories(name), main_products, main_product_prices, payment_methods, rain_policy, schedule"
       )
       .in("id", vendorIds)
       // このクライアントは service_role で RLS を通らない。掲載の許可がない店舗は、AI の回答にも出さない
@@ -296,8 +302,11 @@ export async function fetchShopsByVendorIds(
           : undefined;
       const activePost = activePosts?.[0];
 
+      const publicId = publicRollout && Number.isSafeInteger(vendor.public_shop_id) && (vendor.public_shop_id ?? 0) >= 1000
+        ? (vendor.public_shop_id as number)
+        : storeNumber;
       return {
-        id: storeNumber,
+        id: publicId,
         vendorId: vendor.id,
         name: vendor.shop_name ?? "",
         // AI の文脈に個人名は載せない（プロンプトにも埋め込みにも出さない）
