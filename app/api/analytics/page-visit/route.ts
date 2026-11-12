@@ -1,3 +1,4 @@
+import { isAnalyticsCollectionEnabled } from "@/lib/analytics/collectionSettings.server";
 import crypto from "crypto";
 import { isSecretTokenPath } from "@/lib/analytics/secretPaths";
 import { cookies } from "next/headers";
@@ -41,6 +42,8 @@ export async function POST(request: NextRequest) {
     windowMs: 5 * 60 * 1000,
   });
   if (rateLimited) return rateLimited;
+
+  if (!(await isAnalyticsCollectionEnabled("pageVisits"))) return NextResponse.json({ ok: true, skipped: true });
 
   const cookieStore = await cookies();
   const supabase = createClient(cookieStore);
