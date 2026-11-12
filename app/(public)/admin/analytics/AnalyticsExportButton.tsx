@@ -2,13 +2,14 @@
 
 import { useState } from "react";
 
-type ExportType = "page_analytics" | "shop_views" | "search_logs" | "consult_logs";
+type ExportType = "page_analytics" | "shop_views" | "search_logs" | "consult_logs" | "guide_events";
 
 const EXPORT_OPTIONS: { value: ExportType; label: string }[] = [
   { value: "page_analytics", label: "ページアクセス" },
   { value: "shop_views", label: "店舗閲覧" },
   { value: "search_logs", label: "検索ログ" },
   { value: "consult_logs", label: "AI相談ログ" },
+  { value: "guide_events", label: "おでかけサポート" },
 ];
 
 const DAYS_OPTIONS = [
@@ -20,15 +21,16 @@ const DAYS_OPTIONS = [
 
 export default function AnalyticsExportButton() {
   const [exportType, setExportType] = useState<ExportType>("page_analytics");
+  const [mode, setMode] = useState<"summary" | "raw">("summary");
   const [days, setDays] = useState(30);
   const [loading, setLoading] = useState(false);
 
   const handleExport = async () => {
     setLoading(true);
     try {
-      const url = `/api/admin/analytics/export?type=${exportType}&days=${days}`;
+      const url = `/api/admin/analytics/export?type=${exportType}&mode=${mode}&days=${days}`;
       const res = await fetch(url);
-      if (!res.ok) throw new Error("エクスポート失敗");
+      if (!res.ok) { const data = await res.json().catch(() => null); throw new Error(data?.error ?? "エクスポート失敗"); }
       const blob = await res.blob();
       const disposition = res.headers.get("content-disposition") ?? "";
       const match = /filename="([^"]+)"/.exec(disposition);
@@ -39,8 +41,8 @@ export default function AnalyticsExportButton() {
       a.download = filename;
       a.click();
       URL.revokeObjectURL(a.href);
-    } catch {
-      alert("エクスポートに失敗しました");
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "エクスポートに失敗しました");
     } finally {
       setLoading(false);
     }
@@ -56,6 +58,9 @@ export default function AnalyticsExportButton() {
         {EXPORT_OPTIONS.map((o) => (
           <option key={o.value} value={o.value}>{o.label}</option>
         ))}
+      </select>
+      <select aria-label="出力形式" value={mode} onChange={(e) => setMode(e.target.value as "summary" | "raw")} className="rounded-lg border border-line px-3 py-1.5 text-sm">
+        <option value="summary">日別集計</option><option value="raw">生データ（個人情報を含む場合があります）</option>
       </select>
       <select
         value={days}
