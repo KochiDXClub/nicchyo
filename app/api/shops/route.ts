@@ -29,9 +29,11 @@ export async function GET(request: NextRequest) {
 
   try {
     const { shops, profiles } = await fetchPublicShopData(locale);
+    // 公開オフでは profiles と shops が同じ一覧。二重に送らないよう、違うときだけ profiles を付ける。
+    const body = profiles === (shops as unknown as typeof profiles) ? { shops } : { shops, profiles };
     // 出店予定と識別子の切替後に古い場所番号の一覧が残らないよう、CDN に保存しない。
     return NextResponse.json(
-      { shops, profiles },
+      body,
       {
         status: 200,
         headers: { "Cache-Control": "private, no-store" },
