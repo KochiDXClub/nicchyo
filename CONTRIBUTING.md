@@ -190,3 +190,4 @@ npx vitest run lib/favoriteShops.test.ts   # 単一ファイル実行
 
 - GitHub Issues でバグ報告・機能要望を受け付けています
 - テンプレートを使って報告してください
+- ラベル・優先度・担当者の付け方は [docs/ISSUE_TRIAGE.md](docs/ISSUE_TRIAGE.md) を参照してください
