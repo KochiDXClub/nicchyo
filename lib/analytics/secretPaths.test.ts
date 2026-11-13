@@ -1,5 +1,18 @@
 import { describe, expect, it } from "vitest";
-import { isSecretTokenPath } from "./secretPaths";
+import { isSecretTokenPath, toTrackedPath } from "./secretPaths";
+
+describe("toTrackedPath", () => {
+  it("自由入力の ?q= を外す（検索語を解析・GA に残さない）", () => {
+    expect(toTrackedPath("/map?q=%E5%B1%B1%E7%94%B0")).toBe("/map");
+    expect(toTrackedPath("/consult?q=hello&shopId=12")).toBe("/consult?shopId=12");
+    expect(toTrackedPath("/map?guide=menu&q=090-1234-5678")).toBe("/map?guide=menu");
+  });
+  it("?q= が無ければそのまま返す（ほかのパラメータの書き方も変えない）", () => {
+    expect(toTrackedPath("/map")).toBe("/map");
+    expect(toTrackedPath("/map?guide=menu&label=a%20b")).toBe("/map?guide=menu&label=a%20b");
+    expect(toTrackedPath("/shops/001?qr=1")).toBe("/shops/001?qr=1");
+  });
+});
 
 describe("isSecretTokenPath", () => {
   it("QR と招待リンクのパスを秘密として扱う", () => {

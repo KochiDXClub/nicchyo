@@ -1,6 +1,6 @@
 import { isAnalyticsCollectionEnabled } from "@/lib/analytics/collectionSettings.server";
 import crypto from "crypto";
-import { isSecretTokenPath } from "@/lib/analytics/secretPaths";
+import { isSecretTokenPath, toTrackedPath } from "@/lib/analytics/secretPaths";
 import { cookies } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/utils/supabase/server";
@@ -61,7 +61,8 @@ export async function POST(request: NextRequest) {
     durationSeconds?: number;
   } | null;
 
-  const path = typeof body?.path === "string" ? body.path.trim() : "";
+  // 自由入力のクエリ（?q=）は、古いクライアントから届いてもここで外す
+  const path = typeof body?.path === "string" ? toTrackedPath(body.path.trim()) : "";
   const durationSeconds = Math.max(
     0,
     Math.min(86400, Math.round(typeof body?.durationSeconds === "number" ? body.durationSeconds : 0))
