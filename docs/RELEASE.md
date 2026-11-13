@@ -144,6 +144,7 @@ npm run build                    # 通ること
 | `20260817215000_minimize_web_page_analytics.sql` | `web_page_analytics.user_id` を DROP し、同一トランザクションで大量 DELETE（**テーブルに ACCESS EXCLUSIVE ロック**。実行中はページ閲覧の INSERT が止まる） | 実行時間の見込み。必ずメンテナンスモード中に流す |
 | `20260911220000_drop_ai_consult_log_question_and_ip.sql` | `ai_consult_logs.question_text` / `ip_address` を DROP | 過去の相談文・IP が不要になることの合意 |
 | `20261113100000_close_product_search_logs_select.sql` | `product_search_logs` の SELECT ポリシーを DROP、anon/authenticated から SELECT を REVOKE | 本番の `main` に #926（検索トレンドの集計API）が入っていること（v1.5 で済み） |
+| `20261113110000_purge_product_search_logs.sql` | `purge_expired_personal_data` に `product_search_logs` の 90 日削除を追加（適用後の最初の定期実行で、90 日より前の検索ログが**行ごと消える**） | 90 日より前の検索語が要らないことの運営の合意。要るなら適用前に管理画面の CSV 出力（検索ログ・最大 365 日）で取っておく。生の検索語は個人情報を含みうるので、できるだけ集計（summary）で取り、生データ（raw）を取ったら使い終わりしだい消す |
 | ほか | `DELETE FROM` による旧データの削除、`REVOKE`（`vendors` の INSERT 剥奪など）、旧機能（バッジ・レシピ・ことづて・出店状況投票）の DROP | 下のコマンドで全件を確認 |
 
 ```bash
