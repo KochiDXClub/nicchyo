@@ -26,4 +26,6 @@ it("複数の出店場所を表示し、どの場所からも店舗を検索で�
   expect(screen.getByText("八百屋")).toBeTruthy();
   fireEvent.change(screen.getByPlaceholderText("店名、または店番の数字"), { target: { value: "99" } });
   expect(screen.queryByText("八百屋")).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: "検索条件をクリア" }));
+  expect(screen.getByText("八百屋")).toBeTruthy();
 });
