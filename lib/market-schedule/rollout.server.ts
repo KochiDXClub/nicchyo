@@ -16,16 +16,25 @@ async function readRolloutUncached(): Promise<boolean> {
   return data.enabled;
 }
 
-// 失敗（例外）はキャッシュされないので、次の読み取りで取り直す。
-// 有効期間は短くし、別のサーバーに無効化が届くまでの食い違いを数十秒に抑える。
-const readRolloutCached = unstable_cache(readRolloutUncached, [PUBLIC_SCHEDULE_ROLLOUT_CACHE_TAG], {
+// false はキャッシュしない。期限切れの値を再検証中や失敗時に返す Next.js の
+// 挙動により、別経路で公開された後も旧番号を返し続けることを防ぐ。
+class RolloutNotEnabled extends Error {}
+const readEnabledRolloutCached = unstable_cache(async () => {
+  if (!(await readRolloutUncached())) throw new RolloutNotEnabled();
+  return true;
+}, ["public-schedule-rollout-enabled-v2"], {
   tags: [PUBLIC_SCHEDULE_ROLLOUT_CACHE_TAG],
   revalidate: 30,
 });
 
 /** 公開切替の判定を失敗時に古い表示へ戻さない（IDの取り違えを防ぐ）。 */
 export async function readPublicScheduleRollout(): Promise<boolean> {
-  return readRolloutCached();
+  try {
+    return await readEnabledRolloutCached();
+  } catch (error) {
+    if (error instanceof RolloutNotEnabled) return false;
+    throw error;
+  }
 }
 
 /** 公開設定を書き換えたあとに呼ぶ。このサーバーのキャッシュを捨てる。 */
