@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { isAnalyticsCollectionEnabled } from "@/lib/analytics/collectionSettings.server";
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/adminClient";
@@ -33,12 +34,13 @@ export async function POST(request: Request) {
   if (!log) return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
 
   // 同じ IP から同じ語を何度も送らせない。連打で出店者の「検索トレンド」上位に
-  // 任意の語を押し込めないようにする
+  // 任意の語を押し込めないようにする。
+  // キーは IP と並んで外部の Redis（Upstash）に残るので、生の語ではなくハッシュにする（#1059）
   const perKeywordLimited = await enforceRateLimit(request, {
     bucket: "analytics-search-log-per-keyword",
     limit: 3,
     windowMs: 10 * 60 * 1000,
-    keySuffix: log.keyword.toLowerCase(),
+    keySuffix: createHash("sha256").update(log.keyword.toLowerCase()).digest("hex").slice(0, 32),
   });
   if (perKeywordLimited) return perKeywordLimited;
 
