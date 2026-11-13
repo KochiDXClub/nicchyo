@@ -4,7 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAnonClient } from "@/lib/supabase/anonClient";
 import { createAdminClient } from "@/lib/supabase/adminClient";
 import type { DatabaseWithExtensions } from "@/types/database.extensions";
-import type { Shop } from "@/app/(public)/map/types/shopData";
+import type { Shop, ShopProfile } from "@/app/(public)/map/types/shopData";
 import { requestChatCompletion } from "@/lib/ai/openaiFetch";
 import { resolveAiModelFor } from "@/lib/ai/modelStore.server";
 import { parseFirstJsonObject } from "@/lib/ai/structuredOutput";
@@ -94,7 +94,7 @@ const getCachedCategoryNamesEn = unstable_cache(
 );
 
 /** 店舗一覧に、そのロケールの訳を重ねる。日本語・訳が無い店はそのまま */
-export async function applyShopTranslations(shops: Shop[], locale: Locale): Promise<Shop[]> {
+export async function applyShopTranslations<T extends ShopProfile>(shops: T[], locale: Locale): Promise<T[]> {
   if (locale === DEFAULT_LOCALE || shops.length === 0) return shops;
   const [translations, categoryNamesEn] = await Promise.all([
     getCachedTranslations(locale),
@@ -207,7 +207,7 @@ export type SyncShopTranslationsResult = {
  * - `limit` までで止める（1回の実行時間とAIの費用を抑える）。残りは次の実行で処理される
  */
 export async function syncShopTranslations(params: {
-  shops: Shop[];
+  shops: ShopProfile[];
   locale: Locale;
   limit: number;
 }): Promise<SyncShopTranslationsResult> {

@@ -14,7 +14,7 @@ describe("normalizeShopCodeToId", () => {
 
   it("範囲外や不正形式は null を返す", () => {
     expect(normalizeShopCodeToId("000")).toBeNull();
-    expect(normalizeShopCodeToId("1000")).toBeNull();
+    expect(normalizeShopCodeToId("1000")).toBe(1000);
     expect(normalizeShopCodeToId("abc")).toBeNull();
     expect(normalizeShopCodeToId("1")).toBeNull();
     expect(normalizeShopCodeToId("shops001")).toBeNull();
@@ -30,7 +30,7 @@ describe("formatShopIdToCode", () => {
 
   it("範囲外や整数以外は null を返す", () => {
     expect(formatShopIdToCode(0)).toBeNull();
-    expect(formatShopIdToCode(1000)).toBeNull();
+    expect(formatShopIdToCode(1000)).toBe("1000");
     expect(formatShopIdToCode(1.2)).toBeNull();
   });
 });

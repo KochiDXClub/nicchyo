@@ -1,5 +1,5 @@
 import { normalizeSearchText } from '@/lib/search/normalizeSearchText';
-import type { Shop } from '../../map/data/shops';
+import type { ShopProfile as Shop } from '../../map/types/shopData';
 
 /**
  * 検索インデックスの型定義

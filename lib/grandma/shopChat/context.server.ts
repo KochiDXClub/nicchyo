@@ -1,13 +1,14 @@
 import { createAdminClient } from "@/lib/supabase/adminClient";
-import { fetchPublicShops } from "@/app/(public)/map/services/shopCache";
+import { fetchPublicShopProfiles } from "@/app/(public)/map/services/shopCache";
 import type { Shop } from "@/app/(public)/map/data/shops";
+import type { ShopProfile } from "@/app/(public)/map/types/shopData";
 import type { ShopChatContext, ShopChatNote } from "@/lib/grandma/prompts/shopChatPrompt";
 
 // お店の相談に渡す材料を、サーバーが読む。
 // 利用者から受け取るのは shopId だけで、店名・商品・メモはここで DB から引く。
 
 export type LoadedShopChat = {
-  shop: Shop;
+  shop: ShopProfile;
   context: ShopChatContext;
   notes: ShopChatNote[];
 };
@@ -15,14 +16,15 @@ export type LoadedShopChat = {
 const MAX_NOTES = 8;
 
 /** 非公開のお店は、相談の相手にもしない */
-export async function findPublicShop(shopId: number): Promise<Shop | null> {
-  const shops = await fetchPublicShops();
+export async function findPublicShop(shopId: number): Promise<ShopProfile | null> {
+  // 配置のない日（休みの週など）も相談できるよう、配置ではなく店舗プロフィールから探す
+  const shops = await fetchPublicShopProfiles();
   const shop = shops.find((candidate) => candidate.id === shopId);
   if (!shop || shop.visible === false) return null;
   return shop;
 }
 
-export function toShopChatContext(shop: Shop): ShopChatContext {
+export function toShopChatContext(shop: ShopProfile): ShopChatContext {
   return {
     category: shop.category,
     catchphrase: shop.catchphrase,
