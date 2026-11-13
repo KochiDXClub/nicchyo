@@ -48,3 +48,25 @@ describe("20261007110000_privacy_retention_purge.sql", () => {
     }
   });
 });
+
+describe("20261113110000_purge_product_search_logs.sql", () => {
+  const sql = readFileSync(join(MIGRATIONS, "20261113110000_purge_product_search_logs.sql"), "utf-8");
+
+  it("前の版（20261007110000）の purge 処理を1つも落としていない", () => {
+    const latest = purgeStatements(sql);
+    for (const statement of purgeStatements(LATEST)) expect(latest).toContain(statement);
+  });
+
+  it("検索ログを 90 日で行ごと削除する（#923）", () => {
+    expect(purgeStatements(sql)).toContain(
+      "delete from public.product_search_logs where searched_at < now() - interval '90 days';"
+    );
+  });
+
+  it("security definer のまま、anon / authenticated から直接実行できない", () => {
+    expect(sql).toMatch(/security definer\s+set search_path = public/);
+    for (const role of ["public", "anon", "authenticated"]) {
+      expect(sql).toContain(`revoke execute on function public.purge_expired_personal_data() from ${role};`);
+    }
+  });
+});
