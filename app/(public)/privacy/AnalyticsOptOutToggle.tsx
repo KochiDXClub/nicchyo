@@ -81,7 +81,7 @@ export default function AnalyticsOptOutToggle() {
       </div>
 
       <p className="mt-3 text-sm leading-[1.9] text-[#5C574F]">
-        お止めになると、ご覧になったページの記録も Google アナリティクスへの送信もいたしません。
+        お止めになると、ご覧になったページの記録・検索の記録も Google アナリティクスへの送信もいたしません。
         サービスのご利用そのものには影響ございません。
       </p>
 
