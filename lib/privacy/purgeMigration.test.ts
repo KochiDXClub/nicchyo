@@ -48,3 +48,26 @@ describe("20261007110000_privacy_retention_purge.sql", () => {
     }
   });
 });
+
+describe("20261113120000_fix_purge_missing_shop_interactions.sql", () => {
+  const sql = readFileSync(join(MIGRATIONS, "20261113120000_fix_purge_missing_shop_interactions.sql"), "utf-8");
+
+  it("削除済みテーブル shop_interactions を関数の中で参照しない（参照すると毎回丸ごと失敗する、#856）", () => {
+    expect(purgeStatements(sql).join("\n")).not.toContain("shop_interactions");
+  });
+
+  it("shop_interactions 以外の、前の版（20261007110000）の処理を1つも落としていない", () => {
+    const latest = purgeStatements(sql);
+    const kept = purgeStatements(LATEST).filter((statement) => !statement.includes("shop_interactions"));
+    expect(kept.length).toBeGreaterThan(10);
+    for (const statement of kept) expect(latest).toContain(statement);
+    expect(latest).toHaveLength(kept.length);
+  });
+
+  it("security definer のまま、anon / authenticated から直接実行できない", () => {
+    expect(sql).toMatch(/security definer\s+set search_path = public/);
+    for (const role of ["public", "anon", "authenticated"]) {
+      expect(sql).toContain(`revoke execute on function public.purge_expired_personal_data() from ${role};`);
+    }
+  });
+});
