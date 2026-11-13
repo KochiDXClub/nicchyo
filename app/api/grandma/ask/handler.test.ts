@@ -1,6 +1,6 @@
 // @vitest-environment node
 // multipart の File/FormData は Node 標準のものを使う（jsdom の File は arrayBuffer を持たず、本番の挙動と食い違う）
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
 vi.mock("@/lib/analytics/collectionSettings.server", () => ({ isAnalyticsCollectionEnabled: async () => true }));
 import { NextResponse } from "next/server";
@@ -19,7 +19,15 @@ vi.mock("@/lib/security/rateLimit", () => ({
 }));
 vi.mock("@supabase/supabase-js", () => ({ createClient: () => createClient() }));
 
-import { handleConsultAsk } from "./handler";
+const requestEmbeddings = vi.fn();
+const requestChatCompletion = vi.fn();
+vi.mock("@/lib/ai/openaiFetch", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/ai/openaiFetch")>()),
+  requestEmbeddings: (...args: unknown[]) => requestEmbeddings(...args),
+  requestChatCompletion: (...args: unknown[]) => requestChatCompletion(...args),
+}));
+
+import { handleConsultAsk, type ConsultAskInternalOptions } from "./handler";
 import {
   ASK_IMAGE_MAX_BYTES,
   ASK_MEMORY_SUMMARY_MAX,
@@ -129,5 +137,42 @@ describe("handleConsultAsk の入力検証", () => {
   it.each(["トイレ", "駐車場", "ランチ"])("短い質問「%s」も断らずに先へ進む", async (text) => {
     const body = (await (await postJson({ text })).json()) as { errorCode?: string };
     expect(body.errorCode).not.toBe("insufficient_context");
+  });
+});
+
+describe("handleConsultAsk の埋め込みのタイムアウト", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "http://supabase.test");
+    vi.stubEnv("SUPABASE_SERVICE_ROLE_KEY", "service-role");
+    vi.stubEnv("OPENAI_API_KEY", "sk-test");
+    createClient.mockReturnValue({} as never);
+  });
+  afterEach(() => vi.unstubAllEnvs());
+
+  it("埋め込みが打ち切られたら、再試行できる system_error を返し、回答の呼び出しには進まない", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    requestEmbeddings.mockImplementation(async (_key, _input, signal: AbortSignal) => {
+      expect(signal).toBeInstanceOf(AbortSignal);
+      throw new DOMException("The operation was aborted due to timeout", "TimeoutError");
+    });
+    // 管理画面の対話テストの経路。出どころ・レート制限・不正検知を通らずに埋め込みまで進める
+    const internal = { modelOverride: { def: { id: "test", provider: "openai" } } } as ConsultAskInternalOptions;
+
+    const res = await handleConsultAsk(
+      new Request("http://localhost/api/grandma/ask", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ text: "おすすめは？", memorySummary: "文旦が好き" }),
+      }),
+      internal,
+    );
+    const body = (await res.json()) as { errorCode?: string; retryable?: boolean; memorySummary?: string };
+
+    expect(body.errorCode).toBe("system_error");
+    expect(body.retryable).toBe(true);
+    expect(body.memorySummary).toBe("文旦が好き");
+    expect(requestEmbeddings).toHaveBeenCalledTimes(1);
+    expect(requestChatCompletion).not.toHaveBeenCalled();
   });
 });

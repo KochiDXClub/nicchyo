@@ -18,6 +18,12 @@ import { getForwardedClientIp } from "@/lib/security/clientIp";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+/**
+ * OpenAI を待つ上限。画面側（useShopChat の 30 秒）より短くして、先にサーバーが打ち切る。
+ * signal は本文の受信にも効くので、流している途中で詰まった場合もここで止まる
+ */
+const SHOP_CHAT_UPSTREAM_TIMEOUT_MS = 25_000;
+
 export async function POST(req: NextRequest) {
   const originCheck = requireSameOrigin(req);
   if (!originCheck.ok) return originCheck.response;
@@ -90,7 +96,7 @@ export async function POST(req: NextRequest) {
     maxOutputTokens: 280,
     temperature: 0.7,
     stream: true,
-  });
+  }, AbortSignal.timeout(SHOP_CHAT_UPSTREAM_TIMEOUT_MS));
 
   if (!upstream.ok || !upstream.body) {
     return new Response("Upstream error", { status: 502 });
