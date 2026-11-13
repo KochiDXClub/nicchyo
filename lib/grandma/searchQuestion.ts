@@ -22,6 +22,12 @@ const SYSTEM_PROMPT = [
 const MAX_INPUT_LENGTH = 500;
 const MAX_OUTPUT_LENGTH = 300;
 
+/**
+ * 訳を待つ上限。訳は検索の質を上げるだけなので、詰まったら待たずに元の質問で進む。
+ * 相談全体の待ち時間の内訳は app/api/grandma/ask/handler.ts の ASK_UPSTREAM_TIMEOUT_MS を参照
+ */
+export const SEARCH_TRANSLATION_TIMEOUT_MS = 5_000;
+
 export async function translateQuestionForSearch(
   apiKey: string,
   question: string,
@@ -39,7 +45,7 @@ export async function translateQuestionForSearch(
       ],
       maxOutputTokens: 200,
       temperature: 0,
-    });
+    }, AbortSignal.timeout(SEARCH_TRANSLATION_TIMEOUT_MS));
     if (!response.ok) return question;
     const payload = (await response.json()) as { choices?: { message?: { content?: string } }[] };
     const translated = payload.choices?.[0]?.message?.content?.trim().slice(0, MAX_OUTPUT_LENGTH);

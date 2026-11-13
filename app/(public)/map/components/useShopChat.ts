@@ -10,6 +10,11 @@ export type ChatMsg = { role: "user" | "assistant"; text: string };
 const ERROR_TEXT = "うまく答えられませんでした。もう一度試してみてください。";
 /** 途中まで出た答えが切れたとき、その末尾に足す。足さないと切れた答えが完結して見える */
 const TRUNCATED_NOTE = "\n\n（途中で切れてしまいました。もう一度試してみてください。）";
+/**
+ * 1回の答えを待つ上限。OpenAI や回線が詰まったときに「考え中」のまま固まらないよう、
+ * ここで打ち切って失敗として見せる。サーバー側（shop-chat の route.ts）はこれより短く打ち切る
+ */
+const SHOP_CHAT_TIMEOUT_MS = 30_000;
 
 /**
  * お店ごとの相談の会話。
@@ -49,6 +54,12 @@ export function useShopChat(shopId: number) {
 
       const ctrl = new AbortController();
       abortRef.current = ctrl;
+      // 時間切れも中断（AbortError）として届くので、利用者の中断と区別するために覚えておく
+      let timedOut = false;
+      const timeoutId = setTimeout(() => {
+        timedOut = true;
+        ctrl.abort();
+      }, SHOP_CHAT_TIMEOUT_MS);
       try {
         const res = await fetch("/api/grandma/shop-chat", {
           method: "POST",
@@ -70,7 +81,7 @@ export function useShopChat(shopId: number) {
           });
         });
       } catch (err: unknown) {
-        if (err instanceof Error && err.name !== "AbortError") {
+        if (timedOut || (err instanceof Error && err.name !== "AbortError")) {
           setMessages((prev) => {
             const copy = [...prev];
             const last = copy[copy.length - 1];
@@ -81,6 +92,7 @@ export function useShopChat(shopId: number) {
           });
         }
       } finally {
+        clearTimeout(timeoutId);
         setStreaming(false);
         abortRef.current = null;
       }
