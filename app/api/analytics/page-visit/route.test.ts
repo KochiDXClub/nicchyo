@@ -79,6 +79,11 @@ describe("POST /api/analytics/page-visit の来訪者数カウント", () => {
     expect(rpc).toHaveBeenCalled();
   });
 
+  it("?q= の検索語は外して記録する（古いクライアントから届いても残さない）", async () => {
+    await post({ path: "/map?q=%E5%B1%B1%E7%94%B0&guide=menu", durationSeconds: 1 });
+    expect(insert).toHaveBeenCalledWith(expect.objectContaining({ path: "/map?guide=menu" }));
+  });
+
   it("記録対象外のパスや書き込み失敗では数えない", async () => {
     await post({ path: "/api/x", durationSeconds: 1 });
     insert.mockResolvedValue({ error: { message: "x" } });

@@ -48,6 +48,18 @@ describe("loadGA", () => {
     expect(document.getElementById("ga-script")).toBeNull();
   });
 
+  it("最初の page_view の page_location に ?q= の検索語を載せない", async () => {
+    window.history.replaceState(null, "", "/map?q=%E5%B1%B1%E7%94%B0&guide=menu");
+    try {
+      const { loadGA } = await load();
+      loadGA();
+      const config = (w.dataLayer as unknown[][]).find((args) => args[0] === "config");
+      expect(config?.[2]).toEqual({ page_location: `${window.location.origin}/map?guide=menu` });
+    } finally {
+      window.history.replaceState(null, "", "/");
+    }
+  });
+
   it("2回呼んでも script は1つだけ", async () => {
     const { loadGA } = await load();
     loadGA();
