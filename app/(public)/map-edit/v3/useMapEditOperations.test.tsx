@@ -193,6 +193,26 @@ describe("useMapEditOperations の出店者操作", () => {
     expect(setMessage).toHaveBeenCalledWith(expect.stringContaining("現場登録"));
   });
 
+  it("名前のない普通の区画に公開配置の店舗情報があっても、ドラッグで移せる", () => {
+    const { hook } = setup(
+      [slot(1, 5, { vendorId: "va", name: "店A", placeVendors: [{ id: "va", name: "店A" }] }), slot(2, 15)],
+      300,
+      [vendor("va", "店A")]
+    );
+    act(() => { expect(hook.result.current.ops.moveVendor("loc-1", "loc-2")).toBe(true); });
+    expect(hook.result.current.shops.map((s) => s.vendorId)).toEqual([undefined, "va"]);
+  });
+
+  it("名前のない普通の区画に公開配置の店舗情報があっても、別の区画へ割り当てられる", () => {
+    const { hook } = setup(
+      [slot(1, 5, { vendorId: "va", name: "店A", placeVendors: [{ id: "va", name: "店A" }] }), slot(2, 15)],
+      300,
+      [vendor("va", "店A")]
+    );
+    act(() => hook.result.current.ops.assignVendor("loc-2", "va"));
+    expect(hook.result.current.shops.map((s) => s.vendorId)).toEqual([undefined, "va"]);
+  });
+
   it("出店者のいる区画へ移すと入れ替わり、1回の取り消しで元に戻る", () => {
     const { hook } = setup(
       [slot(1, 5, { vendorId: "va", name: "店A" }), slot(2, 15, { vendorId: "vb", name: "店B" })],
