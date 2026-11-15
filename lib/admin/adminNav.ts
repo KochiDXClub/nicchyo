@@ -111,6 +111,12 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
         icon: CalendarDays,
         description: "場所と店舗ごとの出店日・繰り返し・休みを管理する",
       },
+      {
+        label: "旧店舗番号の確認",
+        href: "/admin/legacy-shop-identities",
+        icon: ClipboardList,
+        description: "以前の店舗番号と店舗の対応を確認する",
+      },
     ],
   },
   {

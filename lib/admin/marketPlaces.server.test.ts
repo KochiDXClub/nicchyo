@@ -13,6 +13,12 @@ describe("共通出店場所", () => {
     expect(result.get("x")?.vendors).toEqual([{ id: "a", name: "店A" }]);
     expect(result.get("y")?.vendors).toEqual([{ id: "a", name: "店A" }]);
   });
+  it("場所名がなくても、登録済み店舗をマップ編集に渡す", async () => {
+    const client = db({ data: [{ id: "loc", place_name: null, store_number: 1 }], error: null }, { data: [{ id: "a", shop_name: "店A", market_place_id: null }], error: null }, { data: [], error: null }, { data: [{ id: "m", location_id: "loc", vendor_id: "a" }], error: null });
+    const result = await attachSharedMarketPlaces(client, [{ locationId: "loc", id: 1, position: 1, name: "", lat: 33.56, lng: 133.53 }]);
+    expect(result[0].placeVendors).toEqual([{ id: "a", name: "店A" }]);
+    expect(result[0].placeName).toBeUndefined();
+  });
   it("範囲内の現場記録を確認用に添え、範囲外の記録は渡さない", async () => {
     const vendors = [{ id: "a", name: "店A", categoryId: null, strength: "", mainProducts: [] }, { id: "b", name: "店B", categoryId: null, strength: "", mainProducts: [] }];
     const client = db(null, null, { data: [{ vendor_id: "a", latitude: 33.56, longitude: 133.53, store_number: 1, accuracy_m: 10, source: "gps", updated_at: "2026-11-01T00:00:00Z" }, { vendor_id: "b", latitude: 0, longitude: 0, updated_at: "2026-11-01T00:00:00Z" }], error: null });

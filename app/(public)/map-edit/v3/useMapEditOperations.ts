@@ -192,7 +192,7 @@ export function useMapEditOperations(params: Params) {
       const from = shops.find((s) => s.locationId === fromLocationId);
       const to = shops.find((s) => s.locationId === toLocationId);
       if (!from || !to || !from.vendorId || from.locationId === to.locationId) return false;
-      if (from.placeName || to.placeName || shops.some((s) => s.locationId !== toLocationId && s.placeVendors?.some((entry) => entry.id === from.vendorId)) || (to.vendorId && shops.some((s) => s.locationId !== fromLocationId && s.placeVendors?.some((entry) => entry.id === to.vendorId)))) {
+      if (from.placeName || to.placeName || shops.some((s) => s.placeName && s.locationId !== toLocationId && s.placeVendors?.some((entry) => entry.id === from.vendorId)) || (to.vendorId && shops.some((s) => s.placeName && s.locationId !== fromLocationId && s.placeVendors?.some((entry) => entry.id === to.vendorId)))) {
         setMessage("出店場所が登録された区画への店舗の移動は、先に現場登録で場所を確認してください。");
         return false;
       }
@@ -233,7 +233,7 @@ export function useMapEditOperations(params: Params) {
         return;
       }
       const previous = vendorId ? shops.find((s) => s.vendorId === vendorId && s.locationId !== locationId) : undefined;
-      if (previous?.placeName || (vendorId && shops.some((s) => s.locationId !== locationId && s.placeVendors?.some((entry) => entry.id === vendorId)))) {
+      if (previous?.placeName || (vendorId && shops.some((s) => s.placeName && s.locationId !== locationId && s.placeVendors?.some((entry) => entry.id === vendorId)))) {
         setMessage("出店場所が登録された店舗を移すには、先に現場登録で場所を確認してください。");
         return;
       }
@@ -263,7 +263,7 @@ export function useMapEditOperations(params: Params) {
   const applyFieldObservation = useCallback((locationId: string) => {
     const shop = shops.find((item) => item.locationId === locationId);
     const observation = vendors.find((item) => item.id === shop?.vendorId)?.fieldObservation;
-    if (!shop || shop.placeName || !observation) return;
+    if (!shop || shop.placeName || (shop.placeVendors?.length ?? 0) > 1 || !observation) return;
     commit({ shops: shops.map((item) => item.locationId === locationId
       ? { ...item, lat: observation.lat, lng: observation.lng, roadId: undefined, roadDistanceM: undefined, roadSide: undefined, roadOffsetM: undefined }
       : item) }, String(shop.position), "確認した現場の位置を反映");
