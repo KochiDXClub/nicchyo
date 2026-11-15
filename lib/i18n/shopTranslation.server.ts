@@ -34,6 +34,11 @@ const SHOP_TRANSLATIONS_REVALIDATE_SECONDS = 15 * 60;
  * 同じ呼び出しの別の店の訳に影響できないようにする。
  */
 const BATCH_SIZE = 1;
+/**
+ * 1回の訳を待つ上限。運営の「訳を見る」（preview の maxDuration 60 秒）より短くして、
+ * 詰まったら「もう一度お試しください」を返す。同期では、その店を訳せなかった数に入れて次の店へ進む
+ */
+const SHOP_TRANSLATION_TIMEOUT_MS = 30_000;
 
 type TranslationRow = DatabaseWithExtensions["public"]["Tables"]["shop_translations"]["Row"];
 
@@ -138,7 +143,7 @@ async function requestTranslations(
     maxOutputTokens: 3000,
     temperature: 0.2,
     responseFormat: TRANSLATION_RESPONSE_FORMAT,
-  });
+  }, AbortSignal.timeout(SHOP_TRANSLATION_TIMEOUT_MS));
   if (!response.ok) throw new Error(`chat completion failed (${response.status})`);
   const payload = (await response.json()) as { choices?: { message?: { content?: string } }[] };
   const content = payload.choices?.[0]?.message?.content ?? "";
