@@ -2,6 +2,7 @@ import { canShowOutingSupport } from "./_landing/landingNavigation.server";
 import type { Metadata } from "next";
 import { PageShell } from "@/components/ui";
 import { siteTextFor } from "@/lib/siteCopy";
+import { getPublishedSiteCopy } from "@/lib/site-copy/server";
 import { getLocale, getT } from "@/lib/i18n/server";
 import { SUNDAY_MARKET_JSON_LD } from "@/lib/seo/sundayMarketJsonLd";
 import { safeJsonLd } from "@/lib/utils/jsonLd";
@@ -24,7 +25,7 @@ export async function generateMetadata(): Promise<Metadata> {
   const [locale, t] = await Promise.all([getLocale(), getT()]);
   const title = t("nicchyo（ニッチョ）| 高知高専生が開発した日曜市のデジタルマップ");
   // 日曜市の数字（約1.3km・およそ300の店）はマップの案内と同じシートの文言から作る（太字の印は外す）
-  const lead = siteTextFor("mapIntro.lead", locale).replaceAll("**", "");
+  const lead = siteTextFor("mapIntro.lead", locale, (await getPublishedSiteCopy()).texts).replaceAll("**", "");
   // 英語では文と文の間に空白が要る（日本語はそのままつなげる）
   const description = `${lead}${locale === "en" ? " " : ""}${t("高知高専の学生が開発した、地図で店を探せて AI のにちよさんに相談できる日曜市のデジタルマップです。")}`;
   const ogImage = { url: "/og-default.png", width: 1200, height: 630, alt: t("nicchyo – 高知の日曜市マップ") };

@@ -5,6 +5,7 @@ import { guardAdminWrite } from "@/lib/admin/shopApiGuard";
 import { logAdminAudit } from "@/lib/audit/logAdminAudit";
 import { isMissingTableError } from "@/lib/admin/fieldShopLocation";
 import { listAllAuthUsers } from "@/lib/auth/listAllUsers";
+import { loadSharedMarketPlaces } from "@/lib/admin/marketPlaces.server";
 import { loadShopAccountLinks } from "@/lib/admin/shopAccounts.server";
 import { parseShopEdit, type ListingStatus } from "@/lib/admin/shopEdit";
 
@@ -22,6 +23,8 @@ export type AdminShop = {
   listingStatus: ListingStatus;
   /** 店番。現場登録の記録があればそれ、無ければ地図上の区画の店番。無ければ null */
   storeNumber: number | null;
+  /** 名前付きの共通出店場所。未登録なら null */
+  placeName?: string | null;
   /** 位置が決まっているか（現場で位置を記録した、または地図上の区画に置かれている） */
   hasLocation: boolean;
   /** 店舗写真があるか */
@@ -80,6 +83,9 @@ export async function GET() {
       if (n != null) storeNumberByVendor.set(a.vendor_id, n);
     }
 
+    const sharedPlaces = await loadSharedMarketPlaces(serviceClient as unknown as SupabaseClient);
+    const placeByVendor = new Map([...sharedPlaces.values()].flatMap((place) => place.vendors.map((vendor) => [vendor.id, place] as const)));
+
     // 現場登録の記録（地図には反映していない）。店番が決まっていない新しい店舗も、位置を記録していれば「位置あり」
     const fieldRows = new Map<string, { store_number: number | null; latitude: number | null }>();
     const fieldResult = await serviceClient.from("field_shop_locations").select("vendor_id, store_number, latitude");
@@ -133,8 +139,10 @@ export async function GET() {
         email: authUser?.email ?? "-",
         status: isSuspended ? "suspended" : "active",
         listingStatus: vendor.listing_status as ListingStatus,
-        storeNumber: fieldRows.get(vendor.id)?.store_number ?? storeNumberByVendor.get(vendor.id) ?? null,
+        storeNumber: placeByVendor.get(vendor.id)?.storeNumber ?? fieldRows.get(vendor.id)?.store_number ?? storeNumberByVendor.get(vendor.id) ?? null,
+        placeName: placeByVendor.get(vendor.id)?.name ?? null,
         hasLocation:
+          placeByVendor.has(vendor.id) ||
           fieldRows.get(vendor.id)?.latitude != null ||
           fieldRows.get(vendor.id)?.store_number != null ||
           storeNumberByVendor.has(vendor.id),

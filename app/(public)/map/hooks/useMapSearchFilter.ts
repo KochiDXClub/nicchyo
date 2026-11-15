@@ -4,6 +4,7 @@ import { buildSearchIndex } from "../../search/lib/searchIndex";
 import { useShopSearch } from "../../search/hooks/useShopSearch";
 import { useSearchLog } from "@/lib/hooks/useSearchLog";
 import type { Shop } from "../data/shops";
+import type { ShopProfile } from "../types/shopData";
 
 /**
  * 地図上の検索バー・ジャンルフィルター・お気に入り絞り込みの状態。
@@ -16,11 +17,13 @@ import type { Shop } from "../data/shops";
  */
 export function useMapSearchFilter({
   shops,
+  profiles,
   favoriteShopIds,
   initialQuery = "",
   initialCategory = null,
 }: {
   shops: Shop[];
+  profiles?: ShopProfile[];
   favoriteShopIds: number[];
   initialQuery?: string;
   /** URL の ?category= で渡ってきたジャンル（トップページのジャンルなど）。無ければ絞り込みなし */
@@ -44,10 +47,17 @@ export function useMapSearchFilter({
     category,
     chome: null,
   });
+  const catalog: ShopProfile[] = profiles ?? shops;
+  const catalogIndex = useMemo(() => buildSearchIndex(catalog), [catalog]);
+  const matchedProfiles = useShopSearch({ shops: catalog, searchIndex: catalogIndex, textQuery: query, category, chome: null });
+  const unplacedResults = useMemo(() => {
+    if (!query.trim() && !category && !favoritesOnly) return [];
+    return matchedProfiles.filter((shop) => shop.hasMapLocation === false && (!favoritesOnly || favoriteShopIds.includes(shop.id)));
+  }, [query, category, favoritesOnly, matchedProfiles, favoriteShopIds]);
 
   // 検索バーに打った語を記録する（出店者の「検索トレンド」の元）。
   // URL の ?q= で渡ってきた語（共有リンク・再読み込み）は、この画面で打った検索ではないので数えない
-  useSearchLog(query, results.length, initialQuery);
+  useSearchLog(query, results.length + unplacedResults.length, initialQuery);
 
   const shopIds = useMemo(() => {
     const hasTextOrCategory = !!query.trim() || !!category;
@@ -76,6 +86,7 @@ export function useMapSearchFilter({
     favoritesOnly,
     setFavoritesOnly,
     results,
+    unplacedResults,
     shopIds,
     hasFilter,
     clearFilters,

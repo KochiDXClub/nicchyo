@@ -1,3 +1,4 @@
+import { isAnalyticsCollectionEnabled } from "@/lib/analytics/collectionSettings.server";
 import { NextResponse } from "next/server";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/database.types";
@@ -227,7 +228,7 @@ async function parseRequest(request: Request): Promise<ParsedRequest> {
       }
     }
   } else {
-    const parsed = AskJsonBodySchema.safeParse(await request.json());
+    const parsed = AskJsonBodySchema.safeParse(await request.json().catch(() => null));
     if (!parsed.success) {
       throw badRequest(parsed.error.issues[0].message);
     }
@@ -329,9 +330,10 @@ async function finalizeConsultResponse(options: {
     location,
   );
 
-  const recommendedShops = shopPool.filter((shop) =>
-    recommendedIds.includes(shop.id),
-  );
+  // shopPool.filter だと shopPool の順に戻り、距離順が崩れる（#862）
+  const recommendedShops = recommendedIds
+    .map((id) => shopPool.find((shop) => shop.id === id))
+    .filter((shop): shop is Shop => !!shop);
   const finalRecommendedShops =
     recommendedShops.length > 0 || !shopIntent
       ? recommendedShops
@@ -353,8 +355,8 @@ async function finalizeConsultResponse(options: {
   // 相談内容そのもの（質問文）と IP アドレスは保存しない。読み手が無く、
   // 保存すると来訪者の相談内容と IP が対で溜まるだけになるため（#629）。
   // 解析に使うのは意図分類・キーワード・場所種別だけ。
-  if (internal) {
-    // 管理画面の対話テスト。来訪者の相談ではないので集計に混ぜない
+  if (internal || !(await isAnalyticsCollectionEnabled("consultLogs"))) {
+    // 管理画面の対話テスト・記録停止中は集計に混ぜない
   } else if (logVendorIds.length > 0) {
     const logs = logVendorIds.map((vendorId) => ({
       store_id: vendorId,
@@ -409,6 +411,26 @@ async function finalizeConsultResponse(options: {
     retryable: false,
     consultId,
   };
+}
+
+const TURN_TRAILING_MARKERS = ["|FOLLOW_UP|", "|SHOP_IDS|"];
+
+/**
+ * 1人目の発話として流してよい本文だけを返す。
+ * モデルが TURN 行と同じ行に `|FOLLOW_UP|…` や `|SHOP_IDS|…` を続けても、吹き出しに出さない。
+ * まだ届いていない区切りの途中（`|FOLL` など）も、確定するまで見せない（出したあとは取り消せないため）。
+ */
+function visibleFirstTurnText(text: string): string {
+  const markerAt = text.search(/\|(?:FOLLOW_UP|SHOP_IDS)\|/);
+  if (markerAt >= 0) return text.slice(0, markerAt);
+  const longest = Math.max(...TURN_TRAILING_MARKERS.map((marker) => marker.length)) - 1;
+  for (let len = Math.min(text.length, longest); len > 0; len--) {
+    const tail = text.slice(-len);
+    if (TURN_TRAILING_MARKERS.some((marker) => marker.startsWith(tail))) {
+      return text.slice(0, -len);
+    }
+  }
+  return text;
 }
 
 export async function createStreamingConsultResponse(options: {
@@ -558,8 +580,8 @@ export async function createStreamingConsultResponse(options: {
               (hasName ? parts[2].trim() : "") || matchedCharacter.name,
           });
         }
-        const currentText = (hasName ? parts.slice(3) : parts.slice(2)).join(
-          "|",
+        const currentText = visibleFirstTurnText(
+          (hasName ? parts.slice(3) : parts.slice(2)).join("|"),
         );
         if (currentText.length <= firstTurnTextLength) return;
         enqueue({

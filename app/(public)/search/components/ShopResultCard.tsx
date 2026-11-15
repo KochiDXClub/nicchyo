@@ -1,13 +1,15 @@
-﻿"use client";
+"use client";
 
 import { shopCategoryLabel } from "@/lib/i18n/shopTranslation";
 import Link from "next/link";
 import Image from "next/image";
 import { memo } from "react";
 import type { MouseEvent } from "react";
-import type { Shop } from "../../map/data/shops";
+import type { ShopProfile as Shop } from "../../map/types/shopData";
 import { saveSearchMapPayload } from "../../../../lib/searchMapStorage";
 import { getShopPreviewImage } from "../../../../lib/shopImages";
+import { nextMarketStatusLabel } from "@/lib/shops/marketStatus";
+import { useLocale } from "@/lib/i18n/LocaleContext";
 
 interface ShopResultCardProps {
   shop: Shop;
@@ -32,15 +34,16 @@ function ShopResultCard({
   enableSearchMapHighlight = false,
   mapLabel: mapLabelProp,
 }: ShopResultCardProps) {
+  const locale = useLocale();
   const previewImage = getShopPreviewImage(shop);
   const mapLabel = mapLabelProp ?? shop.name;
-  const mapHref = enableSearchMapHighlight
+  const mapHref = shop.hasMapLocation === false ? `/shops/${shop.id}` : enableSearchMapHighlight
     ? `/map?search=1&label=${encodeURIComponent(mapLabel)}&shop=${shop.id}`
     : `/map?shop=${shop.id}`;
 
   const handleOpenMap = (event: MouseEvent<HTMLAnchorElement>) => {
     event.stopPropagation();
-    if (enableSearchMapHighlight) {
+    if (enableSearchMapHighlight && shop.hasMapLocation !== false) {
       saveSearchMapPayload({ ids: [shop.id], label: mapLabel });
     }
   };
@@ -69,6 +72,7 @@ function ShopResultCard({
             <p className={`${compact ? "text-[10px]" : "text-xs"} text-gray-600`}>
               {shop.ownerName}
             </p>
+            {nextMarketStatusLabel(shop, locale) && <p className="mt-1 text-xs text-nicchyo-ink/70">{nextMarketStatusLabel(shop, locale)}</p>}
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -87,13 +91,13 @@ function ShopResultCard({
           >
             {"\u2665"}
           </button>
-          <span
+          {shop.id < 1000 && <span
             className={`rounded-full bg-amber-600 px-2 py-1 font-semibold text-white ${
               compact ? "text-[10px]" : "text-xs"
             }`}
           >
             #{shop.id}
-          </span>
+          </span>}
         </div>
       </div>
 
@@ -123,7 +127,7 @@ function ShopResultCard({
           compact ? "mt-2 text-[10px]" : "mt-2 text-xs"
         }`}
       >
-        地図で見る →
+        {shop.hasMapLocation === false ? "店舗情報を見る →" : "地図で見る →"}
       </Link>
     </div>
   );

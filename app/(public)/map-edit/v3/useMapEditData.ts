@@ -40,6 +40,7 @@ async function fetchMapLayout() {
     categories?: VendorCategory[];
     /** DB に道基準の位置の列があるか（無ければマイグレーション前で、保存できない） */
     schemaReady?: boolean;
+    fieldObservationsUnavailable?: boolean;
     mapSettingsLimits?: MapSettingsLimits;
     /** 丁目の境目と区間（古い API・マイグレーション前は無い／空） */
     chome?: { boundaries?: ChomeBoundary[]; sections?: ChomeSection[] };
@@ -107,6 +108,7 @@ export function useMapEditData({
   const [categories, setCategories] = useState<VendorCategory[]>([]);
   // 古い API（schemaReady を返さない）では保存できる前提で扱う
   const [schemaReady, setSchemaReady] = useState(true);
+  const [fieldObservationsUnavailable, setFieldObservationsUnavailable] = useState(false);
   const [mapSettingsLimits, setMapSettingsLimits] = useState<MapSettingsLimits>(DEFAULT_MAP_SETTINGS_LIMITS);
   const [chomeBoundaries, setChomeBoundaries] = useState<ChomeBoundary[]>([]);
   const [chomeSections, setChomeSections] = useState<ChomeSection[]>([]);
@@ -128,6 +130,7 @@ export function useMapEditData({
     setLandmarks(Array.isArray(nextData.landmarks) ? nextData.landmarks : []);
     setRoads(Array.isArray(nextData.roads) ? nextData.roads : []);
     setVendors(Array.isArray(nextData.vendors) ? nextData.vendors : []);
+    setFieldObservationsUnavailable(nextData.fieldObservationsUnavailable === true);
     setChomeBoundaries(nextData.chome?.boundaries ?? []);
     setChomeSections(nextData.chome?.sections ?? []);
     clearPending?.();
@@ -152,6 +155,7 @@ export function useMapEditData({
         setVendors(nextVendors);
         setCategories(Array.isArray(data.categories) ? data.categories : []);
         setSchemaReady(data.schemaReady !== false);
+        setFieldObservationsUnavailable(data.fieldObservationsUnavailable === true);
         if (data.mapSettingsLimits) setMapSettingsLimits(data.mapSettingsLimits);
         setChomeBoundaries(data.chome?.boundaries ?? []);
         setChomeSections(data.chome?.sections ?? []);
@@ -249,12 +253,15 @@ export function useMapEditData({
           body: JSON.stringify({ snapshotId }),
         });
         if (!response.ok) {
-          setMessage("復元に失敗しました。");
+          const data = (await response.json().catch(() => null)) as { error?: string } | null;
+          setMessage(data?.error ?? "復元に失敗しました。");
           return;
         }
         await reloadAfterWrite();
         setMessage("スナップショットを復元しました。");
         await loadSnapshots();
+      } catch {
+        setMessage("復元に失敗しました。通信環境を確認してください。");
       } finally {
         setIsRestoring(null);
       }
@@ -278,6 +285,7 @@ export function useMapEditData({
     setVendors,
     categories,
     schemaReady,
+    fieldObservationsUnavailable,
     mapSettingsLimits,
     chomeBoundaries,
     chomeSections,

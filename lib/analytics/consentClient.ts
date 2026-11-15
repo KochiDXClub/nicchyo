@@ -6,7 +6,16 @@
  * 停止の設定はこの端末のブラウザにだけ保存される（端末や別ブラウザには引き継がれない）。
  */
 
-import { isSecretTokenPath } from "./secretPaths";
+import { isSecretTokenPath, toTrackedPath } from "./secretPaths";
+
+/**
+ * GA に送る page_location。gtag は既定で URL をそのまま送るため、
+ * 自由入力のクエリ（?q=）を外したものを明示して渡す
+ */
+export function trackedPageLocation(): string {
+  const { origin, pathname, search } = window.location;
+  return `${origin}${toTrackedPath(`${pathname}${search}`)}`;
+}
 
 const ANALYTICS_OPT_OUT_KEY = "nicchyo_analytics_opt_out";
 
@@ -158,5 +167,5 @@ export function loadGA(): void {
   w.gtag("js", new Date());
   // QR・招待リンクの URL にはトークンが入っているので、最初の page_view にも載せない
   const secret = isSecretTokenPath(window.location.pathname);
-  w.gtag("config", gaId, secret ? { send_page_view: false } : undefined);
+  w.gtag("config", gaId, secret ? { send_page_view: false } : { page_location: trackedPageLocation() });
 }

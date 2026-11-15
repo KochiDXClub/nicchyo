@@ -59,6 +59,22 @@ describe("readConsultAskResponse", () => {
     expect(result).toEqual({ payload: error, ok: false });
   });
 
+  it("回数制限（429）は rateLimited: true で返す。本文が JSON でなくても壊れない", async () => {
+    const withJson = await readConsultAskResponse(
+      NextResponse.json({ error: "Too Many Requests", message: "リクエストが多すぎます。" }, { status: 429 })
+    );
+    const withHtml = await readConsultAskResponse(new Response("<html>Too Many</html>", { status: 429 }));
+
+    expect(withJson).toEqual({ payload: {}, ok: false, rateLimited: true });
+    expect(withHtml).toEqual({ payload: {}, ok: false, rateLimited: true });
+  });
+
+  it("429 以外の失敗は rateLimited を付けない", async () => {
+    const result = await readConsultAskResponse(NextResponse.json({ error: "bad" }, { status: 400 }));
+
+    expect(result?.rateLimited).toBeUndefined();
+  });
+
   it("ストリームが final の前に終わったら null", async () => {
     const result = await readConsultAskResponse(
       ndjson([JSON.stringify({ type: "first_turn_delta", delta: "野菜" }) + "\n"])

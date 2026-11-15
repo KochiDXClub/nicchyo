@@ -10,6 +10,8 @@ import type {
   SeasonalProductRow,
 } from "./types";
 import { normalizeChome, sanitizeLikeKeyword, getCurrentSeasonInfo, haversineKm } from "./consultUtils";
+import { readPublicScheduleRollout } from "@/lib/market-schedule/rollout.server";
+import { fetchPublicShopData } from "@/app/(public)/map/services/shopCache";
 
 export async function fetchCandidateVendorIds(
   supabase: SupabaseClient<Database>,
@@ -87,6 +89,9 @@ export async function fetchCandidateVendorIds(
     })
   );
 
+  // ベクトル一致（類似度の高い順）を先頭に置く。季節・キーワードの一致を先に積むと、
+  // 季節の質問では上限12件がそれで埋まり、意味の近い店が丸ごと切られる（#862）
+  const embeddingVendorIds: string[] = [];
   if (embedding) {
     const { data: embeddingMatches } = await supabase
       .rpc("match_vendor_embeddings", {
@@ -97,12 +102,12 @@ export async function fetchCandidateVendorIds(
       .returns<{ vendor_id: string; similarity: number }[]>();
     if (Array.isArray(embeddingMatches)) {
       embeddingMatches.forEach((row) => {
-        if (row.vendor_id) vendorIds.add(row.vendor_id);
+        if (row.vendor_id) embeddingVendorIds.push(row.vendor_id);
       });
     }
   }
 
-  return Array.from(vendorIds).slice(0, 12);
+  return Array.from(new Set([...embeddingVendorIds, ...vendorIds])).slice(0, 12);
 }
 
 export async function fetchSeasonalProductContext(
@@ -173,6 +178,14 @@ export async function fetchShopsByVendorIds(
 ): Promise<Shop[]> {
   if (vendorIds.length === 0) return [];
 
+  // 公開切り替え後は、地図と同じ固定の店舗 ID を返す（店番を ID にすると、お気に入り・共有で別店を指す）。
+  // 公開設定を確認できないときは、旧番号へ戻さず失敗させる（一時的な失敗で別店舗の ID を返さないため）。
+  const publicRollout = await readPublicScheduleRollout();
+  // 公開切り替え後は、地図に次の日曜の配置として出ている店舗だけを使う（地図と同じ解決）。旧配置は見ない。
+  const placedByVendor = publicRollout
+    ? new Map((await fetchPublicShopData()).shops.flatMap((shop) => (shop.vendorId ? [[shop.vendorId, shop] as const] : [])))
+    : null;
+
   const [
     { data: vendorsData },
     { data: productsData },
@@ -182,7 +195,7 @@ export async function fetchShopsByVendorIds(
     supabase
       .from("vendors")
       .select(
-        "id, shop_name, strength, style, style_tags, category_id, categories(name), main_products, main_product_prices, payment_methods, rain_policy, schedule"
+        "id, public_shop_id, shop_name, strength, style, style_tags, category_id, categories(name), main_products, main_product_prices, payment_methods, rain_policy, schedule"
       )
       .in("id", vendorIds)
       // このクライアントは service_role で RLS を通らない。掲載の許可がない店舗は、AI の回答にも出さない
@@ -200,7 +213,7 @@ export async function fetchShopsByVendorIds(
       .order("created_at", { ascending: false }),
   ]);
 
-  const vendors = Array.isArray(vendorsData) ? (vendorsData as VendorRow[]) : [];
+  const vendors = Array.isArray(vendorsData) ? (vendorsData as unknown as VendorRow[]) : [];
   const products = Array.isArray(productsData) ? (productsData as ProductRow[]) : [];
   const assignments = Array.isArray(assignmentsData)
     ? (assignmentsData as AssignmentRow[])
@@ -265,12 +278,29 @@ export async function fetchShopsByVendorIds(
 
   return vendors
     .map((vendor): Shop | null => {
-      const assignment = latestAssignmentByVendor.get(vendor.id);
-      if (!assignment?.location_id) return null;
-      const location = locationById.get(assignment.location_id);
-      if (!location) return null;
-      const storeNumber = Number(location.store_number ?? 0);
-      if (!Number.isFinite(storeNumber) || storeNumber <= 0) return null;
+      const placed = placedByVendor?.get(vendor.id);
+      let storeNumber: number;
+      let lat: number;
+      let lng: number;
+      let chome: Shop["chome"];
+      if (placedByVendor) {
+        // 次の日曜に地図で配置されていない店舗は、AI の候補にしない（位置を推測しない）
+        if (!placed) return null;
+        storeNumber = placed.position;
+        lat = placed.lat;
+        lng = placed.lng;
+        chome = placed.chome;
+      } else {
+        const assignment = latestAssignmentByVendor.get(vendor.id);
+        if (!assignment?.location_id) return null;
+        const location = locationById.get(assignment.location_id);
+        if (!location) return null;
+        storeNumber = Number(location.store_number ?? 0);
+        if (!Number.isFinite(storeNumber) || storeNumber <= 0) return null;
+        lat = Number(location.latitude ?? 0);
+        lng = Number(location.longitude ?? 0);
+        chome = normalizeChome(location.district);
+      }
 
       const catRaw = vendor.categories;
       const joinedCategoryName = Array.isArray(catRaw)
@@ -293,8 +323,13 @@ export async function fetchShopsByVendorIds(
           : undefined;
       const activePost = activePosts?.[0];
 
+      const publicId = placed
+        ? placed.id
+        : publicRollout && Number.isSafeInteger(vendor.public_shop_id) && (vendor.public_shop_id ?? 0) >= 1000
+          ? (vendor.public_shop_id as number)
+          : storeNumber;
       return {
-        id: storeNumber,
+        id: publicId,
         vendorId: vendor.id,
         name: vendor.shop_name ?? "",
         // AI の文脈に個人名は載せない（プロンプトにも埋め込みにも出さない）
@@ -319,13 +354,15 @@ export async function fetchShopsByVendorIds(
         activePosts,
         activePost,
         position: storeNumber,
-        lat: Number(location.latitude ?? 0),
-        lng: Number(location.longitude ?? 0),
-        chome: normalizeChome(location.district),
+        lat,
+        lng,
+        chome,
       };
     })
     .filter((shop): shop is Shop => shop !== null)
-    .sort((a, b) => a.id - b.id);
+    // 呼び出し側は関連度の高い順に vendorIds を渡すので、その順を保つ（店番順にすると
+    // 先頭N件が「店番の小さい店」になる #862）
+    .sort((a, b) => vendorIds.indexOf(a.vendorId ?? "") - vendorIds.indexOf(b.vendorId ?? ""));
 }
 
 export async function fetchShopByStoreNumber(

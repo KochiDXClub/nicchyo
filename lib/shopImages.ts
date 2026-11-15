@@ -62,16 +62,16 @@ export function normalizeShopImageKind(value: unknown): ShopImageKind {
  *   - お気に入り    main → thumbnail → additional[0] / 種は position ?? id
  *   - 検索シート    images.main だけ / 種は position ?? id
  *
- * id（1〜300）と position（0〜149）は別物なので、カテゴリ既定画像を使う店では
+ * 旧 ID と position は別物なので、カテゴリ既定画像を使う店では
  * 同じ店なのに画面ごとに違う写真が出る。また main が空で thumbnail がある店は、
  * 検索では実際の写真が出るのに相談では既定画像になる。
  *
- * 拾う順番は広いほう（実際の写真があるなら必ず使う）、種は position を先にする。
- * position は運営が管理する不変の値で、id より安定しているため。
+ * 固定店舗 ID（1000 以上）は出店場所が変わっても同じなので、写真の種に使う。
+ * 旧 ID は従来どおり position を先に使う。
  */
 export type ShopPreviewSource = {
   id?: number | null;
-  /** 道路上の位置。運営管理で変わらないので、既定画像の種にはこちらを優先する */
+  /** 道路上の位置。旧 ID の店では既定画像の種に使う */
   position?: number | null;
   category?: string | null;
   categoryKey?: string | null;
@@ -90,7 +90,8 @@ export function getShopPreviewImage(shop: ShopPreviewSource): string {
     images?.main || images?.thumbnail || images?.additional?.find(Boolean) || null;
   if (uploaded) return uploaded;
 
-  return getShopBannerImage(shop.categoryKey ?? shop.category, shop.position ?? shop.id ?? undefined);
+  const seed = typeof shop.id === "number" && shop.id >= 1000 ? shop.id : shop.position ?? shop.id ?? undefined;
+  return getShopBannerImage(shop.categoryKey ?? shop.category, seed);
 }
 
 /** その店を表す写真（後方互換エイリアス）。 */

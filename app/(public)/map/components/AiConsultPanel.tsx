@@ -3,7 +3,7 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import Image from "next/image";
 import { ChevronRight, Send, Sparkles } from "lucide-react";
-import type { Shop } from "../data/shops";
+import type { ShopProfile as Shop } from "../types/shopData";
 import type { BannerTheme } from "./ShopBannerHero";
 import { ShopSubviewHeader } from "./ShopBannerHero";
 import { useShopChat, useShopChatCharacter } from "./useShopChat";

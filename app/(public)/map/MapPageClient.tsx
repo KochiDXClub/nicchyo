@@ -12,6 +12,8 @@ import { getShopPreviewImage } from "../../../lib/shopImages";
 import { useAuth } from "../../../lib/auth/AuthContext";
 import { useCategories, useCategorizedShops } from "@/lib/categories/CategoryContext";
 import type { Shop } from "./data/shops";
+import type { ShopProfile } from "./types/shopData";
+import { UnplacedSearchResults } from "./components/UnplacedSearchResults";
 import type { Landmark } from "./types/landmark";
 import type { MapRoute } from "./types/mapRoute";
 import type { MapFeatureFlags } from "@/lib/mapFeatureFlags";
@@ -87,6 +89,8 @@ const MapIntroPanel = dynamic(() => import("./components/MapIntroPanel"), { ssr:
 
 type MapPageClientProps = {
   shops: Shop[];
+  profiles?: ShopProfile[];
+  legacyIdentities?: { enabled: boolean; aliases: Record<string, number> };
   landmarks: Landmark[];
   mapRoute: MapRoute;
   /** 管理画面で保存したマップ動作フラグ（未指定なら既定値） */
@@ -101,6 +105,8 @@ const NEARBY_AREA_HEIGHT_RATIO = 0.48;
 
 export default function MapPageClient({
   shops: sourceShops,
+  profiles,
+  legacyIdentities,
   landmarks,
   mapRoute,
   featureFlags,
@@ -126,7 +132,10 @@ export default function MapPageClient({
   const initialShopIdParam = searchParams?.get("shop");
   const isAiFocusMode = searchParams?.get("ai") === "1";
   const searchParamsKey = searchParams?.toString() ?? "";
-  const initialShopId = initialShopIdParam ? Number(initialShopIdParam) : undefined;
+  const requestedShopId = initialShopIdParam ? Number(initialShopIdParam) : undefined;
+  const initialShopId = requestedShopId && requestedShopId <= 999 && legacyIdentities?.enabled
+    ? legacyIdentities.aliases[String(requestedShopId)]
+    : requestedShopId;
   // /map?shop=001&navigate=1: 店舗ページの「ここへ案内」から来た。着いたらその店への道案内を始める
   const navigateParam = searchParams?.get("navigate") === "1";
   // おでかけサポート: ?guide=<プリセット|menu> または旧 ?facility=<カテゴリ> で開く
@@ -328,6 +337,8 @@ export default function MapPageClient({
     label: string;
   } | null>(null);
   const favoriteShopIds = useFavoriteShopIds();
+  const searchableCatalog = useMemo<ShopProfile[]>(() => [...sourceShops, ...(profiles ?? [])], [sourceShops, profiles]);
+  const searchProfiles = useCategorizedShops(searchableCatalog);
   const {
     query: mapSearchQuery,
     setQuery: setMapSearchQuery,
@@ -336,14 +347,17 @@ export default function MapPageClient({
     favoritesOnly,
     setFavoritesOnly,
     results: mapSearchResults,
+    unplacedResults,
     shopIds: mapSearchShopIds,
     hasFilter: hasMapFilter,
   } = useMapSearchFilter({
     shops,
+    profiles: searchProfiles,
     favoriteShopIds,
     initialQuery: searchParams?.get("q") ?? "",
     initialCategory: searchParams?.get("category") ?? null,
   });
+  const mapResultCount = mapSearchShopIds ? shops.filter((shop) => mapSearchShopIds.includes(shop.id)).length : mapSearchResults.length;
   const [aiMarkerPayload, setAiMarkerPayload] = useState<{
     ids: number[];
     label: string;
@@ -912,7 +926,7 @@ export default function MapPageClient({
                   />
                   {hasMapFilter && (
                     <span className="shrink-0 rounded-full bg-amber-500 px-2 py-0.5 text-[11px] font-bold text-white">
-                      {mapSearchShopIds?.length ?? mapSearchResults.length}件
+                      {mapResultCount + unplacedResults.length}件
                     </span>
                   )}
                   {hasMapFilter && (
@@ -932,6 +946,8 @@ export default function MapPageClient({
                     </button>
                   )}
                 </div>
+
+                <UnplacedSearchResults shops={unplacedResults} />
 
                 {/* ジャンルフィルター */}
                 <GenreFilter
@@ -1118,6 +1134,7 @@ export default function MapPageClient({
                 <Suspense fallback={null}>
                   <SearchClient
                     shops={shops}
+                    profiles={searchProfiles}
                     landmarks={mapLandmarks}
                     embedded
                     initialQuery={mapSearchQuery}

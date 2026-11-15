@@ -1,7 +1,7 @@
 import React from "react";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { vi } from "vitest";
-import StoryGridSections, { STORY_CARD_LAYOUT_MAX } from "./StoryGridSections";
+import StoryGridSections from "./StoryGridSections";
 import type { StoryItem } from "../types";
 
 const DAY_MS = 86_400_000;
@@ -18,35 +18,28 @@ function makeStory(id: string, daysAgo: number, body: string | null = null): Sto
 }
 
 describe("StoryGridSections", () => {
-  it("件数が少ないときは、本文の冒頭が読めるカードで並べる", () => {
-    render(
-      <StoryGridSections stories={[makeStory("a", 0, "朝どれの人参です")]} heartCounts={{}} onOpen={vi.fn()} />
-    );
+  it("投稿が1件でも写真を主役に表示し、押すとビューアを開く", () => {
+    const onOpen = vi.fn();
+    render(<StoryGridSections stories={[makeStory("a", 0, "朝どれの人参です")]} heartCounts={{ a: 3 }} onOpen={onOpen} />);
 
-    expect(screen.getByText("朝どれの人参です")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "店aの投稿を見る" })).toHaveAccessibleDescription(/朝どれの人参です/);
+    expect(screen.getByText("店a")).toBeInTheDocument();
+    expect(screen.getByText("3")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "店aの投稿を見る" }));
+    expect(onOpen).toHaveBeenCalledWith(0);
   });
 
-  it("件数が多いときは、写真のタイルで並べる（本文は出さない）", () => {
-    const stories = Array.from({ length: STORY_CARD_LAYOUT_MAX + 1 }, (_, i) =>
-      makeStory(String(i), 0, `本文${i}`)
-    );
+  it("投稿が多くても写真を主役に表示する", () => {
+    const stories = Array.from({ length: 7 }, (_, i) => makeStory(String(i), 0, `本文${i}`));
     render(<StoryGridSections stories={stories} heartCounts={{}} onOpen={vi.fn()} />);
 
-    expect(screen.queryByText("本文0")).not.toBeInTheDocument();
+    expect(screen.getByText("本文0")).toBeInTheDocument();
     expect(screen.getAllByRole("button", { name: /の投稿を見る$/ })).toHaveLength(stories.length);
   });
 
-  it("たたんだ「それより前」は数えず、見えている件数が少なければカードで並べる", () => {
-    const older = Array.from({ length: STORY_CARD_LAYOUT_MAX + 4 }, (_, i) => makeStory(`o${i}`, 30));
-    render(
-      <StoryGridSections
-        stories={[makeStory("new1", 0, "今週の本文"), makeStory("new2", 1), ...older]}
-        heartCounts={{}}
-        onOpen={vi.fn()}
-      />
-    );
-
-    expect(screen.getByText("今週の本文")).toBeInTheDocument();
+  it("ハート数が取得できないときは0件と表示しない", () => {
+    render(<StoryGridSections stories={[makeStory("a", 0)]} heartCounts={null} onOpen={vi.fn()} />);
+    expect(screen.queryByLabelText(/ハート .*件/)).not.toBeInTheDocument();
   });
 
   it("今週・先週の投稿があれば「それより前」はたたんでおき、押すと開く", () => {

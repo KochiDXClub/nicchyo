@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState, type FormEvent, useRef } from "react";
+import { useState, type FormEvent, useRef, useEffect } from "react";
 import Image from "next/image";
 import { useAuth } from "../../../lib/auth/AuthContext";
 import GoogleSignInButton from "@/components/auth/GoogleSignInButton";
@@ -17,6 +17,12 @@ export default function LoginPage() {
   const [error, setError] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("error") === "oauth") {
+      setError("Googleログインに失敗しました。もう一度お試しください。");
+      window.history.replaceState(null, "", window.location.pathname);
+    }
+  }, []);
   const emailInputRef = useRef<HTMLInputElement>(null);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
@@ -166,7 +172,7 @@ export default function LoginPage() {
               </div>
             </div>
 
-            <GoogleSignInButton redirectPath="/map" onStart={() => setError("")} onError={setError} className="mt-6" />
+            <GoogleSignInButton onStart={() => setError("")} onError={setError} className="mt-6" />
           </div>
 
         </div>

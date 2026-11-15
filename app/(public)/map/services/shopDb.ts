@@ -3,7 +3,7 @@ import { fetchAssignmentRows, fetchLocationRows, fetchProductRows } from "@/lib/
 import { fetchAllRows } from "@/lib/supabase/fetchAllRows";
 import type { Database } from "@/types/database.types";
 import { normalizeShopImageKind } from "@/lib/shopImages";
-import type { Shop } from "../types/shopData";
+import type { Shop, ShopProfile } from "../types/shopData";
 
 // vendors から読む列。基本データの取得と差分の取得(fetchShopDelta)で同じ列を使う
 const VENDOR_COLUMNS =
@@ -11,6 +11,7 @@ const VENDOR_COLUMNS =
 
 export type VendorRow = {
   id: string;
+  public_shop_id?: number;
   shop_name: string | null;
   strength: string | null;
   style: string | null;
@@ -324,11 +325,13 @@ export async function fetchVendorShopsFromDb(
   return buildVendorShops(rows, activeContents);
 }
 
-export function buildVendorShops(
+/** 店舗プロフィールは出店場所とは独立して組み立てる。 */
+export function buildVendorProfiles(
   base: VendorShopBaseRows,
-  activeContents: ActiveContentRow[]
-): Shop[] {
-  const { vendors, categories, products, locations, assignments } = base;
+  activeContents: ActiveContentRow[],
+  idsByVendor: ReadonlyMap<string, number>,
+): ShopProfile[] {
+  const { vendors, categories, products } = base;
   const ownerNameByVendorId = new Map<string, string>();
   base.ownerProfiles.forEach((row) => {
     if (row.vendor_id && row.owner_name) {
@@ -368,38 +371,9 @@ export function buildVendorShops(
     activeContentsByVendor.set(row.vendor_id, list);
   });
 
-  const locationById = new Map<string, LocationRow>();
-  locations.forEach((row) => {
-    if (row.id) {
-      locationById.set(row.id, row);
-    }
-  });
-
-  const latestAssignmentByVendor = new Map<string, AssignmentRow>();
-  assignments.forEach((row) => {
-    if (!row.vendor_id || !row.location_id) return;
-    const current = latestAssignmentByVendor.get(row.vendor_id);
-    if (!current) {
-      latestAssignmentByVendor.set(row.vendor_id, row);
-      return;
-    }
-    const currentDate = current.market_date ? new Date(current.market_date) : null;
-    const nextDate = row.market_date ? new Date(row.market_date) : null;
-    if (!currentDate || (nextDate && nextDate > currentDate)) {
-      latestAssignmentByVendor.set(row.vendor_id, row);
-    }
-  });
-
-  const shops = vendors
-    .map((vendor): VisibleShopRow | null => {
-      const assignment = latestAssignmentByVendor.get(vendor.id);
-      if (!assignment?.location_id) return null;
-      const location = locationById.get(assignment.location_id);
-      if (!location) return null;
-
-      const storeNumber = Number(location.store_number ?? 0);
-      if (!Number.isFinite(storeNumber) || storeNumber <= 0) return null;
-
+  return vendors.flatMap((vendor): ShopProfile[] => {
+      const publicId = idsByVendor.get(vendor.id);
+      if (!Number.isSafeInteger(publicId) || (publicId as number) <= 0) return [];
       // 最新のカテゴリ一覧を優先し、店舗JOINの古いスナップショットを上書きする
       const catRaw = vendor.categories;
       const joinedCategoryName = Array.isArray(catRaw)
@@ -433,8 +407,8 @@ export function buildVendorShops(
           : undefined;
       const activePost = activePosts?.[0];
 
-      return {
-        id: storeNumber,
+      return [{
+        id: publicId as number,
         vendorId: vendor.id,
         name: vendor.shop_name ?? "",
         ownerName: ownerNameByVendorId.get(vendor.id) ?? "",
@@ -463,39 +437,45 @@ export function buildVendorShops(
         } : undefined,
         businessHoursStart: vendor.business_hours_start ?? undefined,
         businessHoursEnd: vendor.business_hours_end ?? undefined,
-        position: storeNumber,
-        lat: Number(location.latitude ?? 0),
-        lng: Number(location.longitude ?? 0),
-        chome: normalizeChome(location.district),
-        assignmentMarketDate: assignment.market_date ?? null,
-      };
-    })
-    .filter((row): row is VisibleShopRow => row !== null);
+      }];
+  });
+}
 
-  const dedupedByStoreNumber = new Map<number, VisibleShopRow>();
-  for (const shop of shops) {
-    const current = dedupedByStoreNumber.get(shop.id);
-    if (!current) {
-      dedupedByStoreNumber.set(shop.id, shop);
-      continue;
-    }
-
-    const currentDate = current.assignmentMarketDate ? new Date(current.assignmentMarketDate) : null;
-    const nextDate = shop.assignmentMarketDate ? new Date(shop.assignmentMarketDate) : null;
-    const shouldReplace = !currentDate || (nextDate && nextDate > currentDate);
-
-    console.warn(
-      `[fetchVendorShopsFromDb] duplicate store_number detected: ${shop.id} (${current.name} / ${shop.name})`
-    );
-
-    if (shouldReplace) {
-      dedupedByStoreNumber.set(shop.id, shop);
-    }
+/** 指定日付に実際に配置された店舗だけを、地図用の座標付きデータへ変換する。 */
+export function buildVendorShops(
+  base: VendorShopBaseRows,
+  activeContents: ActiveContentRow[],
+  options?: { stableIds?: boolean }
+): Shop[] {
+  const locations = new Map(base.locations.map((location) => [location.id, location]));
+  const latest = new Map<string, AssignmentRow>();
+  for (const row of base.assignments) {
+    if (!row.vendor_id || !row.location_id) continue;
+    const previous = latest.get(row.vendor_id);
+    if (!previous || (row.market_date ?? "") > (previous.market_date ?? "")) latest.set(row.vendor_id, row);
   }
-
-  // assignmentMarketDate は「今日この店が出ているか」の判定に使うので、
-  // 落とさずに Shop へそのまま渡す
-  return Array.from(dedupedByStoreNumber.values()).sort((a, b) => a.id - b.id);
+  const ids = new Map<string, number>();
+  for (const vendor of base.vendors) {
+    const row = latest.get(vendor.id);
+    const location = row?.location_id ? locations.get(row.location_id) : undefined;
+    const number = Number(location?.store_number ?? 0);
+    const id = options?.stableIds ? vendor.public_shop_id : number;
+    if (Number.isSafeInteger(id) && (id as number) >= (options?.stableIds ? 1000 : 1)) ids.set(vendor.id, id as number);
+  }
+  const profiles = buildVendorProfiles(base, activeContents, ids);
+  const byLocation = new Map<number, VisibleShopRow>();
+  for (const profile of profiles) {
+    const assignment = profile.vendorId ? latest.get(profile.vendorId) : undefined;
+    const location = assignment?.location_id ? locations.get(assignment.location_id) : undefined;
+    if (!location || !assignment) continue;
+    const position = Number(location.store_number ?? 0);
+    if (!Number.isFinite(position) || position <= 0) continue;
+    if (options?.stableIds && (location.latitude == null || location.longitude == null || !Number.isFinite(location.latitude) || !Number.isFinite(location.longitude) || Math.abs(location.latitude) > 90 || Math.abs(location.longitude) > 180 || (location.latitude === 0 && location.longitude === 0))) continue;
+    const shop: VisibleShopRow = { ...profile, position, lat: Number(location.latitude ?? 0), lng: Number(location.longitude ?? 0), chome: normalizeChome(location.district), assignmentMarketDate: assignment.market_date ?? null };
+    const current = byLocation.get(position);
+    if (!current || !current.assignmentMarketDate || (shop.assignmentMarketDate && shop.assignmentMarketDate > current.assignmentMarketDate)) byLocation.set(position, shop);
+  }
+  return [...byLocation.values()].sort((a, b) => a.id - b.id);
 }
 
 export const fetchShopsFromDb = fetchVendorShopsFromDb;

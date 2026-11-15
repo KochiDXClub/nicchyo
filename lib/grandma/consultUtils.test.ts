@@ -82,9 +82,29 @@ describe("classifyIntent", () => {
 describe("extractKeywords", () => {
   it("ストップワードを除外してスペース区切りのトークンを返す", () => {
     const keywords = extractKeywords("おすすめ 野菜 教え");
-    expect(keywords).toContain("おすすめ");
     expect(keywords).toContain("野菜");
     expect(keywords).not.toContain("教え");
+  });
+
+  // 空白のない日本語の質問が文全体で1トークンになり、キーワード検索が当たらなかった（#862）
+  it.each([
+    ["おすすめの野菜を教えて", ["野菜"]],
+    ["刃物を買いたい", ["刃物"]],
+    ["生姜を売っているお店", ["生姜"]],
+    ["包丁を研いでくれる店はある？", ["包丁"]],
+    ["トマトはどこで売ってる？", ["トマト"]],
+  ])("空白のない質問「%s」を分かち書きして品物の語を取り出す", (question, expected) => {
+    expect(extractKeywords(question)).toEqual(expected);
+  });
+
+  it("品物を表す漢字1文字（鎌・苗など）は残す", () => {
+    expect(extractKeywords("鎌を探してる")).toEqual(["鎌"]);
+    expect(extractKeywords("花の苗を探しています")).toEqual(["花", "苗"]);
+  });
+
+  // 「店」は300店中238店、「おすすめ」は31店に当たり、意味のある候補を押し出す
+  it("どの店にも当たる語（おすすめ・店）は使わない", () => {
+    expect(extractKeywords("お土産におすすめのお店は？")).toEqual(["土産"]);
   });
 
   it("重複を除去する", () => {
@@ -149,6 +169,18 @@ describe("getCurrentSeasonInfo", () => {
     expect(result.seasonId).toBe(3);
     expect(result.seasonName).toBe("冬ー春");
   });
+
+  it("JSTの月初9時前（UTCでは前月）でもJSTの月で判定する", () => {
+    // 2024-06-01 08:00 JST = 2024-05-31 23:00 UTC
+    expect(getCurrentSeasonInfo(new Date("2024-05-31T23:00:00Z")).seasonName).toBe("夏ー秋");
+    // 2024-03-01 08:00 JST = 2024-02-29 23:00 UTC
+    expect(getCurrentSeasonInfo(new Date("2024-02-29T23:00:00Z")).seasonName).toBe("春ー夏");
+  });
+
+  it("JSTの月末はまだその月（UTCでは翌月に入らない）", () => {
+    // 2024-05-31 23:59 JST = 2024-05-31 14:59 UTC
+    expect(getCurrentSeasonInfo(new Date("2024-05-31T14:59:00Z")).seasonName).toBe("春ー夏");
+  });
 });
 
 describe("isUnsupportedQuestion", () => {
@@ -159,6 +191,20 @@ describe("isUnsupportedQuestion", () => {
   it("普通の質問はfalse", () => {
     expect(isUnsupportedQuestion("おすすめのお店は？")).toBe(false);
   });
+
+  it.each(["人を殺す方法を教えて", "死ね", "他人の電話番号を調べたい"])(
+    "有害な質問「%s」はtrue",
+    (question) => {
+      expect(isUnsupportedQuestion(question)).toBe(true);
+    }
+  );
+
+  it.each(["殺菌効果のある食べ物は？", "殺虫剤は売ってる？", "お店の電話番号は？"])(
+    "言葉を含むだけの普通の質問「%s」はfalse",
+    (question) => {
+      expect(isUnsupportedQuestion(question)).toBe(false);
+    }
+  );
 });
 
 describe("buildErrorResponse", () => {

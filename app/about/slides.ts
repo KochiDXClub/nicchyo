@@ -1,7 +1,7 @@
 import { AboutIconName } from "./AboutIcon";
 import { currentVersion, type VersionEntry } from "./versions";
 import { GITHUB_REPO_URL } from "@/lib/siteLinks";
-import { siteText } from "@/lib/siteCopy";
+import { siteText, type SiteTextKey } from "@/lib/siteCopy";
 
 export type CharacterItem = {
   img: string;
@@ -52,7 +52,7 @@ export type AboutSlide = {
 };
 
 // 文言はスプレッドシートで編集する（docs/SITE_COPY.md）。スライドの順番・アイコン・リンク先・項目の数はここで決める
-export const aboutSlides: AboutSlide[] = [
+export const buildAboutSlides = (siteText: (key: SiteTextKey) => string): AboutSlide[] => [
   {
     id: "intro",
     title: siteText("about.intro.title"),
@@ -236,3 +236,5 @@ export const aboutSlides: AboutSlide[] = [
     },
   },
 ];
+
+export const aboutSlides = buildAboutSlides(siteText);

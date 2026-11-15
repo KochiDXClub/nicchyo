@@ -22,6 +22,7 @@ import {
   loadFavoriteEntries,
   removeFavoriteShop,
   toggleFavoriteShop,
+  tryMigrateFavoriteShopIdentities,
   type FavoriteEntry,
 } from "@/lib/favoriteShops";
 import RemoveShopFavoriteDialog from "./RemoveShopFavoriteDialog";
@@ -40,18 +41,27 @@ export function useShopFavoriteToggle({ zIndexClassName, onChange }: Options = {
 
   const toggleShopFavorite = useCallback(
     (shopId: number) => {
-      const entries = loadFavoriteEntries();
-      if (isShopFavorited(entries, shopId)) {
-        const products = getFavoriteProductsForShop(entries, shopId);
-        if (products.length > 0) {
-          setPending({ shopId, productCount: products.length });
-          return;
+      const applyToggle = () => {
+        const entries = loadFavoriteEntries();
+        if (isShopFavorited(entries, shopId)) {
+          const products = getFavoriteProductsForShop(entries, shopId);
+          if (products.length > 0) {
+            setPending({ shopId, productCount: products.length });
+            return;
+          }
         }
+        // onChange?.(toggleFavoriteShop(shopId)) と書くと、onChange が無いとき引数ごと評価されず保存されない。
+        // 保存は必ず先に済ませてから知らせる
+        const next = toggleFavoriteShop(shopId);
+        onChange?.(next);
+      };
+      if (loadFavoriteEntries().some((entry) => entry.shopId === shopId && entry.legacyShopId !== undefined)) {
+        void tryMigrateFavoriteShopIdentities().then((verified) => {
+          if (verified) applyToggle();
+        });
+        return;
       }
-      // onChange?.(toggleFavoriteShop(shopId)) と書くと、onChange が無いとき引数ごと評価されず保存されない。
-      // 保存は必ず先に済ませてから知らせる
-      const next = toggleFavoriteShop(shopId);
-      onChange?.(next);
+      applyToggle();
     },
     [onChange],
   );

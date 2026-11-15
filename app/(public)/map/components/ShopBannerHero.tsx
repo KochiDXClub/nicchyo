@@ -31,7 +31,7 @@ import {
   X as XIcon,
   type LucideIcon,
 } from "lucide-react";
-import type { Shop } from "../data/shops";
+import type { ShopProfile as Shop } from "../types/shopData";
 import { useT } from "@/lib/i18n/LocaleContext";
 import { RAIN_OPTIONS } from "@/lib/vendor/storeOptions";
 import { toIsoDate } from "@/lib/market/calendar";

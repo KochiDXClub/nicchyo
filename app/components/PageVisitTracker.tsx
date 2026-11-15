@@ -4,11 +4,12 @@ import { useSearchParams } from "next/navigation";
 import { useAppPathname } from "@/lib/i18n/useAppPathname";
 import { useEffect, useRef } from "react";
 
-import { isSecretTokenPath } from "@/lib/analytics/secretPaths";
+import { isSecretTokenPath, toTrackedPath } from "@/lib/analytics/secretPaths";
 import {
   ANALYTICS_OPT_OUT_CHANGE_EVENT,
   isAnalyticsOptedOut,
   loadGA,
+  trackedPageLocation,
 } from "@/lib/analytics/consentClient";
 
 function sendVisit(path: string, durationSeconds: number) {
@@ -65,7 +66,8 @@ export default function PageVisitTracker() {
 
   useEffect(() => {
     const search = searchParams?.toString();
-    const nextPath = search ? `${pathname}?${search}` : pathname;
+    // 自由入力のクエリ（?q=）は解析にも GA にも載せない
+    const nextPath = toTrackedPath(search ? `${pathname}?${search}` : pathname);
 
     if (pathRef.current) {
       flush(false);
@@ -81,7 +83,7 @@ export default function PageVisitTracker() {
     try {
       const w = window as Window & { gtag?: (...args: unknown[]) => void };
       if (typeof w?.gtag === "function") {
-        w.gtag("event", "page_view", { page_path: nextPath });
+        w.gtag("event", "page_view", { page_path: nextPath, page_location: trackedPageLocation() });
       }
     } catch {
       // ignore in non-browser environments

@@ -196,6 +196,15 @@ export default function ConsultClient() {
         signal: controller.signal,
       });
       const result = await readConsultAskResponse(response, onEvent);
+      if (result?.rateLimited) {
+        // 回数制限は、すぐ送り直しても同じ結果になる。「もう一度」は出さず、待つよう伝える
+        return {
+          reply: t("ごめんね、今は答えを出せんかった。時間をおいて試してね。"),
+          errorCode: "system_error",
+          errorMessage: t("たくさん聞かれちゅうき、少し待ってからまた聞いてね。"),
+          retryable: false,
+        };
+      }
       if (result) {
         return normalizeAskResponse(result.payload, result.ok);
       }

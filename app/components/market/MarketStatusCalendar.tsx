@@ -20,6 +20,8 @@ type Props = {
   className?: string;
   /** カレンダーページ自身など、リンクにしない場所では false */
   link?: boolean;
+  /** カレンダーと重複する日付・開催状態の表示を省く */
+  showSummary?: boolean;
 };
 
 /**
@@ -29,7 +31,7 @@ type Props = {
  * 文字列を props で受け取る形になり、ここで useT()/useLocale() から渡す。
  * 中止・休市は赤い帯、特別開催は黄色の地で目立たせる（以前のページ版と同じ扱い）。
  */
-export default function MarketStatusCalendar({ day, className = "", link = true }: Props) {
+export default function MarketStatusCalendar({ day, className = "", link = true, showSummary = true }: Props) {
   const t = useT();
   const locale = useLocale();
 
@@ -62,23 +64,36 @@ export default function MarketStatusCalendar({ day, className = "", link = true 
       ) : (
         calendar
       )}
-      <div className="min-w-0">
-        <p className="text-xs font-bold text-nicchyo-ink/55">{t("次の日曜市")}</p>
-        {tone === "alert" || tone === "highlight" ? (
-          <p
-            className={`mt-1 inline-block rounded-btn px-3 py-1.5 text-base font-black ${
+      {(showSummary || tone !== "neutral" || day?.note) && (
+        <div className="min-w-0">
+          {showSummary && (
+            <>
+              <p className="text-xs font-bold text-nicchyo-ink/55">{t("次の日曜市")}</p>
+              {tone === "alert" || tone === "highlight" ? (
+                <p
+                  className={`mt-1 inline-block rounded-btn px-3 py-1.5 text-base font-black ${
+                    tone === "alert" ? "bg-rose-500 text-white" : "bg-nicchyo-accent text-nicchyo-ink"
+                  }`}
+                >
+                  {dateLabel} {t(label)}
+                </p>
+              ) : (
+                <p className="mt-0.5 text-base font-black text-nicchyo-ink">
+                  {dateLabel} {t(label)}
+                </p>
+              )}
+            </>
+          )}
+          {!showSummary && tone !== "neutral" && (
+            <p className={`inline-block rounded-btn px-3 py-1.5 text-sm font-black ${
               tone === "alert" ? "bg-rose-500 text-white" : "bg-nicchyo-accent text-nicchyo-ink"
-            }`}
-          >
-            {dateLabel} {t(label)}
-          </p>
-        ) : (
-          <p className="mt-0.5 text-base font-black text-nicchyo-ink">
-            {dateLabel} {t(label)}
-          </p>
-        )}
-        {day?.note && <p className="mt-1 text-xs leading-relaxed text-nicchyo-ink/70">{day.note}</p>}
-      </div>
+            }`}>
+              {t(label)}
+            </p>
+          )}
+          {day?.note && <p className="mt-1 text-xs leading-relaxed text-nicchyo-ink/70">{day.note}</p>}
+        </div>
+      )}
     </div>
   );
 }

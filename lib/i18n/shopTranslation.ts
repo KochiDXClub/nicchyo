@@ -4,7 +4,7 @@
  * 出店者が入れた日本語を、外国人来訪者向けに訳して画面に出す（docs/I18N.md）。
  * 店名は訳さず、読み（ローマ字）を足して「Romaji (日本語)」で出す。看板と見比べられるようにするため。
  */
-import type { Shop } from "@/app/(public)/map/types/shopData";
+import type { Shop, ShopProfile } from "@/app/(public)/map/types/shopData";
 import type { Locale } from "./config";
 
 /** AIに訳させる原文。ここに入れた項目だけがAIへ送られる（店主の氏名などは入れない） */
@@ -35,7 +35,7 @@ const MAX_PRODUCTS = 100;
 const MAX_PRODUCT_LENGTH = 60;
 
 /** 店舗から訳す原文を取り出す（切り詰めない全文。ハッシュもこれから作る）。商品名は、表示に使われる3か所（一覧・写真付き・価格表）の和集合 */
-export function buildTranslationSource(shop: Shop): TranslationSource {
+export function buildTranslationSource(shop: ShopProfile): TranslationSource {
   const products = new Set<string>();
   const add = (name: string | undefined) => {
     if (name) products.add(name);
@@ -224,12 +224,12 @@ export function parseTranslationOutput(
  * 同じ対応で置き換え、画面側の突き合わせがずれないようにする。お気に入りのように日本語の原文で
  * 保存するものは、productOriginalNames（訳 → 原文）で引き戻す。
  */
-export function applyShopTranslation(shop: Shop, translation: ShopTranslation | undefined): Shop {
+export function applyShopTranslation<T extends ShopProfile>(shop: T, translation: ShopTranslation | undefined): T {
   if (!translation) return shop;
   const rename = (name: string) => translation.products[name] ?? name;
   const hasProducts = Object.keys(translation.products).length > 0;
 
-  const translated: Shop = { ...shop };
+  const translated: T = { ...shop };
   if (translation.name) translated.name = `${translation.name} (${shop.name})`;
   if (translation.strength) translated.shopStrength = translation.strength;
   if (translation.style) translated.stallStyle = translation.style;
