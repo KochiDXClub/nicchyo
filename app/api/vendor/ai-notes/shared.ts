@@ -39,6 +39,9 @@ export async function requireVendorWrite(request: Request, permission?: ShopPerm
   return auth;
 }
 
+/** 埋め込みを待つ上限。普段は1秒もかからない。詰まったら作れなかったときと同じ扱いにする */
+const EMBEDDING_TIMEOUT_MS = 8_000;
+
 /**
  * ノートの検索用ベクトルを作る。作れなくても保存は止めない
  * （ノート自体は残り、一覧で「にちよさんがまだ探せない」と出す）。
@@ -47,7 +50,7 @@ export async function embedNote(note: Pick<AiNoteInput, "title" | "content">): P
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) return null;
   try {
-    const res = await requestEmbeddings(apiKey, noteEmbeddingText(note));
+    const res = await requestEmbeddings(apiKey, noteEmbeddingText(note), AbortSignal.timeout(EMBEDDING_TIMEOUT_MS));
     if (!res.ok) return null;
     const payload = (await res.json()) as { data?: { embedding: number[] }[] };
     return payload.data?.[0]?.embedding ?? null;

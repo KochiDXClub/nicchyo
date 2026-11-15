@@ -45,4 +45,12 @@ describe("POST /api/admin/categories/translate", () => {
     expect((await post({ name: "食べ物" })).status).toBe(502);
     expect(requestChatCompletion).toHaveBeenCalledTimes(1);
   });
+
+  it("AI を待つ上限として signal を渡し、打ち切られたら失敗と同じ 502（もう一度の案内）を返す", async () => {
+    requestChatCompletion.mockRejectedValue(new DOMException("The operation was aborted due to timeout", "TimeoutError"));
+    const res = await post({ name: "食べ物" });
+    expect(requestChatCompletion.mock.calls[0][3]).toBeInstanceOf(AbortSignal);
+    expect(res.status).toBe(502);
+    expect(await res.json()).toEqual({ error: "翻訳できませんでした。少し待ってもう一度お試しください" });
+  });
 });
