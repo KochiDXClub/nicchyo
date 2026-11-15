@@ -27,7 +27,12 @@ vi.mock("@/lib/guide/spotSupport.server", () => ({
 }));
 vi.mock("@supabase/supabase-js", () => ({ createClient: vi.fn() }));
 
-import { ASK_UPSTREAM_TIMEOUT_MS, createStreamingConsultResponse } from "./handler";
+import {
+  ASK_EMBEDDING_TIMEOUT_MS,
+  ASK_UPSTREAM_TIMEOUT_MS,
+  createStreamingConsultResponse,
+} from "./handler";
+import { SEARCH_TRANSLATION_TIMEOUT_MS } from "@/lib/grandma/searchQuestion";
 import { CONSULT_CHARACTERS } from "@/app/(public)/consult/data/consultCharacters";
 
 /** 回答の組み立て・保存（finalizeConsultResponse）に入ったら supabase に触る。触られたら検知する */
@@ -82,7 +87,7 @@ describe("createStreamingConsultResponse", () => {
     supabaseFrom.mockReset();
   });
 
-  it("OpenAI を待つ上限として signal を渡す（クライアントの60秒より短い）", async () => {
+  it("OpenAI を待つ上限として signal を渡す（翻訳・埋め込みと合わせてクライアントの60秒より短い）", async () => {
     const upstream = fakeUpstream();
     requestChatCompletion.mockResolvedValue(upstream.response);
 
@@ -91,7 +96,9 @@ describe("createStreamingConsultResponse", () => {
 
     const signal = requestChatCompletion.mock.calls[0][3];
     expect(signal).toBeInstanceOf(AbortSignal);
-    expect(ASK_UPSTREAM_TIMEOUT_MS).toBeLessThan(60_000);
+    expect(
+      SEARCH_TRANSLATION_TIMEOUT_MS + ASK_EMBEDDING_TIMEOUT_MS + ASK_UPSTREAM_TIMEOUT_MS,
+    ).toBeLessThan(60_000);
   });
 
   it("利用者が離れたら OpenAI の受信を止め、回答の組み立て・保存には進まない", async () => {

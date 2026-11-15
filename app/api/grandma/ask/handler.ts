@@ -102,9 +102,16 @@ const ConsultHistoryArraySchema = z.array(ConsultHistoryEntrySchema).max(50);
 /**
  * OpenAI を待つ上限。クライアント（ConsultClient の 60 秒）より短くして、
  * 先にサーバーが「失敗」を返せるようにする。signal は本文の受信にも効くので、
- * ストリーミング中に止まった場合も同じ失敗として返る
+ * ストリーミング中に止まった場合も同じ失敗として返る。
+ *
+ * 回答の前に、検索用の翻訳（SEARCH_TRANSLATION_TIMEOUT_MS、日本語以外の画面のみ）と
+ * 埋め込み（ASK_EMBEDDING_TIMEOUT_MS）を順に待つ。3つの合計がクライアントの
+ * 60 秒より短くなるように決める（5 + 8 + 45 = 58 秒）
  */
-export const ASK_UPSTREAM_TIMEOUT_MS = 50_000;
+export const ASK_UPSTREAM_TIMEOUT_MS = 45_000;
+
+/** 埋め込みを待つ上限。普段は1秒もかからないので、詰まったら回答まで進まず失敗を返す */
+export const ASK_EMBEDDING_TIMEOUT_MS = 8_000;
 
 const AskJsonBodySchema = z.object({
   text: AskTextSchema.optional(),
@@ -828,10 +835,19 @@ export async function handleConsultAsk(
       targetShop = await fetchShopByName(supabase, targetShopName);
     }
 
-    const embeddingResponse = await requestEmbeddings(openaiKey, searchQuestion);
-    if (!embeddingResponse.ok) {
-      const detail = await readOpenAiError(embeddingResponse);
-      console.error(`[grandma/ask] embeddings failed: ${detail.summary}`);
+    // タイムアウト・通信断は例外で来る。外側の catch に任せると memorySummary が
+    // 返らないので、失敗レスポンスと同じ返し方にそろえる
+    const embeddingResponse = await requestEmbeddings(
+      openaiKey,
+      searchQuestion,
+      AbortSignal.timeout(ASK_EMBEDDING_TIMEOUT_MS),
+    ).catch((error: unknown) => error);
+    if (!(embeddingResponse instanceof Response) || !embeddingResponse.ok) {
+      const summary =
+        embeddingResponse instanceof Response
+          ? (await readOpenAiError(embeddingResponse)).summary
+          : String(embeddingResponse);
+      console.error(`[grandma/ask] embeddings failed: ${summary}`);
       return NextResponse.json(
         {
           ...buildErrorResponse(
@@ -845,7 +861,7 @@ export async function handleConsultAsk(
               memorySummary,
             },
           ),
-          ...(internal ? { debugError: detail.summary } : {}),
+          ...(internal ? { debugError: summary } : {}),
         },
         { status: 500 },
       );
