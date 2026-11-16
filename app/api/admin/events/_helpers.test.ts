@@ -1,5 +1,10 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { validateImageUrl, validateHighlightDates, MARKET_EVENT_IMAGE_PREFIX } from "./_helpers";
+import {
+  validateImageUrl,
+  validateHighlightDates,
+  keepHighlightDatesInRange,
+  MARKET_EVENT_IMAGE_PREFIX,
+} from "./_helpers";
 
 const PROJECT = "https://ourproject.supabase.co";
 const valid = `${PROJECT}${MARKET_EVENT_IMAGE_PREFIX}1234-abcd.jpg`;
@@ -136,5 +141,35 @@ describe("validateHighlightDates", () => {
       "2026-09-06"
     );
     expect(result.dates).toEqual(["2026-08-16"]);
+  });
+});
+
+describe("validateHighlightDates（日曜以外の開催日）", () => {
+  it("土曜開始の単発は寄せ先の日曜を見どころにできる", () => {
+    // 2026-08-15 は土曜。カードは 8/16 に載るので、保存も 8/16 を通す
+    expect(validateHighlightDates(["2026-08-16"], "2026-08-15", null).error).toBeNull();
+    expect(validateHighlightDates(["2026-08-23"], "2026-08-15", null).error).toBeTruthy();
+  });
+
+  it("終了日が日曜以外なら、終了日の寄せ先の日曜も見どころにできる", () => {
+    // 8/16（日）〜8/21（金）。8/23 はカードに載るので保存も通す
+    expect(validateHighlightDates(["2026-08-23"], "2026-08-16", "2026-08-21").error).toBeNull();
+    expect(validateHighlightDates(["2026-08-30"], "2026-08-16", "2026-08-21").error).toBeTruthy();
+  });
+
+  it("期間内に日曜が無い連続開催（月〜木）も、寄せ先の日曜を見どころにできる", () => {
+    expect(validateHighlightDates(["2026-08-23"], "2026-08-17", "2026-08-20").error).toBeNull();
+  });
+});
+
+describe("keepHighlightDatesInRange", () => {
+  it("新しい期間の日曜に収まる見どころだけを残す", () => {
+    expect(
+      keepHighlightDatesInRange(["2026-08-16", "2026-08-23", "2026-09-06"], "2026-08-16", "2026-08-30")
+    ).toEqual(["2026-08-16", "2026-08-23"]);
+  });
+
+  it("期間外になった見どころは全部落ちる", () => {
+    expect(keepHighlightDatesInRange(["2026-09-06"], "2026-08-16", null)).toEqual([]);
   });
 });
