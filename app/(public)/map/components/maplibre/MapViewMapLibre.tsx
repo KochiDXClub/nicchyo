@@ -140,7 +140,9 @@ const MAX_DETAIL_PHOTO_SPRITES = 24;
 /** 木札の文字の大きさ（px）と、屋台からの離し方（em）。一段先では屋台と一緒に離す量を広げる */
 const NAMEPLATE_TEXT_SIZE = 11;
 const NAMEPLATE_OFFSET_EM: [number, number] = [3.2, -2.4];
-const INITIAL_ZOOM = MAX_ZOOM;
+/** 初期表示で、道の範囲の外に空ける余白（px）。丁目バッジや端の屋台が画面の縁・操作部品に隠れないようにする */
+const INITIAL_VIEW_PADDING_LAPTOP = { top: 32, right: 32, bottom: 32, left: 32 };
+const INITIAL_VIEW_PADDING_PHONE = { top: 84, right: 24, bottom: 104, left: 24 };
 const OVERVIEW_MIN = OVERVIEW_ZONE_MIN_ZOOM + ZOOM_OFFSET;
 const OVERVIEW_MAX = OVERVIEW_ZONE_MAX_ZOOM + ZOOM_OFFSET;
 
@@ -509,18 +511,8 @@ function MapViewMapLibre({
 
     const bounds = getRouteBounds(routePoints);
     const center = getRouteCenter(routePoints);
-    // 初期中心は「道の範囲の中央に最も近い道の点」。最大ズームで開くので、道の上に乗せないと店舗が画面外になる
-    const projected = projectPointOntoRoute({ lat: center[0], lng: center[1] }, routePoints);
-    const nearestRoutePoint = routePoints.reduce(
-      (best, p) => {
-        const d = Math.hypot(p.lat - center[0], (p.lng - center[1]) * Math.cos((center[0] * Math.PI) / 180));
-        return d < best.d ? { d, p } : best;
-      },
-      { d: Number.POSITIVE_INFINITY, p: routePoints[0] }
-    ).p;
-    // 射影点は道からずれることがあったので、確実に道の上にある頂点を使う
-    void projected;
-    const initialCenter: [number, number] = [nearestRoutePoint.lng, nearestRoutePoint.lat];
+    // 初期表示は市場全体（道の範囲）が画面に収まる俯瞰。中心は道の範囲の中央
+    const initialCenter: [number, number] = [center[1], center[0]];
     // 可動範囲。MapLibre の maxBounds は「範囲が画面に収まる倍率まで」しか縮小できなくなるので、
     // 最小ズーム（市場全体が見える倍率）まで引けるよう Leaflet 版より広めに取る。
     // 広さは管理画面「マップの表示範囲」で決める（既定値は従来と同じ道の範囲＋720m）
@@ -544,7 +536,7 @@ function MapViewMapLibre({
         container,
         style: useVector ? OPENFREEMAP_STYLE_URL : buildRasterStyle(featureFlags.tileOpacityByZoom, minZoom),
         center: initialCenter,
-        zoom: INITIAL_ZOOM,
+        zoom: minZoom,
         minZoom,
         maxZoom: DETAIL_ZOOM,
         bearing: computeRoadBearing(routePoints, center),
@@ -561,6 +553,36 @@ function MapViewMapLibre({
       setWebglUnsupported(true);
       onMapReady?.();
       return;
+    }
+    // 道全体が画面に収まる倍率に合わせる（最初の描画の前に、アニメーション無しで）。
+    // 道は傾けて（bearing）縦長に表示するので、画面上の座標で道の外接矩形を測って倍率と中心を決める。
+    // 検索欄・下のナビに隠れないよう、スマホでは上下に余白を取る。minZoom より引けない画面でも、そこで止まる
+    {
+      const isLaptop = window.matchMedia?.("(min-width: 1024px)").matches ?? false;
+      const pad = isLaptop ? INITIAL_VIEW_PADDING_LAPTOP : INITIAL_VIEW_PADDING_PHONE;
+      const points = routePoints.map((p) => map.project([p.lng, p.lat]));
+      const xs = points.map((p) => p.x);
+      const ys = points.map((p) => p.y);
+      const extentX = Math.max(...xs) - Math.min(...xs);
+      const extentY = Math.max(...ys) - Math.min(...ys);
+      const availX = container.clientWidth - pad.left - pad.right;
+      const availY = container.clientHeight - pad.top - pad.bottom;
+      if (extentX > 0 && extentY > 0 && availX > 0 && availY > 0) {
+        const fitCenter = map.unproject([
+          (Math.max(...xs) + Math.min(...xs)) / 2,
+          (Math.max(...ys) + Math.min(...ys)) / 2,
+        ]);
+        const fitZoom = map.getZoom() + Math.log2(Math.min(availX / extentX, availY / extentY));
+        map.jumpTo({ center: fitCenter, zoom: Math.max(minZoom, Math.min(MAX_ZOOM, fitZoom)) });
+        // 余白が左右・上下で違うぶん、道の中央を画面の中央からずらす
+        map.panBy(
+          [
+            -(pad.left + availX / 2 - container.clientWidth / 2),
+            -(pad.top + availY / 2 - container.clientHeight / 2),
+          ],
+          { duration: 0 }
+        );
+      }
     }
     map.touchZoomRotate.enableRotation();
     map.dragRotate.enable();
