@@ -97,6 +97,11 @@ jobs:
       - name: Check admin_notifications exists with expected columns and RLS
         run: psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" -v ON_ERROR_STOP=1 -f supabase/checks/admin_notifications_restored.sql
 
+      # 個人データの定期削除（purge_expired_personal_data）が全適用後の DB でエラーなく最後まで動くことを確かめる。
+      # 詳しくは supabase/checks/purge_runs.sql
+      - name: Check purge_expired_personal_data runs without error
+        run: psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" -v ON_ERROR_STOP=1 -f supabase/checks/purge_runs.sql
+
       # RLS が vendors.role で運営判定していないこと（authenticated では permission denied になる）と、
       # current_user_role() / is_operator() を使うポリシーが to authenticated に限定されていること。
       # 詳しくは supabase/checks/no_vendors_role_in_policies.sql
