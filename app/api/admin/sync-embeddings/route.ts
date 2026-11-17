@@ -92,8 +92,14 @@ function buildContent(row: {
     .join("\n");
 }
 
+/**
+ * 1回（最大 50 件）の埋め込みを待つ上限。詰まったら例外にして、!ok のときと同じく同期を失敗にする
+ * （待ち続けて maxDuration で強制終了されるより、ログに原因が残る）
+ */
+const EMBEDDING_BATCH_TIMEOUT_MS = 30_000;
+
 async function fetchEmbeddings(apiKey: string, inputs: string[]): Promise<number[][]> {
-  const response = await requestEmbeddings(apiKey, inputs);
+  const response = await requestEmbeddings(apiKey, inputs, AbortSignal.timeout(EMBEDDING_BATCH_TIMEOUT_MS));
 
   if (!response.ok) {
     const text = await response.text();

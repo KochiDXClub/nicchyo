@@ -9,6 +9,8 @@ import { requestEmbeddings } from "@/lib/ai/openaiFetch";
 const MAX_CONTENT_LENGTH = 5000;
 /** 旧画面の自由メモ。20261001160000 で既存のメモに付けた題と同じ */
 const LEGACY_MEMO_TITLE = "お店のメモ";
+/** 埋め込みを待つ上限。普段は1秒もかからない。詰まったら埋め込み無しで保存する（失敗のときと同じ） */
+const EMBEDDING_TIMEOUT_MS = 8_000;
 const KnowledgeBodySchema = z.object({
   content: z.string().trim().min(1, "content is required").max(MAX_CONTENT_LENGTH, `内容は${MAX_CONTENT_LENGTH}文字以内で入力してください`),
 });
@@ -70,10 +72,15 @@ export async function POST(request: Request) {
     // embedding生成
     let embedding: number[] | null = null;
     if (openaiKey) {
-      const embeddingRes = await requestEmbeddings(openaiKey, content.trim());
-      if (embeddingRes.ok) {
-        const payload = (await embeddingRes.json()) as { data?: { embedding: number[] }[] };
-        embedding = payload.data?.[0]?.embedding ?? null;
+      // 打ち切り・通信断は例外で来る。外側の catch（保存の失敗）に落とさず、!ok と同じく埋め込み無しで保存する
+      try {
+        const embeddingRes = await requestEmbeddings(openaiKey, content.trim(), AbortSignal.timeout(EMBEDDING_TIMEOUT_MS));
+        if (embeddingRes.ok) {
+          const payload = (await embeddingRes.json()) as { data?: { embedding: number[] }[] };
+          embedding = payload.data?.[0]?.embedding ?? null;
+        }
+      } catch {
+        embedding = null;
       }
     }
 

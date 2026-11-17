@@ -15,6 +15,9 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
+/** AI を待つ上限。maxDuration（60 秒）より短くして、詰まったら「もう一度お試しください」を返す */
+const CATEGORY_TRANSLATE_TIMEOUT_MS = 20_000;
+
 /**
  * 運営向け: カテゴリーの日本語名を英語名に訳して返す。保存はしない（画面が見せ、運営が直してから保存する）。
  * AI の呼び出しはサーバーだけ。キーはブラウザに出さない。
@@ -34,6 +37,7 @@ export async function POST(request: Request) {
     if (!apiKey) return NextResponse.json({ error: "翻訳の設定がされていません" }, { status: 503 });
 
     const aiModel = await resolveAiModelFor("translation");
+    // 打ち切り・通信断は例外で来る。外側の catch（500）に落とさず、!ok と同じ 502 にする
     const response = await requestChatCompletion(apiKey, aiModel, {
       messages: [
         { role: "system", content: CATEGORY_TRANSLATION_SYSTEM_PROMPT },
@@ -42,8 +46,8 @@ export async function POST(request: Request) {
       maxOutputTokens: 300,
       temperature: 0.2,
       responseFormat: CATEGORY_TRANSLATION_RESPONSE_FORMAT,
-    });
-    if (!response.ok) return NextResponse.json({ error: "翻訳できませんでした。少し待ってもう一度お試しください" }, { status: 502 });
+    }, AbortSignal.timeout(CATEGORY_TRANSLATE_TIMEOUT_MS)).catch(() => null);
+    if (!response?.ok) return NextResponse.json({ error: "翻訳できませんでした。少し待ってもう一度お試しください" }, { status: 502 });
 
     const payload = (await response.json()) as { choices?: { message?: { content?: string } }[] };
     const nameEn = parseCategoryTranslation(parseFirstJsonObject(payload.choices?.[0]?.message?.content ?? ""));
