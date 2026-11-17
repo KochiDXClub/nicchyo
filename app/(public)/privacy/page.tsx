@@ -11,7 +11,7 @@ export const metadata = {
 };
 
 /** 内容を改めたときは、この日付も更新してください */
-const LAST_UPDATED = "2026年11月13日";
+const LAST_UPDATED = "2026年11月17日";
 
 type Destination = {
   name: string;
