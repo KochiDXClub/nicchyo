@@ -1,5 +1,6 @@
 import { addDaysToDateString } from "@/lib/time/jstDate";
 import { normalizeStatus, toIsoDate, type MarketDayStatus } from "./calendar";
+import { validateImageUrl } from "./marketEventImage";
 
 /**
  * 開催ステータス（market_days）の入力検証。
@@ -22,6 +23,11 @@ export type MarketDayInput = {
   market_date: string;
   status: MarketDayStatus;
   note: string | null;
+  /**
+   * 画像URL。キーが送られなかった（undefined）ときは既存の画像を変えない。
+   * null を送ると画像を外す。高知市の画面は画像を扱わないので、送らないのが基本。
+   */
+  image_url?: string | null;
 };
 
 export function validateMarketDayInput(
@@ -51,17 +57,22 @@ export function validateMarketDayInput(
     return { data: null, error: "ステータスが無効です" };
   }
 
-  return {
-    data: {
-      market_date: marketDate,
-      status: normalizeStatus(status),
-      note:
-        typeof b.note === "string"
-          ? b.note.trim().slice(0, MARKET_DAY_NOTE_MAX_LENGTH) || null
-          : null,
-    },
-    error: null,
+  const data: MarketDayInput = {
+    market_date: marketDate,
+    status: normalizeStatus(status),
+    note:
+      typeof b.note === "string"
+        ? b.note.trim().slice(0, MARKET_DAY_NOTE_MAX_LENGTH) || null
+        : null,
   };
+
+  if ("image_url" in b) {
+    const image = validateImageUrl(b.image_url);
+    if (image.error) return { data: null, error: image.error };
+    data.image_url = image.url;
+  }
+
+  return { data, error: null };
 }
 
 /** 高知市が更新できるのは、今日から何週先の日曜までか */

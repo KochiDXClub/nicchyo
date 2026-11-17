@@ -252,7 +252,7 @@ describe("groupEventsBySunday", () => {
 
   it("開催ステータスを該当する日曜に結びつける", () => {
     const days = [
-      { market_date: "2026-08-23", status: "cancelled" as const, note: "台風のため" },
+      { market_date: "2026-08-23", status: "cancelled" as const, note: "台風のため", image_url: null },
     ];
     const sundays = groupEventsBySunday([], days, 2, now);
     expect(sundays[0].day).toBeNull();

@@ -3,6 +3,7 @@ import MarketStatusCalendar from "./MarketStatusCalendar";
 import type { MarketDay } from "@/lib/market/calendar";
 
 const day = (status: MarketDay["status"]): MarketDay => ({
+  image_url: null,
   market_date: "2026-11-08",
   status,
   note: null,

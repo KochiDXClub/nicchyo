@@ -41,6 +41,7 @@ export function MarketDayStatusEditor({
   isDirty,
   isSaving,
   recentNotes,
+  image,
   onSelectStatus,
   onSetNoteDraft,
   onSave,
@@ -51,6 +52,13 @@ export function MarketDayStatusEditor({
   isDirty: boolean;
   isSaving: boolean;
   recentNotes: string[];
+  /** 画像欄。渡されたときだけ出す（高知市の画面では渡さない） */
+  image?: {
+    url: string | null;
+    uploading: boolean;
+    onUpload: (file: File) => void;
+    onRemove: () => void;
+  };
   onSelectStatus: (status: MarketDayStatus) => void;
   onSetNoteDraft: (note: string) => void;
   onSave: () => void;
@@ -129,6 +137,49 @@ export function MarketDayStatusEditor({
         )}
       </div>
 
+      {image && (
+        <div className="mt-3">
+          <label className="text-xs font-semibold text-nicchyo-ink/70">画像（任意）</label>
+          {image.url ? (
+            <div className="mt-1 flex items-center gap-2">
+              {/* 管理画面のプレビューなので next/image の最適化は不要 */}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={image.url}
+                alt="プレビュー"
+                className="h-16 w-24 rounded-lg object-cover"
+              />
+              <button
+                type="button"
+                disabled={isSaving || image.uploading}
+                onClick={image.onRemove}
+                className="rounded-lg bg-nicchyo-ink/5 px-3 py-1.5 text-xs text-nicchyo-ink/70 hover:bg-nicchyo-ink/10 disabled:opacity-40"
+              >
+                削除
+              </button>
+            </div>
+          ) : (
+            <div className="mt-1">
+              <input
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                disabled={isSaving || image.uploading}
+                onChange={(ev) => {
+                  const file = ev.target.files?.[0];
+                  if (file) image.onUpload(file);
+                  // 同じファイルを選び直せるように値を空に戻す
+                  ev.target.value = "";
+                }}
+                className="w-full text-sm text-nicchyo-ink/70 file:mr-3 file:rounded-lg file:border-0 file:bg-nicchyo-ink/5 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-nicchyo-ink"
+              />
+              <p className="mt-1 text-[11px] text-nicchyo-ink/40">
+                {image.uploading ? "アップロード中..." : "JPG / PNG / WEBP・5MB以内"}
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+
       <button
         type="button"
         disabled={isSaving || !draftStatus || !isDirty}
@@ -149,9 +200,12 @@ export function MarketDayStatusEditor({
 export function MarketDayStatusEditorForDate({
   days,
   dateIso,
+  withImage = false,
 }: {
   days: ReturnType<typeof useAdminMarketDays>;
   dateIso: string;
+  /** 画像を扱うか。運営の画面だけ true（画像APIは運営のみ使える） */
+  withImage?: boolean;
 }) {
   return (
     <MarketDayStatusEditor
@@ -161,10 +215,26 @@ export function MarketDayStatusEditorForDate({
       isDirty={days.isDirty(dateIso)}
       isSaving={days.savingDate === dateIso}
       recentNotes={days.recentNotes}
+      image={
+        withImage
+          ? {
+              url: days.imageFor(dateIso),
+              uploading: days.uploadingImageDate === dateIso,
+              onUpload: (file) => void days.uploadImage(dateIso, file),
+              onRemove: () => days.setImageDraft(dateIso, null),
+            }
+          : undefined
+      }
       onSelectStatus={(status) => days.setStatusDraft(dateIso, status)}
       onSetNoteDraft={(note) => days.setNoteDraft(dateIso, note)}
       onSave={() =>
-        void days.save(dateIso, days.draftStatusFor(dateIso) ?? "open", days.noteFor(dateIso))
+        void days.save(
+          dateIso,
+          days.draftStatusFor(dateIso) ?? "open",
+          days.noteFor(dateIso),
+          // 画像を扱わない画面では画像キーを送らず、既存の画像を変えない
+          withImage ? days.imageFor(dateIso) : undefined
+        )
       }
     />
   );

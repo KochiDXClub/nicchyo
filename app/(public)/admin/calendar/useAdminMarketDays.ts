@@ -6,6 +6,7 @@ export type MarketDayRow = {
   market_date: string;
   status: string;
   note: string | null;
+  image_url?: string | null;
   updated_at: string;
 };
 
@@ -46,6 +47,9 @@ export function useAdminMarketDays({
   const [savingDate, setSavingDate] = useState<string | null>(null);
   const [noteDrafts, setNoteDrafts] = useState<Record<string, string>>({});
   const [statusDrafts, setStatusDrafts] = useState<Record<string, MarketDayStatus>>({});
+  /** 画像の下書き。null は「画像を外す」、キーが無ければ確定値のまま */
+  const [imageDrafts, setImageDrafts] = useState<Record<string, string | null>>({});
+  const [uploadingImageDate, setUploadingImageDate] = useState<string | null>(null);
 
   const fetchDays = useCallback(async () => {
     setLoading(true);
@@ -83,13 +87,46 @@ export function useAdminMarketDays({
 
   const byDate = useMemo(() => new Map(days.map((d) => [d.market_date, d])), [days]);
 
-  const save = async (dateIso: string, status: MarketDayStatus, note: string) => {
+  /**
+   * 日曜の画像をアップロードして下書きにする（公開は保存ボタンまで行わない）。
+   * アップロード先は運営の画像API。高知市の画面では使わない（editable を渡さない）。
+   */
+  const uploadImage = async (dateIso: string, file: File) => {
+    setUploadingImageDate(dateIso);
+    try {
+      const body = new FormData();
+      body.append("file", file);
+      const res = await fetch("/api/admin/events/image", { method: "POST", body });
+      const data = (await res.json()) as { url?: string; error?: string };
+      if (!res.ok || !data.url) throw new Error(data.error ?? "アップロードに失敗しました");
+      const url = data.url;
+      setImageDrafts((prev) => ({ ...prev, [dateIso]: url }));
+      showToast.success("画像をアップロードしました（保存すると公開されます）");
+    } catch (e) {
+      showToast.error(e instanceof Error ? e.message : "アップロードに失敗しました");
+    } finally {
+      setUploadingImageDate(null);
+    }
+  };
+
+  const save = async (
+    dateIso: string,
+    status: MarketDayStatus,
+    note: string,
+    /** undefined なら画像は送らず既存のまま（高知市）。null は画像を外す */
+    image?: string | null
+  ) => {
     setSavingDate(dateIso);
     try {
       const res = await fetch(endpoint, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ market_date: dateIso, status, note: note || null }),
+        body: JSON.stringify({
+          market_date: dateIso,
+          status,
+          note: note || null,
+          ...(image !== undefined ? { image_url: image } : {}),
+        }),
       });
       if (!res.ok) {
         const data = (await res.json()) as { error?: string };
@@ -103,6 +140,11 @@ export function useAdminMarketDays({
         return next;
       });
       setNoteDrafts((prev) => {
+        const next = { ...prev };
+        delete next[dateIso];
+        return next;
+      });
+      setImageDrafts((prev) => {
         const next = { ...prev };
         delete next[dateIso];
         return next;
@@ -134,9 +176,20 @@ export function useAdminMarketDays({
   const setNoteDraft = (dateIso: string, note: string) =>
     setNoteDrafts((prev) => ({ ...prev, [dateIso]: note }));
 
+  const committedImageFor = (dateIso: string): string | null =>
+    byDate.get(dateIso)?.image_url ?? null;
+
+  /** 画面上の画像。下書きがあればそれ、無ければ確定値 */
+  const imageFor = (dateIso: string): string | null =>
+    dateIso in imageDrafts ? imageDrafts[dateIso] : committedImageFor(dateIso);
+
+  const setImageDraft = (dateIso: string, url: string | null) =>
+    setImageDrafts((prev) => ({ ...prev, [dateIso]: url }));
+
   const isDirty = (dateIso: string): boolean =>
     draftStatusFor(dateIso) !== committedStatusFor(dateIso) ||
-    noteFor(dateIso) !== (byDate.get(dateIso)?.note ?? "");
+    noteFor(dateIso) !== (byDate.get(dateIso)?.note ?? "") ||
+    imageFor(dateIso) !== committedImageFor(dateIso);
 
   return {
     loading,
@@ -148,6 +201,10 @@ export function useAdminMarketDays({
     setStatusDraft,
     noteFor,
     setNoteDraft,
+    imageFor,
+    setImageDraft,
+    uploadImage,
+    uploadingImageDate,
     isDirty,
     save,
   };

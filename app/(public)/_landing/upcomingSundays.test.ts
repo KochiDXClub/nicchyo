@@ -14,8 +14,8 @@ describe("buildLandingSundays", () => {
   it("登録のない日曜は「開催」、登録のある日曜はその状態で出す", () => {
     const sundays = buildLandingSundays(
       [
-        { market_date: "2026-11-08", status: "cancelled", note: null },
-        { market_date: "2026-10-25", status: "special", note: null },
+        { market_date: "2026-11-08", status: "cancelled", note: null, image_url: null },
+        { market_date: "2026-10-25", status: "special", note: null, image_url: null },
       ],
       NOW,
       4
@@ -24,7 +24,7 @@ describe("buildLandingSundays", () => {
   });
 
   it("想定外の状態は開催として扱う", () => {
-    const [first] = buildLandingSundays([{ market_date: "2026-10-18", status: "??" as never, note: null }], NOW, 1);
+    const [first] = buildLandingSundays([{ market_date: "2026-10-18", status: "??" as never, note: null, image_url: null }], NOW, 1);
     expect(first.status).toBe("open");
   });
 

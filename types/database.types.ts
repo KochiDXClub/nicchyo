@@ -836,6 +836,7 @@ export type Database = {
       market_days: {
         Row: {
           created_at: string
+          image_url: string | null
           market_date: string
           note: string | null
           status: string
@@ -844,6 +845,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          image_url?: string | null
           market_date: string
           note?: string | null
           status?: string
@@ -852,6 +854,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          image_url?: string | null
           market_date?: string
           note?: string | null
           status?: string

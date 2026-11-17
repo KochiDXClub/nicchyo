@@ -7,6 +7,7 @@ export type SavedMarketDay = {
   market_date: string;
   status: string;
   note: string | null;
+  image_url: string | null;
   updated_by: string | null;
   created_at: string;
   updated_at: string;
@@ -27,7 +28,7 @@ export async function saveMarketDay(
   // 誤操作を事後に検証できるよう、上書き前の内容を控えておく
   const { data: previous } = await dc
     .from("market_days")
-    .select("status, note")
+    .select("status, note, image_url")
     .eq("market_date", data.market_date)
     .maybeSingle();
 
@@ -44,8 +45,15 @@ export async function saveMarketDay(
     targetType: "market_day",
     targetId: data.market_date,
     details: JSON.stringify({
-      before: previous ? { status: previous.status, note: previous.note } : null,
-      after: { status: data.status, note: data.note },
+      before: previous
+        ? { status: previous.status, note: previous.note, image_url: previous.image_url }
+        : null,
+      after: {
+        status: data.status,
+        note: data.note,
+        // 画像キーが送られなかった更新は画像を変えないので、監査にも載せない
+        ...(data.image_url !== undefined ? { image_url: data.image_url } : {}),
+      },
     }),
   });
 

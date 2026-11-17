@@ -95,6 +95,18 @@ function SundayCard({ sunday }: { sunday: MarketSunday }) {
         )}
       </div>
 
+      {day?.image_url && (
+        <div className="relative aspect-[16/9] w-full bg-nicchyo-ink/5">
+          <Image
+            src={day.image_url}
+            alt={`${sunday.dateLabel}の日曜市`}
+            fill
+            className="object-cover"
+            sizes="(max-width: 512px) 100vw, 512px"
+          />
+        </div>
+      )}
+
       {day?.note && (
         <p className="border-b border-black/5 bg-rose-50/60 px-4 py-2 text-xs leading-relaxed text-rose-700">
           {day.note}
