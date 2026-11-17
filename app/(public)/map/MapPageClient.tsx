@@ -286,7 +286,7 @@ export default function MapPageClient({
   }, []);
   const [isShopBannerOpen, setIsShopBannerOpen] = useState(false);
   // 開催ステータス。マップでは平常時（開催）は出さず、中止・臨時休市・特別開催のときだけバーを出す
-  const { calendar: marketCalendar } = useMarketCalendar();
+  const { calendar: marketCalendar, loading: marketCalendarLoading, error: marketCalendarError } = useMarketCalendar();
   const [trackingButtonTop, setTrackingButtonTop] = useState(112); // 112px = top-28 (7rem) — Tailwind デフォルト基準値
   const resizeObserverRef = useRef<ResizeObserver | null>(null);
   const searchAreaRef = useCallback((el: HTMLDivElement | null) => {
@@ -905,7 +905,7 @@ export default function MapPageClient({
                 <AnnouncementBanner />
 
                 {/* 開催ステータス（例外時のみ表示。平常時は null を返すので検索バーは動かない） */}
-                <MarketStatusBar day={marketCalendar.day} />
+                {marketCalendarError ? <p role="status" className="rounded-full bg-white px-4 py-2 text-sm">開催状況を取得できませんでした。</p> : !marketCalendarLoading && <MarketStatusBar day={marketCalendar.day} />}
 
                 {/* 検索バー */}
                 <div className={`flex items-center gap-2 rounded-full px-4 py-2.5 shadow-lg ring-1 backdrop-blur-sm transition-all duration-200 lg:rounded-btn lg:shadow-none ${

@@ -36,7 +36,7 @@ export default function StoryGridClient({ demo }: Props = {}) {
   const [viewerIndex, setViewerIndex] = useState<number | null>(null);
   const [heartCounts, setHeartCounts] = useState<Record<string, number> | null>(() => demo?.heartCounts ?? null);
   const nextSunday = useMemo(() => getNextSundayLabel(), []);
-  const { calendar } = useMarketCalendar();
+  const { calendar, loading: calendarLoading, error: calendarError } = useMarketCalendar();
   const isDemo = demo !== undefined;
 
   useEffect(() => {
@@ -127,11 +127,11 @@ export default function StoryGridClient({ demo }: Props = {}) {
                   className="object-cover"
                 />
               </div>
-              <MarketStatusCalendar
+              {calendarError ? <p role="status" className="relative z-10">開催状況を取得できませんでした。</p> : !calendarLoading && <MarketStatusCalendar
                 day={calendar.day}
                 showSummary={false}
                 className="relative z-10 min-w-0 max-w-full !gap-2 sm:max-w-[55%] sm:!gap-4 [&>div]:rounded-btn [&>div]:bg-nicchyo-base/95 [&>div]:px-2 [&>div]:py-1"
-              />
+              />}
             </div>
           </section>
 
@@ -172,7 +172,7 @@ export default function StoryGridClient({ demo }: Props = {}) {
             )}
 
             <div className="border-t border-line-warm pt-6">
-              <UpcomingSundays sundays={upcomingSundays} showMoreLink />
+              {!calendarLoading && !calendarError && <UpcomingSundays sundays={upcomingSundays} showMoreLink />}
             </div>
         </div>
       </PageContainer>
