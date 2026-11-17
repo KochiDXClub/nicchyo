@@ -59,6 +59,15 @@ describe("PUT /api/city/market-days", () => {
     expect(saveMarketDay).not.toHaveBeenCalled();
   });
 
+  it("image_url を送られても保存に渡さない（画像は運営だけが変えられる）", async () => {
+    requireCityApi.mockResolvedValue(ctx);
+    saveMarketDay.mockResolvedValue({
+      day: { market_date: "2026-11-08", status: "open", note: null, updated_by: "u1", created_at: "x", updated_at: "x" },
+    });
+    await put({ market_date: "2026-11-08", status: "open", note: null, image_url: null });
+    expect(saveMarketDay.mock.calls[0][2]).not.toHaveProperty("image_url");
+  });
+
   it("保存は actor.role に city_official を載せ、updated_by を返さない", async () => {
     requireCityApi.mockResolvedValue(ctx);
     saveMarketDay.mockResolvedValue({

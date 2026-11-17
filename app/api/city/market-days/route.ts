@@ -102,6 +102,8 @@ export async function PUT(req: Request) {
   const parsed = await parseMarketDayRequest(req);
   if ("response" in parsed) return parsed.response;
   const { data } = parsed;
+  // 画像は運営だけが扱う。市の API から送られても画像は変えない（キーを外して保存する）
+  delete data.image_url;
 
   // 市が書けるのは、今日から先の日曜だけ（過去の開催実績は書き換えさせない）
   const dateError = validateCityMarketDate(data.market_date, todayJstString());
