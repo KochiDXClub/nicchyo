@@ -235,10 +235,23 @@ function byStartTime(a: MarketEvent, b: MarketEvent): number {
  * 日曜が1つも含まれない連続開催が、どの日曜カードにも載らず消えてしまう。
  */
 export function isEventOnSunday(event: MarketEvent, sundayIso: string): boolean {
-  const startSunday = getUpcomingSundayIso(isoToDate(event.event_date));
-  if (!event.end_date || event.end_date < event.event_date) return sundayIso === startSunday;
-  const endSunday = getUpcomingSundayIso(isoToDate(event.end_date));
-  return sundayIso >= startSunday && sundayIso <= endSunday;
+  const { first, last } = getEventSundayRange(event.event_date, event.end_date);
+  return sundayIso >= first && sundayIso <= last;
+}
+
+/**
+ * 予定が載る日曜の範囲（first〜last、両端を含む）を返す。
+ * 開始日・終了日をそれぞれ次の日曜へ寄せる。表示・見どころの選択肢・見どころの検証は
+ * すべてこの範囲を使い、判定がずれないようにする。
+ * end_date が無い・開始日以前の壊れたデータは開始日の週だけにする。
+ */
+export function getEventSundayRange(
+  eventDate: string,
+  endDate: string | null
+): { first: string; last: string } {
+  const first = getUpcomingSundayIso(isoToDate(eventDate));
+  const last = endDate && endDate > eventDate ? getUpcomingSundayIso(isoToDate(endDate)) : first;
+  return { first, last };
 }
 
 /** 指定の日曜が、その予定の見どころ週として選ばれているか */
@@ -251,10 +264,9 @@ export function isHighlightSunday(event: MarketEvent, sundayIso: string): boolea
  * 管理画面で「見どころにする週」を選ばせる際、選択肢の一覧として使う。
  */
 export function listSundaysInRange(eventDate: string, endDate: string | null): string[] {
-  const start = getUpcomingSundayIso(isoToDate(eventDate));
-  const last = endDate && endDate > eventDate ? endDate : start;
+  const { first, last } = getEventSundayRange(eventDate, endDate);
   const result: string[] = [];
-  for (let cursor = start; cursor <= last; cursor = addDaysToIso(cursor, 7)) {
+  for (let cursor = first; cursor <= last; cursor = addDaysToIso(cursor, 7)) {
     result.push(cursor);
   }
   return result;
