@@ -3,6 +3,7 @@ import Image from "next/image";
 import { ChevronDown, Clock, Expand, Heart, Instagram, Search, Send, Share2, Umbrella, X } from "lucide-react";
 import { getShopBannerImage } from "@/lib/shopImages";
 import type { Translate } from "@/lib/i18n/translate";
+import type { SiteTextKey } from "@/lib/siteCopy";
 import { DEFAULT_CONSULT_CHARACTER } from "../consult/data/consultCharacters";
 import { getShopCategoryColor, resolveStallColors, type ShopCategory } from "../map/config/shopCategories";
 import {
@@ -21,7 +22,12 @@ import PhotoScrim from "./PhotoScrim";
  * どれも、本番の画面の形と部品（屋台は地図と同じ generateStallSpriteSvg、バナーと相談は本番の並び・文言）に
  * 合わせた**見本**で、本物の地図・バナー・AI は動かさない（表示の負担と、AI の利用料を増やさないため）。
  * 動きは CSS の transform / opacity だけ。画面の外では止める（InView）。「動きを減らす」設定では、結果の形で止める
+ *
+ * 見本の中身（店名・質問・答えなど）は管理画面「サイト文言」の文言（s。landing.howTo.*）。本番の画面と同じ部品の文字
+ * （「共有」「出店時間」など）は、本番に合わせて t で訳す
  */
+
+type ScreenProps = { t: Translate; s: (key: SiteTextKey) => string };
 
 // ── 1. 地図でさがす ─────────────────────────────────────────
 
@@ -48,7 +54,7 @@ function stallSvg(category: ShopCategory, index: number, search = false, photoSe
 const MAP_ROWS: ShopCategory[] = ["食材", "食べ物", "道具・工具", "手作り・工芸", "植物・苗", "アクセサリー", "生活雑貨", "食材", "アクセサリー", "道具・工具", "手作り・工芸", "植物・苗"];
 const HIT_INDEX = 1;
 
-export function MapScreen({ t }: { t: Translate }) {
+export function MapScreen({ s }: ScreenProps) {
   return (
     <div className="landing-screen">
       <svg className="absolute inset-0 h-full w-full" viewBox="0 0 230 452" preserveAspectRatio="xMidYMid slice" aria-hidden>
@@ -80,7 +86,7 @@ export function MapScreen({ t }: { t: Translate }) {
       </svg>
       <div className="landing-m-search">
         <Search aria-hidden className="h-3.5 w-3.5 shrink-0" />
-        <span className="landing-typed">{t("芋天")}</span>
+        <span className="landing-typed">{s("landing.howTo.map.query")}</span>
         <i className="landing-caret" />
       </div>
       <CategoryDemoChips />
@@ -89,8 +95,8 @@ export function MapScreen({ t }: { t: Translate }) {
           <Image src={getShopBannerImage("食べ物", 0)} alt="" width={64} height={64} className="h-full w-full object-cover" />
         </span>
         <span>
-          <b>{t("芋天のお店")}</b>
-          <small>{t("食べ物・8:00〜14:00")}</small>
+          <b>{s("landing.howTo.map.shopName")}</b>
+          <small>{s("landing.howTo.map.shopSub")}</small>
         </span>
       </div>
     </div>
@@ -103,10 +109,9 @@ function formatPrice(price: number | null | undefined, t: Translate) {
   return price == null ? t("価格は現地で確認") : `¥${price.toLocaleString()}`;
 }
 
-export function BannerScreen({ t }: { t: Translate }) {
+export function BannerScreen({ t, s }: ScreenProps) {
   const shop = SAMPLE_SHOP;
   const hours = `${shop.businessHoursStart} 〜 ${shop.businessHoursEnd}`;
-  const products = [shop.products[0], shop.products[2]].filter((name): name is string => Boolean(name));
   const photo = "/images/landing/candle-shop.webp";
   return (
     <div className="landing-screen">
@@ -126,11 +131,11 @@ export function BannerScreen({ t }: { t: Translate }) {
             </span>
             <span className="landing-peek-t">
               <span className="landing-chip">{t(shop.category)}</span>
-              <b>{t(shop.name)}</b>
-              <small>{t("手づくりの灯り")}</small>
+              <b>{s("landing.howTo.banner.shopName")}</b>
+              <small>{s("landing.howTo.banner.tagline")}</small>
               <span className="landing-peek-c">
-                {products.map((name) => (
-                  <span key={name}>{t(name)}</span>
+                {shop.products.map(({ name }) => (
+                  <span key={name}>{s(name)}</span>
                 ))}
               </span>
             </span>
@@ -151,8 +156,8 @@ export function BannerScreen({ t }: { t: Translate }) {
               </span>
               <span className="landing-h2-t">
                 <em>{t(shop.category)}</em>
-                <b>{t(shop.name)}</b>
-                <small>{t("手づくりの灯り")}</small>
+                <b>{s("landing.howTo.banner.shopName")}</b>
+                <small>{s("landing.howTo.banner.tagline")}</small>
               </span>
               <span className="landing-heart">
                 <Heart aria-hidden className="h-3.5 w-3.5" />
@@ -194,7 +199,7 @@ export function BannerScreen({ t }: { t: Translate }) {
               </span>
             </div>
             <div className="landing-pgrid">
-              {products.map((name, i) => (
+              {shop.products.map(({ name, price }, i) => (
                 <span key={name} className="landing-pc">
                   <span className="landing-pc-ph">
                     <Image src={photo} alt="" width={160} height={160} className="h-full w-full object-cover" style={{ objectPosition: i === 0 ? "12% 50%" : "88% 50%" }} />
@@ -202,8 +207,8 @@ export function BannerScreen({ t }: { t: Translate }) {
                       <Heart aria-hidden className="h-[11px] w-[11px]" />
                     </i>
                   </span>
-                  <b>{t(name)}</b>
-                  <small>{formatPrice(shop.productPrices?.[name], t)}</small>
+                  <b>{s(name)}</b>
+                  <small>{formatPrice(price, t)}</small>
                 </span>
               ))}
             </div>
@@ -216,20 +221,14 @@ export function BannerScreen({ t }: { t: Translate }) {
 
 // ── 3. にちよさんに聞く ───────────────────────────────────────
 
-const ASK = {
-  suggestion: "おすすめのランチは？",
-  answer: "歩きながら食べるなら、芋天がええよ。朝のうちが揚げたてじゃ。",
-  other: ["今の旬の果物は？", "はじめてでも大丈夫？"],
-  placeholder: "（例）今の旬の果物は？",
-};
 
 /** 紹介されるお店のカード（本番の ConsultShopCard と同じ：上に写真とカテゴリ、下に店名・商品・「くわしく見る」）。カテゴリの既定の写真を使う */
-const ASK_SHOPS: { name: string; category: ShopCategory; chips: string[]; seed: number }[] = [
-  { name: "芋天のお店", category: "食べ物", chips: ["芋天"], seed: 0 },
-  { name: "アイスのお店", category: "食べ物", chips: ["アイス"], seed: 1 },
+const ASK_SHOPS: { name: SiteTextKey; category: ShopCategory; item: SiteTextKey; seed: number }[] = [
+  { name: "landing.howTo.consult.shop1.name", category: "食べ物", item: "landing.howTo.consult.shop1.item", seed: 0 },
+  { name: "landing.howTo.consult.shop2.name", category: "食べ物", item: "landing.howTo.consult.shop2.item", seed: 1 },
 ];
 
-export function ConsultScreen({ t }: { t: Translate }) {
+export function ConsultScreen({ t, s }: ScreenProps) {
   const speaker = DEFAULT_CONSULT_CHARACTER;
   return (
     <div className="landing-screen landing-consult">
@@ -239,23 +238,23 @@ export function ConsultScreen({ t }: { t: Translate }) {
       </div>
       <div className="landing-cA">
         <p className="landing-c-greet">
-          <b>{t("なんでも聞いてや。")}</b>
-          <small>{t("聞きたいことを選んでね。")}</small>
+          <b>{s("landing.howTo.consult.greeting")}</b>
+          <small>{s("landing.howTo.consult.prompt")}</small>
         </p>
         <div className="landing-c-sugs">
           <span className="landing-sug landing-sug1">
-            {t(ASK.suggestion)}
+            {s("landing.howTo.consult.question")}
             <i className="landing-tap" />
           </span>
-          {ASK.other.map((text) => (
-            <span key={text} className="landing-sug">
-              {t(text)}
+          {(["landing.howTo.consult.other1", "landing.howTo.consult.other2"] as const).map((key) => (
+            <span key={key} className="landing-sug">
+              {s(key)}
             </span>
           ))}
         </div>
       </div>
       <div className="landing-cB">
-        <p className="landing-q">{t(ASK.suggestion)}</p>
+        <p className="landing-q">{s("landing.howTo.consult.question")}</p>
         <p className="landing-who">{t(speaker.name)}</p>
         <div className="landing-ans-wrap">
           <div className="landing-skel">
@@ -263,7 +262,7 @@ export function ConsultScreen({ t }: { t: Translate }) {
             <i />
             <i />
           </div>
-          <p className="landing-ans">{t(ASK.answer)}</p>
+          <p className="landing-ans">{s("landing.howTo.consult.answer")}</p>
         </div>
         <div className="landing-cards">
           <p className="landing-cl">{t("おすすめのお店 {count}件").replace("{count}", String(ASK_SHOPS.length))}</p>
@@ -275,11 +274,9 @@ export function ConsultScreen({ t }: { t: Translate }) {
                   <em>{t(shop.category)}</em>
                 </span>
                 <span className="landing-mc-b">
-                  <b>{t(shop.name)}</b>
+                  <b>{s(shop.name)}</b>
                   <span className="landing-mc-c">
-                    {shop.chips.map((chip) => (
-                      <span key={chip}>{t(chip)}</span>
-                    ))}
+                    <span>{s(shop.item)}</span>
                   </span>
                   <small>{t("くわしく見る →")}</small>
                 </span>
@@ -289,7 +286,7 @@ export function ConsultScreen({ t }: { t: Translate }) {
         </div>
       </div>
       <div className="landing-c-bar">
-        <span>{t(ASK.placeholder)}</span>
+        <span>{s("landing.howTo.consult.placeholder")}</span>
         <i>
           <Send aria-hidden className="h-[13px] w-[13px] text-white" />
         </i>
