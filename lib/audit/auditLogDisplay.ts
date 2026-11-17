@@ -19,6 +19,8 @@ export type AuditTone = "caution" | "good" | "info" | "neutral";
 
 /** 操作の名前 → 札に出す短い名前と色。消す・止める＝注意、作る・承認＝良い、変える＝情報 */
 export const AUDIT_ACTIONS = {
+  analytics_export: { label: "解析データを書き出し", tone: "info" },
+  analytics_collection_updated: { label: "解析の取得設定を変更", tone: "info" },
   // 店舗（現場登録・代理編集）
   shop_create: { label: "店舗を登録", tone: "good" },
   shop_edit: { label: "店舗情報を編集", tone: "info" },
@@ -34,6 +36,10 @@ export const AUDIT_ACTIONS = {
   shop_claim_unlink: { label: "店舗との紐づけを解除", tone: "caution" },
   shop_invite_create: { label: "店舗への招待を作成", tone: "good" },
   shop_invite_revoke: { label: "店舗への招待を取り消し", tone: "caution" },
+  public_schedule_rollout: { label: "出店予定の公開設定を変更", tone: "caution" },
+  legacy_shop_identity_revoke: { label: "旧店舗番号の対応を取消", tone: "caution" },
+  legacy_shop_identity_confirm: { label: "旧店舗番号の対応を確定", tone: "caution" },
+  market_schedule_edit: { label: "出店予定を編集", tone: "info" },
   // マップ編集
   map_edit_save_vendors: { label: "マップ編集で出店者を保存", tone: "info" },
   map_edit_delete_vendors_attempt: { label: "マップ編集で出店者の削除を開始", tone: "caution" },
@@ -44,6 +50,8 @@ export const AUDIT_ACTIONS = {
   spot_deleted: { label: "地図の目印を削除", tone: "caution" },
   // カテゴリー
   category_created: { label: "カテゴリーを作成", tone: "good" },
+  site_copy_draft_save: { label: "サイト文言の下書きを保存", tone: "info" },
+  site_copy_publish: { label: "サイト文言を公開", tone: "good" },
   category_updated: { label: "カテゴリーを変更", tone: "info" },
   category_deleted: { label: "カテゴリーを削除", tone: "caution" },
   // 日曜市カレンダー
@@ -378,6 +386,10 @@ function describeByAction(log: AuditLogRecord, json: Json | null): Described | n
         facts: vendors.length > 0 ? [{ label: "対象の出店者", value: listNames(vendors) }] : [],
       };
     }
+    case "site_copy_draft_save":
+      return { summary: "サイト文言の下書きを保存しました", facts: [] };
+    case "site_copy_publish":
+      return { summary: "サイト文言を公開しました", facts: [] };
     case "category_created":
       return { summary: `カテゴリー${quote(str(json?.name))}を作りました${json?.nameEn ? `（英語名: ${quote(str(json?.nameEn))}）` : ""}`, facts: [] };
     case "category_updated":

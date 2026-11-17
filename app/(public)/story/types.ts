@@ -20,7 +20,7 @@ export type StoryItem = {
     id: string;
     shop_name: string | null;
     shop_image_url: string | null;
-    // 店舗詳細（/shops/[code]）へのリンク用。出店割当が無い場合は null。
+    // 店舗詳細へのリンク用。公開切替後は固定店舗 ID、旧表示中は場所番号。未確認なら null。
     store_number: number | null;
   } | null;
   character?: StoryCharacter | null;

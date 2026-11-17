@@ -70,8 +70,8 @@ describe("相談ページの固定文言", () => {
 });
 
 
-describe("トップページ（シートの landing.*）", () => {
-  test("シートの文言すべてに英訳がある", async () => {
+describe("トップページ（サイト文言の landing.*）", () => {
+  test("landing.* の文言すべてに英訳がある", async () => {
     const texts = (await import("@/content/site-copy/texts.json")).default as Record<string, string>;
     const en = (await import("@/content/i18n/en.json")).default as Record<string, string>;
     const keys = Object.keys(texts).filter((key) => key.startsWith("landing."));

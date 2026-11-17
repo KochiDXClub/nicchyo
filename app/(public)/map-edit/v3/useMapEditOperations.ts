@@ -192,6 +192,10 @@ export function useMapEditOperations(params: Params) {
       const from = shops.find((s) => s.locationId === fromLocationId);
       const to = shops.find((s) => s.locationId === toLocationId);
       if (!from || !to || !from.vendorId || from.locationId === to.locationId) return false;
+      if (from.placeName || to.placeName || shops.some((s) => s.placeName && s.locationId !== toLocationId && s.placeVendors?.some((entry) => entry.id === from.vendorId)) || (to.vendorId && shops.some((s) => s.placeName && s.locationId !== fromLocationId && s.placeVendors?.some((entry) => entry.id === to.vendorId)))) {
+        setMessage("出店場所が登録された区画への店舗の移動は、先に現場登録で場所を確認してください。");
+        return false;
+      }
       const movingName = vendorName(from.vendorId);
       const swapped = to.vendorId;
       commit(
@@ -213,7 +217,7 @@ export function useMapEditOperations(params: Params) {
       );
       return true;
     },
-    [shops, commit, vendorName]
+    [shops, commit, vendorName, setMessage]
   );
 
   /**
@@ -224,7 +228,15 @@ export function useMapEditOperations(params: Params) {
     (locationId: string, vendorId: string) => {
       const shop = shops.find((s) => s.locationId === locationId);
       if (!shop) return;
+      if (vendorId && shop.placeName && !shop.placeVendors?.some((entry) => entry.id === vendorId)) {
+        setMessage("先に現場登録で、この店舗の出店場所を設定してください。");
+        return;
+      }
       const previous = vendorId ? shops.find((s) => s.vendorId === vendorId && s.locationId !== locationId) : undefined;
+      if (previous?.placeName || (vendorId && shops.some((s) => s.placeName && s.locationId !== locationId && s.placeVendors?.some((entry) => entry.id === vendorId)))) {
+        setMessage("出店場所が登録された店舗を移すには、先に現場登録で場所を確認してください。");
+        return;
+      }
       commit(
         {
           shops: shops.map((s) => {
@@ -245,14 +257,28 @@ export function useMapEditOperations(params: Params) {
             : `${vendorName(vendorId)} を割り当て`
       );
     },
-    [shops, commit, vendorName]
+    [shops, commit, vendorName, setMessage]
   );
+
+  const applyFieldObservation = useCallback((locationId: string) => {
+    const shop = shops.find((item) => item.locationId === locationId);
+    const observation = vendors.find((item) => item.id === shop?.vendorId)?.fieldObservation;
+    if (!shop || shop.placeName || (shop.placeVendors?.length ?? 0) > 1 || !observation) return;
+    commit({ shops: shops.map((item) => item.locationId === locationId
+      ? { ...item, lat: observation.lat, lng: observation.lng, roadId: undefined, roadDistanceM: undefined, roadSide: undefined, roadOffsetM: undefined }
+      : item) }, String(shop.position), "確認した現場の位置を反映");
+    setMessage("現場の位置を編集内容に追加しました。マップへ反映するには「変更を保存」を押してください。");
+  }, [shops, vendors, commit, setMessage]);
 
   /** 空き区画に新しい出店者を登録して割り当てる（1件の操作）。登録した出店者の仮 id を返す */
   const registerVendor = useCallback(
     (locationId: string, draft: Omit<EditableVendor, "id">): string | null => {
       const shop = shops.find((s) => s.locationId === locationId);
       if (!shop) return null;
+      if (shop.placeName) {
+        setMessage("名前付きの出店場所には、先に現場登録で店舗を作ってから紐付けてください。");
+        return null;
+      }
       const id = `${NEW_VENDOR_ID_PREFIX}${Date.now()}`;
       const vendor: EditableVendor = { ...draft, id, name: draft.name.trim() };
       commit(
@@ -265,7 +291,7 @@ export function useMapEditOperations(params: Params) {
       );
       return id;
     },
-    [shops, vendors, commit]
+    [shops, vendors, commit, setMessage]
   );
 
   /** 出店者の情報を直す。店名を変えたら、その出店者の区画の表示名も揃える */
@@ -312,6 +338,10 @@ export function useMapEditOperations(params: Params) {
     (locationId: string): boolean => {
       const shop = shops.find((s) => s.locationId === locationId);
       if (!shop) return false;
+      if (shop.placeName) {
+        setMessage(`区画 ${shop.position} は名前付きの出店場所のため削除できません。`);
+        return false;
+      }
       if (shop.vendorId) {
         setMessage(`区画 ${shop.position} には出店者がいます。先に「空きにする」で出店者を外してから削除してください。`);
         return false;
@@ -331,6 +361,11 @@ export function useMapEditOperations(params: Params) {
     (road: EditableRoad, plan: SlotSplitPlan): boolean => {
       if (plan.error) {
         setMessage(plan.error);
+        return false;
+      }
+      const blocked = shops.find((shop) => shop.placeName && plan.deletes.some((entry) => entry.locationId === shop.locationId));
+      if (blocked) {
+        setMessage(`区画 ${blocked.position} は名前付きの出店場所のため削除できません。`);
         return false;
       }
       const unassignedAfter = shops.filter((s) => !s.vendorId).length - plan.deletes.length + plan.creates.length;
@@ -420,6 +455,17 @@ export function useMapEditOperations(params: Params) {
    * 区画の丁目を直す。丁目を選ぶと「手で設定」になり、自動判定で上書きしない。
    * "auto" を選ぶと手動設定を外し、道の位置から決め直す（決まらなければ今の丁目のまま）。
    */
+  const setSlotAddress = useCallback((locationId: string, address: { main: number; branch: number | null } | null) => {
+    const shop = shops.find((item) => item.locationId === locationId);
+    if (!shop) return false;
+    if (address && shops.some((item) => item.locationId !== locationId && item.officialNumber === address.main && (item.branchNumber ?? null) === address.branch)) {
+      setMessage("同じ住所の場所がすでにあります。登録済みの場所を選んでください。");
+      return false;
+    }
+    commit({ shops: shops.map((item) => item.locationId === locationId ? { ...item, officialNumber: address?.main, branchNumber: address?.branch ?? undefined } : item) }, String(shop.position), "場所の住所を変更");
+    return true;
+  }, [shops, commit, setMessage]);
+
   const setSlotChome = useCallback(
     (locationId: string, value: ChomeId | "auto") => {
       const shop = shops.find((s) => s.locationId === locationId);
@@ -649,10 +695,12 @@ export function useMapEditOperations(params: Params) {
     shopCountOnRoad,
     moveVendor,
     assignVendor,
+    applyFieldObservation,
     registerVendor,
     updateVendor,
     clearVendor,
     setSlotChome,
+    setSlotAddress,
     deleteSlot,
     applySlotPlan,
     applyStoreImport,

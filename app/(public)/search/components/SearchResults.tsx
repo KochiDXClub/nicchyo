@@ -1,6 +1,6 @@
 'use client';
 
-import type { Shop } from '../../map/data/shops';
+import type { ShopProfile as Shop } from '../../map/types/shopData';
 import ShopResultCard from './ShopResultCard';
 import EmptyState from './EmptyState';
 import { Map } from 'lucide-react';

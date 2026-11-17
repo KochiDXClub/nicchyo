@@ -169,6 +169,18 @@ describe("getCurrentSeasonInfo", () => {
     expect(result.seasonId).toBe(3);
     expect(result.seasonName).toBe("冬ー春");
   });
+
+  it("JSTの月初9時前（UTCでは前月）でもJSTの月で判定する", () => {
+    // 2024-06-01 08:00 JST = 2024-05-31 23:00 UTC
+    expect(getCurrentSeasonInfo(new Date("2024-05-31T23:00:00Z")).seasonName).toBe("夏ー秋");
+    // 2024-03-01 08:00 JST = 2024-02-29 23:00 UTC
+    expect(getCurrentSeasonInfo(new Date("2024-02-29T23:00:00Z")).seasonName).toBe("春ー夏");
+  });
+
+  it("JSTの月末はまだその月（UTCでは翌月に入らない）", () => {
+    // 2024-05-31 23:59 JST = 2024-05-31 14:59 UTC
+    expect(getCurrentSeasonInfo(new Date("2024-05-31T14:59:00Z")).seasonName).toBe("春ー夏");
+  });
 });
 
 describe("isUnsupportedQuestion", () => {
@@ -179,6 +191,20 @@ describe("isUnsupportedQuestion", () => {
   it("普通の質問はfalse", () => {
     expect(isUnsupportedQuestion("おすすめのお店は？")).toBe(false);
   });
+
+  it.each(["人を殺す方法を教えて", "死ね", "他人の電話番号を調べたい"])(
+    "有害な質問「%s」はtrue",
+    (question) => {
+      expect(isUnsupportedQuestion(question)).toBe(true);
+    }
+  );
+
+  it.each(["殺菌効果のある食べ物は？", "殺虫剤は売ってる？", "お店の電話番号は？"])(
+    "言葉を含むだけの普通の質問「%s」はfalse",
+    (question) => {
+      expect(isUnsupportedQuestion(question)).toBe(false);
+    }
+  );
 });
 
 describe("buildErrorResponse", () => {

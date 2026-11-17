@@ -143,6 +143,10 @@ describe('getShopPreviewImage', () => {
       expect(result).toBe(getShopBannerImage('食材', 5));
     });
 
+    it('固定店舗 ID の店は場所の有無や変更で既定写真が変わらない', () => {
+      expect(getShopPreviewImage({ id: 1001, position: 2, category: '食材' })).toBe(getShopPreviewImage({ id: 1001, category: '食材' }));
+    });
+
     it('position が 0 でも id に落ちない（0 は正当な位置）', () => {
       const result = getShopPreviewImage({ id: 5, position: 0, category: '食材' });
       expect(result).toBe(getShopBannerImage('食材', 0));

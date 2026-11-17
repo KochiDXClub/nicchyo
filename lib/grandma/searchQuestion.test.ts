@@ -41,6 +41,16 @@ describe("translateQuestionForSearch", () => {
     expect(await translateQuestionForSearch("key", "Where to eat?", "en")).toBe("Where to eat?");
   });
 
+  it("待ちの上限を signal で渡し、打ち切られたら元の質問で続ける", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    requestChatCompletion.mockImplementation(async (_key, _model, _params, signal: AbortSignal) => {
+      expect(signal).toBeInstanceOf(AbortSignal);
+      throw new DOMException("The operation was aborted due to timeout", "TimeoutError");
+    });
+    expect(await translateQuestionForSearch("key", "Where to eat?", "en")).toBe("Where to eat?");
+    expect(requestChatCompletion).toHaveBeenCalledTimes(1);
+  });
+
   it("空の訳は元の質問を返す", async () => {
     requestChatCompletion.mockResolvedValue(reply("  "));
     expect(await translateQuestionForSearch("key", "Where to eat?", "en")).toBe("Where to eat?");

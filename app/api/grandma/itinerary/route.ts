@@ -26,6 +26,13 @@ import { getForwardedClientIp } from "@/lib/security/clientIp";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+/**
+ * OpenAI を待つ上限。詰まったときに待ち続けず、それぞれの失敗として返す。
+ * 相談（/api/grandma/ask）と同じ値にそろえる（埋め込み 8 秒 + 旅程 45 秒）
+ */
+const ITINERARY_EMBEDDING_TIMEOUT_MS = 8_000;
+const ITINERARY_UPSTREAM_TIMEOUT_MS = 45_000;
+
 const BodySchema = z.object({
   stops: z.number().int().min(1).max(6).optional(),
   startAt: z.string().min(1).max(20).optional(),
@@ -57,7 +64,7 @@ export async function POST(request: Request) {
     });
     if (rateLimited) return rateLimited;
 
-    const parsed = BodySchema.safeParse(await request.json());
+    const parsed = BodySchema.safeParse(await request.json().catch(() => null));
     if (!parsed.success) {
       return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "invalid body" }, { status: 400 });
     }
@@ -130,11 +137,20 @@ export async function POST(request: Request) {
     // 興味が未指定だとクエリがほぼ定数になるため、会話の文脈も混ぜて検索の意味を持たせる
     const contextHint = [memorySummary, historyText].filter(Boolean).join(" ").slice(0, 300);
     const queryText = `日曜市おさんぽプラン。興味:${interest || "未指定"} ${contextHint}`.trim();
-    const embeddingResponse = await requestEmbeddings(openaiKey, queryText);
-    if (!embeddingResponse.ok) {
+    // 打ち切り・通信断は例外で来る。外側の catch（汎用の失敗）に落とさず、!ok と同じ返し方にする
+    const embeddingPayload = await requestEmbeddings(
+      openaiKey,
+      queryText,
+      AbortSignal.timeout(ITINERARY_EMBEDDING_TIMEOUT_MS)
+    )
+      .then((res) => (res.ok ? (res.json() as Promise<{ data?: { embedding: number[] }[] }>) : null))
+      .catch((error: unknown) => {
+        console.error("[grandma/itinerary] embeddings failed:", error);
+        return null;
+      });
+    if (!embeddingPayload) {
       return NextResponse.json({ error: "embedding failed" }, { status: 500 });
     }
-    const embeddingPayload = (await embeddingResponse.json()) as { data?: { embedding: number[] }[] };
     const embedding = embeddingPayload.data?.[0]?.embedding;
     if (!embedding) {
       return NextResponse.json({ error: "embedding not found" }, { status: 500 });
@@ -185,7 +201,8 @@ export async function POST(request: Request) {
 
     const aiModel = await resolveAiModelFor("itinerary");
 
-    const chatResponse = await requestChatCompletion(openaiKey, aiModel, {
+    // 埋め込みと同じく、打ち切り・通信断も !ok と同じ返し方にする
+    const chatPayload = await requestChatCompletion(openaiKey, aiModel, {
       messages: [
         {
           role: "system",
@@ -201,13 +218,17 @@ export async function POST(request: Request) {
       ],
       maxOutputTokens: 900,
       temperature: 0.6,
-    });
-    if (!chatResponse.ok) {
+    }, AbortSignal.timeout(ITINERARY_UPSTREAM_TIMEOUT_MS))
+      .then((res) =>
+        res.ok ? (res.json() as Promise<{ choices?: { message?: { content?: string } }[] }>) : null
+      )
+      .catch((error: unknown) => {
+        console.error("[grandma/itinerary] chat completion failed:", error);
+        return null;
+      });
+    if (!chatPayload) {
       return NextResponse.json({ error: "chat completion failed" }, { status: 500 });
     }
-    const chatPayload = (await chatResponse.json()) as {
-      choices?: { message?: { content?: string } }[];
-    };
     const outputText = chatPayload.choices?.[0]?.message?.content?.trim() || "";
     const parsedPlan: ItineraryPlan = parseItineraryTemplateOutput(outputText || template, {
       startAt,

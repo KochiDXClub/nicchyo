@@ -2,7 +2,7 @@ import type { MetadataRoute } from "next";
 import { formatShopIdToCode } from "@/lib/shops/route";
 import { SITE_URL } from "@/lib/constants";
 import { ACTIVITIES } from "@/app/data/activities";
-import { fetchPublicShops } from "@/app/(public)/map/services/shopCache";
+import { fetchPublicShopProfiles } from "@/app/(public)/map/services/shopCache";
 import {
   isLinkVisible,
 } from "@/lib/pageVisibility";
@@ -14,12 +14,13 @@ import { fetchEffectivePageVisibility } from "@/lib/pageVisibility/server";
 
 // 静的ページ一覧
 // lastModified は載せない: 毎回「今」を入れると更新日として信用されなくなるため。
-// /news は /calendar へ、/search は /map へ恒久リダイレクトしているので載せない（リダイレクト先を載せる）
+// /search は /map へ恒久リダイレクトしているので載せない（リダイレクト先を載せる）
 const STATIC_PAGES: MetadataRoute.Sitemap = [
   { url: `${SITE_URL}/`, changeFrequency: "monthly", priority: 1.0 },
   { url: `${SITE_URL}/map`, changeFrequency: "daily", priority: 1.0 },
   { url: `${SITE_URL}/calendar`, changeFrequency: "weekly", priority: 0.7 },
   { url: `${SITE_URL}/consult`, changeFrequency: "weekly", priority: 0.7 },
+  { url: `${SITE_URL}/news`, changeFrequency: "weekly", priority: 0.4 },
   { url: `${SITE_URL}/story`, changeFrequency: "weekly", priority: 0.6 },
   { url: `${SITE_URL}/about`, changeFrequency: "monthly", priority: 0.5 },
   { url: `${SITE_URL}/faq`, changeFrequency: "monthly", priority: 0.5 },
@@ -34,10 +35,10 @@ const STATIC_PAGES: MetadataRoute.Sitemap = [
   { url: `${SITE_URL}/privacy`, changeFrequency: "yearly", priority: 0.3 },
 ];
 
-/** 店舗ページ（/shops/NNN）に載せる店番。/map・店舗詳細と同じ公開店舗の基準（fetchPublicShops）に揃える */
+/** 出店予定の有無にかかわらず、公開中の店舗プロフィールを掲載する。 */
 async function fetchActiveShopNumbers(): Promise<number[]> {
   try {
-    const shops = await fetchPublicShops();
+    const shops = await fetchPublicShopProfiles();
     return shops.map((shop) => shop.id).filter((id) => formatShopIdToCode(id) !== null);
   } catch {
     return [];

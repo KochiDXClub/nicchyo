@@ -542,6 +542,7 @@ export type Database = {
       site_announcements: {
         Row: {
           body: string
+          body_en: string | null
           created_at: string
           created_by: string | null
           ends_at: string | null
@@ -550,10 +551,13 @@ export type Database = {
           published: boolean
           starts_at: string
           title: string
+          title_en: string | null
+          translation_status: string | null
           updated_at: string
         }
         Insert: {
           body: string
+          body_en?: string | null
           created_at?: string
           created_by?: string | null
           ends_at?: string | null
@@ -562,10 +566,13 @@ export type Database = {
           published?: boolean
           starts_at?: string
           title: string
+          title_en?: string | null
+          translation_status?: string | null
           updated_at?: string
         }
         Update: {
           body?: string
+          body_en?: string | null
           created_at?: string
           created_by?: string | null
           ends_at?: string | null
@@ -574,6 +581,8 @@ export type Database = {
           published?: boolean
           starts_at?: string
           title?: string
+          title_en?: string | null
+          translation_status?: string | null
           updated_at?: string
         }
         Relationships: []

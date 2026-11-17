@@ -51,11 +51,11 @@ export function localizePath(pathname: string, locale: Locale): string {
 
 /** 店舗一覧 API の URL。ロケールごとに内容が変わるので、CDN のキャッシュが混ざらないよう URL で分ける */
 export function shopsApiUrl(locale: Locale): string {
-  return locale === DEFAULT_LOCALE ? "/api/shops" : `/api/shops?locale=${locale}`;
+  return locale === DEFAULT_LOCALE ? "/api/shops?v=2" : `/api/shops?v=2&locale=${locale}`;
 }
 
 /** 多言語化の対象外のパス（管理・出店者・API・トークン付きの QR／招待リンクなど）。ロケールのプレフィックスを付けない */
-const UNLOCALIZED_PREFIXES = ["/api", "/admin", "/moderator", "/city", "/vendor", "/my-shop", "/oauth", "/maintenance", "/claim", "/join"];
+const UNLOCALIZED_PREFIXES = ["/api", "/auth", "/admin", "/moderator", "/city", "/vendor", "/my-shop", "/oauth", "/maintenance", "/claim", "/join"];
 
 export function isLocalizablePath(pathname: string): boolean {
   return !UNLOCALIZED_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`));

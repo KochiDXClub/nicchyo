@@ -1,4 +1,5 @@
 import { DEFAULT_LOCALE, type Locale } from "@/lib/i18n/config";
+import { todayJstString } from "@/lib/time/jstDate";
 import type { ConsultCharacter, ConsultCharacterId } from "@/app/(public)/consult/data/consultCharacters";
 import type {
   ConsultAskResponse,
@@ -123,7 +124,8 @@ export function isSeasonalQuestion(normalized: string) {
 }
 
 export function getCurrentSeasonInfo(date = new Date()) {
-  const month = date.getMonth() + 1;
+  // サーバーが UTC でも、JST の月初 9 時前が前月扱いにならないよう JST の月で判定する
+  const month = Number(todayJstString(date).slice(5, 7));
   if (month >= 3 && month <= 5) {
     return { seasonId: 0, seasonName: "春ー夏" };
   }
@@ -137,7 +139,8 @@ export function getCurrentSeasonInfo(date = new Date()) {
 }
 
 export function isUnsupportedQuestion(normalized: string) {
-  return /違法|犯罪|爆弾|殺|死ね|個人情報|住所を教え|電話番号|パスワード|ハッキング|詐欺/.test(
+  // 「殺菌」「お店の電話番号」のような普通の質問を断らないよう、「殺」「電話番号」は具体的な言い回しに絞る
+  return /違法|犯罪|爆弾|殺す|殺し|殺害|殺人|死ね|個人情報|住所を教え|(個人|他人)の電話番号|パスワード|ハッキング|詐欺/.test(
     normalized
   );
 }

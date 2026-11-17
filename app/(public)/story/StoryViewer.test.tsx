@@ -297,6 +297,15 @@ describe("StoryViewer の「詳しく」", () => {
     );
   });
 
+  it("固定店舗 ID の近況からは、出店しない週も店舗情報へ移動できる", () => {
+    const story = makeStory({ vendor: { id: "v1", shop_name: "八百屋", shop_image_url: null, store_number: 1001 } });
+    render(<StoryViewer stories={[story]} initialIndex={0} onClose={vi.fn()} />);
+    expect(screen.getByRole("link", { name: "八百屋の店舗情報を見る" })).toHaveAttribute("href", "/shops/1001");
+    fireEvent.click(screen.getByRole("button", { name: /詳しく/ }));
+    const sheet = screen.getByRole("dialog", { name: "八百屋の詳しい情報" });
+    expect(within(sheet).getByRole("link", { name: /店舗情報を見る/ })).toHaveAttribute("href", "/shops/1001");
+  });
+
   it("開くとシートへフォーカスが移り、閉じると「詳しく」ボタンへ戻る", () => {
     render(<StoryViewer stories={[makeStory({ id: "a", body: "説明" })]} initialIndex={0} onClose={vi.fn()} />);
     const detailButton = screen.getByRole("button", { name: /詳しく/ });

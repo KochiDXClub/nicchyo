@@ -1,3 +1,4 @@
+import { isAnalyticsCollectionEnabled } from "@/lib/analytics/collectionSettings.server";
 import { NextResponse } from "next/server";
 import { createClient as createServiceClient } from "@supabase/supabase-js";
 import type { Database, Json } from "@/types/database.types";
@@ -56,6 +57,8 @@ export async function POST(request: Request) {
       windowMs: 10 * 60 * 1000,
     });
     if (rateLimited) return rateLimited;
+
+  if (!(await isAnalyticsCollectionEnabled("guideEvents"))) return NextResponse.json({ ok: true, skipped: true });
 
     const body = (await request.json()) as Body | null;
     if (!body || !EVENT_TYPES.includes(body.event_type as GuideEventType)) {

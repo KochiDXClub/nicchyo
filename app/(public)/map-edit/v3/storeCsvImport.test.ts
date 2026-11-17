@@ -195,6 +195,13 @@ describe("planStoreImport", () => {
     expect(result.next!.vendors.map((v) => v.id)).toContain("v-dummy");
   });
 
+  it("CSVの置換では名前付きの出店場所を削除しない", () => {
+    const shop: EditableShop = { locationId: "loc", id: 9, position: 9, name: "未設定店舗", lat: 0, lng: 0, placeName: "一丁目 南 2" };
+    const result = plan(csv(["1,,一丁目,北,,,"]), { shops: [shop], replace: true });
+    expect(result.next).toBeNull();
+    expect(result.errors.some((item) => item.message.includes("一丁目 南 2"))).toBe(true);
+  });
+
   describe("削除する区画の出店者も削除", () => {
     const dummyShop: EditableShop = { locationId: "dummy", id: 1, position: 1, name: "仮の店", lat: 0, lng: 0, vendorId: "v-dummy" };
     const dummyVendor: EditableVendor = { id: "v-dummy", name: "仮の店", categoryId: null, strength: "", mainProducts: [] };

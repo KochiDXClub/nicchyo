@@ -1,3 +1,4 @@
+import { isAnalyticsCollectionEnabled } from "@/lib/analytics/collectionSettings.server";
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { z } from "zod";
@@ -29,7 +30,9 @@ export async function POST(request: Request) {
   });
   if (rateLimited) return rateLimited;
 
-  const parsed = FeedbackBodySchema.safeParse(await request.json());
+  if (!(await isAnalyticsCollectionEnabled("consultFeedback"))) return NextResponse.json({ ok: true, skipped: true });
+
+  const parsed = FeedbackBodySchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {
     return NextResponse.json({ message: "Invalid request body" }, { status: 400 });
   }

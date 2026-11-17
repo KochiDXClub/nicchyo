@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
+import { createAdminClient } from "@/lib/supabase/adminClient";
+import { attachSharedMarketPlaces, attachFieldObservations, findDuplicatePosition, findDuplicateOfficialNumber } from "@/lib/admin/marketPlaces.server";
 import { cookies } from "next/headers";
 import { createClient as createServerClient } from "@/utils/supabase/server";
 import { fetchLandmarksFromDb } from "@/app/(public)/map/services/landmarksDb";
@@ -61,7 +63,6 @@ function computeShopsAfterRequest(
 
 function validateShopAssignments(shops: EditableShop[]) {
   const vendorByPosition = new Map<number, string>();
-  const positionByVendor = new Map<string, number>();
 
   for (const shop of shops) {
     const vendorId = shop.vendorId?.trim();
@@ -73,11 +74,7 @@ function validateShopAssignments(shops: EditableShop[]) {
     }
     vendorByPosition.set(shop.position, vendorId);
 
-    const existingPosition = positionByVendor.get(vendorId);
-    if (existingPosition != null && existingPosition !== shop.position) {
-      return "同じ店舗を複数の店番に配置できません";
-    }
-    positionByVendor.set(vendorId, shop.position);
+    // それぞれ異なる日の配置履歴かもしれない。同じ店舗が複数の場所を持つこと自体は問題ない。
   }
 
   return null;
@@ -146,27 +143,6 @@ type VendorRowBeforeSave = {
   main_products?: string[] | null;
 };
 
-/** 保存後の区画で、店番が重なっていないか */
-function findDuplicatePosition(shops: EditableShop[]): number | null {
-  const seen = new Set<number>();
-  for (const shop of shops) {
-    if (seen.has(shop.position)) return shop.position;
-    seen.add(shop.position);
-  }
-  return null;
-}
-
-/** 保存後の区画で、住所録の番号（本番号＋枝番）が重なっていないか */
-function findDuplicateOfficialNumber(shops: EditableShop[]): string | null {
-  const seen = new Set<string>();
-  for (const shop of shops) {
-    if (shop.officialNumber == null) continue;
-    const key = `${shop.officialNumber}-${shop.branchNumber ?? 0}`;
-    if (seen.has(key)) return shop.branchNumber != null ? `${shop.officialNumber}-${shop.branchNumber}` : String(shop.officialNumber);
-    seen.add(key);
-  }
-  return null;
-}
 
 export async function GET() {
   try {
@@ -188,14 +164,24 @@ export async function GET() {
       loadChomeSettings(supabase),
     ]);
 
+    const adminClient = createAdminClient();
+    if (!adminClient) return NextResponse.json({ error: "管理者のデータベース接続が設定されていません" }, { status: 503 });
+
+    let fieldObservationsUnavailable = false;
+    const observedVendors = await attachFieldObservations(adminClient, vendors).catch((error: unknown) => {
+      fieldObservationsUnavailable = true;
+      console.error("[admin/map-layout] 現場位置の取得に失敗しました", error);
+      return vendors;
+    });
     return NextResponse.json({
+      fieldObservationsUnavailable,
       // false のあいだ（マイグレーション前）は、画面は開けるが保存と移行処理はできない
       schemaReady,
-      shops: editableShops,
+      shops: await attachSharedMarketPlaces(adminClient, editableShops),
       landmarks,
       route: mapRoute,
       roads,
-      vendors,
+      vendors: observedVendors,
       categories,
       mapSettingsLimits,
       // 丁目の境目と区間（マイグレーション前は空）。画面が区画の丁目を自動判定するのに使う
@@ -258,6 +244,9 @@ export async function PUT(request: NextRequest) {
     }
 
     const vendorsToWrite = body.vendors?.upsert ?? [];
+    if (vendorsToWrite.length > 0 || (body.vendors?.deletedIds?.length ?? 0) > 0) {
+      return NextResponse.json({ error: "店舗情報はマップ編集では変更できません。現場登録をご利用ください。" }, { status: 409 });
+    }
     // 更新する既存の出店者の、保存前の値（監査ログに残す）
     let vendorRowsBeforeSave: VendorRowBeforeSave[] = [];
     if (vendorsToWrite.length > 0) {
@@ -561,6 +550,13 @@ export async function PUT(request: NextRequest) {
     });
 
     if (saveError) {
+      if (saveError.code === "23505" && saveError.message.includes("market_locations_official_number_uidx")) return NextResponse.json({ error: "同じ住所の場所が別の画面で登録されました。再読み込みして確認してください。" }, { status: 409 });
+      if (saveError.message.includes("market_place_has_assignment_history")) return NextResponse.json({ error: "出店履歴のある場所は削除できません。履歴を保護するため保存を中止しました。" }, { status: 409 });
+      if (saveError.message.includes("market_place_memberships_location_id_fkey") || saveError.message.includes("market_place_schedule_overrides_location_id_fkey")) return NextResponse.json({ error: "店舗や予定が登録された場所は削除できません。" }, { status: 409 });
+      if (saveError.message.includes("map_assignment_edit_not_supported") || saveError.message.includes("map_vendor_edit_not_supported")) return NextResponse.json({ error: "店舗情報や出店配置はマップ編集では変更できません。画面を再読み込みしてください。" }, { status: 409 });
+      if (saveError.message.includes("vendor_market_place_unregistered")) return NextResponse.json({ error: "先に現場登録でこの店舗の出店場所を設定してください。" }, { status: 409 });
+      if (saveError.message.includes("vendor_market_place_mismatch")) return NextResponse.json({ error: "出店場所が登録されている店舗は、別の区画には配置できません。現場登録で出店場所を確認してください。" }, { status: 409 });
+      if (saveError.message.includes("vendors_market_place_id_fkey") || saveError.message.includes("market_place_has_vendors")) return NextResponse.json({ error: "名前付きの出店場所は削除できません。出店場所と公開配置を確認してください。" }, { status: 409 });
       console.error("[admin/map-layout] save_map_layout failed:", saveError.message);
       return NextResponse.json({ error: "Failed to save map layout" }, { status: 500 });
     }

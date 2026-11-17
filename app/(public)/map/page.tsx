@@ -1,4 +1,4 @@
-﻿import { Metadata } from 'next';
+import { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import { Suspense } from 'react';
 import { cookies } from 'next/headers';
@@ -6,7 +6,9 @@ import { createClient } from '@/utils/supabase/server';
 import MapPageClient from './MapPageClient';
 import MapLoadingOverlay from '../../components/MapLoadingOverlay';
 import type { Shop } from './data/shops';
-import { fetchPublicShops } from './services/shopCache';
+import { fetchPublicShopData } from './services/shopCache';
+import type { ShopProfile } from './types/shopData';
+import { readPublicLegacyIdentities } from '@/lib/shops/publicIdentity.server';
 import { fetchLandmarksFromDb } from './services/landmarksDb';
 import type { Landmark } from './types/landmark';
 import { withOptimizedLandmarkImage } from './utils/landmarkImages';
@@ -44,6 +46,7 @@ export default async function MapPage() {
   const mapViewSettingsPromise = fetchMapViewSettings();
 
   let shops: Shop[] = [];
+  let profiles: ShopProfile[] = [];
   let landmarks: Landmark[] = [];
   let mapRoute: MapRoute = getFallbackMapRoute();
 
@@ -62,13 +65,15 @@ export default async function MapPage() {
       // 1つの取得が失敗しても他の取得結果を巻き込まないよう、allSettled で独立に扱う
       const [shopsResult, landmarksResult, mapRouteResult] = await Promise.allSettled([
         // 店舗は全員共通のキャッシュから読む（ログイン状態に関係なく同じ内容）
-        fetchPublicShops(locale),
+        fetchPublicShopData(locale),
         fetchLandmarksFromDb(supabase),
         fetchMapRouteFromDb(supabase),
       ]);
 
       if (shopsResult.status === "fulfilled") {
-        shops = shopsResult.value;
+        shops = shopsResult.value.shops;
+        // 座標のある店舗は shops に含まれるため、重複して転送しない。
+        profiles = shopsResult.value.profiles.filter((profile) => profile.hasMapLocation === false);
       } else {
         console.warn("[MapPage] 店舗データの取得に失敗しました:", shopsResult.reason);
       }
@@ -90,9 +95,10 @@ export default async function MapPage() {
     }
   }
 
-  const [featureFlags, mapViewSettings] = await Promise.all([
+  const [featureFlags, mapViewSettings, legacyIdentities] = await Promise.all([
     featureFlagsPromise,
     mapViewSettingsPromise,
+    readPublicLegacyIdentities().catch(() => ({ enabled: true, aliases: {} })),
   ]);
 
   return (
@@ -105,6 +111,8 @@ export default async function MapPage() {
       <Suspense fallback={<MapLoadingOverlay minStage="page" />}>
         <MapPageClient
         shops={shops}
+        profiles={profiles}
+        legacyIdentities={legacyIdentities}
         landmarks={landmarks}
         mapRoute={mapRoute}
         featureFlags={featureFlags}

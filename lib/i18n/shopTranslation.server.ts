@@ -4,7 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAnonClient } from "@/lib/supabase/anonClient";
 import { createAdminClient } from "@/lib/supabase/adminClient";
 import type { DatabaseWithExtensions } from "@/types/database.extensions";
-import type { Shop } from "@/app/(public)/map/types/shopData";
+import type { Shop, ShopProfile } from "@/app/(public)/map/types/shopData";
 import { requestChatCompletion } from "@/lib/ai/openaiFetch";
 import { resolveAiModelFor } from "@/lib/ai/modelStore.server";
 import { parseFirstJsonObject } from "@/lib/ai/structuredOutput";
@@ -34,6 +34,11 @@ const SHOP_TRANSLATIONS_REVALIDATE_SECONDS = 15 * 60;
  * 同じ呼び出しの別の店の訳に影響できないようにする。
  */
 const BATCH_SIZE = 1;
+/**
+ * 1回の訳を待つ上限。運営の「訳を見る」（preview の maxDuration 60 秒）より短くして、
+ * 詰まったら「もう一度お試しください」を返す。同期では、その店を訳せなかった数に入れて次の店へ進む
+ */
+const SHOP_TRANSLATION_TIMEOUT_MS = 30_000;
 
 type TranslationRow = DatabaseWithExtensions["public"]["Tables"]["shop_translations"]["Row"];
 
@@ -94,7 +99,7 @@ const getCachedCategoryNamesEn = unstable_cache(
 );
 
 /** 店舗一覧に、そのロケールの訳を重ねる。日本語・訳が無い店はそのまま */
-export async function applyShopTranslations(shops: Shop[], locale: Locale): Promise<Shop[]> {
+export async function applyShopTranslations<T extends ShopProfile>(shops: T[], locale: Locale): Promise<T[]> {
   if (locale === DEFAULT_LOCALE || shops.length === 0) return shops;
   const [translations, categoryNamesEn] = await Promise.all([
     getCachedTranslations(locale),
@@ -138,7 +143,7 @@ async function requestTranslations(
     maxOutputTokens: 3000,
     temperature: 0.2,
     responseFormat: TRANSLATION_RESPONSE_FORMAT,
-  });
+  }, AbortSignal.timeout(SHOP_TRANSLATION_TIMEOUT_MS));
   if (!response.ok) throw new Error(`chat completion failed (${response.status})`);
   const payload = (await response.json()) as { choices?: { message?: { content?: string } }[] };
   const content = payload.choices?.[0]?.message?.content ?? "";
@@ -207,7 +212,7 @@ export type SyncShopTranslationsResult = {
  * - `limit` までで止める（1回の実行時間とAIの費用を抑える）。残りは次の実行で処理される
  */
 export async function syncShopTranslations(params: {
-  shops: Shop[];
+  shops: ShopProfile[];
   locale: Locale;
   limit: number;
 }): Promise<SyncShopTranslationsResult> {

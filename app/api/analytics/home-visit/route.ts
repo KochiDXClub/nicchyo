@@ -1,3 +1,4 @@
+import { isAnalyticsCollectionEnabled } from "@/lib/analytics/collectionSettings.server";
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { createClient } from "@supabase/supabase-js";
@@ -24,6 +25,8 @@ export async function POST(request: Request) {
     windowMs: 5 * 60 * 1000,
   });
   if (rateLimited) return rateLimited;
+
+  if (!(await isAnalyticsCollectionEnabled("pageVisits"))) return NextResponse.json({ ok: true, skipped: true });
 
   const cookieStore = await cookies();
   let visitorKey = cookieStore.get(VISITOR_COOKIE_NAME)?.value ?? "";

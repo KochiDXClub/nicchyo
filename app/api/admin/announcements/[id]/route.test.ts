@@ -67,6 +67,19 @@ describe("PATCH /api/admin/announcements/[id]", () => {
     );
   });
 
+  it("英語版が送られない更新では、保存済みの英語版の列を書き換えない。送られたら書く", async () => {
+    await patch({ title: "雨天中止", body: "中止です" });
+    expect(updateCalls[0].values).not.toHaveProperty("title_en");
+    expect(updateCalls[0].values).not.toHaveProperty("body_en");
+    expect(updateCalls[0].values).not.toHaveProperty("translation_status");
+
+    await patch({ title: "雨天中止", body: "中止です", titleEn: "Cancelled", bodyEn: "Cancelled due to rain" });
+    expect(updateCalls[1].values).toMatchObject({ title_en: "Cancelled", body_en: "Cancelled due to rain", translation_status: "auto" });
+
+    await patch({ title: "雨天中止", body: "中止です", titleEn: "", bodyEn: "" });
+    expect(updateCalls[2].values).toMatchObject({ title_en: null, body_en: null, translation_status: null });
+  });
+
   it("入力が不正なら 400、存在しなければ 404", async () => {
     expect((await patch({ title: "", body: "b" })).status).toBe(400);
     expect(updateCalls).toHaveLength(0);

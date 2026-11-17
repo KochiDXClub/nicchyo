@@ -1,3 +1,4 @@
+import { isAnalyticsCollectionEnabled } from "@/lib/analytics/collectionSettings.server";
 import { NextResponse } from "next/server";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/database.types";
@@ -101,9 +102,16 @@ const ConsultHistoryArraySchema = z.array(ConsultHistoryEntrySchema).max(50);
 /**
  * OpenAI を待つ上限。クライアント（ConsultClient の 60 秒）より短くして、
  * 先にサーバーが「失敗」を返せるようにする。signal は本文の受信にも効くので、
- * ストリーミング中に止まった場合も同じ失敗として返る
+ * ストリーミング中に止まった場合も同じ失敗として返る。
+ *
+ * 回答の前に、検索用の翻訳（SEARCH_TRANSLATION_TIMEOUT_MS、日本語以外の画面のみ）と
+ * 埋め込み（ASK_EMBEDDING_TIMEOUT_MS）を順に待つ。3つの合計がクライアントの
+ * 60 秒より短くなるように決める（5 + 8 + 45 = 58 秒）
  */
-export const ASK_UPSTREAM_TIMEOUT_MS = 50_000;
+export const ASK_UPSTREAM_TIMEOUT_MS = 45_000;
+
+/** 埋め込みを待つ上限。普段は1秒もかからないので、詰まったら回答まで進まず失敗を返す */
+export const ASK_EMBEDDING_TIMEOUT_MS = 8_000;
 
 const AskJsonBodySchema = z.object({
   text: AskTextSchema.optional(),
@@ -227,7 +235,7 @@ async function parseRequest(request: Request): Promise<ParsedRequest> {
       }
     }
   } else {
-    const parsed = AskJsonBodySchema.safeParse(await request.json());
+    const parsed = AskJsonBodySchema.safeParse(await request.json().catch(() => null));
     if (!parsed.success) {
       throw badRequest(parsed.error.issues[0].message);
     }
@@ -354,8 +362,8 @@ async function finalizeConsultResponse(options: {
   // 相談内容そのもの（質問文）と IP アドレスは保存しない。読み手が無く、
   // 保存すると来訪者の相談内容と IP が対で溜まるだけになるため（#629）。
   // 解析に使うのは意図分類・キーワード・場所種別だけ。
-  if (internal) {
-    // 管理画面の対話テスト。来訪者の相談ではないので集計に混ぜない
+  if (internal || !(await isAnalyticsCollectionEnabled("consultLogs"))) {
+    // 管理画面の対話テスト・記録停止中は集計に混ぜない
   } else if (logVendorIds.length > 0) {
     const logs = logVendorIds.map((vendorId) => ({
       store_id: vendorId,
@@ -410,6 +418,26 @@ async function finalizeConsultResponse(options: {
     retryable: false,
     consultId,
   };
+}
+
+const TURN_TRAILING_MARKERS = ["|FOLLOW_UP|", "|SHOP_IDS|"];
+
+/**
+ * 1人目の発話として流してよい本文だけを返す。
+ * モデルが TURN 行と同じ行に `|FOLLOW_UP|…` や `|SHOP_IDS|…` を続けても、吹き出しに出さない。
+ * まだ届いていない区切りの途中（`|FOLL` など）も、確定するまで見せない（出したあとは取り消せないため）。
+ */
+function visibleFirstTurnText(text: string): string {
+  const markerAt = text.search(/\|(?:FOLLOW_UP|SHOP_IDS)\|/);
+  if (markerAt >= 0) return text.slice(0, markerAt);
+  const longest = Math.max(...TURN_TRAILING_MARKERS.map((marker) => marker.length)) - 1;
+  for (let len = Math.min(text.length, longest); len > 0; len--) {
+    const tail = text.slice(-len);
+    if (TURN_TRAILING_MARKERS.some((marker) => marker.startsWith(tail))) {
+      return text.slice(0, -len);
+    }
+  }
+  return text;
 }
 
 export async function createStreamingConsultResponse(options: {
@@ -559,8 +587,8 @@ export async function createStreamingConsultResponse(options: {
               (hasName ? parts[2].trim() : "") || matchedCharacter.name,
           });
         }
-        const currentText = (hasName ? parts.slice(3) : parts.slice(2)).join(
-          "|",
+        const currentText = visibleFirstTurnText(
+          (hasName ? parts.slice(3) : parts.slice(2)).join("|"),
         );
         if (currentText.length <= firstTurnTextLength) return;
         enqueue({
@@ -807,10 +835,19 @@ export async function handleConsultAsk(
       targetShop = await fetchShopByName(supabase, targetShopName);
     }
 
-    const embeddingResponse = await requestEmbeddings(openaiKey, searchQuestion);
-    if (!embeddingResponse.ok) {
-      const detail = await readOpenAiError(embeddingResponse);
-      console.error(`[grandma/ask] embeddings failed: ${detail.summary}`);
+    // タイムアウト・通信断は例外で来る。外側の catch に任せると memorySummary が
+    // 返らないので、失敗レスポンスと同じ返し方にそろえる
+    const embeddingResponse = await requestEmbeddings(
+      openaiKey,
+      searchQuestion,
+      AbortSignal.timeout(ASK_EMBEDDING_TIMEOUT_MS),
+    ).catch((error: unknown) => error);
+    if (!(embeddingResponse instanceof Response) || !embeddingResponse.ok) {
+      const summary =
+        embeddingResponse instanceof Response
+          ? (await readOpenAiError(embeddingResponse)).summary
+          : String(embeddingResponse);
+      console.error(`[grandma/ask] embeddings failed: ${summary}`);
       return NextResponse.json(
         {
           ...buildErrorResponse(
@@ -824,7 +861,7 @@ export async function handleConsultAsk(
               memorySummary,
             },
           ),
-          ...(internal ? { debugError: detail.summary } : {}),
+          ...(internal ? { debugError: summary } : {}),
         },
         { status: 500 },
       );

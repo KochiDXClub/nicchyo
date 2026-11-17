@@ -1,8 +1,7 @@
 import { canShowOutingSupport } from "./_landing/landingNavigation.server";
 import type { Metadata } from "next";
 import { PageShell } from "@/components/ui";
-import { siteTextFor } from "@/lib/siteCopy";
-import { getLocale } from "@/lib/i18n/server";
+import { getLocale, getSiteText } from "@/lib/i18n/server";
 import { SUNDAY_MARKET_JSON_LD } from "@/lib/seo/sundayMarketJsonLd";
 import { safeJsonLd } from "@/lib/utils/jsonLd";
 import { cookies } from "next/headers";
@@ -21,13 +20,13 @@ import { buildLandingSundays } from "./_landing/upcomingSundays";
 import { pickLandingShopPhotos } from "./_landing/pickLandingShops";
 
 export async function generateMetadata(): Promise<Metadata> {
-  const locale = await getLocale();
-  const title = siteTextFor("landing.meta.title", locale);
-  // 日曜市の数字（約1.3km・およそ300の店）はマップの案内と同じシートの文言から作る（太字の印は外す）
-  const lead = siteTextFor("mapIntro.lead", locale).replaceAll("**", "");
+  const [locale, s] = await Promise.all([getLocale(), getSiteText()]);
+  const title = s("landing.meta.title");
+  // 日曜市の数字（約1.3km・およそ300の店）はマップの案内と同じ文言から作る（太字の印は外す）
+  const lead = s("mapIntro.lead").replaceAll("**", "");
   // 英語では文と文の間に空白が要る（日本語はそのままつなげる）
-  const description = `${lead}${locale === "en" ? " " : ""}${siteTextFor("landing.meta.description", locale)}`;
-  const ogImage = { url: "/og-default.png", width: 1200, height: 630, alt: siteTextFor("landing.meta.ogImageAlt", locale) };
+  const description = `${lead}${locale === "en" ? " " : ""}${s("landing.meta.description")}`;
+  const ogImage = { url: "/og-default.png", width: 1200, height: 630, alt: s("landing.meta.ogImageAlt") };
 
   return {
     // トップはサイト名を先頭に出す（各ページの「%s | nicchyo」ではなく、検索結果でいちばん目に入る形）

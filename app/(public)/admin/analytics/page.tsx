@@ -6,6 +6,7 @@ import { AdminLayout, AdminPageHeader } from "@/components/admin";
 import { getRole, isAdmin } from "@/lib/auth/permissions";
 import { addDaysToDateString, monthStartJstString, todayJstString } from "@/lib/time/jstDate";
 import AnalyticsExportButton from "./AnalyticsExportButton";
+import AnalyticsCollectionSettings from "./AnalyticsCollectionSettings";
 import { TrafficOverview } from "@/components/admin/TrafficOverview";
 
 export const dynamic = "force-dynamic";
@@ -246,6 +247,7 @@ export default async function AdminAnalyticsPage() {
 
   return (
     <AdminLayout>
+      <AnalyticsCollectionSettings />
       <AdminPageHeader
         eyebrow="Analytics"
         title="アクセス分析"

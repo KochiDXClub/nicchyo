@@ -2,7 +2,6 @@
 //
 //   SITE_COPY_SHEET_ID=<シートID> node scripts/site-copy/sync.mjs
 //   node scripts/site-copy/sync.mjs --export <dir>   # 今の JSON をシート貼り付け用の CSV に書き出す
-//   node scripts/site-copy/sync.mjs --layout         # sheet-layout.json（シートの「サイト管理」メニューが読む）を作り直す
 //
 // 検証に1件でも引っかかったら何も書き込まずに終了コード 1 で終わる。
 import fs from "fs";
@@ -254,16 +253,6 @@ export function buildSheetRows(texts, faq) {
   return tabs;
 }
 
-/**
- * key ごとの、シート上の置き場所（タブ・場所・項目）。texts.json の並び。
- * シートの「サイト管理 → コードの文言をシートに足す」（apps-script/Code.gs）が develop から読み、
- * シートに無い ID の行を足すときに使う。文言そのものは texts.json から読む（ここには持たない）
- * @returns {{ key: string, tab: string, place: string, item: string }[]}
- */
-export function buildSheetLayout(texts) {
-  return Object.keys(texts).map((key) => ({ key, ...describeKey(key) }));
-}
-
 export function exportCsv(dir) {
   fs.mkdirSync(dir, { recursive: true });
   const tabs = buildSheetRows(readJson("texts.json"), readJson("faq.json"));
@@ -275,11 +264,6 @@ export function exportCsv(dir) {
 
 async function main() {
   const args = process.argv.slice(2);
-  if (args.includes("--layout")) {
-    const changed = writeJson("sheet-layout.json", buildSheetLayout(readJson("texts.json")));
-    console.log(changed ? "sheet-layout.json を更新しました" : "sheet-layout.json は最新です");
-    return;
-  }
   const exportAt = args.indexOf("--export");
   if (exportAt >= 0) {
     exportCsv(path.resolve(args[exportAt + 1] ?? "site-copy-export"));
@@ -309,11 +293,7 @@ async function main() {
     return;
   }
 
-  const changed = [
-    writeJson("texts.json", texts) && "texts.json",
-    writeJson("faq.json", faq) && "faq.json",
-    writeJson("sheet-layout.json", buildSheetLayout(texts)) && "sheet-layout.json",
-  ].filter(Boolean);
+  const changed = [writeJson("texts.json", texts) && "texts.json", writeJson("faq.json", faq) && "faq.json"].filter(Boolean);
   console.log(changed.length > 0 ? `更新: ${changed.join(", ")}` : "変更はありません");
 }
 
