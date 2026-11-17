@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 let result: { data: unknown; error: unknown };
 let results: { data: unknown; error: unknown }[] = [];
 const selectCalls: string[] = [];
-const calls: { eq: [string, unknown][]; lte: [string, unknown][] } = { eq: [], lte: [] };
+const calls: { eq: [string, unknown][]; lte: [string, unknown][]; or: string[]; order: string[] } = { eq: [], lte: [], or: [], order: [] };
 
 let hasClient = true;
 vi.mock("@/lib/supabase/adminClient", () => ({
@@ -16,7 +16,8 @@ vi.mock("@/lib/supabase/adminClient", () => ({
         select: (columns: string) => (selectCalls.push(columns), chain),
         eq: (c: string, v: unknown) => (calls.eq.push([c, v]), chain),
         lte: (c: string, v: unknown) => (calls.lte.push([c, v]), chain),
-        order: () => chain,
+        or: (filter: string) => (calls.or.push(filter), chain),
+        order: (column: string) => (calls.order.push(column), chain),
         limit: async () => results.shift() ?? result,
       };
       return chain;
@@ -43,6 +44,8 @@ const row = (o: Record<string, unknown>) => ({
 beforeEach(() => {
   calls.eq.length = 0;
   calls.lte.length = 0;
+  calls.or.length = 0;
+  calls.order.length = 0;
   hasClient = true;
   results = [];
   result = { data: [], error: null };
@@ -53,6 +56,8 @@ describe("fetchActiveAnnouncements", () => {
     await fetchActiveAnnouncements(NOW);
     expect(calls.eq).toContainEqual(["published", true]);
     expect(calls.lte).toContainEqual(["starts_at", NOW.toISOString()]);
+    expect(calls.or).toContain(`ends_at.is.null,ends_at.gt.${NOW.toISOString()}`);
+    expect(calls.order).toEqual(["important", "starts_at"]);
   });
 
   it("終了したものを除き、重要を先に・新しい順にして、来訪者に見せる項目だけを返す", async () => {
