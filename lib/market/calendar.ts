@@ -328,8 +328,8 @@ export async function fetchMarketCalendar(
   options: { limit?: number; now?: Date } = {}
 ): Promise<MarketCalendar> {
   const now = options.now ?? new Date();
-  const todayIso = toIsoDate(now);
   const sundayIso = getUpcomingSundayIso(now);
+  const weekStartIso = addDaysToIso(sundayIso, -6);
 
   const [daysResult, eventsResult] = await Promise.all([
     supabase
@@ -345,10 +345,8 @@ export async function fetchMarketCalendar(
         "id, title, description, event_date, end_date, start_time, end_time, location, category, image_url, highlight_dates"
       )
       .eq("is_published", true)
-      // 「今日以降に掛かっている予定」を引く。連続開催は開始日が過去でも
-      // 終了日が未来なら残す（期間の途中で一覧から消えないようにする）。
-      // 当日のイベントはまだ有効なので今日を含める。
-      .or(`end_date.gte.${todayIso},and(end_date.is.null,event_date.gte.${todayIso})`)
+      // 同じ週の日曜に寄せるため、今週の月曜以降に終わる予定を含める。
+      .or(`end_date.gte.${weekStartIso},and(end_date.is.null,event_date.gte.${weekStartIso})`)
       .order("event_date", { ascending: true })
       .limit(options.limit ?? EVENTS_LIMIT),
   ]);
