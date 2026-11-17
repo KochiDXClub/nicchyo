@@ -1,7 +1,5 @@
-"use client";
-
 import * as React from "react";
-import { useEffect, useId, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { cn } from "@/lib/utils/cn";
 
 /**
@@ -46,6 +44,7 @@ export function Combobox({
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [active, setActive] = useState(0);
+  const composing = useRef(false);
 
   const selected = options.find((option) => option.value === value);
   const filtered = useMemo(() => {
@@ -72,6 +71,8 @@ export function Combobox({
   }
 
   function onKeyDown(event: React.KeyboardEvent<HTMLInputElement>) {
+    // 日本語入力の変換中（変換確定の Enter を含む）は、候補の操作として扱わない
+    if (composing.current || event.nativeEvent.isComposing || event.keyCode === 229) return;
     if (event.key === "ArrowDown") {
       event.preventDefault();
       setOpen(true);
@@ -108,7 +109,10 @@ export function Combobox({
         placeholder={open && selected ? selected.label : placeholder}
         value={open ? query : selected?.label ?? ""}
         onFocus={() => { setOpen(true); setActive(0); }}
+        onClick={() => { if (!open) { setOpen(true); setActive(0); } }}
         onBlur={close}
+        onCompositionStart={() => { composing.current = true; }}
+        onCompositionEnd={() => { composing.current = false; }}
         onChange={(event) => { setQuery(event.target.value); setActive(0); setOpen(true); }}
         onKeyDown={onKeyDown}
       />

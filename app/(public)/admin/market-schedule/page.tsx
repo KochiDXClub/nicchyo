@@ -5,7 +5,7 @@ import { AdminLayout, AdminPageHeader } from "@/components/admin";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { ShopPreview } from "@/components/admin/ShopPreview";
 import { SchedulePointPicker } from "./components/SchedulePointPicker";
-import { Combobox } from "@/components/admin/Combobox";
+import { Combobox } from "@/components/ui/combobox";
 import { formatMarketAddress } from "@/lib/market-schedule/address";
 import { todayJstString, addDaysToDateString, nextSundayJstString } from "@/lib/time/jstDate";
 import { sundaysBetween } from "@/lib/market-schedule/calendar";
