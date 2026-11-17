@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
 import texts from "@/content/site-copy/texts.json";
 import faq from "@/content/site-copy/faq.json";
+import sheetLayout from "@/content/site-copy/sheet-layout.json";
 import { FAQ_CATEGORIES as UI_CATEGORIES } from "@/app/(public)/faq/data";
 import { TEXT_TABS } from "./layout.mjs";
-import { buildFaq, buildSheetRows, buildTexts, FAQ_CATEGORIES, parseCsv } from "./sync.mjs";
+import { buildFaq, buildSheetLayout, buildSheetRows, buildTexts, FAQ_CATEGORIES, parseCsv } from "./sync.mjs";
 
 describe("parseCsv", () => {
   it("セル内の改行・カンマ・二重引用符を読める", () => {
@@ -141,6 +142,10 @@ describe("今の content/site-copy", () => {
     const placed = TEXT_TABS.flatMap(({ name }) => tabs[name].slice(1));
     expect(placed).toHaveLength(Object.keys(texts).length);
     expect(placed.filter((row) => row[0] === "その他")).toEqual([]);
+  });
+
+  it("sheet-layout.json が texts.json と layout.mjs から作ったものと一致する（違うなら sync.mjs --layout を実行する）", () => {
+    expect(sheetLayout).toEqual(buildSheetLayout(texts));
   });
 
   it("書き出し → 取り込みで同じ JSON に戻る", () => {
