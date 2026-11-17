@@ -71,3 +71,28 @@ describe("20261113120000_fix_purge_missing_shop_interactions.sql", () => {
     }
   });
 });
+
+describe("20261117100000_purge_product_search_logs.sql", () => {
+  const sql = readFileSync(join(MIGRATIONS, "20261117100000_purge_product_search_logs.sql"), "utf-8");
+  const fixed = readFileSync(join(MIGRATIONS, "20261113120000_fix_purge_missing_shop_interactions.sql"), "utf-8");
+  const SEARCH_LOG_PURGE = "delete from public.product_search_logs where searched_at < now() - interval '90 days';";
+
+  it("前の版（20261113120000）の処理を1つも落とさず、検索ログの 90 日削除だけを足している（#923）", () => {
+    const latest = purgeStatements(sql);
+    const previous = purgeStatements(fixed);
+    for (const statement of previous) expect(latest).toContain(statement);
+    expect(latest).toContain(SEARCH_LOG_PURGE);
+    expect(latest).toHaveLength(previous.length + 1);
+  });
+
+  it("削除済みテーブル shop_interactions を参照しない（#856 を戻さない）", () => {
+    expect(purgeStatements(sql).join("\n")).not.toContain("shop_interactions");
+  });
+
+  it("security definer のまま、anon / authenticated から直接実行できない", () => {
+    expect(sql).toMatch(/security definer\s+set search_path = public/);
+    for (const role of ["public", "anon", "authenticated"]) {
+      expect(sql).toContain(`revoke execute on function public.purge_expired_personal_data() from ${role};`);
+    }
+  });
+});
