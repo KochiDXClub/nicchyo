@@ -34,6 +34,8 @@ export async function fetchActiveAnnouncements(
         .select(columns)
         .eq("published", true)
         .lte("starts_at", now.toISOString())
+        .or(`ends_at.is.null,ends_at.gt.${now.toISOString()}`)
+        .order("important", { ascending: false })
         .order("starts_at", { ascending: false })
         .limit(100);
     let { data, error } = await query(COLUMNS);
