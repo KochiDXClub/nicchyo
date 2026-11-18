@@ -308,6 +308,8 @@ export default function NearbyExplorePanel({
             .slice(-6),
           visitorKey: getOrCreateConsultVisitorKey(),
           stream: false,
+          // 市場全体ではなく、選んだ範囲のお店だけで答えてもらう
+          areaShopIds: areaShops.map((shop) => shop.shopId),
         }),
         signal: controller.signal,
       });

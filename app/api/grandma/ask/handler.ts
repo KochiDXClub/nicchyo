@@ -57,6 +57,7 @@ import {
   fetchShopsByVendorIds,
   fetchShopByStoreNumber,
   fetchShopByName,
+  fetchAreaShops,
 } from "@/lib/grandma/vendorSearch";
 import {
   buildResponseSchema,
@@ -123,6 +124,8 @@ const AskJsonBodySchema = z.object({
   preferredCharacterId: z.string().nullable().optional(),
   visitorKey: z.string().max(128).nullable().optional(),
   stream: z.boolean().optional(),
+  /** 地図の「このへん」で選んだ範囲の店（地図の店 ID）。あれば、その範囲の店だけで答える */
+  areaShopIds: z.array(z.number().int().positive()).max(300).optional(),
 });
 
 /**
@@ -156,6 +159,7 @@ async function parseRequest(request: Request): Promise<ParsedRequest> {
   let preferredCharacterId: ConsultCharacterId | null = null;
   let visitorKey: string | null = null;
   let stream = false;
+  let areaShopIds: number[] | null = null;
 
   if (contentType.includes("multipart/form-data")) {
     const form = await request.formData();
@@ -257,6 +261,7 @@ async function parseRequest(request: Request): Promise<ParsedRequest> {
       visitorKey = vk.length > 0 && vk.length <= 128 ? vk : null;
     }
     stream = payload.stream === true;
+    areaShopIds = payload.areaShopIds ? Array.from(new Set(payload.areaShopIds)) : null;
   }
 
   return {
@@ -270,6 +275,7 @@ async function parseRequest(request: Request): Promise<ParsedRequest> {
     preferredCharacterId,
     visitorKey,
     stream,
+    areaShopIds,
   };
 }
 
@@ -736,6 +742,7 @@ export async function handleConsultAsk(
       preferredCharacterId,
       visitorKey,
       stream,
+      areaShopIds,
     } = parsedReq;
     const question = text || (imageDataUrl ? "画像について教えて" : "");
     if (!question) {
@@ -894,7 +901,8 @@ export async function handleConsultAsk(
       new Set(seasonalProducts.map((row) => row.vendorId)),
     );
 
-    const candidateVendorIds = shopIntent
+    // 「このへん」の相談は、範囲の店を質問に関係なく候補に入れる（範囲のことを聞いているので）
+    const candidateVendorIds = shopIntent || areaShopIds
       ? await fetchCandidateVendorIds(
           supabase,
           keywords,
@@ -906,10 +914,13 @@ export async function handleConsultAsk(
     if (targetShop?.vendorId) {
       candidateVendorIds.unshift(targetShop.vendorId);
     }
-    const candidateShops = await fetchShopsByVendorIds(
-      supabase,
-      Array.from(new Set(candidateVendorIds)).slice(0, 12),
-    );
+    // 範囲が指定されたら、範囲の店だけを候補にする（質問で引けた店を先に、残りは範囲の中心から近い順）
+    const candidateShops = areaShopIds
+      ? await fetchAreaShops(supabase, areaShopIds, candidateVendorIds)
+      : await fetchShopsByVendorIds(
+          supabase,
+          Array.from(new Set(candidateVendorIds)).slice(0, 12),
+        );
     // 質問文は残さない方針（#629）なので、件数と真偽だけを残す。英語で候補が出ない原因の切り分け用
     if (isForeign) {
       console.info("[grandma/ask] search", {
@@ -1018,6 +1029,11 @@ export async function handleConsultAsk(
       buildHistoryContext(history, memorySummary, historyLimit),
       `今回の質問: ${text || "（画像についての相談）"}`,
       `来訪者の居場所: ${describeLocationForPrompt(location)}`,
+      ...(areaShopIds
+        ? [
+            "相談の範囲: 来訪者が地図で選んだ範囲のお店について聞いている。店舗候補はこの範囲のお店だけ。範囲の外のお店は勧めない。合うお店が候補に無ければ、このへんには見当たらんと正直に伝える",
+          ]
+        : []),
       `現在の季節: ${currentSeason.seasonName}`,
       targetShop
         ? `注目中の店舗: id:${targetShop.id} | name:${targetShop.name}`
