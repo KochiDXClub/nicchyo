@@ -387,10 +387,10 @@ export default function NearbyExplorePanel({
                       <button
                         type="button"
                         onClick={() => onSelectShop(entry.shopId)}
-                        className="flex w-full items-center gap-3 rounded-btn px-2 py-2 text-left transition-colors active:bg-nicchyo-base focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 lg:block lg:p-0 lg:transition-transform lg:active:scale-95 lg:active:bg-transparent motion-reduce:lg:active:scale-100"
+                        className="flex w-full items-center gap-4 rounded-btn px-2 py-2.5 text-left transition-colors active:bg-nicchyo-base focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 lg:block lg:p-0 lg:transition-transform lg:active:scale-95 lg:active:bg-transparent motion-reduce:lg:active:scale-100"
                       >
                         <span
-                          className="block h-16 w-16 shrink-0 overflow-hidden rounded-btn border-2 bg-nicchyo-ink/[0.04] lg:aspect-[4/3] lg:h-auto lg:w-full"
+                          className="block h-24 w-28 shrink-0 overflow-hidden rounded-btn border-2 bg-nicchyo-ink/[0.04] lg:aspect-[4/3] lg:h-auto lg:w-full"
                           style={{ borderColor: color }}
                         >
                           {entry.imageUrl && (
@@ -405,21 +405,21 @@ export default function NearbyExplorePanel({
                           )}
                         </span>
                         <span className="min-w-0 flex-1">
-                          <span className="block truncate text-[15px] font-bold leading-tight text-nicchyo-ink lg:mt-1 lg:text-[11px]">
+                          <span className="block line-clamp-2 text-[17px] font-bold leading-snug text-nicchyo-ink lg:mt-1 lg:truncate lg:text-[11px] lg:leading-tight">
                             {entry.name}
                           </span>
-                          <span className="mt-1 flex items-center gap-1.5 truncate text-[12px] text-nicchyo-ink/55 lg:mt-0 lg:text-[10px]">
+                          <span className="mt-1.5 flex items-center gap-1.5 truncate text-[13px] text-nicchyo-ink/55 lg:mt-0 lg:text-[10px]">
                             {/* ジャンルは写真の枠の色と同じ点で示す。PC は写真の枠で足りるので出さない */}
                             {entry.category && (
                               <span className="flex shrink-0 items-center gap-1 lg:hidden">
-                                <span aria-hidden className="h-2 w-2 rounded-chip" style={{ backgroundColor: color }} />
+                                <span aria-hidden className="h-2.5 w-2.5 rounded-chip" style={{ backgroundColor: color }} />
                                 {entry.category}
                               </span>
                             )}
                             {reason && <span className="truncate">{reason}</span>}
                           </span>
                         </span>
-                        <ChevronRight aria-hidden className="h-4 w-4 shrink-0 text-nicchyo-ink/30 lg:hidden" />
+                        <ChevronRight aria-hidden className="h-5 w-5 shrink-0 text-nicchyo-ink/30 lg:hidden" />
                       </button>
                     </li>
                   );
