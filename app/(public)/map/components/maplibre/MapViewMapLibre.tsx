@@ -119,6 +119,17 @@ const ZOOM_BOUNDS = getRecommendedZoomBounds();
  */
 const ZOOM_OFFSET = -1;
 /**
+ * パンの慣性。既定（linearity 0.3 / maxSpeed 1400 / deceleration 2500 / bezier(0,0,0.3,1)）だと
+ * 強いフリックで 1,300px ほど流れて市場の外へ飛び、止まり際は急に止まって見える。
+ * 上限を下げて飛びすぎを抑え、止まり際を長めに減速する easeOutQuart で滑りを目に見せる
+ */
+const DRAG_PAN_INERTIA = {
+  linearity: 0.3,
+  maxSpeed: 1000,
+  deceleration: 2200,
+  easing: (t: number) => 1 - Math.pow(1 - t, 4),
+};
+/**
  * 屋台が本来の大きさ（等倍）になるズーム。LOD（stall / photo / nameplate）の境界と、
  * 開いたとき・店へ寄るときの倍率の基準でもある（市場を歩いて見て回る倍率）。
  */
@@ -586,6 +597,9 @@ function MapViewMapLibre({
     }
     map.touchZoomRotate.enableRotation();
     map.dragRotate.enable();
+    // フリックしたあとの滑り（慣性）。指を離した直後はしっかり流れ、最後はゆっくり止まるようにして
+    // 「投げた」感触を見せる。一方で、強く払うと日曜市の道を一気に飛び越えてしまうので、速さの上限は下げる
+    map.dragPan.enable(DRAG_PAN_INERTIA);
     // MapLibre 標準のズーム・コンパスボタンは出さない（ズームはスライダー、回転は 2 本指操作で行う）
     mapRef.current = map;
 
