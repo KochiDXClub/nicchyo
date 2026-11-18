@@ -4,7 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAnonClient } from "@/lib/supabase/anonClient";
 import { createAdminClient } from "@/lib/supabase/adminClient";
 import type { DatabaseWithExtensions } from "@/types/database.extensions";
-import type { Shop, ShopProfile } from "@/app/(public)/map/types/shopData";
+import type { ShopProfile } from "@/app/(public)/map/types/shopData";
 import { requestChatCompletion } from "@/lib/ai/openaiFetch";
 import { resolveAiModelFor } from "@/lib/ai/modelStore.server";
 import { parseFirstJsonObject } from "@/lib/ai/structuredOutput";
