@@ -34,4 +34,16 @@ describe("ContactForm の入力検証", () => {
     expect(url).toBe("/api/contact");
     expect(JSON.parse(String(init?.body))).toMatchObject({ email: "visitor@example.com", category: "sponsor", message: "協賛について相談したいです。" });
   });
+  it("送信完了後に新しい問い合わせを選ぶと、送信済みの入力が残らない", async () => {
+    const { container } = render(<ContactForm />);
+    fireEvent.change(screen.getByLabelText(/お名前/), { target: { value: "日曜 市子" } });
+    fireEvent.change(screen.getByLabelText(/メールアドレス/), { target: { value: "visitor@example.com" } });
+    fireEvent.change(screen.getByLabelText(/お問い合わせ内容/), { target: { value: "協賛について相談したいです。" } });
+    submit(container);
+    fireEvent.click(await screen.findByRole("button", { name: "新しい問い合わせを送る" }));
+    expect(screen.getByLabelText(/お名前/)).toHaveValue("");
+    expect(screen.getByLabelText(/メールアドレス/)).toHaveValue("");
+    expect(screen.getByLabelText(/お問い合わせ内容/)).toHaveValue("");
+  });
+
 });

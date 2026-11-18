@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { CheckCircle2, Store } from "lucide-react";
+import { NicchyoLogoLink } from "@/components/navigation/NicchyoLogoLink";
 import GoogleSignInButton from "@/components/auth/GoogleSignInButton";
 import { Badge, Button, buttonClass, CenteredLoading, PageContainer, PageShell, PageTitle, Surface } from "@/components/ui";
 import { useAuth } from "@/lib/auth/AuthContext";
@@ -89,6 +90,11 @@ export default function JoinShopFlow({ kind, token }: { kind: JoinKind; token: s
 
   return (
     <PageShell bottomNav={false}>
+      <PageContainer className="pt-safe-top">
+        <div className="pt-2">
+          <NicchyoLogoLink />
+        </div>
+      </PageContainer>
       <PageTitle title={copy.title} />
       <PageContainer className="space-y-4">
         {step === "checking" || isLoading ? (

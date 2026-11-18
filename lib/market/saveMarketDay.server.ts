@@ -20,8 +20,7 @@ export type SavedMarketDay = {
  * 操作として、変更前後を必ず監査ログに残す。actor.role が運営か高知市かの区別になる。
  */
 /** 市が指定されなければ日曜市（既存の画面は市を送らない） */
-async function resolveMarketId(dc: AuditClient, marketId: string | undefined): Promise<string | null> {
-  if (marketId) return marketId;
+export async function readDefaultMarketId(dc: AuditClient): Promise<string | null> {
   const { data } = await dc.from("markets").select("id").eq("slug", "nichiyo").maybeSingle();
   return (data as { id: string } | null)?.id ?? null;
 }
@@ -31,7 +30,7 @@ export async function saveMarketDay(
   actor: AdminAuditActor,
   data: MarketDayInput
 ): Promise<{ day: SavedMarketDay } | { error: string }> {
-  const marketId = await resolveMarketId(dc, data.market_id);
+  const marketId = data.market_id ?? await readDefaultMarketId(dc);
   if (!marketId) return { error: "市が見つかりません" };
 
   // 誤操作を事後に検証できるよう、上書き前の内容を控えておく（同じ市・同じ日付のみ）
