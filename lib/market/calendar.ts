@@ -91,12 +91,23 @@ export function toIsoDate(date: Date): string {
   return formatUtcFields(toJstFields(date));
 }
 
+/**
+ * 指定した曜日（0=日〜6=土）の、当日を含む次の日を JST 基準の YYYY-MM-DD で返す。
+ * 市ごとの開催曜日（markets.weekday）を渡して使う。
+ */
+export function getUpcomingMarketDateIso(weekday: number, now: Date = new Date()): string {
+  if (!Number.isInteger(weekday) || weekday < 0 || weekday > 6) {
+    throw new Error(`weekday must be 0..6, got ${weekday}`);
+  }
+  const jst = toJstFields(now);
+  const daysUntil = (weekday - jst.getUTCDay() + 7) % 7;
+  jst.setUTCDate(jst.getUTCDate() + daysUntil);
+  return formatUtcFields(jst);
+}
+
 /** 今週（当日を含む）の日曜日を JST 基準の YYYY-MM-DD で返す */
 export function getUpcomingSundayIso(now: Date = new Date()): string {
-  const jst = toJstFields(now);
-  const daysUntilSunday = jst.getUTCDay() === 0 ? 0 : 7 - jst.getUTCDay();
-  jst.setUTCDate(jst.getUTCDate() + daysUntilSunday);
-  return formatUtcFields(jst);
+  return getUpcomingMarketDateIso(0, now);
 }
 
 /** DB から来た status 文字列を型に落とす。想定外の値は通常開催として扱う */
