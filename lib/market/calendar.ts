@@ -15,6 +15,8 @@ export type MarketDay = {
   market_date: string; // YYYY-MM-DD
   status: MarketDayStatus;
   note: string | null;
+  /** 開催情報のレコードが最後に更新された日時 */
+  updated_at?: string;
 };
 
 /** カードに載せる情報の種別 */
@@ -345,7 +347,7 @@ export async function fetchMarketCalendar(
   const [daysResult, eventsResult] = await Promise.all([
     supabase
       .from("market_days")
-      .select("market_date, status, note")
+      .select("market_date, status, note, updated_at")
       // 今週の日曜から先。日曜ごとのカードそれぞれにステータスを出せるようにまとめて読む
       .gte("market_date", sundayIso)
       .order("market_date", { ascending: true })
@@ -370,6 +372,7 @@ export async function fetchMarketCalendar(
     market_date: row.market_date,
     status: normalizeStatus(row.status),
     note: row.note,
+    updated_at: row.updated_at,
   }));
 
   const events: MarketEvent[] = (eventsResult.data ?? []).map((row) => ({

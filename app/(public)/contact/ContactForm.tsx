@@ -50,6 +50,7 @@ export default function ContactForm() {
     handleSubmit,
     watch,
     setValue,
+    reset,
     formState: { errors, isSubmitting },
   } = useForm<ContactFormData>({
     resolver: zodResolver(contactSchema),
@@ -120,7 +121,10 @@ export default function ContactForm() {
         </p>
         <button
           type="button"
-          onClick={() => setIsSubmitted(false)}
+          onClick={() => {
+            reset();
+            setIsSubmitted(false);
+          }}
           className="mt-4 text-sm font-medium text-amber-600 hover:text-amber-700 underline underline-offset-4"
         >
           新しい問い合わせを送る
