@@ -239,6 +239,12 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
         description: "話し方と答え方、場面ごとに使うAIモデルを調整する",
       },
       {
+        label: "市の管理",
+        href: "/admin/markets",
+        icon: MapPinned,
+        description: "市の名前・場所・開催曜日・公開の切り替えを行う",
+      },
+      {
         label: "設定",
         href: "/admin/settings",
         icon: Settings,
