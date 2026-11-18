@@ -64,14 +64,14 @@ const destinations: Destination[] = [
 ];
 
 const policySections = [
-  { id: "data-collected", label: "お預かりする情報と保存期間" },
+  { id: "data-collected", label: "お預かりしている情報" },
   { id: "location", label: "位置情報の取り扱い" },
-  { id: "microphone", label: "音声入力の取り扱い" },
-  { id: "external-services", label: "外部サービスへの送信" },
+  { id: "microphone", label: "音声入力（マイク）の取り扱い" },
+  { id: "external-services", label: "外部への送信" },
   { id: "analytics-settings", label: "アクセス解析を止める" },
   { id: "data-purpose", label: "情報の使いみち" },
   { id: "retention", label: "第三者への提供と保存期間" },
-  { id: "privacy-contact", label: "個人情報のお問い合わせ" },
+  { id: "privacy-contact", label: "お問い合わせ窓口" },
 ];
 
 export default function PrivacyPage() {

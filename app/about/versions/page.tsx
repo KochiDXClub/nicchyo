@@ -52,7 +52,7 @@ function VersionCard({ entry }: { entry: VersionEntry }) {
       </div>
       <h3 className="font-bold">{entry.title}</h3>
       <ul className="mt-3 list-disc space-y-1.5 pl-5 text-sm leading-relaxed text-nicchyo-ink/75">
-        {entry.highlights.map((highlight) => <li key={highlight}>{highlight}</li>)}
+        {entry.highlights.map((highlight, index) => <li key={index}>{highlight}</li>)}
       </ul>
     </li>
   );

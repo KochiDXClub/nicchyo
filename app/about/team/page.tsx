@@ -47,7 +47,7 @@ export default function SiteTeamPage() {
             </div>
             <div>
               <dt className="font-bold">地域との協力</dt>
-              <dd className="mt-1 text-nicchyo-ink/75">高知市の街路市担当や出店者の皆さまと協力し、現地の声を案内の改善に活かしています。</dd>
+              <dd className="mt-1 text-nicchyo-ink/75">日曜市の案内を改善するため、高知市の街路市担当への聞き取りや、来場者・出店者へのアンケートを行いました。</dd>
             </div>
           </dl>
         </section>
