@@ -16,6 +16,7 @@ import LandingHowTo from "./_landing/LandingHowTo";
 import LandingInfo from "./_landing/LandingInfo";
 import LandingHighlights from "./_landing/LandingHighlights";
 import LandingAbout from "./_landing/LandingAbout";
+import LandingFooter from "./_landing/LandingFooter";
 import { buildLandingSundays } from "./_landing/upcomingSundays";
 import { pickLandingShopPhotos } from "./_landing/pickLandingShops";
 
@@ -94,6 +95,7 @@ export default async function HomePage() {
         <LandingHighlights shopPhotos={photos} />
         <LandingAbout />
       </main>
+      <LandingFooter locale={locale} />
     </PageShell>
   );
 }

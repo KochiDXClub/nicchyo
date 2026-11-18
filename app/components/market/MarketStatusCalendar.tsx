@@ -17,6 +17,8 @@ import {
 type Props = {
   /** market_days の該当行。未登録なら null（＝通常どおり開催の想定） */
   day: MarketDay | null;
+  /** 開催レコードのない日の表示名を、通常開催の想定だと分かる表記にする */
+  unregisteredLabel?: string;
   className?: string;
   /** カレンダーページ自身など、リンクにしない場所では false */
   link?: boolean;
@@ -31,18 +33,19 @@ type Props = {
  * 文字列を props で受け取る形になり、ここで useT()/useLocale() から渡す。
  * 中止・休市は赤い帯、特別開催は黄色の地で目立たせる（以前のページ版と同じ扱い）。
  */
-export default function MarketStatusCalendar({ day, className = "", link = true, showSummary = true }: Props) {
+export default function MarketStatusCalendar({ day, className = "", link = true, showSummary = true, unregisteredLabel }: Props) {
   const t = useT();
   const locale = useLocale();
 
   const status = day?.status ?? "open";
   const { label, tone } = getStatusPresentation(status);
+  const statusLabel = !day && unregisteredLabel ? unregisteredLabel : label;
   const dateIso = day?.market_date ?? getUpcomingSundayIso();
   const dateLabel = formatEventDate(dateIso);
 
   const [, month, dayOfMonth] = dateIso.split("-").map(Number);
   const sunday: LandingSunday = { dateIso, month, day: dayOfMonth, status: normalizeStatus(status) };
-  const text = nextSundayCalendarText(sunday, t, locale);
+  const text = nextSundayCalendarText(sunday, t, locale, statusLabel);
 
   const calendar = (
     <span className="relative block h-[8.2rem] w-[7.6rem] shrink-0">
@@ -79,7 +82,7 @@ export default function MarketStatusCalendar({ day, className = "", link = true,
                 </p>
               ) : (
                 <p className="mt-0.5 text-base font-black text-nicchyo-ink">
-                  {dateLabel} {t(label)}
+                  {dateLabel} {t(statusLabel)}
                 </p>
               )}
             </>

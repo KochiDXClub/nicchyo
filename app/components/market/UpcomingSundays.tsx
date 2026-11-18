@@ -14,6 +14,7 @@ type Props = {
   /** true のとき「すべて見る」リンクを出す（近況ページの抜粋表示用） */
   showMoreLink?: boolean;
   showHeading?: boolean;
+  showStatusSource?: boolean;
 };
 
 /**
@@ -30,6 +31,7 @@ export default function UpcomingSundays({
   sundays,
   showMoreLink = false,
   showHeading = true,
+  showStatusSource = false,
 }: Props) {
   return (
     <section className="mt-2">
@@ -42,7 +44,7 @@ export default function UpcomingSundays({
 
       <ul className="flex flex-col gap-2.5">
         {sundays.map((sunday) => (
-          <SundayCard key={sunday.dateIso} sunday={sunday} />
+          <SundayCard key={sunday.dateIso} sunday={sunday} showStatusSource={showStatusSource} />
         ))}
       </ul>
 
@@ -60,12 +62,19 @@ export default function UpcomingSundays({
   );
 }
 
-function SundayCard({ sunday }: { sunday: MarketSunday }) {
+const jstUpdatedAt = new Intl.DateTimeFormat("ja-JP", {
+  timeZone: "Asia/Tokyo",
+  dateStyle: "medium",
+  timeStyle: "short",
+});
+
+function SundayCard({ sunday, showStatusSource }: { sunday: MarketSunday; showStatusSource: boolean }) {
   const { day, highlight, events, isThisWeek } = sunday;
   const status = day?.status ?? "open";
   const statusPresentation = getStatusPresentation(status);
   // 通常開催はいちいちバッジを出さない（例外だけを目立たせる）
-  const showStatusBadge = status !== "open";
+  const showStatusBadge = status !== "open" || showStatusSource;
+  const updatedAt = showStatusSource && day?.updated_at ? new Date(day.updated_at) : null;
   const isEmpty = !highlight && events.length === 0;
 
   return (
@@ -87,13 +96,24 @@ function SundayCard({ sunday }: { sunday: MarketSunday }) {
             className={`ml-auto rounded-full px-2 py-0.5 text-[11px] font-bold ${
               statusPresentation.tone === "alert"
                 ? "bg-rose-500 text-white"
-                : "bg-nicchyo-accent text-nicchyo-ink"
+                : statusPresentation.tone === "highlight"
+                  ? "bg-nicchyo-accent text-nicchyo-ink"
+                  : "bg-nicchyo-ink/5 text-nicchyo-ink"
             }`}
           >
-            {statusPresentation.label}
+            {day ? statusPresentation.label : "通常予定"}
           </span>
         )}
       </div>
+
+      {showStatusSource && day && (
+        <p className="px-4 pt-2 text-xs text-nicchyo-ink/75">
+          運営が登録
+          {updatedAt && Number.isFinite(updatedAt.getTime()) && (
+            <> ・更新 <time dateTime={day.updated_at}>{jstUpdatedAt.format(updatedAt)}</time>（日本時間）</>
+          )}
+        </p>
+      )}
 
       {day?.note && (
         <p className="border-b border-black/5 bg-rose-50/60 px-4 py-2 text-xs leading-relaxed text-rose-700">
