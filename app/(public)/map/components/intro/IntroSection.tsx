@@ -35,7 +35,7 @@ export default function IntroSection({
        snap-start / snap-always で、この節の先頭がスクロールの止まる位置になる */
     <section
       data-intro-stop={index}
-      className="relative z-[1] snap-start snap-always border-t border-nicchyo-ink/[0.07] pb-9 pt-8 md:py-11"
+      className="relative z-[1] snap-start snap-always border-t border-nicchyo-ink/[0.07] py-4 md:py-5"
     >
       <div className="flex items-center gap-2.5 pl-[var(--intro-rail)] pr-5 md:pr-8">
         <span className="inline-flex h-7 min-w-[1.75rem] shrink-0 items-center justify-center rounded-full bg-nicchyo-primary px-1 text-[11.5px] font-extrabold tracking-wider text-white shadow-[0_4px_10px_-4px_rgba(126,217,87,0.9)]">
@@ -46,13 +46,13 @@ export default function IntroSection({
         </h3>
       </div>
       {/* にちよさんの停留点。高さだけ確保しておく */}
-      <div ref={stopRef} className="mt-3" style={{ height: stopHeight }} />
+      <div ref={stopRef} className="mt-2" style={{ height: stopHeight }} />
       {/*
         スマホはデモを端まで使う（地図は広いほうがよい）。
         PC は見出しと左端を揃え、右端はダイアログの余白に揃える。
       */}
       <motion.div
-        className="mt-3 px-5 md:pl-[var(--intro-rail)] md:pr-8"
+        className="mt-2 px-4 md:pl-[var(--intro-rail)] md:pr-8"
         initial={reduceMotion ? false : { opacity: 0, y: 18 }}
         whileInView={{ opacity: 1, y: 0 }}
         viewport={{ root: viewportRoot, once: true, amount: 0.2 }}
