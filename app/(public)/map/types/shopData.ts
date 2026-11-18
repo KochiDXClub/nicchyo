@@ -278,6 +278,8 @@ export interface Shop
 /** 位置が決まっていなくても公開できる店舗情報。地図座標は含まない。 */
 export type ShopProfile = Omit<Shop, "position" | "lat" | "lng" | "otherMarketLocations" | "roadSide"> & {
   nextMarketStatus?: "scheduled" | "not_scheduled" | "unknown" | "market_closed";
+  /** nextMarketStatus を出した市（日曜市以外のときは、ラベルに市名を出す）。日曜市なら null */
+  nextMarketLabel?: { name: string; weekday: number } | null;
   /** 次の日曜の出店場所が地図で確認できる。 */
   hasMapLocation?: boolean;
 };
