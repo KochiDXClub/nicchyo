@@ -12,7 +12,7 @@
 
 import { useMemo } from 'react';
 import { ROAD_STYLE } from '../../config/roadStyle';
-import { getShopBannerImage } from '@/lib/shopImages';
+import { getShopBannerImage, getShopThumbnailImage } from '@/lib/shopImages';
 import { generateShopMarkerHtml, sanitizeCssColor } from '../../utils/markerHtmlGenerator';
 import { resolveStallColors } from '../../config/shopCategories';
 import { generateCrowdSvg, CROWD_KINDS } from '../../config/crowdParts';
@@ -58,7 +58,7 @@ export function IntroStallMarker({
   const html = useMemo(
     () =>
       generateShopMarkerHtml(shop, {
-        bannerImage: getShopBannerImage(shop.categoryKey ?? shop.category, shop.id),
+        bannerImage: getShopThumbnailImage(shop),
         illustrationSize: 'medium',
         includeNameplate: lod === 'nameplate',
       }),
@@ -269,7 +269,7 @@ const BUILDINGS = [
   { left: '92%', top: '88%', w: '7%', h: '8%' },
 ];
 
-/** デモの枠。角丸と影だけを持つ器 */
+/** スクロール枠の高さから、見出し・停留点・操作欄の余白を引いてデモを収める。 */
 export function IntroDemoFrame({
   children,
   height,
@@ -281,8 +281,12 @@ export function IntroDemoFrame({
 }) {
   return (
     <div
+      data-intro-demo=""
       className={`relative overflow-hidden rounded-2xl ring-1 ring-nicchyo-ink/10 ${className}`}
-      style={{ height }}
+      style={{
+        height,
+        maxHeight: "max(220px, calc(100cqh - 170px - var(--intro-demo-controls, 0px)))",
+      }}
     >
       {children}
     </div>

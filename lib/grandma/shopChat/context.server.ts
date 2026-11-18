@@ -1,6 +1,5 @@
 import { createAdminClient } from "@/lib/supabase/adminClient";
 import { fetchPublicShopProfiles } from "@/app/(public)/map/services/shopCache";
-import type { Shop } from "@/app/(public)/map/data/shops";
 import type { ShopProfile } from "@/app/(public)/map/types/shopData";
 import type { ShopChatContext, ShopChatNote } from "@/lib/grandma/prompts/shopChatPrompt";
 

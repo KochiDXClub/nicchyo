@@ -71,7 +71,7 @@ export default function IntroSearchDemo({
   }, []);
 
   return (
-    <div className="space-y-3.5">
+    <div className="space-y-2 [--intro-demo-controls:96px] sm:[--intro-demo-controls:52px]">
       {/* ジャンルチップ */}
       <div className="flex flex-wrap gap-2">
         {categories.map((category) => {

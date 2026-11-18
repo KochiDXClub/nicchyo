@@ -67,13 +67,13 @@ export default function IntroConsultDemo() {
   const remaining = exchanges.filter((e) => e.question !== asked?.question);
 
   return (
-    <div className="flex flex-col gap-5 rounded-2xl bg-white/85 px-4 py-7 ring-1 ring-nicchyo-ink/10">
+    <div data-intro-demo="" className="flex flex-col gap-2 rounded-card bg-white/85 p-3 ring-1 ring-nicchyo-ink/10 md:p-4">
       {/* 主役のにちよさん。相談ページと同じ絵・同じ構えの動き */}
-      <div className="flex flex-col items-center gap-3">
-        <GrandmaAvatar pose={pose} size="hero" character={DEFAULT_CONSULT_CHARACTER} />
+      <div className="flex items-center justify-center gap-3">
+        <GrandmaAvatar pose={pose} size={showAnswer ? "pinned" : "compact"} character={DEFAULT_CONSULT_CHARACTER} />
 
         {!showAnswer && (
-          <div className="consult-greeting max-w-[19rem] rounded-2xl border border-amber-200 bg-white px-4 py-2.5 text-center shadow-sm">
+          <div className="min-w-0 max-w-[19rem] rounded-card border border-amber-200 bg-white px-3 py-2.5 shadow-sm">
             <p className="text-[15px] font-bold leading-6 text-amber-900">
               {siteText('mapIntro.consultDemo.greeting')}
             </p>
@@ -113,13 +113,13 @@ export default function IntroConsultDemo() {
 
       {/* 候補ボタン。相談ページではここが主役なので、同じ大きさ・同じ見た目にする */}
       {!thinking && remaining.length > 0 && (
-        <div className="flex flex-col gap-2.5">
+        <div className="grid gap-2 sm:grid-cols-2">
           {remaining.map((exchange) => (
             <button
               key={exchange.question}
               type="button"
               onClick={() => ask(exchange)}
-              className="w-full rounded-2xl border border-amber-200 bg-white px-4 py-4 text-left text-base font-bold text-amber-900 shadow-sm transition active:scale-[0.98]"
+              className="min-h-11 w-full rounded-btn border border-amber-200 bg-white px-3 py-2 text-left text-sm font-bold text-amber-900 shadow-sm transition active:scale-[0.98]"
             >
               {exchange.question}
             </button>

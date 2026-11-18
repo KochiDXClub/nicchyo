@@ -404,7 +404,7 @@ export default function MapIntroPanel({
       */}
       <div
         ref={scrollRef}
-        className="flex-1 snap-y snap-mandatory overflow-y-auto overscroll-contain"
+        className="min-h-0 flex-1 snap-y snap-mandatory overflow-y-auto overscroll-contain [container-type:size]"
         onWheel={isDesktop ? undefined : onSheetWheel}
         onScroll={handleScroll}
       >
@@ -475,7 +475,7 @@ export default function MapIntroPanel({
           >
             <IntroMapDemo
               shops={mapDemoShops}
-              frameHeight={isDesktop ? 500 : undefined}
+              frameHeight={isDesktop ? 320 : 280}
               favoriteIds={favoriteIds}
               selectedShopId={openShop?.source === 'map' ? openShop.shop.id : null}
               onSelectShop={openShopFrom('map')}
@@ -495,7 +495,7 @@ export default function MapIntroPanel({
             <IntroSearchDemo
               shops={searchDemoShops}
               categories={searchCategories}
-              frameHeight={isDesktop ? 380 : undefined}
+              frameHeight={isDesktop ? 340 : 280}
               favoriteIds={favoriteIds}
               selectedShopId={openShop?.source === 'search' ? openShop.shop.id : null}
               onSelectShop={openShopFrom('search')}
@@ -528,7 +528,7 @@ export default function MapIntroPanel({
             >
               <IntroOdekakeDemo
                 guide={odekake}
-                frameHeight={isDesktop ? 500 : undefined}
+                frameHeight={isDesktop ? 360 : 320}
                 onOpenSpot={openSpotCard}
               />
             </IntroSection>
@@ -696,7 +696,7 @@ export default function MapIntroPanel({
             role="dialog"
             aria-modal="true"
             aria-labelledby="map-intro-title"
-            className="absolute inset-0 m-auto flex h-[88vh] w-[min(620px,94vw)] flex-col overflow-hidden rounded-[28px] bg-nicchyo-base pt-6 shadow-[0_32px_80px_-24px_rgba(58,58,58,0.55)] ring-1 ring-nicchyo-ink/[0.08]"
+            className="absolute inset-0 m-auto flex h-[min(92dvh,920px)] w-[min(760px,94vw)] flex-col overflow-hidden rounded-[28px] bg-nicchyo-base pt-6 shadow-[0_32px_80px_-24px_rgba(58,58,58,0.55)] ring-1 ring-nicchyo-ink/[0.08]"
           >
             {content}
           </motion.div>
