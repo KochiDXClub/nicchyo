@@ -65,11 +65,13 @@ export default function MarketStatusCalendar({ date, className = "", link = true
                     tone === "alert" ? "bg-rose-500 text-white" : "bg-nicchyo-accent text-nicchyo-ink"
                   }`}
                 >
-                  {dateLabel} {t(label)}
+                  <span className="whitespace-nowrap">{dateLabel}</span>{" "}
+                  <span className="whitespace-nowrap">{t(label)}</span>
                 </p>
               ) : (
                 <p className="mt-0.5 text-base font-black text-nicchyo-ink">
-                  {dateLabel} {t(label)}
+                  <span className="whitespace-nowrap">{dateLabel}</span>{" "}
+                  <span className="whitespace-nowrap">{t(label)}</span>
                 </p>
               )}
             </>

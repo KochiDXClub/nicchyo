@@ -27,7 +27,7 @@ export default async function MarketCalendarPage() {
           <p className="text-[11px] font-bold uppercase tracking-[0.32em] text-nicchyo-primary">
             Market Calendar
           </p>
-          <h1 className="mt-1 text-[2rem] font-black leading-none tracking-tight">
+          <h1 className={`mt-1 font-black leading-none tracking-tight ${next?.marketName ? "text-[1.75rem] sm:text-[2rem]" : "text-[2rem]"}`}>
             {title}
           </h1>
           <p className="mt-2.5 text-sm text-nicchyo-ink/55">
