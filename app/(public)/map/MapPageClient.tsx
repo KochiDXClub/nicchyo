@@ -104,6 +104,11 @@ type MapPageClientProps = {
 const NEARBY_AREA_WIDTH_RATIO = 0.8;
 const NEARBY_AREA_HEIGHT_RATIO = 0.48;
 
+/** 「このへん」パネル由来の光（AI のおすすめ・ジャンル絞り込み）か。パネルを閉じたら消す */
+function isNearbyMarker(payload: { source: string } | null): boolean {
+  return payload?.source === 'nearby' || payload?.source === 'nearby-genre';
+}
+
 export default function MapPageClient({
   shops: sourceShops,
   profiles,
@@ -364,9 +369,12 @@ export default function MapPageClient({
     label: string;
     // どの導線がセットしたか（クリア判定に使う）。
     // 'nearby' は「このへん」追い質問由来で、パネルを閉じたら消してよい。
+    // 'nearby-genre' は「このへん」のジャンル絞り込み由来で、絞り込みを解除したら消す。
     // 'other'（AI相談・URL・エージェント由来）は nearby の開閉では消さない。
-    source: 'nearby' | 'other';
+    source: 'nearby' | 'nearby-genre' | 'other';
   } | null>(null);
+  // 「このへん」の AI が最後に薦めた店の光。ジャンル絞り込みを解除したときに戻す
+  const nearbyAiPayloadRef = useRef<{ ids: number[]; label: string; source: 'nearby' } | null>(null);
   // 「このへん、なにがある？」：開いているパネルの内容（追い質問はパネル内で完結）
   const [nearbyState, setNearbyState] = useState<{
     summary: NearbyViewportSummary;
@@ -826,7 +834,8 @@ export default function MapPageClient({
     // 追い質問（nearby）由来の aiMarkerPayload だけをクリアする。
     // これを消さないと hasAiMode が true のままになり「このへん」ボタンが
     // 再表示されない。一方、AI相談（consult）由来のマーカーは無関係なので残す。
-    setAiMarkerPayload((prev) => (prev?.source === 'nearby' ? null : prev));
+    setAiMarkerPayload((prev) => (isNearbyMarker(prev) ? null : prev));
+    nearbyAiPayloadRef.current = null;
   }, []);
 
   // パネル表示中にマップが動いたら閉じる（オレンジ枠は画面固定のため、
@@ -835,7 +844,8 @@ export default function MapPageClient({
     if (!nearbyState || !mapInstance) return;
     const close = () => {
       setNearbyState(null);
-      setAiMarkerPayload((prev) => (prev?.source === 'nearby' ? null : prev));
+      setAiMarkerPayload((prev) => (isNearbyMarker(prev) ? null : prev));
+    nearbyAiPayloadRef.current = null;
     };
     mapInstance.on('move', close);
     mapInstance.on('zoom', close);
@@ -1037,15 +1047,18 @@ export default function MapPageClient({
                     center={nearbyState.center}
                     onSelectShop={handleCommentShopOpen}
                     onShopsRecommended={(shopIds) => {
-                      setAiMarkerPayload({ ids: shopIds, label: 'AIおすすめ', source: 'nearby' });
+                      const payload = { ids: shopIds, label: 'AIおすすめ', source: 'nearby' as const };
+                      nearbyAiPayloadRef.current = payload;
+                      setAiMarkerPayload(payload);
                     }}
                     onGenreFilter={(genre, shopIds) => {
-                      // 絞り込んだジャンルの店を地図でも光らせる。解除したら「このへん」由来の光だけ消す
+                      // 絞り込んだジャンルの店を地図でも光らせる。解除したら絞り込みの光だけ消し、
+                      // その前に AI が薦めた店の光があればそれに戻す
                       setAiMarkerPayload((prev) =>
                         genre
-                          ? { ids: shopIds, label: genre, source: 'nearby' }
-                          : prev?.source === 'nearby'
-                            ? null
+                          ? { ids: shopIds, label: genre, source: 'nearby-genre' }
+                          : prev?.source === 'nearby-genre'
+                            ? nearbyAiPayloadRef.current
                             : prev
                       );
                     }}

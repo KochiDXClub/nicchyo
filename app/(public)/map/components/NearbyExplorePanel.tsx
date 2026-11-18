@@ -94,7 +94,7 @@ function NearbyShopRow({
       <span className="min-w-0 flex-1">
         <span
           className={cn(
-            'block line-clamp-2 text-[17px] font-bold leading-snug text-nicchyo-ink',
+            'line-clamp-2 text-[17px] font-bold leading-snug text-nicchyo-ink',
             g('lg:mt-1 lg:truncate lg:text-[11px] lg:leading-tight')
           )}
         >
@@ -237,16 +237,22 @@ export default function NearbyExplorePanel({
   // ジャンルの絞り込み（null は「おすすめ」）。範囲内の店だけを対象にするので検索欄は置かない
   const [genreFilter, setGenreFilter] = useState<string | null>(null);
   const areaShopById = useMemo(() => new Map(areaShops.map((shop) => [shop.shopId, shop])), [areaShops]);
+  // ジャンルの店は集計（summary.genres）の shopIds で引く。カテゴリが空の店は集計で「その他」に
+  // まとめられるので、店の category と直接比べると「その他」が空になる
+  const genreShopIds = (genre: string) =>
+    summary.genres.find((entry) => entry.category === genre)?.shopIds ?? [];
   const filteredShops = genreFilter
-    ? areaShops.filter((shop) => shop.category === genreFilter)
+    ? genreShopIds(genreFilter).flatMap((id) => {
+        const shop = areaShopById.get(id);
+        return shop ? [shop] : [];
+      })
     : recommendations;
   const toggleGenre = (genre: string | null) => {
     const next = genre === genreFilter ? null : genre;
+    // 「おすすめ」を選んだまま押し直したときは何もしない（地図の光を消さない）
+    if (next === genreFilter) return;
     setGenreFilter(next);
-    onGenreFilter?.(
-      next,
-      next ? areaShops.filter((shop) => shop.category === next).map((shop) => shop.shopId) : []
-    );
+    onGenreFilter?.(next, next ? genreShopIds(next) : []);
   };
   const [sheetHeight] = useState(getSheetHeight);
   const dragControls = useDragControls();
