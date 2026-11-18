@@ -19,6 +19,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
+import { ChevronRight } from 'lucide-react';
 import { motion, useDragControls } from 'framer-motion';
 import {
   CONSULT_CHARACTER_BY_ID,
@@ -369,49 +370,61 @@ export default function NearbyExplorePanel({
             )}
           </div>
 
-          {/* おすすめ店グリッド（3列×最大3行・理由付き） */}
+          {/* おすすめ店（理由付き）。
+              スマホは3列だと写真も店名も小さすぎるので、おでかけサポートの一覧と同じ1列のリストにする
+              （左に写真、右に店名・ジャンル・おすすめの理由）。PC は幅があるので3列×3行の写真グリッドのまま */}
           {recommendations.length > 0 && (
             <div>
-              <p className="mb-2.5 text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500">
+              <p className="mb-2.5 text-[11px] font-bold uppercase tracking-[0.16em] text-nicchyo-ink/55">
                 このへんのおすすめ
               </p>
-              <div className="grid grid-cols-3 gap-3">
-                {recommendations.map((entry) => (
-                  <button
-                    key={entry.shopId}
-                    type="button"
-                    onClick={() => onSelectShop(entry.shopId)}
-                    className="w-full text-left transition-transform active:scale-95"
-                  >
-                    <div
-                      className="aspect-[4/3] w-full overflow-hidden rounded-xl border-2 bg-slate-100"
-                      style={{
-                        borderColor:
-                          genreColor(entry.category),
-                      }}
-                    >
-                      {entry.imageUrl && (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          src={entry.imageUrl}
-                          alt={entry.name}
-                          className="h-full w-full object-cover"
-                          loading="lazy"
-                          draggable={false}
-                        />
-                      )}
-                    </div>
-                    <p className="mt-1 truncate text-[11px] font-bold leading-tight text-slate-800">
-                      {entry.name}
-                    </p>
-                    {REASON_LABELS[entry.reason] && (
-                      <p className="truncate text-[10px] text-slate-400">
-                        {REASON_LABELS[entry.reason]}
-                      </p>
-                    )}
-                  </button>
-                ))}
-              </div>
+              <ul className="-mx-2 flex flex-col lg:mx-0 lg:grid lg:grid-cols-3 lg:gap-3">
+                {recommendations.map((entry) => {
+                  const color = genreColor(entry.category);
+                  const reason = REASON_LABELS[entry.reason];
+                  return (
+                    <li key={entry.shopId}>
+                      <button
+                        type="button"
+                        onClick={() => onSelectShop(entry.shopId)}
+                        className="flex w-full items-center gap-3 rounded-btn px-2 py-2 text-left transition-colors active:bg-nicchyo-base focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 lg:block lg:p-0 lg:transition-transform lg:active:scale-95 lg:active:bg-transparent motion-reduce:lg:active:scale-100"
+                      >
+                        <span
+                          className="block h-16 w-16 shrink-0 overflow-hidden rounded-btn border-2 bg-nicchyo-ink/[0.04] lg:aspect-[4/3] lg:h-auto lg:w-full"
+                          style={{ borderColor: color }}
+                        >
+                          {entry.imageUrl && (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={entry.imageUrl}
+                              alt=""
+                              className="h-full w-full object-cover"
+                              loading="lazy"
+                              draggable={false}
+                            />
+                          )}
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-[15px] font-bold leading-tight text-nicchyo-ink lg:mt-1 lg:text-[11px]">
+                            {entry.name}
+                          </span>
+                          <span className="mt-1 flex items-center gap-1.5 truncate text-[12px] text-nicchyo-ink/55 lg:mt-0 lg:text-[10px]">
+                            {/* ジャンルは写真の枠の色と同じ点で示す。PC は写真の枠で足りるので出さない */}
+                            {entry.category && (
+                              <span className="flex shrink-0 items-center gap-1 lg:hidden">
+                                <span aria-hidden className="h-2 w-2 rounded-chip" style={{ backgroundColor: color }} />
+                                {entry.category}
+                              </span>
+                            )}
+                            {reason && <span className="truncate">{reason}</span>}
+                          </span>
+                        </span>
+                        <ChevronRight aria-hidden className="h-4 w-4 shrink-0 text-nicchyo-ink/30 lg:hidden" />
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
             </div>
           )}
 
