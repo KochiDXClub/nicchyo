@@ -14,6 +14,7 @@ export type MarketDay = {
   market_date: string; // YYYY-MM-DD
   status: MarketDayStatus;
   note: string | null;
+  updated_at?: string;
 };
 
 /** カードに載せる情報の種別 */
