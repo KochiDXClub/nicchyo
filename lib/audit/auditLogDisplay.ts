@@ -56,6 +56,8 @@ export const AUDIT_ACTIONS = {
   category_deleted: { label: "カテゴリーを削除", tone: "caution" },
   // 日曜市カレンダー
   market_day_updated: { label: "開催日の状態を変更", tone: "info" },
+  market_created: { label: "市を登録", tone: "info" },
+  market_updated: { label: "市を変更", tone: "info" },
   event_created: { label: "イベントを作成", tone: "good" },
   event_updated: { label: "イベントを編集", tone: "info" },
   event_deleted: { label: "イベントを削除", tone: "caution" },
