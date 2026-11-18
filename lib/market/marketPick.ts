@@ -9,6 +9,14 @@ export type PickableMarket = {
   weekday: number;
 };
 
+/** 曜日の日本語表記（0=日〜6=土） */
+export const WEEKDAY_JA = ["日", "月", "火", "水", "木", "金", "土"] as const;
+
+/** 市が2つ以上公開されているときだけ、市の選択や「今日の市」を出す（日曜市だけの間は表示を変えない） */
+export function hasMultiplePublicMarkets(markets: readonly unknown[]): boolean {
+  return markets.length >= 2;
+}
+
 const JST_OFFSET_MS = 9 * 60 * 60 * 1000;
 
 /** 指定した時刻（省略時は現在）の JST での曜日（0=日〜6=土） */
