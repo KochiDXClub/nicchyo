@@ -10,6 +10,11 @@ vi.mock("@/lib/market/publicMarkets.server", () => ({
   fetchPublicMarketBySlug: async () => null,
 }));
 
+vi.mock("@/lib/pageVisibility/server", async () => {
+  const { EMPTY_PAGE_VISIBILITY_SETTINGS } = await import("@/lib/pageVisibility");
+  return { fetchEffectivePageVisibility: async () => EMPTY_PAGE_VISIBILITY_SETTINGS };
+});
+
 import sitemap from "./sitemap";
 
 describe("sitemap", () => {
