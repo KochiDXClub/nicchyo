@@ -34,6 +34,9 @@ export async function buildMarketShopData(
   const categoriesPromise = fetchCategories().catch(() => []);
   const placements = new Map<string, Shop>();
   const statuses = new Map<string, ShopProfile["nextMarketStatus"]>();
+  // 出店状況・配置を出した市（ラベルに市名を出すため）
+  const statusMarkets = new Map<string, PublicMarket>();
+  const placementMarkets = new Map<string, PublicMarket>();
   const markets = [...selection.markets].sort((a, b) => Number(b.id === selection.initial?.id) - Number(a.id === selection.initial?.id));
   const visible = new Set(visibleIds.keys());
   for (const market of markets) {
@@ -54,7 +57,10 @@ export async function buildMarketShopData(
         return publicId === undefined ? [] : [{ ...vendor, public_shop_id: publicId }];
       });
       for (const [id, status] of vendorStatuses) {
-        if (!statuses.has(id) || statuses.get(id) === "unknown") statuses.set(id, status);
+        if (!statuses.has(id) || statuses.get(id) === "unknown") {
+          statuses.set(id, status);
+          statusMarkets.set(id, market);
+        }
       }
     }
     const shops = legacy ? buildVendorShops(scoped, posts) : buildVendorShops(scoped, posts, {
@@ -66,6 +72,7 @@ export async function buildMarketShopData(
       const primary = placements.get(shop.vendorId);
       if (!primary) {
         placements.set(shop.vendorId, shop);
+        placementMarkets.set(shop.vendorId, market);
         continue;
       }
       // 旧識別子の利用中も、日曜市に出る店舗のお気に入りは市を切り替えても同じ ID で扱う。
@@ -85,9 +92,12 @@ export async function buildMarketShopData(
   const publicBase = { ...base, vendors: base.vendors.filter((vendor) => !hiddenOnlyVendors.has(vendor.id)) };
   const profiles = buildVendorProfiles(publicBase, posts, visibleIds).map((profile) => {
     const location = placements.get(profile.vendorId ?? "");
+    const vendorId = profile.vendorId ?? "";
+    const labelMarket = location ? placementMarkets.get(vendorId) : statusMarkets.get(vendorId);
     return withCategory({
       ...profile,
-      nextMarketStatus: location ? "scheduled" as const : statuses.get(profile.vendorId ?? "") ?? "unknown" as const,
+      nextMarketStatus: location ? "scheduled" as const : statuses.get(vendorId) ?? "unknown" as const,
+      nextMarketLabel: labelMarket ? { name: labelMarket.name, weekday: labelMarket.weekday } : null,
       hasMapLocation: !!location,
       assignmentMarketDate: location?.assignmentMarketDate ?? null,
     }, categories);

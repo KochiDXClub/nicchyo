@@ -12,19 +12,18 @@ export const dynamic = "force-dynamic";
 
 type MarketDayRow = SavedMarketDay;
 
-/** 直近の登録済みステータス一覧（管理画面での確認用） */
-export async function GET() {
+/** 直近の登録済みステータス一覧（管理画面での確認用）。?market_id= で市を絞れる */
+export async function GET(req: Request) {
   const { error } = await authorizeAdmin();
   if (error) return NextResponse.json({ error }, { status: 403 });
 
   const dc = createAdminClient();
   if (!dc) return NextResponse.json({ error: "Service unavailable" }, { status: 503 });
 
-  const { data, error: dbError } = await dc
-    .from("market_days")
-    .select("*")
-    .order("market_date", { ascending: false })
-    .limit(100);
+  const marketId = new URL(req.url).searchParams.get("market_id");
+  let query = dc.from("market_days").select("*").order("market_date", { ascending: false }).limit(100);
+  if (marketId) query = query.eq("market_id", marketId);
+  const { data, error: dbError } = await query;
 
   if (dbError) {
     return NextResponse.json({ error: "データ取得に失敗しました" }, { status: 500 });
