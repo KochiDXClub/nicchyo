@@ -148,7 +148,7 @@ export const ConsoleSidebar = React.memo(function ConsoleSidebar({
       )}
 
       <aside
-        className={`fixed inset-y-0 left-0 z-[9999] flex w-[248px] flex-col border-r border-line bg-white transition-transform duration-200 ease-out lg:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-[9999] flex w-[248px] flex-col border-r border-line bg-white motion-safe:transition-[transform,visibility] motion-safe:duration-200 ease-out lg:translate-x-0 ${
           isOpen ? "translate-x-0" : "invisible -translate-x-full lg:visible"
         }`}
       >

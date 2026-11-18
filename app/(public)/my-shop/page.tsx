@@ -111,7 +111,7 @@ export default function MyShopPage() {
       </AnimatePresence>
 
       <div className="relative z-10 mx-auto w-full max-w-3xl px-4">
-        <header className="space-y-3 pb-4 pt-4 sm:pt-6">
+        <header className="space-y-3 pb-4 pt-[calc(var(--safe-top,0px)+1rem)] sm:pt-[calc(var(--safe-top,0px)+1.5rem)]">
           <NicchyoLogo />
           <div className="flex items-center gap-3.5">
             <ShopIcon imageUrl={summary?.shopImageUrl} />
