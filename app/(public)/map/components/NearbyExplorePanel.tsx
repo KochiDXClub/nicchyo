@@ -20,6 +20,7 @@
 import { useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
 import { ChevronRight } from 'lucide-react';
+import { cn } from '@/lib/utils/cn';
 import { motion, useDragControls } from 'framer-motion';
 import {
   CONSULT_CHARACTER_BY_ID,
@@ -45,6 +46,12 @@ const REASON_LABELS: Partial<Record<NearbyRecommendationReason, string>> = {
   favorite: '❤️ お気に入り',
   interest: '好みに合いそう',
 };
+
+/** ジャンル絞り込みのボタン（押せる大きさの丸いチップ） */
+const GENRE_CHIP_CLASS =
+  'inline-flex h-9 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-chip px-3.5 text-[13px] font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400';
+const GENRE_CHIP_ON = 'bg-nicchyo-ink text-white';
+const GENRE_CHIP_OFF = 'bg-white text-nicchyo-ink/70 ring-1 ring-line hover:bg-nicchyo-base';
 
 const ASK_ERROR_MESSAGE =
   'うまく聞こえんかった…通信状況を確認してからもう一度試してみてね。';
@@ -118,15 +125,19 @@ function ThinkingDots() {
 export default function NearbyExplorePanel({
   summary,
   recommendations,
+  areaShops = [],
   note,
   center,
   onSelectShop,
   onShopsRecommended,
+  onGenreFilter,
   onClose,
 }: {
   summary: NearbyViewportSummary;
   /** 行動シグナルから選んだ、範囲内のおすすめ店（最大9店） */
   recommendations: NearbyRecommendedShop[];
+  /** 範囲内のすべての店（近い順）。ジャンルで絞り込んだときはこちらを並べる */
+  areaShops?: NearbyRecommendedShop[];
   /** 遅れてフェードインする"AIの一言" */
   note: string;
   /** 「このへん」の中心座標。追い質問の位置コンテキストとして送る */
@@ -134,6 +145,8 @@ export default function NearbyExplorePanel({
   onSelectShop: (shopId: number) => void;
   /** AIが店舗を薦めたときにマップのピンを光らせる */
   onShopsRecommended: (shopIds: number[]) => void;
+  /** ジャンルで絞り込んだ／解除したとき（地図のピンも同じ店に合わせて光らせる） */
+  onGenreFilter?: (genre: string | null, shopIds: number[]) => void;
   /** ハンドルを下にスワイプしたときに閉じる */
   onClose: () => void;
 }) {
@@ -144,6 +157,19 @@ export default function NearbyExplorePanel({
   const [thread, setThread] = useState<NearbyChatMessage[]>([]);
   const [asking, setAsking] = useState(false);
   const hasShops = summary.totalCount > 0;
+  // ジャンルの絞り込み（null は「おすすめ」）。範囲内の店だけを対象にするので検索欄は置かない
+  const [genreFilter, setGenreFilter] = useState<string | null>(null);
+  const filteredShops = genreFilter
+    ? areaShops.filter((shop) => shop.category === genreFilter)
+    : recommendations;
+  const toggleGenre = (genre: string | null) => {
+    const next = genre === genreFilter ? null : genre;
+    setGenreFilter(next);
+    onGenreFilter?.(
+      next,
+      next ? areaShops.filter((shop) => shop.category === next).map((shop) => shop.shopId) : []
+    );
+  };
   const [sheetHeight] = useState(getSheetHeight);
   const dragControls = useDragControls();
   const abortRef = useRef<AbortController | null>(null);
@@ -329,28 +355,41 @@ export default function NearbyExplorePanel({
                     />
                   ))}
                 </div>
-                <div className="mt-2.5 flex flex-wrap gap-x-3 gap-y-1">
-                  {summary.genres.slice(0, 4).map((genre) => (
-                    <span
-                      key={genre.category}
-                      className="inline-flex items-center gap-1.5 text-[11px] font-medium text-slate-500"
-                    >
-                      <span
-                        aria-hidden
-                        className="h-2 w-2 rounded-full"
-                        style={{
-                          backgroundColor:
-                            genreColor(genre.category),
-                        }}
-                      />
-                      {genre.category} {genre.count}
-                    </span>
-                  ))}
-                  {summary.genres.length > 4 && (
-                    <span className="text-[11px] font-medium text-slate-400">
-                      ほか{summary.genres.length - 4}ジャンル
-                    </span>
-                  )}
+                {/* ジャンルの内訳を兼ねた絞り込みボタン。押すとそのジャンルの店だけを下に並べ、地図でも光らせる。
+                    横にはみ出す分は横スクロール（範囲の中だけの絞り込みなので検索欄は置かない） */}
+                <div
+                  role="group"
+                  aria-label="ジャンルで絞り込む"
+                  className="-mx-5 mt-3 flex gap-2 overflow-x-auto px-5 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                >
+                  <button
+                    type="button"
+                    aria-pressed={genreFilter === null}
+                    onClick={() => toggleGenre(null)}
+                    className={cn(GENRE_CHIP_CLASS, genreFilter === null ? GENRE_CHIP_ON : GENRE_CHIP_OFF)}
+                  >
+                    おすすめ
+                  </button>
+                  {summary.genres.map((genre) => {
+                    const active = genreFilter === genre.category;
+                    return (
+                      <button
+                        key={genre.category}
+                        type="button"
+                        aria-pressed={active}
+                        onClick={() => toggleGenre(genre.category)}
+                        className={cn(GENRE_CHIP_CLASS, active ? GENRE_CHIP_ON : GENRE_CHIP_OFF)}
+                      >
+                        <span
+                          aria-hidden
+                          className="h-2 w-2 rounded-chip"
+                          style={{ backgroundColor: genreColor(genre.category) }}
+                        />
+                        {genre.category}
+                        <span className={active ? 'text-white/70' : 'text-nicchyo-ink/40'}>{genre.count}</span>
+                      </button>
+                    );
+                  })}
                 </div>
               </>
             )}
@@ -373,13 +412,13 @@ export default function NearbyExplorePanel({
           {/* おすすめ店（理由付き）。
               スマホは3列だと写真も店名も小さすぎるので、おでかけサポートの一覧と同じ1列のリストにする
               （左に写真、右に店名・ジャンル・おすすめの理由）。PC は幅があるので3列×3行の写真グリッドのまま */}
-          {recommendations.length > 0 && (
+          {filteredShops.length > 0 && (
             <div>
               <p className="mb-2.5 text-[11px] font-bold uppercase tracking-[0.16em] text-nicchyo-ink/55">
-                このへんのおすすめ
+                {genreFilter ? `このへんの${genreFilter}（${filteredShops.length}店）` : 'このへんのおすすめ'}
               </p>
               <ul className="-mx-2 flex flex-col lg:mx-0 lg:grid lg:grid-cols-3 lg:gap-3">
-                {recommendations.map((entry) => {
+                {filteredShops.map((entry) => {
                   const color = genreColor(entry.category);
                   const reason = REASON_LABELS[entry.reason];
                   return (

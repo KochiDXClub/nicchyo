@@ -372,6 +372,8 @@ export default function MapPageClient({
     summary: NearbyViewportSummary;
     center: { lat: number; lng: number };
     recommendations: NearbyRecommendedShop[];
+    /** 範囲内のすべての店（近い順）。パネルのジャンル絞り込みで使う */
+    areaShops: NearbyRecommendedShop[];
     note: string;
   } | null>(null);
   const clearMapSearchState = useCallback(() => {
@@ -783,10 +785,22 @@ export default function MapPageClient({
       imageUrl: getShopPreviewImage(shop),
       reason,
     }));
+    // ジャンルで絞り込んだときに並べる、範囲内のすべての店（中心から近い順）
+    const areaShops: NearbyRecommendedShop[] = inAreaShops
+      .map((shop) => ({ shop, d: distanceMeters(center, { lat: shop.lat, lng: shop.lng }) }))
+      .sort((a, b) => a.d - b.d)
+      .map(({ shop }) => ({
+        shopId: shop.id,
+        name: shop.name,
+        category: shop.category,
+        imageUrl: getShopPreviewImage(shop),
+        reason: 'discovery' as const,
+      }));
     setNearbyState({
       summary,
       center: { lat: center.lat, lng: center.lng },
       recommendations,
+      areaShops,
       note: buildNearbyNote(summary),
     });
   }, [shopById, shops]);
@@ -1001,11 +1015,22 @@ export default function MapPageClient({
                   <NearbyExplorePanel
                     summary={nearbyState.summary}
                     recommendations={nearbyState.recommendations}
+                    areaShops={nearbyState.areaShops}
                     note={nearbyState.note}
                     center={nearbyState.center}
                     onSelectShop={handleCommentShopOpen}
                     onShopsRecommended={(shopIds) => {
                       setAiMarkerPayload({ ids: shopIds, label: 'AIおすすめ', source: 'nearby' });
+                    }}
+                    onGenreFilter={(genre, shopIds) => {
+                      // 絞り込んだジャンルの店を地図でも光らせる。解除したら「このへん」由来の光だけ消す
+                      setAiMarkerPayload((prev) =>
+                        genre
+                          ? { ids: shopIds, label: genre, source: 'nearby' }
+                          : prev?.source === 'nearby'
+                            ? null
+                            : prev
+                      );
                     }}
                     onClose={closeNearbyPanel}
                   />
