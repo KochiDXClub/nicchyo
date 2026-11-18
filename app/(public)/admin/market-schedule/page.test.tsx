@@ -3,7 +3,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import type { ReactNode } from "react";
 vi.mock("@/lib/auth/AuthContext", () => ({ useAuth: () => ({ permissions: { isAdmin: true }, isLoading: false }) }));
 vi.mock("@/components/admin", () => ({ AdminLayout: ({ children }: { children: ReactNode }) => <div>{children}</div>, AdminPageHeader: ({ title }: { title: string }) => <h1>{title}</h1> }));
-vi.mock("./components/SchedulePlaceMap", () => ({ SchedulePlaceMap: ({ selected, onSelect }: { selected: string; onSelect: (id: string) => void }) => <button type="button" onClick={() => onSelect("p2")}>地図から場所を選ぶ {selected}</button> }));
+vi.mock("./components/SchedulePointPicker", () => ({ SchedulePointPicker: ({ selected, onSelect }: { selected: string; onSelect: (id: string) => void }) => <button type="button" onClick={() => onSelect("p2")}>地図から場所を選ぶ {selected}</button> }));
 vi.mock("@/components/admin/ShopPreview", () => ({ ShopPreview: () => <div>店舗バナー</div> }));
 import MarketSchedulePage from "./page";
 afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
@@ -12,7 +12,7 @@ describe("出店予定管理", () => {
   it("場所別に直近の予定を表示し、店舗名からバナーを開ける", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify(payload), { status: 200 })));
     render(<MarketSchedulePage />);
-    expect(await screen.findByRole("option", { name: /住所 183-1/ })).toBeTruthy();
+    expect((await screen.findByRole("combobox", { name: "場所を選ぶ" }) as HTMLInputElement).value).toContain("183-1");
     expect(await screen.findByText("直近の予定")).toBeTruthy();
     expect(screen.getAllByText("店A").length).toBeGreaterThan(0);
     fireEvent.click(screen.getByRole("button", { name: "店舗1：店A" }));
@@ -24,9 +24,10 @@ describe("出店予定管理", () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({ ...payload, places, memberships }), { status: 200 })));
     render(<MarketSchedulePage />);
     fireEvent.click(await screen.findByRole("button", { name: "地図から場所を選ぶ p" }));
-    expect((screen.getByLabelText("場所を選ぶ") as HTMLSelectElement).value).toBe("p2");
+    expect((screen.getByLabelText("場所を選ぶ") as HTMLInputElement).value).toContain("184");
     expect(screen.getByRole("button", { name: "店舗1：店B" })).toBeTruthy();
-    fireEvent.change(screen.getByLabelText("場所を選ぶ"), { target: { value: "p" } });
+    fireEvent.focus(screen.getByLabelText("場所を選ぶ"));
+    fireEvent.mouseDown(screen.getByRole("option", { name: /183-1/ }));
     expect(screen.getByRole("button", { name: "地図から場所を選ぶ p" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "店舗1：店A" })).toBeTruthy();
   });
@@ -39,10 +40,9 @@ describe("出店予定管理", () => {
     }));
     const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
     render(<MarketSchedulePage />);
-    const select = await screen.findByLabelText("店舗", { selector: "select" }).catch(() => null);
-    const selects = screen.getAllByLabelText("店舗", { selector: "select" });
-    expect(select ?? selects[0]).toBeTruthy();
-    fireEvent.change(selects[0], { target: { value: "v2" } });
+    const vendorInput = (await screen.findAllByRole("combobox", { name: "店舗" }))[0];
+    fireEvent.focus(vendorInput);
+    fireEvent.mouseDown(screen.getByRole("option", { name: "店B" }));
     fireEvent.click(screen.getByRole("button", { name: "場所に登録" }));
     await waitFor(() => expect(calls).toHaveLength(2));
     expect(confirm).toHaveBeenCalledTimes(1);

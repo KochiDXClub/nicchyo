@@ -4,7 +4,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { AdminLayout, AdminPageHeader } from "@/components/admin";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { ShopPreview } from "@/components/admin/ShopPreview";
-import { SchedulePlaceMap } from "./components/SchedulePlaceMap";
+import { SchedulePointPicker } from "./components/SchedulePointPicker";
+import { Combobox } from "@/components/ui/combobox";
 import { formatMarketAddress } from "@/lib/market-schedule/address";
 import { todayJstString, addDaysToDateString, nextSundayJstString } from "@/lib/time/jstDate";
 import { sundaysBetween } from "@/lib/market-schedule/calendar";
@@ -62,6 +63,7 @@ export default function MarketSchedulePage() {
   }, [load, permissions.isAdmin]);
 
   const locations = useMemo(() => [...(data?.places ?? [])].sort((a, b) => (a.official_number ?? a.store_number) - (b.official_number ?? b.store_number) || (a.branch_number ?? 0) - (b.branch_number ?? 0)), [data]);
+  const vendorOptions = useMemo(() => [...(data?.vendors ?? [])].sort((a, b) => (a.shop_name ?? "").localeCompare(b.shop_name ?? "", "ja")).map((item) => ({ value: item.id, label: item.shop_name || "名称未設定" })), [data]);
   const locationMembers = useMemo(() => (data?.memberships ?? []).filter((item) => item.location_id === location), [data, location]);
   const vendorName = useCallback((id: string) => data?.vendors.find((item) => item.id === id)?.shop_name || "名称未設定", [data]);
   const dates = useMemo(() => viewStart ? sundaysBetween(viewStart, addDaysToDateString(viewStart, 41)) : [], [viewStart]);
@@ -114,13 +116,12 @@ export default function MarketSchedulePage() {
       {!data ? <p>読み込み中…</p> : <>
         <section className="space-y-3 rounded-lg border border-nicchyo-ink/10 bg-white p-4">
           <h2 className="text-lg font-bold">出店場所</h2>
-          <div className="grid gap-4 md:grid-cols-[minmax(0,2fr)_minmax(220px,1fr)]">
-            <SchedulePlaceMap places={locations} selected={location} onSelect={selectLocation} />
-            <div className="space-y-3">
-              <label className="block text-sm font-bold">場所を選ぶ<select className={`${control} mt-1`} value={location} onChange={(e) => selectLocation(e.target.value)}><option value="">場所を選択</option>{locations.map((place) => <option key={place.id} value={place.id}>{placeLabel(place)}</option>)}</select></label>
-              <p className="text-sm text-nicchyo-ink/70">店舗情報の編集は現場登録、住所や地図上の位置はマップ編集で行います。</p>
-              <a className="text-sm font-bold text-nicchyo-primary underline" href="/admin/map-edit">マップ編集を開く</a>
-            </div>
+          <Combobox label="場所を選ぶ" placeholder="場所名や住所で探す" emptyText="一致する場所がありません" options={locations.map((place) => ({ value: place.id, label: placeLabel(place) }))} value={location} onChange={selectLocation} />
+          <div className="space-y-2">
+            <p className="text-sm font-bold">地図から選ぶ</p>
+            <SchedulePointPicker selected={location} onSelect={selectLocation} />
+            <p className="text-sm text-nicchyo-ink/70">地図の区画を押すと場所を選べます。店舗情報の編集は現場登録、住所や地図上の位置はマップ編集で行います。</p>
+            <a className="text-sm font-bold text-nicchyo-primary underline" href="/admin/map-edit">マップ編集を開く</a>
           </div>
         </section>
         <section className="space-y-3 rounded-lg border border-nicchyo-ink/10 bg-white p-4">
@@ -129,7 +130,7 @@ export default function MarketSchedulePage() {
         </section>
         <section className="space-y-3 rounded-lg border border-nicchyo-ink/10 bg-white p-4">
           <h2 className="text-lg font-bold">この場所に店舗を登録</h2>
-          <div className="grid gap-3 sm:grid-cols-2"><label className="block text-sm font-bold">店舗<select className={`${control} mt-1`} value={vendor} onChange={(e) => setVendor(e.target.value)}><option value="">店舗を選択</option>{[...data.vendors].sort((a,b) => (a.shop_name ?? "").localeCompare(b.shop_name ?? "", "ja")).map((item) => <option key={item.id} value={item.id}>{item.shop_name || "名称未設定"}</option>)}</select></label>
+          <div className="grid gap-3 sm:grid-cols-2"><Combobox label="店舗" placeholder="店舗名で探す" emptyText="一致する店舗がありません" options={vendorOptions} value={vendor} onChange={setVendor} />
             <label className="block text-sm font-bold">登録開始日<input type="date" className={`${control} mt-1`} value={memberStart} onChange={(e) => setMemberStart(e.target.value)} /></label></div>
           <button type="button" className={button} disabled={busy || !location || !vendor || !memberStart} onClick={() => void mutate({ action: "addMembership", locationId: location, vendorId: vendor, start: memberStart, confirmed: false, seenCount: null }, true)}>場所に登録</button>
           {legacyPlaces.length > 0 && <div className="rounded-lg bg-amber-50 p-3 text-sm"><p>旧データに未移行の場所があります。日付や場所を確認してから登録してください。旧データだけで予定は自動作成しません。</p><ul>{legacyPlaces.map(([id, date]) => { const place = locations.find((item) => item.id === id); return <li key={id}><button type="button" className="underline" onClick={() => selectLocation(id)}>{place ? placeLabel(place) : "場所不明"}</button>{date ? `（記録日 ${date}）` : "（旧形式の登録）"}</li>; })}</ul></div>}
@@ -138,7 +139,7 @@ export default function MarketSchedulePage() {
         </section>
         <section className="space-y-3 rounded-lg border border-nicchyo-ink/10 bg-white p-4">
           <h2 className="text-lg font-bold">繰り返し予定</h2><label className="block text-sm font-bold">繰り返しの開始日（日曜日）<input type="date" className={`${control} mt-1`} value={ruleStart} onChange={(e) => setRuleStart(e.target.value)} /></label><p className="text-sm">開始日は日曜日を指定します。予定が重なる日は競合として表示し、自動では店舗を選びません。</p>
-          <div className="grid gap-3 sm:grid-cols-2"><label className="block text-sm font-bold">店舗<select className={`${control} mt-1`} value={membership} onChange={(e) => setMembership(e.target.value)}><option value="">店舗を選択</option>{locationMembers.map((item) => <option key={item.id} value={item.id}>店舗{item.vendor_number}：{vendorName(item.vendor_id)}</option>)}</select></label>
+          <div className="grid gap-3 sm:grid-cols-2"><Combobox label="店舗" placeholder="店舗名で探す" emptyText="この場所に登録された店舗がありません" options={locationMembers.map((item) => ({ value: item.id, label: `店舗${item.vendor_number}：${vendorName(item.vendor_id)}` }))} value={membership} onChange={setMembership} />
           <label className="block text-sm font-bold">繰り返し<select className={`${control} mt-1`} value={cadence} onChange={(e) => setCadence(e.target.value as typeof cadence)}><option value="weekly">毎週</option><option value="fortnightly">開始日から隔週</option><option value="monthly">第○日曜日</option></select></label></div>
           {cadence === "monthly" && <fieldset className="flex flex-wrap gap-3"><legend className="text-sm font-bold">出店する週</legend>{[1,2,3,4,5].map((week) => <label key={week}><input type="checkbox" checked={weeks.includes(week)} onChange={(e) => setWeeks((current) => e.target.checked ? [...current, week].sort() : current.filter((item) => item !== week))} /> 第{week}</label>)}</fieldset>}
           {ruleStart && new Date(`${ruleStart}T00:00:00Z`).getUTCDay() !== 0 && <p role="status" className="text-sm text-amber-800">繰り返しの開始日には日曜日を選んでください。</p>}
