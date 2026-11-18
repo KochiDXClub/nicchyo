@@ -281,7 +281,6 @@ export function IntroDemoFrame({
 }) {
   return (
     <div
-      data-intro-demo=""
       className={`relative overflow-hidden rounded-2xl ring-1 ring-nicchyo-ink/10 ${className}`}
       style={{
         height,

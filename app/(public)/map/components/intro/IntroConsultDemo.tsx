@@ -67,13 +67,13 @@ export default function IntroConsultDemo() {
   const remaining = exchanges.filter((e) => e.question !== asked?.question);
 
   return (
-    <div data-intro-demo="" className="flex flex-col gap-2 rounded-card bg-white/85 p-3 ring-1 ring-nicchyo-ink/10 md:p-4">
+    <div className="flex flex-col gap-2 rounded-card bg-white/85 p-3 ring-1 ring-nicchyo-ink/10 md:p-4">
       {/* 主役のにちよさん。相談ページと同じ絵・同じ構えの動き */}
       <div className="flex items-center justify-center gap-3">
         <GrandmaAvatar pose={pose} size={showAnswer ? "pinned" : "compact"} character={DEFAULT_CONSULT_CHARACTER} />
 
         {!showAnswer && (
-          <div className="min-w-0 max-w-[19rem] rounded-card border border-amber-200 bg-white px-3 py-2.5 shadow-sm">
+          <div className="consult-greeting consult-greeting--left min-w-0 max-w-[19rem] rounded-card border border-amber-200 bg-white px-3 py-2.5 shadow-sm">
             <p className="text-[15px] font-bold leading-6 text-amber-900">
               {siteText('mapIntro.consultDemo.greeting')}
             </p>
