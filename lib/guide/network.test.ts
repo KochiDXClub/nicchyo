@@ -84,6 +84,18 @@ describe('attachPoint + shortestPath', () => {
     expect(result!.distanceMeters).toBeLessThan(600);
   });
 
+  it('同じ距離の道は元の順序で選び、経路探索用の接続は元のネットワークに残さない', () => {
+    const paths = ['first', 'second', 'third'].map((id) => ({ ...mainStreet, id }));
+    const network = buildGuideNetwork(paths);
+    const snapshot = structuredClone(network);
+    const work = cloneNetwork(network);
+
+    const pointId = attachPoint(work, { lat: 33.5621, lng: 133.539 });
+
+    expect(work.adjacency.get(pointId)?.map(({ to }) => work.nodes[to].pathId)).toEqual(['first', 'second']);
+    expect(network).toEqual(snapshot);
+  });
+
   it('つながっていない道同士は経路が無い', () => {
     const island: GuidePath = {
       id: 'island',
