@@ -6,6 +6,7 @@ import { fetchPublicShopProfiles } from "@/app/(public)/map/services/shopCache";
 import {
   isLinkVisible,
 } from "@/lib/pageVisibility";
+import { fetchPublicMarketBySlug } from "@/lib/market/publicMarkets.server";
 
 // ページ公開設定・出店状況の変更を1時間以内に反映する
 export const revalidate = 3600;
@@ -50,6 +51,9 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const isPublic = (url: string) => isLinkVisible(url.slice(SITE_URL.length), "anon", visibility);
 
   const staticPages = STATIC_PAGES.filter((page) => isPublic(page.url));
+  // 木曜市の紹介ページは、市が公開されているときだけ載せる
+  const mokuyo = await fetchPublicMarketBySlug("mokuyo");
+  if (mokuyo) staticPages.push({ url: `${SITE_URL}/mokuyo`, changeFrequency: "weekly", priority: 0.6 });
   if (!isLinkVisible("/shops", "anon", visibility)) return staticPages;
 
   const shopPages: MetadataRoute.Sitemap = storeNumbers.flatMap((num) => {
