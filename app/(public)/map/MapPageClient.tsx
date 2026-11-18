@@ -29,6 +29,7 @@ import AnnouncementBanner from "@/components/announcements/AnnouncementBanner";
 import { useMarketCalendar } from "../../../lib/market/useMarketCalendar";
 import ShopScanCards from "./components/ShopScanCards";
 import NearbyExploreButton from "./components/NearbyExploreButton";
+import BackToMarketButton, { useBackToMarket } from "./components/BackToMarketButton";
 import NearbyExplorePanel, {
   type NearbyRecommendedShop,
 } from "./components/NearbyExplorePanel";
@@ -719,8 +720,12 @@ export default function MapPageClient({
 
   // ── 「このへん、なにがある？」──────────────────────
   // 他のモード（検索・AI相談・店舗バナー・パネル表示中）ではボタンを出さない
-  const nearbySuppressed =
+  // フリックで日曜市の道が画面から外れたら「日曜市にもどる」を出す。
+  // 「このへん、なにがある？」と同じ場所に出るので、そのあいだは「このへん」を出さない
+  const backToMarket = useBackToMarket(mapInstance, mapRoute);
+  const mapModeActive =
     !!nearbyState || hasSearchMode || hasAiMode || isShopBannerOpen || guideActive || introOpen;
+  const nearbySuppressed = mapModeActive || backToMarket.offscreen;
   // 回転のみのジェスチャーは move/zoom を発火させないことがあるため、
   // MapView から素通しで受け取ってボタンの静止判定に反映する
   const [isMapGestureActive, setIsMapGestureActive] = useState(false);
@@ -870,7 +875,7 @@ export default function MapPageClient({
               ) : (
                 <div
                   className={cn(
-                    "absolute left-3 right-3 top-3 z-[1001] flex items-center gap-3 rounded-full bg-white py-2 pl-2 pr-2 shadow-[0_8px_24px_rgba(58,58,58,0.18)] ring-1 ring-black/5 lg:left-4 lg:right-auto lg:top-4 lg:w-[22rem]",
+                    "absolute left-3 right-3 top-3 z-[1001] flex items-center gap-3 rounded-full bg-white py-2 pl-2 pr-2 shadow-float ring-1 ring-line lg:left-4 lg:right-auto lg:top-4 lg:w-[22rem]",
                     hideWhilePanningClass(isPanning)
                   )}
                 >
@@ -881,7 +886,7 @@ export default function MapPageClient({
                   <button
                     type="button"
                     onClick={closeGuide}
-                    className="rounded-full bg-slate-100 px-3 py-1.5 text-[12px] font-semibold text-slate-600 active:bg-slate-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400"
+                    className="rounded-chip bg-nicchyo-ink/[0.06] px-3 py-1.5 text-[12px] font-semibold text-nicchyo-ink/70 active:bg-nicchyo-ink/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400"
                   >
                     とじる
                   </button>
@@ -911,9 +916,9 @@ export default function MapPageClient({
                 <div className={`flex items-center gap-2 rounded-full px-4 py-2.5 shadow-lg ring-1 backdrop-blur-sm transition-all duration-200 lg:rounded-btn lg:shadow-none ${
                   hasMapFilter
                     ? 'bg-gradient-to-r from-amber-100/95 to-orange-50/95 ring-amber-400/50'
-                    : 'bg-white/90 ring-slate-900/8 lg:bg-nicchyo-base lg:ring-line'
+                    : 'bg-white ring-line lg:bg-nicchyo-base'
                 }`}>
-                  <svg className="w-4 h-4 shrink-0 text-slate-400" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden>
+                  <svg className="w-4 h-4 shrink-0 text-nicchyo-ink/40" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden>
                     <circle cx="11" cy="11" r="6.5" />
                     <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 16.5 20 20" />
                   </svg>
@@ -922,7 +927,7 @@ export default function MapPageClient({
                     placeholder="お店を検索…"
                     value={mapSearchQuery}
                     onChange={(e) => setMapSearchQuery(e.target.value)}
-                    className="flex-1 bg-transparent text-sm text-slate-800 outline-none placeholder:text-slate-400"
+                    className="min-w-0 flex-1 bg-transparent text-base text-nicchyo-ink lg:text-sm outline-none placeholder:text-nicchyo-ink/40"
                   />
                   {hasMapFilter && (
                     <span className="shrink-0 rounded-full bg-amber-500 px-2 py-0.5 text-[11px] font-bold text-white">
@@ -937,10 +942,11 @@ export default function MapPageClient({
                         setMapSearchCategory(null);
                         setFavoritesOnly(false);
                       }}
-                      className="shrink-0 rounded-full bg-slate-100 p-1.5 text-slate-500 hover:bg-slate-200 transition-colors"
+                      // 指で押せるよう 28px の円にする（以前は 21px で押し損ねやすかった）
+                      className="-my-1 -mr-2 flex h-7 w-7 shrink-0 items-center justify-center rounded-chip bg-nicchyo-ink/[0.06] text-nicchyo-ink/55 transition-colors hover:bg-nicchyo-ink/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400"
                       aria-label="検索をクリア"
                     >
-                      <svg width="9" height="9" viewBox="0 0 12 12" fill="none">
+                      <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
                         <path d="M1 1l10 10M11 1L1 11" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"/>
                       </svg>
                     </button>
@@ -1025,7 +1031,7 @@ export default function MapPageClient({
             {/* 「このへん」の対象範囲（画面中央・幅80%×高さ48%）を示すオレンジ枠。
                 ボタンと同時にフェードで浮き出て、パネル表示中も残る */}
             <div
-              className={`pointer-events-none absolute left-1/2 top-1/2 z-[1140] -translate-x-1/2 -translate-y-1/2 rounded-[28px] border-4 border-orange-400/80 bg-orange-300/10 transition-opacity duration-500 ease-out ${
+              className={`pointer-events-none absolute left-1/2 top-1/2 z-[1140] -translate-x-1/2 -translate-y-1/2 rounded-sheet border-2 border-dashed border-orange-400/80 bg-orange-300/[0.06] transition-opacity duration-500 ease-out-soft ${
                 nearbyButtonVisible || nearbyState ? 'opacity-100' : 'opacity-0'
               }`}
               style={{
@@ -1039,6 +1045,12 @@ export default function MapPageClient({
             <NearbyExploreButton
               visible={nearbyButtonVisible}
               onClick={openNearbyPanel}
+            />
+
+            {/* フリックで日曜市の道が画面の外に出たとき、道へ戻るボタン */}
+            <BackToMarketButton
+              visible={backToMarket.offscreen && !mapModeActive && !isPanning}
+              onClick={backToMarket.goBack}
             />
 
             {/* おでかけサポートを開くボタン（現在地ボタンと同じ高さの左側） */}
