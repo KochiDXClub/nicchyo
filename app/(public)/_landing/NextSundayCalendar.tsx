@@ -22,8 +22,8 @@ export type NextSundayCalendarText = {
  * この部品はサーバー・クライアントどちらからも使うため、ここでは
  * `getT()`（next/headers）を読まず、呼び出し側が持っている t と locale で作る。
  */
-export function nextSundayCalendarText(next: LandingSunday, t: Translate, locale: Locale): NextSundayCalendarText {
-  const statusText = t(getStatusPresentation(next.status).label);
+export function nextSundayCalendarText(next: LandingSunday, t: Translate, locale: Locale, statusLabel = getStatusPresentation(next.status).label): NextSundayCalendarText {
+  const statusText = t(statusLabel);
   const dateLabel = locale === "en" ? `${monthLabel(next.month, locale)} ${next.day}` : `${next.month}月${next.day}日`;
   return {
     monthText: monthLabel(next.month, locale),

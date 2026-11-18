@@ -8,6 +8,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { ArrowLeft, ArrowRight, Bug, Code2, Lightbulb, X, type LucideIcon } from "lucide-react";
 import SupporterSlots from "@/components/SupporterSlots";
+import { NicchyoLogo } from "@/components/navigation/NicchyoLogoLink";
 import { AboutIcon } from "./AboutIcon";
 import { buildAboutSlides, type PainPointIconName, type SlideRichContent } from "./slides";
 import { useLocale, useSiteText } from "@/lib/i18n/LocaleContext";
@@ -254,18 +255,15 @@ export default function AboutStory({ weeklyVisitors }: { weeklyVisitors?: number
                 <AboutIcon name={currentSlide.iconName} className="h-12 w-12" />
               </div>
             )}
-            {!currentSlide.iconName && currentSlide.id === "intro" && (
-              <div
-                className="mb-8 flex h-24 w-24 items-center justify-center rounded-full text-white shadow-md font-bold text-xl"
-                style={{ backgroundColor: theme.accent }}
-              >
-                nicchyo
-              </div>
-            )}
-
-            {/* Typography */}
             <h2 className="mb-4 text-3xl font-bold leading-tight text-gray-900 md:text-4xl">
-              {currentSlide.title}
+              {currentSlide.id === "intro" ? (
+                <>
+                  <NicchyoLogo size="large" alt="" />
+                  <span className="sr-only">{currentSlide.title}</span>
+                </>
+              ) : (
+                currentSlide.title
+              )}
             </h2>
             <p className="mb-8 text-xl font-medium leading-relaxed text-gray-700 md:text-2xl">
               {currentSlide.description}
