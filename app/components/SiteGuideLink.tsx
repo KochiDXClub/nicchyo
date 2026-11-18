@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Info } from "lucide-react";
 
-export default function SiteGuideBackLink() {
+export default function SiteGuideLink() {
   return (
     <Link
       href="/about/site"

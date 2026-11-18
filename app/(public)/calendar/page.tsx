@@ -1,5 +1,5 @@
 import Link from "next/link";
-import SiteGuideBackLink from "@/app/components/SiteGuideBackLink";
+import SiteGuideLink from "@/app/components/SiteGuideLink";
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import NavigationBar from "../../components/NavigationBar";
@@ -31,7 +31,7 @@ export default async function MarketCalendarPage() {
     <PageShell as="main" topNav>
       <div className="bg-gradient-to-b from-nicchyo-soft-green/25 to-transparent pb-6 pt-safe-top">
         <PageContainer width="narrow" className="pt-6">
-          <SiteGuideBackLink />
+          <SiteGuideLink />
           <h1 className="mt-1 text-[2rem] font-black leading-none tracking-tight">
             日曜市カレンダー
           </h1>

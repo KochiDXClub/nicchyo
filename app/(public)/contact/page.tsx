@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { PageContainer, PageShell } from "@/components/ui";
-import SiteGuideBackLink from "@/app/components/SiteGuideBackLink";
+import SiteGuideLink from "@/app/components/SiteGuideLink";
 import NavigationBar from "../../components/NavigationBar";
 import ContactForm from "./ContactForm";
 
@@ -13,7 +13,7 @@ export default function ContactPage() {
   return (
     <PageShell as="main" topNav>
       <PageContainer width="reading" className="space-y-6 pt-[calc(var(--safe-top,0px)+1rem)]">
-        <SiteGuideBackLink />
+        <SiteGuideLink />
         <header>
           <h1 className="text-2xl font-black tracking-tight sm:text-3xl">お問い合わせ・掲載情報の訂正</h1>
           <p className="mt-3 text-sm leading-relaxed text-nicchyo-ink/75">

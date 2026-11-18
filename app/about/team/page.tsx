@@ -1,6 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
-import SiteGuideBackLink from "@/app/components/SiteGuideBackLink";
+import SiteGuideLink from "@/app/components/SiteGuideLink";
 import { PageContainer, PageShell } from "@/components/ui";
 import { GITHUB_REPO_URL } from "@/lib/siteLinks";
 
@@ -20,7 +20,7 @@ export default function SiteTeamPage() {
   return (
     <PageShell as="main" bottomNav={false}>
       <PageContainer width="reading" className="space-y-7 pt-[calc(var(--safe-top,0px)+1rem)]">
-        <SiteGuideBackLink />
+        <SiteGuideLink />
         <header>
           <h1 className="text-3xl font-black tracking-tight">nicchyoの運営チーム</h1>
           <p className="mt-3 leading-relaxed text-nicchyo-ink/75">

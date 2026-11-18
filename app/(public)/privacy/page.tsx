@@ -1,4 +1,4 @@
-import SiteGuideBackLink from "@/app/components/SiteGuideBackLink";
+import SiteGuideLink from "@/app/components/SiteGuideLink";
 import React from "react";
 import Link from "next/link";
 
@@ -86,7 +86,7 @@ export default function PrivacyPage() {
       <main className="mx-auto max-w-[38rem] px-5">
         {/* 導入 */}
         <div className="pb-8 pt-4">
-          <SiteGuideBackLink />
+          <SiteGuideLink />
           <h1 className="mt-3 text-[1.6rem] font-bold leading-[1.55] tracking-[-0.01em] text-nicchyo-ink sm:text-[1.875rem]">
             プライバシーポリシー
           </h1>
