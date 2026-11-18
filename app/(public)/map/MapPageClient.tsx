@@ -678,15 +678,15 @@ export default function MapPageClient({
         window.clearTimeout(introFocusTimerRef.current);
         introFocusTimerRef.current = null;
       }
-      if (typeof document !== "undefined") {
-        document.body.classList.add("shop-banner-open");
-      }
+      // 寄り終わったら（flyTo は 0.8 秒）マーカーをタップしたときと同じ方法で店のバナーを開く。
+      // 以前は URL に ?shop= を足していたが、地図は最初の表示でしかこの値を読まないためバナーが開かず、
+      // 先に付けた body の shop-banner-open だけが残って下のナビが消えたままになっていた
       introFocusTimerRef.current = window.setTimeout(() => {
-        router.push(buildCurrentMapUrl({ shop: String(shopId) }));
+        setFocusShopRequest((prev) => ({ shopId, token: (prev?.token ?? 0) + 1 }));
         introFocusTimerRef.current = null;
       }, 900);
     },
-    [buildCurrentMapUrl, handleCommentShopFocus, router]
+    [handleCommentShopFocus]
   );
   const _handleAiImageClick = useCallback(
     (imageUrl: string) => {
