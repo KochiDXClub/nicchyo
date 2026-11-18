@@ -101,10 +101,12 @@ export default function SignupPage() {
         <div className="rounded-3xl border border-slate-100 bg-white p-6 shadow-xl shadow-slate-200/50 sm:p-10">
           <form className="space-y-6" onSubmit={handleSubmit}>
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">
+              <label htmlFor="signup-nickname" className="block text-sm font-medium text-slate-700 mb-2">
                 お名前（ニックネーム）
               </label>
               <input
+                id="signup-nickname"
+                name="nickname"
                 type="text"
                 required
                 autoComplete="nickname"
@@ -116,10 +118,12 @@ export default function SignupPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">
+              <label htmlFor="signup-email" className="block text-sm font-medium text-slate-700 mb-2">
                 メールアドレス
               </label>
               <input
+                id="signup-email"
+                name="email"
                 type="email"
                 required
                 autoComplete="email"
@@ -131,10 +135,12 @@ export default function SignupPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">
+              <label htmlFor="signup-password" className="block text-sm font-medium text-slate-700 mb-2">
                 パスワード
               </label>
               <input
+                id="signup-password"
+                name="password"
                 type="password"
                 required
                 autoComplete="new-password"
@@ -146,10 +152,12 @@ export default function SignupPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">
+              <label htmlFor="signup-password-confirm" className="block text-sm font-medium text-slate-700 mb-2">
                 パスワード（確認）
               </label>
               <input
+                id="signup-password-confirm"
+                name="password-confirm"
                 type="password"
                 required
                 autoComplete="new-password"
