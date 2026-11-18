@@ -6,6 +6,10 @@ vi.mock("@/app/(public)/map/services/shopCache", () => ({
   fetchPublicShopProfiles: () => fetchPublicShops(),
 }));
 
+vi.mock("@/lib/market/publicMarkets.server", () => ({
+  fetchPublicMarketBySlug: async () => null,
+}));
+
 import sitemap from "./sitemap";
 
 describe("sitemap", () => {
