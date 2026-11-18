@@ -73,6 +73,7 @@ export default async function HomePage() {
     canShowOutingSupport(),
   ]);
   const markets = calendar?.markets ?? await fetchPublicMarkets();
+  const showSundayDetails = markets.some((market) => market.slug === "nichiyo");
   const marketDays = calendar ? buildLandingMarketDays(calendar) : [];
   const photos = pickLandingShopPhotos(shops);
 
@@ -80,18 +81,18 @@ export default async function HomePage() {
     // 下のナビ（サブページでは「マップにもどる」の帯）は出さない。ここは入口なので「もどる」先が無い
     <PageShell bottomNav={false}>
       {/* 日曜市の開催情報（/map と同じもの）。検索結果に開催日と場所を出してもらう */}
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: safeJsonLd(SUNDAY_MARKET_JSON_LD) }} />
+      {showSundayDetails && <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: safeJsonLd(SUNDAY_MARKET_JSON_LD) }} />}
       <main>
         <LandingHero marketDays={marketDays} showOutingSupport={showOutingSupport} />
         <PublicMarketChoice markets={markets} />
         {!calendar && <p role="status" className="mx-auto max-w-4xl px-5 py-4">開催状況を取得できませんでした。時間をおいて再度ご確認ください。</p>}
         <LandingGenres />
         <LandingHowTo />
-        <LandingInfo marketDays={marketDays} showSundayDetails={markets.some((market) => market.slug === "nichiyo")} />
+        <LandingInfo marketDays={marketDays} showSundayDetails={showSundayDetails} />
         <LandingHighlights shopPhotos={photos} />
         <LandingAbout />
-      <LandingFooter />
       </main>
+      <LandingFooter />
     </PageShell>
   );
 }
