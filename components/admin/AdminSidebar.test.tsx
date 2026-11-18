@@ -62,6 +62,16 @@ describe("AdminSidebar（ConsoleSidebar で描く管理画面のサイドバー�
     expect(screen.getByRole("button", { name: "管理メニューを開く" })).toBeInTheDocument();
   });
 
+  it("ロゴから管理ダッシュボードへ戻り、開いているメニューを閉じる", () => {
+    const onClose = vi.fn();
+    render(<AdminSidebar isOpen onClose={onClose} />);
+
+    const logo = screen.getByRole("link", { name: "nicchyo 管理ダッシュボードへ" });
+    expect(logo).toHaveAttribute("href", "/admin/dashboard");
+    fireEvent.click(logo);
+    expect(onClose).toHaveBeenCalledOnce();
+  });
+
   it("フッターのログアウトでサイドバーを閉じ、マップへ移る", async () => {
     const onClose = vi.fn();
     renderSidebar(onClose);

@@ -6,25 +6,28 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Navigation } from "lucide-react";
+import { Minus, Navigation, Plus } from "lucide-react";
 import type { MapCamera } from "../types/mapCamera";
 import { hideWhilePanningClass, useMapPanning } from "../hooks/useMapPanning";
 import { cn } from "@/lib/utils/cn";
 import { useMediaQuery, LG_MEDIA_QUERY } from "@/lib/hooks/useMediaQuery";
 
 // ===== テーパー型縦ズームスライダー =====
-// 上端（拡大側）が太く、下端（縮小側）が細いくさび形のトラックで操作方向を直感的に伝える
-const VZ_PAD = 14;        // 上下パディング（サムがはみ出ないように）
-const VZ_TRACK_H = 156;   // トラック高さ
-const VZ_SVG_W = 34;
+// 上端（拡大側）が太く、下端（縮小側）が細いくさび形のトラックで操作方向を直感的に伝える。
+// 地図をなるべく隠さないよう細く短くし、色は透かさずに塗る（半透明だと地図の色と混ざって読めない）
+const VZ_PAD = 12;        // 上下パディング（サムがはみ出ないように）
+const VZ_TRACK_H = 112;   // トラック高さ
+const VZ_SVG_W = 28;
 const VZ_SVG_H = VZ_TRACK_H + VZ_PAD * 2;
-const VZ_WIDE = 22;       // 上端（拡大）の幅
-const VZ_NARROW = 8.5;    // 下端（縮小）の幅
+const VZ_WIDE = 14;       // 上端（拡大）の幅
+const VZ_NARROW = 5;      // 下端（縮小）の幅
 const VZ_CX = VZ_SVG_W / 2;
 const VZ_L_TOP = VZ_CX - VZ_WIDE / 2;
 const VZ_R_TOP = VZ_CX + VZ_WIDE / 2;
 const VZ_L_BOT = VZ_CX - VZ_NARROW / 2;
 const VZ_R_BOT = VZ_CX + VZ_NARROW / 2;
+/** ＋／− を 1 回押したときに動かすズーム量 */
+const ZOOM_STEP = 0.75;
 
 function VerticalZoomSlider({
   value,
@@ -39,14 +42,16 @@ function VerticalZoomSlider({
 }) {
   const svgRef = useRef<SVGSVGElement>(null);
   const isDragging = useRef(false);
+  // つまんでいるあいだはサムを大きくして、指の下で掴めていることを見せる
+  const [grabbing, setGrabbing] = useState(false);
 
   const trackTop = VZ_PAD;
   const trackBot = VZ_PAD + VZ_TRACK_H;
 
-  const pct = (value - min) / (max - min);           // 0=最小, 1=最大
+  const pct = Math.max(0, Math.min(1, (value - min) / (max - min))); // 0=最小, 1=最大
   const thumbY = trackTop + VZ_TRACK_H * (1 - pct); // 上=拡大, 下=縮小
 
-  // アンバー塗り: サムから下端まで（塗りが多い＝よりズームインしている）
+  // 塗り: サムから下端まで（塗りが多い＝よりズームインしている）
   const fillRatio = (thumbY - trackTop) / VZ_TRACK_H;
   const fillTL = VZ_L_TOP + (VZ_L_BOT - VZ_L_TOP) * fillRatio;
   const fillTR = VZ_R_TOP + (VZ_R_BOT - VZ_R_TOP) * fillRatio;
@@ -65,6 +70,7 @@ function VerticalZoomSlider({
 
   const onPointerDown = (e: React.PointerEvent<SVGSVGElement>) => {
     isDragging.current = true;
+    setGrabbing(true);
     svgRef.current?.setPointerCapture(e.pointerId);
     onValueChange(getValueFromY(e.clientY));
     e.stopPropagation();
@@ -76,6 +82,7 @@ function VerticalZoomSlider({
   };
   const onPointerUp = (e: React.PointerEvent<SVGSVGElement>) => {
     isDragging.current = false;
+    setGrabbing(false);
     e.stopPropagation();
   };
 
@@ -84,24 +91,59 @@ function VerticalZoomSlider({
       ref={svgRef}
       width={VZ_SVG_W}
       height={VZ_SVG_H}
-      style={{ cursor: "ns-resize", touchAction: "none", display: "block" }}
+      className="block cursor-ns-resize touch-none overflow-visible"
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
       onPointerCancel={onPointerUp}
       role="slider"
       aria-label="ズーム"
-      aria-valuenow={value}
+      aria-orientation="vertical"
+      aria-valuenow={Math.round(value * 10) / 10}
       aria-valuemin={min}
       aria-valuemax={max}
     >
-      {/* グレーのトラック（くさび形） */}
-      <polygon points={trackPts} fill="#e5e7eb" />
-      {/* アンバー塗り（現在のズームレベルを表す） */}
-      <polygon points={fillPts} fill="#d97706" opacity="0.65" />
+      {/* トラック（くさび形） */}
+      <polygon points={trackPts} className="fill-nicchyo-ink/10" />
+      {/* 塗り（現在のズームレベルを表す） */}
+      <polygon points={fillPts} className="fill-amber-500" />
       {/* サム */}
-      <circle cx={VZ_CX} cy={thumbY} r={8.5} fill="white" stroke="#d97706" strokeWidth="3" />
+      <circle
+        cx={VZ_CX}
+        cy={thumbY}
+        r={grabbing ? 10 : 8}
+        strokeWidth={2.5}
+        className="fill-white stroke-amber-500 drop-shadow-[0_1px_2px_rgba(58,58,58,0.25)] transition-[r] duration-150 ease-out-soft motion-reduce:transition-none"
+      />
     </svg>
+  );
+}
+
+/** スライダーの上下に置く ＋／− ボタン。指で押せる大きさ（幅 44px）を確保する */
+function ZoomStepButton({
+  label,
+  disabled,
+  onClick,
+  children,
+}: {
+  label: string;
+  disabled: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      disabled={disabled}
+      onClick={(e) => {
+        e.stopPropagation();
+        onClick();
+      }}
+      className="flex h-10 w-11 items-center justify-center text-amber-700 transition-colors hover:bg-amber-50 active:bg-amber-100 disabled:text-nicchyo-ink/25 disabled:hover:bg-transparent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-amber-400"
+    >
+      {children}
+    </button>
   );
 }
 
@@ -157,6 +199,13 @@ export function MapControls({
     zoomFrameRef.current = window.requestAnimationFrame(flushZoom);
   }, [flushZoom, onZoomSliderInteract]);
 
+  const handleZoomStep = useCallback((direction: 1 | -1) => {
+    if (!map) return;
+    onZoomSliderInteract();
+    const nextZoom = Math.max(minZoom, Math.min(maxZoom, map.getZoom() + direction * ZOOM_STEP));
+    map.setZoom(nextZoom);
+  }, [map, maxZoom, minZoom, onZoomSliderInteract]);
+
   useEffect(() => {
     return () => {
       if (zoomFrameRef.current !== null) {
@@ -169,22 +218,27 @@ export function MapControls({
     <>
       {/* 縦ズームスライダー（ナビバー直上）— スマホは2本指操作時のみ表示し、操作終了から数秒後にフェードアウト。PC は常時表示 */}
       <div
-        className={`absolute bottom-[calc(4.5rem+env(safe-area-inset-bottom,0px)-2rem)] right-4 z-[1000] flex flex-col items-center gap-1 rounded-2xl border border-amber-100/60 bg-white/95 px-2.5 py-3 shadow-card backdrop-blur transition-opacity duration-300 ${
-          sliderShown ? "opacity-100" : "pointer-events-none opacity-0"
-        }`}
+        className={cn(
+          "absolute bottom-[calc(4.5rem+env(safe-area-inset-bottom,0px)-2rem)] right-4 z-[1000] flex flex-col items-center overflow-hidden rounded-chip bg-white shadow-float ring-1 ring-line transition-[opacity,transform] duration-300 ease-out-soft motion-reduce:transform-none",
+          sliderShown ? "opacity-100" : "pointer-events-none translate-x-2 opacity-0"
+        )}
         aria-hidden={!sliderShown}
         onMouseDown={(e) => e.stopPropagation()}
         onClick={(e) => e.stopPropagation()}
         onTouchStart={(e) => { e.stopPropagation(); onZoomSliderInteract(); }}
       >
-        <span className="select-none text-[12px] font-black leading-none text-amber-700 drop-shadow-[0_1px_0_rgba(255,255,255,0.9)]">+</span>
+        <ZoomStepButton label="拡大" disabled={currentZoom >= maxZoom - 0.01} onClick={() => handleZoomStep(1)}>
+          <Plus className="h-4 w-4" strokeWidth={2.6} aria-hidden />
+        </ZoomStepButton>
         <VerticalZoomSlider
           value={currentZoom}
           min={minZoom}
           max={maxZoom}
           onValueChange={handleZoomValueChange}
         />
-        <span className="select-none text-[12px] font-black leading-none text-amber-700 drop-shadow-[0_1px_0_rgba(255,255,255,0.9)]">−</span>
+        <ZoomStepButton label="縮小" disabled={currentZoom <= minZoom + 0.01} onClick={() => handleZoomStep(-1)}>
+          <Minus className="h-4 w-4" strokeWidth={2.6} aria-hidden />
+        </ZoomStepButton>
       </div>
 
       {/* 現在地追跡ボタン（検索エリアの高さに追従） */}
@@ -206,12 +260,14 @@ export function MapControls({
               e.stopPropagation();
               onToggleTracking();
             }}
-            className={`flex h-11 w-11 items-center justify-center rounded-full shadow-pop transition-all active:scale-95 ${
+            className={cn(
+              "flex h-11 w-11 items-center justify-center rounded-chip transition-all active:scale-95 motion-reduce:active:scale-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400",
               isTracking
-                ? "bg-amber-500 text-white hover:bg-amber-600"
-                : "border border-amber-100/60 bg-white/95 text-slate-600 shadow-card hover:bg-amber-50"
-            }`}
-            aria-label={isTracking ? "追従中" : "追従オフ"}
+                ? "bg-amber-500 text-white shadow-pop hover:bg-amber-600"
+                : "bg-white text-nicchyo-ink/70 shadow-float ring-1 ring-line hover:bg-amber-50"
+            )}
+            aria-label="現在地に追従する"
+            aria-pressed={isTracking}
           >
             <Navigation className={`h-5 w-5 ${isTracking ? "fill-current" : ""}`} />
           </button>

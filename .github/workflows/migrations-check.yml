@@ -134,6 +134,14 @@ jobs:
             fi
           done
 
+      - name: Check market visibility and weekdays
+        run: |
+          for file in supabase/tests/markets_foundation.sql supabase/tests/market_calendar_visibility.sql supabase/tests/market_schedule_weekday.sql; do
+            if [ -f "$file" ]; then
+              psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" -v ON_ERROR_STOP=1 -f "$file"
+            fi
+          done
+
       - name: Check atomic admin shop edit
         run: |
           if [ -f supabase/tests/atomic_admin_shop_edit.sql ]; then

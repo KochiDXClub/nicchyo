@@ -3,8 +3,8 @@ import NavigationBar from "../../components/NavigationBar";
 import { PageContainer, PageShell, Surface } from "@/components/ui";
 import { fetchPublicMarketBySlug } from "@/lib/market/publicMarkets.server";
 
-// 公開の切り替えは管理画面から行うため、短い間隔で反映する
-export const revalidate = 300;
+// 公開設定はリクエストごとに確認する。
+export const dynamic = "force-dynamic";
 
 const WEEKDAYS = ["日", "月", "火", "水", "木", "金", "土"];
 
