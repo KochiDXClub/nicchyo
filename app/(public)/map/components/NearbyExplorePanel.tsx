@@ -17,7 +17,7 @@
  * - 地図が動いたときは親側の move リスナーで自動的に閉じる
  */
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Image from 'next/image';
 import { ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
@@ -47,6 +47,78 @@ const REASON_LABELS: Partial<Record<NearbyRecommendationReason, string>> = {
   interest: '好みに合いそう',
 };
 
+/**
+ * 店の1行（左に写真、右に店名・ジャンル・理由）。おすすめ一覧と、AI の返事が挙げた店の両方で使う。
+ * gridOnDesktop のときは PC で3列グリッドの写真カードになる（おすすめ一覧）
+ */
+function NearbyShopRow({
+  entry,
+  color,
+  onSelect,
+  gridOnDesktop = false,
+}: {
+  entry: NearbyRecommendedShop;
+  color: string;
+  onSelect: (shopId: number) => void;
+  gridOnDesktop?: boolean;
+}) {
+  const reason = REASON_LABELS[entry.reason];
+  const g = (classes: string) => (gridOnDesktop ? classes : '');
+  return (
+    <button
+      type="button"
+      onClick={() => onSelect(entry.shopId)}
+      className={cn(
+        'flex w-full items-center gap-4 rounded-btn px-2 py-2.5 text-left transition-colors active:bg-nicchyo-base focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400',
+        g('lg:block lg:p-0 lg:transition-transform lg:active:scale-95 lg:active:bg-transparent motion-reduce:lg:active:scale-100')
+      )}
+    >
+      <span
+        className={cn(
+          'block h-24 w-28 shrink-0 overflow-hidden rounded-btn border-2 bg-nicchyo-ink/[0.04]',
+          g('lg:aspect-[4/3] lg:h-auto lg:w-full')
+        )}
+        style={{ borderColor: color }}
+      >
+        {entry.imageUrl && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={entry.imageUrl}
+            alt=""
+            className="h-full w-full object-cover"
+            loading="lazy"
+            draggable={false}
+          />
+        )}
+      </span>
+      <span className="min-w-0 flex-1">
+        <span
+          className={cn(
+            'block line-clamp-2 text-[17px] font-bold leading-snug text-nicchyo-ink',
+            g('lg:mt-1 lg:truncate lg:text-[11px] lg:leading-tight')
+          )}
+        >
+          {entry.name}
+        </span>
+        <span className={cn('mt-1.5 flex items-center gap-1.5 truncate text-[13px] text-nicchyo-ink/55', g('lg:mt-0 lg:text-[10px]'))}>
+          {/* ジャンルは写真の枠の色と同じ点で示す。PC のグリッドは写真の枠で足りるので出さない */}
+          {entry.category && (
+            <span className={cn('flex shrink-0 items-center gap-1', g('lg:hidden'))}>
+              <span aria-hidden className="h-2.5 w-2.5 rounded-chip" style={{ backgroundColor: color }} />
+              {entry.category}
+            </span>
+          )}
+          {reason && <span className="truncate">{reason}</span>}
+        </span>
+      </span>
+      <ChevronRight aria-hidden className={cn('h-5 w-5 shrink-0 text-nicchyo-ink/30', g('lg:hidden'))} />
+    </button>
+  );
+}
+
+/** AI の返事の下にカードで並べる店の数の上限 */
+const MAX_REPLY_SHOPS = 5;
+
 /** ジャンル絞り込みのボタン（押せる大きさの丸いチップ） */
 const GENRE_CHIP_CLASS =
   'inline-flex h-9 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-chip px-3.5 text-[13px] font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400';
@@ -72,6 +144,8 @@ type NearbyChatMessage =
       speakerId?: ConsultTurn['speakerId'];
       speakerName?: string;
       isError?: boolean;
+      /** この返事が挙げた店（返事の下にカードで並べる） */
+      shopIds?: number[];
     };
 
 type AskPayload = {
@@ -131,6 +205,7 @@ export default function NearbyExplorePanel({
   onSelectShop,
   onShopsRecommended,
   onGenreFilter,
+  resolveShop,
   onClose,
 }: {
   summary: NearbyViewportSummary;
@@ -147,6 +222,8 @@ export default function NearbyExplorePanel({
   onShopsRecommended: (shopIds: number[]) => void;
   /** ジャンルで絞り込んだ／解除したとき（地図のピンも同じ店に合わせて光らせる） */
   onGenreFilter?: (genre: string | null, shopIds: number[]) => void;
+  /** 範囲の外の店を AI が挙げたときに、カードに出す情報を引く */
+  resolveShop?: (shopId: number) => NearbyRecommendedShop | undefined;
   /** ハンドルを下にスワイプしたときに閉じる */
   onClose: () => void;
 }) {
@@ -159,6 +236,7 @@ export default function NearbyExplorePanel({
   const hasShops = summary.totalCount > 0;
   // ジャンルの絞り込み（null は「おすすめ」）。範囲内の店だけを対象にするので検索欄は置かない
   const [genreFilter, setGenreFilter] = useState<string | null>(null);
+  const areaShopById = useMemo(() => new Map(areaShops.map((shop) => [shop.shopId, shop])), [areaShops]);
   const filteredShops = genreFilter
     ? areaShops.filter((shop) => shop.category === genreFilter)
     : recommendations;
@@ -268,6 +346,12 @@ export default function NearbyExplorePanel({
             ]
       ).filter((message) => message.text.length > 0);
 
+      // 返事が挙げた店は、最後の吹き出しの下にカードで並べる（文中の店名だけだと探しにくい）
+      const replyShopIds = payload?.shopIds ?? [];
+      const lastAssistant = assistantMessages[assistantMessages.length - 1];
+      if (lastAssistant?.role === 'assistant' && replyShopIds.length > 0) {
+        lastAssistant.shopIds = replyShopIds;
+      }
       setThread((prev) => [
         ...prev,
         ...(assistantMessages.length > 0
@@ -418,51 +502,16 @@ export default function NearbyExplorePanel({
                 {genreFilter ? `このへんの${genreFilter}（${filteredShops.length}店）` : 'このへんのおすすめ'}
               </p>
               <ul className="-mx-2 flex flex-col lg:mx-0 lg:grid lg:grid-cols-3 lg:gap-3">
-                {filteredShops.map((entry) => {
-                  const color = genreColor(entry.category);
-                  const reason = REASON_LABELS[entry.reason];
-                  return (
-                    <li key={entry.shopId}>
-                      <button
-                        type="button"
-                        onClick={() => onSelectShop(entry.shopId)}
-                        className="flex w-full items-center gap-4 rounded-btn px-2 py-2.5 text-left transition-colors active:bg-nicchyo-base focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 lg:block lg:p-0 lg:transition-transform lg:active:scale-95 lg:active:bg-transparent motion-reduce:lg:active:scale-100"
-                      >
-                        <span
-                          className="block h-24 w-28 shrink-0 overflow-hidden rounded-btn border-2 bg-nicchyo-ink/[0.04] lg:aspect-[4/3] lg:h-auto lg:w-full"
-                          style={{ borderColor: color }}
-                        >
-                          {entry.imageUrl && (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img
-                              src={entry.imageUrl}
-                              alt=""
-                              className="h-full w-full object-cover"
-                              loading="lazy"
-                              draggable={false}
-                            />
-                          )}
-                        </span>
-                        <span className="min-w-0 flex-1">
-                          <span className="block line-clamp-2 text-[17px] font-bold leading-snug text-nicchyo-ink lg:mt-1 lg:truncate lg:text-[11px] lg:leading-tight">
-                            {entry.name}
-                          </span>
-                          <span className="mt-1.5 flex items-center gap-1.5 truncate text-[13px] text-nicchyo-ink/55 lg:mt-0 lg:text-[10px]">
-                            {/* ジャンルは写真の枠の色と同じ点で示す。PC は写真の枠で足りるので出さない */}
-                            {entry.category && (
-                              <span className="flex shrink-0 items-center gap-1 lg:hidden">
-                                <span aria-hidden className="h-2.5 w-2.5 rounded-chip" style={{ backgroundColor: color }} />
-                                {entry.category}
-                              </span>
-                            )}
-                            {reason && <span className="truncate">{reason}</span>}
-                          </span>
-                        </span>
-                        <ChevronRight aria-hidden className="h-5 w-5 shrink-0 text-nicchyo-ink/30 lg:hidden" />
-                      </button>
-                    </li>
-                  );
-                })}
+                {filteredShops.map((entry) => (
+                  <li key={entry.shopId}>
+                    <NearbyShopRow
+                      entry={entry}
+                      color={genreColor(entry.category)}
+                      onSelect={onSelectShop}
+                      gridOnDesktop
+                    />
+                  </li>
+                ))}
               </ul>
             </div>
           )}
@@ -480,29 +529,48 @@ export default function NearbyExplorePanel({
                     </div>
                   );
                 }
+                const replyShops = (message.shopIds ?? [])
+                  .map((id) => areaShopById.get(id) ?? resolveShop?.(id))
+                  .filter((shop): shop is NearbyRecommendedShop => !!shop)
+                  .slice(0, MAX_REPLY_SHOPS);
                 const character =
                   (message.speakerId
                     ? CONSULT_CHARACTER_BY_ID.get(message.speakerId)
                     : undefined) ?? noteCharacter;
                 return (
-                  <div key={index} className="flex items-start gap-2.5">
-                    {character && <CharacterAvatar character={character} />}
-                    <div className="min-w-0 max-w-[80%]">
-                      <p
-                        className={`rounded-2xl rounded-tl-md px-3.5 py-2 text-[13px] font-medium leading-relaxed ${
-                          message.isError
-                            ? 'bg-red-50 text-red-700'
-                            : 'bg-slate-100 text-slate-800'
-                        }`}
-                      >
-                        {message.text}
-                      </p>
-                      {(message.speakerName || character) && (
-                        <p className="mt-1 pl-1 text-[10px] font-bold uppercase tracking-[0.14em] text-amber-700">
-                          {message.speakerName ?? character?.name}
+                  <div key={index}>
+                    <div className="flex items-start gap-2.5">
+                      {character && <CharacterAvatar character={character} />}
+                      <div className="min-w-0 max-w-[80%]">
+                        <p
+                          className={`rounded-2xl rounded-tl-md px-3.5 py-2 text-[13px] font-medium leading-relaxed ${
+                            message.isError
+                              ? 'bg-red-50 text-red-700'
+                              : 'bg-slate-100 text-slate-800'
+                          }`}
+                        >
+                          {message.text}
                         </p>
-                      )}
+                        {(message.speakerName || character) && (
+                          <p className="mt-1 pl-1 text-[10px] font-bold uppercase tracking-[0.14em] text-amber-700">
+                            {message.speakerName ?? character?.name}
+                          </p>
+                        )}
+                      </div>
                     </div>
+                    {replyShops.length > 0 && (
+                      <ul className="-mx-2 mt-2 flex flex-col" aria-label="この返事で紹介したお店">
+                        {replyShops.map((shop) => (
+                          <li key={shop.shopId}>
+                            <NearbyShopRow
+                              entry={shop}
+                              color={genreColor(shop.category)}
+                              onSelect={onSelectShop}
+                            />
+                          </li>
+                        ))}
+                      </ul>
+                    )}
                   </div>
                 );
               })}

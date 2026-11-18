@@ -805,6 +805,22 @@ export default function MapPageClient({
     });
   }, [shopById, shops]);
 
+  // 「このへん」の AI が範囲の外の店を挙げたときに、返事の下のカードに出す情報
+  const resolveNearbyShop = useCallback(
+    (shopId: number): NearbyRecommendedShop | undefined => {
+      const shop = shopById.get(shopId);
+      if (!shop) return undefined;
+      return {
+        shopId: shop.id,
+        name: shop.name,
+        category: shop.category,
+        imageUrl: getShopPreviewImage(shop),
+        reason: 'discovery',
+      };
+    },
+    [shopById]
+  );
+
   const closeNearbyPanel = useCallback(() => {
     setNearbyState(null);
     // 追い質問（nearby）由来の aiMarkerPayload だけをクリアする。
@@ -1016,6 +1032,7 @@ export default function MapPageClient({
                     summary={nearbyState.summary}
                     recommendations={nearbyState.recommendations}
                     areaShops={nearbyState.areaShops}
+                    resolveShop={resolveNearbyShop}
                     note={nearbyState.note}
                     center={nearbyState.center}
                     onSelectShop={handleCommentShopOpen}
