@@ -20,6 +20,15 @@ describe("出店予定", () => {
     expect(resolveDay("place", "2026-11-08", [weekly, { ...weekly, id: "b", periodId: "p2", vendorId: "b" }], [], active)).toMatchObject({ state: "conflict", vendorIds: ["a", "b"] });
     expect(resolveDay("place", "2026-11-08", [weekly, { ...weekly, id: "c" }], [], active).state).toBe("scheduled");
   });
+  it("木曜市（weekday=4）は木曜だけを予定日として扱い、日曜は拒否する", () => {
+    const thursday: ScheduleRule = { ...weekly, start: "2026-11-05", recurrence: { kind: "weekly" } };
+    expect(occursOn(thursday, "2026-11-12", 4)).toBe(true);
+    expect(occursOn(thursday, "2026-11-19", 4)).toBe(true);
+    expect(() => occursOn(thursday, "2026-11-08", 4)).toThrow();
+    expect(() => occursOn(weekly, "2026-11-12", 4)).toThrow();
+    expect(resolveDay("place", "2026-11-12", [thursday], [], active, 4)).toMatchObject({ state: "scheduled", vendorIds: ["a"] });
+    expect(() => resolveDay("place", "2026-11-08", [thursday], [], active, 4)).toThrow();
+  });
   it("月またぎの日曜日を列挙し、存在しない日付は拒否する", () => {
     expect(sundaysBetween("2026-11-25", "2026-12-14")).toEqual(["2026-11-29", "2026-12-06", "2026-12-13"]);
     expect(() => sundaysBetween("2026-02-30", "2026-03-31")).toThrow();
