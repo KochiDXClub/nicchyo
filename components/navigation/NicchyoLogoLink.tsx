@@ -1,16 +1,19 @@
 import Image from "next/image";
 import Link from "next/link";
 
-export function NicchyoLogo({ alt = "nicchyo" }: { alt?: string }) {
-  return (
-    <Image
-      src="/images/nicchyo-logo.webp"
-      alt={alt}
-      width={69}
-      height={32}
-      className="h-8 w-auto"
-    />
-  );
+const LOGO_SIZES = {
+  compact: { width: 69, height: 32, className: "h-8 w-auto" },
+  large: { width: 172, height: 80, className: "h-auto max-w-full" },
+};
+
+export function NicchyoLogo({
+  alt = "nicchyo",
+  size = "compact",
+}: {
+  alt?: string;
+  size?: keyof typeof LOGO_SIZES;
+}) {
+  return <Image src="/images/nicchyo-logo.webp" alt={alt} {...LOGO_SIZES[size]} />;
 }
 
 export function NicchyoLogoLink({
