@@ -141,16 +141,24 @@ export function attachPoint(
 
   // 各道への投影のうち近い順に数本へつなぐ（1本だけだと、道が交差する手前で
   // 遠回りになるケースがあるため）
-  const candidates = network.paths
-    .map((path) => ({ path, projection: projectOntoPolyline(point, path.points) }))
-    .filter((c): c is { path: GuidePath; projection: NonNullable<typeof c.projection> } => c.projection !== null)
-    .sort((a, b) => a.projection.distanceMeters - b.projection.distanceMeters)
-    .slice(0, maxCandidates);
+  const candidates: Array<{ path: GuidePath; projection: NonNullable<ReturnType<typeof projectOntoPolyline>> }> = [];
+  if (maxCandidates <= 0) return pointId;
+  for (const path of network.paths) {
+    const projection = projectOntoPolyline(point, path.points);
+    if (!projection) continue;
+    const last = candidates[candidates.length - 1];
+    if (candidates.length >= maxCandidates && projection.distanceMeters >= last.projection.distanceMeters) continue;
+
+    // 近い候補だけを並べて持つ。同じ距離なら先に見つけた道を優先する。
+    const index = candidates.findIndex((entry) => entry.projection.distanceMeters > projection.distanceMeters);
+    candidates.splice(index === -1 ? candidates.length : index, 0, { path, projection });
+    if (candidates.length > maxCandidates) candidates.pop();
+  }
 
   for (const { path, projection } of candidates) {
     const junctionId = addNode(builder, projection.point, path.id);
     // 道の外を歩く区間は少し割り増し（建物や植え込みを避けて歩くぶん）
-    const offRoad = distanceInMeters(point, projection.point) * offRoadFactor;
+    const offRoad = projection.distanceMeters * offRoadFactor;
     network.adjacency.get(pointId)!.push({ to: junctionId, distanceMeters: offRoad, pathId: null });
     network.adjacency.get(junctionId)!.push({ to: pointId, distanceMeters: offRoad, pathId: null });
 
@@ -190,11 +198,17 @@ function samePoint(a: LatLng, b: LatLng): boolean {
 
 /** attachPoint で仮ノードを足す前の状態を汚さないための複製 */
 export function cloneNetwork(network: GuideNetwork): GuideNetwork {
+  // attachPoint は既存の辺を書き換えず、隣接リストに辺を追加するだけ。
+  const adjacency = new Map<number, GuideNetworkEdge[]>();
+  for (const [id, edges] of network.adjacency) adjacency.set(id, edges.slice());
+  const segmentJunctions = new Map<string, number[]>();
+  for (const [key, ids] of network.segmentJunctions) segmentJunctions.set(key, ids.slice());
+
   return {
     paths: network.paths,
-    nodes: network.nodes.map((node) => ({ ...node })),
-    adjacency: new Map(Array.from(network.adjacency.entries()).map(([id, edges]) => [id, edges.map((e) => ({ ...e }))])),
-    segmentJunctions: new Map(Array.from(network.segmentJunctions.entries()).map(([key, ids]) => [key, [...ids]])),
+    nodes: network.nodes.slice(),
+    adjacency,
+    segmentJunctions,
     // 区間の索引は読み取り専用なので共有してよい
     segmentNodes: network.segmentNodes,
   };
