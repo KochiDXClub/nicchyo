@@ -303,7 +303,7 @@ export function AiConsultPanel({
             disabled={streaming}
             rows={1}
             maxLength={SHOP_CHAT_MAX_QUESTION_CHARS}
-            className="flex-1 resize-none bg-transparent text-sm text-nicchyo-ink placeholder:text-nicchyo-ink/40 focus:outline-none disabled:cursor-not-allowed disabled:opacity-40"
+            className="flex-1 resize-none bg-transparent text-base text-nicchyo-ink lg:text-sm placeholder:text-nicchyo-ink/40 focus:outline-none disabled:cursor-not-allowed disabled:opacity-40"
             style={{ lineHeight: "1.5", maxHeight: 120, overflowY: "auto" }}
           />
           <button

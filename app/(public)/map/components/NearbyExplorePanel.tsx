@@ -532,7 +532,7 @@ export default function NearbyExplorePanel({
                 }
               }}
               placeholder="このへんのことをAIに聞く…"
-              className="min-w-0 flex-1 bg-transparent px-2 py-2 text-[14px] text-slate-900 outline-none placeholder:text-slate-400"
+              className="min-w-0 flex-1 bg-transparent px-2 py-2 text-base text-nicchyo-ink outline-none placeholder:text-nicchyo-ink/40 lg:text-[14px]"
             />
             <button
               type="button"
