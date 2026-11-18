@@ -58,7 +58,7 @@ describe("sitemap", () => {
   it("カレンダー・活動記録などの静的ページを載せる", async () => {
     fetchPublicShops.mockResolvedValue([]);
     const urls = (await sitemap()).map((entry) => entry.url);
-    for (const path of ["/calendar", "/story", "/activities", "/support", "/about/site"]) {
+    for (const path of ["/calendar", "/story", "/activities", "/support", "/about/site", "/about/team"]) {
       expect(urls.some((u) => u.endsWith(path))).toBe(true);
     }
     expect(urls.some((u) => u.includes("/activities/"))).toBe(true);

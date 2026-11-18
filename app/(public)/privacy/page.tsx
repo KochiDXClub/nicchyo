@@ -1,3 +1,4 @@
+import SiteGuideBackLink from "@/app/components/SiteGuideBackLink";
 import React from "react";
 import Link from "next/link";
 
@@ -62,6 +63,17 @@ const destinations: Destination[] = [
   },
 ];
 
+const policySections = [
+  { id: "data-collected", label: "お預かりする情報と保存期間" },
+  { id: "location", label: "位置情報の取り扱い" },
+  { id: "microphone", label: "音声入力の取り扱い" },
+  { id: "external-services", label: "外部サービスへの送信" },
+  { id: "analytics-settings", label: "アクセス解析を止める" },
+  { id: "data-purpose", label: "情報の使いみち" },
+  { id: "retention", label: "第三者への提供と保存期間" },
+  { id: "privacy-contact", label: "個人情報のお問い合わせ" },
+];
+
 export default function PrivacyPage() {
   return (
     <div className="min-h-screen bg-nicchyo-base pb-28">
@@ -73,11 +85,10 @@ export default function PrivacyPage() {
 
       <main className="mx-auto max-w-[38rem] px-5">
         {/* 導入 */}
-        <div className="pt-12 pb-10">
-          <h1 className="text-[1.6rem] font-bold leading-[1.55] tracking-[-0.01em] text-nicchyo-ink sm:text-[1.875rem]">
-            お預かりする情報を、
-            <br />
-            できるだけ少なく
+        <div className="pb-8 pt-4">
+          <SiteGuideBackLink />
+          <h1 className="mt-3 text-[1.6rem] font-bold leading-[1.55] tracking-[-0.01em] text-nicchyo-ink sm:text-[1.875rem]">
+            プライバシーポリシー
           </h1>
           <p className="mt-6 text-[0.95rem] leading-[1.95] text-[#5C574F]">
             nicchyo（以下「当サービス」といいます）は、高知・日曜市を初めて訪れる方をご案内するための地図サービスです。
@@ -86,6 +97,19 @@ export default function PrivacyPage() {
             位置情報とマイクは、お使いになる場面でのみ許可をお尋ねいたします。
           </p>
         </div>
+
+        <nav aria-labelledby="privacy-contents" className="mb-8 rounded-card bg-white p-5 ring-1 ring-line sm:p-6">
+          <h2 id="privacy-contents" className="font-bold text-nicchyo-ink">知りたい項目へ</h2>
+          <ul className="mt-2 grid gap-x-5 sm:grid-cols-2">
+            {policySections.map(({ id, label }) => (
+              <li key={id}>
+                <a href={`#${id}`} className="inline-flex min-h-11 items-center rounded-btn text-sm font-semibold text-nicchyo-ink underline underline-offset-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-nicchyo-primary">
+                  {label}
+                </a>
+              </li>
+            ))}
+          </ul>
+        </nav>
 
         {/* 中心にある約束 */}
         <div className="border-l-[3px] border-nicchyo-primary pl-5 sm:pl-6">
@@ -97,7 +121,7 @@ export default function PrivacyPage() {
         </div>
 
         <div className="mt-14 space-y-14">
-          <Section number={1} title="お預かりしている情報">
+          <Section id="data-collected" number={1} title="お預かりしている情報">
             <Detail term="ご覧になったページの記録（自動）">
               ページのアドレス、滞在時間、日付、ブラウザごとに割り当てるランダムな識別子（Cookie{" "}
               <Code>nicchyo_visitor_id</Code>。保存期間は1年）、およびログイン中の場合はその役割（出店者・運営など）を
@@ -162,7 +186,7 @@ export default function PrivacyPage() {
             </Detail>
           </Section>
 
-          <Section number={2} title="位置情報の取り扱い">
+          <Section id="location" number={2} title="位置情報の取り扱い">
             <Prose>
               地図にご自身の位置を表示すること、目的地までの道のりをお示しすること、
               おでかけサポートで残りの距離を数えることは、すべてお使いの端末の中で完結いたします。
@@ -197,7 +221,7 @@ export default function PrivacyPage() {
             </Prose>
           </Section>
 
-          <Section number={3} title="音声入力（マイク）の取り扱い">
+          <Section id="microphone" number={3} title="音声入力（マイク）の取り扱い">
             <Prose>
               AI へのご相談は、文字のご入力のほかに、話しかけてご入力いただくこともできます。
               お使いになるにはブラウザからマイクの許可が必要で、
@@ -220,7 +244,7 @@ export default function PrivacyPage() {
             </Prose>
           </Section>
 
-          <Section number={4} title="外部への送信">
+          <Section id="external-services" number={4} title="外部への送信">
             <Prose>
               電気通信事業法の外部送信規律にもとづき、利用者の情報を外部へ送信しているものを記載いたします。
             </Prose>
@@ -273,7 +297,7 @@ export default function PrivacyPage() {
             </Prose>
           </Section>
 
-          <Section number={6} title="情報の使いみち">
+          <Section id="data-purpose" number={6} title="情報の使いみち">
             <ul className="space-y-3 text-[0.95rem] leading-[1.9] text-[#5C574F]">
               {[
                 "地図・検索・ご案内を、初めての方に分かりやすく作り直すため",
@@ -290,7 +314,7 @@ export default function PrivacyPage() {
             </ul>
           </Section>
 
-          <Section number={7} title="第三者への提供と保存期間">
+          <Section id="retention" number={7} title="第三者への提供と保存期間">
             <Prose>
               法令に基づく場合を除き、お客様の個人情報を同意なく第三者へ提供することはございません。
               上の「外部への送信」に挙げた事業者へは、サービスの運営に必要な範囲で業務を委託しており、
@@ -302,7 +326,7 @@ export default function PrivacyPage() {
             </Prose>
           </Section>
 
-          <Section number={8} title="お問い合わせ窓口">
+          <Section id="privacy-contact" number={8} title="お問い合わせ窓口">
             <Prose>
               個人情報の取り扱いについてのご質問、ご自身の情報の開示・削除のご希望は、
               下記のフォームよりご連絡ください。
@@ -338,7 +362,7 @@ function Section({
   children: React.ReactNode;
 }) {
   return (
-    <section id={id} className={id ? "scroll-mt-6" : undefined}>
+    <section id={id} className={id ? "scroll-mt-20" : undefined}>
       <h2 className="flex items-baseline gap-3 text-[1.05rem] font-semibold text-nicchyo-ink">
         <span className="text-sm font-bold tabular-nums text-nicchyo-soft-green">{number}</span>
         {title}

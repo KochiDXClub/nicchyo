@@ -1,3 +1,5 @@
+import Link from "next/link";
+import SiteGuideBackLink from "@/app/components/SiteGuideBackLink";
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import NavigationBar from "../../components/NavigationBar";
@@ -29,36 +31,42 @@ export default async function MarketCalendarPage() {
     <PageShell as="main" topNav>
       <div className="bg-gradient-to-b from-nicchyo-soft-green/25 to-transparent pb-6 pt-safe-top">
         <PageContainer width="narrow" className="pt-6">
-          <p className="text-[11px] font-bold uppercase tracking-[0.32em] text-nicchyo-primary">
-            Market Calendar
-          </p>
+          <SiteGuideBackLink />
           <h1 className="mt-1 text-[2rem] font-black leading-none tracking-tight">
             日曜市カレンダー
           </h1>
           <p className="mt-2.5 text-sm text-nicchyo-ink/55">
-            開催状況とこれからの予定をお届けします
+            次の日曜市の開催状況と、これからの予定を確認できます。
           </p>
 
           {calendar ? <MarketStatusCalendar day={calendar.day} className="mt-5" link={false} unregisteredLabel="通常予定" /> : <p role="status" className="mt-5">開催状況を取得できませんでした。時間をおいて再度ご確認ください。</p>}
-          {calendar && (
-            <p className="mt-4 text-sm leading-relaxed text-nicchyo-ink/75">
-              「通常予定」は開催情報の登録がない日です。毎週日曜の通常日程をもとに表示しています。
-            </p>
-          )}
         </PageContainer>
       </div>
 
       <PageContainer width="narrow">
-        {calendar && <UpcomingSundays sundays={sundays} showHeading={false} showStatusSource />}
-
-        <p className="mt-6 text-center text-[11px] leading-relaxed text-nicchyo-ink/40">
-          出店者ごとの当日の様子は
-          <br />
-          <a href="/story" className="font-semibold text-nicchyo-primary underline underline-offset-2">
-            近況
-          </a>
-          でご覧いただけます
-        </p>
+        {calendar && (
+          <>
+            <section aria-labelledby="calendar-status-guide" className="mb-6 rounded-card bg-white p-5 ring-1 ring-line">
+              <h2 id="calendar-status-guide" className="font-bold">開催状況の見方</h2>
+              <dl className="mt-3 space-y-3 text-sm leading-relaxed">
+                <div>
+                  <dt className="font-bold">通常予定</dt>
+                  <dd className="text-nicchyo-ink/75">その日の開催情報は未登録です。毎週日曜の通常日程をもとに表示しています。</dd>
+                </div>
+                <div>
+                  <dt className="font-bold">運営が登録</dt>
+                  <dd className="text-nicchyo-ink/75">運営が登録した開催・中止などの情報です。「更新」は情報が最後に保存された時刻を示します。</dd>
+                </div>
+              </dl>
+            </section>
+            <h2 className="mb-2 text-lg font-bold">これからの開催日</h2>
+            <UpcomingSundays sundays={sundays} showHeading={false} showStatusSource />
+          </>
+        )}
+        <div className="mt-5 flex flex-wrap gap-x-5">
+          <Link href="/story" className="inline-flex min-h-11 items-center text-sm font-semibold underline underline-offset-4">出店者の近況を見る</Link>
+          <Link href="/contact?category=bug#corrections" className="inline-flex min-h-11 items-center text-sm font-semibold underline underline-offset-4">掲載情報の訂正を知らせる</Link>
+        </div>
       </PageContainer>
 
       <NavigationBar backBarOnTop />

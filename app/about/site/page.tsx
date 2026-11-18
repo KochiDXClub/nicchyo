@@ -13,14 +13,14 @@ const copy = {
       {
         title: "誰が運営していますか？",
         body: "高知高専のnicchyoプロジェクトが、日曜市のデジタルマップを開発・運営しています。",
-        link: "nicchyoについて",
-        href: "/about",
+        link: "運営チームを見る",
+        href: "/about/team",
       },
       {
         title: "掲載情報が違っていたら？",
         body: "お問い合わせフォームからお知らせください。お店の名前や該当ページ、どこが違っていたかを添えていただけると確認しやすくなります。",
         link: "情報の訂正を知らせる",
-        href: "/contact",
+        href: "/contact?category=bug#corrections",
       },
       {
         title: "アクセス解析を止めるには？",
@@ -31,7 +31,7 @@ const copy = {
     ],
     more: "もっと詳しく",
     links: [
-      { label: "データの扱いと保存期間", href: "/privacy" },
+      { label: "データの扱いと保存期間", href: "/privacy#data-collected" },
       { label: "日曜市の開催情報", href: "/calendar" },
       { label: "サイトの更新履歴", href: "/about/versions" },
       { label: "公開ソースコード（GitHub）", href: GITHUB_REPO_URL },
@@ -45,14 +45,14 @@ const copy = {
       {
         title: "Who runs this site?",
         body: "The nicchyo project at Kochi Kosen builds and operates this digital map of the Sunday Market.",
-        link: "About nicchyo",
-        href: "/about",
+        link: "Meet the team",
+        href: "/about/team",
       },
       {
         title: "How can I report incorrect information?",
         body: "Use the contact form. The shop name, page, and what you noticed help the team check the information.",
         link: "Report a correction",
-        href: "/contact",
+        href: "/contact?category=bug#corrections",
       },
       {
         title: "How do I turn off analytics?",
@@ -63,7 +63,7 @@ const copy = {
     ],
     more: "More information",
     links: [
-      { label: "Data use and retention", href: "/privacy" },
+      { label: "Data use and retention", href: "/privacy#data-collected" },
       { label: "Sunday Market calendar", href: "/calendar" },
       { label: "Version history", href: "/about/versions" },
       { label: "Source code on GitHub", href: GITHUB_REPO_URL },

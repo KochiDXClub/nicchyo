@@ -24,6 +24,7 @@ const STATIC_PAGES: MetadataRoute.Sitemap = [
   { url: `${SITE_URL}/story`, changeFrequency: "weekly", priority: 0.6 },
   { url: `${SITE_URL}/about`, changeFrequency: "monthly", priority: 0.5 },
   { url: `${SITE_URL}/about/site`, changeFrequency: "monthly", priority: 0.4 },
+  { url: `${SITE_URL}/about/team`, changeFrequency: "monthly", priority: 0.4 },
   { url: `${SITE_URL}/faq`, changeFrequency: "monthly", priority: 0.5 },
   { url: `${SITE_URL}/activities`, changeFrequency: "monthly", priority: 0.4 },
   ...ACTIVITIES.map((activity) => ({
