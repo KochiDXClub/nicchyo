@@ -10,7 +10,7 @@ import { ArrowLeft, ArrowRight, Bug, Code2, Lightbulb, X, type LucideIcon } from
 import SupporterSlots from "@/components/SupporterSlots";
 import { AboutIcon } from "./AboutIcon";
 import { buildAboutSlides, type PainPointIconName, type SlideRichContent } from "./slides";
-import { useSiteText } from "@/lib/i18n/LocaleContext";
+import { useLocale, useSiteText } from "@/lib/i18n/LocaleContext";
 
 // painPoints の項目に置く線画アイコン。メニューやおでかけと同じ lucide で揃える
 const PAIN_POINT_ICONS: Record<PainPointIconName, LucideIcon> = {
@@ -178,6 +178,7 @@ const SWIPE_VELOCITY_THRESHOLD = 300;
 
 export default function AboutStory({ weeklyVisitors }: { weeklyVisitors?: number | null }) {
   const { text: siteText } = useSiteText();
+  const locale = useLocale();
   const aboutSlides = buildAboutSlides(siteText);
   const [currentIndex, setCurrentIndex] = useState(0);
 
@@ -226,7 +227,7 @@ export default function AboutStory({ weeklyVisitors }: { weeklyVisitors?: number
       </Link>
 
       {/* Main Content Area */}
-      <div className="relative flex flex-1 flex-col items-center justify-center overflow-hidden px-6 pb-28 pt-10">
+      <div className="relative flex flex-1 flex-col items-center justify-center overflow-hidden px-6 pb-[calc(10rem+var(--safe-bottom,0px))] pt-10 sm:pb-[calc(8rem+var(--safe-bottom,0px))]">
         <AnimatePresence mode="wait">
           <motion.div
             key={currentSlide.id}
@@ -307,21 +308,22 @@ export default function AboutStory({ weeklyVisitors }: { weeklyVisitors?: number
       {/* Bottom Navigation */}
       <div className="fixed bottom-0 left-0 right-0 border-t border-white/60 bg-white/90 px-6 pt-4 pb-[calc(0.75rem+var(--safe-bottom,0px))] backdrop-blur-sm">
         {/* Dot navigation: タップで任意のスライドへジャンプできる */}
-        <div className="mx-auto mb-3 flex max-w-md items-center justify-center gap-1.5 overflow-x-auto px-1">
+        <div className="mx-auto mb-1 flex max-w-[12rem] flex-wrap items-center justify-center sm:max-w-md">
           {aboutSlides.map((slide, i) => (
             <button
               key={slide.id}
               type="button"
               onClick={() => goToSlide(i)}
-              aria-label={`${slide.title} へ移動`}
+              aria-label={locale === "en" ? `Go to ${slide.title}` : `${slide.title} へ移動`}
               aria-current={i === currentIndex}
-              className="shrink-0 rounded-full transition-all"
-              style={{
-                width: i === currentIndex ? 18 : 6,
-                height: 6,
-                backgroundColor: i === currentIndex ? theme.accent : "#E5E7EB",
-              }}
-            />
+              className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full focus-visible:outline focus-visible:outline-2 focus-visible:outline-amber-600"
+            >
+              <span
+                aria-hidden="true"
+                className="h-1.5 rounded-full transition-all"
+                style={{ width: i === currentIndex ? 18 : 6, backgroundColor: i === currentIndex ? theme.accent : "#E5E7EB" }}
+              />
+            </button>
           ))}
         </div>
 
@@ -335,7 +337,7 @@ export default function AboutStory({ weeklyVisitors }: { weeklyVisitors?: number
                 ? "text-gray-300"
                 : "bg-gray-100 text-gray-600 hover:bg-gray-200"
             }`}
-            aria-label="Previous slide"
+            aria-label={locale === "en" ? "Previous slide" : "前へ"}
           >
             <ArrowLeft className="h-6 w-6" />
           </button>
@@ -354,7 +356,6 @@ export default function AboutStory({ weeklyVisitors }: { weeklyVisitors?: number
                 ? { backgroundColor: "#F3F4F6", color: "#9CA3AF", boxShadow: "none" }
                 : { backgroundColor: "#111827", color: "white" }
             }
-            aria-label="Next slide"
           >
             {currentIndex === aboutSlides.length - 1 ? (
               <span>{siteText("about.nav.done")}</span>
