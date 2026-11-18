@@ -5,13 +5,14 @@ import { enforceRateLimit } from "@/lib/security/rateLimit";
 import { parseMarketDayRequest } from "@/lib/market/marketDayRequest.server";
 import { validateCityMarketDate } from "@/lib/market/marketDayInput";
 import { todayJstString } from "@/lib/time/jstDate";
-import { saveMarketDay } from "@/lib/market/saveMarketDay.server";
+import { readDefaultMarketId, saveMarketDay } from "@/lib/market/saveMarketDay.server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /** 更新履歴として見せる件数 */
 const HISTORY_LIMIT = 20;
+const HISTORY_QUERY_LIMIT = 100;
 
 type HistoryItem = {
   at: string;
@@ -24,17 +25,19 @@ type HistoryItem = {
 };
 
 function parseDetails(details: string | null): {
+  marketId: string | null;
   before: { status?: string } | null;
   after: { status?: string; note?: string | null } | null;
 } {
   try {
     const json = details ? (JSON.parse(details) as Record<string, unknown>) : null;
     return {
+      marketId: typeof json?.market_id === "string" ? json.market_id : null,
       before: (json?.before ?? null) as { status?: string } | null,
       after: (json?.after ?? null) as { status?: string; note?: string | null } | null,
     };
   } catch {
-    return { before: null, after: null };
+    return { marketId: null, before: null, after: null };
   }
 }
 
@@ -46,11 +49,14 @@ export async function GET() {
   const auth = await requireCityApi();
   if ("error" in auth) return auth.error;
   const { user, adminClient: dc } = auth;
+  const sundayId = await readDefaultMarketId(dc);
+  if (!sundayId) return NextResponse.json({ error: "日曜市を取得できませんでした" }, { status: 503 });
 
   const [daysResult, historyResult] = await Promise.all([
     dc
       .from("market_days")
       .select("market_date, status, note, updated_at")
+      .eq("market_id", sundayId)
       .order("market_date", { ascending: false })
       .limit(100),
     dc
@@ -58,24 +64,26 @@ export async function GET() {
       .select("created_at, actor_id, actor_role, target_id, details")
       .eq("action", "market_day_updated")
       .order("created_at", { ascending: false })
-      .limit(HISTORY_LIMIT),
+      .limit(HISTORY_QUERY_LIMIT),
   ]);
 
   if (daysResult.error || historyResult.error) {
     return NextResponse.json({ error: "データ取得に失敗しました" }, { status: 500 });
   }
 
-  const history: HistoryItem[] = (historyResult.data ?? []).map((row) => {
-    const { before, after } = parseDetails(row.details);
-    return {
+  const history: HistoryItem[] = (historyResult.data ?? []).flatMap((row): HistoryItem[] => {
+    const { marketId, before, after } = parseDetails(row.details);
+    // 市IDが入る前の履歴は、従来どおり日曜市の履歴として扱う。
+    if (marketId && marketId !== sundayId) return [];
+    return [{
       at: row.created_at,
       by: row.actor_id === user.id ? "あなた" : row.actor_role === "city_official" ? "高知市" : "運営",
       marketDate: row.target_id,
       from: before?.status ?? null,
       to: after?.status ?? null,
       note: after?.note ?? null,
-    };
-  });
+    }];
+  }).slice(0, HISTORY_LIMIT);
 
   return NextResponse.json({ days: daysResult.data ?? [], history });
 }
@@ -102,6 +110,9 @@ export async function PUT(req: Request) {
   const parsed = await parseMarketDayRequest(req);
   if ("response" in parsed) return parsed.response;
   const { data } = parsed;
+  if (data.market_id !== undefined) {
+    return NextResponse.json({ error: "高知市向けの画面から変更できるのは日曜市のみです" }, { status: 400 });
+  }
 
   // 市が書けるのは、今日から先の日曜だけ（過去の開催実績は書き換えさせない）
   const dateError = validateCityMarketDate(data.market_date, todayJstString());
