@@ -16,6 +16,7 @@
 import React, { useEffect, useLayoutEffect, useRef, type ReactNode } from "react";
 import Link from "next/link";
 import { Menu, PanelLeftClose, X, type LucideIcon } from "lucide-react";
+import { NicchyoLogoLink } from "./NicchyoLogoLink";
 
 /** サイドバーのぶん、本文を右へ寄せる余白。サイドバーの幅（w-[248px]）と揃える */
 export const CONSOLE_SIDEBAR_OFFSET_CLASS = "lg:pl-[248px]";
@@ -76,9 +77,8 @@ export const ConsoleSidebar = React.memo(function ConsoleSidebar({
   onClose,
   menuLabel,
   showMobileToggle = true,
-  brandIcon: BrandIcon,
-  brandClassName,
-  title,
+  homeHref,
+  homeLabel,
   subtitle,
   groups,
   accent,
@@ -93,11 +93,9 @@ export const ConsoleSidebar = React.memo(function ConsoleSidebar({
   menuLabel: string;
   /** スマホで左上に開閉ボタンを出すか。下部バーで代わりの導線を出す画面では false */
   showMobileToggle?: boolean;
-  /** 見出しの左に出すアイコン */
-  brandIcon: LucideIcon;
-  /** 見出しのアイコンの地の色 */
-  brandClassName: string;
-  title: string;
+  /** ロゴから戻る、この画面のホーム */
+  homeHref: string;
+  homeLabel: string;
   subtitle: string;
   groups: ConsoleSidebarGroup[];
   accent: ConsoleSidebarAccent;
@@ -130,7 +128,10 @@ export const ConsoleSidebar = React.memo(function ConsoleSidebar({
         <button
           type="button"
           onClick={onToggle ?? onClose}
-          className="fixed left-4 top-4 z-[10010] flex h-10 w-10 items-center justify-center rounded-xl border border-line bg-white/90 text-nicchyo-ink/70 shadow-chip backdrop-blur transition hover:bg-white active:scale-95 lg:hidden"
+          className={`fixed z-[10010] flex h-10 w-10 items-center justify-center rounded-xl border border-line bg-white/90 text-nicchyo-ink/70 shadow-chip backdrop-blur transition hover:bg-white active:scale-95 lg:hidden ${
+            isOpen ? "left-[192px] top-2" : "left-4 top-4"
+          }`}
+          aria-expanded={isOpen}
           aria-label={isOpen ? `${menuLabel}を閉じる` : `${menuLabel}を開く`}
         >
           {isOpen ? <X className="h-[18px] w-[18px]" /> : <Menu className="h-[18px] w-[18px]" />}
@@ -148,26 +149,25 @@ export const ConsoleSidebar = React.memo(function ConsoleSidebar({
 
       <aside
         className={`fixed inset-y-0 left-0 z-[9999] flex w-[248px] flex-col border-r border-line bg-white transition-transform duration-200 ease-out lg:translate-x-0 ${
-          isOpen ? "translate-x-0" : "-translate-x-full"
+          isOpen ? "translate-x-0" : "invisible -translate-x-full lg:visible"
         }`}
       >
         {/* ヘッダー */}
         <div className="flex h-14 shrink-0 items-center gap-2.5 border-b border-line px-4">
-          <span className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg text-white ${brandClassName}`}>
-            <BrandIcon className="h-[16px] w-[16px]" aria-hidden="true" />
-          </span>
-          <span className="min-w-0 flex-1 leading-tight">
-            <span className="block truncate text-[13px] font-semibold text-nicchyo-ink">{title}</span>
-            <span className="block truncate text-[11px] text-nicchyo-ink/55">{subtitle}</span>
-          </span>
-          <button
-            type="button"
-            onClick={onClose}
-            className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-nicchyo-ink/55 transition hover:bg-nicchyo-ink/5 hover:text-nicchyo-ink/70 lg:hidden"
-            aria-label="サイドバーを閉じる"
-          >
-            <PanelLeftClose className="h-[16px] w-[16px]" />
-          </button>
+          <NicchyoLogoLink href={homeHref} label={homeLabel} onClick={onClose} />
+          <span className="min-w-0 flex-1 truncate text-xs text-nicchyo-ink/70">{subtitle}</span>
+          {showMobileToggle ? (
+            <span className="w-10 shrink-0 lg:hidden" aria-hidden />
+          ) : (
+            <button
+              type="button"
+              onClick={onClose}
+              className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-nicchyo-ink/55 transition hover:bg-nicchyo-ink/5 hover:text-nicchyo-ink/70 lg:hidden"
+              aria-label="サイドバーを閉じる"
+            >
+              <PanelLeftClose className="h-[16px] w-[16px]" />
+            </button>
+          )}
         </div>
 
         {/* ナビゲーション */}

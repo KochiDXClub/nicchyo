@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState, type FormEvent, useRef, useEffect } from "react";
 import Image from "next/image";
 import { useAuth } from "../../../lib/auth/AuthContext";
+import { NicchyoLogoLink } from "@/components/navigation/NicchyoLogoLink";
 import GoogleSignInButton from "@/components/auth/GoogleSignInButton";
 import NavigationBar from "../../components/NavigationBar";
 import { Mail, Lock, LogIn, ChevronRight, UserPlus, Eye, EyeOff, AlertCircle } from "lucide-react";
@@ -54,13 +55,14 @@ export default function LoginPage() {
 
         {/* Header Section with friendly greeting */}
         <div className="mb-8 flex flex-col items-center text-center">
-          <div className="mb-6 relative h-24 w-24 overflow-hidden rounded-full border-4 border-white bg-orange-100 shadow-md">
+          <NicchyoLogoLink />
+          <div className="mb-4 mt-2 relative h-16 w-16 overflow-hidden rounded-full border-4 border-white bg-orange-100 shadow-md">
              <Image
               src="/images/obaasan.webp"
               alt="Obaasan"
               fill
               className="object-cover"
-              sizes="96px"
+              sizes="64px"
               priority
             />
           </div>

@@ -9,6 +9,7 @@ import { useAuth } from "@/lib/auth/AuthContext";
 import { fetchVendorStore } from "@/app/vendor/_services/storeService";
 import { fetchVendorPosts } from "@/app/vendor/_services/postsService";
 import type { Post } from "@/app/vendor/_types";
+import { NicchyoLogo } from "@/components/navigation/NicchyoLogoLink";
 import ClosedDaysCalendar from "@/components/vendor/ClosedDaysCalendar";
 import VendorBackdrop from "@/components/vendor/VendorBackdrop";
 import VendorAskStage from "./ask/VendorAskStage";
@@ -110,14 +111,16 @@ export default function MyShopPage() {
       </AnimatePresence>
 
       <div className="relative z-10 mx-auto w-full max-w-3xl px-4">
-        {/* お店の名前（アイコン付き）と、次の日曜市まで */}
-        <header className="flex items-center gap-3.5 pb-4 pt-10 sm:pt-14">
-          <ShopIcon imageUrl={summary?.shopImageUrl} />
-          <div className="min-w-0">
-            <h1 className="truncate font-display text-2xl leading-tight text-nicchyo-ink sm:text-3xl">
-              {shopName}
-            </h1>
-            <p className="mt-0.5 text-[15px] font-bold text-amber-900">{sundayLabel}</p>
+        <header className="space-y-3 pb-4 pt-4 sm:pt-6">
+          <NicchyoLogo />
+          <div className="flex items-center gap-3.5">
+            <ShopIcon imageUrl={summary?.shopImageUrl} />
+            <div className="min-w-0">
+              <h1 className="truncate font-display text-2xl leading-tight text-nicchyo-ink sm:text-3xl">
+                {shopName}
+              </h1>
+              <p className="mt-0.5 text-[15px] font-bold text-amber-900">{sundayLabel}</p>
+            </div>
           </div>
         </header>
 
