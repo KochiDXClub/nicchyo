@@ -19,6 +19,8 @@ import LandingAbout from "./_landing/LandingAbout";
 import LandingFooter from "./_landing/LandingFooter";
 import { buildLandingSundays } from "./_landing/upcomingSundays";
 import { pickLandingShopPhotos } from "./_landing/pickLandingShops";
+import PublicMarketChoice from "@/app/components/market/PublicMarketChoice";
+import { fetchPublicMarkets } from "@/lib/market/publicMarkets.server";
 
 export async function generateMetadata(): Promise<Metadata> {
   const [locale, s] = await Promise.all([getLocale(), getSiteText()]);
@@ -77,7 +79,12 @@ export default async function HomePage() {
   if (!(await isPathVisibleToCurrentUser("/"))) return <PreparingNotice />;
 
   const locale = await getLocale();
-  const [shops, calendar, showOutingSupport] = await Promise.all([fetchPublicShops(locale).catch(() => []), fetchCalendar(), canShowOutingSupport()]);
+  const [shops, calendar, showOutingSupport, markets] = await Promise.all([
+    fetchPublicShops(locale).catch(() => []),
+    fetchCalendar(),
+    canShowOutingSupport(),
+    fetchPublicMarkets(),
+  ]);
   const sundays = calendar ? buildLandingSundays(calendar.days) : [];
   const photos = pickLandingShopPhotos(shops);
 
@@ -88,6 +95,7 @@ export default async function HomePage() {
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: safeJsonLd(SUNDAY_MARKET_JSON_LD) }} />
       <main>
         <LandingHero sundays={sundays} showOutingSupport={showOutingSupport} />
+        <PublicMarketChoice markets={markets} />
         {!calendar && <p role="status" className="mx-auto max-w-4xl px-5 py-4">開催状況を取得できませんでした。時間をおいて再度ご確認ください。</p>}
         <LandingGenres />
         <LandingHowTo />
