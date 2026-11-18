@@ -16,20 +16,17 @@ export async function readScheduleRows(client: SupabaseClient, table: string, fi
   }
 }
 /**
- * 予定の計算（calendar.ts）は、いまは日曜市の日付だけを扱う。
- * 木曜市などの場所や予定が混ざると計算が例外になるため、読み込んだ後で日曜市の分だけに絞る。
- * 市ごとの計算は #1106 以降で行う。
+ * 場所と所属を市で分け、別の開催曜日のルールが混ざらないようにする。
  */
-function limitToSundayMarket<T extends { id: string; market_id?: string | null }>(
-  markets: { id: string; slug: string }[],
-  places: T[],
-  memberships: { id: string; location_id: string }[],
-  periods: { membership_id: string }[],
-  rules: { membership_id: string }[],
-  overrides: { location_id: string }[],
+function scopeSchedule(
+  marketId: string | undefined,
+  places: ScheduleAdminData["places"],
+  memberships: ScheduleAdminData["memberships"],
+  periods: ScheduleAdminData["periods"],
+  rules: ScheduleAdminData["rules"],
+  overrides: ScheduleAdminData["overrides"],
 ) {
-  const sundayId = markets.find((market) => market.slug === "nichiyo")?.id;
-  const keptPlaces = places.filter((place) => place.market_id === sundayId);
+  const keptPlaces = places.filter((place) => "market_id" in place && place.market_id === marketId);
   const placeIds = new Set(keptPlaces.map((place) => place.id));
   const keptMemberships = memberships.filter((membership) => placeIds.has(membership.location_id));
   const membershipIds = new Set(keptMemberships.map((membership) => membership.id));
@@ -51,15 +48,16 @@ export async function readScheduleData(db: SupabaseClient, vendorId?: string): P
     readScheduleRows(db, "market_place_membership_periods", "id,membership_id,starts_on,ends_on", ["id"]),
     readScheduleRows(db, "market_place_schedule_rules", "id,membership_id,period_id,cadence,starts_on,ends_on,anchor_on,month_weeks,voided_at", ["id"]),
     readScheduleRows(db, "market_place_schedule_overrides", "location_id,market_date,membership_id,updated_at,revision,is_cleared", ["location_id", "market_date"]),
-    readScheduleRows(db, "market_days", "market_date,status", ["market_date"]),
+    readScheduleRows(db, "market_days", "market_id,market_date,status", ["market_date", "market_id"]),
     readScheduleRows(db, "location_assignments", "id,vendor_id,location_id,market_date", ["id"], vendorId),
   ]);
-  const scoped = limitToSundayMarket(markets as { id: string; slug: string }[], places0 as never[], memberships0 as never[], periods0 as never[], rules0 as never[], overrides0 as never[]);
-  return { ...scoped, vendors, marketDays, legacyAssignments } as unknown as ScheduleAdminData;
+  const sundayId = markets.find((market) => market.slug === "nichiyo")?.id as string | undefined;
+  const scoped = scopeSchedule(sundayId, places0 as never[], memberships0 as never[], periods0 as never[], rules0 as never[], overrides0 as never[]);
+  return { ...scoped, vendors, marketDays: marketDays.filter((day) => day.market_id === sundayId), legacyAssignments } as unknown as ScheduleAdminData;
 }
 
 /** 公開判定に必要な予定だけ。店舗名・旧配置の全履歴は取得しない。 */
-export async function readPublicScheduleData(db: SupabaseClient): Promise<ScheduleAdminData> {
+async function readPublicScheduleRows(db: SupabaseClient) {
   const [markets, places, memberships, periods, rules, overrides] = await Promise.all([
     readScheduleRows(db, "markets", "id,slug", ["id"]),
     readScheduleRows(db, "market_locations", "id,market_id", ["id"]),
@@ -68,6 +66,25 @@ export async function readPublicScheduleData(db: SupabaseClient): Promise<Schedu
     readScheduleRows(db, "market_place_schedule_rules", "id,membership_id,period_id,cadence,starts_on,ends_on,anchor_on,month_weeks,voided_at", ["id"]),
     readScheduleRows(db, "market_place_schedule_overrides", "location_id,market_date,membership_id,updated_at,revision,is_cleared", ["location_id", "market_date"]),
   ]);
-  const scoped = limitToSundayMarket(markets as { id: string; slug: string }[], places as never[], memberships as never[], periods as never[], rules as never[], overrides as never[]);
-  return { ...scoped, vendors: [], marketDays: [], legacyAssignments: [] } as unknown as ScheduleAdminData;
+  return { markets: markets as { id: string; slug: string }[], places, memberships, periods, rules, overrides };
+}
+
+export async function readPublicSchedulesByMarket(db: SupabaseClient) {
+  const { markets, places, memberships, periods, rules, overrides } = await readPublicScheduleRows(db);
+  return markets.map(({ id, slug }) => ({
+    id,
+    slug,
+    schedule: {
+      ...scopeSchedule(id, places as never[], memberships as never[], periods as never[], rules as never[], overrides as never[]),
+      vendors: [],
+      marketDays: [],
+      legacyAssignments: [],
+    } satisfies ScheduleAdminData,
+  }));
+}
+
+export async function readPublicScheduleData(db: SupabaseClient): Promise<ScheduleAdminData> {
+  const { markets, places, memberships, periods, rules, overrides } = await readPublicScheduleRows(db);
+  const scoped = scopeSchedule(markets.find((market) => market.slug === "nichiyo")?.id, places as never[], memberships as never[], periods as never[], rules as never[], overrides as never[]);
+  return { ...scoped, vendors: [], marketDays: [], legacyAssignments: [] };
 }

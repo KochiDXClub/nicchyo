@@ -9,6 +9,7 @@ import { SITE_URL } from "@/lib/constants";
 import { resolveShopImage } from "@/lib/shopImages";
 import { fetchPublicShopProfiles } from "../../map/services/shopCache";
 import type { ShopProfile } from "../../map/types/shopData";
+import { fetchPublicMarkets } from "@/lib/market/publicMarkets.server";
 import { getLocale } from "@/lib/i18n/server";
 import ReportButton from "./ReportButton";
 import ShopPageBanner from "./ShopPageBanner";
@@ -26,7 +27,9 @@ type ShopPageProps = {
  */
 const fetchShop = cache(async (shopId: number): Promise<ShopProfile | null> => {
   try {
-    const shops = await fetchPublicShopProfiles(await getLocale());
+    const locale = await getLocale();
+    const selection = shopId >= 1000 ? fetchPublicMarkets().then((markets) => ({ markets })) : undefined;
+    const shops = await fetchPublicShopProfiles(locale, selection);
     return shops.find((shop) => shop.id === shopId) ?? null;
   } catch {
     return null;

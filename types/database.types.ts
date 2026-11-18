@@ -778,6 +778,7 @@ export type Database = {
           created_at: string
           id: string
           kind: string
+          market_id: string
           name: string
           updated_at: string
           width_meters: number
@@ -786,6 +787,7 @@ export type Database = {
           created_at?: string
           id: string
           kind?: string
+          market_id?: string
           name: string
           updated_at?: string
           width_meters?: number
@@ -794,11 +796,20 @@ export type Database = {
           created_at?: string
           id?: string
           kind?: string
+          market_id?: string
           name?: string
           updated_at?: string
           width_meters?: number
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "map_roads_market_id_fkey"
+            columns: ["market_id"]
+            isOneToOne: false
+            referencedRelation: "markets"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       map_route_configs: {
         Row: {

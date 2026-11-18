@@ -93,6 +93,9 @@ type MapPageClientProps = {
   legacyIdentities?: { enabled: boolean; aliases: Record<string, number> };
   landmarks: Landmark[];
   mapRoute: MapRoute;
+  initialMarketId?: string;
+  sundayMarketId?: string;
+  marketRequested?: boolean;
   /** 管理画面で保存したマップ動作フラグ（未指定なら既定値） */
   featureFlags?: MapFeatureFlags;
   /** 管理画面で保存したマップの可動範囲（未指定なら既定値） */
@@ -109,6 +112,9 @@ export default function MapPageClient({
   legacyIdentities,
   landmarks,
   mapRoute,
+  initialMarketId,
+  sundayMarketId,
+  marketRequested,
   featureFlags,
   mapViewSettings,
 }: MapPageClientProps) {
@@ -210,10 +216,10 @@ export default function MapPageClient({
   const mapArrived = mapLoadingHandedOff && mapLoadingStatus === "idle";
   const introRequested = searchParams?.get("panel") === MAP_INTRO_PANEL_VALUE;
   const introHasDeepLink = useMemo(
-    () => hasMapDeepLink(searchParams ?? null),
+    () => !!marketRequested || hasMapDeepLink(searchParams ?? null),
     // searchParams オブジェクトは毎レンダー同一とは限らないので文字列で比較する
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [searchParamsKey]
+    [marketRequested, searchParamsKey]
   );
   const { open: introOpen, close: dismissIntro } = useMapIntro({
     requested: introRequested,
@@ -962,6 +968,9 @@ export default function MapPageClient({
             )}
 
             <MapView
+              key={initialMarketId}
+              initialMarketId={initialMarketId}
+              sundayMarketId={sundayMarketId}
               shops={shops}
               landmarks={mapLandmarks}
               mapRoute={mapRoute}
@@ -983,7 +992,7 @@ export default function MapPageClient({
               onClearSearch={handleClearSearch}
               // おでかけサポート表示中は施設に合わせた画角を優先し、
               // 現在地取得時の自動ズームで上書きされないようにする
-              suppressInitialLocationFocus={isAiFocusMode || guideActive}
+              suppressInitialLocationFocus={marketRequested || isAiFocusMode || guideActive}
               hideMapUI={!!nearbyState}
               // おでかけサポート案内中は GuideLayer 側のマーカーだけを見せる
               suppressLandmarks={guideActive}
