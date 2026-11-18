@@ -50,7 +50,7 @@ export async function generateMetadata(): Promise<Metadata> {
   };
 }
 
-/** 開催カレンダー（今週の開催状況と、これからの日曜の状態）。取れなかったときは null（バーは「開催」として出る。カレンダーと同じ扱い） */
+/** 開催カレンダー（今週の開催状況と、これからの日曜の状態）。取れなかったときは null */
 async function fetchCalendar(): Promise<MarketCalendar | null> {
   try {
     const supabase = createClient(await cookies());
@@ -77,7 +77,7 @@ export default async function HomePage() {
 
   const locale = await getLocale();
   const [shops, calendar, showOutingSupport] = await Promise.all([fetchPublicShops(locale).catch(() => []), fetchCalendar(), canShowOutingSupport()]);
-  const sundays = buildLandingSundays(calendar?.days ?? []);
+  const sundays = calendar ? buildLandingSundays(calendar.days) : [];
   const photos = pickLandingShopPhotos(shops);
 
   return (
@@ -87,6 +87,7 @@ export default async function HomePage() {
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: safeJsonLd(SUNDAY_MARKET_JSON_LD) }} />
       <main>
         <LandingHero sundays={sundays} showOutingSupport={showOutingSupport} />
+        {!calendar && <p role="status" className="mx-auto max-w-4xl px-5 py-4">開催状況を取得できませんでした。時間をおいて再度ご確認ください。</p>}
         <LandingGenres />
         <LandingHowTo />
         <LandingInfo sundays={sundays} />

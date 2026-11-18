@@ -11,22 +11,27 @@ import {
 
 /**
  * 公開カレンダー（開催ステータス＋今日以降のイベント）をクライアントから取得する。
- * 失敗しても呼び出し側の表示を壊さないよう、空のカレンダーに倒す。
+ * 取得できなかった場合は error で呼び出し側に知らせる。
  */
-export function useMarketCalendar(): { calendar: MarketCalendar; loading: boolean } {
+export function useMarketCalendar(): { calendar: MarketCalendar; loading: boolean; error: boolean } {
   const [calendar, setCalendar] = useState<MarketCalendar>({
     day: null,
     days: [],
     events: [],
   });
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
     fetch("/api/market-calendar")
-      .then((r) => (r.ok ? r.json() : null))
+      .then((r) => {
+        if (!r.ok) throw new Error("開催情報を取得できませんでした");
+        return r.json();
+      })
       .then((data) => {
-        if (cancelled || !data || typeof data !== "object") return;
+        if (cancelled) return;
+        if (!data || typeof data !== "object" || !Array.isArray(data.days) || !Array.isArray(data.events)) throw new Error("開催情報の形式が正しくありません");
         const days: MarketDay[] = Array.isArray(data.days)
           ? data.days.map((d: MarketDay) => ({ ...d, status: normalizeStatus(d.status) }))
           : [];
@@ -44,7 +49,7 @@ export function useMarketCalendar(): { calendar: MarketCalendar; loading: boolea
             : [],
         });
       })
-      .catch(() => {})
+      .catch(() => { if (!cancelled) setError(true); })
       .finally(() => {
         if (!cancelled) setLoading(false);
       });
@@ -53,5 +58,5 @@ export function useMarketCalendar(): { calendar: MarketCalendar; loading: boolea
     };
   }, []);
 
-  return { calendar, loading };
+  return { calendar, loading, error };
 }

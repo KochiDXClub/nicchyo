@@ -22,8 +22,8 @@ export const metadata: Metadata = {
 export default async function MarketCalendarPage() {
   const cookieStore = await cookies();
   const supabase = createClient(cookieStore);
-  const { day, days, events } = await fetchMarketCalendar(supabase);
-  const sundays = groupEventsBySunday(events, days, UPCOMING_SUNDAYS_FULL_COUNT);
+  const calendar = await fetchMarketCalendar(supabase).catch(() => null);
+  const sundays = calendar ? groupEventsBySunday(calendar.events, calendar.days, UPCOMING_SUNDAYS_FULL_COUNT) : [];
 
   return (
     <PageShell as="main" topNav>
@@ -39,12 +39,12 @@ export default async function MarketCalendarPage() {
             開催状況とこれからの予定をお届けします
           </p>
 
-          <MarketStatusCalendar day={day} className="mt-5" link={false} />
+          {calendar ? <MarketStatusCalendar day={calendar.day} className="mt-5" link={false} /> : <p role="status" className="mt-5">開催状況を取得できませんでした。時間をおいて再度ご確認ください。</p>}
         </PageContainer>
       </div>
 
       <PageContainer width="narrow">
-        <UpcomingSundays sundays={sundays} showHeading={false} />
+        {calendar && <UpcomingSundays sundays={sundays} showHeading={false} />}
 
         <p className="mt-6 text-center text-[11px] leading-relaxed text-nicchyo-ink/40">
           出店者ごとの当日の様子は

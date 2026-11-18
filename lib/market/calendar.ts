@@ -353,6 +353,10 @@ export async function fetchMarketCalendar(
       .limit(options.limit ?? EVENTS_LIMIT),
   ]);
 
+  if (daysResult.error || eventsResult.error) {
+    throw new Error("開催情報を取得できませんでした");
+  }
+
   const days: MarketDay[] = (daysResult.data ?? []).map((row) => ({
     market_date: row.market_date,
     status: normalizeStatus(row.status),
