@@ -25,8 +25,9 @@ export async function POST(request: Request) {
 
     const rateLimited = await enforceRateLimit(request, {
       bucket: "analytics-location-permission",
-      // 正当な利用は 1 読み込みで最大 2 件。1 IP の水増しを抑えるため低めにする
-      limit: 5,
+      // 同じ回線（会場の Wi-Fi・携帯の CGNAT）を多くの来訪者が共有するため、
+      // 正当な利用を落とさない範囲で上限を置く（正確な件数ではなく下限の目安として読む）
+      limit: 30,
       windowMs: 60 * 60 * 1000,
     });
     if (rateLimited) return rateLimited;

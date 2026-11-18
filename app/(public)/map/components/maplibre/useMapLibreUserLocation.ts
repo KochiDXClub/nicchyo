@@ -153,6 +153,8 @@ export function useMapLibreUserLocation({
       reportInMarket(event.coords);
     };
     const handleOutOfBounds = (event: { coords: GeolocationCoordinates }) => {
+      // 可動範囲の外でも位置は取れている（許可済み）。geolocate の代わりにこちらへ来るので数える
+      choiceReporter.onAllowed();
       inMarketRef.current = false;
       onLocationUpdateRef.current?.(false, [event.coords.latitude, event.coords.longitude]);
     };
