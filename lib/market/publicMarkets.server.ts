@@ -7,20 +7,21 @@ export type PublicMarket = {
   weekday: number;
 };
 
-/**
- * 公開中の市だけを読む（非公開の市は RLS で見えない。anon クライアントで読むので、この関数でも二重に絞る）。
- * 取得できなければ空の一覧を返し、画面は市のない状態として表示する。
- */
-export async function fetchPublicMarkets(): Promise<PublicMarket[]> {
-  const client = createAnonClient();
-  if (!client) return [];
+/** 公開中の市だけを読む。カレンダーでは取得失敗と公開中の市がゼロの状態を区別する。 */
+export async function readPublicMarkets(client: NonNullable<ReturnType<typeof createAnonClient>>): Promise<PublicMarket[]> {
   const { data, error } = await client
     .from("markets")
     .select("id,slug,name,weekday")
     .eq("is_public", true)
-    .order("weekday", { ascending: true });
-  if (error || !data) return [];
-  return data as PublicMarket[];
+    .order("weekday", { ascending: true })
+    .order("id");
+  if (error) throw error;
+  return data;
+}
+
+export async function fetchPublicMarkets(): Promise<PublicMarket[]> {
+  const client = createAnonClient();
+  return client ? readPublicMarkets(client).catch(() => []) : [];
 }
 
 export async function fetchPublicMarketBySlug(slug: string): Promise<PublicMarket | null> {
