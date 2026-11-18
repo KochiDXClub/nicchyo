@@ -85,27 +85,31 @@ export default function AnalyticsOptOutToggle() {
         サービスのご利用そのものには影響ございません。
       </p>
 
-      <p role="status" className="mt-3 flex min-h-5 items-center gap-1.5 text-xs">
+      <p className="mt-3 flex min-h-5 items-center gap-1.5 text-xs">
         {optedOut === null ? (
           <span className="flex items-center gap-1.5 text-nicchyo-ink/70">
             <Loader2 aria-hidden="true" className="h-3.5 w-3.5 animate-spin" />
             設定を読み込んでおります
           </span>
-        ) : saveFailed ? (
-          <span className="flex items-center gap-1.5 font-semibold text-[#B4442E]">
-            <AlertTriangle aria-hidden="true" className="h-3.5 w-3.5 flex-shrink-0" />
-            この端末に設定を保存できませんでした
-          </span>
-        ) : justSaved ? (
-          <span className="flex items-center gap-1.5 font-semibold text-[#3F7F2E]">
-            <Check aria-hidden="true" className="h-3.5 w-3.5" />
-            {optedOut ? "この端末での解析を止めました" : "この端末での解析を再開しました"}
-          </span>
-        ) : (
+        ) : !saveFailed && !justSaved ? (
           <span className="text-nicchyo-ink/70">
             {optedOut ? "現在は止めております" : "現在は有効です"}
           </span>
-        )}
+        ) : null}
+        <span role="status">
+          {saveFailed && (
+            <span className="flex items-center gap-1.5 font-semibold text-[#B4442E]">
+              <AlertTriangle aria-hidden="true" className="h-3.5 w-3.5 flex-shrink-0" />
+              この端末に設定を保存できませんでした
+            </span>
+          )}
+          {justSaved && (
+            <span className="flex items-center gap-1.5 font-semibold text-[#3F7F2E]">
+              <Check aria-hidden="true" className="h-3.5 w-3.5" />
+              {optedOut ? "この端末での解析を止めました" : "この端末での解析を再開しました"}
+            </span>
+          )}
+        </span>
       </p>
 
       {saveFailed ? (
