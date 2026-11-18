@@ -1,5 +1,4 @@
 import { notFound } from "next/navigation";
-import Link from "next/link";
 import NavigationBar from "../../components/NavigationBar";
 import { PageContainer, PageShell, Surface } from "@/components/ui";
 import { fetchPublicMarketBySlug } from "@/lib/market/publicMarkets.server";
@@ -29,9 +28,7 @@ export default async function MokuyoPage() {
         <Surface>
           <h1 className="text-2xl font-bold">{market.name}</h1>
           <p className="mt-3">毎週{WEEKDAYS[market.weekday]}曜日に開かれる市です。</p>
-          <p className="mt-3">
-            地図で場所を確かめるには、<Link className="font-bold underline" href="/map">地図のページ</Link>をご覧ください。
-          </p>
+          <p className="mt-3">市の場所は、準備ができしだいこのページでご案内します。</p>
         </Surface>
       </PageContainer>
     </PageShell>
