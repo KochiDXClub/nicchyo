@@ -338,7 +338,7 @@ function Section({
   children: React.ReactNode;
 }) {
   return (
-    <section id={id} className={id ? "scroll-mt-6" : undefined}>
+    <section id={id} className={id ? "scroll-mt-20" : undefined}>
       <h2 className="flex items-baseline gap-3 text-[1.05rem] font-semibold text-nicchyo-ink">
         <span className="text-sm font-bold tabular-nums text-nicchyo-soft-green">{number}</span>
         {title}
