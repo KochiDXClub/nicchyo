@@ -17,6 +17,7 @@ import { useAuth } from "@/lib/auth/AuthContext";
 import { AdminLayout, AdminPageHeader } from "@/components/admin";
 import { showToast } from "@/lib/admin/toast";
 import { SPOT_CATEGORIES, type AdminSpot, type SpotCategory } from "@/lib/spots/adminSpot";
+import { SPOT_DESCRIPTION_MAX, SPOT_NAME_EN_MAX, SPOT_NAME_MAX, type SpotEnglish } from "@/lib/spots/translate";
 
 const CATEGORY_LABEL: Record<SpotCategory, string> = {
   transit: "のりもの",
@@ -35,7 +36,9 @@ const CATEGORY_BADGE: Record<SpotCategory, string> = {
 type FormState = {
   key: string;
   name: string;
+  name_en: string;
   description: string;
+  description_en: string;
   category: SpotCategory;
   transit_mode: "" | "tram" | "jr";
   latitude: string;
@@ -56,7 +59,9 @@ type FormState = {
 const EMPTY_FORM: FormState = {
   key: "",
   name: "",
+  name_en: "",
   description: "",
+  description_en: "",
   category: "landmark",
   transit_mode: "",
   latitude: "33.5614",
@@ -84,7 +89,9 @@ function toForm(spot: AdminSpot): FormState {
   return {
     key: spot.key,
     name: spot.name,
+    name_en: spot.name_en ?? "",
     description: spot.description,
+    description_en: spot.description_en ?? "",
     category: spot.category,
     transit_mode: spot.transit_mode ?? "",
     latitude: String(spot.latitude),
@@ -107,7 +114,9 @@ function toPayload(form: FormState) {
   return {
     key: form.key.trim(),
     name: form.name,
+    name_en: form.name_en.trim() || null,
     description: form.description,
+    description_en: form.description_en.trim() || null,
     category: form.category,
     transit_mode: form.category === "transit" && form.transit_mode ? form.transit_mode : null,
     latitude: Number(form.latitude),
@@ -152,6 +161,8 @@ function SpotForm({
   setForm,
   isNew,
   saving,
+  translating,
+  onTranslate,
   onSave,
   onCancel,
 }: {
@@ -159,6 +170,10 @@ function SpotForm({
   setForm: (next: FormState) => void;
   isNew: boolean;
   saving: boolean;
+  /** 翻訳中かどうか（このフォームが翻訳を走らせている間は、他の翻訳・保存を止める） */
+  translating: boolean;
+  /** 日本語の名前・説明から英語の案を作る（サーバーで AI を呼ぶ。保存はしない） */
+  onTranslate: () => void;
   onSave: () => void;
   onCancel: () => void;
 }) {
@@ -178,7 +193,7 @@ function SpotForm({
           />
         </Field>
         <Field label="名前">
-          <input className={inputClass} value={form.name} onChange={(e) => update("name", e.target.value)} maxLength={80} />
+          <input className={inputClass} value={form.name} onChange={(e) => update("name", e.target.value)} maxLength={SPOT_NAME_MAX} />
         </Field>
         <Field label="種別">
           <select className={inputClass} value={form.category} onChange={(e) => update("category", e.target.value as SpotCategory)}>
@@ -206,8 +221,41 @@ function SpotForm({
         </Field>
       </div>
       <Field label="説明" hint="カードの本文。施設は「会場から見た位置」を書く">
-        <textarea className={inputClass} rows={2} value={form.description} onChange={(e) => update("description", e.target.value)} maxLength={400} />
+        <textarea className={inputClass} rows={2} value={form.description} onChange={(e) => update("description", e.target.value)} maxLength={SPOT_DESCRIPTION_MAX} />
       </Field>
+      <div className="space-y-3 rounded-lg border border-nicchyo-soft-green bg-white p-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <span className="text-xs font-semibold text-nicchyo-ink/70">英語版（英語の画面で使う）</span>
+          <button
+            type="button"
+            onClick={onTranslate}
+            disabled={!form.name.trim() || translating || saving}
+            className="rounded-lg bg-sky-100 px-3 py-1 text-xs font-semibold text-sky-800 hover:bg-sky-200 disabled:opacity-40"
+          >
+            {translating ? "翻訳中..." : "AIで英訳"}
+          </button>
+        </div>
+        <Field label="English name（英語名）" hint="空のあいだは、英語の画面でも日本語名のまま出ます">
+          <input
+            className={inputClass}
+            value={form.name_en}
+            onChange={(e) => update("name_en", e.target.value)}
+            maxLength={SPOT_NAME_EN_MAX}
+            aria-label="English name（英語名）"
+          />
+        </Field>
+        <Field label="English description（英語の説明）" hint="空のあいだは、英語の画面でも日本語の説明のまま出ます">
+          <textarea
+            className={inputClass}
+            rows={2}
+            value={form.description_en}
+            onChange={(e) => update("description_en", e.target.value)}
+            maxLength={SPOT_DESCRIPTION_MAX}
+            aria-label="English description（英語の説明）"
+          />
+        </Field>
+        <p className="text-[11px] text-nicchyo-ink/55">AIの案は入力欄に入るだけです。確認・手直ししてから「保存」を押してください。</p>
+      </div>
       <div className="grid gap-3 sm:grid-cols-2">
         <Field label="アイコン画像URL" hint="/images/… または https://…">
           <input className={inputClass} value={form.image_url} onChange={(e) => update("image_url", e.target.value)} />
@@ -278,6 +326,7 @@ export default function AdminSpotsPage() {
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [confirmingKey, setConfirmingKey] = useState<string | null>(null);
+  const [translating, setTranslating] = useState(false);
 
   useEffect(() => {
     if (isLoading) return;
@@ -323,6 +372,32 @@ export default function AdminSpotsPage() {
   const cancel = () => {
     setEditingKey(null);
     setCreating(false);
+  };
+
+  /** 日本語の名前・説明を英語にする（サーバーで AI を呼ぶ）。結果は入力欄に入れるだけで、保存は「作成」「保存」を押したとき */
+  const translateSpot = async () => {
+    const startKey = form.key;
+    setTranslating(true);
+    try {
+      const res = await fetch("/api/admin/spots/translate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: form.name, description: form.description }),
+      });
+      const data = (await res.json().catch(() => null)) as ({ error?: string } & Partial<SpotEnglish>) | null;
+      if (!res.ok || !data?.nameEn) throw new Error(data?.error ?? "翻訳できませんでした");
+      // 翻訳中に別のスポットへ切り替えられていたら、結果は捨てる（別のスポットに英語が入らないように）
+      setForm((current) => current.key !== startKey ? current : {
+        ...current,
+        name_en: data.nameEn ?? "",
+        description_en: data.descriptionEn ?? "",
+      });
+      showToast.success("英語の案を入れました。確認してから保存してください");
+    } catch (e) {
+      showToast.error(e instanceof Error ? e.message : "翻訳できませんでした");
+    } finally {
+      setTranslating(false);
+    }
   };
 
   const save = async () => {
@@ -406,7 +481,16 @@ export default function AdminSpotsPage() {
 
       {creating && (
         <div className="mb-4">
-          <SpotForm form={form} setForm={setForm} isNew saving={saving} onSave={() => void save()} onCancel={cancel} />
+          <SpotForm
+            form={form}
+            setForm={setForm}
+            isNew
+            saving={saving}
+            translating={translating}
+            onTranslate={() => void translateSpot()}
+            onSave={() => void save()}
+            onCancel={cancel}
+          />
         </div>
       )}
 
@@ -424,6 +508,8 @@ export default function AdminSpotsPage() {
                 setForm={setForm}
                 isNew={false}
                 saving={saving}
+                translating={translating}
+                onTranslate={() => void translateSpot()}
                 onSave={() => void save()}
                 onCancel={cancel}
               />
