@@ -10,7 +10,39 @@ import { parseMarketInput } from "@/lib/market/marketInput";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+const DEFAULT_MARKET_SLUG = "nichiyo";
+
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** 市に予定（場所の予定か例外）があるかどうか。取得に失敗したら null。 */
+async function marketHasSchedules(dc: NonNullable<ReturnType<typeof createAdminClient>>, marketId: string): Promise<boolean | null> {
+  const { data: places, error: placeError } = await dc.from("market_locations").select("id").eq("market_id", marketId);
+  if (placeError) return null;
+  const placeIds = (places ?? []).map((place) => place.id);
+  if (placeIds.length === 0) return false;
+
+  const { count: overrideCount, error: overrideError } = await dc
+    .from("market_place_schedule_overrides")
+    .select("location_id", { count: "exact", head: true })
+    .in("location_id", placeIds);
+  if (overrideError) return null;
+  if ((overrideCount ?? 0) > 0) return true;
+
+  const { data: memberships, error: membershipError } = await dc
+    .from("market_place_memberships")
+    .select("id")
+    .in("location_id", placeIds);
+  if (membershipError) return null;
+  const membershipIds = (memberships ?? []).map((membership) => membership.id);
+  if (membershipIds.length === 0) return false;
+
+  const { count: ruleCount, error: ruleError } = await dc
+    .from("market_place_schedule_rules")
+    .select("id", { count: "exact", head: true })
+    .in("membership_id", membershipIds);
+  if (ruleError) return null;
+  return (ruleCount ?? 0) > 0;
+}
 
 /** 市の一覧（非公開の市も含む。管理者だけが呼べる） */
 export async function GET() {
@@ -96,6 +128,28 @@ export async function PATCH(req: Request) {
   const parsed = parseMarketInput(body);
   if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 });
   const { name, slug, weekday, isPublic } = parsed.data;
+
+  const { data: current, error: currentError } = await dc
+    .from("markets")
+    .select("id,slug,weekday")
+    .eq("id", body.id)
+    .maybeSingle();
+  if (currentError) return NextResponse.json({ error: "市の更新に失敗しました" }, { status: 500 });
+  if (!current) return NextResponse.json({ error: "市が見つかりません" }, { status: 404 });
+
+  // 日曜市の公開URLの名前は、既定の市を見つける目印なので変えられない
+  if (current.slug === DEFAULT_MARKET_SLUG && slug !== DEFAULT_MARKET_SLUG) {
+    return NextResponse.json({ error: "既定の市（日曜市）の公開URLの名前は変えられません" }, { status: 400 });
+  }
+
+  // 曜日を変えると、予定と例外の日付が古い曜日のまま残るため、予定がある間は変えられない
+  if (current.weekday !== weekday) {
+    const scheduled = await marketHasSchedules(dc, body.id);
+    if (scheduled === null) return NextResponse.json({ error: "市の更新に失敗しました" }, { status: 500 });
+    if (scheduled) {
+      return NextResponse.json({ error: "この市には予定があるため、開催曜日は変えられません" }, { status: 409 });
+    }
+  }
 
   const { data, error: dbError } = await dc
     .from("markets")
