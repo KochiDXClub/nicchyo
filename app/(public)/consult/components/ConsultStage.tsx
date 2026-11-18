@@ -1140,6 +1140,7 @@ export default function ConsultStage({
 
         {/* 読み進めている間の話し相手。大きさは変えず、出入りだけさせる */}
         <div
+          aria-hidden={!isScrolledDown}
           className={`relative transition-[opacity,transform] duration-200 ${
             isScrolledDown
               ? "translate-y-0 opacity-100"
@@ -1150,7 +1151,7 @@ export default function ConsultStage({
             pose={pose}
             size="pinned"
             character={speaker}
-            onClick={() => setIsSpeakerPickerOpen(true)}
+            onClick={isScrolledDown ? () => setIsSpeakerPickerOpen(true) : undefined}
             label={t("話し手を選ぶ（いまは{name}）").replace("{name}", t(speaker.name))}
           />
         </div>
