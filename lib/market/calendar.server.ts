@@ -1,4 +1,4 @@
-import { createAnonClient } from "@/lib/supabase/anonClient";
+import { createAdminClient } from "@/lib/supabase/adminClient";
 import {
   addDaysToIso,
   getUpcomingSundayIso,
@@ -11,7 +11,7 @@ import {
 } from "./calendar";
 import { readPublicMarkets } from "./publicMarkets.server";
 
-type Client = NonNullable<ReturnType<typeof createAnonClient>>;
+type Client = NonNullable<ReturnType<typeof createAdminClient>>;
 
 /** 公開市場だけを読み、同じ日付の開催状況を市IDで混同しない。 */
 export async function fetchMarketCalendar(
@@ -60,7 +60,8 @@ export async function fetchMarketCalendar(
 }
 
 export async function loadPublicMarketCalendar(): Promise<MarketCalendar> {
-  const supabase = createAnonClient();
+  // market_id は既存の匿名向け列権限の対象外。サーバーで読み、公開条件と返却列をクエリで限定する。
+  const supabase = createAdminClient();
   if (!supabase) throw new Error("開催情報を取得できませんでした");
   return fetchMarketCalendar(supabase);
 }
