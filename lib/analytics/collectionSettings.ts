@@ -4,6 +4,7 @@ export const ANALYTICS_COLLECTION_ITEMS = [
   { key: "shopViews", label: "店舗詳細の閲覧" },
   { key: "searchLogs", label: "検索キーワード" },
   { key: "guideEvents", label: "おでかけサポート" },
+  { key: "locationPermission", label: "位置情報の許可・拒否の件数" },
   { key: "consultLogs", label: "AI相談の集計" },
   { key: "consultFeedback", label: "AI相談への評価" },
   { key: "googleAnalytics", label: "Google アナリティクス" },
