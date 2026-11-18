@@ -761,7 +761,7 @@ function MapViewMapLibre({
         geometry: { type: "LineString", coordinates: line.map(([lat, lng]) => [lng, lat]) },
       });
       // 市ごとに最も長い通りの中ほどへ名前を置く。
-      const marketByRoad = new Map(mapRoute?.roads?.map((road) => [road.id, road.marketId]));
+      const roadsById = new Map(mapRoute?.roads?.map((road) => [road.id, road]));
       const marketNames = new Map(mapRoute?.markets?.map((market) => [market.id, market.name]));
       const marketLabels = new Map<string, { point: [number, number]; length: number }>();
       // 先に全チェーンの形を作り、交差・分岐する他の道の面の内側では縁を引かない
@@ -770,25 +770,30 @@ function MapViewMapLibre({
           const anchor = chain.points.map((p) => ({ lat: p.lat, lng: p.lng }));
           const centerline = densifyPath(anchor, 6);
           const smoothed = chain.points.length >= 3 ? smoothRoutePath(centerline, 2) : centerline;
-          const polygon = buildRoadPolygon(smoothed, routeConfig.roadHalfWidthMeters);
+          const road = chain.points.map((point) => roadsById.get(point.roadId ?? "")).find(Boolean);
+          const marketId = road?.marketId;
+          // 日曜市では従来の描画幅を維持し、新しい市では、編集画面の道幅を反映する。
+          const halfWidth = marketId && marketId !== sundayMarketId && road && road.widthMeters > 0
+            ? road.widthMeters / 2
+            : routeConfig.roadHalfWidthMeters;
+          const polygon = buildRoadPolygon(smoothed, halfWidth);
           if (polygon.length < 3 || smoothed.length < 2) return null;
-          const marketId = chain.points.map((point) => marketByRoad.get(point.roadId ?? "")).find(Boolean);
-          return { key: chain.key, smoothed, polygon, marketId };
+          return { key: chain.key, smoothed, polygon, marketId, halfWidth };
         })
         .filter((item): item is NonNullable<typeof item> => item !== null);
       for (const road of built) {
-        const { smoothed, polygon } = road;
+        const { smoothed, polygon, halfWidth } = road;
         polygons.push(toPolygonFeature(polygon));
 
         const corridor = buildRoadPolygon(
           smoothed,
-          getRoadCorridorHalfWidthMeters(routeConfig.roadHalfWidthMeters)
+          getRoadCorridorHalfWidthMeters(halfWidth)
         );
         if (corridor.length >= 3) corridors.push(toPolygonFeature(corridor));
 
         // 縁は左右2本の独立した線。閉じたポリゴンの stroke だと道の両端にも
         // 線が回り込み、先へ続いている道が切り取った紙のように見えるため
-        const edges = buildRoadEdges(smoothed, routeConfig.roadHalfWidthMeters);
+        const edges = buildRoadEdges(smoothed, halfWidth);
         const otherRings = built.filter((o) => o.key !== road.key).map((o) => o.polygon);
         for (const side of [edges.left, edges.right]) {
           for (const run of clipLineOutsideRings(side, otherRings)) {

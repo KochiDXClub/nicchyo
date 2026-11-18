@@ -1,3 +1,4 @@
+import { fetchPublicMarkets } from "@/lib/market/publicMarkets.server";
 import { fetchCategories } from "@/lib/categories/server";
 import { withCategory } from "@/lib/categories/catalog";
 import { revalidateTag, unstable_cache } from "next/cache";
@@ -250,8 +251,9 @@ export async function fetchPublicShops(locale: Locale = DEFAULT_LOCALE): Promise
   return (await fetchPublicShopData(locale)).shops;
 }
 
-export async function fetchPublicShopProfiles(locale: Locale = DEFAULT_LOCALE, mapSelection?: Promise<MapMarketSelection>): Promise<ShopProfile[]> {
-  return (await fetchPublicShopData(locale, mapSelection)).profiles;
+export async function fetchPublicShopProfiles(locale: Locale = DEFAULT_LOCALE, includeAllMarkets = false): Promise<ShopProfile[]> {
+  const selection = includeAllMarkets ? fetchPublicMarkets().then((markets) => ({ markets })) : undefined;
+  return (await fetchPublicShopData(locale, selection)).profiles;
 }
 
 /** 管理画面の API で店舗・区画・カテゴリーを書き換えたあとに呼ぶ */

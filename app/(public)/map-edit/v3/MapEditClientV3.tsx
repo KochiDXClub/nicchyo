@@ -33,13 +33,6 @@ const POINT_SNAP_DISTANCE_METERS = 6;
 // 直前の点とほぼ同じ場所のクリックは点を増やさない（ダブルクリックの2回目のクリックなど）
 const DUPLICATE_POINT_METERS = 0.5;
 
-// 公開マップ（Leaflet 版 RoadOverlay.tsx・MapLibre 版 MapViewMapLibre.tsx）は、道ごとの幅
-// （map_roads.width_meters）をまだ読まず、すべての道を同じ幅（既定 22m）で描く。
-// この状態で幅の違う道（小路など）を描いて保存すると、来訪者のマップには追手筋と同じ幅で出てしまう。
-// 道ごとの幅で描くようになるまで、「道を描く」ツールは使えないようにする
-// （描く処理そのものは入れてあり、無効化を外すだけで使える。既存の道の編集・削除は対象外）
-const isRoadCreationDisabled = true;
-
 /** 道基準の位置を持ち、指定の道に乗っている区画（区画分けツールの対象） */
 function slotsOnRoad(shops: EditableShop[], roadId: string): SlotOnRoad[] {
   return shops.flatMap((s) =>
@@ -480,15 +473,7 @@ export default function MapEditClientV3() {
               onZoomOut={() => setZoomIdx((prev) => Math.max(0, prev - 1))}
             />
             <div className="map-editor-tools">
-              <ToolPalette
-                tool={tool}
-                onChange={changeTool}
-                disabled={
-                  isRoadCreationDisabled
-                    ? { drawRoad: "公開マップが道ごとの幅で描くようになるまで、新しい道の追加は一時的に無効化しています" }
-                    : {}
-                }
-              />
+              <ToolPalette tool={tool} onChange={changeTool} />
             </div>
             {toolHintMessage && (
               <div className="map-editor-hint">
