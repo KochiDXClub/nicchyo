@@ -95,7 +95,7 @@ export default async function HomePage() {
         <LandingHighlights shopPhotos={photos} />
         <LandingAbout />
       </main>
-      <LandingFooter locale={locale} />
+      <LandingFooter />
     </PageShell>
   );
 }
