@@ -71,6 +71,8 @@ export type ParsedRequest = {
   preferredCharacterId: ConsultCharacterId | null;
   visitorKey: string | null;
   stream: boolean;
+  /** 地図の「このへん」で選んだ範囲の店（地図の店 ID）。null なら市場全体から探す */
+  areaShopIds: number[] | null;
 };
 
 export type StructuredConsultResponse = {

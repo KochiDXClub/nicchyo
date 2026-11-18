@@ -6,6 +6,8 @@ import {
   sortShopIdsByDistance,
   fetchCandidateVendorIds,
   fetchShopsByVendorIds,
+  rankAreaVendorIds,
+  fetchAreaShops,
 } from "./vendorSearch";
 import type { Shop } from "@/app/(public)/map/data/shops";
 
@@ -206,5 +208,27 @@ describe("fetchShopsByVendorIds（公開切り替え後）", () => {
       publicState.enabled = false;
       publicState.placed = [];
     }
+  });
+});
+
+describe("rankAreaVendorIds（「このへん」の相談で範囲の店だけを候補にする）", () => {
+  it("質問で引けた店のうち範囲内のものを先に、残りは渡された順（近い順）で足す", () => {
+    expect(rankAreaVendorIds(["a", "b", "c", "d"], ["x", "c", "y", "a"])).toEqual(["c", "a", "b", "d"]);
+  });
+
+  it("範囲の外の店は、質問で引けても入れない", () => {
+    expect(rankAreaVendorIds(["a", "b"], ["x", "y"])).toEqual(["a", "b"]);
+  });
+
+  it("上限で切る", () => {
+    expect(rankAreaVendorIds(["a", "b", "c"], ["c"], 2)).toEqual(["c", "a"]);
+  });
+});
+
+describe("fetchAreaShops", () => {
+  it("地図に出ていない店 ID は候補にしない", async () => {
+    publicState.placed = [];
+    const shops = await fetchAreaShops(fakeSupabase({ vendors: [] }), [1, 2], []);
+    expect(shops).toEqual([]);
   });
 });
