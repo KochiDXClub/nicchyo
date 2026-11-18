@@ -252,7 +252,7 @@ export default function PrivacyPage() {
             </p>
           </Section>
 
-          <Section number={5} title="アクセス解析を止める">
+          <Section id="analytics-settings" number={5} title="アクセス解析を止める">
             <Prose>
               アクセス解析は既定で有効ですが、いつでもお止めいただけます。下のスイッチでお切り替えください。
             </Prose>
@@ -327,16 +327,18 @@ export default function PrivacyPage() {
 }
 
 function Section({
+  id,
   number,
   title,
   children,
 }: {
+  id?: string;
   number: number;
   title: string;
   children: React.ReactNode;
 }) {
   return (
-    <section>
+    <section id={id} className={id ? "scroll-mt-6" : undefined}>
       <h2 className="flex items-baseline gap-3 text-[1.05rem] font-semibold text-nicchyo-ink">
         <span className="text-sm font-bold tabular-nums text-nicchyo-soft-green">{number}</span>
         {title}

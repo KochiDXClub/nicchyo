@@ -17,7 +17,9 @@ export default function LandingFooter({ locale }: { locale: Locale }) {
       <PageContainer width="wide" className="space-y-3">
         <div>
           <h2 id="landing-footer-title" className="text-base font-bold">
-            {english ? "Site team and data" : "このサイトの運営とデータ"}
+            <Link href="/about/site" className="inline-flex min-h-11 items-center rounded-btn underline underline-offset-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-nicchyo-primary">
+              {english ? "Site team and data" : "このサイトの運営とデータ"}
+            </Link>
           </h2>
           <p className="mt-1 text-sm text-nicchyo-ink/75">
             {english ? "Operated by the nicchyo project at Kochi Kosen." : "運営：高知高専 nicchyo プロジェクト"}
