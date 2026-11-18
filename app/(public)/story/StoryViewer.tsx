@@ -13,7 +13,7 @@ import {
 } from "./components/StoryChrome";
 import { getOrCreateConsultVisitorKey } from "@/lib/consultVisitorKey";
 import { useBodyScrollLock } from "@/lib/ui/bodyScrollLock";
-import { ChevronUp } from "lucide-react";
+import { ChevronUp, Pause, Play } from "lucide-react";
 import StoryDetailSheet from "./components/StoryDetailSheet";
 import { fetchReactionState, toggleReaction, type ReactionState } from "@/lib/story/reactions";
 import { recordStoryView } from "@/lib/story/views";
@@ -45,9 +45,10 @@ export default function StoryViewer({ stories, initialIndex, onClose, demo }: Pr
   const [index, setIndex] = useState(initialIndex);
   const [direction, setDirection] = useState<1 | -1>(1);
   const [paused, setPaused] = useState(false);
+  const [playbackPaused, setPlaybackPaused] = useState(false);
   // 「詳しく」（店主の説明とマップへの導線）を開いているか。開いているあいだは自動送りを止める
   const [detailOpen, setDetailOpen] = useState(false);
-  const stopped = paused || detailOpen;
+  const stopped = paused || playbackPaused || detailOpen;
   // 匿名ハート用の visitorKey（相談機能と共通の識別子を流用）
   const [visitorKey] = useState(() =>
     typeof window !== "undefined" ? getOrCreateConsultVisitorKey() : ""
@@ -302,6 +303,15 @@ export default function StoryViewer({ stories, initialIndex, onClose, demo }: Pr
             <div className="flex items-center gap-2.5 flex-1 min-w-0">{shopInfo}</div>
           )}
           {demo && <StoryDemoBadge />}
+          <button
+            type="button"
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={() => setPlaybackPaused((wasPaused) => !wasPaused)}
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+            aria-label={playbackPaused ? "自動送りを再開" : "自動送りを一時停止"}
+          >
+            {playbackPaused ? <Play className="h-4 w-4" aria-hidden /> : <Pause className="h-4 w-4" aria-hidden />}
+          </button>
           <button
             type="button"
             onPointerDown={(e) => e.stopPropagation()}
