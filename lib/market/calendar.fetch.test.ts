@@ -52,6 +52,14 @@ describe("fetchMarketCalendar", () => {
     expect(calls.every(([table]) => table === "markets")).toBe(true);
   });
 
+  it("公開用の開催情報には更新日時を含める", async () => {
+    const day = { market_id: "sun", market_date: "2026-08-16", status: "cancelled", note: "荒天", updated_at: "2026-08-11T04:15:00Z" };
+    const { client, calls } = fakeClient({ markets: [sunday], market_days: [day] });
+    const result = await fetchMarketCalendar(client, { now });
+    expect(result.markets[0].days).toEqual([{ market_date: day.market_date, status: day.status, note: day.note, updated_at: day.updated_at }]);
+    expect(calls).toContainEqual(["market_days", "select", expect.stringContaining("updated_at")]);
+  });
+
   it("非公開の市の開催状況やイベントを含めない", async () => {
     const { client, calls } = fakeClient({
       markets: [sunday, { ...thursday, is_public: false }],

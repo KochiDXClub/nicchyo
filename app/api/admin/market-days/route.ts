@@ -5,7 +5,7 @@ import { requireSameOrigin } from "@/lib/security/requestGuards";
 import { enforceRateLimit } from "@/lib/security/rateLimit";
 import { authorizeAdmin } from "../events/_helpers";
 import { parseMarketDayRequest } from "@/lib/market/marketDayRequest.server";
-import { saveMarketDay, type SavedMarketDay } from "@/lib/market/saveMarketDay.server";
+import { readDefaultMarketId, saveMarketDay, type SavedMarketDay } from "@/lib/market/saveMarketDay.server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -20,10 +20,12 @@ export async function GET(req: Request) {
   const dc = createAdminClient();
   if (!dc) return NextResponse.json({ error: "Service unavailable" }, { status: 503 });
 
-  const marketId = new URL(req.url).searchParams.get("market_id");
-  let query = dc.from("market_days").select("*").order("market_date", { ascending: false }).limit(100);
-  if (marketId) query = query.eq("market_id", marketId);
-  const { data, error: dbError } = await query;
+  const requestedId = new URL(req.url).searchParams.get("market_id");
+  const marketId = requestedId ?? await readDefaultMarketId(dc);
+  if (!marketId) return NextResponse.json({ error: "市が見つかりません" }, { status: 503 });
+
+  const { data, error: dbError } = await dc.from("market_days")
+    .select("*").eq("market_id", marketId).order("market_date", { ascending: false }).limit(100);
 
   if (dbError) {
     return NextResponse.json({ error: "データ取得に失敗しました" }, { status: 500 });

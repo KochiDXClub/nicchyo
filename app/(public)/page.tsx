@@ -14,6 +14,7 @@ import LandingHowTo from "./_landing/LandingHowTo";
 import LandingInfo from "./_landing/LandingInfo";
 import LandingHighlights from "./_landing/LandingHighlights";
 import LandingAbout from "./_landing/LandingAbout";
+import LandingFooter from "./_landing/LandingFooter";
 import { buildLandingMarketDays } from "./_landing/upcomingMarketDays";
 import { pickLandingShopPhotos } from "./_landing/pickLandingShops";
 import PublicMarketChoice from "@/app/components/market/PublicMarketChoice";
@@ -89,6 +90,7 @@ export default async function HomePage() {
         <LandingInfo marketDays={marketDays} showSundayDetails={markets.some((market) => market.slug === "nichiyo")} />
         <LandingHighlights shopPhotos={photos} />
         <LandingAbout />
+      <LandingFooter />
       </main>
     </PageShell>
   );

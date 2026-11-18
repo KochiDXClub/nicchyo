@@ -34,14 +34,19 @@ export default async function MarketCalendarPage() {
             開催状況とこれからの予定をお届けします
           </p>
 
-          {next && <MarketStatusCalendar date={next} className="mt-5" link={false} />}
+          {next && <MarketStatusCalendar date={next} className="mt-5" link={false} unregisteredLabel="通常予定" />}
+          {dates.some((date) => date.status === "open" && !date.day) && (
+            <p className="mt-4 text-sm leading-relaxed text-nicchyo-ink/75">
+              「通常予定」は開催情報の登録がない日です。各市の通常の開催曜日をもとに表示しています。
+            </p>
+          )}
           {!calendar && <p role="status" className="mt-5">開催状況を取得できませんでした。時間をおいて再度ご確認ください。</p>}
           {calendar && dates.length === 0 && <p className="mt-5">公開中の市の予定はありません。</p>}
         </PageContainer>
       </div>
 
       <PageContainer width="narrow">
-        <UpcomingMarketDates dates={dates} showHeading={false} />
+        <UpcomingMarketDates dates={dates} showHeading={false} showStatusSource />
 
         <p className="mt-6 text-center text-[11px] leading-relaxed text-nicchyo-ink/40">
           出店者ごとの当日の様子は

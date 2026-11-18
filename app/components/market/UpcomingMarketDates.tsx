@@ -14,6 +14,7 @@ type Props = {
   /** true のとき「すべて見る」リンクを出す（近況ページの抜粋表示用） */
   showMoreLink?: boolean;
   showHeading?: boolean;
+  showStatusSource?: boolean;
 };
 
 /** 開催日ごとの予定を、近況の投稿とは独立したカードで見せる。 */
@@ -21,6 +22,7 @@ export default function UpcomingMarketDates({
   dates,
   showMoreLink = false,
   showHeading = true,
+  showStatusSource = false,
 }: Props) {
   if (dates.length === 0) return null;
   const showMarketNames = dates.some((date) => date.marketName);
@@ -36,7 +38,7 @@ export default function UpcomingMarketDates({
 
       <ul className="flex flex-col gap-2.5">
         {dates.map((date) => (
-          <CalendarDateCard key={`${date.marketId}:${date.dateIso}`} date={date} />
+          <CalendarDateCard key={`${date.marketId}:${date.dateIso}`} date={date} showStatusSource={showStatusSource} />
         ))}
       </ul>
 
@@ -54,9 +56,17 @@ export default function UpcomingMarketDates({
   );
 }
 
-function CalendarDateCard({ date }: { date: MarketCalendarDate }) {
+const jstUpdatedAt = new Intl.DateTimeFormat("ja-JP", {
+  timeZone: "Asia/Tokyo",
+  dateStyle: "medium",
+  timeStyle: "short",
+});
+
+function CalendarDateCard({ date, showStatusSource }: { date: MarketCalendarDate; showStatusSource: boolean }) {
   const { day, highlight, events, isThisWeek, marketName, status } = date;
-  const statusPresentation = status && (marketName || status !== "open") ? getStatusPresentation(status) : null;
+  const showStatusBadge = Boolean(marketName) || status !== "open" || showStatusSource;
+  const statusPresentation = status && showStatusBadge ? getStatusPresentation(status) : null;
+  const updatedAt = showStatusSource && day?.updated_at ? new Date(day.updated_at) : null;
   const isEmpty = !highlight && events.length === 0;
 
   return (
@@ -81,13 +91,22 @@ function CalendarDateCard({ date }: { date: MarketCalendarDate }) {
                 ? "bg-rose-500 text-white"
                 : statusPresentation.tone === "highlight"
                   ? "bg-nicchyo-accent text-nicchyo-ink"
-                  : "bg-nicchyo-primary/10 text-nicchyo-ink"
+                  : "bg-nicchyo-ink/5 text-nicchyo-ink"
             }`}
           >
-            {statusPresentation.label}
+            {!day && showStatusSource ? "通常予定" : statusPresentation.label}
           </span>
         )}
       </div>
+
+      {showStatusSource && day && (
+        <p className="px-4 pt-2 text-xs text-nicchyo-ink/75">
+          運営が登録
+          {updatedAt && Number.isFinite(updatedAt.getTime()) && (
+            <> ・更新 <time dateTime={day.updated_at}>{jstUpdatedAt.format(updatedAt)}</time>（日本時間）</>
+          )}
+        </p>
+      )}
 
       {day?.note && (
         <p className="border-b border-black/5 bg-rose-50/60 px-4 py-2 text-xs leading-relaxed text-rose-700">

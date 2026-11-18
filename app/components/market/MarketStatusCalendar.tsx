@@ -10,6 +10,7 @@ import { getStatusPresentation, type MarketCalendarDate } from "@/lib/market/cal
 // 囲みの横 7.6rem × 縦 8.2rem は本体 × 0.52 の目安に合わせている
 type Props = {
   date: MarketCalendarDate;
+  unregisteredLabel?: string;
   className?: string;
   /** カレンダーページ自身など、リンクにしない場所では false */
   link?: boolean;
@@ -24,7 +25,7 @@ type Props = {
  * 文字列を props で受け取る形になり、ここで useT()/useLocale() から渡す。
  * 中止・休市は赤い帯、特別開催は黄色の地で目立たせる（以前のページ版と同じ扱い）。
  */
-export default function MarketStatusCalendar({ date, className = "", link = true, showSummary = true }: Props) {
+export default function MarketStatusCalendar({ date, className = "", link = true, showSummary = true, unregisteredLabel }: Props) {
   const t = useT();
   const locale = useLocale();
 
@@ -32,7 +33,8 @@ export default function MarketStatusCalendar({ date, className = "", link = true
   if (!status) return null;
   const { label, tone } = getStatusPresentation(status);
   const marketDay = toLandingMarketDay(date);
-  const text = nextSundayCalendarText(marketDay, t, locale);
+  const statusLabel = !day && unregisteredLabel ? unregisteredLabel : label;
+  const text = nextSundayCalendarText(marketDay, t, locale, statusLabel);
 
   const calendar = (
     <span className="relative block h-[8.2rem] w-[7.6rem] shrink-0">
@@ -66,7 +68,7 @@ export default function MarketStatusCalendar({ date, className = "", link = true
                   }`}
                 >
                   <span className="whitespace-nowrap">{dateLabel}</span>{" "}
-                  <span className="whitespace-nowrap">{t(label)}</span>
+                  <span className="whitespace-nowrap">{t(statusLabel)}</span>
                 </p>
               ) : (
                 <p className="mt-0.5 text-base font-black text-nicchyo-ink">

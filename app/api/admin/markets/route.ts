@@ -1,4 +1,5 @@
 import { revalidatePublicShops } from "@/app/(public)/map/services/shopCache";
+import { revalidatePath } from "next/cache";
 import { NextResponse } from "next/server";
 import { getRole } from "@/lib/auth/permissions";
 import { createAdminClient } from "@/lib/supabase/adminClient";
@@ -94,6 +95,8 @@ export async function POST(req: Request) {
   }
 
   revalidatePublicShops();
+  revalidatePath("/sitemap.xml");
+
   await logAdminAudit(dc, { id: user.id, email: user.email, role: getRole(user) }, {
     action: "market_created",
     targetType: "market",
@@ -169,6 +172,8 @@ export async function PATCH(req: Request) {
   if (!data) return NextResponse.json({ error: "市が見つかりません" }, { status: 404 });
 
   revalidatePublicShops();
+  revalidatePath("/sitemap.xml");
+
   await logAdminAudit(dc, { id: user.id, email: user.email, role: getRole(user) }, {
     action: "market_updated",
     targetType: "market",

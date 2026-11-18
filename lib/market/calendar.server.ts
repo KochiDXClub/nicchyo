@@ -29,7 +29,7 @@ export async function fetchMarketCalendar(
 
   const [daysResult, eventsResult] = await Promise.all([
     supabase.from("market_days")
-      .select("market_id,market_date,status,note,markets!inner(is_public)")
+      .select("market_id,market_date,status,note,updated_at,markets!inner(is_public)")
       .in("market_id", marketIds).eq("markets.is_public", true)
       .gte("market_date", todayIso).lte("market_date", through)
       .order("market_date").order("market_id"),
@@ -48,7 +48,7 @@ export async function fetchMarketCalendar(
     markets: markets.map((market) => ({
       ...market,
       days: daysResult.data.filter((row) => row.market_id === market.id)
-        .map(({ market_date, status, note }) => ({ market_date, status: normalizeStatus(status), note })),
+        .map(({ market_date, status, note, updated_at }) => ({ market_date, status: normalizeStatus(status), note, updated_at })),
       events: eventsResult.data.filter((row) => row.market_id === market.id)
         .map(({ markets: _market, market_id: _marketId, category, highlight_dates, ...event }) => ({
           ...event,

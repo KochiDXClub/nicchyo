@@ -1,13 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const fetchPublicShops = vi.fn();
+const fetchPublicMarketBySlug = vi.fn();
 
 vi.mock("@/app/(public)/map/services/shopCache", () => ({
   fetchPublicShopProfiles: () => fetchPublicShops(),
 }));
 
 vi.mock("@/lib/market/publicMarkets.server", () => ({
-  fetchPublicMarketBySlug: async () => null,
+  fetchPublicMarketBySlug: (slug: string) => fetchPublicMarketBySlug(slug),
 }));
 
 vi.mock("@/lib/pageVisibility/server", async () => {
@@ -20,6 +21,7 @@ import sitemap from "./sitemap";
 describe("sitemap", () => {
   beforeEach(() => {
     fetchPublicShops.mockReset();
+    fetchPublicMarketBySlug.mockReset().mockResolvedValue(null);
   });
 
   it("公開店舗（fetchPublicShops）を 3 桁コードの URL として載せる", async () => {
@@ -71,6 +73,15 @@ describe("sitemap", () => {
       expect(urls.some((u) => u.endsWith(path))).toBe(true);
     }
     expect(urls.some((u) => u.includes("/activities/"))).toBe(true);
+  });
+
+  it("木曜市は公開されているときだけ載せる", async () => {
+    fetchPublicShops.mockResolvedValue([]);
+    expect((await sitemap()).some((entry) => entry.url.endsWith("/mokuyo"))).toBe(false);
+
+    fetchPublicMarketBySlug.mockResolvedValue({ slug: "mokuyo" });
+    expect((await sitemap()).some((entry) => entry.url.endsWith("/mokuyo"))).toBe(true);
+    expect(fetchPublicMarketBySlug).toHaveBeenCalledWith("mokuyo");
   });
 
   it("静的ページに常に「今」の lastModified を入れない", async () => {

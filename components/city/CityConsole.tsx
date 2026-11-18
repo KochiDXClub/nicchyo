@@ -7,7 +7,7 @@
 
 import React, { useEffect, useState, type ReactNode } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { CalendarDays, LogOut, Map as MapIcon, BarChart3, Landmark, Megaphone } from "lucide-react";
+import { CalendarDays, LogOut, Map as MapIcon, BarChart3, Megaphone } from "lucide-react";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { ConsoleSidebar, CONSOLE_SIDEBAR_OFFSET_CLASS } from "@/components/navigation/ConsoleSidebar";
 import { useBodyScrollLock } from "@/lib/ui/bodyScrollLock";
@@ -51,9 +51,8 @@ export function CityConsole({ children }: { children: ReactNode }) {
         onToggle={() => setIsOpen((v) => !v)}
         onClose={() => setIsOpen(false)}
         menuLabel="高知市メニュー"
-        brandIcon={Landmark}
-        brandClassName="bg-slate-900"
-        title="nicchyo"
+        homeHref="/city"
+        homeLabel="nicchyo 高知市のページへ"
         subtitle="高知市のページ"
         groups={NAV_GROUPS.map((g) => ({
           ...g,
