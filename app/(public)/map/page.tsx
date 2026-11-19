@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import { Suspense } from 'react';
 import { cookies } from 'next/headers';
 import { createAnonClient } from "@/lib/supabase/anonClient";
+import { fetchMarketPeople } from "@/lib/map/illustrations/people.server";
 import { fetchPublicMarkets } from "@/lib/market/publicMarkets.server";
 import { createClient } from '@/utils/supabase/server';
 import MapPageClient from './MapPageClient';
@@ -50,6 +51,7 @@ export default async function MapPage({ searchParams }: {
   const featureFlagsPromise = fetchMapFeatureFlags();
   const mapViewSettingsPromise = fetchMapViewSettings();
   const marketsPromise = fetchPublicMarkets();
+  const peoplePromise = marketsPromise.then((markets) => fetchMarketPeople(markets)).catch(() => []);
   const selectionPromise = Promise.all([marketsPromise, searchParams]).then(([markets, query]) => {
     const sunday = markets.find((market) => market.slug === "nichiyo");
     const requested = markets.find((market) => market.slug === query.market);
@@ -114,11 +116,12 @@ export default async function MapPage({ searchParams }: {
     }
   }
 
-  const [featureFlags, mapViewSettings, legacyIdentities, selection] = await Promise.all([
+  const [featureFlags, mapViewSettings, legacyIdentities, selection, people] = await Promise.all([
     featureFlagsPromise,
     mapViewSettingsPromise,
     readPublicLegacyIdentities().catch(() => ({ enabled: true, aliases: {} })),
     selectionPromise,
+    peoplePromise,
   ]);
 
   return (
@@ -136,6 +139,7 @@ export default async function MapPage({ searchParams }: {
         profiles={profiles}
         legacyIdentities={legacyIdentities}
         landmarks={landmarks}
+        people={people}
         mapRoute={{ ...mapRoute, markets: selection.markets.map(({ id, name }) => ({ id, name })) }}
         initialMarketId={selection.initial?.id}
         sundayMarketId={selection.sunday?.id}

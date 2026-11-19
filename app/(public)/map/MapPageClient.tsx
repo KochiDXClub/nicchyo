@@ -94,6 +94,7 @@ type MapPageClientProps = {
   profiles?: ShopProfile[];
   legacyIdentities?: { enabled: boolean; aliases: Record<string, number> };
   landmarks: Landmark[];
+  people?: Landmark[];
   mapRoute: MapRoute;
   initialMarketId?: string;
   sundayMarketId?: string;
@@ -118,6 +119,7 @@ export default function MapPageClient({
   profiles,
   legacyIdentities,
   landmarks,
+  people,
   mapRoute,
   initialMarketId,
   sundayMarketId,
@@ -264,6 +266,7 @@ export default function MapPageClient({
   }, []);
   // マップに常時描画するランドマーク（お手洗い・休けいなど show_on_map=false は除く）
   const mapLandmarks = useMemo(() => filterMapVisibleLandmarks(landmarks), [landmarks]);
+  const mapIllustrations = useMemo(() => people?.length ? [...mapLandmarks, ...people] : mapLandmarks, [mapLandmarks, people]);
   // タップしたスポット（電停・駅・建物・施設）。店舗以外は SpotCard で表示する
   const [selectedSpot, setSelectedSpot] = useState<MapSpot | null>(null);
   const closeSpotCard = useCallback(() => setSelectedSpot(null), []);
@@ -1018,7 +1021,7 @@ export default function MapPageClient({
               initialMarketId={initialMarketId}
               sundayMarketId={sundayMarketId}
               shops={shops}
-              landmarks={mapLandmarks}
+              landmarks={mapIllustrations}
               mapRoute={mapRoute}
               featureFlags={featureFlags}
               mapViewSettings={mapViewSettings}

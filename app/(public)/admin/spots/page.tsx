@@ -3,7 +3,7 @@
 export const dynamic = "force-dynamic";
 
 /**
- * スポット管理
+ * イラスト管理
  *
  * 電停・駅・建物・お手洗い・休けい場所（map_landmarks）の一覧と編集。
  * マップ上の位置・アイコンサイズは「マップ編集」画面が担当し、ここでは
@@ -15,6 +15,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { AdminLayout, AdminPageHeader } from "@/components/admin";
+import { Button } from "@/components/ui";
+import PeopleIllustrationsPanel from "./PeopleIllustrationsPanel";
 import { showToast } from "@/lib/admin/toast";
 import { SPOT_CATEGORIES, type AdminSpot, type SpotCategory } from "@/lib/spots/adminSpot";
 import { SPOT_DESCRIPTION_MAX, SPOT_NAME_EN_MAX, SPOT_NAME_MAX, type SpotEnglish } from "@/lib/spots/translate";
@@ -314,10 +316,7 @@ function SpotForm({
   );
 }
 
-export default function AdminSpotsPage() {
-  const { permissions, isLoading } = useAuth();
-  const router = useRouter();
-
+function SpotsPanel() {
   const [spots, setSpots] = useState<AdminSpot[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<SpotCategory | "all">("all");
@@ -327,11 +326,6 @@ export default function AdminSpotsPage() {
   const [saving, setSaving] = useState(false);
   const [confirmingKey, setConfirmingKey] = useState<string | null>(null);
   const [translating, setTranslating] = useState(false);
-
-  useEffect(() => {
-    if (isLoading) return;
-    if (!permissions.isAdmin) router.push("/");
-  }, [isLoading, permissions.isAdmin, router]);
 
   const fetchSpots = useCallback(async () => {
     setLoading(true);
@@ -348,9 +342,8 @@ export default function AdminSpotsPage() {
   }, []);
 
   useEffect(() => {
-    if (!permissions.isAdmin) return;
     void fetchSpots();
-  }, [fetchSpots, permissions.isAdmin]);
+  }, [fetchSpots]);
 
   const visible = useMemo(
     () => (filter === "all" ? spots : spots.filter((s) => s.category === filter)),
@@ -439,9 +432,7 @@ export default function AdminSpotsPage() {
   };
 
   return (
-    <AdminLayout>
-      <AdminPageHeader eyebrow="マスタ管理" title="スポット管理" />
-
+    <>
       <p className="mb-3 text-xs leading-relaxed text-slate-500">
         電停・駅・建物・お手洗い・休けい場所の情報（写真・タグ・路線・補足）を編集します。
         マップ上の位置とアイコンの大きさは「マップ編集」で調整してください。
@@ -570,6 +561,27 @@ export default function AdminSpotsPage() {
           )}
         </div>
       )}
+    </>
+  );
+}
+
+export default function AdminIllustrationsPage() {
+  const { permissions, isLoading } = useAuth();
+  const router = useRouter();
+  const [kind, setKind] = useState<"spot" | "person">("spot");
+
+  useEffect(() => {
+    if (!isLoading && !permissions.isAdmin) router.push("/");
+  }, [isLoading, permissions.isAdmin, router]);
+
+  return (
+    <AdminLayout>
+      <AdminPageHeader eyebrow="マスタ管理" title="イラスト管理" />
+      <div role="group" aria-label="イラストの種類" className="mb-4 flex gap-2">
+        <Button variant={kind === "spot" ? "ink" : "quiet"} aria-pressed={kind === "spot"} onClick={() => setKind("spot")}>スポット</Button>
+        <Button variant={kind === "person" ? "ink" : "quiet"} aria-pressed={kind === "person"} onClick={() => setKind("person")}>人</Button>
+      </div>
+      {permissions.isAdmin && (kind === "person" ? <PeopleIllustrationsPanel /> : <SpotsPanel />)}
     </AdminLayout>
   );
 }

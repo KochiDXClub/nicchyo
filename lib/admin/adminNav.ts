@@ -201,10 +201,10 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
         description: "マップをどこまで動かせるかを地図の上で決める",
       },
       {
-        label: "スポット管理",
+        label: "イラスト管理",
         href: "/admin/spots",
         icon: MapPin,
-        description: "お手洗い・休けい場所・電停などのスポット情報を管理する",
+        description: "地図の来訪者イラストと、お手洗い・電停などのスポットを管理する",
       },
     ],
   },
