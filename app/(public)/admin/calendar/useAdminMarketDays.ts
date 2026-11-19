@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { showToast } from "@/lib/admin/toast";
 import { formatEventDate, normalizeStatus, type MarketDayStatus } from "@/lib/market/calendar";
 
@@ -44,25 +44,40 @@ export function useAdminMarketDays({
   const [days, setDays] = useState<MarketDayRow[]>([]);
   const [history, setHistory] = useState<MarketDayHistoryItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [savingDate, setSavingDate] = useState<string | null>(null);
+  // ソフトウェアキーボードや連続操作でも再レンダーを待たず、同じ日付の処理を直列化する。
+  const pending = useRef(new Map<string, "save" | "upload">());
+  const [operations, setOperations] = useState(() => new Map(pending.current));
+  const latestFetch = useRef(0);
   const [noteDrafts, setNoteDrafts] = useState<Record<string, string>>({});
   const [statusDrafts, setStatusDrafts] = useState<Record<string, MarketDayStatus>>({});
   /** 画像の下書き。null は「画像を外す」、キーが無ければ確定値のまま */
   const [imageDrafts, setImageDrafts] = useState<Record<string, string | null>>({});
-  const [uploadingImageDate, setUploadingImageDate] = useState<string | null>(null);
+  const begin = (dateIso: string, operation: "save" | "upload") => {
+    if (pending.current.has(dateIso)) return false;
+    pending.current.set(dateIso, operation);
+    setOperations(new Map(pending.current));
+    return true;
+  };
+
+  const finish = (dateIso: string) => {
+    pending.current.delete(dateIso);
+    setOperations(new Map(pending.current));
+  };
 
   const fetchDays = useCallback(async () => {
+    const fetchId = ++latestFetch.current;
     setLoading(true);
     try {
       const res = await fetch(endpoint);
       if (!res.ok) throw new Error("failed");
       const data = (await res.json()) as { days: MarketDayRow[]; history?: MarketDayHistoryItem[] };
+      if (latestFetch.current !== fetchId) return;
       setDays(data.days);
       setHistory(data.history ?? []);
     } catch {
-      showToast.error("開催ステータスの取得に失敗しました");
+      if (latestFetch.current === fetchId) showToast.error("開催ステータスの取得に失敗しました");
     } finally {
-      setLoading(false);
+      if (latestFetch.current === fetchId) setLoading(false);
     }
   }, [endpoint]);
 
@@ -92,7 +107,7 @@ export function useAdminMarketDays({
    * アップロード先は運営の画像API。高知市の画面では使わない（editable を渡さない）。
    */
   const uploadImage = async (dateIso: string, file: File) => {
-    setUploadingImageDate(dateIso);
+    if (!begin(dateIso, "upload")) return;
     try {
       const body = new FormData();
       body.append("file", file);
@@ -105,7 +120,7 @@ export function useAdminMarketDays({
     } catch (e) {
       showToast.error(e instanceof Error ? e.message : "アップロードに失敗しました");
     } finally {
-      setUploadingImageDate(null);
+      finish(dateIso);
     }
   };
 
@@ -116,7 +131,7 @@ export function useAdminMarketDays({
     /** undefined なら画像は送らず既存のまま（高知市）。null は画像を外す */
     image?: string | null
   ) => {
-    setSavingDate(dateIso);
+    if (!begin(dateIso, "save")) return;
     try {
       const res = await fetch(endpoint, {
         method: "PUT",
@@ -153,7 +168,7 @@ export function useAdminMarketDays({
     } catch (e) {
       showToast.error(e instanceof Error ? e.message : "保存に失敗しました");
     } finally {
-      setSavingDate(null);
+      finish(dateIso);
     }
   };
 
@@ -194,7 +209,7 @@ export function useAdminMarketDays({
   return {
     loading,
     history,
-    savingDate,
+    isSaving: (dateIso: string) => operations.get(dateIso) === "save",
     recentNotes,
     committedStatusFor,
     draftStatusFor,
@@ -204,7 +219,8 @@ export function useAdminMarketDays({
     imageFor,
     setImageDraft,
     uploadImage,
-    uploadingImageDate,
+    isUploadingImage: (dateIso: string) => operations.get(dateIso) === "upload",
+    imageDraftFor: (dateIso: string): string | null | undefined => imageDrafts[dateIso],
     isDirty,
     save,
   };

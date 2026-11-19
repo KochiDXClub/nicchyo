@@ -35,12 +35,15 @@ export async function saveMarketDay(
   if (!marketId) return { error: "市が見つかりません" };
 
   // 誤操作を事後に検証できるよう、上書き前の内容を控えておく（同じ市・同じ日付のみ）
+  const changesImage = data.image_url !== undefined;
+  const previousColumns: string = changesImage ? "status,note,image_url" : "status,note";
   const { data: previous } = await dc
     .from("market_days")
-    .select("status, note, image_url")
+    .select(previousColumns)
     .eq("market_id", marketId)
     .eq("market_date", data.market_date)
-    .maybeSingle();
+    .maybeSingle()
+    .overrideTypes<Pick<SavedMarketDay, "status" | "note"> & { image_url?: string | null }, { merge: false }>();
 
   const { data: day, error } = await dc
     .from("market_days")
@@ -67,7 +70,11 @@ export async function saveMarketDay(
     details: JSON.stringify({
       market_id: marketId,
       before: previous
-        ? { status: previous.status, note: previous.note, image_url: previous.image_url ?? null }
+        ? {
+          status: previous.status,
+          note: previous.note,
+          ...(changesImage ? { image_url: previous.image_url ?? null } : {}),
+        }
         : null,
       after: {
         status: data.status,

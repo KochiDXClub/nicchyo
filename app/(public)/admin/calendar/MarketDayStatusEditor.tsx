@@ -115,6 +115,7 @@ export function MarketDayStatusEditor({
         <input
           type="text"
           value={noteDraft}
+          disabled={isSaving}
           maxLength={200}
           placeholder="雨天のため中止します／判断は当日朝6時"
           onChange={(e) => onSetNoteDraft(e.target.value)}
@@ -126,6 +127,7 @@ export function MarketDayStatusEditor({
               <button
                 key={note}
                 type="button"
+                disabled={isSaving}
                 onClick={() => onSetNoteDraft(note)}
                 className="max-w-full truncate rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] text-slate-500 hover:border-amber-300 hover:bg-amber-50"
                 title={note}
@@ -213,13 +215,13 @@ export function MarketDayStatusEditorForDate({
       draftStatus={days.draftStatusFor(dateIso)}
       noteDraft={days.noteFor(dateIso)}
       isDirty={days.isDirty(dateIso)}
-      isSaving={days.savingDate === dateIso}
+      isSaving={days.isSaving(dateIso)}
       recentNotes={days.recentNotes}
       image={
         withImage
           ? {
               url: days.imageFor(dateIso),
-              uploading: days.uploadingImageDate === dateIso,
+              uploading: days.isUploadingImage(dateIso),
               onUpload: (file) => void days.uploadImage(dateIso, file),
               onRemove: () => days.setImageDraft(dateIso, null),
             }
@@ -233,7 +235,7 @@ export function MarketDayStatusEditorForDate({
           days.draftStatusFor(dateIso) ?? "open",
           days.noteFor(dateIso),
           // 画像を扱わない画面では画像キーを送らず、既存の画像を変えない
-          withImage ? days.imageFor(dateIso) : undefined
+          withImage ? days.imageDraftFor(dateIso) : undefined
         )
       }
     />

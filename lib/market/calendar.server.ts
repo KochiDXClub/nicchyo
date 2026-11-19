@@ -1,3 +1,4 @@
+import type { Database } from "@/types/database.types";
 import { createAdminClient } from "@/lib/supabase/adminClient";
 import {
   addDaysToIso,
@@ -13,6 +14,26 @@ import { readPublicMarkets } from "./publicMarkets.server";
 
 type Client = NonNullable<ReturnType<typeof createAdminClient>>;
 
+type StoredDay = Database["public"]["Tables"]["market_days"]["Row"];
+type CalendarDayRow = Pick<StoredDay, "market_id" | "market_date" | "status" | "note" | "updated_at"> & {
+  image_url?: StoredDay["image_url"];
+};
+
+const DAY_COLUMNS = "market_id,market_date,status,note,updated_at,markets!inner(is_public)";
+
+async function fetchCalendarDays(supabase: Client, marketIds: string[], todayIso: string, through: string) {
+  const selectDays = (columns: string) => supabase.from("market_days")
+    .select(columns)
+    .in("market_id", marketIds).eq("markets.is_public", true)
+    .gte("market_date", todayIso).lte("market_date", through)
+    .order("market_date").order("market_id")
+    .overrideTypes<CalendarDayRow[], { merge: false }>();
+
+  const result = await selectDays(`${DAY_COLUMNS},image_url`);
+  // 画像列のマイグレーション前も、中止や休市などの開催状況は返す。
+  return result.error?.code === "42703" ? selectDays(DAY_COLUMNS) : result;
+}
+
 /** 公開市場だけを読み、同じ日付の開催状況を市IDで混同しない。 */
 export async function fetchMarketCalendar(
   supabase: Client,
@@ -27,28 +48,16 @@ export async function fetchMarketCalendar(
     ? addDaysToIso(getUpcomingSundayIso(now), -6)
     : todayIso;
 
-  let daysQuery = supabase.from("market_days")
-    .select("market_id,market_date,status,note,image_url,updated_at,markets!inner(is_public)")
-    .in("market_id", marketIds).eq("markets.is_public", true)
-    .gte("market_date", todayIso).lte("market_date", through)
-    .order("market_date").order("market_id");
-  let daysResult = await daysQuery;
-  if (daysResult.error?.code === "42703") {
-    daysQuery = supabase.from("market_days")
-      .select("market_id,market_date,status,note,updated_at,markets!inner(is_public)")
-      .in("market_id", marketIds).eq("markets.is_public", true)
-      .gte("market_date", todayIso).lte("market_date", through)
-      .order("market_date").order("market_id");
-    daysResult = await daysQuery;
-  }
-
-  const eventsResult = await supabase.from("market_events")
-    .select("market_id,id,title,description,event_date,end_date,start_time,end_time,location,category,image_url,highlight_dates,markets!inner(is_public)")
-    .in("market_id", marketIds).eq("markets.is_public", true).eq("is_published", true)
-    .lte("event_date", through)
-    .or(`end_date.gte.${eventFrom},and(end_date.is.null,event_date.gte.${eventFrom})`)
-    .order("event_date").order("id")
-    .limit(50);
+  const [daysResult, eventsResult] = await Promise.all([
+    fetchCalendarDays(supabase, marketIds, todayIso, through),
+    supabase.from("market_events")
+      .select("market_id,id,title,description,event_date,end_date,start_time,end_time,location,category,image_url,highlight_dates,markets!inner(is_public)")
+      .in("market_id", marketIds).eq("markets.is_public", true).eq("is_published", true)
+      .lte("event_date", through)
+      .or(`end_date.gte.${eventFrom},and(end_date.is.null,event_date.gte.${eventFrom})`)
+      .order("event_date").order("id")
+      .limit(50),
+  ]);
   if (daysResult.error || eventsResult.error) throw new Error("開催情報を取得できませんでした");
 
   return {
