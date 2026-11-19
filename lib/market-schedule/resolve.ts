@@ -2,7 +2,7 @@ import { resolveDay, type MembershipPeriod, type ScheduleOverride, type Schedule
 import type { ScheduleAdminData } from "./adminTypes";
 
 /** 管理画面と公開マップで同じ日時の解決規則を使う。 */
-export function resolveSchedule(data: ScheduleAdminData, date: string) {
+export function resolveSchedule(data: ScheduleAdminData, date: string, weekday = 0) {
   const marketDay = data.marketDays?.find((item) => item.market_date === date);
   if (marketDay?.status === "cancelled" || marketDay?.status === "closed") {
     return data.places.map((place) => ({ date, locationId: place.id, state: "market_closed" as const, vendorIds: [], source: null }));
@@ -19,7 +19,7 @@ export function resolveSchedule(data: ScheduleAdminData, date: string) {
     return [{ id: item.id, periodId: item.period_id, locationId: member.location_id, vendorId: member.vendor_id, start: item.starts_on, end: item.ends_on, recurrence }];
   });
   const overrides: ScheduleOverride[] = data.overrides.filter((item) => !item.is_cleared).map((item) => ({ locationId: item.location_id, date: item.market_date, vendorId: item.membership_id === null ? null : index.get(item.membership_id)?.vendor_id ?? "missing" }));
-  const result = data.places.map((place) => resolveDay(place.id, date, rules, overrides, periods));
+  const result = data.places.map((place) => resolveDay(place.id, date, rules, overrides, periods, weekday));
   const appearances = new Map<string, number>();
   for (const item of result) for (const vendorId of item.vendorIds) appearances.set(vendorId, (appearances.get(vendorId) ?? 0) + 1);
   return result.map((item) => item.state === "scheduled" && (appearances.get(item.vendorIds[0]) ?? 0) > 1 ? { ...item, state: "conflict" as const } : item);

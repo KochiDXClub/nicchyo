@@ -26,7 +26,7 @@ type ShopPageProps = {
  */
 const fetchShop = cache(async (shopId: number): Promise<ShopProfile | null> => {
   try {
-    const shops = await fetchPublicShopProfiles(await getLocale());
+    const shops = await fetchPublicShopProfiles(await getLocale(), shopId >= 1000);
     return shops.find((shop) => shop.id === shopId) ?? null;
   } catch {
     return null;
