@@ -577,11 +577,14 @@ export default function AdminIllustrationsPage() {
   return (
     <AdminLayout>
       <AdminPageHeader eyebrow="マスタ管理" title="イラスト管理" />
-      <div role="group" aria-label="イラストの種類" className="mb-4 flex gap-2">
-        <Button variant={kind === "spot" ? "ink" : "quiet"} aria-pressed={kind === "spot"} onClick={() => setKind("spot")}>スポット</Button>
-        <Button variant={kind === "person" ? "ink" : "quiet"} aria-pressed={kind === "person"} onClick={() => setKind("person")}>人</Button>
+
+      <div className="mx-auto w-full max-w-5xl px-4 py-5 sm:px-6">
+        <div role="group" aria-label="イラストの種類" className="mb-4 flex gap-2">
+          <Button variant={kind === "spot" ? "ink" : "quiet"} aria-pressed={kind === "spot"} onClick={() => setKind("spot")}>スポット</Button>
+          <Button variant={kind === "person" ? "ink" : "quiet"} aria-pressed={kind === "person"} onClick={() => setKind("person")}>人</Button>
+        </div>
+        {permissions.isAdmin && (kind === "person" ? <PeopleIllustrationsPanel /> : <SpotsPanel />)}
       </div>
-      {permissions.isAdmin && (kind === "person" ? <PeopleIllustrationsPanel /> : <SpotsPanel />)}
     </AdminLayout>
   );
 }
