@@ -1,12 +1,16 @@
-﻿import { Metadata } from 'next';
+import { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import { Suspense } from 'react';
 import { cookies } from 'next/headers';
+import { createAnonClient } from "@/lib/supabase/anonClient";
+import { fetchPublicMarkets } from "@/lib/market/publicMarkets.server";
 import { createClient } from '@/utils/supabase/server';
 import MapPageClient from './MapPageClient';
 import MapLoadingOverlay from '../../components/MapLoadingOverlay';
 import type { Shop } from './data/shops';
-import { fetchPublicShops } from './services/shopCache';
+import { fetchPublicShopData } from './services/shopCache';
+import type { ShopProfile } from './types/shopData';
+import { readPublicLegacyIdentities } from '@/lib/shops/publicIdentity.server';
 import { fetchLandmarksFromDb } from './services/landmarksDb';
 import type { Landmark } from './types/landmark';
 import { withOptimizedLandmarkImage } from './utils/landmarkImages';
@@ -16,6 +20,7 @@ import { safeJsonLd } from '@/lib/utils/jsonLd';
 import { getLocale } from '@/lib/i18n/server';
 import { SUNDAY_MARKET_JSON_LD } from '@/lib/seo/sundayMarketJsonLd';
 import { fetchMapFeatureFlags } from '@/lib/mapFeatureFlags.server';
+import { scopePublicMapRoute } from "@/lib/map/marketMapGeometry";
 import { fetchMapViewSettings } from '@/lib/map/mapViewSettings.server';
 import { isPathVisibleToCurrentUser } from '@/lib/pageVisibility/server';
 
@@ -32,7 +37,9 @@ export const metadata: Metadata = {
 };
 
 
-export default async function MapPage() {
+export default async function MapPage({ searchParams }: {
+  searchParams: Promise<{ market?: string | string[] }>;
+}) {
   // proxy.ts で止めたうえで、ここでも確認する（店舗データを読み込む前に必ず弾く二重の守り）
   if (!(await isPathVisibleToCurrentUser('/map'))) redirect('/');
 
@@ -42,8 +49,15 @@ export default async function MapPage() {
   // 店舗・建物・道の取得と独立しているので、先に開始して並列に待つ
   const featureFlagsPromise = fetchMapFeatureFlags();
   const mapViewSettingsPromise = fetchMapViewSettings();
+  const marketsPromise = fetchPublicMarkets();
+  const selectionPromise = Promise.all([marketsPromise, searchParams]).then(([markets, query]) => {
+    const sunday = markets.find((market) => market.slug === "nichiyo");
+    const requested = markets.find((market) => market.slug === query.market);
+    return { markets, sunday, requested, initial: requested ?? sunday ?? markets[0] };
+  });
 
   let shops: Shop[] = [];
+  let profiles: ShopProfile[] = [];
   let landmarks: Landmark[] = [];
   let mapRoute: MapRoute = getFallbackMapRoute();
 
@@ -57,18 +71,28 @@ export default async function MapPage() {
     );
 
   if (hasSupabaseEnv) {
+    mapRoute = { ...mapRoute, points: [] };
     try {
       const supabase = createClient(cookieStore);
+      const publicDb = createAnonClient();
+      const route = publicDb
+        ? fetchMapRouteFromDb(publicDb, false)
+        : Promise.resolve({ ...getFallbackMapRoute(), points: [] });
       // 1つの取得が失敗しても他の取得結果を巻き込まないよう、allSettled で独立に扱う
       const [shopsResult, landmarksResult, mapRouteResult] = await Promise.allSettled([
         // 店舗は全員共通のキャッシュから読む（ログイン状態に関係なく同じ内容）
-        fetchPublicShops(locale),
+        fetchPublicShopData(locale, selectionPromise),
         fetchLandmarksFromDb(supabase),
-        fetchMapRouteFromDb(supabase),
+        Promise.all([route, selectionPromise]).then(([data, { markets, sunday }]) => {
+          const scoped = scopePublicMapRoute(data, new Set(markets.map((market) => market.id)), sunday?.id);
+          return sunday && scoped.points.length < 2 ? { ...scoped, points: getFallbackMapRoute().points } : scoped;
+        }),
       ]);
 
       if (shopsResult.status === "fulfilled") {
-        shops = shopsResult.value;
+        shops = shopsResult.value.shops;
+        // 座標のある店舗は shops に含まれるため、重複して転送しない。
+        profiles = shopsResult.value.profiles.filter((profile) => profile.hasMapLocation === false);
       } else {
         console.warn("[MapPage] 店舗データの取得に失敗しました:", shopsResult.reason);
       }
@@ -90,23 +114,32 @@ export default async function MapPage() {
     }
   }
 
-  const [featureFlags, mapViewSettings] = await Promise.all([
+  const [featureFlags, mapViewSettings, legacyIdentities, selection] = await Promise.all([
     featureFlagsPromise,
     mapViewSettingsPromise,
+    readPublicLegacyIdentities().catch(() => ({ enabled: true, aliases: {} })),
+    selectionPromise,
   ]);
 
   return (
     <>
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: safeJsonLd(SUNDAY_MARKET_JSON_LD) }}
-      />
+      {selection.sunday && (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: safeJsonLd(SUNDAY_MARKET_JSON_LD) }}
+        />
+      )}
       {/* 地図チャンクの遅延読み込み中もローディング画面を切らさない */}
       <Suspense fallback={<MapLoadingOverlay minStage="page" />}>
         <MapPageClient
         shops={shops}
+        profiles={profiles}
+        legacyIdentities={legacyIdentities}
         landmarks={landmarks}
-        mapRoute={mapRoute}
+        mapRoute={{ ...mapRoute, markets: selection.markets.map(({ id, name }) => ({ id, name })) }}
+        initialMarketId={selection.initial?.id}
+        sundayMarketId={selection.sunday?.id}
+        marketRequested={!!selection.requested}
         featureFlags={featureFlags}
         mapViewSettings={mapViewSettings}
         />

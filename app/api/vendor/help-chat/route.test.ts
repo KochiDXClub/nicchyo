@@ -220,6 +220,17 @@ describe("POST /api/vendor/help-chat", () => {
     expect(insertLog).not.toHaveBeenCalled();
   });
 
+  it("OpenAI を待つ上限として signal を渡し、打ち切られたら失敗と同じ 502 を返す", async () => {
+    getUser.mockResolvedValue({ data: { user: VENDOR } });
+    requestChatCompletion.mockRejectedValue(new DOMException("The operation was aborted due to timeout", "TimeoutError"));
+
+    const res = await post({ text: "投稿のやり方は？" });
+
+    expect(requestChatCompletion.mock.calls[0][3]).toBeInstanceOf(AbortSignal);
+    expect(res.status).toBe(502);
+    expect(insertLog).not.toHaveBeenCalled();
+  });
+
   it("AI が変更案の関数を呼んだら、検証した案だけを区切り文字のあとに付けて返し、記録にも残す", async () => {
     getUser.mockResolvedValue({ data: { user: VENDOR } });
     const encoder = new TextEncoder();

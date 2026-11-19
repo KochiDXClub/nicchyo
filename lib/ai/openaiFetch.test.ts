@@ -208,6 +208,14 @@ describe("openaiFetch", () => {
       await requestEmbeddings("sk-test", ["文旦", "小夏"]);
       expect(lastCall().body.input).toEqual(["文旦", "小夏"]);
     });
+
+    it("signal を渡すと fetch にそのまま載せる（未指定なら undefined）", async () => {
+      await requestEmbeddings("sk-test", "文旦");
+      expect(lastCall().init.signal).toBeUndefined();
+      const controller = new AbortController();
+      await requestEmbeddings("sk-test", "文旦", controller.signal);
+      expect(lastCall().init.signal).toBe(controller.signal);
+    });
   });
 });
 

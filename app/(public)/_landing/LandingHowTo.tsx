@@ -1,5 +1,5 @@
 import { PageContainer } from "@/components/ui";
-import { getT } from "@/lib/i18n/server";
+import { getSiteText, getT } from "@/lib/i18n/server";
 import { BannerScreen, ConsultScreen, MapScreen } from "./HowToScreens";
 import InView from "./InView";
 import SectionHeading from "./SectionHeading";
@@ -10,16 +10,16 @@ import "./landing.css";
  * 画面は本番の形に合わせた見本（HowToScreens）。表示の負担を軽くするため、画面の外では動きを止める
  */
 export default async function LandingHowTo() {
-  const t = await getT();
+  const [t, s] = await Promise.all([getT(), getSiteText()]);
   const steps = [
-    { no: "01", title: t("地図でさがす"), Screen: MapScreen, aria: t("地図で「芋天」と入れると、その屋台だけが残り、下にお店のカードが出る") },
-    { no: "02", title: t("お店をひらく"), Screen: BannerScreen, aria: t("お店を押すと、写真と情報の大きなバナーがひらく") },
-    { no: "03", title: t("にちよさんに聞く"), Screen: ConsultScreen, aria: t("にちよさんに聞くと、答えとおすすめのお店が出る") },
+    { no: "01", title: s("landing.howTo.1.title"), Screen: MapScreen, aria: s("landing.howTo.1.aria") },
+    { no: "02", title: s("landing.howTo.2.title"), Screen: BannerScreen, aria: s("landing.howTo.2.aria") },
+    { no: "03", title: s("landing.howTo.3.title"), Screen: ConsultScreen, aria: s("landing.howTo.3.aria") },
   ];
   return (
     <section aria-labelledby="landing-howto" className="mt-20 md:mt-28">
       <PageContainer width="wide">
-        <SectionHeading id="landing-howto">{t("nicchyoの使い方！")}</SectionHeading>
+        <SectionHeading id="landing-howto">{s("landing.howTo.title")}</SectionHeading>
         <ol className="mt-8 grid gap-14 md:grid-cols-3 md:gap-6">
           {steps.map(({ no, title, Screen, aria }, index) => (
             <li key={no} className="relative flex flex-col items-center text-center">
@@ -29,7 +29,7 @@ export default async function LandingHowTo() {
               <h3 className="mt-1.5 text-[19px] font-black text-nicchyo-ink">{title}</h3>
               <InView className="landing-phone landing-demo mt-4" >
                 <div role="img" aria-label={aria}>
-                  <Screen t={t} />
+                  <Screen t={t} s={s} />
                 </div>
               </InView>
               {/* 次の画面へ向かう、手描きの点線の矢印（広い画面だけ） */}

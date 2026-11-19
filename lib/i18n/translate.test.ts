@@ -70,14 +70,17 @@ describe("相談ページの固定文言", () => {
 });
 
 
-describe("LPのデータから組み立てる文言", () => {
-  test("ハイライト・紹介・開催案内・見本店舗の英訳が揃う", async () => {
-    const { ABOUT, HIGHLIGHTS, MARKET_FACTS, SAMPLE_SHOP } = await import("@/app/(public)/_landing/content");
-    const labels = [ABOUT.body, ABOUT.awardName, `${ABOUT.awardTitle} 受賞`, ...ABOUT.message, ABOUT.signature,
-      ...HIGHLIGHTS.flatMap(({ title, photo }) => [title, photo.alt]),
-      ...MARKET_FACTS.flatMap(({ term, detail }) => [term, detail]),
-      SAMPLE_SHOP.name, SAMPLE_SHOP.category, ...SAMPLE_SHOP.products];
-    expect(labels.filter((label) => !(label in enUi))).toEqual([]);
-    for (const label of labels) expect(translate("ja", label)).toBe(label);
+describe("トップページ（サイト文言の landing.*）", () => {
+  test("landing.* の文言すべてに英訳がある", async () => {
+    const texts = (await import("@/content/site-copy/texts.json")).default as Record<string, string>;
+    const en = (await import("@/content/i18n/en.json")).default as Record<string, string>;
+    const keys = Object.keys(texts).filter((key) => key.startsWith("landing."));
+    expect(keys.length).toBeGreaterThan(50);
+    expect(keys.filter((key) => !en[key])).toEqual([]);
+  });
+
+  test("見本の店のカテゴリに英訳がある", async () => {
+    const { SAMPLE_SHOP } = await import("@/app/(public)/_landing/content");
+    expect(SAMPLE_SHOP.category in enUi).toBe(true);
   });
 });

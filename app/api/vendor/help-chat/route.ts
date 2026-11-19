@@ -32,6 +32,11 @@ const HISTORY_TEXT_MAX = 2000;
 const HISTORY_TOTAL_MAX = 6000;
 /** 保存する答えの長さの上限（vendor_help_logs.answer の制約と揃える） */
 const ANSWER_SAVE_MAX = 4000;
+/**
+ * OpenAI を待つ上限（店舗ページのチャットと同じ）。画面には待ちの上限が無いので、ここで打ち切って
+ * 失敗（502）を返す。signal は本文の受信にも効くので、流している途中で詰まったら途中で切れた答えになる
+ */
+const VENDOR_HELP_UPSTREAM_TIMEOUT_MS = 25_000;
 
 const HelpChatSchema = z.object({
   text: z.string().trim().min(1).max(VENDOR_HELP_QUESTION_MAX),
@@ -180,7 +185,7 @@ export async function POST(request: Request) {
     stream: true,
     // お店の情報の変更案。AI は案を出すだけで、保存は出店者が画面で確かめてから行う
     tools: HELP_PROPOSAL_TOOLS,
-  }).catch(() => null);
+  }, AbortSignal.timeout(VENDOR_HELP_UPSTREAM_TIMEOUT_MS)).catch(() => null);
   if (!upstream || !upstream.ok || !upstream.body) {
     return NextResponse.json({ error: "Upstream error" }, { status: 502 });
   }

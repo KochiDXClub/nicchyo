@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Map } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
-import { useT } from "@/lib/i18n/LocaleContext";
+import { useSiteText } from "@/lib/i18n/LocaleContext";
 
 /**
  * 「マップをみる」。画面の右下に出る丸いボタン。
@@ -13,7 +13,7 @@ import { useT } from "@/lib/i18n/LocaleContext";
  * 下の端末の余白（--safe-bottom）の分だけ上げる。IntersectionObserver が無い環境では、最初から出す
  */
 export default function MapFab({ afterId }: { afterId: string }) {
-  const t = useT();
+  const { text } = useSiteText();
   const [shown, setShown] = useState(false);
 
   useEffect(() => {
@@ -33,7 +33,7 @@ export default function MapFab({ afterId }: { afterId: string }) {
   return (
     <Link
       href="/map"
-      aria-label={t("マップをみる")}
+      aria-label={text("landing.fab.aria")}
       aria-hidden={!shown}
       tabIndex={shown ? 0 : -1}
       className={cn(
@@ -44,7 +44,7 @@ export default function MapFab({ afterId }: { afterId: string }) {
     >
       <Map aria-hidden className="h-12 w-12 md:h-14 md:w-14" strokeWidth={2} />
       <span aria-hidden className="text-base font-bold leading-none md:text-lg">
-        {t("マップ")}
+        {text("landing.fab.label")}
       </span>
     </Link>
   );

@@ -8,6 +8,7 @@ vi.mock("../../../lib/analytics/consentClient", () => {
   return {
     loadGA: vi.fn(),
     isAnalyticsOptedOut: () => consent.optedOut,
+    trackedPageLocation: () => "https://example.test/map?guide=menu",
   } as any;
 });
 
@@ -46,8 +47,11 @@ describe("sendEvent wrapper", () => {
     expect(pushed.event).toBe("guide_open");
     expect(pushed.shop_id).toBe("shop1");
 
-    // gtag called
-    expect((globalThis as any).gtag).toHaveBeenCalled();
+    // gtag called（page_location は ?q= を外したものを明示する）
+    expect((globalThis as any).gtag).toHaveBeenCalledWith("event", "guide_open", {
+      shop_id: "shop1",
+      page_location: "https://example.test/map?guide=menu",
+    });
 
     // fetch called to server API
     expect(globalThis.fetch).toHaveBeenCalled();

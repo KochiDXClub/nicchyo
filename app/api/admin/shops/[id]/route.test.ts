@@ -5,6 +5,7 @@ const logAdminAudit = vi.fn();
 const revalidate = vi.fn();
 const updateCalls: { values: Record<string, unknown>; filters: [string, unknown][] }[] = [];
 const upsertOwner = vi.fn();
+const rpc = vi.fn();
 let current: Record<string, unknown>;
 let updateRows: { id: string; updated_at?: string }[];
 
@@ -39,9 +40,11 @@ beforeEach(() => {
   current = { shop_name: "山田農園", listing_status: "pending", listing_consented_on: null, business_hours_start: null, business_hours_end: null, updated_at: LOADED_AT };
   updateRows = [{ id: ID }];
   upsertOwner.mockResolvedValue({ error: null });
+  rpc.mockResolvedValue({ data: { status: "ok", updated_at: "2026-10-10T21:00:00Z" }, error: null });
   logAdminAudit.mockResolvedValue(undefined);
 
   const adminClient = {
+    rpc,
     from: (table: string) => {
       if (table === "vendor_owner_profiles") return { upsert: (...args: unknown[]) => upsertOwner(...args) };
       return {
@@ -69,6 +72,21 @@ beforeEach(() => {
 afterEach(() => vi.useRealTimers());
 
 describe("PATCH /api/admin/shops/[id]", () => {
+  it("共通場所との競合時は店舗名と丁目の両方を保存しない", async () => {
+    rpc.mockResolvedValue({ data: { status: "shared_place" }, error: null });
+    const res = await patch({ shop_name: "新しい名前", chome: 3, updated_at: LOADED_AT });
+    expect(res.status).toBe(409);
+    expect(updateCalls).toHaveLength(0);
+    expect(upsertOwner).not.toHaveBeenCalled();
+    expect(revalidate).not.toHaveBeenCalled();
+  });
+  it("丁目を含む変更は店舗情報・店主名と一緒にDBへ渡す", async () => {
+    const res = await patch({ shop_name: "新しい名前", owner_name: "山田", chome: 3, updated_at: LOADED_AT });
+    expect(res.status).toBe(200);
+    expect(rpc).toHaveBeenCalledWith("admin_edit_shop_with_chome", expect.objectContaining({ p_vendor_id: ID, p_patch: { shop_name: "新しい名前" }, p_owner_set: true, p_owner_name: "山田", p_chome: 3 }));
+    expect(updateCalls).toHaveLength(0);
+    expect((await res.json()).updated_at).toBe("2026-10-10T21:00:00Z");
+  });
   it("updated_at が送られていなければ 400（同時編集の確認を飛ばさせない）", async () => {
     const res = await patch({ shop_name: "新しい名前" });
     expect(res.status).toBe(400);

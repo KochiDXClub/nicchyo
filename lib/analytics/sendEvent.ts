@@ -1,6 +1,6 @@
 "use client";
 
-import { isAnalyticsOptedOut, loadGA } from "@/lib/analytics/consentClient";
+import { isAnalyticsOptedOut, loadGA, trackedPageLocation } from "@/lib/analytics/consentClient";
 import type {
   AnalyticsEventName,
   AnalyticsParams,
@@ -67,7 +67,8 @@ export function sendEvent(name: AnalyticsEventName, params: AnalyticsParams = {}
   try {
     const w = window as Window & GtagWindow;
     if (typeof w?.gtag === "function") {
-      w.gtag("event", name, payload);
+      // gtag は既定で URL をそのまま page_location に載せるので、?q= を外したものを明示する
+      w.gtag("event", name, { ...payload, page_location: trackedPageLocation() });
     }
   } catch {}
 

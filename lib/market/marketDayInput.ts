@@ -28,7 +28,15 @@ export type MarketDayInput = {
    * null を送ると画像を外す。高知市の画面は画像を扱わないので、送らないのが基本。
    */
   image_url?: string | null;
+  /** 市の ID。省略時は日曜市（既存の画面は市を送らない） */
+  market_id?: string;
 };
+
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export function isMarketId(value: unknown): value is string {
+  return typeof value === "string" && UUID_PATTERN.test(value);
+}
 
 export function validateMarketDayInput(
   body: unknown
@@ -57,6 +65,14 @@ export function validateMarketDayInput(
     return { data: null, error: "ステータスが無効です" };
   }
 
+  let marketId: string | undefined;
+  if (b.market_id !== undefined && b.market_id !== null && b.market_id !== "") {
+    if (!isMarketId(b.market_id)) {
+      return { data: null, error: "市の指定が無効です" };
+    }
+    marketId = b.market_id;
+  }
+
   const data: MarketDayInput = {
     market_date: marketDate,
     status: normalizeStatus(status),
@@ -64,6 +80,7 @@ export function validateMarketDayInput(
       typeof b.note === "string"
         ? b.note.trim().slice(0, MARKET_DAY_NOTE_MAX_LENGTH) || null
         : null,
+    ...(marketId ? { market_id: marketId } : {}),
   };
 
   if ("image_url" in b) {

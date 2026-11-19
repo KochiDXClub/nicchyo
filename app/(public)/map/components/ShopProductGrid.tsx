@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { Heart } from "lucide-react";
-import type { Shop } from "../data/shops";
+import type { ShopProfile as Shop } from "../types/shopData";
 
 export function formatProductPrice(price: number | null | undefined) {
   return price != null ? `¥${price.toLocaleString()}` : "価格は現地で確認";

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import "./mapEditor.css";
 import { useKeyboardShortcuts } from "@/lib/hooks/useKeyboardShortcuts";
 import { useUnsavedChangesWarning } from "@/lib/hooks/useUnsavedChangesWarning";
 import { distanceMeters, getRouteCenter } from "../../map/utils/mapRouteGeometry";
@@ -24,7 +25,6 @@ import ToolPalette from "./components/ToolPalette";
 import ToolHint from "./components/ToolHint";
 import SlotSplitPanel from "./components/SlotSplitPanel";
 import SlotMigrationPanel from "./components/SlotMigrationPanel";
-import StoreImportPanel from "./components/StoreImportPanel";
 
 const MAX_ZOOM_IDX = 2;
 // 道を描いている途中、既存の点からこの距離（メートル）以内をクリックしたら
@@ -33,18 +33,11 @@ const POINT_SNAP_DISTANCE_METERS = 6;
 // 直前の点とほぼ同じ場所のクリックは点を増やさない（ダブルクリックの2回目のクリックなど）
 const DUPLICATE_POINT_METERS = 0.5;
 
-// 公開マップ（Leaflet 版 RoadOverlay.tsx・MapLibre 版 MapViewMapLibre.tsx）は、道ごとの幅
-// （map_roads.width_meters）をまだ読まず、すべての道を同じ幅（既定 22m）で描く。
-// この状態で幅の違う道（小路など）を描いて保存すると、来訪者のマップには追手筋と同じ幅で出てしまう。
-// 道ごとの幅で描くようになるまで、「道を描く」ツールは使えないようにする
-// （描く処理そのものは入れてあり、無効化を外すだけで使える。既存の道の編集・削除は対象外）
-const isRoadCreationDisabled = true;
-
 /** 道基準の位置を持ち、指定の道に乗っている区画（区画分けツールの対象） */
 function slotsOnRoad(shops: EditableShop[], roadId: string): SlotOnRoad[] {
   return shops.flatMap((s) =>
     s.roadId === roadId && s.roadSide && s.roadDistanceM != null
-      ? [{ locationId: s.locationId, side: s.roadSide, distanceM: s.roadDistanceM, hasVendor: !!s.vendorId }]
+      ? [{ locationId: s.locationId, side: s.roadSide, distanceM: s.roadDistanceM, hasVendor: !!s.vendorId || !!s.placeName }]
       : []
   );
 }
@@ -58,8 +51,9 @@ export default function MapEditClientV3() {
   const [splitRoadId, setSplitRoadId] = useState<string | null>(null);
   const [splitSettings, setSplitSettings] = useState<SlotSplitSettings | null>(null);
 
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [laneOpen, setLaneOpen] = useState(false);
   const [search, setSearch] = useState("");
-  const [isImportOpen, setIsImportOpen] = useState(false);
   const [history, setHistory] = useState<EditHistory>(EMPTY_HISTORY);
   const changes = useMemo(() => netChanges(history), [history]);
   const unsavedKeys = useMemo(() => new Set(changes.map((change) => `${change.kind}:${change.id}`)), [changes]);
@@ -73,9 +67,9 @@ export default function MapEditClientV3() {
     onLoaded: () => setFocus({ x: 0, y: 0 }),
     clearPending: () => setHistory(EMPTY_HISTORY),
   });
-  const { shops, roads, landmarks, projection, setMessage, hasUnsavedChanges } = data;
+  const { shops, roads, landmarks, projection, setMessage, hasUnsavedChanges, setIsHistoryOpen } = data;
 
-  const { judge, ranges: chomeRanges } = useChomeJudge(roads, data.chomeBoundaries, data.chomeSections);
+  const { judge } = useChomeJudge(roads, data.chomeBoundaries, data.chomeSections);
 
   const ops = useMapEditOperations({
     history,
@@ -177,6 +171,7 @@ export default function MapEditClientV3() {
       setTool("splitSlots");
       setSplitRoadId(road.id);
       setSplitSettings(initialSplitSettings(roadLengthMeters(road.points), slotsOnRoad(shops, road.id)));
+      setSheetOpen(true);
       setSelection({ kind: "road", id: road.id });
     },
     [roads, shops, setMessage]
@@ -210,15 +205,14 @@ export default function MapEditClientV3() {
   );
 
   // ── 選択 ──────────────────────────────
-  const selectShop = useCallback((locationId: string) => setSelection({ kind: "slot", id: locationId }), []);
+  const selectShop = useCallback((locationId: string) => {
+    setIsHistoryOpen(false);
+    setSelection({ kind: "slot", id: locationId });
+    setSheetOpen(true);
+  }, [setIsHistoryOpen]);
 
-  // 出店者のピン（地図）・セル（区画レーン）を別の区画へドラッグしたら、移動先を選び直す
-  const dropVendor = useCallback(
-    (fromLocationId: string, toLocationId: string) => {
-      if (ops.moveVendor(fromLocationId, toLocationId)) setSelection({ kind: "slot", id: toLocationId });
-    },
-    [ops]
-  );
+  // 日付のない店舗移動は行わない。配置は開催日ごとの予定で管理する。
+  const dropVendor = useCallback(() => {}, []);
 
   // 下部の区画レーンで店舗名をタップした時・キーボードで移動した時は、選択に加えて
   // 地図側もその区画の位置へ移動する
@@ -237,8 +231,10 @@ export default function MapEditClientV3() {
         return;
       }
       setSelection({ kind: "road", id: roadId });
+        setIsHistoryOpen(false);
+      setSheetOpen(true);
     },
-    [tool, startSplit]
+    [tool, startSplit, setIsHistoryOpen]
   );
 
   // 道の一覧で名前をタップした時は、選択に加えて地図側もその道の位置へ移動する
@@ -377,7 +373,7 @@ export default function MapEditClientV3() {
     onSelectShop: selectShop,
     onDropVendor: dropVendor,
     onSelectRoad: selectRoad,
-    onSelectLandmark: (key) => setSelection({ kind: "landmark", id: key }),
+    onSelectLandmark: (key) => { data.setIsHistoryOpen(false); setSelection({ kind: "landmark", id: key }); setSheetOpen(true); },
     onMoveLandmark: ops.moveLandmarkLive,
     onMoveLandmarkEnd: ops.moveLandmarkEnd,
     // 地図の空白部分クリック時の挙動は、今の道具によって変わる
@@ -389,7 +385,7 @@ export default function MapEditClientV3() {
       if (tool === "placeLandmark") {
         const key = ops.addLandmark(lat, lng);
         backToSelect();
-        if (key) setSelection({ kind: "landmark", id: key });
+        if (key) { setSelection({ kind: "landmark", id: key }); setSheetOpen(true); }
         return;
       }
       if (tool === "select") setSelection(null);
@@ -415,17 +411,7 @@ export default function MapEditClientV3() {
             : null;
 
   return (
-    <div
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        height: "100vh",
-        width: "100%",
-        background: "#FBF7EE",
-        color: "#33302B",
-        overflow: "hidden",
-      }}
-    >
+    <div className="map-editor">
       <MapEditHeader
         search={search}
         onSearchChange={setSearch}
@@ -435,12 +421,8 @@ export default function MapEditClientV3() {
         landmarkCount={landmarks.length}
         limits={data.mapSettingsLimits}
         onToggleHistory={() => {
-          setIsImportOpen(false);
-          data.setIsHistoryOpen((v) => !v);
-        }}
-        onToggleImport={() => {
-          data.setIsHistoryOpen(false);
-          setIsImportOpen((v) => !v);
+          setSheetOpen(true);
+          data.setIsHistoryOpen((v) => sheetOpen ? !v : true);
         }}
         hasUnsavedChanges={hasUnsavedChanges}
         isSaving={data.isSaving}
@@ -455,15 +437,19 @@ export default function MapEditClientV3() {
         </div>
       )}
 
+      {data.fieldObservationsUnavailable && (
+        <div role="alert" className="bg-amber-50 px-5 py-2 text-sm text-amber-800">現場で記録した位置を読み込めませんでした。地図の編集はできますが、現場の位置を反映するには再読み込みしてください。</div>
+      )}
+
       {data.message && (
         <div style={{ padding: "8px 20px", background: "#FFF7E6", color: "#92400E", fontSize: 12.5, borderBottom: "1px solid #EDE3CD" }}>
           {data.message}
         </div>
       )}
 
-      <div style={{ flex: 1, minHeight: 0, display: "flex", overflow: "hidden" }}>
-        <div style={{ flex: 1, minWidth: 0, minHeight: 0, display: "flex", flexDirection: "column" }}>
-          <div style={{ flex: 1, minHeight: 0, position: "relative", display: "flex" }}>
+      <div className="map-editor-workspace">
+        <div className="map-editor-map-column">
+          <div className="map-editor-map">
             <MapEditCanvasMapLibre
               tool={tool}
               selection={selection}
@@ -486,19 +472,11 @@ export default function MapEditClientV3() {
               onZoomIn={() => setZoomIdx((prev) => Math.min(MAX_ZOOM_IDX, prev + 1))}
               onZoomOut={() => setZoomIdx((prev) => Math.max(0, prev - 1))}
             />
-            <div style={{ position: "absolute", top: 12, left: 12 }}>
-              <ToolPalette
-                tool={tool}
-                onChange={changeTool}
-                disabled={
-                  isRoadCreationDisabled
-                    ? { drawRoad: "公開マップが道ごとの幅で描くようになるまで、新しい道の追加は一時的に無効化しています" }
-                    : {}
-                }
-              />
+            <div className="map-editor-tools">
+              <ToolPalette tool={tool} onChange={changeTool} />
             </div>
             {toolHintMessage && (
-              <div style={{ position: "absolute", top: 12, left: 180, right: 12, display: "flex", justifyContent: "center", pointerEvents: "none" }}>
+              <div className="map-editor-hint">
                 {/* maxWidth: 案内が長いときも左上の道具パレットに重ならず、枠の中で折り返すように */}
                 <div style={{ pointerEvents: "auto", maxWidth: "100%", minWidth: 0 }}>
                   <ToolHint message={toolHintMessage} onCancel={backToSelect}>
@@ -523,9 +501,11 @@ export default function MapEditClientV3() {
                 </div>
               </div>
             )}
+            {selection?.kind === "slot" && <button type="button" className="map-editor-lane-toggle" aria-expanded={laneOpen} aria-controls="map-editor-lane" onClick={() => setLaneOpen((v) => !v)}>{laneOpen ? "区画一覧を閉じる" : "区画一覧"}</button>}
+            <button type="button" className="map-editor-sheet-toggle" aria-expanded={sheetOpen} aria-controls="map-editor-aside" onClick={() => setSheetOpen(true)}>詳細・操作を開く</button>
           </div>
           {selection?.kind === "slot" && (
-            <RoadLaneView
+            <div id="map-editor-lane" className={`map-editor-lane ${laneOpen ? "" : "is-closed"}`}><RoadLaneView
               groups={laneGroups}
               selectedLocationId={selection.id}
               search={search}
@@ -534,43 +514,13 @@ export default function MapEditClientV3() {
                 const shop = displayShops.find((s) => s.locationId === locationId);
                 if (shop) selectShopAndFocus(shop);
               }}
-            />
+            /></div>
           )}
         </div>
 
-        <aside
-          style={{
-            width: 320,
-            flexShrink: 0,
-            minHeight: 0,
-            background: "#fff",
-            borderLeft: "1px solid #EDE3CD",
-            display: "flex",
-            flexDirection: "column",
-            overflowY: "auto",
-            overflowX: "hidden",
-          }}
-        >
-          {isImportOpen ? (
-            <StoreImportPanel
-              roads={roads}
-              chomeRanges={chomeRanges}
-              shops={shops}
-              vendors={data.vendors}
-              categories={data.categories}
-              onClose={() => setIsImportOpen(false)}
-              onApply={(plan) => {
-                if (!plan.next) return;
-                ops.applyStoreImport(
-                  plan.next,
-                  `出店者CSVを取り込み（区画 新規${plan.createdSlotCount}・更新${plan.updatedSlotCount}・削除${plan.deletedSlotCount}${plan.deletedVendorCount > 0 ? `／出店者 削除${plan.deletedVendorCount}` : ""}）`
-                );
-                setIsImportOpen(false);
-                setSelection(null);
-                setMessage("CSV を取り込みました。地図で内容を確かめてから「変更を保存」を押してください。");
-              }}
-            />
-          ) : data.isHistoryOpen ? (
+        <aside id="map-editor-aside" className={`map-editor-aside ${sheetOpen ? "" : "is-closed"}`} aria-label="地図の詳細と操作">
+          <div className="map-editor-aside-header"><div><p>MAP EDITOR</p><h2>{data.isHistoryOpen ? "保存履歴" : selectedShop ? "区画の詳細" : selectedRoad ? "道の詳細" : selectedLandmark ? "建物の詳細" : "地図の詳細と操作"}</h2></div><button type="button" className="map-editor-sheet-close" onClick={() => { setSheetOpen(false); data.setIsHistoryOpen(false); }}>地図に戻る</button></div>
+          {data.isHistoryOpen ? (
             <SnapshotHistoryPanel
               snapshots={data.snapshots}
               isLoadingSnapshots={data.isLoadingSnapshots}
@@ -626,14 +576,8 @@ export default function MapEditClientV3() {
                   shop={selectedShop}
                   roadName={roads.find((r) => r.id === selectedShop.roadId)?.name ?? null}
                   vendor={data.vendors.find((v) => v.id === selectedShop.vendorId) ?? null}
-                  vendors={data.vendors}
-                  categories={data.categories}
-                  onSelectVendor={(vendorId) => ops.assignVendor(selectedShop.locationId, vendorId)}
-                  onRegisterVendor={(draft) => ops.registerVendor(selectedShop.locationId, draft)}
-                  onUpdateVendor={(patch, logText, coalesceKey) =>
-                    selectedShop.vendorId && ops.updateVendor(selectedShop.vendorId, patch, logText, { coalesceKey })
-                  }
-                  onClearVendor={() => ops.clearVendor(selectedShop.locationId)}
+                  onApplyFieldObservation={() => ops.applyFieldObservation(selectedShop.locationId)}
+                  onAddressChange={(address) => { ops.setSlotAddress(selectedShop.locationId, address); }}
                   onChomeChange={(value) => ops.setSlotChome(selectedShop.locationId, value)}
                   autoChome={
                     selectedShop.roadId && selectedShop.roadDistanceM != null
@@ -648,6 +592,8 @@ export default function MapEditClientV3() {
               {selectedRoad && !splitRoad && (
                 <RoadDetailPanel
                   road={selectedRoad}
+                  markets={data.markets}
+                  onMarketChange={(marketId) => ops.patchRoad(selectedRoad.id, { marketId }, "の所属する市を変更")}
                   onNameChange={(value) =>
                     ops.patchRoad(selectedRoad.id, { name: value }, "の名前を変更", { coalesceKey: `road-name:${selectedRoad.id}` })
                   }

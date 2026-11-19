@@ -1,50 +1,35 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import {
-  normalizeCategory,
-  normalizeHighlightDates,
-  normalizeStatus,
-  type MarketCalendar,
-  type MarketDay,
-} from "./calendar";
+import type { MarketCalendar } from "./calendar";
 
 /**
  * 公開カレンダー（開催ステータス＋今日以降のイベント）をクライアントから取得する。
- * 失敗しても呼び出し側の表示を壊さないよう、空のカレンダーに倒す。
+ * 取得できなかった場合は error で呼び出し側に知らせる。
  */
-export function useMarketCalendar(): { calendar: MarketCalendar; loading: boolean } {
+export function useMarketCalendar(): { calendar: MarketCalendar; loading: boolean; error: boolean } {
   const [calendar, setCalendar] = useState<MarketCalendar>({
-    day: null,
-    days: [],
-    events: [],
+    todayIso: "",
+    markets: [],
   });
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
     fetch("/api/market-calendar")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data) => {
-        if (cancelled || !data || typeof data !== "object") return;
-        const days: MarketDay[] = Array.isArray(data.days)
-          ? data.days.map((d: MarketDay) => ({ ...d, status: normalizeStatus(d.status) }))
-          : [];
-        setCalendar({
-          day: data.day
-            ? { ...data.day, status: normalizeStatus(data.day.status) }
-            : null,
-          days,
-          events: Array.isArray(data.events)
-            ? data.events.map((e: { category: unknown; highlight_dates: unknown }) => ({
-                ...e,
-                category: normalizeCategory(e.category),
-                highlight_dates: normalizeHighlightDates(e.highlight_dates),
-              }))
-            : [],
-        });
+      .then((r) => {
+        if (!r.ok) throw new Error("開催情報を取得できませんでした");
+        return r.json();
       })
-      .catch(() => {})
+      .then((data) => {
+        if (cancelled) return;
+        if (typeof data?.todayIso !== "string" || !Array.isArray(data.markets)) {
+          throw new Error("開催情報の形式が正しくありません");
+        }
+        setCalendar(data);
+      })
+      .catch(() => { if (!cancelled) setError(true); })
       .finally(() => {
         if (!cancelled) setLoading(false);
       });
@@ -53,5 +38,5 @@ export function useMarketCalendar(): { calendar: MarketCalendar; loading: boolea
     };
   }, []);
 
-  return { calendar, loading };
+  return { calendar, loading, error };
 }

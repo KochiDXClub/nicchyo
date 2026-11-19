@@ -10,7 +10,11 @@ export type SpotCategory = (typeof SPOT_CATEGORIES)[number];
 export interface AdminSpot {
   key: string;
   name: string;
+  /** 英語名。null なら英語の画面でも日本語名のまま */
+  name_en: string | null;
   description: string;
+  /** 英語の説明。null なら日本語の説明のまま */
+  description_en: string | null;
   image_url: string;
   latitude: number;
   longitude: number;

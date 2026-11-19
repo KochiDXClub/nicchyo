@@ -16,6 +16,7 @@ on:
     paths:
       - 'supabase/migrations/**'
       - 'supabase/checks/**'
+      - 'supabase/tests/**'
       - '.github/workflows/migrations-check.yml'
   push:
     branches: [develop]
@@ -95,10 +96,20 @@ jobs:
       - name: Check public read policies and closed inserts
         run: psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" -v ON_ERROR_STOP=1 -f supabase/checks/public_read_and_insert_closed.sql
 
+      # ai_consult_logs / content_reactions の visitor_key を、来訪者・ログインユーザーが読めないことと、
+      # 出店者の画面が読む列は読めることを確かめる。詳しくは supabase/checks/visitor_key_not_readable.sql
+      - name: Check visitor_key is not readable by anon / authenticated
+        run: psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" -v ON_ERROR_STOP=1 -f supabase/checks/visitor_key_not_readable.sql
+
       # 運営向け通知テーブル（admin_notifications）が全適用後に存在し、運営だけが読めることを確かめる。
       # 詳しくは supabase/checks/admin_notifications_restored.sql
       - name: Check admin_notifications exists with expected columns and RLS
         run: psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" -v ON_ERROR_STOP=1 -f supabase/checks/admin_notifications_restored.sql
+
+      # 個人データの定期削除（purge_expired_personal_data）が全適用後の DB でエラーなく最後まで動くことを確かめる。
+      # 詳しくは supabase/checks/purge_runs.sql
+      - name: Check purge_expired_personal_data runs without error
+        run: psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" -v ON_ERROR_STOP=1 -f supabase/checks/purge_runs.sql
 
       # RLS が vendors.role で運営判定していないこと（authenticated では permission denied になる）と、
       # current_user_role() / is_operator() を使うポリシーが to authenticated に限定されていること。
@@ -106,8 +117,36 @@ jobs:
       - name: Check no vendors.role in RLS policies
         run: psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" -v ON_ERROR_STOP=1 -f supabase/checks/no_vendors_role_in_policies.sql
 
+      # 検索語の日次件数が、来訪者・一般ユーザーから読めず・呼べないことと、集計の動き。
+      # 詳しくは supabase/checks/search_term_daily.sql
+      - name: Check search term daily counts
+        run: psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" -v ON_ERROR_STOP=1 -f supabase/checks/search_term_daily.sql
+
       - name: Check private inquiry attachments
         run: psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" -v ON_ERROR_STOP=1 -f supabase/checks/private_inquiry_images.sql
+
+      # Each test rolls back its fixtures. Run only the files present in this branch.
+      - name: Check market schedule and map history
+        run: |
+          for file in supabase/tests/market_schedule_constraints.sql supabase/tests/map_layout_preserves_assignments.sql supabase/tests/market_schedule_write_operations.sql supabase/tests/public_vendor_identity.sql supabase/tests/public_schedule_rollout.sql supabase/tests/market_map_roads.sql; do
+            if [ -f "$file" ]; then
+              psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" -v ON_ERROR_STOP=1 -f "$file"
+            fi
+          done
+
+      - name: Check market visibility and weekdays
+        run: |
+          for file in supabase/tests/markets_foundation.sql supabase/tests/market_calendar_visibility.sql supabase/tests/market_schedule_weekday.sql; do
+            if [ -f "$file" ]; then
+              psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" -v ON_ERROR_STOP=1 -f "$file"
+            fi
+          done
+
+      - name: Check atomic admin shop edit
+        run: |
+          if [ -f supabase/tests/atomic_admin_shop_edit.sql ]; then
+            psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" -v ON_ERROR_STOP=1 -f supabase/tests/atomic_admin_shop_edit.sql
+          fi
 
       - name: Show applied migrations
         run: supabase migration list --local

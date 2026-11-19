@@ -20,21 +20,41 @@ export type SavedMarketDay = {
  * 全ユーザーのマップ・近況ページ最上部に反映されるため、この機能で最も影響の大きい
  * 操作として、変更前後を必ず監査ログに残す。actor.role が運営か高知市かの区別になる。
  */
+/** 市が指定されなければ日曜市（既存の画面は市を送らない） */
+export async function readDefaultMarketId(dc: AuditClient): Promise<string | null> {
+  const { data } = await dc.from("markets").select("id").eq("slug", "nichiyo").maybeSingle();
+  return (data as { id: string } | null)?.id ?? null;
+}
+
 export async function saveMarketDay(
   dc: AuditClient,
   actor: AdminAuditActor,
   data: MarketDayInput
 ): Promise<{ day: SavedMarketDay } | { error: string }> {
-  // 誤操作を事後に検証できるよう、上書き前の内容を控えておく
+  const marketId = data.market_id ?? await readDefaultMarketId(dc);
+  if (!marketId) return { error: "市が見つかりません" };
+
+  // 誤操作を事後に検証できるよう、上書き前の内容を控えておく（同じ市・同じ日付のみ）
   const { data: previous } = await dc
     .from("market_days")
     .select("status, note, image_url")
+    .eq("market_id", marketId)
     .eq("market_date", data.market_date)
     .maybeSingle();
 
   const { data: day, error } = await dc
     .from("market_days")
-    .upsert({ ...data, updated_by: actor.id }, { onConflict: "market_date" })
+    .upsert(
+      {
+        market_id: marketId,
+        market_date: data.market_date,
+        status: data.status,
+        note: data.note,
+        updated_by: actor.id,
+        ...(data.image_url !== undefined ? { image_url: data.image_url } : {}),
+      },
+      { onConflict: "market_id,market_date" }
+    )
     .select("*")
     .single();
 
@@ -45,8 +65,9 @@ export async function saveMarketDay(
     targetType: "market_day",
     targetId: data.market_date,
     details: JSON.stringify({
+      market_id: marketId,
       before: previous
-        ? { status: previous.status, note: previous.note, image_url: previous.image_url }
+        ? { status: previous.status, note: previous.note, image_url: previous.image_url ?? null }
         : null,
       after: {
         status: data.status,

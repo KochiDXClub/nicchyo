@@ -12,6 +12,8 @@ import { getShopPreviewImage } from "../../../lib/shopImages";
 import { useAuth } from "../../../lib/auth/AuthContext";
 import { useCategories, useCategorizedShops } from "@/lib/categories/CategoryContext";
 import type { Shop } from "./data/shops";
+import type { ShopProfile } from "./types/shopData";
+import { UnplacedSearchResults } from "./components/UnplacedSearchResults";
 import type { Landmark } from "./types/landmark";
 import type { MapRoute } from "./types/mapRoute";
 import type { MapFeatureFlags } from "@/lib/mapFeatureFlags";
@@ -24,9 +26,11 @@ import { GenreFilter } from "./components/GenreFilter";
 import { VendorShopPrompt } from "./components/VendorShopPrompt";
 import MarketStatusBar from "../../components/market/MarketStatusBar";
 import AnnouncementBanner from "@/components/announcements/AnnouncementBanner";
+import { getMarketCalendarDates } from "@/lib/market/calendar";
 import { useMarketCalendar } from "../../../lib/market/useMarketCalendar";
 import ShopScanCards from "./components/ShopScanCards";
 import NearbyExploreButton from "./components/NearbyExploreButton";
+import BackToMarketButton, { useBackToMarket } from "./components/BackToMarketButton";
 import NearbyExplorePanel, {
   type NearbyRecommendedShop,
 } from "./components/NearbyExplorePanel";
@@ -87,8 +91,13 @@ const MapIntroPanel = dynamic(() => import("./components/MapIntroPanel"), { ssr:
 
 type MapPageClientProps = {
   shops: Shop[];
+  profiles?: ShopProfile[];
+  legacyIdentities?: { enabled: boolean; aliases: Record<string, number> };
   landmarks: Landmark[];
   mapRoute: MapRoute;
+  initialMarketId?: string;
+  sundayMarketId?: string;
+  marketRequested?: boolean;
   /** 管理画面で保存したマップ動作フラグ（未指定なら既定値） */
   featureFlags?: MapFeatureFlags;
   /** 管理画面で保存したマップの可動範囲（未指定なら既定値） */
@@ -99,10 +108,20 @@ type MapPageClientProps = {
 const NEARBY_AREA_WIDTH_RATIO = 0.8;
 const NEARBY_AREA_HEIGHT_RATIO = 0.48;
 
+/** 「このへん」パネル由来の光（AI のおすすめ・ジャンル絞り込み）か。パネルを閉じたら消す */
+function isNearbyMarker(payload: { source: string } | null): boolean {
+  return payload?.source === 'nearby' || payload?.source === 'nearby-genre';
+}
+
 export default function MapPageClient({
   shops: sourceShops,
+  profiles,
+  legacyIdentities,
   landmarks,
   mapRoute,
+  initialMarketId,
+  sundayMarketId,
+  marketRequested,
   featureFlags,
   mapViewSettings,
 }: MapPageClientProps) {
@@ -126,7 +145,10 @@ export default function MapPageClient({
   const initialShopIdParam = searchParams?.get("shop");
   const isAiFocusMode = searchParams?.get("ai") === "1";
   const searchParamsKey = searchParams?.toString() ?? "";
-  const initialShopId = initialShopIdParam ? Number(initialShopIdParam) : undefined;
+  const requestedShopId = initialShopIdParam ? Number(initialShopIdParam) : undefined;
+  const initialShopId = requestedShopId && requestedShopId <= 999 && legacyIdentities?.enabled
+    ? legacyIdentities.aliases[String(requestedShopId)]
+    : requestedShopId;
   // /map?shop=001&navigate=1: 店舗ページの「ここへ案内」から来た。着いたらその店への道案内を始める
   const navigateParam = searchParams?.get("navigate") === "1";
   // おでかけサポート: ?guide=<プリセット|menu> または旧 ?facility=<カテゴリ> で開く
@@ -201,10 +223,10 @@ export default function MapPageClient({
   const mapArrived = mapLoadingHandedOff && mapLoadingStatus === "idle";
   const introRequested = searchParams?.get("panel") === MAP_INTRO_PANEL_VALUE;
   const introHasDeepLink = useMemo(
-    () => hasMapDeepLink(searchParams ?? null),
+    () => !!marketRequested || hasMapDeepLink(searchParams ?? null),
     // searchParams オブジェクトは毎レンダー同一とは限らないので文字列で比較する
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [searchParamsKey]
+    [marketRequested, searchParamsKey]
   );
   const { open: introOpen, close: dismissIntro } = useMapIntro({
     requested: introRequested,
@@ -277,7 +299,11 @@ export default function MapPageClient({
   }, []);
   const [isShopBannerOpen, setIsShopBannerOpen] = useState(false);
   // 開催ステータス。マップでは平常時（開催）は出さず、中止・臨時休市・特別開催のときだけバーを出す
-  const { calendar: marketCalendar } = useMarketCalendar();
+  const { calendar: marketCalendar, loading: marketCalendarLoading, error: marketCalendarError } = useMarketCalendar();
+  const marketDate = useMemo(
+    () => getMarketCalendarDates(marketCalendar, 1, { includeEventDates: false }).find((date) => date.marketId === initialMarketId),
+    [initialMarketId, marketCalendar]
+  );
   const [trackingButtonTop, setTrackingButtonTop] = useState(112); // 112px = top-28 (7rem) — Tailwind デフォルト基準値
   const resizeObserverRef = useRef<ResizeObserver | null>(null);
   const searchAreaRef = useCallback((el: HTMLDivElement | null) => {
@@ -328,6 +354,8 @@ export default function MapPageClient({
     label: string;
   } | null>(null);
   const favoriteShopIds = useFavoriteShopIds();
+  const searchableCatalog = useMemo<ShopProfile[]>(() => [...sourceShops, ...(profiles ?? [])], [sourceShops, profiles]);
+  const searchProfiles = useCategorizedShops(searchableCatalog);
   const {
     query: mapSearchQuery,
     setQuery: setMapSearchQuery,
@@ -336,27 +364,35 @@ export default function MapPageClient({
     favoritesOnly,
     setFavoritesOnly,
     results: mapSearchResults,
+    unplacedResults,
     shopIds: mapSearchShopIds,
     hasFilter: hasMapFilter,
   } = useMapSearchFilter({
     shops,
+    profiles: searchProfiles,
     favoriteShopIds,
     initialQuery: searchParams?.get("q") ?? "",
     initialCategory: searchParams?.get("category") ?? null,
   });
+  const mapResultCount = mapSearchShopIds ? shops.filter((shop) => mapSearchShopIds.includes(shop.id)).length : mapSearchResults.length;
   const [aiMarkerPayload, setAiMarkerPayload] = useState<{
     ids: number[];
     label: string;
     // どの導線がセットしたか（クリア判定に使う）。
     // 'nearby' は「このへん」追い質問由来で、パネルを閉じたら消してよい。
+    // 'nearby-genre' は「このへん」のジャンル絞り込み由来で、絞り込みを解除したら消す。
     // 'other'（AI相談・URL・エージェント由来）は nearby の開閉では消さない。
-    source: 'nearby' | 'other';
+    source: 'nearby' | 'nearby-genre' | 'other';
   } | null>(null);
+  // 「このへん」の AI が最後に薦めた店の光。ジャンル絞り込みを解除したときに戻す
+  const nearbyAiPayloadRef = useRef<{ ids: number[]; label: string; source: 'nearby' } | null>(null);
   // 「このへん、なにがある？」：開いているパネルの内容（追い質問はパネル内で完結）
   const [nearbyState, setNearbyState] = useState<{
     summary: NearbyViewportSummary;
     center: { lat: number; lng: number };
     recommendations: NearbyRecommendedShop[];
+    /** 範囲内のすべての店（近い順）。パネルのジャンル絞り込みで使う */
+    areaShops: NearbyRecommendedShop[];
     note: string;
   } | null>(null);
   const clearMapSearchState = useCallback(() => {
@@ -365,6 +401,15 @@ export default function MapPageClient({
     setMapSearchQuery('');
     setMapSearchCategory(null);
   }, [setMapSearchCategory, setMapSearchQuery]);
+  const closeNearbyPanel = useCallback(() => {
+    setNearbyState(null);
+    // 追い質問（nearby）由来の aiMarkerPayload だけをクリアする。
+    // これを消さないと hasAiMode が true のままになり「このへん」ボタンが
+    // 再表示されない。一方、AI相談（consult）由来のマーカーは無関係なので残す。
+    setAiMarkerPayload((prev) => (isNearbyMarker(prev) ? null : prev));
+    nearbyAiPayloadRef.current = null;
+  }, []);
+
   /** AI のおすすめ表示を畳む。相談そのものは /consult に集約した */
   const clearAiRecommendation = useCallback(() => {
     setAiMarkerPayload(null);
@@ -372,16 +417,16 @@ export default function MapPageClient({
   /** 相談は /consult に一本化した。マップ上でキャラクターと会話する形は廃止 */
   const goToConsult = useCallback(() => {
     clearMapSearchState();
-    setNearbyState(null);
+    closeNearbyPanel();
     router.push('/consult');
-  }, [clearMapSearchState, router]);
+  }, [clearMapSearchState, closeNearbyPanel, router]);
   const closeMapInteractionMode = useCallback(() => {
     clearMapSearchState();
     clearAiRecommendation();
-    setNearbyState(null);
+    closeNearbyPanel();
     closeGuide();
     router.push(buildCurrentMapUrl({ panel: null, search: null, label: null, q: null, guide: null }));
-  }, [buildCurrentMapUrl, clearMapSearchState, clearAiRecommendation, closeGuide, router]);
+  }, [buildCurrentMapUrl, clearMapSearchState, clearAiRecommendation, closeNearbyPanel, closeGuide, router]);
 
   // 旧 URL 互換: /map?panel=consult が来たら相談ページへ送る
   useEffect(() => {
@@ -661,15 +706,15 @@ export default function MapPageClient({
         window.clearTimeout(introFocusTimerRef.current);
         introFocusTimerRef.current = null;
       }
-      if (typeof document !== "undefined") {
-        document.body.classList.add("shop-banner-open");
-      }
+      // 寄り終わったら（flyTo は 0.8 秒）マーカーをタップしたときと同じ方法で店のバナーを開く。
+      // 以前は URL に ?shop= を足していたが、地図は最初の表示でしかこの値を読まないためバナーが開かず、
+      // 先に付けた body の shop-banner-open だけが残って下のナビが消えたままになっていた
       introFocusTimerRef.current = window.setTimeout(() => {
-        router.push(buildCurrentMapUrl({ shop: String(shopId) }));
+        setFocusShopRequest((prev) => ({ shopId, token: (prev?.token ?? 0) + 1 }));
         introFocusTimerRef.current = null;
       }, 900);
     },
-    [buildCurrentMapUrl, handleCommentShopFocus, router]
+    [handleCommentShopFocus]
   );
   const _handleAiImageClick = useCallback(
     (imageUrl: string) => {
@@ -705,8 +750,12 @@ export default function MapPageClient({
 
   // ── 「このへん、なにがある？」──────────────────────
   // 他のモード（検索・AI相談・店舗バナー・パネル表示中）ではボタンを出さない
-  const nearbySuppressed =
+  // フリックで日曜市の道が画面から外れたら「日曜市にもどる」を出す。
+  // 「このへん、なにがある？」と同じ場所に出るので、そのあいだは「このへん」を出さない
+  const backToMarket = useBackToMarket(mapInstance, mapRoute);
+  const mapModeActive =
     !!nearbyState || hasSearchMode || hasAiMode || isShopBannerOpen || guideActive || introOpen;
+  const nearbySuppressed = mapModeActive || backToMarket.offscreen;
   // 回転のみのジェスチャーは move/zoom を発火させないことがあるため、
   // MapView から素通しで受け取ってボタンの静止判定に反映する
   const [isMapGestureActive, setIsMapGestureActive] = useState(false);
@@ -764,37 +813,53 @@ export default function MapPageClient({
       imageUrl: getShopPreviewImage(shop),
       reason,
     }));
+    // ジャンルで絞り込んだときに並べる、範囲内のすべての店（中心から近い順）
+    const areaShops: NearbyRecommendedShop[] = inAreaShops
+      .map((shop) => ({ shop, d: distanceMeters(center, { lat: shop.lat, lng: shop.lng }) }))
+      .sort((a, b) => a.d - b.d)
+      .map(({ shop }) => ({
+        shopId: shop.id,
+        name: shop.name,
+        category: shop.category,
+        imageUrl: getShopPreviewImage(shop),
+        reason: 'discovery' as const,
+      }));
     setNearbyState({
       summary,
       center: { lat: center.lat, lng: center.lng },
       recommendations,
+      areaShops,
       note: buildNearbyNote(summary),
     });
   }, [shopById, shops]);
 
-  const closeNearbyPanel = useCallback(() => {
-    setNearbyState(null);
-    // 追い質問（nearby）由来の aiMarkerPayload だけをクリアする。
-    // これを消さないと hasAiMode が true のままになり「このへん」ボタンが
-    // 再表示されない。一方、AI相談（consult）由来のマーカーは無関係なので残す。
-    setAiMarkerPayload((prev) => (prev?.source === 'nearby' ? null : prev));
-  }, []);
+  // 「このへん」の AI が範囲の外の店を挙げたときに、返事の下のカードに出す情報
+  const resolveNearbyShop = useCallback(
+    (shopId: number): NearbyRecommendedShop | undefined => {
+      const shop = shopById.get(shopId);
+      if (!shop) return undefined;
+      return {
+        shopId: shop.id,
+        name: shop.name,
+        category: shop.category,
+        imageUrl: getShopPreviewImage(shop),
+        reason: 'discovery',
+      };
+    },
+    [shopById]
+  );
 
   // パネル表示中にマップが動いたら閉じる（オレンジ枠は画面固定のため、
   // 移動すると要約と実際の範囲がズレてしまう）
   useEffect(() => {
     if (!nearbyState || !mapInstance) return;
-    const close = () => {
-      setNearbyState(null);
-      setAiMarkerPayload((prev) => (prev?.source === 'nearby' ? null : prev));
-    };
-    mapInstance.on('move', close);
-    mapInstance.on('zoom', close);
+    mapInstance.on('move', closeNearbyPanel);
+    mapInstance.on('zoom', closeNearbyPanel);
     return () => {
-      mapInstance.off('move', close);
-      mapInstance.off('zoom', close);
+      mapInstance.off('move', closeNearbyPanel);
+      mapInstance.off('zoom', closeNearbyPanel);
     };
-  }, [nearbyState, mapInstance]);
+  }, [nearbyState, mapInstance, closeNearbyPanel]);
 
   const shouldShowNavigationBar = !isShopBannerOpen;
 
@@ -856,7 +921,7 @@ export default function MapPageClient({
               ) : (
                 <div
                   className={cn(
-                    "absolute left-3 right-3 top-3 z-[1001] flex items-center gap-3 rounded-full bg-white py-2 pl-2 pr-2 shadow-[0_8px_24px_rgba(58,58,58,0.18)] ring-1 ring-black/5 lg:left-4 lg:right-auto lg:top-4 lg:w-[22rem]",
+                    "absolute left-3 right-3 top-3 z-[1001] flex items-center gap-3 rounded-full bg-white py-2 pl-2 pr-2 shadow-float ring-1 ring-line lg:left-4 lg:right-auto lg:top-4 lg:w-[22rem]",
                     hideWhilePanningClass(isPanning)
                   )}
                 >
@@ -867,7 +932,7 @@ export default function MapPageClient({
                   <button
                     type="button"
                     onClick={closeGuide}
-                    className="rounded-full bg-slate-100 px-3 py-1.5 text-[12px] font-semibold text-slate-600 active:bg-slate-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400"
+                    className="rounded-chip bg-nicchyo-ink/[0.06] px-3 py-1.5 text-[12px] font-semibold text-nicchyo-ink/70 active:bg-nicchyo-ink/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400"
                   >
                     とじる
                   </button>
@@ -891,15 +956,15 @@ export default function MapPageClient({
                 <AnnouncementBanner />
 
                 {/* 開催ステータス（例外時のみ表示。平常時は null を返すので検索バーは動かない） */}
-                <MarketStatusBar day={marketCalendar.day} />
+                {marketCalendarError ? <p role="status" className="rounded-full bg-white px-4 py-2 text-sm">開催状況を取得できませんでした。</p> : !marketCalendarLoading && <MarketStatusBar date={marketDate} />}
 
                 {/* 検索バー */}
                 <div className={`flex items-center gap-2 rounded-full px-4 py-2.5 shadow-lg ring-1 backdrop-blur-sm transition-all duration-200 lg:rounded-btn lg:shadow-none ${
                   hasMapFilter
                     ? 'bg-gradient-to-r from-amber-100/95 to-orange-50/95 ring-amber-400/50'
-                    : 'bg-white/90 ring-slate-900/8 lg:bg-nicchyo-base lg:ring-line'
+                    : 'bg-white ring-line lg:bg-nicchyo-base'
                 }`}>
-                  <svg className="w-4 h-4 shrink-0 text-slate-400" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden>
+                  <svg className="w-4 h-4 shrink-0 text-nicchyo-ink/40" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden>
                     <circle cx="11" cy="11" r="6.5" />
                     <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 16.5 20 20" />
                   </svg>
@@ -908,11 +973,11 @@ export default function MapPageClient({
                     placeholder="お店を検索…"
                     value={mapSearchQuery}
                     onChange={(e) => setMapSearchQuery(e.target.value)}
-                    className="flex-1 bg-transparent text-sm text-slate-800 outline-none placeholder:text-slate-400"
+                    className="min-w-0 flex-1 bg-transparent text-base text-nicchyo-ink lg:text-sm outline-none placeholder:text-nicchyo-ink/40"
                   />
                   {hasMapFilter && (
                     <span className="shrink-0 rounded-full bg-amber-500 px-2 py-0.5 text-[11px] font-bold text-white">
-                      {mapSearchShopIds?.length ?? mapSearchResults.length}件
+                      {mapResultCount + unplacedResults.length}件
                     </span>
                   )}
                   {hasMapFilter && (
@@ -923,15 +988,18 @@ export default function MapPageClient({
                         setMapSearchCategory(null);
                         setFavoritesOnly(false);
                       }}
-                      className="shrink-0 rounded-full bg-slate-100 p-1.5 text-slate-500 hover:bg-slate-200 transition-colors"
+                      // 指で押せるよう 28px の円にする（以前は 21px で押し損ねやすかった）
+                      className="-my-1 -mr-2 flex h-7 w-7 shrink-0 items-center justify-center rounded-chip bg-nicchyo-ink/[0.06] text-nicchyo-ink/55 transition-colors hover:bg-nicchyo-ink/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400"
                       aria-label="検索をクリア"
                     >
-                      <svg width="9" height="9" viewBox="0 0 12 12" fill="none">
+                      <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
                         <path d="M1 1l10 10M11 1L1 11" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"/>
                       </svg>
                     </button>
                   )}
                 </div>
+
+                <UnplacedSearchResults shops={unplacedResults} />
 
                 {/* ジャンルフィルター */}
                 <GenreFilter
@@ -946,6 +1014,9 @@ export default function MapPageClient({
             )}
 
             <MapView
+              key={initialMarketId}
+              initialMarketId={initialMarketId}
+              sundayMarketId={sundayMarketId}
               shops={shops}
               landmarks={mapLandmarks}
               mapRoute={mapRoute}
@@ -967,7 +1038,7 @@ export default function MapPageClient({
               onClearSearch={handleClearSearch}
               // おでかけサポート表示中は施設に合わせた画角を優先し、
               // 現在地取得時の自動ズームで上書きされないようにする
-              suppressInitialLocationFocus={isAiFocusMode || guideActive}
+              suppressInitialLocationFocus={marketRequested || isAiFocusMode || guideActive}
               hideMapUI={!!nearbyState}
               // おでかけサポート案内中は GuideLayer 側のマーカーだけを見せる
               suppressLandmarks={guideActive}
@@ -979,11 +1050,26 @@ export default function MapPageClient({
                   <NearbyExplorePanel
                     summary={nearbyState.summary}
                     recommendations={nearbyState.recommendations}
+                    areaShops={nearbyState.areaShops}
+                    resolveShop={resolveNearbyShop}
                     note={nearbyState.note}
                     center={nearbyState.center}
                     onSelectShop={handleCommentShopOpen}
                     onShopsRecommended={(shopIds) => {
-                      setAiMarkerPayload({ ids: shopIds, label: 'AIおすすめ', source: 'nearby' });
+                      const payload = { ids: shopIds, label: 'AIおすすめ', source: 'nearby' as const };
+                      nearbyAiPayloadRef.current = payload;
+                      setAiMarkerPayload(payload);
+                    }}
+                    onGenreFilter={(genre, shopIds) => {
+                      // 絞り込んだジャンルの店を地図でも光らせる。解除したら絞り込みの光だけ消し、
+                      // その前に AI が薦めた店の光があればそれに戻す
+                      setAiMarkerPayload((prev) =>
+                        genre
+                          ? { ids: shopIds, label: genre, source: 'nearby-genre' }
+                          : prev?.source === 'nearby-genre'
+                            ? nearbyAiPayloadRef.current
+                            : prev
+                      );
                     }}
                     onClose={closeNearbyPanel}
                   />
@@ -1009,7 +1095,7 @@ export default function MapPageClient({
             {/* 「このへん」の対象範囲（画面中央・幅80%×高さ48%）を示すオレンジ枠。
                 ボタンと同時にフェードで浮き出て、パネル表示中も残る */}
             <div
-              className={`pointer-events-none absolute left-1/2 top-1/2 z-[1140] -translate-x-1/2 -translate-y-1/2 rounded-[28px] border-4 border-orange-400/80 bg-orange-300/10 transition-opacity duration-500 ease-out ${
+              className={`pointer-events-none absolute left-1/2 top-1/2 z-[1140] -translate-x-1/2 -translate-y-1/2 rounded-sheet border-2 border-dashed border-orange-400/80 bg-orange-300/[0.06] transition-opacity duration-500 ease-out-soft ${
                 nearbyButtonVisible || nearbyState ? 'opacity-100' : 'opacity-0'
               }`}
               style={{
@@ -1023,6 +1109,12 @@ export default function MapPageClient({
             <NearbyExploreButton
               visible={nearbyButtonVisible}
               onClick={openNearbyPanel}
+            />
+
+            {/* フリックで日曜市の道が画面の外に出たとき、道へ戻るボタン */}
+            <BackToMarketButton
+              visible={backToMarket.offscreen && !mapModeActive && !isPanning}
+              onClick={backToMarket.goBack}
             />
 
             {/* おでかけサポートを開くボタン（現在地ボタンと同じ高さの左側） */}
@@ -1118,6 +1210,7 @@ export default function MapPageClient({
                 <Suspense fallback={null}>
                   <SearchClient
                     shops={shops}
+                    profiles={searchProfiles}
                     landmarks={mapLandmarks}
                     embedded
                     initialQuery={mapSearchQuery}

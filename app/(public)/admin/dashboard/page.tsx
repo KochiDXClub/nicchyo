@@ -14,7 +14,7 @@ import {
   Sun,
 } from "lucide-react";
 import { AdminLayout, AdminPageHeader, StatCard } from "@/components/admin";
-import { createClient } from "@/utils/supabase/server";
+import { createClient, createClientWithExtensions } from "@/utils/supabase/server";
 import { getRole, isAdmin } from "@/lib/auth/permissions";
 import { nextSundayJstString } from "@/lib/time/jstDate";
 import { VENDOR_INQUIRY_OPEN_STATUSES } from "@/lib/vendorInquiries/constants";
@@ -84,7 +84,7 @@ function createAdminReadClient() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!supabaseUrl || !serviceRoleKey) return null;
-  return createServiceClient(supabaseUrl, serviceRoleKey, {
+  return createServiceClient<DatabaseWithExtensions>(supabaseUrl, serviceRoleKey, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
 }
@@ -116,7 +116,8 @@ export default async function AdminDashboardPage() {
   }
 
   const adminReadClient = createAdminReadClient();
-  const dataClient = adminReadClient ?? supabase;
+  // vendor_inquiries は生成済み型に無いので、拡張型のクライアントで読む（認可は上の admin 判定で済み）
+  const dataClient = adminReadClient ?? createClientWithExtensions(cookieStore);
 
   const now = new Date();
   const nextSundayIso = nextSundayJstString(now);

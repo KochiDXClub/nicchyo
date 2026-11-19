@@ -105,6 +105,24 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
         icon: CalendarDays,
         description: "開催ステータスの切替と、出店予定・イベントの入稿をまとめて行う",
       },
+      {
+        label: "市の管理",
+        href: "/admin/markets",
+        icon: MapPinned,
+        description: "市の公開設定や開催曜日を管理する",
+      },
+      {
+        label: "出店予定管理",
+        href: "/admin/market-schedule",
+        icon: CalendarDays,
+        description: "場所と店舗ごとの出店日・繰り返し・休みを管理する",
+      },
+      {
+        label: "旧店舗番号の確認",
+        href: "/admin/legacy-shop-identities",
+        icon: ClipboardList,
+        description: "以前の店舗番号と店舗の対応を確認する",
+      },
     ],
   },
   {
@@ -174,7 +192,7 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
         label: "マップ編集",
         href: "/admin/map-edit",
         icon: MapIcon,
-        description: "マップ上の建物と店舗の配置を編集する",
+        description: "出店場所や道、建物の位置を編集する",
       },
       {
         label: "マップの表示範囲",

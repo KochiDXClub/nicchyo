@@ -1,11 +1,10 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "@/types/database.types";
+import type { PublicMarket } from "./publicMarkets.server";
 
 /**
- * 日曜市カレンダー（docs/discussion-market-calendar.md フェーズ1）の共有ロジック。
+ * 公開カレンダーの共有ロジック。
  *
  * すみわけ：
- *   market_days   … その日に「開催するか」（1日1件）。最上部の1行バーの元データ。
+ *   market_days   … その日に「開催するか」（市・日付ごとに1件）。最上部の1行バーの元データ。
  *   market_events … その日に「何があるか」（1日に複数件）。「これからの日曜市」の元データ。
  */
 
@@ -16,7 +15,8 @@ export type MarketDay = {
   status: MarketDayStatus;
   note: string | null;
   /** その日曜の画像（任意）。無ければ null */
-  image_url: string | null;
+  image_url?: string | null;
+  updated_at?: string;
 };
 
 /** カードに載せる情報の種別 */
@@ -43,22 +43,12 @@ export type MarketEvent = {
 };
 
 export type MarketCalendar = {
-  /** 今週の日曜の開催ステータス。未登録なら null（＝通常どおり開催の想定） */
-  day: MarketDay | null;
-  /** 今日以降に登録されている開催ステータス（日曜ごとのカードで使う） */
-  days: MarketDay[];
-  /** 今日以降のイベント（開催日の近い順） */
-  events: MarketEvent[];
+  todayIso: string;
+  markets: (PublicMarket & { days: MarketDay[]; events: MarketEvent[] })[];
 };
 
-/** 近況ページ下部に出す日曜の数 */
-export const UPCOMING_SUNDAYS_PREVIEW_COUNT = 2;
-
-/** カレンダーページに出す日曜の数 */
-export const UPCOMING_SUNDAYS_FULL_COUNT = 5;
-
-/** カレンダーページで一度に読む上限 */
-const EVENTS_LIMIT = 50;
+/** トップでは8週、カレンダーと近況ではその一部を表示する。 */
+export const PUBLIC_CALENDAR_WEEKS = { landing: 8, full: 5, preview: 2 } as const;
 
 const VALID_STATUSES: readonly string[] = ["open", "cancelled", "special", "closed"];
 const VALID_CATEGORIES: readonly string[] = ["vendor", "event", "season", "notice"];
@@ -93,12 +83,23 @@ export function toIsoDate(date: Date): string {
   return formatUtcFields(toJstFields(date));
 }
 
+/**
+ * 指定した曜日（0=日〜6=土）の、当日を含む次の日を JST 基準の YYYY-MM-DD で返す。
+ * 市ごとの開催曜日（markets.weekday）を渡して使う。
+ */
+export function getUpcomingMarketDateIso(weekday: number, now: Date = new Date()): string {
+  if (!Number.isInteger(weekday) || weekday < 0 || weekday > 6) {
+    throw new Error(`weekday must be 0..6, got ${weekday}`);
+  }
+  const jst = toJstFields(now);
+  const daysUntil = (weekday - jst.getUTCDay() + 7) % 7;
+  jst.setUTCDate(jst.getUTCDate() + daysUntil);
+  return formatUtcFields(jst);
+}
+
 /** 今週（当日を含む）の日曜日を JST 基準の YYYY-MM-DD で返す */
 export function getUpcomingSundayIso(now: Date = new Date()): string {
-  const jst = toJstFields(now);
-  const daysUntilSunday = jst.getUTCDay() === 0 ? 0 : 7 - jst.getUTCDay();
-  jst.setUTCDate(jst.getUTCDate() + daysUntilSunday);
-  return formatUtcFields(jst);
+  return getUpcomingMarketDateIso(0, now);
 }
 
 /** DB から来た status 文字列を型に落とす。想定外の値は通常開催として扱う */
@@ -237,10 +238,23 @@ function byStartTime(a: MarketEvent, b: MarketEvent): number {
  * 日曜が1つも含まれない連続開催が、どの日曜カードにも載らず消えてしまう。
  */
 export function isEventOnSunday(event: MarketEvent, sundayIso: string): boolean {
-  const startSunday = getUpcomingSundayIso(isoToDate(event.event_date));
-  if (!event.end_date || event.end_date < event.event_date) return sundayIso === startSunday;
-  const endSunday = getUpcomingSundayIso(isoToDate(event.end_date));
-  return sundayIso >= startSunday && sundayIso <= endSunday;
+  const { first, last } = getEventSundayRange(event.event_date, event.end_date);
+  return sundayIso >= first && sundayIso <= last;
+}
+
+/**
+ * 予定が載る日曜の範囲（first〜last、両端を含む）を返す。
+ * 開始日・終了日をそれぞれ次の日曜へ寄せる。表示・見どころの選択肢・見どころの検証は
+ * すべてこの範囲を使い、判定がずれないようにする。
+ * end_date が無い・開始日以前の壊れたデータは開始日の週だけにする。
+ */
+export function getEventSundayRange(
+  eventDate: string,
+  endDate: string | null
+): { first: string; last: string } {
+  const first = getUpcomingSundayIso(isoToDate(eventDate));
+  const last = endDate && endDate > eventDate ? getUpcomingSundayIso(isoToDate(endDate)) : first;
+  return { first, last };
 }
 
 /** 指定の日曜が、その予定の見どころ週として選ばれているか */
@@ -253,10 +267,9 @@ export function isHighlightSunday(event: MarketEvent, sundayIso: string): boolea
  * 管理画面で「見どころにする週」を選ばせる際、選択肢の一覧として使う。
  */
 export function listSundaysInRange(eventDate: string, endDate: string | null): string[] {
-  const start = getUpcomingSundayIso(isoToDate(eventDate));
-  const last = endDate && endDate > eventDate ? endDate : start;
+  const { first, last } = getEventSundayRange(eventDate, endDate);
   const result: string[] = [];
-  for (let cursor = start; cursor <= last; cursor = addDaysToIso(cursor, 7)) {
+  for (let cursor = first; cursor <= last; cursor = addDaysToIso(cursor, 7)) {
     result.push(cursor);
   }
   return result;
@@ -305,68 +318,72 @@ export function groupEventsBySunday(
   });
 }
 
-// ── DB アクセス ─────────────────────────────────────────────────────────
+export type MarketCalendarDate = MarketSunday & {
+  marketId: string;
+  /** 日曜市単独の場合は、従来の見出しや曜日で市を伝える。 */
+  marketName?: string;
+  /** 開催のない日にイベントだけを掲載する場合は null。 */
+  status: MarketDayStatus | null;
+};
 
-type Client = SupabaseClient<Database>;
+function getRelativeDateLabel(isoDate: string, todayIso: string): string {
+  const days = Math.round((isoToDate(isoDate).getTime() - isoToDate(todayIso).getTime()) / 86400000);
+  return days === 0 ? "今日" : days === 1 ? "明日" : `あと${days}日`;
+}
 
-/**
- * 公開カレンダー（開催ステータス＋今日以降のイベント）を取得する。
- * anon キーのクライアントで呼ぶ前提で、RLS の公開ポリシーに従う。
- */
-export async function fetchMarketCalendar(
-  supabase: Client,
-  options: { limit?: number; now?: Date } = {}
-): Promise<MarketCalendar> {
-  const now = options.now ?? new Date();
-  const todayIso = toIsoDate(now);
-  const sundayIso = getUpcomingSundayIso(now);
-
-  const [daysResult, eventsResult] = await Promise.all([
-    supabase
-      .from("market_days")
-      .select("market_date, status, note, image_url")
-      // 今週の日曜から先。日曜ごとのカードそれぞれにステータスを出せるようにまとめて読む
-      .gte("market_date", sundayIso)
-      .order("market_date", { ascending: true })
-      .limit(12),
-    supabase
-      .from("market_events")
-      .select(
-        "id, title, description, event_date, end_date, start_time, end_time, location, category, image_url, highlight_dates"
-      )
-      .eq("is_published", true)
-      // 「今日以降に掛かっている予定」を引く。連続開催は開始日が過去でも
-      // 終了日が未来なら残す（期間の途中で一覧から消えないようにする）。
-      // 当日のイベントはまだ有効なので今日を含める。
-      .or(`end_date.gte.${todayIso},and(end_date.is.null,event_date.gte.${todayIso})`)
-      .order("event_date", { ascending: true })
-      .limit(options.limit ?? EVENTS_LIMIT),
-  ]);
-
-  const days: MarketDay[] = (daysResult.data ?? []).map((row) => ({
-    market_date: row.market_date,
-    status: normalizeStatus(row.status),
-    note: row.note,
-    image_url: row.image_url ?? null,
-  }));
-
-  const events: MarketEvent[] = (eventsResult.data ?? []).map((row) => ({
-    id: row.id,
-    title: row.title,
-    description: row.description,
-    event_date: row.event_date,
-    end_date: row.end_date,
-    start_time: row.start_time,
-    end_time: row.end_time,
-    location: row.location,
-    category: normalizeCategory(row.category),
-    image_url: row.image_url,
-    highlight_dates: normalizeHighlightDates(row.highlight_dates),
-  }));
-
-  return {
-    day: days.find((d) => d.market_date === sundayIso) ?? null,
-    days,
-    events,
-  };
+/** 市と日付の組で開催状況と予定をまとめ、日付順に並べる。 */
+export function getMarketCalendarDates(
+  calendar: MarketCalendar,
+  weeks: number,
+  { includeEventDates = true }: { includeEventDates?: boolean } = {},
+): MarketCalendarDate[] {
+  const { todayIso, markets } = calendar;
+  if (!todayIso) return [];
+  const now = isoToDate(todayIso);
+  const through = addDaysToIso(todayIso, weeks * 7 - 1);
+  const sundayOnly = markets.length === 1 && markets[0].slug === "nichiyo" && markets[0].weekday === 0;
+  return markets.flatMap((market) => {
+    const marketName = sundayOnly ? undefined : market.name;
+    const firstDate = getUpcomingMarketDateIso(market.weekday, now);
+    const regularDates = new Set(Array.from({ length: weeks }, (_, index) => addDaysToIso(firstDate, index * 7)));
+    const legacySunday = market.slug === "nichiyo" && market.weekday === 0;
+    const sundays = legacySunday
+      ? groupEventsBySunday(includeEventDates ? market.events : [], market.days, weeks, now)
+      : [];
+    const sundayByDate = new Map(sundays.map((entry) => [entry.dateIso, entry]));
+    const statuses = new Map(market.days.map((day) => [day.market_date, day]));
+    const dates = sundayOnly ? regularDates : new Set([...regularDates, ...statuses.keys()]);
+    if (includeEventDates && !legacySunday) {
+      // 継続中の期間イベントは今日に、それ以外は登録した開始日に載せる。
+      for (const event of market.events) {
+        const end = event.end_date ?? event.event_date;
+        if (end >= todayIso) dates.add(event.event_date < todayIso ? todayIso : event.event_date);
+      }
+    }
+    return [...dates].filter((dateIso) => dateIso >= todayIso && dateIso <= through).map((dateIso) => {
+      const day = statuses.get(dateIso) ?? null;
+      const status = day?.status ?? (regularDates.has(dateIso) ? "open" : null);
+      const sunday = sundayByDate.get(dateIso);
+      const events = includeEventDates
+        ? (sunday
+          ? sunday.events
+          : market.events.filter((event) => event.event_date <= dateIso && (event.end_date ?? event.event_date) >= dateIso).sort(byStartTime))
+        : [];
+      const highlight = includeEventDates
+        ? (sunday ? sunday.highlight : events.find((event) => event.highlight_dates.includes(dateIso)) ?? null)
+        : null;
+      return {
+        marketId: market.id,
+        marketName,
+        dateIso,
+        dateLabel: formatEventDate(dateIso),
+        relativeLabel: sundayOnly && sunday ? sunday.relativeLabel : getRelativeDateLabel(dateIso, todayIso),
+        isThisWeek: sundayOnly && sunday ? sunday.isThisWeek : dateIso === todayIso,
+        day,
+        status,
+        highlight,
+        events: highlight && !sunday ? events.filter((event) => event !== highlight) : events,
+      };
+    });
+  }).sort((a, b) => a.dateIso.localeCompare(b.dateIso));
 }

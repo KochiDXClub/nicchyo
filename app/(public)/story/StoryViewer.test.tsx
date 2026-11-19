@@ -132,6 +132,22 @@ describe("StoryViewer", () => {
     expect(screen.getByText("テスト青果店")).toBeInTheDocument(); // a のまま
   });
 
+  it("一時停止中は投稿を表示し続け、再開すると残り時間で次の投稿へ進む", () => {
+    const stories = [makeStory({ id: "a" }), makeStory({ id: "b", vendor: null })];
+    render(<StoryViewer stories={stories} initialIndex={0} onClose={vi.fn()} demo={{ heartCounts: {} }} />);
+
+    act(() => vi.advanceTimersByTime(5000));
+    fireEvent.click(screen.getByRole("button", { name: "自動送りを一時停止" }));
+    act(() => vi.advanceTimersByTime(20000));
+    expect(screen.getByText("テスト青果店")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "自動送りを再開" }));
+    act(() => vi.advanceTimersByTime(9999));
+    expect(screen.getByText("テスト青果店")).toBeInTheDocument();
+    act(() => vi.advanceTimersByTime(1));
+    expect(screen.getByText("出店者")).toBeInTheDocument();
+  });
+
   it("長押しすると一時停止インジケーターが表示され、離しても送られない", () => {
     const stories = [makeStory({ id: "a" }), makeStory({ id: "b" })];
     const onClose = vi.fn();
@@ -141,7 +157,7 @@ describe("StoryViewer", () => {
     const surface = getPressSurface(container);
 
     // 一時停止インジケーター（矩形2本の「II」アイコン）はまだ出ていない
-    expect(container.querySelector("svg rect")).toBeNull();
+    expect(container.querySelector(".pointer-events-none svg rect")).toBeNull();
 
     fireEvent.pointerDown(surface, { clientX: 300, clientY: 400, pointerId: 1 });
 
@@ -151,12 +167,12 @@ describe("StoryViewer", () => {
     });
 
     // 一時停止インジケーターが表示される
-    expect(container.querySelector("svg rect")).not.toBeNull();
+    expect(container.querySelector(".pointer-events-none svg rect")).not.toBeNull();
 
     fireEvent.pointerUp(surface, { clientX: 300, clientY: 400, pointerId: 1 });
 
     // 離すとインジケーターは消える
-    expect(container.querySelector("svg rect")).toBeNull();
+    expect(container.querySelector(".pointer-events-none svg rect")).toBeNull();
 
     // 長押し後に離しても、タップ送りは発生しない（a のまま）
     expect(screen.getByText("テスト青果店")).toBeInTheDocument();
@@ -295,6 +311,15 @@ describe("StoryViewer の「詳しく」", () => {
     expect(within(sheet).getByRole("link", { name: /マップでお店を見る/ }).getAttribute("href")).toBe(
       "/map?shop=12"
     );
+  });
+
+  it("固定店舗 ID の近況からは、出店しない週も店舗情報へ移動できる", () => {
+    const story = makeStory({ vendor: { id: "v1", shop_name: "八百屋", shop_image_url: null, store_number: 1001 } });
+    render(<StoryViewer stories={[story]} initialIndex={0} onClose={vi.fn()} />);
+    expect(screen.getByRole("link", { name: "八百屋の店舗情報を見る" })).toHaveAttribute("href", "/shops/1001");
+    fireEvent.click(screen.getByRole("button", { name: /詳しく/ }));
+    const sheet = screen.getByRole("dialog", { name: "八百屋の詳しい情報" });
+    expect(within(sheet).getByRole("link", { name: /店舗情報を見る/ })).toHaveAttribute("href", "/shops/1001");
   });
 
   it("開くとシートへフォーカスが移り、閉じると「詳しく」ボタンへ戻る", () => {

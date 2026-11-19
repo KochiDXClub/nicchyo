@@ -1,6 +1,7 @@
 -- 来訪者（anon）・ログイン済みの一般ユーザーから、次のことができないことを確かめる。
 --   - 掲載許可のない店舗に紐づく行を、公開 SELECT ポリシー（using (true) など）で読む
 --   - reports / inquiries / product_search_logs に直接 INSERT する（書き込みは service_role の API 経由のみ）
+--   - product_search_logs を直接 SELECT する（生の検索語に個人情報が入りうる。読み取りは service_role のみ）
 --   - track_home_visit を直接呼んで来訪者統計を書き換える
 -- location_assignments に直接書き込めないことも確かめる（ファイル末尾）。
 -- あわせて、vendor_contents が 31 日窓（期限切れの近況も読める）であることを確かめる。
@@ -70,6 +71,24 @@ begin
     and (roles && array['public', 'anon', 'authenticated']::name[]);
   if bad is not null then
     raise exception 'reports / inquiries / product_search_logs に誰でも INSERT できるポリシーが残っています: %', bad;
+  end if;
+
+  -- product_search_logs（20261113100000）は anon / authenticated から直接 SELECT できない
+  -- （列単位の GRANT（例: grant select (keyword)）も拾うため has_any_column_privilege を使う）
+  if has_any_column_privilege('anon', 'public.product_search_logs', 'select')
+     or has_any_column_privilege('authenticated', 'public.product_search_logs', 'select') then
+    raise exception 'product_search_logs を anon / authenticated が SELECT できる権限が残っています';
+  end if;
+
+  select string_agg(format('"%s"', policyname), ', ')
+    into bad
+  from pg_policies
+  where schemaname = 'public'
+    and tablename = 'product_search_logs'
+    and cmd in ('SELECT', 'ALL')
+    and (roles && array['public', 'anon', 'authenticated']::name[]);
+  if bad is not null then
+    raise exception 'product_search_logs に anon / authenticated が読める SELECT ポリシーが残っています: %', bad;
   end if;
 
   -- track_home_visit は anon / authenticated から実行できない

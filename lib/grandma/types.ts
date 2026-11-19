@@ -3,6 +3,8 @@ import type { ConsultHistoryEntry, ConsultTurn } from "@/app/(public)/consult/ty
 
 export type VendorRow = {
   id: string;
+  /** 公開切り替え後の固定の店舗 ID（生成型に未反映の列のため手で定義） */
+  public_shop_id?: number | null;
   shop_name: string | null;
   strength: string | null;
   style: string | null;
@@ -69,6 +71,8 @@ export type ParsedRequest = {
   preferredCharacterId: ConsultCharacterId | null;
   visitorKey: string | null;
   stream: boolean;
+  /** 地図の「このへん」で選んだ範囲の店（地図の店 ID）。null なら市場全体から探す */
+  areaShopIds: number[] | null;
 };
 
 export type StructuredConsultResponse = {

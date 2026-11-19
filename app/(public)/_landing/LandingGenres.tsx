@@ -2,7 +2,7 @@ import { fetchCategories } from "@/lib/categories/server";
 import { categoryKey } from "@/lib/categories/catalog";
 import Link from "next/link";
 import { PageContainer } from "@/components/ui";
-import { getT } from "@/lib/i18n/server";
+import { getSiteText, getT } from "@/lib/i18n/server";
 import { getShopCategoryColor } from "../map/config/shopCategories";
 import { GENRES } from "./content";
 import SectionHeading from "./SectionHeading";
@@ -14,11 +14,11 @@ import SectionHeading from "./SectionHeading";
 export default async function LandingGenres() {
   const categories = await fetchCategories().catch(() => []);
   const genres = categories.length ? categories.map(c => ({ category: c.name, id: c.id, art: GENRES.find(g => g.category === categoryKey(c))?.art ?? "/images/landing/art/genre-zakka.svg", color: getShopCategoryColor(categoryKey(c)) })) : GENRES.map(g => ({ ...g, id: g.category, color: getShopCategoryColor(g.category) }));
-  const t = await getT();
+  const [t, s] = await Promise.all([getT(), getSiteText()]);
   return (
     <section aria-labelledby="landing-genres" className="mt-16 md:mt-20">
       <PageContainer width="wide">
-        <SectionHeading id="landing-genres">{t("何に興味ある？")}</SectionHeading>
+        <SectionHeading id="landing-genres">{s("landing.genres.title")}</SectionHeading>
         <ul className="mt-6 grid grid-cols-4 gap-3 md:grid-cols-7">
           {genres.map(({ category, id, art, color }) => (
             <li key={id}>

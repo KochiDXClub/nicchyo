@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Megaphone, X } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
+import { localizePath, DEFAULT_LOCALE } from "@/lib/i18n/config";
+import { useLocale, useT } from "@/lib/i18n/LocaleContext";
 import type { PublicAnnouncement } from "@/lib/announcements/schema";
 
 const DISMISSED_KEY = "nicchyo:dismissed-announcements";
@@ -36,11 +38,13 @@ function saveDismissed(ids: string[]) {
 export default function AnnouncementBanner({ className }: { className?: string }) {
   const [announcements, setAnnouncements] = useState<PublicAnnouncement[]>([]);
   const [dismissed, setDismissed] = useState<string[]>([]);
+  const locale = useLocale();
+  const t = useT();
 
   useEffect(() => {
     setDismissed(loadDismissed());
     let cancelled = false;
-    fetch("/api/announcements")
+    fetch(locale === DEFAULT_LOCALE ? "/api/announcements" : `/api/announcements?locale=${locale}`)
       .then((res) => (res.ok ? res.json() : null))
       .then((json: { announcements?: PublicAnnouncement[] } | null) => {
         if (!cancelled && Array.isArray(json?.announcements)) setAnnouncements(json.announcements);
@@ -51,7 +55,7 @@ export default function AnnouncementBanner({ className }: { className?: string }
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [locale]);
 
   const visible = announcements.filter((a) => !dismissed.includes(a.id));
   const top = visible[0];
@@ -74,18 +78,18 @@ export default function AnnouncementBanner({ className }: { className?: string }
       )}
     >
       <Megaphone size={16} aria-hidden="true" className={cn("shrink-0", !top.important && "text-amber-600")} />
-      <Link href="/news" className="min-w-0 flex-1 text-[13px] font-semibold leading-snug">
-        <span className="line-clamp-2">{top.title}</span>
+      <Link href={localizePath("/news", locale)} className="min-w-0 flex-1 text-[13px] font-semibold leading-snug">
+        <span lang={top.lang} className="line-clamp-2">{top.title}</span>
         {rest > 0 && (
           <span className={cn("ml-1 text-[11px] font-medium", top.important ? "text-white/90" : "text-nicchyo-ink/55")}>
-            ほか{rest}件
+            {locale === DEFAULT_LOCALE ? `ほか${rest}件` : `+${rest} more`}
           </span>
         )}
       </Link>
       <button
         type="button"
         onClick={dismiss}
-        aria-label="このお知らせを閉じる"
+        aria-label={t("このお知らせを閉じる")}
         className="grid h-8 w-8 shrink-0 place-items-center rounded-full active:bg-black/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400"
       >
         <X size={16} aria-hidden="true" />

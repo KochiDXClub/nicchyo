@@ -1,11 +1,13 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/database.types";
+import { getEventSundayRange } from "@/lib/market/calendar";
 
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
 /**
  * 見どころにする日付の配列を検証する。
- * event_date〜(end_date ?? event_date) の範囲内かをチェックし、
+ * 表示（isEventOnSunday）と同じく、開始日・終了日をそれぞれ次の日曜へ寄せた範囲で判定する。
+ * 寄せる前の日付で判定すると、管理画面の選択肢と保存時の検証が食い違うため。
  * 重複を除いて日付順に並べて返す。
  */
 export function validateHighlightDates(
@@ -16,19 +18,32 @@ export function validateHighlightDates(
   if (value === undefined || value === null) return { dates: [], error: null };
   if (!Array.isArray(value)) return { dates: [], error: "見どころの日付が無効です" };
 
-  const rangeEnd = endDate && endDate > eventDate ? endDate : eventDate;
+  const { first, last } = getEventSundayRange(eventDate, endDate);
   const dates: string[] = [];
   for (const v of value) {
     if (typeof v !== "string" || !DATE_PATTERN.test(v)) {
       return { dates: [], error: "見どころの日付の形式が無効です（YYYY-MM-DD）" };
     }
-    if (v < eventDate || v > rangeEnd) {
+    if (v < first || v > last) {
       return { dates: [], error: "見どころの日付は開催期間内にしてください" };
     }
     dates.push(v);
   }
 
   return { dates: Array.from(new Set(dates)).sort(), error: null };
+}
+
+/**
+ * 日付変更後の期間から外れた見どころを取り除く。
+ * 残したまま保存すると、その日曜を別の予定が使おうとしたときに実態の無い重複として409になる。
+ */
+export function keepHighlightDatesInRange(
+  dates: string[],
+  eventDate: string,
+  endDate: string | null
+): string[] {
+  const { first, last } = getEventSundayRange(eventDate, endDate);
+  return dates.filter((d) => d >= first && d <= last);
 }
 
 /**

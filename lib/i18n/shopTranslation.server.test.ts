@@ -101,6 +101,16 @@ describe("競合の保護", () => {
     expect(result.translated).toBe(0);
   });
 
+  it("AI を待つ上限として signal を渡す。打ち切られた店は訳せなかった数に入れ、次の店へ進む", async () => {
+    arrangeSync([], []);
+    vi.mocked(requestChatCompletion).mockRejectedValueOnce(new DOMException("The operation was aborted due to timeout", "TimeoutError"));
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const result = await syncShopTranslations({ shops: [shop, { ...shop, vendorId: "vendor-2" } as Shop], locale: "en", limit: 30 });
+    expect(vi.mocked(requestChatCompletion).mock.calls[0][3]).toBeInstanceOf(AbortSignal);
+    expect(requestChatCompletion).toHaveBeenCalledTimes(2);
+    expect(result.failed).toBe(1);
+  });
+
   it("まだ訳が無い店は、重複なら何もしない形で作る", async () => {
     const { upsert } = arrangeSync([], []);
     await syncShopTranslations({ shops: [shop], locale: "en", limit: 30 });

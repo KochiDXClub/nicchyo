@@ -44,7 +44,8 @@ export default function FaqClient({ faq }: { faq: SiteCopy["faq"] }) {
             <Search className="h-5 w-5" />
           </div>
           <input
-            type="text"
+            type="search"
+            aria-label="よくある質問を検索"
             placeholder="キーワードで検索（例：位置情報、機種変更）"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
@@ -61,6 +62,7 @@ export default function FaqClient({ faq }: { faq: SiteCopy["faq"] }) {
               <button
                 type="button"
                 key={cat.id}
+                aria-pressed={isSelected}
                 onClick={() => setSelectedCategory(cat.id)}
                 className={cn(
                   "flex flex-shrink-0 items-center gap-1.5 rounded-full px-4 py-2 text-sm font-medium transition-all",
@@ -92,6 +94,7 @@ export default function FaqClient({ faq }: { faq: SiteCopy["faq"] }) {
               >
                 <button
                   type="button"
+                  aria-expanded={openItems.has(item.id)}
                   onClick={() => toggleItem(item.id)}
                   className="flex w-full items-start justify-between gap-4 p-5 text-left"
                 >

@@ -1,8 +1,8 @@
 import Image from "next/image";
 import Link from "next/link";
 import { PageContainer } from "@/components/ui";
-import { getT } from "@/lib/i18n/server";
-import { ABOUT, PHOTOS } from "./content";
+import { getSiteText } from "@/lib/i18n/server";
+import { PHOTOS } from "./content";
 import SectionHeading from "./SectionHeading";
 
 /**
@@ -10,14 +10,14 @@ import SectionHeading from "./SectionHeading";
  * 受賞などの事実は活動記録（app/data/activities.ts）に載っているものだけを書く
  */
 export default async function LandingAbout() {
-  const t = await getT();
+  const s = await getSiteText();
   return (
     <section aria-labelledby="landing-about" className="mt-20 md:mt-28">
       <PageContainer width="wide">
         <div className="grid gap-8 overflow-hidden rounded-sheet bg-white p-5 shadow-card ring-1 ring-line md:grid-cols-2 md:items-center md:gap-12 md:p-8">
           <Image
             src={PHOTOS.survey.src}
-            alt={t(PHOTOS.survey.alt)}
+            alt={s("landing.about.photoAlt")}
             width={PHOTOS.survey.width}
             height={PHOTOS.survey.height}
             sizes="(min-width: 768px) 30rem, 100vw"
@@ -25,35 +25,32 @@ export default async function LandingAbout() {
           />
           <div>
             <SectionHeading id="landing-about">
-              {t("高知高専生が")}
+              {s("landing.about.title1")}
               <br />
-              {t("つくっています")}
+              {s("landing.about.title2")}
             </SectionHeading>
-            <p className="mt-4 text-[15px] leading-loose text-nicchyo-ink/80">{t(ABOUT.body)}</p>
+            <p className="mt-4 text-[15px] leading-loose text-nicchyo-ink/80">{s("landing.about.body")}</p>
 
             {/* 受賞 */}
             <p className="mt-5 border-l-[3px] border-nicchyo-primary pl-4 text-left">
-              <span className="block text-xs font-bold text-nicchyo-ink/55">{t(ABOUT.awardName)}</span>
-              <span className="block text-lg font-black leading-snug text-nicchyo-ink">{t(`${ABOUT.awardTitle} 受賞`)}</span>
+              <span className="block text-xs font-bold text-nicchyo-ink/55">{s("landing.about.awardName")}</span>
+              <span className="block text-lg font-black leading-snug text-nicchyo-ink">{s("landing.about.awardTitle")}</span>
             </p>
 
             {/* 開発チームのひとこと */}
             <figure className="mt-5">
               <blockquote className="text-lg font-bold leading-relaxed text-nicchyo-ink">
-                {ABOUT.message.map((line) => (
-                  <span key={line} className="block">
-                    {t(line)}
-                  </span>
-                ))}
+                <span className="block">{s("landing.about.message1")}</span>
+                <span className="block">{s("landing.about.message2")}</span>
               </blockquote>
-              <figcaption className="mt-1 text-xs font-bold text-nicchyo-ink/55">{t(ABOUT.signature)}</figcaption>
+              <figcaption className="mt-1 text-xs font-bold text-nicchyo-ink/55">{s("landing.about.signature")}</figcaption>
             </figure>
 
             <Link
               href="/activities"
               className="mt-5 inline-flex h-11 items-center rounded-chip border border-amber-200 bg-white px-5 text-sm font-bold text-amber-800 shadow-chip transition hover:bg-amber-50 motion-reduce:transition-none"
             >
-              {t("これまでの取り組み")} →
+              {s("landing.about.activitiesLink")} →
             </Link>
           </div>
         </div>

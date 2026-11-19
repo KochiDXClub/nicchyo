@@ -5,6 +5,7 @@ import { enforceRateLimit } from "@/lib/security/rateLimit";
 import { createAdminClient, authorizeAdmin } from "../categories/_helpers";
 import { logAdminAudit } from "@/lib/audit/logAdminAudit";
 import { SPOT_CATEGORIES, type SpotCategory, type AdminSpot } from "@/lib/spots/adminSpot";
+import { parseSpotDescriptionEn, parseSpotNameEn } from "@/lib/spots/translate";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -19,7 +20,7 @@ export const dynamic = "force-dynamic";
 export { SPOT_CATEGORIES, type SpotCategory, type AdminSpot } from "@/lib/spots/adminSpot";
 
 const SELECT_COLUMNS =
-  "key, name, description, image_url, latitude, longitude, width_px, height_px, show_at_min_zoom, category, transit_mode, lines, tags, notes, external_url, photo_url, photo_credit, open_from, open_until, show_on_map, verified, updated_at";
+  "key, name, name_en, description, description_en, image_url, latitude, longitude, width_px, height_px, show_at_min_zoom, category, transit_mode, lines, tags, notes, external_url, photo_url, photo_credit, open_from, open_until, show_on_map, verified, updated_at";
 
 type SpotInput = Partial<Omit<AdminSpot, "updated_at">>;
 
@@ -83,6 +84,16 @@ function validate(body: SpotInput, { requireAll }: { requireAll: boolean }):
       return { ok: false, error: "説明は400文字以内（改行なし）で入力してください" };
     }
     values.description = description;
+  }
+  if (body.name_en !== undefined) {
+    const nameEn = parseSpotNameEn(body.name_en);
+    if (nameEn === undefined) return { ok: false, error: "英語名は100文字以内で入力してください" };
+    values.name_en = nameEn;
+  }
+  if (body.description_en !== undefined) {
+    const descriptionEn = parseSpotDescriptionEn(body.description_en);
+    if (descriptionEn === undefined) return { ok: false, error: "英語の説明は400文字以内で入力してください" };
+    values.description_en = descriptionEn;
   }
   if (body.category !== undefined || requireAll) {
     if (!SPOT_CATEGORIES.includes(body.category as SpotCategory)) {

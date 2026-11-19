@@ -3,7 +3,13 @@ import { getRole } from "@/lib/auth/permissions";
 import { createAdminClient } from "@/lib/supabase/adminClient";
 import { requireSameOrigin } from "@/lib/security/requestGuards";
 import { enforceRateLimit } from "@/lib/security/rateLimit";
-import { authorizeAdmin, findHighlightConflict, validateHighlightDates, validateImageUrl } from "../_helpers";
+import {
+  authorizeAdmin,
+  findHighlightConflict,
+  keepHighlightDatesInRange,
+  validateHighlightDates,
+  validateImageUrl,
+} from "../_helpers";
 import { logAdminAudit } from "@/lib/audit/logAdminAudit";
 
 export const runtime = "nodejs";
@@ -145,6 +151,21 @@ export async function PATCH(req: Request, { params }: Params) {
     if (highlightError) return NextResponse.json({ error: highlightError }, { status: 400 });
     pendingHighlightDates = dates;
     updates.highlight_dates = dates;
+  } else if ("event_date" in updates || "end_date" in updates) {
+    // 見どころを送らずに日付だけ変えた場合、新しい期間から外れた古い見どころを落とす
+    const { data: current } = await dc
+      .from("market_events")
+      .select("event_date, end_date, highlight_dates")
+      .eq("id", id)
+      .maybeSingle();
+    if (current && current.highlight_dates.length > 0) {
+      const kept = keepHighlightDatesInRange(
+        current.highlight_dates,
+        (updates.event_date as string | undefined) ?? current.event_date,
+        "end_date" in updates ? (updates.end_date as string | null) : current.end_date
+      );
+      if (kept.length !== current.highlight_dates.length) updates.highlight_dates = kept;
+    }
   }
 
   if (Object.keys(updates).length === 0) {

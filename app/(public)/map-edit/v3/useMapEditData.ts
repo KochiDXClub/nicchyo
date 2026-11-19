@@ -36,10 +36,12 @@ async function fetchMapLayout() {
     landmarks?: EditableLandmark[];
     route?: { points: MapRoutePoint[]; config: MapRouteConfig };
     roads?: EditableRoad[];
+    markets?: { id: string; slug: string; name: string }[];
     vendors?: EditableVendor[];
     categories?: VendorCategory[];
     /** DB に道基準の位置の列があるか（無ければマイグレーション前で、保存できない） */
     schemaReady?: boolean;
+    fieldObservationsUnavailable?: boolean;
     mapSettingsLimits?: MapSettingsLimits;
     /** 丁目の境目と区間（古い API・マイグレーション前は無い／空） */
     chome?: { boundaries?: ChomeBoundary[]; sections?: ChomeSection[] };
@@ -102,11 +104,13 @@ export function useMapEditData({
   const [shops, setShops] = useState<EditableShop[]>([]);
   const [landmarks, setLandmarks] = useState<EditableLandmark[]>([]);
   const [roads, setRoads] = useState<EditableRoad[]>([]);
+  const [markets, setMarkets] = useState<NonNullable<Awaited<ReturnType<typeof fetchMapLayout>>["markets"]>>([]);
   const [routeConfig, setRouteConfig] = useState<MapRouteConfig>(getDefaultMapRouteConfig());
   const [vendors, setVendors] = useState<EditableVendor[]>([]);
   const [categories, setCategories] = useState<VendorCategory[]>([]);
   // 古い API（schemaReady を返さない）では保存できる前提で扱う
   const [schemaReady, setSchemaReady] = useState(true);
+  const [fieldObservationsUnavailable, setFieldObservationsUnavailable] = useState(false);
   const [mapSettingsLimits, setMapSettingsLimits] = useState<MapSettingsLimits>(DEFAULT_MAP_SETTINGS_LIMITS);
   const [chomeBoundaries, setChomeBoundaries] = useState<ChomeBoundary[]>([]);
   const [chomeSections, setChomeSections] = useState<ChomeSection[]>([]);
@@ -127,7 +131,9 @@ export function useMapEditData({
     setShops(Array.isArray(nextData.shops) ? nextData.shops : []);
     setLandmarks(Array.isArray(nextData.landmarks) ? nextData.landmarks : []);
     setRoads(Array.isArray(nextData.roads) ? nextData.roads : []);
+    setMarkets(nextData.markets ?? []);
     setVendors(Array.isArray(nextData.vendors) ? nextData.vendors : []);
+    setFieldObservationsUnavailable(nextData.fieldObservationsUnavailable === true);
     setChomeBoundaries(nextData.chome?.boundaries ?? []);
     setChomeSections(nextData.chome?.sections ?? []);
     clearPending?.();
@@ -148,10 +154,12 @@ export function useMapEditData({
         setShops(nextShops);
         setLandmarks(nextLandmarks);
         setRoads(nextRoads);
+        setMarkets(data.markets ?? []);
         setRouteConfig(nextConfig);
         setVendors(nextVendors);
         setCategories(Array.isArray(data.categories) ? data.categories : []);
         setSchemaReady(data.schemaReady !== false);
+        setFieldObservationsUnavailable(data.fieldObservationsUnavailable === true);
         if (data.mapSettingsLimits) setMapSettingsLimits(data.mapSettingsLimits);
         setChomeBoundaries(data.chome?.boundaries ?? []);
         setChomeSections(data.chome?.sections ?? []);
@@ -249,12 +257,15 @@ export function useMapEditData({
           body: JSON.stringify({ snapshotId }),
         });
         if (!response.ok) {
-          setMessage("復元に失敗しました。");
+          const data = (await response.json().catch(() => null)) as { error?: string } | null;
+          setMessage(data?.error ?? "復元に失敗しました。");
           return;
         }
         await reloadAfterWrite();
         setMessage("スナップショットを復元しました。");
         await loadSnapshots();
+      } catch {
+        setMessage("復元に失敗しました。通信環境を確認してください。");
       } finally {
         setIsRestoring(null);
       }
@@ -273,11 +284,13 @@ export function useMapEditData({
     setLandmarks,
     roads,
     setRoads,
+    markets,
     routeConfig,
     vendors,
     setVendors,
     categories,
     schemaReady,
+    fieldObservationsUnavailable,
     mapSettingsLimits,
     chomeBoundaries,
     chomeSections,

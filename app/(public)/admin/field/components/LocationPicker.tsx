@@ -23,6 +23,8 @@ export type FieldLocation = {
   vendorName: string | null;
   /** 現場登録で記録した位置（地図上の区画ではない）のときだけ付く */
   recorded?: boolean;
+  /** 名前付きの共通区画に紐づく位置 */
+  sharedPlace?: boolean;
   accuracyM?: number | null;
   source?: "gps" | "pin" | null;
 };

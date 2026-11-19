@@ -1,7 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 let result: { data: unknown; error: unknown };
-const calls: { eq: [string, unknown][]; lte: [string, unknown][] } = { eq: [], lte: [] };
+let results: { data: unknown; error: unknown }[] = [];
+const selectCalls: string[] = [];
+const calls: { eq: [string, unknown][]; lte: [string, unknown][]; or: string[]; order: string[] } = { eq: [], lte: [], or: [], order: [] };
 
 let hasClient = true;
 vi.mock("@/lib/supabase/adminClient", () => ({
@@ -11,11 +13,12 @@ vi.mock("@/lib/supabase/adminClient", () => ({
       : {
     from: () => {
       const chain = {
-        select: () => chain,
+        select: (columns: string) => (selectCalls.push(columns), chain),
         eq: (c: string, v: unknown) => (calls.eq.push([c, v]), chain),
         lte: (c: string, v: unknown) => (calls.lte.push([c, v]), chain),
-        order: () => chain,
-        limit: async () => result,
+        or: (filter: string) => (calls.or.push(filter), chain),
+        order: (column: string) => (calls.order.push(column), chain),
+        limit: async () => results.shift() ?? result,
       };
       return chain;
     },
@@ -41,7 +44,10 @@ const row = (o: Record<string, unknown>) => ({
 beforeEach(() => {
   calls.eq.length = 0;
   calls.lte.length = 0;
+  calls.or.length = 0;
+  calls.order.length = 0;
   hasClient = true;
+  results = [];
   result = { data: [], error: null };
 });
 
@@ -50,6 +56,8 @@ describe("fetchActiveAnnouncements", () => {
     await fetchActiveAnnouncements(NOW);
     expect(calls.eq).toContainEqual(["published", true]);
     expect(calls.lte).toContainEqual(["starts_at", NOW.toISOString()]);
+    expect(calls.or).toContain(`ends_at.is.null,ends_at.gt.${NOW.toISOString()}`);
+    expect(calls.order).toEqual(["important", "starts_at"]);
   });
 
   it("終了したものを除き、重要を先に・新しい順にして、来訪者に見せる項目だけを返す", async () => {
@@ -64,7 +72,46 @@ describe("fetchActiveAnnouncements", () => {
     };
     const list = await fetchActiveAnnouncements(NOW);
     expect(list.map((a) => a.id)).toEqual(["imp", "new", "old"]);
-    expect(Object.keys(list[0]).sort()).toEqual(["body", "endsAt", "id", "important", "startsAt", "title"]);
+    expect(Object.keys(list[0]).sort()).toEqual(["body", "endsAt", "id", "important", "lang", "startsAt", "title"]);
+  });
+
+  it("英語のロケールでは、英語版があるお知らせだけ英語で返す（無ければ日本語のまま）", async () => {
+    result = {
+      data: [
+        row({ id: "both", title: "雨天中止", body: "中止です", title_en: "Cancelled", body_en: "Cancelled due to rain" }),
+        row({ id: "ja-only", starts_at: "2026-10-09T00:00:00Z" }),
+        row({ id: "half", starts_at: "2026-10-08T00:00:00Z", title_en: "Only title", body_en: null }),
+      ],
+      error: null,
+    };
+    const en = await fetchActiveAnnouncements(NOW, "en");
+    expect(en.map((a) => [a.id, a.title, a.lang])).toEqual([
+      ["both", "Cancelled", "en"],
+      ["ja-only", "t", "ja"],
+      ["half", "t", "ja"],
+    ]);
+    const ja = await fetchActiveAnnouncements(NOW);
+    expect(ja[0]).toMatchObject({ title: "雨天中止", body: "中止です", lang: "ja" });
+  });
+
+  it("英語版の列を足すマイグレーションの前でも、日本語のお知らせは返す", async () => {
+    selectCalls.length = 0;
+    result = { data: null, error: { code: "42703" } };
+    const original = result;
+    // 1回目は列が無いエラー、2回目は日本語の列だけで成功
+    results = [original, { data: [row({ id: "x" })], error: null }];
+    const list = await fetchActiveAnnouncements(NOW, "en");
+    expect(list.map((a) => a.id)).toEqual(["x"]);
+    expect(selectCalls[0]).toContain("title_en");
+    expect(selectCalls[1]).not.toContain("title_en");
+  });
+
+  it("古くなった英訳は公開せず、日本語を返す", async () => {
+    selectCalls.length = 0;
+    result = { data: [row({ title: "中止", body: "雨のため", title_en: "Open", body_en: "Open today", translation_status: "stale" })], error: null };
+    const list = await fetchActiveAnnouncements(NOW, "en");
+    expect(selectCalls[0]).toContain("translation_status");
+    expect(list[0]).toMatchObject({ title: "中止", body: "雨のため", lang: "ja" });
   });
 
   it("読めなかったとき・管理用クライアントが作れないときは空（ページは止めない）", async () => {

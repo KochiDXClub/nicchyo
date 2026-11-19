@@ -35,9 +35,20 @@ export function monthStartJstString(baseDate: Date = new Date()): string {
   return `${todayJstString(baseDate).slice(0, 7)}-01`;
 }
 
-/** JST 基準で、次の日曜（当日が日曜ならその日）を YYYY-MM-DD で返す。 */
-export function nextSundayJstString(baseDate: Date = new Date()): string {
+/**
+ * JST 基準で、指定した曜日（0=日〜6=土）の次の日（当日がその曜日ならその日）を YYYY-MM-DD で返す。
+ * 市ごとの開催曜日はこれで求める。日曜固定の関数は、この関数の日曜（0）の結果を返す。
+ */
+export function nextWeekdayJstString(weekday: number, baseDate: Date = new Date()): string {
+  if (!Number.isInteger(weekday) || weekday < 0 || weekday > 6) {
+    throw new Error(`weekday must be 0..6, got ${weekday}`);
+  }
   const today = todayJstString(baseDate);
   const dayOfWeek = new Date(`${today}T00:00:00Z`).getUTCDay();
-  return addDaysToDateString(today, (7 - dayOfWeek) % 7);
+  return addDaysToDateString(today, (weekday - dayOfWeek + 7) % 7);
+}
+
+/** JST 基準で、次の日曜（当日が日曜ならその日）を YYYY-MM-DD で返す。 */
+export function nextSundayJstString(baseDate: Date = new Date()): string {
+  return nextWeekdayJstString(0, baseDate);
 }

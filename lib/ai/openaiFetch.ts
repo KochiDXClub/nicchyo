@@ -161,14 +161,18 @@ export async function readOpenAiError(res: Response): Promise<OpenAiErrorDetail>
  *
  * `input` は 1件でも複数件でもよい（OpenAI 側が両方受ける）。
  * 複数件をまとめて渡したときは、返ってくる順序が入力の順序と一致する。
+ *
+ * `signal` は requestChatCompletion と同じく、タイムアウトなどで打ち切るときに渡す。
  */
 export function requestEmbeddings(
   apiKey: string,
-  input: string | string[]
+  input: string | string[],
+  signal?: AbortSignal
 ): Promise<Response> {
   return fetch(EMBEDDINGS_URL, {
     method: "POST",
     headers: jsonHeaders(apiKey),
     body: JSON.stringify({ model: EMBEDDING_MODEL, input }),
+    signal,
   });
 }

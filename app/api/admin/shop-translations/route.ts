@@ -5,7 +5,7 @@ import { requireSameOrigin } from "@/lib/security/requestGuards";
 import { enforceRateLimit } from "@/lib/security/rateLimit";
 import { DEFAULT_LOCALE, LOCALES, isLocale, type Locale } from "@/lib/i18n/config";
 import { syncShopTranslations } from "@/lib/i18n/shopTranslation.server";
-import { fetchPublicShops } from "@/app/(public)/map/services/shopCache";
+import { fetchPublicShopProfiles } from "@/app/(public)/map/services/shopCache";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -19,8 +19,8 @@ const MAX_LIMIT = 100;
 const TARGET_LOCALES = LOCALES.filter((locale) => locale !== DEFAULT_LOCALE);
 
 async function run(locale: Locale, limit: number) {
-  // 訳す対象は、一般に見える店（anon で読める店）だけ
-  const shops = await fetchPublicShops();
+  // 訳す対象は、一般に見える店（配置のない日も含む）。配置だけでなくプロフィールから選ぶ
+  const shops = await fetchPublicShopProfiles();
   return syncShopTranslations({ shops, locale, limit });
 }
 

@@ -271,7 +271,18 @@ export interface Shop
   /** カテゴリーの英語名（英語表示のときだけ付く。無ければ category を出す。運営が categories.name_en に入れる） */
   categoryEn?: string;
   // 後方互換性のため、新しいフィールドはすべてオプション（?付き）
+  roadSide?: "north" | "south";
+  otherMarketLocations?: (Pick<Shop, "lat" | "lng" | "position" | "chome" | "roadSide" | "assignmentMarketDate"> & { marketId: string })[];
 }
+
+/** 位置が決まっていなくても公開できる店舗情報。地図座標は含まない。 */
+export type ShopProfile = Omit<Shop, "position" | "lat" | "lng" | "otherMarketLocations" | "roadSide"> & {
+  nextMarketStatus?: "scheduled" | "not_scheduled" | "unknown" | "market_closed";
+  /** nextMarketStatus を出した市（日曜市以外のときは、ラベルに市名を出す）。日曜市なら null */
+  nextMarketLabel?: { name: string; weekday: number } | null;
+  /** 次の日曜の出店場所が地図で確認できる。 */
+  hasMapLocation?: boolean;
+};
 
 /**
  * 承認待ちの編集データ（将来の実装用）

@@ -7,6 +7,7 @@ const saveMarketDay = vi.fn();
 vi.mock("@/lib/auth/requireCityApi", () => ({ requireCityApi: () => requireCityApi() }));
 vi.mock("@/lib/market/saveMarketDay.server", () => ({
   saveMarketDay: (...args: unknown[]) => saveMarketDay(...args),
+  readDefaultMarketId: async () => "sun",
 }));
 vi.mock("@/lib/security/requestGuards", () => ({ requireSameOrigin: () => ({ ok: true }) }));
 vi.mock("@/lib/security/rateLimit", () => ({ enforceRateLimit: async () => null }));
@@ -68,6 +69,17 @@ describe("PUT /api/city/market-days", () => {
     expect(saveMarketDay.mock.calls[0][2]).not.toHaveProperty("image_url");
   });
 
+  it("別の市を指定した入力を保存しない", async () => {
+    requireCityApi.mockResolvedValue(ctx);
+    const res = await put({
+      market_id: "10000000-0000-0000-0000-000000000111",
+      market_date: "2026-11-08",
+      status: "cancelled",
+    });
+    expect(res.status).toBe(400);
+    expect(saveMarketDay).not.toHaveBeenCalled();
+  });
+
   it("保存は actor.role に city_official を載せ、updated_by を返さない", async () => {
     requireCityApi.mockResolvedValue(ctx);
     saveMarketDay.mockResolvedValue({
@@ -107,16 +119,16 @@ describe("PUT /api/city/market-days", () => {
 
 describe("GET /api/city/market-days", () => {
   it("更新履歴の「誰が」は、あなた・高知市・運営の3つだけ（運営の細かいロール名は出さない）", async () => {
-    const row = (actor_id: string, actor_role: string) => ({
+    const row = (actor_id: string, actor_role: string, market_id?: string) => ({
       created_at: "2026-11-03T00:00:00Z",
       actor_id,
       actor_role,
       target_id: "2026-11-08",
-      details: JSON.stringify({ before: { status: "open" }, after: { status: "cancelled", note: "雨" } }),
+      details: JSON.stringify({ market_id, before: { status: "open" }, after: { status: "cancelled", note: "雨" } }),
     });
     const rows: Record<string, unknown[]> = {
       market_days: [],
-      admin_audit_logs: [row("u1", "city_official"), row("u2", "city_official"), row("a1", "admin"), row("a2", "super_admin")],
+      admin_audit_logs: [row("t1", "admin", "thu"), row("u1", "city_official", "sun"), row("u2", "city_official"), row("a1", "admin"), row("a2", "super_admin")],
     };
     const from = (table: string) => {
       const q: Record<string, unknown> = {};

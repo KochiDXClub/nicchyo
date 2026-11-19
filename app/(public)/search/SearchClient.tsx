@@ -5,13 +5,15 @@ import dynamic from 'next/dynamic';
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import NavigationBar from '../../components/NavigationBar';
-import type { Shop } from '../map/data/shops';
+import type { ShopProfile as Shop } from '../map/types/shopData';
+import type { Shop as MapShop } from '../map/types/shopData';
 import type { Landmark } from '../map/types/landmark';
 import { buildSearchIndex } from './lib/searchIndex';
 import { useShopSearch } from './hooks/useShopSearch';
 import SearchInput from './components/SearchInput';
 import CategoryFilter from './components/CategoryFilter';
 import SearchResults from './components/SearchResults';
+import ShopResultCard from './components/ShopResultCard';
 import SearchDiscovery from './components/SearchDiscovery';
 import { useFavoriteShopIds } from '../../../lib/hooks/useFavorites';
 import { useShopFavoriteToggle } from '../../components/favorites/useShopFavoriteToggle';
@@ -27,7 +29,8 @@ const MapView = dynamic(() => import('../map/components/maplibre/MapViewMapLibre
  * 日曜市の300店舗を高速検索
  */
 type SearchClientProps = {
-  shops: Shop[];
+  shops: MapShop[];
+  profiles?: Shop[];
   landmarks: Landmark[];
 };
 
@@ -124,6 +127,7 @@ function formatPostCreatedAt(createdAt?: string): string {
 
 export default function SearchClient({
   shops: sourceShops,
+  profiles: sourceProfiles,
   landmarks,
   embedded = false,
   initialQuery = '',
@@ -135,7 +139,8 @@ export default function SearchClient({
   initialCategory?: string | null;
   onQueryChange?: (query: string, category: string | null) => void;
 }) {
-  const shops = useCategorizedShops(sourceShops);
+  const mapShops = useCategorizedShops(sourceShops);
+  const shops = useCategorizedShops<Shop>(sourceProfiles ?? sourceShops);
   const router = useRouter();
   const itemsPerPage = 10;
   const [textQuery, setTextQuery] = useState(initialQuery);
@@ -255,9 +260,9 @@ export default function SearchClient({
   }, [category, textQuery]);
 
   const _hasNameResults = textQuery.trim() !== '' && filteredShops.length > 0;
-  const shouldShowMapButton = hasQuery && filteredShops.length > 0;
+  const shouldShowMapButton = hasQuery && filteredShops.some((shop) => shop.hasMapLocation !== false);
   const desktopSearchShopIds = useMemo(
-    () => (hasQuery ? filteredShops.map((shop) => shop.id) : undefined),
+    () => (hasQuery ? filteredShops.filter((shop) => shop.hasMapLocation !== false).map((shop) => shop.id) : undefined),
     [filteredShops, hasQuery]
   );
 
@@ -280,9 +285,10 @@ export default function SearchClient({
   }, [canNavigate, filteredShops, selectedIndex]);
 
   const handleOpenMap = useCallback(() => {
-    if (filteredShops.length === 0) return;
+    const placed = filteredShops.filter((shop) => shop.hasMapLocation !== false);
+    if (placed.length === 0) return;
     saveSearchMapPayload({
-      ids: filteredShops.map((shop) => shop.id),
+      ids: placed.map((shop) => shop.id),
       label: searchLabel,
     });
     router.push(`/map?search=1&label=${encodeURIComponent(searchLabel)}`);
@@ -304,7 +310,7 @@ export default function SearchClient({
 
   // スタンドアロン(/search)モバイル: 自動でマップへ遷移
   useEffect(() => {
-    if (embedded || isDesktop || !hasQuery || filteredShops.length === 0) return;
+    if (embedded || isDesktop || !hasQuery || filteredShops.length === 0 || filteredShops.some((shop) => shop.hasMapLocation === false)) return;
     const timer = setTimeout(() => {
       saveSearchMapPayload({
         ids: filteredShops.map((s) => s.id),
@@ -332,6 +338,11 @@ export default function SearchClient({
   }, [syncEmbeddedSearch, textQuery, setCategory]);
 
   const handleFocusShop = useCallback((shop: Shop) => {
+    if (shop.hasMapLocation === false) {
+      if (isDesktop) setOpenedShop(shop);
+      else router.push(`/shops/${shop.id}`);
+      return;
+    }
     if (isDesktop) {
       if (selectedShop?.id === shop.id) {
         setOpenedShop(shop);
@@ -359,7 +370,7 @@ export default function SearchClient({
               </div>
               <div className="min-h-0 flex-1 overflow-hidden rounded-[1.6rem] border border-amber-100">
                 <MapView
-                  shops={shops}
+                  shops={mapShops}
                   landmarks={landmarks}
                   initialShopId={selectedShop?.id}
                   openInitialShopBanner={false}
@@ -427,6 +438,16 @@ export default function SearchClient({
                 </div>
               )}
             </div>
+
+            {embedded && hasQuery && filteredShops.some((shop) => shop.hasMapLocation === false) && (
+              <section className="rounded-card bg-white p-4 shadow-card ring-1 ring-line" aria-label="地図に表示されていない店舗">
+                <h3 className="text-base font-bold">地図に表示されていない店舗</h3>
+                <p className="mt-1 text-sm text-nicchyo-ink/70">次の日曜に出店しない店舗や、場所が未確定の店舗も確認できます。</p>
+                <div className="mt-3 space-y-3">{filteredShops.filter((shop) => shop.hasMapLocation === false).map((shop) => (
+                  <ShopResultCard key={shop.id} shop={shop} isFavorite={favoriteShopIds.includes(shop.id)} onToggleFavorite={handleToggleFavorite} onSelectShop={handleFocusShop} />
+                ))}</div>
+              </section>
+            )}
 
             {!embedded && hasQuery && filteredLatestPosts.length > 0 && (
               <div className="rounded-[1.75rem] border border-amber-200 bg-white/95 p-5 shadow-sm lg:shrink-0">

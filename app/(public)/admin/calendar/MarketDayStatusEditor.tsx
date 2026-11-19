@@ -182,7 +182,7 @@ export function MarketDayStatusEditor({
 
       <button
         type="button"
-        disabled={isSaving || !draftStatus || !isDirty}
+        disabled={isSaving || image?.uploading || !draftStatus || !isDirty}
         title={!draftStatus ? "先にステータスを選んでください" : undefined}
         onClick={onSave}
         className="mt-3 w-full rounded-xl bg-amber-500 py-2 text-sm font-semibold text-white hover:bg-amber-600 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400"

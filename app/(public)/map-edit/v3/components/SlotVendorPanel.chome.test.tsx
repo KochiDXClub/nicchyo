@@ -14,12 +14,6 @@ function renderPanel(shop: EditableShop, autoChome: ChomeJudgement | null, onCho
       shop={shop}
       roadName="追手筋"
       vendor={null}
-      vendors={[]}
-      categories={[]}
-      onSelectVendor={vi.fn()}
-      onRegisterVendor={vi.fn()}
-      onUpdateVendor={vi.fn()}
-      onClearVendor={vi.fn()}
       onChomeChange={onChomeChange}
       autoChome={autoChome}
       onDelete={vi.fn()}

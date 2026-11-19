@@ -76,6 +76,11 @@ describe("POST /api/grandma/shop-chat", () => {
     expect(messages.at(-1)).toEqual({ role: "user", content: "おすすめは？" });
   });
 
+  it("OpenAI を待つ上限として signal を渡す", async () => {
+    await POST(request({ shopId: 7, text: "おすすめは？" }));
+    expect(requestChatCompletion.mock.calls[0][3]).toBeInstanceOf(AbortSignal);
+  });
+
   it("お店が見つからなければ 404（AIは呼ばない）", async () => {
     loadShopChat.mockResolvedValue(null);
     const res = await POST(request({ shopId: 999, text: "こんにちは" }));

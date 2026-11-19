@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState, type FormEvent, useRef, useEffect } from "react";
 import Image from "next/image";
 import { useAuth } from "../../../lib/auth/AuthContext";
+import { NicchyoLogoLink } from "@/components/navigation/NicchyoLogoLink";
 import GoogleSignInButton from "@/components/auth/GoogleSignInButton";
 import NavigationBar from "../../components/NavigationBar";
 import { Mail, Lock, LogIn, ChevronRight, UserPlus, Eye, EyeOff, AlertCircle } from "lucide-react";
@@ -54,13 +55,14 @@ export default function LoginPage() {
 
         {/* Header Section with friendly greeting */}
         <div className="mb-8 flex flex-col items-center text-center">
-          <div className="mb-6 relative h-24 w-24 overflow-hidden rounded-full border-4 border-white bg-orange-100 shadow-md">
+          <NicchyoLogoLink />
+          <div className="mb-4 mt-2 relative h-16 w-16 overflow-hidden rounded-full border-4 border-white bg-orange-100 shadow-md">
              <Image
               src="/images/obaasan.webp"
               alt="Obaasan"
               fill
               className="object-cover"
-              sizes="96px"
+              sizes="64px"
               priority
             />
           </div>
@@ -79,7 +81,7 @@ export default function LoginPage() {
           <form onSubmit={handleSubmit} className="space-y-5">
             <div className="space-y-4">
               <div className="group">
-                <label className="mb-1.5 block text-xs font-bold text-slate-500 ml-1">
+                <label htmlFor="login-email" className="mb-1.5 block text-xs font-bold text-slate-500 ml-1">
                   メールアドレス
                 </label>
                 <div className="relative">
@@ -87,6 +89,9 @@ export default function LoginPage() {
                     <Mail size={18} />
                   </div>
                   <input
+                    id="login-email"
+                    name="email"
+                    autoComplete="username"
                     ref={emailInputRef}
                     type="email"
                     required
@@ -99,7 +104,7 @@ export default function LoginPage() {
               </div>
 
               <div className="group">
-                <label className="mb-1.5 block text-xs font-bold text-slate-500 ml-1">
+                <label htmlFor="login-password" className="mb-1.5 block text-xs font-bold text-slate-500 ml-1">
                   パスワード
                 </label>
                 <div className="relative">
@@ -107,6 +112,9 @@ export default function LoginPage() {
                     <Lock size={18} />
                   </div>
                   <input
+                    id="login-password"
+                    name="password"
+                    autoComplete="current-password"
                     type={showPassword ? "text" : "password"}
                     required
                     placeholder="••••••••"
@@ -117,8 +125,8 @@ export default function LoginPage() {
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute inset-y-0 right-0 flex items-center pr-3 text-slate-400 hover:text-slate-600 focus:outline-none"
-                    tabIndex={-1}
+                    aria-label={showPassword ? "パスワードを隠す" : "パスワードを表示"}
+                    className="absolute inset-y-0 right-0 flex w-11 items-center justify-center rounded-r-btn text-slate-400 hover:text-slate-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-amber-500"
                   >
                     {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                   </button>

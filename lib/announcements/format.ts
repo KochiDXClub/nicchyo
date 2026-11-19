@@ -1,7 +1,10 @@
 import { formatJaDate } from "@/lib/utils/date";
 
-/** 「2026年10月12日」（日本時間）。日付の形は lib/utils/date.ts の formatJaDate にそろえる */
-export function formatAnnouncementDate(iso: string): string {
+/** 「2026年10月12日」（日本時間）。英語は「Oct 12, 2026」。日本語の形は lib/utils/date.ts の formatJaDate にそろえる */
+export function formatAnnouncementDate(iso: string, locale: string = "ja"): string {
+  if (locale === "en") {
+    return new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Tokyo", year: "numeric", month: "short", day: "numeric" }).format(new Date(iso));
+  }
   return formatJaDate(iso);
 }
 

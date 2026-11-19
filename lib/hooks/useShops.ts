@@ -1,14 +1,16 @@
 import { useCategorizedShops } from "@/lib/categories/CategoryContext";
 import { useEffect, useState } from "react";
 import type { Shop } from "@/app/(public)/map/data/shops";
+import type { ShopProfile } from "@/app/(public)/map/types/shopData";
 import { shopsApiUrl } from "@/lib/i18n/config";
 import { useLocale } from "@/lib/i18n/LocaleContext";
 
-type ShopsResponse = { shops?: Shop[] };
+type ShopsResponse = { shops?: Shop[]; profiles?: ShopProfile[] };
 
 export function useShops() {
   const locale = useLocale();
   const [shops, setShops] = useState<Shop[]>([]);
+  const [profiles, setProfiles] = useState<ShopProfile[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
@@ -24,11 +26,13 @@ export function useShops() {
         const payload = (await response.json()) as ShopsResponse;
         if (!cancelled) {
           setShops(Array.isArray(payload.shops) ? payload.shops : []);
+          setProfiles(Array.isArray(payload.profiles) ? payload.profiles : Array.isArray(payload.shops) ? payload.shops : []);
         }
       } catch (err) {
         if (!cancelled) {
           setError(err as Error);
           setShops([]);
+          setProfiles([]);
         }
       } finally {
         if (!cancelled) {
@@ -43,5 +47,5 @@ export function useShops() {
     };
   }, [locale]);
 
-  return { shops: useCategorizedShops(shops), isLoading, error };
+  return { shops: useCategorizedShops(shops), profiles: useCategorizedShops(profiles), isLoading, error };
 }

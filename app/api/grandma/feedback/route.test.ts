@@ -8,6 +8,7 @@ const createClient = vi.fn(() => {
 vi.mock("@/lib/security/requestGuards", () => ({ requireSameOrigin: () => ({ ok: true }) }));
 vi.mock("@/lib/security/rateLimit", () => ({ enforceRateLimit: async () => null }));
 vi.mock("@supabase/supabase-js", () => ({ createClient: () => createClient() }));
+vi.mock("@/lib/analytics/collectionSettings.server", () => ({ isAnalyticsCollectionEnabled: async () => true }));
 
 import { POST } from "./route";
 
