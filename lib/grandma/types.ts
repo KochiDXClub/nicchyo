@@ -45,14 +45,6 @@ export type ActiveContentRow = {
   created_at: string;
 };
 
-export type KnowledgeRow = {
-  id: string;
-  category: string | null;
-  title: string | null;
-  content: string | null;
-  image_url: string | null;
-};
-
 export type SeasonalProductRow = {
   vendorId: string;
   shopName: string;
