@@ -34,6 +34,7 @@ import {
   zoomIdxToMapLibreZoom,
 } from "../mapEditCamera";
 import { EDITOR_COLORS } from "../editorTheme";
+import { SUNDAY_MARKET_MARKER_COLOR } from "@/lib/market/markerColor";
 import { slotLabel } from "../../../map/types/editableShop";
 import type { CanvasHandlers, EditableLandmark, EditableRoad, EditableShop, Selection, Tool } from "../types";
 
@@ -43,6 +44,8 @@ type Props = {
   /** 保存していない変更がある要素（"shops:<locationId>" / "roads:<id>" / "landmarks:<key>"） */
   unsavedKeys: ReadonlySet<string>;
   shops: EditableShop[];
+  /** 区画（locationId）ごとの、その市のマーカー色。日曜市と同じ色の区画は従来の配色のまま */
+  slotMarketColors?: ReadonlyMap<string, string>;
   roads: EditableRoad[];
   landmarks: EditableLandmark[];
   draft: { lat: number; lng: number }[];
@@ -180,6 +183,7 @@ function buildShopFeatureCollection(
     selectedLocationId: string | null;
     query: string;
     unsavedKeys: ReadonlySet<string>;
+    slotMarketColors?: ReadonlyMap<string, string>;
   }
 ): GeoJSON.FeatureCollection {
   const features: GeoJSON.Feature[] = shops.map((shop) => {
@@ -190,6 +194,9 @@ function buildShopFeatureCollection(
       slotLabel(shop).includes(opts.query) ||
       shop.name.toLowerCase().includes(opts.query);
     const unsaved = opts.unsavedKeys.has(`shops:${shop.locationId}`);
+    // 日曜市以外の市の区画は、その市の色で見分ける（日曜市は従来の配色）
+    const marketColor = opts.slotMarketColors?.get(shop.locationId);
+    const otherMarket = !!marketColor && marketColor !== SUNDAY_MARKET_MARKER_COLOR;
     return {
       type: "Feature",
       properties: {
@@ -203,13 +210,18 @@ function buildShopFeatureCollection(
         color: shop.vendorId
           ? isSelected
             ? EDITOR_COLORS.selectedSlot
-            : EDITOR_COLORS.occupiedSlot
+            : otherMarket
+              ? marketColor
+              : EDITOR_COLORS.occupiedSlot
           : EDITOR_COLORS.vacantSlot,
+        // 空き区画は赤のまま、縁をその市の色にして、どの市の空きかが分かるようにする
         strokeColor: unsaved
           ? EDITOR_COLORS.unsaved
           : shop.vendorId
             ? EDITOR_COLORS.surface
-            : EDITOR_COLORS.vacantSlotStroke,
+            : otherMarket
+              ? marketColor
+              : EDITOR_COLORS.vacantSlotStroke,
         // 出店者ありの区画は color 側で選択を表すが、空き区画は常に同じ色のため
         // 選択しても見分けられない。circle-radius/circle-stroke-width 側で使う
         selected: isSelected,
@@ -371,6 +383,7 @@ export default function MapEditCanvasMapLibre({
   selection,
   unsavedKeys,
   shops,
+  slotMarketColors,
   roads,
   landmarks,
   draft,
@@ -847,9 +860,9 @@ export default function MapEditCanvasMapLibre({
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !ready) return;
-    const data = buildShopFeatureCollection(shops, { selectedLocationId, query, unsavedKeys });
+    const data = buildShopFeatureCollection(shops, { selectedLocationId, query, unsavedKeys, slotMarketColors });
     (map.getSource(SRC_SHOPS) as maplibregl.GeoJSONSource).setData(data);
-  }, [shops, selectedLocationId, query, unsavedKeys, ready]);
+  }, [shops, selectedLocationId, query, unsavedKeys, slotMarketColors, ready]);
 
   // ── 建物（Marker）。ドラッグ中も要素を作り直さないよう、key で使い回す ──────────
   useEffect(() => {

@@ -79,11 +79,11 @@ export async function POST(req: Request) {
 
   const parsed = parseMarketInput(await req.json().catch(() => null));
   if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 });
-  const { name, slug, weekday, isPublic } = parsed.data;
+  const { name, slug, weekday, isPublic, markerColor } = parsed.data;
 
   const { data, error: dbError } = await dc
     .from("markets")
-    .insert({ name, slug, weekday, is_public: isPublic })
+    .insert({ name, slug, weekday, is_public: isPublic, ...(markerColor ? { marker_color: markerColor } : {}) })
     .select("*")
     .single();
   if (dbError || !data) {
@@ -102,13 +102,13 @@ export async function POST(req: Request) {
     targetType: "market",
     targetId: data.id,
     targetName: name,
-    details: JSON.stringify({ slug, weekday, isPublic }),
+    details: JSON.stringify({ slug, weekday, isPublic, markerColor: data.marker_color }),
   });
 
   return NextResponse.json({ market: data }, { status: 201 });
 }
 
-/** 市の編集（名前・公開URLの名前・開催曜日・公開の切り替え） */
+/** 市の編集（名前・公開URLの名前・開催曜日・公開の切り替え・マーカーの色） */
 export async function PATCH(req: Request) {
   const originCheck = requireSameOrigin(req);
   if (!originCheck.ok) return originCheck.response;
@@ -132,7 +132,7 @@ export async function PATCH(req: Request) {
   }
   const parsed = parseMarketInput(body);
   if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 });
-  const { name, slug, weekday, isPublic } = parsed.data;
+  const { name, slug, weekday, isPublic, markerColor } = parsed.data;
 
   const { data: current, error: currentError } = await dc
     .from("markets")
@@ -158,7 +158,7 @@ export async function PATCH(req: Request) {
 
   const { data, error: dbError } = await dc
     .from("markets")
-    .update({ name, slug, weekday, is_public: isPublic, updated_at: new Date().toISOString() })
+    .update({ name, slug, weekday, is_public: isPublic, ...(markerColor ? { marker_color: markerColor } : {}), updated_at: new Date().toISOString() })
     .eq("id", body.id)
     .select("*")
     .maybeSingle();
@@ -179,7 +179,7 @@ export async function PATCH(req: Request) {
     targetType: "market",
     targetId: data.id,
     targetName: name,
-    details: JSON.stringify({ slug, weekday, isPublic }),
+    details: JSON.stringify({ slug, weekday, isPublic, markerColor: data.marker_color }),
   });
 
   return NextResponse.json({ market: data });

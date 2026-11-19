@@ -38,4 +38,10 @@ describe("parseMarketInput", () => {
     expect(parseMarketInput("x").ok).toBe(false);
     expect(parseMarketInput({ ...valid, isPublic: "yes" }).ok).toBe(false);
   });
+
+  it("マーカーの色は #RRGGBB だけ通し、大文字にそろえる（省略可）", () => {
+    expect(parseMarketInput({ ...valid, markerColor: "#0ea5e9" })).toMatchObject({ ok: true, data: { markerColor: "#0EA5E9" } });
+    expect(parseMarketInput({ ...valid, markerColor: "blue" }).ok).toBe(false);
+    expect(parseMarketInput({ ...valid, markerColor: 123 }).ok).toBe(false);
+  });
 });
