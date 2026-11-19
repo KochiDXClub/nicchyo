@@ -1,52 +1,36 @@
 "use client";
 
-import type { CSSProperties, ReactNode } from "react";
+import { useLayoutEffect, useRef, type ReactNode } from "react";
 
-export interface ConsultSheetProps {
-  /** 裏側の暗幕をタップして閉じる */
+export default function ConsultSheet({ label, onClose, children }: {
+  label: string;
   onClose: () => void;
-  /** 暗幕の色。既定は bg-black/30 */
-  backdropClassName?: string;
-  /** シート本体に足すクラス（角丸・背景は共通で持つので、余白・影・最大高さなど差分だけ渡す） */
-  className?: string;
-  style?: CSSProperties;
   children: ReactNode;
-}
+}) {
+  const ref = useRef<HTMLDialogElement>(null);
+  useLayoutEffect(() => {
+    const dialog = ref.current;
+    // DOM から外れる前に close し、開いたボタンへフォーカスを戻す。
+    dialog?.showModal();
+    return () => dialog?.close();
+  }, []);
 
-/**
- * 相談ページで使う、画面下端から出てくるシートの共通の器。
- *
- * 「暗幕＋画面下端に張り付く角丸カード」という骨組みを持つ。いまは音声確認で
- * 使っている（以前はモバイルの「これまでの相談」もこの器だったが、PC と同じ
- * サイドバーに統一した）。中身とパディング・最大高さなどの見た目の差分だけを
- * 呼び出し側から渡す。
- *
- * 話し手を選ぶシート（isSpeakerPickerOpen）は、画面中央寄りに浮く
- * カード型で骨組みそのものが違うため、ここには含めていない。
- */
-export default function ConsultSheet({
-  onClose,
-  backdropClassName = "bg-black/30",
-  className = "",
-  style,
-  children,
-}: ConsultSheetProps) {
   return (
-    <div className="fixed inset-0 z-40 flex flex-col justify-end">
-      <div
-        className={`absolute inset-0 ${backdropClassName}`}
-        onClick={onClose}
-        aria-hidden="true"
-      />
-      {/*
-        呼び出し側は md:max-w-md のような幅の上限しか渡してこない前提。
-        器（この親の flex flex-col justify-end）は横方向を中央寄せしないので、
-        mx-auto w-full をここで常に持たせておかないと、上限だけ効いて
-        画面左端に寄ってしまう（PC で幅が狭くならない限り気づかない）
-      */}
-      <div className={`relative mx-auto w-full rounded-t-3xl bg-white ${className}`} style={style}>
+    <dialog
+      ref={ref}
+      aria-label={label}
+      onCancel={(event) => {
+        event.preventDefault();
+        onClose();
+      }}
+      onClick={(event) => {
+        if (event.target === event.currentTarget) onClose();
+      }}
+      className="fixed inset-0 m-0 h-dvh max-h-none w-full max-w-none bg-transparent p-0 backdrop:bg-black/40 open:flex open:items-end open:justify-center sm:open:items-center"
+    >
+      <div className="max-h-[90dvh] w-full max-w-md overflow-y-auto overscroll-contain rounded-t-sheet bg-white p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] shadow-float sm:rounded-sheet">
         {children}
       </div>
-    </div>
+    </dialog>
   );
 }

@@ -11,8 +11,8 @@ import {
 } from "react";
 import {
   AlertCircle,
+  ChevronRight,
   Keyboard,
-  Mic,
   PanelLeftClose,
   PanelLeftOpen,
   RotateCcw,
@@ -39,7 +39,6 @@ import ConsultCharacterSwap from "./ConsultCharacterSwap";
 import { ConsultFeedback } from "@/components/consult/ConsultFeedback";
 import { Badge, Button } from "@/components/ui";
 import {
-  CONSULT_CHARACTERS,
   CONSULT_CHARACTER_BY_ID,
   DEFAULT_CONSULT_CHARACTER,
   findConsultCharacter,
@@ -47,8 +46,9 @@ import {
   type ConsultCharacterId,
 } from "../data/consultCharacters";
 import ConsultShopCard from "./ConsultShopCard";
+import ConsultSpeakerPicker from "./ConsultSpeakerPicker";
 import ConsultSheet from "./ConsultSheet";
-import { isImeComposing } from "@/lib/utils/isImeComposing";
+import ConsultComposer from "./ConsultComposer";
 import { useDialogFocus } from "@/lib/ui/useDialogFocus";
 import type { Shop } from "../../map/data/shops";
 import type {
@@ -233,7 +233,7 @@ export default function ConsultStage({
   const [memorySummary, setMemorySummary] = useState("");
   const memorySummaryRef = useRef("");
   memorySummaryRef.current = memorySummary;
-  const textInputRef = useRef<HTMLInputElement | null>(null);
+  const textInputRef = useRef<HTMLInputElement>(null);
   const topSentinelRef = useRef<HTMLDivElement | null>(null);
   /** 「これまでの相談」から答えカードを開き直したとき、その場所までスクロールを戻す */
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
@@ -938,7 +938,7 @@ export default function ConsultStage({
         // lg 未満は指で押せる 44px にし、クリーム色の背景に埋もれないよう面と縁を付ける。
         // lg 以上はこれまで通り面を持たない Claude 風のアイコンにする。
         // 同じ z-30 の固定バーより DOM が前にあるので、z-40 にして固定バーの上に出す
-        className={`fixed left-4 top-[calc(var(--safe-top,0px)+0.75rem)] z-40 flex h-11 w-11 items-center justify-center rounded-lg border border-amber-200 bg-white/80 text-slate-500 shadow-sm transition hover:bg-black/5 lg:top-[calc(var(--safe-top,0px)+1rem)] lg:h-9 lg:w-9 lg:border-0 lg:bg-transparent lg:shadow-none ${
+        className={`fixed left-4 top-[calc(var(--safe-top,0px)+0.75rem)] z-40 flex h-11 w-11 items-center justify-center rounded-lg border border-amber-200 bg-white/80 text-slate-500 shadow-sm transition hover:bg-black/5 lg:top-[calc(var(--safe-top,0px)+1rem)] lg:border-0 lg:bg-transparent lg:shadow-none ${
           isHistorySidebarOpen ? "invisible" : ""
         }`}
       >
@@ -1008,7 +1008,7 @@ export default function ConsultStage({
               onClick={() => onHistorySidebarOpenChange?.(false)}
               aria-label={t("これまでの相談を閉じる")}
               aria-expanded={true}
-              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-slate-500 transition hover:bg-black/5 lg:h-9 lg:w-9"
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-slate-500 transition hover:bg-black/5"
             >
               <PanelLeftClose className="h-5 w-5" aria-hidden="true" />
             </button>
@@ -1126,14 +1126,14 @@ export default function ConsultStage({
       >
         <div
           aria-hidden="true"
-          className={`pointer-events-none absolute inset-0 bg-[#FFFAF0]/85 backdrop-blur-md transition-opacity duration-200 ${
+          className={`pointer-events-none absolute inset-0 bg-nicchyo-base/85 backdrop-blur-md transition-opacity duration-200 ${
             isScrolledDown ? "opacity-100" : "opacity-0"
           }`}
         />
         {/* 下の本文が固定バーの縁でぶつ切りに見えないようにする */}
         <div
           aria-hidden="true"
-          className={`pointer-events-none absolute inset-x-0 top-full h-4 bg-gradient-to-b from-[#FFFAF0]/85 to-transparent transition-opacity duration-200 ${
+          className={`pointer-events-none absolute inset-x-0 top-full h-4 bg-gradient-to-b from-nicchyo-base/85 to-transparent transition-opacity duration-200 ${
             isScrolledDown ? "opacity-100" : "opacity-0"
           }`}
         />
@@ -1258,14 +1258,14 @@ export default function ConsultStage({
         （見た目・間隔は変わらない）。
         lg の上の余白（pt）は、右上に浮かぶ「マップにもどる」バーの下から答えを始めるため
       */}
-      <div className="contents lg:col-start-2 lg:row-start-2 lg:flex lg:min-h-[calc(100dvh-var(--consult-bar-space-lg)-1.65rem)] lg:min-w-0 lg:flex-col lg:gap-4 lg:pt-[3.75rem]">
+      <div className={`contents lg:col-start-2 lg:row-start-2 lg:flex lg:min-h-[calc(100dvh-var(--consult-bar-space-lg)-1.65rem)] lg:min-w-0 lg:flex-col lg:gap-4 lg:pt-[3.75rem] ${showAnswer ? "" : "lg:justify-center"}`}>
       {/* 今の答え。1枚だけ */}
       {showAnswer && (
         <div
           ref={answerCardRef}
           tabIndex={-1}
           style={revealClass(0).style}
-          className={`rounded-3xl border border-amber-100 bg-white/90 p-4 shadow-sm outline-none ${revealClass(0).className}`}
+          className={`min-w-0 rounded-card border border-line bg-white p-4 sm:p-6 shadow-sm outline-none ${revealClass(0).className}`}
         >
           {/*
             質問は隠さず、明確に格下で置く。誤認識に気づける必要があるため。
@@ -1288,7 +1288,7 @@ export default function ConsultStage({
               <span className="consult-skeleton h-3.5 w-3/5 rounded-full" style={{ animationDelay: "240ms" }} />
             </div>
           ) : (
-            <p className="mt-2 whitespace-pre-wrap text-[15px] leading-7 text-slate-800">
+            <p className="mt-2 whitespace-pre-wrap break-words text-base leading-7 text-nicchyo-ink">
               {streamingText !== null ? streamingText || "…" : current?.answer}
             </p>
           )}
@@ -1301,16 +1301,11 @@ export default function ConsultStage({
                   ? t("このお店だよ")
                   : t("おすすめのお店 {count}件").replace("{count}", String(currentShops.length))}
               </p>
-              {currentShops.length === 1 ? (
-                <ConsultShopCard shop={currentShops[0]} onSelect={onSelectShop} variant="single" />
-              ) : (
-                // 横スワイプにして、答えのカードが縦に伸びないようにする
-                <div className="-mx-4 flex snap-x snap-mandatory gap-2.5 overflow-x-auto px-4 pb-1">
-                  {currentShops.map((shop) => (
-                    <ConsultShopCard key={shop.id} shop={shop} onSelect={onSelectShop} />
-                  ))}
-                </div>
-              )}
+              <div className="grid gap-2 sm:grid-cols-2">
+                {currentShops.map((shop) => (
+                  <ConsultShopCard key={shop.id} shop={shop} onSelect={onSelectShop} single={currentShops.length === 1} />
+                ))}
+              </div>
             </div>
           )}
 
@@ -1331,16 +1326,17 @@ export default function ConsultStage({
       {phase === "idle" && !isBusy && suggestions.length > 0 && (
         <div
           style={revealClass(140).style}
-          className={`flex flex-col gap-2 lg:mt-auto ${revealClass(140).className}`}
+          className={`grid gap-2 sm:grid-cols-2 lg:mt-4 ${revealClass(140).className}`}
         >
           {suggestions.map((question) => (
             <button
               key={question}
               type="button"
               onClick={() => void ask(question, "suggestion")}
-              className="w-full rounded-2xl border border-amber-200 bg-white px-4 py-4 text-left text-base font-bold text-amber-900 shadow-sm transition active:scale-[0.98]"
+              className="flex min-h-12 w-full items-center justify-between gap-3 rounded-card border border-line bg-white px-4 py-2.5 text-left text-base font-bold text-amber-900 shadow-sm transition hover:border-amber-400 focus-visible:ring-2 focus-visible:ring-amber-600 active:scale-[0.98]"
             >
-              {question}
+              <span>{question}</span>
+              <ChevronRight className="h-4 w-4 shrink-0" aria-hidden="true" />
             </button>
           ))}
         </div>
@@ -1412,67 +1408,17 @@ export default function ConsultStage({
             isHistorySidebarOpen ? "lg:ml-0" : "lg:ml-[max(0px,calc((100vw_-_2rem_-_72rem)/2))]"
           }`}
         >
-          <div className="contents lg:col-start-2 lg:flex lg:items-center lg:gap-3">
-          {/* 文字入力を既定にする。タップして開く一段階を挟まず、
-              最初から入力欄を出しておく。音声は騒がしい現地では速いが、
-              静かな場所や周りに人がいるときは声を出しにくいため */}
-          {/* min-w-0 が無いと入力欄の既定の幅が最小幅になり、幅 320px の端末で
-              バーが画面の横にはみ出してマイクのボタンが押せなくなる */}
-          <div className="flex min-w-0 flex-1 items-center gap-2 rounded-full border border-amber-200 bg-white/95 py-1.5 pl-5 pr-1.5 shadow-lg">
-            <input
-              ref={textInputRef}
-              type="text"
-              maxLength={1000}
-              value={typed}
-              onChange={(event) => setTyped(event.target.value)}
-              onKeyDown={(event) => {
-                // 日本語入力の変換確定の Enter で、未確定テキストのまま送信してしまわないようにする
-                if (isImeComposing(event)) return;
-                if (event.key !== "Enter" || isBusy) return;
-                const question = typed.trim();
-                if (!question) return;
-                event.preventDefault();
-                setTyped("");
-                void ask(question, "input");
-              }}
-              // 応答待ちの間は押せない状態で残す。押せないことは送信・マイクのボタンが
-              // 薄くなることで伝わるので、入力欄自体は薄くせず「考えよるよ…」を読める濃さで出す
-              placeholder={isBusy ? t("考えよるよ…") : t("（例）今の旬の果物は？")}
-              aria-label={t("{name}への質問").replace("{name}", t(speaker.name))}
-              enterKeyHint="send"
-              disabled={isBusy}
-              className="min-w-0 flex-1 bg-transparent py-2.5 text-base text-slate-800 outline-none placeholder:text-slate-400 disabled:placeholder:text-amber-700"
-            />
-            <button
-              type="button"
-              disabled={isBusy || !typed.trim()}
-              onClick={() => {
-                const question = typed.trim();
-                setTyped("");
-                void ask(question, "input");
-              }}
-              aria-label={t("聞く")}
-              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-amber-500 to-orange-500 text-white shadow-sm transition disabled:opacity-40"
-            >
-              <Send className="h-4 w-4" aria-hidden="true" />
-            </button>
-          </div>
-          {speech.isSupported && (
-            <button
-              type="button"
-              onClick={handleMicTap}
-              disabled={isBusy}
-              aria-label={speech.isListening ? t("とめる") : t("音声で聞く")}
-              className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-full shadow-lg transition disabled:opacity-50 ${
-                speech.isListening
-                  ? "bg-red-500 text-white"
-                  : "border border-amber-200 bg-white/95 text-amber-800"
-              }`}
-            >
-              <Mic className="h-5 w-5" aria-hidden="true" />
-            </button>
-          )}
-          </div>
+          <ConsultComposer
+            textInputRef={textInputRef}
+            typed={typed}
+            setTyped={setTyped}
+            speakerName={t(speaker.name)}
+            isBusy={isBusy}
+            micSupported={speech.isSupported}
+            listening={speech.isListening}
+            onMic={handleMicTap}
+            onSubmit={(question) => void ask(question, "input")}
+          />
         </div>
       </div>
 
@@ -1489,9 +1435,7 @@ export default function ConsultStage({
       {(speech.isListening || phase === "confirming") && (
         <ConsultSheet
           onClose={cancelVoice}
-          backdropClassName="bg-slate-900/40"
-          className="px-4 pt-4 shadow-2xl md:max-w-md"
-          style={{ paddingBottom: "calc(var(--safe-bottom, 0px) + 5rem)" }}
+          label={t("音声で聞く")}
         >
           <div className="mb-3 flex items-center justify-between">
             <p className="flex items-center gap-2 text-sm font-bold text-amber-900">
@@ -1504,7 +1448,7 @@ export default function ConsultStage({
                 t("これでよかった？")
               )}
             </p>
-            <button type="button" onClick={cancelVoice} aria-label={t("やめる")}>
+            <button type="button" onClick={cancelVoice} className="grid h-11 w-11 place-items-center rounded-chip" aria-label={t("やめる")}>
               <X className="h-5 w-5 text-slate-400" aria-hidden="true" />
             </button>
           </div>
@@ -1538,7 +1482,7 @@ export default function ConsultStage({
               <button
                 type="button"
                 onClick={() => void ask(draft, "input")}
-                className="mt-4 flex w-full items-center justify-center gap-2 rounded-full bg-gradient-to-br from-amber-500 to-orange-500 px-6 py-4 text-lg font-bold text-white shadow-sm transition active:scale-[0.98]"
+                className="mt-4 flex w-full items-center justify-center gap-2 rounded-chip bg-amber-700 px-6 py-4 text-lg font-bold text-white shadow-sm transition active:scale-[0.98]"
               >
                 <Send className="h-5 w-5 shrink-0" aria-hidden="true" />
                 {t("これで聞く")}
@@ -1571,82 +1515,8 @@ export default function ConsultStage({
         </ConsultSheet>
       )}
 
-      {/*
-        話し手を選ぶシート。
-
-        イラストそのものが入口。歩きながら片手で開けるよう、当たり判定を
-        絵に持たせている（音声入力は下の「話しかける」ボタンに集約した）。
-        選び直しても会話は消さない。話し手が変わるのは次の返答から。
-
-        ナビゲーションバー（z-[9997]）はこのシートより手前に描かれるので、
-        下端に寄せたままだと選択肢の下の方がバーに隠れて押せない。
-        バーのぶんだけ持ち上げる（画面下部の固定ボタンと同じ計算）。
-      */}
       {isSpeakerPickerOpen && (
-        <div
-          className="fixed inset-0 z-40 flex items-end justify-center overflow-y-auto bg-black/30 px-3 pt-16"
-          style={{
-            paddingBottom: "calc(var(--safe-bottom, 0px) + var(--nav-bar-height) + 0.75rem)",
-          }}
-        >
-          <div className="w-full max-w-md rounded-3xl border border-amber-100 bg-white p-4 pb-5 shadow-xl">
-            <div className="flex items-center justify-between">
-              <p className="text-sm font-bold text-amber-900">{t("だれに聞く？")}</p>
-              <button
-                type="button"
-                onClick={() => setIsSpeakerPickerOpen(false)}
-                aria-label={t("閉じる")}
-                className="flex h-9 w-9 items-center justify-center rounded-full border border-amber-200 text-amber-800"
-              >
-                <X className="h-4 w-4" aria-hidden="true" />
-              </button>
-            </div>
-            <ul className="mt-3 flex max-h-[60vh] flex-col gap-2 overflow-y-auto">
-              {CONSULT_CHARACTERS.map((character) => {
-                const isCurrent = character.id === speaker.id;
-                return (
-                  <li key={character.id}>
-                    <button
-                      type="button"
-                      aria-pressed={isCurrent}
-                      onClick={() => handlePickSpeaker(character.id)}
-                      className={`flex w-full items-center gap-3 rounded-2xl border p-3 text-left transition active:scale-[0.99] ${
-                        isCurrent
-                          ? "border-amber-400 bg-amber-50"
-                          : "border-amber-100 bg-white"
-                      }`}
-                    >
-                      <span className="h-14 w-14 shrink-0 overflow-hidden rounded-2xl border border-amber-100 bg-amber-50">
-                        {/* 一覧では next/image の最適化より、行の切り抜き指定をそのまま使う方が崩れない */}
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img
-                          src={character.image}
-                          alt=""
-                          className={`h-full w-full object-cover ${character.imageScale}`}
-                          style={{ objectPosition: character.imagePosition }}
-                          draggable={false}
-                        />
-                      </span>
-                      <span className="min-w-0 flex-1">
-                        <span className="block text-sm font-bold text-slate-900">
-                          {t(character.name)}
-                        </span>
-                        <span className="mt-0.5 block text-xs text-slate-500">
-                          {t(character.subtitle)}
-                        </span>
-                      </span>
-                      {isCurrent && (
-                        <span className="shrink-0 rounded-full bg-amber-500 px-2 py-1 text-[11px] font-bold text-white">
-                          {t("いま")}
-                        </span>
-                      )}
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
-          </div>
-        </div>
+        <ConsultSpeakerPicker selected={speaker.id} onPick={handlePickSpeaker} onClose={() => setIsSpeakerPickerOpen(false)} />
       )}
     </div>
   );
