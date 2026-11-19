@@ -48,13 +48,13 @@ import {
   densifyPath,
   getDefaultMapRoutePoints,
   getEffectiveMapRouteConfig,
-  getRouteBounds,
   getRouteCenter,
   getRouteChains,
   normalizeMapRoutePoints,
   projectPointOntoRoute,
   smoothRoutePath,
 } from "../../utils/mapRouteGeometry";
+import { getMarketMapGeometry, resolveMarketMapBounds } from "@/lib/map/marketMapGeometry";
 import { getRecommendedZoomBounds } from "../../config/roadConfig";
 import {
   ROAD_EDGE_WEIGHT_STOPS,
@@ -69,7 +69,6 @@ import {
 import {
   DEFAULT_MAP_VIEW_SETTINGS,
   normalizeMapViewSettings,
-  resolveMapViewBounds,
   toLngLatBoundsPair,
 } from "@/lib/map/mapViewSettings";
 import { OPENFREEMAP_STYLE_URL } from "../../config/basemap";
@@ -344,6 +343,8 @@ function MapViewMapLibre({
   shops: initialShops,
   landmarks,
   mapRoute,
+  initialMarketId,
+  sundayMarketId,
   featureFlags: featureFlagsProp,
   mapViewSettings: mapViewSettingsProp,
   searchShopIds,
@@ -410,7 +411,7 @@ function MapViewMapLibre({
 
   const routePoints = useMemo(() => {
     const normalized = normalizeMapRoutePoints(mapRoute?.points ?? []);
-    return normalized.length >= 2 ? normalized : getDefaultMapRoutePoints();
+    return mapRoute ? normalized : getDefaultMapRoutePoints();
   }, [mapRoute]);
   const routeConfig = useMemo(() => getEffectiveMapRouteConfig(mapRoute?.config), [mapRoute]);
 
@@ -490,6 +491,18 @@ function MapViewMapLibre({
   const shopFeatures = useMemo(() => buildShopFeatures(shops), [shops]);
   const shopFeaturesRef = useRef(shopFeatures);
   shopFeaturesRef.current = shopFeatures;
+  const extraFeatureIds = useMemo(() => {
+    const ids = new Map<number, ShopFeature["id"][]>();
+    for (const feature of shopFeatures) {
+      if (feature.id === feature.properties.id) continue;
+      const list = ids.get(feature.properties.id) ?? [];
+      list.push(feature.id);
+      ids.set(feature.properties.id, list);
+    }
+    return ids;
+  }, [shopFeatures]);
+  const extraFeatureIdsRef = useRef(extraFeatureIds);
+  extraFeatureIdsRef.current = extraFeatureIds;
   // ソースに最後に反映した内容。次の反映はここからの差分だけ送る
   const appliedShopDataRef = useRef<{ features: ShopFeature[]; display: ShopDisplayState } | null>(null);
 
@@ -520,15 +533,15 @@ function MapViewMapLibre({
     const container = containerRef.current;
     if (!container) return;
 
-    const bounds = getRouteBounds(routePoints);
-    const center = getRouteCenter(routePoints);
+    const { initialPoints, ensureMarketBounds } = getMarketMapGeometry(routePoints, mapRoute?.roads, initialMarketId, sundayMarketId);
+    const center = getRouteCenter(initialPoints);
     // 初期表示は市場全体（道の範囲）が画面に収まる俯瞰。中心は道の範囲の中央
     const initialCenter: [number, number] = [center[1], center[0]];
     // 可動範囲。MapLibre の maxBounds は「範囲が画面に収まる倍率まで」しか縮小できなくなるので、
     // 最小ズーム（市場全体が見える倍率）まで引けるよう Leaflet 版より広めに取る。
     // 広さは管理画面「マップの表示範囲」で決める（既定値は従来と同じ道の範囲＋720m）
     const maxBoundsLngLat: LngLatBoundsLike = toLngLatBoundsPair(
-      resolveMapViewBounds(viewSettings, bounds)
+      resolveMarketMapBounds(routePoints, viewSettings, ensureMarketBounds)
     );
 
     // WebGL が無いと Map の生成で例外になり、ローディングが畳まれないまま固まる。
@@ -550,7 +563,7 @@ function MapViewMapLibre({
         zoom: minZoom,
         minZoom,
         maxZoom: DETAIL_ZOOM,
-        bearing: computeRoadBearing(routePoints, center),
+        bearing: computeRoadBearing(initialPoints, center),
         pitch: 0,
         maxBounds: maxBoundsLngLat,
         attributionControl: { compact: true },
@@ -571,14 +584,14 @@ function MapViewMapLibre({
     {
       const isLaptop = window.matchMedia?.("(min-width: 1024px)").matches ?? false;
       const pad = isLaptop ? INITIAL_VIEW_PADDING_LAPTOP : INITIAL_VIEW_PADDING_PHONE;
-      const points = routePoints.map((p) => map.project([p.lng, p.lat]));
+      const points = initialPoints.map((p) => map.project([p.lng, p.lat]));
       const xs = points.map((p) => p.x);
       const ys = points.map((p) => p.y);
       const extentX = Math.max(...xs) - Math.min(...xs);
       const extentY = Math.max(...ys) - Math.min(...ys);
       const availX = container.clientWidth - pad.left - pad.right;
       const availY = container.clientHeight - pad.top - pad.bottom;
-      if (extentX > 0 && extentY > 0 && availX > 0 && availY > 0) {
+      if (points.length >= 2 && (extentX > 0 || extentY > 0) && availX > 0 && availY > 0) {
         const fitCenter = map.unproject([
           (Math.max(...xs) + Math.min(...xs)) / 2,
           (Math.max(...ys) + Math.min(...ys)) / 2,
@@ -761,33 +774,40 @@ function MapViewMapLibre({
         properties: {},
         geometry: { type: "LineString", coordinates: line.map(([lat, lng]) => [lng, lat]) },
       });
-      // 文字は点の数が最も多い通りの中ほどに置く。
-      let marketLabelPoint: [number, number] | null = null;
-      let marketLabelChainLength = 0;
+      // 市ごとに最も長い通りの中ほどへ名前を置く。
+      const roadsById = new Map(mapRoute?.roads?.map((road) => [road.id, road]));
+      const marketNames = new Map(mapRoute?.markets?.map((market) => [market.id, market.name]));
+      const marketLabels = new Map<string, { point: [number, number]; length: number }>();
       // 先に全チェーンの形を作り、交差・分岐する他の道の面の内側では縁を引かない
       const built = chains
         .map((chain) => {
           const anchor = chain.points.map((p) => ({ lat: p.lat, lng: p.lng }));
           const centerline = densifyPath(anchor, 6);
           const smoothed = chain.points.length >= 3 ? smoothRoutePath(centerline, 2) : centerline;
-          const polygon = buildRoadPolygon(smoothed, routeConfig.roadHalfWidthMeters);
+          const road = chain.points.map((point) => roadsById.get(point.roadId ?? "")).find(Boolean);
+          const marketId = road?.marketId;
+          // 日曜市では従来の描画幅を維持し、新しい市では、編集画面の道幅を反映する。
+          const halfWidth = marketId && marketId !== sundayMarketId && road && road.widthMeters > 0
+            ? road.widthMeters / 2
+            : routeConfig.roadHalfWidthMeters;
+          const polygon = buildRoadPolygon(smoothed, halfWidth);
           if (polygon.length < 3 || smoothed.length < 2) return null;
-          return { key: chain.key, smoothed, polygon };
+          return { key: chain.key, smoothed, polygon, marketId, halfWidth };
         })
         .filter((item): item is NonNullable<typeof item> => item !== null);
       for (const road of built) {
-        const { smoothed, polygon } = road;
+        const { smoothed, polygon, halfWidth } = road;
         polygons.push(toPolygonFeature(polygon));
 
         const corridor = buildRoadPolygon(
           smoothed,
-          getRoadCorridorHalfWidthMeters(routeConfig.roadHalfWidthMeters)
+          getRoadCorridorHalfWidthMeters(halfWidth)
         );
         if (corridor.length >= 3) corridors.push(toPolygonFeature(corridor));
 
         // 縁は左右2本の独立した線。閉じたポリゴンの stroke だと道の両端にも
         // 線が回り込み、先へ続いている道が切り取った紙のように見えるため
-        const edges = buildRoadEdges(smoothed, routeConfig.roadHalfWidthMeters);
+        const edges = buildRoadEdges(smoothed, halfWidth);
         const otherRings = built.filter((o) => o.key !== road.key).map((o) => o.polygon);
         for (const side of [edges.left, edges.right]) {
           for (const run of clipLineOutsideRings(side, otherRings)) {
@@ -796,10 +816,10 @@ function MapViewMapLibre({
         }
 
         laneLines.push(toLineFeature(smoothed));
-        if (smoothed.length > marketLabelChainLength) {
-          marketLabelChainLength = smoothed.length;
+        const id = road.marketId ?? sundayMarketId ?? "";
+        if (smoothed.length > (marketLabels.get(id)?.length ?? 0)) {
           const mid = smoothed[Math.floor(smoothed.length / 2)];
-          marketLabelPoint = [mid[1], mid[0]];
+          marketLabels.set(id, { point: [mid[1], mid[0]], length: smoothed.length });
         }
       }
       map.addSource(SRC_ROAD, { type: "geojson", data: { type: "FeatureCollection", features: polygons } });
@@ -892,10 +912,17 @@ function MapViewMapLibre({
       // 通りの名前。縮小時はランドマークより「日曜市」が先に目に入るようにする。
       // 倍率で置き場所が変わらないよう、通りの中ほどの 1 点に、通りの右側へ横書きで置く
       // （線に沿わせると、最大縮小付近は線が短くて文字が収まらず消え、置き場所も縦書きに変わってしまう）
-      if (marketLabelPoint) {
+      if (marketLabels.size > 0) {
         map.addSource(`${SRC_ROAD}-label`, {
           type: "geojson",
-          data: { type: "Feature", properties: {}, geometry: { type: "Point", coordinates: marketLabelPoint } },
+          data: {
+            type: "FeatureCollection",
+            features: [...marketLabels].map(([id, { point }]) => ({
+              type: "Feature",
+              properties: { name: t(marketNames.get(id) ?? "日曜市") },
+              geometry: { type: "Point", coordinates: point },
+            })),
+          },
         });
         map.addLayer({
           id: LAYER_MARKET_HIGHLIGHT_LABEL,
@@ -904,7 +931,7 @@ function MapViewMapLibre({
           // 文字は丁目バッジが出る（OVERVIEW_MIN）までに消す。線より先に消えないと、バッジの裏に文字が透けて見える
           maxzoom: OVERVIEW_MIN,
           layout: {
-            "text-field": t("日曜市"),
+            "text-field": ["get", "name"],
             "text-font": TEXT_FONT,
             "text-letter-spacing": 0.2,
             "text-size": ["interpolate", ["linear"], ["zoom"], 9, 20, highlightFadeStart, 18] as ExpressionSpecification,
@@ -1221,6 +1248,9 @@ function MapViewMapLibre({
             }
             // 写真入りの絵ができた店は、下に重ねている通常の屋台を消す（下の屋台の脚や影がはみ出すため）
             map.setFeatureState({ source: SRC_SHOPS, id: shop.id }, { photoReady: true });
+            for (const featureId of extraFeatureIdsRef.current.get(shop.id) ?? []) {
+              map.setFeatureState({ source: SRC_SHOPS, id: featureId }, { photoReady: true });
+            }
             for (const evictedId of photoSprites.overflow()) {
               const evicted = findShopForPhotoId(evictedId);
               if (evicted) requestPhotoSprite(evicted.shop, evicted.state, uiRatio, true);
@@ -1250,10 +1280,13 @@ function MapViewMapLibre({
         const visible = new Map<string, { shop: Shop; state: StallState; distance: number }>();
         for (const feature of map.queryRenderedFeatures({ layers: [LAYER_SHOP_PHOTOS] })) {
           const id = `photo:${feature.properties?.id}:${feature.properties?.state}`;
-          const target = visible.has(id) ? null : findShopForPhotoId(id);
+          const target = visible.get(id) ?? findShopForPhotoId(id);
           if (!target) continue;
-          const point = map.project([target.shop.lng, target.shop.lat]);
-          visible.set(id, { ...target, distance: Math.hypot(point.x - centerX, point.y - centerY) });
+          if (feature.geometry.type !== "Point") continue;
+          const [lng, lat] = feature.geometry.coordinates;
+          const point = map.project([lng, lat]);
+          const distance = Math.hypot(point.x - centerX, point.y - centerY);
+          if (distance < (visible.get(id)?.distance ?? Infinity)) visible.set(id, { ...target, distance });
         }
         // 画面の中心に近い店から、上限の数まで（上限より多く見えている広い画面でも、描き直しが止まるように）
         const nearest = Array.from(visible.entries())
@@ -1267,8 +1300,8 @@ function MapViewMapLibre({
       map.addSource(SRC_SHOPS, {
         type: "geojson",
         data: shopsToGeoJSON(shopFeaturesRef.current, displayRef.current),
-        // updateData の差分は店舗 ID で当てる
-        promoteId: "id",
+        // ベクタータイル化で文字列 ID が数値に変換されないよう、区画 ID を属性から読む
+        promoteId: "placementId",
         // 既定（18）のままだと、寄ったときも z18 のタイル（約 130m 四方）を拡大して使うので、
         // 画面外の店の画像までまとめて要求される。寄る上限までタイルを作って、画面の近くの店だけにする
         maxzoom: DETAIL_ZOOM,
@@ -1417,7 +1450,10 @@ function MapViewMapLibre({
           const f = e.features?.[0];
           const id = f?.properties?.id;
           if (typeof id !== "number") return;
-          const shop = shopsRef.current.find((s) => s.id === id) ?? null;
+          const primary = shopsRef.current.find((s) => s.id === id);
+          const marketId = f?.properties?.marketId;
+          const location = primary?.otherMarketLocations?.find((item) => item.marketId === marketId);
+          const shop = primary && location ? { ...primary, ...location } : primary ?? null;
           if (shop && onShopSelectRef.current) {
             onShopSelectRef.current(shop);
             setSelectedShop(null);

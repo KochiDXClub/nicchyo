@@ -2,7 +2,7 @@ import { cn } from "@/lib/utils/cn";
 import type { Locale } from "@/lib/i18n/config";
 import type { Translate } from "@/lib/i18n/translate";
 import { getStatusPresentation } from "@/lib/market/calendar";
-import { isOff, monthLabel, type LandingSunday } from "./upcomingSundays";
+import { isOff, monthLabel, type LandingMarketDay } from "./upcomingMarketDays";
 import "./landing.css";
 
 /** 日めくりカレンダーに出す、言語に合わせた文字列（呼び出し側で作って渡す） */
@@ -13,6 +13,7 @@ export type NextSundayCalendarText = {
   weekdayText: string;
   /** 開催状態のチップ（「開催」 / "Open" など） */
   statusText: string;
+  marketName?: string;
   /** 読み上げ用の文（「次の日曜市は11月8日、開催」） */
   ariaText: string;
 };
@@ -22,14 +23,19 @@ export type NextSundayCalendarText = {
  * この部品はサーバー・クライアントどちらからも使うため、ここでは
  * `getT()`（next/headers）を読まず、呼び出し側が持っている t と locale で作る。
  */
-export function nextSundayCalendarText(next: LandingSunday, t: Translate, locale: Locale, statusLabel = getStatusPresentation(next.status).label): NextSundayCalendarText {
+export function nextSundayCalendarText(next: LandingMarketDay, t: Translate, locale: Locale, statusLabel = getStatusPresentation(next.status).label): NextSundayCalendarText {
   const statusText = t(statusLabel);
   const dateLabel = locale === "en" ? `${monthLabel(next.month, locale)} ${next.day}` : `${next.month}月${next.day}日`;
   return {
     monthText: monthLabel(next.month, locale),
-    weekdayText: t("日曜日"),
+    weekdayText: next.marketName || new Date(next.dateIso).getUTCDay() !== 0
+      ? new Intl.DateTimeFormat(locale, { weekday: "long", timeZone: "UTC" }).format(new Date(next.dateIso))
+      : t("日曜日"),
     statusText,
-    ariaText: t("次の日曜市は{date}、{status}").replace("{date}", dateLabel).replace("{status}", statusText),
+    ariaText: next.marketName
+      ? t("{market}は{date}、{status}").replace("{market}", t(next.marketName)).replace("{date}", dateLabel).replace("{status}", statusText)
+      : t("次の日曜市は{date}、{status}").replace("{date}", dateLabel).replace("{status}", statusText),
+    marketName: next.marketName ? t(next.marketName) : undefined,
   };
 }
 
@@ -39,11 +45,11 @@ export function nextSundayCalendarText(next: LandingSunday, t: Translate, locale
  * 文字列は text で受け取る（サーバー専用の処理を持ち込まないため）
  */
 export default function NextSundayCalendar({
-  sunday: next,
+  marketDay: next,
   className,
   text,
 }: {
-  sunday: LandingSunday;
+  marketDay: LandingMarketDay;
   className?: string;
   text: NextSundayCalendarText;
 }) {
@@ -58,7 +64,10 @@ export default function NextSundayCalendar({
         <span className="landing-cal-head absolute inset-x-0 top-0 h-[3.6rem] bg-amber-400" />
         <span className="relative z-[1] mt-2 text-xl font-black tracking-widest text-white">{text.monthText}</span>
         <span className="mt-5 font-display text-[6.5rem] leading-none text-nicchyo-ink">{next.day}</span>
-        <span className="mt-1 text-[17px] font-black text-amber-700">{text.weekdayText}</span>
+        <span className="mt-1 flex max-w-full items-baseline gap-2 px-3 text-[17px] font-black text-amber-700">
+          <span className="shrink-0">{text.weekdayText}</span>
+          {text.marketName && <span className="truncate text-sm">{text.marketName}</span>}
+        </span>
         <span
           className={cn(
             "mt-2.5 rounded-chip border px-[18px] py-0.5 text-sm font-black",

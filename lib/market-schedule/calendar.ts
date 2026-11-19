@@ -21,30 +21,30 @@ export function isMarketDate(value: unknown): value is MarketDate {
   if (typeof value !== "string") return false;
   try { parseDate(value); return true; } catch { return false; }
 }
-function assertSunday(value: MarketDate): number {
+function assertMarketWeekday(value: MarketDate, weekday: number): number {
   const time = parseDate(value);
-  if (new Date(time).getUTCDay() !== 0) throw new Error("開催日には日曜日を指定してください");
+  if (new Date(time).getUTCDay() !== weekday) throw new Error(weekday === 0 ? "開催日には日曜日を指定してください" : "開催日には市の開催曜日を指定してください");
   return time;
 }
-export function occursOn(rule: ScheduleRule, date: MarketDate): boolean {
-  const time = assertSunday(date);
-  const start = assertSunday(rule.start);
-  const end = rule.end === null ? null : assertSunday(rule.end);
+export function occursOn(rule: ScheduleRule, date: MarketDate, weekday = 0): boolean {
+  const time = assertMarketWeekday(date, weekday);
+  const start = assertMarketWeekday(rule.start, weekday);
+  const end = rule.end === null ? null : assertMarketWeekday(rule.end, weekday);
   if (end !== null && end < start) throw new Error("終了日は開始日以降にしてください");
   const recurrence = rule.recurrence;
   if (recurrence.kind === "fortnightly") {
-    const anchor = assertSunday(recurrence.anchor);
+    const anchor = assertMarketWeekday(recurrence.anchor, weekday);
     return time >= start && (end === null || time <= end) && Math.abs((time - anchor) / DAY_MS) % 14 === 0;
   }
   if (recurrence.kind === "monthly") {
-    if (!recurrence.weeks.length || recurrence.weeks.some((week) => !Number.isInteger(week) || week < 1 || week > 5)) throw new Error("第何日曜かは1〜5で指定してください");
+    if (!recurrence.weeks.length || recurrence.weeks.some((week) => !Number.isInteger(week) || week < 1 || week > 5)) throw new Error(weekday === 0 ? "第何日曜かは1〜5で指定してください" : "第何週かは1〜5で指定してください");
     return time >= start && (end === null || time <= end) && recurrence.weeks.includes(Math.ceil(new Date(time).getUTCDate() / 7));
   }
   return time >= start && (end === null || time <= end);
 }
 /** 同じ住所・日付に例外が複数ある場合は、どれかを勝手に採用せず競合として返す。 */
-export function resolveDay(locationId: string, date: MarketDate, rules: ScheduleRule[], overrides: ScheduleOverride[], periods: MembershipPeriod[]): PlannedDay {
-  assertSunday(date);
+export function resolveDay(locationId: string, date: MarketDate, rules: ScheduleRule[], overrides: ScheduleOverride[], periods: MembershipPeriod[], weekday = 0): PlannedDay {
+  assertMarketWeekday(date, weekday);
   const active = (vendorId: string, periodId?: string) => periods.some((period) => {
     if (period.locationId !== locationId || period.vendorId !== vendorId) return false;
     if (periodId !== undefined && period.id !== periodId) return false;
@@ -60,7 +60,7 @@ export function resolveDay(locationId: string, date: MarketDate, rules: Schedule
   if (matching.length === 1) return matching[0].vendorId === null
     ? { date, locationId, state: "closed", vendorIds: [], source: "override" }
     : { date, locationId, state: "scheduled", vendorIds: [matching[0].vendorId], source: "override" };
-  const vendorIds = [...new Set(rules.filter((rule) => rule.locationId === locationId && active(rule.vendorId, rule.periodId) && occursOn(rule, date)).map((rule) => rule.vendorId))];
+  const vendorIds = [...new Set(rules.filter((rule) => rule.locationId === locationId && active(rule.vendorId, rule.periodId) && occursOn(rule, date, weekday)).map((rule) => rule.vendorId))];
   return { date, locationId, state: vendorIds.length === 0 ? "unplanned" : vendorIds.length === 1 ? "scheduled" : "conflict", vendorIds, source: vendorIds.length ? "rule" : null };
 }
 export function sundaysBetween(from: MarketDate, through: MarketDate): MarketDate[] {

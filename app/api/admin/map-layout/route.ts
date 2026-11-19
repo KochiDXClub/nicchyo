@@ -21,6 +21,7 @@ import {
   hasRoadPositionSchema,
   isRouteConfigChanged,
   loadEditableRoads,
+  isRoadMarketConflict,
   loadEditableShops,
   loadEditableVendors,
   prepareMapLayoutWrite,
@@ -152,7 +153,10 @@ export async function GET() {
     const cookieStore = await cookies();
     const supabase = createServerClient(cookieStore);
 
-    const [editableShops, landmarks, mapRoute, roads, vendors, categories, mapSettingsLimits, schemaReady, chome] = await Promise.all([
+    const adminClient = createAdminClient();
+    if (!adminClient) return NextResponse.json({ error: "管理者のデータベース接続が設定されていません" }, { status: 503 });
+
+    const [editableShops, landmarks, mapRoute, roads, vendors, categories, mapSettingsLimits, schemaReady, chome, markets] = await Promise.all([
       loadEditableShops(supabase),
       fetchLandmarksFromDb(supabase),
       fetchMapRouteFromDb(supabase),
@@ -162,10 +166,9 @@ export async function GET() {
       loadMapSettingsLimits(supabase),
       hasRoadPositionSchema(supabase),
       loadChomeSettings(supabase),
+      adminClient.from("markets").select("id, name, slug").order("weekday"),
     ]);
-
-    const adminClient = createAdminClient();
-    if (!adminClient) return NextResponse.json({ error: "管理者のデータベース接続が設定されていません" }, { status: 503 });
+    if (markets.error) throw markets.error;
 
     let fieldObservationsUnavailable = false;
     const observedVendors = await attachFieldObservations(adminClient, vendors).catch((error: unknown) => {
@@ -181,6 +184,7 @@ export async function GET() {
       landmarks,
       route: mapRoute,
       roads,
+      markets: markets.data,
       vendors: observedVendors,
       categories,
       mapSettingsLimits,
@@ -444,8 +448,8 @@ export async function PUT(request: NextRequest) {
     // hasChanges はクライアントが送ってきた配列の有無ではなく、実際にDBの現在値と
     // 異なるかどうかで判定する（route.points/roadsは常に全件送られてくるため、
     // 単に「配列が空でない」を条件にすると保存の度に必ずtrueになってしまう）
-    const normalizeRoadForCompare = (r: { id: string; name: string; kind: string; widthMeters: number }) =>
-      `${r.id}|${r.name}|${r.kind}|${r.widthMeters}`;
+    const normalizeRoadForCompare = (r: MapRoad) =>
+      JSON.stringify([r.id, r.name, r.kind, r.widthMeters, r.marketId]);
     const roadsChanged = body.roads
       ? JSON.stringify(currentRoads.map(({ points: _points, ...r }) => normalizeRoadForCompare(r)).sort()) !==
         JSON.stringify(body.roads.map(normalizeRoadForCompare).sort())
@@ -509,6 +513,7 @@ export async function PUT(request: NextRequest) {
         name: road.name,
         kind: road.kind,
         widthMeters: road.widthMeters,
+        marketId: road.marketId,
       })),
       p_points: body.route.points.map((point, index) => ({
         id: point.id,
@@ -551,6 +556,7 @@ export async function PUT(request: NextRequest) {
 
     if (saveError) {
       if (saveError.code === "23505" && saveError.message.includes("market_locations_official_number_uidx")) return NextResponse.json({ error: "同じ住所の場所が別の画面で登録されました。再読み込みして確認してください。" }, { status: 409 });
+      if (isRoadMarketConflict(saveError.message)) return NextResponse.json({ error: "区画や出店履歴がある道の所属市は変更できません。区画を作る前に市を選んでください。" }, { status: 409 });
       if (saveError.message.includes("market_place_has_assignment_history")) return NextResponse.json({ error: "出店履歴のある場所は削除できません。履歴を保護するため保存を中止しました。" }, { status: 409 });
       if (saveError.message.includes("market_place_memberships_location_id_fkey") || saveError.message.includes("market_place_schedule_overrides_location_id_fkey")) return NextResponse.json({ error: "店舗や予定が登録された場所は削除できません。" }, { status: 409 });
       if (saveError.message.includes("map_assignment_edit_not_supported") || saveError.message.includes("map_vendor_edit_not_supported")) return NextResponse.json({ error: "店舗情報や出店配置はマップ編集では変更できません。画面を再読み込みしてください。" }, { status: 409 });

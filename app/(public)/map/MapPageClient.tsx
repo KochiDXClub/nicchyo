@@ -26,6 +26,7 @@ import { GenreFilter } from "./components/GenreFilter";
 import { VendorShopPrompt } from "./components/VendorShopPrompt";
 import MarketStatusBar from "../../components/market/MarketStatusBar";
 import AnnouncementBanner from "@/components/announcements/AnnouncementBanner";
+import { getMarketCalendarDates } from "@/lib/market/calendar";
 import { useMarketCalendar } from "../../../lib/market/useMarketCalendar";
 import ShopScanCards from "./components/ShopScanCards";
 import NearbyExploreButton from "./components/NearbyExploreButton";
@@ -94,6 +95,9 @@ type MapPageClientProps = {
   legacyIdentities?: { enabled: boolean; aliases: Record<string, number> };
   landmarks: Landmark[];
   mapRoute: MapRoute;
+  initialMarketId?: string;
+  sundayMarketId?: string;
+  marketRequested?: boolean;
   /** 管理画面で保存したマップ動作フラグ（未指定なら既定値） */
   featureFlags?: MapFeatureFlags;
   /** 管理画面で保存したマップの可動範囲（未指定なら既定値） */
@@ -110,6 +114,9 @@ export default function MapPageClient({
   legacyIdentities,
   landmarks,
   mapRoute,
+  initialMarketId,
+  sundayMarketId,
+  marketRequested,
   featureFlags,
   mapViewSettings,
 }: MapPageClientProps) {
@@ -211,10 +218,10 @@ export default function MapPageClient({
   const mapArrived = mapLoadingHandedOff && mapLoadingStatus === "idle";
   const introRequested = searchParams?.get("panel") === MAP_INTRO_PANEL_VALUE;
   const introHasDeepLink = useMemo(
-    () => hasMapDeepLink(searchParams ?? null),
+    () => !!marketRequested || hasMapDeepLink(searchParams ?? null),
     // searchParams オブジェクトは毎レンダー同一とは限らないので文字列で比較する
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [searchParamsKey]
+    [marketRequested, searchParamsKey]
   );
   const { open: introOpen, close: dismissIntro } = useMapIntro({
     requested: introRequested,
@@ -288,6 +295,10 @@ export default function MapPageClient({
   const [isShopBannerOpen, setIsShopBannerOpen] = useState(false);
   // 開催ステータス。マップでは平常時（開催）は出さず、中止・臨時休市・特別開催のときだけバーを出す
   const { calendar: marketCalendar, loading: marketCalendarLoading, error: marketCalendarError } = useMarketCalendar();
+  const marketDate = useMemo(
+    () => getMarketCalendarDates(marketCalendar, 1, { includeEventDates: false }).find((date) => date.marketId === initialMarketId),
+    [initialMarketId, marketCalendar]
+  );
   const [trackingButtonTop, setTrackingButtonTop] = useState(112); // 112px = top-28 (7rem) — Tailwind デフォルト基準値
   const resizeObserverRef = useRef<ResizeObserver | null>(null);
   const searchAreaRef = useCallback((el: HTMLDivElement | null) => {
@@ -940,7 +951,7 @@ export default function MapPageClient({
                 <AnnouncementBanner />
 
                 {/* 開催ステータス（例外時のみ表示。平常時は null を返すので検索バーは動かない） */}
-                {marketCalendarError ? <p role="status" className="rounded-full bg-white px-4 py-2 text-sm">開催状況を取得できませんでした。</p> : !marketCalendarLoading && <MarketStatusBar day={marketCalendar.day} />}
+                {marketCalendarError ? <p role="status" className="rounded-full bg-white px-4 py-2 text-sm">開催状況を取得できませんでした。</p> : !marketCalendarLoading && <MarketStatusBar date={marketDate} />}
 
                 {/* 検索バー */}
                 <div className={`flex items-center gap-2 rounded-full px-4 py-2.5 shadow-lg ring-1 backdrop-blur-sm transition-all duration-200 lg:rounded-btn lg:shadow-none ${
@@ -998,6 +1009,9 @@ export default function MapPageClient({
             )}
 
             <MapView
+              key={initialMarketId}
+              initialMarketId={initialMarketId}
+              sundayMarketId={sundayMarketId}
               shops={shops}
               landmarks={mapLandmarks}
               mapRoute={mapRoute}
@@ -1019,7 +1033,7 @@ export default function MapPageClient({
               onClearSearch={handleClearSearch}
               // おでかけサポート表示中は施設に合わせた画角を優先し、
               // 現在地取得時の自動ズームで上書きされないようにする
-              suppressInitialLocationFocus={isAiFocusMode || guideActive}
+              suppressInitialLocationFocus={marketRequested || isAiFocusMode || guideActive}
               hideMapUI={!!nearbyState}
               // おでかけサポート案内中は GuideLayer 側のマーカーだけを見せる
               suppressLandmarks={guideActive}

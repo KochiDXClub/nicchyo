@@ -10,7 +10,7 @@ it("API のエラーを空の成功結果と区別する", async () => {
   expect(result.current.error).toBe(true);
 });
 it("未登録でも取得成功ならエラーにしない", async () => {
-  vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: async () => ({ day: null, days: [], events: [] }) }));
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: async () => ({ todayIso: "2026-11-19", markets: [] }) }));
   const { result } = renderHook(() => useMarketCalendar());
   await waitFor(() => expect(result.current.loading).toBe(false));
   expect(result.current.error).toBe(false);
