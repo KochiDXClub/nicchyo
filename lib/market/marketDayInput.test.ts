@@ -59,3 +59,15 @@ describe("validateCityMarketDate", () => {
     expect(validateCityMarketDate("2027-01-03", today)).toMatch(/先すぎる/);
   });
 });
+
+describe("市の指定（market_id）", () => {
+  const base = { market_date: "2026-11-19", status: "open" };
+  it("市を省略すると市なしで通る（日曜市の既存の画面）", () => {
+    expect(validateMarketDayInput(base).data).not.toHaveProperty("market_id");
+  });
+  it("正しい ID は通り、形の違う ID は断る", () => {
+    const id = "00000000-0000-0000-0000-00000000a002";
+    expect(validateMarketDayInput({ ...base, market_id: id }).data?.market_id).toBe(id);
+    expect(validateMarketDayInput({ ...base, market_id: "nichiyo" }).error).toBe("市の指定が無効です");
+  });
+});

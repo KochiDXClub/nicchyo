@@ -106,6 +106,12 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
         description: "開催ステータスの切替と、出店予定・イベントの入稿をまとめて行う",
       },
       {
+        label: "市の管理",
+        href: "/admin/markets",
+        icon: MapPinned,
+        description: "市の公開設定や開催曜日を管理する",
+      },
+      {
         label: "出店予定管理",
         href: "/admin/market-schedule",
         icon: CalendarDays,
