@@ -33,7 +33,7 @@ export async function saveMarketDay(
 
   const { data: day, error } = await dc
     .from("market_days")
-    .upsert({ ...data, updated_by: actor.id }, { onConflict: "market_date" })
+    .upsert({ ...data, updated_by: actor.id }, { onConflict: "market_id,market_date" })
     .select("*")
     .single();
 
