@@ -28,6 +28,10 @@ export type MarketDayInput = {
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+export function isMarketId(value: unknown): value is string {
+  return typeof value === "string" && UUID_PATTERN.test(value);
+}
+
 export function validateMarketDayInput(
   body: unknown
 ): { data: MarketDayInput; error: null } | { data: null; error: string } {
@@ -57,7 +61,7 @@ export function validateMarketDayInput(
 
   let marketId: string | undefined;
   if (b.market_id !== undefined && b.market_id !== null && b.market_id !== "") {
-    if (typeof b.market_id !== "string" || !UUID_PATTERN.test(b.market_id)) {
+    if (!isMarketId(b.market_id)) {
       return { data: null, error: "市の指定が無効です" };
     }
     marketId = b.market_id;
