@@ -539,6 +539,36 @@ export type Database = {
           },
         ]
       }
+      markets: {
+        Row: {
+          created_at: string
+          id: string
+          is_public: boolean
+          name: string
+          slug: string
+          updated_at: string
+          weekday: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_public?: boolean
+          name: string
+          slug: string
+          updated_at?: string
+          weekday: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_public?: boolean
+          name?: string
+          slug?: string
+          updated_at?: string
+          weekday?: number
+        }
+        Relationships: []
+      }
       site_announcements: {
         Row: {
           body: string
@@ -844,6 +874,7 @@ export type Database = {
       }
       market_days: {
         Row: {
+          market_id: string
           created_at: string
           market_date: string
           note: string | null
@@ -852,6 +883,7 @@ export type Database = {
           updated_by: string | null
         }
         Insert: {
+          market_id?: string
           created_at?: string
           market_date: string
           note?: string | null
@@ -860,6 +892,7 @@ export type Database = {
           updated_by?: string | null
         }
         Update: {
+          market_id?: string
           created_at?: string
           market_date?: string
           note?: string | null
@@ -867,10 +900,19 @@ export type Database = {
           updated_at?: string
           updated_by?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "market_days_market_id_fkey"
+            columns: ["market_id"]
+            isOneToOne: false
+            referencedRelation: "markets"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       market_events: {
         Row: {
+          market_id: string
           category: string
           created_at: string
           created_by: string | null
@@ -888,6 +930,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          market_id?: string
           category?: string
           created_at?: string
           created_by?: string | null
@@ -905,6 +948,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          market_id?: string
           category?: string
           created_at?: string
           created_by?: string | null
@@ -921,10 +965,19 @@ export type Database = {
           title?: string
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "market_events_market_id_fkey"
+            columns: ["market_id"]
+            isOneToOne: false
+            referencedRelation: "markets"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       market_locations: {
         Row: {
+          market_id: string
           branch_number: number | null
           chome_id: number | null
           chome_locked: boolean
@@ -941,6 +994,7 @@ export type Database = {
           store_number: number
         }
         Insert: {
+          market_id?: string
           branch_number?: number | null
           chome_id?: number | null
           chome_locked?: boolean
@@ -957,6 +1011,7 @@ export type Database = {
           store_number: number
         }
         Update: {
+          market_id?: string
           branch_number?: number | null
           chome_id?: number | null
           chome_locked?: boolean
@@ -973,6 +1028,13 @@ export type Database = {
           store_number?: number
         }
         Relationships: [
+          {
+            foreignKeyName: "market_locations_market_id_fkey"
+            columns: ["market_id"]
+            isOneToOne: false
+            referencedRelation: "markets"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "market_locations_chome_id_fkey"
             columns: ["chome_id"]
