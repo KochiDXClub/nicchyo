@@ -122,6 +122,11 @@ jobs:
       - name: Check search term daily counts
         run: psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" -v ON_ERROR_STOP=1 -f supabase/checks/search_term_daily.sql
 
+      # 機能の利用回数の日次件数が、来訪者・一般ユーザーから読めず・呼べないことと、集計の動き。
+      # 詳しくは supabase/checks/usage_daily.sql
+      - name: Check usage daily counts
+        run: psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" -v ON_ERROR_STOP=1 -f supabase/checks/usage_daily.sql
+
       - name: Check private inquiry attachments
         run: psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" -v ON_ERROR_STOP=1 -f supabase/checks/private_inquiry_images.sql
 
