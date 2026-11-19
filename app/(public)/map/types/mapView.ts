@@ -18,6 +18,8 @@ export type MapViewProps = {
   shops?: Shop[];
   landmarks?: Landmark[];
   mapRoute?: MapRoute;
+  initialMarketId?: string;
+  sundayMarketId?: string;
   initialShopId?: number;
   openInitialShopBanner?: boolean;
   searchShopIds?: number[];

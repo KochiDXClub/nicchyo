@@ -101,3 +101,16 @@ describe("diffShopDisplay", () => {
     expect(diff[0].addOrUpdateProperties).toContainEqual({ key: "favorite", value: true });
   });
 });
+
+it("同じ店舗の異なる市の区画を別の場所に描き、お気に入りは同じ店として扱う", () => {
+  const features = buildShopFeatures([{
+    ...shop(1),
+    otherMarketLocations: [{ marketId: "thursday", lat: 33.55, lng: 133.52, position: 99, roadSide: "south" }],
+  }]);
+  expect(features).toHaveLength(2);
+  expect(features[1]).toMatchObject({ id: "1:thursday", geometry: { coordinates: [133.52, 33.55] }, properties: { id: 1, marketId: "thursday", side: "south" } });
+  const before = { states: new Map(), favorites: new Set<number>() };
+  const after = { states: new Map(), favorites: new Set([1]) };
+  expect(shopsToGeoJSON(features, after).features.map((feature) => feature.properties?.favorite)).toEqual([true, true]);
+  expect(diffShopDisplay(features, before, after).map((update) => update.id)).toEqual([1, "1:thursday"]);
+});

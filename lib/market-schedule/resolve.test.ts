@@ -26,3 +26,18 @@ describe("公開する出店予定", () => {
     expect(publicScheduleAssignments(conflict, "2026-11-08", new Set(["v"]))).toEqual([]);
   });
 });
+
+it("木曜市では木曜の出店予定を解決できる", () => {
+  const thursday: ScheduleAdminData = {
+    places: [{ ...data.places[0], id: "thu" }],
+    vendors: [],
+    memberships: [{ id: "membership", vendor_id: "v1", location_id: "thu", vendor_number: 1 }],
+    periods: [{ id: "period", membership_id: "membership", starts_on: "2026-11-05", ends_on: null }],
+    rules: [{ id: "rule", membership_id: "membership", period_id: "period", cadence: "fortnightly", starts_on: "2026-11-05", ends_on: null, anchor_on: "2026-11-05", month_weeks: null, voided_at: null }],
+    overrides: [],
+    marketDays: [],
+    legacyAssignments: [],
+  };
+  expect(resolveSchedule(thursday, "2026-11-19", 4)[0]).toMatchObject({ state: "scheduled", vendorIds: ["v1"] });
+  expect(resolveSchedule(thursday, "2026-11-12", 4)[0]).toMatchObject({ state: "unplanned" });
+});
