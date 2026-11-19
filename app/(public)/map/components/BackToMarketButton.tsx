@@ -120,11 +120,14 @@ function useMarketOffscreen(map: MapCamera | null, segments: Segment[]): boolean
     };
     check();
     map.on('moveend', check);
+    // 画面の向きを変えたときなど、地図の大きさだけが変わったときも判定し直す
+    map.on('resize', check);
     // 動き始めたら待ちを取り消す（出す判定は止まったときにやり直す）
     map.on('movestart', clear);
     return () => {
       clear();
       map.off('moveend', check);
+      map.off('resize', check);
       map.off('movestart', clear);
     };
   }, [map, segments]);

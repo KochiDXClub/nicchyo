@@ -123,11 +123,14 @@ function VerticalZoomSlider({
 function ZoomStepButton({
   label,
   disabled,
+  hidden,
   onClick,
   children,
 }: {
   label: string;
   disabled: boolean;
+  /** スライダーごと隠れているとき。キーボードの Tab で見えないボタンに止まらないようにする */
+  hidden: boolean;
   onClick: () => void;
   children: React.ReactNode;
 }) {
@@ -136,6 +139,7 @@ function ZoomStepButton({
       type="button"
       aria-label={label}
       disabled={disabled}
+      tabIndex={hidden ? -1 : undefined}
       onClick={(e) => {
         e.stopPropagation();
         onClick();
@@ -227,7 +231,7 @@ export function MapControls({
         onClick={(e) => e.stopPropagation()}
         onTouchStart={(e) => { e.stopPropagation(); onZoomSliderInteract(); }}
       >
-        <ZoomStepButton label="拡大" disabled={currentZoom >= maxZoom - 0.01} onClick={() => handleZoomStep(1)}>
+        <ZoomStepButton label="拡大" hidden={!sliderShown} disabled={currentZoom >= maxZoom - 0.01} onClick={() => handleZoomStep(1)}>
           <Plus className="h-4 w-4" strokeWidth={2.6} aria-hidden />
         </ZoomStepButton>
         <VerticalZoomSlider
@@ -236,7 +240,7 @@ export function MapControls({
           max={maxZoom}
           onValueChange={handleZoomValueChange}
         />
-        <ZoomStepButton label="縮小" disabled={currentZoom <= minZoom + 0.01} onClick={() => handleZoomStep(-1)}>
+        <ZoomStepButton label="縮小" hidden={!sliderShown} disabled={currentZoom <= minZoom + 0.01} onClick={() => handleZoomStep(-1)}>
           <Minus className="h-4 w-4" strokeWidth={2.6} aria-hidden />
         </ZoomStepButton>
       </div>
