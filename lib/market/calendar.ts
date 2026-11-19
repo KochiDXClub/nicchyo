@@ -362,7 +362,7 @@ export function getMarketCalendarDates(
     }
     return [...dates].filter((dateIso) => dateIso >= todayIso && dateIso <= through).map((dateIso) => {
       const day = statuses.get(dateIso) ?? null;
-      const status = day?.status ?? (regularDates.has(dateIso) ? "open" : null);
+      const status = day ? normalizeStatus(day.status) : (regularDates.has(dateIso) ? "open" : null);
       const sunday = sundayByDate.get(dateIso);
       const events = includeEventDates
         ? (sunday
