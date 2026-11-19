@@ -1,5 +1,38 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { validateCityMarketDate, validateMarketDayInput } from "./marketDayInput";
+
+describe("validateMarketDayInput の画像", () => {
+  const PROJECT = "https://ourproject.supabase.co";
+  const original = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const own = `${PROJECT}/storage/v1/object/public/vendor-images/market-events/1-a.webp`;
+
+  beforeEach(() => {
+    process.env.NEXT_PUBLIC_SUPABASE_URL = PROJECT;
+  });
+  afterEach(() => {
+    process.env.NEXT_PUBLIC_SUPABASE_URL = original;
+  });
+
+  it("image_url のキーが無ければ data に含めない（既存の画像を変えないため）", () => {
+    const result = validateMarketDayInput({ market_date: "2026-11-08", status: "open" });
+    expect(result.data).not.toHaveProperty("image_url");
+  });
+
+  it("null は画像を外す指定として data に残す", () => {
+    const result = validateMarketDayInput({ market_date: "2026-11-08", status: "open", image_url: null });
+    expect(result.data?.image_url).toBeNull();
+  });
+
+  it("自分のアップロード先のURLだけ通す", () => {
+    expect(
+      validateMarketDayInput({ market_date: "2026-11-08", status: "open", image_url: own }).data?.image_url
+    ).toBe(own);
+    const foreign = "https://evil.supabase.co/storage/v1/object/public/vendor-images/market-events/1-a.webp";
+    expect(
+      validateMarketDayInput({ market_date: "2026-11-08", status: "open", image_url: foreign }).error
+    ).toBeTruthy();
+  });
+});
 
 describe("validateMarketDayInput", () => {
   it("正しい入力を整形して返す（note は前後の空白を除き、空なら null）", () => {

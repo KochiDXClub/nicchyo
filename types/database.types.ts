@@ -931,6 +931,7 @@ export type Database = {
         Row: {
           market_id: string
           created_at: string
+          image_url: string | null
           market_date: string
           note: string | null
           status: string
@@ -940,6 +941,7 @@ export type Database = {
         Insert: {
           market_id?: string
           created_at?: string
+          image_url?: string | null
           market_date: string
           note?: string | null
           status?: string
@@ -949,6 +951,7 @@ export type Database = {
         Update: {
           market_id?: string
           created_at?: string
+          image_url?: string | null
           market_date?: string
           note?: string | null
           status?: string

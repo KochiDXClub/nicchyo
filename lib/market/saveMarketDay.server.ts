@@ -7,6 +7,7 @@ export type SavedMarketDay = {
   market_date: string;
   status: string;
   note: string | null;
+  image_url: string | null;
   updated_by: string | null;
   created_at: string;
   updated_at: string;
@@ -34,17 +35,27 @@ export async function saveMarketDay(
   if (!marketId) return { error: "市が見つかりません" };
 
   // 誤操作を事後に検証できるよう、上書き前の内容を控えておく（同じ市・同じ日付のみ）
+  const changesImage = data.image_url !== undefined;
+  const previousColumns: string = changesImage ? "status,note,image_url" : "status,note";
   const { data: previous } = await dc
     .from("market_days")
-    .select("status, note")
+    .select(previousColumns)
     .eq("market_id", marketId)
     .eq("market_date", data.market_date)
-    .maybeSingle();
+    .maybeSingle()
+    .overrideTypes<Pick<SavedMarketDay, "status" | "note"> & { image_url?: string | null }, { merge: false }>();
 
   const { data: day, error } = await dc
     .from("market_days")
     .upsert(
-      { market_id: marketId, market_date: data.market_date, status: data.status, note: data.note, updated_by: actor.id },
+      {
+        market_id: marketId,
+        market_date: data.market_date,
+        status: data.status,
+        note: data.note,
+        updated_by: actor.id,
+        ...(data.image_url !== undefined ? { image_url: data.image_url } : {}),
+      },
       { onConflict: "market_id,market_date" }
     )
     .select("*")
@@ -58,8 +69,19 @@ export async function saveMarketDay(
     targetId: data.market_date,
     details: JSON.stringify({
       market_id: marketId,
-      before: previous ? { status: previous.status, note: previous.note } : null,
-      after: { status: data.status, note: data.note },
+      before: previous
+        ? {
+          status: previous.status,
+          note: previous.note,
+          ...(changesImage ? { image_url: previous.image_url ?? null } : {}),
+        }
+        : null,
+      after: {
+        status: data.status,
+        note: data.note,
+        // 画像キーが送られなかった更新は画像を変えないので、監査にも載せない
+        ...(data.image_url !== undefined ? { image_url: data.image_url } : {}),
+      },
     }),
   });
 

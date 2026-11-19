@@ -110,6 +110,8 @@ export async function PUT(req: Request) {
   const parsed = await parseMarketDayRequest(req);
   if ("response" in parsed) return parsed.response;
   const { data } = parsed;
+  // 画像は運営だけが扱う。市の API から送られても画像は変えない（キーを外して保存する）
+  delete data.image_url;
   if (data.market_id !== undefined) {
     return NextResponse.json({ error: "高知市向けの画面から変更できるのは日曜市のみです" }, { status: 400 });
   }
