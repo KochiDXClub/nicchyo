@@ -390,6 +390,15 @@ export default function MapPageClient({
     setMapSearchQuery('');
     setMapSearchCategory(null);
   }, [setMapSearchCategory, setMapSearchQuery]);
+  const closeNearbyPanel = useCallback(() => {
+    setNearbyState(null);
+    // 追い質問（nearby）由来の aiMarkerPayload だけをクリアする。
+    // これを消さないと hasAiMode が true のままになり「このへん」ボタンが
+    // 再表示されない。一方、AI相談（consult）由来のマーカーは無関係なので残す。
+    setAiMarkerPayload((prev) => (isNearbyMarker(prev) ? null : prev));
+    nearbyAiPayloadRef.current = null;
+  }, []);
+
   /** AI のおすすめ表示を畳む。相談そのものは /consult に集約した */
   const clearAiRecommendation = useCallback(() => {
     setAiMarkerPayload(null);
@@ -397,16 +406,16 @@ export default function MapPageClient({
   /** 相談は /consult に一本化した。マップ上でキャラクターと会話する形は廃止 */
   const goToConsult = useCallback(() => {
     clearMapSearchState();
-    setNearbyState(null);
+    closeNearbyPanel();
     router.push('/consult');
-  }, [clearMapSearchState, router]);
+  }, [clearMapSearchState, closeNearbyPanel, router]);
   const closeMapInteractionMode = useCallback(() => {
     clearMapSearchState();
     clearAiRecommendation();
-    setNearbyState(null);
+    closeNearbyPanel();
     closeGuide();
     router.push(buildCurrentMapUrl({ panel: null, search: null, label: null, q: null, guide: null }));
-  }, [buildCurrentMapUrl, clearMapSearchState, clearAiRecommendation, closeGuide, router]);
+  }, [buildCurrentMapUrl, clearMapSearchState, clearAiRecommendation, closeNearbyPanel, closeGuide, router]);
 
   // 旧 URL 互換: /map?panel=consult が来たら相談ページへ送る
   useEffect(() => {
@@ -829,31 +838,17 @@ export default function MapPageClient({
     [shopById]
   );
 
-  const closeNearbyPanel = useCallback(() => {
-    setNearbyState(null);
-    // 追い質問（nearby）由来の aiMarkerPayload だけをクリアする。
-    // これを消さないと hasAiMode が true のままになり「このへん」ボタンが
-    // 再表示されない。一方、AI相談（consult）由来のマーカーは無関係なので残す。
-    setAiMarkerPayload((prev) => (isNearbyMarker(prev) ? null : prev));
-    nearbyAiPayloadRef.current = null;
-  }, []);
-
   // パネル表示中にマップが動いたら閉じる（オレンジ枠は画面固定のため、
   // 移動すると要約と実際の範囲がズレてしまう）
   useEffect(() => {
     if (!nearbyState || !mapInstance) return;
-    const close = () => {
-      setNearbyState(null);
-      setAiMarkerPayload((prev) => (isNearbyMarker(prev) ? null : prev));
-    nearbyAiPayloadRef.current = null;
-    };
-    mapInstance.on('move', close);
-    mapInstance.on('zoom', close);
+    mapInstance.on('move', closeNearbyPanel);
+    mapInstance.on('zoom', closeNearbyPanel);
     return () => {
-      mapInstance.off('move', close);
-      mapInstance.off('zoom', close);
+      mapInstance.off('move', closeNearbyPanel);
+      mapInstance.off('zoom', closeNearbyPanel);
     };
-  }, [nearbyState, mapInstance]);
+  }, [nearbyState, mapInstance, closeNearbyPanel]);
 
   const shouldShowNavigationBar = !isShopBannerOpen;
 
