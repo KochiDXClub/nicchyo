@@ -125,6 +125,9 @@ jobs:
       - name: Check private inquiry attachments
         run: psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" -v ON_ERROR_STOP=1 -f supabase/checks/private_inquiry_images.sql
 
+      - name: Check atomic embedding version publication and retention
+        run: psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" -v ON_ERROR_STOP=1 -f supabase/tests/embedding_versions.sql
+
       # Each test rolls back its fixtures. Run only the files present in this branch.
       - name: Check market schedule and map history
         run: |

@@ -1,4 +1,4 @@
-import type { Database } from "./database.types";
+import type { Database, Json } from "./database.types";
 import type {
   VendorInquiryCategory,
   VendorInquiryReplySenderRole,
@@ -162,7 +162,47 @@ export type ShopTranslationRow = {
   updated_at: string;
 };
 
-type ExtendedPublicSchema = Omit<Database["public"], "Tables"> & {
+export type EmbeddingSyncRunRow = {
+  id: string;
+  target: "vendors" | "knowledge";
+  source: "manual" | "scheduled" | "script";
+  actor_id: string | null;
+  status: "running" | "succeeded" | "failed" | "interrupted";
+  processed_count: number | null;
+  started_at: string;
+  finished_at: string | null;
+  version_number: number | null;
+};
+
+export type EmbeddingSyncHistory = {
+  runs: Omit<EmbeddingSyncRunRow, "actor_id">[];
+  vendors: number;
+  knowledge: number;
+};
+
+type ExtendedPublicSchema = Omit<Database["public"], "Tables" | "Functions"> & {
+  Functions: Database["public"]["Functions"] & {
+    begin_embedding_sync: {
+      Args: { p_target: EmbeddingSyncRunRow["target"]; p_source: EmbeddingSyncRunRow["source"]; p_actor_id: string | null };
+      Returns: Pick<EmbeddingSyncRunRow, "id" | "started_at">[];
+    };
+    stage_embedding_batch: {
+      Args: { p_run_id: string; p_rows: Json };
+      Returns: undefined;
+    };
+    finish_embedding_sync: {
+      Args: { p_run_id: string; p_succeeded: boolean; p_processed_count: number };
+      Returns: { finished_at: string; version_number: number | null }[];
+    };
+    read_embedding_sync_history: {
+      Args: Record<PropertyKey, never>;
+      Returns: EmbeddingSyncHistory[];
+    };
+    match_knowledge_context: {
+      Args: Database["public"]["Functions"]["match_knowledge_embeddings"]["Args"];
+      Returns: { id: string; category: string | null; title: string | null; content: string | null; image_url: string | null; similarity: number }[];
+    };
+  };
   Tables: Database["public"]["Tables"] & {
     admin_notifications: {
       Row: AdminNotificationRow;

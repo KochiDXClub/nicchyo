@@ -22,6 +22,7 @@ import {
   Bot,
   CalendarDays,
   ClipboardList,
+  Database,
   FileText,
   Frame,
   Gauge,
@@ -243,6 +244,12 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
         href: "/admin/ai-prompts",
         icon: Bot,
         description: "話し方と答え方、場面ごとに使うAIモデルを調整する",
+      },
+      {
+        label: "埋め込み管理",
+        href: "/admin/embeddings",
+        icon: Database,
+        description: "にちよさんの検索データを更新し、実行履歴を確認する",
       },
       {
         label: "設定",

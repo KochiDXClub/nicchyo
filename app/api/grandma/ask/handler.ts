@@ -32,7 +32,7 @@ import type {
   ConsultTurn,
 } from "@/app/(public)/consult/types/consultConversation";
 import type { Shop } from "@/app/(public)/map/data/shops";
-import type { KnowledgeRow, ParsedRequest } from "@/lib/grandma/types";
+import type { ParsedRequest } from "@/lib/grandma/types";
 import {
   extractKeywords,
   isShopRelatedQuestion,
@@ -818,7 +818,7 @@ export async function handleConsultAsk(
       );
     }
 
-    const supabase = createClient<Database>(supabaseUrl, serviceRoleKey);
+    const supabase = createClient<DatabaseWithExtensions>(supabaseUrl, serviceRoleKey);
     // お店の判定・キーワード・埋め込みは日本語が前提なので、日本語以外の画面では検索用に訳す。
     // 回答を作るときは来訪者が書いた元の質問（question）を使う
     const searchQuestion = await translateQuestionForSearch(openaiKey, question, locale);
@@ -947,27 +947,11 @@ export async function handleConsultAsk(
       );
     }
 
-    const { data: knowledgeMatches } = await supabase
-      .rpc("match_knowledge_embeddings", {
-        query_embedding: embedding as unknown as string,
-        match_count: 3,
-        match_threshold: 0.55,
-      })
-      .returns<{ id: string; similarity: number }[]>();
-    const safeKnowledgeMatches = Array.isArray(knowledgeMatches)
-      ? knowledgeMatches
-      : [];
-    const knowledgeIds = safeKnowledgeMatches
-      .map((row) => row.id)
-      .filter(Boolean);
-    let knowledgeRows: KnowledgeRow[] = [];
-    if (knowledgeIds.length > 0) {
-      const { data } = await supabase
-        .from("knowledge_embeddings")
-        .select("id, category, title, content, image_url")
-        .in("id", knowledgeIds);
-      knowledgeRows = (data ?? []) as KnowledgeRow[];
-    }
+    const { data: knowledgeRows } = await supabase.rpc("match_knowledge_context", {
+      query_embedding: embedding as unknown as string,
+      match_count: 3,
+      match_threshold: 0.55,
+    });
 
     let storeKnowledgeContext = "";
     const ragVendorIds = Array.from(
@@ -1003,7 +987,7 @@ export async function handleConsultAsk(
     }
 
     const knowledgeContext =
-      knowledgeRows.length > 0
+      knowledgeRows?.length
         ? knowledgeRows
             .map((row) => {
               return [
