@@ -3,7 +3,7 @@
 import dynamic from "next/dynamic";
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { Button, Surface } from "@/components/ui";
-import { isIllustrationImageUrl, type PeopleIllustration } from "@/lib/map/illustrations/people";
+import { ILLUSTRATION_WEEKDAYS, isIllustrationImageUrl, type PeopleIllustration } from "@/lib/map/illustrations/people";
 import type { FieldLocation } from "../field/components/LocationPicker";
 
 const LocationPicker = dynamic(() => import("../field/components/LocationPicker").then((module) => module.LocationPicker), {
@@ -12,7 +12,6 @@ const LocationPicker = dynamic(() => import("../field/components/LocationPicker"
 const NO_LOCATIONS: FieldLocation[] = [];
 const API = "/api/admin/illustrations/people";
 const FIELD_CLASS = "mt-1 block w-full rounded-btn border border-line bg-white px-3 py-2 font-normal";
-const WEEKDAYS = ["日", "月", "火", "水", "木", "金", "土"];
 type Market = { id: string; name: string; weekday: number; is_public: boolean };
 type List = { people: PeopleIllustration[]; markets: Market[] };
 type Editor = Omit<PeopleIllustration, "latitude" | "longitude" | "width_px"> & {
@@ -54,7 +53,7 @@ export default function PeopleIllustrationsPanel() {
 
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!editor || !location || busy) return;
+    if (!editor || !location || editor.weekdays.length === 0 || busy) return;
     setBusy(true);
     setError("");
     setNotice("");
@@ -76,6 +75,18 @@ export default function PeopleIllustrationsPanel() {
     } finally {
       setBusy(false);
     }
+  }
+
+  function startEditor(person: PeopleIllustration, copyToNewLocation = false) {
+    setError("");
+    setNotice("");
+    setEditor({
+      ...person,
+      id: copyToNewLocation ? "" : person.id,
+      latitude: copyToNewLocation ? "" : String(person.latitude),
+      longitude: copyToNewLocation ? "" : String(person.longitude),
+      width_px: String(person.width_px),
+    });
   }
 
   async function remove(person: PeopleIllustration) {
@@ -100,14 +111,16 @@ export default function PeopleIllustrationsPanel() {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 id="people-illustrations-title" className="text-lg font-bold">人のイラスト</h2>
-          <p className="mt-1 text-sm text-nicchyo-ink/70">選んだ市の開催日にだけ、地図上に表示します。</p>
+          <p className="mt-1 text-sm text-nicchyo-ink/70">配置ごとに場所と表示曜日を設定します。</p>
         </div>
         <Button disabled={busy || !list?.markets.length} onClick={() => {
           setError("");
           setNotice("");
+          const market = list?.markets[0];
+          if (!market) return;
           setEditor({
-            id: "", name: "", market_id: list?.markets[0]?.id ?? "", image_url: "",
-            latitude: "", longitude: "", width_px: "92", enabled: true,
+            id: "", name: "", market_id: market.id, image_url: "",
+            latitude: "", longitude: "", width_px: "92", enabled: true, weekdays: [market.weekday],
           });
         }}>人を追加</Button>
       </div>
@@ -125,7 +138,7 @@ export default function PeopleIllustrationsPanel() {
                 <label className="text-sm font-semibold">表示する市
                   <select required className={FIELD_CLASS} value={editor.market_id} onChange={(event) => update("market_id", event.target.value)}>
                     {list?.markets.map((market) => (
-                      <option key={market.id} value={market.id}>{market.name}（{WEEKDAYS[market.weekday]}曜{market.is_public ? "" : "・非公開"}）</option>
+                      <option key={market.id} value={market.id}>{market.name}（{ILLUSTRATION_WEEKDAYS[market.weekday]}曜{market.is_public ? "" : "・非公開"}）</option>
                     ))}
                   </select>
                 </label>
@@ -140,24 +153,44 @@ export default function PeopleIllustrationsPanel() {
                 // eslint-disable-next-line @next/next/no-img-element
                 <img alt="イラストのプレビュー" src={editor.image_url} referrerPolicy="no-referrer" className="h-20 w-24 object-contain" />
               )}
-              <p className="text-sm text-nicchyo-ink/70">地図をタップするか、ピンをドラッグして位置を決めます。</p>
-              <LocationPicker key={editor.id} locations={NO_LOCATIONS} value={location} onChange={({ lat, lng }) => {
-                setEditor((current) => current ? { ...current, latitude: lat.toFixed(6), longitude: lng.toFixed(6) } : current);
-              }} />
-              <div className="grid grid-cols-2 gap-3">
-                <label className="text-sm font-semibold">緯度
-                  <input required type="number" min={33.4} max={33.7} step="any" className={FIELD_CLASS} value={editor.latitude} onChange={(event) => update("latitude", event.target.value)} />
-                </label>
-                <label className="text-sm font-semibold">経度
-                  <input required type="number" min={133.4} max={133.7} step="any" className={FIELD_CLASS} value={editor.longitude} onChange={(event) => update("longitude", event.target.value)} />
-                </label>
-              </div>
+              <fieldset className="space-y-3 rounded-card border border-line p-3">
+                <legend className="px-1 font-semibold">配置場所と表示曜日</legend>
+                <p className="text-sm text-nicchyo-ink/70">地図をタップするか、ピンをドラッグして位置を決めます。</p>
+                <LocationPicker key={editor.id} locations={NO_LOCATIONS} value={location} onChange={({ lat, lng }) => {
+                  setEditor((current) => current ? { ...current, latitude: lat.toFixed(6), longitude: lng.toFixed(6) } : current);
+                }} />
+                <div className="grid grid-cols-2 gap-3">
+                  <label className="text-sm font-semibold">緯度
+                    <input required type="number" min={33.4} max={33.7} step="any" className={FIELD_CLASS} value={editor.latitude} onChange={(event) => update("latitude", event.target.value)} />
+                  </label>
+                  <label className="text-sm font-semibold">経度
+                    <input required type="number" min={133.4} max={133.7} step="any" className={FIELD_CLASS} value={editor.longitude} onChange={(event) => update("longitude", event.target.value)} />
+                  </label>
+                </div>
+                <fieldset className="space-y-1">
+                  <legend className="text-sm font-semibold">表示する曜日</legend>
+                  <div className="flex flex-wrap gap-2">
+                    {ILLUSTRATION_WEEKDAYS.map((label, day) => (
+                      <label key={label} className="flex min-h-10 items-center gap-1.5 rounded-btn border border-line px-2 text-sm">
+                        <input type="checkbox" checked={editor.weekdays.includes(day)} onChange={(event) => {
+                          const checked = event.target.checked;
+                          setEditor((current) => current && ({
+                            ...current,
+                            weekdays: checked ? [...current.weekdays, day] : current.weekdays.filter((value) => value !== day),
+                          }));
+                        }} />{label}曜
+                      </label>
+                    ))}
+                  </div>
+                  <p className="text-xs text-nicchyo-ink/70">複数選択できます。日本時間の曜日で表示し、中止・休市の日は隠します。</p>
+                </fieldset>
+              </fieldset>
               <label className="flex items-center gap-2 text-sm">
-                <input type="checkbox" checked={editor.enabled} onChange={(event) => update("enabled", event.target.checked)} />開催日に表示する
+                <input type="checkbox" checked={editor.enabled} onChange={(event) => update("enabled", event.target.checked)} />地図に表示する
               </label>
             </fieldset>
             <div className="flex gap-2">
-              <Button type="submit" disabled={busy || !location}>保存</Button>
+              <Button type="submit" disabled={busy || !location || editor.weekdays.length === 0}>保存</Button>
               <Button variant="quiet" disabled={busy} onClick={() => setEditor(null)}>キャンセル</Button>
             </div>
           </form>
@@ -174,16 +207,15 @@ export default function PeopleIllustrationsPanel() {
               <div className="min-w-0 flex-1">
                 <p className="break-words font-semibold">{person.name}</p>
                 <p className="text-xs text-nicchyo-ink/70">
-                  {marketById.get(person.market_id)?.name} ・ {person.enabled ? "開催日のみ" : "非表示"}
+                  {marketById.get(person.market_id)?.name} ・ {person.weekdays.map((day) => `${ILLUSTRATION_WEEKDAYS[day]}曜`).join("・")}
+                  {!person.enabled && " ・ 非表示"}
+                </p>
+                <p className="text-xs tabular-nums text-nicchyo-ink/70">
+                  {person.latitude.toFixed(5)}, {person.longitude.toFixed(5)}
                 </p>
               </div>
-              <Button size="sm" variant="quiet" disabled={busy} onClick={() => {
-                setError("");
-                setNotice("");
-                setEditor({
-                  ...person, latitude: String(person.latitude), longitude: String(person.longitude), width_px: String(person.width_px),
-                });
-              }}>編集</Button>
+              <Button size="sm" variant="quiet" disabled={busy} onClick={() => startEditor(person)}>編集</Button>
+              <Button size="sm" variant="ghost" disabled={busy} onClick={() => startEditor(person, true)}>別の場所に配置</Button>
               <Button size="sm" variant="ghost" disabled={busy} onClick={() => void remove(person)}>削除</Button>
             </li>
           ))}

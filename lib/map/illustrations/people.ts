@@ -3,6 +3,8 @@ import type { Database } from "@/types/database.types";
 export type PeopleIllustration = Database["public"]["Tables"]["map_people_illustrations"]["Row"];
 export type PeopleIllustrationInput = Omit<PeopleIllustration, "id">;
 
+export const ILLUSTRATION_WEEKDAYS = ["日", "月", "火", "水", "木", "金", "土"] as const;
+
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export function isIllustrationId(value: unknown): value is string {
@@ -21,7 +23,7 @@ export function isIllustrationImageUrl(value: string): boolean {
 }
 
 export function parsePeopleIllustration(body: Record<string, unknown>): PeopleIllustrationInput | string {
-  const { market_id, latitude, longitude, width_px, enabled } = body;
+  const { market_id, latitude, longitude, width_px, enabled, weekdays } = body;
   const name = typeof body.name === "string" ? body.name.trim() : "";
   const image_url = typeof body.image_url === "string" ? body.image_url.trim() : "";
 
@@ -37,7 +39,11 @@ export function parsePeopleIllustration(body: Record<string, unknown>): PeopleIl
   if (typeof width_px !== "number" || !Number.isInteger(width_px) || width_px < 16 || width_px > 200) {
     return "幅は16〜200pxの整数で入力してください";
   }
+  if (!Array.isArray(weekdays) || weekdays.length === 0 || weekdays.length > ILLUSTRATION_WEEKDAYS.length ||
+    !weekdays.every((day): day is number => typeof day === "number" && Number.isInteger(day) && day >= 0 && day < ILLUSTRATION_WEEKDAYS.length)) {
+    return "表示する曜日を1つ以上選んでください";
+  }
   if (typeof enabled !== "boolean") return "表示設定が無効です";
 
-  return { name, market_id, image_url, latitude, longitude, width_px, enabled };
+  return { name, market_id, image_url, latitude, longitude, width_px, enabled, weekdays: [...new Set(weekdays)].sort((a, b) => a - b) };
 }

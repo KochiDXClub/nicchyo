@@ -668,6 +668,7 @@ export type Database = {
           longitude: number
           market_id: string
           name: string
+          weekdays: number[]
           width_px: number
         }
         Insert: {
@@ -678,6 +679,7 @@ export type Database = {
           longitude: number
           market_id: string
           name: string
+          weekdays: number[]
           width_px: number
         }
         Update: {
@@ -688,6 +690,7 @@ export type Database = {
           longitude?: number
           market_id?: string
           name?: string
+          weekdays?: number[]
           width_px?: number
         }
         Relationships: [
