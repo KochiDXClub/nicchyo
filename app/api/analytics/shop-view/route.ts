@@ -103,5 +103,13 @@ export async function POST(request: Request) {
     console.error("[shop-view] insert error:", error);
     return NextResponse.json({ error: "記録できませんでした" }, { status: 500 });
   }
+
+  // 件数だけの表（日本時間の日 × 時 × 流入元）にも数える。失敗しても閲覧の記録は済んでいるので応答は変えない
+  try {
+    const { error: countError } = await admin.rpc("increment_shop_interest", { p_vendor_id: vendorId, p_source: source });
+    if (countError) console.error("[shop-view] shop_interest_hourly error:", countError);
+  } catch (e) {
+    console.error("[shop-view] shop_interest_hourly error:", e);
+  }
   return NextResponse.json({ ok: true });
 }
