@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 
 for (const viewport of [{ width: 390, height: 844 }, { width: 1440, height: 900 }]) {
   test.describe(`相談ページ（幅 ${viewport.width}px）`, () => {
-    test.use({ viewport, reducedMotion: "reduce" });
+    test.use({ viewport, contextOptions: { reducedMotion: "reduce" } });
 
     test("話し手を選ぶ画面をキーボードで閉じ、元のボタンに戻れる", async ({ page }) => {
       await page.goto("/consult");
