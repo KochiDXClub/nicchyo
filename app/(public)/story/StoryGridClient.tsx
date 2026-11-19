@@ -14,9 +14,9 @@ import { fetchReactionCounts } from "@/lib/story/reactions";
 import MarketStatusCalendar from "@/app/components/market/MarketStatusCalendar";
 import { PHOTOS } from "@/app/(public)/_landing/content";
 import "@/app/(public)/_landing/landing.css";
-import UpcomingSundays from "@/app/components/market/UpcomingSundays";
+import UpcomingMarketDates from "@/app/components/market/UpcomingMarketDates";
 import { useMarketCalendar } from "@/lib/market/useMarketCalendar";
-import { groupEventsBySunday, UPCOMING_SUNDAYS_PREVIEW_COUNT } from "@/lib/market/calendar";
+import { getMarketCalendarDates, PUBLIC_CALENDAR_WEEKS } from "@/lib/market/calendar";
 import type { StoryItem } from "./types";
 
 /** 出店者の近況を、開催情報・投稿の順に見せる。 */
@@ -86,11 +86,8 @@ export default function StoryGridClient({ demo }: Props = {}) {
     setViewerIndex(index);
   };
 
-  const upcomingSundays = groupEventsBySunday(
-    calendar.events,
-    calendar.days,
-    UPCOMING_SUNDAYS_PREVIEW_COUNT
-  );
+  const upcomingDates = getMarketCalendarDates(calendar, PUBLIC_CALENDAR_WEEKS.preview);
+  const nextMarketDate = upcomingDates.find((date) => date.status !== null);
 
   return (
     <PageShell as="main" topNav>
@@ -127,8 +124,8 @@ export default function StoryGridClient({ demo }: Props = {}) {
                   className="object-cover"
                 />
               </div>
-              {calendarError ? <p role="status" className="relative z-10">開催状況を取得できませんでした。</p> : !calendarLoading && <MarketStatusCalendar
-                day={calendar.day}
+              {calendarError ? <p role="status" className="relative z-10">開催状況を取得できませんでした。</p> : !calendarLoading && nextMarketDate && <MarketStatusCalendar
+                date={nextMarketDate}
                 showSummary={false}
                 className="relative z-10 min-w-0 max-w-full !gap-2 sm:max-w-[55%] sm:!gap-4 [&>div]:rounded-btn [&>div]:bg-nicchyo-base/95 [&>div]:px-2 [&>div]:py-1"
               />}
@@ -165,14 +162,14 @@ export default function StoryGridClient({ demo }: Props = {}) {
               <EmptyState
                 icon={Camera}
                 title="まだ投稿がありません"
-                description={`次の日曜市は ${nextSunday}`}
+                description={nextMarketDate?.marketName ? `${nextMarketDate.marketName}は ${nextMarketDate.dateLabel}` : `次の日曜市は ${nextSunday}`}
               />
             ) : (
               <StoryGridSections stories={stories} heartCounts={heartCounts} onOpen={openViewer} />
             )}
 
             <div className="border-t border-line-warm pt-6">
-              {!calendarLoading && !calendarError && <UpcomingSundays sundays={upcomingSundays} showMoreLink />}
+              {!calendarLoading && !calendarError && <UpcomingMarketDates dates={upcomingDates} showMoreLink />}
             </div>
         </div>
       </PageContainer>

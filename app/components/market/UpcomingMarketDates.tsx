@@ -6,45 +6,39 @@ import {
   getCategoryPresentation,
   getStatusPresentation,
   type MarketEvent,
-  type MarketSunday,
+  type MarketCalendarDate,
 } from "@/lib/market/calendar";
 
 type Props = {
-  sundays: MarketSunday[];
+  dates: MarketCalendarDate[];
   /** true のとき「すべて見る」リンクを出す（近況ページの抜粋表示用） */
   showMoreLink?: boolean;
   showHeading?: boolean;
   showStatusSource?: boolean;
 };
 
-/**
- * 「これからの日曜市」= 運営・市役所発の予定を、日曜ごとのカードで見せる。
- *
- * 月間グリッドにしない理由：日曜市は毎週日曜しか開かないため、
- * カレンダーのマス目は6/7が必ず空白になり情報密度が下がる。
- * 予定が無い日曜もカードとして残すことで「開催はする」という情報になる。
- *
- * 出店者の近況フィードには混ぜず独立したセクションとして置く。
- * 近況の鮮度表現（created_at で退色）は未来の予定に対して成立しないため。
- */
-export default function UpcomingSundays({
-  sundays,
+/** 開催日ごとの予定を、近況の投稿とは独立したカードで見せる。 */
+export default function UpcomingMarketDates({
+  dates,
   showMoreLink = false,
   showHeading = true,
   showStatusSource = false,
 }: Props) {
+  if (dates.length === 0) return null;
+  const showMarketNames = dates.some((date) => date.marketName);
+
   return (
     <section className="mt-2">
       {showHeading && (
         <div className="mb-2 flex items-center gap-2">
-          <h2 className="text-sm font-bold text-nicchyo-ink">これからの日曜市</h2>
+          <h2 className="text-sm font-bold text-nicchyo-ink">{showMarketNames ? "これからの開催日" : "これからの日曜市"}</h2>
           <span className="text-[11px] text-gray-400">運営からのお知らせ</span>
         </div>
       )}
 
       <ul className="flex flex-col gap-2.5">
-        {sundays.map((sunday) => (
-          <SundayCard key={sunday.dateIso} sunday={sunday} showStatusSource={showStatusSource} />
+        {dates.map((date) => (
+          <CalendarDateCard key={`${date.marketId}:${date.dateIso}`} date={date} showStatusSource={showStatusSource} />
         ))}
       </ul>
 
@@ -68,12 +62,10 @@ const jstUpdatedAt = new Intl.DateTimeFormat("ja-JP", {
   timeStyle: "short",
 });
 
-function SundayCard({ sunday, showStatusSource }: { sunday: MarketSunday; showStatusSource: boolean }) {
-  const { day, highlight, events, isThisWeek } = sunday;
-  const status = day?.status ?? "open";
-  const statusPresentation = getStatusPresentation(status);
-  // 通常開催はいちいちバッジを出さない（例外だけを目立たせる）
-  const showStatusBadge = status !== "open" || showStatusSource;
+function CalendarDateCard({ date, showStatusSource }: { date: MarketCalendarDate; showStatusSource: boolean }) {
+  const { day, highlight, events, isThisWeek, marketName, status } = date;
+  const showStatusBadge = Boolean(marketName) || status !== "open" || showStatusSource;
+  const statusPresentation = status && showStatusBadge ? getStatusPresentation(status) : null;
   const updatedAt = showStatusSource && day?.updated_at ? new Date(day.updated_at) : null;
   const isEmpty = !highlight && events.length === 0;
 
@@ -85,13 +77,14 @@ function SundayCard({ sunday, showStatusSource }: { sunday: MarketSunday; showSt
     >
       {/* 日付ヘッダー */}
       <div
-        className={`flex items-center gap-2 px-4 py-2.5 ${
+        className={`flex flex-wrap items-center gap-x-2 gap-y-1 px-4 py-2.5 ${
           isThisWeek ? "bg-nicchyo-primary/10" : "bg-black/[0.02]"
         }`}
       >
-        <span className="text-sm font-bold text-nicchyo-ink">{sunday.dateLabel}</span>
-        <span className="text-[11px] text-gray-400">{sunday.relativeLabel}</span>
-        {showStatusBadge && (
+        <span className="text-sm font-bold text-nicchyo-ink">{date.dateLabel}</span>
+        <span className="text-[11px] text-gray-400">{date.relativeLabel}</span>
+        {marketName && <span className="text-xs font-bold text-nicchyo-primary">{marketName}</span>}
+        {statusPresentation && (
           <span
             className={`ml-auto rounded-full px-2 py-0.5 text-[11px] font-bold ${
               statusPresentation.tone === "alert"
@@ -101,7 +94,7 @@ function SundayCard({ sunday, showStatusSource }: { sunday: MarketSunday; showSt
                   : "bg-nicchyo-ink/5 text-nicchyo-ink"
             }`}
           >
-            {day ? statusPresentation.label : "通常予定"}
+            {!day && showStatusSource ? "通常予定" : statusPresentation.label}
           </span>
         )}
       </div>
@@ -127,7 +120,7 @@ function SundayCard({ sunday, showStatusSource }: { sunday: MarketSunday; showSt
         ) : (
           <>
             {highlight && (
-              <HighlightItem event={highlight} relativeLabel={sunday.relativeLabel} />
+              <HighlightItem event={highlight} relativeLabel={date.relativeLabel} />
             )}
             {events.length > 0 && (
               <ul className={`flex flex-col gap-2.5 ${highlight ? "mt-3" : ""}`}>

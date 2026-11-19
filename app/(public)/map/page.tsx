@@ -123,10 +123,12 @@ export default async function MapPage({ searchParams }: {
 
   return (
     <>
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: safeJsonLd(SUNDAY_MARKET_JSON_LD) }}
-      />
+      {selection.sunday && (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: safeJsonLd(SUNDAY_MARKET_JSON_LD) }}
+        />
+      )}
       {/* 地図チャンクの遅延読み込み中もローディング画面を切らさない */}
       <Suspense fallback={<MapLoadingOverlay minStage="page" />}>
         <MapPageClient
