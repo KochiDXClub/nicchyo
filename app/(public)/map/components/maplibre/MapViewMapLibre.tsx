@@ -220,6 +220,8 @@ const LAYER_MARKET_HIGHLIGHT_LABEL = "nicchyo-market-highlight-label";
 const MARKET_HIGHLIGHT_FADE_ZOOMS = [OVERVIEW_MIN - 1.5, OVERVIEW_MIN + 0.5] as const;
 /** 建物の名前を出し始めるズーム（MapLibre 基準）。下限ズームを下げて最大縮小付近まで引いたときは、「日曜市」の文字だけを主役にする */
 const LANDMARK_NAME_MIN_ZOOM = 13;
+const PEOPLE_ILLUSTRATION_LAYER = "nicchyo-people-illustrations";
+const SPOT_ILLUSTRATION_FILTER: ExpressionSpecification = ["==", ["get", "decorative"], false];
 const LANDMARK_ICON_LAYERS = ["nicchyo-landmarks-min", "nicchyo-landmarks", "nicchyo-landmarks-minor"];
 
 /** 停留場・電車。絵が小さく、縮小すると高知城などの大きな絵に重なって崩れる */
@@ -245,6 +247,7 @@ function buildLandmarkFeatures(
         key: spec.key,
         image: `landmark:${spec.key}`,
         name: spec.name,
+        decorative: spec.decorative === true,
         showAtMinZoom: spec.showAtMinZoom ? 1 : 0,
         minor: isMinorLandmark(spec.key) ? 1 : 0,
         selected: spec.key === selectedKey ? 1 : 0,
@@ -1089,7 +1092,7 @@ function MapViewMapLibre({
         id: "nicchyo-landmarks-min",
         type: "symbol",
         source: SRC_LANDMARKS,
-        filter: ["all", ["==", ["get", "showAtMinZoom"], 1], ["==", ["get", "minor"], 0]],
+        filter: ["all", SPOT_ILLUSTRATION_FILTER, ["==", ["get", "showAtMinZoom"], 1], ["==", ["get", "minor"], 0]],
         layout: landmarkLayout,
         paint: landmarkPaint,
       });
@@ -1098,7 +1101,7 @@ function MapViewMapLibre({
         type: "symbol",
         source: SRC_LANDMARKS,
         minzoom: Math.max(LANDMARK_DETAIL_MIN_ZOOM, minZoom + 0.8),
-        filter: ["all", ["==", ["get", "showAtMinZoom"], 0], ["==", ["get", "minor"], 0]],
+        filter: ["all", SPOT_ILLUSTRATION_FILTER, ["==", ["get", "showAtMinZoom"], 0], ["==", ["get", "minor"], 0]],
         layout: landmarkLayout,
         paint: landmarkPaint,
       });
@@ -1107,7 +1110,17 @@ function MapViewMapLibre({
         type: "symbol",
         source: SRC_LANDMARKS,
         minzoom: Math.max(LANDMARK_DETAIL_MIN_ZOOM, minZoom),
-        filter: ["==", ["get", "minor"], 1],
+        filter: ["all", SPOT_ILLUSTRATION_FILTER, ["==", ["get", "minor"], 1]],
+        layout: landmarkLayout,
+        paint: landmarkPaint,
+      });
+      map.addLayer({
+        id: PEOPLE_ILLUSTRATION_LAYER,
+        type: "symbol",
+        source: SRC_LANDMARKS,
+        minzoom: LANDMARK_DETAIL_MIN_ZOOM,
+        maxzoom: DETAIL_ZOOM,
+        filter: ["==", ["get", "decorative"], true],
         layout: landmarkLayout,
         paint: landmarkPaint,
       });
@@ -1158,7 +1171,7 @@ function MapViewMapLibre({
           id: LAYER_LANDMARK_LABELS,
           minzoom: landmarkNameMinZoom,
           maxzoom: minZoom + 2.5,
-          filter: ["all", ["==", ["get", "showAtMinZoom"], 1], ["==", ["get", "minor"], 0]],
+          filter: ["all", SPOT_ILLUSTRATION_FILTER, ["==", ["get", "showAtMinZoom"], 1], ["==", ["get", "minor"], 0]],
         });
       }
       // 副次的な建物・停留場・電車の名前は、LANDMARK_DETAIL_MIN_ZOOM より縮小したときは出さない
@@ -1170,7 +1183,7 @@ function MapViewMapLibre({
           id: LAYER_LANDMARK_DETAIL_LABELS,
           minzoom: detailLabelMinZoom,
           maxzoom: minZoom + 2.5,
-          filter: ["any", ["==", ["get", "showAtMinZoom"], 0], ["==", ["get", "minor"], 1]],
+          filter: ["all", SPOT_ILLUSTRATION_FILTER, ["any", ["==", ["get", "showAtMinZoom"], 0], ["==", ["get", "minor"], 1]]],
         });
       }
 
@@ -1598,7 +1611,7 @@ function MapViewMapLibre({
     const map = mapRef.current;
     if (!map || !mapLoaded) return;
     const visibility = suppressLandmarks ? "none" : "visible";
-    for (const id of [...LANDMARK_ICON_LAYERS, LAYER_LANDMARK_LABELS, LAYER_LANDMARK_DETAIL_LABELS]) {
+    for (const id of [...LANDMARK_ICON_LAYERS, PEOPLE_ILLUSTRATION_LAYER, LAYER_LANDMARK_LABELS, LAYER_LANDMARK_DETAIL_LABELS]) {
       if (map.getLayer(id)) map.setLayoutProperty(id, "visibility", visibility);
     }
   }, [mapLoaded, suppressLandmarks]);

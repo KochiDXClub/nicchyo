@@ -18,6 +18,8 @@ export type Landmark = {
   widthPx: number;
   heightPx: number;
   showAtMinZoom: boolean;
+  /** 人など、タップやラベル表示の対象にしない地図イラスト */
+  decorative?: boolean;
   /** 未指定なら landmark（電停・駅は key の規約から判定する） */
   category?: LandmarkCategory;
   transitMode?: LandmarkTransitMode;

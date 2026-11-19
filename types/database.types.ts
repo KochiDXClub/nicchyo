@@ -659,6 +659,50 @@ export type Database = {
         }
         Relationships: []
       }
+      map_people_illustrations: {
+        Row: {
+          enabled: boolean
+          id: string
+          image_url: string
+          latitude: number
+          longitude: number
+          market_id: string
+          name: string
+          weekdays: number[]
+          width_px: number
+        }
+        Insert: {
+          enabled?: boolean
+          id?: string
+          image_url: string
+          latitude: number
+          longitude: number
+          market_id: string
+          name: string
+          weekdays: number[]
+          width_px: number
+        }
+        Update: {
+          enabled?: boolean
+          id?: string
+          image_url?: string
+          latitude?: number
+          longitude?: number
+          market_id?: string
+          name?: string
+          weekdays?: number[]
+          width_px?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "map_people_illustrations_market_id_fkey"
+            columns: ["market_id"]
+            isOneToOne: false
+            referencedRelation: "markets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       map_landmarks: {
         Row: {
           category: string

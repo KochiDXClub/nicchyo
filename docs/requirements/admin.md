@@ -17,7 +17,7 @@
 | A-05 | 通報対応 | A | ✅ | `/admin/reports` |
 | A-06 | ユーザー・ロール管理 | **S** | ✅ | `/admin/users` |
 | A-07 | マップ編集（建物・店舗配置）・表示範囲 | A | ✅ | `/admin/map-edit` `/admin/map-view` |
-| A-08 | スポット管理（トイレ・休憩・のりば） | A | ✅ | `/admin/spots` |
+| A-08 | イラスト管理（来訪者の配置と表示曜日、トイレ・休憩・のりばなどのスポット） | A | ✅ | `/admin/spots` |
 | A-09 | カテゴリ管理 | B | ✅ | `/admin/categories` |
 | A-10 | アクセス分析 | B | ✅ | `/admin/analytics` |
 | A-11 | 公開範囲・機能フラグ・通知メール設定 | A | ✅ | `/admin/settings` `/admin/page-visibility` |
