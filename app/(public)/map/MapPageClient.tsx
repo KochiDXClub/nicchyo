@@ -21,6 +21,7 @@ import { useMapLoading } from "../../components/MapLoadingProvider";
 import MapLoadingOverlay from "../../components/MapLoadingOverlay";
 import { grandmaEvents } from "./data/grandmaEvents";
 import { recordMarketEnter, recordMarketExit } from "../../../lib/storage/marketStats";
+import { recordFeatureUsage } from "@/lib/analytics/featureUsage";
 import { useMapSearchFilter } from "./hooks/useMapSearchFilter";
 import { GenreFilter } from "./components/GenreFilter";
 import { VendorShopPrompt } from "./components/VendorShopPrompt";
@@ -139,6 +140,9 @@ export default function MapPageClient({
   useEffect(() => {
     takeOverMapLoading();
   }, [takeOverMapLoading]);
+  useEffect(() => {
+    recordFeatureUsage("map");
+  }, []);
   useEffect(() => {
     if (mapLoadingStatus !== "idle") setMapLoadingHandedOff(true);
   }, [mapLoadingStatus]);

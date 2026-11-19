@@ -19,6 +19,7 @@ import { useFavoriteShopIds } from '../../../lib/hooks/useFavorites';
 import { useShopFavoriteToggle } from '../../components/favorites/useShopFavoriteToggle';
 import { saveSearchMapPayload } from '../../../lib/searchMapStorage';
 import ShopDetailBanner from '../map/components/ShopDetailBanner';
+import { recordFeatureUsage } from '@/lib/analytics/featureUsage';
 
 const MapView = dynamic(() => import('../map/components/maplibre/MapViewMapLibre'), {
   ssr: false,
@@ -156,6 +157,10 @@ export default function SearchClient({
   const skipNextEmbeddedSyncRef = useRef(embedded);
   const prevInitialQueryRef = useRef(initialQuery);
   const prevInitialCategoryRef = useRef(initialCategory);
+
+  useEffect(() => {
+    recordFeatureUsage('search');
+  }, []);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
