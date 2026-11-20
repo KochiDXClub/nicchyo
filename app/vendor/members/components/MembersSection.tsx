@@ -74,7 +74,7 @@ export default function MembersSection({
         )}
         {canManage && data.members.length === 1 && (
           <p className="mt-1 text-sm leading-relaxed text-nicchyo-ink/70">
-            まだあなただけです。家族やスタッフを招待すると、近況の投稿などを手伝ってもらえます。
+            家族やスタッフは「招待」から追加できます。
           </p>
         )}
       </div>
@@ -84,7 +84,7 @@ export default function MembersSection({
         {notice}
       </p>
 
-      <ul className="space-y-3">
+      <ul className="space-y-2">
         {data.members.map((member) => {
           const ref = toRef(member);
           const canEdit = canManageMember(meRef, ref);
@@ -92,46 +92,50 @@ export default function MembersSection({
           const isDeputy = member.role === "member" && member.permissions.includes("members_manage");
           return (
             <li key={member.userId}>
-              <Surface padding="sm" className="flex flex-col gap-3 sm:flex-row sm:items-center">
-                <div className="min-w-0 flex-1 space-y-1.5">
-                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                    <span className="break-all text-[15px] font-bold text-nicchyo-ink">{member.name}</span>
-                    {member.role === "owner" && <Badge variant="amber">代表者</Badge>}
-                    {isDeputy && <Badge variant="info">副代表</Badge>}
-                    {member.isMe && <Badge>あなた</Badge>}
-                  </div>
-                  {member.email && <p className="break-all text-xs text-nicchyo-ink/70">{member.email}</p>}
+              <Surface padding="sm" className="flex items-start gap-2">
+                <details className="min-w-0 flex-1">
+                  <summary className="min-h-11 cursor-pointer content-center text-nicchyo-ink/70">
+                    <span className="inline-flex max-w-full flex-wrap items-center gap-x-2 gap-y-1 align-middle">
+                      <span className="break-all text-[15px] font-bold text-nicchyo-ink">{member.name}</span>
+                      {member.role === "owner" && <Badge variant="amber">代表者</Badge>}
+                      {isDeputy && <Badge variant="info">副代表</Badge>}
+                      {member.isMe && <Badge>あなた</Badge>}
+                    </span>
+                  </summary>
+                  <div className="mt-1 space-y-1.5">
+                    {member.email && <p className="break-all text-xs text-nicchyo-ink/70">{member.email}</p>}
 
-                  {member.role === "owner" ? (
-                    <p className="text-xs text-nicchyo-ink/70">すべての操作ができます。</p>
-                  ) : member.permissions.length === SHOP_PERMISSION_KEYS.length ? (
-                    // 全部ついているときに札を7つ並べると、スマホで行が長くなりすぎる
-                    <p className="text-xs text-nicchyo-ink/70">代表者以外のほぼすべての操作ができます。</p>
-                  ) : member.permissions.length > 0 ? (
-                    <ul className="flex flex-wrap gap-1.5" aria-label={`${member.name}さんができること`}>
-                      {member.permissions.map((permission) => (
-                        <li key={permission}>
-                          {/* neutral の文字色（ink/65）は 11px では読みにくいので濃くする */}
-                          <Badge variant="neutral" className="text-nicchyo-ink/80">
-                            {SHOP_PERMISSION_META[permission].label}
-                          </Badge>
-                        </li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <p className="text-xs text-nicchyo-ink/70">お店の情報を見ることができます（編集はできません）。</p>
-                  )}
-                  <p className="text-xs text-nicchyo-ink/70">{formatJaDate(member.joinedAt)}に参加</p>
-                </div>
+                    {member.role === "owner" ? (
+                      <p className="text-xs text-nicchyo-ink/70">すべての操作ができます。</p>
+                    ) : member.permissions.length === SHOP_PERMISSION_KEYS.length ? (
+                      // 全部ついているときに札を7つ並べると、スマホで行が長くなりすぎる
+                      <p className="text-xs text-nicchyo-ink/70">代表者以外のほぼすべての操作ができます。</p>
+                    ) : member.permissions.length > 0 ? (
+                      <ul className="flex flex-wrap gap-1.5" aria-label={`${member.name}さんができること`}>
+                        {member.permissions.map((permission) => (
+                          <li key={permission}>
+                            {/* neutral の文字色（ink/65）は 11px では読みにくいので濃くする */}
+                            <Badge variant="neutral" className="text-nicchyo-ink/80">
+                              {SHOP_PERMISSION_META[permission].label}
+                            </Badge>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="text-xs text-nicchyo-ink/70">お店の情報を見ることができます（編集はできません）。</p>
+                    )}
+                    <p className="text-xs text-nicchyo-ink/70">{formatJaDate(member.joinedAt)}に参加</p>
+                  </div>
+                </details>
 
                 {(canEdit || canTransfer) && (
                   <Button
                     variant="secondary"
-                    className="w-full shrink-0 sm:w-auto"
+                    className="min-h-11 shrink-0"
                     aria-label={`${member.name}さんの設定を変える`}
                     onClick={() => openSheet(member.userId)}
                   >
-                    設定を変える
+                    設定
                   </Button>
                 )}
               </Surface>

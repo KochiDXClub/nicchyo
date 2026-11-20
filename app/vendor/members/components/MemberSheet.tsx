@@ -99,7 +99,7 @@ export default function MemberSheet({
             <h3 id="member-sheet-permissions" className="text-sm font-bold text-nicchyo-ink">
               できること
             </h3>
-            <PermissionPicker value={draft} onChange={setDraft} canToggle={canToggle} idPrefix={`edit-${member.userId}`} disabled={busy} />
+            <PermissionPicker compact value={draft} onChange={setDraft} canToggle={canToggle} idPrefix={`edit-${member.userId}`} disabled={busy} />
             {/*
               変えたあとは、一覧が長くても保存を押せるよう、シートの下に貼りつける。
               変える前は貼りつけない（貼りつけると、その下の「そのほかの操作」が無いように見える）
