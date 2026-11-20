@@ -1,8 +1,7 @@
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import NavigationBar from "../../../components/NavigationBar";
-import { siteTextFor } from "@/lib/siteCopy";
-import { getPublishedSiteCopy } from "@/lib/site-copy/server";
+import { getSiteText } from "@/lib/i18n/server";
 import {
   ANONYMOUS_SUPPORTER_COUNT,
   formatMonth,
@@ -19,18 +18,16 @@ import {
  */
 
 export async function generateMetadata() {
-  const { texts } = await getPublishedSiteCopy();
-  const t = (key: "supporters.meta.title" | "supporters.meta.description" | "supporters.meta.ogTitle" | "supporters.meta.ogDescription") => siteTextFor(key, "ja", texts);
+  const s = await getSiteText();
   return {
-    title: t("supporters.meta.title"),
-    description: t("supporters.meta.description"),
-    openGraph: { title: t("supporters.meta.ogTitle"), description: t("supporters.meta.ogDescription") },
+    title: s("supporters.meta.title"),
+    description: s("supporters.meta.description"),
+    openGraph: { title: s("supporters.meta.ogTitle"), description: s("supporters.meta.ogDescription") },
   };
 }
 
 export default async function IndividualSupportersPage() {
-  const { texts } = await getPublishedSiteCopy();
-  const t = (key: "supporters.heading" | "supporters.lead") => siteTextFor(key, "ja", texts);
+  const s = await getSiteText();
   const yearGroups = groupSupportersByYear();
   const total = totalIndividualSupporters();
 
@@ -49,10 +46,10 @@ export default async function IndividualSupportersPage() {
         </Link>
 
         <h1 className="mt-8 text-[1.7rem] font-bold leading-[1.5] tracking-tight sm:text-[2rem]">
-          {t("supporters.heading")}
+          {s("supporters.heading")}
         </h1>
         <p className="mt-4 max-w-[34rem] text-[14px] leading-[2] text-nicchyo-ink/60">
-          {t("supporters.lead")}
+          {s("supporters.lead")}
           {total > 0 && `これまでに ${total.toLocaleString("ja-JP")}名のご支援をいただきました。`}
         </p>
 

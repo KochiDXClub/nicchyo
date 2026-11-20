@@ -12,16 +12,14 @@ import Reveal from "@/components/Reveal";
 import { Surface } from "@/components/ui";
 import { totalIndividualSupporters } from "@/lib/support/individualSupporters";
 import { FUND_USES, SPONSOR_UNIT_ANNUAL_JPY } from "./costs";
-import { siteTextFor } from "@/lib/siteCopy";
-import { getPublishedSiteCopy } from "@/lib/site-copy/server";
+import { getSiteText } from "@/lib/i18n/server";
 
 export async function generateMetadata() {
-  const { texts } = await getPublishedSiteCopy();
-  const t = (key: "support.meta.title" | "support.meta.description" | "support.meta.ogTitle" | "support.meta.ogDescription") => siteTextFor(key, "ja", texts);
+  const s = await getSiteText();
   return {
-    title: t("support.meta.title"),
-    description: t("support.meta.description"),
-    openGraph: { title: t("support.meta.ogTitle"), description: t("support.meta.ogDescription") },
+    title: s("support.meta.title"),
+    description: s("support.meta.description"),
+    openGraph: { title: s("support.meta.ogTitle"), description: s("support.meta.ogDescription") },
   };
 }
 

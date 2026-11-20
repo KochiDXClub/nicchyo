@@ -2,14 +2,13 @@ import { Metadata } from "next";
 import StoryGridClient from "./StoryGridClient";
 import TodayMarketNotice from "@/app/components/market/TodayMarketNotice";
 import { fetchPublicMarkets } from "@/lib/market/publicMarkets.server";
-import { siteTextFor } from "@/lib/siteCopy";
-import { getPublishedSiteCopy } from "@/lib/site-copy/server";
+import { getSiteText } from "@/lib/i18n/server";
 
 export async function generateMetadata(): Promise<Metadata> {
-  const { texts } = await getPublishedSiteCopy();
+  const s = await getSiteText();
   return {
-    title: siteTextFor("story.meta.title", "ja", texts),
-    description: siteTextFor("story.meta.description", "ja", texts),
+    title: s("story.meta.title"),
+    description: s("story.meta.description"),
   };
 }
 
