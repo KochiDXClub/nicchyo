@@ -1,10 +1,8 @@
-import { cookies } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient as createServiceClient } from "@supabase/supabase-js";
-import { createClient as createServerClient } from "@/utils/supabase/server";
 import { requireSameOrigin } from "@/lib/security/requestGuards";
 import { enforceRateLimit } from "@/lib/security/rateLimit";
-import { getRole, isAdmin } from "@/lib/auth/permissions";
+import { authorizeAdmin } from "@/lib/auth/requireAdminApi";
 import { computeMetrics } from "@/lib/perf/metrics";
 import type { BenchmarkReport } from "@/lib/perf/mapBenchmark";
 
@@ -56,12 +54,8 @@ function createAdminClient() {
 }
 
 async function requireAdmin() {
-  const cookieStore = await cookies();
-  const supabase = createServerClient(cookieStore);
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user || !isAdmin(getRole(user))) {
+  const { user } = await authorizeAdmin();
+  if (!user) {
     return { error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) };
   }
   return { user };
