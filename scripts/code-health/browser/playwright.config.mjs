@@ -10,6 +10,9 @@ export default defineConfig({
   use: {
     baseURL: "http://127.0.0.1:3117",
     locale: "ja-JP",
+    // 本番の CSP（nonce 付きの script-src）は、axe を addScriptTag で差し込むのを止めることがある。
+    // この診断用のブラウザだけ CSP を外す（公開サイトの設定は変えない）
+    bypassCSP: true,
     launchOptions: { executablePath: process.env.CHROMIUM_PATH },
   },
   projects: [

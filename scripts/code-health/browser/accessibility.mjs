@@ -17,6 +17,8 @@ for (const path of ["/faq", "/privacy"]) {
       const audit = await page.evaluate(ids => window.axe.run(document, {
         runOnly: { type: "rule", values: ids }, resultTypes: ["violations", "incomplete"],
       }), ruleIds);
+      // 指摘が 0 件でも、axe が実際に走った証拠になる結果（通過・指摘・要確認のどれか）があることを確かめる
+      expect(audit.passes.length + audit.violations.length + audit.incomplete.length).toBeGreaterThan(0);
       for (const group of ["violations", "incomplete"]) {
         result[group] = audit[group].map(rule => ({
           id: rule.id, impact: rule.impact, help: rule.help, url: rule.helpUrl,
