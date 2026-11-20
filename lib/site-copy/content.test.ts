@@ -19,3 +19,19 @@ describe("site copy validation", () => {
     expect(resolved?.texts["mapIntro.title"]).toBe(DEFAULT_SITE_COPY.texts["mapIntro.title"]);
   });
 });
+
+describe("site copy English entries", () => {
+  it("英訳は保存時に検証し、未知のキーや HTML を拒否する", () => {
+    const base = { texts: DEFAULT_SITE_COPY.texts, faq: DEFAULT_SITE_COPY.faq };
+    const ok = { "faq.title": { text: "FAQ", source: DEFAULT_SITE_COPY.texts["faq.title"] } };
+    expect(parseSiteCopy({ ...base, en: { texts: ok } })?.en?.texts["faq.title"]?.text).toBe("FAQ");
+    expect(parseSiteCopy({ ...base, en: { texts: { unknown: { text: "x", source: "y" } } } })).toBeNull();
+    expect(parseSiteCopy({ ...base, en: { texts: { "faq.title": { text: "<b>x</b>", source: "y" } } } })).toBeNull();
+  });
+  it("読み出し時は壊れた英訳だけを捨て、日本語の公開版は残す", () => {
+    const base = { texts: DEFAULT_SITE_COPY.texts, faq: DEFAULT_SITE_COPY.faq };
+    const resolved = resolveSiteCopy({ ...base, en: { texts: { gone: { text: "x", source: "y" }, "faq.title": { text: "", source: "y" } } } });
+    expect(resolved).not.toBeNull();
+    expect(resolved?.en).toBeUndefined();
+  });
+});

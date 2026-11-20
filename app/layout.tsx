@@ -19,6 +19,7 @@ import { SITE_URL } from "@/lib/constants";
 import { DEFAULT_LOCALE, LOCALE_HEADER, toLocale } from "@/lib/i18n/config";
 import { SiteCopyProvider } from "@/lib/site-copy/Context";
 import { getPublishedSiteCopy } from "@/lib/site-copy/server";
+import { resolveSiteTexts } from "@/lib/siteCopy";
 import { LocaleProvider } from "@/lib/i18n/LocaleContext";
 
 // 見出し用の丸文字。以前は globals.css の @import で Google Fonts から読んでいたが、
@@ -123,7 +124,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       </head>
       <body className="bg-nicchyo-base text-nicchyo-ink">
         <ViewportHeightUpdater />
-        <SiteCopyProvider initial={siteCopy.texts}>
+        <SiteCopyProvider initial={resolveSiteTexts(siteCopy, locale)}>
         <LocaleProvider locale={locale}>
         <CategoryProvider initial={categories}>
         <AuthProvider>
