@@ -79,11 +79,6 @@ export default function NewVendorInquiryPage() {
 
   const pattern = patternId ? findReportPattern(patternId) : undefined;
 
-  // 選んだ報告パターンの「ふだんの宛先」が、選んだ宛先と違うときだけ案内を出す
-  const suggestedCategory = topic === "report" && pattern && category && pattern.category !== category
-    ? pattern.category
-    : null;
-
   // 送信される本文。報告・連絡は定型パターンの入力を本文へ整形して埋め込む
   const composedBody = useMemo(() => {
     if (topic === "report" && pattern) return buildReportBody(pattern, patternValues, freeText);
@@ -220,34 +215,17 @@ export default function NewVendorInquiryPage() {
                       setPatternValues({});
                     }}
                     aria-pressed={selected}
-                    className={`flex w-full items-center justify-between rounded-2xl border px-4 py-3 text-left text-sm font-semibold transition ${
+                    className={`flex w-full items-center rounded-2xl border px-4 py-3 text-left text-sm font-semibold transition ${
                       selected
                         ? "border-amber-300 bg-amber-50 text-amber-900 shadow-sm"
                         : "border-slate-200 bg-white text-slate-700 hover:border-amber-200 hover:bg-amber-50/50"
                     }`}
                   >
                     {p.label}
-                    <span className="text-[11px] font-normal text-slate-400">ふだんは{CATEGORY_LABELS[p.category]}へ</span>
                   </button>
                 );
               })}
             </div>
-
-            {/* ふだんの宛先と違うときの案内。決めるのは出店者なので、切り替えは任せる */}
-            {suggestedCategory && (
-              <div className="mt-3 rounded-btn bg-status-warning-bg px-4 py-3 text-sm text-status-warning-fg ring-1 ring-status-warning-line">
-                <p>
-                  「{pattern?.label}」は、ふだん <span className="font-semibold">{CATEGORY_LABELS[suggestedCategory]}</span> に送っています。
-                </p>
-                <button
-                  type="button"
-                  onClick={() => setCategory(suggestedCategory)}
-                  className="mt-2 rounded-chip bg-white px-3 py-1.5 text-xs font-semibold text-nicchyo-ink shadow-chip ring-1 ring-line transition hover:bg-amber-50"
-                >
-                  宛先を「{CATEGORY_GUIDES[suggestedCategory].label}」に変える
-                </button>
-              </div>
-            )}
 
             {/* 選んだパターンの専用入力欄 */}
             {pattern && pattern.fields.length > 0 && (

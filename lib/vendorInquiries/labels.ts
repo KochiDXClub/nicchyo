@@ -122,11 +122,6 @@ export type ReportPatternField = {
 export type ReportPattern = {
   id: string;
   label: string;
-  /**
-   * おすすめの宛先。運営が仲介するものは operator、市役所の判断が要るものは city。
-   * 宛先は出店者が最初に選ぶので、ここは「ふだんはこちら」という案内にだけ使う
-   */
-  category: VendorInquiryCategory;
   fields: ReportPatternField[];
 };
 
@@ -134,7 +129,6 @@ export const REPORT_PATTERNS: ReportPattern[] = [
   {
     id: "last_day",
     label: "出店を最後にする",
-    category: "both",
     fields: [
       { name: "last_date", label: "最終出店予定日", type: "date", required: true },
       { name: "reason", label: "理由（任意）", type: "textarea", placeholder: "差し支えなければ教えてください" },
@@ -143,7 +137,6 @@ export const REPORT_PATTERNS: ReportPattern[] = [
   {
     id: "absence",
     label: "しばらく出店を休む",
-    category: "both",
     fields: [
       { name: "from_date", label: "休み始める日", type: "date", required: true },
       { name: "to_date", label: "再開予定日（未定なら空欄）", type: "date" },
@@ -153,7 +146,6 @@ export const REPORT_PATTERNS: ReportPattern[] = [
   {
     id: "shop_info_changed",
     label: "店名・商品が変わった",
-    category: "operator",
     fields: [
       { name: "changed", label: "変わった内容", type: "textarea", placeholder: "例：店名を「〇〇」に変えました", required: true },
     ],
@@ -161,7 +153,6 @@ export const REPORT_PATTERNS: ReportPattern[] = [
   {
     id: "contact_changed",
     label: "連絡先が変わった",
-    category: "both",
     fields: [
       { name: "new_contact", label: "新しい連絡先", type: "text", placeholder: "電話番号やメールアドレス", required: true },
     ],
@@ -169,7 +160,6 @@ export const REPORT_PATTERNS: ReportPattern[] = [
   {
     id: "other",
     label: "その他の報告",
-    category: "operator",
     fields: [],
   },
 ];
