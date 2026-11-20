@@ -105,10 +105,6 @@ type MapPageClientProps = {
   mapViewSettings?: MapViewSettings;
 };
 
-// 「このへん、なにがある？」の対象範囲＝画面に見えているマップの長方形（幅は画面の80%、高さは画面の48%。高さは以前の80%の0.6倍）
-const NEARBY_AREA_WIDTH_RATIO = 0.8;
-const NEARBY_AREA_HEIGHT_RATIO = 0.48;
-
 /** 「このへん」パネル由来の光（AI のおすすめ・ジャンル絞り込み）か。パネルを閉じたら消す */
 function isNearbyMarker(payload: { source: string } | null): boolean {
   return payload?.source === 'nearby' || payload?.source === 'nearby-genre';
@@ -389,6 +385,8 @@ export default function MapPageClient({
   } | null>(null);
   // 「このへん」の AI が最後に薦めた店の光。ジャンル絞り込みを解除したときに戻す
   const nearbyAiPayloadRef = useRef<{ ids: number[]; label: string; source: 'nearby' } | null>(null);
+  // 「このへん」の対象範囲のオレンジ枠（店舗判定の大きさを枠と揃えるために読む）
+  const nearbyFrameRef = useRef<HTMLDivElement | null>(null);
   // 「このへん、なにがある？」：開いているパネルの内容（追い質問はパネル内で完結）
   const [nearbyState, setNearbyState] = useState<{
     summary: NearbyViewportSummary;
@@ -774,16 +772,17 @@ export default function MapPageClient({
     const map = mapRef.current;
     if (!map) return;
     // マップコンテナは画面より大きい回転シェルいっぱいに広がっているため、
-    // 「画面に見えているマップ領域」はシェルの親要素からサイズを取り、
-    // シェルの CSS 回転角を打ち消して画面中央（幅80%×高さ48%）の長方形で店舗を判定する
+    // 店舗の判定は、画面中央に描いているオレンジ枠（「このへん」の対象範囲）と同じ大きさの長方形で行う。
+    // 枠の大きさは描画された要素から読む（枠の見た目と判定範囲をずらさないため）。
+    // シェルの CSS 回転角を打ち消して判定する
     const container = map.getContainer();
     const shell = container.parentElement;
-    const viewportEl = shell?.parentElement;
-    if (!shell || !viewportEl) return;
+    const frame = nearbyFrameRef.current;
+    if (!shell || !frame) return;
     const rect = {
       center: { x: container.clientWidth / 2, y: container.clientHeight / 2 },
-      halfWidth: (viewportEl.clientWidth * NEARBY_AREA_WIDTH_RATIO) / 2,
-      halfHeight: (viewportEl.clientHeight * NEARBY_AREA_HEIGHT_RATIO) / 2,
+      halfWidth: frame.offsetWidth / 2,
+      halfHeight: frame.offsetHeight / 2,
       rotationRad: parseCssRotationRad(getComputedStyle(shell).transform),
     };
     const center = map.getCenter();
@@ -1095,16 +1094,14 @@ export default function MapPageClient({
               }
             />
 
-            {/* 「このへん」の対象範囲（画面中央・幅80%×高さ48%）を示すオレンジ枠。
+            {/* 「このへん」の対象範囲を示すオレンジ枠。
+                スマホは画面中央・幅80%×高さ48%の横長。PC（lg以上）は画面の高さの60%四方の正方形（幅を超えない）。
                 ボタンと同時にフェードで浮き出て、パネル表示中も残る */}
             <div
-              className={`pointer-events-none absolute left-1/2 top-1/2 z-[1140] -translate-x-1/2 -translate-y-1/2 rounded-sheet border-2 border-dashed border-orange-400/80 bg-orange-300/[0.06] transition-opacity duration-500 ease-out-soft ${
+              ref={nearbyFrameRef}
+              className={`pointer-events-none absolute left-1/2 top-1/2 z-[1140] h-[48%] w-[80%] -translate-x-1/2 -translate-y-1/2 rounded-sheet border-2 border-dashed border-orange-400/80 bg-orange-300/[0.06] transition-opacity duration-500 ease-out-soft lg:h-auto lg:w-[min(60dvh,80%)] lg:aspect-square ${
                 nearbyButtonVisible || nearbyState ? 'opacity-100' : 'opacity-0'
               }`}
-              style={{
-                width: `${NEARBY_AREA_WIDTH_RATIO * 100}%`,
-                height: `${NEARBY_AREA_HEIGHT_RATIO * 100}%`,
-              }}
               aria-hidden
             />
 
