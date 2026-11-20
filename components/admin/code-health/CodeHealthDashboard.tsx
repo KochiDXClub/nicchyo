@@ -5,6 +5,7 @@ import { compareSnapshots } from "@/lib/code-health/compareSnapshots";
 import type { CodeHealthSnapshotRow } from "@/types/database.extensions";
 import { CodeTreemap } from "./CodeTreemap";
 import { CompositionBar } from "./CompositionBar";
+import { DependencyAudit } from "./DependencyAudit";
 import { CopyBlocks } from "./CopyBlocks";
 import { DuplicateNames } from "./DuplicateNames";
 import { HugeFilesList } from "./HugeFilesList";
@@ -76,6 +77,8 @@ export function CodeHealthDashboard({ snapshots }: CodeHealthDashboardProps) {
         <HugeFilesList largeFiles={current.summary.largeFiles} />
         <DuplicateNames groups={current.summary.sameName} />
       </div>
+
+      <DependencyAudit audit={current.summary.dependencyAudit} />
 
       <CopyBlocks clones={current.summary.clones} />
     </div>
