@@ -34,7 +34,9 @@ export default function MarketStatusCalendar({ date, className = "", link = true
   const { label, tone } = getStatusPresentation(status);
   const marketDay = toLandingMarketDay(date);
   const statusLabel = !day && unregisteredLabel ? unregisteredLabel : label;
-  const text = nextSundayCalendarText(marketDay, t, locale, statusLabel);
+  const baseText = nextSundayCalendarText(marketDay, t, locale, statusLabel);
+  // 市の名前があるときは、曜日（「日曜日」）を重ねて書かない。「日曜市」だけで十分伝わる
+  const text = marketDay.marketName ? { ...baseText, weekdayText: "" } : baseText;
 
   const calendar = (
     <span className="relative block h-[8.2rem] w-[7.6rem] shrink-0">

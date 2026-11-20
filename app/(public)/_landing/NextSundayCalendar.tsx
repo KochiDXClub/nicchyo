@@ -65,7 +65,7 @@ export default function NextSundayCalendar({
         <span className="relative z-[1] mt-2 text-xl font-black tracking-widest text-white">{text.monthText}</span>
         <span className="mt-5 font-display text-[6.5rem] leading-none text-nicchyo-ink">{next.day}</span>
         <span className="mt-1 flex max-w-full items-baseline gap-2 px-3 text-[17px] font-black text-amber-700">
-          <span className="shrink-0">{text.weekdayText}</span>
+          {text.weekdayText && <span className="shrink-0">{text.weekdayText}</span>}
           {text.marketName && <span className="truncate text-sm">{text.marketName}</span>}
         </span>
         <span

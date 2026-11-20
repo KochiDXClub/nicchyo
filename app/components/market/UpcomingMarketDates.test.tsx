@@ -19,6 +19,8 @@ it("運営の登録がある日だけに取得した更新時刻を表示する"
   expect(registered).toHaveTextContent("運営が登録");
   expect(registered.querySelector("time")).toHaveAttribute("datetime", updatedAt);
   expect(registered.querySelector("time")).toHaveTextContent("13:15");
-  expect(within(regular).getByText("通常予定")).toBeInTheDocument();
+  // 通常開催の日には札も「まだ予定はありません」も出さない（見出しだけ）
+  expect(within(regular).queryByText("通常予定")).not.toBeInTheDocument();
+  expect(within(regular).queryByText("まだ予定はありません")).not.toBeInTheDocument();
   expect(regular.querySelector("time")).toBeNull();
 });

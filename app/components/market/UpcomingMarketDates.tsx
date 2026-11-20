@@ -32,7 +32,7 @@ export default function UpcomingMarketDates({
       {showHeading && (
         <div className="mb-2 flex items-center gap-2">
           <h2 className="text-sm font-bold text-nicchyo-ink">{showMarketNames ? "これからの開催日" : "これからの日曜市"}</h2>
-          <span className="text-[11px] text-gray-400">運営からのお知らせ</span>
+          <span className="text-[11px] text-nicchyo-ink/55">運営からのお知らせ</span>
         </div>
       )}
 
@@ -64,43 +64,43 @@ const jstUpdatedAt = new Intl.DateTimeFormat("ja-JP", {
 
 function CalendarDateCard({ date, showStatusSource }: { date: MarketCalendarDate; showStatusSource: boolean }) {
   const { day, highlight, events, isThisWeek, marketName, status } = date;
-  const showStatusBadge = Boolean(marketName) || status !== "open" || showStatusSource;
-  const statusPresentation = status && showStatusBadge ? getStatusPresentation(status) : null;
+  // 通常の開催日には札を出さない（「通常予定」はページの説明に一度書けば足りる）。
+  // 中止・特別開催だけ、日付の横に札で知らせる
+  const statusPresentation = status ? getStatusPresentation(status) : null;
+  const alertBadge = statusPresentation && statusPresentation.tone !== "neutral" ? statusPresentation : null;
   const updatedAt = showStatusSource && day?.updated_at ? new Date(day.updated_at) : null;
   const isEmpty = !highlight && events.length === 0;
 
   return (
     <li
-      className={`overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ${
-        isThisWeek ? "ring-nicchyo-primary/40" : "ring-black/5"
+      className={`overflow-hidden rounded-card bg-white shadow-card ring-1 ${
+        isThisWeek ? "ring-nicchyo-primary/40" : "ring-line"
       }`}
     >
-      {/* 日付ヘッダー */}
+      {/* 日付ヘッダー：日付・あと何日・市の名前・（あれば）中止などの札 */}
       <div
-        className={`flex flex-wrap items-center gap-x-2 gap-y-1 px-4 py-2.5 ${
-          isThisWeek ? "bg-nicchyo-primary/10" : "bg-black/[0.02]"
+        className={`flex flex-wrap items-center gap-x-2 gap-y-1 px-4 py-3 ${
+          isThisWeek ? "bg-nicchyo-primary/10" : "bg-nicchyo-ink/[0.03]"
         }`}
       >
-        <span className="text-sm font-bold text-nicchyo-ink">{date.dateLabel}</span>
-        <span className="text-[11px] text-gray-400">{date.relativeLabel}</span>
+        <span className="text-base font-bold text-nicchyo-ink">{date.dateLabel}</span>
+        <span className="text-xs text-nicchyo-ink/55">{date.relativeLabel}</span>
         {marketName && <span className="text-xs font-bold text-nicchyo-primary">{marketName}</span>}
-        {statusPresentation && (
+        {alertBadge && (
           <span
-            className={`ml-auto rounded-full px-2 py-0.5 text-[11px] font-bold ${
-              statusPresentation.tone === "alert"
+            className={`ml-auto rounded-chip px-2.5 py-0.5 text-[11px] font-bold ${
+              alertBadge.tone === "alert"
                 ? "bg-rose-500 text-white"
-                : statusPresentation.tone === "highlight"
-                  ? "bg-nicchyo-accent text-nicchyo-ink"
-                  : "bg-nicchyo-ink/5 text-nicchyo-ink"
+                : "bg-nicchyo-accent text-nicchyo-ink"
             }`}
           >
-            {!day && showStatusSource ? "通常予定" : statusPresentation.label}
+            {alertBadge.label}
           </span>
         )}
       </div>
 
       {showStatusSource && day && (
-        <p className="px-4 pt-2 text-xs text-nicchyo-ink/75">
+        <p className="px-4 pb-3 pt-2 text-xs text-nicchyo-ink/75">
           運営が登録
           {updatedAt && Number.isFinite(updatedAt.getTime()) && (
             <> ・更新 <time dateTime={day.updated_at}>{jstUpdatedAt.format(updatedAt)}</time>（日本時間）</>
@@ -121,29 +121,26 @@ function CalendarDateCard({ date, showStatusSource }: { date: MarketCalendarDate
       )}
 
       {day?.note && (
-        <p className="border-b border-black/5 bg-rose-50/60 px-4 py-2 text-xs leading-relaxed text-rose-700">
+        <p className="border-b border-line bg-rose-50/60 px-4 py-2 text-xs leading-relaxed text-rose-700">
           {day.note}
         </p>
       )}
 
-      <div className="px-4 py-3">
-        {isEmpty ? (
-          <p className="text-xs text-gray-400">まだ予定はありません</p>
-        ) : (
-          <>
-            {highlight && (
-              <HighlightItem event={highlight} relativeLabel={date.relativeLabel} />
-            )}
-            {events.length > 0 && (
-              <ul className={`flex flex-col gap-2.5 ${highlight ? "mt-3" : ""}`}>
-                {events.map((event) => (
-                  <EventItem key={event.id} event={event} />
-                ))}
-              </ul>
-            )}
-          </>
-        )}
-      </div>
+      {/* 予定が無い日は見出しだけにする（「まだ予定はありません」を毎回書くと、空の行が並んで見づらい） */}
+      {!isEmpty && (
+        <div className="px-4 py-3">
+          {highlight && (
+            <HighlightItem event={highlight} relativeLabel={date.relativeLabel} />
+          )}
+          {events.length > 0 && (
+            <ul className={`flex flex-col gap-2.5 ${highlight ? "mt-3" : ""}`}>
+              {events.map((event) => (
+                <EventItem key={event.id} event={event} />
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
     </li>
   );
 }
@@ -160,9 +157,9 @@ function HighlightItem({
   const { label, emoji } = getCategoryPresentation(event.category);
 
   return (
-    <div className="overflow-hidden rounded-xl bg-nicchyo-base ring-1 ring-nicchyo-accent/40">
+    <div className="overflow-hidden rounded-card bg-nicchyo-base ring-1 ring-nicchyo-accent/40">
       {event.image_url && (
-        <div className="relative aspect-[16/9] w-full bg-gray-100">
+        <div className="relative aspect-[16/9] w-full bg-nicchyo-ink/5">
           <Image
             src={event.image_url}
             alt={event.title}
@@ -177,14 +174,14 @@ function HighlightItem({
           <span className="rounded-full bg-nicchyo-accent px-2 py-0.5 text-[10px] font-bold text-nicchyo-ink">
             {emoji} {relativeLabel}の見どころ
           </span>
-          <span className="text-[10px] text-gray-400">{label}</span>
+          <span className="text-[10px] text-nicchyo-ink/55">{label}</span>
         </div>
         <p className="mt-1.5 text-[15px] font-bold leading-snug text-nicchyo-ink">
           {event.title}
         </p>
         <EventMeta event={event} />
         {event.description && (
-          <p className="mt-1 whitespace-pre-wrap text-xs leading-relaxed text-gray-600">
+          <p className="mt-1 whitespace-pre-wrap text-xs leading-relaxed text-nicchyo-ink/70">
             {event.description}
           </p>
         )}
@@ -200,7 +197,7 @@ function EventItem({ event }: { event: MarketEvent }) {
   return (
     <li className="flex gap-2.5">
       {event.image_url ? (
-        <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-lg bg-gray-100">
+        <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-lg bg-nicchyo-ink/5">
           <Image src={event.image_url} alt="" fill className="object-cover" sizes="48px" />
         </div>
       ) : (
@@ -210,14 +207,14 @@ function EventItem({ event }: { event: MarketEvent }) {
       )}
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1.5">
-          <span className="rounded-full bg-black/5 px-1.5 py-0.5 text-[10px] font-bold text-gray-500">
+          <span className="rounded-full bg-nicchyo-ink/5 px-1.5 py-0.5 text-[10px] font-bold text-nicchyo-ink/55">
             {event.image_url ? `${emoji} ${label}` : label}
           </span>
         </div>
         <p className="mt-1 text-sm font-bold leading-snug text-nicchyo-ink">{event.title}</p>
         <EventMeta event={event} />
         {event.description && (
-          <p className="mt-1 whitespace-pre-wrap text-xs leading-relaxed text-gray-600">
+          <p className="mt-1 whitespace-pre-wrap text-xs leading-relaxed text-nicchyo-ink/70">
             {event.description}
           </p>
         )}
@@ -233,11 +230,11 @@ function EventMeta({ event }: { event: MarketEvent }) {
   if (!time && !event.location && !isContinuous) return null;
 
   return (
-    <p className="mt-1 flex flex-wrap items-center gap-x-2 text-[11px] text-gray-400">
+    <p className="mt-1 flex flex-wrap items-center gap-x-2 text-[11px] text-nicchyo-ink/55">
       {time && <span>{time}</span>}
       {event.location && <span>{event.location}</span>}
       {isContinuous && (
-        <span className="rounded-full bg-black/5 px-1.5 py-0.5 font-semibold text-gray-500">
+        <span className="rounded-full bg-nicchyo-ink/5 px-1.5 py-0.5 font-semibold text-nicchyo-ink/55">
           {formatEventPeriod(event)}まで
         </span>
       )}
