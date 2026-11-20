@@ -32,6 +32,43 @@ export const CATEGORY_LABELS: Record<VendorInquiryCategory, string> = {
   both: "市役所と運営の両方",
 };
 
+/** 新規連絡の最初に出す宛先の並び。迷ったときの「両方」は最後に置く */
+export const CATEGORY_CHOICES: readonly VendorInquiryCategory[] = ["operator", "city", "both"];
+
+/**
+ * 宛先を選ぶ画面の案内。
+ * - label / description: 選択肢に出す名前と「どんな用件向きか」
+ * - receipt: 送信前に出す「誰が受け取り、どう返ってくるか」
+ * - submitLabel: 送信ボタンの文言
+ *
+ * 市役所の担当者用の受信箱はまだ無く（vendor_inquiries の migration 参照）、
+ * category='city' の連絡も運営が受け取って市役所へ取り次いでいる。receipt はその実態に合わせる。
+ * 市役所ロールが受信箱を持ったら city / both の receipt を書き換える。
+ */
+export const CATEGORY_GUIDES: Record<
+  VendorInquiryCategory,
+  { label: string; description: string; receipt: string; submitLabel: string }
+> = {
+  operator: {
+    label: "nicchyo運営",
+    description: "このアプリ・地図・お店の情報のこと",
+    receipt: "nicchyo運営が確認して、このページで返信します。",
+    submitLabel: "運営に送る",
+  },
+  city: {
+    label: "高知市役所",
+    description: "出店の手続き・場所・市のルールのこと",
+    receipt: "高知市役所あてとして届きます。いまは nicchyo運営が受け取り、市役所の担当者へ取り次ぎます。",
+    submitLabel: "市役所に送る",
+  },
+  both: {
+    label: "両方",
+    description: "どちらか迷うとき・両方に知らせたいとき",
+    receipt: "市役所と運営の両方に届きます。返信はどちらから来ることもあります。",
+    submitLabel: "両方に送る",
+  },
+};
+
 export const URGENCY_LABELS: Record<VendorInquiryUrgency, { label: string; description: string }> = {
   low: { label: "急がない", description: "時間があるときで大丈夫" },
   normal: { label: "ふつう", description: "数日のうちに知りたい" },
@@ -85,7 +122,10 @@ export type ReportPatternField = {
 export type ReportPattern = {
   id: string;
   label: string;
-  /** 宛先。運営が仲介するものは operator、市役所の判断が要るものは city */
+  /**
+   * おすすめの宛先。運営が仲介するものは operator、市役所の判断が要るものは city。
+   * 宛先は出店者が最初に選ぶので、ここは「ふだんはこちら」という案内にだけ使う
+   */
   category: VendorInquiryCategory;
   fields: ReportPatternField[];
 };
