@@ -42,7 +42,7 @@ export default function VendorMembersPage() {
       <PageContainer width="reading">
         {loading ? (
           <CenteredLoading />
-        ) : error || !data ? (
+        ) : !data ? (
           <div role="alert" className="space-y-3 rounded-btn bg-status-critical-bg p-4 text-sm text-status-critical-fg ring-1 ring-status-critical-line">
             <p>{error ?? "メンバーを読み込めませんでした"}</p>
             <Button variant="quiet" onClick={() => void reload()}>
@@ -51,6 +51,12 @@ export default function VendorMembersPage() {
           </div>
         ) : (
           <div className="space-y-4">
+            {/* 読み直しだけ失敗したときは、一覧と作ったリンクを残したまま知らせる（全体をエラーにすると、一度だけ出る URL が消える） */}
+            {error && (
+              <p role="alert" className="rounded-btn bg-status-critical-bg p-3 text-sm text-status-critical-fg ring-1 ring-status-critical-line">
+                {error}
+              </p>
+            )}
             {available.length > 1 && (
               <div role="group" aria-label="表示する内容" className="sticky top-[var(--safe-top,0px)] z-10 flex gap-1 rounded-card bg-white p-1 shadow-card ring-1 ring-line">
                 {available.map(({ id, label, icon: Icon }) => (

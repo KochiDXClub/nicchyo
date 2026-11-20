@@ -87,4 +87,17 @@ describe("メンバー管理", () => {
     fireEvent.click(screen.getByRole("button", { name: "もう一度読み込む" }));
     expect(reload).toHaveBeenCalled();
   });
+
+  it("読み直しだけ失敗しても、表示中の一覧と作ったリンクは残す（知らせは一覧の上に出す）", async () => {
+    const { rerender } = setup({ role: "owner", permissions: [] });
+    fireEvent.click(screen.getByRole("button", { name: "招待" }));
+    fireEvent.click(screen.getByRole("button", { name: "招待リンクを作る" }));
+    expect(await screen.findByLabelText("招待リンク")).toHaveValue("https://example.com/join/demo");
+
+    // 作ったあとの読み直しが失敗した状態（データは残り、エラーだけ出る）
+    loadError = "通信できませんでした";
+    rerender(<VendorMembersPage />);
+    expect(screen.getByRole("alert")).toHaveTextContent("通信できませんでした");
+    expect(screen.getByLabelText("招待リンク")).toHaveValue("https://example.com/join/demo");
+  });
 });

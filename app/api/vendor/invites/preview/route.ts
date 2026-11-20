@@ -35,7 +35,14 @@ export async function POST(request: Request) {
   const db = createAdminClient() as unknown as SupabaseClient | null;
   if (!db) return NextResponse.json({ error: "Service unavailable" }, { status: 503 });
 
-  const tokenHash = await resolveInviteHash(db, parsed.data.token);
+  let tokenHash: string | null;
+  try {
+    tokenHash = await resolveInviteHash(db, parsed.data.token);
+  } catch (error) {
+    // DB の読み取りに失敗しただけなので、招待が無効だと答えず、再試行できる 503 にする
+    console.error("[vendor/invites/preview] resolve error:", error);
+    return NextResponse.json({ error: "招待を読み込めませんでした" }, { status: 503 });
+  }
   if (!tokenHash) return NextResponse.json({ status: "invalid", message: INVITE_STATUS_MESSAGE.invalid });
 
   const { data: invite } = await db
