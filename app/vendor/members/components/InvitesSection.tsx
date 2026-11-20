@@ -12,6 +12,7 @@ import {
   type ShopPermission,
 } from "@/lib/vendor/shopPermissions";
 import { createInvite, fetchInvites, revokeInvite, type InviteView } from "../../_services/membersService";
+import InviteCopyField from "./InviteCopyField";
 import InviteSummary from "./InviteSummary";
 import CreatedInviteLink from "./CreatedInviteLink";
 import MaxUsesPicker from "./MaxUsesPicker";
@@ -29,7 +30,7 @@ function canShare(): boolean {
 /**
  * 招待リンクを作る・取り消す（メンバーの管理ができる人だけ）。
  * 有効期限は7日、1本のリンクで入れる人数は1〜5人。入った人にどんな権限をつけるかも、作るときに決める。
- * リンクの URL は、作った直後の1回しか出せない（サーバーにはハッシュしか残していない）。
+ * 有効なリンクは一覧からも再共有できる。
  * スマホでは、できたリンクをそのまま LINE などへ送れる（端末の共有）。
  */
 export default function InvitesSection({
@@ -165,7 +166,7 @@ export default function InvitesSection({
                 <Copy size={16} aria-hidden /> {copied ? "コピーしました" : "リンクをコピー"}
               </Button>
             </div>
-            <p className="text-xs text-nicchyo-ink/70">メンバー管理を閉じる前に、リンクを送るかコピーしてください。</p>
+            <p className="text-xs text-nicchyo-ink/70">あとから「作ったリンク」でもコピーできます。</p>
             <Button variant="quiet" onClick={() => { setCopied(false); setCreated(null); }}>もう1本作る</Button>
           </CreatedInviteLink>
         )}
@@ -188,6 +189,7 @@ export default function InvitesSection({
                 <li key={invite.id}>
                   <Surface padding="sm" className="space-y-2">
                     <InviteSummary invite={invite} />
+                    {invite.state === "active" && invite.url && <InviteCopyField url={invite.url} />}
                     {invite.state === "active" && (
                       <Button variant="quiet" onClick={() => handleRevoke(invite.id)}>
                         このリンクを取り消す

@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ResolvedShopMembership } from "@/lib/vendor/shopMembership";
 
 const requireVendorContext = vi.fn();
+const listInvites = vi.fn();
 const insertInvite = vi.fn();
 const insertLog = vi.fn();
 
@@ -14,12 +15,12 @@ vi.mock("@/lib/supabase/adminClient", () => ({
   createAdminClient: () => ({
     from: (table: string) =>
       table === "shop_invites"
-        ? { insert: (row: unknown) => ({ select: () => ({ single: () => insertInvite(row) }) }) }
+        ? { select: () => ({ eq: () => ({ order: () => ({ limit: listInvites }) }) }), insert: (row: unknown) => ({ select: () => ({ single: () => insertInvite(row) }) }) }
         : { insert: (row: unknown) => insertLog(row) },
   }),
 }));
 
-import { POST } from "./route";
+import { GET, POST } from "./route";
 
 const user = { id: "user-1", email: "a@example.com", user_metadata: { name: "山田" } };
 const owner: ResolvedShopMembership = { vendorId: "shop-1", role: "owner", permissions: [], joinedAt: null };
@@ -113,5 +114,26 @@ describe("POST /api/vendor/invites", () => {
 
     expect((await create({ maxUses: 1, permissions: [] })).status).toBe(403);
     expect(insertInvite).not.toHaveBeenCalled();
+  });
+});
+
+describe("作ったリンクの再共有", () => {
+  it("付与できる権限の有効な招待だけにURLを返し、DBのハッシュは返さない", async () => {
+    vi.stubEnv("SUPABASE_SERVICE_ROLE_KEY", "test-signing-key");
+    try {
+      requireVendorContext.mockResolvedValue(ctx(deputy));
+      const row = { id: "54a0257b-efac-4eaa-96d0-395ab9d0f704", token_hash: "a".repeat(64),
+        permissions: ["post"], max_uses: 1, used_count: 0, expires_at: "2099-01-01", revoked_at: null };
+      listInvites.mockResolvedValue({ data: [row, { ...row, permissions: ["members_manage"] },
+        { ...row, used_count: 1 }, { ...row, expires_at: "2000-01-01" }, { ...row, revoked_at: "2026-01-01" }] });
+      const res = await GET(new Request("https://nicchyo.example/api/vendor/invites"));
+      const { invites } = await res.json();
+      expect(res.headers.get("Cache-Control")).toBe("private, no-store");
+      expect(invites[0].url).toMatch(/^https:\/\/nicchyo.example\/join\/r1_/);
+      expect(invites.slice(1).every((invite: { url?: string }) => !invite.url)).toBe(true);
+      expect(JSON.stringify(invites)).not.toContain(row.token_hash);
+    } finally {
+      vi.unstubAllEnvs();
+    }
   });
 });

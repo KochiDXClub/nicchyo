@@ -5,7 +5,7 @@ import { createAdminClient } from "@/lib/supabase/adminClient";
 import { requireSameOrigin } from "@/lib/security/requestGuards";
 import { enforceRateLimit } from "@/lib/security/rateLimit";
 import { INVITE_STATUS_MESSAGE, InviteTokenSchema, type InviteStatus } from "@/lib/vendor/shopInvites";
-import { hashInviteToken } from "@/lib/vendor/shopInvites.server";
+import { resolveInviteHash } from "@/lib/vendor/reshareInvite.server";
 import { parseShopPermissions } from "@/lib/vendor/shopPermissions";
 
 export const runtime = "nodejs";
@@ -35,10 +35,13 @@ export async function POST(request: Request) {
   const db = createAdminClient() as unknown as SupabaseClient | null;
   if (!db) return NextResponse.json({ error: "Service unavailable" }, { status: 503 });
 
+  const tokenHash = await resolveInviteHash(db, parsed.data.token);
+  if (!tokenHash) return NextResponse.json({ status: "invalid", message: INVITE_STATUS_MESSAGE.invalid });
+
   const { data: invite } = await db
     .from("shop_invites")
     .select("vendor_id, permissions, max_uses, used_count, expires_at, revoked_at")
-    .eq("token_hash", hashInviteToken(parsed.data.token))
+    .eq("token_hash", tokenHash)
     .maybeSingle();
 
   let status: InviteStatus = "ok";

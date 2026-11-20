@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { displayNameOf, logVendorActivity } from "@/lib/vendor/activityLog";
 import { INVITE_STATUS_MESSAGE, InviteTokenSchema, type InviteStatus } from "@/lib/vendor/shopInvites";
-import { hashInviteToken } from "@/lib/vendor/shopInvites.server";
+import { resolveInviteHash } from "@/lib/vendor/reshareInvite.server";
 import { requireJoinRequest } from "@/lib/vendor/joinGuard.server";
 import { ensureVendorRole } from "@/lib/vendor/ensureVendorRole.server";
 
@@ -33,7 +33,8 @@ export async function POST(request: Request) {
   const parsed = BodySchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: INVITE_STATUS_MESSAGE.invalid, code: "invalid" }, { status: 404 });
 
-  const tokenHash = hashInviteToken(parsed.data.token);
+  const tokenHash = await resolveInviteHash(db, parsed.data.token);
+  if (!tokenHash) return NextResponse.json({ error: INVITE_STATUS_MESSAGE.invalid, code: "invalid" }, { status: 404 });
   const { data, error } = await db.rpc("accept_shop_invite", { p_token_hash: tokenHash, p_user_id: user.id });
   if (error) {
     console.error("[vendor/invites/accept] rpc error:", error.message);
