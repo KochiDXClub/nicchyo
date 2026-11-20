@@ -45,7 +45,7 @@ export default function InvitesSection({
   const [invites, setInvites] = useState<InviteView[] | null>(null);
   const [maxUses, setMaxUses] = useState<number>(1);
   const [permissions, setPermissions] = useState<ShopPermission[]>([...SHOP_PERMISSION_PRESETS.helper.permissions].filter((p) => canGrantPermissions(membership, [p])));
-  const [created, setCreated] = useState<{ url: string; expiresAt: string; share: boolean } | null>(null);
+  const [created, setCreated] = useState<{ id: string; url: string; expiresAt: string; share: boolean } | null>(null);
   const createdRef = useRef<HTMLParagraphElement>(null);
   const [copied, setCopied] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -63,14 +63,8 @@ export default function InvitesSection({
     void load();
   }, [load]);
 
-  // できたリンクは作るボタンの下に出る。スマホでは画面の外（下のバーの裏）になりやすく、気づかずにもう一度押すと
-  // 2本目のリンクができるので、見える位置まで送り、「できました」にフォーカスを移す（読み上げられ、次の Tab がリンク → 送る になる）
   useEffect(() => {
-    const done = createdRef.current;
-    if (!created || !done) return;
-    const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
-    done.scrollIntoView?.({ block: "center", behavior: reduceMotion ? "auto" : "smooth" });
-    done.focus({ preventScroll: true });
+    createdRef.current?.focus({ preventScroll: true });
   }, [created]);
 
   const handleCreate = async () => {
@@ -80,7 +74,7 @@ export default function InvitesSection({
     try {
       const result = await createInvite({ maxUses, permissions });
       // 共有を出すかは、作ったときに一度だけ決める（描くたびに変わらないように）
-      setCreated({ url: result.url, expiresAt: result.expiresAt, share: canShare() });
+      setCreated({ id: result.id, url: result.url, expiresAt: result.expiresAt, share: canShare() });
       await load();
       onChanged();
     } catch (e) {
@@ -94,6 +88,7 @@ export default function InvitesSection({
     setError(null);
     try {
       await revokeInvite(id);
+      if (created?.id === id) setCreated(null);
       await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : "招待リンクを取り消せませんでした");
@@ -132,27 +127,31 @@ export default function InvitesSection({
       </h2>
 
       <Surface padding="md" className="space-y-4">
-        <p className="text-sm leading-relaxed text-nicchyo-ink/70">
-          リンクを送ると、受け取った人がGoogleアカウントでお店に参加できます。リンクは{SHOP_INVITE_RULES.expiresInDays}日間使えます。
-        </p>
+        {!created && (
+          <>
+            <p className="text-sm leading-relaxed text-nicchyo-ink/70">
+              Googleアカウントで参加できます。リンクは{SHOP_INVITE_RULES.expiresInDays}日間使えます。
+            </p>
 
-        <MaxUsesPicker value={maxUses} onChange={setMaxUses} />
+            <MaxUsesPicker value={maxUses} onChange={setMaxUses} />
 
-        <div>
-          <p className="mb-1.5 text-sm font-bold text-nicchyo-ink">入った人ができること</p>
-          <PermissionPicker
-            value={permissions}
-            onChange={setPermissions}
-            canToggle={(permission) => canGrantPermissions(membership, [permission])}
-            idPrefix="invite"
-            disabled={busy}
-          />
-        </div>
+            <div>
+              <p className="mb-1.5 text-sm font-bold text-nicchyo-ink">入った人ができること</p>
+              <PermissionPicker
+                compact
+                value={permissions}
+                onChange={setPermissions}
+                canToggle={(permission) => canGrantPermissions(membership, [permission])}
+                idPrefix="invite"
+                disabled={busy}
+              />
+            </div>
 
-        {/* リンクができたら、次にしてほしいのは「送る」。主ボタンを1つにするため、作るほうは控えめにする */}
-        <Button size="lg" variant={created ? "secondary" : "primary"} className="w-full" onClick={handleCreate} disabled={busy}>
-          {busy ? "作っています…" : created ? "もう1本作る" : "招待リンクを作る"}
-        </Button>
+            <Button size="lg" className="w-full" onClick={handleCreate} disabled={busy}>
+              {busy ? "作っています…" : "招待リンクを作る"}
+            </Button>
+          </>
+        )}
 
         {created && (
           <CreatedInviteLink url={created.url} expiresAt={created.expiresAt} messageRef={createdRef}>
@@ -166,7 +165,8 @@ export default function InvitesSection({
                 <Copy size={16} aria-hidden /> {copied ? "コピーしました" : "リンクをコピー"}
               </Button>
             </div>
-            <p className="text-xs text-nicchyo-ink/70">この画面を離れると、このリンクは二度と表示できません。いま送ってください（送りそびれたら、もう一度作れます）。</p>
+            <p className="text-xs text-nicchyo-ink/70">メンバー管理を閉じる前に、リンクを送るかコピーしてください。</p>
+            <Button variant="quiet" onClick={() => { setCopied(false); setCreated(null); }}>もう1本作る</Button>
           </CreatedInviteLink>
         )}
 
@@ -177,29 +177,31 @@ export default function InvitesSection({
         )}
       </Surface>
 
-      <div className="space-y-2">
-        <h3 className="px-1 text-sm font-bold text-nicchyo-ink">作ったリンク</h3>
-        {invites === null ? null : invites.length === 0 ? (
-          <EmptyMessage message="まだ招待リンクはありません" />
-        ) : (
-          <ul className="space-y-2">
-            {invites.map((invite) => (
-              <li key={invite.id}>
-                <Surface padding="sm" className="space-y-2">
-                  <InviteSummary invite={invite} />
-                  {invite.state === "active" && (
-                    <Button variant="quiet" onClick={() => handleRevoke(invite.id)}>
-                      このリンクを取り消す
-                      {/* 同じ名前のボタンが並ぶので、読み上げではどのリンクかを足す */}
-                      <span className="sr-only">（{formatJaDateTime(invite.expiresAt)}まで）</span>
-                    </Button>
-                  )}
-                </Surface>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
+      <details className="rounded-card border border-line bg-white px-4">
+        <summary className="cursor-pointer py-3 text-sm font-bold text-nicchyo-ink">作ったリンク{invites && `（${invites.length}件）`}</summary>
+        <div className="pb-3">
+          {invites === null ? null : invites.length === 0 ? (
+            <EmptyMessage message="まだ招待リンクはありません" />
+          ) : (
+            <ul className="space-y-2">
+              {invites.map((invite) => (
+                <li key={invite.id}>
+                  <Surface padding="sm" className="space-y-2">
+                    <InviteSummary invite={invite} />
+                    {invite.state === "active" && (
+                      <Button variant="quiet" onClick={() => handleRevoke(invite.id)}>
+                        このリンクを取り消す
+                        {/* 同じ名前のボタンが並ぶので、読み上げではどのリンクかを足す */}
+                        <span className="sr-only">（{formatJaDateTime(invite.expiresAt)}まで）</span>
+                      </Button>
+                    )}
+                  </Surface>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </details>
     </section>
   );
 }

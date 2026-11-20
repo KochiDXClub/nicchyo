@@ -40,6 +40,7 @@ describe("InvitesSection", () => {
     await screen.findByText("まだ招待リンクはありません");
 
     fireEvent.click(screen.getByRole("radio", { name: "3人" }));
+    fireEvent.click(screen.getByText(/権限を個別に選ぶ/));
     fireEvent.click(screen.getByLabelText(/お店の分析/));
     fireEvent.click(screen.getByRole("button", { name: "招待リンクを作る" }));
 
@@ -148,6 +149,7 @@ describe("InvitesSection", () => {
     expect(screen.getByText("使えます")).toBeInTheDocument();
     expect(screen.getByText("人数に達した")).toBeInTheDocument();
     expect(screen.getByText("取り消し済み")).toBeInTheDocument();
+    fireEvent.click(screen.getByText(/^作ったリンク/));
     expect(screen.getAllByRole("button", { name: /^このリンクを取り消す/ })).toHaveLength(1);
 
     fetchInvites.mockResolvedValue([]);
