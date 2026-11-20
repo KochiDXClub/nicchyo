@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { ArrowLeft, ArrowRight } from "lucide-react";
+import { ArrowRight } from "lucide-react";
+import { NicchyoLogoLink } from "@/components/navigation/NicchyoLogoLink";
 import { PageContainer, PageShell } from "@/components/ui";
 import { getT } from "@/lib/i18n/server";
 import { GITHUB_REPO_URL } from "@/lib/siteLinks";
@@ -50,10 +51,7 @@ export default async function SiteTrustGuidePage() {
   return (
     <PageShell as="main" bottomNav={false}>
       <PageContainer width="reading" className="space-y-6 pt-[calc(var(--safe-top,0px)+1rem)]">
-        <Link href="/" className={linkClass}>
-          <ArrowLeft aria-hidden className="h-4 w-4" />
-          {t(copy.back)}
-        </Link>
+        <NicchyoLogoLink label={`nicchyo · ${t(copy.back)}`} />
 
         <h1 className="text-2xl font-black tracking-tight sm:text-3xl">{t(copy.title)}</h1>
 
