@@ -1,7 +1,7 @@
 import { headers } from "next/headers";
 import { LOCALE_HEADER, toLocale, type Locale } from "./config";
 import { createTranslator, type Translate } from "./translate";
-import { siteTextFor, type SiteTextKey } from "@/lib/siteCopy";
+import { resolveSiteTexts, siteTextFor, type SiteTextKey } from "@/lib/siteCopy";
 import { getPublishedSiteCopy } from "@/lib/site-copy/server";
 
 /** proxy.ts が決めたこのリクエストのロケール（サーバーコンポーネント用） */
@@ -20,5 +20,6 @@ export async function getT(): Promise<Translate> {
  */
 export async function getSiteText(): Promise<(key: SiteTextKey) => string> {
   const [locale, copy] = await Promise.all([getLocale(), getPublishedSiteCopy()]);
-  return (key) => siteTextFor(key, locale, copy.texts);
+  const texts = resolveSiteTexts(copy, locale);
+  return (key) => siteTextFor(key, locale, texts);
 }
