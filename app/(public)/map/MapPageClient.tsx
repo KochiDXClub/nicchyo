@@ -1246,7 +1246,8 @@ export default function MapPageClient({
             }
           }}
           onConsultClick={goToConsult}
-          closeModeActive={hasSearchMode || hasAiMode || !!nearbyState || guideActive}
+          // 「このへん」パネルは閉じるを×としてパネル内に置くので、緑の閉じるバーは出さない
+          closeModeActive={hasSearchMode || (hasAiMode && !isNearbyMarker(aiMarkerPayload)) || guideActive}
           onCloseMode={closeMapInteractionMode}
         />
       )}

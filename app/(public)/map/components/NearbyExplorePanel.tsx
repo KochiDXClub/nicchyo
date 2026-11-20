@@ -19,7 +19,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Image from 'next/image';
-import { ChevronRight } from 'lucide-react';
+import { ChevronRight, X } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
 import { motion, useDragControls } from 'framer-motion';
 import {
@@ -387,7 +387,7 @@ export default function NearbyExplorePanel({
   return (
     <div className="pointer-events-none absolute inset-x-0 bottom-0 z-[1300]">
       <motion.div
-        className="pointer-events-auto mx-auto flex w-full max-w-xl flex-col overflow-hidden rounded-t-[28px] border border-b-0 border-amber-200 bg-white shadow-[0_-24px_60px_rgba(15,23,42,0.2)]"
+        className="pointer-events-auto relative mx-auto flex w-full max-w-xl flex-col overflow-hidden rounded-t-[28px] border border-b-0 border-amber-200 bg-white shadow-[0_-24px_60px_rgba(15,23,42,0.2)]"
         style={{ height: sheetHeight }}
         initial={{ opacity: 0, y: 48 }}
         animate={{ opacity: 1, y: 0 }}
@@ -406,6 +406,16 @@ export default function NearbyExplorePanel({
         onClick={(e) => e.stopPropagation()}
         onTouchStart={(e) => e.stopPropagation()}
       >
+        {/* 閉じる（×）。緑の閉じるバーの代わりに、パネルの右上に置く */}
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="閉じる"
+          className="absolute right-3 top-3 z-10 flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 text-slate-600 shadow-sm transition hover:bg-slate-200"
+        >
+          <X className="h-4 w-4" aria-hidden />
+        </button>
+
         {/* ドラッグハンドル */}
         <div
           className="flex shrink-0 cursor-grab justify-center pb-2 pt-3 active:cursor-grabbing"
@@ -423,7 +433,7 @@ export default function NearbyExplorePanel({
         >
           {/* 字幕1行 + ジャンル内訳バー */}
           <div>
-            <p className="text-[15px] font-bold leading-tight text-slate-900">
+            <p className="pr-12 text-[15px] font-bold leading-tight text-slate-900">
               {hasShops ? (
                 <>
                   {areaLabel}に{' '}
