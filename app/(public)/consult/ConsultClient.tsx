@@ -290,7 +290,9 @@ export default function ConsultClient() {
         </div>
       </main>
       {selectedShop && <ShopDetailBanner shop={selectedShop} onClose={() => setSelectedShop(null)} />}
-      <NavigationBar activeHref="/consult" backBarOnTop />
+      {/* お店の詳細を開いている間は、右上のもどるバーを隠す（詳細パネルの閉じる・お気に入りと重なるため）。
+          閉じるはパネル側の × で行う */}
+      <NavigationBar activeHref="/consult" backBarOnTop hideTopBackBar={selectedShop !== null} />
     </div>
   );
 }
