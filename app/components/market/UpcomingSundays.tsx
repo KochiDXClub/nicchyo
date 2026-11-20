@@ -101,24 +101,19 @@ function SundayCard({ sunday }: { sunday: MarketSunday }) {
         </p>
       )}
 
-      <div className="px-4 py-3">
-        {isEmpty ? (
-          <p className="text-xs text-gray-400">まだ予定はありません</p>
-        ) : (
-          <>
-            {highlight && (
-              <HighlightItem event={highlight} relativeLabel={sunday.relativeLabel} />
-            )}
-            {events.length > 0 && (
-              <ul className={`flex flex-col gap-2.5 ${highlight ? "mt-3" : ""}`}>
-                {events.map((event) => (
-                  <EventItem key={event.id} event={event} />
-                ))}
-              </ul>
-            )}
-          </>
-        )}
-      </div>
+      {/* 予定が無い平常の日曜は見出しだけにして、カードを増やさない */}
+      {!isEmpty && (
+        <div className="px-4 py-3">
+          {highlight && <HighlightItem event={highlight} relativeLabel={sunday.relativeLabel} />}
+          {events.length > 0 && (
+            <ul className={`flex flex-col gap-2.5 ${highlight ? "mt-3" : ""}`}>
+              {events.map((event) => (
+                <EventItem key={event.id} event={event} />
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
     </li>
   );
 }

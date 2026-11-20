@@ -35,9 +35,6 @@ export default async function MarketCalendarPage() {
           <h1 className="mt-1 text-[2rem] font-black leading-none tracking-tight">
             日曜市カレンダー
           </h1>
-          <p className="mt-2.5 text-sm text-nicchyo-ink/55">
-            開催状況とこれからの予定をお届けします
-          </p>
 
           {calendar ? <MarketStatusCalendar day={calendar.day} className="mt-5" link={false} /> : <p role="status" className="mt-5">開催状況を取得できませんでした。時間をおいて再度ご確認ください。</p>}
         </PageContainer>

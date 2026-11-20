@@ -42,7 +42,8 @@ export default function MarketStatusCalendar({ day, className = "", link = true,
 
   const [, month, dayOfMonth] = dateIso.split("-").map(Number);
   const sunday: LandingSunday = { dateIso, month, day: dayOfMonth, status: normalizeStatus(status) };
-  const text = nextSundayCalendarText(sunday, t, locale);
+  // 日曜市と書けば日曜だとわかるので、日めくりの曜日欄は「日曜市」だけにする（「日曜日」と並べない）
+  const text = { ...nextSundayCalendarText(sunday, t, locale), weekdayText: t("日曜市") };
 
   const calendar = (
     <span className="relative block h-[8.2rem] w-[7.6rem] shrink-0">
@@ -78,9 +79,8 @@ export default function MarketStatusCalendar({ day, className = "", link = true,
                   {dateLabel} {t(label)}
                 </p>
               ) : (
-                <p className="mt-0.5 text-base font-black text-nicchyo-ink">
-                  {dateLabel} {t(label)}
-                </p>
+                // 平常の「開催」は日めくりの札に出ているので、ここは日付だけにする
+                <p className="mt-0.5 text-base font-black text-nicchyo-ink">{dateLabel}</p>
               )}
             </>
           )}
