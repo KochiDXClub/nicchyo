@@ -3,16 +3,32 @@ import ts from "typescript";
 
 const methods = new Set(["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"]);
 
+// The write guard accepts an optional authorization override. Only its default
+// configuration (literal rate-limit options) is evidence for the admin check.
+function knownCall(call, aliases) {
+  if (!ts.isIdentifier(call.expression)) return false;
+  const name = aliases.get(call.expression.text);
+  if (name === "requireAdminApi") return call.arguments.length === 0;
+  const [request, options] = call.arguments;
+  return name === "guardAdminWrite" && call.arguments.length === 2 && ts.isIdentifier(request) &&
+    ts.isObjectLiteralExpression(options) && options.properties.every(p =>
+      ts.isPropertyAssignment(p) && ["bucket", "limit", "json"].includes(p.name.getText()) &&
+      (ts.isStringLiteral(p.initializer) || ts.isNumericLiteral(p.initializer) ||
+       [ts.SyntaxKind.TrueKeyword, ts.SyntaxKind.FalseKeyword].includes(p.initializer.kind)));
+}
+
 function guardLine(fn, source, aliases) {
   if (!fn?.body || !ts.isBlock(fn.body) || fn.parameters.some(p => p.initializer || !ts.isIdentifier(p.name))) return null;
-  const [assignment, check] = fn.body.statements;
+  const [first] = fn.body.statements;
+  const statements = first && ts.isTryStatement(first) && !first.finallyBlock ? first.tryBlock.statements : fn.body.statements;
+  const [assignment, check] = statements;
   if (!assignment || !ts.isVariableStatement(assignment) || !check || !ts.isIfStatement(check)) return null;
   const [binding] = assignment.declarationList.declarations;
   if (assignment.declarationList.declarations.length !== 1 || !ts.isIdentifier(binding.name)) return null;
   const init = binding.initializer;
   if (!init || !ts.isAwaitExpression(init) || !ts.isCallExpression(init.expression)) return null;
   const call = init.expression;
-  if (!ts.isIdentifier(call.expression) || !aliases.has(call.expression.text) || call.arguments.length) return null;
+  if (!knownCall(call, aliases)) return null;
   const guard = call.expression.text;
   if (fn.parameters.some(p => p.name.getText(source) === guard)) return null;
   const condition = check.expression;
@@ -28,13 +44,16 @@ function guardLine(fn, source, aliases) {
 
 export function inspectAdminHandlers(path, content) {
   const source = ts.createSourceFile(path, content, ts.ScriptTarget.Latest, true);
-  const aliases = new Set();
+  const aliases = new Map();
   for (const node of source.statements) {
-    if (!ts.isImportDeclaration(node) || node.moduleSpecifier.text !== "@/lib/auth/requireAdminApi") continue;
+    if (!ts.isImportDeclaration(node) || node.importClause?.isTypeOnly) continue;
+    const module = node.moduleSpecifier.text;
     const imports = node.importClause?.namedBindings;
     if (imports && ts.isNamedImports(imports)) {
       for (const item of imports.elements) {
-        if ((item.propertyName ?? item.name).text === "requireAdminApi") aliases.add(item.name.text);
+        const name = (item.propertyName ?? item.name).text;
+        if (!item.isTypeOnly && ((module === "@/lib/auth/requireAdminApi" && name === "requireAdminApi") ||
+            (module === "@/lib/admin/shopApiGuard" && name === "guardAdminWrite"))) aliases.set(item.name.text, name);
       }
     }
   }

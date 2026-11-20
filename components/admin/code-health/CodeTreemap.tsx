@@ -199,7 +199,7 @@ export function CodeTreemap({ files }: CodeTreemapProps) {
           {selectedFile.violations > 0 && (
             <ul className="mt-4 space-y-3 text-sm">
               {selectedFile.ruleLines ? RULES.filter(rule => selectedFile.ruleLines?.[rule.id]).map(rule => (
-                <li key={rule.id}><strong>{rule.label}</strong><p>{rule.why}</p>
+                <li key={rule.id}><strong>{rule.label}</strong><p>{rule.why}</p><p>対応例：{rule.fix}</p>
                   <p className="break-words">該当行 {selectedFile.ruleLines?.[rule.id].join("、")}</p>
                 </li>
               )) : <li>この記録には該当行の情報がありません。</li>}

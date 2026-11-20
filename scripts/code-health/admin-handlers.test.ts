@@ -15,6 +15,16 @@ describe("診断の根拠", () => {
       .toEqual([["GET", 2], ["POST", null], ["DELETE", null]]);
   });
 
+  it("書き込みガードは既定の認可を使う場合だけ確認済みにする", () => {
+    const measure = (options: string) => inspectAdminHandlers("route.ts", [
+      'import { guardAdminWrite } from "@/lib/admin/shopApiGuard";',
+      `export async function PUT(req) { try { const auth = await guardAdminWrite(req, ${options});
+       if ("error" in auth) return auth.error; } catch { return; } }`,
+    ].join("\n"))[0].guardLine;
+    expect(measure('{ bucket: "settings", limit: 10 }')).toBe(2);
+    expect(measure('{ bucket: "settings", limit: 10, ...overrides }')).toBeNull();
+  });
+
   it("行移動を除き、総数が同じでも変更行の指摘を報告する", () => {
     const measure = (content: string) => analyze([{ path: "app/example/page.tsx", content }]);
     const before = measure("text-slate-400\nbg-gray-200");
