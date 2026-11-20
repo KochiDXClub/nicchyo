@@ -122,6 +122,11 @@ jobs:
       - name: Check search term daily counts
         run: psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" -v ON_ERROR_STOP=1 -f supabase/checks/search_term_daily.sql
 
+      # お店の詳細が開かれた回数（時間ごとの表と日ごとの view）を、出店者が自店の分だけ読めることと、集計の動き。
+      # 詳しくは supabase/checks/shop_interest_hourly.sql
+      - name: Check shop interest hourly counts
+        run: psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" -v ON_ERROR_STOP=1 -f supabase/checks/shop_interest_hourly.sql
+
       - name: Check private inquiry attachments
         run: psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" -v ON_ERROR_STOP=1 -f supabase/checks/private_inquiry_images.sql
 

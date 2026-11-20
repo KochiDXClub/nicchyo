@@ -2,10 +2,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const publicIdentity = vi.hoisted(() => vi.fn());
 const publicVendor = vi.hoisted(() => vi.fn());
-vi.mock("@/lib/analytics/collectionSettings.server", () => ({ isAnalyticsCollectionEnabled: async () => true }));
+const collectionEnabled = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/analytics/collectionSettings.server", () => ({ isAnalyticsCollectionEnabled: collectionEnabled }));
 
 const getUser = vi.fn();
 const insertView = vi.fn();
+const rpc = vi.fn();
 /** 店番号 → 屋台、屋台に入った出店者、その出店者の配置。表ごとの返り値 */
 let locations: { id: string }[] = [];
 let assignmentsHere: { vendor_id: string }[] = [];
@@ -30,6 +32,7 @@ vi.mock("@/lib/supabase/adminClient", () => ({
   createAdminClient: () => {
     let assignmentCalls = 0;
     return {
+      rpc: (fn: string, args: unknown) => rpc(fn, args),
       from: (table: string) => {
         if (table === "shop_page_views") return { insert: (row: unknown) => insertView(row) };
         if (table === "market_locations") return { select: () => query({ data: locations }) };
@@ -65,6 +68,8 @@ describe("POST /api/analytics/shop-view", () => {
     publicVendor.mockReset().mockResolvedValue({ data: { id: "vendor-1" } });
     getUser.mockReset().mockResolvedValue({ data: { user: null } });
     insertView.mockReset().mockResolvedValue({ error: null });
+    rpc.mockReset().mockResolvedValue({ error: null });
+    collectionEnabled.mockReset().mockResolvedValue(true);
     isMember = false;
     locations = [{ id: "loc-5" }];
     assignmentsHere = [{ vendor_id: "vendor-1" }];
@@ -96,9 +101,47 @@ describe("POST /api/analytics/shop-view", () => {
     expect(insertView).toHaveBeenCalledWith({ vendor_id: "vendor-1", source: "search" });
   });
 
+  it("行の記録に続けて、同じ出店者・流入元で件数の表にも数える", async () => {
+    await post({ shopId: 5, source: "search" });
+    expect(rpc).toHaveBeenCalledTimes(1);
+    expect(rpc).toHaveBeenCalledWith("increment_shop_interest", { p_vendor_id: "vendor-1", p_source: "search" });
+  });
+
+  it("件数の表への書き込みが失敗しても、応答は { ok: true } のまま", async () => {
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+    rpc.mockResolvedValue({ error: { message: "boom" } });
+    let res = await post({ shopId: 5, source: "map" });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ ok: true });
+
+    rpc.mockRejectedValue(new Error("network"));
+    res = await post({ shopId: 5, source: "map" });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ ok: true });
+    expect(insertView).toHaveBeenCalledTimes(2);
+    consoleError.mockRestore();
+  });
+
+  it("行の記録が失敗したら 500 で、件数の表には数えない", async () => {
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+    insertView.mockResolvedValue({ error: { message: "boom" } });
+    expect((await post({ shopId: 5, source: "map" })).status).toBe(500);
+    expect(rpc).not.toHaveBeenCalled();
+    consoleError.mockRestore();
+  });
+
+  it("計測を止めているときは、どちらにも書かない", async () => {
+    collectionEnabled.mockResolvedValue(false);
+    const res = await post({ shopId: 5, source: "map" });
+    expect(await res.json()).toEqual({ ok: true, skipped: true });
+    expect(insertView).not.toHaveBeenCalled();
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
   it("流入元が3つ以外なら direct にする", async () => {
     await post({ shopId: 5, source: "twitter" });
     expect(insertView).toHaveBeenCalledWith({ vendor_id: "vendor-1", source: "direct" });
+    expect(rpc).toHaveBeenCalledWith("increment_shop_interest", { p_vendor_id: "vendor-1", p_source: "direct" });
   });
 
   it("店舗のメンバーが自分のお店を開いた分は数えない（応答は同じ）。アカウントの ID が店舗の ID と違っても同じ", async () => {
@@ -107,6 +150,7 @@ describe("POST /api/analytics/shop-view", () => {
     const res = await post({ shopId: 5, source: "map" });
     expect(await res.json()).toEqual({ ok: true });
     expect(insertView).not.toHaveBeenCalled();
+    expect(rpc).not.toHaveBeenCalled();
   });
 
   it("ログインしていても、その店舗のメンバーでなければ数える（アカウントの ID が店舗の ID と同じ値でも、メンバーでなければ除かない）", async () => {
@@ -133,5 +177,6 @@ describe("POST /api/analytics/shop-view", () => {
     await post({ shopId: 5, source: "map" });
 
     expect(insertView).not.toHaveBeenCalled();
+    expect(rpc).not.toHaveBeenCalled();
   });
 });
