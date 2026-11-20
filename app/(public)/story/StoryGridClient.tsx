@@ -110,26 +110,33 @@ export default function StoryGridClient({ demo }: Props = {}) {
           {/* 開催中止などの情報は、投稿より先に案内する。 */}
           <section aria-labelledby="story-market-heading" className="space-y-3">
             <h2 id="story-market-heading" className="text-lg font-bold text-nicchyo-ink">開催のご案内</h2>
-            <div className="relative isolate flex min-h-[8.2rem] min-w-0 items-center overflow-hidden rounded-card sm:min-h-48">
-              {/* A案のように写真を開催情報の背景へ重ね、左側を地色になじませる。 */}
-              <div
-                aria-hidden="true"
-                className="landing-fade-x pointer-events-none absolute inset-y-0 right-0 w-[68%] [mask-repeat:no-repeat] [mask-size:300%_100%] sm:w-[76%]"
-              >
-                <Image
-                  src={PHOTOS.stalls.src}
-                  alt=""
-                  fill
-                  sizes="(min-width: 1024px) 768px, 75vw"
-                  className="object-cover"
-                />
+            {calendarError ? (
+              // 取得できなかったときは写真を敷かず、文字だけの面にする（写真の上に文字が重なって読めなくなるのを防ぐ）
+              <p role="status" className="rounded-card bg-white px-5 py-4 text-sm text-nicchyo-ink/70 ring-1 ring-line">
+                開催状況を取得できませんでした。
+              </p>
+            ) : (
+              <div className="relative isolate flex min-h-[8.2rem] min-w-0 items-center overflow-hidden rounded-card sm:min-h-48">
+                {/* A案のように写真を開催情報の背景へ重ね、左側を地色になじませる。 */}
+                <div
+                  aria-hidden="true"
+                  className="landing-fade-x pointer-events-none absolute inset-y-0 right-0 w-[68%] [mask-repeat:no-repeat] [mask-size:300%_100%] sm:w-[76%]"
+                >
+                  <Image
+                    src={PHOTOS.stalls.src}
+                    alt=""
+                    fill
+                    sizes="(min-width: 1024px) 768px, 75vw"
+                    className="object-cover"
+                  />
+                </div>
+                {!calendarLoading && nextMarketDate && <MarketStatusCalendar
+                  date={nextMarketDate}
+                  showSummary={false}
+                  className="relative z-10 min-w-0 max-w-full !gap-2 sm:max-w-[55%] sm:!gap-4 [&>div]:rounded-btn [&>div]:bg-nicchyo-base/95 [&>div]:px-2 [&>div]:py-1"
+                />}
               </div>
-              {calendarError ? <p role="status" className="relative z-10">開催状況を取得できませんでした。</p> : !calendarLoading && nextMarketDate && <MarketStatusCalendar
-                date={nextMarketDate}
-                showSummary={false}
-                className="relative z-10 min-w-0 max-w-full !gap-2 sm:max-w-[55%] sm:!gap-4 [&>div]:rounded-btn [&>div]:bg-nicchyo-base/95 [&>div]:px-2 [&>div]:py-1"
-              />}
-            </div>
+            )}
           </section>
 
             {isDemo && (
