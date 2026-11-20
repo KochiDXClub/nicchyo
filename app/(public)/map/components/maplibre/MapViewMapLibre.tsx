@@ -936,7 +936,8 @@ function MapViewMapLibre({
           layout: {
             "text-field": ["get", "name"],
             "text-font": TEXT_FONT,
-            "text-letter-spacing": 0.2,
+            // 字間を詰める。ズームで文字が大きくなると 0.2em の字間が広がり、横に間延びして読みにくかったため
+            "text-letter-spacing": 0.02,
             "text-size": ["interpolate", ["linear"], ["zoom"], 9, 20, highlightFadeStart, 18] as ExpressionSpecification,
             "text-anchor": "left",
             "text-offset": [1.1, 0],
