@@ -40,6 +40,28 @@ export const SITE_COPY_TRANSLATION_RESPONSE_FORMAT = {
   },
 } as const;
 
+/**
+ * 英訳を依頼する件数と文字数の上限に収まるように、文言を複数の依頼に分ける（上限を超える区分も、順に全部訳せる）。
+ * 1件が文字数の上限を超える場合は、その1件だけの依頼になる（API 側で拒否されるので、画面はその旨を出す）。
+ */
+export function chunkSiteCopyItems(items: { key: string; text: string }[], maxItems = SITE_COPY_TRANSLATE_MAX_ITEMS, maxChars = SITE_COPY_TRANSLATE_MAX_CHARS): { key: string; text: string }[][] {
+  const chunks: { key: string; text: string }[][] = [];
+  let current: { key: string; text: string }[] = [];
+  let chars = 0;
+  for (const item of items) {
+    const size = Array.from(item.text).length;
+    if (current.length > 0 && (current.length >= maxItems || chars + size > maxChars)) {
+      chunks.push(current);
+      current = [];
+      chars = 0;
+    }
+    current.push(item);
+    chars += size;
+  }
+  if (current.length > 0) chunks.push(current);
+  return chunks;
+}
+
 export function buildSiteCopyTranslationUserPrompt(items: { key: string; text: string }[]): string {
   return ["Target language: English", "Items (JSON):", JSON.stringify({ items })].join("\n");
 }

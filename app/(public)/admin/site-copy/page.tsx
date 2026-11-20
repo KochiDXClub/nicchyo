@@ -7,6 +7,7 @@ import labels from "@/content/site-copy/labels.json";
 import enTexts from "@/content/i18n/en.json";
 import { DEFAULT_SITE_COPY } from "@/lib/site-copy/content";
 import type { SiteCopy, SiteCopyKey } from "@/lib/site-copy/content";
+import { chunkSiteCopyItems } from "@/lib/site-copy/translate";
 
 type History = { id: number; content: SiteCopy; published_at: string; published_by: string | null };
 type Data = { draft: SiteCopy; published: SiteCopy; revision: number; history: History[] };
@@ -65,18 +66,21 @@ export default function SiteCopyAdminPage() {
       .map(([key, text]) => ({ key, text }));
     if (items.length === 0) return;
     setBusy(true); setError(""); setMessage("");
+    let next = copy;
+    let count = 0;
     try {
-      const res = await fetch("/api/admin/site-copy/translate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ items }) });
-      const result = await res.json();
-      if (!res.ok) throw new Error(result.error ?? "翻訳できませんでした");
-      const translations = result.translations as Record<string, string>;
-      let next = copy;
-      for (const [key, text] of Object.entries(translations)) next = setEnglish(next, key as SiteCopyKey, text);
-      setCopy(next);
-      const count = Object.keys(translations).length;
+      // 件数・文字数の上限に合わせて分けて送る（区分によっては上限を超えるため）
+      for (const chunk of chunkSiteCopyItems(items)) {
+        const res = await fetch("/api/admin/site-copy/translate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ items: chunk }) });
+        const result = await res.json();
+        if (!res.ok) throw new Error(result.error ?? "翻訳できませんでした");
+        const translations = result.translations as Record<string, string>;
+        for (const [key, text] of Object.entries(translations)) next = setEnglish(next, key as SiteCopyKey, text);
+        count += Object.keys(translations).length;
+      }
       setMessage(`${count}件の英訳案を入れました。確認して直してから、下書き保存または公開してください。`);
     } catch (e) { setError(e instanceof Error ? e.message : "翻訳できませんでした"); }
-    finally { setBusy(false); }
+    finally { setCopy(next); setBusy(false); }
   }
 
   const sectionKeys = copy ? Object.keys(copy.texts).filter((key) => key.startsWith(section)) : [];
