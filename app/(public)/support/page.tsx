@@ -12,17 +12,18 @@ import Reveal from "@/components/Reveal";
 import { Surface } from "@/components/ui";
 import { totalIndividualSupporters } from "@/lib/support/individualSupporters";
 import { FUND_USES, SPONSOR_UNIT_ANNUAL_JPY } from "./costs";
+import { siteTextFor } from "@/lib/siteCopy";
+import { getPublishedSiteCopy } from "@/lib/site-copy/server";
 
-export const metadata = {
-  title: "協賛・ご支援について",
-  description:
-    "nicchyo へいただいたご支援の使い道と、ご支援の方法をご案内しております。個人の方からも、組織・企業の方からも承っております。",
-  openGraph: {
-    title: "協賛・ご支援について | nicchyo",
-    description:
-      "高知・日曜市の地図 nicchyo は、高知高専の学生と顧問の教員が運営しております。いただいたご支援は、ドメイン代や開発・運用の費用、AIの利用料など、nicchyo を続けるために使わせていただきます。",
-  },
-};
+export async function generateMetadata() {
+  const { texts } = await getPublishedSiteCopy();
+  const t = (key: "support.meta.title" | "support.meta.description" | "support.meta.ogTitle" | "support.meta.ogDescription") => siteTextFor(key, "ja", texts);
+  return {
+    title: t("support.meta.title"),
+    description: t("support.meta.description"),
+    openGraph: { title: t("support.meta.ogTitle"), description: t("support.meta.ogDescription") },
+  };
+}
 
 /** ご支援の使い道の節。入口の「ご支援の使い道を見る」の飛び先 */
 const USES_SECTION_ID = "uses";

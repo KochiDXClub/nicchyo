@@ -18,6 +18,7 @@ import UpcomingMarketDates from "@/app/components/market/UpcomingMarketDates";
 import { useMarketCalendar } from "@/lib/market/useMarketCalendar";
 import { getMarketCalendarDates, PUBLIC_CALENDAR_WEEKS } from "@/lib/market/calendar";
 import type { StoryItem } from "./types";
+import { useSiteText } from "@/lib/i18n/LocaleContext";
 
 /** 出店者の近況を、開催情報・投稿の順に見せる。 */
 type Props = {
@@ -38,6 +39,7 @@ export default function StoryGridClient({ demo }: Props = {}) {
   const nextSunday = useMemo(() => getNextSundayLabel(), []);
   const { calendar, loading: calendarLoading, error: calendarError } = useMarketCalendar();
   const isDemo = demo !== undefined;
+  const s = useSiteText();
 
   useEffect(() => {
     if (isDemo) return;
@@ -101,7 +103,7 @@ export default function StoryGridClient({ demo }: Props = {}) {
         <div className="min-w-0 space-y-7 sm:space-y-9">
           <header className="space-y-3">
             <div className="flex flex-col gap-2 sm:flex-row sm:items-baseline sm:gap-6">
-              <h1 className="text-3xl font-bold tracking-tight text-nicchyo-ink sm:text-4xl">近況</h1>
+              <h1 className="text-3xl font-bold tracking-tight text-nicchyo-ink sm:text-4xl">{s.text("story.heading")}</h1>
               <p className="text-sm leading-relaxed text-nicchyo-ink/70">市のいまを、出店者さんから。</p>
             </div>
             <span aria-hidden="true" className="block h-1 w-12 rounded-full bg-nicchyo-primary" />
@@ -142,7 +144,7 @@ export default function StoryGridClient({ demo }: Props = {}) {
             {isDemo && (
               <p className="flex items-start gap-2 rounded-card bg-white px-4 py-3 text-xs leading-relaxed text-nicchyo-ink/70 ring-1 ring-line">
                 <StoryDemoBadge />
-                <span>近況のデモです。お店・投稿・AIキャラのひとことは、すべて見本です。</span>
+                <span>{s.text("story.demoNotice")}</span>
               </p>
             )}
 
@@ -156,7 +158,7 @@ export default function StoryGridClient({ demo }: Props = {}) {
               </div>
             ) : fetchError ? (
               <div className="flex flex-col items-center justify-center py-20 text-center">
-                <p className="text-sm text-nicchyo-ink/55">投稿の読み込みに失敗しました</p>
+                <p className="text-sm text-nicchyo-ink/55">{s.text("story.loadError")}</p>
                 <button
                   type="button"
                   onClick={() => window.location.reload()}
@@ -168,7 +170,7 @@ export default function StoryGridClient({ demo }: Props = {}) {
             ) : stories.length === 0 ? (
               <EmptyState
                 icon={Camera}
-                title="まだ投稿がありません"
+                title={s.text("story.empty")}
                 description={nextMarketDate?.marketName ? `${nextMarketDate.marketName}は ${nextMarketDate.dateLabel}` : `次の日曜市は ${nextSunday}`}
               />
             ) : (
