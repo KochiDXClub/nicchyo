@@ -77,6 +77,17 @@ beforeEach(() => {
 });
 
 describe("saveAskAnswer（どの列に書くか）", () => {
+  it("今週の商品写真は同じ出店者の商品に保存し、主な商品と値段は変更しない", async () => {
+    respond = (call) => call.table === "products" && call.op === "select"
+      ? { data: [{ id: "p1", name: "トマト", image_url: null }] } : {};
+    await saveAskAnswer("v1", "2026-10-04", { id: "weekly-products", products: ["トマト", "なす"],
+      photos: [{ name: "トマト", imageFile: new File(["x"], "tomato.jpg") }] });
+    expect(writes().map(({ table, op }) => [table, op])).toEqual([["products", "update"], ["vendor_weekly_status", "upsert"]]);
+    expect(writes()[0].filters).toEqual(["id=p1", "vendor_id=v1"]);
+    expect(storageUpload.mock.calls[0][0]).toBe("v1/product-p1.webp");
+    expect(writes()[1].payload).toMatchObject({ products: ["トマト", "なす"], week_date: "2026-10-04" });
+  });
+
   it("X は sns_x に、空なら null で書く", async () => {
     await saveAskAnswer("v1", "2026-10-04", { id: "x", value: "  " });
     expect(writes()).toEqual([
@@ -334,6 +345,7 @@ describe("fetchAskSnapshot", () => {
 
     const snapshot = await fetchAskSnapshot("v1", "2026-10-04");
 
+    expect(snapshot.productPhotos).toEqual({ トマト: "https://example.supabase.co/t.webp" });
     expect(snapshot.products).toEqual([
       { name: "トマト", price: 300, imageUrl: "https://example.supabase.co/t.webp" },
       { name: "なす", price: null, imageUrl: undefined },
