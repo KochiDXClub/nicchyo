@@ -19,7 +19,8 @@
     "code-health": "node scripts/code-health/cli.mjs",
     "code-health:diff": "node scripts/code-health/cli.mjs --base origin/develop --strict",
     "code-health:save": "node scripts/code-health/cli.mjs --save",
-    "migrate:vendor-images": "node scripts/migrate-vendor-images.mjs"
+    "migrate:vendor-images": "node scripts/migrate-vendor-images.mjs",
+    "code-health:a11y": "playwright test --config=scripts/code-health/browser/playwright.config.mjs"
   },
   "lint-staged": {
     "*.{ts,tsx}": [
@@ -67,6 +68,7 @@
     "@types/react-dom": "18.3.7",
     "@vitest/coverage-v8": "^4.1.12",
     "autoprefixer": "^10.4.27",
+    "axe-core": "4.11.4",
     "eslint": "^9.39.4",
     "eslint-config-next": "^16.1.7",
     "husky": "^9.1.7",
