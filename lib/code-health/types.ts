@@ -39,6 +39,7 @@ export interface LargeFile {
 export interface SnapshotSummary {
   label: string;
   generatedAt: string;
+  adminHandlers?: { path: string; method: string; line: number; guardLine: number | null }[];
   totals: {
     files: number;
     lines: number;
@@ -73,6 +74,7 @@ export interface SnapshotFile {
   dupLines: number;
   dupRatio: number;
   violations: number;
+  ruleLines?: Record<string, number[]>;
 }
 
 // テーブル1行分の型（CodeHealthSnapshotRow）は types/database.extensions.ts にある
