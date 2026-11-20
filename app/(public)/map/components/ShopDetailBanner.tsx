@@ -3,6 +3,7 @@ import { useCategorizedShop } from "@/lib/categories/CategoryContext";
 
 import { memo, useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { recordShopView, sourceFromReferrer } from "@/lib/analytics/shopViews";
+import { recordFeatureUsage } from "@/lib/analytics/featureUsage";
 import type { CSSProperties, ReactNode } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
@@ -169,6 +170,7 @@ const ShopDetailBanner = memo(function ShopDetailBanner({
       shop.id,
       layout === "inline" ? sourceFromReferrer(document.referrer, window.location.origin) : "map"
     );
+    recordFeatureUsage("shop");
   }, [shop.id, layout]);
 
   // お気に入りは商品名の日本語の原文で保存する（英語表示で訳された名前でも、言語を切り替えてもずれない）
