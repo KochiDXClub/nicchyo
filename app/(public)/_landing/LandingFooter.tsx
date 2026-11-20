@@ -17,7 +17,9 @@ export default async function LandingFooter() {
       <PageContainer width="wide" className="space-y-3">
         <div>
           <h2 id="landing-footer-title" className="text-base font-bold">
-            {t("このサイトの運営とデータ")}
+            <Link href="/about/site" className="inline-flex min-h-11 items-center rounded-btn underline underline-offset-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-nicchyo-primary">
+              {t("このサイトの運営とデータ")}
+            </Link>
           </h2>
           <p className="mt-1 text-sm text-nicchyo-ink/75">
             {t("運営：高知高専 nicchyo プロジェクト")}
