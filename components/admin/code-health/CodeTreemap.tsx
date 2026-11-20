@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ROLES } from "@/scripts/code-health/rules.mjs";
+import { ROLES, RULES } from "@/scripts/code-health/rules.mjs";
 import {
   colorStep,
   DUP_RATIO_CUTS,
@@ -181,6 +181,7 @@ export function CodeTreemap({ files }: CodeTreemapProps) {
 
       <Modal open={selectedFile !== null} onClose={() => setSelectedFile(null)} title={selectedFile?.path ?? ""}>
         {selectedFile ? (
+          <>
           <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm text-nicchyo-ink">
             <dt className="text-nicchyo-ink/55">機能</dt>
             <dd>{ROLE_LABEL[selectedFile.role] ?? selectedFile.role}</dd>
@@ -195,6 +196,16 @@ export function CodeTreemap({ files }: CodeTreemapProps) {
             <dt className="text-nicchyo-ink/55">ルール違反数</dt>
             <dd className="tabular-nums">{selectedFile.violations}</dd>
           </dl>
+          {selectedFile.violations > 0 && (
+            <ul className="mt-4 space-y-3 text-sm">
+              {selectedFile.ruleLines ? RULES.filter(rule => selectedFile.ruleLines?.[rule.id]).map(rule => (
+                <li key={rule.id}><strong>{rule.label}</strong><p>{rule.why}</p>
+                  <p className="break-words">該当行 {selectedFile.ruleLines?.[rule.id].join("、")}</p>
+                </li>
+              )) : <li>この記録には該当行の情報がありません。</li>}
+            </ul>
+          )}
+          </>
         ) : null}
       </Modal>
     </section>

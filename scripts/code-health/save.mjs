@@ -46,6 +46,8 @@ export function buildSnapshotFiles(report) {
       dupLines: f.dupLines,
       dupRatio: f.lines === 0 ? 0 : Math.round((f.dupLines / f.lines) * 1000) / 10,
       violations,
+      ...(violations ? { ruleLines: Object.fromEntries(Object.entries(f.ruleHits).map(([id, hit]) =>
+        [id, [...new Set(hit.occurrences.map(o => o.line))]])) } : {}),
     };
   });
 }

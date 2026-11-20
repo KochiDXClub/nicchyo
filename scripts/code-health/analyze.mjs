@@ -1,6 +1,7 @@
 // コードベースを読み、分類・行数・コピペ・ルール違反を集計する。
 // 入力はファイルの一覧（{ path, content }）だけなので、作業ツリーでも過去のコミットでも同じように測れる。
 
+import { inspectAdminHandlers } from "./admin-handlers.mjs";
 import { createHash } from "node:crypto";
 import { METRICS, ROLES, RULES, SHARED_ROLES } from "./rules.mjs";
 
@@ -197,10 +198,21 @@ function applyRules(file) {
   const hits = {};
   for (const rule of RULES) {
     if (!rule.scope(file)) continue;
-    const matches = file.content.match(rule.pattern);
+    const matches = [...file.content.matchAll(rule.pattern)];
     if (!matches || matches.length === 0) continue;
     const normalize = rule.normalize ?? ((m) => m.trim());
-    hits[rule.id] = { count: matches.length, values: [...new Set(matches.map(normalize))] };
+    let line = 1;
+    let start = 0;
+    const occurrences = matches.map(match => {
+      let newline;
+      while ((newline = file.content.indexOf("\n", start)) !== -1 && newline < match.index) {
+        start = newline + 1;
+        line++;
+      }
+      const context = file.content.slice(start, newline < 0 ? undefined : newline).trim();
+      return { line, key: hashText(context + "\0" + normalize(match[0])) };
+    });
+    hits[rule.id] = { count: matches.length, occurrences, values: [...new Set(matches.map(m => normalize(m[0])))] };
   }
   return hits;
 }
@@ -316,6 +328,8 @@ export function analyze(inputFiles, options = {}) {
     },
     metrics: Object.fromEntries(METRICS.map((m) => [m.id, metricValues[m.id]])),
     rules,
+    adminHandlers: files.filter(f => /^app\/api\/admin\/.*\broute\.[jt]s$/.test(f.path))
+      .flatMap(f => inspectAdminHandlers(f.path, f.content)),
     clones: clones.blocks,
     sameName,
     largeFiles,
