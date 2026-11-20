@@ -374,12 +374,18 @@ async function saveProductPhotos(
  * 一覧から外した商品は、写真を外し、説明や旬を持たない行は products からも消す（そのままだと、全部外したあとに商品名だけ復活する）
  */
 async function saveProducts(supabase: SupabaseClient, vendorId: string, items: ProductItem[]): Promise<void> {
-  const [vendorResult, rowsResult] = await Promise.all([
+  const [vendorResult, rowsResult, weeklyResult] = await Promise.all([
     supabase.from("vendors").select("main_products, signature_product_name").eq("id", vendorId).single(),
     supabase.from("products").select("id, name, image_url, description").eq("vendor_id", vendorId),
+    // 今週以外の週でも、写真のために残した商品は翌週以降も使うので、どの週に載った名前も掃除の対象から外す
+    supabase.from("vendor_weekly_status").select("products").eq("vendor_id", vendorId),
   ]);
   if (vendorResult.error) throw vendorResult.error;
   if (rowsResult.error) throw rowsResult.error;
+  if (weeklyResult.error) throw weeklyResult.error;
+  const weeklyNames = new Set(
+    ((weeklyResult.data ?? []) as { products: string[] | null }[]).flatMap((row) => row.products ?? []),
+  );
   const rows = (rowsResult.data ?? []) as { id: string; name: string; image_url: string | null; description: string | null }[];
   const mainProducts = (vendorResult.data?.main_products as string[] | null) ?? [];
   const signatureName = (vendorResult.data?.signature_product_name as string | null)?.trim();
@@ -398,7 +404,9 @@ async function saveProducts(supabase: SupabaseClient, vendorId: string, items: P
   // 看板商品は別の質問で決めたものなので残す。画面に出ていなかった行には触らない
   const kept = new Set(items.map((item) => item.name));
   const shown = new Set(mainProducts.length > 0 ? mainProducts : rows.map((row) => row.name));
-  const removed = rows.filter((row) => shown.has(row.name) && !kept.has(row.name) && row.name !== signatureName);
+  const removed = rows.filter(
+    (row) => shown.has(row.name) && !kept.has(row.name) && row.name !== signatureName && !weeklyNames.has(row.name),
+  );
   if (removed.length === 0) return;
 
   // 説明や旬は「マイショップ」の画面で登録するもので、行を消すと一緒に消える（product_seasons は on delete cascade）。

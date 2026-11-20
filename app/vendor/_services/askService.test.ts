@@ -304,6 +304,32 @@ describe("主な商品の写真", () => {
     expect(storageRemove).toHaveBeenCalledWith(["v1/product-p2.webp"]);
   });
 
+  it("今週（ほかの週でも）の商品に載っている名前は、主な商品から外しても行も写真も消さない（写真は翌週も使う）", async () => {
+    productRows(
+      [
+        { id: "p1", name: "今週だけの商品", image_url: "https://example.supabase.co/v1/product-p1.webp" },
+        { id: "p2", name: "先週の商品", image_url: null },
+        { id: "p3", name: "どこにも載っていない", image_url: null },
+      ],
+      { main_products: ["今週だけの商品", "先週の商品", "どこにも載っていない"] }
+    );
+    const base = respond;
+    respond = (call) =>
+      call.table === "vendor_weekly_status" && call.op === "select"
+        ? { data: [{ products: ["今週だけの商品"] }, { products: ["先週の商品"] }], error: null }
+        : base(call);
+    storageList.mockResolvedValue({ data: [{ name: "product-p1.webp" }] });
+    storageRemove.mockResolvedValue({ error: null });
+
+    await saveAskAnswer("v1", "2026-10-04", { id: "products", items: [] });
+
+    expect(calls.filter((call) => call.op === "delete")).toEqual([
+      expect.objectContaining({ table: "products", filters: ["id=p3", "vendor_id=v1"] }),
+    ]);
+    expect(calls.filter((call) => call.op === "update" && call.table === "products")).toEqual([]);
+    expect(storageRemove).not.toHaveBeenCalledWith(["v1/product-p1.webp"]);
+  });
+
   it("一覧の保存に失敗したときは、商品の行も写真も消さない（掃除は一覧の保存のあと）", async () => {
     productRows(
       [{ id: "p2", name: "なす", image_url: null }],
