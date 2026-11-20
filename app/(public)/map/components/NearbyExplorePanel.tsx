@@ -411,7 +411,7 @@ export default function NearbyExplorePanel({
           type="button"
           onClick={onClose}
           aria-label="閉じる"
-          className="absolute right-3 top-3 z-10 flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 text-slate-600 shadow-sm transition hover:bg-slate-200"
+          className="absolute right-3 top-3 z-10 flex h-9 w-9 items-center justify-center rounded-full bg-nicchyo-ink/[0.06] text-nicchyo-ink/70 transition hover:bg-nicchyo-ink/10"
         >
           <X className="h-4 w-4" aria-hidden />
         </button>
