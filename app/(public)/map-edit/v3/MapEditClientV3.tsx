@@ -92,12 +92,17 @@ export default function MapEditClientV3() {
   // 画面に出す区画。道基準の位置を持つ区画は、今の道の形から緯度経度を計算し直す
   // （道の点を動かすと、保存する前から区画がついてくる）
   const displayShops = useMemo(() => resolveSlotPositions(shops, roads), [shops, roads]);
-  // 区画の市は、乗っている道の市で決まる。その市のマーカー色で地図に出す
+  // 区画の市は、乗っている道の市で決まる。日曜市以外の区画だけ、その市のマーカー色で地図に出す
+  // （日曜市は市の色の設定にかかわらず従来の配色。色ではなく市の slug で判定する）
   const slotMarketColors = useMemo(() => {
     const roadMarket = new Map(roads.map((road) => [road.id, road.marketId]));
-    return new Map(
-      displayShops.map((shop) => [shop.locationId, markerColorForRoad(shop.roadId ? roadMarket.get(shop.roadId) : null, data.markets)]),
-    );
+    const colors = new Map<string, string>();
+    for (const shop of displayShops) {
+      const marketId = shop.roadId ? roadMarket.get(shop.roadId) : null;
+      const market = marketId ? data.markets.find((m) => m.id === marketId) : null;
+      if (market && market.slug !== "nichiyo") colors.set(shop.locationId, markerColorForRoad(marketId, data.markets));
+    }
+    return colors;
   }, [displayShops, roads, data.markets]);
 
   const selectedShop = useMemo(

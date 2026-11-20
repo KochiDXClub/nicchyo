@@ -125,8 +125,13 @@ export default function AdminMarketsPage() {
           <label className="block text-sm font-bold">
             地図のマーカーの色
             <span className="mt-1 flex items-center gap-3">
-              <input type="color" aria-label="地図のマーカーの色" className="h-10 w-16 cursor-pointer rounded-lg border" value={form.markerColor} onChange={(e) => setForm({ ...form, markerColor: e.target.value.toUpperCase() })} />
+              <input type="color" aria-label="地図のマーカーの色" disabled={form.slug === "nichiyo"} className="h-10 w-16 cursor-pointer rounded-lg border disabled:cursor-not-allowed disabled:opacity-50" value={form.markerColor} onChange={(e) => setForm({ ...form, markerColor: e.target.value.toUpperCase() })} />
               <span className="text-sm font-normal text-nicchyo-ink/70">{form.markerColor}（マップ編集で、この市の出店位置がこの色で表示されます）</span>
+            </span>
+            <span className="mt-1 block text-xs font-normal text-nicchyo-ink/70">
+              {form.slug === "nichiyo"
+                ? "日曜市は従来の色で表示するため、変更できません。"
+                : "赤系（空き区画）と、青（保存していない変更の印）は見分けにくくなるため避けてください。"}
             </span>
           </label>
           <label className="flex items-center gap-2 text-sm font-bold">

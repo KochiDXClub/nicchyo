@@ -6,8 +6,8 @@
 /** 日曜市の色（従来の「出店者のいる区画」の色と同じ） */
 export const SUNDAY_MARKET_MARKER_COLOR = "#D97706";
 
-/** 新しい市の初期色 */
-export const DEFAULT_MARKET_MARKER_COLOR = "#2563EB";
+/** 新しい市の初期色（マップ編集の「保存していない変更」の青、空き区画の赤と混ざらない色） */
+export const DEFAULT_MARKET_MARKER_COLOR = "#0D9488";
 
 const HEX_COLOR = /^#[0-9a-fA-F]{6}$/;
 

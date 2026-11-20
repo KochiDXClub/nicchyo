@@ -34,7 +34,6 @@ import {
   zoomIdxToMapLibreZoom,
 } from "../mapEditCamera";
 import { EDITOR_COLORS } from "../editorTheme";
-import { SUNDAY_MARKET_MARKER_COLOR } from "@/lib/market/markerColor";
 import { slotLabel } from "../../../map/types/editableShop";
 import type { CanvasHandlers, EditableLandmark, EditableRoad, EditableShop, Selection, Tool } from "../types";
 
@@ -44,7 +43,7 @@ type Props = {
   /** 保存していない変更がある要素（"shops:<locationId>" / "roads:<id>" / "landmarks:<key>"） */
   unsavedKeys: ReadonlySet<string>;
   shops: EditableShop[];
-  /** 区画（locationId）ごとの、その市のマーカー色。日曜市と同じ色の区画は従来の配色のまま */
+  /** 区画（locationId）ごとの、その市のマーカー色。日曜市の区画は含めない（従来の配色のまま） */
   slotMarketColors?: ReadonlyMap<string, string>;
   roads: EditableRoad[];
   landmarks: EditableLandmark[];
@@ -194,9 +193,9 @@ function buildShopFeatureCollection(
       slotLabel(shop).includes(opts.query) ||
       shop.name.toLowerCase().includes(opts.query);
     const unsaved = opts.unsavedKeys.has(`shops:${shop.locationId}`);
-    // 日曜市以外の市の区画は、その市の色で見分ける（日曜市は従来の配色）
+    // 日曜市以外の市の区画だけが入っている。その市の色で見分ける
     const marketColor = opts.slotMarketColors?.get(shop.locationId);
-    const otherMarket = !!marketColor && marketColor !== SUNDAY_MARKET_MARKER_COLOR;
+    const otherMarket = !!marketColor;
     return {
       type: "Feature",
       properties: {
