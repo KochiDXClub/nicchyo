@@ -1,9 +1,7 @@
-import { cookies } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
-import { createClient as createServerClient } from "@/utils/supabase/server";
 import { requireSameOrigin } from "@/lib/security/requestGuards";
 import { enforceRateLimit } from "@/lib/security/rateLimit";
-import { getRole, isAdmin } from "@/lib/auth/permissions";
+import { authorizeAdmin } from "@/lib/auth/requireAdminApi";
 import { applyEnvironmentDefaults, normalizeForSave, parsePageVisibilitySettings } from "@/lib/pageVisibility";
 import { normalizeMapFeatureFlags } from "@/lib/mapFeatureFlags";
 import { createClient as createServiceClient } from "@supabase/supabase-js";
@@ -96,13 +94,8 @@ function parseMapSettings(value: unknown): MapSettings {
 }
 
 async function requireAdmin() {
-  const cookieStore = await cookies();
-  const supabase = createServerClient(cookieStore);
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user || !isAdmin(getRole(user))) {
+  const { user } = await authorizeAdmin();
+  if (!user) {
     return { error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) };
   }
 
