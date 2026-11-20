@@ -42,14 +42,14 @@ const DEFAULT_FALLBACK = { emoji: "🏪", gradient: "bg-gradient-to-br from-ambe
 export interface ConsultShopCardProps {
   shop: Shop;
   onSelect: (shopId: number, shop: Shop) => void;
-  /** 1件だけのときは横幅いっぱいに広げ、写真を大きく見せる */
-  variant?: "single" | "carousel";
+  /** 1件だけのときは横幅いっぱいに広げ、説明を表示する */
+  single?: boolean;
 }
 
 export default function ConsultShopCard({
   shop: sourceShop,
   onSelect,
-  variant = "carousel",
+  single = false,
 }: ConsultShopCardProps) {
   const shop = useCategorizedShop(sourceShop);
   const t = useT();
@@ -58,54 +58,51 @@ export default function ConsultShopCard({
   const imageUrl = getShopPreviewImage(shop);
   const fallback = CATEGORY_FALLBACK[(shop.categoryKey ?? shop.category) as ShopCategory] ?? DEFAULT_FALLBACK;
   const products = (shop.products ?? []).filter(Boolean).slice(0, 3);
-  const isSingle = variant === "single";
 
   return (
     <button
       type="button"
       onClick={() => onSelect(shop.id, shop)}
-      className={`group flex shrink-0 snap-start flex-col overflow-hidden rounded-2xl border border-amber-100 bg-white text-left shadow-sm transition active:scale-[0.98] ${
-        isSingle ? "w-full" : "w-[240px]"
-      }`}
+      className={`group flex min-w-0 overflow-hidden rounded-card border border-line bg-white text-left transition hover:border-amber-400 focus-visible:ring-2 focus-visible:ring-amber-600 ${single ? "sm:col-span-2" : ""}`}
     >
       {/* 写真。カードの主役 */}
-      <div className={`relative w-full overflow-hidden ${isSingle ? "h-40" : "h-28"}`}>
+      <div className="relative w-24 shrink-0 overflow-hidden sm:w-28">
         {imageFailed ? (
           <div
             className={`flex h-full w-full items-center justify-center ${fallback.gradient}`}
             aria-hidden="true"
           >
-            <span className={isSingle ? "text-5xl" : "text-4xl"}>{fallback.emoji}</span>
+            <span className={single ? "text-5xl" : "text-4xl"}>{fallback.emoji}</span>
           </div>
         ) : (
           <Image
             src={imageUrl}
             alt=""
             fill
-            sizes={isSingle ? "(max-width: 768px) 100vw, 640px" : "240px"}
+            sizes="(min-width: 640px) 112px, 96px"
             className="object-cover"
             onError={() => setImageFailed(true)}
           />
         )}
 
         {shop.category && (
-          <span className="absolute left-2 top-2 rounded-full bg-black/55 px-2.5 py-1 text-[11px] font-bold text-white backdrop-blur-sm">
+          <span className="absolute bottom-1 left-1 max-w-full rounded-full bg-black/55 px-2.5 py-1 text-[11px] font-bold text-white backdrop-blur-sm">
             {shopCategoryLabel(shop)}
           </span>
         )}
       </div>
 
-      <div className="flex flex-1 flex-col gap-1.5 p-3">
+      <div className="flex min-w-0 flex-1 flex-col gap-1.5 p-3">
         <p
-          className={`font-bold leading-snug text-slate-900 ${
-            isSingle ? "text-lg" : "line-clamp-2 text-sm"
+          className={`font-bold leading-snug break-words text-nicchyo-ink ${
+            single ? "text-lg" : "line-clamp-2 text-sm"
           }`}
         >
           {shop.name}
         </p>
 
         {shop.chome && (
-          <p className="flex items-center gap-1 text-xs text-slate-500">
+          <p className="flex items-center gap-1 text-xs text-nicchyo-ink/70">
             <MapPin className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
             {shop.chome}
           </p>
@@ -124,8 +121,8 @@ export default function ConsultShopCard({
           </div>
         )}
 
-        {isSingle && shop.description && (
-          <p className="line-clamp-2 text-xs leading-5 text-slate-600">{shop.description}</p>
+        {single && shop.description && (
+          <p className="line-clamp-2 text-xs leading-5 text-nicchyo-ink/75">{shop.description}</p>
         )}
 
         <span className="mt-auto pt-1 text-[11px] font-bold text-amber-700">{t("くわしく見る →")}</span>
