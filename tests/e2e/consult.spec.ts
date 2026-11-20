@@ -20,3 +20,22 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 1440, height: 900 
     });
   });
 }
+
+test("スマホで回答を読み進めると話し手は本文と一緒に画面外へ移る", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const reply = "野菜のお店を紹介するね。".repeat(100);
+  await page.route("**/api/grandma/ask", (route) => route.fulfill({ json: { reply } }));
+  await page.goto("/consult");
+  const speaker = page.getByRole("button", { name: /話し手を選ぶ/ });
+  await expect(speaker).toBeInViewport();
+  const question = page.getByRole("textbox", { name: /への質問/ });
+  await question.fill("野菜が買えるお店");
+  await question.press("Enter");
+  const answer = page.getByText(reply, { exact: true }).first();
+  await expect(answer).toBeVisible();
+  await answer.hover();
+  await page.mouse.wheel(0, 420);
+  await expect(speaker).toHaveCount(1);
+  await expect(speaker).not.toBeInViewport();
+  await expect(answer).toBeInViewport();
+});

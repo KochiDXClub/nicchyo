@@ -234,7 +234,6 @@ export default function ConsultStage({
   const memorySummaryRef = useRef("");
   memorySummaryRef.current = memorySummary;
   const textInputRef = useRef<HTMLInputElement>(null);
-  const topSentinelRef = useRef<HTMLDivElement | null>(null);
   /** 「これまでの相談」から答えカードを開き直したとき、その場所までスクロールを戻す */
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   /** 「さっきの答えをもう一度見る」で開いたとき、フォーカスを移す先 */
@@ -264,31 +263,9 @@ export default function ConsultStage({
   });
 
   /**
-   * にちよさんの大きさは「利用者が読む場所を欲しがっているか」だけで決める。
-   *
-   * 答えが出たかどうかでは決めない。それだと質問した瞬間に縮んでしまい、
-   * 一番動きが効く「考えている」最中に小さくなってしまう。しかも一度縮むと
-   * 二度と戻らず、キャラを中心に据えた画面でなくなってしまう。
-   *
-   * スクロール量を毎フレーム見ると屋外の長時間利用で電池に響くので、
-   * 画面最上部の目印が見えているかどうかだけを IntersectionObserver で見る。
-   */
-  const [isScrolledDown, setIsScrolledDown] = useState(false);
-  useEffect(() => {
-    const sentinel = topSentinelRef.current;
-    if (!sentinel || typeof IntersectionObserver === "undefined") return;
-    const observer = new IntersectionObserver(
-      ([entry]) => setIsScrolledDown(!entry.isIntersecting),
-      { threshold: 0 }
-    );
-    observer.observe(sentinel);
-    return () => observer.disconnect();
-  }, []);
-
-  /**
    * 本文の一番下が見えているか。見えている間は、下端のぼかしを出さない
    * （出すと、続きが無いのに最後の候補ボタンまで薄くなり、かえって見切れて見える）。
-   * 上の目印と同じく、スクロール量は毎フレーム見ずに IntersectionObserver で見る。
+   * スクロール量は毎フレーム見ずに IntersectionObserver で見る。
    * 少しでも隠れていれば出す（隠れているのにぼかしが無いと、ボタンの縁が真横に
    * 切れて見える）
    */
@@ -877,20 +854,11 @@ export default function ConsultStage({
       // 隠れてしまうため、「バーの領域には最初から描画させない」ところまで
       // height 側でも絞る。
       //
-      // 親 main 側には上の余白を一切持たせない。上の余白は、この要素の
-      // padding-top ではなく最初の子（topSentinelRef）の margin-top で作る。
-      // スクロールコンテナ自身に padding-top を付けると、sticky な子要素は
-      // その padding ぶんより内側（画面最上部寄り）には張り付けなくなる
-      // （sticky の張り付き基準がスクロールポートの padding edge になるため）。
-      // その結果、どれだけスクロールしても画面最上部に padding-top ぶんの
-      // 隙間が残り続けてしまう。margin なら sticky の基準に含まれないため、
-      // スクロールすれば margin ごと上に流れ、固定バーが画面最上部にぴったり張り付く。
-      //
       // 幅は絞らず w-full のまま（PC で読みやすい行幅に絞るのは内側のラッパーで
       // 行う）。ここで max-w を付けてしまうと、スクロールする箱自体が狭くなり、
       // 縦スクロールバーが画面の右端ではなく箱の右端＝中途半端な位置に出てしまう
       // scroll-pb-10: Tab で下端の候補ボタンへ移ったとき、下端のぼかしに隠れない所まで送る
-      className="h-[calc(100dvh-var(--consult-bar-space))] w-full scroll-pb-10 overflow-y-auto px-4 pb-4 lg:h-[calc(100dvh-var(--consult-bar-space-lg))] lg:pb-0"
+      className="relative h-[calc(100dvh-var(--consult-bar-space))] w-full scroll-pb-10 overflow-y-auto px-4 pb-4 lg:h-[calc(100dvh-var(--consult-bar-space-lg))] lg:pb-0"
       style={
         {
           // 下端に固定した「話しかける」とナビゲーションバーの分は、上の
@@ -937,8 +905,7 @@ export default function ConsultStage({
         // 開いている間も外さずに隠すだけにする。外すと、閉じたときにフォーカスを戻す先が無くなる。
         // lg 未満は指で押せる 44px にし、クリーム色の背景に埋もれないよう面と縁を付ける。
         // lg 以上はこれまで通り面を持たない Claude 風のアイコンにする。
-        // 同じ z-30 の固定バーより DOM が前にあるので、z-40 にして固定バーの上に出す
-        className={`fixed left-4 top-[calc(var(--safe-top,0px)+0.75rem)] z-40 flex h-11 w-11 items-center justify-center rounded-lg border border-amber-200 bg-white/80 text-slate-500 shadow-sm transition hover:bg-black/5 lg:top-[calc(var(--safe-top,0px)+1rem)] lg:border-0 lg:bg-transparent lg:shadow-none ${
+        className={`absolute left-4 top-[calc(var(--safe-top,0px)+0.75rem)] z-40 flex h-11 w-11 items-center justify-center rounded-lg border border-amber-200 bg-white/80 text-slate-500 shadow-sm transition hover:bg-black/5 lg:fixed lg:top-[calc(var(--safe-top,0px)+1rem)] lg:border-0 lg:bg-transparent lg:shadow-none ${
           isHistorySidebarOpen ? "invisible" : ""
         }`}
       >
@@ -990,7 +957,7 @@ export default function ConsultStage({
           role={isHistoryDrawer ? "dialog" : "complementary"}
           aria-modal={isHistoryDrawer || undefined}
           aria-label={t("これまでの相談")}
-          // lg 未満は暗幕（z-40）の上、話しかけるバー・固定バーより手前に出す。
+          // lg 未満は暗幕（z-40）の上、入力欄より手前に出す。
           // lg 以上は横に並ぶだけなので、これまで通り音声シートなどより奥に置く
           // 幅は立ち絵を置いても文字の幅が以前（w-72）とほぼ変わらないよう 22rem にする
           className="fixed inset-y-0 left-0 z-40 flex w-[22rem] max-w-[85vw] flex-col border-r border-amber-100 bg-white lg:z-20"
@@ -1069,27 +1036,10 @@ export default function ConsultStage({
         lg 以上（1024px〜）では計算値が負になることはない
       */}
       <div
-        className={`mx-auto flex w-full max-w-3xl flex-col gap-3 motion-safe:transition-[margin-left] motion-safe:duration-300 motion-safe:ease-out-soft lg:grid lg:max-w-6xl lg:grid-cols-[30%_minmax(0,1fr)] lg:items-start lg:gap-x-8 ${
+        className={`mx-auto flex w-full max-w-3xl flex-col gap-3 pt-6 motion-safe:transition-[margin-left] motion-safe:duration-300 motion-safe:ease-out-soft lg:grid lg:max-w-6xl lg:grid-cols-[30%_minmax(0,1fr)] lg:items-start lg:gap-x-8 ${
           isHistorySidebarOpen ? "lg:ml-0" : "lg:ml-[max(0px,calc((100vw_-_2rem_-_72rem)/2))]"
         }`}
       >
-      {/*
-        にちよさんは常に画面に残す。
-        話し相手が読み進めるうちに消えてしまうと、話しかける相手が居なくなり、
-        音声入力の入口（＝キャラ自身がボタン）にも戻れなくなるため。
-        答えが長いときはここだけが残り、本文がこの下を流れていく。
-      */}
-      {/*
-        「画面の一番上にいるか」を測るための目印。見た目には出ないが、
-        上の余白（本来 padding-top で持たせたい分）を margin-top として
-        ここに持たせている（理由はスクロールコンテナの className 側のコメント参照）
-      */}
-      <div
-        ref={topSentinelRef}
-        aria-hidden="true"
-        className="mt-3 h-px w-full shrink-0 lg:col-span-2"
-      />
-
       {/* 話し手の入れ替わり。前の人が右へ去り、新しい人が左から歩いてくる */}
       {swapFrom && (
         <ConsultCharacterSwap
@@ -1100,88 +1050,7 @@ export default function ConsultStage({
         />
       )}
 
-      {/*
-        固定バー。高さは常に一定で、中身は不透明度と transform でしか動かさない。
-
-        以前はここでキャラの height / width をアニメーションさせていたが、
-        それだとスクロール中に毎フレーム レイアウトが走り、下の本文まで動いて
-        スクロールと喧嘩する（ガタついて見える原因）。
-        大きいにちよさんは下の通常フローに置いて自然に流れさせ、
-        ここには小さいにちよさんが出入りするだけにした。
-
-        -mb-[76px] で、このバーの高さぶんを後ろの要素に譲る（流れの上では高さ0）。
-        一番上にいる間はバーが透明で中身も無いのに、76px の空白として
-        大きいにちよさん・候補ボタンを押し下げていたため、縦の短いスマホで
-        候補ボタンが下の入力欄に見切れていた。重なっている間は下の大きい
-        にちよさん（タップで話し手を選べる）を押せるよう、当たり判定を持たせない。
-
-        左の pl-[4.5rem] は、画面左上に固定した「これまでの相談」を開くボタン
-        （left-4 / 幅 w-11）に、小さいにちよさんが重ならないようにする分。
-        lg 以上はチャット欄が中央に寄る（サイドバーを開くとボタン自体が消える）ので要らない
-      */}
-      <div
-        className={`sticky top-0 z-30 -mx-4 -mb-[76px] flex h-[76px] shrink-0 items-center gap-3 pl-[4.5rem] pr-4 lg:hidden ${
-          isScrolledDown ? "" : "pointer-events-none"
-        }`}
-      >
-        <div
-          aria-hidden="true"
-          className={`pointer-events-none absolute inset-0 bg-nicchyo-base/85 backdrop-blur-md transition-opacity duration-200 ${
-            isScrolledDown ? "opacity-100" : "opacity-0"
-          }`}
-        />
-        {/* 下の本文が固定バーの縁でぶつ切りに見えないようにする */}
-        <div
-          aria-hidden="true"
-          className={`pointer-events-none absolute inset-x-0 top-full h-4 bg-gradient-to-b from-nicchyo-base/85 to-transparent transition-opacity duration-200 ${
-            isScrolledDown ? "opacity-100" : "opacity-0"
-          }`}
-        />
-
-        {/* 読み進めている間の話し相手。大きさは変えず、出入りだけさせる */}
-        <div
-          aria-hidden={!isScrolledDown}
-          className={`relative transition-[opacity,transform] duration-200 ${
-            isScrolledDown
-              ? "translate-y-0 opacity-100"
-              : "pointer-events-none -translate-y-1 opacity-0"
-          }`}
-        >
-          <GrandmaAvatar
-            pose={pose}
-            size="pinned"
-            character={speaker}
-            onClick={isScrolledDown ? () => setIsSpeakerPickerOpen(true) : undefined}
-            label={t("話し手を選ぶ（いまは{name}）").replace("{name}", t(speaker.name))}
-          />
-        </div>
-
-        <div className="relative ml-auto">
-          {speech.isListening && (
-            // 聞き取り中は、上まで戻らなくても分かるようにする
-            <span className="rounded-full bg-red-500 px-3 py-1.5 text-xs font-bold text-white">
-              {t("聞きよるよ…")}
-            </span>
-          )}
-        </div>
-      </div>
-
-      {/*
-        主役のにちよさん。通常フローに置いてあるので、読み進めれば自然に
-        画面外へ流れ、上に戻ればまた現れる。大きさは一切変えないので
-        スクロール中にレイアウトが動かない。
-      */}
-      {/*
-        lg 以上（PC・ノートPC）では左30%のカラムに置き、本文を読み進めても
-        画面に残り続けるよう sticky にする。スマホでは従来どおり通常フロー。
-      */}
-      {/*
-        高さを「スクロール領域いっぱい」にして中身を縦中央に置く（sticky なので
-        本文を読み進めても同じ位置に残る）。高さは lg 用の --consult-bar-space-lg から、
-        上の目印の余白（0.75rem + 1px）と行の間隔（0.75rem）ぶんの 1.65rem を引いた値。
-        これを引かないと、わずかにスクロールが発生する（lg は下の余白 pb を 0 にしてある）
-      */}
-      <div className="flex flex-col items-center gap-2 lg:sticky lg:top-0 lg:col-start-1 lg:row-start-2 lg:h-[calc(100dvh-var(--consult-bar-space-lg)-1.65rem)] lg:justify-center">
+      <div className="flex flex-col items-center gap-2 lg:col-start-1 lg:row-start-1 lg:h-[calc(100dvh-var(--consult-bar-space-lg)-1.65rem)] lg:justify-center">
         {/*
           flex にして、囲んだだけで下に行間の隙間が出ないようにする（測る先がずれる）。
           開いたときはその場に現れ、現れきったら一度だけ会釈する。
@@ -1258,7 +1127,7 @@ export default function ConsultStage({
         （見た目・間隔は変わらない）。
         lg の上の余白（pt）は、右上に浮かぶ「マップにもどる」バーの下から答えを始めるため
       */}
-      <div className={`contents lg:col-start-2 lg:row-start-2 lg:flex lg:min-h-[calc(100dvh-var(--consult-bar-space-lg)-1.65rem)] lg:min-w-0 lg:flex-col lg:gap-4 lg:pt-[3.75rem] ${showAnswer ? "" : "lg:justify-center"}`}>
+      <div className={`contents lg:col-start-2 lg:row-start-1 lg:flex lg:min-h-[calc(100dvh-var(--consult-bar-space-lg)-1.65rem)] lg:min-w-0 lg:flex-col lg:gap-4 lg:pt-[3.75rem] ${showAnswer ? "" : "lg:justify-center"}`}>
       {/* 今の答え。1枚だけ */}
       {showAnswer && (
         <div
