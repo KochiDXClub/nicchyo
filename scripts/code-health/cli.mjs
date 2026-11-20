@@ -15,6 +15,7 @@
 import { execFileSync, spawnSync } from "node:child_process";
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
+import { auditDependencies } from "./dependency-audit.mjs";
 import { analyze, isTargetPath } from "./analyze.mjs";
 import { diffReports, diffToMarkdown } from "./diff.mjs";
 import { renderHtml } from "./report-html.mjs";
@@ -29,6 +30,7 @@ function parseArgs(argv) {
     else if (a === "--strict") args.strict = true;
     else if (a === "--out") args.out = argv[++i];
     else if (a === "--summary-file") args.summaryFile = argv[++i];
+    else if (a === "--audit") args.audit = true;
     else if (a === "--save") args.save = true;
     else throw new Error(`不明なオプション: ${a}`);
   }
@@ -89,6 +91,12 @@ async function main() {
   const branch = process.env.VERCEL_GIT_COMMIT_REF || git(["rev-parse", "--abbrev-ref", "HEAD"]);
   const commit = process.env.VERCEL_GIT_COMMIT_SHA || git(["rev-parse", "HEAD"]);
   const after = analyze(readWorkingTree(), { label: `作業ツリー（${branch}）` });
+
+  if (args.audit || args.save) {
+    after.dependencyAudit = auditDependencies();
+    const audit = after.dependencyAudit;
+    console.log("本番依存の npm audit:", audit.status === "complete" ? `${audit.packages.length} パッケージ` : "取得失敗");
+  }
 
   let diff = null;
   if (args.base) {

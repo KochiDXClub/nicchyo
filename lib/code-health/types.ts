@@ -52,6 +52,13 @@ export interface SnapshotSummary {
   metrics: Record<string, number>;
   rules: Record<string, RuleSummary>;
   clones: CloneBlock[];
+  dependencyAudit?: { checkedAt: string } & (
+    | { status: "unavailable" }
+    | { status: "complete"; packages: {
+        name: string; severity: string; range: string; fix: string;
+        advisories: { title: string; url?: string }[];
+      }[] }
+  );
   sameName: SameNameGroup[];
   largeFiles: LargeFile[];
 }
