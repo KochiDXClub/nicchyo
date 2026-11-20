@@ -15,6 +15,8 @@ type Props = {
   showMoreLink?: boolean;
   showHeading?: boolean;
   showStatusSource?: boolean;
+  /** 市で絞り込んでいるときは、行ごとの市の名前を省く（チップで伝わるため） */
+  showMarketName?: boolean;
 };
 
 /** 開催日ごとの予定を、近況の投稿とは独立したカードで見せる。 */
@@ -23,6 +25,7 @@ export default function UpcomingMarketDates({
   showMoreLink = false,
   showHeading = true,
   showStatusSource = false,
+  showMarketName = true,
 }: Props) {
   if (dates.length === 0) return null;
   const showMarketNames = dates.some((date) => date.marketName);
@@ -38,7 +41,12 @@ export default function UpcomingMarketDates({
 
       <ul className="flex flex-col gap-2.5">
         {dates.map((date) => (
-          <CalendarDateCard key={`${date.marketId}:${date.dateIso}`} date={date} showStatusSource={showStatusSource} />
+          <CalendarDateCard
+            key={`${date.marketId}:${date.dateIso}`}
+            date={date}
+            showStatusSource={showStatusSource}
+            showMarketName={showMarketName}
+          />
         ))}
       </ul>
 
@@ -62,12 +70,22 @@ const jstUpdatedAt = new Intl.DateTimeFormat("ja-JP", {
   timeStyle: "short",
 });
 
-function CalendarDateCard({ date, showStatusSource }: { date: MarketCalendarDate; showStatusSource: boolean }) {
+function CalendarDateCard({
+  date,
+  showStatusSource,
+  showMarketName,
+}: {
+  date: MarketCalendarDate;
+  showStatusSource: boolean;
+  showMarketName: boolean;
+}) {
   const { day, highlight, events, isThisWeek, marketName, status } = date;
-  const showStatusBadge = Boolean(marketName) || status !== "open" || showStatusSource;
-  const statusPresentation = status && showStatusBadge ? getStatusPresentation(status) : null;
+  // 札は中止・休市・特別開催の「いつもと違う日」だけに出す。いつもどおりの日は見出しの右に静かに添える
+  const statusPresentation = status && status !== "open" ? getStatusPresentation(status) : null;
   const updatedAt = showStatusSource && day?.updated_at ? new Date(day.updated_at) : null;
   const isEmpty = !highlight && events.length === 0;
+  // 運営が開催を登録した日は「開催」、まだ登録のない日は曜日どおりの「開催予定」
+  const regularLabel = status === "open" ? (day ? "開催" : "開催予定") : null;
 
   return (
     <li
@@ -83,7 +101,8 @@ function CalendarDateCard({ date, showStatusSource }: { date: MarketCalendarDate
       >
         <span className="text-sm font-bold text-nicchyo-ink">{date.dateLabel}</span>
         <span className="text-[11px] text-gray-400">{date.relativeLabel}</span>
-        {marketName && <span className="text-xs font-bold text-nicchyo-primary">{marketName}</span>}
+        {showMarketName && marketName && <span className="text-xs font-bold text-nicchyo-primary">{marketName}</span>}
+        {regularLabel && <span className="ml-auto text-xs text-nicchyo-ink/55">{regularLabel}</span>}
         {statusPresentation && (
           <span
             className={`ml-auto rounded-full px-2 py-0.5 text-[11px] font-bold ${
@@ -94,7 +113,7 @@ function CalendarDateCard({ date, showStatusSource }: { date: MarketCalendarDate
                   : "bg-nicchyo-ink/5 text-nicchyo-ink"
             }`}
           >
-            {!day && showStatusSource ? "通常予定" : statusPresentation.label}
+            {statusPresentation.label}
           </span>
         )}
       </div>
@@ -112,7 +131,7 @@ function CalendarDateCard({ date, showStatusSource }: { date: MarketCalendarDate
         <div className="relative aspect-[16/9] w-full bg-nicchyo-ink/5">
           <Image
             src={day.image_url}
-            alt={`${date.dateLabel}の日曜市`}
+            alt={`${date.dateLabel}の${date.marketName ?? "日曜市"}`}
             fill
             className="object-cover"
             sizes="(max-width: 512px) 100vw, 512px"
@@ -126,24 +145,20 @@ function CalendarDateCard({ date, showStatusSource }: { date: MarketCalendarDate
         </p>
       )}
 
-      <div className="px-4 py-3">
-        {isEmpty ? (
-          <p className="text-xs text-gray-400">まだ予定はありません</p>
-        ) : (
-          <>
-            {highlight && (
-              <HighlightItem event={highlight} relativeLabel={date.relativeLabel} />
-            )}
-            {events.length > 0 && (
-              <ul className={`flex flex-col gap-2.5 ${highlight ? "mt-3" : ""}`}>
-                {events.map((event) => (
-                  <EventItem key={event.id} event={event} />
-                ))}
-              </ul>
-            )}
-          </>
-        )}
-      </div>
+      {/* 予定が何も入っていない日は本文を出さない（見出しの「開催予定」で足りる）。
+          市が増えて日付が並んでも、1日1行で読めるようにする */}
+      {!isEmpty && (
+        <div className="px-4 py-3">
+          {highlight && <HighlightItem event={highlight} relativeLabel={date.relativeLabel} />}
+          {events.length > 0 && (
+            <ul className={`flex flex-col gap-2.5 ${highlight ? "mt-3" : ""}`}>
+              {events.map((event) => (
+                <EventItem key={event.id} event={event} />
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
     </li>
   );
 }

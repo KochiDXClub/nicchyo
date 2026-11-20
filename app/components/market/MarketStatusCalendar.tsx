@@ -34,7 +34,10 @@ export default function MarketStatusCalendar({ date, className = "", link = true
   const { label, tone } = getStatusPresentation(status);
   const marketDay = toLandingMarketDay(date);
   const statusLabel = !day && unregisteredLabel ? unregisteredLabel : label;
-  const text = nextSundayCalendarText(marketDay, t, locale, statusLabel);
+  // 日めくりの曜日欄には市の名前だけを出す（「木曜市」と書けば木曜だとわかる）。
+  // 「日曜日 日曜市」「木曜日 木曜市」のように曜日と市名を並べない
+  const baseText = nextSundayCalendarText(marketDay, t, locale, statusLabel);
+  const text = { ...baseText, weekdayText: marketName ? t(marketName) : t("日曜市"), marketName: undefined };
 
   const calendar = (
     <span className="relative block h-[8.2rem] w-[7.6rem] shrink-0">
@@ -60,7 +63,7 @@ export default function MarketStatusCalendar({ date, className = "", link = true
         <div className="min-w-0">
           {showSummary && (
             <>
-              <p className="text-xs font-bold text-nicchyo-ink/55">{marketName ? t(marketName) : t("次の日曜市")}</p>
+              <p className="text-xs font-bold text-nicchyo-ink/55">{marketName ? t("次の開催") : t("次の日曜市")}</p>
               {tone === "alert" || tone === "highlight" ? (
                 <p
                   className={`mt-1 inline-block rounded-btn px-3 py-1.5 text-base font-black ${
@@ -71,9 +74,9 @@ export default function MarketStatusCalendar({ date, className = "", link = true
                   <span className="whitespace-nowrap">{t(statusLabel)}</span>
                 </p>
               ) : (
+                // 平常の「開催」は日めくりの札に出ているので、ここは日付だけにする
                 <p className="mt-0.5 text-base font-black text-nicchyo-ink">
-                  <span className="whitespace-nowrap">{dateLabel}</span>{" "}
-                  <span className="whitespace-nowrap">{t(label)}</span>
+                  <span className="whitespace-nowrap">{dateLabel}</span>
                 </p>
               )}
             </>
