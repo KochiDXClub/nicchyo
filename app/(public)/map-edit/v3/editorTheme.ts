@@ -1,3 +1,5 @@
+import { SUNDAY_MARKET_MARKER_COLOR } from "@/lib/market/markerColor";
+
 /**
  * マップ編集画面の配色。
  * 既存の編集画面（ヘッダー・右パネル）で使っている色と同じ値を、新しく作る部品から
@@ -23,7 +25,8 @@ export const EDITOR_COLORS = {
    */
   vacantSlot: "#E11D48",
   vacantSlotStroke: "#9F1239",
-  occupiedSlot: "#D97706",
+  /** 日曜市の区画の色（市のマーカー色の日曜市の値と同じ。定義は lib/market/markerColor.ts） */
+  occupiedSlot: SUNDAY_MARKET_MARKER_COLOR,
   selectedSlot: "#B45309",
   /** 区画分けのプレビュー: 新しく作る区画・動く区画・消す区画 */
   previewCreate: "#16A34A",

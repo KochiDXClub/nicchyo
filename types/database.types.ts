@@ -544,6 +544,7 @@ export type Database = {
           created_at: string
           id: string
           is_public: boolean
+          marker_color: string
           name: string
           slug: string
           updated_at: string
@@ -553,6 +554,7 @@ export type Database = {
           created_at?: string
           id?: string
           is_public?: boolean
+          marker_color?: string
           name: string
           slug: string
           updated_at?: string
@@ -562,6 +564,7 @@ export type Database = {
           created_at?: string
           id?: string
           is_public?: boolean
+          marker_color?: string
           name?: string
           slug?: string
           updated_at?: string

@@ -36,7 +36,7 @@ async function fetchMapLayout() {
     landmarks?: EditableLandmark[];
     route?: { points: MapRoutePoint[]; config: MapRouteConfig };
     roads?: EditableRoad[];
-    markets?: { id: string; slug: string; name: string }[];
+    markets?: { id: string; slug: string; name: string; markerColor?: string }[];
     vendors?: EditableVendor[];
     categories?: VendorCategory[];
     /** DB に道基準の位置の列があるか（無ければマイグレーション前で、保存できない） */

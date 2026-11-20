@@ -18,6 +18,7 @@ import { MapEditHeader } from "./components/MapEditHeader";
 import { SnapshotHistoryPanel } from "./components/SnapshotHistoryPanel";
 import { RoadDetailPanel, RoadListPanel, LandmarkDetailPanel } from "./components/DetailPanels";
 import SlotVendorPanel from "./components/SlotVendorPanel";
+import { SUNDAY_MARKET_MARKER_COLOR, markerColorForRoad } from "@/lib/market/markerColor";
 import { useChomeJudge } from "./useChomeJudge";
 import PendingChangeLog from "./components/PendingChangeLog";
 import RoadLaneView, { buildLaneRoadGroups, type LaneRoadGroup } from "./components/RoadLaneView";
@@ -91,6 +92,18 @@ export default function MapEditClientV3() {
   // 画面に出す区画。道基準の位置を持つ区画は、今の道の形から緯度経度を計算し直す
   // （道の点を動かすと、保存する前から区画がついてくる）
   const displayShops = useMemo(() => resolveSlotPositions(shops, roads), [shops, roads]);
+  // 区画の市は、乗っている道の市で決まる。日曜市以外の区画だけ、その市のマーカー色で地図に出す
+  // （日曜市は市の色の設定にかかわらず従来の配色。色ではなく市の slug で判定する）
+  const slotMarketColors = useMemo(() => {
+    const roadMarket = new Map(roads.map((road) => [road.id, road.marketId]));
+    const colors = new Map<string, string>();
+    for (const shop of displayShops) {
+      const marketId = shop.roadId ? roadMarket.get(shop.roadId) : null;
+      const market = marketId ? data.markets.find((m) => m.id === marketId) : null;
+      if (market && market.slug !== "nichiyo") colors.set(shop.locationId, markerColorForRoad(marketId, data.markets));
+    }
+    return colors;
+  }, [displayShops, roads, data.markets]);
 
   const selectedShop = useMemo(
     () => (selection?.kind === "slot" ? displayShops.find((s) => s.locationId === selection.id) ?? null : null),
@@ -455,6 +468,7 @@ export default function MapEditClientV3() {
               selection={selection}
               unsavedKeys={unsavedKeys}
               shops={displayShops}
+              slotMarketColors={slotMarketColors}
               roads={roads}
               landmarks={landmarks}
               draft={draft}
@@ -575,6 +589,11 @@ export default function MapEditClientV3() {
                 <SlotVendorPanel
                   shop={selectedShop}
                   roadName={roads.find((r) => r.id === selectedShop.roadId)?.name ?? null}
+                  market={(() => {
+                    const roadMarketId = roads.find((r) => r.id === selectedShop.roadId)?.marketId;
+                    const market = (roadMarketId ? data.markets.find((m) => m.id === roadMarketId) : data.markets.find((m) => m.slug === "nichiyo")) ?? null;
+                    return market ? { name: market.name, color: slotMarketColors.get(selectedShop.locationId) ?? SUNDAY_MARKET_MARKER_COLOR } : null;
+                  })()}
                   vendor={data.vendors.find((v) => v.id === selectedShop.vendorId) ?? null}
                   onApplyFieldObservation={() => ops.applyFieldObservation(selectedShop.locationId)}
                   onAddressChange={(address) => { ops.setSlotAddress(selectedShop.locationId, address); }}

@@ -166,7 +166,7 @@ export async function GET() {
       loadMapSettingsLimits(supabase),
       hasRoadPositionSchema(supabase),
       loadChomeSettings(supabase),
-      adminClient.from("markets").select("id, name, slug").order("weekday"),
+      adminClient.from("markets").select("id, name, slug, marker_color").order("weekday"),
     ]);
     if (markets.error) throw markets.error;
 
@@ -184,7 +184,7 @@ export async function GET() {
       landmarks,
       route: mapRoute,
       roads,
-      markets: markets.data,
+      markets: markets.data.map(({ marker_color, ...market }) => ({ ...market, markerColor: marker_color })),
       vendors: observedVendors,
       categories,
       mapSettingsLimits,

@@ -3,11 +3,15 @@
  * 曜日は 0=日〜6=土（PostgreSQL の extract(dow) と同じ）。
  */
 
+import { isMarkerColor } from "./markerColor";
+
 export type MarketInput = {
   name: string;
   slug: string;
   weekday: number;
   isPublic: boolean;
+  /** 地図マーカーの色（#RRGGBB）。省略すると、登録時は初期色、更新時は今の色のまま */
+  markerColor?: string;
 };
 
 export type MarketInputResult = { ok: true; data: MarketInput } | { ok: false; error: string };
@@ -35,5 +39,13 @@ export function parseMarketInput(raw: unknown): MarketInputResult {
     return { ok: false, error: "公開の指定が正しくありません" };
   }
 
-  return { ok: true, data: { name, slug, weekday, isPublic: body.isPublic === true } };
+  if (body.markerColor !== undefined && !isMarkerColor(body.markerColor)) {
+    return { ok: false, error: "マーカーの色は #RRGGBB の形で指定してください" };
+  }
+  const markerColor = body.markerColor === undefined ? undefined : (body.markerColor as string).toUpperCase();
+
+  return {
+    ok: true,
+    data: { name, slug, weekday, isPublic: body.isPublic === true, ...(markerColor ? { markerColor } : {}) },
+  };
 }
