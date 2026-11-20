@@ -12,7 +12,7 @@ import "./landing.css";
 import LandingHeroPc from "./LandingHeroPc";
 import MapFab from "./MapFab";
 import RevealOnScroll from "./RevealOnScroll";
-import type { LandingSunday } from "./upcomingSundays";
+import type { LandingMarketDay } from "./upcomingMarketDays";
 
 /**
  * 最初の一画面。写真を地にして、上から「ヘッダー（nicchyoのロゴ・言語）→ 見出し →（下に）マップをみる → 今週の開催日 → 検索」の順に並べる。
@@ -25,9 +25,9 @@ import type { LandingSunday } from "./upcomingSundays";
  * 写真は画面の向きで出し分ける。スマートフォンは縦長の「上から見た通り」、
  * 広い画面は横長の「屋台の通り」。<picture> で、見ない方の写真は読み込まない
  */
-export default async function LandingHero({ sundays, showOutingSupport = false }: { sundays: LandingSunday[]; showOutingSupport?: boolean }) {
+export default async function LandingHero({ marketDays, showOutingSupport = false }: { marketDays: LandingMarketDay[]; showOutingSupport?: boolean }) {
   const [locale, t, s] = await Promise.all([getLocale(), getT(), getSiteText()]);
-  const nextText = sundays[0] ? nextSundayCalendarText(sundays[0], t, locale) : null;
+  const nextText = marketDays[0] ? nextSundayCalendarText(marketDays[0], t, locale) : null;
   const common = { alt: s("landing.hero.photoAlt"), sizes: "100vw", priority: true } as const;
   const {
     props: { srcSet: tallSrcSet, ...imgProps },
@@ -36,7 +36,7 @@ export default async function LandingHero({ sundays, showOutingSupport = false }
   return (
     // MapFab は、ここ全体（スマホ・PCどちらの最初の画面）が画面の上へ出たら出す
     <div id="landing-hero">
-      <LandingHeroPc sundays={sundays} showOutingSupport={showOutingSupport} />
+      <LandingHeroPc marketDays={marketDays} showOutingSupport={showOutingSupport} />
       <section
         aria-labelledby="landing-title"
         className="relative flex min-h-[100svh] flex-col overflow-hidden bg-nicchyo-ink md:hidden"
@@ -83,9 +83,9 @@ export default async function LandingHero({ sundays, showOutingSupport = false }
           </RevealOnScroll>
 
           <RevealOnScroll when="enter" delayMs={150} className="max-w-[28rem] md:max-w-[34rem]">
-            {sundays[0] && (
+            {marketDays[0] && (
               <Link href="/calendar" aria-label={s("landing.hero.calendarLink")} className="relative mx-auto mb-6 block h-[10.2rem] w-[9.4rem] focus-visible:outline focus-visible:outline-2 focus-visible:outline-amber-500">
-                {nextText && <NextSundayCalendar sunday={sundays[0]} text={nextText} className="origin-top-left scale-[0.65]" />}
+                {nextText && <NextSundayCalendar marketDay={marketDays[0]} text={nextText} className="origin-top-left scale-[0.65]" />}
               </Link>
             )}
             {/* いちばんしてほしいこと：地図をひらく（この画面を過ぎると、右下の丸いボタンに替わる） */}

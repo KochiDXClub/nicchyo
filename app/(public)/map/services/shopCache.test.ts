@@ -22,8 +22,10 @@ vi.mock("next/cache", () => ({
   revalidateTag: mocks.revalidateTag,
 }));
 vi.mock("@supabase/supabase-js", () => ({ createClient: vi.fn(() => ({})) }));
-vi.mock("@/lib/supabase/adminClient", () => ({ createAdminClient: () => ({ from: () => ({ select: () => ({ eq: () => ({ maybeSingle: mocks.marketDay }) }) }) }) }));
-vi.mock("@/lib/market-schedule/read.server", () => ({ readPublicScheduleData: mocks.readPublicScheduleData }));
+vi.mock("@/lib/supabase/adminClient", () => ({ createAdminClient: () => ({ from: () => ({ select: () => ({ eq: () => ({ eq: () => ({ maybeSingle: mocks.marketDay }) }) }) }) }) }));
+vi.mock("@/lib/market-schedule/read.server", () => ({
+  readPublicSchedulesByMarket: async () => [{ id: "sunday", slug: "nichiyo", schedule: await mocks.readPublicScheduleData() }],
+}));
 vi.mock("@/lib/supabase/fetchAllRows", () => ({ fetchAllRows: mocks.fetchAllRows }));
 vi.mock("@/lib/market-schedule/rollout.server", () => ({ readPublicScheduleRollout: mocks.readPublicScheduleRollout }));
 vi.mock("./shopDb", () => ({

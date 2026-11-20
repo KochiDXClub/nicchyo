@@ -22,6 +22,7 @@ import {
   Bot,
   CalendarDays,
   ClipboardList,
+  Database,
   FileText,
   Frame,
   Gauge,
@@ -104,6 +105,12 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
         href: "/admin/calendar",
         icon: CalendarDays,
         description: "開催ステータスの切替と、出店予定・イベントの入稿をまとめて行う",
+      },
+      {
+        label: "市の管理",
+        href: "/admin/markets",
+        icon: MapPinned,
+        description: "市の公開設定や開催曜日を管理する",
       },
       {
         label: "出店予定管理",
@@ -195,10 +202,10 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
         description: "マップをどこまで動かせるかを地図の上で決める",
       },
       {
-        label: "スポット管理",
+        label: "イラスト管理",
         href: "/admin/spots",
         icon: MapPin,
-        description: "お手洗い・休けい場所・電停などのスポット情報を管理する",
+        description: "地図の来訪者イラストと、お手洗い・電停などのスポットを管理する",
       },
     ],
   },
@@ -237,6 +244,12 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
         href: "/admin/ai-prompts",
         icon: Bot,
         description: "話し方と答え方、場面ごとに使うAIモデルを調整する",
+      },
+      {
+        label: "埋め込み管理",
+        href: "/admin/embeddings",
+        icon: Database,
+        description: "にちよさんの検索データを更新し、実行履歴を確認する",
       },
       {
         label: "設定",

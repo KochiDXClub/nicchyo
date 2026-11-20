@@ -2,21 +2,15 @@
 
 import Link from "next/link";
 import NextSundayCalendar, { nextSundayCalendarText } from "@/app/(public)/_landing/NextSundayCalendar";
-import type { LandingSunday } from "@/app/(public)/_landing/upcomingSundays";
+import { toLandingMarketDay } from "@/app/(public)/_landing/upcomingMarketDays";
 import { useLocale, useT } from "@/lib/i18n/LocaleContext";
-import {
-  formatEventDate,
-  getStatusPresentation,
-  getUpcomingSundayIso,
-  normalizeStatus,
-  type MarketDay,
-} from "@/lib/market/calendar";
+import { getStatusPresentation, type MarketCalendarDate } from "@/lib/market/calendar";
 
 // 日めくりカレンダーは本体（14.4rem × 15.6rem）を scale-[0.52] で小さく出し、
 // 囲みの横 7.6rem × 縦 8.2rem は本体 × 0.52 の目安に合わせている
 type Props = {
-  /** market_days の該当行。未登録なら null（＝通常どおり開催の想定） */
-  day: MarketDay | null;
+  date: MarketCalendarDate;
+  unregisteredLabel?: string;
   className?: string;
   /** カレンダーページ自身など、リンクにしない場所では false */
   link?: boolean;
@@ -31,23 +25,21 @@ type Props = {
  * 文字列を props で受け取る形になり、ここで useT()/useLocale() から渡す。
  * 中止・休市は赤い帯、特別開催は黄色の地で目立たせる（以前のページ版と同じ扱い）。
  */
-export default function MarketStatusCalendar({ day, className = "", link = true, showSummary = true }: Props) {
+export default function MarketStatusCalendar({ date, className = "", link = true, showSummary = true, unregisteredLabel }: Props) {
   const t = useT();
   const locale = useLocale();
 
-  const status = day?.status ?? "open";
+  const { day, dateLabel, marketName, status } = date;
+  if (!status) return null;
   const { label, tone } = getStatusPresentation(status);
-  const dateIso = day?.market_date ?? getUpcomingSundayIso();
-  const dateLabel = formatEventDate(dateIso);
-
-  const [, month, dayOfMonth] = dateIso.split("-").map(Number);
-  const sunday: LandingSunday = { dateIso, month, day: dayOfMonth, status: normalizeStatus(status) };
+  const marketDay = toLandingMarketDay(date);
+  const statusLabel = !day && unregisteredLabel ? unregisteredLabel : label;
   // 日曜市と書けば日曜だとわかるので、日めくりの曜日欄は「日曜市」だけにする（「日曜日」と並べない）
-  const text = { ...nextSundayCalendarText(sunday, t, locale), weekdayText: t("日曜市") };
+  const text = { ...nextSundayCalendarText(marketDay, t, locale, statusLabel), weekdayText: t("日曜市") };
 
   const calendar = (
     <span className="relative block h-[8.2rem] w-[7.6rem] shrink-0">
-      <NextSundayCalendar sunday={sunday} text={text} className="origin-top-left scale-[0.52]" />
+      <NextSundayCalendar marketDay={marketDay} text={text} className="origin-top-left scale-[0.52]" />
     </span>
   );
 
@@ -69,18 +61,21 @@ export default function MarketStatusCalendar({ day, className = "", link = true,
         <div className="min-w-0">
           {showSummary && (
             <>
-              <p className="text-xs font-bold text-nicchyo-ink/55">{t("次の日曜市")}</p>
+              <p className="text-xs font-bold text-nicchyo-ink/55">{marketName ? t(marketName) : t("次の日曜市")}</p>
               {tone === "alert" || tone === "highlight" ? (
                 <p
                   className={`mt-1 inline-block rounded-btn px-3 py-1.5 text-base font-black ${
                     tone === "alert" ? "bg-rose-500 text-white" : "bg-nicchyo-accent text-nicchyo-ink"
                   }`}
                 >
-                  {dateLabel} {t(label)}
+                  <span className="whitespace-nowrap">{dateLabel}</span>{" "}
+                  <span className="whitespace-nowrap">{t(statusLabel)}</span>
                 </p>
               ) : (
                 // 平常の「開催」は日めくりの札に出ているので、ここは日付だけにする
-                <p className="mt-0.5 text-base font-black text-nicchyo-ink">{dateLabel}</p>
+                <p className="mt-0.5 text-base font-black text-nicchyo-ink">
+                  <span className="whitespace-nowrap">{dateLabel}</span>
+                </p>
               )}
             </>
           )}
