@@ -177,5 +177,21 @@
   "landing.about.message1": "nicchyo について / 開発チームのひとことの1行目",
   "landing.about.message2": "nicchyo について / 開発チームのひとことの2行目",
   "landing.about.signature": "nicchyo について / ひとことの署名",
-  "landing.about.activitiesLink": "nicchyo について / 活動記録へのボタン"
+  "landing.about.activitiesLink": "nicchyo について / 活動記録へのボタン",
+  "support.meta.title": "協賛・ご支援 / ブラウザのタブ名",
+  "support.meta.description": "協賛・ご支援 / 検索結果・SNS共有の説明文（ページ上には出ない）",
+  "support.meta.ogTitle": "協賛・ご支援 / SNS共有の見出し（ページ上には出ない）",
+  "support.meta.ogDescription": "協賛・ご支援 / SNS共有の説明文（ページ上には出ない）",
+  "supporters.meta.title": "支援者一覧 / ブラウザのタブ名",
+  "supporters.meta.description": "支援者一覧 / 検索結果・SNS共有の説明文（ページ上には出ない）",
+  "supporters.meta.ogTitle": "支援者一覧 / SNS共有の見出し（ページ上には出ない）",
+  "supporters.meta.ogDescription": "支援者一覧 / SNS共有の説明文（ページ上には出ない）",
+  "supporters.heading": "支援者一覧 / 見出し",
+  "supporters.lead": "支援者一覧 / 見出しの下の説明",
+  "story.meta.title": "近況 / ブラウザのタブ名",
+  "story.meta.description": "近況 / 検索結果・SNS共有の説明文（ページ上には出ない）",
+  "story.heading": "近況 / 見出し",
+  "story.demoNotice": "近況 / デモの案内",
+  "story.empty": "近況 / 投稿が無いときの文言",
+  "story.loadError": "近況 / 投稿の読み込み失敗時の文言"
 }

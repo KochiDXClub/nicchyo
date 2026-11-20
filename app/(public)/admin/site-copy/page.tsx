@@ -13,7 +13,7 @@ type History = { id: number; content: SiteCopy; published_at: string; published_
 type Data = { draft: SiteCopy; published: SiteCopy; revision: number; history: History[] };
 type Lang = "ja" | "en";
 
-const SECTIONS: [string, string][] = [["faq.", "FAQページ"], ["about.", "紹介ページ"], ["mapIntro.", "マップ案内"], ["landing.", "トップページ"], ["faq-items", "質問と回答"]];
+const SECTIONS: [string, string][] = [["faq.", "FAQページ"], ["about.", "紹介ページ"], ["mapIntro.", "マップ案内"], ["landing.", "トップページ"], ["support.", "協賛・ご支援"], ["supporters.", "支援者一覧"], ["story.", "近況"], ["faq-items", "質問と回答"]];
 const TEXT_SECTIONS = SECTIONS.filter(([id]) => id !== "faq-items");
 
 /** 英訳の欄の値。空欄は英訳を消す（来訪者には、初期の英訳があればそれ、無ければ日本語が出る） */
