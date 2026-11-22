@@ -1,8 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import NavigationBar from "../../components/NavigationBar";
+import { formatShopIdToCode } from "@/lib/shops/route";
 import ShopDetailBanner from "../map/components/ShopDetailBanner";
 import ConsultStage from "./components/ConsultStage";
 import {
@@ -45,6 +46,15 @@ export default function ConsultClient() {
     return () => inFlight.forEach((controller) => controller.abort());
   }, []);
   const searchParams = useSearchParams();
+  const router = useRouter();
+
+  // 「ここへ案内」：地図へ移り、着いたらこの店への道案内を始める（店舗ページと同じ経路）
+  const navigateToSelectedShop = useCallback(() => {
+    if (!selectedShop) return;
+    const code = formatShopIdToCode(selectedShop.id);
+    if (!code) return;
+    router.push(`/map?shop=${code}&navigate=1`);
+  }, [selectedShop, router]);
 
   const handleSelectShop = useCallback(
     (shopId: number, shopFromCard?: Shop) => {
@@ -289,7 +299,13 @@ export default function ConsultClient() {
           />
         </div>
       </main>
-      {selectedShop && <ShopDetailBanner shop={selectedShop} onClose={() => setSelectedShop(null)} />}
+      {selectedShop && (
+        <ShopDetailBanner
+          shop={selectedShop}
+          onClose={() => setSelectedShop(null)}
+          onNavigate={navigateToSelectedShop}
+        />
+      )}
       {/* お店の詳細を開いている間は、右上のもどるバーを隠す（詳細パネルの閉じる・お気に入りと重なるため）。
           閉じるはパネル側の × で行う */}
       <NavigationBar activeHref="/consult" backBarOnTop hideTopBackBar={selectedShop !== null} />
