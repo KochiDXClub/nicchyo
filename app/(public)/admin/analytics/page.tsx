@@ -1,6 +1,6 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { createClient as createServiceClient } from "@supabase/supabase-js";
+import { createAdminClient } from "@/lib/supabase/adminClient";
 import { createClient } from "@/utils/supabase/server";
 import { AdminLayout, AdminPageHeader } from "@/components/admin";
 import { getRole, isAdmin } from "@/lib/auth/permissions";
@@ -10,13 +10,6 @@ import AnalyticsCollectionSettings from "./AnalyticsCollectionSettings";
 import { TrafficOverview } from "@/components/admin/TrafficOverview";
 
 export const dynamic = "force-dynamic";
-
-function createAdminReadClient() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) return null;
-  return createServiceClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
-}
 
 // ---- format helpers ----
 function fmtMinutes(sec: number) {
@@ -69,7 +62,7 @@ export default async function AdminAnalyticsPage() {
   const role = getRole(user);
   if (!user || !isAdmin(role)) redirect("/login");
 
-  const dc = createAdminReadClient() ?? supabase;
+  const dc = createAdminClient() ?? supabase;
 
   const now = new Date();
   // visit_date は JST で記録されるため、集計の基準日も JST に揃える

@@ -6,7 +6,7 @@
  * アナリティクスページから読み込むサーバーコンポーネント。
  */
 
-import { createClient as createServiceClient } from "@supabase/supabase-js";
+import { createAdminClient } from "@/lib/supabase/adminClient";
 import { cookies } from "next/headers";
 import TrafficChartCard, { type TrafficGranularity, type TrafficPoint } from "@/components/admin/TrafficChartCard";
 import { createClient } from "@/utils/supabase/server";
@@ -203,26 +203,10 @@ function buildTrafficSeries(
   } satisfies Record<TrafficGranularity, TrafficPoint[]>;
 }
 
-function createAdminReadClient() {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-  if (!supabaseUrl || !serviceRoleKey) {
-    return null;
-  }
-
-  return createServiceClient(supabaseUrl, serviceRoleKey, {
-    auth: {
-      persistSession: false,
-      autoRefreshToken: false,
-    },
-  });
-}
-
 export async function TrafficOverview() {
   const cookieStore = await cookies();
   const supabase = createClient(cookieStore);
-  const adminReadClient = createAdminReadClient();
+  const adminReadClient = createAdminClient();
   const dataClient = adminReadClient ?? supabase;
 
   const now = new Date();

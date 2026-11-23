@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { createClient as createServiceClient } from "@supabase/supabase-js";
+import { createAdminServiceClientOrNull } from "@/lib/auth/requireAdminApi";
 import {
   AlertTriangle,
   ArrowRight,
@@ -18,7 +18,6 @@ import { createClient, createClientWithExtensions } from "@/utils/supabase/serve
 import { getRole, isAdmin } from "@/lib/auth/permissions";
 import { nextSundayJstString } from "@/lib/time/jstDate";
 import { VENDOR_INQUIRY_OPEN_STATUSES } from "@/lib/vendorInquiries/constants";
-import type { DatabaseWithExtensions } from "@/types/database.extensions";
 
 export const dynamic = "force-dynamic";
 
@@ -70,25 +69,6 @@ function formatMonthDay(iso: string) {
   return new Intl.DateTimeFormat("ja-JP", { month: "numeric", day: "numeric" }).format(date);
 }
 
-/** admin_notifications は生成済み型に含まれないため、拡張型のクライアントで扱う */
-function createNotificationReadClient() {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!supabaseUrl || !serviceRoleKey) return null;
-  return createServiceClient<DatabaseWithExtensions>(supabaseUrl, serviceRoleKey, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
-}
-
-function createAdminReadClient() {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!supabaseUrl || !serviceRoleKey) return null;
-  return createServiceClient<DatabaseWithExtensions>(supabaseUrl, serviceRoleKey, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
-}
-
 type TodoItem = {
   key: string;
   label: string;
@@ -115,7 +95,7 @@ export default async function AdminDashboardPage() {
     redirect("/");
   }
 
-  const adminReadClient = createAdminReadClient();
+  const adminReadClient = createAdminServiceClientOrNull();
   // vendor_inquiries は生成済み型に無いので、拡張型のクライアントで読む（認可は上の admin 判定で済み）
   const dataClient = adminReadClient ?? createClientWithExtensions(cookieStore);
 
@@ -170,7 +150,8 @@ export default async function AdminDashboardPage() {
       .limit(2),
   ]);
 
-  const notificationClient = createNotificationReadClient();
+  // admin_notifications は生成済み型に含まれないため、拡張型（DatabaseWithExtensions）のクライアントで扱う
+  const notificationClient = createAdminServiceClientOrNull();
   const unreadNotificationCount = notificationClient
     ? (
         await notificationClient
