@@ -36,7 +36,7 @@ export default function RemoveShopFavoriteDialog({
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: reduceMotion ? 0 : 0.18 }}
-          className={`fixed inset-0 ${zIndexClassName} flex items-end justify-center bg-slate-950/40 px-4 backdrop-blur-[2px] sm:items-center`}
+          className={`fixed inset-0 ${zIndexClassName} flex items-end justify-center bg-nicchyo-ink/40 px-4 backdrop-blur-[2px] sm:items-center`}
           style={{ paddingBottom: "calc(2rem + var(--safe-bottom, 0px))" }}
           onClick={onCancel}
         >
@@ -51,22 +51,22 @@ export default function RemoveShopFavoriteDialog({
             className="w-full max-w-sm rounded-[24px] bg-white p-5 shadow-2xl"
             onClick={(event) => event.stopPropagation()}
           >
-            <p className="text-base font-bold text-slate-900">お気に入りから外しますか？</p>
-            <p className="mt-2 text-sm leading-relaxed text-slate-600">
+            <p className="text-base font-bold text-nicchyo-ink">お気に入りから外しますか？</p>
+            <p className="mt-2 text-sm leading-relaxed text-nicchyo-ink/70">
               このお店に入れている{productCount}品も一緒に消えます。
             </p>
             <div className="mt-5 flex gap-2">
               <button
                 type="button"
                 onClick={onCancel}
-                className="min-h-11 flex-1 rounded-2xl bg-slate-100 px-4 py-2 text-sm font-bold text-slate-700 transition hover:bg-slate-200"
+                className="min-h-11 flex-1 rounded-2xl bg-nicchyo-ink/5 px-4 py-2 text-sm font-bold text-nicchyo-ink transition hover:bg-nicchyo-ink/10"
               >
                 やめる
               </button>
               <button
                 type="button"
                 onClick={onConfirm}
-                className="min-h-11 flex-1 rounded-2xl bg-slate-900 px-4 py-2 text-sm font-bold text-white transition hover:bg-black"
+                className="min-h-11 flex-1 rounded-2xl bg-nicchyo-ink px-4 py-2 text-sm font-bold text-white transition hover:bg-black"
               >
                 外す
               </button>
