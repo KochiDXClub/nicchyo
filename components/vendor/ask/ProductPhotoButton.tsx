@@ -15,6 +15,7 @@ export default function ProductPhotoButton({
   onPick,
   onClear,
   onError,
+  onChecking,
 }: {
   preview: string | null;
   /** 商品名など。読み上げ用 */
@@ -23,21 +24,26 @@ export default function ProductPhotoButton({
   /** 写真を外す。preview があるときだけ ×印を出す */
   onClear?: () => void;
   onError: (message: string | null) => void;
+  onChecking: (checking: boolean) => void;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
 
   const pick = async (file: File | undefined) => {
     if (!file) return;
-    // 保存時の変換でつまずく前に、このブラウザで読める写真かを確かめる
-    if (!(await canDecodeImage(file))) {
-      onError(IMAGE_DECODE_ERROR_MESSAGE);
-      if (inputRef.current) inputRef.current.value = "";
-      return;
+    onChecking(true);
+    try {
+      const valid = await canDecodeImage(file);
+      if (!inputRef.current) return;
+      if (valid) {
+        onError(null);
+        onPick(file);
+      } else {
+        onError(IMAGE_DECODE_ERROR_MESSAGE);
+      }
+      inputRef.current.value = "";
+    } finally {
+      onChecking(false);
     }
-    onError(null);
-    onPick(file);
-    // 同じ写真を選び直しても change が起きるように
-    if (inputRef.current) inputRef.current.value = "";
   };
 
   return (

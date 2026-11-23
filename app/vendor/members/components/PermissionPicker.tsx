@@ -23,12 +23,14 @@ export default function PermissionPicker({
   canToggle,
   idPrefix,
   disabled = false,
+  compact = false,
 }: {
   value: readonly ShopPermission[];
   onChange: (next: ShopPermission[]) => void;
   canToggle: (permission: ShopPermission) => boolean;
   idPrefix: string;
   disabled?: boolean;
+  compact?: boolean;
 }) {
   const presetKeys = (Object.keys(SHOP_PERMISSION_PRESETS) as ShopPermissionPresetKey[]).filter((key) =>
     // 副代表のひな形は members_manage を含む。付けられない人には出さない
@@ -56,6 +58,41 @@ export default function PermissionPicker({
     return preset.length === value.length && preset.every((p) => value.includes(p));
   });
 
+  const options = (
+    <ul className="divide-y divide-line rounded-btn ring-1 ring-line">
+      {SHOP_PERMISSION_KEYS.map((permission) => {
+        const meta = SHOP_PERMISSION_META[permission];
+        const allowed = canToggle(permission);
+        const toggleable = allowed && !disabled;
+        const id = `${idPrefix}-${permission}`;
+        return (
+          <li key={permission}>
+            <label htmlFor={id} className={`flex items-start gap-3 px-3 py-2.5 ${toggleable ? "cursor-pointer" : "opacity-60"}`}>
+              <input
+                id={id}
+                type="checkbox"
+                // シートの下に貼りつく保存バー（約 70px）の裏に、Tab で移ったチェックが隠れないようにする
+                className="mt-1 h-4 w-4 shrink-0 scroll-mb-24 accent-amber-600"
+                checked={value.includes(permission)}
+                disabled={!toggleable}
+                onChange={() => toggle(permission)}
+              />
+              <span className="min-w-0">
+                <span className="flex flex-wrap items-center gap-1.5 text-sm font-semibold text-nicchyo-ink">
+                  {meta.label}
+                  {meta.sensitive && <Badge variant="caution">管理者に近い権限</Badge>}
+                </span>
+                <span className="block text-xs leading-relaxed text-nicchyo-ink/70">{meta.description}</span>
+                {/* 押せない理由（自分が持っていない権限・副代表からのメンバーの管理）。規則は lib/vendor/memberRules.ts */}
+                {!allowed && <span className="block text-xs text-nicchyo-ink/70">あなたは付け外しできません（代表者に頼んでください）</span>}
+              </span>
+            </label>
+          </li>
+        );
+      })}
+    </ul>
+  );
+
   return (
     <div className="space-y-3">
       <div role="group" aria-labelledby={`${idPrefix}-presets`}>
@@ -81,42 +118,16 @@ export default function PermissionPicker({
         <p className="mt-1.5 text-xs leading-relaxed text-nicchyo-ink/70">
           {matched
             ? `${SHOP_PERMISSION_PRESETS[matched].label}：${SHOP_PERMISSION_PRESETS[matched].description}`
-            : "押すと、下のチェックがまとめて変わります。1つずつ付け外しもできます。"}
+            : value.length ? value.map((p) => SHOP_PERMISSION_META[p].label).join("・") : "閲覧のみ"}
         </p>
       </div>
 
-      <ul className="divide-y divide-line rounded-btn ring-1 ring-line">
-        {SHOP_PERMISSION_KEYS.map((permission) => {
-          const meta = SHOP_PERMISSION_META[permission];
-          const allowed = canToggle(permission);
-          const toggleable = allowed && !disabled;
-          const id = `${idPrefix}-${permission}`;
-          return (
-            <li key={permission}>
-              <label htmlFor={id} className={`flex items-start gap-3 px-3 py-2.5 ${toggleable ? "cursor-pointer" : "opacity-60"}`}>
-                <input
-                  id={id}
-                  type="checkbox"
-                  // シートの下に貼りつく保存バー（約 70px）の裏に、Tab で移ったチェックが隠れないようにする
-                  className="mt-1 h-4 w-4 shrink-0 scroll-mb-24 accent-amber-600"
-                  checked={value.includes(permission)}
-                  disabled={!toggleable}
-                  onChange={() => toggle(permission)}
-                />
-                <span className="min-w-0">
-                  <span className="flex flex-wrap items-center gap-1.5 text-sm font-semibold text-nicchyo-ink">
-                    {meta.label}
-                    {meta.sensitive && <Badge variant="caution">管理者に近い権限</Badge>}
-                  </span>
-                  <span className="block text-xs leading-relaxed text-nicchyo-ink/70">{meta.description}</span>
-                  {/* 押せない理由（自分が持っていない権限・副代表からのメンバーの管理）。規則は lib/vendor/memberRules.ts */}
-                  {!allowed && <span className="block text-xs text-nicchyo-ink/70">あなたは付け外しできません（代表者に頼んでください）</span>}
-                </span>
-              </label>
-            </li>
-          );
-        })}
-      </ul>
+      {compact ? (
+        <details>
+          <summary className="cursor-pointer rounded-btn py-3 text-sm font-semibold text-amber-900">権限を個別に選ぶ（{value.length}件選択中）</summary>
+          {options}
+        </details>
+      ) : options}
     </div>
   );
 }

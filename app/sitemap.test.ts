@@ -1,16 +1,27 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const fetchPublicShops = vi.fn();
+const fetchPublicMarketBySlug = vi.fn();
 
 vi.mock("@/app/(public)/map/services/shopCache", () => ({
   fetchPublicShopProfiles: () => fetchPublicShops(),
 }));
+
+vi.mock("@/lib/market/publicMarkets.server", () => ({
+  fetchPublicMarketBySlug: (slug: string) => fetchPublicMarketBySlug(slug),
+}));
+
+vi.mock("@/lib/pageVisibility/server", async () => {
+  const { EMPTY_PAGE_VISIBILITY_SETTINGS } = await import("@/lib/pageVisibility");
+  return { fetchEffectivePageVisibility: async () => EMPTY_PAGE_VISIBILITY_SETTINGS };
+});
 
 import sitemap from "./sitemap";
 
 describe("sitemap", () => {
   beforeEach(() => {
     fetchPublicShops.mockReset();
+    fetchPublicMarketBySlug.mockReset().mockResolvedValue(null);
   });
 
   it("公開店舗（fetchPublicShops）を 3 桁コードの URL として載せる", async () => {
@@ -58,10 +69,19 @@ describe("sitemap", () => {
   it("カレンダー・活動記録などの静的ページを載せる", async () => {
     fetchPublicShops.mockResolvedValue([]);
     const urls = (await sitemap()).map((entry) => entry.url);
-    for (const path of ["/calendar", "/story", "/activities", "/support"]) {
+    for (const path of ["/calendar", "/story", "/activities", "/support", "/about/site", "/about/team"]) {
       expect(urls.some((u) => u.endsWith(path))).toBe(true);
     }
     expect(urls.some((u) => u.includes("/activities/"))).toBe(true);
+  });
+
+  it("木曜市は公開されているときだけ載せる", async () => {
+    fetchPublicShops.mockResolvedValue([]);
+    expect((await sitemap()).some((entry) => entry.url.endsWith("/mokuyo"))).toBe(false);
+
+    fetchPublicMarketBySlug.mockResolvedValue({ slug: "mokuyo" });
+    expect((await sitemap()).some((entry) => entry.url.endsWith("/mokuyo"))).toBe(true);
+    expect(fetchPublicMarketBySlug).toHaveBeenCalledWith("mokuyo");
   });
 
   it("静的ページに常に「今」の lastModified を入れない", async () => {

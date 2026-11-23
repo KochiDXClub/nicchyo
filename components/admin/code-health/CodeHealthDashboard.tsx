@@ -5,6 +5,7 @@ import { compareSnapshots } from "@/lib/code-health/compareSnapshots";
 import type { CodeHealthSnapshotRow } from "@/types/database.extensions";
 import { CodeTreemap } from "./CodeTreemap";
 import { CompositionBar } from "./CompositionBar";
+import { DependencyAudit } from "./DependencyAudit";
 import { CopyBlocks } from "./CopyBlocks";
 import { DuplicateNames } from "./DuplicateNames";
 import { HugeFilesList } from "./HugeFilesList";
@@ -68,7 +69,16 @@ export function CodeHealthDashboard({ snapshots }: CodeHealthDashboardProps) {
 
       <CompositionBar byRole={current.summary.totals.byRole} />
 
-      <CodeTreemap files={current.files} />
+      <CodeTreemap key={current.id} files={current.files} />
+
+      <details className="rounded-card bg-white p-4 ring-1 ring-line">
+        <summary>管理APIの認可確認 {current.summary.adminHandlers && `（要確認 ${current.summary.adminHandlers.filter(h => h.guardLine === null).length}件）`}</summary>
+        <p className="my-2 text-sm">操作の先頭で共通ガードを呼び、失敗時に戻る形を確認します。独自の分岐や別関数経由の操作は手動確認の対象です。</p>
+        {current.summary.adminHandlers ? <ul className="max-h-80 overflow-auto text-sm">
+          {[...current.summary.adminHandlers].sort((a, b) => Number(!!a.guardLine) - Number(!!b.guardLine)).map(h =>
+            <li key={h.path + h.method} className="break-all py-1">{h.guardLine ? `共通ガード L${h.guardLine}` : "要確認"} · {h.method} {h.path} L{h.line}</li>)}
+        </ul> : <p>この記録では未検査です。</p>}
+      </details>
 
       <RulesTable rules={current.summary.rules} comparison={comparison?.rules ?? null} />
 
@@ -76,6 +86,8 @@ export function CodeHealthDashboard({ snapshots }: CodeHealthDashboardProps) {
         <HugeFilesList largeFiles={current.summary.largeFiles} />
         <DuplicateNames groups={current.summary.sameName} />
       </div>
+
+      <DependencyAudit audit={current.summary.dependencyAudit} />
 
       <CopyBlocks clones={current.summary.clones} />
     </div>

@@ -1,5 +1,9 @@
 'use client';
 
+import { Sparkles } from 'lucide-react';
+import { cn } from '@/lib/utils/cn';
+import MapBottomPrompt, { MAP_BOTTOM_PROMPT_BUTTON_CLASS } from './MapBottomPrompt';
+
 /**
  * NearbyExploreButton
  *
@@ -16,15 +20,8 @@ export default function NearbyExploreButton({
   onClick: () => void;
 }) {
   return (
-    <div
-      className={`absolute left-1/2 z-[1150] -translate-x-1/2 transition-all duration-500 ease-out ${
-        visible ? 'opacity-100 translate-y-0' : 'pointer-events-none opacity-0 translate-y-2'
-      }`}
-      style={{ bottom: 'calc(4.5rem + env(safe-area-inset-bottom, 0px) + 0.75rem)' }}
-      onMouseDown={(e) => e.stopPropagation()}
-      onTouchStart={(e) => e.stopPropagation()}
-      aria-hidden={!visible}
-    >
+    <MapBottomPrompt visible={visible}>
+      {/* 1 行に収めた丸いボタン。2 行に折ると地図の上で吹き出しのように見え、押せるものに見えにくい */}
       <button
         type="button"
         onClick={(e) => {
@@ -32,15 +29,13 @@ export default function NearbyExploreButton({
           onClick();
         }}
         tabIndex={visible ? 0 : -1}
-        className="flex items-center gap-2 rounded-full border border-amber-200 bg-white/95 px-4 py-2.5 shadow-lg backdrop-blur-sm transition-transform active:scale-95"
+        className={cn(MAP_BOTTOM_PROMPT_BUTTON_CLASS, 'bg-white pl-1.5 pr-4 text-nicchyo-ink shadow-pop ring-1 ring-amber-200')}
       >
-        <span aria-hidden className="text-base leading-none">👀</span>
-        <span className="text-center text-[13px] font-bold leading-snug text-amber-900">
-          このへん、
-          <br />
-          なにがある？
+        <span aria-hidden className="flex h-8 w-8 items-center justify-center rounded-chip bg-amber-500 text-white">
+          <Sparkles className="h-4 w-4" strokeWidth={2.2} />
         </span>
+        このへん、なにがある？
       </button>
-    </div>
+    </MapBottomPrompt>
   );
 }

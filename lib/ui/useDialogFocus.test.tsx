@@ -77,4 +77,28 @@ describe("useDialogFocus の data-autofocus", () => {
 
     expect(document.activeElement).toBe(screen.getByRole("button", { name: "主ボタン" }));
   });
+
+  it("閉じた details の中の入力には移さず、summary へ移す（Tab で中に留まる）", () => {
+    function Collapsed() {
+      const ref = useRef<HTMLDivElement>(null);
+      useDialogFocus(ref, 1);
+      return (
+        <div ref={ref} role="dialog" aria-modal="true" tabIndex={-1}>
+          <details>
+            <summary>詳しい設定</summary>
+            <input aria-label="隠れた入力" />
+          </details>
+          <button type="button">閉じる</button>
+        </div>
+      );
+    }
+    render(<Collapsed />);
+
+    expect(screen.getByText("詳しい設定")).toHaveFocus();
+    // 最後の「閉じる」から Tab で回ると、隠れた入力ではなく summary へ戻る
+    const close = screen.getByRole("button", { name: "閉じる" });
+    close.focus();
+    fireEvent.keyDown(document, { key: "Tab" });
+    expect(screen.getByText("詳しい設定")).toHaveFocus();
+  });
 });

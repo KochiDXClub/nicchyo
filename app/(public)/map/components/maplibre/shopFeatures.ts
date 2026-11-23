@@ -25,29 +25,34 @@ export interface ShopDisplayState {
   favorites: Set<number>;
 }
 
-export type ShopFeature = GeoJSON.Feature<GeoJSON.Point, Record<string, unknown>> & { id: number };
+export type ShopFeature = GeoJSON.Feature<GeoJSON.Point, { id: number } & Record<string, unknown>> & { id: string | number };
 
 /** 表示状態で変わらない部分だけの Feature。店舗リストごとに 1 回作る */
 export function buildShopFeatures(shops: Shop[]): ShopFeature[] {
-  return shops
-    .map((s) => {
-      const stall = resolveStallColors(s.categoryKey ?? s.category, sanitizeCssColor(s.illustration?.color));
-      return {
-        type: "Feature",
-        id: s.id,
-        geometry: { type: "Point", coordinates: [s.lng, s.lat] },
-        properties: {
-          id: s.id,
-          name: s.name,
-          spriteKey: stallSpriteKey(s),
-          // 道の北側は木札を右（道の外側）、南側は左に出す（Leaflet 版 .shop-side-*）
-          side: getRoadSide(s.lat, s.lng),
-          // 屋根の上の丸窓。写真が無ければカテゴリの既定画像（軽量なサムネイルを優先）
-          photo: getShopThumbnailImage(s),
-          photoBorder: stall.dark,
-        },
-      };
+  return shops.flatMap((shop) => {
+    const stall = resolveStallColors(shop.categoryKey ?? shop.category, sanitizeCssColor(shop.illustration?.color));
+    const properties = {
+      id: shop.id,
+      name: shop.name,
+      spriteKey: stallSpriteKey(shop),
+      photo: getShopThumbnailImage(shop),
+      photoBorder: stall.dark,
+    };
+    const toFeature = (
+      location: Pick<Shop, "lat" | "lng" | "roadSide">,
+      id: ShopFeature["id"],
+      marketId?: string,
+    ): ShopFeature => ({
+      type: "Feature",
+      id,
+      geometry: { type: "Point", coordinates: [location.lng, location.lat] },
+      properties: { ...properties, marketId, placementId: id, side: location.roadSide ?? getRoadSide(location.lat, location.lng) },
     });
+    return [
+      toFeature(shop, shop.id),
+      ...(shop.otherMarketLocations ?? []).map((location) => toFeature(location, `${shop.id}:${location.marketId}`, location.marketId)),
+    ];
+  });
 }
 
 function displayOf(id: number, display: ShopDisplayState): { state: StallState; favorite: boolean } {
@@ -63,7 +68,7 @@ export function shopsToGeoJSON(
     type: "FeatureCollection",
     features: features.map((f) => ({
       ...f,
-      properties: { ...f.properties, ...displayOf(f.id, display) },
+      properties: { ...f.properties, ...displayOf(f.properties.id, display) },
     })),
   };
 }
@@ -75,9 +80,9 @@ export function diffShopDisplay(
   next: ShopDisplayState
 ): NonNullable<GeoJSONSourceDiff["update"]> {
   const update: NonNullable<GeoJSONSourceDiff["update"]> = [];
-  for (const { id } of features) {
-    const before = displayOf(id, prev);
-    const after = displayOf(id, next);
+  for (const { id, properties } of features) {
+    const before = displayOf(properties.id, prev);
+    const after = displayOf(properties.id, next);
     if (before.state === after.state && before.favorite === after.favorite) continue;
     update.push({
       id,

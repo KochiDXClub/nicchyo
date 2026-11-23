@@ -412,9 +412,13 @@ export async function loadAllRoutePoints(supabase: ReturnType<typeof createServe
     }));
 }
 
+export function isRoadMarketConflict(message: string): boolean {
+  return message.includes("market_locations_road_market_fkey") || message.includes("market_location_market_has_history");
+}
+
 export async function loadEditableRoads(supabase: ReturnType<typeof createServerClient>): Promise<EditableRoad[]> {
   const [roadsResult, allPoints] = await Promise.all([
-    supabase.from("map_roads").select("id, name, kind, width_meters").order("created_at", { ascending: true }),
+    supabase.from("map_roads").select("id, name, kind, width_meters, market_id").order("created_at", { ascending: true }),
     loadAllRoutePoints(supabase),
   ]);
 
@@ -444,6 +448,7 @@ export async function loadEditableRoads(supabase: ReturnType<typeof createServer
     name: (row.name as string | null) ?? "",
     kind: (row.kind as RoadKind | null) ?? "street",
     widthMeters: Number(row.width_meters ?? 26),
+    marketId: row.market_id,
     points: pointsByRoadId.get(row.id as string) ?? [],
   }));
 }

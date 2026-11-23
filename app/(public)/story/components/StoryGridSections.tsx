@@ -72,8 +72,8 @@ export default function StoryGridSections({ stories, heartCounts, onOpen }: Prop
                 aria-expanded={olderOpen}
                 className="flex w-full items-center gap-2 rounded-btn py-1 text-left"
               >
-                <span className="text-sm font-bold text-nicchyo-ink">{label}</span>
-                <span className="text-[11px] font-normal text-nicchyo-ink/55">{section.items.length}件</span>
+                <span className="text-lg font-bold text-nicchyo-ink">{label}</span>
+                <span className="text-xs font-normal text-nicchyo-ink/55">{section.items.length}件</span>
                 <ChevronDown
                   className={cn("ml-auto h-4 w-4 text-nicchyo-ink/55 transition-transform", olderOpen && "rotate-180")}
                   aria-hidden
@@ -97,9 +97,9 @@ export default function StoryGridSections({ stories, heartCounts, onOpen }: Prop
 
 function SectionHeading({ label, count }: { label: string; count: number }) {
   return (
-    <div className="mb-2 flex items-baseline gap-2">
-      <h2 className="text-sm font-bold text-nicchyo-ink">{label}</h2>
-      <span className="text-[11px] text-nicchyo-ink/55">{count}件</span>
+    <div className="mb-3 flex items-baseline gap-2">
+      <h2 className="text-lg font-bold text-nicchyo-ink">{label}</h2>
+      <span className="text-xs text-nicchyo-ink/55">{count}件</span>
     </div>
   );
 }

@@ -1,13 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import {
-  normalizeCategory,
-  normalizeHighlightDates,
-  normalizeStatus,
-  type MarketCalendar,
-  type MarketDay,
-} from "./calendar";
+import type { MarketCalendar } from "./calendar";
 
 /**
  * 公開カレンダー（開催ステータス＋今日以降のイベント）をクライアントから取得する。
@@ -15,9 +9,8 @@ import {
  */
 export function useMarketCalendar(): { calendar: MarketCalendar; loading: boolean; error: boolean } {
   const [calendar, setCalendar] = useState<MarketCalendar>({
-    day: null,
-    days: [],
-    events: [],
+    todayIso: "",
+    markets: [],
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -31,23 +24,10 @@ export function useMarketCalendar(): { calendar: MarketCalendar; loading: boolea
       })
       .then((data) => {
         if (cancelled) return;
-        if (!data || typeof data !== "object" || !Array.isArray(data.days) || !Array.isArray(data.events)) throw new Error("開催情報の形式が正しくありません");
-        const days: MarketDay[] = Array.isArray(data.days)
-          ? data.days.map((d: MarketDay) => ({ ...d, status: normalizeStatus(d.status) }))
-          : [];
-        setCalendar({
-          day: data.day
-            ? { ...data.day, status: normalizeStatus(data.day.status) }
-            : null,
-          days,
-          events: Array.isArray(data.events)
-            ? data.events.map((e: { category: unknown; highlight_dates: unknown }) => ({
-                ...e,
-                category: normalizeCategory(e.category),
-                highlight_dates: normalizeHighlightDates(e.highlight_dates),
-              }))
-            : [],
-        });
+        if (typeof data?.todayIso !== "string" || !Array.isArray(data.markets)) {
+          throw new Error("開催情報の形式が正しくありません");
+        }
+        setCalendar(data);
       })
       .catch(() => { if (!cancelled) setError(true); })
       .finally(() => {

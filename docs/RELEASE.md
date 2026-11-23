@@ -591,3 +591,9 @@ Remote の version に合わせる**（そうすれば消さずに一致させ�
 
 
 一般公開前の版は `app/about/versions.ts` で `released: false` とし、日付は空にする。一般公開時に `released: true` と実際の公開日・公開済み機能を記載する。
+
+### 埋め込みの版管理を初めて適用するとき
+
+DB マイグレーションを適用してからアプリをデプロイする。既存データは第1版になり、旧アプリの検索も引き続き参照できる。更新は新アプリの API に移るため、旧版で動く定期更新と重ならない時間に適用する。
+
+スクリプトによる手動実行では `EMBEDDING_SYNC_URL` に対象アプリのオリジン、`CRON_SECRET` に同じ環境の定期実行シークレットを設定する。`node scripts/build-vendor-embeddings.js` と `node scripts/build-knowledge-embeddings.js` は管理画面と同じ処理を実行する。

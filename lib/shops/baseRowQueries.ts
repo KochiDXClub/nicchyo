@@ -26,7 +26,7 @@ export function fetchLocationRows<T>(supabase: SupabaseClient<Database>) {
     (from, to) =>
       supabase
         .from("market_locations")
-        .select("id, store_number, latitude, longitude, district")
+        .select("id, store_number, latitude, longitude, district, market_id, road_side")
         .order("id", { ascending: true })
         .range(from, to) as unknown as PromiseLike<{ data: T[] | null; error: { message: string } | null }>,
     { label: "market_locations" }
