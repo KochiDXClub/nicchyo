@@ -13,8 +13,7 @@
  */
 
 import { cache } from "react";
-import { createClient as createServiceClient } from "@supabase/supabase-js";
-import type { DatabaseWithExtensions } from "@/types/database.extensions";
+import { createTypedAdminClient } from "@/lib/supabase/adminClient";
 import {
   AI_USE_CASES,
   CODE_AI_CATALOG,
@@ -46,14 +45,9 @@ const CODE_REGISTRY: AiRegistry = {
  * 1リクエスト内で複数回呼ばれても問い合わせは1回で済ませる。
  */
 export const fetchAiRegistry = cache(async (): Promise<AiRegistry> => {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) return CODE_REGISTRY;
-
   try {
-    const client = createServiceClient<DatabaseWithExtensions>(url, key, {
-      auth: { persistSession: false, autoRefreshToken: false },
-    });
+    const client = createTypedAdminClient();
+    if (!client) return CODE_REGISTRY;
 
     const [modelsResult, useCasesResult] = await Promise.all([
       client
