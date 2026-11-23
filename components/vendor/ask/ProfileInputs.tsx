@@ -283,9 +283,16 @@ export function OwnerInput({ snapshot, saving, onSubmit, onSkip }: InputProps) {
  */
 type PriceRow = { name: string; price: string; preview: string | null; file?: File | null };
 
-export function ProductPricesInput({ snapshot, saving, onSubmit, onSkip }: InputProps) {
+export function ProductRowsInput({ snapshot, saving, onSubmit, onSkip, question }: InputProps) {
+  const weekly = question.id === "weekly-products";
+  const savedPhoto = (name: string) => {
+    const url = snapshot.productPhotos?.[name];
+    return typeof url === "string" ? url : null;
+  };
   const [rows, setRows] = useState<PriceRow[]>(
-    snapshot.products.map((product) => ({
+    () => weekly ? (snapshot.weekly?.products ?? []).map((name) => ({
+      name, price: "", preview: savedPhoto(name),
+    })) : snapshot.products.map((product) => ({
       name: product.name,
       price: product.price == null ? "" : String(product.price),
       preview: product.imageUrl ?? null,
@@ -293,6 +300,7 @@ export function ProductPricesInput({ snapshot, saving, onSubmit, onSkip }: Input
   );
   const [draftName, setDraftName] = useState("");
   const [draftPrice, setDraftPrice] = useState("");
+  const [checkingPhoto, setCheckingPhoto] = useState(false);
   const [draftPhoto, setDraftPhoto] = useState<{ file: File; preview: string } | null>(null);
   const [photoError, setPhotoError] = useState<string | null>(null);
 
@@ -314,10 +322,11 @@ export function ProductPricesInput({ snapshot, saving, onSubmit, onSkip }: Input
   const updateRow = (index: number, patch: Partial<PriceRow>) =>
     setRows((prev) => prev.map((item, i) => (i === index ? { ...item, ...patch } : item)));
 
+  const draftPreview = draftPhoto?.preview ?? (weekly ? savedPhoto(draftName.trim()) : null);
   const draftRow = (): PriceRow => ({
     name: draftName.trim(),
     price: draftPrice.trim(),
-    preview: draftPhoto?.preview ?? null,
+    preview: draftPreview,
     file: draftPhoto?.file,
   });
 
@@ -341,110 +350,122 @@ export function ProductPricesInput({ snapshot, saving, onSubmit, onSkip }: Input
       };
     });
 
+  const draftPhotoNeedsName = !!draftPhoto && (!draftName.trim() || rows.some((row) => row.name === draftName.trim()));
+
   return (
     <AskForm
-      canSubmit={rows.length > 0 || draftName.trim() !== ""}
+      canSubmit={!checkingPhoto && !draftPhotoNeedsName && (rows.length > 0 || draftName.trim() !== "")}
       saving={saving}
       onSkip={onSkip}
       onSubmit={() => {
         // 入力欄に書いたまま「これでええ」を押しても、その商品を落とさない
         const name = draftName.trim();
         const all = name && !rows.some((row) => row.name === name) ? [...rows, draftRow()] : rows;
-        onSubmit({ id: "products", items: toItems(all) });
+        if (weekly) {
+          const photos = all.flatMap(({ name, file }) => file === undefined ? [] : [{ name, imageFile: file }]);
+          onSubmit({ id: "weekly-products", products: all.map((row) => row.name), ...(photos.length ? { photos } : {}) });
+        } else {
+          onSubmit({ id: "products", items: toItems(all) });
+        }
       }}
     >
-      {rows.length > 0 && (
-        <ul className="flex flex-col gap-2">
-          {rows.map((row, index) => (
-            <li key={row.name} className="flex items-center gap-2">
-              <ProductPhotoButton
-                preview={row.preview}
-                label={row.name}
-                onPick={(file) => {
-                  releasePreview(row.preview);
-                  updateRow(index, { file, preview: makePreview(file) });
-                }}
-                onClear={() => {
-                  releasePreview(row.preview);
-                  updateRow(index, { file: null, preview: null });
-                }}
-                onError={setPhotoError}
-              />
-              <span className="min-w-0 flex-1 truncate rounded-btn bg-amber-50 px-3 py-2.5 text-sm font-semibold text-amber-900 ring-1 ring-amber-200">
-                {row.name}
-              </span>
-              <label className="flex w-24 shrink-0 items-center gap-1 rounded-btn bg-nicchyo-base px-3 py-2.5 ring-1 ring-line">
-                <span className="text-xs text-nicchyo-ink/55">¥</span>
-                <input
-                  type="number"
-                  inputMode="numeric"
-                  min={0}
-                  value={row.price}
-                  onChange={(event) => updateRow(index, { price: event.target.value })}
-                  placeholder="未設定"
-                  aria-label={`${row.name}の値段`}
-                  className="w-full min-w-0 bg-transparent text-right text-sm outline-none"
+      <fieldset disabled={saving || checkingPhoto} className="flex min-w-0 flex-col gap-4">
+        {rows.length > 0 && (
+          <ul className="flex flex-col gap-2">
+            {rows.map((row, index) => (
+              <li key={row.name} className="flex items-center gap-2">
+                <ProductPhotoButton
+                  preview={row.preview}
+                  label={row.name}
+                  onPick={(file) => {
+                    releasePreview(row.preview);
+                    updateRow(index, { file, preview: makePreview(file) });
+                  }}
+                  onClear={() => {
+                    releasePreview(row.preview);
+                    updateRow(index, { file: null, preview: null });
+                  }}
+                  onChecking={setCheckingPhoto}
+                  onError={setPhotoError}
                 />
-              </label>
-              <button
-                type="button"
-                onClick={() => {
-                  releasePreview(row.preview);
-                  setRows((prev) => prev.filter((_, i) => i !== index));
-                }}
-                aria-label={`${row.name}を外す`}
-                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-nicchyo-ink/55"
-              >
-                <X size={16} aria-hidden="true" />
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
-      <div className="flex items-center gap-2">
-        <ProductPhotoButton
-          preview={draftPhoto?.preview ?? null}
-          label="追加する商品"
-          onPick={(file) => {
-            releasePreview(draftPhoto?.preview);
-            setDraftPhoto({ file, preview: makePreview(file) });
-          }}
-          onClear={() => {
-            releasePreview(draftPhoto?.preview);
-            setDraftPhoto(null);
-          }}
-          onError={setPhotoError}
-        />
-        <input
-          type="text"
-          value={draftName}
-          onChange={(event) => setDraftName(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key !== "Enter" || event.nativeEvent.isComposing) return;
-            event.preventDefault();
-            addDraft();
-          }}
-          placeholder="商品名（例：トマト）"
-          aria-label="商品名"
-          enterKeyHint="next"
-          className={cn(fieldClass, "min-w-0")}
-        />
-        <input
-          type="number"
-          inputMode="numeric"
-          min={0}
-          value={draftPrice}
-          onChange={(event) => setDraftPrice(event.target.value)}
-          placeholder="¥"
-          aria-label="値段"
-          className={cn(fieldClass, "w-20 shrink-0 text-right")}
-        />
-        <Button type="button" variant="secondary" size="icon" onClick={addDraft} aria-label="追加する">
-          <Plus size={18} aria-hidden="true" />
-        </Button>
-      </div>
+                <span className="min-w-0 flex-1 truncate rounded-btn bg-amber-50 px-3 py-2.5 text-sm font-semibold text-amber-900 ring-1 ring-amber-200">
+                  {row.name}
+                </span>
+                {!weekly && <label className="flex w-24 shrink-0 items-center gap-1 rounded-btn bg-nicchyo-base px-3 py-2.5 ring-1 ring-line">
+                  <span className="text-xs text-nicchyo-ink/55">¥</span>
+                  <input
+                    type="number"
+                    inputMode="numeric"
+                    min={0}
+                    value={row.price}
+                    onChange={(event) => updateRow(index, { price: event.target.value })}
+                    placeholder="未設定"
+                    aria-label={`${row.name}の値段`}
+                    className="w-full min-w-0 bg-transparent text-right text-sm outline-none"
+                  />
+                </label>}
+                <button
+                  type="button"
+                  onClick={() => {
+                    releasePreview(row.preview);
+                    setRows((prev) => prev.filter((_, i) => i !== index));
+                  }}
+                  aria-label={`${row.name}を外す`}
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-nicchyo-ink/55"
+                >
+                  <X size={16} aria-hidden="true" />
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+        <div className="flex items-center gap-2">
+          <ProductPhotoButton
+            preview={draftPreview}
+            label="追加する商品"
+            onPick={(file) => {
+              releasePreview(draftPhoto?.preview);
+              setDraftPhoto({ file, preview: makePreview(file) });
+            }}
+            onClear={draftPhoto ? () => {
+              releasePreview(draftPhoto.preview);
+              setDraftPhoto(null);
+            } : undefined}
+            onChecking={setCheckingPhoto}
+            onError={setPhotoError}
+          />
+          <input
+            type="text"
+            value={draftName}
+            onChange={(event) => setDraftName(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key !== "Enter" || event.nativeEvent.isComposing) return;
+              event.preventDefault();
+              addDraft();
+            }}
+            placeholder={weekly ? question.placeholder : "商品名（例：トマト）"}
+            aria-label="商品名"
+            enterKeyHint="next"
+            className={cn(fieldClass, "min-w-0")}
+          />
+          {!weekly && <input
+            type="number"
+            inputMode="numeric"
+            min={0}
+            value={draftPrice}
+            onChange={(event) => setDraftPrice(event.target.value)}
+            placeholder="¥"
+            aria-label="値段"
+            className={cn(fieldClass, "w-20 shrink-0 text-right")}
+          />}
+          <Button type="button" variant="secondary" size="icon" onClick={addDraft} aria-label="追加する">
+            <Plus size={18} aria-hidden="true" />
+          </Button>
+        </div>
+      </fieldset>
+      {draftPhotoNeedsName && <p className="text-sm text-amber-900">写真を付ける商品の名前を入力してください。追加済みの商品の写真は、その商品の行で変更できます。</p>}
       {photoError && <p className="text-sm text-rose-600">{photoError}</p>}
-      <p className="text-xs text-nicchyo-ink/55">写真と値段は、空のままでもええよ。商品の名前を変えるときは、外して入れ直してや（写真は付け直しになるきね）</p>
+      <p className="text-xs text-nicchyo-ink/55">{weekly ? "写真は任意です。同じ商品の写真はほかの週や店舗ページでも共通です。" : "写真と値段は、空のままでもええよ。商品の名前を変えるときは、外して入れ直してや（写真は付け直しになるきね）"}</p>
     </AskForm>
   );
 }
