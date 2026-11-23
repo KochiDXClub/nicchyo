@@ -23,6 +23,7 @@ export type MembersResponse = {
 export type InviteState = "active" | "expired" | "full" | "revoked";
 
 export type InviteView = {
+  url?: string;
   id: string;
   permissions: ShopPermission[];
   maxUses: number;
