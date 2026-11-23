@@ -5,6 +5,7 @@ import { Plus, X } from "lucide-react";
 import { Button, PanoramaThumbPicker, ShopImageKindField } from "@/components/ui";
 import { cn } from "@/lib/utils/cn";
 import { STYLE_PRESETS, WEEKDAY_OPTIONS } from "@/lib/vendor/storeOptions";
+import { SEASON_OPTIONS, type SeasonKey } from "@/lib/vendor/askQuestions";
 import { AskForm, DraftAddRow, RemovableChip, choiceClass, fieldClass, type InputProps } from "./askFormParts";
 import PhotoPickerField from "./PhotoPickerField";
 import ProductPhotoButton from "./ProductPhotoButton";
@@ -281,7 +282,45 @@ export function OwnerInput({ snapshot, saving, onSubmit, onSkip }: InputProps) {
  * 1行ぶんの商品。file は写真を触っていなければ undefined（今の写真のまま）、外したなら null、選んだなら新しい写真。
  * preview は画面に出す写真の URL（保存済みの URL か、選んだ写真の blob URL）
  */
-type PriceRow = { name: string; price: string; preview: string | null; file?: File | null };
+type PriceRow = { name: string; price: string; preview: string | null; file?: File | null; seasons: SeasonKey[] };
+
+/** 商品の旬（季節）を選ぶ。選んでいない季節は、旬の無い商品として扱う */
+function SeasonToggles({
+  label,
+  selected,
+  onChange,
+  className,
+}: {
+  label: string;
+  selected: SeasonKey[];
+  onChange: (seasons: SeasonKey[]) => void;
+  className?: string;
+}) {
+  return (
+    <div className={cn("flex flex-wrap items-center gap-1.5", className)} role="group" aria-label={`${label}の旬`}>
+      <span className="text-xs text-nicchyo-ink/55">旬</span>
+      {SEASON_OPTIONS.map((option) => {
+        const on = selected.includes(option.key);
+        return (
+          <button
+            key={option.key}
+            type="button"
+            aria-pressed={on}
+            onClick={() =>
+              onChange(on ? selected.filter((key) => key !== option.key) : [...selected, option.key])
+            }
+            className={cn(
+              "rounded-chip px-2.5 py-1 text-xs font-semibold ring-1 transition",
+              on ? "bg-nicchyo-primary text-white ring-nicchyo-primary" : "bg-white text-nicchyo-ink/70 ring-line"
+            )}
+          >
+            {option.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 
 export function ProductPricesInput({ snapshot, saving, onSubmit, onSkip }: InputProps) {
   const [rows, setRows] = useState<PriceRow[]>(
@@ -289,9 +328,11 @@ export function ProductPricesInput({ snapshot, saving, onSubmit, onSkip }: Input
       name: product.name,
       price: product.price == null ? "" : String(product.price),
       preview: product.imageUrl ?? null,
+      seasons: product.seasons ?? [],
     }))
   );
   const [draftName, setDraftName] = useState("");
+  const [draftSeasons, setDraftSeasons] = useState<SeasonKey[]>([]);
   const [draftPrice, setDraftPrice] = useState("");
   const [draftPhoto, setDraftPhoto] = useState<{ file: File; preview: string } | null>(null);
   const [photoError, setPhotoError] = useState<string | null>(null);
@@ -319,6 +360,7 @@ export function ProductPricesInput({ snapshot, saving, onSubmit, onSkip }: Input
     price: draftPrice.trim(),
     preview: draftPhoto?.preview ?? null,
     file: draftPhoto?.file,
+    seasons: draftSeasons,
   });
 
   const addDraft = () => {
@@ -328,6 +370,7 @@ export function ProductPricesInput({ snapshot, saving, onSubmit, onSkip }: Input
     setDraftName("");
     setDraftPrice("");
     setDraftPhoto(null);
+    setDraftSeasons([]);
   };
 
   const toItems = (list: PriceRow[]) =>
@@ -338,6 +381,7 @@ export function ProductPricesInput({ snapshot, saving, onSubmit, onSkip }: Input
         price: price === null || Number.isNaN(price) || price < 0 ? null : price,
         // 触っていない写真は undefined のまま渡す（今の写真を残す）
         ...(row.file !== undefined ? { imageFile: row.file } : {}),
+        seasons: row.seasons,
       };
     });
 
@@ -356,7 +400,7 @@ export function ProductPricesInput({ snapshot, saving, onSubmit, onSkip }: Input
       {rows.length > 0 && (
         <ul className="flex flex-col gap-2">
           {rows.map((row, index) => (
-            <li key={row.name} className="flex items-center gap-2">
+            <li key={row.name} className="flex flex-wrap items-center gap-2">
               <ProductPhotoButton
                 preview={row.preview}
                 label={row.name}
@@ -397,6 +441,12 @@ export function ProductPricesInput({ snapshot, saving, onSubmit, onSkip }: Input
               >
                 <X size={16} aria-hidden="true" />
               </button>
+              <SeasonToggles
+                label={row.name}
+                selected={row.seasons}
+                onChange={(seasons) => updateRow(index, { seasons })}
+                className="basis-full pl-14"
+              />
             </li>
           ))}
         </ul>
@@ -443,6 +493,9 @@ export function ProductPricesInput({ snapshot, saving, onSubmit, onSkip }: Input
           <Plus size={18} aria-hidden="true" />
         </Button>
       </div>
+      {draftName.trim() !== "" && (
+        <SeasonToggles label={draftName.trim()} selected={draftSeasons} onChange={setDraftSeasons} className="pl-14" />
+      )}
       {photoError && <p className="text-sm text-rose-600">{photoError}</p>}
       <p className="text-xs text-nicchyo-ink/55">写真と値段は、空のままでもええよ。商品の名前を変えるときは、外して入れ直してや（写真は付け直しになるきね）</p>
     </AskForm>

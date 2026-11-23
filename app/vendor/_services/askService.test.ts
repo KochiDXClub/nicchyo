@@ -335,8 +335,8 @@ describe("fetchAskSnapshot", () => {
     const snapshot = await fetchAskSnapshot("v1", "2026-10-04");
 
     expect(snapshot.products).toEqual([
-      { name: "トマト", price: 300, imageUrl: "https://example.supabase.co/t.webp" },
-      { name: "なす", price: null, imageUrl: undefined },
+      { name: "トマト", price: 300, imageUrl: "https://example.supabase.co/t.webp", seasons: [] },
+      { name: "なす", price: null, imageUrl: undefined, seasons: [] },
     ]);
   });
 });

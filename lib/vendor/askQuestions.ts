@@ -21,6 +21,16 @@ import type { ShopImageKind } from "@/lib/shopImages";
  * - profile : 店舗情報の基本項目。トップでは聞かず、編集画面だけに出す
  */
 
+/** 旬（季節をまたぐ商品の季節）。product_seasons の season_id は 0〜3 の順 */
+export type SeasonKey = "spring_summer" | "summer_autumn" | "autumn_winter" | "winter_spring";
+
+export const SEASON_OPTIONS: { key: SeasonKey; label: string }[] = [
+  { key: "spring_summer", label: "春ー夏" },
+  { key: "summer_autumn", label: "夏ー秋" },
+  { key: "autumn_winter", label: "秋ー冬" },
+  { key: "winter_spring", label: "冬ー春" },
+];
+
 export type AskQuestionId =
   | "weekly-products"
   | "hours"
@@ -80,7 +90,7 @@ export type VendorAskSnapshot = {
   ownerName?: string;
   ownerNamePublic: boolean;
   /** 主な商品・値段・写真（店舗情報の編集画面の「主な商品」）。写真は products テーブルの同じ名前の商品から読む */
-  products: { name: string; price: number | null; imageUrl?: string }[];
+  products: { name: string; price: number | null; imageUrl?: string; seasons?: SeasonKey[] }[];
   schedule: string[];
   businessHoursStart?: string;
   businessHoursEnd?: string;
@@ -459,5 +469,6 @@ export type AskAnswer =
   | { id: "style"; tags: string[]; note: string }
   | { id: "owner"; name: string; isPublic: boolean }
   // imageFile: 触っていなければ undefined（今の写真のまま）、外すなら null、選び直したなら新しい写真
-  | { id: "products"; items: { name: string; price: number | null; imageFile?: File | null }[] }
+  // seasons: 触っていなければ undefined（今の旬のまま）
+  | { id: "products"; items: { name: string; price: number | null; imageFile?: File | null; seasons?: SeasonKey[] }[] }
   | { id: "schedule"; items: string[] };

@@ -3,7 +3,18 @@ import { createClient } from "@/utils/supabase/client";
 import { imageUploadInfo, resizeImageToBlob, STORE_IMAGE_CONFIG } from "@/lib/image/clientCompression";
 import { normalizeShopImageKind } from "@/lib/shopImages";
 import { recropStoreThumbnail, uploadStoreImage } from "./storeService";
-import type { AskAnswer, VendorAskSnapshot } from "@/lib/vendor/askQuestions";
+import type { AskAnswer, SeasonKey, VendorAskSnapshot } from "@/lib/vendor/askQuestions";
+
+/** product_seasons.season_id（0〜3）と旬のキーの対応 */
+const SEASON_ID_BY_KEY: Record<SeasonKey, number> = {
+  spring_summer: 0,
+  summer_autumn: 1,
+  autumn_winter: 2,
+  winter_spring: 3,
+};
+const SEASON_KEY_BY_ID: Record<number, SeasonKey> = Object.fromEntries(
+  Object.entries(SEASON_ID_BY_KEY).map(([key, id]) => [id, key as SeasonKey])
+);
 import type { PaymentMethod, RainPolicy } from "../_types";
 
 // 出店者ページの「にちよさんの質問」の読み書き。質問の中身と選び方は
@@ -80,10 +91,25 @@ export async function fetchAskSnapshot(
   }
   const vendor = vendorResult.data;
   const products = (productResult.data ?? []) as {
+    id: string;
     name: string;
     image_url: string | null;
     description: string | null;
   }[];
+  // 旬は商品の行ごとに持つ（product_seasons）。商品が無ければ問い合わせない
+  const seasonsByProductId = new Map<string, SeasonKey[]>();
+  if (products.length > 0) {
+    const { data: seasonRows, error: seasonError } = await supabase
+      .from("product_seasons")
+      .select("product_id, season_id")
+      .in("product_id", products.map((product) => product.id));
+    if (seasonError) throw seasonError;
+    for (const row of (seasonRows ?? []) as { product_id: string; season_id: number }[]) {
+      const key = SEASON_KEY_BY_ID[row.season_id];
+      if (!key) continue;
+      seasonsByProductId.set(row.product_id, [...(seasonsByProductId.get(row.product_id) ?? []), key]);
+    }
+  }
   const weekly = weeklyResult.data;
   const owner = ownerResult.data as { owner_name: string | null; is_public: boolean | null } | null;
   const categories = (categoryResult.data ?? []) as { id: string; name: string }[];
@@ -111,6 +137,7 @@ export async function fetchAskSnapshot(
       name,
       price: prices[name] ?? null,
       imageUrl: products.find((item) => item.name === name)?.image_url ?? undefined,
+      seasons: seasonsByProductId.get(products.find((item) => item.name === name)?.id ?? "") ?? [],
     })),
     schedule: (vendor.schedule as string[] | null) ?? [],
     snsX: vendor.sns_x ?? undefined,
@@ -382,6 +409,12 @@ async function saveProducts(supabase: SupabaseClient, vendorId: string, items: P
     main_product_prices: prices,
   });
 
+  // 旬は、触った商品だけ置き換える。行が無くて旬も空なら、行は作らない
+  for (const item of items) {
+    if (item.seasons === undefined) continue;
+    await saveProductSeasons(supabase, vendorId, rows, item.name, item.seasons);
+  }
+
   // 画面に出ていた商品（主な商品が空のときは products の商品）のうち、一覧から外したもの。
   // 看板商品は別の質問で決めたものなので残す。画面に出ていなかった行には触らない
   const kept = new Set(items.map((item) => item.name));
@@ -414,6 +447,43 @@ async function saveProducts(supabase: SupabaseClient, vendorId: string, items: P
     }
     await removeProductImageFiles(supabase, vendorId, row.id);
   }
+}
+
+/** 1商品の旬を置き換える（行が無いときは、旬があるときだけ行を作る） */
+async function saveProductSeasons(
+  supabase: SupabaseClient,
+  vendorId: string,
+  rows: { id: string; name: string }[],
+  name: string,
+  seasons: SeasonKey[]
+): Promise<void> {
+  // 写真の保存で作った行は、この前に取った rows にはないので、もう一度探す
+  const { data: found, error: findError } = await supabase
+    .from("products")
+    .select("id")
+    .eq("vendor_id", vendorId)
+    .eq("name", name)
+    .maybeSingle();
+  if (findError) throw findError;
+  let productId = (found?.id as string | undefined) ?? rows.find((row) => row.name === name)?.id;
+  if (!productId) {
+    if (seasons.length === 0) return;
+    const { data, error } = await supabase
+      .from("products")
+      .insert({ vendor_id: vendorId, name })
+      .select("id")
+      .single();
+    if (error || !data) throw error ?? new Error("商品を登録できませんでした。");
+    productId = data.id as string;
+  }
+
+  const { error: deleteError } = await supabase.from("product_seasons").delete().eq("product_id", productId);
+  if (deleteError) throw deleteError;
+  if (seasons.length === 0) return;
+  const { error: insertError } = await supabase.from("product_seasons").insert(
+    seasons.map((season) => ({ product_id: productId, season_id: SEASON_ID_BY_KEY[season] }))
+  );
+  if (insertError) throw insertError;
 }
 
 /** 1つの質問の回答を保存する。weekDate は「今週」の日曜（YYYY-MM-DD） */
