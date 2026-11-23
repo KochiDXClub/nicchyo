@@ -400,12 +400,12 @@ export async function TrafficOverview() {
                 <p className="text-xs font-semibold uppercase tracking-[0.25em] text-nicchyo-ink/55">
                   Stay Time
                 </p>
-                <h2 id="duration-chart" className="mt-2 text-xl font-bold text-gray-900">
+                <h2 id="duration-chart" className="mt-2 text-xl font-bold text-nicchyo-ink">
                   日別の平均滞在時間
                 </h2>
               </div>
               <div className="text-right">
-                <p className="text-sm text-gray-500">平均 {formatMinutes(webAverageStayMinutes)}</p>
+                <p className="text-sm text-nicchyo-ink/70">平均 {formatMinutes(webAverageStayMinutes)}</p>
                 <div className="mt-2 flex items-center justify-end gap-4 text-xs text-nicchyo-ink/55">
                   <span className="inline-flex items-center gap-2">
                     <span className="h-2.5 w-2.5 rounded-full bg-indigo-600" />
@@ -479,11 +479,11 @@ export async function TrafficOverview() {
                 <p className="text-xs font-semibold uppercase tracking-[0.25em] text-nicchyo-ink/55">
                   URL Analytics
                 </p>
-                <h2 id="url-summary" className="mt-2 text-xl font-bold text-gray-900">
+                <h2 id="url-summary" className="mt-2 text-xl font-bold text-nicchyo-ink">
                   URL別の来訪者数と滞在時間
                 </h2>
               </div>
-              <p className="text-sm text-gray-500">
+              <p className="text-sm text-nicchyo-ink/70">
                 対象日: {formatShortDate(latestDayPageAnalytics[0]?.visit_date ?? todayIso)}
               </p>
             </div>
