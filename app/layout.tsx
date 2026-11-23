@@ -16,7 +16,8 @@ import ViewportHeightUpdater from "./components/ViewportHeightUpdater";
 import { Toaster } from "@/components/admin";
 import { safeJsonLd } from "@/lib/utils/jsonLd";
 import { SITE_URL } from "@/lib/constants";
-import { DEFAULT_LOCALE, LOCALE_HEADER, toLocale } from "@/lib/i18n/config";
+import { LOCALE_HEADER, LOCALE_PATH_HEADER, toLocale } from "@/lib/i18n/config";
+import { englishAlternateLanguages, englishRobotsFor } from "@/lib/i18n/seo";
 import { SiteCopyProvider } from "@/lib/site-copy/Context";
 import { getPublishedSiteCopy } from "@/lib/site-copy/server";
 import { resolveSiteTexts } from "@/lib/siteCopy";
@@ -71,13 +72,21 @@ const baseMetadata: Metadata = {
 };
 
 /**
- * 英語のページ（/en/…）は、本文の翻訳がそろい hreflang・sitemap を整えるまで検索エンジンに出さない
- * （ほぼ日本語のページが全ルート分、別URLとして索引に載るのを避けるため）。
+ * 英語のページ（/en/…）は、本文の翻訳がそろったページだけ検索エンジンに出す（lib/i18n/seo.ts の EN_INDEXABLE_PATHS）。
+ * 対象外の /en/ は noindex のまま（ほぼ日本語のページが別URLとして索引に載るのを避けるため）。
+ * 対象のページには hreflang（alternates.languages）を出す。
  */
 export async function generateMetadata(): Promise<Metadata> {
-  const locale = toLocale((await headers()).get(LOCALE_HEADER));
-  if (locale === DEFAULT_LOCALE) return baseMetadata;
-  return { ...baseMetadata, robots: { index: false, follow: true } };
+  const requestHeaders = await headers();
+  const locale = toLocale(requestHeaders.get(LOCALE_HEADER));
+  const path = requestHeaders.get(LOCALE_PATH_HEADER) ?? "/";
+  const languages = englishAlternateLanguages(path);
+  const robots = englishRobotsFor(locale, path);
+  return {
+    ...baseMetadata,
+    ...(languages ? { alternates: { canonical: "./", languages } } : {}),
+    ...(robots ? { robots } : {}),
+  };
 }
 
 export const viewport: Viewport = {
