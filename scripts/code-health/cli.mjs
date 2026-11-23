@@ -135,7 +135,13 @@ async function main() {
     console.log(`\nSupabase の code_health_snapshots に保存しました（${commit.slice(0, 7)} / ${branch}）`);
   }
 
-  if (args.strict && diff?.failed) process.exit(1);
+  if (args.strict && diff?.failed) {
+    console.error(
+      "\n悪化があるため失敗にしました。「悪化した箇所」を直してください。" +
+        "直さずにマージする理由があるときは、PR 本文の「悪化を残す理由・今後の対応」に書き、PR に `code-health-ok` ラベルを付けてください。",
+    );
+    process.exit(1);
+  }
 }
 
 main().catch((error) => {

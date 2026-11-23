@@ -18,7 +18,11 @@ npm run code-health:save   # 測った結果を Supabase の code_health_snapsho
 - `code-health:diff` の結果は `.code-health/diff.md` にも出る。PR 本文の「共通基盤チェック」欄にそのまま貼る
   （結論1行・主要指標と変化した項目だけの表・悪化した箇所・理由欄。全項目は折りたたみの中）
 - 比較相手が古いときは先に `git fetch origin develop` する
-- PR では CI（Lint / Type Check / Test / Build）が同じ比較をして、ジョブのサマリーに表を出す（今は失敗扱いにしない）
+- PR では CI（Lint / Type Check / Test / Build）の最後に同じ比較をして、ジョブのサマリーに表を出す。
+  **悪化（⚠️）があると CI が失敗する**（2026-11 から。直近30件のマージ済み PR では1件も止まらない水準を確認してから有効にした）
+  - 悪化を残す理由がある PR（既存の重複を1か所へ移しただけ、など）は、PR 本文の「悪化を残す理由・今後の対応」に理由を書き、
+    PR に `code-health-ok` ラベルを付ける。CI がやり直され、表は出したまま失敗にしない
+  - ラベルはレビューで理由に納得できたときだけ付ける。付けたまま別の悪化が増えても止まらないので、追加の push 後は表を見直す
 - 本番デプロイ（Vercel の production ビルド）のたびに、`prebuild` から
   `scripts/code-health/save-on-deploy.mjs` が結果を Supabase に保存する。キーは Vercel に
   登録済みの `SUPABASE_SERVICE_ROLE_KEY` を使うので、GitHub Actions 側のシークレットは要らない。

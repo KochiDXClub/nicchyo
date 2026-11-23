@@ -35,7 +35,7 @@
 ## 共通基盤チェック
 
 <!-- `npm run code-health:diff` を実行し、出力された `.code-health/diff.md` の中身をここに貼る。
-     ⚠️（悪化あり）のときは「悪化を残す理由・今後の対応」も書く。見方は docs/CODE_HEALTH.md -->
+     ⚠️（悪化あり）だと CI が失敗する。直すか、「悪化を残す理由・今後の対応」に理由を書いて `code-health-ok` ラベルを付ける。見方は docs/CODE_HEALTH.md -->
 
 ## 補足
 
