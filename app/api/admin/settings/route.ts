@@ -4,7 +4,7 @@ import { enforceRateLimit } from "@/lib/security/rateLimit";
 import { authorizeAdmin } from "@/lib/auth/requireAdminApi";
 import { applyEnvironmentDefaults, normalizeForSave, parsePageVisibilitySettings } from "@/lib/pageVisibility";
 import { normalizeMapFeatureFlags } from "@/lib/mapFeatureFlags";
-import { createClient as createServiceClient } from "@supabase/supabase-js";
+import { createAdminClientOrThrow } from "@/lib/supabase/adminClient";
 import { MAP_FLAGS_SETTINGS_KEY } from "@/lib/mapFeatureFlags.server";
 import { DEFAULT_MAX_LANDMARKS, DEFAULT_MAX_UNASSIGNED_SHOP_MARKERS } from "@/lib/map/mapSettingsDefaults";
 
@@ -40,22 +40,8 @@ const DEFAULT_MAP_SETTINGS: MapSettings = {
 // 共通の createAdminServiceClient（DatabaseWithExtensions型）を使うと、
 // このファイルの一部の書き込みが Json 型との不整合で型エラーになる
 // （MapFeatureFlags が Json のインデックスシグネチャを満たさない、既存の別問題）。
-// dedup のためにそれを巻き込みたくないので、ここだけ未型付けのまま残す
-function createAdminClient() {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-  if (!supabaseUrl || !serviceRoleKey) {
-    throw new Error("Supabase service role env vars are missing.");
-  }
-
-  return createServiceClient(supabaseUrl, serviceRoleKey, {
-    auth: {
-      persistSession: false,
-      autoRefreshToken: false,
-    },
-  });
-}
+// それを巻き込みたくないので、ここは未型付けの共通クライアントを使う
+const createAdminClient = createAdminClientOrThrow;
 
 function parsePublicSettings(value: unknown): PublicSettings {
   if (!value || typeof value !== "object") return DEFAULT_PUBLIC_SETTINGS;
