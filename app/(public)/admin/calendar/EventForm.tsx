@@ -14,8 +14,8 @@ type AdminEvents = ReturnType<typeof useAdminEvents>;
  */
 export function EventForm({ e, onClose }: { e: AdminEvents; onClose: () => void }) {
   return (
-    <div className="border-t border-slate-100 bg-amber-50/40 px-4 py-4">
-      <h3 className="text-sm font-bold text-slate-900">
+    <div className="border-t border-line bg-amber-50/40 px-4 py-4">
+      <h3 className="text-sm font-bold text-nicchyo-ink">
         {e.editingEvent ? "予定を編集" : `${formatEventDate(e.form.event_date)} に追加`}
       </h3>
 
@@ -27,19 +27,19 @@ export function EventForm({ e, onClose }: { e: AdminEvents; onClose: () => void 
         )}
 
         <div>
-          <label className="text-xs font-semibold text-slate-600">タイトル *</label>
+          <label className="text-xs font-semibold text-nicchyo-ink/70">タイトル *</label>
           <input
             type="text"
             value={e.form.title}
             onChange={(ev) => e.setForm({ ...e.form, title: ev.target.value })}
             maxLength={100}
             placeholder="文旦がはじまりました"
-            className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm focus:border-amber-400 focus:outline-none"
+            className="mt-1 w-full rounded-xl border border-line bg-white px-3 py-2 text-sm focus:border-amber-400 focus:outline-none"
           />
         </div>
 
         <div>
-          <label className="text-xs font-semibold text-slate-600">種別 *</label>
+          <label className="text-xs font-semibold text-nicchyo-ink/70">種別 *</label>
           <div className="mt-1 grid grid-cols-2 gap-2">
             {CATEGORY_OPTIONS.map((option) => {
               const { label, emoji } = getCategoryPresentation(option.value);
@@ -52,7 +52,7 @@ export function EventForm({ e, onClose }: { e: AdminEvents; onClose: () => void 
                   className={`rounded-xl border-2 px-3 py-2 text-left transition ${
                     isSelected
                       ? "border-amber-400 bg-amber-50 text-amber-800"
-                      : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
+                      : "border-line bg-white text-nicchyo-ink/70 hover:border-nicchyo-ink/20"
                   }`}
                 >
                   <span className="block text-sm font-bold">
@@ -68,22 +68,22 @@ export function EventForm({ e, onClose }: { e: AdminEvents; onClose: () => void 
         </div>
 
         {/* ここから任意項目。既定では畳んでおき、最小入力で保存できるようにする */}
-        <div className="rounded-xl border border-slate-200 bg-white">
+        <div className="rounded-xl border border-line bg-white">
           <button
             type="button"
             onClick={() => e.setShowOptional(!e.showOptional)}
             className="flex w-full items-center justify-between px-3 py-2.5 text-left"
           >
-            <span className="text-xs font-semibold text-slate-600">
+            <span className="text-xs font-semibold text-nicchyo-ink/70">
               くわしく設定する（すべて任意）
             </span>
-            <span className="text-xs text-slate-400">{e.showOptional ? "閉じる" : "開く"}</span>
+            <span className="text-xs text-nicchyo-ink/55">{e.showOptional ? "閉じる" : "開く"}</span>
           </button>
 
           {e.showOptional && (
-            <div className="space-y-3 border-t border-slate-100 px-3 py-3">
+            <div className="space-y-3 border-t border-line px-3 py-3">
               <div>
-                <label className="text-xs font-semibold text-slate-600">
+                <label className="text-xs font-semibold text-nicchyo-ink/70">
                   いつまで連続で開催するか
                 </label>
                 <input
@@ -91,59 +91,59 @@ export function EventForm({ e, onClose }: { e: AdminEvents; onClose: () => void 
                   value={e.form.end_date}
                   min={e.form.event_date}
                   onChange={(ev) => e.setForm({ ...e.form, end_date: ev.target.value })}
-                  className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm focus:border-amber-400 focus:outline-none"
+                  className="mt-1 w-full rounded-xl border border-line px-3 py-2 text-sm focus:border-amber-400 focus:outline-none"
                 />
-                <p className="mt-1 text-[11px] text-slate-400">
+                <p className="mt-1 text-[11px] text-nicchyo-ink/55">
                   設定すると、その日までの毎週の日曜に表示されます。空欄ならこの日だけ
                 </p>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs font-semibold text-slate-600">開始時刻</label>
+                  <label className="text-xs font-semibold text-nicchyo-ink/70">開始時刻</label>
                   <input
                     type="time"
                     value={e.form.start_time}
                     onChange={(ev) => e.setForm({ ...e.form, start_time: ev.target.value })}
-                    className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm focus:border-amber-400 focus:outline-none"
+                    className="mt-1 w-full rounded-xl border border-line px-3 py-2 text-sm focus:border-amber-400 focus:outline-none"
                   />
                 </div>
                 <div>
-                  <label className="text-xs font-semibold text-slate-600">終了時刻</label>
+                  <label className="text-xs font-semibold text-nicchyo-ink/70">終了時刻</label>
                   <input
                     type="time"
                     value={e.form.end_time}
                     onChange={(ev) => e.setForm({ ...e.form, end_time: ev.target.value })}
-                    className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm focus:border-amber-400 focus:outline-none"
+                    className="mt-1 w-full rounded-xl border border-line px-3 py-2 text-sm focus:border-amber-400 focus:outline-none"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="text-xs font-semibold text-slate-600">場所</label>
+                <label className="text-xs font-semibold text-nicchyo-ink/70">場所</label>
                 <input
                   type="text"
                   value={e.form.location}
                   onChange={(ev) => e.setForm({ ...e.form, location: ev.target.value })}
                   maxLength={200}
                   placeholder="追手筋 東エリア"
-                  className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm focus:border-amber-400 focus:outline-none"
+                  className="mt-1 w-full rounded-xl border border-line px-3 py-2 text-sm focus:border-amber-400 focus:outline-none"
                 />
               </div>
 
               <div>
-                <label className="text-xs font-semibold text-slate-600">説明</label>
+                <label className="text-xs font-semibold text-nicchyo-ink/70">説明</label>
                 <textarea
                   value={e.form.description}
                   onChange={(ev) => e.setForm({ ...e.form, description: ev.target.value })}
                   maxLength={1000}
                   rows={3}
-                  className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm focus:border-amber-400 focus:outline-none"
+                  className="mt-1 w-full rounded-xl border border-line px-3 py-2 text-sm focus:border-amber-400 focus:outline-none"
                 />
               </div>
 
               <div>
-                <label className="text-xs font-semibold text-slate-600">画像</label>
+                <label className="text-xs font-semibold text-nicchyo-ink/70">画像</label>
                 {e.form.image_url ? (
                   <div className="mt-1 flex items-center gap-2">
                     {/* 管理画面のプレビューなので next/image の最適化は不要 */}
@@ -156,7 +156,7 @@ export function EventForm({ e, onClose }: { e: AdminEvents; onClose: () => void 
                     <button
                       type="button"
                       onClick={() => e.setForm({ ...e.form, image_url: "" })}
-                      className="rounded-lg bg-slate-100 px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-200"
+                      className="rounded-lg bg-nicchyo-ink/5 px-3 py-1.5 text-xs text-nicchyo-ink/70 hover:bg-nicchyo-ink/10"
                     >
                       削除
                     </button>
@@ -172,9 +172,9 @@ export function EventForm({ e, onClose }: { e: AdminEvents; onClose: () => void 
                         const file = ev.target.files?.[0];
                         if (file) void e.handleUpload(file);
                       }}
-                      className="w-full text-sm text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-slate-100 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-slate-700"
+                      className="w-full text-sm text-nicchyo-ink/70 file:mr-3 file:rounded-lg file:border-0 file:bg-nicchyo-ink/5 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-nicchyo-ink"
                     />
-                    <p className="mt-1 text-[11px] text-slate-400">
+                    <p className="mt-1 text-[11px] text-nicchyo-ink/55">
                       {e.uploading ? "アップロード中..." : "JPG / PNG / WEBP・5MB以内"}
                     </p>
                   </div>
@@ -198,7 +198,7 @@ export function EventForm({ e, onClose }: { e: AdminEvents; onClose: () => void 
             onChange={(ev) => e.setForm({ ...e.form, is_published: ev.target.checked })}
             className="accent-amber-500"
           />
-          <span className="text-sm text-slate-700">公開する</span>
+          <span className="text-sm text-nicchyo-ink">公開する</span>
         </label>
       </div>
 
@@ -215,7 +215,7 @@ export function EventForm({ e, onClose }: { e: AdminEvents; onClose: () => void 
           type="button"
           onClick={onClose}
           disabled={e.saving}
-          className="flex-1 rounded-xl bg-slate-100 py-2 text-sm font-medium text-slate-700"
+          className="flex-1 rounded-xl bg-nicchyo-ink/5 py-2 text-sm font-medium text-nicchyo-ink"
         >
           キャンセル
         </button>
