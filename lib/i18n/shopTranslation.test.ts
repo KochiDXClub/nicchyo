@@ -200,6 +200,7 @@ describe("buildVendorTranslationSource", () => {
     sns_hp: null,
     business_hours_start: null,
     business_hours_end: null,
+    introduction: null,
   };
   const products = [
     { id: "p1", vendor_id: "v1", name: "トマト", image_url: "https://example.supabase.co/a.webp" },

@@ -97,6 +97,9 @@ export interface ShopEditableData {
   /** おせっかいコメント（任意） */
   shopStrength?: string;
 
+  /** お店の紹介文（出店者が書く平文、200字まで・任意）。店舗バナーの商品の上に出す。空なら何も出さない */
+  introduction?: string;
+
   /** 決済方法 */
   paymentMethods?: string[];
 

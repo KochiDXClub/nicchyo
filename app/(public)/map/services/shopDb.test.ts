@@ -45,6 +45,7 @@ function baseRows(overrides: Partial<VendorShopBaseRows> = {}): VendorShopBaseRo
         sns_x: null,
         sns_hp: null,
         business_hours_start: null,
+        introduction: null,
         business_hours_end: null,
       },
     ],
