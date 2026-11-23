@@ -5,7 +5,7 @@ import { createAdminClient } from "@/lib/supabase/adminClient";
 import { requireSameOrigin } from "@/lib/security/requestGuards";
 import { enforceRateLimit } from "@/lib/security/rateLimit";
 import { INVITE_STATUS_MESSAGE, InviteTokenSchema, type InviteStatus } from "@/lib/vendor/shopInvites";
-import { hashInviteToken } from "@/lib/vendor/shopInvites.server";
+import { resolveInviteHash } from "@/lib/vendor/reshareInvite.server";
 import { parseShopPermissions } from "@/lib/vendor/shopPermissions";
 
 export const runtime = "nodejs";
@@ -35,10 +35,20 @@ export async function POST(request: Request) {
   const db = createAdminClient() as unknown as SupabaseClient | null;
   if (!db) return NextResponse.json({ error: "Service unavailable" }, { status: 503 });
 
+  let tokenHash: string | null;
+  try {
+    tokenHash = await resolveInviteHash(db, parsed.data.token);
+  } catch (error) {
+    // DB の読み取りに失敗しただけなので、招待が無効だと答えず、再試行できる 503 にする
+    console.error("[vendor/invites/preview] resolve error:", error);
+    return NextResponse.json({ error: "招待を読み込めませんでした" }, { status: 503 });
+  }
+  if (!tokenHash) return NextResponse.json({ status: "invalid", message: INVITE_STATUS_MESSAGE.invalid });
+
   const { data: invite } = await db
     .from("shop_invites")
     .select("vendor_id, permissions, max_uses, used_count, expires_at, revoked_at")
-    .eq("token_hash", hashInviteToken(parsed.data.token))
+    .eq("token_hash", tokenHash)
     .maybeSingle();
 
   let status: InviteStatus = "ok";

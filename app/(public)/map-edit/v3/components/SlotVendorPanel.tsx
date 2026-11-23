@@ -37,6 +37,7 @@ export function describeChomeJudgement(judged: ChomeJudgement | null): string {
 export default function SlotVendorPanel({
   shop,
   roadName,
+  market,
   vendor,
   onApplyFieldObservation,
   onAddressChange,
@@ -47,6 +48,8 @@ export default function SlotVendorPanel({
   shop: EditableShop;
   /** 区画が乗っている道の名前（道基準の位置を持つ区画だけ） */
   roadName: string | null;
+  /** この区画の市（乗っている道の市）と、地図でのマーカー色 */
+  market?: { name: string; color: string } | null;
   /** この区画の出店者 */
   vendor: EditableVendor | null;
   onApplyFieldObservation?: () => void;
@@ -80,6 +83,12 @@ export default function SlotVendorPanel({
           ? `${roadName ?? "道"} の${shop.roadSide === "left" ? "左" : "右"}側・始点から ${Math.round(shop.roadDistanceM)}m`
           : "道の上の位置はまだありません（移行前の区画）"}
       </p>
+      {market && (
+        <p style={{ ...noteStyle, marginBottom: 12, display: "flex", alignItems: "center", gap: 6 }}>
+          <span aria-hidden style={{ width: 12, height: 12, borderRadius: "50%", background: market.color, display: "inline-block" }} />
+          <span>市: {market.name}（地図ではこの色で表示。市は乗っている道の「所属する市」で決まります。色は市の管理で変えられます）</span>
+        </p>
+      )}
       <p style={{ margin: "0 0 12px", fontSize: 13 }}><a href={`/admin/market-schedule?location=${encodeURIComponent(shop.locationId)}`} target="_blank" rel="noopener noreferrer">この場所の出店予定を管理</a></p>
       {onAddressChange && <div style={{ marginBottom: 16 }}>
         <label><span style={label}>住所番号</span><input value={addressText} onChange={(event) => { setAddressText(event.target.value); setAddressError(""); }} placeholder="例：183-1" style={inputStyle} /></label>

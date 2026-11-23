@@ -7,3 +7,13 @@ export function createAdminClient() {
   if (!url || !key) return null;
   return createServiceClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
 }
+
+/**
+ * createAdminClient の、env 未設定時に例外を投げる版。
+ * 未設定を 500 として扱いたい管理 API で使う（型付きが必要なら lib/auth/requireAdminApi の createAdminServiceClient）
+ */
+export function createAdminClientOrThrow() {
+  const client = createAdminClient();
+  if (!client) throw new Error("Supabase service role env vars are missing.");
+  return client;
+}

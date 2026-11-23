@@ -1,0 +1,95 @@
+"use client";
+
+import { useMemo, useState, type ReactNode } from "react";
+import MarketStatusCalendar from "@/app/components/market/MarketStatusCalendar";
+import UpcomingMarketDates from "@/app/components/market/UpcomingMarketDates";
+import { PageContainer } from "@/components/ui";
+import { cn } from "@/lib/utils/cn";
+import type { MarketCalendarDate } from "@/lib/market/calendar";
+import { filterDatesByMarket, findNextMarketDate, listMarketOptions } from "../marketFilter";
+
+type Props = {
+  /** ページの見出し（緑の帯の中、チップの上に置く） */
+  heading: ReactNode;
+  dates: MarketCalendarDate[];
+  /** 帯の中、一覧の前に出す案内（取得の失敗など） */
+  notice?: ReactNode;
+};
+
+/**
+ * 市の開催カレンダーの本体。
+ *
+ * 来訪者が知りたいのは「どの市が・いつ・いつもどおり開くか」。複数の市が並んでも迷わないよう、
+ * - 市が2つ以上あるときだけ、上に「すべて／日曜市／木曜市…」のチップを出して絞り込めるようにする
+ * - 日めくりは、選んだ市（すべてなら一番近い市）の次の開催日を出す
+ * - 一覧の行に市の名前を出すのは「すべて」のときだけ（絞り込み中はチップで伝わる）
+ * 日曜市だけのときはチップを出さず、これまでどおりの見た目のままにする。
+ */
+export default function MarketCalendarView({ heading, dates, notice }: Props) {
+  const options = useMemo(() => listMarketOptions(dates), [dates]);
+  const [marketId, setMarketId] = useState<string | null>(null);
+  const visibleDates = useMemo(() => filterDatesByMarket(dates, marketId), [dates, marketId]);
+  const next = findNextMarketDate(visibleDates);
+
+  return (
+    <>
+      <div className="bg-gradient-to-b from-nicchyo-soft-green/25 to-transparent pb-6 pt-safe-top">
+        <PageContainer width="narrow" className="pt-6">
+          {heading}
+
+          {options.length > 1 && (
+            <div role="group" aria-label="市で絞り込む" className="-mx-1 mt-4 flex flex-wrap gap-2 px-1">
+              <MarketChip label="すべて" selected={marketId === null} onClick={() => setMarketId(null)} />
+              {options.map((option) => (
+                <MarketChip
+                  key={option.id}
+                  label={option.name}
+                  selected={marketId === option.id}
+                  onClick={() => setMarketId(option.id)}
+                />
+              ))}
+            </div>
+          )}
+
+          {next && (
+            <MarketStatusCalendar
+              key={`${next.marketId}:${next.dateIso}`}
+              date={next}
+              className="mt-5"
+              link={false}
+              unregisteredLabel="開催予定"
+            />
+          )}
+          {notice}
+        </PageContainer>
+      </div>
+
+      <PageContainer width="narrow">
+        <UpcomingMarketDates
+          dates={visibleDates}
+          showHeading={false}
+          showStatusSource
+          showMarketName={marketId === null}
+        />
+      </PageContainer>
+    </>
+  );
+}
+
+function MarketChip({ label, selected, onClick }: { label: string; selected: boolean; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      aria-pressed={selected}
+      onClick={onClick}
+      className={cn(
+        "min-h-11 rounded-chip px-4 text-sm font-bold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-500",
+        selected
+          ? "bg-nicchyo-ink text-white shadow-chip"
+          : "bg-white text-nicchyo-ink/75 ring-1 ring-line hover:bg-nicchyo-base"
+      )}
+    >
+      {label}
+    </button>
+  );
+}

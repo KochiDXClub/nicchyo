@@ -18,6 +18,7 @@ import { MapEditHeader } from "./components/MapEditHeader";
 import { SnapshotHistoryPanel } from "./components/SnapshotHistoryPanel";
 import { RoadDetailPanel, RoadListPanel, LandmarkDetailPanel } from "./components/DetailPanels";
 import SlotVendorPanel from "./components/SlotVendorPanel";
+import { SUNDAY_MARKET_MARKER_COLOR, markerColorForRoad } from "@/lib/market/markerColor";
 import { useChomeJudge } from "./useChomeJudge";
 import PendingChangeLog from "./components/PendingChangeLog";
 import RoadLaneView, { buildLaneRoadGroups, type LaneRoadGroup } from "./components/RoadLaneView";
@@ -32,13 +33,6 @@ const MAX_ZOOM_IDX = 2;
 const POINT_SNAP_DISTANCE_METERS = 6;
 // 直前の点とほぼ同じ場所のクリックは点を増やさない（ダブルクリックの2回目のクリックなど）
 const DUPLICATE_POINT_METERS = 0.5;
-
-// 公開マップ（Leaflet 版 RoadOverlay.tsx・MapLibre 版 MapViewMapLibre.tsx）は、道ごとの幅
-// （map_roads.width_meters）をまだ読まず、すべての道を同じ幅（既定 22m）で描く。
-// この状態で幅の違う道（小路など）を描いて保存すると、来訪者のマップには追手筋と同じ幅で出てしまう。
-// 道ごとの幅で描くようになるまで、「道を描く」ツールは使えないようにする
-// （描く処理そのものは入れてあり、無効化を外すだけで使える。既存の道の編集・削除は対象外）
-const isRoadCreationDisabled = true;
 
 /** 道基準の位置を持ち、指定の道に乗っている区画（区画分けツールの対象） */
 function slotsOnRoad(shops: EditableShop[], roadId: string): SlotOnRoad[] {
@@ -98,6 +92,18 @@ export default function MapEditClientV3() {
   // 画面に出す区画。道基準の位置を持つ区画は、今の道の形から緯度経度を計算し直す
   // （道の点を動かすと、保存する前から区画がついてくる）
   const displayShops = useMemo(() => resolveSlotPositions(shops, roads), [shops, roads]);
+  // 区画の市は、乗っている道の市で決まる。日曜市以外の区画だけ、その市のマーカー色で地図に出す
+  // （日曜市は市の色の設定にかかわらず従来の配色。色ではなく市の slug で判定する）
+  const slotMarketColors = useMemo(() => {
+    const roadMarket = new Map(roads.map((road) => [road.id, road.marketId]));
+    const colors = new Map<string, string>();
+    for (const shop of displayShops) {
+      const marketId = shop.roadId ? roadMarket.get(shop.roadId) : null;
+      const market = marketId ? data.markets.find((m) => m.id === marketId) : null;
+      if (market && market.slug !== "nichiyo") colors.set(shop.locationId, markerColorForRoad(marketId, data.markets));
+    }
+    return colors;
+  }, [displayShops, roads, data.markets]);
 
   const selectedShop = useMemo(
     () => (selection?.kind === "slot" ? displayShops.find((s) => s.locationId === selection.id) ?? null : null),
@@ -462,6 +468,7 @@ export default function MapEditClientV3() {
               selection={selection}
               unsavedKeys={unsavedKeys}
               shops={displayShops}
+              slotMarketColors={slotMarketColors}
               roads={roads}
               landmarks={landmarks}
               draft={draft}
@@ -480,15 +487,7 @@ export default function MapEditClientV3() {
               onZoomOut={() => setZoomIdx((prev) => Math.max(0, prev - 1))}
             />
             <div className="map-editor-tools">
-              <ToolPalette
-                tool={tool}
-                onChange={changeTool}
-                disabled={
-                  isRoadCreationDisabled
-                    ? { drawRoad: "公開マップが道ごとの幅で描くようになるまで、新しい道の追加は一時的に無効化しています" }
-                    : {}
-                }
-              />
+              <ToolPalette tool={tool} onChange={changeTool} />
             </div>
             {toolHintMessage && (
               <div className="map-editor-hint">
@@ -590,6 +589,11 @@ export default function MapEditClientV3() {
                 <SlotVendorPanel
                   shop={selectedShop}
                   roadName={roads.find((r) => r.id === selectedShop.roadId)?.name ?? null}
+                  market={(() => {
+                    const roadMarketId = roads.find((r) => r.id === selectedShop.roadId)?.marketId;
+                    const market = (roadMarketId ? data.markets.find((m) => m.id === roadMarketId) : data.markets.find((m) => m.slug === "nichiyo")) ?? null;
+                    return market ? { name: market.name, color: slotMarketColors.get(selectedShop.locationId) ?? SUNDAY_MARKET_MARKER_COLOR } : null;
+                  })()}
                   vendor={data.vendors.find((v) => v.id === selectedShop.vendorId) ?? null}
                   onApplyFieldObservation={() => ops.applyFieldObservation(selectedShop.locationId)}
                   onAddressChange={(address) => { ops.setSlotAddress(selectedShop.locationId, address); }}
@@ -607,6 +611,8 @@ export default function MapEditClientV3() {
               {selectedRoad && !splitRoad && (
                 <RoadDetailPanel
                   road={selectedRoad}
+                  markets={data.markets}
+                  onMarketChange={(marketId) => ops.patchRoad(selectedRoad.id, { marketId }, "の所属する市を変更")}
                   onNameChange={(value) =>
                     ops.patchRoad(selectedRoad.id, { name: value }, "の名前を変更", { coalesceKey: `road-name:${selectedRoad.id}` })
                   }

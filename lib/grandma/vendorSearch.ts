@@ -470,3 +470,41 @@ export function sortShopIdsByDistance(
     .sort((a, b) => a.distance - b.distance)
     .map((item) => item.id);
 }
+
+/** 「このへん」の相談で、AI に渡す範囲内の店の上限（プロンプトが長くなりすぎないように） */
+export const AREA_CANDIDATE_LIMIT = 15;
+
+/**
+ * 範囲内の店を、質問に合う順に並べる。
+ * 質問で引けた店（rankedVendorIds の順）を先に、残りは来訪者が渡した順（範囲の中心から近い順）で足す。
+ */
+export function rankAreaVendorIds(
+  areaVendorIds: string[],
+  rankedVendorIds: string[],
+  limit: number = AREA_CANDIDATE_LIMIT
+): string[] {
+  const inArea = new Set(areaVendorIds);
+  const matched = rankedVendorIds.filter((id) => inArea.has(id));
+  return Array.from(new Set([...matched, ...areaVendorIds])).slice(0, limit);
+}
+
+/**
+ * 地図の店 ID（来訪者が地図で選んだ範囲の店）を、AI の候補に使う店に直す。
+ * ID は地図と同じデータ（fetchPublicShopData）で引くので、地図に出ていない店は入らない。
+ */
+export async function fetchAreaShops(
+  supabase: SupabaseClient<Database>,
+  mapShopIds: number[],
+  rankedVendorIds: string[]
+): Promise<Shop[]> {
+  if (mapShopIds.length === 0) return [];
+  const { shops } = await fetchPublicShopData();
+  const vendorIdByShopId = new Map(
+    shops.flatMap((shop) => (shop.vendorId ? [[shop.id, shop.vendorId] as const] : []))
+  );
+  const areaVendorIds = mapShopIds.flatMap((id) => {
+    const vendorId = vendorIdByShopId.get(id);
+    return vendorId ? [vendorId] : [];
+  });
+  return fetchShopsByVendorIds(supabase, rankAreaVendorIds(areaVendorIds, rankedVendorIds));
+}

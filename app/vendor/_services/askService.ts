@@ -168,6 +168,9 @@ export async function fetchAskSnapshot(
     motivation: vendor.motivation ?? undefined,
     yearsRunning: vendor.years_running ?? null,
     sundayLove: vendor.sunday_love ?? undefined,
+    productPhotos: Object.fromEntries(
+      products.flatMap(({ name, image_url }) => image_url ? [[name, image_url]] : [])
+    ),
     weekly: weekly
       ? {
           isOpen: weekly.is_open ?? null,
@@ -351,22 +354,12 @@ async function saveSignature(
 
 type ProductItem = Extract<AskAnswer, { id: "products" }>["items"][number];
 
-/**
- * 主な商品（名前・値段・写真）を保存する。名前と値段は vendors に、写真は products テーブルの
- * 同じ名前の商品に置く（看板商品と同じ決まり）。写真は WebP に変換して vendor-images に保存する。
- * 一覧から外した商品は、写真を外し、説明や旬を持たない行は products からも消す（そのままだと、全部外したあとに商品名だけ復活する）
- */
-async function saveProducts(supabase: SupabaseClient, vendorId: string, items: ProductItem[]): Promise<void> {
-  const [vendorResult, rowsResult] = await Promise.all([
-    supabase.from("vendors").select("main_products, signature_product_name").eq("id", vendorId).single(),
-    supabase.from("products").select("id, name, image_url, description").eq("vendor_id", vendorId),
-  ]);
-  if (vendorResult.error) throw vendorResult.error;
-  if (rowsResult.error) throw rowsResult.error;
-  const rows = (rowsResult.data ?? []) as { id: string; name: string; image_url: string | null; description: string | null }[];
-  const mainProducts = (vendorResult.data?.main_products as string[] | null) ?? [];
-  const signatureName = (vendorResult.data?.signature_product_name as string | null)?.trim();
-
+async function saveProductPhotos(
+  supabase: SupabaseClient,
+  vendorId: string,
+  items: Pick<ProductItem, "name" | "imageFile">[],
+  rows: { id: string; name: string; image_url: string | null }[],
+) {
   for (const item of items) {
     if (item.imageFile === undefined) continue;
     const existing = rows.find((row) => row.name === item.name);
@@ -401,6 +394,31 @@ async function saveProducts(supabase: SupabaseClient, vendorId: string, items: P
       .eq("vendor_id", vendorId);
     if (error) throw error;
   }
+}
+
+/**
+ * 主な商品（名前・値段・写真）を保存する。名前と値段は vendors に、写真は products テーブルの
+ * 同じ名前の商品に置く（看板商品と同じ決まり）。写真は WebP に変換して vendor-images に保存する。
+ * 一覧から外した商品は、写真を外し、説明や旬を持たない行は products からも消す（そのままだと、全部外したあとに商品名だけ復活する）
+ */
+async function saveProducts(supabase: SupabaseClient, vendorId: string, items: ProductItem[]): Promise<void> {
+  const [vendorResult, rowsResult, weeklyResult] = await Promise.all([
+    supabase.from("vendors").select("main_products, signature_product_name").eq("id", vendorId).single(),
+    supabase.from("products").select("id, name, image_url, description").eq("vendor_id", vendorId),
+    // 今週以外の週でも、写真のために残した商品は翌週以降も使うので、どの週に載った名前も掃除の対象から外す
+    supabase.from("vendor_weekly_status").select("products").eq("vendor_id", vendorId),
+  ]);
+  if (vendorResult.error) throw vendorResult.error;
+  if (rowsResult.error) throw rowsResult.error;
+  if (weeklyResult.error) throw weeklyResult.error;
+  const weeklyNames = new Set(
+    ((weeklyResult.data ?? []) as { products: string[] | null }[]).flatMap((row) => row.products ?? []),
+  );
+  const rows = (rowsResult.data ?? []) as { id: string; name: string; image_url: string | null; description: string | null }[];
+  const mainProducts = (vendorResult.data?.main_products as string[] | null) ?? [];
+  const signatureName = (vendorResult.data?.signature_product_name as string | null)?.trim();
+
+  await saveProductPhotos(supabase, vendorId, items, rows);
 
   const prices: Record<string, number | null> = {};
   for (const item of items) prices[item.name] = item.price;
@@ -420,7 +438,9 @@ async function saveProducts(supabase: SupabaseClient, vendorId: string, items: P
   // 看板商品は別の質問で決めたものなので残す。画面に出ていなかった行には触らない
   const kept = new Set(items.map((item) => item.name));
   const shown = new Set(mainProducts.length > 0 ? mainProducts : rows.map((row) => row.name));
-  const removed = rows.filter((row) => shown.has(row.name) && !kept.has(row.name) && row.name !== signatureName);
+  const removed = rows.filter(
+    (row) => shown.has(row.name) && !kept.has(row.name) && row.name !== signatureName && !weeklyNames.has(row.name),
+  );
   if (removed.length === 0) return;
 
   // 説明や旬は「マイショップ」の画面で登録するもので、行を消すと一緒に消える（product_seasons は on delete cascade）。
@@ -497,6 +517,12 @@ export async function saveAskAnswer(
 
   switch (answer.id) {
     case "weekly-products": {
+      if (answer.photos?.length) {
+        const { data, error } = await supabase.from("products").select("id, name, image_url")
+          .eq("vendor_id", vendorId).in("name", answer.products);
+        if (error) throw error;
+        await saveProductPhotos(supabase, vendorId, answer.photos, data ?? []);
+      }
       const { error } = await supabase.from("vendor_weekly_status").upsert(
         {
           vendor_id: vendorId,

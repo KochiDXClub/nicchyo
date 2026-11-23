@@ -36,6 +36,7 @@ async function fetchMapLayout() {
     landmarks?: EditableLandmark[];
     route?: { points: MapRoutePoint[]; config: MapRouteConfig };
     roads?: EditableRoad[];
+    markets?: { id: string; slug: string; name: string; markerColor?: string }[];
     vendors?: EditableVendor[];
     categories?: VendorCategory[];
     /** DB に道基準の位置の列があるか（無ければマイグレーション前で、保存できない） */
@@ -103,6 +104,7 @@ export function useMapEditData({
   const [shops, setShops] = useState<EditableShop[]>([]);
   const [landmarks, setLandmarks] = useState<EditableLandmark[]>([]);
   const [roads, setRoads] = useState<EditableRoad[]>([]);
+  const [markets, setMarkets] = useState<NonNullable<Awaited<ReturnType<typeof fetchMapLayout>>["markets"]>>([]);
   const [routeConfig, setRouteConfig] = useState<MapRouteConfig>(getDefaultMapRouteConfig());
   const [vendors, setVendors] = useState<EditableVendor[]>([]);
   const [categories, setCategories] = useState<VendorCategory[]>([]);
@@ -129,6 +131,7 @@ export function useMapEditData({
     setShops(Array.isArray(nextData.shops) ? nextData.shops : []);
     setLandmarks(Array.isArray(nextData.landmarks) ? nextData.landmarks : []);
     setRoads(Array.isArray(nextData.roads) ? nextData.roads : []);
+    setMarkets(nextData.markets ?? []);
     setVendors(Array.isArray(nextData.vendors) ? nextData.vendors : []);
     setFieldObservationsUnavailable(nextData.fieldObservationsUnavailable === true);
     setChomeBoundaries(nextData.chome?.boundaries ?? []);
@@ -151,6 +154,7 @@ export function useMapEditData({
         setShops(nextShops);
         setLandmarks(nextLandmarks);
         setRoads(nextRoads);
+        setMarkets(data.markets ?? []);
         setRouteConfig(nextConfig);
         setVendors(nextVendors);
         setCategories(Array.isArray(data.categories) ? data.categories : []);
@@ -280,6 +284,7 @@ export function useMapEditData({
     setLandmarks,
     roads,
     setRoads,
+    markets,
     routeConfig,
     vendors,
     setVendors,

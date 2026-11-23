@@ -15,6 +15,7 @@
 import { execFileSync, spawnSync } from "node:child_process";
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
+import { auditDependencies } from "./dependency-audit.mjs";
 import { analyze, isTargetPath } from "./analyze.mjs";
 import { diffReports, diffToMarkdown } from "./diff.mjs";
 import { renderHtml } from "./report-html.mjs";
@@ -29,6 +30,7 @@ function parseArgs(argv) {
     else if (a === "--strict") args.strict = true;
     else if (a === "--out") args.out = argv[++i];
     else if (a === "--summary-file") args.summaryFile = argv[++i];
+    else if (a === "--audit") args.audit = true;
     else if (a === "--save") args.save = true;
     else throw new Error(`不明なオプション: ${a}`);
   }
@@ -90,6 +92,12 @@ async function main() {
   const commit = process.env.VERCEL_GIT_COMMIT_SHA || git(["rev-parse", "HEAD"]);
   const after = analyze(readWorkingTree(), { label: `作業ツリー（${branch}）` });
 
+  if (args.audit || args.save) {
+    after.dependencyAudit = auditDependencies();
+    const audit = after.dependencyAudit;
+    console.log("本番依存の npm audit:", audit.status === "complete" ? `${audit.packages.length} パッケージ` : "取得失敗");
+  }
+
   let diff = null;
   if (args.base) {
     let baseSha;
@@ -127,7 +135,13 @@ async function main() {
     console.log(`\nSupabase の code_health_snapshots に保存しました（${commit.slice(0, 7)} / ${branch}）`);
   }
 
-  if (args.strict && diff?.failed) process.exit(1);
+  if (args.strict && diff?.failed) {
+    console.error(
+      "\n悪化があるため失敗にしました。「悪化した箇所」を直してください。" +
+        "直さずにマージする理由があるときは、PR 本文の「悪化を残す理由・今後の対応」に書き、PR に `code-health-ok` ラベルを付けてください。",
+    );
+    process.exit(1);
+  }
 }
 
 main().catch((error) => {

@@ -6,7 +6,8 @@ import { useState, type FormEvent } from "react";
 import { getSmartNamePlaceholder } from "./signup-logic";
 import TurnstileWidget from "../../components/TurnstileWidget";
 import { createClient } from "@/utils/supabase/client";
-import { ShoppingBag, ArrowRight, Home, CheckCircle2 } from "lucide-react";
+import { ArrowRight, CheckCircle2 } from "lucide-react";
+import { NicchyoLogoLink } from "@/components/navigation/NicchyoLogoLink";
 import NavigationBar from "../../components/NavigationBar";
 
 export default function SignupPage() {
@@ -75,21 +76,11 @@ export default function SignupPage() {
 
   return (
     <div className="min-h-screen bg-[#FDFBF7] pb-safe-bottom">
-      {/* Navbar placeholder / Home Link */}
-      <div className="flex h-14 items-center px-4">
-        <Link href="/" className="flex items-center text-slate-500 hover:text-amber-600 transition-colors">
-          <Home className="mr-1 h-5 w-5" />
-          <span className="text-sm font-medium">ホームへ戻る</span>
-        </Link>
-      </div>
-
-      <div className="mx-auto w-full max-w-lg px-6 pt-6 pb-20">
+      <div className="mx-auto w-full max-w-lg px-6 pt-8 pb-20 md:pt-16">
         {/* Header Section */}
         <div className="mb-8 text-center">
-          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-amber-100 text-amber-600 ring-8 ring-amber-50">
-            <ShoppingBag className="h-8 w-8" />
-          </div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
+          <NicchyoLogoLink />
+          <h1 className="mt-3 text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
             アカウント登録
           </h1>
           <p className="mt-3 text-base text-slate-600 leading-relaxed">

@@ -25,8 +25,9 @@ export type AdminApiContext = {
   adminClient: SupabaseClient<DatabaseWithExtensions>;
 };
 
-export function createAdminServiceClient(): SupabaseClient<DatabaseWithExtensions> {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+export function createAdminServiceClient(
+  supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL,
+): SupabaseClient<DatabaseWithExtensions> {
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!supabaseUrl || !serviceRoleKey) {
     throw new Error("Supabase service role env vars are missing.");
@@ -48,19 +49,12 @@ export function createAdminServiceClient(): SupabaseClient<DatabaseWithExtension
 export async function requireAdminApi(): Promise<
   AdminApiContext | { error: NextResponse }
 > {
-  const cookieStore = await cookies();
-  const supabase = createServerClient(cookieStore);
-  // getUser() は認証サーバに問い合わせて JWT を検証するので、クッキーの偽造では通らない
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  const role = getRole(user);
-  if (!user || !isAdmin(role)) {
+  const { user } = await authorizeAdmin();
+  if (!user) {
     return { error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) };
   }
 
-  return { user, role, adminClient: createAdminServiceClient() };
+  return { user, role: getRole(user), adminClient: createAdminServiceClient() };
 }
 
 /**
@@ -78,11 +72,12 @@ export async function requireAdminApi(): Promise<
  * これは、既に authorizeAdmin() の形で書かれている既存ルート向けの
  * 共通化用エクスポート（Issue: 共通化調査で見つかった重複）。
  */
-export async function authorizeAdmin(): Promise<
+export async function authorizeAdmin(
+  sessionClient?: ReturnType<typeof createServerClient>,
+): Promise<
   { user: User; error: null } | { user: null; error: string }
 > {
-  const cookieStore = await cookies();
-  const supabase = createServerClient(cookieStore);
+  const supabase = sessionClient ?? createServerClient(await cookies());
   const {
     data: { user },
   } = await supabase.auth.getUser();

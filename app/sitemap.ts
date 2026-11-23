@@ -6,6 +6,8 @@ import { fetchPublicShopProfiles } from "@/app/(public)/map/services/shopCache";
 import {
   isLinkVisible,
 } from "@/lib/pageVisibility";
+import { fetchPublicMarketBySlug } from "@/lib/market/publicMarkets.server";
+import { withEnglishSitemapVersions } from "@/lib/i18n/seo";
 
 // ページ公開設定・出店状況の変更を1時間以内に反映する
 export const revalidate = 3600;
@@ -23,6 +25,8 @@ const STATIC_PAGES: MetadataRoute.Sitemap = [
   { url: `${SITE_URL}/news`, changeFrequency: "weekly", priority: 0.4 },
   { url: `${SITE_URL}/story`, changeFrequency: "weekly", priority: 0.6 },
   { url: `${SITE_URL}/about`, changeFrequency: "monthly", priority: 0.5 },
+  { url: `${SITE_URL}/about/site`, changeFrequency: "monthly", priority: 0.4 },
+  { url: `${SITE_URL}/about/team`, changeFrequency: "monthly", priority: 0.4 },
   { url: `${SITE_URL}/faq`, changeFrequency: "monthly", priority: 0.5 },
   { url: `${SITE_URL}/activities`, changeFrequency: "monthly", priority: 0.4 },
   ...ACTIVITIES.map((activity) => ({
@@ -50,7 +54,10 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const isPublic = (url: string) => isLinkVisible(url.slice(SITE_URL.length), "anon", visibility);
 
   const staticPages = STATIC_PAGES.filter((page) => isPublic(page.url));
-  if (!isLinkVisible("/shops", "anon", visibility)) return staticPages;
+  // 木曜市の紹介ページは、市が公開されているときだけ載せる
+  const mokuyo = await fetchPublicMarketBySlug("mokuyo");
+  if (mokuyo) staticPages.push({ url: `${SITE_URL}/mokuyo`, changeFrequency: "weekly", priority: 0.6 });
+  if (!isLinkVisible("/shops", "anon", visibility)) return withEnglishSitemapVersions(staticPages, SITE_URL);
 
   const shopPages: MetadataRoute.Sitemap = storeNumbers.flatMap((num) => {
     const code = formatShopIdToCode(num);
@@ -64,5 +71,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     ];
   });
 
-  return [...staticPages, ...shopPages];
+  // 英語版（/en/…）を索引するページは、英語のURLと言語別URLを載せる（lib/i18n/seo.ts）
+  return withEnglishSitemapVersions([...staticPages, ...shopPages], SITE_URL);
 }
