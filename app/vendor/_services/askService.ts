@@ -53,7 +53,7 @@ export async function fetchAskSnapshot(
     supabase
       .from("vendors")
       .select(
-        "shop_name, shop_image_url, shop_image_kind, category_id, style, style_tags, main_products, main_product_prices, schedule, sns_x, business_hours_start, business_hours_end, payment_methods, payment_note, sns_instagram, sns_hp, rain_policy, rain_note, rain_answered_at, signature_product_name, strength, motivation, years_running, sunday_love"
+        "shop_name, shop_image_url, shop_image_kind, category_id, style, style_tags, main_products, main_product_prices, schedule, introduction, sns_x, business_hours_start, business_hours_end, payment_methods, payment_note, sns_instagram, sns_hp, rain_policy, rain_note, rain_answered_at, signature_product_name, strength, motivation, years_running, sunday_love"
       )
       .eq("id", vendorId)
       .single(),
@@ -164,6 +164,7 @@ export async function fetchAskSnapshot(
       ((vendor.rain_policy as string | null) ?? "undecided") !== "undecided" ||
       !!(vendor.rain_note as string | null)?.trim(),
     strength: vendor.strength ?? undefined,
+    introduction: vendor.introduction ?? undefined,
     motivation: vendor.motivation ?? undefined,
     yearsRunning: vendor.years_running ?? null,
     sundayLove: vendor.sunday_love ?? undefined,
@@ -589,6 +590,8 @@ export async function saveAskAnswer(
       });
     case "strength":
       return updateVendor(supabase, vendorId, { strength: orNull(answer.text) });
+    case "introduction":
+      return updateVendor(supabase, vendorId, { introduction: orNull(answer.text) });
     case "motivation":
       return updateVendor(supabase, vendorId, { motivation: orNull(answer.text) });
     case "years":
