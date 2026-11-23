@@ -29,7 +29,7 @@ import {
 import InquiryErrorNotice from "../components/InquiryErrorNotice";
 
 const TONE_CLASSES = {
-  waiting: "bg-slate-100 text-slate-600",
+  waiting: "bg-nicchyo-ink/5 text-nicchyo-ink/70",
   progress: "bg-amber-100 text-amber-700",
   done: "bg-emerald-100 text-emerald-700",
 } as const;
@@ -107,14 +107,14 @@ export default function VendorInquiryDetailPage() {
         <div className="mx-auto flex max-w-2xl items-center gap-3">
           <Link
             href="/vendor/inquiries"
-            className="flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50"
+            className="flex h-9 w-9 items-center justify-center rounded-full border border-line bg-white text-nicchyo-ink/70 transition hover:bg-nicchyo-ink/5"
             aria-label="連絡の一覧へ戻る"
           >
             <ArrowLeft size={18} />
           </Link>
           <div>
             <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-amber-600">Contact</p>
-            <h1 className="text-xl font-bold text-slate-900">
+            <h1 className="text-xl font-bold text-nicchyo-ink">
               {inquiry ? TOPIC_LABELS[inquiry.topic].label : "連絡の内容"}
             </h1>
           </div>
@@ -129,19 +129,19 @@ export default function VendorInquiryDetailPage() {
         ) : (
           <>
             {/* 送った内容 */}
-            <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+            <section className="rounded-3xl border border-line bg-white p-4 shadow-sm">
               <div className="flex flex-wrap items-center gap-2">
                 <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-bold ${TONE_CLASSES[statusLabel(inquiry.status).tone]}`}>
                   {statusLabel(inquiry.status).label}
                 </span>
-                <span className="text-[11px] text-slate-400">{CATEGORY_LABELS[inquiry.category]}へ</span>
-                <span className="text-[11px] text-slate-400">{URGENCY_LABELS[inquiry.urgency].label}</span>
+                <span className="text-[11px] text-nicchyo-ink/55">{CATEGORY_LABELS[inquiry.category]}へ</span>
+                <span className="text-[11px] text-nicchyo-ink/55">{URGENCY_LABELS[inquiry.urgency].label}</span>
               </div>
 
-              <p className="mt-3 whitespace-pre-wrap text-base leading-relaxed text-slate-800">{inquiry.body}</p>
+              <p className="mt-3 whitespace-pre-wrap text-base leading-relaxed text-nicchyo-ink">{inquiry.body}</p>
 
               {safeImageUrl && (
-                <div className="mt-3 overflow-hidden rounded-2xl border border-slate-200">
+                <div className="mt-3 overflow-hidden rounded-2xl border border-line">
                   <Image
                     src={safeImageUrl}
                     unoptimized
@@ -153,7 +153,7 @@ export default function VendorInquiryDetailPage() {
                 </div>
               )}
 
-              <p className="mt-3 text-[11px] text-slate-400">{formatDateTime(inquiry.created_at)} に送信</p>
+              <p className="mt-3 text-[11px] text-nicchyo-ink/55">{formatDateTime(inquiry.created_at)} に送信</p>
             </section>
 
             {/* やり取り */}
@@ -165,16 +165,16 @@ export default function VendorInquiryDetailPage() {
                     <div
                       key={reply.id}
                       className={`rounded-3xl border p-4 shadow-sm ${
-                        isMine ? "border-amber-200 bg-amber-50/70" : "border-slate-200 bg-white"
+                        isMine ? "border-amber-200 bg-amber-50/70" : "border-line bg-white"
                       }`}
                     >
-                      <p className="text-[11px] font-bold text-slate-500">
+                      <p className="text-[11px] font-bold text-nicchyo-ink/70">
                         {SENDER_ROLE_LABELS[reply.sender_role]}
                       </p>
-                      <p className="mt-1.5 whitespace-pre-wrap text-base leading-relaxed text-slate-800">
+                      <p className="mt-1.5 whitespace-pre-wrap text-base leading-relaxed text-nicchyo-ink">
                         {reply.body}
                       </p>
-                      <p className="mt-2 text-[11px] text-slate-400">{formatDateTime(reply.created_at)}</p>
+                      <p className="mt-2 text-[11px] text-nicchyo-ink/55">{formatDateTime(reply.created_at)}</p>
                     </div>
                   );
                 })}
@@ -183,10 +183,10 @@ export default function VendorInquiryDetailPage() {
 
             {/* 返信 */}
             {canReply ? (
-              <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+              <section className="rounded-3xl border border-line bg-white p-4 shadow-sm">
                 <div className="flex items-center justify-between">
-                  <h2 className="text-base font-semibold text-slate-700">返信する</h2>
-                  <span className="text-xs text-slate-400">
+                  <h2 className="text-base font-semibold text-nicchyo-ink">返信する</h2>
+                  <span className="text-xs text-nicchyo-ink/55">
                     {replyBody.length} / {VENDOR_INQUIRY_REPLY_BODY_MAX_LENGTH}
                   </span>
                 </div>
@@ -195,7 +195,7 @@ export default function VendorInquiryDetailPage() {
                   onChange={(e) => setReplyBody(e.target.value)}
                   rows={5}
                   placeholder="追加で伝えたいことがあれば書いてください"
-                  className="mt-2 w-full resize-none rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-base leading-relaxed text-slate-800 outline-none focus:ring-2 focus:ring-amber-300"
+                  className="mt-2 w-full resize-none rounded-2xl border border-line bg-nicchyo-ink/5 px-4 py-4 text-base leading-relaxed text-nicchyo-ink outline-none focus:ring-2 focus:ring-amber-300"
                 />
 
                 {replyError && (
@@ -212,7 +212,7 @@ export default function VendorInquiryDetailPage() {
                     !replyBody.trim() ||
                     replyBody.length > VENDOR_INQUIRY_REPLY_BODY_MAX_LENGTH
                   }
-                  className="mt-3 flex w-full items-center justify-center gap-2 rounded-3xl bg-amber-500 py-3.5 text-base font-bold text-white shadow transition hover:bg-amber-400 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400"
+                  className="mt-3 flex w-full items-center justify-center gap-2 rounded-3xl bg-amber-500 py-3.5 text-base font-bold text-white shadow transition hover:bg-amber-400 disabled:cursor-not-allowed disabled:bg-nicchyo-ink/10 disabled:text-nicchyo-ink/55"
                 >
                   {isSending ? (
                     <>
@@ -228,7 +228,7 @@ export default function VendorInquiryDetailPage() {
                 </button>
               </section>
             ) : (
-              <p className="px-1 text-sm leading-relaxed text-slate-500">
+              <p className="px-1 text-sm leading-relaxed text-nicchyo-ink/70">
                 報告・連絡は一方向のお知らせです。運営が内容を確認すると、ステータスが「確認済み」に変わります。
               </p>
             )}
