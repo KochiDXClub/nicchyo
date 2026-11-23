@@ -1,3 +1,5 @@
+import Link from "next/link";
+import SiteGuideLink from "@/app/components/SiteGuideLink";
 import type { Metadata } from "next";
 import NavigationBar from "../../components/NavigationBar";
 import MarketCalendarView from "./components/MarketCalendarView";
@@ -22,10 +24,12 @@ export default async function MarketCalendarPage() {
 
   const heading = (
     <>
+      <SiteGuideLink />
       <p className="text-[11px] font-bold uppercase tracking-[0.32em] text-nicchyo-primary">Market Calendar</p>
       <h1 className={`mt-1 font-black leading-none tracking-tight ${next?.marketName ? "text-[1.75rem] sm:text-[2rem]" : "text-[2rem]"}`}>
         {title}
       </h1>
+      <p className="mt-2.5 text-sm text-nicchyo-ink/55">各市の開催状況と、これからの予定を確認できます。</p>
     </>
   );
   const notice = !calendar ? (
@@ -47,6 +51,10 @@ export default async function MarketCalendarPage() {
           </a>
           でご覧いただけます
         </p>
+        <div className="mt-5 flex flex-wrap gap-x-5">
+          <Link href="/story" className="inline-flex min-h-11 items-center text-sm font-semibold underline underline-offset-4">出店者の近況を見る</Link>
+          <Link href="/contact?category=bug#corrections" className="inline-flex min-h-11 items-center text-sm font-semibold underline underline-offset-4">掲載情報の訂正を知らせる</Link>
+        </div>
       </PageContainer>
 
       <NavigationBar backBarOnTop />

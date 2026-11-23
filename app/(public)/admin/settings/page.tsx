@@ -100,49 +100,49 @@ function EmailNotificationSection() {
   };
 
   return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-      <p className="text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">Notifications</p>
-      <h3 className="mt-2 text-xl font-bold text-slate-900">メール通知設定</h3>
+    <section className="rounded-card border border-line bg-white p-6 shadow-sm">
+      <p className="text-xs font-semibold uppercase tracking-[0.25em] text-nicchyo-ink/70">Notifications</p>
+      <h3 className="mt-2 text-xl font-bold text-nicchyo-ink">メール通知設定</h3>
 
       {status === null ? (
-        <p className="mt-3 text-sm text-slate-400">読み込み中...</p>
+        <p className="mt-3 text-sm text-nicchyo-ink/55">読み込み中...</p>
       ) : (
         <div className="mt-4 space-y-4">
-          <div className="grid grid-cols-1 gap-3 rounded-xl bg-slate-50 p-4 text-sm sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-3 rounded-card bg-nicchyo-base p-4 text-sm sm:grid-cols-2">
             <div>
-              <p className="text-xs font-medium text-slate-500">設定状態</p>
+              <p className="text-xs font-medium text-nicchyo-ink/70">設定状態</p>
               <p className={`mt-1 font-semibold ${status.configured ? "text-green-700" : "text-amber-700"}`}>
                 {status.configured ? "✅ 設定済み（Resend）" : "⚠️ 未設定（スキップモード）"}
               </p>
             </div>
             <div>
-              <p className="text-xs font-medium text-slate-500">送信元</p>
-              <p className="mt-1 text-slate-700">{status.fromAddress}</p>
+              <p className="text-xs font-medium text-nicchyo-ink/70">送信元</p>
+              <p className="mt-1 text-nicchyo-ink">{status.fromAddress}</p>
             </div>
           </div>
 
           {!status.configured && (
-            <p className="rounded-xl bg-amber-50 p-3 text-xs text-amber-800">
+            <p className="rounded-card bg-amber-50 p-3 text-xs text-amber-800">
               メール送信を有効にするには <code className="rounded bg-amber-100 px-1">RESEND_API_KEY</code> を .env に設定してください。
               未設定の場合、通報・問い合わせ受信時の通知はコンソールログのみ出力されます。
             </p>
           )}
 
           <div>
-            <label className="text-sm font-medium text-slate-700">テスト送信先</label>
+            <label className="text-sm font-medium text-nicchyo-ink">テスト送信先</label>
             <div className="mt-1 flex gap-2">
               <input
                 type="email"
                 value={testTo}
                 onChange={(e) => setTestTo(e.target.value)}
                 placeholder="admin@example.com"
-                className="flex-1 rounded-xl border border-slate-200 px-3 py-2 text-sm focus:border-amber-400 focus:outline-none"
+                className="flex-1 rounded-btn border border-line px-3 py-2 text-sm focus:border-amber-400 focus:outline-none"
               />
               <button
                 type="button"
                 onClick={() => void handleTest()}
                 disabled={!testTo || sending}
-                className="rounded-xl bg-slate-700 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-40"
+                className="rounded-btn bg-nicchyo-ink/90 px-4 py-2 text-sm font-semibold text-white hover:bg-nicchyo-ink disabled:opacity-40"
               >
                 {sending ? "送信中..." : "テスト送信"}
               </button>
@@ -152,7 +152,7 @@ function EmailNotificationSection() {
                 {testResult.message}
               </p>
             )}
-            <p className="mt-1 text-xs text-slate-400">
+            <p className="mt-1 text-xs text-nicchyo-ink/55">
               ADMIN_NOTIFICATION_EMAIL 環境変数を設定すると通報・問い合わせ受信時に自動でメールを送ります。
             </p>
           </div>
@@ -328,13 +328,13 @@ export default function AdminSettingsPage() {
 
       <div className="mx-auto max-w-7xl px-4 py-8 pb-24">
         {(tab === "general" || tab === "flags") && (
-        <div className="mb-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="mb-6 rounded-card border border-line bg-white p-5 shadow-sm">
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>
-              <h2 className="text-lg font-bold text-slate-900">
+              <h2 className="text-lg font-bold text-nicchyo-ink">
                 {tab === "general" ? "サイト全体の公開状態" : "マップの動作と上限"}
               </h2>
-              <p className="mt-1 text-sm text-slate-500">
+              <p className="mt-1 text-sm text-nicchyo-ink/70">
                 {tab === "general"
                   ? "サイト名・メンテナンス表示を設定します。サイト内のお知らせは「お知らせ」から投稿します。"
                   : "描画方式の切替と、マップ編集で扱える件数の上限を設定します。変更は本番のマップに即時反映されます。"}
@@ -344,36 +344,36 @@ export default function AdminSettingsPage() {
               type="button"
               onClick={saveSettings}
               disabled={isFetching || isSaving || !hasChanges}
-              className="inline-flex items-center justify-center rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-black disabled:cursor-not-allowed disabled:bg-slate-300"
+              className="inline-flex items-center justify-center rounded-btn bg-nicchyo-ink px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-black disabled:cursor-not-allowed disabled:bg-nicchyo-ink/30"
             >
               {isSaving ? "保存中..." : "設定を保存"}
             </button>
           </div>
-          {message ? <p className="mt-3 text-sm text-slate-600">{message}</p> : null}
+          {message ? <p className="mt-3 text-sm text-nicchyo-ink/70">{message}</p> : null}
         </div>
         )}
 
         {tab === "general" && (
         <div className="grid grid-cols-1 gap-6">
-          <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <section className="rounded-card border border-line bg-white p-6 shadow-sm">
             <p className="text-xs font-semibold uppercase tracking-[0.25em] text-sky-600">Public</p>
-            <h3 className="mt-2 text-xl font-bold text-slate-900">公開設定</h3>
+            <h3 className="mt-2 text-xl font-bold text-nicchyo-ink">公開設定</h3>
             <div className="mt-6 space-y-5">
               <label className="block">
-                <span className="mb-2 block text-sm font-medium text-slate-700">サイト名</span>
+                <span className="mb-2 block text-sm font-medium text-nicchyo-ink">サイト名</span>
                 <input
                   value={publicSettings.siteName}
                   onChange={(event) =>
                     setPublicSettings((prev) => ({ ...prev, siteName: event.target.value }))
                   }
-                  className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none transition focus:border-sky-400"
+                  className="w-full rounded-btn border border-line px-4 py-3 text-sm outline-none transition focus:border-sky-400"
                 />
               </label>
 
-              <label className="flex items-center justify-between rounded-xl border border-slate-200 px-4 py-3">
+              <label className="flex items-center justify-between rounded-btn border border-line px-4 py-3">
                 <div>
-                  <p className="text-sm font-medium text-slate-700">メンテナンスモード</p>
-                  <p className="text-xs text-slate-500">公開画面のメンテナンス告知に使う設定です。</p>
+                  <p className="text-sm font-medium text-nicchyo-ink">メンテナンスモード</p>
+                  <p className="text-xs text-nicchyo-ink/70">公開画面のメンテナンス告知に使う設定です。</p>
                 </div>
                 <input
                   type="checkbox"
@@ -389,7 +389,7 @@ export default function AdminSettingsPage() {
               </label>
 
               <label className="block">
-                <span className="mb-2 block text-sm font-medium text-slate-700">メンテナンス文言</span>
+                <span className="mb-2 block text-sm font-medium text-nicchyo-ink">メンテナンス文言</span>
                 <textarea
                   rows={3}
                   value={publicSettings.maintenanceMessage}
@@ -399,7 +399,7 @@ export default function AdminSettingsPage() {
                       maintenanceMessage: event.target.value,
                     }))
                   }
-                  className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none transition focus:border-sky-400"
+                  className="w-full rounded-btn border border-line px-4 py-3 text-sm outline-none transition focus:border-sky-400"
                 />
               </label>
             </div>
@@ -411,16 +411,16 @@ export default function AdminSettingsPage() {
 
         {tab === "flags" && (
         <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
-          <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <section className="rounded-card border border-line bg-white p-6 shadow-sm">
             <p className="text-xs font-semibold uppercase tracking-[0.25em] text-emerald-600">Map Behavior</p>
-            <h3 className="mt-2 text-xl font-bold text-slate-900">マップ動作フラグ</h3>
-            <p className="mt-1 text-sm text-slate-500">
-              描画方式やパフォーマンス改善の仕組みの切替。本番のマップに即時反映されます。実験だけなら「マップ計測」ページの実験スイッチ（URL の <code className="rounded bg-slate-100 px-1">?mapFlags=</code>）を使ってください。
+            <h3 className="mt-2 text-xl font-bold text-nicchyo-ink">マップ動作フラグ</h3>
+            <p className="mt-1 text-sm text-nicchyo-ink/70">
+              描画方式やパフォーマンス改善の仕組みの切替。本番のマップに即時反映されます。実験だけなら「マップ計測」ページの実験スイッチ（URL の <code className="rounded bg-nicchyo-base px-1">?mapFlags=</code>）を使ってください。
             </p>
             <div className="mt-6 grid grid-cols-1 gap-5 md:grid-cols-2">
               {MAP_FEATURE_FLAG_DEFS.map((def) =>
                 def.options === "boolean" ? (
-                  <label key={def.key} className="flex items-start gap-3 rounded-xl border border-slate-200 px-4 py-3">
+                  <label key={def.key} className="flex items-start gap-3 rounded-btn border border-line px-4 py-3">
                     <input
                       type="checkbox"
                       checked={Boolean(mapFlags[def.key])}
@@ -428,14 +428,14 @@ export default function AdminSettingsPage() {
                       className="mt-1"
                     />
                     <span>
-                      <span className="block text-sm font-medium text-slate-700">{def.label}</span>
-                      <span className="block text-xs text-slate-500">{def.description}</span>
+                      <span className="block text-sm font-medium text-nicchyo-ink">{def.label}</span>
+                      <span className="block text-xs text-nicchyo-ink/70">{def.description}</span>
                     </span>
                   </label>
                 ) : (
                   <label key={def.key} className="block">
-                    <span className="mb-1 block text-sm font-medium text-slate-700">{def.label}</span>
-                    <span className="mb-2 block text-xs text-slate-500">{def.description}</span>
+                    <span className="mb-1 block text-sm font-medium text-nicchyo-ink">{def.label}</span>
+                    <span className="mb-2 block text-xs text-nicchyo-ink/70">{def.description}</span>
                     <PillSelect
                       size="md"
                       value={String(mapFlags[def.key])}
@@ -448,12 +448,12 @@ export default function AdminSettingsPage() {
             </div>
           </section>
 
-          <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <section className="rounded-card border border-line bg-white p-6 shadow-sm">
             <p className="text-xs font-semibold uppercase tracking-[0.25em] text-emerald-600">Map Limits</p>
-            <h3 className="mt-2 text-xl font-bold text-slate-900">マップ利用上限</h3>
+            <h3 className="mt-2 text-xl font-bold text-nicchyo-ink">マップ利用上限</h3>
             <div className="mt-6 grid grid-cols-1 gap-5 md:grid-cols-2">
               <label className="block">
-                <span className="mb-2 block text-sm font-medium text-slate-700">建物オブジェクト上限</span>
+                <span className="mb-2 block text-sm font-medium text-nicchyo-ink">建物オブジェクト上限</span>
                 <input
                   type="number"
                   min={1}
@@ -465,12 +465,12 @@ export default function AdminSettingsPage() {
                       maxLandmarks: Number(event.target.value || 0),
                     }))
                   }
-                  className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none transition focus:border-emerald-400"
+                  className="w-full rounded-btn border border-line px-4 py-3 text-sm outline-none transition focus:border-emerald-400"
                 />
               </label>
 
               <label className="block">
-                <span className="mb-2 block text-sm font-medium text-slate-700">未割当マーカ上限</span>
+                <span className="mb-2 block text-sm font-medium text-nicchyo-ink">未割当マーカ上限</span>
                 <input
                   type="number"
                   min={0}
@@ -482,12 +482,12 @@ export default function AdminSettingsPage() {
                       maxUnassignedShopMarkers: Number(event.target.value || 0),
                     }))
                   }
-                  className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none transition focus:border-emerald-400"
+                  className="w-full rounded-btn border border-line px-4 py-3 text-sm outline-none transition focus:border-emerald-400"
                 />
               </label>
 
               <label className="block">
-                <span className="mb-2 block text-sm font-medium text-slate-700">保持する履歴件数</span>
+                <span className="mb-2 block text-sm font-medium text-nicchyo-ink">保持する履歴件数</span>
                 <input
                   type="number"
                   min={1}
@@ -499,12 +499,12 @@ export default function AdminSettingsPage() {
                       maxMapSnapshots: Number(event.target.value || 0),
                     }))
                   }
-                  className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none transition focus:border-emerald-400"
+                  className="w-full rounded-btn border border-line px-4 py-3 text-sm outline-none transition focus:border-emerald-400"
                 />
               </label>
 
               <label className="block">
-                <span className="mb-2 block text-sm font-medium text-slate-700">編集画面の最大ズーム</span>
+                <span className="mb-2 block text-sm font-medium text-nicchyo-ink">編集画面の最大ズーム</span>
                 <input
                   type="number"
                   min={18}
@@ -516,7 +516,7 @@ export default function AdminSettingsPage() {
                       maxEditZoom: Number(event.target.value || 0),
                     }))
                   }
-                  className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none transition focus:border-emerald-400"
+                  className="w-full rounded-btn border border-line px-4 py-3 text-sm outline-none transition focus:border-emerald-400"
                 />
               </label>
             </div>
@@ -527,21 +527,21 @@ export default function AdminSettingsPage() {
         {tab === "email" && <EmailNotificationSection />}
 
         {tab === "danger" && (
-        <section className="rounded-2xl border border-rose-200 bg-rose-50 p-6 shadow-sm">
+        <section className="rounded-card border border-rose-200 bg-rose-50 p-6 shadow-sm">
           <p className="text-xs font-semibold uppercase tracking-[0.25em] text-rose-600">Danger Zone</p>
-          <h3 className="mt-2 text-xl font-bold text-slate-900">認証が必要な危険操作</h3>
-          <p className="mt-2 text-sm text-slate-600">
+          <h3 className="mt-2 text-xl font-bold text-nicchyo-ink">認証が必要な危険操作</h3>
+          <p className="mt-2 text-sm text-nicchyo-ink/70">
             パスワードを入力して実行してください。この操作は取り消せません。
           </p>
 
           <div className="mt-5 max-w-md">
             <label className="block">
-              <span className="mb-2 block text-sm font-medium text-slate-700">現在のパスワード</span>
+              <span className="mb-2 block text-sm font-medium text-nicchyo-ink">現在のパスワード</span>
               <input
                 type="password"
                 value={dangerPassword}
                 onChange={(event) => setDangerPassword(event.target.value)}
-                className="w-full rounded-xl border border-rose-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-rose-400"
+                className="w-full rounded-btn border border-rose-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-rose-400"
                 autoComplete="current-password"
               />
             </label>
@@ -558,7 +558,7 @@ export default function AdminSettingsPage() {
               type="button"
               onClick={() => handleDangerAction("clean-map-history")}
               disabled={isDangerLoading || !dangerPassword}
-              className="inline-flex items-center justify-center rounded-xl border border-amber-300 bg-amber-100 px-4 py-3 text-sm font-semibold text-amber-900 transition hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-60"
+              className="inline-flex items-center justify-center rounded-btn border border-amber-300 bg-amber-100 px-4 py-3 text-sm font-semibold text-amber-900 transition hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {isDangerLoading ? "処理中..." : `古いマップ履歴を整理（最新${mapSettings.maxMapSnapshots}件を保持）`}
             </button>
@@ -567,7 +567,7 @@ export default function AdminSettingsPage() {
               type="button"
               onClick={() => handleDangerAction("delete-analytics")}
               disabled={isDangerLoading || !dangerPassword}
-              className="inline-flex items-center justify-center rounded-xl bg-rose-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-60"
+              className="inline-flex items-center justify-center rounded-btn bg-rose-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {isDangerLoading ? "処理中..." : "分析ログを全削除"}
             </button>

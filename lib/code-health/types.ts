@@ -39,6 +39,7 @@ export interface LargeFile {
 export interface SnapshotSummary {
   label: string;
   generatedAt: string;
+  adminHandlers?: { path: string; method: string; line: number; guardLine: number | null }[];
   totals: {
     files: number;
     lines: number;
@@ -52,6 +53,13 @@ export interface SnapshotSummary {
   metrics: Record<string, number>;
   rules: Record<string, RuleSummary>;
   clones: CloneBlock[];
+  dependencyAudit?: { checkedAt: string } & (
+    | { status: "unavailable" }
+    | { status: "complete"; packages: {
+        name: string; severity: string; range: string; fix: string;
+        advisories: { title: string; url?: string }[];
+      }[] }
+  );
   sameName: SameNameGroup[];
   largeFiles: LargeFile[];
 }
@@ -66,6 +74,7 @@ export interface SnapshotFile {
   dupLines: number;
   dupRatio: number;
   violations: number;
+  ruleLines?: Record<string, number[]>;
 }
 
 // テーブル1行分の型（CodeHealthSnapshotRow）は types/database.extensions.ts にある

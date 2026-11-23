@@ -1,8 +1,10 @@
+import { privateNoStoreHeaders } from "@/lib/http/cacheHeaders";
 import { NextResponse } from "next/server";
 import { canGrantPermissions } from "@/lib/vendor/memberRules";
 import { displayNameOf, logVendorActivity } from "@/lib/vendor/activityLog";
 import { inviteExpiresAt, parseCreateInvite, toInviteView, type InviteViewRow } from "@/lib/vendor/shopInvites";
 import { generateInviteToken, hashInviteToken } from "@/lib/vendor/shopInvites.server";
+import { reshareInviteToken } from "@/lib/vendor/reshareInvite.server";
 import { SHOP_PERMISSION_META } from "@/lib/vendor/shopPermissions";
 import { requireMembersApi } from "../members/shared";
 
@@ -14,7 +16,7 @@ const LIST_LIMIT = 30;
 
 /**
  * GET: この店舗の招待リンクの一覧（メンバーの管理ができる人だけ）。
- * リンクの本体（トークン）は保存していないので、作った直後の画面以外では URL を出せない。
+ * 有効かつ呼び出し元が付与できる権限の招待にだけ再共有URLを付ける。
  */
 export async function GET(request: Request) {
   const auth = await requireMembersApi(request, { permission: "members_manage" });
@@ -23,15 +25,20 @@ export async function GET(request: Request) {
 
   const { data, error } = await db
     .from("shop_invites")
-    .select("id, permissions, max_uses, used_count, expires_at, created_at, revoked_at, created_by")
+    .select("id, permissions, max_uses, used_count, expires_at, created_at, revoked_at, token_hash")
     .eq("vendor_id", vendorId)
     .order("created_at", { ascending: false })
     .limit(LIST_LIMIT);
   if (error) return NextResponse.json({ error: "読み込めませんでした" }, { status: 500 });
 
-  const invites = (data ?? []).map((row) => toInviteView(row as unknown as InviteViewRow));
+  const origin = new URL(request.url).origin;
+  const invites = (data ?? []).map((row) => {
+    const invite = toInviteView(row as unknown as InviteViewRow);
+    if (invite.state !== "active" || !canGrantPermissions(auth.membership, invite.permissions)) return invite;
+    return { ...invite, url: `${origin}/join/${reshareInviteToken(invite.id, row.token_hash)}` };
+  });
 
-  return NextResponse.json({ invites });
+  return NextResponse.json({ invites }, { headers: privateNoStoreHeaders() });
 }
 
 /**

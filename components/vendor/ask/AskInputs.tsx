@@ -9,8 +9,6 @@ import PhotoPickerField from "./PhotoPickerField";
 import { usePhotoPicker } from "./usePhotoPicker";
 import {
   AskForm,
-  DraftAddRow,
-  RemovableChip,
   SkipLabelContext,
   choiceClass,
   fieldClass,
@@ -21,7 +19,7 @@ import {
   LineTextInput,
   OwnerInput,
   PhotoInput,
-  ProductPricesInput,
+  ProductRowsInput,
   ScheduleInput,
   StyleInput,
 } from "./ProfileInputs";
@@ -39,7 +37,8 @@ export default function AskInput(props: InputProps & { skipLabel?: string }) {
 function AskInputBody(props: InputProps) {
   switch (props.question.input) {
     case "product-list":
-      return <ProductListInput {...props} />;
+    case "product-prices":
+      return <ProductRowsInput {...props} />;
     case "hours":
       return <HoursInput {...props} />;
     case "signature":
@@ -66,57 +65,9 @@ function AskInputBody(props: InputProps) {
       return <StyleInput {...props} />;
     case "owner":
       return <OwnerInput {...props} />;
-    case "product-prices":
-      return <ProductPricesInput {...props} />;
     case "schedule":
       return <ScheduleInput {...props} />;
   }
-}
-
-function ProductListInput({ snapshot, saving, onSubmit, onSkip, question }: InputProps) {
-  const [items, setItems] = useState<string[]>(snapshot.weekly?.products ?? []);
-  const [draft, setDraft] = useState("");
-
-  const add = () => {
-    const name = draft.trim();
-    if (!name || items.includes(name)) return;
-    setItems((prev) => [...prev, name]);
-    setDraft("");
-  };
-
-  return (
-    <AskForm
-      canSubmit={items.length > 0 || draft.trim() !== ""}
-      saving={saving}
-      onSkip={onSkip}
-      onSubmit={() => {
-        // 入力欄に書いたまま「これでええ」を押しても、その分を落とさない
-        const name = draft.trim();
-        const products = name && !items.includes(name) ? [...items, name] : items;
-        onSubmit({ id: "weekly-products", products });
-      }}
-    >
-      {items.length > 0 && (
-        <ul className="flex flex-wrap gap-2">
-          {items.map((item) => (
-            <li key={item}>
-              <RemovableChip
-                label={item}
-                onRemove={() => setItems((prev) => prev.filter((name) => name !== item))}
-              />
-            </li>
-          ))}
-        </ul>
-      )}
-      <DraftAddRow
-        value={draft}
-        onChange={setDraft}
-        onAdd={add}
-        placeholder={question.placeholder}
-        label="商品名"
-      />
-    </AskForm>
-  );
 }
 
 /** 時刻の選択（時と分）。保存の形は "7:30"。分は10分刻み、24時は0分だけ（lib/vendor/businessHours.ts） */

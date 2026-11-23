@@ -37,6 +37,7 @@ export function diffReports(before, after) {
   }
 
   // 変更したファイルの中で、ルールに当たる数が増えたもの
+  const introduced = [];
   const ruleRegressions = [];
   for (const { path } of changedFiles) {
     const a = afterFiles.get(path);
@@ -46,6 +47,12 @@ export function diffReports(before, after) {
       const nowHit = a.ruleHits[rule.id];
       if (!nowHit) continue;
       const prevHit = b?.ruleHits[rule.id];
+      const remaining = new Map();
+      for (const { key } of prevHit?.occurrences ?? []) remaining.set(key, (remaining.get(key) ?? 0) + 1);
+      for (const { key, line } of nowHit.occurrences) {
+        if (remaining.get(key)) remaining.set(key, remaining.get(key) - 1);
+        else introduced.push({ path, line, label: rule.label });
+      }
       const prevCount = prevHit?.count ?? 0;
       if (nowHit.count <= prevCount) continue;
       const prevValues = new Set(prevHit?.values ?? []);
@@ -89,6 +96,9 @@ export function diffReports(before, after) {
     metrics,
     rules,
     changedFiles,
+    introduced,
+    adminReview: after.adminHandlers.filter(h => !h.guardLine && !before.adminHandlers.some(
+      old => old.path === h.path && old.method === h.method && !old.guardLine)),
     ruleRegressions,
     duplicationRegressions,
     failed,
@@ -137,6 +147,13 @@ export function diffToMarkdown(diff, options = {}) {
   }
   lines.push("");
 
+  for (const h of diff.adminReview) lines.push(`- 管理者認可を要確認：${h.method} \`${h.path}:${h.line}\``);
+  if (diff.introduced.length) {
+    lines.push(`**追加・変更された指摘行（${diff.introduced.length}件）**`, "");
+    for (const hit of diff.introduced.slice(0, 30)) lines.push(`- \`${hit.path}:${hit.line}\` ${hit.label}`);
+    if (diff.introduced.length > 30) lines.push("全件は diff.json を参照してください。");
+    lines.push("");
+  }
   const rows = [
     ...diff.metrics.filter((m) => HEADLINE_METRICS.has(m.id) || m.change !== "same").map((m) => ({ ...m, targetLabel: targetText(m) })),
     ...diff.rules.filter((r) => r.change !== "same").map((r) => ({ ...r, unit: "", targetLabel: "減らす" })),

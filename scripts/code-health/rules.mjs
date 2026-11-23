@@ -69,6 +69,7 @@ export const METRICS = [
 export const RULES = [
   {
     id: "rawHex",
+    fix: "用途に対応する共通カラートークンを選びます。",
     label: "生の hex カラー（種類）",
     source: "DESIGN_SYSTEM.md §5",
     why: "色はトークンで指定する。hex が増えるほど同じ意味の色がバラバラになる",
@@ -80,6 +81,7 @@ export const RULES = [
   },
   {
     id: "neutralPalette",
+    fix: "本文色は nicchyo-ink、境界線は line を使います。",
     label: "slate-* / gray-* の使用",
     source: "DESIGN_SYSTEM.md §3",
     why: "文字は nicchyo-ink の不透明度、罫は line トークンで書く",
@@ -89,6 +91,7 @@ export const RULES = [
   },
   {
     id: "rawRounded",
+    fix: "カードには rounded-card、入力欄やボタンには rounded-btn を使います。",
     label: "角丸の直書き（rounded-xl / 2xl / [px]）",
     source: "DESIGN_SYSTEM.md §3",
     why: "rounded-card / rounded-btn などのトークンに寄せる",
@@ -98,6 +101,7 @@ export const RULES = [
   },
   {
     id: "gradients",
+    fix: "面の背景をデザインシステムの単色に置き換えます。",
     label: "グラデーション（種類）",
     source: "DESIGN_SYSTEM.md §5",
     why: "面は単色で足りる。グラデーションを増やさない",
@@ -107,6 +111,7 @@ export const RULES = [
   },
   {
     id: "adhocModal",
+    fix: "既存の Modal・シート部品でフォーカスと開閉を管理します。",
     label: "モーダル・シートの個別実装（fixed inset-0）",
     source: "DESIGN_SYSTEM.md §6",
     why: "共通のモーダル部品が無く、各所で背景・閉じ方・フォーカス制御を個別に書いている",
@@ -116,6 +121,7 @@ export const RULES = [
   },
   {
     id: "directSupabaseClient",
+    fix: "サーバー・ブラウザー・管理者の用途に合った既存のクライアント生成関数を使います。",
     label: "Supabase クライアントの個別生成",
     source: "CLAUDE.md 共通化",
     why: "@supabase/supabase-js の createClient を各所で直に呼ぶと、権限（anon / service role）やオプションの指定が場所ごとに食い違う",
@@ -129,6 +135,7 @@ export const RULES = [
   },
   {
     id: "inlineAdminCheck",
+    fix: "ルートの応答仕様に合わせて共通の管理者ガードを使います。",
     label: "管理者チェックの直書き",
     source: "CLAUDE.md 共通化（認可チェック）",
     why: "authorizeAdmin / requireAdminApi を使わず isAdmin(getRole(...)) を直に書いている API。認可の漏れ・食い違いの温床",
@@ -138,6 +145,7 @@ export const RULES = [
   },
   {
     id: "inlineCacheControl",
+    fix: "同じ公開範囲に使われている共通のヘッダー生成関数を使います。",
     label: "Cache-Control の直書き",
     source: "CLAUDE.md 共通化（API レスポンス整形）",
     why: "キャッシュ方針が API ごとの文字列に散らばると、公開範囲や秒数の見直しが漏れる",
@@ -147,6 +155,7 @@ export const RULES = [
   },
   {
     id: "useClientInUi",
+    fix: "操作に必要なクライアント境界を利用側に置きます。",
     label: "components/ui の \"use client\"",
     source: "DESIGN_SYSTEM.md §5",
     why: "バレル経由でサーバーコンポーネントから読まれたときに壊れる",
@@ -156,6 +165,7 @@ export const RULES = [
   },
   {
     id: "consoleLog",
+    fix: "デバッグ出力を削除し、運用に必要な記録は既存のログ処理に移します。",
     label: "console.log の残留",
     source: ".claude/commands/ship.md",
     why: "デバッグ出力が本番に残る",

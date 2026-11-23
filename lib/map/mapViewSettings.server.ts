@@ -9,7 +9,7 @@
  */
 
 import { cache } from "react";
-import { createClient } from "@supabase/supabase-js";
+import { createAnonClient } from "@/lib/supabase/anonClient";
 import {
   DEFAULT_MAP_VIEW_SETTINGS,
   mapViewSettingsFromRow,
@@ -19,14 +19,9 @@ import {
 export const MAP_VIEW_SETTINGS_KEY = "default";
 
 export const fetchMapViewSettings = cache(async (): Promise<MapViewSettings> => {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key =
-    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  if (!url || !key) return DEFAULT_MAP_VIEW_SETTINGS;
   try {
-    const client = createClient(url, key, {
-      auth: { persistSession: false, autoRefreshToken: false },
-    });
+    const client = createAnonClient();
+    if (!client) return DEFAULT_MAP_VIEW_SETTINGS;
     const { data } = await client
       .from("map_view_settings")
       .select("mode, padding_meters, north, south, east, west, min_zoom")

@@ -18,7 +18,7 @@ vi.mock("./useMembers", () => ({ useMembers: () => ({ data: members, error: load
 vi.mock("../_services/membersService", () => ({
   fetchInvites: async () => [],
   fetchActivityLogs: async () => ({ logs: [], hasMore: false }),
-  createInvite: vi.fn(),
+  createInvite: async () => ({ id: "demo", url: "https://example.com/join/demo", expiresAt: "2026-12-01" }),
   revokeInvite: vi.fn(),
   updateMemberPermissions: vi.fn(),
   removeMember: vi.fn(),
@@ -43,8 +43,22 @@ describe("メンバー管理", () => {
 
     expect(screen.getByRole("heading", { level: 1, name: "メンバー管理" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "お店のメンバー（1人）" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "家族やスタッフを招待する" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "招待" }));
     expect(screen.getByRole("heading", { name: "家族やスタッフを招待する" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "操作ログ" }));
     expect(await screen.findByRole("heading", { name: "操作ログ" })).toBeInTheDocument();
+  });
+
+  it("作ったリンクは操作ログから戻ってもコピーできる", async () => {
+    setup({ role: "owner", permissions: [] });
+    fireEvent.click(screen.getByRole("button", { name: "招待" }));
+    fireEvent.click(screen.getByRole("button", { name: "招待リンクを作る" }));
+    expect(await screen.findByLabelText("招待リンク")).toHaveValue("https://example.com/join/demo");
+    fireEvent.click(screen.getByRole("button", { name: "操作ログ" }));
+    fireEvent.click(screen.getByRole("button", { name: "招待" }));
+    expect(screen.getByRole("button", { name: "リンクをコピー" })).toBeVisible();
+    expect(screen.queryByRole("button", { name: "招待リンクを作る" })).not.toBeInTheDocument();
   });
 
   it("近況の投稿だけのメンバーには、メンバー一覧だけが出る（招待・操作ログは出ない）", () => {
@@ -58,6 +72,7 @@ describe("メンバー管理", () => {
   it("操作ログの権限だけのメンバーには、操作ログが出る（招待は出ない）", async () => {
     setup({ role: "member", permissions: ["audit_view"] });
 
+    fireEvent.click(screen.getByRole("button", { name: "操作ログ" }));
     expect(await screen.findByRole("heading", { name: "操作ログ" })).toBeInTheDocument();
     expect(screen.queryByText("家族やスタッフを招待する")).not.toBeInTheDocument();
   });
@@ -71,5 +86,18 @@ describe("メンバー管理", () => {
     expect(screen.getByRole("alert")).toHaveTextContent("通信できませんでした");
     fireEvent.click(screen.getByRole("button", { name: "もう一度読み込む" }));
     expect(reload).toHaveBeenCalled();
+  });
+
+  it("読み直しだけ失敗しても、表示中の一覧と作ったリンクは残す（知らせは一覧の上に出す）", async () => {
+    const { rerender } = setup({ role: "owner", permissions: [] });
+    fireEvent.click(screen.getByRole("button", { name: "招待" }));
+    fireEvent.click(screen.getByRole("button", { name: "招待リンクを作る" }));
+    expect(await screen.findByLabelText("招待リンク")).toHaveValue("https://example.com/join/demo");
+
+    // 作ったあとの読み直しが失敗した状態（データは残り、エラーだけ出る）
+    loadError = "通信できませんでした";
+    rerender(<VendorMembersPage />);
+    expect(screen.getByRole("alert")).toHaveTextContent("通信できませんでした");
+    expect(screen.getByLabelText("招待リンク")).toHaveValue("https://example.com/join/demo");
   });
 });

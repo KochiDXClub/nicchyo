@@ -19,7 +19,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Image from 'next/image';
-import { ChevronRight } from 'lucide-react';
+import { ChevronRight, X } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
 import { motion, useDragControls } from 'framer-motion';
 import {
@@ -49,35 +49,26 @@ const REASON_LABELS: Partial<Record<NearbyRecommendationReason, string>> = {
 
 /**
  * 店の1行（左に写真、右に店名・ジャンル・理由）。おすすめ一覧と、AI の返事が挙げた店の両方で使う。
- * gridOnDesktop のときは PC で3列グリッドの写真カードになる（おすすめ一覧）
+ * PC もスマホと同じ1列のリストで出す（共通のUI）
  */
 function NearbyShopRow({
   entry,
   color,
   onSelect,
-  gridOnDesktop = false,
 }: {
   entry: NearbyRecommendedShop;
   color: string;
   onSelect: (shopId: number) => void;
-  gridOnDesktop?: boolean;
 }) {
   const reason = REASON_LABELS[entry.reason];
-  const g = (classes: string) => (gridOnDesktop ? classes : '');
   return (
     <button
       type="button"
       onClick={() => onSelect(entry.shopId)}
-      className={cn(
-        'flex w-full items-center gap-4 rounded-btn px-2 py-2.5 text-left transition-colors active:bg-nicchyo-base focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400',
-        g('lg:block lg:p-0 lg:transition-transform lg:active:scale-95 lg:active:bg-transparent motion-reduce:lg:active:scale-100')
-      )}
+      className="flex w-full items-center gap-4 rounded-btn px-2 py-2.5 text-left transition-colors active:bg-nicchyo-base focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400"
     >
       <span
-        className={cn(
-          'block h-24 w-28 shrink-0 overflow-hidden rounded-btn border-2 bg-nicchyo-ink/[0.04]',
-          g('lg:aspect-[4/3] lg:h-auto lg:w-full')
-        )}
+        className="block h-24 w-28 shrink-0 overflow-hidden rounded-btn border-2 bg-nicchyo-ink/[0.04]"
         style={{ borderColor: color }}
       >
         {entry.imageUrl && (
@@ -92,18 +83,13 @@ function NearbyShopRow({
         )}
       </span>
       <span className="min-w-0 flex-1">
-        <span
-          className={cn(
-            'line-clamp-2 text-[17px] font-bold leading-snug text-nicchyo-ink',
-            g('lg:mt-1 lg:truncate lg:text-[11px] lg:leading-tight')
-          )}
-        >
+        <span className="line-clamp-2 text-[17px] font-bold leading-snug text-nicchyo-ink">
           {entry.name}
         </span>
-        <span className={cn('mt-1.5 flex items-center gap-1.5 truncate text-[13px] text-nicchyo-ink/55', g('lg:mt-0 lg:text-[10px]'))}>
-          {/* ジャンルは写真の枠の色と同じ点で示す。PC のグリッドは写真の枠で足りるので出さない */}
+        <span className="mt-1.5 flex items-center gap-1.5 truncate text-[13px] text-nicchyo-ink/55">
+          {/* ジャンルは写真の枠の色と同じ点で示す */}
           {entry.category && (
-            <span className={cn('flex shrink-0 items-center gap-1', g('lg:hidden'))}>
+            <span className="flex shrink-0 items-center gap-1">
               <span aria-hidden className="h-2.5 w-2.5 rounded-chip" style={{ backgroundColor: color }} />
               {entry.category}
             </span>
@@ -111,7 +97,7 @@ function NearbyShopRow({
           {reason && <span className="truncate">{reason}</span>}
         </span>
       </span>
-      <ChevronRight aria-hidden className={cn('h-5 w-5 shrink-0 text-nicchyo-ink/30', g('lg:hidden'))} />
+      <ChevronRight aria-hidden className="h-5 w-5 shrink-0 text-nicchyo-ink/30" />
     </button>
   );
 }
@@ -387,7 +373,7 @@ export default function NearbyExplorePanel({
   return (
     <div className="pointer-events-none absolute inset-x-0 bottom-0 z-[1300]">
       <motion.div
-        className="pointer-events-auto mx-auto flex w-full max-w-xl flex-col overflow-hidden rounded-t-[28px] border border-b-0 border-amber-200 bg-white shadow-[0_-24px_60px_rgba(15,23,42,0.2)]"
+        className="pointer-events-auto relative mx-auto flex w-full max-w-xl flex-col overflow-hidden rounded-t-[28px] border border-b-0 border-amber-200 bg-white shadow-[0_-24px_60px_rgba(15,23,42,0.2)]"
         style={{ height: sheetHeight }}
         initial={{ opacity: 0, y: 48 }}
         animate={{ opacity: 1, y: 0 }}
@@ -406,6 +392,16 @@ export default function NearbyExplorePanel({
         onClick={(e) => e.stopPropagation()}
         onTouchStart={(e) => e.stopPropagation()}
       >
+        {/* 閉じる（×）。緑の閉じるバーの代わりに、パネルの右上に置く */}
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="閉じる"
+          className="absolute right-3 top-3 z-10 flex h-9 w-9 items-center justify-center rounded-full bg-nicchyo-ink/[0.06] text-nicchyo-ink/70 transition hover:bg-nicchyo-ink/10"
+        >
+          <X className="h-4 w-4" aria-hidden />
+        </button>
+
         {/* ドラッグハンドル */}
         <div
           className="flex shrink-0 cursor-grab justify-center pb-2 pt-3 active:cursor-grabbing"
@@ -423,7 +419,7 @@ export default function NearbyExplorePanel({
         >
           {/* 字幕1行 + ジャンル内訳バー */}
           <div>
-            <p className="text-[15px] font-bold leading-tight text-slate-900">
+            <p className="pr-12 text-[15px] font-bold leading-tight text-slate-900">
               {hasShops ? (
                 <>
                   {areaLabel}に{' '}
@@ -502,21 +498,19 @@ export default function NearbyExplorePanel({
           </div>
 
           {/* おすすめ店（理由付き）。
-              スマホは3列だと写真も店名も小さすぎるので、おでかけサポートの一覧と同じ1列のリストにする
-              （左に写真、右に店名・ジャンル・おすすめの理由）。PC は幅があるので3列×3行の写真グリッドのまま */}
+              スマホと PC で同じ1列のリスト（左に写真、右に店名・ジャンル・おすすめの理由） */}
           {filteredShops.length > 0 && (
             <div>
               <p className="mb-2.5 text-[11px] font-bold uppercase tracking-[0.16em] text-nicchyo-ink/55">
                 {genreFilter ? `このへんの${genreFilter}（${filteredShops.length}店）` : 'このへんのおすすめ'}
               </p>
-              <ul className="-mx-2 flex flex-col lg:mx-0 lg:grid lg:grid-cols-3 lg:gap-3">
+              <ul className="-mx-2 flex flex-col">
                 {filteredShops.map((entry) => (
                   <li key={entry.shopId}>
                     <NearbyShopRow
                       entry={entry}
                       color={genreColor(entry.category)}
                       onSelect={onSelectShop}
-                      gridOnDesktop
                     />
                   </li>
                 ))}

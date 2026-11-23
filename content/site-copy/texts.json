@@ -177,5 +177,21 @@
   "landing.about.message1": "日曜市を、",
   "landing.about.message2": "つぎの300年へ。",
   "landing.about.signature": "nicchyo 開発チーム（高知高専）",
-  "landing.about.activitiesLink": "これまでの取り組み"
+  "landing.about.activitiesLink": "これまでの取り組み",
+  "support.meta.title": "協賛・ご支援について",
+  "support.meta.description": "nicchyo へいただいたご支援の使い道と、ご支援の方法をご案内しております。個人の方からも、組織・企業の方からも承っております。",
+  "support.meta.ogTitle": "協賛・ご支援について | nicchyo",
+  "support.meta.ogDescription": "高知・日曜市の地図 nicchyo は、高知高専の学生と顧問の教員が運営しております。いただいたご支援は、ドメイン代や開発・運用の費用、AIの利用料など、nicchyo を続けるために使わせていただきます。",
+  "supporters.meta.title": "ご支援くださった皆さま",
+  "supporters.meta.description": "nicchyo を個人でご支援くださった皆さまのお名前です。掲載に同意をいただいた方のみ記載しております。",
+  "supporters.meta.ogTitle": "ご支援くださった皆さま | nicchyo",
+  "supporters.meta.ogDescription": "nicchyo を個人でご支援くださった皆さまのお名前です。",
+  "supporters.heading": "ご支援くださった皆さま",
+  "supporters.lead": "個人でご支援くださった皆さまです。掲載に同意をいただいた方のみ、お名前を記載しております。",
+  "story.meta.title": "近況",
+  "story.meta.description": "出店者の今週の写真投稿をチェックしよう。",
+  "story.heading": "近況",
+  "story.demoNotice": "近況のデモです。お店・投稿・AIキャラのひとことは、すべて見本です。",
+  "story.empty": "まだ投稿がありません",
+  "story.loadError": "投稿の読み込みに失敗しました"
 }
