@@ -2,8 +2,7 @@
 
 import { useRef, type ReactNode } from "react";
 import Link from "next/link";
-import { motion, useReducedMotion } from "framer-motion";
-import { ChevronRight, MessageCircleQuestionMark, X } from "lucide-react";
+import { MessageCircleQuestionMark, X } from "lucide-react";
 import GrandmaAvatar from "@/app/(public)/consult/components/GrandmaAvatar";
 import { DEFAULT_CONSULT_CHARACTER } from "@/app/(public)/consult/data/consultCharacters";
 import { resolveGrandmaPose } from "@/lib/grandma/pose";
@@ -14,7 +13,7 @@ import HelpProposalCard from "../help/HelpProposalCard";
 import HelpMemoryCard from "../help/HelpMemoryCard";
 import { CONTACT_HREF, contactMessageFor, useVendorHelpChat } from "../help/useVendorHelpChat";
 import { saveContactPrefill } from "@/lib/contact/prefill";
-import { countLabel, countUnit } from "./countLabel";
+import { countUnit } from "./countLabel";
 
 /** 待っているあいだの、にちよさんの決まったひとこと */
 const IDLE_LINE = "今日もおつかれさま！";
@@ -23,9 +22,9 @@ const IDLE_LINE = "今日もおつかれさま！";
  * 出店者トップの主役。
  *
  * 中央に大きなにちよさんが立ち、ふだんは吹き出しで決まったひとことを言っている。
- * 入力が要る質問があるときだけ、にちよさんの右上に受信箱のような吹き出し
- * （「！」と質問の数）を出す。押すと質問ページ（/my-shop/ask）へ移り、
- * にちよさんと質問だけの画面で答える。聞くことが無いときは吹き出しを出さない。
+ * 入力が要る質問があるときは、そのひとことの中に「質問が三つ」を言う。
+ * その言葉をタップすると質問ページ（/my-shop/ask）へ移り、
+ * にちよさんと質問だけの画面で答える。聞くことが無いときはその言葉を出さない。
  *
  * 話し手は既定のにちよさんに固定する。質問文がにちよさんの口調で書かれているため、
  * 相談ページで選んだ別のキャラに切り替えると言葉遣いが合わなくなる。
@@ -36,7 +35,6 @@ const IDLE_LINE = "今日もおつかれさま！";
 export default function VendorAskStage({ vendorId, accountId }: { vendorId: string; accountId?: string }) {
   const inbox = useVendorAskInbox(vendorId);
   const { status, pendingCount } = inbox;
-  const reduceMotion = useReducedMotion() ?? false;
   const showInbox = status === "ready" && pendingCount > 0;
   const help = useVendorHelpChat(accountId ?? vendorId);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -52,53 +50,6 @@ export default function VendorAskStage({ vendorId, accountId }: { vendorId: stri
       <div className="consult-appear relative flex">
         <GrandmaAvatar pose={pose} size="hero" character={DEFAULT_CONSULT_CHARACTER} />
 
-        {showInbox && (
-          <motion.div
-            // 狭い画面（320px 幅など）では、はみ出さないよう少し左に寄せる
-            className="absolute -top-2 left-1/2 min-[360px]:left-[60%]"
-            initial={reduceMotion ? false : { scale: 0.6, opacity: 0 }}
-            animate={reduceMotion ? { scale: 1, opacity: 1 } : { scale: 1, opacity: 1, y: [0, -4, 0] }}
-            transition={
-              reduceMotion
-                ? { duration: 0 }
-                : {
-                    scale: { type: "spring", stiffness: 380, damping: 20 },
-                    opacity: { duration: 0.15 },
-                    y: { duration: 2.4, repeat: Infinity, ease: "easeInOut", delay: 0.5 },
-                  }
-            }
-          >
-            <Link
-              href="/my-shop/ask"
-              className="relative flex items-center gap-2 rounded-chip bg-white py-1.5 pl-1.5 pr-2.5 shadow-lift ring-1 ring-amber-200 transition active:scale-95 motion-reduce:active:scale-100"
-            >
-              <span
-                aria-hidden
-                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-amber-500 text-base font-black leading-none text-white"
-              >
-                !
-              </span>
-              {/* 見えている文字（「質問が5つ」）をそのままリンクの名前にする。音声操作で見えている言葉を言えば押せるように */}
-              <span className="whitespace-nowrap text-sm font-bold leading-none text-amber-900">
-                <span className="sr-only">にちよさんからの</span>
-                質問が
-                <span
-                  data-testid="vendor-ask-inbox-count"
-                  className="mx-0.5 text-lg tabular-nums text-amber-600"
-                >
-                  {pendingCount}
-                </span>
-                {countUnit(pendingCount)}
-              </span>
-              <ChevronRight aria-hidden className="-ml-1 h-4 w-4 shrink-0 text-amber-700/70" />
-              {/* 吹き出しのしっぽ（にちよさんの方を向く） */}
-              <span
-                aria-hidden
-                className="absolute -bottom-[5px] left-4 h-2.5 w-2.5 rotate-45 border-b border-r border-amber-200 bg-white"
-              />
-            </Link>
-          </motion.div>
-        )}
       </div>
 
       <div
@@ -146,7 +97,19 @@ export default function VendorAskStage({ vendorId, accountId }: { vendorId: stri
             <p className="text-lg font-bold leading-relaxed text-amber-900">{IDLE_LINE}</p>
             {showInbox ? (
               <p className="mt-1 text-sm leading-relaxed text-amber-900/80">
-                教えてほしいことが{countLabel(pendingCount)}あるき、手が空いたら上の「質問」を押してや。
+                {/* 見えている文字（「質問が三つ」）をそのままリンクの名前にする。音声操作で見えている言葉を言えば押せるように */}
+                <Link
+                  href="/my-shop/ask"
+                  className="rounded font-bold text-amber-700 underline decoration-amber-300 decoration-2 underline-offset-4 transition active:scale-95 motion-reduce:active:scale-100"
+                >
+                  <span className="sr-only">にちよさんからの</span>
+                  質問が
+                  <span data-testid="vendor-ask-inbox-count" className="tabular-nums">
+                    {pendingCount}
+                  </span>
+                  {countUnit(pendingCount)}
+                </Link>
+                あるき、手が空いたら押してや。
               </p>
             ) : (
               <p className="mt-1 text-sm leading-relaxed text-amber-900/80">

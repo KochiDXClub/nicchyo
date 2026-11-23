@@ -79,6 +79,33 @@ describe("主な商品の入力（名前・写真・値段）", () => {
     URL.revokeObjectURL = vi.fn();
   });
 
+  it("今週の商品は値段なしで、追加済みの商品と入力中の商品の写真をまとめて送れる", async () => {
+    const onSubmit = vi.fn();
+    const { container } = render(<AskInput question={ASK_QUESTION_BY_ID.get("weekly-products")!}
+      snapshot={{ weekly: { products: ["みかん"], isOpen: true } } as VendorAskSnapshot}
+      saving={false} onSubmit={onSubmit} onSkip={() => {}} />);
+    expect(screen.queryByLabelText("値段")).not.toBeInTheDocument();
+    pick("商品名", "トマト");
+    const file = new File(["x"], "tomato.jpg", { type: "image/jpeg" });
+    fireEvent.change(container.querySelectorAll('input[type="file"]')[1], { target: { files: [file] } });
+    await screen.findByRole("button", { name: "追加する商品の写真を変える" });
+    submit();
+    expect(onSubmit).toHaveBeenCalledWith({ id: "weekly-products", products: ["みかん", "トマト"],
+      photos: [{ name: "トマト", imageFile: file }] });
+  });
+
+  it("週が変わっても同じ商品の写真を表示し、写真を触らず名前だけで登録できる", () => {
+    const onSubmit = vi.fn();
+    const snapshot: Partial<VendorAskSnapshot> = { weekly: null, productPhotos: { トマト: "https://example.supabase.co/t.webp" } };
+    render(<AskInput question={ASK_QUESTION_BY_ID.get("weekly-products")!}
+      snapshot={snapshot as VendorAskSnapshot} saving={false} onSubmit={onSubmit} onSkip={() => {}} />);
+    pick("商品名", "トマト");
+    fireEvent.click(screen.getByRole("button", { name: "追加する" }));
+    expect(screen.getByRole("button", { name: "トマトの写真を変える" })).toBeInTheDocument();
+    submit();
+    expect(onSubmit).toHaveBeenCalledWith({ id: "weekly-products", products: ["トマト"] });
+  });
+
   it("写真を触らなければ、imageFile は渡さない（今の写真のまま）", () => {
     const { onSubmit } = renderProducts([{ name: "トマト", price: 300, imageUrl: "https://example.supabase.co/t.webp" }]);
     submit();

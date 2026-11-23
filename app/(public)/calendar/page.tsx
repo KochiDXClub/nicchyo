@@ -1,51 +1,48 @@
+import Link from "next/link";
+import SiteGuideLink from "@/app/components/SiteGuideLink";
 import type { Metadata } from "next";
-import { cookies } from "next/headers";
 import NavigationBar from "../../components/NavigationBar";
-import MarketStatusCalendar from "../../components/market/MarketStatusCalendar";
-import UpcomingSundays from "../../components/market/UpcomingSundays";
-import { createClient } from "@/utils/supabase/server";
-import {
-  fetchMarketCalendar,
-  groupEventsBySunday,
-  UPCOMING_SUNDAYS_FULL_COUNT,
-} from "@/lib/market/calendar";
+import MarketCalendarView from "./components/MarketCalendarView";
+import { getMarketCalendarDates, PUBLIC_CALENDAR_WEEKS } from "@/lib/market/calendar";
+import { loadPublicMarketCalendar } from "@/lib/market/calendar.server";
 import { PageContainer, PageShell } from "@/components/ui";
+import { findNextMarketDate } from "./marketFilter";
 
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "日曜市カレンダー",
+  title: "市の開催カレンダー",
   description:
-    "高知・日曜市の開催状況とこれからのイベント予定。荒天中止や特別開催のお知らせもここで確認できます。",
+    "高知の市の開催状況とこれからのイベント予定。荒天中止や特別開催のお知らせもここで確認できます。",
 };
 
 export default async function MarketCalendarPage() {
-  const cookieStore = await cookies();
-  const supabase = createClient(cookieStore);
-  const calendar = await fetchMarketCalendar(supabase).catch(() => null);
-  const sundays = calendar ? groupEventsBySunday(calendar.events, calendar.days, UPCOMING_SUNDAYS_FULL_COUNT) : [];
+  const calendar = await loadPublicMarketCalendar().catch(() => null);
+  const dates = calendar ? getMarketCalendarDates(calendar, PUBLIC_CALENDAR_WEEKS.full) : [];
+  const next = findNextMarketDate(dates);
+  const title = next?.marketName ? "市の開催カレンダー" : "日曜市カレンダー";
+
+  const heading = (
+    <>
+      <SiteGuideLink />
+      <p className="text-[11px] font-bold uppercase tracking-[0.32em] text-nicchyo-primary">Market Calendar</p>
+      <h1 className={`mt-1 font-black leading-none tracking-tight ${next?.marketName ? "text-[1.75rem] sm:text-[2rem]" : "text-[2rem]"}`}>
+        {title}
+      </h1>
+      <p className="mt-2.5 text-sm text-nicchyo-ink/55">各市の開催状況と、これからの予定を確認できます。</p>
+    </>
+  );
+  const notice = !calendar ? (
+    <p role="status" className="mt-5">開催状況を取得できませんでした。時間をおいて再度ご確認ください。</p>
+  ) : dates.length === 0 ? (
+    <p className="mt-5">公開中の市の予定はありません。</p>
+  ) : null;
 
   return (
     <PageShell as="main" topNav>
-      <div className="bg-gradient-to-b from-nicchyo-soft-green/25 to-transparent pb-6 pt-safe-top">
-        <PageContainer width="narrow" className="pt-6">
-          <p className="text-[11px] font-bold uppercase tracking-[0.32em] text-nicchyo-primary">
-            Market Calendar
-          </p>
-          <h1 className="mt-1 text-[2rem] font-black leading-none tracking-tight">
-            日曜市カレンダー
-          </h1>
-          <p className="mt-2.5 text-sm text-nicchyo-ink/55">
-            開催状況とこれからの予定をお届けします
-          </p>
-
-          {calendar ? <MarketStatusCalendar day={calendar.day} className="mt-5" link={false} /> : <p role="status" className="mt-5">開催状況を取得できませんでした。時間をおいて再度ご確認ください。</p>}
-        </PageContainer>
-      </div>
+      <MarketCalendarView heading={heading} dates={dates} notice={notice} />
 
       <PageContainer width="narrow">
-        {calendar && <UpcomingSundays sundays={sundays} showHeading={false} />}
-
         <p className="mt-6 text-center text-[11px] leading-relaxed text-nicchyo-ink/40">
           出店者ごとの当日の様子は
           <br />
@@ -54,6 +51,10 @@ export default async function MarketCalendarPage() {
           </a>
           でご覧いただけます
         </p>
+        <div className="mt-5 flex flex-wrap gap-x-5">
+          <Link href="/story" className="inline-flex min-h-11 items-center text-sm font-semibold underline underline-offset-4">出店者の近況を見る</Link>
+          <Link href="/contact?category=bug#corrections" className="inline-flex min-h-11 items-center text-sm font-semibold underline underline-offset-4">掲載情報の訂正を知らせる</Link>
+        </div>
       </PageContainer>
 
       <NavigationBar backBarOnTop />

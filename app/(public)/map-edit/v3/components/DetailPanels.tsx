@@ -49,6 +49,8 @@ export function RoadDetailPanel({
   road,
   onNameChange,
   onKindChange,
+  markets,
+  onMarketChange,
   onWiderClick,
   onNarrowerClick,
   onDelete,
@@ -58,6 +60,8 @@ export function RoadDetailPanel({
   road: EditableRoad;
   onNameChange: (value: string) => void;
   onKindChange: (kind: RoadKind) => void;
+  markets: { id: string; slug: string; name: string }[];
+  onMarketChange: (id: string) => void;
   onWiderClick: () => void;
   onNarrowerClick: () => void;
   onDelete: () => void;
@@ -84,6 +88,20 @@ export function RoadDetailPanel({
           </option>
         ))}
       </select>
+
+      {markets.length > 1 && (
+        <label style={label}>
+          所属する市
+          <select
+            value={road.marketId ?? markets.find((market) => market.slug === "nichiyo")?.id ?? ""}
+            onChange={(event) => onMarketChange(event.target.value)}
+            disabled={shopCountOnRoad(road.id) > 0}
+            style={inputStyle}
+          >
+            {markets.map((market) => <option key={market.id} value={market.id}>{market.name}</option>)}
+          </select>
+        </label>
+      )}
 
       <span style={label}>道幅（{road.widthMeters}m）</span>
       <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>

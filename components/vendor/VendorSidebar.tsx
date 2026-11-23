@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname, useRouter } from "next/navigation";
-import { House, LogOut, Map as MapIcon, Store } from "lucide-react";
+import { House, LogOut, Map as MapIcon } from "lucide-react";
 import { useAuth } from "@/lib/auth/AuthContext";
 import {
   ConsoleSidebar,
@@ -79,9 +79,8 @@ export default function VendorSidebar({
       menuLabel="出店者メニュー"
       // スマホは下部バー（VendorNavBar）で代わりの導線を出すので、開閉ボタンは出さない
       showMobileToggle={false}
-      brandIcon={Store}
-      brandClassName="bg-amber-500"
-      title="nicchyo"
+      homeHref={VENDOR_HOME_HREF}
+      homeLabel="nicchyo マイ店舗へ"
       subtitle="出店者ページ"
       groups={groups}
       accent={VENDOR_ACCENT}

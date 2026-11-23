@@ -77,6 +77,17 @@ beforeEach(() => {
 });
 
 describe("saveAskAnswer（どの列に書くか）", () => {
+  it("今週の商品写真は同じ出店者の商品に保存し、主な商品と値段は変更しない", async () => {
+    respond = (call) => call.table === "products" && call.op === "select"
+      ? { data: [{ id: "p1", name: "トマト", image_url: null }] } : {};
+    await saveAskAnswer("v1", "2026-10-04", { id: "weekly-products", products: ["トマト", "なす"],
+      photos: [{ name: "トマト", imageFile: new File(["x"], "tomato.jpg") }] });
+    expect(writes().map(({ table, op }) => [table, op])).toEqual([["products", "update"], ["vendor_weekly_status", "upsert"]]);
+    expect(writes()[0].filters).toEqual(["id=p1", "vendor_id=v1"]);
+    expect(storageUpload.mock.calls[0][0]).toBe("v1/product-p1.webp");
+    expect(writes()[1].payload).toMatchObject({ products: ["トマト", "なす"], week_date: "2026-10-04" });
+  });
+
   it("X は sns_x に、空なら null で書く", async () => {
     await saveAskAnswer("v1", "2026-10-04", { id: "x", value: "  " });
     expect(writes()).toEqual([
@@ -293,6 +304,32 @@ describe("主な商品の写真", () => {
     expect(storageRemove).toHaveBeenCalledWith(["v1/product-p2.webp"]);
   });
 
+  it("今週（ほかの週でも）の商品に載っている名前は、主な商品から外しても行も写真も消さない（写真は翌週も使う）", async () => {
+    productRows(
+      [
+        { id: "p1", name: "今週だけの商品", image_url: "https://example.supabase.co/v1/product-p1.webp" },
+        { id: "p2", name: "先週の商品", image_url: null },
+        { id: "p3", name: "どこにも載っていない", image_url: null },
+      ],
+      { main_products: ["今週だけの商品", "先週の商品", "どこにも載っていない"] }
+    );
+    const base = respond;
+    respond = (call) =>
+      call.table === "vendor_weekly_status" && call.op === "select"
+        ? { data: [{ products: ["今週だけの商品"] }, { products: ["先週の商品"] }], error: null }
+        : base(call);
+    storageList.mockResolvedValue({ data: [{ name: "product-p1.webp" }] });
+    storageRemove.mockResolvedValue({ error: null });
+
+    await saveAskAnswer("v1", "2026-10-04", { id: "products", items: [] });
+
+    expect(calls.filter((call) => call.op === "delete")).toEqual([
+      expect.objectContaining({ table: "products", filters: ["id=p3", "vendor_id=v1"] }),
+    ]);
+    expect(calls.filter((call) => call.op === "update" && call.table === "products")).toEqual([]);
+    expect(storageRemove).not.toHaveBeenCalledWith(["v1/product-p1.webp"]);
+  });
+
   it("一覧の保存に失敗したときは、商品の行も写真も消さない（掃除は一覧の保存のあと）", async () => {
     productRows(
       [{ id: "p2", name: "なす", image_url: null }],
@@ -334,6 +371,7 @@ describe("fetchAskSnapshot", () => {
 
     const snapshot = await fetchAskSnapshot("v1", "2026-10-04");
 
+    expect(snapshot.productPhotos).toEqual({ トマト: "https://example.supabase.co/t.webp" });
     expect(snapshot.products).toEqual([
       { name: "トマト", price: 300, imageUrl: "https://example.supabase.co/t.webp", seasons: [] },
       { name: "なす", price: null, imageUrl: undefined, seasons: [] },

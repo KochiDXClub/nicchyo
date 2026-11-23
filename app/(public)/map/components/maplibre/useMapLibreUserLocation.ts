@@ -21,6 +21,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import * as maplibregl from "maplibre-gl";
 
 import { SmoothGeolocateControl } from "./smoothGeolocateControl";
+import { createLocationChoiceReporter } from "@/lib/analytics/locationPermissionCount";
 import { useLocationPermissionGate } from "../../hooks/useLocationPermissionGate";
 import type { MapRouteConfig, MapRoutePoint } from "../../types/mapRoute";
 import {
@@ -93,6 +94,12 @@ export function useMapLibreUserLocation({
   // 追従ボタンを押されたのは「ご自分から現在地を求められた」ということなので待たせない
   const [requested, setRequested] = useState(false);
   const canAskLocation = useLocationPermissionGate(requested);
+  // 位置情報の許可・拒否を匿名で数える（送れなくても地図は止めない）
+  const [choiceReporter] = useState(createLocationChoiceReporter);
+
+  useEffect(() => {
+    void choiceReporter.readPriorState();
+  }, [choiceReporter]);
 
   useEffect(() => {
     onLocationUpdateRef.current = onLocationUpdate;
@@ -137,6 +144,7 @@ export function useMapLibreUserLocation({
     };
     const handleGeolocate = (event: { coords: GeolocationCoordinates }) => {
       hasFixRef.current = true;
+      choiceReporter.onAllowed();
       if (releaseOnNextFixRef.current) {
         releaseOnNextFixRef.current = false;
         // control が始めた寄せ（fitBounds）を最初のフレームが出る前に止める
@@ -145,12 +153,15 @@ export function useMapLibreUserLocation({
       reportInMarket(event.coords);
     };
     const handleOutOfBounds = (event: { coords: GeolocationCoordinates }) => {
+      // 可動範囲の外でも位置は取れている（許可済み）。geolocate の代わりにこちらへ来るので数える
+      choiceReporter.onAllowed();
       inMarketRef.current = false;
       onLocationUpdateRef.current?.(false, [event.coords.latitude, event.coords.longitude]);
     };
     const handleError = (event: { code: number; message: string }) => {
       console.warn("Failed to get geolocation", event.code, event.message);
       if (event.code === 1) {
+        choiceReporter.onDenied();
         permissionDeniedRef.current = true;
         releaseOnNextFixRef.current = false;
         isTrackingRef.current = false;
@@ -204,7 +215,7 @@ export function useMapLibreUserLocation({
       permissionDeniedRef.current = false;
       setIsTracking(false);
     };
-  }, [map, zoomOffset]);
+  }, [map, zoomOffset, choiceReporter]);
 
   // control の準備が終わってから trigger する。Geolocation API が無い端末では準備が終わらないので諦める
   const trigger = useCallback(() => {

@@ -1,3 +1,4 @@
+import SiteGuideLink from "@/app/components/SiteGuideLink";
 import React from "react";
 import Link from "next/link";
 
@@ -11,7 +12,7 @@ export const metadata = {
 };
 
 /** 内容を改めたときは、この日付も更新してください */
-const LAST_UPDATED = "2026年11月17日";
+const LAST_UPDATED = "2026年11月18日";
 
 type Destination = {
   name: string;
@@ -62,6 +63,17 @@ const destinations: Destination[] = [
   },
 ];
 
+const policySections = [
+  { id: "data-collected", label: "お預かりしている情報" },
+  { id: "location", label: "位置情報の取り扱い" },
+  { id: "microphone", label: "音声入力（マイク）の取り扱い" },
+  { id: "external-services", label: "外部への送信" },
+  { id: "analytics-settings", label: "アクセス解析を止める" },
+  { id: "data-purpose", label: "情報の使いみち" },
+  { id: "retention", label: "第三者への提供と保存期間" },
+  { id: "privacy-contact", label: "お問い合わせ窓口" },
+];
+
 export default function PrivacyPage() {
   return (
     <div className="min-h-screen bg-nicchyo-base pb-28">
@@ -73,11 +85,10 @@ export default function PrivacyPage() {
 
       <main className="mx-auto max-w-[38rem] px-5">
         {/* 導入 */}
-        <div className="pt-12 pb-10">
-          <h1 className="text-[1.6rem] font-bold leading-[1.55] tracking-[-0.01em] text-nicchyo-ink sm:text-[1.875rem]">
-            お預かりする情報を、
-            <br />
-            できるだけ少なく
+        <div className="pb-8 pt-4">
+          <SiteGuideLink />
+          <h1 className="mt-3 text-[1.6rem] font-bold leading-[1.55] tracking-[-0.01em] text-nicchyo-ink sm:text-[1.875rem]">
+            プライバシーポリシー
           </h1>
           <p className="mt-6 text-[0.95rem] leading-[1.95] text-[#5C574F]">
             nicchyo（以下「当サービス」といいます）は、高知・日曜市を初めて訪れる方をご案内するための地図サービスです。
@@ -86,6 +97,19 @@ export default function PrivacyPage() {
             位置情報とマイクは、お使いになる場面でのみ許可をお尋ねいたします。
           </p>
         </div>
+
+        <nav aria-labelledby="privacy-contents" className="mb-8 rounded-card bg-white p-5 ring-1 ring-line sm:p-6">
+          <h2 id="privacy-contents" className="font-bold text-nicchyo-ink">知りたい項目へ</h2>
+          <ul className="mt-2 grid gap-x-5 sm:grid-cols-2">
+            {policySections.map(({ id, label }) => (
+              <li key={id}>
+                <a href={`#${id}`} className="inline-flex min-h-11 items-center rounded-btn text-sm font-semibold text-nicchyo-ink underline underline-offset-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-nicchyo-primary">
+                  {label}
+                </a>
+              </li>
+            ))}
+          </ul>
+        </nav>
 
         {/* 中心にある約束 */}
         <div className="border-l-[3px] border-nicchyo-primary pl-5 sm:pl-6">
@@ -97,7 +121,7 @@ export default function PrivacyPage() {
         </div>
 
         <div className="mt-14 space-y-14">
-          <Section number={1} title="お預かりしている情報">
+          <Section id="data-collected" number={1} title="お預かりしている情報">
             <Detail term="ご覧になったページの記録（自動）">
               ページのアドレス、滞在時間、日付、ブラウザごとに割り当てるランダムな識別子（Cookie{" "}
               <Code>nicchyo_visitor_id</Code>。保存期間は1年）、およびログイン中の場合はその役割（出店者・運営など）を
@@ -115,6 +139,14 @@ export default function PrivacyPage() {
               ブラウザの識別子や IP アドレスなど、個人をたどれる値は含みません。
               同じブラウザのタブで同じお店を開き直しても、数えるのは1回です。
               出店者の方が、ご自身のお店がどれくらい見られているかを知るために用います。
+            </Detail>
+            <Detail term="位置情報の許可の件数（自動）">
+              位置情報を「許可された」方と「許可されなかった」方の数を、それぞれ合計して数えております。
+              どなたの選択かは分からず、個人と結び付けることはございません。
+              ブラウザの識別子や緯度・経度は送らず、保存もいたしません。
+              この件数は、現在地のご案内を改善するために用います。
+              なお、送りすぎを防ぐため、接続元の IP アドレスを回数の制限にのみ一時的に用います。
+              この IP アドレスは件数とは結び付けず、回数の制限の期間が過ぎると消えます。
             </Detail>
             <Detail term="検索の記録（自動）">
               検索欄にご入力いただいたことば、見つかったお店の数、日時をお預かりしております。
@@ -162,7 +194,7 @@ export default function PrivacyPage() {
             </Detail>
           </Section>
 
-          <Section number={2} title="位置情報の取り扱い">
+          <Section id="location" number={2} title="位置情報の取り扱い">
             <Prose>
               地図にご自身の位置を表示すること、目的地までの道のりをお示しすること、
               おでかけサポートで残りの距離を数えることは、すべてお使いの端末の中で完結いたします。
@@ -193,11 +225,18 @@ export default function PrivacyPage() {
               AI へのご相談も位置情報なしで承ります。
             </Prose>
             <Prose>
+              許可・不許可の件数は、どなたの選択かが分からない合計としてだけ数えております。
+              緯度・経度や端末を特定する値は送らず、保存もいたしません。
+              件数は回線の混み具合などにより、実際より少なく出ることがございます。
+              送りすぎを防ぐための接続元 IP アドレスは、件数とは結び付けず、回数の制限の期間が過ぎると消えます。
+              アクセス解析を止めている端末からは、この件数も送りません。
+            </Prose>
+            <Prose>
               一度許可されたあとで取りやめたいときは、ブラウザの設定（サイトごとの権限）からご変更いただけます。
             </Prose>
           </Section>
 
-          <Section number={3} title="音声入力（マイク）の取り扱い">
+          <Section id="microphone" number={3} title="音声入力（マイク）の取り扱い">
             <Prose>
               AI へのご相談は、文字のご入力のほかに、話しかけてご入力いただくこともできます。
               お使いになるにはブラウザからマイクの許可が必要で、
@@ -220,7 +259,7 @@ export default function PrivacyPage() {
             </Prose>
           </Section>
 
-          <Section number={4} title="外部への送信">
+          <Section id="external-services" number={4} title="外部への送信">
             <Prose>
               電気通信事業法の外部送信規律にもとづき、利用者の情報を外部へ送信しているものを記載いたします。
             </Prose>
@@ -252,7 +291,7 @@ export default function PrivacyPage() {
             </p>
           </Section>
 
-          <Section number={5} title="アクセス解析を止める">
+          <Section id="analytics-settings" number={5} title="アクセス解析を止める">
             <Prose>
               アクセス解析は既定で有効ですが、いつでもお止めいただけます。下のスイッチでお切り替えください。
             </Prose>
@@ -273,7 +312,7 @@ export default function PrivacyPage() {
             </Prose>
           </Section>
 
-          <Section number={6} title="情報の使いみち">
+          <Section id="data-purpose" number={6} title="情報の使いみち">
             <ul className="space-y-3 text-[0.95rem] leading-[1.9] text-[#5C574F]">
               {[
                 "地図・検索・ご案内を、初めての方に分かりやすく作り直すため",
@@ -290,7 +329,7 @@ export default function PrivacyPage() {
             </ul>
           </Section>
 
-          <Section number={7} title="第三者への提供と保存期間">
+          <Section id="retention" number={7} title="第三者への提供と保存期間">
             <Prose>
               法令に基づく場合を除き、お客様の個人情報を同意なく第三者へ提供することはございません。
               上の「外部への送信」に挙げた事業者へは、サービスの運営に必要な範囲で業務を委託しており、
@@ -302,7 +341,7 @@ export default function PrivacyPage() {
             </Prose>
           </Section>
 
-          <Section number={8} title="お問い合わせ窓口">
+          <Section id="privacy-contact" number={8} title="お問い合わせ窓口">
             <Prose>
               個人情報の取り扱いについてのご質問、ご自身の情報の開示・削除のご希望は、
               下記のフォームよりご連絡ください。
@@ -327,16 +366,18 @@ export default function PrivacyPage() {
 }
 
 function Section({
+  id,
   number,
   title,
   children,
 }: {
+  id?: string;
   number: number;
   title: string;
   children: React.ReactNode;
 }) {
   return (
-    <section>
+    <section id={id} className={id ? "scroll-mt-20" : undefined}>
       <h2 className="flex items-baseline gap-3 text-[1.05rem] font-semibold text-nicchyo-ink">
         <span className="text-sm font-bold tabular-nums text-nicchyo-soft-green">{number}</span>
         {title}

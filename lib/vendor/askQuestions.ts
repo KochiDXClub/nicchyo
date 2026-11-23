@@ -114,6 +114,8 @@ export type VendorAskSnapshot = {
   motivation?: string;
   yearsRunning?: number | null;
   sundayLove?: string;
+  /** 同じ出店者の同名商品で共通の写真。過去の週だけで扱った商品も含む */
+  productPhotos?: Record<string, string>;
   /** 今週（次の日曜）の回答。行が無ければ null */
   weekly: { isOpen: boolean | null; products: string[] } | null;
 };
@@ -455,7 +457,7 @@ export function isClearAnswer(answer: AskAnswer): boolean {
 
 /** 出店者が1つの質問に答えた内容。保存は askService.saveAskAnswer が行う */
 export type AskAnswer =
-  | { id: "weekly-products"; products: string[] }
+  | { id: "weekly-products"; products: string[]; photos?: { name: string; imageFile: File | null }[] }
   | { id: "hours"; start: string; end: string }
   | { id: "signature"; name: string; imageFile: File | null }
   | { id: "signature-pr"; text: string }

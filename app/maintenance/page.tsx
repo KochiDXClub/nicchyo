@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { createClient as createServiceClient } from "@supabase/supabase-js";
+import { createAdminClient } from "@/lib/supabase/adminClient";
 
 export const metadata: Metadata = {
   title: "メンテナンス中",
@@ -10,13 +10,9 @@ const DEFAULT_MESSAGE =
   "現在システムメンテナンスのためサービスを一時停止しています。\nしばらくしてからもう一度アクセスしてください。";
 
 async function getMaintenanceMessage(): Promise<string> {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) return DEFAULT_MESSAGE;
   try {
-    const dc = createServiceClient(url, key, {
-      auth: { persistSession: false, autoRefreshToken: false },
-    });
+    const dc = createAdminClient();
+    if (!dc) return DEFAULT_MESSAGE;
     const { data } = await dc
       .from("system_settings")
       .select("value")

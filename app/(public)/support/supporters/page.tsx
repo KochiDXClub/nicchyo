@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import NavigationBar from "../../../components/NavigationBar";
+import { getSiteText } from "@/lib/i18n/server";
 import {
   ANONYMOUS_SUPPORTER_COUNT,
   formatMonth,
@@ -16,17 +17,17 @@ import {
  * ここはお名前を等しく並べるだけの場所にして、順番も金額ではなく時系列にする。
  */
 
-export const metadata = {
-  title: "ご支援くださった皆さま",
-  description:
-    "nicchyo を個人でご支援くださった皆さまのお名前です。掲載に同意をいただいた方のみ記載しております。",
-  openGraph: {
-    title: "ご支援くださった皆さま | nicchyo",
-    description: "nicchyo を個人でご支援くださった皆さまのお名前です。",
-  },
-};
+export async function generateMetadata() {
+  const s = await getSiteText();
+  return {
+    title: s("supporters.meta.title"),
+    description: s("supporters.meta.description"),
+    openGraph: { title: s("supporters.meta.ogTitle"), description: s("supporters.meta.ogDescription") },
+  };
+}
 
-export default function IndividualSupportersPage() {
+export default async function IndividualSupportersPage() {
+  const s = await getSiteText();
   const yearGroups = groupSupportersByYear();
   const total = totalIndividualSupporters();
 
@@ -45,10 +46,10 @@ export default function IndividualSupportersPage() {
         </Link>
 
         <h1 className="mt-8 text-[1.7rem] font-bold leading-[1.5] tracking-tight sm:text-[2rem]">
-          ご支援くださった皆さま
+          {s("supporters.heading")}
         </h1>
         <p className="mt-4 max-w-[34rem] text-[14px] leading-[2] text-nicchyo-ink/60">
-          個人でご支援くださった皆さまです。掲載に同意をいただいた方のみ、お名前を記載しております。
+          {s("supporters.lead")}
           {total > 0 && `これまでに ${total.toLocaleString("ja-JP")}名のご支援をいただきました。`}
         </p>
 

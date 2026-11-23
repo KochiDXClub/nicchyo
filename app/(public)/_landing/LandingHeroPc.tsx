@@ -6,23 +6,23 @@ import { getLocale, getSiteText, getT } from "@/lib/i18n/server";
 import LanguageSwitcher from "@/components/navigation/LanguageSwitcher";
 import { PHOTOS } from "./content";
 import NextSundayCalendar, { nextSundayCalendarText } from "./NextSundayCalendar";
-import type { LandingSunday } from "./upcomingSundays";
+import type { LandingMarketDay } from "./upcomingMarketDays";
 import "./landing.css";
 import RevealOnScroll from "./RevealOnScroll";
 
 /**
  * 広い画面（md以上）の最初の一画面。左に見出し・マップをみる・検索、右に日曜市の写真。
- * 写真の上には、「次の日曜市は、いつ？」と同じ日めくりカレンダーで、いちばん近い日曜の開催予定を載せる。
+ * 写真の上には、「次の日曜市は、いつ？」と同じ日めくりカレンダーで、いちばん近い開催日を載せる。
  * スマホは LandingHero の写真地の見た目を使う（この部品は md 未満では出ない）
  */
-export default async function LandingHeroPc({ sundays, showOutingSupport = false }: { sundays: LandingSunday[]; showOutingSupport?: boolean }) {
+export default async function LandingHeroPc({ marketDays, showOutingSupport = false }: { marketDays: LandingMarketDay[]; showOutingSupport?: boolean }) {
   const [locale, t, s] = await Promise.all([getLocale(), getT(), getSiteText()]);
   const nav = [
     { href: "/calendar", label: s("landing.pc.nav.calendar") },
     { href: "/map?guide=menu", label: s("landing.pc.nav.outing") },
     { href: "/about", label: s("landing.pc.nav.about") },
   ];
-  const next = sundays[0];
+  const next = marketDays[0];
   const nextText = next ? nextSundayCalendarText(next, t, locale) : null;
   const { props: photoProps } = getImageProps({ src: PHOTOS.stalls.src, alt: s("landing.hero.photoAlt"), width: PHOTOS.stalls.width, height: PHOTOS.stalls.height, sizes: "(min-width: 1344px) 640px, 50vw", loading: "eager", fetchPriority: "high" });
 
@@ -118,7 +118,7 @@ export default async function LandingHeroPc({ sundays, showOutingSupport = false
               aria-label={s("landing.hero.calendarLink")}
               className="absolute -right-7 -top-9 z-10 origin-top-right scale-[0.8] transition-transform hover:-translate-y-1 motion-reduce:transition-none"
             >
-              {nextText && <NextSundayCalendar sunday={next} text={nextText} />}
+              {nextText && <NextSundayCalendar marketDay={next} text={nextText} />}
             </Link>
           )}
         </RevealOnScroll>

@@ -5,19 +5,18 @@ import { getLocale, getSiteText, getT } from "@/lib/i18n/server";
 import { MARKET_FACTS } from "./content";
 import SectionHeading from "./SectionHeading";
 import NextSundayCalendar, { nextSundayCalendarText } from "./NextSundayCalendar";
-import SundayCard from "./SundayCard";
-import type { LandingSunday } from "./upcomingSundays";
+import MarketDateCard from "./MarketDateCard";
+import type { LandingMarketDay } from "./upcomingMarketDays";
 import "./landing.css";
 
 const FACT_ICONS = { when: Clock, where: MapPin } as const;
 
 /**
- * 次の日曜市は、いつ？ 次の日曜を日めくりカレンダーで大きく見せ、これからの日曜を、
- * 開催カレンダー（market_days）の状態つきで横に並べる（荒天中止・臨時休市は灰色）。
+ * 次の開催日を日めくりで見せ、公開中の市の開催日と状況を横に並べる。
  * 「いつ」「どこ」は、綱からぶら下がる木の看板
  */
-export default async function LandingInfo({ sundays }: { sundays: LandingSunday[] }) {
-  const next = sundays[0];
+export default async function LandingInfo({ marketDays, showSundayDetails }: { marketDays: LandingMarketDay[]; showSundayDetails: boolean }) {
+  const next = marketDays[0];
   if (!next) return null;
   const [locale, t, s] = await Promise.all([getLocale(), getT(), getSiteText()]);
   const nextText = nextSundayCalendarText(next, t, locale);
@@ -25,41 +24,46 @@ export default async function LandingInfo({ sundays }: { sundays: LandingSunday[
   return (
     <section aria-labelledby="landing-info" className="mt-20 md:mt-28">
       <PageContainer width="wide">
-        <SectionHeading id="landing-info">{s("landing.info.title")}</SectionHeading>
+        <SectionHeading id="landing-info">{next.marketName ? t("これからの開催日") : s("landing.info.title")}</SectionHeading>
 
         <div className="mt-8 grid items-center gap-8 md:grid-cols-[15.5rem_minmax(0,1fr)] md:gap-11">
-          <NextSundayCalendar sunday={next} text={nextText} />
+          <NextSundayCalendar marketDay={next} text={nextText} />
 
           <div className="min-w-0">
             <div className="flex items-baseline justify-between gap-3">
-              <p className="text-[15px] font-black text-nicchyo-ink">{s("landing.info.upcoming")}</p>
+              <p className="text-[15px] font-black text-nicchyo-ink">{next.marketName ? t("開催日と開催状況") : s("landing.info.upcoming")}</p>
               <Link href="/calendar" className="text-[13px] font-bold text-amber-700 hover:text-amber-600">
                 {s("landing.info.calendarLink")} →
               </Link>
             </div>
             <ul className="-mx-5 mt-3 flex gap-2.5 overflow-x-auto px-5 pb-3.5 pt-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-              {sundays.map((sunday) => (
-                <SundayCard key={sunday.dateIso} sunday={sunday} />
+              {marketDays.map((day) => (
+                <MarketDateCard key={`${day.marketId}:${day.dateIso}`} marketDay={day} />
               ))}
             </ul>
 
             {/* いつ・どこ：綱からぶら下がる木の看板 */}
-            <dl className="mt-3.5 grid gap-[22px] pt-3 md:grid-cols-2 md:gap-3.5">
-              {MARKET_FACTS.map((fact) => {
-                const Icon = FACT_ICONS[fact.id];
-                return (
-                  <div key={fact.id} className="landing-sign relative flex items-center gap-3 rounded-btn px-4 py-3.5">
-                    <span className="flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-full border-2 border-amber-900 bg-amber-50 text-amber-900">
-                      <Icon aria-hidden className="h-5 w-5" />
-                    </span>
-                    <span>
-                      <dt className="text-[11px] font-bold opacity-75">{s(fact.label)}</dt>
-                      <dd className="text-base font-black md:text-[17px]">{s(fact.detail)}</dd>
-                    </span>
-                  </div>
-                );
-              })}
-            </dl>
+            {showSundayDetails && (
+              <>
+                {next.marketName && <h3 className="mt-4 text-sm font-bold">{t("日曜市")}</h3>}
+                <dl className="mt-3.5 grid gap-[22px] pt-3 md:grid-cols-2 md:gap-3.5">
+                  {MARKET_FACTS.map((fact) => {
+                    const Icon = FACT_ICONS[fact.id];
+                    return (
+                      <div key={fact.id} className="landing-sign relative flex items-center gap-3 rounded-btn px-4 py-3.5">
+                        <span className="flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-full border-2 border-amber-900 bg-amber-50 text-amber-900">
+                          <Icon aria-hidden className="h-5 w-5" />
+                        </span>
+                        <span>
+                          <dt className="text-[11px] font-bold opacity-75">{s(fact.label)}</dt>
+                          <dd className="text-base font-black md:text-[17px]">{s(fact.detail)}</dd>
+                        </span>
+                      </div>
+                    );
+                  })}
+                </dl>
+              </>
+            )}
           </div>
         </div>
       </PageContainer>

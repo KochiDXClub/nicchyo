@@ -17,10 +17,12 @@ import {
   VENDOR_INQUIRY_BODY_MAX_LENGTH,
   VENDOR_INQUIRY_TOPICS,
   VENDOR_INQUIRY_URGENCIES,
+  type VendorInquiryCategory,
   type VendorInquiryTopic,
   type VendorInquiryUrgency,
 } from "@/lib/vendorInquiries/constants";
 import {
+  CATEGORY_GUIDES,
   CATEGORY_LABELS,
   REPORT_PATTERNS,
   TOPIC_LABELS,
@@ -34,18 +36,31 @@ import {
   removeInquiryImage,
   uploadInquiryImage,
 } from "../../_services/inquiriesService";
+import InquiryDestinationPicker from "../components/InquiryDestinationPicker";
 import InquiryErrorNotice from "../components/InquiryErrorNotice";
 
-// 質問・相談の宛先。報告・連絡は選んだ定型パターンごとに決まる（REPORT_PATTERNS.category）
-const CATEGORY_BY_TOPIC = {
-  question: "operator",
-  consultation: "both",
-} as const;
+// 内容欄の例文。宛先ごとに、その相手に聞きそうなことを出す
+const PLACEHOLDER_BY_CATEGORY: Record<VendorInquiryCategory, { question: string; consultation: string }> = {
+  operator: {
+    question: "例：地図に載っているお店の写真を変えるにはどうすればいいですか？",
+    consultation: "例：お店の紹介文をどう書けばいいか相談したいです",
+  },
+  city: {
+    question: "例：出店場所の変更はどこに申請すればいいですか？",
+    consultation: "例：来月から出店の区画を広げたいのですが、相談できますか？",
+  },
+  both: {
+    question: "例：出店場所の変更はどこに申請すればいいですか？",
+    consultation: "例：来月から土曜も出店したいのですが、相談できますか？",
+  },
+};
 
 export default function NewVendorInquiryPage() {
   const router = useRouter();
   const { user } = useAuth();
 
+  // 宛先は出店者が最初に選ぶ。用件や定型パターンで勝手に決めない
+  const [category, setCategory] = useState<VendorInquiryCategory | null>(null);
   const [topic, setTopic] = useState<VendorInquiryTopic | null>(null);
   const [patternId, setPatternId] = useState<string | null>(null);
   const [patternValues, setPatternValues] = useState<Record<string, string>>({});
@@ -63,12 +78,6 @@ export default function NewVendorInquiryPage() {
   const uploadedImageRef = useRef<{ path: string; url: string } | null>(null);
 
   const pattern = patternId ? findReportPattern(patternId) : undefined;
-
-  const category = useMemo(() => {
-    if (topic === "report") return pattern?.category ?? null;
-    if (topic) return CATEGORY_BY_TOPIC[topic];
-    return null;
-  }, [topic, pattern]);
 
   // 送信される本文。報告・連絡は定型パターンの入力を本文へ整形して埋め込む
   const composedBody = useMemo(() => {
@@ -153,40 +162,45 @@ export default function NewVendorInquiryPage() {
       </div>
 
       <div className="mx-auto max-w-2xl space-y-4 px-4 pt-5">
-        {/* 1. 用件を選ぶ */}
-        <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
-          <h2 className="text-base font-semibold text-slate-700">どんな用件ですか？</h2>
-          <div className="mt-3 grid gap-2 sm:grid-cols-3">
-            {VENDOR_INQUIRY_TOPICS.map((t) => {
-              const meta = TOPIC_LABELS[t];
-              const selected = topic === t;
-              return (
-                <button
-                  key={t}
-                  type="button"
-                  onClick={() => {
-                    setTopic(t);
-                    setPatternId(null);
-                    setPatternValues({});
-                  }}
-                  aria-pressed={selected}
-                  className={`rounded-2xl border px-3 py-3 text-left transition ${
-                    selected
-                      ? "border-amber-300 bg-amber-50 shadow-sm"
-                      : "border-slate-200 bg-white hover:border-amber-200 hover:bg-amber-50/50"
-                  }`}
-                >
-                  <span className="text-xl" aria-hidden="true">{meta.emoji}</span>
-                  <span className="mt-1 block text-sm font-bold text-slate-900">{meta.label}</span>
-                  <span className="mt-0.5 block text-[11px] leading-relaxed text-slate-500">{meta.description}</span>
-                </button>
-              );
-            })}
-          </div>
-        </section>
+        {/* 1. 宛先を選ぶ */}
+        <InquiryDestinationPicker value={category} onChange={setCategory} />
 
-        {/* 2. 報告・連絡なら定型パターンを選ぶ */}
-        {topic === "report" && (
+        {/* 2. 用件を選ぶ */}
+        {category && (
+          <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+            <h2 className="text-base font-semibold text-slate-700">どんな用件ですか？</h2>
+            <div className="mt-3 grid gap-2 sm:grid-cols-3">
+              {VENDOR_INQUIRY_TOPICS.map((t) => {
+                const meta = TOPIC_LABELS[t];
+                const selected = topic === t;
+                return (
+                  <button
+                    key={t}
+                    type="button"
+                    onClick={() => {
+                      setTopic(t);
+                      setPatternId(null);
+                      setPatternValues({});
+                    }}
+                    aria-pressed={selected}
+                    className={`rounded-2xl border px-3 py-3 text-left transition ${
+                      selected
+                        ? "border-amber-300 bg-amber-50 shadow-sm"
+                        : "border-slate-200 bg-white hover:border-amber-200 hover:bg-amber-50/50"
+                    }`}
+                  >
+                    <span className="text-xl" aria-hidden="true">{meta.emoji}</span>
+                    <span className="mt-1 block text-sm font-bold text-slate-900">{meta.label}</span>
+                    <span className="mt-0.5 block text-[11px] leading-relaxed text-slate-500">{meta.description}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+        )}
+
+        {/* 3. 報告・連絡なら定型パターンを選ぶ */}
+        {category && topic === "report" && (
           <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
             <h2 className="text-base font-semibold text-slate-700">何についての報告ですか？</h2>
             <div className="mt-3 space-y-2">
@@ -201,14 +215,13 @@ export default function NewVendorInquiryPage() {
                       setPatternValues({});
                     }}
                     aria-pressed={selected}
-                    className={`flex w-full items-center justify-between rounded-2xl border px-4 py-3 text-left text-sm font-semibold transition ${
+                    className={`flex w-full items-center rounded-2xl border px-4 py-3 text-left text-sm font-semibold transition ${
                       selected
                         ? "border-amber-300 bg-amber-50 text-amber-900 shadow-sm"
                         : "border-slate-200 bg-white text-slate-700 hover:border-amber-200 hover:bg-amber-50/50"
                     }`}
                   >
                     {p.label}
-                    <span className="text-[11px] font-normal text-slate-400">{CATEGORY_LABELS[p.category]}へ</span>
                   </button>
                 );
               })}
@@ -247,8 +260,8 @@ export default function NewVendorInquiryPage() {
           </section>
         )}
 
-        {/* 3. 本文 */}
-        {topic && (topic !== "report" || pattern) && (
+        {/* 4. 本文 */}
+        {category && topic && (topic !== "report" || pattern) && (
           <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
             <div className="flex items-center justify-between">
               <h2 className="text-base font-semibold text-slate-700">
@@ -263,11 +276,7 @@ export default function NewVendorInquiryPage() {
               onChange={(e) => setFreeText(e.target.value)}
               rows={8}
               placeholder={
-                topic === "question"
-                  ? "例：出店場所の変更はどこに申請すればいいですか？"
-                  : topic === "consultation"
-                    ? "例：来月から土曜も出店したいのですが、相談できますか？"
-                    : "補足したいことがあれば書いてください"
+                topic === "report" ? "補足したいことがあれば書いてください" : PLACEHOLDER_BY_CATEGORY[category][topic]
               }
               className="mt-2 w-full resize-none rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-base leading-relaxed text-slate-800 outline-none focus:ring-2 focus:ring-amber-300"
             />
@@ -314,8 +323,8 @@ export default function NewVendorInquiryPage() {
           </section>
         )}
 
-        {/* 4. 急ぎ具合 */}
-        {topic && (topic !== "report" || pattern) && (
+        {/* 5. 急ぎ具合 */}
+        {category && topic && (topic !== "report" || pattern) && (
           <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
             <h2 className="text-base font-semibold text-slate-700">どのくらい急ぎですか？</h2>
             <div className="mt-3 grid gap-2 sm:grid-cols-3">
@@ -343,10 +352,14 @@ export default function NewVendorInquiryPage() {
           </section>
         )}
 
+        {/* 送る前に、誰に届き、どう返ってくるかを宛先ごとに見せる */}
         {category && (
-          <p className="px-1 text-sm text-slate-500">
-            この連絡は <span className="font-semibold text-slate-700">{CATEGORY_LABELS[category]}</span> に届きます。
-          </p>
+          <div className="rounded-btn border-l-[3px] border-nicchyo-primary bg-white px-4 py-3 shadow-chip ring-1 ring-line">
+            <p className="text-sm text-nicchyo-ink">
+              宛先：<span className="font-semibold">{CATEGORY_LABELS[category]}</span>
+            </p>
+            <p className="mt-0.5 text-xs leading-relaxed text-nicchyo-ink/70">{CATEGORY_GUIDES[category].receipt}</p>
+          </div>
         )}
 
         {error && <InquiryErrorNotice message={error} needsLogin={needsLogin} />}
@@ -365,7 +378,7 @@ export default function NewVendorInquiryPage() {
           ) : (
             <>
               <Send size={18} />
-              送信する
+              {category ? CATEGORY_GUIDES[category].submitLabel : "送信する"}
             </>
           )}
         </button>

@@ -1,15 +1,12 @@
 import Link from "next/link";
 import {
-  formatEventDate,
   getStatusPresentation,
-  getUpcomingSundayIso,
   shouldSurfaceOnMap,
-  type MarketDay,
+  type MarketCalendarDate,
 } from "@/lib/market/calendar";
 
 type Props = {
-  /** market_days の該当行。未登録なら null（＝通常どおり開催の想定） */
-  day: MarketDay | null;
+  date?: MarketCalendarDate;
   className?: string;
 };
 
@@ -26,14 +23,14 @@ const TONE_CLASS = {
  * 例外（中止・臨時休市・特別開催）のときだけ出す。平常時まで常設すると
  * 検索バーを押し下げるだけのノイズになるため。
  */
-export default function MarketStatusBar({ day, className = "" }: Props) {
-  const status = day?.status ?? "open";
+export default function MarketStatusBar({ date, className = "" }: Props) {
+  if (!date?.status) return null;
+  const { status, day, dateLabel, marketName } = date;
 
   // 平常時に出さない。ステータス未登録（null）も平常扱い。
   if (!shouldSurfaceOnMap(status)) return null;
 
   const { label, tone } = getStatusPresentation(status);
-  const dateLabel = formatEventDate(day?.market_date ?? getUpcomingSundayIso());
 
   return (
     <Link
@@ -42,6 +39,7 @@ export default function MarketStatusBar({ day, className = "" }: Props) {
       className={`flex items-center gap-2 rounded-full px-4 py-2 text-[13px] shadow-sm transition active:scale-[0.99] ${TONE_CLASS[tone]} ${className}`}
     >
       <span className="shrink-0 font-bold">{dateLabel}</span>
+      {marketName && <span className="min-w-0 truncate font-bold">{marketName}</span>}
       <span
         className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-bold ${
           tone === "neutral" ? "bg-nicchyo-primary/15 text-nicchyo-ink" : "bg-black/15"

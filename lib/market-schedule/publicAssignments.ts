@@ -5,14 +5,14 @@ import type { ShopProfile } from "@/app/(public)/map/types/shopData";
 export type PublicAssignment = { vendor_id: string | null; location_id: string | null; market_date: string | null };
 
 /** 不明な予定は休みと断定せず、競合する場合も確認中とする。 */
-export function publicVendorStatuses(data: ScheduleAdminData, date: string, vendorIds: readonly string[]): Map<string, NonNullable<ShopProfile["nextMarketStatus"]>> {
+export function publicVendorStatuses(data: ScheduleAdminData, date: string, vendorIds: readonly string[], weekday = 0): Map<string, NonNullable<ShopProfile["nextMarketStatus"]>> {
   const closed = data.marketDays?.some((day) => day.market_date === date && (day.status === "cancelled" || day.status === "closed"));
   const result = new Map<string, NonNullable<ShopProfile["nextMarketStatus"]>>();
   if (closed) {
     for (const id of vendorIds) result.set(id, "market_closed");
     return result;
   }
-  const plan = resolveSchedule(data, date);
+  const plan = resolveSchedule(data, date, weekday);
   const conflicts = new Set(plan.filter((entry) => entry.state === "conflict").flatMap((entry) => entry.vendorIds));
   const scheduled = new Set(plan.filter((entry) => entry.state === "scheduled").flatMap((entry) => entry.vendorIds));
   const memberships = new Map(data.memberships.map((entry) => [entry.id, entry]));
@@ -51,9 +51,9 @@ export function managedVendorIdsForDate(data: ScheduleAdminData, date: string): 
  * 新しい予定の管理が始まった場所・店舗には、古い配置を復活させない。
  * 指定日に一致する旧配置だけを残し、古い日の記録を現在の出店予定として表示しない。
  */
-export function publicAssignmentsForDate(data: ScheduleAdminData, date: string, legacy: PublicAssignment[], visibleVendors: ReadonlySet<string>): PublicAssignment[] {
+export function publicAssignmentsForDate(data: ScheduleAdminData, date: string, legacy: PublicAssignment[], visibleVendors: ReadonlySet<string>, weekday = 0): PublicAssignment[] {
   if (data.marketDays?.some((day) => day.market_date === date && (day.status === "cancelled" || day.status === "closed"))) return [];
-  const plan = resolveSchedule(data, date);
+  const plan = resolveSchedule(data, date, weekday);
   const members = new Map(data.memberships.map((item) => [item.id, item]));
   const managedLocations = new Set<string>();
   const managedVendors = managedVendorIdsForDate(data, date);

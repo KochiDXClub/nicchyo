@@ -7,6 +7,9 @@ export const TEXT_TABS = [
   { name: "LP", prefix: "about." },
   { name: "マップ案内", prefix: "mapIntro." },
   { name: "トップページ", prefix: "landing." },
+  { name: "協賛・ご支援", prefix: "support." },
+  { name: "支援者一覧", prefix: "supporters." },
+  { name: "近況", prefix: "story." },
 ];
 
 /** LP（app/about）のスライド。並びは表示順 */
@@ -136,6 +139,26 @@ const LANDING = {
   "about.activitiesLink": ["nicchyo について", "活動記録へのボタン"],
 };
 
+/** 協賛・支援者一覧・近況ページの文言（key → [場所, 項目]） */
+const PAGE_COPY = {
+  "support.meta.title": ["ページ全体", "ブラウザのタブ名"],
+  "support.meta.description": ["ページ全体", "検索結果・SNS共有の説明文（ページ上には出ない）"],
+  "support.meta.ogTitle": ["ページ全体", "SNS共有の見出し（ページ上には出ない）"],
+  "support.meta.ogDescription": ["ページ全体", "SNS共有の説明文（ページ上には出ない）"],
+  "supporters.meta.title": ["ページ全体", "ブラウザのタブ名"],
+  "supporters.meta.description": ["ページ全体", "検索結果・SNS共有の説明文（ページ上には出ない）"],
+  "supporters.meta.ogTitle": ["ページ全体", "SNS共有の見出し（ページ上には出ない）"],
+  "supporters.meta.ogDescription": ["ページ全体", "SNS共有の説明文（ページ上には出ない）"],
+  "supporters.heading": ["見出し", "ページの大見出し"],
+  "supporters.lead": ["見出し", "大見出しの下の説明"],
+  "story.meta.title": ["ページ全体", "ブラウザのタブ名"],
+  "story.meta.description": ["ページ全体", "検索結果・SNS共有の説明文（ページ上には出ない）"],
+  "story.heading": ["見出し", "ページの大見出し"],
+  "story.demoNotice": ["デモの案内", "デモのときに出る一言"],
+  "story.empty": ["投稿の一覧", "投稿が無いときの文言"],
+  "story.loadError": ["投稿の一覧", "読み込みに失敗したときの文言"],
+};
+
 /**
  * key から、シート上の置き場所を決める。知らない key は「その他」に入れる（取り込みは key だけで動くので止まらない）。
  * @returns {{ tab: string, place: string, item: string }}
@@ -144,6 +167,8 @@ export function describeKey(key) {
   const tab = TEXT_TABS.find((t) => key.startsWith(t.prefix))?.name ?? TEXT_TABS[0].name;
   const parts = key.split(".");
   const fallback = { tab, place: "その他", item: key };
+
+  if (PAGE_COPY[key]) return { tab, place: PAGE_COPY[key][0], item: PAGE_COPY[key][1] };
 
   if (parts[0] === "faq") {
     if (key === "faq.title") return { tab, place: "ページ全体", item: "見出し・ブラウザのタブ名" };
