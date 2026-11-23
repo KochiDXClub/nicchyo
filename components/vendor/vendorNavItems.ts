@@ -73,7 +73,6 @@ export function visibleVendorNavItems(canShop: (permission: ShopPermission) => b
  */
 const EXTRA_PAGE_PERMISSIONS: { prefix: string; permission: ShopPermission }[] = [
   { prefix: "/my-shop/schedule", permission: "store_edit" },
-  { prefix: "/my-shop/detail", permission: "store_edit" },
   { prefix: "/my-shop/ask", permission: "store_edit" },
   { prefix: "/vendor/intention", permission: "store_edit" },
 ];
