@@ -9,6 +9,7 @@ import { getShopBannerImage } from "@/lib/shopImages";
 import { useVendorShopProfile, type FormState } from "./useVendorShopProfile";
 import { ProductsSection } from "./ProductsSection";
 import { HighlightSection } from "./HighlightSection";
+import { IntroductionSection } from "./IntroductionSection";
 
 
 
@@ -203,6 +204,11 @@ export default function MyShopDetailPage() {
                 highlight={form.highlight}
                 onHighlightChange={handleChange("highlight")}
                 error={errors.highlight}
+              />
+
+              <IntroductionSection
+                introduction={form.introduction}
+                onIntroductionChange={handleChange("introduction")}
               />
 
               <ProductsSection

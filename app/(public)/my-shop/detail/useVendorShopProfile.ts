@@ -21,6 +21,8 @@ export type FormState = {
   categoryId: string;
   stallStyle: string;
   highlight: string;
+  /** お店の紹介（出店者が書く平文、200字まで）。店舗バナーの商品の上に出す。 */
+  introduction: string;
   imageMain: string;
   instagram: string;
   twitter: string;
@@ -61,6 +63,7 @@ const EMPTY_FORM: FormState = {
   categoryId: "",
   stallStyle: "",
   highlight: "",
+  introduction: "",
   imageMain: "",
   instagram: "",
   twitter: "",
@@ -101,7 +104,7 @@ export function useVendorShopProfile() {
 
       const { data: vendor, error: vendorError } = await supabase
         .from("vendors")
-        .select("id, shop_name, strength, style, category_id, shop_image_url, sns_instagram, sns_x, sns_hp")
+        .select("id, shop_name, strength, introduction, style, category_id, shop_image_url, sns_instagram, sns_x, sns_hp")
         .eq("id", vendorId)
         .single();
 
@@ -168,6 +171,7 @@ export function useVendorShopProfile() {
         categoryId: vendor.category_id ?? "",
         stallStyle: vendor.style ?? "",
         highlight: vendor.strength ?? "",
+        introduction: vendor.introduction ?? "",
         imageMain: vendor.shop_image_url ?? "",
         instagram: vendor.sns_instagram ?? "",
         twitter: vendor.sns_x ?? "",
@@ -275,6 +279,7 @@ export function useVendorShopProfile() {
       const vendorPayload = {
         shop_name: form.name.trim(),
         strength: form.highlight.trim() || null,
+        introduction: form.introduction.trim() || null,
         style: form.stallStyle.trim() || null,
         category_id: categoryId,
         shop_image_url: form.imageMain.trim() || null,
