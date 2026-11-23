@@ -1490,6 +1490,7 @@ export type Database = {
           shop_image_url: string | null
           shop_image_kind: string
           shop_name: string
+          introduction: string | null
           sns_hp: string | null
           sns_instagram: string | null
           sns_x: string | null
@@ -1519,6 +1520,7 @@ export type Database = {
           shop_image_url?: string | null
           shop_image_kind?: string
           shop_name: string
+          introduction?: string | null
           sns_hp?: string | null
           sns_instagram?: string | null
           sns_x?: string | null
@@ -1548,6 +1550,7 @@ export type Database = {
           shop_image_url?: string | null
           shop_image_kind?: string
           shop_name?: string
+          introduction?: string | null
           sns_hp?: string | null
           sns_instagram?: string | null
           sns_x?: string | null
