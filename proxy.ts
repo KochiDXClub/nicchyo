@@ -5,6 +5,7 @@ import {
   DEFAULT_LOCALE,
   LOCALE_COOKIE,
   LOCALE_HEADER,
+  LOCALE_PATH_HEADER,
   isLocale,
   isLocalizablePath,
   localizePath,
@@ -286,6 +287,7 @@ export async function proxy(request: NextRequest) {
   requestHeaders.set("x-nonce", nonce);
   requestHeaders.set("content-security-policy", csp);
   requestHeaders.set(LOCALE_HEADER, locale);
+  requestHeaders.set(LOCALE_PATH_HEADER, pathname);
 
   // 準備中のページは、URL はそのまま中身だけ /preparing に差し替える。
   // /en/… はロケールを外したパスへ書き換えて描画する（ブラウザのURLは /en/… のまま）

@@ -11,6 +11,8 @@ export const DEFAULT_LOCALE: Locale = "ja";
 export const LOCALE_COOKIE = "nicchyo-locale";
 /** proxy.ts が決めたロケールをサーバーコンポーネントへ渡すリクエストヘッダー */
 export const LOCALE_HEADER = "x-locale";
+/** proxy.ts が決めたロケールを外したパス（例: /en/map → /map）。ページごとの SEO 判定（lib/i18n/seo.ts）に使う */
+export const LOCALE_PATH_HEADER = "x-locale-path";
 
 /** 画面に出す言語名（その言語自身の表記） */
 export const LOCALE_LABELS: Record<Locale, string> = {
