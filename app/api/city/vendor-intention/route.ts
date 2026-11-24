@@ -1,16 +1,16 @@
 import { NextResponse } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { requireCityApi } from "@/lib/auth/requireCityApi";
-import { rowToIntentionSeason, type IntentionSeasonRow, INTENTION_SEASON_COLUMNS } from "@/lib/vendor/intention";
-import { findLatestIntentionSeason } from "@/lib/vendor/intention.server";
-import { summariseIntentions, type IntentionSummaryRow } from "@/lib/vendor/intentionSummary";
 import { fetchAllRows } from "@/lib/supabase/fetchAllRows";
+import { rowToIntentionSeason, type IntentionSeasonRow, INTENTION_SEASON_COLUMNS } from "@/lib/vendor/intention";
+import { findLatestIntentionSeason, listIntentionPlaces } from "@/lib/vendor/intention.server";
+import { summariseIntentions, type IntentionSummaryRow } from "@/lib/vendor/intentionSummary";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /**
- * GET: 出店意向調査の集計（件数だけ）。
+ * GET: 出店意向調査の集計（場所ごとの件数だけ）。
  * 高知市（と運営）に返すのは季節の情報と集計だけ。店舗ごとの回答・店名・ひとことは返さない。
  * ?season=2027 で季節を選べる（省略時は最新の季節）。
  */
@@ -45,7 +45,7 @@ export async function GET(request: Request) {
       (from, to) =>
         db
           .from("vendor_intention_responses")
-          .select("vendor_id, booth_count, frequency, preferred_months")
+          .select("vendor_id, place_id")
           .eq("season_year", season.seasonYear)
           .order("vendor_id", { ascending: true })
           .range(from, to) as unknown as PromiseLike<{ data: IntentionSummaryRow[] | null; error: { message: string } | null }>,
@@ -53,7 +53,8 @@ export async function GET(request: Request) {
     );
     if (result.error || result.truncated) throw new Error("vendor_intention_responses の読み込みに失敗");
 
-    const summary = summariseIntentions(result.data);
+    const places = await listIntentionPlaces(db);
+    const summary = summariseIntentions(result.data, places);
     return NextResponse.json({ season, summary });
   } catch {
     return NextResponse.json({ error: "読み込めませんでした" }, { status: 500 });

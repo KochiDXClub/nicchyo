@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
-  IntentionInputSchema,
+  IntentionPlaceInputSchema,
+  intentionPlaceLabel,
   isIntentionSeasonOpen,
-  normalizeIntentionInput,
+  rowToIntentionPlace,
   rowToIntentionResponse,
   type IntentionSeason,
 } from "./intention";
@@ -14,33 +15,30 @@ const season: IntentionSeason = {
   closesOn: "2027-01-31",
 };
 
-describe("IntentionInputSchema", () => {
-  it("区画数は 1〜3、頻度は決められた値だけ受け付ける", () => {
-    const ok = IntentionInputSchema.safeParse({ boothCount: 2, frequency: "monthly", preferredMonths: [] });
-    expect(ok.success).toBe(true);
-    expect(IntentionInputSchema.safeParse({ boothCount: 4, frequency: "monthly", preferredMonths: [] }).success).toBe(false);
-    expect(IntentionInputSchema.safeParse({ boothCount: 1, frequency: "daily", preferredMonths: [] }).success).toBe(false);
+describe("IntentionPlaceInputSchema", () => {
+  it("場所の ID（UUID）を1つ受け付ける", () => {
+    expect(IntentionPlaceInputSchema.safeParse({ placeId: "11111111-1111-4111-8111-111111111111" }).success).toBe(true);
   });
 
-  it("月は 1〜12、ひとことは 200 字まで", () => {
-    expect(IntentionInputSchema.safeParse({ boothCount: 1, frequency: "weekly", preferredMonths: [13] }).success).toBe(false);
-    expect(
-      IntentionInputSchema.safeParse({ boothCount: 1, frequency: "weekly", preferredMonths: [], note: "あ".repeat(201) }).success,
-    ).toBe(false);
+  it("ID が無い・UUID でないものは受け付けない", () => {
+    expect(IntentionPlaceInputSchema.safeParse({}).success).toBe(false);
+    expect(IntentionPlaceInputSchema.safeParse({ placeId: "12" }).success).toBe(false);
+  });
+
+  it("区画数・頻度など、ほかの項目は無視する（場所だけを保存する）", () => {
+    const parsed = IntentionPlaceInputSchema.parse({
+      placeId: "11111111-1111-4111-8111-111111111111",
+      boothCount: 3,
+      frequency: "weekly",
+    });
+    expect(parsed).toEqual({ placeId: "11111111-1111-4111-8111-111111111111" });
   });
 });
 
-describe("normalizeIntentionInput", () => {
-  it("月は重複を除いて昇順に、空のひとことは null にする", () => {
-    const parsed = IntentionInputSchema.parse({
-      boothCount: 1,
-      frequency: "weekly",
-      preferredMonths: [5, 3, 5, 12],
-      note: "  ",
-    });
-    const input = normalizeIntentionInput(parsed);
-    expect(input.preferredMonths).toEqual([3, 5, 12]);
-    expect(input.note).toBeNull();
+describe("intentionPlaceLabel", () => {
+  it("区画番号を表示し、名前があれば添える", () => {
+    expect(intentionPlaceLabel({ id: "a", storeNumber: 12, name: null })).toBe("12番");
+    expect(intentionPlaceLabel({ id: "b", storeNumber: 3, name: "追手筋側" })).toBe("3番（追手筋側）");
   });
 });
 
@@ -53,25 +51,14 @@ describe("isIntentionSeasonOpen", () => {
   });
 });
 
-describe("rowToIntentionResponse", () => {
-  it("月を昇順に並べ、欠けた月の配列は空にする", () => {
-    const response = rowToIntentionResponse({
-      season_year: 2027,
-      booth_count: 2,
-      frequency: "seasonal",
-      preferred_months: [4, 3],
-      note: null,
-      updated_at: "2026-12-02T00:00:00Z",
-    });
-    expect(response.preferredMonths).toEqual([3, 4]);
-    const empty = rowToIntentionResponse({
-      season_year: 2027,
-      booth_count: 1,
-      frequency: "weekly",
-      preferred_months: null,
-      note: null,
-      updated_at: "2026-12-02T00:00:00Z",
-    });
-    expect(empty.preferredMonths).toEqual([]);
+describe("row mapping", () => {
+  it("回答の行を、場所の ID つきの形に変換する", () => {
+    expect(
+      rowToIntentionResponse({ season_year: 2027, place_id: "p1", updated_at: "2026-12-02T00:00:00Z" }),
+    ).toEqual({ seasonYear: 2027, placeId: "p1", updatedAt: "2026-12-02T00:00:00Z" });
+  });
+
+  it("場所の行を、区画番号と名前の形に変換する", () => {
+    expect(rowToIntentionPlace({ id: "p1", store_number: 7, place_name: null })).toEqual({ id: "p1", storeNumber: 7, name: null });
   });
 });
