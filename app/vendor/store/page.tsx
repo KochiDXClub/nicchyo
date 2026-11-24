@@ -6,9 +6,11 @@ import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { Sparkles } from "lucide-react";
 import GrandmaAvatar from "@/app/(public)/consult/components/GrandmaAvatar";
 import { DEFAULT_CONSULT_CHARACTER } from "@/app/(public)/consult/data/consultCharacters";
-import { Button, CenteredLoading, PageContainer, Surface } from "@/components/ui";
+import Link from "next/link";
+import { Button, CenteredLoading, PageContainer, Surface, buttonClass } from "@/components/ui";
 import VendorBackdrop from "@/components/vendor/VendorBackdrop";
 import { useAuth } from "@/lib/auth/AuthContext";
+import { hasShopPermission } from "@/lib/vendor/shopPermissions";
 import AnswerRow from "./components/AnswerRow";
 import AskSheet from "./components/AskSheet";
 import CheerBubble from "./components/CheerBubble";
@@ -56,6 +58,13 @@ export default function VendorStorePage() {
               onEditPhoto={() => studio.open("shop-photo")}
               onEditName={() => studio.open("shop-name")}
             />
+
+            {/* 来季の希望（出店意向調査）への入口。店舗の編集権限がある人にだけ出す */}
+            {user && hasShopPermission(user.shopMembership, "store_edit") && (
+              <Link href="/vendor/intention" className={buttonClass({ variant: "secondary", className: "w-full" })}>
+                来季の出店の希望を答える
+              </Link>
+            )}
 
             {/* にちよさん：進み具合と、続きを聞いてもらう入口 */}
             <Surface elevation="lifted" padding="sm" className="flex flex-col gap-4">
