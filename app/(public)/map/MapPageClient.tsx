@@ -92,7 +92,6 @@ const MapIntroPanel = dynamic(() => import("./components/MapIntroPanel"), { ssr:
 type MapPageClientProps = {
   shops: Shop[];
   profiles?: ShopProfile[];
-  legacyIdentities?: { enabled: boolean; aliases: Record<string, number> };
   landmarks: Landmark[];
   people?: Landmark[];
   mapRoute: MapRoute;
@@ -113,7 +112,6 @@ function isNearbyMarker(payload: { source: string } | null): boolean {
 export default function MapPageClient({
   shops: sourceShops,
   profiles,
-  legacyIdentities,
   landmarks,
   people,
   mapRoute,
@@ -144,9 +142,8 @@ export default function MapPageClient({
   const isAiFocusMode = searchParams?.get("ai") === "1";
   const searchParamsKey = searchParams?.toString() ?? "";
   const requestedShopId = initialShopIdParam ? Number(initialShopIdParam) : undefined;
-  const initialShopId = requestedShopId && requestedShopId <= 999 && legacyIdentities?.enabled
-    ? legacyIdentities.aliases[String(requestedShopId)]
-    : requestedShopId;
+  // 001 形式の旧番号は店舗を指さないので、開く店としては使わない
+  const initialShopId = requestedShopId && requestedShopId >= 1000 ? requestedShopId : undefined;
   // /map?shop=001&navigate=1: 店舗ページの「ここへ案内」から来た。着いたらその店への道案内を始める
   const navigateParam = searchParams?.get("navigate") === "1";
   // おでかけサポート: ?guide=<プリセット|menu> または旧 ?facility=<カテゴリ> で開く

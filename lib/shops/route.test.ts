@@ -4,17 +4,15 @@ import { formatShopIdToCode, normalizeShopCodeToId } from "./route";
 
 describe("normalizeShopCodeToId", () => {
   it("3桁コードを数値IDに変換する", () => {
-    expect(normalizeShopCodeToId("001")).toBe(1);
-    expect(normalizeShopCodeToId("010")).toBe(10);
-    expect(normalizeShopCodeToId("300")).toBe(300);
-    // マップ編集の区画分けで区画を増やせるよう、上限は 999（3桁で表せる最大）
-    expect(normalizeShopCodeToId("301")).toBe(301);
-    expect(normalizeShopCodeToId("999")).toBe(999);
+    expect(normalizeShopCodeToId("1000")).toBe(1000);
+    expect(normalizeShopCodeToId("1001")).toBe(1001);
   });
 
   it("範囲外や不正形式は null を返す", () => {
+    // 001 形式の旧番号は URL として受け付けない（404）
+    expect(normalizeShopCodeToId("001")).toBeNull();
+    expect(normalizeShopCodeToId("999")).toBeNull();
     expect(normalizeShopCodeToId("000")).toBeNull();
-    expect(normalizeShopCodeToId("1000")).toBe(1000);
     expect(normalizeShopCodeToId("abc")).toBeNull();
     expect(normalizeShopCodeToId("1")).toBeNull();
     expect(normalizeShopCodeToId("shops001")).toBeNull();
