@@ -15,7 +15,7 @@ function fakeDb() {
   return {
     from: (table: string) => {
       const q: Record<string, unknown> = {};
-      for (const m of ["select", "eq", "maybeSingle"]) q[m] = () => q;
+      for (const m of ["select", "eq", "maybeSingle", "order", "range"]) q[m] = () => q;
       const result =
         table === "vendor_intention_seasons"
           ? { data: { season_year: 2027, title: "2027年の出店意向", opens_on: "2026-12-01", closes_on: "2027-01-31" }, error: null }
