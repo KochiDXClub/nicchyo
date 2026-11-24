@@ -50,6 +50,21 @@ jobs:
           NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
 
+      - name: Inspect public page accessibility
+        run: CHROMIUM_PATH="$(command -v google-chrome)" npm run code-health:a11y
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY }}
+
+      - name: Save UI diagnostic reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: accessibility-reports
+          path: .code-health/accessibility/**/result.json
+          include-hidden-files: true
+          if-no-files-found: ignore
+
       # 共通化・デザインルールのビフォーアフターをジョブのサマリーに出し、悪化があれば失敗にする（docs/CODE_HEALTH.md）。
       # ビルドの結果を先に確かめられるよう最後に置く。
       # 悪化を残す理由がある PR は `code-health-ok` ラベルを付けると、表は出したまま失敗にしない。

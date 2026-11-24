@@ -33,6 +33,11 @@ export default async function CodeHealthPage() {
         description="共通化率・コピペ率・デザインルール違反の状態を測る"
       />
       <div className="mx-auto max-w-7xl px-4 py-8 pb-20">
+        <aside className="mb-4 rounded-card bg-white p-4 ring-1 ring-line">
+          <h2 className="font-semibold">公開画面のアクセシビリティ</h2>
+          <p className="text-sm">FAQとプライバシーページをPC・モバイルで検査します。各CI実行のサマリーに件数、accessibility-reports に該当要素を記録します。</p>
+          <a className="text-sm underline" href="https://github.com/KochiDXClub/nicchyo/actions/workflows/ci.yml">コミット別の検査結果を見る</a>
+        </aside>
         {error ? (
           <EmptyState
             icon={FileWarning}
