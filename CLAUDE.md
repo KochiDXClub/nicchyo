@@ -55,7 +55,7 @@ PRを出す前は必ず `npm run build` でビルドが通ることを確認す�
 - **Frontend**: Next.js 16 (App Router), React 18, TypeScript 5.9
 - **Styling**: Tailwind CSS（カスタムパレット: `nicchyo-base/primary/accent/ink/soft-green`）
 - **DB**: Supabase
-- **Map**: Leaflet + react-leaflet（`reactStrictMode: false` ← Leafletの二重初期化防止）
+- **Map**: MapLibre GL JS（`maplibre-gl`）
 - **AI**: OpenAI API（RAG構成、`app/api/grandma/`）
 - **Auth**: Supabase Auth（`lib/auth/AuthContext.tsx`）
 
@@ -106,10 +106,10 @@ app/
 
 ```
 Layer 4: UI（ボタン・バナー・ズームコントロール）
-Layer 3: 店舗層（OptimizedShopLayerWithClustering + markerHtmlGenerator）
-Layer 2: 道層（RoadOverlay, zIndex: 50）
-Layer 1: 背景層（BackgroundOverlay, 現在無効）
-Layer 0: Leafletベースマップ
+Layer 3: 店舗層（maplibre/shopFeatures.ts のシンボルレイヤー + markerHtmlGenerator）
+Layer 2: 道層（nicchyo-road-* レイヤー）
+Layer 1: 背景層（色かぶせ nicchyo-tint）
+Layer 0: MapLibreベースマップ
 ```
 
 - **座標の基準**: `config/roadConfig.ts` がすべての基準（高知城前〜追手筋東端）
