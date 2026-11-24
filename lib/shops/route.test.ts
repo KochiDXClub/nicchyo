@@ -22,15 +22,16 @@ describe("normalizeShopCodeToId", () => {
 });
 
 describe("formatShopIdToCode", () => {
-  it("数値IDを3桁コードへ変換する", () => {
-    expect(formatShopIdToCode(1)).toBe("001");
-    expect(formatShopIdToCode(300)).toBe("300");
-    expect(formatShopIdToCode(999)).toBe("999");
+  it("店舗 ID（1000以上）だけを文字列にする", () => {
+    expect(formatShopIdToCode(1000)).toBe("1000");
+    expect(formatShopIdToCode(1001)).toBe("1001");
   });
 
-  it("範囲外や整数以外は null を返す", () => {
+  it("旧番号（場所の番号）や範囲外、整数以外は null を返す", () => {
+    expect(formatShopIdToCode(1)).toBeNull();
+    expect(formatShopIdToCode(300)).toBeNull();
+    expect(formatShopIdToCode(999)).toBeNull();
     expect(formatShopIdToCode(0)).toBeNull();
-    expect(formatShopIdToCode(1000)).toBe("1000");
     expect(formatShopIdToCode(1.2)).toBeNull();
   });
 });

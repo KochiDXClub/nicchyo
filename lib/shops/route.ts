@@ -9,7 +9,8 @@ export function normalizeShopCodeToId(shopCode: string): number | null {
   return parseShopIdentity(shopCode)?.id ?? null;
 }
 
+/** 共有・QR・案内に使う店舗 ID（1000以上の店舗固有番号）だけを文字列にする。旧番号（場所の番号）は作らない。 */
 export function formatShopIdToCode(shopId: number): string | null {
-  if (!Number.isSafeInteger(shopId) || shopId < MIN_SHOP_ID || shopId > MAX_PUBLIC_VENDOR_ID) return null;
-  return shopId <= MAX_SHOP_ID ? shopId.toString().padStart(3, "0") : String(shopId);
+  if (!Number.isSafeInteger(shopId) || shopId <= MAX_SHOP_ID || shopId > MAX_PUBLIC_VENDOR_ID) return null;
+  return String(shopId);
 }

@@ -382,11 +382,11 @@ const ShopDetailBanner = memo(function ShopDetailBanner({
   // ─── 共有 ──────────────────────────────────────────────────────────────────
   // 店舗ページ（/shops/001）の URL を送る。OGP があるので LINE では店名と写真のカードになる。
   // 共有シートが使える端末はそれを出し、無い端末は LINE の共有画面へ（URL はクリップボードにも入れる）
-  const shareCode = formatShopIdToCode(shop.id) ?? String(shop.id);
+  const shareCode = formatShopIdToCode(shop.id);
   const handleShare = useCallback(async () => {
-    if (typeof window === "undefined") return;
+    if (typeof window === "undefined" || !shareCode) return;
     const url = `${window.location.origin}/shops/${shareCode}`;
-    const title = shop.id >= 1000 ? `${shop.name}｜高知・日曜市` : `${shop.name}｜高知・日曜市 ${shareCode}番`;
+    const title = `${shop.name}｜高知・日曜市`;
     if (typeof navigator.share === "function") {
       try {
         await navigator.share({ title, text: title, url });
@@ -405,7 +405,7 @@ const ShopDetailBanner = memo(function ShopDetailBanner({
       "_blank",
       "noopener,noreferrer"
     );
-  }, [shareCode, shop.id, shop.name]);
+  }, [shareCode, shop.name]);
 
   // ─── Theme ──────────────────────────────────────────────────────────────────
   const theme = resolveBannerTheme(shop.themeColor);
@@ -599,7 +599,7 @@ const ShopDetailBanner = memo(function ShopDetailBanner({
               ここへ案内
             </motion.button>
           )}
-          <motion.button
+{shareCode && (          <motion.button
             type="button"
             onClick={handleShare}
             whileTap={{ scale: 0.96 }}
@@ -608,7 +608,7 @@ const ShopDetailBanner = memo(function ShopDetailBanner({
           >
             <Share2 className="h-4 w-4" aria-hidden />
             共有
-          </motion.button>
+          </motion.button>)}
         </div>
 
         <div className="space-y-6 px-5 pb-8 pt-5">
