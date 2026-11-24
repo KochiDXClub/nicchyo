@@ -17,13 +17,15 @@ vi.mock("next/navigation", () => ({
 // ロールとメニューの開閉は各テストで差し替える
 let isModerator = false;
 let isVendor = false;
+let isCityOfficial = false;
+let isAdmin = false;
 let menuOpen = false;
 
 vi.mock("@/lib/auth/AuthContext", () => ({
   useAuth: () => ({
     user: isVendor ? { id: "v1", name: "山田農園" } : null,
     isLoggedIn: isVendor,
-    permissions: { isAdmin: false, isModerator, isVendor },
+    permissions: { isAdmin, isModerator, isVendor, isCityOfficial },
     logout: vi.fn(),
   }),
 }));
@@ -143,5 +145,39 @@ describe("NavigationBar のメニューの出店者ページ", () => {
   it("来訪者には出店者ページを出さない", () => {
     render(<NavigationBar activeHref="/map" />);
     expect(screen.queryByText("出店者ページ")).not.toBeInTheDocument();
+  });
+});
+
+describe("NavigationBar の高知市の入口", () => {
+  afterEach(() => {
+    hiddenPaths = [];
+    isCityOfficial = false;
+    isAdmin = false;
+    isModerator = false;
+  });
+
+  it("高知市（city_official）には、地図のナビに /city への入口を出す", () => {
+    isCityOfficial = true;
+    render(<NavigationBar activeHref="/map" />);
+    expect(navLink("高知市").getAttribute("href")).toBe("/city");
+  });
+
+  it("admin にも /city への入口を出す", () => {
+    isAdmin = true;
+    render(<NavigationBar activeHref="/map" />);
+    expect(navLink("高知市").getAttribute("href")).toBe("/city");
+  });
+
+  it("モデレーターや一般の来訪者には出さない（/city に入れないロール）", () => {
+    isModerator = true;
+    render(<NavigationBar activeHref="/map" />);
+    expect(screen.queryByText("高知市")).not.toBeInTheDocument();
+  });
+
+  it("city_official でも /city がページ公開設定で非公開なら出さない", () => {
+    isCityOfficial = true;
+    hiddenPaths = ["/city"];
+    render(<NavigationBar activeHref="/map" />);
+    expect(screen.queryByText("高知市")).not.toBeInTheDocument();
   });
 });
