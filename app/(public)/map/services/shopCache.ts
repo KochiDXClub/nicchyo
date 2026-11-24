@@ -228,7 +228,8 @@ export async function fetchPublicShopData(locale: Locale = DEFAULT_LOCALE, mapSe
     };
   }
   const categories = await fetchCategories().catch(() => []);
-  const positioned = (scheduleEnabled ? buildVendorShops(baseRows, activeContents, { stableIds: true }) : buildVendorShops(baseRows, activeContents)).map(shop => withCategory(shop, categories));
+  // 店の ID は常に店舗 ID（1000以上）を使う。場所の番号（旧番号）を店の ID にしない
+const positioned = buildVendorShops(baseRows, activeContents, { stableIds: true }).map(shop => withCategory(shop, categories));
   if (!scheduleEnabled) {
     const shops = await applyShopTranslations(positioned, locale);
     return { shops, profiles: shops };

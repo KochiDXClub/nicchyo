@@ -144,7 +144,7 @@ describe("fetchPublicShops", () => {
     mocks.fetchVendorShopBaseRows.mockResolvedValue({ rows: baseRows, failedTables: [] });
 
     await expect(fetchPublicShops()).resolves.toEqual([{ id: 1 }]);
-    expect(mocks.buildVendorShops).toHaveBeenCalledWith(baseRows, []);
+    expect(mocks.buildVendorShops).toHaveBeenCalledWith(baseRows, [], { stableIds: true });
   });
 
   it("基本データを取った時刻の少し前から変わった行を取り、基本データに重ねて組み立てる", async () => {
@@ -162,7 +162,7 @@ describe("fetchPublicShops", () => {
     // 余裕は1分
     expect(mocks.fetchShopDelta).toHaveBeenCalledWith(expect.anything(), "2026-10-29T04:59:00.000Z");
     expect(mocks.applyShopDelta).toHaveBeenCalledWith(baseRows, delta);
-    expect(mocks.buildVendorShops).toHaveBeenCalledWith(merged, []);
+    expect(mocks.buildVendorShops).toHaveBeenCalledWith(merged, [], { stableIds: true });
   });
 
   it("見える店舗の数が合わなければ、店舗の id 一覧と突き合わせて、見えなくなった店舗を外す", async () => {
@@ -176,7 +176,7 @@ describe("fetchPublicShops", () => {
     await fetchPublicShops();
 
     expect(mocks.pruneInvisibleVendors).toHaveBeenCalledWith(baseRows, new Set(["v1"]));
-    expect(mocks.buildVendorShops).toHaveBeenCalledWith(pruned, []);
+    expect(mocks.buildVendorShops).toHaveBeenCalledWith(pruned, [], { stableIds: true });
   });
 
   it("店舗の数が合っていれば、店舗の id 一覧は取らない", async () => {
@@ -193,7 +193,7 @@ describe("fetchPublicShops", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
 
     await expect(fetchPublicShops()).resolves.toEqual([{ id: 1 }]);
-    expect(mocks.buildVendorShops).toHaveBeenCalledWith(baseRows, []);
+    expect(mocks.buildVendorShops).toHaveBeenCalledWith(baseRows, [], { stableIds: true });
     warn.mockRestore();
   });
 
@@ -206,7 +206,7 @@ describe("fetchPublicShops", () => {
 
     await expect(fetchPublicShops()).resolves.toEqual([{ id: 1 }]);
     expect(mocks.fetchVendorShopBaseRows).toHaveBeenCalledTimes(2);
-    expect(mocks.buildVendorShops).toHaveBeenCalledWith(partialRows, []);
+    expect(mocks.buildVendorShops).toHaveBeenCalledWith(partialRows, [], { stableIds: true });
     // キャッシュ外で取り立てたデータには、差分を重ねない
     expect(mocks.fetchShopDelta).not.toHaveBeenCalled();
     warn.mockRestore();
